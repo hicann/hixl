@@ -1,0 +1,25 @@
+# binary files
+*.so
+
+cmake-build-debugindocker/
+.DS_Store
+# distribution and packaging
+build/
+build_out/
+build_test/
+cov/
+
+# vim cache
+*.swp
+
+# python cache
+*.pyc
+__pycache__
+
+# IDE
+.idea
+.vs
+.vscode
+cmake-build-debug
+cmake-build-release
+cmake-build-gcov

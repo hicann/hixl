@@ -1,0 +1,8 @@
+pyyaml>=6.0.1
+numpy>=1.26.4,<2.0.0
+decorator
+sympy
+scipy
+attrs
+protobuf
+psutil
