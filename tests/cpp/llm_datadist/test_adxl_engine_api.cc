@@ -16,6 +16,7 @@
 #include "adxl/adxl_engine.h"
 #include "slog/toolchain/slog.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
+#include "adxl/channel_manager.h"
 
 using namespace std;
 using namespace llm;
@@ -301,4 +302,39 @@ TEST_F(AdxlEngineSTest, TestAdxlDisableBufferPoolD2D) {
   engine1.Finalize();
   engine2.Finalize();
 }
+
+TEST_F(AdxlEngineSTest, TestHeartbeat) {
+  ChannelManager::SetHeartbeatWaitTime(10);  // 10ms
+  Channel::SetHeartbeatTimeout(50);  // 50ms
+  AdxlEngine engine1;
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  std::map<AscendString, AscendString> options1;
+  EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
+
+  llm::AutoCommResRuntimeMock::SetDevice(1);
+  AdxlEngine engine2;
+  std::map<AscendString, AscendString> options2;
+  EXPECT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
+
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), ALREADY_CONNECTED);
+  std::this_thread::sleep_for(std::chrono::milliseconds(60));  // wait heartbeat process
+  int32_t src = 1;
+  int32_t dst = 2;
+  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+  EXPECT_EQ(engine1.TransferSync("127.0.0.1:26001", READ, {desc}), SUCCESS);
+  EXPECT_EQ(src, 2);
+  // not disconnet, force finalize
+  engine1.Finalize();
+
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  AdxlEngine engine3;
+  EXPECT_EQ(engine3.Initialize("127.0.0.1", options1), SUCCESS);  // use same key with engine1
+  EXPECT_EQ(engine3.Connect("127.0.0.1:26001"), SUCCESS);
+  // not disconnet, force finalize
+  engine3.Finalize();
+  std::this_thread::sleep_for(std::chrono::milliseconds(60));  // wait server:engine2 clear client:engine3
+  engine2.Finalize();
+}
+
 }  // namespace adxl

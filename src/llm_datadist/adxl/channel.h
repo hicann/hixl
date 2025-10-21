@@ -59,10 +59,7 @@ enum class RecvState {
 class Channel {
  public:
   explicit Channel(ChannelInfo info)
-      : channel_info_(std::move(info)),
-        stream_(nullptr),
-        with_heartbeat_(false),
-        fd_(-1) {};
+      : channel_info_(std::move(info)) {};
   Status Initialize();
   Status Finalize();
   std::string GetChannelId() const;
@@ -75,20 +72,27 @@ class Channel {
   Status SetSocketNonBlocking(int32_t fd);
   void StopHeartbeat();
   Status SendControlMsg(const std::function<Status(int32_t fd)> &func);
+  Status CommWithFd(const std::function<Status(int32_t)> &func);
+  Status SendHeartBeat(const std::function<Status(int32_t)> &func);
   static void SetHeartbeatTimeout(int64_t timeout_in_millis);
   int32_t GetFd() const { return fd_; }
   void UpdateHeartbeatTime();
   bool IsHeartbeatTimeout() const;
 
+  rtStream_t &GetStream();
+  std::mutex &GetTransferMutex();
+
  private:
   ChannelInfo channel_info_;
-  rtStream_t stream_;
+  rtStream_t stream_ = nullptr;
   std::mutex mutex_;
-  bool with_heartbeat_;
+  std::atomic<bool> with_heartbeat_{false};
   std::chrono::steady_clock::time_point last_heartbeat_time_;
   static int64_t timeout_in_millis_;
 
-  int32_t fd_;
+  std::mutex transfer_mutex_;
+
+  int32_t fd_ = -1;
   RecvState recv_state_ = RecvState::WAITING_FOR_HEADER;
   std::vector<char> recv_buffer_;
   size_t expected_body_size_ = 0;

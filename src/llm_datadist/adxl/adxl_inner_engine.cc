@@ -228,6 +228,7 @@ Status AdxlInnerEngine::TransferSync(const AscendString &remote_engine,
   auto channel = channel_manager_.GetChannel(ChannelType::kClient, remote_engine.GetString());
   ADXL_CHK_BOOL_RET_STATUS(channel != nullptr, NOT_CONNECTED,
                            "Failed to get channel, remote_engine:%s", remote_engine.GetString());
+  std::lock_guard<std::mutex> transfer_lock(channel->GetTransferMutex());
   if (buffer_transfer_service_ != nullptr) {
     const auto start = std::chrono::steady_clock::now();
     bool need_buffer = false;

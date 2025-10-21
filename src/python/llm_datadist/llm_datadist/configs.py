@@ -125,7 +125,7 @@ class LlmConfig(object):
 
     def generate_options(self):
         """
-        生成LLM Engine配置项
+        生成LLM DataDist配置项
         Returns:
             配置项dict
         """

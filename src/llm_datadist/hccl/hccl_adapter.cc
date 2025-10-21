@@ -201,54 +201,54 @@ HcclResult HcclAdapter::HcclBatchGet(HcclComm comm,
 }
 
 HcclResult HcclAdapter::HcclRemapRegisteredMemory(HcclComm *comm,
-                                                  HcclMem *memInfoArray,
-                                                  uint64_t commSize,
-                                                  uint64_t arraySize) const {
-  auto ret = hccl_remap_registered_memory_func_(comm, memInfoArray, commSize, arraySize);
+                                                  HcclMem *mem_info_array,
+                                                  uint64_t comm_size,
+                                                  uint64_t array_size) const {
+  auto ret = hccl_remap_registered_memory_func_(comm, mem_info_array, comm_size, array_size);
   return ret;
 }
 
-HcclResult HcclAdapter::HcclRegisterGlobalMem(HcclMem *mem, void **memHandle) {
+HcclResult HcclAdapter::HcclRegisterGlobalMem(HcclMem *mem, void **mem_handle) {
   auto ret = HCCL_E_NOT_SUPPORT;
   if (hccl_register_global_mem_func_ != nullptr) {
-    ret = hccl_register_global_mem_func_(mem, memHandle);
+    ret = hccl_register_global_mem_func_(mem, mem_handle);
     StatisticManager::GetInstance().AddRegisterGlobalMemTimes();
   }
   return ret;
 }
 
-HcclResult HcclAdapter::HcclDeregisterGlobalMem(void *memHandle) {
+HcclResult HcclAdapter::HcclDeregisterGlobalMem(void *mem_handle) {
   auto ret = HCCL_E_NOT_SUPPORT;
   if (hccl_deregister_global_mem_func_ != nullptr) {
-    ret = hccl_deregister_global_mem_func_(memHandle);
+    ret = hccl_deregister_global_mem_func_(mem_handle);
     StatisticManager::GetInstance().AddDeregisterGlobalMemTimes();
   }
   return ret;
 }
 
-HcclResult HcclAdapter::HcclCommBindMem(HcclComm comm, void *memHandle) {
+HcclResult HcclAdapter::HcclCommBindMem(HcclComm comm, void *mem_handle) {
   auto ret = HCCL_E_NOT_SUPPORT;
   if (hccl_comm_bind_mem_func_ != nullptr) {
-    ret = hccl_comm_bind_mem_func_(comm, memHandle);
+    ret = hccl_comm_bind_mem_func_(comm, mem_handle);
     StatisticManager::GetInstance().AddCommBindMemTimes();
   }
   return ret;
 }
 
-HcclResult HcclAdapter::HcclCommUnbindMem(HcclComm comm, void *memHandle) {
+HcclResult HcclAdapter::HcclCommUnbindMem(HcclComm comm, void *mem_handle) {
   auto ret = HCCL_E_NOT_SUPPORT;
   if (hccl_comm_unbind_mem_func_ != nullptr) {
-    ret = hccl_comm_unbind_mem_func_(comm, memHandle);
+    ret = hccl_comm_unbind_mem_func_(comm, mem_handle);
     StatisticManager::GetInstance().AddCommUnbindMemTimes();
   }
   return ret;
 }
 
-HcclResult HcclAdapter::HcclCommPrepare(HcclComm comm, HcclPrepareConfig *prepareConfig, int32_t timeout) {
+HcclResult HcclAdapter::HcclCommPrepare(HcclComm comm, HcclPrepareConfig *prepare_config, int32_t timeout) {
   auto ret = HCCL_E_NOT_SUPPORT;
   if (hccl_comm_prepare_func_ != nullptr) {
     const auto start = std::chrono::steady_clock::now();
-    ret = hccl_comm_prepare_func_(comm, prepareConfig, timeout);
+    ret = hccl_comm_prepare_func_(comm, prepare_config, timeout);
     const auto end = std::chrono::steady_clock::now();
     StatisticManager::GetInstance().AddCommPrepareCost(
         std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());

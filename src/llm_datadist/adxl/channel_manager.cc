@@ -87,17 +87,13 @@ Status ChannelManager::HandleEpoolEvents() {
 }
 
 Status ChannelManager::HandleSocketEvent(int32_t fd) {
-  ChannelPtr channel;
-  {
-    std::lock_guard<std::mutex> lock(fd_mutex_);
-    auto it = fd_to_channel_map_.find(fd);
-    if (it == fd_to_channel_map_.end()) {
-      LLMLOGW("Channel not found for fd: %d", fd);
-      return SUCCESS;
-    }
-    channel = it->second;
+  std::lock_guard<std::mutex> lock(fd_mutex_);
+  auto it = fd_to_channel_map_.find(fd);
+  auto ret = SUCCESS;
+  if (it != fd_to_channel_map_.end()) {
+    ret = HandleReadEvent(it->second);
   }
-  return HandleReadEvent(channel);
+  return ret;
 }
 
 Status ChannelManager::HandleReadEvent(const ChannelPtr &channel) {
@@ -109,14 +105,14 @@ Status ChannelManager::HandleReadEvent(const ChannelPtr &channel) {
                    channel->recv_buffer_.size() - channel->bytes_received_, 0);
   if (n == 0) {
     LLMLOGI("Connection closed by peer, fd: %d, channel:%s.", fd, channel->GetChannelId().c_str());
-    return RemoveFd(fd);
+    return SUCCESS;
   }
   if (n < 0) {
     if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
       return SUCCESS;
     }
     LLMLOGE(FAILED, "recv error on channel:%s, errno:%s", channel->GetChannelId().c_str(), strerror(errno));
-    return RemoveFd(fd);
+    return FAILED;
   }
   channel->bytes_received_ += n;
   return ProcessReceivedData(channel);
@@ -189,9 +185,9 @@ Status ChannelManager::HandleControlMessage(const ChannelPtr &channel) {
     ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), buffer_resp), "Failed to deserialize msg");
     LLMLOGI("Recv buffer resp for channel:%s", channel->GetChannelId().c_str());
     if (buffer_transfer_service_ != nullptr) {
-      buffer_transfer_service_->PushBufferResp(buffer_resp);
+      buffer_transfer_service_->PushBufferResp(channel, buffer_resp);
     }
-    LLMLOGI("Recv ReverseTransferReq for channel:%s", channel->GetChannelId().c_str());
+    LLMLOGI("Recv buffer resp for channel:%s", channel->GetChannelId().c_str());
   } else {
     LLMLOGW("Unsupported msg type: %d", *msg_type);
   }
@@ -208,9 +204,11 @@ Status ChannelManager::Finalize() {
     msg_receiver_.join();
   }
 
-  std::lock_guard<std::mutex> lock(mutex_);
-  for (const auto &it : channels_) {
-    (void) it.second->Finalize();
+  for (const auto &channel : GetAllServerChannel()) {
+    (void)DestroyChannel(ChannelType::kServer, channel->GetChannelId());
+  }
+  for (const auto &channel : GetAllClientChannel()) {
+    (void)DestroyChannel(ChannelType::kClient, channel->GetChannelId());
   }
   channels_.clear();
   return SUCCESS;
@@ -248,8 +246,9 @@ void ChannelManager::SendHeartbeats() {
     HeartbeatMsg msg{};
     msg.msg = 'H';
     LLMLOGI("Start to send heartbeat msg to:%s.", channel->GetChannelId().c_str());
-    (void)channel->SendControlMsg(
-        [&msg](int32_t fd) { return ControlMsgHandler::SendMsg(fd, ControlMsgType::kHeartBeat, msg, kSendMsgTimeout);});
+    (void)channel->SendHeartBeat([&msg](int32_t fd) {
+      return ControlMsgHandler::SendMsg(fd, ControlMsgType::kHeartBeat, msg, kSendMsgTimeout);
+    });
   }
 }
 
@@ -288,7 +287,7 @@ void ChannelManager::CheckHeartbeatTimeouts() {
     }
   }
   for (const auto &timeout_channel : timeout_channels) {
-    LLMLOGI("Destroy timeout channel:%s.", timeout_channel->GetChannelId().c_str());
+    LLMEVENT("Destroy timeout channel:%s.", timeout_channel->GetChannelId().c_str());
     (void) DestroyChannel(ChannelType::kServer, timeout_channel->GetChannelId());
   }
 }
@@ -304,20 +303,16 @@ ChannelPtr ChannelManager::GetChannel(ChannelType channel_type, const std::strin
 
 Status ChannelManager::DestroyChannel(ChannelType channel_type, const std::string &channel_id) {
   auto ret = SUCCESS;
-  int32_t fd = -1;
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    const auto &it = channels_.find(std::make_pair(channel_type, channel_id));
-    if (it != channels_.cend()) {
-      auto channel = it->second;
-      fd = channel->GetFd();
-      (void)RemoveFd(fd);
-      auto channel_ret = channel->Finalize();
-      ret = channel_ret != SUCCESS ? channel_ret : ret;
-      channels_.erase(it);
-      LLMLOGI("Destroy channel end, channel_type = %d, channel_id = %s",
-             static_cast<int32_t>(channel_type), channel_id.c_str());
-    }
+  std::lock_guard<std::mutex> lock(mutex_);
+  const auto &it = channels_.find(std::make_pair(channel_type, channel_id));
+  if (it != channels_.cend()) {
+    auto channel = it->second;
+    (void)RemoveFd(channel->GetFd());
+    auto channel_ret = channel->Finalize();
+    ret = channel_ret != SUCCESS ? channel_ret : ret;
+    channels_.erase(it);
+    LLMLOGI("Destroy channel end, channel_type = %d, channel_id = %s",
+           static_cast<int32_t>(channel_type), channel_id.c_str());
   }
   return ret;
 }

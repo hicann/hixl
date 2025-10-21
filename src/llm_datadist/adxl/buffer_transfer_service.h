@@ -33,7 +33,7 @@ class BufferTransferService {
 
   void PushBufferReq(const ChannelPtr &channel, BufferReq &buffer_req);
 
-  void PushBufferResp(const BufferResp &buffer_resp);
+  void PushBufferResp(const ChannelPtr &channel, const BufferResp &buffer_resp);
 
  private:
   Status TryGetBuffer(void *&buffer_addr, uint64_t timeout, size_t pool_index = 0U);
@@ -46,7 +46,7 @@ class BufferTransferService {
   Status HandleBufferD2D(const ChannelPtr &channel, BufferReq &buffer_req);
 
   void ProcessBufferResp();
-  Status HandleBufferResp(BufferResp &buffer_resp);
+  Status HandleBufferResp(const ChannelPtr &channel, BufferResp &buffer_resp);
 
   void ProcessBufferReqSecondStep();
   Status HandleBufferCopy(const ChannelPtr &channel, BufferReq &buffer_req);
@@ -70,12 +70,13 @@ class BufferTransferService {
 
   void PushCtrlMsg(const ChannelPtr &channel, BufferReq &buffer_req);
 
-  Status ProcessCopy(const std::vector<uintptr_t> &src_addrs, const std::vector<uintptr_t> &dst_addrs,
+  Status ProcessCopy(const ChannelPtr &channel,
+                     const std::vector<uintptr_t> &src_addrs, const std::vector<uintptr_t> &dst_addrs,
                      std::vector<size_t> &sizes, rtMemcpyKind_t kind, uint64_t timeout);
 
-  Status ProcessCopyWithAsync(const std::vector<uintptr_t> &src_addrs,
-                       const std::vector<uintptr_t> &dst_addrs, std::vector<size_t> &sizes,
-                       rtMemcpyKind_t kind, uint64_t timeout);
+  Status ProcessCopyWithAsync(const ChannelPtr &channel, const std::vector<uintptr_t> &src_addrs,
+                              const std::vector<uintptr_t> &dst_addrs, std::vector<size_t> &sizes, rtMemcpyKind_t kind,
+                              uint64_t timeout);
 
   Status D2DTransfer(const ChannelPtr &channel, TransferOp transfer_op, std::vector<TransferOpDesc> &op_descs,
                      uint64_t timeout, const std::chrono::steady_clock::time_point &start);
@@ -85,8 +86,6 @@ class BufferTransferService {
   std::vector<llm::LlmMemPool*> npu_mem_pools_;
   uint64_t buffer_size_;
 
-  rtStream_t stream_{nullptr};
-  rtStream_t copy_stream_{nullptr};
   rtContext_t rt_context_{nullptr};
   int32_t device_id_{-1};
   bool support_batch_copy_batch_ = true;
@@ -102,7 +101,7 @@ class BufferTransferService {
   std::condition_variable buffer_req_cv_;
 
   std::mutex buffer_resp_mutex_;
-  std::queue<BufferResp> buffer_resp_queue_;
+  std::queue<std::pair<ChannelPtr, BufferResp>> buffer_resp_queue_;
   std::condition_variable buffer_resp_cv_;
 
   std::mutex buffer_second_step_mutex_;

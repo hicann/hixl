@@ -25,18 +25,18 @@ using HcclCommConfigInitFunc = void (*)(HcclCommConfig *config);
 using HcclCommInitClusterInfoMemConfigFunc = HcclResult (*)(const char *cluster, uint32_t rank, HcclCommConfig *config,
                                                       HcclComm *comm);
 using HcclCommDestroyFunc = HcclResult (*)(HcclComm comm);
-using HcclBatchPutFunc = HcclResult (*)(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t descNum,
+using HcclBatchPutFunc = HcclResult (*)(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t desc_num,
                                         rtStream_t stream);
-using HcclBatchGetFunc = HcclResult (*)(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t descNum,
+using HcclBatchGetFunc = HcclResult (*)(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t desc_num,
                                         rtStream_t stream);
-using HcclRemapRegisteredMemoryFunc = HcclResult (*)(HcclComm *comm, HcclMem *memInfoArray, uint64_t commSize,
+using HcclRemapRegisteredMemoryFunc = HcclResult (*)(HcclComm *comm, HcclMem *mem_info_array, uint64_t comm_size,
                                                      uint64_t arraySize);
 
-using HcclRegisterGlobalMemFunc = HcclResult (*)(HcclMem *mem, void **memHandle);
-using HcclDeregisterGlobalMemFunc = HcclResult (*)(void *memHandle);
-using HcclCommBindMemFunc = HcclResult (*)(HcclComm comm, void *memHandle);
-using HcclCommUnbindMemFunc = HcclResult (*)(HcclComm comm, void *memHandle);
-using HcclCommPrepareFunc = HcclResult (*)(HcclComm comm, HcclPrepareConfig *prepareConfig, int32_t timeout);
+using HcclRegisterGlobalMemFunc = HcclResult (*)(HcclMem *mem, void **mem_handle);
+using HcclDeregisterGlobalMemFunc = HcclResult (*)(void *mem_handle);
+using HcclCommBindMemFunc = HcclResult (*)(HcclComm comm, void *mem_handle);
+using HcclCommUnbindMemFunc = HcclResult (*)(HcclComm comm, void *mem_handle);
+using HcclCommPrepareFunc = HcclResult (*)(HcclComm comm, HcclPrepareConfig *prepare_config, int32_t timeout);
 
 class HcclAdapter {
  public:
@@ -54,13 +54,13 @@ class HcclAdapter {
                           rtStream_t stream);
   HcclResult HcclBatchGet(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t desc_num,
                           rtStream_t stream) const;
-  HcclResult HcclRemapRegisteredMemory(HcclComm *comm, HcclMem *memInfoArray, uint64_t commSize,
+  HcclResult HcclRemapRegisteredMemory(HcclComm *comm, HcclMem *mem_info_array, uint64_t comm_size,
                                        uint64_t arraySize) const;
-  HcclResult HcclRegisterGlobalMem(HcclMem *mem, void **memHandle);
-  HcclResult HcclDeregisterGlobalMem(void *memHandle);
-  HcclResult HcclCommBindMem(HcclComm comm, void *memHandle);
-  HcclResult HcclCommUnbindMem(HcclComm comm, void *memHandle);
-  HcclResult HcclCommPrepare(HcclComm comm, HcclPrepareConfig *prepareConfig, int32_t timeout);
+  HcclResult HcclRegisterGlobalMem(HcclMem *mem, void **mem_handle);
+  HcclResult HcclDeregisterGlobalMem(void *mem_handle);
+  HcclResult HcclCommBindMem(HcclComm comm, void *mem_handle);
+  HcclResult HcclCommUnbindMem(HcclComm comm, void *mem_handle);
+  HcclResult HcclCommPrepare(HcclComm comm, HcclPrepareConfig *prepare_config, int32_t timeout);
   HcclAdapter(const HcclAdapter &) = delete;
   HcclAdapter(const HcclAdapter &&) = delete;
   HcclAdapter &operator=(const HcclAdapter &) = delete;

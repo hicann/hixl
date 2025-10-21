@@ -97,7 +97,7 @@ Status Channel::Finalize() {
     close(fd_);
     fd_ = -1;
   }
-  with_heartbeat_ = false;
+  with_heartbeat_.store(false, std::memory_order_release);
   return ret;
 }
 
@@ -144,23 +144,34 @@ Status Channel::SetSocketNonBlocking(int32_t fd) {
   ADXL_CHK_BOOL_RET_STATUS(fcntl(fd, F_SETFL, flags | O_NONBLOCK) != -1,
                            FAILED, "Failed to set fd to non-blocking: %s", strerror(errno));
 
-  with_heartbeat_ = true;
   fd_ = fd;
   last_heartbeat_time_ = std::chrono::steady_clock::now();
+  with_heartbeat_.store(true, std::memory_order_release);
   return SUCCESS;
 }
 
 void Channel::StopHeartbeat() {
   std::lock_guard<std::mutex> lock(mutex_);
-  with_heartbeat_ = false;
+  with_heartbeat_.store(false, std::memory_order_release);
 }
 
-Status Channel::SendControlMsg(const std::function<Status(int32_t)> &func) {
+Status Channel::CommWithFd(const std::function<Status(int32_t)> &func) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (fd_ < 0) {
     return FAILED;
   }
   return func(fd_);
+}
+
+Status Channel::SendControlMsg(const std::function<Status(int32_t)> &func) {
+  return CommWithFd(func);
+}
+
+Status Channel::SendHeartBeat(const std::function<Status(int32_t)> &func) {
+  if (with_heartbeat_.load(std::memory_order_acquire)) {
+    return CommWithFd(func);
+  }
+  return SUCCESS;
 }
 
 void Channel::SetHeartbeatTimeout(int64_t timeout_in_millis) {
@@ -172,13 +183,23 @@ void Channel::UpdateHeartbeatTime() {
 }
 
 bool Channel::IsHeartbeatTimeout() const {
-  auto now = std::chrono::steady_clock::now();
-  const auto cost = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_heartbeat_time_).count();
-  if (cost >= timeout_in_millis_) {
-    LLMLOGW("Channel heartbeat timeout detected, cost:%ld ms, channel_id:%s", cost, channel_info_.channel_id.c_str());
-    return true;
+  if (with_heartbeat_.load(std::memory_order_acquire)) {
+    auto now = std::chrono::steady_clock::now();
+    const auto cost = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_heartbeat_time_).count();
+    if (cost >= timeout_in_millis_) {
+      LLMLOGW("Channel heartbeat timeout detected, cost:%ld ms, channel_id:%s", cost, channel_info_.channel_id.c_str());
+      return true;
+    }
   }
   return false;
+}
+
+rtStream_t &Channel::GetStream() {
+  return stream_;
+}
+
+std::mutex &Channel::GetTransferMutex() {
+  return transfer_mutex_;
 }
 
 BufferedTransfer::BufferedTransfer(
