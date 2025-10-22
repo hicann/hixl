@@ -503,9 +503,9 @@ transfer_cache_async(self,
 
 **调用示例**<a name="section17821439839"></a>
 
-```
-cache_task = cache_manager.transfer_cache_async(cache, LayerSynchronizerImpl(), transfer_configs)
-```
+
+请参考[https://gitcode.com/cann/hixl-dev/tree/master/examples/python](https://gitcode.com/cann/hixl-dev/tree/master/examples/python)。
+
 
 **返回值**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section45086037"></a>
 
