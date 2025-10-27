@@ -8,9 +8,6 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
-include(${PROJECT_SOURCE_DIR}/cmake/third_party/json.cmake)
-include(${PROJECT_SOURCE_DIR}/cmake/third_party/pybind11.cmake)
-
 include(CMakePrintHelpers)
 find_package(Python3 COMPONENTS Interpreter Development)
 if (Python3_FOUND)
@@ -18,7 +15,12 @@ if (Python3_FOUND)
     cmake_print_variables(HI_PYTHON_INC)
 endif ()
 cmake_print_variables(HI_PYTHON_INC)
+
+include(${PROJECT_SOURCE_DIR}/cmake/third_party/pybind11.cmake)
 cmake_print_variables(pybind11_INCLUDE_DIR)
+if(BUILD_WITH_INSTALLED_DEPENDENCY_CANN_PKG)
+    include(${PROJECT_SOURCE_DIR}/cmake/third_party/json.cmake)
+endif()
 
 if (ENABLE_TEST)
     include(${PROJECT_SOURCE_DIR}/cmake/third_party/gtest.cmake)

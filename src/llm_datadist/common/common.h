@@ -13,7 +13,7 @@
 
 #include <vector>
 #include <map>
-#include "ge/ge_api_types.h"
+#include "ge_common/ge_api_types.h"
 #include "common/llm_inner_types.h"
 namespace llm {
 constexpr const char LLM_OPTION_MEM_POOL_CONFIG[] = "llm.MemPoolConfig";

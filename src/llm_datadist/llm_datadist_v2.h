@@ -11,7 +11,6 @@
 #ifndef CANN_GRAPH_ENGINE_RUNTIME_LLM_ENGINE_INC_LLM_V2_DATADIST_H
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_ENGINE_INC_LLM_V2_DATADIST_H
 
-#include "ge/ge_ir_build.h"
 #include "common/llm_inner_types.h"
 #include "link_mgr/llm_link_manager.h"
 #include "cache_mgr/data_cache_engine.h"

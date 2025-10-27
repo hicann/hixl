@@ -15,14 +15,14 @@ BASEPATH=$(cd "$(dirname $0)"; pwd)
 OUTPUT_PATH="${BASEPATH}/build_out"
 BUILD_RELATIVE_PATH="build"
 BUILD_PATH="${BASEPATH}/${BUILD_RELATIVE_PATH}/"
-ASCEND_INSTALL_PATH=""
 
 # print usage message
 usage() {
   echo "Usage:"
   echo "  sh build.sh [-h | --help] [-v | --verbose] [-j<N>]"
+  echo "              [--pkg]"
   echo "              [--build_type=<Release|Debug>]"
-  echo "              [--ascend_install_path=<PATH>] [--ascend_3rd_lib_path=<PATH>] [--output_path=<PATH>]"
+  echo "              [--cann_3rd_lib_path=<PATH>] [--output_path=<PATH>]"
   echo ""
   echo "Options:"
   echo "    -h, --help        Print usage"
@@ -30,12 +30,11 @@ usage() {
   echo "    -j<N>             Set the number of threads used for building HIXL, default is 8"
   echo "    --build_type=<Release|Debug>"
   echo "                      Set build type, default Release"
-  echo "    --ascend_install_path=<PATH>"
-  echo "                      Set ascend package install path, default /usr/local/Ascend/latest"
-  echo "    --ascend_3rd_lib_path=<PATH>"
-  echo "                      Set ascend third_party package install path, default ./build/third_party"
+  echo "    --cann_3rd_lib_path=<PATH>"
+  echo "                      Set ascend third_party package install path, default ./third_party"
   echo "    --output_path=<PATH>"
   echo "                      Set output path, default ./build_out"
+  echo "    --pkg             Build run package, reserved parameter"
   echo ""
 }
 
@@ -56,11 +55,11 @@ checkopts() {
   THREAD_NUM=8
 
   OUTPUT_PATH="${BASEPATH}/build_out"
-  ASCEND_3RD_LIB_PATH="$BASEPATH/build/third_party"
+  CANN_3RD_LIB_PATH="$BASEPATH/third_party"
   CMAKE_BUILD_TYPE="Release"
 
   # Process the options
-  parsed_args=$(getopt -a -o j:hv -l help,verbose,ascend_install_path:,ascend_3rd_lib_path:,output_path:,build_type: -- "$@") || {
+  parsed_args=$(getopt -a -o j:hv -l help,verbose,pkg,cann_3rd_lib_path:,output_path:,build_type: -- "$@") || {
     usage
     exit 1
   }
@@ -81,12 +80,8 @@ checkopts() {
         VERBOSE="VERBOSE=1"
         shift
         ;;
-      --ascend_install_path)
-        ASCEND_INSTALL_PATH="$(realpath $2)"
-        shift 2
-        ;;
-      --ascend_3rd_lib_path)
-        ASCEND_3RD_LIB_PATH="$(realpath $2)"
+      --cann_3rd_lib_path)
+        CANN_3RD_LIB_PATH="$(realpath $2)"
         shift 2
         ;;
       --output_path)
@@ -97,6 +92,9 @@ checkopts() {
         check_build_type "$2" build_type
         CMAKE_BUILD_TYPE="$2"
         shift 2
+        ;;
+      --pkg)
+        shift
         ;;
       --)
         shift
@@ -123,8 +121,7 @@ build() {
   cd "${BUILD_PATH}"
   cmake -D CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
         -D CMAKE_INSTALL_PREFIX=${OUTPUT_PATH} \
-        ${ASCEND_INSTALL_PATH:+-D ASCEND_INSTALL_PATH=${ASCEND_INSTALL_PATH}} \
-        ${ASCEND_3RD_LIB_PATH:+-D ASCEND_3RD_LIB_PATH=${ASCEND_3RD_LIB_PATH}} \
+        ${CANN_3RD_LIB_PATH:+-D CANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}} \
         ..
 
   make ${VERBOSE} -j${THREAD_NUM} && make package

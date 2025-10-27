@@ -9,11 +9,7 @@
 # ----------------------------------------------------------------------------
 
 set(MAKESELF_NAME "makeself")
-if (BUILD_WITH_INSTALLED_DEPENDENCY_CANN_PKG_COMMUNITY)
-    set(MAKESELF_PATH "${CMAKE_BINARY_DIR}/${MAKESELF_NAME}")
-else()
-    set(MAKESELF_PATH "${OPEN_SOURCE_DIR}/${MAKESELF_NAME}")
-endif()
+set(MAKESELF_PATH ${CANN_3RD_LIB_PATH}/makeself)
 
 if(POLICY CMP0135)
     cmake_policy(SET CMP0135 NEW)

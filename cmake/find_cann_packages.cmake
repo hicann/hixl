@@ -24,50 +24,50 @@ if (NOT ENABLE_TEST)
 else ()
     add_library(hccl_headers INTERFACE)
     target_include_directories(hccl_headers INTERFACE
-        ${ASCEND_INSTALL_PATH}/include/experiment
-        ${ASCEND_INSTALL_PATH}/include/experiment/hccl
-        ${ASCEND_INSTALL_PATH}/include/experiment/hccl/external
-        ${ASCEND_INSTALL_PATH}/include/experiment/hccl/external/hccl
+        ${CANN_INSTALL_PATH}/include/experiment
+        ${CANN_INSTALL_PATH}/include/experiment/hccl
+        ${CANN_INSTALL_PATH}/include/experiment/hccl/external
+        ${CANN_INSTALL_PATH}/include/experiment/hccl/external/hccl
     )
 
     add_library(mmpa_headers INTERFACE)
     target_include_directories(mmpa_headers INTERFACE
-        ${ASCEND_INSTALL_PATH}/include/experiment
-        ${ASCEND_INSTALL_PATH}/include/experiment/mmpa
-        ${ASCEND_INSTALL_PATH}/include/experiment/mmpa/sub_inc
+        ${CANN_INSTALL_PATH}/include/experiment
+        ${CANN_INSTALL_PATH}/include/experiment/mmpa
+        ${CANN_INSTALL_PATH}/include/experiment/mmpa/sub_inc
     )
 
     add_library(msprof_headers INTERFACE)
     target_include_directories(msprof_headers INTERFACE
-        ${ASCEND_INSTALL_PATH}/include/experiment
-        ${ASCEND_INSTALL_PATH}/include/experiment/msprof
-        ${ASCEND_INSTALL_PATH}/include/experiment/msprof/toolchain
+        ${CANN_INSTALL_PATH}/include/experiment
+        ${CANN_INSTALL_PATH}/include/experiment/msprof
+        ${CANN_INSTALL_PATH}/include/experiment/msprof/toolchain
     )
 
     add_library(metadef_headers INTERFACE)
     target_include_directories(metadef_headers INTERFACE
-        ${ASCEND_INSTALL_PATH}/include/
-        ${ASCEND_INSTALL_PATH}/include/external
+        ${CANN_INSTALL_PATH}/include/
+        ${CANN_INSTALL_PATH}/include/external
     )
 
     add_library(runtime_headers INTERFACE)
     target_include_directories(runtime_headers INTERFACE
-        ${ASCEND_INSTALL_PATH}/include/experiment
-        ${ASCEND_INSTALL_PATH}/include/experiment/runtime
-        ${ASCEND_INSTALL_PATH}/include/experiment/runtime/external
-        ${ASCEND_INSTALL_PATH}/include/experiment/runtime/external/runtime
+        ${CANN_INSTALL_PATH}/include/experiment
+        ${CANN_INSTALL_PATH}/include/experiment/runtime
+        ${CANN_INSTALL_PATH}/include/experiment/runtime/external
+        ${CANN_INSTALL_PATH}/include/experiment/runtime/external/runtime
     )
 
     add_library(slog_headers INTERFACE)
     target_include_directories(slog_headers INTERFACE
-        ${ASCEND_INSTALL_PATH}/include/experiment
-        ${ASCEND_INSTALL_PATH}/include/experiment/slog
-        ${ASCEND_INSTALL_PATH}/include/experiment/slog/toolchain
+        ${CANN_INSTALL_PATH}/include/experiment
+        ${CANN_INSTALL_PATH}/include/experiment/slog
+        ${CANN_INSTALL_PATH}/include/experiment/slog/toolchain
     )
 
     add_library(ascendcl_headers INTERFACE)
     target_include_directories(ascendcl_headers INTERFACE
-        ${ASCEND_INSTALL_PATH}/include
-        ${ASCEND_INSTALL_PATH}/include/acl
+        ${CANN_INSTALL_PATH}/include
+        ${CANN_INSTALL_PATH}/include/acl
     )
 endif()

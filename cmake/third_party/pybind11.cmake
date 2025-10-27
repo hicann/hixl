@@ -13,14 +13,15 @@ include_guard(GLOBAL)
 unset(pybind11_FOUND CACHE)
 unset(PYBIND11_INCLUDE CACHE)
 
-set(PYBIND11_DOWNLOAD_PATH ${ASCEND_3RD_LIB_PATH}/pkg)
-set(PYBIND11_INSTALL_PATH ${ASCEND_3RD_LIB_PATH}/pybind11)
+set(PYBIND11_DOWNLOAD_PATH ${CANN_3RD_LIB_PATH}/pkg)
+set(PYBIND11_INSTALL_PATH ${CANN_3RD_LIB_PATH}/pybind11)
 
 find_path(PYBIND11_INCLUDE
         NAMES pybind11/pybind11.h
         NO_CMAKE_SYSTEM_PATH
         NO_CMAKE_FIND_ROOT_PATH
-        PATHS ${PYBIND11_INSTALL_PATH}/include)
+        PATHS ${PYBIND11_INSTALL_PATH}/include
+              ${Python3_SITELIB}/pybind11/include)
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(pybind11

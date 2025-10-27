@@ -34,7 +34,7 @@ foreach(target_name IN LISTS targets_list)
         add_executable(${target_name} ${source_file})
         target_include_directories(${target_name} PRIVATE
             ${HIXL_INC_DIR}
-            ${ASCEND_INSTALL_PATH}/include
+            ${CANN_INSTALL_PATH}/include
         )
         target_compile_options(${target_name} PRIVATE
             -ftrapv
@@ -48,6 +48,8 @@ foreach(target_name IN LISTS targets_list)
         target_link_libraries(${target_name} PRIVATE
             llm_datadist
             ascendcl
+            -pthread
+            -lrt
         )
         target_link_ascend_hal(${target_name})
     endif()

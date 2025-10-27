@@ -12,7 +12,7 @@
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_STATE_MGR_H_
 
 #include <vector>
-#include "ge/ge_api_types.h"
+#include "ge_common/ge_api_types.h"
 #include "common/llm_inner_types.h"
 #include "common/common.h"
 #include "fsm/base_state.h"

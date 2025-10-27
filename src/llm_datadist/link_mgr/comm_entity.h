@@ -17,7 +17,7 @@
 #include "runtime/rt.h"
 
 #include "llm_datadist/llm_error_codes.h"
-#include "ge/ge_api_types.h"
+#include "ge_common/ge_api_types.h"
 #include "common/llm_inner_types.h"
 #include "common/common.h"
 #include "cache_mgr/cache_manager.h"

@@ -12,13 +12,12 @@
 set -e
 
 BASEPATH=$(cd "$(dirname $0)/.."; pwd)
-ASCEND_INSTALL_PATH=""
 
 # print usage message
 usage() {
   echo "Usage:"
   echo "sh run_test.sh [-c | --cov] [-j<N>] [-h | --help] [-v | --verbose]"
-  echo "               [--ascend_install_path=<PATH>] [--ascend_3rd_lib_path=<PATH>]"
+  echo "               [--cann_3rd_lib_path=<PATH>]"
   echo ""
   echo "Options:"
   echo "    -h, --help     Print usage"
@@ -30,10 +29,8 @@ usage() {
   echo "                   and the version matched gcc/g++."
   echo "    -v, --verbose  Display build command"
   echo "    -j<N>          Set the number of threads used for building Parser, default 8"
-  echo "        --ascend_install_path=<PATH>"
-  echo "                   Set ascend package install path, default /usr/local/Ascend/latest"
-  echo "        --ascend_3rd_lib_path=<PATH>"
-  echo "                   Set ascend third_party package install path, default ./build/third_party"
+  echo "        --cann_3rd_lib_path=<PATH>"
+  echo "                   Set ascend third_party package install path, default ./third_party"
   echo ""
 }
 
@@ -52,9 +49,9 @@ checkopts() {
   ENABLE_CPP_TEST="on"
   ENABLE_PY_TEST="on"
 
-  ASCEND_3RD_LIB_PATH="$BASEPATH/build_out/third_party"
+  CANN_3RD_LIB_PATH="$BASEPATH/third_party"
 
-  parsed_args=$(getopt -a -o t::cj:hv -l test::,cov,help,verbose,ascend_install_path:,ascend_3rd_lib_path: -- "$@") || {
+  parsed_args=$(getopt -a -o t::cj:hv -l test::,cov,help,verbose,cann_3rd_lib_path: -- "$@") || {
     usage
     exit 1
   }
@@ -101,12 +98,8 @@ checkopts() {
         VERBOSE="-v"
         shift
         ;;
-      --ascend_install_path)
-        ASCEND_INSTALL_PATH="$(realpath $2)"
-        shift 2
-        ;;
-      --ascend_3rd_lib_path)
-        ASCEND_3RD_LIB_PATH="$(realpath $2)"
+      --cann_3rd_lib_path)
+        CANN_3RD_LIB_PATH="$(realpath $2)"
         shift 2
         ;;
       --)
@@ -125,8 +118,7 @@ checkopts() {
 build() {
   cd "${BUILD_PATH}"
   cmake -D ENABLE_TEST="on" \
-        ${ASCEND_INSTALL_PATH:+-D ASCEND_INSTALL_PATH=${ASCEND_INSTALL_PATH}} \
-        -D ASCEND_3RD_LIB_PATH=${ASCEND_3RD_LIB_PATH} \
+        -D CANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH} \
         -D CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
         -D CMAKE_INSTALL_PREFIX=${OUTPUT_PATH} \
         ..

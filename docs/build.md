@@ -49,7 +49,7 @@
     # 确保安装包具有可执行权限
     chmod +x Ascend-cann-toolkit_${cann_version}_linux-${arch}.run
     # 安装命令(其中--install-path为可选)
-    ./Ascend-cann-toolkit_${cann_version}_linux-${arch}.run --full --force --install-path=${ascend_install_path}
+    ./Ascend-cann-toolkit_${cann_version}_linux-${arch}.run --full --force --install-path=${cann_install_path}
     ```
     - \$\{cann\_version\}：表示CANN包版本号。
     - \$\{arch\}：表示CPU架构，如aarch64、x86_64。
@@ -68,7 +68,7 @@
     # 确保安装包具有可执行权限
     chmod +x cann-${soc_name}-ops-legacy_${cann_version}_linux-${arch}.run
     # 安装命令
-    ./cann-${soc_name}-ops-legacy_${cann_version}_linux-${arch}.run --full --install-path=${ascend_install_path}
+    ./cann-${soc_name}-ops-legacy_${cann_version}_linux-${arch}.run --full --install-path=${cann_install_path}
     ```
     - \$\{soc\_name\}：表示NPU型号名称，即\$\{soc\_version\}删除“ascend”后剩余的内容。
     - \$\{ascend\_install\_path\}：表示指定安装路径，需要与toolkit包安装在相同路径，默认安装在`/usr/local/Ascend`目录。
@@ -86,7 +86,7 @@
     # 确保安装包具有可执行权限
     chmod +x cann-${soc_name}-ops-math_${cann_version}_linux-${arch}.run
     # 安装命令
-    ./cann-${soc_name}-ops-math_${cann_version}_linux-${arch}.run --full --install-path=${ascend_install_path}
+    ./cann-${soc_name}-ops-math_${cann_version}_linux-${arch}.run --full --install-path=${cann_install_path}
     ```
 
     - \$\{soc\_name\}：表示NPU型号名称，即${soc_version}删除“ascend”后剩余的内容。
@@ -109,7 +109,7 @@ git clone https://gitcode.com/cann/hixl.git
 # 默认路径安装，以root用户为例（非root用户，将/usr/local替换为${HOME}）
 source /usr/local/Ascend/set_env.sh
 # 指定路径安装
-# source ${ascend_install_path}/set_env.sh
+# source ${cann_install_path}/set_env.sh
  ```
 
 ### 编译执行
@@ -117,8 +117,6 @@ source /usr/local/Ascend/set_env.sh
 ```bash
 # 默认路径安装，root用户默认路径是/usr/local/Ascend，普通用户默认路径是${HOME}/Ascend
 bash build.sh 
-# 指定路径安装，安装路径是ascend_install_path
-bash build.sh --ascend_install_path=${ascend_install_path}/latest
 ```
 成功编译后会在build_out目录下生成`cann-hixl_${cann_version}_linux-${arch}.run`，同时会将C++用例一同编译，在build/examples/cpp路径下生成编译后的二进制文件。  
 - ${cann_version}表示cann版本号。
@@ -150,8 +148,6 @@ bash build.sh --ascend_install_path=${ascend_install_path}/latest
     ```bash
     # 默认路径安装，root用户默认路径是/usr/local/Ascend/，普通用户默认路径是${HOME}/Ascend
     bash tests/run_test.sh
-    # 指定路径安装，安装路径是ascend_install_path
-    bash tests/run_test.sh --ascend_install_path=${ascend_install_path}/latest
     ```
   
 - 更多执行选项可以用 -h 查看：
@@ -164,13 +160,13 @@ bash build.sh --ascend_install_path=${ascend_install_path}/latest
 将[编译执行](#编译执行)环节生成的run包进行安装。  
 - 说明，此处的安装路径（无论默认还是指定）需与前面安装toolkit包时的路径保持一致。  
 ```bash
-# 如果需要指定安装路径则加上--install-path=${ascend_install_path}
+# 如果需要指定安装路径则加上--install-path=${cann_install_path}
 ./cann-hixl_${cann_version}_linux-${arch}.run --full --quiet --pylocal
 ```
 - --full 全量模式安装。  
 - --quiet 静默安装，跳过人机交互环节。  
 - --pylocal 安装HIXL软件包时，是否将.whl安装到HIXL安装路径。  
-  - 若选择该参数，则.whl安装在${ascend_install_path}/latest/python/site-packages路径。
+  - 若选择该参数，则.whl安装在${cann_install_path}/latest/python/site-packages路径。
   - 若不选择该参数，则.whl安装在本地python路径，例如/usr/local/python3.7.5/lib/python3.7/site-packages。
 - 更多安装选项请用--help选项查看。  
 

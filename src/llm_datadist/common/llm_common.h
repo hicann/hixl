@@ -11,7 +11,7 @@
 #ifndef CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_LLM_COMMON_H
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_LLM_COMMON_H
 
-#include "ge/ge_api_types.h"
+#include "ge_common/ge_api_types.h"
 
 namespace llm {
 ge::Status TransRetToLlmCodes(const ge::Status &ret);

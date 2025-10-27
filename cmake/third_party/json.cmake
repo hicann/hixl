@@ -13,8 +13,8 @@ include_guard(GLOBAL)
 unset(json_FOUND CACHE)
 unset(JSON_INCLUDE CACHE)
 
-set(JSON_DOWNLOAD_PATH ${ASCEND_3RD_LIB_PATH}/pkg)
-set(JSON_INSTALL_PATH ${ASCEND_3RD_LIB_PATH}/json)
+set(JSON_DOWNLOAD_PATH ${CANN_3RD_LIB_PATH}/pkg)
+set(JSON_INSTALL_PATH ${CANN_3RD_LIB_PATH}/json)
 
 find_path(JSON_INCLUDE
         NAMES nlohmann/json.hpp
