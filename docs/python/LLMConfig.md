@@ -535,7 +535,7 @@ local_comm_res(local_comm_res)
 </td>
 <td class="cellrowborder" valign="top" width="15.06%" headers="mcps1.1.4.1.2 "><p id="p15567165511010"><a name="p15567165511010"></a><a name="p15567165511010"></a>str</p>
 </td>
-<td class="cellrowborder" valign="top" width="62.72%" headers="mcps1.1.4.1.3 "><p id="p1567255406"><a name="p1567255406"></a><a name="p1567255406"></a>配置本地通信资源信息，格式是json的字符串。仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见<span id="ph25671551017"><a name="ph25671551017"></a><a name="ph25671551017"></a>《HCCL集合通信库用户指南》</span>中的“<span id="ph19567145511014"><a name="ph19567145511014"></a><a name="ph19567145511014"></a>通信功能开发 &gt; 集群信息配置 &gt; rank table文件配置资源信息</span>“章节。配置示例如下。</p>
+<td class="cellrowborder" valign="top" width="62.72%" headers="mcps1.1.4.1.3 "><p id="p1567255406"><a name="p1567255406"></a><a name="p1567255406"></a>配置本地通信资源信息，格式是json的字符串。仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见<span id="ph25671551017"><a name="ph25671551017"></a><a name="ph25671551017"></a>《HCCL集合通信库用户指南》</span>中的“<span id="ph19567145511014"><a name="ph19567145511014"></a><a name="ph19567145511014"></a>通信功能开发 &gt; 集群信息配置 &gt; rank table文件配置资源信息</span>”章节。配置示例如下。</p>
 <pre class="screen" id="screen125671551908"><a name="screen125671551908"></a><a name="screen125671551908"></a>{
     "server_list": [
         {

@@ -178,7 +178,7 @@ Status Initialize(const AscendString &local_engine, const std::map<AscendString,
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/cpp](https://gitcode.com/cann/hixl/tree/master/examples/cpp)。
+请参考[样例运行](../../examples/cpp/README.md)。
 
 **返回值**
 
@@ -211,7 +211,7 @@ void Finalize()
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/cpp](https://gitcode.com/cann/hixl/tree/master/examples/cpp)。
+请参考[样例运行](../../examples/cpp/README.md)。
 
 **返回值**
 
@@ -276,7 +276,7 @@ Status RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle)
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/cpp](https://gitcode.com/cann/hixl/tree/master/examples/cpp)。
+请参考[样例运行](../../examples/cpp/README.md)。
 
 **返回值**
 
@@ -330,7 +330,7 @@ Status DeregisterMem(MemHandle mem_handle)
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/cpp](https://gitcode.com/cann/hixl/tree/master/examples/cpp)。
+请参考[样例运行](../../examples/cpp/README.md)。
 
 **返回值**
 
@@ -387,7 +387,7 @@ Status Connect(const AscendString &remote_engine, int32_t timeout_in_millis = 10
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/cpp](https://gitcode.com/cann/hixl/tree/master/examples/cpp)。
+请参考[样例运行](../../examples/cpp/README.md)。
 
 **返回值**
 
@@ -455,7 +455,7 @@ Status Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis =
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/cpp](https://gitcode.com/cann/hixl/tree/master/examples/cpp)。
+请参考[样例运行](../../examples/cpp/README.md)。
 
 **返回值**
 
@@ -526,7 +526,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/cpp](https://gitcode.com/cann/hixl/tree/master/examples/cpp)。
+请参考[样例运行](../../examples/cpp/README.md)。
 
 **返回值**
 

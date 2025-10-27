@@ -235,7 +235,7 @@ link_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], time
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/python](https://gitcode.com/cann/hixl/tree/master/examples/python)。
+请参考[样例运行](../../examples/python/README.md)。
 
 **返回值**
 
@@ -303,7 +303,7 @@ unlink_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], ti
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/python](https://gitcode.com/cann/hixl/tree/master/examples/python)。
+请参考[样例运行](../../examples/python/README.md)。
 
 **返回值**
 
@@ -359,7 +359,7 @@ switch_role(self, role: LLMRole, switch_options: Optional[Dict[str, str]] = None
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/python](https://gitcode.com/cann/hixl/tree/master/examples/python)。
+请参考[样例运行](../../examples/python/README.md)。
 
 **返回值**
 
@@ -414,7 +414,7 @@ link(comm_name: str, cluster_rank_info: Dict[int, int], rank_table: str) -> int
 </td>
 <td class="cellrowborder" valign="top" width="35.85%" headers="mcps1.1.4.1.2 "><p id="p186435882315"><a name="p186435882315"></a><a name="p186435882315"></a>str</p>
 </td>
-<td class="cellrowborder" valign="top" width="41.93%" headers="mcps1.1.4.1.3 "><p id="p144818376165"><a name="p144818376165"></a><a name="p144818376165"></a>开发者可以通过该参数配置参与集合通信的NPU资源信息，具体信息请参见<span id="ph658815109205"><a name="ph658815109205"></a><a name="ph658815109205"></a>《HCCL集合通信库用户指南》</span>中的“<span id="ph9144125311343"><a name="ph9144125311343"></a><a name="ph9144125311343"></a>通信功能开发 &gt; 集群信息配置 &gt; rank table文件配置资源信息</span>“章节。配置示例如下。</p>
+<td class="cellrowborder" valign="top" width="41.93%" headers="mcps1.1.4.1.3 "><p id="p144818376165"><a name="p144818376165"></a><a name="p144818376165"></a>开发者可以通过该参数配置参与集合通信的NPU资源信息，具体信息请参见<span id="ph658815109205"><a name="ph658815109205"></a><a name="ph658815109205"></a>《HCCL集合通信库用户指南》</span>中的“<span id="ph9144125311343"><a name="ph9144125311343"></a><a name="ph9144125311343"></a>通信功能开发 &gt; 集群信息配置 &gt; rank table文件配置资源信息</span>”章节。配置示例如下。</p>
 <pre class="screen" id="screen1638132612416"><a name="screen1638132612416"></a><a name="screen1638132612416"></a>{
     "server_count": "2",
     "server_list": [
@@ -448,7 +448,7 @@ link(comm_name: str, cluster_rank_info: Dict[int, int], rank_table: str) -> int
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/python](https://gitcode.com/cann/hixl/tree/master/examples/python)。
+请参考[样例运行](../../examples/python/README.md)。
 
 **返回值**
 
@@ -501,7 +501,7 @@ unlink(comm_id: int)
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/python](https://gitcode.com/cann/hixl/tree/master/examples/python)。
+请参考[样例运行](../../examples/python/README.md)。
 
 **返回值**
 
@@ -548,7 +548,7 @@ query_register_mem_status(comm_id: int) -> RegisterMemStatus
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/python](https://gitcode.com/cann/hixl/tree/master/examples/python)。
+请参考[样例运行](../../examples/python/README.md)。
 
 **返回值**
 

@@ -152,7 +152,7 @@ pull_cache(cache_key: Union[CacheKey, CacheKeyByIdAndIndex],
 
 **调用示例**<a name="section17821439839"></a>
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/python](https://gitcode.com/cann/hixl/tree/master/examples/python)。
+请参考[样例运行](../../examples/python/README.md)。
 
 **返回值**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section45086037"></a>
 
@@ -269,7 +269,7 @@ pull_blocks(src_cache_key: Union[CacheKey, CacheKeyByIdAndIndex, BlocksCacheKey]
 
 **调用示例**<a name="section17821439839"></a>
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/python](https://gitcode.com/cann/hixl/tree/master/examples/python)。
+请参考[样例运行](../../examples/python/README.md)。
 
 **返回值**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section45086037"></a>
 
@@ -338,7 +338,7 @@ register_cache(cache_desc: CacheDesc, addrs: List[int], cache_keys: Union[Tuple[
 
 **调用示例**<a name="section17821439839"></a>
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/python](https://gitcode.com/cann/hixl/tree/master/examples/python)。
+请参考[样例运行](../../examples/python/README.md)。
 
 **返回值**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section45086037"></a>
 
@@ -414,7 +414,7 @@ register_blocks_cache(cache_desc: CacheDesc, addrs: List[int], blocks_cache_key:
 
 **调用示例**<a name="section17821439839"></a>
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/python](https://gitcode.com/cann/hixl/tree/master/examples/python)。
+请参考[样例运行](../../examples/python/README.md)。
 
 **返回值**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section45086037"></a>
 
@@ -503,9 +503,9 @@ transfer_cache_async(self,
 
 **调用示例**<a name="section17821439839"></a>
 
-
-请参考[https://gitcode.com/cann/hixl-dev/tree/master/examples/python](https://gitcode.com/cann/hixl-dev/tree/master/examples/python)。
-
+```
+cache_task = cache_manager.transfer_cache_async(cache, LayerSynchronizerImpl(), transfer_configs)
+```
 
 **返回值**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section45086037"></a>
 
@@ -610,7 +610,7 @@ push_blocks(self,
 
 **调用示例**<a name="section17821439839"></a>
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/python](https://gitcode.com/cann/hixl/tree/master/examples/python)。
+请参考[样例运行](../../examples/python/README.md)。
 
 **返回值**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section45086037"></a>
 
@@ -711,7 +711,7 @@ push_cache(self,
 
 **调用示例**<a name="section17821439839"></a>
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/python](https://gitcode.com/cann/hixl/tree/master/examples/python)。
+请参考[样例运行](../../examples/python/README.md)。
 
 **返回值**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section45086037"></a>
 
@@ -814,7 +814,7 @@ unregister_cache(cache_id: int) -> None
 </td>
 <td class="cellrowborder" valign="top" width="35.870000000000005%" headers="mcps1.1.4.1.2 "><p id="p9541205974512"><a name="p9541205974512"></a><a name="p9541205974512"></a>int</p>
 </td>
-<td class="cellrowborder" valign="top" width="41.91%" headers="mcps1.1.4.1.3 "><p id="p1725416211412"><a name="p1725416211412"></a><a name="p1725416211412"></a>调用<register_cache</a>或<register_blocks_cache</a>返回的cache的id。</p>
+<td class="cellrowborder" valign="top" width="41.91%" headers="mcps1.1.4.1.3 "><p id="p1725416211412"><a name="p1725416211412"></a><a name="p1725416211412"></a>调用register_cache或register_blocks_cache返回的cache的id。</p>
 </td>
 </tr>
 </tbody>
@@ -822,7 +822,7 @@ unregister_cache(cache_id: int) -> None
 
 **调用示例**<a name="section17821439839"></a>
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/python](https://gitcode.com/cann/hixl/tree/master/examples/python)。
+请参考[样例运行](../../examples/python/README.md)。
 
 **返回值**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section45086037"></a>
 

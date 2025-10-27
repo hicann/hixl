@@ -197,7 +197,7 @@ Status Initialize(const std::map<AscendString, AscendString> &options)
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/cpp](https://gitcode.com/cann/hixl/tree/master/examples/cpp)。
+请参考[样例运行](../../examples/cpp/README.md)。
 
 **返回值**
 
@@ -228,7 +228,7 @@ void Finalize()
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/cpp](https://gitcode.com/cann/hixl/tree/master/examples/cpp)。
+请参考[样例运行](../../examples/cpp/README.md)。
 
 **返回值**
 无
@@ -306,7 +306,7 @@ Status SetRole(LlmRole role, const std::map<AscendString, AscendString> &options
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/cpp](https://gitcode.com/cann/hixl/tree/master/examples/cpp)。
+请参考[样例运行](../../examples/cpp/README.md)。
 
 **返回值**
 
@@ -370,7 +370,7 @@ Status LinkLlmClusters(const std::vector<ClusterInfo> &clusters, std::vector<Sta
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/cpp](https://gitcode.com/cann/hixl/tree/master/examples/cpp)。
+请参考[样例运行](../../examples/cpp/README.md)。
 
 **返回值**
 
@@ -451,7 +451,7 @@ Status UnlinkLlmClusters(const std::vector<ClusterInfo> &clusters, std::vector<S
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/cpp](https://gitcode.com/cann/hixl/tree/master/examples/cpp)。
+请参考[样例运行](../../examples/cpp/README.md)。
 
 **返回值**
 
@@ -534,7 +534,7 @@ Status PullKvCache(const CacheIndex &src_cache_index,
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/cpp](https://gitcode.com/cann/hixl/tree/master/examples/cpp)。
+请参考[样例运行](../../examples/cpp/README.md)。
 
 **返回值**
 
@@ -616,7 +616,7 @@ Status PullKvBlocks(const CacheIndex &src_cache_index,
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/cpp](https://gitcode.com/cann/hixl/tree/master/examples/cpp)。
+请参考[样例运行](../../examples/cpp/README.md)。
 
 **返回值**
 
@@ -699,7 +699,7 @@ Status PushKvCache(const Cache &src_cache,
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/cpp](https://gitcode.com/cann/hixl/tree/master/examples/cpp)。
+请参考[样例运行](../../examples/cpp/README.md)。
 
 **返回值**
 
@@ -783,7 +783,7 @@ Status PushKvBlocks(const Cache &src_cache,
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/cpp](https://gitcode.com/cann/hixl/tree/master/examples/cpp)。
+请参考[样例运行](../../examples/cpp/README.md)。
 
 **返回值**
 
@@ -855,7 +855,7 @@ Status RegisterKvCache(const CacheDesc &cache_desc,
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/cpp](https://gitcode.com/cann/hixl/tree/master/examples/cpp)。
+请参考[样例运行](../../examples/cpp/README.md)。
 
 **返回值**
 
@@ -901,7 +901,7 @@ Status UnregisterKvCache(int64_t cache_id);
 
 **调用示例**
 
-请参考[https://gitcode.com/cann/hixl/tree/master/examples/cpp](https://gitcode.com/cann/hixl/tree/master/examples/cpp)。
+请参考[样例运行](../../examples/cpp/README.md)。
 
 **返回值**
 
