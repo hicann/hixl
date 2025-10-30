@@ -22,6 +22,10 @@ class TCPClient {
 
   bool SendUint64(uint64_t data) const;
 
+  bool SendTaskStatus() const;
+
+  bool ReceiveTaskStatus() const;
+
   void Disconnect();
 
   ~TCPClient();
@@ -40,6 +44,10 @@ class TCPServer {
   bool AcceptConnection();
 
   uint64_t ReceiveUint64() const;
+
+  bool SendTaskStatus() const;
+
+  bool ReceiveTaskStatus() const;
 
   void DisConnectClient();
 

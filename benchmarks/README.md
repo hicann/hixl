@@ -16,7 +16,7 @@
 ```
 ├── benchmarks
 |   ├── common                                         // 公共函数目录
-|   ├── benchmark_d2d_throughput.cpp                   // HIXL的d2d数据传输benchmark用例
+|   ├── benchmark.cpp                                  // HIXL的数据传输benchmark用例
 |   ├── CMakeLists.txt                                 // 编译脚本
 ```
 
@@ -62,41 +62,141 @@
 
 - 在运行环境执行可执行文件。
 
-  (1) 执行benchmark_d2d_throughput, client-server模式，d2d场景
+  - 执行benchmark，client-server模式，可通过参数传递来执行多种传输场景
+    - 参数说明
+        | **参数名** | **可选/必选** | **描述** |
+        |:-----------:|:------------:|:------------:|
+        |     device_id      | <div style="width:4cm"> 必选 </div> |  <div style="width: 10cm"> client要使用的device_id </div>  |
+        |     local_engine      | 必选 | client的host ip |
+        |     remote_engine      | 必选 | server的host ip和port<br>格式为 host_ip:host_port|
+        |     tcp_port      | 必选 | tcp通信端口 |
+        |     transfer_mode      | 必选 | 传输的模式<br>取值范围：d2d、h2d、d2h 和 h2h |
+        |     transfer_op      | 必选 | 传输的操作<br>取值范围：write 或 read |
+        |     use_buffer_pool      | 必选 | 是否开启中转内存池<br>取值范围：true 或 false |
 
-    - 测试HIXL引擎通过HCCS链路进行d2d传输的带宽
+    - 测试HIXL引擎通过HCCS链路进行传输的带宽, 以d2d场景，写操作，不开启中转内存池为例：
 
-        - 执行client benchmark_d2d_throughput, 参数为device_id、local_engine、remote_engine和tcp_port, 其中device_id为client要使用的device_id，local_engine为client的host ip，remote_engine为server的host ip和port，tcp_port为tcp通信端口，如:
+        - 执行client benchmark：
             ```
-            ./benchmark_d2d_throughput 0 10.10.10.0 10.10.10.0:16000 20000
-            ```
-
-        - 执行server benchmark_d2d_throughput, 参数为device_id、local_engine、remote_engine和tcp_port, 其中device_id为server要使用的device_id, local_engine为server的host ip和port，remote_engine为client的host ip，tcp_port为tcp通信端口，如:
-            ```
-            ./benchmark_d2d_throughput 1 10.10.10.0:16000 10.10.10.0 20000
-            ```
-
-    - 测试HIXL引擎通过RDMA链路进行d2d传输的带宽
-
-        - 执行client benchmark_d2d_throughput, 参数含义同上，如:
-            ```
-            HCCL_INTRA_ROCE_ENABLE=1 ./benchmark_d2d_throughput 0 10.10.10.0 10.10.10.0:16000 20000
+            ./benchmark 0 10.10.10.0 10.10.10.0:16000 20000 d2d write false
             ```
 
-        - 执行server benchmark_d2d_throughput, 参数含义同上, 如:
+        - 执行server benchmark：
             ```
-            HCCL_INTRA_ROCE_ENABLE=1 ./benchmark_d2d_throughput 1 10.10.10.0:16000 10.10.10.0 20000
+            ./benchmark 1 10.10.10.0:16000 10.10.10.0 20000 d2d write false
             ```
-    
+
+    - 测试HIXL引擎通过RDMA链路进行传输的带宽, 以d2d场景，写操作，不开启中转内存池为例：
+
+        - 执行client benchmark：
+            ```
+            HCCL_INTRA_ROCE_ENABLE=1 ./benchmark 0 10.10.10.0 10.10.10.0:16000 20000 d2d write false
+            ```
+
+        - 执行server benchmark：
+            ```
+            HCCL_INTRA_ROCE_ENABLE=1 ./benchmark 1 10.10.10.0:16000 10.10.10.0 20000 d2d write false
+            ```
   **注**：HCCL_INTRA_ROCE_ENABLE=1表示使用RDMA进行传输
 
 ## 性能数据
 
 本节展示了HIXL在昇腾A3芯片上部分场景传输数据的实测性能：
 
-| **传输内存块大小** | **HCCS D2D** | **RDMA D2D** |
-|:-----------:|:------------:|:------------:|
-|     1M      | 90.777 GB/s  | 21.201 GB/s  |
-|     2M      | 105.574 GB/s | 21.739 GB/s  |
-|     4M      | 114.469 GB/s | 22.329 GB/s  |
-|     8M      | 119.732 GB/s | 22.333 GB/s  |
+- 单机场景
+
+    (1) WRITE:
+
+    | **传输内存块大小** | **HCCS D2D** | **HCCS D2D BufferPool** | **RDMA D2D** | **RDMA D2D BufferPool** |
+    |:-----------:|:------------:|:------------:|:------------:|:------------:|
+    |     1M      | 106.293 GB/s  | ——  | 22.657 GB/s  | ——  |
+    |     2M      | 115.101 GB/s | ——  | 22.661 GB/s  | ——  |
+    |     4M      | 120.192 GB/s | ——  | 22.670 GB/s  | ——  |
+    |     8M      | 123.518 GB/s | ——  | 22.665 GB/s  | ——  |
+    | **传输内存块大小** | **HCCS H2D** | **HCCS H2D BufferPool** | **RDMA H2D** | **RDMA H2D BufferPool** |
+    |     1M      | 32.748 GB/s  | 35.331 GB/s  | 22.649 GB/s  | 19.072 GB/s  |
+    |     2M      | 33.494 GB/s | 35.572 GB/s  | 22.653 GB/s  | 19.084 GB/s  |
+    |     4M      | 33.811 GB/s | 36.263 GB/s  | 22.657 GB/s  | 19.078 GB/s  |
+    |     8M      | 33.940 GB/s | 33.793 GB/s  | 22.653 GB/s  | 18.521 GB/s  |
+    | **传输内存块大小** | **HCCS D2H** | **HCCS D2H BufferPool** | **RDMA D2H** | **RDMA D2H BufferPool** |
+    |     1M      | ——  | 30.157 GB/s  | 22.661 GB/s  | 18.651 GB/s  |
+    |     2M      | —— | 30.532 GB/s  | 22.657 GB/s  | 18.916 GB/s  |
+    |     4M      | —— | 30.414 GB/s  | 22.649 GB/s  | 18.971 GB/s  |
+    |     8M      | —— | 29.453 GB/s  | 22.657 GB/s  | 18.469 GB/s  |
+    | **传输内存块大小** | **HCCS H2H** | **HCCS H2H BufferPool** | **RDMA D2H** | **RDMA D2H BufferPool** |
+    |     1M      | ——  | 28.617 GB/s  | 22.633 GB/s  | 18.431 GB/s  |
+    |     2M      | —— | 28.822 GB/s  | 22.649 GB/s  | 18.464 GB/s  |
+    |     4M      | —— | 28.775 GB/s  | 22.641 GB/s  | 18.508 GB/s  |
+    |     8M      | —— | 28.571 GB/s  | 22.645 GB/s  | 18.345 GB/s  |
+
+    (2) READ:
+    | **传输内存块大小** | **HCCS D2D** | **HCCS D2D BufferPool** | **RDMA D2D** | **RDMA D2D BufferPool** |
+    |:-----------:|:------------:|:------------:|:------------:|:------------:|
+    |     1M      | 124.131 GB/s  | ——  | 22.616 GB/s  | ——  |
+    |     2M      | 137.363 GB/s | ——  | 22.633 GB/s  | ——  |
+    |     4M      | 144.342 GB/s | ——  | 22.620 GB/s  | ——  |
+    |     8M      | 148.104 GB/s | ——  | 22.629 GB/s  | ——  |
+    | **传输内存块大小** | **HCCS H2D** | **HCCS H2D BufferPool** | **RDMA H2D** | **RDMA H2D BufferPool** |
+    |     1M      | 33.940 GB/s  | 33.684 GB/s  | 22.608 GB/s  | 18.939 GB/s  |
+    |     2M      | 34.877 GB/s | 34.771 GB/s  | 22.624 GB/s  | 19.003 GB/s  |
+    |     4M      | 35.261 GB/s | 34.751 GB/s  | 22.629 GB/s  | 19.151 GB/s  |
+    |     8M      | 35.481 GB/s | 32.826 GB/s  | 22.624 GB/s  | 19.011 GB/s  |
+    | **传输内存块大小** | **HCCS D2H** | **HCCS D2H BufferPool** | **RDMA D2H** | **RDMA D2H BufferPool** |
+    |     1M      | ——  | 41.681 GB/s  | 22.596 GB/s  | 19.278 GB/s  |
+    |     2M      | —— | 42.720 GB/s  | 22.604 GB/s  | 19.263 GB/s  |
+    |     4M      | —— | 43.298 GB/s  | 22.596 GB/s  | 19.362 GB/s  |
+    |     8M      | —— | 41.848 GB/s  | 22.600 GB/s  | 19.254 GB/s  |
+    | **传输内存块大小** | **HCCS H2H** | **HCCS H2H BufferPool** | **RDMA D2H** | **RDMA D2H BufferPool** |
+    |     1M      | ——  | 27.685 GB/s  | 19.626 GB/s  | 18.738 GB/s  |
+    |     2M      | —— | 28.185 GB/s  | 22.633 GB/s  | 18.710 GB/s  |
+    |     4M      | —— | 27.156 GB/s  | 22.629 GB/s  | 18.735 GB/s  |
+    |     8M      | —— | 29.426 GB/s  | 22.629 GB/s  | 18.637 GB/s  |
+
+- 双机场景
+
+    (1) WRITE
+    | **传输内存块大小** | **HCCS D2D** | **HCCS D2D BufferPool** | **RDMA D2D** | **RDMA D2D BufferPool** |
+    |:-----------:|:------------:|:------------:|:------------:|:------------:|
+    |     1M      | 91.777 GB/s  | ——  | 17.919 GB/s  | ——  |
+    |     2M      | 106.383 GB/s | ——  | 22.649 GB/s  | ——  |
+    |     4M      | 115.101 GB/s | ——  | 22.653 GB/s  | ——  |
+    |     8M      | 119.732 GB/s | ——  | 22.653 GB/s  | ——  |
+    | **传输内存块大小** | **HCCS H2D** | **HCCS H2D BufferPool** | **RDMA H2D** | **RDMA H2D BufferPool** |
+    |     1M      | 18.334 GB/s  | 36.433 GB/s  | 22.608 GB/s  | 18.857 GB/s  |
+    |     2M      | 18.651 GB/s | 36.765 GB/s  | 22.612 GB/s  | 18.825 GB/s  |
+    |     4M      | 18.822 GB/s | 36.808 GB/s  | 22.616 GB/s  | 18.662 GB/s  |
+    |     8M      | 18.942 GB/s | 35.982 GB/s  | 22.608 GB/s  | 18.187 GB/s  |
+    | **传输内存块大小** | **HCCS D2H** | **HCCS D2H BufferPool** | **RDMA D2H** | **RDMA D2H BufferPool** |
+    |     1M      | ——  | 28.842 GB/s  | 22.608 GB/s  | 18.593 GB/s  |
+    |     2M      | —— | 28.888 GB/s  | 22.616 GB/s  | 18.499 GB/s  |
+    |     4M      | —— | 29.097 GB/s  | 22.620 GB/s  | 18.524 GB/s  |
+    |     8M      | —— | 28.261 GB/s  | 22.616 GB/s  | 18.437 GB/s  |
+    | **传输内存块大小** | **HCCS H2H** | **HCCS H2H BufferPool** | **RDMA D2H** | **RDMA D2H BufferPool** |
+    |     1M      | ——  | 27.741 GB/s  | 22.629 GB/s  | 18.177 GB/s  |
+    |     2M      | —— | 27.933 GB/s  | 22.637 GB/s  | 18.195 GB/s  |
+    |     4M      | —— | 28.166 GB/s  | 22.637 GB/s  | 18.108 GB/s  |
+    |     8M      | —— | 27.376 GB/s  | 22.624 GB/s  | 18.084 GB/s  |
+
+    (2) READ
+    | **传输内存块大小** | **HCCS D2D** | **HCCS D2D BufferPool** | **RDMA D2D** | **RDMA D2D BufferPool** |
+    |:-----------:|:------------:|:------------:|:------------:|:------------:|
+    |     1M      | 104.515 GB/s  | ——  | 22.604 GB/s  | ——  |
+    |     2M      | 123.885 GB/s | ——  | 22.612 GB/s  | ——  |
+    |     4M      | 135.281 GB/s | ——  | 22.612 GB/s  | ——  |
+    |     8M      | 143.184 GB/s | ——  | 22.612 GB/s  | ——  |
+    | **传输内存块大小** | **HCCS H2D** | **HCCS H2D BufferPool** | **RDMA H2D** | **RDMA H2D BufferPool** |
+    |     1M      | 19.029 GB/s  | 28.223 GB/s  | 22.596 GB/s  | 18.022 GB/s  |
+    |     2M      | 19.266 GB/s | 26.864 GB/s  | 22.608 GB/s  | 18.140 GB/s  |
+    |     4M      | 19.389 GB/s | 28.782 GB/s  | 22.600 GB/s  | 18.200 GB/s  |
+    |     8M      | 19.419 GB/s | 30.428 GB/s  | 22.600 GB/s  | 17.035 GB/s  |
+    | **传输内存块大小** | **HCCS D2H** | **HCCS D2H BufferPool** | **RDMA D2H** | **RDMA D2H BufferPool** |
+    |     1M      | ——  | 41.974 GB/s  | 22.579 GB/s  | 19.272 GB/s  |
+    |     2M      | —— | 42.445 GB/s  | 22.596 GB/s  | 19.332 GB/s  |
+    |     4M      | —— | 41.890 GB/s  | 22.604 GB/s  | 19.353 GB/s  |
+    |     8M      | —— | 41.377 GB/s  | 22.592 GB/s  | 19.216 GB/s  |
+    | **传输内存块大小** | **HCCS H2H** | **HCCS H2H BufferPool** | **RDMA D2H** | **RDMA D2H BufferPool** |
+    |     1M      | ——  | 26.795 GB/s  | 17.199 GB/s  | 18.571 GB/s  |
+    |     2M      | —— | 25.025 GB/s  | 22.612 GB/s  | 18.783 GB/s  |
+    |     4M      | —— | 27.245 GB/s  | 22.616 GB/s  | 18.791 GB/s  |
+    |     8M      | —— | 29.274 GB/s  | 22.608 GB/s  | 18.679 GB/s  |
+

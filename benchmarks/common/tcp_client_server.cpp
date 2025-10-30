@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <cstring>
 #include "tcp_client_server.h"
 
 TCPClient::TCPClient() = default;
@@ -52,6 +53,37 @@ bool TCPClient::SendUint64(uint64_t data) const {
   }
   std::cout << "[INFO] Send data to tcp server success" << std::endl;
   return true;
+}
+
+bool TCPClient::SendTaskStatus() const {
+  bool status = true;
+  if (send(sock_, &status, sizeof(status), 0) < 0) {
+    std::cerr << "[ERROR] Send status to tcp server failed" << std::endl;
+    return false;
+  }
+  std::cout << "[INFO] Send status to tcp server success" << std::endl;
+  return true;
+}
+
+bool TCPClient::ReceiveTaskStatus() const {
+  bool received = false;
+  // 接收数据
+  ssize_t bytes_received = recv(sock_, &received, sizeof(received), 0);
+  if (bytes_received < 0) {
+    std::cerr << "[ERROR] Received status failed" << std::endl;
+    return false;
+  } else if (bytes_received == 0) {
+    std::cout << "[INFO] Server connection break" << std::endl;
+    return false;
+  } 
+
+  if (received) {
+    std::cout << "[INFO] Tcp client received status success" << std::endl;
+    return true;
+  } else {
+    std::cout << "[ERROR] Tcp client received status failed" << std::endl;
+    return false;
+  }
 }
 
 void TCPClient::Disconnect() {
@@ -131,6 +163,37 @@ uint64_t TCPServer::ReceiveUint64() const {
   received_data = be64toh(received_data);
   std::cout << "[INFO] Tcp server received uint64 data success" << std::endl;
   return received_data;
+}
+
+bool TCPServer::SendTaskStatus() const {
+  bool status = true;
+  if (send(client_socket_, &status, sizeof(status), 0) < 0) {
+    std::cerr << "[ERROR] Send status to tcp client failed" << std::endl;
+    return false;
+  }
+  std::cout << "[INFO] Send status to tcp client success" << std::endl;
+  return true;
+}
+
+bool TCPServer::ReceiveTaskStatus() const {
+  bool received = false;
+  // 接收数据
+  ssize_t bytes_received = recv(client_socket_, &received, sizeof(received), 0);
+  if (bytes_received < 0) {
+    std::cerr << "[ERROR] Received status failed" << std::endl;
+    return false;
+  } else if (bytes_received == 0) {
+    std::cout << "[INFO] Client connection break" << std::endl;
+    return false;
+  } 
+
+  if (received) {
+    std::cout << "[INFO] Tcp server received status success" << std::endl;
+    return true;
+  } else {
+    std::cout << "[ERROR] Tcp server received status failed" << std::endl;
+    return false;
+  }
 }
 
 void TCPServer::DisConnectClient() {

@@ -18,7 +18,7 @@ file(GLOB COMMON_FILES "${HIXL_CODE_DIR}/benchmarks/common/*.cpp")
 
 # 只定义目标名称列表（与cpp文件名前缀相同）
 set(targets_list
-    "benchmark_d2d_throughput"
+    "benchmark"
 )
 
 foreach(target_name IN LISTS targets_list)
