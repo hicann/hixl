@@ -108,7 +108,7 @@ Status ChannelManager::HandleReadEvent(const ChannelPtr &channel) {
     return SUCCESS;
   }
   if (n < 0) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+    if (errno == EAGAIN || errno == EINTR) {
       return SUCCESS;
     }
     LLMLOGE(FAILED, "recv error on channel:%s, errno:%s", channel->GetChannelId().c_str(), strerror(errno));

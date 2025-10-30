@@ -203,8 +203,8 @@ HcclResult HcclAdapter::HcclBatchGet(HcclComm comm,
 HcclResult HcclAdapter::HcclRemapRegisteredMemory(HcclComm *comm,
                                                   HcclMem *mem_info_array,
                                                   uint64_t comm_size,
-                                                  uint64_t array_size) const {
-  auto ret = hccl_remap_registered_memory_func_(comm, mem_info_array, comm_size, array_size);
+                                                  uint64_t arraySize) const {
+  auto ret = hccl_remap_registered_memory_func_(comm, mem_info_array, comm_size, arraySize);
   return ret;
 }
 

@@ -76,12 +76,12 @@ class BufferTransferService {
 
   Status ProcessCopyWithAsync(const ChannelPtr &channel, const std::vector<uintptr_t> &src_addrs,
                               const std::vector<uintptr_t> &dst_addrs, std::vector<size_t> &sizes, rtMemcpyKind_t kind,
-                              uint64_t timeout);
+                              uint64_t timeout) const;
 
   Status D2DTransfer(const ChannelPtr &channel, TransferOp transfer_op, std::vector<TransferOpDesc> &op_descs,
                      uint64_t timeout, const std::chrono::steady_clock::time_point &start);
 
-  bool CheckTimeout(const BufferReq &req);
+  bool CheckTimeout(const BufferReq &req) const;
 
   std::vector<llm::LlmMemPool*> npu_mem_pools_;
   uint64_t buffer_size_;

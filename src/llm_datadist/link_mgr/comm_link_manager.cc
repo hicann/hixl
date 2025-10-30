@@ -46,7 +46,7 @@ static void to_json(nlohmann::json &j, const ExchangeMemInfo &e) {
   j["resp_size"] = e.resp_size;
 }
 
-ge::Status CommLinkManager::ExchangeMem(const EntityPtr &entity, uint32_t local_rank, uint32_t remote_rank) {
+ge::Status CommLinkManager::ExchangeMem(const EntityPtr &entity, uint32_t local_rank, uint32_t remote_rank) const {
   ExchangeMemInfo local_mem_info{};
   const auto &buffer_and_size = cache_manager_->GetCacheTableBufferAndSize();
   local_mem_info.cache_table_addr = PtrToValue(buffer_and_size.first);

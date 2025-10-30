@@ -78,7 +78,7 @@ class CommLinkManager {
   void FreeFlagGuard(PrepareMemArg &req);
   void CheckUnlink(PrepareMemArg &req, bool &check_unlink_flag);
   ge::Status PrepareMem(PrepareMemArg &req);
-  ge::Status ExchangeMem(const EntityPtr &entity, uint32_t local_rank, uint32_t remote_rank);
+  ge::Status ExchangeMem(const EntityPtr &entity, uint32_t local_rank, uint32_t remote_rank) const;
   static void SetMemAttribute(const ExchangeMemInfo &remote_mem_info, std::vector<HcclMem> &remote_mems, HcclMem &mem);
   ge::Status DestroyRes(EntityCommInfoPtr comm_ptr, std::vector<EntityPtr> &comm_entities) const;
   ge::Status PrepareComm(const PrepareMemArg &req, EntityCommInfoPtr &comm_info_ptr);

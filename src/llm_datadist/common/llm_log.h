@@ -227,8 +227,8 @@ inline ge::Status ConvertAclError2Ge(int32_t ret) {
   do {                                                                          \
     const rtError_t _ret = (expr);                          \
     if (_ret != RT_ERROR_NONE) {                                                            \
-      REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<int32_t>(_ret));      \
-      LLMLOGE(ge::FAILED, "Call rt api failed, ret: 0x%X", static_cast<int32_t>(_ret));             \
+      REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret));      \
+      LLMLOGE(ge::FAILED, "Call rt api failed, ret: 0x%X", static_cast<uint32_t>(_ret));             \
       return llm::ConvertAclError2Ge(static_cast<int32_t>(_ret));                                      \
     }                                                                           \
   } while (false)

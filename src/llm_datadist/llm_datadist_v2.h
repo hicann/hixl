@@ -23,7 +23,7 @@ class LLMDataDistV2  {
  public:
   explicit LLMDataDistV2(uint64_t cluster_id) : cluster_id_(cluster_id) {};
 
-  ~LLMDataDistV2();
+  virtual ~LLMDataDistV2();
 
   ge::Status LLMDataDistInitialize(const std::map<ge::AscendString, ge::AscendString> &options);
 

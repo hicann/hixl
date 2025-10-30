@@ -27,7 +27,7 @@ Status ControlMsgHandler::Write(int32_t fd, const void *buf, size_t len, uint64_
   size_t nbytes = len;
   while (nbytes > 0U) {
     auto rc = write(fd, pos, nbytes);
-    if (rc < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)) {
+    if (rc < 0 && (errno == EAGAIN || errno == EINTR)) {
       continue;
     } else if (rc < 0) {
       LLMLOGE(FAILED, "Socket write failed, error msg:%s, errno:%d", strerror(errno), errno);
