@@ -439,11 +439,10 @@ Status BufferTransferService::HandleBufferCopy(const ChannelPtr &channel, Buffer
 Status BufferTransferService::ProcessCopy(const ChannelPtr &channel, const std::vector<uintptr_t> &src_addrs,
                                           const std::vector<uintptr_t> &dst_addrs, std::vector<size_t> &sizes,
                                           rtMemcpyKind_t kind, uint64_t timeout) {
-  if (src_addrs.size() == 1U) {
-    ADXL_CHK_ACL_RET(rtMemcpy(llm::ValueToPtr(dst_addrs[0]), sizes[0], llm::ValueToPtr(src_addrs[0]), sizes[0], kind));
-  } else if ((kind == RT_MEMCPY_DEVICE_TO_DEVICE) || !support_batch_copy_batch_) {
+  if ((kind == RT_MEMCPY_DEVICE_TO_DEVICE) || !support_batch_copy_batch_) {
     return ProcessCopyWithAsync(channel, src_addrs, dst_addrs, sizes, kind, timeout);
   } else {
+    auto start = std::chrono::steady_clock::now();
     std::vector<void *> void_dst_addrs(dst_addrs.size());
     std::vector<void *> void_src_addrs(dst_addrs.size());
     std::vector<rtMemcpyBatchAttr> attrs(dst_addrs.size());
@@ -469,6 +468,8 @@ Status BufferTransferService::ProcessCopy(const ChannelPtr &channel, const std::
       support_batch_copy_batch_ = false;
       return ProcessCopyWithAsync(channel, src_addrs, dst_addrs, sizes, kind, timeout);
     }
+    LLMLOGI("Batch copy time cost:%lu us",
+            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count());
     return ret == RT_ERROR_NONE ? SUCCESS : FAILED;
   }
   return SUCCESS;
@@ -490,6 +491,8 @@ Status BufferTransferService::ProcessCopyWithAsync(const ChannelPtr &channel, co
   auto timeout_in_millis = left_timeout / kMillisToMicros;
   ADXL_CHK_BOOL_RET_STATUS(timeout_in_millis > 0, TIMEOUT, "Transfer timeout.");
   ADXL_CHK_ACL_RET(rtStreamSynchronizeWithTimeout(stream, timeout_in_millis));
+  LLMLOGI("Async copy time cost:%lu us",
+          std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count());
   return SUCCESS;
 }
 

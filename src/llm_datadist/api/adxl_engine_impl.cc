@@ -180,17 +180,18 @@ Status AdxlEngine::TransferSync(const AscendString &remote_engine,
                                 TransferOp operation,
                                 const std::vector<TransferOpDesc> &op_descs,
                                 int32_t timeout_in_millis) {
+  auto start = std::chrono::steady_clock::now();
   LLMLOGI("TransferSync start, remote_engine:%s, operation:%d, op_descs size:%zu, timeout:%d ms",
-         remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size(), timeout_in_millis);
+          remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size(), timeout_in_millis);
   ADXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check AdxlEngine init");
   ADXL_CHK_BOOL_RET_STATUS(timeout_in_millis > 0, PARAM_INVALID, "timeout_in_millis:%d must > 0", timeout_in_millis);
   const auto ret = impl_->TransferSync(remote_engine, operation, op_descs, timeout_in_millis);
-  ADXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
-                           "Failed to TransferSync, remote_engine:%s, operation:%d, op_descs size:%zu, timeout:%d ms",
-                           remote_engine.GetString(), static_cast<int32_t>(operation),
-                           op_descs.size(), timeout_in_millis);
-  LLMLOGI("TransferSync success, remote_engine:%s, operation:%d, op_descs size:%zu, timeout:%d ms",
-         remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size(), timeout_in_millis);
+  ADXL_CHK_BOOL_RET_STATUS(
+      ret == SUCCESS, ret, "Failed to TransferSync, remote_engine:%s, operation:%d, op_descs size:%zu, timeout:%d ms",
+      remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size(), timeout_in_millis);
+  LLMLOGI("TransferSync success, remote_engine:%s, operation:%d, op_descs size:%zu, cost time: %ld us.",
+          remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size(),
+          std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count());
   return SUCCESS;
 }
 }  // namespace adxl
