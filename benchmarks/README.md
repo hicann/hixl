@@ -66,9 +66,9 @@
     - 参数说明
         | **参数名** | **可选/必选** | **描述** |
         |:-----------:|:------------:|:------------:|
-        |     device_id      | <div style="width:4cm"> 必选 </div> |  <div style="width: 10cm"> client要使用的device_id </div>  |
-        |     local_engine      | 必选 | client的host ip |
-        |     remote_engine      | 必选 | server的host ip和port<br>格式为 host_ip:host_port|
+        |     device_id      | <div style="width:4cm"> 必选 </div> |  <div style="width: 10cm"> 当前engine要使用的device_id </div>  |
+        |     local_engine      | 必选 | 当前engine的ip<br>其中，client侧格式为 ip；server侧格式为 ip:port |
+        |     remote_engine      | 必选 | 远端engine的ip<br>其中，client侧格式为 ip；server侧格式为 ip:port|
         |     tcp_port      | 必选 | tcp通信端口 |
         |     transfer_mode      | 必选 | 传输的模式<br>取值范围：d2d、h2d、d2h 和 h2h |
         |     transfer_op      | 必选 | 传输的操作<br>取值范围：write 或 read |
@@ -123,7 +123,7 @@
     |     2M      | —— | 30.532 GB/s  | 22.657 GB/s  | 18.916 GB/s  |
     |     4M      | —— | 30.414 GB/s  | 22.649 GB/s  | 18.971 GB/s  |
     |     8M      | —— | 29.453 GB/s  | 22.657 GB/s  | 18.469 GB/s  |
-    | **传输内存块大小** | **HCCS H2H** | **HCCS H2H BufferPool** | **RDMA D2H** | **RDMA D2H BufferPool** |
+    | **传输内存块大小** | **HCCS H2H** | **HCCS H2H BufferPool** | **RDMA H2H** | **RDMA H2H BufferPool** |
     |     1M      | ——  | 28.617 GB/s  | 22.633 GB/s  | 18.431 GB/s  |
     |     2M      | —— | 28.822 GB/s  | 22.649 GB/s  | 18.464 GB/s  |
     |     4M      | —— | 28.775 GB/s  | 22.641 GB/s  | 18.508 GB/s  |
@@ -146,7 +146,7 @@
     |     2M      | —— | 42.720 GB/s  | 22.604 GB/s  | 19.263 GB/s  |
     |     4M      | —— | 43.298 GB/s  | 22.596 GB/s  | 19.362 GB/s  |
     |     8M      | —— | 41.848 GB/s  | 22.600 GB/s  | 19.254 GB/s  |
-    | **传输内存块大小** | **HCCS H2H** | **HCCS H2H BufferPool** | **RDMA D2H** | **RDMA D2H BufferPool** |
+    | **传输内存块大小** | **HCCS H2H** | **HCCS H2H BufferPool** | **RDMA H2H** | **RDMA H2H BufferPool** |
     |     1M      | ——  | 27.685 GB/s  | 19.626 GB/s  | 18.738 GB/s  |
     |     2M      | —— | 28.185 GB/s  | 22.633 GB/s  | 18.710 GB/s  |
     |     4M      | —— | 27.156 GB/s  | 22.629 GB/s  | 18.735 GB/s  |
@@ -171,7 +171,7 @@
     |     2M      | —— | 28.888 GB/s  | 22.616 GB/s  | 18.499 GB/s  |
     |     4M      | —— | 29.097 GB/s  | 22.620 GB/s  | 18.524 GB/s  |
     |     8M      | —— | 28.261 GB/s  | 22.616 GB/s  | 18.437 GB/s  |
-    | **传输内存块大小** | **HCCS H2H** | **HCCS H2H BufferPool** | **RDMA D2H** | **RDMA D2H BufferPool** |
+    | **传输内存块大小** | **HCCS H2H** | **HCCS H2H BufferPool** | **RDMA H2H** | **RDMA H2H BufferPool** |
     |     1M      | ——  | 27.741 GB/s  | 22.629 GB/s  | 18.177 GB/s  |
     |     2M      | —— | 27.933 GB/s  | 22.637 GB/s  | 18.195 GB/s  |
     |     4M      | —— | 28.166 GB/s  | 22.637 GB/s  | 18.108 GB/s  |
@@ -194,7 +194,7 @@
     |     2M      | —— | 42.445 GB/s  | 22.596 GB/s  | 19.332 GB/s  |
     |     4M      | —— | 41.890 GB/s  | 22.604 GB/s  | 19.353 GB/s  |
     |     8M      | —— | 41.377 GB/s  | 22.592 GB/s  | 19.216 GB/s  |
-    | **传输内存块大小** | **HCCS H2H** | **HCCS H2H BufferPool** | **RDMA D2H** | **RDMA D2H BufferPool** |
+    | **传输内存块大小** | **HCCS H2H** | **HCCS H2H BufferPool** | **RDMA H2H** | **RDMA H2H BufferPool** |
     |     1M      | ——  | 26.795 GB/s  | 17.199 GB/s  | 18.571 GB/s  |
     |     2M      | —— | 25.025 GB/s  | 22.612 GB/s  | 18.783 GB/s  |
     |     4M      | —— | 27.245 GB/s  | 22.616 GB/s  | 18.791 GB/s  |
