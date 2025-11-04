@@ -187,8 +187,8 @@ Status AdxlInnerEngine::GetTransferType(const ChannelPtr &channel, TransferOp op
     auto remote_segment =
         segment_table_->FindSegment(channel->GetChannelId(), op_desc.remote_addr, op_desc.remote_addr + op_desc.len);
     MemType remote_mem_type = remote_segment != nullptr ? remote_segment->GetMemType() : MemType::MEM_HOST;
-    need_buffer = (local_segment == nullptr) || (remote_segment == nullptr);
-    need_buffer = need_buffer || (op_desc.len < kNeedUseBufferThresh);
+    need_buffer = need_buffer || ((local_segment == nullptr) || (remote_segment == nullptr)) ||
+                  (op_desc.len < kNeedUseBufferThresh);
 
     TransferType cur_type;
     if (operation == TransferOp::READ) {
@@ -212,6 +212,8 @@ Status AdxlInnerEngine::GetTransferType(const ChannelPtr &channel, TransferOp op
         cur_type = TransferType::kWriteD2RD;
       }
     }
+    LLMLOGD("Cur transfer type:%d, local mem type:%d, remote mem type:%d.", static_cast<int32_t>(cur_type),
+            static_cast<int32_t>(local_mem_type), static_cast<int32_t>(remote_mem_type));
     if (i > 0) {
       ADXL_CHK_BOOL_RET_STATUS(!need_buffer || (need_buffer && cur_type == type), PARAM_INVALID,
                                "All transfer type need be same in buffer transfer mode.");
@@ -232,7 +234,7 @@ Status AdxlInnerEngine::TransferSync(const AscendString &remote_engine,
   if (buffer_transfer_service_ != nullptr) {
     const auto start = std::chrono::steady_clock::now();
     bool need_buffer = false;
-    TransferType type;
+    TransferType type = TransferType::kEnd;
     ADXL_CHK_STATUS_RET(GetTransferType(channel, operation, op_descs, need_buffer, type),
                         "Failed to get transfer type.");
     LLMLOGI("Transfer type is:%d, cost:%lu us.", type,
