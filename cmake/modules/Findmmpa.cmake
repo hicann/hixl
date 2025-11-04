@@ -44,10 +44,22 @@ unset(_cmake_targets_defined)
 unset(_cmake_targets_not_defined)
 unset(_cmake_expected_targets)
 
-find_path(_INCLUDE_DIR
+find_path(_EX_MMPA_PATH
     NAMES experiment/mmpa/mmpa_api.h
     NO_CMAKE_SYSTEM_PATH
     NO_CMAKE_FIND_ROOT_PATH)
+find_path(_MMPA_PATH
+    NAMES mmpa/mmpa_api.h
+    NO_CMAKE_SYSTEM_PATH
+    NO_CMAKE_FIND_ROOT_PATH)
+
+if(_EX_MMPA_PATH)
+    set(_INCLUDE_DIR "${_EX_MMPA_PATH}/experiment")
+elseif(_MMPA_PATH)
+    set(_INCLUDE_DIR "${_MMPA_PATH}")
+else()
+    unset(_INCLUDE_DIR)
+endif()
 
 find_library(mmpa_SHARED_LIBRARY
     NAMES libmmpa.so
@@ -72,7 +84,7 @@ find_package_handle_standard_args(mmpa
 )
 
 if(mmpa_FOUND)
-    set(mmpa_INCLUDE_DIR "${_INCLUDE_DIR}/experiment")
+    set(mmpa_INCLUDE_DIR "${_INCLUDE_DIR}")
     include(CMakePrintHelpers)
     message(STATUS "Variables in mmpa module:")
     cmake_print_variables(mmpa_INCLUDE_DIR)
@@ -93,7 +105,7 @@ if(mmpa_FOUND)
 
     add_library(mmpa_headers INTERFACE IMPORTED)
     set_target_properties(mmpa_headers PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${mmpa_INCLUDE_DIR};${mmpa_INCLUDE_DIR}/mmpa;${mmpa_INCLUDE_DIR}/mmpa/sub_inc"
+        INTERFACE_INCLUDE_DIRECTORIES "${mmpa_INCLUDE_DIR};${mmpa_INCLUDE_DIR}/mmpa"
     )
 
     include(CMakePrintHelpers)

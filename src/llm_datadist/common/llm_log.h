@@ -23,7 +23,7 @@
 
 // LLM_ERROR_CODES has been defined in metadef, that will cause can't find the info in llm_error_codes.h
 #include "llm_datadist/llm_error_codes.h"
-#include "toolchain/slog.h"
+#include "dlog_pub.h"
 #include "base/err_msg.h"
 #include "runtime/rt_error_codes.h"
 #include "runtime/rt.h"

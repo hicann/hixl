@@ -18,6 +18,8 @@
 #include "memory/span/span_layer_lut.h"
 #include "memory_pool.h"
 
+#define DLOG_EVENT 0x10
+
 #define LOG_BY_TYPE(type, fmt, ...)                           \
   do {                                                        \
     if (type == DLOG_INFO) {                                  \
@@ -25,7 +27,8 @@
     } else if (type == DLOG_ERROR) {                          \
       LLMLOGE(ge::FAILED, fmt, ##__VA_ARGS__);                 \
     } else if (type == DLOG_EVENT){                           \
-      dlog_event(LLM_MODULE_NAME, "%lu %s %s:" fmt, LlmLog::GetTid(), GetId().c_str(), __FUNCTION__, ##__VA_ARGS__); \
+      dlog_info(static_cast<int32_t>(static_cast<uint32_t>(RUN_LOG_MASK) | static_cast<uint32_t>(LLM_MODULE_NAME)), \
+                "%lu %s %s:" fmt, LlmLog::GetTid(), GetId().c_str(), __FUNCTION__, ##__VA_ARGS__); \
     } else {}                                                 \
   } while (false)
 

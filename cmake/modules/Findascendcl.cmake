@@ -16,7 +16,7 @@ endif()
 set(_cmake_targets_defined "")
 set(_cmake_targets_not_defined "")
 set(_cmake_expected_targets "")
-foreach(_cmake_expected_target IN ITEMS ascendcl ascendcl_static ascendcl_headers)
+foreach(_cmake_expected_target IN ITEMS ascendcl ascendcl_headers)
     list(APPEND _cmake_expected_targets "${_cmake_expected_target}")
     if(TARGET "${_cmake_expected_target}")
         list(APPEND _cmake_targets_defined "${_cmake_expected_target}")
@@ -50,13 +50,7 @@ find_path(_INCLUDE_DIR
     NO_CMAKE_FIND_ROOT_PATH)
 
 find_library(ascendcl_SHARED_LIBRARY
-    NAMES libascendcl.so
-    PATH_SUFFIXES lib64
-    NO_CMAKE_SYSTEM_PATH
-    NO_CMAKE_FIND_ROOT_PATH)
-
-find_library(ascendcl_STATIC_LIBRARY
-    NAMES libascendcl.a
+    NAMES libascendcl.so libacl_rt.so
     PATH_SUFFIXES lib64
     NO_CMAKE_SYSTEM_PATH
     NO_CMAKE_FIND_ROOT_PATH)
@@ -68,7 +62,6 @@ find_package_handle_standard_args(ascendcl
     REQUIRED_VARS
         _INCLUDE_DIR
         ascendcl_SHARED_LIBRARY
-        ascendcl_STATIC_LIBRARY
 )
 
 if(ascendcl_FOUND)
@@ -77,18 +70,11 @@ if(ascendcl_FOUND)
     message(STATUS "Variables in ascendcl module:")
     cmake_print_variables(ascendcl_INCLUDE_DIR)
     cmake_print_variables(ascendcl_SHARED_LIBRARY)
-    cmake_print_variables(ascendcl_STATIC_LIBRARY)
 
     add_library(ascendcl SHARED IMPORTED)
     set_target_properties(ascendcl PROPERTIES
         INTERFACE_LINK_LIBRARIES "ascendcl_headers"
         IMPORTED_LOCATION "${ascendcl_SHARED_LIBRARY}"
-    )
-
-    add_library(ascendcl_static STATIC IMPORTED)
-    set_target_properties(ascendcl_static PROPERTIES
-        INTERFACE_LINK_LIBRARIES "ascendcl_headers"
-        IMPORTED_LOCATION "${ascendcl_STATIC_LIBRARY}"
     )
 
     add_library(ascendcl_headers INTERFACE IMPORTED)
@@ -98,9 +84,6 @@ if(ascendcl_FOUND)
 
     include(CMakePrintHelpers)
     cmake_print_properties(TARGETS ascendcl
-        PROPERTIES INTERFACE_LINK_LIBRARIES IMPORTED_LOCATION
-    )
-    cmake_print_properties(TARGETS ascendcl_static
         PROPERTIES INTERFACE_LINK_LIBRARIES IMPORTED_LOCATION
     )
     cmake_print_properties(TARGETS ascendcl_headers

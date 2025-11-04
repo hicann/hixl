@@ -16,7 +16,7 @@
 
 #include "llm_datadist/llm_datadist.h"
 #include "llm_datadist/llm_error_codes.h"
-#include "slog/toolchain/slog.h"
+#include "dlog_pub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
 

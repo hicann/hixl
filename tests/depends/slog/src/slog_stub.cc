@@ -9,7 +9,7 @@
  */
 
 #include "slog_stub.h"
-#include "toolchain/slog.h"
+#include "dlog_pub.h"
 #include "toolchain/plog.h"
 
 #include <stdarg.h>
@@ -39,9 +39,6 @@ class DefaultSlogStub : public SlogStub {
 
   void Log(int module_id, int level, const char *fmt, va_list args) override {
     if ((!log_init) || (level < GetLevel())) {
-      return;
-    }
-    if (level == DLOG_EVENT && GetEventLevel() < 1) {
       return;
     }
     char fmt_buff[1536] = {0};
@@ -138,7 +135,7 @@ void DlogRecord(int moduleId, int level, const char *fmt, ...) {
   va_list valist;
   va_start(valist, fmt);
   if (moduleId & RUN_LOG_MASK) {
-    llm::SlogStub::GetInstance()->Log(moduleId & (~RUN_LOG_MASK), DLOG_EVENT, fmt, valist);
+    llm::SlogStub::GetInstance()->Log(moduleId & (~RUN_LOG_MASK), DLOG_INFO, fmt, valist);
   } else {
     llm::SlogStub::GetInstance()->Log(moduleId, level, fmt, valist);
   }
@@ -163,7 +160,7 @@ void DlogInfoInner(int module_id, const char *fmt, ...) {
   va_list valist;
   va_start(valist, fmt);
   if (module_id & RUN_LOG_MASK) {
-    llm::SlogStub::GetInstance()->Log(module_id & (~RUN_LOG_MASK), DLOG_EVENT, fmt, valist);
+    llm::SlogStub::GetInstance()->Log(module_id & (~RUN_LOG_MASK), DLOG_INFO, fmt, valist);
   } else {
     llm::SlogStub::GetInstance()->Log(module_id, DLOG_INFO, fmt, valist);
   }
@@ -180,7 +177,7 @@ void DlogDebugInner(int module_id, const char *fmt, ...) {
 void DlogEventInner(int module_id, const char *fmt, ...) {
   va_list valist;
   va_start(valist, fmt);
-  llm::SlogStub::GetInstance()->Log((module_id & (~RUN_LOG_MASK)), DLOG_EVENT, fmt, valist);
+  llm::SlogStub::GetInstance()->Log((module_id & (~RUN_LOG_MASK)), DLOG_INFO, fmt, valist);
   va_end(valist);
 }
 

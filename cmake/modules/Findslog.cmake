@@ -44,10 +44,20 @@ unset(_cmake_targets_defined)
 unset(_cmake_targets_not_defined)
 unset(_cmake_expected_targets)
 
-find_path(_INCLUDE_DIR
-    NAMES experiment/slog/toolchain/slog.h
-    NO_CMAKE_SYSTEM_PATH
-    NO_CMAKE_FIND_ROOT_PATH)
+find_path(_TOOLCHAIN_DLOG_PATH "toolchain/dlog_pub.h"
+          NO_CMAKE_SYSTEM_PATH
+          NO_CMAKE_FIND_ROOT_PATH)
+find_path(_PKG_INC_DLOG_PATH "../pkg_inc/base/dlog_pub.h"
+          NO_CMAKE_SYSTEM_PATH
+          NO_CMAKE_FIND_ROOT_PATH)
+
+if(_TOOLCHAIN_DLOG_PATH)
+    set(_INCLUDE_DIR "${_TOOLCHAIN_DLOG_PATH}/toolchain")
+elseif(_PKG_INC_DLOG_PATH)
+    set(_INCLUDE_DIR "${_PKG_INC_DLOG_PATH}/../pkg_inc/base")
+else()
+    unset(_INCLUDE_DIR)
+endif()
 
 find_library(slog_SHARED_LIBRARY
     NAMES libascendalog.so
@@ -72,7 +82,7 @@ find_package_handle_standard_args(slog
 )
 
 if(slog_FOUND)
-    set(slog_INCLUDE_DIR "${_INCLUDE_DIR}/experiment")
+    set(slog_INCLUDE_DIR "${_INCLUDE_DIR}")
     include(CMakePrintHelpers)
     message(STATUS "Variables in slog module:")
     cmake_print_variables(slog_INCLUDE_DIR)
@@ -95,7 +105,7 @@ if(slog_FOUND)
 
     add_library(slog_headers INTERFACE IMPORTED)
     set_target_properties(slog_headers PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${slog_INCLUDE_DIR};${slog_INCLUDE_DIR}/slog;${slog_INCLUDE_DIR}/slog/toolchain"
+        INTERFACE_INCLUDE_DIRECTORIES "${slog_INCLUDE_DIR}"
     )
 
     include(CMakePrintHelpers)

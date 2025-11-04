@@ -16,7 +16,7 @@
 
 #include "hixl/hixl.h"
 #include "adxl/channel_manager.h"
-#include "slog/toolchain/slog.h"
+#include "dlog_pub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
 

@@ -45,7 +45,7 @@ unset(_cmake_targets_not_defined)
 unset(_cmake_expected_targets)
 
 find_path(_INCLUDE_DIR
-    NAMES experiment/hccl/external/hccl/hccl.h
+    NAMES hccl/hccl.h
     NO_CMAKE_SYSTEM_PATH
     NO_CMAKE_FIND_ROOT_PATH)
 
@@ -65,7 +65,7 @@ find_package_handle_standard_args(hccl
 )
 
 if(hccl_FOUND)
-    set(hccl_INCLUDE_DIR "${_INCLUDE_DIR}/experiment")
+    set(hccl_INCLUDE_DIR "${_INCLUDE_DIR}")
     include(CMakePrintHelpers)
     message(STATUS "Variables in hccl module:")
     cmake_print_variables(hccl_INCLUDE_DIR)
@@ -80,7 +80,7 @@ if(hccl_FOUND)
 
     add_library(hccl_headers INTERFACE IMPORTED)
     set_target_properties(hccl_headers PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${hccl_INCLUDE_DIR};${hccl_INCLUDE_DIR}/hccl;${hccl_INCLUDE_DIR}/hccl/external;${hccl_INCLUDE_DIR}/hccl/external/hccl"
+        INTERFACE_INCLUDE_DIRECTORIES "${hccl_INCLUDE_DIR};${hccl_INCLUDE_DIR}/hccl"
     )
 
     include(CMakePrintHelpers)

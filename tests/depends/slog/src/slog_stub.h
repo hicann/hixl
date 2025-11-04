@@ -14,7 +14,7 @@
 #include <string>
 #include <map>
 #include <stdarg.h>
-#include "toolchain/slog.h"
+#include "dlog_pub.h"
 namespace llm {
 class SlogStub {
  public:
@@ -77,9 +77,7 @@ class SlogStub {
       {DLOG_INFO, "[INFO]"},
       {DLOG_WARN, "[WARNING]"},
       {DLOG_ERROR, "[ERROR]"},
-      {DLOG_DEBUG, "[TRACE]"},
-      {DLOG_NULL, "[NULL]"},
-      {DLOG_EVENT, "[EVENT]"}
+      {DLOG_DEBUG, "[TRACE]"}
   };
   std::map<int, std::string> module_id_str = {
       {GE, "GE"},
