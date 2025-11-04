@@ -2,7 +2,7 @@
 
 ## 🔥Latest News
 
-- [2025/10] HIXL项目开源，在昇腾芯片上提供高效的多链路D2D/D2H/H2D/H2H等单边通信能力，并优化了小数据量批量传输场景的性能。同时HIXL已对接多个开源社区，包含[Mooncake](https://github.com/kvcache-ai/Mooncake/issues/719)，[DeepLink](https://github.com/DeepLink-org/DLSlime/pull/21)等。
+- [2025/10] HIXL项目开源，在昇腾芯片上提供高效的多链路D2D/D2H/H2D等单边通信能力，并优化了小数据量批量传输场景的性能。同时HIXL已对接多个开源社区，包含[Mooncake](https://github.com/kvcache-ai/Mooncake/issues/719)，[DeepLink](https://github.com/DeepLink-org/DLSlime/pull/21)等。
 
 ## 🚀概述
 HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，面向集群场景提供简单、可靠、高效的点对点数据传输能力，并通过简易API开放给用户, 在多AI应用和多传输链路之间建立了桥梁。可用于构建大模型PD分离、RL后训练参数切换、模型参数缓存等多种业务场景。
@@ -17,7 +17,7 @@ HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，
 
 **核心组件**
 
-- **HIXL Engine**：作为核心传输引擎，提供了基础传输接口，支持多种类型内存类型传输，比如D2D、D2H、H2D以及H2H。同时兼容多种传输协议，包括HCCS、RDMA等。可实现高速、可靠的数据传输。原生支持多类型数据链路，可灵活同构集群、异构集群的复杂场景。面对集群节点动态扩缩容需求时，可快速完成链路适配与资源调度，为集群整体运行构建可靠通信基础。
+- **HIXL Engine**：作为核心传输引擎，提供了基础传输接口，支持多种类型内存类型传输，比如D2D、D2H、H2D。同时兼容多种传输协议，包括HCCS、RDMA等。可实现高速、可靠的数据传输。原生支持多类型数据链路，可灵活同构集群、异构集群的复杂场景。面对集群节点动态扩缩容需求时，可快速完成链路适配与资源调度，为集群整体运行构建可靠通信基础。
 - **LLM-DataDist**：基于HIXL Engine构建，提供了一套携带KV Cache语义的数据传输接口。可快速、灵活对接vLLM、SGLang等推理引擎。
 
 
