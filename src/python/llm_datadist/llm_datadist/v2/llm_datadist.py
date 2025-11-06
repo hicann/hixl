@@ -52,18 +52,6 @@ class LLMDataDist(object):
         self._enable_free_comm = False
         self._enable_local_comm_res = False
 
-    @staticmethod
-    def _get_flow_graph_max_size(options: Dict[str, str]) -> int:
-        mem_utilization = float(options.get("llm.MemoryUtilization", "0.95"))
-        value = options.get("ge.flowGraphMemMaxSize", None)
-        if value is None:
-            return 10737418240 * mem_utilization  # 10*1024*1024*1024
-
-        check_isinstance('ge.flowGraphMemMaxSize', value, str)
-        raise_if_false(len(value.split(",")) == 1, "ge.flowGraphMemMaxSize only support one mem pool in llm datadist")
-        raise_if_false(value.isdigit(), "ge.flowGraphMemMaxSize must be digit")
-        return int(value) * mem_utilization
-
     def init(self, options: Dict[str, str]) -> None:
         """
         初始化LLM DataDist
@@ -80,16 +68,16 @@ class LLMDataDist(object):
         self._engine_options['llm.Role'] = self._role_to_str(self._role)
         self._enable_local_comm_res = "llm.LocalCommRes" in options
         if self._enable_local_comm_res and "llm.EnableCacheManager" not in options:
-            log.info('set cache manager enable default when enable_local_comm_res')
+            log.info('cache manager is enabled by default when local_comm_res is set in LLMConfig')
             self._engine_options["llm.EnableCacheManager"] = "1"
         if self._enable_local_comm_res and "llm.EnableRemoteCacheAccessible" not in options:
-            log.info('set remote cache accessible enable default when enable_local_comm_res')
+            log.info('remote cache accessible is enabled by default when local_comm_res is set in LLMConfig')
             self._engine_options["llm.EnableRemoteCacheAccessible"] = "1"
         self._enable_cache_mgr = (
             "llm.EnableCacheManager" in self._engine_options and
             self._engine_options["llm.EnableCacheManager"] == "1"
         )
-        log.info('options = %s', self._engine_options)
+        log.info('LLMDatadist init options = %s', self._engine_options)
         if self._enable_local_comm_res:
             self._check_is_cache_mgr_mode('llm.LocalCommRes')
 
@@ -318,7 +306,7 @@ class LLMDataDist(object):
 
     def _check_is_inited(self):
         if not self._is_initialized:
-            raise RuntimeError('llm engine is not initialized')
+            raise RuntimeError('llm datadist is not initialized')
     
     @property
     def kv_cache_manager(self) -> 'KvCacheManager':
@@ -343,7 +331,7 @@ def _shutdown_handler():
         try:
             LLMDataDist.llm_engine_instance.finalize()
         except LLMException as e:
-            log.warn(f'error occurred while finalize llm engine: {e} '
+            log.warn(f'error occurred while finalize llm datadist: {e} '
                      f'may cause by already finalized by another framework')
 
 

@@ -48,7 +48,7 @@ foreach(target_name IN LISTS targets_list)
         target_link_libraries(${target_name} PRIVATE
             llm_datadist
             ascendcl
-            -pthread
+            -lpthread
             -lrt
         )
         target_link_ascend_hal(${target_name})

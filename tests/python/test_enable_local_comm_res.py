@@ -110,3 +110,18 @@ class LlmLocalCommResSt(unittest.TestCase):
             print(traceback.format_exc())
             self.has_exception = True
         self.assertEqual(self.has_exception, False)
+
+    def test_local_comm_res_not_init(self):
+        cluster = LLMClusterInfo()
+        cluster.remote_cluster_id = 1
+        cluster.append_local_ip_info("127.0.0.1", 26008)
+        cluster.append_remote_ip_info("127.0.0.1", 26008)
+        llm_datadist = LLMDataDist(LLMRole.PROMPT, 2)
+        try:
+            ret, rets = llm_datadist.link_clusters([cluster], 5000)
+        except Exception as e:
+            print(f"{type(e).__name__} - {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            self.has_exception = True
+        self.assertEqual(self.has_exception, True)
