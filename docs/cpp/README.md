@@ -10,10 +10,10 @@
 
 支持的产品形态如下：
 
--   Atlas 800I A2 推理产品/A200I A2 Box 异构组件
+-   Atlas 800I A2 推理产品/A200I A2 Box 异构组件，该场景下Server采用HCCS传输协议时，仅支持D2D。
 -   Atlas A3 训练系列产品/Atlas A3 推理系列产品，该场景下采用HCCS传输协议时，不支持Host内存作为远端Cache。
 ## 接口列表
-接口列表如下。
+接口列表如下：
 -  [LLM-DataDist接口](LLM-DataDist接口.md)
 -  [LLM-DataDist数据结构](LLM-DataDist数据结构.md)
 -  [LLM-DataDist错误码](LLM-DataDist错误码.md)
