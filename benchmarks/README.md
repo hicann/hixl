@@ -98,6 +98,10 @@
             HCCL_INTRA_ROCE_ENABLE=1 ./benchmark 1 10.10.10.0:16000 10.10.10.0 20000 d2d write false
             ```
   **注**：HCCL_INTRA_ROCE_ENABLE=1表示使用RDMA进行传输
+- 约束说明
+
+    - Atlas 800I A2 推理产品/A200I A2 Box 异构组件，该场景下Server内采用HCCS传输协议时，仅支持d2d。
+    - Atlas A3 训练/推理系列产品，该场景下采用HCCS传输协议时，不支持Host内存作为远端Cache。
 
 ## 性能数据
 
