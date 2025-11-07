@@ -12,7 +12,6 @@
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_RANK_TABLE_GENERATOR_H_
 
 #include <memory>
-#include "llm_datadist/llm_engine_types.h"
 #include "llm_datadist/llm_error_codes.h"
 #include "common/llm_inner_types.h"
 #include "common/common.h"

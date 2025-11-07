@@ -12,6 +12,7 @@
 #include "common/llm_utils.h"
 #include "common/msg_handler_plugin.h"
 #include "common/llm_checker.h"
+#include "llm_datadist/llm_engine_types.h"
 
 using namespace std;
 using namespace ::testing;

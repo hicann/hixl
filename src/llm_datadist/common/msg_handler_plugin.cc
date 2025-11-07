@@ -234,7 +234,7 @@ ge::Status MsgHandlerPlugin::StartDaemon(uint32_t listen_port) {
   LLM_CHK_BOOL_RET_STATUS(socket_ret == 0, ge::FAILED,
                          "Failed to set socket opt SO_REUSEADDR, socket_ret:%d, error msg:%s, errno:%d",
                          socket_ret, strerror(errno), errno);
-  LLM_CHK_BOOL_RET_STATUS(bind(listen_fd_, (sockaddr *)&bind_address,
+  LLM_CHK_BOOL_RET_STATUS(bind(listen_fd_, reinterpret_cast<sockaddr *>(&bind_address),
                               sizeof(sockaddr_in)) >= 0,
                          ge::FAILED, "Failed to bind port:%u, error msg:%s, errno:%d.",
                          listen_port, strerror(errno), errno);

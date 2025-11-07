@@ -19,6 +19,7 @@
 #include "llm_datadist_v2.h"
 
 #include "common/llm_inner_types.h"
+#include "llm_datadist/llm_engine_types.h"
 
 #include "dlog_pub.h"
 #include "depends/mmpa/src/mmpa_stub.h"

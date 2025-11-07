@@ -107,7 +107,7 @@ ge::Status SetBufferInfo(const PullCacheParam &pull_cache_param, const CacheEntr
 
 ge::Status DataTransferClient::ConstructTransferInfo(const PullCacheParam &pull_cache_param,
                                                      const CacheEntry &cache_entry, const CacheKey &cache_key,
-                                                     int32_t timeout, TransferCacheReq &request) {
+                                                     int32_t timeout, TransferCacheReq &request) const {
   std::vector<std::vector<std::pair<int64_t, int64_t>>> contiguous_blocks_pair;
   uint32_t buffer_info_count = 0U;
   uint32_t is_pull_block = 0U;

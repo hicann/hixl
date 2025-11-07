@@ -35,7 +35,7 @@ class DataTransferClient {
   ge::Status SynchronizeStreamTask(const TimePoint &start_time) const;
   ge::Status GetResponseInfo() const;
   ge::Status ConstructTransferInfo(const PullCacheParam &pull_cache_param, const CacheEntry &cache_entry,
-                                   const CacheKey &cache_key, int32_t timeout, TransferCacheReq &request);
+                                   const CacheKey &cache_key, int32_t timeout, TransferCacheReq &request) const;
 
   CommEntity *comm_entity_;
   rtStream_t req_stream_{};
