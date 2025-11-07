@@ -13,7 +13,7 @@
 
 #include <mutex>
 #include "runtime/rt.h"
-
+#include "mmpa/mmpa_api.h"
 
 #include "llm_datadist/llm_error_codes.h"
 #include "hccl_mem_comm.h"
@@ -30,7 +30,7 @@ using HcclBatchPutFunc = HcclResult (*)(HcclComm comm, uint32_t remote_rank, Hcc
 using HcclBatchGetFunc = HcclResult (*)(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t desc_num,
                                         rtStream_t stream);
 using HcclRemapRegisteredMemoryFunc = HcclResult (*)(HcclComm *comm, HcclMem *mem_info_array, uint64_t comm_size,
-                                                     uint64_t arraySize);
+                                                     uint64_t array_size);
 
 using HcclRegisterGlobalMemFunc = HcclResult (*)(HcclMem *mem, void **mem_handle);
 using HcclDeregisterGlobalMemFunc = HcclResult (*)(void *mem_handle);
@@ -56,11 +56,11 @@ class HcclAdapter {
                           rtStream_t stream) const;
   HcclResult HcclRemapRegisteredMemory(HcclComm *comm, HcclMem *mem_info_array, uint64_t comm_size,
                                        uint64_t arraySize) const;
-  HcclResult HcclRegisterGlobalMem(HcclMem *mem, void **mem_handle);
-  HcclResult HcclDeregisterGlobalMem(void *mem_handle);
-  HcclResult HcclCommBindMem(HcclComm comm, void *mem_handle);
-  HcclResult HcclCommUnbindMem(HcclComm comm, void *mem_handle);
-  HcclResult HcclCommPrepare(HcclComm comm, HcclPrepareConfig *prepare_config, int32_t timeout);
+  HcclResult HcclRegisterGlobalMem(HcclMem *mem, void **mem_handle) const;
+  HcclResult HcclDeregisterGlobalMem(void *mem_handle) const;
+  HcclResult HcclCommBindMem(HcclComm comm, void *mem_handle) const;
+  HcclResult HcclCommUnbindMem(HcclComm comm, void *mem_handle) const;
+  HcclResult HcclCommPrepare(HcclComm comm, HcclPrepareConfig *prepare_config, int32_t timeout) const;
   HcclAdapter(const HcclAdapter &) = delete;
   HcclAdapter(const HcclAdapter &&) = delete;
   HcclAdapter &operator=(const HcclAdapter &) = delete;
@@ -89,6 +89,27 @@ class HcclAdapter {
 class HcclUtils {
  public:
   static ge::Status ConvertHcclErrorCode(HcclResult hccl_result, ge::Status default_status = ge::FAILED);
+};
+
+template<typename T>
+class FunctionLoader{
+ private:
+  union FunctionPointerConverter {
+    void* from;
+    T to;
+  };
+
+ public:
+  static T load(void* so_handle, const char* func_name) {
+    void* symbol = mmDlsym(so_handle, func_name);
+        if (!symbol) {
+            return nullptr;
+        }
+        
+        FunctionPointerConverter converter;
+        converter.from = symbol;
+        return converter.to;
+  }
 };
 }  // namespace llm
 
