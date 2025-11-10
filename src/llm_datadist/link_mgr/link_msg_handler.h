@@ -82,7 +82,7 @@ class LinkMsgHandler {
   ge::Status ConnectedProcess(int32_t fd, bool &keep_fd);
   ge::Status ExchangeInfoProcess(const LLMExchangeInfo &peer_exchange_info, int32_t timeout, bool force_link,
                                  EntityMemInfoPtr &mem_info_ptr);
-  ge::Status DisconnectInfoProcess(const LLMDisconnectInfo &peer_disconnect_info);
+  ge::Status DisconnectInfoProcess(const LLMDisconnectInfo &peer_disconnect_info) const;
   ge::Status ProcessDisconnectRequest(int32_t fd, const std::vector<char> &msg);
   ge::Status ProcessConnectRequest(int32_t fd, const std::vector<char> &msg);
   ge::Status GenerateLocalCommRes(const ClusterInfo &cluster);

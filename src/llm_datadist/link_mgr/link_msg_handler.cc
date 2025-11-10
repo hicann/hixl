@@ -351,7 +351,7 @@ ge::Status LinkMsgHandler::GenerateLocalCommRes(const ClusterInfo &cluster) {
   return ge::SUCCESS;
 }
 
-ge::Status LinkMsgHandler::DisconnectInfoProcess(const LLMDisconnectInfo &peer_disconnect_info) {
+ge::Status LinkMsgHandler::DisconnectInfoProcess(const LLMDisconnectInfo &peer_disconnect_info) const {
   return comm_entity_manager_->DestroyEntity(peer_disconnect_info.cluster_id);
 }
 

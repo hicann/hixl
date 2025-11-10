@@ -46,7 +46,7 @@ class CommEntityManager {
   std::vector<EntityPtr> QueryEntityByCommId(uint64_t comm_id);
   void Dump();
   void DeleteEntities();
-  void SetCommMemManager(CommMemManager *comm_mem_manager_);
+  void SetCommMemManager(CommMemManager *comm_mem_manager);
   size_t GetEntitySize();
   ge::Status RemapRegisteredMemory(const std::vector<LLMMemInfo> &mem_infos);
   RegBufferPool *GetHostRegPool();
