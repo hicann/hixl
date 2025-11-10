@@ -554,18 +554,6 @@ License: Apache License V2.0
 Please see above.
 
 
-Software: graphengine 1.3.0
-
-Official Repository: https://gitee.com/mindspore/graphengine
-
-Usage: "tests/depends/hccl/src/hccl_stub.cc"
-
-Copyright Notice: Copyright 2019-2020 Huawei Technologies Co., Ltd.
-
-License: Apache License V2.0
-Please see above.
-
-
 Software: graphengine 1.5.1
 
 Official Repository: https://gitee.com/mindspore/graphengine
