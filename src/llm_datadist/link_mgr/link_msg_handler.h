@@ -88,7 +88,7 @@ class LinkMsgHandler {
   ge::Status GenerateLocalCommRes(const ClusterInfo &cluster);
   ge::Status CreateEntityMemInfo(EntityMemInfoPtr &mem_info_ptr);
   ge::Status SetEntityMemInfo(const LLMExchangeInfo &peer_exchange_info,
-                              EntityPtr entity, EntityMemInfoPtr &mem_info_ptr);
+                              EntityPtr entity, EntityMemInfoPtr &mem_info_ptr) const;
   template<typename T>
   static ge::Status Serialize(const T &msg, std::string &msg_str);
   template<typename T>

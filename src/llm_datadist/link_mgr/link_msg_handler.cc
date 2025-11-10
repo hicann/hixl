@@ -267,7 +267,7 @@ ge::Status LinkMsgHandler::ConnectedProcess(int32_t fd, bool &keep_fd) {
 }
 
 ge::Status LinkMsgHandler::SetEntityMemInfo(const LLMExchangeInfo &peer_exchange_info,
-                                            EntityPtr entity, EntityMemInfoPtr &mem_info_ptr) {
+                                            EntityPtr entity, EntityMemInfoPtr &mem_info_ptr) const {
   // prepare mem
   entity->SetEntityMemInfo(mem_info_ptr);
   auto &remote_mems = entity->GetRemoteMems();

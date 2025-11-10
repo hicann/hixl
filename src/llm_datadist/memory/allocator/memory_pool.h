@@ -23,8 +23,6 @@ class MemoryPool {
   virtual ge::MemBlock *Alloc(ge::Allocator &allocator, const MemSize size) = 0;
   virtual void Free(ge::MemBlock *block) = 0;
 
-  virtual ge::Status Finalize() = 0;
-
   virtual const std::string &GetId() const = 0;
 
   virtual void PrintDetails(const int32_t level) = 0;

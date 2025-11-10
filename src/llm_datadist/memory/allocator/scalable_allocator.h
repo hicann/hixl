@@ -48,7 +48,7 @@ class ScalableAllocator : public MemoryPool {
   float GetReachTheoryRate() const;
 
  protected:
-  ge::Status Finalize() override;
+  ge::Status Finalize();
   virtual PageSpan *BlockAlloc(ge::Allocator &allocator, const BlockAddr block_addr, const MemAddr addr,
                                const size_t size);
   virtual PageSpan *SplitSpan(ge::Allocator &allocator, const SpanLayerId fix_layer_id,
