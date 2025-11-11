@@ -15,6 +15,7 @@
 #include <utility>
 #include "common/mem_utils.h"
 #include "common/llm_scope_guard.h"
+#include "common/def_types.h"
 #include "base/err_msg.h"
 
 namespace adxl {
@@ -124,7 +125,8 @@ Status ChannelManager::ProcessReceivedData(const ChannelPtr &channel) {
       if (channel->bytes_received_ < sizeof(ProtocolHeader)) {
         break;
       }
-      auto *header = reinterpret_cast<ProtocolHeader *>(channel->recv_buffer_.data());
+      ProtocolHeader *header = nullptr;
+      header = llm::PtrToPtr<char, ProtocolHeader>(channel->recv_buffer_.data());
       if (header->magic != kMagicNumber) {
         LLMLOGE(FAILED, "Invalid magic number received on channel:%s.", channel->GetChannelId().c_str());
         return RemoveFd(channel->GetFd());
@@ -164,11 +166,12 @@ Status ChannelManager::ProcessReceivedData(const ChannelPtr &channel) {
   return SUCCESS;
 }
 
-Status ChannelManager::HandleControlMessage(const ChannelPtr &channel) {
+Status ChannelManager::HandleControlMessage(const ChannelPtr &channel) const {
   ADXL_CHK_BOOL_RET_STATUS(channel->expected_body_size_ > sizeof(ControlMsgType), FAILED,
                            "Received msg invalid, channel:%s.", channel->GetChannelId().c_str());
   auto data = channel->recv_buffer_.data();
-  auto *msg_type = reinterpret_cast<ControlMsgType *>(data);
+  ControlMsgType *msg_type = nullptr;
+  msg_type = llm::PtrToPtr<char, ControlMsgType>(data);
   std::string msg_str(data + sizeof(ControlMsgType), channel->expected_body_size_ - sizeof(ControlMsgType));
   if (*msg_type == ControlMsgType::kHeartBeat) {
     channel->UpdateHeartbeatTime();

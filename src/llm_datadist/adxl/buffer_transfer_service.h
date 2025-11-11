@@ -12,6 +12,7 @@
 #define CANN_GRAPH_ENGINE_BUFFER_TRANSFER_SERVICE_H
 
 #include <future>
+#include <utility>
 #include "adxl/adxl_types.h"
 #include "common/llm_mem_pool.h"
 #include "common/llm_thread_pool.h"
@@ -19,10 +20,11 @@
 #include "control_msg_handler.h"
 
 namespace adxl {
+using CopyExtraInfo = std::pair<rtMemcpyKind_t, uint64_t>;
 class BufferTransferService {
  public:
   BufferTransferService(std::vector<llm::LlmMemPool *> npu_mem_pools, uint64_t buffer_size)
-      : npu_mem_pools_(npu_mem_pools), buffer_size_(buffer_size) {}
+      : npu_mem_pools_(std::move(npu_mem_pools)), buffer_size_(buffer_size) {}
 
   Status Initialize();
 
@@ -70,18 +72,18 @@ class BufferTransferService {
 
   void PushCtrlMsg(const ChannelPtr &channel, BufferReq &buffer_req);
 
-  Status ProcessCopy(const ChannelPtr &channel,
-                     const std::vector<uintptr_t> &src_addrs, const std::vector<uintptr_t> &dst_addrs,
-                     std::vector<size_t> &sizes, rtMemcpyKind_t kind, uint64_t timeout);
+  Status ProcessCopy(const ChannelPtr &channel, const std::vector<uintptr_t> &src_addrs,
+                     const std::vector<uintptr_t> &dst_addrs, std::vector<size_t> &sizes, CopyExtraInfo extra_info);
 
-  Status ProcessCopyWithAsync(const ChannelPtr &channel, const std::vector<uintptr_t> &src_addrs,
-                              const std::vector<uintptr_t> &dst_addrs, std::vector<size_t> &sizes, rtMemcpyKind_t kind,
-                              uint64_t timeout) const;
+  static Status ProcessCopyWithAsync(const ChannelPtr &channel, const std::vector<uintptr_t> &src_addrs,
+                                     const std::vector<uintptr_t> &dst_addrs, std::vector<size_t> &sizes,
+                                     CopyExtraInfo extra_info);
 
-  Status D2DTransfer(const ChannelPtr &channel, TransferOp transfer_op, std::vector<TransferOpDesc> &op_descs,
-                     uint64_t timeout, const std::chrono::steady_clock::time_point &start);
+  static Status D2DTransfer(const ChannelPtr &channel, TransferOp transfer_op,
+                            const std::vector<TransferOpDesc> &op_descs, uint64_t timeout,
+                            const std::chrono::steady_clock::time_point &start);
 
-  bool CheckTimeout(const BufferReq &req) const;
+  static bool CheckTimeout(const BufferReq &req);
 
   std::vector<llm::LlmMemPool*> npu_mem_pools_;
   uint64_t buffer_size_;

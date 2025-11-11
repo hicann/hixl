@@ -130,11 +130,6 @@ Status AdxlInnerEngine::InitBufferTransferService(const std::map<ge::AscendStrin
 void AdxlInnerEngine::Finalize() {
   channel_manager_.Finalize();
   msg_handler_.Finalize();
-  for (auto &mem_handle : pool_mem_handles_) {
-    if (mem_handle != nullptr) {
-      msg_handler_.DeregisterMem(mem_handle);
-    }
-  }
   for (auto &mem : npu_pool_memorys_) {
     if (mem != nullptr) {
       auto ret = rtFree(mem);

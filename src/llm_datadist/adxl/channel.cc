@@ -15,6 +15,7 @@
 #include "adxl/adxl_utils.h"
 #include "common/llm_inner_types.h"
 #include "common/llm_scope_guard.h"
+#include "common/def_types.h"
 
 #include <base/err_msg.h>
 
@@ -141,7 +142,8 @@ Status Channel::SetSocketNonBlocking(int32_t fd) {
   std::lock_guard<std::mutex> lock(mutex_);
   int flags = fcntl(fd, F_GETFL, 0);
   ADXL_CHK_BOOL_RET_STATUS(flags != -1, FAILED, "Failed to get fd flags: %s", strerror(errno));
-  ADXL_CHK_BOOL_RET_STATUS(fcntl(fd, F_SETFL, flags | O_NONBLOCK) != -1,
+
+  ADXL_CHK_BOOL_RET_STATUS(fcntl(fd, F_SETFL, static_cast<uint32_t>(flags) | static_cast<uint32_t>(O_NONBLOCK)) != -1,
                            FAILED, "Failed to set fd to non-blocking: %s", strerror(errno));
 
   fd_ = fd;
@@ -211,8 +213,8 @@ Status BufferedTransfer::Put(const std::vector<TransferOpDesc> &op_descs) {
   size_t index = 0U;
   for (const auto &desc : op_descs) {
     HcclOneSideOpDesc hccl_op_desc{};
-    hccl_op_desc.localAddr = reinterpret_cast<void *>(desc.local_addr);
-    hccl_op_desc.remoteAddr = reinterpret_cast<void *>(desc.remote_addr);
+    hccl_op_desc.localAddr = llm::ValueToPtr(desc.local_addr);
+    hccl_op_desc.remoteAddr = llm::ValueToPtr(desc.remote_addr);
     hccl_op_desc.count = desc.len;
     hccl_op_desc.dataType = HCCL_DATA_TYPE_UINT8;
     op_descs_.emplace_back(hccl_op_desc);

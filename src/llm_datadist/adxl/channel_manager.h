@@ -46,7 +46,7 @@ class ChannelManager {
   Status HandleSocketEvent(int32_t fd);
   Status HandleReadEvent(const ChannelPtr &channel);
   Status ProcessReceivedData(const ChannelPtr &channel);
-  Status HandleControlMessage(const ChannelPtr &channel);
+  Status HandleControlMessage(const ChannelPtr &channel) const;
   Status RemoveFd(int32_t fd);
 
   std::atomic<bool> stop_signal_{false};
