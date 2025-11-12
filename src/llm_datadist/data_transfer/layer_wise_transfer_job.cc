@@ -227,7 +227,7 @@ ge::Status LayerWiseTransferJob::FillRemoteLayerAddrs(int32_t timeout_in_ms,
 
 ge::Status LayerWiseTransferJob::ValidateRemoteCache(const CacheEntry &remote_cache_entry,
                                                      const TransferCacheConfig &transfer_cache_config,
-                                                     const TransferBlockConfig &transfer_block_config) {
+                                                     const TransferBlockConfig &transfer_block_config) const {
   LLM_CHK_BOOL_RET_STATUS(remote_cache_entry.remote_accessible, ge::LLM_PARAM_INVALID,
                          "remote cache is not remote accessible.");
   // validate layer_index

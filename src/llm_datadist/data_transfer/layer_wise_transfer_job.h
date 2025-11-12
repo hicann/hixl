@@ -47,7 +47,7 @@ class LayerWiseTransferJob {
                                   const TransferBlockConfig &transfer_block_config);
 
   ge::Status ValidateRemoteCache(const CacheEntry &remote_cache_entry, const TransferCacheConfig &transfer_cache_config,
-                                 const TransferBlockConfig &transfer_block_config);
+                                 const TransferBlockConfig &transfer_block_config) const;
 
   rtStream_t stream_;
   CommEntity *comm_entity_;

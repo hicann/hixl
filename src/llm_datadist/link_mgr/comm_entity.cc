@@ -45,7 +45,8 @@ ge::Status RegBufferPool::Initialize() {
     LLM_CHK_ACL_RET(rtMallocHost(&buffer_, buffer_size, LLM_MODULE_NAME_U16));
   } else {
     LLM_CHK_ACL_RET(rtMalloc(&buffer_, buffer_size,
-                             RT_MEMORY_HBM | RT_MEM_MALLOC_HUGE_FIRST, LLM_MODULE_NAME_U16));
+                         RT_MEMORY_HBM | static_cast<uint32_t>(RT_MEM_MALLOC_HUGE_FIRST),
+                         LLM_MODULE_NAME_U16));
   }
   LLM_DISMISSABLE_GUARD(fail_guard, ([this]() {
     if (is_host_) {
@@ -131,14 +132,14 @@ ge::Status EntityMemInfo::Initialize() {
     LLM_CHECK_NOTNULL(device_reg_pool_);
     LLM_CHK_ACL_RET(rtMallocHost(&host_transfer_buffer_, kDefaultMsgBufferSize, LLM_MODULE_NAME_U16));
     host_transfer_req_ = host_transfer_buffer_;
-    host_transfer_resp_ = reinterpret_cast<uint8_t *>(host_transfer_buffer_) + kDefaultReqBufferSize;
+    host_transfer_resp_ = static_cast<uint8_t *>(host_transfer_buffer_) + kDefaultReqBufferSize;
     LLM_CHK_STATUS_RET(host_reg_pool_->Alloc(msg_buffer_), "Failed to alloc host reg buffer");
     LLM_CHK_STATUS_RET(device_reg_pool_->Alloc(transfer_buffer_), "Failed to alloc dev reg buffer");
     transfer_req_ = transfer_buffer_;
-    transfer_resp_ = reinterpret_cast<uint8_t *>(transfer_buffer_) + kDefaultReqBufferSize;
+    transfer_resp_ = static_cast<uint8_t *>(transfer_buffer_) + kDefaultReqBufferSize;
   }
   req_ = msg_buffer_;
-  resp_ = reinterpret_cast<uint8_t *>(msg_buffer_) + kDefaultReqBufferSize;
+  resp_ = static_cast<uint8_t *>(msg_buffer_) + kDefaultReqBufferSize;
   LLMLOGI("Mem info init success, remote_cache_accessible:%d", static_cast<int32_t>(remote_cache_accessible_));
   return ge::SUCCESS;
 }
