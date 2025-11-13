@@ -17,7 +17,7 @@
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
 #include "depends/runtime/src/runtime_stub.h"
 #include "utils/task_batcher.h"
-#include "runtime/rt_error_codes.h"
+#include "rt_error_codes.h"
 #include "llm_datadist/llm_engine_types.h"
 
 namespace llm {

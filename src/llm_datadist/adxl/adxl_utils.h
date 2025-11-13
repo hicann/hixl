@@ -13,7 +13,7 @@
 
 #include "hccl/hccl_types.h"
 #include "runtime/rt.h"
-#include "external/runtime/rt_error_codes.h"
+#include "rt_error_codes.h"
 #include "adxl/adxl_types.h"
 
 namespace adxl {

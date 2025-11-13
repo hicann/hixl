@@ -44,10 +44,22 @@ unset(_cmake_targets_defined)
 unset(_cmake_targets_not_defined)
 unset(_cmake_expected_targets)
 
-find_path(_INCLUDE_DIR
-    NAMES experiment/runtime/runtime/rt.h
+find_path(_EX_RTS_PATH "experiment/runtime/runtime/rt.h"
     NO_CMAKE_SYSTEM_PATH
     NO_CMAKE_FIND_ROOT_PATH)
+find_path(_RTS_PATH "../pkg_inc/runtime/runtime/rt.h"
+    NO_CMAKE_SYSTEM_PATH
+    NO_CMAKE_FIND_ROOT_PATH)
+
+if(_EX_RTS_PATH)
+    set(_INCLUDE_DIR "${_EX_RTS_PATH}/experiment")
+    set(runtime_INCLUDE_DIR "${_INCLUDE_DIR};${_INCLUDE_DIR}/runtime;${_INCLUDE_DIR}/runtime/external;${_INCLUDE_DIR}/runtime/external/runtime")
+elseif(_RTS_PATH)
+    set(_INCLUDE_DIR "${_RTS_PATH}/../pkg_inc")
+    set(runtime_INCLUDE_DIR "${_INCLUDE_DIR};${_INCLUDE_DIR}/runtime;${_RTS_PATH}/acl/error_codes")
+else()
+unset(_INCLUDE_DIR)
+endif()
 
 find_library(runtime_SHARED_LIBRARY
     NAMES libruntime.so
@@ -65,7 +77,6 @@ find_package_handle_standard_args(runtime
 )
 
 if(runtime_FOUND)
-    set(runtime_INCLUDE_DIR "${_INCLUDE_DIR}/experiment")
     include(CMakePrintHelpers)
     message(STATUS "Variables in runtime module:")
     cmake_print_variables(runtime_INCLUDE_DIR)
@@ -79,7 +90,7 @@ if(runtime_FOUND)
 
     add_library(runtime_headers INTERFACE IMPORTED)
     set_target_properties(runtime_headers PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${runtime_INCLUDE_DIR};${runtime_INCLUDE_DIR}/runtime;${runtime_INCLUDE_DIR}/runtime/external;${runtime_INCLUDE_DIR}/runtime/external/runtime"
+        INTERFACE_INCLUDE_DIRECTORIES "${runtime_INCLUDE_DIR}"
     )
 
     include(CMakePrintHelpers)

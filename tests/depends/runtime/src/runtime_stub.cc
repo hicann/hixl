@@ -17,7 +17,7 @@
 #include "runtime/rt.h"
 #include "runtime/base.h"
 #include "runtime/rt_preload_task.h"
-#include "external/runtime/rt_error_codes.h"
+#include "rt_error_codes.h"
 #include <iostream>
 
 extern std::string g_runtime_stub_mock;

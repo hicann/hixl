@@ -15,6 +15,7 @@ hixl:
     release:
       - src
     unrelease:
+      - src/python/llm_wrapper/llm_wrapper_v2.cc
   llt:
     ut_check: true
     st_check: false

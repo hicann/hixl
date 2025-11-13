@@ -16,7 +16,7 @@
 #include "cache_mgr/cache_manager.h"
 #include "statistic_manager.h"
 #include "data_transfer/data_transfer_utils.h"
-#include "runtime/rt_error_codes.h"
+#include "rt_error_codes.h"
 #include "common/llm_scope_guard.h"
 
 namespace llm {

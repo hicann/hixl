@@ -30,7 +30,7 @@
 ## 程序编译
 
 
-1. 参考[构建](../docs/build.md)里的**编译执行**章节，利用build.sh进行编译。
+1. 参考[构建](../docs/build.md)里的**编译执行**章节，利用build.sh的--examples参数进行编译。
 
 2. 编译结束后，在**build/benchmarks**目录下生成多个可执行文件。
 

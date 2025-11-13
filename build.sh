@@ -20,7 +20,7 @@ BUILD_PATH="${BASEPATH}/${BUILD_RELATIVE_PATH}/"
 usage() {
   echo "Usage:"
   echo "  sh build.sh [-h | --help] [-v | --verbose] [-j<N>]"
-  echo "              [--pkg]"
+  echo "              [--pkg] [--examples]"
   echo "              [--build_type=<Release|Debug>]"
   echo "              [--cann_3rd_lib_path=<PATH>] [--output_path=<PATH>]"
   echo ""
@@ -35,6 +35,7 @@ usage() {
   echo "    --output_path=<PATH>"
   echo "                      Set output path, default ./build_out"
   echo "    --pkg             Build run package, reserved parameter"
+  echo "    --examples        Build with examples and benchmarks, default is OFF"
   echo ""
 }
 
@@ -57,9 +58,11 @@ checkopts() {
   OUTPUT_PATH="${BASEPATH}/build_out"
   CANN_3RD_LIB_PATH="$BASEPATH/third_party"
   CMAKE_BUILD_TYPE="Release"
+  ENABLE_EXAMPLES=OFF
+  ENABLE_BENCHMARKS=OFF
 
   # Process the options
-  parsed_args=$(getopt -a -o j:hv -l help,verbose,pkg,cann_3rd_lib_path:,output_path:,build_type: -- "$@") || {
+  parsed_args=$(getopt -a -o j:hv -l help,verbose,pkg,examples,cann_3rd_lib_path:,output_path:,build_type: -- "$@") || {
     usage
     exit 1
   }
@@ -96,6 +99,11 @@ checkopts() {
       --pkg)
         shift
         ;;
+      --examples)
+        shift
+        ENABLE_EXAMPLES=ON
+        ENABLE_BENCHMARKS=ON
+        ;;
       --)
         shift
         break
@@ -121,6 +129,8 @@ build() {
   cd "${BUILD_PATH}"
   cmake -D CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
         -D CMAKE_INSTALL_PREFIX=${OUTPUT_PATH} \
+        -D ENABLE_EXAMPLES=${ENABLE_EXAMPLES} \
+        -D ENABLE_BENCHMARKS=${ENABLE_BENCHMARKS} \
         ${CANN_3RD_LIB_PATH:+-D CANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}} \
         ..
 

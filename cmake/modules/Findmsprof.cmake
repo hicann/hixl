@@ -44,10 +44,22 @@ unset(_cmake_targets_defined)
 unset(_cmake_targets_not_defined)
 unset(_cmake_expected_targets)
 
-find_path(_INCLUDE_DIR
-    NAMES experiment/msprof/toolchain/prof_api.h
+find_path(_EX_PROF_PATH "experiment/msprof/toolchain/prof_api.h"
     NO_CMAKE_SYSTEM_PATH
     NO_CMAKE_FIND_ROOT_PATH)
+find_path(_PROF_PATH "../pkg_inc/toolchain/prof_api.h"
+    NO_CMAKE_SYSTEM_PATH
+    NO_CMAKE_FIND_ROOT_PATH)
+
+if(_EX_PROF_PATH)
+    set(_INCLUDE_DIR "${_EX_PROF_PATH}/experiment")
+    set(msprof_INCLUDE_DIR "${_INCLUDE_DIR};${_INCLUDE_DIR}/msprof;${_INCLUDE_DIR}/msprof/toolchain")
+elseif(_PROF_PATH)
+    set(_INCLUDE_DIR "${_PROF_PATH}/../pkg_inc")
+    set(msprof_INCLUDE_DIR "${_INCLUDE_DIR};${_INCLUDE_DIR}/toolchain;${_INCLUDE_DIR}/profiling")
+else()
+unset(_INCLUDE_DIR)
+endif()
 
 find_library(msprofiler_SHARED_LIBRARY
     NAMES libmsprofiler.so
@@ -72,7 +84,6 @@ find_package_handle_standard_args(msprof
 )
 
 if(msprof_FOUND)
-    set(msprof_INCLUDE_DIR "${_INCLUDE_DIR}/experiment")
     include(CMakePrintHelpers)
     message(STATUS "Variables in msprof module:")
     cmake_print_variables(msprof_INCLUDE_DIR)
@@ -93,7 +104,7 @@ if(msprof_FOUND)
 
     add_library(msprof_headers INTERFACE IMPORTED)
     set_target_properties(msprof_headers PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${msprof_INCLUDE_DIR};${msprof_INCLUDE_DIR}/msprof;${msprof_INCLUDE_DIR}/msprof/toolchain"
+        INTERFACE_INCLUDE_DIRECTORIES "${msprof_INCLUDE_DIR}"
     )
 
     include(CMakePrintHelpers)

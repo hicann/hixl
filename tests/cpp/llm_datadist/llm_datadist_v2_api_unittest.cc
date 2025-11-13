@@ -17,7 +17,7 @@
 #include "llm_datadist/llm_datadist.h"
 #include "dlog_pub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
-#include "external/runtime/rt_error_codes.h"
+#include "rt_error_codes.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
 
 using namespace std;

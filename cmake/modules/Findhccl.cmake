@@ -44,10 +44,20 @@ unset(_cmake_targets_defined)
 unset(_cmake_targets_not_defined)
 unset(_cmake_expected_targets)
 
-find_path(_INCLUDE_DIR
-    NAMES hccl/hccl.h
-    NO_CMAKE_SYSTEM_PATH
-    NO_CMAKE_FIND_ROOT_PATH)
+find_path(_EX_HCCL_PATH "experiment/hccl/base.h"
+          NO_CMAKE_SYSTEM_PATH
+          NO_CMAKE_FIND_ROOT_PATH)
+find_path(_HCCL_PATH "../pkg_inc/hccl/base.h"
+          NO_CMAKE_SYSTEM_PATH
+          NO_CMAKE_FIND_ROOT_PATH)
+
+if(_EX_HCCL_PATH)
+    set(_INCLUDE_DIR "${_EX_HCCL_PATH}/experiment")
+elseif(_HCCL_PATH)
+    set(_INCLUDE_DIR "${_HCCL_PATH}/../pkg_inc")
+else()
+    unset(_INCLUDE_DIR)
+endif()
 
 find_library(hccl_SHARED_LIBRARY
     NAMES libhccl.so
