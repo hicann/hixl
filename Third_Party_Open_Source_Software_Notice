@@ -268,7 +268,9 @@ Software: tensorflow 43812c0
 
 Official Repository: https://gitee.com/ascend/tensorflow
 
-Usage: "scripts/package/hixl/scripts/run_hixl_upgrade.sh"
+Usage: "
+scripts/package/hixl/scripts/run_hixl_upgrade.sh,
+scripts/package/hixl/scripts/run_hixl_install.sh"
 
 Copyright Notice: Copyright 2019-2020 Huawei Technologies Co., Ltd.
 
@@ -561,6 +563,30 @@ Official Repository: https://gitee.com/mindspore/graphengine
 Usage: "tests/depends/runtime/src/runtime_stub.h"
 
 Copyright Notice: Copyright 2021 Huawei Technologies Co., Ltd.
+
+License: Apache License V2.0
+Please see above.
+
+
+Software: parser 0b1cd5d
+
+Official Repository: https://gitee.com/ascend/parser
+
+Usage: "src/llm_datadist/common/llm_thread_pool.h"
+
+Copyright Notice: Copyright 2020 Huawei Technologies Co., Ltd.
+
+License: Apache License V2.0
+Please see above.
+
+
+Software: parser c86d83a
+
+Official Repository: https://gitee.com/ascend/parser
+
+Usage: "src/depends/mmpa/src/mmpa_stub.h"
+
+Copyright Notice: Copyright 2019-2020 Huawei Technologies Co., Ltd.
 
 License: Apache License V2.0
 Please see above.
