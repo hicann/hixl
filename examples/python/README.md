@@ -19,7 +19,7 @@
 |   ├── pull_from_cache_to_blocks.py
 |   ├── push_blocks_sample.py
 |   ├── push_cache_sample.py
-|   ├── switch_cache_sample.py
+|   ├── switch_role_sample.py
 ```
 
 ## 环境准备

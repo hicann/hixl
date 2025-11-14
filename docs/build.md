@@ -53,7 +53,7 @@
     ```
     - \$\{cann\_version\}：表示CANN包版本号。
     - \$\{arch\}：表示CPU架构，如aarch64、x86_64。
-    - \$\{ascend\_install\_path\}：表示指定安装路径，可选，默认安装在`/usr/local/Ascend`目录，指定路径安装时，指定的路径权限需设置为755。
+    - \$\{cann\_install\_path\}：表示指定安装路径，可选，默认安装在`/usr/local/Ascend`目录，指定路径安装时，指定的路径权限需设置为755。
 
 4. **安装社区版CANN legacy包（可选）**
 
@@ -70,8 +70,8 @@
     # 安装命令
     ./cann-${soc_name}-ops-legacy_${cann_version}_linux-${arch}.run --full --install-path=${cann_install_path}
     ```
-    - \$\{soc\_name\}：表示NPU型号名称，即\$\{soc\_version\}删除“ascend”后剩余的内容。
-    - \$\{ascend\_install\_path\}：表示指定安装路径，需要与toolkit包安装在相同路径，默认安装在`/usr/local/Ascend`目录。
+    - \$\{soc\_name\}：表示NPU型号名称。
+    - \$\{cann\_install\_path\}：表示指定安装路径，需要与toolkit包安装在相同路径，默认安装在`/usr/local/Ascend`目录。
 
 5. **安装社区版CANN ops-math包（可选）**
 
@@ -89,8 +89,8 @@
     ./cann-${soc_name}-ops-math_${cann_version}_linux-${arch}.run --full --install-path=${cann_install_path}
     ```
 
-    - \$\{soc\_name\}：表示NPU型号名称，即${soc_version}删除“ascend”后剩余的内容。
-    - \$\{ascend\_install\_path\}：表示指定安装路径，需要与toolkit包安装在相同路径，默认安装在`/usr/local/Ascend`目录。
+    - \$\{soc\_name\}：表示NPU型号名称。
+    - \$\{cann\_install\_path\}：表示指定安装路径，需要与toolkit包安装在相同路径，默认安装在`/usr/local/Ascend`目录。
    
 
 ### 源码下载
