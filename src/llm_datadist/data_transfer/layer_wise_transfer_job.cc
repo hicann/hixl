@@ -198,7 +198,7 @@ ge::Status LayerWiseTransferJob::SynchronizeTransferCache(const int32_t timeout_
 
 ge::Status LayerWiseTransferJob::FillRemoteLayerAddrs(int32_t timeout_in_ms,
                                                       TransferCacheConfig &transfer_config,
-                                                      const TransferBlockConfig &transfer_block_config) {
+                                                      const TransferBlockConfig &transfer_block_config) const {
   TransferCacheReq request{};
   request.timeout_in_ms = timeout_in_ms;
   if (transfer_config.type == kBlocksCacheKey) {
