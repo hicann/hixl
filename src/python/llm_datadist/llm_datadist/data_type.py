@@ -88,7 +88,7 @@ dtype_to_np_dtype = {
     DataType.DT_UINT64: np.uint64,
     DataType.DT_BOOL: np.bool_,
     DataType.DT_DOUBLE: np.double,
-    DataType.DT_STRING: np.string_
+    DataType.DT_STRING: np.bytes_
 }
 
 valid_np_dtypes = list(dtype_to_np_dtype.values())
@@ -106,5 +106,5 @@ np_dtype_to_dtype = {
     np.dtype(np.uint64): DataType.DT_UINT64,
     np.dtype(np.bool_): DataType.DT_BOOL,
     np.dtype(np.double): DataType.DT_DOUBLE,
-    np.dtype(np.string_): DataType.DT_STRING
+    np.dtype(np.bytes_): DataType.DT_STRING
 }
