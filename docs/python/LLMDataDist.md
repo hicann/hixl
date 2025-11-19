@@ -250,7 +250,10 @@ link_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], time
 
 -   建议超时时间配置200ms以上。
 -   调用该接口前需提前注册所有内存，否则建链后注册不支持远端访问。
--   容器场景若未配置local\_comm\_res或配置为空，需在容器内映射/etc/hccn.conf文件。
+-   容器场景若未配置local\_comm\_res或配置为空，需在容器内映射“/etc/hccn.conf”文件或者确保默认路径“/usr/local/Ascend/driver/tools”下存在hccn_tool，如果两者都不能满足，则需要用户将hccn_tool所在路径配置到PATH中。配置实例如下，hccn_tool_install_path表示hccn_tool所在路径。
+    ```
+    export PATH=$PATH:{hccn_tool_install_path}
+    ```
 -   如果并发建链，建链使用的某个卡是down的状态，可能导致某些链路建链超时，如果需要非down状态的卡建链成功，则需要对所有涉及建链的卡配置命令。
     hccn\_tool -i $\{device\_id\} -tls -s enable 1
 ## unlink\_clusters<a name="ZH-CN_TOPIC_0000002407891473"></a>
