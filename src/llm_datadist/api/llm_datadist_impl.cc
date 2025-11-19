@@ -481,7 +481,7 @@ Status LlmDataDist::LlmDataDistImpl::RegisterKvCache(const CacheDesc &cache_desc
   llm::Cache internal_cache{};
   std::vector<uintptr_t> per_device_tensor_addrs;
   for (auto addr : addrs) {
-    per_device_tensor_addrs.emplace_back(reinterpret_cast<uintptr_t>(addr));
+    per_device_tensor_addrs.emplace_back(static_cast<uintptr_t>(addr));
   }
   internal_cache.per_device_tensor_addrs = {per_device_tensor_addrs};
   LLM_CHK_STATUS_RET(llm_data_dist_.RegisterCache(internal_cache_desc, internal_cache), "Failed to register cache");
