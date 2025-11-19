@@ -27,7 +27,7 @@ class DataTransferClient {
   ge::Status PullCache(const CacheEntry &cache_entry, const CacheKey &cache_key, const PullCacheParam &pull_cache_param,
                        int32_t timeout_in_ms);
   ge::Status PullCacheByGet(const CacheEntry &cache_entry, const CacheKey &cache_key,
-                            const PullCacheParam &pull_cache_param, int32_t timeout_in_ms);
+                            const PullCacheParam &pull_cache_param, int32_t timeout_in_ms) const;
 
  private:
   ge::Status PullCacheFromRemote(const TimePoint &start_time) const;

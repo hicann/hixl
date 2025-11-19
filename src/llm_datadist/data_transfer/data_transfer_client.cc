@@ -221,7 +221,7 @@ ge::Status DataTransferClient::PullCache(const CacheEntry &cache_entry, const Ca
 }
 
 ge::Status DataTransferClient::PullCacheByGet(const CacheEntry &cache_entry, const CacheKey &cache_key,
-                                              const PullCacheParam &pull_cache_param, int32_t timeout_in_ms) {
+                                              const PullCacheParam &pull_cache_param, int32_t timeout_in_ms) const {
   auto &request = *PtrToPtr<void, TransferCacheReq>(comm_entity_->GetEntityInfo().local_req_ptr);
   LLM_CHK_STATUS_RET(ConstructTransferInfo(pull_cache_param, cache_entry, cache_key, timeout_in_ms, request));
   LLM_DISMISSABLE_GUARD(stream, [this]() -> void {
