@@ -16,6 +16,7 @@ import logging
 
 from mooncake_sample_common import create_parser, setup_environment, validate_schema
 from mooncake_sample_base import MooncakeSampleBase
+from config import Config
 
 logging.basicConfig(format="%(asctime)s %(message)s", level=logging.INFO)
 
@@ -36,8 +37,9 @@ class BatchPutGet(MooncakeSampleBase):
             get_keys = []
             
             for layer in range(61):
-                keys.append("hello_" + str(self.args.device_id % 2) + "_" + str(block_i) + "_" + str(layer))
-                get_keys.append("hello_" + str(1 - self.args.device_id % 2) + "_" + str(block_i) + "_" + str(layer))
+                keys.append("hello_" + str(self.config.rank) + "_" + str(block_i) + "_" + str(layer))
+                get_keys.append("hello_" + str((self.config.rank + 1) % self.config.world_size) + 
+                                "_" + str(block_i) + "_" + str(layer))
                 local_addrs.append(addr)
                 remote_addrs.append(remote_addr)
                 sizes.append(144 * 1024)
@@ -62,11 +64,14 @@ class BatchPutGet(MooncakeSampleBase):
 
 if __name__ == "__main__":
     parser = create_parser("Batch Put/Get Sample")
-    args = parser.parse_args()
+    
+    # 创建配置对象并解析参数
+    config = Config()
+    args = config.parse_args(parser)
     args.schema = args.schema.lower()
-    runner = BatchPutGet(args)
+    
+    runner = BatchPutGet(args, config)
     validate_schema(args.schema)
     setup_environment(args)
     runner.init_process_group()
     runner.run()
-

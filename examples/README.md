@@ -15,7 +15,7 @@
 
 |  **样例名称**  |  **样例介绍**  |  **开发语言**  |
 |---|---|---|
-| [cppSamples](https://gitcode.com/cann/hixl/tree/master/examples/cpp) | C++样例 | C++ |
-| [pythonSamples](https://gitcode.com/cann/hixl/tree/master/examples/python) | Python样例 | Python |
+| [cppSamples](cpp) | C++样例 | C++ |
+| [pythonSamples](python) | Python样例 | Python |
 | [thirdPartiesSamples](third_parties) | Hixl对接其他社区样例 | C++/Python |
 

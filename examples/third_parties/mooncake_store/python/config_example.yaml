@@ -1,0 +1,13 @@
+# 分布式配置
+distributed:
+  enabled:         # 是否启用分布式模式
+  world_size:          # 总节点数/卡数
+  master_addr:   # 主节点地址
+  master_port:     # 主节点端口
+
+# Mooncake store配置
+mooncake:
+  store_ip:     # Mooncake store IP地址
+  port_start:       # 端口起始值，每个rank会在这个基础上递增
+  metadata_url:  # 元数据服务地址
+  grpc_url:   # gRPC服务地址

@@ -19,33 +19,51 @@ import torch.distributed as dist
 from mooncake.store import MooncakeDistributedStore
 
 from mooncake_sample_common import SEGMENT_SIZE, LOCAL_BUFFER, ALIGNMENT
+from config import Config
 
 
 class MooncakeSampleBase:
-    def __init__(self, args):
+    def __init__(self, args, config):
         self.args = args
+        self.config = config
         self.store = None
         self.tensor = None
         self.target_tensor = None
         
     def init_process_group(self):
-        os.environ["MASTER_ADDR"] = "master addr" # 运行时填入
-        os.environ["MASTER_PORT"] = "29500"
-        dist.init_process_group("gloo", rank=self.args.device_id % 2, world_size=2)
+        if not self.config.distributed:
+            logging.info("Running in single-machine mode")
+            return
+        
+        # 设置分布式环境变量
+        os.environ["MASTER_ADDR"] = self.config.master_addr
+        os.environ["MASTER_PORT"] = self.config.master_port
+        
+        # 初始化进程组
+        dist.init_process_group(
+            backend="gloo",
+            rank=self.config.rank,
+            world_size=self.config.world_size
+        )
         dist.barrier(group=dist.group.WORLD)
+        logging.info(f"Initialized distributed process group: 
+                    rank={self.config.rank}, world_size={self.config.world_size}")
     
     def init_mooncake_store(self) -> MooncakeDistributedStore:
         store = MooncakeDistributedStore()
-        port = 12345 + int(self.args.device_id)
+        port = self.config.mooncake_store_port_start + self.config.rank
+        store_ip = self.config.mooncake_store_ip + ":" + str(port)
+        
         store.setup(
-            "mooncake_store_ip:" + str(port), # 运行时补充mooncake store ip
-            "http://localhost:8080/metadata",
+            store_ip,
+            self.config.metadata_url,
             SEGMENT_SIZE,
             LOCAL_BUFFER,
             "ascend",
             "",
-            "localhost:50051"
+            self.config.grpc_url
         )
+        logging.info(f"Initialized mooncake store: {store_ip}")
         return store
     
     def create_tensors(self):

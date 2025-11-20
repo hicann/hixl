@@ -18,6 +18,7 @@ from mooncake.store import MooncakeDistributedStore, ReplicateConfig
 
 from mooncake_sample_base import MooncakeSampleBase
 from mooncake_sample_common import create_parser, setup_environment, validate_schema
+from config import Config
 
 logging.basicConfig(format="%(asctime)s %(message)s", level=logging.INFO)
 
@@ -56,7 +57,7 @@ class BatchPutGetMultiBuffers(MooncakeSampleBase):
             all_local_addrs.append(local_addrs)
             all_remote_addrs.append(remote_addrs)
             all_sizes.append(sizes)
-            keys.append("hello_" + str(self.args.device_id) + "_" + str(block_i))
+            keys.append("hello_" + str(self.config.rank) + "_" + str(block_i))
         
         config = ReplicateConfig()
         config.prefer_alloc_in_same_node = True
@@ -69,9 +70,13 @@ class BatchPutGetMultiBuffers(MooncakeSampleBase):
 
 if __name__ == "__main__":
     parser = create_parser("Batch Put/Get Multi Buffers Sample")
-    args = parser.parse_args()
+    
+    # 创建配置对象并解析参数
+    config = Config()
+    args = config.parse_args(parser)
     args.schema = args.schema.lower()
-    runner = BatchPutGetMultiBuffers(args)
+    
+    runner = BatchPutGetMultiBuffers(args, config)
     validate_schema(args.schema)
     setup_environment(args)
     runner.init_process_group()
