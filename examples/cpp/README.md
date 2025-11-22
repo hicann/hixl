@@ -68,7 +68,7 @@ hccn_tool -i ${device_id_a} -ping -g address ${ip_address_b}
     - 若运行环境上安装的“Ascend-cann-toolkit”包，环境变量设置如下：
 
         ```
-        source ${HOME}/Ascend/set_env.sh
+        source ${HOME}/Ascend/ascend-toolkit/set_env.sh
         ```
 
         “${HOME}/Ascend”请替换相关软件包的实际安装路径。
@@ -133,7 +133,7 @@ hccn_tool -i ${device_id_a} -ping -g address ${ip_address_b}
     - 若运行环境上安装的“Ascend-cann-toolkit”包，环境变量设置如下：
 
         ```
-        source ${HOME}/Ascend/set_env.sh
+        source ${HOME}/Ascend/ascend-toolkit/set_env.sh
         ```
 
         “${HOME}/Ascend”请替换相关软件包的实际安装路径。

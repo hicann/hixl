@@ -1,11 +1,11 @@
 # 接口参考（C++）
 ## 简介
 -   LLM-DataDist
-    -   LLM-DataDist相关接口存放在："INSTALL\_DIR\/include/llm\_datadist/llm\_datadist.h"。INSTALL\_DIR请替换为CANN软件安装后文件存储路径。若安装的Ascend-cann-toolkit软件包，以root安装举例，则安装后文件存储路径为：/usr/local/Ascend/latest。
+    -   LLM-DataDist相关接口存放在："INSTALL\_DIR\/include/llm\_datadist/llm\_datadist.h"。INSTALL\_DIR请替换为CANN软件安装后文件存储路径。若安装的Ascend-cann-toolkit软件包，以root安装举例，则安装后文件存储路径为：/usr/local/Ascend/ascend-toolkit/latest。
     -   LLM-DataDist接口对应的库文件是：libllm\_datadist.so。
 
 -   HIXL：Huawei Xfer Library
-    -   HIXL相关接口存放在："INSTALL\_DIR/include/hixl/hixl.h"。INSTALL\_DIR请替换为CANN软件安装后文件存储路径。若安装的Ascend-cann-toolkit软件包，以root安装举例，则安装后文件存储路径为：/usr/local/Ascend/latest。
+    -   HIXL相关接口存放在："INSTALL\_DIR/include/hixl/hixl.h"。INSTALL\_DIR请替换为CANN软件安装后文件存储路径。若安装的Ascend-cann-toolkit软件包，以root安装举例，则安装后文件存储路径为：/usr/local/Ascend/ascend-toolkit/latest。
     -   HIXL接口对应的库文件是：hixl.so。
 
 支持的产品形态如下：
