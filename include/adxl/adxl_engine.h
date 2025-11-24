@@ -93,6 +93,29 @@ class ASCEND_FUNC_VISIBILITY AdxlEngine {
                       TransferOp operation,
                       const std::vector<TransferOpDesc> &op_descs,
                       int32_t timeout_in_millis = 1000);
+  
+  /**
+   * @brief 批量异步传输，下发传输请求
+   * @param [in] remote_engine 远端Hixl的唯一标识
+   * @param [in] operation 将远端内存读到本地或者将本地内存写到远端
+   * @param [in] op_descs 批量操作的本地以及远端地址
+   * @param [in] optional_args 可选参数，预留
+   * @param [out] req 请求的handle，用于查询请求状态
+   * @return 成功:SUCCESS, 失败:其它.
+   */
+  Status TransferAsync(const AscendString &remote_engine,
+                       TransferOp operation,
+                       const std::vector<TransferOpDesc> &op_descs,
+                       const TransferArgs &optional_args,
+                       TransferReq &req);
+  
+  /**
+   * @brief 获取请求状态
+   * @param [in] req 请求handle，由TransferAsync API调用产生
+   * @param [out] status 传输状态
+   * @return 成功:SUCCESS, 失败:其它.
+   */
+  Status GetTransferStatus(const TransferReq &req, TransferStatus &status);
 
  private:
   class AdxlEngineImpl;

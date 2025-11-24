@@ -50,6 +50,14 @@ class Hixl::HixlImpl {
                       const std::vector<TransferOpDesc> &op_descs,
                       int32_t timeout_in_millis = 1000);
 
+  Status TransferAsync(const AscendString &remote_engine,
+                       TransferOp operation,
+                       const std::vector<TransferOpDesc> &op_descs,
+                       const TransferArgs &optional_args,
+                       TransferReq &req);
+
+  Status GetTransferStatus(const TransferReq &req, TransferStatus &status);
+
  private:
   std::mutex mutex_;
   adxl::AdxlInnerEngine hixl_engine_;
@@ -113,10 +121,44 @@ Status Hixl::HixlImpl::TransferSync(const AscendString &remote_engine,
   }
   ADXL_CHK_STATUS_RET(hixl_engine_.TransferSync(remote_engine, static_cast<adxl::TransferOp>(operation),
                                                 descs, timeout_in_millis),
-                      "Failed to transfer sync.");
+                                                "Failed to transfer sync.");
   return SUCCESS;
 }
 
+Status Hixl::HixlImpl::TransferAsync(const AscendString &remote_engine,
+                                     TransferOp operation,
+                                     const std::vector<TransferOpDesc> &op_descs,
+                                     const TransferArgs &optional_args,
+                                     TransferReq &req) {
+  ADXL_CHK_BOOL_RET_STATUS(hixl_engine_.IsInitialized(), FAILED, "Hixl is not initialized.");
+  ADXL_CHK_STATUS_RET(CheckTransferOpDescs(op_descs), "Failed to check transfer op descs.");
+  std::vector<adxl::TransferOpDesc> descs;
+  for (const auto &desc : op_descs) {
+    adxl::TransferOpDesc op_desc{};
+    op_desc.local_addr = desc.local_addr;
+    op_desc.remote_addr = desc.remote_addr;
+    op_desc.len = desc.len;
+    descs.emplace_back(op_desc);
+  }
+  adxl::TransferArgs args;
+  memcpy_s(&args, sizeof(args), &optional_args, sizeof(optional_args));
+  ADXL_CHK_STATUS_RET(hixl_engine_.TransferAsync(remote_engine, static_cast<adxl::TransferOp>(operation), 
+                                                 descs, args, req),
+                      "Failed to transfer request async.");
+  return SUCCESS;
+}
+
+Status Hixl::HixlImpl::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
+  adxl::TransferStatus transfer_status = adxl::TransferStatus::WAITING;
+  auto ret = hixl_engine_.GetTransferStatus(req, transfer_status);
+  if (ret == FAILED) {
+    status = TransferStatus::FAILED;
+    LLMLOGE(FAILED, "Failed to get transfer status.");
+    return FAILED;
+  }          
+  status = static_cast<TransferStatus>(static_cast<int>(transfer_status));
+  return SUCCESS;
+}
 Hixl::Hixl() {}
 
 Hixl::~Hixl() {
@@ -204,6 +246,31 @@ Status Hixl::TransferSync(const AscendString &remote_engine,
                            op_descs.size(), timeout_in_millis);
   LLMLOGI("TransferSync success, remote_engine:%s, operation:%d, op_descs size:%zu, timeout:%d ms",
           remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size(), timeout_in_millis);
+  return SUCCESS;
+}
+
+Status Hixl::TransferAsync(const AscendString &remote_engine,
+                           TransferOp operation,
+                           const std::vector<TransferOpDesc> &op_descs,
+                           const TransferArgs &optional_args,
+                           TransferReq &req) {
+  ADXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "HixlImpl is nullptr, check Hixl init.");
+  const auto ret = impl_->TransferAsync(remote_engine, operation, op_descs, optional_args, req);
+  ADXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
+                           "Failed to transfer async, remote_engine:%s, operation:%d, op_descs size:%zu.",
+                           remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size());
+  LLMLOGI("Transfer async success, remote_engine:%s, operation:%d, op_descs size:%zu.",
+          remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size());
+  return SUCCESS;
+}
+
+Status Hixl::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
+  ADXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "Impl is nullptr, check Hixl init.");
+  ADXL_CHK_BOOL_RET_STATUS(req != nullptr, FAILED, "Req is nullptr, check req.");
+  const auto ret = impl_->GetTransferStatus(req, status);
+  ADXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
+                          "Failed to get transfer status, req:%llu.", 
+                          static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(req)));
   return SUCCESS;
 }
 }  // namespace hixl

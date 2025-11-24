@@ -23,6 +23,7 @@
 namespace hixl {
 using Status = uint32_t;
 using AscendString = ge::AscendString;
+using TransferReq = void *;
 
 // options
 constexpr const char OPTION_RDMA_TRAFFIC_CLASS[] = "RdmaTrafficClass";
@@ -61,6 +62,16 @@ struct TransferOpDesc {
   uintptr_t local_addr;
   uintptr_t remote_addr;
   size_t len;
+};
+enum class TransferStatus {
+  WAITING,
+  COMPLETED,
+  TIMEOUT,
+  FAILED
+};
+
+struct TransferArgs{
+  uint8_t reserved[128] = {};
 };
 }  // namespace hixl
 

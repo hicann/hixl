@@ -68,7 +68,10 @@ class Channel {
                       int32_t timeout_in_millis);
   Status TransferAsync(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
                        rtStream_t stream);
-
+  Status TransferAsync(TransferOp operation,
+                       const std::vector<TransferOpDesc> &op_descs,
+                       const TransferArgs &optional_args,
+                       std::function<TransferStatus()> &closure);
   Status SetSocketNonBlocking(int32_t fd);
   void StopHeartbeat();
   Status SendControlMsg(const std::function<Status(int32_t fd)> &func);

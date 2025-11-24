@@ -50,6 +50,14 @@ class AdxlEngine::AdxlEngineImpl {
                       const std::vector<TransferOpDesc> &op_descs,
                       int32_t timeout_in_millis = 1000);
 
+  Status TransferAsync(const AscendString &remote_engine,
+                       TransferOp operation,
+                       const std::vector<TransferOpDesc> &op_descs,
+                       const TransferArgs &optional_args,
+                       TransferReq &req);
+                      
+  Status GetTransferStatus(const TransferReq &req, TransferStatus &status);
+
  private:
   std::mutex mutex_;
   AdxlInnerEngine adxl_engine_;
@@ -101,6 +109,41 @@ Status AdxlEngine::AdxlEngineImpl::TransferSync(const AscendString &remote_engin
   ADXL_CHK_STATUS_RET(CheckTransferOpDescs(op_descs), "Failed to check transfer op descs");
   ADXL_CHK_STATUS_RET(adxl_engine_.TransferSync(remote_engine, operation, op_descs, timeout_in_millis),
                       "Failed to transfer sync.");
+  return SUCCESS;
+}
+
+Status AdxlEngine::AdxlEngineImpl::TransferAsync(const AscendString &remote_engine,
+                                                 TransferOp operation,
+                                                 const std::vector<TransferOpDesc> &op_descs,
+                                                 const TransferArgs &optional_args,
+                                                 TransferReq &req) {
+  ADXL_CHK_BOOL_RET_STATUS(adxl_engine_.IsInitialized(), FAILED, "Hixl is not initialized.");
+  ADXL_CHK_STATUS_RET(CheckTransferOpDescs(op_descs), "Failed to check transfer op descs.");
+  std::vector<adxl::TransferOpDesc> descs;
+  for (const auto &desc : op_descs) {
+    adxl::TransferOpDesc op_desc{};
+    op_desc.local_addr = desc.local_addr;
+    op_desc.remote_addr = desc.remote_addr;
+    op_desc.len = desc.len;
+    descs.emplace_back(op_desc);
+  }
+  adxl::TransferArgs args;
+  memcpy_s(&args, sizeof(args), &optional_args, sizeof(optional_args));
+  ADXL_CHK_STATUS_RET(adxl_engine_.TransferAsync(remote_engine, static_cast<adxl::TransferOp>(operation), 
+                                                 descs, args, req),
+                      "Failed to transfer async.");
+  return SUCCESS;
+}
+
+Status AdxlEngine::AdxlEngineImpl::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
+  adxl::TransferStatus transfer_status = adxl::TransferStatus::WAITING;
+  auto ret = adxl_engine_.GetTransferStatus(req, transfer_status);
+  if (ret == FAILED) {
+    status = TransferStatus::FAILED;
+    LLMLOGE(FAILED, "Failed to get transfer request status.");
+    return FAILED;
+  }          
+  status = static_cast<TransferStatus>(static_cast<int>(transfer_status));
   return SUCCESS;
 }
 
@@ -192,6 +235,29 @@ Status AdxlEngine::TransferSync(const AscendString &remote_engine,
   LLMLOGI("TransferSync success, remote_engine:%s, operation:%d, op_descs size:%zu, cost time: %ld us.",
           remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size(),
           std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count());
+  return SUCCESS;
+}
+Status AdxlEngine::TransferAsync(const AscendString &remote_engine,
+                                 TransferOp operation,
+                                 const std::vector<TransferOpDesc> &op_descs,
+                                 const TransferArgs &optional_args,
+                                 TransferReq &req) {
+  ADXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "Impl is nullptr, check Hixl init.");
+  const auto ret = impl_->TransferAsync(remote_engine, operation, op_descs, optional_args, req);
+  ADXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
+                           "Failed to transfer async, remote_engine:%s, operation:%d, op_descs size:%zu.",
+                           remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size());
+  LLMLOGI("Transfer async success, remote_engine:%s, operation:%d, op_descs size:%zu.",
+          remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size());
+  return SUCCESS;
+}
+
+Status AdxlEngine::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
+  ADXL_CHK_BOOL_RET_STATUS(req != nullptr, FAILED, "Req is nullptr, check req.");
+  const auto ret = impl_->GetTransferStatus(req, status);
+  ADXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
+                          "Failed to get transfer status, req:%llu.", 
+                          static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(req)));
   return SUCCESS;
 }
 }  // namespace adxl

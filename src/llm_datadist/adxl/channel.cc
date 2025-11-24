@@ -102,6 +102,33 @@ Status Channel::Finalize() {
   return ret;
 }
 
+Status Channel::TransferAsync(TransferOp operation,
+                              const std::vector<TransferOpDesc> &op_descs,
+                              const TransferArgs &optional_args,
+                              std::function<TransferStatus()> &closure) {
+  (void)optional_args;
+  ADXL_CHK_STATUS_RET(TransferAsync(operation, op_descs, stream_), "Channel transfer async failed.");
+  rtEvent_t event = nullptr;
+  LLM_CHK_ACL_RET(rtEventCreate(&event));
+  LLM_CHK_ACL_RET(rtEventRecord(event, stream_));
+  closure = [event]() -> TransferStatus {
+    rtEventStatus_t event_status{};
+    auto ret = rtEventQueryStatus(event, &event_status);
+    if (ret != RT_ERROR_NONE) {
+      LLMLOGE(FAILED, "rtEvent query status failed, ret = %d.", ret);
+      return TransferStatus::FAILED;
+    }
+    if (event_status != RT_EVENT_RECORDED) {
+      LLMLOGI("Transfer async request not yet completed.");
+      return TransferStatus::WAITING;
+    }
+    LLMLOGI("Channel transfer async request successful.");
+    rtEventDestroy(event);
+    return TransferStatus::COMPLETED;
+  };
+  return SUCCESS;
+}
+
 Status Channel::TransferAsync(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
                               rtStream_t stream) {
   auto trans_func = [this, operation, &stream](HcclOneSideOpDesc *descs, uint32_t desc_num) -> Status {

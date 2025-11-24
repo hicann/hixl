@@ -233,7 +233,7 @@ Status AdxlInnerEngine::TransferSync(const AscendString &remote_engine,
     ADXL_CHK_STATUS_RET(GetTransferType(channel, operation, op_descs, need_buffer, type),
                         "Failed to get transfer type.");
     LLMLOGI("Transfer type is:%d, cost:%lu us.", type,
-           std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count());
+            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count());
     if (need_buffer) {
       ADXL_CHK_BOOL_RET_STATUS(type != TransferType::kEnd, PARAM_INVALID, "Transfer type is invalid.");
       return buffer_transfer_service_->Transfer(channel, type, op_descs, timeout_in_millis);
@@ -243,4 +243,40 @@ Status AdxlInnerEngine::TransferSync(const AscendString &remote_engine,
                       "Failed to transfer sync, remote_engine:%s", remote_engine.GetString());
   return SUCCESS;
 }
+
+Status AdxlInnerEngine::TransferAsync(const AscendString &remote_engine,
+                                      TransferOp operation,
+                                      const std::vector<TransferOpDesc> &op_descs,
+                                      const TransferArgs &optional_args,
+                                      TransferReq &req) {
+  auto channel = channel_manager_.GetChannel(ChannelType::kClient, remote_engine.GetString());
+  ADXL_CHK_BOOL_RET_STATUS(channel != nullptr, NOT_CONNECTED,
+                           "Failed to get channel, remote_engine:%s", remote_engine.GetString());
+  uint64_t id = next_req_id_.fetch_add(1);
+  req = reinterpret_cast<void*>(id);
+  std::lock_guard<std::mutex> transfer_lock(channel->GetTransferMutex());
+  std::function<TransferStatus()> closure;
+  ADXL_CHK_STATUS_RET(channel->TransferAsync(operation, op_descs, optional_args, closure),
+                      "Failed to transfer async, remote_engine:%s", remote_engine.GetString());
+  transfer_reqs_[id] = std::move(closure);
+  return SUCCESS;
+}
+
+Status AdxlInnerEngine::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  auto id = reinterpret_cast<uint64_t>(req);
+  auto it = transfer_reqs_.find(id);
+  if (it == transfer_reqs_.end()) {
+    status = TransferStatus::FAILED;
+    LLMLOGE(ge::LLM_PARAM_INVALID, "Request %llu not found", id);
+    return FAILED;
+  }
+  status = it->second();
+  if (status == TransferStatus::COMPLETED || status == TransferStatus::FAILED) {
+    LLMLOGI("Transfer request %llu finished with status %d", id, static_cast<int>(status));
+    transfer_reqs_.erase(it);
+  }
+  return SUCCESS;
+}
+
 }  // namespace adxl
