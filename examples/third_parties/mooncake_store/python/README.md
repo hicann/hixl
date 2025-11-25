@@ -132,7 +132,7 @@ bash run.sh **.py
 以单机环境单卡执行batch_put_get接口对应用例，进行d2d数据传输时，在启动完Mooncake master并完成配置或在代码中硬编码对应的参数之后；执行以下命令：
 
 ```bash
-bash run.sh batch_put_get_sample.py --device_id=0 --shcema="d2d"
+bash run.sh batch_put_get_sample.py --device_id=0 --schema="d2d"
 ```
 
 > 单机多卡环境以及分布式集群下进行测试，只需要参考config_example.yaml创建配置文件，并在运行时传入 config参数指定配置文件路径即可。
