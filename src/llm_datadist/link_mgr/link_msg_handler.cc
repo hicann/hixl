@@ -226,7 +226,7 @@ ge::Status LinkMsgHandler::ProcessConnectRequest(int32_t fd, const std::vector<c
   return ret;
 }
 
-ge::Status LinkMsgHandler::ProcessDisconnectRequest(int32_t fd, const std::vector<char> &msg) {
+ge::Status LinkMsgHandler::ProcessDisconnectRequest(int32_t fd, const std::vector<char> &msg) const {
   auto ret = ge::SUCCESS;
   LLM_MAKE_GUARD(send_status, ([fd, &ret]() {
     LLMLinkStatus status{};
@@ -412,7 +412,7 @@ ge::Status LinkMsgHandler::LinkCluster(const ClusterInfo &cluster, int32_t timeo
   return ge::SUCCESS;
 }
 
-ge::Status LinkMsgHandler::UnlinkCluster(const ClusterInfo &cluster, int32_t timeout, bool force_flag) {
+ge::Status LinkMsgHandler::UnlinkCluster(const ClusterInfo &cluster, int32_t timeout, bool force_flag) const {
   LLMLOGI("Start to unlink cluster, local cluster_id:%lu, remote cluster_id:%lu, timeout:%d ms, force_flag:%d",
          cluster_id_, cluster.remote_cluster_id, timeout, static_cast<int32_t>(force_flag));
   LLM_CHK_BOOL_RET_STATUS(force_flag || cluster.remote_ip_infos.size() == 1U, ge::LLM_PARAM_INVALID,

@@ -71,7 +71,7 @@ class LinkMsgHandler {
   ge::Status StartDaemon(uint32_t listen_port);
   ge::Status StopDaemon();
   ge::Status LinkCluster(const ClusterInfo &cluster, int32_t timeout);
-  ge::Status UnlinkCluster(const ClusterInfo &cluster, int32_t timeout, bool force_flag);
+  ge::Status UnlinkCluster(const ClusterInfo &cluster, int32_t timeout, bool force_flag) const;
   size_t GetLinkSize() const;
 
  private:
@@ -83,7 +83,7 @@ class LinkMsgHandler {
   ge::Status ExchangeInfoProcess(const LLMExchangeInfo &peer_exchange_info, int32_t timeout, bool force_link,
                                  EntityMemInfoPtr &mem_info_ptr);
   ge::Status DisconnectInfoProcess(const LLMDisconnectInfo &peer_disconnect_info) const;
-  ge::Status ProcessDisconnectRequest(int32_t fd, const std::vector<char> &msg);
+  ge::Status ProcessDisconnectRequest(int32_t fd, const std::vector<char> &msg) const;
   ge::Status ProcessConnectRequest(int32_t fd, const std::vector<char> &msg);
   ge::Status GenerateLocalCommRes(const ClusterInfo &cluster);
   ge::Status CreateEntityMemInfo(EntityMemInfoPtr &mem_info_ptr);
