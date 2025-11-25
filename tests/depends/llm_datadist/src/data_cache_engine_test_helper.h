@@ -82,6 +82,10 @@ class MockGetHccnResult : public llm::MmpaStubApiGe {
   INT32 Access(const CHAR *path_name) override {
     return 1;
   }
+
+  int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
+    return 1;
+  }
 };
 
 class MockMmpaForHcclApi : public llm::MmpaStubApiGe {
