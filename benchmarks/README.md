@@ -32,12 +32,12 @@
 
 1. 参考[构建](../docs/build.md)里的**编译执行**章节，利用build.sh的--examples参数进行编译。
 
-2. 编译结束后，在**build/benchmarks**目录下生成多个可执行文件。
+2. 编译结束后，在**build/benchmarks**目录下生成可执行文件。
 
 ## Benchmark运行
 
 - 说明：
-    - 所有benchmark需要成对执行，client侧和server侧启动执行间隔时间不要过长，代码中默认设置kWaitRegTime为5s，kWaitTransTime为20s，用户可根据实际情况自行修改这两个变量的值以保证用例成功运行。
+    - 所有benchmark需要成对执行，client侧和server侧启动执行间隔时间不要过长，代码中默认设置kWaitTransTime为20s，用户可根据实际情况自行修改此变量的值以保证用例成功运行。
     - 所有benchmark默认传输数据大小kTransferMemSize为128M，用户可根据需要自行修改。执行成功后会打印类似如下的日志，其中block size表示每次传输的内存块大小；transfer num表示传输次数；time cost表示总的传输耗时；throughput表示传输的吞吐（带宽）。
       ```
       [INFO] Transfer success, block size: 8388608 Bytes, transfer num: 16, time cost: 1044 us, throughput: 119.732 GB/s
