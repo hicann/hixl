@@ -584,7 +584,7 @@ Software: parser c86d83a
 
 Official Repository: https://gitee.com/ascend/parser
 
-Usage: "src/depends/mmpa/src/mmpa_stub.h"
+Usage: "tests/depends/mmpa/src/mmpa_stub.h"
 
 Copyright Notice: Copyright 2019-2020 Huawei Technologies Co., Ltd.
 
