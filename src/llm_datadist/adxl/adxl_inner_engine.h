@@ -75,6 +75,7 @@ class AdxlInnerEngine {
   bool user_config_buffer_pool_{false};
   std::atomic<uint64_t> next_req_id_{1};
   std::map<uint64_t, std::function<TransferStatus()>> transfer_reqs_;
+  rtContext_t rt_context_{nullptr};
 };
 }  // namespace adxl
 

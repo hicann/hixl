@@ -76,6 +76,9 @@ class LLMDataDistV2  {
   void DoInnerFinalize();
   virtual ge::Status DoInitialize(const std::map<ge::AscendString, ge::AscendString> &options);
   virtual void DoFinalize();
+  ge::Status DoInnerInitialize(int32_t device_id,
+                               bool remote_cache_accessible,
+                               const std::map<ge::AscendString, ge::AscendString> &options);
 
   uint64_t cluster_id_;
   std::atomic<bool> is_initialized_{false};
@@ -88,6 +91,8 @@ class LLMDataDistV2  {
   void *statistic_timer_handle_{nullptr};
   std::mutex transfer_mutex_;
   std::atomic<bool> inner_initialized_{false};
+  rtContext_t rt_context_{nullptr};
+  int32_t device_id_{-1};
 };
 }  // namespace llm
 #endif  // CANN_GRAPH_ENGINE_RUNTIME_LLM_ENGINE_INC_LLM_V2_DATADIST_H

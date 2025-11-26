@@ -79,8 +79,6 @@ ge::Status SwapImpl::SwapBlocksV2(const Cache &src, const Cache &dst, const uint
   const auto &dst_addrs = dst.per_device_tensor_addrs;
   LLMLOGI("Begin swap blocks, cache num:%zu, swap block num:%zu, swap type:%u", src_addrs.front().size(),
          block_mapping.size(), type);
-  LLM_CHK_ACL_RET(rtSetDevice(device_id_));
-  LLM_MAKE_GUARD(reset_device, [this]() { LLM_CHK_ACL(rtDeviceReset(device_id_)); });
   rtMemcpyKind_t kind = (type == kSwapOut) ? RT_MEMCPY_DEVICE_TO_HOST : RT_MEMCPY_HOST_TO_DEVICE;
   LLM_CHK_STATUS_RET(
       SwapBlocks(src_addrs.front(), dst_addrs.front(), block_size, block_mapping, CopyInfo{CopyType::kMemcpy, kind}),

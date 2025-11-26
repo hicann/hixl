@@ -1184,6 +1184,11 @@ rtError_t rtGetAddrByFun(const void *stubFunc, void **addr) {
 rtError_t rtCtxCreate(rtContext_t *ctx, uint32_t flags, int32_t device) {
   return llm::RuntimeStub::GetInstance()->rtCtxCreate(ctx, flags, device);
 }
+
+rtError_t rtCtxCreateEx(rtContext_t *ctx, uint32_t flags, int32_t device) {
+  return RT_ERROR_NONE;
+}
+
 rtError_t rtCtxCreateV2(rtContext_t *ctx,
                         uint32_t flags,
                         int32_t device,
@@ -1224,6 +1229,8 @@ rtError_t rtProfilerStop(uint64_t profConfig, int32_t numsDev, uint32_t *deviceL
 rtError_t rtUnsetDvfsProfile() { return RT_ERROR_NONE; }
 
 rtError_t rtCtxDestroy(rtContext_t ctx) { return RT_ERROR_NONE; }
+
+rtError_t rtCtxDestroyEx(rtContext_t ctx) { return RT_ERROR_NONE; }
 
 rtError_t rtProfilerInit(const char *prof_dir, const char *address, const char *job_ctx) { return RT_ERROR_NONE; }
 

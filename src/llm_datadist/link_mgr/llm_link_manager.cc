@@ -18,13 +18,9 @@ void LLMLinkManager::Finalize() {
   LLMLOGI("LLMLinkManager finalize start");
   msg_handler_.Finalize();
   CommLinkManager::Finalize();
-  if (device_id_ != -1) {
-    (void)rtDeviceReset(device_id_);
-  }
 }
 
 ge::Status LLMLinkManager::Initialize(const std::map<ge::AscendString, ge::AscendString> &options) {
-  LLM_ASSERT_RT_OK(rtSetDevice(device_id_));
   LLM_ASSERT_RT_OK(rtCtxGetCurrent(&rt_context_));
   CommLinkManager::Initialize(options);
   LLM_CHK_STATUS_RET(msg_handler_.Initialize(options), "Failed to init msg handler");

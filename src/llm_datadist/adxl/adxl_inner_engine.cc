@@ -29,11 +29,20 @@ constexpr size_t kMemPoolNum = 2U;
 Status AdxlInnerEngine::Initialize(const std::map<AscendString, AscendString> &options) {
   std::lock_guard<std::mutex> lk(mutex_);
   ADXL_CHK_LLM_RET(llm::HcclAdapter::GetInstance().Initialize(), "HcclSoManager initialize failed.");
+  int32_t device_id = -1;
+  ADXL_CHK_ACL_RET(rtGetDevice(&device_id));
+  llm::TemporaryRtContext with_context(nullptr);
+  ADXL_CHK_ACL_RET(rtCtxCreateEx(&rt_context_, 0U, device_id));
+  LLMEVENT("Switch new rts ctx:%p", rt_context_);
+  LLM_DISMISSABLE_GUARD(fail_guard, ([this]() {
+    (void) rtCtxDestroyEx(rt_context_);
+  }));
   segment_table_ = llm::MakeUnique<SegmentTable>();
   ADXL_CHK_STATUS_RET(msg_handler_.Initialize(options, segment_table_.get()), "Failed to init msg handler.");
   ADXL_CHK_STATUS_RET(InitBufferTransferService(options), "Failed to init buffer memory pool.");
   ADXL_CHK_STATUS_RET(channel_manager_.Initialize(buffer_transfer_service_.get()), "Failed to init channel manager.");
   is_initialized_ = true;
+  LLM_DISMISS_GUARD(fail_guard);
   return SUCCESS;
 }
 
@@ -128,6 +137,7 @@ Status AdxlInnerEngine::InitBufferTransferService(const std::map<ge::AscendStrin
 }
 
 void AdxlInnerEngine::Finalize() {
+  llm::TemporaryRtContext with_context(rt_context_);
   channel_manager_.Finalize();
   msg_handler_.Finalize();
   for (auto &mem : npu_pool_memorys_) {
@@ -139,6 +149,10 @@ void AdxlInnerEngine::Finalize() {
   if (buffer_transfer_service_ != nullptr) {
     buffer_transfer_service_->Finalize();
   }
+  if (rt_context_ != nullptr) {
+    (void) rtCtxDestroyEx(rt_context_);
+  }
+  rt_context_ = nullptr;
 }
 
 bool AdxlInnerEngine::IsInitialized() const {
@@ -146,11 +160,13 @@ bool AdxlInnerEngine::IsInitialized() const {
 }
 
 Status AdxlInnerEngine::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
+  llm::TemporaryRtContext with_context(rt_context_);
   ADXL_CHK_STATUS_RET(msg_handler_.RegisterMem(mem, type, mem_handle), "Failed to register mem");
   return SUCCESS;
 }
 
 Status AdxlInnerEngine::DeregisterMem(MemHandle mem_handle) {
+  llm::TemporaryRtContext with_context(rt_context_);
   ADXL_CHK_STATUS_RET(msg_handler_.DeregisterMem(mem_handle), "Failed to deregister mem");
   return SUCCESS;
 }
@@ -158,6 +174,7 @@ Status AdxlInnerEngine::DeregisterMem(MemHandle mem_handle) {
 Status AdxlInnerEngine::Connect(const AscendString &remote_engine, int32_t timeout_in_millis) {
   LLMEVENT("Start to connect, local engine:%s, remote engine:%s, timeout:%d ms.",
           local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
+  llm::TemporaryRtContext with_context(rt_context_);
   ADXL_CHK_STATUS_RET(msg_handler_.Connect(remote_engine.GetString(), timeout_in_millis),
                       "Failed to connect, remote engine:%s, timeout:%d ms",
                       remote_engine.GetString(), timeout_in_millis);
@@ -165,6 +182,7 @@ Status AdxlInnerEngine::Connect(const AscendString &remote_engine, int32_t timeo
 }
 
 Status AdxlInnerEngine::Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis) {
+  llm::TemporaryRtContext with_context(rt_context_);
   ADXL_CHK_STATUS_RET(msg_handler_.Disconnect(remote_engine.GetString(), timeout_in_millis),
                       "Failed to disconnect, remote engine:%s, timeout:%d ms",
                       remote_engine.GetString(), timeout_in_millis);
@@ -222,6 +240,7 @@ Status AdxlInnerEngine::TransferSync(const AscendString &remote_engine,
                                      TransferOp operation,
                                      const std::vector<TransferOpDesc> &op_descs,
                                      int32_t timeout_in_millis) {
+  llm::TemporaryRtContext with_context(rt_context_);
   auto channel = channel_manager_.GetChannel(ChannelType::kClient, remote_engine.GetString());
   ADXL_CHK_BOOL_RET_STATUS(channel != nullptr, NOT_CONNECTED,
                            "Failed to get channel, remote_engine:%s", remote_engine.GetString());

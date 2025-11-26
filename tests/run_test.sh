@@ -177,7 +177,7 @@ run() {
       cp ${BUILD_PATH}/tests/depends/python/metadef_wrapper.so ${BASEPATH}/src/python/llm_datadist/llm_datadist/
       cp -r ${BASEPATH}/tests/python ./
       PYTHON_ORIGINAL_PATH=$PYTHONPATH
-      export PYTHONPATH=${BASEPATH}/src/python/llm_datadist/:$PYTHON_ORIGINAL_PATH
+      export PYTHONPATH=${BASEPATH}/src/python/llm_datadist/
       export LD_PRELOAD=${USE_ASAN}
       echo "----------st start----------"
       ASAN_OPTIONS=detect_leaks=0 coverage run -m unittest discover python
@@ -188,6 +188,7 @@ run() {
       fi
       rm -f ${BASEPATH}/src/python/llm_datadist/llm_datadist/*.so
       unset LD_PRELOAD
+      export PYTHONPATH=${PYTHON_ORIGINAL_PATH}
   fi
 
   if [[ "X$CMAKE_BUILD_TYPE" = "XGCOV" ]]; then

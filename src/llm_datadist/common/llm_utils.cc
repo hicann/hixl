@@ -352,15 +352,18 @@ bool LLMUtils::IsTimeout(const std::chrono::high_resolution_clock::time_point& s
 }
 
 TemporaryRtContext::TemporaryRtContext(rtContext_t context) {
-  if (context != nullptr) {
-    (void) rtCtxGetCurrent(&prev_context_);
+  (void) rtCtxGetCurrent(&prev_context_);
+  LLMLOGI("Get current rts ctx:%p", prev_context_);
+  if (context != nullptr && prev_context_ != context) {
     LLM_CHK_ACL(rtCtxSetCurrent(context));
+    LLMLOGI("Set current rts ctx:%p", prev_context_);
   }
 }
 
 TemporaryRtContext::~TemporaryRtContext() {
   if (prev_context_ != nullptr) {
     LLM_CHK_STATUS(rtCtxSetCurrent(prev_context_));
+    LLMLOGI("Restore current rts ctx:%p", prev_context_);
   }
 }
 }  // namespace llm

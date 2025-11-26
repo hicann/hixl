@@ -163,9 +163,6 @@ ge::Status DataCacheEngine::PullCache(int64_t cache_id, const CacheKey &cache_ke
 ge::Status DataCacheEngine::SwapBlocks(const Cache &src, const Cache &dst, const uint64_t block_size,
                                        const uint32_t type,
                                        const std::vector<std::pair<int64_t, int64_t>> &block_mapping) const {
-  rtContext_t user_ctx = nullptr;
-  (void)rtCtxGetCurrent(&user_ctx);
-  LLM_MAKE_GUARD(set_user_ctx, [&user_ctx]() { (void)rtCtxSetCurrent(user_ctx); });
   SwapImpl swap_impl(device_id_);
   LLM_CHK_STATUS_RET(swap_impl.SwapBlocksV2(src, dst, block_size, type, block_mapping));
   return ge::SUCCESS;
@@ -174,7 +171,6 @@ ge::Status DataCacheEngine::SwapBlocks(const Cache &src, const Cache &dst, const
 ge::Status DataCacheEngine::Initialize(const std::map<ge::AscendString, ge::AscendString> &options) {
   int32_t device_id;
   LLM_CHK_STATUS_RET(LLMUtils::ParseDeviceId(options, device_id), "Failed to get device id");
-  LLM_ASSERT_RT_OK(rtSetDevice(device_id));
   device_id_ = device_id;
   LLM_ASSERT_RT_OK(rtCtxGetCurrent(&rt_context_));
   LLM_CHK_STATUS_RET(LLMUtils::ParseFlag(kLlmOptionEnableRemoteCacheAccessible, options, access_remote_cache_),
@@ -209,9 +205,6 @@ void DataCacheEngine::Finalize() const{
     if (transfer_stream_ != nullptr) {
       LLM_CHK_ACL(rtStreamDestroy(transfer_stream_));
     }
-  }
-  if (device_id_ != -1) {
-    LLM_CHK_ACL(rtDeviceReset(device_id_));
   }
 }
 
