@@ -113,7 +113,8 @@ Status AdxlInnerEngine::InitBufferTransferService(const std::map<ge::AscendStrin
   for (size_t i = 0; i < kMemPoolNum; ++i) {
     npu_mem_pools_[i] = llm::MakeUnique<llm::LlmMemPool>(config);
     ADXL_CHECK_NOTNULL(npu_mem_pools_[i], "Failed to create memory pool");
-    ADXL_CHK_BOOL_RET_STATUS(rtMalloc(&npu_pool_memorys_[i], npu_pool_size, RT_MEMORY_HBM | RT_MEM_MALLOC_HUGE_FIRST,
+    ADXL_CHK_BOOL_RET_STATUS(rtMalloc(&npu_pool_memorys_[i], npu_pool_size,
+                                      RT_MEMORY_HBM | static_cast<uint32_t>(RT_MEM_MALLOC_HUGE_FIRST),
                                       LLM_MODULE_NAME_U16) == RT_ERROR_NONE,
                              FAILED, "Failed to allocate memory for memory_pool, pool size = %lu.", npu_pool_size);
     ADXL_CHK_LLM_RET(npu_mem_pools_[i]->Initialize(npu_pool_memorys_[i], npu_pool_size),
