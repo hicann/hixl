@@ -269,6 +269,7 @@ Status AdxlInnerEngine::TransferAsync(const AscendString &remote_engine,
                                       const std::vector<TransferOpDesc> &op_descs,
                                       const TransferArgs &optional_args,
                                       TransferReq &req) {
+  llm::TemporaryRtContext with_context(rt_context_);
   auto channel = channel_manager_.GetChannel(ChannelType::kClient, remote_engine.GetString());
   ADXL_CHK_BOOL_RET_STATUS(channel != nullptr, NOT_CONNECTED,
                            "Failed to get channel, remote_engine:%s", remote_engine.GetString());
@@ -283,6 +284,7 @@ Status AdxlInnerEngine::TransferAsync(const AscendString &remote_engine,
 }
 
 Status AdxlInnerEngine::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
+  llm::TemporaryRtContext with_context(rt_context_);
   std::lock_guard<std::mutex> lock(mutex_);
   auto id = reinterpret_cast<uint64_t>(req);
   auto it = transfer_reqs_.find(id);
