@@ -59,11 +59,11 @@ void AdxlInnerEngine::ParseBufferPool(const std::map<AscendString, AscendString>
   }
 }
 
-Status AdxlInnerEngine::InitBufferTransferService(const std::map<ge::AscendString, ge::AscendString> &options) {
+Status AdxlInnerEngine::ParseBufferPoolParams(const std::map<AscendString, AscendString> &options,
+                                              uint64_t &buffer_size, uint64_t &npu_pool_size) {
   std::string pool_config;
   ParseBufferPool(options, pool_config);
   uint64_t buffer_num;
-  uint64_t buffer_size;
   if (!pool_config.empty()) {
     if (pool_config == kDisabledPoolConfig) {
       LLMEVENT("Buffer pool is disabled.");
@@ -76,19 +76,29 @@ Status AdxlInnerEngine::InitBufferTransferService(const std::map<ge::AscendStrin
                              pool_config.c_str());
     ADXL_CHK_LLM_RET(llm::LLMUtils::ToNumber(buffer_configs[0], buffer_num), "Buffer num is invalid, value = %s.",
                      buffer_configs[0].c_str());
-    ADXL_CHK_BOOL_RET_STATUS(buffer_num > 0, PARAM_INVALID, "Buffer num should be bigger than 0.");
+    ADXL_CHK_BOOL_RET_STATUS(buffer_num > 0U, PARAM_INVALID, "Buffer num should be bigger than 0.");
     auto &buffer_size_str = buffer_configs[1];
     ADXL_CHK_LLM_RET(llm::LLMUtils::ToNumber(buffer_size_str, buffer_size), "Buffer size is invalid, value = %s",
                      buffer_size_str.c_str());
-    ADXL_CHK_BOOL_RET_STATUS(buffer_size > 0, PARAM_INVALID, "Buffer size should be bigger than 0.");
+    ADXL_CHK_BOOL_RET_STATUS(buffer_size > 0U, PARAM_INVALID, "Buffer size should be bigger than 0.");
     user_config_buffer_pool_ = true;
   } else {
     buffer_num = kDefaultBufferNum;
     buffer_size = kDefaultBufferSize;
   }
-  uint64_t npu_pool_size = 0UL;
-  LLM_ASSERT_TRUE(!ge::MulOverflow(buffer_size, buffer_num, npu_pool_size));
-  LLM_ASSERT_TRUE(!ge::MulOverflow(npu_pool_size, kBaseBufferSize, npu_pool_size));
+  ADXL_CHK_BOOL_RET_STATUS(!ge::MulOverflow(buffer_size, buffer_num, npu_pool_size), FAILED,
+                           "Buffer pool config is invalid.");
+  ADXL_CHK_BOOL_RET_STATUS(!ge::MulOverflow(npu_pool_size, kBaseBufferSize, npu_pool_size), FAILED,
+                           "Buffer pool config is invalid.");
+  return SUCCESS;
+}
+
+Status AdxlInnerEngine::InitBufferTransferService(const std::map<ge::AscendString, ge::AscendString> &options) {
+  uint64_t buffer_size = 0U;
+  uint64_t npu_pool_size = 0U;
+  ADXL_CHK_STATUS_RET(ParseBufferPoolParams(options, buffer_size, npu_pool_size),
+                      "Failed to parse buffer pool params.");
+  ADXL_CHK_BOOL_RET_SPECIAL_STATUS(npu_pool_size == 0U, SUCCESS, "Buffer pool is disabled.");
   llm::ScalableConfig config{};
   config.page_idem_num = kDefaultPageShift;
   config.page_mem_size_total_threshold = npu_pool_size;
@@ -126,7 +136,6 @@ Status AdxlInnerEngine::InitBufferTransferService(const std::map<ge::AscendStrin
                         "Failed to register mem");
   }
   std::vector<llm::LlmMemPool *> mem_pools;
-  mem_pools.reserve(kMemPoolNum);
   for (auto &mem_pool : npu_mem_pools_) {
     mem_pools.emplace_back(mem_pool.get());
   }

@@ -208,14 +208,10 @@ Status ChannelMsgHandler::RegisterMem(const MemDesc &mem, MemType type, MemHandl
   hccl_mem.addr = reinterpret_cast<void *>(mem.addr);
   hccl_mem.size = mem.len;
   ADXL_CHK_HCCL_RET(llm::HcclAdapter::GetInstance().HcclRegisterGlobalMem(&hccl_mem, &mem_handle));
-  {
-    std::lock_guard<std::mutex> lock(addr_info_mutex_);
-    addr_infos_.emplace_back(AddrInfo{mem.addr, mem.addr + mem.len, type});
-  }
   LLMLOGI("Add local mem range start:%lu, end:%lu, type:%d.", mem.addr, mem.addr + mem.len, type);
   segment_table_->AddRange(listen_info_, mem.addr, mem.addr + mem.len, type);
   std::lock_guard<std::mutex> lock(mutex_);
-  handle_to_addr_[mem_handle] = reinterpret_cast<void *>(mem.addr);
+  handle_to_addr_[mem_handle] = AddrInfo{mem.addr, mem.addr + mem.len, type};
   return SUCCESS;
 }
 
@@ -226,6 +222,8 @@ Status ChannelMsgHandler::DeregisterMem(MemHandle mem_handle) {
     LLMLOGW("handle:%p is not registered.", mem_handle);
     return SUCCESS; 
   }
+  auto &addr_info = it->second;
+  segment_table_->RemoveRange(listen_info_, addr_info.start_addr, addr_info.end_addr, addr_info.mem_type);
   ADXL_CHK_HCCL_RET(llm::HcclAdapter::GetInstance().HcclDeregisterGlobalMem(mem_handle));
   handle_to_addr_.erase(it);
   return SUCCESS;
@@ -299,7 +297,9 @@ Status ChannelMsgHandler::ConnectInfoProcess(const ChannelConnectInfo &peer_chan
   channel_info.rank_table = rank_table;
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    channel_info.registered_mems = handle_to_addr_;
+    for (const auto &addr_info : handle_to_addr_) {
+      channel_info.registered_mems[addr_info.first] = reinterpret_cast<void *>(addr_info.second.start_addr);
+    }
   }
   constexpr uint32_t kTimeInSec = 1000;
   auto left_time = timeout % kTimeInSec == 0 ? 0 : 1;
@@ -313,8 +313,10 @@ Status ChannelMsgHandler::ProcessConnectRequest(int32_t fd, const std::vector<ch
   channel_connect_info.channel_id = listen_info_;
   channel_connect_info.comm_res = local_comm_res_;
   {
-    std::lock_guard<std::mutex> lock(addr_info_mutex_);
-    channel_connect_info.addrs = addr_infos_;
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (const auto &addr_info : handle_to_addr_) {
+      channel_connect_info.addrs.emplace_back(addr_info.second);
+    }
   }
   ADXL_CHK_STATUS_RET(SendMsg(fd, ChannelMsgType::kConnect, channel_connect_info),
                       "Failed to send connect msg");

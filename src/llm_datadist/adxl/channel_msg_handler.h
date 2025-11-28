@@ -97,10 +97,7 @@ class ChannelMsgHandler {
   llm::MsgHandlerPlugin handler_plugin_;
 
   std::mutex mutex_;
-  std::map<MemHandle, void *> handle_to_addr_;
-
-  std::mutex addr_info_mutex_;
-  std::vector<AddrInfo> addr_infos_;
+  std::map<MemHandle, AddrInfo> handle_to_addr_;
 
   std::string local_comm_name_;
   std::string local_comm_res_;

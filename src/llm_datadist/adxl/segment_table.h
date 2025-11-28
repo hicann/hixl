@@ -20,11 +20,11 @@ class Segment {
  public:
   explicit Segment(MemType type) : mem_type_(type) {};
   void AddRange(uint64_t start, uint64_t end);
+  void RemoveRange(uint64_t start, uint64_t end);
   bool Contains(uint64_t start, uint64_t end) const;
   MemType GetMemType() const;
 
  private:
-  void MergeRanges();
   std::vector<std::pair<uint64_t, uint64_t>> ranges_;
   MemType mem_type_;
 };
@@ -35,6 +35,7 @@ class SegmentTable {
   SegmentTable() = default;
 
   void AddRange(const std::string &channel_id, uint64_t start, uint64_t end, MemType type);
+  void RemoveRange(const std::string &channel_id, uint64_t start, uint64_t end, MemType type);
 
   SegmentPtr FindSegment(const std::string &channel_id, uint64_t start, uint64_t end);
 

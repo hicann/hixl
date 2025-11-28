@@ -14,6 +14,17 @@
 #include "adxl/segment_table.h"
 
 namespace adxl {
+namespace {
+constexpr char kChannelId[] = "test";
+constexpr uint32_t kSegmentStart1 = 100;
+constexpr uint32_t kSegmentMiddle = 150;
+constexpr uint32_t kSegmentStart2 = 200;
+constexpr uint32_t kSegmentEnd2 = 205;
+constexpr uint32_t kSegmentStart3 = 206;
+constexpr uint32_t kSegmentEnd3 = 300;
+constexpr uint32_t kSegmentQueryStart2 = 201;
+constexpr uint32_t kSegmentQueryEnd = 310;
+}  // namespace
 class SegmentTableUTest : public ::testing::Test {
  protected:
   void SetUp() override {}
@@ -22,17 +33,41 @@ class SegmentTableUTest : public ::testing::Test {
 
 TEST_F(SegmentTableUTest, TestContains) {
   SegmentTable table;
-  table.AddRange("127.0.0.1:10000", 100, 200, MemType::MEM_DEVICE);
-  table.AddRange("127.0.0.1:10000", 200, 300, MemType::MEM_DEVICE);
-  auto channel = table.FindSegment("127.0.0.1:10000", 150, 300);
+  table.AddRange(kChannelId, kSegmentStart3, kSegmentEnd3, MemType::MEM_DEVICE);
+  table.AddRange(kChannelId, kSegmentStart2, kSegmentEnd2, MemType::MEM_DEVICE);
+  table.AddRange(kChannelId, kSegmentStart1, kSegmentStart2, MemType::MEM_DEVICE);
+  auto channel = table.FindSegment(kChannelId, kSegmentMiddle, kSegmentEnd3);
   ASSERT_NE(channel, nullptr);
+  channel = table.FindSegment(kChannelId, kSegmentQueryStart2, kSegmentEnd3);
+  ASSERT_NE(channel, nullptr);
+  channel = table.FindSegment(kChannelId, kSegmentStart3, kSegmentEnd3);
+  ASSERT_NE(channel, nullptr);
+}
+
+TEST_F(SegmentTableUTest, TestRemoveContains) {
+  SegmentTable table;
+  table.AddRange(kChannelId, kSegmentStart1, kSegmentStart2, MemType::MEM_DEVICE);
+  table.AddRange(kChannelId, kSegmentStart2, kSegmentEnd3, MemType::MEM_DEVICE);
+  table.AddRange(kChannelId, kSegmentStart1, kSegmentStart2, MemType::MEM_DEVICE);
+  table.RemoveRange(kChannelId, kSegmentStart1, kSegmentStart2, MemType::MEM_DEVICE);
+  auto channel = table.FindSegment(kChannelId, kSegmentMiddle, kSegmentEnd3);
+  ASSERT_NE(channel, nullptr);
+}
+
+TEST_F(SegmentTableUTest, TestRemoveNotContains) {
+  SegmentTable table;
+  table.AddRange(kChannelId, kSegmentStart1, kSegmentStart2, MemType::MEM_DEVICE);
+  table.AddRange(kChannelId, kSegmentStart2, kSegmentEnd3, MemType::MEM_DEVICE);
+  table.RemoveRange(kChannelId, kSegmentStart1, kSegmentStart2, MemType::MEM_DEVICE);
+  auto channel = table.FindSegment(kChannelId, kSegmentMiddle, kSegmentEnd3);
+  ASSERT_EQ(channel, nullptr);
 }
 
 TEST_F(SegmentTableUTest, TestNotContains) {
   SegmentTable table;
-  table.AddRange("127.0.0.1:10000", 100, 200, MemType::MEM_DEVICE);
-  table.AddRange("127.0.0.1:10000", 200, 300, MemType::MEM_DEVICE);
-  auto channel = table.FindSegment("127.0.0.1:10000", 150, 310);
+  table.AddRange(kChannelId, kSegmentStart1, kSegmentStart2, MemType::MEM_DEVICE);
+  table.AddRange(kChannelId, kSegmentStart2, kSegmentEnd3, MemType::MEM_DEVICE);
+  auto channel = table.FindSegment(kChannelId, kSegmentMiddle, kSegmentQueryEnd);
   ASSERT_EQ(channel, nullptr);
 }
 }  // namespace adxl

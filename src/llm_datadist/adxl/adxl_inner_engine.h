@@ -61,6 +61,8 @@ class AdxlInnerEngine {
   Status InitBufferTransferService(const std::map<ge::AscendString, ge::AscendString> &options);
   static void ParseBufferPool(const std::map<AscendString, AscendString> &options,
                               std::string &pool_config);
+  Status ParseBufferPoolParams(const std::map<AscendString, AscendString> &options, uint64_t &buffer_size,
+                               uint64_t &npu_pool_size);
 
   std::string local_engine_;
   ChannelManager channel_manager_;
