@@ -50,6 +50,14 @@ hccn_tool -i ${device_id_a} -ping -g address ${ip_address_b}
 
 假如返回结果出现类似于recv time out seq=0的字样，说明两个设备之间不连通，请更换device_id，选择连通的一对执行用例。
 
+4. 执行用例前检查设备之间TLS设置是否一致：
+```shell
+# 检查设备的TLS状态
+for i in {0..7}; do hccn_tool -i $i -tls -g; done | grep switch
+
+# TLS使能的设备和TLS不使能的设备无法建链，建议统一保持TLS关闭
+for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
+```
 ## 程序编译
 
 
