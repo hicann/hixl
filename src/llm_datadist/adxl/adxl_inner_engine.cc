@@ -86,9 +86,9 @@ Status AdxlInnerEngine::ParseBufferPoolParams(const std::map<AscendString, Ascen
     buffer_num = kDefaultBufferNum;
     buffer_size = kDefaultBufferSize;
   }
-  ADXL_CHK_BOOL_RET_STATUS(!ge::MulOverflow(buffer_size, buffer_num, npu_pool_size), FAILED,
+  ADXL_CHK_BOOL_RET_STATUS(!ge::MulOverflow(buffer_size, buffer_num, npu_pool_size), PARAM_INVALID,
                            "Buffer pool config is invalid.");
-  ADXL_CHK_BOOL_RET_STATUS(!ge::MulOverflow(npu_pool_size, kBaseBufferSize, npu_pool_size), FAILED,
+  ADXL_CHK_BOOL_RET_STATUS(!ge::MulOverflow(npu_pool_size, kBaseBufferSize, npu_pool_size), PARAM_INVALID,
                            "Buffer pool config is invalid.");
   return SUCCESS;
 }
