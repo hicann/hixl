@@ -1,0 +1,51 @@
+name: Request for comments (RFC)
+description: 您需要实现一个新需求时，请使用此模板。
+title: "[RFC]: "
+labels: ["RFC"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for submitting the RFC! Please fill in the following template to help you submit quickly.
+  - type: textarea
+    attributes:
+      label: 需求描述
+      description: 请描述本需求的背景，要实现什么特性，期望解决什么问题等
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 功能要点
+      description: 请分条列出本需求要实现的具体功能点，通过复选框的形式展现
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 技术方案
+      description: 请描述下各功能点的技术实现思路，可附上伪代码、类图、时序图等
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 相关文档
+      description: 若本需求涉及新增文档或文档更新，请在此处描述新增或改动内容
+    validations:
+      required: false
+  - type: textarea
+    attributes:
+      label: 测试方案
+      description: 请描述本需求需要验证的测试场景
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 验收标准
+      description: 请描述本需求验收需达到的标准，通过复选框的形式展现
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 备注
+      description: 可以在此处描述本需求涉及到的任何其他内容
+    validations:
+      required: false
