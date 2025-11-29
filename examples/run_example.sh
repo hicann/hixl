@@ -31,7 +31,7 @@ run_pair() {
     eval "$cmd2" > "$tmp2" 2>&1 & 
     pid2=$!
 
-    wait "$pid1" "$pid2"
+    wait "$pid1" "$pid2" || true
 
     cat "$tmp1"
     cat "$tmp2"
@@ -54,10 +54,15 @@ run_pair() {
 }
 
 main() {
+    # C++ examples
     cd "${BASEPATH}/../build/examples/cpp"
     run_pair "./prompt_pull_cache_and_blocks ${device_id_1} 127.0.0.1" "./decoder_pull_cache_and_blocks ${device_id_2} 127.0.0.1 127.0.0.1"
     run_pair "./prompt_push_cache_and_blocks ${device_id_1} 127.0.0.1 127.0.0.1" "./decoder_push_cache_and_blocks ${device_id_2} 127.0.0.1"
     run_pair "./prompt_switch_roles ${device_id_1} 127.0.0.1 127.0.0.1" "./decoder_switch_roles ${device_id_2} 127.0.0.1 127.0.0.1"
+    run_pair "./client_server_h2d ${device_id_1} 127.0.0.1 127.0.0.1:16000" "./client_server_h2d ${device_id_2} 127.0.0.1:16000"
+    run_pair "./server_server_d2d ${device_id_1} 127.0.0.1:16000 127.0.0.1:16001" "./server_server_d2d ${device_id_2} 127.0.0.1:16001 127.0.0.1:16000"
+
+    
     if [ "$flag" -eq "0" ]; then
         echo "execute samples success"
     fi
