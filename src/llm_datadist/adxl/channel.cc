@@ -151,6 +151,39 @@ Status Channel::TransferAsync(TransferOp operation, const std::vector<TransferOp
   return SUCCESS;
 }
 
+Status Channel::TransferAsyncWithTimeout(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
+                                         rtStream_t stream, uint64_t timeout) {
+  const auto start = std::chrono::steady_clock::now();
+  std::vector<HcclOneSideOpDesc> hccl_op_descs;
+  hccl_op_descs.reserve(kMaxOpDescNum);
+  for (size_t i = 0; i < op_descs.size(); ++i) {
+    auto &desc = op_descs[i];
+    HcclOneSideOpDesc hccl_op_desc{};
+    hccl_op_desc.localAddr = llm::ValueToPtr(desc.local_addr);
+    hccl_op_desc.remoteAddr = llm::ValueToPtr(desc.remote_addr);
+    hccl_op_desc.count = desc.len;
+    hccl_op_desc.dataType = HCCL_DATA_TYPE_UINT8;
+    hccl_op_descs.emplace_back(hccl_op_desc);
+    if (hccl_op_descs.size() == hccl_op_descs.capacity() || i == op_descs.size() - 1) {
+      const auto end = std::chrono::steady_clock::now();
+      uint64_t cost = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+      ADXL_CHK_BOOL_RET_STATUS(cost < timeout, TIMEOUT, "Transfer timeout.");
+      HcclResult ret = HCCL_SUCCESS;
+      if (operation == READ) {
+        ret = llm::HcclAdapter::GetInstance().HcclBatchGet(channel_info_.comm, channel_info_.peer_rank_id,
+                                                           hccl_op_descs.data(), hccl_op_descs.size(), stream);
+      } else {
+        ret = llm::HcclAdapter::GetInstance().HcclBatchPut(channel_info_.comm, channel_info_.peer_rank_id,
+                                                           hccl_op_descs.data(), hccl_op_descs.size(), stream);
+      }
+      ADXL_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, HcclError2AdxlStatus(ret), "Failed to invoke %s, hccl_result = %d",
+                               operation == READ ? "HcclBatchGet" : "HcclBatchPut", static_cast<int32_t>(ret));
+      hccl_op_descs.clear();
+    }
+  }
+  return SUCCESS;
+}
+
 Status Channel::TransferSync(TransferOp operation,
                              const std::vector<TransferOpDesc> &op_descs,
                              int32_t timeout_in_millis) {

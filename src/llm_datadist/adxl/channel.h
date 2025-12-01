@@ -85,6 +85,9 @@ class Channel {
   rtStream_t &GetStream();
   std::mutex &GetTransferMutex();
 
+  Status TransferAsyncWithTimeout(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
+                                  rtStream_t stream, uint64_t timeout);
+
  private:
   ChannelInfo channel_info_;
   rtStream_t stream_ = nullptr;

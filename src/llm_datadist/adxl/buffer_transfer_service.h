@@ -21,6 +21,11 @@
 
 namespace adxl {
 using CopyExtraInfo = std::pair<rtMemcpyKind_t, uint64_t>;
+struct SliceInfo {
+  std::vector<uintptr_t> src_addrs;
+  std::vector<uintptr_t> dst_addrs;
+  std::vector<size_t> sizes;
+};
 class BufferTransferService {
  public:
   BufferTransferService(std::vector<llm::LlmMemPool *> npu_mem_pools, uint64_t buffer_size)
@@ -74,6 +79,9 @@ class BufferTransferService {
 
   Status ProcessCopy(const ChannelPtr &channel, const std::vector<uintptr_t> &src_addrs,
                      const std::vector<uintptr_t> &dst_addrs, std::vector<size_t> &sizes, CopyExtraInfo extra_info);
+
+  Status ProcessCopyWithBatch(const SliceInfo &slice_info, uint64_t batch_num, uint64_t slice_index,
+                              CopyExtraInfo extra_info) const;
 
   static Status ProcessCopyWithAsync(const ChannelPtr &channel, const std::vector<uintptr_t> &src_addrs,
                                      const std::vector<uintptr_t> &dst_addrs, std::vector<size_t> &sizes,

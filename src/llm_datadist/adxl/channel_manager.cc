@@ -93,6 +93,12 @@ Status ChannelManager::HandleSocketEvent(int32_t fd) {
   auto ret = SUCCESS;
   if (it != fd_to_channel_map_.end()) {
     ret = HandleReadEvent(it->second);
+    if (ret != SUCCESS) {
+      auto channel_id = it->second->GetChannelId();
+      fd_to_channel_map_.erase(it);
+      auto epoll_ret = epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
+      ADXL_CHK_BOOL_RET_STATUS(epoll_ret != -1, FAILED, "Failed to remove epoll fd of channel:%s.", channel_id.c_str());
+    }
   }
   return ret;
 }
@@ -106,7 +112,7 @@ Status ChannelManager::HandleReadEvent(const ChannelPtr &channel) {
                    channel->recv_buffer_.size() - channel->bytes_received_, 0);
   if (n == 0) {
     LLMLOGI("Connection closed by peer, fd: %d, channel:%s.", fd, channel->GetChannelId().c_str());
-    return SUCCESS;
+    return FAILED;
   }
   if (n < 0) {
     if (errno == EAGAIN || errno == EINTR) {
@@ -129,7 +135,7 @@ Status ChannelManager::ProcessReceivedData(const ChannelPtr &channel) {
       header = llm::PtrToPtr<char, ProtocolHeader>(channel->recv_buffer_.data());
       if (header->magic != kMagicNumber) {
         LLMLOGE(FAILED, "Invalid magic number received on channel:%s.", channel->GetChannelId().c_str());
-        return RemoveFd(channel->GetFd());
+        return FAILED;
       }
       channel->expected_body_size_ = header->body_size;
       channel->recv_state_ = RecvState::WAITING_FOR_BODY;
@@ -249,9 +255,10 @@ void ChannelManager::SendHeartbeats() {
     HeartbeatMsg msg{};
     msg.msg = 'H';
     LLMLOGI("Start to send heartbeat msg to:%s.", channel->GetChannelId().c_str());
-    (void)channel->SendHeartBeat([&msg](int32_t fd) {
+    auto ret = channel->SendHeartBeat([&msg](int32_t fd) {
       return ControlMsgHandler::SendMsg(fd, ControlMsgType::kHeartBeat, msg, kSendMsgTimeout);
     });
+    ADXL_CHK_STATUS(ret, "Failed to send heartbeat msg to:%s.", channel->GetChannelId().c_str());
   }
 }
 

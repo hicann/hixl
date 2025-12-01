@@ -11,10 +11,13 @@
 
 #include "buffer_transfer_service.h"
 #include <chrono>
+#include <cstdint>
 #include <thread>
 #include <map>
 #include <mutex>
 #include <atomic>
+#include "adxl/adxl_checker.h"
+#include "adxl/adxl_types.h"
 #include "common/def_types.h"
 #include "base/err_msg.h"
 #include "common/llm_scope_guard.h"
@@ -27,6 +30,8 @@ constexpr int32_t kMillisToMicros = 1000;
 constexpr int32_t kTimeoutLoss = 50;
 constexpr uint64_t kBlockSize = 512 * 1024U;
 constexpr size_t kServerPoolIndex = 1U;
+constexpr size_t kMemcpyBatchLimit = 4096;
+constexpr size_t kMemcpyBatchMinTime = 100000;
 }  // namespace
 
 Status BufferTransferService::Initialize() {
@@ -367,7 +372,7 @@ Status BufferTransferService::D2DTransfer(const ChannelPtr &channel, TransferOp 
                                           const std::vector<TransferOpDesc> &op_descs, uint64_t timeout,
                                           const std::chrono::steady_clock::time_point &start) {
   auto &stream = channel->GetStream();
-  ADXL_CHK_STATUS_RET(channel->TransferAsync(transfer_op, op_descs, stream), "transfer failed.");
+  ADXL_CHK_STATUS_RET(channel->TransferAsyncWithTimeout(transfer_op, op_descs, stream, timeout), "transfer failed.");
   uint64_t time_cost =
       std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
   ADXL_CHK_BOOL_RET_STATUS(time_cost < timeout, TIMEOUT, "Transfer timeout.");
@@ -446,36 +451,58 @@ Status BufferTransferService::ProcessCopy(const ChannelPtr &channel, const std::
     return ProcessCopyWithAsync(channel, src_addrs, dst_addrs, sizes, extra_info);
   } else {
     auto start = std::chrono::steady_clock::now();
-    std::vector<void *> void_dst_addrs(dst_addrs.size());
-    std::vector<void *> void_src_addrs(dst_addrs.size());
-    std::vector<rtMemcpyBatchAttr> attrs(dst_addrs.size());
-    std::vector<size_t> attrsIds(dst_addrs.size());
-    size_t idx = 0;
-    for (size_t i = 0; i < dst_addrs.size(); i++) {
-      auto loc = rtMemLocation{static_cast<uint32_t>(device_id_), rtMemLocationType::RT_MEMORY_LOC_DEVICE};
-      auto another_loc = rtMemLocation{0, rtMemLocationType::RT_MEMORY_LOC_HOST};
-      if (kind == RT_MEMCPY_DEVICE_TO_HOST) {
-        attrs[i] = rtMemcpyBatchAttr{another_loc, loc, {}};
-      } else {
-        attrs[i] = rtMemcpyBatchAttr{loc, another_loc, {}};
+    auto &timeout = extra_info.second;
+    auto left_num = src_addrs.size();
+    size_t slice_index = 0;
+    while (left_num > 0) {
+      auto batch_num = std::min(left_num, kMemcpyBatchLimit);
+      uint64_t time_cost =
+          std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
+      ADXL_CHK_BOOL_RET_STATUS(time_cost < timeout, TIMEOUT, "Transfer timeout.");
+      auto left_timeout = timeout - time_cost;
+      ADXL_CHK_BOOL_RET_STATUS(left_timeout > kMemcpyBatchMinTime, TIMEOUT, "Timeout is not enough.");
+      auto ret = ProcessCopyWithBatch(SliceInfo{src_addrs, dst_addrs, sizes}, batch_num, slice_index, extra_info);
+      ADXL_CHK_BOOL_RET_STATUS(ret != FAILED, FAILED, "Batch copy failed.");
+      if (ret == UNSUPPORTED) {
+        support_batch_copy_batch_ = false;
+        return ProcessCopyWithAsync(channel, src_addrs, dst_addrs, sizes, extra_info);
       }
-      attrsIds[i] = idx++;
-      void_src_addrs[i] = llm::ValueToPtr(src_addrs[i]);
-      void_dst_addrs[i] = llm::ValueToPtr(dst_addrs[i]);
+      LLMLOGI("Batch copy time cost:%lu us",
+              std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count());
+      left_num -= batch_num;
+      slice_index += batch_num;
     }
-    size_t fail_idx;
-    auto ret = rtsMemcpyBatch(void_dst_addrs.data(), void_src_addrs.data(), sizes.data(), dst_addrs.size(),
-                              attrs.data(), attrsIds.data(), attrs.size(), &fail_idx);
-    if (ret == ACL_ERROR_RT_FEATURE_NOT_SUPPORT) {
-      // fallback
-      support_batch_copy_batch_ = false;
-      return ProcessCopyWithAsync(channel, src_addrs, dst_addrs, sizes, extra_info);
-    }
-    LLMLOGI("Batch copy time cost:%lu us",
-            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count());
-    return ret == RT_ERROR_NONE ? SUCCESS : FAILED;
   }
   return SUCCESS;
+}
+
+Status BufferTransferService::ProcessCopyWithBatch(const SliceInfo &slice_info, uint64_t batch_num,
+                                                   uint64_t slice_index, CopyExtraInfo extra_info) const {
+  auto &kind = extra_info.first;
+  std::vector<void *> void_dst_addrs(batch_num);
+  std::vector<void *> void_src_addrs(batch_num);
+  std::vector<size_t> sizes(batch_num);
+  std::vector<rtMemcpyBatchAttr> attrs(batch_num);
+  std::vector<size_t> attrsIds(batch_num);
+  size_t idx = 0;
+  for (uint64_t i = 0; i < batch_num; i++) {
+    auto loc = rtMemLocation{static_cast<uint32_t>(device_id_), rtMemLocationType::RT_MEMORY_LOC_DEVICE};
+    auto another_loc = rtMemLocation{0, rtMemLocationType::RT_MEMORY_LOC_HOST};
+    if (kind == RT_MEMCPY_DEVICE_TO_HOST) {
+      attrs[i] = rtMemcpyBatchAttr{another_loc, loc, {}};
+    } else {
+      attrs[i] = rtMemcpyBatchAttr{loc, another_loc, {}};
+    }
+    attrsIds[i] = idx++;
+    void_src_addrs[i] = llm::ValueToPtr(slice_info.src_addrs[slice_index + i]);
+    void_dst_addrs[i] = llm::ValueToPtr(slice_info.dst_addrs[slice_index + i]);
+    sizes[i] = slice_info.sizes[slice_index + i];
+  }
+  size_t fail_idx;
+  auto ret = rtsMemcpyBatch(void_dst_addrs.data(), void_src_addrs.data(), sizes.data(), batch_num, attrs.data(),
+                            attrsIds.data(), batch_num, &fail_idx);
+  ADXL_CHK_BOOL_RET_SPECIAL_STATUS(ret == ACL_ERROR_RT_FEATURE_NOT_SUPPORT, UNSUPPORTED, "MemcpyBatch is not supported.");
+  return ret == RT_ERROR_NONE ? SUCCESS : FAILED;
 }
 
 Status BufferTransferService::ProcessCopyWithAsync(const ChannelPtr &channel, const std::vector<uintptr_t> &src_addrs,
