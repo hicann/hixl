@@ -14,6 +14,8 @@
 #include <unistd.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <poll.h>
+#include <thread>
 #include <cstring>
 #include "tcp_client_server.h"
 
@@ -35,13 +37,21 @@ bool TCPClient::ConnectToServer(const std::string &host, uint16_t port) {
     server_.sin_addr.s_addr = inet_addr(host.c_str());
   }
 
-  if (connect(sock_, reinterpret_cast<sockaddr *>(&server_), sizeof(server_)) < 0) {
-    std::cerr << "[ERROR] Connect to tcp server failed" << std::endl;
-    return false;
+  uint16_t retry_times = 5;
+  uint16_t i = 0;
+  while (i < retry_times) {
+    auto ret = connect(sock_, reinterpret_cast<sockaddr *>(&server_), sizeof(server_));
+    if (ret < 0) {
+      std::cout << "[WARNING] Connect to tcp server failed, retry_times: " << i << std::endl;
+      i++;
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    } else {
+      std::cout << "[INFO] Connect to tcp server success" << std::endl;
+      return true;
+    }
   }
-
-  std::cout << "[INFO] Connect to tcp server success" << std::endl;
-  return true;
+  std::cerr << "[ERROR] Connect to tcp server failed" << std::endl;
+  return false;
 }
 
 bool TCPClient::SendUint64(uint64_t data) const {
@@ -133,11 +143,28 @@ bool TCPServer::StartServer(uint16_t port) {
 }
 
 bool TCPServer::AcceptConnection() {
+  int timeout_ms= 5000;
+  struct pollfd pfd;
+  pfd.fd = server_fd_;
+  pfd.events = POLLIN;
+
+  auto ret = poll(&pfd, static_cast<nfds_t>(1), timeout_ms);
+  if (ret < 0) {
+    std::cerr << "[ERROR] Poll error" << std::endl;
+    return false;
+  }
+
+  if (ret == 0) {
+    std::cerr << "[ERROR] Accept connection timeout (no new connection in " << timeout_ms << " ms)" << std::endl;
+    return false;
+  }
+
   if ((client_socket_ =
            accept(server_fd_, reinterpret_cast<sockaddr *>(&address_), reinterpret_cast<socklen_t *>(&addrlen_))) < 0) {
     std::cerr << "[ERROR] Accept connection failed" << std::endl;
     return false;
   }
+
   std::cout << "[INFO] Tcp server accept connection success" << std::endl;
   return true;
 }
