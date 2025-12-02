@@ -1,4 +1,4 @@
-name: Bug-Report|缺陷反馈
+name: 🐛 Bug-Report|缺陷反馈
 description: 当您发现了一个缺陷，需要向社区反馈时，请使用此模板。
 title: "[Bug-Report|缺陷反馈]: "
 labels: ["bug-report"]
@@ -6,41 +6,47 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for sending an issue! Please fill in the following template to help quickly solve your problem.
+        #### 在提交问题之前，请通过[搜索现有和历史issues](https://gitcode.com/cann/hixl/issues)确保该问题尚未被提出并解决。
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: 请确认以下信息：
+      options:
+        - label: 我已经搜索过现有和历史的issues，确认这是一个新问题
+          required: true
   - type: textarea
     attributes:
-      label: Describe the current behavior / 问题描述 (Mandatory / 必填)
+      label: 问题描述
       description: 提供尽可能多的信息描述产生了什么问题
-      placeholder: ""
     validations:
       required: true
   - type: textarea
     attributes:
-      label: Environment / 环境信息 (Mandatory / 必填)
+      label: 环境信息
       description: 请提供昇腾硬件型号与软件环境信息
     validations:
       required: true
   - type: textarea
     attributes:
-      label: Steps to reproduce the issue / 重现步骤 (Mandatory / 必填)
+      label: 重现步骤
       description: 提供尽可能多的信息描述如何重现该缺陷
     validations:
       required: true
   - type: textarea
     attributes:
-      label: Describe the expected behavior / 预期结果 (Mandatory / 必填)
+      label: 预期结果
       description: 描述期望的行为应该是什么样子的
     validations:
       required: true
   - type: textarea
     attributes:
-      label: Related log / screenshot / 日志 / 截图 (Mandatory / 必填)
+      label: 日志 / 截图
       description: 提供尽可能多的日志/结果信息
     validations:
       required: true  
   - type: textarea
     attributes:
-      label: Special notes for this issue/备注 (Optional / 选填)
+      label: 备注
       description: 补充下其他您认为需要提供的信息
     validations:
       required: false

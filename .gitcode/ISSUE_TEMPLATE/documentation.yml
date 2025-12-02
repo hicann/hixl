@@ -1,4 +1,4 @@
-name: Documentation|文档反馈
+name: 📚 Documentation|文档反馈
 description: 如果您需要反馈文档问题，请使用此模板。
 title: "[Documentation|文档反馈]: "
 labels: ["documentation"]
@@ -6,22 +6,29 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for sending an issue! Please fill in the following template to help quickly solve your problem.
+        #### 在提交问题之前，请通过[搜索现有和历史issues](https://gitcode.com/cann/hixl/issues)确保该问题尚未被提出并解决。
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: 请确认以下信息：
+      options:
+        - label: 我已经搜索过现有和历史的issues，确认这是一个新问题
+          required: true
   - type: textarea
     attributes:
-      label: Document Link（文档链接）
+      label: 文档链接
       description: 请给出有问题的文档链接
     validations:
       required: true
   - type: textarea
     attributes:
-      label: Issues Section（问题文档片段）
+      label: 问题文档片段
       description: 请给出问题文档片段或截图
     validations:
       required: true
   - type: textarea
     attributes:
-      label: Existing Issues（存在的问题）
+      label: 存在的问题
       description: 请描述下存在的问题
     validations:
       required: false

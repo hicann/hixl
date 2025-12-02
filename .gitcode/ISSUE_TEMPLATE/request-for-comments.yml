@@ -1,12 +1,8 @@
-name: Request for comments (RFC)
-description: 您需要实现一个新需求时，请使用此模板。
+name: 💻 Request for comments (RFC)
+description: 如果您需要实现一个新需求时，请使用此模板。
 title: "[RFC]: "
 labels: ["RFC"]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        Thanks for submitting the RFC! Please fill in the following template to help you submit quickly.
   - type: textarea
     attributes:
       label: 需求描述
