@@ -12,6 +12,7 @@
 # ----------------------------------------------------------------------------
 
 import os
+import time
 import logging
 import torch
 import torch_npu
@@ -35,19 +36,17 @@ class MooncakeSampleBase:
             logging.info("Running in single-machine mode")
             return
         
-        # 设置分布式环境变量
         os.environ["MASTER_ADDR"] = self.config.master_addr
         os.environ["MASTER_PORT"] = self.config.master_port
         
-        # 初始化进程组
         dist.init_process_group(
             backend="gloo",
             rank=self.config.rank,
             world_size=self.config.world_size
         )
         dist.barrier(group=dist.group.WORLD)
-        logging.info(f"Initialized distributed process group: 
-                    rank={self.config.rank}, world_size={self.config.world_size}")
+        logging.info(f"Initialized distributed process group: \
+        rank={self.config.rank}, world_size={self.config.world_size}")
     
     def init_mooncake_store(self) -> MooncakeDistributedStore:
         store = MooncakeDistributedStore()
@@ -101,5 +100,6 @@ class MooncakeSampleBase:
             self.store.close()
     
     def cleanup(self):
+        time.sleep(1)
         self.unregister_buffers()
         self.close_store()

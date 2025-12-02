@@ -28,7 +28,7 @@ def create_parser(description):
                         help="transport schema, should in ['h2h', 'h2d', 'd2h', 'd2d']")
     parser.add_argument('--config', type=str, help='Path to config file')
     parser.add_argument('--device_id', type=int, required=True, help='Device ID (must be provided)')
-    parser.add_argument('--rank', type=int, help='Rank ID (optional, default: same as device_id)')
+    parser.add_argument('--rank', type=int, help='Rank ID (optional, default: same as device_id // 2)')
     parser.add_argument('--world_size', type=int, help='World size (optional, default: 1)')
     parser.add_argument('--distributed', action='store_true', help='Enable distributed mode')
     return parser

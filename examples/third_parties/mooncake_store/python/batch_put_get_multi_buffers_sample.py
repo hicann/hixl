@@ -71,7 +71,6 @@ class BatchPutGetMultiBuffers(MooncakeSampleBase):
 if __name__ == "__main__":
     parser = create_parser("Batch Put/Get Multi Buffers Sample")
     
-    # 创建配置对象并解析参数
     config = Config()
     args = config.parse_args(parser)
     args.schema = args.schema.lower()

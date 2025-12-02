@@ -1,13 +1,24 @@
-# 分布式配置
-distributed:
-  enabled:         # 是否启用分布式模式
-  world_size:          # 总节点数/卡数
-  master_addr:   # 主节点地址
-  master_port:     # 主节点端口
+# ----------------------------------------------------------------------------
+# This program is free software, you can redistribute it and/or modify it.
+# Copyright (c) 2025 Huawei Technologies Co., Ltd.
+# This file is a part of the CANN Open Software.
+# Licensed under CANN Open Software License Agreement Version 2.0 (the "License").
+# Please refer to the License for details. You may not use this file except in compliance with the License.
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+# INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+# See LICENSE in the root of the software repository for the full text of the License.
+# ----------------------------------------------------------------------------
 
-# Mooncake store配置
+# distribute group config
+distributed:
+  enabled: true
+  world_size: 2
+  master_addr: "127.0.0.1"
+  master_port: "29500"
+
+# Mooncake store config
 mooncake:
-  store_ip:     # Mooncake store IP地址
-  port_start:       # 端口起始值，每个rank会在这个基础上递增
-  metadata_url:  # 元数据服务地址
-  grpc_url:   # gRPC服务地址
+  store_ip: 127.0.0.1    # Mooncake store IP address
+  port_start: 12345      # port for mooncake store init as port_start + rank
+  metadata_url: http://127.0.0.1:8080/metadata # metadata service address
+  grpc_url: 127.0.0.1:50051  # gRPC servcide address
