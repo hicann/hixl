@@ -138,10 +138,10 @@ Status AdxlEngine::AdxlEngineImpl::TransferAsync(const AscendString &remote_engi
 Status AdxlEngine::AdxlEngineImpl::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
   adxl::TransferStatus transfer_status = adxl::TransferStatus::WAITING;
   auto ret = adxl_engine_.GetTransferStatus(req, transfer_status);
-  if (ret == FAILED) {
+  if (ret != SUCCESS) {
     status = TransferStatus::FAILED;
-    LLMLOGE(FAILED, "Failed to get transfer request status.");
-    return FAILED;
+    LLMLOGE(ret, "Failed to get transfer request status.");
+    return ret;
   }          
   status = static_cast<TransferStatus>(static_cast<int>(transfer_status));
   return SUCCESS;
@@ -213,7 +213,7 @@ Status AdxlEngine::Disconnect(const AscendString &remote_engine, int32_t timeout
   ADXL_CHK_BOOL_RET_STATUS(timeout_in_millis > 0, PARAM_INVALID, "timeout_in_millis:%d must > 0", timeout_in_millis);
   const auto ret = impl_->Disconnect(remote_engine, timeout_in_millis);
   ADXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
-                           "Failed to disconnet, remote engine:%s, timeout:%d ms",
+                           "Failed to disconnect, remote engine:%s, timeout:%d ms",
                            remote_engine.GetString(), timeout_in_millis);
   LLMLOGI("Disconnect success, remote engine:%s, timeout:%d ms", remote_engine.GetString(), timeout_in_millis);
   return SUCCESS;

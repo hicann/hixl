@@ -321,7 +321,7 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineTransferAsync) {
   EXPECT_EQ(status, TransferStatus::COMPLETED);
   EXPECT_EQ(src, 2);
   //测试多次查找
-  EXPECT_EQ(engine1.GetTransferStatus(req, status), FAILED);
+  EXPECT_EQ(engine1.GetTransferStatus(req, status), PARAM_INVALID);
   EXPECT_EQ(status, TransferStatus::FAILED);
   
   src = 1;
@@ -407,11 +407,56 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineGetTransferStatusFalied) {
   //给 req 随机赋值一个地址
   constexpr size_t kFakeReqSize = 64;
   req = malloc(kFakeReqSize);
-  EXPECT_EQ(engine1.GetTransferStatus(req, status), FAILED);
+  EXPECT_EQ(engine1.GetTransferStatus(req, status), PARAM_INVALID);
 
   EXPECT_EQ(engine1.Disconnect("127.0.0.1:26001"), SUCCESS);
   free(req);
   engine1.Finalize();
   engine2.Finalize();
 }
+
+TEST_F(AdxlEngineUTest, TestAdxlGetTransferStatusWithInterrupt) {
+  AdxlEngine engine1;
+  AdxlEngine engine2;
+  SetupEngines(engine1, engine2);
+  int32_t src = 1;
+  MemHandle handle1 = nullptr;
+  RegisterInt32Mem(engine1, &src, handle1);
+  int32_t dst = 2;
+  MemHandle handle2 = nullptr;
+  RegisterInt32Mem(engine2, &dst, handle2);
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
+  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+  TransferReq req = nullptr;
+  EXPECT_EQ(engine1.TransferAsync("127.0.0.1:26001", WRITE, {desc}, {}, req), SUCCESS);
+  engine1.Disconnect("127.0.0.1:26001");
+  TransferStatus status = TransferStatus::WAITING;
+  EXPECT_EQ(engine1.GetTransferStatus(req, status), NOT_CONNECTED);
+  engine1.Finalize();
+  engine2.Finalize();
+}
+
+TEST_F(AdxlEngineUTest, TestAdxlGetTransferStatusWithQueryEventFailed) {
+  AdxlEngine engine1;
+  AdxlEngine engine2;
+  SetupEngines(engine1, engine2);
+  int32_t src = 1;
+  MemHandle handle1 = nullptr;
+  RegisterInt32Mem(engine1, &src, handle1);
+  int32_t dst = 2;
+  MemHandle handle2 = nullptr;
+  RegisterInt32Mem(engine2, &dst, handle2);
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
+  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+  TransferReq req = nullptr;
+  EXPECT_EQ(engine1.TransferAsync("127.0.0.1:26001", WRITE, {desc}, {}, req), SUCCESS);
+  TransferStatus status = TransferStatus::WAITING;
+  TransferAsyncRuntimeMock instance;;
+  llm::RuntimeStub::Install(&instance);
+  EXPECT_EQ(engine1.GetTransferStatus(req, status), FAILED);
+  llm::RuntimeStub::UnInstall(&instance);
+  engine1.Finalize();
+  engine2.Finalize();
+}
+
 }  // namespace llm_datadist

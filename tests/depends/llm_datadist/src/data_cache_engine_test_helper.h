@@ -184,6 +184,15 @@ class DataCacheEngineRuntimeMock : public llm::RuntimeStub {
   int32_t counter_ = 0;
 };
 
+class TransferAsyncRuntimeMock : public llm::RuntimeStub {
+ public:
+  rtError_t rtEventQueryStatus(rtEvent_t evt, rtEventStatus_t *status) override {
+    (void)evt;
+    *status = RT_EVENT_INIT;
+    return ACL_ERROR_RT_FEATURE_NOT_SUPPORT;
+  }
+};
+
 class AutoCommResRuntimeMock : public llm::RuntimeStub {
  public:
   static void Install() {

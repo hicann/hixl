@@ -11,6 +11,7 @@
 #include <securec.h>
 #include <mutex>
 #include <map>
+#include <string>
 #include "base/err_msg.h"
 
 using namespace error_message;

@@ -75,8 +75,10 @@ Status Channel::Finalize() {
   auto ret = SUCCESS;
   if (stream_ != nullptr) {
     auto rt_ret = rtStreamAbort(stream_);
-    LLMLOGI("Call rtStreamAbort ret:%d.", ret);
-    ret = rt_ret != RT_ERROR_NONE ? FAILED : ret;
+    if (rt_ret != RT_ERROR_NONE) {
+      LLMLOGE(FAILED, "Call rtStreamAbort ret:%d.", rt_ret);
+      ret = FAILED;
+    }
   }
 
   for (const auto &reg_handle_it : channel_info_.registered_mems) {
@@ -89,8 +91,21 @@ Status Channel::Finalize() {
   ret = hccl_ret != HcclResult::HCCL_SUCCESS ? FAILED : ret;
   if (stream_ != nullptr) {
     auto rt_ret = rtStreamDestroy(stream_);
-    LLMLOGI("Call rtStreamDestroy ret:%d.", ret);
-    ret = rt_ret != RT_ERROR_NONE ? FAILED : ret;
+    if (rt_ret != RT_ERROR_NONE) {
+      LLMLOGE(FAILED, "Call rtStreamDestroy ret:%d.", rt_ret);
+      ret = FAILED;
+    }
+  }
+
+  for (const auto &transfer_req : transfer_reqs_) {
+    rtEvent_t event = transfer_req.second;
+    if (event != nullptr) {
+      auto rt_ret = rtEventDestroy(event);
+      if (rt_ret != RT_ERROR_NONE) {
+        LLMLOGE(FAILED, "Call rtEventDestroy ret:%d.", rt_ret);
+        ret = FAILED;
+      }
+    }
   }
 
   std::lock_guard<std::mutex> lock(mutex_);
@@ -105,27 +120,52 @@ Status Channel::Finalize() {
 Status Channel::TransferAsync(TransferOp operation,
                               const std::vector<TransferOpDesc> &op_descs,
                               const TransferArgs &optional_args,
-                              std::function<TransferStatus()> &closure) {
+                              TransferReq &req) {
   (void)optional_args;
   ADXL_CHK_STATUS_RET(TransferAsync(operation, op_descs, stream_), "Channel transfer async failed.");
   rtEvent_t event = nullptr;
+  auto id = reinterpret_cast<uint64_t>(req);
   LLM_CHK_ACL_RET(rtEventCreate(&event));
+  LLM_DISMISSABLE_GUARD(event_guard, ([event]() {
+    if (event != nullptr) {
+      rtEventDestroy(event);
+    }
+  }));
   LLM_CHK_ACL_RET(rtEventRecord(event, stream_));
-  closure = [event]() -> TransferStatus {
-    rtEventStatus_t event_status{};
-    auto ret = rtEventQueryStatus(event, &event_status);
-    if (ret != RT_ERROR_NONE) {
-      LLMLOGE(FAILED, "rtEvent query status failed, ret = %d.", ret);
-      return TransferStatus::FAILED;
-    }
-    if (event_status != RT_EVENT_RECORDED) {
-      LLMLOGI("Transfer async request not yet completed.");
-      return TransferStatus::WAITING;
-    }
-    LLMLOGI("Channel transfer async request successful.");
+  transfer_reqs_[id] = std::move(event);
+  LLM_DISMISS_GUARD(event_guard);
+  return SUCCESS;
+}
+
+Status Channel::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  auto id = reinterpret_cast<uint64_t>(req);
+  auto it = transfer_reqs_.find(id);
+  if (it == transfer_reqs_.end()) {
+    status = TransferStatus::FAILED;
+    LLMLOGE(FAILED, "Request not found, req:%llu.", id);
+    return FAILED;
+  }
+
+  auto event = it->second;
+  rtEventStatus_t event_status{};
+  auto ret = rtEventQueryStatus(event, &event_status);
+  if (ret != RT_ERROR_NONE) {
+    LLMLOGE(FAILED, "rtEventQueryStatus failed for req:%llu, ret:%d.", id, ret);
     rtEventDestroy(event);
-    return TransferStatus::COMPLETED;
-  };
+    transfer_reqs_.erase(id);
+    status = TransferStatus::FAILED;
+    return FAILED;
+  }
+  if (event_status != RT_EVENT_RECORDED) {
+    LLMLOGI("Transfer async request not yet completed, req:%llu.", id);
+    status = TransferStatus::WAITING;
+    return SUCCESS;
+  }
+  LLMLOGI("Transfer async request completed, req:%llu.", id);
+  status = TransferStatus::COMPLETED;
+  rtEventDestroy(event);
+  transfer_reqs_.erase(id);
   return SUCCESS;
 }
 
