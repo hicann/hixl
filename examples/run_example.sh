@@ -21,6 +21,16 @@ run_pair() {
     local cmd2="$2"
     local has_error=0
 
+    local binary_name1=$(echo "${cmd1#./}" | cut -d' ' -f1)
+    local binary_name2=$(echo "${cmd2#./}" | cut -d' ' -f1)
+
+    if [ ! -f "$binary_name1" ] || [ ! -f "$binary_name1" ]; then
+        echo "Binary does not exist!"
+        has_error=1
+        flag=1
+        exit 1
+    fi
+
     tmp1=$(mktemp)
     tmp2=$(mktemp)
 
