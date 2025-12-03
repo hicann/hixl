@@ -9,6 +9,7 @@
  */
 
 #include "adxl_utils.h"
+#include "rt_error_codes.h"
 #include "llm_datadist/llm_datadist.h"
 
 namespace adxl {
