@@ -88,6 +88,7 @@ add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 file(GLOB HIXL_SRC_LIST
         "${CMAKE_CURRENT_LIST_DIR}/api/hixl_impl.cc"
         "${CMAKE_CURRENT_LIST_DIR}/adxl/*.cc"
+        "${CMAKE_CURRENT_LIST_DIR}/llm_datadist_timer.cc"
         "${CMAKE_CURRENT_LIST_DIR}/statistic_manager.cc"
         "${CMAKE_CURRENT_LIST_DIR}/common/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/hccl/*.cc"

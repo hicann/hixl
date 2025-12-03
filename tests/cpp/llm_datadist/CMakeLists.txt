@@ -21,6 +21,7 @@ set(LLM_DATADIST_TEST_FILES
         hixl_api_unittest.cc
         adxl_engine_api_unittest.cc
         segment_table_unittest.cc
+        statistic_manager_unittest.cc
 )
 set(LLM_DATADIST_STUB_SRC_FILES
         "${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/data_cache_engine_test_helper.cc"

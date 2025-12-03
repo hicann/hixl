@@ -1,12 +1,11 @@
 /**
- * This program is free software, you can redistribute it and/or modify it.
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This file is a part of the CANN Open Software.
- * Licensed under CANN Open Software License Agreement Version 2.0 (the "License").
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING
- * BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE. See LICENSE in the root of
- * the software repository for the full text of the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "buffer_transfer_service.h"
@@ -21,13 +20,12 @@
 #include "common/def_types.h"
 #include "base/err_msg.h"
 #include "common/llm_scope_guard.h"
-#include "common/llm_checker.h"
+#include "statistic_manager.h"
 
 namespace adxl {
 namespace {
-constexpr int64_t kDefaultSleepTime = 1;
 constexpr int32_t kMillisToMicros = 1000;
-constexpr int32_t kTimeoutLoss = 50;
+constexpr uint64_t kTimeoutLoss = 100U;
 constexpr uint64_t kBlockSize = 512 * 1024U;
 constexpr size_t kServerPoolIndex = 1U;
 constexpr size_t kMemcpyBatchLimit = 4096;
@@ -110,6 +108,8 @@ Status BufferTransferService::Transfer(const ChannelPtr &channel, TransferType t
   left_timeout = timeout - time_cost;
   ADXL_CHK_STATUS_RET(CheckReqFinishStatus(left_timeout, req_id), "Transfer failed.");
   LLMLOGI("Success to transfer with buffer type:%d, channel id:%s.", type, channel->GetChannelId().c_str());
+  time_cost = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+  StatisticManager::GetInstance().UpdateBufferTransferCost(channel->GetChannelId(), time_cost);
   return SUCCESS;
 }
 
@@ -207,6 +207,9 @@ Status BufferTransferService::FlushBatch(const ChannelPtr &channel, const std::v
     ADXL_CHK_STATUS_RET(
         ProcessCopy(channel, src_addrs, buffer_addrs, buffer_req.buffer_lens, std::make_pair(kind, left_timeout)),
         "Copy failed");
+    time_cost =
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+    StatisticManager::GetInstance().UpdateClientCopyCost(channel->GetChannelId(), time_cost);
   }
   ADXL_CHK_STATUS_RET(SendBufferReq(channel, buffer_req, timeout, start), "Send req failed.");
   return SUCCESS;
@@ -242,6 +245,9 @@ Status BufferTransferService::TransferLargeData(const ChannelPtr &channel, const
       ADXL_CHK_STATUS_RET(ProcessCopy(channel, buffer_req.src_addrs, buffer_addrs, buffer_req.buffer_lens,
                                       std::make_pair(kind, left_timeout)),
                           "Copy failed");
+      time_cost =
+          std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+      StatisticManager::GetInstance().UpdateClientCopyCost(channel->GetChannelId(), time_cost);
       buffer_req.src_addrs = {};
     }
     ADXL_CHK_STATUS_RET(SendBufferReq(channel, buffer_req, timeout, start), "Send req failed.");
@@ -354,8 +360,9 @@ Status BufferTransferService::HandleBufferD2D(const ChannelPtr &channel, BufferR
   std::vector<TransferOpDesc> op_descs{
       TransferOpDesc{buffer_req.local_buffer_addr, buffer_req.buffer_addr, buffer_req.total_buffer_len}};
   ADXL_CHK_STATUS_RET(D2DTransfer(channel, op, op_descs, left_time, start), "D2D transfer failed.");
-
   time_cost = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+  LLMLOGI("D2D time cost:%lu us, data num:%zu.", time_cost, op_descs.size());
+  StatisticManager::GetInstance().UpdateServerD2DCost(channel->GetChannelId(), time_cost);
   ADXL_CHK_BOOL_RET_STATUS(time_cost < timeout, TIMEOUT, "Transfer timeout.");
   left_time = timeout - time_cost;
   buffer_req.timeout = left_time;
@@ -380,9 +387,6 @@ Status BufferTransferService::D2DTransfer(const ChannelPtr &channel, TransferOp 
   auto timeout_in_millis = left_timeout / kMillisToMicros;
   ADXL_CHK_BOOL_RET_STATUS(timeout_in_millis > 0, TIMEOUT, "Transfer timeout.");
   ADXL_CHK_ACL_RET(rtStreamSynchronizeWithTimeout(stream, timeout_in_millis));
-  LLMLOGI("D2D time cost:%lu us, data num:%zu.",
-          std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count(),
-          op_descs.size());
   return SUCCESS;
 }
 
@@ -427,10 +431,10 @@ Status BufferTransferService::HandleBufferCopy(const ChannelPtr &channel, Buffer
                                     std::make_pair(kind, left_timeout)),
                         "Copy failed.");
   }
-  LLMLOGI("Copy time cost:%lu us",
-          std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count());
   uint64_t time_cost =
       std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+  LLMLOGI("Copy time cost:%lu us", time_cost);
+  StatisticManager::GetInstance().UpdateServerCopyCost(channel->GetChannelId(), time_cost);
   ADXL_CHK_BOOL_RET_STATUS(time_cost < buffer_req.timeout, TIMEOUT, "Transfer timeout.");
   auto left_time = buffer_req.timeout - time_cost;
   buffer_req.timeout = left_time;
@@ -588,6 +592,7 @@ Status BufferTransferService::HandleBufferResp(const ChannelPtr &channel, Buffer
     auto is_read = (type == TransferType::kReadRH2H || type == TransferType::kReadRD2H ||
                     type == TransferType::kReadRH2D || type == TransferType::kReadRD2D);
     if (is_read && buffer_resp.src_addrs.size() > 0) {
+      auto start = std::chrono::steady_clock::now();
       ADXL_CHK_BOOL_RET_STATUS(buffer_resp.src_addrs.size() == buffer_resp.buffer_lens.size(), FAILED,
                                "Addr not valid.");
       std::vector<uintptr_t> buffer_addrs;
@@ -602,6 +607,9 @@ Status BufferTransferService::HandleBufferResp(const ChannelPtr &channel, Buffer
       ADXL_CHK_STATUS_RET(ProcessCopy(channel, buffer_addrs, buffer_resp.src_addrs, buffer_resp.buffer_lens,
                                       std::make_pair(kind, buffer_resp.timeout)),
                           "Copy failed.");
+      uint64_t time_cost =
+          std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+      StatisticManager::GetInstance().UpdateClientCopyCost(channel->GetChannelId(), time_cost);
     }
     auto ptr = llm::ValueToPtr(buffer_resp.buffer_addr);
     ReleaseBuffer(ptr);
@@ -611,7 +619,8 @@ Status BufferTransferService::HandleBufferResp(const ChannelPtr &channel, Buffer
   return SUCCESS;
 }
 
-void BufferTransferService::PushBufferReq(const ChannelPtr &channel, BufferReq &buffer_req) {
+Status BufferTransferService::PushBufferReq(const ChannelPtr &channel, BufferReq &buffer_req) {
+  ADXL_CHK_BOOL_RET_STATUS(buffer_req.timeout > kTimeoutLoss, TIMEOUT, "Time is not enough to push req.");
   {
     std::lock_guard<std::mutex> lock(buffer_req_mutex_);
     buffer_req.recv_start_time = std::chrono::steady_clock::now();
@@ -619,9 +628,11 @@ void BufferTransferService::PushBufferReq(const ChannelPtr &channel, BufferReq &
     buffer_req_queue_.emplace(channel, buffer_req);
   }
   buffer_req_cv_.notify_one();
+  return SUCCESS;
 }
 
-void BufferTransferService::PushSecondStepReq(const ChannelPtr &channel, BufferReq &buffer_req) {
+Status BufferTransferService::PushSecondStepReq(const ChannelPtr &channel, BufferReq &buffer_req) {
+  ADXL_CHK_BOOL_RET_STATUS(buffer_req.timeout > kTimeoutLoss, TIMEOUT, "Time is not enough to push req.");
   {
     std::lock_guard<std::mutex> lock(buffer_second_step_mutex_);
     buffer_req.recv_start_time = std::chrono::steady_clock::now();
@@ -629,6 +640,7 @@ void BufferTransferService::PushSecondStepReq(const ChannelPtr &channel, BufferR
     buffer_second_step_queue_.emplace(channel, buffer_req);
   }
   buffer_second_step_cv_.notify_one();
+  return SUCCESS;
 }
 
 void BufferTransferService::PushCtrlMsg(const ChannelPtr &channel, BufferReq &buffer_req) {
@@ -639,12 +651,15 @@ void BufferTransferService::PushCtrlMsg(const ChannelPtr &channel, BufferReq &bu
   ctrl_msg_cv_.notify_one();
 }
 
-void BufferTransferService::PushBufferResp(const ChannelPtr &channel, const BufferResp &buffer_resp) {
+Status BufferTransferService::PushBufferResp(const ChannelPtr &channel, BufferResp &buffer_resp) {
+  ADXL_CHK_BOOL_RET_STATUS(buffer_resp.timeout > kTimeoutLoss, TIMEOUT, "Time is not enough to push req.");
   {
     std::lock_guard<std::mutex> lock(buffer_resp_mutex_);
+    buffer_resp.timeout = buffer_resp.timeout - kTimeoutLoss;
     buffer_resp_queue_.emplace(channel, buffer_resp);
   }
   buffer_resp_cv_.notify_one();
+  return SUCCESS;
 }
 
 Status BufferTransferService::TryGetBuffer(void *&buffer_addr, uint64_t timeout, size_t pool_index) {
