@@ -169,6 +169,7 @@ Status ChannelMsgHandler::Initialize(const std::map<AscendString, AscendString> 
   llm::HcclAdapter::GetInstance().HcclCommConfigInit(&comm_config_);
   ADXL_CHK_STATUS_RET(ParseTrafficClass(options), "Failed to parse traffic class");
   ADXL_CHK_STATUS_RET(ParseServiceLevel(options), "Failed to parse service level");
+  handler_plugin_.Initialize();
   if (listen_port_ > 0) {
     ADXL_CHK_STATUS_RET(StartDaemon(listen_port_), "Failed to start listen deamon, port = %u", listen_port_);
     LLMEVENT("start daemon success, listen on port:%u", listen_port_);
@@ -477,10 +478,10 @@ Status ChannelMsgHandler::Disconnect(const std::string &remote_engine, int32_t t
   std::lock_guard<std::mutex> transfer_lock(channel->GetTransferMutex());
   channel->StopHeartbeat();
   // if connect failed, then release client and server auto release channel
-  ADXL_CHK_LLM_RET(llm::MsgHandlerPlugin::Connect(remote_ip, static_cast<uint32_t>(remote_port),
-                                                  conn_fd, timeout_in_millis, SUCCESS),
-                   "Failed to connect remote addr %s:%d, timeout=%d ms.",
-                   remote_ip.c_str(), remote_port, timeout_in_millis);
+  ADXL_CHK_STATUS(llm::MsgHandlerPlugin::Connect(remote_ip, static_cast<uint32_t>(remote_port),
+                                                 conn_fd, timeout_in_millis, SUCCESS),
+                  "Failed to connect remote addr %s:%d, timeout=%d ms.",
+                  remote_ip.c_str(), remote_port, timeout_in_millis);
   Status send_status = FAILED;
   if (conn_fd > 0) {
     ChannelDisconnectInfo disconnect_info = {};

@@ -336,4 +336,20 @@ TEST_F(HixlSTest, TestHeartbeat) {
   std::this_thread::sleep_for(std::chrono::milliseconds(60));  // wait server:engine2 clear client:engine3
   engine2.Finalize();
 }
+
+TEST_F(HixlSTest, TestHixlServerDown) {
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  Hixl engine1;
+  std::map<AscendString, AscendString> options1;
+  EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options1), SUCCESS);
+
+  llm::AutoCommResRuntimeMock::SetDevice(1);
+  Hixl engine2;
+  std::map<AscendString, AscendString> options2;
+  EXPECT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
+  engine2.Finalize();
+  EXPECT_EQ(engine1.Disconnect("127.0.0.1:26001"), SUCCESS);
+  engine1.Finalize();
+}
 }  // namespace hixl

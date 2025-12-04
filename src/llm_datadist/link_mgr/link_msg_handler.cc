@@ -145,6 +145,7 @@ ge::Status LinkMsgHandler::Initialize(const std::map<ge::AscendString, ge::Ascen
                                                           buffer_and_size.second,
                                                           HcclMemType::HCCL_MEM_TYPE_DEVICE),
                     "Failed to register cache table addr");
+  handler_plugin_.Initialize();
   return ge::SUCCESS;
 }
 

@@ -25,6 +25,7 @@ class MsgHandlerPlugin {
  public:
   MsgHandlerPlugin() = default;
   ~MsgHandlerPlugin();
+  void Initialize();
   void Finalize();
   ge::Status StartDaemon(uint32_t listen_port);
   void RegisterConnectedProcess(ConnectedProcess proc);

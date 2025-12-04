@@ -10,6 +10,7 @@
 
 #include "msg_handler_plugin.h"
 #include <netinet/tcp.h>
+#include <csignal>
 #include "common/llm_utils.h"
 #include "common/llm_checker.h"
 #include "common/llm_scope_guard.h"
@@ -18,6 +19,10 @@ namespace llm {
 namespace {
 constexpr int32_t kListenBacklog = 128;
 constexpr int64_t kDefaultSleepTime = 1;
+}
+
+void MsgHandlerPlugin::Initialize() {
+  (void) std::signal(SIGPIPE, SIG_IGN);
 }
 
 ge::Status MsgHandlerPlugin::Connect(const std::string &ip, uint32_t port, int32_t &conn_fd,

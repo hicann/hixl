@@ -133,7 +133,7 @@ class ControlMsgHandler {
   static Status SendMsg(int32_t fd, ControlMsgType msg_type, const T &msg, uint64_t timeout) {
     std::string msg_str;
     ADXL_CHK_STATUS_RET(Serialize(msg, msg_str), "Failed to serialize msg");
-    ADXL_CHK_LLM_RET(SendMsgByProtocol(fd, msg_type, msg_str, timeout), "Failed to send msg");
+    ADXL_CHK_STATUS_RET(SendMsgByProtocol(fd, msg_type, msg_str, timeout), "Failed to send msg");
     return SUCCESS;
   }
 

@@ -45,12 +45,21 @@ foreach(target_name IN LISTS targets_list)
             -Werror
             -Wextra
         )
-        target_link_libraries(${target_name} PRIVATE
-            llm_datadist
-            ascendcl
-            -lpthread
-            -lrt
-        )
+        if(${target_name} MATCHES "client_server_h2d|server_server_d2d")
+            target_link_libraries(${target_name} PRIVATE
+                cann_hixl
+                ascendcl
+                -lpthread
+                -lrt
+            )
+        else()
+            target_link_libraries(${target_name} PRIVATE
+                llm_datadist
+                ascendcl
+                -lpthread
+                -lrt
+            )
+        endif()
         target_link_ascend_hal(${target_name})
     endif()
 endforeach()

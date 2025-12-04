@@ -10,6 +10,10 @@
 
 #include "control_msg_handler.h"
 namespace adxl {
+namespace {
+Status kNoNeedRetry = 1U;
+}
+
 Status ControlMsgHandler::SendMsgByProtocol(int32_t fd, ControlMsgType msg_type, const std::string &msg_str,
                                             uint64_t timeout) {
   auto start = std::chrono::steady_clock::now();
@@ -30,8 +34,12 @@ Status ControlMsgHandler::Write(int32_t fd, const void *buf, size_t len, uint64_
     if (rc < 0 && (errno == EAGAIN || errno == EINTR)) {
       continue;
     } else if (rc < 0) {
+      Status ret = FAILED;
+      if (errno == EPIPE || errno == EBADF) {
+        ret = kNoNeedRetry;
+      }
       LLMLOGE(FAILED, "Socket write failed, error msg:%s, errno:%d", strerror(errno), errno);
-      return FAILED;
+      return ret;
     } else if (rc == 0) {
       LLMLOGW("Socket write incompleted: expected %zu bytes, actual %zu bytes", len, len - nbytes);
       return FAILED;

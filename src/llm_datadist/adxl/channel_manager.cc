@@ -25,6 +25,7 @@ constexpr int64_t kSendMsgTimeout = 1000000;
 constexpr int32_t kMaxEvents = 1024;
 const size_t kRecvChunkSize = 4096;
 constexpr int32_t kEpollWaitTimeInMillis = 1000;
+Status kNoNeedRetry = 1U;
 }
 
 int64_t ChannelManager::wait_time_in_millis_ = kWaitTimeInMillis;
@@ -258,6 +259,9 @@ void ChannelManager::SendHeartbeats() {
     auto ret = channel->SendHeartBeat([&msg](int32_t fd) {
       return ControlMsgHandler::SendMsg(fd, ControlMsgType::kHeartBeat, msg, kSendMsgTimeout);
     });
+    if (ret == kNoNeedRetry) {
+      channel->StopHeartbeat();
+    }
     ADXL_CHK_STATUS(ret, "Failed to send heartbeat msg to:%s.", channel->GetChannelId().c_str());
   }
 }
