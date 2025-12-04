@@ -67,7 +67,7 @@ class StatisticManager {
                          std::atomic<uint64_t> &total_cost);
   void DumpBufferTransferStatisticInfo();
 
-  // all access is in single thread, do not use mutex
+  std::mutex map_mutex_;
   std::unordered_map<std::string, BufferTransferStatisticInfo> buffer_transfer_statistic_info_;
 };
 }  // namespace adxl

@@ -28,6 +28,7 @@ void StatisticManager::UpdateCost(const uint64_t cost, std::atomic<uint64_t> &to
 }
 
 void StatisticManager::UpdateBufferTransferCost(const std::string &channel_name, const uint64_t cost) {
+  std::lock_guard<std::mutex> lock(map_mutex_);
   auto &info = buffer_transfer_statistic_info_[channel_name];
   UpdateCost(cost, info.transfer_times, info.transfer_max_cost, info.transfer_total_cost);
   if (info.transfer_times.load(std::memory_order_relaxed) > kResetTimes) {
@@ -36,16 +37,19 @@ void StatisticManager::UpdateBufferTransferCost(const std::string &channel_name,
 }
 
 void StatisticManager::UpdateClientCopyCost(const std::string &channel_name, const uint64_t cost) {
+  std::lock_guard<std::mutex> lock(map_mutex_);
   auto &info = buffer_transfer_statistic_info_[channel_name];
   UpdateCost(cost, info.client_copy_times, info.client_copy_max_cost, info.client_copy_total_cost);
 }
 
 void StatisticManager::UpdateServerD2DCost(const std::string &channel_name, const uint64_t cost) {
+  std::lock_guard<std::mutex> lock(map_mutex_);
   auto &info = buffer_transfer_statistic_info_[channel_name];
   UpdateCost(cost, info.server_d2d_times, info.server_d2d_max_cost, info.server_d2d_total_cost);
 }
 
 void StatisticManager::UpdateServerCopyCost(const std::string &channel_name, const uint64_t cost) {
+  std::lock_guard<std::mutex> lock(map_mutex_);
   auto &info = buffer_transfer_statistic_info_[channel_name];
   UpdateCost(cost, info.server_copy_times, info.server_copy_max_cost, info.server_copy_total_cost);
   if (info.server_copy_times.load(std::memory_order_relaxed) > kResetTimes) {
@@ -58,6 +62,7 @@ void StatisticManager::Dump() {
 }
 
 void StatisticManager::DumpBufferTransferStatisticInfo() {
+  std::lock_guard<std::mutex> lock(map_mutex_);
   for (auto &item : buffer_transfer_statistic_info_) {
     auto &stat_info = item.second;
     // cal avg time
@@ -92,6 +97,7 @@ void StatisticManager::DumpBufferTransferStatisticInfo() {
 }
 
 void StatisticManager::Reset() {
+  std::lock_guard<std::mutex> lock(map_mutex_);
   for (auto &item : buffer_transfer_statistic_info_) {
     auto &stat_info = item.second;
     stat_info.Reset();
