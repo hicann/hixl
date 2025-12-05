@@ -73,37 +73,42 @@ std::string Channel::GetChannelId() const {
 
 Status Channel::Finalize() {
   auto ret = SUCCESS;
-  if (stream_ != nullptr) {
-    auto rt_ret = rtStreamAbort(stream_);
-    if (rt_ret != RT_ERROR_NONE) {
-      LLMLOGE(FAILED, "Call rtStreamAbort ret:%d.", rt_ret);
-      ret = FAILED;
-    }
-  }
-
-  for (const auto &reg_handle_it : channel_info_.registered_mems) {
-    auto reg_handle = reg_handle_it.first;
-    auto hccl_ret = llm::HcclAdapter::GetInstance().HcclCommUnbindMem(channel_info_.comm, reg_handle);
-    ret = hccl_ret != HcclResult::HCCL_SUCCESS ? FAILED : ret;
-  }
-
-  auto hccl_ret = llm::HcclAdapter::GetInstance().HcclCommDestroy(channel_info_.comm);
-  ret = hccl_ret != HcclResult::HCCL_SUCCESS ? FAILED : ret;
-  if (stream_ != nullptr) {
-    auto rt_ret = rtStreamDestroy(stream_);
-    if (rt_ret != RT_ERROR_NONE) {
-      LLMLOGE(FAILED, "Call rtStreamDestroy ret:%d.", rt_ret);
-      ret = FAILED;
-    }
-  }
-
-  for (const auto &transfer_req : transfer_reqs_) {
-    rtEvent_t event = transfer_req.second;
-    if (event != nullptr) {
-      auto rt_ret = rtEventDestroy(event);
+  {
+    std::lock_guard<std::mutex> lock(transfer_mutex_);
+    if (stream_ != nullptr) {
+      auto rt_ret = rtStreamAbort(stream_);
       if (rt_ret != RT_ERROR_NONE) {
-        LLMLOGE(FAILED, "Call rtEventDestroy ret:%d.", rt_ret);
+        LLMLOGE(FAILED, "Call rtStreamAbort ret:%d.", rt_ret);
         ret = FAILED;
+      }
+    }
+
+    for (const auto &reg_handle_it : channel_info_.registered_mems) {
+      auto reg_handle = reg_handle_it.first;
+      auto hccl_ret = llm::HcclAdapter::GetInstance().HcclCommUnbindMem(channel_info_.comm, reg_handle);
+      ret = hccl_ret != HcclResult::HCCL_SUCCESS ? FAILED : ret;
+    }
+
+    auto hccl_ret = llm::HcclAdapter::GetInstance().HcclCommDestroy(channel_info_.comm);
+    ret = hccl_ret != HcclResult::HCCL_SUCCESS ? FAILED : ret;
+    if (stream_ != nullptr) {
+      auto rt_ret = rtStreamDestroy(stream_);
+      if (rt_ret != RT_ERROR_NONE) {
+        LLMLOGE(FAILED, "Call rtStreamDestroy ret:%d.", rt_ret);
+        ret = FAILED;
+      }
+    }
+    stream_ = nullptr;
+
+    std::lock_guard<std::mutex> transfer_reqs_lock(transfer_reqs_mutex_);
+    for (const auto &transfer_req : transfer_reqs_) {
+      rtEvent_t event = transfer_req.second;
+      if (event != nullptr) {
+        auto rt_ret = rtEventDestroy(event);
+        if (rt_ret != RT_ERROR_NONE) {
+          LLMLOGE(FAILED, "Call rtEventDestroy ret:%d.", rt_ret);
+          ret = FAILED;
+        }
       }
     }
   }
@@ -172,6 +177,7 @@ Status Channel::GetTransferStatus(const TransferReq &req, TransferStatus &status
 
 Status Channel::TransferAsync(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
                               rtStream_t stream) {
+  ADXL_CHK_BOOL_RET_STATUS(stream_ != nullptr, FAILED, "Channel is finalized.");
   auto trans_func = [this, operation, &stream](HcclOneSideOpDesc *descs, uint32_t desc_num) -> Status {
     HcclResult ret = HCCL_SUCCESS;
     if (operation == READ) {

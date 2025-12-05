@@ -92,11 +92,13 @@ class Channel {
  private:
   ChannelInfo channel_info_;
   rtStream_t stream_ = nullptr;
+  // mutex for fd
   std::mutex mutex_;
   std::atomic<bool> with_heartbeat_{false};
   std::chrono::steady_clock::time_point last_heartbeat_time_;
   static int64_t timeout_in_millis_;
 
+  // mutex for disconnect and transfer synchronize
   std::mutex transfer_mutex_;
 
   int32_t fd_ = -1;
