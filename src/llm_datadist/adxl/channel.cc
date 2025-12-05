@@ -132,13 +132,14 @@ Status Channel::TransferAsync(TransferOp operation,
     }
   }));
   LLM_CHK_ACL_RET(rtEventRecord(event, stream_));
+  std::lock_guard<std::mutex> lock(transfer_reqs_mutex_);
   transfer_reqs_[id] = std::move(event);
   LLM_DISMISS_GUARD(event_guard);
   return SUCCESS;
 }
 
 Status Channel::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> lock(transfer_reqs_mutex_);
   auto id = reinterpret_cast<uint64_t>(req);
   auto it = transfer_reqs_.find(id);
   if (it == transfer_reqs_.end()) {

@@ -105,6 +105,7 @@ class Channel {
   size_t expected_body_size_ = 0;
   size_t bytes_received_ = 0;
   friend class ChannelManager;
+  std::mutex transfer_reqs_mutex_;
   std::map<uint64_t, rtEvent_t> transfer_reqs_;
 };
 using ChannelPtr = std::shared_ptr<Channel>;

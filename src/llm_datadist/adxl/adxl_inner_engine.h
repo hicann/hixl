@@ -76,6 +76,7 @@ class AdxlInnerEngine {
   std::unique_ptr<SegmentTable> segment_table_ = nullptr;
   bool user_config_buffer_pool_{false};
   rtContext_t rt_context_{nullptr};
+  std::mutex req2channel_mutex_;
   std::map<uint64_t, AscendString> req2channel_;
   std::atomic<uint64_t> next_req_id_{1};
   void *statistic_timer_handle_{nullptr};
