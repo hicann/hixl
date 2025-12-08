@@ -52,7 +52,12 @@ run_pair() {
 
     if [ "$flag" -eq "0" ] && [ "$has_error" -eq "1" ]; then
         flag=1
-        rm -rf "$tmp1" "$tmp2"
+        if [ -e "$tmp1" ]; then
+            rm -rf "$tmp1"
+        fi
+        if [ -e "$tmp2" ]; then
+            rm -rf "$tmp2"
+        fi
         exit 1
     fi
 
@@ -60,7 +65,12 @@ run_pair() {
         echo "Execution finished"
     fi
 
-    rm -rf "$tmp1" "$tmp2"
+    if [ -e "$tmp1" ]; then
+        rm -rf "$tmp1"
+    fi
+    if [ -e "$tmp2" ]; then
+        rm -rf "$tmp2"
+    fi
 }
 
 main() {
