@@ -85,11 +85,14 @@ class Channel {
 
   rtStream_t &GetStream();
   std::mutex &GetTransferMutex();
+  
+  void GetNotifyMessages(std::vector<NotifyDesc> &notifies);
 
   Status TransferAsyncWithTimeout(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
                                   rtStream_t stream, uint64_t timeout);
 
  private:
+  void ClearNotifyMessages();
   ChannelInfo channel_info_;
   rtStream_t stream_ = nullptr;
   // mutex for fd
@@ -106,6 +109,11 @@ class Channel {
   std::vector<char> recv_buffer_;
   size_t expected_body_size_ = 0;
   size_t bytes_received_ = 0;
+  
+  // lock for push/fetch items from notify_messages_
+  std::mutex notify_message_mutex_;
+  std::vector<NotifyMsg> notify_messages_;
+  
   friend class ChannelManager;
   std::mutex transfer_reqs_mutex_;
   std::map<uint64_t, rtEvent_t> transfer_reqs_;

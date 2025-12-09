@@ -71,6 +71,13 @@ std::string Channel::GetChannelId() const {
   return channel_info_.channel_id;
 }
 
+void Channel::ClearNotifyMessages() {
+  {
+    std::lock_guard<std::mutex> notify_lock(notify_message_mutex_);
+    notify_messages_.clear();
+  }
+}
+
 Status Channel::Finalize() {
   auto ret = SUCCESS;
   {
@@ -113,12 +120,15 @@ Status Channel::Finalize() {
     }
   }
 
-  std::lock_guard<std::mutex> lock(mutex_);
-  if (fd_ > 0) {
-    close(fd_);
-    fd_ = -1;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (fd_ > 0) {
+      (void) close(fd_);
+      fd_ = -1;
+    }
+    with_heartbeat_.store(false, std::memory_order_release);
   }
-  with_heartbeat_.store(false, std::memory_order_release);
+  ClearNotifyMessages();
   return ret;
 }
 
@@ -309,6 +319,17 @@ rtStream_t &Channel::GetStream() {
 
 std::mutex &Channel::GetTransferMutex() {
   return transfer_mutex_;
+}
+
+void Channel::GetNotifyMessages(std::vector<NotifyDesc> &notifies) {
+  std::lock_guard<std::mutex> lock(notify_message_mutex_);
+  for (auto &notify_msg : notify_messages_) {
+    NotifyDesc notify;
+    notify.name = AscendString(notify_msg.name.c_str());
+    notify.notify_msg = AscendString(notify_msg.notify_msg.c_str());
+    notifies.push_back(std::move(notify));
+  }
+  notify_messages_.clear();
 }
 
 BufferedTransfer::BufferedTransfer(

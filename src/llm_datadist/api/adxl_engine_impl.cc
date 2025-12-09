@@ -58,6 +58,10 @@ class AdxlEngine::AdxlEngineImpl {
                       
   Status GetTransferStatus(const TransferReq &req, TransferStatus &status);
 
+  Status SendNotify(const AscendString &remote_engine, const NotifyDesc &notify, int32_t timeout_in_millis);
+
+  Status GetNotifies(std::vector<NotifyDesc> &notifies);
+
  private:
   std::mutex mutex_;
   AdxlInnerEngine adxl_engine_;
@@ -144,6 +148,22 @@ Status AdxlEngine::AdxlEngineImpl::GetTransferStatus(const TransferReq &req, Tra
     return ret;
   }          
   status = static_cast<TransferStatus>(static_cast<int>(transfer_status));
+  return SUCCESS;
+}
+
+Status AdxlEngine::AdxlEngineImpl::SendNotify(const AscendString &remote_engine, const NotifyDesc &notify, int32_t timeout_in_millis) {
+  ADXL_CHK_BOOL_RET_STATUS(adxl_engine_.IsInitialized(), FAILED, "AdxlEngine is not initialized");
+  ADXL_CHK_STATUS_RET(adxl_engine_.SendNotify(remote_engine, notify, timeout_in_millis), 
+                      "Failed to send notify to remote engine:%s", remote_engine.GetString());
+  return SUCCESS;
+}
+
+Status AdxlEngine::AdxlEngineImpl::GetNotifies(std::vector<NotifyDesc> &notifies) {
+  ADXL_CHK_BOOL_RET_STATUS(adxl_engine_.IsInitialized(), FAILED, "AdxlEngine is not initialized");
+  
+  ADXL_CHK_STATUS_RET(adxl_engine_.GetNotifies(notifies), 
+                      "Failed to get notifies");
+  
   return SUCCESS;
 }
 
@@ -258,6 +278,36 @@ Status AdxlEngine::GetTransferStatus(const TransferReq &req, TransferStatus &sta
   ADXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
                           "Failed to get transfer status, req:%llu.", 
                           static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(req)));
+  return SUCCESS;
+}
+
+Status AdxlEngine::SendNotify(const AscendString &remote_engine, const NotifyDesc &notify, int32_t timeout_in_millis) {
+  LLMLOGI("SendNotify start, remote engine:%s, notify name:%s", remote_engine.GetString(), notify.name.GetString());
+  ADXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check AdxlEngine init");
+  constexpr uint32_t kMaxNotifyLength = 1024U;
+  ADXL_CHK_BOOL_RET_STATUS(notify.name.GetLength() <= kMaxNotifyLength, PARAM_INVALID,
+                           "notify.name length exceed max limit: %u, current: %zu", kMaxNotifyLength, notify.name.GetLength());
+  ADXL_CHK_BOOL_RET_STATUS(notify.notify_msg.GetLength() <= kMaxNotifyLength, PARAM_INVALID,
+                           "notify.notify_msg length exceed max limit: %u, current: %zu", kMaxNotifyLength, notify.notify_msg.GetLength());
+  ADXL_CHK_BOOL_RET_STATUS(timeout_in_millis > 0, PARAM_INVALID, "timeout_in_millis:%d must > 0", timeout_in_millis);
+  const auto ret = impl_->SendNotify(remote_engine, notify, timeout_in_millis);
+  
+  ADXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
+                           "Failed to send notify, remote engine:%s, notify name:%s",
+                           remote_engine.GetString(), notify.name.GetString());
+  LLMLOGI("SendNotify success, remote engine:%s, notify name:%s", remote_engine.GetString(), notify.name.GetString());
+  return SUCCESS;
+}
+
+Status AdxlEngine::GetNotifies(std::vector<NotifyDesc> &notifies) {
+  LLMLOGI("GetNotifies start");
+  ADXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check AdxlEngine init");
+  
+  const auto ret = impl_->GetNotifies(notifies);
+  
+  ADXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
+                           "Failed to get notifies");
+  LLMLOGI("GetNotifies success, got %zu notifies", notifies.size());
   return SUCCESS;
 }
 }  // namespace adxl

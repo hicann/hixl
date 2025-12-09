@@ -43,6 +43,13 @@ Status AdxlInnerEngine::Initialize(const std::map<AscendString, AscendString> &o
   ADXL_CHK_STATUS_RET(msg_handler_.Initialize(options, segment_table_.get()), "Failed to init msg handler.");
   ADXL_CHK_STATUS_RET(InitBufferTransferService(options), "Failed to init buffer memory pool.");
   ADXL_CHK_STATUS_RET(channel_manager_.Initialize(buffer_transfer_service_.get()), "Failed to init channel manager.");
+  
+  channel_manager_.RegisterNotifyAckCallback([this](uint64_t req_id) {
+    std::lock_guard<std::mutex> lock(notify_mutex_);
+    notify_ack_ready_[req_id] = true;
+    notify_cv_.notify_all();  // Notify all waiting threads, but only the one with matching req_id will continue
+  });
+  
   llm::LlmDatadistTimer::Instance().Init();
   statistic_timer_handle_ = llm::LlmDatadistTimer::Instance().CreateTimer([this]() {
     StatisticManager::GetInstance().Dump();
@@ -329,4 +336,41 @@ Status AdxlInnerEngine::GetTransferStatus(const TransferReq &req, TransferStatus
   return ret;
 }
 
+Status AdxlInnerEngine::SendNotify(const AscendString &remote_engine, const NotifyDesc &notify, int32_t timeout_in_millis) {
+  // no need for RtContext
+  auto channel = channel_manager_.GetChannel(ChannelType::kClient, remote_engine.GetString());
+  ADXL_CHK_BOOL_RET_STATUS(channel != nullptr, NOT_CONNECTED,
+                           "Failed to get channel, remote_engine:%s", remote_engine.GetString());
+  NotifyMsg notify_msg;
+  notify_msg.req_id = next_notify_id_++; 
+  notify_msg.name = notify.name.GetString();
+  notify_msg.notify_msg = notify.notify_msg.GetString();
+  
+  auto send_callback = [this, &notify_msg, timeout_in_millis](int32_t fd) -> Status {
+    return ControlMsgHandler::SendMsg(fd, ControlMsgType::kNotify, notify_msg, timeout_in_millis);
+  };
+  ADXL_CHK_STATUS_RET(channel->SendControlMsg(send_callback), "Failed to send notify message.");
+  std::unique_lock<std::mutex> lock(notify_mutex_);
+  auto wait_result = notify_cv_.wait_for(
+    lock, 
+    std::chrono::milliseconds(timeout_in_millis), 
+    [this, 
+      req_id = notify_msg.req_id] {
+      auto it_ready = notify_ack_ready_.find(req_id);
+      return (it_ready != notify_ack_ready_.end() && it_ready->second);
+    });
+  
+  Status result_status = wait_result ? SUCCESS : TIMEOUT;
+  notify_ack_ready_.erase(notify_msg.req_id);
+  return result_status;
+}
+
+Status AdxlInnerEngine::GetNotifies(std::vector<NotifyDesc> &notifies) {
+  // no need for RtContext
+  auto server_channels = channel_manager_.GetAllServerChannel();
+  for (const auto &channel : server_channels) {
+    channel->GetNotifyMessages(notifies);
+  }
+  return SUCCESS;
+}
 }  // namespace adxl

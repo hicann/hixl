@@ -73,6 +73,11 @@ enum class TransferStatus {
 struct TransferArgs{
   uint8_t reserved[128] = {};
 };
+
+struct NotifyDesc {
+  AscendString name;
+  AscendString notify_msg;
+};
 }  // namespace hixl
 
 #endif  // CANN_HIXL_INC_EXTERNAL_HIXL_HIXL_TYPES_H_

@@ -13,6 +13,9 @@
 #include <netinet/tcp.h>
 #include <cstring>
 #include <utility>
+#include <thread>
+#include <queue>
+#include <functional>
 #include "common/mem_utils.h"
 #include "common/llm_scope_guard.h"
 #include "common/def_types.h"
@@ -53,6 +56,11 @@ Status ChannelManager::Initialize(BufferTransferService *buffer_transfer_service
       HandleEpoolEvents();
       CheckHeartbeatTimeouts();
     }
+  });
+  // ack processor thread
+  ack_processor_ = std::thread(
+    [this]() {
+    ProcessAckMessages();
   });
   return SUCCESS;
 }
@@ -177,29 +185,82 @@ Status ChannelManager::HandleControlMessage(const ChannelPtr &channel) const {
   ADXL_CHK_BOOL_RET_STATUS(channel->expected_body_size_ > sizeof(ControlMsgType), FAILED,
                            "Received msg invalid, channel:%s.", channel->GetChannelId().c_str());
   auto data = channel->recv_buffer_.data();
-  ControlMsgType *msg_type = nullptr;
-  msg_type = llm::PtrToPtr<char, ControlMsgType>(data);
+  ControlMsgType msg_type = 
+    *llm::PtrToPtr<char, ControlMsgType>(data);
   std::string msg_str(data + sizeof(ControlMsgType), channel->expected_body_size_ - sizeof(ControlMsgType));
-  if (*msg_type == ControlMsgType::kHeartBeat) {
-    channel->UpdateHeartbeatTime();
-    LLMLOGI("Heartbeat received from channel %s", channel->GetChannelId().c_str());
-  } else if (*msg_type == ControlMsgType::kBufferReq) {
-    BufferReq buffer_req{};
-    ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), buffer_req), "Failed to deserialize msg");
-    LLMLOGI("Recv buffer req for channel:%s", channel->GetChannelId().c_str());
-    if (buffer_transfer_service_ != nullptr) {
-      (void)buffer_transfer_service_->PushBufferReq(channel, buffer_req);
-    }
-  } else if (*msg_type == ControlMsgType::kBufferResp) {
-    BufferResp buffer_resp{};
-    ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), buffer_resp), "Failed to deserialize msg");
-    LLMLOGI("Recv buffer resp for channel:%s", channel->GetChannelId().c_str());
-    if (buffer_transfer_service_ != nullptr) {
-      (void)buffer_transfer_service_->PushBufferResp(channel, buffer_resp);
-    }
-    LLMLOGI("Recv buffer resp for channel:%s", channel->GetChannelId().c_str());
-  } else {
-    LLMLOGW("Unsupported msg type: %d", *msg_type);
+
+  switch (msg_type) {
+    case ControlMsgType::kHeartBeat:
+      return HandleHeartBeatMessage(channel);
+    case ControlMsgType::kBufferReq:
+      return HandleBufferReqMessage(channel, msg_str);
+    case ControlMsgType::kBufferResp:
+      return HandleBufferRespMessage(channel, msg_str);
+    case ControlMsgType::kNotify:
+      return HandleNotifyMessage(channel, msg_str);
+    case ControlMsgType::kNotifyAck:
+      return HandleNotifyAckMessage(channel, msg_str);
+    default:
+      LLMLOGW("Unsupported msg type: %d", static_cast<int>(msg_type));
+      return SUCCESS;
+  }
+}
+
+Status ChannelManager::HandleHeartBeatMessage(const ChannelPtr &channel) const {
+  channel->UpdateHeartbeatTime();
+  LLMLOGI("Heartbeat received from channel %s", channel->GetChannelId().c_str());
+  return SUCCESS;
+}
+
+Status ChannelManager::HandleBufferReqMessage(const ChannelPtr &channel, const std::string &msg_str) const {
+  BufferReq buffer_req{};
+  ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), buffer_req), "Failed to deserialize buffer req msg");
+  LLMLOGI("Recv buffer req for channel:%s", channel->GetChannelId().c_str());
+  if (buffer_transfer_service_ != nullptr) {
+    (void)buffer_transfer_service_->PushBufferReq(channel, buffer_req);
+  }
+  return SUCCESS;
+}
+
+Status ChannelManager::HandleBufferRespMessage(const ChannelPtr &channel, const std::string &msg_str) const {
+  BufferResp buffer_resp{};
+  ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), buffer_resp), "Failed to deserialize buffer resp msg");
+  LLMLOGI("Recv buffer resp for channel:%s", channel->GetChannelId().c_str());
+  if (buffer_transfer_service_ != nullptr) {
+    (void)buffer_transfer_service_->PushBufferResp(channel, buffer_resp);
+  }
+  return SUCCESS;
+}
+
+Status ChannelManager::HandleNotifyMessage(const ChannelPtr &channel, const std::string &msg_str) const {
+  NotifyMsg notify_msg{};
+  ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), notify_msg), "Failed to deserialize notify msg");
+  LLMLOGI("Recv notify msg from channel:%s, req_id:%lu, name:%s, msg:%s", channel->GetChannelId().c_str(), 
+         notify_msg.req_id, notify_msg.name.c_str(), notify_msg.notify_msg.c_str());
+  {
+    std::lock_guard<std::mutex> lock(channel->notify_message_mutex_);
+    channel->notify_messages_.push_back(std::move(notify_msg));
+  }
+
+  AckMsg ack_msg;
+  ack_msg.channel = channel;
+  ack_msg.req_id = notify_msg.req_id;
+  
+  {
+    std::lock_guard<std::mutex> lock(ack_queue_mutex_);
+    ack_queue_.push(std::move(ack_msg));
+    ack_queue_cv_.notify_one();
+  }
+  
+  return SUCCESS;
+}
+
+Status ChannelManager::HandleNotifyAckMessage(const ChannelPtr &channel, const std::string &msg_str) const {
+  NotifyAck ack_msg{};
+  ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), ack_msg), "Failed to deserialize notify ack msg");
+  LLMLOGI("Recv notify ack from channel:%s, req_id:%lu", channel->GetChannelId().c_str(), ack_msg.req_id);
+  if (notify_ack_callback_) {
+    notify_ack_callback_(ack_msg.req_id);
   }
   return SUCCESS;
 }
@@ -207,11 +268,16 @@ Status ChannelManager::HandleControlMessage(const ChannelPtr &channel) const {
 Status ChannelManager::Finalize() {
   stop_signal_.store(true);
   cv_.notify_all();
+  ack_queue_cv_.notify_all();
+  
   if (heartbeat_sender_.joinable()) {
     heartbeat_sender_.join();
   }
   if (msg_receiver_.joinable()) {
     msg_receiver_.join();
+  }
+  if (ack_processor_.joinable()) {
+    ack_processor_.join();
   }
 
   for (const auto &channel : GetAllServerChannel()) {
@@ -345,6 +411,37 @@ Status ChannelManager::RemoveFd(int32_t fd) {
     }
   }
   return ret;
+}
+
+void ChannelManager::ProcessAckMessages() {
+  while (true) {
+    AckMsg ack_msg;
+    {
+      std::unique_lock<std::mutex> lock(ack_queue_mutex_);
+      ack_queue_cv_.wait(
+        lock, 
+        [this] {
+        return !ack_queue_.empty() || stop_signal_.load();
+      });
+      
+      if (stop_signal_.load() && ack_queue_.empty()) {
+        break;
+      }
+      
+      ack_msg = std::move(ack_queue_.front());
+      ack_queue_.pop();
+    }
+    NotifyAck notify_ack;
+    notify_ack.req_id = ack_msg.req_id;
+    auto ret = ack_msg.channel->SendControlMsg(
+      [&notify_ack](int32_t fd) {
+      return ControlMsgHandler::SendMsg(
+        fd, ControlMsgType::kNotifyAck, notify_ack, kSendMsgTimeout);
+    });
+    if (ret != SUCCESS) {
+      LLMLOGW("Failed to send notify ack, req_id: %lu", notify_ack.req_id);
+    }
+  }
 }
 
 }  // namespace adxl

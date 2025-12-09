@@ -74,6 +74,11 @@ enum class TransferStatus {
 struct TransferArgs{
   uint8_t reserved[128] = {};
 };
+
+struct NotifyDesc {
+  AscendString name;
+  AscendString notify_msg;
+};
 }  // namespace adxl
 
 #endif  // CANN_GRAPH_ENGINE_INC_EXTERNAL_ADXL_ADXL_TYPES_H_
