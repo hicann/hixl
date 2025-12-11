@@ -157,6 +157,10 @@ class RuntimeStub {
   }
   virtual rtError_t rtStreamSynchronizeWithTimeout(rtStream_t stm, int32_t timeout);
 
+  virtual rtError_t rtStreamSynchronize(rtStream_t stm) {
+    return RT_ERROR_NONE;
+  }
+
   virtual rtError_t rtMemcpy(void *dst, uint64_t dest_max, const void *src, uint64_t count, rtMemcpyKind_t kind);
 
   virtual rtError_t rtMemcpyEx(void *dst, uint64_t dest_max, const void *src, uint64_t count, rtMemcpyKind_t kind);

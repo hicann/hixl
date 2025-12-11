@@ -79,6 +79,7 @@ class AdxlInnerEngine {
   std::vector<MemHandle> pool_mem_handles_{};
   std::unique_ptr<BufferTransferService> buffer_transfer_service_ = nullptr;
   std::unique_ptr<SegmentTable> segment_table_ = nullptr;
+  std::unique_ptr<StreamPool> stream_pool_ = nullptr;
   bool user_config_buffer_pool_{false};
   rtContext_t rt_context_{nullptr};
 

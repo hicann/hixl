@@ -19,6 +19,7 @@
 #include "adxl_checker.h"
 #include "hccl/hccl_adapter.h"
 #include "control_msg_handler.h"
+#include "adxl/stream_pool.h"
 
 namespace adxl {
 
@@ -82,8 +83,9 @@ class Channel {
   int32_t GetFd() const { return fd_; }
   void UpdateHeartbeatTime();
   bool IsHeartbeatTimeout() const;
+  void SetStreamPool(StreamPool *stream_pool);
+  StreamPool* GetStreamPool();
 
-  rtStream_t &GetStream();
   std::mutex &GetTransferMutex();
   
   void GetNotifyMessages(std::vector<NotifyDesc> &notifies);
@@ -94,7 +96,6 @@ class Channel {
  private:
   void ClearNotifyMessages();
   ChannelInfo channel_info_;
-  rtStream_t stream_ = nullptr;
   // mutex for fd
   std::mutex mutex_;
   std::atomic<bool> with_heartbeat_{false};
@@ -116,7 +117,8 @@ class Channel {
   
   friend class ChannelManager;
   std::mutex transfer_reqs_mutex_;
-  std::map<uint64_t, rtEvent_t> transfer_reqs_;
+  std::map<uint64_t, std::pair<rtEvent_t, rtStream_t>> transfer_reqs_;
+  StreamPool *stream_pool_ = nullptr;
 };
 using ChannelPtr = std::shared_ptr<Channel>;
 }  // namespace adxl

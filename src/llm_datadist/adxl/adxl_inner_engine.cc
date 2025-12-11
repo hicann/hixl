@@ -27,6 +27,7 @@ constexpr uint64_t kDefaultBufferSize = 8U;
 constexpr const char *kDisabledPoolConfig = "0:0";
 constexpr uint64_t kNeedUseBufferThresh = 256 * 1024U;
 constexpr size_t kMemPoolNum = 2U;
+constexpr int32_t kMaxStreams = 128;
 }
 Status AdxlInnerEngine::Initialize(const std::map<AscendString, AscendString> &options) {
   std::lock_guard<std::mutex> lk(mutex_);
@@ -40,16 +41,17 @@ Status AdxlInnerEngine::Initialize(const std::map<AscendString, AscendString> &o
     (void) rtCtxDestroyEx(rt_context_);
   }));
   segment_table_ = llm::MakeUnique<SegmentTable>();
+  stream_pool_ = llm::MakeUnique<StreamPool>(kMaxStreams);
   ADXL_CHK_STATUS_RET(msg_handler_.Initialize(options, segment_table_.get()), "Failed to init msg handler.");
   ADXL_CHK_STATUS_RET(InitBufferTransferService(options), "Failed to init buffer memory pool.");
   ADXL_CHK_STATUS_RET(channel_manager_.Initialize(buffer_transfer_service_.get()), "Failed to init channel manager.");
-  
+  channel_manager_.SetStreamPool(stream_pool_.get());
   channel_manager_.RegisterNotifyAckCallback([this](uint64_t req_id) {
     std::lock_guard<std::mutex> lock(notify_mutex_);
     notify_ack_ready_[req_id] = true;
     notify_cv_.notify_all();  // Notify all waiting threads, but only the one with matching req_id will continue
   });
-  
+
   llm::LlmDatadistTimer::Instance().Init();
   statistic_timer_handle_ = llm::LlmDatadistTimer::Instance().CreateTimer([this]() {
     StatisticManager::GetInstance().Dump();
@@ -165,6 +167,7 @@ void AdxlInnerEngine::Finalize() {
   llm::TemporaryRtContext with_context(rt_context_);
   channel_manager_.Finalize();
   msg_handler_.Finalize();
+  stream_pool_->Finalize();
   for (auto &mem : npu_pool_memorys_) {
     if (mem != nullptr) {
       auto ret = rtFree(mem);
@@ -316,6 +319,7 @@ Status AdxlInnerEngine::TransferAsync(const AscendString &remote_engine,
 }
 
 Status AdxlInnerEngine::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
+  llm::TemporaryRtContext with_context(rt_context_);
   std::lock_guard<std::mutex> lock(req2channel_mutex_);
   auto id = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(req));
   auto it = req2channel_.find(id);

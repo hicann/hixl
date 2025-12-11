@@ -189,7 +189,15 @@ class TransferAsyncRuntimeMock : public llm::RuntimeStub {
   rtError_t rtEventQueryStatus(rtEvent_t evt, rtEventStatus_t *status) override {
     (void)evt;
     *status = RT_EVENT_INIT;
-    return ACL_ERROR_RT_FEATURE_NOT_SUPPORT;
+    return -1;
+  }
+};
+
+class TransferAsyncSteamRuntimeMocak : public llm::RuntimeStub {
+ public:
+  rtError_t rtStreamSynchronize(rtStream_t stream) override{
+    (void)stream;
+    return -1;
   }
 };
 

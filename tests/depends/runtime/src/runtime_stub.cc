@@ -866,7 +866,7 @@ rtError_t rtStreamSynchronize(rtStream_t stream) {
     }
   }
 
-  return RT_ERROR_NONE;
+  return llm::RuntimeStub::GetInstance()->rtStreamSynchronize(stream);
 }
 
 rtError_t rtStreamSynchronizeWithTimeout(rtStream_t stm, int32_t timeout) {

@@ -42,6 +42,8 @@ class ChannelManager {
     notify_ack_callback_ = std::move(callback);
   }
 
+  void SetStreamPool(StreamPool *stream_pool);
+
   Status AddSocketToEpoll(int32_t fd, ChannelPtr channel);
   
   std::vector<ChannelPtr> GetAllClientChannel();
@@ -91,6 +93,7 @@ private:
   BufferTransferService *buffer_transfer_service_ = nullptr;
   std::mutex fd_mutex_;
   std::map<int32_t, ChannelPtr> fd_to_channel_map_;
+  StreamPool *stream_pool_ = nullptr;
 
   std::thread msg_receiver_;
   rtContext_t rt_context_{nullptr};

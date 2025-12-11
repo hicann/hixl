@@ -19,5 +19,6 @@ namespace adxl {
 Status HcclError2AdxlStatus(HcclResult ret);
 Status AclError2AdxlStatus(rtError_t ret);
 Status LLMError2AdxlStatus(ge::Status ret);
+bool NeedErrorLog(Status status);
 }  // namespace adxl
 #endif  // CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_ADXL_UTILS_H

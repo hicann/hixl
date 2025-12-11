@@ -22,7 +22,9 @@
   do {                                        \
     const adxl::Status _chk_status = (expr);  \
     if (_chk_status != adxl::SUCCESS) {       \
-      LLMLOGE((_chk_status), __VA_ARGS__);     \
+      if (adxl::NeedErrorLog(_chk_status)) {         \
+        LLMLOGE((_chk_status), __VA_ARGS__);  \
+      }                                     \
       return _chk_status;                     \
     }                                         \
   } while (false)

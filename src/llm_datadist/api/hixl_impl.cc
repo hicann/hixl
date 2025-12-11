@@ -157,9 +157,9 @@ Status Hixl::HixlImpl::GetTransferStatus(const TransferReq &req, TransferStatus 
   auto ret = hixl_engine_.GetTransferStatus(req, transfer_status);
   if (ret != SUCCESS) {
     status = TransferStatus::FAILED;
-    LLMLOGE(ret, "Failed to get transfer request status.");
+    LLMLOGE(ret, "Failed to get transfer status.");
     return ret;
-  }          
+  }         
   status = static_cast<TransferStatus>(static_cast<int>(transfer_status));
   return SUCCESS;
 }
@@ -273,11 +273,10 @@ Status Hixl::TransferSync(const AscendString &remote_engine,
          remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size(), timeout_in_millis);
   ADXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check Hixl init");
   ADXL_CHK_BOOL_RET_STATUS(timeout_in_millis > 0, PARAM_INVALID, "timeout_in_millis:%d must > 0", timeout_in_millis);
-  const auto ret = impl_->TransferSync(remote_engine, operation, op_descs, timeout_in_millis);
-  ADXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
-                           "Failed to TransferSync, remote_engine:%s, operation:%d, op_descs size:%zu, timeout:%d ms",
-                           remote_engine.GetString(), static_cast<int32_t>(operation),
-                           op_descs.size(), timeout_in_millis);
+  ADXL_CHK_STATUS_RET(impl_->TransferSync(remote_engine, operation, op_descs, timeout_in_millis), 
+                      "Failed to TransferSync, remote_engine:%s, operation:%d, op_descs size:%zu, timeout:%d ms",
+                      remote_engine.GetString(), static_cast<int32_t>(operation),
+                      op_descs.size(), timeout_in_millis);
   LLMLOGI("TransferSync success, remote_engine:%s, operation:%d, op_descs size:%zu, timeout:%d ms",
           remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size(), timeout_in_millis);
   return SUCCESS;
@@ -289,10 +288,9 @@ Status Hixl::TransferAsync(const AscendString &remote_engine,
                            const TransferArgs &optional_args,
                            TransferReq &req) {
   ADXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "HixlImpl is nullptr, check Hixl init.");
-  const auto ret = impl_->TransferAsync(remote_engine, operation, op_descs, optional_args, req);
-  ADXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
-                           "Failed to transfer async, remote_engine:%s, operation:%d, op_descs size:%zu.",
-                           remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size());
+  ADXL_CHK_STATUS_RET(impl_->TransferAsync(remote_engine, operation, op_descs, optional_args, req), 
+                      "Failed to transfer async, remote_engine:%s, operation:%d, op_descs size:%zu.",
+                      remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size());
   LLMLOGI("Transfer async success, remote_engine:%s, operation:%d, op_descs size:%zu.",
           remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size());
   return SUCCESS;
@@ -301,10 +299,9 @@ Status Hixl::TransferAsync(const AscendString &remote_engine,
 Status Hixl::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
   ADXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "Impl is nullptr, check Hixl init.");
   ADXL_CHK_BOOL_RET_STATUS(req != nullptr, FAILED, "Req is nullptr, check req.");
-  const auto ret = impl_->GetTransferStatus(req, status);
-  ADXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
-                          "Failed to get transfer status, req:%llu.", 
-                          static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(req)));
+  ADXL_CHK_STATUS_RET(impl_->GetTransferStatus(req, status),
+                      "Failed to get transfer status, req:%llu.", 
+                      static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(req)));
   return SUCCESS;
 }
 

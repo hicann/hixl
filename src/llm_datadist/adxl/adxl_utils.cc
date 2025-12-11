@@ -53,4 +53,9 @@ Status LLMError2AdxlStatus(ge::Status ret) {
   }
   return FAILED;
 }
+
+bool NeedErrorLog(Status status) {
+  std::set<Status> warnning_status = {RESOURCE_EXHAUSTED};
+  return !warnning_status.count(status);
+} 
 }  // namespace adxl

@@ -747,4 +747,26 @@ TEST_F(HixlUTest, TestHixlSendNotifyMsgTooLong) {
   engine2.Finalize();
 }
 
+TEST_F(HixlUTest, TestHixlGetTransferStatusWithStreamSyncFailed) {
+  Hixl engine1;
+  Hixl engine2;
+  SetupEngines(engine1, engine2);
+  int32_t src = 1;
+  MemHandle handle1 = nullptr;
+  RegisterInt32Mem(engine1, &src, handle1);
+  int32_t dst = 2;
+  MemHandle handle2 = nullptr;
+  RegisterInt32Mem(engine2, &dst, handle2);
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
+  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+  TransferReq req = nullptr;
+  EXPECT_EQ(engine1.TransferAsync("127.0.0.1:26001", WRITE, {desc}, {}, req), SUCCESS);
+  TransferStatus status = TransferStatus::WAITING;
+  TransferAsyncSteamRuntimeMocak instance;
+  llm::RuntimeStub::Install(&instance);
+  EXPECT_EQ(engine1.GetTransferStatus(req, status), FAILED);
+  llm::RuntimeStub::UnInstall(&instance);
+  engine1.Finalize();
+  engine2.Finalize();
+}
 }  // namespace llm_datadist
