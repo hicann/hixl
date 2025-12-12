@@ -68,7 +68,7 @@ class LinkMsgHandler {
   ge::Status Initialize(const std::map<ge::AscendString, ge::AscendString> &options);
   void Finalize();
 
-  ge::Status StartDaemon(uint32_t listen_port);
+  ge::Status StartDaemon(const std::string &ip, uint32_t listen_port);
   ge::Status StopDaemon();
   ge::Status LinkCluster(const ClusterInfo &cluster, int32_t timeout);
   ge::Status UnlinkCluster(const ClusterInfo &cluster, int32_t timeout, bool force_flag) const;

@@ -13,6 +13,10 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #include "hixl/hixl.h"
 #include "adxl/channel_manager.h"
 #include "dlog_pub.h"
@@ -39,6 +43,21 @@ class HixlSTest : public ::testing::Test {
     llm::MockMmpaForHcclApi::Reset();
     llm::AutoCommResRuntimeMock::Reset();
     SetMockRtGetDeviceWay(0);
+  }
+
+ private:
+  bool CheckIpv6Supported() {
+    int fd = socket(AF_INET6, SOCK_STREAM, 0);
+    if (fd < 0) {
+      return false;
+    }
+    struct sockaddr_in6 addr{};
+    addr.sin6_family = AF_INET6;
+    (void) inet_pton(AF_INET6, "::1", &addr.sin6_addr);
+    addr.sin6_port = htons(0U);
+    bool ok = (connect(fd, (sockaddr*)&addr, sizeof(addr)) != -1 || errno != EADDRNOTAVAIL);
+    close(fd);
+    return ok;
   }
 };
 
@@ -74,6 +93,49 @@ TEST_F(HixlSTest, TestHixl) {
   EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
   engine1.Finalize();
   engine2.Finalize();
+}
+
+TEST_F(HixlSTest, TestHixlWithIpv6) {
+  auto support_ipv6 = CheckIpv6Supported();
+  if (support_ipv6) {
+    std::cout << "support ipv6" << std::endl;
+    llm::AutoCommResRuntimeMock::SetDevice(0);
+    Hixl engine1;
+    std::map<AscendString, AscendString> options1;
+    EXPECT_EQ(engine1.Initialize("[::1]:26002", options1), SUCCESS);
+
+    llm::AutoCommResRuntimeMock::SetDevice(1);
+    Hixl engine2;
+    std::map<AscendString, AscendString> options2;
+    EXPECT_EQ(engine2.Initialize("[::1]:26003", options2), SUCCESS);
+
+    hixl::MemDesc mem{};
+    mem.addr = 1;
+    mem.len = 1;
+    MemHandle handle1 = nullptr;
+    MemHandle handle2 = nullptr;
+    EXPECT_EQ(engine1.RegisterMem(mem, MEM_DEVICE, handle1), SUCCESS);
+    EXPECT_EQ(engine2.RegisterMem(mem, MEM_DEVICE, handle2), SUCCESS);
+    EXPECT_EQ(engine1.Connect("[::1]:26003"), SUCCESS);
+    int32_t src = 1;
+    int32_t dst = 2;
+    TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+    EXPECT_EQ(engine1.TransferSync("[::1]:26003", READ, {desc}), SUCCESS);
+    EXPECT_EQ(src, dst);
+    src = 1;
+    EXPECT_EQ(engine1.TransferSync("[::1]:26003", WRITE, {desc}), SUCCESS);
+    EXPECT_EQ(dst, src);
+    EXPECT_EQ(engine1.Disconnect("[::1]:26003"), SUCCESS);
+    EXPECT_EQ(engine1.DeregisterMem(handle1), SUCCESS);
+    EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
+    engine1.Finalize();
+    engine2.Finalize();
+  } else {
+    std::cout << "not support ipv6" << std::endl;
+    Hixl engine1;
+    std::map<AscendString, AscendString> options1;
+    EXPECT_NE(engine1.Initialize("[::1]:26002", options1), SUCCESS);
+  }
 }
 
 TEST_F(HixlSTest, TestHixlH2HWithBuffer) {

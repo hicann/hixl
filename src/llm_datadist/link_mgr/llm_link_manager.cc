@@ -26,12 +26,16 @@ ge::Status LLMLinkManager::Initialize(const std::map<ge::AscendString, ge::Ascen
   LLM_CHK_STATUS_RET(msg_handler_.Initialize(options), "Failed to init msg handler");
   const auto &iter = options.find(kLlmOptionListenPort);
   if (iter != options.cend()) {
+    const auto &ip_it = options.find(kLlmOptionListenIp);
+    LLM_CHK_BOOL_RET_STATUS(ip_it != options.cend(), ge::LLM_PARAM_INVALID,
+                            "%s is not assigned", kLlmOptionListenIp);
     uint32_t port = 0U;
+    std::string ip = ip_it->second.GetString();
     LLM_CHK_STATUS_RET(LLMUtils::ToNumber(iter->second.GetString(), port),
                       "Option %s is invalid: [%s]",
                       kLlmOptionListenPort,
                       iter->second.GetString());
-    LLM_CHK_STATUS_RET(msg_handler_.StartDaemon(port), "Failed to start listen deamon, port = %u", port);
+    LLM_CHK_STATUS_RET(msg_handler_.StartDaemon(ip, port), "Failed to start listen deamon, port = %u", port);
     listen_port_ = iter->second.GetString();
     LLMEVENT("start daemon success, listen on port:%u", port);
   }
@@ -107,7 +111,10 @@ ge::Status LLMLinkManager::SwitchRole(const std::string &role, const std::map<st
                       "Option %s is invalid: [%s]",
                       kLlmOptionListenPort,
                       iter->second.c_str());
-
+    const auto &ip_it = options.find(kLlmOptionListenIp);
+    LLM_CHK_BOOL_RET_STATUS(ip_it != options.cend(), ge::LLM_PARAM_INVALID,
+                            "%s is not assigned", kLlmOptionListenIp);
+    const auto &ip = ip_it->second;
     std::lock_guard<std::mutex> lock(mutex_);
     if (!listen_port_.empty()) {
       if (listen_port_ != iter->second) {
@@ -120,8 +127,9 @@ ge::Status LLMLinkManager::SwitchRole(const std::string &role, const std::map<st
       }
     }
 
-    LLM_CHK_STATUS_RET(msg_handler_.StartDaemon(port), "Failed to start listen deamon, port = %u", port);
-    LLMEVENT("start daemon success, listen on port:%u", port);
+    LLM_CHK_STATUS_RET(msg_handler_.StartDaemon(ip, port),
+                       "Failed to start listen deamon, ip:%s, port:%u", ip.c_str(), port);
+    LLMEVENT("start daemon success, listen on %s:%u", ip.c_str(), port);
     listen_port_ = iter->second;
   } else {
     std::lock_guard<std::mutex> lock(mutex_);

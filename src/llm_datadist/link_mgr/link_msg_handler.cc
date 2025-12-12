@@ -156,11 +156,11 @@ void LinkMsgHandler::Finalize() {
   cache_manager_ = nullptr;
 }
 
-ge::Status LinkMsgHandler::StartDaemon(uint32_t listen_port) {
+ge::Status LinkMsgHandler::StartDaemon(const std::string &ip, uint32_t listen_port) {
   handler_plugin_.RegisterConnectedProcess([this](int32_t fd, bool &keep_fd) {
     (void) ConnectedProcess(fd, keep_fd);
   });
-  return handler_plugin_.StartDaemon(listen_port);
+  return handler_plugin_.StartDaemon(ip, listen_port);
 }
 
 ge::Status LinkMsgHandler::StopDaemon() {

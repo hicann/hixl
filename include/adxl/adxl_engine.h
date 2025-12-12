@@ -37,7 +37,8 @@ class ASCEND_FUNC_VISIBILITY AdxlEngine {
 
   /**
    * @brief 初始化AdxlEngine, 在调用其他接口前需要先调用该接口
-   * @param [in] local_engine AdxlEngine的唯一标识，格式为host_ip:host_port或host_ip,
+   * @param [in] local_engine AdxlEngine的唯一标识，如果是ipv4格式为host_ip:host_port或host_ip,
+   * 如果是ipv6格式为[host_ip]:host_port或[host_ip],
    * 当设置host_port且host_port > 0时代表当前AdxlEngine作为server端，需要对配置端口进行监听
    * @param [in] options 初始化所需的选项
    * @return 成功:SUCCESS, 失败:其它.

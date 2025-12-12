@@ -116,7 +116,7 @@ Status Initialize(const AscendString &local_engine, const std::map<AscendString,
 </td>
 <td class="cellrowborder" valign="top" width="27.900000000000002%" headers="mcps1.1.4.1.2 "><p id="p433774524012"><a name="p433774524012"></a><a name="p433774524012"></a>输入</p>
 </td>
-<td class="cellrowborder" valign="top" width="44.47%" headers="mcps1.1.4.1.3 "><p id="p10528111164114"><a name="p10528111164114"></a><a name="p10528111164114"></a>HIXL标识，在所有参与建链的范围内需要确保唯一。格式为host_ip:host_port或host_ip，不建议配置为回环IP，在多个HIXL交互场景，回环IP容易冲突。</p>
+<td class="cellrowborder" valign="top" width="44.47%" headers="mcps1.1.4.1.3 "><p id="p10528111164114"><a name="p10528111164114"></a><a name="p10528111164114"></a>HIXL标识，在所有参与建链的范围内需要确保唯一。如果是ipv4格式为host_ip:host_port或host_ip，如果是ipv6格式为[host_ip]:host_port或[host_ip]，不建议配置为回环IP，在多个HIXL交互场景，回环IP容易冲突。</p>
 <p id="p8528111134120"><a name="p8528111134120"></a><a name="p8528111134120"></a>当设置host_port且host_port&gt;0时代表当前HIXL作为Server端，需要对配置端口进行侦听。如果没设置host_port或者host_port&lt;=0代表是Client，不启动侦听。</p>
 </td>
 </tr>

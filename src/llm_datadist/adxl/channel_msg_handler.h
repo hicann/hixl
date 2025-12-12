@@ -69,7 +69,7 @@ class ChannelMsgHandler {
 
  private:
   static Status ParseListenInfo(const std::string &listen_info, std::string &listen_ip, int32_t &listen_port);
-  Status StartDaemon(uint32_t listen_port);
+  Status StartDaemon(const std::string &ip, uint32_t listen_port);
   Status StopDaemon();
   Status CreateChannel(const ChannelInfo &channel_info, bool is_client, const std::vector<AddrInfo> &remote_addrs);
   Status ConnectInfoProcess(const ChannelConnectInfo &peer_channel_info,

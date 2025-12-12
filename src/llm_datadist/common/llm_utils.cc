@@ -157,7 +157,9 @@ ge::Status LLMUtils::IpToInt(const std::string &ip, uint32_t &ip_int) {
 
 ge::Status LLMUtils::CheckIp(const std::string &ip) {
   struct in_addr addr;
-  LLM_CHK_BOOL_RET_STATUS(inet_pton(AF_INET, ip.c_str(), &addr) == 1, ge::LLM_PARAM_INVALID,
+  struct sockaddr_in6 ipv6_addr;
+  LLM_CHK_BOOL_RET_STATUS(inet_pton(AF_INET, ip.c_str(), &addr) == 1 ||
+                          inet_pton(AF_INET6, ip.c_str(), &ipv6_addr.sin6_addr) == 1, ge::LLM_PARAM_INVALID,
                          "%s is not a valid ip address", ip.c_str());
   return ge::SUCCESS;
 }
@@ -212,10 +214,21 @@ ge::Status LLMUtils::ParseListenIpInfo(const std::map<ge::AscendString, ge::Asce
 }
 
 ge::Status LLMUtils::ParseListenIpInfo(const std::string &option, std::string &ip, uint32_t &port) {
+  std::vector<std::string> ip_and_port;
+  size_t left = option.find('[');
+  size_t right = option.find(']');
+  if (left != std::string::npos && right != std::string::npos && left < right) {
+    ip_and_port.emplace_back(option.substr(left + 1, right - left - 1));
+    size_t colon = option.find(':', right);
+    if (colon != std::string::npos) {
+      ip_and_port.emplace_back(option.substr(colon + 1));
+    }
+  } else {
+    ip_and_port = LLMUtils::Split(option, ':');
+  }
   constexpr size_t kValidItemNum = 2U;
-  const auto ip_and_port = LLMUtils::Split(option, ':');
   LLM_CHK_BOOL_RET_STATUS(ip_and_port.size() == kValidItemNum, ge::LLM_PARAM_INVALID,
-                         "llm.ListenIpInfo is invalid: %s, expect ${ip}:${port}", option.c_str());
+                          "llm.ListenIpInfo is invalid: %s, expect ${ip}:${port}", option.c_str());
   LLM_CHK_STATUS_RET(CheckIp(ip_and_port.front()), "IP is invalid: %s, option_val = %s", ip_and_port[0].c_str(),
                     option.c_str());
   ip = ip_and_port.front();

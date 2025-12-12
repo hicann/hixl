@@ -25,6 +25,23 @@ void MsgHandlerPlugin::Initialize() {
   (void) std::signal(SIGPIPE, SIG_IGN);
 }
 
+ge::Status MsgHandlerPlugin::GetAiFamily(const std::string &ip, int32_t &ai_family) {
+  struct sockaddr_in ipv4_addr;
+  struct sockaddr_in6 ipv6_addr;
+  (void)memset_s(&ipv4_addr, sizeof(ipv4_addr), 0, sizeof(ipv4_addr));
+  if (inet_pton(AF_INET, ip.c_str(), &ipv4_addr.sin_addr) == 1) {
+    ai_family = AF_INET;
+    return ge::SUCCESS;
+  }
+
+  (void)memset_s(&ipv6_addr, sizeof(ipv6_addr), 0, sizeof(ipv6_addr));
+  if (inet_pton(AF_INET6, ip.c_str(), &ipv6_addr.sin6_addr) == 1) {
+    ai_family = AF_INET6;
+    return ge::SUCCESS;
+  }
+  return ge::LLM_PARAM_INVALID;
+}
+
 ge::Status MsgHandlerPlugin::Connect(const std::string &ip, uint32_t port, int32_t &conn_fd,
                                      int32_t timeout, ge::Status default_err) {
   auto start = std::chrono::high_resolution_clock::now();
@@ -32,7 +49,7 @@ ge::Status MsgHandlerPlugin::Connect(const std::string &ip, uint32_t port, int32
   struct ::addrinfo *result = nullptr;
   struct ::addrinfo *rp = nullptr;
   (void)memset_s(&hints, sizeof(hints), 0, sizeof(hints));
-  hints.ai_family = AF_INET;
+  LLM_CHK_STATUS_RET(GetAiFamily(ip, hints.ai_family), "Failed to get ai_family, ip:%s", ip.c_str());
   hints.ai_socktype = SOCK_STREAM;
 
   auto socket_ret = getaddrinfo(ip.c_str(), std::to_string(port).c_str(), &hints, &result);
@@ -196,8 +213,8 @@ ge::Status MsgHandlerPlugin::DoConnectedProcess(int32_t conn_fd) {
 }
 
 ge::Status MsgHandlerPlugin::DoAccept() {
-  sockaddr_in addr;
-  socklen_t addr_len = sizeof(sockaddr_in);
+  struct sockaddr_storage addr;
+  socklen_t addr_len = sizeof(addr);
   auto conn_fd = accept(listen_fd_, reinterpret_cast<sockaddr *>(&addr), &addr_len);
   if (conn_fd < 0) {
     LLM_CHK_BOOL_RET_STATUS(errno == EWOULDBLOCK || errno == EINTR || errno == ECONNABORTED, ge::FAILED,
@@ -206,27 +223,48 @@ ge::Status MsgHandlerPlugin::DoAccept() {
     return ge::SUCCESS;
   }
   LLM_DISMISSABLE_GUARD(close_fd, ([conn_fd]() { close(conn_fd); }));
-  LLMLOGI("accept success, fd:%d, addr.sin_family:%d", conn_fd, addr.sin_family);
-  if (addr.sin_family == AF_INET || addr.sin_family == AF_INET6) {
+  LLMLOGI("accept success, fd:%d, addr.sin_family:%d", conn_fd, addr.ss_family);
+  if (addr.ss_family == AF_INET || addr.ss_family == AF_INET6) {
     (void)thread_pool_->commit([this, conn_fd]() -> void { (void)DoConnectedProcess(conn_fd); });
     LLM_DISMISS_GUARD(close_fd);
   }
   return ge::SUCCESS;
 }
 
-ge::Status MsgHandlerPlugin::StartDaemon(uint32_t listen_port) {
+ge::Status MsgHandlerPlugin::SockAddrInit(const std::string &ip, uint32_t listen_port, int32_t ai_family,
+                                          struct sockaddr_storage &server_addr, socklen_t &addr_len) {
+  if (ai_family == AF_INET) {
+    struct sockaddr_in* ipv4_addr = reinterpret_cast<struct sockaddr_in*>(&server_addr);
+    (void)memset_s(ipv4_addr, sizeof(*ipv4_addr), 0, sizeof(*ipv4_addr));
+    ipv4_addr->sin_family = AF_INET;
+    ipv4_addr->sin_port = htons(listen_port);
+    (void) inet_pton(AF_INET, ip.c_str(), &ipv4_addr->sin_addr);
+    addr_len = sizeof(*ipv4_addr);
+  } else {
+    struct sockaddr_in6* ipv6_addr = reinterpret_cast<struct sockaddr_in6*>(&server_addr);
+    (void)memset_s(ipv6_addr, sizeof(*ipv6_addr), 0, sizeof(*ipv6_addr));
+    ipv6_addr->sin6_family = AF_INET6;
+    ipv6_addr->sin6_port = htons(listen_port);
+    (void) inet_pton(AF_INET6, ip.c_str(), &ipv6_addr->sin6_addr);
+    addr_len = sizeof(*ipv6_addr);
+    int v6only = 1;
+    (void) setsockopt(listen_fd_, IPPROTO_IPV6, IPV6_V6ONLY, &v6only, sizeof(v6only));
+  }
+  return ge::SUCCESS;
+}
+
+ge::Status MsgHandlerPlugin::StartDaemon(const std::string &ip, uint32_t listen_port) {
   LLM_ASSERT_RT_OK(rtCtxGetCurrent(&rt_context_));
-  sockaddr_in bind_address;
-  int32_t on = 1;
-  (void)memset_s(&bind_address, sizeof(sockaddr_in), 0, sizeof(sockaddr_in));
-  bind_address.sin_family = AF_INET;
-  bind_address.sin_port = htons(listen_port);
-  bind_address.sin_addr.s_addr = INADDR_ANY;
-
-  listen_fd_ = socket(AF_INET, SOCK_STREAM, 0);
+  int32_t ai_family = 0;
+  LLM_CHK_STATUS_RET(GetAiFamily(ip, ai_family), "Failed to get ai_family, ip:%s", ip.c_str());
+  listen_fd_ = socket(ai_family, SOCK_STREAM, 0);
   LLM_CHK_BOOL_RET_STATUS(listen_fd_ >= 0, ge::FAILED, "Failed to create socket.");
-
   LLM_DISMISSABLE_GUARD(fail_guard, ([this]() { ListenClose(); }));
+
+  struct sockaddr_storage server_addr;
+  socklen_t addr_len;
+  LLM_CHK_STATUS_RET(SockAddrInit(ip, listen_port, ai_family, server_addr, addr_len),
+                     "Failed to init sockaddr, ip:%s", ip.c_str());
 
   struct timeval timeout;
   timeout.tv_sec = 1;
@@ -235,12 +273,13 @@ ge::Status MsgHandlerPlugin::StartDaemon(uint32_t listen_port) {
   LLM_CHK_BOOL_RET_STATUS(socket_ret == 0, ge::FAILED,
                          "Failed to set socket opt timeout, socket_ret:%d, error msg:%s, errno:%d",
                          socket_ret, strerror(errno), errno);
+  int32_t on = 1;
   socket_ret = setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
   LLM_CHK_BOOL_RET_STATUS(socket_ret == 0, ge::FAILED,
                          "Failed to set socket opt SO_REUSEADDR, socket_ret:%d, error msg:%s, errno:%d",
                          socket_ret, strerror(errno), errno);
-  LLM_CHK_BOOL_RET_STATUS(bind(listen_fd_, reinterpret_cast<sockaddr *>(&bind_address),
-                              sizeof(sockaddr_in)) >= 0,
+  LLM_CHK_BOOL_RET_STATUS(bind(listen_fd_, reinterpret_cast<sockaddr *>(&server_addr),
+                               addr_len) >= 0,
                          ge::FAILED, "Failed to bind port:%u, error msg:%s, errno:%d.",
                          listen_port, strerror(errno), errno);
   socket_ret = listen(listen_fd_, kListenBacklog);
