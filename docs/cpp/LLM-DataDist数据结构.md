@@ -86,12 +86,12 @@ struct KvCacheExtParam {
   uint8_t reserved[127];                                   // 预留字段
 }
 ```
-## RegisterCfg<a name="ZH-CN_TOPIC_0000002408009633"></a>
+## RegisterCfg
 
 调用RegisterKvCache接口时传入的配置参数。
 
 ```
 struct RegisterCfg {
   uint8_t reserved[128] = {0};  // 预留字段
-};
+}
 ```

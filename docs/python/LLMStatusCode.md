@@ -195,7 +195,7 @@ LLMException中status\_code对应的枚举类，枚举值及解决方法如下�
 </td>
 <td class="cellrowborder" valign="top" width="14.151415141514152%" headers="mcps1.1.5.1.3 "><p id="p155971670190"><a name="p155971670190"></a><a name="p155971670190"></a>是</p>
 </td>
-<td class="cellrowborder" valign="top" width="33.16331633163316%" headers="mcps1.1.5.1.4 "><p id="p12312104312411"><a name="p12312104312411"></a><a name="p12312104312411"></a>请参考<span id="ph963712461518"><a name="ph963712461518"></a><a name="ph963712461518"></a>《Ascend Extension for PyTorch 自定义API参考》</span>中的torch_npu.npu.restart_device接口的说明获取并修复内存UCE的错误虚拟地址。如果是KV Cache内存，需要再调用cache manager的remap_registered_memory</a>接口修复注册给网卡的KV Cache内存。</p>
+<td class="cellrowborder" valign="top" width="33.16331633163316%" headers="mcps1.1.5.1.4 "><p id="p12312104312411"><a name="p12312104312411"></a><a name="p12312104312411"></a>请修复内存UCE的错误虚拟地址。如果是KV Cache内存，需要再调用cache manager的remap_registered_memory</a>接口修复注册给网卡的KV Cache内存。</p>
 <div class="note" id="note17365201515316"><a name="note17365201515316"></a><a name="note17365201515316"></a><span class="notetitle"> 说明： </span><div class="notebody"><p id="p133650151335"><a name="p133650151335"></a><a name="p133650151335"></a>本错误码为预留，暂不支持。</p>
 </div></div>
 </td>

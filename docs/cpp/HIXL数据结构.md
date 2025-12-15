@@ -45,3 +45,44 @@ struct TransferOpDesc {
   size_t len;
 }
 ```
+
+## TransferArgs
+
+传输操作的可选参数，暂未启用。
+
+```
+struct TransferArgs{
+  uint8_t reserved[128] = {};
+}
+```
+
+## TransferReq
+
+请求传输的Handle。
+
+```
+using TransferReq = void *;
+```
+
+## TransferStatus
+
+异步传输的状态。
+
+```
+enum class TransferStatus {
+  WAITING,
+  COMPLETED,
+  TIMEOUT, //暂不支持
+  FAILED
+};
+```
+
+## NotifyDesc
+
+Notify的描述信息。
+
+```
+struct NotifyDesc {
+  AscendString name;
+  AscendString notify_msg;
+```

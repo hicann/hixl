@@ -12,6 +12,7 @@ constexpr Status ALREADY_CONNECTED = 103903U;
 constexpr Status NOTIFY_FAILED = 103904U;
 constexpr Status UNSUPPORTED = 103905U;
 constexpr Status FAILED = 503900U;
+constexpr Status RESOURCE_EXHAUSTED = 203900U;
 ```
 
 具体错误码含义如下。
@@ -97,6 +98,13 @@ constexpr Status FAILED = 503900U;
 <td class="cellrowborder" valign="top" width="14.151415141514152%" headers="mcps1.1.5.1.3 "><p id="p56940282403"><a name="p56940282403"></a><a name="p56940282403"></a>否</p>
 </td>
 <td class="cellrowborder" valign="top" width="33.16331633163316%" headers="mcps1.1.5.1.4 "><p id="p585113454013"><a name="p585113454013"></a><a name="p585113454013"></a>保留现场，获取Host/Device日志，并备份。</p>
+<tr id="row277474265812"><td class="cellrowborder" valign="top" width="34.26342634263426%" headers="mcps1.1.5.1.1 "><p id="p93645462582"><a name="p93645462582"></a><a name="p93645462582"></a>RESOURCE_EXHAUSTED</p>
+</td>
+<td class="cellrowborder" valign="top" width="18.421842184218423%" headers="mcps1.1.5.1.2 "><p id="p103642046155817"><a name="p103642046155817"></a><a name="p103642046155817"></a>资源耗尽，当前仅包括stream资源</p>
+</td>
+<td class="cellrowborder" valign="top" width="14.151415141514152%" headers="mcps1.1.5.1.3 "><p id="p7364346165817"><a name="p7364346165817"></a><a name="p7364346165817"></a>是</p>
+</td>
+<td class="cellrowborder" valign="top" width="33.16331633163316%" headers="mcps1.1.5.1.4 "><p id="p1936411464582"><a name="p1936411464582"></a><a name="p1936411464582"></a>等待资源耗尽后再进行尝试。</p>
 </td>
 </tr>
 </tbody>
