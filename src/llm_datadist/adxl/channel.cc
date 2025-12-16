@@ -178,12 +178,12 @@ Status Channel::GetTransferStatus(const TransferReq &req, TransferStatus &status
   }
   auto steam_status = rtStreamSynchronize(stream);
   if (steam_status != RT_ERROR_NONE) {
-    //stream syncronize failed
+    //stream synchronize failed
     status = TransferStatus::FAILED;
     rtEventDestroy(event);
     stream_pool_->DestroyStream(stream);
     transfer_reqs_.erase(id);
-    LLMLOGE(FAILED, "rtStreamSyncronize failed for req:%llu, ret:%d.", id, steam_status);
+    LLMLOGE(FAILED, "rtStreamSynchronize failed for req:%llu, ret:%d.", id, steam_status);
     return FAILED;
   }
   LLMLOGI("Transfer async request completed, req:%llu.", id);
