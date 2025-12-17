@@ -19,6 +19,7 @@ target_link_libraries(runtime_stub
         intf_pub
         c_sec
         msprof_headers
+        mmpa_headers
     PUBLIC
         runtime_headers
 )

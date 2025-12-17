@@ -10,7 +10,7 @@
 
 #include "slog_stub.h"
 #include "dlog_pub.h"
-#include "toolchain/plog.h"
+#include "plog.h"
 
 #include <stdarg.h>
 #include <stdio.h>

@@ -44,10 +44,23 @@ unset(_cmake_targets_defined)
 unset(_cmake_targets_not_defined)
 unset(_cmake_expected_targets)
 
-find_path(_INCLUDE_DIR
+find_path(_HAL_PATH
+    NAMES driver/ascend_hal.h
+    NO_CMAKE_SYSTEM_PATH
+    NO_CMAKE_FIND_ROOT_PATH)
+
+find_path(_EX_HAL_PATH
     NAMES experiment/ascend_hal/driver/ascend_hal.h
     NO_CMAKE_SYSTEM_PATH
     NO_CMAKE_FIND_ROOT_PATH)
+
+if(_HAL_PATH)
+    set(_INCLUDE_DIR "${_HAL_PATH}")
+elseif(_EX_HAL_PATH)
+    set(_INCLUDE_DIR "${_EX_HAL_PATH}/experiment")
+else()
+    unset(_INCLUDE_DIR)
+endif()
 
 find_path(ascend_hal_LIBRARY_DIR
     NAMES libascend_hal.so
@@ -65,15 +78,22 @@ find_package_handle_standard_args(ascend_hal
 )
 
 if(ascend_hal_FOUND)
-    set(ascend_hal_INCLUDE_DIR "${_INCLUDE_DIR}/experiment")
+    set(ascend_hal_INCLUDE_DIR "${_INCLUDE_DIR}")
     include(CMakePrintHelpers)
     message(STATUS "Variables in ascend_hal module:")
     cmake_print_variables(ascend_hal_INCLUDE_DIR)
+    cmake_print_variables(ascend_hal_LIBRARY_DIR)
 
     add_library(ascend_hal_headers INTERFACE IMPORTED)
-    set_target_properties(ascend_hal_headers PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${ascend_hal_INCLUDE_DIR};${ascend_hal_INCLUDE_DIR}/ascend_hal;${ascend_hal_INCLUDE_DIR}/ascend_hal/driver"
-    )
+    if (_HAL_PATH)
+        set_target_properties(ascend_hal_headers PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES "${ascend_hal_INCLUDE_DIR};${ascend_hal_INCLUDE_DIR}/driver"
+        )
+    else ()
+        set_target_properties(ascend_hal_headers PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES "${ascend_hal_INCLUDE_DIR};${ascend_hal_INCLUDE_DIR}/ascend_hal;${ascend_hal_INCLUDE_DIR}/ascend_hal/driver"
+        )
+    endif()
 
     function(target_link_ascend_hal target)
         target_include_directories(${target} PRIVATE ${ascend_hal_INCLUDE_DIR})

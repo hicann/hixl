@@ -11,6 +11,7 @@
 #define HIXL_ADXL_STATISTIC_MANAGER_H_
 
 #include <atomic>
+#include <mutex>
 
 namespace adxl {
 struct BufferTransferStatisticInfo {
