@@ -319,7 +319,6 @@ clear_kernel_cache_dir() {
 }
 
 WHL_INSTALL_DIR_PATH="${common_parse_dir}/python/site-packages"
-WHL_SOFTLINK_INSTALL_DIR_PATH="${common_parse_dir}/hixl/python/site-packages"
 PYTHON_HIXL_WHL="${sourcedir}/lib/llm_datadist-0.0.1-py3-none-any.whl"
 
 custom_install() {
@@ -329,23 +328,15 @@ custom_install() {
     fi
 
     if [ "$hetero_arch" != "y" ]; then
-        local arch_name="$(get_arch_name $common_parse_dir/hixl)"
-        create_stub_softlink "$common_parse_dir/hixl/lib64/stub" "linux/$arch_name"
+        local arch_name="$(get_arch_name $common_parse_dir/share/info/hixl)"
     else
-        local arch_name="$(get_arch_name $common_parse_dir/hixl)"
-        create_stub_softlink "$common_parse_dir/hixl/lib64/stub" "linux/$arch_name"
+        local arch_name="$(get_arch_name $common_parse_dir/share/info/hixl)"
     fi
 
     if [ "$hetero_arch" != "y" ]; then
         log "INFO" "install hixl extension module begin..."
         hixl_install_package "${PYTHON_HIXL_WHL}" "${WHL_INSTALL_DIR_PATH}"
         log "INFO" "the hixl extension module installed successfully!"
-
-        mkdir -p "$WHL_SOFTLINK_INSTALL_DIR_PATH"
-        if [ "${pylocal}" = "y" ]; then
-            create_softlink_if_exists "${WHL_INSTALL_DIR_PATH}" "$WHL_SOFTLINK_INSTALL_DIR_PATH" "llm_datadist"
-            create_softlink_if_exists "${WHL_INSTALL_DIR_PATH}" "$WHL_SOFTLINK_INSTALL_DIR_PATH" "llm_datadist-*.dist-info"
-        fi
 
         if [ "${pylocal}" = "y" ]; then
             log "INFO" "please make sure PYTHONPATH include ${WHL_INSTALL_DIR_PATH}."

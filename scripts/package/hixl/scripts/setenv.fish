@@ -29,20 +29,11 @@ function get_install_param
 end
 
 function get_install_dir
-    set -l install_info "$curpath/../ascend_install.info"
-    set -l hetero_arch (get_install_param "HIXL_Hetero_Arch_Flag" "$install_info")
-    if test "$param_mult_ver" = "multi_version"
-        if test "$hetero_arch" = "y"
-            echo (realpath $curpath/../../../../../latest)/hixl
-        else
-            echo (realpath $curpath/../../../latest)/hixl
-        end
-    else
-        echo (realpath $curpath/..)
-    end
+    local install_info="$curpath/../ascend_install.info"
+    get_install_param "HIXL_Install_Path_Param" "${install_info}"
 end
 
-set -l INSTALL_DIR (get_install_dir)
+set -l INSTALL_DIR (get_install_dir)/cann
 set -l lib_path "$INSTALL_DIR/python/site-packages/"
 if test -d "$lib_path"
     set -l python_path "$PYTHONPATH"
@@ -62,25 +53,9 @@ if test -d "$library_path"
     set -l num (echo ":$ld_library_path:" | grep ":$library_path:" | wc -l)
     if test "$num" -eq 0
         if test "-$ld_library_path" = "-"
-            set -gx LD_LIBRARY_PATH "$library_path:$library_path/plugin/opskernel:$library_path/plugin/nnengine:$library_path/stub"
+            set -gx LD_LIBRARY_PATH "$library_path"
         else
-            set -gx LD_LIBRARY_PATH "$library_path:$library_path/plugin/opskernel:$library_path/plugin/nnengine:$ld_library_path:$library_path/stub"
-        end
-    end
-end
-
-set -l custom_path_file "$INSTALL_DIR/../conf/path.cfg"
-set -l common_interface "$INSTALL_DIR/script/common_interface.fish"
-set -l owner (stat -c \%U "$curfile")
-if test (id -u) -ne 0 -a (id -un) != "$owner" -a -f "$custom_path_file" -a -f "$common_interface"
-    . "$common_interface"
-    mk_custom_path "$custom_path_file"
-    for dir_name in "conf" "data"
-        set -l dst_dir (grep -w "$dir_name" "$custom_path_file" | cut --only-delimited -d"=" -f2-)
-        set -l dst_dir (eval echo "$dst_dir")
-        if test -d "$INSTALL_DIR/$dir_name" -a -d "$dst_dir"
-            chmod -R u+w $dst_dir/* > /dev/null 2>&1
-            cp -rfL $INSTALL_DIR/$dir_name/* "$dst_dir"
+            set -gx LD_LIBRARY_PATH "$ld_library_path:$library_path"
         end
     end
 end

@@ -19,10 +19,12 @@ version_compat_func_path="${curpath}/version_compatiable.inc"
 common_func_v2_path="${curpath}/common_func_v2.inc"
 version_cfg_path="${curpath}/version_cfg.inc"
 hixl_func_path="${curpath}/hixl_func.sh"
-pkg_version_path="${curpath}/../../version.info"
+pkg_version_path="${curpath}/../version.info"
 install_info_old="/etc/ascend_install.info"
 run_dir="$(echo "$2" | cut -d'-' -f 3-)"
- 
+_RUN_PKG_INFO_FILE="${curpath}/../scene.info"
+platform_data=$(grep -e "arch" "${_RUN_PKG_INFO_FILE}" | cut --only-delimited -d"=" -f2-) 
+
 . "${common_func_path}"
 . "${version_compat_func_path}"
 . "${common_func_v2_path}"
@@ -651,13 +653,13 @@ prompt_set_env() {
     fi
     if [ "$hetero_arch" = "y" ]; then
         echo "Please make sure that
-            - PATH includes ${install_path}/hixl/bin
-            - LD_LIBRARY_PATH includes ${install_path}/hixl/lib64"
+            - PATH includes ${install_path}/bin
+            - LD_LIBRARY_PATH includes ${install_path}/lib64"
     else
         echo "Please make sure that
-            - PATH includes ${install_path}/hixl/bin
-            - LD_LIBRARY_PATH includes ${install_path}/hixl/lib64
-            - PYTHONPATH includes ${install_path}/hixl/python/site-packages"
+            - PATH includes ${install_path}/bin
+            - LD_LIBRARY_PATH includes ${install_path}/lib64
+            - PYTHONPATH includes ${install_path}/python/site-packages"
     fi
 }
  
@@ -705,7 +707,7 @@ install_run() {
         new_echo "INFO" "install ${hixl_install_path_param} ${hixl_install_type}"
         log "INFO" "install ${hixl_install_path_param} ${hixl_install_type}"
         bash "${curpath}/run_hixl_install.sh" "install" "${hixl_input_install_path}" "${hixl_install_type}" \
-            "${is_quiet}" "${pylocal}" "${input_setenv}" "${docker_root}" "${in_install_for_all}"
+            "${is_quiet}" "${pylocal}" "${input_setenv}" "${docker_root}" "${in_install_for_all}" "$pkg_version_dir"
         if [ $? -eq 0 ]; then
             update_version_info_version
             log "INFO" "hixl package installed successfully! The new version takes effect immediately."
@@ -747,7 +749,7 @@ upgrade_run() {
         new_echo "INFO" "upgrade ${hixl_install_path_param} ${hixl_install_type}"
         log "INFO" "upgrade ${hixl_install_path_param} ${hixl_install_type}"
         bash "${curpath}/run_hixl_upgrade.sh" "upgrade" "${hixl_input_install_path}" "${hixl_install_type}" \
-            "${is_quiet}" "${pylocal}" "${input_setenv}" "${docker_root}" "${in_install_for_all}"
+            "${is_quiet}" "${pylocal}" "${input_setenv}" "${docker_root}" "${in_install_for_all}" "$pkg_version_dir"
         if [ $? -eq 0 ]; then
             update_version_info_version
             log "INFO" "hixl package upgraded successfully! The new version takes effect immediately."
@@ -797,7 +799,7 @@ uninstall_run() {
         new_echo "INFO" "uninstall ${hixl_install_path_param} ${hixl_install_type}"
         log "INFO" "uninstall ${hixl_install_path_param} ${hixl_install_type}"
         bash "$upgrade_default_dir/script/run_hixl_uninstall.sh" "uninstall" "${hixl_input_install_path}" "${hixl_install_type}" "${is_quiet}" \
-            "${is_docker_install}" "${docker_root}" "${is_recreate_softlink}"
+            "${is_docker_install}" "${docker_root}" "${is_recreate_softlink}" "$pkg_version_dir"
         if [ $? -eq 0 ]; then
             if [ "$is_remove_info_files" = "y" ]; then
                 test -f "$upgrade_install_info" && rm -f "$upgrade_install_info"
@@ -1189,10 +1191,15 @@ if [ "$featuremode" != "all" ]; then
         exit 0
     fi
 fi
- 
+
+architecture=$(uname -m)
+if [ "${architecture}" != "${platform_data}" ] ; then
+    log "INFO" "the architecture of the run package is inconsistent with that of the current enviroment, hixl skip installation."
+    exit 0
+fi
+
 #######################################################
 is_multi_version_pkg "pkg_is_multi_version" "$pkg_version_path"
-get_version_dir "pkg_version_dir" "$pkg_version_path"
  
 if [ "$full_install" = "y" ] || [ "$run_install" = "y" ] || [ "$devel_install" = "y" ] || [ "$upgrade" = "y" ] || [ "$uninstall" = "y" ]; then
     input_install_path=$(relative_path_to_absolute_path "${input_install_path}")
@@ -1217,7 +1224,14 @@ if [ "$full_install" = "y" ] || [ "$run_install" = "y" ] || [ "$devel_install" =
         fi
     fi
     export hetero_arch
- 
+
+    if is_version_dirpath "$input_install_path"; then
+        pkg_version_dir="$(basename "$input_install_path")"
+        input_install_path="$(dirname "$input_install_path")"
+    else
+        pkg_version_dir="cann"
+    fi
+
     install_top_path="$(dirname $input_install_path)"
     install_path_param="${input_install_path}"
     if [ "$hetero_arch" = "y" ]; then
@@ -1236,7 +1250,7 @@ else
 fi
  
 if [ "$pkg_is_multi_version" = "true" ] && [ "$hetero_arch" != "y" ]; then
-    default_dir="${pkg_install_path}/$pkg_version_dir/hixl"
+    default_dir="${pkg_install_path}/$pkg_version_dir/share/info/hixl"
 else
     default_dir="${pkg_install_path}/hixl"
 fi
@@ -1338,29 +1352,12 @@ if [ "x$version_installed" != "x" -a "$version_installed" != "none" ] || [ -f "$
     if [ "$uninstall" = "y" ]; then
         unchattr_files
         uninstall_run "uninstall" "y" "y"
-        if [ -d "${default_dir}/site-packages" ]; then
-            rm -rf "${default_dir}/site-packages"
-        fi
         save_user_files_to_log "$default_dir"
         save_user_files_to_log "$(dirname $default_dir)/atc"
         save_user_files_to_log "$(dirname $default_dir)/fwkacllib"
         exit_uninstall_log 0
     # 升级场景
     elif [ "$upgrade" = "y" ]; then
-        if [ -n "$pkg_version_dir" ]; then
-            if [ "$hetero_arch" = "y" ]; then
-                get_package_upgrade_install_info_hetero "upgrade_install_info"
-            else
-                get_package_upgrade_install_info "upgrade_install_info" "$pkg_install_path" "hixl"
-            fi
-            if [ -z "$upgrade_install_info" ]; then
-                log "ERROR" "Can not find softlink for this package in latest directory, upgrade failed"
-                log_operation "Upgrade" "failed"
-                exit_install_log 1
-            elif [ "$(realpath $upgrade_install_info)" != "$(realpath $install_info)" ]; then
-                uninstall_run "uninstall" "n" "y" "$upgrade_install_info"
-            fi
-        fi
         unchattr_files
         uninstall_run "uninstall" "n" "n"
         save_user_files_to_log "$default_dir"
@@ -1419,23 +1416,9 @@ else
                 exit_install_log 1
             fi
         else
-            if [ "$hetero_arch" = "y" ]; then
-                get_package_upgrade_install_info_hetero "upgrade_install_info"
-            else
-                get_package_upgrade_install_info "upgrade_install_info" "$pkg_install_path" "hixl"
-            fi
-            if [ -f "$upgrade_install_info" ]; then
-                create_default_dir && cp "$upgrade_install_info" "$install_info"
-                migrate_user_assets_v2
-                [ "$hetero_arch" = "y" ] && update_install_info_hetero "$install_info" "$pkg_version_dir"
-                uninstall_run "uninstall" "n" "y" "$upgrade_install_info"
-                upgrade_run "upgrade"
-                exit_install_log 0
-            else
-                log "ERROR" "ERR_NO:0x0080;ERR_DES:Runfile is not installed in ${pkg_install_path}, upgrade failed"
-                log_operation "Upgrade" "failed"
-                exit_install_log 1
-            fi
+            log "ERROR" "ERR_NO:0x0080;ERR_DES:Runfile is not installed in ${pkg_install_path}, upgrade failed"
+            log_operation "Upgrade" "failed"
+            exit_install_log 1
         fi
     # 安装场景
     elif [ "$run_install" = "y" ] || [ "$full_install" = "y" ] || [ "$devel_install" = "y" ]; then

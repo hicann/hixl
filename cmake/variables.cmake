@@ -56,57 +56,52 @@ set(CMAKE_PREFIX_PATH ${CANN_INSTALL_PATH})
 message("CMAKE_PREFIX_PATH:${CMAKE_PREFIX_PATH}")
 message("CMAKE_INSTALL_PREFIX:${CMAKE_INSTALL_PREFIX}")
 
-if (NOT DEFINED CMAKE_BUILD_TYPE)
-    if (ENABLE_TEST)
-        set(CMAKE_BUILD_TYPE "DT")
-    else ()
-        set(CMAKE_BUILD_TYPE "Release")
-    endif()
-endif()
-message("CMAKE_BUILD_TYPE:${CMAKE_BUILD_TYPE}")
-
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_VERBOSE_MAKEFILE True)
 set(HIXL_CODE_DIR ${PROJECT_SOURCE_DIR})
 set(HI_PYTHON python3)
 set(TARGET_SYSTEM_NAME "Linux")
 
-if (CMAKE_BUILD_TYPE MATCHES GCOV)
-    set(DT_COMMON_COMPILE_OPTION
-            -O0
-            -g
-            --coverage -fprofile-arcs -ftest-coverage
-            -fsanitize=address -fsanitize=leak -fsanitize-recover=address
-            )
-    set(COV_COMPILE_OPTION
-            --coverage -fprofile-arcs -ftest-coverage
-            )
-    if (TARGET_SYSTEM_NAME STREQUAL "Android")
-        set(COMMON_LINK_OPTION
-                -fsanitize=address -fsanitize=leak -fsanitize-recover=address
-                -ldl -lgcov
-                )
-    else ()
-        set(COMMON_LINK_OPTION
-                -fsanitize=address -fsanitize=leak -fsanitize-recover=address
-                -lrt -ldl -lgcov
-                )
-    endif ()
-elseif(CMAKE_BUILD_TYPE MATCHES DT)
-    set(DT_COMMON_COMPILE_OPTION -O0 -g)
-    set(COV_COMPILE_OPTION ${COMMON_COMPILE_OPTION})
-else ()
-    if (TARGET_SYSTEM_NAME STREQUAL "Windows")
-        if (CMAKE_CONFIGURATION_TYPES STREQUAL "Debug")
-            set(COMMON_COMPILE_OPTION /MTd)
+message("ENABLE_ASAN:${ENABLE_ASAN}")
+message("ENABLE_GCOV:${ENABLE_GCOV}")
+
+if (NOT DEFINED CMAKE_BUILD_TYPE)
+    if(ENABLE_TEST)
+        set(CMAKE_BUILD_TYPE "DT")
+    else()
+        if(ENABLE_ASAN OR ENABLE_GCOV)
+            set(CMAKE_BUILD_TYPE "Debug")
         else ()
-            set(COMMON_COMPILE_OPTION /MT)
-        endif ()
+            set(CMAKE_BUILD_TYPE "Release")
+        endif()
+    endif()
+endif()
+message("CMAKE_BUILD_TYPE:${CMAKE_BUILD_TYPE}")
 
-    else ()
-        set(COMMON_COMPILE_OPTION -fvisibility=hidden -O2 -Werror -fno-common -Wextra -Wfloat-equal)
-    endif ()
-endif ()
-message("common compile options ${COMMON_COMPILE_OPTION}")
-message("common link options ${COMMON_LINK_OPTION}")
+if (ENABLE_TEST)
+    if(CMAKE_BUILD_TYPE MATCHES DT)
+        set(DT_COMMON_COMPILE_OPTION -O0 -g)
+    else()
+        set(DT_COMMON_COMPILE_OPTION -fvisibility=hidden -O2 -Werror -fno-common -Wextra -Wfloat-equal)
+    endif()
 
+    if(ENABLE_ASAN)
+        set(ASAN_COMPILE_OPTION -fsanitize=address -fsanitize=leak -fsanitize-recover=address,all 
+            -fno-stack-protector -fno-omit-frame-pointer)
+        set(DT_COMMON_COMPILE_OPTION ${DT_COMMON_COMPILE_OPTION} ${ASAN_COMPILE_OPTION})
+
+        set(ASAN_LINK_OPTION -fsanitize=address -fsanitize=leak -fsanitize-recover=address)
+        set(DT_COMMON_COMPILE_OPTION ${DT_COMMON_COMPILE_OPTION} ${ASAN_LINK_OPTION})
+    endif()
+
+    if(ENABLE_GCOV)
+        set(GCOV_COMPILE_OPTION --coverage -fprofile-arcs -ftest-coverage)
+        set(DT_COMMON_COMPILE_OPTION ${DT_COMMON_COMPILE_OPTION} ${GCOV_COMPILE_OPTION})
+
+        set(GCOV_LINK_OPTION -lrt -ldl -lgcov)
+        set(DT_COMMON_COMPILE_OPTION ${DT_COMMON_COMPILE_OPTION} ${GCOV_LINK_OPTION})
+    endif()
+
+    message("common compile options ${DT_COMMON_COMPILE_OPTION}")
+    message("common link options ${DT_COMMON_LINK_OPTION}")
+endif()

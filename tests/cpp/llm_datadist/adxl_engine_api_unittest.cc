@@ -38,8 +38,8 @@ class AdxlEngineUTest : public ::testing::Test {
   // 在测试类中进行清理工作，如果需要的话
   void TearDown() override {
     llm::HcclAdapter::GetInstance().Finalize();
-    llm::MockMmpaForHcclApi::Reset();
     llm::AutoCommResRuntimeMock::Reset();
+    llm::MockMmpaForHcclApi::Reset();
     SetMockRtGetDeviceWay(0);
   }
   //初始化两个 AdxlEngine 引擎

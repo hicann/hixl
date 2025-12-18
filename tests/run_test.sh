@@ -17,7 +17,7 @@ BASEPATH=$(cd "$(dirname $0)/.."; pwd)
 usage() {
   echo "Usage:"
   echo "sh run_test.sh [-c | --cov] [-j<N>] [-h | --help] [-v | --verbose]"
-  echo "               [--cann_3rd_lib_path=<PATH>]"
+  echo "               [--cann_3rd_lib_path=<PATH> | --cann-3rd-lib-path=<PATH>] [--asan]"
   echo ""
   echo "Options:"
   echo "    -h, --help     Print usage"
@@ -26,11 +26,12 @@ usage() {
   echo "        =py                Build all py test"
   echo "    -c, --cov      Build test with coverage tag"
   echo "                   Please ensure that the environment has correctly installed lcov, gcov, and genhtml."
-  echo "                   and the version matched gcc/g++."
+  echo "                   and the version matched gcc/g++, default is OFF."
   echo "    -v, --verbose  Display build command"
   echo "    -j<N>          Set the number of threads used for building Parser, default 8"
-  echo "        --cann_3rd_lib_path=<PATH>"
+  echo "        --cann_3rd_lib_path=<PATH> | --cann-3rd-lib-path=<PATH>"
   echo "                   Set ascend third_party package install path, default ./third_party"
+  echo "    --asan         Enable AddressSanitizer, default is OFF. when cov is setted, asan is setted too."
   echo ""
 }
 
@@ -46,12 +47,14 @@ checkopts() {
   THREAD_NUM=8
   COVERAGE=""
   CMAKE_BUILD_TYPE="DT"
-  ENABLE_CPP_TEST="on"
-  ENABLE_PY_TEST="on"
+  ENABLE_CPP_TEST=ON
+  ENABLE_PY_TEST=ON
+  ENABLE_ASAN=OFF
+  ENABLE_GCOV=OFF
 
   CANN_3RD_LIB_PATH="$BASEPATH/third_party"
 
-  parsed_args=$(getopt -a -o t::cj:hv -l test::,cov,help,verbose,cann_3rd_lib_path: -- "$@") || {
+  parsed_args=$(getopt -a -o t::cj:hv -l test::,cov,help,verbose,cann_3rd_lib_path:,cann-3rd-lib-path:,asan -- "$@") || {
     usage
     exit 1
   }
@@ -63,17 +66,17 @@ checkopts() {
       -t | --test)
         case "$2" in
           "")
-            ENABLE_CPP_TEST="on"
-            ENABLE_PY_TEST="on"
+            ENABLE_CPP_TEST=ON
+            ENABLE_PY_TEST=ON
             shift 2
             ;;
           "cpp")
-            ENABLE_CPP_TEST="on"
+            ENABLE_CPP_TEST=ON
             ENABLE_PY_TEST="off"
             shift 2
             ;;
           "py")
-            ENABLE_PY_TEST="on"
+            ENABLE_PY_TEST=ON
             ENABLE_CPP_TEST="off"
             shift 2
             ;;
@@ -83,7 +86,13 @@ checkopts() {
         esac
         ;;
       -c | --cov)
-        CMAKE_BUILD_TYPE="GCOV"
+        ENABLE_GCOV=ON
+        # keep set asan for leagcy
+        ENABLE_ASAN=ON
+        shift
+        ;;
+      --asan)
+        ENABLE_ASAN=ON
         shift
         ;;
       -h | --help)
@@ -98,7 +107,7 @@ checkopts() {
         VERBOSE="-v"
         shift
         ;;
-      --cann_3rd_lib_path)
+      --cann_3rd_lib_path | --cann-3rd-lib-path)
         CANN_3RD_LIB_PATH="$(realpath $2)"
         shift 2
         ;;
@@ -117,7 +126,9 @@ checkopts() {
 
 build() {
   cd "${BUILD_PATH}"
-  cmake -D ENABLE_TEST="on" \
+  cmake -D ENABLE_TEST=ON \
+        -D ENABLE_ASAN=${ENABLE_ASAN} \
+        -D ENABLE_GCOV=${ENABLE_GCOV} \
         -D CANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH} \
         -D CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
         -D CMAKE_INSTALL_PREFIX=${OUTPUT_PATH} \
@@ -162,7 +173,7 @@ run() {
   find ${OUTPUT_PATH} -name "*.so*" -print0 | xargs -0 -r chmod 500
 
   echo "Run tests with leaks check"
-  if [[ "X$ENABLE_CPP_TEST" = "Xon" ]]; then
+  if [[ "X$ENABLE_CPP_TEST" = "XON" ]]; then
       RUN_TEST_CASE="${BUILD_PATH}/tests/cpp/llm_datadist/llm_datadist_test --gtest_output=xml:${report_dir}/llm_datadist_test.xml" && ${RUN_TEST_CASE}
       if [[ "$?" -ne 0 ]]; then
           echo "!!! CPP TEST FAILED, PLEASE CHECK YOUR CHANGES !!!"
@@ -171,32 +182,40 @@ run() {
       fi
   fi
 
-  if [[ "X$ENABLE_PY_TEST" = "Xon" ]]; then
+  if [[ "X$ENABLE_PY_TEST" = "XON" ]]; then
       unset LD_PRELOAD
       cp ${BUILD_PATH}/tests/depends/python/llm_datadist_wrapper.so ${BASEPATH}/src/python/llm_datadist/llm_datadist/
       cp ${BUILD_PATH}/tests/depends/python/metadef_wrapper.so ${BASEPATH}/src/python/llm_datadist/llm_datadist/
       cp -r ${BASEPATH}/tests/python ./
       PYTHON_ORIGINAL_PATH=$PYTHONPATH
       export PYTHONPATH=${BASEPATH}/src/python/llm_datadist/
-      export LD_PRELOAD=${USE_ASAN}
+
       echo "----------st start----------"
-      ASAN_OPTIONS=detect_leaks=0 coverage run -m unittest discover python
+      if [[ "X$ENABLE_ASAN" = "XON" ]]; then
+        export LD_PRELOAD=${USE_ASAN}
+        ASAN_OPTIONS=detect_leaks=0 coverage run -m unittest discover python
+      else
+        coverage run -m unittest discover python
+      fi
       if [[ "$?" -ne 0 ]]; then
           echo "!!! PY TEST FAILED, PLEASE CHECK YOUR CHANGES !!!"
           rm -f ${BASEPATH}/src/python/llm_datadist/llm_datadist/*.so
           exit 1;
       fi
       rm -f ${BASEPATH}/src/python/llm_datadist/llm_datadist/*.so
-      unset LD_PRELOAD
+
+      if [[ "X$ENABLE_ASAN" = "XON" ]]; then
+        unset LD_PRELOAD
+      fi
       export PYTHONPATH=${PYTHON_ORIGINAL_PATH}
   fi
 
-  if [[ "X$CMAKE_BUILD_TYPE" = "XGCOV" ]]; then
+  if [[ "X$ENABLE_GCOV" = "XON" ]]; then
       echo "Generating coverage statistics, please wait..."
       cd ${BASEPATH}
       rm -rf ${BASEPATH}/cov
       mk_dir ${BASEPATH}/cov
-      if [[ "X$ENABLE_CPP_TEST" = "Xon" ]]; then
+      if [[ "X$ENABLE_CPP_TEST" = "XON" ]]; then
           lcov -c -d ${BUILD_PATH}/tests/cpp/llm_datadist/CMakeFiles/llm_datadist_test.dir \
                   -d ${BUILD_PATH}/tests/depends/python/CMakeFiles/llm_datadist_wrapper_stub.dir \
                   -d ${BUILD_PATH}/tests/depends/python/CMakeFiles/metadef_wrapper_stub.dir \
@@ -206,7 +225,7 @@ run() {
           genhtml coverage.info
       fi
 
-      if [[ "X$ENABLE_PY_TEST" = "Xon" ]]; then
+      if [[ "X$ENABLE_PY_TEST" = "XON" ]]; then
           mv ${BUILD_PATH}/.coverage ${BASEPATH}/cov/
           cd ${BASEPATH}/cov
           coverage html -i --include="${BASEPATH}/src/*"

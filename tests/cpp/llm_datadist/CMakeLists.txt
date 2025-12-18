@@ -70,7 +70,7 @@ target_include_directories(llm_datadist_test PRIVATE
 set_target_properties(llm_datadist_test PROPERTIES CXX_STANDARD 17)
 
 target_link_libraries(llm_datadist_test
-        ${COMMON_LINK_OPTION}
+        ${DT_COMMON_LINK_OPTION}
         c_sec
         mmpa_headers
         hccl_headers

@@ -34,6 +34,7 @@ DOCKER_ROOT=""
 INTPUT_INSTALL_FOR_ALL="n"
 IS_RECREATE_SOFTLINK="n"
 INCREMENT="n"
+USE_SHARE_INFO="n"
 
 while true
 do
@@ -82,6 +83,10 @@ do
         ;;
     --increment)
         INCREMENT="y"
+        shift 1
+        ;;
+    --use-share-info)
+        USE_SHARE_INFO="y"
         shift 1
         ;;
     -*)

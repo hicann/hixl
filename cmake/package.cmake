@@ -30,7 +30,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/third_party/makeself-fetch.cmake)
 
 set(script_prefix ${CMAKE_CURRENT_SOURCE_DIR}/scripts/package/hixl/scripts)
 install(DIRECTORY ${script_prefix}/
-    DESTINATION hixl/script
+    DESTINATION share/info/hixl/script
     FILE_PERMISSIONS
     OWNER_READ OWNER_WRITE OWNER_EXECUTE  # 文件权限
     GROUP_READ GROUP_EXECUTE
@@ -50,7 +50,7 @@ set(SCRIPTS_FILES
 )
 
 install(FILES ${SCRIPTS_FILES}
-    DESTINATION hixl/script
+    DESTINATION share/info/hixl/script
 )
 set(COMMON_FILES
     ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/install_common_parser.sh
@@ -74,13 +74,13 @@ set(CONF_FILES
     ${CMAKE_SOURCE_DIR}/scripts/package/common/cfg/path.cfg
 )
 install(FILES ${CMAKE_SOURCE_DIR}/version.info
-    DESTINATION .
+    DESTINATION share/info/hixl
 )
 install(FILES ${CONF_FILES}
     DESTINATION hixl/conf
 )
 install(FILES ${PACKAGE_FILES}
-    DESTINATION hixl/script
+    DESTINATION share/info/hixl/script
 )
 install(FILES ${LATEST_MANGER_FILES}
     DESTINATION latest_manager
@@ -97,7 +97,7 @@ set(BIN_FILES
     ${CMAKE_SOURCE_DIR}/scripts/package/hixl/scripts/setenv.fish
 )
 install(FILES ${BIN_FILES}
-    DESTINATION hixl/bin
+    DESTINATION share/info/hixl/bin
 )
 
 set(hixl_include ${CMAKE_SOURCE_DIR}/include)

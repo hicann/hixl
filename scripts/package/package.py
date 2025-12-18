@@ -237,7 +237,7 @@ def parse_install_info(infos: List,
     """根据配置解析生成安装信息。"""
     for target_config in infos:
         target_name = get_target_name(target_config)
-        if target_config.get("optional") == 'true':
+        if target_config.get("optional") == 'true' and operate_type in ('copy', 'move'):
             path = os.path.join(TOP_DIR, DELIVERY_PATH, target_config.get('dst_path'))
             vaule = os.path.join(TOP_DIR, DELIVERY_PATH, target_config.get('dst_path'), target_name)
             if not os.path.exists(path):
@@ -508,8 +508,7 @@ def generate_filelist_file_by_xml_config(xml_config: XmlConfig,
     )
     generate_filelist(file_install_list, 'filelist.csv')
     # 先生成再检查，有利于问题定位
-    if package_check:
-        check_filelist(file_install_list, check_features, check_move)
+    check_filelist(file_install_list, check_features, check_move)
 
 
 def get_pkg_xml_relative_path(pkg_args: Namespace) -> str:

@@ -14,59 +14,58 @@
         <product_name>cann</product_name>
         <func_name>hixl</func_name>
         <suffix>run</suffix>
-        <install_script>hixl/script/install.sh</install_script>
-        <help>hixl/script/help.info</help>
+        <install_script>share/info/hixl/script/install.sh</install_script>
+        <help>share/info/hixl/script/help.info</help>
         <version>package/hixl/version.xml</version>
-        <cleanup>hixl/script/cleanup.sh</cleanup>
+        <cleanup>share/info/hixl/script/cleanup.sh</cleanup>
         <parallel>true</parallel>
-        <check_features>true</check_features>
     </package_info>
     <generate_info value="hixl_version.h" dst_path="hixl" install_path="$(TARGET_ENV)/include/version" install_mod="440" install_type="devel" generator="version_header">
-        <HIXL_VERSION>$(VERSION_DIR)</HIXL_VERSION>
+        <HIXL_VERSION>$(ASCEND_VER)</HIXL_VERSION>
         <HIXL_TIMESTAMP>$(TIMESTAMP_NO)</HIXL_TIMESTAMP>
     </generate_info>
-    <generate_info value="scene.info" dst_path="hixl" install_path="hixl" install_mod="440">
+    <generate_info value="scene.info" dst_path="share/info/hixl" install_path="share/info/hixl" install_mod="440">
         <os>$(OS_NAME)</os>
         <os_version>$(OS_VER)</os_version>
         <arch>$(ARCH)</arch>
     </generate_info>
     <version_info install="true" install_path="hixl" install_own="$username:$usergroup" install_mod="440"/>
-    <file_info value="hixl_script" copy_type="source" src_path="" dst_path="hixl" install_path="hixl">
+    <file_info value="hixl_script" copy_type="source" src_path="" dst_path="share/info/hixl" install_path="share/info/hixl">
         <file value="script" entity="true"/>
         <file value="bin" entity="true"/>
-        <file value="version.info" dst_path="."/>
+        <file value="version.info" dst_path="share/info/hixl"/>
     </file_info>
     <file_info copy_type="source" src_path="" dst_path="hixl/include" install_path="$(TARGET_ENV)/include" install_type="all">
-        <file value="adxl" install_mod="550" entity="true" pkg_inner_softlink="hixl/include/adxl"/>
-        <file value="hixl" install_mod="550" entity="true" pkg_inner_softlink="hixl/include/hixl"/>
+        <file value="adxl" install_mod="550" entity="true" />
+        <file value="hixl" install_mod="550" entity="true" />
     </file_info>
     <file_info copy_type="source" src_path="" dst_path="hixl/include/llm_datadist" install_path="$(TARGET_ENV)/include/llm_datadist" install_type="all">
-        <file value="llm_datadist.h" install_mod="550" entity="true" pkg_inner_softlink="hixl/include/llm_datadist/llm_datadist.h"/>
+        <file value="llm_datadist.h" install_mod="550" entity="true" />
     </file_info>
     <file_info copy_type="source" src_path="" dst_path="hixl/include/llm_datadist" install_path="$(TARGET_ENV)/include/ge" install_type="all">
-        <file value="llm_engine_types.h" install_mod="550" entity="true" pkg_inner_softlink="hixl/include/ge/llm_engine_types.h"/>
-        <file value="llm_error_codes.h" install_mod="550" entity="true" pkg_inner_softlink="hixl/include/ge/llm_error_codes.h"/>
+        <file value="llm_engine_types.h" install_mod="550" entity="true" />
+        <file value="llm_error_codes.h" install_mod="550" entity="true" />
     </file_info>
     <file_info value="hixl_lib" copy_type="delivery" src_path="" dst_path="hixl/lib" install_path="$(TARGET_ENV)/lib64" install_mod="440">
-        <file value="libllm_datadist.so" file_type="shared" pkg_inner_softlink="hixl/lib64/libllm_datadist.so"/>
-        <file value="libcann_hixl.so" file_type="shared" pkg_inner_softlink="hixl/lib64/libcann_hixl.so"/>
+        <file value="libllm_datadist.so" file_type="shared" />
+        <file value="libcann_hixl.so" file_type="shared" />
     </file_info>
     <block_info dependtree="false" dst_path="hixl" block_conf_path="ascend">
         <block name="EngineeringCommon"/>
         <block name="EngineeringFiles"/>
     </block_info>
     <dir_info value="hixl" install_path="hixl" install_mod="550" install_type="all">
-        <path value="hixl" install_mod="750"/>
-        <path value="hixl/script"/>
-        <path value="hixl/bin"/>
-        <path value="hixl/lib64"/>
-        <path value="hixl/include"/>
-        <path value="hixl/include/llm_datadist"/>
-        <path value="hixl/include/ge"/>
+        <path value="share" install_mod="550"/>
+        <path value="share/info" install_mod="750"/>
+        <path value="share/info/hixl" install_mod="750"/>
+        <path value="share/info/hixl/script"/>
+        <path value="share/info/hixl/bin"/>
     </dir_info>
     <dir_info value="hixl" install_path="" install_mod="550" install_type="all">
         <path value="$(TARGET_ENV)/include"/>
         <path value="$(TARGET_ENV)/include/llm_datadist"/>
         <path value="$(TARGET_ENV)/include/ge"/>
+        <path value="$(TARGET_ENV)/include/adxl"/>
+        <path value="$(TARGET_ENV)/include/hixl"/>
     </dir_info>
 </config>

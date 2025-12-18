@@ -15,6 +15,8 @@ set(CMAKE_CXX_STANDARD 17)
 option(ENABLE_TEST "Enable test" OFF)
 option(ENABLE_EXAMPLES "Enable examples" OFF)
 option(ENABLE_BENCHMARKS "Enable benchmarks" OFF)
+option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
+option(ENABLE_GCOV "Enable Coverage" OFF)
 
 include(cmake/variables.cmake)
 include(cmake/dependencies.cmake)

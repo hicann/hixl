@@ -30,7 +30,7 @@ target_link_libraries(llm_datadist_wrapper_stub PRIVATE
         runtime_headers
         llm_datadist_base
         -Wl,-as-needed
-        ${COMMON_LINK_OPTION}
+        ${DT_COMMON_LINK_OPTION}
 )
 
 set_target_properties(llm_datadist_wrapper_stub
@@ -58,7 +58,7 @@ target_include_directories(metadef_wrapper_stub PRIVATE
 target_link_libraries(metadef_wrapper_stub PRIVATE
         intf_pub
         metadef_headers
-        ${COMMON_LINK_OPTION}
+        ${DT_COMMON_LINK_OPTION}
 )
 
 set_target_properties(metadef_wrapper_stub

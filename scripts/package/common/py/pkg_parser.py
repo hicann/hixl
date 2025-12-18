@@ -322,6 +322,14 @@ def get_cann_version(version_dir: str) -> str:
             int(matched.group(1)), int(matched.group(2)), None, None, None, None
         )
 
+    beta_pattern = re.compile(r'(\d+)\.(\d+)\.(\d+)\-[a-z]*\.(\d+)', re.IGNORECASE)
+    matched = beta_pattern.fullmatch(version_dir)
+    if matched:
+        return render_cann_version(
+            int(matched.group(1)), int(matched.group(2)), int(matched.group(3)), None, None,
+            int(matched.group(4))
+        )
+
     raise IllegalVersionDir(version_dir)
 
 
@@ -357,6 +365,7 @@ def get_env_items_by_version(version: Optional[str]) -> Iterator[Tuple[str, str]
     """根据version获取环境字典条目。"""
     if version:
         yield 'ASCEND_VER', version
+        yield 'VERSION', version
 
         version_parts = version.split('.')
         for idx in range(1, len(version_parts) + 1):
@@ -583,13 +592,7 @@ def evaluate_info(info: Dict[str, str],
 
     def replace_pkg_inner_softlink(key: str, value: str) -> Tuple[str, str]:
         if key == 'pkg_inner_softlink':
-            inner_softlink_new = [
-                join_pkg_inner_softlink(link_str.split(':'))
-                for link_str in value.split(';')
-                if ':' not in link_str or link_str.split(':')[0] == loaded_block.dst_path
-            ]
-            if inner_softlink_new:
-                return key, ';'.join(inner_softlink_new)
+            # 禁用pkg_inner_softlink
             return key, 'NA'
         return key, value
 
@@ -1028,7 +1031,7 @@ def read_version_info() -> Tuple[str, str]:
         line2 = file.readline().strip()
     version = line1.split("=")[1]
     version_dir = line2.split("=")[1]
-    m = re.match(r'[.a-zA-Z0-9]+$', version)
+    m = re.match(r'[.a-zA-Z0-9]+$', version) or re.match(r'[-a-zA-Z.0-9]+$', version)
     if not m:
         raise VersionFormatNotMatch()
     

@@ -20,6 +20,10 @@ target_compile_options(intf_pub_base INTERFACE
     -Wall
     -fPIC
     $<IF:$<STREQUAL:${CMAKE_SYSTEM_NAME},centos>,-fstack-protector-all,-fstack-protector-strong>
+    $<$<BOOL:${ENABLE_ASAN}>:-fsanitize=address -fsanitize=leak -fsanitize-recover=address,all 
+    -fno-stack-protector -fno-omit-frame-pointer -g>
+    $<$<BOOL:${ENABLE_GCOV}>:--coverage -fprofile-arcs -ftest-coverage>
+    ${ADDED_COMPILE_OPTIONS}
 )
 
 target_compile_definitions(intf_pub_base INTERFACE
@@ -35,10 +39,14 @@ target_link_options(intf_pub_base INTERFACE
     -Wl,-z,now
     -Wl,-z,noexecstack
     $<$<CONFIG:Release>:-Wl,--build-id=none>
+    $<$<CONFIG:Release>:-s>
+    $<$<BOOL:${ENABLE_ASAN}>:-fsanitize=address -fsanitize=leak -fsanitize-recover=address>
+    $<$<BOOL:${ENABLE_GCOV}>:--coverage -fprofile-arcs -ftest-coverage>
 )
 
 target_link_libraries(intf_pub_base INTERFACE
     -lpthread
+    $<$<BOOL:${ENABLE_GCOV}>:-lrt -ldl -lgcov>
 )
 
 ########## intf_pub ##########
@@ -84,6 +92,9 @@ target_compile_options(intf_pub_cxx17 INTERFACE
 target_link_libraries(intf_pub_cxx17 INTERFACE
     $<BUILD_INTERFACE:intf_pub_base>
 )
+
+string(REGEX REPLACE "-O3" "-O2" CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE})
+string(REGEX REPLACE "-O3" "-O2" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
 
 ########## ccache ##########
 find_program(CCACHE_FOUND ccache)

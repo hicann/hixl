@@ -13,16 +13,8 @@ set CURFILE=`readlink -f ${1}`
 set CURPATH=`dirname ${CURFILE}`
 
 set install_info="$CURPATH/../ascend_install.info"
-set hetero_arch=`grep -i "HIXL_Hetero_Arch_Flag=" "$install_info" | cut --only-delimited -d"=" -f2`
-if ( "$2" == "multi_version" ) then
-    if ( "$hetero_arch" == "y" ) then
-        set INSTALL_DIR="`realpath ${CURPATH}/../../../../../latest`/hixl"
-    else
-        set INSTALL_DIR="`realpath ${CURPATH}/../../../latest`/hixl"
-    endif
-else
-    set INSTALL_DIR="`realpath ${CURPATH}/..`"
-endif
+set install_path=`grep -i "HIXL_Install_Path_Param=" "$install_info" | cut --only-delimited -d"=" -f2`
+set INSTALL_DIR="`realpath ${install_path}/cann`"
 
 set lib_path="${INSTALL_DIR}/python/site-packages/"
 if ( -d "${lib_path}" ) then
@@ -49,24 +41,9 @@ if ( -d "${library_path}" ) then
     set num=`echo ":${ld_library_path}:" | grep ":${library_path}:" | wc -l`
     if ( "$num" == 0 ) then
         if ( "-${ld_library_path}" == "-" ) then
-            setenv LD_LIBRARY_PATH "${library_path}:${library_path}/plugin/opskernel:${library_path}/plugin/nnengine:${library_path}/stub"
+            setenv LD_LIBRARY_PATH "${library_path}"
         else
-            setenv LD_LIBRARY_PATH "${library_path}:${library_path}/plugin/opskernel:${library_path}/plugin/nnengine:${ld_library_path}:${library_path}/stub"
+            setenv LD_LIBRARY_PATH "${ld_library_path}:${library_path}"
         endif
     endif
-endif
-
-set custom_path_file="$INSTALL_DIR/../conf/path.cfg"
-set common_interface="$INSTALL_DIR/script/common_interface.csh"
-set owner="`stat -c %U $CURFILE`"
-if ( "`id -u`" != 0 && "`id -un`" != "$owner" && -f "$custom_path_file" && -f "$common_interface" ) then
-    csh -f "$common_interface" mk_custom_path "$custom_path_file"
-    foreach dir_name ("conf" "data")
-        set dst_dir="`grep -w "$dir_name" "$custom_path_file" | cut --only-delimited -d"=" -f2-`"
-        set dst_dir="`eval echo $dst_dir`"
-        if ( -d "$INSTALL_DIR/$dir_name" && -d "$dst_dir" ) then
-            chmod -R u+w $dst_dir/* >& /dev/null
-            cp -rfL $INSTALL_DIR/$dir_name/* "$dst_dir"
-        endif
-    end
 endif

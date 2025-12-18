@@ -109,12 +109,13 @@ recreate_common_stub_softlink() {
 whl_uninstall_package() {
     local _module="$1"
     local _module_apth="$2"
-    if [ ! -d "${WHL_INSTALL_DIR_PATH}/${_module}" ]; then
-        pip3 show "${_module}" > /dev/null 2>&1
+    local _hixl_whl="llm_datadist"
+    if [ ! -d "${WHL_INSTALL_DIR_PATH}/${_hixl_whl}" ]; then
+        pip3 show "${_hixl_whl}" > /dev/null 2>&1
         if [ $? -ne 0 ]; then
             log "WARNING" "${_module} is not exist."
         else
-            pip3 uninstall -y "${_module}" 1> /dev/null
+            pip3 uninstall -y "${_hixl_whl}" 1> /dev/null
             local ret=$?
             if [ $ret -ne 0 ]; then
                 log "WARNING" "uninstall ${_module} failed, error code: $ret."
@@ -125,7 +126,7 @@ whl_uninstall_package() {
         fi
     else
         export PYTHONPATH="${_module_apth}"
-        pip3 uninstall -y "${_module}" > /dev/null 2>&1
+        pip3 uninstall -y "${_hixl_whl}" > /dev/null 2>&1
         local ret=$?
         if [ $ret -ne 0 ]; then
             log "WARNING" "uninstall ${_module} failed, error code: $ret."
@@ -174,24 +175,19 @@ remove_last_license() {
     fi
 }
 
-WHL_SOFTLINK_INSTALL_DIR_PATH="${common_parse_dir}/hixl/python/site-packages"
 WHL_INSTALL_DIR_PATH="${common_parse_dir}/python/site-packages"
 HIXL_NAME="hixl"
 
 custom_uninstall() {
-    if [ -z "$common_parse_dir/hixl" ]; then
+    if [ -z "$common_parse_dir/share/info/hixl" ]; then
         log "ERROR" "ERR_NO:0x0001;ERR_DES:hixl directory is empty"
         exit 1
     fi
 
     if [ "$hetero_arch" != "y" ]; then
-        local arch_name="$(get_arch_name $common_parse_dir/hixl)"
-        local ref_dir="$common_parse_dir/hixl/lib64/stub/linux/$arch_name"
-        remove_stub_softlink "$ref_dir" "$common_parse_dir/hixl/lib64/stub"
+        local arch_name="$(get_arch_name $common_parse_dir/share/info/hixl)"
     else
-        local arch_name="$(get_arch_name $common_parse_dir/hixl)"
-        local ref_dir="$common_parse_dir/hixl/lib64/stub/linux/$arch_name"
-        remove_stub_softlink "$ref_dir" "$common_parse_dir/hixl/lib64/stub"
+        local arch_name="$(get_arch_name $common_parse_dir/share/info/hixl)"
     fi
 
     if [ "$hetero_arch" != "y" ]; then
@@ -204,18 +200,16 @@ custom_uninstall() {
         log "INFO" "hixl tool uninstalled successfully!"
     fi
 
-    test -d "$WHL_SOFTLINK_INSTALL_DIR_PATH" && rm -rf "$WHL_SOFTLINK_INSTALL_DIR_PATH" > /dev/null 2>&1
-    remove_dir "${common_parse_dir}/hixl/python"
+    remove_empty_dir "${common_parse_dir}/hixl/python"
 
     if [ "$hetero_arch" != "y" ]; then
         if [ -d "${WHL_INSTALL_DIR_PATH}" ]; then
             local python_path=$(dirname "$WHL_INSTALL_DIR_PATH")
             chmod +w "${python_path}"
-            remove_last_license
         fi
 
-        remove_dir "${WHL_INSTALL_DIR_PATH}"
-        remove_dir "${common_parse_dir}/python"
+        remove_empty_dir "${WHL_INSTALL_DIR_PATH}"
+        remove_empty_dir "${common_parse_dir}/python"
     fi
 
     return 0

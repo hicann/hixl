@@ -123,7 +123,7 @@ def compose_makeself_command(params: MakeselfPkgParams) -> str:
             '--tar-extra', '--numeric-owner', '--tar-quietly'
         ],
         get_cleanup_commands(),
-        ['./', params.package_name, params.comments]
+        [params.package_name, params.comments]
     )
     
     command = ' '.join(commands)

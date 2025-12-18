@@ -57,7 +57,7 @@ target_link_libraries(llm_datadist_base PRIVATE
         mmpa_stub
         json
         msprof_headers
-        ${COMMON_LINK_OPTION}
+        ${DT_COMMON_LINK_OPTION}
 )
 
 target_compile_options(llm_datadist_base PRIVATE

@@ -27,9 +27,9 @@ get_pkg_arch_name() {
 
 get_installed_pkg_arch_name() {
     if [ "$pkg_is_multi_version" = "true" ]; then
-        local scene_info="$docker_root$input_install_path/$pkg_version_dir/hixl/scene.info"
+        local scene_info="$docker_root$input_install_path/$pkg_version_dir/share/info/hixl/scene.info"
     else
-        local scene_info="$docker_root$input_install_path/hixl/scene.info"
+        local scene_info="$docker_root$input_install_path/share/info/hixl/scene.info"
     fi
     if [ ! -f "$scene_info" ]; then
         return

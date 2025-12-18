@@ -33,19 +33,10 @@ get_install_param() {
 
 get_install_dir() {
     local install_info="$curpath/../ascend_install.info"
-    local hetero_arch=$(get_install_param "HIXL_Hetero_Arch_Flag" "${install_info}")
-    if [ "$param_mult_ver" = "multi_version" ]; then
-        if [ "$hetero_arch" = "y" ]; then
-            echo "$(realpath $curpath/../../../../../latest)/hixl"
-        else
-            echo "$(realpath $curpath/../../../latest)/hixl"
-        fi
-    else
-        echo "$(realpath $curpath/..)"
-    fi
+    get_install_param "HIXL_Install_Path_Param" "${install_info}"
 }
 
-INSTALL_DIR="$(get_install_dir)"
+INSTALL_DIR="$(get_install_dir)/cann"
 lib_path="${INSTALL_DIR}/python/site-packages/"
 if [ -d "${lib_path}" ]; then
     python_path="${PYTHONPATH}"
@@ -65,25 +56,10 @@ if [ -d "${library_path}" ]; then
     num=$(echo ":${ld_library_path}:" | grep ":${library_path}:" | wc -l)
     if [ "${num}" -eq 0 ]; then
         if [ "-${ld_library_path}" = "-" ]; then
-            export LD_LIBRARY_PATH="${library_path}:${library_path}/plugin/opskernel:${library_path}/plugin/nnengine:${library_path}/stub"
+            export LD_LIBRARY_PATH="${library_path}"
         else
-            export LD_LIBRARY_PATH="${library_path}:${library_path}/plugin/opskernel:${library_path}/plugin/nnengine:${ld_library_path}:${library_path}/stub"
+            export LD_LIBRARY_PATH="${ld_library_path}:${library_path}"
         fi
     fi
 fi
 
-custom_path_file="$INSTALL_DIR/../conf/path.cfg"
-common_interface="$INSTALL_DIR/script/common_interface.bash"
-owner=$(stat -c %U "$curfile")
-if [ $(id -u) -ne 0 ] && [ "$owner" != "$(whoami)" ] && [ -f "$custom_path_file" ] && [ -f "$common_interface" ]; then
-    . "$common_interface"
-    mk_custom_path "$custom_path_file"
-    for dir_name in "conf" "data"; do
-        dst_dir="$(grep -w "$dir_name" "$custom_path_file" | cut --only-delimited -d"=" -f2-)"
-        eval "dst_dir=$dst_dir"
-        if [ -d "$INSTALL_DIR/$dir_name" ] && [ -d "$dst_dir" ]; then
-            chmod -R u+w $dst_dir/* > /dev/null 2>&1
-            cp -rfL $INSTALL_DIR/$dir_name/* "$dst_dir"
-        fi
-    done
-fi

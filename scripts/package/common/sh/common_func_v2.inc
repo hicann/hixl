@@ -306,11 +306,15 @@ get_package_dir() {
     local _package="$2"
     local _is_under_tools _result
 
-    is_package_under_tools "_is_under_tools" "${_package}"
-    if [ "${_is_under_tools}" = "true" ]; then
-        _result="tools"
+    if [ "$USE_SHARE_INFO" = "y" ];then
+        _result="share/info"
     else
-        _result=""
+        is_package_under_tools "_is_under_tools" "${_package}"
+        if [ "${_is_under_tools}" = "true" ]; then
+            _result="tools"
+        else
+            _result=""
+        fi
     fi
     eval "${_outvar}=\"${_result}\""
 }
@@ -321,11 +325,15 @@ get_package_dirpath() {
     local _package="$2"
     local _is_under_tools _result
 
-    is_package_under_tools "_is_under_tools" "${_package}"
-    if [ "${_is_under_tools}" = "true" ]; then
-        _result="tools/${_package}"
+    if [ "$USE_SHARE_INFO" = "y" ];then
+        _result="share/info/${_package}"
     else
-        _result="${_package}"
+        is_package_under_tools "_is_under_tools" "${_package}"
+        if [ "${_is_under_tools}" = "true" ]; then
+            _result="tools/${_package}"
+        else
+            _result="${_package}"
+        fi
     fi
     eval "${_outvar}=\"${_result}\""
 }
@@ -1706,4 +1714,16 @@ all_common_dirs_blocks_in_filelist() {
 
     parse_filelist_v2 "$install_type" "all" "$filelist_path" "$feature_param" "filter_common_dirs" "" \
         | cut -d' ' -f8 | sort | uniq
+}
+
+# 是否为版本目录
+is_version_dirpath() {
+    local version_dirpath="$1"
+    if [ -d "$version_dirpath/share/info" ]; then
+        return 0
+    fi
+    if [ -f "$version_dirpath/var/ascend_package_db.info" ]; then
+        return 0
+    fi
+    return 1
 }

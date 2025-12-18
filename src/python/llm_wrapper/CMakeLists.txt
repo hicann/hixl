@@ -9,6 +9,7 @@
 # ----------------------------------------------------------------------------
 
 if (NOT ENABLE_TEST)
+    set(CMAKE_SKIP_RPATH TRUE)
     add_library(llm_datadist_wrapper MODULE
             llm_wrapper_v2.cc
             llm_datadist_v2_wrapper.cc)
@@ -41,7 +42,6 @@ if (NOT ENABLE_TEST)
     )
 
     target_compile_options(llm_datadist_wrapper PRIVATE
-            -O2
             -Xlinker -export-dynamic
     )
 
