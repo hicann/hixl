@@ -73,7 +73,8 @@ set(LATEST_MANGER_FILES
 set(CONF_FILES
     ${CMAKE_SOURCE_DIR}/scripts/package/common/cfg/path.cfg
 )
-install(FILES ${CMAKE_SOURCE_DIR}/version.info
+
+install(FILES ${HIXL_VERSION_FILE}
     DESTINATION share/info/hixl
 )
 install(FILES ${CONF_FILES}
