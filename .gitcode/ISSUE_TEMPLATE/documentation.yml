@@ -3,16 +3,12 @@ description: 如果您需要反馈文档问题，请使用此模板。
 title: "[Documentation|文档反馈]: "
 labels: ["documentation"]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        #### 在提交问题之前，请通过[搜索现有和历史issues](https://gitcode.com/cann/hixl/issues)确保该问题尚未被提出并解决。
   - type: checkboxes
     id: terms
     attributes:
-      label: 请确认以下信息：
+      label: 在您提交issue前，请确认以下信息：
       options:
-        - label: 我已经搜索过现有和历史的issues，确认这是一个新问题
+        - label: 我已经搜索过[现有和历史issues](https://gitcode.com/cann/hixl/issues)，确认这是一个新问题
           required: true
   - type: textarea
     attributes:

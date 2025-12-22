@@ -1,5 +1,5 @@
 name: 💻 Request for comments (RFC)
-description: 如果您需要实现一个新需求时，请使用此模板。
+description: 如果您需要实现一个新需求，请使用此模板。
 title: "[RFC]: "
 labels: ["RFC"]
 body:

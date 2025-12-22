@@ -3,16 +3,12 @@ description: 提交新的 HIXL 功能提案/请求。
 title: "[Feature-Request|需求反馈]: "
 labels: ["feature-request"]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        #### 在提交需求反馈之前，请通过[搜索现有和历史issues](https://gitcode.com/cann/hixl/issues)确保该需求尚未被提出。
   - type: checkboxes
     id: terms
     attributes:
-      label: 请确认以下信息：
+      label: 在您提交issue前，请确认以下信息：
       options:
-        - label: 我已经搜索过现有的issues，确认这是一个新需求
+        - label: 我已经搜索过[现有和历史issues](https://gitcode.com/cann/hixl/issues)，确认这是一个新需求
           required: true
   - type: textarea
     attributes:

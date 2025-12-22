@@ -3,16 +3,14 @@ description: 如果您需要咨询或者讨论问题，请使用此模板。
 title: "[Question|问题咨询]: "
 labels: ["question"]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        #### 在提交问题之前，请通过[搜索现有和历史问题](https://gitcode.com/cann/hixl/issues)确保该问题尚未被提出并解决。
   - type: checkboxes
     id: terms
     attributes:
-      label: 请确认以下信息：
+      label: 在您提交issue前，请确认以下信息：
       options:
-        - label: 我已经搜索过现有和历史的issues，确认这是一个新问题
+        - label: 我已经搜索过[现有和历史issues](https://gitcode.com/cann/hixl/issues)，确认这是一个新问题
+          required: true
+        - label: 我已经阅读过[常见问题定位手册](https://gitcode.com/cann/hixl/wiki/HIXL常见问题定位手册.md)，仍无法解决当前问题
           required: true
   - type: textarea
     attributes:
