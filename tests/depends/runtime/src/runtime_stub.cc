@@ -1056,8 +1056,6 @@ rtError_t rtSetProfDir(char *prof_dir) { return RT_ERROR_NONE; }
 
 rtError_t rtSetProfDirEx(const char *profDir, const char *address, const char *jobCtx) { return RT_ERROR_NONE; }
 
-rtError_t rtAiCoreMemorySizes(rtAiCoreMemorySize_t *aicore_memory_size) { return RT_ERROR_NONE; }
-
 rtError_t rtSetKernelReportCallback(rtKernelReportCallback callback) {
   rtKernelInfo rt_kernel_info = {0};
   rt_kernel_info.arg_size = 12;
