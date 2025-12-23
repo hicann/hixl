@@ -43,7 +43,7 @@
 
 3. **安装社区版CANN toolkit包**
 
-    根据实际环境，下载对应`Ascend-cann-toolkit_${cann_version}_linux-${arch}.run`包，下载链接为[CANN包社区版资源下载](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0)。
+    根据实际环境，下载对应`Ascend-cann-toolkit_${cann_version}_linux-${arch}.run`包，下载链接为[CANN包社区版资源下载](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1)。
     
     ```bash
     # 确保安装包具有可执行权限
@@ -59,7 +59,7 @@
 
    运行python样例时需安装本包，若仅编译源码或运行C++样例，则跳过本操作。
 
-    根据产品型号和环境架构，下载对应CANN kernels包，下载链接为[CANN包社区版资源下载](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0)：
+    根据产品型号和环境架构，下载对应CANN kernels包，下载链接为[CANN包社区版资源下载](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1)：
 
     - Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件：`Ascend-cann-kernels-910b_${cann_version}_linux-${arch}.run`
     - Atlas A3 训练系列产品/Atlas A3 推理系列产品：`Atlas-A3-cann-kernels_${cann_version}_linux-${arch}.run`
