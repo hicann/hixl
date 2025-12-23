@@ -89,17 +89,6 @@ install(FILES ${LATEST_MANGER_FILES}
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/scripts/package/latest_manager/scripts/
     DESTINATION latest_manager
 )
-set(BIN_FILES
-    ${CMAKE_SOURCE_DIR}/scripts/package/hixl/scripts/prereq_check.bash
-    ${CMAKE_SOURCE_DIR}/scripts/package/hixl/scripts/prereq_check.csh
-    ${CMAKE_SOURCE_DIR}/scripts/package/hixl/scripts/prereq_check.fish
-    ${CMAKE_SOURCE_DIR}/scripts/package/hixl/scripts/setenv.bash
-    ${CMAKE_SOURCE_DIR}/scripts/package/hixl/scripts/setenv.csh
-    ${CMAKE_SOURCE_DIR}/scripts/package/hixl/scripts/setenv.fish
-)
-install(FILES ${BIN_FILES}
-    DESTINATION share/info/hixl/bin
-)
 
 set(hixl_include ${CMAKE_SOURCE_DIR}/include)
 install(DIRECTORY ${hixl_include}/

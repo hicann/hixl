@@ -888,7 +888,7 @@ check_install_for_all() {
 pre_check() {
     local check_shell_path="${curpath}/../bin/prereq_check.bash"
     if [ ! -f "${check_shell_path}" ]; then
-        log "WARNING" "${check_shell_path} not exist."
+        log "INFO" "${check_shell_path} not exist."
         return 0
     fi
     if [ "x$is_quiet" = "xy" ]; then

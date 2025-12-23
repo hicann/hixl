@@ -32,7 +32,6 @@
     <version_info install="true" install_path="hixl" install_own="$username:$usergroup" install_mod="440"/>
     <file_info value="hixl_script" copy_type="source" src_path="" dst_path="share/info/hixl" install_path="share/info/hixl">
         <file value="script" entity="true"/>
-        <file value="bin" entity="true"/>
         <file value="version.info" dst_path="share/info/hixl"/>
     </file_info>
     <file_info copy_type="source" src_path="" dst_path="hixl/include" install_path="$(TARGET_ENV)/include" install_type="all">
@@ -59,7 +58,6 @@
         <path value="share/info" install_mod="750"/>
         <path value="share/info/hixl" install_mod="750"/>
         <path value="share/info/hixl/script"/>
-        <path value="share/info/hixl/bin"/>
     </dir_info>
     <dir_info value="hixl" install_path="" install_mod="550" install_type="all">
         <path value="$(TARGET_ENV)/include"/>
