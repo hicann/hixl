@@ -170,6 +170,7 @@ Status Initialize(const std::map<AscendString, AscendString> &options)
 <td class="cellrowborder" valign="top" width="13.100000000000001%" headers="mcps1.2.4.1.2 "><p id="p1078042453719"><a name="p1078042453719"></a><a name="p1078042453719"></a>可选</p>
 </td>
 <td class="cellrowborder" valign="top" width="59.36%" headers="mcps1.2.4.1.3 "><p id="p197801724143716"><a name="p197801724143716"></a><a name="p197801724143716"></a>配置本地通信资源信息，格式是json格式的字符串。仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。</p>
+<div class="note" id="note45401946203"><a name="note45401946203"></a><a name="note45401946203"></a><span class="notetitle"> 说明： </span><div class="notebody"><p id="p1753920416207"><a name="p1753920416207"></a><a name="p1753920416207"></a>该option可以不配置或配置为空串，为空将自动生成相关信息。</p>
 </div></div>
 </td>
 </tr>
@@ -510,7 +511,7 @@ Status PullKvCache(const CacheIndex &src_cache_index,
 </td>
 <td class="cellrowborder" valign="top" width="35.89%" headers="mcps1.1.4.1.2 "><p id="p161741250195212"><a name="p161741250195212"></a><a name="p161741250195212"></a>输入</p>
 </td>
-<td class="cellrowborder" valign="top" width="41.89%" headers="mcps1.1.4.1.3 "><p id="p201241217175212"><a name="p201241217175212"></a><a name="p201241217175212"></a>当前支持ext_param中src_layer_range的sencond与first的差值和dst_layer_range的sencond与first的差值一致。src_layer_range和dst_layer_range的first和second默认值都是-1，表示全部的层。取值范围都是[0, 最大可用层索引]，且first小于等于second。 最大可用层索引值的计算公式如下。</p>
+<td class="cellrowborder" valign="top" width="41.89%" headers="mcps1.1.4.1.3 "><p id="p201241217175212"><a name="p201241217175212"></a><a name="p201241217175212"></a>当前支持ext_param中src_layer_range的second与first的差值和dst_layer_range的second与first的差值一致。src_layer_range和dst_layer_range的first和second默认值都是-1，表示全部的层。取值范围都是[0, 最大可用层索引]，且first小于等于second。 最大可用层索引值的计算公式如下。</p>
 <p id="p86211532018"><a name="p86211532018"></a><a name="p86211532018"></a><strong id="b7861234132013"><a name="b7861234132013"></a><a name="b7861234132013"></a>(CacheDesc::num_tensors / KvCacheExtParam::tensor_num_per_layer) - 1</strong></p>
 <p id="p2046117207558"><a name="p2046117207558"></a><a name="p2046117207558"></a>当前支持tensor_num_per_layer取值范围是[1, 当前cache的tensor总数]，默认值为2。当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值的时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。</p>
 </td>
@@ -592,7 +593,7 @@ Status PullKvBlocks(const CacheIndex &src_cache_index,
 </td>
 <td class="cellrowborder" valign="top" width="35.89%" headers="mcps1.1.4.1.2 "><p id="p161741250195212"><a name="p161741250195212"></a><a name="p161741250195212"></a>输入</p>
 </td>
-<td class="cellrowborder" valign="top" width="41.89%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000002408009661_p201241217175212"><a name="zh-cn_topic_0000002408009661_p201241217175212"></a><a name="zh-cn_topic_0000002408009661_p201241217175212"></a>当前支持ext_param中src_layer_range的sencond与first的差值和dst_layer_range的sencond与first的差值一致。src_layer_range和dst_layer_range的first和second默认值都是-1，表示全部的层。取值范围都是[0, 最大可用层索引]，且first小于等于second。 最大可用层索引值的计算公式如下。</p>
+<td class="cellrowborder" valign="top" width="41.89%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000002408009661_p201241217175212"><a name="zh-cn_topic_0000002408009661_p201241217175212"></a><a name="zh-cn_topic_0000002408009661_p201241217175212"></a>当前支持ext_param中src_layer_range的second与first的差值和dst_layer_range的second与first的差值一致。src_layer_range和dst_layer_range的first和second默认值都是-1，表示全部的层。取值范围都是[0, 最大可用层索引]，且first小于等于second。 最大可用层索引值的计算公式如下。</p>
 <p id="zh-cn_topic_0000002408009661_p86211532018"><a name="zh-cn_topic_0000002408009661_p86211532018"></a><a name="zh-cn_topic_0000002408009661_p86211532018"></a><strong id="zh-cn_topic_0000002408009661_b7861234132013"><a name="zh-cn_topic_0000002408009661_b7861234132013"></a><a name="zh-cn_topic_0000002408009661_b7861234132013"></a>(CacheDesc::num_tensors / KvCacheExtParam::tensor_num_per_layer) - 1</strong></p>
 <p id="zh-cn_topic_0000002408009661_p2046117207558"><a name="zh-cn_topic_0000002408009661_p2046117207558"></a><a name="zh-cn_topic_0000002408009661_p2046117207558"></a>当前支持tensor_num_per_layer取值范围是[1, 当前cache的tensor总数]，默认值为2。当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值的时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。</p>
 </td>
@@ -675,7 +676,7 @@ Status PushKvCache(const Cache &src_cache,
 </td>
 <td class="cellrowborder" valign="top" width="35.89%" headers="mcps1.1.4.1.2 "><p id="p161741250195212"><a name="p161741250195212"></a><a name="p161741250195212"></a>输入</p>
 </td>
-<td class="cellrowborder" valign="top" width="41.89%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000002408009661_p201241217175212"><a name="zh-cn_topic_0000002408009661_p201241217175212"></a><a name="zh-cn_topic_0000002408009661_p201241217175212"></a>当前支持ext_param中src_layer_range的sencond与first的差值和dst_layer_range的sencond与first的差值一致。src_layer_range和dst_layer_range的first和second默认值都是-1，表示全部的层。取值范围都是[0, 最大可用层索引]，且first小于等于second。 最大可用层索引值的计算公式如下。</p>
+<td class="cellrowborder" valign="top" width="41.89%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000002408009661_p201241217175212"><a name="zh-cn_topic_0000002408009661_p201241217175212"></a><a name="zh-cn_topic_0000002408009661_p201241217175212"></a>当前支持ext_param中src_layer_range的second与first的差值和dst_layer_range的second与first的差值一致。src_layer_range和dst_layer_range的first和second默认值都是-1，表示全部的层。取值范围都是[0, 最大可用层索引]，且first小于等于second。 最大可用层索引值的计算公式如下。</p>
 <p id="zh-cn_topic_0000002408009661_p86211532018"><a name="zh-cn_topic_0000002408009661_p86211532018"></a><a name="zh-cn_topic_0000002408009661_p86211532018"></a><strong id="zh-cn_topic_0000002408009661_b7861234132013"><a name="zh-cn_topic_0000002408009661_b7861234132013"></a><a name="zh-cn_topic_0000002408009661_b7861234132013"></a>(CacheDesc::num_tensors / KvCacheExtParam::tensor_num_per_layer) - 1</strong></p>
 <p id="zh-cn_topic_0000002408009661_p2046117207558"><a name="zh-cn_topic_0000002408009661_p2046117207558"></a><a name="zh-cn_topic_0000002408009661_p2046117207558"></a>当前支持tensor_num_per_layer取值范围是[1, 当前cache的tensor总数]，默认值为2。当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值的时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。</p>
 </td>
@@ -759,7 +760,7 @@ Status PushKvBlocks(const Cache &src_cache,
 </td>
 <td class="cellrowborder" valign="top" width="35.89%" headers="mcps1.1.4.1.2 "><p id="p161741250195212"><a name="p161741250195212"></a><a name="p161741250195212"></a>输入</p>
 </td>
-<td class="cellrowborder" valign="top" width="41.89%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000002408009661_p201241217175212"><a name="zh-cn_topic_0000002408009661_p201241217175212"></a><a name="zh-cn_topic_0000002408009661_p201241217175212"></a>当前支持ext_param中src_layer_range的sencond与first的差值和dst_layer_range的sencond与first的差值一致。src_layer_range和dst_layer_range的first和second默认值都是-1，表示全部的层。取值范围都是[0, 最大可用层索引]，且first小于等于second。 最大可用层索引值的计算公式如下。</p>
+<td class="cellrowborder" valign="top" width="41.89%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000002408009661_p201241217175212"><a name="zh-cn_topic_0000002408009661_p201241217175212"></a><a name="zh-cn_topic_0000002408009661_p201241217175212"></a>当前支持ext_param中src_layer_range的second与first的差值和dst_layer_range的second与first的差值一致。src_layer_range和dst_layer_range的first和second默认值都是-1，表示全部的层。取值范围都是[0, 最大可用层索引]，且first小于等于second。 最大可用层索引值的计算公式如下。</p>
 <p id="zh-cn_topic_0000002408009661_p86211532018"><a name="zh-cn_topic_0000002408009661_p86211532018"></a><a name="zh-cn_topic_0000002408009661_p86211532018"></a><strong id="zh-cn_topic_0000002408009661_b7861234132013"><a name="zh-cn_topic_0000002408009661_b7861234132013"></a><a name="zh-cn_topic_0000002408009661_b7861234132013"></a>(CacheDesc::num_tensors / KvCacheExtParam::tensor_num_per_layer) - 1</strong></p>
 <p id="zh-cn_topic_0000002408009661_p2046117207558"><a name="zh-cn_topic_0000002408009661_p2046117207558"></a><a name="zh-cn_topic_0000002408009661_p2046117207558"></a>当前支持tensor_num_per_layer取值范围是[1, 当前cache的tensor总数]，默认值为2。当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值的时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。</p>
 </td>
