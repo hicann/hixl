@@ -78,8 +78,7 @@ def batch_get_into_multi_buffers(self, keys: List[str], all_buffer_ptrs: List[Li
 
 1. 安装CANN包，样例中场景为root用户安装与使用
 
-2. Mooncake编译安装，注意使用`-DUSE_ASCEND_DIRECT=ON` 参数启用Hixl功能；具体的编译安装步骤，参考[Mooncake 安装文档](https://github.com/kvcache-ai/Mooncake/blob/main/doc/zh/build.md)
-
+2. Mooncake编译安装，推荐使用 `v0.3.7.post2` 注意使用`-DUSE_ASCEND_DIRECT=ON` 参数启用Hixl功能；具体的编译安装步骤，参考[Mooncake 安装文档](https://github.com/kvcache-ai/Mooncake/blob/v0.3.7.post2/doc/zh/build.md)
 
 ### 执行测试用例
 
@@ -96,6 +95,10 @@ mooncake_master \
 参考`config_example.yaml`文件，配置运行时分布式集群配置以及Mooncake Store相关参数
 
 在`run.sh`中，通过`export HCCL_INTRA_ROCE_ENABLE=1 `选择传输方式为RDMA（如果设置为0，则机器内默认走hccs）
+
+注意不要同时禁用ROCE 和 PCIE，否则会有以下报错：
+
+>  [Parse] [IntraLinkType]only set HCCL_INTRA_ROCE_ENABLE, and the val is zero, pls set HCCL_INTRA_PCIE_ENABLE
 
 执行时通过在终端执行：
 
