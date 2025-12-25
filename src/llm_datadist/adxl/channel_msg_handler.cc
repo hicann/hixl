@@ -9,6 +9,7 @@
  */
 
 #include "channel_msg_handler.h"
+#include <algorithm>
 #include "nlohmann/json.hpp"
 #include "adxl/adxl_types.h"
 #include "common/rank_table_generator.h"
@@ -18,9 +19,15 @@
 #include "channel.h"
 #include "common/llm_checker.h"
 #include "common/llm_scope_guard.h"
+#include "adxl_utils.h"
+#include "control_msg_handler.h"
 
 namespace adxl {
 
+namespace {
+  constexpr int32_t kWaitRespTime = 20;
+  constexpr int32_t kCheckDisconnetPeriod = 10;
+} // namespace
 static inline void from_json(const nlohmann::json &j, AddrInfo &op_desc) {
   j.at("mem_type").get_to(op_desc.mem_type);
   j.at("start_addr").get_to(op_desc.start_addr);
@@ -176,10 +183,19 @@ Status ChannelMsgHandler::Initialize(const std::map<AscendString, AscendString> 
     LLMEVENT("start daemon success, listen on %s:%u", local_ip_.c_str(), listen_port_);
   }
   segment_table_ = segment_table;
+  if (user_config_channel_pool_) {
+    ADXL_CHK_STATUS_RET(InitChannelPool(), "Failed to Init ChannelPool.");
+  }
   return SUCCESS;
 }
 
 void ChannelMsgHandler::Finalize() {
+  if (eviction_thread_.joinable()) {
+    stop_eviction_ = true;
+    evict_cv_.notify_all();
+    eviction_thread_.join();
+  }
+  
   StopDaemon();
   std::lock_guard<std::mutex> lock(mutex_);
   for (const auto &it : handle_to_addr_) {
@@ -289,6 +305,21 @@ Status ChannelMsgHandler::CreateChannel(const ChannelInfo &channel_info, bool is
 
 Status ChannelMsgHandler::ConnectInfoProcess(const ChannelConnectInfo &peer_channel_info,
                                              int32_t timeout, bool is_client) {
+  if (user_config_channel_pool_) {
+    auto start_time = std::chrono::steady_clock::now();
+    NotifyEviction();
+    while(GetTotalChannelCount() >= max_channel_) {
+      auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - start_time).count();
+      if (elapsed >= timeout) {
+        LLMLOGE(RESOURCE_EXHAUSTED, 
+                "Failed to Connect %s after %d ms, channel resourse exhausted, adjust channel pool config to avoid", 
+                peer_channel_info.channel_id.c_str(), timeout);
+        return RESOURCE_EXHAUSTED;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(kCheckDisconnetPeriod));
+    }
+  }
   auto rank_table_generator = llm::RankTableGeneratorFactory::Create(local_comm_res_, peer_channel_info.comm_res);
   ADXL_CHK_BOOL_RET_STATUS(rank_table_generator != nullptr, PARAM_INVALID,
                            "Failed to create rank table generator.");
@@ -422,6 +453,10 @@ Status ChannelMsgHandler::Connect(const std::string &remote_engine, int32_t time
   auto channel = channel_manager_->GetChannel(ChannelType::kClient, remote_engine);
   ADXL_CHK_BOOL_RET_STATUS(channel == nullptr, ALREADY_CONNECTED,
                            "remote_engine:%s is already connected.", remote_engine.c_str());
+  return ChannelMsgHandler::DoConnect(remote_engine, timeout_in_millis);
+}
+
+Status ChannelMsgHandler::DoConnect(const std::string &remote_engine, int32_t timeout_in_millis) {
   std::string remote_ip;
   int32_t remote_port = -1;
   ADXL_CHK_STATUS_RET(ParseListenInfo(remote_engine, remote_ip, remote_port), "Failed to parse listen info");
@@ -455,7 +490,7 @@ Status ChannelMsgHandler::Connect(const std::string &remote_engine, int32_t time
                       status.error_code, status.error_message.c_str(),
                       listen_info_.c_str(), remote_engine.c_str(), timeout_in_millis);
   ADXL_CHK_STATUS_RET(ret, "Failed to process connect info, timeout:%d", timeout_in_millis);
-  channel = channel_manager_->GetChannel(ChannelType::kClient, remote_engine);
+  auto channel = channel_manager_->GetChannel(ChannelType::kClient, remote_engine);
   ADXL_CHK_BOOL_RET_STATUS(channel != nullptr, FAILED,
                            "Faield to get channel, local engine:%s, remote engine:%s, timeout:%d ms.",
                            listen_info_.c_str(), remote_engine.c_str(), timeout_in_millis);
@@ -514,6 +549,267 @@ Status ChannelMsgHandler::Disconnect(const std::string &remote_engine, int32_t t
                       listen_info_.c_str(), remote_engine.c_str(), timeout_in_millis);
   LLMEVENT("Success to disconnect, local engine:%s, remote engine:%s, timeout:%d ms.",
           listen_info_.c_str(), remote_engine.c_str(), timeout_in_millis);
+  return SUCCESS;
+}
+
+Status ChannelMsgHandler::InitChannelPool() {
+  LLMLOGI("Waterline config: max_channel=%d, high_waterline= %d, low_waterline= %d",
+          max_channel_, high_waterline_, low_waterline_);
+  ADXL_CHK_STATUS_RET(StartEvictionThread(), "Failed to start eviction thread");
+  ADXL_CHK_STATUS_RET(SetupChannelManagerCallbacks(), "Failed to setup channel manager callbacks");
+  return SUCCESS;
+}
+
+Status ChannelMsgHandler::StartEvictionThread() {
+  if (high_waterline_ > 0 && low_waterline_ > 0) {
+    stop_eviction_ = false;
+    eviction_thread_ = std::thread(
+      [this]() { 
+      EvictionLoop(); 
+    });
+    LLMLOGI("Eviction thread started with waterline: max=%d, high=%d, low=%d", 
+        max_channel_, high_waterline_, low_waterline_);
+  }
+  return SUCCESS;
+}
+
+Status ChannelMsgHandler::SetupChannelManagerCallbacks() {
+  channel_manager_->SetDisconnectCallback(
+    [this](const std::string& channel_id, int32_t timeout_ms) {
+    EvictItem item;
+    item.channel_id = channel_id;
+    auto client_channel = channel_manager_->GetChannel(ChannelType::kClient, channel_id);
+    if (client_channel != nullptr) {
+      item.channel_type = ChannelType::kClient;
+    } else {
+      LLMLOGI("Channel %s not found for disconnect", channel_id.c_str());
+      return NOT_CONNECTED;
+    }
+    item.timeout_ms = timeout_ms;
+    {
+      std::lock_guard<std::mutex> lock(evict_mutex_);
+      evict_queue_.push(item);
+    }
+    evict_cv_.notify_one();
+    return SUCCESS;
+  });
+
+  channel_manager_->SetDisconnectResponseCallback(
+    [this](const RequestDisconnectResp& resp) {
+    std::lock_guard<std::mutex> lock(pending_req_mutex_);
+    auto it = pending_disconnect_requests_.find(resp.req_id);
+    if (it != pending_disconnect_requests_.end()) {
+      it->second->resp = resp;
+      it->second->received = true;
+      it->second->cv.notify_one();
+    }
+  });
+  return SUCCESS;
+}
+
+int32_t ChannelMsgHandler::GetTotalChannelCount() const {
+  auto client_channels = channel_manager_->GetAllClientChannel();
+  auto server_channels = channel_manager_->GetAllServerChannel();
+  return static_cast<int32_t>(client_channels.size() + server_channels.size());
+}
+
+bool ChannelMsgHandler::ShouldTriggerEviction() const {
+  bool should_evict = GetTotalChannelCount() >= high_waterline_;
+  if (should_evict) {
+    LLMLOGI("Eviction triggered: current_channel_count=%d >= high_waterline=%d", 
+            GetTotalChannelCount(), high_waterline_);
+  }
+  return should_evict;
+}
+
+Status ChannelMsgHandler::NotifyEviction() {
+  if (!ShouldTriggerEviction()) {
+    return SUCCESS;
+  }
+
+  int32_t current_count = GetTotalChannelCount();
+  int32_t need_expire = current_count - low_waterline_;
+  if (need_expire <= 0) {
+    LLMLOGI("No need to evict channels: current_channel_count=%d - low_waterline=%d <= 0", 
+            current_count, low_waterline_);
+    return SUCCESS;
+  }
+
+  std::vector<EvictItem> candidates = SelectEvictionCandidates(need_expire);
+  LLMLOGI("Select %zu eviction candidates from %d total channels", 
+          candidates.size(), current_count);
+  std::lock_guard<std::mutex> lock(evict_mutex_);
+  for (const auto& item : candidates) {
+    evict_queue_.push(item);
+  }
+  evict_cv_.notify_one();
+  return SUCCESS;
+}
+
+std::vector<EvictItem> ChannelMsgHandler::SelectEvictionCandidates(int32_t need_expire) {
+  auto client_channels = channel_manager_->GetAllClientChannel();
+  auto server_channels = channel_manager_->GetAllServerChannel();
+  
+  LLMLOGI("SelectEvictionCandidates: need_expire=%d, client_channels=%zu, server_channels=%zu", 
+          need_expire, client_channels.size(), server_channels.size());
+  
+  std::sort(client_channels.begin(), client_channels.end(), 
+      [](const ChannelPtr& a, const ChannelPtr& b) {
+        if (a->GetHasTransferred() != b->GetHasTransferred()) {
+          return !a->GetHasTransferred(); 
+        }
+        return false;
+      });
+  std::vector<EvictItem> target_items;
+  target_items.reserve(need_expire);
+  auto client_it = client_channels.begin();
+  auto server_it = server_channels.begin();
+  auto client_end = client_channels.end();
+  auto server_end = server_channels.end();
+  int32_t diff = std::abs(static_cast<int32_t>(client_channels.size() - server_channels.size()));
+  int32_t pick_extra = std::min(diff, need_expire);
+  bool pick_client_first = (client_channels.size() > server_channels.size());
+
+  for(int32_t i = 0; i < pick_extra && need_expire > 0; i++) {
+    if (pick_client_first && client_it != client_end) {
+      target_items.push_back(EvictItem{(*client_it)->GetChannelId(), ChannelType::kClient});
+      (*client_it)->SetDisconnecting(true);
+      ++client_it;
+    } else if (server_it != server_end) {
+      target_items.push_back(EvictItem{(*server_it)->GetChannelId(), ChannelType::kServer});
+      (*server_it)->SetDisconnecting(true);
+      ++server_it;
+    }
+    need_expire--;
+  }
+  bool pick_client = true;
+  while(need_expire > 0 && (client_it != client_end || server_it != server_end)) {
+    if (pick_client && client_it != client_end) {
+      target_items.push_back(EvictItem{(*client_it)->GetChannelId(), ChannelType::kClient});
+      (*client_it)->SetDisconnecting(true);
+      ++client_it;
+    } else if (!pick_client && server_it != server_end) {
+      target_items.push_back(EvictItem{(*server_it)->GetChannelId(), ChannelType::kServer});
+      (*server_it)->SetDisconnecting(true);
+      ++server_it;
+    }
+    need_expire--;
+    pick_client = !pick_client;
+  }
+  
+  return target_items;
+}
+
+void ChannelMsgHandler::EvictionLoop() {
+  while (true) {
+    std::unique_lock<std::mutex> lock(evict_mutex_);
+    evict_cv_.wait(
+      lock, 
+      [this] { 
+      return stop_eviction_ || !evict_queue_.empty(); 
+    });
+    if (stop_eviction_) {
+      break;
+    }
+    
+    while (!evict_queue_.empty()) {
+      EvictItem item = evict_queue_.front();
+      evict_queue_.pop();
+      lock.unlock();
+      ProcessEviction(item);
+      lock.lock();
+    }
+    ResetAllTransferFlags();
+  }
+}
+
+Status ChannelMsgHandler::ProcessEviction(const EvictItem& item) {
+  auto channel = channel_manager_->GetChannel(item.channel_type, item.channel_id);
+  if (channel == nullptr) {
+    LLMLOGI("Skip eviction: channel %s (type:%d) not found", 
+            item.channel_id.c_str(), static_cast<int>(item.channel_type));
+    return SUCCESS;
+  }
+  
+  if (channel->GetTransferCount() > 0) {
+    LLMLOGI("Skip eviction: channel %s has unfinished transfers (count:%d)", 
+            item.channel_id.c_str(), channel->GetTransferCount());
+    return SUCCESS;
+  }
+  if (item.channel_type == ChannelType::kServer) {
+    return ProcessServerEviction(item.channel_id, channel);
+  } else {
+    return ProcessClientEviction(item.channel_id, item.timeout_ms);
+  }
+}
+
+Status ChannelMsgHandler::ProcessServerEviction(const std::string& channel_id, ChannelPtr channel) {
+  int32_t fd = channel->GetFd();
+  if (fd < 0) {
+    LLMLOGW("Channel %s has invalid fd, cannot send request disconnect", channel_id.c_str());
+    return SUCCESS;
+  }
+  uint64_t req_id = next_req_id_.fetch_add(1ULL, std::memory_order_acq_rel);
+  auto pending_req = std::make_shared<PendingDisconnectRequest>();
+  {
+    std::lock_guard<std::mutex> lock(pending_req_mutex_);
+    pending_disconnect_requests_[req_id] = pending_req;
+  }
+  RequestDisconnectMsg req_msg;
+  req_msg.channel_id = listen_info_;
+  req_msg.req_id = req_id;
+  Status ret = channel->SendControlMsg([&req_msg](int32_t fd) {
+    return ControlMsgHandler::SendMsg(fd, ControlMsgType::kRequestDisconnect, req_msg, req_msg.timeout);
+  });
+  if (ret != SUCCESS) {
+    LLMLOGW("Failed to send request disconnect for channel: %s, ret=%d", channel_id.c_str(), ret);
+    std::lock_guard<std::mutex> lock(pending_req_mutex_);
+    pending_disconnect_requests_.erase(req_id);
+    return ret;
+  }
+  LLMLOGI("Sent request disconnect to client for channel: %s, req_id=%lu", channel_id.c_str(), req_id);
+  std::unique_lock<std::mutex> lock(pending_req_mutex_);
+  bool received = pending_req->cv.wait_for(lock, std::chrono::milliseconds(kWaitRespTime), [&pending_req] {
+    return pending_req->received;
+  });
+  if (!received) {
+    pending_disconnect_requests_.erase(req_id);
+    return SUCCESS;
+  } else {
+    RequestDisconnectResp resp = pending_req->resp;
+    pending_disconnect_requests_.erase(req_id);
+    lock.unlock();
+    LLMLOGI("Client refused or failed to disconnect channel %s, error_code=%u, error_message=%s", 
+      channel_id.c_str(), resp.error_code, resp.error_message.c_str());
+    return SUCCESS;
+  }
+}
+
+Status ChannelMsgHandler::ProcessClientEviction(const std::string& channel_id, int32_t timeout_ms) {
+  Status ret = Disconnect(channel_id, timeout_ms);
+  if (ret == SUCCESS) {
+    LLMLOGI("Evicted client channel: %s", channel_id.c_str());
+  } else {
+    LLMLOGE(ret, "Failed to evict client channel: %s, ret=%d", channel_id.c_str(), ret);
+  }
+  return ret;
+}
+
+Status ChannelMsgHandler::ResetAllTransferFlags() {
+  auto client_channels = channel_manager_->GetAllClientChannel();
+  auto server_channels = channel_manager_->GetAllServerChannel();
+  for (auto& channel : client_channels) {
+    if (channel->GetTransferCount() == 0) {
+      channel->SetHasTransferred(false);
+    }
+  }
+  for (auto& channel : server_channels) {
+    if (channel->GetTransferCount() == 0) {
+      channel->SetHasTransferred(false);
+    }
+  }
+  LLMLOGI("Reset transfer flags, client=%zu, server=%zu", 
+    client_channels.size(), server_channels.size());
   return SUCCESS;
 }
 }  // namespace adxl

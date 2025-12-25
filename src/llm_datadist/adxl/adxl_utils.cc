@@ -9,10 +9,19 @@
  */
 
 #include "adxl_utils.h"
+#include <fstream>
 #include "rt_error_codes.h"
 #include "llm_datadist/llm_datadist.h"
+#include "common/llm_log.h"  // Correct include path
 
 namespace adxl {
+std::string JsonValueToString(const nlohmann::json& j) {
+  if (j.is_string()) {
+      return j.get<std::string>();
+  }
+  return j.dump();
+}
+
 Status HcclError2AdxlStatus(HcclResult ret) {
   static const std::map<HcclResult, Status> hccl2adxl = {
       {HCCL_SUCCESS, SUCCESS},
@@ -52,6 +61,29 @@ Status LLMError2AdxlStatus(ge::Status ret) {
     return it->second;
   }
   return FAILED;
+}
+
+Status LoadJsonConfig(const std::string& file_path, std::map<AscendString, AscendString>& options) {
+  try {
+    std::ifstream json_file(file_path);
+    if (!json_file.is_open()) {
+      LLMLOGE(PARAM_INVALID, "Failed to open JSON config file: %s", file_path.c_str());
+      return PARAM_INVALID;
+    }
+    nlohmann::json j;
+    json_file >> j;
+    if (j.is_object()) {
+      for (auto it = j.begin(); it != j.end(); ++it) {
+        std::string key = it.key();
+        std::string value = JsonValueToString(it.value());
+        options[AscendString(key.c_str())] = AscendString(value.c_str());
+      }
+    }
+    return SUCCESS;
+  } catch (const std::exception& e) {
+    LLMLOGE(PARAM_INVALID, "Failed to parse JSON config file %s: %s", file_path.c_str(), e.what());
+    return PARAM_INVALID;
+  }
 }
 
 bool NeedErrorLog(Status status) {

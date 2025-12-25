@@ -20,6 +20,7 @@
 #include "common/llm_scope_guard.h"
 #include "common/def_types.h"
 #include "base/err_msg.h"
+#include "control_msg_handler.h"
 
 namespace adxl {
 namespace {
@@ -84,6 +85,7 @@ Status ChannelManager::HandleEpoolEvents() {
   struct epoll_event events[kMaxEvents];
   int nfds = epoll_wait(epoll_fd_, events, kMaxEvents, kEpollWaitTimeInMillis);
   if (nfds == -1) {
+    ADXL_CHK_BOOL_RET_SPECIAL_STATUS(errno == EINTR, SUCCESS, "Get EINTR signal.");
     LLMLOGE(FAILED, "epoll_wait error: %s", strerror(errno));
     return FAILED;
   }
@@ -200,6 +202,10 @@ Status ChannelManager::HandleControlMessage(const ChannelPtr &channel) const {
       return HandleNotifyMessage(channel, msg_str);
     case ControlMsgType::kNotifyAck:
       return HandleNotifyAckMessage(channel, msg_str);
+    case ControlMsgType::kRequestDisconnect:
+      return HandleRequestDisconnectMessage(channel, msg_str);
+    case ControlMsgType::kRequestDisconnectResp:
+      return HandleRequestDisconnectRespMessage(channel, msg_str);
     default:
       LLMLOGW("Unsupported msg type: %d", static_cast<int>(msg_type));
       return SUCCESS;
@@ -228,6 +234,49 @@ Status ChannelManager::HandleBufferRespMessage(const ChannelPtr &channel, const 
   LLMLOGI("Recv buffer resp for channel:%s", channel->GetChannelId().c_str());
   if (buffer_transfer_service_ != nullptr) {
     (void)buffer_transfer_service_->PushBufferResp(channel, buffer_resp);
+  }
+  return SUCCESS;
+}
+
+Status ChannelManager::HandleRequestDisconnectMessage(const ChannelPtr &channel, const std::string &msg_str) const {
+  RequestDisconnectMsg req_msg{};
+  ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), req_msg), "Failed to deserialize RequestDisconnectMsg");
+  LLMLOGI("Recv request disconnect for channel:%s, target:%s, req_id=%lu", 
+          channel->GetChannelId().c_str(), req_msg.channel_id.c_str(), req_msg.req_id);
+  bool can_disconnect = (channel->GetTransferCount() == 0);
+  RequestDisconnectResp resp;
+  resp.channel_id = req_msg.channel_id;
+  resp.req_id = req_msg.req_id;
+  resp.can_disconnect = can_disconnect;
+  resp.disconnected = false;
+  resp.error_code = 0U;
+  resp.error_message = "";
+  if (can_disconnect && disconnect_callback_) {
+    int32_t timeout_ms = static_cast<int32_t>(req_msg.timeout);
+    Status ret = disconnect_callback_(req_msg.channel_id, timeout_ms);
+    if (ret == SUCCESS) {
+      LLMLOGI("Successfully disconnected channel %s by request", req_msg.channel_id.c_str());
+    } else {
+      resp.error_code = static_cast<uint32_t>(ret);
+      resp.error_message = "Disconnect failed";
+      LLMLOGI("Failed to disconnect channel %s by request, ret=%d", req_msg.channel_id.c_str(), ret);
+    }
+  } else if (!can_disconnect) {
+    resp.error_code = static_cast<uint32_t>(FAILED);
+    resp.error_message = "Channel is busy";
+    LLMLOGI("Channel %s is busy, cannot disconnect. transfer_count=%d, disconnecting=%d", 
+            req_msg.channel_id.c_str(), channel->GetTransferCount(), channel->IsDisconnecting());
+  } else {
+    resp.error_code = static_cast<uint32_t>(FAILED);
+    resp.error_message = "Disconnect callback not set";
+    LLMLOGI("Disconnect callback not set, cannot disconnect channel %s", req_msg.channel_id.c_str());
+  }
+  
+  Status send_ret = channel->SendControlMsg([&resp](int32_t fd) {
+    return ControlMsgHandler::SendMsg(fd, ControlMsgType::kRequestDisconnectResp, resp, kSendMsgTimeout);
+  });
+  if (send_ret != SUCCESS) {
+    LLMLOGW("Failed to send disconnect response for channel %s", req_msg.channel_id.c_str());
   }
   return SUCCESS;
 }
@@ -261,6 +310,17 @@ Status ChannelManager::HandleNotifyAckMessage(const ChannelPtr &channel, const s
   LLMLOGI("Recv notify ack from channel:%s, req_id:%lu", channel->GetChannelId().c_str(), ack_msg.req_id);
   if (notify_ack_callback_) {
     notify_ack_callback_(ack_msg.req_id);
+  }
+  return SUCCESS;
+}
+
+Status ChannelManager::HandleRequestDisconnectRespMessage(const ChannelPtr &channel, const std::string &msg_str) const {
+  RequestDisconnectResp resp{};
+  ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), resp), "Failed to deserialize RequestDisconnectResp");
+  LLMLOGI("Recv disconnect response for channel:%s, req_id=%lu, disconnected=%d", 
+          channel->GetChannelId().c_str(), resp.req_id, resp.disconnected);
+  if (disconnect_response_callback_) {
+    disconnect_response_callback_(resp);
   }
   return SUCCESS;
 }

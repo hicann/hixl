@@ -29,7 +29,8 @@ using TransferReq = void *;
 constexpr const char OPTION_RDMA_TRAFFIC_CLASS[] = "RdmaTrafficClass";
 constexpr const char OPTION_RDMA_SERVICE_LEVEL[] = "RdmaServiceLevel";
 constexpr const char OPTION_BUFFER_POOL[] = "BufferPool";
-
+constexpr const char OPTION_GLOBAL_RESOURCE_CONFIG[] = "GlobalResourceConfig";
+ 
 // status codes
 constexpr Status SUCCESS = 0U;
 constexpr Status PARAM_INVALID = 103900U;

@@ -1,0 +1,5 @@
+{
+    "channel_pool.max_channel": "abc",
+    "channel_pool.high_waterline": "0.3",
+    "channel_pool.low_waterline": "0.1"
+}

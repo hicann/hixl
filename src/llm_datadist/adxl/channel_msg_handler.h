@@ -13,9 +13,16 @@
 
 #include <map>
 #include <mutex>
+#include <queue>
+#include <thread>
+#include <atomic>
+#include <condition_variable>
+#include <optional>
+#include <chrono>
 #include "channel_manager.h"
 #include "common/msg_handler_plugin.h"
 #include "segment_table.h"
+#include "adxl_utils.h"
 
 namespace adxl {
 enum class ChannelMsgType : int32_t {
@@ -48,6 +55,18 @@ struct ChannelDisconnectInfo {
   std::string channel_id;
 };
 
+struct EvictItem {
+    std::string channel_id;
+    ChannelType channel_type;
+    int32_t timeout_ms{1000};
+};
+
+struct PendingDisconnectRequest {
+    std::condition_variable cv;
+    bool received{false};
+    RequestDisconnectResp resp;
+};
+
 class ChannelMsgHandler {
  public:
   ChannelMsgHandler(const std::string &listen_info, ChannelManager *channel_manager)
@@ -66,6 +85,26 @@ class ChannelMsgHandler {
 
   Status Connect(const std::string &remote_engine, int32_t timeout_in_millis);
   Status Disconnect(const std::string &remote_engine, int32_t timeout_in_millis);
+
+  const std::string& GetListenInfo() const { 
+    return listen_info_; 
+  }
+  
+  void SetUserChannelPoolConfig() {
+    user_config_channel_pool_ = true;
+  }
+  
+  void SetHighWaterline(const int32_t high_waterline) {
+    high_waterline_ = high_waterline;
+  }
+
+  void SetLowWaterline(const int32_t low_waterline) {
+    low_waterline_ = low_waterline;
+  }
+
+  void SetMaxChannel(const int32_t max_channel) {
+    max_channel_ = max_channel;
+  }
 
  private:
   static Status ParseListenInfo(const std::string &listen_info, std::string &listen_ip, int32_t &listen_port);
@@ -88,6 +127,34 @@ class ChannelMsgHandler {
   static Status Deserialize(const std::vector<char> &msg_str, T &msg);
   Status ParseTrafficClass(const std::map<AscendString, AscendString> &options);
   Status ParseServiceLevel(const std::map<AscendString, AscendString> &options);
+  Status DoConnect(const std::string &remote_engine, int32_t timeout_in_millis);
+  Status InitChannelPool();
+
+  int32_t GetTotalChannelCount() const;
+  bool ShouldTriggerEviction() const;
+  Status NotifyEviction();
+  Status ProcessEviction(const EvictItem& item);
+  Status ResetAllTransferFlags();
+  void EvictionLoop();
+  std::vector<EvictItem> SelectEvictionCandidates(int32_t need_expire);
+  Status StartEvictionThread();
+  Status SetupChannelManagerCallbacks();
+  
+  Status ProcessServerEviction(const std::string& channel_id, ChannelPtr channel);
+  Status ProcessClientEviction(const std::string& channel_id, int32_t timeout_ms);
+
+  int32_t max_channel_{kDefaultMaxChannel};
+  int32_t high_waterline_{0};
+  int32_t low_waterline_{0};
+
+  std::mutex evict_mutex_;
+  std::condition_variable evict_cv_;
+  std::queue<EvictItem> evict_queue_;
+  std::atomic<bool> stop_eviction_{false};
+  std::thread eviction_thread_;
+  std::mutex pending_req_mutex_;
+  std::map<uint64_t, std::shared_ptr<PendingDisconnectRequest>> pending_disconnect_requests_;
+  std::atomic<uint64_t> next_req_id_{1};
 
   std::string listen_info_;
   ChannelManager *channel_manager_;
@@ -96,6 +163,7 @@ class ChannelMsgHandler {
   int32_t listen_port_;
   llm::MsgHandlerPlugin handler_plugin_;
 
+  bool user_config_channel_pool_{false};
   std::mutex mutex_;
   std::map<MemHandle, AddrInfo> handle_to_addr_;
 

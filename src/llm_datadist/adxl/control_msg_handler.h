@@ -30,6 +30,8 @@ enum class ControlMsgType : int32_t {
   kBufferResp = 3, 
   kNotify = 4, 
   kNotifyAck = 5, 
+  kRequestDisconnect = 6,
+  kRequestDisconnectResp = 7,
   kEnd 
 };
 
@@ -148,6 +150,53 @@ inline void from_json(const nlohmann::json &j, NotifyMsg &msg) {
   j.at("req_id").get_to(msg.req_id);
   j.at("name").get_to(msg.name);
   j.at("notify_msg").get_to(msg.notify_msg);
+}
+
+struct RequestDisconnectMsg {
+  std::string channel_id;
+  uint64_t timeout{1000}; 
+  uint64_t req_id{0};
+};
+
+inline void to_json(nlohmann::json &j, const RequestDisconnectMsg &msg) {
+  j = nlohmann::json{{"channel_id", msg.channel_id}, {"timeout", msg.timeout}, {"req_id", msg.req_id}};
+}
+
+inline void from_json(const nlohmann::json &j, RequestDisconnectMsg &msg) {
+  j.at("channel_id").get_to(msg.channel_id);
+  j.at("timeout").get_to(msg.timeout);
+  if (j.contains("req_id")) {
+    j.at("req_id").get_to(msg.req_id);
+  }
+}
+
+struct RequestDisconnectResp {
+  std::string channel_id;
+  uint64_t req_id{0};
+  bool can_disconnect{false};
+  bool disconnected{false};
+  uint32_t error_code{0}; 
+  std::string error_message;
+};
+
+inline void to_json(nlohmann::json &j, const RequestDisconnectResp &resp) {
+  j = nlohmann::json{{"channel_id", resp.channel_id},
+                     {"req_id", resp.req_id},
+                     {"can_disconnect", resp.can_disconnect},
+                     {"disconnected", resp.disconnected},
+                     {"error_code", resp.error_code},
+                     {"error_message", resp.error_message}};
+}
+
+inline void from_json(const nlohmann::json &j, RequestDisconnectResp &resp) {
+  j.at("channel_id").get_to(resp.channel_id);
+  if (j.contains("req_id")) {
+    j.at("req_id").get_to(resp.req_id);
+  }
+  j.at("can_disconnect").get_to(resp.can_disconnect);
+  j.at("disconnected").get_to(resp.disconnected);
+  j.at("error_code").get_to(resp.error_code);
+  j.at("error_message").get_to(resp.error_message);
 }
 
 class ControlMsgHandler {

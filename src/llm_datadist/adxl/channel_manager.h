@@ -49,7 +49,15 @@ class ChannelManager {
   std::vector<ChannelPtr> GetAllClientChannel();
   std::vector<ChannelPtr> GetAllServerChannel();
 
-private:
+  void SetDisconnectCallback(std::function<Status(const std::string&, int32_t)> callback) {
+    disconnect_callback_ = callback;
+  }
+  
+  void SetDisconnectResponseCallback(std::function<void(const RequestDisconnectResp&)> callback) {
+    disconnect_response_callback_ = callback;
+  }
+
+ private:
   void SendHeartbeats();
   void CheckHeartbeatTimeouts();
   
@@ -79,6 +87,9 @@ private:
   
   NotifyAckCallback notify_ack_callback_;
 
+  Status HandleRequestDisconnectMessage(const ChannelPtr &channel, const std::string &msg_str) const;
+  Status HandleRequestDisconnectRespMessage(const ChannelPtr &channel, const std::string &msg_str) const;
+
   std::atomic<bool> stop_signal_{false};
 
   std::thread heartbeat_sender_;
@@ -97,6 +108,10 @@ private:
 
   std::thread msg_receiver_;
   rtContext_t rt_context_{nullptr};
+  
+  std::function<Status(const std::string&, int32_t)> disconnect_callback_;
+  std::function<void(const RequestDisconnectResp&)> 
+                disconnect_response_callback_;
 };
 }  // namespace adxl
 

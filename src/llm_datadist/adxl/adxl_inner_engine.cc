@@ -16,6 +16,7 @@
 #include "common/llm_checker.h"
 #include "statistic_manager.h"
 #include "llm_datadist_timer.h"
+#include "adxl_utils.h"
 
 namespace adxl {
 namespace {
@@ -27,10 +28,73 @@ constexpr uint64_t kDefaultBufferSize = 8U;
 constexpr const char *kDisabledPoolConfig = "0:0";
 constexpr uint64_t kNeedUseBufferThresh = 256 * 1024U;
 constexpr size_t kMemPoolNum = 2U;
+constexpr uint32_t kCheckDisconnetPeriod = 10U; // ms
+constexpr int32_t kConnectWhenTransferTimeout = 3000; // ms
 constexpr int32_t kMaxStreams = 128;
 }
+
+Status AdxlInnerEngine::ParseWaterlineRatio(const std::map<AscendString, AscendString>& json_options, 
+                                            const char* option_name, double& value) {
+  auto option_it = json_options.find(option_name);
+  if (option_it != json_options.end()) {
+    ADXL_CHK_LLM_RET(llm::LLMUtils::ToNumber(option_it->second.GetString(), value), 
+                    "Invalid %s: %s", option_name, option_it->second.GetString());
+    ADXL_CHK_BOOL_RET_STATUS(value > 0.0 && value < 1.0, PARAM_INVALID, 
+                            "Invalid %s: %.2f (must be 0~1)", option_name, value);
+  }
+  return SUCCESS;
+}
+
+Status AdxlInnerEngine::LoadGlobalResourceConfig(const std::map<AscendString, AscendString>& options) {
+  auto config_it = options.find(hixl::OPTION_GLOBAL_RESOURCE_CONFIG);
+  std::map<AscendString, AscendString> json_options;
+  if (config_it != options.end()) {
+    ADXL_CHK_STATUS_RET(LoadJsonConfig(config_it->second.GetString(), json_options), 
+                        "Failed to load JSON config from file: %s", config_it->second.GetString());
+  }
+
+  int32_t max_channel = kDefaultMaxChannel;
+  auto max_it = json_options.find(adxl::OPTION_MAX_CHANNEL);
+  if (max_it != json_options.end()) {
+    ADXL_CHK_LLM_RET(llm::LLMUtils::ToNumber(max_it->second.GetString(), max_channel), 
+                    "Invalid max_channel: %s", max_it->second.GetString());
+    ADXL_CHK_BOOL_RET_STATUS(max_channel > 0, PARAM_INVALID, "Invalid max_channel: %d (must be > 0)", max_channel);
+    ADXL_CHK_BOOL_RET_STATUS(max_channel <= kDefaultMaxChannel, PARAM_INVALID, 
+                             "Invalid max_channel: %d (must be <= %d)", max_channel, kDefaultMaxChannel);
+  }
+
+  double high_waterline_ratio = -1.0;
+  ADXL_CHK_STATUS_RET(ParseWaterlineRatio(json_options, adxl::OPTION_HIGH_WATERLINE, 
+                                          high_waterline_ratio), 
+                      "Failed to parse high_waterline");
+
+  double low_waterline_ratio = -1.0;
+  ADXL_CHK_STATUS_RET(ParseWaterlineRatio(json_options, adxl::OPTION_LOW_WATERLINE, 
+                                          low_waterline_ratio), 
+                      "Failed to parse low_waterline");
+  user_config_channel_pool_ = (high_waterline_ratio > 0.0 && high_waterline_ratio < 1.0) &&
+                              (low_waterline_ratio > 0.0 && low_waterline_ratio < 1.0);
+  if (user_config_channel_pool_) {
+    const int32_t high_waterline = std::max(static_cast<int32_t>(max_channel * high_waterline_ratio), 1);
+    const int32_t low_waterline = std::max(static_cast<int32_t>(max_channel * low_waterline_ratio), 1);
+    ADXL_CHK_BOOL_RET_STATUS(high_waterline - low_waterline >= 1, PARAM_INVALID, 
+                          "high_waterline (%.2f) must be at least 1 greater than low_waterline (%.2f) when calculated", 
+                          high_waterline_ratio, low_waterline_ratio);
+    msg_handler_.SetUserChannelPoolConfig();
+    msg_handler_.SetHighWaterline(high_waterline);
+    msg_handler_.SetLowWaterline(low_waterline);
+    msg_handler_.SetMaxChannel(max_channel);
+  } else {
+    ADXL_CHK_BOOL_RET_STATUS(max_it == json_options.end(), PARAM_INVALID, 
+                            "Max channel should be set together with high&low waterlines.");
+  }
+  return SUCCESS;
+}
+
 Status AdxlInnerEngine::Initialize(const std::map<AscendString, AscendString> &options) {
   std::lock_guard<std::mutex> lk(mutex_);
+
+  ADXL_CHK_STATUS_RET(LoadGlobalResourceConfig(options), "Failed to load global resource config.");
   ADXL_CHK_LLM_RET(llm::HcclAdapter::GetInstance().Initialize(), "HcclSoManager initialize failed.");
   int32_t device_id = -1;
   ADXL_CHK_ACL_RET(rtGetDevice(&device_id));
@@ -207,6 +271,16 @@ Status AdxlInnerEngine::DeregisterMem(MemHandle mem_handle) {
 }
 
 Status AdxlInnerEngine::Connect(const AscendString &remote_engine, int32_t timeout_in_millis) {
+  if (user_config_channel_pool_) {
+    std::lock_guard<std::mutex> lock(connection_mutex_);
+    LLMEVENT("Start to connect, local engine:%s, remote engine:%s, timeout:%d ms.",
+          local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
+    llm::TemporaryRtContext with_context(rt_context_);
+    ADXL_CHK_STATUS_RET(msg_handler_.Connect(remote_engine.GetString(), timeout_in_millis),
+                      "Failed to connect, remote engine:%s, timeout:%d ms",
+                      remote_engine.GetString(), timeout_in_millis);
+    return SUCCESS;
+  }
   LLMEVENT("Start to connect, local engine:%s, remote engine:%s, timeout:%d ms.",
           local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
   llm::TemporaryRtContext with_context(rt_context_);
@@ -271,14 +345,60 @@ Status AdxlInnerEngine::GetTransferType(const ChannelPtr &channel, TransferOp op
   return SUCCESS;
 }
 
+Status AdxlInnerEngine::ConnectWhenTransfer(const AscendString &remote_engine, int32_t timeout_in_millis) {
+  auto start_time = std::chrono::steady_clock::now();
+  ChannelPtr channel;
+  while (true) {
+    channel = channel_manager_.GetChannel(ChannelType::kClient, remote_engine.GetString());
+    if (channel == nullptr || !channel->IsDisconnecting()) {
+      break;
+    }
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+      std::chrono::steady_clock::now() - start_time).count();
+    if(elapsed >= timeout_in_millis) {
+      LLMEVENT("Channel is still disconneting after timeout, remote_engine: %s, timeout: %d", 
+                remote_engine.GetString(), timeout_in_millis);
+      return FAILED;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(kCheckDisconnetPeriod));
+  }
+  if (channel == nullptr) {
+    // Double-checked locking: first check without lock
+    std::lock_guard<std::mutex> lock(connection_mutex_);
+    // Second check with lock to avoid race conditions
+    channel = channel_manager_.GetChannel(ChannelType::kClient, remote_engine.GetString());
+    if (channel == nullptr) {
+      LLMEVENT("Start to connect, local engine:%s, remote engine:%s, timeout:%d ms.",
+          local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
+      llm::TemporaryRtContext with_context(rt_context_);
+      ADXL_CHK_STATUS_RET(msg_handler_.Connect(remote_engine.GetString(), timeout_in_millis),
+                          "Failed to connect, remote engine:%s, timeout:%d ms",
+                          remote_engine.GetString(), timeout_in_millis);
+    }
+  }
+  return SUCCESS;
+}
+
 Status AdxlInnerEngine::TransferSync(const AscendString &remote_engine,
                                      TransferOp operation,
                                      const std::vector<TransferOpDesc> &op_descs,
                                      int32_t timeout_in_millis) {
   llm::TemporaryRtContext with_context(rt_context_);
+  if (user_config_channel_pool_) {
+    (void) ConnectWhenTransfer(remote_engine, timeout_in_millis);
+  }
   auto channel = channel_manager_.GetChannel(ChannelType::kClient, remote_engine.GetString());
   ADXL_CHK_BOOL_RET_STATUS(channel != nullptr, NOT_CONNECTED,
                            "Failed to get channel, remote_engine:%s", remote_engine.GetString());
+  if (user_config_channel_pool_) {
+    channel->SetHasTransferred(true);
+    channel->IncrementTransferCount();
+  }
+  LLM_MAKE_GUARD(transfer_count_guard, ([&channel, this]() {
+    if (user_config_channel_pool_) {
+      channel->DecrementTransferCount();
+    }
+  }));
   if (buffer_transfer_service_ != nullptr) {
     const auto start = std::chrono::steady_clock::now();
     bool need_buffer = false;
@@ -305,14 +425,28 @@ Status AdxlInnerEngine::TransferAsync(const AscendString &remote_engine,
                                       const TransferArgs &optional_args,
                                       TransferReq &req) {
   llm::TemporaryRtContext with_context(rt_context_);
+  if (user_config_channel_pool_) {
+    (void) ConnectWhenTransfer(remote_engine, kConnectWhenTransferTimeout);
+  }
   auto channel = channel_manager_.GetChannel(ChannelType::kClient, remote_engine.GetString());
   ADXL_CHK_BOOL_RET_STATUS(channel != nullptr, NOT_CONNECTED,
                            "Failed to get channel, remote_engine:%s", remote_engine.GetString());
   auto id = next_req_id_.fetch_add(1);
   req = reinterpret_cast<void*>(static_cast<uintptr_t>(id));
   std::lock_guard<std::mutex> transfer_lock(channel->GetTransferMutex());
-  ADXL_CHK_STATUS_RET(channel->TransferAsync(operation, op_descs, optional_args, req),
+  if (user_config_channel_pool_) {
+    channel->SetHasTransferred(true);
+    channel->IncrementTransferCount();
+    LLM_DISMISSABLE_GUARD(transfer_count_guard, [&channel]() {
+      channel->DecrementTransferCount();
+    });
+    ADXL_CHK_STATUS_RET(channel->TransferAsync(operation, op_descs, optional_args, req),
                       "Failed to transfer async, remote_engine:%s", remote_engine.GetString());
+    LLM_DISMISS_GUARD(transfer_count_guard);
+  } else {
+    ADXL_CHK_STATUS_RET(channel->TransferAsync(operation, op_descs, optional_args, req),
+                      "Failed to transfer async, remote_engine:%s", remote_engine.GetString());
+  }
   std::lock_guard<std::mutex> lock(req2channel_mutex_);
   req2channel_[id] = remote_engine;
   return SUCCESS;
@@ -333,6 +467,9 @@ Status AdxlInnerEngine::GetTransferStatus(const TransferReq &req, TransferStatus
                            "Failed to get channel, remote_engine:%s", remote_engine.GetString());
   auto ret = channel->GetTransferStatus(req, status);
   if (status != TransferStatus::WAITING) {
+    if (user_config_channel_pool_) {
+      channel->DecrementTransferCount();
+    }
     req2channel_.erase(id);
   }
   ADXL_CHK_STATUS_RET(ret, "Failed to get transfer status, req: %llu, remote_engine:%s",

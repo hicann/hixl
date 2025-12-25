@@ -41,6 +41,7 @@ Status Channel::Initialize() {
         &channel_info_.comm_config,
         &channel_info_.comm));
   }
+  
   std::vector<void *> bind_handles;
   LLM_DISMISSABLE_GUARD(fail_guard, ([this, &bind_handles]() {
     for (auto bind_handle : bind_handles) {
@@ -116,6 +117,9 @@ Status Channel::Finalize() {
     with_heartbeat_.store(false, std::memory_order_release);
   }
   ClearNotifyMessages();
+
+  disconnect_flag_.store(false, std::memory_order_release);
+  transfer_count_.store(0, std::memory_order_release);
   return ret;
 }
 
@@ -289,6 +293,7 @@ Status Channel::SetSocketNonBlocking(int32_t fd) {
 void Channel::StopHeartbeat() {
   std::lock_guard<std::mutex> lock(mutex_);
   with_heartbeat_.store(false, std::memory_order_release);
+  disconnect_flag_.store(true, std::memory_order_release);
 }
 
 Status Channel::CommWithFd(const std::function<Status(int32_t)> &func) {
