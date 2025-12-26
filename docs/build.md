@@ -55,27 +55,25 @@
     - \$\{arch\}：表示CPU架构，如aarch64、x86_64。
     - \$\{cann\_install\_path\}：表示指定安装路径，可选，默认安装在`/usr/local/Ascend`目录，指定路径安装时，指定的路径权限需设置为755。
 
-4. **安装社区版CANN kernels包（可选）**
+4. **安装社区版CANN ops包**
 
-   运行python样例时需安装本包，若仅编译源码或运行C++样例，则跳过本操作。
+    根据产品型号和环境架构，下载对应CANN ops包，下载链接为[CANN包社区版资源下载](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1)：
 
-    根据产品型号和环境架构，下载对应CANN kernels包，下载链接为[CANN包社区版资源下载](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1)：
-
-    - Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件：`Ascend-cann-kernels-910b_${cann_version}_linux-${arch}.run`
-    - Atlas A3 训练系列产品/Atlas A3 推理系列产品：`Atlas-A3-cann-kernels_${cann_version}_linux-${arch}.run`
+    - Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件：`Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run`
+    - Atlas A3 训练系列产品/Atlas A3 推理系列产品：`Atlas-cann-910_93-ops_${cann_version}_linux-${arch}.run`
 
     ```bash
     # 确保安装包具有可执行权限
     # Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件
-    chmod +x Ascend-cann-kernels-910b_${cann_version}_linux-${arch}.run
+    chmod +x Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run
     # Atlas A3 训练系列产品/Atlas A3 推理系列产品
-    chmod +x Atlas-A3-cann-kernels_${cann_version}_linux-${arch}.run
+    chmod +x Atlas-cann-910_93-ops_${cann_version}_linux-${arch}.run
 
     # 安装命令
     # Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件
-    ./Ascend-cann-kernels-910b_${cann_version}_linux-${arch}.run --full --install-path=${cann_install_path}
+    ./Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run --install --quiet --install-path=${cann_install_path}
     # Atlas A3 训练系列产品/Atlas A3 推理系列产品
-    ./Atlas-A3-cann-kernels_${cann_version}_linux-${arch}.run --full --install-path=${cann_install_path}
+    ./Atlas-cann-910_93-ops_${cann_version}_linux-${arch}.run --install --quiet --install-path=${cann_install_path}
     ```
 
     - \$\{cann\_install\_path\}：表示指定安装路径，需要与toolkit包安装在相同路径，默认安装在`/usr/local/Ascend`目录。
