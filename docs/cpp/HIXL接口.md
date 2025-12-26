@@ -8,19 +8,19 @@
 </th>
 </tr>
 </thead>
-<tbody><tr id="row220181016240"><td class="cellrowborder" valign="top" width="57.99999999999999%" headers="mcps1.1.3.1.1 "><p id="p48327011813"><a name="p48327011813"></a><a name="p48327011813"></a><span id="ph583230201815"><a name="ph583230201815"></a><a name="ph583230201815"></a><term id="zh-cn_topic_0000001312391781_term1253731311225"><a name="zh-cn_topic_0000001312391781_term1253731311225"></a><a name="zh-cn_topic_0000001312391781_term1253731311225"></a>Ascend 910C</term></span></p>
+<tbody><tr id="row220181016240"><td class="cellrowborder" valign="top" width="57.99999999999999%" headers="mcps1.1.3.1.1 "><p id="p48327011813"><a name="p48327011813"></a><a name="p48327011813"></a><span id="ph583230201815"><a name="ph583230201815"></a><a name="ph583230201815"></a><term id="zh-cn_topic_0000001312391781_term1253731311225"><a name="zh-cn_topic_0000001312391781_term1253731311225"></a><a name="zh-cn_topic_0000001312391781_term1253731311225"></a>Atlas A3 训练系列产品/Atlas A3 推理系列产品</term></span></p>
 </td>
 <td class="cellrowborder" align="center" valign="top" width="42%" headers="mcps1.1.3.1.2 "><p id="p7948163910184"><a name="p7948163910184"></a><a name="p7948163910184"></a>√</p>
 </td>
 </tr>
-<tr id="row173226882415"><td class="cellrowborder" valign="top" width="57.99999999999999%" headers="mcps1.1.3.1.1 "><p id="p14832120181815"><a name="p14832120181815"></a><a name="p14832120181815"></a><span id="ph980713477118"><a name="ph980713477118"></a><a name="ph980713477118"></a><term id="zh-cn_topic_0000001312391781_term454024162214"><a name="zh-cn_topic_0000001312391781_term454024162214"></a><a name="zh-cn_topic_0000001312391781_term454024162214"></a>Ascend 910B</p>
+<tr id="row173226882415"><td class="cellrowborder" valign="top" width="57.99999999999999%" headers="mcps1.1.3.1.1 "><p id="p14832120181815"><a name="p14832120181815"></a><a name="p14832120181815"></a><span id="ph980713477118"><a name="ph980713477118"></a><a name="ph980713477118"></a><term id="zh-cn_topic_0000001312391781_term454024162214"><a name="zh-cn_topic_0000001312391781_term454024162214"></a><a name="zh-cn_topic_0000001312391781_term454024162214"></a>Atlas A2 训练系列产品/Atlas A2 推理系列产品</p>
 </td>
 <td class="cellrowborder" align="center" valign="top" width="42%" headers="mcps1.1.3.1.2 "><p id="p578615025316"><a name="p578615025316"></a><a name="p578615025316"></a>√</p>
 </td>
 </tr>
 </tbody>
 </table>
-说明：针对Ascend 910B，仅支持Atlas 800I A2 推理服务器、Atlas 300I A2 推理卡、A200I A2 Box 异构组件。
+说明：针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，仅支持Atlas 800I A2 推理服务器、Atlas 300I A2 推理卡、A200I A2 Box 异构组件。
 
 ## HIXL构造函数<a name="ZH-CN_TOPIC_0000002446623653"></a>
 
@@ -132,6 +132,11 @@ Status Initialize(const AscendString &local_engine, const std::map<AscendString,
 <p id="p5281042115119"><a name="p5281042115119"></a><a name="p5281042115119"></a>2. RDMA注册Host内存大小受限时。</p>
 <p id="p13281442105110"><a name="p13281442105110"></a><a name="p13281442105110"></a>3. 多个小块内存传输(例如128K)需要使用中转传输提升性能时。</p>
 <p id="p128124213518"><a name="p128124213518"></a><a name="p128124213518"></a>可使用此option配置中转内存池的大小，取值格式为"$BUFFER_NUM:$BUFFER_SIZE"，<strong id="b1906113612527"><a name="b1906113612527"></a><a name="b1906113612527"></a>系统默认会配置为"4:8(单位MB)"</strong>，可以通过配置为"0:0"来关闭中转内存池，在有并发的场景下建议增大$BUFFER_NUM个数, 另外，所有使用的地方需要配置相同的值。</p>
+<p id="p1281242135"><a name="p1281242135"></a><a name="b19061136125"></a><a name="b19061136125"></a>说明：不配置该参数时，存在如下约束。
+
+Atlas A2 训练系列产品/Atlas A2 推理系列产品：仅支持Atlas 800I A2 推理服务器、Atlas 300I A2 推理卡、A200I A2 Box 异构组件。该场景下Server采用HCCS传输协议时，仅支持D2D。
+
+Atlas A3 训练系列产品/Atlas A3 推理系列产品：该场景下采用HCCS传输协议时，不支持Host内存作为远端Cache。</p>
 </td>
 </tr>
 <tr id="row24374561993"><td class="cellrowborder" valign="top" width="27.500000000000004%" headers="mcps1.2.4.1.1 "><p id="p19842183617237"><a name="p19842183617237"></a><a name="p19842183617237"></a>OPTION_RDMA_TRAFFIC_CLASS</p>
@@ -504,7 +509,7 @@ Status TransferSync(const AscendString &remote_engine,
 </td>
 <td class="cellrowborder" valign="top" width="35.89%" headers="mcps1.1.4.1.2 "><p id="p668661720228"><a name="p668661720228"></a><a name="p668661720228"></a>输入</p>
 </td>
-<td class="cellrowborder" valign="top" width="41.89%" headers="mcps1.1.4.1.3 "><p id="p18479114414175"><a name="p18479114414175"></a><a name="p18479114414175"></a>断链的超时时间，单位：ms，默认值：1000。</p>
+<td class="cellrowborder" valign="top" width="41.89%" headers="mcps1.1.4.1.3 "><p id="p18479114414175"><a name="p18479114414175"></a><a name="p18479114414175"></a>传输的超时时间，单位：ms，默认值：1000。</p>
 </td>
 </tr>
 </tbody>
@@ -530,7 +535,7 @@ Status TransferSync(const AscendString &remote_engine,
 -   系统默认开启中转内存池，如果op\_desc内包含<256K的，则默认使用中转传输模式来提升性能，否则会通过判断是否有未注册的内存来决定走中转还是直传。
 -   在开启中转内存池情况下，op\_desc中本地内存和远端内存有一个未注册就会判断为需要走中转传输模式，且没有注册过的内存判断为Host内存，用户需保证地址合法。
 -   在中转传输模式下，所有op\_desc的传输类型需要相同，举例：所有的op\_desc都是本地Host内存往远端Host内存写。
-## TransferASync
+## TransferAsync
 **函数功能**
 
 与远端HIXL进行批量异步内存传输。
@@ -665,7 +670,11 @@ Status TransferSync(const AscendString &remote_engine,
 
 ```
   //初始化客户端和服务端engine，并完成链接
-  client_engine.TransferAsync(remote_engine, operation, op_descs, optional_args, req);
+  Status transfer_status = client_engine.TransferAsync(remote_engine, operation, op_descs, optional_args, req)；
+  //req是TransferAsync()的输出值，使用这个请求句柄进行传输状态查询
+  Status query_status = GetTransferStatus(req, status);
+  //对传输状态进行检查，判断传输是否完成
+  ...
 ```
 
 **返回值**
