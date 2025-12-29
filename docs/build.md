@@ -1,91 +1,124 @@
-# 构建
+# 源码构建
 
-## 编译
-
-### 环境准备
+## 环境准备
 本项目支持源码编译，在源码编译前，请根据如下步骤完成相关环境准备。
 
-1. **安装依赖**
+### 1. **安装依赖**
 
-   以下所列为源码编译用到的依赖，请注意版本要求。  
+请根据实际情况选择 **方式一（手动安装依赖）** 或 **方式二（使用Docker容器）** 完成相关环境准备。
 
-   - GCC >= 7.3.0
+#### 方式一: 手动安装
 
-   - Python3 3.9/3.11/3.12(当前仅支持这三个版本)
+  以下所列为源码编译用到的依赖，请注意版本要求。  
 
-   - CMake >= 3.16.0  (建议使用3.20.0版本)
-     ```shell
-     # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
-     sudo apt-get install cmake
-     ```
+  - GCC >= 7.3.0
 
-   - bash >= 5.1.16
+  - Python3 3.9/3.11/3.12(当前仅支持这三个版本)
 
-     由于测试用例开启了地址消毒，代码中执行system函数会触发低版本的bash被地址消毒检查出内存泄露。
-
-     ```shell
-     # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
-     sudo apt-get install bash
-     ```
-
-   - ccache（可选）
-
-     compile cache为编译器缓存优化工具，用于加快二次编译速度。
-
-     ```shell
-     # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
-     sudo apt-get install ccache
-     ```
-
-2. **安装驱动与固件（运行态依赖）**  
-
-    运行样例时必须安装驱动与固件，安装指导详见[《CANN软件安装指南》](https://www.hiascend.com/document/redirect/CannCommunityInstSoftware)。  
-
-3. **安装社区版CANN toolkit包**
-
-    根据实际环境，下载对应`Ascend-cann-toolkit_${cann_version}_linux-${arch}.run`包，下载链接为[CANN包社区版资源下载](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1)。
-    
-    ```bash
-    # 确保安装包具有可执行权限
-    chmod +x Ascend-cann-toolkit_${cann_version}_linux-${arch}.run
-    # 安装命令(其中--install-path为可选)
-    ./Ascend-cann-toolkit_${cann_version}_linux-${arch}.run --full --force --install-path=${cann_install_path}
-    ```
-    - \$\{cann\_version\}：表示CANN包版本号。
-    - \$\{arch\}：表示CPU架构，如aarch64、x86_64。
-    - \$\{cann\_install\_path\}：表示指定安装路径，可选，默认安装在`/usr/local/Ascend`目录，指定路径安装时，指定的路径权限需设置为755。
-
-4. **安装社区版CANN ops包**
-
-    根据产品型号和环境架构，下载对应CANN ops包，下载链接为[CANN包社区版资源下载](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1)：
-
-    - Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件：`Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run`
-    - Atlas A3 训练系列产品/Atlas A3 推理系列产品：`Atlas-cann-910_93-ops_${cann_version}_linux-${arch}.run`
-
-    ```bash
-    # 确保安装包具有可执行权限
-    # Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件
-    chmod +x Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run
-    # Atlas A3 训练系列产品/Atlas A3 推理系列产品
-    chmod +x Atlas-cann-910_93-ops_${cann_version}_linux-${arch}.run
-
-    # 安装命令
-    # Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件
-    ./Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run --install --quiet --install-path=${cann_install_path}
-    # Atlas A3 训练系列产品/Atlas A3 推理系列产品
-    ./Atlas-cann-910_93-ops_${cann_version}_linux-${arch}.run --install --quiet --install-path=${cann_install_path}
+  - CMake >= 3.16.0  (建议使用3.20.0版本)
+    ```shell
+    # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
+    sudo apt-get install cmake
     ```
 
-    - \$\{cann\_install\_path\}：表示指定安装路径，需要与toolkit包安装在相同路径，默认安装在`/usr/local/Ascend`目录。
-   
+  - bash >= 5.1.16
 
-### 源码下载
+    由于测试用例开启了地址消毒，代码中执行system函数会触发低版本的bash被地址消毒检查出内存泄露。
+
+    ```shell
+    # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
+    sudo apt-get install bash
+    ```
+
+  - ccache（可选）
+
+    compile cache为编译器缓存优化工具，用于加快二次编译速度。
+
+    ```shell
+    # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
+    sudo apt-get install ccache
+    ```
+
+#### 方式二：使用Docker容器
+
+  **配套 X86 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu20.04.05_x86:lv1_latest`
+  
+  **配套 ARM 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu20.04.05_arm:lv1_latest`
+
+  以下是推荐的使用方式，可供参考:
+
+  ```shell
+  image=${根据本地机器架构类型从上面选择配套的构建镜像地址}
+
+  # 1. 拉取配套构建镜像
+  docker pull ${image}
+  # 2. 创建容器
+  docker run --name env_for_hixl_build --cap-add SYS_PTRACE -d -it ${image} /bin/bash
+  # 3. 启动容器
+  docker start env_for_hixl_build
+  # 4. 进入容器
+  docker exec -it env_for_hixl_build /bin/bash
+  ```
+
+  > [!NOTE]说明
+  > - `--cap-add SYS_PTRACE`：创建Docker容器时添加`SYS_PTRACE`权限，以支持[本地验证](#本地验证tests)时的内存泄漏检测功能。
+  > - 更多 docker 选项介绍请通过 `docker --help` 查询。
+
+  完成后可以进入[安装CANN-Toolkit软件包](#3-安装社区版cann-toolkit包)章节。
+
+### 2. **安装驱动与固件（运行样例依赖）**  
+
+  驱动与固件为运行样例时的依赖，且必须安装。若仅编译源码或进行本地验证，可跳过此步骤。
+
+  驱动与固件的安装指导，可详见[《CANN软件安装指南》](https://www.hiascend.com/document/redirect/CannCommunityInstSoftware)。  
+
+### 3. **安装社区版CANN toolkit包**
+
+  根据实际环境，下载对应`Ascend-cann-toolkit_${cann_version}_linux-${arch}.run`包，下载链接为[CANN包社区版资源下载](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1)。
+
+  ```bash
+  # 确保安装包具有可执行权限
+  chmod +x Ascend-cann-toolkit_${cann_version}_linux-${arch}.run
+  # 安装命令(其中--install-path为可选)
+  ./Ascend-cann-toolkit_${cann_version}_linux-${arch}.run --full --force --install-path=${cann_install_path}
+  ```
+  - \$\{cann\_version\}：表示CANN包版本号。
+  - \$\{arch\}：表示CPU架构，如aarch64、x86_64。
+  - \$\{cann\_install\_path\}：表示指定安装路径，可选，默认安装在`/usr/local/Ascend`目录，指定路径安装时，指定的路径权限需设置为755。
+
+### 4. **安装社区版CANN ops包（运行样例依赖）**
+  社区版CANN ops包为运行样例时的依赖，且必须安装。若仅编译源码或进行本地验证，可跳过此步骤。
+
+  根据产品型号和环境架构，下载对应CANN ops包，下载链接为[CANN包社区版资源下载](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1)：
+
+  - Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件：`Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run`
+  - Atlas A3 训练系列产品/Atlas A3 推理系列产品：`Atlas-cann-910_93-ops_${cann_version}_linux-${arch}.run`
+
+  ```bash
+  # 确保安装包具有可执行权限
+  # Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件
+  chmod +x Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run
+  # Atlas A3 训练系列产品/Atlas A3 推理系列产品
+  chmod +x Atlas-cann-910_93-ops_${cann_version}_linux-${arch}.run
+
+  # 安装命令
+  # Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件
+  ./Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run --install --quiet --install-path=${cann_install_path}
+  # Atlas A3 训练系列产品/Atlas A3 推理系列产品
+  ./Atlas-cann-910_93-ops_${cann_version}_linux-${arch}.run --install --quiet --install-path=${cann_install_path}
+  ```
+
+  - \$\{cann\_install\_path\}：表示指定安装路径，需要与toolkit包安装在相同路径，默认安装在`/usr/local/Ascend`目录。
+
+## 源码下载
 
 开发者可通过如下命令下载本仓源码：
 ```bash
 git clone https://gitcode.com/cann/hixl.git
 ```
 - 注意：gitcode平台在使用HTTPS协议的时候要配置并使用个人访问令牌代替登录密码进行克隆，推送等操作。  
+
+## 源码编译
 
 ### 配置环境变量
 	
@@ -111,7 +144,6 @@ bash build.sh
   ```
   bash build.sh -h
   ```
-
 
 ## 本地验证(tests)
 利用tests路径下的测试用例进行本地验证:
