@@ -74,7 +74,7 @@ enum class TransferStatus {
   COMPLETED,
   TIMEOUT, //暂不支持
   FAILED
-};
+}
 ```
 
 ## NotifyDesc
@@ -85,4 +85,5 @@ Notify的描述信息。
 struct NotifyDesc {
   AscendString name;
   AscendString notify_msg;
+  }
 ```

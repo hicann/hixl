@@ -155,7 +155,28 @@ Atlas A3 训练系列产品/Atlas A3 推理系列产品：该场景下采用HCCS
 <td class="cellrowborder" valign="top" width="59.36%" headers="mcps1.2.4.1.3 "><p id="p1321144310716"><a name="p1321144310716"></a><a name="p1321144310716"></a>字符串取值"RdmaServiceLevel"。</p>
 <p id="p141217396266"><a name="p141217396266"></a><a name="p141217396266"></a>用于配置RDMA网卡的service level。和环境变量HCCL_RDMA_SL功能相同，如同时配置，当前option优先级更高；未同时配置，以配置的一方为准。</p>
 <p id="p66533506502"><a name="p66533506502"></a><a name="p66533506502"></a>取值范围为[0, 7]，默认值为4。</p>
+</td>
+</tr>
+<tr id="row92022108110"><td class="cellrowborder" valign="top" width="27.500000000000004%" headers="mcps1.2.4.1.1 "><p id="p8840153616235"><a name="p8840153616235"></a><a name="p8840153616235"></a>OPTION_GLOBAL_RESOURCE_CONFIG</p>
+</td>
+<td class="cellrowborder" valign="top" width="13.139999999999999%" headers="mcps1.2.4.1.2 "><p id="p1284014363233"><a name="p1284014363233"></a><a name="p1284014363233"></a>可选</p>
+</td>
+<td class="cellrowborder" valign="top" width="59.36%" headers="mcps1.2.4.1.3 "><p id="p1321144310716"><a name="p1321144310716"></a><a name="p1321144310716"></a>字符串取值"GlobalResourceConfig"。</p>
+<p id="p141217396266"><a name="p141217396266"></a><a name="p141217396266"></a>用于开启并配置链路池机制。该参数的作用是当调用TransferSync或者TransferAsycn接口时，如果不存在相关链路，会执行建链操作。 该参数取值需要通过*.json文件配置。配置示例为：global_resource_configs/evictor_config.json，evictor_config.json文件内容示例如下：</p>
 
+```
+{ "channel_pool.max_channel": "10", //最大的链路个数。取值范围：(0, 512]之间的整数，默认值：512 
+"channel_pool.high_waterline": "0.3", //触发链路销毁的高水位，取值范围：（0，1）之间的小数，需要和channel_pool.low_waterline同时配置
+ "channel_pool.low_waterline": "0.1" //触发链路销毁的低水位，取值范围：（0，1）之间小数，并且小于高水位 }
+```
+
+链路池工作时，实际依据链路个数判断是否进行销毁，如果当前链路个数已经达到高水位对应的链路个数，则选择（当前链路个数-低水位对应的链路个数 ）条链路进行销毁（如存在正在传输的任务，则不会销毁），再建链。相关参数计算公式如下：
+ - 高水位线对应的链路个数=max(1,static_cast<int32_t> (channel_pool.max_channel * channel_pool.high_waterline)) 
+ - 低水位线对应的链路个数=max(1,static_cast<int32_t> (channel_pool.max_channel * channel_pool.low_waterline)) 
+ 
+ 在上述配置示例中，按照计算公式，高水位对应的链路个数=3，低水位对应的链路个数=1。每次建链前会检查当前HIXL内的链路是否达到3，如果已经达到，选择(当前链路个数-1 )条链路进行销毁（如存在正在传输的任务，则不会销毁），再建链。 
+ 
+ 注意：开启链路池机制时，会给传输和建链动作带来额外的开销，可能会导致性能下降。
 
 </td>
 </tr>
@@ -530,7 +551,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 **约束说明**
 
--   调用该接口之前，需要先调用Connect接口完成与对端的建链。
+-   调用该接口之前，需要先调用Connect接口完成与对端的建链或者在HIXL初始化时开启了链路池机制（通过配置options中的OPTION_GLOBAL_RESOURCE_CONFIG参数进行开启）。
 -   该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
 -   系统默认开启中转内存池，如果op\_desc内包含<256K的，则默认使用中转传输模式来提升性能，否则会通过判断是否有未注册的内存来决定走中转还是直传。
 -   在开启中转内存池情况下，op\_desc中本地内存和远端内存有一个未注册就会判断为需要走中转传输模式，且没有注册过的内存判断为Host内存，用户需保证地址合法。
@@ -615,7 +636,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 **约束说明**
 
--   调用该接口之前，需要先调用Connect接口完成与对端的建链。
+-   调用该接口之前，需要先调用Connect接口完成与对端的建链或者在HIXL初始化时开启了链路池机制（通过配置options中的OPTION_GLOBAL_RESOURCE_CONFIG参数进行开启）。
 -   该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
 -   当前异步传输仅支持直传，暂不支持中转传输，默认直传。
 
