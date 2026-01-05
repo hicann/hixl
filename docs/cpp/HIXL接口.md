@@ -164,11 +164,12 @@ Atlas A3 训练系列产品/Atlas A3 推理系列产品：该场景下采用HCCS
 <td class="cellrowborder" valign="top" width="59.36%" headers="mcps1.2.4.1.3 "><p id="p1321144310716"><a name="p1321144310716"></a><a name="p1321144310716"></a>字符串取值"GlobalResourceConfig"。</p>
 <p id="p141217396266"><a name="p141217396266"></a><a name="p141217396266"></a>用于开启并配置链路池机制。该参数的作用是当调用TransferSync或者TransferAsycn接口时，如果不存在相关链路，会执行建链操作。 该参数取值需要通过*.json文件配置。配置示例为：global_resource_configs/evictor_config.json，evictor_config.json文件内容示例如下：</p>
 
-```
-{ "channel_pool.max_channel": "10", //最大的链路个数。取值范围：(0, 512]之间的整数，默认值：512 
+{ "channel_pool.max_channel": "10", //最大的链路个数。取值范围：(0, 512]之间的整数，默认值：512
+
 "channel_pool.high_waterline": "0.3", //触发链路销毁的高水位，取值范围：（0，1）之间的小数，需要和channel_pool.low_waterline同时配置
+
  "channel_pool.low_waterline": "0.1" //触发链路销毁的低水位，取值范围：（0，1）之间小数，并且小于高水位 }
-```
+
 
 链路池工作时，实际依据链路个数判断是否进行销毁，如果当前链路个数已经达到高水位对应的链路个数，则选择（当前链路个数-低水位对应的链路个数 ）条链路进行销毁（如存在正在传输的任务，则不会销毁），再建链。相关参数计算公式如下：
  - 高水位线对应的链路个数=max(1,static_cast<int32_t> (channel_pool.max_channel * channel_pool.high_waterline)) 
