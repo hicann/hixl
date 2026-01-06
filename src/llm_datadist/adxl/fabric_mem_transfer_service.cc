@@ -165,11 +165,12 @@ Status FabricMemTransferService::TransferAsync(const ChannelPtr &channel, Transf
   }
   // TryGetStreamOnce make sure streams is not empty.
   rtStream_t record_stream = streams[0U];
-  ADXL_CHK_STATUS_RET(DoTransfer(copy_streams, channel, operation, op_descs, real_copy_start), "Failed to transfer.");
   std::vector<AsyncResource> async_resources;
   LLM_DISMISSABLE_GUARD(fail_guard, ([this, &async_resources, &streams]() {
                           for (auto &async_resource : async_resources) {
-                            LLM_CHK_ACL(rtEventDestroy(async_resource.second));
+                            if (async_resource.second != nullptr) {
+                              LLM_CHK_ACL(rtEventDestroy(async_resource.second));
+                            }
                           }
                           std::lock_guard<std::mutex> lock(stream_pool_mutex_);
                           for (auto &stream : streams) {
@@ -180,6 +181,7 @@ Status FabricMemTransferService::TransferAsync(const ChannelPtr &channel, Transf
                             }
                           }
                         }));
+  ADXL_CHK_STATUS_RET(DoTransfer(copy_streams, channel, operation, op_descs, real_copy_start), "Failed to transfer.");
   async_resources.reserve(streams.size());
   async_resources.emplace_back(record_stream, nullptr);
   for (auto &stream : copy_streams) {
@@ -327,7 +329,9 @@ void FabricMemTransferService::RemoveChannelReqRelation(const std::string &chann
 void FabricMemTransferService::DestroyAsyncResources(const std::vector<AsyncResource> &async_resources) {
   std::lock_guard<std::mutex> stream_lock(stream_pool_mutex_);
   for (auto &async_resource : async_resources) {
-    LLM_CHK_ACL(rtEventDestroy(async_resource.second));
+    if (async_resource.second != nullptr) {
+      LLM_CHK_ACL(rtEventDestroy(async_resource.second));
+    }
     auto &stream = async_resource.first;
     LLM_CHK_ACL(rtStreamDestroy(stream));
     auto stream_it = stream_pool_.find(stream);
