@@ -10,6 +10,7 @@
 
 #include "adxl_inner_engine.h"
 #include "runtime/rt.h"
+#include "rt_error_codes.h"
 #include "hccl/hccl_adapter.h"
 #include "common/llm_utils.h"
 #include "common/llm_scope_guard.h"
@@ -439,7 +440,10 @@ Status AdxlInnerEngine::TransferSync(const AscendString &remote_engine,
   }));
   if (fabric_mem_transfer_service_ != nullptr) {
     std::lock_guard<std::mutex> transfer_lock(channel->GetTransferMutex());
-    return fabric_mem_transfer_service_->Transfer(channel, operation, op_descs, timeout_in_millis);
+    auto ret = fabric_mem_transfer_service_->Transfer(channel, operation, op_descs, timeout_in_millis);
+    ADXL_CHK_BOOL_RET_STATUS(ret != ACL_ERROR_RT_SUSPECT_REMOTE_ERROR, ACL_ERROR_RT_SUSPECT_REMOTE_ERROR,
+                             "Probably caused by temporary sdma error, please try again.");
+    return ret;
   }
   if (buffer_transfer_service_ != nullptr) {
     const auto start = std::chrono::steady_clock::now();
@@ -522,6 +526,10 @@ Status AdxlInnerEngine::GetTransferStatus(const TransferReq &req, TransferStatus
       channel->DecrementTransferCount();
     }
     req2channel_.erase(it);
+  }
+  if (fabric_mem_transfer_service_ != nullptr) {
+    ADXL_CHK_BOOL_RET_STATUS(ret != ACL_ERROR_RT_SUSPECT_REMOTE_ERROR, ACL_ERROR_RT_SUSPECT_REMOTE_ERROR,
+                             "Probably caused by temporary sdma error, please try again.");
   }
   ADXL_CHK_STATUS_RET(ret, "Failed to get transfer status, req: %llu, remote_engine:%s",
                       id, remote_engine.GetString());
