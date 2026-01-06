@@ -281,6 +281,7 @@ class RuntimeStub {
   }
 
   virtual rtError_t rtMapMem(void* devPtr, size_t size, size_t offset, rtDrvMemHandle handle, uint64_t flags) {
+    delete[] (uint8_t *)handle;
     return RT_ERROR_NONE;
   }
 
@@ -328,6 +329,27 @@ class RuntimeStub {
     return RT_ERROR_NONE;
   }
   virtual rtError_t rtGetDevice(int32_t *deviceId);
+
+  virtual rtError_t rtMemRetainAllocationHandle(void *devPtr, rtDrvMemHandle *handle) {
+    return RT_ERROR_NONE;
+  }
+
+  virtual rtError_t rtPointerGetAttributes(rtPointerAttributes_t *attributes, const void *ptr) {
+    attributes->locationType = RT_MEMORY_LOC_DEVICE;
+    return RT_ERROR_NONE;
+  }
+
+  virtual rtError_t rtMemExportToShareableHandleV2(rtDrvMemHandle handle, rtMemSharedHandleType type, uint64_t flags,
+                                                   void *shareableHandle) {
+    return RT_ERROR_NONE;
+  }
+
+  virtual rtError_t rtMemImportFromShareableHandleV2(const void *shareableHandle, rtMemSharedHandleType type,
+                                                     uint64_t flags, int32_t deviceId, rtDrvMemHandle *handle) {
+    *handle = (rtDrvMemHandle) new uint8_t[8];
+    return RT_ERROR_NONE;
+  }
+
  private:
   static std::mutex mutex_;
   static std::shared_ptr<RuntimeStub> instance_;

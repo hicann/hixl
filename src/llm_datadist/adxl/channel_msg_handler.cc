@@ -10,6 +10,7 @@
 
 #include "channel_msg_handler.h"
 #include <algorithm>
+#include <sstream>
 #include "nlohmann/json.hpp"
 #include "adxl/adxl_types.h"
 #include "common/rank_table_generator.h"
@@ -19,15 +20,23 @@
 #include "channel.h"
 #include "common/llm_checker.h"
 #include "common/llm_scope_guard.h"
+#include "common/def_types.h"
 #include "adxl_utils.h"
 #include "control_msg_handler.h"
 
 namespace adxl {
 
 namespace {
-  constexpr int32_t kWaitRespTime = 20;
-  constexpr int32_t kCheckDisconnetPeriod = 10;
-} // namespace
+constexpr int32_t kWaitRespTime = 20;
+constexpr int32_t kCheckDisconnetPeriod = 10;
+std::string GetDebugStr(rtDrvMemFabricHandle share_handle) {
+  std::stringstream ss;
+  for (auto &i : share_handle.share_info) {
+    ss << i;
+  }
+  return ss.str();
+}
+}  // namespace
 static inline void from_json(const nlohmann::json &j, AddrInfo &op_desc) {
   j.at("mem_type").get_to(op_desc.mem_type);
   j.at("start_addr").get_to(op_desc.start_addr);
@@ -39,11 +48,32 @@ static inline void to_json(nlohmann::json &j, const AddrInfo &op_desc) {
       {"mem_type", op_desc.mem_type}, {"start_addr", op_desc.start_addr}, {"end_addr", op_desc.end_addr}};
 }
 
+static void from_json(const nlohmann::json &j, ShareHandleInfo &c) {
+  j.at("va_addr").get_to(c.va_addr);
+  j.at("len").get_to(c.len);
+  const auto& share_array = j["share_handle"];
+  for (size_t i = 0; i < share_array.size(); ++i) {
+    c.share_handle.share_info[i] = share_array[i].get<uint8_t>();
+  }
+}
+
+static void to_json(nlohmann::json &j, const ShareHandleInfo &c) {
+  j = nlohmann::json{};
+  j["va_addr"] = c.va_addr;
+  j["len"] = c.len;
+  auto share_array = nlohmann::json::array();
+  for (size_t i = 0; i < sizeof(c.share_handle.share_info); ++i) {
+    share_array.push_back(c.share_handle.share_info[i]);
+  }
+  j["share_handle"] = share_array;
+}
+
 static void from_json(const nlohmann::json &j, ChannelConnectInfo &c) {
   j.at("channel_id").get_to(c.channel_id);
   j.at("comm_res").get_to(c.comm_res);
   j.at("timeout").get_to(c.timeout);
   j.at("addrs").get_to(c.addrs);
+  j.at("share_handles").get_to(c.share_handles);
 }
 
 static void to_json(nlohmann::json &j, const ChannelConnectInfo &c) {
@@ -52,6 +82,7 @@ static void to_json(nlohmann::json &j, const ChannelConnectInfo &c) {
   j["comm_res"] = c.comm_res;
   j["timeout"] = c.timeout;
   j["addrs"] = c.addrs;
+  j["share_handles"] = c.share_handles;
 }
 
 static void from_json(const nlohmann::json &j, ChannelStatus &c) {
@@ -166,7 +197,8 @@ Status ChannelMsgHandler::ParseServiceLevel(const std::map<AscendString, AscendS
   return SUCCESS;
 }
 
-Status ChannelMsgHandler::Initialize(const std::map<AscendString, AscendString> &options, SegmentTable *segment_table) {
+Status ChannelMsgHandler::Initialize(const std::map<AscendString, AscendString> &options, SegmentTable *segment_table,
+                                     FabricMemTransferService *fabric_mem_transfer_service) {
   ADXL_CHECK_NOTNULL(channel_manager_);
   ADXL_CHK_ACL_RET(rtGetDevice(&device_id_));
   ADXL_CHK_STATUS_RET(ParseListenInfo(listen_info_, local_ip_, listen_port_), "Failed to parse listen info");
@@ -183,6 +215,8 @@ Status ChannelMsgHandler::Initialize(const std::map<AscendString, AscendString> 
     LLMEVENT("start daemon success, listen on %s:%u", local_ip_.c_str(), listen_port_);
   }
   segment_table_ = segment_table;
+  enable_use_fabric_mem_ = (fabric_mem_transfer_service != nullptr);
+  fabric_mem_transfer_service_ = fabric_mem_transfer_service;
   if (user_config_channel_pool_) {
     ADXL_CHK_STATUS_RET(InitChannelPool(), "Failed to Init ChannelPool.");
   }
@@ -195,12 +229,14 @@ void ChannelMsgHandler::Finalize() {
     evict_cv_.notify_all();
     eviction_thread_.join();
   }
-  
+
   StopDaemon();
   std::lock_guard<std::mutex> lock(mutex_);
   for (const auto &it : handle_to_addr_) {
     auto handle = it.first;
-    (void) llm::HcclAdapter::GetInstance().HcclDeregisterGlobalMem(handle);
+    if (!enable_use_fabric_mem_) {
+      (void)llm::HcclAdapter::GetInstance().HcclDeregisterGlobalMem(handle);
+    }
   }
   handle_to_addr_.clear();
 }
@@ -232,13 +268,19 @@ Status ChannelMsgHandler::ParseListenInfo(const std::string &listen_info,
 }
 
 Status ChannelMsgHandler::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
-  HcclMem hccl_mem = {};
-  hccl_mem.type = type == MEM_DEVICE ? HCCL_MEM_TYPE_DEVICE : HCCL_MEM_TYPE_HOST;
-  hccl_mem.addr = reinterpret_cast<void *>(mem.addr);
-  hccl_mem.size = mem.len;
-  ADXL_CHK_HCCL_RET(llm::HcclAdapter::GetInstance().HcclRegisterGlobalMem(&hccl_mem, &mem_handle));
+  if (enable_use_fabric_mem_) {
+    ADXL_CHK_STATUS_RET(fabric_mem_transfer_service_->RegisterMem(mem, type, mem_handle), "Failed to register mem.");
+  } else {
+    HcclMem hccl_mem = {};
+    hccl_mem.type = type == MEM_DEVICE ? HCCL_MEM_TYPE_DEVICE : HCCL_MEM_TYPE_HOST;
+    hccl_mem.addr = reinterpret_cast<void *>(mem.addr);
+    hccl_mem.size = mem.len;
+    ADXL_CHK_HCCL_RET(llm::HcclAdapter::GetInstance().HcclRegisterGlobalMem(&hccl_mem, &mem_handle));
+  }
   LLMLOGI("Add local mem range start:%lu, end:%lu, type:%d.", mem.addr, mem.addr + mem.len, type);
+  // keep same lock order with DeregisterMem
   std::lock_guard<std::mutex> lock(mutex_);
+  ADXL_CHK_BOOL_RET_STATUS(segment_table_ != nullptr, FAILED, "Segment table is null.");
   segment_table_->AddRange(listen_info_, mem.addr, mem.addr + mem.len, type);
   handle_to_addr_[mem_handle] = AddrInfo{mem.addr, mem.addr + mem.len, type};
   return SUCCESS;
@@ -252,8 +294,13 @@ Status ChannelMsgHandler::DeregisterMem(MemHandle mem_handle) {
     return SUCCESS; 
   }
   auto &addr_info = it->second;
+  ADXL_CHK_BOOL_RET_STATUS(segment_table_ != nullptr, FAILED, "Segment table is null.");
   segment_table_->RemoveRange(listen_info_, addr_info.start_addr, addr_info.end_addr, addr_info.mem_type);
-  ADXL_CHK_HCCL_RET(llm::HcclAdapter::GetInstance().HcclDeregisterGlobalMem(mem_handle));
+  if (enable_use_fabric_mem_) {
+    ADXL_CHK_STATUS_RET(fabric_mem_transfer_service_->DeregisterMem(mem_handle), "Failed to Deregister mem.");
+  } else {
+    ADXL_CHK_HCCL_RET(llm::HcclAdapter::GetInstance().HcclDeregisterGlobalMem(mem_handle));
+  }
   handle_to_addr_.erase(it);
   return SUCCESS;
 }
@@ -272,7 +319,7 @@ Status ChannelMsgHandler::StopDaemon() {
 }
 
 Status ChannelMsgHandler::CreateChannel(const ChannelInfo &channel_info, bool is_client,
-                                        const std::vector<AddrInfo> &remote_addrs) {
+                                        const ChannelConnectInfo &peer_channel_info) {
   LLMLOGI("Start to create channel, channel_id:%s, local_rank:%u, peer_rank:%u, is_client:%d",
          channel_info.channel_id.c_str(), channel_info.local_rank_id,
          channel_info.peer_rank_id, static_cast<int32_t>(is_client));
@@ -285,16 +332,17 @@ Status ChannelMsgHandler::CreateChannel(const ChannelInfo &channel_info, bool is
                         channel_info.channel_id.c_str());
   }
   ChannelPtr channel = nullptr;
-  ADXL_CHK_STATUS_RET(channel_manager_->CreateChannel(channel_info, channel));
+  ADXL_CHK_STATUS_RET(channel_manager_->CreateChannel(channel_info, channel, enable_use_fabric_mem_));
   // add remote addr to segment table
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    for (const auto &remote_addr : remote_addrs) {
-      LLMLOGI("Add remote mem range start:%lu, end:%lu, type:%d.", remote_addr.start_addr, remote_addr.end_addr,
-             remote_addr.mem_type);
-      segment_table_->AddRange(channel->GetChannelId(), remote_addr.start_addr, remote_addr.end_addr,
-                               remote_addr.mem_type);
-    }
+  for (const auto &remote_addr : peer_channel_info.addrs) {
+    LLMLOGI("Add remote mem range start:%lu, end:%lu, type:%d.", remote_addr.start_addr, remote_addr.end_addr,
+            remote_addr.mem_type);
+    ADXL_CHK_BOOL_RET_STATUS(segment_table_ != nullptr, FAILED, "Segment table is null.");
+    segment_table_->AddRange(channel->GetChannelId(), remote_addr.start_addr, remote_addr.end_addr,
+                             remote_addr.mem_type);
+  }
+  if (enable_use_fabric_mem_) {
+    ADXL_CHK_STATUS_RET(fabric_mem_transfer_service_->ImportMem(channel, peer_channel_info.share_handles), "Failed to import mem.");
   }
   LLMLOGI("Success to create channel, channel_id:%s, local_rank:%u, peer_rank:%u, is_client:%d",
          channel_info.channel_id.c_str(), channel_info.local_rank_id,
@@ -351,11 +399,14 @@ Status ChannelMsgHandler::ConnectInfoProcess(const ChannelConnectInfo &peer_chan
   constexpr uint32_t kTimeInSec = 1000;
   auto left_time = timeout % kTimeInSec == 0 ? 0 : 1;
   channel_info.timeout_sec = timeout / kTimeInSec + left_time;
-  ADXL_CHK_STATUS_RET(CreateChannel(channel_info, is_client, peer_channel_info.addrs), "Failed to create channel");
+  ADXL_CHK_STATUS_RET(CreateChannel(channel_info, is_client, peer_channel_info), "Failed to create channel");
   return SUCCESS;
 }
 
 Status ChannelMsgHandler::ProcessConnectRequest(int32_t fd, const std::vector<char> &msg, bool &keep_fd) {
+  // deserialize peer connect info first.
+  ChannelConnectInfo peer_connect_info{};
+  ADXL_CHK_STATUS_RET(ChannelMsgHandler::Deserialize(msg, peer_connect_info), "Failed to deserialize connect msg");
   ChannelConnectInfo channel_connect_info = {};
   channel_connect_info.channel_id = listen_info_;
   channel_connect_info.comm_res = local_comm_res_;
@@ -365,17 +416,20 @@ Status ChannelMsgHandler::ProcessConnectRequest(int32_t fd, const std::vector<ch
       channel_connect_info.addrs.emplace_back(addr_info.second);
     }
   }
+  if (enable_use_fabric_mem_) {
+    channel_connect_info.share_handles = fabric_mem_transfer_service_->GetShareHandles();
+    for (const auto &share_handle : channel_connect_info.share_handles) {
+      LLMLOGD("Share handle: va_addr:%lu, len:%lu, share_handle:%s", share_handle.va_addr, share_handle.len,
+              GetDebugStr(share_handle.share_handle).c_str());
+    }
+  }
   ADXL_CHK_STATUS_RET(SendMsg(fd, ChannelMsgType::kConnect, channel_connect_info),
                       "Failed to send connect msg");
 
-  auto ret = FAILED;
-  ChannelConnectInfo peer_connect_info{};
-  if (ChannelMsgHandler::Deserialize(msg, peer_connect_info) == SUCCESS) {
-    LLMLOGI("Start to process connect info, local engine:%s, remote engine:%s, timeout:%d ms.",
-           listen_info_.c_str(), peer_connect_info.channel_id.c_str(), peer_connect_info.timeout);
-    peer_connect_info.comm_name = peer_connect_info.channel_id + "_" + listen_info_;
-    ret = ConnectInfoProcess(peer_connect_info, peer_connect_info.timeout, false);
-  }
+  LLMLOGI("Start to process connect info, local engine:%s, remote engine:%s, timeout:%d ms.", listen_info_.c_str(),
+          peer_connect_info.channel_id.c_str(), peer_connect_info.timeout);
+  peer_connect_info.comm_name = peer_connect_info.channel_id + "_" + listen_info_;
+  auto ret = ConnectInfoProcess(peer_connect_info, peer_connect_info.timeout, false);
   if (ret == SUCCESS) {
     LLMEVENT("Success to process connect info, local engine:%s, remote engine:%s, timeout:%d ms.", listen_info_.c_str(),
              peer_connect_info.channel_id.c_str(), peer_connect_info.timeout);
@@ -404,6 +458,9 @@ Status ChannelMsgHandler::ProcessConnectRequest(int32_t fd, const std::vector<ch
 Status ChannelMsgHandler::DisconnectInfoProcess(ChannelType channel_type,
                                                 const ChannelDisconnectInfo &peer_disconnect_info) {
   LLMLOGI("Destroy channel in disconnect process.");
+  if (enable_use_fabric_mem_) {
+    fabric_mem_transfer_service_->RemoveChannel(peer_disconnect_info.channel_id);
+  }
   return channel_manager_->DestroyChannel(channel_type, peer_disconnect_info.channel_id);
 }
 
@@ -465,7 +522,6 @@ Status ChannelMsgHandler::DoConnect(const std::string &remote_engine, int32_t ti
                                                   conn_fd, timeout_in_millis, FAILED),
                    "Failed to connect, local engine:%s, remote engine:%s, timeout:%d ms.",
                    listen_info_.c_str(), remote_engine.c_str(), timeout_in_millis);
-
   LLM_DISMISSABLE_GUARD(close_fd, ([conn_fd, this, &remote_engine]() {
     llm::MsgHandlerPlugin::Disconnect(conn_fd);
     if (channel_manager_->GetChannel(ChannelType::kClient, remote_engine) != nullptr) {
@@ -479,6 +535,10 @@ Status ChannelMsgHandler::DoConnect(const std::string &remote_engine, int32_t ti
   ADXL_CHK_STATUS_RET(SendMsg(conn_fd, ChannelMsgType::kConnect, connect_info), "Failed to send connect msg");
   ChannelConnectInfo peer_connect_info = {};
   ADXL_CHK_STATUS_RET(RecvMsg(conn_fd, ChannelMsgType::kConnect, peer_connect_info), "Failed to recv connect msg");
+  for (const auto &share_handle : peer_connect_info.share_handles) {
+    LLMLOGD("Peer share handle: va_addr:%lu, len:%lu, share_handle:%s", share_handle.va_addr, share_handle.len,
+            GetDebugStr(share_handle.share_handle).c_str());
+  }
   peer_connect_info.comm_name = listen_info_ + "_" + peer_connect_info.channel_id;
   auto ret = ConnectInfoProcess(peer_connect_info, timeout_in_millis, true);
   ChannelStatus status{};

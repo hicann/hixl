@@ -13,8 +13,16 @@
 #include "common/llm_inner_types.h"
 
 namespace adxl {
+void SegmentTable::RemoveChannel(const std::string &channel_id) {
+  std::lock_guard<std::mutex> lock(map_mutex_);
+  auto it = channel_2_segment_.find(channel_id);
+  if (it != channel_2_segment_.end()) {
+    channel_2_segment_.erase(it);
+  }
+}
 
 void SegmentTable::AddRange(const std::string &channel_id, uint64_t start, uint64_t end, MemType type) {
+  std::lock_guard<std::mutex> lock(map_mutex_);
   auto &segments = channel_2_segment_[channel_id];
   auto it = std::find_if(segments.begin(), segments.end(),
                          [type](const SegmentPtr &seg) { return seg->GetMemType() == type; });
@@ -28,6 +36,7 @@ void SegmentTable::AddRange(const std::string &channel_id, uint64_t start, uint6
 }
 
 void SegmentTable::RemoveRange(const std::string &channel_id, uint64_t start, uint64_t end, MemType type) {
+  std::lock_guard<std::mutex> lock(map_mutex_);
   auto channel_it = channel_2_segment_.find(channel_id);
   if (channel_it == channel_2_segment_.end()) {
     return;
@@ -41,6 +50,7 @@ void SegmentTable::RemoveRange(const std::string &channel_id, uint64_t start, ui
 }
 
 SegmentPtr SegmentTable::FindSegment(const std::string &channel_id, uint64_t start, uint64_t end) {
+  std::lock_guard<std::mutex> lock(map_mutex_);
   auto channel_it = channel_2_segment_.find(channel_id);
   if (channel_it == channel_2_segment_.end()) {
     return nullptr;

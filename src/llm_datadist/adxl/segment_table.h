@@ -13,6 +13,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <mutex>
 #include "adxl/adxl_types.h"
 
 namespace adxl {
@@ -36,10 +37,12 @@ class SegmentTable {
 
   void AddRange(const std::string &channel_id, uint64_t start, uint64_t end, MemType type);
   void RemoveRange(const std::string &channel_id, uint64_t start, uint64_t end, MemType type);
-
   SegmentPtr FindSegment(const std::string &channel_id, uint64_t start, uint64_t end);
+  void RemoveChannel(const std::string &channel_id);
 
  private:
+  // mutex for channel_2_segment_
+  std::mutex map_mutex_;
   std::unordered_map<std::string, std::vector<SegmentPtr>> channel_2_segment_;
 };
 }  // namespace adxl

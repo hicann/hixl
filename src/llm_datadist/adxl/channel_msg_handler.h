@@ -22,6 +22,7 @@
 #include "channel_manager.h"
 #include "common/msg_handler_plugin.h"
 #include "segment_table.h"
+#include "fabric_mem_transfer_service.h"
 #include "adxl_utils.h"
 
 namespace adxl {
@@ -44,6 +45,7 @@ struct ChannelConnectInfo {
   std::string comm_name;
   int32_t timeout;
   std::vector<AddrInfo> addrs;
+  std::vector<ShareHandleInfo> share_handles;
 };
 
 struct ChannelStatus {
@@ -77,7 +79,8 @@ class ChannelMsgHandler {
         comm_config_{} {};
 
   ~ChannelMsgHandler() = default;
-  Status Initialize(const std::map<AscendString, AscendString> &options, SegmentTable *segment_table);
+  Status Initialize(const std::map<AscendString, AscendString> &options, SegmentTable *segment_table,
+                    FabricMemTransferService *fabric_mem_transfer_service);
   void Finalize();
 
   Status RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle);
@@ -86,14 +89,14 @@ class ChannelMsgHandler {
   Status Connect(const std::string &remote_engine, int32_t timeout_in_millis);
   Status Disconnect(const std::string &remote_engine, int32_t timeout_in_millis);
 
-  const std::string& GetListenInfo() const { 
-    return listen_info_; 
+  const std::string& GetListenInfo() const {
+    return listen_info_;
   }
-  
+
   void SetUserChannelPoolConfig() {
     user_config_channel_pool_ = true;
   }
-  
+
   void SetHighWaterline(const int32_t high_waterline) {
     high_waterline_ = high_waterline;
   }
@@ -110,7 +113,7 @@ class ChannelMsgHandler {
   static Status ParseListenInfo(const std::string &listen_info, std::string &listen_ip, int32_t &listen_port);
   Status StartDaemon(const std::string &ip, uint32_t listen_port);
   Status StopDaemon();
-  Status CreateChannel(const ChannelInfo &channel_info, bool is_client, const std::vector<AddrInfo> &remote_addrs);
+  Status CreateChannel(const ChannelInfo &channel_info, bool is_client, const ChannelConnectInfo &peer_channel_info);
   Status ConnectInfoProcess(const ChannelConnectInfo &peer_channel_info,
                             int32_t timeout, bool is_client);
   Status ProcessConnectRequest(int32_t fd, const std::vector<char> &msg, bool &keep_fd);
@@ -139,7 +142,7 @@ class ChannelMsgHandler {
   std::vector<EvictItem> SelectEvictionCandidates(int32_t need_expire);
   Status StartEvictionThread();
   Status SetupChannelManagerCallbacks();
-  
+
   Status ProcessServerEviction(const std::string& channel_id, ChannelPtr channel);
   Status ProcessClientEviction(const std::string& channel_id, int32_t timeout_ms);
 
@@ -172,6 +175,9 @@ class ChannelMsgHandler {
   HcclCommConfig comm_config_;
 
   SegmentTable *segment_table_ = nullptr;
+  bool enable_use_fabric_mem_ = false;
+  FabricMemTransferService *fabric_mem_transfer_service_ = nullptr;
+  uint32_t pid_ = 0;
 };
 }  // namespace adxl
 

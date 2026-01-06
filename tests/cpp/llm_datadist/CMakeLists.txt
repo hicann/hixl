@@ -24,6 +24,7 @@ set(LLM_DATADIST_TEST_FILES
         adxl_engine_api_unittest.cc
         segment_table_unittest.cc
         statistic_manager_unittest.cc
+        fabric_mem_transfer_service_unittest.cc
 )
 set(LLM_DATADIST_STUB_SRC_FILES
         "${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/data_cache_engine_test_helper.cc"
@@ -92,6 +93,3 @@ target_link_libraries(llm_datadist_test
 
 include(CTest)
 enable_testing()
-
-
-

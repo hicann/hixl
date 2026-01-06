@@ -11,12 +11,10 @@
 #define HIXL_ADXL_STATISTIC_MANAGER_H_
 
 #include <atomic>
-#include <mutex>
 
 namespace adxl {
 struct BufferTransferStatisticInfo {
   std::atomic<uint64_t> transfer_times = 0UL;
-  std::atomic<uint64_t> transfer_suc_times = 0UL;
   std::atomic<uint64_t> transfer_max_cost = 0UL;
   std::atomic<uint64_t> transfer_total_cost = 0UL;
   std::atomic<uint64_t> client_copy_max_cost = 0UL;
@@ -31,7 +29,6 @@ struct BufferTransferStatisticInfo {
 
   void Reset() {
     transfer_times.store(0UL);
-    transfer_suc_times.store(0UL);
     transfer_max_cost.store(0UL);
     transfer_total_cost.store(0UL);
     client_copy_max_cost.store(0UL);
@@ -46,6 +43,29 @@ struct BufferTransferStatisticInfo {
   }
 };
 
+struct FabricMemTransferStatisticInfo {
+  std::atomic<uint64_t> transfer_times = 0UL;
+  std::atomic<uint64_t> transfer_max_cost = 0UL;
+  std::atomic<uint64_t> transfer_total_cost = 0UL;
+  std::atomic<uint64_t> real_copy_max_cost = 0UL;
+  std::atomic<uint64_t> real_copy_total_cost = 0UL;
+  std::atomic<uint64_t> real_copy_times = 0UL;
+
+  void Reset() {
+    transfer_times.store(0UL);
+    transfer_max_cost.store(0UL);
+    transfer_total_cost.store(0UL);
+    real_copy_max_cost.store(0UL);
+    real_copy_total_cost.store(0UL);
+    real_copy_times.store(0UL);
+  }
+};
+
+struct StatisticInfo {
+  BufferTransferStatisticInfo buffer_transfer_statistic_info;
+  FabricMemTransferStatisticInfo fabric_mem_transfer_statistic_info;
+};
+
 class StatisticManager {
  public:
   static StatisticManager &GetInstance();
@@ -57,19 +77,27 @@ class StatisticManager {
 
   void Dump();
   void Reset();
-  void UpdateBufferTransferCost(const std::string &channel_name, uint64_t cost);
-  void UpdateClientCopyCost(const std::string &channel_name, uint64_t cost);
-  void UpdateServerD2DCost(const std::string &channel_name, uint64_t cost);
-  void UpdateServerCopyCost(const std::string &channel_name, uint64_t cost);
+  void UpdateBufferTransferCost(const std::string &channel_id, uint64_t cost);
+  void UpdateClientCopyCost(const std::string &channel_id, uint64_t cost);
+  void UpdateServerD2DCost(const std::string &channel_id, uint64_t cost);
+  void UpdateServerCopyCost(const std::string &channel_id, uint64_t cost);
+
+  void UpdateFabricMemTransferCost(const std::string &channel_id, uint64_t cost);
+  void UpdateFabricMemRealCopyCost(const std::string &channel_id, uint64_t cost);
+
+  void SetEnableUseFabricMem(bool enable_use_frabric_mem);
+  void RemoveChannel(const std::string &channel_id);
 
  private:
   StatisticManager() = default;
   static void UpdateCost(uint64_t cost, std::atomic<uint64_t> &total_times, std::atomic<uint64_t> &max_cost,
                          std::atomic<uint64_t> &total_cost);
   void DumpBufferTransferStatisticInfo();
+  void DumpFabricMemTransferStatisticInfo();
 
+  bool enable_use_frabric_mem_ = false;
   std::mutex map_mutex_;
-  std::unordered_map<std::string, BufferTransferStatisticInfo> buffer_transfer_statistic_info_;
+  std::unordered_map<std::string, StatisticInfo> transfer_statistic_info_;
 };
 }  // namespace adxl
 #endif

@@ -21,6 +21,7 @@
 #include "common/def_types.h"
 #include "base/err_msg.h"
 #include "control_msg_handler.h"
+#include "statistic_manager.h"
 
 namespace adxl {
 namespace {
@@ -34,9 +35,10 @@ Status kNoNeedRetry = 1U;
 
 int64_t ChannelManager::wait_time_in_millis_ = kWaitTimeInMillis;
 
-Status ChannelManager::Initialize(BufferTransferService *buffer_transfer_service) {
+Status ChannelManager::Initialize(BufferTransferService *buffer_transfer_service, SegmentTable *segment_table) {
   ADXL_CHK_ACL_RET(rtCtxGetCurrent(&rt_context_));
   buffer_transfer_service_ = buffer_transfer_service;
+  segment_table_ = segment_table;
   epoll_fd_ = epoll_create1(0);
   if (epoll_fd_ == -1) {
     LLMLOGE(FAILED, "Failed to create epoll fd.");
@@ -392,7 +394,7 @@ void ChannelManager::SendHeartbeats() {
   }
 }
 
-Status ChannelManager::CreateChannel(const ChannelInfo &channel_info, ChannelPtr &channel_ptr) {
+Status ChannelManager::CreateChannel(const ChannelInfo &channel_info, ChannelPtr &channel_ptr, bool enable_use_fabric_mem) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
     const auto &it = channels_.find(std::make_pair(channel_info.channel_type, channel_info.channel_id));
@@ -402,7 +404,7 @@ Status ChannelManager::CreateChannel(const ChannelInfo &channel_info, ChannelPtr
   }
   ChannelPtr channel = llm::MakeShared<Channel>(channel_info);
   ADXL_CHECK_NOTNULL(channel);
-  ADXL_CHK_STATUS_RET(channel->Initialize(), "Failed to init channel");
+  ADXL_CHK_STATUS_RET(channel->Initialize(enable_use_fabric_mem), "Failed to init channel");
   channel->SetStreamPool(stream_pool_);
   LLM_DISMISSABLE_GUARD(failed_guard, ([channel]() { (void) channel->Finalize(); }));
   std::lock_guard<std::mutex> lock(mutex_);
@@ -455,6 +457,10 @@ Status ChannelManager::DestroyChannel(ChannelType channel_type, const std::strin
     LLMLOGI("Destroy channel end, channel_type = %d, channel_id = %s",
            static_cast<int32_t>(channel_type), channel_id.c_str());
   }
+  if (segment_table_ != nullptr) {
+    segment_table_->RemoveChannel(channel_id);
+  }
+  StatisticManager::GetInstance().RemoveChannel(channel_id);
   return ret;
 }
 

@@ -30,7 +30,7 @@ constexpr uint64_t kNeedUseBufferThresh = 256 * 1024U;
 constexpr size_t kMemPoolNum = 2U;
 constexpr uint32_t kCheckDisconnetPeriod = 10U; // ms
 constexpr int32_t kConnectWhenTransferTimeout = 3000; // ms
-constexpr int32_t kMaxStreams = 128;
+constexpr size_t kMaxStreams = 512;
 }
 
 Status AdxlInnerEngine::ParseWaterlineRatio(const std::map<AscendString, AscendString>& json_options, 
@@ -104,11 +104,19 @@ Status AdxlInnerEngine::Initialize(const std::map<AscendString, AscendString> &o
   LLM_DISMISSABLE_GUARD(fail_guard, ([this]() {
     (void) rtCtxDestroyEx(rt_context_);
   }));
+  ADXL_CHK_STATUS_RET(ParseEnableFabricMem(options), "Failed to parse option.");
+  if (enable_use_fabric_mem_) {
+    fabric_mem_transfer_service_ = llm::MakeUnique<FabricMemTransferService>();
+    ADXL_CHK_STATUS_RET(fabric_mem_transfer_service_->Initialize(kMaxStreams),
+                        "Failed to initialize fabric mem transfer service.");
+  }
   segment_table_ = llm::MakeUnique<SegmentTable>();
   stream_pool_ = llm::MakeUnique<StreamPool>(kMaxStreams);
-  ADXL_CHK_STATUS_RET(msg_handler_.Initialize(options, segment_table_.get()), "Failed to init msg handler.");
+  ADXL_CHK_STATUS_RET(msg_handler_.Initialize(options, segment_table_.get(), fabric_mem_transfer_service_.get()),
+                      "Failed to init msg handler.");
   ADXL_CHK_STATUS_RET(InitBufferTransferService(options), "Failed to init buffer memory pool.");
-  ADXL_CHK_STATUS_RET(channel_manager_.Initialize(buffer_transfer_service_.get()), "Failed to init channel manager.");
+  ADXL_CHK_STATUS_RET(channel_manager_.Initialize(buffer_transfer_service_.get(), segment_table_.get()),
+                      "Failed to init channel manager.");
   channel_manager_.SetStreamPool(stream_pool_.get());
   channel_manager_.RegisterNotifyAckCallback([this](uint64_t req_id) {
     std::lock_guard<std::mutex> lock(notify_mutex_);
@@ -123,7 +131,29 @@ Status AdxlInnerEngine::Initialize(const std::map<AscendString, AscendString> &o
   constexpr uint32_t kStatisticTimerPeriod = 80U * 1000U;
   (void)llm::LlmDatadistTimer::Instance().StartTimer(statistic_timer_handle_, kStatisticTimerPeriod, false);
   is_initialized_ = true;
+  StatisticManager::GetInstance().SetEnableUseFabricMem(enable_use_fabric_mem_);
   LLM_DISMISS_GUARD(fail_guard);
+  return SUCCESS;
+}
+
+Status AdxlInnerEngine::ParseEnableFabricMem(const std::map<AscendString, AscendString> &options) {
+  std::string enable_use_fabric_mem_str;
+  const auto &it = options.find(hixl::OPTION_ENABLE_USE_FABRIC_MEM);
+  if (it != options.cend()) {
+    enable_use_fabric_mem_str = it->second.GetString();
+  } else {
+  }
+
+  if (!enable_use_fabric_mem_str.empty()) {
+    uint32_t enable_use_fabric_mem = 0U;
+    ADXL_CHK_LLM_RET(llm::LLMUtils::ToNumber(enable_use_fabric_mem_str, enable_use_fabric_mem),
+                     "%s is invalid, value = %s", hixl::OPTION_ENABLE_USE_FABRIC_MEM,
+                     enable_use_fabric_mem_str.c_str());
+    ADXL_CHK_BOOL_RET_STATUS(enable_use_fabric_mem == 1U || enable_use_fabric_mem == 0U, PARAM_INVALID,
+                             "%s is invalid, should be zero or one.", hixl::OPTION_ENABLE_USE_FABRIC_MEM);
+    LLMLOGI("set %s to %d.", hixl::OPTION_ENABLE_USE_FABRIC_MEM, enable_use_fabric_mem);
+    enable_use_fabric_mem_ = enable_use_fabric_mem;
+  }
   return SUCCESS;
 }
 
@@ -150,6 +180,8 @@ Status AdxlInnerEngine::ParseBufferPoolParams(const std::map<AscendString, Ascen
       LLMEVENT("Buffer pool is disabled.");
       return SUCCESS;
     }
+    ADXL_CHK_BOOL_RET_STATUS(!enable_use_fabric_mem_, PARAM_INVALID,
+                             "Buffer pool and fabric mem mode can not be set simultaneously");
     LLMEVENT("Buffer pool config is:%s.", pool_config.c_str());
     const auto buffer_configs = llm::LLMUtils::Split(pool_config, ':');
     ADXL_CHK_BOOL_RET_STATUS(buffer_configs.size() == kBufferConfigSize, PARAM_INVALID,
@@ -164,6 +196,8 @@ Status AdxlInnerEngine::ParseBufferPoolParams(const std::map<AscendString, Ascen
     ADXL_CHK_BOOL_RET_STATUS(buffer_size > 0U, PARAM_INVALID, "Buffer size should be bigger than 0.");
     user_config_buffer_pool_ = true;
   } else {
+    ADXL_CHK_BOOL_RET_SPECIAL_STATUS(enable_use_fabric_mem_, SUCCESS,
+                                     "Do not set default buffer pool in fabric mem mode.");
     buffer_num = kDefaultBufferNum;
     buffer_size = kDefaultBufferSize;
   }
@@ -241,6 +275,9 @@ void AdxlInnerEngine::Finalize() {
   if (buffer_transfer_service_ != nullptr) {
     buffer_transfer_service_->Finalize();
   }
+  if (fabric_mem_transfer_service_ != nullptr) {
+    fabric_mem_transfer_service_->Finalize();
+  }
   if (rt_context_ != nullptr) {
     (void) rtCtxDestroyEx(rt_context_);
   }
@@ -301,6 +338,7 @@ Status AdxlInnerEngine::Disconnect(const AscendString &remote_engine, int32_t ti
 Status AdxlInnerEngine::GetTransferType(const ChannelPtr &channel, TransferOp operation,
                                         const std::vector<TransferOpDesc> &op_descs, bool &need_buffer,
                                         TransferType &type) {
+  ADXL_CHK_BOOL_RET_STATUS(segment_table_ != nullptr, FAILED, "Segment table is null.");
   for (size_t i = 0; i < op_descs.size(); i++) {
     auto &op_desc = op_descs[i];
     auto local_segment =
@@ -399,6 +437,10 @@ Status AdxlInnerEngine::TransferSync(const AscendString &remote_engine,
       channel->DecrementTransferCount();
     }
   }));
+  if (fabric_mem_transfer_service_ != nullptr) {
+    std::lock_guard<std::mutex> transfer_lock(channel->GetTransferMutex());
+    return fabric_mem_transfer_service_->Transfer(channel, operation, op_descs, timeout_in_millis);
+  }
   if (buffer_transfer_service_ != nullptr) {
     const auto start = std::chrono::steady_clock::now();
     bool need_buffer = false;
@@ -432,21 +474,25 @@ Status AdxlInnerEngine::TransferAsync(const AscendString &remote_engine,
   ADXL_CHK_BOOL_RET_STATUS(channel != nullptr, NOT_CONNECTED,
                            "Failed to get channel, remote_engine:%s", remote_engine.GetString());
   auto id = next_req_id_.fetch_add(1);
-  req = reinterpret_cast<void*>(static_cast<uintptr_t>(id));
+  req = reinterpret_cast<void *>(static_cast<uintptr_t>(id));
   std::lock_guard<std::mutex> transfer_lock(channel->GetTransferMutex());
   if (user_config_channel_pool_) {
     channel->SetHasTransferred(true);
     channel->IncrementTransferCount();
-    LLM_DISMISSABLE_GUARD(transfer_count_guard, [&channel]() {
+  }
+  LLM_DISMISSABLE_GUARD(transfer_count_guard, ([&channel, this]() {
+    if (user_config_channel_pool_) {
       channel->DecrementTransferCount();
-    });
-    ADXL_CHK_STATUS_RET(channel->TransferAsync(operation, op_descs, optional_args, req),
-                      "Failed to transfer async, remote_engine:%s", remote_engine.GetString());
-    LLM_DISMISS_GUARD(transfer_count_guard);
+    }
+  }));
+  if (fabric_mem_transfer_service_ != nullptr) {
+    ADXL_CHK_STATUS_RET(fabric_mem_transfer_service_->TransferAsync(channel, operation, op_descs, req),
+                        "Failed to call async transfer , remote_engine:%s", remote_engine.GetString());
   } else {
     ADXL_CHK_STATUS_RET(channel->TransferAsync(operation, op_descs, optional_args, req),
-                      "Failed to transfer async, remote_engine:%s", remote_engine.GetString());
+                        "Failed to transfer async, remote_engine:%s", remote_engine.GetString());
   }
+  LLM_DISMISS_GUARD(transfer_count_guard);
   std::lock_guard<std::mutex> lock(req2channel_mutex_);
   req2channel_[id] = remote_engine;
   return SUCCESS;
@@ -457,7 +503,7 @@ Status AdxlInnerEngine::GetTransferStatus(const TransferReq &req, TransferStatus
   std::lock_guard<std::mutex> lock(req2channel_mutex_);
   auto id = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(req));
   auto it = req2channel_.find(id);
-  if(it == req2channel_.end()) {
+  if (it == req2channel_.end()) {
     LLMLOGE(PARAM_INVALID, "Request not found, request has been completed or does not exist, req: %llu", id);
     return PARAM_INVALID;
   }
@@ -465,12 +511,17 @@ Status AdxlInnerEngine::GetTransferStatus(const TransferReq &req, TransferStatus
   auto channel = channel_manager_.GetChannel(ChannelType::kClient, remote_engine.GetString());
   ADXL_CHK_BOOL_RET_STATUS(channel != nullptr, NOT_CONNECTED,
                            "Failed to get channel, remote_engine:%s", remote_engine.GetString());
-  auto ret = channel->GetTransferStatus(req, status);
+  Status ret;
+  if (fabric_mem_transfer_service_ != nullptr) {
+    ret = fabric_mem_transfer_service_->GetTransferStatus(channel, req, status);
+  } else {
+    ret = channel->GetTransferStatus(req, status);
+  }
   if (status != TransferStatus::WAITING) {
     if (user_config_channel_pool_) {
       channel->DecrementTransferCount();
     }
-    req2channel_.erase(id);
+    req2channel_.erase(it);
   }
   ADXL_CHK_STATUS_RET(ret, "Failed to get transfer status, req: %llu, remote_engine:%s",
                       id, remote_engine.GetString());

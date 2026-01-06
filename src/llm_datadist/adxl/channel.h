@@ -24,6 +24,12 @@
 
 namespace adxl {
 
+struct ShareHandleInfo {
+  uintptr_t va_addr;
+  size_t len;
+  rtDrvMemFabricHandle share_handle;
+};
+
 enum class ChannelType {
   kClient = 0,
   kServer = 1,
@@ -62,7 +68,7 @@ class Channel {
  public:
   explicit Channel(ChannelInfo info)
       : channel_info_(std::move(info)) {};
-  Status Initialize();
+  Status Initialize(bool enable_use_fabric_mem = false);
   Status Finalize();
   std::string GetChannelId() const;
   Status TransferSync(TransferOp operation,
@@ -91,11 +97,14 @@ class Channel {
   
   void GetNotifyMessages(std::vector<NotifyDesc> &notifies);
 
-  int32_t GetTransferCount() const { 
-    return transfer_count_.load(std::memory_order_acquire); 
+  Status ImportMem(const std::vector<ShareHandleInfo> &remote_share_handles, int32_t device_id);
+  std::unordered_map<uintptr_t, ShareHandleInfo>& GetNewVaToOldVa();
+
+  int32_t GetTransferCount() const {
+    return transfer_count_.load(std::memory_order_acquire);
   }
-  bool IsDisconnecting() const { 
-    return disconnect_flag_.load(std::memory_order_acquire); 
+  bool IsDisconnecting() const {
+    return disconnect_flag_.load(std::memory_order_acquire);
   }
   bool GetHasTransferred() const {
     return has_transfered_.load(std::memory_order_acquire);
@@ -103,20 +112,22 @@ class Channel {
   void SetHasTransferred(bool value) {
     has_transfered_.store(value, std::memory_order_release);
   }
-  void IncrementTransferCount() { 
-    transfer_count_++; 
+  void IncrementTransferCount() {
+    transfer_count_++;
   }
-  void DecrementTransferCount() { 
-    transfer_count_--; 
+  void DecrementTransferCount() {
+    transfer_count_--;
   }
-  void SetDisconnecting(bool value) { 
-    disconnect_flag_.store(value, std::memory_order_release); 
+  void SetDisconnecting(bool value) {
+    disconnect_flag_.store(value, std::memory_order_release);
   }
   Status TransferAsyncWithTimeout(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
                                   rtStream_t stream, uint64_t timeout);
 
  private:
+  Status ClearResources();
   void ClearNotifyMessages();
+  void ClearImportedMem();
   ChannelInfo channel_info_;
   // mutex for fd
   std::mutex mutex_;
@@ -126,7 +137,7 @@ class Channel {
 
   // mutex for disconnect and transfer synchronize
   std::mutex transfer_mutex_;
-  
+
   std::atomic<int32_t> transfer_count_{0};
   std::atomic<bool> disconnect_flag_{false};
   std::atomic<bool> has_transfered_{false};
@@ -136,7 +147,7 @@ class Channel {
   std::vector<char> recv_buffer_;
   size_t expected_body_size_ = 0;
   size_t bytes_received_ = 0;
-  
+
   // lock for push/fetch items from notify_messages_
   std::mutex notify_message_mutex_;
   std::vector<NotifyMsg> notify_messages_;
@@ -145,6 +156,12 @@ class Channel {
   std::mutex transfer_reqs_mutex_;
   std::map<uint64_t, std::pair<rtEvent_t, rtStream_t>> transfer_reqs_;
   StreamPool *stream_pool_ = nullptr;
+
+  // mutex for fd
+  std::mutex va_map_mutex_;
+  std::unordered_map<uintptr_t, ShareHandleInfo> new_va_to_old_va_;
+  void *remote_va_ = nullptr;
+  bool enable_use_fabric_mem_ = false;
 };
 using ChannelPtr = std::shared_ptr<Channel>;
 }  // namespace adxl

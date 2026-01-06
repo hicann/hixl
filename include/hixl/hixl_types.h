@@ -26,6 +26,7 @@ using AscendString = ge::AscendString;
 using TransferReq = void *;
 
 // options
+constexpr const char OPTION_ENABLE_USE_FABRIC_MEM[] = "EnableUseFabricMem";
 constexpr const char OPTION_RDMA_TRAFFIC_CLASS[] = "RdmaTrafficClass";
 constexpr const char OPTION_RDMA_SERVICE_LEVEL[] = "RdmaServiceLevel";
 constexpr const char OPTION_BUFFER_POOL[] = "BufferPool";

@@ -52,7 +52,7 @@ protected:
     llm::AutoCommResRuntimeMock::SetDevice(0);
 
     channel_manager_ = std::make_unique<ChannelManager>();
-    Status ret = channel_manager_->Initialize(buffer_transfer_service_.get());
+    Status ret = channel_manager_->Initialize(buffer_transfer_service_.get(), nullptr);
     ASSERT_EQ(ret, SUCCESS) << "Failed to initialize ChannelManager";
     std::string listen_info = "127.0.0.1:20000";
     channel_msg_handler_ = std::make_unique<MockChannelMsgHandler>(listen_info, channel_manager_.get());
@@ -135,6 +135,7 @@ protected:
   }
 
   std::unique_ptr<BufferTransferService> buffer_transfer_service_;
+  std::unique_ptr<FabricMemTransferService> fabric_mem_transfer_service_;
   std::unique_ptr<ChannelManager> channel_manager_;
   std::unique_ptr<MockChannelMsgHandler> channel_msg_handler_;
 
@@ -143,7 +144,7 @@ protected:
 };
 
 TEST_F(ChannelPoolUnitTest, TestTrigger) {
-  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr);
+  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr, fabric_mem_transfer_service_.get());
   ASSERT_EQ(ret, SUCCESS);
 
   EXPECT_EQ(GetCurrentChannelCount(), 0);
@@ -169,7 +170,7 @@ TEST_F(ChannelPoolUnitTest, TestTrigger) {
 }
 
 TEST_F(ChannelPoolUnitTest, TestChannelEvictionByCreateTime) { 
-  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr);
+  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr, fabric_mem_transfer_service_.get());
   ASSERT_EQ(ret, SUCCESS);
 
   // create 8 client channels
@@ -203,7 +204,7 @@ TEST_F(ChannelPoolUnitTest, TestChannelEvictionByCreateTime) {
 }
 
 TEST_F(ChannelPoolUnitTest, TestClientEvictionByTransferFlag) {
-  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr);
+  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr, fabric_mem_transfer_service_.get());
   ASSERT_EQ(ret, SUCCESS);
   // create 8 client channels
   CreateChannels(8, ChannelType::kClient);
@@ -239,7 +240,7 @@ TEST_F(ChannelPoolUnitTest, TestClientEvictionByTransferFlag) {
 }
 
 TEST_F(ChannelPoolUnitTest, TestMixChannelStrategy) {
-  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr);
+  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr, fabric_mem_transfer_service_.get());
   ASSERT_EQ(ret, SUCCESS);
   
   // create 5 client channels
@@ -277,7 +278,7 @@ TEST_F(ChannelPoolUnitTest, TestMixChannelStrategy) {
 }
 
 TEST_F(ChannelPoolUnitTest, TestSelectClientEvictionCandidates) {
-  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr);
+  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr, fabric_mem_transfer_service_.get());
   ASSERT_EQ(ret, SUCCESS);
   
   // create 6 client channels
@@ -311,7 +312,7 @@ TEST_F(ChannelPoolUnitTest, TestSelectClientEvictionCandidates) {
 }
 
 TEST_F(ChannelPoolUnitTest, TestSelectServerEvictionCandidates) {
-  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr);
+  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr, fabric_mem_transfer_service_.get());
   ASSERT_EQ(ret, SUCCESS);
   
   // create 7 server channels
@@ -343,7 +344,7 @@ TEST_F(ChannelPoolUnitTest, TestSelectServerEvictionCandidates) {
 }
 
 TEST_F(ChannelPoolUnitTest, TestMixEvictionCandidates) {
-  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr);
+  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr, fabric_mem_transfer_service_.get());
   ASSERT_EQ(ret, SUCCESS);
   
   // create 3 server channels
@@ -364,7 +365,7 @@ TEST_F(ChannelPoolUnitTest, TestMixEvictionCandidates) {
 }
 
 TEST_F(ChannelPoolUnitTest, TestMultipleConcurrentEvictionRequests) {
-  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr);
+  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr, fabric_mem_transfer_service_.get());
   ASSERT_EQ(ret, SUCCESS);
   // create 8 client channels
   CreateChannels(8, ChannelType::kClient);
@@ -395,7 +396,7 @@ TEST_F(ChannelPoolUnitTest, TestMultipleConcurrentEvictionRequests) {
 }
 
 TEST_F(ChannelPoolUnitTest, TestTransferCompletionDuringEviction) {
-  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr);
+  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr, fabric_mem_transfer_service_.get());
   ASSERT_EQ(ret, SUCCESS);
   // create 8 client channels
   CreateChannels(8, ChannelType::kClient);

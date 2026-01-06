@@ -29,6 +29,18 @@ using ::testing::Invoke;
 using ::testing::Mock;
 
 namespace hixl {
+namespace {
+constexpr size_t kTransferSize = 1024;
+constexpr uint8_t kDataPattern = 0xAA;
+constexpr uint8_t kInitPattern = 0;
+constexpr int32_t kDeviceId0 = 0;
+constexpr int32_t kDeviceId1 = 1;
+const std::string kIp = "127.0.0.1";
+const std::string kPort = "26001";
+const std::string kEngine1Ip = kIp;
+const std::string kEngine2Ip = kIp + ":" + kPort;
+const char *const kEnableFabricMem = "1";
+}  // namespace
 class HixlSTest : public ::testing::Test {
  protected:
   // 在测试类中设置一些准备工作，如果需要的话
@@ -414,4 +426,52 @@ TEST_F(HixlSTest, TestHixlServerDown) {
   EXPECT_EQ(engine1.Disconnect("127.0.0.1:26001"), SUCCESS);
   engine1.Finalize();
 }
+
+TEST_F(HixlSTest, TestHixlFabricMem) {
+  llm::AutoCommResRuntimeMock::SetDevice(kDeviceId0);
+  Hixl engine1;
+  std::map<AscendString, AscendString> options1;
+  options1[OPTION_ENABLE_USE_FABRIC_MEM] = kEnableFabricMem;
+  EXPECT_EQ(engine1.Initialize(kEngine1Ip.c_str(), options1), SUCCESS);
+
+  llm::AutoCommResRuntimeMock::SetDevice(kDeviceId1);
+  Hixl engine2;
+  std::map<AscendString, AscendString> options2;
+  options2[OPTION_ENABLE_USE_FABRIC_MEM] = kEnableFabricMem;
+  EXPECT_EQ(engine2.Initialize(kEngine2Ip.c_str(), options2), SUCCESS);
+
+  size_t size = kTransferSize;
+  std::vector<uint8_t> src(size, kDataPattern);
+  std::vector<uint8_t> dst(size, kInitPattern);
+
+  // Register remote mem
+  std::vector<uint8_t> remote_buf(size, kInitPattern);
+  hixl::MemDesc remote_mem{};
+  remote_mem.addr = reinterpret_cast<uintptr_t>(remote_buf.data());
+  remote_mem.len = size;
+  MemHandle handle2 = nullptr;
+  // Fabric mode in stub environment seems to require MEM_HOST to bypass "Device mem is ignored" check in ChannelMsgHandler
+  EXPECT_EQ(engine2.RegisterMem(remote_mem, MEM_HOST, handle2), SUCCESS);
+
+  EXPECT_EQ(engine1.Connect(kEngine2Ip.c_str()), SUCCESS);
+
+  TransferOpDesc desc{reinterpret_cast<uintptr_t>(src.data()), reinterpret_cast<uintptr_t>(remote_buf.data()), size};
+
+  // Write to remote (local representation of remote)
+  EXPECT_EQ(engine1.TransferSync(kEngine2Ip.c_str(), WRITE, {desc}), SUCCESS);
+
+  // Read back from remote
+  TransferOpDesc read_desc{reinterpret_cast<uintptr_t>(dst.data()), reinterpret_cast<uintptr_t>(remote_buf.data()), size};
+  EXPECT_EQ(engine1.TransferSync(kEngine2Ip.c_str(), READ, {read_desc}), SUCCESS);
+
+  // Verify read back data matches written data
+  for (size_t i = 0; i < size; ++i) {
+    EXPECT_EQ(dst[i], kDataPattern) << "Verification failed at index " << i;
+  }
+
+  EXPECT_EQ(engine1.Disconnect(kEngine2Ip.c_str()), SUCCESS);
+  engine1.Finalize();
+  engine2.Finalize();
+}
+
 }  // namespace hixl
