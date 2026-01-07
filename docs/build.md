@@ -87,25 +87,25 @@
   - \$\{cann\_install\_path\}：表示指定安装路径，可选，默认安装在`/usr/local/Ascend`目录，指定路径安装时，指定的路径权限需设置为755。
 
 ### 4. **安装社区版CANN ops包（运行样例依赖）**
-  社区版CANN ops包为运行样例时的依赖，且必须安装。若仅编译源码或进行本地验证，可跳过此步骤。
+  由于torch_npu依赖本包，运行python样例时需安装本包，若仅编译源码或运行C++样例，可跳过此步骤。
 
   根据产品型号和环境架构，下载对应CANN ops包，下载链接为[CANN包社区版资源下载](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1)：
 
   - Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件：`Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run`
-  - Atlas A3 训练系列产品/Atlas A3 推理系列产品：`Atlas-cann-910_93-ops_${cann_version}_linux-${arch}.run`
+  - Atlas A3 训练系列产品/Atlas A3 推理系列产品：`Atlas-cann-A3-ops_${cann_version}_linux-${arch}.run`
 
   ```bash
   # 确保安装包具有可执行权限
   # Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件
   chmod +x Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run
   # Atlas A3 训练系列产品/Atlas A3 推理系列产品
-  chmod +x Atlas-cann-910_93-ops_${cann_version}_linux-${arch}.run
+  chmod +x Atlas-cann-A3-ops_${cann_version}_linux-${arch}.run
 
   # 安装命令
   # Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件
   ./Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run --install --quiet --install-path=${cann_install_path}
   # Atlas A3 训练系列产品/Atlas A3 推理系列产品
-  ./Atlas-cann-910_93-ops_${cann_version}_linux-${arch}.run --install --quiet --install-path=${cann_install_path}
+  ./Atlas-cann-A3-ops_${cann_version}_linux-${arch}.run --install --quiet --install-path=${cann_install_path}
   ```
 
   - \$\{cann\_install\_path\}：表示指定安装路径，需要与toolkit包安装在相同路径，默认安装在`/usr/local/Ascend`目录。
@@ -126,9 +126,9 @@ git clone https://gitcode.com/cann/hixl.git
 
  ```bash
 # 默认路径安装，以root用户为例（非root用户，将/usr/local替换为${HOME}）
-source /usr/local/Ascend/ascend-toolkit/set_env.sh
+source /usr/local/Ascend/cann/set_env.sh
 # 指定路径安装
-# source ${cann_install_path}/set_env.sh
+# source ${cann_install_path}/cann/set_env.sh
  ```
 
 ### 编译执行
@@ -137,7 +137,7 @@ source /usr/local/Ascend/ascend-toolkit/set_env.sh
 # 默认路径安装，root用户默认路径是/usr/local/Ascend，普通用户默认路径是${HOME}/Ascend
 bash build.sh 
 ```
-成功编译后会在build_out目录下生成`cann-hixl_${cann_version}_linux-${arch}.run`，同时会将C++用例一同编译，在build/examples/cpp路径下生成编译后的二进制文件。  
+成功编译后会在build_out目录下生成`cann-hixl_${cann_version}_linux-${arch}.run`。
 - ${cann_version}表示cann版本号。
 - ${arch}表示表示CPU架构，如aarch64、x86_64。 
 - 更多执行选项可以用-h查看。  
@@ -184,7 +184,7 @@ bash build.sh
 - --full 全量模式安装。  
 - --quiet 静默安装，跳过人机交互环节。  
 - --pylocal 安装HIXL软件包时，是否将.whl安装到HIXL安装路径。  
-  - 若选择该参数，则.whl安装在${cann_install_path}/latest/python/site-packages路径。
+  - 若选择该参数，则.whl安装在${cann_install_path}/cann/python/site-packages路径。
   - 若不选择该参数，则.whl安装在本地python路径，例如/usr/local/python3.7.5/lib/python3.7/site-packages。
 - 更多安装选项请用--help选项查看。  
 
