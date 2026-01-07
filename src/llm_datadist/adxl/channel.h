@@ -98,7 +98,7 @@ class Channel {
   void GetNotifyMessages(std::vector<NotifyDesc> &notifies);
 
   Status ImportMem(const std::vector<ShareHandleInfo> &remote_share_handles, int32_t device_id);
-  std::unordered_map<uintptr_t, ShareHandleInfo>& GetNewVaToOldVa();
+  std::unordered_map<uintptr_t, ShareHandleInfo> GetNewVaToOldVa();
 
   int32_t GetTransferCount() const {
     return transfer_count_.load(std::memory_order_acquire);
@@ -157,10 +157,10 @@ class Channel {
   std::map<uint64_t, std::pair<rtEvent_t, rtStream_t>> transfer_reqs_;
   StreamPool *stream_pool_ = nullptr;
 
-  // mutex for fd
+  // mutex for va map and pa handlers
   std::mutex va_map_mutex_;
   std::unordered_map<uintptr_t, ShareHandleInfo> new_va_to_old_va_;
-  void *remote_va_ = nullptr;
+  std::vector<rtDrvMemHandle> remote_pa_handles_;
   bool enable_use_fabric_mem_ = false;
 };
 using ChannelPtr = std::shared_ptr<Channel>;

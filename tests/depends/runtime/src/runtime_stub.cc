@@ -2000,6 +2000,7 @@ rtError_t rtsLaunchCpuKernel(const rtFuncHandle funcHandle, const uint32_t block
 }
 
 rtError_t rtMemRetainAllocationHandle(void *devPtr, rtDrvMemHandle *handle) {
+  *handle = (rtDrvMemHandle)(0x1);
   return llm::RuntimeStub::GetInstance()->rtMemRetainAllocationHandle(devPtr, handle);
 }
 
