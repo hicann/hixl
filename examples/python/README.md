@@ -35,7 +35,7 @@ pip3 install -r requirements.txt
 ## 样例运行
 以下所有用例运行均需正确设置Ascend环境变量，所有双机示例需尽量保证同步执行。
 ```
-source ${HOME}/Ascend/ascend-toolkit/set_env.sh
+source ${HOME}/Ascend/cann/set_env.sh
 ```
 “${HOME}/Ascend”请替换相关软件包的实际安装路径。
 

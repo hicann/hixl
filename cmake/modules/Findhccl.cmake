@@ -60,7 +60,7 @@ else()
 endif()
 
 find_library(hccl_SHARED_LIBRARY
-    NAMES libhccl.so
+    NAMES libhcomm.so
     PATH_SUFFIXES lib64
     NO_CMAKE_SYSTEM_PATH
     NO_CMAKE_FIND_ROOT_PATH)

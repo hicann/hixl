@@ -18,7 +18,7 @@
 
 namespace llm {
 namespace {
-constexpr const char *kHcclSoName = "libhccl.so";
+constexpr const char *kHcclSoName = "libhcomm.so";
 constexpr const char *kHcclExchangeMemDescName = "HcclExchangeMemDesc";
 constexpr const char *kHcclCommInitClusterInfoMemName = "HcclCommInitClusterInfoMemConfig";
 constexpr const char *kHcclCommDestroyName = "HcclCommDestroy";
