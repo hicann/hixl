@@ -3,4 +3,3 @@ version_dir=cann
 required_package_runtime_version=">=8.5.0"
 required_package_hcomm_version=">=8.5.0"
 required_package_metadef_version=">=8.5.0"
-required_package_hccl_version=">=8.5.0"
