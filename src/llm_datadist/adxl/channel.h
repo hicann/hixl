@@ -14,6 +14,7 @@
 #include <mutex>
 #include <atomic>
 #include <utility>
+#include <chrono>
 #include "nlohmann/json.hpp"
 #include "runtime/rt.h"
 #include "adxl/adxl_types.h"
@@ -45,6 +46,12 @@ struct ChannelInfo {
   std::map<MemHandle, void *> registered_mems;
   HcclComm comm;
   int32_t timeout_sec;
+};
+
+using AsyncResource = std::pair<rtStream_t, rtEvent_t>;
+struct AsyncRecord {
+  std::vector<AsyncResource> async_resources;
+  std::chrono::steady_clock::time_point real_start;
 };
 
 class BufferedTransfer {
@@ -154,7 +161,7 @@ class Channel {
   
   friend class ChannelManager;
   std::mutex transfer_reqs_mutex_;
-  std::map<uint64_t, std::pair<rtEvent_t, rtStream_t>> transfer_reqs_;
+  std::unordered_map<uint64_t, AsyncRecord> req_2_async_record_;
   StreamPool *stream_pool_ = nullptr;
 
   // mutex for va map and pa handlers

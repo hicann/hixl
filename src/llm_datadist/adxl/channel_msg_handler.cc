@@ -508,9 +508,17 @@ Status ChannelMsgHandler::ConnectedProcess(int32_t fd, bool &keep_fd) {
 
 Status ChannelMsgHandler::Connect(const std::string &remote_engine, int32_t timeout_in_millis) {
   auto channel = channel_manager_->GetChannel(ChannelType::kClient, remote_engine);
-  ADXL_CHK_BOOL_RET_STATUS(channel == nullptr, ALREADY_CONNECTED,
-                           "remote_engine:%s is already connected.", remote_engine.c_str());
-  return ChannelMsgHandler::DoConnect(remote_engine, timeout_in_millis);
+  ADXL_CHK_BOOL_RET_STATUS(channel == nullptr, ALREADY_CONNECTED, "remote_engine:%s is already connected.",
+                           remote_engine.c_str());
+  const auto start = std::chrono::steady_clock::now();
+  ADXL_CHK_STATUS_RET(DoConnect(remote_engine, timeout_in_millis),
+                      "Failed to connect, local engine:%s, remote engine:%s, timeout:%d ms.", listen_info_.c_str(),
+                      remote_engine.c_str(), timeout_in_millis);
+  const auto end = std::chrono::steady_clock::now();
+  const auto cost = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+  LLMEVENT("Connect success, local engine:%s, remote engine:%s, time cost:%lu us.", listen_info_.c_str(),
+           remote_engine.c_str(), cost);
+  return SUCCESS;
 }
 
 Status ChannelMsgHandler::DoConnect(const std::string &remote_engine, int32_t timeout_in_millis) {
@@ -560,8 +568,6 @@ Status ChannelMsgHandler::DoConnect(const std::string &remote_engine, int32_t ti
                       "Failed to add fd to epoll, local engine:%s, remote engine:%s.",
                       listen_info_.c_str(), peer_connect_info.channel_id.c_str());
   LLM_DISMISS_GUARD(close_fd);
-  LLMEVENT("Connect success, local engine:%s, remote engine:%s, timeout:%d ms.",
-          listen_info_.c_str(), remote_engine.c_str(), timeout_in_millis);
   return SUCCESS;
 }
 

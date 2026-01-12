@@ -21,11 +21,6 @@
 #include "runtime/rt.h"
 
 namespace adxl {
-using AsyncResource = std::pair<rtStream_t, rtEvent_t>;
-struct AsyncRecord {
-  std::vector<AsyncResource> async_resources;
-  std::chrono::steady_clock::time_point real_start;
-};
 class FabricMemTransferService {
  public:
   FabricMemTransferService() = default;
