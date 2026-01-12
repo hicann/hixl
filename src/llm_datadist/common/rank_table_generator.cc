@@ -95,7 +95,7 @@ void LocalCommResGenerator::ExtractIpAddress(const std::string &output_str, std:
 ge::Status LocalCommResGenerator::GetHccnOutput(const std::string &command, std::string &result) {
   std::string command_with_stderr = command + " 2>&1";
   std::array<char, kBufferMaxSize> buffer;
-  std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command_with_stderr.c_str(), "r"), pclose);
+  std::unique_ptr<FILE, int (*)(FILE *)> pipe(popen(command_with_stderr.c_str(), "r"), pclose);
   if (!pipe) {
     LLMLOGE(ge::FAILED, "calling command %s failed, cannot create subprocess.", command_with_stderr.c_str());
     return ge::FAILED;
