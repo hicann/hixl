@@ -40,10 +40,17 @@ else ()
 
     add_library(mmpa_headers INTERFACE)
     if (NOT EXISTS "${CANN_INSTALL_PATH}/include/experiment/mmpa")
-        target_include_directories(mmpa_headers INTERFACE
-            ${CANN_INSTALL_PATH}/include
-            ${CANN_INSTALL_PATH}/include/mmpa/sub_inc
-        )
+        if (EXISTS "${CANN_INSTALL_PATH}/include/mmpa")
+            target_include_directories(mmpa_headers INTERFACE
+                ${CANN_INSTALL_PATH}/include
+                ${CANN_INSTALL_PATH}/include/mmpa/sub_inc
+            )
+        else ()
+            target_include_directories(mmpa_headers INTERFACE
+                ${CANN_INSTALL_PATH}/pkg_inc
+                ${CANN_INSTALL_PATH}/pkg_inc/mmpa/sub_inc
+            )
+        endif ()
     else ()
         target_include_directories(mmpa_headers INTERFACE
             ${CANN_INSTALL_PATH}/include/experiment
