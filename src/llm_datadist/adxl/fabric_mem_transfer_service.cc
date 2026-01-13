@@ -81,21 +81,30 @@ void FabricMemTransferService::Finalize() {
 Status FabricMemTransferService::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
   rtDrvMemFabricHandle share_handle = {};
   auto va = llm::ValueToPtr(mem.addr);
-  rtDrvMemHandle pa_handle;
+  rtDrvMemHandle pa_handle = nullptr;
   {
     std::lock_guard<std::mutex> lock(share_handle_mutex_);
     ADXL_CHK_ACL_RET(rtMemRetainAllocationHandle(va, &pa_handle));
+    LLM_DISMISSABLE_GUARD(pa_guard, ([&pa_handle]() {
+                            if (pa_handle != nullptr) {
+                              LLM_CHK_ACL(rtFreePhysical(pa_handle));
+                            }
+                          }));
     ADXL_CHK_ACL_RET(rtMemExportToShareableHandleV2(pa_handle, RT_MEM_SHARE_HANDLE_TYPE_FABRIC,
                                                     DISABLE_PID_VALIDATION_FLAG, &share_handle));
     share_handles_[pa_handle] = ShareHandleInfo{mem.addr, mem.len, share_handle};
     mem_handle = pa_handle;
     LLMLOGI("Export suc, mem type:%d, mem addr:%lu.", type, mem.addr);
+    LLM_DISMISS_GUARD(pa_guard);
   }
   if (type == MEM_HOST) {
     void *local_va_ = nullptr;
+    rtDrvMemHandle local_pa_handle = nullptr;
     ADXL_CHK_ACL_RET(rtReserveMemAddress(&local_va_, mem.len, 0, nullptr, 1U));
-    rtDrvMemHandle local_pa_handle;
-    LLM_DISMISSABLE_GUARD(fail_guard, ([this, &local_pa_handle]() {
+    LLM_DISMISSABLE_GUARD(fail_guard, ([&local_va_, &local_pa_handle]() {
+                            if (local_va_ != nullptr) {
+                              LLM_CHK_ACL(rtReleaseMemAddress(local_va_));
+                            }
                             if (local_pa_handle != nullptr) {
                               LLM_CHK_ACL(rtFreePhysical(local_pa_handle));
                             }
@@ -128,6 +137,7 @@ Status FabricMemTransferService::DeregisterMem(MemHandle mem_handle) {
       }
       // free imported pa handle
       LLM_CHK_ACL(rtFreePhysical(import_info.first));
+      mem_handle_to_import_info_.erase(it);
     }
   }
   {
@@ -344,7 +354,7 @@ void FabricMemTransferService::RemoveChannel(const std::string &channel_id) {
   channel_2_req_.erase(it);
 }
 
-void FabricMemTransferService::RemoveChannelReqRelation(const std::string &channel_id, const uint64_t req_id) {
+void FabricMemTransferService::RemoveChannelReqRelation(const std::string &channel_id, uint64_t req_id) {
   std::lock_guard<std::mutex> channel_2_req_lock(channel_2_req_mutex_);
   auto channel_2_req_it = channel_2_req_.find(channel_id);
   if (channel_2_req_it != channel_2_req_.end()) {

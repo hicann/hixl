@@ -41,7 +41,7 @@ void StatisticManager::UpdateCost(const uint64_t cost, std::atomic<uint64_t> &to
   }
 }
 
-void StatisticManager::UpdateBufferTransferCost(const std::string &channel_id, const uint64_t cost) {
+void StatisticManager::UpdateBufferTransferCost(const std::string &channel_id, uint64_t cost) {
   std::lock_guard<std::mutex> lock(map_mutex_);
   auto &info = transfer_statistic_info_[channel_id];
   UpdateCost(cost, info.buffer_transfer_statistic_info.transfer_times,
@@ -52,7 +52,7 @@ void StatisticManager::UpdateBufferTransferCost(const std::string &channel_id, c
   }
 }
 
-void StatisticManager::UpdateClientCopyCost(const std::string &channel_id, const uint64_t cost) {
+void StatisticManager::UpdateClientCopyCost(const std::string &channel_id, uint64_t cost) {
   std::lock_guard<std::mutex> lock(map_mutex_);
   auto &info = transfer_statistic_info_[channel_id];
   UpdateCost(cost, info.buffer_transfer_statistic_info.client_copy_times,
@@ -60,7 +60,7 @@ void StatisticManager::UpdateClientCopyCost(const std::string &channel_id, const
              info.buffer_transfer_statistic_info.client_copy_total_cost);
 }
 
-void StatisticManager::UpdateServerD2DCost(const std::string &channel_id, const uint64_t cost) {
+void StatisticManager::UpdateServerD2DCost(const std::string &channel_id, uint64_t cost) {
   std::lock_guard<std::mutex> lock(map_mutex_);
   auto &info = transfer_statistic_info_[channel_id];
   UpdateCost(cost, info.buffer_transfer_statistic_info.server_d2d_times,
@@ -68,7 +68,7 @@ void StatisticManager::UpdateServerD2DCost(const std::string &channel_id, const 
              info.buffer_transfer_statistic_info.server_d2d_total_cost);
 }
 
-void StatisticManager::UpdateServerCopyCost(const std::string &channel_id, const uint64_t cost) {
+void StatisticManager::UpdateServerCopyCost(const std::string &channel_id, uint64_t cost) {
   std::lock_guard<std::mutex> lock(map_mutex_);
   auto &info = transfer_statistic_info_[channel_id];
   UpdateCost(cost, info.buffer_transfer_statistic_info.server_copy_times,
@@ -79,7 +79,7 @@ void StatisticManager::UpdateServerCopyCost(const std::string &channel_id, const
   }
 }
 
-void StatisticManager::UpdateFabricMemTransferCost(const std::string &channel_id, const uint64_t cost) {
+void StatisticManager::UpdateFabricMemTransferCost(const std::string &channel_id, uint64_t cost) {
   std::lock_guard<std::mutex> lock(map_mutex_);
   auto &info = transfer_statistic_info_[channel_id];
   UpdateCost(cost, info.fabric_mem_transfer_statistic_info.transfer_times,
@@ -90,7 +90,7 @@ void StatisticManager::UpdateFabricMemTransferCost(const std::string &channel_id
   }
 }
 
-void StatisticManager::UpdateFabricMemRealCopyCost(const std::string &channel_id, const uint64_t cost) {
+void StatisticManager::UpdateFabricMemRealCopyCost(const std::string &channel_id, uint64_t cost) {
   std::lock_guard<std::mutex> lock(map_mutex_);
   auto &info = transfer_statistic_info_[channel_id];
   UpdateCost(cost, info.fabric_mem_transfer_statistic_info.real_copy_times,

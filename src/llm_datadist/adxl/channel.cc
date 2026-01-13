@@ -177,8 +177,17 @@ Status Channel::ImportMem(const std::vector<ShareHandleInfo> &remote_share_handl
   LLM_DISMISSABLE_GUARD(fail_guard, ([this]() { ClearImportedMem(); }));
   for (auto &remote_share_handle_info : remote_share_handles) {
     void *remote_va = nullptr;
+    rtDrvMemHandle remote_pa_handle = nullptr;
     ADXL_CHK_ACL_RET(rtReserveMemAddress(&remote_va, remote_share_handle_info.len, 0, nullptr, kReserveFlagHugePage));
-    rtDrvMemHandle remote_pa_handle;
+    LLM_DISMISSABLE_GUARD(free_mem_guard, ([&remote_va, &remote_pa_handle]() {
+                            if (remote_va != nullptr) {
+                              (void)rtReleaseMemAddress(remote_va);
+                            }
+                            if (remote_pa_handle != nullptr) {
+                              (void)rtFreePhysical(remote_pa_handle);
+                            }
+                          }));
+
     auto share_handle = remote_share_handle_info.share_handle;
     ADXL_CHK_ACL_RET(rtMemImportFromShareableHandleV2(&share_handle, RT_MEM_SHARE_HANDLE_TYPE_FABRIC, 0U, device_id,
                                                       &remote_pa_handle));
@@ -187,6 +196,7 @@ Status Channel::ImportMem(const std::vector<ShareHandleInfo> &remote_share_handl
     std::lock_guard<std::mutex> lock(va_map_mutex_);
     remote_pa_handles_.emplace_back(remote_pa_handle);
     new_va_to_old_va_[remote_va_addr] = remote_share_handle_info;
+    LLM_DISMISS_GUARD(free_mem_guard);
     LLMLOGI("Imported mem from share handle, va:%lu, new mapped va addr:%lu, len:%zu.",
             remote_share_handle_info.va_addr, remote_va_addr, remote_share_handle_info.len);
   }
