@@ -56,59 +56,98 @@ void FabricMemTransferService::Finalize() {
     stream_pool_.clear();
   }
   {
-    std::lock_guard<std::mutex> lock(share_handle_mutex_);
-    share_handles_.clear();
-  }
-  {
     std::lock_guard<std::mutex> lock(local_va_map_mutex_);
+    // unmap and free all imported pa handle
     for (auto &it : local_va_to_old_va_) {
-      auto rt_ret = rtUnmapMem(llm::ValueToPtr(it.first));
-      if (rt_ret != RT_ERROR_NONE) {
-        LLMLOGE(FAILED, "Call rtUnmapMem method ret:%d.", rt_ret);
-      }
-      rt_ret = rtReleaseMemAddress(llm::ValueToPtr(it.first));
-      if (rt_ret != RT_ERROR_NONE) {
-        LLMLOGE(FAILED, "Call rtReleaseMemAddress method ret:%d.", rt_ret);
-      }
+      LLM_CHK_ACL(rtUnmapMem(llm::ValueToPtr(it.first)));
+      LLM_CHK_ACL(rtReleaseMemAddress(llm::ValueToPtr(it.first)));
     }
     local_va_to_old_va_.clear();
+    for (auto it = mem_handle_to_import_info_.begin(); it != mem_handle_to_import_info_.end(); it++) {
+      LLM_CHK_ACL(rtFreePhysical(it->second.first));
+    }
+    mem_handle_to_import_info_.clear();
+  }
+  {
+    // free all retained pa handle
+    std::lock_guard<std::mutex> lock(share_handle_mutex_);
+    for (auto &share_handle : share_handles_) {
+      LLM_CHK_ACL(rtFreePhysical(share_handle.first));
+    }
+    share_handles_.clear();
   }
 }
 
 Status FabricMemTransferService::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
   rtDrvMemFabricHandle share_handle = {};
   auto va = llm::ValueToPtr(mem.addr);
+  rtDrvMemHandle pa_handle = nullptr;
   {
     std::lock_guard<std::mutex> lock(share_handle_mutex_);
-    rtDrvMemHandle pa_handle;
     ADXL_CHK_ACL_RET(rtMemRetainAllocationHandle(va, &pa_handle));
+    LLM_DISMISSABLE_GUARD(pa_guard, ([&pa_handle]() {
+                            if (pa_handle != nullptr) {
+                              LLM_CHK_ACL(rtFreePhysical(pa_handle));
+                            }
+                          }));
     ADXL_CHK_ACL_RET(rtMemExportToShareableHandleV2(pa_handle, RT_MEM_SHARE_HANDLE_TYPE_FABRIC,
                                                     DISABLE_PID_VALIDATION_FLAG, &share_handle));
     share_handles_[pa_handle] = ShareHandleInfo{mem.addr, mem.len, share_handle};
     mem_handle = pa_handle;
     LLMLOGI("Export suc, mem type:%d, mem addr:%lu.", type, mem.addr);
+    LLM_DISMISS_GUARD(pa_guard);
   }
   if (type == MEM_HOST) {
     void *local_va_ = nullptr;
+    rtDrvMemHandle local_pa_handle = nullptr;
     ADXL_CHK_ACL_RET(rtReserveMemAddress(&local_va_, mem.len, 0, nullptr, 1U));
-    rtDrvMemHandle local_pa_handle;
+    LLM_DISMISSABLE_GUARD(fail_guard, ([&local_va_, &local_pa_handle]() {
+                            if (local_va_ != nullptr) {
+                              LLM_CHK_ACL(rtReleaseMemAddress(local_va_));
+                            }
+                            if (local_pa_handle != nullptr) {
+                              LLM_CHK_ACL(rtFreePhysical(local_pa_handle));
+                            }
+                          }));
     ADXL_CHK_ACL_RET(rtMemImportFromShareableHandleV2(&share_handle, RT_MEM_SHARE_HANDLE_TYPE_FABRIC, 0U, device_id_,
                                                       &local_pa_handle));
     ADXL_CHK_ACL_RET(rtMapMem(local_va_, mem.len, 0, local_pa_handle, 0));
+    std::lock_guard<std::mutex> lock(local_va_map_mutex_);
     auto local_va_addr = llm::PtrToValue(local_va_);
+    mem_handle_to_import_info_[pa_handle] = std::make_pair(local_pa_handle, local_va_addr);
+    local_va_to_old_va_[local_va_addr] = ShareHandleInfo{mem.addr, mem.len, share_handle};
     LLMLOGI("Imported mem from share handle, va:%lu, new mapped va addr:%lu, len:%zu.", mem.addr, local_va_addr,
             mem.len);
-    std::lock_guard<std::mutex> lock(local_va_map_mutex_);
-    local_va_to_old_va_[local_va_addr] = ShareHandleInfo{mem.addr, mem.len, share_handle};
+    LLM_DISMISS_GUARD(fail_guard);
   }
   return SUCCESS;
 }
 
 Status FabricMemTransferService::DeregisterMem(MemHandle mem_handle) {
-  std::lock_guard<std::mutex> lock(share_handle_mutex_);
-  auto it = share_handles_.find(mem_handle);
-  if (it != share_handles_.end()) {
-    share_handles_.erase(it);
+  {
+    std::lock_guard<std::mutex> lock(local_va_map_mutex_);
+    auto it = mem_handle_to_import_info_.find(mem_handle);
+    if (it != mem_handle_to_import_info_.end()) {
+      auto import_info = it->second;
+      auto va_map_it = local_va_to_old_va_.find(import_info.second);
+      if (va_map_it != local_va_to_old_va_.end()) {
+        LLM_CHK_ACL(rtUnmapMem(llm::ValueToPtr(va_map_it->first)));
+        LLM_CHK_ACL(rtReleaseMemAddress(llm::ValueToPtr(va_map_it->first)));
+        local_va_to_old_va_.erase(va_map_it);
+      }
+      // free imported pa handle
+      LLM_CHK_ACL(rtFreePhysical(import_info.first));
+      mem_handle_to_import_info_.erase(it);
+    }
+  }
+  {
+    std::lock_guard<std::mutex> lock(share_handle_mutex_);
+    auto it = share_handles_.find(mem_handle);
+    if (it != share_handles_.end()) {
+      // free retained pa handle
+      LLM_CHK_ACL(rtFreePhysical(it->first));
+      share_handles_.erase(it);
+    }
   }
   return SUCCESS;
 }
@@ -315,7 +354,7 @@ void FabricMemTransferService::RemoveChannel(const std::string &channel_id) {
   channel_2_req_.erase(it);
 }
 
-void FabricMemTransferService::RemoveChannelReqRelation(const std::string &channel_id, const uint64_t req_id) {
+void FabricMemTransferService::RemoveChannelReqRelation(const std::string &channel_id, uint64_t req_id) {
   std::lock_guard<std::mutex> channel_2_req_lock(channel_2_req_mutex_);
   auto channel_2_req_it = channel_2_req_.find(channel_id);
   if (channel_2_req_it != channel_2_req_.end()) {
@@ -399,7 +438,7 @@ Status FabricMemTransferService::DoTransfer(const std::vector<rtStream_t> &strea
   std::vector<TransferOpDesc> new_op_descs;
   new_op_descs.reserve(op_descs.size());
   // Get imported memory info from channel
-  auto &remote_va_to_old_va = channel->GetNewVaToOldVa();
+  auto remote_va_to_old_va = channel->GetNewVaToOldVa();
   bool need_trans_local_addr = false;
   for (size_t i = 0; i < op_descs.size(); ++i) {
     const auto &op = op_descs[i];
@@ -412,6 +451,7 @@ Status FabricMemTransferService::DoTransfer(const std::vector<rtStream_t> &strea
     }
     uintptr_t new_local_addr = op.local_addr;
     if (need_trans_local_addr) {
+      std::lock_guard<std::mutex> lock(local_va_map_mutex_);
       ADXL_CHK_STATUS_RET(TransOpAddr(op.local_addr, op.len, local_va_to_old_va_, new_local_addr),
                           "Failed to transfer local addr");
     }

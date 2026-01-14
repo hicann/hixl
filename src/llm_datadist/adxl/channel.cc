@@ -141,23 +141,19 @@ Status Channel::ClearResources() {
 }
 
 void Channel::ClearImportedMem() {
-  // Clean up imported memory
+  // unmap all va
   std::lock_guard<std::mutex> lock(va_map_mutex_);
   for (auto &it : new_va_to_old_va_) {
     LLMLOGI("Unmap mem:%lu", it.first);
-    auto rt_ret = rtUnmapMem(llm::ValueToPtr(it.first));
-    if (rt_ret != RT_ERROR_NONE) {
-      LLMLOGE(FAILED, "Call rtUnmapMem ret:%d.", rt_ret);
-    }
-  }
-  if (remote_va_ != nullptr) {
-    LLMLOGI("Release mem:%p", remote_va_);
-    auto rt_ret = rtReleaseMemAddress(remote_va_);
-    if (rt_ret != RT_ERROR_NONE) {
-      LLMLOGE(FAILED, "Call rtReleaseMemAddress ret:%d.", rt_ret);
-    }
+    LLM_CHK_ACL(rtUnmapMem(llm::ValueToPtr(it.first)));
+    LLM_CHK_ACL(rtReleaseMemAddress(llm::ValueToPtr(it.first)));
   }
   new_va_to_old_va_.clear();
+  // free imported pa handle
+  for (auto &remote_pa_handle : remote_pa_handles_) {
+    LLM_CHK_ACL(rtFreePhysical(remote_pa_handle));
+  }
+  remote_pa_handles_.clear();
 }
 
 void Channel::SetStreamPool(StreamPool *stream_pool) {
@@ -165,30 +161,37 @@ void Channel::SetStreamPool(StreamPool *stream_pool) {
 }
 
 Status Channel::ImportMem(const std::vector<ShareHandleInfo> &remote_share_handles, int32_t device_id) {
-  size_t total_len = 0U;
+  LLM_DISMISSABLE_GUARD(fail_guard, ([this]() { ClearImportedMem(); }));
   for (auto &remote_share_handle_info : remote_share_handles) {
-    total_len += remote_share_handle_info.len;
+    void *remote_va = nullptr;
+    rtDrvMemHandle remote_pa_handle = nullptr;
+    ADXL_CHK_ACL_RET(rtReserveMemAddress(&remote_va, remote_share_handle_info.len, 0, nullptr, kReserveFlagHugePage));
+    LLM_DISMISSABLE_GUARD(free_mem_guard, ([&remote_va, &remote_pa_handle]() {
+                            if (remote_va != nullptr) {
+                              (void)rtReleaseMemAddress(remote_va);
+                            }
+                            if (remote_pa_handle != nullptr) {
+                              (void)rtFreePhysical(remote_pa_handle);
+                            }
+                          }));
+
+    auto share_handle = remote_share_handle_info.share_handle;
+    ADXL_CHK_ACL_RET(rtMemImportFromShareableHandleV2(&share_handle, RT_MEM_SHARE_HANDLE_TYPE_FABRIC, 0U, device_id,
+                                                      &remote_pa_handle));
+    uintptr_t remote_va_addr = llm::PtrToValue(remote_va);
+    ADXL_CHK_ACL_RET(rtMapMem(llm::ValueToPtr(remote_va_addr), remote_share_handle_info.len, 0, remote_pa_handle, 0));
+    std::lock_guard<std::mutex> lock(va_map_mutex_);
+    remote_pa_handles_.emplace_back(remote_pa_handle);
+    new_va_to_old_va_[remote_va_addr] = remote_share_handle_info;
+    LLM_DISMISS_GUARD(free_mem_guard);
+    LLMLOGI("Imported mem from share handle, va:%lu, new mapped va addr:%lu, len:%zu.",
+            remote_share_handle_info.va_addr, remote_va_addr, remote_share_handle_info.len);
   }
-  if (total_len > 0U) {
-    ADXL_CHK_ACL_RET(rtReserveMemAddress(&remote_va_, total_len, 0, nullptr, kReserveFlagHugePage));
-    uintptr_t remote_va_addr = llm::PtrToValue(remote_va_);
-    for (auto &remote_share_handle_info : remote_share_handles) {
-      rtDrvMemHandle remote_pa_handle;
-      auto share_handle = remote_share_handle_info.share_handle;
-      ADXL_CHK_ACL_RET(rtMemImportFromShareableHandleV2(&share_handle, RT_MEM_SHARE_HANDLE_TYPE_FABRIC, 0U, device_id,
-                                                        &remote_pa_handle));
-      ADXL_CHK_ACL_RET(rtMapMem(llm::ValueToPtr(remote_va_addr), remote_share_handle_info.len, 0, remote_pa_handle, 0));
-      LLMLOGI("Imported mem from share handle, va:%lu, new mapped va addr:%lu, len:%zu.",
-              remote_share_handle_info.va_addr, remote_va_addr, remote_share_handle_info.len);
-      std::lock_guard<std::mutex> lock(va_map_mutex_);
-      new_va_to_old_va_[remote_va_addr] = remote_share_handle_info;
-      remote_va_addr += remote_share_handle_info.len;
-    }
-  }
+  LLM_DISMISS_GUARD(fail_guard);
   return SUCCESS;
 }
 
-std::unordered_map<uintptr_t, ShareHandleInfo>& Channel::GetNewVaToOldVa() {
+std::unordered_map<uintptr_t, ShareHandleInfo> Channel::GetNewVaToOldVa() {
   std::lock_guard<std::mutex> lock(va_map_mutex_);
   return new_va_to_old_va_;
 }

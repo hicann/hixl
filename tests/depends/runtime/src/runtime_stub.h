@@ -276,12 +276,13 @@ class RuntimeStub {
   virtual rtError_t rtMallocPhysical(rtDrvMemHandle* handle, size_t size, rtDrvMemProp_t* prop, uint64_t flags);
 
   virtual rtError_t rtFreePhysical(rtDrvMemHandle handle) {
-    delete[] (uint8_t *)handle;
+    if ((uintptr_t)(handle) != 0x1) {
+      delete[] (uint8_t *)handle;
+    }
     return RT_ERROR_NONE;
   }
 
   virtual rtError_t rtMapMem(void* devPtr, size_t size, size_t offset, rtDrvMemHandle handle, uint64_t flags) {
-    delete[] (uint8_t *)handle;
     return RT_ERROR_NONE;
   }
 

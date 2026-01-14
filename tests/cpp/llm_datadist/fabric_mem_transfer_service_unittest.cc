@@ -108,7 +108,7 @@ ChannelPtr CreateInitializedChannel() {
 }
 
 void *GetBackingRemotePtr(const ChannelPtr &channel, uint64_t remote_addr) {
-  auto &va_map = channel->GetNewVaToOldVa();
+  auto va_map = channel->GetNewVaToOldVa();
   if (va_map.empty()) {
     return nullptr;
   }

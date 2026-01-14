@@ -24,3 +24,5 @@ __pycache__
 cmake-build-debug
 cmake-build-release
 cmake-build-gcov
+.gemini
+GEMINI.md

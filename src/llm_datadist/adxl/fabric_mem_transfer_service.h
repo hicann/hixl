@@ -83,8 +83,10 @@ class FabricMemTransferService {
   std::mutex channel_2_req_mutex_;
   std::unordered_map<std::string, std::set<uint64_t>> channel_2_req_;
 
+  // mutex for local va map and pa handlers
   std::mutex local_va_map_mutex_;
   std::unordered_map<uintptr_t, ShareHandleInfo> local_va_to_old_va_;
+  std::unordered_map<MemHandle, std::pair<rtDrvMemHandle, uintptr_t>> mem_handle_to_import_info_;
 };
 }  // namespace adxl
 
