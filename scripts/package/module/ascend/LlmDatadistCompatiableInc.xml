@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--   This program is free software, you can redistribute it and/or modify it.
+       Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+       This file is a part of the CANN Open Software.
+       Licensed under CANN Open Software License Agreement Version 2.0 (the "License").
+       Please refer to the License for details. You may not use this file except in compliance with the License.
+       THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+       INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+       See LICENSE in the root of the software repository for the full text of the License.
+-->
+
+<block name="LlmDatadistCompatiableInc" install_own="$username:$usergroup" install_mod="440" install_type="all">
+    <dir_info value="LlmDatadistCompatiableInc">
+        <path value="$(TARGET_ENV)/include/llm_datadist" install_mod="550"/>
+        <path value="$(TARGET_ENV)/include/ge" install_mod="550"/>
+    </dir_info>
+    <file_info value="include" copy_type="source" dst_path="include/llm_datadist" install_path="$(TARGET_ENV)/include/llm_datadist" install_type="all">
+        <file value="llm_datadist.h"/>
+    </file_info>
+    <file_info value="include" copy_type="source" dst_path="include/llm_datadist" install_path="$(TARGET_ENV)/include/ge" install_type="all">
+        <file value="llm_error_codes.h"/>
+        <file value="llm_engine_types.h"/>
+    </file_info>
+</block>

@@ -38,13 +38,6 @@
         <file value="adxl" install_mod="550" entity="true" />
         <file value="hixl" install_mod="550" entity="true" />
     </file_info>
-    <file_info copy_type="source" src_path="" dst_path="hixl/include/llm_datadist" install_path="$(TARGET_ENV)/include/llm_datadist" install_type="all">
-        <file value="llm_datadist.h" install_mod="550" entity="true" />
-    </file_info>
-    <file_info copy_type="source" src_path="" dst_path="hixl/include/llm_datadist" install_path="$(TARGET_ENV)/include/ge" install_type="all">
-        <file value="llm_engine_types.h" install_mod="550" entity="true" />
-        <file value="llm_error_codes.h" install_mod="550" entity="true" />
-    </file_info>
     <file_info value="hixl_lib" copy_type="delivery" src_path="" dst_path="hixl/lib" install_path="$(TARGET_ENV)/lib64" install_mod="440">
         <file value="libllm_datadist.so" file_type="shared" />
         <file value="libcann_hixl.so" file_type="shared" />
@@ -52,6 +45,7 @@
     <block_info dependtree="false" dst_path="hixl" block_conf_path="ascend">
         <block name="EngineeringCommon"/>
         <block name="EngineeringFiles"/>
+        <block name="LlmDatadistCompatiableInc"/>
     </block_info>
     <dir_info value="hixl" install_path="hixl" install_mod="550" install_type="all">
         <path value="share" install_mod="550"/>
@@ -61,8 +55,6 @@
     </dir_info>
     <dir_info value="hixl" install_path="" install_mod="550" install_type="all">
         <path value="$(TARGET_ENV)/include"/>
-        <path value="$(TARGET_ENV)/include/llm_datadist"/>
-        <path value="$(TARGET_ENV)/include/ge"/>
         <path value="$(TARGET_ENV)/include/adxl"/>
         <path value="$(TARGET_ENV)/include/hixl"/>
     </dir_info>
