@@ -37,6 +37,7 @@ constexpr uint32_t kMaxEngineNameLen = 30;
 
 int Initialize(Hixl &hixl_engine, const char *local_engine) {
   std::map<AscendString, AscendString> options;
+  options["BufferPool"] = "0:0";
   auto ret = hixl_engine.Initialize(local_engine, options);
   if (ret != SUCCESS) {
     printf("[ERROR] Initialize failed, ret = %u\n", ret);

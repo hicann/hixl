@@ -21,14 +21,16 @@ run_pair() {
     local cmd2="$2"
     local has_error=0
 
-    local binary_name1=$(echo "${cmd1#./}" | cut -d' ' -f1)
-    local binary_name2=$(echo "${cmd2#./}" | cut -d' ' -f1)
+    if [ "$#" -eq "3" ]; then
+        local binary_name1=$(echo "$cmd1" | grep -oP '(?<=\/)[^\/\s]+(?=\s|$)')
+        local binary_name2=$(echo "$cmd2" | grep -oP '(?<=\/)[^\/\s]+(?=\s|$)')
 
-    if [ ! -f "$binary_name1" ] || [ ! -f "$binary_name1" ]; then
-        echo "Binary does not exist!"
-        has_error=1
-        flag=1
-        exit 1
+        if [ ! -f "$binary_name1" ] || [ ! -f "$binary_name1" ]; then
+            echo "Binary does not exist!"
+            has_error=1
+            flag=1
+            exit 1
+        fi
     fi
 
     tmp1=$(mktemp)
@@ -76,12 +78,19 @@ run_pair() {
 main() {
     # C++ examples
     cd "${BASEPATH}/../build/examples/cpp"
-    run_pair "./prompt_pull_cache_and_blocks ${device_id_1} 127.0.0.1" "./decoder_pull_cache_and_blocks ${device_id_2} 127.0.0.1 127.0.0.1"
-    run_pair "./prompt_push_cache_and_blocks ${device_id_1} 127.0.0.1 127.0.0.1" "./decoder_push_cache_and_blocks ${device_id_2} 127.0.0.1"
-    run_pair "./prompt_switch_roles ${device_id_1} 127.0.0.1 127.0.0.1" "./decoder_switch_roles ${device_id_2} 127.0.0.1 127.0.0.1"
-    run_pair "./client_server_h2d ${device_id_1} 127.0.0.1 127.0.0.1:16000" "./client_server_h2d ${device_id_2} 127.0.0.1:16000"
-    run_pair "./server_server_d2d ${device_id_1} 127.0.0.1:16000 127.0.0.1:16001" "./server_server_d2d ${device_id_2} 127.0.0.1:16001 127.0.0.1:16000"
+    run_pair "./prompt_pull_cache_and_blocks ${device_id_1} 127.0.0.1" "./decoder_pull_cache_and_blocks ${device_id_2} 127.0.0.1 127.0.0.1" "check"
+    run_pair "./prompt_push_cache_and_blocks ${device_id_1} 127.0.0.1 127.0.0.1" "./decoder_push_cache_and_blocks ${device_id_2} 127.0.0.1" "check"
+    run_pair "./prompt_switch_roles ${device_id_1} 127.0.0.1 127.0.0.1" "./decoder_switch_roles ${device_id_2} 127.0.0.1 127.0.0.1" "check"
+    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./client_server_h2d ${device_id_1} 127.0.0.1 127.0.0.1:16000" "HCCL_INTRA_ROCE_ENABLE=1 ./client_server_h2d ${device_id_2} 127.0.0.1:16000" "check"
+    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./server_server_d2d ${device_id_1} 127.0.0.1:16000 127.0.0.1:16001" "HCCL_INTRA_ROCE_ENABLE=1 ./server_server_d2d ${device_id_2} 127.0.0.1:16001 127.0.0.1:16000" "check"
 
+    # Python examples
+    cd "${BASEPATH}/../examples/python"
+    run_pair "GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python3 push_blocks_sample.py --device_id 0 --role p --local_host_ip 127.0.0.1 --remote_host_ip 127.0.0.1" "GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python3 push_blocks_sample.py --device_id 1 --role d --local_host_ip 127.0.0.1 --remote_host_ip 127.0.0.1"
+    run_pair "GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python3 push_cache_sample.py --device_id 0 --role p --local_host_ip 127.0.0.1 --remote_host_ip 127.0.0.1" "GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python3 push_cache_sample.py --device_id 1 --role d --local_host_ip 127.0.0.1 --remote_host_ip 127.0.0.1"
+    run_pair "GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python3 switch_role_sample.py --device_id 0 --role p --local_host_ip 127.0.0.1 --remote_host_ip 127.0.0.1" "GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python3 switch_role_sample.py --device_id 1 --role d --local_host_ip 127.0.0.1 --remote_host_ip 127.0.0.1"
+    run_pair "GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python3 pull_blocks_xpyd_sample.py --device_id 0 --role p --local_ip_port 127.0.0.1:16000" "GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python3 pull_blocks_xpyd_sample.py --device_id 2 --role d --local_ip_port 10.170.10.0:16001 --remote_ip_port 127.0.0.1:16000"
+    run_pair "GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python3 transfer_cache_async_sample.py --device_id 0 --role p --local_host_ip 127.0.0.1 --remote_host_ip 127.0.0.1" "GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python3 transfer_cache_async_sample.py --device_id 1 --role d --local_host_ip 127.0.0.1 --remote_host_ip 127.0.0.1"
     
     if [ "$flag" -eq "0" ]; then
         echo "execute samples success"
