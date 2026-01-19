@@ -48,7 +48,7 @@
         <block name="LlmDatadistCompatiableInc"/>
     </block_info>
     <dir_info value="hixl" install_path="hixl" install_mod="550" install_type="all">
-        <path value="share" install_mod="550"/>
+        <path value="share" install_mod="750"/>
         <path value="share/info" install_mod="750"/>
         <path value="share/info/hixl" install_mod="750"/>
         <path value="share/info/hixl/script"/>
