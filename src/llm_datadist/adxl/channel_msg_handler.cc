@@ -619,7 +619,7 @@ Status ChannelMsgHandler::Disconnect(const std::string &remote_engine, int32_t t
 }
 
 Status ChannelMsgHandler::InitChannelPool() {
-  LLMLOGI("Waterline config: max_channel=%d, high_waterline= %d, low_waterline= %d",
+  LLMLOGI("Waterline config: max_channel=%d, high_mark=%d, low_mark=%d",
           max_channel_, high_waterline_, low_waterline_);
   ADXL_CHK_STATUS_RET(StartEvictionThread(), "Failed to start eviction thread");
   ADXL_CHK_STATUS_RET(SetupChannelManagerCallbacks(), "Failed to setup channel manager callbacks");
@@ -633,7 +633,7 @@ Status ChannelMsgHandler::StartEvictionThread() {
       [this]() { 
       EvictionLoop(); 
     });
-    LLMLOGI("Eviction thread started with waterline: max=%d, high=%d, low=%d", 
+    LLMLOGI("Eviction thread started with: max=%d, high_mark=%d, low_mark=%d", 
         max_channel_, high_waterline_, low_waterline_);
   }
   return SUCCESS;
@@ -682,7 +682,7 @@ int32_t ChannelMsgHandler::GetTotalChannelCount() const {
 bool ChannelMsgHandler::ShouldTriggerEviction() const {
   bool should_evict = GetTotalChannelCount() >= high_waterline_;
   if (should_evict) {
-    LLMLOGI("Eviction triggered: current_channel_count=%d >= high_waterline=%d", 
+    LLMLOGI("Eviction triggered: current_channel_count(%d) >= high_mark(%d)", 
             GetTotalChannelCount(), high_waterline_);
   }
   return should_evict;
@@ -696,7 +696,7 @@ Status ChannelMsgHandler::NotifyEviction() {
   int32_t current_count = GetTotalChannelCount();
   int32_t need_expire = current_count - low_waterline_;
   if (need_expire <= 0) {
-    LLMLOGI("No need to evict channels: current_channel_count=%d - low_waterline=%d <= 0", 
+    LLMLOGI("No need to evict channels: current_channel_count(%d) <= low_mark(%d)", 
             current_count, low_waterline_);
     return SUCCESS;
   }
@@ -798,8 +798,7 @@ Status ChannelMsgHandler::ProcessEviction(const EvictItem& item) {
   }
   
   if (channel->GetTransferCount() > 0) {
-    LLMLOGI("Skip eviction: channel %s has unfinished transfers (count:%d)", 
-            item.channel_id.c_str(), channel->GetTransferCount());
+    LLMLOGI("Skip eviction: channel %s has unfinished transfers", item.channel_id.c_str());
     return SUCCESS;
   }
   if (item.channel_type == ChannelType::kServer) {
