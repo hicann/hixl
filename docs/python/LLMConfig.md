@@ -658,7 +658,7 @@ link_retry_count(link_retry_count)
 <td class="cellrowborder" valign="top" width="15.06%" headers="mcps1.1.4.1.2 "><p id="p15567165511010"><a name="p15567165511010"></a><a name="p15567165511010"></a>int</p>
 </td>
 <td class="cellrowborder" valign="top" width="62.72%" headers="mcps1.1.4.1.3 "><p id="p197501721125019"><a name="p197501721125019"></a><a name="p197501721125019"></a>用于配置HCCL建链失败的重试次数，单位是次，在总超时时间内会根据重试次数来进行重试。</p>
-<p id="p9613337104416"><a name="p9613337104416"></a><a name="p9613337104416"></a>取值范围为[1, 10]，默认值为1，可不配置，不配置自动传入1。</p>
+<p id="p9613337104416"><a name="p9613337104416"></a><a name="p9613337104416"></a>取值范围为[1, 100]，默认值为1，可不配置，不配置自动传入1。</p>
 </td>
 </tr>
 </tbody>

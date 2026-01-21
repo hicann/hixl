@@ -46,6 +46,8 @@ class LlmCacheManagerSt(unittest.TestCase):
         config.enable_remote_cache_accessible = True
         config.mem_pool_cfg = "{\"memory_size\": 102428800}"
         config.device_id = 0
+        config.link_total_time = 1000
+        config.link_retry_count = 80
         engine_options = config.generate_options()
         self.llm_datadist = LLMDataDist(LLMRole.PROMPT, 1)
         self.llm_datadist.init(engine_options)

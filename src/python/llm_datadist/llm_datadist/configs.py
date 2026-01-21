@@ -309,7 +309,8 @@ class LlmConfig(object):
     @link_retry_count.setter
     def link_retry_count(self, link_retry_count):
         check_isinstance("link_retry_count", link_retry_count, int)
-        raise_if_false(1 <= link_retry_count <= 10, f"link_retry_count should be an integer between [1, 10], given value is {link_retry_count}")
+        raise_if_false(1 <= link_retry_count <= 100,
+                       f"link_retry_count should be an integer between [1, 100], given value is {link_retry_count}")
         self._link_retry_count = link_retry_count
 
     @property

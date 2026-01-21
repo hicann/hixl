@@ -122,6 +122,8 @@ class EntityCommInfo {
 
   ge::Status PrepareHcclComm() const;
 
+  std::atomic<bool> stop_flag_{false};
+  std::mutex mutex_;
   CommParams params_;
   HcclComm comm_;
   bool comm_inited_;
