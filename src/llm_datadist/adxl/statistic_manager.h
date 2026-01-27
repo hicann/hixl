@@ -11,7 +11,7 @@
 #define HIXL_ADXL_STATISTIC_MANAGER_H_
 
 #include <atomic>
-
+#include <mutex>
 namespace adxl {
 struct BufferTransferStatisticInfo {
   std::atomic<uint64_t> transfer_times = 0UL;
