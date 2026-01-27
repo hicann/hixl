@@ -110,6 +110,36 @@
 
   - \$\{cann\_install\_path\}：表示指定安装路径，需要与toolkit包安装在相同路径，默认安装在`/usr/local/Ascend`目录。
 
+
+### 5. **第三方开源软件依赖（编译时依赖，可选）**  
+
+HIXL在编译时，依赖的第三方开源软件列表如下：
+
+| 开源软件 | 版本 | 下载地址 |
+|---|---|---|
+| googletest | 1.14.0 | [googletest-1.14.0.tar.gz](https://gitcode.com/cann-src-third-party/googletest/releases/download/v1.14.0/googletest-1.14.0.tar.gz) |
+| json | 3.11.3 | [include.zip](httpshttps://gitcode.com/cann-src-third-party/json/releases/download/v3.11.3/include.zip) |
+| makeself | 2.5.0 | [makeself-release-2.5.0-patch1.tar.gz](https://gitcode.com/cann-src-third-party/makeself/releases/download/release-2.5.0-patch1.0/makeself-release-2.5.0-patch1.tar.gz) |
+| pybind11 | 2.13.6 | [pybind11-2.13.6.tar.gz](https://gitcode.com/cann-src-third-party/pybind11/releases/download/v2.13.6/pybind11-2.13.6.tar.gz) |
+
+> [!NOTE]说明
+> 如果您从其他地址下载，请确保版本号一致。
+
+我们在一键式编译脚本中，提供了自动下载脚本，默认下载路径为 `<HIXL-dir>/third-party`。若您在无网络环境中，或您希望指定开源软件放置路径，可以根据上方表格提供的下载地址自行下载，并按照如下目录结构放置。在编译时通过传入参数`--cann_3rd_lib_path=/path/to/your/third_party`来指定依赖的第三方软件目录。
+
+```
+third_party/
+|-- json
+|-- makeself
+|-- pybind11
+|-- gtest
+```
+
+> [!NOTE]说明
+> - 在下载第三方开源软件压缩包并解压后，须修改文件夹名为上述目录结构中的对应名称。
+> - 针对 `.zip` 结尾的压缩包，可使用 `unzip <file-name> -d /path/to/your/destination` 解压至您需要的目录。 
+> - 针对 `.tar.gz` 结尾的压缩包，可使用 `tar -xzvf <file-name> -C /path/to/your/destination` 解压至您需要的目录。
+
 ## 源码下载
 
 开发者可通过如下命令下载本仓源码：
