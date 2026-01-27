@@ -162,7 +162,7 @@ Atlas A3 训练系列产品/Atlas A3 推理系列产品：该场景下采用HCCS
 <td class="cellrowborder" valign="top" width="13.139999999999999%" headers="mcps1.2.4.1.2 "><p id="p1284014363233"><a name="p1284014363233"></a><a name="p1284014363233"></a>可选</p>
 </td>
 <td class="cellrowborder" valign="top" width="59.36%" headers="mcps1.2.4.1.3 "><p id="p1321144310716"><a name="p1321144310716"></a><a name="p1321144310716"></a>字符串取值"GlobalResourceConfig"。</p>
-<p id="p141217396266"><a name="p141217396266"></a><a name="p141217396266"></a>用于开启并配置链路池机制。该参数的作用是当调用TransferSync或者TransferAsycn接口时，如果不存在相关链路，会执行建链操作。 该参数取值需要通过*.json文件配置。配置示例为：global_resource_configs/evictor_config.json，evictor_config.json文件内容示例如下：</p>
+<p id="p141217396266"><a name="p141217396266"></a><a name="p141217396266"></a>用于开启并配置链路池机制。该参数配置示例如下：</p>
 
 { "channel_pool.max_channel": "10", //最大的链路个数。取值范围：(0, 512]之间的整数，默认值：512
 
@@ -177,7 +177,26 @@ Atlas A3 训练系列产品/Atlas A3 推理系列产品：该场景下采用HCCS
  
  在上述配置示例中，按照计算公式，高水位对应的链路个数=3，低水位对应的链路个数=1。每次建链前会检查当前HIXL内的链路是否达到3，如果已经达到，选择(当前链路个数-1 )条链路进行销毁（如存在正在传输的任务，则不会销毁），再建链。 
  
- 注意：开启链路池机制时，会给传输和建链动作带来额外的开销，可能会导致性能下降。
+ 当启用链路池机制时，有如下注意事项：
+ 
+ - 集群内的所有Hixl Engine都需要配置OPTION_GLOBAL_RESOURCE_CONFIG。
+ - 如果调用TransferSync或者TransferAsycn接口，若不存在相关链路，将执行建链操作。 
+ - 会增加传输和建链的额外开销，可能导致性能下降。
+
+</td>
+</tr>
+<tr id="row92022108110"><td class="cellrowborder" valign="top" width="27.500000000000004%" headers="mcps1.2.4.1.1 "><p id="p8840153616235"><a name="p8840153616235"></a><a name="p8840153616235"></a>OPTION_ENABLE_USE_FABRIC_MEM</p>
+</td>
+<td class="cellrowborder" valign="top" width="13.139999999999999%" headers="mcps1.2.4.1.2 "><p id="p1284014363233"><a name="p1284014363233"></a><a name="p1284014363233"></a>可选</p>
+</td>
+<td class="cellrowborder" valign="top" width="59.36%" headers="mcps1.2.4.1.3 "><p id="p1321144310716"><a name="p1321144310716"></a><a name="p1321144310716"></a>字符串取值"EnableUseFabricMem"。 
+
+- 0：不开启Fabric Mem模式 
+- 1：开启Fabric Mem模式 
+
+此option适用于需要使用HCCS进行D2RH、RH2D传输的场景。 
+
+说明：集群场景下，该参数在所有节点需要配置为相同的值。仅支持Atlas A3 训练系列产品/Atlas A3 推理系列产品。</p>
 
 </td>
 </tr>
