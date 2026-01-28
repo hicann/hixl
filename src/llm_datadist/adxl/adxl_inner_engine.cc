@@ -51,7 +51,7 @@ Status AdxlInnerEngine::LoadGlobalResourceConfig(const std::map<AscendString, As
   std::map<AscendString, AscendString> json_options;
   if (config_it != options.end()) {
     ADXL_CHK_STATUS_RET(LoadJsonConfig(config_it->second.GetString(), json_options), 
-                        "Failed to load JSON config from file: %s", config_it->second.GetString());
+                        "Failed to load JSON config: %s", config_it->second.GetString());
   }
 
   int32_t max_channel = kDefaultMaxChannel;

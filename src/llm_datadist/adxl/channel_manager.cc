@@ -258,6 +258,7 @@ Status ChannelManager::HandleRequestDisconnectMessage(const ChannelPtr &channel,
     Status ret = disconnect_callback_(req_msg.channel_id, timeout_ms);
     if (ret == SUCCESS) {
       LLMLOGI("Successfully disconnected channel %s by request", req_msg.channel_id.c_str());
+      return SUCCESS;
     } else {
       resp.error_code = static_cast<uint32_t>(ret);
       resp.error_message = "Disconnect failed";

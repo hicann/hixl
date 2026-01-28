@@ -200,6 +200,7 @@ Status ChannelMsgHandler::ParseServiceLevel(const std::map<AscendString, AscendS
 Status ChannelMsgHandler::Initialize(const std::map<AscendString, AscendString> &options, SegmentTable *segment_table,
                                      FabricMemTransferService *fabric_mem_transfer_service) {
   ADXL_CHECK_NOTNULL(channel_manager_);
+  ADXL_CHK_ACL_RET(rtCtxGetCurrent(&rt_context_));
   ADXL_CHK_ACL_RET(rtGetDevice(&device_id_));
   ADXL_CHK_STATUS_RET(ParseListenInfo(listen_info_, local_ip_, listen_port_), "Failed to parse listen info");
   ADXL_CHK_LLM_RET(llm::LocalCommResGenerator::Generate(local_ip_, device_id_, local_comm_res_),
@@ -647,6 +648,7 @@ Status ChannelMsgHandler::SetupChannelManagerCallbacks() {
     auto client_channel = channel_manager_->GetChannel(ChannelType::kClient, channel_id);
     if (client_channel != nullptr) {
       item.channel_type = ChannelType::kClient;
+      client_channel->SetDisconnecting(true);
     } else {
       LLMLOGI("Channel %s not found for disconnect", channel_id.c_str());
       return NOT_CONNECTED;
@@ -767,6 +769,7 @@ std::vector<EvictItem> ChannelMsgHandler::SelectEvictionCandidates(int32_t need_
 }
 
 void ChannelMsgHandler::EvictionLoop() {
+  rtCtxSetCurrent(rt_context_);
   while (true) {
     std::unique_lock<std::mutex> lock(evict_mutex_);
     evict_cv_.wait(
@@ -781,9 +784,7 @@ void ChannelMsgHandler::EvictionLoop() {
     while (!evict_queue_.empty()) {
       EvictItem item = evict_queue_.front();
       evict_queue_.pop();
-      lock.unlock();
       ProcessEviction(item);
-      lock.lock();
     }
     ResetAllTransferFlags();
   }
@@ -797,8 +798,9 @@ Status ChannelMsgHandler::ProcessEviction(const EvictItem& item) {
     return SUCCESS;
   }
   
-  if (channel->GetTransferCount() > 0) {
+  if (channel->GetTransferCount() > 0 || !channel->IsDisconnecting()) {
     LLMLOGI("Skip eviction: channel %s has unfinished transfers", item.channel_id.c_str());
+    channel->SetDisconnecting(false);
     return SUCCESS;
   }
   if (item.channel_type == ChannelType::kServer) {
@@ -846,6 +848,7 @@ Status ChannelMsgHandler::ProcessServerEviction(const std::string& channel_id, C
     lock.unlock();
     LLMLOGI("Client refused or failed to disconnect channel %s, error_code=%u, error_message=%s", 
       channel_id.c_str(), resp.error_code, resp.error_message.c_str());
+    channel->SetDisconnecting(false);
     return SUCCESS;
   }
 }

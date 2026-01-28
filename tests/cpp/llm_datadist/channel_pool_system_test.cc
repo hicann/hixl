@@ -29,7 +29,7 @@ class ChannelPoolSystemTest : public ::testing::Test {
     llm::AutoCommResRuntimeMock::Install();
     llm::HcclAdapter::GetInstance().Initialize();
     options_["GlobalResourceConfig"] = 
-      "../tests/cpp/llm_datadist/global_resource_configs/evictor_config.json";
+      R"({"channel_pool.max_channel":"10","channel_pool.high_waterline":"0.3","channel_pool.low_waterline":"0.1"})";
   }
 
   void TearDown() override {
@@ -212,37 +212,35 @@ TEST_F(ChannelPoolSystemTest, TestEvictionWithTransfer) {
 TEST_F(ChannelPoolSystemTest, TestWaterline) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   Hixl engine1;
-  options_["GlobalResourceConfig"] = "../tests/cpp/llm_datadist/global_resource_configs/not_exists.json";
-  EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options_), PARAM_INVALID);
-
-  options_["GlobalResourceConfig"] = "../tests/cpp/llm_datadist/global_resource_configs/invalid_diff_le_1.json";
+  
+  options_["GlobalResourceConfig"] = "invalid json string";
   EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options_), PARAM_INVALID);
   
-  options_["GlobalResourceConfig"] = "../tests/cpp/llm_datadist/global_resource_configs/invalid_low_ge_high.json";
+  options_["GlobalResourceConfig"] = R"({"channel_pool.max_channel":"10","channel_pool.high_waterline":"0.1","channel_pool.low_waterline":"0.3"})";
   EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options_), PARAM_INVALID);
 
-  options_["GlobalResourceConfig"] = "../tests/cpp/llm_datadist/global_resource_configs/invalid_max_channel_0.json";
+  options_["GlobalResourceConfig"] = R"({"channel_pool.max_channel":"0","channel_pool.high_waterline":"0.3","channel_pool.low_waterline":"0.1"})";
   EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options_), PARAM_INVALID);
 
-  options_["GlobalResourceConfig"] = "../tests/cpp/llm_datadist/global_resource_configs/invalid_max_channel_exceed.json";
+  options_["GlobalResourceConfig"] = R"({"channel_pool.max_channel":"999","channel_pool.high_waterline":"0.3","channel_pool.low_waterline":"0.1"})";
   EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options_), PARAM_INVALID);
 
-  options_["GlobalResourceConfig"] = "../tests/cpp/llm_datadist/global_resource_configs/invalid_only_max_channel.json";
+  options_["GlobalResourceConfig"] = R"({"channel_pool.max_channel":"10"})";
   EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options_), PARAM_INVALID);
 
-  options_["GlobalResourceConfig"] = "../tests/cpp/llm_datadist/global_resource_configs/invalid_waterline_ge_1.json";
+  options_["GlobalResourceConfig"] = R"({"channel_pool.max_channel":"10","channel_pool.high_waterline":"1.0","channel_pool.low_waterline":"0.1"})";
   EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options_), PARAM_INVALID);
 
-  options_["GlobalResourceConfig"] = "../tests/cpp/llm_datadist/global_resource_configs/invalid_waterline_le_0.json";
+  options_["GlobalResourceConfig"] = R"({"channel_pool.max_channel":"10","channel_pool.high_waterline":"0.3","channel_pool.low_waterline":"0.0"})";
   EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options_), PARAM_INVALID);
 
-  options_["GlobalResourceConfig"] = "../tests/cpp/llm_datadist/global_resource_configs/invalid_waterline_nan.json";
+  options_["GlobalResourceConfig"] = R"({"channel_pool.max_channel":"10","channel_pool.high_waterline":"NaN","channel_pool.low_waterline":"0.1"})";
   EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options_), PARAM_INVALID);
 
-  options_["GlobalResourceConfig"] = "../tests/cpp/llm_datadist/global_resource_configs/invalid_max_channel_nan.json";
+  options_["GlobalResourceConfig"] = R"({"channel_pool.max_channel":"NaN","channel_pool.high_waterline":"0.3","channel_pool.low_waterline":"0.1"})";
   EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options_), PARAM_INVALID);
 
-  options_["GlobalResourceConfig"] = "../tests/cpp/llm_datadist/global_resource_configs/evictor_config.json";
+  options_["GlobalResourceConfig"] = R"({"channel_pool.max_channel":"10","channel_pool.high_waterline":"0.3","channel_pool.low_waterline":"0.1"})";
   EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options_), SUCCESS);
 }
 
@@ -547,7 +545,7 @@ TEST_F(ChannelPoolSystemTest, ConcurrentAsyncTransfersWithoutConnectStatusErrors
 
 TEST_F(ChannelPoolSystemTest, TestResourceExhausted) {
   options_["GlobalResourceConfig"] = 
-    "../tests/cpp/llm_datadist/global_resource_configs/resource_exhausted_config.json";
+    R"({"channel_pool.max_channel":"3","channel_pool.high_waterline":"0.67","channel_pool.low_waterline":"0.33"})";
   llm::AutoCommResRuntimeMock::SetDevice(0);
   Hixl client_exhausted;
   EXPECT_EQ(client_exhausted.Initialize("127.0.0.1:60000", options_), SUCCESS);
