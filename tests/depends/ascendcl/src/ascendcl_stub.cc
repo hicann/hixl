@@ -15,7 +15,6 @@
 #include "mmpa/mmpa_api.h"
 
 static std::string g_acl_stub_mock = "";
-static std::string g_acl_stub_mock_v2 = "";
 static char g_soc_version[50] = {0};
 
 static int32_t g_free_stream_num = 2048;
