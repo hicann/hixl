@@ -27,7 +27,7 @@ constexpr size_t kMaxBlockNum = 60 * 1024U;
 
 D2HDataTransferJob::~D2HDataTransferJob() {
   if (event_ != nullptr) {
-    LLM_CHK_ACL(rtEventDestroy(event_));
+    LLM_CHK_ACL(aclrtDestroyEvent(event_));
   }
 }
 
@@ -52,7 +52,7 @@ ge::Status D2HDataTransferJob::Initialize(const CacheEntry &cache_entry, CommEnt
   send_sync_flag_ = PtrToPtr<void, uint8_t>(comm_entity.GetEntityInfo().send_dev_buffer_resp_ptr) + resp_len;
   auto send_sync_host_flag_ = static_cast<uint8_t>(1U);
   LLM_CHK_ACL_RET(
-      rtMemcpy(send_sync_flag_, sizeof(uint8_t), &send_sync_host_flag_, sizeof(uint8_t), RT_MEMCPY_HOST_TO_DEVICE));
+      aclrtMemcpy(send_sync_flag_, sizeof(uint8_t), &send_sync_host_flag_, sizeof(uint8_t), ACL_MEMCPY_HOST_TO_DEVICE));
 
   size_t start_index = 0U;
   size_t end_index = 0U;
@@ -121,12 +121,12 @@ ge::Status D2HDataTransferJob::Process(bool &is_done) {
 
   // 全部task下发完成, 记录event
   if (event_ == nullptr) {
-    LLM_CHK_ACL_RET(rtEventCreate(&event_));
-    LLM_CHK_ACL_RET(rtEventRecord(event_, stream_));
+    LLM_CHK_ACL_RET(aclrtCreateEvent(&event_));
+    LLM_CHK_ACL_RET(aclrtRecordEvent(event_, stream_));
   }
-  rtEventStatus event_status{};
-  LLM_CHK_ACL_RET(rtEventQueryStatus(event_, &event_status));
-  if (event_status != RT_EVENT_RECORDED) {
+  aclrtEventRecordedStatus event_status{};
+  LLM_CHK_ACL_RET(aclrtQueryEventStatus(event_, &event_status));
+  if (event_status != ACL_EVENT_RECORDED_STATUS_COMPLETE) {
     // 没有wait到，等待下一次
     LLMLOGI("event not recorded");
     return ge::SUCCESS;
@@ -382,7 +382,7 @@ std::vector<TransferBlocksTask> DataTransferTaskGenerator::GenerateTasks(uint32_
   }
 }
 
-D2HDataTransferClient::D2HDataTransferClient(CommEntity &comm_entity, rtStream_t stream)
+D2HDataTransferClient::D2HDataTransferClient(CommEntity &comm_entity, aclrtStream stream)
     : comm_entity_(&comm_entity), stream_(stream) {
   buffered_sender_.Initialize(comm_entity, stream);
 }
@@ -438,7 +438,7 @@ ge::Status D2HDataTransferClient::Prepare(const CacheEntry &cache_entry,
                          "Failed to allocate memory for sending flag.");
   send_dev_flag_ = PtrToPtr<void, uint8_t>(send_flag);
   auto host_flag = static_cast<uint8_t>(1U);
-  LLM_CHK_ACL_RET(rtMemcpy(send_dev_flag_, sizeof(uint8_t), &host_flag, sizeof(uint8_t), RT_MEMCPY_HOST_TO_DEVICE));
+  LLM_CHK_ACL_RET(aclrtMemcpy(send_dev_flag_, sizeof(uint8_t), &host_flag, sizeof(uint8_t), ACL_MEMCPY_HOST_TO_DEVICE));
 
   LLM_CHK_STATUS_RET(SendRequest(cache_entry, cache_key, pull_cache_param), "Failed to send request");
   // PUT req & flag
@@ -598,7 +598,7 @@ ge::Status D2HDataTransferClient::RunTasks() {
   return ge::SUCCESS;
 }
 ge::Status D2HDataTransferClient::CopyAsync(const TransferBlocksTask &task) {
-  LLM_CHK_ACL_RET(rtCtxSetCurrent(comm_entity_->GetCurrentContext()));
+  LLM_CHK_ACL_RET(aclrtSetCurrentContext(comm_entity_->GetCurrentContext()));
   auto src_addr = buffers_[task.buffer_index] + task.block_span.buffer_block_start * block_size_;
   auto dst_addr = tensor_addresses_[task.block_span.tensor_index] + task.block_span.tensor_offset;
   const auto size = task.block_span.size;
@@ -608,7 +608,7 @@ ge::Status D2HDataTransferClient::CopyAsync(const TransferBlocksTask &task) {
          task.block_span.buffer_block_start * block_size_,
          task.block_span.tensor_offset,
          size);
-  LLM_CHK_ACL_RET(rtMemcpy(dst_addr, size, src_addr, size, RT_MEMCPY_DEVICE_TO_HOST));
+  LLM_CHK_ACL_RET(aclrtMemcpy(dst_addr, size, src_addr, size, ACL_MEMCPY_DEVICE_TO_HOST));
   return ge::SUCCESS;
 }
 }  // namespace llm

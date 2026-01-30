@@ -12,7 +12,7 @@
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_ADXL_CONTROL_MSG_HANDLER_H_
 
 #include "nlohmann/json.hpp"
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #include "adxl/adxl_types.h"
 #include "adxl_checker.h"
 #include "common/llm_log.h"

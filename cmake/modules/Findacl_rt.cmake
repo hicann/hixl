@@ -8,15 +8,15 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
-if (runtime_FOUND)
-    message(STATUS "Package runtime has been found.")
+if (acl_rt_FOUND)
+    message(STATUS "Package acl_rt has been found.")
     return()
 endif()
 
 set(_cmake_targets_defined "")
 set(_cmake_targets_not_defined "")
 set(_cmake_expected_targets "")
-foreach(_cmake_expected_target IN ITEMS runtime runtime_headers)
+foreach(_cmake_expected_target IN ITEMS acl_rt acl_rt_headers)
     list(APPEND _cmake_expected_targets "${_cmake_expected_target}")
     if(TARGET "${_cmake_expected_target}")
         list(APPEND _cmake_targets_defined "${_cmake_expected_target}")
@@ -44,60 +44,49 @@ unset(_cmake_targets_defined)
 unset(_cmake_targets_not_defined)
 unset(_cmake_expected_targets)
 
-find_path(_EX_RTS_PATH "experiment/runtime/runtime/rt.h"
-    NO_CMAKE_SYSTEM_PATH
-    NO_CMAKE_FIND_ROOT_PATH)
-find_path(_RTS_PATH "../pkg_inc/runtime/runtime/rt.h"
+find_path(_INCLUDE_DIR
+    NAMES acl/acl.h
     NO_CMAKE_SYSTEM_PATH
     NO_CMAKE_FIND_ROOT_PATH)
 
-if(_EX_RTS_PATH)
-    set(_INCLUDE_DIR "${_EX_RTS_PATH}/experiment")
-    set(runtime_INCLUDE_DIR "${_INCLUDE_DIR};${_INCLUDE_DIR}/runtime;${_INCLUDE_DIR}/runtime/external;${_INCLUDE_DIR}/runtime/external/runtime")
-elseif(_RTS_PATH)
-    set(_INCLUDE_DIR "${_RTS_PATH}/../pkg_inc")
-    set(runtime_INCLUDE_DIR "${_INCLUDE_DIR};${_INCLUDE_DIR}/runtime;${_RTS_PATH}/acl/error_codes")
-else()
-unset(_INCLUDE_DIR)
-endif()
-
-find_library(runtime_SHARED_LIBRARY
-    NAMES libruntime.so
+find_library(acl_rt_SHARED_LIBRARY
+    NAMES libacl_rt.so
     PATH_SUFFIXES lib64
     NO_CMAKE_SYSTEM_PATH
     NO_CMAKE_FIND_ROOT_PATH)
 
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(runtime
+find_package_handle_standard_args(acl_rt
     FOUND_VAR
-        runtime_FOUND
+        acl_rt_FOUND
     REQUIRED_VARS
         _INCLUDE_DIR
-        runtime_SHARED_LIBRARY
+        acl_rt_SHARED_LIBRARY
 )
 
-if(runtime_FOUND)
+if(acl_rt_FOUND)
+    set(acl_rt_INCLUDE_DIR "${_INCLUDE_DIR}")
     include(CMakePrintHelpers)
-    message(STATUS "Variables in runtime module:")
-    cmake_print_variables(runtime_INCLUDE_DIR)
-    cmake_print_variables(runtime_SHARED_LIBRARY)
+    message(STATUS "Variables in acl_rt module:")
+    cmake_print_variables(acl_rt_INCLUDE_DIR)
+    cmake_print_variables(acl_rt_SHARED_LIBRARY)
 
-    add_library(runtime SHARED IMPORTED)
-    set_target_properties(runtime PROPERTIES
-        INTERFACE_LINK_LIBRARIES "runtime_headers"
-        IMPORTED_LOCATION "${runtime_SHARED_LIBRARY}"
+    add_library(acl_rt SHARED IMPORTED)
+    set_target_properties(acl_rt PROPERTIES
+        INTERFACE_LINK_LIBRARIES "acl_rt_headers"
+        IMPORTED_LOCATION "${acl_rt_SHARED_LIBRARY}"
     )
 
-    add_library(runtime_headers INTERFACE IMPORTED)
-    set_target_properties(runtime_headers PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${runtime_INCLUDE_DIR}"
+    add_library(acl_rt_headers INTERFACE IMPORTED)
+    set_target_properties(acl_rt_headers PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${acl_rt_INCLUDE_DIR};${acl_rt_INCLUDE_DIR}/acl"
     )
 
     include(CMakePrintHelpers)
-    cmake_print_properties(TARGETS runtime
+    cmake_print_properties(TARGETS acl_rt
         PROPERTIES INTERFACE_LINK_LIBRARIES IMPORTED_LOCATION
     )
-    cmake_print_properties(TARGETS runtime_headers
+    cmake_print_properties(TARGETS acl_rt_headers
         PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
     )
 endif()

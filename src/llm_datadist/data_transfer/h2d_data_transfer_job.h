@@ -12,7 +12,7 @@
 
 #include <future>
 #include "data_transfer/data_transfer_job.h"
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #include "link_mgr/comm_entity.h"
 #include "utils/task_batcher.h"
 #include "common/llm_thread_pool.h"
@@ -32,9 +32,9 @@ struct BufferContext {
   // shared
   LLMThreadPool *thread_pool;
   std::vector<std::future<ge::Status>> copy_futures;
-  rtEvent_t event;
-  rtStream_t stream;
-  rtContext_t rt_context;
+  aclrtEvent event;
+  aclrtStream stream;
+  aclrtContext aclrt_context;
   CommEntity *comm_entity;
   std::vector<std::shared_ptr<void>> data_addresses;
   const TransferCacheReq *request;

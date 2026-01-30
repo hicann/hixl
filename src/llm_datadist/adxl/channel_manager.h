@@ -109,7 +109,7 @@ class ChannelManager {
   StreamPool *stream_pool_ = nullptr;
 
   std::thread msg_receiver_;
-  rtContext_t rt_context_{nullptr};
+  aclrtContext aclrt_context_{nullptr};
 
   SegmentTable *segment_table_ = nullptr;
 

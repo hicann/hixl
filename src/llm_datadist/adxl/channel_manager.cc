@@ -36,7 +36,7 @@ Status kNoNeedRetry = 1U;
 int64_t ChannelManager::wait_time_in_millis_ = kWaitTimeInMillis;
 
 Status ChannelManager::Initialize(BufferTransferService *buffer_transfer_service, SegmentTable *segment_table) {
-  ADXL_CHK_ACL_RET(rtCtxGetCurrent(&rt_context_));
+  ADXL_CHK_ACL_RET(aclrtGetCurrentContext(&aclrt_context_));
   buffer_transfer_service_ = buffer_transfer_service;
   segment_table_ = segment_table;
   epoll_fd_ = epoll_create1(0);
@@ -54,7 +54,7 @@ Status ChannelManager::Initialize(BufferTransferService *buffer_transfer_service
   });
   // receive msg thread
   msg_receiver_ = std::thread([this]() {
-    rtCtxSetCurrent(rt_context_);
+    aclrtSetCurrentContext(aclrt_context_);
     while (!stop_signal_.load()) {
       HandleEpoolEvents();
       CheckHeartbeatTimeouts();

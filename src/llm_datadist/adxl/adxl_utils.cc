@@ -10,7 +10,7 @@
 
 #include "adxl_utils.h"
 #include <fstream>
-#include "rt_error_codes.h"
+#include "acl/acl.h"
 #include "llm_datadist/llm_datadist.h"
 #include "common/llm_log.h"  // Correct include path
 
@@ -36,9 +36,9 @@ Status HcclError2AdxlStatus(HcclResult ret) {
   return FAILED;
 }
 
-Status AclError2AdxlStatus(rtError_t ret) {
-  static const std::map<rtError_t, Status> acl2adxl = {
-      {RT_ERROR_NONE, SUCCESS},
+Status AclError2AdxlStatus(aclError ret) {
+  static const std::map<aclError, Status> acl2adxl = {
+      {ACL_ERROR_NONE, SUCCESS},
       {ACL_ERROR_RT_STREAM_SYNC_TIMEOUT, TIMEOUT},
   };
   const auto &it = acl2adxl.find(ret);

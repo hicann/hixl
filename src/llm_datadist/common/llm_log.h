@@ -25,8 +25,7 @@
 #include "llm_datadist/llm_error_codes.h"
 #include "dlog_pub.h"
 #include "base/err_msg.h"
-#include "rt_error_codes.h"
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #ifdef __GNUC__
 #include <unistd.h>
 #include <sys/syscall.h>
@@ -225,10 +224,10 @@ inline ge::Status ConvertAclError2Ge(int32_t ret) {
 // If expr is not 0, print the log and return
 #define LLM_CHK_ACL_RET(expr)                                                   \
   do {                                                                          \
-    const rtError_t _ret = (expr);                          \
-    if (_ret != RT_ERROR_NONE) {                                                            \
+    const aclError _ret = (expr);                          \
+    if (_ret != ACL_ERROR_NONE) {                                                            \
       REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret));      \
-      LLMLOGE(ge::FAILED, "Call rt api failed, ret: 0x%X", static_cast<uint32_t>(_ret));             \
+      LLMLOGE(ge::FAILED, "Call aclrt api failed, ret: 0x%X", static_cast<uint32_t>(_ret));             \
       return llm::ConvertAclError2Ge(static_cast<int32_t>(_ret));                                      \
     }                                                                           \
   } while (false)
@@ -236,21 +235,21 @@ inline ge::Status ConvertAclError2Ge(int32_t ret) {
 
 #define LLM_CHK_ACL(expr)                                              \
   do {                                                                 \
-    const rtError_t _rt_err = (expr);                \
-    if (_rt_err != RT_ERROR_NONE) {                                                 \
-      LLMLOGE(ge::FAILED, "Call rt api failed, ret: 0x%X", static_cast<uint32_t>(_rt_err)); \
+    const aclError _rt_err = (expr);                \
+    if (_rt_err != ACL_ERROR_NONE) {                                                 \
+      LLMLOGE(ge::FAILED, "Call aclrt api failed, ret: 0x%X", static_cast<uint32_t>(_rt_err)); \
     }                                                                  \
   } while (false)
 
 
 #define LLM_RT_ERROR_TO_GE_STATUS(RT_ERROR) static_cast<ge::Status>(RT_ERROR)
-// If expr is not RT_ERROR_NONE, print the log and return
+// If expr is not ACL_ERROR_NONE, print the log and return
 #define LLM_CHK_RT_RET(expr)                                                   \
   do {                                                                        \
-    const rtError_t _rt_ret = (expr);                                         \
-    if (_rt_ret != RT_ERROR_NONE) {                                           \
+    const aclError _rt_ret = (expr);                                         \
+    if (_rt_ret != ACL_ERROR_NONE) {                                           \
       REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_rt_ret)); \
-      LLMLOGE(ge::FAILED, "Call rt api failed, ret: 0x%X", static_cast<uint32_t>(_rt_ret)); \
+      LLMLOGE(ge::FAILED, "Call aclrt api failed, ret: 0x%X", static_cast<uint32_t>(_rt_ret)); \
       return LLM_RT_ERROR_TO_GE_STATUS(_rt_ret);                                  \
     }                                                                         \
   } while (false)

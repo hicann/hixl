@@ -14,7 +14,7 @@
 #include <vector>
 #include <list>
 
-#include "runtime/rt.h"
+#include "acl/acl.h"
 
 #include "llm_datadist/llm_error_codes.h"
 #include "ge_common/ge_api_types.h"
@@ -149,9 +149,9 @@ class CommEntity {
 
   void *GetReq();
   void *GetResp();
-  rtStream_t  GetStream() const;
-  rtContext_t GetCurrentContext() const;
-  void SetContext(rtContext_t context);
+  aclrtStream  GetStream() const;
+  aclrtContext GetCurrentContext() const;
+  void SetContext(aclrtContext context);
   uint64_t GetClusterId() const;
   uint64_t GetCommId() const;
   HcclComm GetComm() const;
@@ -168,12 +168,12 @@ class CommEntity {
   LlmMemPool *GetHostMemPool() const;
   void SetEntityMemInfo(EntityMemInfoPtr &mem_info);
   void SetEntityCommInfo(EntityCommInfoPtr comm_info);
-  ge::Status BatchPutAsync(std::vector<HcclOneSideOpDesc> &op_descs, rtStream_t stream = nullptr);
-  ge::Status BatchGetAsync(std::vector<HcclOneSideOpDesc> &op_descs, rtStream_t stream = nullptr);
-  SendStatisticInfo &GetSendStatisticInfo(rtStream_t stream = nullptr);
+  ge::Status BatchPutAsync(std::vector<HcclOneSideOpDesc> &op_descs, aclrtStream stream = nullptr);
+  ge::Status BatchGetAsync(std::vector<HcclOneSideOpDesc> &op_descs, aclrtStream stream = nullptr);
+  SendStatisticInfo &GetSendStatisticInfo(aclrtStream stream = nullptr);
   RecvStatisticInfo &GetRecvStatisticInfo();
   void Dump() const;
-  ge::Status SendRequest(const FillRequestFunc &fill_request_func, rtStream_t stream);
+  ge::Status SendRequest(const FillRequestFunc &fill_request_func, aclrtStream stream);
   ge::Status SendResponse(const FillResponseFunc &fill_response_func);
   ge::Status SendResponse(ge::Status status);
   ge::Status GetResponse(const ResponseInfo *&response_info,
@@ -201,8 +201,8 @@ class CommEntity {
   uint64_t local_cluster_id_;
   uint32_t local_rank_id_;
   std::string desc_;
-  rtStream_t stream_;
-  rtContext_t rt_context_{nullptr};
+  aclrtStream stream_;
+  aclrtContext aclrt_context_{nullptr};
   EntityMemInfoPtr mem_info_ptr_{nullptr};
   EntityCommInfoPtr comm_info_ptr_{nullptr};
   bool inner_comm_ = false;
@@ -212,7 +212,7 @@ class CommEntity {
   CacheManager *cache_manager_{};
   LlmMemPool *host_mem_pool_{};
   std::mutex info_mutex_;
-  std::map<rtStream_t, SendStatisticInfo> send_statistic_infos_;
+  std::map<aclrtStream, SendStatisticInfo> send_statistic_infos_;
   RecvStatisticInfo recv_statistic_info_;
   std::unique_ptr<DataTransferJob> data_transfer_job_;
   std::chrono::steady_clock::time_point timeout_point_;
@@ -223,7 +223,7 @@ class CommEntity {
 
 class BufferedSender {
  public:
-  void Initialize(CommEntity &comm_entity, rtStream_t stream = nullptr, bool put_or_get = true);
+  void Initialize(CommEntity &comm_entity, aclrtStream stream = nullptr, bool put_or_get = true);
 
   ge::Status Put(void *local_addr, void *remote_addr, size_t size, bool flush = false);
 
@@ -232,7 +232,7 @@ class BufferedSender {
  private:
   std::vector<HcclOneSideOpDesc> op_descs_;
   CommEntity *comm_entity_ = nullptr;
-  rtStream_t stream_ = nullptr;
+  aclrtStream stream_ = nullptr;
   bool put_or_get_ = true;
 };
 }  // namespace llm

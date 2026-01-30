@@ -13,7 +13,7 @@
 
 #include <mutex>
 #include <map>
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #include "adxl/adxl_types.h"
 
 namespace adxl {
@@ -23,13 +23,13 @@ public:
   explicit StreamPool(size_t max_stream_num) : max_stream_num_(max_stream_num) {}
   ~StreamPool() = default;
   void Finalize();
-  Status TryAllocStream(rtStream_t &stream);
-  void FreeStream(rtStream_t &stream);
-  void DestroyStream(rtStream_t &stream);
+  Status TryAllocStream(aclrtStream &stream);
+  void FreeStream(aclrtStream &stream);
+  void DestroyStream(aclrtStream &stream);
 
 private:
   std::mutex pool_mutex_;
-  std::map<rtStream_t, bool> pool_;
+  std::map<aclrtStream, bool> pool_;
   size_t max_stream_num_;
 };
 }// namespace adxl

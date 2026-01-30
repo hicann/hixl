@@ -24,7 +24,6 @@ namespace hixl{
 class ChannelPoolSystemTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    SetMockRtGetDeviceWay(1);
     llm::MockMmpaForHcclApi::Install();
     llm::AutoCommResRuntimeMock::Install();
     llm::HcclAdapter::GetInstance().Initialize();
@@ -36,7 +35,6 @@ class ChannelPoolSystemTest : public ::testing::Test {
     llm::HcclAdapter::GetInstance().Finalize();
     llm::MockMmpaForHcclApi::Reset();
     llm::AutoCommResRuntimeMock::Reset();
-    SetMockRtGetDeviceWay(0);
   }
   std::map<AscendString, AscendString> options_;
 };

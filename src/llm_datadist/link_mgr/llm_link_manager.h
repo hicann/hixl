@@ -25,7 +25,7 @@ class LLMLinkManager : public CommLinkManager {
       : CommLinkManager(cluster_id, remote_cache_accessible),
         device_id_(device_id),
         cluster_id_(cluster_id),
-        rt_context_(nullptr),
+        aclrt_context_(nullptr),
         msg_handler_(cluster_id, device_id_, comm_entity_manager, comm_mem_manager, cache_manager) {};
   ~LLMLinkManager() override = default;
   ge::Status Initialize(const std::map<ge::AscendString, ge::AscendString> &options) override;
@@ -39,7 +39,7 @@ class LLMLinkManager : public CommLinkManager {
  private:
   int32_t device_id_;
   uint64_t cluster_id_;
-  rtContext_t rt_context_;
+  aclrtContext aclrt_context_;
   LinkMsgHandler msg_handler_;
   std::mutex mutex_;
   std::string listen_port_;

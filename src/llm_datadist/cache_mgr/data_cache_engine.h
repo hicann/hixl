@@ -57,14 +57,14 @@ class DataCacheEngine {
   CommEntityManager *comm_entity_manager_{};
   CommMemManager *comm_mem_manager_{};
   CacheManager *cache_manager_{};
-  rtStream_t req_stream_{nullptr};
-  rtContext_t rt_context_{nullptr};
+  aclrtStream req_stream_{nullptr};
+  aclrtContext aclrt_context_{nullptr};
   int32_t sync_cache_timeout_{0};
   void *npu_pool_memory_{};
   size_t npu_pool_size_{};
   bool access_remote_cache_ = false;
   std::unique_ptr<LlmMemPool> npu_mem_pool_{};
-  rtStream_t transfer_stream_{nullptr};
+  aclrtStream transfer_stream_{nullptr};
   std::once_flag create_stream_once_flag_;
   void *host_pool_memory_{nullptr};
   std::unique_ptr<LlmMemPool> host_mem_pool_{};

@@ -42,7 +42,8 @@ foreach(target_name IN LISTS targets_list)
         )
         target_link_libraries(${target_name} PRIVATE
             cann_hixl
-            ascendcl
+            acl_rt_headers
+            acl_rt
             -lpthread
             -lrt
         )

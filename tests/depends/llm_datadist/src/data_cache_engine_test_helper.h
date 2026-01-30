@@ -18,7 +18,7 @@
 #include "cache_mgr/data_cache_engine.h"
 #include "common/llm_utils.h"
 #include "depends/mmpa/src/mmpa_stub.h"
-#include "depends/runtime/src/runtime_stub.h"
+#include "depends/ascendcl/src/ascendcl_stub.h"
 
 namespace llm {
 class HcclApiStub {
@@ -33,9 +33,9 @@ class HcclApiStub {
                                                 HcclComm *comm);
   virtual HcclResult HcclCommDestroy(HcclComm comm);
   virtual HcclResult HcclBatchPut(HcclComm comm, uint32_t remoteRank, HcclOneSideOpDesc *desc, uint32_t descNum,
-                                  rtStream_t stream);
+                                  aclrtStream stream);
   virtual HcclResult HcclBatchGet(HcclComm comm, uint32_t remoteRank, HcclOneSideOpDesc *desc, uint32_t descNum,
-                                  rtStream_t stream);
+                                  aclrtStream stream);
   virtual HcclResult HcclRemapRegistedMemory(HcclComm *comm, HcclMem *memInfoArray, uint64_t commSize,
                                              uint64_t arraySize);
   virtual HcclResult HcclRegisterGlobalMem(HcclMem *mem, void **memHandle);
@@ -134,11 +134,11 @@ class MockMmpaForHcclApi : public llm::MmpaStubApiGe {
     return HcclApiStub::GetInstance().HcclCommDestroy(comm);
   }
   static HcclResult HcclBatchPut(HcclComm comm, uint32_t remoteRank, HcclOneSideOpDesc *desc, uint32_t descNum,
-                                 rtStream_t stream) {
+                                 aclrtStream stream) {
     return HcclApiStub::GetInstance().HcclBatchPut(comm, remoteRank, desc, descNum, stream);
   }
   static HcclResult HcclBatchGet(HcclComm comm, uint32_t remoteRank, HcclOneSideOpDesc *desc, uint32_t descNum,
-                                 rtStream_t stream) {
+                                 aclrtStream stream) {
     return HcclApiStub::GetInstance().HcclBatchGet(comm, remoteRank, desc, descNum, stream);
   }
   static void HcclCommConfigInit(HcclCommConfig *config) {
@@ -169,56 +169,56 @@ class MockMmpaForHcclApi : public llm::MmpaStubApiGe {
   }
 };
 
-class DataCacheEngineRuntimeMock : public llm::RuntimeStub {
+class DataCacheEngineRuntimeMock : public llm::AclRuntimeStub {
  public:
-  rtError_t rtEventQueryStatus(rtEvent_t evt, rtEventStatus_t *status) override {
-    if (++counter_ % 5 == 0) {
-      *status = RT_EVENT_RECORDED;
+  aclError aclrtQueryEventStatus(aclrtEvent evt, aclrtEventRecordedStatus *status) override {
+    if (++counter_ % RUTIME_MOCK_QUERY_EVENT_INTERVAL == 0) {
+      *status = ACL_EVENT_RECORDED_STATUS_COMPLETE;
     } else {
-      *status = RT_EVENT_INIT;
+      *status = ACL_EVENT_RECORDED_STATUS_NOT_READY;
     }
-    return RT_ERROR_NONE;
+    return ACL_ERROR_NONE;
   }
 
  private:
   int32_t counter_ = 0;
 };
 
-class TransferAsyncRuntimeMock : public llm::RuntimeStub {
+class TransferAsyncRuntimeMock : public llm::AclRuntimeStub {
  public:
-  rtError_t rtEventQueryStatus(rtEvent_t evt, rtEventStatus_t *status) override {
+  aclError aclrtQueryEventStatus(aclrtEvent evt, aclrtEventRecordedStatus *status) override {
     (void)evt;
-    *status = RT_EVENT_INIT;
+    *status = ACL_EVENT_RECORDED_STATUS_NOT_READY;
     return -1;
   }
 };
 
-class TransferAsyncSteamRuntimeMocak : public llm::RuntimeStub {
+class TransferAsyncSteamRuntimeMocak : public llm::AclRuntimeStub {
  public:
-  rtError_t rtStreamSynchronize(rtStream_t stream) override{
+  aclError aclrtSynchronizeStream(aclrtStream stream) override{
     (void)stream;
     return -1;
   }
 };
 
-class AutoCommResRuntimeMock : public llm::RuntimeStub {
+class AutoCommResRuntimeMock : public llm::AclRuntimeStub {
  public:
   static void Install() {
-    llm::RuntimeStub::SetInstance(std::make_shared<AutoCommResRuntimeMock>());
+    llm::AclRuntimeStub::SetInstance(std::make_shared<AutoCommResRuntimeMock>());
     WriteHccnConfFile();
   }
 
   static void Reset() {
-    llm::RuntimeStub::Reset();
+    llm::AclRuntimeStub::Reset();
     RemoveHccnConfFile();
   }
 
   static void InstallWithoutHccnConfFile() {
-    llm::RuntimeStub::SetInstance(std::make_shared<AutoCommResRuntimeMock>());
+    llm::AclRuntimeStub::SetInstance(std::make_shared<AutoCommResRuntimeMock>());
   }
 
   static void ResetWithoutHccnConfFile() {
-    llm::RuntimeStub::Reset();
+    llm::AclRuntimeStub::Reset();
   }
 
   static void DeleteHccnConfIfExist() {
@@ -233,22 +233,21 @@ class AutoCommResRuntimeMock : public llm::RuntimeStub {
     }
   }
 
-  rtError_t rtGetSocVersion(char *version, const uint32_t maxLen) override {
-    (void)strcpy_s(version, maxLen, "Ascend910_9391");
-    return RT_ERROR_NONE;
+  const char* aclrtGetSocName() override {
+    return "Ascend910_9391";
   }
 
   static void SetDevice(int32_t device_id) {
     device_id_ = device_id;
   }
 
-  rtError_t rtGetDevice(int32_t *deviceId) override {
+  aclError aclrtGetDevice(int32_t *deviceId) override {
     *deviceId = device_id_;
-    return RT_ERROR_NONE;
+    return ACL_ERROR_NONE;
   }
 
-  rtError_t rtsMemcpyBatch(void **dsts, void **srcs, size_t *sizes, size_t count, rtMemcpyBatchAttr *attrs,
-                                   size_t *attrs_idxs, size_t num_attrs, size_t *fail_idx) override {
+  aclError aclrtMemcpyBatch(void **dsts, size_t *destMax, void **srcs, size_t *sizes, size_t numBatches,
+                            aclrtMemcpyBatchAttr *attrs, size_t *attrsIndexex, size_t numAttrs, size_t *failIndex) override {
     return ACL_ERROR_RT_FEATURE_NOT_SUPPORT;
   }
 

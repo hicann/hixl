@@ -14,7 +14,7 @@
 #include <fstream>
 #include "mmpa/mmpa_api.h"
 #include "nlohmann/json.hpp"
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #include "llm_datadist/llm_datadist.h"
 #include "common/llm_utils.h"
 #include "common/mem_utils.h"
@@ -67,8 +67,8 @@ ge::Status LocalCommResGenerator::Generate(const std::string &server_id,
   const static std::set<std::string> kV2Version = {
       "Ascend910_9391", "Ascend910_9381", "Ascend910_9392", "Ascend910_9382", "Ascend910_9372", "Ascend910_9362"
   };
-  char version[kVersionMaxLen] = {0};
-  LLM_CHK_ACL_RET(rtGetSocVersion(version, kVersionMaxLen));
+  const char *version = aclrtGetSocName();
+  LLM_CHECK_NOTNULL(version, "aclrt get soc name");
   const auto &it = kV2Version.find(version);
   if (it != kV2Version.cend()) {
     LLM_CHK_STATUS_RET(RankTableGeneratorV2::GenerateLocalCommRes(server_id, device_id, local_comm_res),
@@ -133,7 +133,7 @@ ge::Status LocalCommResGenerator::GetIpAddressFromHccnTool(uint32_t phy_device_i
   return ge::SUCCESS;
 }
 
-ge::Status LocalCommResGenerator::GetDeviceIp(uint32_t phy_device_id, std::string &device_ip) {
+ge::Status LocalCommResGenerator::GetDeviceIp(int32_t phy_device_id, std::string &device_ip) {
   constexpr const char *kFilePath = "/etc/hccn.conf";
   char_t resolved_path[MMPA_MAX_PATH] = {};
   auto mm_ret = mmRealPath(kFilePath, &(resolved_path[0U]), MMPA_MAX_PATH);
@@ -176,3 +176,4 @@ ge::Status LocalCommResGenerator::GetDeviceIp(uint32_t phy_device_id, std::strin
   return ge::SUCCESS;
 }
 }  // namespace llm
+

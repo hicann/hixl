@@ -45,7 +45,6 @@ public:
 class ChannelPoolUnitTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    SetMockRtGetDeviceWay(1);
     llm::MockMmpaForHcclApi::Install();
     llm::AutoCommResRuntimeMock::Install();
     llm::HcclAdapter::GetInstance().Initialize();
@@ -80,7 +79,6 @@ protected:
     llm::HcclAdapter::GetInstance().Finalize();
     llm::MockMmpaForHcclApi::Reset();
     llm::AutoCommResRuntimeMock::Reset();
-    SetMockRtGetDeviceWay(0);
   }
 
   void CreateChannels(int count, ChannelType channel_type = ChannelType::kClient) {

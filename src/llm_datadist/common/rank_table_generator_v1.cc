@@ -12,7 +12,7 @@
 #include <map>
 #include <set>
 #include "nlohmann/json.hpp"
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #include "llm_datadist/llm_datadist.h"
 
 namespace llm {
@@ -76,8 +76,8 @@ ge::Status RankTableGeneratorV1::MergeRankTable(int32_t local_device_id,
     LLM_CHK_BOOL_RET_STATUS(server.device_list.size() == 1U, ge::LLM_PARAM_INVALID,
                            "Please check local option:%s, it only supports one device that is used.",
                            llm_datadist::OPTION_LOCAL_COMM_RES);
-    uint32_t phy_device_id = 0U;
-    LLM_CHK_RT_RET(rtGetDevicePhyIdByIndex(static_cast<uint32_t>(local_device_id), &phy_device_id));
+    int32_t phy_device_id = 0U;
+    LLM_CHK_RT_RET(aclrtGetPhyDevIdByLogicDevId(local_device_id, &phy_device_id));
     LLM_CHK_BOOL_RET_STATUS(std::to_string(phy_device_id) == server.device_list[0].device_id,
                            ge::LLM_PARAM_INVALID,
                            "Please check local option:%s, device_id:%s should be %u, logic device id:%d.",
@@ -168,8 +168,8 @@ ge::Status RankTableGeneratorV1::GenerateLocalCommRes(const std::string &server_
   rank_table_v1::ServerInfo server_info{};
   server_info.server_id = server_id;
   rank_table_v1::DeviceInfo device_info{};
-  uint32_t phy_device_id = 0U;
-  LLM_CHK_RT_RET(rtGetDevicePhyIdByIndex(static_cast<uint32_t>(device_id), &phy_device_id));
+  int32_t phy_device_id = 0U;
+  LLM_CHK_RT_RET(aclrtGetPhyDevIdByLogicDevId(device_id, &phy_device_id));
   device_info.device_id = std::to_string(phy_device_id);
   LLM_CHK_STATUS_RET(LocalCommResGenerator::GetDeviceIp(phy_device_id, device_info.device_ip),
                     "Failed to get device_ip, phy_device_id:%u", phy_device_id);

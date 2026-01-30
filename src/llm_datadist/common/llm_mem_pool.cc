@@ -11,7 +11,7 @@
 #include "llm_mem_pool.h"
 #include "nlohmann/json.hpp"
 #include "common/llm_log.h"
-#include "runtime/rt.h"
+#include "acl/acl.h"
 
 namespace llm {
 ge::MemBlock *LlmMemPool::LlmMemAllocator::Malloc(size_t size) {

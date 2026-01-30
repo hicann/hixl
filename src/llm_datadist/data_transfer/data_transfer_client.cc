@@ -178,7 +178,7 @@ ge::Status DataTransferClient::SendCacheInfoToRemote() const {
 }
 
 ge::Status DataTransferClient::SynchronizeStreamTask(const TimePoint &start_time) const {
-  LLM_CHK_ACL_RET(rtStreamSynchronizeWithTimeout(req_stream_, timeout_in_ms_));
+  LLM_CHK_ACL_RET(aclrtSynchronizeStreamWithTimeout(req_stream_, timeout_in_ms_));
   void *local_sync_flag_addr = comm_entity_->GetEntityInfo().local_resp_flag_ptr;
   volatile int8_t *volatile local_sync_flag = PtrToPtr<void, int8_t>(local_sync_flag_addr);
 
@@ -225,7 +225,7 @@ ge::Status DataTransferClient::PullCacheByGet(const CacheEntry &cache_entry, con
   auto &request = *PtrToPtr<void, TransferCacheReq>(comm_entity_->GetEntityInfo().local_req_ptr);
   LLM_CHK_STATUS_RET(ConstructTransferInfo(pull_cache_param, cache_entry, cache_key, timeout_in_ms, request));
   LLM_DISMISSABLE_GUARD(stream, [this]() -> void {
-    LLM_CHK_ACL(rtStreamAbort(comm_entity_->GetStream()));
+    LLM_CHK_ACL(aclrtStreamAbort(comm_entity_->GetStream()));
   });
   CacheEntry remote_cache_entry;
   LLM_CHK_STATUS_RET(comm_entity_->GetCacheAccessTable().FindCacheEntry(request, remote_cache_entry));

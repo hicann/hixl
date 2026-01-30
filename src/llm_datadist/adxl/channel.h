@@ -16,7 +16,7 @@
 #include <utility>
 #include <chrono>
 #include "nlohmann/json.hpp"
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #include "adxl/adxl_types.h"
 #include "adxl_checker.h"
 #include "hccl/hccl_adapter.h"
@@ -28,7 +28,7 @@ namespace adxl {
 struct ShareHandleInfo {
   uintptr_t va_addr;
   size_t len;
-  rtDrvMemFabricHandle share_handle;
+  aclrtMemFabricHandle share_handle;
 };
 
 enum class ChannelType {
@@ -48,7 +48,7 @@ struct ChannelInfo {
   int32_t timeout_sec;
 };
 
-using AsyncResource = std::pair<rtStream_t, rtEvent_t>;
+using AsyncResource = std::pair<aclrtStream, aclrtEvent>;
 struct AsyncRecord {
   std::vector<AsyncResource> async_resources;
   std::chrono::steady_clock::time_point real_start;
@@ -82,7 +82,7 @@ class Channel {
                       const std::vector<TransferOpDesc> &op_descs,
                       int32_t timeout_in_millis);
   Status TransferAsync(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
-                       rtStream_t stream);
+                       aclrtStream stream);
   Status TransferAsync(TransferOp operation,
                        const std::vector<TransferOpDesc> &op_descs,
                        const TransferArgs &optional_args,
@@ -129,7 +129,7 @@ class Channel {
     disconnect_flag_.store(value, std::memory_order_release);
   }
   Status TransferAsyncWithTimeout(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
-                                  rtStream_t stream, uint64_t timeout);
+                                  aclrtStream stream, uint64_t timeout);
 
  private:
   Status ClearResources();
@@ -167,7 +167,7 @@ class Channel {
   // mutex for va map and pa handlers
   std::mutex va_map_mutex_;
   std::unordered_map<uintptr_t, ShareHandleInfo> new_va_to_old_va_;
-  std::vector<rtDrvMemHandle> remote_pa_handles_;
+  std::vector<aclrtDrvMemHandle> remote_pa_handles_;
   bool enable_use_fabric_mem_ = false;
 };
 using ChannelPtr = std::shared_ptr<Channel>;

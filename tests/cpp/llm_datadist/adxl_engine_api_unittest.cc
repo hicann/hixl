@@ -30,7 +30,6 @@ class AdxlEngineUTest : public ::testing::Test {
  protected:
   // 在测试类中设置一些准备工作，如果需要的话
   void SetUp() override {
-    SetMockRtGetDeviceWay(1);
     llm::MockMmpaForHcclApi::Install();
     llm::AutoCommResRuntimeMock::Install();
     llm::HcclAdapter::GetInstance().Initialize();
@@ -40,7 +39,6 @@ class AdxlEngineUTest : public ::testing::Test {
     llm::HcclAdapter::GetInstance().Finalize();
     llm::AutoCommResRuntimeMock::Reset();
     llm::MockMmpaForHcclApi::Reset();
-    SetMockRtGetDeviceWay(0);
   }
   //初始化两个 AdxlEngine 引擎
   void SetupEngines(AdxlEngine &engine1, AdxlEngine &engine2) {
@@ -452,9 +450,9 @@ TEST_F(AdxlEngineUTest, TestAdxlGetTransferStatusWithQueryEventFailed) {
   EXPECT_EQ(engine1.TransferAsync("127.0.0.1:26001", WRITE, {desc}, {}, req), SUCCESS);
   TransferStatus status = TransferStatus::WAITING;
   TransferAsyncRuntimeMock instance;;
-  llm::RuntimeStub::Install(&instance);
+  llm::AclRuntimeStub::Install(&instance);
   EXPECT_EQ(engine1.GetTransferStatus(req, status), FAILED);
-  llm::RuntimeStub::UnInstall(&instance);
+  llm::AclRuntimeStub::UnInstall(&instance);
   engine1.Finalize();
   engine2.Finalize();
 }
@@ -653,9 +651,9 @@ TEST_F(AdxlEngineUTest, TestAdxlGetTransferStatusWithStreamSyncFailed) {
   EXPECT_EQ(engine1.TransferAsync("127.0.0.1:26001", WRITE, {desc}, {}, req), SUCCESS);
   TransferStatus status = TransferStatus::WAITING;
   TransferAsyncSteamRuntimeMocak instance;;
-  llm::RuntimeStub::Install(&instance);
+  llm::AclRuntimeStub::Install(&instance);
   EXPECT_EQ(engine1.GetTransferStatus(req, status), FAILED);
-  llm::RuntimeStub::UnInstall(&instance);
+  llm::AclRuntimeStub::UnInstall(&instance);
   engine1.Finalize();
   engine2.Finalize();
 }

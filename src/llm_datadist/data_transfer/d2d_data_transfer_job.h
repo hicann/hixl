@@ -31,7 +31,7 @@ class D2DDataTransferJob : public DataTransferJob {
   ge::Status GenerateSendTask(const CacheEntry &cache_entry, const uint64_t offset);
   CommEntity *comm_entity_;
   std::list<HcclOneSideOpDesc> send_tasks_;
-  rtEvent_t event_;
+  aclrtEvent event_;
   std::chrono::steady_clock::time_point timeout_point_;
 };
 }  // namespace llm

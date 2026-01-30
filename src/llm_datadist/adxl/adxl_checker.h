@@ -95,11 +95,11 @@
 // If expr is not 0, print the log and return
 #define ADXL_CHK_ACL_RET(expr)                                                                    \
   do {                                                                                            \
-    const rtError_t _ret = (expr);                                                                 \
-    if (_ret != RT_ERROR_NONE) {                                                                 \
+    const aclError _ret = (expr);                                                                 \
+    if (_ret != ACL_ERROR_NONE) {                                                                 \
       REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret));  \
       const auto _adxl_ret = adxl::AclError2AdxlStatus(_ret);                                     \
-      LLMLOGE(_adxl_ret, "Call rt api failed, ret: 0x%X", static_cast<uint32_t>(_ret));          \
+      LLMLOGE(_adxl_ret, "Call aclrt api failed, ret: 0x%X", static_cast<uint32_t>(_ret));          \
       return _adxl_ret;                                                                           \
     }                                                                                             \
   } while (false)

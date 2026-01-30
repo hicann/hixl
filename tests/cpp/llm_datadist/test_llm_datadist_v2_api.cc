@@ -40,11 +40,10 @@ class LlmDataDistSTest : public ::testing::Test {
     llm::MockMmpaForHcclApi::Install();
     llm::AutoCommResRuntimeMock::Install();
   }
-  // 在测试类中进行清理工作，如果需要的话
   void TearDown() override {
     llm::HcclAdapter::GetInstance().Finalize();
-    llm::MockMmpaForHcclApi::Reset();
     llm::AutoCommResRuntimeMock::Reset();
+    llm::MockMmpaForHcclApi::Reset();
   }
 };
 
@@ -305,12 +304,11 @@ TEST_F(LlmDataDistSTest, MultiLinkAndUnlink) {
 TEST_F(LlmDataDistSTest, TestAutoLocalCommResA2) {
   class AutoCommResV1RuntimeMock : public llm::AutoCommResRuntimeMock {
    public:
-    rtError_t rtGetSocVersion(char *version, const uint32_t maxLen) override {
-      (void)strcpy_s(version, maxLen, "Ascend910B1");
-      return RT_ERROR_NONE;
+    const char* aclrtGetSocName() override {
+      return "Ascend910B1";
     }
   };
-  llm::RuntimeStub::SetInstance(std::make_shared<AutoCommResV1RuntimeMock>());
+  llm::AclRuntimeStub::SetInstance(std::make_shared<AutoCommResV1RuntimeMock>());
   LlmDataDist llm_datadist_p(1U, LlmRole::kPrompt);
   std::map<AscendString, AscendString> options_p;
   options_p[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26000";
@@ -376,12 +374,11 @@ TEST_F(LlmDataDistSTest, TestAutoLocalCommResMix) {
 
   class AutoCommResV1RuntimeMock : public llm::AutoCommResRuntimeMock {
    public:
-    rtError_t rtGetSocVersion(char *version, const uint32_t maxLen) override {
-      (void)strcpy_s(version, maxLen, "Ascend910B1");
-      return RT_ERROR_NONE;
+    const char* aclrtGetSocName() override {
+      return "Ascend910B1";
     }
   };
-  llm::RuntimeStub::SetInstance(std::make_shared<AutoCommResV1RuntimeMock>());
+  llm::AclRuntimeStub::SetInstance(std::make_shared<AutoCommResV1RuntimeMock>());
 
   LlmDataDist llm_datadist_d(2U, LlmRole::kDecoder);
   std::map<AscendString, AscendString> options_d;

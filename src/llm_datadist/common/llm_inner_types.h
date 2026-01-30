@@ -118,7 +118,6 @@ struct CopyCacheParam {
   uint64_t offset = 0UL;
   int64_t size = -1L;
   uint64_t req_id = UINT64_MAX;  // just for logging
-  bool mbuf_involved = false;
   std::vector<std::pair<uint64_t, uint64_t>> copy_block_infos;
 };
 #pragma pack(pop)

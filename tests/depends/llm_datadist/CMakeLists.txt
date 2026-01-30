@@ -48,15 +48,14 @@ target_include_directories(llm_datadist_base PRIVATE
 target_link_libraries(llm_datadist_base PRIVATE
         $<BUILD_INTERFACE:mmpa_headers>
         $<BUILD_INTERFACE:hccl_headers>
-        $<BUILD_INTERFACE:runtime_headers>
+        $<BUILD_INTERFACE:acl_rt_headers>
         metadef_headers
         intf_pub
         PUBLIC c_sec
         slog_stub
-        runtime_stub
+        ascendcl_stub
         mmpa_stub
         json
-        msprof_headers
         ${DT_COMMON_LINK_OPTION}
 )
 

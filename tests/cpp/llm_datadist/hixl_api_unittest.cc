@@ -31,7 +31,6 @@ class HixlUTest : public ::testing::Test {
  protected:
   // 在测试类中设置一些准备工作，如果需要的话
   void SetUp() override {
-    SetMockRtGetDeviceWay(1);
     llm::MockMmpaForHcclApi::Install();
     llm::AutoCommResRuntimeMock::Install();
     llm::HcclAdapter::GetInstance().Initialize();
@@ -41,7 +40,6 @@ class HixlUTest : public ::testing::Test {
     llm::HcclAdapter::GetInstance().Finalize();
     llm::MockMmpaForHcclApi::Reset();
     llm::AutoCommResRuntimeMock::Reset();
-    SetMockRtGetDeviceWay(0);
   }
   //初始化两个 Hixl 引擎
   void SetupEngines(Hixl &engine1, Hixl &engine2) {
@@ -76,7 +74,6 @@ class HixlUTest : public ::testing::Test {
 class HccnToolTest : public ::testing::Test {
   protected:
   void SetUp() override {
-    SetMockRtGetDeviceWay(1);
     llm::MockMmpaForHcclApi::Install();
     llm::AutoCommResRuntimeMock::InstallWithoutHccnConfFile();
     llm::AutoCommResRuntimeMock::DeleteHccnConfIfExist();
@@ -87,14 +84,12 @@ class HccnToolTest : public ::testing::Test {
     llm::HcclAdapter::GetInstance().Finalize();
     llm::MockMmpaForHcclApi::Reset();
     llm::AutoCommResRuntimeMock::Reset();
-    SetMockRtGetDeviceWay(0);
   }
 };
 
 class HccnGetIpTest : public ::testing::Test {
   protected:
   void SetUp() override {
-    SetMockRtGetDeviceWay(1);
     llm::MockHccnTool::Install();
     llm::AutoCommResRuntimeMock::Install();
     llm::HcclAdapter::GetInstance().Initialize();
@@ -102,16 +97,14 @@ class HccnGetIpTest : public ::testing::Test {
 
   void TearDown() override {
     llm::HcclAdapter::GetInstance().Finalize();
-    llm::MockHccnTool::Reset();
     llm::AutoCommResRuntimeMock::Reset();
-    SetMockRtGetDeviceWay(0);
+    llm::MockHccnTool::Reset();
   }
 };
 
 class HccnGetOutputTest : public ::testing::Test {
   protected:
   void SetUp() override {
-    SetMockRtGetDeviceWay(1);
     llm::MockGetHccnResult::Install();
     llm::AutoCommResRuntimeMock::Install();
     llm::HcclAdapter::GetInstance().Initialize();
@@ -119,9 +112,8 @@ class HccnGetOutputTest : public ::testing::Test {
 
   void TearDown() override {
     llm::HcclAdapter::GetInstance().Finalize();
-    llm::MockGetHccnResult::Reset();
     llm::AutoCommResRuntimeMock::Reset();
-    SetMockRtGetDeviceWay(0);
+    llm::MockGetHccnResult::Reset();
   }
 };
 
@@ -533,9 +525,9 @@ TEST_F(HixlUTest, TestHixlGetTransferStatusWithQueryEventFailed) {
   EXPECT_EQ(engine1.TransferAsync("127.0.0.1:26001", WRITE, {desc}, {}, req), SUCCESS);
   TransferStatus status = TransferStatus::WAITING;
   TransferAsyncRuntimeMock instance;
-  llm::RuntimeStub::Install(&instance);
+  llm::AclRuntimeStub::Install(&instance);
   EXPECT_EQ(engine1.GetTransferStatus(req, status), FAILED);
-  llm::RuntimeStub::UnInstall(&instance);
+  llm::AclRuntimeStub::UnInstall(&instance);
   engine1.Finalize();
   engine2.Finalize();
 }
@@ -763,9 +755,9 @@ TEST_F(HixlUTest, TestHixlGetTransferStatusWithStreamSyncFailed) {
   EXPECT_EQ(engine1.TransferAsync("127.0.0.1:26001", WRITE, {desc}, {}, req), SUCCESS);
   TransferStatus status = TransferStatus::WAITING;
   TransferAsyncSteamRuntimeMocak instance;
-  llm::RuntimeStub::Install(&instance);
+  llm::AclRuntimeStub::Install(&instance);
   EXPECT_EQ(engine1.GetTransferStatus(req, status), FAILED);
-  llm::RuntimeStub::UnInstall(&instance);
+  llm::AclRuntimeStub::UnInstall(&instance);
   engine1.Finalize();
   engine2.Finalize();
 }

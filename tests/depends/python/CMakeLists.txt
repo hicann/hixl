@@ -27,7 +27,7 @@ target_include_directories(llm_datadist_wrapper_stub PRIVATE
 target_link_libraries(llm_datadist_wrapper_stub PRIVATE
         intf_pub
         metadef_headers
-        runtime_headers
+        acl_rt_headers
         llm_datadist_base
         -Wl,-as-needed
         ${DT_COMMON_LINK_OPTION}

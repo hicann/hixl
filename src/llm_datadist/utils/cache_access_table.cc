@@ -9,7 +9,7 @@
  */
 
 #include "utils/cache_access_table.h"
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #include "common/llm_checker.h"
 #include "hccl/hccl_adapter.h"
 #include "cache_mgr/comm_mem_manager.h"
@@ -82,8 +82,9 @@ CacheEntry ToCacheEntry(const CacheSummary &cache_summary) {
 void *SharedDevBuffer::GetOrCreateBuffer(size_t size) {
   std::lock_guard<std::mutex> lk(mu_);
   if (buffer_ == nullptr) {
-    LLM_ASSERT_RT_OK(rtMalloc(&buffer_, size, RT_MEMORY_HBM | RT_MEMORY_POLICY_HUGE_PAGE_ONLY, LLM_MODULE_NAME_U16));
-    LLM_DISMISSABLE_GUARD(fail_guard, ([this]() { LLM_CHK_ACL(rtFree(buffer_)); }));
+    LLM_ASSERT_RT_OK(aclrtMalloc(&buffer_, size,
+                                static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_ONLY)));
+    LLM_DISMISSABLE_GUARD(fail_guard, ([this]() { LLM_CHK_ACL(aclrtFree(buffer_)); }));
     auto ret = GlobalMemManager::GetInstance().RegisterMem(buffer_, size, HcclMemType::HCCL_MEM_TYPE_DEVICE,
                                                            mem_register_handle_);
     if (ret != ge::SUCCESS) {
@@ -100,7 +101,7 @@ void SharedDevBuffer::Unref() {
   std::lock_guard<std::mutex> lk(mu_);
   if (ref_count_ > 0) {
     if (--ref_count_ == 0) {
-      LLM_CHK_ACL(rtFree(buffer_));
+      LLM_CHK_ACL(aclrtFree(buffer_));
       if (mem_register_handle_ != nullptr) {
         GlobalMemManager::GetInstance().UnregisterMem(mem_register_handle_);
         mem_register_handle_ = nullptr;
@@ -118,26 +119,26 @@ ge::Status CacheAccessTableUpdater::Initialize(bool enable) {
   LLM_CHK_BOOL_RET_SPECIAL_STATUS(dev_buffer_ != nullptr, ge::SUCCESS, "Already initialized");
   if (enable) {
     buffer_size_ = kCacheAccessTableBufferSize;
-    LLM_CHK_ACL_RET(rtMalloc(&dev_buffer_, buffer_size_, RT_MEMORY_HBM | RT_MEMORY_POLICY_HUGE_PAGE_ONLY,
-                           LLM_MODULE_NAME_U16));
+    LLM_CHK_ACL_RET(aclrtMalloc(&dev_buffer_, buffer_size_,
+                                static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH| ACL_MEM_MALLOC_HUGE_ONLY)));
   } else {
     buffer_size_ = sizeof(CacheTableHeader);
-    LLM_CHK_ACL_RET(rtMalloc(&dev_buffer_, buffer_size_, RT_MEMORY_HBM | RT_MEMORY_POLICY_HUGE_PAGE_ONLY,
-                           LLM_MODULE_NAME_U16));
+    LLM_CHK_ACL_RET(aclrtMalloc(&dev_buffer_, buffer_size_,
+                                static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_ONLY)));
     CacheTableHeader header{};
     header.version_num = UINT64_MAX;
-    LLM_CHK_ACL_RET(rtMemcpy(dev_buffer_,
+    LLM_CHK_ACL_RET(aclrtMemcpy(dev_buffer_,
                            buffer_size_,
                            &header,
                            sizeof(header),
-                           RT_MEMCPY_HOST_TO_DEVICE));
+                           ACL_MEMCPY_HOST_TO_DEVICE));
   }
   return ge::SUCCESS;
 }
 
 void CacheAccessTableUpdater::Finalize() {
   if (dev_buffer_ != nullptr) {
-    LLM_CHK_ACL(rtFree(dev_buffer_));
+    LLM_CHK_ACL(aclrtFree(dev_buffer_));
     dev_buffer_ = nullptr;
   }
 }
@@ -155,11 +156,11 @@ ge::Status CacheAccessTableUpdater::UpdateTableBuffer(const std::map<int64_t, Ca
                     "version_num = %lu, num_caches = %zu, num_cache_indices = %zu",
                     version_num, cache_id_to_entry.size(), cache_key_to_id.size());
   LLMLOGI("Generate cache access table success");
-  LLM_CHK_ACL_RET(rtMemcpy(dev_buffer_,
+  LLM_CHK_ACL_RET(aclrtMemcpy(dev_buffer_,
                          buffer_size_,
                          buffer.data(),
                          buffer.size(),
-                         RT_MEMCPY_HOST_TO_DEVICE));
+                         ACL_MEMCPY_HOST_TO_DEVICE));
   LLMLOGI("Write to device memory success");
   return ge::SUCCESS;
 }
@@ -310,11 +311,11 @@ ge::Status CacheAccessTable::SyncFromRemote(int32_t timeout) {
     std::lock_guard<std::mutex> lk(shared_mu_);
     LLM_CHK_STATUS_RET(transfer_func_(remote_dev_buffer_, dev_buffer_, kCacheAccessTableBufferSize, timeout));
     LLMLOGI("Sync cache access table data success");
-    LLM_CHK_ACL_RET(rtMemcpy(buffer.data(),
+    LLM_CHK_ACL_RET(aclrtMemcpy(buffer.data(),
                            buffer.size(),
                            dev_buffer_,
                            kCacheAccessTableBufferSize,
-                           RT_MEMCPY_DEVICE_TO_HOST));
+                           ACL_MEMCPY_DEVICE_TO_HOST));
   }
   LLM_CHK_STATUS_RET(LoadFromBuffer(buffer.data(), buffer.size()));
   return ge::SUCCESS;
@@ -335,11 +336,11 @@ ge::Status CacheAccessTable::CheckRemoteFlag(bool expected_flag) const {
     std::lock_guard<std::mutex> lk(shared_mu_);
     LLM_CHK_STATUS_RET(transfer_func_(remote_dev_buffer_, dev_buffer_, buffer.size(), kDefaultTimeout));
     LLMLOGI("Sync cache access table data success");
-    LLM_CHK_ACL_RET(rtMemcpy(buffer.data(),
+    LLM_CHK_ACL_RET(aclrtMemcpy(buffer.data(),
                            buffer.size(),
                            dev_buffer_,
                            buffer.size(),
-                           RT_MEMCPY_DEVICE_TO_HOST));
+                           ACL_MEMCPY_DEVICE_TO_HOST));
   }
   auto &header = *PtrToPtr<uint8_t, CacheTableHeader>(buffer.data());
   LLMLOGI("Get remote version success, version_num = %lu", header.version_num);

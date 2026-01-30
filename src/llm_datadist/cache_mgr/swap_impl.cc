@@ -28,16 +28,16 @@ ge::Status SwapImpl::SwapBlocks(const std::vector<uintptr_t> &src_addrs, const s
   LLM_CHK_STATUS_RET(LLMUtils::FindContiguousBlockIndexPair(block_mapping, ordered_block_mapping));
   const auto start = std::chrono::steady_clock::now();
   LLMThreadPool swap_out_pool("ge_llm_swap", kHbmBufferNum);
-  rtContext_t rt_context = nullptr;
-  LLM_CHK_ACL_RET(rtCtxGetCurrent(&rt_context));
+  aclrtContext aclrt_context = nullptr;
+  LLM_CHK_ACL_RET(aclrtGetCurrentContext(&aclrt_context));
   std::vector<std::future<ge::Status>> rets;
-  std::atomic<size_t> rt_copy_time{0UL};
+  std::atomic<size_t> aclrt_copy_time{0UL};
   for (size_t i = 0U; i < src_addrs.size(); ++i) {
     auto src_addr = src_addrs[i];
     auto dst_addr = dst_addrs[i];
     std::future<ge::Status> f = swap_out_pool.commit([src_addr, dst_addr, &ordered_block_mapping, &block_size,
-                                                      &rt_context, &rt_copy_time, &copy_info]() -> ge::Status {
-      LLM_CHK_ACL_RET(rtCtxSetCurrent(rt_context));
+                                                      &aclrt_context, &aclrt_copy_time, &copy_info]() -> ge::Status {
+      LLM_CHK_ACL_RET(aclrtSetCurrentContext(aclrt_context));
       for (const auto &ordered_block : ordered_block_mapping) {
         const int64_t src_index = ordered_block.front().first;
         const int64_t dst_index = ordered_block.front().second;
@@ -48,26 +48,26 @@ ge::Status SwapImpl::SwapBlocks(const std::vector<uintptr_t> &src_addrs, const s
                dst_index, copy_size, ordered_block.size());
         const auto copy_start = std::chrono::steady_clock::now();
         if (copy_info.copy_type == CopyType::kMemcpyEx) {
-          LLM_CHK_ACL_RET(rtMemcpyEx(reinterpret_cast<void *>(dst), copy_size, reinterpret_cast<void *>(src), copy_size,
+          LLM_CHK_ACL_RET(aclrtMemcpy(reinterpret_cast<void *>(dst), copy_size, reinterpret_cast<void *>(src), copy_size,
                                    copy_info.copy_kind));
         } else {
-          LLM_CHK_ACL_RET(rtMemcpy(reinterpret_cast<void *>(dst), copy_size, reinterpret_cast<void *>(src), copy_size,
+          LLM_CHK_ACL_RET(aclrtMemcpy(reinterpret_cast<void *>(dst), copy_size, reinterpret_cast<void *>(src), copy_size,
                                  copy_info.copy_kind));
         }
         const auto copy_end = std::chrono::steady_clock::now();
         const auto cost = std::chrono::duration_cast<std::chrono::microseconds>(copy_end - copy_start).count();
-        rt_copy_time.fetch_add(cost, std::memory_order_relaxed);
+        aclrt_copy_time.fetch_add(cost, std::memory_order_relaxed);
       }
       return ge::SUCCESS;
     });
-    LLM_CHK_BOOL_RET_STATUS(f.valid(), ge::FAILED, "commit blocks rtMemcpyEx task failed");
+    LLM_CHK_BOOL_RET_STATUS(f.valid(), ge::FAILED, "commit blocks aclrtMemcpy task failed");
     rets.emplace_back(std::move(f));
   }
   for (size_t i = 0U; i < rets.size(); ++i) {
     LLM_CHK_BOOL_RET_STATUS(rets[i].get() == ge::SUCCESS, ge::FAILED, "the %zuth blocks mem copy failed", i);
   }
   const auto end = std::chrono::steady_clock::now();
-  LLMLOGI("[LlmPerf] mem copy cost time:%zu us, copy kind:%d, swap blocks cost time:%zu us", rt_copy_time.load(),
+  LLMLOGI("[LlmPerf] mem copy cost time:%zu us, copy kind:%d, swap blocks cost time:%zu us", aclrt_copy_time.load(),
          copy_info.copy_kind, std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
   return ge::SUCCESS;
 }
@@ -79,7 +79,7 @@ ge::Status SwapImpl::SwapBlocksV2(const Cache &src, const Cache &dst, const uint
   const auto &dst_addrs = dst.per_device_tensor_addrs;
   LLMLOGI("Begin swap blocks, cache num:%zu, swap block num:%zu, swap type:%u", src_addrs.front().size(),
          block_mapping.size(), type);
-  rtMemcpyKind_t kind = (type == kSwapOut) ? RT_MEMCPY_DEVICE_TO_HOST : RT_MEMCPY_HOST_TO_DEVICE;
+  aclrtMemcpyKind kind = (type == kSwapOut) ? ACL_MEMCPY_DEVICE_TO_HOST : ACL_MEMCPY_HOST_TO_DEVICE;
   LLM_CHK_STATUS_RET(
       SwapBlocks(src_addrs.front(), dst_addrs.front(), block_size, block_mapping, CopyInfo{CopyType::kMemcpy, kind}),
       "swap blocks failed, kind:%d", kind);

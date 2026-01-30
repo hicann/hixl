@@ -42,17 +42,16 @@ RegBufferPool::RegBufferPool(uint64_t capacity, bool is_host)
 ge::Status RegBufferPool::Initialize() {
   uint64_t buffer_size = kDefaultMsgBufferSize * capacity_;
   if (is_host_) {
-    LLM_CHK_ACL_RET(rtMallocHost(&buffer_, buffer_size, LLM_MODULE_NAME_U16));
+    LLM_CHK_ACL_RET(aclrtMallocHost(&buffer_, buffer_size));
   } else {
-    LLM_CHK_ACL_RET(rtMalloc(&buffer_, buffer_size,
-                         RT_MEMORY_HBM | static_cast<uint32_t>(RT_MEM_MALLOC_HUGE_FIRST),
-                         LLM_MODULE_NAME_U16));
+    LLM_CHK_ACL_RET(aclrtMalloc(&buffer_, buffer_size,
+                                static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_FIRST)));
   }
   LLM_DISMISSABLE_GUARD(fail_guard, ([this]() {
     if (is_host_) {
-      LLM_CHK_ACL(rtFreeHost(buffer_));
+      LLM_CHK_ACL(aclrtFreeHost(buffer_));
     } else {
-      LLM_CHK_ACL(rtFree(buffer_));
+      LLM_CHK_ACL(aclrtFree(buffer_));
     }
   }));
   auto type = is_host_ ? HcclMemType::HCCL_MEM_TYPE_HOST : HcclMemType::HCCL_MEM_TYPE_DEVICE;
@@ -71,9 +70,9 @@ RegBufferPool::~RegBufferPool() {
   // buffer freed after all mem deregistered
   if (buffer_ != nullptr) {
     if (is_host_) {
-      LLM_CHK_ACL(rtFreeHost(buffer_));
+      LLM_CHK_ACL(aclrtFreeHost(buffer_));
     } else {
-      LLM_CHK_ACL(rtFree(buffer_));
+      LLM_CHK_ACL(aclrtFree(buffer_));
     }
     buffer_ = nullptr;
   }
@@ -126,11 +125,11 @@ EntityMemInfo::EntityMemInfo(bool remote_cache_accessible,
 
 ge::Status EntityMemInfo::Initialize() {
   if (remote_cache_accessible_) {
-    LLM_CHK_ACL_RET(rtMallocHost(&msg_buffer_, kDefaultMsgBufferSize, LLM_MODULE_NAME_U16));
+    LLM_CHK_ACL_RET(aclrtMallocHost(&msg_buffer_, kDefaultMsgBufferSize));
   } else {
     LLM_CHECK_NOTNULL(host_reg_pool_);
     LLM_CHECK_NOTNULL(device_reg_pool_);
-    LLM_CHK_ACL_RET(rtMallocHost(&host_transfer_buffer_, kDefaultMsgBufferSize, LLM_MODULE_NAME_U16));
+    LLM_CHK_ACL_RET(aclrtMallocHost(&host_transfer_buffer_, kDefaultMsgBufferSize));
     host_transfer_req_ = host_transfer_buffer_;
     host_transfer_resp_ = static_cast<uint8_t *>(host_transfer_buffer_) + kDefaultReqBufferSize;
     LLM_CHK_STATUS_RET(host_reg_pool_->Alloc(msg_buffer_), "Failed to alloc host reg buffer");
@@ -146,12 +145,12 @@ ge::Status EntityMemInfo::Initialize() {
 
 EntityMemInfo::~EntityMemInfo() {
   if (host_transfer_buffer_ != nullptr) {
-    LLM_CHK_ACL(rtFreeHost(host_transfer_buffer_));
+    LLM_CHK_ACL(aclrtFreeHost(host_transfer_buffer_));
     host_transfer_buffer_ = nullptr;
   }
   if (remote_cache_accessible_) {
     if (msg_buffer_ != nullptr) {
-      LLM_CHK_ACL(rtFreeHost(msg_buffer_));
+      LLM_CHK_ACL(aclrtFreeHost(msg_buffer_));
     }
     msg_buffer_ = nullptr;
   } else {
@@ -274,8 +273,8 @@ CommEntity::CommEntity(uint64_t comm_id, uint64_t cluster_id, uint32_t rank_id,
 
 ge::Status CommEntity::Initialize(bool remote_cache_accessible) {
   LLM_CHK_STATUS_RET(cache_access_table_.Initialize(remote_cache_accessible));
-  LLM_ASSERT_RT_OK(rtStreamCreateWithFlags(&stream_, RT_STREAM_PRIORITY_DEFAULT,
-                  RT_STREAM_FAST_LAUNCH | RT_STREAM_FAST_SYNC));
+  LLM_ASSERT_RT_OK(aclrtCreateStreamWithConfig(&stream_, 0,
+                  ACL_STREAM_FAST_LAUNCH | ACL_STREAM_FAST_SYNC));
   LLMLOGI("Entity:%s initialize success, stream:%p, remote_cache_accessible:%d",
          desc_.c_str(), stream_, static_cast<int32_t>(remote_cache_accessible));
   return ge::SUCCESS;
@@ -287,8 +286,8 @@ ge::Status CommEntity::Initialize(bool remote_cache_accessible, const EntityComm
   LLM_CHECK_NOTNULL(comm_info_ptr_);
   LLM_CHK_STATUS_RET(comm_info_ptr_->Initialize(), "Failed to init communication.");
   inner_comm_ = true;
-  LLM_ASSERT_RT_OK(rtStreamCreateWithFlags(&stream_, RT_STREAM_PRIORITY_DEFAULT,
-                  RT_STREAM_FAST_LAUNCH | RT_STREAM_FAST_SYNC));
+  LLM_ASSERT_RT_OK(aclrtCreateStreamWithConfig(&stream_, 0,
+                  ACL_STREAM_FAST_LAUNCH | ACL_STREAM_FAST_SYNC));
   LLMLOGI("Entity:%s initialize success, stream:%p", desc_.c_str(), stream_);
   return ge::SUCCESS;
 }
@@ -296,9 +295,9 @@ ge::Status CommEntity::Initialize(bool remote_cache_accessible, const EntityComm
 ge::Status CommEntity::Finalize() {
   auto ret = ge::SUCCESS;
   if (GetStream() != nullptr) {
-    auto rt_ret = rtStreamAbort(GetStream());
-    LLMLOGI("Call rtStreamAbort ret:%d.", ret);
-    ret = rt_ret != RT_ERROR_NONE ? ge::LLM_UNLINK_FAILED : ret;
+    auto aclrt_ret = aclrtStreamAbort(GetStream());
+    LLMLOGI("Call aclrtStreamAbort ret:%d.", ret);
+    ret = aclrt_ret != ACL_ERROR_NONE ? ge::LLM_UNLINK_FAILED : ret;
   }
 
   if (comm_info_ptr_ != nullptr && inner_comm_) {
@@ -309,9 +308,9 @@ ge::Status CommEntity::Finalize() {
   }
 
   if (GetStream() != nullptr) {
-    auto rt_ret = rtStreamDestroy(GetStream());
-    LLMLOGI("Call rtStreamDestroy ret:%d.", ret);
-    ret = rt_ret != RT_ERROR_NONE ? ge::LLM_UNLINK_FAILED : ret;
+    auto aclrt_ret = aclrtDestroyStream(GetStream());
+    LLMLOGI("Call aclrtDestroyStream ret:%d.", ret);
+    ret = aclrt_ret != ACL_ERROR_NONE ? ge::LLM_UNLINK_FAILED : ret;
   }
   stream_ = nullptr;
   return ret;
@@ -320,7 +319,7 @@ ge::Status CommEntity::Finalize() {
 CommEntity::~CommEntity() {
   (void) Finalize();
   if (mem_info_ptr_ != nullptr) {
-    rtCtxSetCurrent(rt_context_);
+    aclrtSetCurrentContext(aclrt_context_);
     mem_info_ptr_.reset();
     mem_info_ptr_ = nullptr;
   }
@@ -373,7 +372,7 @@ ge::Status CommEntity::SetInfo() {
     std::vector<HcclOneSideOpDesc> op_descs;
     op_descs.emplace_back(HcclOneSideOpDesc{local, remote, size, HCCL_DATA_TYPE_UINT8});
     LLM_CHK_STATUS_RET(BatchGetAsync(op_descs, stream_));
-    LLM_CHK_ACL_RET(rtStreamSynchronizeWithTimeout(stream_, timeout));
+    LLM_CHK_ACL_RET(aclrtSynchronizeStreamWithTimeout(stream_, timeout));
     return ge::SUCCESS;
   };
 
@@ -450,7 +449,7 @@ void *CommEntity::GetResp() {
   return mem_info_ptr_->resp_;
 }
 
-rtStream_t CommEntity::GetStream() const {
+aclrtStream CommEntity::GetStream() const {
   return stream_;
 }
 
@@ -487,12 +486,12 @@ FsmState CommEntity::GetCurState() const {
   return cur_state_;
 }
 
-rtContext_t CommEntity::GetCurrentContext() const {
-  return rt_context_;
+aclrtContext CommEntity::GetCurrentContext() const {
+  return aclrt_context_;
 }
 
-void CommEntity::SetContext(rtContext_t context) {
-  rt_context_ = context;
+void CommEntity::SetContext(aclrtContext context) {
+  aclrt_context_ = context;
 }
 
 void CommEntity::SetHostMemPool(LlmMemPool *host_mem_pool) {
@@ -511,7 +510,7 @@ void CommEntity::SetEntityCommInfo(EntityCommInfoPtr comm_info) {
   comm_info_ptr_ = comm_info;
 }
 
-ge::Status CommEntity::BatchPutAsync(std::vector<HcclOneSideOpDesc> &op_descs, rtStream_t stream) {
+ge::Status CommEntity::BatchPutAsync(std::vector<HcclOneSideOpDesc> &op_descs, aclrtStream stream) {
   auto stream_to_use = stream != nullptr ? stream : stream_;
   const auto start = std::chrono::steady_clock::now();
   auto ret = HcclAdapter::GetInstance().HcclBatchPut(GetComm(), rank_id_, op_descs.data(),
@@ -529,7 +528,7 @@ ge::Status CommEntity::BatchPutAsync(std::vector<HcclOneSideOpDesc> &op_descs, r
   return ge::SUCCESS;
 }
 
-SendStatisticInfo &CommEntity::GetSendStatisticInfo(rtStream_t stream) {
+SendStatisticInfo &CommEntity::GetSendStatisticInfo(aclrtStream stream) {
   auto stream_to_use = stream != nullptr ? stream : stream_;
   std::lock_guard<std::mutex> lk(info_mutex_);
   const auto &iter = send_statistic_infos_.find(stream_to_use);
@@ -541,7 +540,7 @@ SendStatisticInfo &CommEntity::GetSendStatisticInfo(rtStream_t stream) {
   return send_statistic_infos_[stream_to_use];
 }
 
-ge::Status CommEntity::BatchGetAsync(std::vector<HcclOneSideOpDesc> &op_descs, rtStream_t stream) {
+ge::Status CommEntity::BatchGetAsync(std::vector<HcclOneSideOpDesc> &op_descs, aclrtStream stream) {
   auto stream_to_use = stream != nullptr ? stream : stream_;
   const auto start = std::chrono::steady_clock::now();
   auto ret = HcclAdapter::GetInstance().HcclBatchGet(GetComm(), rank_id_, op_descs.data(),
@@ -609,17 +608,17 @@ void CommEntity::Dump() const {
           recv_statistic_info_.pull_min_cost, pull_avg_time);
 }
 
-ge::Status CommEntity::SendRequest(const FillRequestFunc &fill_request_func, rtStream_t stream) {
+ge::Status CommEntity::SendRequest(const FillRequestFunc &fill_request_func, aclrtStream stream) {
   uint64_t req_size = 0U;
   auto &req_info = *PtrToPtr<void, TransferCacheReq>(info_.send_buffer_req_ptr);
   fill_request_func(req_info, req_size);
   auto *local_sync_flag_ptr = PtrToPtr<void, int8_t>(info_.send_buffer_req_flag_ptr);
   *local_sync_flag_ptr = 1;
-  LLM_CHK_ACL_RET(rtMemcpyAsync(info_.send_dev_buffer_req_flag_ptr,
+  LLM_CHK_ACL_RET(aclrtMemcpyAsync(info_.send_dev_buffer_req_flag_ptr,
                                    kDefaultReqBufferSize,
                                    info_.send_buffer_req_flag_ptr,
                                    kFlagSize + req_size,
-                                   RT_MEMCPY_HOST_TO_DEVICE,
+                                   ACL_MEMCPY_HOST_TO_DEVICE,
                                    stream));
   std::vector<HcclOneSideOpDesc> request_desc{
       HcclOneSideOpDesc{info_.send_dev_buffer_req_ptr, info_.remote_req_ptr, req_size, HCCL_DATA_TYPE_UINT8}};
@@ -645,11 +644,11 @@ ge::Status CommEntity::SendResponse(const FillResponseFunc &fill_response_func) 
   fill_response_func(resp_info, resp_size);
   auto *local_sync_flag_ptr = PtrToPtr<void, int8_t>(info_.send_buffer_resp_flag_ptr);
   *local_sync_flag_ptr = 1;
-  LLM_CHK_ACL_RET(rtMemcpyAsync(info_.send_dev_buffer_resp_flag_ptr,
+  LLM_CHK_ACL_RET(aclrtMemcpyAsync(info_.send_dev_buffer_resp_flag_ptr,
                                    kDefaultRespBufferSize,
                                    info_.send_buffer_resp_flag_ptr,
                                    kFlagSize + resp_size,
-                                   RT_MEMCPY_HOST_TO_DEVICE,
+                                   ACL_MEMCPY_HOST_TO_DEVICE,
                                    stream_));
   std::vector<HcclOneSideOpDesc> response_desc{
       HcclOneSideOpDesc{info_.send_dev_buffer_resp_ptr, info_.remote_resp_ptr, resp_size, HCCL_DATA_TYPE_UINT8}};
@@ -716,7 +715,7 @@ void *CommEntity::GetTransferBuffer() const {
   return mem_info_ptr_->transfer_buffer_;
 }
 
-void BufferedSender::Initialize(CommEntity &comm_entity, rtStream_t stream, bool put_or_get) {
+void BufferedSender::Initialize(CommEntity &comm_entity, aclrtStream stream, bool put_or_get) {
   comm_entity_ = &comm_entity;
   stream_ = stream;
   put_or_get_ = put_or_get;

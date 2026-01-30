@@ -177,8 +177,8 @@ void MsgHandlerPlugin::RegisterConnectedProcess(ConnectedProcess proc) {
 
 ge::Status MsgHandlerPlugin::DoConnectedProcess(int32_t conn_fd) {
   LLM_DISMISSABLE_GUARD(close_fd, ([conn_fd]() { close(conn_fd); }));
-  LLM_CHK_BOOL_RET_STATUS(rtCtxSetCurrent(rt_context_) == RT_ERROR_NONE, ge::LLM_PARAM_INVALID,
-                         "Set runtime context failed.");
+  LLM_CHK_BOOL_RET_STATUS(aclrtSetCurrentContext(aclrt_context_) == ACL_ERROR_NONE, ge::LLM_PARAM_INVALID,
+                         "Set aclrt context failed.");
   constexpr int32_t kTimeInSec = 60;
   struct timeval timeout;
   timeout.tv_sec = kTimeInSec;
@@ -254,7 +254,7 @@ ge::Status MsgHandlerPlugin::SockAddrInit(const std::string &ip, uint32_t listen
 }
 
 ge::Status MsgHandlerPlugin::StartDaemon(const std::string &ip, uint32_t listen_port) {
-  LLM_ASSERT_RT_OK(rtCtxGetCurrent(&rt_context_));
+  LLM_ASSERT_RT_OK(aclrtGetCurrentContext(&aclrt_context_));
   int32_t ai_family = 0;
   LLM_CHK_STATUS_RET(GetAiFamily(ip, ai_family), "Failed to get ai_family, ip:%s", ip.c_str());
   listen_fd_ = socket(ai_family, SOCK_STREAM, 0);

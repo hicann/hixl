@@ -12,7 +12,7 @@
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_HCCL_SO_MANAGER_H_
 
 #include <mutex>
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #include "mmpa/mmpa_api.h"
 
 #include "llm_datadist/llm_error_codes.h"
@@ -26,9 +26,9 @@ using HcclCommInitClusterInfoMemConfigFunc = HcclResult (*)(const char *cluster,
                                                       HcclComm *comm);
 using HcclCommDestroyFunc = HcclResult (*)(HcclComm comm);
 using HcclBatchPutFunc = HcclResult (*)(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t desc_num,
-                                        rtStream_t stream);
+                                        aclrtStream stream);
 using HcclBatchGetFunc = HcclResult (*)(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t desc_num,
-                                        rtStream_t stream);
+                                        aclrtStream stream);
 using HcclRemapRegisteredMemoryFunc = HcclResult (*)(HcclComm *comm, HcclMem *mem_info_array, uint64_t comm_size,
                                                      uint64_t array_size);
 
@@ -51,9 +51,9 @@ class HcclAdapter {
                                               HcclComm *comm);
   HcclResult HcclCommDestroy(HcclComm comm);
   HcclResult HcclBatchPut(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t desc_num,
-                          rtStream_t stream);
+                          aclrtStream stream);
   HcclResult HcclBatchGet(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t desc_num,
-                          rtStream_t stream) const;
+                          aclrtStream stream) const;
   HcclResult HcclRemapRegisteredMemory(HcclComm *comm, HcclMem *mem_info_array, uint64_t comm_size,
                                        uint64_t arraySize) const;
   HcclResult HcclRegisterGlobalMem(HcclMem *mem, void **mem_handle) const;

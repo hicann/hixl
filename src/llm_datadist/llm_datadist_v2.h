@@ -91,7 +91,7 @@ class LLMDataDistV2  {
   void *statistic_timer_handle_{nullptr};
   std::mutex transfer_mutex_;
   std::atomic<bool> inner_initialized_{false};
-  rtContext_t rt_context_{nullptr};
+  aclrtContext aclrt_context_{nullptr};
   int32_t device_id_{-1};
 };
 }  // namespace llm

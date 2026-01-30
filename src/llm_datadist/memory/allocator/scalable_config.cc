@@ -11,7 +11,7 @@
 #include <cmath>
 #include "common/llm_inner_types.h"
 #include "memory/allocator/scalable_allocator.h"
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #include "common/llm_log.h"
 
 namespace llm {
@@ -20,9 +20,9 @@ constexpr MemSize kDeviceTotalMemorySizeLevel[MEMORY_SPECIFICATION_LEVEL_MAX] = 
 
 ge::Status GetDeviceTotalMemorySize(size_t &total_mem_size) {
   size_t free_mem;
-  LLM_CHK_RT_RET(rtMemGetInfoEx(RT_MEMORYINFO_HBM, &free_mem, &total_mem_size));
+  LLM_CHK_RT_RET(aclrtGetMemInfo(ACL_HBM_MEM, &free_mem, &total_mem_size));
   if (total_mem_size == 0U) {
-    LLM_CHK_RT_RET(rtMemGetInfoEx(RT_MEMORYINFO_DDR, &free_mem, &total_mem_size));
+    LLM_CHK_RT_RET(aclrtGetMemInfo(ACL_DDR_MEM, &free_mem, &total_mem_size));
   }
   (void)free_mem;
   return ge::SUCCESS;

@@ -139,7 +139,7 @@ ge::Status LinkMsgHandler::Initialize(const std::map<ge::AscendString, ge::Ascen
     comm_config_.hcclRdmaServiceLevel = service_level;
     LLMLOGI("set rdma service level to %u.", service_level);
   }
-  LLM_ASSERT_RT_OK(rtCtxGetCurrent(&rt_context_));
+  LLM_ASSERT_RT_OK(aclrtGetCurrentContext(&aclrt_context_));
   const auto &buffer_and_size = cache_manager_->GetCacheTableBufferAndSize();
   LLM_CHK_STATUS_RET(comm_mem_manager_->RegisterCommMemAddr(buffer_and_size.first,
                                                           buffer_and_size.second,
@@ -327,7 +327,7 @@ ge::Status LinkMsgHandler::ExchangeInfoProcess(const LLMExchangeInfo &peer_excha
   LLM_CHK_STATUS_RET(comm_entity_manager_->CreateEntity(entity_param, comm_params, entity),
                     "Failed to create entity");
   LLMLOGI("Success to create comm entity:%s", entity->GetDesc().c_str());
-  entity->SetContext(rt_context_);
+  entity->SetContext(aclrt_context_);
   entity->SetCacheManager(cache_manager_);
   LLM_DISMISSABLE_GUARD(fail_guard, ([this, &peer_exchange_info]() {
     (void) comm_entity_manager_->DestroyEntity(peer_exchange_info.cluster_id);

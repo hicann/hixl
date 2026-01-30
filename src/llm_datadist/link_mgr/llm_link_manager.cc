@@ -21,7 +21,7 @@ void LLMLinkManager::Finalize() {
 }
 
 ge::Status LLMLinkManager::Initialize(const std::map<ge::AscendString, ge::AscendString> &options) {
-  LLM_ASSERT_RT_OK(rtCtxGetCurrent(&rt_context_));
+  LLM_ASSERT_RT_OK(aclrtGetCurrentContext(&aclrt_context_));
   CommLinkManager::Initialize(options);
   LLM_CHK_STATUS_RET(msg_handler_.Initialize(options), "Failed to init msg handler");
   const auto &iter = options.find(kLlmOptionListenPort);
@@ -50,8 +50,8 @@ ge::Status LLMLinkManager::LinkClusters(const std::vector<ClusterInfo> &clusters
   std::vector<std::future<ge::Status>> fut_rets;
   for (const auto &cluster : clusters) {
     auto fut = thread_pool.commit([this, cluster, timeout]() -> ge::Status {
-      LLM_CHK_BOOL_RET_STATUS(rtCtxSetCurrent(rt_context_) == RT_ERROR_NONE, ge::LLM_PARAM_INVALID,
-                             "Set runtime context failed.");
+      LLM_CHK_BOOL_RET_STATUS(aclrtSetCurrentContext(aclrt_context_) == ACL_ERROR_NONE, ge::LLM_PARAM_INVALID,
+                             "Set aclrt context failed.");
       LLM_CHK_STATUS_RET(msg_handler_.LinkCluster(cluster, timeout),
                         "Failed to link cluster, remote_cluster_id = %lu, remote_role_type = %d.",
                         cluster.remote_cluster_id, cluster.remote_role_type);
@@ -79,8 +79,8 @@ ge::Status LLMLinkManager::UnlinkClusters(const std::vector<ClusterInfo> &cluste
   std::vector<std::future<ge::Status>> fut_rets;
   for (const auto &cluster : clusters) {
     auto fut = thread_pool.commit([this, cluster, timeout, force_flag]() -> ge::Status {
-      LLM_CHK_BOOL_RET_STATUS(rtCtxSetCurrent(rt_context_) == RT_ERROR_NONE, ge::LLM_PARAM_INVALID,
-                             "Set runtime context failed.");
+      LLM_CHK_BOOL_RET_STATUS(aclrtSetCurrentContext(aclrt_context_) == ACL_ERROR_NONE, ge::LLM_PARAM_INVALID,
+                             "Set aclrt context failed.");
       LLM_CHK_STATUS_RET(msg_handler_.UnlinkCluster(cluster, timeout, force_flag),
                         "Failed to unlink cluster, remote_cluster_id = %lu, remote_role_type = %d.",
                         cluster.remote_cluster_id, cluster.remote_role_type);

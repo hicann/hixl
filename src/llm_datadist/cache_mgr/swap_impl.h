@@ -12,13 +12,13 @@
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_SWAP_IMPL_H_
 
 #include "common/llm_utils.h"
-#include "runtime/rt.h"
+#include "acl/acl.h"
 
 namespace llm {
 enum class CopyType : int32_t { kMemcpy = 0, kMemcpyEx = 1 };
 struct CopyInfo {
   CopyType copy_type;
-  rtMemcpyKind_t copy_kind;
+  aclrtMemcpyKind copy_kind;
 };
 class SwapImpl {
  public:

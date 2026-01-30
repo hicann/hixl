@@ -60,7 +60,7 @@ class CommEntityManager {
   std::thread cache_engine_thread_;
   std::unique_ptr<LlmMemPool> host_mem_pool_{};
   std::shared_ptr<AlignedPtr> host_buffer_;
-  rtContext_t rt_context_{};
+  aclrtContext aclrt_context_{};
   std::atomic_uint64_t entity_id_gen_{1LU};
   CommMemManager *comm_mem_manager_{};
   std::atomic_bool mgr_high_priority_flag_{false};

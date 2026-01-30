@@ -16,7 +16,7 @@ constexpr uint32_t kMaxTaskNum = 1024U;
 constexpr uint64_t kMaxBatchPutNum = 64U;
 }  // namespace
 
-ge::Status DataTransferUtils::SendBatchCache(const rtStream_t stream, const std::vector<HcclOneSideOpDesc> &desces,
+ge::Status DataTransferUtils::SendBatchCache(const aclrtStream stream, const std::vector<HcclOneSideOpDesc> &desces,
                                              CommEntity &comm_entity) {
   size_t start = 0U;
   while (start < desces.size()) {
@@ -31,8 +31,8 @@ ge::Status DataTransferUtils::SendBatchCache(const rtStream_t stream, const std:
   return ge::SUCCESS;
 }
 
-ge::Status DataTransferUtils::SendCache(const rtStream_t stream, CommEntity &comm_entity,
-                                        std::list<HcclOneSideOpDesc> &transfer_tasks, rtEvent_t &event) {
+ge::Status DataTransferUtils::SendCache(const aclrtStream stream, CommEntity &comm_entity,
+                                        std::list<HcclOneSideOpDesc> &transfer_tasks, aclrtEvent &event) {
   auto &send_statistic_info = comm_entity.GetSendStatisticInfo(stream);
   std::vector<HcclOneSideOpDesc> desces;
   while (desces.size() < kMaxTaskNum) {
@@ -53,8 +53,8 @@ ge::Status DataTransferUtils::SendCache(const rtStream_t stream, CommEntity &com
     LLMLOGI("transfer tasks[%zu] is empty or task num[%zu] reach 1024, create event and record", transfer_tasks.size(),
            desces.size());
     const auto start = std::chrono::steady_clock::now();
-    LLM_CHK_ACL_RET(rtEventCreate(&event));
-    LLM_ASSERT_RT_OK(rtEventRecord(event, stream));
+    LLM_CHK_ACL_RET(aclrtCreateEvent(&event));
+    LLM_ASSERT_RT_OK(aclrtRecordEvent(event, stream));
     const auto end = std::chrono::steady_clock::now();
     send_statistic_info.event_record_times++;
     const uint64_t cost = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -63,7 +63,7 @@ ge::Status DataTransferUtils::SendCache(const rtStream_t stream, CommEntity &com
   return ge::SUCCESS;
 }
 
-ge::Status DataTransferUtils::SendCache(const rtStream_t stream, CommEntity &comm_entity,
+ge::Status DataTransferUtils::SendCache(const aclrtStream stream, CommEntity &comm_entity,
                                         std::list<HcclOneSideOpDesc> &transfer_tasks) {
   std::vector<HcclOneSideOpDesc> desces;
   while (!transfer_tasks.empty()) {
@@ -78,12 +78,12 @@ ge::Status DataTransferUtils::SendCache(const rtStream_t stream, CommEntity &com
   return ge::SUCCESS;
 }
 
-ge::Status DataTransferUtils::QueryEventStatus(const rtEvent_t &event, rtEventStatus_t &status) {
+ge::Status DataTransferUtils::QueryEventStatus(const aclrtEvent &event, aclrtEventRecordedStatus &status) {
   if (event != nullptr) {
-    LLM_ASSERT_RT_OK(rtEventQueryStatus(event, &status));
+    LLM_ASSERT_RT_OK(aclrtQueryEventStatus(event, &status));
     return ge::SUCCESS;
   }
-  status = RT_EVENT_RECORDED;
+  status = ACL_EVENT_RECORDED_STATUS_COMPLETE;
   return ge::SUCCESS;
 }
 }  // namespace llm

@@ -121,7 +121,7 @@ void H2DDataTransferJob::InitBufferContexts(const CacheEntry &cache_entry, const
     buffer_context.dst_task_batcher = &dst_task_generator_;
     buffer_context.data_addresses = src_cache_addrs;
     buffer_context.request = &request;
-    buffer_context.rt_context = comm_entity.GetCurrentContext();
+    buffer_context.aclrt_context = comm_entity.GetCurrentContext();
     buffers_.emplace_back(std::move(buffer_context));
   }
 }
@@ -215,13 +215,13 @@ ge::Status BufferStateCopy::UpdateState(BufferContext &context) const {
 }
 
 ge::Status BufferStateCopy::CopyAsync(BufferContext &context, size_t slice_index) {
-  LLM_CHK_ACL_RET(rtCtxSetCurrent(context.rt_context));
+  LLM_CHK_ACL_RET(aclrtSetCurrentContext(context.aclrt_context));
   const auto &tasks = context.buffer_slices;
   auto &task = tasks[slice_index];
   auto src_addr = PtrToPtr<void, uint8_t>(context.data_addresses[task.data_index].get()) +
       task.data_offset + context.offset;
   auto dst_addr = PtrToPtr<void, uint8_t>(context.buffer.get()) + task.buffer_offset;
-  LLM_CHK_ACL_RET(rtMemcpy(dst_addr, task.data_size, src_addr, task.data_size, RT_MEMCPY_HOST_TO_DEVICE));
+  LLM_CHK_ACL_RET(aclrtMemcpy(dst_addr, task.data_size, src_addr, task.data_size, ACL_MEMCPY_HOST_TO_DEVICE));
   LLMLOGI("Buffer[%zu] copy success, src_offset = %lu, dst_offset = %lu, size = %u",
          context.buffer_index,
          task.data_offset + context.offset,
@@ -234,16 +234,16 @@ ge::Status BufferStateTransfer::UpdateState(BufferContext &context) const {
   if (context.event == nullptr) {
     // BatchPut
     LLM_CHK_STATUS_RET(BatchPutAsync(context));
-    LLM_CHK_ACL_RET(rtEventCreate(&context.event));
-    LLM_CHK_ACL_RET(rtEventRecord(context.event, context.stream));
+    LLM_CHK_ACL_RET(aclrtCreateEvent(&context.event));
+    LLM_CHK_ACL_RET(aclrtRecordEvent(context.event, context.stream));
   } else {
-    rtEventStatus event_status{};
-    rtEventQueryStatus(context.event, &event_status);
-    if (event_status != RT_EVENT_RECORDED) {
+    aclrtEventRecordedStatus event_status{};
+    aclrtQueryEventStatus(context.event, &event_status);
+    if (event_status != ACL_EVENT_RECORDED_STATUS_COMPLETE) {
       // 没有wait到，等待下一次, 不更新task index
       LLMLOGI("Buffer[%zu] transfer not ended", context.buffer_index);
     } else {
-      rtEventDestroy(context.event);
+      aclrtDestroyEvent(context.event);
       context.event = nullptr;
       context.state = BufferStateIdle::kStateId;
       LLMLOGI("Buffer[%zu] changed to IDLE state", context.buffer_index);

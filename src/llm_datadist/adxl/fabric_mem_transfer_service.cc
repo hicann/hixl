@@ -28,7 +28,7 @@ constexpr size_t kAsyncTaskStreamNum = 5U;
 constexpr uint64_t DISABLE_PID_VALIDATION_FLAG = 1UL;
 }  // namespace
 Status FabricMemTransferService::Initialize(size_t max_stream_num) {
-  ADXL_CHK_ACL_RET(rtGetDevice(&device_id_));
+  ADXL_CHK_ACL_RET(aclrtGetDevice(&device_id_));
   LLMLOGI("Get device id:%d", device_id_);
   max_stream_num_ = max_stream_num;
   return SUCCESS;
@@ -50,7 +50,7 @@ void FabricMemTransferService::Finalize() {
     std::lock_guard<std::mutex> lock(stream_pool_mutex_);
     for (auto &stream_stat : stream_pool_) {
       if (stream_stat.first != nullptr) {
-        LLM_CHK_ACL(rtStreamDestroy(stream_stat.first));
+        LLM_CHK_ACL(aclrtDestroyStream(stream_stat.first));
       }
     }
     stream_pool_.clear();
@@ -59,12 +59,12 @@ void FabricMemTransferService::Finalize() {
     std::lock_guard<std::mutex> lock(local_va_map_mutex_);
     // unmap and free all imported pa handle
     for (auto &it : local_va_to_old_va_) {
-      LLM_CHK_ACL(rtUnmapMem(llm::ValueToPtr(it.first)));
-      LLM_CHK_ACL(rtReleaseMemAddress(llm::ValueToPtr(it.first)));
+      LLM_CHK_ACL(aclrtUnmapMem(llm::ValueToPtr(it.first)));
+      LLM_CHK_ACL(aclrtReleaseMemAddress(llm::ValueToPtr(it.first)));
     }
     local_va_to_old_va_.clear();
     for (auto it = mem_handle_to_import_info_.begin(); it != mem_handle_to_import_info_.end(); it++) {
-      LLM_CHK_ACL(rtFreePhysical(it->second.first));
+      LLM_CHK_ACL(aclrtFreePhysical(it->second.first));
     }
     mem_handle_to_import_info_.clear();
   }
@@ -72,26 +72,26 @@ void FabricMemTransferService::Finalize() {
     // free all retained pa handle
     std::lock_guard<std::mutex> lock(share_handle_mutex_);
     for (auto &share_handle : share_handles_) {
-      LLM_CHK_ACL(rtFreePhysical(share_handle.first));
+      LLM_CHK_ACL(aclrtFreePhysical(share_handle.first));
     }
     share_handles_.clear();
   }
 }
 
 Status FabricMemTransferService::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
-  rtDrvMemFabricHandle share_handle = {};
+  aclrtMemFabricHandle share_handle = {};
   auto va = llm::ValueToPtr(mem.addr);
-  rtDrvMemHandle pa_handle = nullptr;
+  aclrtDrvMemHandle pa_handle = nullptr;
   {
     std::lock_guard<std::mutex> lock(share_handle_mutex_);
-    ADXL_CHK_ACL_RET(rtMemRetainAllocationHandle(va, &pa_handle));
+    ADXL_CHK_ACL_RET(aclrtMemRetainAllocationHandle(va, &pa_handle));
     LLM_DISMISSABLE_GUARD(pa_guard, ([&pa_handle]() {
                             if (pa_handle != nullptr) {
-                              LLM_CHK_ACL(rtFreePhysical(pa_handle));
+                              LLM_CHK_ACL(aclrtFreePhysical(pa_handle));
                             }
                           }));
-    ADXL_CHK_ACL_RET(rtMemExportToShareableHandleV2(pa_handle, RT_MEM_SHARE_HANDLE_TYPE_FABRIC,
-                                                    DISABLE_PID_VALIDATION_FLAG, &share_handle));
+    ADXL_CHK_ACL_RET(aclrtMemExportToShareableHandleV2(pa_handle, ACL_RT_VMM_EXPORT_FLAG_DISABLE_PID_VALIDATION,
+                                                       ACL_MEM_SHARE_HANDLE_TYPE_FABRIC, &share_handle));
     share_handles_[pa_handle] = ShareHandleInfo{mem.addr, mem.len, share_handle};
     mem_handle = pa_handle;
     LLMLOGI("Export suc, mem type:%d, mem addr:%lu.", type, mem.addr);
@@ -99,19 +99,19 @@ Status FabricMemTransferService::RegisterMem(const MemDesc &mem, MemType type, M
   }
   if (type == MEM_HOST) {
     void *local_va_ = nullptr;
-    rtDrvMemHandle local_pa_handle = nullptr;
-    ADXL_CHK_ACL_RET(rtReserveMemAddress(&local_va_, mem.len, 0, nullptr, 1U));
+    aclrtDrvMemHandle local_pa_handle = nullptr;
+    ADXL_CHK_ACL_RET(aclrtReserveMemAddress(&local_va_, mem.len, 0, nullptr, 1U));
     LLM_DISMISSABLE_GUARD(fail_guard, ([&local_va_, &local_pa_handle]() {
                             if (local_va_ != nullptr) {
-                              LLM_CHK_ACL(rtReleaseMemAddress(local_va_));
+                              LLM_CHK_ACL(aclrtReleaseMemAddress(local_va_));
                             }
                             if (local_pa_handle != nullptr) {
-                              LLM_CHK_ACL(rtFreePhysical(local_pa_handle));
+                              LLM_CHK_ACL(aclrtFreePhysical(local_pa_handle));
                             }
                           }));
-    ADXL_CHK_ACL_RET(rtMemImportFromShareableHandleV2(&share_handle, RT_MEM_SHARE_HANDLE_TYPE_FABRIC, 0U, device_id_,
+    ADXL_CHK_ACL_RET(aclrtMemImportFromShareableHandleV2(&share_handle, ACL_MEM_SHARE_HANDLE_TYPE_FABRIC, 0U,
                                                       &local_pa_handle));
-    ADXL_CHK_ACL_RET(rtMapMem(local_va_, mem.len, 0, local_pa_handle, 0));
+    ADXL_CHK_ACL_RET(aclrtMapMem(local_va_, mem.len, 0, local_pa_handle, 0));
     std::lock_guard<std::mutex> lock(local_va_map_mutex_);
     auto local_va_addr = llm::PtrToValue(local_va_);
     mem_handle_to_import_info_[pa_handle] = std::make_pair(local_pa_handle, local_va_addr);
@@ -131,12 +131,12 @@ Status FabricMemTransferService::DeregisterMem(MemHandle mem_handle) {
       auto import_info = it->second;
       auto va_map_it = local_va_to_old_va_.find(import_info.second);
       if (va_map_it != local_va_to_old_va_.end()) {
-        LLM_CHK_ACL(rtUnmapMem(llm::ValueToPtr(va_map_it->first)));
-        LLM_CHK_ACL(rtReleaseMemAddress(llm::ValueToPtr(va_map_it->first)));
+        LLM_CHK_ACL(aclrtUnmapMem(llm::ValueToPtr(va_map_it->first)));
+        LLM_CHK_ACL(aclrtReleaseMemAddress(llm::ValueToPtr(va_map_it->first)));
         local_va_to_old_va_.erase(va_map_it);
       }
       // free imported pa handle
-      LLM_CHK_ACL(rtFreePhysical(import_info.first));
+      LLM_CHK_ACL(aclrtFreePhysical(import_info.first));
       mem_handle_to_import_info_.erase(it);
     }
   }
@@ -145,7 +145,7 @@ Status FabricMemTransferService::DeregisterMem(MemHandle mem_handle) {
     auto it = share_handles_.find(mem_handle);
     if (it != share_handles_.end()) {
       // free retained pa handle
-      LLM_CHK_ACL(rtFreePhysical(it->first));
+      LLM_CHK_ACL(aclrtFreePhysical(it->first));
       share_handles_.erase(it);
     }
   }
@@ -156,13 +156,13 @@ Status FabricMemTransferService::Transfer(const ChannelPtr &channel, TransferOp 
                                           const std::vector<TransferOpDesc> &op_descs, int32_t timeout_in_millis) {
   const auto start = std::chrono::steady_clock::now();
   uint64_t timeout = static_cast<uint64_t>(timeout_in_millis) * kMillisToMicros;
-  std::vector<rtStream_t> streams;
+  std::vector<aclrtStream> streams;
   streams.reserve(kTaskStreamNum);
   ADXL_CHK_STATUS_RET(TryGetStream(streams, timeout), "Failed to get stream.");
   LLM_DISMISSABLE_GUARD(fail_guard, ([this, &streams]() -> void {
                           std::lock_guard<std::mutex> lock(stream_pool_mutex_);
                           for (auto &stream : streams) {
-                            LLM_CHK_ACL(rtStreamDestroy(stream));
+                            LLM_CHK_ACL(aclrtDestroyStream(stream));
                             auto it = stream_pool_.find(stream);
                             if (it != stream_pool_.end()) {
                               stream_pool_.erase(it);
@@ -177,7 +177,7 @@ Status FabricMemTransferService::Transfer(const ChannelPtr &channel, TransferOp 
     ADXL_CHK_BOOL_RET_STATUS(time_cost < timeout, TIMEOUT, "Transfer timeout.");
     uint64_t stream_timeout = (timeout - time_cost) / kMillisToMicros;
     ADXL_CHK_BOOL_RET_STATUS(stream_timeout > 0, TIMEOUT, "Transfer timeout.");
-    ADXL_CHK_ACL_RET(rtStreamSynchronizeWithTimeout(stream, stream_timeout));
+    ADXL_CHK_ACL_RET(aclrtSynchronizeStreamWithTimeout(stream, stream_timeout));
   }
   uint64_t real_copy_cost =
       std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - real_copy_start).count();
@@ -194,26 +194,26 @@ Status FabricMemTransferService::Transfer(const ChannelPtr &channel, TransferOp 
 Status FabricMemTransferService::TransferAsync(const ChannelPtr &channel, TransferOp operation,
                                                const std::vector<TransferOpDesc> &op_descs, TransferReq &req) {
   auto start = std::chrono::steady_clock::now();
-  std::vector<rtStream_t> streams;
+  std::vector<aclrtStream> streams;
   streams.reserve(kAsyncTaskStreamNum);
   ADXL_CHK_STATUS_RET(TryGetStreamOnce(streams, kAsyncTaskStreamNum), "Failed to get stream.");
   auto real_copy_start = std::chrono::steady_clock::now();
-  std::vector<rtStream_t> copy_streams(kTaskStreamNum, nullptr);
+  std::vector<aclrtStream> copy_streams(kTaskStreamNum, nullptr);
   for (size_t i = 0U; i < kTaskStreamNum; ++i) {
     copy_streams[i] = streams[i + 1U];
   }
   // TryGetStreamOnce make sure streams is not empty.
-  rtStream_t record_stream = streams[0U];
+  aclrtStream record_stream = streams[0U];
   std::vector<AsyncResource> async_resources;
   LLM_DISMISSABLE_GUARD(fail_guard, ([this, &async_resources, &streams]() {
                           for (auto &async_resource : async_resources) {
                             if (async_resource.second != nullptr) {
-                              LLM_CHK_ACL(rtEventDestroy(async_resource.second));
+                              LLM_CHK_ACL(aclrtDestroyEvent(async_resource.second));
                             }
                           }
                           std::lock_guard<std::mutex> lock(stream_pool_mutex_);
                           for (auto &stream : streams) {
-                            LLM_CHK_ACL(rtStreamDestroy(stream));
+                            LLM_CHK_ACL(aclrtDestroyStream(stream));
                             auto it = stream_pool_.find(stream);
                             if (it != stream_pool_.end()) {
                               stream_pool_.erase(it);
@@ -224,11 +224,11 @@ Status FabricMemTransferService::TransferAsync(const ChannelPtr &channel, Transf
   async_resources.reserve(streams.size());
   async_resources.emplace_back(record_stream, nullptr);
   for (auto &stream : copy_streams) {
-    rtEvent_t event = nullptr;
-    ADXL_CHK_ACL_RET(rtEventCreate(&event));
+    aclrtEvent event = nullptr;
+    ADXL_CHK_ACL_RET(aclrtCreateEvent(&event));
     async_resources.emplace_back(stream, event);
-    ADXL_CHK_ACL_RET(rtEventRecord(event, record_stream));
-    ADXL_CHK_ACL_RET(rtStreamWaitEvent(stream, event));
+    ADXL_CHK_ACL_RET(aclrtRecordEvent(event, record_stream));
+    ADXL_CHK_ACL_RET(aclrtStreamWaitEvent(stream, event));
   }
   {
     std::lock_guard<std::mutex> lock(channel_2_req_mutex_);
@@ -250,14 +250,14 @@ Status FabricMemTransferService::IsTransferDone(const std::vector<AsyncResource>
   status = TransferStatus::WAITING;
   for (auto &async_resource : async_resources) {
     if (async_resource.second != nullptr) {
-      rtEventStatus_t event_status{};
-      auto ret = rtEventQueryStatus(async_resource.second, &event_status);
-      if (ret != RT_ERROR_NONE) {
-        LLMLOGE(FAILED, "Call rtEventQueryStatus failed for req:%llu, ret:%d.", req_id, ret);
+      aclrtEventRecordedStatus event_status{};
+      auto ret = aclrtQueryEventStatus(async_resource.second, &event_status);
+      if (ret != ACL_ERROR_NONE) {
+        LLMLOGE(FAILED, "Call aclrtEventRecordedStatus failed for req:%llu, ret:%d.", req_id, ret);
         status = TransferStatus::FAILED;
         return FAILED;
       }
-      completed = completed && (event_status == RT_EVENT_RECORDED);
+      completed = completed && (event_status == ACL_EVENT_RECORDED_STATUS_COMPLETE);
     }
   }
   return SUCCESS;
@@ -291,11 +291,11 @@ Status FabricMemTransferService::GetTransferStatus(const ChannelPtr &channel, co
     // free event.
     for (auto &async_resource : async_resources) {
       if (async_resource.second != nullptr) {
-        LLM_CHK_ACL(rtEventDestroy(async_resource.second));
+        LLM_CHK_ACL(aclrtDestroyEvent(async_resource.second));
       }
     }
     // release streams
-    std::vector<rtStream_t> streams;
+    std::vector<aclrtStream> streams;
     streams.reserve(async_resources.size());
     for (auto &async_resource : async_resources) {
       streams.emplace_back(async_resource.first);
@@ -322,9 +322,9 @@ void FabricMemTransferService::SynchronizeStream(const std::vector<AsyncResource
   status = TransferStatus::COMPLETED;
   for (auto &async_resource : async_resources) {
     if (async_resource.second != nullptr) {
-      auto ret = rtStreamSynchronize(async_resource.first);
-      if (ret != RT_ERROR_NONE) {
-        LLMLOGE(FAILED, "Call rtStreamSynchronize failed for req:%lu, ret:%d.", req_id, ret);
+      auto ret = aclrtSynchronizeStream(async_resource.first);
+      if (ret != ACL_ERROR_NONE) {
+        LLMLOGE(FAILED, "Call aclrtSynchronizeStream failed for req:%lu, ret:%d.", req_id, ret);
         status = TransferStatus::FAILED;
         continue;
       }
@@ -369,10 +369,10 @@ void FabricMemTransferService::DestroyAsyncResources(const std::vector<AsyncReso
   std::lock_guard<std::mutex> stream_lock(stream_pool_mutex_);
   for (auto &async_resource : async_resources) {
     if (async_resource.second != nullptr) {
-      LLM_CHK_ACL(rtEventDestroy(async_resource.second));
+      LLM_CHK_ACL(aclrtDestroyEvent(async_resource.second));
     }
     auto &stream = async_resource.first;
-    LLM_CHK_ACL(rtStreamDestroy(stream));
+    LLM_CHK_ACL(aclrtDestroyStream(stream));
     auto stream_it = stream_pool_.find(stream);
     if (stream_it != stream_pool_.end()) {
       stream_pool_.erase(stream_it);
@@ -380,7 +380,7 @@ void FabricMemTransferService::DestroyAsyncResources(const std::vector<AsyncReso
   }
 }
 
-Status FabricMemTransferService::TryGetStream(std::vector<rtStream_t> &streams, uint64_t timeout) {
+Status FabricMemTransferService::TryGetStream(std::vector<aclrtStream> &streams, uint64_t timeout) {
   auto start = std::chrono::steady_clock::now();
   streams.reserve(kTaskStreamNum);
   while (true) {
@@ -391,7 +391,7 @@ Status FabricMemTransferService::TryGetStream(std::vector<rtStream_t> &streams, 
   }
 }
 
-Status FabricMemTransferService::TryGetStreamOnce(std::vector<rtStream_t> &streams, size_t stream_num) {
+Status FabricMemTransferService::TryGetStreamOnce(std::vector<aclrtStream> &streams, size_t stream_num) {
   std::lock_guard<std::mutex> lock(stream_pool_mutex_);
   for (auto &stream_stat : stream_pool_) {
     if (stream_stat.second) {
@@ -406,13 +406,13 @@ Status FabricMemTransferService::TryGetStreamOnce(std::vector<rtStream_t> &strea
     if (stream_pool_.size() >= max_stream_num_) {
       LLMEVENT("Stream pool is full, current stream pool size:%zu.", stream_pool_.size());
       for (auto &stream : streams) {
-        LLM_CHK_ACL(rtStreamDestroy(stream));
+        LLM_CHK_ACL(aclrtDestroyStream(stream));
       }
       return FAILED;
     }
-    rtStream_t stream = nullptr;
+    aclrtStream stream = nullptr;
     ADXL_CHK_ACL_RET(
-        rtStreamCreateWithFlags(&stream, RT_STREAM_PRIORITY_DEFAULT, RT_STREAM_FAST_LAUNCH | RT_STREAM_FAST_SYNC));
+        aclrtCreateStreamWithConfig(&stream, 0, ACL_STREAM_FAST_LAUNCH | ACL_STREAM_FAST_SYNC));
     streams.emplace_back(stream);
     LLMEVENT("Create new stream, current stream pool size:%zu.", stream_pool_.size());
   }
@@ -422,7 +422,7 @@ Status FabricMemTransferService::TryGetStreamOnce(std::vector<rtStream_t> &strea
   return SUCCESS;
 }
 
-void FabricMemTransferService::ReleaseStreams(std::vector<rtStream_t> &streams) {
+void FabricMemTransferService::ReleaseStreams(std::vector<aclrtStream> &streams) {
   std::lock_guard<std::mutex> lock(stream_pool_mutex_);
   for (auto &stream : streams) {
     auto it = stream_pool_.find(stream);
@@ -432,7 +432,7 @@ void FabricMemTransferService::ReleaseStreams(std::vector<rtStream_t> &streams) 
   }
 }
 
-Status FabricMemTransferService::DoTransfer(const std::vector<rtStream_t> &streams, const ChannelPtr &channel,
+Status FabricMemTransferService::DoTransfer(const std::vector<aclrtStream> &streams, const ChannelPtr &channel,
                                             TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
                                             std::chrono::steady_clock::time_point &start) {
   std::vector<TransferOpDesc> new_op_descs;
@@ -443,9 +443,9 @@ Status FabricMemTransferService::DoTransfer(const std::vector<rtStream_t> &strea
   for (size_t i = 0; i < op_descs.size(); ++i) {
     const auto &op = op_descs[i];
     if (i == 0) {
-      rtPointerAttributes_t attributes;
-      ADXL_CHK_ACL_RET(rtPointerGetAttributes(&attributes, llm::ValueToPtr(op.local_addr)));
-      if (attributes.locationType == RT_MEMORY_LOC_HOST) {
+      aclrtPtrAttributes attributes;
+      ADXL_CHK_ACL_RET(aclrtPointerGetAttributes(llm::ValueToPtr(op.local_addr), &attributes));
+      if (attributes.location.type == ACL_MEM_LOCATION_TYPE_HOST) {
         need_trans_local_addr = true;
       }
     }
@@ -492,18 +492,18 @@ Status FabricMemTransferService::TransOpAddr(uintptr_t old_addr, size_t len,
   return SUCCESS;
 }
 
-Status FabricMemTransferService::ProcessCopyWithAsync(const std::vector<rtStream_t> &streams, TransferOp operation,
+Status FabricMemTransferService::ProcessCopyWithAsync(const std::vector<aclrtStream> &streams, TransferOp operation,
                                                       const std::vector<TransferOpDesc> &op_descs) {
   for (size_t i = 0; i < op_descs.size(); ++i) {
     const auto &op = op_descs[i];
-    auto kind = RT_MEMCPY_DEVICE_TO_DEVICE;
+    auto kind = ACL_MEMCPY_DEVICE_TO_DEVICE;
     auto &stream = streams[i % (streams.size())];
     if (operation == TransferOp::WRITE) {
       ADXL_CHK_ACL_RET(
-          rtMemcpyAsync(llm::ValueToPtr(op.remote_addr), op.len, llm::ValueToPtr(op.local_addr), op.len, kind, stream));
+          aclrtMemcpyAsync(llm::ValueToPtr(op.remote_addr), op.len, llm::ValueToPtr(op.local_addr), op.len, kind, stream));
     } else if (operation == TransferOp::READ) {
       ADXL_CHK_ACL_RET(
-          rtMemcpyAsync(llm::ValueToPtr(op.local_addr), op.len, llm::ValueToPtr(op.remote_addr), op.len, kind, stream));
+          aclrtMemcpyAsync(llm::ValueToPtr(op.local_addr), op.len, llm::ValueToPtr(op.remote_addr), op.len, kind, stream));
     }
   }
   return SUCCESS;

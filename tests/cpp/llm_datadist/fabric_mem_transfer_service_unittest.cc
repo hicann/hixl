@@ -17,8 +17,8 @@
 #include <cstdlib>
 #include "adxl/fabric_mem_transfer_service.h"
 #include "adxl/channel.h"
-#include "depends/runtime/src/runtime_stub.h"
-#include "runtime/rt.h"
+#include "depends/ascendcl/src/ascendcl_stub.h"
+#include "acl/acl.h"
 #include "common/def_types.h"
 
 namespace adxl {
@@ -40,11 +40,11 @@ constexpr size_t kMemOverLen = 2;
 
 class ScopedRuntimeMock {
  public:
-  explicit ScopedRuntimeMock(const std::shared_ptr<llm::RuntimeStub> &instance) {
-    llm::RuntimeStub::SetInstance(instance);
+  explicit ScopedRuntimeMock(const std::shared_ptr<llm::AclRuntimeStub> &instance) {
+    llm::AclRuntimeStub::SetInstance(instance);
   }
   ~ScopedRuntimeMock() {
-    llm::RuntimeStub::Reset();
+    llm::AclRuntimeStub::Reset();
   }
   ScopedRuntimeMock(const ScopedRuntimeMock &) = delete;
   ScopedRuntimeMock &operator=(const ScopedRuntimeMock &) = delete;
@@ -55,11 +55,11 @@ class ScopedRuntimeMock {
 
 class ScopedRuntimeFunctionFail {
  public:
-  explicit ScopedRuntimeFunctionFail(const std::string &func_name) : old_(g_runtime_stub_mock) {
-    g_runtime_stub_mock = func_name;
+  explicit ScopedRuntimeFunctionFail(const std::string &func_name) : old_(llm::GetAclStubMock()) {
+    llm::GetAclStubMock() = func_name;
   }
   ~ScopedRuntimeFunctionFail() {
-    g_runtime_stub_mock = old_;
+    llm::GetAclStubMock() = old_;
   }
   ScopedRuntimeFunctionFail(const ScopedRuntimeFunctionFail &) = delete;
   ScopedRuntimeFunctionFail &operator=(const ScopedRuntimeFunctionFail &) = delete;
@@ -130,8 +130,8 @@ class FabricMemTransferServiceUTest : public ::testing::Test {
   }
   void TearDown() override {
     // Reset runtime stub to avoid cross-test contamination.
-    llm::RuntimeStub::Reset();
-    g_runtime_stub_mock = "";
+    llm::AclRuntimeStub::Reset();
+    llm::GetAclStubMock() = "";
     if (service_) {
       service_->Finalize();
     }
@@ -223,7 +223,7 @@ TEST_F(FabricMemTransferServiceUTest, TestTransferAsync) {
   EXPECT_EQ(service_->TransferAsync(channel, TransferOp::WRITE, op_descs, req), SUCCESS);
 
   // Verify status (should be COMPLETED immediately in stub env usually, or WAITING if events not recorded?)
-  // In stub, rtEventRecord is just a no-op or records immediately.
+  // In stub, aclrtRecordEvent is just a no-op or records immediately.
   TransferStatus status = TransferStatus::WAITING;
   // Poll until completed.
   int32_t retries = 0;
@@ -235,7 +235,7 @@ TEST_F(FabricMemTransferServiceUTest, TestTransferAsync) {
   // For async, we need to synchronize to ensure data is transferred before checking
   // In a real scenario, this would involve waiting on an event or stream.
   // For stubbed runtime, we assume it's "fast enough" or mock a sync.
-  // Since rtMemcpyAsync in stub performs direct memcpy, we can check immediately.
+  // Since aclrtMemcpyAsync in stub performs direct memcpy, we can check immediately.
   for (size_t i = 0; i < kTransferLen; ++i) {
     EXPECT_EQ(((uint8_t *)backing_remote_ptr)[i], kPatternA) << "Async Write verification failed at index " << i;
   }
@@ -322,7 +322,7 @@ TEST_F(FabricMemTransferServiceUTest, TestTransferAsync_EventCreateFail_CleanupO
 
   TransferReq req = llm::ValueToPtr(kReqBase);
   {
-    ScopedRuntimeFunctionFail fail("rtEventCreate");
+    ScopedRuntimeFunctionFail fail("aclrtCreateEvent");
     EXPECT_NE(service_->TransferAsync(channel, TransferOp::WRITE, {desc}, req), SUCCESS);
   }
 
@@ -361,9 +361,9 @@ TEST_F(FabricMemTransferServiceUTest, TestGetTransferStatus_QueryStatusFail_Clea
   TransferReq req = llm::ValueToPtr(kReqBase);
   EXPECT_EQ(service_->TransferAsync(channel, TransferOp::WRITE, {desc}, req), SUCCESS);
 
-  class QueryFailRuntimeMock : public llm::RuntimeStub {
+  class QueryFailRuntimeMock : public llm::AclRuntimeStub {
    public:
-    rtError_t rtEventQueryStatus(rtEvent_t evt, rtEventStatus_t *status) override {
+    aclError aclrtQueryEventStatus(aclrtEvent evt, aclrtEventRecordedStatus *status) override {
       (void)evt;
       (void)status;
       return -1;

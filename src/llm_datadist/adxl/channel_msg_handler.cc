@@ -29,9 +29,9 @@ namespace adxl {
 namespace {
 constexpr int32_t kWaitRespTime = 20;
 constexpr int32_t kCheckDisconnetPeriod = 10;
-std::string GetDebugStr(rtDrvMemFabricHandle share_handle) {
+std::string GetDebugStr(aclrtMemFabricHandle share_handle) {
   std::stringstream ss;
-  for (auto &i : share_handle.share_info) {
+  for (auto &i : share_handle.data) {
     ss << i;
   }
   return ss.str();
@@ -53,7 +53,7 @@ static void from_json(const nlohmann::json &j, ShareHandleInfo &c) {
   j.at("len").get_to(c.len);
   const auto& share_array = j["share_handle"];
   for (size_t i = 0; i < share_array.size(); ++i) {
-    c.share_handle.share_info[i] = share_array[i].get<uint8_t>();
+    c.share_handle.data[i] = share_array[i].get<uint8_t>();
   }
 }
 
@@ -62,8 +62,8 @@ static void to_json(nlohmann::json &j, const ShareHandleInfo &c) {
   j["va_addr"] = c.va_addr;
   j["len"] = c.len;
   auto share_array = nlohmann::json::array();
-  for (size_t i = 0; i < sizeof(c.share_handle.share_info); ++i) {
-    share_array.push_back(c.share_handle.share_info[i]);
+  for (size_t i = 0; i < sizeof(c.share_handle.data); ++i) {
+    share_array.push_back(c.share_handle.data[i]);
   }
   j["share_handle"] = share_array;
 }
@@ -200,8 +200,8 @@ Status ChannelMsgHandler::ParseServiceLevel(const std::map<AscendString, AscendS
 Status ChannelMsgHandler::Initialize(const std::map<AscendString, AscendString> &options, SegmentTable *segment_table,
                                      FabricMemTransferService *fabric_mem_transfer_service) {
   ADXL_CHECK_NOTNULL(channel_manager_);
-  ADXL_CHK_ACL_RET(rtCtxGetCurrent(&rt_context_));
-  ADXL_CHK_ACL_RET(rtGetDevice(&device_id_));
+  ADXL_CHK_ACL_RET(aclrtGetCurrentContext(&aclrt_context_));
+  ADXL_CHK_ACL_RET(aclrtGetDevice(&device_id_));
   ADXL_CHK_STATUS_RET(ParseListenInfo(listen_info_, local_ip_, listen_port_), "Failed to parse listen info");
   ADXL_CHK_LLM_RET(llm::LocalCommResGenerator::Generate(local_ip_, device_id_, local_comm_res_),
                    "Failed to generate local comm res, local_ip:%s, device_id:%d",
@@ -769,7 +769,7 @@ std::vector<EvictItem> ChannelMsgHandler::SelectEvictionCandidates(int32_t need_
 }
 
 void ChannelMsgHandler::EvictionLoop() {
-  rtCtxSetCurrent(rt_context_);
+  aclrtSetCurrentContext(aclrt_context_);
   while (true) {
     std::unique_lock<std::mutex> lock(evict_mutex_);
     evict_cv_.wait(

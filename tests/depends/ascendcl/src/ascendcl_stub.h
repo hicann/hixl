@@ -20,6 +20,9 @@
 #include "acl/acl.h"
 
 namespace llm {
+std::string &GetAclStubMock();
+
+#define RUTIME_MOCK_QUERY_EVENT_INTERVAL 5
 class AclRuntimeStub {
 public:
   virtual ~AclRuntimeStub() = default;
@@ -52,6 +55,8 @@ public:
   virtual aclError aclrtResetDevice(int32_t deviceId);
   virtual aclError aclrtGetDevice(int32_t *deviceId);
   virtual aclError aclrtGetThreadLastTaskId(uint32_t *taskId);
+  virtual aclError aclrtCreateContext(aclrtContext *context, int32_t deviceId);
+  virtual aclError aclrtDestroyContext(aclrtContext context);
   virtual aclError aclrtSetCurrentContext(aclrtContext context);
   virtual aclError aclrtGetCurrentContext(aclrtContext *context);
   virtual aclError aclrtCreateEvent(aclrtEvent *event);
@@ -62,6 +67,7 @@ public:
   virtual aclError aclrtCreateStreamWithConfig(aclrtStream *stream, uint32_t priority, uint32_t flag);
   virtual aclError aclrtDestroyStream(aclrtStream stream);
   virtual aclError aclrtStreamAbort(aclrtStream stream);
+  virtual aclError aclrtStreamWaitEvent(aclrtStream stream, aclrtEvent event);
   virtual aclError aclrtSynchronizeStream(aclrtStream stream);
   virtual aclError aclrtSynchronizeStreamWithTimeout(aclrtStream stream, int32_t timeout);
   virtual aclError aclrtMalloc(void **devPtr, size_t size, aclrtMemMallocPolicy policy);
@@ -83,9 +89,24 @@ public:
                           aclrtMemcpyKind kind,
                           aclrtStream stream);
   virtual aclError aclrtGetMemInfo(aclrtMemAttr attr, size_t *free_size, size_t *total);
-  virtual aclError aclrtGetSocVersion(char *version, const uint32_t maxLen);
+  virtual const char* aclrtGetSocName();
   virtual aclError aclrtGetDeviceInfo(uint32_t deviceId, aclrtDevAttr attr, int64_t *value);
-  virtual aclError aclrtGetDevicePhyIdByIndex(uint32_t devIndex, uint32_t *phyId);
+  virtual aclError aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, int32_t *const phyDevId);
+  virtual aclError aclrtMemcpyBatch(void **dsts, size_t *destMax, void **srcs, size_t *sizes, size_t numBatches,
+                                    aclrtMemcpyBatchAttr *attrs, size_t *attrsIndexex, size_t numAttrs, size_t *failIndex);
+
+  virtual aclError aclrtReserveMemAddress(void** devPtr, size_t size, size_t alignment, void *devAddr, uint64_t flags);
+  virtual aclError aclrtReleaseMemAddress(void* devPtr);
+  virtual aclError aclrtMapMem(void* devPtr, size_t size, size_t offset, aclrtDrvMemHandle handle, uint64_t flags);
+  virtual aclError aclrtUnmapMem(void* devPtr);
+  virtual aclError aclrtMemRetainAllocationHandle(void *devPtr, aclrtDrvMemHandle *handle);
+  virtual aclError aclrtPointerGetAttributes(const void *ptr, aclrtPtrAttributes *attributes);
+  virtual aclError aclrtMemExportToShareableHandleV2(aclrtDrvMemHandle handle, uint64_t flags, aclrtMemSharedHandleType type,
+                                                   void *shareableHandle);
+  virtual aclError aclrtMemImportFromShareableHandleV2(void *shareableHandle, aclrtMemSharedHandleType type,
+                                                     uint64_t flags, aclrtDrvMemHandle *handle);
+  virtual aclError aclrtMallocPhysical(aclrtDrvMemHandle *handle, size_t size, const aclrtPhysicalMemProp *prop, uint64_t flags);
+  virtual aclError aclrtFreePhysical(aclrtDrvMemHandle handle);
 
 private:
   static std::mutex mutex_;

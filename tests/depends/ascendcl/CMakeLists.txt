@@ -20,7 +20,7 @@ target_link_libraries(ascendcl_stub
         c_sec
         msprof_headers
     PUBLIC
-        ascendcl_headers
+        acl_rt_headers
 )
 
-stub_module(ascendcl ascendcl_stub)
+stub_module(acl_rt ascendcl_stub)

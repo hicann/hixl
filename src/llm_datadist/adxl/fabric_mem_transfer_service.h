@@ -18,7 +18,7 @@
 #include "adxl/adxl_types.h"
 #include "channel.h"
 #include "control_msg_handler.h"
-#include "runtime/rt.h"
+#include "acl/acl.h"
 
 namespace adxl {
 class FabricMemTransferService {
@@ -50,13 +50,13 @@ class FabricMemTransferService {
  private:
   static Status IsTransferDone(const std::vector<AsyncResource> &async_resources, uint64_t req_id,
                                TransferStatus &status, bool &completed);
-  Status TryGetStreamOnce(std::vector<rtStream_t> &streams, size_t stream_num);
-  Status TryGetStream(std::vector<rtStream_t> &streams, uint64_t timeout);
-  static Status ProcessCopyWithAsync(const std::vector<rtStream_t> &streams, TransferOp operation,
+  Status TryGetStreamOnce(std::vector<aclrtStream> &streams, size_t stream_num);
+  Status TryGetStream(std::vector<aclrtStream> &streams, uint64_t timeout);
+  static Status ProcessCopyWithAsync(const std::vector<aclrtStream> &streams, TransferOp operation,
                                      const std::vector<TransferOpDesc> &op_descs);
-  Status DoTransfer(const std::vector<rtStream_t> &streams, const ChannelPtr &channel, TransferOp operation,
+  Status DoTransfer(const std::vector<aclrtStream> &streams, const ChannelPtr &channel, TransferOp operation,
                     const std::vector<TransferOpDesc> &op_descs, std::chrono::steady_clock::time_point &start);
-  void ReleaseStreams(std::vector<rtStream_t> &streams);
+  void ReleaseStreams(std::vector<aclrtStream> &streams);
   void DestroyAsyncResources(const std::vector<AsyncResource> &async_resources);
   void RemoveChannelReqRelation(const std::string &channel_id, uint64_t req_id);
   static void SynchronizeStream(const std::vector<AsyncResource> &async_resources, uint64_t req_id,
@@ -65,12 +65,12 @@ class FabricMemTransferService {
                             std::unordered_map<uintptr_t, ShareHandleInfo> &new_va_to_old_va, uintptr_t &new_addr);
 
   std::mutex share_handle_mutex_;
-  std::unordered_map<rtDrvMemHandle, ShareHandleInfo> share_handles_;
+  std::unordered_map<aclrtDrvMemHandle, ShareHandleInfo> share_handles_;
   int32_t device_id_{-1};
   size_t max_stream_num_{0};
 
   std::mutex stream_pool_mutex_;
-  std::unordered_map<rtStream_t, bool> stream_pool_;
+  std::unordered_map<aclrtStream, bool> stream_pool_;
 
   std::mutex async_req_mutex_;
   std::unordered_map<uint64_t, AsyncRecord> req_2_async_record_;
@@ -81,7 +81,7 @@ class FabricMemTransferService {
   // mutex for local va map and pa handlers
   std::mutex local_va_map_mutex_;
   std::unordered_map<uintptr_t, ShareHandleInfo> local_va_to_old_va_;
-  std::unordered_map<MemHandle, std::pair<rtDrvMemHandle, uintptr_t>> mem_handle_to_import_info_;
+  std::unordered_map<MemHandle, std::pair<aclrtDrvMemHandle, uintptr_t>> mem_handle_to_import_info_;
 };
 }  // namespace adxl
 

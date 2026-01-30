@@ -11,7 +11,7 @@
 #ifndef AIR_TESTS_DEPENDS_LLM_DATADIST_SRC_HCCL_STUB_H_
 #define AIR_TESTS_DEPENDS_LLM_DATADIST_SRC_HCCL_STUB_H_
 
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #include "hccl/hccl_mem_comm.h"
 
 HcclResult HcclExchangeMemDesc(HcclComm comm, uint32_t remoteRank, HcclMemDescs *local, int timeout,
@@ -33,9 +33,9 @@ HcclResult HcclCommUnbindMem(HcclComm comm, void *memHandle);
 HcclResult HcclCommPrepare(HcclComm comm, HcclPrepareConfig *prepareConfig, int32_t timeout);
 
 HcclResult HcclBatchPut(HcclComm comm, uint32_t remoteRank, HcclOneSideOpDesc *desc, uint32_t descNum,
-                        rtStream_t stream);
+                        aclrtStream stream);
 
 HcclResult HcclBatchGet(HcclComm comm, uint32_t remoteRank, HcclOneSideOpDesc *desc, uint32_t descNum,
-                        rtStream_t stream);
+                        aclrtStream stream);
 
 #endif  // AIR_TESTS_DEPENDS_LLM_DATADIST_SRC_HCCL_STUB_H_

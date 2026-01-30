@@ -17,7 +17,7 @@
 #include "llm_datadist/llm_datadist.h"
 #include "dlog_pub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
-#include "rt_error_codes.h"
+#include "acl/acl.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
 
 using namespace std;
@@ -265,12 +265,11 @@ TEST_F(LlmDataDistUTest, TestLocalCommResA3) {
 TEST_F(LlmDataDistUTest, TestAutoLocalCommResA2) {
   class AutoCommResV1RuntimeMock : public llm::AutoCommResRuntimeMock {
    public:
-    rtError_t rtGetSocVersion(char *version, const uint32_t maxLen) override {
-      (void)strcpy_s(version, maxLen, "Ascend910B1");
-      return RT_ERROR_NONE;
+    const char* aclrtGetSocName() override {
+      return "Ascend910B1";
     }
   };
-  llm::RuntimeStub::SetInstance(std::make_shared<AutoCommResV1RuntimeMock>());
+  llm::AclRuntimeStub::SetInstance(std::make_shared<AutoCommResV1RuntimeMock>());
   LlmDataDist llm_datadist_p(1U, LlmRole::kPrompt);
   std::map<AscendString, AscendString> options_p;
   options_p[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26000";

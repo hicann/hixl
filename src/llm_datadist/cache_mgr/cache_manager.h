@@ -15,7 +15,7 @@
 #include <mutex>
 #include <unordered_set>
 #include "llm_datadist/llm_error_codes.h"
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #include "common/common.h"
 #include "common/llm_mem_pool.h"
 #include "utils/cache_access_table.h"
@@ -73,7 +73,7 @@ private:
                                     const CacheEntry &dst_cache_entry,
                                     const CopyCacheParam &copy_cache_param,
                                     uint64_t &copy_size);
-  static rtMemcpyKind_t ResolveCopyKind(CachePlacement src_placement, CachePlacement dst_placement);
+  static aclrtMemcpyKind ResolveCopyKind(CachePlacement src_placement, CachePlacement dst_placement);
   ge::Status EnsureCopyStream(size_t device_index);
   ge::Status UpdateCacheTable();
 
@@ -85,11 +85,11 @@ private:
   std::map<DataCacheKey, int64_t> prefix_key_to_id_;
   std::map<std::pair<int64_t, uint32_t>, DataCacheKey> cache_id_and_batch_id_to_cache_key_;
   LlmMemPool *npu_mem_pool_ = nullptr;
-  std::vector<rtStream_t> copy_streams_;
+  std::vector<aclrtStream> copy_streams_;
   LlmMemPool *host_mem_pool_ = nullptr;
   CacheAccessTableUpdater cache_access_table_updater_;
   bool enable_remote_cache_accessible_ = false;
-  rtContext_t rt_context_ = nullptr;
+  aclrtContext aclrt_context_ = nullptr;
 };
 }  // namespace llm
 

@@ -10,11 +10,11 @@
 
 #include "stream_pool.h"
 #include <mutex>
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #include "adxl_checker.h"
 
 namespace adxl {
-Status StreamPool::TryAllocStream(rtStream_t &stream) {
+Status StreamPool::TryAllocStream(aclrtStream &stream) {
   std::lock_guard<std::mutex> lock(pool_mutex_);
   for (auto &item : pool_) {
     if (item.second) {
@@ -24,9 +24,9 @@ Status StreamPool::TryAllocStream(rtStream_t &stream) {
     }
   }  
   if (pool_.size() < max_stream_num_) {
-    rtStream_t new_stream = nullptr;
-    ADXL_CHK_ACL_RET(rtStreamCreateWithFlags(&new_stream, RT_STREAM_PRIORITY_DEFAULT,
-                     RT_STREAM_FAST_LAUNCH | RT_STREAM_FAST_SYNC));
+    aclrtStream new_stream = nullptr;
+    ADXL_CHK_ACL_RET(aclrtCreateStreamWithConfig(&new_stream, 0,
+                     ACL_STREAM_FAST_LAUNCH | ACL_STREAM_FAST_SYNC));
     pool_[new_stream] = false;
     stream = new_stream;
     LLMLOGI("Create new stream, current stream pool size: %zu", pool_.size());
@@ -36,7 +36,7 @@ Status StreamPool::TryAllocStream(rtStream_t &stream) {
   return RESOURCE_EXHAUSTED;
 }
 
-void StreamPool::FreeStream(rtStream_t &stream) {
+void StreamPool::FreeStream(aclrtStream &stream) {
   std::lock_guard<std::mutex> lock(pool_mutex_);
   auto it = pool_.find(stream);
   if (it != pool_.end()) {
@@ -48,22 +48,22 @@ void StreamPool::Finalize() {
   std::lock_guard<std::mutex> lock(pool_mutex_);
   for (auto &it : pool_) {
     if (it.first != nullptr) {
-      (void)rtStreamDestroy(it.first);
+      (void)aclrtDestroyStream(it.first);
     }
   }
   pool_.clear();
 }
-void StreamPool::DestroyStream(rtStream_t &stream) {
+void StreamPool::DestroyStream(aclrtStream &stream) {
   std::lock_guard<std::mutex> lock(pool_mutex_);
   auto it = pool_.find(stream);
   if (it != pool_.end()) {
-    auto rt_abort = rtStreamAbort(stream);
-    if (rt_abort != RT_ERROR_NONE) {
-      LLMLOGE(FAILED, "Call rtStreamAbort ret:%d.", rt_abort);
+    auto aclrt_abort = aclrtStreamAbort(stream);
+    if (aclrt_abort != ACL_ERROR_NONE) {
+      LLMLOGE(FAILED, "Call aclrtStreamAbort ret:%d.", aclrt_abort);
     }
-    auto rt_destroy = rtStreamDestroy(stream);
-    if (rt_destroy != RT_ERROR_NONE) {
-      LLMLOGE(FAILED, "Call rtStreamDestroy ret:%d.", rt_destroy);
+    auto aclrt_destroy = aclrtDestroyStream(stream);
+    if (aclrt_destroy != ACL_ERROR_NONE) {
+      LLMLOGE(FAILED, "Call aclrtDestroyStream ret:%d.", aclrt_destroy);
     }
     pool_.erase(it);
   }

@@ -25,7 +25,7 @@
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
 #include "common/llm_mem_pool.h"
-#include "rt_error_codes.h"
+#include "acl/acl.h"
 
 #include "data_transfer/d2d_data_transfer_job.h"
 #include "cache_mgr/data_cache_engine.h"
@@ -221,10 +221,10 @@ class MockMmpaLongTimeRegister : public MmpaStubApiGe {
   }
 };
 
-class MockRuntime : public llm::RuntimeStub {
+class MockRuntime : public llm::AclRuntimeStub {
  public:
-  rtError_t rtStreamSynchronizeWithTimeout(rtStream_t stm, int32_t timeout) override {
-    return count_++ == 1 ? ACL_ERROR_RT_STREAM_SYNC_TIMEOUT : RT_ERROR_NONE;
+  aclError aclrtSynchronizeStreamWithTimeout(aclrtStream stm, int32_t timeout) override {
+    return count_++ == 1 ? ACL_ERROR_RT_STREAM_SYNC_TIMEOUT : ACL_ERROR_NONE;
   }
 
   int32_t count_ = 0;
@@ -378,7 +378,7 @@ TEST_F(DataCacheEngineSTest, PullCache_D2H_B2B_BigBlock) {
   pull_cache_param.decoder_blocks.resize(32);
 
   llm::MockMmpaForHcclApi::Install();
-  llm::RuntimeStub::SetInstance(std::make_shared<llm::DataCacheEngineRuntimeMock>());
+  llm::AclRuntimeStub::SetInstance(std::make_shared<llm::DataCacheEngineRuntimeMock>());
   llm::HcclAdapter::GetInstance().Initialize();
   llm::DataCacheEngineTestRunner test_runner(100 * 1024 * 1024);
   test_runner.Initialize(src_cache_desc, dst_cache_desc, pull_cache_param);
@@ -583,11 +583,11 @@ TEST_F(DataCacheEngineSTest, PullCache_D2D_B2B_BatchGet) {
   cache_key.prompt_cluster_id = 0;
   cache_key.prompt_cache_id = 1;
 
-  llm::RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
+  llm::AclRuntimeStub::SetInstance(std::make_shared<MockRuntime>());
   EXPECT_EQ(data_cache_engine_runner.GetLlmDataDist().PullCache(data_cache_engine_runner.GetDstCache().cache_id,
                                                                 cache_key,
                                                                 pull_cache_param), ge::LLM_TIMEOUT);
-  llm::RuntimeStub::Reset();
+  llm::AclRuntimeStub::Reset();
   data_cache_engine_runner.PullDataCache(pull_cache_param, pull_result);
   data_cache_engine_runner.ReleaseResource();
 

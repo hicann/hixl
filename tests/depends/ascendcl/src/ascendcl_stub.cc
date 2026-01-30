@@ -27,6 +27,14 @@ static size_t reserve_mem_size_ = 200UL * 1024UL * 1024UL;
 #define NOTIFY_LENTH 10
 
 namespace llm {
+std::string &GetAclStubMock() {
+  return g_acl_stub_mock;
+}
+
+struct aclrtContextStub {
+    int32_t deviceId;
+};
+
 std::shared_ptr<AclRuntimeStub> AclRuntimeStub::instance_;
 std::mutex AclRuntimeStub::mutex_;
 thread_local AclRuntimeStub* AclRuntimeStub::fake_instance_;
@@ -93,6 +101,20 @@ aclError AclRuntimeStub::aclrtGetDevice(int32_t *deviceId) {
 
 aclError AclRuntimeStub::aclrtGetThreadLastTaskId(uint32_t *taskId) {
   return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtCreateContext(aclrtContext *context, int32_t deviceId) {
+  aclrtContextStub *ctxStub = new aclrtContextStub;
+  ctxStub->deviceId = deviceId;
+  *context = ctxStub;
+  return ACL_ERROR_NONE;
+}
+
+aclError AclRuntimeStub::aclrtDestroyContext(aclrtContext context) {
+  if (context != nullptr) {
+    delete (aclrtContextStub *)context;
+  }
+  return ACL_ERROR_NONE;
 }
 
 aclError AclRuntimeStub::aclrtSetCurrentContext(aclrtContext context) {
@@ -174,6 +196,11 @@ aclError AclRuntimeStub::aclrtDestroyStream(aclrtStream stream) {
 }
 
 aclError AclRuntimeStub::aclrtStreamAbort(aclrtStream stream) {
+  (void) stream;
+  return ACL_ERROR_NONE;
+}
+
+aclError AclRuntimeStub::aclrtStreamWaitEvent(aclrtStream stream, aclrtEvent event) {
   (void) stream;
   return ACL_ERROR_NONE;
 }
@@ -392,14 +419,8 @@ aclError AclRuntimeStub::aclrtGetMemInfo(aclrtMemAttr attr, size_t *free_size, s
   return ACL_ERROR_NONE;
 }
 
-// no change for rt here
-aclError AclRuntimeStub::aclrtGetSocVersion(char *version, const uint32_t maxLen) {
-  if (strlen(g_soc_version) == 0) {
-    strncpy_s(version, maxLen, g_soc_version, strlen(g_soc_version));
-  } else {
-    strncpy_s(version, maxLen, g_soc_version, strlen(g_soc_version));
-  }
-  return ACL_ERROR_NONE;
+const char* AclRuntimeStub::aclrtGetSocName() {
+  return g_soc_version;
 }
 
 aclError AclRuntimeStub::aclrtGetDeviceInfo(uint32_t deviceId, aclrtDevAttr attr, int64_t *value) {
@@ -407,8 +428,78 @@ aclError AclRuntimeStub::aclrtGetDeviceInfo(uint32_t deviceId, aclrtDevAttr attr
   return ACL_ERROR_NONE;
 }
 
-aclError AclRuntimeStub::aclrtGetDevicePhyIdByIndex(uint32_t devIndex, uint32_t *phyId) {
-  *phyId = devIndex;
+aclError AclRuntimeStub::aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, int32_t *const phyDevId) {
+  *phyDevId = logicDevId;
+  return ACL_ERROR_NONE;
+}
+
+aclError AclRuntimeStub::aclrtMemcpyBatch(void **dsts, size_t *destMax, void **srcs, size_t *sizes, size_t numBatches,
+                          aclrtMemcpyBatchAttr *attrs, size_t *attrsIndexex, size_t numAttrs, size_t *failIndex)
+{
+  *failIndex = static_cast<size_t>(0);
+  if (__FUNCTION__ == g_acl_stub_mock) {
+    return ACL_ERROR_RT_INTERNAL_ERROR;
+  }
+
+  if (dsts != nullptr && srcs != nullptr) {
+    for (size_t i = 0; i < numBatches; i++) {
+      memcpy_s(dsts[i], destMax[i], srcs[i], sizes[i]);
+    }
+  }
+  return ACL_ERROR_NONE;
+}
+
+aclError AclRuntimeStub::aclrtReserveMemAddress(void** devPtr, size_t size, size_t alignment, void *devAddr, uint64_t flags) {
+  if (size < 200UL * 1024UL *1024UL) {
+    *devPtr = new uint8_t[size];
+    reserve_mem_size_ = size;
+  } else {
+    *devPtr = new uint8_t[reserve_mem_size_];
+  }
+  memset_s(*devPtr, reserve_mem_size_, 0, reserve_mem_size_);
+  return ACL_ERROR_NONE;
+}
+
+aclError AclRuntimeStub::aclrtReleaseMemAddress(void* devPtr) {
+  delete[] (uint8_t *)devPtr;
+  return ACL_ERROR_NONE;
+}
+
+aclError AclRuntimeStub::aclrtMapMem(void* devPtr, size_t size, size_t offset, aclrtDrvMemHandle handle, uint64_t flags) {
+  return ACL_ERROR_NONE;
+}
+
+aclError AclRuntimeStub::aclrtUnmapMem(void* devPtr) {
+  return ACL_ERROR_NONE;
+}
+
+aclError AclRuntimeStub::aclrtMemRetainAllocationHandle(void *devPtr, aclrtDrvMemHandle *handle) {
+  return ACL_ERROR_NONE;
+}
+
+aclError AclRuntimeStub::aclrtPointerGetAttributes(const void *ptr, aclrtPtrAttributes *attributes) {
+  attributes->location.type = ACL_MEM_LOCATION_TYPE_DEVICE;
+  return ACL_ERROR_NONE;
+}
+
+aclError AclRuntimeStub::aclrtMemExportToShareableHandleV2(aclrtDrvMemHandle handle, uint64_t flags,
+                                                          aclrtMemSharedHandleType type, void *shareableHandle) {
+  return ACL_ERROR_NONE;
+}
+
+aclError AclRuntimeStub::aclrtMemImportFromShareableHandleV2(void *shareableHandle, aclrtMemSharedHandleType type,
+                                                    uint64_t flags, aclrtDrvMemHandle *handle) {
+  *handle = (aclrtDrvMemHandle) new uint8_t[8];
+  return ACL_ERROR_NONE;
+}
+
+aclError AclRuntimeStub::aclrtMallocPhysical(aclrtDrvMemHandle *handle, size_t size, const aclrtPhysicalMemProp *prop, uint64_t flags) {
+  *handle = (aclrtDrvMemHandle) new uint8_t[8];
+  return ACL_ERROR_NONE;
+}
+
+aclError AclRuntimeStub::aclrtFreePhysical(aclrtDrvMemHandle handle) {
+  delete[] (uint8_t *)handle;
   return ACL_ERROR_NONE;
 }
 }
@@ -454,6 +545,14 @@ aclError aclrtGetThreadLastTaskId(uint32_t *taskId) {
   return llm::AclRuntimeStub::GetInstance()->aclrtGetThreadLastTaskId(taskId);
 }
 
+aclError aclrtCreateContext(aclrtContext *context, int32_t deviceId) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtCreateContext(context, deviceId);
+}
+
+aclError aclrtDestroyContext(aclrtContext context) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtDestroyContext(context);
+}
+
 aclError aclrtSetCurrentContext(aclrtContext context) {
   return llm::AclRuntimeStub::GetInstance()->aclrtSetCurrentContext(context);
 }
@@ -492,6 +591,10 @@ aclError aclrtDestroyStream(aclrtStream stream) {
 
 aclError aclrtStreamAbort(aclrtStream stream) {
   return llm::AclRuntimeStub::GetInstance()->aclrtStreamAbort(stream);
+}
+
+aclError aclrtStreamWaitEvent(aclrtStream stream, aclrtEvent event) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtStreamWaitEvent(stream, event);
 }
 
 aclError aclrtSynchronizeStream(aclrtStream stream) {
@@ -548,16 +651,66 @@ aclError aclrtGetMemInfo(aclrtMemAttr attr, size_t *free_size, size_t *total) {
   return llm::AclRuntimeStub::GetInstance()->aclrtGetMemInfo(attr, free_size, total);
 }
 
-aclError aclrtGetSocVersion(char *version, const uint32_t maxLen) {
-  return llm::AclRuntimeStub::GetInstance()->aclrtGetSocVersion(version, maxLen);
+const char* aclrtGetSocName() {
+  return llm::AclRuntimeStub::GetInstance()->aclrtGetSocName();
 }
 
 aclError aclrtGetDeviceInfo(uint32_t deviceId, aclrtDevAttr attr, int64_t *value) {
   return llm::AclRuntimeStub::GetInstance()->aclrtGetDeviceInfo(deviceId, attr, value);
 }
 
-aclError aclrtGetDevicePhyIdByIndex(uint32_t devIndex, uint32_t *phyId) {
-  return llm::AclRuntimeStub::GetInstance()->aclrtGetDevicePhyIdByIndex(devIndex, phyId);
+aclError aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, int32_t *const phyDevId) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtGetPhyDevIdByLogicDevId(logicDevId, phyDevId);
+}
+
+aclError aclrtMemcpyBatch(void **dsts, size_t *destMax, void **srcs, size_t *sizes, size_t numBatches,
+                          aclrtMemcpyBatchAttr *attrs, size_t *attrsIndexex, size_t numAttrs, size_t *failIndex)
+{
+  return llm::AclRuntimeStub::GetInstance()->aclrtMemcpyBatch(dsts, destMax, srcs, sizes, numBatches,
+                                                              attrs, attrsIndexex, numAttrs, failIndex);
+}
+
+aclError aclrtReserveMemAddress(void** devPtr, size_t size, size_t alignment, void *devAddr, uint64_t flags) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtReserveMemAddress(devPtr, size, alignment, devAddr, flags);
+}
+
+aclError aclrtReleaseMemAddress(void* devPtr) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtReleaseMemAddress(devPtr);
+}
+
+aclError aclrtMapMem(void* devPtr, size_t size, size_t offset, aclrtDrvMemHandle handle, uint64_t flags) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtMapMem(devPtr, size, offset, handle, flags);
+}
+
+aclError aclrtUnmapMem(void* devPtr) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtUnmapMem(devPtr);
+}
+
+aclError aclrtMemRetainAllocationHandle(void *devPtr, aclrtDrvMemHandle *handle) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtMemRetainAllocationHandle(devPtr, handle);
+}
+
+aclError aclrtPointerGetAttributes(const void *ptr, aclrtPtrAttributes *attributes) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtPointerGetAttributes(ptr, attributes);
+}
+
+aclError aclrtMemExportToShareableHandleV2(aclrtDrvMemHandle handle, uint64_t flags, aclrtMemSharedHandleType type,
+                                          void *shareableHandle) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtMemExportToShareableHandleV2(handle, flags, type, shareableHandle);  
+}
+
+aclError aclrtMemImportFromShareableHandleV2(void *shareableHandle, aclrtMemSharedHandleType type,
+                                             uint64_t flags, aclrtDrvMemHandle *handle) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtMemImportFromShareableHandleV2(shareableHandle, type,
+                                                              flags, handle);  
+}
+
+aclError aclrtMallocPhysical(aclrtDrvMemHandle *handle, size_t size, const aclrtPhysicalMemProp *prop, uint64_t flags) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtMallocPhysical(handle, size, prop, flags);  
+}
+
+aclError aclrtFreePhysical(aclrtDrvMemHandle handle) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtFreePhysical(handle);  
 }
 
 #ifdef __cplusplus

@@ -21,7 +21,7 @@ constexpr uint64_t kMaxBatchPutNum = 64U;
 constexpr uint64_t kBlocksCacheKey = 1UL;
 constexpr uint64_t kCacheKeyByIdType = 2UL;
 }  // namespace
-LayerWiseTransferJob::LayerWiseTransferJob(CommEntity &comm_entity, rtStream_t stream)
+LayerWiseTransferJob::LayerWiseTransferJob(CommEntity &comm_entity, aclrtStream stream)
     : stream_(stream), comm_entity_(&comm_entity) {}
 
 ge::Status LayerWiseTransferJob::GenerateCacheToCacheTask(const CacheEntry &cache_entry,
@@ -154,8 +154,8 @@ ge::Status LayerWiseTransferJob::SynchronizeTransferCacheWithRecord(const int32_
   while (!layer_transfer_tasks_.empty()) {
     LLM_CHK_STATUS_RET(DataTransferUtils::SendCache(stream_, *comm_entity_, layer_transfer_tasks_, event_),
                       "comm_entity:%s send cache failed", comm_entity_->GetDesc().c_str());
-    rtEventStatus_t status = RT_EVENT_INIT;
-    while (status != RT_EVENT_RECORDED) {
+    aclrtEventRecordedStatus status = ACL_EVENT_RECORDED_STATUS_NOT_READY;
+    while (status != ACL_EVENT_RECORDED_STATUS_COMPLETE) {
       if (std::chrono::steady_clock::now() > start + std::chrono::milliseconds(timeout_in_ms)) {
         LLMLOGE(ge::LLM_TIMEOUT, "stream handle transfer request timeout");
         return ge::LLM_TIMEOUT;
@@ -165,15 +165,15 @@ ge::Status LayerWiseTransferJob::SynchronizeTransferCacheWithRecord(const int32_
       LLMLOGI("query event status ret=%d", status);
     }
     if (event_ != nullptr) {
-      LLM_ASSERT_RT_OK(rtEventDestroy(event_));
+      LLM_ASSERT_RT_OK(aclrtDestroyEvent(event_));
       event_ = nullptr;
     }
   }
-  LLM_CHK_ACL_RET(rtStreamSynchronizeWithTimeout(stream_, timeout_in_ms));
+  LLM_CHK_ACL_RET(aclrtSynchronizeStreamWithTimeout(stream_, timeout_in_ms));
 
-  const auto finished_time_point = std::chrono::steady_clock::now();
+  const auto finished = std::chrono::steady_clock::now();
   const auto cost =
-      static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(finished_time_point - start).count());
+      static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(finished - start).count());
   auto &send_statistic_info = comm_entity_->GetSendStatisticInfo(stream_);
   StatisticManager::GetInstance().UpdateCost(cost, send_statistic_info.send_times, send_statistic_info.send_min_cost,
                                              send_statistic_info.send_max_cost, send_statistic_info.send_total_cost);
@@ -185,7 +185,7 @@ ge::Status LayerWiseTransferJob::SynchronizeTransferCache(const int32_t timeout_
   const auto start = std::chrono::steady_clock::now();
   LLM_CHK_STATUS_RET(DataTransferUtils::SendCache(stream_, *comm_entity_, layer_transfer_tasks_),
                     "comm_entity:%s send cache failed", comm_entity_->GetDesc().c_str());
-  LLM_CHK_ACL_RET(rtStreamSynchronizeWithTimeout(stream_, timeout_in_ms));
+  LLM_CHK_ACL_RET(aclrtSynchronizeStreamWithTimeout(stream_, timeout_in_ms));
   const auto finished_time_point = std::chrono::steady_clock::now();
   const auto cost =
       static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(finished_time_point - start).count());
@@ -260,7 +260,7 @@ ge::Status LayerWiseTransferJob::TransferCache(const CacheEntry &cache_entry,
                                                bool access_remote_cache) {
   TransferCacheConfig transfer_config = transfer_cache_config;
   LLM_DISMISSABLE_GUARD(stream, [this]() -> void {
-    LLM_CHK_ACL(rtStreamAbort(comm_entity_->GetStream()));
+    LLM_CHK_ACL(aclrtStreamAbort(comm_entity_->GetStream()));
   });
   if (access_remote_cache) {
     LLM_CHK_BOOL_RET_STATUS(cache_entry.remote_accessible, ge::LLM_PARAM_INVALID,

@@ -40,7 +40,7 @@ HcclResult HcclExchangeMemDesc1(HcclComm comm, uint32_t remoteRank, HcclMemDescs
 }
 
 HcclResult HcclBatchGet1(HcclComm comm, uint32_t remoteRank, HcclOneSideOpDesc *desc, uint32_t descNum,
-                         rtStream_t stream) {
+                         aclrtStream stream) {
   *static_cast<uint64_t *>(desc->localAddr) = UINT64_MAX;
   return HcclResult::HCCL_SUCCESS;
 }

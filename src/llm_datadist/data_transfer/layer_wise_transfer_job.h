@@ -17,7 +17,7 @@
 namespace llm {
 class LayerWiseTransferJob {
  public:
-  LayerWiseTransferJob(CommEntity &comm_entity, rtStream_t stream);
+  LayerWiseTransferJob(CommEntity &comm_entity, aclrtStream stream);
   ~LayerWiseTransferJob() = default;
   ge::Status TransferCache(const CacheEntry &cache_entry,
                            const TransferCacheConfig &transfer_cache_config,
@@ -49,10 +49,10 @@ class LayerWiseTransferJob {
   ge::Status ValidateRemoteCache(const CacheEntry &remote_cache_entry, const TransferCacheConfig &transfer_cache_config,
                                  const TransferBlockConfig &transfer_block_config) const;
 
-  rtStream_t stream_;
+  aclrtStream stream_;
   CommEntity *comm_entity_;
   std::list<HcclOneSideOpDesc> layer_transfer_tasks_;
-  rtEvent_t event_{nullptr};
+  aclrtEvent event_{nullptr};
 };
 }  // namespace llm
 #endif  // CANN_GRAPH_ENGINE_RUNTIME_LLM_ENGINE_DATA_TRANSFER_LAYER_WISE_TRANSFER_JOB_H_

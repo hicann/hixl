@@ -49,14 +49,16 @@ foreach(target_name IN LISTS targets_list)
         if(${target_name} MATCHES "client_server_h2d|server_server_d2d|fabric_mem_d2d")
             target_link_libraries(${target_name} PRIVATE
                 cann_hixl
-                ascendcl
+                acl_rt_headers
+                acl_rt
                 -lpthread
                 -lrt
             )
         else()
             target_link_libraries(${target_name} PRIVATE
                 llm_datadist
-                ascendcl
+                acl_rt_headers
+                acl_rt
                 -lpthread
                 -lrt
             )

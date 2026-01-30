@@ -167,7 +167,7 @@ class ChannelMsgHandler {
   llm::MsgHandlerPlugin handler_plugin_;
 
   bool user_config_channel_pool_{false};
-  rtContext_t rt_context_{nullptr};
+  aclrtContext aclrt_context_{nullptr};
   std::mutex mutex_;
   std::map<MemHandle, AddrInfo> handle_to_addr_;
 

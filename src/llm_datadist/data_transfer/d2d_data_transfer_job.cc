@@ -16,7 +16,7 @@
 #include "cache_mgr/cache_manager.h"
 #include "statistic_manager.h"
 #include "data_transfer/data_transfer_utils.h"
-#include "rt_error_codes.h"
+#include "acl/acl.h"
 #include "common/llm_scope_guard.h"
 
 namespace llm {
@@ -83,8 +83,8 @@ ge::Status D2DDataTransferJob::Initialize(const CacheEntry &cache_entry, CommEnt
 }
 
 ge::Status D2DDataTransferJob::Process(bool &is_done) {
-  rtEventStatus_t status = RT_EVENT_INIT;
-  while (status != RT_EVENT_RECORDED) {
+  aclrtEventRecordedStatus status = ACL_EVENT_RECORDED_STATUS_NOT_READY;
+  while (status != ACL_EVENT_RECORDED_STATUS_COMPLETE) {
     if (std::chrono::steady_clock::now() > comm_entity_->GetTimeoutPoint()) {
       LLM_CHK_STATUS_RET(comm_entity_->SendResponse(ge::LLM_TIMEOUT));
       LLMLOGE(ge::LLM_TIMEOUT, "handle request timeout");
@@ -95,7 +95,7 @@ ge::Status D2DDataTransferJob::Process(bool &is_done) {
     LLMLOGI("QueryEventStatus ret=%d", status);
   }
   if (event_ != nullptr) {
-    LLM_ASSERT_RT_OK(rtEventDestroy(event_));
+    LLM_ASSERT_RT_OK(aclrtDestroyEvent(event_));
     event_ = nullptr;
   }
   if (send_tasks_.empty()) {
@@ -147,10 +147,10 @@ ge::Status D2DDataTransferJob::PullCache() {
     LLM_CHK_STATUS_RET(buffered_sender.Put(op_desc.remoteAddr, op_desc.localAddr, op_desc.count));
   }
   LLM_CHK_STATUS_RET(buffered_sender.Flush());
-  const auto ret = rtStreamSynchronizeWithTimeout(stream, comm_entity_->GetRequest().timeout_in_ms);
-  LLM_CHK_BOOL_RET_STATUS(ret == RT_ERROR_NONE,
+  const auto ret = aclrtSynchronizeStreamWithTimeout(stream, comm_entity_->GetRequest().timeout_in_ms);
+  LLM_CHK_BOOL_RET_STATUS(ret == ACL_ERROR_NONE,
                          llm::ConvertAclError2Ge(ret),
-                         "Failed to sync stream, rt_ret = %d", ret);
+                         "Failed to sync stream, aclrt_ret = %d", ret);
   const auto end = std::chrono::steady_clock::now();
   const auto cost = static_cast<uint64_t>(
       std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());

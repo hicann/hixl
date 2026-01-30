@@ -19,7 +19,7 @@
 #include "common/def_types.h"
 #include "common/llm_common.h"
 #include "nlohmann/json.hpp"
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #include "common/llm_checker.h"
 #include "common/llm_scope_guard.h"
 

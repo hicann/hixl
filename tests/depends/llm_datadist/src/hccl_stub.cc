@@ -54,11 +54,11 @@ HcclResult HcclCommPrepare(HcclComm comm, HcclPrepareConfig *prepareConfig, int3
 }
 
 HcclResult HcclBatchPut(HcclComm comm, uint32_t remoteRank, HcclOneSideOpDesc *desc, uint32_t descNum,
-                        rtStream_t stream) {
+                        aclrtStream stream) {
   return HcclResult::HCCL_SUCCESS;
 }
 
 HcclResult HcclBatchGet(HcclComm comm, uint32_t remoteRank, HcclOneSideOpDesc *desc, uint32_t descNum,
-                        rtStream_t stream) {
+                        aclrtStream stream) {
   return HcclResult::HCCL_SUCCESS;
 }

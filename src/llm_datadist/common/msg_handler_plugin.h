@@ -15,7 +15,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #include "llm_datadist/llm_error_codes.h"
 #include "common/llm_thread_pool.h"
 
@@ -53,7 +53,7 @@ class MsgHandlerPlugin {
   std::thread listener_;
   std::unique_ptr<LLMThreadPool> thread_pool_ = nullptr;
   ConnectedProcess connected_process_;
-  rtContext_t rt_context_ = nullptr;
+  aclrtContext aclrt_context_ = nullptr;
 };
 }  // namespace llm
 #endif  // CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_MSG_HANDLER_PLUGIN_H_

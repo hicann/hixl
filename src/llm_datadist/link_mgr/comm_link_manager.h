@@ -97,7 +97,7 @@ class CommLinkManager {
   CacheManager *cache_manager_{};
   std::map<uint64_t, CommStatus> comm_to_status_{};
   int32_t device_id_{-1};
-  rtContext_t rt_context_{nullptr};
+  aclrtContext aclrt_context_{nullptr};
   bool remote_cache_accessible_;
   // process mutex
   std::mutex mutex_;

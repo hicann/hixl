@@ -185,17 +185,16 @@ INT32 mmChmod(const CHAR *filename, INT32 mode) {
 }
 
 mmTimespec mmGetTickCount() {
-  mmTimespec rts;
+  mmTimespec mm_ts;
   struct timespec ts = {0};
   (void)clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
-  rts.tv_sec = ts.tv_sec;
-  rts.tv_nsec = ts.tv_nsec;
-  return rts;
+  mm_ts.tv_sec = ts.tv_sec;
+  mm_ts.tv_nsec = ts.tv_nsec;
+  return mm_ts;
 }
 
 INT32 mmGetTid() {
   INT32 ret = (INT32)syscall(SYS_gettid);
-
   if (ret < MMPA_ZERO) {
     return EN_ERROR;
   }

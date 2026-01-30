@@ -172,7 +172,7 @@ void CommEntityManager::HandleAllEntities() {
 
 void CommEntityManager::HandleCacheRequest() {
   (void) pthread_setname_np(pthread_self(), "ge_llm_fsm");
-  LLM_CHK_ACL(rtCtxSetCurrent(rt_context_));
+  LLM_CHK_ACL(aclrtSetCurrentContext(aclrt_context_));
   while (running_) {
     HandleAllEntities();
   }
@@ -188,7 +188,7 @@ ge::Status CommEntityManager::Initialize(bool start_service) {
     LLMLOGI("No need to start FSM thread");
     return ge::SUCCESS;
   }
-  LLM_CHK_ACL_RET(rtCtxGetCurrent(&rt_context_));
+  LLM_CHK_ACL_RET(aclrtGetCurrentContext(&aclrt_context_));
   cache_engine_thread_ = std::thread(&CommEntityManager::HandleCacheRequest, this);
   ScalableConfig config{};
   config.page_mem_size_total_threshold = kHostBufferSize;

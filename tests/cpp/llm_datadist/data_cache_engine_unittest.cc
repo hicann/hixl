@@ -15,9 +15,9 @@
 #include "llm_datadist_v2.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
-#include "depends/runtime/src/runtime_stub.h"
+#include "depends/ascendcl/src/ascendcl_stub.h"
 #include "utils/task_batcher.h"
-#include "rt_error_codes.h"
+#include "acl/acl.h"
 #include "llm_datadist/llm_engine_types.h"
 
 namespace llm {
@@ -25,21 +25,21 @@ class DataCacheEngineTest : public ::testing::Test {
  protected:
   void SetUp() override {
     llm::MockMmpaForHcclApi::Install();
-    llm::RuntimeStub::SetInstance(std::make_shared<DataCacheEngineRuntimeMock>());
+    llm::AclRuntimeStub::SetInstance(std::make_shared<DataCacheEngineRuntimeMock>());
     llm::HcclAdapter::GetInstance().Initialize();
   }
   void TearDown() override {
-    llm::RuntimeStub::Reset();
+    llm::AclRuntimeStub::Reset();
     llm::HcclAdapter::GetInstance().Finalize();
     llm::MockMmpaForHcclApi::Reset();
   }
 };
 
 namespace {
-class MockRuntime : public llm::RuntimeStub {
+class MockRuntime : public llm::AclRuntimeStub {
  public:
-  rtError_t rtStreamSynchronizeWithTimeout(rtStream_t stm, int32_t timeout) override {
-    return count_++ == 1 ? ACL_ERROR_RT_STREAM_SYNC_TIMEOUT : RT_ERROR_NONE;
+  aclError aclrtSynchronizeStreamWithTimeout(aclrtStream stm, int32_t timeout) override {
+    return count_++ == 1 ? ACL_ERROR_RT_STREAM_SYNC_TIMEOUT : ACL_ERROR_NONE;
   }
 
   int32_t count_ = 0;
@@ -1135,9 +1135,9 @@ TEST_F(DataCacheEngineTest, PullCache_D2D_B2B_BatchGet) {
   DataCacheEngineTestRunner test_runner(2 * 1024 * 1024, false, true);
   test_runner.Initialize(src_cache_desc, dst_cache_desc, pull_cache_param);
 
-  llm::RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
+  llm::AclRuntimeStub::SetInstance(std::make_shared<MockRuntime>());
   ASSERT_EQ(test_runner.Run(pull_cache_param), ge::LLM_TIMEOUT);
-  llm::RuntimeStub::Reset();
+  llm::AclRuntimeStub::Reset();
   ASSERT_EQ(test_runner.Run(pull_cache_param), ge::SUCCESS);
 
   std::vector<int32_t> pull_result(128 * 128);

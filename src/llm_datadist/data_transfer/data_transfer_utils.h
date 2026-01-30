@@ -17,12 +17,12 @@
 namespace llm {
 class DataTransferUtils {
  public:
-  static ge::Status QueryEventStatus(const rtEvent_t &event, rtEventStatus_t &status);
-  static ge::Status SendCache(const rtStream_t stream, CommEntity &comm_entity,
-                              std::list<HcclOneSideOpDesc> &transfer_tasks, rtEvent_t &event);
-  static ge::Status SendCache(const rtStream_t stream, CommEntity &comm_entity,
+  static ge::Status QueryEventStatus(const aclrtEvent &event, aclrtEventRecordedStatus &status);
+  static ge::Status SendCache(const aclrtStream stream, CommEntity &comm_entity,
+                              std::list<HcclOneSideOpDesc> &transfer_tasks, aclrtEvent &event);
+  static ge::Status SendCache(const aclrtStream stream, CommEntity &comm_entity,
                               std::list<HcclOneSideOpDesc> &transfer_tasks);
-  static ge::Status SendBatchCache(const rtStream_t stream, const std::vector<HcclOneSideOpDesc> &desces,
+  static ge::Status SendBatchCache(const aclrtStream stream, const std::vector<HcclOneSideOpDesc> &desces,
                                    CommEntity &comm_entity);
 };
 }  // namespace llm

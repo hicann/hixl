@@ -88,7 +88,7 @@ class AdxlInnerEngine {
   std::unique_ptr<StreamPool> stream_pool_ = nullptr;
   bool user_config_buffer_pool_{false};
   bool user_config_channel_pool_{false};
-  rtContext_t rt_context_{nullptr};
+  aclrtContext aclrt_context_{nullptr};
 
   std::mutex notify_mutex_;
   std::unordered_map<uint64_t, bool> notify_ack_ready_;     // Map to indicate if ack status is ready

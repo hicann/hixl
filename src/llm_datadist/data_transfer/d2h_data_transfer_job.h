@@ -82,9 +82,9 @@ class D2HDataTransferJob : public DataTransferJob {
   std::set<uint32_t> used_buffer_indices_;
   std::vector<uint8_t *> data_addresses_;
   std::vector<uint8_t *> dst_buffers_;
-  rtEvent_t event_ = nullptr;
-  rtStream_t stream_ = nullptr;
-  std::vector<rtEvent_t> sync_buffer_events_;
+  aclrtEvent event_ = nullptr;
+  aclrtStream stream_ = nullptr;
+  std::vector<aclrtEvent> sync_buffer_events_;
   BufferedSender buffered_sender_;
   std::vector<uint8_t *> dst_receive_flag_addresses_;
   std::vector<SyncFlag> receive_flags_;
@@ -93,7 +93,7 @@ class D2HDataTransferJob : public DataTransferJob {
 
 class D2HDataTransferClient {
  public:
-  explicit D2HDataTransferClient(CommEntity &comm_entity, rtStream_t stream);
+  explicit D2HDataTransferClient(CommEntity &comm_entity, aclrtStream stream);
   ~D2HDataTransferClient();
 
   ge::Status PullCache(const CacheEntry &cache_entry,
@@ -117,7 +117,7 @@ class D2HDataTransferClient {
   ge::Status CopyAsync(const TransferBlocksTask &task);
 
   CommEntity *comm_entity_ = nullptr;
-  rtStream_t stream_;
+  aclrtStream stream_;
   std::vector<uint8_t *> buffers_;
   std::vector<uint8_t *> tensor_addresses_;
   std::vector<SyncFlag> recv_flags_;
