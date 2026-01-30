@@ -132,6 +132,10 @@ whl_uninstall_package() {
             log "WARNING" "uninstall ${_module} failed, error code: $ret."
             exit 1
         else
+            # Delete the directory if uninstall leaves residuals.
+            if [ -d "${WHL_INSTALL_DIR_PATH}/${_hixl_whl}" ]; then
+              rm -fr "${WHL_INSTALL_DIR_PATH}/${_hixl_whl}" > /dev/null 2>&1
+            fi
             log "INFO" "${_module} uninstalled successfully!"
         fi
     fi
