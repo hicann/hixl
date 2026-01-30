@@ -268,7 +268,9 @@ void AdxlInnerEngine::Finalize() {
   llm::TemporaryRtContext with_context(aclrt_context_);
   channel_manager_.Finalize();
   msg_handler_.Finalize();
-  stream_pool_->Finalize();
+  if (stream_pool_ != nullptr) {
+    stream_pool_->Finalize();
+  }
   for (auto &mem : npu_pool_memorys_) {
     if (mem != nullptr) {
       auto ret = aclrtFree(mem);
