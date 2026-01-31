@@ -674,6 +674,10 @@ aclError aclrtReserveMemAddress(void** devPtr, size_t size, size_t alignment, vo
   return llm::AclRuntimeStub::GetInstance()->aclrtReserveMemAddress(devPtr, size, alignment, devAddr, flags);
 }
 
+aclError aclrtReserveMemAddressNoUCMemory(void **devPtr, size_t size, size_t alignment, void *devAddr, uint64_t flags) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtReserveMemAddress(devPtr, size, alignment, devAddr, flags);
+}
+
 aclError aclrtReleaseMemAddress(void* devPtr) {
   return llm::AclRuntimeStub::GetInstance()->aclrtReleaseMemAddress(devPtr);
 }

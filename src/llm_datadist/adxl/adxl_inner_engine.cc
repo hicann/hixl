@@ -17,6 +17,7 @@
 #include "statistic_manager.h"
 #include "llm_datadist_timer.h"
 #include "adxl_utils.h"
+#include "virtual_memory_manager.h"
 
 namespace adxl {
 namespace {
@@ -45,51 +46,77 @@ Status AdxlInnerEngine::ParseWaterlineRatio(const std::map<AscendString, AscendS
   return SUCCESS;
 }
 
-Status AdxlInnerEngine::LoadGlobalResourceConfig(const std::map<AscendString, AscendString>& options) {
-  auto config_it = options.find(hixl::OPTION_GLOBAL_RESOURCE_CONFIG);
-  std::map<AscendString, AscendString> json_options;
-  if (config_it != options.end()) {
-    ADXL_CHK_STATUS_RET(LoadJsonConfig(config_it->second.GetString(), json_options), 
-                        "Failed to load JSON config: %s", config_it->second.GetString());
-  }
-
+Status AdxlInnerEngine::ParseChannelPoolConfig(const std::map<AscendString, AscendString>& json_options) {
   int32_t max_channel = kDefaultMaxChannel;
   auto max_it = json_options.find(adxl::OPTION_MAX_CHANNEL);
   if (max_it != json_options.end()) {
-    ADXL_CHK_LLM_RET(llm::LLMUtils::ToNumber(max_it->second.GetString(), max_channel), 
+    ADXL_CHK_LLM_RET(llm::LLMUtils::ToNumber(max_it->second.GetString(), max_channel),
                     "Invalid max_channel: %s", max_it->second.GetString());
     ADXL_CHK_BOOL_RET_STATUS(max_channel > 0, PARAM_INVALID, "Invalid max_channel: %d, must be > 0", max_channel);
-    ADXL_CHK_BOOL_RET_STATUS(max_channel <= kDefaultMaxChannel, PARAM_INVALID, 
+    ADXL_CHK_BOOL_RET_STATUS(max_channel <= kDefaultMaxChannel, PARAM_INVALID,
                              "Invalid max_channel: %d, must be <= %d", max_channel, kDefaultMaxChannel);
   }
 
   double high_waterline_ratio = -1.0;
-  ADXL_CHK_STATUS_RET(ParseWaterlineRatio(json_options, adxl::OPTION_HIGH_WATERLINE, 
-                                          high_waterline_ratio), 
+  ADXL_CHK_STATUS_RET(ParseWaterlineRatio(json_options, adxl::OPTION_HIGH_WATERLINE,
+                                          high_waterline_ratio),
                       "Failed to parse high_waterline");
 
   double low_waterline_ratio = -1.0;
-  ADXL_CHK_STATUS_RET(ParseWaterlineRatio(json_options, adxl::OPTION_LOW_WATERLINE, 
-                                          low_waterline_ratio), 
+  ADXL_CHK_STATUS_RET(ParseWaterlineRatio(json_options, adxl::OPTION_LOW_WATERLINE,
+                                          low_waterline_ratio),
                       "Failed to parse low_waterline");
   user_config_channel_pool_ = (high_waterline_ratio > 0.0 && high_waterline_ratio < 1.0) &&
                               (low_waterline_ratio > 0.0 && low_waterline_ratio < 1.0);
   if (user_config_channel_pool_) {
     const int32_t high_waterline = std::max(static_cast<int32_t>(max_channel * high_waterline_ratio), 1);
     const int32_t low_waterline = std::max(static_cast<int32_t>(max_channel * low_waterline_ratio), 1);
-    ADXL_CHK_BOOL_RET_STATUS(high_waterline - low_waterline >= 1, PARAM_INVALID, 
+    ADXL_CHK_BOOL_RET_STATUS(high_waterline - low_waterline >= 1, PARAM_INVALID,
                           "Invalid waterline config: high_waterline:%.2f, low_waterline:%.2f, "
-                          "high_mark(%d) must be at least 1 greater than low_mark(%d) when max_channel=%d.", 
+                          "high_mark(%d) must be at least 1 greater than low_mark(%d) when max_channel=%d.",
                           high_waterline_ratio, low_waterline_ratio, high_waterline, low_waterline, max_channel);
     msg_handler_.SetUserChannelPoolConfig();
     msg_handler_.SetHighWaterline(high_waterline);
     msg_handler_.SetLowWaterline(low_waterline);
     msg_handler_.SetMaxChannel(max_channel);
   } else {
-    ADXL_CHK_BOOL_RET_STATUS(max_it == json_options.end(), PARAM_INVALID, 
+    ADXL_CHK_BOOL_RET_STATUS(max_it == json_options.end(), PARAM_INVALID,
                             "Invalid waterline config: when high_waterline or low_waterline is not set "
                             "properly, you should not set max_channel.");
   }
+  return SUCCESS;
+}
+
+Status AdxlInnerEngine::ParseFabricMemoryCapacity(const std::map<AscendString, AscendString>& json_options) {
+  auto fabric_mem_it = json_options.find(adxl::OPTION_MAX_FABRIC_MEMORY_CAPACITY);
+  if (fabric_mem_it != json_options.end()) {
+    size_t capacity_tb = 0;
+    ADXL_CHK_LLM_RET(llm::LLMUtils::ToNumber(fabric_mem_it->second.GetString(), capacity_tb),
+                    "Invalid max_fabric_memory_capacity: %s", fabric_mem_it->second.GetString());
+    ADXL_CHK_BOOL_RET_STATUS(capacity_tb > 0, PARAM_INVALID,
+                            "max_fabric_memory_capacity must be > 0 TB, got %zu", capacity_tb);
+    // Set reasonable upper limit: 1024 TB (1 PB)
+    constexpr size_t kMaxCapacityTB = 1024UL;
+    ADXL_CHK_BOOL_RET_STATUS(capacity_tb <= kMaxCapacityTB, PARAM_INVALID,
+                            "max_fabric_memory_capacity exceeds maximum %zu TB, got %zu",
+                            kMaxCapacityTB, capacity_tb);
+    VirtualMemoryManager::GetInstance().SetVirtualMemoryCapacity(capacity_tb);
+    LLMLOGI("Set fabric memory capacity to %zu TB", capacity_tb);
+  }
+  return SUCCESS;
+}
+
+Status AdxlInnerEngine::LoadGlobalResourceConfig(const std::map<AscendString, AscendString>& options) {
+  auto config_it = options.find(hixl::OPTION_GLOBAL_RESOURCE_CONFIG);
+  std::map<AscendString, AscendString> json_options;
+  if (config_it != options.end()) {
+    ADXL_CHK_STATUS_RET(LoadJsonConfig(config_it->second.GetString(), json_options),
+                        "Failed to load JSON config: %s", config_it->second.GetString());
+  }
+
+  ADXL_CHK_STATUS_RET(ParseChannelPoolConfig(json_options), "Failed to parse channel pool config.");
+  ADXL_CHK_STATUS_RET(ParseFabricMemoryCapacity(json_options), "Failed to parse fabric memory capacity.");
+
   return SUCCESS;
 }
 
@@ -109,6 +136,7 @@ Status AdxlInnerEngine::Initialize(const std::map<AscendString, AscendString> &o
   }));
   ADXL_CHK_STATUS_RET(ParseEnableFabricMem(options), "Failed to parse option.");
   if (enable_use_fabric_mem_) {
+    ADXL_CHK_STATUS_RET(VirtualMemoryManager::GetInstance().Initialize(), "Failed to initialize virtual memory manager.");
     fabric_mem_transfer_service_ = llm::MakeUnique<FabricMemTransferService>();
     ADXL_CHK_STATUS_RET(fabric_mem_transfer_service_->Initialize(kMaxStreams),
                         "Failed to initialize fabric mem transfer service.");
@@ -292,6 +320,9 @@ void AdxlInnerEngine::Finalize() {
     statistic_timer_handle_ = nullptr;
   }
   llm::LlmDatadistTimer::Instance().Finalize();
+  if (enable_use_fabric_mem_) {
+    VirtualMemoryManager::GetInstance().Finalize();
+  }
   StatisticManager::GetInstance().Reset();
 }
 

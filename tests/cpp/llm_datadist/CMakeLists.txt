@@ -25,6 +25,7 @@ set(LLM_DATADIST_TEST_FILES
         segment_table_unittest.cc
         statistic_manager_unittest.cc
         fabric_mem_transfer_service_unittest.cc
+        virtual_memory_manager_unittest.cc
 )
 set(LLM_DATADIST_STUB_SRC_FILES
         "${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/data_cache_engine_test_helper.cc"

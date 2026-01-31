@@ -459,9 +459,6 @@ Status ChannelMsgHandler::ProcessConnectRequest(int32_t fd, const std::vector<ch
 Status ChannelMsgHandler::DisconnectInfoProcess(ChannelType channel_type,
                                                 const ChannelDisconnectInfo &peer_disconnect_info) {
   LLMLOGI("Destroy channel in disconnect process.");
-  if (enable_use_fabric_mem_) {
-    fabric_mem_transfer_service_->RemoveChannel(peer_disconnect_info.channel_id);
-  }
   return channel_manager_->DestroyChannel(channel_type, peer_disconnect_info.channel_id);
 }
 
@@ -602,6 +599,9 @@ Status ChannelMsgHandler::Disconnect(const std::string &remote_engine, int32_t t
     send_status = SendMsg(conn_fd, ChannelMsgType::kDisconnect, disconnect_info);
   }
 
+  if (enable_use_fabric_mem_) {
+    fabric_mem_transfer_service_->RemoveChannel(remote_engine);
+  }
   ChannelDisconnectInfo local_disconnect_info = {};
   local_disconnect_info.channel_id = remote_engine;
   auto ret = DisconnectInfoProcess(ChannelType::kClient, local_disconnect_info);

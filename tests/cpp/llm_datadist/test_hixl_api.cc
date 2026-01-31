@@ -446,8 +446,7 @@ TEST_F(HixlSTest, TestHixlFabricMem) {
   remote_mem.addr = reinterpret_cast<uintptr_t>(remote_buf.data());
   remote_mem.len = size;
   MemHandle handle2 = nullptr;
-  // Fabric mode in stub environment seems to require MEM_HOST to bypass "Device mem is ignored" check in ChannelMsgHandler
-  EXPECT_EQ(engine2.RegisterMem(remote_mem, MEM_HOST, handle2), SUCCESS);
+  EXPECT_EQ(engine2.RegisterMem(remote_mem, MEM_DEVICE, handle2), SUCCESS);
 
   EXPECT_EQ(engine1.Connect(kEngine2Ip.c_str()), SUCCESS);
 

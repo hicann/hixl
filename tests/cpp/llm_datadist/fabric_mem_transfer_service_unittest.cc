@@ -20,6 +20,7 @@
 #include "depends/ascendcl/src/ascendcl_stub.h"
 #include "acl/acl.h"
 #include "common/def_types.h"
+#include "adxl/virtual_memory_manager.h"
 
 namespace adxl {
 namespace {
@@ -31,12 +32,12 @@ constexpr uint64_t kTransferLen = 100;
 constexpr int32_t kDeviceId = 0;
 constexpr int32_t kPeerRankId = 1;
 constexpr int32_t kTimeout = 1000;
-constexpr int32_t kPid = 100;
 constexpr uint8_t kPatternA = 0xAA;
 constexpr int32_t kMaxPollRetries = 10;
 constexpr uint64_t kReqBase = 0x1000;
 constexpr size_t kStreamMax = 256;
 constexpr size_t kMemOverLen = 2;
+constexpr const char *kSoName = "libascendcl_stub.so";
 
 class ScopedRuntimeMock {
  public:
@@ -71,32 +72,6 @@ class ScopedRuntimeFunctionFail {
   std::string old_;
 };
 
-class ScopedEnvVar {
- public:
-  ScopedEnvVar(const char *key, const char *value) : key_(key) {
-    const char *old = std::getenv(key);
-    if (old != nullptr) {
-      old_value_ = old;
-      had_old_ = true;
-    }
-    (void)setenv(key, value, 1);
-  }
-  ~ScopedEnvVar() {
-    if (had_old_) {
-      (void)setenv(key_, old_value_.c_str(), 1);
-    } else {
-      (void)unsetenv(key_);
-    }
-  }
-  ScopedEnvVar(const ScopedEnvVar &) = delete;
-  ScopedEnvVar &operator=(const ScopedEnvVar &) = delete;
-
- private:
-  const char *key_;
-  bool had_old_ = false;
-  std::string old_value_;
-};
-
 ChannelPtr CreateInitializedChannel() {
   ChannelInfo channel_info{};
   channel_info.channel_id = kChannelId;
@@ -126,17 +101,23 @@ void *GetBackingRemotePtr(const ChannelPtr &channel, uint64_t remote_addr) {
 class FabricMemTransferServiceUTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    mock_runtime_ = std::make_shared<llm::AclRuntimeStub>();
+    scoped_mock_ = std::make_unique<ScopedRuntimeMock>(mock_runtime_);
+    VirtualMemoryManager::GetInstance().SetSoName(kSoName);
+    VirtualMemoryManager::GetInstance().Initialize();
     service_ = std::make_shared<FabricMemTransferService>();
   }
   void TearDown() override {
-    // Reset runtime stub to avoid cross-test contamination.
-    llm::AclRuntimeStub::Reset();
-    llm::GetAclStubMock() = "";
     if (service_) {
       service_->Finalize();
     }
+    scoped_mock_.reset();
+    mock_runtime_.reset();
+    VirtualMemoryManager::GetInstance().Finalize();
   }
   std::shared_ptr<FabricMemTransferService> service_;
+  std::shared_ptr<llm::AclRuntimeStub> mock_runtime_;
+  std::unique_ptr<ScopedRuntimeMock> scoped_mock_;
 };
 
 TEST_F(FabricMemTransferServiceUTest, TestInitialize) {

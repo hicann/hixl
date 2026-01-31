@@ -29,6 +29,7 @@ Status LLMError2AdxlStatus(ge::Status ret);
 constexpr const char* OPTION_MAX_CHANNEL = "channel_pool.max_channel";
 constexpr const char* OPTION_HIGH_WATERLINE = "channel_pool.high_waterline";
 constexpr const char* OPTION_LOW_WATERLINE = "channel_pool.low_waterline";
+constexpr const char* OPTION_MAX_FABRIC_MEMORY_CAPACITY = "fabric_memory.max_capacity";
 
 constexpr int kDefaultMaxChannel = 512;
 bool NeedErrorLog(Status status);

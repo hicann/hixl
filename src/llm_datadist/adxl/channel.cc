@@ -18,6 +18,7 @@
 #include "common/llm_scope_guard.h"
 #include "common/def_types.h"
 #include "common/llm_log.h"
+#include "virtual_memory_manager.h"
 
 #include <base/err_msg.h>
 
@@ -28,7 +29,6 @@ std::mutex g_mutex_;
 constexpr uint32_t kMaxOpDescNum = 256U;
 constexpr int64_t kHeartbeatTimeoutInMillis = 120000;
 constexpr int32_t kMillisToMicros = 1000;
-constexpr uint64_t kReserveFlagHugePage = 1U;
 }
 
 int64_t Channel::timeout_in_millis_ = kHeartbeatTimeoutInMillis;
@@ -159,7 +159,7 @@ void Channel::ClearImportedMem() {
   for (auto &it : new_va_to_old_va_) {
     LLMLOGI("Unmap mem:%lu", it.first);
     LLM_CHK_ACL(aclrtUnmapMem(llm::ValueToPtr(it.first)));
-    LLM_CHK_ACL(aclrtReleaseMemAddress(llm::ValueToPtr(it.first)));
+    (void)VirtualMemoryManager::GetInstance().ReleaseMemory(it.first);
   }
   new_va_to_old_va_.clear();
   // free imported pa handle
@@ -176,23 +176,23 @@ void Channel::SetStreamPool(StreamPool *stream_pool) {
 Status Channel::ImportMem(const std::vector<ShareHandleInfo> &remote_share_handles, int32_t device_id) {
   LLM_DISMISSABLE_GUARD(fail_guard, ([this]() { ClearImportedMem(); }));
   for (auto &remote_share_handle_info : remote_share_handles) {
-    void *remote_va = nullptr;
+    uintptr_t remote_va_addr = 0;
     aclrtDrvMemHandle remote_pa_handle = nullptr;
-    ADXL_CHK_ACL_RET(aclrtReserveMemAddress(&remote_va, remote_share_handle_info.len, 0, nullptr, kReserveFlagHugePage));
-    LLM_DISMISSABLE_GUARD(free_mem_guard, ([&remote_va, &remote_pa_handle]() {
-                            if (remote_va != nullptr) {
-                              (void)aclrtReleaseMemAddress(remote_va);
+    ADXL_CHK_STATUS_RET(VirtualMemoryManager::GetInstance().ReserveMemory(remote_share_handle_info.len, remote_va_addr));
+    LLM_DISMISSABLE_GUARD(free_mem_guard, ([&remote_va_addr, &remote_pa_handle]() {
+                            if (remote_va_addr != 0) {
+                              (void)VirtualMemoryManager::GetInstance().ReleaseMemory(remote_va_addr);
                             }
                             if (remote_pa_handle != nullptr) {
-                              (void)aclrtFreePhysical(remote_pa_handle);
+                              LLM_CHK_ACL(aclrtFreePhysical(remote_pa_handle));
                             }
                           }));
 
     auto share_handle = remote_share_handle_info.share_handle;
     ADXL_CHK_ACL_RET(aclrtMemImportFromShareableHandleV2(&share_handle, ACL_MEM_SHARE_HANDLE_TYPE_FABRIC, 0U,
                                                       &remote_pa_handle));
-    uintptr_t remote_va_addr = llm::PtrToValue(remote_va);
-    ADXL_CHK_ACL_RET(aclrtMapMem(llm::ValueToPtr(remote_va_addr), remote_share_handle_info.len, 0, remote_pa_handle, 0));
+    void *remote_va = llm::ValueToPtr(remote_va_addr);
+    ADXL_CHK_ACL_RET(aclrtMapMem(remote_va, remote_share_handle_info.len, 0, remote_pa_handle, 0));
     std::lock_guard<std::mutex> lock(va_map_mutex_);
     remote_pa_handles_.emplace_back(remote_pa_handle);
     new_va_to_old_va_[remote_va_addr] = remote_share_handle_info;
