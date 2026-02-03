@@ -27,7 +27,6 @@ constexpr size_t kDefaultPageShift = 16U;
 constexpr uint64_t kDefaultBufferNum = 4U;
 constexpr uint64_t kDefaultBufferSize = 8U;
 constexpr const char *kDisabledPoolConfig = "0:0";
-constexpr uint64_t kNeedUseBufferThresh = 256 * 1024U;
 constexpr size_t kMemPoolNum = 2U;
 constexpr uint32_t kCheckDisconnetPeriod = 10U; // ms
 constexpr int32_t kConnectWhenTransferTimeout = 3000; // ms
@@ -382,8 +381,7 @@ Status AdxlInnerEngine::GetTransferType(const ChannelPtr &channel, TransferOp op
     auto remote_segment =
         segment_table_->FindSegment(channel->GetChannelId(), op_desc.remote_addr, op_desc.remote_addr + op_desc.len);
     MemType remote_mem_type = remote_segment != nullptr ? remote_segment->GetMemType() : MemType::MEM_HOST;
-    need_buffer = need_buffer || ((local_segment == nullptr) || (remote_segment == nullptr)) ||
-                  (op_desc.len < kNeedUseBufferThresh);
+    need_buffer = need_buffer || ((local_segment == nullptr) || (remote_segment == nullptr));
 
     TransferType cur_type;
     if (operation == TransferOp::READ) {
