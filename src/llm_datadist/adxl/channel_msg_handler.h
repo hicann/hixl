@@ -114,6 +114,8 @@ class ChannelMsgHandler {
   Status StartDaemon(const std::string &ip, uint32_t listen_port);
   Status StopDaemon();
   Status CreateChannel(const ChannelInfo &channel_info, bool is_client, const ChannelConnectInfo &peer_channel_info);
+  Status ParseRankTable(const ChannelConnectInfo &peer_channel_info, std::string &rank_table, int32_t &local_rank_id,
+                        int32_t &peer_rank_id);
   Status ConnectInfoProcess(const ChannelConnectInfo &peer_channel_info,
                             int32_t timeout, bool is_client);
   Status ProcessConnectRequest(int32_t fd, const std::vector<char> &msg, bool &keep_fd);

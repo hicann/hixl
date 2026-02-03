@@ -351,6 +351,19 @@ Status ChannelMsgHandler::CreateChannel(const ChannelInfo &channel_info, bool is
   return SUCCESS;
 }
 
+Status ChannelMsgHandler::ParseRankTable(const ChannelConnectInfo &peer_channel_info, std::string &rank_table,
+                                         int32_t &local_rank_id, int32_t &peer_rank_id) {
+  auto rank_table_generator = llm::RankTableGeneratorFactory::Create(local_comm_res_, peer_channel_info.comm_res);
+  ADXL_CHK_BOOL_RET_STATUS(rank_table_generator != nullptr, PARAM_INVALID, "Failed to create rank table generator.");
+  ADXL_CHK_STATUS_RET(rank_table_generator->Generate(device_id_, rank_table), "Failed to generate rank table");
+  local_rank_id = rank_table_generator->GetLocalRankId();
+  ADXL_CHK_BOOL_RET_STATUS(local_rank_id >= 0, PARAM_INVALID, "Failed to get local rank id, please check rank table.");
+  peer_rank_id = rank_table_generator->GetPeerRankId();
+  ADXL_CHK_BOOL_RET_STATUS(peer_rank_id >= 0, PARAM_INVALID,
+                           "Failed to get peer rank id, please check rank table, "
+                           "not support connect with self device.");
+  return SUCCESS;
+}
 
 Status ChannelMsgHandler::ConnectInfoProcess(const ChannelConnectInfo &peer_channel_info,
                                              int32_t timeout, bool is_client) {
@@ -369,18 +382,12 @@ Status ChannelMsgHandler::ConnectInfoProcess(const ChannelConnectInfo &peer_chan
       std::this_thread::sleep_for(std::chrono::milliseconds(kCheckDisconnetPeriod));
     }
   }
-  auto rank_table_generator = llm::RankTableGeneratorFactory::Create(local_comm_res_, peer_channel_info.comm_res);
-  ADXL_CHK_BOOL_RET_STATUS(rank_table_generator != nullptr, PARAM_INVALID,
-                           "Failed to create rank table generator.");
   std::string rank_table;
-  ADXL_CHK_STATUS_RET(rank_table_generator->Generate(device_id_, rank_table), "Failed to generate rank table");
-  auto local_rank_id = rank_table_generator->GetLocalRankId();
-  ADXL_CHK_BOOL_RET_STATUS(local_rank_id >= 0, PARAM_INVALID,
-                           "Failed to get local rank id, please check rank table.");
-  auto peer_rank_id = rank_table_generator->GetPeerRankId();
-  ADXL_CHK_BOOL_RET_STATUS(peer_rank_id >= 0, PARAM_INVALID,
-                           "Failed to get peer rank id, please check rank table, "
-                           "not support connect with self device.");
+  int32_t local_rank_id = 0;
+  int32_t peer_rank_id = 0;
+  if (!enable_use_fabric_mem_) {
+    ADXL_CHK_STATUS_RET(ParseRankTable(peer_channel_info, rank_table, local_rank_id, peer_rank_id), "Failed to prase rank table.");
+  }
   ChannelInfo channel_info{};
   channel_info.channel_type = is_client ? ChannelType::kClient : ChannelType::kServer;
   channel_info.channel_id = peer_channel_info.channel_id;
