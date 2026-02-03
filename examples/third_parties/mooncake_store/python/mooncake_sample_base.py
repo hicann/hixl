@@ -89,17 +89,10 @@ class MooncakeSampleBase:
         
         return addr, remote_addr
     
-    def unregister_buffers(self):
-        if self.tensor is not None:
-            self.store.unregister_buffer(self.tensor.data_ptr())
-        if self.target_tensor is not None:
-            self.store.unregister_buffer(self.target_tensor.data_ptr())
-    
     def close_store(self):
         if self.store:
             self.store.close()
     
-    def cleanup(self):
-        time.sleep(1)
-        self.unregister_buffers()
-        self.close_store()
+    def barrier(self):
+        if self.config.distributed:
+            dist.barrier(group=dist.group.WORLD)

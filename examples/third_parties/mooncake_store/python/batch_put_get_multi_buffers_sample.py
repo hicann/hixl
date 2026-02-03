@@ -63,9 +63,10 @@ class BatchPutGetMultiBuffers(MooncakeSampleBase):
         config.prefer_alloc_in_same_node = True
         
         self.store.batch_put_from_multi_buffers(keys, all_local_addrs, all_sizes, config)
+        self.barrier()
         self.store.batch_get_into_multi_buffers(keys, all_remote_addrs, all_sizes, True)
-        
-        self.cleanup()
+        self.barrier()
+        self.close_store()
     
 
 if __name__ == "__main__":

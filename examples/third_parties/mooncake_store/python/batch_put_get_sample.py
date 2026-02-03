@@ -47,12 +47,13 @@ class BatchPutGet(MooncakeSampleBase):
                 remote_addr += 144 * 1024
             
             self.store.batch_put_from(keys, local_addrs, sizes)
-            time.sleep(0.5)
+            self.barrier()
             
             results = self.store.batch_get_into(get_keys, remote_addrs, sizes)
             self._show_results(get_keys, results)
         
-        self.cleanup()
+        self.barrier()
+        self.close_store()
     
     def _show_results(self, keys, results):
         for k_, result_ in zip(keys, results):
