@@ -42,7 +42,7 @@ run_pair() {
         clean_cmd=$(echo "$cmd" | sed 's/[^ ]*=[^ ]* *//g')
         first_word=$(echo "$clean_cmd" | awk '{print $1; exit}')
         first_word=$(echo "$first_word" | sed 's|^\./||')
-        if [[ "$first_word" == "python3" ]]; then
+        if [[ "$first_word" == "python3" || "$first_word" == "python3.9" ]]; then
             # 是否为python文件
             binary_name=$(echo "$clean_cmd" | awk '
             {
@@ -239,6 +239,12 @@ smoke_test_samples() {
     run_pair "GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python3 switch_role_sample.py --device_id 0 --role p --local_host_ip 127.0.0.1 --remote_host_ip 127.0.0.1" "GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python3 switch_role_sample.py --device_id 1 --role d --local_host_ip 127.0.0.1 --remote_host_ip 127.0.0.1"
     run_pair "GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python3 pull_blocks_xpyd_sample.py --device_id 0 --role p --local_ip_port 127.0.0.1:16000" "GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python3 pull_blocks_xpyd_sample.py --device_id 2 --role d --local_ip_port 10.170.10.0:16001 --remote_ip_port 127.0.0.1:16000"
     run_pair "GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python3 transfer_cache_async_sample.py --device_id 0 --role p --local_host_ip 127.0.0.1 --remote_host_ip 127.0.0.1" "GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python3 transfer_cache_async_sample.py --device_id 1 --role d --local_host_ip 127.0.0.1 --remote_host_ip 127.0.0.1"
+    run_pair "HCCL_INTRA_ROCE_ENABLE=1 python3.9 pull_cache_sample.py --device_id 0 --cluster_id 1 --is_single true --host_ip 127.0.0.1" "HCCL_INTRA_ROCE_ENABLE=1 python3.9 pull_cache_sample.py --device_id 1 --cluster_id 2 --is_single true --host_ip 127.0.0.1"
+    run_pair "HCCL_INTRA_ROCE_ENABLE=1 python3.9 pull_blocks_sample.py --device_id 0 --cluster_id 1 --is_single true --host_ip 127.0.0.1" "HCCL_INTRA_ROCE_ENABLE=1 python3.9 pull_blocks_sample.py --device_id 1 --cluster_id 2 --is_single true --host_ip 127.0.0.1"
+    run_pair "HCCL_INTRA_ROCE_ENABLE=1 python3.9 pull_from_cache_to_blocks.py --device_id 0 --cluster_id 1 --is_single true --host_ip 127.0.0.1" "HCCL_INTRA_ROCE_ENABLE=1 python3.9 pull_from_cache_to_blocks.py --device_id 1 --cluster_id 2 --is_single true --host_ip 127.0.0.1"
+
+
+
 
     if [ "$flag" -eq "0" ]; then
         echo "execute samples success"

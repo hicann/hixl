@@ -14,6 +14,7 @@ import argparse
 import json
 import logging
 import time
+import subprocess
 from llm_datadist import LLMDataDist, LLMRole, LLMConfig, CacheDesc, CacheKey, Cache, DataType, RegisterMemStatus, Placement
 import torch
 import torch_npu
@@ -40,36 +41,76 @@ def init_llm_datadist(role: LLMRole, cluster_id, device_id: int) -> LLMDataDist:
     return datadist
 
 
-def link(datadist, device_id):
-    rank_table_dict = {
-        "server_count": "2",
-        "status": "completed",
-        "version": "1.2",
-        "server_list": [
-            {
-                "device": [
-                    {
-                        "device_id": str(device_id),
-                        "device_ip": PROMPT_IP_LIST[device_id],
-                        "rank_id": "0"
-                    }
-                ],
-                "host_ip": PROMPT_HOST_IP,
-                "server_id": "1"
-            },
-            {
-                "device": [
-                    {
-                        "device_id": str(device_id),
-                        "device_ip": DECODER_IP_LIST[device_id],
-                        "rank_id": "1"
-                    }
-                ],
-                "host_ip": DECODER_HOST_IP,
-                "server_id": "2"
-            }
-        ]
-    }
+def get_device_ip_from_hccn_tool(device_id: int) -> str:
+    result = subprocess.run(
+        ["hccn_tool", "-i", str(device_id), "-ip", "-g"],
+        stdout=subprocess.PIPE,
+        text=True)
+    ip = ""
+    for line in result.stdout.splitlines():
+        if line.startswith("ipaddr:"):
+            ip = line.split(":")[1]
+            break
+    return ip
+
+
+def link(datadist, device_id, is_single: bool, host_ip: str):
+    rank_table_dict = {}
+    if not is_single:
+        rank_table_dict = {
+            "server_count": "2",
+            "status": "completed",
+            "version": "1.2",
+            "server_list": [
+                {
+                    "device": [
+                        {
+                            "device_id": str(device_id),
+                            "device_ip": PROMPT_IP_LIST[device_id],
+                            "rank_id": "0"
+                        }
+                    ],
+                    "host_ip": PROMPT_HOST_IP,
+                    "server_id": "1"
+                },
+                {
+                    "device": [
+                        {
+                            "device_id": str(device_id),
+                            "device_ip": DECODER_IP_LIST[device_id],
+                            "rank_id": "1"
+                        }
+                    ],
+                    "host_ip": DECODER_HOST_IP,
+                    "server_id": "2"
+                }
+            ]
+        }
+    else:
+        rank_table_dict = {
+            "server_count": "1",
+            "status": "completed",
+            "version": "1.2",
+            "server_list": [
+                {
+                    "device": [
+                        {
+                            "device_id": "0",
+                            "device_ip": get_device_ip_from_hccn_tool(0),
+                            "rank_id": "0"
+                        },
+                        {
+                            "device_id": "1",
+                            "device_ip": get_device_ip_from_hccn_tool(1),
+                            "rank_id": "1"
+                        }
+                    ],
+                    "host_ip": host_ip,
+                    "server_id": "1"
+                }
+            ]
+        }
+
     # 当前展示两个节点cluster id分别为1和2, rank id分别为0和1
     cluster_rank_info = {1: 0, 2: 1}
     rank_table = json.dumps(rank_table_dict)
@@ -87,8 +128,8 @@ def link(datadist, device_id):
     return comm_id
 
 
-def run_decoder_sample(datadist, device_id: int):
-    comm_id = link(datadist, device_id)
+def run_decoder_sample(datadist, device_id: int, is_single: bool, host_ip: str):
+    comm_id = link(datadist, device_id, is_single, host_ip)
     # 通过cache_manager分配kv cache
     cache_manager = datadist.cache_manager
     # 描述一个cache，管理4个tensor, dtype为FP16
@@ -113,8 +154,8 @@ def run_decoder_sample(datadist, device_id: int):
     datadist.finalize()
 
 
-def run_prompt_sample(datadist, device_id: int):
-    comm_id = link(datadist, device_id)
+def run_prompt_sample(datadist, device_id: int, is_single: bool, host_ip: str):
+    comm_id = link(datadist, device_id, is_single, host_ip)
     # 通过cache_manager分配kv cache
     cache_manager = datadist.cache_manager
     cache_desc = CacheDesc(num_tensors=4, shape=[2, 1024 * 1024], data_type=DataType.DT_FLOAT16,
@@ -148,17 +189,22 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--device_id", type=int, default=0, help='device id')
     parser.add_argument("--cluster_id", type=int, default=1, help='cluster id')
+    parser.add_argument("--is_single", type=str, help='whether run on a single machine')
+    parser.add_argument("--host_ip", type=str, help='host ip')
     args = parser.parse_args()
     if args.cluster_id not in [1, 2]:
         raise RuntimeError("Not supported cluster id")
     if args.device_id not in [0, 1, 2, 3, 4, 5, 6, 7]:
         raise RuntimeError("Not supported device id")
+    is_single = False
+    if args.is_single:
+        is_single = True
     logging.info(f'Sample start, device_id = {args.device_id}, cluster_id = {args.cluster_id}')
     torch.npu.set_device(args.device_id)
     role = LLMRole.PROMPT if args.cluster_id == 1 else LLMRole.DECODER
     datadist = init_llm_datadist(role, args.cluster_id, args.device_id)
     if role == LLMRole.PROMPT:
-        run_prompt_sample(datadist, args.device_id)
+        run_prompt_sample(datadist, args.device_id, is_single, args.host_ip)
     else:
-        run_decoder_sample(datadist, args.device_id)
+        run_decoder_sample(datadist, args.device_id, is_single, args.host_ip)
     logging.info('Sample end')
