@@ -51,7 +51,7 @@ protected:
     llm::AutoCommResRuntimeMock::SetDevice(0);
 
     channel_manager_ = std::make_unique<ChannelManager>();
-    Status ret = channel_manager_->Initialize(buffer_transfer_service_.get(), nullptr);
+    Status ret = channel_manager_->Initialize(buffer_transfer_service_.get());
     ASSERT_EQ(ret, SUCCESS) << "Failed to initialize ChannelManager";
     std::string listen_info = "127.0.0.1:20000";
     channel_msg_handler_ = std::make_unique<MockChannelMsgHandler>(listen_info, channel_manager_.get());

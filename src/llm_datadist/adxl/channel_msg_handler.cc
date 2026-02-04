@@ -23,6 +23,7 @@
 #include "common/def_types.h"
 #include "adxl_utils.h"
 #include "control_msg_handler.h"
+#include "statistic_manager.h"
 
 namespace adxl {
 
@@ -605,7 +606,10 @@ Status ChannelMsgHandler::Disconnect(const std::string &remote_engine, int32_t t
     disconnect_info.channel_id = listen_info_;
     send_status = SendMsg(conn_fd, ChannelMsgType::kDisconnect, disconnect_info);
   }
-
+  if (segment_table_ != nullptr) {
+    segment_table_->RemoveChannel(remote_engine);
+  }
+  StatisticManager::GetInstance().RemoveChannel(remote_engine);
   if (enable_use_fabric_mem_) {
     fabric_mem_transfer_service_->RemoveChannel(remote_engine);
   }

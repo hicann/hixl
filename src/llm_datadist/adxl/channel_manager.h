@@ -21,7 +21,6 @@
 #include "channel.h"
 #include "common/llm_mem_pool.h"
 #include "buffer_transfer_service.h"
-#include "segment_table.h"
 
 namespace adxl {
 
@@ -32,7 +31,7 @@ class ChannelManager {
  public:
   ChannelManager() = default;
   ~ChannelManager() = default;
-  Status Initialize(BufferTransferService *buffer_transfer_service, SegmentTable *segment_table);
+  Status Initialize(BufferTransferService *buffer_transfer_service);
   Status Finalize();
   Status CreateChannel(const ChannelInfo &channel_info, ChannelPtr &channel_ptr, bool enable_use_fabric_mem = false);
   ChannelPtr GetChannel(ChannelType channel_type, const std::string &channel_id);
@@ -110,8 +109,6 @@ class ChannelManager {
 
   std::thread msg_receiver_;
   aclrtContext aclrt_context_{nullptr};
-
-  SegmentTable *segment_table_ = nullptr;
 
   std::function<Status(const std::string&, int32_t)> disconnect_callback_;
   std::function<void(const RequestDisconnectResp&)>
