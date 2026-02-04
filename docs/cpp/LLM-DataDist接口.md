@@ -1,4 +1,5 @@
 # LLM-DataDist接口<a name="ZH-CN_TOPIC_0000002408009645"></a>
+
 ## 产品支持情况<a name="section8178181118225"></a>
 
 <a name="table38301303189"></a>
@@ -24,6 +25,7 @@
 
 
 ## LlmDataDist构造函数<a name="ZH-CN_TOPIC_0000002374409960"></a>
+
 **函数功能**
 
 创建LLM-DataDist对象。
@@ -33,6 +35,7 @@
 ```
 LlmDataDist(uint64_t cluster_id, LlmRole role)
 ```
+
  **参数说明**
 
 <a name="table1072194315344"></a>
@@ -72,7 +75,9 @@ LlmDataDist(uint64_t cluster_id, LlmRole role)
 **约束说明**
 
 无
+
 ## \~LlmDataDist\(\)<a name="ZH-CN_TOPIC_0000002374409940"></a>
+
 **函数功能**
 
 LLM-DataDist对象析构函数。
@@ -98,7 +103,9 @@ LLM-DataDist对象析构函数。
 **约束说明**
 
 无
+
 ## Initialize<a name="ZH-CN_TOPIC_0000002408009617"></a>
+
 **函数功能**
 
 初始化LLM-DataDist。
@@ -196,7 +203,9 @@ Status Initialize(const std::map<AscendString, AscendString> &options)
 **约束说明**
 
 需要和Finalize配对使用，初始化成功后，任何退出前都需要调用Finalize保证资源释放，否则会出现资源释放顺序不符合预期而导致问题。
+
 ## Finalize<a name="ZH-CN_TOPIC_0000002374250052"></a>
+
 **函数功能**
 LLM-DataDist的资源释放函数。
 
@@ -229,6 +238,7 @@ void Finalize()
 -   该接口不能和其他接口并发调用。
 
 ## SetRole<a name="ZH-CN_TOPIC_0000002374250080"></a>
+
 **函数功能**
 
 设置LLM-DataDist的角色。
@@ -306,7 +316,9 @@ Status SetRole(LlmRole role, const std::map<AscendString, AscendString> &options
 **约束说明**
 
 使用前需与当前DataDist的链路进行断链。
+
 ## LinkLlmClusters<a name="ZH-CN_TOPIC_0000002374409976"></a>
+
 **函数功能**
 
 在LlmDataDist之间执行建链，Client端调用。
@@ -373,15 +385,19 @@ Status LinkLlmClusters(const std::vector<ClusterInfo> &clusters, std::vector<Sta
 -   建议超时时间配置200ms以上。
 -   调用该接口前Client和Server需提前注册所有内存，否则建链后注册不支持远端访问。
 -   容器场景若未配置OPTION\_LOCAL\_COMM\_RES或配置为空，需在容器内映射“/etc/hccn.conf”文件或者确保默认路径“/usr/local/Ascend/driver/tools”下存在hccn_tool，如果两者都不能满足，则需要用户将hccn_tool所在路径配置到PATH中。配置实例如下，hccn_tool_install_path表示hccn_tool所在路径。
+
     ```
     export PATH=$PATH:{hccn_tool_install_path}
     ```
+
 -   如果并发建链，建链使用的某个卡是down的状态，可能导致某些链路建链超时。如果需要非down状态的卡建链成功，则需要对所有涉及建链的卡配置如下命令。
 
     ```
     hccn_tool -i ${device_id} -tls -s enable 1
     ```
+
 ## UnlinkLlmClusters<a name="ZH-CN_TOPIC_0000002374409932"></a>
+
 **函数功能**
 
 在LlmDataDist之间执行断链。
@@ -452,12 +468,15 @@ LLM\_UNLINK\_FAILED：断链失败。
 **约束说明**
 
 调用该接口前，需要先调用Initialize接口完成初始化。
+
 ## PullKvCache<a name="ZH-CN_TOPIC_0000002408009661"></a>
+
 **函数功能**
 
 从远端节点拉取Cache到本地Cache。
 
 **函数原型**
+
 ```
 Status PullKvCache(const CacheIndex &src_cache_index,
                    const Cache &dst_cache,
@@ -535,7 +554,9 @@ Status PullKvCache(const CacheIndex &src_cache_index,
 **约束说明**
 
 该接口调用之前，需要先调用LinkLlmClusters接口完成初始化。
+
 ## PullKvBlocks<a name="ZH-CN_TOPIC_0000002408009609"></a>
+
 **函数功能**
 
 通过block列表的方式，从远端节点拉取Cache到本地Cache。
@@ -619,6 +640,7 @@ Status PullKvBlocks(const CacheIndex &src_cache_index,
 该接口调用之前，需要先调用LinkLlmClusters接口完成初始化。
 
 ## PushKvCache<a name="ZH-CN_TOPIC_0000002374409924"></a>
+
 **函数功能**
 
 推送Cache到远端节点。
@@ -703,6 +725,7 @@ Status PushKvCache(const Cache &src_cache,
 
 
 ## PushKvBlocks<a name="ZH-CN_TOPIC_0000002374250060"></a>
+
 **函数功能**
 
 通过block列表的方式，推送Cache到远端节点。
@@ -784,7 +807,9 @@ Status PushKvBlocks(const Cache &src_cache,
 **约束说明**
 
 该接口调用之前，需要先调用LinkLlmClusters接口完成初始化。
+
 ## RegisterKvCache<a name="ZH-CN_TOPIC_0000002408009653"></a>
+
 **函数功能**
 
 注册本地KV Cache内存。
@@ -854,7 +879,9 @@ Status RegisterKvCache(const CacheDesc &cache_desc,
 需要在Initialize接口初始化完成后调用。
 
 最大注册50GB的Device内存，20GB的Host内存。注册内存越大，占用的OS内存越多。
+
 ## UnregisterKvCache<a name="ZH-CN_TOPIC_0000002407889505"></a>
+
 **函数功能**
 
 解除注册本地KV Cache内存。

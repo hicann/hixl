@@ -1,4 +1,5 @@
 # LLMConfig<a name="ZH-CN_TOPIC_0000002407891573"></a>
+
 ## 产品支持情况<a name="section8178181118225"></a>
 
 <a name="table38301303189"></a>
@@ -55,7 +56,9 @@ llm_config = LLMConfig()
 **约束说明**
 
 无
+
 ## generate\_options<a name="ZH-CN_TOPIC_0000002407891445"></a>
+
 **函数功能**
 
 生成配置项字典。
@@ -86,7 +89,9 @@ engine_options = llm_config.generate_options()
 **约束说明**
 
 无
+
 ## device\_id<a name="ZH-CN_TOPIC_0000002408011669"></a>
+
 **函数功能**
 
 设置当前进程Device ID，对应底层ge.exec.deviceId配置项。
@@ -135,7 +140,9 @@ llm_config.device_id = 0
 **约束说明**<a name="section9605173416486"></a>
 
 无
+
 ## sync\_kv\_timeout<a name="ZH-CN_TOPIC_0000002407891577"></a>
+
 **函数功能**
 
 配置pull\_cache、pull\_blocks、push\_blocks、push\_cache接口的超时时间，对应底层llm.SyncKvCacheWaitTime配置项。
@@ -145,6 +152,7 @@ llm_config.device_id = 0
 ```
 sync_kv_timeout(sync_kv_timeout)
 ```
+
 **参数说明**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section34835721"></a>
 
 <a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_table2051894852017"></a>
@@ -183,7 +191,9 @@ llm_config.sync_kv_timeout = 1000
 **约束说明**<a name="section9605173416486"></a>
 
 无
+
 ## ge\_options<a name="ZH-CN_TOPIC_0000002408011641"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 配置额外的GE配置项。
@@ -236,7 +246,9 @@ llm_config.ge_options = ge_options
 **约束说明**<a name="section4233173018"></a>
 
 无
+
 ## listen\_ip\_info<a name="ZH-CN_TOPIC_0000002374252184"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 设置集群侦听信息，对应底层llm.listenIpInfo配置项。
@@ -285,7 +297,9 @@ llm_config.listen_ip_info = "192.168.1.1:26000"
 **约束说明**<a name="section9605173416486"></a>
 
 无
+
 ## enable\_cache\_manager<a name="ZH-CN_TOPIC_0000002374252100"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 配置是否开启CacheManager模式，对应底层llm.EnableCacheManager配置项。
@@ -335,7 +349,9 @@ llm_config.enable_cache_manager = True
 **约束说明**
 
 无
+
 ## enable\_remote\_cache\_accessible<a name="ZH-CN_TOPIC_0000002374252084"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 配置是否开启远端Cache可直接访问功能。
@@ -389,7 +405,9 @@ llm_config.enable_remote_cache_accessible = True
 **约束说明**<a name="section4233173018"></a>
 
 索引的更新只在第一次Pull时触发，对端在第一次Pull之后的Cache操作对本端不可见。用户需要保证Cache的有效性。所以该Option更适用于PA的场景，因为该场景下Cache只会在用户脚本初始化阶段分配/注册，而不会频繁改变。
+
 ## rdma\_traffic\_class<a name="ZH-CN_TOPIC_0000002408011677"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 用于配置RDMA网卡的traffic class。
@@ -442,7 +460,9 @@ llm_config.rdma_traffic_class = 100
 **约束说明**<a name="section4233173018"></a>
 
 无。
+
 ## rdma\_service\_level<a name="ZH-CN_TOPIC_0000002408011661"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 用于配置RDMA网卡的service level。
@@ -494,7 +514,9 @@ llm_config.rdma_service_level = 2
 **约束说明**<a name="section2411483221"></a>
 
 无。
+
 ## local\_comm\_res<a name="ZH-CN_TOPIC_0000002407891469"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 用于配置本地通信资源。
@@ -581,7 +603,9 @@ llm_config.local_comm_res = '''{
 
 -   调用link\_clusters或unlink\_clusters时，如果local\_comm\_res不为空，则不需要配置“clusters”参数中的“append\_local\_ip\_info”信息。如果local\_comm\_res为空，则需要配置“clusters”参数中的“append\_local\_ip\_info”信息。
 -   当前不支持enable\_cache\_manager和enable\_remote\_cache\_accessible配置为“False”的场景。
+
 ## link\_total\_time<a name="ZH-CN_TOPIC_0000002470373425"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 用于配置HCCL建链失败的总超时时间。
@@ -631,7 +655,9 @@ llm_config.link_total_time = 20
 **约束说明**<a name="section2411483221"></a>
 
 无。
+
 ## link\_retry\_count<a name="ZH-CN_TOPIC_0000002436814998"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 用于配置HCCL建链失败的重试次数。

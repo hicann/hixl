@@ -1,5 +1,7 @@
 # LLM-DataDist数据结构<a name="ZH-CN_TOPIC_0000002407889497"></a>
+
 ## LlmRole<a name="ZH-CN_TOPIC_0000002374250036"></a>
+
 LLM-DataDist的角色
 
 ```
@@ -10,7 +12,9 @@ enum class LlmRole : int32_t {
   kEnd              // 无效值
 }
 ```
+
 ## CachePlacement<a name="ZH-CN_TOPIC_0000002407889481"></a>
+
 Cache的内存类型
 
 ```
@@ -19,7 +23,9 @@ enum class CachePlacement : uint32_t {
   kDevice = 1U,           // Cache为Device内存
 }
 ```
+
 ## CacheDesc<a name="ZH-CN_TOPIC_0000002374409968"></a>
+
 Cache的描述信息
 
 ```
@@ -31,6 +37,7 @@ struct CacheDesc {
   uint8_t reserved[128];                                 // 预留
 }
 ```
+
 ## CacheIndex<a name="ZH-CN_TOPIC_0000002374250076"></a>
 
 Cache的索引
@@ -43,6 +50,7 @@ struct CacheIndex {
   uint8_t reserved[128];      // 预留
 }
 ```
+
 ## Cache<a name="ZH-CN_TOPIC_0000002408009637"></a>
 
 Cache，其中维护了一组tensor的地址
@@ -55,6 +63,7 @@ struct Cache {
   uint8_t reserved[128];                     // 预留
 }
 ```
+
 ## ClusterInfo和IpInfo<a name="ZH-CN_TOPIC_0000002374250088"></a>
 
 用于描述集群信息，用于建链与断链。
@@ -74,6 +83,7 @@ struct IpInfo {
   uint8_t reserved[128];   // 预留
 }
 ```
+
 ## KvCacheExtParam<a name="ZH-CN_TOPIC_0000002374409956"></a>
 
 调用Pull或Push相关接口时传入的扩展参数。
@@ -86,6 +96,7 @@ struct KvCacheExtParam {
   uint8_t reserved[127];                                   // 预留字段
 }
 ```
+
 ## RegisterCfg
 
 调用RegisterKvCache接口时传入的配置参数。

@@ -1,4 +1,5 @@
 # Cache<a name="ZH-CN_TOPIC_0000002407891541"></a>
+
 ## 产品支持情况<a name="section8178181118225"></a>
 
 <a name="table38301303189"></a>
@@ -26,7 +27,9 @@
 ## Cache构造函数<a name="ZH-CN_TOPIC_0000002374412048"></a>
 
 构造Cache，该接口通常不需要用户调用，Cache对象由CacheManager里的allocate\_cache、allocate\_blocks\_cache、register\_cache或register\_blocks\_cache返回。
+
 ## cache\_id<a name="ZH-CN_TOPIC_0000002374252044"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 获取Cache的id。
@@ -57,7 +60,9 @@ print(kv_cache.cache_id)
 **约束说明**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section28090371"></a>
 
 无
+
 ## cache\_desc<a name="ZH-CN_TOPIC_0000002408011693"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 获取Cache描述。
@@ -88,7 +93,9 @@ print(kv_cache.cache_desc.num_tensors)
 **约束说明**<a name="section181784544616"></a>
 
 无
+
 ## tensor\_addrs<a name="ZH-CN_TOPIC_0000002408011653"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 获取Cache的地址。
@@ -119,7 +126,9 @@ print(kv_cache.tensor_addrs)
 **约束说明**<a name="section181784544616"></a>
 
 无
+
 ## create\_cpu\_cache<a name="ZH-CN_TOPIC_0000002374252124"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 创建cpu cache。

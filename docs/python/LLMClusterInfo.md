@@ -1,4 +1,5 @@
 # LLMClusterInfo<a name="ZH-CN_TOPIC_0000002408011609"></a>
+
 ## 产品支持情况<a name="section8178181118225"></a>
 
 <a name="table38301303189"></a>
@@ -24,6 +25,7 @@
 
 
 ## LLMClusterInfo构造函数<a name="ZH-CN_TOPIC_0000002408011617"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 构造LLMClusterInfo，用于link\_clusters和unlink\_clusters接口的参数类型。
@@ -52,7 +54,9 @@ llm_cluster = LLMClusterInfo()
 **约束说明**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section28090371"></a>
 
 无
+
 ## remote\_cluster\_id<a name="ZH-CN_TOPIC_0000002408011685"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 设置对端集群ID。
@@ -100,7 +104,9 @@ llm_cluster.remote_cluster_id = 1
 **约束说明**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section28090371"></a>
 
 无
+
 ## append\_local\_ip\_info<a name="ZH-CN_TOPIC_0000002407891533"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 添加本地集群IP信息。
@@ -155,7 +161,9 @@ llm_cluster.append_local_ip_info("1.1.1.1", 10000)
 **约束说明**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section28090371"></a>
 
 无
+
 ## append\_remote\_ip\_info<a name="ZH-CN_TOPIC_0000002407891561"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 添加远端集群IP信息。

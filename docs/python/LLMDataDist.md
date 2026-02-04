@@ -1,4 +1,5 @@
 # LLMDataDist<a name="ZH-CN_TOPIC_0000002408011573"></a>
+
 ## 产品支持情况<a name="section8178181118225"></a>
 
 <a name="table38301303189"></a>
@@ -24,6 +25,7 @@
 
 
 ## LLMDataDist构造函数<a name="ZH-CN_TOPIC_0000002374411996"></a>
+
 **函数功能**
 
 构造LLMDataDist。
@@ -79,7 +81,9 @@ llm_datadist = LLMDataDist(LLMRole.DECODER, 0)
 **约束说明**
 
 无
+
 ## init<a name="ZH-CN_TOPIC_0000002407891549"></a>
+
 **函数功能**
 
 初始化LLMDataDist，需要在init的options中配置CacheManager模式，即enable\_cache\_manager设置为True或者指定local\_comm\_res。
@@ -138,7 +142,9 @@ llm_datadist.init(engine_options)
 **约束说明**
 
 初始化成功后，系统退出前需要调用finalize。
+
 ## finalize<a name="ZH-CN_TOPIC_0000002374252108"></a>
+
 **函数功能**
 
 释放LLMDataDist。
@@ -177,6 +183,7 @@ llm_datadist.finalize()
 - finalize不能和其他接口并发调用。
 
 ## link\_clusters<a name="ZH-CN_TOPIC_0000002374411908"></a>
+
 **函数功能**
 
 单边建链，由Client单侧发起建链。是Client还是Server与角色prompt或者decoder无关。设置listen\_ip\_info标识端口监听，即为Server端。
@@ -233,12 +240,16 @@ link_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], time
 -   建议超时时间配置200ms以上。
 -   调用该接口前需提前注册所有内存，否则建链后注册不支持远端访问。
 -   容器场景若未配置local\_comm\_res或配置为空，需在容器内映射“/etc/hccn.conf”文件或者确保默认路径“/usr/local/Ascend/driver/tools”下存在hccn_tool，如果两者都不能满足，则需要用户将hccn_tool所在路径配置到PATH中。配置实例如下，hccn_tool_install_path表示hccn_tool所在路径。
+
     ```
     export PATH=$PATH:{hccn_tool_install_path}
     ```
+
 -   如果并发建链，建链使用的某个卡是down的状态，可能导致某些链路建链超时，如果需要非down状态的卡建链成功，则需要对所有涉及建链的卡配置命令。
     hccn\_tool -i $\{device\_id\} -tls -s enable 1
+
 ## unlink\_clusters<a name="ZH-CN_TOPIC_0000002407891473"></a>
+
 **函数功能**
 
 单边断链，可以由Client单侧发起，通知Server进行断链；也可以Client和Server均发起强制断链，只清理本地链路。
@@ -301,6 +312,7 @@ unlink_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], ti
 无
 
 ## switch\_role<a name="ZH-CN_TOPIC_0000002408011629"></a>
+
 **函数功能**
 
 切换当前LLMDataDist的角色，同时可通过配置switch\_options切换Client或者Server。
@@ -355,7 +367,9 @@ switch_role(self, role: LLMRole, switch_options: Optional[Dict[str, str]] = None
 **约束说明**
 
 无
+
 ## link<a name="ZH-CN_TOPIC_0000002407891489"></a>
+
 **函数功能**
 
 双边建链，通过建立通信域方式建链。（推荐使用更易用的单边建链的link\_clusters接口，无需指定ranktable信息）
@@ -454,7 +468,9 @@ link(comm_name: str, cluster_rank_info: Dict[int, int], rank_table: str) -> int
 -   需保证多通信域建链不出现循环依赖。
 -   如果并发建链，建链使用的某个卡是down的状态，可能导致某些链路建链超时，如果需要非down状态的卡建链成功，则需要对所有涉及建链的卡配置命令。
     hccn\_tool -i $\{device\_id\} -tls -s enable 1
+
 ## unlink<a name="ZH-CN_TOPIC_0000002374411912"></a>
+
 **函数功能**
 
 双边建链对应的断链接口，调用此接口进行断链。
@@ -501,7 +517,9 @@ unlink(comm_id: int)
 **约束说明**
 
 无
+
 ## query\_register\_mem\_status<a name="ZH-CN_TOPIC_0000002374252088"></a>
+
 **函数功能**
 
 调用此接口查询注册内存状态。
@@ -548,7 +566,9 @@ query_register_mem_status(comm_id: int) -> RegisterMemStatus
 **约束说明**
 
 配合link使用。
+
 ## cache\_manager<a name="ZH-CN_TOPIC_0000002407891461"></a>
+
 **函数功能**
 
 获取CacheManager实例。

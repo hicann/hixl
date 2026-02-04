@@ -1,4 +1,5 @@
 # CacheManager<a name="ZH-CN_TOPIC_0000002374252152"></a>
+
 ## 产品支持情况<a name="section8178181118225"></a>
 
 <a name="table38301303189"></a>
@@ -29,7 +30,9 @@
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 CacheManager的实例应该通过cache\_manager返回。
+
 ## pull\_cache<a name="ZH-CN_TOPIC_0000002374411972"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 根据CacheKey，从对应的对端节点拉取到本地Cache。
@@ -150,7 +153,9 @@ layer\_range参数异常会抛出LLMException异常。
 
 -   开启enable\_remote\_cache\_accessible时，只支持cache\_key类型为CacheKeyByIdAndIndex。
 -   在D2H和H2D传输场景，需要在Host端初始化时配置Device内存池, 且内存池大小至少配置为100M。
+
 ## pull\_blocks<a name="ZH-CN_TOPIC_0000002407891505"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 PagedAttention场景下，根据BlocksCacheKey，通过block列表的方式从对端节点拉取Cache到本地Cache。
@@ -265,7 +270,9 @@ pull_blocks(src_cache_key: Union[CacheKey, CacheKeyByIdAndIndex, BlocksCacheKey]
 -   当src\_cache是HOST设备时，dst\_cache是DEVICE设备时，仅支持src\_cache与dst\_cache都为blocks cache的场景。
 -   开启enable\_remote\_cache\_accessible时会引入额外约束，详见该配置的约束说明章节。
 -   在D2H和H2D传输场景，需要在Host端初始化时配置Device内存池，且内存池大小至少配置为100M。
+
 ## register\_cache<a name="ZH-CN_TOPIC_0000002408011649"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 非PagedAttention场景下，调用此接口注册一个自行申请的内存。
@@ -341,7 +348,9 @@ register_cache(cache_desc: CacheDesc, addrs: List[int], cache_keys: Union[Tuple[
 - D2D HCCS数据传输时，首地址需要按照2MB对齐，否则可能导致link失败，HCCS不支持Host内存。
 
 - RDMA数据传输时，申请Host内存必须通过aclrtMallocHost接口，否则可能导致link失败。
+
 ## register\_blocks\_cache<a name="ZH-CN_TOPIC_0000002374411992"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 PagedAttention场景下，调用此接口注册一个自行申请的内存。
@@ -409,7 +418,9 @@ register_blocks_cache(cache_desc: CacheDesc, addrs: List[int], blocks_cache_key:
 **约束说明**<a name="section5424822194110"></a>
 
 如果通过HCCS进行数据传输，且内存不是通过aclrtMalloc申请，则地址需要按照页大小对齐（如果确定页大小是多少，推荐2MB对齐），否则可能导致link失败。
+
 ## transfer\_cache\_async<a name="ZH-CN_TOPIC_0000002374252092"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 异步分层传输Cache。
@@ -505,6 +516,7 @@ cache_task = cache_manager.transfer_cache_async(cache, LayerSynchronizerImpl(), 
 -   若dst\_cache是HOST，仅支持dst\_cache通过allocate\_cache申请方式申请。
 -   需要保证transfer\_config中的dst\_addrs的有效性，以及在传输dst\_block\_indices场景下数据的有效性，否则错误未知。
 -   开启enable\_remote\_cache\_accessible时，transfer\_configs中的类型需为TransferWithCacheKeyConfig，不开启enable\_remote\_cache\_accessible时，transfer\_configs中的类型需为TransferConfig。
+
 ## push\_blocks<a name="ZH-CN_TOPIC_0000002374252056"></a>
 
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
@@ -608,7 +620,9 @@ push_blocks(self,
 -   开启enable\_remote\_cache\_accessible时会引入额外约束，详见该配置的约束说明章节。
 -   在D2H和H2D传输场景，需要在Host端初始化时配置Device内存池。
 -   当前仅支持src\_layer\_range和dst\_layer\_range取值一致。
+
 ## push\_cache<a name="ZH-CN_TOPIC_0000002374252060"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 根据CacheKey，从本地节点推送Cache到远端Cache。
@@ -711,6 +725,7 @@ layer\_range参数异常会抛出LLMException异常。
 -   开启enable\_remote\_cache\_accessible时，只支持cache\_key类型为CacheKeyByIdAndIndex。
 -   在D2H和H2D传输场景，需要在Host端初始化时配置Device内存池。
 -   当前仅支持src\_layer\_range和dst\_layer\_range取值一致。
+
 ## remap\_registered\_memory<a name="ZH-CN_TOPIC_0000002407891477"></a>
 
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
@@ -770,7 +785,9 @@ cache_manager.remap_registered_memory(mem_info)
 **约束说明**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section28090371"></a>
 
 当前仅支持Device类型的内存修复。
+
 ## unregister\_cache<a name="ZH-CN_TOPIC_0000002374252120"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 解除注册一个自行申请的内存。

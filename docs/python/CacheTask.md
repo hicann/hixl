@@ -27,7 +27,9 @@
 ## CacheTask构造函数<a name="ZH-CN_TOPIC_0000002374252156"></a>
 
 构造CacheTask，由CacheManager.transfer接口返回，表示分层传输异步任务。
+
 ## synchronize<a name="ZH-CN_TOPIC_0000002408011657"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 等待所有层传输完成，并获取整体执行结果。
@@ -74,7 +76,9 @@ ret = cache_task.synchronize()
 **约束说明**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section28090371"></a>
 
 无
+
 ## get\_results<a name="ZH-CN_TOPIC_0000002374252112"></a>
+
 **函数功能**<a name="zh-cn_topic_0000001481404214_zh-cn_topic_0000001488949573_zh-cn_topic_0000001357384997_zh-cn_topic_0000001312399929_section3870635"></a>
 
 等待所有层传输完成，并获取每个TransferConfig对应执行结果。

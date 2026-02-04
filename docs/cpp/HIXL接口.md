@@ -1,4 +1,5 @@
 # HIXL接口<a name="ZH-CN_TOPIC_0000002446743577"></a>
+
 ## 产品支持情况<a name="section8178181118225"></a>
 
 <a name="table38301303189"></a>
@@ -49,7 +50,9 @@ Hixl()
 **约束说明**
 
 无
+
 ## \~Hixl\(\)<a name="ZH-CN_TOPIC_0000002413024568"></a>
+
 **函数功能**
 
 HIXL对象析构函数。
@@ -71,7 +74,9 @@ HIXL对象析构函数。
 **异常处理**
 
 无
+
 ## Initialize<a name="ZH-CN_TOPIC_0000002413184440"></a>
+
 **函数功能**
 
 初始化HIXL，在调用其他接口前需要先调用该接口。
@@ -180,7 +185,7 @@ Atlas A3 训练系列产品/Atlas A3 推理系列产品：该场景下采用HCCS
  当启用链路池机制时，有如下注意事项：
  
  - 集群内的所有Hixl Engine都需要配置OPTION_GLOBAL_RESOURCE_CONFIG。
- - 如果调用TransferSync或者TransferAsycn接口，若不存在相关链路，将执行建链操作。 
+ - 当调用TransferSync或者TransferAsycn接口时，若不存在相关链路，将执行建链操作。 
  - 会增加传输和建链的额外开销，可能导致性能下降。
 
 </td>
@@ -223,7 +228,9 @@ Atlas A3 训练系列产品/Atlas A3 推理系列产品：该场景下采用HCCS
 
 1.  需要和Finalize配对使用，初始化成功后，任何退出前都需要先调用Finalize保证资源释放，否则会出现资源释放顺序不符合预期而导致问题。
 2.  初始化前需要先调用aclrtSetDevice。
+
 ## Finalize<a name="ZH-CN_TOPIC_0000002446743581"></a>
+
 **函数功能**
 
 HIXL资源清理函数。
@@ -257,7 +264,9 @@ void Finalize()
 -   Server需要等所有Client完成断链后调用，如果Server提前退出，Client断链以及数据传输过程会发生报错。
 -   当Client需要操作Server端地址进行远端读写，Server端需要等Client完成远端读写之后才调用该接口，否则会出现失败。
 -   该接口不能和其他接口并发调用。
+
 ## RegisterMem<a name="ZH-CN_TOPIC_0000002446623657"></a>
+
 **函数功能**
 
 注册内存地址。用于TransferSync调用指定本地内存地址和远端内存地址，TransferSync指定的地址可以为注册的地址子集，其中本地内存地址需在当前HIXL进行注册，远端内存地址需要在远端HIXL进行注册。
@@ -325,7 +334,9 @@ Status RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle)
 -   注册Host内存需使用“aclrtMallocHost”进行申请，该接口申请的内存地址自动对齐。
 -   注册Device内存使用“aclrtMalloc”进行申请，如通过HCCS传输，则内存分配规则需配置为ACL\_MEM\_MALLOC\_HUGE\_ONLY。
 -   该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
+
 ## DeregisterMem<a name="ZH-CN_TOPIC_0000002413024572"></a>
+
 **函数功能**
 
 解注册内存。
@@ -375,7 +386,9 @@ Status DeregisterMem(MemHandle mem_handle)
 
 -   调用该接口前需要先调用Disconnect将所有链路进行断链，确保所有内存不再使用。
 -   该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
+
 ## Connect<a name="ZH-CN_TOPIC_0000002413184444"></a>
+
 **函数功能**
 
 与远端HIXL进行建链。
@@ -437,9 +450,11 @@ Status Connect(const AscendString &remote_engine, int32_t timeout_in_millis = 10
 -   建议超时时间配置200ms以上。
 -   调用该接口前需提前注册所有本地以及远端内存，否则建链后注册不支持远端访问。
 -   容器场景需在容器内映射“/etc/hccn.conf”文件或者确保默认路径“/usr/local/Ascend/driver/tools”下存在hccn_tool，如果两者都不能满足，则需要用户将hccn_tool所在路径配置到PATH中。配置实例如下，hccn_tool_install_path表示hccn_tool所在路径。
+
     ```
     export PATH=$PATH:{hccn_tool_install_path}
     ```
+
 -   如果并发建链，建链使用的某个卡是down的状态，可能导致某些链路建链超时。如果需要非down状态的卡建链成功，则需要对所有涉及建链的卡配置如下命令。
 
     ```
@@ -447,12 +462,15 @@ Status Connect(const AscendString &remote_engine, int32_t timeout_in_millis = 10
     ```
 
 -   该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
+
 ## Disconnect<a name="ZH-CN_TOPIC_0000002446743585"></a>
+
 **函数功能**
 
 与远端HIXL进行断链。
 
 **函数原型**
+
 ```
 Status Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis = 1000)
 ```
@@ -500,7 +518,9 @@ Status Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis =
 
 -   调用该接口之前，需要先调用Initialize接口完成初始化。
 -   该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
+
 ## TransferSync<a name="ZH-CN_TOPIC_0000002446623661"></a>
+
 **函数功能**
 
 与远端HIXL进行内存传输。
@@ -576,7 +596,9 @@ Status TransferSync(const AscendString &remote_engine,
 -   系统默认开启中转内存池，如果op\_desc内包含<256K的，则默认使用中转传输模式来提升性能，否则会通过判断是否有未注册的内存来决定走中转还是直传。
 -   在开启中转内存池情况下，op\_desc中本地内存和远端内存有一个未注册就会判断为需要走中转传输模式，且没有注册过的内存判断为Host内存，用户需保证地址合法。
 -   在中转传输模式下，所有op\_desc的传输类型需要相同，举例：所有的op\_desc都是本地Host内存往远端Host内存写。
+
 ## TransferAsync
+
 **函数功能**
 
 与远端HIXL进行批量异步内存传输。
@@ -661,6 +683,7 @@ Status TransferSync(const AscendString &remote_engine,
 -   当前异步传输仅支持直传，暂不支持中转传输，默认直传。
 
 ## GetTransferStatus
+
 **函数功能**
 
 获取异步内存传输的状态。
@@ -735,6 +758,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 
 ## SendNotify
+
 **函数功能**
 
 向远端engine发送Notify信息。
@@ -796,7 +820,9 @@ Status TransferSync(const AscendString &remote_engine,
 
 -   调用该接口之前，需要先调用Connect接口完成与对端的建链。
 -   该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
+
 ## GetNotifies
+
 **函数功能**
 
 获取当前Hixl内所有Server收到的Notify信息，并清空已收到信息。
