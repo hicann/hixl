@@ -437,7 +437,7 @@ Status ChannelMsgHandler::ProcessConnectRequest(int32_t fd, const std::vector<ch
 
   LLMLOGI("Start to process connect info, local engine:%s, remote engine:%s, timeout:%d ms.", listen_info_.c_str(),
           peer_connect_info.channel_id.c_str(), peer_connect_info.timeout);
-  peer_connect_info.comm_name = peer_connect_info.channel_id + "_" + listen_info_;
+  peer_connect_info.comm_name = "[hixl]" + peer_connect_info.channel_id + "_" + listen_info_;
   auto ret = ConnectInfoProcess(peer_connect_info, peer_connect_info.timeout, false);
   if (ret == SUCCESS) {
     LLMEVENT("Success to process connect info, local engine:%s, remote engine:%s, timeout:%d ms.", listen_info_.c_str(),
@@ -553,7 +553,7 @@ Status ChannelMsgHandler::DoConnect(const std::string &remote_engine, int32_t ti
     LLMLOGD("Peer share handle: va_addr:%lu, len:%lu, share_handle:%s", share_handle.va_addr, share_handle.len,
             GetDebugStr(share_handle.share_handle).c_str());
   }
-  peer_connect_info.comm_name = listen_info_ + "_" + peer_connect_info.channel_id;
+  peer_connect_info.comm_name = "[hixl]" + listen_info_ + "_" + peer_connect_info.channel_id;
   auto ret = ConnectInfoProcess(peer_connect_info, timeout_in_millis, true);
   ChannelStatus status{};
   ADXL_CHK_STATUS_RET(RecvMsg(conn_fd, ChannelMsgType::kStatus, status),
