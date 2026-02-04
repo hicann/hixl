@@ -52,8 +52,6 @@ class LLMUtils {
 
   static ge::Status IpToInt(const std::string &ip, uint32_t &ip_int);
 
-  static ge::Status CheckIp(const std::string &ip);
-
   static ge::Status IntToIp(uint32_t ip_int, std::string &ip_str);
 
   static ge::Status FindContiguousBlockIndexPair(const std::vector<std::pair<int64_t, int64_t>> &block_mapping,
@@ -80,7 +78,6 @@ class LLMUtils {
                                       const ge::DataType data_type,
                                       int64_t &mem_size);
 
-  static std::vector<std::string, std::allocator<std::string>> Split(const std::string &str, const char_t delim);
 
   static bool IsTimeout(const std::chrono::high_resolution_clock::time_point& start_time, int32_t timeout_ms);
 

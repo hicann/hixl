@@ -14,6 +14,7 @@
 #include "common/llm_utils.h"
 #include "common/llm_scope_guard.h"
 #include "common/llm_checker.h"
+#include "common/hixl_utils.h"
 #include "statistic_manager.h"
 #include "llm_datadist_timer.h"
 #include "adxl_utils.h"
@@ -212,7 +213,7 @@ Status AdxlInnerEngine::ParseBufferPoolParams(const std::map<AscendString, Ascen
     ADXL_CHK_BOOL_RET_STATUS(!enable_use_fabric_mem_, PARAM_INVALID,
                              "Buffer pool and fabric mem mode can not be set simultaneously");
     LLMEVENT("Buffer pool config is:%s.", pool_config.c_str());
-    const auto buffer_configs = llm::LLMUtils::Split(pool_config, ':');
+    const auto buffer_configs = hixl::Split(pool_config, ':');
     ADXL_CHK_BOOL_RET_STATUS(buffer_configs.size() == kBufferConfigSize, PARAM_INVALID,
                              "Option BufferPool is invalid: %s, expect ${BUFFER_NUM}:${BUFFER_SIZE}.",
                              pool_config.c_str());

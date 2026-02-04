@@ -26,6 +26,7 @@ file(GLOB LLM_V2_SRC_LIST
         "${HIXL_CODE_DIR}/src/llm_datadist/memory/span/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/memory/type/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/memory/util/*.cc"
+        "${HIXL_CODE_DIR}/src/hixl/common/*.cc"
         "${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/mmpa_stub.cc"
         "${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/hccl_stub.cc"
         "${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/ascend_string_stub.cc"
@@ -43,6 +44,7 @@ target_include_directories(llm_datadist_base PRIVATE
         ${HIXL_CODE_DIR}/src/llm_datadist/common
         ${HIXL_CODE_DIR}/tests/
         ${HIXL_CODE_DIR}/tests/depends/llm_datadist/src
+        ${HIXL_CODE_DIR}/src/hixl
 )
 
 target_link_libraries(llm_datadist_base PRIVATE

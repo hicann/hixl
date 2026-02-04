@@ -21,57 +21,34 @@ if (NOT ENABLE_TEST)
     find_package_if_target_not_exists(ascend_hal MODULE REQUIRED)
 else ()
     add_library(hccl_headers INTERFACE)
-    if (NOT EXISTS "${CANN_INSTALL_PATH}/include/experiment/mmpa/mmpa_api.h")
-        target_include_directories(hccl_headers INTERFACE
-            ${CANN_INSTALL_PATH}/include
-            ${CANN_INSTALL_PATH}/include/hccl
-            ${CANN_INSTALL_PATH}/pkg_inc
-            ${CANN_INSTALL_PATH}/pkg_inc/hccl
-            )
-    else ()
-        target_include_directories(hccl_headers INTERFACE
-            ${CANN_INSTALL_PATH}/include/experiment
-            ${CANN_INSTALL_PATH}/include/experiment/hccl
-            ${CANN_INSTALL_PATH}/include/experiment/hccl/external
-            ${CANN_INSTALL_PATH}/include/experiment/hccl/external/hccl
+    target_include_directories(hccl_headers INTERFACE
+        ${CANN_INSTALL_PATH}/include
+        ${CANN_INSTALL_PATH}/include/hccl
+        ${CANN_INSTALL_PATH}/include/hcomm
+        ${CANN_INSTALL_PATH}/pkg_inc
+        ${CANN_INSTALL_PATH}/pkg_inc/hccl
         )
-    endif ()
 
     add_library(mmpa_headers INTERFACE)
-    if (NOT EXISTS "${CANN_INSTALL_PATH}/include/experiment/mmpa")
-        if (EXISTS "${CANN_INSTALL_PATH}/include/mmpa")
-            target_include_directories(mmpa_headers INTERFACE
-                ${CANN_INSTALL_PATH}/include
-                ${CANN_INSTALL_PATH}/include/mmpa/sub_inc
-            )
-        else ()
-            target_include_directories(mmpa_headers INTERFACE
-                ${CANN_INSTALL_PATH}/pkg_inc
-                ${CANN_INSTALL_PATH}/pkg_inc/mmpa/sub_inc
-            )
-        endif ()
+    if (EXISTS "${CANN_INSTALL_PATH}/include/mmpa")
+        target_include_directories(mmpa_headers INTERFACE
+            ${CANN_INSTALL_PATH}/include
+            ${CANN_INSTALL_PATH}/include/mmpa/sub_inc
+        )
     else ()
         target_include_directories(mmpa_headers INTERFACE
-            ${CANN_INSTALL_PATH}/include/experiment
-            ${CANN_INSTALL_PATH}/include/experiment/mmpa
-            ${CANN_INSTALL_PATH}/include/experiment/mmpa/sub_inc
+            ${CANN_INSTALL_PATH}/pkg_inc
+            ${CANN_INSTALL_PATH}/pkg_inc/mmpa/sub_inc
         )
     endif ()
 
+
     add_library(msprof_headers INTERFACE)
-    if (NOT EXISTS "${CANN_INSTALL_PATH}/pkg_inc/runtime")
-        target_include_directories(msprof_headers INTERFACE
-            ${CANN_INSTALL_PATH}/include/experiment
-            ${CANN_INSTALL_PATH}/include/experiment/msprof
-            ${CANN_INSTALL_PATH}/include/experiment/msprof/toolchain
-        )
-    else ()
-        target_include_directories(msprof_headers INTERFACE
-            ${CANN_INSTALL_PATH}/pkg_inc
-            ${CANN_INSTALL_PATH}/pkg_inc/profiling
-            ${CANN_INSTALL_PATH}/pkg_inc/toolchain
-        )
-    endif ()
+    target_include_directories(msprof_headers INTERFACE
+        ${CANN_INSTALL_PATH}/pkg_inc
+        ${CANN_INSTALL_PATH}/pkg_inc/profiling
+        ${CANN_INSTALL_PATH}/pkg_inc/toolchain
+    )
 
     add_library(metadef_headers INTERFACE)
     target_include_directories(metadef_headers INTERFACE
@@ -80,19 +57,11 @@ else ()
     )
 
     add_library(slog_headers INTERFACE)
-    if (NOT EXISTS "${CANN_INSTALL_PATH}/include/experiment/slog/toolchain")
-        target_include_directories(slog_headers INTERFACE
-            ${CANN_INSTALL_PATH}/include
-            ${CANN_INSTALL_PATH}/pkg_inc
-            ${CANN_INSTALL_PATH}/pkg_inc/base
-        )
-    else ()
-        target_include_directories(slog_headers INTERFACE
-            ${CANN_INSTALL_PATH}/include/experiment
-            ${CANN_INSTALL_PATH}/include/experiment/slog
-            ${CANN_INSTALL_PATH}/include/experiment/slog/toolchain
-        )
-    endif ()
+    target_include_directories(slog_headers INTERFACE
+        ${CANN_INSTALL_PATH}/include
+        ${CANN_INSTALL_PATH}/pkg_inc
+        ${CANN_INSTALL_PATH}/pkg_inc/base
+    )
 
     add_library(acl_rt_headers INTERFACE)
     target_include_directories(acl_rt_headers INTERFACE

@@ -153,8 +153,11 @@ Status ChannelManager::ProcessReceivedData(const ChannelPtr &channel) const {
 
       if (channel->bytes_received_ > sizeof(ProtocolHeader)) {
         size_t remaining = channel->bytes_received_ - sizeof(ProtocolHeader);
-        memmove_s(channel->recv_buffer_.data(), remaining, channel->recv_buffer_.data() + sizeof(ProtocolHeader),
-                  remaining);
+        auto buffer = channel->recv_buffer_.data();
+        errno_t rc = memmove_s(buffer, remaining, buffer + sizeof(ProtocolHeader), remaining);
+        ADXL_CHK_BOOL_RET_STATUS(rc == EOK, FAILED,
+            "Call api:memmove_s failed, ret:%d, dst_addr:%p, dst_max:%zu, src_addr:%p, count:%zu",
+            static_cast<int32_t>(rc), buffer, remaining, buffer + sizeof(ProtocolHeader), remaining);
         channel->bytes_received_ = remaining;
       } else {
         channel->bytes_received_ = 0;
@@ -169,8 +172,11 @@ Status ChannelManager::ProcessReceivedData(const ChannelPtr &channel) const {
 
       if (channel->bytes_received_ > channel->expected_body_size_) {
         size_t remaining = channel->bytes_received_ - channel->expected_body_size_;
-        memmove_s(channel->recv_buffer_.data(), remaining, channel->recv_buffer_.data() + channel->expected_body_size_,
-                  remaining);
+        auto buffer = channel->recv_buffer_.data();
+        errno_t rc = memmove_s(buffer, remaining, buffer + channel->expected_body_size_, remaining);
+        ADXL_CHK_BOOL_RET_STATUS(rc == EOK, FAILED,
+            "Call api:memmove_s failed, ret:%d, dst_addr:%p, dst_max:%zu, src_addr:%p, count:%zu",
+            static_cast<int32_t>(rc), buffer, remaining, buffer + channel->expected_body_size_, remaining);
         channel->bytes_received_ = remaining;
         channel->recv_state_ = RecvState::WAITING_FOR_HEADER;
       } else {

@@ -15,10 +15,10 @@
 #include <utility>
 
 namespace llm {
-template <typename T, typename... Args>
-inline std::shared_ptr<T> MakeShared(Args &&... args) {
-  using T_nc = typename std::remove_const<T>::type;
-  const std::shared_ptr<T> ret = std::make_shared<T_nc>(std::forward<Args>(args)...);
+template <typename _Tp, typename... _Args>
+static inline std::shared_ptr<_Tp> MakeShared(_Args &&... __args) {
+  using _Tp_nc = typename std::remove_const<_Tp>::type;
+  const std::shared_ptr<_Tp> ret(new (std::nothrow) _Tp_nc(std::forward<_Args>(__args)...));
   return ret;
 }
 

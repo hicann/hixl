@@ -12,6 +12,7 @@
 #include "common/llm_utils.h"
 #include "common/msg_handler_plugin.h"
 #include "common/llm_checker.h"
+#include "common/hixl_utils.h"
 #include "llm_datadist/llm_engine_types.h"
 
 using namespace std;
@@ -39,14 +40,14 @@ TEST_F(LLMUtilsTest, CalcTensorMemSize) {
 }
 
 TEST_F(LLMUtilsTest, SplitSuccess) {
-  auto ret = LLMUtils::Split("", ',');
+  auto ret = hixl::Split("", ',');
   EXPECT_EQ(ret.size(), 1);
   EXPECT_EQ(ret[0], "");
-  ret = LLMUtils::Split("abcd", 'b');
+  ret = hixl::Split("abcd", 'b');
   EXPECT_EQ(ret.size(), 2);
   EXPECT_EQ(ret[0], "a");
   EXPECT_EQ(ret[1], "cd");
-  ret = LLMUtils::Split("abcd", 'd');
+  ret = hixl::Split("abcd", 'd');
   EXPECT_EQ(ret.size(), 2);
   EXPECT_EQ(ret[0], "abc");
   EXPECT_EQ(ret[1], "");

@@ -12,15 +12,10 @@
 #define HCCL_MEM_COMM_H
 #include "hccl/hccl_types.h"
 #include "hccl/base.h"
+#include "hcomm/hcomm_res_defs.h"
 #ifdef __cplusplus
 extern "C" {
 #endif  // __cplusplus
-typedef enum {
-  HCCL_MEM_TYPE_DEVICE,  // device
-  HCCL_MEM_TYPE_HOST,    // host
-  HCCL_MEM_TYPE_NUM
-} HcclMemType;
-
 typedef struct {
   HcclMemType type;
   void *addr;

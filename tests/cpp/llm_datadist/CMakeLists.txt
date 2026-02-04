@@ -34,6 +34,9 @@ set(LLM_DATADIST_STUB_SRC_FILES
 )
 
 file(GLOB LLM_V2_SRC_LIST
+        "${HIXL_CODE_DIR}/src/hixl/engine/*.cc"
+        "${HIXL_CODE_DIR}/src/hixl/common/*.cc"
+        "${HIXL_CODE_DIR}/src/hixl/cs/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/api/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/adxl/*.cc"
@@ -67,6 +70,7 @@ target_include_directories(llm_datadist_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${HIXL_CODE_DIR}/include
         ${HIXL_CODE_DIR}/src/llm_datadist
+        ${HIXL_CODE_DIR}/src/hixl
         ${HIXL_CODE_DIR}/tests
         ${HIXL_CODE_DIR}/tests/depends/llm_datadist/src
         )
@@ -86,11 +90,13 @@ target_link_libraries(llm_datadist_test
         slog_stub
         mmpa_stub
         ascendcl_stub
+        hccl_stub
         msprof_headers
         GTest::gtest GTest::gtest_main
         GTest::gmock
         -Wl,--no-as-need
-        error_manager_stub)
+        error_manager_stub
+)
 
 include(CTest)
 enable_testing()

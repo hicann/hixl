@@ -180,6 +180,12 @@ run() {
           echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
           exit 1;
       fi
+      RUN_TEST_CASE="${BUILD_PATH}/tests/cpp/hixl/hixl_test --gtest_output=xml:${report_dir}/hixl_test.xml" && ${RUN_TEST_CASE}
+      if [[ "$?" -ne 0 ]]; then
+          echo "!!! CPP TEST FAILED, PLEASE CHECK YOUR CHANGES !!!"
+          echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
+          exit 1;
+      fi
   fi
 
   if [[ "X$ENABLE_PY_TEST" = "XON" ]]; then
@@ -217,6 +223,7 @@ run() {
       mk_dir ${BASEPATH}/cov
       if [[ "X$ENABLE_CPP_TEST" = "XON" ]]; then
           lcov -c -d ${BUILD_PATH}/tests/cpp/llm_datadist/CMakeFiles/llm_datadist_test.dir \
+                  -d ${BUILD_PATH}/tests/cpp/hixl/CMakeFiles/hixl_test.dir \
                   -d ${BUILD_PATH}/tests/depends/python/CMakeFiles/llm_datadist_wrapper_stub.dir \
                   -d ${BUILD_PATH}/tests/depends/python/CMakeFiles/metadef_wrapper_stub.dir \
                -o cov/tmp.info

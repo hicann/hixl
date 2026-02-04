@@ -24,6 +24,7 @@
 #include "segment_table.h"
 #include "fabric_mem_transfer_service.h"
 #include "adxl_utils.h"
+#include "common/hixl_utils.h"
 
 namespace adxl {
 enum class ChannelMsgType : int32_t {
@@ -110,7 +111,6 @@ class ChannelMsgHandler {
   }
 
  private:
-  static Status ParseListenInfo(const std::string &listen_info, std::string &listen_ip, int32_t &listen_port);
   Status StartDaemon(const std::string &ip, uint32_t listen_port);
   Status StopDaemon();
   Status CreateChannel(const ChannelInfo &channel_info, bool is_client, const ChannelConnectInfo &peer_channel_info);

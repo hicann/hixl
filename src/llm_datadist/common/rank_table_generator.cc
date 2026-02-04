@@ -16,6 +16,7 @@
 #include "nlohmann/json.hpp"
 #include "acl/acl.h"
 #include "llm_datadist/llm_datadist.h"
+#include "common/hixl_utils.h"
 #include "common/llm_utils.h"
 #include "common/mem_utils.h"
 #include "rank_table_generator_v1.h"
@@ -153,12 +154,13 @@ ge::Status LocalCommResGenerator::GetDeviceIp(int32_t phy_device_id, std::string
       if (line.find(target_key) != 0) {
         continue;
       }
-      const auto addess_val = LLMUtils::Split(line, '=');
+      const auto addess_val = hixl::Split(line, '=');
       LLM_CHK_BOOL_RET_STATUS(addess_val.size() == kValidItemNum, ge::FAILED,
                             "address format is invalid: %s, expect address_${phy_device_id}=${device_ip}",
                             line.c_str());
       device_ip = addess_val.back();
-      LLM_CHK_STATUS_RET(LLMUtils::CheckIp(device_ip), "device ip:%s is invalid.", device_ip.c_str());
+      LLM_CHK_BOOL_RET_STATUS(hixl::CheckIp(device_ip) == hixl::SUCCESS, ge::LLM_PARAM_INVALID,
+                              "device ip:%s is invalid.", device_ip.c_str());
       return ge::SUCCESS;
     }
   } else {
@@ -167,7 +169,8 @@ ge::Status LocalCommResGenerator::GetDeviceIp(int32_t phy_device_id, std::string
     LLM_CHK_STATUS_RET(GetIpAddressFromHccnTool(phy_device_id, ip), "Getting ip from hccn tool failed.");
     if (!ip.empty()) {
       device_ip = ip;
-      LLM_CHK_STATUS_RET(LLMUtils::CheckIp(device_ip), "device ip:%s is invalid.", device_ip.c_str());
+      LLM_CHK_BOOL_RET_STATUS(hixl::CheckIp(device_ip) == hixl::SUCCESS, ge::LLM_PARAM_INVALID,
+                              "device ip:%s is invalid.", device_ip.c_str());
       return ge::SUCCESS;
     }
   }

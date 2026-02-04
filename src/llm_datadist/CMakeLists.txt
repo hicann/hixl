@@ -19,17 +19,16 @@ set(INC_DIR
         "${CMAKE_CURRENT_LIST_DIR}/hccl"
         "${CMAKE_CURRENT_LIST_DIR}/common"
         "${CMAKE_CURRENT_LIST_DIR}/fsm"
+        "${HIXL_CODE_DIR}/src/hixl"
         )
 add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 
 file(GLOB LLM_SRC_LIST
         "${CMAKE_CURRENT_LIST_DIR}/api/*.cc"
-        "${CMAKE_CURRENT_LIST_DIR}/adxl/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/common/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/cache_mgr/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/link_mgr/*.cc"
-        "${CMAKE_CURRENT_LIST_DIR}/hccl/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/fsm/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/utils/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/data_transfer/*.cc"
@@ -39,6 +38,7 @@ file(GLOB LLM_SRC_LIST
         "${CMAKE_CURRENT_LIST_DIR}/memory/span/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/memory/type/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/memory/util/*.cc"
+        "${HIXL_CODE_DIR}/src/hixl/common/*.cc"
         )
 
 add_library(llm_datadist SHARED ${LLM_SRC_LIST})
@@ -62,6 +62,7 @@ target_link_libraries(llm_datadist PRIVATE
         $<BUILD_INTERFACE:msprof_headers>
         PUBLIC c_sec
         static_mmpa
+        cann_hixl
         alog
         error_manager
         metadef # for acend string
@@ -71,22 +72,21 @@ target_link_libraries(llm_datadist PRIVATE
         -fPIC -Wextra -Wfloat-equal
         )
 
-#set(INSTALL_LIBRARY_DIR lib)
 install(TARGETS llm_datadist OPTIONAL
         EXPORT llm_datadist-targets
         LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR}
         RUNTIME DESTINATION ${INSTALL_LIBRARY_DIR})
 
-set(HIXL_INC_DIR
+set(ADXL_INC_DIR
         "${HIXL_CODE_DIR}/include"
         "${CMAKE_CURRENT_LIST_DIR}"
         "${CMAKE_CURRENT_LIST_DIR}/hccl"
         "${CMAKE_CURRENT_LIST_DIR}/common"
+        "${HIXL_CODE_DIR}/src/hixl"
         )
 add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 
-file(GLOB HIXL_SRC_LIST
-        "${CMAKE_CURRENT_LIST_DIR}/api/hixl_impl.cc"
+file(GLOB ADXL_SRC_LIST
         "${CMAKE_CURRENT_LIST_DIR}/adxl/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/llm_datadist_timer.cc"
         "${CMAKE_CURRENT_LIST_DIR}/statistic_manager.cc"
@@ -100,11 +100,11 @@ file(GLOB HIXL_SRC_LIST
         "${CMAKE_CURRENT_LIST_DIR}/memory/util/*.cc"
         )
 
-add_library(cann_hixl SHARED ${HIXL_SRC_LIST})
+add_library(adxl_static STATIC ${ADXL_SRC_LIST})
 
-target_include_directories(cann_hixl PRIVATE ${HIXL_INC_DIR})
+target_include_directories(adxl_static PRIVATE ${ADXL_INC_DIR})
 
-target_compile_options(cann_hixl PRIVATE
+target_compile_options(adxl_static PRIVATE
         -ftrapv
         -fno-common
         -Wfloat-equal
@@ -112,7 +112,7 @@ target_compile_options(cann_hixl PRIVATE
         -Werror
         -Wextra)
 
-target_link_libraries(cann_hixl PRIVATE
+target_link_libraries(adxl_static PRIVATE
         $<BUILD_INTERFACE:intf_pub>
         $<BUILD_INTERFACE:slog_headers>
         $<BUILD_INTERFACE:mmpa_headers>
@@ -129,10 +129,3 @@ target_link_libraries(cann_hixl PRIVATE
         -ldl
         -fPIC -Wextra -Wfloat-equal
         )
-
-#set(INSTALL_LIBRARY_DIR lib)
-install(TARGETS cann_hixl OPTIONAL
-        EXPORT cann_hixl-targets
-        LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR}
-        RUNTIME DESTINATION ${INSTALL_LIBRARY_DIR})
-

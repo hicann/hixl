@@ -203,7 +203,7 @@ Status ChannelMsgHandler::Initialize(const std::map<AscendString, AscendString> 
   ADXL_CHECK_NOTNULL(channel_manager_);
   ADXL_CHK_ACL_RET(aclrtGetCurrentContext(&aclrt_context_));
   ADXL_CHK_ACL_RET(aclrtGetDevice(&device_id_));
-  ADXL_CHK_STATUS_RET(ParseListenInfo(listen_info_, local_ip_, listen_port_), "Failed to parse listen info");
+  HIXL_CHK_STATUS_RET(hixl::ParseListenInfo(listen_info_, local_ip_, listen_port_), "Failed to parse listen info");
   ADXL_CHK_LLM_RET(llm::LocalCommResGenerator::Generate(local_ip_, device_id_, local_comm_res_),
                    "Failed to generate local comm res, local_ip:%s, device_id:%d",
                    local_ip_.c_str(), device_id_);
@@ -241,32 +241,6 @@ void ChannelMsgHandler::Finalize() {
     }
   }
   handle_to_addr_.clear();
-}
-
-Status ChannelMsgHandler::ParseListenInfo(const std::string &listen_info,
-                                          std::string &listen_ip, int32_t &listen_port) {
-  std::vector<std::string> listen_infos;
-  size_t left = listen_info.find('[');
-  size_t right = listen_info.find(']');
-  if (left != std::string::npos && right != std::string::npos && left < right) {
-    listen_infos.emplace_back(listen_info.substr(left + 1, right - left - 1));
-    size_t colon = listen_info.find(':', right);
-    if (colon != std::string::npos) {
-      listen_infos.emplace_back(listen_info.substr(colon + 1));
-    }
-  } else {
-    listen_infos = llm::LLMUtils::Split(listen_info, ':');
-  }
-  ADXL_CHK_BOOL_RET_STATUS(listen_infos.size() >= 1U, PARAM_INVALID,
-                           "listen info is invalid: %s, expect ${ip}:${port} or ${ip}", listen_info.c_str());
-  listen_ip = listen_infos[0];
-  ADXL_CHK_LLM_RET(llm::LLMUtils::CheckIp(listen_ip), "IP is invalid: %s, listen info = %s",
-                   listen_ip.c_str(), listen_info.c_str());
-  if (listen_infos.size() > 1U) {
-    ADXL_CHK_LLM_RET(llm::LLMUtils::ToNumber(listen_infos[1], listen_port), "Port:%s is invalid.",
-                     listen_infos[1].c_str());
-  }
-  return SUCCESS;
 }
 
 Status ChannelMsgHandler::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
@@ -530,7 +504,7 @@ Status ChannelMsgHandler::Connect(const std::string &remote_engine, int32_t time
 Status ChannelMsgHandler::DoConnect(const std::string &remote_engine, int32_t timeout_in_millis) {
   std::string remote_ip;
   int32_t remote_port = -1;
-  ADXL_CHK_STATUS_RET(ParseListenInfo(remote_engine, remote_ip, remote_port), "Failed to parse listen info");
+  HIXL_CHK_STATUS_RET(hixl::ParseListenInfo(remote_engine, remote_ip, remote_port), "Failed to parse listen info");
   int32_t conn_fd = 0;
   ADXL_CHK_LLM_RET(llm::MsgHandlerPlugin::Connect(remote_ip, static_cast<uint32_t>(remote_port),
                                                   conn_fd, timeout_in_millis, FAILED),
@@ -580,7 +554,7 @@ Status ChannelMsgHandler::DoConnect(const std::string &remote_engine, int32_t ti
 Status ChannelMsgHandler::Disconnect(const std::string &remote_engine, int32_t timeout_in_millis) {
   std::string remote_ip;
   int32_t remote_port = -1;
-  ADXL_CHK_STATUS_RET(ParseListenInfo(remote_engine, remote_ip, remote_port), "Failed to parse listen info");
+  HIXL_CHK_STATUS_RET(hixl::ParseListenInfo(remote_engine, remote_ip, remote_port), "Failed to parse listen info");
   LLMEVENT("Start to disconnect, local engine:%s, remote engine:%s, timeout:%d ms.",
           listen_info_.c_str(), remote_engine.c_str(), timeout_in_millis);
 

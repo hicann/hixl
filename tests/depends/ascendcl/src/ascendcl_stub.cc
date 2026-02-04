@@ -716,7 +716,6 @@ aclError aclrtMallocPhysical(aclrtDrvMemHandle *handle, size_t size, const aclrt
 aclError aclrtFreePhysical(aclrtDrvMemHandle handle) {
   return llm::AclRuntimeStub::GetInstance()->aclrtFreePhysical(handle);  
 }
-
 #ifdef __cplusplus
 }
 #endif

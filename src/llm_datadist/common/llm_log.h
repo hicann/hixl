@@ -26,6 +26,7 @@
 #include "dlog_pub.h"
 #include "base/err_msg.h"
 #include "acl/acl.h"
+#include "hixl/hixl_types.h"
 #ifdef __GNUC__
 #include <unistd.h>
 #include <sys/syscall.h>

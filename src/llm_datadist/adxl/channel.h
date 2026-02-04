@@ -18,7 +18,6 @@
 #include "nlohmann/json.hpp"
 #include "acl/acl.h"
 #include "adxl/adxl_types.h"
-#include "adxl_checker.h"
 #include "hccl/hccl_adapter.h"
 #include "control_msg_handler.h"
 #include "adxl/stream_pool.h"

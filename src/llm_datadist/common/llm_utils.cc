@@ -13,11 +13,13 @@
 #include <regex>
 #include <chrono>
 #include "mmpa/mmpa_api.h"
+#include "hixl/hixl_types.h"
 #include "llm_datadist/llm_engine_types.h"
 #include "common/llm_inner_types.h"
 #include "common/llm_checker.h"
 #include "common/llm_string_util.h"
 #include "common/llm_log.h"
+#include "common/hixl_utils.h"
 #include "llm_datadist/llm_datadist.h"
 
 namespace llm {
@@ -145,22 +147,13 @@ ge::Status LLMUtils::IpToInt(const std::string &ip, uint32_t &ip_int) {
   struct in_addr addr;
   LLM_CHK_BOOL_RET_STATUS(inet_pton(AF_INET, ip.c_str(), &addr) == 1, ge::LLM_PARAM_INVALID,
                          "%s is not a valid ip address", ip.c_str());
-  const auto items = LLMUtils::Split(ip, '.');
+  const auto items = hixl::Split(ip, '.');
   ip_int = 0;
   uint32_t shift = 0;
   for (const auto &item : items) {
     ip_int = ip_int | static_cast<uint8_t>(std::stoi(item)) << shift;
     shift += kNumBits;
   }
-  return ge::SUCCESS;
-}
-
-ge::Status LLMUtils::CheckIp(const std::string &ip) {
-  struct in_addr addr;
-  struct sockaddr_in6 ipv6_addr;
-  LLM_CHK_BOOL_RET_STATUS(inet_pton(AF_INET, ip.c_str(), &addr) == 1 ||
-                          inet_pton(AF_INET6, ip.c_str(), &ipv6_addr.sin6_addr) == 1, ge::LLM_PARAM_INVALID,
-                         "%s is not a valid ip address", ip.c_str());
   return ge::SUCCESS;
 }
 
@@ -187,7 +180,7 @@ ge::Status LLMUtils::ParseDeviceId(const std::map<ge::AscendString, ge::AscendSt
     return ge::SUCCESS;
   }
   LLM_CHK_BOOL_RET_STATUS(it->second.GetLength() > 0UL, ge::LLM_PARAM_INVALID, "option %s can not be empty.", option);
-  const auto items = LLMUtils::Split(it->second.GetString(), ';');
+  const auto items = hixl::Split(it->second.GetString(), ';');
   LLM_CHK_BOOL_RET_STATUS(!items.empty(), ge::LLM_PARAM_INVALID, "option %s can not be empty.", option);
   for (const auto &item : items) {
     int32_t device_id = -1;
@@ -224,13 +217,15 @@ ge::Status LLMUtils::ParseListenIpInfo(const std::string &option, std::string &i
       ip_and_port.emplace_back(option.substr(colon + 1));
     }
   } else {
-    ip_and_port = LLMUtils::Split(option, ':');
+    ip_and_port = hixl::Split(option, ':');
   }
   constexpr size_t kValidItemNum = 2U;
   LLM_CHK_BOOL_RET_STATUS(ip_and_port.size() == kValidItemNum, ge::LLM_PARAM_INVALID,
                           "llm.ListenIpInfo is invalid: %s, expect ${ip}:${port}", option.c_str());
-  LLM_CHK_STATUS_RET(CheckIp(ip_and_port.front()), "IP is invalid: %s, option_val = %s", ip_and_port[0].c_str(),
-                    option.c_str());
+  LLM_CHK_BOOL_RET_STATUS(hixl::CheckIp(ip_and_port.front()) == hixl::SUCCESS, ge::LLM_PARAM_INVALID,
+                          "IP is invalid: %s, option_val = %s",
+                          ip_and_port[0].c_str(),
+                          option.c_str());
   ip = ip_and_port.front();
   int64_t port_val = -1;
   LLM_CHK_STATUS_RET(ToNumber(ip_and_port.back(), port_val), "port is invalid: %s, option_val = %s",
@@ -336,26 +331,6 @@ ge::Status LLMUtils::CalcTensorMemSize(const std::vector<int64_t> &dims,
   LLM_CHK_STATUS_RET(CalcElementCntByDims(dims, element_cnt), "Failed to calc element cnt.");
   LLM_CHK_STATUS_RET(GetSizeInBytes(element_cnt, data_type, mem_size), "Failed to get size in byte.");
   return ge::SUCCESS;
-}
-
-std::vector<std::string, std::allocator<std::string>> LLMUtils::Split(const std::string &str, const char_t delim) {
-  std::vector<std::string, std::allocator<std::string>> elems;
-  if (str.empty()) {
-    (void) elems.emplace_back("");
-    return elems;
-  }
-
-  std::stringstream ss(str);
-  std::string item;
-  while (getline(ss, item, delim)) {
-    (void) elems.push_back(item);
-  }
-
-  const auto str_size = str.size();
-  if ((str_size > 0U) && (str[str_size - 1U] == delim)) {
-    (void) elems.emplace_back("");
-  }
-  return elems;
 }
 
 bool LLMUtils::IsTimeout(const std::chrono::high_resolution_clock::time_point& start_time, int32_t timeout_ms) {

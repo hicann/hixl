@@ -8,13 +8,13 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
-set(DT_COMMON_COMPILE_OPTION ${DT_COMMON_COMPILE_OPTION} -fno-access-control)
+file(GLOB_RECURSE SRC_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*.cc")
+add_library(hccl_stub SHARED ${SRC_FILES})
+target_include_directories(hccl_stub PRIVATE
+        ${HIXL_CODE_DIR}/src/hixl
+        )
+target_link_libraries(hccl_stub PRIVATE intf_pub c_sec slog_headers
+                                PUBLIC hccl_headers
+)
 
-add_subdirectory(depends/slog)
-add_subdirectory(depends/mmpa)
-add_subdirectory(depends/hccl)
-add_subdirectory(depends/error_manager)
-add_subdirectory(depends/llm_datadist)
-add_subdirectory(depends/python)
-add_subdirectory(depends/ascendcl)
-add_subdirectory(cpp)
+stub_module(hccl hccl_stub)
