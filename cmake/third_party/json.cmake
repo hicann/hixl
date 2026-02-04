@@ -38,24 +38,29 @@ if(json_FOUND AND NOT FORCE_REBUILD_CANN_3RD)
         INTERFACE_INCLUDE_DIRECTORIES "${JSON_INCLUDE}")
 else()
     set(REQ_URL "https://gitcode.com/cann-src-third-party/json/releases/download/v3.11.3/include.zip")
-    message("json not found in ${JSON_INSTALL_PATH}, begin load from ${REQ_URL}")
-
+    set(JSON_ARCHIVE ${JSON_DOWNLOAD_PATH}/include.zip)
     file(MAKE_DIRECTORY ${JSON_DOWNLOAD_PATH})
-    file(DOWNLOAD 
-        ${REQ_URL} 
-        ${JSON_DOWNLOAD_PATH}/include.zip 
-        SHOW_PROGRESS
-        TLS_VERIFY OFF
-    )
+
+    if(EXISTS ${JSON_ARCHIVE})
+        message("json not found in ${JSON_INSTALL_PATH}, found archive at ${JSON_ARCHIVE}")
+    else()
+        message("json not found in ${JSON_INSTALL_PATH}, begin load from ${REQ_URL}")
+        file(DOWNLOAD
+            ${REQ_URL}
+            ${JSON_ARCHIVE}
+            SHOW_PROGRESS
+            TLS_VERIFY OFF
+        )
+    endif()
     file(MAKE_DIRECTORY ${JSON_INSTALL_PATH})
     execute_process(
-        COMMAND unzip -o "${JSON_DOWNLOAD_PATH}/include.zip" -d ${JSON_INSTALL_PATH}
+        COMMAND unzip -o "${JSON_ARCHIVE}" -d ${JSON_INSTALL_PATH}
         RESULT_VARIABLE UNZIP_RESULT
         ERROR_VARIABLE UNZIP_ERROR
     )
 
     if(NOT UNZIP_RESULT EQUAL 0)
-        message(FATAL_ERROR "Failed to unzip ${JSON_DOWNLOAD_PATH}/include.zip")
+        message(FATAL_ERROR "Failed to unzip ${JSON_ARCHIVE}")
     endif()
 
     set(JSON_INCLUDE_DIR ${JSON_INSTALL_PATH}/include)

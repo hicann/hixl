@@ -38,25 +38,30 @@ if(pybind11_FOUND AND NOT FORCE_REBUILD_CANN_3RD)
         INTERFACE_INCLUDE_DIRECTORIES "${pybind11_INCLUDE_DIR}")
 else()
     set(REQ_URL "https://gitcode.com/cann-src-third-party/pybind11/releases/download/v2.13.6/pybind11-2.13.6.tar.gz")
-    message("pybind11 not found in ${PYBIND11_INSTALL_PATH}, begin load from ${REQ_URL}")
-
+    set(PYBIND11_ARCHIVE ${PYBIND11_DOWNLOAD_PATH}/pybind11-2.13.6.tar.gz)
     file(MAKE_DIRECTORY ${PYBIND11_DOWNLOAD_PATH})
-    file(DOWNLOAD 
-        ${REQ_URL} 
-        ${PYBIND11_DOWNLOAD_PATH}/pybind11-2.13.6.tar.gz
-        SHOW_PROGRESS
-        TLS_VERIFY OFF
-    )
+
+    if(EXISTS ${PYBIND11_ARCHIVE})
+        message("pybind11 not found in ${PYBIND11_INSTALL_PATH}, found archive at ${PYBIND11_ARCHIVE}")
+    else()
+        message("pybind11 not found in ${PYBIND11_INSTALL_PATH}, begin load from ${REQ_URL}")
+        file(DOWNLOAD
+            ${REQ_URL}
+            ${PYBIND11_ARCHIVE}
+            SHOW_PROGRESS
+            TLS_VERIFY OFF
+        )
+    endif()
     file(MAKE_DIRECTORY ${PYBIND11_INSTALL_PATH})
     execute_process(
-        COMMAND tar xf "${PYBIND11_DOWNLOAD_PATH}/pybind11-2.13.6.tar.gz" --strip-components=1 -C ${PYBIND11_INSTALL_PATH}
+        COMMAND tar xf "${PYBIND11_ARCHIVE}" --strip-components=1 -C ${PYBIND11_INSTALL_PATH}
         RESULT_VARIABLE TAR_RESULT
         OUTPUT_QUIET
         ERROR_QUIET
     )
 
     if(NOT TAR_RESULT EQUAL 0)
-        message(FATAL_ERROR "Failed to tar xf ${PYBIND11_DOWNLOAD_PATH}/pybind11-2.13.6.tar.gz")
+        message(FATAL_ERROR "Failed to tar xf ${PYBIND11_ARCHIVE}")
     endif()
 
     set(pybind11_INCLUDE_DIR ${PYBIND11_INSTALL_PATH}/include)

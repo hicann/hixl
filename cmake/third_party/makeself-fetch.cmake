@@ -17,8 +17,17 @@ endif()
 
 # 默认配置的makeself还是不存在则下载
 if (NOT EXISTS "${MAKESELF_PATH}/makeself-header.sh" OR NOT EXISTS "${MAKESELF_PATH}/makeself.sh")
-    set(MAKESELF_URL "https://gitcode.com/cann-src-third-party/makeself/releases/download/release-2.5.0-patch1.0/makeself-release-2.5.0-patch1.tar.gz")
-    message(STATUS "Downloading ${MAKESELF_NAME} from ${MAKESELF_URL}")
+    set(MAKESELF_DOWNLOAD_URL "https://gitcode.com/cann-src-third-party/makeself/releases/download/release-2.5.0-patch1.0/makeself-release-2.5.0-patch1.tar.gz")
+    set(MAKESELF_ARCHIVE ${CANN_3RD_LIB_PATH}/pkg/makeself-release-2.5.0-patch1.tar.gz)
+    file(MAKE_DIRECTORY ${CANN_3RD_LIB_PATH}/pkg)
+
+    if(EXISTS ${MAKESELF_ARCHIVE})
+        message(STATUS "Found makeself archive at ${MAKESELF_ARCHIVE}")
+        set(MAKESELF_URL "file://${MAKESELF_ARCHIVE}")
+    else()
+        message(STATUS "Downloading ${MAKESELF_NAME} from ${MAKESELF_DOWNLOAD_URL}")
+        set(MAKESELF_URL ${MAKESELF_DOWNLOAD_URL})
+    endif()
 
     include(FetchContent)
     FetchContent_Declare(
