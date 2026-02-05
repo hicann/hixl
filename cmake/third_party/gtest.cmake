@@ -71,6 +71,12 @@ else()
     set(GTEST_ARCHIVE ${GTEST_DOWNLOAD_PATH}/googletest-1.14.0.tar.gz)
     file(MAKE_DIRECTORY ${GTEST_DOWNLOAD_PATH})
 
+    # Search in CANN_3RD_LIB_PATH and move to pkg if found
+    if(EXISTS ${CANN_3RD_LIB_PATH}/googletest-1.14.0.tar.gz AND NOT EXISTS ${GTEST_ARCHIVE})
+        message("Found googletest archive in ${CANN_3RD_LIB_PATH}, moving to pkg")
+        file(RENAME ${CANN_3RD_LIB_PATH}/googletest-1.14.0.tar.gz ${GTEST_ARCHIVE})
+    endif()
+
     if(EXISTS ${GTEST_ARCHIVE})
         message("gtest not found in ${GTEST_INSTALL_PATH}, found archive at ${GTEST_ARCHIVE}")
         set(GTEST_URL "file://${GTEST_ARCHIVE}")

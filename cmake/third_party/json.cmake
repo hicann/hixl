@@ -41,6 +41,12 @@ else()
     set(JSON_ARCHIVE ${JSON_DOWNLOAD_PATH}/include.zip)
     file(MAKE_DIRECTORY ${JSON_DOWNLOAD_PATH})
 
+    # Search in CANN_3RD_LIB_PATH and move to pkg if found
+    if(EXISTS ${CANN_3RD_LIB_PATH}/include.zip AND NOT EXISTS ${JSON_ARCHIVE})
+        message("Found json archive in ${CANN_3RD_LIB_PATH}, moving to pkg")
+        file(RENAME ${CANN_3RD_LIB_PATH}/include.zip ${JSON_ARCHIVE})
+    endif()
+
     if(EXISTS ${JSON_ARCHIVE})
         message("json not found in ${JSON_INSTALL_PATH}, found archive at ${JSON_ARCHIVE}")
     else()

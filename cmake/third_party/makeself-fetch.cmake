@@ -21,6 +21,12 @@ if (NOT EXISTS "${MAKESELF_PATH}/makeself-header.sh" OR NOT EXISTS "${MAKESELF_P
     set(MAKESELF_ARCHIVE ${CANN_3RD_LIB_PATH}/pkg/makeself-release-2.5.0-patch1.tar.gz)
     file(MAKE_DIRECTORY ${CANN_3RD_LIB_PATH}/pkg)
 
+    # Search in CANN_3RD_LIB_PATH and move to pkg if found
+    if(EXISTS ${CANN_3RD_LIB_PATH}/makeself-release-2.5.0-patch1.tar.gz AND NOT EXISTS ${MAKESELF_ARCHIVE})
+        message(STATUS "Found makeself archive in ${CANN_3RD_LIB_PATH}, moving to pkg")
+        file(RENAME ${CANN_3RD_LIB_PATH}/makeself-release-2.5.0-patch1.tar.gz ${MAKESELF_ARCHIVE})
+    endif()
+
     if(EXISTS ${MAKESELF_ARCHIVE})
         message(STATUS "Found makeself archive at ${MAKESELF_ARCHIVE}")
         set(MAKESELF_URL "file://${MAKESELF_ARCHIVE}")

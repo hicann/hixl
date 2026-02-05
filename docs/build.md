@@ -128,14 +128,13 @@ bash build.sh
 
 若您的编译环境无法访问网络，您需要在联网环境中下载上述开源软件压缩包，并手动上传至您的编译环境中。
 
-您需要在编译环境中新建一个`{your_3rd_party_path}/pkg`目录来存放这些第三方开源软件。
+您需要在编译环境中新建一个`{your_3rd_party_path}`目录来存放这些第三方开源软件。
 
 ```bash
-mkdir -p {your_3rd_party_path}/pkg
-cd {your_3rd_party_path}/pkg
+mkdir -p {your_3rd_party_path}
 ```
 
-创建好目录后，将下载好的第三方开源软件压缩包上传至目录`{your_3rd_party_path}/pkg`后，可以使用如下命令进行编译：
+创建好目录后，将下载好的第三方开源软件压缩包上传至目录`{your_3rd_party_path}`后，可以使用如下命令进行编译：
 ```bash
 bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
 ```

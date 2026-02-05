@@ -41,6 +41,12 @@ else()
     set(PYBIND11_ARCHIVE ${PYBIND11_DOWNLOAD_PATH}/pybind11-2.13.6.tar.gz)
     file(MAKE_DIRECTORY ${PYBIND11_DOWNLOAD_PATH})
 
+    # Search in CANN_3RD_LIB_PATH and move to pkg if found
+    if(EXISTS ${CANN_3RD_LIB_PATH}/pybind11-2.13.6.tar.gz AND NOT EXISTS ${PYBIND11_ARCHIVE})
+        message("Found pybind11 archive in ${CANN_3RD_LIB_PATH}, moving to pkg")
+        file(RENAME ${CANN_3RD_LIB_PATH}/pybind11-2.13.6.tar.gz ${PYBIND11_ARCHIVE})
+    endif()
+
     if(EXISTS ${PYBIND11_ARCHIVE})
         message("pybind11 not found in ${PYBIND11_INSTALL_PATH}, found archive at ${PYBIND11_ARCHIVE}")
     else()
