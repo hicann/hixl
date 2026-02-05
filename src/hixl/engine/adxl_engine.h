@@ -21,7 +21,7 @@ class AdxlEngine : public Engine {
  public:
   explicit AdxlEngine(const AscendString &local_engine) : Engine(local_engine), adxl_inner_engine_(local_engine) {};
 
-  ~AdxlEngine() = default;
+  ~AdxlEngine() override = default;
 
   Status Initialize(const std::map<AscendString, AscendString> &options) override;
 
@@ -50,6 +50,8 @@ class AdxlEngine : public Engine {
                     int32_t timeout_in_millis = 1000) override;
 
   Status GetNotifies(std::vector<NotifyDesc> &notifies) override;
+
+  Status RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor) override;
 
  private:
   adxl::AdxlInnerEngine adxl_inner_engine_;

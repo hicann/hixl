@@ -60,6 +60,8 @@ class AdxlInnerEngine {
   Status SendNotify(const AscendString &remote_engine, const NotifyDesc &notify, int32_t timeout_in_millis = 1000);
 
   Status GetNotifies(std::vector<NotifyDesc> &notifies);
+
+  Status RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor);
   
  private:
   Status GetTransferType(const ChannelPtr &channel, TransferOp operation, const std::vector<TransferOpDesc> &op_descs,

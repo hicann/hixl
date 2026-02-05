@@ -132,19 +132,19 @@ Status CtrlMsgPlugin::DoConnect(struct ::addrinfo *addr, int32_t &conn_fd, int32
 Status CtrlMsgPlugin::SockAddrInit(const std::string &ip, uint32_t listen_port, int32_t ai_family,
                                    struct sockaddr_storage &server_addr, socklen_t &addr_len) {
   if (ai_family == AF_INET) {
-    struct sockaddr_in* ipv4_addr = reinterpret_cast<struct sockaddr_in*>(&server_addr);
-    (void)memset_s(ipv4_addr, sizeof(*ipv4_addr), 0, sizeof(*ipv4_addr));
-    ipv4_addr->sin_family = AF_INET;
-    ipv4_addr->sin_port = htons(listen_port);
-    (void) inet_pton(AF_INET, ip.c_str(), &ipv4_addr->sin_addr);
-    addr_len = sizeof(*ipv4_addr);
+    struct sockaddr_in* addr = reinterpret_cast<struct sockaddr_in*>(&server_addr);
+    (void)memset_s(addr, sizeof(*addr), 0, sizeof(*addr));
+    addr->sin_family = AF_INET;
+    addr->sin_port = htons(listen_port);
+    (void) inet_pton(AF_INET, ip.c_str(), &addr->sin_addr);
+    addr_len = sizeof(*addr);
   } else {
-    struct sockaddr_in6* ipv6_addr = reinterpret_cast<struct sockaddr_in6*>(&server_addr);
-    (void)memset_s(ipv6_addr, sizeof(*ipv6_addr), 0, sizeof(*ipv6_addr));
-    ipv6_addr->sin6_family = AF_INET6;
-    ipv6_addr->sin6_port = htons(listen_port);
-    (void) inet_pton(AF_INET6, ip.c_str(), &ipv6_addr->sin6_addr);
-    addr_len = sizeof(*ipv6_addr);
+    struct sockaddr_in6* addr = reinterpret_cast<struct sockaddr_in6*>(&server_addr);
+    (void)memset_s(addr, sizeof(*addr), 0, sizeof(*addr));
+    addr->sin6_family = AF_INET6;
+    addr->sin6_port = htons(listen_port);
+    (void) inet_pton(AF_INET6, ip.c_str(), &addr->sin6_addr);
+    addr_len = sizeof(*addr);
   }
   return SUCCESS;
 }

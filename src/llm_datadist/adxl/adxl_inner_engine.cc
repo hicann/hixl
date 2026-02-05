@@ -605,4 +605,10 @@ Status AdxlInnerEngine::GetNotifies(std::vector<NotifyDesc> &notifies) {
   }
   return SUCCESS;
 }
+
+Status AdxlInnerEngine::RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor) {
+  ADXL_CHK_STATUS_RET(msg_handler_.RegisterCallbackProcessor(msg_type, processor),
+                      "Failed to register callback processor, msg type:%d", msg_type);
+  return SUCCESS;
+}
 }  // namespace adxl

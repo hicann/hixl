@@ -25,9 +25,9 @@ class Channel {
 
   Status Create(EndpointHandle ep_handle, HcommChannelDesc &ch_desc, CommEngine engine);
   ChannelHandle GetChannelHandle() const;
-  Status GetStatus(ChannelHandle channel_handle, int32_t *status_out);
+  static Status GetStatus(ChannelHandle channel_handle, int32_t *status_out);
 
-  Status Destroy();
+  Status Destroy() const;
 
   ChannelHandle GetHandle() const {
     return channel_handle_;

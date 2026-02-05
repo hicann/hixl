@@ -21,12 +21,11 @@ namespace llm {
 class LLMLinkManager : public CommLinkManager {
  public:
   LLMLinkManager(uint64_t cluster_id, int32_t device_id, CommEntityManager *comm_entity_manager,
-                 CommMemManager *comm_mem_manager, CacheManager *cache_manager, bool remote_cache_accessible)
+                 CacheManager *cache_manager, bool remote_cache_accessible)
       : CommLinkManager(cluster_id, remote_cache_accessible),
-        device_id_(device_id),
         cluster_id_(cluster_id),
         aclrt_context_(nullptr),
-        msg_handler_(cluster_id, device_id_, comm_entity_manager, comm_mem_manager, cache_manager) {};
+        msg_handler_(cluster_id, device_id, comm_entity_manager, cache_manager) {};
   ~LLMLinkManager() override = default;
   ge::Status Initialize(const std::map<ge::AscendString, ge::AscendString> &options) override;
   void Finalize() override;
@@ -37,7 +36,6 @@ class LLMLinkManager : public CommLinkManager {
   ge::Status SwitchRole(const std::string &role, const std::map<std::string, std::string> &options);
 
  private:
-  int32_t device_id_;
   uint64_t cluster_id_;
   aclrtContext aclrt_context_;
   LinkMsgHandler msg_handler_;

@@ -213,13 +213,29 @@ inline bool LlmLogPrintStdout() {
 
 namespace llm {
 inline ge::Status ConvertAclError2Ge(int32_t ret) {
-    const static std::map<int32_t, ge::Status> acl_to_ge_status = {
-      {static_cast<int32_t>(ACL_ERROR_RT_STREAM_SYNC_TIMEOUT), ge::LLM_TIMEOUT}};
-    const auto &it = acl_to_ge_status.find(ret);
-    if (it != acl_to_ge_status.cend()) {
-      return it->second;
-    }
-    return static_cast<ge::Status>(ret);
+  const static std::map<int32_t, ge::Status> acl_to_ge_status = {
+    {static_cast<int32_t>(ACL_ERROR_RT_STREAM_SYNC_TIMEOUT), ge::LLM_TIMEOUT}};
+  const auto &it = acl_to_ge_status.find(ret);
+  if (it != acl_to_ge_status.cend()) {
+    return it->second;
+  }
+  return static_cast<ge::Status>(ret);
+}
+
+inline ge::Status ConvertHixlError2Ge(uint32_t ret) {
+  const static std::map<uint32_t, ge::Status> hixl_to_ge_status = {
+    {hixl::PARAM_INVALID, ge::LLM_PARAM_INVALID},
+    {hixl::TIMEOUT, ge::LLM_TIMEOUT},
+    {hixl::NOT_CONNECTED, ge::LLM_NOT_YET_LINK},
+    {hixl::ALREADY_CONNECTED, ge::LLM_ALREADY_LINK},
+    {hixl::FAILED, ge::FAILED},
+    {hixl::UNSUPPORTED, ge::LLM_FEATURE_NOT_ENABLED}
+  };
+  const auto &it = hixl_to_ge_status.find(ret);
+  if (it != hixl_to_ge_status.cend()) {
+    return it->second;
+  }
+  return ge::FAILED;
 }
 
 // If expr is not 0, print the log and return
@@ -240,6 +256,19 @@ inline ge::Status ConvertAclError2Ge(int32_t ret) {
     if (_rt_err != ACL_ERROR_NONE) {                                                 \
       LLMLOGE(ge::FAILED, "Call aclrt api failed, ret: 0x%X", static_cast<uint32_t>(_rt_err)); \
     }                                                                  \
+  } while (false)
+
+
+// If expr is not 0, print the log and return
+#define LLM_CHK_HIXL_RET(expr, ...)                                                \
+  do {                                                                        \
+    const auto _ret = (expr);                                                 \
+    if (_ret != hixl::SUCCESS) {                                              \
+      REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret:%u.", #expr, _ret);   \
+      auto _status = llm::ConvertHixlError2Ge(static_cast<int32_t>(_ret));    \
+      LLMLOGE(_status, __VA_ARGS__);                                          \
+      return _status;                                                         \
+    }                                                                         \
   } while (false)
 
 

@@ -40,7 +40,6 @@ class LayerWiseTransferJob {
                                         const std::vector<std::shared_ptr<void>> &src_layer_addrs,
                                         const TransferCacheConfig &transfer_cache_config,
                                         const TransferBlockConfig &transfer_block_config);
-  ge::Status SynchronizeTransferCache(const int32_t timeout_in_ms);
   ge::Status SynchronizeTransferCacheWithRecord(const int32_t timeout_in_ms);
   ge::Status FillRemoteLayerAddrs(int32_t timeout_in_ms,
                                   TransferCacheConfig &transfer_config,

@@ -224,9 +224,6 @@ ge::Status DataTransferClient::PullCacheByGet(const CacheEntry &cache_entry, con
                                               const PullCacheParam &pull_cache_param, int32_t timeout_in_ms) const {
   auto &request = *PtrToPtr<void, TransferCacheReq>(comm_entity_->GetEntityInfo().local_req_ptr);
   LLM_CHK_STATUS_RET(ConstructTransferInfo(pull_cache_param, cache_entry, cache_key, timeout_in_ms, request));
-  LLM_DISMISSABLE_GUARD(stream, [this]() -> void {
-    LLM_CHK_ACL(aclrtStreamAbort(comm_entity_->GetStream()));
-  });
   CacheEntry remote_cache_entry;
   LLM_CHK_STATUS_RET(comm_entity_->GetCacheAccessTable().FindCacheEntry(request, remote_cache_entry));
   LLM_CHK_BOOL_RET_STATUS(cache_entry.remote_accessible, ge::LLM_PARAM_INVALID,
@@ -241,7 +238,6 @@ ge::Status DataTransferClient::PullCacheByGet(const CacheEntry &cache_entry, con
   LLMLOGI("pull_cache begin from the offset: %u.", offset);
   LLM_CHK_STATUS_RET(job.Initialize(remote_cache_entry, *comm_entity_, offset));
   LLM_CHK_STATUS_RET(job.PullCache(), "Failed to pull cache");
-  LLM_DISMISS_GUARD(stream);
   return ge::SUCCESS;
 }
 }  // namespace llm

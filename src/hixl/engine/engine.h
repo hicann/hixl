@@ -14,6 +14,8 @@
 #include "hixl/hixl_types.h"
 
 namespace hixl {
+using CallbackProcessor = std::function<Status(int32_t fd, const char *msg, uint64_t msg_len, bool &keep_fd)>;
+
 class Engine {
  public:
   explicit Engine(const AscendString &local_engine) : local_engine_(local_engine.GetString()) {};
@@ -47,6 +49,8 @@ class Engine {
                             int32_t timeout_in_millis = 1000) = 0;
 
   virtual Status GetNotifies(std::vector<NotifyDesc> &notifies) = 0;
+
+  virtual Status RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor) = 0;
 
  private:
   std::string local_engine_;

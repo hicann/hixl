@@ -68,11 +68,17 @@ class CommLinkManager {
 
   void SetCommEntityManager(CommEntityManager *comm_entity_manager);
 
-  void SetCommMemManager(CommMemManager *comm_mem_manager);
-
   void SetCacheManager(CacheManager *cache_manager);
 
   static ge::Status PrepareMemTask(CommLinkManager *link_manager, PrepareMemArg request);
+
+  ge::Status RegisterMem(HcclMem *mem, void **mem_handle);
+  ge::Status DeregisterGlobalMem(void *mem_handle);
+  std::vector<void *> GetAllRegisterMemHandles();
+
+ protected:
+  std::mutex handles_mutex_;
+  std::set<void *> handles_;
 
  private:
   void FreeFlagGuard(PrepareMemArg &req);
@@ -93,7 +99,6 @@ class CommLinkManager {
   int32_t link_total_time_ = 0;
   int32_t link_retry_count_ = 1;
   CommEntityManager *comm_entity_manager_{};
-  CommMemManager *comm_mem_manager_{};
   CacheManager *cache_manager_{};
   std::map<uint64_t, CommStatus> comm_to_status_{};
   int32_t device_id_{-1};

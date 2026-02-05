@@ -26,15 +26,7 @@ void DataCacheEngineTestContext::Finalize() {
 
 void DataCacheEngineTestContext::Initialize(size_t pool_size, bool use_host_pool, bool use_batch_get) {
   if (comm_entity_ == nullptr) {
-    comm_entity_manager_.SetCommMemManager(&comm_mem_manager_);
-    comm_entity_manager_.Initialize(!use_batch_get);
-    CommEntityParams param{.comm_id = 0, .peer_cluster_id = 0, .peer_rank_id = 0,
-                           .local_cluster_id = 0, .local_rank_id = 0, .remote_cache_accessible = use_batch_get};
-    EXPECT_EQ(comm_entity_manager_.CreateEntity(param, comm_entity_), ge::SUCCESS);
-    comm_entity_->SetCacheManager(&cache_manager_);
-    cache_engine_.SetCommEntityManager(&comm_entity_manager_);
-    cache_engine_.SetCommMemManager(&comm_mem_manager_);
-    cache_engine_.SetCacheManager(&cache_manager_);
+    std::cout << "DataCacheEngineTestContext::Initialize" << std::endl;
     std::map<ge::AscendString, ge::AscendString> options;
     std::string config_value = "{\"memory_size\": " + std::to_string(pool_size) + ", \"page_shift\": 16}";
     options[llm::LLM_OPTION_MEM_POOL_CONFIG] = config_value.c_str();
@@ -45,6 +37,20 @@ void DataCacheEngineTestContext::Initialize(size_t pool_size, bool use_host_pool
     if (use_batch_get) {
       options[llm::kLlmOptionEnableRemoteCacheAccessible] = "1";
     }
+
+    hccl_transfer_engine_.SetCommEntityManager(&comm_entity_manager_);
+    hccl_transfer_engine_.SetCacheManager(&cache_manager_);
+    comm_mem_manager_.Initialize(&hccl_transfer_engine_);
+    GlobalMemManager::GetInstance().Initialize(&hccl_transfer_engine_);
+    hccl_transfer_engine_.Initialize(options);
+    comm_entity_manager_.Initialize(!use_batch_get);
+    comm_entity_ = std::make_shared<CommEntity>(0, 0, 0, 0, 0);
+    comm_entity_->Initialize(use_batch_get);
+    comm_entity_->SetCacheManager(&cache_manager_);
+    comm_entity_manager_.AddEntity(0, comm_entity_);
+    cache_engine_.SetCommEntityManager(&comm_entity_manager_);
+    cache_engine_.SetCommMemManager(&comm_mem_manager_);
+    cache_engine_.SetCacheManager(&cache_manager_);
     cache_engine_.Initialize(options);
   }
 }

@@ -49,7 +49,7 @@ Status Channel::GetStatus(ChannelHandle channel_handle, int32_t *status_out) {
   return SUCCESS;
 }
 
-Status Channel::Destroy() {
+Status Channel::Destroy() const {
   const ChannelHandle ch_list[1] = {channel_handle_};
   HIXL_CHK_HCCL_RET(HcommChannelDestroy(ch_list, 1U));
 

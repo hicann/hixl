@@ -63,21 +63,6 @@ ge::Status DataTransferUtils::SendCache(const aclrtStream stream, CommEntity &co
   return ge::SUCCESS;
 }
 
-ge::Status DataTransferUtils::SendCache(const aclrtStream stream, CommEntity &comm_entity,
-                                        std::list<HcclOneSideOpDesc> &transfer_tasks) {
-  std::vector<HcclOneSideOpDesc> desces;
-  while (!transfer_tasks.empty()) {
-    HcclOneSideOpDesc send_task = transfer_tasks.front();
-    transfer_tasks.pop_front();
-    desces.emplace_back(send_task);
-  }
-  LLMLOGI("comm entity:%s begin send cache, cache size:%zu", comm_entity.GetDesc().c_str(), desces.size());
-  LLM_CHK_STATUS_RET(SendBatchCache(stream, desces, comm_entity),
-                    "comm_entity:%s put batch cache data to remote cluster[%lu] failed, data num:%zu",
-                    comm_entity.GetDesc().c_str(), comm_entity.GetClusterId(), desces.size());
-  return ge::SUCCESS;
-}
-
 ge::Status DataTransferUtils::QueryEventStatus(const aclrtEvent &event, aclrtEventRecordedStatus &status) {
   if (event != nullptr) {
     LLM_ASSERT_RT_OK(aclrtQueryEventStatus(event, &status));

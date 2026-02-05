@@ -14,60 +14,19 @@
 #include "common/llm_checker.h"
 #include "common/mem_utils.h"
 #include "data_transfer/data_transfer_job.h"
+#include "cache_mgr/comm_mem_manager.h"
 #include "fsm/state_manager.h"
 #include "common/llm_scope_guard.h"
 
 namespace llm {
-namespace {
-constexpr size_t kHostBufferSize = 1UL * 1024 * 1024 * 1024;
-constexpr size_t kAlignment = 4096U;
-}  // namespace
-
-ge::Status CommEntityManager::CreateEntity(const CommEntityParams &entity_params,
-                                           const EntityCommInfo::CommParams &comm_params,
-                                           EntityPtr &entity_ptr) {
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    const auto &it = cluster_id_to_entity_id_.find(entity_params.peer_cluster_id);
-    LLM_CHK_BOOL_RET_STATUS(it == cluster_id_to_entity_id_.cend(), ge::LLM_ALREADY_LINK,
-                           "Link already exists, peer cluster id:%lu", entity_params.peer_cluster_id);
-  }
-  EntityPtr entity = MakeShared<CommEntity>(entity_params.comm_id, entity_params.peer_cluster_id,
-                                            entity_params.peer_rank_id, entity_params.local_cluster_id,
-                                            entity_params.local_rank_id);
-  LLM_CHECK_NOTNULL(entity);
-  entity->SetHostMemPool(host_mem_pool_.get());
-  LLM_CHK_STATUS_RET(entity->Initialize(entity_params.remote_cache_accessible, comm_params),
-                    "Failed to init entity");
+ge::Status CommEntityManager::AddEntity(uint64_t peer_cluster_id, EntityPtr entity_ptr) {
   auto entity_id = entity_id_gen_.fetch_add(1UL, std::memory_order::memory_order_relaxed);
   mgr_high_priority_flag_.store(true);
   std::lock_guard<std::mutex> lock(mutex_);
-  (void)entity_map_.emplace(entity_id, entity);
-  cluster_id_to_entity_id_[entity_params.peer_cluster_id] = entity_id;
+  (void)entity_map_.emplace(entity_id, entity_ptr);
+  cluster_id_to_entity_id_[peer_cluster_id] = entity_id;
   mgr_high_priority_flag_.store(false);
-  entity_ptr = entity;
-  LLMLOGI("Create entity success, peer cluster id:%lu, local cluster id:%lu",
-         entity_params.peer_cluster_id, entity_params.local_cluster_id);
-  return ge::SUCCESS;
-}
-
-ge::Status CommEntityManager::CreateEntity(const CommEntityParams &entity_params, EntityPtr &entity_ptr) {
-  EntityPtr entity = MakeShared<CommEntity>(entity_params.comm_id, entity_params.peer_cluster_id,
-                                            entity_params.peer_rank_id, entity_params.local_cluster_id,
-                                            entity_params.local_rank_id);
-  LLM_CHECK_NOTNULL(entity);
-  entity->SetHostMemPool(host_mem_pool_.get());
-  LLM_CHK_STATUS_RET(entity->Initialize(entity_params.remote_cache_accessible),
-                    "Failed to init entity");
-  auto entity_id = entity_id_gen_.fetch_add(1UL, std::memory_order::memory_order_relaxed);
-  mgr_high_priority_flag_.store(true);
-  std::lock_guard<std::mutex> lock(mutex_);
-  (void)entity_map_.emplace(entity_id, entity);
-  cluster_id_to_entity_id_[entity_params.peer_cluster_id] = entity_id;
-  mgr_high_priority_flag_.store(false);
-  entity_ptr = entity;
-  LLMLOGI("Create entity success, peer cluster id:%lu, local cluster id:%lu",
-         entity_params.peer_cluster_id, entity_params.local_cluster_id);
+  LLMLOGI("Add entity success, peer cluster id:%lu, entity id:%lu", peer_cluster_id, entity_id);
   return ge::SUCCESS;
 }
 
@@ -89,6 +48,8 @@ ge::Status CommEntityManager::DestroyEntity(uint64_t peer_cluster_id) {
       entity_map_.erase(entity_id);
     }
     LLMLOGI("Destroy entity end, peer cluster id = %lu", peer_cluster_id);
+  } else {
+    LLMLOGW("Entity not found, peer cluster id = %lu", peer_cluster_id);
   }
   return ret;
 }
@@ -178,10 +139,6 @@ void CommEntityManager::HandleCacheRequest() {
   }
 }
 
-void CommEntityManager::SetCommMemManager(CommMemManager *comm_mem_manager) {
-  comm_mem_manager_ = comm_mem_manager;
-}
-
 ge::Status CommEntityManager::Initialize(bool start_service) {
   start_service_ = start_service;
   if (!start_service) {
@@ -190,17 +147,6 @@ ge::Status CommEntityManager::Initialize(bool start_service) {
   }
   LLM_CHK_ACL_RET(aclrtGetCurrentContext(&aclrt_context_));
   cache_engine_thread_ = std::thread(&CommEntityManager::HandleCacheRequest, this);
-  ScalableConfig config{};
-  config.page_mem_size_total_threshold = kHostBufferSize;
-  host_mem_pool_ = MakeUnique<LlmMemPool>(config);
-  LLM_CHECK_NOTNULL(host_mem_pool_);
-  host_buffer_ = MakeShared<AlignedPtr>(kHostBufferSize, kAlignment);
-  LLM_CHECK_NOTNULL(host_buffer_);
-  LLM_CHK_STATUS_RET(host_mem_pool_->Initialize(host_buffer_->MutableGet(), kHostBufferSize),
-                    "Failed to initialize host memory pool");
-  LLM_CHECK_NOTNULL(comm_mem_manager_);
-  LLM_CHK_STATUS_RET(comm_mem_manager_->RegisterCommMemAddr(host_buffer_->MutableGet(),
-                                                           kHostBufferSize, HCCL_MEM_TYPE_HOST));
   LLM_CHK_STATUS_RET(host_reg_pool_.Initialize(), "Failed to init host reg buffer pool");
   LLM_CHK_STATUS_RET(device_reg_pool_.Initialize(), "Failed to init device reg buffer pool");
   return ge::SUCCESS;
@@ -220,6 +166,7 @@ void CommEntityManager::Finalize() {
   cluster_id_to_entity_id_.clear();
   host_reg_pool_.Finalize();
   device_reg_pool_.Finalize();
+  LLMLOGI("CommEntityManager finalize end");
 }
 
 void CommEntityManager::Dump() {

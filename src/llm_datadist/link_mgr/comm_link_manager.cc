@@ -156,7 +156,8 @@ void CommLinkManager::FlagGuard(PrepareMemArg &req) {
 
 ge::Status CommLinkManager::PrepareComm(const PrepareMemArg &req,
                                         EntityCommInfoPtr &comm_info_ptr) {
-  comm_info_ptr = MakeShared<EntityCommInfo>(req.comm, req.mem_handles, req.link_total_time, req.link_retry_count);
+  comm_info_ptr = MakeShared<EntityCommInfo>(req.comm, GetAllRegisterMemHandles(),
+                                             req.link_total_time, req.link_retry_count);
   LLM_CHECK_NOTNULL(comm_info_ptr);
   {
     std::lock_guard<std::mutex> lock(map_mutex_);
@@ -174,16 +175,10 @@ ge::Status CommLinkManager::CreateClustersEntity(PrepareMemArg &req,
   for (auto &iter : req.cluster2rank) {
     if (iter.first != cluster_id_) {
       // create comm entity
-      EntityPtr entity = nullptr;
-      CommEntityParams params{};
-      params.comm_id = req.comm_id;
-      params.peer_cluster_id = iter.first;
-      params.peer_rank_id = iter.second;
-      params.local_cluster_id = cluster_id_;
-      params.local_rank_id = local_rank_id;
-      params.remote_cache_accessible = remote_cache_accessible_;
-      LLM_CHK_STATUS_RET(comm_entity_manager_->CreateEntity(params, entity), "Failed to create entity");
-      LLM_CHK_BOOL_RET_STATUS(entity != nullptr, ge::FAILED, "CreateEntity failed.");
+      EntityPtr entity = MakeShared<CommEntity>(req.comm_id, iter.first, iter.second, cluster_id_,
+                                                local_rank_id);
+      LLM_CHECK_NOTNULL(entity);
+      LLM_CHK_STATUS_RET(entity->Initialize(remote_cache_accessible_), "Failed to init entity");
       LLMLOGI("Success to create comm entity:%s", entity->GetDesc().c_str());
       auto mem_info_ptr = MakeUnique<EntityMemInfo>(remote_cache_accessible_,
                                                     comm_entity_manager_->GetHostRegPool(),
@@ -212,6 +207,11 @@ ge::Status CommLinkManager::PrepareMem(PrepareMemArg &req) {
   LLM_MAKE_GUARD(free_flag, ([this, &req]() { FreeFlagGuard(req); }));
   LLM_ASSERT_RT_OK(aclrtSetCurrentContext(aclrt_context_));
   std::map<uint64_t, EntityPtr> cluster2entity;
+  ScopeGuard entity_guard([&cluster2entity]() {
+    for (auto &iter : cluster2entity) {
+      (void) iter.second->Finalize();
+    }
+  });
   LLM_CHK_STATUS_RET(CreateClustersEntity(req, cluster2entity), "Failed to create clusters entity.");
   EntityCommInfoPtr comm_info_ptr = nullptr;
   FreeFlagGuard(req);
@@ -234,6 +234,8 @@ ge::Status CommLinkManager::PrepareMem(PrepareMemArg &req) {
       entity->SetEntityCommInfo(comm_info_ptr);
       LLM_CHK_STATUS_RET(ExchangeMem(entity, local_rank_id, iter.second), "Failed to exchange mem");
       LLM_CHK_STATUS_RET(entity->SetInfo(), "Failed to set entity info");
+      LLM_CHK_STATUS_RET(comm_entity_manager_->AddEntity(iter.first, entity),
+                         "Failed to add entity");
       (void)new_entities.emplace_back(entity);
     }
   }
@@ -241,6 +243,7 @@ ge::Status CommLinkManager::PrepareMem(PrepareMemArg &req) {
     std::lock_guard<std::mutex> process_lock(entity->GetProcessMutex());
     entity->MarkEntityIdle();
   }
+  entity_guard.Dismiss();
   return ge::SUCCESS;
 }
 
@@ -349,7 +352,7 @@ ge::Status CommLinkManager::Link(std::string &cluster_name, const std::map<uint6
     comm_status.unlink_flag.store(false);
     comm_status.prepare_mem_flag.store(false);
     comm_status.status = RegisterMemoryStatus::PREPARING;
-    PrepareMemArg prepare_mem_arg{comm_id, comm, cluster2rank, comm_mem_manager_->GetAllRegisterMemHandles(), 
+    PrepareMemArg prepare_mem_arg{comm_id, comm, cluster2rank, GetAllRegisterMemHandles(),
                                   link_total_time_, link_retry_count_};
     auto fut = thread_pool_.commit(&CommLinkManager::PrepareMemTask, this, prepare_mem_arg);
     comm_status.task_fut = std::move(fut);
@@ -423,12 +426,38 @@ void CommLinkManager::SetCommEntityManager(CommEntityManager *comm_entity_manage
   comm_entity_manager_ = comm_entity_manager;
 }
 
-void CommLinkManager::SetCommMemManager(CommMemManager *comm_mem_manager) {
-  comm_mem_manager_ = comm_mem_manager;
-}
-
 void CommLinkManager::SetCacheManager(CacheManager *cache_manager) {
   cache_manager_ = cache_manager;
 }
 
+ge::Status CommLinkManager::RegisterMem(HcclMem *mem, void **mem_handle) {
+  auto ret = HcclAdapter::GetInstance().HcclRegisterGlobalMem(mem, mem_handle);
+  LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke HcclRegisterGlobalMem, ret = %d",
+                         static_cast<int32_t>(ret));
+  LLMLOGI("Register global mem success, addr:%p, size:%lu, type:%d, handle:%p",
+          mem->addr, mem->size, static_cast<int32_t>(mem->type), *mem_handle);
+
+  std::lock_guard<std::mutex> lock(handles_mutex_);
+  handles_.emplace(*mem_handle);
+  return ge::SUCCESS;
+}
+
+ge::Status CommLinkManager::DeregisterGlobalMem(void *mem_handle) {
+  std::lock_guard<std::mutex> lock(handles_mutex_);
+  auto it = handles_.find(mem_handle);
+  if (it == handles_.end()) {
+    LLMLOGW("Mem handle:%p is not registered.", mem_handle);
+    return ge::SUCCESS;
+  }
+  auto ret = HcclAdapter::GetInstance().HcclDeregisterGlobalMem(mem_handle);
+  LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke HcclDeregisterGlobalMem, ret = %d",
+                         static_cast<int32_t>(ret));
+  handles_.erase(it);
+  return ge::SUCCESS;
+}
+
+std::vector<void *> CommLinkManager::GetAllRegisterMemHandles() {
+  std::lock_guard<std::mutex> lock(handles_mutex_);
+  return std::vector<void *>(handles_.begin(), handles_.end());
+}
 }  // namespace llm

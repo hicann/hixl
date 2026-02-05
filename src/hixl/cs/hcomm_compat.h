@@ -8,11 +8,11 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "hcomm/hcomm_res_defs.h"
-#include "common/hixl_log.h"
-
 #ifndef CANN_HIXL_SRC_HCOMM_COMPAT_H_
 #define CANN_HIXL_SRC_HCOMM_COMPAT_H_
+
+#include "hcomm/hcomm_res_defs.h"
+#include "common/hixl_log.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -15,21 +15,11 @@
 #include <thread>
 #include "common/llm_inner_types.h"
 #include "comm_entity.h"
-#include "cache_mgr/comm_mem_manager.h"
 #include "common/aligned_ptr.h"
 
 namespace llm {
 using EntityPtr = std::shared_ptr<CommEntity>;
 constexpr uint64_t kMaxEntitySize = 512U;
-
-struct CommEntityParams {
-  uint64_t comm_id;
-  uint64_t peer_cluster_id;
-  uint32_t peer_rank_id;
-  uint64_t local_cluster_id;
-  uint32_t local_rank_id;
-  bool remote_cache_accessible;
-};
 
 class CommEntityManager {
  public:
@@ -37,16 +27,12 @@ class CommEntityManager {
   ~CommEntityManager() = default;
   ge::Status Initialize(bool start_service = true);
   void Finalize();
-  ge::Status CreateEntity(const CommEntityParams &entity_params, EntityPtr &entity_ptr);
-  ge::Status CreateEntity(const CommEntityParams &entity_params,
-                          const EntityCommInfo::CommParams &comm_params,
-                          EntityPtr &entity_ptr);
+  ge::Status AddEntity(uint64_t peer_cluster_id, EntityPtr entity_ptr);
   ge::Status DestroyEntity(uint64_t peer_cluster_id);
   EntityPtr GetEntityByRemoteClusterId(const uint64_t remote_cluster_id);
   std::vector<EntityPtr> QueryEntityByCommId(uint64_t comm_id);
   void Dump();
   void DeleteEntities();
-  void SetCommMemManager(CommMemManager *comm_mem_manager);
   size_t GetEntitySize();
   ge::Status RemapRegisteredMemory(const std::vector<LLMMemInfo> &mem_infos);
   RegBufferPool *GetHostRegPool();
@@ -62,7 +48,6 @@ class CommEntityManager {
   std::shared_ptr<AlignedPtr> host_buffer_;
   aclrtContext aclrt_context_{};
   std::atomic_uint64_t entity_id_gen_{1LU};
-  CommMemManager *comm_mem_manager_{};
   std::atomic_bool mgr_high_priority_flag_{false};
   std::mutex mutex_;
   std::unordered_map<uint64_t, EntityPtr> entity_map_{};

@@ -55,8 +55,8 @@ class HixlCSServer {
   Status InitTransFinishedFlag();
   static Status SendCreateChannelResp(int32_t fd,
                                       const CreateChannelResp &resp);
-  Status SendRemoteMemResp(int32_t fd,
-                           const GetRemoteMemResp &resp);
+  static Status SendRemoteMemResp(int32_t fd,
+                                  const GetRemoteMemResp &resp);
 
   std::string ip_;
   uint32_t port_ = 0U;

@@ -114,13 +114,13 @@ class EntityCommInfo {
   EntityCommInfo(const HcclComm &comm, std::vector<void *> mem_handles, int32_t link_total_time, int32_t link_retry_count);
   ~EntityCommInfo();
   ge::Status Initialize();
-  ge::Status Finalize();
 
  private:
   friend class CommEntity;
   friend class CommLinkManager;
 
   ge::Status PrepareHcclComm() const;
+  ge::Status Finalize();
 
   std::atomic<bool> stop_flag_{false};
   std::mutex mutex_;
@@ -137,9 +137,8 @@ class CommEntity {
   CommEntity(uint64_t comm_id, uint64_t cluster_id, uint32_t rank_id,
              uint64_t local_cluster_id, uint32_t local_rank_id);
   ge::Status Initialize(bool remote_cache_accessible);
-  ge::Status Initialize(bool remote_cache_accessible, const EntityCommInfo::CommParams &params);
-  ge::Status Finalize();
-  ~CommEntity();
+  virtual ge::Status Finalize();
+  virtual ~CommEntity();
   void ClearReqFlag() const;
   ge::Status SetInfo();
   bool CheckEntityInfo() const;
@@ -164,12 +163,12 @@ class CommEntity {
   void MarkEntityDestroyed();
   void MarkEntityError();
   void MarkEntityIdle();
-  void SetHostMemPool(LlmMemPool *host_mem_pool);
-  LlmMemPool *GetHostMemPool() const;
   void SetEntityMemInfo(EntityMemInfoPtr &mem_info);
   void SetEntityCommInfo(EntityCommInfoPtr comm_info);
   ge::Status BatchPutAsync(std::vector<HcclOneSideOpDesc> &op_descs, aclrtStream stream = nullptr);
   ge::Status BatchGetAsync(std::vector<HcclOneSideOpDesc> &op_descs, aclrtStream stream = nullptr);
+  virtual ge::Status BatchTransfer(std::list<HcclOneSideOpDesc> &tasks, bool is_put,
+                                   bool reversed, int32_t timeout_ms);
   SendStatisticInfo &GetSendStatisticInfo(aclrtStream stream = nullptr);
   RecvStatisticInfo &GetRecvStatisticInfo();
   void Dump() const;

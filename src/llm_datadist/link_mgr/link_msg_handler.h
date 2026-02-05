@@ -16,7 +16,6 @@
 #include "llm_datadist/llm_error_codes.h"
 #include "common/llm_inner_types.h"
 #include "comm_entity_manager.h"
-#include "cache_mgr/comm_mem_manager.h"
 #include "cache_mgr/cache_manager.h"
 #include "common/msg_handler_plugin.h"
 
@@ -52,15 +51,16 @@ struct LLMDisconnectInfo {
   int32_t timeout;
 };
 
+using GetMemHandles = std::function<std::vector<void *> ()>;
+
 class LinkMsgHandler {
  public:
   LinkMsgHandler(uint64_t cluster_id, int32_t device_id, CommEntityManager *comm_entity_manager,
-                 CommMemManager *comm_mem_manager, CacheManager *cache_manager)
+                 CacheManager *cache_manager)
       : cluster_id_(cluster_id),
         device_id_(device_id),
         remote_cache_accessible_(true),
         comm_entity_manager_(comm_entity_manager),
-        comm_mem_manager_(comm_mem_manager),
         cache_manager_(cache_manager),
         comm_config_{},
         aclrt_context_(nullptr) {};
@@ -73,6 +73,7 @@ class LinkMsgHandler {
   ge::Status LinkCluster(const ClusterInfo &cluster, int32_t timeout);
   ge::Status UnlinkCluster(const ClusterInfo &cluster, int32_t timeout, bool force_flag) const;
   size_t GetLinkSize() const;
+  void SetMemHandlesCallback(GetMemHandles callback);
 
  private:
   template<typename T>
@@ -98,7 +99,6 @@ class LinkMsgHandler {
   int32_t device_id_;
   bool remote_cache_accessible_;
   CommEntityManager *comm_entity_manager_;
-  CommMemManager *comm_mem_manager_;
   CacheManager *cache_manager_;
   MsgHandlerPlugin handler_plugin_;
   std::string local_comm_name_;
@@ -107,6 +107,7 @@ class LinkMsgHandler {
   std::mutex mutex_;
   std::string local_ip_;
   std::string local_comm_res_;
+  GetMemHandles mem_handles_callback_;
 };
 }  // namespace llm
 #endif  // CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_LINK_MSG_HANDLER_H_

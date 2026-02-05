@@ -80,7 +80,7 @@ RegBufferPool::~RegBufferPool() {
 
 void RegBufferPool::Finalize() {
   if (handle_ != nullptr) {
-    GlobalMemManager::GetInstance().UnregisterMem(handle_);
+    (void) GlobalMemManager::GetInstance().UnregisterMem(handle_);
     handle_ = nullptr;
   }
 }
@@ -194,12 +194,6 @@ ge::Status EntityCommInfo::Initialize() {
     bind_handles_.emplace_back(reg_handle);
   }
 
-  for (auto reg_handle : GlobalMemManager::GetInstance().GetAllRegisterMemHandles()) {
-    HcclResult bind_ret = HcclAdapter::GetInstance().HcclCommBindMem(comm_, reg_handle);
-    LLM_CHK_BOOL_RET_STATUS(bind_ret == HcclResult::HCCL_SUCCESS, ge::LLM_LINK_FAILED,
-                          "Call HcclCommBindMem failed, ret:%d.", bind_ret);
-    bind_handles_.emplace_back(reg_handle);
-  }
   LLM_CHK_STATUS_RET(PrepareHcclComm(), "Failed to prepare hccl comm");
   LLM_CHK_BOOL_RET_STATUS(params_.timeout >= 0, ge::LLM_PARAM_INVALID, 
                          "timeout should be greater than or equal 0, given value is %d", params_.timeout);
@@ -272,23 +266,12 @@ CommEntity::CommEntity(uint64_t comm_id, uint64_t cluster_id, uint32_t rank_id,
 }
 
 ge::Status CommEntity::Initialize(bool remote_cache_accessible) {
+  LLMLOGI("comm entity init begin, remote_cache_accessible:%d", static_cast<int32_t>(remote_cache_accessible));
   LLM_CHK_STATUS_RET(cache_access_table_.Initialize(remote_cache_accessible));
   LLM_ASSERT_RT_OK(aclrtCreateStreamWithConfig(&stream_, 0,
                   ACL_STREAM_FAST_LAUNCH | ACL_STREAM_FAST_SYNC));
   LLMLOGI("Entity:%s initialize success, stream:%p, remote_cache_accessible:%d",
          desc_.c_str(), stream_, static_cast<int32_t>(remote_cache_accessible));
-  return ge::SUCCESS;
-}
-
-ge::Status CommEntity::Initialize(bool remote_cache_accessible, const EntityCommInfo::CommParams &params) {
-  LLM_CHK_STATUS_RET(cache_access_table_.Initialize(remote_cache_accessible));
-  comm_info_ptr_ = MakeShared<EntityCommInfo>(params);
-  LLM_CHECK_NOTNULL(comm_info_ptr_);
-  LLM_CHK_STATUS_RET(comm_info_ptr_->Initialize(), "Failed to init communication.");
-  inner_comm_ = true;
-  LLM_ASSERT_RT_OK(aclrtCreateStreamWithConfig(&stream_, 0,
-                  ACL_STREAM_FAST_LAUNCH | ACL_STREAM_FAST_SYNC));
-  LLMLOGI("Entity:%s initialize success, stream:%p", desc_.c_str(), stream_);
   return ge::SUCCESS;
 }
 
@@ -300,9 +283,7 @@ ge::Status CommEntity::Finalize() {
     ret = aclrt_ret != ACL_ERROR_NONE ? ge::LLM_UNLINK_FAILED : ret;
   }
 
-  if (comm_info_ptr_ != nullptr && inner_comm_) {
-    auto comm_ret = comm_info_ptr_->Finalize();
-    ret = comm_ret != ge::SUCCESS ? ge::LLM_UNLINK_FAILED : ret;
+  if (comm_info_ptr_ != nullptr) {
     comm_info_ptr_.reset();
     comm_info_ptr_ = nullptr;
   }
@@ -317,7 +298,6 @@ ge::Status CommEntity::Finalize() {
 }
 
 CommEntity::~CommEntity() {
-  (void) Finalize();
   if (mem_info_ptr_ != nullptr) {
     aclrtSetCurrentContext(aclrt_context_);
     mem_info_ptr_.reset();
@@ -369,10 +349,9 @@ void CommEntity::ClearReqFlag() const {
 
 ge::Status CommEntity::SetInfo() {
   auto transfer_func = [this](void *remote, void *local, size_t size, int32_t timeout) -> ge::Status {
-    std::vector<HcclOneSideOpDesc> op_descs;
+    std::list<HcclOneSideOpDesc> op_descs;
     op_descs.emplace_back(HcclOneSideOpDesc{local, remote, size, HCCL_DATA_TYPE_UINT8});
-    LLM_CHK_STATUS_RET(BatchGetAsync(op_descs, stream_));
-    LLM_CHK_ACL_RET(aclrtSynchronizeStreamWithTimeout(stream_, timeout));
+    LLM_CHK_STATUS_RET(BatchTransfer(op_descs, false, false, timeout), "Failed to batch get");
     return ge::SUCCESS;
   };
 
@@ -494,14 +473,6 @@ void CommEntity::SetContext(aclrtContext context) {
   aclrt_context_ = context;
 }
 
-void CommEntity::SetHostMemPool(LlmMemPool *host_mem_pool) {
-  host_mem_pool_ = host_mem_pool;
-}
-
-LlmMemPool *CommEntity::GetHostMemPool() const {
-  return host_mem_pool_;
-}
-
 void CommEntity::SetEntityMemInfo(EntityMemInfoPtr &mem_info) {
   mem_info_ptr_ = std::move(mem_info);
 }
@@ -556,6 +527,48 @@ ge::Status CommEntity::BatchGetAsync(std::vector<HcclOneSideOpDesc> &op_descs, a
       cost, recv_statistic_info_.batch_get_times, recv_statistic_info_.batch_get_min_cost,
       recv_statistic_info_.batch_get_max_cost, recv_statistic_info_.batch_get_total_cost);
   recv_statistic_info_.get_total_num += op_descs.size();
+  return ge::SUCCESS;
+}
+
+ge::Status CommEntity::BatchTransfer(std::list<HcclOneSideOpDesc> &tasks, bool is_put, bool reversed, int32_t timeout_ms) {
+  LLM_DISMISSABLE_GUARD(stream, [this]() -> void {
+    LLM_CHK_ACL(aclrtStreamAbort(stream_));
+  });
+  const auto start = std::chrono::steady_clock::now();
+  BufferedSender buffered_sender;
+  buffered_sender.Initialize(*this, stream_, is_put);
+  auto task_num = tasks.size();
+  LLMLOGI("task num = %zu", task_num);
+  while (!tasks.empty()) {
+    auto op_desc = tasks.front();
+    tasks.pop_front();
+    // local, remote is reversed in get mode
+    if (reversed) {
+      std::swap(op_desc.localAddr, op_desc.remoteAddr);
+    }
+    LLM_CHK_STATUS_RET(buffered_sender.Put(op_desc.localAddr, op_desc.remoteAddr, op_desc.count));
+  }
+  LLM_CHK_STATUS_RET(buffered_sender.Flush());
+  const auto ret = aclrtSynchronizeStreamWithTimeout(stream_, timeout_ms);
+  LLM_CHK_BOOL_RET_STATUS(ret == ACL_ERROR_NONE,
+                         llm::ConvertAclError2Ge(ret),
+                         "Failed to sync stream, rt_ret = %d", ret);
+  const auto end = std::chrono::steady_clock::now();
+  const auto cost = static_cast<uint64_t>(
+      std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+  LLMLOGI("sync stream success, cost = %ld us.", cost);
+  if (is_put) {
+    auto &send_statistic_info = GetSendStatisticInfo(stream_);
+    StatisticManager::GetInstance().UpdateCost(
+        cost, send_statistic_info.batch_put_times, send_statistic_info.batch_put_min_cost,
+        send_statistic_info.batch_put_max_cost, send_statistic_info.batch_put_total_cost);
+    send_statistic_info.send_total_num += task_num;
+  } else {
+    auto &recv_statistic_info = GetRecvStatisticInfo();
+    StatisticManager::UpdateCost(cost, recv_statistic_info.pull_times, recv_statistic_info.pull_min_cost,
+                                recv_statistic_info.pull_max_cost, recv_statistic_info.pull_total_cost);
+  }
+  LLM_DISMISS_GUARD(stream);
   return ge::SUCCESS;
 }
 

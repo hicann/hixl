@@ -36,7 +36,6 @@ class MsgHandlerPlugin {
   static void Disconnect(int32_t conn_fd);
   static ge::Status SendMsg(int32_t fd, int32_t msg_type, const std::string &msg_str);
   static ge::Status RecvMsg(int32_t fd, int32_t &msg_type, std::vector<char> &msg);
-  static ge::Status RecvMsg(int32_t fd, int32_t &msg_type, std::vector<char> &msg, uint64_t length);
 
  private:
   void ListenClose();

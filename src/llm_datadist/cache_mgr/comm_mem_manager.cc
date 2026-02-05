@@ -18,20 +18,31 @@ GlobalMemManager &GlobalMemManager::GetInstance() {
   return instance;
 }
 
+ge::Status GlobalMemManager::Initialize(TransferEngine *transfer_engine) {
+  LLM_CHECK_NOTNULL(transfer_engine);
+  transfer_engine_ = transfer_engine;
+  return ge::SUCCESS;
+}
+
 ge::Status GlobalMemManager::RegisterMem(void *addr, uint64_t size, HcclMemType type, void *&handle) {
-  HcclMem hccl_mem = {};
-  hccl_mem.type = type;
-  hccl_mem.addr = addr;
-  hccl_mem.size = size;
-  auto ret = HcclAdapter::GetInstance().HcclRegisterGlobalMem(&hccl_mem, &handle);
-  LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke HcclRegisterGlobalMem, ret = %d",
-                         static_cast<int32_t>(ret));
+  LLM_CHK_STATUS_RET(transfer_engine_->RegisterMem(addr, size, type, handle),
+                     "Failed to register mem");
   LLMLOGI("Register global mem success, addr:%p, size:%lu, type:%d, handle:%p",
          addr, size, static_cast<int32_t>(type), handle);
 
   std::lock_guard<std::mutex> lock(mutex_);
   handles_.emplace(handle);
   return ge::SUCCESS;
+}
+
+void GlobalMemManager::Finalize() {
+  LLMLOGI("GlobalMemManager finalize start");
+  std::lock_guard<std::mutex> lock(mutex_);
+  for (auto handle : handles_) {
+    (void) HcclAdapter::GetInstance().HcclDeregisterGlobalMem(handle);
+  }
+  handles_.clear();
+  LLMLOGI("GlobalMemManager finalize end");
 }
 
 ge::Status GlobalMemManager::UnregisterMem(void *handle) {
@@ -41,29 +52,17 @@ ge::Status GlobalMemManager::UnregisterMem(void *handle) {
     LLMLOGW("Failed to find register cache mem, handle = %p", handle);
     return ge::SUCCESS;
   }
-  auto ret = HcclAdapter::GetInstance().HcclDeregisterGlobalMem(handle);
-  LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke HcclDeregisterGlobalMem, ret = %d",
-                         static_cast<int32_t>(ret));
+  LLM_CHK_STATUS_RET(transfer_engine_->UnregisterMem(handle), "Failed to unregister mem");
   handles_.erase(handle);
   LLMLOGI("Unregister global mem handle success, handle:%p", handle);
   return ge::SUCCESS;
-}
-
-std::vector<void *> GlobalMemManager::GetAllRegisterMemHandles() {
-  std::lock_guard<std::mutex> lock(mutex_);
-  return std::vector<void *>(handles_.begin(), handles_.end());
-}
+ }
 
 void CommMemManager::Finalize() {
   std::lock_guard<std::mutex> lock(mutex_);
-  for (auto handle : comm_register_mem_handles_) {
-    HcclAdapter::GetInstance().HcclDeregisterGlobalMem(handle);
-  }
-  comm_register_mem_handles_.clear();
-
   for (const auto &it : cache_id_to_mems_) {
     for (auto handle : it.second.mem_handles) {
-      HcclAdapter::GetInstance().HcclDeregisterGlobalMem(handle);
+      (void) transfer_engine_->UnregisterMem(handle);
     }
   }
   registered_cache_mem_.clear();
@@ -71,41 +70,9 @@ void CommMemManager::Finalize() {
   return;
 }
 
-ge::Status CommMemManager::RegisterMem(void *addr, uint64_t size, HcclMemType type, void *&handle) {
-  HcclMem hccl_mem = {};
-  hccl_mem.type = type;
-  hccl_mem.addr = addr;
-  hccl_mem.size = size;
-  auto ret = HcclAdapter::GetInstance().HcclRegisterGlobalMem(&hccl_mem, &handle);
-  LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke HcclRegisterGlobalMem, ret = %d",
-                         static_cast<int32_t>(ret));
-  LLMLOGI("Register tmp mem success, addr:%p, size:%lu, type:%d, handle:%p",
-         addr, size, static_cast<int32_t>(type), handle);
-  return ge::SUCCESS;
-}
-
-ge::Status CommMemManager::UnregisterMem(void *handle) {
-  auto ret = HcclAdapter::GetInstance().HcclDeregisterGlobalMem(handle);
-  LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke HcclDeregisterGlobalMem, ret = %d",
-                         static_cast<int32_t>(ret));
-  LLMLOGI("Unregister tmp mem handle success, handle:%p", handle);
-  return ge::SUCCESS;
-}
-
-ge::Status CommMemManager::RegisterCommMemAddr(void *addr, uint64_t size, HcclMemType type) {
-  HcclMem hccl_mem = {};
-  hccl_mem.type = type;
-  hccl_mem.addr = addr;
-  hccl_mem.size = size;
-  void *mem_handle = nullptr;
-  auto ret = HcclAdapter::GetInstance().HcclRegisterGlobalMem(&hccl_mem, &mem_handle);
-  LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke HcclRegisterGlobalMem, ret = %d",
-                         static_cast<int32_t>(ret));
-  LLMLOGI("Register global mem success, addr:%p, size:%lu, type:%d, handle:%p",
-         addr, size, static_cast<int32_t>(type), mem_handle);
-
-  std::lock_guard<std::mutex> lock(mutex_);
-  comm_register_mem_handles_.emplace_back(mem_handle);
+ge::Status CommMemManager::Initialize(TransferEngine *transfer_engine) {
+  LLM_CHECK_NOTNULL(transfer_engine);
+  transfer_engine_ = transfer_engine;
   return ge::SUCCESS;
 }
 
@@ -129,14 +96,9 @@ ge::Status CommMemManager::RegisterCacheMem(int64_t cache_id,
     if (it != registered_cache_mem_.cend()) {
       continue;
     }
-    HcclMem hccl_mem = {};
-    hccl_mem.type = mem_type;
-    hccl_mem.addr = mem_ptr;
-    hccl_mem.size = tensor_size;
     void *mem_handle = nullptr;
-    auto ret = HcclAdapter::GetInstance().HcclRegisterGlobalMem(&hccl_mem, &mem_handle);
-    LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke HcclRegisterGlobalMem, ret = %d",
-                           static_cast<int32_t>(ret));
+    LLM_CHK_STATUS_RET(transfer_engine_->RegisterMem(mem_ptr, tensor_size, mem_type, mem_handle),
+                       "Failed to register mem");
     mems.mem_handles.emplace_back(mem_handle);
     mems.mem_addrs.emplace_back(key);
     registered_cache_mem_.emplace(key);
@@ -157,9 +119,7 @@ ge::Status CommMemManager::UnregisterCacheMem(int64_t cache_id) {
   }
 
   for (auto handle : it->second.mem_handles) {
-    auto ret = HcclAdapter::GetInstance().HcclDeregisterGlobalMem(handle);
-    LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke HcclDeregisterGlobalMem, ret = %d",
-                           static_cast<int32_t>(ret));
+    LLM_CHK_STATUS_RET(transfer_engine_->UnregisterMem(handle), "Failed to unregister mem");
     LLMLOGI("Unregister global mem handle success, handle:%p, cache_id:%ld",
            handle, cache_id);
   }
@@ -170,16 +130,5 @@ ge::Status CommMemManager::UnregisterCacheMem(int64_t cache_id) {
   cache_id_to_mems_.erase(it);
   LLMLOGI("Unregister cache:[%ld] addrs end", cache_id);
   return ge::SUCCESS;
-}
-
-std::vector<void *> CommMemManager::GetAllRegisterMemHandles() {
-  std::lock_guard<std::mutex> lock(mutex_);
-  std::vector<void *> register_mem_handles = comm_register_mem_handles_;
-  for (const auto &it : cache_id_to_mems_) {
-    register_mem_handles.insert(register_mem_handles.cend(),
-                                it.second.mem_handles.cbegin(), it.second.mem_handles.cend());
-  }
-  LLMLOGI("Get all registered mem handles, size:%zu", register_mem_handles.size());
-  return register_mem_handles;
 }
 }  // namespace llm

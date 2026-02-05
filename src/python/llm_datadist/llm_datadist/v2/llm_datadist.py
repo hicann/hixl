@@ -60,6 +60,7 @@ class LLMDataDist(object):
         raise_if_false(len(value.split(",")) == 1, "ge.flowGraphMemMaxSize only support one mem pool in llm datadist")
         raise_if_false(value.isdigit(), "e.ge.flowGraphMemMaxSize must be digit, config value={0}", value)
 
+
     def init(self, options: Dict[str, str]) -> None:
         """
         初始化LLM DataDist
@@ -73,29 +74,9 @@ class LLMDataDist(object):
                        status_code=LLMStatusCode.LLM_FAILED)
         check_isinstance("options", options, dict)
         self._check_flow_graph_max_size(options)
-        self._engine_options = options
-        self._engine_options['llm.Role'] = self._role_to_str(self._role)
-        self._enable_local_comm_res = "llm.LocalCommRes" in options
-        if self._enable_local_comm_res and "llm.EnableCacheManager" not in options:
-            log.info('cache manager is enabled by default when local_comm_res is set in LLMConfig')
-            self._engine_options["llm.EnableCacheManager"] = "1"
-        if self._enable_local_comm_res and "llm.EnableRemoteCacheAccessible" not in options:
-            log.info('remote cache accessible is enabled by default when local_comm_res is set in LLMConfig')
-            self._engine_options["llm.EnableRemoteCacheAccessible"] = "1"
-        self._enable_cache_mgr = (
-            "llm.EnableCacheManager" in self._engine_options and
-            self._engine_options["llm.EnableCacheManager"] == "1"
-        )
-        log.info('LLMDatadist init options = %s', self._engine_options)
-        if self._enable_local_comm_res:
-            self._check_is_cache_mgr_mode('llm.LocalCommRes')
+        self._setup_engine_option(options)
 
         if self._enable_cache_mgr:
-            if 'llm.listenIpInfo' in options:
-                listen_ip_info = options['llm.listenIpInfo']
-                ip, port = parse_listen_ip_info(listen_ip_info)
-                self._engine_options['llm.ListenIp'] = ip
-                self._engine_options['llm.ListenPort'] = str(port)
             self._llm_datadist = llm_datadist_wrapper
             ret = self._llm_datadist.initialize_v2(self._cluster_id, self._engine_options)
             handle_llm_status(ret, '[LLMDataDist.init]', f'Failed to initialize llm datadist, options = {options}')
@@ -332,6 +313,41 @@ class LLMDataDist(object):
     @property
     def cluster_id(self):
         return self._cluster_id
+
+    def _setup_engine_option(self, options: Dict[str, str]) -> None:
+        self._engine_options = options
+        self._engine_options['llm.Role'] = self._role_to_str(self._role)
+        self._enable_local_comm_res = "llm.LocalCommRes" in options
+        self._enable_transfer_backend = "llm.TransferBackend" in options
+        if self._enable_local_comm_res and "llm.EnableCacheManager" not in options:
+            log.info('cache manager is enabled by default when local_comm_res is set in LLMConfig')
+            self._engine_options["llm.EnableCacheManager"] = "1"
+        if self._enable_local_comm_res and "llm.EnableRemoteCacheAccessible" not in options:
+            log.info('remote cache accessible is enabled by default when local_comm_res is set in LLMConfig')
+            self._engine_options["llm.EnableRemoteCacheAccessible"] = "1"
+        self._enable_cache_mgr = (
+            "llm.EnableCacheManager" in self._engine_options and
+            self._engine_options["llm.EnableCacheManager"] == "1"
+        )
+        log.info('LLMDatadist init options = %s', self._engine_options)
+        if self._enable_local_comm_res:
+            self._check_is_cache_mgr_mode('llm.LocalCommRes')
+
+        if self._enable_transfer_backend:
+            raise_if_false(self._enable_cache_mgr,
+                           "llm.TransferBackend is not supported when llm.EnableCacheManager is not configured.")
+            if "llm.EnableRemoteCacheAccessible" not in options:
+                self._engine_options["llm.EnableRemoteCacheAccessible"] = "1"
+            raise_if_false(self._engine_options["llm.EnableRemoteCacheAccessible"] == "1",
+                           "llm.TransferBackend is not supported when llm.EnableRemoteCacheAccessible is not enable.")
+            raise_if_false("llm.listenIpInfo" in options,
+                           "llm.TransferBackend is not supported when llm.listenIpInfo is not configured.")
+        if self._enable_cache_mgr:
+            if 'llm.listenIpInfo' in options:
+                listen_ip_info = options['llm.listenIpInfo']
+                ip, port = parse_listen_ip_info(listen_ip_info)
+                self._engine_options['llm.ListenIp'] = ip
+                self._engine_options['llm.ListenPort'] = str(port)
 
 
 def _shutdown_handler():

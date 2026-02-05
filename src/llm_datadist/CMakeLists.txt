@@ -29,6 +29,7 @@ file(GLOB LLM_SRC_LIST
         "${CMAKE_CURRENT_LIST_DIR}/common/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/cache_mgr/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/link_mgr/*.cc"
+        "${CMAKE_CURRENT_LIST_DIR}/transfer_engine/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/fsm/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/utils/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/data_transfer/*.cc"

@@ -119,9 +119,9 @@ Status ChannelMsgHandler::Serialize(const T &msg, std::string &msg_str) {
 }
 
 template<typename T>
-Status ChannelMsgHandler::Deserialize(const std::vector<char> &msg_str, T &msg) {
+Status ChannelMsgHandler::Deserialize(const char *msg_str, T &msg) {
    try {
-    auto j = nlohmann::json::parse(&msg_str[0]);
+    auto j = nlohmann::json::parse(msg_str);
     msg = j.get<T>();
   } catch (const nlohmann::json::exception &e) {
     LLMLOGE(PARAM_INVALID, "Failed to load msg, exception:%s", e.what());
@@ -148,7 +148,7 @@ Status ChannelMsgHandler::RecvMsg(int32_t fd, ChannelMsgType msg_type, T &msg) {
   ADXL_CHK_BOOL_RET_STATUS(msg_type == static_cast<ChannelMsgType>(type),
                            FAILED, "Failed to check recv msg type:%d, expect type:%d",
                            type, static_cast<int32_t>(msg_type));
-  ADXL_CHK_STATUS_RET(ChannelMsgHandler::Deserialize(msg_str, msg), "Failed to deserialize msg");
+  ADXL_CHK_STATUS_RET(ChannelMsgHandler::Deserialize(&msg_str[0], msg), "Failed to deserialize msg");
   return SUCCESS;
 }
 
@@ -281,10 +281,30 @@ Status ChannelMsgHandler::DeregisterMem(MemHandle mem_handle) {
   return SUCCESS;
 }
 
+Status ChannelMsgHandler::RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor) {
+  std::lock_guard<std::mutex> lock(callback_mutex_);
+  auto it = callbacks_.find(msg_type);
+  ADXL_CHK_BOOL_RET_STATUS(it == callbacks_.cend(), PARAM_INVALID, "msg type:%d already exist.", msg_type);
+  callbacks_[msg_type] = processor;
+  return SUCCESS;
+}
+
 Status ChannelMsgHandler::StartDaemon(const std::string &ip, uint32_t listen_port) {
   handler_plugin_.RegisterConnectedProcess([this](int32_t fd, bool &keep_fd) {
     (void) ConnectedProcess(fd, keep_fd);
   });
+  ADXL_CHK_STATUS_RET(RegisterCallbackProcessor(static_cast<int32_t>(ChannelMsgType::kConnect),
+      [this](int32_t fd, const char *msg, uint64_t msg_len, bool &keep_fd) -> Status {
+        ADXL_CHK_STATUS_RET(ProcessConnectRequest(fd, msg, msg_len, keep_fd),
+                            "Failed to process connect request");
+        return SUCCESS;
+      }), "Failed to register connect callback");
+  ADXL_CHK_STATUS_RET(RegisterCallbackProcessor(static_cast<int32_t>(ChannelMsgType::kDisconnect),
+      [this](int32_t fd, const char *msg, uint64_t msg_len, bool &keep_fd) -> Status {
+        ADXL_CHK_STATUS_RET(ProcessDisconnectRequest(fd, msg, msg_len, keep_fd),
+                            "Failed to process disconnect request");
+        return SUCCESS;
+      }), "Failed to register connect callback");
   ADXL_CHK_LLM_RET(handler_plugin_.StartDaemon(ip, listen_port), "Failed to start daemon.");
   return SUCCESS;
 }
@@ -386,7 +406,8 @@ Status ChannelMsgHandler::ConnectInfoProcess(const ChannelConnectInfo &peer_chan
   return SUCCESS;
 }
 
-Status ChannelMsgHandler::ProcessConnectRequest(int32_t fd, const std::vector<char> &msg, bool &keep_fd) {
+Status ChannelMsgHandler::ProcessConnectRequest(int32_t fd, const char *msg, uint64_t msg_len, bool &keep_fd) {
+  (void) msg_len;
   // deserialize peer connect info first.
   ChannelConnectInfo peer_connect_info{};
   ADXL_CHK_STATUS_RET(ChannelMsgHandler::Deserialize(msg, peer_connect_info), "Failed to deserialize connect msg");
@@ -444,7 +465,9 @@ Status ChannelMsgHandler::DisconnectInfoProcess(ChannelType channel_type,
   return channel_manager_->DestroyChannel(channel_type, peer_disconnect_info.channel_id);
 }
 
-Status ChannelMsgHandler::ProcessDisconnectRequest(int32_t fd, const std::vector<char> &msg) {
+Status ChannelMsgHandler::ProcessDisconnectRequest(int32_t fd, const char *msg, uint64_t msg_len, bool &keep_fd) {
+  keep_fd = false;
+  (void) msg_len;
   auto ret = SUCCESS;
   LLM_MAKE_GUARD(send_status, ([fd, &ret]() {
     ChannelStatus status{};
@@ -473,16 +496,16 @@ Status ChannelMsgHandler::ConnectedProcess(int32_t fd, bool &keep_fd) {
   int32_t msg_type = 0;
   std::vector<char> msg;
   ADXL_CHK_LLM_RET(llm::MsgHandlerPlugin::RecvMsg(fd, msg_type, msg), "Failed to recv msg");
-  ADXL_CHK_BOOL_RET_STATUS(static_cast<ChannelMsgType>(msg_type) == ChannelMsgType::kConnect ||
-                           static_cast<ChannelMsgType>(msg_type) == ChannelMsgType::kDisconnect,
-                           PARAM_INVALID,
-                           "Failed to check msg type:%d", msg_type);
-
-  if (static_cast<ChannelMsgType>(msg_type) == ChannelMsgType::kConnect) {
-    ADXL_CHK_STATUS_RET(ProcessConnectRequest(fd, msg, keep_fd), "Failed to process connect request");
-  } else {
-    ADXL_CHK_STATUS_RET(ProcessDisconnectRequest(fd, msg), "Failed to process disconnect request");
+  CallbackProcessor processor;
+  {
+    std::lock_guard<std::mutex> lock(callback_mutex_);
+    auto iter = callbacks_.find(msg_type);
+    ADXL_CHK_BOOL_RET_STATUS(iter != callbacks_.cend(),
+                             PARAM_INVALID,
+                             "Failed to check msg type:%d", msg_type);
+    processor = iter->second;
   }
+  ADXL_CHK_STATUS_RET(processor(fd, &msg[0], msg.size(), keep_fd), "Failed to process msg, type:%d", msg_type);
   return SUCCESS;
 }
 

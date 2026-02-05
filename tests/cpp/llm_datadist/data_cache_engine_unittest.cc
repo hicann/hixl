@@ -22,17 +22,44 @@
 
 namespace llm {
 class DataCacheEngineTest : public ::testing::Test {
+ public:
+  DataCacheEngineTest() : transfer_engine_(0) {};
+  
  protected:
   void SetUp() override {
     llm::MockMmpaForHcclApi::Install();
     llm::AclRuntimeStub::SetInstance(std::make_shared<DataCacheEngineRuntimeMock>());
     llm::HcclAdapter::GetInstance().Initialize();
+
+    cache_engine_.SetCommEntityManager(&comm_entity_manager_);
+    cache_engine_.SetCommMemManager(&comm_mem_manager_);
+    cache_engine_.SetCacheManager(&cache_manager_);
+    std::map<ge::AscendString, ge::AscendString> options;
+    transfer_engine_.SetCommEntityManager(&comm_entity_manager_);
+    transfer_engine_.SetCacheManager(&cache_manager_);
+    comm_mem_manager_.Initialize(&transfer_engine_);
+    GlobalMemManager::GetInstance().Initialize(&transfer_engine_);
+    transfer_engine_.Initialize(options);
   }
+
   void TearDown() override {
     llm::AclRuntimeStub::Reset();
     llm::HcclAdapter::GetInstance().Finalize();
     llm::MockMmpaForHcclApi::Reset();
+
+    comm_entity_manager_.Finalize();
+    comm_mem_manager_.Finalize();
+    cache_engine_.Finalize();
+    GlobalMemManager::GetInstance().Finalize();
+    transfer_engine_.Finalize();
   }
+
+ private:
+  CommEntityManager comm_entity_manager_;
+  CommMemManager comm_mem_manager_;
+  DataCacheEngine cache_engine_;
+  CacheManager cache_manager_;
+  llm::HcclTransferEngine transfer_engine_;
 };
 
 namespace {
@@ -47,18 +74,10 @@ class MockRuntime : public llm::AclRuntimeStub {
 }  // namespace
 
 TEST_F(DataCacheEngineTest, CacheOps) {
-  CommEntityManager comm_entity_manager;
-  CommMemManager comm_mem_manager;
-  DataCacheEngine cache_engine;
-  cache_engine.SetCommEntityManager(&comm_entity_manager);
-  cache_engine.SetCommMemManager(&comm_mem_manager);
-  CacheManager cache_manager;
-  cache_engine.SetCacheManager(&cache_manager);
   std::map<ge::AscendString, ge::AscendString> options;
   // 4 * 64K
   options[llm::LLM_OPTION_MEM_POOL_CONFIG] = "{\"memory_size\": 262144}";
-  EXPECT_EQ(cache_engine.Initialize(options), ge::SUCCESS);
-
+  EXPECT_EQ(cache_engine_.Initialize(options), ge::SUCCESS);
   CacheDesc cache_desc{};
   cache_desc.num_tensors = 4;
   cache_desc.placement = 1;
@@ -75,55 +94,48 @@ TEST_F(DataCacheEngineTest, CacheOps) {
     cache_keys.emplace_back(cache_key);
   }
   cache_keys[1].req_id = UINT64_MAX;
-  EXPECT_EQ(cache_engine.CheckCapacity(262144), ge::SUCCESS);
-  EXPECT_EQ(cache_engine.Allocate(cache_desc, cache_keys, cache), ge::SUCCESS);
-  EXPECT_EQ(cache_engine.CheckCapacity(1), ge::LLM_OUT_OF_MEMORY);
-  EXPECT_EQ(cache_engine.Allocate(cache_desc, {}, cache_2), ge::LLM_OUT_OF_MEMORY);
+  EXPECT_EQ(cache_engine_.CheckCapacity(262144), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.Allocate(cache_desc, cache_keys, cache), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.CheckCapacity(1), ge::LLM_OUT_OF_MEMORY);
+  EXPECT_EQ(cache_engine_.Allocate(cache_desc, {}, cache_2), ge::LLM_OUT_OF_MEMORY);
 
   CacheEntry cache_entry;
-  EXPECT_TRUE(cache_manager.GetCacheEntry(cache.cache_id, cache_entry));
+  EXPECT_TRUE(cache_manager_.GetCacheEntry(cache.cache_id, cache_entry));
   EXPECT_EQ(cache_entry.id_to_batch_index_and_size.size(), 2);
-  EXPECT_FALSE(cache_manager.GetCacheEntry(666, cache_entry));
+  EXPECT_FALSE(cache_manager_.GetCacheEntry(666, cache_entry));
   DataCacheKey data_cache_key;
   // 测试延迟释放
-  EXPECT_EQ(cache_engine.Deallocate(cache.cache_id), ge::SUCCESS);
-  EXPECT_TRUE(cache_manager.GetCacheKey(std::make_pair(cache.cache_id, 0UL), data_cache_key));
-  EXPECT_TRUE(cache_manager.GetCacheEntry(data_cache_key, false, cache_entry));
-  EXPECT_FALSE(cache_manager.GetCacheKey(std::make_pair(cache.cache_id, 1UL), data_cache_key));
-  EXPECT_TRUE(cache_manager.GetCacheKey(std::make_pair(cache.cache_id, 2UL), data_cache_key));
-  EXPECT_TRUE(cache_manager.GetCacheEntry(data_cache_key, false, cache_entry));
-  EXPECT_FALSE(cache_manager.GetCacheKey(std::make_pair(cache.cache_id, 3UL), data_cache_key));
+  EXPECT_EQ(cache_engine_.Deallocate(cache.cache_id), ge::SUCCESS);
+  EXPECT_TRUE(cache_manager_.GetCacheKey(std::make_pair(cache.cache_id, 0UL), data_cache_key));
+  EXPECT_TRUE(cache_manager_.GetCacheEntry(data_cache_key, false, cache_entry));
+  EXPECT_FALSE(cache_manager_.GetCacheKey(std::make_pair(cache.cache_id, 1UL), data_cache_key));
+  EXPECT_TRUE(cache_manager_.GetCacheKey(std::make_pair(cache.cache_id, 2UL), data_cache_key));
+  EXPECT_TRUE(cache_manager_.GetCacheEntry(data_cache_key, false, cache_entry));
+  EXPECT_FALSE(cache_manager_.GetCacheKey(std::make_pair(cache.cache_id, 3UL), data_cache_key));
 
-  EXPECT_EQ(cache_engine.RemoveCacheKey(cache_keys[0]), ge::SUCCESS);
-  EXPECT_TRUE(cache_manager.GetCacheEntry(cache.cache_id, cache_entry));
+  EXPECT_EQ(cache_engine_.RemoveCacheKey(cache_keys[0]), ge::SUCCESS);
+  EXPECT_TRUE(cache_manager_.GetCacheEntry(cache.cache_id, cache_entry));
   EXPECT_EQ(cache_entry.id_to_batch_index_and_size.size(), 1);
   cache_entry = {};
 
-  EXPECT_EQ(cache_engine.RemoveCacheKey(cache_keys[1]), ge::SUCCESS);
-  EXPECT_EQ(cache_engine.RemoveCacheKey(cache_keys[2]), ge::SUCCESS);
-  EXPECT_EQ(cache_engine.RemoveCacheKey(cache_keys[3]), ge::SUCCESS);
-  EXPECT_FALSE(cache_manager.GetCacheKey(std::make_pair(cache.cache_id, 0UL), data_cache_key));
-  EXPECT_FALSE(cache_manager.GetCacheKey(std::make_pair(cache.cache_id, 2UL), data_cache_key));
-  EXPECT_FALSE(cache_manager.GetCacheEntry(cache.cache_id, cache_entry));
+  EXPECT_EQ(cache_engine_.RemoveCacheKey(cache_keys[1]), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.RemoveCacheKey(cache_keys[2]), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.RemoveCacheKey(cache_keys[3]), ge::SUCCESS);
+  EXPECT_FALSE(cache_manager_.GetCacheKey(std::make_pair(cache.cache_id, 0UL), data_cache_key));
+  EXPECT_FALSE(cache_manager_.GetCacheKey(std::make_pair(cache.cache_id, 2UL), data_cache_key));
+  EXPECT_FALSE(cache_manager_.GetCacheEntry(cache.cache_id, cache_entry));
 
-  EXPECT_EQ(cache_engine.CheckCapacity(262144), ge::SUCCESS);
-  EXPECT_EQ(cache_engine.Allocate(cache_desc, {}, cache_2), ge::SUCCESS);
-  EXPECT_EQ(cache_engine.Deallocate(cache_2.cache_id), ge::SUCCESS);
-  cache_engine.Finalize();
+  EXPECT_EQ(cache_engine_.CheckCapacity(262144), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.Allocate(cache_desc, {}, cache_2), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.Deallocate(cache_2.cache_id), ge::SUCCESS);
+  cache_engine_.Finalize();
 }
 
 TEST_F(DataCacheEngineTest, CopyCache_C2C) {
-  CommEntityManager comm_entity_manager;
-  CommMemManager comm_mem_manager;
-  DataCacheEngine cache_engine;
-  cache_engine.SetCommEntityManager(&comm_entity_manager);
-  cache_engine.SetCommMemManager(&comm_mem_manager);
-  CacheManager cache_manager;
-  cache_engine.SetCacheManager(&cache_manager);
   std::map<ge::AscendString, ge::AscendString> options;
   // 4 * 64K
   options[llm::LLM_OPTION_MEM_POOL_CONFIG] = "{\"memory_size\": 10000000}";
-  EXPECT_EQ(cache_engine.Initialize(options), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.Initialize(options), ge::SUCCESS);
 
   CacheDesc src_cache_desc{};
   src_cache_desc.num_tensors = 4;
@@ -136,8 +148,8 @@ TEST_F(DataCacheEngineTest, CopyCache_C2C) {
 
   Cache src_cache;
   Cache dst_cache;
-  EXPECT_EQ(cache_engine.Allocate(src_cache_desc, {}, src_cache), ge::SUCCESS);
-  EXPECT_EQ(cache_engine.Allocate(dst_cache_desc, {}, dst_cache), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.Allocate(src_cache_desc, {}, src_cache), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.Allocate(dst_cache_desc, {}, dst_cache), ge::SUCCESS);
 
   CopyCacheParam copy_cache_param{};
   copy_cache_param.src_cache_id = src_cache.cache_id;
@@ -148,7 +160,7 @@ TEST_F(DataCacheEngineTest, CopyCache_C2C) {
   auto src_tensor_base = reinterpret_cast<int32_t *>(src_cache.per_device_tensor_addrs[0][0]);
   auto dst_tensor_base = reinterpret_cast<int32_t *>(dst_cache.per_device_tensor_addrs[0][0]);
   std::iota(src_tensor_base, src_tensor_base + 4 * 4, 0);
-  EXPECT_EQ(cache_engine.CopyCache(copy_cache_param), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.CopyCache(copy_cache_param), ge::SUCCESS);
   std::vector<int32_t> expected(4 * 8);
   std::iota(expected.begin() + 8 * 2, expected.begin() + 8 * 2 + 4, 4);
   std::vector<int32_t> dst_value(dst_tensor_base, dst_tensor_base + 4 * 8);
@@ -157,7 +169,7 @@ TEST_F(DataCacheEngineTest, CopyCache_C2C) {
   copy_cache_param.size = 8;
   copy_cache_param.src_batch_index = 0;
   copy_cache_param.dst_batch_index = 1;
-  EXPECT_EQ(cache_engine.CopyCache(copy_cache_param), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.CopyCache(copy_cache_param), ge::SUCCESS);
   dst_value = std::vector<int32_t>(dst_tensor_base + 8, dst_tensor_base + 12);
   expected = {0, 1, 0, 0};
   EXPECT_EQ(dst_value, expected);
@@ -165,26 +177,18 @@ TEST_F(DataCacheEngineTest, CopyCache_C2C) {
   copy_cache_param.offset = 4;
   copy_cache_param.src_batch_index = 2;
   copy_cache_param.dst_batch_index = 0;
-  EXPECT_EQ(cache_engine.CopyCache(copy_cache_param), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.CopyCache(copy_cache_param), ge::SUCCESS);
   dst_value = std::vector<int32_t>(dst_tensor_base, dst_tensor_base + 4);
   expected = {0, 9, 10, 0};
   EXPECT_EQ(dst_value, expected);
-  cache_manager.Finalize();
-  cache_engine.Finalize();
+  cache_engine_.Finalize();
 }
 
 TEST_F(DataCacheEngineTest, CopyCache_C2C_Big) {
-  CommEntityManager comm_entity_manager;
-  CommMemManager comm_mem_manager;
-  DataCacheEngine cache_engine;
-  cache_engine.SetCommEntityManager(&comm_entity_manager);
-  cache_engine.SetCommMemManager(&comm_mem_manager);
-  CacheManager cache_manager;
-  cache_engine.SetCacheManager(&cache_manager);
   std::map<ge::AscendString, ge::AscendString> options;
   // 4 * 64K
   options[llm::LLM_OPTION_MEM_POOL_CONFIG] = "{\"memory_size\": 10000000}";
-  EXPECT_EQ(cache_engine.Initialize(options), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.Initialize(options), ge::SUCCESS);
 
   int64_t big_dim = 1024 * 1024 + 128;
   CacheDesc src_cache_desc{};
@@ -197,8 +201,8 @@ TEST_F(DataCacheEngineTest, CopyCache_C2C_Big) {
 
   Cache src_cache;
   Cache dst_cache;
-  EXPECT_EQ(cache_engine.Allocate(src_cache_desc, {}, src_cache), ge::SUCCESS);
-  EXPECT_EQ(cache_engine.Allocate(dst_cache_desc, {}, dst_cache), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.Allocate(src_cache_desc, {}, src_cache), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.Allocate(dst_cache_desc, {}, dst_cache), ge::SUCCESS);
 
   CopyCacheParam copy_cache_param{};
   copy_cache_param.src_cache_id = src_cache.cache_id;
@@ -207,24 +211,16 @@ TEST_F(DataCacheEngineTest, CopyCache_C2C_Big) {
   auto src_tensor_base = reinterpret_cast<int32_t *>(src_cache.per_device_tensor_addrs[0][0]);
   auto dst_tensor_base = reinterpret_cast<int32_t *>(dst_cache.per_device_tensor_addrs[0][0]);
   std::iota(src_tensor_base, src_tensor_base + big_dim, 0);
-  EXPECT_EQ(cache_engine.CopyCache(copy_cache_param), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.CopyCache(copy_cache_param), ge::SUCCESS);
   EXPECT_EQ(memcmp(src_tensor_base, dst_tensor_base, 4 * big_dim), 0);
-  cache_manager.Finalize();
-  cache_engine.Finalize();
+  cache_engine_.Finalize();
 }
 
 TEST_F(DataCacheEngineTest, CopyCache_B2B) {
-  CommEntityManager comm_entity_manager;
-  CommMemManager comm_mem_manager;
-  DataCacheEngine cache_engine;
-  cache_engine.SetCommEntityManager(&comm_entity_manager);
-  cache_engine.SetCommMemManager(&comm_mem_manager);
-  CacheManager cache_manager;
-  cache_engine.SetCacheManager(&cache_manager);
   std::map<ge::AscendString, ge::AscendString> options;
   // 4 * 64K
   options[llm::LLM_OPTION_MEM_POOL_CONFIG] = "{\"memory_size\": 10000000}";
-  EXPECT_EQ(cache_engine.Initialize(options), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.Initialize(options), ge::SUCCESS);
 
   CacheDesc src_cache_desc{};
   src_cache_desc.num_tensors = 4;
@@ -243,21 +239,21 @@ TEST_F(DataCacheEngineTest, CopyCache_B2B) {
   CacheKey dst_cache_key = src_cache_key;
   dst_cache_key.req_id = 1;
 
-  EXPECT_EQ(cache_engine.Allocate(src_cache_desc, {src_cache_key}, src_cache), ge::SUCCESS);
-  EXPECT_EQ(cache_engine.Allocate(dst_cache_desc, {dst_cache_key}, dst_cache), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.Allocate(src_cache_desc, {src_cache_key}, src_cache), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.Allocate(dst_cache_desc, {dst_cache_key}, dst_cache), ge::SUCCESS);
 
-  CopyCacheParam copy_cache_param{};
-  copy_cache_param.src_cache_id = src_cache.cache_id;
-  copy_cache_param.dst_cache_id = dst_cache.cache_id;
-  copy_cache_param.copy_block_infos.emplace_back(2, 1);
-  copy_cache_param.copy_block_infos.emplace_back(3, 2);
-  copy_cache_param.copy_block_infos.emplace_back(4, 0);
-  copy_cache_param.copy_block_infos.emplace_back(0, 3);
+  CopyCacheParam cache_param{};
+  cache_param.src_cache_id = src_cache.cache_id;
+  cache_param.dst_cache_id = dst_cache.cache_id;
+  cache_param.copy_block_infos.emplace_back(2, 1);
+  cache_param.copy_block_infos.emplace_back(3, 2);
+  cache_param.copy_block_infos.emplace_back(4, 0);
+  cache_param.copy_block_infos.emplace_back(0, 3);
 
   auto src_tensor_base = reinterpret_cast<int32_t *>(src_cache.per_device_tensor_addrs[0][0]);
   auto dst_tensor_base = reinterpret_cast<int32_t *>(dst_cache.per_device_tensor_addrs[0][0]);
   std::iota(src_tensor_base, src_tensor_base + 4 * 128, 0);
-  EXPECT_EQ(cache_engine.CopyCache(copy_cache_param), ge::SUCCESS);
+  EXPECT_EQ(cache_engine_.CopyCache(cache_param), ge::SUCCESS);
   std::vector<int32_t> expected {
     16,17,18,19,
     8,9,10,11,
@@ -266,8 +262,7 @@ TEST_F(DataCacheEngineTest, CopyCache_B2B) {
   };
   std::vector<int32_t> dst_value(dst_tensor_base, dst_tensor_base + 4 * 4);
   EXPECT_EQ(dst_value, expected);
-  cache_manager.Finalize();
-  cache_engine.Finalize();
+  cache_engine_.Finalize();
 }
 
 TEST_F(DataCacheEngineTest, InitializeMemoryPool_Failed) {
@@ -275,6 +270,14 @@ TEST_F(DataCacheEngineTest, InitializeMemoryPool_Failed) {
   CacheManager cache_manager;
   cache_engine.SetCacheManager(&cache_manager);
   std::map<ge::AscendString, ge::AscendString> options;
+  llm::CommEntityManager comm_entity_manager;
+  llm::CommMemManager comm_mem_manager;
+  llm::HcclTransferEngine hccl_transfer_engine(0);
+  hccl_transfer_engine.SetCommEntityManager(&comm_entity_manager);
+  hccl_transfer_engine.SetCacheManager(&cache_manager);
+  comm_mem_manager.Initialize(&hccl_transfer_engine);
+  GlobalMemManager::GetInstance().Initialize(&hccl_transfer_engine);
+  hccl_transfer_engine.Initialize(options);
   options[llm::LLM_OPTION_MEM_POOL_CONFIG] = "{}";
   EXPECT_EQ(cache_engine.Initialize(options), ge::LLM_PARAM_INVALID);
   options[llm::LLM_OPTION_MEM_POOL_CONFIG] = "{memory_size}";

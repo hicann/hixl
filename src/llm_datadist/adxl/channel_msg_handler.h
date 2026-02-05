@@ -70,6 +70,8 @@ struct PendingDisconnectRequest {
     RequestDisconnectResp resp;
 };
 
+using CallbackProcessor = std::function<Status(int32_t fd, const char *msg, uint64_t msg_len, bool &keep_fd)>;
+
 class ChannelMsgHandler {
  public:
   ChannelMsgHandler(const std::string &listen_info, ChannelManager *channel_manager)
@@ -110,6 +112,8 @@ class ChannelMsgHandler {
     max_channel_ = max_channel;
   }
 
+  Status RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor);
+
  private:
   Status StartDaemon(const std::string &ip, uint32_t listen_port);
   Status StopDaemon();
@@ -118,9 +122,9 @@ class ChannelMsgHandler {
                         int32_t &peer_rank_id);
   Status ConnectInfoProcess(const ChannelConnectInfo &peer_channel_info,
                             int32_t timeout, bool is_client);
-  Status ProcessConnectRequest(int32_t fd, const std::vector<char> &msg, bool &keep_fd);
+  Status ProcessConnectRequest(int32_t fd, const char *msg, uint64_t msg_len, bool &keep_fd);
   Status DisconnectInfoProcess(ChannelType channel_type, const ChannelDisconnectInfo &peer_disconnect_info);
-  Status ProcessDisconnectRequest(int32_t fd, const std::vector<char> &msg);
+  Status ProcessDisconnectRequest(int32_t fd, const char *msg, uint64_t msg_len, bool &keep_fd);
   Status ConnectedProcess(int32_t fd, bool &keep_fd);
   template<typename T>
   static Status SendMsg(int32_t fd, ChannelMsgType msg_type, const T &msg);
@@ -129,7 +133,7 @@ class ChannelMsgHandler {
   template<typename T>
   static Status Serialize(const T &msg, std::string &msg_str);
   template<typename T>
-  static Status Deserialize(const std::vector<char> &msg_str, T &msg);
+  static Status Deserialize(const char *msg_str, T &msg);
   Status ParseTrafficClass(const std::map<AscendString, AscendString> &options);
   Status ParseServiceLevel(const std::map<AscendString, AscendString> &options);
   Status DoConnect(const std::string &remote_engine, int32_t timeout_in_millis);
@@ -167,6 +171,8 @@ class ChannelMsgHandler {
   std::string local_ip_;
   int32_t listen_port_;
   llm::MsgHandlerPlugin handler_plugin_;
+  std::mutex callback_mutex_;
+  std::map<int32_t, CallbackProcessor> callbacks_;
 
   bool user_config_channel_pool_{false};
   aclrtContext aclrt_context_{nullptr};

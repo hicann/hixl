@@ -19,6 +19,7 @@ namespace llm {
 namespace {
 constexpr int32_t kListenBacklog = 128;
 constexpr int64_t kDefaultSleepTime = 1;
+constexpr uint32_t kMagicNumber = 0xA4B3C2D1;
 }
 
 void MsgHandlerPlugin::Initialize() {
@@ -304,8 +305,12 @@ ge::Status MsgHandlerPlugin::StartDaemon(const std::string &ip, uint32_t listen_
 }
 
 ge::Status MsgHandlerPlugin::SendMsg(int32_t fd, int32_t msg_type, const std::string &msg_str) {
+  auto len = Write(fd, &kMagicNumber, sizeof(kMagicNumber));
+  LLM_CHK_BOOL_RET_STATUS(len == static_cast<ssize_t>(sizeof(kMagicNumber)), ge::FAILED,
+                          "Failed to send magic number, expect write len:%zu, actually write len:%zd",
+                          sizeof(kMagicNumber), len);
   uint64_t length = msg_str.size() + sizeof(msg_type);
-  auto len = Write(fd, &length, sizeof(length));
+  len = Write(fd, &length, sizeof(length));
   LLM_CHK_BOOL_RET_STATUS(len == static_cast<ssize_t>(sizeof(length)), ge::FAILED,
                          "Failed to send msg len:%zu, expect write len:%zu, actually write len:%zd",
                          length, sizeof(length), len);
@@ -321,32 +326,22 @@ ge::Status MsgHandlerPlugin::SendMsg(int32_t fd, int32_t msg_type, const std::st
 }
 
 ge::Status MsgHandlerPlugin::RecvMsg(int32_t fd, int32_t &msg_type, std::vector<char> &msg) {
+  uint32_t magic_number = 0U;
+  auto n = Read(fd, &magic_number, sizeof(magic_number));
+  LLM_CHK_BOOL_RET_STATUS(n == static_cast<ssize_t>(sizeof(magic_number)),
+                          ge::FAILED, "Failed to recv magic num len:%zd, expect len:%zu", n, sizeof(magic_number));
+  LLM_CHK_BOOL_RET_STATUS(magic_number == kMagicNumber,
+                          ge::FAILED, "Failed to check recv magic num:%u", n, magic_number);
   const static size_t kMaxLength = 1ULL << 20;
   uint64_t length = 0;
-  auto n = Read(fd, &length, sizeof(length));
+  n = Read(fd, &length, sizeof(length));
   LLM_CHK_BOOL_RET_STATUS(n == static_cast<ssize_t>(sizeof(length)),
                          ge::FAILED, "Failed to recv msg len:%zd, expect len:%zu", n, sizeof(length));
-  LLM_CHK_BOOL_RET_STATUS(length <= kMaxLength && length > sizeof(int32_t),
-                         ge::FAILED, "Failed to check msg len:%lu, must in range: (%zu, %zu]",
+  LLM_CHK_BOOL_RET_STATUS(length <= kMaxLength && length >= sizeof(int32_t),
+                         ge::FAILED, "Failed to check msg len:%lu, must in range: [%zu, %zu]",
                          length, sizeof(int32_t), kMaxLength);
   int32_t type = 0;
   n = Read(fd, &type, sizeof(type));
-  LLM_CHK_BOOL_RET_STATUS(n == static_cast<ssize_t>(sizeof(type)),
-                         ge::FAILED, "Failed to recv msg type len:%zd, expect len:%zu", n, sizeof(type));
-  msg_type = type;
-  size_t msg_len = static_cast<size_t>(length) - sizeof(int32_t);
-  msg.resize(msg_len + 1U);
-  n = Read(fd, msg.data(), msg_len);
-  LLM_CHK_BOOL_RET_STATUS(n == static_cast<ssize_t>(msg_len),
-                         ge::FAILED, "Failed to check recv msg type:%d, recv msg len:%zd, expect len:%zu",
-                         type, n, msg_len);
-  msg[msg_len] = '\0';
-  return ge::SUCCESS;
-}
-
-ge::Status MsgHandlerPlugin::RecvMsg(int32_t fd, int32_t &msg_type, std::vector<char> &msg, uint64_t length) {
-  int32_t type = 0;
-  auto n = Read(fd, &type, sizeof(type));
   LLM_CHK_BOOL_RET_STATUS(n == static_cast<ssize_t>(sizeof(type)),
                          ge::FAILED, "Failed to recv msg type len:%zd, expect len:%zu", n, sizeof(type));
   msg_type = type;

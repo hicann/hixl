@@ -130,19 +130,18 @@ ge::Status DataCacheEngine::PullCache(int64_t cache_id, const CacheKey &cache_ke
   TemporaryRtContext with_context(aclrt_context_);
   LLM_CHK_BOOL_RET_STATUS(entity->CheckEntityInfo(), ge::LLM_NOT_YET_LINK,
                          "pull cache must wait until the query_register_mem_status return ok");
-  LLM_DISMISSABLE_GUARD(abort_stream, [this]() -> void {
-    LLM_CHK_ACL(aclrtStreamAbort(req_stream_));
-  });
   if (access_remote_cache_) {
-    DataTransferClient client(*entity, req_stream_);
+    DataTransferClient client(*entity, nullptr);
     LLM_CHK_STATUS_RET(client.PullCacheByGet(cache_entry, cache_key, pull_cache_param, sync_cache_timeout_));
     LLMLOGI("[PullCache] success, cache_id = %ld, num_tensors = %zu, stride = %lu, "
            "pull_size = %ld, local_block_cnt = %zu, remote_block_cnt = %zu",
            cache_id, cache_entry.cache_addrs.size(), cache_entry.stride,
            pull_cache_param.size, pull_cache_param.decoder_blocks.size(), pull_cache_param.prompt_blocks.size());
-    LLM_DISMISS_GUARD(abort_stream);
     return ge::SUCCESS;
   }
+  LLM_DISMISSABLE_GUARD(abort_stream, [this]() -> void {
+    LLM_CHK_ACL(aclrtStreamAbort(req_stream_));
+  });
   entity->ClearResponseFlags();
   if (cache_entry.placement == CachePlacement::HOST) {
     LLM_CHK_BOOL_RET_STATUS(npu_pool_memory_ != nullptr, ge::LLM_PARAM_INVALID, "Device memory pool is not enabled.");
@@ -176,6 +175,12 @@ ge::Status DataCacheEngine::Initialize(const std::map<ge::AscendString, ge::Asce
   LLM_CHK_STATUS_RET(LLMUtils::ParseFlag(kLlmOptionEnableRemoteCacheAccessible, options, access_remote_cache_),
                     "Failed to parse option %s", kLlmOptionEnableRemoteCacheAccessible);
   LLM_CHK_STATUS_RET(cache_manager_->Initialize(access_remote_cache_));
+  const auto &buffer_and_size = cache_manager_->GetCacheTableBufferAndSize();
+  LLM_CHK_STATUS_RET(GlobalMemManager::GetInstance().RegisterMem(buffer_and_size.first,
+                                                                 buffer_and_size.second,
+                                                                 HcclMemType::HCCL_MEM_TYPE_DEVICE,
+                                                                 cache_table_handle_),
+                    "Failed to register cache table addr");
   DecoderWaitTimeInfo wait_time_info{};
   LLM_CHK_STATUS_RET(LLMUtils::ParserWaitTimeInfo(options, wait_time_info), "parser wait time info failed");
   sync_cache_timeout_ = wait_time_info.sync_kv_wait_time;
@@ -189,21 +194,37 @@ ge::Status DataCacheEngine::Initialize(const std::map<ge::AscendString, ge::Asce
   return ge::SUCCESS;
 }
 
-void DataCacheEngine::Finalize() const{
+void DataCacheEngine::Finalize() {
   {
     TemporaryRtContext with_context(aclrt_context_);
+    if (npu_pool_handle_ != nullptr) {
+      (void) GlobalMemManager::GetInstance().UnregisterMem(npu_pool_handle_);
+      npu_pool_handle_ = nullptr;
+    }
+    if (host_pool_handle_ != nullptr) {
+      (void) GlobalMemManager::GetInstance().UnregisterMem(host_pool_handle_);
+      host_pool_handle_ = nullptr;
+    }
+    if (cache_table_handle_ != nullptr) {
+      (void) GlobalMemManager::GetInstance().UnregisterMem(cache_table_handle_);
+      cache_table_handle_ = nullptr;
+    }
     cache_manager_->Finalize();
     if (npu_pool_memory_ != nullptr) {
       LLM_CHK_ACL(aclrtFree(npu_pool_memory_));
+      npu_pool_memory_ = nullptr;
     }
     if (host_pool_memory_ != nullptr) {
       LLM_CHK_ACL(aclrtFreeHost(host_pool_memory_));
+      host_pool_memory_ = nullptr;
     }
     if (req_stream_ != nullptr) {
       LLM_CHK_ACL(aclrtDestroyStream(req_stream_));
+      req_stream_ = nullptr;
     }
     if (transfer_stream_ != nullptr) {
       LLM_CHK_ACL(aclrtDestroyStream(transfer_stream_));
+      transfer_stream_ = nullptr;
     }
   }
 }
@@ -240,8 +261,9 @@ ge::Status DataCacheEngine::InitializeDeviceMemoryPool(const std::map<ge::Ascend
       ge::LLM_OUT_OF_MEMORY, "Failed to allocate memory for memory_pool, config = %s", json_str.c_str());
   LLM_CHK_STATUS_RET(npu_mem_pool_->Initialize(npu_pool_memory_, npu_pool_size_),
                     "Failed to initialize memory pool, config = %s", json_str.c_str());
-  LLM_CHK_STATUS(
-      comm_mem_manager_->RegisterCommMemAddr(npu_pool_memory_, npu_pool_size_, HcclMemType::HCCL_MEM_TYPE_DEVICE));
+  LLM_CHK_STATUS_RET(GlobalMemManager::GetInstance().RegisterMem(npu_pool_memory_,
+                                                                 npu_pool_size_, HcclMemType::HCCL_MEM_TYPE_DEVICE,
+                                                                 npu_pool_handle_));
   cache_manager_->SetNpuMemPool(npu_mem_pool_.get());
   LLMLOGI("npu memory_size = %lu B, page_shift = %zu, page_size = %lu B", npu_pool_size_, page_shift,
          (1UL << page_shift));
@@ -267,8 +289,8 @@ ge::Status DataCacheEngine::InitializeHostMemoryPool(const std::map<ge::AscendSt
   LLM_CHK_ACL_RET(aclrtMallocHost(&host_pool_memory_, host_pool_size));
   LLM_CHK_STATUS_RET(host_mem_pool_->Initialize(host_pool_memory_, host_pool_size),
                     "Failed to initialize host memory pool, config = %s", json_str.c_str());
-  LLM_CHK_STATUS_RET(
-      comm_mem_manager_->RegisterCommMemAddr(host_pool_memory_, host_pool_size, HCCL_MEM_TYPE_HOST));
+  LLM_CHK_STATUS_RET(GlobalMemManager::GetInstance().RegisterMem(host_pool_memory_, host_pool_size, HCCL_MEM_TYPE_HOST,
+                                                                 host_pool_handle_));
   cache_manager_->SetHostMemPool(host_mem_pool_.get());
   LLMLOGI("host memory_size = %lu B, page_shift = %zu, page_size = %lu B", host_pool_size, page_shift,
          (1UL << page_shift));

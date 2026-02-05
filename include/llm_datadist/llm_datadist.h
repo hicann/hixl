@@ -37,6 +37,7 @@ constexpr const char OPTION_SYNC_CACHE_WAIT_TIME[] = "llm.SyncKvCacheWaitTime";
 constexpr const char OPTION_BUF_POOL_CFG[] = "llm.BufPoolCfg";
 constexpr const char OPTION_ENABLE_SET_ROLE[] = "llm.EnableSwitchRole";
 constexpr const char OPTION_LOCAL_COMM_RES[] = "llm.LocalCommRes";
+constexpr const char OPTION_TRANSFER_BACKEND[] = "llm.TransferBackend";
 
 // status codes
 constexpr Status LLM_SUCCESS = 0x0U;

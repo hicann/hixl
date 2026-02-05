@@ -43,6 +43,7 @@ file(GLOB LLM_V2_SRC_LIST
         "${HIXL_CODE_DIR}/src/llm_datadist/common/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/cache_mgr/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/link_mgr/*.cc"
+        "${HIXL_CODE_DIR}/src/llm_datadist/transfer_engine/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/hccl/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/fsm/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/utils/*.cc"

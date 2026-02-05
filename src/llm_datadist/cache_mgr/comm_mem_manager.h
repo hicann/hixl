@@ -17,6 +17,7 @@
 #include <set>
 #include "common/llm_inner_types.h"
 #include "hccl/hccl_adapter.h"
+#include "transfer_engine/transfer_engine.h"
 
 namespace llm {
 class GlobalMemManager {
@@ -28,15 +29,17 @@ class GlobalMemManager {
   GlobalMemManager &operator=(const GlobalMemManager &) = delete;
   GlobalMemManager &operator=(const GlobalMemManager &&) = delete;
 
+  ge::Status Initialize(TransferEngine *transfer_engine);
+  void Finalize();
   ge::Status RegisterMem(void *addr, uint64_t size, HcclMemType type, void *&handle);
   ge::Status UnregisterMem(void *handle);
-  std::vector<void *> GetAllRegisterMemHandles();
 
  private:
   GlobalMemManager() = default;
 
   std::mutex mutex_;
   std::set<void *> handles_;
+  TransferEngine *transfer_engine_ = nullptr;
 };
 
 class CommMemManager {
@@ -48,21 +51,17 @@ class CommMemManager {
 
   CommMemManager() = default;
   ~CommMemManager() = default;
+  ge::Status Initialize(TransferEngine *transfer_engine);
   void Finalize();
-  ge::Status RegisterCommMemAddr(void *addr, uint64_t size, HcclMemType type);
   ge::Status RegisterCacheMem(int64_t cache_id, const CacheDesc &cache_desc, const std::vector<uintptr_t> &addrs,
                               int64_t tensor_size);
   ge::Status UnregisterCacheMem(int64_t cache_id);
-  std::vector<void *> GetAllRegisterMemHandles();
-
-  static ge::Status RegisterMem(void *addr, uint64_t size, HcclMemType type, void *&handle);
-  static ge::Status UnregisterMem(void *handle);
 
  private:
   std::mutex mutex_;
-  std::vector<void *> comm_register_mem_handles_;
   std::map<int64_t, RegisterMems> cache_id_to_mems_;
   std::set<std::pair<void *, int64_t>> registered_cache_mem_;
+  TransferEngine *transfer_engine_ = nullptr;
 };
 }  // namespace llm
 #endif  // CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_COMM_MEM_MANAGER_H_

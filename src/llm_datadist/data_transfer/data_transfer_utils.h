@@ -20,8 +20,6 @@ class DataTransferUtils {
   static ge::Status QueryEventStatus(const aclrtEvent &event, aclrtEventRecordedStatus &status);
   static ge::Status SendCache(const aclrtStream stream, CommEntity &comm_entity,
                               std::list<HcclOneSideOpDesc> &transfer_tasks, aclrtEvent &event);
-  static ge::Status SendCache(const aclrtStream stream, CommEntity &comm_entity,
-                              std::list<HcclOneSideOpDesc> &transfer_tasks);
   static ge::Status SendBatchCache(const aclrtStream stream, const std::vector<HcclOneSideOpDesc> &desces,
                                    CommEntity &comm_entity);
 };

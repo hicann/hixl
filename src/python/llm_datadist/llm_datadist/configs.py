@@ -122,6 +122,7 @@ class LlmConfig(object):
         self._rdma_traffic_class = None
         self._rdma_service_level = None
         self._local_comm_res = None
+        self._transfer_backend = None
 
     def generate_options(self):
         """
@@ -134,8 +135,6 @@ class LlmConfig(object):
     def gen_options(self):
         if self.ge_options:
             self._options.update(self.ge_options)
-        if self.listen_ip_info:
-            self._options["llm.listenIpInfo"] = str(self.listen_ip_info)
         if self.device_id is not None:
             if isinstance(self.device_id, int):
                 self._options["ge.exec.deviceId"] = str(self.device_id)
@@ -147,16 +146,8 @@ class LlmConfig(object):
             self._options["llm.SyncKvCacheWaitTime"] = str(self.sync_kv_timeout)
         if self.deploy_res_path:
             self._options["llm.deployResPath"] = str(self.deploy_res_path)
-        if self.buf_pool_cfg:
-            self._options["llm.BufPoolCfg"] = str(self.buf_pool_cfg)
-        if self._mem_pool_cfg:
-            self._options["llm.MemPoolConfig"] = str(self._mem_pool_cfg)
-        if self._host_mem_pool_cfg:
-            self._options["llm.HostMemPoolConfig"] = str(self._host_mem_pool_cfg)
-        if self._enable_cache_manager is not None:
-            self._options["llm.EnableCacheManager"] = "1" if self._enable_cache_manager else "0"
-        if self._enable_remote_cache_accessible is not None:
-            self._options["llm.EnableRemoteCacheAccessible"] = "1" if self._enable_remote_cache_accessible else "0"
+        self._add_memory_options()
+        self._add_connect_options()
 
         # below is offline
         if self._cluster_info:
@@ -165,18 +156,8 @@ class LlmConfig(object):
             self._options["llm.OutputMaxSize"] = str(self.output_max_size)
         if self._enable_switch_role:
             self._options["llm.EnableSwitchRole"] = "1"
-        if self._link_total_time is not None:
-            self._options["llm.LinkTotalTime"] = str(self.link_total_time)
-        if self._link_retry_count is not None:
-            self._options["llm.LinkRetryCount"] = str(self.link_retry_count)
         if self._mem_utilization is not None:
             self._options["llm.MemoryUtilization"] = str(self.mem_utilization)
-        if self.rdma_traffic_class is not None:
-            self._options["llm.RdmaTrafficClass"] = str(self.rdma_traffic_class)
-        if self.rdma_service_level is not None:
-            self._options["llm.RdmaServiceLevel"] = str(self.rdma_service_level)
-        if self._local_comm_res is not None:
-            self._options["llm.LocalCommRes"] = str(self.local_comm_res)
         return self.options
 
     @property
@@ -295,7 +276,7 @@ class LlmConfig(object):
     @property
     def link_total_time(self):
         return 0 if self._link_total_time is None else self._link_total_time
-    
+
     @link_total_time.setter
     def link_total_time(self, link_total_time: int):
         check_isinstance("link_total_time", link_total_time, int)
@@ -305,7 +286,7 @@ class LlmConfig(object):
     @property
     def link_retry_count(self):
         return 1 if self._link_retry_count is None else self._link_retry_count
-    
+
     @link_retry_count.setter
     def link_retry_count(self, link_retry_count):
         check_isinstance("link_retry_count", link_retry_count, int)
@@ -375,3 +356,40 @@ class LlmConfig(object):
     def local_comm_res(self, local_comm_res):
         check_isinstance("local_comm_res", local_comm_res, str)
         self._local_comm_res = local_comm_res
+
+    @property
+    def transfer_backend(self):
+        return "" if self._transfer_backend is None else self._transfer_backend
+
+    @transfer_backend.setter
+    def transfer_backend(self, transfer_backend):
+        check_isinstance("transfer_backend", transfer_backend, str)
+        self._transfer_backend = transfer_backend
+
+    def _add_memory_options(self):
+        if self.buf_pool_cfg:
+            self._options["llm.BufPoolCfg"] = str(self.buf_pool_cfg)
+        if self._mem_pool_cfg:
+            self._options["llm.MemPoolConfig"] = str(self._mem_pool_cfg)
+        if self._host_mem_pool_cfg:
+            self._options["llm.HostMemPoolConfig"] = str(self._host_mem_pool_cfg)
+        if self._enable_cache_manager is not None:
+            self._options["llm.EnableCacheManager"] = "1" if self._enable_cache_manager else "0"
+        if self._enable_remote_cache_accessible is not None:
+            self._options["llm.EnableRemoteCacheAccessible"] = "1" if self._enable_remote_cache_accessible else "0"
+
+    def _add_connect_options(self):
+        if self.listen_ip_info:
+            self._options["llm.listenIpInfo"] = str(self.listen_ip_info)
+        if self._link_total_time is not None:
+            self._options["llm.LinkTotalTime"] = str(self.link_total_time)
+        if self._link_retry_count is not None:
+            self._options["llm.LinkRetryCount"] = str(self.link_retry_count)
+        if self.rdma_traffic_class is not None:
+            self._options["llm.RdmaTrafficClass"] = str(self.rdma_traffic_class)
+        if self.rdma_service_level is not None:
+            self._options["llm.RdmaServiceLevel"] = str(self.rdma_service_level)
+        if self._local_comm_res is not None:
+            self._options["llm.LocalCommRes"] = str(self.local_comm_res)
+        if self._transfer_backend is not None:
+            self._options["llm.TransferBackend"] = str(self.transfer_backend)

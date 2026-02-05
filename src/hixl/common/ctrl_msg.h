@@ -15,10 +15,13 @@
 
 namespace hixl {
 const uint32_t kMagicNumber = 0xA4B3C2D1;
+
+#pragma pack(push, 1)
 struct CtrlMsgHeader {
   uint32_t magic;
   uint64_t body_size;
 };
+#pragma pack(pop)
 
 enum class CtrlMsgType : int32_t {
   kCreateChannelReq = 1,
@@ -28,6 +31,8 @@ enum class CtrlMsgType : int32_t {
   kDestroyChannelReq = 5,
   kGetEndPointInfoReq = 6,
   kGetEndPointInfoResp = 7,
+  kGetCacheTableReq = 8,
+  kGetCacheTableResp = 9,
   kEnd
 };
 

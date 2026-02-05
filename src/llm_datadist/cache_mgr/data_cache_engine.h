@@ -17,6 +17,7 @@
 #include "ge_common/ge_api_types.h"
 #include "common/llm_inner_types.h"
 #include "link_mgr/comm_entity_manager.h"
+#include "cache_mgr/comm_mem_manager.h"
 #include "cache_manager.h"
 #include "common/llm_mem_pool.h"
 
@@ -27,7 +28,7 @@ class DataCacheEngine {
   DataCacheEngine() = default;
   ~DataCacheEngine() = default;
   ge::Status Initialize(const std::map<ge::AscendString, ge::AscendString> &options);
-  void Finalize() const;
+  void Finalize();
   ge::Status Register(const CacheDesc &cache_desc, const std::vector<CacheKey> &cache_keys, Cache &cache);
   ge::Status Allocate(const CacheDesc &cache_desc, const std::vector<CacheKey> &cache_keys, Cache &cache);
   ge::Status Deallocate(int64_t cache_id) const;
@@ -68,6 +69,9 @@ class DataCacheEngine {
   std::once_flag create_stream_once_flag_;
   void *host_pool_memory_{nullptr};
   std::unique_ptr<LlmMemPool> host_mem_pool_{};
+  void *npu_pool_handle_{nullptr};
+  void *host_pool_handle_{nullptr};
+  void *cache_table_handle_{nullptr};
 };
 }  // namespace llm
 

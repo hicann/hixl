@@ -12,7 +12,6 @@
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_ENGINE_INC_LLM_V2_DATADIST_H
 
 #include "common/llm_inner_types.h"
-#include "link_mgr/llm_link_manager.h"
 #include "cache_mgr/data_cache_engine.h"
 #include "hccl/hccl_adapter.h"
 #include "link_mgr/comm_entity_manager.h"
@@ -83,7 +82,7 @@ class LLMDataDistV2  {
   uint64_t cluster_id_;
   std::atomic<bool> is_initialized_{false};
   std::mutex mutex_;
-  std::unique_ptr<LLMLinkManager> llm_link_mgr_;
+  std::unique_ptr<TransferEngine> transfer_engine_;
   std::unique_ptr<DataCacheEngine> data_cache_engine_;
   std::unique_ptr<CommEntityManager> comm_entity_manager_;
   std::unique_ptr<CommMemManager> comm_mem_manager_;

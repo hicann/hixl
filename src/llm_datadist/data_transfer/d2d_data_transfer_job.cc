@@ -135,29 +135,8 @@ ge::Status D2DDataTransferJob::GenerateSendTask(const CacheEntry &cache_entry, c
 }
 
 ge::Status D2DDataTransferJob::PullCache() {
-  const auto start = std::chrono::steady_clock::now();
-  const auto stream = comm_entity_->GetStream();
-  BufferedSender buffered_sender;
-  buffered_sender.Initialize(*comm_entity_, stream, false);
-  LLMLOGI("task num = %zu", send_tasks_.size());
-  while (!send_tasks_.empty()) {
-    auto op_desc = send_tasks_.front();
-    send_tasks_.pop_front();
-    // local, remote is reversed in get mode
-    LLM_CHK_STATUS_RET(buffered_sender.Put(op_desc.remoteAddr, op_desc.localAddr, op_desc.count));
-  }
-  LLM_CHK_STATUS_RET(buffered_sender.Flush());
-  const auto ret = aclrtSynchronizeStreamWithTimeout(stream, comm_entity_->GetRequest().timeout_in_ms);
-  LLM_CHK_BOOL_RET_STATUS(ret == ACL_ERROR_NONE,
-                         llm::ConvertAclError2Ge(ret),
-                         "Failed to sync stream, aclrt_ret = %d", ret);
-  const auto end = std::chrono::steady_clock::now();
-  const auto cost = static_cast<uint64_t>(
-      std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
-  LLMLOGI("sync stream success, cost = %ld us.", cost);
-  auto &recv_statistic_info = comm_entity_->GetRecvStatisticInfo();
-  StatisticManager::UpdateCost(cost, recv_statistic_info.pull_times, recv_statistic_info.pull_min_cost,
-                               recv_statistic_info.pull_max_cost, recv_statistic_info.pull_total_cost);
+  LLM_CHK_STATUS_RET(comm_entity_->BatchTransfer(send_tasks_, false, true, comm_entity_->GetRequest().timeout_in_ms),
+                     "Failed to batch get, task size:%zu.", send_tasks_.size());
   return ge::SUCCESS;
 }
 }  // namespace llm

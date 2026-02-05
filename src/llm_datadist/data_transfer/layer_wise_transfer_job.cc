@@ -181,21 +181,6 @@ ge::Status LayerWiseTransferJob::SynchronizeTransferCacheWithRecord(const int32_
   return ge::SUCCESS;
 }
 
-ge::Status LayerWiseTransferJob::SynchronizeTransferCache(const int32_t timeout_in_ms) {
-  const auto start = std::chrono::steady_clock::now();
-  LLM_CHK_STATUS_RET(DataTransferUtils::SendCache(stream_, *comm_entity_, layer_transfer_tasks_),
-                    "comm_entity:%s send cache failed", comm_entity_->GetDesc().c_str());
-  LLM_CHK_ACL_RET(aclrtSynchronizeStreamWithTimeout(stream_, timeout_in_ms));
-  const auto finished_time_point = std::chrono::steady_clock::now();
-  const auto cost =
-      static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(finished_time_point - start).count());
-  auto &send_statistic_info = comm_entity_->GetSendStatisticInfo(stream_);
-  StatisticManager::GetInstance().UpdateCost(cost, send_statistic_info.send_times, send_statistic_info.send_min_cost,
-                                             send_statistic_info.send_max_cost, send_statistic_info.send_total_cost);
-  LLMLOGI("comm_entity:%s send all task of request finished", comm_entity_->GetDesc().c_str());
-  return ge::SUCCESS;
-}
-
 ge::Status LayerWiseTransferJob::FillRemoteLayerAddrs(int32_t timeout_in_ms,
                                                       TransferCacheConfig &transfer_config,
                                                       const TransferBlockConfig &transfer_block_config) const {
@@ -269,7 +254,9 @@ ge::Status LayerWiseTransferJob::TransferCache(const CacheEntry &cache_entry,
   }
   LLM_CHK_STATUS_RET(Prepare(cache_entry, transfer_config, transfer_block_config), "prepare transfer task failed");
   if (access_remote_cache) {
-    LLM_CHK_STATUS_RET(SynchronizeTransferCache(timeout_in_ms), "transfer cache failed");
+    LLM_CHK_STATUS_RET(comm_entity_->BatchTransfer(layer_transfer_tasks_, true, false, timeout_in_ms),
+                       "Failed to batch put, task size:%zu.", layer_transfer_tasks_.size());
+    LLMLOGI("comm_entity:%s send all task of request finished", comm_entity_->GetDesc().c_str());
   } else {
     LLM_CHK_STATUS_RET(SynchronizeTransferCacheWithRecord(timeout_in_ms), "transfer cache with record failed");
   }

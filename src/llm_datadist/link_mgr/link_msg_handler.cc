@@ -17,6 +17,7 @@
 #include "common/llm_utils.h"
 #include "common/llm_checker.h"
 #include "common/llm_scope_guard.h"
+#include "cache_mgr/comm_mem_manager.h"
 
 namespace llm {
 namespace {
@@ -102,7 +103,6 @@ ge::Status LinkMsgHandler::Deserialize(const std::vector<char> &msg_str, T &msg)
 
 ge::Status LinkMsgHandler::Initialize(const std::map<ge::AscendString, ge::AscendString> &options) {
   LLM_CHECK_NOTNULL(comm_entity_manager_);
-  LLM_CHECK_NOTNULL(comm_mem_manager_);
   LLM_CHECK_NOTNULL(cache_manager_);
   LLM_CHK_STATUS_RET(LLMUtils::ParseFlag(kLlmOptionEnableRemoteCacheAccessible,
                                         options,
@@ -140,11 +140,6 @@ ge::Status LinkMsgHandler::Initialize(const std::map<ge::AscendString, ge::Ascen
     LLMLOGI("set rdma service level to %u.", service_level);
   }
   LLM_ASSERT_RT_OK(aclrtGetCurrentContext(&aclrt_context_));
-  const auto &buffer_and_size = cache_manager_->GetCacheTableBufferAndSize();
-  LLM_CHK_STATUS_RET(comm_mem_manager_->RegisterCommMemAddr(buffer_and_size.first,
-                                                          buffer_and_size.second,
-                                                          HcclMemType::HCCL_MEM_TYPE_DEVICE),
-                    "Failed to register cache table addr");
   handler_plugin_.Initialize();
   return ge::SUCCESS;
 }
@@ -152,7 +147,6 @@ ge::Status LinkMsgHandler::Initialize(const std::map<ge::AscendString, ge::Ascen
 void LinkMsgHandler::Finalize() {
   handler_plugin_.Finalize();
   comm_entity_manager_ = nullptr;
-  comm_mem_manager_ = nullptr;
   cache_manager_ = nullptr;
 }
 
@@ -306,34 +300,34 @@ ge::Status LinkMsgHandler::ExchangeInfoProcess(const LLMExchangeInfo &peer_excha
                       "Failed to destroy previous entity, peer cluster id:%lu.",
                       peer_exchange_info.cluster_id);
   }
-  CommEntityParams entity_param{};
-  entity_param.comm_id = UINT64_MAX;  // do not use comm_id
-  entity_param.peer_cluster_id = peer_exchange_info.cluster_id;
-  entity_param.peer_rank_id = peer_rank_id;
-  entity_param.local_cluster_id = cluster_id_;
-  entity_param.local_rank_id = local_rank_id;
-  entity_param.remote_cache_accessible = remote_cache_accessible_;
+  EntityPtr entity = MakeShared<CommEntity>(UINT64_MAX, peer_exchange_info.cluster_id,
+                                            peer_rank_id, cluster_id_, local_rank_id);
+  LLM_CHECK_NOTNULL(entity);
+  LLM_CHK_STATUS_RET(entity->Initialize(remote_cache_accessible_), "Failed to init entity");
+  ScopeGuard entity_guard([entity]() {
+    entity->Finalize();
+  });
   EntityCommInfo::CommParams comm_params{};
   comm_params.rank_id = local_rank_id;
   comm_params.comm_config = comm_config_;
   LLM_ASSERT_EOK(strcpy_s(comm_params.comm_config.hcclCommName, COMM_NAME_MAX_LENGTH,
                          peer_exchange_info.comm_name.c_str()));
   comm_params.rank_table = rank_table;
-  comm_params.mem_handles = comm_mem_manager_->GetAllRegisterMemHandles();
+  comm_params.mem_handles = mem_handles_callback_();
   constexpr uint32_t kTimeInSec = 1000;
   auto left_time = timeout % kTimeInSec == 0 ? 0 : 1;
   comm_params.timeout = timeout / kTimeInSec + left_time;
-  EntityPtr entity = nullptr;
-  LLM_CHK_STATUS_RET(comm_entity_manager_->CreateEntity(entity_param, comm_params, entity),
-                    "Failed to create entity");
-  LLMLOGI("Success to create comm entity:%s", entity->GetDesc().c_str());
+  auto comm_info_ptr = MakeShared<EntityCommInfo>(comm_params);
+  LLM_CHECK_NOTNULL(comm_info_ptr);
+  LLM_CHK_STATUS_RET(comm_info_ptr->Initialize(), "Failed to init communication.");
+  entity->SetEntityCommInfo(comm_info_ptr);
   entity->SetContext(aclrt_context_);
   entity->SetCacheManager(cache_manager_);
-  LLM_DISMISSABLE_GUARD(fail_guard, ([this, &peer_exchange_info]() {
-    (void) comm_entity_manager_->DestroyEntity(peer_exchange_info.cluster_id);
-  }));
   LLM_CHK_STATUS_RET(SetEntityMemInfo(peer_exchange_info, entity, mem_info_ptr), "Failed ti set entity mem info");
-  LLM_DISMISS_GUARD(fail_guard);
+  LLMLOGI("Success to create comm entity:%s", entity->GetDesc().c_str());
+  LLM_CHK_STATUS_RET(comm_entity_manager_->AddEntity(peer_exchange_info.cluster_id, entity),
+                    "Failed to add entity");
+  entity_guard.Dismiss();
   return ge::SUCCESS;
 }
 
@@ -458,5 +452,9 @@ ge::Status LinkMsgHandler::UnlinkCluster(const ClusterInfo &cluster, int32_t tim
 
 size_t LinkMsgHandler::GetLinkSize() const {
   return comm_entity_manager_->GetEntitySize();
+}
+
+void LinkMsgHandler::SetMemHandlesCallback(GetMemHandles callback) {
+  mem_handles_callback_ = callback;
 }
 }  // namespace llm

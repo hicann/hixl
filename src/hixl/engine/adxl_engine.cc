@@ -87,4 +87,8 @@ Status AdxlEngine::GetNotifies(std::vector<NotifyDesc> &notifies) {
   }
   return ret;
 }
+
+Status AdxlEngine::RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor) {
+  return adxl_inner_engine_.RegisterCallbackProcessor(msg_type, processor);
+}
 }  // namespace hixl
