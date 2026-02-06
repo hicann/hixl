@@ -38,13 +38,13 @@
 ```
 hccn_tool -i ${device_id_b} -ip -g  
 ```
-其中\${device_id_b}为b设备的device_id。
+其中${device_id_b}为b设备的device_id。
 
 2. 用hccn_tool检测a到b的连通性
 ```
 hccn_tool -i ${device_id_a} -ping -g address ${ip_address_b}
 ```
-其中\${device_id_a}为a设备的device_id，\${ip_address_b}为第一步中查出的b设备的device_ip。  
+其中${device_id_a}为a设备的device_id，${ip_address_b}为第一步中查出的b设备的device_ip。  
 
 3. 将ab互换重复执行步骤1和2，检测b到a的连通性    
 
@@ -131,6 +131,7 @@ for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
     - 执行decoder_switch_roles, 参数为device_id、local_ip和remote_ip, 其中device_id为decoder要使用的device_id, local_ip为decoder所在host的ip，remote_ip为prompt所在host的ip，如:
         ```
         ./decoder_switch_roles 2 10.170.10.1 10.170.10.1
+        ```
 
 ### 2. HIXL样例
   - 说明：
@@ -170,7 +171,7 @@ for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
 
     (2) 执行server_server_d2d, 均作为server，d2d场景
 
-    - 执行server1 server_server_d2d, 参数为device_id、local engine和remote engine, 其中device_id为当前engine要使用的device_id，如:
+    - 执行server1 server_server_d2d, 参数为device_id、local engine和remote engine, 其中device_id为当前engine要使用的device_id, 如:
         ```
         HCCL_INTRA_ROCE_ENABLE=1 ./server_server_d2d 0 10.10.10.0:16000 10.10.10.0:16001
         ```
