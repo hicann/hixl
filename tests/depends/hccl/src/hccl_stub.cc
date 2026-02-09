@@ -9,6 +9,7 @@
  */
 
 #include <cstring>
+#include <string>
 #include "hcomm/hcomm_res_defs.h"
 
 #ifdef __cplusplus
