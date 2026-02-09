@@ -22,6 +22,7 @@
 |   ├── decoder_switch_roles.cpp                       // switch_roles的decoder侧实现
 |   ├── client_server_h2d.cpp                          // HIXL的client-server模式, h2d场景样例
 |   ├── server_server_d2d.cpp                          // HIXL的server-server模式, d2d场景样例
+|   ├── fabric_mem_d2d.cpp                             // HIXL的fabric-mem模式下的d2d场景样例
 |   ├── CMakeLists.txt                                 // 编译脚本
 ```
 
@@ -181,3 +182,17 @@ for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
         HCCL_INTRA_ROCE_ENABLE=1 ./server_server_d2d 1 10.10.10.0:16001 10.10.10.0:16000
         ```
     **注**：HCCL_INTRA_ROCE_ENABLE=1表示使用RDMA进行传输
+
+    (3) 执行fabric_mem_d2d, fabric mem模式下，d2d场景
+
+    **注意**：要使用fabric mem模式，HDK需升级至26.0以上版本
+
+      - 执行server1 fabric_mem_d2d, 参数为device_id、local engine和remote engine, 其中device_id为当前engine要使用的device_id，如:
+          ```
+          ./fabric_mem_d2d 0 127.0.0.1:16000 127.0.0.1:16001
+          ```
+
+      - 执行server2 fabric_mem_d2d, 参数为device_id、local engine和remote engine, 其中device_id为当前engine要使用的device_id, 如:
+          ```
+          ./fabric_mem_d2d 1 127.0.0.1:16001 127.0.0.1:16000
+          ```
