@@ -99,3 +99,9 @@ Test options:
   # 编译 + 执行samples
   bash hixl.sh hixl_build --examples hixl_samples 0 2
   ```
+- 用户可以根据需要指定网络接口名，若不指定则默认使用 eth 或 enp 开头的网络接口名
+  ```
+  # 使用指定的网络接口名
+  export SOCKET_IFNAME=enp67s0f5
+  bash hixl.sh 0 2
+  ```

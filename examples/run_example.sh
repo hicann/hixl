@@ -106,10 +106,28 @@ run_pair() {
 }
 
 all_samples() {
-    NETWORK_INTERFACE_NAME=$(ifconfig -a | awk '/^((eth|en)[0-9a-zA-Z]+)[[:space:]:]/ {gsub(/:/,"",$1); print $1; exit}')
-    IP_ADDRESS=$(ifconfig "$NETWORK_INTERFACE_NAME" | awk '/inet / {gsub(/addr:/,"",$2); print $2}')
+    # 若设置了 SOCKET_IFNAME 环境变量则使用环境变量中的网络接口名，否则默认使用 eth 或 enp 开头的网络接口名
+    if [ -n "$SOCKET_IFNAME" ]; then
+        NETWORK_INTERFACE_NAME="$SOCKET_IFNAME"
+    else
+        NETWORK_INTERFACE_NAME=$(ifconfig -a | awk '/^((eth|enp)[0-9a-zA-Z]+)[[:space:]:]/ {gsub(/:/,"",$1); print $1; exit}')
+    fi
+    if [ -z "$NETWORK_INTERFACE_NAME" ]; then
+        echo "ERROR: Failed to get network interface name."
+        echo "Please specify a valid interface using SOCKET_IFNAME environment variable"
+        exit 1
+    fi
     echo "NETWORK_INTERFACE_NAME: ${NETWORK_INTERFACE_NAME}"
+
+    # 获取网络接口的 IP 地址
+    IP_ADDRESS=$(ifconfig "$NETWORK_INTERFACE_NAME" | awk '/inet / {gsub(/addr:/,"",$2); print $2}')
+    if [ -z "$IP_ADDRESS" ]; then
+        echo "ERROR: Failed to get IP address for network interface '${NETWORK_INTERFACE_NAME}'"
+        echo "Please check if the network interface exists or specify a valid interface using SOCKET_IFNAME environment variable"
+        exit 1
+    fi
     echo "IP_ADDRESS: ${IP_ADDRESS}"
+    
     if [ $# -lt 2 ]; then
         echo "ERROR: At least 2 device IDs are required."
         exit 1
