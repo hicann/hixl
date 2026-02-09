@@ -423,6 +423,26 @@ TEST_F(HixlSTest, TestHixlServerDown) {
   engine1.Finalize();
 }
 
+TEST_F(HixlSTest, TestHixlAutoClearChannel) {
+  adxl::ChannelManager::SetHeartbeatWaitTime(10);  // 10ms
+  adxl::Channel::SetHeartbeatTimeout(50);  // 50ms
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  Hixl engine1;
+  std::map<AscendString, AscendString> options1;
+  options1[OPTION_AUTO_CONNECT] = "1";
+  EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options1), SUCCESS);
+
+  llm::AutoCommResRuntimeMock::SetDevice(1);
+  Hixl engine2;
+  std::map<AscendString, AscendString> options2;
+  EXPECT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
+  engine2.Finalize();
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  EXPECT_EQ(engine1.Disconnect("127.0.0.1:26001"), NOT_CONNECTED);
+  engine1.Finalize();
+}
+
 TEST_F(HixlSTest, TestHixlFabricMem) {
   llm::AutoCommResRuntimeMock::SetDevice(kDeviceId0);
   Hixl engine1;

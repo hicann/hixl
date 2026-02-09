@@ -761,4 +761,30 @@ TEST_F(HixlUTest, TestHixlGetTransferStatusWithStreamSyncFailed) {
   engine1.Finalize();
   engine2.Finalize();
 }
+
+TEST_F(HixlUTest, TestHixlEngineAutoConnectEnabled) {
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  Hixl engine1;
+  std::map<AscendString, AscendString> options1;
+  options1[OPTION_AUTO_CONNECT] = "1";
+  EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options1), SUCCESS);
+  llm::AutoCommResRuntimeMock::SetDevice(1);
+  Hixl engine2;
+  std::map<AscendString, AscendString> options2;
+  EXPECT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
+  int32_t src = 1;
+  MemHandle handle1 = nullptr;
+  RegisterInt32Mem(engine1, &src, handle1);
+  int32_t dst = 2;
+  MemHandle handle2 = nullptr;
+  RegisterInt32Mem(engine2, &dst, handle2);
+  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+  EXPECT_EQ(engine1.TransferSync("127.0.0.1:26001", READ, {desc}), SUCCESS);
+  EXPECT_EQ(src, 2);
+  engine1.Disconnect("127.0.0.1:26001");
+  EXPECT_EQ(engine1.DeregisterMem(handle1), SUCCESS);
+  EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
+  engine1.Finalize();
+  engine2.Finalize();
+}
 }  // namespace llm_datadist

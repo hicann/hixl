@@ -589,8 +589,10 @@ Status ChannelMsgHandler::Disconnect(const std::string &remote_engine, int32_t t
   }));
 
   auto channel = channel_manager_->GetChannel(ChannelType::kClient, remote_engine);
-  ADXL_CHK_BOOL_RET_STATUS(channel != nullptr, NOT_CONNECTED,
-                           "Failed to get channel, channel_id:%s", remote_engine.c_str());
+  if (channel == nullptr) {
+    LLMEVENT("Channel does not exist or is already disconnected, channel_id:%s", remote_engine.c_str());
+    return NOT_CONNECTED;
+  }
   channel->StopHeartbeat();
   // if connect failed, then release client and server auto release channel
   ADXL_CHK_STATUS(llm::MsgHandlerPlugin::Connect(remote_ip, static_cast<uint32_t>(remote_port),

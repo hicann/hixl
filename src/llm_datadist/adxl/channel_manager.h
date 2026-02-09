@@ -57,6 +57,8 @@ class ChannelManager {
     disconnect_response_callback_ = callback;
   }
 
+  void SetAutoConnect(bool auto_connect);
+
  private:
   void SendHeartbeats();
   void CheckHeartbeatTimeouts();
@@ -113,6 +115,7 @@ class ChannelManager {
   std::function<Status(const std::string&, int32_t)> disconnect_callback_;
   std::function<void(const RequestDisconnectResp&)>
                 disconnect_response_callback_;
+  bool auto_connect_{false};
 };
 }  // namespace adxl
 
