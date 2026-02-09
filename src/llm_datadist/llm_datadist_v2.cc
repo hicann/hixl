@@ -103,6 +103,7 @@ void LLMDataDistV2::DoInnerFinalize() {
   {
     TemporaryRtContext with_context(aclrt_context_);
     comm_entity_manager_->Dump();
+    transfer_engine_->UnlinkAllClusters();
     comm_entity_manager_->Finalize();
     comm_mem_manager_->Finalize();
     data_cache_engine_->Finalize();

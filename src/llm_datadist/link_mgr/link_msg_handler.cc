@@ -300,8 +300,13 @@ ge::Status LinkMsgHandler::ExchangeInfoProcess(const LLMExchangeInfo &peer_excha
                       "Failed to destroy previous entity, peer cluster id:%lu.",
                       peer_exchange_info.cluster_id);
   }
-  EntityPtr entity = MakeShared<CommEntity>(UINT64_MAX, peer_exchange_info.cluster_id,
-                                            peer_rank_id, cluster_id_, local_rank_id);
+
+  auto entity = comm_entity_manager_->GetEntityByRemoteClusterId(peer_exchange_info.cluster_id);
+  LLM_CHK_BOOL_RET_STATUS(entity == nullptr, ge::LLM_ALREADY_LINK,
+                         "Link already exists, peer cluster id:%lu.", peer_exchange_info.cluster_id);
+
+  entity = MakeShared<CommEntity>(UINT64_MAX, peer_exchange_info.cluster_id,
+                                  peer_rank_id, cluster_id_, local_rank_id);
   LLM_CHECK_NOTNULL(entity);
   LLM_CHK_STATUS_RET(entity->Initialize(remote_cache_accessible_), "Failed to init entity");
   ScopeGuard entity_guard([entity]() {

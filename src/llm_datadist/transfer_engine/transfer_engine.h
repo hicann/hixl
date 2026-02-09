@@ -37,8 +37,9 @@ class TransferEngine {
                                     int32_t timeout, bool force_flag = false) = 0;
   virtual ge::Status Link(std::string &cluster_name, const std::map<uint64_t, uint32_t> &cluster2rank, std::string &rank_table,
                           uint64_t &comm_id) = 0;
-
   virtual ge::Status Unlink(uint64_t comm_id) = 0;
+  virtual void UnlinkAllClusters() = 0;
+
   virtual ge::Status QueryRegisterMemStatus(uint64_t comm_id, RegisterMemoryStatus &status) = 0;
   virtual ge::Status SwitchRole(const std::string &role, const std::map<std::string, std::string> &options) = 0;
 

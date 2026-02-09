@@ -34,7 +34,8 @@ ge::Status HcclTransferEngine::Initialize(const std::map<ge::AscendString, ge::A
 }
 
 void HcclTransferEngine::Finalize() {
-  (void) llm_link_mgr_->Finalize();
+  LLMLOGI("Begin to transfer engine finalize.");
+  llm_link_mgr_->Finalize();
 }
 
 ge::Status HcclTransferEngine::RegisterMem(void *addr, uint64_t size, HcclMemType type, void *&handle) {
@@ -78,6 +79,11 @@ ge::Status HcclTransferEngine::Link(std::string &cluster_name, const std::map<ui
 ge::Status HcclTransferEngine::Unlink(uint64_t comm_id) {
   LLM_CHK_STATUS_RET(llm_link_mgr_->Unlink(comm_id), "Failed to unlink, comm_id:%lu", comm_id);
   return ge::SUCCESS;
+}
+
+void HcclTransferEngine::UnlinkAllClusters() {
+  LLMLOGI("Begin to unlink all clusters.");
+  llm_link_mgr_->Finalize();
 }
 
 ge::Status HcclTransferEngine::QueryRegisterMemStatus(uint64_t comm_id, RegisterMemoryStatus &status) {

@@ -33,6 +33,8 @@ class HcclTransferEngine : public TransferEngine {
                           int32_t timeout) override;
   ge::Status UnlinkClusters(const std::vector<ClusterInfo> &clusters, std::vector<ge::Status> &rets,
                             int32_t timeout, bool force_flag = false) override;
+  void UnlinkAllClusters() override;
+
   ge::Status QueryRegisterMemStatus(uint64_t comm_id, RegisterMemoryStatus &status) override;
   ge::Status SwitchRole(const std::string &role, const std::map<std::string, std::string> &options) override;
 

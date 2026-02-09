@@ -32,6 +32,8 @@ class HixlTransferEngine : public TransferEngine {
   ge::Status Link(std::string &cluster_name, const std::map<uint64_t, uint32_t> &cluster2rank, std::string &rank_table,
                   uint64_t &comm_id) override;
   ge::Status Unlink(uint64_t comm_id) override;
+  void UnlinkAllClusters() override;
+
   ge::Status QueryRegisterMemStatus(uint64_t comm_id, RegisterMemoryStatus &status) override;
   ge::Status SwitchRole(const std::string &role, const std::map<std::string, std::string> &options) override;
 

@@ -331,7 +331,7 @@ ge::Status MsgHandlerPlugin::RecvMsg(int32_t fd, int32_t &msg_type, std::vector<
   LLM_CHK_BOOL_RET_STATUS(n == static_cast<ssize_t>(sizeof(magic_number)),
                           ge::FAILED, "Failed to recv magic num len:%zd, expect len:%zu", n, sizeof(magic_number));
   LLM_CHK_BOOL_RET_STATUS(magic_number == kMagicNumber,
-                          ge::FAILED, "Failed to check recv magic num:%u", n, magic_number);
+                          ge::FAILED, "Failed to check recv magic num:%u", magic_number);
   const static size_t kMaxLength = 1ULL << 20;
   uint64_t length = 0;
   n = Read(fd, &length, sizeof(length));

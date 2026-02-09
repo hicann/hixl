@@ -271,6 +271,14 @@ void CommLinkManager::Finalize() {
     Unlink(comm_id);
   }
   thread_pool_.Destroy();
+
+  LLMLOGI("Deregister global mem start");
+  std::lock_guard<std::mutex> lock(handles_mutex_);
+  for (auto handle : handles_) {
+    (void) HcclAdapter::GetInstance().HcclDeregisterGlobalMem(handle);
+  }
+  handles_.clear();
+  LLMLOGI("Deregister global mem end");
 }
 
 ge::Status CommLinkManager::Initialize(const std::map<ge::AscendString, ge::AscendString> &options) {

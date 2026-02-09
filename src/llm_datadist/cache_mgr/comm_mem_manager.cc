@@ -36,13 +36,8 @@ ge::Status GlobalMemManager::RegisterMem(void *addr, uint64_t size, HcclMemType 
 }
 
 void GlobalMemManager::Finalize() {
-  LLMLOGI("GlobalMemManager finalize start");
   std::lock_guard<std::mutex> lock(mutex_);
-  for (auto handle : handles_) {
-    (void) HcclAdapter::GetInstance().HcclDeregisterGlobalMem(handle);
-  }
   handles_.clear();
-  LLMLOGI("GlobalMemManager finalize end");
 }
 
 ge::Status GlobalMemManager::UnregisterMem(void *handle) {
