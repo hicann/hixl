@@ -66,6 +66,8 @@ class CommLinkManager {
 
   virtual void Finalize();
 
+  void UnlinkAll();
+
   void SetCommEntityManager(CommEntityManager *comm_entity_manager);
 
   void SetCacheManager(CacheManager *cache_manager);

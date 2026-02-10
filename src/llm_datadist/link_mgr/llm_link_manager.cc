@@ -73,6 +73,11 @@ ge::Status LLMLinkManager::LinkClusters(const std::vector<ClusterInfo> &clusters
   return ret;
 }
 
+void LLMLinkManager::UnlinkAllClusters() {
+  comm_entity_manager_->DeleteEntities();
+  CommLinkManager::UnlinkAll();
+}
+
 ge::Status LLMLinkManager::UnlinkClusters(const std::vector<ClusterInfo> &clusters,
                                           std::vector<ge::Status> &rets,
                                           int32_t timeout,

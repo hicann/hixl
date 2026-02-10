@@ -257,9 +257,8 @@ ge::Status CommLinkManager::PrepareMemTask(CommLinkManager *link_manager, Prepar
   return ret;
 }
 
-void CommLinkManager::Finalize() {
-  LLMLOGI("CommLinkManager finalize start, start stop thread.");
-  running_ = false;
+void CommLinkManager::UnlinkAll() {
+  LLMLOGI("Unlink all start.");
   std::vector<uint64_t> comm_ids;
   {
     std::lock_guard<std::mutex> map_lock(map_mutex_);
@@ -270,6 +269,13 @@ void CommLinkManager::Finalize() {
   for (auto comm_id : comm_ids) {
     Unlink(comm_id);
   }
+  LLMLOGI("Unlink all end.");
+}
+
+void CommLinkManager::Finalize() {
+  LLMLOGI("CommLinkManager finalize start, start stop thread.");
+  running_ = false;
+  UnlinkAll();
   thread_pool_.Destroy();
 
   LLMLOGI("Deregister global mem start");

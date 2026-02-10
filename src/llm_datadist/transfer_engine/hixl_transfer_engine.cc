@@ -228,7 +228,7 @@ ge::Status HixlTransferEngine::UnlinkClusters(const std::vector<ClusterInfo> &cl
 
 void HixlTransferEngine::UnlinkAllClusters() {
   LLMLOGI("Begin to unlink all clusters.");
-  comm_entity_manager_->Finalize();
+  comm_entity_manager_->DeleteEntities();
 }
 
 ge::Status HixlTransferEngine::Link(std::string &cluster_name, const std::map<uint64_t, uint32_t> &cluster2rank, std::string &rank_table,

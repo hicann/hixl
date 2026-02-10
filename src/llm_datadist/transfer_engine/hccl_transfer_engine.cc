@@ -83,7 +83,7 @@ ge::Status HcclTransferEngine::Unlink(uint64_t comm_id) {
 
 void HcclTransferEngine::UnlinkAllClusters() {
   LLMLOGI("Begin to unlink all clusters.");
-  llm_link_mgr_->Finalize();
+  llm_link_mgr_->UnlinkAllClusters();
 }
 
 ge::Status HcclTransferEngine::QueryRegisterMemStatus(uint64_t comm_id, RegisterMemoryStatus &status) {

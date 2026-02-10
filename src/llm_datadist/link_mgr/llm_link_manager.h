@@ -25,7 +25,8 @@ class LLMLinkManager : public CommLinkManager {
       : CommLinkManager(cluster_id, remote_cache_accessible),
         cluster_id_(cluster_id),
         aclrt_context_(nullptr),
-        msg_handler_(cluster_id, device_id, comm_entity_manager, cache_manager) {};
+        msg_handler_(cluster_id, device_id, comm_entity_manager, cache_manager),
+        comm_entity_manager_(comm_entity_manager) {};
   ~LLMLinkManager() override = default;
   ge::Status Initialize(const std::map<ge::AscendString, ge::AscendString> &options) override;
   void Finalize() override;
@@ -33,6 +34,7 @@ class LLMLinkManager : public CommLinkManager {
                           int32_t timeout);
   ge::Status UnlinkClusters(const std::vector<ClusterInfo> &clusters, std::vector<ge::Status> &rets,
                             int32_t timeout, bool force_flag = false);
+  void UnlinkAllClusters();
   ge::Status SwitchRole(const std::string &role, const std::map<std::string, std::string> &options);
 
  private:
@@ -41,6 +43,7 @@ class LLMLinkManager : public CommLinkManager {
   LinkMsgHandler msg_handler_;
   std::mutex mutex_;
   std::string listen_port_;
+  CommEntityManager *comm_entity_manager_;
 };
 }  // namespace llm
 #endif  // CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_LLM_LINK_MANAGER_H_
