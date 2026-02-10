@@ -9,6 +9,7 @@
  */
 
 #include "hixl_utils.h"
+
 #include <arpa/inet.h>
 #include "securec.h"
 #include "nlohmann/json.hpp"
@@ -101,6 +102,130 @@ Status ParseListenInfo(const std::string &listen_info, std::string &listen_ip, i
                       listen_info.c_str());
   if (listen_infos.size() > 1U) {
     HIXL_CHK_STATUS_RET(ToNumber(listen_infos[1], listen_port), "Port:%s is invalid.", listen_infos[1].c_str());
+  }
+  return SUCCESS;
+}
+
+Status ParseEidAddress(const std::string &eid_str, CommAddr &addr) {
+  // 检查字符串长度是否为32
+  if (eid_str.length() != 32) {
+    HIXL_LOGE(PARAM_INVALID, "Invalid EID format: %s. Expected 32 hexadecimal characters without colons.",
+              eid_str.c_str());
+    return PARAM_INVALID;
+  }
+
+  // 检查字符串是否只包含十六进制字符
+  if (!std::all_of(eid_str.begin(), eid_str.end(), [](unsigned char c) { return std::isxdigit(c); })) {
+    HIXL_LOGE(PARAM_INVALID, "Invalid EID: %s. Only hexadecimal characters are allowed.", eid_str.c_str());
+    return PARAM_INVALID;
+  }
+
+  (void)memset_s(addr.eid, COMM_ADDR_EID_LEN, 0, COMM_ADDR_EID_LEN);
+  // 每两个字符转换为一个uint8_t值
+  for (size_t i = 0; i < COMM_ADDR_EID_LEN; ++i) {
+    std::string segment = eid_str.substr(i * 2, 2);
+    try {
+      unsigned long value = std::stoul(segment, nullptr, 16);
+      if (value > UINT8_MAX) {
+        HIXL_LOGE(PARAM_INVALID, "Invalid segment %zu in EID: %s. Maximum value is 0xFF.", i, segment.c_str());
+        return PARAM_INVALID;
+      }
+      addr.eid[i] = static_cast<uint8_t>(value);
+    } catch (const std::invalid_argument &) {
+      HIXL_LOGE(PARAM_INVALID, "Failed to convert segment %zu of EID: %s to integer.", i, segment.c_str());
+      return PARAM_INVALID;
+    } catch (const std::out_of_range &) {
+      HIXL_LOGE(PARAM_INVALID, "Segment %zu of EID: %s is out of range.", i, segment.c_str());
+      return PARAM_INVALID;
+    }
+  }
+  addr.type = COMM_ADDR_TYPE_EID;
+  return SUCCESS;
+}
+
+Status ConvertToEndpointInfo(const EndpointConfig &endpoint_config, EndpointDesc &endpoint, uint32_t dev_phy_id) {
+  static const std::map<std::string, EndpointLocType> placement_map = {{kPlacementHost, ENDPOINT_LOC_TYPE_HOST},
+                                                                       {kPlacementDevice, ENDPOINT_LOC_TYPE_DEVICE}};
+
+  static const std::map<std::string, CommProtocol> protocol_map = {{kProtocolRoce, COMM_PROTOCOL_ROCE},
+                                                                   {kProtocolUbCtp, COMM_PROTOCOL_UBC_CTP},
+                                                                   {kProtocolUbTp, COMM_PROTOCOL_UBC_TP}};
+
+  // 处理placement
+  auto placement_it = placement_map.find(endpoint_config.placement);
+  if (placement_it == placement_map.end()) {
+    HIXL_LOGE(PARAM_INVALID, "Unsupported placement: %s", endpoint_config.placement.c_str());
+    return PARAM_INVALID;
+  }
+  endpoint.loc.locType = placement_it->second;
+
+  // 处理protocol
+  auto protocol_it = protocol_map.find(endpoint_config.protocol);
+  if (protocol_it == protocol_map.end()) {
+    HIXL_LOGE(PARAM_INVALID, "Unsupported protocol: %s", endpoint_config.protocol.c_str());
+    return PARAM_INVALID;
+  }
+  endpoint.protocol = protocol_it->second;
+
+  // 处理ROCE协议的comm_id
+  if (endpoint_config.protocol == kProtocolRoce) {
+    HIXL_CHK_STATUS_RET(ParseIpAddress(endpoint_config.comm_id, endpoint.commAddr), "ParseIpAddress failed");
+    return SUCCESS;
+  }
+
+  // 处理UB协议的comm_id
+  if (endpoint_config.protocol == kProtocolUbCtp || endpoint_config.protocol == kProtocolUbTp) {
+    HIXL_CHK_STATUS_RET(ParseEidAddress(endpoint_config.comm_id, endpoint.commAddr), "ParseEidAddress failed");
+    // placement 为device则需要填写device结构体中的物理id
+    if (endpoint.loc.locType == ENDPOINT_LOC_TYPE_DEVICE) {
+      endpoint.loc.device.devPhyId = dev_phy_id;
+    }
+    return SUCCESS;
+  }
+  return SUCCESS;
+}
+
+Status CheckAddrOverlap(const AddrInfo &cur_info, const std::map<MemHandle, AddrInfo> &addr_map, bool &is_duplicate,
+                        MemHandle &existing_handle) {
+  is_duplicate = false;
+  for (const auto &it : addr_map) {
+    const AddrInfo &info = it.second;
+    // 检查地址范围是否重叠且内存类型相同
+    if (!((cur_info.end_addr <= info.start_addr) || (cur_info.start_addr >= info.end_addr)) &&
+        (cur_info.mem_type == info.mem_type)) {
+      if (info.start_addr == cur_info.start_addr && info.end_addr == cur_info.end_addr) {
+        // 完全相同的内存区域，标记为重复注册
+        is_duplicate = true;
+        existing_handle = it.first;
+        return SUCCESS;
+      }
+      HIXL_LOGE(PARAM_INVALID,
+                "Mem addr range overlap with existing registered mem, "
+                "new mem range:[0x%lx, 0x%lx), existing mem range:[0x%lx, 0x%lx).",
+                cur_info.start_addr, cur_info.end_addr, info.start_addr, info.end_addr);
+      return PARAM_INVALID;
+    }
+  }
+  return SUCCESS;
+}
+
+Status SerializeEndpointConfigList(const std::vector<EndpointConfig> &list, std::string &msg_str) {
+  nlohmann::json j = nlohmann::json::array();
+  try {
+    for (const auto &ep : list) {
+      nlohmann::json item;
+      item["protocol"] = ep.protocol;
+      item["comm_id"] = ep.comm_id;
+      item["placement"] = ep.placement;
+      item["plane"] = ep.plane;
+      item["dst_eid"] = ep.dst_eid;
+      item["net_instance_id"] = ep.net_instance_id;
+      j.push_back(item);
+    }
+    msg_str = j.dump();
+  } catch (const nlohmann::json::exception &e) {
+    HIXL_LOGE(PARAM_INVALID, "Failed to dump endpoint list, exception:%s", e.what());
+    return PARAM_INVALID;
   }
   return SUCCESS;
 }

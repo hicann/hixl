@@ -10,6 +10,7 @@
 
 set(HIXL_TEST_FILES
         cs/test_hixl_cs_server.cc
+        engine/hixl_server_unittest.cpp
         )
 
 file(GLOB HIXL_SRC_LIST
