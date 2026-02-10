@@ -25,7 +25,7 @@ class FabricMemTransferService {
  public:
   FabricMemTransferService() = default;
 
-  Status Initialize(size_t max_stream_num);
+  Status Initialize(size_t max_stream_num, size_t task_stream_num);
 
   void Finalize();
 
@@ -68,6 +68,8 @@ class FabricMemTransferService {
   std::unordered_map<aclrtDrvMemHandle, ShareHandleInfo> share_handles_;
   int32_t device_id_{-1};
   size_t max_stream_num_{0};
+  size_t task_stream_num_{};
+  size_t async_task_stream_num_{};
 
   std::mutex stream_pool_mutex_;
   std::unordered_map<aclrtStream, bool> stream_pool_;

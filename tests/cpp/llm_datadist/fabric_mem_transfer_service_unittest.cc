@@ -38,6 +38,7 @@ constexpr uint64_t kReqBase = 0x1000;
 constexpr size_t kStreamMax = 256;
 constexpr size_t kMemOverLen = 2;
 constexpr const char *kSoName = "libascendcl_stub.so";
+constexpr size_t kDefaultTaskStreamNum = 4U;
 
 class ScopedRuntimeMock {
  public:
@@ -121,11 +122,11 @@ class FabricMemTransferServiceUTest : public ::testing::Test {
 };
 
 TEST_F(FabricMemTransferServiceUTest, TestInitialize) {
-  EXPECT_EQ(service_->Initialize(kStreamMax), SUCCESS);
+  EXPECT_EQ(service_->Initialize(kStreamMax, kDefaultTaskStreamNum), SUCCESS);
 }
 
 TEST_F(FabricMemTransferServiceUTest, TestRegisterMem) {
-  ASSERT_EQ(service_->Initialize(kStreamMax), SUCCESS);
+  ASSERT_EQ(service_->Initialize(kStreamMax, kDefaultTaskStreamNum), SUCCESS);
   MemDesc mem_desc;
   mem_desc.addr = kMemAddr;
   mem_desc.len = kMemLen;
@@ -135,7 +136,7 @@ TEST_F(FabricMemTransferServiceUTest, TestRegisterMem) {
 }
 
 TEST_F(FabricMemTransferServiceUTest, TestTransfer) {
-  ASSERT_EQ(service_->Initialize(kStreamMax), SUCCESS);
+  ASSERT_EQ(service_->Initialize(kStreamMax, kDefaultTaskStreamNum), SUCCESS);
 
   auto channel = CreateInitializedChannel();
 
@@ -177,7 +178,7 @@ TEST_F(FabricMemTransferServiceUTest, TestTransfer) {
 }
 
 TEST_F(FabricMemTransferServiceUTest, TestTransferAsync) {
-  ASSERT_EQ(service_->Initialize(kStreamMax), SUCCESS);
+  ASSERT_EQ(service_->Initialize(kStreamMax, kDefaultTaskStreamNum), SUCCESS);
   auto channel = CreateInitializedChannel();
 
   std::vector<uint8_t> local_buf(kMemLen);
@@ -240,7 +241,7 @@ TEST_F(FabricMemTransferServiceUTest, TestTransferAsync) {
 }
 
 TEST_F(FabricMemTransferServiceUTest, TestTransferAsync_RemoteAddrNotFound) {
-  ASSERT_EQ(service_->Initialize(kStreamMax), SUCCESS);
+  ASSERT_EQ(service_->Initialize(kStreamMax, kDefaultTaskStreamNum), SUCCESS);
   auto channel = CreateInitializedChannel();
   ShareHandleInfo share_info;
   share_info.va_addr = kRemoteAddr;
@@ -262,7 +263,7 @@ TEST_F(FabricMemTransferServiceUTest, TestTransferAsync_RemoteAddrNotFound) {
 }
 
 TEST_F(FabricMemTransferServiceUTest, TestTransferAsync_RemoteAddrOutOfRange) {
-  ASSERT_EQ(service_->Initialize(kStreamMax), SUCCESS);
+  ASSERT_EQ(service_->Initialize(kStreamMax, kDefaultTaskStreamNum), SUCCESS);
   auto channel = CreateInitializedChannel();
   ShareHandleInfo share_info;
   share_info.va_addr = kRemoteAddr;
@@ -284,7 +285,7 @@ TEST_F(FabricMemTransferServiceUTest, TestTransferAsync_RemoteAddrOutOfRange) {
 }
 
 TEST_F(FabricMemTransferServiceUTest, TestTransferAsync_EventCreateFail_CleanupOk) {
-  ASSERT_EQ(service_->Initialize(kStreamMax), SUCCESS);
+  ASSERT_EQ(service_->Initialize(kStreamMax, kDefaultTaskStreamNum), SUCCESS);
   auto channel = CreateInitializedChannel();
   ShareHandleInfo share_info;
   share_info.va_addr = kRemoteAddr;
@@ -326,7 +327,7 @@ TEST_F(FabricMemTransferServiceUTest, TestTransferAsync_EventCreateFail_CleanupO
 }
 
 TEST_F(FabricMemTransferServiceUTest, TestGetTransferStatus_QueryStatusFail_CleanupOk) {
-  ASSERT_EQ(service_->Initialize(kStreamMax), SUCCESS);
+  ASSERT_EQ(service_->Initialize(kStreamMax, kDefaultTaskStreamNum), SUCCESS);
   auto channel = CreateInitializedChannel();
   ShareHandleInfo share_info_test;
   share_info_test.va_addr = kRemoteAddr;
@@ -363,7 +364,7 @@ TEST_F(FabricMemTransferServiceUTest, TestGetTransferStatus_QueryStatusFail_Clea
 }
 
 TEST_F(FabricMemTransferServiceUTest, TestTransferAsync_StreamPoolFull) {
-  ASSERT_EQ(service_->Initialize(kStreamMax), SUCCESS);
+  ASSERT_EQ(service_->Initialize(kStreamMax, kDefaultTaskStreamNum), SUCCESS);
   auto channel = CreateInitializedChannel();
   ShareHandleInfo share_info;
   share_info.va_addr = kRemoteAddr;
@@ -400,7 +401,7 @@ TEST_F(FabricMemTransferServiceUTest, TestTransferAsync_StreamPoolFull) {
 }
 
 TEST_F(FabricMemTransferServiceUTest, TestGetShareHandles) {
-  ASSERT_EQ(service_->Initialize(kStreamMax), SUCCESS);
+  ASSERT_EQ(service_->Initialize(kStreamMax, kDefaultTaskStreamNum), SUCCESS);
   MemDesc mem_desc;
   mem_desc.addr = kMemAddr;
   mem_desc.len = kMemLen;

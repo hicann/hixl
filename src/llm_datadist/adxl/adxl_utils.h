@@ -30,6 +30,7 @@ constexpr const char* OPTION_MAX_CHANNEL = "channel_pool.max_channel";
 constexpr const char* OPTION_HIGH_WATERLINE = "channel_pool.high_waterline";
 constexpr const char* OPTION_LOW_WATERLINE = "channel_pool.low_waterline";
 constexpr const char* OPTION_MAX_FABRIC_MEMORY_CAPACITY = "fabric_memory.max_capacity";
+constexpr const char* OPTION_TASK_STREAM_NUM = "fabric_memory.task_stream_num";
 
 constexpr int kDefaultMaxChannel = 512;
 bool NeedErrorLog(Status status);

@@ -745,4 +745,103 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineAutoConnectEnabled) {
   engine1.Finalize();
   engine2.Finalize();
 }
+
+TEST_F(AdxlEngineUTest, TestAdxlEngineTaskStreamNumConfig) {
+  // Ensure VirtualMemoryManager is not initialized
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  // Test with custom task stream num (valid values 1 to 8)
+  for (size_t task_stream_num = 1; task_stream_num <= 8; ++task_stream_num) {
+    std::string json_config = R"({
+    "fabric_memory.task_stream_num": )" + std::to_string(task_stream_num) + R"(
+  })";
+
+    llm::AutoCommResRuntimeMock::SetDevice(0);
+    AdxlEngine engine;
+    std::map<AscendString, AscendString> options;
+    options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
+    options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
+
+    // Initialize with custom task_stream_num
+    EXPECT_EQ(engine.Initialize("127.0.0.1:26000", options), SUCCESS);
+    engine.Finalize();
+  }
+}
+
+TEST_F(AdxlEngineUTest, TestAdxlEngineTaskStreamNumInvalidConfig) {
+  // Ensure VirtualMemoryManager is not initialized
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  // Test with task_stream_num = 0 (below minimum)
+  {
+    std::string json_config = R"({
+    "fabric_memory.task_stream_num" : 0
+    }
+  })";
+
+    llm::AutoCommResRuntimeMock::SetDevice(0);
+    AdxlEngine engine;
+    std::map<AscendString, AscendString> options;
+    options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
+    options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
+
+    // Should fail with invalid parameter
+    EXPECT_EQ(engine.Initialize("127.0.0.1:26000", options), PARAM_INVALID);
+  }
+
+  // Test with task_stream_num = 9 (above maximum)
+  {
+    std::string json_config = R"({
+    "fabric_memory.task_stream_num" : 9
+  })";
+
+    llm::AutoCommResRuntimeMock::SetDevice(0);
+    AdxlEngine engine;
+    std::map<AscendString, AscendString> options;
+    options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
+    options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
+
+    // Should fail with invalid parameter
+    EXPECT_EQ(engine.Initialize("127.0.0.1:26000", options), PARAM_INVALID);
+  }
+}
+
+TEST_F(AdxlEngineUTest, TestAdxlEngineTaskStreamNumInvalidString) {
+  // Ensure VirtualMemoryManager is not initialized
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  // Test with invalid task_stream_num string (not a number)
+  std::string json_config = R"({
+    "fabric_memory.task_stream_num": "not_a_number"
+  })";
+
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  AdxlEngine engine;
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
+  options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
+
+  // Should fail with invalid parameter
+  EXPECT_EQ(engine.Initialize("127.0.0.1:26000", options), PARAM_INVALID);
+}
+
+TEST_F(AdxlEngineUTest, TestAdxlEngineTaskStreamNumEmptyString) {
+  // Ensure VirtualMemoryManager is not initialized
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  // Test with empty task_stream_num string
+  std::string json_config = R"({
+    "fabric_memory.task_stream_num": ""
+  })";
+
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  AdxlEngine engine;
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
+  options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
+
+  // Should fail with invalid parameter
+  EXPECT_EQ(engine.Initialize("127.0.0.1:26000", options), PARAM_INVALID);
+}
+
 }  // namespace adxl

@@ -24,11 +24,11 @@
 namespace adxl {
 namespace {
 constexpr uint64_t kMillisToMicros = 1000;
-constexpr size_t kTaskStreamNum = 4U;
-constexpr size_t kAsyncTaskStreamNum = 5U;
-constexpr uint64_t DISABLE_PID_VALIDATION_FLAG = 1UL;
 }  // namespace
-Status FabricMemTransferService::Initialize(size_t max_stream_num) {
+Status FabricMemTransferService::Initialize(size_t max_stream_num, size_t task_stream_num) {
+  task_stream_num_ = task_stream_num;
+  // async transfer need one plus stream to submit event record for better performance
+  async_task_stream_num_ = task_stream_num_ + 1U;
   ADXL_CHK_ACL_RET(aclrtGetDevice(&device_id_));
   LLMLOGI("Get device id:%d", device_id_);
   max_stream_num_ = max_stream_num;
@@ -158,7 +158,7 @@ Status FabricMemTransferService::Transfer(const ChannelPtr &channel, TransferOp 
   const auto start = std::chrono::steady_clock::now();
   uint64_t timeout = static_cast<uint64_t>(timeout_in_millis) * kMillisToMicros;
   std::vector<aclrtStream> streams;
-  streams.reserve(kTaskStreamNum);
+  streams.reserve(task_stream_num_);
   ADXL_CHK_STATUS_RET(TryGetStream(streams, timeout), "Failed to get stream.");
   LLM_DISMISSABLE_GUARD(fail_guard, ([this, &streams]() -> void {
                           std::lock_guard<std::mutex> lock(stream_pool_mutex_);
@@ -196,11 +196,11 @@ Status FabricMemTransferService::TransferAsync(const ChannelPtr &channel, Transf
                                                const std::vector<TransferOpDesc> &op_descs, TransferReq &req) {
   auto start = std::chrono::steady_clock::now();
   std::vector<aclrtStream> streams;
-  streams.reserve(kAsyncTaskStreamNum);
-  ADXL_CHK_STATUS_RET(TryGetStreamOnce(streams, kAsyncTaskStreamNum), "Failed to get stream.");
+  streams.reserve(async_task_stream_num_);
+  ADXL_CHK_STATUS_RET(TryGetStreamOnce(streams, async_task_stream_num_), "Failed to get stream.");
   auto real_copy_start = std::chrono::steady_clock::now();
-  std::vector<aclrtStream> copy_streams(kTaskStreamNum, nullptr);
-  for (size_t i = 0U; i < kTaskStreamNum; ++i) {
+  std::vector<aclrtStream> copy_streams(task_stream_num_, nullptr);
+  for (size_t i = 0U; i < task_stream_num_; ++i) {
     copy_streams[i] = streams[i + 1U];
   }
   // TryGetStreamOnce make sure streams is not empty.
@@ -383,9 +383,9 @@ void FabricMemTransferService::DestroyAsyncResources(const std::vector<AsyncReso
 
 Status FabricMemTransferService::TryGetStream(std::vector<aclrtStream> &streams, uint64_t timeout) {
   auto start = std::chrono::steady_clock::now();
-  streams.reserve(kTaskStreamNum);
+  streams.reserve(task_stream_num_);
   while (true) {
-    ADXL_CHK_BOOL_RET_SPECIAL_STATUS(TryGetStreamOnce(streams, kTaskStreamNum) == SUCCESS, SUCCESS, "Success to get stream.");
+    ADXL_CHK_BOOL_RET_SPECIAL_STATUS(TryGetStreamOnce(streams, task_stream_num_) == SUCCESS, SUCCESS, "Success to get stream.");
     uint64_t time_cost =
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
     ADXL_CHK_BOOL_RET_STATUS(time_cost < timeout, TIMEOUT, "Get stream timeout.");

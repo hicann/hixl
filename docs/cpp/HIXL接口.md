@@ -136,7 +136,7 @@ Status Initialize(const AscendString &local_engine, const std::map<AscendString,
 <p id="p172814245116"><a name="p172814245116"></a><a name="p172814245116"></a><span id="ph8287422519"><a name="ph8287422519"></a><a name="ph8287422519"></a>1. 不支持</span>使用HCCS协议进行Host To Host直传传输<span id="ph12819427519"><a name="ph12819427519"></a><a name="ph12819427519"></a>时。</span></p>
 <p id="p5281042115119"><a name="p5281042115119"></a><a name="p5281042115119"></a>2. RDMA注册Host内存大小受限时。</p>
 <p id="p13281442105110"><a name="p13281442105110"></a><a name="p13281442105110"></a>3. 多个小块内存传输(例如128K)需要使用中转传输提升性能时。</p>
-<p id="p128124213518"><a name="p128124213518"></a><a name="p128124213518"></a>可使用此option配置中转内存池的大小，取值格式为"$BUFFER_NUM:$BUFFER_SIZE"，<strong id="b1906113612527"><a name="b1906113612527"></a><a name="b1906113612527"></a>系统默认会配置为"4:8(单位MB)"</strong>，可以通过配置为"0:0"来关闭中转内存池，在有并发的场景下建议增大$BUFFER_NUM个数, 另外，所有使用的地方需要配置相同的值。</p>
+<p id="p128124213518"><a name="p128124213518"></a><a name="p128124213518"></a>可使用此option配置中转内存池的大小，取值格式为"$BUFFER_NUM:$BUFFER_SIZE"，<strong id="b1906113612527"><a name="b1906113612527"></a><a name="b1906113612527"></a>系统默认会配置为"4:8(单位MB)"</strong>，可以通过配置为"0:0"来关闭中转内存池，在有并发的场景下建议增大$BUFFER_NUM个数, 另外，所有使用的地方需要配置相同的值。不支持该参数与"OPTION_ENABLE_USE_FABRIC_MEM"同时配置。 </p>
 <p id="p1281242135"><a name="p1281242135"></a><a name="b19061136125"></a><a name="b19061136125"></a>说明：不配置该参数时，存在如下约束。
 
 Atlas A2 训练系列产品/Atlas A2 推理系列产品：仅支持Atlas 800I A2 推理服务器、Atlas 300I A2 推理卡、A200I A2 Box 异构组件。该场景下Server采用HCCS传输协议时，仅支持D2D。
@@ -167,13 +167,27 @@ Atlas A3 训练系列产品/Atlas A3 推理系列产品：该场景下采用HCCS
 <td class="cellrowborder" valign="top" width="13.139999999999999%" headers="mcps1.2.4.1.2 "><p id="p1284014363233"><a name="p1284014363233"></a><a name="p1284014363233"></a>可选</p>
 </td>
 <td class="cellrowborder" valign="top" width="59.36%" headers="mcps1.2.4.1.3 "><p id="p1321144310716"><a name="p1321144310716"></a><a name="p1321144310716"></a>字符串取值"GlobalResourceConfig"。</p>
-<p id="p141217396266"><a name="p141217396266"></a><a name="p141217396266"></a>用于开启并配置链路池机制。该参数配置示例如下：</p>
+<p id="p141217396266"><a name="p141217396266"></a><a name="p141217396266"></a>用于开启并配置全局资源配置。</p>
+对于Fabric Mem模式，该参数配置实例如下：</p>
 
-{ "channel_pool.max_channel": "10", //最大的链路个数。取值范围：(0, 512]之间的整数，默认值：512
+```
+{ 
+    "fabric_memory.max_capacity": 128, //虚拟内存池的大小。取值范围：(0, 1042]之间的整数，默认值：64，单位TB。
+    "fabric_memory.task_stream_num": 1, //单个传输任务使用的流数量。取值范围：[1, 8]之间的整数，默认值：4。
+}
+```
 
-"channel_pool.high_waterline": "0.3", //触发链路销毁的高水位，取值范围：（0，1）之间的小数，需要和channel_pool.low_waterline同时配置
+对于链路池机制。该参数配置示例如下：</p>
 
- "channel_pool.low_waterline": "0.1" //触发链路销毁的低水位，取值范围：（0，1）之间小数，并且小于高水位 }
+```
+{ 
+    "channel_pool.max_channel": "10", //最大的链路个数。取值范围：(0, 512]之间的整数，默认值：512
+    
+    "channel_pool.high_waterline": "0.3", //触发链路销毁的高水位，取值范围：（0，1）之间的小数，需要和channel_pool.low_waterline同时配置
+    
+    "channel_pool.low_waterline": "0.1" //触发链路销毁的低水位，取值范围：（0，1）之间小数，并且小于高水位
+ }
+```
 
 
 链路池工作时，实际依据链路个数判断是否进行销毁，如果当前链路个数已经达到高水位对应的链路个数，则选择（当前链路个数-低水位对应的链路个数 ）条链路进行销毁（如存在正在传输的任务，则不会销毁），再建链。相关参数计算公式如下：
@@ -201,7 +215,7 @@ Atlas A3 训练系列产品/Atlas A3 推理系列产品：该场景下采用HCCS
 
 此option适用于需要使用HCCS进行D2RH、RH2D传输的场景。 
 
-说明：集群场景下，该参数在所有节点需要配置为相同的值。仅支持Atlas A3 训练系列产品/Atlas A3 推理系列产品。</p>
+说明：集群场景下，该参数在所有节点需要配置为相同的值。不支持该参数与"OPTION_BUFFER_POOL"同时配置。仅支持Atlas A3 训练系列产品/Atlas A3 推理系列产品。</p>
 
 </td>
 </tr>

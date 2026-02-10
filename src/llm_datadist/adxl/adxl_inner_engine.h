@@ -21,6 +21,9 @@
 #include "fabric_mem_transfer_service.h"
 
 namespace adxl {
+namespace {
+constexpr size_t kDefaultStreamNum = 4U;
+}
 class AdxlInnerEngine {
  public:
   explicit AdxlInnerEngine(const AscendString &local_engine)
@@ -80,6 +83,7 @@ class AdxlInnerEngine {
   Status ParseEnableFabricMem(const std::map<AscendString, AscendString> &options);
   Status ParseAutoConnectConfig(const std::map<AscendString, AscendString> &options);
   Status DisconnectOnError(const std::string &remote_engine, int32_t timeout_in_millis);
+  Status ParseTaskStreamNum(const std::map<AscendString, AscendString> &json_options);
 
   std::string local_engine_;
   ChannelManager channel_manager_;
@@ -110,6 +114,7 @@ class AdxlInnerEngine {
 
   bool enable_use_fabric_mem_ = false;
   std::unique_ptr<FabricMemTransferService> fabric_mem_transfer_service_ = nullptr;
+  size_t task_stream_num_ = kDefaultStreamNum;
 };
 }  // namespace adxl
 

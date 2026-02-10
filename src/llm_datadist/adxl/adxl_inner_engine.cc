@@ -126,6 +126,23 @@ Status AdxlInnerEngine::ParseAutoConnectConfig(const std::map<AscendString, Asce
   return SUCCESS;
 }
 
+Status AdxlInnerEngine::ParseTaskStreamNum(const std::map<AscendString, AscendString>& json_options) {
+  auto task_stream_it = json_options.find(adxl::OPTION_TASK_STREAM_NUM);
+  if (task_stream_it != json_options.end()) {
+    size_t task_stream_num = 0U;
+    ADXL_CHK_LLM_RET(llm::LLMUtils::ToNumber(task_stream_it->second.GetString(), task_stream_num),
+                    "Invalid task_stream_num: %s", task_stream_it->second.GetString());
+    constexpr size_t kMinTaskStreamNum = 1U;
+    constexpr size_t kMaxTaskStreamNum = 8U;
+    ADXL_CHK_BOOL_RET_STATUS(task_stream_num >= kMinTaskStreamNum && task_stream_num <= kMaxTaskStreamNum, PARAM_INVALID,
+                            "task_stream_num must be between %zu and %zu, got %zu",
+                            kMinTaskStreamNum, kMaxTaskStreamNum, task_stream_num);
+    task_stream_num_ = task_stream_num;
+    LLMLOGI("Set fabric memory task stream num to %zu", task_stream_num_);
+  }
+  return SUCCESS;
+}
+
 Status AdxlInnerEngine::LoadGlobalResourceConfig(const std::map<AscendString, AscendString>& options) {
   auto config_it = options.find(hixl::OPTION_GLOBAL_RESOURCE_CONFIG);
   std::map<AscendString, AscendString> json_options;
@@ -136,6 +153,7 @@ Status AdxlInnerEngine::LoadGlobalResourceConfig(const std::map<AscendString, As
 
   ADXL_CHK_STATUS_RET(ParseChannelPoolConfig(json_options), "Failed to parse channel pool config.");
   ADXL_CHK_STATUS_RET(ParseFabricMemoryCapacity(json_options), "Failed to parse fabric memory capacity.");
+  ADXL_CHK_STATUS_RET(ParseTaskStreamNum(json_options), "Failed to parse task stream num.");
 
   return SUCCESS;
 }
@@ -158,7 +176,7 @@ Status AdxlInnerEngine::Initialize(const std::map<AscendString, AscendString> &o
   if (enable_use_fabric_mem_) {
     ADXL_CHK_STATUS_RET(VirtualMemoryManager::GetInstance().Initialize(), "Failed to initialize virtual memory manager.");
     fabric_mem_transfer_service_ = llm::MakeUnique<FabricMemTransferService>();
-    ADXL_CHK_STATUS_RET(fabric_mem_transfer_service_->Initialize(kMaxStreams),
+    ADXL_CHK_STATUS_RET(fabric_mem_transfer_service_->Initialize(kMaxStreams, task_stream_num_),
                         "Failed to initialize fabric mem transfer service.");
   }
   segment_table_ = llm::MakeUnique<SegmentTable>();
