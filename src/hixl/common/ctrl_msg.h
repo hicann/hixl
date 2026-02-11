@@ -57,6 +57,7 @@ struct GetRemoteMemReq {
 
 struct HixlMemDesc {
   HcommMem mem;
+  bool is_imported = false;
   std::string tag;
   void *export_desc = nullptr;
   uint32_t export_len = 0U;

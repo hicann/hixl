@@ -31,24 +31,6 @@ ChannelHandle Channel::GetChannelHandle() const {
   return channel_handle_;
 }
 
-Status Channel::GetStatus(ChannelHandle channel_handle, int32_t *status_out) {
-  HIXL_CHECK_NOTNULL(status_out);
-  HIXL_CHK_BOOL_RET_STATUS(channel_handle != 0, PARAM_INVALID, "Channel handle is invalid(0)");
-  const ChannelHandle ch_list[1] = {channel_handle};
-  int32_t status_list[1] = {0};
-  auto ret = HcommChannelGetStatus(ch_list, 1U, status_list);
-  if (ret == HCCL_E_AGAIN) {
-    return 20;
-  }
-  *status_out = status_list[0];
-  // 底层约定：0 表示 ready，其它值表示“尚未 ready 或失败”
-  if (*status_out != 0) {
-    HIXL_LOGD("Channel query success but not ready. channel_handle=%p, status_out=%d",
-              channel_handle, *status_out);
-  }
-  return SUCCESS;
-}
-
 Status Channel::Destroy() const {
   const ChannelHandle ch_list[1] = {channel_handle_};
   HIXL_CHK_HCCL_RET(HcommChannelDestroy(ch_list, 1U));

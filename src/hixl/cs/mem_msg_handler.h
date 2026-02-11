@@ -8,34 +8,29 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef CANN_HIXL_SRC_HIXL_CS_CHANNEL_H_
-#define CANN_HIXL_SRC_HIXL_CS_CHANNEL_H_
+#ifndef CANN_HIXL_SRC_HIXL_CS_HIXL_MEM_MSG_HANDLER_H_
+#define CANN_HIXL_SRC_HIXL_CS_HIXL_MEM_MSG_HANDLER_H_
 
-#include <memory>
+#include <cstdint>
+#include <vector>
+#include <string>
+
 #include "common/hixl_cs.h"
 #include "hixl/hixl_types.h"
 #include "common/hixl_checker.h"
+#include "common/hixl_utils.h"
 #include "common/hixl_log.h"
+#include "common/ctrl_msg.h"
+#include "endpoint.h"
 
 namespace hixl {
-class Channel {
+
+class MemMsgHandler {
  public:
-  Channel() = default;
-  ~Channel() = default;
-
-  Status Create(EndpointHandle ep_handle, HcommChannelDesc &ch_desc, CommEngine engine);
-  ChannelHandle GetChannelHandle() const;
-  Status Destroy() const;
-  ChannelHandle GetHandle() const {
-    return channel_handle_;
-  }
-
- private:
-  ChannelHandle channel_handle_{0UL};
+  static Status SendGetRemoteMemRequest(int32_t socket, uint64_t endpoint_handle, uint32_t timeout_ms = 0U);
+  static Status RecvGetRemoteMemResponse(int32_t socket, std::vector<HixlMemDesc> &mem_descs, uint32_t timeout_ms = 0U);
 };
-
-using ChannelPtr = std::shared_ptr<Channel>;
 
 }  // namespace hixl
 
-#endif  // CANN_HIXL_SRC_HIXL_CS_CHANNEL_H_
+#endif  // CANN_HIXL_SRC_HIXL_CS_HIXL_MEM_MSG_HANDLER_H_

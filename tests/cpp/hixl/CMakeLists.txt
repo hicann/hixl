@@ -11,7 +11,8 @@
 set(HIXL_TEST_FILES
         cs/test_hixl_cs_server.cc
         engine/hixl_server_unittest.cpp
-        )
+        cs/hixl_cs_client_ut.cc
+)
 
 file(GLOB HIXL_SRC_LIST
         "${HIXL_CODE_DIR}/src/hixl/common/*.cc"

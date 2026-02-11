@@ -138,15 +138,6 @@ Status Endpoint::CreateChannel(const EndpointDesc &remote_endpoint, ChannelHandl
   return SUCCESS;
 }
 
-Status Endpoint::GetChannelStatus(ChannelHandle channel_handle, int32_t *status_out) {
-  HIXL_CHECK_NOTNULL(status_out);
-  std::lock_guard<std::mutex> lock(mutex_);
-  auto it = channels_.find(channel_handle);
-  HIXL_CHK_BOOL_RET_STATUS(it != channels_.end(), PARAM_INVALID,
-                           "GetChannelStatus failed, channel not found, handle=%lu", channel_handle);
-  return it->second->GetStatus(channel_handle, status_out);
-}
-
 Status Endpoint::DestroyChannel(ChannelHandle channel_handle) {
   std::lock_guard<std::mutex> lock(mutex_);
   auto it = channels_.find(channel_handle);

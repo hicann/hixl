@@ -8,34 +8,28 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef CANN_HIXL_SRC_HIXL_CS_CHANNEL_H_
-#define CANN_HIXL_SRC_HIXL_CS_CHANNEL_H_
+#ifndef CANN_HIXL_SRC_HIXL_CS_CONN_MSG_HANDLER_H_
+#define CANN_HIXL_SRC_HIXL_CS_CONN_MSG_HANDLER_H_
 
-#include <memory>
+#include <cstdint>
+
 #include "common/hixl_cs.h"
 #include "hixl/hixl_types.h"
 #include "common/hixl_checker.h"
+#include "common/hixl_utils.h"
 #include "common/hixl_log.h"
+#include "common/ctrl_msg.h"
 
 namespace hixl {
-class Channel {
+
+class ConnMsgHandler {
  public:
-  Channel() = default;
-  ~Channel() = default;
-
-  Status Create(EndpointHandle ep_handle, HcommChannelDesc &ch_desc, CommEngine engine);
-  ChannelHandle GetChannelHandle() const;
-  Status Destroy() const;
-  ChannelHandle GetHandle() const {
-    return channel_handle_;
-  }
-
- private:
-  ChannelHandle channel_handle_{0UL};
+  // 发送 CreateChannelReq，携带本端 src_endpoint 和远端 dst_endpoint
+  static Status SendCreateChannelRequest(int32_t socket, const EndpointDesc &src_endpoint, const EndpointDesc &dst_endpoint);
+  // 接收 CreateChannelResp，解析出对端 endpoint_handle
+  static Status RecvCreateChannelResponse(int32_t socket, uint64_t &dst_endpoint_handle, uint32_t timeout_ms);
 };
-
-using ChannelPtr = std::shared_ptr<Channel>;
 
 }  // namespace hixl
 
-#endif  // CANN_HIXL_SRC_HIXL_CS_CHANNEL_H_
+#endif  // CANN_HIXL_SRC_HIXL_CS_CONN_MSG_HANDLER_H_
