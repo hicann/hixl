@@ -44,16 +44,11 @@ unset(_cmake_targets_defined)
 unset(_cmake_targets_not_defined)
 unset(_cmake_expected_targets)
 
-find_path(_TOOLCHAIN_DLOG_PATH "toolchain/dlog_pub.h"
-          NO_CMAKE_SYSTEM_PATH
-          NO_CMAKE_FIND_ROOT_PATH)
 find_path(_PKG_INC_DLOG_PATH "../pkg_inc/base/dlog_pub.h"
           NO_CMAKE_SYSTEM_PATH
           NO_CMAKE_FIND_ROOT_PATH)
 
-if(_TOOLCHAIN_DLOG_PATH)
-    set(_INCLUDE_DIR "${_TOOLCHAIN_DLOG_PATH}/toolchain")
-elseif(_PKG_INC_DLOG_PATH)
+if(_PKG_INC_DLOG_PATH)
     set(_INCLUDE_DIR "${_PKG_INC_DLOG_PATH}/../pkg_inc/base")
 else()
     unset(_INCLUDE_DIR)

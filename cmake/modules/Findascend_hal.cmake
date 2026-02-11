@@ -49,15 +49,8 @@ find_path(_HAL_PATH
     NO_CMAKE_SYSTEM_PATH
     NO_CMAKE_FIND_ROOT_PATH)
 
-find_path(_EX_HAL_PATH
-    NAMES experiment/ascend_hal/driver/ascend_hal.h
-    NO_CMAKE_SYSTEM_PATH
-    NO_CMAKE_FIND_ROOT_PATH)
-
 if(_HAL_PATH)
     set(_INCLUDE_DIR "${_HAL_PATH}")
-elseif(_EX_HAL_PATH)
-    set(_INCLUDE_DIR "${_EX_HAL_PATH}/experiment")
 else()
     unset(_INCLUDE_DIR)
 endif()
@@ -85,15 +78,9 @@ if(ascend_hal_FOUND)
     cmake_print_variables(ascend_hal_LIBRARY_DIR)
 
     add_library(ascend_hal_headers INTERFACE IMPORTED)
-    if (_HAL_PATH)
-        set_target_properties(ascend_hal_headers PROPERTIES
-            INTERFACE_INCLUDE_DIRECTORIES "${ascend_hal_INCLUDE_DIR};${ascend_hal_INCLUDE_DIR}/driver"
-        )
-    else ()
-        set_target_properties(ascend_hal_headers PROPERTIES
-            INTERFACE_INCLUDE_DIRECTORIES "${ascend_hal_INCLUDE_DIR};${ascend_hal_INCLUDE_DIR}/ascend_hal;${ascend_hal_INCLUDE_DIR}/ascend_hal/driver"
-        )
-    endif()
+    set_target_properties(ascend_hal_headers PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${ascend_hal_INCLUDE_DIR};${ascend_hal_INCLUDE_DIR}/driver"
+    )
 
     function(target_link_ascend_hal target)
         target_include_directories(${target} PRIVATE ${ascend_hal_INCLUDE_DIR})

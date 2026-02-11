@@ -44,11 +44,6 @@ unset(_cmake_targets_defined)
 unset(_cmake_targets_not_defined)
 unset(_cmake_expected_targets)
 
-find_path(_EX_MMPA_PATH
-    NAMES experiment/mmpa/mmpa_api.h
-    NO_CMAKE_SYSTEM_PATH
-    NO_CMAKE_FIND_ROOT_PATH)
-
 find_path(_MMPA_PATH
     NAMES mmpa/mmpa_api.h
     NO_CMAKE_SYSTEM_PATH
@@ -60,9 +55,7 @@ find_path(_PKG_INC_MMPA_PATH
     NO_CMAKE_SYSTEM_PATH
     NO_CMAKE_FIND_ROOT_PATH)
 
-if(_EX_MMPA_PATH)
-    set(_INCLUDE_DIR "${_EX_MMPA_PATH}/experiment")
-elseif(_MMPA_PATH)
+if(_MMPA_PATH)
     set(_INCLUDE_DIR "${_MMPA_PATH}")
 elseif(_PKG_INC_MMPA_PATH)
     set(_INCLUDE_DIR "${_PKG_INC_MMPA_PATH}")

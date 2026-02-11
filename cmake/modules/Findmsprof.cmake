@@ -44,17 +44,11 @@ unset(_cmake_targets_defined)
 unset(_cmake_targets_not_defined)
 unset(_cmake_expected_targets)
 
-find_path(_EX_PROF_PATH "experiment/msprof/toolchain/prof_api.h"
-    NO_CMAKE_SYSTEM_PATH
-    NO_CMAKE_FIND_ROOT_PATH)
 find_path(_PROF_PATH "../pkg_inc/toolchain/prof_api.h"
     NO_CMAKE_SYSTEM_PATH
     NO_CMAKE_FIND_ROOT_PATH)
 
-if(_EX_PROF_PATH)
-    set(_INCLUDE_DIR "${_EX_PROF_PATH}/experiment")
-    set(msprof_INCLUDE_DIR "${_INCLUDE_DIR};${_INCLUDE_DIR}/msprof;${_INCLUDE_DIR}/msprof/toolchain")
-elseif(_PROF_PATH)
+if(_PROF_PATH)
     set(_INCLUDE_DIR "${_PROF_PATH}/../pkg_inc")
     set(msprof_INCLUDE_DIR "${_INCLUDE_DIR};${_INCLUDE_DIR}/toolchain;${_INCLUDE_DIR}/profiling")
 else()
