@@ -451,8 +451,9 @@ Status AdxlInnerEngine::GetTransferType(const ChannelPtr &channel, TransferOp op
         cur_type = TransferType::kWriteD2RD;
       }
     }
-    LLMLOGD("Cur transfer type:%d, local mem type:%d, remote mem type:%d.", static_cast<int32_t>(cur_type),
-            static_cast<int32_t>(local_mem_type), static_cast<int32_t>(remote_mem_type));
+    LLMLOGD("Cur transfer type:%d, local mem type:%s, remote mem type:%s.", static_cast<int32_t>(cur_type),
+            hixl::MemTypeToString(static_cast<hixl::MemType>(local_mem_type)).c_str(),
+            hixl::MemTypeToString(static_cast<hixl::MemType>(remote_mem_type)).c_str());
     if (i > 0) {
       ADXL_CHK_BOOL_RET_STATUS(!need_buffer || (need_buffer && cur_type == type), PARAM_INVALID,
                                "All transfer type need be same in buffer transfer mode.");
@@ -482,7 +483,7 @@ Status AdxlInnerEngine::ConnectWhenTransfer(const AscendString &remote_engine, i
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::steady_clock::now() - start_time).count();
     if(elapsed >= timeout_in_millis) {
-      LLMEVENT("Channel is still disconneting after timeout, remote_engine: %s, timeout: %d", 
+      LLMEVENT("Channel is still disconnecting after timeout, remote_engine: %s, timeout: %d",
                 remote_engine.GetString(), timeout_in_millis);
       return FAILED;
     }

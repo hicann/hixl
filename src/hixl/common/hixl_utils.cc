@@ -229,4 +229,26 @@ Status SerializeEndpointConfigList(const std::vector<EndpointConfig> &list, std:
   }
   return SUCCESS;
 }
+
+std::string MemTypeToString(MemType type) {
+  switch (type) {
+    case MEM_DEVICE:
+      return "device";
+    case MEM_HOST:
+      return "host";
+    default:
+      return "unknown";
+  }
+}
+
+std::string TransferOpToString(TransferOp op) {
+  switch (op) {
+    case READ:
+      return "read";
+    case WRITE:
+      return "write";
+    default:
+      return "unknown";
+  }
+}
 }  // namespace hixl

@@ -244,16 +244,19 @@ Status AdxlEngine::TransferSync(const AscendString &remote_engine,
                                 const std::vector<TransferOpDesc> &op_descs,
                                 int32_t timeout_in_millis) {
   auto start = std::chrono::steady_clock::now();
-  LLMLOGI("TransferSync start, remote_engine:%s, operation:%d, op_descs size:%zu, timeout:%d ms",
-          remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size(), timeout_in_millis);
+  LLMLOGI("TransferSync start, remote_engine:%s, operation:%s, op_descs size:%zu, timeout:%d ms",
+          remote_engine.GetString(), hixl::TransferOpToString(static_cast<hixl::TransferOp>(operation)).c_str(),
+          op_descs.size(), timeout_in_millis);
   ADXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check AdxlEngine init");
   ADXL_CHK_BOOL_RET_STATUS(timeout_in_millis > 0, PARAM_INVALID, "timeout_in_millis:%d must > 0", timeout_in_millis);
-  ADXL_CHK_STATUS_RET(impl_->TransferSync(remote_engine, operation, op_descs, timeout_in_millis), 
-                      "Failed to TransferSync, remote_engine:%s, operation:%d, op_descs size:%zu, timeout:%d ms",
-                      remote_engine.GetString(), static_cast<int32_t>(operation),
-                      op_descs.size(), timeout_in_millis);  
-  LLMLOGI("TransferSync success, remote_engine:%s, operation:%d, op_descs size:%zu, cost time: %ld us.",
-          remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size(),
+  ADXL_CHK_STATUS_RET(impl_->TransferSync(remote_engine, operation, op_descs, timeout_in_millis),
+                      "Failed to TransferSync, remote_engine:%s, operation:%s, op_descs size:%zu, timeout:%d ms",
+                      remote_engine.GetString(),
+                      hixl::TransferOpToString(static_cast<hixl::TransferOp>(operation)).c_str(), op_descs.size(),
+                      timeout_in_millis);
+  LLMLOGI("TransferSync success, remote_engine:%s, operation:%s, op_descs size:%zu, cost time: %ld us.",
+          remote_engine.GetString(), hixl::TransferOpToString(static_cast<hixl::TransferOp>(operation)).c_str(),
+          op_descs.size(),
           std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count());
   return SUCCESS;
 }
@@ -263,11 +266,12 @@ Status AdxlEngine::TransferAsync(const AscendString &remote_engine,
                                  const TransferArgs &optional_args,
                                  TransferReq &req) {
   ADXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "Impl is nullptr, check Hixl init.");
-  ADXL_CHK_STATUS_RET(impl_->TransferAsync(remote_engine, operation, op_descs, optional_args, req), 
-                      "Failed to transfer async, remote_engine:%s, operation:%d, op_descs size:%zu.",
-                      remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size());
-  LLMLOGI("Transfer async success, remote_engine:%s, operation:%d, op_descs size:%zu.",
-          remote_engine.GetString(), static_cast<int32_t>(operation), op_descs.size());
+  ADXL_CHK_STATUS_RET(impl_->TransferAsync(remote_engine, operation, op_descs, optional_args, req),
+                      "Failed to transfer async, remote_engine:%s, operation:%s, op_descs size:%zu.",
+                      remote_engine.GetString(),
+                      hixl::TransferOpToString(static_cast<hixl::TransferOp>(operation)).c_str(), op_descs.size());
+  LLMLOGI("Transfer async success, remote_engine:%s, operation:%s, op_descs size:%zu.", remote_engine.GetString(),
+          hixl::TransferOpToString(static_cast<hixl::TransferOp>(operation)).c_str(), op_descs.size());
   return SUCCESS;
 }
 

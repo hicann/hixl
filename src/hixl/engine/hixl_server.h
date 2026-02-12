@@ -16,6 +16,7 @@
 #include <map>
 #include "hixl/hixl_types.h"
 #include "common/hixl_inner_types.h"
+#include "engine.h"
 
 namespace hixl {
 
@@ -52,6 +53,8 @@ class HixlServer {
    * @brief 销毁server
    */
   Status Finalize();
+
+  Status RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor);
 
  private:
   void *server_handle_ = nullptr;

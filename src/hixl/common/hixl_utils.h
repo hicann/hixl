@@ -70,6 +70,9 @@ Status CheckAddrOverlap(const AddrInfo &cur_info, const std::map<MemHandle, Addr
 
 Status SerializeEndpointConfigList(const std::vector<EndpointConfig> &list, std::string &msg_str);
 
+std::string MemTypeToString(MemType type);
+std::string TransferOpToString(TransferOp op);
+
 }  // namespace hixl
 
 #endif  // CANN_HIXL_SRC_HIXL_COMMON_HIXL_UTILS_H_

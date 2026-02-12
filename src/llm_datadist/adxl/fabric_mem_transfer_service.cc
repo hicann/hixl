@@ -20,6 +20,7 @@
 #include "common/llm_log.h"
 #include "statistic_manager.h"
 #include "virtual_memory_manager.h"
+#include "common/hixl_utils.h"
 
 namespace adxl {
 namespace {
@@ -95,7 +96,8 @@ Status FabricMemTransferService::RegisterMem(const MemDesc &mem, MemType type, M
                                                        ACL_MEM_SHARE_HANDLE_TYPE_FABRIC, &share_handle));
     share_handles_[pa_handle] = ShareHandleInfo{mem.addr, mem.len, share_handle};
     mem_handle = pa_handle;
-    LLMLOGI("Export suc, mem type:%d, mem addr:%lu.", type, mem.addr);
+    LLMLOGI("Export suc, mem type:%s, mem addr:%lu.", hixl::MemTypeToString(static_cast<hixl::MemType>(type)).c_str(),
+            mem.addr);
     LLM_DISMISS_GUARD(pa_guard);
   }
   if (type == MEM_HOST) {

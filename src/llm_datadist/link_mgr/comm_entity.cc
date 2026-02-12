@@ -397,16 +397,16 @@ ge::Status CommEntity::SetRemoteAddresses() {
   constexpr size_t kIndexRemoteResp = 2U;
   LLM_CHK_BOOL_RET_STATUS(remote_mems_.size() >= kMinRemoteMemSize, ge::LLM_LINK_FAILED,
                          "remote mem num:%zu, expected min:%zu.", remote_mems_.size(), kMinRemoteMemSize);
-  LLM_CHK_BOOL_RET_STATUS(
-      (remote_mems_[kIndexRemoteReq].type == HcclMemType::HCCL_MEM_TYPE_HOST) &&
-          (remote_mems_[kIndexRemoteReq].size == kDefaultReqBufferSize),
-      ge::LLM_LINK_FAILED, "Remote mem type:%d, size:%llu is not valid.",
-      remote_mems_[kIndexRemoteReq].type, remote_mems_[kIndexRemoteReq].size);
-  LLM_CHK_BOOL_RET_STATUS(
-      (remote_mems_[kIndexRemoteResp].type == HcclMemType::HCCL_MEM_TYPE_HOST) &&
-          (remote_mems_[kIndexRemoteResp].size == kDefaultRespBufferSize),
-      ge::LLM_LINK_FAILED, "Remote mem type:%d, size:%llu is not valid.",
-      remote_mems_[kIndexRemoteResp].type, remote_mems_[kIndexRemoteResp].size);
+  LLM_CHK_BOOL_RET_STATUS((remote_mems_[kIndexRemoteReq].type == HcclMemType::HCCL_MEM_TYPE_HOST) &&
+                              (remote_mems_[kIndexRemoteReq].size == kDefaultReqBufferSize),
+                          ge::LLM_LINK_FAILED, "Remote mem type:%s, size:%llu is not valid.",
+                          HcclUtils::HcclMemTypeToString(remote_mems_[kIndexRemoteReq].type).c_str(),
+                          remote_mems_[kIndexRemoteReq].size);
+  LLM_CHK_BOOL_RET_STATUS((remote_mems_[kIndexRemoteResp].type == HcclMemType::HCCL_MEM_TYPE_HOST) &&
+                              (remote_mems_[kIndexRemoteResp].size == kDefaultRespBufferSize),
+                          ge::LLM_LINK_FAILED, "Remote mem type:%s, size:%llu is not valid.",
+                          HcclUtils::HcclMemTypeToString(remote_mems_[kIndexRemoteResp].type).c_str(),
+                          remote_mems_[kIndexRemoteResp].size);
 
   // only need remote receive area
   // no need check index here.

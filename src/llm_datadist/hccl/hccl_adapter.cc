@@ -268,4 +268,15 @@ ge::Status HcclUtils::ConvertHcclErrorCode(HcclResult hccl_result, ge::Status de
   }
   return default_status;
 }
+
+const std::string HcclUtils::HcclMemTypeToString(HcclMemType type) {
+  switch (type) {
+    case HCCL_MEM_TYPE_DEVICE:
+      return "device";
+    case HCCL_MEM_TYPE_HOST:
+      return "host";
+    default:
+      return "unknown";
+  }
+}
 }  // namespace llm

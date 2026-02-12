@@ -135,4 +135,14 @@ Status HixlServer::Finalize() {
   return SUCCESS;
 }
 
+Status HixlServer::RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor) {
+  MsgProcessor callback = [this, processor, msg_type](int32_t fd, const char *msg, uint64_t msg_len) -> Status {
+    bool keep_fd = false;
+    HIXL_CHK_STATUS_RET(processor(fd, msg, msg_len, keep_fd), "Failed to process msg, type:%d", msg_type);
+    return SUCCESS;
+  };
+  HIXL_CHK_STATUS_RET(HixlCSServerRegProc(server_handle_, static_cast<CtrlMsgType>(msg_type), callback),
+                      "Failed to register send endpoint info processor.");
+  return SUCCESS;
+}
 }  // namespace hixl

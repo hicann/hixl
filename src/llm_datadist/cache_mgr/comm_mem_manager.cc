@@ -27,8 +27,8 @@ ge::Status GlobalMemManager::Initialize(TransferEngine *transfer_engine) {
 ge::Status GlobalMemManager::RegisterMem(void *addr, uint64_t size, HcclMemType type, void *&handle) {
   LLM_CHK_STATUS_RET(transfer_engine_->RegisterMem(addr, size, type, handle),
                      "Failed to register mem");
-  LLMLOGI("Register global mem success, addr:%p, size:%lu, type:%d, handle:%p",
-         addr, size, static_cast<int32_t>(type), handle);
+  LLMLOGI("Register global mem success, addr:%p, size:%lu, type:%s, handle:%p",
+         addr, size, HcclUtils::HcclMemTypeToString(type).c_str(), handle);
 
   std::lock_guard<std::mutex> lock(mutex_);
   handles_.emplace(handle);
