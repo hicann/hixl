@@ -33,6 +33,14 @@ constexpr uint32_t kMaxEngineNameLen = 30;
       std::cerr << __FILE__ << ":" << __LINE__ << " aclError:" << __ret << std::endl; \
     }                                                                                 \
   } while (0)
+
+const char *GetRecentErrMsg() {
+  const char *errmsg = aclGetRecentErrMsg();
+  if (errmsg == nullptr) {
+    return "no error";
+  }
+  return errmsg;
+}
 }  // namespace
 
 int Initialize(Hixl &hixl_engine, const char *local_engine) {
@@ -40,7 +48,7 @@ int Initialize(Hixl &hixl_engine, const char *local_engine) {
   options["BufferPool"] = "0:0";
   auto ret = hixl_engine.Initialize(local_engine, options);
   if (ret != SUCCESS) {
-    printf("[ERROR] Initialize failed, ret = %u\n", ret);
+    printf("[ERROR] Initialize failed, ret = %u, errmsg: %s\n", ret, GetRecentErrMsg());
     return -1;
   }
   printf("[INFO] Initialize success\n");
@@ -50,7 +58,7 @@ int Initialize(Hixl &hixl_engine, const char *local_engine) {
 int Connect(Hixl &hixl_engine, const char *remote_engine) {
   auto ret = hixl_engine.Connect(remote_engine);
   if (ret != SUCCESS) {
-    printf("[ERROR] Connect failed, ret = %u\n", ret);
+    printf("[ERROR] Connect failed, ret = %u, errmsg: %s\n", ret, GetRecentErrMsg());
     return -1;
   }
   printf("[INFO] Connect success\n");
@@ -71,7 +79,8 @@ int32_t Transfer(Hixl &hixl_engine, uint8_t *&buffer, uint8_t *&buffer2, const c
     TransferOpDesc desc{reinterpret_cast<uintptr_t>(buffer), remote_addr, strlen(local_engine)};
     auto ret = hixl_engine.TransferSync(remote_engine, WRITE, {desc});
     if (ret != SUCCESS) {
-      printf("[ERROR] TransferSync write failed, remote_addr:%p, ret = %u\n", reinterpret_cast<void *>(remote_addr), ret);
+      printf("[ERROR] TransferSync write failed, remote_addr:%p, ret = %u, errmsg: %s\n",
+             reinterpret_cast<void *>(remote_addr), ret, GetRecentErrMsg());
       return -1;
     }
     printf("[INFO] TransferSync write success, remote_addr:%p, value:%s\n", reinterpret_cast<void *>(remote_addr),
@@ -98,7 +107,8 @@ int32_t Transfer(Hixl &hixl_engine, uint8_t *&buffer, uint8_t *&buffer2, const c
     TransferOpDesc desc{reinterpret_cast<uintptr_t>(buffer2), remote_addr2, strlen(remote_engine)};
     auto ret = hixl_engine.TransferSync(remote_engine, READ, {desc});
     if (ret != SUCCESS) {
-      printf("[ERROR] TransferSync read failed, remote_addr:%p, ret = %u\n", reinterpret_cast<void *>(remote_addr2), ret);
+      printf("[ERROR] TransferSync read failed, remote_addr:%p, ret = %u, errmsg: %s\n",
+             reinterpret_cast<void *>(remote_addr2), ret, GetRecentErrMsg());
       return -1;
     }
 
@@ -120,7 +130,7 @@ void Finalize(Hixl &hixl_engine, bool connected, const char *remote_engine, cons
   if (connected) {
     auto ret = hixl_engine.Disconnect(remote_engine);
     if (ret != 0) {
-      printf("[ERROR] Disconnect failed, ret = %d\n", ret);
+      printf("[ERROR] Disconnect failed, ret = %d, errmsg: %s\n", ret, GetRecentErrMsg());
     } else {
       printf("[INFO] Disconnect success\n");
     }
@@ -131,7 +141,7 @@ void Finalize(Hixl &hixl_engine, bool connected, const char *remote_engine, cons
   for (auto handle : handles) {
     auto ret = hixl_engine.DeregisterMem(handle);
     if (ret != 0) {
-      printf("[ERROR] DeregisterMem failed, ret = %u\n", ret);
+      printf("[ERROR] DeregisterMem failed, ret = %u, errmsg: %s\n", ret, GetRecentErrMsg());
     } else {
       printf("[INFO] DeregisterMem success\n");
     }
@@ -160,7 +170,7 @@ int32_t Run(const char *local_engine, const char *remote_engine) {
   bool connected = false;
   auto ret = hixl_engine.RegisterMem(desc, MEM_DEVICE, handle);
   if (ret != SUCCESS) {
-    printf("[ERROR] RegisterMem failed, ret = %u\n", ret);
+    printf("[ERROR] RegisterMem failed, ret = %u, errmsg: %s\n", ret, GetRecentErrMsg());
     Finalize(hixl_engine, connected, remote_engine, {});
     return -1;
   }
@@ -168,7 +178,7 @@ int32_t Run(const char *local_engine, const char *remote_engine) {
   desc.addr = reinterpret_cast<uintptr_t>(buffer2);
   ret = hixl_engine.RegisterMem(desc, MEM_DEVICE, handle2);
   if (ret != SUCCESS) {
-    printf("[ERROR] RegisterMem failed, ret = %u\n", ret);
+    printf("[ERROR] RegisterMem failed, ret = %u, errmsg: %s\n", ret, GetRecentErrMsg());
     Finalize(hixl_engine, connected, remote_engine, {handle});
     return -1;
   }

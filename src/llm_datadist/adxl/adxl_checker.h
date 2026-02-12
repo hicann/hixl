@@ -74,6 +74,7 @@
   do {                                                          \
     const ge::Status _ret = (expr);                             \
     if (_ret != ge::SUCCESS) {                                  \
+      REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret));  \
       const auto _adxl_ret = adxl::LLMError2AdxlStatus(_ret);   \
       LLMLOGE((_adxl_ret), __VA_ARGS__);                         \
       return _adxl_ret;                                         \

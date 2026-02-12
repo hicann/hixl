@@ -142,6 +142,7 @@ inline bool LlmLogPrintStdout() {
   do {                                             \
     const bool b = (expr);                         \
     if (!b) {                                      \
+      REPORT_INNER_ERR_MSG("E19999", __VA_ARGS__);  \
       LLMLOGE((_status), __VA_ARGS__);              \
       return (_status);                            \
     }                                              \
@@ -254,6 +255,7 @@ inline ge::Status ConvertHixlError2Ge(uint32_t ret) {
   do {                                                                 \
     const aclError _rt_err = (expr);                \
     if (_rt_err != ACL_ERROR_NONE) {                                                 \
+      REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_rt_err));  \
       LLMLOGE(ge::FAILED, "Call aclrt api failed, ret: 0x%X", static_cast<uint32_t>(_rt_err)); \
     }                                                                  \
   } while (false)

@@ -30,6 +30,7 @@ target_link_libraries(llm_datadist_wrapper_stub PRIVATE
         hccl_headers
         acl_rt_headers
         llm_datadist_base
+        error_manager_stub
         -Wl,-as-needed
         ${DT_COMMON_LINK_OPTION}
 )
@@ -59,6 +60,7 @@ target_include_directories(metadef_wrapper_stub PRIVATE
 target_link_libraries(metadef_wrapper_stub PRIVATE
         intf_pub
         metadef_headers
+        error_manager_stub
         ${DT_COMMON_LINK_OPTION}
 )
 

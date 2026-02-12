@@ -37,6 +37,14 @@ constexpr size_t kTimeoutInMillis = 60000;
       return -1;                                                                      \
     }                                                                                 \
   } while (0)
+
+const char *GetRecentErrMsg() {
+  const char *errmsg = aclGetRecentErrMsg();
+  if (errmsg == nullptr) {
+    return "no error";
+  }
+  return errmsg;
+}
 }  // namespace
 
 int Initialize(Hixl &hixl_engine, const char *local_engine) {
@@ -44,7 +52,7 @@ int Initialize(Hixl &hixl_engine, const char *local_engine) {
   options[OPTION_ENABLE_USE_FABRIC_MEM] = "1";
   auto ret = hixl_engine.Initialize(local_engine, options);
   if (ret != SUCCESS) {
-    printf("[ERROR] Initialize failed, ret = %u\n", ret);
+    printf("[ERROR] Initialize failed, ret = %u, errmsg: %s\n", ret, GetRecentErrMsg());
     return -1;
   }
   printf("[INFO] Initialize success\n");
@@ -54,7 +62,7 @@ int Initialize(Hixl &hixl_engine, const char *local_engine) {
 int Connect(Hixl &hixl_engine, const char *remote_engine) {
   auto ret = hixl_engine.Connect(remote_engine);
   if (ret != SUCCESS) {
-    printf("[ERROR] Connect failed, ret = %u\n", ret);
+    printf("[ERROR] Connect failed, ret = %u, errmsg: %s\n", ret, GetRecentErrMsg());
     return -1;
   }
   printf("[INFO] Connect success\n");
@@ -92,7 +100,8 @@ int32_t Transfer(Hixl &hixl_engine, void *va, const char *local_engine,
   TransferOpDesc desc{reinterpret_cast<uintptr_t>(va), reinterpret_cast<uintptr_t>(remote_addr) + kWriteSize, kWriteSize};
   auto ret = hixl_engine.TransferSync(remote_engine, WRITE, {desc});
   if (ret != SUCCESS) {
-    printf("[ERROR] TransferSync write failed, remote_addr:%lu, ret = %u\n", remote_addr, ret);
+    printf("[ERROR] TransferSync write failed, remote_addr:%lu, ret = %u, errmsg: %s\n", remote_addr, ret,
+           GetRecentErrMsg());
     return -1;
   }
   printf("[INFO] TransferSync write success, remote_addr:%lu, value:%s\n", remote_addr,
@@ -104,7 +113,7 @@ void Finalize(Hixl &hixl_engine, bool connected, const char *remote_engine, cons
   if (connected) {
     auto ret = hixl_engine.Disconnect(remote_engine);
     if (ret != 0) {
-      printf("[ERROR] Disconnect failed, ret = %d\n", ret);
+      printf("[ERROR] Disconnect failed, ret = %d, errmsg: %s\n", ret, GetRecentErrMsg());
     } else {
       printf("[INFO] Disconnect success\n");
     }
@@ -112,7 +121,7 @@ void Finalize(Hixl &hixl_engine, bool connected, const char *remote_engine, cons
   for (auto handle : handles) {
     auto ret = hixl_engine.DeregisterMem(handle);
     if (ret != 0) {
-      printf("[ERROR] DeregisterMem failed, ret = %u\n", ret);
+      printf("[ERROR] DeregisterMem failed, ret = %u, errmsg: %s\n", ret, GetRecentErrMsg());
     } else {
       printf("[INFO] DeregisterMem success\n");
     }
@@ -212,7 +221,7 @@ int32_t Run(int32_t device_id, const char *local_engine, const char *remote_engi
   bool connected = false;
   auto ret = hixl_engine.RegisterMem(desc, MEM_DEVICE, handle);
   if (ret != SUCCESS) {
-    printf("[ERROR] RegisterMem failed, ret = %u\n", ret);
+    printf("[ERROR] RegisterMem failed, ret = %u, errmsg: %s\n", ret, GetRecentErrMsg());
     Finalize(hixl_engine, connected, remote_engine, {});
     return -1;
   }
