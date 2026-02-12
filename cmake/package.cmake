@@ -74,9 +74,12 @@ set(CONF_FILES
     ${CMAKE_SOURCE_DIR}/scripts/package/common/cfg/path.cfg
 )
 
-install(FILES ${HIXL_VERSION_FILE}
+install(FILES ${CMAKE_BINARY_DIR}/version.hixl.info
     DESTINATION share/info/hixl
+    RENAME version.info
+    OPTIONAL
 )
+
 install(FILES ${CONF_FILES}
     DESTINATION hixl/conf
 )

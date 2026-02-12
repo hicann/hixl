@@ -22,7 +22,7 @@ add_custom_command(
         && ${HI_PYTHON} setup.py bdist_wheel >/dev/null
         && cp -f dist/llm_datadist-0.0.1-py3-none-any.whl ${CMAKE_CURRENT_BINARY_DIR}/
         && echo "package llm datadist whl end"
-        DEPENDS generate_hixl_version_info llm_datadist_wrapper metadef_wrapper
+        DEPENDS version_hixl_info llm_datadist_wrapper metadef_wrapper
 )
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/llm_datadist-0.0.1-py3-none-any.whl OPTIONAL
         DESTINATION ${INSTALL_LIBRARY_DIR}

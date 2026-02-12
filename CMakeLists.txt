@@ -21,27 +21,15 @@ option(ENABLE_GCOV "Enable Coverage" OFF)
 include(cmake/variables.cmake)
 include(cmake/dependencies.cmake)
 
-set(HIXL_VERSION_FILE ${CMAKE_CURRENT_BINARY_DIR}/version/version.info)
-add_custom_command(
-    OUTPUT ${HIXL_VERSION_FILE}
-    COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/update_version_info/update_version_info.sh
-            ${CMAKE_CURRENT_SOURCE_DIR}/version.info
-            ${HIXL_VERSION_FILE}
-    DEPENDS
-        ${CMAKE_CURRENT_SOURCE_DIR}/version.info
-    VERBATIM
-)
-add_custom_target(generate_hixl_version_info
-    DEPENDS ${HIXL_VERSION_FILE}
-)
+include(version.cmake)
+check_pkg_build_deps("hixl")
+add_version_info_targets()
 
 if (ENABLE_TEST)
     add_subdirectory(tests)
 else ()
     add_subdirectory(src)
-    if (BUILD_WITH_INSTALLED_DEPENDENCY_CANN_PKG)
-        include(cmake/package.cmake)
-    endif()
+    include(cmake/package.cmake)
     if (ENABLE_EXAMPLES)
         add_subdirectory(examples)
     endif()
