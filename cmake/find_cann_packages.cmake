@@ -8,7 +8,6 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
-include(cmake/function.cmake)
 find_package_if_target_not_exists(securec MODULE REQUIRED)
 
 if (NOT ENABLE_TEST)
