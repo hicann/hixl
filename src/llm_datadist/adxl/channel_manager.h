@@ -36,6 +36,7 @@ class ChannelManager {
   Status CreateChannel(const ChannelInfo &channel_info, ChannelPtr &channel_ptr, bool enable_use_fabric_mem = false);
   ChannelPtr GetChannel(ChannelType channel_type, const std::string &channel_id);
   Status DestroyChannel(ChannelType channel_type, const std::string &channel_id);
+  void DestroyChannels();
   static void SetHeartbeatWaitTime(int32_t time_in_millis);
   
   void RegisterNotifyAckCallback(NotifyAckCallback callback) {

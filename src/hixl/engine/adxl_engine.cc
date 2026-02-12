@@ -41,6 +41,10 @@ Status AdxlEngine::Disconnect(const AscendString &remote_engine, int32_t timeout
   return adxl_inner_engine_.Disconnect(remote_engine, timeout_in_millis);
 }
 
+void AdxlEngine::Disconnect() {
+  adxl_inner_engine_.Disconnect();
+}
+
 Status AdxlEngine::TransferSync(const AscendString &remote_engine, TransferOp operation,
                                 const std::vector<TransferOpDesc> &op_descs, int32_t timeout_in_millis) {
   adxl::TransferOp adxl_operation = static_cast<adxl::TransferOp>(operation);

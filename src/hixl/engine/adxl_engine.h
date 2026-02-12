@@ -37,6 +37,8 @@ class AdxlEngine : public Engine {
 
   Status Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis) override;
 
+  void Disconnect() override;
+
   Status TransferSync(const AscendString &remote_engine, TransferOp operation,
                       const std::vector<TransferOpDesc> &op_descs, int32_t timeout_in_millis) override;
 

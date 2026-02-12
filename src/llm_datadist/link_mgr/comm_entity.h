@@ -137,7 +137,7 @@ class CommEntity {
   CommEntity(uint64_t comm_id, uint64_t cluster_id, uint32_t rank_id,
              uint64_t local_cluster_id, uint32_t local_rank_id);
   ge::Status Initialize(bool remote_cache_accessible);
-  virtual ge::Status Finalize();
+  virtual ge::Status Finalize(bool force = false);
   virtual ~CommEntity();
   void ClearReqFlag() const;
   ge::Status SetInfo();

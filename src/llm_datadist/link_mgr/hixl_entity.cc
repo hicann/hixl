@@ -82,10 +82,12 @@ ge::Status HixlEntity::RecvCacheTableResp(int32_t fd, CacheTableInfo &cache_tabl
   return ge::SUCCESS;
 }
 
-ge::Status HixlEntity::Finalize() {
-  LLM_CHK_BOOL_RET_STATUS(engine_->Disconnect(remote_engine_.c_str(), kDisconnectTimeoutMs) == hixl::SUCCESS,
-                          ge::FAILED,
-                          "Failed to disconnect to remote engine, remote_engine:%s.", remote_engine_.c_str());
+ge::Status HixlEntity::Finalize(bool force) {
+  if (!force) {
+    LLM_CHK_BOOL_RET_STATUS(engine_->Disconnect(remote_engine_.c_str(), kDisconnectTimeoutMs) == hixl::SUCCESS,
+                            ge::FAILED,
+                            "Failed to disconnect to remote engine, remote_engine:%s.", remote_engine_.c_str());
+  }
   return ge::SUCCESS;
 }
 

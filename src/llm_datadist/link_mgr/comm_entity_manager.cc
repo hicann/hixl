@@ -160,7 +160,7 @@ void CommEntityManager::Finalize() {
   }
   std::lock_guard<std::mutex> lock(mutex_);
   for (auto &entity_pair : entity_map_) {
-    entity_pair.second->Finalize();
+    entity_pair.second->Finalize(true);
   }
   entity_map_.clear();
   cluster_id_to_entity_id_.clear();

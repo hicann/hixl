@@ -39,12 +39,12 @@ class HixlTransferEngine : public TransferEngine {
 
  private:
   ge::Status LinkCluster(const ClusterInfo &cluster, int32_t timeout);
-  ge::Status UnlinkCluster(const ClusterInfo &cluster, int32_t timeout);
-  void LLMDataDist2HixlOptions(const std::map<ge::AscendString, ge::AscendString> &llm_datdsist_options,
-                               std::map<ge::AscendString, ge::AscendString> &hixl_options);
+  ge::Status UnlinkCluster(const ClusterInfo &cluster, int32_t timeout) const;
+  static void LLMDataDist2HixlOptions(const std::map<ge::AscendString, ge::AscendString> &llm_datdsist_options,
+                                      std::map<ge::AscendString, ge::AscendString> &hixl_options);
   ge::Status InitMsgProcessor();
 
-  aclrtContext rt_context_;
+  aclrtContext rt_context_ = nullptr;
   std::string local_engine_;
   std::unique_ptr<hixl::Engine> engine_ = nullptr;
 };

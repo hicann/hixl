@@ -36,6 +36,8 @@ class Engine {
 
   virtual Status Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis) = 0;
 
+  virtual void Disconnect() = 0;
+
   virtual Status TransferSync(const AscendString &remote_engine, TransferOp operation,
                               const std::vector<TransferOpDesc> &op_descs, int32_t timeout_in_millis) = 0;
 

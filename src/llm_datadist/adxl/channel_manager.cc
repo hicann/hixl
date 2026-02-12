@@ -452,6 +452,16 @@ ChannelPtr ChannelManager::GetChannel(ChannelType channel_type, const std::strin
   return nullptr;
 }
 
+void ChannelManager::DestroyChannels() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  for (auto it : channels_) {
+    auto channel = it.second;
+    (void) RemoveFd(channel->GetFd());
+    (void) channel->Finalize();
+  }
+  channels_.clear();
+}
+
 Status ChannelManager::DestroyChannel(ChannelType channel_type, const std::string &channel_id) {
   auto ret = SUCCESS;
   std::lock_guard<std::mutex> lock(mutex_);

@@ -78,7 +78,6 @@ class LLMUtils {
                                       const ge::DataType data_type,
                                       int64_t &mem_size);
 
-
   static bool IsTimeout(const std::chrono::high_resolution_clock::time_point& start_time, int32_t timeout_ms);
 
   template <typename T>

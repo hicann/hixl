@@ -275,7 +275,8 @@ ge::Status CommEntity::Initialize(bool remote_cache_accessible) {
   return ge::SUCCESS;
 }
 
-ge::Status CommEntity::Finalize() {
+ge::Status CommEntity::Finalize(bool force) {
+  (void) force;
   auto ret = ge::SUCCESS;
   if (GetStream() != nullptr) {
     auto aclrt_ret = aclrtStreamAbort(GetStream());

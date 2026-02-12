@@ -410,6 +410,11 @@ Status AdxlInnerEngine::Disconnect(const AscendString &remote_engine, int32_t ti
   return SUCCESS;
 }
 
+void AdxlInnerEngine::Disconnect() {
+  llm::TemporaryRtContext with_context(aclrt_context_);
+  channel_manager_.DestroyChannels();
+}
+
 Status AdxlInnerEngine::GetTransferType(const ChannelPtr &channel, TransferOp operation,
                                         const std::vector<TransferOpDesc> &op_descs, bool &need_buffer,
                                         TransferType &type) {

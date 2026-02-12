@@ -19,7 +19,7 @@
 static inline void to_json(nlohmann::json &j, const HcommMem &m) {
   j = nlohmann::json{};
   j["type"] = m.type;
-  j["addr"] = static_cast<uint64_t>(reinterpret_cast<intptr_t>(m.addr));
+  j["addr"] = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(m.addr));
   j["size"] = m.size;
 }
 
@@ -304,7 +304,7 @@ Status HixlCSServer::ExportMem(int32_t fd, const char *msg, uint64_t msg_len) {
   HIXL_CHK_BOOL_RET_STATUS(msg_len == sizeof(GetRemoteMemReq), PARAM_INVALID, "invalid msg len:%lu of get remote mem",
                            msg_len);
   const auto req = reinterpret_cast<const GetRemoteMemReq *>(msg);
-  EndpointHandle handle = reinterpret_cast<EndpointHandle>(static_cast<intptr_t>(req->dst_ep_handle));
+  EndpointHandle handle = reinterpret_cast<EndpointHandle>(static_cast<uintptr_t>(req->dst_ep_handle));
   HIXL_CHECK_NOTNULL(handle);
   auto ep = endpoint_store_.GetEndpoint(handle);
   HIXL_CHECK_NOTNULL(ep);

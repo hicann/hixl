@@ -98,6 +98,7 @@ ge::Status HixlTransferEngine::Initialize(const std::map<ge::AscendString, ge::A
   LLM_ASSERT_RT_OK(aclrtGetCurrentContext(&rt_context_));
   std::map<ge::AscendString, ge::AscendString> hixl_options{};
   hixl_options[hixl::OPTION_BUFFER_POOL] = "0:0";
+  hixl_options[hixl::OPTION_AUTO_CONNECT] = "1";
   LLMDataDist2HixlOptions(options, hixl_options);
   engine_ = hixl::EngineFactory::CreateEngine(local_engine_, hixl_options);
   LLM_CHECK_NOTNULL(engine_);
@@ -185,16 +186,11 @@ ge::Status HixlTransferEngine::LinkClusters(const std::vector<ClusterInfo> &clus
   return ret;
 }
 
-ge::Status HixlTransferEngine::UnlinkCluster(const ClusterInfo &cluster, int32_t timeout) {
-  LLM_CHK_BOOL_RET_STATUS(cluster.remote_ip_infos.size() == 1U, ge::LLM_PARAM_INVALID,
-                          "remote_ip_infos size != 1 is unsupported.");
-  std::string remote_ip_str;
-  LLM_CHK_STATUS_RET(LLMUtils::IntToIp(cluster.remote_ip_infos[0].ip, remote_ip_str), "Failed to covert remote ip.");
-  uint32_t remote_port = static_cast<uint32_t>(cluster.remote_ip_infos[0].port);
-  LLMLOGI("Start to unlink cluster, remote cluster_id:%lu, remote info %s:%u, timeout:%d ms.",
-          cluster.remote_cluster_id, remote_ip_str.c_str(), remote_port, timeout);
+ge::Status HixlTransferEngine::UnlinkCluster(const ClusterInfo &cluster, int32_t timeout) const {
+  LLMLOGI("Start to unlink cluster, remote cluster_id:%lu, timeout:%d ms.",
+          cluster.remote_cluster_id, timeout);
   LLM_CHK_STATUS_RET(comm_entity_manager_->DestroyEntity(cluster.remote_cluster_id),
-                    "Failed to destroy entity, remote_cluster_id:%lu", cluster.remote_cluster_id);
+                     "Failed to destroy entity, remote_cluster_id:%lu", cluster.remote_cluster_id);
   return ge::SUCCESS;
 }
 
@@ -228,7 +224,7 @@ ge::Status HixlTransferEngine::UnlinkClusters(const std::vector<ClusterInfo> &cl
 
 void HixlTransferEngine::UnlinkAllClusters() {
   LLMLOGI("Begin to unlink all clusters.");
-  comm_entity_manager_->DeleteEntities();
+  engine_->Disconnect();
 }
 
 ge::Status HixlTransferEngine::Link(std::string &cluster_name, const std::map<uint64_t, uint32_t> &cluster2rank, std::string &rank_table,
@@ -245,7 +241,6 @@ ge::Status HixlTransferEngine::Unlink(uint64_t comm_id) {
   (void) comm_id;
   LLMLOGE(llm_datadist::LLM_FEATURE_NOT_ENABLED, "The feature is not supported.");
   return llm_datadist::LLM_FEATURE_NOT_ENABLED;
-  return ge::SUCCESS;
 }
 
 ge::Status HixlTransferEngine::QueryRegisterMemStatus(uint64_t comm_id, RegisterMemoryStatus &status) {
@@ -253,7 +248,6 @@ ge::Status HixlTransferEngine::QueryRegisterMemStatus(uint64_t comm_id, Register
   (void) status;
   LLMLOGE(llm_datadist::LLM_FEATURE_NOT_ENABLED, "The feature is not supported.");
   return llm_datadist::LLM_FEATURE_NOT_ENABLED;
-  return ge::SUCCESS;
 }
 
 ge::Status HixlTransferEngine::SwitchRole(const std::string &role, const std::map<std::string, std::string> &options) {
