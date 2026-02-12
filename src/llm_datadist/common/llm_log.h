@@ -113,6 +113,7 @@ inline bool LlmLogPrintStdout() {
   do {                                      \
     const ge::Status _chk_status = (expr);  \
     if (_chk_status != ge::SUCCESS) {       \
+      REPORT_INNER_ERR_MSG("E19999", "Call " #expr " fail. " __VA_ARGS__); \
       LLMLOGE((ge::FAILED), __VA_ARGS__);    \
       return _chk_status;                   \
     }                                       \
@@ -123,6 +124,7 @@ inline bool LlmLogPrintStdout() {
   do {                                      \
     const ge::Status _chk_status = (expr);  \
     if (_chk_status != ge::SUCCESS) {       \
+      REPORT_INNER_ERR_MSG("E19999", "Call " #expr " fail. " __VA_ARGS__); \
       LLMLOGE(_chk_status, __VA_ARGS__);     \
     }                                       \
   } while (false)

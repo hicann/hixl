@@ -22,6 +22,7 @@
   do {                                       \
     const hixl::Status _chk_status = (expr); \
     if (_chk_status != hixl::SUCCESS) {      \
+      REPORT_INNER_ERR_MSG("E19999", "Call " #expr " fail. " __VA_ARGS__); \
       HIXL_LOGE((_chk_status), __VA_ARGS__); \
       return _chk_status;                    \
     }                                        \
@@ -32,6 +33,7 @@
   do {                                       \
     const hixl::Status _chk_status = (expr); \
     if (_chk_status != hixl::SUCCESS) {      \
+      REPORT_INNER_ERR_MSG("E19999", "Call " #expr " fail. " __VA_ARGS__); \
       HIXL_LOGE(_chk_status, __VA_ARGS__);   \
     }                                        \
   } while (false)

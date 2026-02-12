@@ -131,8 +131,8 @@ Status HixlCSClient::Create(const char *server_ip, uint32_t server_port, const E
       "[HixlClient] Create begin. Server=%s:%u. "
       "SrcEndpoint[Loc:%d, protocol:%d, commAddr.Type:%d, commAddr.id:0x%x], "
       "DstEndpoint[Loc:%d, protocol:%d, commAddr.Type:%d, commAddr.id:0x%x]",
-      server_ip, server_port, src_endpoint->loc, src_endpoint->protocol, src_endpoint->commAddr.type,
-      src_endpoint->commAddr.id, dst_endpoint->loc, dst_endpoint->protocol, dst_endpoint->commAddr.type,
+      server_ip, server_port, src_endpoint->loc.locType, src_endpoint->protocol, src_endpoint->commAddr.type,
+      src_endpoint->commAddr.id, dst_endpoint->loc.locType, dst_endpoint->protocol, dst_endpoint->commAddr.type,
       dst_endpoint->commAddr.id);
   std::lock_guard<std::mutex> lock(mutex_);
   server_ip_ = server_ip;
@@ -143,7 +143,7 @@ Status HixlCSClient::Create(const char *server_ip, uint32_t server_port, const E
   HIXL_CHK_STATUS_RET(ret,
                       "[HixlClient] Failed to initialize src endpoint. "
                       "Check Config: [Loc:%d, protocol:%d, AddrVal:0x%x]",
-                      src_endpoint->loc, src_endpoint->protocol, src_endpoint->commAddr.id);
+                      src_endpoint->loc.locType, src_endpoint->protocol, src_endpoint->commAddr.id);
   HIXL_LOGI("[HixlClient] src_endpoint initialized. ep_handle=%p", src_endpoint_->GetHandle());
   dst_endpoint_ = *dst_endpoint;
   CtrlMsgPlugin::Initialize();
