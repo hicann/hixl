@@ -13,6 +13,7 @@
 
 #include <map>
 #include "engine.h"
+#include "hixl_engine.h"
 #include "adxl_engine.h"
 
 namespace hixl {

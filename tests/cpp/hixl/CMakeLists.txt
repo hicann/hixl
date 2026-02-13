@@ -16,6 +16,7 @@ set(HIXL_TEST_FILES
         engine/hixl_server_unittest.cpp
         engine/hixl_client_unittest.cc
         engine/hixl_utils_unittest.cc
+        engine/hixl_engine_unittest.cc
 )
 
 file(GLOB HIXL_SRC_LIST

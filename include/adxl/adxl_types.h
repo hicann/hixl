@@ -29,6 +29,7 @@ using TransferReq = void *;
 constexpr const char OPTION_RDMA_TRAFFIC_CLASS[] = "adxl.RdmaTrafficClass";
 constexpr const char OPTION_RDMA_SERVICE_LEVEL[] = "adxl.RdmaServiceLevel";
 constexpr const char OPTION_BUFFER_POOL[] = "adxl.BufferPool";
+constexpr const char OPTION_LOCAL_COMM_RES[] = "adxl.LocalCommRes";
 constexpr const char OPTION_AUTO_CONNECT[] = "AutoConnect";
 
 // status codes

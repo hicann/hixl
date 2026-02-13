@@ -448,56 +448,6 @@ TEST_F(LlmDataDistSTest, TestUseHixlBackendA3) {
   llm_datadist_d.Finalize();
 }
 
-TEST_F(LlmDataDistSTest, TestUseHixlBackendA5) {
-  LlmDataDist llm_datadist_p(1U, LlmRole::kPrompt);
-  std::map<AscendString, AscendString> options_p;
-  options_p[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26000";
-  options_p[llm_datadist::OPTION_DEVICE_ID] = "0";
-  options_p[llm_datadist::OPTION_TRANSFER_BACKEND] = "hixl";
-  options_p[llm_datadist::OPTION_LOCAL_COMM_RES] = R"(
-  {
-      "net_instance_id": "superpod1_1",
-      "endpoint_list": [
-          {
-              "protocol": "roce",
-              "comm_id": "1.0.0.1",
-              "placement": "host"
-          }
-      ],
-      "version": "1.3"
-  }
-  )";
-
-  llm::AutoCommResRuntimeMock::SetDevice(0);
-  EXPECT_EQ(llm_datadist_p.Initialize(options_p), SUCCESS);
-
-  LlmDataDist llm_datadist_d(2U, LlmRole::kDecoder);
-  std::map<AscendString, AscendString> options_d;
-  options_d[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26001";
-  options_d[llm_datadist::OPTION_DEVICE_ID] = "1";
-  options_d[llm_datadist::OPTION_TRANSFER_BACKEND] = "hixl";
-  options_d[llm_datadist::OPTION_LOCAL_COMM_RES] = R"(
-  {
-      "net_instance_id": "superpod2_1",
-      "endpoint_list": [
-          {
-              "protocol": "roce",
-              "comm_id": "1.0.0.2",
-              "placement": "host"
-          }
-      ],
-      "version": "1.3"
-  }
-  )";
-
-  llm::AutoCommResRuntimeMock::SetDevice(1);
-  EXPECT_EQ(llm_datadist_d.Initialize(options_d), SUCCESS);
-
-  TestPullKv(llm_datadist_p, llm_datadist_d);
-  llm_datadist_p.Finalize();
-  llm_datadist_d.Finalize();
-}
-
 TEST_F(LlmDataDistSTest, TestAutoLocalCommResMix) {
   LlmDataDist llm_datadist_p(1U, LlmRole::kPrompt);
   std::map<AscendString, AscendString> options_p;

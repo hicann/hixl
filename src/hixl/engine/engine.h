@@ -54,7 +54,7 @@ class Engine {
 
   virtual Status RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor) = 0;
 
- private:
+ protected:
   std::string local_engine_;
 };
 }  // namespace hixl
