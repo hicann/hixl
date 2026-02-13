@@ -210,7 +210,7 @@ ge::Status LinkMsgHandler::ProcessConnectRequest(int32_t fd, const std::vector<c
   LLM_CHK_STATUS_RET(LinkMsgHandler::Deserialize(msg, peer_exchange_info), "Failed to deserialize connect msg");
   LLMLOGI("Start to process link cluster, local cluster_id:%lu, remote cluster_id:%lu, timeout:%d ms.",
          cluster_id_, peer_exchange_info.cluster_id, peer_exchange_info.timeout);
-  peer_exchange_info.comm_name = "[llm_datadist]" + std::to_string(peer_exchange_info.cluster_id) + "_" + std::to_string(cluster_id_);
+  peer_exchange_info.comm_name = "llm_datadist_" + std::to_string(peer_exchange_info.cluster_id) + "_" + std::to_string(cluster_id_);
   ret = ExchangeInfoProcess(peer_exchange_info, peer_exchange_info.timeout, peer_exchange_info.force_link,
                             mem_info_ptr);
   if (ret == ge::SUCCESS) {
@@ -400,7 +400,7 @@ ge::Status LinkMsgHandler::LinkCluster(const ClusterInfo &cluster, int32_t timeo
   LLMExchangeInfo peer_exchange_info = {};
   LLM_CHK_STATUS_RET(RecvMsg(conn_fd, LinkMsgType::kConnect, peer_exchange_info), "Failed to recv connect msg");
 
-  peer_exchange_info.comm_name = "[llm_datadist]" + std::to_string(cluster_id_) + "_" + std::to_string(peer_exchange_info.cluster_id);
+  peer_exchange_info.comm_name = "llm_datadist_" + std::to_string(cluster_id_) + "_" + std::to_string(peer_exchange_info.cluster_id);
   auto ret = ExchangeInfoProcess(peer_exchange_info, timeout, false, mem_info_ptr);
   LLMLinkStatus status{};
   LLM_CHK_STATUS_RET(RecvMsg(conn_fd, LinkMsgType::kStatus, status), "Failed to recv status msg");

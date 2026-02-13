@@ -98,6 +98,29 @@ HcclResult HcommChannelGetStatus(const ChannelHandle *channelList, uint32_t list
   return HCCL_SUCCESS;
 }
 
+int32_t HcommChannelFence(ChannelHandle channel) {
+  (void)channel;
+  return HCCL_SUCCESS;
+}
+
+int32_t HcommWriteNbi(ChannelHandle channel, void *dst, void *src, uint64_t len) {
+  (void)channel;
+  if (dst == nullptr || src == nullptr || len == 0) {
+    return HCCL_E_PARA;
+  }
+  memcpy_s(dst, len, src, len);
+  return HCCL_SUCCESS;
+}
+
+int32_t HcommReadNbi(ChannelHandle channel, void *dst, void *src, uint64_t len) {
+  (void)channel;
+  if (dst == nullptr || src == nullptr || len == 0) {
+    return HCCL_E_PARA;
+  }
+  memcpy_s(dst, len, src, len);
+  return HCCL_SUCCESS;
+}
+
 #ifdef __cplusplus
 }
 #endif
