@@ -30,7 +30,7 @@ Status HixlServer::Initialize(const std::string &ip, int32_t port,
   HIXL_CHK_ACL_RET(aclrtGetPhyDevIdByLogicDevId(dev_logic_id, &dev_phy_id));
   for (const auto &it : data_endpoint_config_list) {
     EndpointDesc end_point_info{};
-    HIXL_CHK_STATUS_RET(ConvertToEndpointInfo(it, end_point_info, static_cast<uint32_t>(dev_phy_id)),
+    HIXL_CHK_STATUS_RET(ConvertToEndpointDesc(it, end_point_info, static_cast<uint32_t>(dev_phy_id)),
                         "Failed to convert endpoint config to endpoint info.");
     data_end_point_list.emplace_back(end_point_info);
   }
@@ -58,13 +58,13 @@ Status HixlServer::Initialize(const std::string &ip, int32_t port,
       CtrlMsgHeader header{};
       header.magic = kMagicNumber;
       header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + msg_str.size());
-      CtrlMsgType msg_type = CtrlMsgType::kGetEndPointInfoResp;
+      CtrlMsgType msg_type = CtrlMsgType::kGetEndpointInfoResp;
       HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &header, static_cast<uint64_t>(sizeof(header))));
       HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &msg_type, static_cast<uint64_t>(sizeof(msg_type))));
       HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, msg_str.c_str(), static_cast<uint64_t>(msg_str.size())));
       return SUCCESS;
     };
-    HIXL_CHK_STATUS_RET(HixlCSServerRegProc(server_handle_, CtrlMsgType::kGetEndPointInfoReq, send_endpoint_cb),
+    HIXL_CHK_STATUS_RET(HixlCSServerRegProc(server_handle_, CtrlMsgType::kGetEndpointInfoReq, send_endpoint_cb),
                         "Failed to register send endpoint info processor.");
     HIXL_CHK_STATUS_RET(HixlCSServerListen(server_handle_, static_cast<uint32_t>(port)),
                         "HixlServer listen failed, port:%d.", port);

@@ -10,6 +10,7 @@
 
 #include <cstring>
 #include <string>
+#include <thread>
 #include "hcomm/hcomm_res_defs.h"
 
 #ifdef __cplusplus
@@ -108,6 +109,8 @@ int32_t HcommWriteNbi(ChannelHandle channel, void *dst, void *src, uint64_t len)
   if (dst == nullptr || src == nullptr || len == 0) {
     return HCCL_E_PARA;
   }
+  // 模拟写操作耗时 10ms
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
   memcpy_s(dst, len, src, len);
   return HCCL_SUCCESS;
 }
@@ -117,6 +120,8 @@ int32_t HcommReadNbi(ChannelHandle channel, void *dst, void *src, uint64_t len) 
   if (dst == nullptr || src == nullptr || len == 0) {
     return HCCL_E_PARA;
   }
+  // 模拟读操作耗时 10ms
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
   memcpy_s(dst, len, src, len);
   return HCCL_SUCCESS;
 }

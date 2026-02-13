@@ -38,7 +38,7 @@ struct EndpointConfig {
 
   std::string ToString() const {
     std::ostringstream oss;
-    oss << "EndPointConfig{";
+    oss << "EndpointConfig{";
     oss << "protocol: " << protocol << ", ";
     oss << "comm_id: " << comm_id << ", ";
     oss << "placement: " << placement << ", ";
@@ -50,5 +50,10 @@ struct EndpointConfig {
   }
 };
 
+struct MemInfo {
+  MemHandle mem_handle;
+  MemDesc mem;
+  MemType type;
+};
 }  // namespace hixl
 #endif  // CANN_HIXL_SRC_HIXL_COMMON_HIXL_INNER_TYPES_H_
