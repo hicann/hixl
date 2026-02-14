@@ -18,7 +18,9 @@
 #include <mutex>
 #include "mmpa/mmpa_api.h"
 #include "acl/acl.h"
+#include "acl/acl_base_rt.h"
 
+extern std::vector<aclError> g_Stub_aclrtWaitAndResetNotify_RETURN;
 namespace llm {
 std::string &GetAclStubMock();
 
@@ -107,6 +109,18 @@ public:
                                                      uint64_t flags, aclrtDrvMemHandle *handle);
   virtual aclError aclrtMallocPhysical(aclrtDrvMemHandle *handle, size_t size, const aclrtPhysicalMemProp *prop, uint64_t flags);
   virtual aclError aclrtFreePhysical(aclrtDrvMemHandle handle);
+  virtual aclError aclrtBinaryLoadFromFile(const char *fileName, aclrtBinaryLoadOptions *options, void **handle);
+  virtual aclError aclrtBinaryGetFunction(const aclrtBinHandle binHandle, const char *funcName, void **funcPtr);
+  virtual aclError aclrtCreateNotify(aclrtNotify *notify, uint64_t flag);
+  virtual aclError aclrtDestroyNotify(aclrtNotify notify);
+  virtual aclError aclrtGetNotifyId(aclrtNotify notify, uint32_t *notifyId);
+  virtual aclError aclrtSetStreamAttribute(aclrtStream stream, aclrtStreamAttr attr, aclrtStreamAttrValue *attrValue);
+  virtual aclError aclrtKernelArgsInit(aclrtFuncHandle funcHandle, aclrtArgsHandle *argsHandle);
+  virtual aclError aclrtKernelArgsAppend(aclrtArgsHandle argsHandle, void *data, size_t size, aclrtParamHandle *paraHandle);
+  virtual aclError aclrtKernelArgsFinalize(aclrtArgsHandle argsHandle);
+  virtual aclError aclrtLaunchKernelWithConfig(aclrtFuncHandle funcHandle, uint32_t blockDim, aclrtStream stream,
+                                     aclrtLaunchKernelCfg *config, aclrtArgsHandle argsHandle, void *reserved);
+  virtual aclError aclrtBinaryUnLoad(aclrtBinHandle binHandle);
 
 private:
   static std::mutex mutex_;

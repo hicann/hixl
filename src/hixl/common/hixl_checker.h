@@ -14,8 +14,37 @@
 #include "hixl/hixl_types.h"
 #include "base/err_msg.h"
 #include "acl/acl.h"
-#include "acl/acl.h"
 #include "hixl_log.h"
+
+inline hixl::Status ConvertAclRetToStatus(int32_t acl_ret) {
+  if (acl_ret == ACL_SUCCESS) {
+    return hixl::SUCCESS;
+  }
+
+  switch (acl_ret) {
+    case ACL_ERROR_INVALID_PARAM:
+    case ACL_ERROR_INVALID_FILE:
+    case ACL_ERROR_INVALID_RESOURCE_HANDLE:
+    case ACL_ERROR_INVALID_DEVICE:
+    case ACL_ERROR_RESOURCE_NOT_MATCH:
+      return hixl::PARAM_INVALID;
+
+    case ACL_ERROR_BAD_ALLOC:
+    case ACL_ERROR_STORAGE_OVER_LIMIT:
+      return hixl::RESOURCE_EXHAUSTED;
+
+    case ACL_ERROR_WAIT_CALLBACK_TIMEOUT:
+    case 507011:  // ACL_ERROR_RT_STREAM_SYNC_TIMEOUT (常见值，视具体版本而定)
+      return hixl::TIMEOUT;
+
+    case ACL_ERROR_API_NOT_SUPPORT:
+    case ACL_ERROR_FEATURE_UNSUPPORTED:
+      return hixl::UNSUPPORTED;
+
+    default:
+      return hixl::FAILED;
+  }
+}
 
 // If expr is not SUCCESS, print the log and return the same value
 #define HIXL_CHK_STATUS_RET(expr, ...)       \
@@ -91,15 +120,17 @@
     }                                                                                                \
   } while (false)
 
-// If expr is not ACL_SUCCESS, print the log and return FAILED
-#define HIXL_CHK_ACL_RET(expr)                                                                       \
-  do {                                                                                               \
-    const aclError _ret = (expr);                                                                    \
-    if (_ret != ACL_SUCCESS) {                                                                       \
-      REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret)); \
-      HIXL_LOGE(FAILED, "Call acl api:%s failed, ret: 0x%X", #expr, static_cast<uint32_t>(_ret));              \
-      return FAILED;                                                                                 \
-    }                                                                                                \
+// If expr != ACL_SUCCESS, log and return the converted Hixl Status
+#define HIXL_CHK_ACL_RET(expr, ...)                                                                      \
+  do {                                                                                                   \
+    const aclError _acl_ret = (expr);                                                                    \
+    if (_acl_ret != ACL_SUCCESS) {                                                                       \
+      hixl::Status _hixl_status = ConvertAclRetToStatus(static_cast<int32_t>(_acl_ret));                 \
+      REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_acl_ret)); \
+      HIXL_LOGE(_hixl_status, "Call acl api:%s failed, ret: 0x%X. " __VA_ARGS__, #expr,                  \
+                static_cast<uint32_t>(_acl_ret));                                                        \
+      return _hixl_status;                                                                               \
+    }                                                                                                    \
   } while (false)
 
 // If expr != ACL_SUCCESS, print the log and do not return

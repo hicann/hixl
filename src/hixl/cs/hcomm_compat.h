@@ -32,7 +32,9 @@ __attribute__((weak)) HcclResult HcommChannelGetStatus(const ChannelHandle *chan
 __attribute__((weak)) int32_t HcommChannelFence(ChannelHandle channel);
 __attribute__((weak)) int32_t HcommWriteNbi(ChannelHandle channel, void *dst, const void *src, uint64_t len);
 __attribute__((weak)) int32_t HcommReadNbi(ChannelHandle channel, void *dst, const void *src, uint64_t len);
-
+__attribute__((weak)) HcclResult HcommThreadAlloc(CommEngine engine, uint32_t threadNum, uint32_t notifyNumPerThread,
+                                                  ThreadHandle *threadHandle);
+__attribute__((weak)) HcclResult HcommThreadFree(const ThreadHandle *threads, uint32_t threadNum);
 
 #ifdef __cplusplus
 }

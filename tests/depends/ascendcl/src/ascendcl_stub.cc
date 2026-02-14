@@ -14,6 +14,7 @@
 #include "ascendcl_stub.h"
 #include "mmpa/mmpa_api.h"
 
+std::vector<aclError> g_Stub_aclrtWaitAndResetNotify_RETURN;
 static std::string g_acl_stub_mock = "";
 static char g_soc_version[50] = {0};
 
@@ -502,6 +503,97 @@ aclError AclRuntimeStub::aclrtFreePhysical(aclrtDrvMemHandle handle) {
   delete[] (uint8_t *)handle;
   return ACL_ERROR_NONE;
 }
+
+aclError AclRuntimeStub::aclrtBinaryLoadFromFile(const char *fileName, aclrtBinaryLoadOptions *options, void **handle) {
+  (void)fileName;
+  (void) options;
+  if (handle == nullptr) {
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  *handle = reinterpret_cast<void *>(0x3);
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtBinaryGetFunction(const aclrtBinHandle binHandle, const char *funcName, void **funcPtr) {
+  (void)binHandle;
+  (void)funcName;
+  if (funcPtr != nullptr) {
+    static int dummy_func_addr = 0;
+    *funcPtr = (void*)&dummy_func_addr;
+  }
+  return ACL_SUCCESS;
+}
+
+// 1. Notify 资源相关
+aclError AclRuntimeStub::aclrtCreateNotify(aclrtNotify *notify, uint64_t flag) {
+  if (notify != nullptr) {
+    // 给个非空的假地址，防止外层 CHECK_NOTNULL 报错
+    *notify = reinterpret_cast<aclrtNotify>(0x12345678);
+  }
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtDestroyNotify(aclrtNotify notify) {
+  (void)notify;
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtGetNotifyId(aclrtNotify notify, uint32_t *notifyId) {
+  (void)notify;
+  if (notifyId != nullptr) {
+    *notifyId = 1U; // 随便给个合法的 ID
+  }
+  return ACL_SUCCESS;
+}
+
+// 2. Stream 相关
+aclError AclRuntimeStub::aclrtSetStreamAttribute(aclrtStream stream, aclrtStreamAttr attr, aclrtStreamAttrValue *attrValue) {
+  (void)stream;
+  (void)attr;
+  (void)attrValue;
+  return ACL_SUCCESS;
+}
+
+// 3. Kernel 参数组装与启动相关
+aclError AclRuntimeStub::aclrtKernelArgsInit(aclrtFuncHandle funcHandle, aclrtArgsHandle *argsHandle) {
+  (void)funcHandle;
+  if (argsHandle != nullptr) {
+    *argsHandle = reinterpret_cast<aclrtArgsHandle>(0x87654321);
+  }
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtKernelArgsAppend(aclrtArgsHandle argsHandle, void *data, size_t size, aclrtParamHandle *paraHandle) {
+  (void)argsHandle;
+  (void)data;
+  (void)size;
+  if (paraHandle != nullptr) {
+    *paraHandle = reinterpret_cast<aclrtParamHandle>(0x11111111);
+  }
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtKernelArgsFinalize(aclrtArgsHandle argsHandle) {
+  (void)argsHandle;
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtLaunchKernelWithConfig(aclrtFuncHandle funcHandle, uint32_t blockDim, aclrtStream stream,
+                                     aclrtLaunchKernelCfg *config, aclrtArgsHandle argsHandle, void *reserved) {
+  (void)funcHandle;
+  (void)blockDim;
+  (void)stream;
+  (void)config;
+  (void)argsHandle;
+  (void)reserved;
+  return ACL_SUCCESS;
+}
+
+// 4. Kernel 卸载
+aclError AclRuntimeStub::aclrtBinaryUnLoad(aclrtBinHandle binHandle) {
+  (void)binHandle;
+  return ACL_SUCCESS;
+}
 }
 
 #ifdef __cplusplus
@@ -715,6 +807,52 @@ aclError aclrtMallocPhysical(aclrtDrvMemHandle *handle, size_t size, const aclrt
 
 aclError aclrtFreePhysical(aclrtDrvMemHandle handle) {
   return llm::AclRuntimeStub::GetInstance()->aclrtFreePhysical(handle);  
+}
+
+aclError aclrtBinaryLoadFromFile(const char *fileName, aclrtBinaryLoadOptions *options, void **handle) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtBinaryLoadFromFile(fileName, options, handle);
+}
+
+aclError aclrtBinaryGetFunction(const aclrtBinHandle binHandle, const char *funcName, void **funcPtr) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtBinaryGetFunction(binHandle, funcName, funcPtr);
+}
+
+aclError aclrtCreateNotify(aclrtNotify *notify, uint64_t flag) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtCreateNotify(notify, flag);
+}
+
+aclError aclrtDestroyNotify(aclrtNotify notify) {
+  return llm::AclRuntimeStub::GetInstance()-> aclrtDestroyNotify(notify);
+}
+
+aclError aclrtGetNotifyId(aclrtNotify notify, uint32_t *notifyId) {
+  return llm::AclRuntimeStub::GetInstance()-> aclrtGetNotifyId(notify, notifyId);
+}
+
+aclError aclrtSetStreamAttribute(aclrtStream stream, aclrtStreamAttr attr, aclrtStreamAttrValue *attrValue) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtSetStreamAttribute(stream, attr, attrValue);
+}
+
+aclError aclrtKernelArgsInit(aclrtFuncHandle funcHandle, aclrtArgsHandle *argsHandle) {
+  return llm::AclRuntimeStub::GetInstance()-> aclrtKernelArgsInit(funcHandle, argsHandle);
+}
+
+aclError aclrtKernelArgsAppend(aclrtArgsHandle argsHandle, void *data, size_t size, aclrtParamHandle *paraHandle) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtKernelArgsAppend(argsHandle, data, size, paraHandle);
+}
+
+aclError aclrtKernelArgsFinalize(aclrtArgsHandle argsHandle) {
+  return llm::AclRuntimeStub::GetInstance()-> aclrtKernelArgsFinalize(argsHandle);
+}
+
+aclError aclrtLaunchKernelWithConfig(aclrtFuncHandle funcHandle, uint32_t blockDim, aclrtStream stream,
+                                     aclrtLaunchKernelCfg *config, aclrtArgsHandle argsHandle, void *reserved) {
+  return llm::AclRuntimeStub::GetInstance()-> aclrtLaunchKernelWithConfig(funcHandle, blockDim, stream,
+                                                                       config, argsHandle, reserved);
+}
+
+aclError aclrtBinaryUnLoad(aclrtBinHandle binHandle) {
+  return llm::AclRuntimeStub::GetInstance()-> aclrtBinaryUnLoad(binHandle);
 }
 #ifdef __cplusplus
 }

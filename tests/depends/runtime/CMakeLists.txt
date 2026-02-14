@@ -8,14 +8,21 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
-set(DT_COMMON_COMPILE_OPTION ${DT_COMMON_COMPILE_OPTION} -fno-access-control)
+add_library(runtime_stub SHARED src/runtime_stub.cc)
+target_compile_options(runtime_stub PRIVATE -g)
+target_compile_definitions(runtime_stub PRIVATE
+    $<$<STREQUAL:${ENABLE_OPEN_SRC},True>:ONLY_COMPILE_OPEN_SRC>
+)
+target_include_directories(runtime_stub PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src)
+target_link_libraries(runtime_stub
+    PRIVATE
+        intf_pub
+        c_sec
+        msprof_headers
+        mmpa_headers
+    PUBLIC
+        runtime_headers
+        mmpa_stub
+)
 
-add_subdirectory(depends/slog)
-add_subdirectory(depends/mmpa)
-add_subdirectory(depends/hccl)
-add_subdirectory(depends/error_manager)
-add_subdirectory(depends/llm_datadist)
-add_subdirectory(depends/python)
-add_subdirectory(depends/ascendcl)
-add_subdirectory(depends/runtime)
-add_subdirectory(cpp)
+stub_module(runtime runtime_stub)

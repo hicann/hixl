@@ -183,7 +183,7 @@ HixlStatus HixlCSClientQueryCompleteStatus(HixlClientHandle client_handle, Compl
   HIXL_CHECK_NOTNULL(complete_handle);
   HIXL_CHECK_NOTNULL(complete_status);
   auto client = static_cast<hixl::HixlCSClient *>(client_handle);
-  const auto ret = client->CheckStatus(static_cast<hixl::CompleteHandle *>(complete_handle), complete_status);
+  const auto ret = client->CheckStatus(complete_handle, complete_status);
   HIXL_CHK_STATUS_RET(ret, "HixlCSClientQueryCompleteStatus failed, client_handle is %p.", client_handle);
   return HIXL_SUCCESS;
 }

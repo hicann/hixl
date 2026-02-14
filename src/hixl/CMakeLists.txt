@@ -43,6 +43,7 @@ target_link_libraries(cann_hixl PRIVATE
         $<BUILD_INTERFACE:mmpa_headers>
         $<BUILD_INTERFACE:hccl_headers>
         $<BUILD_INTERFACE:acl_rt_headers>
+        $<BUILD_INTERFACE:runtime_headers>
         $<BUILD_INTERFACE:msprof_headers>
         PUBLIC c_sec
         static_mmpa
@@ -50,6 +51,7 @@ target_link_libraries(cann_hixl PRIVATE
         alog
         error_manager
         acl_rt
+        runtime
         json
         -ldl
         -O2 -fPIC -Wextra -Wfloat-equal

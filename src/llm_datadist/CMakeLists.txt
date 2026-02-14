@@ -60,6 +60,7 @@ target_link_libraries(llm_datadist PRIVATE
         $<BUILD_INTERFACE:mmpa_headers>
         $<BUILD_INTERFACE:hccl_headers>
         $<BUILD_INTERFACE:acl_rt_headers>
+        $<BUILD_INTERFACE:runtime_headers>
         $<BUILD_INTERFACE:msprof_headers>
         PUBLIC c_sec
         static_mmpa
@@ -68,6 +69,7 @@ target_link_libraries(llm_datadist PRIVATE
         error_manager
         metadef # for acend string
         acl_rt
+        runtime
         json
         -ldl
         -fPIC -Wextra -Wfloat-equal
@@ -118,6 +120,7 @@ target_link_libraries(adxl_static PRIVATE
         $<BUILD_INTERFACE:slog_headers>
         $<BUILD_INTERFACE:mmpa_headers>
         $<BUILD_INTERFACE:hccl_headers>
+        $<BUILD_INTERFACE:runtime_headers>
         $<BUILD_INTERFACE:acl_rt_headers>
         $<BUILD_INTERFACE:msprof_headers>
         PUBLIC c_sec
@@ -126,6 +129,7 @@ target_link_libraries(adxl_static PRIVATE
         error_manager
         metadef # for acend string
         acl_rt
+        runtime
         json
         -ldl
         -fPIC -Wextra -Wfloat-equal
