@@ -13,7 +13,6 @@ set_package(hixl VERSION "9.0.0")
 set_build_dependencies(runtime ">=8.5")
 set_build_dependencies(metadef ">=8.5")
 set_build_dependencies(hcomm ">=8.5")
-set_build_dependencies(hccl ">=8.5")
 
 set_run_dependencies(runtime "CUR_MAJOR_MINOR_VER")
 set_run_dependencies(metadef "CUR_MAJOR_MINOR_VER")
