@@ -142,6 +142,7 @@ bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
 成功编译后会在build_out目录下生成`cann-hixl_${cann_version}_linux-${arch}.run`。
 - ${cann_version}表示cann版本号。
 - ${arch}表示表示CPU架构，如aarch64、x86_64。
+- 如需要进行样例验证或者基准测试Benchmarks验证，编译时候附加指定参数--examples
 - 更多执行选项可以用-h查看，或查询下表。
   ```
   bash build.sh -h
@@ -203,4 +204,4 @@ bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
   - 若不选择该参数，则.whl安装在本地python路径，例如/usr/local/python3.7.5/lib/python3.7/site-packages。
 - 更多安装选项请用--help选项查看。  
 
-**安装完成后可参考[样例运行](../examples/README.md)尝试运行样例**。  
+**安装完成后可参考[样例运行](../examples/README.md)尝试运行样例，也可参考[基准测试Benchmarks](../benchmarks/README.md)尝试运行基准测试**。
