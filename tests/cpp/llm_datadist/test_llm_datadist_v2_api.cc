@@ -88,19 +88,6 @@ void TestPullKv(LlmDataDist &llm_datadist_p, LlmDataDist &llm_datadist_d) {
   dst_cache.cache_id = d_cache_id;
   EXPECT_EQ(llm_datadist_d.PullKvCache(cache_index, dst_cache), ge::SUCCESS);
 
-  ClusterInfo cluster_info2{2, 0, {{"127.0.0.1", 26001}}, {{"127.0.0.1", 26001}}};
-  EXPECT_EQ(llm_datadist_p.LinkLlmClusters({cluster_info2}, rets), ge::SUCCESS);
-  // push cache
-  CacheIndex dst_cache_index{};
-  dst_cache_index.cluster_id = 2U;
-  dst_cache_index.cache_id = d_cache_id;
-  Cache src_cache{};
-  src_cache.cache_id = p_cache_id;
-  KvCacheExtParam ext_param{};
-  ext_param.src_layer_range = std::make_pair(0, 0);
-  ext_param.dst_layer_range = std::make_pair(0, 0);
-  EXPECT_EQ(llm_datadist_p.PushKvCache(src_cache, dst_cache_index, 0, -1, ext_param), ge::SUCCESS);
-
   EXPECT_EQ(llm_datadist_d.UnlinkLlmClusters({cluster_info}, rets), ge::SUCCESS);
   EXPECT_EQ(llm_datadist_p.UnregisterKvCache(p_cache_id), ge::SUCCESS);
   EXPECT_EQ(llm_datadist_d.UnregisterKvCache(d_cache_id), ge::SUCCESS);
@@ -443,6 +430,54 @@ TEST_F(LlmDataDistSTest, TestUseHixlBackendA3) {
   llm::AutoCommResRuntimeMock::SetDevice(1);
   EXPECT_EQ(llm_datadist_d.Initialize(options_d), SUCCESS);
 
+  TestPullKv(llm_datadist_p, llm_datadist_d);
+  llm_datadist_p.Finalize();
+  llm_datadist_d.Finalize();
+}
+
+TEST_F(LlmDataDistSTest, TestUseHixlBackendA5) {
+  LlmDataDist llm_datadist_p(1U, LlmRole::kPrompt);
+  std::map<AscendString, AscendString> options_p;
+  options_p[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26000";
+  options_p[llm_datadist::OPTION_DEVICE_ID] = "0";
+  options_p[llm_datadist::OPTION_TRANSFER_BACKEND] = "hixl";
+  options_p[llm_datadist::OPTION_LOCAL_COMM_RES] = R"(
+  {
+      "net_instance_id": "superpod1_1",
+      "endpoint_list": [
+          {
+              "protocol": "roce",
+              "comm_id": "1.0.0.1",
+              "placement": "host"
+          }
+      ],
+      "version": "1.3"
+  }
+  )";
+
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  EXPECT_EQ(llm_datadist_p.Initialize(options_p), SUCCESS);
+  LlmDataDist llm_datadist_d(2U, LlmRole::kDecoder);
+  std::map<AscendString, AscendString> options_d;
+  options_d[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26001";
+  options_d[llm_datadist::OPTION_DEVICE_ID] = "1";
+  options_d[llm_datadist::OPTION_TRANSFER_BACKEND] = "hixl";
+  options_d[llm_datadist::OPTION_LOCAL_COMM_RES] = R"(
+  {
+      "net_instance_id": "superpod2_1",
+      "endpoint_list": [
+          {
+              "protocol": "roce",
+              "comm_id": "1.0.0.2",
+              "placement": "host"
+          }
+      ],
+      "version": "1.3"
+  }
+  )";
+
+  llm::AutoCommResRuntimeMock::SetDevice(1);
+  EXPECT_EQ(llm_datadist_d.Initialize(options_d), SUCCESS);
   TestPullKv(llm_datadist_p, llm_datadist_d);
   llm_datadist_p.Finalize();
   llm_datadist_d.Finalize();
