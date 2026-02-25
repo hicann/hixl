@@ -30,7 +30,7 @@ constexpr uint32_t kFlagSize = 8U;
 constexpr size_t kMaxOpDescNum = 64U;
 constexpr size_t kMinRemoteMemSize = 3U;
 constexpr int32_t kRetryCountMin = 1;
-constexpr int32_t kRetryCountMax = 10;
+constexpr int32_t kRetryCountMax = 100;
 // hccl HcclCommInitClusterInfoMemConfig not support parallel call, so use mutex to protect it
 std::mutex g_mutex_;
 }  // namespace
@@ -167,8 +167,9 @@ EntityCommInfo::EntityCommInfo(const HcclComm &comm, std::vector<void *> mem_han
     : params_({0, {}, "", mem_handles, link_total_time, link_retry_count}), comm_(comm), comm_inited_(true) {};
 
 ge::Status EntityCommInfo::Initialize() {
+  std::lock_guard<std::mutex> lock(mutex_);
   if (!comm_inited_) {
-    std::lock_guard<std::mutex> lock(g_mutex_);
+    std::lock_guard<std::mutex> g_lock(g_mutex_);
     HcclResult ret = HcclAdapter::GetInstance().HcclCommInitClusterInfoMemConfig(params_.rank_table.c_str(),
                                                                                  params_.rank_id,
                                                                                  &params_.comm_config,
@@ -217,7 +218,7 @@ ge::Status EntityCommInfo::PrepareHcclComm() const {
   HcclResult prepare_ret = HcclResult::HCCL_SUCCESS;
   for (int32_t i = 0; i < params_.link_retry_count; i++) {
     prepare_ret = HcclAdapter::GetInstance().HcclCommPrepare(comm_, &prepareConfig, avg_timeout);
-    if (prepare_ret != HcclResult::HCCL_SUCCESS) {
+    if (prepare_ret != HcclResult::HCCL_SUCCESS && (!stop_flag_)) {
       LLMEVENT("Retrying, there will be a total of %d retries, this time is %d, returned value this time:%d; " 
               "the hccl logs during the calling of HcclCommPrepare from current thread could be ignored " 
               "if HcclCommPrepare finally succeeds.", 
@@ -235,6 +236,9 @@ ge::Status EntityCommInfo::PrepareHcclComm() const {
 }
 
 ge::Status EntityCommInfo::Finalize() {
+  stop_flag_ = true;
+  LLMEVENT("Begin to finalize comm info.");
+  std::lock_guard<std::mutex> lock(mutex_);
   if (!comm_inited_) {
     return ge::SUCCESS;
   }

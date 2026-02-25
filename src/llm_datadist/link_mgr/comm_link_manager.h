@@ -76,6 +76,7 @@ class CommLinkManager {
 
  private:
   void FreeFlagGuard(PrepareMemArg &req);
+  void FlagGuard(PrepareMemArg &req);
   void CheckUnlink(PrepareMemArg &req, bool &check_unlink_flag);
   ge::Status PrepareMem(PrepareMemArg &req);
   ge::Status ExchangeMem(const EntityPtr &entity, uint32_t local_rank, uint32_t remote_rank) const;
@@ -83,6 +84,7 @@ class CommLinkManager {
   ge::Status DestroyRes(EntityCommInfoPtr comm_ptr, std::vector<EntityPtr> &comm_entities) const;
   ge::Status PrepareComm(const PrepareMemArg &req, EntityCommInfoPtr &comm_info_ptr);
   uint64_t GenerateCommId();
+  ge::Status CreateClustersEntity(PrepareMemArg &req, std::map<uint64_t, EntityPtr> &cluster2entity);
 
   std::atomic_bool running_{true};
   LLMThreadPool thread_pool_{kLinkThreadNamePrefix, kLinkThreadNum};
