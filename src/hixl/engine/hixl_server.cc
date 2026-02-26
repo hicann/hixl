@@ -10,7 +10,7 @@
 
 #include "hixl_server.h"
 
-#include "common/hixl_cs.h"
+#include "cs/hixl_cs.h"
 #include "nlohmann/json.hpp"
 #include "cs/hixl_cs_server.h"
 #include "common/hixl_checker.h"

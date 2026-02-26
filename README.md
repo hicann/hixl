@@ -2,6 +2,9 @@
 
 ## 🔥Latest News
 
+- [2026/01] LLM-DataDist与HIXL已支持下一代芯片的Host RoCE传输能力。
+- [2025/12] 基于A3超平面实现D2rH直传；新增链路池与IPv6支持，并对接Mooncake社区的下一代TENT架构。
+- [2025/11] HIXL提供异步传输能力，支持更高并发的非阻塞数据传输场景。
 - [2025/10] HIXL项目开源，在昇腾芯片上提供高效的多链路D2D/D2H/H2D等单边通信能力，并优化了小数据量批量传输场景的性能。同时HIXL已对接多个开源社区，包含[Mooncake](https://github.com/kvcache-ai/Mooncake/issues/719)，[DeepLink](https://github.com/DeepLink-org/DLSlime/pull/21)等。
 
 ## 🚀概述

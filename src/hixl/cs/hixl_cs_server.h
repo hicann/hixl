@@ -14,7 +14,7 @@
 #include <map>
 #include <vector>
 #include <mutex>
-#include "common/hixl_cs.h"
+#include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
 #include "endpoint_store.h"
 #include "msg_handler.h"

@@ -17,7 +17,7 @@
 #include <sstream>
 #include <vector>
 #include <map>
-#include "common/hixl_cs.h"
+#include "cs/hixl_cs.h"
 #include "common/hixl_inner_types.h"
 #include "common/segment.h"
 #include "common/ctrl_msg.h"

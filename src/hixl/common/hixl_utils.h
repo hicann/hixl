@@ -14,7 +14,7 @@
 #include <memory>
 #include <utility>
 #include <sstream>
-#include "hixl_cs.h"
+#include "cs/hixl_cs.h"
 #include "hccl/hccl_types.h"
 #include "hixl/hixl_types.h"
 #include "hixl_checker.h"

@@ -15,7 +15,7 @@
 #include <vector>
 #include <string>
 
-#include "common/hixl_cs.h"
+#include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_utils.h"

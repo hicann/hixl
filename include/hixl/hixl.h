@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef CANN_HIXL_INC_EXTERNAL_HIXL_HIXL_H_
-#define CANN_HIXL_INC_EXTERNAL_HIXL_HIXL_H_
+#ifndef CANN_HIXL_INCLUDE_HIXL_HIXL_H_
+#define CANN_HIXL_INCLUDE_HIXL_HIXL_H_
 
 #include <memory>
 #include <map>
@@ -142,4 +142,4 @@ class ASCEND_FUNC_VISIBILITY Hixl {
 };
 }  // namespace hixl
 
-#endif  // CANN_HIXL_INC_EXTERNAL_HIXL_HIXL_H_
+#endif  // CANN_HIXL_INCLUDE_HIXL_HIXL_H_

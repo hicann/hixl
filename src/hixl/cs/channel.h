@@ -12,7 +12,7 @@
 #define CANN_HIXL_SRC_HIXL_CS_CHANNEL_H_
 
 #include <memory>
-#include "common/hixl_cs.h"
+#include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"

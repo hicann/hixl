@@ -16,7 +16,7 @@
 #include <arpa/inet.h>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include "common/hixl_cs.h"
+#include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
 #include "common/ctrl_msg.h"
 #include "common/ctrl_msg_plugin.h"

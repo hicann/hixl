@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef CANN_GRAPH_ENGINE_INC_EXTERNAL_ADXL_ADXL_TYPES_H_
-#define CANN_GRAPH_ENGINE_INC_EXTERNAL_ADXL_ADXL_TYPES_H_
+#ifndef CANN_HIXL_INCLUDE_ADXL_ADXL_TYPES_H_
+#define CANN_HIXL_INCLUDE_ADXL_ADXL_TYPES_H_
 
 #include <cstdint>
 #include "external/ge_common/ge_api_error_codes.h"
@@ -84,4 +84,4 @@ struct NotifyDesc {
 };
 }  // namespace adxl
 
-#endif  // CANN_GRAPH_ENGINE_INC_EXTERNAL_ADXL_ADXL_TYPES_H_
+#endif  // CANN_HIXL_INCLUDE_ADXL_ADXL_TYPES_H_

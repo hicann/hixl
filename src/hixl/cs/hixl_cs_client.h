@@ -19,7 +19,7 @@
 #include <atomic>
 #include <vector>
 #include <map>
-#include "common/hixl_cs.h"
+#include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
 #include "endpoint.h"
 #include "channel.h"
@@ -105,8 +105,8 @@ class HixlCSClient {
   ~HixlCSClient();
 
 
-  Status Create(const char *server_ip, uint32_t server_port, const EndpointDesc *src_endpoint,
-                const EndpointDesc *dst_endpoint, const HixlClientConfig *config);
+  Status Create(const char *server_ip, uint32_t server_port, const EndpointDesc *local_endpoint,
+                const EndpointDesc *remote_endpoint, const HixlClientConfig *config);
 
   Status Connect(uint32_t timeout_ms);
 
@@ -128,7 +128,7 @@ class HixlCSClient {
 
  private:
   Status InitBaseClient(const char *server_ip, uint32_t server_port,
-                        const EndpointDesc &src_endpoint, const EndpointDesc &dst_endpoint);
+                        const EndpointDesc &local_endpoint, const EndpointDesc &remote_endpoint);
   Status InitUbResource();
   Status InitUbConstMemory();
   Status ExchangeEndpointAndCreateChannelLocked(uint32_t timeout_ms);
@@ -163,11 +163,11 @@ class HixlCSClient {
   HixlMemStore mem_store_;
   std::string server_ip_;
   uint32_t server_port_{0U};
-  EndpointPtr src_endpoint_;
-  EndpointDesc dst_endpoint_{};
+  EndpointPtr local_endpoint_;
+  EndpointDesc remote_endpoint_{};
   Channel client_channel_;
   ChannelHandle client_channel_handle_ = 0UL;
-  uint64_t dst_endpoint_handle_{0U};
+  uint64_t remote_endpoint_handle_{0U};
   static constexpr size_t kFlagQueueSize = 4096;  // 用于初始化队列和内存地址列表
   uint64_t *flag_queue_ = nullptr;
   std::array<uint32_t, kFlagQueueSize> available_indices_{};

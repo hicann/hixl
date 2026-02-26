@@ -10,7 +10,7 @@
 #ifndef CANN_HIXL_SRC_HIXL_CS_HIXL_CTRL_MSG_H_
 #define CANN_HIXL_SRC_HIXL_CS_HIXL_CTRL_MSG_H_
 
-#include "hixl_cs.h"
+#include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
 
 namespace hixl {

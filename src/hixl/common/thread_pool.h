@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "hixl/hixl_types.h"
-#include "hixl_cs.h"
+#include "cs/hixl_cs.h"
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
 

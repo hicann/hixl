@@ -37,6 +37,7 @@
     <file_info copy_type="source" src_path="" dst_path="hixl/include" install_path="$(TARGET_ENV)/include" install_type="all">
         <file value="adxl" install_mod="550" entity="true" />
         <file value="hixl" install_mod="550" entity="true" />
+        <file value="cs" install_mod="550" entity="true" />
     </file_info>
     <file_info value="hixl_lib" copy_type="delivery" src_path="" dst_path="hixl/lib" install_path="$(TARGET_ENV)/lib64" install_mod="440">
         <file value="libllm_datadist.so" file_type="shared" />
@@ -57,5 +58,6 @@
         <path value="$(TARGET_ENV)/include"/>
         <path value="$(TARGET_ENV)/include/adxl"/>
         <path value="$(TARGET_ENV)/include/hixl"/>
+        <path value="$(TARGET_ENV)/include/cs"/>
     </dir_info>
 </config>

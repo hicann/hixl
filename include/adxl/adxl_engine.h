@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef CANN_GRAPH_ENGINE_INC_EXTERNAL_ADXL_ADXL_ENGINE_H_
-#define CANN_GRAPH_ENGINE_INC_EXTERNAL_ADXL_ADXL_ENGINE_H_
+#ifndef CANN_HIXL_INCLUDE_ADXL_ADXL_ENGINE_H_
+#define CANN_HIXL_INCLUDE_ADXL_ADXL_ENGINE_H_
 
 #include <memory>
 #include <map>
@@ -140,4 +140,4 @@ class ASCEND_FUNC_VISIBILITY AdxlEngine {
 };
 }  // namespace adxl
 
-#endif  // CANN_GRAPH_ENGINE_INC_EXTERNAL_ADXL_ADXL_ENGINE_H_
+#endif  // CANN_HIXL_INCLUDE_ADXL_ADXL_ENGINE_H_

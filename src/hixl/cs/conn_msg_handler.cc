@@ -81,17 +81,17 @@ hixl::Status ParseCreateChannelResp(const std::vector<uint8_t> &body, size_t off
   return hixl::SUCCESS;
 }
 
-hixl::Status CheckRespResultAndSetHandle(const hixl::CreateChannelResp &resp, uint64_t &dst_endpoint_handle) {
+hixl::Status CheckRespResultAndSetHandle(const hixl::CreateChannelResp &resp, uint64_t &remote_endpoint_handle) {
   HIXL_CHK_BOOL_RET_STATUS(resp.result == hixl::SUCCESS, hixl::FAILED,
                            "CreateChannelResp result not SUCCESS, result=%u", static_cast<uint32_t>(resp.result));
-  dst_endpoint_handle = resp.dst_ep_handle;
-  HIXL_LOGI("CreateChannelResp check passed. dst_endpoint_handle set to %lu", dst_endpoint_handle);
+  remote_endpoint_handle = resp.dst_ep_handle;
+  HIXL_LOGI("CreateChannelResp check passed. remote_endpoint_handle set to %lu", remote_endpoint_handle);
   return hixl::SUCCESS;
 }
 }  // namespace
 namespace hixl {
-Status ConnMsgHandler::SendCreateChannelRequest(int32_t socket, const EndpointDesc &src_endpoint,
-                                                const EndpointDesc &dst_endpoint) {
+Status ConnMsgHandler::SendCreateChannelRequest(int32_t socket, const EndpointDesc &local_endpoint,
+                                                const EndpointDesc &remote_endpoint) {
   HIXL_EVENT("SendCreateChannelRequest start. socket: %d", socket);
   CtrlMsgHeader header{};
   header.magic = kMagicNumber;
@@ -100,8 +100,8 @@ Status ConnMsgHandler::SendCreateChannelRequest(int32_t socket, const EndpointDe
   CtrlMsgType msg_type = CtrlMsgType::kCreateChannelReq;
 
   CreateChannelReq body{};
-  body.src = src_endpoint;
-  body.dst = dst_endpoint;
+  body.src = local_endpoint;
+  body.dst = remote_endpoint;
 
   Status ret = SendHeaderTypeBody(socket, header, msg_type, &body, static_cast<uint64_t>(sizeof(body)));
   if (ret == SUCCESS) {
@@ -112,7 +112,7 @@ Status ConnMsgHandler::SendCreateChannelRequest(int32_t socket, const EndpointDe
   return ret;
 }
 
-Status ConnMsgHandler::RecvCreateChannelResponse(int32_t socket, uint64_t &dst_endpoint_handle, uint32_t timeout_ms) {
+Status ConnMsgHandler::RecvCreateChannelResponse(int32_t socket, uint64_t &remote_endpoint_handle, uint32_t timeout_ms) {
   HIXL_EVENT("RecvCreateChannelResponse start. socket: %d", socket);
   const uint64_t expect_body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(CreateChannelResp));
 
@@ -129,9 +129,9 @@ Status ConnMsgHandler::RecvCreateChannelResponse(int32_t socket, uint64_t &dst_e
   CreateChannelResp resp{};
   HIXL_CHK_STATUS_RET(ParseCreateChannelResp(body, offset, resp));
 
-  Status ret = CheckRespResultAndSetHandle(resp, dst_endpoint_handle);
+  Status ret = CheckRespResultAndSetHandle(resp, remote_endpoint_handle);
   if (ret == SUCCESS) {
-    HIXL_EVENT("RecvCreateChannelResponse success. Remote handle: %lu", dst_endpoint_handle);
+    HIXL_EVENT("RecvCreateChannelResponse success. Remote handle: %lu", remote_endpoint_handle);
   } else {
     HIXL_LOGE(ret, "RecvCreateChannelResponse failed during check.");
   }

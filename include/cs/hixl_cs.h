@@ -8,11 +8,10 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef CANN_HIXL_INC_EXTERNAL_HIXL_HIXL_CS_H_
-#define CANN_HIXL_INC_EXTERNAL_HIXL_HIXL_CS_H_
+#ifndef CANN_HIXL_INCLUDE_CS_HIXL_CS_H_
+#define CANN_HIXL_INCLUDE_CS_HIXL_CS_H_
 
 #include <cstdint>
-#include <netinet/in.h>
 #include <string>
 #include "hcomm/hcomm_res_defs.h"
 
@@ -25,11 +24,10 @@ typedef void *HixlClientHandle;
 typedef void *CompleteHandle;
 typedef uint32_t HixlStatus;
 typedef void *MemHandle;
-#define HIXL_SUCCESS 0U
-#define HIXL_PARAM_INVALID 103900U
-#define HIXL_TIMEOUT 103901U
-#define HIXL_FAILED 503900U
-
+static const uint32_t HIXL_SUCCESS = 0U;
+static const uint32_t HIXL_PARAM_INVALID = 103900U;
+static const uint32_t HIXL_TIMEOUT = 103901U;
+static const uint32_t HIXL_FAILED = 503900U;
 
 struct HixlServerConfig {
   uint8_t reserved[128] = {};
@@ -42,8 +40,8 @@ struct HixlClientConfig {
 struct HixlClientDesc {
   const char *server_ip;
   uint32_t server_port;
-  const EndpointDesc *src_endpoint;
-  const EndpointDesc *dst_endpoint;
+  const EndpointDesc *local_endpoint;
+  const EndpointDesc *remote_endpoint;
 };
 
 struct HixlServerDesc {
@@ -61,7 +59,9 @@ struct HixlOneSideOpDesc {
 
 enum HixlCompleteStatus {
   HIXL_COMPLETE_STATUS_WAITING,
-  HIXL_COMPLETE_STATUS_COMPLETED
+  HIXL_COMPLETE_STATUS_COMPLETED,
+  HIXL_COMPLETE_STATUS_TIMEOUT,
+  HIXL_COMPLETE_STATUS_FAILED
 };
 
 /**
@@ -198,4 +198,4 @@ HixlStatus HixlCSClientDestroy(HixlClientHandle client_handle);
 }
 #endif
 
-#endif  // CANN_HIXL_INC_EXTERNAL_HIXL_HIXL_CS_H_
+#endif  // CANN_HIXL_INCLUDE_CS_HIXL_CS_H_

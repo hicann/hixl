@@ -16,7 +16,7 @@
 #include <mutex>
 #include <string>
 
-#include "common/hixl_cs.h"
+#include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
 #include "common/ctrl_msg.h"
 #include "channel.h"

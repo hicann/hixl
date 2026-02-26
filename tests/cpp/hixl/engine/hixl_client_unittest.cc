@@ -18,10 +18,10 @@
 #include <cstdio>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include "cs/hixl_cs.h"
 #include "engine/hixl_client.h"
 #include "common/hixl_inner_types.h"
 #include "common/hixl_utils.h"
-#include "common/hixl_cs.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "common/hixl_utils.h"
 #include "common/ctrl_msg_plugin.h"

@@ -13,7 +13,7 @@
 
 #include <mutex>
 #include <map>
-#include "common/hixl_cs.h"
+#include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
 #include "endpoint.h"
 

@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "common/hixl_cs.h"
+#include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
 #include "common/hixl_log.h"
 #include "common/ctrl_msg.h"
@@ -71,8 +71,8 @@ HixlStatus HixlCSClientCreate(const HixlClientDesc *client_desc, const HixlClien
   auto *client = new (std::nothrow) hixl::HixlCSClient();
   HIXL_CHECK_NOTNULL(client);
   HIXL_DISMISSABLE_GUARD(rollback, ([client]() { delete client; }));
-  const auto ret = client->Create(client_desc->server_ip, client_desc->server_port, client_desc->src_endpoint,
-                                  client_desc->dst_endpoint, config);
+  const auto ret = client->Create(client_desc->server_ip, client_desc->server_port, client_desc->local_endpoint,
+                                  client_desc->remote_endpoint, config);
   HIXL_CHK_STATUS_RET(ret,
                       "Failed to create hixl cs client, "
                       "server_ip:%s, server_port:%u",
