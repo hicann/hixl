@@ -63,18 +63,20 @@
   驱动与固件的安装指导，可详见[《CANN软件安装指南》](https://www.hiascend.com/document/redirect/CannCommunityInstSoftware)。  
 
 ### 3. **安装社区版CANN toolkit包**
-  本项目编译过程依赖CANN开发套件包（cann-toolkit），请根据环境操作系统架构，下载对应CANN Toolkit安装包，参考[昇腾文档中心-CANN软件安装指南](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)进行安装：
-
-  - aarch64架构：[Ascend-cann-toolkit_9.0.0_linux-aarch64.run](https://mirror-centralrepo.devcloud.cn-north-4.huaweicloud.com/artifactory/cann-run-release/software/9.0.0/20260202000324664/aarch64/Ascend-cann-toolkit_9.0.0_linux-aarch64.run)
-  - x86_64架构：[Ascend-cann-toolkit_9.0.0_linux-x86_64.run](https://mirror-centralrepo.devcloud.cn-north-4.huaweicloud.com/artifactory/cann-run-release/software/9.0.0/20260202000324664/x86_64/Ascend-cann-toolkit_9.0.0_linux-x86_64.run)
+  本项目编译过程依赖CANN开发套件包（cann-toolkit），请根据环境操作系统架构，从[软件包下载地址](https://www.hiascend.com/developer/download/community/result?module=cann)下载`Ascend-cann-toolkit_${cann_version}_linux-${arch}.run`，参考[昇腾文档中心-CANN软件安装指南](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)进行安装。
+  
+  - `${cann_version}`表示CANN版本号。
+  - `${arch}`表示CPU架构，如aarch64、x86_64。
 
 ### 4. **安装社区版CANN ops包（运行样例依赖）**
   由于torch_npu依赖CANN Ops包，运行python样例时需安装本包，若仅编译源码或运行C++样例，可跳过此步骤。
 
-  根据产品型号和环境架构，下载对应CANN ops包，参考[昇腾文档中心-CANN软件安装指南](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)进行安装。下载链接为[CANN包社区版资源下载](https://mirror-centralrepo.devcloud.cn-north-4.huaweicloud.com/artifactory/cann-run-release/software/9.0.0/20260202000324664/)：
-
+  请根据产品型号和环境架构，从[软件包下载地址](https://www.hiascend.com/developer/download/community/result?module=cann)下载对应的CANN Ops包，参考[昇腾文档中心-CANN软件安装指南](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)进行安装。
+  
   - Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件：`Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run`
   - Atlas A3 训练系列产品/Atlas A3 推理系列产品：`Ascend-cann-A3-ops_${cann_version}_linux-${arch}.run`
+  - `${cann_version}`表示CANN版本号。
+  - `${arch}`表示CPU架构，如aarch64、x86_64。
 
 ### 5. **配置环境变量**
 	
