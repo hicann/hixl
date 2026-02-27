@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 #include "dlog_pub.h"
 #include "base/err_msg.h"
 #ifdef __GNUC__

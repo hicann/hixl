@@ -109,8 +109,8 @@ int32_t HcommWriteNbi(ChannelHandle channel, void *dst, void *src, uint64_t len)
   if (dst == nullptr || src == nullptr || len == 0) {
     return HCCL_E_PARA;
   }
-  // 模拟写操作耗时 10ms
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  // 模拟写操作耗时 1ms
+  std::this_thread::sleep_for(std::chrono::milliseconds(1));
   memcpy_s(dst, len, src, len);
   return HCCL_SUCCESS;
 }
@@ -120,8 +120,8 @@ int32_t HcommReadNbi(ChannelHandle channel, void *dst, void *src, uint64_t len) 
   if (dst == nullptr || src == nullptr || len == 0) {
     return HCCL_E_PARA;
   }
-  // 模拟读操作耗时 10ms
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  // 模拟读操作耗时 1ms
+  std::this_thread::sleep_for(std::chrono::milliseconds(1));
   memcpy_s(dst, len, src, len);
   return HCCL_SUCCESS;
 }
@@ -135,6 +135,45 @@ int32_t HcommThreadAlloc(int32_t engine, uint32_t thread_num, uint32_t notify_nu
   return 0; // 0 通常代表 HCCL_SUCCESS
 }
 
+int32_t HcommBatchModeStart(const char *batchTag) {
+  (void)batchTag;
+  return HCCL_SUCCESS;
+}
+
+int32_t HcommBatchModeEnd(const char *batchTag) {
+  (void)batchTag;
+  return HCCL_SUCCESS;
+}
+
+int32_t HcommReadOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src, uint64_t len) {
+  (void)thread;
+  (void)channel;
+  if (dst == nullptr || src == nullptr || len == 0) {
+    return HCCL_E_PARA;
+  }
+  // 模拟读操作耗时 1ms
+  std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  memcpy_s(dst, len, src, len);
+  return HCCL_SUCCESS;
+}
+
+int32_t HcommWriteOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src, uint64_t len) {
+  (void)thread;
+  (void)channel;
+  if (dst == nullptr || src == nullptr || len == 0) {
+    return HCCL_E_PARA;
+  }
+  // 模拟写操作耗时 1ms
+  std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  memcpy_s(dst, len, src, len);
+  return HCCL_SUCCESS;
+}
+
+int32_t HcommChannelFenceOnThread(ThreadHandle thread, ChannelHandle channel) {
+  (void)thread;
+  (void)channel;
+  return HCCL_SUCCESS;
+}
 #ifdef __cplusplus
 }
 #endif

@@ -35,6 +35,13 @@ __attribute__((weak)) int32_t HcommReadNbi(ChannelHandle channel, void *dst, con
 __attribute__((weak)) HcclResult HcommThreadAlloc(CommEngine engine, uint32_t threadNum, uint32_t notifyNumPerThread,
                                                   ThreadHandle *threadHandle);
 __attribute__((weak)) HcclResult HcommThreadFree(const ThreadHandle *threads, uint32_t threadNum);
+__attribute__((weak)) int32_t HcommBatchModeStart(const char *batchTag);
+__attribute__((weak)) int32_t HcommBatchModeEnd(const char *batchTag);
+__attribute__((weak)) int32_t HcommReadOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src,
+                                                uint64_t len);
+__attribute__((weak)) int32_t HcommWriteOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src,
+                                                 uint64_t len);
+__attribute__((weak)) int32_t HcommChannelFenceOnThread(ThreadHandle thread, ChannelHandle channel);
 
 #ifdef __cplusplus
 }
