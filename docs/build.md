@@ -74,7 +74,7 @@
 
 ### 3. **安装社区版CANN toolkit包**
 
-  根据实际环境，下载对应`Ascend-cann-toolkit_${cann_version}_linux-${arch}.run`包，下载链接为[CANN包社区版资源下载](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1)。
+  根据实际环境，下载对应`Ascend-cann-toolkit_${cann_version}_linux-${arch}.run`包，下载链接为[CANN包社区版资源下载](https://www.hiascend.com/developer/download/community/result?module=cann)。
 
   ```bash
   # 确保安装包具有可执行权限
@@ -89,7 +89,7 @@
 ### 4. **安装社区版CANN ops包（运行样例依赖）**
   由于torch_npu依赖本包，运行python样例时需安装本包，若仅编译源码或运行C++样例，可跳过此步骤。
 
-  根据产品型号和环境架构，下载对应CANN ops包，下载链接为[CANN包社区版资源下载](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1)：
+  根据产品型号和环境架构，下载对应CANN ops包，下载链接为[CANN包社区版资源下载](https://www.hiascend.com/developer/download/community/result?module=cann)：
 
   - Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件：`Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run`
   - Atlas A3 训练系列产品/Atlas A3 推理系列产品：`Atlas-cann-A3-ops_${cann_version}_linux-${arch}.run`
