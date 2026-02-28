@@ -14,6 +14,7 @@ import argparse
 import json
 import logging
 import time
+import re
 import subprocess
 from llm_datadist import LLMDataDist, LLMRole, LLMConfig, CacheDesc, CacheKey, Cache, DataType, RegisterMemStatus, Placement
 import torch
@@ -54,7 +55,24 @@ def get_device_ip_from_hccn_tool(device_id: int) -> str:
     return ip
 
 
+def get_physical_device_id() -> list[str]:
+    cmd = ["ls", "-l", "/dev", "|", "grep", "davinci"]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, text=True)
+    outputlines = result.stdout.splitlines()
+
+    numbers = []
+    pattern = r"davinci(\d+)"
+
+    for line in outputlines:
+        match = re.search(pattern, line)
+        if match:
+            numbers.append(match.group(1))
+    numbers.sort(key=int)
+    return numbers
+
+
 def link(datadist, device_id, is_single: bool, host_ip: str):
+    numbers = get_physical_device_id()
     rank_table_dict = {}
     if not is_single:
         rank_table_dict = {
@@ -95,13 +113,13 @@ def link(datadist, device_id, is_single: bool, host_ip: str):
                 {
                     "device": [
                         {
-                            "device_id": "0",
-                            "device_ip": get_device_ip_from_hccn_tool(0),
+                            "device_id": numbers[0],
+                            "device_ip": get_device_ip_from_hccn_tool(int(numbers[0])),
                             "rank_id": "0"
                         },
                         {
-                            "device_id": "1",
-                            "device_ip": get_device_ip_from_hccn_tool(1),
+                            "device_id": numbers[1],
+                            "device_ip": get_device_ip_from_hccn_tool(int(numbers[1])),
                             "rank_id": "1"
                         }
                     ],
