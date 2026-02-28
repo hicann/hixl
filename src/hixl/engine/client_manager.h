@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef HIXL_SRC_HIXL_SRC_ENGINE_CLIENT_MANAGER_H_
-#define HIXL_SRC_HIXL_SRC_ENGINE_CLIENT_MANAGER_H_
+#ifndef HIXL_SRC_HIXL_ENGINE_CLIENT_MANAGER_H_
+#define HIXL_SRC_HIXL_ENGINE_CLIENT_MANAGER_H_
 
 #include <mutex>
 #include <map>
@@ -37,4 +37,4 @@ class ClientManager {
 };
 }  // namespace hixl
 
-#endif  // HIXL_SRC_HIXL_SRC_ENGINE_CLIENT_MANAGER_H_
+#endif  // HIXL_SRC_HIXL_ENGINE_CLIENT_MANAGER_H_

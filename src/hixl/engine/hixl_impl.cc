@@ -78,6 +78,8 @@ Status Hixl::HixlImpl::Initialize(const std::map<AscendString, AscendString> &op
     HIXL_CHK_BOOL_RET_SPECIAL_STATUS(engine_->IsInitialized(), SUCCESS, "Already initialized");
   }
   engine_ = hixl::EngineFactory::CreateEngine(local_engine_, options);
+  HIXL_CHECK_NOTNULL(engine_, "[HixlEngine] Created engine is null, please check your parameters! local_engine:%s", 
+                     local_engine_.c_str());
   HIXL_CHK_STATUS_RET(engine_->Initialize(options), "Failed to initialize Hixl.");
   return SUCCESS;
 }
