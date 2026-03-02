@@ -41,3 +41,37 @@ else ()
         add_subdirectory(benchmarks)
     endif()
 endif()
+
+message(STATUS "start build device")
+if(NOT EXISTS "${CANN_INSTALL_PATH}/toolkit/toolchain/hcc")
+    message(FATAL_ERROR "CANN toolchain path does not exist: ${CANN_INSTALL_PATH}/toolkit/toolchain/hcc")
+endif()
+set(TOOLCHAIN_DIR "${CANN_INSTALL_PATH}/toolkit/toolchain/hcc")
+# 对于libc_sec，只有makefile，需要传递编译器路径
+set(CMAKE_CXX_COMPILER_ "${TOOLCHAIN_DIR}/bin/aarch64-target-linux-gnu-g++")
+set(CMAKE_C_COMPILER_ "${TOOLCHAIN_DIR}/bin/aarch64-target-linux-gnu-gcc")
+set(CMAKE_C_AR "${TOOLCHAIN_DIR}/bin/aarch64-target-linux-gnu-ar")
+set(CHILD_INSTALL_DIR ${CMAKE_BINARY_DIR}/device_install)
+include(ExternalProject)
+ExternalProject_Add(device
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cmake/device
+    BINARY_DIR ${CMAKE_BINARY_DIR}/device_build
+    CMAKE_ARGS
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+        -DTOOLCHAIN_DIR=${TOOLCHAIN_DIR}
+        -DCMAKE_INSTALL_PREFIX=${CHILD_INSTALL_DIR}
+        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/aarch64-hcc-toolchain.cmake
+        -DCMAKE_C_AR=${CMAKE_C_AR}
+        -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER_}
+        -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER_}
+        -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
+        -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
+        -DENABLE_SIGN=${ENABLE_SIGN}
+        -DCUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT}
+        -DVERSION_INFO=${VERSION_INFO}
+        -DCANN_INSTALL_PATH=${CANN_INSTALL_PATH}
+        -DENABLE_ASAN=${ENABLE_ASAN}
+        -DENABLE_GVOC=${ENABLE_GCOV}
+        -DCANN_VERSION_hixl_VERSION=${CANN_VERSION_hixl_VERSION}
+    BUILD_ALWAYS TRUE
+)

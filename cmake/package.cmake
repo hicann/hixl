@@ -103,6 +103,16 @@ install(DIRECTORY ${hixl_include}/
 install(TARGETS llm_datadist
         LIBRARY DESTINATION hixl/lib)
 
+install(FILES
+  ${CMAKE_SOURCE_DIR}/build/device_install/hixl/aicpu_kernel/cann-hixl-compat.tar.gz
+  DESTINATION hixl/aicpu_kernel
+)
+
+install(FILES
+  ${CMAKE_SOURCE_DIR}/build/device_install/hixl/aicpu_kernel/libcann_hixl_kernel.json
+  DESTINATION hixl/aicpu_kernel
+)
+
 # ============= CPack =============
 set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")

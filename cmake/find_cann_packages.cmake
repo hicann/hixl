@@ -8,6 +8,7 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
+include(cmake/function.cmake)
 find_package_if_target_not_exists(securec MODULE REQUIRED)
 
 if (NOT ENABLE_TEST)
@@ -17,6 +18,7 @@ if (NOT ENABLE_TEST)
     find_package_if_target_not_exists(msprof MODULE REQUIRED)
     find_package_if_target_not_exists(hccl MODULE REQUIRED)
     find_package_if_target_not_exists(acl_rt MODULE REQUIRED)
+    find_package_if_target_not_exists(runtime MODULE REQUIRED)
     find_package_if_target_not_exists(metadef MODULE REQUIRED)
     find_package_if_target_not_exists(ascend_hal MODULE REQUIRED)
 else ()

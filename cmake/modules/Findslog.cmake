@@ -16,7 +16,7 @@ endif()
 set(_cmake_targets_defined "")
 set(_cmake_targets_not_defined "")
 set(_cmake_expected_targets "")
-foreach(_cmake_expected_target IN ITEMS slog alog slog_headers)
+foreach(_cmake_expected_target IN ITEMS alog slog_headers)
     list(APPEND _cmake_expected_targets "${_cmake_expected_target}")
     if(TARGET "${_cmake_expected_target}")
         list(APPEND _cmake_targets_defined "${_cmake_expected_target}")
@@ -72,7 +72,6 @@ find_package_handle_standard_args(slog
         slog_FOUND
     REQUIRED_VARS
         _INCLUDE_DIR
-        slog_SHARED_LIBRARY
         alog_SHARED_LIBRARY
 )
 
@@ -84,12 +83,6 @@ if(slog_FOUND)
     cmake_print_variables(slog_SHARED_LIBRARY)
     cmake_print_variables(alog_SHARED_LIBRARY)
 
-    add_library(slog SHARED IMPORTED)
-    set_target_properties(slog PROPERTIES
-        INTERFACE_COMPILE_DEFINITIONS "LOG_CPP;PROCESS_LOG"
-        INTERFACE_LINK_LIBRARIES "slog_headers"
-        IMPORTED_LOCATION "${slog_SHARED_LIBRARY}"
-    )
 
     add_library(alog SHARED IMPORTED)
     set_target_properties(alog PROPERTIES
@@ -104,9 +97,6 @@ if(slog_FOUND)
     )
 
     include(CMakePrintHelpers)
-    cmake_print_properties(TARGETS slog
-        PROPERTIES INTERFACE_COMPILE_DEFINITIONS INTERFACE_LINK_LIBRARIES IMPORTED_LOCATION
-    )
     cmake_print_properties(TARGETS alog
         PROPERTIES INTERFACE_COMPILE_DEFINITIONS INTERFACE_LINK_LIBRARIES IMPORTED_LOCATION
     )
