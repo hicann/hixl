@@ -56,14 +56,10 @@ class Config:
             self.load_config(args.config)
         
         self.device_id = args.device_id
+        self.rank = args.rank
         
         if args.distributed:
             self.distributed = True
-        
-        if args.rank is not None:
-            self.rank = args.rank
-        else:
-            self.rank = self.device_id // 2
         
         if args.world_size is not None:
             self.world_size = args.world_size

@@ -113,7 +113,7 @@ bash run.sh **.py
 * device_id ，必填，类型为int，当前进程所在npu设备
 * schema，选填，类型为str，默认为“d2d”，当前测试的传输类型，（必须为h2h，h2d，d2h，d2d ，不区分大小写）
 * config，选填， 类型为str，为yaml配置文件的路径，由于当前代码中删除了硬编码的初始值，可以选择修改代码或者传入config参数的方式，执行用例
-* rank，选填，类型为int，当前进程的rank，如果不传入，默认为 **device_id // 2**
+* rank，必填，类型为int，当前进程的rank，每个进程的**唯一**标识，取值范围为**[0, world_size - 1]**
 * world_size，选填，类型为int，分布式集群配置的设备数
 * distributed，选填，是否启用分布式集群
 

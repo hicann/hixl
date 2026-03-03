@@ -45,8 +45,9 @@ class MooncakeSampleBase:
             world_size=self.config.world_size
         )
         dist.barrier(group=dist.group.WORLD)
-        logging.info(f"Initialized distributed process group: \
-        rank={self.config.rank}, world_size={self.config.world_size}")
+        logging.info(
+            f"Initialized distributed process group: "
+            f"rank={self.config.rank}, world_size={self.config.world_size}")
     
     def init_mooncake_store(self) -> MooncakeDistributedStore:
         store = MooncakeDistributedStore()
