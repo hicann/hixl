@@ -1,8 +1,12 @@
 pybind11:
   version: v2.13.6
+  type: run
 googletest:
   version: v1.14.0
+  type: test
 makeself:
   version: release-2.5.0-patch1
+  type: build
 json:
   version: v3.11.3
+  type: run
