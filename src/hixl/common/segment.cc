@@ -88,7 +88,7 @@ bool Segment::Contains(uint64_t start, uint64_t end) const {
   }
 
   if (!covered_start) {
-    HIXL_LOGE(PARAM_INVALID, "Range not found, start:%lu, end:%lu", start, end);
+    HIXL_LOGI("Range not found, start:%lu, end:%lu", start, end);
     return false;
   }
 

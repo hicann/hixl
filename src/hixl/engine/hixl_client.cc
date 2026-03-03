@@ -335,6 +335,7 @@ Status HixlClient::CreateCsClients(const EndpointConfig &local_endpoint_config,
 }
 
 Status HixlClient::SetLocalMemInfo(const std::vector<MemInfo> &mem_info_list) {
+  HIXL_LOGI("SetLocalMemInfo begin");
   {
     std::lock_guard<std::mutex> lock(client_handles_mutex_);
     if (client_handles_.empty()) {
@@ -346,6 +347,8 @@ Status HixlClient::SetLocalMemInfo(const std::vector<MemInfo> &mem_info_list) {
   for (const auto &mem_info : mem_info_list) {
     auto &mem = mem_info.mem;
     auto type = mem_info.type;
+    HIXL_LOGI("Add range to local_segments_ and register memory, addr: 0x%lx, size: %lu, type: %s", mem.addr, mem.len,
+              (type == MemType::MEM_DEVICE) ? kMemTypeDevice : kMemTypetHost);
     {
       std::lock_guard<std::mutex> lock(local_segments_mutex_);
       auto seg_it = std::find_if(local_segments_.begin(), local_segments_.end(),
@@ -370,6 +373,7 @@ Status HixlClient::SetLocalMemInfo(const std::vector<MemInfo> &mem_info_list) {
                         "Failed to register memory to cs client, addr: 0x%lx, size: %lu, type: %s", mem.addr, mem.len,
                         (type == MemType::MEM_DEVICE) ? kMemTypeDevice : kMemTypetHost);
   }
+  HIXL_LOGI("SetLocalMemInfo end");
   return SUCCESS;
 }
 
@@ -459,6 +463,7 @@ Status HixlClient::Connect(uint32_t timeout_ms) {
 }
 
 Status HixlClient::ProcessRemoteMem(uint32_t timeout_ms) {
+  HIXL_LOGI("ProcessRemoteMem begin");
   for (const auto &pair : client_handles_) {
     auto handle = pair.second;
     HcommMem *remote_mem_list = nullptr;
@@ -490,6 +495,7 @@ Status HixlClient::ProcessRemoteMem(uint32_t timeout_ms) {
       }
     }
   }
+  HIXL_LOGI("ProcessRemoteMem end");
   return SUCCESS;
 }
 
@@ -593,7 +599,7 @@ Status HixlClient::ClassifyTransfers(const std::vector<TransferOpDesc> &op_descs
     {
       std::lock_guard<std::mutex> lock(local_segments_mutex_);
       if (GetMemType(local_segments_, op_desc.local_addr, op_desc.len, local_mem_type) != SUCCESS) {
-        HIXL_LOGE(PARAM_INVALID, "Local memory range does not register, start:%lu, end:%lu", op_desc.local_addr,
+        HIXL_LOGE(PARAM_INVALID, "Local memory range does not register, start:0x%lx, end:0x%lx", op_desc.local_addr,
                   op_desc.local_addr + op_desc.len);
         return PARAM_INVALID;
       }
@@ -602,7 +608,7 @@ Status HixlClient::ClassifyTransfers(const std::vector<TransferOpDesc> &op_descs
     {
       std::lock_guard<std::mutex> lock(remote_segments_mutex_);
       if (GetMemType(remote_segments_, op_desc.remote_addr, op_desc.len, remote_mem_type) != SUCCESS) {
-        HIXL_LOGE(PARAM_INVALID, "Remote memory range does not register, start:%lu, end:%lu", op_desc.remote_addr,
+        HIXL_LOGE(PARAM_INVALID, "Remote memory range does not register, start:0x%lx, end:0x%lx", op_desc.remote_addr,
                   op_desc.remote_addr + op_desc.len);
         return PARAM_INVALID;
       }
