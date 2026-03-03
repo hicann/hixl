@@ -14,9 +14,10 @@
 #include <chrono>
 #include <vector>
 #include "gtest/gtest.h"
+#include "gmock/gmock.h"
 #include "ascendcl_stub.h"
+#include "load_kernel.h"
 
-// 为了直接访问 client 内部状态
 #define private public
 #define protected public
 #include "hixl_cs_client.h"
@@ -24,8 +25,15 @@
 #undef protected
 #undef private
 
-
 namespace hixl {
+
+class MockAclRuntimeStub : public llm::AclRuntimeStub {
+ public:
+  MOCK_METHOD(aclError, aclrtBinaryLoadFromFile, (const char*, aclrtBinaryLoadOptions*, aclrtBinHandle*), (override));
+  MOCK_METHOD(aclError, aclrtBinaryGetFunction, (aclrtBinHandle, const char*, aclrtFuncHandle*), (override));
+  MOCK_METHOD(aclError, aclrtWaitAndResetNotify, (aclrtNotify, aclrtStream, uint32_t), (override));
+};
+
 namespace {
 
 constexpr uint32_t kUbDevId = 2U;
@@ -107,19 +115,18 @@ class HixlCSClientUbFixture : public ::testing::Test {
     unsetenv("HIXL_UT_UB_FLAG_HACK");
   }
 
-  // [新增] 辅助函数：统一处理 Buffer 的注册和 CommunicateMem 参数的组装
   CommunicateMem SetupBatchTransfer(bool is_get) {
     RecordMemForBatchTransfer(cli_, remote_buf_.data(), remote_buf_.size(),
                               local_buf_.data(), local_buf_.size());
 
     if (is_get) {
-      remote_list_const_[0] = remote_buf_.data(); // src (remote)
-      local_list_[0]        = local_buf_.data();  // dst (local)
+      remote_list_const_[0] = remote_buf_.data();
+      local_list_[0]        = local_buf_.data();
       mem_.src_buf_list     = remote_list_const_;
       mem_.dst_buf_list     = local_list_;
     } else {
-      local_list_const_[0]  = local_buf_.data();  // src (local)
-      remote_list_[0]       = remote_buf_.data(); // dst (remote)
+      local_list_const_[0]  = local_buf_.data();
+      remote_list_[0]       = remote_buf_.data();
       mem_.src_buf_list     = local_list_const_;
       mem_.dst_buf_list     = remote_list_;
     }
@@ -134,7 +141,6 @@ class HixlCSClientUbFixture : public ::testing::Test {
   HixlCSClient cli_{};
   uint64_t remote_flag_dev_{0ULL};
 
-  // [新增] 将临时 Buffer 和数组沉淀到类的生命周期中，防止悬空指针
   std::array<uint8_t, 8> local_buf_{};
   std::array<uint8_t, 8> remote_buf_{};
   void* local_list_[1]{};
@@ -145,11 +151,9 @@ class HixlCSClientUbFixture : public ::testing::Test {
   CommunicateMem mem_{};
 };
 
-// ======================= 精简后的 UT 用例 =======================
-
 TEST_F(HixlCSClientUbFixture, BatchPutUbDeviceSuccessUseMemcpyHackFlag) {
   setenv("HIXL_UT_UB_FLAG_HACK", "1", 1);
-  CommunicateMem mem = SetupBatchTransfer(false); // false = Put
+  CommunicateMem mem = SetupBatchTransfer(false);
 
   void *qh = nullptr;
   const Status ret = cli_.BatchTransfer(false, mem, &qh);
@@ -163,7 +167,7 @@ TEST_F(HixlCSClientUbFixture, BatchPutUbDeviceSuccessUseMemcpyHackFlag) {
 
 TEST_F(HixlCSClientUbFixture, BatchGetUbDeviceSuccessUseMemcpyHackFlag) {
   setenv("HIXL_UT_UB_FLAG_HACK", "1", 1);
-  CommunicateMem mem = SetupBatchTransfer(true); // true = Get
+  CommunicateMem mem = SetupBatchTransfer(true);
 
   void *qh = nullptr;
   const Status ret = cli_.BatchTransfer(true, mem, &qh);
@@ -186,39 +190,28 @@ TEST_F(HixlCSClientUbFixture, PrepareUbRemoteFlagAndKernelMissingTagFail) {
 
 TEST_F(HixlCSClientUbFixture, BatchPutUbDeviceNotifyWaitFail) {
   CommunicateMem mem = SetupBatchTransfer(false);
-
   void *qh = nullptr;
-  // 1. 正常发起传输，拿到了句柄，此时占用 1 个 Slot
+
+  MockAclRuntimeStub mock_acl;
+  llm::AclRuntimeStub::Install(&mock_acl);
+
+  EXPECT_CALL(mock_acl, aclrtWaitAndResetNotify(testing::_, testing::_, testing::_))
+      .WillOnce(testing::Return(static_cast<aclError>(FAILED)));
+
   const Status ret = cli_.BatchTransfer(false, mem, &qh);
-  EXPECT_EQ(ret, SUCCESS);
-  ASSERT_NE(qh, nullptr);
-  EXPECT_EQ(GetCompletePool().GetInUseCount(), 1U); // 确认占用了 1 个
 
-  // 2. 给底层的 Wait 注入一个失败的返回值
-  g_Stub_aclrtWaitAndResetNotify_RETURN.push_back(static_cast<aclError>(-1));
+  llm::AclRuntimeStub::UnInstall(&mock_acl);
 
-  // 3. 执行 CheckStatus
-  HixlCompleteStatus st = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
-  Status check_ret = cli_.CheckStatus(qh, &st);
-
-  // 4. 断言验证：接口返回了 SUCCESS，但句柄已经在内部被错误路径销毁了
-  EXPECT_EQ(check_ret, SUCCESS);
-
-  // 5. 核心验证：池子里的 Slot 必须被释放归零了！这证明它确实走到了错误处理分支。
-  EXPECT_EQ(GetCompletePool().GetInUseCount(), 0U);
-
-  // 6. 清理打桩状态
-  g_Stub_aclrtWaitAndResetNotify_RETURN.clear();
+  EXPECT_EQ(ret, FAILED);
+  EXPECT_EQ(CompletePool::GetInstance().GetInUseCount(), 0U);
 }
 
 TEST_F(HixlCSClientUbFixture, BatchPutUbDeviceSlotExhaustedFail) {
   setenv("HIXL_UT_UB_FLAG_HACK", "1", 1);
   CommunicateMem mem = SetupBatchTransfer(false);
-
   std::vector<void *> handles;
   handles.reserve(CompletePool::kMaxSlots);
 
-  // 1. 耗尽所有 Slot
   for (uint32_t i = 0; i < CompletePool::kMaxSlots; ++i) {
     void *qh = nullptr;
     const Status ret = cli_.BatchTransfer(false, mem, &qh);
@@ -227,18 +220,95 @@ TEST_F(HixlCSClientUbFixture, BatchPutUbDeviceSlotExhaustedFail) {
     handles.emplace_back(qh);
   }
 
-  // 2. 再次请求，预期失败 (RESOURCE_EXHAUSTED)
   void *qh_extra = nullptr;
   const Status ret_extra = cli_.BatchTransfer(false, mem, &qh_extra);
   EXPECT_NE(ret_extra, SUCCESS);
   EXPECT_EQ(qh_extra, nullptr);
 
-  // 3. 清理已占用的 Slot 保证环境干净
   for (void *h : handles) {
     HixlCompleteStatus st = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
     (void)PollUntilCompleted(cli_, h, &st);
     EXPECT_EQ(st, HixlCompleteStatus::HIXL_COMPLETE_STATUS_COMPLETED);
   }
+}
+
+class LoadKernelFixture : public ::testing::Test {
+ protected:
+ void SetUp() override {
+    const char *env = std::getenv("ASCEND_HOME_PATH");
+    if (env != nullptr) {
+      original_env_ = env;
+      has_env_ = true;
+    }
+    system("mkdir -p ./test_opp/opp/built-in/op_impl/aicpu/config");
+  }
+
+  void TearDown() override {
+    if (has_env_) {
+      setenv("ASCEND_HOME_PATH", original_env_.c_str(), 1);
+    } else {
+      unsetenv("ASCEND_HOME_PATH");
+    }
+    system("rm -rf ./test_opp");
+  }
+
+  void CreateDummyJson(const std::string &path, bool readable) {
+    std::string cmd = "echo '{}' > " + path;
+    system(cmd.c_str());
+    if (!readable) {
+      cmd = "chmod 000 " + path;
+      system(cmd.c_str());
+    }
+  }
+
+  std::string original_env_;
+  bool has_env_ = false;
+};
+
+TEST_F(LoadKernelFixture, NoEnvAndFileNotFound) {
+  unsetenv("ASCEND_HOME_PATH");
+  aclrtBinHandle bin_handle = nullptr;
+  UbFuncHandles func_handles{};
+  Status ret = LoadUbKernelAndGetHandles("GetFunc", "PutFunc", bin_handle, func_handles);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
+
+TEST_F(LoadKernelFixture, AclLoadBinaryFailed) {
+  setenv("ASCEND_HOME_PATH", "./test_opp", 1);
+  std::string file_path = "./test_opp/opp/built-in/op_impl/aicpu/config/libcann_hixl_kernel.json";
+  CreateDummyJson(file_path, true);
+  aclrtBinHandle bin_handle = nullptr;
+  UbFuncHandles func_handles{};
+  MockAclRuntimeStub mock_acl;
+  llm::AclRuntimeStub::Install(&mock_acl);
+  EXPECT_CALL(mock_acl, aclrtBinaryLoadFromFile(testing::_, testing::_, testing::_))
+      .WillOnce(testing::Return(static_cast<aclError>(FAILED)));
+  Status ret = LoadUbKernelAndGetHandles("GetFunc", "PutFunc", bin_handle, func_handles);
+  llm::AclRuntimeStub::UnInstall(&mock_acl);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(LoadKernelFixture, GetFuncHandleInvalidParams) {
+  setenv("ASCEND_HOME_PATH", "./test_opp", 1);
+  aclrtBinHandle dummy_bin_handle = reinterpret_cast<aclrtBinHandle>(0xDEADBEEF);
+  UbFuncHandles func_handles{};
+  Status ret = LoadUbKernelAndGetHandles(nullptr, "PutFunc", dummy_bin_handle, func_handles);
+  EXPECT_EQ(ret, PARAM_INVALID);
+  ret = LoadUbKernelAndGetHandles("GetFunc", nullptr, dummy_bin_handle, func_handles);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
+
+TEST_F(LoadKernelFixture, GetFuncHandleAclGetFuncFailed) {
+  setenv("ASCEND_HOME_PATH", "./test_opp", 1);
+  aclrtBinHandle dummy_bin_handle = reinterpret_cast<aclrtBinHandle>(0xDEADBEEF);
+  UbFuncHandles func_handles{};
+  MockAclRuntimeStub mock_acl;
+  llm::AclRuntimeStub::Install(&mock_acl);
+  EXPECT_CALL(mock_acl, aclrtBinaryGetFunction(testing::_, testing::_, testing::_))
+      .WillOnce(testing::Return(static_cast<aclError>(FAILED)));
+  Status ret = LoadUbKernelAndGetHandles("GetFunc", "PutFunc", dummy_bin_handle, func_handles);
+  llm::AclRuntimeStub::UnInstall(&mock_acl);
+  EXPECT_EQ(ret, FAILED);
 }
 
 }  // namespace hixl

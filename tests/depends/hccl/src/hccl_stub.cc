@@ -125,14 +125,21 @@ int32_t HcommReadNbi(ChannelHandle channel, void *dst, void *src, uint64_t len) 
   memcpy_s(dst, len, src, len);
   return HCCL_SUCCESS;
 }
+
 int32_t HcommThreadAlloc(int32_t engine, uint32_t thread_num, uint32_t notify_num, uint32_t *thread_id) {
   (void)engine;
   (void)thread_num;
   (void)notify_num;
   if (thread_id != nullptr) {
-    *thread_id = 999U; // 随便赋一个非 0 的假 Thread ID，防止外层重复分配
+    *thread_id = 999U;
   }
-  return 0; // 0 通常代表 HCCL_SUCCESS
+  return 0;
+}
+
+int32_t HcommThreadFree(const uint32_t *threads, uint32_t threadNum) {
+    (void)threads;
+    (void)threadNum;
+    return 0;
 }
 
 int32_t HcommBatchModeStart(const char *batchTag) {

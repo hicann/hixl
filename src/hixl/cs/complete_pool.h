@@ -12,16 +12,14 @@
 
 #include <array>
 #include <cstdint>
+#include <deque>
 #include <mutex>
 #include <vector>
-
 #include "acl/acl.h"
 #include "common/hixl_checker.h"
 #include "cs/hixl_cs.h"
 #include "hcomm_compat.h"
 #include "runtime/runtime/rt.h"
-
-#include <deque>
 
 namespace hixl {
 
@@ -29,6 +27,7 @@ class CompletePool {
  public:
   static constexpr uint32_t kMaxSlots = 128U;
   static constexpr uint32_t kNotifyTagSize = 64U;
+  static CompletePool &GetInstance();
   struct SlotHandle {
     uint32_t slot_index;
     aclrtContext ctx;
@@ -41,8 +40,6 @@ class CompletePool {
     uint32_t notify_len;
   };
 
-  CompletePool();
-  ~CompletePool();
   CompletePool(const CompletePool &) = delete;
   CompletePool &operator=(const CompletePool &) = delete;
   Status AddRefAndInitIfNeeded(int32_t device_id, CommEngine engine, uint32_t thread_num,
@@ -57,6 +54,8 @@ class CompletePool {
                            std::array<char, kNotifyTagSize> &tag) const;
 
  private:
+  CompletePool();
+  ~CompletePool();
   struct Slot {
     bool in_use;
     aclrtContext ctx;
@@ -101,8 +100,6 @@ class CompletePool {
   uint32_t init_thread_num_;
   uint32_t init_notify_num_per_thread_;
 };
-
-CompletePool &GetCompletePool();
 
 }  // namespace hixl
 

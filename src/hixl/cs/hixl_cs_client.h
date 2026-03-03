@@ -154,7 +154,7 @@ class HixlCSClient {
   Status AcquireUbSlot(CompletePool::SlotHandle &slot);
   Status FillUbBatchArgs(const CommunicateMem &mem_param, MemDev &mem_dev, const CompletePool::SlotHandle &slot,
                          void *remote_flag, UbBatchArgs &args);
-  Status LaunchUbAndStageD2H(bool is_get, UbCompleteHandle &handle, void *remote_flag);
+  Status LaunchUbAndStage(bool is_get, UbCompleteHandle &handle, void *remote_flag);
   void ReleaseLegacyHandlesLocked();
   Status ReleaseUbResourcesLocked();
  private:

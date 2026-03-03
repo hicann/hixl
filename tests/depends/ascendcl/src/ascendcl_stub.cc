@@ -14,7 +14,6 @@
 #include "ascendcl_stub.h"
 #include "mmpa/mmpa_api.h"
 
-std::vector<aclError> g_Stub_aclrtWaitAndResetNotify_RETURN;
 static std::string g_acl_stub_mock = "";
 static char g_soc_version[50] = {0};
 
@@ -504,23 +503,13 @@ aclError AclRuntimeStub::aclrtFreePhysical(aclrtDrvMemHandle handle) {
   return ACL_ERROR_NONE;
 }
 
-aclError AclRuntimeStub::aclrtBinaryLoadFromFile(const char *fileName, aclrtBinaryLoadOptions *options, void **handle) {
-  (void)fileName;
-  (void) options;
-  if (handle == nullptr) {
-    return ACL_ERROR_INVALID_PARAM;
-  }
-  *handle = reinterpret_cast<void *>(0x3);
+aclError AclRuntimeStub::aclrtBinaryLoadFromFile(const char *modelPath, aclrtBinaryLoadOptions *options, aclrtBinHandle *binHandle) {
+  if (binHandle) *binHandle = reinterpret_cast<aclrtBinHandle>(0x12345678);
   return ACL_SUCCESS;
 }
 
-aclError AclRuntimeStub::aclrtBinaryGetFunction(const aclrtBinHandle binHandle, const char *funcName, void **funcPtr) {
-  (void)binHandle;
-  (void)funcName;
-  if (funcPtr != nullptr) {
-    static int dummy_func_addr = 0;
-    *funcPtr = (void*)&dummy_func_addr;
-  }
+aclError AclRuntimeStub::aclrtBinaryGetFunction(aclrtBinHandle binHandle, const char *functionName, aclrtFuncHandle *funcHandle) {
+  if (funcHandle) *funcHandle = reinterpret_cast<aclrtFuncHandle>(0x87654321);
   return ACL_SUCCESS;
 }
 
@@ -792,29 +781,29 @@ aclError aclrtPointerGetAttributes(const void *ptr, aclrtPtrAttributes *attribut
 
 aclError aclrtMemExportToShareableHandleV2(aclrtDrvMemHandle handle, uint64_t flags, aclrtMemSharedHandleType type,
                                           void *shareableHandle) {
-  return llm::AclRuntimeStub::GetInstance()->aclrtMemExportToShareableHandleV2(handle, flags, type, shareableHandle);  
+  return llm::AclRuntimeStub::GetInstance()->aclrtMemExportToShareableHandleV2(handle, flags, type, shareableHandle);
 }
 
 aclError aclrtMemImportFromShareableHandleV2(void *shareableHandle, aclrtMemSharedHandleType type,
                                              uint64_t flags, aclrtDrvMemHandle *handle) {
   return llm::AclRuntimeStub::GetInstance()->aclrtMemImportFromShareableHandleV2(shareableHandle, type,
-                                                              flags, handle);  
+                                                              flags, handle);
 }
 
 aclError aclrtMallocPhysical(aclrtDrvMemHandle *handle, size_t size, const aclrtPhysicalMemProp *prop, uint64_t flags) {
-  return llm::AclRuntimeStub::GetInstance()->aclrtMallocPhysical(handle, size, prop, flags);  
+  return llm::AclRuntimeStub::GetInstance()->aclrtMallocPhysical(handle, size, prop, flags);
 }
 
 aclError aclrtFreePhysical(aclrtDrvMemHandle handle) {
-  return llm::AclRuntimeStub::GetInstance()->aclrtFreePhysical(handle);  
+  return llm::AclRuntimeStub::GetInstance()->aclrtFreePhysical(handle);
 }
 
-aclError aclrtBinaryLoadFromFile(const char *fileName, aclrtBinaryLoadOptions *options, void **handle) {
-  return llm::AclRuntimeStub::GetInstance()->aclrtBinaryLoadFromFile(fileName, options, handle);
+aclError aclrtBinaryLoadFromFile(const char *modelPath, aclrtBinaryLoadOptions *options, aclrtBinHandle *binHandle) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtBinaryLoadFromFile(modelPath, options, binHandle);
 }
 
-aclError aclrtBinaryGetFunction(const aclrtBinHandle binHandle, const char *funcName, void **funcPtr) {
-  return llm::AclRuntimeStub::GetInstance()->aclrtBinaryGetFunction(binHandle, funcName, funcPtr);
+aclError aclrtBinaryGetFunction(aclrtBinHandle binHandle, const char *functionName, aclrtFuncHandle *funcHandle) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtBinaryGetFunction(binHandle, functionName, funcHandle);
 }
 
 aclError aclrtCreateNotify(aclrtNotify *notify, uint64_t flag) {

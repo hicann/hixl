@@ -17,8 +17,8 @@
 namespace hixl {
 
 struct UbFuncHandles {
-  aclrtFuncHandle batchGet;
-  aclrtFuncHandle batchPut;
+  aclrtFuncHandle batch_get;
+  aclrtFuncHandle batch_put;
 };
 
 Status LoadUbKernelAndGetHandles(const char *func_get, const char *func_put, aclrtBinHandle &bin_handle,

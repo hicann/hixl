@@ -23,14 +23,14 @@
 namespace {
 constexpr uint64_t kFlagInitValue = 0ULL;
 constexpr uint64_t kFlagDoneValue = 1ULL;
-constexpr rtDevResProcType_t kDefaultProcType = RT_PROCESS_CP1;
+constexpr rtDevResProcType_t kDefaultProcType = RT_PROCESS_HCCP;
 constexpr rtDevResType_t kDefaultResType = RT_RES_TYPE_STARS_NOTIFY_RECORD;
 constexpr const char *kUbLocalNotifyTagPrefix = "_hixl_ub_local_dev_flag";
 }  // namespace
 
 namespace hixl {
 
-CompletePool &GetCompletePool() {
+CompletePool &CompletePool::GetInstance() {
   static CompletePool pool;
   return pool;
 }
@@ -107,13 +107,12 @@ Status CompletePool::AddRefAndInitIfNeeded(int32_t device_id, CommEngine engine,
     return SUCCESS;
   }
   SaveInitParams(device_id, engine, thread_num, notify_num_per_thread);
-  ref_cnt_ += 1U;
   Status ret = InitAllSlotsLocked(device_id, engine, thread_num, notify_num_per_thread);
   if (ret != SUCCESS) {
-    ref_cnt_ -= 1U;
     ResetInitParamsLocked();
     return ret;
   }
+  ref_cnt_ += 1U;
   inited_ = true;
   return SUCCESS;
 }
@@ -145,9 +144,15 @@ Status CompletePool::Acquire(SlotHandle *handle) {
   HIXL_CHECK_NOTNULL(handle);
   std::lock_guard<std::mutex> lock(mu_);
   if (!inited_) {
+    HIXL_LOGE(FAILED,
+              "[CompletePool] Acquire failed: Pool is not initialized. Please call AddRefAndInitIfNeeded first.");
     return FAILED;
   }
   if (free_list_.empty()) {
+    HIXL_LOGE(RESOURCE_EXHAUSTED,
+              "[CompletePool] Acquire failed: No free slots available. All %u slots are exhausted! "
+              "Check if you forgot to release CompleteHandles.",
+              kMaxSlots);
     return RESOURCE_EXHAUSTED;
   }
   const uint32_t idx = free_list_.front();
@@ -361,8 +366,7 @@ Status CompletePool::EnsurePinnedHostFlagLocked(Slot &slot) {
   }
   void *p = nullptr;
   HIXL_CHK_ACL_RET(aclrtMallocHost(&p, sizeof(uint64_t)));
-  HIXL_CHK_BOOL_RET_STATUS(p != nullptr, FAILED, "[CompletePool] rtMallocHost returned null");
-
+  HIXL_CHECK_NOTNULL(p, "[CompletePool] rtMallocHost returned null");
   slot.host_flag = p;
   *(static_cast<uint64_t *>(slot.host_flag)) = kFlagInitValue;
   return SUCCESS;
@@ -376,6 +380,7 @@ void CompletePool::DestroySlotLocked(Slot &slot) {
     slot.notify = nullptr;
   }
   if (slot.thread != 0U) {
+    HIXL_CHK_ACL(HcommThreadFree(&slot.thread, 1U), "HcommThreadFree failed");
     slot.thread = 0U;
   }
   if (slot.stream != nullptr) {

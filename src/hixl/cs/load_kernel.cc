@@ -29,23 +29,21 @@
 namespace hixl {
 namespace {
 constexpr uint32_t kCpuKernelMode = 0U;
-
+constexpr const char *kKernelJsonSuffix = "/opp/built-in/op_impl/aicpu/config/libcann_hixl_kernel.json";
+constexpr const char *kDefaultAscendPath = "/usr/local/Ascend/cann";
 Status GetKernelFilePath(std::string &json_path) {
-  // 获取二进制文件路径
   std::string libPath;
   const char *getPath = std::getenv("ASCEND_HOME_PATH");
   MM_SYS_GET_ENV(MM_ENV_ASCEND_HOME_PATH, getPath);
   if (getPath != nullptr) {
     libPath = getPath;
   } else {
-    libPath = "/usr/local/Ascend/cann";
-    HIXL_LOGW("[GetKernelFilePath]ENV:ASCEND_HOME_PATH is not set");
+    libPath = kDefaultAscendPath;
+    HIXL_LOGW("[GetKernelFilePath] ENV:ASCEND_HOME_PATH is not set, using default: %s", kDefaultAscendPath);
   }
-
-  libPath += "/opp/built-in/op_impl/aicpu/config/libscatter_hixl_kernel.json";
+  libPath += kKernelJsonSuffix;
   json_path = libPath;
-  HIXL_LOGD("[GetKernelFilePath]kernel folder path[%s]", json_path.c_str());
-
+  HIXL_LOGD("[GetKernelFilePath] kernel folder path[%s]", json_path.c_str());
   return SUCCESS;
 }
 
@@ -80,24 +78,18 @@ Status LoadBinaryFromJson(const char *json_path, aclrtBinHandle &bin_handle) {
 }
 
 Status GetFuncHandle(aclrtBinHandle bin_handle, const char *func_name, aclrtFuncHandle &func_handle) {
-
-
   if (bin_handle == nullptr) {
     return PARAM_INVALID;
   }
   if (func_name == nullptr) {
     return PARAM_INVALID;
   }
-
-
   aclError aerr = aclrtBinaryGetFunction(bin_handle, func_name, &func_handle);
   if (aerr != ACL_SUCCESS) {
     HIXL_LOGE(FAILED, "[LoadKernel] aclrtBinaryGetFunction failed. func=%s ret=%d",
               func_name, static_cast<int32_t>(aerr));
     return FAILED;
   }
-
-
   HIXL_LOGI("[LoadKernel] resolve stub success. func=%s stub=%p", func_name, func_handle);
   return SUCCESS;
 }
@@ -106,28 +98,18 @@ Status GetFuncHandle(aclrtBinHandle bin_handle, const char *func_name, aclrtFunc
 
 Status LoadUbKernelAndGetHandles(const char *func_get, const char *func_put,
                                  aclrtBinHandle &bin_handle, UbFuncHandles &func_handles) {
-  func_handles.batchGet = nullptr;
-  func_handles.batchPut = nullptr;
-
-  int32_t old_device = -1;
-  bool need_restore = false;
+  func_handles.batch_get = nullptr;
+  func_handles.batch_put = nullptr;
   std::string json_path;
   HIXL_CHK_STATUS_RET(GetKernelFilePath(json_path), "[LoadKernel] GetKernelFilePath failed");
-  HIXL_DISMISSABLE_GUARD(dev_restore, [&]() {
-    if (need_restore) {
-      (void)aclrtSetDevice(old_device);
-    }
-  });
   if (bin_handle == nullptr) {
     HIXL_CHK_STATUS_RET(LoadBinaryFromJson(json_path.c_str(), bin_handle),
                         "[LoadKernel] LoadBinaryFromJson failed. path=%s", json_path.c_str());
   }
-
-  HIXL_CHK_STATUS_RET(GetFuncHandle(bin_handle, func_get, func_handles.batchGet),
+  HIXL_CHK_STATUS_RET(GetFuncHandle(bin_handle, func_get, func_handles.batch_get),
                       "[LoadKernel] GetFuncHandle failed for get_func. func=%s", func_get);
-  HIXL_CHK_STATUS_RET(GetFuncHandle(bin_handle, func_put, func_handles.batchPut),
+  HIXL_CHK_STATUS_RET(GetFuncHandle(bin_handle, func_put, func_handles.batch_put),
                       "[LoadKernel] GetFuncHandle failed for put_func. func=%s", func_put);
-
   return SUCCESS;
 }
 
