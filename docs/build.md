@@ -13,7 +13,7 @@
 
   - GCC >= 7.3.0
 
-  - Python3 3.9/3.11/3.12(当前仅支持这三个版本)
+  - Python 3.9~3.12
 
   - CMake >= 3.16.0  (建议使用3.20.0版本)
 
@@ -29,7 +29,7 @@
 #### 方式二：使用Docker容器
 
   **配套 X86 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu20.04.05_x86:lv4_latest`
-  
+
   **配套 ARM 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu20.04.05_arm:lv4_latest`
 
   更多版本镜像，可根据需要在[Ascend-CANN镜像](https://www.hiascend.com/developer/ascendhub/detail/17da20d1c2b6493cb38765adeba85884)自行选择下载。
@@ -81,7 +81,7 @@
   - 建议`master`分支代码搭配最新版本CANN Ops包使用。
 
 ### 5. **配置环境变量**
-	
+
 根据实际场景，选择合适的命令。
 
  ```bash
@@ -166,6 +166,7 @@ bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
 | `--cov` | 启用代码覆盖率 | OFF |
 
 ## 本地验证(tests)
+
 利用tests路径下的测试用例进行本地验证:
 
 - 安装依赖
@@ -187,7 +188,7 @@ bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
     # 默认路径安装，root用户默认路径是/usr/local/Ascend/，普通用户默认路径是${HOME}/Ascend
     bash tests/run_test.sh
     ```
-  
+
 - 更多执行选项可以用 -h 查看：
   ```
   bash tests/run_test.sh -h
