@@ -13,15 +13,15 @@ set(INCLUDE_LIST
         ${HIXL_DIR}/include
 )
 
-add_library(hixl_kernel SHARED
+add_library(cann_hixl_kernel SHARED
         hixl_batch_transfer.cc
 )
 
-target_include_directories(hixl_kernel PRIVATE
+target_include_directories(cann_hixl_kernel PRIVATE
         ${INCLUDE_LIST}
 )
 
-target_link_libraries(hixl_kernel PRIVATE
+target_link_libraries(cann_hixl_kernel PRIVATE
         $<BUILD_INTERFACE:intf_pub>
         $<BUILD_INTERFACE:hccl_headers>
         $<BUILD_INTERFACE:slog_headers>
@@ -36,7 +36,7 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/libcann_hixl_kernel.json
         COMMAND python3 ${HIXL_DIR}/scripts/kernel/parser_ini.py ${HIXL_DIR}/src/ops/hixl_kernel/libcann_hixl_kernel.ini ${CMAKE_CURRENT_BINARY_DIR}/libcann_hixl_kernel.json
 )
 add_custom_target(aicpu_kernel_json DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libcann_hixl_kernel.json)
-add_dependencies(hixl_kernel aicpu_kernel_json)
+add_dependencies(cann_hixl_kernel aicpu_kernel_json)
 
 install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/libcann_hixl_kernel.json

@@ -40,7 +40,7 @@ pack_targets_and_files(
     OUTPUT_TARGET "pack_aicpu_hixl"
     OUTPUT cann-hixl-compat.tar.gz
     FILES ""
-    TARGETS hixl_kernel
+    TARGETS cann_hixl_kernel
 )
 
 sign_file(
