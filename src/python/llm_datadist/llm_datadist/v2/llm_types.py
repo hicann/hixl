@@ -15,7 +15,7 @@ __all__ = ['CacheDesc', 'CacheKey', 'CacheKeyByIdAndIndex', 'KvCache', 'BlocksCa
 
 from abc import abstractmethod, ABC
 from enum import Enum
-from typing import Any, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 from llm_datadist import llm_datadist_wrapper as llm_wrapper, LLMException
 from llm_datadist.data_type import DataType
@@ -531,11 +531,11 @@ class TransferWithCacheKeyConfig:
         check_layer_range('dst_layer_range', dst_layer_range, allow_none=False)
         self._dst_layer_range = dst_layer_range
         raise_if_false((src_layer_range.stop - src_layer_range.start) == (dst_layer_range.stop - src_layer_range.start),
-                       f'src_layer_range size shoulde be equal to dst_layer_range size')
+                       'src_layer_range size should be equal to dst_layer_range size')
         check_uint32('src_batch_index', src_batch_index)
 
         raise_if_true(isinstance(cache_key, BlocksCacheKey) and src_batch_index != 0,
-                      "src_batch_index shoulde be 0 when cache_key is BlocksCacheKey.")
+                      "src_batch_index should be 0 when cache_key is BlocksCacheKey.")
         self._src_batch_index = src_batch_index
         self.dst_cluster_id = cache_key.cluster_id
 
@@ -579,7 +579,7 @@ class TransferWithCacheKeyConfig:
     @src_batch_index.setter
     def src_batch_index(self, src_batch_index: int) -> None:
         raise_if_true(isinstance(self.cache_key, BlocksCacheKey) and src_batch_index != 0,
-                      "src_batch_index shoulde be 0 when cache_key is BlocksCacheKey.")
+                      "src_batch_index should be 0 when cache_key is BlocksCacheKey.")
         self._check_src_batch_index(src_batch_index)
         self._src_batch_index = src_batch_index
 

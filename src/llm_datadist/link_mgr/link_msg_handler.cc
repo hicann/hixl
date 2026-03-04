@@ -344,7 +344,7 @@ ge::Status LinkMsgHandler::GenerateLocalCommRes(const ClusterInfo &cluster) {
   LLM_CHK_BOOL_RET_STATUS(cluster.local_ip_infos.size() == 1U, ge::LLM_PARAM_INVALID,
                          "In scenarios where local comm res is not configured, "
                          "local_ip_infos must be specified and only supports a size of 1.");
-  LLM_CHK_STATUS_RET(LLMUtils::IntToIp(cluster.local_ip_infos[0].ip, local_ip_), "Failed to covert local ip.");
+  LLM_CHK_STATUS_RET(LLMUtils::IntToIp(cluster.local_ip_infos[0].ip, local_ip_), "Failed to convert local ip.");
   LLM_CHK_STATUS_RET(LocalCommResGenerator::Generate(local_ip_, device_id_, local_comm_res_),
                     "Failed to generate local comm res, local_ip:%s, device_id:%d",
                     local_ip_.c_str(), device_id_);
@@ -368,7 +368,7 @@ ge::Status LinkMsgHandler::LinkCluster(const ClusterInfo &cluster, int32_t timeo
   LLM_CHK_BOOL_RET_STATUS(cluster.remote_ip_infos.size() == 1U, ge::LLM_PARAM_INVALID,
                          "remote_ip_infos size != 1 is unsupported.");
   std::string remote_ip_str;
-  LLM_CHK_STATUS_RET(LLMUtils::IntToIp(cluster.remote_ip_infos[0].ip, remote_ip_str), "Failed to covert remote ip.");
+  LLM_CHK_STATUS_RET(LLMUtils::IntToIp(cluster.remote_ip_infos[0].ip, remote_ip_str), "Failed to convert remote ip.");
   LLM_CHK_STATUS_RET(GenerateLocalCommRes(cluster), "Failed to generate local comm res");
   int32_t conn_fd = 0;
   uint32_t remote_port = static_cast<uint32_t>(cluster.remote_ip_infos[0].port);
@@ -426,7 +426,7 @@ ge::Status LinkMsgHandler::UnlinkCluster(const ClusterInfo &cluster, int32_t tim
 
   if (!force_flag) {
     std::string remote_ip_str;
-    LLM_CHK_STATUS_RET(LLMUtils::IntToIp(cluster.remote_ip_infos[0].ip, remote_ip_str), "Failed to covert remote ip.");
+    LLM_CHK_STATUS_RET(LLMUtils::IntToIp(cluster.remote_ip_infos[0].ip, remote_ip_str), "Failed to convert remote ip.");
     uint32_t remote_port = static_cast<uint32_t>(cluster.remote_ip_infos[0].port);
     LLM_CHK_STATUS_RET(MsgHandlerPlugin::Connect(remote_ip_str, remote_port, conn_fd, timeout, ge::LLM_UNLINK_FAILED),
                       "Failed to connect remote addr %s:%u, timeout=%d ms.",

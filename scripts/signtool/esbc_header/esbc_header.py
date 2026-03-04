@@ -27,10 +27,10 @@ logging.basicConfig(
 )
 
 
-def to_bytes(n, length, endianess="big"):
+def to_bytes(n, length, endianness="big"):
     h = "%x" % n
     s = ("0" * (len(h) % 2) + h).zfill(length * 2).decode("hex")
-    return s if endianess == "big" else s[::-1]
+    return s if endianness == "big" else s[::-1]
 
 
 def get_filelen(f):
@@ -116,7 +116,7 @@ if __name__ == "__main__":
     args = get_args()
 
     # 判断镜像是否已加头
-    if check_image_headered(args.raw) == True:
+    if check_image_headered(args.raw):
         logging.info("Detected 8K header magic number, No need to add head again")
         sys.exit()  # 退出程序
 

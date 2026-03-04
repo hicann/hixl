@@ -15,7 +15,6 @@ import socket
 from enum import Enum
 from typing import List, Tuple, Union
 
-from .data_type import DataType
 from .utils.utils import check_isinstance, check_dict, check_uint64, check_int32, check_uint32, check_uint16
 from .status import raise_if_false
 
@@ -34,7 +33,7 @@ def trans_str_ip(ip):
         try:
             ip_bytes = socket.inet_aton(ip)
             return int.from_bytes(ip_bytes, byteorder="little")
-        except:
+        except OSError:
             raise RuntimeError(f"Can not parse ip str:{ip}")
     return ip
 

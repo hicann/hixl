@@ -51,7 +51,7 @@ struct LlmErrorResult {
 };
 
 inline std::vector<char> LlmCreateErrorMsg(const char *format, ...) {
-  // no safe function can get the real length, so pre define as MSG_LENGTH , which defineed in toolchain/log_types.h
+  // no safe function can get the real length, so pre define as MSG_LENGTH , which defined in toolchain/log_types.h
   std::vector<char> msg(MSG_LENGTH + 1U, '\0');
   va_list args;
   va_start(args, format);

@@ -14,7 +14,7 @@ from typing import List, Optional, Tuple, Union, Dict
 
 from llm_datadist.status import handle_llm_status, raise_if_false, raise_if_true
 from llm_datadist.utils import log
-from llm_datadist.utils.utils import check_isinstance, check_dict, check_uint32, check_int64, check_uint64, check_uint8
+from llm_datadist.utils.utils import check_isinstance, check_dict, check_uint32, check_int64, check_uint64
 from llm_datadist.v2.llm_types import CacheDesc, Cache, CacheKey, CacheKeyByIdAndIndex, BlocksCacheKey, Placement, \
     TransferConfig, CacheTask, LayerSynchronizer, TransferWithCacheKeyConfig, PushType, check_layer_range, MemInfo, \
     Memtype
@@ -356,7 +356,7 @@ class CacheManager(object):
         check_isinstance("addrs", addrs, list, int)
         check_isinstance("blocks_cache_key", blocks_cache_key, BlocksCacheKey)
         check_isinstance("remote_accessible", remote_accessible, bool)
-        raise_if_true(self._is_call_linked and remote_accessible == True,
+        raise_if_true(self._is_call_linked and remote_accessible,
                       "you can not register remote accessible cache after link.")
         raise_if_false(len(addrs) > 0, "addrs can not be empty.")
         cache_desc._is_blocks = True

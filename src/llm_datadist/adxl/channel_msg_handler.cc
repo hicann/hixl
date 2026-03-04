@@ -212,7 +212,7 @@ Status ChannelMsgHandler::Initialize(const std::map<AscendString, AscendString> 
   ADXL_CHK_STATUS_RET(ParseServiceLevel(options), "Failed to parse service level");
   handler_plugin_.Initialize();
   if (listen_port_ > 0) {
-    ADXL_CHK_STATUS_RET(StartDaemon(local_ip_, listen_port_), "Failed to start listen deamon, ip:%s, port:%u",
+    ADXL_CHK_STATUS_RET(StartDaemon(local_ip_, listen_port_), "Failed to start listen daemon, ip:%s, port:%u",
                         local_ip_.c_str(), listen_port_);
     LLMEVENT("start daemon success, listen on %s:%u", local_ip_.c_str(), listen_port_);
   }
@@ -371,7 +371,7 @@ Status ChannelMsgHandler::ConnectInfoProcess(const ChannelConnectInfo &peer_chan
         std::chrono::steady_clock::now() - start_time).count();
       if (elapsed >= timeout) {
         LLMLOGE(RESOURCE_EXHAUSTED, 
-                "Failed to Connect %s after %d ms, channel resourse exhausted, adjust channel pool config to avoid", 
+                "Failed to Connect %s after %d ms, channel resource exhausted, adjust channel pool config to avoid",
                 peer_channel_info.channel_id.c_str(), timeout);
         return RESOURCE_EXHAUSTED;
       }
@@ -444,7 +444,7 @@ Status ChannelMsgHandler::ProcessConnectRequest(int32_t fd, const char *msg, uin
   if (ret == SUCCESS) {
     auto channel = channel_manager_->GetChannel(ChannelType::kServer, peer_connect_info.channel_id);
     ADXL_CHK_BOOL_RET_STATUS(channel != nullptr, FAILED,
-                             "Faield to get channel, local engine:%s, remote engine:%s.",
+                             "Failed to get channel, local engine:%s, remote engine:%s.",
                              listen_info_.c_str(), peer_connect_info.channel_id.c_str());
     ADXL_CHK_STATUS_RET(channel->SetSocketNonBlocking(fd),
                         "Failed to start heartbeat, local engine:%s, remote engine:%s.",
@@ -564,7 +564,7 @@ Status ChannelMsgHandler::DoConnect(const std::string &remote_engine, int32_t ti
   ADXL_CHK_STATUS_RET(ret, "Failed to process connect info, timeout:%d", timeout_in_millis);
   auto channel = channel_manager_->GetChannel(ChannelType::kClient, remote_engine);
   ADXL_CHK_BOOL_RET_STATUS(channel != nullptr, FAILED,
-                           "Faield to get channel, local engine:%s, remote engine:%s, timeout:%d ms.",
+                           "Failed to get channel, local engine:%s, remote engine:%s, timeout:%d ms.",
                            listen_info_.c_str(), remote_engine.c_str(), timeout_in_millis);
   ADXL_CHK_STATUS_RET(channel->SetSocketNonBlocking(conn_fd), "Failed to start heartbeat, remote_engine:%s.",
                       remote_engine.c_str());

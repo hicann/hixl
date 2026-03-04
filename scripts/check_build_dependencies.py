@@ -166,7 +166,7 @@ def main():
     """主流程。"""
     parser = argparse.ArgumentParser()
     parser.add_argument('ascend_install_path', help='Ascend install path.')
-    parser.add_argument('deps', nargs='*', help='Dependency informations.')
+    parser.add_argument('deps', nargs='*', help='Dependency information.')
     args = parser.parse_args()
 
     logging.basicConfig(format=f'{os.path.basename(__file__)}: %(levelname)s: %(message)s')

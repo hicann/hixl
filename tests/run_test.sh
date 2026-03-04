@@ -31,7 +31,7 @@ usage() {
   echo "    -j<N>          Set the number of threads used for building Parser, default 8"
   echo "        --cann_3rd_lib_path=<PATH> | --cann-3rd-lib-path=<PATH>"
   echo "                   Set ascend third_party package install path, default ./third_party"
-  echo "    --asan         Enable AddressSanitizer, default is OFF. when cov is setted, asan is setted too."
+  echo "    --asan         Enable AddressSanitizer, default is OFF. when cov is set, asan is set too."
   echo ""
 }
 
@@ -87,7 +87,7 @@ checkopts() {
         ;;
       -c | --cov)
         ENABLE_GCOV=ON
-        # keep set asan for leagcy
+        # keep set asan for legacy
         ENABLE_ASAN=ON
         shift
         ;;

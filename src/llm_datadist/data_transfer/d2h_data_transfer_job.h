@@ -35,7 +35,7 @@ class DataTransferTaskGenerator {
       : num_tensors_(num_tensors), num_buffers_(num_buffers), buffer_size_(buffer_size) {
   }
 
-  // for continous
+  // for continuous
   std::vector<TransferBlocksTask> GenerateTasks(int64_t tensor_size,
                                                 uint32_t block_size);
 

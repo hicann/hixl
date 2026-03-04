@@ -144,7 +144,7 @@ function(protobuf_generate_grpc comp c_var h_var)
                 COMMAND ${PROTOC_PROGRAM} -I${file_dir} ${extra_option} --cpp_out=${proto_output_path} ${abs_file}
                 COMMAND ${PROTOC_PROGRAM} -I${file_dir} ${extra_option} --grpc_out=${proto_output_path} --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN_PROGRAM} ${abs_file}
                 DEPENDS ${abs_file}
-                COMMENT "Running C++ protocol buffer complier on ${file}" VERBATIM)
+                COMMENT "Running C++ protocol buffer compiler on ${file}" VERBATIM)
     endforeach ()
 
     set_source_files_properties(${${c_var}} ${${h_var}} PROPERTIES GENERATED TRUE)

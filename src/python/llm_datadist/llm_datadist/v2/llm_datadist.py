@@ -299,7 +299,7 @@ class LLMDataDist(object):
             raise RuntimeError('llm datadist is not initialized')
     
     @property
-    def kv_cache_manager(self) -> 'KvCacheManager':
+    def kv_cache_manager(self):
         """
         获取KvCacheManager
 

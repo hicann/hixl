@@ -650,7 +650,7 @@ Status AdxlInnerEngine::GetTransferStatus(const TransferReq &req, TransferStatus
     return ret;
   }
   if (ret != SUCCESS) {
-    LLMLOGE(ret, "Falied to get transfer status, remote_engine:%s", remote_engine.GetString());
+    LLMLOGE(ret, "Failed to get transfer status, remote_engine:%s", remote_engine.GetString());
     ADXL_CHK_STATUS_RET(DisconnectOnError(remote_engine.GetString(), kConnectWhenTransferTimeout),
                         "Failed to disconnect on error.");
   }

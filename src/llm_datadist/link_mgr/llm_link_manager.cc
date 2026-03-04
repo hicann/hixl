@@ -38,7 +38,7 @@ ge::Status LLMLinkManager::Initialize(const std::map<ge::AscendString, ge::Ascen
                       "Option %s is invalid: [%s]",
                       kLlmOptionListenPort,
                       iter->second.GetString());
-    LLM_CHK_STATUS_RET(msg_handler_.StartDaemon(ip, port), "Failed to start listen deamon, port = %u", port);
+    LLM_CHK_STATUS_RET(msg_handler_.StartDaemon(ip, port), "Failed to start listen daemon, port = %u", port);
     listen_port_ = iter->second.GetString();
     LLMEVENT("start daemon success, listen on port:%u", port);
   }
@@ -129,13 +129,13 @@ ge::Status LLMLinkManager::SwitchRole(const std::string &role, const std::map<st
         LLMEVENT("stop listen daemon success, listen on port:%s", listen_port_.c_str());
         listen_port_ = "";
       } else {
-        // already listen, do nothin
+        // already listen, do nothing
         return ge::SUCCESS;
       }
     }
 
     LLM_CHK_STATUS_RET(msg_handler_.StartDaemon(ip, port),
-                       "Failed to start listen deamon, ip:%s, port:%u", ip.c_str(), port);
+                       "Failed to start listen daemon, ip:%s, port:%u", ip.c_str(), port);
     LLMEVENT("start daemon success, listen on %s:%u", ip.c_str(), port);
     listen_port_ = iter->second;
   } else {

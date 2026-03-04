@@ -239,10 +239,10 @@ def __write_header_hash(out, params: HeaderHashParams = None):
     offset = header_base if (params.suffix or not params.before_header) else header_base + params.code_len
     out.seek(offset)
     header = out.read(0x560)
-    if params.sm == False:
+    if not params.sm:
         out.write(cal_bin_hash(header))
     else:
-        out.write(sm3_cal(header))
+        raise NotImplementedError("This sm3 algorithm is not implemented yet")
 
 
 def __write_raw_img(out, raw, suffix=False, before_header=False):

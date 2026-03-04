@@ -176,7 +176,7 @@ Status HixlEngine::TransferSync(const AscendString &remote_engine, TransferOp op
 Status HixlEngine::TransferAsync(const AscendString &remote_engine, TransferOp operation,
                                  const std::vector<TransferOpDesc> &op_descs, const TransferArgs &optional_args,
                                  TransferReq &req) {
-  HIXL_LOGI("[HixlEngine] Asynchronous transmission strated, local_engine:%s, remote_engine:%s",
+  HIXL_LOGI("[HixlEngine] Asynchronous transmission started, local_engine:%s, remote_engine:%s",
             local_engine_.c_str(), remote_engine.GetString());
   (void)optional_args;
   ClientPtr client_ptr = client_manager_.GetClient(remote_engine.GetString());

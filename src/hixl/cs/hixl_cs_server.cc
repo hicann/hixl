@@ -177,7 +177,7 @@ Status HixlCSServer::DeregisterMem(MemHandle mem_handle) {
   HIXL_EVENT("[HixlServer] deregister mem start, handle:%p", mem_handle);
   std::lock_guard<std::mutex> lock(reg_mutex_);
   auto it = reg_mems_.find(mem_handle);
-  HIXL_CHK_BOOL_RET_STATUS(it != reg_mems_.cend(), PARAM_INVALID, "mem_handle:%p is not registed", mem_handle);
+  HIXL_CHK_BOOL_RET_STATUS(it != reg_mems_.cend(), PARAM_INVALID, "mem_handle:%p is not registered", mem_handle);
   for (const auto &ep_mem_info : it->second) {
     auto endpoint = endpoint_store_.GetEndpoint(ep_mem_info.endpoint_handle);
     HIXL_CHECK_NOTNULL(endpoint);

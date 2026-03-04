@@ -68,7 +68,7 @@ Test options:
     -j<N>          Set the number of threads used for building Parser, default 8
         --cann_3rd_lib_path=<PATH> | --cann-3rd-lib-path=<PATH>
                    Set ascend third_party package install path, default ./third_party
-    --asan         Enable AddressSanitizer, default is OFF. when cov is setted, asan is setted too.
+    --asan         Enable AddressSanitizer, default is OFF. when cov is set, asan is set too.
 ```
 - 参数详细解释
 

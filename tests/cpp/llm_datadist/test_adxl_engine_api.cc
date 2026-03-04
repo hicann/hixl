@@ -322,14 +322,14 @@ TEST_F(AdxlEngineSTest, TestHeartbeat) {
   TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
   EXPECT_EQ(engine1.TransferSync("127.0.0.1:26001", READ, {desc}), SUCCESS);
   EXPECT_EQ(src, 2);
-  // not disconnet, force finalize
+  // not disconnect, force finalize
   engine1.Finalize();
 
   llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine3;
   EXPECT_EQ(engine3.Initialize("127.0.0.1", options1), SUCCESS);  // use same key with engine1
   EXPECT_EQ(engine3.Connect("127.0.0.1:26001"), SUCCESS);
-  // not disconnet, force finalize
+  // not disconnect, force finalize
   engine3.Finalize();
   std::this_thread::sleep_for(std::chrono::milliseconds(60));  // wait server:engine2 clear client:engine3
   engine2.Finalize();

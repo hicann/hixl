@@ -336,7 +336,7 @@ TEST_F(ChannelPoolUnitTest, TestSelectServerEvictionCandidates) {
     }
     EXPECT_TRUE(channel->IsDisconnecting());
   }
-  // shoule get 5 server channels
+  // should get 5 server channels
   EXPECT_EQ(server_count_, 5);
   EXPECT_EQ(client_count_, 0);
 }
@@ -356,7 +356,7 @@ TEST_F(ChannelPoolUnitTest, TestMixEvictionCandidates) {
     std::string server_id = "127.0.0.1:2600" + std::to_string(i);
     channel_manager_->GetChannel(ChannelType::kServer, server_id)->SetHasTransferred(false);
   }
-  // select 4 candiates
+  // select 4 candidates
   std::vector<EvictItem> candidates = channel_msg_handler_->SelectEvictionCandidates(4);
   // should get 4 channels
   EXPECT_EQ(candidates.size(), 4);

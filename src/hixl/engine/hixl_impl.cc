@@ -233,7 +233,7 @@ Status Hixl::Disconnect(const AscendString &remote_engine, int32_t timeout_in_mi
   HIXL_CHK_BOOL_RET_STATUS(timeout_in_millis > 0, PARAM_INVALID, "timeout_in_millis:%d must > 0", timeout_in_millis);
   const auto ret = impl_->Disconnect(remote_engine, timeout_in_millis);
   HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
-                           "Failed to disconnet, remote engine:%s, timeout:%d ms",
+                           "Failed to disconnect, remote engine:%s, timeout:%d ms",
                            remote_engine.GetString(), timeout_in_millis);
   HIXL_LOGI("Disconnect success, remote engine:%s, timeout:%d ms", remote_engine.GetString(), timeout_in_millis);
   return SUCCESS;

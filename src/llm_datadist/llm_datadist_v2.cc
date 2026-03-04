@@ -90,7 +90,7 @@ ge::Status LLMDataDistV2::DoInitialize(const std::map<ge::AscendString, ge::Asce
 }
 
 ge::Status LLMDataDistV2::LLMDataDistInitialize(const std::map<ge::AscendString, ge::AscendString> &options) {
-  LLMLOGI("LLMDataDist initilize cluster id:%lu", cluster_id_);
+  LLMLOGI("LLMDataDist initialize cluster id:%lu", cluster_id_);
   std::lock_guard<std::mutex> lk(mutex_);
   if (!is_initialized_.load()) {
     LLM_CHK_STATUS_RET(DoInitialize(options), "Failed to initialize llm datadist, cluster id:%lu", cluster_id_);

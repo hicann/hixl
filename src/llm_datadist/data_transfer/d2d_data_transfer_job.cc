@@ -49,7 +49,7 @@ ge::Status GetSendTask(const CacheEntry &cache_entry, const TransferCacheReq &re
       LLM_CHK_BOOL_RET_STATUS(src_buffer_info.buffer_len == dst_buffer_info.buffer_len, ge::LLM_PARAM_INVALID,
                              "req_id[%lu], model_id[%lu], src buffer_len[%lu] not equal dst buffer_len[%lu]",
                              request.req_id, request.model_id, src_buffer_info.buffer_len, dst_buffer_info.buffer_len);
-      // offet is used batch index cachekey, if send congiguous to contiguous, block_index is 0
+      // offset is used batch index cache key, if send contiguous to contiguous, block_index is 0
       const size_t src_addr_index = i + static_cast<uint64_t>(request.src_tensor_start_index);
       hccl_one_side_op_desc.localAddr = ValueToPtr(PtrToValue(cache_entry.cache_addrs[src_addr_index].get()) +
                                                    offset + src_block_index * block_size);

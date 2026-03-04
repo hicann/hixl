@@ -169,7 +169,7 @@ def main():
 if __name__ == "__main__":
     args = get_args()
 
-    if check_image_headered(args.raw) == True:
+    if check_image_headered(args.raw):
         logging.info("Detected 8K header magic number, No need to add head again")
         sys.exit()  # 退出程序
 

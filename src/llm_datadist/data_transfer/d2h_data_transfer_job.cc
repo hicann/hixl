@@ -276,7 +276,7 @@ std::vector<TransferBlocksTask> DataTransferTaskGenerator::DoGenerateForClientBl
   std::set<uint32_t> used_buffer_indices;
   (void)DoGenerate(block_size, tail_block_size, num_block_indices, remote_block_indices);
   uint32_t buffer_task_index = 0U;
-  // genereate remote block num for every buffer
+  // generate remote block num for every buffer
   auto remote_buffer_block_num = buffer_block_nums_[buffer_task_index];
   for (uint32_t i = 0U; i < static_cast<uint32_t>(num_tensors_); ++i) {
     TransferBlocksTask *prev_task = nullptr;

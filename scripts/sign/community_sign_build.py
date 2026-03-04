@@ -25,7 +25,7 @@ import sys
 import logging
 import subprocess
 from subprocess import PIPE, STDOUT
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 myfile = os.path.realpath(__file__)
 mypath = os.path.dirname(myfile)

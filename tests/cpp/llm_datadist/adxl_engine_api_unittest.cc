@@ -177,14 +177,14 @@ TEST_F(AdxlEngineUTest, TestHeartbeat) {
   TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
   EXPECT_EQ(engine1.TransferSync("127.0.0.1:26001", READ, {desc}), SUCCESS);
   EXPECT_EQ(src, 2);
-  // not disconnet, force finalize
+  // not disconnect, force finalize
   engine1.Finalize();
 
   llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine3;
   EXPECT_EQ(engine3.Initialize("127.0.0.1", options1), SUCCESS);  // use same key with engine1
   EXPECT_EQ(engine3.Connect("127.0.0.1:26001"), SUCCESS);
-  // not disconnet, force finalize
+  // not disconnect, force finalize
   engine3.Finalize();
   std::this_thread::sleep_for(std::chrono::milliseconds(60));  // wait server:engine2 clear client:engine3 
   engine2.Finalize();
@@ -486,7 +486,7 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineSendGetNotifies) {
   EXPECT_EQ(engine2.GetNotifies(notifies), SUCCESS);
   // should get 5 notifies
   EXPECT_EQ(notifies.size(), 5);
-  // check 5 notifies contex
+  // check 5 notifies context
   for (int i = 0; i < 5; ++i) {
     EXPECT_EQ(std::string(notifies[i].name.GetString()), "test_notify" + std::to_string(i));
     EXPECT_EQ(std::string(notifies[i].notify_msg.GetString()), "message " + std::to_string(i));
@@ -523,7 +523,7 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineMultiGetNotifies) {
   EXPECT_EQ(engine2.GetNotifies(notifies), SUCCESS);
   // should get 5 notifies
   EXPECT_EQ(notifies.size(), 5);
-  // check 5 notifies contex
+  // check 5 notifies context
   for (int i = 0; i < 5; ++i) {
     EXPECT_EQ(std::string(notifies[i].name.GetString()), "test_notify" + std::to_string(i));
     EXPECT_EQ(std::string(notifies[i].notify_msg.GetString()), "message " + std::to_string(i));
@@ -564,7 +564,7 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineMultiSendNotifies) {
     EXPECT_EQ(engine1.SendNotify("127.0.0.1:26001", notify), SUCCESS);
     EXPECT_EQ(engine3.SendNotify("127.0.0.1:26001", notify), SUCCESS);
   }
-  // sleep 100 ms then get nofifies
+  // sleep 100 ms then get notifies
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   
   std::vector<NotifyDesc> notifies;
@@ -605,7 +605,7 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineSendNotifyTimeout) {
   
   std::vector<NotifyDesc> notifies;
   EXPECT_EQ(engine2.GetNotifies(notifies), SUCCESS);
-  // shoule get 0 notify
+  // should get 0 notify
   EXPECT_EQ(notifies.size(), 0);
   
   EXPECT_EQ(engine1.Disconnect("127.0.0.1:26001"), SUCCESS);
@@ -627,7 +627,7 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineSendNotifyNameTooLong) {
   EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
 
   NotifyDesc notify;
-  // send notify name consit of 2000 'a'
+  // send notify name consist of 2000 'a'
   std::string long_name(2000, 'a');
   notify.name = AscendString(long_name.c_str());
   notify.notify_msg = AscendString("short message");

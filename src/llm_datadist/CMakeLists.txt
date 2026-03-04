@@ -67,7 +67,7 @@ target_link_libraries(llm_datadist PRIVATE
         cann_hixl
         alog
         error_manager
-        metadef # for acend string
+        metadef # for ascend string
         acl_rt
         runtime
         json
@@ -127,7 +127,7 @@ target_link_libraries(adxl_static PRIVATE
         static_mmpa
         alog
         error_manager
-        metadef # for acend string
+        metadef # for ascend string
         acl_rt
         runtime
         json

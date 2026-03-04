@@ -143,7 +143,7 @@ ge::Status LocalCommResGenerator::GetDeviceIp(int32_t phy_device_id, std::string
                             ge::FAILED, "Can not access file:%s, reason:%s", resolved_path, strerror(errno));
 
     std::ifstream file(resolved_path);
-    LLM_CHK_BOOL_RET_STATUS(file.is_open(), ge::FAILED, "Faile to open file:%s", kFilePath);
+    LLM_CHK_BOOL_RET_STATUS(file.is_open(), ge::FAILED, "Failed to open file:%s", kFilePath);
 
     std::string line;
     std::string target_key = "address_" + std::to_string(phy_device_id) + "=";

@@ -120,7 +120,7 @@ ge::Status HixlTransferEngine::RegisterMem(void *addr, uint64_t size, HcclMemTyp
   LLM_CHK_HIXL_RET(engine_->RegisterMem(desc, mem_type, handle),
                    "Failed to register mem, addr:%p, size:%lu, type:%d.",
                    addr, size, static_cast<int32_t>(type));
-  LLMLOGI("Regiter mem success, addr:%p, size:%lu, type:%d", addr, size, static_cast<int32_t>(type));
+  LLMLOGI("Register mem success, addr:%p, size:%lu, type:%d", addr, size, static_cast<int32_t>(type));
   return ge::SUCCESS;
 }
 
@@ -133,7 +133,7 @@ ge::Status HixlTransferEngine::LinkCluster(const ClusterInfo &cluster, int32_t t
   LLM_CHK_BOOL_RET_STATUS(cluster.remote_ip_infos.size() == 1U, ge::LLM_PARAM_INVALID,
                           "remote_ip_infos size != 1 is unsupported.");
   std::string remote_ip_str;
-  LLM_CHK_STATUS_RET(LLMUtils::IntToIp(cluster.remote_ip_infos[0].ip, remote_ip_str), "Failed to covert remote ip.");
+  LLM_CHK_STATUS_RET(LLMUtils::IntToIp(cluster.remote_ip_infos[0].ip, remote_ip_str), "Failed to convert remote ip.");
   uint32_t remote_port = static_cast<uint32_t>(cluster.remote_ip_infos[0].port);
   LLMLOGI("Start to link cluster, remote cluster_id:%lu, remote info %s:%u, timeout:%d ms.",
           cluster.remote_cluster_id, remote_ip_str.c_str(), remote_port, timeout);

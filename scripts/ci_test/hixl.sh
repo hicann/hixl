@@ -90,7 +90,7 @@ install_hixl() {
     if [[ $? -eq 0 ]]; then
         echo "Install success."
     else
-        echo "Intall failed."
+        echo "Install failed."
         exit 1
     fi
 }

@@ -19,7 +19,7 @@ extern "C" {
 
 using mmErrorMSg = int;
 class ComputeGraph;
-#define MMPA_MAX_SLEEP_MILLSECOND_USING_USLEEP 1000
+#define MMPA_MAX_SLEEP_MILLISECOND_USING_USLEEP 1000
 #define MMPA_MSEC_TO_USEC 1000
 #define MMPA_MAX_SLEEP_MICROSECOND_USING_USLEEP 1000000
 
@@ -501,14 +501,14 @@ INT32 mmJoinTask(mmThread *threadHandle) {
   return ret;
 }
 
-INT32 mmSleep(UINT32 millSecond) {
-  if (millSecond == MMPA_ZERO) {
+INT32 mmSleep(UINT32 millisecond) {
+  if (millisecond == MMPA_ZERO) {
     return EN_INVALID_PARAM;
   }
   UINT32 microSecond;
 
-  if (millSecond <= MMPA_MAX_SLEEP_MILLSECOND_USING_USLEEP) {
-    microSecond = millSecond * (UINT32)MMPA_MSEC_TO_USEC;
+  if (millisecond <= MMPA_MAX_SLEEP_MILLISECOND_USING_USLEEP) {
+    microSecond = millisecond * (UINT32)MMPA_MSEC_TO_USEC;
   } else {
     microSecond = MMPA_MAX_SLEEP_MICROSECOND_USING_USLEEP;
   }

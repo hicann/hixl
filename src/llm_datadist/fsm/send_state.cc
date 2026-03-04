@@ -37,9 +37,9 @@ ge::Status SendState::Preprocess(CommEntity &entity) {
 
 ge::Status SendState::Prepare(CommEntity &entity) {
   auto timeout_in_ms = kDefaultTimeoutInMs;
-  auto &reqeust = entity.GetRequest();
-  if (reqeust.timeout_in_ms > 0) {
-    timeout_in_ms = reqeust.timeout_in_ms;
+  auto &request = entity.GetRequest();
+  if (request.timeout_in_ms > 0) {
+    timeout_in_ms = request.timeout_in_ms;
     LLMLOGI("set timeout by request = %d(ms)", timeout_in_ms);
   }
   entity.SetTimeoutPoint(std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_in_ms));
@@ -47,7 +47,7 @@ ge::Status SendState::Prepare(CommEntity &entity) {
   uint64_t offset;
   LLM_CHK_STATUS_RET(QueryCacheEntryAndOffset(entity, cache_entry, offset));
   LLMLOGI("Query cache entry success, offset = %lu", offset);
-  LLM_CHK_STATUS_RET(CheckParam(cache_entry, reqeust), "Failed to check param");
+  LLM_CHK_STATUS_RET(CheckParam(cache_entry, request), "Failed to check param");
   auto transfer_type = ResolveTransferType(entity.GetRequest(), cache_entry);
   LLMLOGI("transfer type = %d", transfer_type);
   LLM_CHK_BOOL_RET_STATUS(transfer_type >= 0, ge::LLM_FEATURE_NOT_ENABLED, "dst_placement = %d, src_placement = %d is not supported",

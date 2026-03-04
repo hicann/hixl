@@ -222,8 +222,8 @@ class MiniServer {
   bool AcceptOnce() {
     while (!stop_.load()) {
       sockaddr_in caddr{};
-      socklen_t clen = sizeof(caddr);
-      const int cfd = ::accept(listen_fd_, reinterpret_cast<sockaddr *>(&caddr), &clen);
+      socklen_t caddr_len = sizeof(caddr);
+      const int cfd = ::accept(listen_fd_, reinterpret_cast<sockaddr *>(&caddr), &caddr_len);
       if (cfd >= 0) {
         conn_fd_ = cfd;
         return true;
