@@ -31,7 +31,6 @@ target_compile_definitions(intf_pub_base INTERFACE
     $<$<CONFIG:Release>:CFG_BUILD_NDEBUG>
     $<$<CONFIG:Debug>:CFG_BUILD_DEBUG>
     LINUX=0
-    LOG_CPP
 )
 
 target_link_options(intf_pub_base INTERFACE
