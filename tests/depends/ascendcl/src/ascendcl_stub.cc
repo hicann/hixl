@@ -466,6 +466,9 @@ aclError AclRuntimeStub::aclrtReleaseMemAddress(void* devPtr) {
 }
 
 aclError AclRuntimeStub::aclrtMapMem(void* devPtr, size_t size, size_t offset, aclrtDrvMemHandle handle, uint64_t flags) {
+  if (__FUNCTION__ == g_acl_stub_mock) {
+    return ACL_ERROR_RT_INTERNAL_ERROR;
+  }
   return ACL_ERROR_NONE;
 }
 

@@ -10,8 +10,6 @@
 
 #include "fabric_mem_transfer_service.h"
 #include <chrono>
-#include <cstddef>
-#include <map>
 #include <mutex>
 #include <vector>
 #include "adxl/adxl_checker.h"
@@ -65,92 +63,79 @@ void FabricMemTransferService::Finalize() {
       (void)VirtualMemoryManager::GetInstance().ReleaseMemory(it.first);
     }
     local_va_to_old_va_.clear();
-    for (auto it = mem_handle_to_import_info_.begin(); it != mem_handle_to_import_info_.end(); it++) {
-      LLM_CHK_ACL(aclrtFreePhysical(it->second.first));
-    }
-    mem_handle_to_import_info_.clear();
   }
   {
-    // free all retained pa handle
+    // free all retained and imported pa handle
     std::lock_guard<std::mutex> lock(share_handle_mutex_);
     for (auto &share_handle : share_handles_) {
       LLM_CHK_ACL(aclrtFreePhysical(share_handle.first));
+      LLM_CHK_ACL(aclrtFreePhysical(share_handle.second.imported_handle));
     }
     share_handles_.clear();
   }
 }
 
 Status FabricMemTransferService::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
-  aclrtMemFabricHandle share_handle = {};
-  auto va = llm::ValueToPtr(mem.addr);
   aclrtDrvMemHandle pa_handle = nullptr;
-  {
-    std::lock_guard<std::mutex> lock(share_handle_mutex_);
-    ADXL_CHK_ACL_RET(aclrtMemRetainAllocationHandle(va, &pa_handle));
-    LLM_DISMISSABLE_GUARD(pa_guard, ([&pa_handle]() {
-                            if (pa_handle != nullptr) {
-                              LLM_CHK_ACL(aclrtFreePhysical(pa_handle));
-                            }
+  ADXL_CHK_ACL_RET(aclrtMemRetainAllocationHandle(llm::ValueToPtr(mem.addr), &pa_handle));
+  aclrtDrvMemHandle imported_pa_handle = nullptr;
+  uintptr_t imported_va = 0;
+  LLM_DISMISSABLE_GUARD(fail_guard, ([&pa_handle, &imported_va, &imported_pa_handle] {
+                          if (pa_handle != nullptr) {
+                            LLM_CHK_ACL(aclrtFreePhysical(pa_handle));
+                          }
+                          if (imported_va != 0) {
+                            (void)VirtualMemoryManager::GetInstance().ReleaseMemory(imported_va);
+                          }
+                          if (imported_pa_handle != nullptr) {
+                            LLM_CHK_ACL(aclrtFreePhysical(imported_pa_handle));
+                          }
                           }));
-    ADXL_CHK_ACL_RET(aclrtMemExportToShareableHandleV2(pa_handle, ACL_RT_VMM_EXPORT_FLAG_DISABLE_PID_VALIDATION,
-                                                       ACL_MEM_SHARE_HANDLE_TYPE_FABRIC, &share_handle));
-    share_handles_[pa_handle] = ShareHandleInfo{mem.addr, mem.len, share_handle};
-    mem_handle = pa_handle;
-    LLMLOGI("Export suc, mem type:%s, mem addr:%lu.", hixl::MemTypeToString(static_cast<hixl::MemType>(type)).c_str(),
-            mem.addr);
-    LLM_DISMISS_GUARD(pa_guard);
-  }
+  aclrtMemFabricHandle share_handle = {};
+  ADXL_CHK_ACL_RET(aclrtMemExportToShareableHandleV2(pa_handle, ACL_RT_VMM_EXPORT_FLAG_DISABLE_PID_VALIDATION,
+    ACL_MEM_SHARE_HANDLE_TYPE_FABRIC, &share_handle));
+
+  // HOST addr need map to device
   if (type == MEM_HOST) {
-    uintptr_t local_va_addr = 0;
-    aclrtDrvMemHandle local_pa_handle = nullptr;
-    ADXL_CHK_STATUS_RET(VirtualMemoryManager::GetInstance().ReserveMemory(mem.len, local_va_addr));
-    LLM_DISMISSABLE_GUARD(fail_guard, ([&local_va_addr, &local_pa_handle]() {
-                            if (local_va_addr != 0) {
-                              (void)VirtualMemoryManager::GetInstance().ReleaseMemory(local_va_addr);
-                            }
-                            if (local_pa_handle != nullptr) {
-                              LLM_CHK_ACL(aclrtFreePhysical(local_pa_handle));
-                            }
-                          }));
+    ADXL_CHK_STATUS_RET(VirtualMemoryManager::GetInstance().ReserveMemory(mem.len, imported_va));
     ADXL_CHK_ACL_RET(aclrtMemImportFromShareableHandleV2(&share_handle, ACL_MEM_SHARE_HANDLE_TYPE_FABRIC, 0U,
-                                                      &local_pa_handle));
-    void *local_va_ = llm::ValueToPtr(local_va_addr);
-    ADXL_CHK_ACL_RET(aclrtMapMem(local_va_, mem.len, 0, local_pa_handle, 0));
+      &imported_pa_handle));
+    ADXL_CHK_ACL_RET(aclrtMapMem(llm::ValueToPtr(imported_va), mem.len, 0, imported_pa_handle, 0));
     std::lock_guard<std::mutex> lock(local_va_map_mutex_);
-    mem_handle_to_import_info_[pa_handle] = std::make_pair(local_pa_handle, local_va_addr);
-    local_va_to_old_va_[local_va_addr] = ShareHandleInfo{mem.addr, mem.len, share_handle};
-    LLMLOGI("Imported mem from share handle, va:%lu, new mapped va addr:%lu, len:%zu.", mem.addr, local_va_addr,
+    local_va_to_old_va_[imported_va] = VaInfo{mem.addr, mem.len};
+    LLMLOGI("Add local host mem mapping, src addr:%lu, new mapped addr:%lu, len:%zu.", mem.addr, imported_va,
             mem.len);
-    LLM_DISMISS_GUARD(fail_guard);
   }
+
+  std::lock_guard<std::mutex> lock(share_handle_mutex_);
+  share_handles_[pa_handle] = ShareHandleInfo{mem.addr, mem.len, share_handle, imported_pa_handle, imported_va};
+  mem_handle = pa_handle;
+  LLMLOGI("Export suc, mem type:%s, mem addr:%lu.", hixl::MemTypeToString(static_cast<hixl::MemType>(type)).c_str(),
+            mem.addr);
+  LLM_DISMISS_GUARD(fail_guard);
   return SUCCESS;
 }
 
 Status FabricMemTransferService::DeregisterMem(MemHandle mem_handle) {
-  {
-    std::lock_guard<std::mutex> lock(local_va_map_mutex_);
-    auto it = mem_handle_to_import_info_.find(mem_handle);
-    if (it != mem_handle_to_import_info_.end()) {
-      auto import_info = it->second;
-      auto va_map_it = local_va_to_old_va_.find(import_info.second);
-      if (va_map_it != local_va_to_old_va_.end()) {
-        LLM_CHK_ACL(aclrtUnmapMem(llm::ValueToPtr(va_map_it->first)));
-        (void)VirtualMemoryManager::GetInstance().ReleaseMemory(va_map_it->first);
-        local_va_to_old_va_.erase(va_map_it);
-      }
-      // free imported pa handle
-      LLM_CHK_ACL(aclrtFreePhysical(import_info.first));
-      mem_handle_to_import_info_.erase(it);
+  std::lock_guard<std::mutex> lock(share_handle_mutex_);
+  auto it = share_handles_.find(mem_handle);
+  if (it != share_handles_.end()) {
+    auto imported_va = it->second.imported_va;
+
+    // release va
+    std::lock_guard<std::mutex> va_map_lock(local_va_map_mutex_);
+    auto va_map_it = local_va_to_old_va_.find(imported_va);
+    if (va_map_it != local_va_to_old_va_.end()) {
+      LLM_CHK_ACL(aclrtUnmapMem(llm::ValueToPtr(va_map_it->first)));
+      (void) VirtualMemoryManager::GetInstance().ReleaseMemory(va_map_it->first);
+      local_va_to_old_va_.erase(va_map_it);
     }
-  }
-  {
-    std::lock_guard<std::mutex> lock(share_handle_mutex_);
-    auto it = share_handles_.find(mem_handle);
-    if (it != share_handles_.end()) {
-      // free retained pa handle
-      LLM_CHK_ACL(aclrtFreePhysical(it->first));
-      share_handles_.erase(it);
-    }
+
+    // free retained pa handle
+    LLM_CHK_ACL(aclrtFreePhysical(it->first));
+    // free imported pa handle
+    LLM_CHK_ACL(aclrtFreePhysical(it->second.imported_handle));
+    share_handles_.erase(it);
   }
   return SUCCESS;
 }
@@ -256,7 +241,7 @@ Status FabricMemTransferService::IsTransferDone(const std::vector<AsyncResource>
       aclrtEventRecordedStatus event_status{};
       auto ret = aclrtQueryEventStatus(async_resource.second, &event_status);
       if (ret != ACL_ERROR_NONE) {
-        LLMLOGE(FAILED, "Call aclrtEventRecordedStatus failed for req:%llu, ret:%d.", req_id, ret);
+        LLMLOGE(FAILED, "Call aclrtEventRecordedStatus failed for req:%lu, ret:%d.", req_id, ret);
         status = TransferStatus::FAILED;
         return FAILED;
       }
@@ -474,10 +459,10 @@ Status FabricMemTransferService::DoTransfer(const std::vector<aclrtStream> &stre
 }
 
 Status FabricMemTransferService::TransOpAddr(uintptr_t old_addr, size_t len,
-                                             std::unordered_map<uintptr_t, ShareHandleInfo> &new_va_to_old_va,
+                                             std::unordered_map<uintptr_t, VaInfo> &new_va_to_old_va,
                                              uintptr_t &new_addr) {
   bool found = false;
-  for (const auto &new_va_to_info : new_va_to_old_va) {
+  for (const auto &new_va_to_info: new_va_to_old_va) {
     auto &info = new_va_to_info.second;
     auto registered_old_va_start = info.va_addr;
     auto registered_old_va_end = info.va_addr + info.len;
@@ -520,11 +505,6 @@ std::vector<ShareHandleInfo> FabricMemTransferService::GetShareHandles() {
     share_handles.push_back(share_handle.second);
   }
   return share_handles;
-}
-
-Status FabricMemTransferService::ImportMem(const ChannelPtr &channel,
-                                           const std::vector<ShareHandleInfo> &remote_share_handles) const {
-  return channel->ImportMem(remote_share_handles, device_id_);
 }
 
 }  // namespace adxl

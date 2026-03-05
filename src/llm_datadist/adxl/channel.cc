@@ -195,7 +195,7 @@ Status Channel::ImportMem(const std::vector<ShareHandleInfo> &remote_share_handl
     ADXL_CHK_ACL_RET(aclrtMapMem(remote_va, remote_share_handle_info.len, 0, remote_pa_handle, 0));
     std::lock_guard<std::mutex> lock(va_map_mutex_);
     remote_pa_handles_.emplace_back(remote_pa_handle);
-    new_va_to_old_va_[remote_va_addr] = remote_share_handle_info;
+    new_va_to_old_va_[remote_va_addr] = {remote_share_handle_info.va_addr, remote_share_handle_info.len};
     LLM_DISMISS_GUARD(free_mem_guard);
     LLMLOGI("Imported mem from share handle, va:%lu, new mapped va addr:%lu, len:%zu for device:%d.",
             remote_share_handle_info.va_addr, remote_va_addr, remote_share_handle_info.len, device_id);
@@ -204,7 +204,7 @@ Status Channel::ImportMem(const std::vector<ShareHandleInfo> &remote_share_handl
   return SUCCESS;
 }
 
-std::unordered_map<uintptr_t, ShareHandleInfo> Channel::GetNewVaToOldVa() {
+std::unordered_map<uintptr_t, VaInfo> Channel::GetNewVaToOldVa() {
   std::lock_guard<std::mutex> lock(va_map_mutex_);
   return new_va_to_old_va_;
 }

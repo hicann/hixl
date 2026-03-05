@@ -11,7 +11,6 @@
 #ifndef CANN_GRAPH_ENGINE_HCCS_TRANSFER_SERVICE_H
 #define CANN_GRAPH_ENGINE_HCCS_TRANSFER_SERVICE_H
 
-#include <cstdint>
 #include <future>
 #include <utility>
 #include <vector>
@@ -43,8 +42,6 @@ class FabricMemTransferService {
 
   std::vector<ShareHandleInfo> GetShareHandles();
 
-  Status ImportMem(const ChannelPtr &channel, const std::vector<ShareHandleInfo> &remote_share_handles) const;
-
   void RemoveChannel(const std::string &channel_id);
 
  private:
@@ -62,7 +59,7 @@ class FabricMemTransferService {
   static void SynchronizeStream(const std::vector<AsyncResource> &async_resources, uint64_t req_id,
                                 TransferStatus &status);
   static Status TransOpAddr(uintptr_t old_addr, size_t len,
-                            std::unordered_map<uintptr_t, ShareHandleInfo> &new_va_to_old_va, uintptr_t &new_addr);
+                            std::unordered_map<uintptr_t, VaInfo> &new_va_to_old_va, uintptr_t &new_addr);
 
   std::mutex share_handle_mutex_;
   std::unordered_map<aclrtDrvMemHandle, ShareHandleInfo> share_handles_;
@@ -82,8 +79,7 @@ class FabricMemTransferService {
 
   // mutex for local va map and pa handlers
   std::mutex local_va_map_mutex_;
-  std::unordered_map<uintptr_t, ShareHandleInfo> local_va_to_old_va_;
-  std::unordered_map<MemHandle, std::pair<aclrtDrvMemHandle, uintptr_t>> mem_handle_to_import_info_;
+  std::unordered_map<uintptr_t, VaInfo> local_va_to_old_va_;
 };
 }  // namespace adxl
 
