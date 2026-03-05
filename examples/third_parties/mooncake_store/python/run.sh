@@ -16,8 +16,8 @@ export ASCEND_HOST_LOG_FILE_NUM=500
 
 # export HCCL_INTRA_ROCE_ENABLE=1
 
-source /usr/local/Ascend/cann/set_env.sh
-
+# source /usr/local/Ascend/cann/set_env.sh
+export MC_LOG_LEVEL=ERROR
 export ASCEND_BUFFER_POOL=4:8 # BUFFER_NUM:BUFFER_SIZE (MB)
 
 python3 $@
