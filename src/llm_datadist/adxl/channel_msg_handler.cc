@@ -725,7 +725,7 @@ Status ChannelMsgHandler::NotifyEviction() {
   return SUCCESS;
 }
 
-std::vector<EvictItem> ChannelMsgHandler::SelectEvictionCandidates(int32_t need_expire) {
+std::vector<EvictItem> ChannelMsgHandler::SelectEvictionCandidates(int32_t need_expire) const {
   auto client_channels = channel_manager_->GetAllClientChannel();
   auto server_channels = channel_manager_->GetAllServerChannel();
   
@@ -846,17 +846,17 @@ Status ChannelMsgHandler::ProcessServerEviction(const std::string& channel_id, C
     return ret;
   }
   LLMLOGI("Sent request disconnect to client for channel: %s, req_id=%lu", channel_id.c_str(), req_id);
-  std::unique_lock<std::mutex> lock(pending_req_mutex_);
-  bool received = pending_req->cv.wait_for(lock, std::chrono::milliseconds(kWaitRespTime), [&pending_req] {
-    return pending_req->received;
-  });
-  if (!received) {
-    pending_disconnect_requests_.erase(req_id);
-    return SUCCESS;
-  } else {
+  {
+    std::unique_lock<std::mutex> lock(pending_req_mutex_);
+    bool received = pending_req->cv.wait_for(lock, std::chrono::milliseconds(kWaitRespTime), [&pending_req] {
+      return pending_req->received;
+    });
+    if (!received) {
+      pending_disconnect_requests_.erase(req_id);
+      return SUCCESS;
+    } 
     RequestDisconnectResp resp = pending_req->resp;
     pending_disconnect_requests_.erase(req_id);
-    lock.unlock();
     LLMLOGI("Client refused or failed to disconnect channel %s, error_code=%u, error_message=%s", 
       channel_id.c_str(), resp.error_code, resp.error_message.c_str());
     channel->SetDisconnecting(false);
@@ -874,7 +874,7 @@ Status ChannelMsgHandler::ProcessClientEviction(const std::string& channel_id, i
   return ret;
 }
 
-Status ChannelMsgHandler::ResetAllTransferFlags() {
+Status ChannelMsgHandler::ResetAllTransferFlags() const {
   auto client_channels = channel_manager_->GetAllClientChannel();
   auto server_channels = channel_manager_->GetAllServerChannel();
   for (auto& channel : client_channels) {

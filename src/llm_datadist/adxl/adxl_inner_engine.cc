@@ -35,7 +35,7 @@ constexpr size_t kMaxStreams = 512;
 }
 
 Status AdxlInnerEngine::ParseWaterlineRatio(const std::map<AscendString, AscendString>& json_options, 
-                                            const char* option_name, double& value) {
+                                            const char* option_name, double& value) const {
   auto option_it = json_options.find(option_name);
   if (option_it != json_options.end()) {
     ADXL_CHK_LLM_RET(llm::LLMUtils::ToNumber(option_it->second.GetString(), value), 
@@ -87,7 +87,7 @@ Status AdxlInnerEngine::ParseChannelPoolConfig(const std::map<AscendString, Asce
   return SUCCESS;
 }
 
-Status AdxlInnerEngine::ParseFabricMemoryCapacity(const std::map<AscendString, AscendString>& json_options) {
+Status AdxlInnerEngine::ParseFabricMemoryCapacity(const std::map<AscendString, AscendString>& json_options) const {
   auto fabric_mem_it = json_options.find(adxl::OPTION_MAX_FABRIC_MEMORY_CAPACITY);
   if (fabric_mem_it != json_options.end()) {
     size_t capacity_tb = 0;
@@ -310,7 +310,8 @@ Status AdxlInnerEngine::InitBufferTransferService(const std::map<ge::AscendStrin
     npu_mem_pools_[i] = llm::MakeUnique<llm::LlmMemPool>(config);
     ADXL_CHECK_NOTNULL(npu_mem_pools_[i], "Failed to create memory pool");
     ADXL_CHK_BOOL_RET_STATUS((aclrtMalloc(&npu_pool_memorys_[i], npu_pool_size,
-                             static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_FIRST)) ==
+                             static_cast<aclrtMemMallocPolicy>(
+                             static_cast<uint32_t>(ACL_MEM_TYPE_HIGH_BAND_WIDTH) | static_cast<uint32_t>(ACL_MEM_MALLOC_HUGE_FIRST))) ==
                              ACL_ERROR_NONE),
                              FAILED, "Failed to allocate memory for memory_pool, pool size = %lu.", npu_pool_size);
     ADXL_CHK_LLM_RET(npu_mem_pools_[i]->Initialize(npu_pool_memorys_[i], npu_pool_size),

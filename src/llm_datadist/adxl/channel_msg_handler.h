@@ -143,9 +143,9 @@ class ChannelMsgHandler {
   bool ShouldTriggerEviction() const;
   Status NotifyEviction();
   Status ProcessEviction(const EvictItem& item);
-  Status ResetAllTransferFlags();
+  Status ResetAllTransferFlags() const;
   void EvictionLoop();
-  std::vector<EvictItem> SelectEvictionCandidates(int32_t need_expire);
+  std::vector<EvictItem> SelectEvictionCandidates(int32_t need_expire) const;
   Status StartEvictionThread();
   Status SetupChannelManagerCallbacks();
 
