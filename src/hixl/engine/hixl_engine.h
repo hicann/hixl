@@ -40,7 +40,7 @@ class HixlEngine : public hixl::Engine {
   /**
    * @brief 析构函数
    */
-  ~HixlEngine() = default;
+  ~HixlEngine() override = default;
 
   /**
    * @brief 初始化HixlEngine, 在调用其他接口前需要先调用该接口
@@ -143,7 +143,7 @@ class HixlEngine : public hixl::Engine {
   void Finalize() override;
 
  private:
-  Status ParseEndPoint(const std::string &local_common_res, std::vector<EndpointConfig> &endpoint_list);
+  Status ParseEndPoint(const std::string &local_comm_res, std::vector<EndpointConfig> &endpoint_list);
 
   std::mutex mutex_;
 
