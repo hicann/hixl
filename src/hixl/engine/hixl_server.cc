@@ -135,7 +135,7 @@ Status HixlServer::Finalize() {
   return SUCCESS;
 }
 
-Status HixlServer::RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor) {
+Status HixlServer::RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor) const {
   MsgProcessor callback = [this, processor, msg_type](int32_t fd, const char *msg, uint64_t msg_len) -> Status {
     bool keep_fd = false;
     HIXL_CHK_STATUS_RET(processor(fd, msg, msg_len, keep_fd), "Failed to process msg, type:%d", msg_type);

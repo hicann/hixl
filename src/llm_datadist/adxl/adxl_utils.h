@@ -21,7 +21,7 @@
 
 namespace adxl {
 // Load JSON configuration from file and merge into option map
-Status LoadJsonConfig(const std::string& file_path, std::map<ge::AscendString, ge::AscendString>& options);
+Status LoadJsonConfig(const std::string& json_string, std::map<ge::AscendString, ge::AscendString>& options);
 Status HcclError2AdxlStatus(HcclResult ret);
 Status AclError2AdxlStatus(aclError ret);
 Status LLMError2AdxlStatus(ge::Status ret);

@@ -28,10 +28,10 @@ class HixlServer {
    * @brief 初始化HixlServer
    * @param [in] ip 服务端ip
    * @param [in] port 服务端监听的端口
-   * @param [in] data_end_point_list 服务端支持的传输协议
+   * @param [in] data_endpoint_config_list 服务端支持的传输协议
    * @return 成功:SUCCESS, 失败:其它.
    */
-  Status Initialize(const std::string &ip, int32_t port, const std::vector<EndpointConfig> &data_end_point_list);
+  Status Initialize(const std::string &ip, int32_t port, const std::vector<EndpointConfig> &data_endpoint_config_list);
 
   /**
    * @brief 注册内存
@@ -54,7 +54,7 @@ class HixlServer {
    */
   Status Finalize();
 
-  Status RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor);
+  Status RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor) const;
 
  private:
   void *server_handle_ = nullptr;
