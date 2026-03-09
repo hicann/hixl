@@ -1,6 +1,6 @@
-# HIXL数据结构<a name="ZH-CN_TOPIC_0000002413024580"></a>
+# HIXL数据结构
 
-## MemDesc<a name="ZH-CN_TOPIC_0000002446623669"></a>
+## MemDesc
 
 内存的描述信息。
 
@@ -12,7 +12,7 @@ struct MemDesc {
 }
 ```
 
-## MemHandle<a name="ZH-CN_TOPIC_0000002464248565"></a>
+## MemHandle
 
 内存的Handle。
 
@@ -20,7 +20,7 @@ struct MemDesc {
 using MemHandle = void *;
 ```
 
-## MemType<a name="ZH-CN_TOPIC_0000002413184452"></a>
+## MemType
 
 内存的类型。
 
@@ -31,7 +31,7 @@ enum MemType {
 }
 ```
 
-## TransferOp<a name="ZH-CN_TOPIC_0000002446743593"></a>
+## TransferOp
 
 传输操作的类型。
 
@@ -42,7 +42,7 @@ enum TransferOp {
 }
 ```
 
-## TransferOpDesc<a name="ZH-CN_TOPIC_0000002413024584"></a>
+## TransferOpDesc
 
 传输操作的描述信息。
 

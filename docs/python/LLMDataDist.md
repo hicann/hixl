@@ -1,30 +1,16 @@
-# LLMDataDist<a name="ZH-CN_TOPIC_0000002408011573"></a>
+# LLMDataDist
 
-## 产品支持情况<a name="section8178181118225"></a>
+## 产品支持情况
 
-<a name="table38301303189"></a>
-<table><thead align="left"><tr id="row20831180131817"><th class="cellrowborder" valign="top" width="57.99999999999999%" id="mcps1.1.3.1.1"><p id="p1883113061818"><a name="p1883113061818"></a><a name="p1883113061818"></a><span id="ph20833205312295"><a name="ph20833205312295"></a><a name="ph20833205312295"></a>产品</span></p>
-</th>
-<th class="cellrowborder" align="center" valign="top" width="42%" id="mcps1.1.3.1.2"><p id="p783113012187"><a name="p783113012187"></a><a name="p783113012187"></a>是否支持</p>
-</th>
-</tr>
-</thead>
-<tbody><tr id="row220181016240"><td class="cellrowborder" valign="top" width="57.99999999999999%" headers="mcps1.1.3.1.1 "><p id="p48327011813"><a name="p48327011813"></a><a name="p48327011813"></a><span id="ph583230201815"><a name="ph583230201815"></a><a name="ph583230201815"></a><term id="zh-cn_topic_0000001312391781_term1253731311225"><a name="zh-cn_topic_0000001312391781_term1253731311225"></a><a name="zh-cn_topic_0000001312391781_term1253731311225"></a>Atlas A3 训练系列产品/Atlas A3 推理系列产品</term></span></p>
-</td>
-<td class="cellrowborder" align="center" valign="top" width="42%" headers="mcps1.1.3.1.2 "><p id="p7948163910184"><a name="p7948163910184"></a><a name="p7948163910184"></a>√</p>
-</td>
-</tr>
-<tr id="row173226882415"><td class="cellrowborder" valign="top" width="57.99999999999999%" headers="mcps1.1.3.1.1 "><p id="p14832120181815"><a name="p14832120181815"></a><a name="p14832120181815"></a><span id="ph980713477118"><a name="ph980713477118"></a><a name="ph980713477118"></a><term id="zh-cn_topic_0000001312391781_term454024162214"><a name="zh-cn_topic_0000001312391781_term454024162214"></a><a name="zh-cn_topic_0000001312391781_term454024162214"></a>Atlas A2 训练系列产品/Atlas A2 推理系列产品</p>
-</td>
-<td class="cellrowborder" align="center" valign="top" width="42%" headers="mcps1.1.3.1.2 "><p id="p578615025316"><a name="p578615025316"></a><a name="p578615025316"></a>√</p>
-</td>
-</tr>
-</tbody>
-</table>
-说明：针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，仅支持Atlas 800I A2 推理服务器、Atlas 300I A2 推理卡、A200I A2 Box 异构组件。
+| 产品 | 是否支持 |
+| --- | --- |
+| Ascend 950PR/Ascend 950DT | √ |
+| Atlas A3 训练系列产品/Atlas A3 推理系列产品 | √ |
+| Atlas A2 训练系列产品/Atlas A2 推理系列产品 | √ |
 
+说明：针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，仅支持Atlas 800I A2 推理服务器、Atlas 300I A2 推理卡、A200I A2 Box 异构组件。针对Ascend 950PR/Ascend 950DT，不支持link、unlink和query_register_mem_status。
 
-## LLMDataDist构造函数<a name="ZH-CN_TOPIC_0000002374411996"></a>
+## LLMDataDist构造函数
 
 **函数功能**
 
@@ -38,32 +24,10 @@ __init__(role: LLMRole, cluster_id: int)
 
 **参数说明**
 
-<a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_table2051894852017"></a>
-<table><thead align="left"><tr id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_row4558174815206"><th class="cellrowborder" valign="top" width="22.220000000000002%" id="mcps1.1.4.1.1"><p id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"></a><strong id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"></a>参数名称</strong></p>
-</th>
-<th class="cellrowborder" valign="top" width="35.85%" id="mcps1.1.4.1.2"><p id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"></a>数据类型</p>
-</th>
-<th class="cellrowborder" valign="top" width="41.93%" id="mcps1.1.4.1.3"><p id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"></a><strong id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"></a>取值说明</strong></p>
-</th>
-</tr>
-</thead>
-<tbody><tr id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_row35581048202018"><td class="cellrowborder" valign="top" width="22.220000000000002%" headers="mcps1.1.4.1.1 "><p id="p6621349454"><a name="p6621349454"></a><a name="p6621349454"></a>role</p>
-</td>
-<td class="cellrowborder" valign="top" width="35.85%" headers="mcps1.1.4.1.2 "><p id="p9541205974512"><a name="p9541205974512"></a><a name="p9541205974512"></a>LLMRole</a></p>
-</td>
-<td class="cellrowborder" valign="top" width="41.93%" headers="mcps1.1.4.1.3 "><p id="p7172700591"><a name="p7172700591"></a><a name="p7172700591"></a>集群角色。该参数只用于标识当前角色，对传输过程无影响，取值如下。</p>
-<a name="ul89324401269"></a><a name="ul89324401269"></a><ul id="ul89324401269"><li>LLMRole.DECODER：增量集群</li><li>LLMRole.PROMPT：全量集群</li></ul>
-</td>
-</tr>
-<tr id="row99821205619"><td class="cellrowborder" valign="top" width="22.220000000000002%" headers="mcps1.1.4.1.1 "><p id="p1599201212562"><a name="p1599201212562"></a><a name="p1599201212562"></a>cluster_id</p>
-</td>
-<td class="cellrowborder" valign="top" width="35.85%" headers="mcps1.1.4.1.2 "><p id="p149931218561"><a name="p149931218561"></a><a name="p149931218561"></a>int</p>
-</td>
-<td class="cellrowborder" valign="top" width="41.93%" headers="mcps1.1.4.1.3 "><p id="p09912124563"><a name="p09912124563"></a><a name="p09912124563"></a>集群ID。LLMDataDist标识，在所有参与建链的范围内需要确保唯一。</p>
-</td>
-</tr>
-</tbody>
-</table>
+| 参数名称 | 数据类型 | 取值说明 |
+| --- | --- | --- |
+| role | LLMRole | 集群角色。该参数只用于标识当前角色，对传输过程无影响，取值如下。<br><br>  - LLMRole.DECODER：增量集群<br>  - LLMRole.PROMPT：全量集群 |
+| cluster_id | int | 集群ID。LLMDataDist标识，在所有参与建链的范围内需要确保唯一。 |
 
 **调用示例**
 
@@ -82,7 +46,7 @@ llm_datadist = LLMDataDist(LLMRole.DECODER, 0)
 
 无
 
-## init<a name="ZH-CN_TOPIC_0000002407891549"></a>
+## init
 
 **函数功能**
 
@@ -98,26 +62,9 @@ init(options: Dict[str, str])
 
 **参数说明**
 
-<a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_table2051894852017"></a>
-<table><thead align="left"><tr id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_row4558174815206"><th class="cellrowborder" valign="top" width="22.220000000000002%" id="mcps1.1.4.1.1"><p id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"></a><strong id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"></a>参数名称</strong></p>
-</th>
-<th class="cellrowborder" valign="top" width="35.8%" id="mcps1.1.4.1.2"><p id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"></a>数据类型</p>
-</th>
-<th class="cellrowborder" valign="top" width="41.980000000000004%" id="mcps1.1.4.1.3"><p id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"></a><strong id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"></a>取值说明</strong></p>
-</th>
-</tr>
-</thead>
-<tbody><tr id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_row35581048202018"><td class="cellrowborder" valign="top" width="22.220000000000002%" headers="mcps1.1.4.1.1 "><p id="p6621349454"><a name="p6621349454"></a><a name="p6621349454"></a>options</p>
-</td>
-<td class="cellrowborder" valign="top" width="35.8%" headers="mcps1.1.4.1.2 "><p id="p9541205974512"><a name="p9541205974512"></a><a name="p9541205974512"></a>Dict[str, str]</p>
-</td>
-<td class="cellrowborder" valign="top" width="41.980000000000004%" headers="mcps1.1.4.1.3 "><p id="p7172700591"><a name="p7172700591"></a><a name="p7172700591"></a>配置项。</p>
-<p id="p13763174313494"><a name="p13763174313494"></a><a name="p13763174313494"></a>传入的options可以通过LLMConfig</a>来生成。</p>
-<a name="ul1754964417"></a><a name="ul1754964417"></a><ul id="ul1754964417"><li>device_id必填。</li><li>enable_cache_manager</a>为True或者设置local_comm_res</a>。</li></ul>
-</td>
-</tr>
-</tbody>
-</table>
+| 参数名称 | 数据类型 | 取值说明 |
+| --- | --- | --- |
+| options | Dict[str, str] | 配置项。<br>传入的options可以通过LLMConfig来生成。<br><br>  - device_id必填。<br>  - enable_cache_manager为True或者设置local_comm_res。 |
 
 **调用示例**
 
@@ -143,7 +90,7 @@ llm_datadist.init(engine_options)
 
 初始化成功后，系统退出前需要调用finalize。
 
-## finalize<a name="ZH-CN_TOPIC_0000002374252108"></a>
+## finalize
 
 **函数功能**
 
@@ -182,7 +129,7 @@ llm_datadist.finalize()
 
 - finalize不能和其他接口并发调用。
 
-## link\_clusters<a name="ZH-CN_TOPIC_0000002374411908"></a>
+## link\_clusters
 
 **函数功能**
 
@@ -196,31 +143,10 @@ link_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], time
 
 **参数说明**
 
-<a name="zh-cn_topic_0000001893731858_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_table2051894852017"></a>
-<table><thead align="left"><tr id="zh-cn_topic_0000001893731858_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_row4558174815206"><th class="cellrowborder" valign="top" width="22.220000000000002%" id="mcps1.1.4.1.1"><p id="zh-cn_topic_0000001893731858_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"><a name="zh-cn_topic_0000001893731858_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"></a><a name="zh-cn_topic_0000001893731858_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"></a><strong id="zh-cn_topic_0000001893731858_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"><a name="zh-cn_topic_0000001893731858_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"></a><a name="zh-cn_topic_0000001893731858_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"></a>参数名称</strong></p>
-</th>
-<th class="cellrowborder" valign="top" width="35.85%" id="mcps1.1.4.1.2"><p id="zh-cn_topic_0000001893731858_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"><a name="zh-cn_topic_0000001893731858_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"></a><a name="zh-cn_topic_0000001893731858_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"></a>数据类型</p>
-</th>
-<th class="cellrowborder" valign="top" width="41.93%" id="mcps1.1.4.1.3"><p id="zh-cn_topic_0000001893731858_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"><a name="zh-cn_topic_0000001893731858_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"></a><a name="zh-cn_topic_0000001893731858_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"></a><strong id="zh-cn_topic_0000001893731858_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"><a name="zh-cn_topic_0000001893731858_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"></a><a name="zh-cn_topic_0000001893731858_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"></a>取值说明</strong></p>
-</th>
-</tr>
-</thead>
-<tbody><tr id="zh-cn_topic_0000001893731858_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_row35581048202018"><td class="cellrowborder" valign="top" width="22.220000000000002%" headers="mcps1.1.4.1.1 "><p id="zh-cn_topic_0000001893731858_p6621349454"><a name="zh-cn_topic_0000001893731858_p6621349454"></a><a name="zh-cn_topic_0000001893731858_p6621349454"></a>clusters</p>
-</td>
-<td class="cellrowborder" valign="top" width="35.85%" headers="mcps1.1.4.1.2 "><p id="zh-cn_topic_0000001893731858_p9541205974512"><a name="zh-cn_topic_0000001893731858_p9541205974512"></a><a name="zh-cn_topic_0000001893731858_p9541205974512"></a>Union[List[LLMClusterInfo</a>], Tuple[LLMClusterInfo</a>]]</p>
-</td>
-<td class="cellrowborder" valign="top" width="41.93%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000001893731858_p7172700591"><a name="zh-cn_topic_0000001893731858_p7172700591"></a><a name="zh-cn_topic_0000001893731858_p7172700591"></a>集群列表。</p>
-</td>
-</tr>
-<tr id="zh-cn_topic_0000001893731858_row99821205619"><td class="cellrowborder" valign="top" width="22.220000000000002%" headers="mcps1.1.4.1.1 "><p id="zh-cn_topic_0000001893731858_p1599201212562"><a name="zh-cn_topic_0000001893731858_p1599201212562"></a><a name="zh-cn_topic_0000001893731858_p1599201212562"></a>timeout</p>
-</td>
-<td class="cellrowborder" valign="top" width="35.85%" headers="mcps1.1.4.1.2 "><p id="zh-cn_topic_0000001893731858_p149931218561"><a name="zh-cn_topic_0000001893731858_p149931218561"></a><a name="zh-cn_topic_0000001893731858_p149931218561"></a>int</p>
-</td>
-<td class="cellrowborder" valign="top" width="41.93%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000001893731858_p09912124563"><a name="zh-cn_topic_0000001893731858_p09912124563"></a><a name="zh-cn_topic_0000001893731858_p09912124563"></a>超时时间，单位：ms，默认超时时间3000ms。</p>
-</td>
-</tr>
-</tbody>
-</table>
+| 参数名称 | 数据类型 | 取值说明 |
+| --- | --- | --- |
+| clusters | Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]] | 集群列表。 |
+| timeout | int | 超时时间，单位：ms，默认超时时间3000ms。 |
 
 **调用示例**
 
@@ -234,21 +160,23 @@ link_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], time
 
 **约束说明**
 
--   建链的要求如下。建链数量过多存在内存OOM及KV Cache传输的性能风险。
-    -   允许创建的最大通信数量=512。
+- 建链的要求如下。建链数量过多存在内存OOM及KV Cache传输的性能风险。
+  - 允许创建的最大通信数量=512。
 
--   建议超时时间配置200ms以上。
--   调用该接口前需提前注册所有内存，否则建链后注册不支持远端访问。
--   容器场景若未配置local\_comm\_res或配置为空，需在容器内映射“/etc/hccn.conf”文件或者确保默认路径“/usr/local/Ascend/driver/tools”下存在hccn_tool，如果两者都不能满足，则需要用户将hccn_tool所在路径配置到PATH中。配置实例如下，hccn_tool_install_path表示hccn_tool所在路径。
+- 建议超时时间配置200ms以上。如果TLS处于开启状态，建议超时时间配置为2000ms以上。查询TLS状态可以使用如下命令：
+
+    ```
+    hccn_tool [-i %d] -tls -g [host]
+    ```
+
+- 调用该接口前需提前注册所有内存，否则建链后注册不支持远端访问。
+- 容器场景若未配置local\_comm\_res或配置为空，需在容器内映射“/etc/hccn.conf”文件或者确保默认路径“/usr/local/Ascend/driver/tools”下存在hccn_tool，如果两者都不能满足，则需要用户将hccn_tool所在路径配置到PATH中。配置实例如下，hccn_tool_install_path表示hccn_tool所在路径。
 
     ```
     export PATH=$PATH:{hccn_tool_install_path}
     ```
 
--   如果并发建链，建链使用的某个卡是down的状态，可能导致某些链路建链超时，如果需要非down状态的卡建链成功，则需要对所有涉及建链的卡配置命令。
-    hccn\_tool -i $\{device\_id\} -tls -s enable 1
-
-## unlink\_clusters<a name="ZH-CN_TOPIC_0000002407891473"></a>
+## unlink\_clusters
 
 **函数功能**
 
@@ -262,40 +190,11 @@ unlink_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], ti
 
 **参数说明**
 
-<a name="zh-cn_topic_0000001893731798_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_table2051894852017"></a>
-<table><thead align="left"><tr id="zh-cn_topic_0000001893731798_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_row4558174815206"><th class="cellrowborder" valign="top" width="22.220000000000002%" id="mcps1.1.4.1.1"><p id="zh-cn_topic_0000001893731798_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"><a name="zh-cn_topic_0000001893731798_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"></a><a name="zh-cn_topic_0000001893731798_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"></a><strong id="zh-cn_topic_0000001893731798_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"><a name="zh-cn_topic_0000001893731798_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"></a><a name="zh-cn_topic_0000001893731798_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"></a>参数名称</strong></p>
-</th>
-<th class="cellrowborder" valign="top" width="35.85%" id="mcps1.1.4.1.2"><p id="zh-cn_topic_0000001893731798_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"><a name="zh-cn_topic_0000001893731798_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"></a><a name="zh-cn_topic_0000001893731798_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"></a>数据类型</p>
-</th>
-<th class="cellrowborder" valign="top" width="41.93%" id="mcps1.1.4.1.3"><p id="zh-cn_topic_0000001893731798_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"><a name="zh-cn_topic_0000001893731798_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"></a><a name="zh-cn_topic_0000001893731798_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"></a><strong id="zh-cn_topic_0000001893731798_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"><a name="zh-cn_topic_0000001893731798_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"></a><a name="zh-cn_topic_0000001893731798_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"></a>取值说明</strong></p>
-</th>
-</tr>
-</thead>
-<tbody><tr id="zh-cn_topic_0000001893731798_zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_row35581048202018"><td class="cellrowborder" valign="top" width="22.220000000000002%" headers="mcps1.1.4.1.1 "><p id="zh-cn_topic_0000001893731798_p6621349454"><a name="zh-cn_topic_0000001893731798_p6621349454"></a><a name="zh-cn_topic_0000001893731798_p6621349454"></a>clusters</p>
-</td>
-<td class="cellrowborder" valign="top" width="35.85%" headers="mcps1.1.4.1.2 "><p id="zh-cn_topic_0000001893731798_p9541205974512"><a name="zh-cn_topic_0000001893731798_p9541205974512"></a><a name="zh-cn_topic_0000001893731798_p9541205974512"></a>Union[List[LLMClusterInfo</a>], Tuple[LLMClusterInfo</a>]]</p>
-</td>
-<td class="cellrowborder" valign="top" width="41.93%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000001893731798_p7172700591"><a name="zh-cn_topic_0000001893731798_p7172700591"></a><a name="zh-cn_topic_0000001893731798_p7172700591"></a>集群列表。</p>
-</td>
-</tr>
-<tr id="zh-cn_topic_0000001893731798_row99821205619"><td class="cellrowborder" valign="top" width="22.220000000000002%" headers="mcps1.1.4.1.1 "><p id="zh-cn_topic_0000001893731798_p1599201212562"><a name="zh-cn_topic_0000001893731798_p1599201212562"></a><a name="zh-cn_topic_0000001893731798_p1599201212562"></a>timeout</p>
-</td>
-<td class="cellrowborder" valign="top" width="35.85%" headers="mcps1.1.4.1.2 "><p id="zh-cn_topic_0000001893731798_p149931218561"><a name="zh-cn_topic_0000001893731798_p149931218561"></a><a name="zh-cn_topic_0000001893731798_p149931218561"></a>int</p>
-</td>
-<td class="cellrowborder" valign="top" width="41.93%" headers="mcps1.1.4.1.3 "><p id="zh-cn_topic_0000001893731798_p189717373597"><a name="zh-cn_topic_0000001893731798_p189717373597"></a><a name="zh-cn_topic_0000001893731798_p189717373597"></a>超时时间，单位：ms，默认超时时间3000ms。</p>
-</td>
-</tr>
-<tr id="row13745115510205"><td class="cellrowborder" valign="top" width="22.220000000000002%" headers="mcps1.1.4.1.1 "><p id="p127451355162016"><a name="p127451355162016"></a><a name="p127451355162016"></a>force</p>
-</td>
-<td class="cellrowborder" valign="top" width="35.85%" headers="mcps1.1.4.1.2 "><p id="p1374515559201"><a name="p1374515559201"></a><a name="p1374515559201"></a>bool</p>
-</td>
-<td class="cellrowborder" valign="top" width="41.93%" headers="mcps1.1.4.1.3 "><p id="p19255145815567"><a name="p19255145815567"></a><a name="p19255145815567"></a>是否强制断链，默认False。True表示强制断链。</p>
-<a name="ul207562350573"></a><a name="ul207562350573"></a><ul id="ul207562350573"><li>强制断链仅强制拆除本端链接，两端都要调用。</li><li>非强制断链在Client发起。<a name="ul123975551571"></a><a name="ul123975551571"></a><ul id="ul123975551571"><li>无故障时两端链路都会拆除。</li><li>有故障导致断链失败时，需要在Server端也发起断链操作。</li></ul>
-</li></ul>
-</td>
-</tr>
-</tbody>
-</table>
+| 参数名称 | 数据类型 | 取值说明 |
+| --- | --- | --- |
+| clusters | Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]] | 集群列表。 |
+| timeout | int | 超时时间，单位：ms，默认超时时间3000ms。 |
+| force | bool | 是否强制断链，默认False。True表示强制断链。<br><br>  - 强制断链仅强制拆除本端链接，两端都要调用。<br>  - 非强制断链在Client发起。无故障时两端链路都会拆除。有故障导致断链失败时，需要在Server端也发起断链操作。<br>  - 无故障时两端链路都会拆除。<br>  - 有故障导致断链失败时，需要在Server端也发起断链操作。 |
 
 **调用示例**
 
@@ -311,7 +210,7 @@ unlink_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], ti
 
 无
 
-## switch\_role<a name="ZH-CN_TOPIC_0000002408011629"></a>
+## switch\_role
 
 **函数功能**
 
@@ -325,34 +224,10 @@ switch_role(self, role: LLMRole, switch_options: Optional[Dict[str, str]] = None
 
 **参数说明**
 
-<a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_table2051894852017"></a>
-<table><thead align="left"><tr id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_row4558174815206"><th class="cellrowborder" valign="top" width="22.220000000000002%" id="mcps1.1.4.1.1"><p id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"></a><strong id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"></a>参数名称</strong></p>
-</th>
-<th class="cellrowborder" valign="top" width="35.85%" id="mcps1.1.4.1.2"><p id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"></a>数据类型</p>
-</th>
-<th class="cellrowborder" valign="top" width="41.93%" id="mcps1.1.4.1.3"><p id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"></a><strong id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"></a>取值说明</strong></p>
-</th>
-</tr>
-</thead>
-<tbody><tr id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_row35581048202018"><td class="cellrowborder" valign="top" width="22.220000000000002%" headers="mcps1.1.4.1.1 "><p id="p11279201118578"><a name="p11279201118578"></a><a name="p11279201118578"></a>role</p>
-</td>
-<td class="cellrowborder" valign="top" width="35.85%" headers="mcps1.1.4.1.2 "><p id="p192791611175710"><a name="p192791611175710"></a><a name="p192791611175710"></a>LLMRole</a></p>
-</td>
-<td class="cellrowborder" valign="top" width="41.93%" headers="mcps1.1.4.1.3 "><p id="p1327911112577"><a name="p1327911112577"></a><a name="p1327911112577"></a>切换的目标角色。</p>
-</td>
-</tr>
-<tr id="row99821205619"><td class="cellrowborder" valign="top" width="22.220000000000002%" headers="mcps1.1.4.1.1 "><p id="p6621349454"><a name="p6621349454"></a><a name="p6621349454"></a>switch_options</p>
-</td>
-<td class="cellrowborder" valign="top" width="35.85%" headers="mcps1.1.4.1.2 "><p id="p149931218561"><a name="p149931218561"></a><a name="p149931218561"></a>options: Dict[str, str]</p>
-</td>
-<td class="cellrowborder" valign="top" width="41.93%" headers="mcps1.1.4.1.3 "><p id="p7172700591"><a name="p7172700591"></a><a name="p7172700591"></a>切换角色配置项。</p>
-<p id="p15381824173017"><a name="p15381824173017"></a><a name="p15381824173017"></a>可选参数，默认值为None。</p>
-<p id="p193515140198"><a name="p193515140198"></a><a name="p193515140198"></a>若作为Server，需通过listen_ip_info</a>配置监听的Host IP和端口，如"192.168.1.1:26000"；若未设置则作为Client。</p>
-<p id="p11798126142919"><a name="p11798126142919"></a><a name="p11798126142919"></a>Server切换为Client将会关闭之前监听的端口；如果仅切换Server的监听端口，可通过options设置监听另一个端口，将关闭之前的监听端口。</p>
-</td>
-</tr>
-</tbody>
-</table>
+| 参数名称 | 数据类型 | 取值说明 |
+| --- | --- | --- |
+| role | LLMRole | 切换的目标角色。 |
+| switch_options | options: Dict[str, str] | 切换角色配置项。<br>可选参数，默认值为None。<br>若作为Server，需通过listen_ip_info配置监听的Host IP和端口，如"192.168.1.1:26000"；若未设置则作为Client。<br>Server切换为Client将会关闭之前监听的端口；如果仅切换Server的监听端口，可通过options设置监听另一个端口，将关闭之前的监听端口。 |
 
 **调用示例**
 
@@ -360,15 +235,15 @@ switch_role(self, role: LLMRole, switch_options: Optional[Dict[str, str]] = None
 
 **返回值**
 
--   正常情况下无返回值。
--   传入数据类型错误情况下会抛出TypeError或ValueError异常。
--   如果switch\_role时存在残留链路资源，则会抛出LLMException，status\_code为LLM\_EXIST\_LINK。
+- 正常情况下无返回值。
+- 传入数据类型错误情况下会抛出TypeError或ValueError异常。
+- 如果switch\_role时存在残留链路资源，则会抛出LLMException，status\_code为LLM\_EXIST\_LINK。
 
 **约束说明**
 
 无
 
-## link<a name="ZH-CN_TOPIC_0000002407891489"></a>
+## link
 
 **函数功能**
 
@@ -384,37 +259,16 @@ link(comm_name: str, cluster_rank_info: Dict[int, int], rank_table: str) -> int
 
 **参数说明**
 
-<a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_table2051894852017"></a>
-<table><thead align="left"><tr id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_row4558174815206"><th class="cellrowborder" valign="top" width="22.220000000000002%" id="mcps1.1.4.1.1"><p id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"></a><strong id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"></a>参数名称</strong></p>
-</th>
-<th class="cellrowborder" valign="top" width="35.85%" id="mcps1.1.4.1.2"><p id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"></a>数据类型</p>
-</th>
-<th class="cellrowborder" valign="top" width="41.93%" id="mcps1.1.4.1.3"><p id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"></a><strong id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"></a>取值说明</strong></p>
-</th>
-</tr>
-</thead>
-<tbody><tr id="row1364175134719"><td class="cellrowborder" valign="top" width="22.220000000000002%" headers="mcps1.1.4.1.1 "><p id="p364135204711"><a name="p364135204711"></a><a name="p364135204711"></a>comm_name</p>
-</td>
-<td class="cellrowborder" valign="top" width="35.85%" headers="mcps1.1.4.1.2 "><p id="p18641517473"><a name="p18641517473"></a><a name="p18641517473"></a>str</p>
-</td>
-<td class="cellrowborder" valign="top" width="41.93%" headers="mcps1.1.4.1.3 "><p id="p13647515473"><a name="p13647515473"></a><a name="p13647515473"></a>通信域名称。</p>
-<p id="p15371005261"><a name="p15371005261"></a><a name="p15371005261"></a>取值范围：小于128个字符。</p>
-</td>
-</tr>
-<tr id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_row35581048202018"><td class="cellrowborder" valign="top" width="22.220000000000002%" headers="mcps1.1.4.1.1 "><p id="p1738192502015"><a name="p1738192502015"></a><a name="p1738192502015"></a>cluster_rank_info</p>
-</td>
-<td class="cellrowborder" valign="top" width="35.85%" headers="mcps1.1.4.1.2 "><p id="p192791611175710"><a name="p192791611175710"></a><a name="p192791611175710"></a>Dict[int, int]</p>
-</td>
-<td class="cellrowborder" valign="top" width="41.93%" headers="mcps1.1.4.1.3 "><p id="p16898104315202"><a name="p16898104315202"></a><a name="p16898104315202"></a>集群ID到rank ID的映射。</p>
-<p id="p1914557112018"><a name="p1914557112018"></a><a name="p1914557112018"></a>例如：{1: 0, 2: 1}。</p>
-</td>
-</tr>
-<tr id="row264558152318"><td class="cellrowborder" valign="top" width="22.220000000000002%" headers="mcps1.1.4.1.1 "><p id="p1564358152312"><a name="p1564358152312"></a><a name="p1564358152312"></a>rank_table</p>
-</td>
-<td class="cellrowborder" valign="top" width="35.85%" headers="mcps1.1.4.1.2 "><p id="p186435882315"><a name="p186435882315"></a><a name="p186435882315"></a>str</p>
-</td>
-<td class="cellrowborder" valign="top" width="41.93%" headers="mcps1.1.4.1.3 "><p id="p144818376165"><a name="p144818376165"></a><a name="p144818376165"></a>开发者可以通过该参数配置参与集合通信的NPU资源信息。配置示例如下。</p>
-<pre class="screen" id="screen1638132612416"><a name="screen1638132612416"></a><a name="screen1638132612416"></a>{
+| 参数名称 | 数据类型 | 取值说明 |
+| --- | --- | --- |
+| comm_name | str | 通信域名称。<br>取值范围：小于128个字符。 |
+| cluster_rank_info | Dict[int, int] | 集群ID到rank ID的映射。<br>例如：{1: 0, 2: 1}。 |
+| rank_table | str | 开发者可以通过该参数配置参与集合通信的NPU资源信息。
+
+如上表格中ranktable具体信息请参见[《HCCL集合通信库用户指南》](https://www.hiascend.com/document/redirect/CannCommunityHcclUg)。<br>如上表格中rank_table的配置示例如下:
+
+```
+{
     "server_count": "2",
     "server_list": [
         {
@@ -439,13 +293,8 @@ link(comm_name: str, cluster_rank_info: Dict[int, int], rank_table: str) -> int
     ],
     "status": "completed",
     "version": "1.0"
-}</pre>
-</td>
-</tr>
-</tbody>
-</table>
-
-如上表格中ranktable具体信息请参见[《HCCL集合通信库用户指南》](https://www.hiascend.com/document/redirect/CannCommunityHcclUg)。
+}
+```
 
 **调用示例**
 
@@ -459,17 +308,16 @@ link(comm_name: str, cluster_rank_info: Dict[int, int], rank_table: str) -> int
 
 **约束说明**
 
--   需要通信域内所有节点同时发起。
--   通信域内节点数量最大支持4。
--   通信域数量建议不超过16，最大支持512。建链数量过多存在内存OOM及cache传输的性能下降风险。
--   link底层会在通信域内部交换内存描述符，对于用来传输的cache，需要在link前先配置内存池或者先注册内存。
--   不支持fork子进程方式调用。
--   最多支持16条链路并发建链，超过16条底层会排队。
--   需保证多通信域建链不出现循环依赖。
--   如果并发建链，建链使用的某个卡是down的状态，可能导致某些链路建链超时，如果需要非down状态的卡建链成功，则需要对所有涉及建链的卡配置命令。
-    hccn\_tool -i $\{device\_id\} -tls -s enable 1
+- 需要通信域内所有节点同时发起。
+- 通信域内节点数量最大支持4。
+- 通信域数量建议不超过16，最大支持512。建链数量过多存在内存OOM及cache传输的性能下降风险。
+- link底层会在通信域内部交换内存描述符，对于用来传输的cache，需要在link前先配置内存池或者先注册内存。
+- 不支持fork子进程方式调用。
+- 最多支持16条链路并发建链，超过16条底层会排队。
+- 需保证多通信域建链不出现循环依赖。
+- Ascend 950PR/Ascend 950DT不支持该接口。
 
-## unlink<a name="ZH-CN_TOPIC_0000002374411912"></a>
+## unlink
 
 **函数功能**
 
@@ -483,24 +331,9 @@ unlink(comm_id: int)
 
 **参数说明**
 
-<a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_table2051894852017"></a>
-<table><thead align="left"><tr id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_row4558174815206"><th class="cellrowborder" valign="top" width="22.220000000000002%" id="mcps1.1.4.1.1"><p id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"></a><strong id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"></a>参数名称</strong></p>
-</th>
-<th class="cellrowborder" valign="top" width="35.85%" id="mcps1.1.4.1.2"><p id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"></a>数据类型</p>
-</th>
-<th class="cellrowborder" valign="top" width="41.93%" id="mcps1.1.4.1.3"><p id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"></a><strong id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"></a>取值说明</strong></p>
-</th>
-</tr>
-</thead>
-<tbody><tr id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_row35581048202018"><td class="cellrowborder" valign="top" width="22.220000000000002%" headers="mcps1.1.4.1.1 "><p id="p1738192502015"><a name="p1738192502015"></a><a name="p1738192502015"></a>comm_id</p>
-</td>
-<td class="cellrowborder" valign="top" width="35.85%" headers="mcps1.1.4.1.2 "><p id="p192791611175710"><a name="p192791611175710"></a><a name="p192791611175710"></a>int</p>
-</td>
-<td class="cellrowborder" valign="top" width="41.93%" headers="mcps1.1.4.1.3 "><p id="p1914557112018"><a name="p1914557112018"></a><a name="p1914557112018"></a>link接口的返回值</p>
-</td>
-</tr>
-</tbody>
-</table>
+| 参数名称 | 数据类型 | 取值说明 |
+| --- | --- | --- |
+| comm_id | int | link接口的返回值 |
 
 **调用示例**
 
@@ -512,13 +345,13 @@ unlink(comm_id: int)
 
 异常场景会抛出LLMException异常。
 
-参数错误可能抛出TypeError或ValueError。
+参数错误可能抛出TypeError或ValueError。<br><br>Ascend 950PR/Ascend 950DT不支持该接口。
 
 **约束说明**
 
 无
 
-## query\_register\_mem\_status<a name="ZH-CN_TOPIC_0000002374252088"></a>
+## query\_register\_mem\_status
 
 **函数功能**
 
@@ -532,24 +365,9 @@ query_register_mem_status(comm_id: int) -> RegisterMemStatus
 
 **参数说明**
 
-<a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_table2051894852017"></a>
-<table><thead align="left"><tr id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_row4558174815206"><th class="cellrowborder" valign="top" width="22.220000000000002%" id="mcps1.1.4.1.1"><p id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p255884814201"></a><strong id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b145581148152018"></a>参数名称</strong></p>
-</th>
-<th class="cellrowborder" valign="top" width="35.85%" id="mcps1.1.4.1.2"><p id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p537710614477"></a>数据类型</p>
-</th>
-<th class="cellrowborder" valign="top" width="41.93%" id="mcps1.1.4.1.3"><p id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_p14558184812200"></a><strong id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"></a><a name="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_b19165651193118"></a>取值说明</strong></p>
-</th>
-</tr>
-</thead>
-<tbody><tr id="zh-cn_topic_0000001417673572_zh-cn_topic_0000001359609816_row35581048202018"><td class="cellrowborder" valign="top" width="22.220000000000002%" headers="mcps1.1.4.1.1 "><p id="p1738192502015"><a name="p1738192502015"></a><a name="p1738192502015"></a>comm_id</p>
-</td>
-<td class="cellrowborder" valign="top" width="35.85%" headers="mcps1.1.4.1.2 "><p id="p192791611175710"><a name="p192791611175710"></a><a name="p192791611175710"></a>int</p>
-</td>
-<td class="cellrowborder" valign="top" width="41.93%" headers="mcps1.1.4.1.3 "><p id="p1914557112018"><a name="p1914557112018"></a><a name="p1914557112018"></a>link接口的返回值</p>
-</td>
-</tr>
-</tbody>
-</table>
+| 参数名称 | 数据类型 | 取值说明 |
+| --- | --- | --- |
+| comm_id | int | link接口的返回值 |
 
 **调用示例**
 
@@ -561,13 +379,13 @@ query_register_mem_status(comm_id: int) -> RegisterMemStatus
 
 异常场景会抛出LLMException异常。
 
-参数错误可能抛出TypeError或ValueError。
+参数错误可能抛出TypeError或ValueError。<br><br>Ascend 950PR/Ascend 950DT不支持该接口。
 
 **约束说明**
 
 配合link使用。
 
-## cache\_manager<a name="ZH-CN_TOPIC_0000002407891461"></a>
+## cache\_manager
 
 **函数功能**
 
@@ -600,16 +418,3 @@ cache_manager = llm_datadist.cache_manager
 **约束说明**
 
 无
-
-
-
-
-
-
-
-
-
-
-
-
-
