@@ -844,4 +844,25 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineTaskStreamNumEmptyString) {
   EXPECT_EQ(engine.Initialize("127.0.0.1:26000", options), PARAM_INVALID);
 }
 
+TEST_F(AdxlEngineUTest, TestAdxlEngineMallocMemAndFreeMem) {
+  EXPECT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
+
+  void *fabric_ptr = nullptr;
+  ASSERT_EQ(AdxlEngine::MallocMem(MEM_HOST, sizeof(int32_t), &fabric_ptr), SUCCESS);
+  ASSERT_NE(fabric_ptr, nullptr);
+
+  auto *value = static_cast<int32_t *>(fabric_ptr);
+  *value = 123;
+  EXPECT_EQ(*value, 123);
+
+  EXPECT_EQ(AdxlEngine::FreeMem(fabric_ptr), SUCCESS);
+  VirtualMemoryManager::GetInstance().Finalize();
+}
+
+TEST_F(AdxlEngineUTest, TestAdxlEngineMallocMemInvalidParam) {
+  void *fabric_ptr = nullptr;
+  EXPECT_EQ(AdxlEngine::MallocMem(MEM_DEVICE, sizeof(int32_t), &fabric_ptr), PARAM_INVALID);
+  EXPECT_EQ(fabric_ptr, nullptr);
+}
+
 }  // namespace adxl

@@ -17,7 +17,7 @@
 #include "adxl/adxl_types.h"
 #include "channel.h"
 #include "control_msg_handler.h"
-#include "acl/acl.h"
+#include "adxl/acl_compat.h"
 
 namespace adxl {
 class FabricMemTransferService {
@@ -44,6 +44,10 @@ class FabricMemTransferService {
 
   void RemoveChannel(const std::string &channel_id);
 
+  static Status MallocMem(MemType type, size_t size, void **ptr);
+
+  static Status FreeMem(void *ptr);
+
  private:
   static Status IsTransferDone(const std::vector<AsyncResource> &async_resources, uint64_t req_id,
                                TransferStatus &status, bool &completed);
@@ -60,6 +64,12 @@ class FabricMemTransferService {
                                 TransferStatus &status);
   static Status TransOpAddr(uintptr_t old_addr, size_t len,
                             std::unordered_map<uintptr_t, VaInfo> &new_va_to_old_va, uintptr_t &new_addr);
+
+  // Static methods for fabric memory allocation and VA-PA mapping management
+  static Status AllocatePhysicalMemory(size_t total_size, aclrtDrvMemHandle &handle);
+  static Status GetPaHandleFromVa(uintptr_t va_addr, aclrtDrvMemHandle &pa_handle);
+  static void AddVaToPaMapping(uintptr_t va_addr, aclrtDrvMemHandle pa_handle);
+  static void RemoveVaToPaMapping(uintptr_t va_addr);
 
   std::mutex share_handle_mutex_;
   std::unordered_map<aclrtDrvMemHandle, ShareHandleInfo> share_handles_;

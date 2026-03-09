@@ -361,9 +361,6 @@ void AdxlInnerEngine::Finalize() {
     statistic_timer_handle_ = nullptr;
   }
   llm::LlmDatadistTimer::Instance().Finalize();
-  if (enable_use_fabric_mem_) {
-    VirtualMemoryManager::GetInstance().Finalize();
-  }
   StatisticManager::GetInstance().Reset();
 }
 

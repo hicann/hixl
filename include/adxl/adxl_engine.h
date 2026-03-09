@@ -134,6 +134,22 @@ class ASCEND_FUNC_VISIBILITY AdxlEngine {
    */
   Status GetNotifies(std::vector<NotifyDesc> &notifies);
 
+  /**
+   * @brief 使用acl VMM机制申请内存
+   * @param [in] type 内存类型
+   * @param [in] size 内存大小
+   * @param [out] ptr 申请的虚拟内存ptr
+   * @return 成功:SUCCESS, 失败:其它.
+   */
+  static Status MallocMem(MemType type, size_t size, void **ptr);
+
+  /**
+   * @brief 释放MallocMem申请的内存内存
+   * @param [in] ptr 释放的虚拟内存ptr
+   * @return 成功:SUCCESS, 失败:其它.
+   */
+  static Status FreeMem(void *ptr);
+
  private:
   class AdxlEngineImpl;
   std::unique_ptr<AdxlEngineImpl> impl_;

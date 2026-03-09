@@ -12,6 +12,7 @@
 #include <mutex>
 #include "adxl/adxl_inner_engine.h"
 #include "base/err_msg.h"
+#include "adxl/fabric_mem_transfer_service.h"
 
 namespace adxl {
 namespace {
@@ -312,4 +313,13 @@ Status AdxlEngine::GetNotifies(std::vector<NotifyDesc> &notifies) {
   LLMLOGI("GetNotifies success, got %zu notifies", notifies.size());
   return SUCCESS;
 }
+
+Status AdxlEngine::MallocMem(MemType type, size_t size, void **ptr) {
+  return FabricMemTransferService::MallocMem(type, size, ptr);
+}
+
+Status AdxlEngine::FreeMem(void *ptr) {
+  return FabricMemTransferService::FreeMem(ptr);
+}
+
 }  // namespace adxl
