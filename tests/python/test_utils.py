@@ -17,7 +17,6 @@ import unittest
 import ctypes
 from llm_datadist.utils.utils import (check_uint64, check_int64,check_int32,
                                       check_uint32, check_list_int32, check_uint16, check_uint8)
-import numpy as np
 
 
 class TensorUt(unittest.TestCase):

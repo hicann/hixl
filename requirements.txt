@@ -1,5 +1,4 @@
 pyyaml>=6.0.1
-numpy
 decorator
 sympy
 scipy
