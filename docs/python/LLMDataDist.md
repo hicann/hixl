@@ -227,7 +227,7 @@ switch_role(self, role: LLMRole, switch_options: Optional[Dict[str, str]] = None
 | 参数名称 | 数据类型 | 取值说明 |
 | --- | --- | --- |
 | role | LLMRole | 切换的目标角色。 |
-| switch_options | options: Dict[str, str] | 切换角色配置项。<br>可选参数，默认值为None。<br>若作为Server，需通过listen_ip_info配置监听的Host IP和端口，如"192.168.1.1:26000"；若未设置则作为Client。<br>Server切换为Client将会关闭之前监听的端口；如果仅切换Server的监听端口，可通过options设置监听另一个端口，将关闭之前的监听端口。 |
+| switch_options | options: Dict[str, str] | 切换角色配置项。<br>可选参数，默认值为None。<br>若作为Server，需通过listen_ip_info配置监听的Host IP和端口，如"192.168.1.1:26000"；若未设置则作为Client。<br>Server切换为Client将会关闭之前监听的端口；如果仅切换Server的监听端口，可通过options设置监听另一个端口，将关闭之前的监听端口。<br>该配置项指定hixl传输后端时，不支持通过switch\_role变更侦听端口。 |
 
 **调用示例**
 
