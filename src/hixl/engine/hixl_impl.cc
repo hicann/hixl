@@ -85,10 +85,16 @@ Status Hixl::HixlImpl::Initialize(const std::map<AscendString, AscendString> &op
 }
 
 void Hixl::HixlImpl::Finalize() {
+  if (engine_ == nullptr) {
+    HIXL_LOGE(FAILED, "engine is nullptr, check engine init");
+    return;
+  }
   engine_->Finalize();
+  engine_.reset();
 }
 
 Status Hixl::HixlImpl::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
+  HIXL_CHK_BOOL_RET_STATUS(engine_ != nullptr, FAILED, "engine is nullptr, check engine init");
   HIXL_CHK_BOOL_RET_STATUS(engine_->IsInitialized(), FAILED, "Hixl is not initialized");
   HIXL_CHK_BOOL_RET_STATUS(reinterpret_cast<void *>(mem.addr) != nullptr,
                            PARAM_INVALID, "mem.addr can not be null");
@@ -98,6 +104,7 @@ Status Hixl::HixlImpl::RegisterMem(const MemDesc &mem, MemType type, MemHandle &
 }
 
 Status Hixl::HixlImpl::DeregisterMem(MemHandle mem_handle) {
+  HIXL_CHK_BOOL_RET_STATUS(engine_ != nullptr, FAILED, "engine is nullptr, check engine init");
   HIXL_CHK_BOOL_RET_STATUS(engine_->IsInitialized(), FAILED, "Hixl is not initialized");
   HIXL_CHK_BOOL_RET_STATUS(mem_handle != nullptr, PARAM_INVALID, "mem_handle can not be null");
   HIXL_CHK_STATUS_RET(engine_->DeregisterMem(mem_handle), "Failed to deregister mem");
@@ -105,12 +112,14 @@ Status Hixl::HixlImpl::DeregisterMem(MemHandle mem_handle) {
 }
 
 Status Hixl::HixlImpl::Connect(const AscendString &remote_engine, int32_t timeout_in_millis) {
+  HIXL_CHK_BOOL_RET_STATUS(engine_ != nullptr, FAILED, "engine is nullptr, check engine init");
   HIXL_CHK_BOOL_RET_STATUS(engine_->IsInitialized(), FAILED, "Hixl is not initialized");
   HIXL_CHK_STATUS_RET(engine_->Connect(remote_engine, timeout_in_millis), "Failed to connect");
   return SUCCESS;
 }
 
 Status Hixl::HixlImpl::Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis) {
+  HIXL_CHK_BOOL_RET_STATUS(engine_ != nullptr, FAILED, "engine is nullptr, check engine init");
   HIXL_CHK_BOOL_RET_STATUS(engine_->IsInitialized(), FAILED, "Hixl is not initialized");
   HIXL_CHK_STATUS_RET(engine_->Disconnect(remote_engine, timeout_in_millis), "Failed to disconnect");
   return SUCCESS;
@@ -120,6 +129,7 @@ Status Hixl::HixlImpl::TransferSync(const AscendString &remote_engine,
                                     TransferOp operation,
                                     const std::vector<TransferOpDesc> &op_descs,
                                     int32_t timeout_in_millis) {
+  HIXL_CHK_BOOL_RET_STATUS(engine_ != nullptr, FAILED, "engine is nullptr, check engine init");
   HIXL_CHK_BOOL_RET_STATUS(engine_->IsInitialized(), FAILED, "Hixl is not initialized");
   HIXL_CHK_STATUS_RET(CheckTransferOpDescs(op_descs), "Failed to check transfer op descs");
   HIXL_CHK_STATUS_RET(engine_->TransferSync(remote_engine, operation,
@@ -133,6 +143,7 @@ Status Hixl::HixlImpl::TransferAsync(const AscendString &remote_engine,
                                      const std::vector<TransferOpDesc> &op_descs,
                                      const TransferArgs &optional_args,
                                      TransferReq &req) {
+  HIXL_CHK_BOOL_RET_STATUS(engine_ != nullptr, FAILED, "engine is nullptr, check engine init");
   HIXL_CHK_BOOL_RET_STATUS(engine_->IsInitialized(), FAILED, "Hixl is not initialized.");
   HIXL_CHK_STATUS_RET(CheckTransferOpDescs(op_descs), "Failed to check transfer op descs.");
   HIXL_CHK_STATUS_RET(engine_->TransferAsync(remote_engine, operation, 
@@ -142,6 +153,7 @@ Status Hixl::HixlImpl::TransferAsync(const AscendString &remote_engine,
 }
 
 Status Hixl::HixlImpl::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
+  HIXL_CHK_BOOL_RET_STATUS(engine_ != nullptr, FAILED, "engine is nullptr, check engine init");
   TransferStatus transfer_status = TransferStatus::WAITING;
   auto ret = engine_->GetTransferStatus(req, transfer_status);
   if (ret != SUCCESS) {
@@ -154,6 +166,7 @@ Status Hixl::HixlImpl::GetTransferStatus(const TransferReq &req, TransferStatus 
 }
 
 Status Hixl::HixlImpl::SendNotify(const AscendString &remote_engine, const NotifyDesc &notify, uint32_t timeout_in_millis) {
+  HIXL_CHK_BOOL_RET_STATUS(engine_ != nullptr, FAILED, "engine is nullptr, check engine init");
   HIXL_CHK_BOOL_RET_STATUS(engine_->IsInitialized(), FAILED, "Hixl is not initialized");
   HIXL_CHK_STATUS_RET(engine_->SendNotify(remote_engine, notify, timeout_in_millis), 
                       "Failed to send notify to remote engine:%s", remote_engine.GetString());
@@ -161,6 +174,7 @@ Status Hixl::HixlImpl::SendNotify(const AscendString &remote_engine, const Notif
 }
 
 Status Hixl::HixlImpl::GetNotifies(std::vector<NotifyDesc> &notifies) {
+  HIXL_CHK_BOOL_RET_STATUS(engine_ != nullptr, FAILED, "engine is nullptr, check engine init");
   HIXL_CHK_BOOL_RET_STATUS(engine_->IsInitialized(), FAILED, "Hixl is not initialized");
   HIXL_CHK_STATUS_RET(engine_->GetNotifies(notifies), 
                       "Failed to get notifies");
@@ -175,10 +189,10 @@ Hixl::~Hixl() {
 
 Status Hixl::Initialize(const AscendString &local_engine, const std::map<AscendString, AscendString> &options) {
   HIXL_LOGI("Hixl initialize start");
-  impl_ = llm::MakeUnique<HixlImpl>(local_engine);
-  HIXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check Hixl construct");
-  const auto ret = impl_->Initialize(options);
-  HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Failed to initialize Hixl");
+  auto impl = llm::MakeUnique<HixlImpl>(local_engine);
+  HIXL_CHK_BOOL_RET_STATUS(impl != nullptr, FAILED, "impl is nullptr, check Hixl construct");
+  HIXL_CHK_STATUS_RET(impl->Initialize(options), "Failed to initialize Hixl");
+  impl_ = std::move(impl);
   HIXL_LOGI("Hixl initialized successfully");
   return SUCCESS;
 }
