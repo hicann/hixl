@@ -32,6 +32,7 @@ constexpr const char OPTION_RDMA_SERVICE_LEVEL[] = "RdmaServiceLevel";
 constexpr const char OPTION_BUFFER_POOL[] = "BufferPool";
 constexpr const char OPTION_GLOBAL_RESOURCE_CONFIG[] = "GlobalResourceConfig";
 constexpr const char OPTION_AUTO_CONNECT[] = "AutoConnect";
+constexpr const char OPTION_LOCAL_COMM_RES[] = "LocalCommRes";
  
 // status codes
 constexpr Status SUCCESS = 0U;
