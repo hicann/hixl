@@ -11,8 +11,13 @@
 #include "segment_table.h"
 #include <algorithm>
 #include "common/llm_inner_types.h"
+#include "common/hixl_utils.h"
 
 namespace adxl {
+void SegmentTable::Clear() {
+  channel_2_segment_.clear();
+}
+
 void SegmentTable::RemoveChannel(const std::string &channel_id) {
   std::lock_guard<std::mutex> lock(map_mutex_);
   auto it = channel_2_segment_.find(channel_id);
@@ -28,10 +33,16 @@ void SegmentTable::AddRange(const std::string &channel_id, uint64_t start, uint6
                          [type](const SegmentPtr &seg) { return seg->GetMemType() == type; });
   if (it != segments.end()) {
     (*it)->AddRange(start, end);
+    LLMLOGI("Added to existing segment, channel_id:%s, start:%lu, end:%lu, total segments:%zu, type:%s.",
+            channel_id.c_str(), start, end, (*it)->GetRangeCount(),
+            hixl::MemTypeToString(static_cast<hixl::MemType>(type)).c_str());
   } else {
     auto new_segment = std::make_shared<Segment>(type);
     new_segment->AddRange(start, end);
     segments.push_back(new_segment);
+    LLMLOGI("Created new segment, channel_id:%s, start:%lu, end:%lu, type:%s.",
+            channel_id.c_str(), start, end,
+            hixl::MemTypeToString(static_cast<hixl::MemType>(type)).c_str());
   }
 }
 
@@ -53,6 +64,7 @@ SegmentPtr SegmentTable::FindSegment(const std::string &channel_id, uint64_t sta
   std::lock_guard<std::mutex> lock(map_mutex_);
   auto channel_it = channel_2_segment_.find(channel_id);
   if (channel_it == channel_2_segment_.end()) {
+    LLMLOGI("Not found in segment table for channel_id:%s.", channel_id.c_str());
     return nullptr;
   }
   // only two segments: MEM_DEVICE and MEM_HOST
@@ -61,6 +73,7 @@ SegmentPtr SegmentTable::FindSegment(const std::string &channel_id, uint64_t sta
       return segment;
     }
   }
+  LLMLOGI("No segment contains range [%lu, %lu] for channel_id:%s", start, end, channel_id.c_str());
   return nullptr;
 }
 
@@ -130,6 +143,10 @@ bool Segment::Contains(uint64_t start, uint64_t end) const {
 
 MemType Segment::GetMemType() const {
   return mem_type_;
+}
+
+size_t Segment::GetRangeCount() const {
+  return ranges_.size();
 }
 
 }  // namespace adxl

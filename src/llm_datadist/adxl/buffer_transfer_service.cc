@@ -107,7 +107,8 @@ Status BufferTransferService::Transfer(const ChannelPtr &channel, TransferType t
   ADXL_CHK_BOOL_RET_STATUS(time_cost < timeout, TIMEOUT, "Transfer timeout.");
   left_timeout = timeout - time_cost;
   ADXL_CHK_STATUS_RET(CheckReqFinishStatus(left_timeout, req_id), "Transfer failed.");
-  LLMLOGI("Success to transfer with buffer type:%d, channel id:%s.", type, channel->GetChannelId().c_str());
+  LLMLOGI("Success to transfer with buffer type:%s, channel id:%s.", TransferTypeToString(type).c_str(),
+          channel->GetChannelId().c_str());
   time_cost = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
   StatisticManager::GetInstance().UpdateBufferTransferCost(channel->GetChannelId(), time_cost);
   return SUCCESS;
@@ -334,7 +335,8 @@ void BufferTransferService::ProcessBufferReqSecondStep() {
 }
 
 Status BufferTransferService::HandleBufferD2D(const ChannelPtr &channel, BufferReq &buffer_req) {
-  LLMLOGI("Processing BufferReq for channel:%s, type:%d", channel->GetChannelId().c_str(), buffer_req.transfer_type);
+  LLMLOGI("Processing BufferReq for channel:%s, type:%s", channel->GetChannelId().c_str(),
+          TransferTypeToString(buffer_req.transfer_type).c_str());
   ADXL_CHK_BOOL_RET_STATUS(buffer_req.total_buffer_len <= buffer_size_, PARAM_INVALID,
                            "Total buffer length:%lu is bigger than buffer size:%lu.", buffer_req.total_buffer_len,
                            buffer_size_);
