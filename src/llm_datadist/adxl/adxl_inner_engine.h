@@ -70,7 +70,7 @@ class AdxlInnerEngine {
   
  private:
   Status GetTransferType(const ChannelPtr &channel, TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
-                         bool &need_buffer, TransferType &type);
+                         bool &need_buffer, TransferType &type) const;
   Status InitBufferTransferService(const std::map<ge::AscendString, ge::AscendString> &options);
   static void ParseBufferPool(const std::map<AscendString, AscendString> &options,
                               std::string &pool_config);

@@ -199,6 +199,8 @@ inline void from_json(const nlohmann::json &j, RequestDisconnectResp &resp) {
   j.at("error_message").get_to(resp.error_message);
 }
 
+std::string TransferTypeToString(TransferType type);
+
 class ControlMsgHandler {
  public:
   template <typename T>

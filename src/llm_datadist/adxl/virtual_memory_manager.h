@@ -11,27 +11,17 @@
 #ifndef VIRTUAL_MEMORY_MANAGER_H
 #define VIRTUAL_MEMORY_MANAGER_H
 
-#include <cstdint>
 #include <future>
-#include <utility>
 #include <vector>
-#include <bitset>
 #include <unordered_map>
 #include "adxl/adxl_types.h"
-#include "channel.h"
 #include "control_msg_handler.h"
-#include "acl/acl.h"
 
 namespace adxl {
-namespace {
-constexpr const char *kLibAscendClSo = "libacl_rt.so";
-}
-using ReserveMemAddressNoUCMemoryFunc = int (*)(void **, size_t, size_t, void *, uint64_t);
-
 class VirtualMemoryManager {
  public:
   static VirtualMemoryManager &GetInstance();
-  ~VirtualMemoryManager() = default;
+  ~VirtualMemoryManager();
   VirtualMemoryManager(const VirtualMemoryManager &) = delete;
   VirtualMemoryManager(const VirtualMemoryManager &&) = delete;
   VirtualMemoryManager &operator=(const VirtualMemoryManager &) = delete;
@@ -41,8 +31,8 @@ class VirtualMemoryManager {
   void Finalize();
   Status ReserveMemory(size_t size, uintptr_t &mem_addr);
   Status ReleaseMemory(uintptr_t mem_addr);
-  void SetSoName(const char *so_name);
   void SetVirtualMemoryCapacity(size_t capacity_in_tb);
+  static Status ReserveMemAddress(void *&virtual_address, size_t size);
 
  private:
   VirtualMemoryManager() = default;
@@ -60,7 +50,6 @@ class VirtualMemoryManager {
   uintptr_t global_virtual_memory_addr_{};
   size_t vm_size_ = 0;
   size_t num_blocks_ = 0;
-  std::string so_name_ = kLibAscendClSo;
 };
 }  // namespace adxl
 

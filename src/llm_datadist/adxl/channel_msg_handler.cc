@@ -241,6 +241,9 @@ void ChannelMsgHandler::Finalize() {
     }
   }
   handle_to_addr_.clear();
+  if (segment_table_ != nullptr) {
+    segment_table_->Clear();
+  }
 }
 
 Status ChannelMsgHandler::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
@@ -253,13 +256,14 @@ Status ChannelMsgHandler::RegisterMem(const MemDesc &mem, MemType type, MemHandl
     hccl_mem.size = mem.len;
     ADXL_CHK_HCCL_RET(llm::HcclAdapter::GetInstance().HcclRegisterGlobalMem(&hccl_mem, &mem_handle));
   }
-  LLMLOGI("Add local mem range start:%lu, end:%lu, type:%s.", mem.addr, mem.addr + mem.len,
-          hixl::MemTypeToString(static_cast<hixl::MemType>(type)).c_str());
+  LLMLOGI("Add local mem range start:%lu, end:%lu, type:%s, channel:%s.", mem.addr, mem.addr + mem.len,
+          hixl::MemTypeToString(static_cast<hixl::MemType>(type)).c_str(), listen_info_.c_str());
   // keep same lock order with DeregisterMem
   std::lock_guard<std::mutex> lock(mutex_);
   ADXL_CHK_BOOL_RET_STATUS(segment_table_ != nullptr, FAILED, "Segment table is null.");
   segment_table_->AddRange(listen_info_, mem.addr, mem.addr + mem.len, type);
   handle_to_addr_[mem_handle] = AddrInfo{mem.addr, mem.addr + mem.len, type};
+  LLMLOGI("RegisterMem success: handle=%p, total registered handles=%zu.", mem_handle, handle_to_addr_.size());
   return SUCCESS;
 }
 
@@ -279,6 +283,7 @@ Status ChannelMsgHandler::DeregisterMem(MemHandle mem_handle) {
     ADXL_CHK_HCCL_RET(llm::HcclAdapter::GetInstance().HcclDeregisterGlobalMem(mem_handle));
   }
   handle_to_addr_.erase(it);
+  LLMLOGI("DeregisterMem success: handle=%p, total registered handles=%zu.", mem_handle, handle_to_addr_.size());
   return SUCCESS;
 }
 

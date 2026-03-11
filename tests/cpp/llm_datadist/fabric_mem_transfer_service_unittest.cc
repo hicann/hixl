@@ -104,7 +104,6 @@ class FabricMemTransferServiceUTest : public ::testing::Test {
   void SetUp() override {
     mock_runtime_ = std::make_shared<llm::AclRuntimeStub>();
     scoped_mock_ = std::make_unique<ScopedRuntimeMock>(mock_runtime_);
-    VirtualMemoryManager::GetInstance().SetSoName(kSoName);
     VirtualMemoryManager::GetInstance().Initialize();
     service_ = std::make_shared<FabricMemTransferService>();
   }
@@ -447,6 +446,43 @@ TEST_F(FabricMemTransferServiceUTest, TestRegisterMem_HostMemFailCleanup) {
     ScopedRuntimeFunctionFail fail("aclrtMapMem");
     EXPECT_NE(service_->RegisterMem(mem_desc, MemType::MEM_HOST, handle), SUCCESS);
   }
+}
+
+TEST_F(FabricMemTransferServiceUTest, TestMallocMemAndFreeMem_Success) {
+  void *fabric_ptr = nullptr;
+  ASSERT_EQ(FabricMemTransferService::MallocMem(MemType::MEM_HOST, kMemLen, &fabric_ptr), SUCCESS);
+  ASSERT_NE(fabric_ptr, nullptr);
+
+  auto *bytes = static_cast<uint8_t *>(fabric_ptr);
+  std::fill(bytes, bytes + kTransferLen, kPatternA);
+  for (size_t i = 0; i < kTransferLen; ++i) {
+    EXPECT_EQ(bytes[i], kPatternA);
+  }
+
+  EXPECT_EQ(FabricMemTransferService::FreeMem(fabric_ptr), SUCCESS);
+}
+
+TEST_F(FabricMemTransferServiceUTest, TestMallocMem_InvalidType) {
+  void *fabric_ptr = nullptr;
+  EXPECT_EQ(FabricMemTransferService::MallocMem(MemType::MEM_DEVICE, kMemLen, &fabric_ptr), PARAM_INVALID);
+  EXPECT_EQ(fabric_ptr, nullptr);
+}
+
+TEST_F(FabricMemTransferServiceUTest, TestMallocMem_ZeroSize) {
+  void *fabric_ptr = nullptr;
+  EXPECT_EQ(FabricMemTransferService::MallocMem(MemType::MEM_HOST, 0, &fabric_ptr), PARAM_INVALID);
+  EXPECT_EQ(fabric_ptr, nullptr);
+}
+
+TEST_F(FabricMemTransferServiceUTest, TestFreeMem_Nullptr) {
+  EXPECT_EQ(FabricMemTransferService::FreeMem(nullptr), PARAM_INVALID);
+}
+
+TEST_F(FabricMemTransferServiceUTest, TestFreeMem_UntrackedAddress) {
+  auto *heap_ptr = static_cast<uint8_t *>(std::malloc(kTransferLen));
+  ASSERT_NE(heap_ptr, nullptr);
+  EXPECT_EQ(FabricMemTransferService::FreeMem(heap_ptr), FAILED);
+  std::free(heap_ptr);
 }
 
 }  // namespace adxl

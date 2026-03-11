@@ -24,6 +24,7 @@ class Segment {
   void RemoveRange(uint64_t start, uint64_t end);
   bool Contains(uint64_t start, uint64_t end) const;
   MemType GetMemType() const;
+  size_t GetRangeCount() const;
 
  private:
   std::vector<std::pair<uint64_t, uint64_t>> ranges_;
@@ -39,6 +40,7 @@ class SegmentTable {
   void RemoveRange(const std::string &channel_id, uint64_t start, uint64_t end, MemType type);
   SegmentPtr FindSegment(const std::string &channel_id, uint64_t start, uint64_t end);
   void RemoveChannel(const std::string &channel_id);
+  void Clear();
 
  private:
   // mutex for channel_2_segment_

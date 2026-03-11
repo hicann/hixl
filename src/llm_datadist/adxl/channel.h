@@ -34,6 +34,7 @@ struct ShareHandleInfo {
   aclrtMemFabricHandle share_handle;
   aclrtDrvMemHandle imported_handle;
   uintptr_t imported_va;
+  bool is_retained;
 };
 
 enum class ChannelType {

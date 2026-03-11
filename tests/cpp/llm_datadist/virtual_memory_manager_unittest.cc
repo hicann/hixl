@@ -21,7 +21,6 @@ namespace {
 constexpr size_t kTestSize1GB = 1024UL * 1024UL * 1024UL;
 constexpr size_t kTestSize2GB = 2UL * kTestSize1GB;
 constexpr size_t kTestSize500MB = 500UL * 1024UL * 1024UL;
-constexpr const char *kSoName = "libascendcl_stub.so";
 
 class ScopedRuntimeMockForVmManager {
  public:
@@ -39,7 +38,6 @@ class ScopedRuntimeMockForVmManager {
 class VirtualMemoryManagerTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    VirtualMemoryManager::GetInstance().SetSoName(kSoName);
     // Create a mock runtime stub
     mock_runtime_ = std::make_shared<llm::AclRuntimeStub>();
     scoped_mock_ = std::make_unique<ScopedRuntimeMockForVmManager>(mock_runtime_);

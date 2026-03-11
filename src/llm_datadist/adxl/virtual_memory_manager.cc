@@ -9,21 +9,20 @@
  */
 
 #include "virtual_memory_manager.h"
-#include <cstddef>
 #include <mutex>
 #include <dlfcn.h>
 #include "adxl/adxl_checker.h"
 #include "common/def_types.h"
 #include "common/llm_scope_guard.h"
 #include "common/llm_log.h"
+#include "adxl/acl_compat.h"
 
 namespace adxl {
 namespace {
-constexpr const char *kReserveMemNoUcMemoryFunc = "aclrtReserveMemAddressNoUCMemory";
 constexpr size_t kBlockSize = 1024UL * 1024UL * 1024UL;  // 1GB
-constexpr size_t kDefaultNumBlocks = 64UL * 1024UL;
+constexpr size_t kDefaultNumBlocks = 96UL * 1024UL; // 96T
 constexpr size_t kDefaultGlobalVirtualMemorySize = kBlockSize * kDefaultNumBlocks;
-constexpr size_t kGlobalVirtualMemoryStartAddr = kBlockSize * 1024UL * 40UL;
+constexpr size_t kGlobalVirtualMemoryStartAddr = kBlockSize * 1024UL * 40UL; // 40T
 constexpr uint64_t kReserveFlagHugePage = 1UL;
 }  // namespace
 VirtualMemoryManager &VirtualMemoryManager::GetInstance() {
@@ -31,8 +30,8 @@ VirtualMemoryManager &VirtualMemoryManager::GetInstance() {
   return instance;
 }
 
-void VirtualMemoryManager::SetSoName(const char *so_name) {
-  so_name_ = so_name;
+VirtualMemoryManager::~VirtualMemoryManager() {
+  Finalize();
 }
 
 void VirtualMemoryManager::SetVirtualMemoryCapacity(size_t capacity_in_tb) {
@@ -49,6 +48,21 @@ void VirtualMemoryManager::SetVirtualMemoryCapacity(size_t capacity_in_tb) {
           capacity_in_tb, vm_size_, num_blocks_);
 }
 
+Status VirtualMemoryManager::ReserveMemAddress(void *&virtual_address, size_t size) {
+  void *global_start_va = llm::ValueToPtr(kGlobalVirtualMemoryStartAddr);
+  auto ret = aclrtReserveMemAddressNoUCMemory(&virtual_address, size, 0, global_start_va,
+                                              kReserveFlagHugePage);
+  if (ret == ACL_ERROR_RT_FEATURE_NOT_SUPPORT) {
+    // may not support
+    ADXL_CHK_ACL_RET(aclrtReserveMemAddress(&virtual_address, size, 0, nullptr, kReserveFlagHugePage));
+    LLMEVENT("Reserve virtual memory with aclrtReserveMemAddress, size:%zu.", size);
+    return SUCCESS;
+  }
+  ADXL_CHK_BOOL_RET_STATUS(ret == ACL_ERROR_NONE, FAILED, "Failed to reserve mem address.");
+  LLMEVENT("Reserve virtual memory with aclrtReserveMemAddressNoUCMemory, size:%zu.", size);
+  return SUCCESS;
+}
+
 Status VirtualMemoryManager::Initialize() {
   std::lock_guard<std::mutex> lock(global_virtual_memory_mutex_);
   if (initialized_) {
@@ -59,31 +73,7 @@ Status VirtualMemoryManager::Initialize() {
     vm_size_ = kDefaultGlobalVirtualMemorySize;
     num_blocks_ = kDefaultNumBlocks;
   }
-  // Since already links against libascendcl.so, use RTLD_NOLOAD to get existing handle
-  void *handle = mmDlopen(so_name_.c_str(), static_cast<int32_t>(static_cast<uint32_t>(MMPA_RTLD_LAZY) |
-                                                                 static_cast<uint32_t>(RTLD_NOLOAD)));
-  ADXL_CHK_BOOL_RET_STATUS(handle != nullptr, FAILED, "Failed to load so:%s.", so_name_.c_str());
-  LLM_MAKE_GUARD(close_handle, ([handle]() { (void)mmDlclose(handle); }));
-
-  ReserveMemAddressNoUCMemoryFunc reserve_no_uc_mem_func =
-      llm::FunctionLoader<ReserveMemAddressNoUCMemoryFunc>::load(handle, kReserveMemNoUcMemoryFunc);
-  if (reserve_no_uc_mem_func == nullptr) {
-    // previous version does not support ReserveMemAddressNoUCMemoryFunc
-    ADXL_CHK_ACL_RET(aclrtReserveMemAddress(&global_virtual_memory_, vm_size_, 0, nullptr, kReserveFlagHugePage));
-    LLMEVENT("Reserve virtual memory size:%zu, aclrtReserveMemAddressNoUCMemory is not defined.", vm_size_);
-  } else {
-    void *global_start_va = llm::ValueToPtr(kGlobalVirtualMemoryStartAddr);
-    int ret = reserve_no_uc_mem_func(&global_virtual_memory_, vm_size_, 0, global_start_va, kReserveFlagHugePage);
-    if (ret == ACL_ERROR_RT_FEATURE_NOT_SUPPORT) {
-      // A5 does not support ReserveMemAddressNoUCMemoryFunc
-      ADXL_CHK_ACL_RET(aclrtReserveMemAddress(&global_virtual_memory_, vm_size_, 0, nullptr, kReserveFlagHugePage));
-      LLMEVENT("Reserve virtual memory with aclrtReserveMemAddress, size:%zu.", vm_size_);
-    } else {
-      ADXL_CHK_BOOL_RET_STATUS(ret == ACL_ERROR_NONE, FAILED, "Failed to reserve mem address.");
-      LLMEVENT("Reserve virtual memory with aclrtReserveMemAddressNoUCMemory, size:%zu.", vm_size_);
-    }
-  }
-
+  ADXL_CHK_STATUS_RET(ReserveMemAddress(global_virtual_memory_, vm_size_));
   global_virtual_memory_addr_ = llm::PtrToValue(global_virtual_memory_);
   // Clear bitmap and allocations map
   bitmap_.resize(num_blocks_, false);
@@ -114,14 +104,15 @@ void VirtualMemoryManager::Finalize() {
 Status VirtualMemoryManager::ReserveMemory(size_t size, uintptr_t &mem_addr) {
   std::lock_guard<std::mutex> lock(global_virtual_memory_mutex_);
 
-  if (!initialized_) {
-    LLMLOGE(PARAM_INVALID, "VirtualMemoryManager not initialized");
-    return PARAM_INVALID;
-  }
-
   if (size == 0) {
     LLMLOGE(PARAM_INVALID, "ReserveMemory size cannot be zero");
     return PARAM_INVALID;
+  }
+
+  if (!initialized_) {
+    ADXL_CHK_STATUS_RET(ReserveMemAddress(global_virtual_memory_, vm_size_));
+    global_virtual_memory_addr_ = llm::PtrToValue(global_virtual_memory_);
+    initialized_ = true;
   }
 
   // Calculate number of 1GB blocks needed (round up)

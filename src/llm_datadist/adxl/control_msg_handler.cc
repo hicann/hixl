@@ -14,6 +14,31 @@ namespace {
 Status kNoNeedRetry = 1U;
 }
 
+std::string TransferTypeToString(TransferType type) {
+  switch (type) {
+    case TransferType::kWriteH2RH:
+      return "WriteH2RH";
+    case TransferType::kReadRH2H:
+      return "ReadRH2H";
+    case TransferType::kWriteH2RD:
+      return "WriteH2RD";
+    case TransferType::kReadRH2D:
+      return "ReadRH2D";
+    case TransferType::kWriteD2RH:
+      return "WriteD2RH";
+    case TransferType::kReadRD2H:
+      return "ReadRD2H";
+    case TransferType::kWriteD2RD:
+      return "WriteD2RD";
+    case TransferType::kReadRD2D:
+      return "ReadRD2D";
+    case TransferType::kEnd:
+      return "End";
+    default:
+      return "Unknown";
+  }
+}
+
 Status ControlMsgHandler::SendMsgByProtocol(int32_t fd, ControlMsgType msg_type, const std::string &msg_str,
                                             uint64_t timeout) {
   auto start = std::chrono::steady_clock::now();
