@@ -159,7 +159,7 @@ hixl::Status FillExportDescFromJsonField(const nlohmann::json &j_export, hixl::H
       return hixl::PARAM_INVALID;
     }
     const int v = j_export[i].get<int>();
-    if (v < 0 || v > 255) {
+    if (v < 0 || v > UINT8_MAX) {
       HIXL_LOGE(hixl::PARAM_INVALID, "[HixlClient] export_desc[%zu]=%d out of range [0,255]", i, v);
       std::free(buf);
       return hixl::PARAM_INVALID;
@@ -207,6 +207,10 @@ hixl::Status ParseMemDescsArray(const nlohmann::json &arr, std::vector<hixl::Hix
     hixl::HixlMemDesc desc{};
     hixl::Status ret = ParseOneMemDesc(arr[i], i, desc);
     if (ret != hixl::SUCCESS) {
+      if (desc.export_desc != nullptr) {
+        std::free(desc.export_desc);
+        desc.export_desc = nullptr;
+      }
       FreeExportDesc(mem_descs);
       return ret;
     }

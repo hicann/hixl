@@ -9,7 +9,6 @@
  */
 
 #include "complete_pool.h"
-#include <cstdint>
 #include <cstdio>
 #include <mutex>
 #include <securec.h>
@@ -263,7 +262,7 @@ Status CompletePool::EnsureNotifyRecordLocked(Slot &slot, uint32_t slot_index) {
   return SUCCESS;
 }
 
-void CompletePool::ResetNotifyResourcesLocked(Slot &slot) {
+void CompletePool::ResetNotifyResourcesLocked(Slot &slot) const {
   if (slot.notify != nullptr) {
     HIXL_CHK_ACL(aclrtDestroyNotify(slot.notify));
     slot.notify = nullptr;
@@ -273,7 +272,7 @@ void CompletePool::ResetNotifyResourcesLocked(Slot &slot) {
   slot.notify_tag.fill('\0');
 }
 
-Status CompletePool::CreateNotifyLocked(Slot &slot, uint32_t &notify_id) {
+Status CompletePool::CreateNotifyLocked(Slot &slot, uint32_t &notify_id) const {
   notify_id = 0U;
   HIXL_CHK_ACL_RET(aclrtCreateNotify(&slot.notify, ACL_NOTIFY_DEVICE_USE_ONLY),
                    "[CompletePool] aclrtCreateNotify failed");
@@ -321,7 +320,7 @@ void CompletePool::DeinitAllSlotsLocked() {
   ResetInitParamsLocked();
 }
 
-Status CompletePool::EnsureContextLocked(Slot &slot, int32_t device_id) {
+Status CompletePool::EnsureContextLocked(Slot &slot, int32_t device_id) const {
   if (slot.ctx != nullptr) {
     return SUCCESS;
   }
@@ -331,7 +330,7 @@ Status CompletePool::EnsureContextLocked(Slot &slot, int32_t device_id) {
   return SUCCESS;
 }
 
-Status CompletePool::EnsureStreamLocked(Slot &slot) {
+Status CompletePool::EnsureStreamLocked(Slot &slot) const {
   if (slot.stream != nullptr) {
     return SUCCESS;
   }
@@ -352,7 +351,7 @@ Status CompletePool::EnsureStreamLocked(Slot &slot) {
 }
 
 Status CompletePool::EnsureThreadLocked(Slot &slot, CommEngine engine, uint32_t thread_num,
-                                        uint32_t notify_num_per_thread) {
+                                        uint32_t notify_num_per_thread) const {
   if (slot.thread != 0U) {
     return SUCCESS;
   }
@@ -360,7 +359,7 @@ Status CompletePool::EnsureThreadLocked(Slot &slot, CommEngine engine, uint32_t 
   return SUCCESS;
 }
 
-Status CompletePool::EnsurePinnedHostFlagLocked(Slot &slot) {
+Status CompletePool::EnsurePinnedHostFlagLocked(Slot &slot) const {
   if (slot.host_flag != nullptr) {
     return SUCCESS;
   }
@@ -372,7 +371,7 @@ Status CompletePool::EnsurePinnedHostFlagLocked(Slot &slot) {
   return SUCCESS;
 }
 
-void CompletePool::DestroySlotLocked(Slot &slot) {
+void CompletePool::DestroySlotLocked(Slot &slot) const {
   llm::TemporaryRtContext with_context(slot.ctx);
 
   if (slot.notify != nullptr) {

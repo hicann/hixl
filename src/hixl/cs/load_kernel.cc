@@ -10,17 +10,14 @@
 
 #include "load_kernel.h"
 
-#include <cerrno>
 #include <cstdint>
 #include <cstring>
-
 #include <limits.h>
 #include <unistd.h>
 #include "mmpa/mmpa_api.h"
 #include "common/hixl_log.h"
 #include "common/scope_guard.h"
-
-#include <common/hixl_checker.h>
+#include "common/hixl_checker.h"
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
@@ -77,7 +74,7 @@ Status LoadBinaryFromJson(const char *json_path, aclrtBinHandle &bin_handle) {
   return SUCCESS;
 }
 
-Status GetFuncHandle(aclrtBinHandle bin_handle, const char *func_name, aclrtFuncHandle &func_handle) {
+Status GetFuncHandle(const aclrtBinHandle bin_handle, const char *func_name, aclrtFuncHandle &func_handle) {
   if (bin_handle == nullptr) {
     return PARAM_INVALID;
   }
