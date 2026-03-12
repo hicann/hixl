@@ -98,7 +98,7 @@ Status HixlClient::Initialize(const std::vector<EndpointConfig> &local_endpoint_
   return SUCCESS;
 }
 
-Status HixlClient::SendEndpointInfoReq(int32_t fd, CtrlMsgType msg_type) {
+Status HixlClient::SendEndpointInfoReq(int32_t fd, CtrlMsgType msg_type) const {
   CtrlMsgHeader header{};
   header.magic = kMagicNumber;
   header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType));
@@ -177,7 +177,7 @@ Status HixlClient::Deserialize(const std::string &json_str, std::vector<Endpoint
 }
 
 Status HixlClient::ParseJsonField(const nlohmann::json &json_obj, const std::string &field_name,
-                                  std::string &field_value) {
+                                  std::string &field_value) const {
   if (!json_obj.contains(field_name)) {
     HIXL_LOGE(PARAM_INVALID, "Missing required field '%s' in EndpointConfig", field_name.c_str());
     return PARAM_INVALID;
@@ -290,7 +290,7 @@ Status HixlClient::TryMatchUbEndpoints(const EndpointConfig &local_endpoint,
 }
 
 // 解析通信类型
-CommType HixlClient::ParseCommType(const std::string &local_placement, const std::string &remote_placement) {
+CommType HixlClient::ParseCommType(const std::string &local_placement, const std::string &remote_placement) const {
   if (local_placement == kPlacementDevice && remote_placement == kPlacementDevice) {
     return CommType::COMM_TYPE_UB_D2D;
   } else if (local_placement == kPlacementDevice && remote_placement == kPlacementHost) {
@@ -581,7 +581,7 @@ Status HixlClient::UnregisterMemToCsClient(CommType type, const std::vector<MemH
   return ret;
 }
 
-Status HixlClient::GetMemType(const std::vector<SegmentPtr> &segments, uintptr_t addr, size_t len, MemType &mem_type) {
+Status HixlClient::GetMemType(const std::vector<SegmentPtr> &segments, uintptr_t addr, size_t len, MemType &mem_type) const {
   for (const auto &segment : segments) {
     if (segment->Contains(addr, addr + len)) {
       mem_type = segment->GetMemType();

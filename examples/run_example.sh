@@ -94,7 +94,14 @@ run_pair() {
     if [ "$flag" -eq "0" ] && [ "$has_error" -eq "1" ]; then
         flag=1
         echo -e "Execution failed.\n"
-        rm -rf "${tmp_files[@]}"
+        for tmp in "${tmp_files[@]}"; do
+            abs_path=$(readlink -f "$tmp" 2>/dev/null)
+            [[ -z "$abs_path" ]] && continue
+            if [[ "$abs_path" =~ ^/tmp/tmp\.[0-9a-zA-Z_]+$ && -f "$abs_path" ]]; then
+                rm -f "$abs_path" 
+                echo "Deleted safe temp file: $abs_path"
+            fi
+        done
         exit 1
     fi
 
@@ -102,7 +109,14 @@ run_pair() {
         echo -e "Execution success.\n"
     fi
 
-    rm -rf "${tmp_files[@]}"
+    for tmp in "${tmp_files[@]}"; do
+        abs_path=$(readlink -f "$tmp" 2>/dev/null)
+        [[ -z "$abs_path" ]] && continue
+        if [[ "$abs_path" =~ ^/tmp/tmp\.[0-9a-zA-Z_]+$ && -f "$abs_path" ]]; then
+            rm -f "$abs_path" 
+            echo "Deleted safe temp file: $abs_path"
+        fi
+    done
 }
 
 all_samples() {

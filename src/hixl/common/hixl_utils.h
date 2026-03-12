@@ -63,7 +63,7 @@ Status ParseListenInfo(const std::string &listen_info, std::string &listen_ip, i
 
 Status ParseEidAddress(const std::string &eid_str, CommAddr &addr);
 
-Status ConvertToEndpointDesc(const EndpointConfig &endpoint_config, EndpointDesc &endpoint, uint32_t devPhyId = 0);
+Status ConvertToEndpointDesc(const EndpointConfig &endpoint_config, EndpointDesc &endpoint, uint32_t dev_phy_id = 0);
 
 Status CheckAddrOverlap(const AddrInfo &cur_info, const std::map<MemHandle, AddrInfo> &addr_map, bool &is_duplicate,
                         MemHandle &existing_handle);
