@@ -424,7 +424,7 @@ Status HixlClient::Connect(uint32_t timeout_ms) {
     return FAILED;
   }
 
-  HIXL_LOGI("HixlClient connect start, timeout:%u", timeout_ms);
+  HIXL_LOGI("HixlClient connect start, timeout:%u ms", timeout_ms);
   ThreadPool thread_pool("hixl_client_connect", client_handles_.size());
   std::vector<std::future<Status>> connect_futures;
   aclrtContext context = nullptr;
@@ -438,7 +438,7 @@ Status HixlClient::Connect(uint32_t timeout_ms) {
       HIXL_LOGI("HixlClient aclrtSetCurrentContext, context: %p", context);
       try {
         HIXL_CHK_STATUS_RET(HixlCSClientConnect(handle, timeout_ms),
-                            "HixlClient Connect failed for type:%s, client_handle: %p, timeout:%u",
+                            "HixlClient Connect failed for type:%s, client_handle: %p, timeout:%u ms",
                             CommTypeToString(type), handle, timeout_ms);
         return SUCCESS;
       } catch (const std::exception &e) {
@@ -452,11 +452,11 @@ Status HixlClient::Connect(uint32_t timeout_ms) {
     connect_futures.emplace_back(std::move(future));
   }
   for (auto &future : connect_futures) {
-    HIXL_CHK_STATUS_RET(future.get(), "HixlClient Connect failed, timeout:%u", timeout_ms);
+    HIXL_CHK_STATUS_RET(future.get(), "HixlClient Connect failed, timeout:%u ms", timeout_ms);
   }
-  HIXL_LOGI("HixlClient Connect success, timeout:%u", timeout_ms);
+  HIXL_LOGI("HixlClient Connect success, timeout:%u ms", timeout_ms);
 
-  HIXL_CHK_STATUS_RET(ProcessRemoteMem(timeout_ms), "HixlClient ProcessRemoteMem failed, timeout:%u", timeout_ms);
+  HIXL_CHK_STATUS_RET(ProcessRemoteMem(timeout_ms), "HixlClient ProcessRemoteMem failed, timeout:%u ms", timeout_ms);
   std::lock_guard<std::mutex> status_lock(status_mutex_);
   is_connected_ = true;
   return SUCCESS;
