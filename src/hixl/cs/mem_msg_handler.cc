@@ -263,7 +263,7 @@ Status MemMsgHandler::SendGetRemoteMemRequest(int32_t socket, uint64_t endpoint_
 
 Status MemMsgHandler::RecvGetRemoteMemResponse(int32_t socket, std::vector<HixlMemDesc> &mem_descs,
                                                uint32_t timeout_ms) {
-  HIXL_EVENT("[HixlClient] RecvGetRemoteMemResponse start. socket: %d, timeout_ms: %u", socket, timeout_ms);
+  HIXL_EVENT("[HixlClient] RecvGetRemoteMemResponse start. socket: %d, timeout_ms: %u ms", socket, timeout_ms);
   uint64_t body_size = 0;
   HIXL_CHK_STATUS_RET(RecvAndCheckHeader(socket, body_size, timeout_ms));
   std::vector<uint8_t> body;
