@@ -150,14 +150,14 @@ class HixlClient {
  private:
   Status Deserialize(const std::string &json_str, std::vector<EndpointConfig> &endpoint_list);
 
-  Status ParseJsonField(const nlohmann::json &json_obj, const std::string &field_name, std::string &field_value);
+  Status ParseJsonField(const nlohmann::json &json_obj, const std::string &field_name, std::string &field_value) const;
 
-  Status SendEndpointInfoReq(int32_t fd, CtrlMsgType msg_type);
+  Status SendEndpointInfoReq(int32_t fd, CtrlMsgType msg_type) const;
 
   Status RecvEndpointInfoResp(int32_t fd, std::vector<EndpointConfig> &remote_endpoint_list);
 
   // 解析通信类型
-  CommType ParseCommType(const std::string &local_placement, const std::string &remote_placement);
+  CommType ParseCommType(const std::string &local_placement, const std::string &remote_placement) const;
 
   bool MustUseRoce(const std::vector<EndpointConfig> &local_endpoint_list,
                    const std::vector<EndpointConfig> &remote_endpoint_list) const;
@@ -179,7 +179,7 @@ class HixlClient {
   Status CreateCsClients(const EndpointConfig &local_endpoint_config, const EndpointConfig &remote_endpoint_config,
                          CommType type);
 
-  Status GetMemType(const std::vector<SegmentPtr> &segments, uintptr_t addr, size_t len, MemType &mem_type);
+  Status GetMemType(const std::vector<SegmentPtr> &segments, uintptr_t addr, size_t len, MemType &mem_type) const;
 
   // 将 op_descs 根据 local_segments_ 和 remote_segments_ 的信息，按照 D2D，H2D，D2H，H2H 进行分类，结果保存在
   // op_descs_table
