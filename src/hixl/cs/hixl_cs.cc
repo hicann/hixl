@@ -193,7 +193,7 @@ HixlStatus HixlCSClientConnect(HixlClientHandle client_handle, uint32_t timeout_
   auto *client = static_cast<hixl::HixlCSClient *>(client_handle);
   HIXL_CHECK_NOTNULL(client);
   const auto ret = client->Connect(timeout_ms);
-  HIXL_CHK_STATUS_RET(ret, "HixlCSClientConnect failed, client_handle is %p, timeout:%u", client_handle, timeout_ms);
+  HIXL_CHK_STATUS_RET(ret, "HixlCSClientConnect failed, client_handle is %p, timeout:%u ms", client_handle, timeout_ms);
   return HIXL_SUCCESS;
 }
 
@@ -203,7 +203,7 @@ HixlStatus HixlCSClientGetRemoteMem(HixlClientHandle client_handle, HcommMem **r
   auto *client = static_cast<hixl::HixlCSClient *>(client_handle);
   HIXL_CHECK_NOTNULL(client);
   const auto ret = client->GetRemoteMem(remote_mem_list, mem_tag_list, list_num, timeout_ms);
-  HIXL_CHK_STATUS_RET(ret, "HixlCSClientGetRemoteMem failed, client_handle is %p, timeout:%u", client_handle,
+  HIXL_CHK_STATUS_RET(ret, "HixlCSClientGetRemoteMem failed, client_handle is %p, timeout:%u ms", client_handle,
                       timeout_ms);
   return HIXL_SUCCESS;
 }

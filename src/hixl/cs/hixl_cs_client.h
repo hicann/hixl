@@ -103,8 +103,6 @@ class HixlCSClient {
  public:
   HixlCSClient();
   ~HixlCSClient();
-
-
   Status Create(const char *server_ip, uint32_t server_port, const EndpointDesc *local_endpoint,
                 const EndpointDesc *remote_endpoint, const HixlClientConfig *config);
 
@@ -154,7 +152,7 @@ class HixlCSClient {
   Status AcquireUbSlot(CompletePool::SlotHandle &slot);
   Status FillUbBatchArgs(const CommunicateMem &mem_param, MemDev &mem_dev, const CompletePool::SlotHandle &slot,
                          void *remote_flag, UbBatchArgs &args);
-  Status LaunchUbAndStage(bool is_get, UbCompleteHandle &handle, void *remote_flag);
+  Status LaunchUbAndStage(bool is_get, UbCompleteHandle &handle, const void *remote_flag);
   void ReleaseLegacyHandlesLocked();
   Status ReleaseUbResourcesLocked();
  private:
@@ -196,7 +194,6 @@ class HixlCSClient {
   void *ub_func_put_ {nullptr};
   void *ub_dev_const_one_{nullptr};
   std::array<MemHandle, CompletePool::kMaxSlots> ub_notify_mem_handles_{};
-
 };
 }  // namespace hixl
 

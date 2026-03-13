@@ -159,7 +159,7 @@ hixl::Status FillExportDescFromJsonField(const nlohmann::json &j_export, hixl::H
       return hixl::PARAM_INVALID;
     }
     const int v = j_export[i].get<int>();
-    if (v < 0 || v > 255) {
+    if (v < 0 || v > UINT8_MAX) {
       HIXL_LOGE(hixl::PARAM_INVALID, "[HixlClient] export_desc[%zu]=%d out of range [0,255]", i, v);
       std::free(buf);
       return hixl::PARAM_INVALID;
@@ -207,6 +207,10 @@ hixl::Status ParseMemDescsArray(const nlohmann::json &arr, std::vector<hixl::Hix
     hixl::HixlMemDesc desc{};
     hixl::Status ret = ParseOneMemDesc(arr[i], i, desc);
     if (ret != hixl::SUCCESS) {
+      if (desc.export_desc != nullptr) {
+        std::free(desc.export_desc);
+        desc.export_desc = nullptr;
+      }
       FreeExportDesc(mem_descs);
       return ret;
     }
@@ -259,7 +263,7 @@ Status MemMsgHandler::SendGetRemoteMemRequest(int32_t socket, uint64_t endpoint_
 
 Status MemMsgHandler::RecvGetRemoteMemResponse(int32_t socket, std::vector<HixlMemDesc> &mem_descs,
                                                uint32_t timeout_ms) {
-  HIXL_EVENT("[HixlClient] RecvGetRemoteMemResponse start. socket: %d, timeout_ms: %u", socket, timeout_ms);
+  HIXL_EVENT("[HixlClient] RecvGetRemoteMemResponse start. socket: %d, timeout_ms: %u ms", socket, timeout_ms);
   uint64_t body_size = 0;
   HIXL_CHK_STATUS_RET(RecvAndCheckHeader(socket, body_size, timeout_ms));
   std::vector<uint8_t> body;

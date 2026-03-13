@@ -73,7 +73,10 @@ enum class MiniSrvMode : uint32_t {
   kGetRemoteMemResp_EmptyList,        // result=0, mem_descs=[]
   kGetRemoteMemResp_ExportDescEmpty,  // export_desc="" -> handler 会让解析后 export_len=0
   kGetRemoteMemResp_DuplicateAddr,    // 两个 mem 用同 addr -> RecordMemory(true) 冲突
-  kGetRemoteMemResp_MemImportFail
+  kGetRemoteMemResp_MemImportFail,
+  kGetRemoteMemResp_PartialArrayFail,     // 数组中途解析失败 (覆盖资源释放)
+  kGetRemoteMemResp_ExportDescOutOfRange, // export_desc 值超过 UINT8_MAX (255)
+  kGetRemoteMemResp_ExportDescNotInt      // export_desc 里面不是整数
 };
 
 class MiniServer {
@@ -397,6 +400,26 @@ class MiniServer {
     }
     if (mem_mode_ == MiniSrvMode::kGetRemoteMemResp_MemImportFail) {
       json_str = R"({"result":0,"mem_descs":[{"tag":"a","export_desc":[70,65,73,76],"mem":{"type":0,"addr":1,"size":1}}]})";
+    }
+    if (mem_mode_ == MiniSrvMode::kGetRemoteMemResp_PartialArrayFail) {
+      json_str = R"({
+        "result": 0,
+        "mem_descs": [
+          { "tag": "valid_one", "export_desc": [1, 2, 3], "mem": { "type": 0, "addr": 100, "size": 100 } },
+          { "tag": "invalid_one", "export_desc": "not_an_array_to_trigger_fail", "mem": { "type": 0, "addr": 200, "size": 200 } }
+        ]
+      })";
+      return;
+    }
+
+    if (mem_mode_ == MiniSrvMode::kGetRemoteMemResp_ExportDescOutOfRange) {
+      json_str = R"({"result":0,"mem_descs":[{"tag":"bad_val","export_desc":[256],"mem":{"type":0,"addr":1,"size":1}}]})";
+      return;
+    }
+
+    if (mem_mode_ == MiniSrvMode::kGetRemoteMemResp_ExportDescNotInt) {
+      json_str = R"({"result":0,"mem_descs":[{"tag":"bad_type","export_desc":["string_value"],"mem":{"type":0,"addr":1,"size":1}}]})";
+      return;
     }
   }
 
@@ -928,6 +951,38 @@ TEST_F(HixlCSClientUT, DestroySuccessIdempotent) {
 
   EXPECT_EQ(client_.Destroy(), SUCCESS);
   EXPECT_EQ(client_.Destroy(), SUCCESS);
+}
+
+TEST_F(HixlCSClientUT, GetRemoteMemFailPartialArrayCleansUp) {
+  StartServer(MiniSrvMode::kNormal, MiniSrvMode::kGetRemoteMemResp_PartialArrayFail);
+  CreateClient();
+  ConnectClient();
+  HcommMem *remote = nullptr;
+  char **tags = nullptr;
+  uint32_t num = kZero;
+  EXPECT_EQ(client_.GetRemoteMem(&remote, &tags, &num, kTimeOutOne), PARAM_INVALID);
+  EXPECT_EQ(remote, nullptr);
+  EXPECT_EQ(tags, nullptr);
+}
+
+TEST_F(HixlCSClientUT, GetRemoteMemFailExportDescOutOfRange) {
+  StartServer(MiniSrvMode::kNormal, MiniSrvMode::kGetRemoteMemResp_ExportDescOutOfRange);
+  CreateClient();
+  ConnectClient();
+  HcommMem *remote = nullptr;
+  char **tags = nullptr;
+  uint32_t num = kZero;
+  EXPECT_EQ(client_.GetRemoteMem(&remote, &tags, &num, kTimeOutOne), PARAM_INVALID);
+}
+
+TEST_F(HixlCSClientUT, GetRemoteMemFailExportDescNotInt) {
+  StartServer(MiniSrvMode::kNormal, MiniSrvMode::kGetRemoteMemResp_ExportDescNotInt);
+  CreateClient();
+  ConnectClient();
+  HcommMem *remote = nullptr;
+  char **tags = nullptr;
+  uint32_t num = kZero;
+  EXPECT_EQ(client_.GetRemoteMem(&remote, &tags, &num, kTimeOutOne), PARAM_INVALID);
 }
 
 }  // namespace hixl

@@ -644,7 +644,7 @@ Status HixlCSClient::FillUbBatchArgs(const CommunicateMem &mem_param, MemDev &me
   return SUCCESS;
 }
 
-Status HixlCSClient::LaunchUbAndStage(bool is_get, UbCompleteHandle &handle, void *remote_flag) {
+Status HixlCSClient::LaunchUbAndStage(bool is_get, UbCompleteHandle &handle, const void *remote_flag) {
   HIXL_CHECK_NOTNULL(remote_flag);
   const char *kernel_name = is_get ? kUbFuncGet : kUbFuncPut;
   HIXL_LOGI("[HixlClient] LaunchUbAndStageD2H start. kernel=%s", kernel_name);
