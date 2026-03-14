@@ -262,7 +262,7 @@ Status CompletePool::EnsureNotifyRecordLocked(Slot &slot, uint32_t slot_index) {
   return SUCCESS;
 }
 
-void CompletePool::ResetNotifyResourcesLocked(Slot &slot) const {
+void CompletePool::ResetNotifyResourcesLocked(Slot &slot) {
   if (slot.notify != nullptr) {
     HIXL_CHK_ACL(aclrtDestroyNotify(slot.notify));
     slot.notify = nullptr;
@@ -272,7 +272,7 @@ void CompletePool::ResetNotifyResourcesLocked(Slot &slot) const {
   slot.notify_tag.fill('\0');
 }
 
-Status CompletePool::CreateNotifyLocked(Slot &slot, uint32_t &notify_id) const {
+Status CompletePool::CreateNotifyLocked(Slot &slot, uint32_t &notify_id) {
   notify_id = 0U;
   HIXL_CHK_ACL_RET(aclrtCreateNotify(&slot.notify, ACL_NOTIFY_DEVICE_USE_ONLY),
                    "[CompletePool] aclrtCreateNotify failed");
@@ -281,7 +281,7 @@ Status CompletePool::CreateNotifyLocked(Slot &slot, uint32_t &notify_id) const {
   return SUCCESS;
 }
 
-Status CompletePool::GetNotifyAddrLocked(uint32_t notify_id, uint64_t &notify_addr, uint32_t &notify_len) const {
+Status CompletePool::GetNotifyAddrLocked(uint32_t notify_id, uint64_t &notify_addr, uint32_t &notify_len) {
   rtDevResInfo res_info{};
   res_info.dieId = 0U;
   res_info.procType = kDefaultProcType;
@@ -302,7 +302,7 @@ Status CompletePool::GetNotifyAddrLocked(uint32_t notify_id, uint64_t &notify_ad
   return SUCCESS;
 }
 
-Status CompletePool::BuildNotifyTagLocked(uint32_t slot_index, std::array<char, kNotifyTagSize> &tag) const {
+Status CompletePool::BuildNotifyTagLocked(uint32_t slot_index, std::array<char, kNotifyTagSize> &tag) {
   tag.fill('\0');
   const int nret =
       snprintf_s(tag.data(), tag.size(), tag.size() - 1U, "%s_%03u", kUbLocalNotifyTagPrefix, slot_index);
