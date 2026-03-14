@@ -491,22 +491,19 @@ Status HixlCSClient::BatchTransferHost(bool is_get, const CommunicateMem &commun
     return FAILED;
   }
   CompleteHandle *query_mem_handle = new (std::nothrow) CompleteHandle();
-  if (query_mem_handle != nullptr) {
-    query_mem_handle->magic = kRoceCompleteMagic;
-    query_mem_handle->flag_index = flag_index;
-    query_mem_handle->flag_address = flag_addr;
-    // 需要先创建query_handle实体，之后再传给指针。
-    *query_handle = query_mem_handle;
-    live_handles_[flag_index] = query_mem_handle;
-  } else {
-    if (top_index_ < kFlagQueueSize) {
-      ++top_index_;
-      available_indices_[top_index_] = query_mem_handle->flag_index;  // 回收索引
-      live_handles_[query_mem_handle->flag_index] = nullptr;
-    }
+  if (query_mem_handle == nullptr) {
     HIXL_LOGE(FAILED, "Memory allocate failed; unable to generate query handle.");
+    ++top_index_;
+    available_indices_[top_index_] = flag_index;
+    flag_queue_[flag_index] = 0;
     return FAILED;
   }
+  query_mem_handle->magic = kRoceCompleteMagic;
+  query_mem_handle->flag_index = flag_index;
+  query_mem_handle->flag_address = flag_addr;
+  // 需要先创建query_handle实体，之后再传给指针。
+  *query_handle = query_mem_handle;
+  live_handles_[flag_index] = query_mem_handle;
   return SUCCESS;
 }
 
@@ -710,9 +707,10 @@ Status HixlCSClient::BatchTransferDevice(bool is_get, const CommunicateMem &comm
   HIXL_LOGI("[HixlClient] communicate_mem_param.len_list=%p", communicate_mem_param.len_list);
   void *remote_flag = nullptr;
   HIXL_CHK_STATUS_RET(PrepareUbRemoteFlagAndKernel(remote_flag), "PrepareUbRemoteFlagAndKernel failed");
-  UbCompleteHandle *handle = new (std::nothrow) UbCompleteHandle();
+  auto *handle = new (std::nothrow) UbCompleteHandle();
   if (handle == nullptr) {
     HIXL_LOGE(FAILED, "[HixlClient][UB] new UbCompleteHandle failed");
+    // RAII guards (slot_guard, mem_guard) will automatically clean up resources on return
     return FAILED;
   }
   HIXL_DISMISSABLE_GUARD(handle_guard, [handle]() { delete handle; });

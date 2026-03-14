@@ -142,57 +142,41 @@ bool HixlMemStore::CheckMemoryForAccess(bool is_server, const void *check_addr, 
 }
 
 bool HixlMemStore::CheckMergedRegionsAccess(const std::map<const void *, MemoryRegion> &regions, uintptr_t s,
-                                            uintptr_t e, typename std::map<const void *, MemoryRegion>::const_iterator it) {
-  auto contains = [s, e](const MemoryRegion &r) {
-    auto rs = reinterpret_cast<uintptr_t>(r.addr);
-    auto re = rs + r.size;
-    return (s >= rs) && (e <= re);
-  };
+                                            uintptr_t e,
+                                            typename std::map<const void *, MemoryRegion>::const_iterator it) {
+  auto get_addr = [](const MemoryRegion &r) { return reinterpret_cast<uintptr_t>(r.addr); };
+  auto contains = [s, e, get_addr](const MemoryRegion &r) { return (s >= get_addr(r)) && (e <= get_addr(r) + r.size); };
 
+  // Find contiguous region from it backward
   auto start_it = it;
-  auto end_it = it;
-
   while (start_it != regions.begin()) {
     auto prev_it = std::prev(start_it);
-    auto &prev = prev_it->second;
-    auto &curr = start_it->second;
-    uintptr_t prev_end = reinterpret_cast<uintptr_t>(prev.addr) + prev.size;
-    uintptr_t curr_start = reinterpret_cast<uintptr_t>(curr.addr);
-    if (prev_end == curr_start) {
-      start_it = prev_it;
-    } else {
+    if (get_addr(prev_it->second) + prev_it->second.size != get_addr(start_it->second)) {
       break;
     }
+    start_it = prev_it;
   }
 
+  // Find contiguous region from it forward
+  auto end_it = it;
   while (end_it != regions.end()) {
     auto next_it = std::next(end_it);
-    if (next_it == regions.end()) {
+    if (next_it == regions.end() || get_addr(end_it->second) + end_it->second.size != get_addr(next_it->second)) {
       break;
     }
-    auto &curr = end_it->second;
-    auto &next = next_it->second;
-    uintptr_t curr_end = reinterpret_cast<uintptr_t>(curr.addr) + curr.size;
-    uintptr_t next_start = reinterpret_cast<uintptr_t>(next.addr);
-    if (curr_end == next_start) {
-      end_it = next_it;
-    } else {
-      break;
-    }
+    end_it = next_it;
   }
 
-  if (start_it == end_it) {
+  if (start_it == end_it || end_it == regions.end()) {
     return false;
   }
 
-  auto &first = start_it->second;
-  auto &last = end_it->second;
-  uintptr_t merged_start = reinterpret_cast<uintptr_t>(first.addr);
-  uintptr_t merged_end = reinterpret_cast<uintptr_t>(last.addr) + last.size;
-  MemoryRegion merged(first.addr, merged_end - merged_start);
+  auto merged_start = get_addr(start_it->second);
+  auto merged_end = get_addr(end_it->second) + end_it->second.size;
+  MemoryRegion merged(start_it->second.addr, merged_end - merged_start);
 
   if (contains(merged)) {
-    HIXL_LOGI("Merged regions for access check: [%p, %p)", first.addr, reinterpret_cast<void *>(merged_end));
+    HIXL_LOGI("Merged regions for access check: [%p, %p)", start_it->second.addr, reinterpret_cast<void *>(merged_end));
     return true;
   }
   return false;
