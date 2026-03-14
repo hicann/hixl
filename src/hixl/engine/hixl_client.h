@@ -148,9 +148,9 @@ class HixlClient {
   Status GetTransferStatus(const TransferReq &req, TransferStatus &status);
 
  private:
-  Status Deserialize(const std::string &json_str, std::vector<EndpointConfig> &endpoint_list);
+  static Status Deserialize(const std::string &json_str, std::vector<EndpointConfig> &endpoint_list);
 
-  Status ParseJsonField(const nlohmann::json &json_obj, const std::string &field_name, std::string &field_value) const;
+  static Status ParseJsonField(const nlohmann::json &json_obj, const std::string &field_name, std::string &field_value);
 
   Status SendEndpointInfoReq(int32_t fd, CtrlMsgType msg_type) const;
 

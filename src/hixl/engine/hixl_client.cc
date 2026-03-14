@@ -177,7 +177,7 @@ Status HixlClient::Deserialize(const std::string &json_str, std::vector<Endpoint
 }
 
 Status HixlClient::ParseJsonField(const nlohmann::json &json_obj, const std::string &field_name,
-                                  std::string &field_value) const {
+                                  std::string &field_value) {
   if (!json_obj.contains(field_name)) {
     HIXL_LOGE(PARAM_INVALID, "Missing required field '%s' in EndpointConfig", field_name.c_str());
     return PARAM_INVALID;

@@ -76,11 +76,11 @@ class CompletePool {
   void InitFreeListLocked();
   Status InitOneSlotLocked(Slot &slot, uint32_t slot_index, int32_t device_id, CommEngine engine, uint32_t thread_num,
                            uint32_t notify_num_per_thread);
-  Status EnsureNotifyRecordLocked(Slot &slot, uint32_t slot_index);
-  void ResetNotifyResourcesLocked(Slot &slot) const;
-  Status CreateNotifyLocked(Slot &slot, uint32_t &notify_id) const;
-  Status GetNotifyAddrLocked(uint32_t notify_id, uint64_t &notify_addr, uint32_t &notify_len) const;
-  Status BuildNotifyTagLocked(uint32_t slot_index, std::array<char, kNotifyTagSize> &tag) const;
+  static Status EnsureNotifyRecordLocked(Slot &slot, uint32_t slot_index);
+  static void ResetNotifyResourcesLocked(Slot &slot);
+  static Status CreateNotifyLocked(Slot &slot, uint32_t &notify_id);
+  static Status GetNotifyAddrLocked(uint32_t notify_id, uint64_t &notify_addr, uint32_t &notify_len);
+  static Status BuildNotifyTagLocked(uint32_t slot_index, std::array<char, kNotifyTagSize> &tag);
   Status InitAllSlotsLocked(int32_t device_id, CommEngine engine, uint32_t thread_num, uint32_t notify_num_per_thread);
   void DeinitAllSlotsLocked();
   Status EnsureContextLocked(Slot &slot, int32_t device_id) const;
