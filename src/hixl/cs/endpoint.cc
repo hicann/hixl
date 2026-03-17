@@ -28,6 +28,15 @@ Status Endpoint::Initialize() {
   HIXL_CHECK_NOTNULL(HcommChannelCreate);
   HIXL_CHECK_NOTNULL(HcommChannelDestroy);
   HIXL_CHECK_NOTNULL(HcommChannelGetStatus);
+  HIXL_CHECK_NOTNULL(HcommWriteNbiOnThread);
+  HIXL_CHECK_NOTNULL(HcommReadNbiOnThread);
+  HIXL_CHECK_NOTNULL(HcommThreadAlloc);
+  HIXL_CHECK_NOTNULL(HcommThreadFree);
+  HIXL_CHECK_NOTNULL(HcommBatchModeStart);
+  HIXL_CHECK_NOTNULL(HcommBatchModeEnd);
+  HIXL_CHECK_NOTNULL(HcommReadOnThread);
+  HIXL_CHECK_NOTNULL(HcommWriteOnThread);
+  HIXL_CHECK_NOTNULL(HcommChannelFenceOnThread);
 
   std::lock_guard<std::mutex> lock(mutex_);
   HIXL_LOGI("HcommEndpointCreate start, protocol:%d, devPhyId:%u",
