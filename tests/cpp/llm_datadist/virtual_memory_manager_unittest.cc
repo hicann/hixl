@@ -178,9 +178,7 @@ TEST_F(VirtualMemoryManagerTest, SetVirtualMemoryCapacity_Success) {
   manager.SetVirtualMemoryCapacity(kCustomCapacityTB);
   EXPECT_EQ(manager.Initialize(), SUCCESS);
 
-  // Try to allocate memory to verify capacity
   uintptr_t addr = 0;
-  // Try to allocate 1GB - should succeed
   EXPECT_EQ(manager.ReserveMemory(kTestSize1GB, addr), SUCCESS);
   EXPECT_NE(addr, 0);
   EXPECT_EQ(manager.ReleaseMemory(addr), SUCCESS);
@@ -190,16 +188,37 @@ TEST_F(VirtualMemoryManagerTest, SetVirtualMemoryCapacity_AfterInitialized_Fails
   VirtualMemoryManager& manager = VirtualMemoryManager::GetInstance();
   EXPECT_EQ(manager.Initialize(), SUCCESS);
 
-  // Try to set capacity after initialization - should fail silently
   constexpr size_t kCustomCapacityTB = 64UL;
   manager.SetVirtualMemoryCapacity(kCustomCapacityTB);
 
-  // The capacity should not change, try to allocate more than default capacity
-  // Default capacity is 64TB (kDefaultNumBlocks = 64 * 1024 blocks = 64TB)
-  // So allocating 65TB should fail
   constexpr size_t k65TB = 65UL * 1024UL * 1024UL * 1024UL * 1024UL;
   uintptr_t addr = 0;
   EXPECT_EQ(manager.ReserveMemory(k65TB, addr), RESOURCE_EXHAUSTED);
+}
+
+TEST_F(VirtualMemoryManagerTest, SetGlobalStartAddress_Success) {
+  VirtualMemoryManager& manager = VirtualMemoryManager::GetInstance();
+  constexpr size_t kCustomStartAddrTB = 100UL;
+  EXPECT_EQ(manager.SetGlobalStartAddress(kCustomStartAddrTB), SUCCESS);
+  EXPECT_EQ(manager.Initialize(), SUCCESS);
+
+  uintptr_t addr = 0;
+  EXPECT_EQ(manager.ReserveMemory(kTestSize1GB, addr), SUCCESS);
+  EXPECT_NE(addr, 0);
+  EXPECT_EQ(manager.ReleaseMemory(addr), SUCCESS);
+}
+
+TEST_F(VirtualMemoryManagerTest, SetGlobalStartAddress_AfterInitialized_Fails) {
+  VirtualMemoryManager& manager = VirtualMemoryManager::GetInstance();
+  EXPECT_EQ(manager.Initialize(), SUCCESS);
+
+  EXPECT_EQ(manager.SetGlobalStartAddress(50UL), PARAM_INVALID);
+}
+
+TEST_F(VirtualMemoryManagerTest, SetGlobalStartAddress_OutOfRange_Fails) {
+  VirtualMemoryManager& manager = VirtualMemoryManager::GetInstance();
+  EXPECT_EQ(manager.SetGlobalStartAddress(39UL), PARAM_INVALID);
+  EXPECT_EQ(manager.SetGlobalStartAddress(221UL), PARAM_INVALID);
 }
 
 }  // namespace adxl

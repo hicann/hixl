@@ -24,6 +24,9 @@ constexpr size_t kDefaultNumBlocks = 96UL * 1024UL; // 96T
 constexpr size_t kDefaultGlobalVirtualMemorySize = kBlockSize * kDefaultNumBlocks;
 constexpr size_t kGlobalVirtualMemoryStartAddr = kBlockSize * 1024UL * 40UL; // 40T
 constexpr uint64_t kReserveFlagHugePage = 1UL;
+constexpr size_t kBytesPerTB = 1024UL * 1024UL * 1024UL * 1024UL;
+constexpr size_t kMinGlobalStartAddrTB = 40UL;
+constexpr size_t kMaxGlobalStartAddrTB = 220UL;
 }  // namespace
 VirtualMemoryManager &VirtualMemoryManager::GetInstance() {
   static VirtualMemoryManager instance;
@@ -34,22 +37,47 @@ VirtualMemoryManager::~VirtualMemoryManager() {
   Finalize();
 }
 
-void VirtualMemoryManager::SetVirtualMemoryCapacity(size_t capacity_in_tb) {
+Status VirtualMemoryManager::SetVirtualMemoryCapacity(size_t capacity_in_tb) {
   std::lock_guard<std::mutex> lock(global_virtual_memory_mutex_);
   if (initialized_) {
+    const size_t requested = capacity_in_tb * kBytesPerTB;
+    if (vm_size_ == requested) {
+      return SUCCESS;  // Idempotent: same value already configured
+    }
     LLMLOGE(PARAM_INVALID, "VirtualMemoryManager already initialized, cannot set capacity");
-    return;
+    return PARAM_INVALID;
   }
-  // Convert TB to bytes: 1TB = 1024GB = 1024 * 1024 * 1024 * 1024 bytes
-  constexpr size_t kBytesPerTB = 1024UL * 1024UL * 1024UL * 1024UL;
   vm_size_ = capacity_in_tb * kBytesPerTB;
   num_blocks_ = vm_size_ / kBlockSize;
   LLMLOGI("Set virtual memory capacity to %zu TB (%zu bytes, %zu blocks)",
           capacity_in_tb, vm_size_, num_blocks_);
+  return SUCCESS;
+}
+
+Status VirtualMemoryManager::SetGlobalStartAddress(size_t start_addr_in_tb) {
+  std::lock_guard<std::mutex> lock(global_virtual_memory_mutex_);
+  if (initialized_) {
+    const uintptr_t requested = start_addr_in_tb * kBytesPerTB;
+    if (global_start_va_ == requested) {
+      return SUCCESS;  // Idempotent: same value already configured
+    }
+    LLMLOGE(PARAM_INVALID, "VirtualMemoryManager already initialized, cannot set global start address");
+    return PARAM_INVALID;
+  }
+  if (start_addr_in_tb < kMinGlobalStartAddrTB || start_addr_in_tb > kMaxGlobalStartAddrTB) {
+    LLMLOGE(PARAM_INVALID, "global_start_va must be in range [%zu, %zu] TB, got %zu",
+            kMinGlobalStartAddrTB, kMaxGlobalStartAddrTB, start_addr_in_tb);
+    return PARAM_INVALID;
+  }
+  global_start_va_ = start_addr_in_tb * kBytesPerTB;
+  LLMLOGI("Set global virtual memory start address to %zu TB (%zu bytes)",
+          start_addr_in_tb, global_start_va_);
+  return SUCCESS;
 }
 
 Status VirtualMemoryManager::ReserveMemAddress(void *&virtual_address, size_t size) {
-  void *global_start_va = llm::ValueToPtr(kGlobalVirtualMemoryStartAddr);
+  const uintptr_t start_va = (global_start_va_ != 0) ? global_start_va_ : kGlobalVirtualMemoryStartAddr;
+  void *global_start_va = llm::ValueToPtr(start_va);
   auto ret = aclrtReserveMemAddressNoUCMemory(&virtual_address, size, 0, global_start_va,
                                               kReserveFlagHugePage);
   if (ret == ACL_ERROR_RT_FEATURE_NOT_SUPPORT) {
@@ -68,6 +96,11 @@ Status VirtualMemoryManager::Initialize() {
   if (initialized_) {
     return SUCCESS;
   }
+  ADXL_CHK_STATUS_RET(InitProcess());
+  return SUCCESS;
+}
+
+Status VirtualMemoryManager::InitProcess() {
   // Use user-set capacity if already set, otherwise use default
   if (vm_size_ == 0) {
     vm_size_ = kDefaultGlobalVirtualMemorySize;
@@ -110,9 +143,7 @@ Status VirtualMemoryManager::ReserveMemory(size_t size, uintptr_t &mem_addr) {
   }
 
   if (!initialized_) {
-    ADXL_CHK_STATUS_RET(ReserveMemAddress(global_virtual_memory_, vm_size_));
-    global_virtual_memory_addr_ = llm::PtrToValue(global_virtual_memory_);
-    initialized_ = true;
+    ADXL_CHK_STATUS_RET(InitProcess());
   }
 
   // Calculate number of 1GB blocks needed (round up)
