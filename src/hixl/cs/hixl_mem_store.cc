@@ -143,15 +143,18 @@ bool HixlMemStore::CheckMemoryForAccess(bool is_server, const void *check_addr, 
 
 bool HixlMemStore::CheckMergedRegionsAccess(const std::map<const void *, MemoryRegion> &regions, uintptr_t s,
                                             uintptr_t e,
-                                            typename std::map<const void *, MemoryRegion>::const_iterator it) {
+                                            std::map<const void *, MemoryRegion>::const_iterator it) {
   auto get_addr = [](const MemoryRegion &r) { return reinterpret_cast<uintptr_t>(r.addr); };
-  auto contains = [s, e, get_addr](const MemoryRegion &r) { return (s >= get_addr(r)) && (e <= get_addr(r) + r.size); };
+  auto get_region_end = [&get_addr](const MemoryRegion &r) { return get_addr(r) + r.size; };
+  auto contains = [s, e, get_addr, get_region_end](const MemoryRegion &r) {
+    return (s >= get_addr(r)) && (e <= get_region_end(r));
+  };
 
   // Find contiguous region from it backward
   auto start_it = it;
   while (start_it != regions.begin()) {
     auto prev_it = std::prev(start_it);
-    if (get_addr(prev_it->second) + prev_it->second.size != get_addr(start_it->second)) {
+    if (get_region_end(prev_it->second) != get_addr(start_it->second)) {
       break;
     }
     start_it = prev_it;
@@ -161,7 +164,7 @@ bool HixlMemStore::CheckMergedRegionsAccess(const std::map<const void *, MemoryR
   auto end_it = it;
   while (end_it != regions.end()) {
     auto next_it = std::next(end_it);
-    if (next_it == regions.end() || get_addr(end_it->second) + end_it->second.size != get_addr(next_it->second)) {
+    if (next_it == regions.end() || get_region_end(end_it->second) != get_addr(next_it->second)) {
       break;
     }
     end_it = next_it;
@@ -172,11 +175,11 @@ bool HixlMemStore::CheckMergedRegionsAccess(const std::map<const void *, MemoryR
   }
 
   auto merged_start = get_addr(start_it->second);
-  auto merged_end = get_addr(end_it->second) + end_it->second.size;
+  auto merged_end = get_region_end(end_it->second);
   MemoryRegion merged(start_it->second.addr, merged_end - merged_start);
 
   if (contains(merged)) {
-    HIXL_LOGI("Merged regions for access check: [%p, %p)", start_it->second.addr, reinterpret_cast<void *>(merged_end));
+    HIXL_LOGI("Merged regions for access check: [%p, 0x%lx)", start_it->second.addr, merged_end);
     return true;
   }
   return false;
