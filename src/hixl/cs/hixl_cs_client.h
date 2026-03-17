@@ -125,6 +125,7 @@ class HixlCSClient {
   Status Destroy();
 
  private:
+  void ReleaseFlagIndex(int32_t flag_index);
   Status InitBaseClient(const char *server_ip, uint32_t server_port,
                         const EndpointDesc &local_endpoint, const EndpointDesc &remote_endpoint);
   Status InitUbResource();
