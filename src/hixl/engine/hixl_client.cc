@@ -109,7 +109,7 @@ Status HixlClient::SendEndpointInfoReq(int32_t fd, CtrlMsgType msg_type) const {
   return SUCCESS;
 }
 
-Status HixlClient::RecvEndpointInfoResp(int32_t fd, std::vector<EndpointConfig> &remote_endpoint_list) {
+Status HixlClient::RecvEndpointInfoResp(int32_t fd, std::vector<EndpointConfig> &remote_endpoint_list) const {
   CtrlMsgHeader header{};
   HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Recv(fd, &header, static_cast<uint32_t>(sizeof(header)), kCtrlMsgPluginTimeoutMs),
                       "HixlClient receive header failed, fd:%d", fd);
