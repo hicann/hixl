@@ -154,7 +154,7 @@ class HixlClient {
 
   Status SendEndpointInfoReq(int32_t fd, CtrlMsgType msg_type) const;
 
-  Status RecvEndpointInfoResp(int32_t fd, std::vector<EndpointConfig> &remote_endpoint_list);
+  Status RecvEndpointInfoResp(int32_t fd, std::vector<EndpointConfig> &remote_endpoint_list) const;
 
   // 解析通信类型
   CommType ParseCommType(const std::string &local_placement, const std::string &remote_placement) const;
