@@ -173,6 +173,7 @@ Atlas A3 训练系列产品/Atlas A3 推理系列产品：该场景下采用HCCS
 ```
 { 
     "fabric_memory.max_capacity": 128, //虚拟内存池的大小。取值范围：(0, 1042]之间的整数，默认值：64，单位TB。
+    "fabric_memory.start_address": "40", //虚拟内存池起始地址。取值范围：[40, 220]之间的整数，默认值：40，单位TB。
     "fabric_memory.task_stream_num": 1, //单个传输任务使用的流数量。取值范围：[1, 8]之间的整数，默认值：4。
 }
 ```

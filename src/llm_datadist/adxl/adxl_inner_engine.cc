@@ -122,13 +122,31 @@ Status AdxlInnerEngine::ParseFabricMemoryCapacity(const std::map<AscendString, A
                     "Invalid max_fabric_memory_capacity: %s", fabric_mem_it->second.GetString());
     ADXL_CHK_BOOL_RET_STATUS(capacity_tb > 0, PARAM_INVALID,
                             "max_fabric_memory_capacity must be > 0 TB, got %zu", capacity_tb);
-    // Set reasonable upper limit: 1024 TB (1 PB)
     constexpr size_t kMaxCapacityTB = 1024UL;
     ADXL_CHK_BOOL_RET_STATUS(capacity_tb <= kMaxCapacityTB, PARAM_INVALID,
                             "max_fabric_memory_capacity exceeds maximum %zu TB, got %zu",
                             kMaxCapacityTB, capacity_tb);
-    VirtualMemoryManager::GetInstance().SetVirtualMemoryCapacity(capacity_tb);
+    ADXL_CHK_STATUS_RET(VirtualMemoryManager::GetInstance().SetVirtualMemoryCapacity(capacity_tb),
+                        "Failed to set fabric memory capacity");
     LLMLOGI("Set fabric memory capacity to %zu TB", capacity_tb);
+  }
+  return SUCCESS;
+}
+
+Status AdxlInnerEngine::ParseFabricMemoryStartAddress(const std::map<AscendString, AscendString>& json_options) const {
+  auto start_addr_it = json_options.find(adxl::OPTION_FABRIC_MEMORY_START_ADDRESS_TB);
+  if (start_addr_it != json_options.end()) {
+    size_t start_addr_tb = 0;
+    ADXL_CHK_LLM_RET(llm::LLMUtils::ToNumber(start_addr_it->second.GetString(), start_addr_tb),
+                    "Invalid fabric_memory.start_address: %s", start_addr_it->second.GetString());
+    constexpr size_t kMinStartAddrTB = 40UL;
+    constexpr size_t kMaxStartAddrTB = 220UL;
+    ADXL_CHK_BOOL_RET_STATUS(start_addr_tb >= kMinStartAddrTB && start_addr_tb <= kMaxStartAddrTB, PARAM_INVALID,
+                            "fabric_memory.start_address must be in [%zu, %zu] TB, got %zu",
+                            kMinStartAddrTB, kMaxStartAddrTB, start_addr_tb);
+    ADXL_CHK_STATUS_RET(VirtualMemoryManager::GetInstance().SetGlobalStartAddress(start_addr_tb),
+                        "Failed to set fabric memory global start address");
+    LLMLOGI("Set fabric memory global start address to %zu TB", start_addr_tb);
   }
   return SUCCESS;
 }
@@ -180,6 +198,7 @@ Status AdxlInnerEngine::LoadGlobalResourceConfig(const std::map<AscendString, As
 
   ADXL_CHK_STATUS_RET(ParseChannelPoolConfig(json_options), "Failed to parse channel pool config.");
   ADXL_CHK_STATUS_RET(ParseFabricMemoryCapacity(json_options), "Failed to parse fabric memory capacity.");
+  ADXL_CHK_STATUS_RET(ParseFabricMemoryStartAddress(json_options), "Failed to parse fabric memory start address.");
   ADXL_CHK_STATUS_RET(ParseTaskStreamNum(json_options), "Failed to parse task stream num.");
 
   return SUCCESS;

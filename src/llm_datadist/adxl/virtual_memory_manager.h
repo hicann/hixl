@@ -31,11 +31,13 @@ class VirtualMemoryManager {
   void Finalize();
   Status ReserveMemory(size_t size, uintptr_t &mem_addr);
   Status ReleaseMemory(uintptr_t mem_addr);
-  void SetVirtualMemoryCapacity(size_t capacity_in_tb);
-  static Status ReserveMemAddress(void *&virtual_address, size_t size);
+  Status SetVirtualMemoryCapacity(size_t capacity_in_tb);
+  Status SetGlobalStartAddress(size_t start_addr_in_tb);
+  Status ReserveMemAddress(void *&virtual_address, size_t size);
 
  private:
   VirtualMemoryManager() = default;
+  Status InitProcess();
 
   std::vector<bool> bitmap_;
 
@@ -50,6 +52,7 @@ class VirtualMemoryManager {
   uintptr_t global_virtual_memory_addr_{};
   size_t vm_size_ = 0;
   size_t num_blocks_ = 0;
+  uintptr_t global_start_va_ = 0;  // 0 means use default 40T
 };
 }  // namespace adxl
 
