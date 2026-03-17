@@ -99,12 +99,9 @@ HcclResult HcommChannelGetStatus(const ChannelHandle *channelList, uint32_t list
   return HCCL_SUCCESS;
 }
 
-int32_t HcommChannelFence(ChannelHandle channel) {
-  (void)channel;
-  return HCCL_SUCCESS;
-}
 
-int32_t HcommWriteNbi(ChannelHandle channel, void *dst, void *src, uint64_t len) {
+int32_t HcommWriteNbiOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, void *src, uint64_t len) {
+  (void)thread;
   (void)channel;
   if (dst == nullptr || src == nullptr || len == 0) {
     return HCCL_E_PARA;
@@ -115,7 +112,8 @@ int32_t HcommWriteNbi(ChannelHandle channel, void *dst, void *src, uint64_t len)
   return HCCL_SUCCESS;
 }
 
-int32_t HcommReadNbi(ChannelHandle channel, void *dst, void *src, uint64_t len) {
+int32_t HcommReadNbiOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, void *src, uint64_t len) {
+  (void)thread;
   (void)channel;
   if (dst == nullptr || src == nullptr || len == 0) {
     return HCCL_E_PARA;
