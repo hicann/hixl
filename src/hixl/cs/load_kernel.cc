@@ -74,7 +74,7 @@ Status LoadBinaryFromJson(const char *json_path, aclrtBinHandle &bin_handle) {
   return SUCCESS;
 }
 
-Status GetFuncHandle(const aclrtBinHandle bin_handle, const char *func_name, aclrtFuncHandle &func_handle) {
+Status GetFuncHandle(aclrtBinHandle bin_handle, const char *func_name, aclrtFuncHandle &func_handle) {
   if (bin_handle == nullptr) {
     return PARAM_INVALID;
   }

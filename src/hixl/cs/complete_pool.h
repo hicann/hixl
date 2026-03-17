@@ -75,7 +75,7 @@ class CompletePool {
   void ResetInitParamsLocked();
   void InitFreeListLocked();
   Status InitOneSlotLocked(Slot &slot, uint32_t slot_index, int32_t device_id, CommEngine engine, uint32_t thread_num,
-                           uint32_t notify_num_per_thread);
+                           uint32_t notify_num_per_thread) const;
   static Status EnsureNotifyRecordLocked(Slot &slot, uint32_t slot_index);
   static void ResetNotifyResourcesLocked(Slot &slot);
   static Status CreateNotifyLocked(Slot &slot, uint32_t &notify_id);
