@@ -19,6 +19,12 @@
 #include "scope_guard.h"
 
 namespace hixl {
+namespace {
+constexpr int32_t kKeepAlive = 1;  // 启用 keepalive 机制
+constexpr int32_t kTcpKeepIdle = 60;  // 连接空闲 60 秒后开始发送 keepalive 探测包
+constexpr int32_t kTcpKeepIntvl = 10;  // keepalive 探测包发送间隔
+constexpr int32_t kTcpKeepCnt = 6;  // 连续 6 次探测失败后认为连接断开
+}  // namespace
 void CtrlMsgPlugin::Initialize() {
   (void) std::signal(SIGPIPE, SIG_IGN);
 }
@@ -289,6 +295,22 @@ Status CtrlMsgPlugin::Recv(int32_t fd, void *buf, size_t len, uint32_t timeout_m
     nbytes -= rc;
   }
   HIXL_LOGI("Socket read completed: %zu bytes, fd:%d", len, fd);
+  return SUCCESS;
+}
+
+Status CtrlMsgPlugin::SetTcpKeepAlive(int32_t fd) {
+  HIXL_CHK_BOOL_RET_STATUS(setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &kKeepAlive, sizeof(kKeepAlive)) == 0,
+                           FAILED, "Failed to set SO_KEEPALIVE, fd:%d, errno:%d", fd, errno);
+  HIXL_CHK_BOOL_RET_STATUS(setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &kTcpKeepIdle, sizeof(kTcpKeepIdle)) == 0,
+                           FAILED, "Failed to set TCP_KEEPIDLE, fd:%d, errno:%d", fd, errno);
+  HIXL_CHK_BOOL_RET_STATUS(setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &kTcpKeepIntvl, sizeof(kTcpKeepIntvl)) == 0,
+                           FAILED, "Failed to set TCP_KEEPINTVL, fd:%d, errno:%d", fd, errno);
+  HIXL_CHK_BOOL_RET_STATUS(setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &kTcpKeepCnt, sizeof(kTcpKeepCnt)) == 0,
+                           FAILED, "Failed to set TCP_KEEPCNT, fd:%d, errno:%d", fd, errno);
+
+  HIXL_EVENT("[HixlServer] set tcp keep alive success, fd:%d, keep_idle:%d, keep_intvl:%d, keep_cnt:%d", fd,
+             kTcpKeepIdle, kTcpKeepIntvl, kTcpKeepCnt);
+
   return SUCCESS;
 }
 }  // namespace hixl

@@ -13,6 +13,7 @@
 #include <memory>
 #include <string>
 #include <map>
+#include <vector>
 #include <stdarg.h>
 #include "dlog_pub.h"
 namespace llm {
@@ -85,6 +86,61 @@ class SlogStub {
       {HCCL, "HCCL"},
       {RUNTIME, "RUNTIME"}
   };
+};
+
+/**
+ * @class LogCaptureStub
+ * @brief 通用日志捕获Stub，用于测试中捕获特定模式的日志
+ */
+class LogCaptureStub : public SlogStub {
+ public:
+  /**
+   * @brief 构造函数
+   */
+  LogCaptureStub();
+ 
+  /**
+   * @brief 析构函数
+   */
+  virtual ~LogCaptureStub();
+ 
+  /**
+   * @brief 日志处理函数
+   * @param module_id 模块ID
+   * @param level 日志级别
+   * @param fmt 日志格式
+   * @param args 日志参数
+   */
+  void Log(int module_id, int level, const char *fmt, va_list args) override;
+ 
+  /**
+   * @brief 添加要捕获的日志模式
+   * @param pattern 日志模式字符串
+   */
+  void AddCapturePattern(const std::string &pattern);
+ 
+  /**
+   * @brief 检查是否捕获到指定模式的日志
+   * @param pattern 日志模式字符串，如果为空则检查是否捕获到任何模式的日志
+   * @return 是否捕获到指定模式的日志
+   */
+  bool IsPatternCaptured(const std::string &pattern = "") const;
+ 
+  /**
+   * @brief 获取捕获到的日志
+   * @return 捕获到的日志列表
+   */
+  const std::vector<std::string> &GetCapturedLogs() const;
+ 
+  /**
+   * @brief 重置捕获状态
+   */
+  void Reset();
+ 
+ private:
+  std::vector<std::string> capture_patterns_;  // 要捕获的日志模式
+  std::vector<std::string> captured_logs_;     // 捕获到的日志
+  std::vector<bool> pattern_captured_;         // 每个模式的捕获状态
 };
 }  // namespace llm
 #endif  // AIR_CXX_TESTS_DEPENDS_SLOG_SRC_SLOG_STUB_H_

@@ -57,6 +57,7 @@ class HixlCSServer {
                                       const CreateChannelResp &resp);
   static Status SendRemoteMemResp(int32_t fd,
                                   const GetRemoteMemResp &resp);
+  void CleanupClient(int32_t fd);
 
   std::string ip_;
   uint32_t port_ = 0U;

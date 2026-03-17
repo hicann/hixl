@@ -70,6 +70,7 @@ target_include_directories(hixl_test PRIVATE
         ${HIXL_CODE_DIR}/src/ops
         ${HIXL_CODE_DIR}/tests
         ${HIXL_CODE_DIR}/tests/depends/ascendcl/src
+        ${HIXL_CODE_DIR}/tests/depends/slog/src
         )
 
 set_target_properties(hixl_test PROPERTIES CXX_STANDARD 17)

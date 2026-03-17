@@ -28,11 +28,10 @@ enum class CtrlMsgType : int32_t {
   kCreateChannelResp = 2,
   kGetRemoteMemReq = 3,
   kGetRemoteMemResp = 4,
-  kDestroyChannelReq = 5,
-  kGetEndpointInfoReq = 6,
-  kGetEndpointInfoResp = 7,
-  kGetCacheTableReq = 8,
-  kGetCacheTableResp = 9,
+  kGetEndpointInfoReq = 5,
+  kGetEndpointInfoResp = 6,
+  kGetCacheTableReq = 7,
+  kGetCacheTableResp = 8,
   kEnd
 };
 
