@@ -233,7 +233,7 @@ Status CompletePool::InitAllSlotsLocked(int32_t device_id, CommEngine engine, ui
 }
 
 Status CompletePool::InitOneSlotLocked(Slot &slot, uint32_t slot_index, int32_t device_id, CommEngine engine,
-                                       uint32_t thread_num, uint32_t notify_num_per_thread) {
+                                       uint32_t thread_num, uint32_t notify_num_per_thread) const {
   HIXL_CHK_STATUS_RET(EnsureContextLocked(slot, device_id), "[CompletePool] EnsureContextLocked failed");
   HIXL_CHK_STATUS_RET(EnsureStreamLocked(slot), "[CompletePool] EnsureStreamLocked failed");
   HIXL_CHK_STATUS_RET(EnsureThreadLocked(slot, engine, thread_num, notify_num_per_thread),
