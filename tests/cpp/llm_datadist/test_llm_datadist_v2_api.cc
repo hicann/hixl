@@ -483,6 +483,37 @@ TEST_F(LlmDataDistSTest, TestUseHixlBackendA5) {
   llm_datadist_d.Finalize();
 }
 
+TEST_F(LlmDataDistSTest, TestUseHixlBackendA3RepeatedInit) {
+  LlmDataDist llm_datadist_p(1U, LlmRole::kPrompt);
+  std::map<AscendString, AscendString> options_p;
+  options_p[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26000";
+  options_p[llm_datadist::OPTION_DEVICE_ID] = "0";
+  options_p[llm_datadist::OPTION_TRANSFER_BACKEND] = "hixl";
+
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  EXPECT_EQ(llm_datadist_p.Initialize(options_p), SUCCESS);
+
+  LlmDataDist llm_datadist_d(2U, LlmRole::kDecoder);
+  std::map<AscendString, AscendString> options_d;
+  options_d[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26001";
+  options_d[llm_datadist::OPTION_DEVICE_ID] = "1";
+  options_d[llm_datadist::OPTION_TRANSFER_BACKEND] = "hixl";
+
+  llm::AutoCommResRuntimeMock::SetDevice(1);
+  EXPECT_EQ(llm_datadist_d.Initialize(options_d), SUCCESS);
+
+  // link
+  ClusterInfo cluster_info{1, 0, {{"127.0.0.1", 26000}}, {{"127.0.0.1", 26000}}};
+  std::vector<ge::Status> rets;
+  EXPECT_EQ(llm_datadist_d.LinkLlmClusters({cluster_info}, rets), ge::SUCCESS);
+
+  // repeat link
+  EXPECT_EQ(llm_datadist_d.LinkLlmClusters({cluster_info}, rets), LLM_ALREADY_LINK);
+
+  llm_datadist_p.Finalize();
+  llm_datadist_d.Finalize();
+}
+
 TEST_F(LlmDataDistSTest, TestAutoLocalCommResMix) {
   LlmDataDist llm_datadist_p(1U, LlmRole::kPrompt);
   std::map<AscendString, AscendString> options_p;

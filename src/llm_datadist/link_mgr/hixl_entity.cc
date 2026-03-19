@@ -23,15 +23,14 @@ ge::Status HixlEntity::Initialize(int32_t timeout_ms) {
   auto &cache_access_table = GetCacheAccessTable();
   LLM_CHK_STATUS_RET(cache_access_table.Initialize(true), "Failed to init cache_access_table");
   remote_engine_ = remote_ip_ + ":" + std::to_string(remote_port_);
-  LLM_CHK_BOOL_RET_STATUS(engine_->Connect(remote_engine_.c_str(), timeout_ms) == hixl::SUCCESS, ge::FAILED,
-                          "Failed to connect to remote engine, remote_engine:%s, timeout:%d ms.",
-                          remote_engine_.c_str(), timeout_ms);
+  LLM_CHK_HIXL_RET(engine_->Connect(remote_engine_.c_str(), timeout_ms),
+                  "Failed to connect to remote engine, remote_engine:%s, timeout:%d ms.",
+                  remote_engine_.c_str(), timeout_ms);
 
   int32_t client_fd = -1;
-  LLM_CHK_BOOL_RET_STATUS(hixl::CtrlMsgPlugin::Connect(remote_ip_, remote_port_,
-                                                       client_fd, timeout_ms) == hixl::SUCCESS,
-                          ge::FAILED,
-                          "Connect server %s failed", remote_engine_.c_str());
+  LLM_CHK_HIXL_RET(hixl::CtrlMsgPlugin::Connect(remote_ip_, remote_port_,
+                                                client_fd, timeout_ms),
+                  "Connect server %s failed", remote_engine_.c_str());
   ScopeGuard socket_guard([client_fd]() {
     close(client_fd);
   });
@@ -39,11 +38,11 @@ ge::Status HixlEntity::Initialize(int32_t timeout_ms) {
   header.magic = hixl::kMagicNumber;
   header.body_size = static_cast<uint64_t>(sizeof(hixl::CtrlMsgType));
   auto msg_type = hixl::CtrlMsgType::kGetCacheTableReq;
-  LLM_CHK_BOOL_RET_STATUS(
-      hixl::CtrlMsgPlugin::Send(client_fd, &header, static_cast<uint64_t>(sizeof(header))) == hixl::SUCCESS, ge::FAILED,
+  LLM_CHK_HIXL_RET(
+      hixl::CtrlMsgPlugin::Send(client_fd, &header, static_cast<uint64_t>(sizeof(header))),
       "Failed to send cache table header");
-  LLM_CHK_BOOL_RET_STATUS(
-      hixl::CtrlMsgPlugin::Send(client_fd, &msg_type, static_cast<uint64_t>(sizeof(msg_type))) == hixl::SUCCESS, ge::FAILED,
+  LLM_CHK_HIXL_RET(
+      hixl::CtrlMsgPlugin::Send(client_fd, &msg_type, static_cast<uint64_t>(sizeof(msg_type))),
       "Failed to send cache table type");
   CacheTableInfo info{};
   LLM_CHK_STATUS_RET(RecvCacheTableResp(client_fd, info, timeout_ms), "Failed to recv cache table info");
@@ -58,9 +57,9 @@ ge::Status HixlEntity::Initialize(int32_t timeout_ms) {
 
 ge::Status HixlEntity::RecvCacheTableResp(int32_t fd, CacheTableInfo &cache_table_info, int32_t timeout_ms) {
   hixl::CtrlMsgHeader header{};
-  LLM_CHK_BOOL_RET_STATUS(
-      hixl::CtrlMsgPlugin::Recv(fd, &header, static_cast<uint32_t>(sizeof(header)), timeout_ms) == hixl::SUCCESS,
-      ge::FAILED, "Failed to recv cache table header, timeout:%d", timeout_ms);
+  LLM_CHK_HIXL_RET(
+      hixl::CtrlMsgPlugin::Recv(fd, &header, static_cast<uint32_t>(sizeof(header)), timeout_ms),
+      "Failed to recv cache table header, timeout:%d", timeout_ms);
   LLM_CHK_BOOL_RET_STATUS(header.magic == hixl::kMagicNumber, ge::LLM_PARAM_INVALID,
                           "Invalid magic:0x%X for cache table resp", header.magic);
   LLM_CHK_BOOL_RET_STATUS(
@@ -69,24 +68,22 @@ ge::Status HixlEntity::RecvCacheTableResp(int32_t fd, CacheTableInfo &cache_tabl
       header.body_size, sizeof(hixl::CtrlMsgType) + sizeof(CacheTableInfo));
 
   hixl::CtrlMsgType msg_type{};
-  LLM_CHK_BOOL_RET_STATUS(
-      hixl::CtrlMsgPlugin::Recv(fd, &msg_type, static_cast<uint32_t>(sizeof(msg_type)), timeout_ms) == hixl::SUCCESS,
-      ge::FAILED, "Failed to recv cache table msg type");
+  LLM_CHK_HIXL_RET(
+      hixl::CtrlMsgPlugin::Recv(fd, &msg_type, static_cast<uint32_t>(sizeof(msg_type)), timeout_ms),
+      "Failed to recv cache table msg type");
   LLM_CHK_BOOL_RET_STATUS(msg_type == hixl::CtrlMsgType::kGetCacheTableResp, ge::LLM_PARAM_INVALID,
                           "Unexpected msg type in RecvCacheTableInfoResp: %d", static_cast<int32_t>(msg_type));
 
-  LLM_CHK_BOOL_RET_STATUS(
-      hixl::CtrlMsgPlugin::Recv(fd, &cache_table_info, static_cast<uint32_t>(sizeof(CacheTableInfo)), timeout_ms) ==
-          hixl::SUCCESS,
-      ge::FAILED, "Failed to recv cache table body");
+  LLM_CHK_HIXL_RET(
+      hixl::CtrlMsgPlugin::Recv(fd, &cache_table_info, static_cast<uint32_t>(sizeof(CacheTableInfo)), timeout_ms),
+      "Failed to recv cache table body");
   return ge::SUCCESS;
 }
 
 ge::Status HixlEntity::Finalize(bool force) {
   if (!force) {
-    LLM_CHK_BOOL_RET_STATUS(engine_->Disconnect(remote_engine_.c_str(), kDisconnectTimeoutMs) == hixl::SUCCESS,
-                            ge::FAILED,
-                            "Failed to disconnect to remote engine, remote_engine:%s.", remote_engine_.c_str());
+    LLM_CHK_HIXL_RET(engine_->Disconnect(remote_engine_.c_str(), kDisconnectTimeoutMs),
+                     "Failed to disconnect to remote engine, remote_engine:%s.", remote_engine_.c_str());
   }
   return ge::SUCCESS;
 }
@@ -106,9 +103,8 @@ ge::Status HixlEntity::BatchTransfer(std::list<HcclOneSideOpDesc> &tasks, bool i
     desc.len = op_desc.count;
     op_descs.emplace_back(desc);
   }
-  LLM_CHK_BOOL_RET_STATUS(engine_->TransferSync(
-      remote_engine_.c_str(), is_put ? hixl::WRITE : hixl::READ, op_descs, timeout_ms) == hixl::SUCCESS,
-      ge::FAILED,
+  LLM_CHK_HIXL_RET(engine_->TransferSync(
+      remote_engine_.c_str(), is_put ? hixl::WRITE : hixl::READ, op_descs, timeout_ms),
       "Failed to batch transfer, remote_engine:%s.", remote_engine_.c_str());
   return ge::SUCCESS;
 }
