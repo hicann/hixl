@@ -98,7 +98,6 @@ ge::Status HixlTransferEngine::Initialize(const std::map<ge::AscendString, ge::A
   LLM_ASSERT_RT_OK(aclrtGetCurrentContext(&rt_context_));
   std::map<ge::AscendString, ge::AscendString> hixl_options{};
   hixl_options[hixl::OPTION_BUFFER_POOL] = "0:0";
-  hixl_options[hixl::OPTION_AUTO_CONNECT] = "1";
   LLMDataDist2HixlOptions(options, hixl_options);
   engine_ = hixl::EngineFactory::CreateEngine(local_engine_, hixl_options);
   LLM_CHECK_NOTNULL(engine_);
