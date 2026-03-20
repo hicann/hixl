@@ -14,6 +14,7 @@
 #include <string>
 #include <sstream>
 #include "hixl/hixl_types.h"
+#include "adxl/adxl_types.h"
 
 namespace hixl {
 constexpr const char *kProtocolRoce = "roce";

@@ -11,6 +11,7 @@
 #include "hixl_utils.h"
 
 #include <arpa/inet.h>
+#include <unordered_set>
 #include "securec.h"
 #include "nlohmann/json.hpp"
 #include "hixl_log.h"
@@ -60,6 +61,23 @@ Status CheckIp(const std::string &ip) {
       inet_pton(AF_INET, ip.c_str(), &addr) == 1 || inet_pton(AF_INET6, ip.c_str(), &ipv6_addr.sin6_addr) == 1,
       hixl::PARAM_INVALID, "%s is not a valid ip address", ip.c_str());
   return hixl::SUCCESS;
+}
+
+Status CheckOptions(const std::map<AscendString, AscendString> &options) {
+  static std::unordered_set<std::string> kOptionsFields = {hixl::OPTION_LOCAL_COMM_RES, hixl::OPTION_BUFFER_POOL, 
+                                                           adxl::OPTION_LOCAL_COMM_RES, adxl::OPTION_BUFFER_POOL};
+  for (const auto &pair : options) {
+    HIXL_CHK_BOOL_RET_SPECIAL_STATUS(kOptionsFields.find(pair.first.GetString()) == kOptionsFields.end(), 
+                                     PARAM_INVALID, 
+                                     "Invalid options, options for hixl engine only support "
+                                     "OPTION_LOCAL_COMM_RES and OPTION_BUFFER_POOL");
+    if ((pair.first == hixl::OPTION_BUFFER_POOL) || (pair.first == adxl::OPTION_BUFFER_POOL)) {
+      HIXL_CHK_BOOL_RET_STATUS(pair.second.GetString() == std::string("0:0"), 
+                               PARAM_INVALID, 
+                               "Invalid option fields, OPTION_BUFFER_POOL for hixl engine only supports 0:0");
+    }
+  }
+  return SUCCESS;
 }
 
 std::vector<std::string, std::allocator<std::string>> Split(const std::string &str, const char delim) {

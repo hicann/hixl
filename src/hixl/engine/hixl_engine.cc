@@ -43,8 +43,11 @@ bool HixlEngine::IsInitialized() const {
 Status HixlEngine::Initialize(const std::map<AscendString, AscendString> &options) {
   HIXL_LOGI("[HixlEngine] Initialization started, local_engine:%s", local_engine_.c_str());
   std::lock_guard<std::mutex> lock(mutex_);
+  HIXL_CHK_STATUS_RET(CheckOptions(options), "[HixlEngine] Failed to check options");
   std::string local_comm_res;
-  auto it = options.find(adxl::OPTION_LOCAL_COMM_RES);
+  auto hixl_it = options.find(hixl::OPTION_LOCAL_COMM_RES);
+  auto adxl_it = options.find(adxl::OPTION_LOCAL_COMM_RES);
+  auto it = hixl_it == options.cend() ? adxl_it : hixl_it;
   if (it != options.cend()) {
     local_comm_res = it->second.GetString();
   }
@@ -54,9 +57,9 @@ Status HixlEngine::Initialize(const std::map<AscendString, AscendString> &option
   std::string ip;
   int32_t port = 0;
   HIXL_CHK_STATUS_RET(ParseListenInfo(local_engine_, ip, port), 
-                      "[HixlEngine] Failed to parse ip and port, local_engine should be in form as below:\n"
-                      "ipv4: host_ip:host_port or host_ip\n"
-                      "ipv6: [host_ip]:host_port or [host_ip]\n"
+                      "[HixlEngine] Failed to parse ip and port, local_engine should be in form as below: "
+                      "ipv4 should be 'host_ip:host_port' or 'host_ip' "
+                      "ipv6 should be '[host_ip]:host_port' or '[host_ip]' "
                       "current local_engine:%s",
                       local_engine_.c_str());
   HIXL_CHK_STATUS_RET(server_.Initialize(ip, port, endpoint_list_), 

@@ -15,7 +15,6 @@
 #include <arpa/inet.h>
 #include "engine/hixl_engine.h"
 #include "hixl/hixl_types.h"
-#include "adxl/adxl_types.h"
 #include "cs/hixl_cs_client.h"
 #include "hixl/hixl.h"
 
@@ -32,7 +31,7 @@ class HixlEngineTest : public ::testing::Test {
   std::map<AscendString, AscendString> options1;
   std::map<AscendString, AscendString> options2;
   void SetUp() override {
-    options1[adxl::OPTION_LOCAL_COMM_RES] = R"(
+    options1[hixl::OPTION_LOCAL_COMM_RES] = R"(
     {
         "net_instance_id": "superpod1_1",
         "endpoint_list": [
@@ -52,7 +51,7 @@ class HixlEngineTest : public ::testing::Test {
     }
     )";
 
-    options2[adxl::OPTION_LOCAL_COMM_RES] = R"(
+    options2[hixl::OPTION_LOCAL_COMM_RES] = R"(
     {
         "net_instance_id": "superpod2_2",
         "endpoint_list": [

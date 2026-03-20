@@ -17,6 +17,7 @@
 #include "cs/hixl_cs.h"
 #include "hccl/hccl_types.h"
 #include "hixl/hixl_types.h"
+#include "adxl/adxl_types.h"
 #include "hixl_checker.h"
 #include "hixl_inner_types.h"
 
@@ -56,6 +57,8 @@ Status HcclError2Status(HcclResult ret);
 Status ParseIpAddress(const std::string &ip_str, CommAddr &addr);
 
 Status CheckIp(const std::string &ip);
+
+Status CheckOptions(const std::map<AscendString, AscendString> &options);
 
 std::vector<std::string, std::allocator<std::string>> Split(const std::string &str, const char delim);
 
