@@ -485,4 +485,40 @@ TEST_F(FabricMemTransferServiceUTest, TestFreeMem_UntrackedAddress) {
   std::free(heap_ptr);
 }
 
+// Test AllocatePhysicalMemory fallback to 2M when NUMA and common host both fail
+TEST_F(FabricMemTransferServiceUTest, TestMallocMem_FallbackTo2MSuccess) {
+  class MallocPhysicalFailTwiceRuntimeMock : public llm::AclRuntimeStub {
+   public:
+    aclError aclrtMallocPhysical(aclrtDrvMemHandle *handle, size_t size,
+                                const aclrtPhysicalMemProp *prop, uint64_t flags) override {
+      (void)size;
+      (void)prop;
+      (void)flags;
+      if (call_count_ < 2) {
+        call_count_++;
+        return ACL_ERROR_RT_INTERNAL_ERROR;
+      }
+      *handle = (aclrtDrvMemHandle) new uint8_t[8];
+      return ACL_ERROR_NONE;
+    }
+
+   private:
+    int call_count_ = 0;
+  };
+
+  [[maybe_unused]] ScopedRuntimeMock runtime_mock(std::make_shared<MallocPhysicalFailTwiceRuntimeMock>());
+
+  void *fabric_ptr = nullptr;
+  ASSERT_EQ(FabricMemTransferService::MallocMem(MemType::MEM_HOST, kMemLen, &fabric_ptr), SUCCESS);
+  ASSERT_NE(fabric_ptr, nullptr);
+
+  auto *bytes = static_cast<uint8_t *>(fabric_ptr);
+  std::fill(bytes, bytes + kTransferLen, kPatternA);
+  for (size_t i = 0; i < kTransferLen; ++i) {
+    EXPECT_EQ(bytes[i], kPatternA);
+  }
+
+  EXPECT_EQ(FabricMemTransferService::FreeMem(fabric_ptr), SUCCESS);
+}
+
 }  // namespace adxl

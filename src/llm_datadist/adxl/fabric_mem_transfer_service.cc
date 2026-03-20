@@ -95,10 +95,15 @@ Status FabricMemTransferService::AllocatePhysicalMemory(size_t total_size, aclrt
   LLMLOGI("Malloc host memory for numa:%d", prop.location.id);
   auto ret = aclrtMallocPhysical(&handle, total_size, &prop, 0);
   if (ret != ACL_ERROR_NONE) {
-    LLMLOGI("Malloc host memory for numa:%d failed, try common allocate instead.", prop.location.id);
+    LLMLOGI("Try common allocate instead of specific numa:%d.", prop.location.id);
     prop.location.type = ACL_MEM_LOCATION_TYPE_HOST;
     prop.location.id = 0;
-    LLM_CHK_ACL_RET(aclrtMallocPhysical(&handle, total_size, &prop, 0));
+    ret = aclrtMallocPhysical(&handle, total_size, &prop, 0);
+    if (ret != ACL_ERROR_NONE) {
+      LLMLOGI("Try smaller page instead of 1G page.");
+      prop.memAttr = ACL_MEM_P2P_HUGE;
+      LLM_CHK_ACL_RET(aclrtMallocPhysical(&handle, total_size, &prop, 0));
+    }
   }
   return SUCCESS;
 }
