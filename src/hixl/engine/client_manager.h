@@ -30,6 +30,7 @@ class ClientManager {
                       ClientPtr &client_ptr);
   ClientPtr GetClient(const std::string &remote_engine);
   Status DestroyClient(const std::string &remote_engine);
+  bool IsEmpty();
 
  private:
   std::mutex mutex_;

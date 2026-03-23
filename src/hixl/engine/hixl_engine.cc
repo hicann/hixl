@@ -92,6 +92,10 @@ Status HixlEngine::DeregisterMem(MemHandle mem_handle) {
     HIXL_LOGW("[HixlEngine] handle:%p is not registered", mem_handle);
     return SUCCESS;
   }
+  HIXL_CHK_BOOL_RET_STATUS(client_manager_.IsEmpty(), FAILED, 
+                           "[HixlEngine] Failed to deregister mem. All clients must be disconnected before deregistration, "
+                           "mem_handle: %p, local_engine: %s",
+                           mem_handle, local_engine_.c_str());
   HIXL_CHK_STATUS_RET(server_.DeregisterMem(mem_handle), 
                       "[HixlEngine] Failed to deregister mem, mem_handle: %p, local_engine: %s", 
                       mem_handle, local_engine_.c_str());
