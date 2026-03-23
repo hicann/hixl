@@ -397,7 +397,6 @@ void HixlCSClient::ReleaseFlagIndex(int32_t flag_index) {
     flag_queue_[flag_index] = kFlagResetValue;  // 将flag重置为0
     ++top_index_;
   }
-
 }
 
 Status HixlCSClient::ReleaseCompleteHandle(CompleteHandle *query_handle) {
