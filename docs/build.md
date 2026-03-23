@@ -1,36 +1,25 @@
 # 源码构建
 
 ## 环境准备
-本项目支持源码编译，在源码编译前，请根据如下步骤完成相关环境准备。
+本项目支持源码编译，在源码编译前，需要确保已经安装Ascend-cann-toolkit。执行所有样例前，需要确保已经安装驱动和固件；执行python样例前，还需要确保已经安装Ascend-cann-ops。
 
-### 1. **安装依赖**
+软件安装方式请根据如下描述进行选择：
 
-请根据实际情况选择 **方式一（手动安装依赖）** 或 **方式二（使用Docker容器）** 完成相关环境准备。
+| 安装方式 | 说明 |使用场景|
+| :--- | :--- | :--- |
+| 使用Docker部署 | Docker镜像是一种CANN高效部署方式，目前仅适用于Atlas A2系列产品，OS仅支持Ubuntu操作系统。|适用有昇腾设备，需要快速搭建环境的开发者。|
+| 手动安装 | - |适用有昇腾设备，想体验手动安装CANN包或体验最新master分支能力的开发者。|
 
-#### 方式一: 手动安装
+### 场景一：使用Docker部署
 
-  以下所列为源码编译用到的依赖，请注意版本要求。  
+**1.安装固件和驱动**：请参考[CANN软件安装指南](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)。
 
-  - GCC >= 7.3.0
+**2.安装依赖、CANN Toolkit开发套件包以及CANN ops算子包**，操作步骤如下。
 
-  - Python 3.9~3.12
 
-  - CMake >= 3.16.0  (建议使用3.20.0版本)
+- **配套 X86 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu20.04.05_x86:lv4_latest`
 
-  - bash >= 5.1.16，由于测试用例开启了地址消毒，代码中执行system函数会触发低版本的bash被地址消毒检查出内存泄露。
-
-  - ccache（可选），ccache为编译器缓存优化工具，用于加快二次编译速度。
-
-  ```shell
-  # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
-  sudo apt-get install cmake bash ccache
-  ```
-
-#### 方式二：使用Docker容器
-
-  **配套 X86 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu20.04.05_x86:lv4_latest`
-
-  **配套 ARM 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu20.04.05_arm:lv4_latest`
+- **配套 ARM 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu20.04.05_arm:lv4_latest`
 
   更多版本镜像，可根据需要在[Ascend-CANN镜像](https://www.hiascend.com/developer/ascendhub/detail/17da20d1c2b6493cb38765adeba85884)自行选择下载。
 
@@ -53,61 +42,96 @@
   > - `--cap-add SYS_PTRACE`：创建Docker容器时添加`SYS_PTRACE`权限，以支持[本地验证](#本地验证tests)时的内存泄漏检测功能。
   > - 更多 docker 选项介绍请通过 `docker --help` 查询。
 
-  配套构建镜像已安装了上述依赖、CANN Toolkit开发套件包以及CANN ops算子包，安装路径为`/home/jenkins/Ascend`。
-  完成上述步骤后可直接进入[配置环境变量](#5-配置环境变量)章节。
+  配套构建镜像的安装路径为`/home/jenkins/Ascend`。如需要使用镜像之外的其他CANN版本，请参考如下章节在docker内手工安装CANN包。
 
-### 2. **安装驱动与固件（运行样例依赖）**  
 
-  驱动与固件为运行样例时的依赖，且必须安装。若仅编译源码或进行本地验证，可跳过此步骤。
+### 场景二：手动安装CANN包
 
-  驱动与固件的安装指导，可详见[《CANN软件安装指南》](https://www.hiascend.com/document/redirect/CannCommunityInstSoftware)。  
+**场景1：体验master版本能力或基于master版本进行开发**
 
-### 3. **安装社区版CANN toolkit包**
-  本项目编译过程依赖CANN开发套件包（cann-toolkit），请根据环境操作系统架构，从[软件包下载地址](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-release/software/master)下载`Ascend-cann-toolkit_${cann_version}_linux-${arch}.run`，参考[昇腾文档中心-CANN软件安装指南](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)进行安装。
+如果您想体验**master分支最新能力**，单击[下载链接](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/master)获取软件包，按照如下步骤进行安装。更多安装指导请参考[CANN软件安装指南](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)。
 
-  - `${cann_version}`表示CANN版本号。
-  - `${arch}`表示CPU架构，如aarch64、x86_64。
-  - 建议`master`分支代码搭配最新版本CANN开发套件包使用。
+1. 安装固件和驱动：请参考[CANN软件安装指南](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)。
+2. 安装依赖。   
+   <br>以下所列为源码编译用到的依赖，请注意版本要求。
 
-### 4. **安装社区版CANN ops包（运行样例依赖）**
-  由于torch_npu依赖CANN Ops包，运行python样例时需安装本包，若仅编译源码或运行C++样例，可跳过此步骤。
+ ```shell
+  # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
+  sudo apt-get install cmake bash ccache
+  ```
+- GCC >= 7.3.0
+- Python 3.9~3.12
+- CMake >= 3.16.0  (建议使用3.20.0版本)
+- bash >= 5.1.16，由于测试用例开启了地址消毒，代码中执行system函数会触发低版本的bash被地址消毒检查出内存泄露。
+- ccache（可选），ccache为编译器缓存优化工具，用于加快二次编译速度。
+3. 安装社区版CANN toolkit包。
 
-  请根据产品型号和环境架构，从[软件包下载地址](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-release/software/master)下载对应的CANN Ops包，参考[昇腾文档中心-CANN软件安装指南](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)进行安装。
+    ```bash
+    # 确保安装包具有可执行权限
+    chmod +x Ascend-cann-toolkit_${cann_version}_linux-${arch}.run
+    # 安装命令
+    ./Ascend-cann-toolkit_${cann_version}_linux-${arch}.run --install --install-path=${install_path}
+    ```
 
-  - Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件：`Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run`
-  - Atlas A3 训练系列产品/Atlas A3 推理系列产品：`Ascend-cann-A3-ops_${cann_version}_linux-${arch}.run`
-  - `${cann_version}`表示CANN版本号。
-  - `${arch}`表示CPU架构，如aarch64、x86_64。
-  - 建议`master`分支代码搭配最新版本CANN Ops包使用。
+4. 安装社区版CANN ops包。
 
-### 5. **配置环境变量**
+    ```bash
+    # 确保安装包具有可执行权限
+    chmod +x Ascend-cann-${soc_name}-ops_${cann_version}_linux-${arch}.run
+    # 安装命令
+    ./Ascend-cann-${soc_name}-ops_${cann_version}_linux-${arch}.run --install --install-path=${install_path}
+    ```
+    - \$\{cann\_version\}：表示CANN包版本号。
+    - \$\{arch\}：表示CPU架构，如aarch64、x86_64。
+    - \$\{soc\_name\}：表示NPU型号名称。
+    - \$\{install\_path\}：表示指定安装路径，需要与toolkit包安装在相同路径，root用户默认安装在`/usr/local/Ascend`目录。
 
-根据实际场景，选择合适的命令。
+**场景2：体验已发布版本能力或基于已发布版本进行开发**
 
- ```bash
+如果您想体验**官网正式发布的CANN包**能力，请访问[CANN官网下载中心](https://www.hiascend.com/cann/download)，选择对应版本CANN软件包（仅支持CANN 8.5.0及后续版本）进行安装。
+
+
+## 环境验证
+
+安装完CANN包后，需验证环境和驱动是否正常。
+
+-   **检查NPU设备**：
+    ```bash
+    # 运行npu-smi，若能正常显示设备信息，则驱动正常
+    npu-smi info
+    ```
+-   **检查CANN安装**：
+    ```bash
+    # 查看CANN Toolkit的version字段提供的版本信息（默认路径安装），<arch>表示CPU架构（aarch64或x86_64）。
+    cat /usr/local/Ascend/cann/<arch>-linux/ascend_toolkit_install.info
+    # 查看CANN ops的version字段提供的版本信息（默认路径安装），<arch>表示CPU架构（aarch64或x86_64）。
+    cat /usr/local/Ascend/cann/<arch>-linux/ascend_ops_install.info
+    ```
+
+## 环境变量配置
+
+按需选择合适的命令使环境变量生效。
+```bash
 # 默认路径安装，以root用户为例（非root用户，将/usr/local替换为${HOME}）
 source /usr/local/Ascend/cann/set_env.sh
 # 指定路径安装
-# source ${cann_install_path}/cann/set_env.sh
- ```
-
-## 编译
-
-### 源码下载
-
-开发者可通过如下命令下载本仓源码：
-```bash
-git clone https://gitcode.com/cann/hixl.git
+# source ${install_path}/cann/set_env.sh
 ```
+## 源码编译
 
-> [!NOTE] 注意
-> gitcode平台在使用HTTPS协议的时候要配置并使用个人访问令牌代替登录密码进行克隆，推送等操作。  
+### 安装第三方开源依赖
 
-若您的编译环境无法访问网络，由于无法通过`git`指令下载代码，须在联网环境中下载源码后，手动上传至目标环境。
-- 在联网环境中，进入[本项目主页](https://gitcode.com/cann/hixl), 通过`下载ZIP`或`clone`按钮，根据指导，完成源码下载。
-- 连接至离线环境中，上传源码至您指定的目录下。若下载的为源码压缩包，还需进行解压。
+以下所列为源码编译用到的依赖，请注意版本要求。
 
-### 开源第三方软件依赖
+  ```shell
+  # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
+  sudo apt-get install cmake bash ccache
+  ```
+- GCC >= 7.3.0
+- Python 3.9~3.12
+- CMake >= 3.16.0  (建议使用3.20.0版本)
+- bash >= 5.1.16，由于测试用例开启了地址消毒，代码中执行system函数会触发低版本的bash被地址消毒检查出内存泄露。
+- ccache（可选），ccache为编译器缓存优化工具，用于加快二次编译速度。
 
 HIXL在编译时，依赖的第三方开源软件列表如下：
 
@@ -120,6 +144,21 @@ HIXL在编译时，依赖的第三方开源软件列表如下：
 
 > [!NOTE]注意
 > 如果您从其他地址下载，请确保版本号一致。
+
+### 源码下载
+
+开发者可通过如下命令下载本仓源码：
+```bash
+git clone https://gitcode.com/cann/hixl.git
+```
+
+> [!NOTE] 注意
+> gitcode平台在使用HTTPS协议的时候要配置并使用个人访问令牌代替登录密码进行克隆，推送等操作。
+
+若您的编译环境无法访问网络，由于无法通过`git`指令下载代码，须在联网环境中下载源码后，手动上传至目标环境。
+- 在联网环境中，进入[本项目主页](https://gitcode.com/cann/hixl), 通过`下载ZIP`或`clone`按钮，根据指导，完成源码下载。
+- 连接至离线环境中，上传源码至您指定的目录下。若下载的为源码压缩包，还需进行解压。
+
 
 ### 源码编译
 
@@ -174,7 +213,7 @@ bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
     # 安装根目录下requirements.txt依赖
     pip3 install -r requirements.txt
     ```
-    如果需要本地查看tests覆盖率则需要额外安装coverage，并将Python3的bin路径添加到PATH环境变量中，命令示例如下：
+  如果需要本地查看tests覆盖率则需要额外安装coverage，并将Python3的bin路径添加到PATH环境变量中，命令示例如下：
 
      ```shell
      pip3 install coverage
@@ -196,17 +235,17 @@ bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
 
 ## 安装
 
-将[编译执行](#编译执行)环节生成的run包进行安装。  
-- 说明，此处的安装路径（无论默认还是指定）需与前面安装toolkit包时的路径保持一致。  
+将[编译执行](#编译执行)环节生成的run包进行安装。
+- 说明，此处的安装路径（无论默认还是指定）需与前面安装toolkit包时的路径保持一致。
 ```bash
 # 如果需要指定安装路径则加上--install-path=${cann_install_path}
 ./cann-hixl_${cann_version}_linux-${arch}.run --full --quiet --pylocal
 ```
-- --full 全量模式安装。  
-- --quiet 静默安装，跳过人机交互环节。  
-- --pylocal 安装HIXL软件包时，是否将.whl安装到HIXL安装路径。  
-  - 若选择该参数，则.whl安装在${cann_install_path}/cann/python/site-packages路径。
-  - 若不选择该参数，则.whl安装在本地python路径，例如/usr/local/python3.7.5/lib/python3.7/site-packages。
-- 更多安装选项请用--help选项查看。  
+- --full 全量模式安装。
+- --quiet 静默安装，跳过人机交互环节。
+- --pylocal 安装HIXL软件包时，是否将.whl安装到HIXL安装路径。
+    - 若选择该参数，则.whl安装在${cann_install_path}/cann/python/site-packages路径。
+    - 若不选择该参数，则.whl安装在本地python路径，例如/usr/local/python3.7.5/lib/python3.7/site-packages。
+- 更多安装选项请用--help选项查看。
 
 **安装完成后可参考[样例运行](../examples/README.md)尝试运行样例，也可参考[基准测试Benchmarks](../benchmarks/README.md)尝试运行基准测试**。
