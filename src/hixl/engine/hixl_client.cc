@@ -599,8 +599,8 @@ Status HixlClient::ClassifyTransfers(const std::vector<TransferOpDesc> &op_descs
     {
       std::lock_guard<std::mutex> lock(local_segments_mutex_);
       if (GetMemType(local_segments_, op_desc.local_addr, op_desc.len, local_mem_type) != SUCCESS) {
-        HIXL_LOGE(PARAM_INVALID, "Local memory range does not register, start:0x%lx, end:0x%lx", op_desc.local_addr,
-                  op_desc.local_addr + op_desc.len);
+        HIXL_LOGE(PARAM_INVALID, "Local memory range does not register before connection: start:0x%lx, end:0x%lx",
+                  op_desc.local_addr, op_desc.local_addr + op_desc.len);
         return PARAM_INVALID;
       }
     }
@@ -608,8 +608,8 @@ Status HixlClient::ClassifyTransfers(const std::vector<TransferOpDesc> &op_descs
     {
       std::lock_guard<std::mutex> lock(remote_segments_mutex_);
       if (GetMemType(remote_segments_, op_desc.remote_addr, op_desc.len, remote_mem_type) != SUCCESS) {
-        HIXL_LOGE(PARAM_INVALID, "Remote memory range does not register, start:0x%lx, end:0x%lx", op_desc.remote_addr,
-                  op_desc.remote_addr + op_desc.len);
+        HIXL_LOGE(PARAM_INVALID, "Remote memory range does not register before connection: start:0x%lx, end:0x%lx",
+                  op_desc.remote_addr, op_desc.remote_addr + op_desc.len);
         return PARAM_INVALID;
       }
     }
