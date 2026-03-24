@@ -38,6 +38,7 @@ file(GLOB LLM_V2_SRC_LIST
         "${HIXL_CODE_DIR}/src/hixl/engine/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/common/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/*.cc"
+        "${HIXL_CODE_DIR}/src/hixl/proxy/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/api/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/adxl/*.cc"

@@ -25,7 +25,7 @@
 #include "channel.h"
 #include "hixl_mem_store.h"
 #include "complete_pool.h"
-#include "hcomm_compat.h"
+#include "proxy/hcomm_compat.h"
 #include "hixl_mem_store.h"
 
 namespace hixl {
@@ -60,7 +60,7 @@ struct UbBatchArgs {
   uint32_t flag_size;
 };
 
-struct MemDev{
+struct MemDev {
   void *dst_buf_list_dev;
   void *src_buf_list_dev;
   uint64_t *len_list_dev;
@@ -156,6 +156,7 @@ class HixlCSClient {
   Status LaunchUbAndStage(bool is_get, UbCompleteHandle &handle, const void *remote_flag);
   void ReleaseLegacyHandlesLocked();
   Status ReleaseUbResourcesLocked();
+
  private:
   std::mutex mutex_;
   // 用于记录内存地址的分配情况

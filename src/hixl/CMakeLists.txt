@@ -11,6 +11,8 @@
 cmake_minimum_required(VERSION 3.16.0)
 project(hixl)
 
+add_subdirectory(proxy)
+
 set(HIXL_INC_DIR
         "${HIXL_CODE_DIR}/include"
         "${HIXL_CODE_DIR}/src/llm_datadist"
@@ -48,6 +50,7 @@ target_link_libraries(cann_hixl PRIVATE
         PUBLIC c_sec
         static_mmpa
         adxl_static
+        hcomm_proxy_static
         alog
         error_manager
         acl_rt

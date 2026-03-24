@@ -44,7 +44,7 @@ unset(_cmake_targets_defined)
 unset(_cmake_targets_not_defined)
 unset(_cmake_expected_targets)
 
-find_path(_HCCL_PATH "hcomm/hcomm_res_defs.h"
+find_path(_HCCL_PATH "hccl/hccl_types.h"
            NO_CMAKE_SYSTEM_PATH
            NO_CMAKE_FIND_ROOT_PATH)
 

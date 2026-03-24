@@ -30,6 +30,7 @@ file(GLOB LLM_V2_SRC_LIST
         "${HIXL_CODE_DIR}/src/hixl/common/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/engine/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/*.cc"
+        "${HIXL_CODE_DIR}/src/hixl/proxy/*.cc"
         "${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/mmpa_stub.cc"
         "${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/hccl_stub.cc"
         "${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/ascend_string_stub.cc"

@@ -10,7 +10,7 @@
 
 #include "channel.h"
 #include "common/hixl_utils.h"
-#include "hcomm_compat.h"
+#include "proxy/hcomm_proxy.h"
 
 namespace hixl {
 
@@ -21,7 +21,7 @@ Status Channel::Create(EndpointHandle ep_handle, HcommChannelDesc &ch_desc, Comm
   HIXL_LOGI("HcommChannelCreate start, protocol=%d, devPhyId=%u, ep_handle=%p",
             static_cast<int32_t>(ch_desc.remoteEndpoint.protocol),
             ch_desc.remoteEndpoint.loc.device.devPhyId, ep_handle);
-  HIXL_CHK_HCCL_RET(HcommChannelCreate(ep_handle, engine, &ch_desc, list_num, ch_list));
+  HIXL_CHK_HCCL_RET(HcommProxy::ChannelCreate(ep_handle, engine, &ch_desc, list_num, ch_list));
   channel_handle_ = ch_list[0];
   HIXL_LOGI("Channel::Create success, handle=%lu", channel_handle_);
   return SUCCESS;
@@ -33,7 +33,7 @@ ChannelHandle Channel::GetChannelHandle() const {
 
 Status Channel::Destroy() const {
   const ChannelHandle ch_list[1] = {channel_handle_};
-  HIXL_CHK_HCCL_RET(HcommChannelDestroy(ch_list, 1U));
+  HIXL_CHK_HCCL_RET(HcommProxy::ChannelDestroy(ch_list, 1U));
 
   HIXL_LOGI("Channel::Destroy success, handle=%lu", channel_handle_);
   return SUCCESS;
