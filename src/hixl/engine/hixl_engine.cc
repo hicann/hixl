@@ -92,11 +92,11 @@ Status HixlEngine::DeregisterMem(MemHandle mem_handle) {
     HIXL_LOGW("[HixlEngine] handle:%p is not registered", mem_handle);
     return SUCCESS;
   }
-  HIXL_CHK_BOOL_RET_STATUS(client_manager_.IsEmpty(), FAILED, 
+  HIXL_CHK_BOOL_RET_STATUS(client_manager_.IsEmpty(), FAILED,
                            "[HixlEngine] Failed to deregister mem. All clients must be disconnected before deregistration, "
                            "mem_handle: %p, local_engine: %s",
                            mem_handle, local_engine_.c_str());
-  HIXL_CHK_STATUS_RET(server_.DeregisterMem(mem_handle), 
+  HIXL_CHK_STATUS_RET(server_.DeregisterMem(mem_handle),
                       "[HixlEngine] Failed to deregister mem, mem_handle: %p, local_engine: %s", 
                       mem_handle, local_engine_.c_str());
   mem_map_.erase(it);
@@ -269,7 +269,7 @@ Status HixlEngine::ParseEndPoint(const std::string &local_comm_res, std::vector<
   } catch (const nlohmann::json::exception &e) {
     HIXL_LOGE(PARAM_INVALID, 
               "[HixlEngine] Failed to parse local_comm_res, exception:%s, local_comm_res:%s",
-              e.what(), local_comm_res);
+              e.what(), local_comm_res.c_str());
     return PARAM_INVALID;
   }
   return SUCCESS;

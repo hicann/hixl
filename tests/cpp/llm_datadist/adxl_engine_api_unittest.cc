@@ -19,6 +19,9 @@
 #include "adxl/adxl_engine.h"
 #include "adxl/channel_manager.h"
 #include "adxl/virtual_memory_manager.h"
+#include "engine/engine_factory.h"
+#include "engine/hixl_engine.h"
+#include "engine/adxl_engine.h"
 #include "dlog_pub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
@@ -29,6 +32,32 @@ using namespace ::testing;
 using ::testing::Invoke;
 using ::testing::Mock;
 namespace adxl {
+namespace {
+std::map<AscendString, AscendString> BuildHixlCsOptions(const std::string &ip) {
+  std::map<AscendString, AscendString> options;
+  options[OPTION_LOCAL_COMM_RES] = AscendString((R"(
+    {
+        "net_instance_id": "superpod",
+        "endpoint_list": [
+            {
+                "protocol": "roce",
+                "comm_id": ")" + ip + R"(",
+                "placement": "host"
+            },
+            {
+                "protocol": "ub_ctp",
+                "comm_id": "000000000000000000000000c0a80463",
+                "placement": "device",
+                "dst_eid": "000000000000000000000000c0a80563"
+            }
+        ],
+        "version": "1.3"
+    }
+    )").c_str());
+  return options;
+}
+}  // namespace
+
 class AdxlEngineUTest : public ::testing::Test {
  protected:
   // 在测试类中设置一些准备工作，如果需要的话
@@ -73,6 +102,24 @@ class AdxlEngineUTest : public ::testing::Test {
   }
 };
 
+TEST_F(AdxlEngineUTest, TestEngineFactoryFallbackToAdxlEngineWithoutLocalCommRes) {
+  std::map<AscendString, AscendString> options;
+  options[OPTION_RDMA_TRAFFIC_CLASS] = "1";
+  options[OPTION_RDMA_SERVICE_LEVEL] = "1";
+
+  auto engine = hixl::EngineFactory::CreateEngine("127.0.0.1", options);
+  ASSERT_NE(engine, nullptr);
+  EXPECT_NE(dynamic_cast<hixl::AdxlEngine *>(engine.get()), nullptr);
+  EXPECT_EQ(dynamic_cast<hixl::HixlEngine *>(engine.get()), nullptr);
+}
+
+TEST_F(AdxlEngineUTest, TestEngineFactoryUseHixlEngineWithLocalCommRes) {
+  auto engine = hixl::EngineFactory::CreateEngine("127.0.0.1", BuildHixlCsOptions("127.0.0.1"));
+  ASSERT_NE(engine, nullptr);
+  EXPECT_NE(dynamic_cast<hixl::HixlEngine *>(engine.get()), nullptr);
+  EXPECT_EQ(dynamic_cast<hixl::AdxlEngine *>(engine.get()), nullptr);
+}
+
 TEST_F(AdxlEngineUTest, TestAdxlEngine) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
@@ -113,6 +160,38 @@ TEST_F(AdxlEngineUTest, TestAdxlEngine) {
   EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
   engine1.Finalize();
   engine2.Finalize();
+}
+
+TEST_F(AdxlEngineUTest, TestEngineFactoryCreateEngineFailedWhenLocalCommResJsonInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[OPTION_LOCAL_COMM_RES] = "{invalid json}";
+
+  auto engine = hixl::EngineFactory::CreateEngine("127.0.0.1", options);
+  EXPECT_EQ(engine, nullptr);
+}
+
+TEST_F(AdxlEngineUTest, TestAdxlEngineApisReturnFailedBeforeInitialize) {
+  AdxlEngine engine;
+  int32_t src = 1;
+  MemDesc mem_desc{};
+  mem_desc.addr = reinterpret_cast<uintptr_t>(&src);
+  mem_desc.len = sizeof(int32_t);
+  MemHandle handle = nullptr;
+  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&src), sizeof(int32_t)};
+  TransferReq req = nullptr;
+  NotifyDesc notify;
+  notify.name = AscendString("test_notify");
+  notify.notify_msg = AscendString("message");
+  std::vector<NotifyDesc> notifies;
+
+  EXPECT_EQ(engine.RegisterMem(mem_desc, MEM_DEVICE, handle), FAILED);
+  EXPECT_EQ(engine.DeregisterMem(reinterpret_cast<MemHandle>(0x1)), FAILED);
+  EXPECT_EQ(engine.Connect("127.0.0.1:26001"), FAILED);
+  EXPECT_EQ(engine.Disconnect("127.0.0.1:26001"), FAILED);
+  EXPECT_EQ(engine.TransferSync("127.0.0.1:26001", WRITE, {desc}), FAILED);
+  EXPECT_EQ(engine.TransferAsync("127.0.0.1:26001", WRITE, {desc}, {}, req), FAILED);
+  EXPECT_EQ(engine.SendNotify("127.0.0.1:26001", notify), FAILED);
+  EXPECT_EQ(engine.GetNotifies(notifies), FAILED);
 }
 
 TEST_F(AdxlEngineUTest, TestAdxlEngineInitFailed) {
