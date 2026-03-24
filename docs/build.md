@@ -252,4 +252,16 @@ bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
     - 若不选择该参数，则.whl安装在本地python路径，例如/usr/local/python3.7.5/lib/python3.7/site-packages。
 - 更多安装选项请用--help选项查看。
 
+### 关于签名的补充说明
+- 编译产生`cann-hixl_<version>_linux-<arch>.run`软件包中含有`cann-hixl-compat.tar.gz`(hixl兼容升级包)。
+- `cann-hixl-compat.tar.gz`会在业务启动时加载至Device，加载过程中默认会由驱动进行安全验签，确保包可信。
+- 开发者下载本仓源码自行编译产生`cann-hixl-compat.tar.gz`并不含签名头，为此需要关闭驱动安全验签的机制。
+- 关闭验签方式：
+  - 关闭验签功能依赖Ascend NPU驱动软件包（Ascend HDK 25.5.T2.B001或以上版本），可以通过该Ascend HDK配套的npu-smi工具查询版本和关闭验签，详见[查询基本信息](https://support.huawei.com/enterprise/zh/doc/EDOC1100540362/4a8adb57?idPath=23710424|251366513|254884019|261408772|252764743)，[设置自定义验签能力使能状态](https://support.huawei.com/enterprise/zh/doc/EDOC1100540362/3152813c?idPath=23710424|251366513|254884019|261408772|252764743)，[设置验签模式](https://support.huawei.com/enterprise/zh/doc/EDOC1100540362/a484ba7b?idPath=23710424|251366513|254884019|261408772|252764743)命令文档，需要以root用户在物理机上执行。
+  - 以device 0为例（其中 -i 后面的参数是device id）：
+    ```
+    npu-smi info     # 查询基本信息，包含驱动版本 
+    npu-smi set -t custom-op-secverify-enable -i 0 -d 1     # 使能自定义验签
+    npu-smi set -t custom-op-secverify-mode -i 0 -d 0      # 设置成"关闭验签"模式
+    ```
 **安装完成后可参考[样例运行](../examples/README.md)尝试运行样例，也可参考[基准测试Benchmarks](../benchmarks/README.md)尝试运行基准测试**。
