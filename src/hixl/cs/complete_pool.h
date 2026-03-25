@@ -18,7 +18,7 @@
 #include "acl/acl.h"
 #include "common/hixl_checker.h"
 #include "cs/hixl_cs.h"
-#include "hcomm_compat.h"
+#include "proxy/hcomm_compat.h"
 #include "runtime/runtime/rt.h"
 
 namespace hixl {

@@ -35,6 +35,7 @@ foreach(STUB ${STUBS})
     endif()
 endforeach()
 
+add_subdirectory(${HIXL_DIR}/src/hixl/proxy ${CMAKE_BINARY_DIR}/src/hixl/proxy)
 add_subdirectory(${HIXL_DIR}/src/ops ${CMAKE_BINARY_DIR}/src/ops)
 pack_targets_and_files(
     OUTPUT_TARGET "pack_aicpu_hixl"

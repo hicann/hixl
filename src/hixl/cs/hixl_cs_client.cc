@@ -28,7 +28,9 @@
 #include "hccl/hcomm_primitives.h"
 #include "load_kernel.h"
 #include "mem_msg_handler.h"
+#include "proxy/hcomm_proxy.h"
 
+namespace hixl {
 namespace {
 constexpr uint32_t kUbThreadNum = 1U;
 constexpr uint32_t kUbNotifyNumPerThread = 1U;
@@ -101,7 +103,7 @@ void CloseImportedBufs(EndpointHandle ep_handle, std::vector<hixl::HixlMemDesc> 
     if (!b.is_imported) {
       continue;
     }
-    const HcclResult ret = HcommMemUnimport(ep_handle, b.export_desc, b.export_len);
+    const HcclResult ret = HcommProxy::MemUnimport(ep_handle, b.export_desc, b.export_len);
     if (ret != HCCL_SUCCESS) {
       HIXL_LOGW("[HixlClient] HcommMemUnimport failed. addr=%p size=%" PRIu64 " ret=0x%X", b.mem.addr, b.mem.size,
                 static_cast<uint32_t>(ret));
@@ -203,7 +205,6 @@ void FreeMemDev(hixl::MemDev &mem_dev) {
 }
 }  // namespace
 
-namespace hixl {
 HixlCSClient::HixlCSClient() : mem_store_() {
   for (size_t i = 0U; i < kFlagQueueSize; ++i) {
     available_indices_[i] = i;
@@ -310,7 +311,8 @@ Status HixlCSClient::InitUbResource() {
     HIXL_CHK_STATUS_RET(ret, "[HixlClient] InitUbConstMemory failed");
     HIXL_LOGI("[HixlClient] UB Device const one initialized at %p on dev %d", ub_dev_const_one_, ub_device_id_);
   }
-  Status pret = CompletePool::GetInstance().AddRefAndInitIfNeeded(ub_device_id_, kUbEngine, kUbThreadNum, kUbNotifyNumPerThread);
+  Status pret =
+      CompletePool::GetInstance().AddRefAndInitIfNeeded(ub_device_id_, kUbEngine, kUbThreadNum, kUbNotifyNumPerThread);
   HIXL_CHK_STATUS_RET(pret, "[HixlClient] CompletePool AddRefAndInitIfNeeded failed. devId=%d", ub_device_id_);
   for (uint32_t i = 0; i < CompletePool::kMaxSlots; ++i) {
     uint64_t notify_addr = 0;
@@ -342,8 +344,8 @@ Status HixlCSClient::Create(const char *server_ip, uint32_t server_port, const E
       "SrcEndpoint[Loc:%d, protocol:%d, commAddr.Type:%d, commAddr.id:0x%x], "
       "DstEndpoint[Loc:%d, protocol:%d, commAddr.Type:%d, commAddr.id:0x%x]",
       server_ip, server_port, local_endpoint->loc.locType, local_endpoint->protocol, local_endpoint->commAddr.type,
-      local_endpoint->commAddr.id, remote_endpoint->loc.locType, remote_endpoint->protocol, remote_endpoint->commAddr.type,
-      remote_endpoint->commAddr.id);
+      local_endpoint->commAddr.id, remote_endpoint->loc.locType, remote_endpoint->protocol,
+      remote_endpoint->commAddr.type, remote_endpoint->commAddr.id);
   std::lock_guard<std::mutex> lock(mutex_);
   HIXL_CHK_STATUS_RET(InitBaseClient(server_ip, server_port, *local_endpoint, *remote_endpoint),
                       "[HixlClient] InitBaseClient failed");
@@ -371,8 +373,7 @@ Status HixlCSClient::RegMem(const char *mem_tag, const HcommMem *mem, MemHandle 
   *mem_handle = ep_mem_handle;
   Status ret = mem_store_.RecordMemory(false, mem->addr, mem->size);  // 记录client侧给endpoint分配的内存信息
   if (ret != SUCCESS) {
-    HIXL_LOGE(FAILED,
-              "[HixlClient] Client record memory failed. mem_addr = %p, mem_size = %u",mem->addr, mem->size);
+    HIXL_LOGE(FAILED, "[HixlClient] Client record memory failed. mem_addr = %p, mem_size = %u", mem->addr, mem->size);
     return FAILED;
   }
   HIXL_LOGI("[HixlClient] Memory register success. ");
@@ -432,25 +433,24 @@ Status HixlCSClient::BatchTransferTask(bool is_get, const CommunicateMem &commun
   if (is_get) {
     // 批量提交读任务
     for (uint32_t i = 0; i < communicate_mem_param.list_num; i++) {
-      hccl_ret =
-          HcommReadNbiOnThread(static_cast<ThreadHandle>(0), client_channel_handle_, communicate_mem_param.dst_buf_list[i],
-                       const_cast<void *>(communicate_mem_param.src_buf_list[i]), communicate_mem_param.len_list[i]);
+      hccl_ret = HcommProxy::ReadNbiOnThread(
+          static_cast<ThreadHandle>(0), client_channel_handle_, communicate_mem_param.dst_buf_list[i],
+          const_cast<void *>(communicate_mem_param.src_buf_list[i]), communicate_mem_param.len_list[i]);
       if (hccl_ret != 0) {
         HIXL_LOGE(FAILED,
-                  "[HixlClient] HcommReadNbiOnThread failed, client_channel_handle_ is %lu, dst_addr is %p, src_addr is %p, "
-                  "mem_len is %lu, hccl_ret is %d.",
-                  client_channel_handle_, communicate_mem_param.dst_buf_list[i],
-                  const_cast<void *>(communicate_mem_param.src_buf_list[i]), communicate_mem_param.len_list[i],
-                  hccl_ret);
+            "[HixlClient] HcommReadNbiOnThread failed, client_channel_handle_ is %lu, dst_addr is %p, src_addr is %p, "
+            "mem_len is %lu, hccl_ret is %d.",
+            client_channel_handle_, communicate_mem_param.dst_buf_list[i],
+            const_cast<void *>(communicate_mem_param.src_buf_list[i]), communicate_mem_param.len_list[i], hccl_ret);
         return FAILED;
       }
     }
   } else {
     // 批量提交写任务
     for (uint32_t i = 0; i < communicate_mem_param.list_num; i++) {
-      hccl_ret =
-          HcommWriteNbiOnThread(static_cast<ThreadHandle>(0), client_channel_handle_, communicate_mem_param.dst_buf_list[i],
-                        const_cast<void *>(communicate_mem_param.src_buf_list[i]), communicate_mem_param.len_list[i]);
+      hccl_ret = HcommProxy::WriteNbiOnThread(
+          static_cast<ThreadHandle>(0), client_channel_handle_, communicate_mem_param.dst_buf_list[i],
+          const_cast<void *>(communicate_mem_param.src_buf_list[i]), communicate_mem_param.len_list[i]);
       if (hccl_ret != 0) {  // ret值为0时表示执行成功
         HIXL_LOGE(FAILED,
                   "[HixlClient] HcommWriteNbi failed, client_channel_handle_ is %lu, dst_addr is %p, src_addr is %p, "
@@ -463,7 +463,7 @@ Status HixlCSClient::BatchTransferTask(bool is_get, const CommunicateMem &commun
     }
   }
   // 创建内存隔断，等到通道上所有的读任务执行结束后才会接着执行之后创建的读写任务
-  hccl_ret = HcommChannelFenceOnThread(static_cast<ThreadHandle>(0), client_channel_handle_);
+  hccl_ret = HcommProxy::ChannelFenceOnThread(static_cast<ThreadHandle>(0), client_channel_handle_);
   if (hccl_ret != 0) {  // ret值为0时表示执行成功
     HIXL_LOGE(FAILED, "[HixlClient] HcommChannelFenceOnThread failed，client_channel_handle_ is %lu, hccl_ret is %d.",
               client_channel_handle_, hccl_ret);
@@ -491,13 +491,13 @@ Status HixlCSClient::BatchTransferHost(bool is_get, const CommunicateMem &commun
   } else {
     kTransFlagName = kTransFlagNameDevice;
   }
-  int32_t hccl_ret =
-      HcommReadNbiOnThread(static_cast<ThreadHandle>(0), client_channel_handle_, flag_addr, tag_mem_descs_[kTransFlagName].addr, kFlagSizeBytes);
+  int32_t hccl_ret = HcommProxy::ReadNbiOnThread(static_cast<ThreadHandle>(0), client_channel_handle_, flag_addr,
+                                                 tag_mem_descs_[kTransFlagName].addr, kFlagSizeBytes);
   if (hccl_ret != 0) {  // ret值为0时表示执行成功
     HIXL_LOGE(FAILED,
-              "[HixlClient] HcommReadNbiOnThread failed, client_channel_handle_ is %lu, dst_addr is %p, src_addr is %p, "
-              "mem_len is %lu, hccl_ret is %d.",
-              client_channel_handle_, flag_addr, tag_mem_descs_[kTransFlagName].addr, kFlagSizeBytes, hccl_ret);
+        "[HixlClient] HcommReadNbiOnThread failed, client_channel_handle_ is %lu, dst_addr is %p, src_addr is %p, "
+        "mem_len is %lu, hccl_ret is %d.",
+        client_channel_handle_, flag_addr, tag_mem_descs_[kTransFlagName].addr, kFlagSizeBytes, hccl_ret);
     return FAILED;
   }
   auto *query_mem_handle = new (std::nothrow) CompleteHandle();
@@ -851,7 +851,7 @@ Status HixlCSClient::UnRegMem(MemHandle mem_handle) {
     Status ret = mem_store_.UnrecordMemory(false, desc.mem.addr);  // 删掉记录中client侧给endpoint分配的内存信息
     if (ret != SUCCESS) {
       HIXL_LOGE(FAILED,
-                "[HixlClient] Client record memory failed. mem_addr = %p",desc.mem.addr);
+                "[HixlClient] Client record memory failed. mem_addr = %p", desc.mem.addr);
       return FAILED;
     }
     return SUCCESS;
