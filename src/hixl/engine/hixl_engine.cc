@@ -169,9 +169,10 @@ Status HixlEngine::TransferSync(const AscendString &remote_engine, TransferOp op
   HIXL_LOGI("[HixlEngine] Synchronous transmission started, local_engine:%s, remote_engine:%s, timeout:%d ms",
             local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
   ClientPtr client_ptr = client_manager_.GetClient(remote_engine.GetString());
-  HIXL_CHECK_NOTNULL(client_ptr, 
-                     "[HixlEngine] Failed to get client through remote engine, local_engine:%s, remote_engine:%s",
-                     local_engine_.c_str(), remote_engine.GetString());
+  HIXL_CHK_BOOL_RET_STATUS(client_ptr != nullptr, 
+                           NOT_CONNECTED, 
+                           "[HixlEngine] Failed to get client through remote engine, please check connection. local_engine:%s, remote_engine:%s",
+                           local_engine_.c_str(), remote_engine.GetString());
   HIXL_CHK_STATUS_RET(client_ptr->TransferSync(op_descs, operation, timeout_in_millis),
                       "[HixlEngine] Failed to TransferSync, local_engine:%s, remote_engine:%s, timeout:%d ms", 
                       local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
