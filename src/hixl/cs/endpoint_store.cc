@@ -41,13 +41,25 @@ std::vector<EndpointHandle> EndpointStore::GetAllEndpointHandles() {
   return handles;
 }
 
-inline bool operator == (const EndpointDesc& lhs, const EndpointDesc& rhs) {
+inline bool operator==(const EndpointDesc &lhs, const EndpointDesc &rhs) {
   if (lhs.protocol != rhs.protocol) {
     return false;
   }
-
   if (lhs.protocol == COMM_PROTOCOL_HCCS) {
     return lhs.commAddr.id == rhs.commAddr.id;
+  } else if (lhs.protocol == COMM_PROTOCOL_UBC_TP || lhs.protocol == COMM_PROTOCOL_UBC_CTP) {
+    return std::memcmp(lhs.commAddr.eid, rhs.commAddr.eid, COMM_ADDR_EID_LEN) == 0;
+  } else if (lhs.protocol == COMM_PROTOCOL_ROCE) {
+    if (lhs.commAddr.type != rhs.commAddr.type) {
+      return false;
+    }
+    if (lhs.commAddr.type == COMM_ADDR_TYPE_IP_V4) {
+      return std::memcmp(&lhs.commAddr.addr, &rhs.commAddr.addr, sizeof(struct in_addr)) == 0;
+    } else if (lhs.commAddr.type == COMM_ADDR_TYPE_IP_V6) {
+      return std::memcmp(&lhs.commAddr.addr6, &rhs.commAddr.addr6, sizeof(struct in6_addr)) == 0;
+    } else {
+      return false;
+    }
   }
   return true;
 }
