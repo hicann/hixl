@@ -12,104 +12,119 @@
 #include "common/hixl_checker.h"
 
 extern "C" {
-__attribute__((weak)) HcclResult HcommMemReg(EndpointHandle endPointHandle, const char *memTag, HcommMem mem,
-                                              void **memHandle);
-__attribute__((weak)) HcclResult HcommMemUnreg(EndpointHandle endPointHandle, void *memHandle);
-__attribute__((weak)) HcclResult HcommMemExport(EndpointHandle endPointHandle, void *memHandle, void **memDesc,
-                                                 uint32_t *memDescLen);
-__attribute__((weak)) HcclResult HcommEndpointCreate(const EndpointDesc *endPoint, EndpointHandle *endPointHandle);
-__attribute__((weak)) HcclResult HcommEndpointDestroy(EndpointHandle endPointHandle);
-__attribute__((weak)) HcclResult HcommMemImport(EndpointHandle endpointHandle, const void *memDesc, uint32_t descLen,
-                                                 HcommMem *outMem);
-__attribute__((weak)) HcclResult HcommMemUnimport(EndpointHandle endpointHandle, const void *memDesc, uint32_t descLen);
-__attribute__((weak)) HcclResult HcommChannelCreate(EndpointHandle endPointHandle, CommEngine engine,
-                                                    HcommChannelDesc *channelDescs, uint32_t channelNum,
-                                                    ChannelHandle *channels);
-__attribute__((weak)) HcclResult HcommChannelDestroy(const ChannelHandle *channels, uint32_t channelNum);
-__attribute__((weak)) HcclResult HcommChannelGetStatus(const ChannelHandle *channelList, uint32_t listNum,
-                                                       int32_t *statusList);
+__attribute__((weak)) HcommResult HcommEndpointCreate(const EndpointDesc *endpoint, EndpointHandle *endpointHandle);
+
+__attribute__((weak)) HcommResult HcommEndpointDestroy(EndpointHandle endpointHandle);
+
+__attribute__((weak)) HcommResult HcommMemReg(EndpointHandle endpointHandle, const char *memTag, const CommMem *mem,
+                                              HcommMemHandle *memHandle);
+
+__attribute__((weak)) HcommResult HcommMemUnreg(EndpointHandle endpointHandle, HcommMemHandle memHandle);
+
+__attribute__((weak)) HcommResult HcommMemExport(EndpointHandle endpointHandle, HcommMemHandle memHandle,
+                                                 void **memDesc, uint32_t *memDescLen);
+
+__attribute__((weak)) HcommResult HcommMemImport(EndpointHandle endpointHandle, const void *memDesc, uint32_t descLen,
+                                                 CommMem *outMem);
+
+__attribute__((weak)) HcommResult HcommMemUnimport(EndpointHandle endpointHandle, const void *memDesc,
+                                                   uint32_t descLen);
+
+__attribute__((weak)) HcommResult HcommChannelCreate(EndpointHandle endpointHandle, CommEngine engine,
+                                                     HcommChannelDesc *channelDescs, uint32_t channelNum,
+                                                     ChannelHandle *channels);
+
+__attribute__((weak)) HcommResult HcommChannelGetStatus(const ChannelHandle *channelList, uint32_t listNum,
+                                                        int32_t *statusList);
+
+__attribute__((weak)) HcommResult HcommChannelDestroy(const ChannelHandle *channels, uint32_t channelNum);
+
+__attribute__((weak)) HcommResult HcommThreadAlloc(CommEngine engine, uint32_t threadNum,
+                                                   const uint32_t *notifyNumPerThread, ThreadHandle *threads);
+
+__attribute__((weak)) HcommResult HcommThreadFree(const ThreadHandle *threads, uint32_t threadNum);
+
 __attribute__((weak)) int32_t HcommWriteNbiOnThread(ThreadHandle thread, ChannelHandle channel, void *dst,
-                                                   const void *src, uint64_t len);
+                                                    const void *src, uint64_t len);
 __attribute__((weak)) int32_t HcommReadNbiOnThread(ThreadHandle thread, ChannelHandle channel, void *dst,
-                                                  const void *src, uint64_t len);
-__attribute__((weak)) HcclResult HcommThreadAlloc(CommEngine engine, uint32_t threadNum, uint32_t notifyNumPerThread,
-                                                  ThreadHandle *threadHandle);
-__attribute__((weak)) HcclResult HcommThreadFree(const ThreadHandle *threads, uint32_t threadNum);
+                                                   const void *src, uint64_t len);
+
 __attribute__((weak)) int32_t HcommBatchModeStart(const char *batchTag);
 __attribute__((weak)) int32_t HcommBatchModeEnd(const char *batchTag);
-__attribute__((weak)) int32_t HcommReadOnThread(ThreadHandle thread, ChannelHandle channel, void *dst,
-                                                const void *src, uint64_t len);
-__attribute__((weak)) int32_t HcommWriteOnThread(ThreadHandle thread, ChannelHandle channel, void *dst,
-                                                 const void *src, uint64_t len);
+
+__attribute__((weak)) int32_t HcommReadOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src,
+                                                uint64_t len);
+__attribute__((weak)) int32_t HcommWriteOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src,
+                                                 uint64_t len);
 __attribute__((weak)) int32_t HcommChannelFenceOnThread(ThreadHandle thread, ChannelHandle channel);
 }
 
 namespace hixl {
-
-HcclResult HcommProxy::MemReg(EndpointHandle endPointHandle, const char *memTag, HcommMem mem, void **memHandle) {
+HcclResult HcommProxy::MemReg(EndpointHandle endPointHandle, const char *memTag, const CommMem *mem,
+                              HcommMemHandle *memHandle) {
   HIXL_CHK_BOOL_RET_STATUS(&HcommMemReg != nullptr, HCCL_E_NOT_SUPPORT,
                            "function HcommMemReg is null, maybe unsupported.");
-  return HcommMemReg(endPointHandle, memTag, mem, memHandle);
+  return static_cast<HcclResult>(HcommMemReg(endPointHandle, memTag, mem, memHandle));
 }
 
 HcclResult HcommProxy::MemUnreg(EndpointHandle endPointHandle, void *memHandle) {
   HIXL_CHK_BOOL_RET_STATUS(&HcommMemUnreg != nullptr, HCCL_E_NOT_SUPPORT,
                            "function HcommMemUnreg is null, maybe unsupported.");
-  return HcommMemUnreg(endPointHandle, memHandle);
+  return static_cast<HcclResult>(HcommMemUnreg(endPointHandle, memHandle));
 }
 
 HcclResult HcommProxy::MemExport(EndpointHandle endPointHandle, void *memHandle, void **memDesc, uint32_t *memDescLen) {
   HIXL_CHK_BOOL_RET_STATUS(&HcommMemExport != nullptr, HCCL_E_NOT_SUPPORT,
                            "function HcommMemExport is null, maybe unsupported.");
-  return HcommMemExport(endPointHandle, memHandle, memDesc, memDescLen);
+  return static_cast<HcclResult>(HcommMemExport(endPointHandle, memHandle, memDesc, memDescLen));
 }
 
 HcclResult HcommProxy::EndpointCreate(const EndpointDesc *endPoint, EndpointHandle *endPointHandle) {
   HIXL_CHK_BOOL_RET_STATUS(&HcommEndpointCreate != nullptr, HCCL_E_NOT_SUPPORT,
                            "function HcommEndpointCreate is null, maybe unsupported.");
-  return HcommEndpointCreate(endPoint, endPointHandle);
+  return static_cast<HcclResult>(HcommEndpointCreate(endPoint, endPointHandle));
 }
 
 HcclResult HcommProxy::EndpointDestroy(EndpointHandle endPointHandle) {
   HIXL_CHK_BOOL_RET_STATUS(&HcommEndpointDestroy != nullptr, HCCL_E_NOT_SUPPORT,
                            "function HcommEndpointDestroy is null, maybe unsupported.");
-  return HcommEndpointDestroy(endPointHandle);
+  return static_cast<HcclResult>(HcommEndpointDestroy(endPointHandle));
 }
 
 HcclResult HcommProxy::MemImport(EndpointHandle endpointHandle, const void *memDesc, uint32_t descLen,
-                                  HcommMem *outMem) {
+                                 CommMem *outMem) {
   HIXL_CHK_BOOL_RET_STATUS(&HcommMemImport != nullptr, HCCL_E_NOT_SUPPORT,
                            "function HcommMemImport is null, maybe unsupported.");
-  return HcommMemImport(endpointHandle, memDesc, descLen, outMem);
+  return static_cast<HcclResult>(HcommMemImport(endpointHandle, memDesc, descLen, outMem));
 }
 
 HcclResult HcommProxy::MemUnimport(EndpointHandle endpointHandle, const void *memDesc, uint32_t descLen) {
   HIXL_CHK_BOOL_RET_STATUS(&HcommMemUnimport != nullptr, HCCL_E_NOT_SUPPORT,
                            "function HcommMemUnimport is null, maybe unsupported.");
-  return HcommMemUnimport(endpointHandle, memDesc, descLen);
+  return static_cast<HcclResult>(HcommMemUnimport(endpointHandle, memDesc, descLen));
 }
 
 HcclResult HcommProxy::ChannelCreate(EndpointHandle endPointHandle, CommEngine engine, HcommChannelDesc *channelDescs,
-                                      uint32_t channelNum, ChannelHandle *channels) {
+                                     uint32_t channelNum, ChannelHandle *channels) {
   HIXL_CHK_BOOL_RET_STATUS(&HcommChannelCreate != nullptr, HCCL_E_NOT_SUPPORT,
                            "function HcommChannelCreate is null, maybe unsupported.");
-  return HcommChannelCreate(endPointHandle, engine, channelDescs, channelNum, channels);
+  return static_cast<HcclResult>(HcommChannelCreate(endPointHandle, engine, channelDescs, channelNum, channels));
 }
 
 HcclResult HcommProxy::ChannelDestroy(const ChannelHandle *channels, uint32_t channelNum) {
   HIXL_CHK_BOOL_RET_STATUS(&HcommChannelDestroy != nullptr, HCCL_E_NOT_SUPPORT,
                            "function HcommChannelDestroy is null, maybe unsupported.");
-  return HcommChannelDestroy(channels, channelNum);
+  return static_cast<HcclResult>(HcommChannelDestroy(channels, channelNum));
 }
 
 HcclResult HcommProxy::ChannelGetStatus(const ChannelHandle *channelList, uint32_t listNum, int32_t *statusList) {
   HIXL_CHK_BOOL_RET_STATUS(&HcommChannelGetStatus != nullptr, HCCL_E_NOT_SUPPORT,
                            "function HcommChannelGetStatus is null, maybe unsupported.");
-  return HcommChannelGetStatus(channelList, listNum, statusList);
+  return static_cast<HcclResult>(HcommChannelGetStatus(channelList, listNum, statusList));
 }
 
 int32_t HcommProxy::WriteNbiOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src,
-                                      uint64_t len) {
+                                     uint64_t len) {
   HIXL_CHK_BOOL_RET_STATUS(&HcommWriteNbiOnThread != nullptr, HCCL_E_NOT_SUPPORT,
                            "function HcommWriteNbiOnThread is null, maybe unsupported.");
   return HcommWriteNbiOnThread(thread, channel, dst, src, len);
@@ -122,17 +137,17 @@ int32_t HcommProxy::ReadNbiOnThread(ThreadHandle thread, ChannelHandle channel, 
   return HcommReadNbiOnThread(thread, channel, dst, src, len);
 }
 
-HcclResult HcommProxy::ThreadAlloc(CommEngine engine, uint32_t threadNum, uint32_t notifyNumPerThread,
-                                    ThreadHandle *threadHandle) {
+HcclResult HcommProxy::ThreadAlloc(CommEngine engine, uint32_t threadNum, const uint32_t *notifyNumPerThread,
+                                   ThreadHandle *threads) {
   HIXL_CHK_BOOL_RET_STATUS(&HcommThreadAlloc != nullptr, HCCL_E_NOT_SUPPORT,
                            "function HcommThreadAlloc is null, maybe unsupported.");
-  return HcommThreadAlloc(engine, threadNum, notifyNumPerThread, threadHandle);
+  return static_cast<HcclResult>(HcommThreadAlloc(engine, threadNum, notifyNumPerThread, threads));
 }
 
 HcclResult HcommProxy::ThreadFree(const ThreadHandle *threads, uint32_t threadNum) {
   HIXL_CHK_BOOL_RET_STATUS(&HcommThreadFree != nullptr, HCCL_E_NOT_SUPPORT,
                            "function HcommThreadFree is null, maybe unsupported.");
-  return HcommThreadFree(threads, threadNum);
+  return static_cast<HcclResult>(HcommThreadFree(threads, threadNum));
 }
 
 int32_t HcommProxy::BatchModeStart(const char *batchTag) {

@@ -41,9 +41,9 @@ target_compile_options(cann_hixl PRIVATE
 
 target_link_libraries(cann_hixl PRIVATE
         $<BUILD_INTERFACE:intf_pub>
+        $<BUILD_INTERFACE:hccl_headers>
         $<BUILD_INTERFACE:slog_headers>
         $<BUILD_INTERFACE:mmpa_headers>
-        $<BUILD_INTERFACE:hccl_headers>
         $<BUILD_INTERFACE:acl_rt_headers>
         $<BUILD_INTERFACE:runtime_headers>
         $<BUILD_INTERFACE:msprof_headers>

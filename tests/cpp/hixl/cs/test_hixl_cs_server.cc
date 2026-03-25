@@ -140,13 +140,13 @@ TEST_F(HixlCSTest, TestHixlCSServer) {
   };
   ret = HixlCSServerRegProc(server_handle, static_cast<CtrlMsgType>(kCtrlMsgType), proc);
   EXPECT_EQ(ret, SUCCESS);
-  HcommMem mem{};
+  CommMem mem{};
   mem.size = sizeof(int32_t);
   mem.addr = &kDeviceMems[0];
   MemHandle mem_handle = nullptr;
   ret = HixlCSServerRegMem(server_handle, nullptr, &mem, &mem_handle);
   EXPECT_EQ(ret, SUCCESS);
-  HcommMem mem2{};
+  CommMem mem2{};
   mem2.size = sizeof(int32_t);
   mem2.addr = &kHostMems[0];
   MemHandle mem_handle2 = nullptr;
@@ -172,7 +172,7 @@ TEST_F(HixlCSTest, TestHixlCSClient2Server) {
   desc.endpoint_list_num = default_eps.size();
   auto ret = HixlCSServerCreate(&desc, &config, &server_handle);
   EXPECT_EQ(ret, SUCCESS);
-  HcommMem mem{};
+  CommMem mem{};
   mem.size = sizeof(int32_t);
   mem.addr = &kDeviceMems[0];
   MemHandle mem_handle = nullptr;

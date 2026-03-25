@@ -54,7 +54,7 @@ ge::Status RegBufferPool::Initialize() {
       LLM_CHK_ACL(aclrtFree(buffer_));
     }
   }));
-  auto type = is_host_ ? HcclMemType::HCCL_MEM_TYPE_HOST : HcclMemType::HCCL_MEM_TYPE_DEVICE;
+  auto type = is_host_ ? CommMemType::COMM_MEM_TYPE_HOST : CommMemType::COMM_MEM_TYPE_DEVICE;
   LLM_CHK_STATUS_RET(GlobalMemManager::GetInstance().RegisterMem(buffer_, buffer_size, type, handle_),
                     "Failed to register buffer pool addr.");
   LLM_DISMISS_GUARD(fail_guard);
@@ -397,12 +397,12 @@ ge::Status CommEntity::SetRemoteAddresses() {
   constexpr size_t kIndexRemoteResp = 2U;
   LLM_CHK_BOOL_RET_STATUS(remote_mems_.size() >= kMinRemoteMemSize, ge::LLM_LINK_FAILED,
                          "remote mem num:%zu, expected min:%zu.", remote_mems_.size(), kMinRemoteMemSize);
-  LLM_CHK_BOOL_RET_STATUS((remote_mems_[kIndexRemoteReq].type == HcclMemType::HCCL_MEM_TYPE_HOST) &&
+  LLM_CHK_BOOL_RET_STATUS((remote_mems_[kIndexRemoteReq].type == CommMemType::COMM_MEM_TYPE_HOST) &&
                               (remote_mems_[kIndexRemoteReq].size == kDefaultReqBufferSize),
                           ge::LLM_LINK_FAILED, "Remote mem type:%s, size:%llu is not valid.",
                           HcclUtils::HcclMemTypeToString(remote_mems_[kIndexRemoteReq].type).c_str(),
                           remote_mems_[kIndexRemoteReq].size);
-  LLM_CHK_BOOL_RET_STATUS((remote_mems_[kIndexRemoteResp].type == HcclMemType::HCCL_MEM_TYPE_HOST) &&
+  LLM_CHK_BOOL_RET_STATUS((remote_mems_[kIndexRemoteResp].type == CommMemType::COMM_MEM_TYPE_HOST) &&
                               (remote_mems_[kIndexRemoteResp].size == kDefaultRespBufferSize),
                           ge::LLM_LINK_FAILED, "Remote mem type:%s, size:%llu is not valid.",
                           HcclUtils::HcclMemTypeToString(remote_mems_[kIndexRemoteResp].type).c_str(),

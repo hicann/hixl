@@ -28,7 +28,7 @@ class TransferEngine {
   virtual ge::Status Initialize(const std::map<ge::AscendString, ge::AscendString> &options) = 0;
   virtual void Finalize() = 0;
 
-  virtual ge::Status RegisterMem(void *addr, uint64_t size, HcclMemType type, void *&handle) = 0;
+  virtual ge::Status RegisterMem(void *addr, uint64_t size, CommMemType type, void *&handle) = 0;
   virtual ge::Status UnregisterMem(void *handle) = 0;
 
   virtual ge::Status LinkClusters(const std::vector<ClusterInfo> &clusters, std::vector<ge::Status> &rets,

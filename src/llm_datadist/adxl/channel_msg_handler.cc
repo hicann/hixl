@@ -251,7 +251,7 @@ Status ChannelMsgHandler::RegisterMem(const MemDesc &mem, MemType type, MemHandl
     ADXL_CHK_STATUS_RET(fabric_mem_transfer_service_->RegisterMem(mem, type, mem_handle), "Failed to register mem.");
   } else {
     HcclMem hccl_mem = {};
-    hccl_mem.type = type == MEM_DEVICE ? HCCL_MEM_TYPE_DEVICE : HCCL_MEM_TYPE_HOST;
+    hccl_mem.type = type == MEM_DEVICE ? COMM_MEM_TYPE_DEVICE : COMM_MEM_TYPE_HOST;
     hccl_mem.addr = reinterpret_cast<void *>(mem.addr);
     hccl_mem.size = mem.len;
     ADXL_CHK_HCCL_RET(llm::HcclAdapter::GetInstance().HcclRegisterGlobalMem(&hccl_mem, &mem_handle));

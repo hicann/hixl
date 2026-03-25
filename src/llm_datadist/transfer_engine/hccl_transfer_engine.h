@@ -22,7 +22,7 @@ class HcclTransferEngine : public TransferEngine {
   ge::Status Initialize(const std::map<ge::AscendString, ge::AscendString> &options) override;
   void Finalize() override;
 
-  ge::Status RegisterMem(void *addr, uint64_t size, HcclMemType type, void *&handle) override;
+  ge::Status RegisterMem(void *addr, uint64_t size, CommMemType type, void *&handle) override;
   ge::Status UnregisterMem(void *handle) override;
 
   ge::Status Link(std::string &cluster_name, const std::map<uint64_t, uint32_t> &cluster2rank,

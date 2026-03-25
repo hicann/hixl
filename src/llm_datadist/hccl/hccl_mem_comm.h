@@ -17,7 +17,7 @@
 extern "C" {
 #endif  // __cplusplus
 typedef struct {
-  HcclMemType type;
+  CommMemType type;
   void *addr;
   u64 size;
 } HcclMem;

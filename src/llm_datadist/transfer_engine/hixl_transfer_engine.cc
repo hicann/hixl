@@ -111,11 +111,11 @@ void HixlTransferEngine::Finalize() {
   engine_->Finalize();
 }
 
-ge::Status HixlTransferEngine::RegisterMem(void *addr, uint64_t size, HcclMemType type, void *&handle) {
+ge::Status HixlTransferEngine::RegisterMem(void *addr, uint64_t size, CommMemType type, void *&handle) {
   hixl::MemDesc desc{};
   desc.addr = reinterpret_cast<uintptr_t>(addr);
   desc.len = size;
-  hixl::MemType mem_type = type == HCCL_MEM_TYPE_HOST ? hixl::MEM_HOST : hixl::MEM_DEVICE;
+  hixl::MemType mem_type = type == COMM_MEM_TYPE_HOST ? hixl::MEM_HOST : hixl::MEM_DEVICE;
   LLM_CHK_HIXL_RET(engine_->RegisterMem(desc, mem_type, handle),
                    "Failed to register mem, addr:%p, size:%lu, type:%d.",
                    addr, size, static_cast<int32_t>(type));

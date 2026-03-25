@@ -10,7 +10,7 @@
 #ifndef CANN_HIXL_SRC_HIXL_OPS_HIXL_KERNEL_HIXL_BATCH_TRANSFER_H_
 #define CANN_HIXL_SRC_HIXL_OPS_HIXL_KERNEL_HIXL_BATCH_TRANSFER_H_
 
-#include "proxy/hcomm_compat.h"
+#include "hcomm/hcomm_res_defs.h"
 
 #ifdef __cplusplus
 extern "C" {

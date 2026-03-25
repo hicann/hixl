@@ -356,7 +356,7 @@ Status CompletePool::EnsureThreadLocked(Slot &slot, CommEngine engine, uint32_t 
   if (slot.thread != 0U) {
     return SUCCESS;
   }
-  HIXL_CHK_HCCL_RET(HcommProxy::ThreadAlloc(engine, thread_num, notify_num_per_thread, &slot.thread));
+  HIXL_CHK_HCCL_RET(HcommProxy::ThreadAlloc(engine, thread_num, &notify_num_per_thread, &slot.thread));
   return SUCCESS;
 }
 

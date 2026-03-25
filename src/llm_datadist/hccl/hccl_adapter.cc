@@ -269,11 +269,11 @@ ge::Status HcclUtils::ConvertHcclErrorCode(HcclResult hccl_result, ge::Status de
   return default_status;
 }
 
-const std::string HcclUtils::HcclMemTypeToString(HcclMemType type) {
+const std::string HcclUtils::HcclMemTypeToString(CommMemType type) {
   switch (type) {
-    case HCCL_MEM_TYPE_DEVICE:
+    case COMM_MEM_TYPE_DEVICE:
       return "device";
-    case HCCL_MEM_TYPE_HOST:
+    case COMM_MEM_TYPE_HOST:
       return "host";
     default:
       return "unknown";

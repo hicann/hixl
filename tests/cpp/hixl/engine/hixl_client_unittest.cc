@@ -55,19 +55,19 @@ enum class MockHixlServerMode : uint32_t {
   kGetEndpointInfoResp_MissingField,
 };
 // server 内存信息
-static HcommMem default_remote_mem_list[] = {{HCCL_MEM_TYPE_HOST, &kRemoteMems[0], sizeof(uint32_t)},
-                                             {HCCL_MEM_TYPE_DEVICE, &kRemoteMems[2], sizeof(uint32_t)}};
-static HcommMem remote_mem_list_4ub[] = {{HCCL_MEM_TYPE_HOST, &kRemoteMems[0], sizeof(uint32_t)},
-                                         {HCCL_MEM_TYPE_DEVICE, &kRemoteMems[2], sizeof(uint32_t)},
-                                         {HCCL_MEM_TYPE_HOST, &kRemoteMems[4], sizeof(uint32_t)},
-                                         {HCCL_MEM_TYPE_DEVICE, &kRemoteMems[6], sizeof(uint32_t)}};
+static CommMem default_remote_mem_list[] = {{COMM_MEM_TYPE_HOST, &kRemoteMems[0], sizeof(uint32_t)},
+                                             {COMM_MEM_TYPE_DEVICE, &kRemoteMems[2], sizeof(uint32_t)}};
+static CommMem remote_mem_list_4ub[] = {{COMM_MEM_TYPE_HOST, &kRemoteMems[0], sizeof(uint32_t)},
+                                         {COMM_MEM_TYPE_DEVICE, &kRemoteMems[2], sizeof(uint32_t)},
+                                         {COMM_MEM_TYPE_HOST, &kRemoteMems[4], sizeof(uint32_t)},
+                                         {COMM_MEM_TYPE_DEVICE, &kRemoteMems[6], sizeof(uint32_t)}};
 // client 内存信息
-static HcommMem default_local_mem_list[] = {{HCCL_MEM_TYPE_HOST, &kLocalMems[0], sizeof(uint32_t)},
-                                            {HCCL_MEM_TYPE_DEVICE, &kLocalMems[2], sizeof(uint32_t)}};
-static HcommMem local_mem_list_4ub[] = {{HCCL_MEM_TYPE_DEVICE, &kLocalMems[0], sizeof(uint32_t)},
-                                        {HCCL_MEM_TYPE_DEVICE, &kLocalMems[2], sizeof(uint32_t)},
-                                        {HCCL_MEM_TYPE_HOST, &kLocalMems[4], sizeof(uint32_t)},
-                                        {HCCL_MEM_TYPE_HOST, &kLocalMems[6], sizeof(uint32_t)}};
+static CommMem default_local_mem_list[] = {{COMM_MEM_TYPE_HOST, &kLocalMems[0], sizeof(uint32_t)},
+                                            {COMM_MEM_TYPE_DEVICE, &kLocalMems[2], sizeof(uint32_t)}};
+static CommMem local_mem_list_4ub[] = {{COMM_MEM_TYPE_DEVICE, &kLocalMems[0], sizeof(uint32_t)},
+                                        {COMM_MEM_TYPE_DEVICE, &kLocalMems[2], sizeof(uint32_t)},
+                                        {COMM_MEM_TYPE_HOST, &kLocalMems[4], sizeof(uint32_t)},
+                                        {COMM_MEM_TYPE_HOST, &kLocalMems[6], sizeof(uint32_t)}};
 
 class MockHixlServer {
  public:
@@ -101,7 +101,7 @@ class MockHixlServer {
     return SUCCESS;
   }
 
-  void RegMem(HcommMem *mem_list, size_t size) {
+  void RegMem(CommMem *mem_list, size_t size) {
     for (size_t i = 0; i < size; ++i) {
       MemHandle mem_handle = nullptr;
       HixlStatus ret = HixlCSServerRegMem(server_handle_, std::to_string(i).c_str(), &mem_list[i], &mem_handle);
