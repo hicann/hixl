@@ -23,9 +23,9 @@ if (NOT ENABLE_TEST)
 
     target_link_libraries(llm_datadist_wrapper PRIVATE
             $<BUILD_INTERFACE:intf_pub>
+            $<BUILD_INTERFACE:hccl_headers>
             $<BUILD_INTERFACE:slog_headers>
             $<BUILD_INTERFACE:mmpa_headers>
-            $<BUILD_INTERFACE:hccl_headers>
             $<BUILD_INTERFACE:metadef_headers>
             $<BUILD_INTERFACE:msprof_headers>
             alog
