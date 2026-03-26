@@ -137,27 +137,40 @@ LogCaptureStub::~LogCaptureStub() {
 }
  
 void LogCaptureStub::Log(int module_id, int level, const char *fmt, va_list args) {
+  if (!log_init) {
+    return;
+  }
   char buff[2048] = {0};
   if (Format(buff, sizeof(buff), module_id, level, fmt, args) > 0) {
     std::string log_msg(buff);
-    captured_logs_.push_back(log_msg);
-    
-    // 检查是否匹配任何捕获模式
-    for (size_t i = 0; i < capture_patterns_.size(); ++i) {
-      if (log_msg.find(capture_patterns_[i]) != std::string::npos) {
-        pattern_captured_[i] = true;
-        std::cout << log_msg << std::endl;
+    bool any_pattern_captured = false;
+    {
+      std::lock_guard<std::mutex> lock(log_mutex_);
+      captured_logs_.push_back(log_msg);
+      // 检查是否匹配任何捕获模式
+      for (size_t i = 0; i < capture_patterns_.size(); ++i) {
+        if (log_msg.find(capture_patterns_[i]) != std::string::npos) {
+          pattern_captured_[i] = true;
+          any_pattern_captured = true;
+          std::cout << log_msg << std::endl;
+        }
       }
+    }
+    // 如果捕获到新的模式，通知等待的线程
+    if (any_pattern_captured) {
+      log_cv_.notify_all();
     }
   }
 }
  
 void LogCaptureStub::AddCapturePattern(const std::string &pattern) {
+  std::lock_guard<std::mutex> lock(log_mutex_);
   capture_patterns_.push_back(pattern);
   pattern_captured_.push_back(false);
 }
  
 bool LogCaptureStub::IsPatternCaptured(const std::string &pattern) const {
+  std::lock_guard<std::mutex> lock(log_mutex_);
   if (pattern.empty()) {
     // 检查是否有任何模式被捕获
     for (bool captured : pattern_captured_) {
@@ -178,12 +191,37 @@ bool LogCaptureStub::IsPatternCaptured(const std::string &pattern) const {
 }
  
 const std::vector<std::string> &LogCaptureStub::GetCapturedLogs() const {
+  std::lock_guard<std::mutex> lock(log_mutex_);
   return captured_logs_;
 }
  
 void LogCaptureStub::Reset() {
+  std::lock_guard<std::mutex> lock(log_mutex_);
   captured_logs_.clear();
   pattern_captured_.assign(capture_patterns_.size(), false);
+}
+
+bool LogCaptureStub::WaitForAllPatternsCaptured(int timeout_ms) {
+  std::unique_lock<std::mutex> lock(log_mutex_);
+  auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+  
+  // 检查是否所有模式都已被捕获
+  auto all_captured = [this]() {
+    for (bool captured : pattern_captured_) {
+      if (!captured) {
+        return false;
+      }
+    }
+    return true;
+  };
+  
+  // 等待所有模式被捕获或超时
+  while (!all_captured()) {
+    if (log_cv_.wait_until(lock, deadline) == std::cv_status::timeout) {
+      return false;  // 超时
+    }
+  }
+  return true;  // 所有模式都已被捕获
 }
 }  // namespace llm
 

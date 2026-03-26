@@ -36,7 +36,7 @@ static constexpr uint32_t kMemNum = 100U;
 static constexpr uint32_t kBackLog = 1024U;
 static constexpr uint32_t kRecvTimeoutMs = 1000U;
 static constexpr uint32_t kTimeSleepMs = 10U;
-static constexpr uint32_t kTimeCleanUpMs = 10U;
+static constexpr uint32_t kCaptureLogTimeoutMs = 1000U;
 static constexpr int32_t kNUm1 = 1;
 static constexpr int32_t kNUm2 = 2;
 static std::vector<int32_t> kHostMems(kMemNum, kNUm1);
@@ -228,8 +228,10 @@ TEST_F(HixlCSTest, TestHixlCSServerDisconnectionCleanup) {
   GetCreateChannelResp(client_fd, resp_body);
 
   (void) close(client_fd);
-  std::this_thread::sleep_for(std::chrono::milliseconds(kTimeCleanUpMs));
-  
+
+  // 等待所有预期的日志模式被捕获
+  EXPECT_TRUE(log_capture->WaitForAllPatternsCaptured(kCaptureLogTimeoutMs));
+
   // 验证 CleanupClient 函数被执行（通过日志捕获）
   EXPECT_TRUE(log_capture->IsPatternCaptured("[HixlServer] detected client disconnect event"))
       << "Client disconnect event was not detected";
