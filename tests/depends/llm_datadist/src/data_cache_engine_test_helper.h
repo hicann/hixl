@@ -55,36 +55,66 @@ class HcclApiStub {
   static std::unique_ptr<HcclApiStub> instance_;
 };
 
-class MockHccnTool : public llm::MmpaStubApiGe {
- public:
-  static void Install() {
-    llm::MmpaStub::GetInstance().SetImpl(std::make_shared<MockHccnTool>());
-  }
-  static void Reset() {
+class MockMmpaNoRealDl : public llm::MmpaStubApiGe {
+public:
+  static void ResetStubImpl() {
     HcclApiStub::ResetStub();
     llm::MmpaStub::GetInstance().Reset();
   }
 
-  INT32 Access(const CHAR *path_name) override {
+  void *DlOpen(const char *file_name, int32_t mode) override {
+    (void)file_name;
+    (void)mode;
+    return reinterpret_cast<void *>(0x10000000);
+  }
+
+  void *DlSym(void *handle, const char *func_name) override {
+    (void)handle;
+    (void)func_name;
+    return nullptr;
+  }
+
+  int32_t DlClose(void *handle) override {
+    (void)handle;
     return 0;
   }
 };
 
-class MockGetHccnResult : public llm::MmpaStubApiGe {
-  public:
+class MockHccnTool : public MockMmpaNoRealDl {
+public:
   static void Install() {
-    llm::MmpaStub::GetInstance().SetImpl(std::make_shared<MockGetHccnResult>());
+    llm::MmpaStub::GetInstance().SetImpl(std::make_shared<MockHccnTool>());
   }
+
   static void Reset() {
-    HcclApiStub::ResetStub();
-    llm::MmpaStub::GetInstance().Reset();
+    ResetStubImpl();
   }
 
   INT32 Access(const CHAR *path_name) override {
+    (void)path_name;
+    return 0;
+  }
+};
+
+class MockGetHccnResult : public MockMmpaNoRealDl {
+public:
+  static void Install() {
+    llm::MmpaStub::GetInstance().SetImpl(std::make_shared<MockGetHccnResult>());
+  }
+
+  static void Reset() {
+    ResetStubImpl();
+  }
+
+  INT32 Access(const CHAR *path_name) override {
+    (void)path_name;
     return 1;
   }
 
   int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
+    (void)path;
+    (void)realPath;
+    (void)realPathLen;
     return 1;
   }
 };
