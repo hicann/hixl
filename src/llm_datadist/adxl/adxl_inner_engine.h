@@ -113,7 +113,6 @@ class AdxlInnerEngine {
   std::atomic<uint64_t> next_req_id_{1};
   // Mutex to protect connection operations (Connect and ConnectWhenTransfer)
   std::mutex connection_mutex_;
-  void *statistic_timer_handle_{nullptr};
 
   bool enable_use_fabric_mem_ = false;
   std::unique_ptr<FabricMemTransferService> fabric_mem_transfer_service_ = nullptr;

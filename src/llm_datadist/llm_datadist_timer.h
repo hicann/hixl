@@ -30,7 +30,7 @@ struct TimerInfo {
 class LlmDatadistTimer {
  public:
   static LlmDatadistTimer &Instance();
-  ~LlmDatadistTimer() = default;
+  ~LlmDatadistTimer();
   void Init();
   void Finalize();
   void *CreateTimer(const TimerCallback &callback);
@@ -43,6 +43,7 @@ class LlmDatadistTimer {
   void TimerThreadLoop();
   void ProcessTimerInContext();
 
+  std::mutex lifecycle_mutex_;
   std::mutex mutex_;
   std::thread time_thread_;
   bool running_{false};

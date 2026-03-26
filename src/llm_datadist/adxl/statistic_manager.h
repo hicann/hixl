@@ -12,6 +12,8 @@
 
 #include <atomic>
 #include <mutex>
+#include <string>
+#include <unordered_map>
 namespace adxl {
 struct BufferTransferStatisticInfo {
   std::atomic<uint64_t> transfer_times = 0UL;
@@ -69,7 +71,7 @@ struct StatisticInfo {
 class StatisticManager {
  public:
   static StatisticManager &GetInstance();
-  ~StatisticManager() = default;
+  ~StatisticManager();
   StatisticManager(const StatisticManager &) = delete;
   StatisticManager(const StatisticManager &&) = delete;
   StatisticManager &operator=(const StatisticManager &) = delete;
@@ -87,6 +89,7 @@ class StatisticManager {
 
   void SetEnableUseFabricMem(bool enable_use_frabric_mem);
   void RemoveChannel(const std::string &channel_id);
+  void StartPeriodicDumpIfNeeded();
 
  private:
   StatisticManager() = default;
@@ -96,6 +99,8 @@ class StatisticManager {
   void DumpFabricMemTransferStatisticInfo();
 
   bool enable_use_frabric_mem_ = false;
+  std::mutex dump_mutex_;
+  void *dump_timer_handle_{nullptr};
   std::mutex map_mutex_;
   std::unordered_map<std::string, StatisticInfo> transfer_statistic_info_;
 };

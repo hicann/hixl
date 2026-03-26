@@ -9,15 +9,42 @@
  */
 
 #include "common/llm_log.h"
+#include "llm_datadist_timer.h"
 #include "statistic_manager.h"
 namespace adxl {
 namespace {
 constexpr uint64_t kResetTimes = 100000UL;
 constexpr uint64_t kFabricMemResetTimes = 10000UL;
+constexpr uint32_t kStatisticTimerPeriodMs = 80U * 1000U;
 }  // namespace
 StatisticManager &StatisticManager::GetInstance() {
+  // Ensure LlmDatadistTimer singleton is constructed before this singleton so it is
+  // destroyed after ~StatisticManager (StopTimer/DeleteTimer need a live timer map).
+  (void)llm::LlmDatadistTimer::Instance();
   static StatisticManager instance;
   return instance;
+}
+
+void StatisticManager::StartPeriodicDumpIfNeeded() {
+  std::lock_guard<std::mutex> lock(dump_mutex_);
+  if (dump_timer_handle_ != nullptr) {
+    return;
+  }
+  llm::LlmDatadistTimer::Instance().Init();
+  dump_timer_handle_ = llm::LlmDatadistTimer::Instance().CreateTimer([this]() {
+    Dump();
+  });
+  (void)llm::LlmDatadistTimer::Instance().StartTimer(dump_timer_handle_, kStatisticTimerPeriodMs, false);
+}
+
+StatisticManager::~StatisticManager() {
+  std::lock_guard<std::mutex> lock(dump_mutex_);
+  if (dump_timer_handle_ != nullptr) {
+    (void)llm::LlmDatadistTimer::Instance().StopTimer(dump_timer_handle_);
+    (void)llm::LlmDatadistTimer::Instance().DeleteTimer(dump_timer_handle_);
+    dump_timer_handle_ = nullptr;
+  }
+  Reset();
 }
 
 void StatisticManager::SetEnableUseFabricMem(bool enable_use_frabric_mem) {

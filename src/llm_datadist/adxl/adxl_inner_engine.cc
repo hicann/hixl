@@ -16,7 +16,6 @@
 #include "common/llm_checker.h"
 #include "common/hixl_utils.h"
 #include "statistic_manager.h"
-#include "llm_datadist_timer.h"
 #include "adxl_utils.h"
 #include "virtual_memory_manager.h"
 
@@ -241,14 +240,9 @@ Status AdxlInnerEngine::Initialize(const std::map<AscendString, AscendString> &o
     notify_cv_.notify_all();  // Notify all waiting threads, but only the one with matching req_id will continue
   });
 
-  llm::LlmDatadistTimer::Instance().Init();
-  statistic_timer_handle_ = llm::LlmDatadistTimer::Instance().CreateTimer([this]() {
-    StatisticManager::GetInstance().Dump();
-  });
-  constexpr uint32_t kStatisticTimerPeriod = 80U * 1000U;
-  (void)llm::LlmDatadistTimer::Instance().StartTimer(statistic_timer_handle_, kStatisticTimerPeriod, false);
   is_initialized_ = true;
   StatisticManager::GetInstance().SetEnableUseFabricMem(enable_use_fabric_mem_);
+  StatisticManager::GetInstance().StartPeriodicDumpIfNeeded();
   LLM_DISMISS_GUARD(fail_guard);
   return SUCCESS;
 }
@@ -401,13 +395,6 @@ void AdxlInnerEngine::Finalize() {
   if (aclrt_context_ != nullptr) {
     (void) aclrtDestroyContext(aclrt_context_);
   }
-  if (statistic_timer_handle_ != nullptr) {
-    (void)llm::LlmDatadistTimer::Instance().StopTimer(statistic_timer_handle_);
-    (void)llm::LlmDatadistTimer::Instance().DeleteTimer(statistic_timer_handle_);
-    statistic_timer_handle_ = nullptr;
-  }
-  llm::LlmDatadistTimer::Instance().Finalize();
-  StatisticManager::GetInstance().Reset();
 }
 
 bool AdxlInnerEngine::IsInitialized() const {

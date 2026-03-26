@@ -33,7 +33,12 @@ LlmDatadistTimer &LlmDatadistTimer::Instance() {
   return instance;
 }
 
+LlmDatadistTimer::~LlmDatadistTimer() {
+  Finalize();
+}
+
 void LlmDatadistTimer::Init() {
+  std::lock_guard<std::mutex> lk(lifecycle_mutex_);
   if (is_init_) {
     return;
   }
@@ -43,6 +48,7 @@ void LlmDatadistTimer::Init() {
 }
 
 void LlmDatadistTimer::Finalize() {
+  std::lock_guard<std::mutex> lk(lifecycle_mutex_);
   running_ = false;
   if (time_thread_.joinable()) {
     time_thread_.join();
