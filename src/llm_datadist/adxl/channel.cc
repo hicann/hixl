@@ -19,6 +19,7 @@
 #include "common/def_types.h"
 #include "common/llm_log.h"
 #include "virtual_memory_manager.h"
+#include "statistic_manager.h"
 
 #include <base/err_msg.h>
 
@@ -282,6 +283,7 @@ Status Channel::GetTransferStatus(const TransferReq &req, TransferStatus &status
   status = TransferStatus::COMPLETED;
   const auto end = std::chrono::steady_clock::now();
   const auto cost = std::chrono::duration_cast<std::chrono::microseconds>(end - it->second.real_start).count();
+  StatisticManager::GetInstance().UpdateDirectTransferCost(channel_info_.channel_id, cost);
   LLMLOGI("Transfer async request completed, req:%lu, time cost:%lu us.", id, cost);
   aclrtDestroyEvent(event);
   stream_pool_->FreeStream(stream);
@@ -360,6 +362,7 @@ Status Channel::TransferSync(TransferOp operation,
   ADXL_CHK_ACL_RET(aclrtSynchronizeStreamWithTimeout(stream, timeout_in_millis));
   const auto end = std::chrono::steady_clock::now();
   const auto cost = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+  StatisticManager::GetInstance().UpdateDirectTransferCost(channel_info_.channel_id, cost);
   LLMLOGI("TransferSync success, operation:%s, num = %zu, channel_id:%s, time cost:%lu us.",
           operation == READ ? "HcclBatchGet" : "HcclBatchPut", op_descs.size(), channel_info_.channel_id.c_str(), cost);
   LLM_DISMISS_GUARD(fail_guard);

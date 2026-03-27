@@ -29,4 +29,9 @@ TEST_F(StatisticManagerUTest, TestDump) {
   StatisticManager::GetInstance().Dump();
 }
 
+TEST_F(StatisticManagerUTest, TestDirectTransferDump) {
+  StatisticManager::GetInstance().UpdateDirectTransferCost(kChannelId, kCost);
+  StatisticManager::GetInstance().Dump();
+}
+
 }  // namespace adxl

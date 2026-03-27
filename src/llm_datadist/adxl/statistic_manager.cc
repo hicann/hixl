@@ -125,11 +125,23 @@ void StatisticManager::UpdateFabricMemRealCopyCost(const std::string &channel_id
              info.fabric_mem_transfer_statistic_info.real_copy_total_cost);
 }
 
+void StatisticManager::UpdateDirectTransferCost(const std::string &channel_id, uint64_t cost) {
+  std::lock_guard<std::mutex> lock(map_mutex_);
+  auto &info = transfer_statistic_info_[channel_id];
+  UpdateCost(cost, info.direct_transfer_statistic_info.transfer_times,
+             info.direct_transfer_statistic_info.transfer_max_cost,
+             info.direct_transfer_statistic_info.transfer_total_cost);
+  if (info.direct_transfer_statistic_info.transfer_times.load(std::memory_order_relaxed) > kResetTimes) {
+    info.direct_transfer_statistic_info.Reset();
+  }
+}
+
 void StatisticManager::Dump() {
   if (enable_use_frabric_mem_) {
     DumpFabricMemTransferStatisticInfo();
   } else {
     DumpBufferTransferStatisticInfo();
+    DumpDirectTransferStatisticInfo();
   }
 }
 
@@ -210,12 +222,31 @@ void StatisticManager::DumpFabricMemTransferStatisticInfo() {
   }
 }
 
+void StatisticManager::DumpDirectTransferStatisticInfo() {
+  std::lock_guard<std::mutex> lock(map_mutex_);
+  for (auto &item : transfer_statistic_info_) {
+    auto &stat_info = item.second;
+    auto transfer_times = stat_info.direct_transfer_statistic_info.transfer_times.load(std::memory_order_relaxed);
+    const uint64_t direct_transfer_avg_cost =
+        transfer_times == 0U
+            ? 0U
+            : stat_info.direct_transfer_statistic_info.transfer_total_cost.load(std::memory_order_relaxed) /
+                  transfer_times;
+    LLMEVENT(
+        "Direct transfer statistic info[channel:%s, transfer times:%lu, max cost:%lu us, avg cost:%lu us].",
+        item.first.c_str(), transfer_times,
+        stat_info.direct_transfer_statistic_info.transfer_max_cost.load(std::memory_order_relaxed),
+        direct_transfer_avg_cost);
+  }
+}
+
 void StatisticManager::Reset() {
   std::lock_guard<std::mutex> lock(map_mutex_);
   for (auto &item : transfer_statistic_info_) {
     auto &stat_info = item.second;
     stat_info.buffer_transfer_statistic_info.Reset();
     stat_info.fabric_mem_transfer_statistic_info.Reset();
+    stat_info.direct_transfer_statistic_info.Reset();
   }
 }
 }  // namespace adxl

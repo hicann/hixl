@@ -2,6 +2,7 @@
 
 ## 🔥Latest News
 
+- [2026/03] HIXL已支持超节点内FabricMem模式，详见 [FabricMem](docs/FabricMem.md)。
 - [2026/01] LLM-DataDist与HIXL已支持下一代芯片的Host RoCE传输能力。
 - [2025/12] 基于A3超平面实现D2rH直传；新增链路池与IPv6支持，并对接Mooncake社区的下一代TENT架构。
 - [2025/11] HIXL提供异步传输能力，支持更高并发的非阻塞数据传输场景。

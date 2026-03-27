@@ -366,14 +366,14 @@ Status FabricMemTransferService::IsTransferDone(const std::vector<AsyncResource>
   status = TransferStatus::WAITING;
   for (auto &async_resource : async_resources) {
     if (async_resource.second != nullptr) {
-      aclrtEventRecordedStatus event_status{};
-      auto ret = aclrtQueryEventStatus(async_resource.second, &event_status);
+      aclrtEventWaitStatus event_wait_status{};
+      auto ret = aclrtQueryEventWaitStatus(async_resource.second, &event_wait_status);
       if (ret != ACL_ERROR_NONE) {
-        LLMLOGE(FAILED, "Call aclrtEventRecordedStatus failed for req:%lu, ret:%d.", req_id, ret);
+        LLMLOGE(FAILED, "Call aclrtQueryEventWaitStatus failed for req:%lu, ret:%d.", req_id, ret);
         status = TransferStatus::FAILED;
         return FAILED;
       }
-      completed = completed && (event_status == ACL_EVENT_RECORDED_STATUS_COMPLETE);
+      completed = completed && (event_wait_status == ACL_EVENT_WAIT_STATUS_COMPLETE);
     }
   }
   return SUCCESS;

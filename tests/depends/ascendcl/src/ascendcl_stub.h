@@ -64,6 +64,7 @@ public:
   virtual aclError aclrtDestroyEvent(aclrtEvent event);
   virtual aclError aclrtRecordEvent(aclrtEvent event, aclrtStream stream);
   virtual aclError aclrtQueryEventStatus(aclrtEvent event, aclrtEventRecordedStatus *status);
+  virtual aclError aclrtQueryEventWaitStatus(aclrtEvent event, aclrtEventWaitStatus *status);
   virtual aclError aclrtCreateStream(aclrtStream *stream);
   virtual aclError aclrtCreateStreamWithConfig(aclrtStream *stream, uint32_t priority, uint32_t flag);
   virtual aclError aclrtDestroyStream(aclrtStream stream);

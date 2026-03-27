@@ -162,6 +162,12 @@ aclError AclRuntimeStub::aclrtQueryEventStatus(aclrtEvent event, aclrtEventRecor
   return ACL_ERROR_NONE;
 }
 
+aclError AclRuntimeStub::aclrtQueryEventWaitStatus(aclrtEvent event, aclrtEventWaitStatus *status) {
+  (void)event;
+  *status = ACL_EVENT_WAIT_STATUS_COMPLETE;
+  return ACL_ERROR_NONE;
+}
+
 aclError AclRuntimeStub::aclrtCreateStream(aclrtStream *stream) {
   const char * const kEnvRecordPath = "CONSTANT_FOLDING_PASS_4";
   char record_path[MMPA_MAX_PATH] = {};
@@ -659,6 +665,10 @@ aclError aclrtRecordEvent(aclrtEvent event, aclrtStream stream) {
 
 aclError aclrtQueryEventStatus(aclrtEvent event, aclrtEventRecordedStatus *status) {
   return llm::AclRuntimeStub::GetInstance()->aclrtQueryEventStatus(event, status);
+}
+
+aclError aclrtQueryEventWaitStatus(aclrtEvent event, aclrtEventWaitStatus *status) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtQueryEventWaitStatus(event, status);
 }
 
 aclError aclrtCreateStream(aclrtStream *stream) {

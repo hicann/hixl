@@ -63,9 +63,22 @@ struct FabricMemTransferStatisticInfo {
   }
 };
 
+struct DirectTransferStatisticInfo {
+  std::atomic<uint64_t> transfer_times = 0UL;
+  std::atomic<uint64_t> transfer_max_cost = 0UL;
+  std::atomic<uint64_t> transfer_total_cost = 0UL;
+
+  void Reset() {
+    transfer_times.store(0UL);
+    transfer_max_cost.store(0UL);
+    transfer_total_cost.store(0UL);
+  }
+};
+
 struct StatisticInfo {
   BufferTransferStatisticInfo buffer_transfer_statistic_info;
   FabricMemTransferStatisticInfo fabric_mem_transfer_statistic_info;
+  DirectTransferStatisticInfo direct_transfer_statistic_info;
 };
 
 class StatisticManager {
@@ -86,6 +99,7 @@ class StatisticManager {
 
   void UpdateFabricMemTransferCost(const std::string &channel_id, uint64_t cost);
   void UpdateFabricMemRealCopyCost(const std::string &channel_id, uint64_t cost);
+  void UpdateDirectTransferCost(const std::string &channel_id, uint64_t cost);
 
   void SetEnableUseFabricMem(bool enable_use_frabric_mem);
   void RemoveChannel(const std::string &channel_id);
@@ -97,6 +111,7 @@ class StatisticManager {
                          std::atomic<uint64_t> &total_cost);
   void DumpBufferTransferStatisticInfo();
   void DumpFabricMemTransferStatisticInfo();
+  void DumpDirectTransferStatisticInfo();
 
   bool enable_use_frabric_mem_ = false;
   std::mutex dump_mutex_;

@@ -78,6 +78,8 @@ Status VirtualMemoryManager::SetGlobalStartAddress(size_t start_addr_in_tb) {
 Status VirtualMemoryManager::ReserveMemAddress(void *&virtual_address, size_t size) {
   const uintptr_t start_va = (global_start_va_ != 0) ? global_start_va_ : kGlobalVirtualMemoryStartAddr;
   void *global_start_va = llm::ValueToPtr(start_va);
+  ADXL_CHK_BOOL_RET_STATUS(&aclrtReserveMemAddressNoUCMemory != nullptr, UNSUPPORTED,
+                           "aclrtReserveMemAddressNoUCMemory is not supported");
   auto ret = aclrtReserveMemAddressNoUCMemory(&virtual_address, size, 0, global_start_va,
                                               kReserveFlagHugePage);
   if (ret == ACL_ERROR_RT_FEATURE_NOT_SUPPORT) {

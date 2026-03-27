@@ -5,6 +5,7 @@
 - [环境要求](#环境要求)
 - [程序编译](#程序编译)
 - [Benchmark运行](#Benchmark运行)
+- [FabricMem KV benchmark](#fabricmem-kv-benchmark)
 - [性能数据](#性能数据)
 
 ## Benchmarks
@@ -17,6 +18,9 @@
 ├── benchmarks
 |   ├── common                                         // 公共函数目录
 |   ├── benchmark.cpp                                  // HIXL的数据传输benchmark用例
+|   ├── fabric_mem_kv_benchmark.cpp                    // FabricMem KV 块传输 benchmark（AdxlEngine）
+|   ├── fabric_mem_kv_benchmark_summary.awk            // 与运行脚本配套的日志汇总脚本
+|   ├── run_fabric_mem_kv_benchmark.sh                 // 多进程启动与日志合并脚本
 |   ├── CMakeLists.txt                                 // 编译脚本
 ```
 
@@ -132,6 +136,25 @@ for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
 
     - Atlas 800I A2 推理产品/A200I A2 Box 异构组件，该场景下Server内采用HCCS传输协议时，仅支持d2d。
     - Atlas A3 训练/推理系列产品，该场景下采用HCCS传输协议时，不支持Host内存作为远端Cache。
+
+## FabricMem KV benchmark
+
+### 推荐：使用脚本启动并汇总日志
+
+```shell
+cd build/benchmarks
+
+# path_of_benchmark需替换为具体benchmarks所在目录
+# 默认 16 进程、日志 fabric_mem_kv_benchmark.log
+${path_of_benchmark}/run_fabric_mem_kv_benchmark.sh 127.0.0.1 22000 ./fabric_mem_kv_benchmark
+
+# 指定 world_size=2（烟测）、日志文件
+${path_of_benchmark}/run_fabric_mem_kv_benchmark.sh 127.0.0.1 22000 ./fabric_mem_kv_benchmark 2 ./kv_bench.log
+```
+
+参数顺序：`host_ip` `base_port` `可执行文件路径` `[world_size]` `[合并日志文件]`。
+
+脚本行为：为每个 rank 落盘独立日志，再按 rank 顺序合并到指定文件，并在文末追加 **SUMMARY**（对各 rank 的 Get 时间与带宽做平均；rank 0 的 Put / Get-max 行从原始日志解析）。
 
 ## 性能数据
 

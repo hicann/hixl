@@ -344,9 +344,9 @@ TEST_F(FabricMemTransferServiceUTest, TestGetTransferStatus_QueryStatusFail_Clea
 
   class QueryFailRuntimeMock : public llm::AclRuntimeStub {
    public:
-    aclError aclrtQueryEventStatus(aclrtEvent evt, aclrtEventRecordedStatus *status) override {
+    aclError aclrtQueryEventWaitStatus(aclrtEvent evt, aclrtEventWaitStatus *wait_status) override {
       (void)evt;
-      (void)status;
+      (void)wait_status;
       return -1;
     }
   };
