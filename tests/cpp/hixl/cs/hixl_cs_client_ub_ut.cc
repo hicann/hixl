@@ -16,8 +16,8 @@
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 #include "ascendcl_stub.h"
+#include "depends/mmpa/src/mmpa_stub.h"
 #include "load_kernel.h"
-
 #define private public
 #define protected public
 #include "hixl_cs_client.h"
@@ -92,6 +92,32 @@ Status PollUntilCompleted(HixlCSClient &cli, void *qh, HixlCompleteStatus *out_s
 }
 
 }  // namespace
+
+class MockMmpaStub : public llm::MmpaStubApiGe {
+public:
+  std::string fake_real_path_;
+  bool real_path_ok_ = false;
+  bool access_ok_ = false;
+  INT32 RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
+    (void)path;
+    if (!real_path_ok_) {
+      return EN_ERROR;
+    }
+    if (fake_real_path_.empty() || realPathLen <= 0) {
+      return EN_ERROR;
+    }
+    size_t destMax = static_cast<size_t>(realPathLen);
+    errno_t ret = strncpy_s(realPath, destMax, fake_real_path_.c_str(), destMax - 1);
+    if (ret != EOK) {
+      return EN_ERROR;
+    }
+    return EN_OK;
+  }
+  INT32 Access(const CHAR *path_name) override {
+    (void)path_name;
+    return access_ok_ ? EN_OK : EN_ERROR;
+  }
+};
 
 class HixlCSClientUbFixture : public ::testing::Test {
  protected:
@@ -233,8 +259,9 @@ TEST_F(HixlCSClientUbFixture, BatchPutUbDeviceSlotExhaustedFail) {
 }
 
 class LoadKernelFixture : public ::testing::Test {
- protected:
- void SetUp() override {
+protected:
+  void SetUp() override {
+    llm::MmpaStub::GetInstance().Reset();
     const char *env = std::getenv("ASCEND_HOME_PATH");
     if (env != nullptr) {
       original_env_ = env;
@@ -242,7 +269,6 @@ class LoadKernelFixture : public ::testing::Test {
     }
     system("mkdir -p ./test_opp/opp/built-in/op_impl/aicpu/config");
   }
-
   void TearDown() override {
     if (has_env_) {
       setenv("ASCEND_HOME_PATH", original_env_.c_str(), 1);
@@ -250,8 +276,8 @@ class LoadKernelFixture : public ::testing::Test {
       unsetenv("ASCEND_HOME_PATH");
     }
     system("rm -rf ./test_opp");
+    llm::MmpaStub::GetInstance().Reset();
   }
-
   void CreateDummyJson(const std::string &path, bool readable) {
     std::string cmd = "echo '{}' > " + path;
     system(cmd.c_str());
@@ -260,12 +286,15 @@ class LoadKernelFixture : public ::testing::Test {
       system(cmd.c_str());
     }
   }
-
   std::string original_env_;
   bool has_env_ = false;
 };
 
 TEST_F(LoadKernelFixture, NoEnvAndFileNotFound) {
+  auto mock_mmpa = std::make_shared<MockMmpaStub>();
+  mock_mmpa->real_path_ok_ = false;
+  mock_mmpa->access_ok_ = false;
+  llm::MmpaStub::GetInstance().SetImpl(mock_mmpa);
   unsetenv("ASCEND_HOME_PATH");
   aclrtBinHandle bin_handle = nullptr;
   UbFuncHandles func_handles{};
