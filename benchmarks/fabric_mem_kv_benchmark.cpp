@@ -16,12 +16,10 @@
 // Host/device pools are sized by rounding kRequiredDataBytes up to the next whole GiB (not exact-fit).
 // Put (D2RH): rank 0 WRITE from local device to each peer's host buffer; local rank-0 slice uses D2H memcpy.
 // Get (RH2D): each rank READ from remote host into local device buffer (skips local slice).
-// Timings: warmup 1 iteration, then 10 timed iterations; put avg on rank 0; get max across ranks per iter.
+// Timings: kWarmupIterations warmup, then kTimedIterations timed runs; put avg on rank 0; get max across ranks per iter.
 // Result lines: each rank prints its RH2D average; rank 0 adds a second line with put + get(max).
 
 #include <chrono>
-#include <cstdio>
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -51,19 +49,21 @@ constexpr uint32_t kArgIndexHostIp = 3U;
 constexpr uint32_t kArgIndexBasePort = 4U;
 constexpr uint32_t kArgIndexSyncDir = 5U;
 constexpr uint32_t kArgIndexWorldSize = 6U;
+// argc counts argv[0]; required args occupy argv[1 .. kArgIndexSyncDir], optional world_size at kArgIndexWorldSize.
+constexpr int kArgcWithRequiredArgsOnly = 1 + static_cast<int>(kArgIndexSyncDir);
+constexpr int kArgcWithOptionalWorldSize = 1 + static_cast<int>(kArgIndexWorldSize);
 constexpr int32_t kConnectTimeoutMs = 120000;
 constexpr int32_t kTransferTimeoutMs = 120000;
 constexpr int32_t kWarmupIterations = 1;
 constexpr int32_t kTimedIterations = 10;
 constexpr uint64_t kBytesPerGiB = 1024ULL * 1024ULL * 1024ULL;
-constexpr const char *kFabricGlobalJson =
-    R"({"fabric_memory":{"max_capacity":128}})";
 
 const int32_t kBlockCounts[] = {16, 32, 48, 64};
 constexpr size_t kMaxTotalBlocks = 64U;
 // Minimum bytes needed for kMaxTotalBlocks; actual allocation is rounded up to whole GiB.
 constexpr size_t kRequiredDataBytes = kMaxTotalBlocks * kBlockBytes;
-// Upper bound on 10ms sleep polls for file-based barriers (~100 minutes total).
+constexpr int kFileBarrierPollIntervalMs = 10;
+// Upper bound on kFileBarrierPollIntervalMs sleep polls for file-based barriers (~100 minutes total).
 constexpr int kFileBarrierPollMaxIterations = 600000;
 
 size_t PoolBytesRoundUpGiB(size_t min_bytes) {
@@ -115,18 +115,18 @@ int PrepareSyncDirRank0(const std::string &path) {
   return 0;
 }
 
-void WaitForSyncDirReady(const std::string &path) {
+bool WaitForSyncDirReady(const std::string &path) {
   namespace fs = std::filesystem;
   const std::string flag = path + "/" + kSyncReadyFile;
   for (int i = 0; i < kFileBarrierPollMaxIterations; ++i) {
     std::error_code ec;
     if (fs::exists(flag, ec)) {
-      return;
+      return true;
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(std::chrono::milliseconds(kFileBarrierPollIntervalMs));
   }
   std::cerr << "[ERROR] timeout waiting for sync_dir (rank 0 must create " << flag << ")\n";
-  std::exit(1);
+  return false;
 }
 
 // Unique tag per (block-config index, iteration) so concurrent clears cannot remove another rank's .done.
@@ -149,11 +149,11 @@ struct BarrierTags {
   }
 };
 
-void BarrierFile(const std::string &sync_dir, const std::string &tag, int rank, int world) {
+bool BarrierFile(const std::string &sync_dir, const std::string &tag, int rank, int world) {
   namespace fs = std::filesystem;
   if (world <= 0) {
     std::cerr << "[ERROR] BarrierFile: world must be positive\n";
-    std::exit(1);
+    return false;
   }
   const fs::path root(sync_dir);
   {
@@ -169,13 +169,13 @@ void BarrierFile(const std::string &sync_dir, const std::string &tag, int rank, 
       }
     }
     if (all_ready) {
-      return;
+      return true;
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::this_thread::sleep_for(std::chrono::milliseconds(kFileBarrierPollIntervalMs));
   }
   std::cerr << "[ERROR] BarrierFile timeout (sync_dir=" << sync_dir << " tag=" << tag << " rank=" << rank
       << " world=" << world << ")\n";
-  std::exit(1);
+  return false;
 }
 
 // Returns slice size in bytes. Division uses world_size; must not be zero.
@@ -220,7 +220,6 @@ Status InitAdxlEngine(AdxlEngine &engine, const std::string &local_engine) {
   std::map<AscendString, AscendString> options;
   options[AscendString(hixl::OPTION_ENABLE_USE_FABRIC_MEM)] = AscendString("1");
   options[AscendString(hixl::OPTION_BUFFER_POOL)] = AscendString("0:0");
-  options[AscendString(hixl::OPTION_GLOBAL_RESOURCE_CONFIG)] = AscendString(kFabricGlobalJson);
   return engine.Initialize(AscendString(local_engine.c_str()), options);
 }
 
@@ -409,13 +408,17 @@ BlockConfigIterationSample RunBlockConfigIteration(AdxlEngine &engine, int rank,
                                                    uint8_t *dev_pool, uint8_t *host_pool,
                                                    const std::string &sync_dir, const BarrierTags &tags,
                                                    int total_blocks, int it) {
-  BarrierFile(sync_dir, tags.pre_put, rank, world_size);
+  if (!BarrierFile(sync_dir, tags.pre_put, rank, world_size)) {
+    return {false, 0, 0};
+  }
   if (rank == 0) {
     if (!Rank0FillHostAndH2D(total_blocks, it + total_blocks, dev_pool, host_pool)) {
       return {false, 0, 0};
     }
   }
-  BarrierFile(sync_dir, tags.data_ready, rank, world_size);
+  if (!BarrierFile(sync_dir, tags.data_ready, rank, world_size)) {
+    return {false, 0, 0};
+  }
 
   int64_t put_us = 0;
   if (rank == 0) {
@@ -426,8 +429,12 @@ BlockConfigIterationSample RunBlockConfigIteration(AdxlEngine &engine, int rank,
     }
     put_us = pu;
   }
-  BarrierFile(sync_dir, tags.put_done, rank, world_size);
-  BarrierFile(sync_dir, tags.get_start, rank, world_size);
+  if (!BarrierFile(sync_dir, tags.put_done, rank, world_size)) {
+    return {false, 0, 0};
+  }
+  if (!BarrierFile(sync_dir, tags.get_start, rank, world_size)) {
+    return {false, 0, 0};
+  }
 
   const int64_t gu = RunGetAllRanksRh2D(engine, rank, peer_engines, peer_host_va, dev_pool, host_pool,
                                         total_blocks, world_size);
@@ -435,7 +442,9 @@ BlockConfigIterationSample RunBlockConfigIteration(AdxlEngine &engine, int rank,
     return {false, 0, 0};
   }
   WriteTimeFile(sync_dir, tags.get_us, rank, gu);
-  BarrierFile(sync_dir, tags.get_done, rank, world_size);
+  if (!BarrierFile(sync_dir, tags.get_done, rank, world_size)) {
+    return {false, 0, 0};
+  }
   return {true, put_us, gu};
 }
 
@@ -473,15 +482,6 @@ bool RunBenchmarkForBlockConfig(AdxlEngine &engine, int rank, int world_size,
   return true;
 }
 
-struct ParsedCliArgs {
-  int32_t device_id = 0;
-  int32_t rank = 0;
-  int32_t base_port = 0;
-  int32_t world_size = kDefaultWorldSize;
-  std::string host_ip;
-  std::string sync_dir;
-};
-
 void PrintUsage(const char *prog) {
   std::cerr << "Usage: " << prog
       << " <device_id> <rank> <host_ip> <base_port> <sync_dir> [world_size]\n"
@@ -492,41 +492,14 @@ void PrintUsage(const char *prog) {
       << "Ranks may look \"stuck\" at file barriers until all world_size processes reach the same step.\n";
 }
 
-// Returns 0 on success, 1 on usage/validation error.
-int ParseCliArgs(int argc, char **argv, ParsedCliArgs &out) {
-  if (argc != 6 && argc != 7) {
-    PrintUsage(argv[0]);
-    return 1;
-  }
-  out.device_id = std::stoi(argv[kArgIndexDeviceId]);
-  out.rank = std::stoi(argv[kArgIndexRank]);
-  out.host_ip = argv[kArgIndexHostIp];
-  out.base_port = std::stoi(argv[kArgIndexBasePort]);
-  out.sync_dir = argv[kArgIndexSyncDir];
-  if (argc == 7) {
-    out.world_size = std::stoi(argv[kArgIndexWorldSize]);
-  }
-  if (out.world_size < kMinWorldSize || out.world_size > kMaxWorldSize) {
-    std::cerr << "[ERROR] world_size must be in [" << kMinWorldSize << ", " << kMaxWorldSize << "]\n";
-    return 1;
-  }
-  if (out.rank < 0 || out.rank >= out.world_size) {
-    std::cerr << "[ERROR] rank must be in [0, world_size-1]\n";
-    return 1;
-  }
-  return 0;
-}
-
 bool PrepareSyncDirForRank(int rank, const std::string &sync_dir) {
   if (rank == 0) {
     if (PrepareSyncDirRank0(sync_dir) != 0) {
       std::cerr << "[ERROR] prepare sync_dir failed (remove or create): " << sync_dir << std::endl;
       return false;
     }
-  } else {
-    WaitForSyncDirReady(sync_dir);
   }
-  return true;
+  return WaitForSyncDirReady(sync_dir);
 }
 
 std::vector<std::string> BuildPeerEngineIds(const std::string &host_ip, int base_port, int world_size) {
@@ -596,7 +569,9 @@ bool ExchangeHostAddrsAndConnect(AdxlEngine &engine, int rank, int world_size,
                                  std::vector<uintptr_t> &peer_host_va) {
   const std::string addr_path = sync_dir + "/addr_host_" + std::to_string(rank) + ".txt";
   WriteAddrFile(addr_path, reinterpret_cast<uintptr_t>(host_pool));
-  BarrierFile(sync_dir, "reg", rank, world_size);
+  if (!BarrierFile(sync_dir, "reg", rank, world_size)) {
+    return false;
+  }
   peer_host_va.assign(static_cast<size_t>(world_size), 0);
   for (int r = 0; r < world_size; ++r) {
     peer_host_va[static_cast<size_t>(r)] =
@@ -651,23 +626,19 @@ void FinalizeBenchmark(AdxlEngine &engine, int rank,
   }
   aclFinalize();
 }
-} // namespace
 
-int main(int argc, char **argv) {
-  ParsedCliArgs args{};
-  if (ParseCliArgs(argc, argv, args) != 0) {
-    return 1;
-  }
-  if (!PrepareSyncDirForRank(args.rank, args.sync_dir)) {
+// Runs benchmark after CLI has been validated. Returns process exit code (0 success, 1 failure).
+int RunFabricMemKvBenchmarkBody(int32_t device_id, int32_t rank, const std::string &host_ip, int32_t base_port,
+                                const std::string &sync_dir, int32_t world_size) {
+  if (!PrepareSyncDirForRank(rank, sync_dir)) {
     return 1;
   }
   CHECK_ACL(aclInit(nullptr));
-  CHECK_ACL(aclrtSetDevice(args.device_id));
-  const std::vector<std::string> peer_engines =
-      BuildPeerEngineIds(args.host_ip, args.base_port, args.world_size);
-  const std::string local_engine = peer_engines[static_cast<size_t>(args.rank)];
+  CHECK_ACL(aclrtSetDevice(device_id));
+  const std::vector<std::string> peer_engines = BuildPeerEngineIds(host_ip, base_port, world_size);
+  const std::string local_engine = peer_engines[static_cast<size_t>(rank)];
   AdxlEngine engine;
-  if (!InitEngineOrCleanup(engine, local_engine, args.device_id)) {
+  if (!InitEngineOrCleanup(engine, local_engine, device_id)) {
     return 1;
   }
   const size_t pool_bytes = PoolBytesRoundUpGiB(kRequiredDataBytes);
@@ -676,23 +647,45 @@ int main(int argc, char **argv) {
   aclrtDrvMemHandle pa_handle{};
   MemHandle mem_host_handle = nullptr;
   uint8_t *host_pool = nullptr;
-  if (!AllocPoolsAndRegisterHost(engine, args.device_id, pool_bytes, host_raw, host_pool, va, pa_handle,
+  if (!AllocPoolsAndRegisterHost(engine, device_id, pool_bytes, host_raw, host_pool, va, pa_handle,
                                  mem_host_handle)) {
     return 1;
   }
   auto *dev_pool = reinterpret_cast<uint8_t *>(va);
-  LogRankEntered(args.rank, args.world_size, args.sync_dir);
+  LogRankEntered(rank, world_size, sync_dir);
   std::vector<uintptr_t> peer_host_va;
-  if (!ExchangeHostAddrsAndConnect(engine, args.rank, args.world_size, args.sync_dir, peer_engines, host_pool,
-                                   peer_host_va)) {
-    FinalizeBenchmark(engine, args.rank, peer_engines, mem_host_handle, va, pa_handle, host_raw,
-                      args.device_id, false);
+  if (!ExchangeHostAddrsAndConnect(engine, rank, world_size, sync_dir, peer_engines, host_pool, peer_host_va)) {
+    FinalizeBenchmark(engine, rank, peer_engines, mem_host_handle, va, pa_handle, host_raw, device_id, false);
     return 1;
   }
-  PrintRank0PoolBanner(args.rank, args.world_size, pool_bytes);
-  RunAllBlockConfigs(engine, args.rank, args.world_size, peer_engines, peer_host_va, dev_pool, host_pool,
-                     args.sync_dir);
-  FinalizeBenchmark(engine, args.rank, peer_engines, mem_host_handle, va, pa_handle, host_raw,
-                    args.device_id, true);
+  PrintRank0PoolBanner(rank, world_size, pool_bytes);
+  RunAllBlockConfigs(engine, rank, world_size, peer_engines, peer_host_va, dev_pool, host_pool, sync_dir);
+  FinalizeBenchmark(engine, rank, peer_engines, mem_host_handle, va, pa_handle, host_raw, device_id, true);
   return 0;
+}
+} // namespace
+
+int main(int argc, char **argv) {
+  if (argc != kArgcWithRequiredArgsOnly && argc != kArgcWithOptionalWorldSize) {
+    PrintUsage(argv[0]);
+    return 1;
+  }
+  const int32_t device_id = std::stoi(argv[kArgIndexDeviceId]);
+  const int32_t rank = std::stoi(argv[kArgIndexRank]);
+  const std::string host_ip = argv[kArgIndexHostIp];
+  const int32_t base_port = std::stoi(argv[kArgIndexBasePort]);
+  const std::string sync_dir = argv[kArgIndexSyncDir];
+  int32_t world_size = kDefaultWorldSize;
+  if (argc == kArgcWithOptionalWorldSize) {
+    world_size = std::stoi(argv[kArgIndexWorldSize]);
+  }
+  if (world_size < kMinWorldSize || world_size > kMaxWorldSize) {
+    std::cerr << "[ERROR] world_size must be in [" << kMinWorldSize << ", " << kMaxWorldSize << "]\n";
+    return 1;
+  }
+  if (rank < 0 || rank >= world_size) {
+    std::cerr << "[ERROR] rank must be in [0, world_size-1]\n";
+    return 1;
+  }
+  return RunFabricMemKvBenchmarkBody(device_id, rank, host_ip, base_port, sync_dir, world_size);
 }
