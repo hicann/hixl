@@ -8,6 +8,8 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
+set(CMAKE_SKIP_RPATH TRUE)
+
 set(INCLUDE_LIST
         ${HIXL_DIR}/src/hixl
         ${HIXL_DIR}/include
