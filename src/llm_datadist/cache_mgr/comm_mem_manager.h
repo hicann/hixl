@@ -31,7 +31,7 @@ class GlobalMemManager {
 
   ge::Status Initialize(TransferEngine *transfer_engine);
   void Finalize();
-  ge::Status RegisterMem(void *addr, uint64_t size, HcclMemType type, void *&handle);
+  ge::Status RegisterMem(void *addr, uint64_t size, CommMemType type, void *&handle);
   ge::Status UnregisterMem(void *handle);
 
  private:

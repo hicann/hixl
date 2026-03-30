@@ -49,6 +49,7 @@ target_include_directories(llm_datadist_base PRIVATE
         ${HIXL_CODE_DIR}/tests/
         ${HIXL_CODE_DIR}/tests/depends/llm_datadist/src
         ${HIXL_CODE_DIR}/src/hixl
+        ${HIXL_CODE_DIR}/src/hixl/proxy
 )
 
 target_link_libraries(llm_datadist_base PRIVATE

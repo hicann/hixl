@@ -12,29 +12,33 @@
 #define CANN_HIXL_SRC_PROXY_HCOMM_PROXY_H_
 
 #include "hcomm/hcomm_res_defs.h"
+#include "hccl/hccl_types.h"
 
 namespace hixl {
 
 class HcommProxy {
  public:
-  static HcclResult MemReg(EndpointHandle endPointHandle, const char *memTag, HcommMem mem, void **memHandle);
-  static HcclResult MemUnreg(EndpointHandle endPointHandle, void *memHandle);
-  static HcclResult MemExport(EndpointHandle endPointHandle, void *memHandle, void **memDesc, uint32_t *memDescLen);
-  static HcclResult EndpointCreate(const EndpointDesc *endPoint, EndpointHandle *endPointHandle);
-  static HcclResult EndpointDestroy(EndpointHandle endPointHandle);
-  static HcclResult MemImport(EndpointHandle endpointHandle, const void *memDesc, uint32_t descLen, HcommMem *outMem);
-  static HcclResult MemUnimport(EndpointHandle endpointHandle, const void *memDesc, uint32_t descLen);
-  static HcclResult ChannelCreate(EndpointHandle endPointHandle, CommEngine engine, HcommChannelDesc *channelDescs,
-                                  uint32_t channelNum, ChannelHandle *channels);
-  static HcclResult ChannelDestroy(const ChannelHandle *channels, uint32_t channelNum);
-  static HcclResult ChannelGetStatus(const ChannelHandle *channelList, uint32_t listNum, int32_t *statusList);
+  static HcclResult MemReg(EndpointHandle endpoint_handle, const char *mem_tag, const CommMem *mem,
+                           HcommMemHandle *mem_handle);
+  static HcclResult MemUnreg(EndpointHandle endpoint_handle, HcommMemHandle mem_handle);
+  static HcclResult MemExport(EndpointHandle endpoint_handle, HcommMemHandle mem_handle, void **mem_desc,
+                              uint32_t *mem_desc_len);
+  static HcclResult EndpointCreate(const EndpointDesc *endpoint, EndpointHandle *endpoint_handle);
+  static HcclResult EndpointDestroy(EndpointHandle endpoint_handle);
+  static HcclResult MemImport(EndpointHandle endpoint_handle, const void *mem_desc, uint32_t desc_len, CommMem *out_mem);
+  static HcclResult MemUnimport(EndpointHandle endpoint_handle, const void *mem_desc, uint32_t desc_len);
+  static HcclResult ChannelCreate(EndpointHandle endpoint_handle, CommEngine engine, HcommChannelDesc *channel_descs,
+                                  uint32_t channel_num, ChannelHandle *channels);
+  static HcclResult ChannelDestroy(const ChannelHandle *channels, uint32_t channel_num);
+  static HcclResult ChannelGetStatus(const ChannelHandle *channel_list, uint32_t list_num, int32_t *status_list);
+  static HcclResult ThreadAlloc(CommEngine engine, uint32_t thread_num, const uint32_t *notify_num_per_thread,
+                                ThreadHandle *threads);
+  static HcclResult ThreadFree(const ThreadHandle *threads, uint32_t thread_num);
+
   static int32_t WriteNbiOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src, uint64_t len);
   static int32_t ReadNbiOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src, uint64_t len);
-  static HcclResult ThreadAlloc(CommEngine engine, uint32_t threadNum, uint32_t notifyNumPerThread,
-                                ThreadHandle *threadHandle);
-  static HcclResult ThreadFree(const ThreadHandle *threads, uint32_t threadNum);
-  static int32_t BatchModeStart(const char *batchTag);
-  static int32_t BatchModeEnd(const char *batchTag);
+  static int32_t BatchModeStart(const char *batch_tag);
+  static int32_t BatchModeEnd(const char *batch_tag);
   static int32_t ReadOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src, uint64_t len);
   static int32_t WriteOnThread(ThreadHandle thread, ChannelHandle channel, void *dst, const void *src, uint64_t len);
   static int32_t ChannelFenceOnThread(ThreadHandle thread, ChannelHandle channel);

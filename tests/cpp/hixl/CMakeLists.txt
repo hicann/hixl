@@ -66,6 +66,7 @@ target_include_directories(hixl_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${HIXL_CODE_DIR}/include
         ${HIXL_CODE_DIR}/src/hixl
+        ${HIXL_CODE_DIR}/src/hixl/proxy
         ${HIXL_CODE_DIR}/src/llm_datadist
         ${HIXL_CODE_DIR}/src/hixl/cs
         ${HIXL_CODE_DIR}/src/hixl/engine

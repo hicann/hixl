@@ -38,7 +38,7 @@ void HcclTransferEngine::Finalize() {
   llm_link_mgr_->Finalize();
 }
 
-ge::Status HcclTransferEngine::RegisterMem(void *addr, uint64_t size, HcclMemType type, void *&handle) {
+ge::Status HcclTransferEngine::RegisterMem(void *addr, uint64_t size, CommMemType type, void *&handle) {
   HcclMem mem = {};
   mem.addr = addr;
   mem.size = size;

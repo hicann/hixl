@@ -67,8 +67,8 @@ void RecordMemForBatchTransfer(HixlCSClient &cli, void *remote_addr, size_t remo
 }
 
 void FillTagMem(HixlCSClient &cli, const char *tag, void *addr, uint64_t size) {
-  HcommMem mem{};
-  mem.type = HCCL_MEM_TYPE_DEVICE;
+  CommMem mem{};
+  mem.type = COMM_MEM_TYPE_DEVICE;
   mem.addr = addr;
   mem.size = size;
   cli.tag_mem_descs_[tag] = mem;

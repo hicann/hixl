@@ -109,16 +109,16 @@ void DataCacheEngineTestContext::LinkEntities(CommEntity &src_comm_entity,
   if (!remote_cache_accessible) {
     src_remote_mems[1].addr = dst_comm_entity.GetReq();
     src_remote_mems[1].size = kDefaultReqBufferSize;
-    src_remote_mems[1].type = HCCL_MEM_TYPE_HOST;
+    src_remote_mems[1].type = COMM_MEM_TYPE_HOST;
     src_remote_mems[2].addr = dst_comm_entity.GetResp();
     src_remote_mems[2].size = kDefaultRespBufferSize;
-    src_remote_mems[2].type = HCCL_MEM_TYPE_HOST;
+    src_remote_mems[2].type = COMM_MEM_TYPE_HOST;
     dst_remote_mems[1].addr = src_comm_entity.GetReq();
     dst_remote_mems[1].size = kDefaultReqBufferSize;
-    dst_remote_mems[1].type = HCCL_MEM_TYPE_HOST;
+    dst_remote_mems[1].type = COMM_MEM_TYPE_HOST;
     dst_remote_mems[2].addr = src_comm_entity.GetResp();
     dst_remote_mems[2].size = kDefaultRespBufferSize;
-    dst_remote_mems[2].type = HCCL_MEM_TYPE_HOST;
+    dst_remote_mems[2].type = COMM_MEM_TYPE_HOST;
   }
   src_comm_entity.GetRemoteMems() = src_remote_mems;
   dst_comm_entity.GetRemoteMems() = dst_remote_mems;

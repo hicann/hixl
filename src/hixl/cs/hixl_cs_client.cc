@@ -25,7 +25,6 @@
 #include "common/scope_guard.h"
 #include "common/ctrl_msg_plugin.h"
 #include "conn_msg_handler.h"
-#include "hccl/hcomm_primitives.h"
 #include "load_kernel.h"
 #include "mem_msg_handler.h"
 #include "proxy/hcomm_proxy.h"
@@ -125,7 +124,7 @@ void UnrecordAddrs(hixl::HixlMemStore &store, std::vector<void *> &addrs) {
 }
 
 hixl::Status ImportOneDesc(hixl::ImportCtx &ctx, uint32_t idx, hixl::HixlMemDesc &desc) {
-  HcommMem buf{};
+  CommMem buf{};
   hixl::Status ret = ctx.ep->MemImport(desc.export_desc, desc.export_len, buf);
   const char *safe_tag = desc.tag.empty() ? "<empty>" : desc.tag.c_str();
   if (ret != hixl::SUCCESS) {
@@ -134,7 +133,7 @@ hixl::Status ImportOneDesc(hixl::ImportCtx &ctx, uint32_t idx, hixl::HixlMemDesc
   }
   ctx.imported.emplace_back(buf);
   desc.is_imported = true;
-  HcommMem mem{};
+  CommMem mem{};
   mem.type = desc.mem.type;
   mem.addr = desc.mem.addr;
   mem.size = desc.mem.size;
@@ -247,8 +246,8 @@ Status HixlCSClient::InitFlagQueue() noexcept {
     flag_queue_[i] = 0;
   }
   top_index_ = kFlagQueueSize;  // 初始化成功后可用
-  HcommMem mem{};
-  mem.type = HCCL_MEM_TYPE_HOST;
+  CommMem mem{};
+  mem.type = COMM_MEM_TYPE_HOST;
   mem.addr = flag_queue_;
   mem.size = kFlagQueueSize * sizeof(uint64_t);
   MemHandle flag_handle = nullptr;
@@ -322,8 +321,8 @@ Status HixlCSClient::InitUbResource() {
     HIXL_CHK_STATUS_RET(CompletePool::GetInstance().GetSlotNotifyInfo(i, notify_addr, notify_len, tag),
                         "Failed to get slot notify info");
 
-    HcommMem mem{};
-    mem.type = HCCL_MEM_TYPE_DEVICE;
+    CommMem mem{};
+    mem.type = COMM_MEM_TYPE_DEVICE;
     mem.addr = reinterpret_cast<void *>(static_cast<uintptr_t>(notify_addr));
     mem.size = notify_len;
 
@@ -357,7 +356,7 @@ Status HixlCSClient::Create(const char *server_ip, uint32_t server_port, const E
 }
 
 // 注册client的endpoint的内存信息到内存注册表中。mem是一个结构体，其中记录了内存类型、地址和大小。
-Status HixlCSClient::RegMem(const char *mem_tag, const HcommMem *mem, MemHandle *mem_handle) {
+Status HixlCSClient::RegMem(const char *mem_tag, const CommMem *mem, MemHandle *mem_handle) {
   HIXL_CHECK_NOTNULL(mem);
   auto check_result = mem_store_.CheckMemoryForRegister(false, mem->addr, mem->size);
   if (check_result) {
@@ -533,7 +532,7 @@ Status HixlCSClient::EnsureUbRemoteFlagInitedLocked() {
     return PARAM_INVALID;
   }
 
-  const HcommMem &mem = it->second;
+  const CommMem &mem = it->second;
   if (mem.addr == nullptr) {
     HIXL_LOGE(PARAM_INVALID, "[HixlClient][UB] builtin remote_flag addr is null");
     return PARAM_INVALID;
@@ -896,7 +895,7 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannelLocked(uint32_t timeout_ms)
   return SUCCESS;
 }
 
-Status HixlCSClient::GetRemoteMem(HcommMem **remote_mem_list, char ***mem_tag_list, uint32_t *list_num,
+Status HixlCSClient::GetRemoteMem(CommMem **remote_mem_list, char ***mem_tag_list, uint32_t *list_num,
                                   uint32_t timeout_ms) {
   HIXL_EVENT("[HixlClient] GetRemoteMem begin. fd=%d, remote_ep_handle=%" PRIu64 ", timeout=%u ms", socket_,
              remote_endpoint_handle_, timeout_ms);
@@ -921,7 +920,7 @@ Status HixlCSClient::GetRemoteMem(HcommMem **remote_mem_list, char ***mem_tag_li
   return SUCCESS;
 }
 
-void HixlCSClient::FillOutputParams(ImportCtx &ctx, HcommMem **remote_mem_list, char ***mem_tag_list,
+void HixlCSClient::FillOutputParams(ImportCtx &ctx, CommMem **remote_mem_list, char ***mem_tag_list,
                                     uint32_t *list_num) {
   imported_remote_bufs_ = std::move(ctx.imported);
   recorded_remote_addrs_ = std::move(ctx.recorded_addrs);
@@ -936,7 +935,7 @@ void HixlCSClient::FillOutputParams(ImportCtx &ctx, HcommMem **remote_mem_list, 
   *list_num = static_cast<uint32_t>(remote_mems_out_.size());
 }
 
-Status HixlCSClient::ImportRemoteMem(std::vector<HixlMemDesc> &desc_list, HcommMem **remote_mem_list,
+Status HixlCSClient::ImportRemoteMem(std::vector<HixlMemDesc> &desc_list, CommMem **remote_mem_list,
                                      char ***mem_tag_list, uint32_t *list_num) {
   HIXL_DISMISSABLE_GUARD(free_export_desc, [&desc_list]() { FreeExportDesc(desc_list); });
   *list_num = static_cast<uint32_t>(desc_list.size());

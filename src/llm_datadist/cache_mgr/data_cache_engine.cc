@@ -178,7 +178,7 @@ ge::Status DataCacheEngine::Initialize(const std::map<ge::AscendString, ge::Asce
   const auto &buffer_and_size = cache_manager_->GetCacheTableBufferAndSize();
   LLM_CHK_STATUS_RET(GlobalMemManager::GetInstance().RegisterMem(buffer_and_size.first,
                                                                  buffer_and_size.second,
-                                                                 HcclMemType::HCCL_MEM_TYPE_DEVICE,
+                                                                 CommMemType::COMM_MEM_TYPE_DEVICE,
                                                                  cache_table_handle_),
                     "Failed to register cache table addr");
   DecoderWaitTimeInfo wait_time_info{};
@@ -262,7 +262,7 @@ ge::Status DataCacheEngine::InitializeDeviceMemoryPool(const std::map<ge::Ascend
   LLM_CHK_STATUS_RET(npu_mem_pool_->Initialize(npu_pool_memory_, npu_pool_size_),
                     "Failed to initialize memory pool, config = %s", json_str.c_str());
   LLM_CHK_STATUS_RET(GlobalMemManager::GetInstance().RegisterMem(npu_pool_memory_,
-                                                                 npu_pool_size_, HcclMemType::HCCL_MEM_TYPE_DEVICE,
+                                                                 npu_pool_size_, CommMemType::COMM_MEM_TYPE_DEVICE,
                                                                  npu_pool_handle_));
   cache_manager_->SetNpuMemPool(npu_mem_pool_.get());
   LLMLOGI("npu memory_size = %lu B, page_shift = %zu, page_size = %lu B", npu_pool_size_, page_shift,
@@ -289,7 +289,7 @@ ge::Status DataCacheEngine::InitializeHostMemoryPool(const std::map<ge::AscendSt
   LLM_CHK_ACL_RET(aclrtMallocHost(&host_pool_memory_, host_pool_size));
   LLM_CHK_STATUS_RET(host_mem_pool_->Initialize(host_pool_memory_, host_pool_size),
                     "Failed to initialize host memory pool, config = %s", json_str.c_str());
-  LLM_CHK_STATUS_RET(GlobalMemManager::GetInstance().RegisterMem(host_pool_memory_, host_pool_size, HCCL_MEM_TYPE_HOST,
+  LLM_CHK_STATUS_RET(GlobalMemManager::GetInstance().RegisterMem(host_pool_memory_, host_pool_size, COMM_MEM_TYPE_HOST,
                                                                  host_pool_handle_));
   cache_manager_->SetHostMemPool(host_mem_pool_.get());
   LLMLOGI("host memory_size = %lu B, page_shift = %zu, page_size = %lu B", host_pool_size, page_shift,

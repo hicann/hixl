@@ -87,7 +87,7 @@ if(hccl_FOUND)
 
     add_library(hccl_headers INTERFACE IMPORTED)
     set_target_properties(hccl_headers PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${hccl_INCLUDE_DIR};${hccl_INCLUDE_DIR}/hccl;${hccl_INCLUDE_DIR}/hcomm;${_PKG_INCLUDE_DIR};${_PKG_INCLUDE_DIR}/hccl"
+        INTERFACE_INCLUDE_DIRECTORIES "${HIXL_CODE_DIR}/src/hixl/proxy;${hccl_INCLUDE_DIR};${hccl_INCLUDE_DIR}/hccl;${_PKG_INCLUDE_DIR};${_PKG_INCLUDE_DIR}/hccl"
     )
 
     include(CMakePrintHelpers)

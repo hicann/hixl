@@ -89,7 +89,7 @@ class HcclAdapter {
 class HcclUtils {
  public:
   static ge::Status ConvertHcclErrorCode(HcclResult hccl_result, ge::Status default_status = ge::FAILED);
-  static const std::string HcclMemTypeToString(HcclMemType type);
+  static const std::string HcclMemTypeToString(CommMemType type);
 };
 
 template<typename T>

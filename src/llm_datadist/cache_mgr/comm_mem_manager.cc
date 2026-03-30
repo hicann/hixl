@@ -24,7 +24,7 @@ ge::Status GlobalMemManager::Initialize(TransferEngine *transfer_engine) {
   return ge::SUCCESS;
 }
 
-ge::Status GlobalMemManager::RegisterMem(void *addr, uint64_t size, HcclMemType type, void *&handle) {
+ge::Status GlobalMemManager::RegisterMem(void *addr, uint64_t size, CommMemType type, void *&handle) {
   LLM_CHK_STATUS_RET(transfer_engine_->RegisterMem(addr, size, type, handle),
                      "Failed to register mem");
   LLMLOGI("Register global mem success, addr:%p, size:%lu, type:%s, handle:%p",
@@ -84,8 +84,8 @@ ge::Status CommMemManager::RegisterCacheMem(int64_t cache_id,
   for (const auto &addr : addrs) {
     LLM_CHK_BOOL_RET_STATUS(addr != 0U, ge::LLM_PARAM_INVALID, "The addr of cache can not be zero.");
     void *mem_ptr = ValueToPtr(addr);
-    HcclMemType mem_type = (cache_desc.placement == static_cast<uint32_t>(CachePlacement::DEVICE))
-                            ? HcclMemType::HCCL_MEM_TYPE_DEVICE : HcclMemType::HCCL_MEM_TYPE_HOST;
+    CommMemType mem_type = (cache_desc.placement == static_cast<uint32_t>(CachePlacement::DEVICE))
+                            ? CommMemType::COMM_MEM_TYPE_DEVICE : CommMemType::COMM_MEM_TYPE_HOST;
     auto key = std::make_pair(mem_ptr, tensor_size);
     const auto &it = registered_cache_mem_.find(key);
     if (it != registered_cache_mem_.cend()) {

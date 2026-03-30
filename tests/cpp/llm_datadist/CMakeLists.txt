@@ -74,6 +74,7 @@ target_include_directories(llm_datadist_test PRIVATE
         ${HIXL_CODE_DIR}/include
         ${HIXL_CODE_DIR}/src/llm_datadist
         ${HIXL_CODE_DIR}/src/hixl
+        ${HIXL_CODE_DIR}/src/hixl/proxy
         ${HIXL_CODE_DIR}/tests
         ${HIXL_CODE_DIR}/tests/depends/llm_datadist/src
         )
@@ -95,11 +96,11 @@ target_link_libraries(llm_datadist_test
         mmpa_stub
         ascendcl_stub
         runtime_stub
-        hccl_stub
         msprof_headers
         GTest::gtest GTest::gtest_main
         GTest::gmock
         -Wl,--no-as-need
+        hccl_stub
         error_manager_stub
 )
 

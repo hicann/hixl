@@ -378,8 +378,8 @@ Status HixlClient::SetLocalMemInfo(const std::vector<MemInfo> &mem_info_list) {
 }
 
 Status HixlClient::RegisterMemToCsClient(const MemDesc &mem, const MemType type) {
-  HcommMem hccl_mem{};
-  hccl_mem.type = (type == MemType::MEM_DEVICE) ? HCCL_MEM_TYPE_DEVICE : HCCL_MEM_TYPE_HOST;
+  CommMem hccl_mem{};
+  hccl_mem.type = (type == MemType::MEM_DEVICE) ? COMM_MEM_TYPE_DEVICE : COMM_MEM_TYPE_HOST;
   hccl_mem.addr = reinterpret_cast<void *>(mem.addr);
   hccl_mem.size = mem.len;
 
@@ -466,14 +466,14 @@ Status HixlClient::ProcessRemoteMem(uint32_t timeout_ms) {
   HIXL_LOGI("ProcessRemoteMem begin");
   for (const auto &pair : client_handles_) {
     auto handle = pair.second;
-    HcommMem *remote_mem_list = nullptr;
+    CommMem *remote_mem_list = nullptr;
     char **mem_tag_list = nullptr;
     uint32_t list_num = 0;
     HIXL_CHK_STATUS_RET(HixlCSClientGetRemoteMem(handle, &remote_mem_list, &mem_tag_list, &list_num, timeout_ms),
                         "HixlClient get remote memories failed, client_handle: %p, timeout:%u ms", handle, timeout_ms);
     std::lock_guard<std::mutex> seg_lock(remote_segments_mutex_);
     for (uint32_t i = 0; i < list_num; i++) {
-      MemType type = (remote_mem_list[i].type == HCCL_MEM_TYPE_DEVICE) ? MEM_DEVICE : MEM_HOST;
+      MemType type = (remote_mem_list[i].type == COMM_MEM_TYPE_DEVICE) ? MEM_DEVICE : MEM_HOST;
       auto it = std::find_if(remote_segments_.begin(), remote_segments_.end(),
                              [type](const SegmentPtr &seg) { return seg->GetMemType() == type; });
       if (it != remote_segments_.end()) {

@@ -22,7 +22,7 @@ class HixlTransferEngine : public TransferEngine {
   ge::Status Initialize(const std::map<ge::AscendString, ge::AscendString> &options) override;
   void Finalize() override;
 
-  ge::Status RegisterMem(void *addr, uint64_t size, HcclMemType type, void *&handle) override;
+  ge::Status RegisterMem(void *addr, uint64_t size, CommMemType type, void *&handle) override;
   ge::Status UnregisterMem(void *handle) override;
 
   ge::Status LinkClusters(const std::vector<ClusterInfo> &clusters, std::vector<ge::Status> &rets,

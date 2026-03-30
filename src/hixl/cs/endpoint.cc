@@ -63,10 +63,10 @@ const EndpointDesc &Endpoint::GetEndpoint() const {
   return endpoint_;
 }
 
-Status Endpoint::RegisterMem(const char *mem_tag, const HcommMem &mem, MemHandle &mem_handle) {
+Status Endpoint::RegisterMem(const char *mem_tag, const CommMem &mem, MemHandle &mem_handle) {
   std::lock_guard<std::mutex> lock(mutex_);
   Status ret = SUCCESS;
-  HcclResult hccl_ret = HcommProxy::MemReg(handle_, mem_tag, mem, &mem_handle);
+  HcclResult hccl_ret = HcommProxy::MemReg(handle_, mem_tag, &mem, &mem_handle);
   if (hccl_ret != HCCL_SUCCESS && hccl_ret != HCCL_E_AGAIN) {
     ret = hixl::HcclError2Status(hccl_ret);
     HIXL_LOGE(ret, "HcommMemReg failed, hccl_ret %d", hccl_ret);
@@ -120,6 +120,7 @@ Status Endpoint::CreateChannel(const EndpointDesc &remote_endpoint, ChannelHandl
     return PARAM_INVALID;
   }
   HcommChannelDesc ch_desc{};
+  HIXL_CHK_HCCL_RET(static_cast<HcclResult>(HcommChannelDescInit(&ch_desc, 1)));
   ch_desc.remoteEndpoint = remote_endpoint;
   ch_desc.notifyNum = 1U;
   ch_desc.exchangeAllMems = true;
@@ -147,7 +148,7 @@ Status Endpoint::DestroyChannel(ChannelHandle channel_handle) {
   return SUCCESS;
 }
 
-Status Endpoint::MemImport(const void *mem_desc, uint32_t desc_len, HcommMem &out_buf) {
+Status Endpoint::MemImport(const void *mem_desc, uint32_t desc_len, CommMem &out_buf) {
   std::lock_guard<std::mutex> lock(mutex_);
   HIXL_CHECK_NOTNULL(handle_);
   HIXL_CHECK_NOTNULL(mem_desc);

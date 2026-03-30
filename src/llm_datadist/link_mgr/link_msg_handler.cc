@@ -267,15 +267,15 @@ ge::Status LinkMsgHandler::SetEntityMemInfo(const LLMExchangeInfo &peer_exchange
   entity->SetEntityMemInfo(mem_info_ptr);
   auto &remote_mems = entity->GetRemoteMems();
   HcclMem remote_mem{};
-  remote_mem.type = HcclMemType::HCCL_MEM_TYPE_DEVICE;
+  remote_mem.type = CommMemType::COMM_MEM_TYPE_DEVICE;
   remote_mem.addr = ValueToPtr(peer_exchange_info.cache_table_addr);
   remote_mem.size = peer_exchange_info.cache_table_size;
   remote_mems.emplace_back(remote_mem);
-  remote_mem.type = HcclMemType::HCCL_MEM_TYPE_HOST;
+  remote_mem.type = CommMemType::COMM_MEM_TYPE_HOST;
   remote_mem.addr = ValueToPtr(peer_exchange_info.req_addr);
   remote_mem.size = peer_exchange_info.req_size;
   remote_mems.emplace_back(remote_mem);
-  remote_mem.type = HcclMemType::HCCL_MEM_TYPE_HOST;
+  remote_mem.type = CommMemType::COMM_MEM_TYPE_HOST;
   remote_mem.addr = ValueToPtr(peer_exchange_info.resp_addr);
   remote_mem.size = peer_exchange_info.resp_size;
   remote_mems.emplace_back(remote_mem);
