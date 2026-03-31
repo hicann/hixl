@@ -24,6 +24,7 @@ if (NOT ENABLE_TEST)
 else ()
     add_library(hccl_headers INTERFACE)
     target_include_directories(hccl_headers INTERFACE
+        ${HIXL_CODE_DIR}/src/hixl/proxy   # prefer use compat copy header
         ${CANN_INSTALL_PATH}/include
         ${CANN_INSTALL_PATH}/include/hccl
         ${CANN_INSTALL_PATH}/include/hcomm

@@ -90,8 +90,8 @@ Status HixlServer::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_
     return SUCCESS;
   }
 
-  HcommMem hccl_mem{};
-  hccl_mem.type = (type == MemType::MEM_DEVICE) ? HCCL_MEM_TYPE_DEVICE : HCCL_MEM_TYPE_HOST;
+  CommMem hccl_mem{};
+  hccl_mem.type = (type == MemType::MEM_DEVICE) ? COMM_MEM_TYPE_DEVICE : COMM_MEM_TYPE_HOST;
   hccl_mem.addr = reinterpret_cast<void *>(mem.addr);
   hccl_mem.size = mem.len;
   HIXL_CHK_STATUS_RET(HixlCSServerRegMem(server_handle_, nullptr, &hccl_mem, &mem_handle),

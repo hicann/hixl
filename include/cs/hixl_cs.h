@@ -82,7 +82,7 @@ HixlStatus HixlCSServerCreate(const HixlServerDesc *server_desc,
  * @param [out] mem_handle server注册内存返回的handle信息
  * @return 成功:SUCCESS, 失败:其它.
  */
-HixlStatus HixlCSServerRegMem(HixlServerHandle server_handle, const char *mem_tag, const HcommMem *mem,
+HixlStatus HixlCSServerRegMem(HixlServerHandle server_handle, const char *mem_tag, const CommMem *mem,
                               MemHandle *mem_handle);
 
 /**
@@ -135,7 +135,7 @@ HixlStatus HixlCSClientConnect(HixlClientHandle client_handle, uint32_t timeout_
  * @param [in] timeout_ms 请求的超时时间（ms）
  * @return 成功:SUCCESS, 失败:其它.
  */
-HixlStatus HixlCSClientGetRemoteMem(HixlClientHandle client_handle, HcommMem **remote_mem_list, char ***mem_tag_list,
+HixlStatus HixlCSClientGetRemoteMem(HixlClientHandle client_handle, CommMem **remote_mem_list, char ***mem_tag_list,
                                     uint32_t *list_num, uint32_t timeout_ms);
 
 /**
@@ -146,7 +146,7 @@ HixlStatus HixlCSClientGetRemoteMem(HixlClientHandle client_handle, HcommMem **r
  * @param [out] mem_handle client注册内存返回的handle信息
  * @return 成功:SUCCESS, 失败:其它.
  */
-HixlStatus HixlCSClientRegMem(HixlClientHandle client_handle, const char *mem_tag, const HcommMem *mem, MemHandle *mem_handle);
+HixlStatus HixlCSClientRegMem(HixlClientHandle client_handle, const char *mem_tag, const CommMem *mem, MemHandle *mem_handle);
 
 /**
  * @brief 注销client给endpoint分配的内存

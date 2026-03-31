@@ -44,7 +44,7 @@ unset(_cmake_targets_defined)
 unset(_cmake_targets_not_defined)
 unset(_cmake_expected_targets)
 
-find_path(_HCCL_PATH "hcomm/hcomm_res_defs.h"
+find_path(_HCCL_PATH "hccl/hccl_types.h"
            NO_CMAKE_SYSTEM_PATH
            NO_CMAKE_FIND_ROOT_PATH)
 
@@ -87,7 +87,7 @@ if(hccl_FOUND)
 
     add_library(hccl_headers INTERFACE IMPORTED)
     set_target_properties(hccl_headers PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${hccl_INCLUDE_DIR};${hccl_INCLUDE_DIR}/hccl;${hccl_INCLUDE_DIR}/hcomm;${_PKG_INCLUDE_DIR};${_PKG_INCLUDE_DIR}/hccl"
+        INTERFACE_INCLUDE_DIRECTORIES "${HIXL_CODE_DIR}/src/hixl/proxy;${hccl_INCLUDE_DIR};${hccl_INCLUDE_DIR}/hccl;${_PKG_INCLUDE_DIR};${_PKG_INCLUDE_DIR}/hccl"
     )
 
     include(CMakePrintHelpers)

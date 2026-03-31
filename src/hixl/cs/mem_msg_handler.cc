@@ -111,14 +111,14 @@ hixl::Status ParseResultAndGetArray(const nlohmann::json &j, const nlohmann::jso
   }
 }
 
-hixl::Status ParseMemObject(const nlohmann::json &j_mem, HcommMem &mem) {
+hixl::Status ParseMemObject(const nlohmann::json &j_mem, CommMem &mem) {
   try {
     if (!j_mem.contains("type") || !j_mem.contains("addr") || !j_mem.contains("size")) {
       HIXL_LOGE(hixl::PARAM_INVALID, "[HixlClient] GetRemoteMemResp.mem missing 'type' / 'addr' / 'size'");
       return hixl::PARAM_INVALID;
     }
 
-    mem.type = static_cast<HcclMemType>(j_mem["type"].get<uint32_t>());
+    mem.type = static_cast<CommMemType>(j_mem["type"].get<uint32_t>());
     const uint64_t addr_u64 = j_mem["addr"].get<uint64_t>();
     mem.addr = reinterpret_cast<void *>(static_cast<uintptr_t>(addr_u64));
     mem.size = j_mem["size"].get<uint64_t>();
@@ -178,7 +178,7 @@ hixl::Status ParseOneMemDesc(const nlohmann::json &item, uint32_t idx, hixl::Hix
                 "[HixlClient] GetRemoteMemResp.mem_descs[%u] missing 'tag' / 'export_desc' or 'mem'", idx);
       return hixl::PARAM_INVALID;
     }
-    HcommMem mem{};
+    CommMem mem{};
     hixl::Status ret = ParseMemObject(item["mem"], mem);
     HIXL_CHK_STATUS_RET(ret);
     out.mem = mem;

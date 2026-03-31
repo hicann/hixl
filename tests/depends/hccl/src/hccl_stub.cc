@@ -11,49 +11,52 @@
 #include <cstring>
 #include <string>
 #include <thread>
+#include "hccl/hccl_types.h"
 #include "hcomm/hcomm_res_defs.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-HcclResult HcommMemReg(EndpointHandle endPointHandle, const char *memTag, HcommMem mem, void **memHandle) {
+HcommResult HcommMemReg(EndpointHandle endPointHandle, const char *memTag, const CommMem *mem,
+                        HcommMemHandle *memHandle) {
   static int32_t mem_num_stub = 1;
   (void)endPointHandle;
   (void)memTag;
   (void)mem;
-  *memHandle = reinterpret_cast<void *>(mem_num_stub++);
-  return HCCL_SUCCESS;
+  *memHandle = reinterpret_cast<void *>(static_cast<uintptr_t>(mem_num_stub++));
+  return static_cast<HcommResult>(HCCL_SUCCESS);
 }
 
-HcclResult HcommMemUnreg(EndpointHandle endPointHandle, void *memHandle) {
+HcommResult HcommMemUnreg(EndpointHandle endPointHandle, HcommMemHandle memHandle) {
   (void)endPointHandle;
   (void)memHandle;
-  return HCCL_SUCCESS;
+  return static_cast<HcommResult>(HCCL_SUCCESS);
 }
 
-HcclResult HcommMemExport(EndpointHandle endPointHandle, void *memHandle, void **memDesc, uint32_t *memDescLen) {
+HcommResult HcommMemExport(EndpointHandle endPointHandle, HcommMemHandle memHandle, void **memDesc,
+                           uint32_t *memDescLen) {
   (void)endPointHandle;
   (void)memHandle;
   static std::string desc = "test_desc2";
   *memDesc = const_cast<char *>(desc.c_str());
   *memDescLen = desc.size();
-  return HCCL_SUCCESS;
+  return static_cast<HcommResult>(HCCL_SUCCESS);
 }
 
-HcclResult HcommEndpointCreate(const EndpointDesc *endPoint, EndpointHandle *endPointHandle) {
+HcommResult HcommEndpointCreate(const EndpointDesc *endPoint, EndpointHandle *endPointHandle) {
   (void)endPoint;
   static int32_t ep_num_stub = 1;
   *endPointHandle = reinterpret_cast<void *>(ep_num_stub++);
-  return HCCL_SUCCESS;
+  return static_cast<HcommResult>(HCCL_SUCCESS);
 }
 
-HcclResult HcommEndpointDestroy(EndpointHandle endPointHandle) {
+HcommResult HcommEndpointDestroy(EndpointHandle endPointHandle) {
   (void)endPointHandle;
-  return HCCL_SUCCESS;
+  return static_cast<HcommResult>(HCCL_SUCCESS);
 }
 
-HcclResult HcommMemImport(EndpointHandle endpointHandle, const void *memDesc, uint32_t descLen, HcommMem *outMem) {
+HcommResult HcommMemImport(EndpointHandle endpointHandle, const void *memDesc, uint32_t descLen, CommMem *outMem) {
   (void)endpointHandle;
   if (memDesc == nullptr || outMem == nullptr || descLen == 0) {
     return HCCL_E_INTERNAL;
@@ -65,17 +68,17 @@ HcclResult HcommMemImport(EndpointHandle endpointHandle, const void *memDesc, ui
 
   outMem->addr = const_cast<void *>(memDesc);
   outMem->size = descLen;
-  return HCCL_SUCCESS;
+  return static_cast<HcommResult>(HCCL_SUCCESS);
 }
 
-HcclResult HcommMemUnimport(EndpointHandle endpointHandle, const void *memDesc, uint32_t descLen) {
+HcommResult HcommMemUnimport(EndpointHandle endpointHandle, const void *memDesc, uint32_t descLen) {
   (void)endpointHandle;
   (void)memDesc;
   (void)descLen;
-  return HCCL_SUCCESS;
+  return static_cast<HcommResult>(HCCL_SUCCESS);
 }
 
-HcclResult HcommChannelCreate(EndpointHandle endPointHandle, CommEngine engine, HcommChannelDesc *channelDescs,
+HcommResult HcommChannelCreate(EndpointHandle endPointHandle, CommEngine engine, HcommChannelDesc *channelDescs,
     uint32_t channelNum, ChannelHandle *channels) {
   (void)endPointHandle;
   (void)engine;
@@ -83,20 +86,20 @@ HcclResult HcommChannelCreate(EndpointHandle endPointHandle, CommEngine engine, 
   (void)channelNum;
   static int32_t chn_num_stub = 1;
   *channels = static_cast<ChannelHandle>(chn_num_stub++);
-  return HCCL_SUCCESS;
+  return static_cast<HcommResult>(HCCL_SUCCESS);
 }
 
-HcclResult HcommChannelDestroy(const ChannelHandle *channels, uint32_t channelNum) {
+HcommResult HcommChannelDestroy(const ChannelHandle *channels, uint32_t channelNum) {
   (void)channels;
   (void)channelNum;
-  return HCCL_SUCCESS;
+  return static_cast<HcommResult>(HCCL_SUCCESS);
 }
 
-HcclResult HcommChannelGetStatus(const ChannelHandle *channelList, uint32_t listNum, int32_t *statusList) {
+HcommResult HcommChannelGetStatus(const ChannelHandle *channelList, uint32_t listNum, int32_t *statusList) {
   (void)channelList;
   (void)listNum;
   (void)statusList;
-  return HCCL_SUCCESS;
+  return static_cast<HcommResult>(HCCL_SUCCESS);
 }
 
 
@@ -124,20 +127,23 @@ int32_t HcommReadNbiOnThread(ThreadHandle thread, ChannelHandle channel, void *d
   return HCCL_SUCCESS;
 }
 
-int32_t HcommThreadAlloc(int32_t engine, uint32_t thread_num, uint32_t notify_num, uint32_t *thread_id) {
+HcommResult HcommThreadAlloc(CommEngine engine, uint32_t threadNum, const uint32_t *notifyNumPerThread,
+                             ThreadHandle *threads) {
   (void)engine;
-  (void)thread_num;
-  (void)notify_num;
-  if (thread_id != nullptr) {
-    *thread_id = 999U;
+  (void)notifyNumPerThread;
+  if (threads == nullptr) {
+    return static_cast<HcommResult>(HCCL_E_PARA);
   }
-  return 0;
+  for (uint32_t i = 0; i < threadNum; ++i) {
+    threads[i] = static_cast<ThreadHandle>(999U + i);
+  }
+  return static_cast<HcommResult>(HCCL_SUCCESS);
 }
 
-int32_t HcommThreadFree(const uint32_t *threads, uint32_t threadNum) {
-    (void)threads;
-    (void)threadNum;
-    return 0;
+HcommResult HcommThreadFree(const ThreadHandle *threads, uint32_t threadNum) {
+  (void)threads;
+  (void)threadNum;
+  return static_cast<HcommResult>(HCCL_SUCCESS);
 }
 
 int32_t HcommBatchModeStart(const char *batchTag) {

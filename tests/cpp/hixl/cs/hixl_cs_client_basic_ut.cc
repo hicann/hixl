@@ -41,7 +41,7 @@ EndpointDesc MakeDstEp() {
 static HixlMemDesc MakeRemoteDesc(const char *tag, void *addr, uint64_t size)  {
   HixlMemDesc d{};
   d.tag = tag;
-  d.mem.type = HCCL_MEM_TYPE_HOST;
+  d.mem.type = COMM_MEM_TYPE_HOST;
   d.mem.addr = addr;
   d.mem.size = size;
   static const std::string dummy("export");
@@ -67,7 +67,7 @@ uint32_t kClientBufAddr = 1;
 uint32_t kServerDataAddr = 2;
 uint64_t kTransFlagAddr = 1;
 struct ImportedRemote {
-  HcommMem* remote_mem_list = nullptr;
+  CommMem* remote_mem_list = nullptr;
   char** tags_buf = nullptr;
   uint32_t list_num = 0;
 };
@@ -107,8 +107,8 @@ TEST_F(HixlCSClientFixture, RegMemAndUnRegMem) {
   EXPECT_EQ(cli.Create(client_ip, server_port, &src, &dst, &config), SUCCESS);
 
   // 通过 RegMem 登记 client 侧内存（不能直接调用 mem_store_）
-  HcommMem mem{};
-  mem.type = HCCL_MEM_TYPE_HOST;
+  CommMem mem{};
+  mem.type = COMM_MEM_TYPE_HOST;
   mem.addr = &kClientBufAddr;
   mem.size = kClientBufSizeBytes;
 
@@ -134,7 +134,7 @@ TEST_F(HixlCSClientFixture, ImportRemoteMemAndClearRemoteMemInfo) {
       MakeRemoteDesc("_hixl_builtin_host_trans_flag", &kTransFlagAddr, kFlagSizeBytes));
   descs.push_back(MakeRemoteDesc("server_data", &kServerDataAddr, kBlockSizeBytes));
 
-  HcommMem *remote_mem_list = nullptr;
+  CommMem *remote_mem_list = nullptr;
   char **tags_buf = nullptr;
   uint32_t list_num = 0;
   EXPECT_EQ(cli.ImportRemoteMem(descs, &remote_mem_list, &tags_buf, &list_num), SUCCESS);
@@ -166,15 +166,15 @@ TEST_F(HixlCSClientFixture, BatchPutSuccessWithStubbedHccl) {
   std::cout<<"_hixl_builtin_host_trans_flag的地址是"<<&kTransFlagAddr<<std::endl;
   std::cout<<"_hixl_builtin_host_trans_flag的值是"<<kTransFlagAddr<<std::endl;
   descs.push_back(MakeRemoteDesc("server_data", &kServerDataAddr, kBlockSizeBytes));
-  HcommMem *remote_mem_list = nullptr;
+  CommMem *remote_mem_list = nullptr;
   char **tags_buf = nullptr;
 
   uint32_t list_num = 0;
   ASSERT_EQ(cli.ImportRemoteMem(descs, &remote_mem_list, &tags_buf, &list_num), SUCCESS);
   std::cout << "server远端内存已获取并记录" << std::endl;
   // 通过 RegMem 登记本地缓冲
-  HcommMem local{};
-  local.type = HCCL_MEM_TYPE_HOST;
+  CommMem local{};
+  local.type = COMM_MEM_TYPE_HOST;
   local.addr = &kClientBufAddr;
   local.size = kClientBufSizeBytes;
   MemHandle local_handle = nullptr;
@@ -204,8 +204,8 @@ TEST_F(HixlCSClientFixture, BatchGetSuccessWithStubbedHccl) {
   uint32_t port = 22336;
   PrepareConnectionAndImport(cli, client_ip, port);
   // 登记本地缓冲
-  HcommMem local{};
-  local.type = HCCL_MEM_TYPE_HOST;
+  CommMem local{};
+  local.type = COMM_MEM_TYPE_HOST;
   local.addr = &kClientBufAddr;
   local.size = kClientBufSizeBytes;
   MemHandle local_handle = nullptr;
@@ -242,11 +242,11 @@ TEST_F(HixlCSClientFixture, BatchPutFailsOnMultrecorded) {
   const char *client_ip = "127.0.0.1";
   uint32_t port = 22337;
   PrepareConnectionAndImport(cli, client_ip, port);
-  HcommMem local = {HCCL_MEM_TYPE_HOST, &kClientBufAddr, kClientBufSizeBytes};
+  CommMem local = {COMM_MEM_TYPE_HOST, &kClientBufAddr, kClientBufSizeBytes};
   MemHandle local_handle = nullptr;
-  HcommMem local2 = {HCCL_MEM_TYPE_HOST, &kClientBufAddr + size_t{100}, kClientBufSizeBytes2};
+  CommMem local2 = {COMM_MEM_TYPE_HOST, &kClientBufAddr + size_t{100}, kClientBufSizeBytes2};
   MemHandle local_handle2 = nullptr;
-  HcommMem local3 = {HCCL_MEM_TYPE_HOST, &kClientBufAddr + size_t{100}, kClientBufSizeBytes};
+  CommMem local3 = {COMM_MEM_TYPE_HOST, &kClientBufAddr + size_t{100}, kClientBufSizeBytes};
   MemHandle local_handle3 = nullptr;
 
   ASSERT_EQ(cli.RegMem("client_buf", &local, &local_handle), SUCCESS);
@@ -261,8 +261,8 @@ TEST_F(HixlCSClientFixture, ReleaseCompleteHandleTest) {
   PrepareConnectionAndImport(cli, client_ip, port);
 
   // 注册本地内存
-  HcommMem local{};
-  local.type = HCCL_MEM_TYPE_HOST;
+  CommMem local{};
+  local.type = COMM_MEM_TYPE_HOST;
   local.addr = &kClientBufAddr;
   local.size = kClientBufSizeBytes;
   MemHandle local_handle = nullptr;
@@ -291,8 +291,8 @@ TEST_F(HixlCSClientFixture, MultipleBatchTransferAndCheckStatus) {
   PrepareConnectionAndImport(cli, client_ip, port);
 
   // 注册本地内存
-  HcommMem local{};
-  local.type = HCCL_MEM_TYPE_HOST;
+  CommMem local{};
+  local.type = COMM_MEM_TYPE_HOST;
   local.addr = &kClientBufAddr;
   local.size = kClientBufSizeBytes;
   MemHandle local_handle = nullptr;

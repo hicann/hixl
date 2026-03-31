@@ -95,15 +95,15 @@ ge::Status CommLinkManager::ExchangeMem(const EntityPtr &entity, uint32_t local_
 void CommLinkManager::SetMemAttribute(const ExchangeMemInfo &remote_mem_info, 
                                       std::vector<HcclMem> &remote_mems, 
                                       HcclMem &mem) {
-  mem.type = HcclMemType::HCCL_MEM_TYPE_DEVICE;
+  mem.type = CommMemType::COMM_MEM_TYPE_DEVICE;
   mem.addr = ValueToPtr(remote_mem_info.cache_table_addr);
   mem.size = remote_mem_info.cache_table_size;
   remote_mems.emplace_back(mem);
-  mem.type = HcclMemType::HCCL_MEM_TYPE_HOST;
+  mem.type = CommMemType::COMM_MEM_TYPE_HOST;
   mem.addr = ValueToPtr(remote_mem_info.req_addr);
   mem.size = remote_mem_info.req_size;
   remote_mems.emplace_back(mem);
-  mem.type = HcclMemType::HCCL_MEM_TYPE_HOST;
+  mem.type = CommMemType::COMM_MEM_TYPE_HOST;
   mem.addr = ValueToPtr(remote_mem_info.resp_addr);
   mem.size = remote_mem_info.resp_size;
   remote_mems.emplace_back(mem);
