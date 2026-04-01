@@ -222,7 +222,7 @@ Status CompletePool::GetSlotNotifyInfo(uint32_t slot_index, uint64_t &notify_add
 Status CompletePool::InitAllSlotsLocked(int32_t device_id, CommEngine engine, uint32_t thread_num,
                                         uint32_t notify_num_per_thread) {
   InitFreeListLocked();
-  llm::TemporaryRtContext ctx_guard(nullptr);
+  hixl::TemporaryRtContext ctx_guard(nullptr);
   for (uint32_t i = 0U; i < kMaxSlots; ++i) {
     Status ret = InitOneSlotLocked(slots_[i], i, device_id, engine, thread_num, notify_num_per_thread);
     if (ret != SUCCESS) {
@@ -373,7 +373,7 @@ Status CompletePool::EnsurePinnedHostFlagLocked(Slot &slot) const {
 }
 
 void CompletePool::DestroySlotLocked(Slot &slot) const {
-  llm::TemporaryRtContext with_context(slot.ctx);
+  hixl::TemporaryRtContext with_context(slot.ctx);
 
   if (slot.notify != nullptr) {
     HIXL_CHK_ACL(aclrtDestroyNotify(slot.notify));

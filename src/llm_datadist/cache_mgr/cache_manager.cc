@@ -14,6 +14,7 @@
 #include "common/llm_utils.h"
 #include "common/llm_thread_pool.h"
 #include "common/llm_scope_guard.h"
+#include "common/hixl_utils.h"
 
 namespace llm {
 namespace {
@@ -568,7 +569,7 @@ ge::Status CacheManager::UpdateCacheTable() {
   if (!enable_remote_cache_accessible_) {
     return ge::SUCCESS;
   }
-  TemporaryRtContext with_context(aclrt_context_);
+  hixl::TemporaryRtContext with_context(aclrt_context_);
   LLM_CHK_ACL_RET(cache_access_table_updater_.UpdateTableBuffer(cache_id_to_entry_, cache_key_to_id_));
   return ge::SUCCESS;
 }

@@ -14,6 +14,7 @@
 #include "statistic_manager.h"
 #include "common/common.h"
 #include "common/llm_utils.h"
+#include "common/hixl_utils.h"
 #include "common/mem_utils.h"
 #include "swap_impl.h"
 #include "cache_manager.h"
@@ -127,7 +128,7 @@ ge::Status DataCacheEngine::PullCache(int64_t cache_id, const CacheKey &cache_ke
                          "current cluster is not linked with remote cluster:%lu", cache_key.prompt_cluster_id);
   LLMLOGI("Get lock cost:%ld us.",
          std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count());
-  TemporaryRtContext with_context(aclrt_context_);
+  hixl::TemporaryRtContext with_context(aclrt_context_);
   LLM_CHK_BOOL_RET_STATUS(entity->CheckEntityInfo(), ge::LLM_NOT_YET_LINK,
                          "pull cache must wait until the query_register_mem_status return ok");
   if (access_remote_cache_) {
@@ -196,7 +197,7 @@ ge::Status DataCacheEngine::Initialize(const std::map<ge::AscendString, ge::Asce
 
 void DataCacheEngine::Finalize() {
   {
-    TemporaryRtContext with_context(aclrt_context_);
+    hixl::TemporaryRtContext with_context(aclrt_context_);
     if (npu_pool_handle_ != nullptr) {
       (void) GlobalMemManager::GetInstance().UnregisterMem(npu_pool_handle_);
       npu_pool_handle_ = nullptr;
@@ -443,7 +444,7 @@ ge::Status DataCacheEngine::TransferCache(const uint64_t task_id, const Transfer
                          ge::LLM_PARAM_INVALID,
                          "check failed, tensor_num_per_layer expect [1, %lu]", cache_entry.cache_addrs.size());
   LLMLOGI("Transfer cache with tensor num per layer:%lu.", transfer_cache_config.tensor_num_per_layer);
-  TemporaryRtContext with_context(aclrt_context_);
+  hixl::TemporaryRtContext with_context(aclrt_context_);
   aclError ret = ACL_ERROR_NONE;
   std::call_once(create_stream_once_flag_, [&ret, this]() {
     ret = aclrtCreateStreamWithConfig(&transfer_stream_, 0,

@@ -269,4 +269,20 @@ std::string TransferOpToString(TransferOp op) {
       return "unknown";
   }
 }
+
+TemporaryRtContext::TemporaryRtContext(aclrtContext context) {
+  (void)aclrtGetCurrentContext(&prev_context_);
+  HIXL_LOGI("Get current aclrt ctx:%p", prev_context_);
+  if (context != nullptr && prev_context_ != context) {
+    HIXL_CHK_ACL(aclrtSetCurrentContext(context));
+    HIXL_LOGI("Set current aclrt ctx:%p", prev_context_);
+  }
+}
+
+TemporaryRtContext::~TemporaryRtContext() {
+  if (prev_context_ != nullptr) {
+    HIXL_CHK_STATUS(aclrtSetCurrentContext(prev_context_));
+    HIXL_LOGI("Restore current aclrt ctx:%p", prev_context_);
+  }
+}
 }  // namespace hixl

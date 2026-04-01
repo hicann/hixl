@@ -210,7 +210,7 @@ Status AdxlInnerEngine::Initialize(const std::map<AscendString, AscendString> &o
   ADXL_CHK_LLM_RET(llm::HcclAdapter::GetInstance().Initialize(), "HcclSoManager initialize failed.");
   int32_t device_id = -1;
   ADXL_CHK_ACL_RET(aclrtGetDevice(&device_id));
-  llm::TemporaryRtContext with_context(nullptr);
+  hixl::TemporaryRtContext with_context(nullptr);
   ADXL_CHK_ACL_RET(aclrtCreateContext(&aclrt_context_, device_id));
   LLMEVENT("Switch new aclrt ctx:%p", aclrt_context_);
   LLM_DISMISSABLE_GUARD(fail_guard, ([this]() {
@@ -374,7 +374,7 @@ Status AdxlInnerEngine::InitBufferTransferService(const std::map<ge::AscendStrin
 }
 
 void AdxlInnerEngine::Finalize() {
-  llm::TemporaryRtContext with_context(aclrt_context_);
+  hixl::TemporaryRtContext with_context(aclrt_context_);
   channel_manager_.Finalize();
   msg_handler_.Finalize();
   if (stream_pool_ != nullptr) {
@@ -402,13 +402,13 @@ bool AdxlInnerEngine::IsInitialized() const {
 }
 
 Status AdxlInnerEngine::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
-  llm::TemporaryRtContext with_context(aclrt_context_);
+  hixl::TemporaryRtContext with_context(aclrt_context_);
   ADXL_CHK_STATUS_RET(msg_handler_.RegisterMem(mem, type, mem_handle), "Failed to register mem");
   return SUCCESS;
 }
 
 Status AdxlInnerEngine::DeregisterMem(MemHandle mem_handle) {
-  llm::TemporaryRtContext with_context(aclrt_context_);
+  hixl::TemporaryRtContext with_context(aclrt_context_);
   ADXL_CHK_STATUS_RET(msg_handler_.DeregisterMem(mem_handle), "Failed to deregister mem");
   return SUCCESS;
 }
@@ -418,7 +418,7 @@ Status AdxlInnerEngine::Connect(const AscendString &remote_engine, int32_t timeo
     std::lock_guard<std::mutex> lock(connection_mutex_);
     LLMEVENT("Start to connect, local engine:%s, remote engine:%s, timeout:%d ms.",
           local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
-    llm::TemporaryRtContext with_context(aclrt_context_);
+    hixl::TemporaryRtContext with_context(aclrt_context_);
     ADXL_CHK_STATUS_RET(msg_handler_.Connect(remote_engine.GetString(), timeout_in_millis),
                       "Failed to connect, remote engine:%s, timeout:%d ms",
                       remote_engine.GetString(), timeout_in_millis);
@@ -426,7 +426,7 @@ Status AdxlInnerEngine::Connect(const AscendString &remote_engine, int32_t timeo
   }
   LLMEVENT("Start to connect, local engine:%s, remote engine:%s, timeout:%d ms.",
           local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
-  llm::TemporaryRtContext with_context(aclrt_context_);
+  hixl::TemporaryRtContext with_context(aclrt_context_);
   ADXL_CHK_STATUS_RET(msg_handler_.Connect(remote_engine.GetString(), timeout_in_millis),
                       "Failed to connect, remote engine:%s, timeout:%d ms",
                       remote_engine.GetString(), timeout_in_millis);
@@ -434,7 +434,7 @@ Status AdxlInnerEngine::Connect(const AscendString &remote_engine, int32_t timeo
 }
 
 Status AdxlInnerEngine::Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis) {
-  llm::TemporaryRtContext with_context(aclrt_context_);
+  hixl::TemporaryRtContext with_context(aclrt_context_);
   ADXL_CHK_STATUS_RET(msg_handler_.Disconnect(remote_engine.GetString(), timeout_in_millis),
                       "Failed to disconnect, remote engine:%s, timeout:%d ms",
                       remote_engine.GetString(), timeout_in_millis);
@@ -442,7 +442,7 @@ Status AdxlInnerEngine::Disconnect(const AscendString &remote_engine, int32_t ti
 }
 
 void AdxlInnerEngine::Disconnect() {
-  llm::TemporaryRtContext with_context(aclrt_context_);
+  hixl::TemporaryRtContext with_context(aclrt_context_);
   channel_manager_.DestroyChannels();
 }
 
@@ -509,7 +509,7 @@ Status AdxlInnerEngine::ConnectWhenTransfer(const AscendString &remote_engine, i
     if (channel == nullptr) {
       LLMEVENT("Start to connect, local engine:%s, remote engine:%s, timeout:%d ms.",
           local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
-      llm::TemporaryRtContext with_context(aclrt_context_);
+      hixl::TemporaryRtContext with_context(aclrt_context_);
       ADXL_CHK_STATUS_RET(msg_handler_.Connect(remote_engine.GetString(), timeout_in_millis),
                           "Failed to connect, remote engine:%s, timeout:%d ms",
                           remote_engine.GetString(), timeout_in_millis);
@@ -522,7 +522,7 @@ Status AdxlInnerEngine::TransferSync(const AscendString &remote_engine,
                                      TransferOp operation,
                                      const std::vector<TransferOpDesc> &op_descs,
                                      int32_t timeout_in_millis) {
-  llm::TemporaryRtContext with_context(aclrt_context_);
+  hixl::TemporaryRtContext with_context(aclrt_context_);
   if (user_config_channel_pool_ || auto_connect_) {
     (void) ConnectWhenTransfer(remote_engine, timeout_in_millis);
   }
@@ -587,7 +587,7 @@ Status AdxlInnerEngine::TransferAsync(const AscendString &remote_engine,
                                       const std::vector<TransferOpDesc> &op_descs,
                                       const TransferArgs &optional_args,
                                       TransferReq &req) {
-  llm::TemporaryRtContext with_context(aclrt_context_);
+  hixl::TemporaryRtContext with_context(aclrt_context_);
   if (user_config_channel_pool_ || auto_connect_) {
     (void) ConnectWhenTransfer(remote_engine, kConnectWhenTransferTimeout);
   }
@@ -625,7 +625,7 @@ Status AdxlInnerEngine::TransferAsync(const AscendString &remote_engine,
 }
 
 Status AdxlInnerEngine::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
-  llm::TemporaryRtContext with_context(aclrt_context_);
+  hixl::TemporaryRtContext with_context(aclrt_context_);
   std::lock_guard<std::mutex> lock(req2channel_mutex_);
   auto id = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(req));
   auto it = req2channel_.find(id);

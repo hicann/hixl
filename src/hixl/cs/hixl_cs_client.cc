@@ -694,7 +694,7 @@ Status HixlCSClient::BatchTransferDevice(bool is_get, const CommunicateMem &comm
   CompletePool::SlotHandle slot{};
   HIXL_CHK_STATUS_RET(AcquireUbSlot(slot), "AcquireUbSlot failed");
   HIXL_DISMISSABLE_GUARD(slot_guard, [slot]() { CompletePool::GetInstance().Release(slot.slot_index); });
-  llm::TemporaryRtContext with_context(slot.ctx);
+  hixl::TemporaryRtContext with_context(slot.ctx);
   MemDev mem_dev{};
   HIXL_DISMISSABLE_GUARD(mem_guard, [&mem_dev]() { FreeMemDev(mem_dev); });
   const size_t ptr_list_size = communicate_mem_param.list_num * sizeof(uintptr_t);
@@ -791,7 +791,7 @@ Status HixlCSClient::CheckStatusDevice(UbCompleteHandle &queryhandle, HixlComple
     HIXL_LOGE(PARAM_INVALID, "[HixlClient][UB] CheckStatusUb bad magic=0x%X", queryhandle.magic);
     return PARAM_INVALID;
   }
-  llm::TemporaryRtContext with_context(queryhandle.slot.ctx);
+  hixl::TemporaryRtContext with_context(queryhandle.slot.ctx);
 
   void *host_flag = queryhandle.slot.host_flag;
   HIXL_CHECK_NOTNULL(host_flag);

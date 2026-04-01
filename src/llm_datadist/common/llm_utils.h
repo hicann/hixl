@@ -15,7 +15,6 @@
 #include "llm_datadist/llm_error_codes.h"
 #include "utils/extern_math_util.h"
 #include "nlohmann/json.hpp"
-#include "acl/acl.h"
 #include "common/llm_inner_types.h"
 
 namespace llm {
@@ -112,13 +111,5 @@ std::string ToString(const std::vector<T> &v) {
   return ss.str();
 }
 
-class TemporaryRtContext {
- public:
-  explicit TemporaryRtContext(aclrtContext context);
-  ~TemporaryRtContext();
-
- private:
-  aclrtContext prev_context_ = nullptr;
-};
 }  // namespace llm
 #endif  // CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_LLM_UTILS_H

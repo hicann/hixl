@@ -20,6 +20,7 @@
 #include "adxl/adxl_types.h"
 #include "hixl_checker.h"
 #include "hixl_inner_types.h"
+#include "acl/acl_rt.h"
 
 namespace hixl {
 template <typename _Tp, typename... _Args>
@@ -75,6 +76,15 @@ Status SerializeEndpointConfigList(const std::vector<EndpointConfig> &list, std:
 
 std::string MemTypeToString(MemType type);
 std::string TransferOpToString(TransferOp op);
+
+class TemporaryRtContext {
+ public:
+  explicit TemporaryRtContext(aclrtContext context);
+  ~TemporaryRtContext();
+
+ private:
+  aclrtContext prev_context_ = nullptr;
+};
 
 }  // namespace hixl
 
