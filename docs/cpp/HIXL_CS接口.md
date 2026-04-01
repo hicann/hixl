@@ -84,8 +84,8 @@ struct HixlClientDesc {
 |---|---|---|
 | server_ip | const char* | 目标 server Host IP。|
 | server_port | uint32_t | 目标 server Host 端口。|
-| local_endpoint | const EndpointDesc* | 本端Endpoint描述（定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hccl/hccl_res.h> ）。|
-| remote_endpoint | const EndpointDesc* | 远端Endpoint描述（定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hccl/hccl_res.h> ）。|
+| local_endpoint | const EndpointDesc* | 本端Endpoint描述（定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h> ）。|
+| remote_endpoint | const EndpointDesc* | 远端Endpoint描述（定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h> ）。|
 
 ### HixlServerDesc
 
@@ -106,7 +106,7 @@ struct HixlServerDesc {
 |---|---|---|
 | server_ip | const char* | 侦听 IP。|
 | server_port | uint32_t | 侦听端口。|
-| endpoint_list | const EndpointDesc* | Endpoint描述数组指针。Endpoint描述定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hccl/hccl_res.h>|
+| endpoint_list | const EndpointDesc* | Endpoint描述数组指针。Endpoint描述定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h>|
 | endpoint_list_num | uint32_t | Endpoint数量。|
 
 ### HixlOneSideOpDesc
@@ -193,7 +193,7 @@ Server注册共享内存供Client访问。
 ```
 HixlStatus HixlCSServerRegMem(HixlServerHandle server_handle,
                               const char *mem_tag,
-                              const HcommMem *mem,
+                              const CommMem *mem,
                               MemHandle *mem_handle);
 ```
 
@@ -203,7 +203,7 @@ HixlStatus HixlCSServerRegMem(HixlServerHandle server_handle,
 | --- | --- | --- |
 | server_handle | 输入 | Server 实例句柄。 |
 | mem_tag | 输入 | 内存标签字符串，用于标识此内存，可选，可传入为NULL。 |
-| mem | 输入 | 指向 HcommMem，描述内存位置与大小（定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h> ）。 |
+| mem | 输入 | 指向 CommMem，描述内存位置与大小（定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h> ）。 |
 | mem_handle | 输出 | 返回的内存句柄，用于后续注销。 |
 
 **返回值**
@@ -383,7 +383,7 @@ HixlStatus HixlCSClientConnect(HixlClientHandle client_handle, uint32_t timeout_
 
 ```
 HixlStatus HixlCSClientGetRemoteMem(HixlClientHandle client_handle,
-                                    HcommMem **remote_mem_list,
+                                    CommMem **remote_mem_list,
                                     char ***mem_tag_list,
                                     uint32_t *list_num,
                                     uint32_t timeout_ms);
@@ -394,8 +394,8 @@ HixlStatus HixlCSClientGetRemoteMem(HixlClientHandle client_handle,
 | 参数名 | 输入/输出 | 描述 |
 | --- | --- | --- |
 | client_handle | 输入 | 客户端句柄。 |
-| remote_mem_list | 输出 | 返回的 `HcommMem` 数组指针，内存生命周期由接口内部管理。重复调用该接口，将释放上一次申请的内存，如有需要按需拷贝至本地内存（定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h>）。 |
-| mem_tag_list | 输出 | 字符串数组，对应每个 `HcommMem` 的标签，内存生命周期由接口内部管理。重复调用该接口，将释放上一次申请的内存，如有需要按需拷贝至本地内存。 |
+| remote_mem_list | 输出 | 返回的 `CommMem` 数组指针，内存生命周期由接口内部管理。重复调用该接口，将释放上一次申请的内存，如有需要按需拷贝至本地内存（定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h>）。 |
+| mem_tag_list | 输出 | 字符串数组，对应每个 `CommMem` 的标签，内存生命周期由接口内部管理。重复调用该接口，将释放上一次申请的内存，如有需要按需拷贝至本地内存。 |
 | list_num | 输出 | 返回的列表长度，内存生命周期由接口内部管理。重复调用该接口，将释放上一次申请的内存，如有需要按需拷贝至本地内存。 |
 | timeout_ms | 输入 | 请求超时时间（毫秒）。 |
 
@@ -421,7 +421,7 @@ Client 注册本地内存。
 ```
 HixlStatus HixlCSClientRegMem(HixlClientHandle client_handle,
                               const char *mem_tag,
-                              const HcommMem *mem,
+                              const CommMem *mem,
                               MemHandle *mem_handle);
 ```
 
@@ -431,7 +431,7 @@ HixlStatus HixlCSClientRegMem(HixlClientHandle client_handle,
 | --- | --- | --- |
 | client_handle | 输入 | 客户端句柄。 |
 | mem_tag | 输入 | 内存标签字符串。 |
-| mem | 输入 | `HcommMem` 描述。 |
+| mem | 输入 | `CommMem` 描述。 |
 | mem_handle | 输出 | 返回的内存句柄。 |
 
 **返回值**
@@ -615,7 +615,7 @@ HixlStatus HixlCSClientDestroy(HixlClientHandle client_handle);
 
 - 构造 `HixlServerDesc` 与 `HixlServerConfig`。
 - 调用 `HixlCSServerCreate` 创建 `HixlServerHandle`。
-- 为要被远端访问的内存分配并准备 `HcommMem`（Host/Device 内存），调用 `HixlCSServerRegMem` 注册并保存返回的 `MemHandle`。
+- 为要被远端访问的内存分配并准备 `CommMem`（Host/Device 内存），调用 `HixlCSServerRegMem` 注册并保存返回的 `MemHandle`。
 - 调用 `HixlCSServerListen` 开始侦听连接。
 - 等待 Client 建链并发起数据传输。
 - 传输结束后调用 `HixlCSServerUnregMem` 注销内存并 `HixlCSServerDestroy` 销毁服务。
@@ -624,7 +624,7 @@ HixlStatus HixlCSClientDestroy(HixlClientHandle client_handle);
 
 - 构造 `HixlClientDesc` 与 `HixlClientConfig`。
 - 调用 `HixlCSClientCreate` 创建 `HixlClientHandle`。
-- 准备本端 `HcommMem` 并通过 `HixlCSClientRegMem` 注册（保存 `MemHandle`）。
+- 准备本端 `CommMem` 并通过 `HixlCSClientRegMem` 注册（保存 `MemHandle`）。
 - 调用 `HixlCSClientConnect` 建链（阻塞或等待超时），确保Server处于侦听状态。
 - 调用 `HixlCSClientGetRemoteMem` 获取 Server 已注册的内存，从而获取远端地址用于后续操作。
 - 构造一组 `HixlOneSideOpDesc`（local/remote 地址、长度），调用 `HixlCSClientBatchPutAsync` 或 `HixlCSClientBatchGetAsync` 提交异步批量操作。
@@ -642,7 +642,7 @@ HixlServerDesc sdesc = {"0.0.0.0", 12345, &endpoint, 1};
 HixlCSServerCreate(&sdesc, NULL, &server);
 
 // 分配并初始化 server 内存（Host 或 Device）
-HcommMem server_mem = { .addr = server_buf, .size = size, .type = HCCL_MEM_TYPE_DEVICE };
+CommMem server_mem = { .addr = server_buf, .size = size, .type = COMM_MEM_TYPE_DEVICE };
 MemHandle server_mem_h = NULL;
 HixlCSServerRegMem(server, "server_mem", &server_mem, &server_mem_h);
 
@@ -660,7 +660,7 @@ HixlClientDesc cdesc = {"server.ip", 12345, &local_ep, &remote_ep};
 HixlCSClientCreate(&cdesc, NULL, &client);
 
 // 分配并注册本地内存
-HcommMem client_mem = { .addr = client_buf, .size = size, .type = HCCL_MEM_TYPE_DEVICE };
+CommMem client_mem = { .addr = client_buf, .size = size, .type = COMM_MEM_TYPE_DEVICE };
 MemHandle client_mem_h = NULL;
 HixlCSClientRegMem(client, "client_mem", &client_mem, &client_mem_h);
 
@@ -668,7 +668,7 @@ HixlCSClientRegMem(client, "client_mem", &client_mem, &client_mem_h);
 HixlCSClientConnect(client, 5000);
 
 // 获取远端内存地址（通过 mem_tag）
-HcommMem *remote_list = NULL; char **tags = NULL; uint32_t num = 0;
+CommMem *remote_list = NULL; char **tags = NULL; uint32_t num = 0;
 HixlCSClientGetRemoteMem(client, &remote_list, &tags, &num, 2000);
 
 // 构造批量操作描述，示例：分块循环 varying block size
