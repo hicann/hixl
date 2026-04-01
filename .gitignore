@@ -26,3 +26,7 @@ cmake-build-release
 cmake-build-gcov
 .gemini
 GEMINI.md
+
+# oat check
+oat_reports/
+log/

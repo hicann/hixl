@@ -1,9 +1,36 @@
+# Pre-commit hooks configuration for Hixl
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+# Note: clang-format should already be available (installed via system packages)
+# Exclusions: build artifacts, third_party, etc.
+
+
 repos:
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v16.0.0
     hooks:
       - id: clang-format
-        types_or: [c++, c]
+        types_or: [ c++, c ]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.4
+    hooks:
+      - id: ruff-check
+        args: [ --fix ]
+      - id: ruff-format
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        args: [ '--ignore-words-list=CANN,cann,alog' ]
 
   # OAT compliance check (Open Source Audit Tool)
   - repo: local
@@ -13,6 +40,6 @@ repos:
         entry: bash scripts/oat_check.sh
         language: system
         pass_filenames: true
-        types: [file]
-        stages: [commit]
+        types: [ file ]
+        stages: [ pre-commit ]
         verbose: true
