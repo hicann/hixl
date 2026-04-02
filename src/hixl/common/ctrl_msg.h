@@ -32,6 +32,7 @@ enum class CtrlMsgType : int32_t {
   kGetEndpointInfoResp = 6,
   kGetCacheTableReq = 7,
   kGetCacheTableResp = 8,
+  kDestroyChannelReq = 9,
   kEnd
 };
 
