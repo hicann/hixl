@@ -272,8 +272,10 @@ Status HixlCSClient::InitBaseClient(const char *server_ip, uint32_t server_port,
   remote_endpoint_ = remote_endpoint;
   CtrlMsgPlugin::Initialize();
   HIXL_LOGD("[HixlClient] CtrlMsgPlugin initialized");
-  Status init_ret = InitFlagQueue();
-  HIXL_CHK_STATUS_RET(init_ret, "[HixlClient] Failed to initialize flag queue.");
+  if (local_endpoint_->GetEndpoint().loc.locType == ENDPOINT_LOC_TYPE_HOST) {
+    Status init_ret = InitFlagQueue();
+    HIXL_CHK_STATUS_RET(init_ret, "[HixlClient] Failed to initialize flag queue.");
+  }
   return SUCCESS;
 }
 
