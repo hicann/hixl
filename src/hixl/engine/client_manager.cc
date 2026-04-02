@@ -40,7 +40,7 @@ ClientPtr ClientManager::GetClient(const std::string &remote_engine) {
 }
 
 Status ClientManager::DestroyClient(const std::string &remote_engine) {
-  auto ret = SUCCESS;
+  auto ret = NOT_CONNECTED;
   std::lock_guard<std::mutex> lock(mutex_);
   const auto &it = clients_.find(remote_engine);
   if (it != clients_.end()) {
