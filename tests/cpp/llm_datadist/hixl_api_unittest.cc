@@ -16,6 +16,7 @@
 
 #include "hixl/hixl.h"
 #include "adxl/channel_manager.h"
+#include "common/hixl_utils.h"
 #include "common/rank_table_generator.h"
 #include "dlog_pub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
@@ -74,31 +75,27 @@ class HixlUTest : public ::testing::Test {
 class HccnToolTest : public ::testing::Test {
   protected:
   void SetUp() override {
-    llm::MockMmpaForHcclApi::Install();
+    llm::MockHccnTool::Install();
     llm::AutoCommResRuntimeMock::InstallWithoutHccnConfFile();
     llm::AutoCommResRuntimeMock::DeleteHccnConfIfExist();
-    llm::HcclAdapter::GetInstance().Initialize();
   }
 
   void TearDown() override {
-    llm::HcclAdapter::GetInstance().Finalize();
-    llm::MockMmpaForHcclApi::Reset();
-    llm::AutoCommResRuntimeMock::Reset();
+    llm::MockHccnTool::Reset();
+    llm::AutoCommResRuntimeMock::ResetWithoutHccnConfFile();
   }
 };
 
-class HccnGetIpTest : public ::testing::Test {
+class HccnConfTest : public ::testing::Test {
   protected:
   void SetUp() override {
-    llm::MockHccnTool::Install();
+    llm::MockMmpaForHcclApi::Install();
     llm::AutoCommResRuntimeMock::Install();
-    llm::HcclAdapter::GetInstance().Initialize();
   }
 
   void TearDown() override {
-    llm::HcclAdapter::GetInstance().Finalize();
+    llm::MockMmpaForHcclApi::Reset();
     llm::AutoCommResRuntimeMock::Reset();
-    llm::MockHccnTool::Reset();
   }
 };
 
@@ -106,13 +103,12 @@ class HccnGetOutputTest : public ::testing::Test {
   protected:
   void SetUp() override {
     llm::MockGetHccnResult::Install();
-    llm::AutoCommResRuntimeMock::Install();
-    llm::HcclAdapter::GetInstance().Initialize();
+    llm::AutoCommResRuntimeMock::InstallWithoutHccnConfFile();
+    llm::AutoCommResRuntimeMock::DeleteHccnConfIfExist();
   }
 
   void TearDown() override {
-    llm::HcclAdapter::GetInstance().Finalize();
-    llm::AutoCommResRuntimeMock::Reset();
+    llm::AutoCommResRuntimeMock::ResetWithoutHccnConfFile();
     llm::MockGetHccnResult::Reset();
   }
 };
@@ -159,32 +155,22 @@ TEST_F(HixlUTest, TestHixl) {
   engine2.Finalize();
 }
 
-TEST_F(HccnToolTest, TestExtractIp) {
-  std::string output = "ipaddr:127.0.0.1";
-  std::string ip = "";
-  llm::LocalCommResGenerator::ExtractIpAddress(output, ip);
-  EXPECT_EQ(ip, "127.0.0.1");
-}
-
-TEST_F(HccnToolTest, TestHccnOutput) {
-  std::string cmd = "hccn_tool";
-  std::string result = "";
-  EXPECT_EQ(llm::LocalCommResGenerator::GetHccnOutput(cmd, result), ge::SUCCESS);
-}
-
-TEST_F(HccnGetIpTest, TestGetIpFromHccnTool) {
-  std::string ip = "";
-  EXPECT_EQ(llm::LocalCommResGenerator::GetIpAddressFromHccnTool(0, ip), ge::SUCCESS);
-}
-
-TEST_F(HccnGetOutputTest, TestGetOutput) {
-  std::string ip = "";
-  EXPECT_EQ(llm::LocalCommResGenerator::GetIpAddressFromHccnTool(0, ip), ge::SUCCESS);
-}
-
-TEST_F(HccnGetOutputTest, TestGetIp) {
+TEST_F(HccnConfTest, TestGetDeviceIpFromHccnConf) {
   std::string device_ip = "";
-  EXPECT_EQ(llm::LocalCommResGenerator::GetDeviceIp(0, device_ip), ge::SUCCESS);
+  EXPECT_EQ(hixl::GetDeviceIp(0, device_ip), hixl::SUCCESS);
+  EXPECT_EQ(device_ip, "1.1.1.0");
+}
+
+TEST_F(HccnToolTest, TestGetDeviceIpFromHccnToolWhenHccnConfMissing) {
+  std::string device_ip = "";
+  EXPECT_EQ(hixl::GetDeviceIp(0, device_ip), hixl::SUCCESS);
+  EXPECT_TRUE(device_ip.empty() || device_ip == "127.0.0.1");
+}
+
+TEST_F(HccnGetOutputTest, TestGetDeviceIpEmptyWhenHccnConfAndToolUnavailable) {
+  std::string device_ip = "";
+  EXPECT_EQ(hixl::GetDeviceIp(0, device_ip), hixl::SUCCESS);
+  EXPECT_TRUE(device_ip.empty());
 }
 
 TEST_F(HixlUTest, TestHixlInitFailed) {

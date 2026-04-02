@@ -79,11 +79,18 @@ EndpointPtr EndpointStore::MatchEndpoint(const EndpointDesc &endpoint, EndpointH
 
 Status EndpointStore::Finalize() {
   std::lock_guard<std::mutex> lock(mutex_);
+  Status final_status = SUCCESS;
   for (auto &it : endpoints_) {
-    HIXL_CHK_STATUS_RET(it.second->Finalize(), "Failed to finalize endpoint.");
+    Status ret = it.second->Finalize();
+    if (ret != SUCCESS) {
+      HIXL_LOGE(ret, "Failed to finalize endpoint.");
+      if (final_status == SUCCESS) {
+        final_status = ret;
+      }
+    }
   }
   endpoints_.clear();
-  return SUCCESS;
+  return final_status;
 }
 
 

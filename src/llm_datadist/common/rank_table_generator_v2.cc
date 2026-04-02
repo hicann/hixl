@@ -14,6 +14,7 @@
 #include "nlohmann/json.hpp"
 #include "acl/acl.h"
 #include "llm_datadist/llm_datadist.h"
+#include "common/hixl_utils.h"
 
 namespace llm {
 namespace {
@@ -221,8 +222,8 @@ ge::Status RankTableGeneratorV2::GenerateLocalCommRes(const std::string &server_
   int32_t phy_device_id = 0U;
   LLM_CHK_RT_RET(aclrtGetPhyDevIdByLogicDevId(device_id, &phy_device_id));
   device_info.device_id = std::to_string(phy_device_id);
-  LLM_CHK_STATUS_RET(LocalCommResGenerator::GetDeviceIp(phy_device_id, device_info.device_ip),
-                    "Failed to get device_ip, phy_device_id:%u", phy_device_id);
+  LLM_CHK_HIXL_RET(hixl::GetDeviceIp(phy_device_id, device_info.device_ip),
+                   "Failed to get device_ip, phy_device_id:%u", phy_device_id);
   int64_t super_device_id = 0U;
   LLM_CHK_RT_RET(aclrtGetDeviceInfo(static_cast<uint32_t>(device_id),
                                 ACL_DEV_ATTR_SUPER_POD_DEVIDE_ID,

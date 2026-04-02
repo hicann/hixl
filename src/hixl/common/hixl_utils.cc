@@ -11,13 +11,73 @@
 #include "hixl_utils.h"
 
 #include <arpa/inet.h>
+#include <array>
+#include <cerrno>
+#include <cstdio>
+#include <cstring>
+#include <fstream>
 #include <unordered_set>
 #include "securec.h"
+#include "mmpa/mmpa_api.h"
 #include "nlohmann/json.hpp"
 #include "hixl_log.h"
 #include "hixl_checker.h"
 
 namespace hixl {
+namespace {
+constexpr uint32_t kBufferMaxSize = 128U;
+constexpr const char kHccnConfPath[] = "/etc/hccn.conf";
+constexpr const char kHccnToolPath[] = "/usr/local/Ascend/driver/tools/hccn_tool";
+
+void ExtractIpAddress(const std::string &output_str, std::string &ip) {
+  const std::string prefix = "ipaddr:";
+  auto pos = output_str.find(prefix);
+  if (pos == std::string::npos) {
+    return;
+  }
+  pos += prefix.length();
+  auto end = output_str.find("\n", pos);
+  ip = output_str.substr(pos, end - pos);
+}
+
+Status GetHccnOutput(const std::string &command, std::string &result) {
+  std::string command_with_stderr = command + " 2>&1";
+  std::array<char, kBufferMaxSize> buffer{};
+  std::unique_ptr<FILE, int (*)(FILE *)> pipe(popen(command_with_stderr.c_str(), "r"), pclose);
+  if (!pipe) {
+    HIXL_LOGE(FAILED, "calling command %s failed, cannot create subprocess.", command_with_stderr.c_str());
+    return FAILED;
+  }
+
+  while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+    result += buffer.data();
+  }
+  return SUCCESS;
+}
+
+Status GetIpAddressFromHccnTool(uint32_t phy_device_id, std::string &ip) {
+  std::string command;
+  std::string output;
+  if (mmAccess(kHccnToolPath) == EN_OK) {
+    command = std::string(kHccnToolPath) + " -i " + std::to_string(phy_device_id) + " -ip -g";
+  } else {
+    std::string check_cmd = "command -v hccn_tool > /dev/null 2>&1";
+    if (system(check_cmd.c_str()) != 0) {
+      HIXL_LOGI("hccn_tool is not found in default path or PATH, skip querying device ip by tool.");
+      return SUCCESS;
+    }
+    command = "hccn_tool -i " + std::to_string(phy_device_id) + " -ip -g";
+  }
+
+  HIXL_CHK_STATUS_RET(GetHccnOutput(command, output), "Getting hccn output failed.");
+  ExtractIpAddress(output, ip);
+  if (ip.empty()) {
+    HIXL_LOGW("Please make sure device ip is set correctly.");
+  }
+  return SUCCESS;
+}
+}  // namespace
+
 Status HcclError2Status(HcclResult ret) {
   static const std::map<HcclResult, Status> result2status = {
       {HCCL_SUCCESS, SUCCESS},
@@ -61,6 +121,46 @@ Status CheckIp(const std::string &ip) {
       inet_pton(AF_INET, ip.c_str(), &addr) == 1 || inet_pton(AF_INET6, ip.c_str(), &ipv6_addr.sin6_addr) == 1,
       hixl::PARAM_INVALID, "%s is not a valid ip address", ip.c_str());
   return hixl::SUCCESS;
+}
+
+Status GetDeviceIp(int32_t phy_device_id, std::string &device_ip) {
+  char resolved_path[MMPA_MAX_PATH] = {};
+  auto mm_ret = mmRealPath(kHccnConfPath, resolved_path, MMPA_MAX_PATH);
+  if (mm_ret == EN_OK) {
+    HIXL_CHK_BOOL_RET_STATUS(mmAccess(resolved_path) == EN_OK, FAILED, "Can not access file:%s, reason:%s",
+                             resolved_path, strerror(errno));
+
+    std::ifstream file(resolved_path);
+    HIXL_CHK_BOOL_RET_STATUS(file.is_open(), FAILED, "Failed to open file:%s", kHccnConfPath);
+
+    std::string line;
+    std::string target_key = "address_" + std::to_string(phy_device_id) + "=";
+    constexpr size_t kValidItemNum = 2U;
+    while (std::getline(file, line)) {
+      if (line.find(target_key) != 0) {
+        continue;
+      }
+
+      const auto address_val = Split(line, '=');
+      HIXL_CHK_BOOL_RET_STATUS(address_val.size() == kValidItemNum, FAILED,
+                               "address format is invalid: %s, expect address_${phy_device_id}=${device_ip}",
+                               line.c_str());
+      device_ip = address_val.back();
+      HIXL_CHK_STATUS_RET(CheckIp(device_ip), "device ip:%s is invalid.", device_ip.c_str());
+      return SUCCESS;
+    }
+  } else {
+    HIXL_LOGI("%s does not exist, trying to use hccn_tool to get device_ip.", kHccnConfPath);
+    std::string ip;
+    HIXL_CHK_STATUS_RET(GetIpAddressFromHccnTool(static_cast<uint32_t>(phy_device_id), ip),
+                        "Getting ip from hccn tool failed.");
+    if (!ip.empty()) {
+      device_ip = ip;
+      HIXL_CHK_STATUS_RET(CheckIp(device_ip), "device ip:%s is invalid.", device_ip.c_str());
+    }
+  }
+
+  return SUCCESS;
 }
 
 Status CheckOptions(const std::map<AscendString, AscendString> &options) {
