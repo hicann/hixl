@@ -54,6 +54,8 @@ Status HixlEngine::Initialize(const std::map<AscendString, AscendString> &option
   HIXL_CHK_STATUS_RET(ParseEndPoint(local_comm_res, endpoint_list_), 
                       "[HixlEngine] Failed to parse endpoint from local_comm_res, local_comm_res:%s",
                       local_comm_res.c_str());
+  HIXL_CHK_STATUS_RET(ParseTrafficClass(options), "[HixlEngine] Failed to parse traffic class");
+  HIXL_CHK_STATUS_RET(ParseServiceLevel(options), "[HixlEngine] Failed to parse service level");
   std::string ip;
   int32_t port = 0;
   HIXL_CHK_STATUS_RET(ParseListenInfo(local_engine_, ip, port), 
@@ -120,7 +122,12 @@ Status HixlEngine::Connect(const AscendString &remote_engine, int32_t timeout_in
               remote_engine.GetString(), local_engine_.c_str());
     return ALREADY_CONNECTED;
   }
-  HIXL_CHK_STATUS_RET(client_manager_.CreateClient(endpoint_list_, remote_engine.GetString(), client_ptr),
+  ClientConfig config{};
+  config.endpoint_list = endpoint_list_;
+  config.remote_engine = remote_engine.GetString();
+  config.rdma_tc = rdma_traffic_class_;
+  config.rdma_sl = rdma_service_level_;
+  HIXL_CHK_STATUS_RET(client_manager_.CreateClient(config, client_ptr),
                       "[HixlEngine] Failed to create HixlClient, local_engine: %s, remote engine: %s",
                       local_engine_.c_str(), remote_engine.GetString());
   HIXL_CHECK_NOTNULL(client_ptr, 
@@ -277,6 +284,65 @@ Status HixlEngine::ParseEndPoint(const std::string &local_comm_res, std::vector<
               "[HixlEngine] Failed to parse local_comm_res, exception:%s, local_comm_res:%s",
               e.what(), local_comm_res.c_str());
     return PARAM_INVALID;
+  }
+  return SUCCESS;
+}
+
+Status HixlEngine::ParseTrafficClass(const std::map<AscendString, AscendString> &options) {
+  std::string traffic_class_str;
+  const auto &traffic_it = options.find(hixl::OPTION_RDMA_TRAFFIC_CLASS);
+  const auto &traffic_it2 = options.find(adxl::OPTION_RDMA_TRAFFIC_CLASS);
+  auto it = traffic_it == options.cend() ? traffic_it2 : traffic_it;
+  if (it != options.cend()) {
+    traffic_class_str = it->second.GetString();
+  }
+  // 若options未设置 traffic_class 则检查环境变量 HCCL_RDMA_TC 是否设置
+  if (traffic_class_str.empty()) {
+    std::string env_tc;
+    const char *env_ret = std::getenv("HCCL_RDMA_TC");
+    if (env_ret != nullptr) {
+      env_tc = env_ret;
+    }
+    traffic_class_str = env_tc;
+  }
+  if (!traffic_class_str.empty()) {
+    uint32_t traffic_class = 0U;
+    HIXL_CHK_STATUS_RET(ToNumber(traffic_class_str, traffic_class), "Traffic class is invalid, value = %s",
+                        traffic_class_str.c_str());
+    HIXL_CHK_BOOL_RET_STATUS(traffic_class <= 255 && (traffic_class % 4 == 0), PARAM_INVALID,
+                             "Traffic class is invalid, value = %u, must be between 0-255 and a multiple of 4",
+                             traffic_class);
+    rdma_traffic_class_ = static_cast<uint8_t>(traffic_class);
+    HIXL_LOGI("Set rdma traffic class to %u.", traffic_class);
+  }
+  return SUCCESS;
+}
+
+Status HixlEngine::ParseServiceLevel(const std::map<AscendString, AscendString> &options) {
+  std::string service_level_str;
+  const auto &service_it = options.find(hixl::OPTION_RDMA_SERVICE_LEVEL);
+  const auto &service_it2 = options.find(adxl::OPTION_RDMA_SERVICE_LEVEL);
+  auto it = service_it == options.cend() ? service_it2 : service_it;
+  if (it != options.cend()) {
+    service_level_str = it->second.GetString();
+  }
+  // 若options未设置 service_level 则检查环境变量 HCCL_RDMA_SL 是否设置
+  if (service_level_str.empty()) {
+    std::string env_sl;
+    const char *env_ret = std::getenv("HCCL_RDMA_SL");
+    if (env_ret != nullptr) {
+      env_sl = env_ret;
+    }
+    service_level_str = env_sl;
+  }
+  if (!service_level_str.empty()) {
+    uint32_t service_level = 0U;
+    HIXL_CHK_STATUS_RET(ToNumber(service_level_str, service_level), "Service level is invalid, value = %s",
+                        service_level_str.c_str());
+    HIXL_CHK_BOOL_RET_STATUS(service_level <= 7, PARAM_INVALID, "service_level must be in [0, 7], value = %u",
+                             service_level);
+    rdma_service_level_ = static_cast<uint8_t>(service_level);
+    HIXL_LOGI("Set rdma service level to %u.", service_level);
   }
   return SUCCESS;
 }

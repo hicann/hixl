@@ -126,7 +126,12 @@ class HixlCSClientUbFixture : public ::testing::Test {
     const EndpointDesc dst = MakeUbDeviceEp(COMM_PROTOCOL_UBC_TP, kUbDevId);
 
     HixlClientConfig config{};
-    ASSERT_EQ(cli_.Create("127.0.0.1", kDummyPort, &src, &dst, &config), SUCCESS);
+    HixlClientDesc desc{};
+    desc.server_ip = "127.0.0.1";
+    desc.server_port = kDummyPort;
+    desc.local_endpoint = &src;
+    desc.remote_endpoint = &dst;
+    ASSERT_EQ(cli_.Create(&desc, &config), SUCCESS);
 
     cli_.client_channel_handle_ = static_cast<ChannelHandle>(1ULL);
     cli_.ub_remote_flag_inited_ = false;

@@ -17,6 +17,8 @@
 #include "hixl/hixl_types.h"
 #include "cs/hixl_cs_client.h"
 #include "hixl/hixl.h"
+#include "slog_stub.h"
+#include "depends/mmpa/src/mmpa_stub.h"
 
 namespace hixl {
 
@@ -24,6 +26,7 @@ namespace {
 constexpr const int32_t kTimeOut = 1000;
 constexpr const int32_t kMaxRetryCount = 10;
 constexpr const int32_t kInterval = 10;
+constexpr const uint32_t kCaptureLogTimeoutMs = 1000U;
 }
 
 class HixlEngineTest : public ::testing::Test {
@@ -79,6 +82,39 @@ class HixlEngineTest : public ::testing::Test {
     mem.addr = reinterpret_cast<uintptr_t>(ptr);
     mem.len = sizeof(int32_t);
     EXPECT_EQ(engine.RegisterMem(mem, MEM_DEVICE, handle), SUCCESS);
+  }
+
+  std::shared_ptr<llm::LogCaptureStub> SetupLogCapture(const std::vector<std::string> &patterns) {
+    auto log_capture = std::make_shared<llm::LogCaptureStub>();
+    for (const auto &pattern : patterns) {
+      log_capture->AddCapturePattern(pattern);
+    }
+    log_capture->SetLevelInfo();
+    llm::SlogStub::SetInstance(log_capture);
+    return log_capture;
+  }
+
+  void VerifyLogCapture(const std::shared_ptr<llm::LogCaptureStub> &log_capture,
+                       const std::vector<std::string> &patterns) {
+    EXPECT_TRUE(log_capture->WaitForAllPatternsCaptured(kCaptureLogTimeoutMs));
+    for (const auto &pattern : patterns) {
+      EXPECT_TRUE(log_capture->IsPatternCaptured(pattern)) << "Log pattern capture failed: " << pattern;
+    }
+    llm::SlogStub::SetInstance(nullptr);
+  }
+
+  void InitializeAndConnectEngines(HixlEngine &engine1, const std::map<AscendString, AscendString> &opts1,
+                                   HixlEngine &engine2, const std::map<AscendString, AscendString> &opts2) {
+    EXPECT_EQ(engine1.Initialize(opts1), SUCCESS);
+    EXPECT_EQ(engine2.Initialize(opts2), SUCCESS);
+    EXPECT_EQ(engine1.Connect("127.0.0.1:16000", kTimeOut), SUCCESS);
+  }
+
+  void CleanupEngines(HixlEngine &engine1, HixlEngine &engine2) {
+    engine1.Disconnect();
+    engine1.Finalize();
+    engine2.Disconnect();
+    engine2.Finalize();
   }
 
  private:
@@ -354,5 +390,103 @@ TEST_F(HixlEngineTest, TestSendAndGetNotifies) {
   EXPECT_EQ(engine2.GetNotifies(notifies), UNSUPPORTED);
   engine1.Finalize();
   engine2.Finalize();
+}
+
+TEST_F(HixlEngineTest, TestParseTcAndSlWithValidValue) {
+  std::string tc_log_pattern = "Set rdma traffic class to 128";
+  std::string sl_log_pattern = "Set rdma service level to 5";
+  std::string channel_desc_log_pattern = "[channel] ROCE attributes set, tc=128, sl=5";
+  auto log_capture = SetupLogCapture({tc_log_pattern, sl_log_pattern, channel_desc_log_pattern});
+
+  mmSetEnv("HCCL_RDMA_TC", "120", 1);
+  mmSetEnv("HCCL_RDMA_SL", "3", 1);
+  options1[hixl::OPTION_RDMA_TRAFFIC_CLASS] = "128";
+  options1[adxl::OPTION_RDMA_SERVICE_LEVEL] = "5";
+  
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:16000");
+  InitializeAndConnectEngines(engine1, options1, engine2, options2);
+  CleanupEngines(engine1, engine2);
+  
+  unsetenv("HCCL_RDMA_TC");
+  unsetenv("HCCL_RDMA_SL");
+
+  VerifyLogCapture(log_capture, {tc_log_pattern, sl_log_pattern, channel_desc_log_pattern});
+}
+
+TEST_F(HixlEngineTest, TestParseTcSlInvalidValue) {
+  options1[hixl::OPTION_RDMA_TRAFFIC_CLASS] = "129";
+  HixlEngine engine("127.0.0.1");
+  EXPECT_EQ(engine.Initialize(options1), PARAM_INVALID);
+  engine.Finalize();
+  options1[hixl::OPTION_RDMA_TRAFFIC_CLASS] = "256";
+  EXPECT_EQ(engine.Initialize(options1), PARAM_INVALID);
+  engine.Finalize();
+  options1[hixl::OPTION_RDMA_TRAFFIC_CLASS] = "invalid";
+  EXPECT_EQ(engine.Initialize(options1), PARAM_INVALID);
+  engine.Finalize();
+  options2[hixl::OPTION_RDMA_SERVICE_LEVEL] = "8";
+  EXPECT_EQ(engine.Initialize(options2), PARAM_INVALID);
+  engine.Finalize();
+}
+
+TEST_F(HixlEngineTest, TestParseTcAndSlWithEnv) {
+  std::string tc_log_pattern = "Set rdma traffic class to 128";
+  std::string sl_log_pattern = "Set rdma service level to 5";
+  std::string channel_desc_log_pattern = "[channel] ROCE attributes set, tc=128, sl=5";
+  auto log_capture = SetupLogCapture({tc_log_pattern, sl_log_pattern, channel_desc_log_pattern});
+
+  mmSetEnv("HCCL_RDMA_TC", "128", 1);
+  mmSetEnv("HCCL_RDMA_SL", "5", 1);
+  
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:16000");
+  InitializeAndConnectEngines(engine1, options1, engine2, options2);
+  CleanupEngines(engine1, engine2);
+  
+  unsetenv("HCCL_RDMA_TC");
+  unsetenv("HCCL_RDMA_SL");
+
+  VerifyLogCapture(log_capture, {tc_log_pattern, sl_log_pattern, channel_desc_log_pattern});
+}
+
+TEST_F(HixlEngineTest, TestParseTcAndSlWithDefault) {
+  std::string channel_desc_log_pattern = "[channel] ROCE attributes set, tc=132, sl=4";
+  auto log_capture = SetupLogCapture({channel_desc_log_pattern});
+
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:16000");
+  InitializeAndConnectEngines(engine1, options1, engine2, options2);
+  CleanupEngines(engine1, engine2);
+
+  VerifyLogCapture(log_capture, {channel_desc_log_pattern});
+}
+
+TEST_F(HixlEngineTest, TestTcAndSlWithUb) {
+  std::string channel_desc_log_pattern = "[channel] ROCE attributes set";
+  auto log_capture = SetupLogCapture({channel_desc_log_pattern});
+
+  std::map<AscendString, AscendString> options3;
+  options3[hixl::OPTION_LOCAL_COMM_RES] = R"(
+    {
+        "net_instance_id": "superpod1_1",
+        "endpoint_list": [
+            {
+                "protocol": "ub_ctp",
+                "comm_id": "000000000000000000000000c0a80563",
+                "placement": "device",
+                "dst_eid": "000000000000000000000000c0a80463"
+            }
+        ],
+        "version": "1.3"
+    }
+    )";
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:16000");
+  InitializeAndConnectEngines(engine1, options1, engine2, options3);
+  CleanupEngines(engine1, engine2);
+
+  EXPECT_FALSE(log_capture->WaitForAllPatternsCaptured(kCaptureLogTimeoutMs));
+  llm::SlogStub::SetInstance(nullptr);
 }
 }  // namespace hixl

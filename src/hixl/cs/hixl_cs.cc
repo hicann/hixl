@@ -68,11 +68,15 @@ HixlStatus HixlCSServerListen(HixlServerHandle server_handle, uint32_t backlog) 
 HixlStatus HixlCSClientCreate(const HixlClientDesc *client_desc, const HixlClientConfig *config,
                               HixlClientHandle *client_handle) {
   HIXL_CHECK_NOTNULL(client_handle);
+  HIXL_CHECK_NOTNULL(client_desc);
+  HIXL_CHECK_NOTNULL(client_desc->server_ip);
+  HIXL_CHECK_NOTNULL(client_desc->local_endpoint);
+  HIXL_CHECK_NOTNULL(client_desc->remote_endpoint);
+  HIXL_CHECK_NOTNULL(config);
   auto *client = new (std::nothrow) hixl::HixlCSClient();
   HIXL_CHECK_NOTNULL(client);
   HIXL_DISMISSABLE_GUARD(rollback, ([client]() { delete client; }));
-  const auto ret = client->Create(client_desc->server_ip, client_desc->server_port, client_desc->local_endpoint,
-                                  client_desc->remote_endpoint, config);
+  const auto ret = client->Create(client_desc, config);
   HIXL_CHK_STATUS_RET(ret,
                       "Failed to create hixl cs client, "
                       "server_ip:%s, server_port:%u",

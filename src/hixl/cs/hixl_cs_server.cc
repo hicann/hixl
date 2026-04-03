@@ -237,7 +237,11 @@ Status HixlCSServer::CreateChannel(int32_t fd, const char *msg, uint64_t msg_len
   CreateChannelResp resp{};
   resp.dst_ep_handle = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(handle));
   ChannelHandle channel_handle = 0UL;
-  HIXL_CHK_STATUS_RET(ep->CreateChannel(req.src, channel_handle), "Failed to create channel");
+  ChannelDesc channel_desc{};
+  channel_desc.remote_endpoint = req.src;
+  channel_desc.tc = req.tc;
+  channel_desc.sl = req.sl;
+  HIXL_CHK_STATUS_RET(ep->CreateChannel(channel_desc, channel_handle), "Failed to create channel");
   std::lock_guard<std::mutex> lock(chn_mutex_);
   EndpointChannelInfo info{};
   info.endpoint_handle = handle;

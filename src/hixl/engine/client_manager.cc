@@ -15,18 +15,17 @@
 #include "client_manager.h"
 
 namespace hixl {
-Status ClientManager::CreateClient(const std::vector<EndpointConfig> &endpoint_list,
-                                   const std::string &remote_engine,
-                                   ClientPtr &client_ptr) {
+Status ClientManager::CreateClient(const ClientConfig &config, ClientPtr &client_ptr) {
   std::string ip;
   int32_t port = 0;
-  HIXL_CHK_STATUS_RET(ParseListenInfo(remote_engine, ip, port), "Failed to parse ip, remote_engine:%s", remote_engine.c_str());
-  client_ptr = MakeShared<HixlClient>(ip, static_cast<uint32_t>(port));
+  HIXL_CHK_STATUS_RET(ParseListenInfo(config.remote_engine, ip, port), "Failed to parse ip, remote_engine:%s",
+                      config.remote_engine.c_str());
+  client_ptr = MakeShared<HixlClient>(ip, static_cast<uint32_t>(port), config);
   HIXL_CHECK_NOTNULL(client_ptr, "Failed to create HixlClient, ip:%s, port:%u", ip.c_str(), port);
-  HIXL_CHK_STATUS_RET(client_ptr->Initialize(endpoint_list), "Failed to initialize HixlClient, ip:%s, port:%u",
+  HIXL_CHK_STATUS_RET(client_ptr->Initialize(config.endpoint_list), "Failed to initialize HixlClient, ip:%s, port:%u",
                       ip.c_str(), port);
   std::lock_guard<std::mutex> lock(mutex_);
-  clients_.emplace(remote_engine, client_ptr);
+  clients_.emplace(config.remote_engine, client_ptr);
   return SUCCESS;
 }
 

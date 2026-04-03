@@ -22,6 +22,8 @@ constexpr const char *kProtocolUbCtp = "ub_ctp";
 constexpr const char *kProtocolUbTp = "ub_tp";
 constexpr const char *kPlacementDevice = "device";
 constexpr const char *kPlacementHost = "host";
+constexpr uint8_t kRdmaTrafficClass = 132; // RDMA网卡的traffic class 默认值
+constexpr uint8_t kRdmaServiceLevel = 4; // RDMA网卡的service level 默认值
 
 struct AddrInfo {
   uintptr_t start_addr{0};

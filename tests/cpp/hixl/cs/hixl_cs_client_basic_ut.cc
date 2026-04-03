@@ -71,13 +71,22 @@ struct ImportedRemote {
   char** tags_buf = nullptr;
   uint32_t list_num = 0;
 };
-// 封装：创建连接 + 导入远端内存
-void PrepareConnectionAndImport(hixl::HixlCSClient& cli, const char* client_ip, uint32_t port) {
+// 创建 HixlClient 连接
+void CreateHixlClient(hixl::HixlCSClient& cli, const char* ip, uint32_t port) {
   EndpointDesc src = MakeSrcEp();
   EndpointDesc dst = MakeDstEp();
   HixlClientConfig config{}; // 默认构造
-  ASSERT_EQ(cli.Create(client_ip, port, &src, &dst, &config), SUCCESS);
+  HixlClientDesc desc{};
+  desc.server_ip = ip;
+  desc.server_port = port;
+  desc.local_endpoint = &src;
+  desc.remote_endpoint = &dst;
+  EXPECT_EQ(cli.Create(&desc, &config), SUCCESS);
+}
 
+// 封装：创建连接 + 导入远端内存
+void PrepareConnectionAndImport(hixl::HixlCSClient& cli, const char* client_ip, uint32_t port) {
+  CreateHixlClient(cli, client_ip, port);
   std::vector<HixlMemDesc> descs;
   descs.push_back(MakeRemoteDesc("_hixl_builtin_host_trans_flag",
   &kTransFlagAddr, kFlagSizeBytes));
@@ -100,11 +109,8 @@ TEST_F(HixlCSClientFixture, RegMemAndUnRegMem) {
   // 先创建本端 endpoint（Create 不依赖 socket 初始化以外的 HCCL）
   const char *client_ip = "127.0.0.1";
   uint32_t server_port = 12345;
-  EndpointDesc src = MakeSrcEp();
-  EndpointDesc dst = MakeDstEp();
-  HixlClientConfig config{}; // 默认构造
   // 对齐实现：Create 要求 dst.protocol != RESERVED 才能用于后续 Connect，这里仅测试 RegMem 不调用 Connect
-  EXPECT_EQ(cli.Create(client_ip, server_port, &src, &dst, &config), SUCCESS);
+  CreateHixlClient(cli, client_ip, server_port);
 
   // 通过 RegMem 登记 client 侧内存（不能直接调用 mem_store_）
   CommMem mem{};
@@ -123,10 +129,7 @@ TEST_F(HixlCSClientFixture, RegMemAndUnRegMem) {
 TEST_F(HixlCSClientFixture, ImportRemoteMemAndClearRemoteMemInfo) {
   const char *client_ip = "127.0.0.1";
   uint32_t server_port = 22334;
-  EndpointDesc src = MakeSrcEp();
-  EndpointDesc dst = MakeDstEp();
-  HixlClientConfig config{}; // 默认构造
-  EXPECT_EQ(cli.Create(client_ip, server_port, &src, &dst, &config), SUCCESS);
+  CreateHixlClient(cli, client_ip, server_port);
 
   // 构造两个远端内存描述并导入
   std::vector<HixlMemDesc> descs;
@@ -153,10 +156,7 @@ TEST_F(HixlCSClientFixture, ImportRemoteMemAndClearRemoteMemInfo) {
 TEST_F(HixlCSClientFixture, BatchPutSuccessWithStubbedHccl) {
   const char *client_ip = "127.0.0.1";
   uint32_t port = 22335;
-  EndpointDesc src = MakeSrcEp();
-  EndpointDesc dst = MakeDstEp();
-  HixlClientConfig config{}; // 默认构造
-  EXPECT_EQ(cli.Create(client_ip, port, &src, &dst, &config), SUCCESS);
+  CreateHixlClient(cli, client_ip, port);
   std::cout << "cli已创建" << std::endl;
 
   // 导入远端内存，包含完成标志与一个数据区

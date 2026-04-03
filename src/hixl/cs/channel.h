@@ -18,6 +18,12 @@
 #include "common/hixl_log.h"
 
 namespace hixl {
+struct ChannelDesc {
+  EndpointDesc remote_endpoint;
+  uint8_t tc;
+  uint8_t sl;
+};
+
 class Channel {
  public:
   Channel() = default;

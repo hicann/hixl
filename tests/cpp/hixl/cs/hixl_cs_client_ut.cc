@@ -552,7 +552,12 @@ class HixlCSClientUT : public ::testing::Test {
   void CreateClient(const char *ip = "127.0.0.1") {
     ASSERT_NE(port_, 0);
     HixlClientConfig config{}; // 默认构造
-    ASSERT_EQ(client_.Create(ip, port_, &src_, &dst_, &config), SUCCESS);
+    HixlClientDesc desc{};
+    desc.server_ip = ip;
+    desc.server_port = port_;
+    desc.local_endpoint = &src_;
+    desc.remote_endpoint = &dst_;
+    ASSERT_EQ(client_.Create(&desc, &config), SUCCESS);
   }
 
   void ConnectClient(uint64_t timeout_us = kDefaultConnectTimeoutMs) {
@@ -572,25 +577,45 @@ class HixlCSClientUT : public ::testing::Test {
 TEST_F(HixlCSClientUT, CreateSuccess) {
   port_ = kPort;
   HixlClientConfig config{}; // [修改]
-  EXPECT_EQ(client_.Create("127.0.0.1", port_, &src_, &dst_, &config), SUCCESS);
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  EXPECT_EQ(client_.Create(&desc, &config), SUCCESS);
 }
 
 TEST_F(HixlCSClientUT, CreateFailNullServerIp) {
   port_ = kPort;
   HixlClientConfig config{}; // [修改]
-  EXPECT_NE(client_.Create(nullptr, port_, &src_, &dst_, &config), SUCCESS);
+  HixlClientDesc desc{};
+  desc.server_ip = nullptr;
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  EXPECT_NE(client_.Create(&desc, &config), SUCCESS);
 }
 
 TEST_F(HixlCSClientUT, CreateFailNullSrcEndpoint) {
   port_ = kPort;
   HixlClientConfig config{}; // [修改]
-  EXPECT_NE(client_.Create("127.0.0.1", port_, nullptr, &dst_, &config), SUCCESS);
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = nullptr;
+  desc.remote_endpoint = &dst_;
+  EXPECT_NE(client_.Create(&desc, &config), SUCCESS);
 }
 
 TEST_F(HixlCSClientUT, CreateFailNullDstEndpoint) {
   port_ = kPort;
   HixlClientConfig config{}; // [修改]
-  EXPECT_NE(client_.Create("127.0.0.1", port_, &src_, nullptr, &config), SUCCESS);
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = nullptr;
+  EXPECT_NE(client_.Create(&desc, &config), SUCCESS);
 }
 
 TEST_F(HixlCSClientUT, ConnectFailWithoutCreate) {
@@ -601,15 +626,19 @@ TEST_F(HixlCSClientUT, ConnectFailDstEndpointReserved) {
   port_ = kPort;
   dst_.protocol = COMM_PROTOCOL_RESERVED;
   HixlClientConfig config{}; // [修改]
-  ASSERT_EQ(client_.Create("127.0.0.1", port_, &src_, &dst_, &config), SUCCESS);
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  ASSERT_EQ(client_.Create(&desc, &config), SUCCESS);
   EXPECT_EQ(client_.Connect(kConnectTime), PARAM_INVALID);
 }
 
 TEST_F(HixlCSClientUT, ConnectFailNoServer) {
   // 只 Create，不启动 server，让 CtrlMsgPlugin::Connect 走失败/超时路径
   port_ = kPort;
-  HixlClientConfig config{}; // [修改]
-  ASSERT_EQ(client_.Create("127.0.0.1", port_, &src_, &dst_, &config), SUCCESS);
+  CreateClient();
   EXPECT_NE(client_.Connect(kConnectTime1), SUCCESS);  // 50ms
 }
 

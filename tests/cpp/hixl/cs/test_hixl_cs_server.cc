@@ -244,4 +244,8 @@ TEST_F(HixlCSTest, TestHixlCSServerDisconnectionCleanup) {
   llm::SlogStub::SetInstance(nullptr);
 }
 
+TEST_F(HixlCSTest, TestStructSize) {
+  EXPECT_EQ(sizeof(HixlClientDesc), 128) << "HixlClientDesc size should be 128 bytes";
+  EXPECT_EQ(sizeof(HixlServerDesc), 128) << "HixlServerDesc size should be 128 bytes";
+}
 }  // namespace hixl

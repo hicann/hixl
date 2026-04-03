@@ -325,6 +325,8 @@ Status HixlClient::CreateCsClients(const EndpointConfig &local_endpoint_config,
   desc.server_port = server_port_;
   desc.local_endpoint = &local_endpoint;
   desc.remote_endpoint = &remote_endpoint;
+  desc.tc = rdma_tc_;
+  desc.sl = rdma_sl_;
   const HixlClientConfig config{};
   HIXL_CHK_STATUS_RET(HixlCSClientCreate(&desc, &config, &handle), "HixlCSClientCreate failed for type %s",
                       CommTypeToString(type));
