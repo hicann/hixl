@@ -11,9 +11,7 @@
 #include "hixl_cs_client.h"
 #include <algorithm>
 #include <chrono>
-#include <thread>
 #include <cstring>
-#include <algorithm>
 #include <securec.h>
 #include <thread>
 #include "acl/acl.h"
@@ -883,16 +881,28 @@ Status HixlCSClient::Connect(uint32_t timeout_ms) {
 Status HixlCSClient::ExchangeEndpointAndCreateChannelLocked(uint32_t timeout_ms) {
   const EndpointDesc &src_ep = local_endpoint_->GetEndpoint();
   HIXL_LOGD(
-      "[HixlClient] Sending CreateChannelReq. socket: %d, timeout: %u ms, "
+      "[HixlClient] MatchEndpoint then CreateChannel. socket: %d, timeout: %u ms, "
       "Src[protocol:%u, type:%u, id:%u], Dst[protocol:%u, type:%u, id:%u]",
       socket_, timeout_ms, src_ep.protocol, src_ep.commAddr.type, src_ep.commAddr.id, remote_endpoint_.protocol,
       remote_endpoint_.commAddr.type, remote_endpoint_.commAddr.id);
-  CreateChannelReq body{};
-  body.src = src_ep;
-  body.dst = remote_endpoint_;
-  body.tc = tc_;
-  body.sl = sl_;
-  Status ret = ConnMsgHandler::SendCreateChannelRequest(socket_, body);
+  Status ret = ConnMsgHandler::SendMatchEndpointRequest(socket_, remote_endpoint_);
+  HIXL_CHK_STATUS_RET(ret, "[HixlClient] SendMatchEndpointRequest failed. fd=%d", socket_);
+  ret = ConnMsgHandler::RecvMatchEndpointResponse(socket_, remote_endpoint_handle_, timeout_ms);
+  HIXL_CHK_STATUS_RET(ret, "[HixlClient] RecvMatchEndpointResponse failed. fd=%d, timeout=%u ms", socket_, timeout_ms);
+  CommMem *prefetch_mems = nullptr;
+  char **prefetch_tags = nullptr;
+  uint32_t prefetch_num = 0U;
+  HIXL_LOGI("[HixlClient] Connect: prefetch remote mem before CreateChannel");
+  ret = GetRemoteMemLocked(timeout_ms, &prefetch_mems, &prefetch_tags, &prefetch_num);
+  HIXL_CHK_STATUS_RET(ret,
+                      "[HixlClient] Connect prefetch GetRemoteMem/Import failed. fd=%d, timeout=%u ms", socket_,
+                      timeout_ms);
+  CreateChannelReq create_body{};
+  create_body.src = src_ep;
+  create_body.dst_ep_handle = remote_endpoint_handle_;
+  create_body.tc = tc_;
+  create_body.sl = sl_;
+  ret = ConnMsgHandler::SendCreateChannelRequest(socket_, create_body);
   HIXL_CHK_STATUS_RET(ret, "[HixlClient] SendCreateChannelRequest failed. fd=%d", socket_);
   ChannelHandle channel_handle = 0UL;
   ChannelDesc channel_desc{};
@@ -901,11 +911,26 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannelLocked(uint32_t timeout_ms)
   channel_desc.sl = sl_;
   ret = local_endpoint_->CreateChannel(channel_desc, channel_handle);
   HIXL_CHK_STATUS_RET(ret, "[HixlClient] Endpoint CreateChannel failed. Dst[id:0x%x]", remote_endpoint_.commAddr.id);
-  ret = ConnMsgHandler::RecvCreateChannelResponse(socket_, remote_endpoint_handle_, timeout_ms);
+  ret = ConnMsgHandler::RecvCreateChannelResponse(socket_, timeout_ms);
   HIXL_CHK_STATUS_RET(ret, "[HixlClient] RecvCreateChannelResponse failed. fd=%d, timeout=%u ms", socket_, timeout_ms);
   HIXL_LOGI("[HixlClient] Connect: remote endpoint handle = %" PRIu64, remote_endpoint_handle_);
   client_channel_handle_ = channel_handle;
   HIXL_LOGI("[HixlClient] Channel Ready. client_channel_handle_=%p", client_channel_handle_);
+  return SUCCESS;
+}
+
+Status HixlCSClient::GetRemoteMemLocked(uint32_t timeout_ms, CommMem **remote_mem_list, char ***mem_tag_list,
+                                        uint32_t *list_num) {
+  HIXL_CHECK_NOTNULL(local_endpoint_);
+  Status ret = MemMsgHandler::SendGetRemoteMemRequest(socket_, remote_endpoint_handle_, timeout_ms);
+  HIXL_CHK_STATUS_RET(ret, "[HixlClient] SendGetRemoteMemRequest failed. fd=%d, remote_ep_handle=%" PRIu64, socket_,
+                      remote_endpoint_handle_);
+  std::vector<HixlMemDesc> mem_descs;
+  ret = MemMsgHandler::RecvGetRemoteMemResponse(socket_, mem_descs, timeout_ms);
+  HIXL_CHK_STATUS_RET(ret, "[HixlClient] RecvGetRemoteMemResponse failed. fd=%d, timeout=%u ms", socket_, timeout_ms);
+  HIXL_LOGD("[HixlClient] Recv remote mem descs success. Count=%zu", mem_descs.size());
+  ret = ImportRemoteMem(mem_descs, remote_mem_list, mem_tag_list, list_num);
+  HIXL_CHK_STATUS_RET(ret, "[HixlClient] ImportRemoteMem failed. desc_count=%zu", mem_descs.size());
   return SUCCESS;
 }
 
@@ -920,15 +945,8 @@ Status HixlCSClient::GetRemoteMem(CommMem **remote_mem_list, char ***mem_tag_lis
   *mem_tag_list = nullptr;
   std::lock_guard<std::mutex> lock(mutex_);
   HIXL_CHECK_NOTNULL(local_endpoint_);
-  Status ret = MemMsgHandler::SendGetRemoteMemRequest(socket_, remote_endpoint_handle_, timeout_ms);
-  HIXL_CHK_STATUS_RET(ret, "[HixlClient] SendGetRemoteMemRequest failed. fd=%d, remote_ep_handle=%" PRIu64, socket_,
-                      remote_endpoint_handle_);
-  std::vector<HixlMemDesc> mem_descs;
-  ret = MemMsgHandler::RecvGetRemoteMemResponse(socket_, mem_descs, timeout_ms);
-  HIXL_CHK_STATUS_RET(ret, "[HixlClient] RecvGetRemoteMemResponse failed. fd=%d, timeout=%u ms", socket_, timeout_ms);
-  HIXL_LOGD("[HixlClient] Recv remote mem descs success. Count=%zu", mem_descs.size());
-  ret = ImportRemoteMem(mem_descs, remote_mem_list, mem_tag_list, list_num);
-  HIXL_CHK_STATUS_RET(ret, "[HixlClient] ImportRemoteMem failed. desc_count=%zu", mem_descs.size());
+  Status ret = GetRemoteMemLocked(timeout_ms, remote_mem_list, mem_tag_list, list_num);
+  HIXL_CHK_STATUS_RET(ret, "[HixlClient] GetRemoteMemLocked failed");
   HIXL_EVENT("[HixlClient] GetRemoteMem success. fd=%d, remote_ep_handle=%" PRIu64 ", imported=%u", socket_,
              remote_endpoint_handle_, *list_num);
   return SUCCESS;

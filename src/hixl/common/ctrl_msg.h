@@ -32,7 +32,9 @@ enum class CtrlMsgType : int32_t {
   kGetEndpointInfoResp = 6,
   kGetCacheTableReq = 7,
   kGetCacheTableResp = 8,
-  kDestroyChannelReq = 9,
+  kMatchEndpointReq = 9,
+  kMatchEndpointResp = 10,
+  kDestroyChannelReq = 11,
   kEnd
 };
 
@@ -41,16 +43,24 @@ struct CtrlMsg {
   std::string msg;
 };
 
+struct MatchEndpointReq {
+  EndpointDesc dst;
+};
+
+struct MatchEndpointResp {
+  Status result;
+  uint64_t dst_ep_handle = 0UL;
+};
+
 struct CreateChannelReq {
   EndpointDesc src;
-  EndpointDesc dst;
+  uint64_t dst_ep_handle = 0UL;
   uint8_t tc;
   uint8_t sl;
 };
 
 struct CreateChannelResp {
   Status result;
-  uint64_t dst_ep_handle = 0UL;
 };
 
 struct GetRemoteMemReq {

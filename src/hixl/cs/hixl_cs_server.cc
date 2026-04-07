@@ -88,6 +88,10 @@ Status HixlCSServer::Initialize(const EndpointDesc *endpoint_list, uint32_t list
     EndpointHandle handle = nullptr;
     HIXL_CHK_STATUS_RET(endpoint_store_.CreateEndpoint(endpoint_list[i], handle), "Failed to create endpoint.");
   }
+  msg_handler_.RegisterMsgProcessor(CtrlMsgType::kMatchEndpointReq,
+                                    [this](int32_t fd, const char *msg, uint64_t msg_len) -> Status {
+                                      return this->MatchEndpointMsg(fd, msg, msg_len);
+                                    });
   msg_handler_.RegisterMsgProcessor(CtrlMsgType::kCreateChannelReq,
                                     [this](int32_t fd, const char *msg, uint64_t msg_len) -> Status {
                                       return this->CreateChannel(fd, msg, msg_len);
@@ -220,6 +224,44 @@ Status HixlCSServer::SendCreateChannelResp(int32_t fd,
   return SUCCESS;
 }
 
+Status HixlCSServer::SendMatchEndpointResp(int32_t fd, const MatchEndpointResp &resp) {
+  CtrlMsgHeader header{};
+  header.magic = kMagicNumber;
+  header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(MatchEndpointResp));
+  CtrlMsgType msg_type = CtrlMsgType::kMatchEndpointResp;
+  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &header, static_cast<uint64_t>(sizeof(header))));
+  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &msg_type, static_cast<uint64_t>(sizeof(msg_type))));
+  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &resp, static_cast<uint64_t>(sizeof(resp))));
+  return SUCCESS;
+}
+
+Status HixlCSServer::MatchEndpointMsg(int32_t fd, const char *msg, uint64_t msg_len) {
+  HIXL_DISMISSABLE_GUARD(failed, ([fd, this]() {
+    MatchEndpointResp resp{};
+    resp.result = FAILED;
+    HIXL_CHK_STATUS(SendMatchEndpointResp(fd, resp));
+  }));
+  HIXL_CHECK_NOTNULL(msg);
+  HIXL_CHK_BOOL_RET_STATUS(msg_len == sizeof(MatchEndpointReq), PARAM_INVALID,
+                           "invalid msg len:%lu of match endpoint, must = %zu", msg_len, sizeof(MatchEndpointReq));
+  const auto &req = *reinterpret_cast<const MatchEndpointReq *>(msg);
+  EndpointHandle handle = nullptr;
+  auto ep = endpoint_store_.MatchEndpoint(req.dst, handle);
+  MatchEndpointResp resp{};
+  if (ep == nullptr) {
+    resp.result = PARAM_INVALID;
+    HIXL_CHK_STATUS_RET(SendMatchEndpointResp(fd, resp), "Failed to send match endpoint resp");
+    HIXL_DISMISS_GUARD(failed);
+    return SUCCESS;
+  }
+  resp.result = SUCCESS;
+  resp.dst_ep_handle = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(handle));
+  HIXL_CHK_STATUS_RET(SendMatchEndpointResp(fd, resp), "Failed to send match endpoint resp");
+  HIXL_DISMISS_GUARD(failed);
+  HIXL_LOGI("SendMatchEndpointResp success");
+  return SUCCESS;
+}
+
 Status HixlCSServer::CreateChannel(int32_t fd, const char *msg, uint64_t msg_len) {
   HIXL_DISMISSABLE_GUARD(failed, ([fd, this]() {
     CreateChannelResp resp{};
@@ -231,11 +273,10 @@ Status HixlCSServer::CreateChannel(int32_t fd, const char *msg, uint64_t msg_len
   HIXL_CHK_BOOL_RET_STATUS(msg_len == sizeof(CreateChannelReq), PARAM_INVALID,
                            "invalid msg len:%lu of create channel, must = %zu", msg_len, sizeof(CreateChannelReq));
   const auto &req = *reinterpret_cast<const CreateChannelReq *>(msg);
-  EndpointHandle handle = nullptr;
-  auto ep = endpoint_store_.MatchEndpoint(req.dst, handle);
+  EndpointHandle handle = reinterpret_cast<EndpointHandle>(static_cast<uintptr_t>(req.dst_ep_handle));
+  auto ep = endpoint_store_.GetEndpoint(handle);
   HIXL_CHECK_NOTNULL(ep);
   CreateChannelResp resp{};
-  resp.dst_ep_handle = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(handle));
   ChannelHandle channel_handle = 0UL;
   ChannelDesc channel_desc{};
   channel_desc.remote_endpoint = req.src;

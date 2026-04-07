@@ -129,6 +129,7 @@ class HixlCSClient {
   Status InitUbResource();
   Status InitUbConstMemory();
   Status ExchangeEndpointAndCreateChannelLocked(uint32_t timeout_ms);
+  Status GetRemoteMemLocked(uint32_t timeout_ms, CommMem **remote_mem_list, char ***mem_tag_list, uint32_t *list_num);
   Status InitFlagQueue() noexcept;
   int32_t AcquireFlagIndex();
   Status ReleaseCompleteHandle(CompleteHandle *queryhandle);

@@ -54,7 +54,7 @@ static constexpr uint32_t kNumSentinel = 123U;
 enum class MiniSrvMode : uint32_t {
   kNormal = 0,
 
-  // --- Connect(CreateChannelResp) 相关异常 ---
+  // --- Connect：MatchEndpointResp 正常；CreateChannelResp 相关异常 ---
   kConnectResp_BadMagic,
   kConnectResp_BadBodySize,
   kConnectResp_BadMsgType,
@@ -190,6 +190,29 @@ class MiniServer {
     });
   }
 
+  // body = [CtrlMsgType][payload...], zero-padded to total_body_bytes (for malformed-size tests).
+  static bool PackCtrlTypeAndPayload(std::vector<uint8_t> &body, uint64_t total_body_bytes, CtrlMsgType msg_type,
+                                     const void *payload, size_t payload_size) {
+    const size_t prefix_and_payload = sizeof(CtrlMsgType) + payload_size;
+    if (total_body_bytes < prefix_and_payload) {
+      return false;
+    }
+    body.assign(static_cast<size_t>(total_body_bytes), 0);
+    size_t off = 0;
+    errno_t rc = memcpy_s(body.data() + off, body.size() - off, &msg_type, sizeof(msg_type));
+    if (rc != EOK) {
+      return false;
+    }
+    off += sizeof(msg_type);
+    rc = memcpy_s(body.data() + off, body.size() - off, payload, payload_size);
+    return rc == EOK;
+  }
+
+  static void SendCtrlResponse(int fd, CtrlMsgHeader &hdr, std::vector<uint8_t> &body) {
+    (void)SendAll(fd, &hdr, sizeof(hdr));
+    (void)SendAll(fd, body.data(), body.size());
+  }
+
   static bool RecvAll(int fd, void *buf, size_t n) {
     auto fn = [](int f, char *p, size_t len) -> ssize_t {
       return ::recv(f, p, len, 0);
@@ -268,6 +291,10 @@ class MiniServer {
       return false;
     }
 
+    if (msg_type == CtrlMsgType::kMatchEndpointReq) {
+      HandleMatchEndpoint(conn_fd_);
+      return true;
+    }
     if (msg_type == CtrlMsgType::kCreateChannelReq) {
       HandleCreateChannel(conn_fd_);
       return true;
@@ -305,6 +332,21 @@ class MiniServer {
     HandleRequestsLoop();
   }
 
+  void HandleMatchEndpoint(int fd) {
+    CtrlMsgHeader resp_hdr{};
+    resp_hdr.magic = kMagicNumber;
+    resp_hdr.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(MatchEndpointResp));
+    CtrlMsgType resp_type = CtrlMsgType::kMatchEndpointResp;
+    MatchEndpointResp resp{};
+    resp.result = SUCCESS;
+    resp.dst_ep_handle = 0x12345678ULL;
+    std::vector<uint8_t> body;
+    if (!PackCtrlTypeAndPayload(body, resp_hdr.body_size, resp_type, &resp, sizeof(resp))) {
+      return;
+    }
+    SendCtrlResponse(fd, resp_hdr, body);
+  }
+
   void HandleCreateChannel(int fd) {
     CtrlMsgHeader resp_hdr{};
     resp_hdr.magic = kMagicNumber;
@@ -314,7 +356,6 @@ class MiniServer {
 
     CreateChannelResp resp{};
     resp.result = SUCCESS;
-    resp.dst_ep_handle = 0x12345678ULL;
 
     switch (connect_mode_) {
       case MiniSrvMode::kConnectResp_BadMagic:
@@ -333,22 +374,11 @@ class MiniServer {
         break;
     }
 
-    std::vector<uint8_t> body(static_cast<size_t>(resp_hdr.body_size), 0);
-    size_t off = 0;
-
-    errno_t rc = memcpy_s(body.data() + off, body.size() - off, &resp_type, sizeof(resp_type));
-    if (rc != EOK) {
+    std::vector<uint8_t> body;
+    if (!PackCtrlTypeAndPayload(body, resp_hdr.body_size, resp_type, &resp, sizeof(resp))) {
       return;
     }
-    off += sizeof(resp_type);
-
-    rc = memcpy_s(body.data() + off, body.size() - off, &resp, sizeof(resp));
-    if (rc != EOK) {
-      return;
-    }
-
-    (void)SendAll(fd, &resp_hdr, sizeof(resp_hdr));
-    (void)SendAll(fd, body.data(), body.size());
+    SendCtrlResponse(fd, resp_hdr, body);
   }
 
   std::string BuildGetRemoteMemJson() const {
@@ -496,6 +526,18 @@ class MiniServer {
   }
   void HandleGetRemoteMem(int fd) {
     ++get_mem_req_cnt_;
+    // Connect 会先拉取远端内存；第一次响应用 Normal，避免在 mem 异常模式下 Connect 直接失败
+    const MiniSrvMode saved_mem_mode = mem_mode_;
+    struct MemModeScope {
+      MiniSrvMode *ptr;
+      MiniSrvMode saved;
+      ~MemModeScope() {
+        *ptr = saved;
+      }
+    } restore_mem_mode{&mem_mode_, saved_mem_mode};
+    if (get_mem_req_cnt_ == 1 && mem_mode_ != MiniSrvMode::kNormal) {
+      mem_mode_ = MiniSrvMode::kNormal;
+    }
     CtrlMsgHeader resp_hdr{};
     resp_hdr.magic = kMagicNumber;
     CtrlMsgType resp_type = CtrlMsgType::kGetRemoteMemResp;
@@ -903,8 +945,8 @@ TEST_F(HixlCSClientUT, GetRemoteMemTwiceAltMemResponse) {
   ASSERT_EQ(client_.GetRemoteMem(&remote1, &tags1, &num1, kTimeOutOne), SUCCESS);
   ASSERT_EQ(num1, 3U);
   ASSERT_NE(remote1, nullptr);
-  // 第一次：flag addr=4096
-  EXPECT_EQ(reinterpret_cast<uint64_t>(remote1[0].addr), 4096ULL);
+  // Connect 已用 Normal 预拉取；首次显式 GetRemoteMem 为第 2 次请求，EnableAlt 下返回 alt（8192）
+  EXPECT_EQ(reinterpret_cast<uint64_t>(remote1[0].addr), 8192ULL);
 
   CommMem *remote2 = nullptr;
   char **tags2 = nullptr;
@@ -912,7 +954,6 @@ TEST_F(HixlCSClientUT, GetRemoteMemTwiceAltMemResponse) {
   ASSERT_EQ(client_.GetRemoteMem(&remote2, &tags2, &num2, kTimeOutOne), SUCCESS);
   ASSERT_EQ(num2, 3U);
   ASSERT_NE(remote2, nullptr);
-  // 第二次：flag addr=8192（alt）
   EXPECT_EQ(reinterpret_cast<uint64_t>(remote2[0].addr), 8192ULL);
 }
 

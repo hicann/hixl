@@ -47,6 +47,7 @@ class HixlCSServer {
  private:
   template <typename T>
   static Status Serialize(const T &msg, std::string &msg_str);
+  Status MatchEndpointMsg(int32_t fd, const char *msg, uint64_t msg_len);
   Status CreateChannel(int32_t fd, const char *msg, uint64_t msg_len);
   Status DestroyChannel(int32_t fd, const char *msg, uint64_t msg_len);
   Status ExportMem(int32_t fd, const char *msg, uint64_t msg_len);
@@ -55,6 +56,7 @@ class HixlCSServer {
   Status InitTransFinishedFlag();
   static Status SendCreateChannelResp(int32_t fd,
                                       const CreateChannelResp &resp);
+  static Status SendMatchEndpointResp(int32_t fd, const MatchEndpointResp &resp);
   static Status SendRemoteMemResp(int32_t fd,
                                   const GetRemoteMemResp &resp);
   void CleanupClient(int32_t fd);

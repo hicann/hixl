@@ -74,14 +74,46 @@ class HixlCSTest : public ::testing::Test {
  private:
   std::vector<EndpointDesc> default_eps;
 
-  void SendCreateChannelReq(int32_t client_fd) {
+  void SendMatchEndpointReq(int32_t client_fd) {
+    CtrlMsgHeader header{};
+    header.magic = kMagicNumber;
+    header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(MatchEndpointReq));
+    CtrlMsgType msg_type = CtrlMsgType::kMatchEndpointReq;
+    MatchEndpointReq body{};
+    body.dst = default_eps[1];
+    auto ret = CtrlMsgPlugin::Send(client_fd, &header, static_cast<uint64_t>(sizeof(header)));
+    EXPECT_EQ(ret, SUCCESS);
+    ret = CtrlMsgPlugin::Send(client_fd, &msg_type, static_cast<uint64_t>(sizeof(msg_type)));
+    EXPECT_EQ(ret, SUCCESS);
+    ret = CtrlMsgPlugin::Send(client_fd, &body, static_cast<uint64_t>(sizeof(body)));
+    EXPECT_EQ(ret, SUCCESS);
+  }
+
+  void GetMatchEndpointResp(int32_t client_fd, MatchEndpointResp &resp_body) {
+    CtrlMsgHeader recv_header{};
+    const uint64_t expect_body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(MatchEndpointResp));
+    recv_header.body_size = expect_body_size;
+    auto ret = CtrlMsgPlugin::Recv(client_fd, &recv_header, static_cast<uint64_t>(sizeof(recv_header)), kRecvTimeoutMs);
+    EXPECT_EQ(ret, SUCCESS);
+    EXPECT_EQ(recv_header.magic, kMagicNumber);
+    EXPECT_EQ(recv_header.body_size, expect_body_size);
+    CtrlMsgType resp_type{};
+    ret = CtrlMsgPlugin::Recv(client_fd, &resp_type, static_cast<uint64_t>(sizeof(resp_type)), kRecvTimeoutMs);
+    EXPECT_EQ(ret, SUCCESS);
+    EXPECT_EQ(resp_type, CtrlMsgType::kMatchEndpointResp);
+    ret = CtrlMsgPlugin::Recv(client_fd, &resp_body, static_cast<uint64_t>(sizeof(resp_body)), kRecvTimeoutMs);
+    EXPECT_EQ(ret, SUCCESS);
+    EXPECT_EQ(resp_body.result, SUCCESS);
+  }
+
+  void SendCreateChannelReq(int32_t client_fd, uint64_t dst_ep_handle) {
     CtrlMsgHeader header{};
     header.magic = kMagicNumber;
     header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(CreateChannelReq));
     CtrlMsgType msg_type = CtrlMsgType::kCreateChannelReq;
     CreateChannelReq body{};
     body.src = default_eps[0];
-    body.dst = default_eps[1];
+    body.dst_ep_handle = dst_ep_handle;
     auto ret = CtrlMsgPlugin::Send(client_fd, &header, static_cast<uint64_t>(sizeof(header)));
     EXPECT_EQ(ret, SUCCESS);
     ret = CtrlMsgPlugin::Send(client_fd, &msg_type, static_cast<uint64_t>(sizeof(msg_type)));
@@ -107,13 +139,24 @@ class HixlCSTest : public ::testing::Test {
     EXPECT_EQ(resp_body.result, SUCCESS);
   }
 
-  void SendGetRemoteMemReq(int32_t client_fd, const CreateChannelResp &resp_body) {
+  void RecvGetRemoteMemRespDrain(int32_t client_fd) {
+    CtrlMsgHeader recv_header{};
+    auto ret = CtrlMsgPlugin::Recv(client_fd, &recv_header, static_cast<uint64_t>(sizeof(recv_header)), kRecvTimeoutMs);
+    EXPECT_EQ(ret, SUCCESS);
+    EXPECT_EQ(recv_header.magic, kMagicNumber);
+    EXPECT_GT(recv_header.body_size, static_cast<uint64_t>(sizeof(CtrlMsgType)));
+    std::vector<uint8_t> body(static_cast<size_t>(recv_header.body_size));
+    ret = CtrlMsgPlugin::Recv(client_fd, body.data(), static_cast<uint64_t>(body.size()), kRecvTimeoutMs);
+    EXPECT_EQ(ret, SUCCESS);
+  }
+
+  void SendGetRemoteMemReq(int32_t client_fd, uint64_t dst_ep_handle) {
     CtrlMsgHeader header{};
     header.magic = kMagicNumber;
     header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(GetRemoteMemReq));
     CtrlMsgType msg_type = CtrlMsgType::kGetRemoteMemReq;
     GetRemoteMemReq body{};
-    body.dst_ep_handle = resp_body.dst_ep_handle;
+    body.dst_ep_handle = dst_ep_handle;
     auto ret = CtrlMsgPlugin::Send(client_fd, &header, static_cast<uint64_t>(sizeof(header)));
     EXPECT_EQ(ret, SUCCESS);
     ret = CtrlMsgPlugin::Send(client_fd, &msg_type, static_cast<uint64_t>(sizeof(msg_type)));
@@ -185,10 +228,15 @@ TEST_F(HixlCSTest, TestHixlCSClient2Server) {
   int32_t client_fd = -1;
   ret = CtrlMsgPlugin::Connect("127.0.0.1", kPort, client_fd, 1);
   EXPECT_EQ(ret, SUCCESS);
-  SendCreateChannelReq(client_fd);
+  SendMatchEndpointReq(client_fd);
+  MatchEndpointResp match_resp{};
+  GetMatchEndpointResp(client_fd, match_resp);
+  SendGetRemoteMemReq(client_fd, match_resp.dst_ep_handle);
+  RecvGetRemoteMemRespDrain(client_fd);
+  SendCreateChannelReq(client_fd, match_resp.dst_ep_handle);
   CreateChannelResp resp_body{};
   GetCreateChannelResp(client_fd, resp_body);
-  SendGetRemoteMemReq(client_fd, resp_body);
+  SendGetRemoteMemReq(client_fd, match_resp.dst_ep_handle);
   std::this_thread::sleep_for(std::chrono::milliseconds(kTimeSleepMs));
   // 没有读取缓冲区数据，测试server recv报错场景
   (void) close(client_fd);
@@ -222,8 +270,13 @@ TEST_F(HixlCSTest, TestHixlCSServerDisconnectionCleanup) {
   ret = CtrlMsgPlugin::Connect("127.0.0.1", kPort, client_fd, 1);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_NE(client_fd, -1);
-  
-  SendCreateChannelReq(client_fd);
+
+  SendMatchEndpointReq(client_fd);
+  MatchEndpointResp match_resp{};
+  GetMatchEndpointResp(client_fd, match_resp);
+  SendGetRemoteMemReq(client_fd, match_resp.dst_ep_handle);
+  RecvGetRemoteMemRespDrain(client_fd);
+  SendCreateChannelReq(client_fd, match_resp.dst_ep_handle);
   CreateChannelResp resp_body{};
   GetCreateChannelResp(client_fd, resp_body);
 
