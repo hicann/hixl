@@ -426,6 +426,7 @@ Status HixlCSServer::DoWait() {
     if (fd == listen_fd_) {
       int32_t connect_fd = -1;
       HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Accept(listen_fd_, connect_fd), "Failed to accept fd");
+      HIXL_CHK_STATUS_RET(CtrlMsgPlugin::SetTcpNoDelay(connect_fd), "Failed to set tcp nodelay, fd:%d", connect_fd);
       HIXL_CHK_STATUS_RET(CtrlMsgPlugin::SetTcpKeepAlive(connect_fd), "Failed to set tcp keep alive, fd:%d", connect_fd);
       HIXL_CHK_STATUS_RET(CtrlMsgPlugin::AddFdToEpoll(epoll_fd_, connect_fd), "Failed to add connect fd to epoll");
       HIXL_EVENT("[HixlServer] accept socket success, client fd:%d", connect_fd);

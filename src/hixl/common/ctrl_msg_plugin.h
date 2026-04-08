@@ -32,6 +32,7 @@ class CtrlMsgPlugin {
   static Status Listen(const std::string &ip, uint32_t listen_port, int32_t backlog, int32_t &listen_fd);
   static Status AddFdToEpoll(int32_t &epoll_fd, int32_t fd, uint32_t events = EPOLLIN | EPOLLRDHUP);
   static Status Accept(int32_t listen_fd, int32_t &conn_fd);
+  static Status SetTcpNoDelay(int32_t fd);
   static Status SetTcpKeepAlive(int32_t fd);
 
  private:

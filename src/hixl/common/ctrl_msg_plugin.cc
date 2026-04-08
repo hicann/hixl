@@ -10,6 +10,8 @@
 
 #include "ctrl_msg_plugin.h"
 #include <netinet/tcp.h>
+#include <cerrno>
+#include <cstring>
 #include <csignal>
 #include <chrono>
 #include <sys/poll.h>
@@ -295,6 +297,15 @@ Status CtrlMsgPlugin::Recv(int32_t fd, void *buf, size_t len, uint32_t timeout_m
     nbytes -= rc;
   }
   HIXL_LOGI("Socket read completed: %zu bytes, fd:%d", len, fd);
+  return SUCCESS;
+}
+
+Status CtrlMsgPlugin::SetTcpNoDelay(int32_t fd) {
+  HIXL_CHK_BOOL_RET_STATUS(fd >= 0, FAILED, "Invalid fd:%d", fd);
+  int32_t flag = 1;
+  HIXL_CHK_BOOL_RET_STATUS(setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag)) == 0, FAILED,
+                           "Failed to set TCP_NODELAY, fd:%d, errno:%d, msg:%s", fd, errno, strerror(errno));
+  HIXL_EVENT("[HixlServer] set tcp nodelay success, fd:%d", fd);
   return SUCCESS;
 }
 
