@@ -71,10 +71,13 @@ Client描述信息。
 
 ```
 struct HixlClientDesc {
-  const char *server_ip;
-  uint32_t server_port;
   const EndpointDesc *local_endpoint;
   const EndpointDesc *remote_endpoint;
+  const char *server_ip;
+  uint32_t server_port;
+  uint8_t tc;
+  uint8_t sl;
+  uint8_t reserved[98] = {};
 };
 ```
 
@@ -82,10 +85,13 @@ struct HixlClientDesc {
 
 | 字段 | 类型 | 描述 |
 |---|---|---|
-| server_ip | const char* | 目标 server Host IP。|
-| server_port | uint32_t | 目标 server Host 端口。|
 | local_endpoint | const EndpointDesc* | 本端Endpoint描述（定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h> ）。|
 | remote_endpoint | const EndpointDesc* | 远端Endpoint描述（定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h> ）。|
+| server_ip | const char* | 目标 server Host IP。|
+| server_port | uint32_t | 目标 server Host 端口。|
+| tc | uint8_t | RDMA网卡的traffic class。|
+| sl | uint8_t | RDMA网卡的service level。|
+| reserved | uint8_t[98] | HixlClientDesc配置保留字段，用于未来扩展，结构体总大小保持为128字节。|
 
 ### HixlServerDesc
 
@@ -93,10 +99,11 @@ Server 描述信息。
 
 ```
 struct HixlServerDesc {
+  const EndpointDesc *endpoint_list;
   const char *server_ip;
   uint32_t server_port;
-  const EndpointDesc *endpoint_list;
   uint32_t endpoint_list_num;
+  uint8_t reserved[104] = {};
 };
 ```
 
@@ -108,6 +115,7 @@ struct HixlServerDesc {
 | server_port | uint32_t | 侦听端口。|
 | endpoint_list | const EndpointDesc* | Endpoint描述数组指针。Endpoint描述定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h>|
 | endpoint_list_num | uint32_t | Endpoint数量。|
+| reserved | uint8_t[104] | HixlServerDesc配置保留字段，用于未来扩展，结构体总大小保持为128字节。|
 
 ### HixlOneSideOpDesc
 
