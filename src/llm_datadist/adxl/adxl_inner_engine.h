@@ -19,6 +19,7 @@
 #include "buffer_transfer_service.h"
 #include "segment_table.h"
 #include "fabric_mem_transfer_service.h"
+#include "common/hixl_inner_types.h"
 
 namespace adxl {
 namespace {
@@ -109,7 +110,7 @@ class AdxlInnerEngine {
   std::condition_variable notify_cv_;                       // Condition variable for waiting ack
   std::atomic<uint64_t> next_notify_id_{1};
   std::mutex req2channel_mutex_;
-  std::map<uint64_t, AscendString> req2channel_;
+  std::map<uint64_t, hixl::TransferInfo> req_map_;
   std::atomic<uint64_t> next_req_id_{1};
   // Mutex to protect connection operations (Connect and ConnectWhenTransfer)
   std::mutex connection_mutex_;

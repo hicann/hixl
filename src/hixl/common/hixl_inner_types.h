@@ -58,5 +58,11 @@ struct MemInfo {
   MemDesc mem;
   MemType type;
 };
+
+struct TransferInfo {
+  uint64_t start_time;
+  TransferOp op_type;
+  AscendString remote_engine;
+};
 }  // namespace hixl
 #endif  // CANN_HIXL_SRC_HIXL_COMMON_HIXL_INNER_TYPES_H_

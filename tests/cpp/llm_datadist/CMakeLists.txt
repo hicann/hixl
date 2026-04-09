@@ -38,6 +38,7 @@ file(GLOB LLM_V2_SRC_LIST
         "${HIXL_CODE_DIR}/src/hixl/engine/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/common/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/*.cc"
+        "${HIXL_CODE_DIR}/src/hixl/profiling/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/proxy/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/api/*.cc"
@@ -96,6 +97,8 @@ target_link_libraries(llm_datadist_test
         mmpa_stub
         ascendcl_stub
         runtime_stub
+        hccl_stub
+        msprof_stub
         msprof_headers
         GTest::gtest GTest::gtest_main
         GTest::gmock

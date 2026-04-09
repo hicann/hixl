@@ -18,6 +18,7 @@
 #include "statistic_manager.h"
 #include "adxl_utils.h"
 #include "virtual_memory_manager.h"
+#include "profiling/prof_api_reg.h"
 
 namespace adxl {
 namespace {
@@ -523,6 +524,8 @@ Status AdxlInnerEngine::TransferSync(const AscendString &remote_engine,
                                      const std::vector<TransferOpDesc> &op_descs,
                                      int32_t timeout_in_millis) {
   hixl::TemporaryRtContext with_context(aclrt_context_);
+  hixl::HixlProfType type = (operation == READ ? hixl::HixlProfType::HixlOpBatchRead : hixl::HixlProfType::HixlOpBatchWrite);
+  HIXL_API_PROFILING(type);
   if (user_config_channel_pool_ || auto_connect_) {
     (void) ConnectWhenTransfer(remote_engine, timeout_in_millis);
   }
@@ -619,8 +622,11 @@ Status AdxlInnerEngine::TransferAsync(const AscendString &remote_engine,
     return trans_status;
   }
   LLM_DISMISS_GUARD(transfer_count_guard);
+  uint64_t start_time = 0;
+  start_time = hixl::HixlProfilingReporter::GetSysCycleTime();
+  hixl::TransferInfo transfer_info = {start_time, static_cast<hixl::TransferOp>(operation), remote_engine};
   std::lock_guard<std::mutex> lock(req2channel_mutex_);
-  req2channel_[id] = remote_engine;
+  req_map_.emplace(id, transfer_info);
   return SUCCESS;
 }
 
@@ -628,18 +634,18 @@ Status AdxlInnerEngine::GetTransferStatus(const TransferReq &req, TransferStatus
   hixl::TemporaryRtContext with_context(aclrt_context_);
   std::lock_guard<std::mutex> lock(req2channel_mutex_);
   auto id = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(req));
-  auto it = req2channel_.find(id);
-  if (it == req2channel_.end()) {
+  auto it = req_map_.find(id);
+  if (it == req_map_.end()) {
     LLMLOGE(PARAM_INVALID, "Request not found, request has been completed or does not exist, req: %llu", id);
     return PARAM_INVALID;
   }
-  auto remote_engine = it->second;
+  auto remote_engine = it->second.remote_engine;
   auto channel = channel_manager_.GetChannel(ChannelType::kClient, remote_engine.GetString());
   if (channel == nullptr) {
     LLMLOGE(NOT_CONNECTED,
             "Failed to get channel, channel may have encountered problems and has been destroyed,remote_engine:%s",
             remote_engine.GetString());
-    req2channel_.erase(it);
+    req_map_.erase(it);
     status = TransferStatus::FAILED;
     return NOT_CONNECTED;
   }
@@ -654,7 +660,11 @@ Status AdxlInnerEngine::GetTransferStatus(const TransferReq &req, TransferStatus
     if (user_config_channel_pool_) {
       channel->DecrementTransferCount();
     }
-    req2channel_.erase(it);
+    auto op_type = it->second.op_type;
+    auto start_time = it->second.start_time;
+    hixl::HixlProfType type = (op_type == hixl::TransferOp::READ ? hixl::HixlProfType::HixlOpBatchRead : hixl::HixlProfType::HixlOpBatchWrite);
+    HIXL_API_PROFILING_WITH_TIME(type, start_time);
+    req_map_.erase(it);
   }
   if (fabric_mem_transfer_service_ != nullptr) {
     ADXL_CHK_BOOL_RET_STATUS(ret != ACL_ERROR_RT_SUSPECT_REMOTE_ERROR, ACL_ERROR_RT_SUSPECT_REMOTE_ERROR,

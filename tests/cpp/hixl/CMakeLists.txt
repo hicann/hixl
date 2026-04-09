@@ -19,6 +19,7 @@ set(HIXL_TEST_FILES
         engine/hixl_client_unittest.cc
         engine/hixl_utils_unittest.cc
         engine/hixl_engine_unittest.cc
+        engine/hixl_profiling_unittest.cc
         ../ops/hixl_kernel/hixl_kernel_basic_unittest.cc
 )
 
@@ -26,6 +27,7 @@ file(GLOB HIXL_SRC_LIST
         "${HIXL_CODE_DIR}/src/hixl/common/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/engine/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/*.cc"
+        "${HIXL_CODE_DIR}/src/hixl/profiling/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/proxy/*.cc"
         "${HIXL_CODE_DIR}/src/ops/hixl_kernel/*.cc"
 )
@@ -70,6 +72,7 @@ target_include_directories(hixl_test PRIVATE
         ${HIXL_CODE_DIR}/src/llm_datadist
         ${HIXL_CODE_DIR}/src/hixl/cs
         ${HIXL_CODE_DIR}/src/hixl/engine
+        ${HIXL_CODE_DIR}/src/hixl/profiling
         ${HIXL_CODE_DIR}/src/ops
         ${HIXL_CODE_DIR}/tests
         ${HIXL_CODE_DIR}/tests/depends/ascendcl/src
@@ -90,6 +93,7 @@ target_link_libraries(hixl_test
         -ldl
         slog_stub
         mmpa_stub
+        msprof_stub
         ascendcl_stub
         runtime_stub
         msprof_headers

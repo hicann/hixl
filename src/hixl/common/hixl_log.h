@@ -91,4 +91,8 @@ inline bool HixlLogPrintStdout() {
 }
 #endif
 
+enum {
+  HIXL_MODULE_ID = 12
+};
+
 #endif  // CANN_HIXL_SRC_HIXL_COMMON_HIXL_LOG_H_

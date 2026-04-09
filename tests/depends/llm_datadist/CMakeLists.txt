@@ -30,6 +30,7 @@ file(GLOB LLM_V2_SRC_LIST
         "${HIXL_CODE_DIR}/src/hixl/common/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/engine/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/*.cc"
+        "${HIXL_CODE_DIR}/src/hixl/profiling/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/proxy/*.cc"
         "${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/mmpa_stub.cc"
         "${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/hccl_stub.cc"
@@ -64,6 +65,7 @@ target_link_libraries(llm_datadist_base PRIVATE
         ascendcl_stub
         runtime_stub
         msprof_headers
+        msprof_stub
         mmpa_stub
         json
         ${DT_COMMON_LINK_OPTION}
