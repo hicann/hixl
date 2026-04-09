@@ -18,6 +18,7 @@
 using namespace llm_datadist;
 namespace {
 constexpr uint16_t kPromptListenPort = 26000;
+constexpr uint16_t kDecoderListenPort = 26001;
 constexpr uint16_t kPromptClusterId = 0;
 constexpr uint16_t kDecoderClusterId = 1;
 constexpr uint32_t kNumTensors = 4U;
@@ -25,10 +26,11 @@ constexpr size_t kTensorSize = 8 * 16 * sizeof(int32_t);
 const std::vector<int64_t> kTensorShape = {8, 16};
 constexpr size_t kTensorBlockElementNum = 16;
 constexpr int32_t kWaitPromptTime = 5;
-constexpr int32_t kExpectedArgCnt = 4;
+constexpr int32_t kExpectedArgCnt = 5;
 constexpr uint32_t kArgIndexDeviceId = 1;
 constexpr uint32_t kArgIndexLocalIp = 2;
 constexpr uint32_t kArgIndexRemoteIp = 3;
+constexpr uint32_t kArgIndexLocalCommRes = 4;
 
 #define CHECK_ACL(x)                                                                  \
   do {                                                                                \
@@ -47,9 +49,15 @@ const char *GetRecentErrMsg() {
 }
 }  // namespace
 
-int Initialize(LlmDataDist &llm_datadist, const std::string &device_id) {
+int Initialize(LlmDataDist &llm_datadist, const std::string &device_id, const std::string &local_ip,
+               const std::string &local_comm_res) {
   std::map<AscendString, AscendString> options;
   options[OPTION_DEVICE_ID] = device_id.c_str();
+  if (!local_comm_res.empty()) {
+    options[OPTION_TRANSFER_BACKEND] = "hixl";
+    options[OPTION_LISTEN_IP_INFO] = (local_ip + ":" + std::to_string(kDecoderListenPort)).c_str();
+    options[OPTION_LOCAL_COMM_RES] = local_comm_res.c_str();
+  }
   auto ret = llm_datadist.Initialize(options);
   if (ret != LLM_SUCCESS) {
     printf("[ERROR] Initialize failed, ret = %u, errmsg: %s\n", ret, GetRecentErrMsg());
@@ -66,7 +74,7 @@ int Link(LlmDataDist &llm_datadist, const char *local_ip, const char *remote_ip)
   cluster_info.remote_cluster_id = 0;
   IpInfo local_ip_info;
   local_ip_info.ip = local_ip;
-  local_ip_info.port = kPromptListenPort;
+  local_ip_info.port = kDecoderListenPort;
   cluster_info.local_ip_infos.emplace_back(std::move(local_ip_info));
   IpInfo remote_ip_info;
   remote_ip_info.ip = remote_ip;
@@ -198,11 +206,12 @@ int32_t RegisterCache(LlmDataDist &llm_datadist, std::vector<void *> &buffers, i
   return 0;
 }
 
-int32_t RunDecoderSample(const char *device_id, const char *local_ip, const char *remote_ip) {
+int32_t RunDecoderSample(const char *device_id, const char *local_ip, const char *remote_ip,
+                         const std::string &local_comm_res) {
   printf("[INFO] Decoder Sample start\n");
   // 1. 初始化
   LlmDataDist llm_datadist(kDecoderClusterId, LlmRole::kDecoder);
-  if (Initialize(llm_datadist, device_id) != 0) {
+  if (Initialize(llm_datadist, device_id, local_ip, local_comm_res) != 0) {
     return -1;
   }
 
@@ -250,14 +259,20 @@ int32_t RunDecoderSample(const char *device_id, const char *local_ip, const char
 }
 
 int main(int32_t argc, char **argv) {
-  if (argc != kExpectedArgCnt) {
-    printf("[ERROR] expect 3 args(device_id, localHostIp, remoteHostIp), but got %d\n", argc - 1);
+  if (argc < kExpectedArgCnt - 1 || argc > kExpectedArgCnt) {
+    printf("[ERROR] expect at least 3 args(device_id, localHostIp, remoteHostIp, [local_comm_res]), but got %d\n",
+           argc - 1);
     return -1;
   }
   const auto device_id = argv[kArgIndexDeviceId];
   const auto local_ip = argv[kArgIndexLocalIp];
   const auto remote_ip = argv[kArgIndexRemoteIp];
   printf("[INFO] device_id = %s, local_ip = %s, remote_ip = %s\n", device_id, local_ip, remote_ip);
-  auto ret = RunDecoderSample(device_id, local_ip, remote_ip);
+  std::string local_comm_res;
+  if (argc == kExpectedArgCnt) {
+    local_comm_res = argv[kArgIndexLocalCommRes];
+    printf("[INFO] local_comm_res = %s\n", local_comm_res.c_str());
+  }
+  auto ret = RunDecoderSample(device_id, local_ip, remote_ip, local_comm_res);
   return ret;
 }

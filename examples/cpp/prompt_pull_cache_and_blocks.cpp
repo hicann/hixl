@@ -23,9 +23,10 @@ constexpr uint32_t kNumTensors = 4U;
 constexpr size_t kTensorSize = 8 * 16 * sizeof(int32_t);
 const std::vector<int64_t> kTensorShape = {8, 16};
 constexpr int32_t kWaitTime = 10;
-constexpr int32_t kExpectedArgCnt = 3;
+constexpr int32_t kExpectedArgCnt = 4;
 constexpr uint32_t kArgIndexDeviceId = 1;
 constexpr uint32_t kArgIndexLocalIp = 2;
+constexpr uint32_t kArgIndexLocalCommRes = 3;
 
 #define CHECK_ACL(x)                                                                  \
   do {                                                                                \
@@ -44,10 +45,15 @@ const char *GetRecentErrMsg() {
 }
 }  // namespace
 
-int Initialize(LlmDataDist &llm_datadist, const std::string &device_id, const std::string &local_ip) {
+int Initialize(LlmDataDist &llm_datadist, const std::string &device_id, const std::string &local_ip,
+               const std::string &local_comm_res) {
   std::map<AscendString, AscendString> options;
   options[OPTION_DEVICE_ID] = device_id.c_str();
   options[OPTION_LISTEN_IP_INFO] = (local_ip + ":" + std::to_string(kPromptListenPort)).c_str();
+  if (!local_comm_res.empty()) {
+    options[OPTION_TRANSFER_BACKEND] = "hixl";
+    options[OPTION_LOCAL_COMM_RES] = local_comm_res.c_str();
+  }
   auto ret = llm_datadist.Initialize(options);
   if (ret != LLM_SUCCESS) {
     printf("[ERROR] Initialize failed, ret = %u, errmsg: %s\n", ret, GetRecentErrMsg());
@@ -72,11 +78,11 @@ void Finalize(LlmDataDist &llm_datadist, int64_t cache_id, const std::vector<voi
   llm_datadist.Finalize();
 }
 
-int32_t RunPromptSample(const char *device_id, const char *local_ip) {
+int32_t RunPromptSample(const char *device_id, const char *local_ip, const std::string &local_comm_res) {
   printf("[INFO] Prompt Sample start\n");
   // 1. 初始化
   LlmDataDist llm_datadist(kPromptClusterId, LlmRole::kPrompt);
-  if (Initialize(llm_datadist, device_id, local_ip) != 0) {
+  if (Initialize(llm_datadist, device_id, local_ip, local_comm_res) != 0) {
     printf("[ERROR] Initialize LlmDataDist failed\n");
     return -1;
   }
@@ -122,13 +128,18 @@ int32_t RunPromptSample(const char *device_id, const char *local_ip) {
 }
 
 int main(int32_t argc, char **argv) {
-  if (argc != kExpectedArgCnt) {
-    printf("[ERROR] expect 2 args(device_id, localHostIp), but got %d\n", argc - 1);
+  if (argc < kExpectedArgCnt - 1 || argc > kExpectedArgCnt) {
+    printf("[ERROR] expect at least 3 args(device_id, localHostIp, [local_comm_res]), but got %d\n", argc - 1);
     return -1;
   }
   const auto device_id = argv[kArgIndexDeviceId];
   const auto local_ip = argv[kArgIndexLocalIp];
   printf("[INFO] device_id = %s, local_ip = %s\n", device_id, local_ip);
-  auto ret = RunPromptSample(device_id, local_ip);
+  std::string local_comm_res;
+  if (argc == kExpectedArgCnt) {
+    local_comm_res = argv[kArgIndexLocalCommRes];
+    printf("[INFO] local_comm_res = %s\n", local_comm_res.c_str());
+  }
+  auto ret = RunPromptSample(device_id, local_ip, local_comm_res);
   return ret;
 }

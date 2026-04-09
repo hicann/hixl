@@ -30,7 +30,7 @@
 
 -   操作系统及架构：Euleros x86系统、Euleros aarch64系统
 -   编译器：g++
--   芯片：Atlas A3 训练/推理系列产品、Atlas 800I A2 推理产品/A200I A2 Box 异构组件
+-   芯片：Atlas A3 训练/推理系列产品、Atlas 800I A2 推理产品/A200I A2 Box 异构组件、Ascend 950PR/Ascend 950DT
 -   已完成昇腾AI软件栈在运行环境上的部署  
 
 以下所有用例的执行命令以A2环境为例演示，在执行前请先确认**两个device之间互通**，例如A3环境一卡双带之间不互通，0号和1号device不通，2号和3号device不通，以此类推，需要在执行时将device_id进行替换。可以用hccn_tool按照以下步骤确认两个设备之间的连通性，假设要测试a和b两台设备间的连通性：  
@@ -59,6 +59,15 @@ for i in {0..7}; do hccn_tool -i $i -tls -g; done | grep switch
 # TLS使能的设备和TLS不使能的设备无法建链，建议统一保持TLS关闭
 for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
 ```
+下面个别用例支持在A5环境使用RDMA链路执行，并且需要在双机上执行，会在对应用例中进行特别说明。在执行前需要手动配置local_comm_res，配置格式参考：[通信设备配置](https://gitcode.com/cann/hixl/issues/37)。可通过以下操作获取 host 网卡的 ip 信息：
+```shell
+# 查询RoCE设备和网口的对应关系，查看状态为Up的网口名
+ibdev2netdev
+
+# 根据网口名找出对应的ip信息
+ifconfig
+```
+
 ## 程序编译
 
 
@@ -105,6 +114,15 @@ for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
         ```
         ./decoder_pull_cache_and_blocks 2 10.170.10.1 10.170.10.1
         ```
+    
+    - 若在A5环境执行还需要增加参数local_comm_res，如：
+        ```
+        # prompt主机
+        HCCL_INTRA_ROCE_ENABLE=1 ./prompt_pull_cache_and_blocks 0 10.10.170.0 ‘{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}’
+
+        # decoder主机
+        HCCL_INTRA_ROCE_ENABLE=1 ./decoder_pull_cache_and_blocks 0 10.170.10.1 10.170.10.0 ‘{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}’
+        ```
 
     (2) 执行push_cache_and_blocks
 
@@ -118,6 +136,15 @@ for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
     - 执行decoder_push_cache_and_blocks, 参数为device_id与local_ip, 其中device_id为decoder要使用的device_id, local_ip为decoder所在host的ip, 如:
         ```
         ./decoder_push_cache_and_blocks 4 10.10.10.1
+        ```
+
+    - 若在A5环境执行还需要增加参数local_comm_res，如：
+        ```
+        # prompt主机
+        HCCL_INTRA_ROCE_ENABLE=1 ./prompt_push_cache_and_blocks 0 10.10.10.0 10.10.10.1 ‘{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}’
+
+        # decoder主机
+        HCCL_INTRA_ROCE_ENABLE=1 ./decoder_push_cache_and_blocks 0 10.10.10.1 ‘{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}’
         ```
 
     (3) 执行switch_roles

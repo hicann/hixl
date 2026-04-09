@@ -40,15 +40,21 @@ def init_process_group(rank, world_size, master_ip, backend='gloo'):
     logging.info(f"init group success")
 
 
-def init_llm_datadist(role: LLMRole, cluster_id, device_id: int, local_host_ip, remote_host_ip) -> LLMDataDist:
-    init_process_group(cluster_id, 2, min(local_host_ip, remote_host_ip))
+def init_llm_datadist(role: LLMRole, cluster_id, args) -> LLMDataDist:
+    init_process_group(cluster_id, 2, min(args.local_host_ip, args.remote_host_ip))
     datadist = LLMDataDist(role, cluster_id)
     llm_config = LLMConfig()
-    llm_config.device_id = device_id
+    llm_config.device_id = args.device_id
     if role == LLMRole.DECODER:
-        llm_config.listen_ip_info = f"{local_host_ip}:26000"
+        llm_config.listen_ip_info = f"{args.local_host_ip}:26000"
     llm_config.enable_cache_manager = True
     llm_config.enable_remote_cache_accessible = True # 开启远端Cache可直接访问功能
+    if args.local_comm_res:
+        llm_config.transfer_backend = "hixl"
+        if role == LLMRole.PROMPT:
+            llm_config.listen_ip_info = f"{args.local_host_ip}:26001"
+        llm_config.local_comm_res = args.local_comm_res
+        logging.info(f"local_comm_res={llm_config.local_comm_res}")
     llm_options = llm_config.generate_options()
     datadist.init(llm_options)
     logging.info(f"init {role} success, cluster_id={cluster_id}")
@@ -79,7 +85,7 @@ def run_prompt_sample(datadist, local_host_ip, remote_host_ip):
     # 2. 向decoder发起建链
     cluster = LLMClusterInfo()
     cluster.remote_cluster_id = DECODER_CLUSTER_ID
-    cluster.append_local_ip_info(local_host_ip, 26000)
+    cluster.append_local_ip_info(local_host_ip, 26001)
     cluster.append_remote_ip_info(remote_host_ip, 26000)
     ret, _ = datadist.link_clusters([cluster], 5000)
     if ret != LLMStatusCode.LLM_SUCCESS:
@@ -140,6 +146,7 @@ if __name__ == '__main__':
     parser.add_argument("--role", type=str, default=1, help='role type, support p/d')
     parser.add_argument("--local_host_ip", type=str, help='local host ip')
     parser.add_argument("--remote_host_ip", type=str, help='remote host ip')
+    parser.add_argument("--local_comm_res", type=str, help='set local comm res if you need')
     args = parser.parse_args()
     if args.role not in ['p', 'd']:
         raise RuntimeError("Not supported cluster id")
@@ -154,7 +161,7 @@ if __name__ == '__main__':
     torch.npu.set_device(args.device_id)
     role = LLMRole.PROMPT if args.role == 'p' else LLMRole.DECODER
     cluster_id = PROMPT_CLUSTER_ID if args.role == 'p' else DECODER_CLUSTER_ID
-    datadist = init_llm_datadist(role, cluster_id, args.device_id, args.local_host_ip, args.remote_host_ip)
+    datadist = init_llm_datadist(role, cluster_id, args)
     if role == LLMRole.PROMPT:
         run_prompt_sample(datadist, args.local_host_ip, args.remote_host_ip)
     else:
