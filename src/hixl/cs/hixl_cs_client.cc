@@ -522,9 +522,8 @@ Status HixlCSClient::EnsureUbRemoteFlagInitedLocked() {
   if (ub_remote_flag_inited_) {
     return SUCCESS;
   }
-  const EndpointDesc &endpoint = local_endpoint_->GetEndpoint();
   const char *kTransFlagName = nullptr;
-  if (endpoint.loc.locType == ENDPOINT_LOC_TYPE_HOST) {
+  if (remote_endpoint_.loc.locType == ENDPOINT_LOC_TYPE_HOST) {
     kTransFlagName = kTransFlagNameHost;
   } else {
     kTransFlagName = kTransFlagNameDevice;
