@@ -206,7 +206,7 @@ ge::Status CacheManager::Allocate(int64_t cache_id,
   cache.cache_id = cache_id;
   (void)cache.per_device_tensor_addrs.emplace_back(std::move(tensor_addresses));
   LLMLOGI("[cache_id:%ld][Allocate] success, num_tensors = %u, shape = %s， placement = %u", cache_id,
-         cache_desc.num_tensors, ToString(cache_desc.shape).c_str(), cache_desc.placement);
+         cache_desc.num_tensors, hixl::ToString(cache_desc.shape).c_str(), cache_desc.placement);
   std::lock_guard<std::mutex> lk(mu_);
   LLM_CHK_STATUS_RET(UpdateCacheTable(), "Failed to update cache table");
   return ge::SUCCESS;

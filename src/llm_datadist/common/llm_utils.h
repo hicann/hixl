@@ -93,23 +93,5 @@ class LLMUtils {
                                       std::string &ip,
                                       uint32_t &port);
 };
-
-template <typename T>
-std::string ToString(const std::vector<T> &v) {
-  bool first = true;
-  std::stringstream ss;
-  ss << "[";
-  for (const T &x : v) {
-    if (first) {
-      first = false;
-      ss << x;
-    } else {
-      ss << ", " << x;
-    }
-  }
-  ss << "]";
-  return ss.str();
-}
-
 }  // namespace llm
 #endif  // CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_LLM_UTILS_H

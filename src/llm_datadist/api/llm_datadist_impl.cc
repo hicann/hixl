@@ -19,7 +19,7 @@
 #include "common/def_types.h"
 #include "common/llm_common.h"
 #include "nlohmann/json.hpp"
-#include "acl/acl.h"
+#include "common/hixl_utils.h"
 #include "common/llm_checker.h"
 #include "common/llm_scope_guard.h"
 
@@ -603,11 +603,11 @@ Status LlmDataDist::PullKvBlocks(const CacheIndex &src_cache_index,
                          "[PullKvBlocks] failed, src_cluster_id = %lu, src_cache_id = %ld, dst_cache_id = %ld, "
                          "src_blocks = %s, dst_blocks = %s",
                          src_cache_index.cluster_id, src_cache_index.cache_id, dst_cache.cache_id,
-                         llm::ToString(src_blocks).c_str(), llm::ToString(dst_blocks).c_str());
+                         hixl::ToString(src_blocks).c_str(), hixl::ToString(dst_blocks).c_str());
   LLMLOGI("[PullKvBlocks] success, src_cluster_id = %lu, src_cache_id = %ld, dst_cache_id = %ld, "
          "src_blocks = %s, dst_blocks = %s",
          src_cache_index.cluster_id, src_cache_index.cache_id, dst_cache.cache_id,
-         llm::ToString(src_blocks).c_str(), llm::ToString(dst_blocks).c_str());
+         hixl::ToString(src_blocks).c_str(), hixl::ToString(dst_blocks).c_str());
   return LLM_SUCCESS;
 }
 
@@ -674,11 +674,11 @@ Status LlmDataDist::PushKvBlocks(const Cache &src_cache,
                          "[PushKvBlocks] failed, dst_cluster_id = %lu, dst_cache_id = %ld, src_cache_id = %ld, "
                          "src_blocks = %s, dst_blocks = %s",
                          dst_cache_index.cluster_id, dst_cache_index.cache_id, src_cache.cache_id,
-                         llm::ToString(src_blocks).c_str(), llm::ToString(dst_blocks).c_str());
+                         hixl::ToString(src_blocks).c_str(), hixl::ToString(dst_blocks).c_str());
   LLMLOGI("[PushKvBlocks] success, dst_cluster_id = %lu, dst_cache_id = %ld, src_cache_id = %ld, "
       "src_blocks = %s, dst_blocks = %s",
       dst_cache_index.cluster_id, dst_cache_index.cache_id, src_cache.cache_id,
-      llm::ToString(src_blocks).c_str(), llm::ToString(dst_blocks).c_str());
+      hixl::ToString(src_blocks).c_str(), hixl::ToString(dst_blocks).c_str());
   return LLM_SUCCESS;
 }
 

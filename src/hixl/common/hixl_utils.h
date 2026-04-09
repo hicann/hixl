@@ -53,6 +53,23 @@ static hixl::Status ToNumber(const std::string &num_str, T &value) {
     return hixl::SUCCESS;
 }
 
+template <typename T>
+std::string ToString(const std::vector<T> &v) {
+  bool first = true;
+  std::stringstream ss;
+  ss << "[";
+  for (const T &x : v) {
+    if (first) {
+      first = false;
+      ss << x;
+    } else {
+      ss << ", " << x;
+    }
+  }
+  ss << "]";
+  return ss.str();
+}
+
 Status HcclError2Status(HcclResult ret);
 
 Status ParseIpAddress(const std::string &ip_str, CommAddr &addr);

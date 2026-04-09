@@ -11,6 +11,7 @@
 #include "comm_link_manager.h"
 #include "comm_entity_manager.h"
 #include "common/def_types.h"
+#include "common/hixl_utils.h"
 #include "common/llm_checker.h"
 #include "common/llm_utils.h"
 #include "common/llm_scope_guard.h"
@@ -223,8 +224,8 @@ ge::Status CommLinkManager::PrepareMem(PrepareMemArg &req) {
     (void)cluster_ids.emplace_back(iter.first);
     (void)rank_ids.emplace_back(iter.second);
   }
-  LLMEVENT("Begin to prepare memory for clusters[%s], ranks[%s].", ToString(cluster_ids).c_str(),
-          ToString(rank_ids).c_str());
+  LLMEVENT("Begin to prepare memory for clusters[%s], ranks[%s].", hixl::ToString(cluster_ids).c_str(),
+          hixl::ToString(rank_ids).c_str());
   std::vector<EntityPtr> new_entities;
   auto local_rank_id = req.cluster2rank[cluster_id_];
   for (auto &iter : req.cluster2rank) {
