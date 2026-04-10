@@ -38,6 +38,8 @@ HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，
 
 ## 🔍目录结构
 
+本项目的关键目录说明如下：
+
 ```
 ├── build.sh                       # 项目工程编译脚本
 ├── benchmarks                     # 项目benchmark性能用例
@@ -51,6 +53,7 @@ HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，
 │  ├── python                      # Python样例
 ├── include                        # 头文件
 │  ├── hixl
+│  ├── cs
 │  ├── adxl
 │  └── llm_datadist
 ├── README.md
@@ -59,6 +62,7 @@ HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，
 ├── src                            # 源码路径
 │  ├── hixl
 │  ├── llm_datadist
+│  ├── ops
 │  └── python
 └── tests                          # 测试工程目录
 ```
@@ -73,13 +77,19 @@ HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，
 ## 📖学习教程
 
 若您希望深入了解组件的各个接口并修改源码，请访问如下文档获取详细教程。
-- [C++接口](docs/cpp/README.md)：C++接口介绍。
+
+- [C/C++接口](docs/cpp/README.md)：C++接口介绍。
 
 - [Python接口](docs/python/README.md)：Python接口介绍。
+
+如果希望深入了解 HIXL 开发指南和技术文章等内容，可参考以下文档：
+
+* [HIXL 资料书架总览](docs/README.md)：汇总HIXL相关资料、技术文章和培训视频链接。
+* [AI Agent支持](.agents/README.md)：介绍仓内默认使用的一些skills及触发方式。
+* [贡献指南](CONTRIBUTING.md)：说明如何提交 Issue、Pull Request 以及代码规范。
 
 
 ## 📝相关信息
 
-- [贡献指南](CONTRIBUTING.md)
 - [安全声明](SECURITY.md)
 - [许可证](LICENSE)

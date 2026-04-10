@@ -103,7 +103,7 @@ $ grep -r "HcclCommPrepare" |grep "141.61.29.108:20311_141.61.29.108:21035"
   ```bash
   # 检查设备的TLS状态
   for i in {0..7}; do hccn_tool -i $i -tls -g; done | grep switch
-  
+
   # TLS使能的设备和TLS不使能的设备无法建链，建议统一保持TLS关闭
   for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
   ```
@@ -345,7 +345,7 @@ enabled    0 0 0 0 1 0 0 0
 常见于中转模式，当前HIXL默认配置了BufferPool的Option，如果有内存没注册就会被当作HOST内存走入中转模式，查看plog，包含如下关键字：
 
 ``` tex
-CheckMemCpyAttr: src's real memory type is * , but * is inputed, or real device id is * , but * is inputed. 
+CheckMemCpyAttr: src's real memory type is * , but * is inputed, or real device id is * , but * is inputed.
 ```
 
 ### 常见报错原因分析

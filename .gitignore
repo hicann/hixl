@@ -24,8 +24,11 @@ __pycache__
 cmake-build-debug
 cmake-build-release
 cmake-build-gcov
+
+# Agent
 .gemini
 GEMINI.md
+.codex
 
 # oat check
 oat_reports/

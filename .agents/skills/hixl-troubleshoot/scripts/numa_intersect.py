@@ -31,11 +31,9 @@ RANGE_SIZE = 682 * 1024 * 1024 * 1024  # 682GB
 
 def get_all_nodes():
     base = "/sys/devices/system/node/"
-    return sorted([
-        int(d.replace("node", ""))
-        for d in os.listdir(base)
-        if d.startswith("node")
-    ])
+    return sorted(
+        [int(d.replace("node", "")) for d in os.listdir(base) if d.startswith("node")]
+    )
 
 
 def get_memory_block_size():
@@ -171,6 +169,7 @@ def run_for_node(node, min_mb, target_ranges):
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="NUMA free memory intersect tool (all nodes supported)")
     parser.add_argument("-n", "--node", type=int, help="NUMA node ID (default: all)")
     parser.add_argument("-m", "--min-mb", type=float, default=2048)

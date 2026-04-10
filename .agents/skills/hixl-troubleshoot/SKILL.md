@@ -1,20 +1,11 @@
 ---
 name: hixl-troubleshoot
-description: >-
+description: |
   在 Ascend 上定位 HIXL/ADXL 建链、传输、环境与配置问题。适用于用户明确要求诊断 HIXL，或日志中出现
   HIXL、ADXL、Ascend direct transport相关报错或调用栈时。纯功能开发、普通代码重构、与 HIXL 运行时无关的
   问题不要触发此 skill。
+license: CANN Open Software License Agreement Version 2.0
 ---
-
-<!--
-Copyright (c) 2026 Huawei Technologies Co., Ltd.
-This program is free software, you can redistribute it and/or modify it under the terms and conditions of
-CANN Open Software License Agreement Version 2.0 (the "License").
-Please refer to the License for details. You may not use this file except in compliance with the License.
-THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
-INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
-See LICENSE in the root of the software repository for the full text of the License.
--->
 
 # HIXL 运行时问题定位
 
