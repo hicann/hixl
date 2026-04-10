@@ -18,6 +18,7 @@
 
 #include "adxl/adxl_engine.h"
 #include "adxl/channel_manager.h"
+#include "adxl/statistic_manager.h"
 #include "adxl/virtual_memory_manager.h"
 #include "engine/engine_factory.h"
 #include "engine/hixl_engine.h"
@@ -33,6 +34,11 @@ using ::testing::Invoke;
 using ::testing::Mock;
 namespace adxl {
 namespace {
+constexpr char kEngine1Id[] = "127.0.0.1";
+constexpr char kEngine1PortId[] = "127.0.0.1:26000";
+constexpr char kEngine2Id[] = "127.0.0.1:26001";
+constexpr char kEngine3Id[] = "127.0.0.1:26002";
+
 std::map<AscendString, AscendString> BuildHixlCsOptions(const std::string &ip) {
   std::map<AscendString, AscendString> options;
   options[OPTION_LOCAL_COMM_RES] = AscendString((R"(
@@ -60,14 +66,25 @@ std::map<AscendString, AscendString> BuildHixlCsOptions(const std::string &ip) {
 
 class AdxlEngineUTest : public ::testing::Test {
  protected:
+  void ClearStatisticChannels() {
+    auto &sm = StatisticManager::GetInstance();
+    for (const char *peer_id : {kEngine1Id, kEngine1PortId, kEngine2Id, kEngine3Id}) {
+      sm.RemoveStatisticChannel(peer_id, true);
+      sm.RemoveStatisticChannel(peer_id, false);
+    }
+  }
+
   // 在测试类中设置一些准备工作，如果需要的话
   void SetUp() override {
+    ClearStatisticChannels();
     llm::MockMmpaForHcclApi::Install();
     llm::AutoCommResRuntimeMock::Install();
     llm::HcclAdapter::GetInstance().Initialize();
   }
   // 在测试类中进行清理工作，如果需要的话
   void TearDown() override {
+    adxl::StatisticManager::GetInstance().SetEnableUseFabricMem(false);
+    ClearStatisticChannels();
     llm::HcclAdapter::GetInstance().Finalize();
     llm::AutoCommResRuntimeMock::Reset();
     llm::MockMmpaForHcclApi::Reset();
@@ -99,6 +116,29 @@ class AdxlEngineUTest : public ::testing::Test {
     EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
     engine1.Finalize();
     engine2.Finalize();
+  }
+
+  void ExpectConnectStatistic(const std::string &channel_id, bool expect_hccl, bool expect_bind_mem, bool expect_tcp) {
+    const auto snapshot = adxl::StatisticManager::GetInstance().GetStatisticInfoSnapshot(channel_id);
+    EXPECT_GT(snapshot.connect_statistic_info.connect_total.times, 0UL);
+    if (expect_tcp) {
+      EXPECT_GT(snapshot.connect_statistic_info.tcp_connect.times, 0UL);
+    } else {
+      EXPECT_EQ(snapshot.connect_statistic_info.tcp_connect.times, 0UL);
+    }
+    if (expect_hccl) {
+      EXPECT_GT(snapshot.connect_statistic_info.hccl_total.times, 0UL);
+      EXPECT_GT(snapshot.connect_statistic_info.hccl_comm_init.times, 0UL);
+      EXPECT_GT(snapshot.connect_statistic_info.hccl_comm_prepare.times, 0UL);
+      if (expect_bind_mem) {
+        EXPECT_GT(snapshot.connect_statistic_info.hccl_comm_bind_mem.times, 0UL);
+      }
+    } else {
+      EXPECT_EQ(snapshot.connect_statistic_info.hccl_total.times, 0UL);
+      EXPECT_EQ(snapshot.connect_statistic_info.hccl_comm_init.times, 0UL);
+      EXPECT_EQ(snapshot.connect_statistic_info.hccl_comm_bind_mem.times, 0UL);
+      EXPECT_EQ(snapshot.connect_statistic_info.hccl_comm_prepare.times, 0UL);
+    }
   }
 };
 
@@ -160,6 +200,101 @@ TEST_F(AdxlEngineUTest, TestAdxlEngine) {
   EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
   engine1.Finalize();
   engine2.Finalize();
+}
+
+TEST_F(AdxlEngineUTest, TestConnectStatisticForDirectTransfer) {
+  AdxlEngine engine1;
+  AdxlEngine engine2;
+  SetupEngines(engine1, engine2);
+  int32_t src = 1;
+  MemHandle handle1 = nullptr;
+  RegisterInt32Mem(engine1, &src, handle1);
+  int32_t dst = 2;
+  MemHandle handle2 = nullptr;
+  RegisterInt32Mem(engine2, &dst, handle2);
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
+  ExpectConnectStatistic(StatisticManager::GetClientStatisticChannelId("127.0.0.1:26001"), true, true, true);
+  ExpectConnectStatistic(StatisticManager::GetServerStatisticChannelId("127.0.0.1"), true, true, false);
+  CleanupEngine(engine1, engine2, handle1, handle2);
+}
+
+TEST_F(AdxlEngineUTest, TestConnectStatisticForBufferMode) {
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  AdxlEngine engine1;
+  std::map<AscendString, AscendString> options1;
+  options1[OPTION_BUFFER_POOL] = "4:8";
+  EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options1), SUCCESS);
+
+  llm::AutoCommResRuntimeMock::SetDevice(1);
+  AdxlEngine engine2;
+  std::map<AscendString, AscendString> options2;
+  EXPECT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
+  int32_t src = 1;
+  MemHandle handle1 = nullptr;
+  RegisterInt32Mem(engine1, &src, handle1);
+  int32_t dst = 2;
+  MemHandle handle2 = nullptr;
+  RegisterInt32Mem(engine2, &dst, handle2);
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
+  ExpectConnectStatistic(StatisticManager::GetClientStatisticChannelId("127.0.0.1:26001"), true, true, true);
+  ExpectConnectStatistic(StatisticManager::GetServerStatisticChannelId("127.0.0.1:26000"), true, true, false);
+  CleanupEngine(engine1, engine2, handle1, handle2);
+}
+
+TEST_F(AdxlEngineUTest, TestConnectStatisticForFabricMemMode) {
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  AdxlEngine engine1;
+  std::map<AscendString, AscendString> options1;
+  options1[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
+  EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options1), SUCCESS);
+
+  llm::AutoCommResRuntimeMock::SetDevice(1);
+  AdxlEngine engine2;
+  std::map<AscendString, AscendString> options2;
+  options2[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
+  EXPECT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
+
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
+  ExpectConnectStatistic(StatisticManager::GetClientStatisticChannelId("127.0.0.1:26001"), false, false, true);
+  ExpectConnectStatistic(StatisticManager::GetServerStatisticChannelId("127.0.0.1:26000"), false, false, false);
+  engine1.Finalize();
+  engine2.Finalize();
+}
+
+TEST_F(AdxlEngineUTest, TestServerStatisticUsesPeerChannelId) {
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  AdxlEngine engine1;
+  std::map<AscendString, AscendString> options1;
+  EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options1), SUCCESS);
+
+  llm::AutoCommResRuntimeMock::SetDevice(1);
+  AdxlEngine engine2;
+  std::map<AscendString, AscendString> options2;
+  EXPECT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
+
+  llm::AutoCommResRuntimeMock::SetDevice(2);
+  AdxlEngine engine3;
+  std::map<AscendString, AscendString> options3;
+  EXPECT_EQ(engine3.Initialize("127.0.0.1:26002", options3), SUCCESS);
+
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
+  EXPECT_EQ(engine3.Connect("127.0.0.1:26001"), SUCCESS);
+
+  const auto server_snapshot1 =
+      StatisticManager::GetInstance().GetStatisticInfoSnapshot(StatisticManager::GetServerStatisticChannelId("127.0.0.1:26000"));
+  const auto server_snapshot2 =
+      StatisticManager::GetInstance().GetStatisticInfoSnapshot(StatisticManager::GetServerStatisticChannelId("127.0.0.1:26002"));
+  const auto aggregated_snapshot =
+      StatisticManager::GetInstance().GetStatisticInfoSnapshot(StatisticManager::GetServerStatisticChannelId("127.0.0.1:26001"));
+  EXPECT_GT(server_snapshot1.connect_statistic_info.connect_total.times, 0UL);
+  EXPECT_GT(server_snapshot2.connect_statistic_info.connect_total.times, 0UL);
+  EXPECT_EQ(aggregated_snapshot.connect_statistic_info.connect_total.times, 0UL);
+
+  EXPECT_EQ(engine1.Disconnect("127.0.0.1:26001"), SUCCESS);
+  EXPECT_EQ(engine3.Disconnect("127.0.0.1:26001"), SUCCESS);
+  engine1.Finalize();
+  engine2.Finalize();
+  engine3.Finalize();
 }
 
 TEST_F(AdxlEngineUTest, TestEngineFactoryCreateEngineFailedWhenLocalCommResJsonInvalid) {
@@ -470,7 +605,7 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineTransferAsyncWithMultiThread) {
 }
 
 TEST_F(AdxlEngineUTest, TestAdxlEngineGetTransferStatusFalied) {
-  llm:AutoCommResRuntimeMock::SetDevice(0);
+  llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
   std::map<AscendString, AscendString> options1;
   EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);

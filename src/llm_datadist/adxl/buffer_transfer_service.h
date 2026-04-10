@@ -57,6 +57,13 @@ class BufferTransferService {
 
   void ProcessBufferReqSecondStep();
   Status HandleBufferCopy(const ChannelPtr &channel, BufferReq &buffer_req);
+  Status PrepareServerCopyBuffer(BufferReq &buffer_req, bool is_read, uint64_t &left_timeout,
+                                 const std::chrono::steady_clock::time_point &start);
+  static std::vector<uintptr_t> BuildCopyBufferAddrs(const BufferReq &buffer_req);
+  Status ProcessBufferCopyByType(const ChannelPtr &channel, BufferReq &buffer_req,
+                                 const std::vector<uintptr_t> &copy_buff_addrs, uint64_t left_timeout);
+  Status FinishBufferCopy(const ChannelPtr &channel, BufferReq &buffer_req, bool is_read,
+                          const std::chrono::steady_clock::time_point &start);
 
   void ProcessCtrlMsg();
   Status HandleCtrlMsg(const ChannelPtr &channel, const BufferReq &buffer_req);
@@ -124,6 +131,7 @@ class BufferTransferService {
 
   std::mutex req_id_mutex_;
   std::map<uint64_t, std::set<void *>> req_id_buffers_;
+  std::condition_variable req_id_cv_;
   std::atomic<uint64_t> next_req_id_{0};
 
   std::mutex buff_idle_mutex_;

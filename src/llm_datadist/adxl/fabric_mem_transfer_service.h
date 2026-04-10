@@ -11,6 +11,7 @@
 #ifndef CANN_GRAPH_ENGINE_HCCS_TRANSFER_SERVICE_H
 #define CANN_GRAPH_ENGINE_HCCS_TRANSFER_SERVICE_H
 
+#include <chrono>
 #include <future>
 #include <utility>
 #include <vector>
@@ -43,6 +44,17 @@ class FabricMemTransferService {
   std::vector<ShareHandleInfo> GetShareHandles();
 
   void RemoveChannel(const std::string &channel_id);
+
+  Status RecordCopyStreamEvents(aclrtStream record_stream, const std::vector<aclrtStream> &copy_streams,
+                                std::vector<AsyncResource> &async_resources);
+  void RegisterAsyncTransferRecord(const ChannelPtr &channel, TransferReq &req,
+                                   std::vector<AsyncResource> &&async_resources,
+                                   const std::chrono::steady_clock::time_point &transfer_start,
+                                   const std::chrono::steady_clock::time_point &real_copy_start,
+                                   uint64_t transfer_bytes, uint64_t op_desc_count);
+  Status CompleteAsyncTransferAndUpdateStats(const ChannelPtr &channel, uint64_t req_id,
+                                             const std::vector<AsyncResource> &async_resources,
+                                             const AsyncRecord &async_record, TransferStatus &status);
 
   static Status MallocMem(MemType type, size_t size, void **ptr);
 

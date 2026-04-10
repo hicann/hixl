@@ -12,6 +12,8 @@ See LICENSE in the root of the software repository for the full text of the Lice
 
 本文供 **hixl-troubleshoot** 分诊使用：根据配置与日志判断问题落在 **HCCL直传**、**中转模式** 还是 **FabricMem模式**。实现描述对齐当前 `hixl` 仓库源码，细节以代码为准。
 
+如果问题不是“当前走哪种模式”，而是“为什么慢、建链慢在哪、传输慢在哪”，继续看 [ADXL 性能问题统计日志查看指南](adxl-performance-statistics.md)。
+
 ## 一句话对比
 
 | 模式                    | 典型场景                             | 硬件 / 约束                                                                                      | 开启option                                                                                     | 主要源码 |
@@ -153,4 +155,3 @@ flowchart TD
 | `wait socket establish timeout` + `HcclCommPrepare` | 建链                |
 
 ---
-

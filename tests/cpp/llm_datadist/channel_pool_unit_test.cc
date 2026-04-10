@@ -18,6 +18,7 @@
 #include "adxl/channel_manager.h"
 #include "adxl/channel_msg_handler.h"
 #include "adxl/buffer_transfer_service.h"
+#include "adxl/statistic_manager.h"
 #include "hixl/hixl.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
 #include "depends/mmpa/src/mmpa_stub.h"
@@ -433,5 +434,39 @@ TEST_F(ChannelPoolUnitTest, TestTransferCompletionDuringEviction) {
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
   // Since the transfer completed during eviction, the channel still exist so result is 6
   EXPECT_EQ(GetCurrentChannelCount(), 6);
+}
+
+TEST_F(ChannelPoolUnitTest, DestroyServerChannelRemovesServerStatistics) {
+  CreateChannels(1, ChannelType::kServer);
+  const std::string &channel_id = created_channel_ids_.back();
+  const auto server_key = StatisticManager::GetServerStatisticChannelId(channel_id);
+  StatisticManager::GetInstance().RegisterChannel(server_key);
+  constexpr uint64_t kConnectCostUs = 42UL;
+  StatisticManager::GetInstance().UpdateConnectTotalCost(server_key, kConnectCostUs);
+
+  const auto before = StatisticManager::GetInstance().GetStatisticInfoSnapshot(server_key);
+  ASSERT_EQ(before.connect_statistic_info.connect_total.times, 1UL);
+
+  ASSERT_EQ(channel_manager_->DestroyChannel(ChannelType::kServer, channel_id), SUCCESS);
+
+  const auto after = StatisticManager::GetInstance().GetStatisticInfoSnapshot(server_key);
+  EXPECT_EQ(after.connect_statistic_info.connect_total.times, 0UL);
+}
+
+TEST_F(ChannelPoolUnitTest, DestroyClientChannelRemovesClientStatistics) {
+  CreateChannels(1, ChannelType::kClient);
+  const std::string &channel_id = created_channel_ids_.back();
+  const auto client_key = StatisticManager::GetClientStatisticChannelId(channel_id);
+  StatisticManager::GetInstance().RegisterChannel(client_key);
+  constexpr uint64_t kConnectCostUs = 43UL;
+  StatisticManager::GetInstance().UpdateConnectTotalCost(client_key, kConnectCostUs);
+
+  const auto before = StatisticManager::GetInstance().GetStatisticInfoSnapshot(client_key);
+  ASSERT_EQ(before.connect_statistic_info.connect_total.times, 1UL);
+
+  ASSERT_EQ(channel_manager_->DestroyChannel(ChannelType::kClient, channel_id), SUCCESS);
+
+  const auto after = StatisticManager::GetInstance().GetStatisticInfoSnapshot(client_key);
+  EXPECT_EQ(after.connect_statistic_info.connect_total.times, 0UL);
 }
 }

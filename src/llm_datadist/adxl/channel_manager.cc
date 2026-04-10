@@ -21,6 +21,7 @@
 #include "common/def_types.h"
 #include "base/err_msg.h"
 #include "control_msg_handler.h"
+#include "statistic_manager.h"
 
 namespace adxl {
 namespace {
@@ -454,10 +455,12 @@ ChannelPtr ChannelManager::GetChannel(ChannelType channel_type, const std::strin
 
 void ChannelManager::DestroyChannels() {
   std::lock_guard<std::mutex> lock(mutex_);
-  for (auto it : channels_) {
-    auto channel = it.second;
-    (void) RemoveFd(channel->GetFd());
-    (void) channel->Finalize();
+  for (const auto &entry : channels_) {
+    auto channel = entry.second;
+    (void)RemoveFd(channel->GetFd());
+    (void)channel->Finalize();
+    const bool is_client = (entry.first.first == ChannelType::kClient);
+    StatisticManager::GetInstance().RemoveStatisticChannel(entry.first.second, is_client);
   }
   channels_.clear();
 }
@@ -472,6 +475,8 @@ Status ChannelManager::DestroyChannel(ChannelType channel_type, const std::strin
     auto channel_ret = channel->Finalize();
     ret = channel_ret != SUCCESS ? channel_ret : ret;
     channels_.erase(it);
+    const bool is_client = (channel_type == ChannelType::kClient);
+    StatisticManager::GetInstance().RemoveStatisticChannel(channel_id, is_client);
     LLMLOGI("Destroy channel end, channel_type = %d, channel_id = %s",
            static_cast<int32_t>(channel_type), channel_id.c_str());
   }

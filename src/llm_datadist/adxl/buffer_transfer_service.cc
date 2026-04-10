@@ -20,6 +20,7 @@
 #include "common/def_types.h"
 #include "base/err_msg.h"
 #include "common/llm_scope_guard.h"
+#include "adxl/adxl_utils.h"
 #include "statistic_manager.h"
 
 namespace adxl {
@@ -110,7 +111,8 @@ Status BufferTransferService::Transfer(const ChannelPtr &channel, TransferType t
   LLMLOGI("Success to transfer with buffer type:%s, channel id:%s.", TransferTypeToString(type).c_str(),
           channel->GetChannelId().c_str());
   time_cost = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
-  StatisticManager::GetInstance().UpdateBufferTransferCost(channel->GetChannelId(), time_cost);
+  StatisticManager::GetInstance().UpdateBufferTransferCost(channel->GetStatisticChannelId(), time_cost,
+                                                           GetTransferBytes(op_descs), GetTransferOpDescCount(op_descs));
   return SUCCESS;
 }
 
@@ -150,16 +152,19 @@ Status BufferTransferService::DoTransferTask(const ChannelPtr &channel, const st
 
 Status BufferTransferService::CheckReqFinishStatus(uint64_t timeout, uint64_t req_id) {
   const auto start = std::chrono::steady_clock::now();
+  std::unique_lock<std::mutex> lock(req_id_mutex_);
   while (true) {
-    {
-      std::lock_guard<std::mutex> lock(req_id_mutex_);
-      if (req_id_buffers_.find(req_id) == req_id_buffers_.end() || req_id_buffers_[req_id].empty()) {
-        break;
-      }
+    auto it = req_id_buffers_.find(req_id);
+    if (it == req_id_buffers_.end() || it->second.empty()) {
+      break;
     }
     uint64_t time_cost =
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
     ADXL_CHK_BOOL_RET_STATUS(time_cost < timeout, TIMEOUT, "Transfer timeout.");
+    req_id_cv_.wait_for(lock, std::chrono::microseconds(timeout - time_cost), [this, req_id]() {
+      auto it = req_id_buffers_.find(req_id);
+      return it == req_id_buffers_.end() || it->second.empty();
+    });
   }
   return SUCCESS;
 }
@@ -210,7 +215,7 @@ Status BufferTransferService::FlushBatch(const ChannelPtr &channel, const std::v
         "Copy failed");
     time_cost =
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
-    StatisticManager::GetInstance().UpdateClientCopyCost(channel->GetChannelId(), time_cost);
+    StatisticManager::GetInstance().UpdateClientCopyCost(channel->GetStatisticChannelId(), time_cost);
   }
   ADXL_CHK_STATUS_RET(SendBufferReq(channel, buffer_req, timeout, start), "Send req failed.");
   return SUCCESS;
@@ -248,7 +253,7 @@ Status BufferTransferService::TransferLargeData(const ChannelPtr &channel, const
                           "Copy failed");
       time_cost =
           std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
-      StatisticManager::GetInstance().UpdateClientCopyCost(channel->GetChannelId(), time_cost);
+      StatisticManager::GetInstance().UpdateClientCopyCost(channel->GetStatisticChannelId(), time_cost);
       buffer_req.src_addrs = {};
     }
     ADXL_CHK_STATUS_RET(SendBufferReq(channel, buffer_req, timeout, start), "Send req failed.");
@@ -364,7 +369,7 @@ Status BufferTransferService::HandleBufferD2D(const ChannelPtr &channel, BufferR
   ADXL_CHK_STATUS_RET(D2DTransfer(channel, op, op_descs, left_time, start), "D2D transfer failed.");
   time_cost = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
   LLMLOGI("D2D time cost:%lu us, data num:%zu.", time_cost, op_descs.size());
-  StatisticManager::GetInstance().UpdateServerD2DCost(channel->GetChannelId(), time_cost);
+  StatisticManager::GetInstance().UpdateServerD2DCost(channel->GetStatisticChannelId(), time_cost);
   ADXL_CHK_BOOL_RET_STATUS(time_cost < timeout, TIMEOUT, "Transfer timeout.");
   left_time = timeout - time_cost;
   buffer_req.timeout = left_time;
@@ -403,6 +408,65 @@ Status BufferTransferService::D2DTransfer(const ChannelPtr &channel, TransferOp 
   return SUCCESS;
 }
 
+Status BufferTransferService::PrepareServerCopyBuffer(BufferReq &buffer_req, bool is_read, uint64_t &left_timeout,
+                                                      const std::chrono::steady_clock::time_point &start) {
+  if (!is_read) {
+    return SUCCESS;
+  }
+  void *dev_buffer = nullptr;
+  ADXL_CHK_STATUS_RET(TryGetServerBuffer(dev_buffer, buffer_req.timeout), "Failed to get server buffer.");
+  buffer_req.local_buffer_addr = llm::PtrToValue(dev_buffer);
+  const uint64_t time_cost =
+      std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
+  ADXL_CHK_BOOL_RET_STATUS(time_cost < buffer_req.timeout, TIMEOUT, "Transfer timeout.");
+  left_timeout = buffer_req.timeout - time_cost;
+  return SUCCESS;
+}
+
+std::vector<uintptr_t> BufferTransferService::BuildCopyBufferAddrs(const BufferReq &buffer_req) {
+  std::vector<uintptr_t> copy_buff_addrs;
+  copy_buff_addrs.reserve(buffer_req.dst_addrs.size());
+  auto dev_buffer_addr = buffer_req.local_buffer_addr;
+  for (size_t i = 0; i < buffer_req.dst_addrs.size(); ++i) {
+    copy_buff_addrs.emplace_back(dev_buffer_addr);
+    dev_buffer_addr += buffer_req.buffer_lens[i];
+  }
+  return copy_buff_addrs;
+}
+
+Status BufferTransferService::ProcessBufferCopyByType(const ChannelPtr &channel, BufferReq &buffer_req,
+                                                      const std::vector<uintptr_t> &copy_buff_addrs,
+                                                      uint64_t left_timeout) {
+  const auto type = buffer_req.transfer_type;
+  if (type == TransferType::kReadRH2H || type == TransferType::kReadRD2H ||
+      type == TransferType::kReadRH2D || type == TransferType::kReadRD2D) {
+    auto kind = (type == TransferType::kReadRD2H || type == TransferType::kReadRD2D) ? ACL_MEMCPY_DEVICE_TO_DEVICE
+                                                                                       : ACL_MEMCPY_HOST_TO_DEVICE;
+    return ProcessCopy(channel, buffer_req.dst_addrs, copy_buff_addrs, buffer_req.buffer_lens,
+                       std::make_pair(kind, left_timeout));
+  }
+  auto kind = (type == TransferType::kWriteH2RD || type == TransferType::kWriteD2RD) ? ACL_MEMCPY_DEVICE_TO_DEVICE
+                                                                                       : ACL_MEMCPY_DEVICE_TO_HOST;
+  return ProcessCopy(channel, copy_buff_addrs, buffer_req.dst_addrs, buffer_req.buffer_lens,
+                     std::make_pair(kind, left_timeout));
+}
+
+Status BufferTransferService::FinishBufferCopy(const ChannelPtr &channel, BufferReq &buffer_req, bool is_read,
+                                               const std::chrono::steady_clock::time_point &start) {
+  const uint64_t time_cost =
+      std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+  LLMLOGI("Copy time cost:%lu us", time_cost);
+  StatisticManager::GetInstance().UpdateServerCopyCost(channel->GetStatisticChannelId(), time_cost);
+  ADXL_CHK_BOOL_RET_STATUS(time_cost < buffer_req.timeout, TIMEOUT, "Transfer timeout.");
+  buffer_req.timeout -= time_cost;
+  if (is_read) {
+    PushSecondStepReq(channel, buffer_req);
+  } else {
+    PushCtrlMsg(channel, buffer_req);
+  }
+  return SUCCESS;
+}
+
 Status BufferTransferService::HandleBufferCopy(const ChannelPtr &channel, BufferReq &buffer_req) {
   ADXL_CHK_BOOL_RET_STATUS(buffer_req.total_buffer_len <= buffer_size_, PARAM_INVALID,
                            "Total buffer length:%lu is bigger than buffer size:%lu.", buffer_req.total_buffer_len,
@@ -414,50 +478,12 @@ Status BufferTransferService::HandleBufferCopy(const ChannelPtr &channel, Buffer
   auto type = buffer_req.transfer_type;
   auto is_read = (type == TransferType::kReadRH2H || type == TransferType::kReadRD2H ||
                   type == TransferType::kReadRH2D || type == TransferType::kReadRD2D);
-  if (is_read) {
-    void *dev_buffer = nullptr;
-    ADXL_CHK_STATUS_RET(TryGetServerBuffer(dev_buffer, buffer_req.timeout));
-    buffer_req.local_buffer_addr = llm::PtrToValue(dev_buffer);
-
-    uint64_t time_cost =
-        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
-    ADXL_CHK_BOOL_RET_STATUS(time_cost < buffer_req.timeout, TIMEOUT, "Transfer timeout.");
-    left_timeout = buffer_req.timeout - time_cost;
-  }
-  std::vector<uintptr_t> copy_buff_addrs;
-  copy_buff_addrs.reserve(buffer_req.dst_addrs.size());
-  auto dev_buffer_addr = buffer_req.local_buffer_addr;
-  for (size_t i = 0; i < buffer_req.dst_addrs.size(); ++i) {
-    copy_buff_addrs.emplace_back(dev_buffer_addr);
-    dev_buffer_addr += buffer_req.buffer_lens[i];
-  }
-  if (is_read) {
-    auto kind = (type == TransferType::kReadRD2H || type == TransferType::kReadRD2D) ? ACL_MEMCPY_DEVICE_TO_DEVICE
-                                                                                     : ACL_MEMCPY_HOST_TO_DEVICE;
-    ADXL_CHK_STATUS_RET(ProcessCopy(channel, buffer_req.dst_addrs, copy_buff_addrs, buffer_req.buffer_lens,
-                                    std::make_pair(kind, left_timeout)),
-                        "Copy failed.");
-  } else {
-    auto kind = (type == TransferType::kWriteH2RD || type == TransferType::kWriteD2RD) ? ACL_MEMCPY_DEVICE_TO_DEVICE
-                                                                                       : ACL_MEMCPY_DEVICE_TO_HOST;
-    ADXL_CHK_STATUS_RET(ProcessCopy(channel, copy_buff_addrs, buffer_req.dst_addrs, buffer_req.buffer_lens,
-                                    std::make_pair(kind, left_timeout)),
-                        "Copy failed.");
-  }
-  uint64_t time_cost =
-      std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
-  LLMLOGI("Copy time cost:%lu us", time_cost);
-  StatisticManager::GetInstance().UpdateServerCopyCost(channel->GetChannelId(), time_cost);
-  ADXL_CHK_BOOL_RET_STATUS(time_cost < buffer_req.timeout, TIMEOUT, "Transfer timeout.");
-  auto left_time = buffer_req.timeout - time_cost;
-  buffer_req.timeout = left_time;
+  ADXL_CHK_STATUS_RET(PrepareServerCopyBuffer(buffer_req, is_read, left_timeout, start),
+                      "Failed to prepare server copy buffer.");
+  const auto copy_buff_addrs = BuildCopyBufferAddrs(buffer_req);
+  ADXL_CHK_STATUS_RET(ProcessBufferCopyByType(channel, buffer_req, copy_buff_addrs, left_timeout), "Copy failed.");
   LLM_DISMISS_GUARD(failed_guard);
-  if (is_read) {
-    PushSecondStepReq(channel, buffer_req);
-  } else {
-    PushCtrlMsg(channel, buffer_req);
-  }
-  return SUCCESS;
+  return FinishBufferCopy(channel, buffer_req, is_read, start);
 }
 
 Status BufferTransferService::ProcessCopy(const ChannelPtr &channel, const std::vector<uintptr_t> &src_addrs,
@@ -634,11 +660,12 @@ Status BufferTransferService::HandleBufferResp(const ChannelPtr &channel, Buffer
                           "Copy failed.");
       uint64_t time_cost =
           std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
-      StatisticManager::GetInstance().UpdateClientCopyCost(channel->GetChannelId(), time_cost);
+      StatisticManager::GetInstance().UpdateClientCopyCost(channel->GetStatisticChannelId(), time_cost);
     }
     auto ptr = llm::ValueToPtr(buffer_resp.buffer_addr);
     ReleaseBuffer(ptr);
     req_id_buffers_[buffer_resp.req_id].erase(ptr);
+    req_id_cv_.notify_all();
   }
   LLMLOGI("Recv resp, req id:%lu.", buffer_resp.req_id);
   return SUCCESS;

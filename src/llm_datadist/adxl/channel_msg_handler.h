@@ -137,6 +137,14 @@ class ChannelMsgHandler {
   Status ParseTrafficClass(const std::map<AscendString, AscendString> &options);
   Status ParseServiceLevel(const std::map<AscendString, AscendString> &options);
   Status DoConnect(const std::string &remote_engine, int32_t timeout_in_millis);
+  Status FillLocalConnectInfo(ChannelConnectInfo &channel_connect_info);
+  Status StartChannelHeartbeat(const std::string &channel_id, ChannelType channel_type, int32_t fd, bool &keep_fd);
+  Status ConnectToPeer(const std::string &remote_engine, int32_t timeout_in_millis, int32_t &conn_fd);
+  Status ExchangeConnectInfo(int32_t conn_fd, int32_t timeout_in_millis, ChannelConnectInfo &peer_connect_info);
+  Status PrepareDisconnect(const std::string &remote_engine, int32_t timeout_in_millis, int32_t &conn_fd);
+  Status SendDisconnectRequest(int32_t conn_fd, Status &send_status);
+  Status CleanupDisconnectResources(const std::string &remote_engine);
+  Status ValidateDisconnectResponse(int32_t conn_fd, Status send_status);
   Status InitChannelPool();
 
   int32_t GetTotalChannelCount() const;

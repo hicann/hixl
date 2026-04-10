@@ -30,6 +30,11 @@ std::mutex g_mutex_;
 constexpr uint32_t kMaxOpDescNum = 256U;
 constexpr int64_t kHeartbeatTimeoutInMillis = 120000;
 constexpr int32_t kMillisToMicros = 1000;
+
+uint64_t GetDurationUs(const std::chrono::steady_clock::time_point &start,
+                       const std::chrono::steady_clock::time_point &end) {
+  return std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+}
 }
 
 int64_t Channel::timeout_in_millis_ = kHeartbeatTimeoutInMillis;
@@ -40,21 +45,8 @@ Status Channel::Initialize(bool enable_use_fabric_mem) {
     enable_use_fabric_mem_ = enable_use_fabric_mem;
     return SUCCESS;
   }
-  LLMLOGI("HcclCommInitClusterInfoMemConfig begin, comm_name=%s, local rank_id=%u, rank_table=%s",
-         channel_info_.comm_config.hcclCommName, channel_info_.local_rank_id, channel_info_.rank_table.c_str());
-  {
-    std::lock_guard<std::mutex> lock(g_mutex_);
-    const auto start = std::chrono::steady_clock::now();
-    ADXL_CHK_HCCL_RET(llm::HcclAdapter::GetInstance().HcclCommInitClusterInfoMemConfig(
-        channel_info_.rank_table.c_str(),
-        channel_info_.local_rank_id,
-        &channel_info_.comm_config,
-        &channel_info_.comm));
-    const auto end = std::chrono::steady_clock::now();
-    const auto cost = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    LLMEVENT("HcclCommInitClusterInfoMemConfig success, channel_id:%s, time cost:%lu us.",
-             channel_info_.channel_id.c_str(), cost);
-  }
+  const auto hccl_start = std::chrono::steady_clock::now();
+  ADXL_CHK_STATUS_RET(InitializeHcclComm(), "Failed to initialize hccl comm");
 
   std::vector<void *> bind_handles;
   LLM_DISMISSABLE_GUARD(fail_guard, ([this, &bind_handles]() {
@@ -63,30 +55,59 @@ Status Channel::Initialize(bool enable_use_fabric_mem) {
     }
     (void) llm::HcclAdapter::GetInstance().HcclCommDestroy(channel_info_.comm);
   }));
-
-  auto start = std::chrono::steady_clock::now();
-  for (const auto &reg_handle_it : channel_info_.registered_mems) {
-    auto reg_handle = reg_handle_it.first;
-    ADXL_CHK_HCCL_RET(llm::HcclAdapter::GetInstance().HcclCommBindMem(channel_info_.comm, reg_handle));
-    bind_handles.emplace_back(reg_handle);
-  }
-  auto end = std::chrono::steady_clock::now();
-  auto cost = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-  LLMEVENT("HcclCommBindMem success, channel_id:%s, time cost:%lu us.", channel_info_.channel_id.c_str(), cost);
-
-  start = std::chrono::steady_clock::now();
-  HcclPrepareConfig prepareConfig{};
-  ADXL_CHK_HCCL_RET(llm::HcclAdapter::GetInstance().HcclCommPrepare(channel_info_.comm, &prepareConfig,
-                                                                    channel_info_.timeout_sec));
-  end = std::chrono::steady_clock::now();
-  cost = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-  LLMEVENT("HcclCommPrepare success, channel_id:%s, time cost:%lu us.", channel_info_.channel_id.c_str(), cost);
+  ADXL_CHK_STATUS_RET(BindRegisteredMemory(bind_handles), "Failed to bind registered memory");
+  ADXL_CHK_STATUS_RET(PrepareHcclComm(hccl_start), "Failed to prepare hccl comm");
   LLM_DISMISS_GUARD(fail_guard);
   return SUCCESS;
 }
 
 std::string Channel::GetChannelId() const {
   return channel_info_.channel_id;
+}
+
+std::string Channel::GetStatisticChannelId() const {
+  return StatisticManager::GetStatisticChannelId(channel_info_.channel_id,
+                                                 channel_info_.channel_type == ChannelType::kClient);
+}
+
+Status Channel::InitializeHcclComm() {
+  LLMLOGI("HcclCommInitClusterInfoMemConfig begin, comm_name=%s, local rank_id=%u, rank_table=%s",
+          channel_info_.comm_config.hcclCommName, channel_info_.local_rank_id, channel_info_.rank_table.c_str());
+  std::lock_guard<std::mutex> lock(g_mutex_);
+  const auto start = std::chrono::steady_clock::now();
+  ADXL_CHK_HCCL_RET(llm::HcclAdapter::GetInstance().HcclCommInitClusterInfoMemConfig(
+      channel_info_.rank_table.c_str(), channel_info_.local_rank_id, &channel_info_.comm_config, &channel_info_.comm));
+  const auto cost = GetDurationUs(start, std::chrono::steady_clock::now());
+  StatisticManager::GetInstance().UpdateHcclCommInitCost(GetStatisticChannelId(), cost);
+  LLMEVENT("HcclCommInitClusterInfoMemConfig success, channel_id:%s, time cost:%lu us.", channel_info_.channel_id.c_str(),
+           cost);
+  return SUCCESS;
+}
+
+Status Channel::BindRegisteredMemory(std::vector<void *> &bind_handles) {
+  const auto start = std::chrono::steady_clock::now();
+  for (const auto &reg_handle_it : channel_info_.registered_mems) {
+    auto reg_handle = reg_handle_it.first;
+    ADXL_CHK_HCCL_RET(llm::HcclAdapter::GetInstance().HcclCommBindMem(channel_info_.comm, reg_handle));
+    bind_handles.emplace_back(reg_handle);
+  }
+  const auto cost = GetDurationUs(start, std::chrono::steady_clock::now());
+  StatisticManager::GetInstance().UpdateHcclCommBindMemCost(GetStatisticChannelId(), cost);
+  LLMEVENT("HcclCommBindMem success, channel_id:%s, time cost:%lu us.", channel_info_.channel_id.c_str(), cost);
+  return SUCCESS;
+}
+
+Status Channel::PrepareHcclComm(const std::chrono::steady_clock::time_point &hccl_start) {
+  const auto start = std::chrono::steady_clock::now();
+  HcclPrepareConfig prepareConfig{};
+  ADXL_CHK_HCCL_RET(llm::HcclAdapter::GetInstance().HcclCommPrepare(channel_info_.comm, &prepareConfig,
+                                                                    channel_info_.timeout_sec));
+  const auto end = std::chrono::steady_clock::now();
+  const auto prepare_cost = GetDurationUs(start, end);
+  StatisticManager::GetInstance().UpdateHcclCommPrepareCost(GetStatisticChannelId(), prepare_cost);
+  StatisticManager::GetInstance().UpdateHcclTotalCost(GetStatisticChannelId(), GetDurationUs(hccl_start, end));
+  LLMEVENT("HcclCommPrepare success, channel_id:%s, time cost:%lu us.", channel_info_.channel_id.c_str(), prepare_cost);
+  return SUCCESS;
 }
 
 void Channel::ClearNotifyMessages() {
@@ -230,13 +251,16 @@ Status Channel::TransferAsync(TransferOp operation,
     }
   }));
   const auto transfer_start = std::chrono::steady_clock::now();
+  const auto transfer_bytes = GetTransferBytes(op_descs);
+  const auto op_desc_count = GetTransferOpDescCount(op_descs);
   ADXL_CHK_STATUS_RET(TransferAsync(operation, op_descs, stream), "Channel transfer async failed.");
   LLM_CHK_ACL_RET(aclrtCreateEvent(&event));
   LLM_CHK_ACL_RET(aclrtRecordEvent(event, stream));
   std::lock_guard<std::mutex> lock(transfer_reqs_mutex_);
   std::vector<AsyncResource> async_resources;
   async_resources.emplace_back(event, stream);
-  req_2_async_record_[id] = AsyncRecord{std::move(async_resources), transfer_start};
+  req_2_async_record_[id] =
+      AsyncRecord{std::move(async_resources), transfer_start, transfer_start, transfer_bytes, op_desc_count};
   LLM_DISMISS_GUARD(fail_guard);
   return SUCCESS;
 }
@@ -282,8 +306,9 @@ Status Channel::GetTransferStatus(const TransferReq &req, TransferStatus &status
   }
   status = TransferStatus::COMPLETED;
   const auto end = std::chrono::steady_clock::now();
-  const auto cost = std::chrono::duration_cast<std::chrono::microseconds>(end - it->second.real_start).count();
-  StatisticManager::GetInstance().UpdateDirectTransferCost(channel_info_.channel_id, cost);
+  const auto cost = std::chrono::duration_cast<std::chrono::microseconds>(end - it->second.transfer_start).count();
+  StatisticManager::GetInstance().UpdateDirectTransferCost(GetStatisticChannelId(), cost, it->second.transfer_bytes,
+                                                           it->second.op_desc_count);
   LLMLOGI("Transfer async request completed, req:%lu, time cost:%lu us.", id, cost);
   aclrtDestroyEvent(event);
   stream_pool_->FreeStream(stream);
@@ -362,7 +387,8 @@ Status Channel::TransferSync(TransferOp operation,
   ADXL_CHK_ACL_RET(aclrtSynchronizeStreamWithTimeout(stream, timeout_in_millis));
   const auto end = std::chrono::steady_clock::now();
   const auto cost = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-  StatisticManager::GetInstance().UpdateDirectTransferCost(channel_info_.channel_id, cost);
+  StatisticManager::GetInstance().UpdateDirectTransferCost(GetStatisticChannelId(), cost, GetTransferBytes(op_descs),
+                                                           GetTransferOpDescCount(op_descs));
   LLMLOGI("TransferSync success, operation:%s, num = %zu, channel_id:%s, time cost:%lu us.",
           operation == READ ? "HcclBatchGet" : "HcclBatchPut", op_descs.size(), channel_info_.channel_id.c_str(), cost);
   LLM_DISMISS_GUARD(fail_guard);

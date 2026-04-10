@@ -83,5 +83,13 @@ Status LoadJsonConfig(const std::string& json_string, std::map<AscendString, Asc
 bool NeedErrorLog(Status status) {
   std::set<Status> warnning_status = {RESOURCE_EXHAUSTED};
   return !warnning_status.count(status);
-} 
+}
+
+uint64_t GetTransferBytes(const std::vector<TransferOpDesc> &op_descs) {
+  uint64_t total_bytes = 0UL;
+  for (const auto &op_desc : op_descs) {
+    total_bytes += op_desc.len;
+  }
+  return total_bytes;
+}
 }  // namespace adxl
