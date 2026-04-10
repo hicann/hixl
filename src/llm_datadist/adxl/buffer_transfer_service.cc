@@ -451,22 +451,6 @@ Status BufferTransferService::ProcessBufferCopyByType(const ChannelPtr &channel,
                      std::make_pair(kind, left_timeout));
 }
 
-Status BufferTransferService::FinishBufferCopy(const ChannelPtr &channel, BufferReq &buffer_req, bool is_read,
-                                               const std::chrono::steady_clock::time_point &start) {
-  const uint64_t time_cost =
-      std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
-  LLMLOGI("Copy time cost:%lu us", time_cost);
-  StatisticManager::GetInstance().UpdateServerCopyCost(channel->GetStatisticChannelId(), time_cost);
-  ADXL_CHK_BOOL_RET_STATUS(time_cost < buffer_req.timeout, TIMEOUT, "Transfer timeout.");
-  buffer_req.timeout -= time_cost;
-  if (is_read) {
-    PushSecondStepReq(channel, buffer_req);
-  } else {
-    PushCtrlMsg(channel, buffer_req);
-  }
-  return SUCCESS;
-}
-
 Status BufferTransferService::HandleBufferCopy(const ChannelPtr &channel, BufferReq &buffer_req) {
   ADXL_CHK_BOOL_RET_STATUS(buffer_req.total_buffer_len <= buffer_size_, PARAM_INVALID,
                            "Total buffer length:%lu is bigger than buffer size:%lu.", buffer_req.total_buffer_len,
@@ -482,8 +466,19 @@ Status BufferTransferService::HandleBufferCopy(const ChannelPtr &channel, Buffer
                       "Failed to prepare server copy buffer.");
   const auto copy_buff_addrs = BuildCopyBufferAddrs(buffer_req);
   ADXL_CHK_STATUS_RET(ProcessBufferCopyByType(channel, buffer_req, copy_buff_addrs, left_timeout), "Copy failed.");
+  const uint64_t time_cost =
+      std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+  LLMLOGI("Copy time cost:%lu us", time_cost);
+  StatisticManager::GetInstance().UpdateServerCopyCost(channel->GetStatisticChannelId(), time_cost);
+  ADXL_CHK_BOOL_RET_STATUS(time_cost < buffer_req.timeout, TIMEOUT, "Transfer timeout.");
   LLM_DISMISS_GUARD(failed_guard);
-  return FinishBufferCopy(channel, buffer_req, is_read, start);
+  buffer_req.timeout -= time_cost;
+  if (is_read) {
+    PushSecondStepReq(channel, buffer_req);
+  } else {
+    PushCtrlMsg(channel, buffer_req);
+  }
+  return SUCCESS;
 }
 
 Status BufferTransferService::ProcessCopy(const ChannelPtr &channel, const std::vector<uintptr_t> &src_addrs,

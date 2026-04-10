@@ -62,8 +62,6 @@ class BufferTransferService {
   static std::vector<uintptr_t> BuildCopyBufferAddrs(const BufferReq &buffer_req);
   Status ProcessBufferCopyByType(const ChannelPtr &channel, BufferReq &buffer_req,
                                  const std::vector<uintptr_t> &copy_buff_addrs, uint64_t left_timeout);
-  Status FinishBufferCopy(const ChannelPtr &channel, BufferReq &buffer_req, bool is_read,
-                          const std::chrono::steady_clock::time_point &start);
 
   void ProcessCtrlMsg();
   Status HandleCtrlMsg(const ChannelPtr &channel, const BufferReq &buffer_req);

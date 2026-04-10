@@ -45,6 +45,11 @@ class FabricMemTransferService {
 
   void RemoveChannel(const std::string &channel_id);
 
+  static Status MallocMem(MemType type, size_t size, void **ptr);
+
+  static Status FreeMem(void *ptr);
+
+ private:
   Status RecordCopyStreamEvents(aclrtStream record_stream, const std::vector<aclrtStream> &copy_streams,
                                 std::vector<AsyncResource> &async_resources);
   void RegisterAsyncTransferRecord(const ChannelPtr &channel, TransferReq &req,
@@ -55,12 +60,6 @@ class FabricMemTransferService {
   Status CompleteAsyncTransferAndUpdateStats(const ChannelPtr &channel, uint64_t req_id,
                                              const std::vector<AsyncResource> &async_resources,
                                              const AsyncRecord &async_record, TransferStatus &status);
-
-  static Status MallocMem(MemType type, size_t size, void **ptr);
-
-  static Status FreeMem(void *ptr);
-
- private:
   static Status IsTransferDone(const std::vector<AsyncResource> &async_resources, uint64_t req_id,
                                TransferStatus &status, bool &completed);
   Status TryGetStreamOnce(std::vector<aclrtStream> &streams, size_t stream_num);

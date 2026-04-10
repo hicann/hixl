@@ -629,13 +629,12 @@ Status ChannelMsgHandler::PrepareDisconnect(const std::string &remote_engine, in
   return SUCCESS;
 }
 
-Status ChannelMsgHandler::SendDisconnectRequest(int32_t conn_fd, Status &send_status) {
+void ChannelMsgHandler::SendDisconnectRequest(int32_t conn_fd, Status &send_status) {
   if (conn_fd > 0) {
     ChannelDisconnectInfo disconnect_info = {};
     disconnect_info.channel_id = listen_info_;
     send_status = SendMsg(conn_fd, ChannelMsgType::kDisconnect, disconnect_info);
   }
-  return SUCCESS;
 }
 
 Status ChannelMsgHandler::CleanupDisconnectResources(const std::string &remote_engine) {
@@ -677,7 +676,7 @@ Status ChannelMsgHandler::Disconnect(const std::string &remote_engine, int32_t t
   ADXL_CHK_STATUS_RET(prepare_ret, "Failed to prepare disconnect, remote engine:%s, timeout:%d ms.",
                       remote_engine.c_str(), timeout_in_millis);
   Status send_status = FAILED;
-  (void)SendDisconnectRequest(conn_fd, send_status);
+  SendDisconnectRequest(conn_fd, send_status);
   ADXL_CHK_STATUS_RET(CleanupDisconnectResources(remote_engine), "Failed to cleanup disconnect resources");
   ChannelDisconnectInfo local_disconnect_info = {};
   local_disconnect_info.channel_id = remote_engine;
