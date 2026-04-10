@@ -221,8 +221,20 @@ run() {
       cd ${BASEPATH}
       rm -rf ${BASEPATH}/cov
       mk_dir ${BASEPATH}/cov
+
+      # Detect lcov version and set appropriate ignore errors flags
+      detect_lcov_flags() {
+          LCOV_VERSION=$(lcov --version 2>/dev/null | head -n1 | sed 's/.*LCOV version //' | cut -d. -f1)
+          if [[ "${LCOV_VERSION}" -ge 2 ]]; then
+              LCOV_IGNORE_FLAGS="--ignore-errors empty,negative,mismatch"
+          else
+              LCOV_IGNORE_FLAGS=""
+          fi
+      }
+
       if [[ "X$ENABLE_CPP_TEST" = "XON" ]]; then
-          lcov -c -d ${BUILD_PATH}/tests/cpp/llm_datadist/CMakeFiles/llm_datadist_test.dir \
+          detect_lcov_flags
+          lcov -c ${LCOV_IGNORE_FLAGS} -d ${BUILD_PATH}/tests/cpp/llm_datadist/CMakeFiles/llm_datadist_test.dir \
                   -d ${BUILD_PATH}/tests/cpp/hixl/CMakeFiles/hixl_test.dir \
                   -d ${BUILD_PATH}/tests/depends/python/CMakeFiles/llm_datadist_wrapper_stub.dir \
                   -d ${BUILD_PATH}/tests/depends/python/CMakeFiles/metadef_wrapper_stub.dir \
