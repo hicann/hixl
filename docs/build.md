@@ -16,12 +16,10 @@
 
 **2.安装依赖、CANN Toolkit开发套件包以及CANN ops算子包**，操作步骤如下。
 
-
-- **配套 X86 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu20.04.05_x86:lv4_latest`
-
-- **配套 ARM 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu20.04.05_arm:lv4_latest`
-
-  更多版本镜像，可根据需要在[Ascend-CANN镜像](https://www.hiascend.com/developer/ascendhub/detail/17da20d1c2b6493cb38765adeba85884)自行选择下载。
+   - **配套 X86 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu24.04_x86:lv6_v1.1039` 
+ 
+ 
+ - **配套 ARM 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu24.04_arm:lv6_v1.1039`
 
   以下是推荐的使用方式，可供参考:
 
@@ -30,19 +28,31 @@
 
   # 1. 拉取配套构建镜像
   docker pull ${image}
-  # 2. 创建容器
-  docker run --name env_for_hixl_build --cap-add SYS_PTRACE -d -it ${image} /bin/bash
-  # 3. 启动容器
-  docker start env_for_hixl_build
-  # 4. 进入容器
-  docker exec -it env_for_hixl_build /bin/bash
+  # 2. 创建并进入容器
+  # 假设您需要使用的NPU设备安装在/dev/davinci0和/dev/davinci1上，并且您的NPU驱动程序安装在/usr/local/Ascend上：
+  docker run \
+    --name env_for_hixl_build \
+    --device /dev/davinci0 \
+    --device /dev/davinci1 \
+    --device /dev/davinci_manager \
+    --device /dev/devmm_svm \
+    --device /dev/hisi_hdc \
+    --cap-add SYS_PTRACE \
+    -v /usr/local/dcmi:/usr/local/dcmi \
+    -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi \
+    -v /usr/local/Ascend/driver/lib64/:/usr/local/Ascend/driver/lib64/ \
+    -v /usr/local/Ascend/driver/version.info:/usr/local/Ascend/driver/version.info \
+    -v /etc/ascend_install.info:/etc/ascend_install.info \
+    -it ${image} bash
   ```
 
   > [!NOTE]说明
   > - `--cap-add SYS_PTRACE`：创建Docker容器时添加`SYS_PTRACE`权限，以支持[本地验证](#本地验证tests)时的内存泄漏检测功能。
   > - 更多 docker 选项介绍请通过 `docker --help` 查询。
 
-  配套构建镜像的安装路径为`/home/jenkins/Ascend`。如需要使用镜像之外的其他CANN版本，请参考如下章节在docker内手工安装CANN包。
+  配套构建镜像的CANN包安装路径为`/home/jenkins/Ascend`。如需要使用镜像之外的其他CANN版本，请参考如下章节在docker内手工安装CANN包。
+
+  更多版本镜像，和镜像的使用方法，可根据需要在[Ascend-CANN镜像](https://www.hiascend.com/developer/ascendhub/detail/17da20d1c2b6493cb38765adeba85884)自行选择。
 
 
 ### 场景二：手动安装CANN包
@@ -60,7 +70,7 @@
   sudo apt-get install cmake bash ccache
   ```
 - GCC >= 7.3.0
-- Python 3.9~3.12
+- Python >= 3.9.0
 - CMake >= 3.16.0  (建议使用3.20.0版本)
 - bash >= 5.1.16，由于测试用例开启了地址消毒，代码中执行system函数会触发低版本的bash被地址消毒检查出内存泄露。
 - ccache（可选），ccache为编译器缓存优化工具，用于加快二次编译速度。
@@ -128,7 +138,7 @@ source /usr/local/Ascend/cann/set_env.sh
   sudo apt-get install cmake bash ccache
   ```
 - GCC >= 7.3.0
-- Python 3.9~3.12
+- Python >= 3.9.0
 - CMake >= 3.16.0  (建议使用3.20.0版本)
 - bash >= 5.1.16，由于测试用例开启了地址消毒，代码中执行system函数会触发低版本的bash被地址消毒检查出内存泄露。
 - ccache（可选），ccache为编译器缓存优化工具，用于加快二次编译速度。
