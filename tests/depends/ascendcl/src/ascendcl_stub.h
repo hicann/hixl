@@ -60,6 +60,7 @@ public:
   virtual aclError aclrtDestroyContext(aclrtContext context);
   virtual aclError aclrtSetCurrentContext(aclrtContext context);
   virtual aclError aclrtGetCurrentContext(aclrtContext *context);
+  virtual aclError aclrtCtxGetCurrentDefaultStream(aclrtStream *stream);
   virtual aclError aclrtCreateEvent(aclrtEvent *event);
   virtual aclError aclrtDestroyEvent(aclrtEvent event);
   virtual aclError aclrtRecordEvent(aclrtEvent event, aclrtStream stream);

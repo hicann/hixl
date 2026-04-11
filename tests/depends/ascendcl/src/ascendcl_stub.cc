@@ -134,6 +134,12 @@ aclError AclRuntimeStub::aclrtGetCurrentContext(aclrtContext *context) {
   return ACL_ERROR_NONE;
 }
 
+aclError AclRuntimeStub::aclrtCtxGetCurrentDefaultStream(aclrtStream *stream) {
+  static thread_local uint32_t tls_default_stream = 0xDU;
+  *stream = reinterpret_cast<aclrtStream>(&tls_default_stream);
+  return ACL_ERROR_NONE;
+}
+
 aclError AclRuntimeStub::aclrtCreateEvent(aclrtEvent *event) {
   if (__FUNCTION__ == g_acl_stub_mock) {
     return ACL_ERROR_RT_INTERNAL_ERROR;
@@ -649,6 +655,10 @@ aclError aclrtSetCurrentContext(aclrtContext context) {
 
 aclError aclrtGetCurrentContext(aclrtContext *context) {
   return llm::AclRuntimeStub::GetInstance()->aclrtGetCurrentContext(context);
+}
+
+aclError aclrtCtxGetCurrentDefaultStream(aclrtStream *stream) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtCtxGetCurrentDefaultStream(stream);
 }
 
 aclError aclrtCreateEvent(aclrtEvent *event) {

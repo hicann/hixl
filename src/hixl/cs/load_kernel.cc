@@ -93,8 +93,8 @@ Status GetFuncHandle(aclrtBinHandle bin_handle, const char *func_name, aclrtFunc
 
 }  // namespace
 
-Status LoadUbKernelAndGetHandles(const char *func_get, const char *func_put,
-                                 aclrtBinHandle &bin_handle, UbFuncHandles &func_handles) {
+Status LoadDeviceKernelAndGetHandles(const char *func_get, const char *func_put,
+                                     aclrtBinHandle &bin_handle, DeviceFuncHandles &func_handles) {
   func_handles.batch_get = nullptr;
   func_handles.batch_put = nullptr;
   std::string json_path;

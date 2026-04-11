@@ -15,6 +15,7 @@
 #include "common/ctrl_msg.h"
 #include "common/scope_guard.h"
 #include "common/ctrl_msg_plugin.h"
+#include "transfer_pool.h"
 
 static inline void to_json(nlohmann::json &j, const CommMem &m) {
   j = nlohmann::json{};
@@ -25,6 +26,7 @@ static inline void to_json(nlohmann::json &j, const CommMem &m) {
 
 namespace hixl {
 namespace {
+constexpr uint32_t kDeviceTransferPoolSize = 128U;  // 与 HixlCSClient 侧设备池大小一致
 constexpr int32_t kMaxEventsNum = 128;  // epoll_wait并发处理事件数量，减少epoll系统调用
 constexpr int32_t kEpollWaitTimeInMillis = 100;  // epoll_wait等待超时时间
 constexpr const char *kTransFlagNameHost = "_hixl_builtin_host_trans_flag";// client用于感知收发完成的标识
@@ -34,49 +36,62 @@ constexpr const char *kTransFlagNameDevice = "_hixl_builtin_dev_trans_flag";// c
 Status HixlCSServer::InitTransFinishedFlag() {
   bool has_host_ep = false;
   bool has_device_ep = false;
-  auto all_handles = endpoint_store_.GetAllEndpointHandles();
-  for (auto handle : all_handles) {
+  for (auto handle : endpoint_store_.GetAllEndpointHandles()) {
     auto endpoint = endpoint_store_.GetEndpoint(handle);
-    if (endpoint) {
-      if (endpoint->GetEndpoint().loc.locType == ENDPOINT_LOC_TYPE_HOST) {
-        has_host_ep = true;
-      } else if (endpoint->GetEndpoint().loc.locType == ENDPOINT_LOC_TYPE_DEVICE) {
-        has_device_ep = true;
-      }
+    if (endpoint == nullptr) {
+      continue;
+    }
+    const int32_t loc = endpoint->GetEndpoint().loc.locType;
+    if (loc == ENDPOINT_LOC_TYPE_HOST) {
+      has_host_ep = true;
+    } else if (loc == ENDPOINT_LOC_TYPE_DEVICE) {
+      has_device_ep = true;
     }
   }
   if (has_host_ep) {
-    void* host_flag = nullptr;
-    host_flag = malloc(sizeof(int64_t));
-    *static_cast<int64_t*>(host_flag) = 1;
-    CommMem mem{};
-    mem.type = COMM_MEM_TYPE_HOST;
-    mem.addr = host_flag;
-    mem.size = sizeof(int64_t);
-    MemHandle handle = nullptr;
-    HIXL_CHK_STATUS_RET(RegisterMem(kTransFlagNameHost, &mem, &handle),
-                        "Failed to reg HOST trans finished flag");
-
-    host_trans_flag_ = host_flag;
-    host_trans_flag_handle_ = handle;
+    HIXL_CHK_STATUS_RET(RegisterHostTransFinishedFlag(), "Failed to reg HOST trans finished flag");
   }
   if (has_device_ep) {
-    void* dev_flag = nullptr;
-    HIXL_CHK_ACL_RET(aclrtMalloc(&dev_flag, sizeof(int64_t),
-        static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_ONLY)));
-    int64_t val = 1;
-    HIXL_CHK_ACL_RET(aclrtMemcpy(dev_flag, sizeof(int64_t), &val, sizeof(int64_t), ACL_MEMCPY_HOST_TO_DEVICE));
-    CommMem mem{};
-    mem.type = COMM_MEM_TYPE_DEVICE;
-    mem.addr = dev_flag;
-    mem.size = sizeof(int64_t);
-
-    MemHandle handle = nullptr;
-    HIXL_CHK_STATUS_RET(RegisterMem(kTransFlagNameDevice, &mem, &handle),
-                        "Failed to reg DEVICE trans finished flag");
-    dev_trans_flag_ = dev_flag;
-    dev_trans_flag_handle_ = handle;
+    HIXL_CHK_STATUS_RET(RegisterDeviceTransFinishedFlag(), "Failed to reg DEVICE trans finished flag");
   }
+  return SUCCESS;
+}
+
+Status HixlCSServer::RegisterHostTransFinishedFlag() {
+  void *host_flag = malloc(sizeof(int64_t));
+  *static_cast<int64_t *>(host_flag) = 1;
+  CommMem mem{};
+  mem.type = COMM_MEM_TYPE_HOST;
+  mem.addr = host_flag;
+  mem.size = sizeof(int64_t);
+  MemHandle handle = nullptr;
+  HIXL_CHK_STATUS_RET(RegisterMem(kTransFlagNameHost, &mem, &handle), "Failed to reg HOST trans finished flag");
+  host_trans_flag_ = host_flag;
+  host_trans_flag_handle_ = handle;
+  return SUCCESS;
+}
+
+Status HixlCSServer::RegisterDeviceTransFinishedFlag() {
+  int32_t dev_id = 0;
+  HIXL_CHK_ACL_RET(aclrtGetDevice(&dev_id), "Failed to aclrtGetDevice for CS server TransferPool");
+  HIXL_CHK_STATUS_RET(TransferPool::GetInstance(dev_id).Initialize(kDeviceTransferPoolSize),
+                      "Failed to init TransferPool for CS server, dev_id:%d", dev_id);
+  HIXL_DISMISSABLE_GUARD(pool_rollback, ([dev_id]() { TransferPool::GetInstance(dev_id).Finalize(); }));
+  void *dev_flag = nullptr;
+  HIXL_CHK_ACL_RET(aclrtMalloc(&dev_flag, sizeof(int64_t),
+                               static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_ONLY)));
+  int64_t val = 1;
+  HIXL_CHK_ACL_RET(aclrtMemcpy(dev_flag, sizeof(int64_t), &val, sizeof(int64_t), ACL_MEMCPY_HOST_TO_DEVICE));
+  CommMem mem{};
+  mem.type = COMM_MEM_TYPE_DEVICE;
+  mem.addr = dev_flag;
+  mem.size = sizeof(int64_t);
+  MemHandle handle = nullptr;
+  HIXL_CHK_STATUS_RET(RegisterMem(kTransFlagNameDevice, &mem, &handle), "Failed to reg DEVICE trans finished flag");
+  dev_trans_flag_ = dev_flag;
+  dev_trans_flag_handle_ = handle;
+  HIXL_DISMISS_GUARD(pool_rollback);
+  device_id_ = dev_id;
   return SUCCESS;
 }
 
@@ -156,6 +171,10 @@ Status HixlCSServer::Finalize() {
       HIXL_LOGE(FAILED, "Failed to free DEVICE trans finished flag, ret:%d", rt_ret);
     }
     dev_trans_flag_ = nullptr;
+  }
+  if (device_id_ >= 0) {
+    TransferPool::GetInstance(device_id_).Finalize();
+    device_id_ = -1;
   }
 
   if (listen_fd_ != -1) {

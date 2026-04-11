@@ -16,7 +16,7 @@
 #include <mutex>
 #include <string>
 #include <array>
-#include <atomic>
+#include <unordered_set>
 #include <vector>
 #include <map>
 #include "cs/hixl_cs.h"
@@ -24,7 +24,7 @@
 #include "endpoint.h"
 #include "channel.h"
 #include "hixl_mem_store.h"
-#include "complete_pool.h"
+#include "transfer_pool.h"
 #include "hcomm/hcomm_res_defs.h"
 #include "hixl_mem_store.h"
 
@@ -35,20 +35,20 @@ struct CompleteHandle {
   uint64_t *flag_address;
 };
 
-enum class UbOpType : uint32_t {
+enum class DeviceOpType : uint32_t {
   kGet = 0U,
   kPut = 1U,
 };
 
-struct UbBatchKernelArgs {
+struct DeviceKernelArgs {
   ThreadHandle thread;
   ChannelHandle channel;
-  void *dev_flag;         // device 地址（notify 映射得到）
+  void *dev_flag;
   uint32_t list_num;
-  UbOpType op;
+  DeviceOpType op;
 };
 
-struct UbBatchArgs {
+struct DeviceArgs {
   ThreadHandle thread;
   ChannelHandle channel;
   uint32_t list_num;
@@ -66,11 +66,11 @@ struct MemDev {
   uint64_t *len_list_dev;
 };
 
-struct UbCompleteHandle {
+struct DeviceCompleteHandle {
   uint32_t magic;
   uint32_t reserved;
-  CompletePool::SlotHandle slot;
-  UbBatchArgs args;
+  TransferPool::SlotHandle slot;
+  DeviceArgs args;
   MemDev mem_dev;
 };
 
@@ -123,38 +123,43 @@ class HixlCSClient {
 
   Status Destroy();
 
+  static bool IsDeviceEndpoint(const EndpointDesc &ep);
+
  private:
   void ReleaseFlagIndex(int32_t flag_index);
   Status InitBaseClient(const HixlClientDesc *client_desc);
-  Status InitUbResource();
-  Status InitUbConstMemory();
+  Status InitDeviceResource();
+  Status InitDeviceConstMemory();
   Status ExchangeEndpointAndCreateChannelLocked(uint32_t timeout_ms);
   Status GetRemoteMemLocked(uint32_t timeout_ms, CommMem **remote_mem_list, char ***mem_tag_list, uint32_t *list_num);
   Status InitFlagQueue() noexcept;
   int32_t AcquireFlagIndex();
   Status ReleaseCompleteHandle(CompleteHandle *queryhandle);
-  Status ReleaseUbCompleteHandle(UbCompleteHandle &ub_handle);
+  Status ReleaseCompleteHandle(DeviceCompleteHandle *handle);
   Status CheckStatusHost(CompleteHandle &queryhandle, HixlCompleteStatus &status);
-  Status CheckStatusDevice(UbCompleteHandle &queryhandle, HixlCompleteStatus &status);
-  Status BatchTransferHost(bool is_get, const CommunicateMem& p, void** queryhandle);
-  Status BatchTransferDevice(bool is_get, const CommunicateMem& p, void** queryhandle);
-  Status EnsureUbRemoteFlagInitedLocked();
-  Status EnsureUbKernelLoadedLocked();
-  void *UbGetKernelStubFunc(bool is_get);
+  Status CheckStatusDevice(DeviceCompleteHandle &queryhandle, HixlCompleteStatus &status);
+  Status BatchTransferHost(bool is_get, const CommunicateMem &p, void **queryhandle);
+  Status BatchTransferDevice(bool is_get, const CommunicateMem &p, void **queryhandle);
+  Status EnsureDeviceRemoteFlagInitedLocked();
+  Status EnsureDeviceKernelLoadedLocked();
+  void *GetDeviceKernelFunc(bool is_get);
   Status ImportRemoteMem(std::vector<HixlMemDesc> &desc_list, CommMem **remote_mem_list, char ***mem_tag_list,
                          uint32_t *list_num);
   Status ValidateAddress(bool is_get, const CommunicateMem &communicate_mem_param);
   Status BatchTransferTask(bool is_get, const CommunicateMem &communicate_mem_param);
   void FillOutputParams(ImportCtx &ctx, CommMem **remote_mem_list, char ***mem_tag_list, uint32_t *list_num);
   Status ClearRemoteMemInfo();
-  Status ValidateUbInputs(bool is_get, const CommunicateMem &mem_param, void *&query_handle) const;
-  Status PrepareUbRemoteFlagAndKernel(void *&remote_flag);
-  Status AcquireUbSlot(CompletePool::SlotHandle &slot);
-  Status FillUbBatchArgs(const CommunicateMem &mem_param, MemDev &mem_dev, const CompletePool::SlotHandle &slot,
-                         void *remote_flag, UbBatchArgs &args);
-  Status LaunchUbAndStage(bool is_get, UbCompleteHandle &handle, const void *remote_flag);
+  Status ValidateDeviceInputs(bool is_get, const CommunicateMem &mem_param, void *&query_handle) const;
+  Status PrepareDeviceRemoteFlagAndKernel(void *&remote_flag);
+  Status PrepareDeviceBatchMemBuffers(const CommunicateMem &communicate_mem_param, MemDev &mem_dev);
+  Status ResolveNotifyDeviceAddress(aclrtNotify notify, uint64_t &notify_addr, uint32_t &notify_len);
+  Status RegisterNotifyMemForAllSlots(const std::vector<TransferPool::SlotHandle> &slots);
+  Status FillDeviceArgs(const CommunicateMem &mem_param, MemDev &mem_dev, const TransferPool::SlotHandle &slot,
+                        void *remote_flag, DeviceArgs &args);
+  Status LaunchDeviceKernel(bool is_get, DeviceCompleteHandle &handle, const void *remote_flag);
   void ReleaseLegacyHandlesLocked();
-  Status ReleaseUbResourcesLocked();
+  void AbortAllPendingDeviceHandlesLocked();
+  Status ReleaseDeviceResourcesLocked();
 
  private:
   std::mutex mutex_;
@@ -164,8 +169,8 @@ class HixlCSClient {
   uint32_t server_port_{0U};
   EndpointPtr local_endpoint_;
   EndpointDesc remote_endpoint_{};
-  uint8_t tc_ {kRdmaTrafficClass};
-  uint8_t sl_ {kRdmaServiceLevel};
+  uint8_t tc_{kRdmaTrafficClass};
+  uint8_t sl_{kRdmaServiceLevel};
   Channel client_channel_;
   ChannelHandle client_channel_handle_ = 0UL;
   uint64_t remote_endpoint_handle_{0U};
@@ -183,20 +188,18 @@ class HixlCSClient {
   std::vector<void *> recorded_remote_addrs_;
   std::vector<CommMem> imported_remote_bufs_;
   std::vector<HixlMemDesc> desc_list_;
-  bool is_device_ {false};
-  bool is_ub_mode_{false};
-  int32_t ub_device_id_ {-1};
-  std::mutex ub_mu_;
-  bool ub_remote_flag_inited_ {false};
-  void *ub_remote_flag_addr_ {nullptr};   // server 侧地址（远端地址）
-  uint64_t ub_remote_flag_size_ {0ULL};   // 至少 8
-  // UB kernel load cache
-  bool ub_kernel_loaded_ {false};
-  aclrtBinHandle ub_kernel_handle_ {nullptr};
-  void *ub_func_get_ {nullptr};
-  void *ub_func_put_ {nullptr};
-  void *ub_dev_const_one_{nullptr};
-  std::array<MemHandle, CompletePool::kMaxSlots> ub_notify_mem_handles_{};
+  int32_t device_id_{-1};
+  std::mutex device_mu_;
+  bool device_remote_flag_inited_{false};
+  void *device_remote_flag_addr_{nullptr};
+  uint64_t device_remote_flag_size_{0ULL};
+  bool device_kernel_loaded_{false};
+  aclrtBinHandle device_kernel_handle_{nullptr};
+  void *device_func_get_{nullptr};
+  void *device_func_put_{nullptr};
+  void *dev_const_one_{nullptr};
+  std::vector<MemHandle> notify_mem_handles_{};
+  std::unordered_set<DeviceCompleteHandle *> pending_device_handles_{};
 };
 }  // namespace hixl
 

@@ -16,13 +16,13 @@
 
 namespace hixl {
 
-struct UbFuncHandles {
+struct DeviceFuncHandles {
   aclrtFuncHandle batch_get;
   aclrtFuncHandle batch_put;
 };
 
-Status LoadUbKernelAndGetHandles(const char *func_get, const char *func_put, aclrtBinHandle &bin_handle,
-                                 UbFuncHandles &func_handles);
+Status LoadDeviceKernelAndGetHandles(const char *func_get, const char *func_put, aclrtBinHandle &bin_handle,
+                                          DeviceFuncHandles &func_handles);
 
 }  // namespace hixl
 

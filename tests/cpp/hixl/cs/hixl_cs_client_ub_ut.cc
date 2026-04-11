@@ -21,7 +21,6 @@
 #define private public
 #define protected public
 #include "hixl_cs_client.h"
-#include "complete_pool.h"
 #undef protected
 #undef private
 
@@ -54,10 +53,10 @@ EndpointDesc MakeUbDeviceEp(CommProtocol protocol, uint32_t dev_id) {
 }
 
 void PrepareKernelReadyForUt(HixlCSClient &cli) {
-  cli.ub_kernel_loaded_ = true;
+  cli.device_kernel_loaded_ = true;
   static uint8_t kNonNullStub = 0U;
-  cli.ub_func_get_ = static_cast<void *>(&kNonNullStub);
-  cli.ub_func_put_ = static_cast<void *>(&kNonNullStub);
+  cli.device_func_get_ = static_cast<void *>(&kNonNullStub);
+  cli.device_func_put_ = static_cast<void *>(&kNonNullStub);
 }
 
 void RecordMemForBatchTransfer(HixlCSClient &cli, void *remote_addr, size_t remote_size, void *local_addr,
@@ -134,7 +133,7 @@ class HixlCSClientUbFixture : public ::testing::Test {
     ASSERT_EQ(cli_.Create(&desc, &config), SUCCESS);
 
     cli_.client_channel_handle_ = static_cast<ChannelHandle>(1ULL);
-    cli_.ub_remote_flag_inited_ = false;
+    cli_.device_remote_flag_inited_ = false;
     remote_flag_dev_ = 0ULL;
     FillTagMem(cli_, kTransFlagNameDevice, static_cast<void *>(&remote_flag_dev_), sizeof(uint64_t));
 
@@ -210,12 +209,12 @@ TEST_F(HixlCSClientUbFixture, BatchGetUbDeviceSuccessUseMemcpyHackFlag) {
   EXPECT_EQ(st, HixlCompleteStatus::HIXL_COMPLETE_STATUS_COMPLETED);
 }
 
-TEST_F(HixlCSClientUbFixture, PrepareUbRemoteFlagAndKernelMissingTagFail) {
-  cli_.ub_remote_flag_inited_ = false;
+TEST_F(HixlCSClientUbFixture, PrepareDeviceRemoteFlagAndKernelMissingTagFail) {
+  cli_.device_remote_flag_inited_ = false;
   cli_.tag_mem_descs_.clear();
 
   void *remote_flag = nullptr;
-  EXPECT_EQ(cli_.PrepareUbRemoteFlagAndKernel(remote_flag), PARAM_INVALID);
+  EXPECT_EQ(cli_.PrepareDeviceRemoteFlagAndKernel(remote_flag), PARAM_INVALID);
   EXPECT_EQ(remote_flag, nullptr);
 }
 
@@ -234,16 +233,16 @@ TEST_F(HixlCSClientUbFixture, BatchPutUbDeviceNotifyWaitFail) {
   llm::AclRuntimeStub::UnInstall(&mock_acl);
 
   EXPECT_EQ(ret, FAILED);
-  EXPECT_EQ(CompletePool::GetInstance().GetInUseCount(), 0U);
+  EXPECT_TRUE(cli_.pending_device_handles_.empty());
 }
 
 TEST_F(HixlCSClientUbFixture, BatchPutUbDeviceSlotExhaustedFail) {
   setenv("HIXL_UT_UB_FLAG_HACK", "1", 1);
   CommunicateMem mem = SetupBatchTransfer(false);
   std::vector<void *> handles;
-  handles.reserve(CompletePool::kMaxSlots);
+  handles.reserve(128U);
 
-  for (uint32_t i = 0; i < CompletePool::kMaxSlots; ++i) {
+  for (uint32_t i = 0; i < 128U; ++i) {
     void *qh = nullptr;
     const Status ret = cli_.BatchTransfer(false, mem, &qh);
     ASSERT_EQ(ret, SUCCESS);
@@ -302,8 +301,8 @@ TEST_F(LoadKernelFixture, NoEnvAndFileNotFound) {
   llm::MmpaStub::GetInstance().SetImpl(mock_mmpa);
   unsetenv("ASCEND_HOME_PATH");
   aclrtBinHandle bin_handle = nullptr;
-  UbFuncHandles func_handles{};
-  Status ret = LoadUbKernelAndGetHandles("GetFunc", "PutFunc", bin_handle, func_handles);
+  DeviceFuncHandles func_handles{};
+  Status ret = LoadDeviceKernelAndGetHandles("GetFunc", "PutFunc", bin_handle, func_handles);
   EXPECT_EQ(ret, PARAM_INVALID);
 }
 
@@ -312,12 +311,12 @@ TEST_F(LoadKernelFixture, AclLoadBinaryFailed) {
   std::string file_path = "./test_opp/opp/built-in/op_impl/aicpu/config/libcann_hixl_kernel.json";
   CreateDummyJson(file_path, true);
   aclrtBinHandle bin_handle = nullptr;
-  UbFuncHandles func_handles{};
+  DeviceFuncHandles func_handles{};
   MockAclRuntimeStub mock_acl;
   llm::AclRuntimeStub::Install(&mock_acl);
   EXPECT_CALL(mock_acl, aclrtBinaryLoadFromFile(testing::_, testing::_, testing::_))
       .WillOnce(testing::Return(static_cast<aclError>(FAILED)));
-  Status ret = LoadUbKernelAndGetHandles("GetFunc", "PutFunc", bin_handle, func_handles);
+  Status ret = LoadDeviceKernelAndGetHandles("GetFunc", "PutFunc", bin_handle, func_handles);
   llm::AclRuntimeStub::UnInstall(&mock_acl);
   EXPECT_EQ(ret, FAILED);
 }
@@ -325,22 +324,22 @@ TEST_F(LoadKernelFixture, AclLoadBinaryFailed) {
 TEST_F(LoadKernelFixture, GetFuncHandleInvalidParams) {
   setenv("ASCEND_HOME_PATH", "./test_opp", 1);
   aclrtBinHandle dummy_bin_handle = reinterpret_cast<aclrtBinHandle>(0xDEADBEEF);
-  UbFuncHandles func_handles{};
-  Status ret = LoadUbKernelAndGetHandles(nullptr, "PutFunc", dummy_bin_handle, func_handles);
+  DeviceFuncHandles func_handles{};
+  Status ret = LoadDeviceKernelAndGetHandles(nullptr, "PutFunc", dummy_bin_handle, func_handles);
   EXPECT_EQ(ret, PARAM_INVALID);
-  ret = LoadUbKernelAndGetHandles("GetFunc", nullptr, dummy_bin_handle, func_handles);
+  ret = LoadDeviceKernelAndGetHandles("GetFunc", nullptr, dummy_bin_handle, func_handles);
   EXPECT_EQ(ret, PARAM_INVALID);
 }
 
 TEST_F(LoadKernelFixture, GetFuncHandleAclGetFuncFailed) {
   setenv("ASCEND_HOME_PATH", "./test_opp", 1);
   aclrtBinHandle dummy_bin_handle = reinterpret_cast<aclrtBinHandle>(0xDEADBEEF);
-  UbFuncHandles func_handles{};
+  DeviceFuncHandles func_handles{};
   MockAclRuntimeStub mock_acl;
   llm::AclRuntimeStub::Install(&mock_acl);
   EXPECT_CALL(mock_acl, aclrtBinaryGetFunction(testing::_, testing::_, testing::_))
       .WillOnce(testing::Return(static_cast<aclError>(FAILED)));
-  Status ret = LoadUbKernelAndGetHandles("GetFunc", "PutFunc", dummy_bin_handle, func_handles);
+  Status ret = LoadDeviceKernelAndGetHandles("GetFunc", "PutFunc", dummy_bin_handle, func_handles);
   llm::AclRuntimeStub::UnInstall(&mock_acl);
   EXPECT_EQ(ret, FAILED);
 }
