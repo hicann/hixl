@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <limits>
 #include "gtest/gtest.h"
 #include "hixl_mem_store.h"
 #include "hixl/hixl_types.h"
@@ -101,5 +102,19 @@ TEST(HixlMemStoreBasicTest, CheckMergedRegionsAccessExceedMergedRange) {
   EXPECT_EQ(store.RecordMemory(false, test_client_addr, 100), SUCCESS);
 
   EXPECT_EQ(store.ValidateMemoryAccess(test_addr, 200, test_client_addr), PARAM_INVALID);
+}
+
+TEST(HixlMemStoreBasicTest, CheckMemoryForAccessOverflowDetected) {
+  HixlMemStore store;
+  // Register server memory near the maximum uintptr_t value (50 bytes from the top)
+  uintptr_t near_max = std::numeric_limits<uintptr_t>::max() - 50;
+  void *server_addr = reinterpret_cast<void *>(near_max);
+  EXPECT_EQ(store.RecordMemory(true, server_addr, 50), SUCCESS);
+
+  void *client_addr = reinterpret_cast<void *>(static_cast<uintptr_t>(100));
+  EXPECT_EQ(store.RecordMemory(false, client_addr, 100), SUCCESS);
+
+  // check_size=100 > uintptr_t::max - near_max=50, so overflow is detected -> PARAM_INVALID
+  EXPECT_EQ(store.ValidateMemoryAccess(server_addr, 100, client_addr), PARAM_INVALID);
 }
 }  // namespace hixl

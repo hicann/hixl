@@ -117,6 +117,9 @@ bool HixlMemStore::CheckMemoryForAccess(bool is_server, const void *check_addr, 
   }
 
   uintptr_t s = reinterpret_cast<uintptr_t>(check_addr);
+  if (check_size > std::numeric_limits<uintptr_t>::max() - s) {
+    return false;  // overflow would occur, deny access
+  }
   uintptr_t e = s + check_size;  // [s, e)
 
   auto it = regions.lower_bound(check_addr);

@@ -51,6 +51,9 @@ std::pair<ge::Status, uint64_t> LLMDataDistV2Wrapper::Link(std::string &cluster_
 }
 
 ge::Status LLMDataDistV2Wrapper::Unlink(uint64_t comm_id) {
+  if (llm_data_dist == nullptr) {
+    return ge::FAILED;
+  }
   return llm_data_dist->Unlink(comm_id);
 }
 
@@ -77,6 +80,9 @@ std::pair<ge::Status, std::vector<ge::Status>> LLMDataDistV2Wrapper::UnlinkClust
 }
 
 std::pair<ge::Status, uint32_t> LLMDataDistV2Wrapper::QueryRegisterMemStatus(uint64_t comm_id) {
+  if (llm_data_dist == nullptr) {
+    return {ge::FAILED, 0};
+  }
   RegisterMemoryStatus status;
   auto ret = llm_data_dist->QueryRegisterMemStatus(comm_id, status);
   return {ret, static_cast<uint32_t>(status)};
