@@ -26,8 +26,7 @@ class ClientManager {
   ~ClientManager() = default;
   Status Initialize();
   Status Finalize();
-  Status CreateClient(const ClientConfig &client_config,
-                      ClientPtr &client_ptr);
+  Status CreateClient(const ClientConfig &config, ClientPtr &client_ptr);
   ClientPtr GetClient(const std::string &remote_engine);
   Status DestroyClient(const std::string &remote_engine);
   bool IsEmpty();
