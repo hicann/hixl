@@ -8,6 +8,7 @@
 - [2025/11] HIXL提供异步传输能力，支持更高并发的非阻塞数据传输场景。
 - [2025/10] HIXL项目开源，在昇腾芯片上提供高效的多链路D2D/D2H/H2D等单边通信能力，并优化了小数据量批量传输场景的性能。同时HIXL已对接多个开源社区，包含[Mooncake](https://github.com/kvcache-ai/Mooncake/issues/719)，[DeepLink](https://github.com/DeepLink-org/DLSlime/pull/21)等。
 
+
 ## 🚀概述
 HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，面向集群场景提供简单、可靠、高效的点对点数据传输能力，并通过简易API开放给用户, 在多AI应用和多传输链路之间建立了桥梁。可用于构建大模型PD分离、RL后训练参数切换、模型参数缓存等多种业务场景。
 
@@ -67,6 +68,7 @@ HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，
 └── tests                          # 测试工程目录
 ```
 
+
 ## ⚡️快速入门
 
 若您希望快速体验该组件的构建和样例执行，请访问如下文档获取简易教程。
@@ -74,22 +76,34 @@ HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，
 - [构建](docs/build.md)：介绍组件的编译和安装，包括编译成功后利用tests进行本地验证。
 - [样例执行](examples/README.md)：介绍如何端到端执行样例代码，包括C++和Python样例。
 
+
 ## 📖学习教程
 
-若您希望深入了解组件的各个接口并修改源码，请访问如下文档获取详细教程。
+若您希望深入了解组件的相关接口并修改源码，请访问如下文档获取详细教程。
 
 - [C/C++接口](docs/cpp/README.md)：C++接口介绍。
-
 - [Python接口](docs/python/README.md)：Python接口介绍。
 
 如果希望深入了解 HIXL 开发指南和技术文章等内容，可参考以下文档：
 
-* [HIXL 资料书架总览](docs/README.md)：汇总HIXL相关资料、技术文章和培训视频链接。
-* [AI Agent支持](.agents/README.md)：介绍仓内默认使用的一些skills及触发方式。
-* [贡献指南](CONTRIBUTING.md)：说明如何提交 Issue、Pull Request 以及代码规范。
+- [HIXL 资料书架总览](docs/README.md)：汇总HIXL相关资料、技术文章和培训视频链接。
+- [AI Agent支持](.agents/README.md)：介绍仓内默认使用的一些skills及触发方式。
 
 
 ## 📝相关信息
 
+- [贡献指南](CONTRIBUTING.md)
 - [安全声明](SECURITY.md)
 - [许可证](LICENSE)
+- [所属SIG](https://gitcode.com/cann/community/tree/master/CANN/sigs/hccl)
+
+## 🤝联系我们
+
+本项目功能和文档正在持续更新和完善中，欢迎您关注最新版本。
+
+- **问题反馈**：通过GitCode[【Issues】](https://gitcode.com/cann/hixl/issues)提交问题。
+- **社区互动**：通过GitCode[【讨论】](https://gitcode.com/cann/hixl/discussions)参与交流。
+- **技术专栏**：通过GitCode[【Wiki】](https://gitcode.com/cann/hixl/wiki)获取技术文章。
+- **加入交流群**：通过扫描下方微信二维码添加HIXL小助手微信，加入微信群与我们进一步交流。
+
+  <img src="docs/figures/HIXL_contact.png">
