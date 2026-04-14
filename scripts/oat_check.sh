@@ -1,10 +1,10 @@
-#!/bin/sh
+#!/bin/bash
 # -----------------------------------------------------------------------------------------------------------
 # Copyright (c) 2026 Huawei Technologies Co., Ltd.
-# This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+# This program is free software, you can redistribute it and/or modify it under the terms and conditions of
 # CANN Open Software License Agreement Version 2.0 (the "License").
 # Please refer to the License for details. You may not use this file except in compliance with the License.
-# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
@@ -66,7 +66,7 @@ for file in $STAGED_FILES; do
         # Relative path
         file="$REPO_ROOT/$file"
     fi
-    
+
     if [ -z "$FILE_LIST" ]; then
         FILE_LIST="$file"
     else
@@ -87,7 +87,7 @@ if ! command -v java >/dev/null 2>&1; then
     echo "[OAT] 检测到系统未安装 Java，开始自动安装..."
     echo "[OAT] 注意: 首次安装需要下载约 50-100MB，可能需要 2-5 分钟"
     echo ""
-    
+
     # Detect OS
     OS_TYPE="unknown"
     if [ "$(uname)" = "Linux" ]; then
@@ -97,22 +97,22 @@ if ! command -v java >/dev/null 2>&1; then
     elif [ -n "$WINDIR" ] || [ "$(uname -o 2>/dev/null)" = "Msys" ] || [ "$(uname -o 2>/dev/null)" = "Cygwin" ]; then
         OS_TYPE="windows"
     fi
-    
+
     echo "[OAT] 检测到操作系统: $OS_TYPE"
     echo ""
-    
+
     JAVA_INSTALLED=false
-    
+
     # Linux: 使用 apt / yum
     if [ "$OS_TYPE" = "linux" ]; then
         if command -v apt-get >/dev/null 2>&1; then
             echo "[OAT] 使用 apt 安装 OpenJDK 21..."
             echo "[OAT] 可能需要输入管理员密码"
             echo ""
-            
+
             sudo apt-get update -qq >/dev/null 2>&1
             sudo apt-get install -y openjdk-21-jre >/dev/null 2>&1
-            
+
             if [ $? -eq 0 ]; then
                 JAVA_INSTALLED=true
                 echo "[OAT] [OK] OpenJDK 21 安装成功"
@@ -122,26 +122,26 @@ if ! command -v java >/dev/null 2>&1; then
         elif command -v yum >/dev/null 2>&1; then
             echo "[OAT] 使用 yum 安装 OpenJDK 21..."
             sudo yum install -y java-21-openjdk >/dev/null 2>&1
-            
+
             if [ $? -eq 0 ]; then
                 JAVA_INSTALLED=true
                 echo "[OAT] [OK] OpenJDK 21 安装成功"
             fi
         fi
-    
+
     # macOS: 使用 Homebrew
     elif [ "$OS_TYPE" = "macos" ]; then
         if command -v brew >/dev/null 2>&1; then
             echo "[OAT] 使用 Homebrew 安装 OpenJDK 21..."
             echo "[OAT] 这可能需要几分钟..."
             echo ""
-            
+
             brew install openjdk@21 >/dev/null 2>&1
-            
+
             if [ $? -eq 0 ]; then
                 JAVA_INSTALLED=true
                 echo "[OAT] [OK] OpenJDK 21 安装成功"
-                
+
                 # Add to PATH for current session (Intel & Apple Silicon)
                 if [ -d "/usr/local/opt/openjdk@21/bin" ]; then
                     export PATH="/usr/local/opt/openjdk@21/bin:$PATH"
@@ -155,7 +155,7 @@ if ! command -v java >/dev/null 2>&1; then
             echo "[OAT] [ERROR] Homebrew 未安装"
             echo "[OAT] 请先安装 Homebrew: https://brew.sh/"
         fi
-    
+
     # Windows: 提供下载链接（无法自动安装）
     elif [ "$OS_TYPE" = "windows" ]; then
         echo "[OAT] Windows 系统无法自动安装 Java"
@@ -176,7 +176,7 @@ if ! command -v java >/dev/null 2>&1; then
         echo ""
         exit 0
     fi
-    
+
     # Verify installation
     if [ "$JAVA_INSTALLED" = true ]; then
         if command -v java >/dev/null 2>&1; then
@@ -228,7 +228,7 @@ if ! command -v mvn >/dev/null 2>&1; then
     echo "[OAT] 检测到系统未安装 Maven，开始自动安装..."
     echo "[OAT] 注意: 首次安装需要下载约 10-20MB"
     echo ""
-    
+
     # Detect OS
     OS_TYPE="unknown"
     if [ "$(uname)" = "Linux" ]; then
@@ -238,22 +238,22 @@ if ! command -v mvn >/dev/null 2>&1; then
     elif [ -n "$WINDIR" ] || [ "$(uname -o 2>/dev/null)" = "Msys" ] || [ "$(uname -o 2>/dev/null)" = "Cygwin" ]; then
         OS_TYPE="windows"
     fi
-    
+
     echo "[OAT] 检测到操作系统: $OS_TYPE"
     echo ""
-    
+
     MAVEN_INSTALLED=false
-    
+
     # Linux: 使用 apt
     if [ "$OS_TYPE" = "linux" ]; then
         if command -v apt-get >/dev/null 2>&1; then
             echo "[OAT] 使用 apt 安装 Maven..."
             echo "[OAT] 可能需要输入管理员密码"
             echo ""
-            
+
             sudo apt-get update -qq >/dev/null 2>&1
             sudo apt-get install -y maven >/dev/null 2>&1
-            
+
             if [ $? -eq 0 ]; then
                 MAVEN_INSTALLED=true
                 echo "[OAT] [OK] Maven 安装成功"
@@ -263,22 +263,22 @@ if ! command -v mvn >/dev/null 2>&1; then
         elif command -v yum >/dev/null 2>&1; then
             echo "[OAT] 使用 yum 安装 Maven..."
             sudo yum install -y maven >/dev/null 2>&1
-            
+
             if [ $? -eq 0 ]; then
                 MAVEN_INSTALLED=true
                 echo "[OAT] [OK] Maven 安装成功"
             fi
         fi
-    
+
     # macOS: 使用 Homebrew
     elif [ "$OS_TYPE" = "macos" ]; then
         if command -v brew >/dev/null 2>&1; then
             echo "[OAT] 使用 Homebrew 安装 Maven..."
             echo "[OAT] 这可能需要几分钟..."
             echo ""
-            
+
             brew install maven >/dev/null 2>&1
-            
+
             if [ $? -eq 0 ]; then
                 MAVEN_INSTALLED=true
                 echo "[OAT] [OK] Maven 安装成功"
@@ -289,7 +289,7 @@ if ! command -v mvn >/dev/null 2>&1; then
             echo "[OAT] [ERROR] Homebrew 未安装"
             echo "[OAT] 请先安装 Homebrew: https://brew.sh/"
         fi
-    
+
     # Windows: 提供下载链接（无法自动安装）
     elif [ "$OS_TYPE" = "windows" ]; then
         echo "[OAT] Windows 系统无法自动安装 Maven"
@@ -307,7 +307,7 @@ if ! command -v mvn >/dev/null 2>&1; then
         echo ""
         exit 0
     fi
-    
+
     # Verify installation
     if [ "$MAVEN_INSTALLED" = true ]; then
         if command -v mvn >/dev/null 2>&1; then
@@ -366,7 +366,7 @@ if [ -z "$OAT_JAR" ]; then
     echo ""
     echo "[OAT] Building OAT jar with Maven..."
     echo "[OAT] This may take a few minutes (first time only)..."
-    
+
     cd "$OAT_DIR"
     # Force UTF-8 for entire Maven JVM process (fixes GBK default on Java 11/Windows)
     JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF-8" \
@@ -377,9 +377,9 @@ if [ -z "$OAT_JAR" ]; then
         2>&1 | grep -E "(Building|BUILD SUCCESS|BUILD FAILURE|ERROR)" || true
     BUILD_RESULT=${PIPESTATUS[0]}
     cd - >/dev/null
-    
+
     OAT_JAR=$(ls $OAT_JAR_PATTERN 2>/dev/null | head -n 1)
-    
+
     if [ -z "$OAT_JAR" ] || [ $BUILD_RESULT -ne 0 ]; then
         echo ""
         echo "===================================================================="
@@ -406,7 +406,7 @@ if [ -z "$OAT_JAR" ]; then
         echo ""
         exit 0
     fi
-    
+
     echo "[OAT] [OK] OAT jar built successfully."
     echo "[OAT] JAR location: $OAT_JAR"
 fi
@@ -469,28 +469,28 @@ if [ -f "$REPORT_FILE" ]; then
         echo "Project: $REPO_NAME"
         echo "Files Checked: $FILE_COUNT"
         echo ""
-        
+
         # Extract Invalid File Type section
         echo "-----------------------------------"
         awk '/^Invalid File Type Total Count:/{found=1} found{print; if(/^$/ && NR>1 && prev!~/^$/)exit} {prev=$0}' "$REPORT_FILE"
-        
+
         # Extract License Header Invalid section
         echo "-----------------------------------"
         awk '/^License Header Invalid Total Count:/{found=1} found{print; if(/^$/ && NR>1 && prev!~/^$/)exit} {prev=$0}' "$REPORT_FILE"
-        
+
         echo "==================================="
     } > "$RESULT_FILE"
-    
+
     # Check for issues (read from result.txt instead of PlainReport)
     INVALID_FILE_TYPE=$(grep "^Invalid File Type Total Count:" "$RESULT_FILE" | grep -oE '[0-9]+' | head -1)
     LICENSE_INVALID=$(grep "^License Header Invalid Total Count:" "$RESULT_FILE" | grep -oE '[0-9]+' | head -1)
-    
+
     # Delete PlainReport files to keep only result.txt
     echo "[OAT] Cleaning up redundant reports..."
     rm -f "$OAT_REPORT_DIR/single/PlainReport_"*.txt
-    
+
     TOTAL_ISSUES=$((INVALID_FILE_TYPE + LICENSE_INVALID))
-    
+
     if [ "$TOTAL_ISSUES" -gt 0 ]; then
         echo ""
         echo "===================================================================="

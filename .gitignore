@@ -29,6 +29,7 @@ cmake-build-gcov
 .gemini
 GEMINI.md
 .codex
+hixl-pr-review-reports
 
 # oat check
 oat_reports/
