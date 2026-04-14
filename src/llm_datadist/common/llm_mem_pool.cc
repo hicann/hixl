@@ -76,21 +76,28 @@ void LlmMemPool::Free(void *addr) {
 }
 
 void *LlmMemPool::Alloc(size_t size, int32_t timeout_in_ms) {
-  void *addr = Alloc(size);
-  if (addr != nullptr) {
-    return addr;
-  }
   const auto tp_end = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_in_ms);
-  while (addr == nullptr) {
+  while (true) {
+    void *addr = Alloc(size);
+    if (addr != nullptr) {
+      return addr;
+    }
+    if (std::chrono::steady_clock::now() >= tp_end) {
+      LLMLOGW("waiting for idle memory within %d ms timed out", timeout_in_ms);
+      return nullptr;
+    }
     std::unique_lock<std::mutex> lk(mu_cv_);
+    // 防止 lost wakeup
+    addr = Alloc(size);
+    if (addr != nullptr) {
+      return addr;
+    }
     if (cv_.wait_until(lk, tp_end) == std::cv_status::timeout) {
       LLMLOGW("waiting for idle memory within %d ms timed out", timeout_in_ms);
-      break;
+      return Alloc(size);
     }
     LLMLOGI("wait success, retry");
-    addr = Alloc(size);
   }
-  return addr;
 }
 
 std::shared_ptr<void> LlmMemPool::MakeShared(void *addr) {
