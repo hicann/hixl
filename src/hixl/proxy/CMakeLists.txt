@@ -15,22 +15,36 @@ set(HIXL_INC_DIR
 )
 add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 
-file(GLOB HCOMM_PROXY_SRC_LIST
-        "${CMAKE_CURRENT_LIST_DIR}/*.cc"
-)
+add_library(hcomm_proxy_static STATIC "${CMAKE_CURRENT_LIST_DIR}/hcomm_proxy.cc")
 
-add_library(hcomm_proxy_static STATIC ${HCOMM_PROXY_SRC_LIST})
+if(PRODUCT_SIDE STREQUAL "device")
+        # AICPU/device 子工程（cmake/device）：不编译 hccp_proxy；供源码侧 #if defined(PRODUCT_SIDE_DEVICE) 等使用
+        target_compile_definitions(hcomm_proxy_static PRIVATE PRODUCT_SIDE_DEVICE=1)
+        set(_HIXL_PROXY_TARGETS hcomm_proxy_static)
+else()
+        add_library(hccp_proxy_static STATIC "${CMAKE_CURRENT_LIST_DIR}/hccp_proxy.cc")
+        set(_HIXL_PROXY_TARGETS hcomm_proxy_static hccp_proxy_static)
 
-target_include_directories(hcomm_proxy_static PRIVATE ${HIXL_INC_DIR})
+        target_link_libraries(hccp_proxy_static PRIVATE
+                $<BUILD_INTERFACE:intf_pub>
+                $<BUILD_INTERFACE:acl_rt_headers>
+                $<BUILD_INTERFACE:runtime_headers>
+                $<BUILD_INTERFACE:slog_headers>
+                $<BUILD_INTERFACE:mmpa_headers>
+        )
+endif()
 
-target_compile_options(hcomm_proxy_static PRIVATE
-        -ftrapv
-        -O2
-        -fno-common
-        -Wfloat-equal
-        -Wall
-        -Werror
-        -Wextra)
+foreach(_proxy_target ${_HIXL_PROXY_TARGETS})
+        target_include_directories(${_proxy_target} PRIVATE ${HIXL_INC_DIR})
+        target_compile_options(${_proxy_target} PRIVATE
+                -ftrapv
+                -O2
+                -fno-common
+                -Wfloat-equal
+                -Wall
+                -Werror
+                -Wextra)
+endforeach()
 
 target_link_libraries(hcomm_proxy_static PRIVATE
         $<BUILD_INTERFACE:intf_pub>

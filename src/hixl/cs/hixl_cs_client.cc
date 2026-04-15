@@ -26,6 +26,7 @@
 #include "load_kernel.h"
 #include "mem_msg_handler.h"
 #include "proxy/hcomm_proxy.h"
+#include "proxy/hccp_proxy.h"
 #include "runtime/runtime/rts/rts_device.h"
 
 namespace hixl {
@@ -207,6 +208,11 @@ bool HixlCSClient::IsDeviceEndpoint(const EndpointDesc &ep) {
 
 Status HixlCSClient::ResolveNotifyDeviceAddress(aclrtNotify notify, uint64_t &notify_addr, uint32_t &notify_len) {
   HIXL_CHECK_NOTNULL(notify);
+  const EndpointDesc &ep = local_endpoint_->GetEndpoint();
+  if ((ep.protocol == COMM_PROTOCOL_ROCE) || (ep.protocol == COMM_PROTOCOL_HCCS)) {
+    HIXL_LOGI("[HixlClient] ResolveNotifyDeviceAddress for ROCE/HCCS");
+    return HccpProxy::RaGetNotifyAddrLen(device_id_, notify, notify_addr, notify_len);
+  }
   constexpr rtDevResProcType_t kNotifyDevResProcType = RT_PROCESS_HCCP;
   constexpr rtDevResType_t kNotifyDevResType = RT_RES_TYPE_STARS_NOTIFY_RECORD;
   uint32_t notify_id = 0U;
@@ -353,8 +359,10 @@ Status HixlCSClient::InitDeviceResource() {
   std::vector<TransferPool::SlotHandle> all_slots;
   HIXL_CHK_STATUS_RET(TransferPool::GetInstance(device_id_).GetAllSlots(all_slots),
                       "[HixlClient] TransferPool GetAllSlots failed. devId=%d", device_id_);
-  HIXL_CHK_STATUS_RET(RegisterNotifyMemForAllSlots(all_slots),
-                      "[HixlClient] RegisterNotifyMemForAllSlots failed. devId=%d", device_id_);
+  if (ep.protocol != COMM_PROTOCOL_ROCE && ep.protocol != COMM_PROTOCOL_HCCS) {
+    HIXL_CHK_STATUS_RET(RegisterNotifyMemForAllSlots(all_slots),
+                        "[HixlClient] RegisterNotifyMemForAllSlots failed. devId=%d", device_id_);
+  }
   return SUCCESS;
 }
 

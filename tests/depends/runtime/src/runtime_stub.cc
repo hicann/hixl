@@ -80,6 +80,14 @@ rtError_t RuntimeStub::rtGetDevResAddress(const rtDevResInfo *resInfo, rtDevResA
   }
   return RT_ERROR_NONE;
 }
+
+rtError_t RuntimeStub::rtNotifyGetAddrOffset(rtNotify_t notify, uint64_t *devAddrOffset) {
+  (void)notify;
+  if (devAddrOffset != nullptr) {
+    *devAddrOffset = 0ULL;
+  }
+  return RT_ERROR_NONE;
+}
 } // namespace llm
 
 #ifdef __cplusplus
@@ -101,6 +109,9 @@ rtError_t rtGetDevResAddress(const rtDevResInfo *resInfo, rtDevResAddrInfo *addr
   return llm::RuntimeStub::GetInstance()->rtGetDevResAddress(resInfo, addrInfo);
 }
 
+rtError_t rtNotifyGetAddrOffset(rtNotify_t notify, uint64_t *devAddrOffset) {
+  return llm::RuntimeStub::GetInstance()->rtNotifyGetAddrOffset(notify, devAddrOffset);
+}
 #ifdef __cplusplus
 }
 #endif

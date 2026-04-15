@@ -9,6 +9,7 @@
 # ----------------------------------------------------------------------------
 
 set(HIXL_TEST_FILES
+        proxy/hccp_proxy_ut.cc
         cs/endpoint_store_ut.cc
         cs/test_hixl_cs_server.cc
         cs/hixl_cs_client_ut.cc

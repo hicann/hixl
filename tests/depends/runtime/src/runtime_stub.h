@@ -54,6 +54,8 @@ class RuntimeStub {
 
   virtual rtError_t rtGetDevResAddress(const rtDevResInfo *resInfo, rtDevResAddrInfo *addrInfo);
 
+  virtual rtError_t rtNotifyGetAddrOffset(rtNotify_t notify, uint64_t *devAddrOffset);
+
  private:
   static std::mutex mutex_;
   static std::shared_ptr<RuntimeStub> instance_;
