@@ -31,6 +31,11 @@ class MockAclRuntimeStub : public llm::AclRuntimeStub {
   MOCK_METHOD(aclError, aclrtBinaryLoadFromFile, (const char*, aclrtBinaryLoadOptions*, aclrtBinHandle*), (override));
   MOCK_METHOD(aclError, aclrtBinaryGetFunction, (aclrtBinHandle, const char*, aclrtFuncHandle*), (override));
   MOCK_METHOD(aclError, aclrtWaitAndResetNotify, (aclrtNotify, aclrtStream, uint32_t), (override));
+  MOCK_METHOD(aclError, aclrtSynchronizeStreamWithTimeout, (aclrtStream, int32_t), (override));
+  MOCK_METHOD(aclError, aclrtNotifyBatchReset, (aclrtNotify *, size_t), (override));
+  MOCK_METHOD(aclError, aclrtMemcpyAsync,
+              (void *dst, size_t dest_max, const void *src, size_t src_count, aclrtMemcpyKind kind, aclrtStream stream),
+              (override));
 };
 
 namespace {
@@ -216,6 +221,34 @@ TEST_F(HixlCSClientUbFixture, PrepareDeviceRemoteFlagAndKernelMissingTagFail) {
   void *remote_flag = nullptr;
   EXPECT_EQ(cli_.PrepareDeviceRemoteFlagAndKernel(remote_flag), PARAM_INVALID);
   EXPECT_EQ(remote_flag, nullptr);
+}
+
+TEST_F(HixlCSClientUbFixture, BatchPutDeviceSyncUsesStreamSyncNoMemcpy) {
+  CommunicateMem mem = SetupBatchTransfer(false);
+  MockAclRuntimeStub mock_acl;
+  llm::AclRuntimeStub::Install(&mock_acl);
+  EXPECT_CALL(mock_acl, aclrtSynchronizeStreamWithTimeout(testing::_, testing::_))
+      .WillOnce(testing::Return(ACL_ERROR_NONE));
+  EXPECT_CALL(mock_acl, aclrtMemcpyAsync(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+      .Times(0);
+  const Status ret = cli_.BatchTransferSync(false, mem, 100U);
+  llm::AclRuntimeStub::UnInstall(&mock_acl);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_TRUE(cli_.pending_device_handles_.empty());
+}
+
+TEST_F(HixlCSClientUbFixture, BatchPutDeviceSyncStreamSyncTimeoutAbortsSlot) {
+  CommunicateMem mem = SetupBatchTransfer(false);
+  MockAclRuntimeStub mock_acl;
+  llm::AclRuntimeStub::Install(&mock_acl);
+  EXPECT_CALL(mock_acl, aclrtSynchronizeStreamWithTimeout(testing::_, testing::_))
+      .WillOnce(testing::Return(ACL_ERROR_RT_STREAM_SYNC_TIMEOUT));
+  EXPECT_CALL(mock_acl, aclrtNotifyBatchReset(testing::NotNull(), testing::Eq(static_cast<size_t>(1U))))
+      .WillOnce(testing::Return(ACL_SUCCESS));
+  const Status ret = cli_.BatchTransferSync(false, mem, 100U);
+  llm::AclRuntimeStub::UnInstall(&mock_acl);
+  EXPECT_EQ(ret, TIMEOUT);
+  EXPECT_TRUE(cli_.pending_device_handles_.empty());
 }
 
 TEST_F(HixlCSClientUbFixture, BatchPutUbDeviceNotifyWaitFail) {

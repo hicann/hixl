@@ -245,15 +245,22 @@ void TransferPool::AbortSlotByIndexLocked(uint32_t slot_index) {
   if (!slot.in_use) {
     return;
   }
+
   {
     hixl::TemporaryRtContext guard(slot.ctx);
     if (slot.stream != nullptr) {
       HIXL_CHK_ACL(aclrtStreamAbort(slot.stream), "[TransferPool] aclrtStreamAbort failed");
     }
+
     if (slot.notify != nullptr) {
-      HIXL_CHK_ACL(aclrtDestroyNotify(slot.notify));
-      slot.notify = nullptr;
+      aclrtNotify *notify_ptr = &slot.notify;
+      const aclError reset_ret = aclrtNotifyBatchReset(notify_ptr, static_cast<size_t>(1));
+      if (reset_ret != ACL_SUCCESS) {
+        HIXL_CHK_ACL(aclrtDestroyNotify(slot.notify), "[TransferPool] aclrtDestroyNotify fallback after BatchReset");
+        slot.notify = nullptr;
+      }
     }
+
     if (slot.thread != 0U) {
       HIXL_CHK_ACL(HcommProxy::ThreadFree(&slot.thread, 1U), "HcommThreadFree failed");
       slot.thread = 0U;
@@ -268,6 +275,7 @@ void TransferPool::AbortSlotByIndexLocked(uint32_t slot_index) {
     }
     slot.stream = nullptr;
   }
+
   Status ret = InitOneSlotLocked(slot, slot_index);
   if (ret != SUCCESS) {
     HIXL_LOGE(ret, "[TransferPool] AbortSlotByIndexLocked re-init failed slot=%u device_id=%d", slot_index,

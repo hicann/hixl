@@ -498,7 +498,7 @@ Status RegisterKvCache(const CacheDesc &cache_desc,
 
 需要在Initialize接口初始化完成后调用。
 
-最大注册50GB的Device内存，20GB的Host内存。注册内存越大，占用的OS内存越多。该约束支持的型号如下：
+当HDK版本低于25.5.0时，最大注册20GB的Host内存。当HDK版本大于等于25.5.0时，最大注册1TB的host内存。注册内存越大，占用的OS内存越多。该约束支持的型号如下：
 
 - Atlas A2 训练系列产品/Atlas A2 推理系列产品
 - Atlas A3 训练系列产品/Atlas A3 推理系列产品

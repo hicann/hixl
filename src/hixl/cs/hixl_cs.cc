@@ -181,6 +181,68 @@ HixlStatus HixlCSClientBatchGetAsync(HixlClientHandle client_handle, uint32_t li
   return HIXL_SUCCESS;
 }
 
+HixlStatus HixlCSClientBatchPutSync(HixlClientHandle client_handle, uint32_t list_num,
+                                    const HixlOneSideOpDesc *desc_list, uint32_t timeout_ms) {
+  HIXL_CHECK_NOTNULL(client_handle);
+  if (list_num > 0) {
+    HIXL_CHECK_NOTNULL(desc_list);
+  } else {
+    HIXL_LOGE(HIXL_PARAM_INVALID,
+              "[HixlCSClientBatchPutSync] The value of list_num is invalid. client_handle is %p, list_num: %u",
+              client_handle, list_num);
+    return HIXL_PARAM_INVALID;
+  }
+  auto client = static_cast<hixl::HixlCSClient *>(client_handle);
+  std::vector<void *> remote_bufs(list_num);
+  std::vector<const void *> local_bufs(list_num);
+  std::vector<uint64_t> len_list(list_num);
+  for (uint32_t i = 0; i < list_num; ++i) {
+    remote_bufs[i] = desc_list[i].remote_buf;
+    local_bufs[i] = desc_list[i].local_buf;
+    len_list[i] = desc_list[i].len;
+  }
+  hixl::CommunicateMem com_mem{};
+  com_mem.list_num = list_num;
+  com_mem.dst_buf_list = remote_bufs.data();
+  com_mem.src_buf_list = local_bufs.data();
+  com_mem.len_list = len_list.data();
+  const auto ret = client->BatchTransferSync(false, com_mem, timeout_ms);
+  HIXL_CHK_STATUS_RET(ret, "HixlCSClientBatchPutSync failed, client_handle is %p, list_num:%u", client_handle,
+                      list_num);
+  return HIXL_SUCCESS;
+}
+
+HixlStatus HixlCSClientBatchGetSync(HixlClientHandle client_handle, uint32_t list_num,
+                                     const HixlOneSideOpDesc *desc_list, uint32_t timeout_ms) {
+  HIXL_CHECK_NOTNULL(client_handle);
+  if (list_num > 0) {
+    HIXL_CHECK_NOTNULL(desc_list);
+  } else {
+    HIXL_LOGE(HIXL_PARAM_INVALID,
+              "[HixlCSClientBatchGetSync] The value of list_num is invalid. client_handle is %p, list_num: %u",
+              client_handle, list_num);
+    return HIXL_PARAM_INVALID;
+  }
+  auto client = static_cast<hixl::HixlCSClient *>(client_handle);
+  std::vector<void *> local_bufs(list_num);
+  std::vector<const void *> remote_bufs(list_num);
+  std::vector<uint64_t> len_list(list_num);
+  for (uint32_t i = 0; i < list_num; ++i) {
+    remote_bufs[i] = desc_list[i].remote_buf;
+    local_bufs[i] = desc_list[i].local_buf;
+    len_list[i] = desc_list[i].len;
+  }
+  hixl::CommunicateMem com_mem{};
+  com_mem.list_num = list_num;
+  com_mem.dst_buf_list = local_bufs.data();
+  com_mem.src_buf_list = remote_bufs.data();
+  com_mem.len_list = len_list.data();
+  const auto ret = client->BatchTransferSync(true, com_mem, timeout_ms);
+  HIXL_CHK_STATUS_RET(ret, "HixlCSClientBatchGetSync failed, client_handle is %p, list_num:%u", client_handle,
+                      list_num);
+  return HIXL_SUCCESS;
+}
+
 HixlStatus HixlCSClientQueryCompleteStatus(HixlClientHandle client_handle, CompleteHandle complete_handle,
                                            HixlCompleteStatus *complete_status) {
   HIXL_CHECK_NOTNULL(client_handle);

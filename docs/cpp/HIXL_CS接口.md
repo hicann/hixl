@@ -137,6 +137,11 @@ struct HixlOneSideOpDesc {
 | local_buf | void* | 本端（client）数据地址。|
 | len | uint64_t | 传输长度（字节）。|
 
+Put 与 Get 对 `HixlOneSideOpDesc` 的语义：
+
+- **BatchPut（同步/异步）**：数据从 `local_buf` 拷贝到 `remote_buf`，长度为 `len`。
+- **BatchGet（同步/异步）**：数据从 `remote_buf` 拷贝到 `local_buf`，长度为 `len`。
+
 ## 枚举
 
 异步任务完成状态定义：
@@ -247,7 +252,7 @@ HixlStatus HixlCSServerListen(HixlServerHandle server_handle, uint32_t backlog);
 
 **返回值**
 
-- HIXL_SUCCES：成功
+- HIXL_SUCCESS：成功
 - HIXL_PARAM_INVALID：参数错误
 - 其他：失败
 
@@ -503,9 +508,9 @@ HixlStatus HixlCSClientBatchPutAsync(HixlClientHandle client_handle,
 | 参数名 | 输入/输出 | 描述 |
 | --- | --- | --- |
 | client_handle | 输入 | 客户端句柄。 |
-| list_num | 输入 | 任务组数。 |
-| desc_list | 输入 | 指向 `HixlOneSideOpDesc` 数组，长度为 `list_num`。 |
-| complete_handle | 输出 | 返回的完成句柄，用于用户异步查询任务状态，当查询成功后，将自动释放相关资源。 |
+| list_num | 输入 | 子任务条数，须大于 0；为 0 时返回 `HIXL_PARAM_INVALID`。 |
+| desc_list | 输入 | 指向 `HixlOneSideOpDesc` 数组，长度为 `list_num`；`list_num > 0` 时不可为 NULL。每项为 **local_buf → remote_buf**，`len` 为字节数。 |
+| complete_handle | 输出 | 返回的完成句柄，用于用户异步查询任务状态，当查询成功后，将自动释放相关资源。不可为 NULL。 |
 
 **返回值**
 
@@ -537,9 +542,9 @@ HixlStatus HixlCSClientBatchGetAsync(HixlClientHandle client_handle,
 | 参数名 | 输入/输出 | 描述 |
 | --- | --- | --- |
 | client_handle | 输入 | 客户端句柄。 |
-| list_num | 输入 | 任务组数。 |
-| desc_list | 输入 | 指向 `HixlOneSideOpDesc` 数组，长度为 `list_num`。 |
-| complete_handle | 输出 | 返回的完成句柄，用于用户异步查询任务状态，当查询成功后，将自动释放相关资源。 |
+| list_num | 输入 | 子任务条数，须大于 0；为 0 时返回 `HIXL_PARAM_INVALID`。 |
+| desc_list | 输入 | 指向 `HixlOneSideOpDesc` 数组，长度为 `list_num`；`list_num > 0` 时不可为 NULL。每项为 **remote_buf → local_buf**，`len` 为字节数。 |
+| complete_handle | 输出 | 返回的完成句柄，用于用户异步查询任务状态，当查询成功后，将自动释放相关资源。不可为 NULL。 |
 
 **返回值**
 
@@ -550,6 +555,78 @@ HixlStatus HixlCSClientBatchGetAsync(HixlClientHandle client_handle,
 **约束说明**
 
 最大支持4K个数据并发传输，下发任务后需及时调用HixlCSClientQueryCompleteStatus接口查询任务状态。
+
+### HixlCSClientBatchPutSync
+
+**函数功能**
+
+同步批量向 Server 写入多组数据：在整批传输完成、超时或失败前阻塞当前线程，不返回 `CompleteHandle`。
+
+**函数原型**
+
+```
+HixlStatus HixlCSClientBatchPutSync(HixlClientHandle client_handle,
+                                    uint32_t list_num,
+                                    const HixlOneSideOpDesc *desc_list,
+                                    uint32_t timeout_ms);
+```
+
+**参数说明**
+
+| 参数名 | 输入/输出 | 描述 |
+| --- | --- | --- |
+| client_handle | 输入 | 客户端句柄，不可为 NULL。 |
+| list_num | 输入 | 子任务条数，须大于 0；为 0 时返回 `HIXL_PARAM_INVALID`。 |
+| desc_list | 输入 | 长度为 `list_num` 的 `HixlOneSideOpDesc` 数组；`list_num > 0` 时不可为 NULL。数据方向为 **local_buf（源）→ remote_buf（目标）**，`len` 为每次传输的字节数。 |
+| timeout_ms | 输入 | 整批任务的总等待超时（毫秒）。超时返回 `HIXL_TIMEOUT`。Host 端实现为轮询等待完成；Device 端为流同步超时预算。 |
+
+**返回值**
+
+- HIXL_SUCCESS：整批传输已完成
+- HIXL_PARAM_INVALID：参数错误（如 `list_num == 0`、`desc_list` 非法、`client_handle` 为 NULL 等）
+- HIXL_TIMEOUT：在 `timeout_ms` 内未完成
+- 其他：传输或内部错误（见日志与 `HixlStatus` 码）
+
+**约束说明**
+
+- 调用前须已完成与 Server 的建链（如 `HixlCSClientConnect`），且 `desc_list` 中的地址须为已注册/已通过 `HixlCSClientGetRemoteMem` 等途径获得的合法单边访问地址。
+- 与异步接口相同，建议关注最大并发子任务规模等限制（参见异步批量接口说明）。
+
+### HixlCSClientBatchGetSync
+
+**函数功能**
+
+同步批量从 Server 读取多组数据到本地：在整批传输完成、超时或失败前阻塞当前线程，不返回 `CompleteHandle`。
+
+**函数原型**
+
+```
+HixlStatus HixlCSClientBatchGetSync(HixlClientHandle client_handle,
+                                    uint32_t list_num,
+                                    const HixlOneSideOpDesc *desc_list,
+                                    uint32_t timeout_ms);
+```
+
+**参数说明**
+
+| 参数名 | 输入/输出 | 描述 |
+| --- | --- | --- |
+| client_handle | 输入 | 客户端句柄，不可为 NULL。 |
+| list_num | 输入 | 子任务条数，须大于 0；为 0 时返回 `HIXL_PARAM_INVALID`。 |
+| desc_list | 输入 | 长度为 `list_num` 的 `HixlOneSideOpDesc` 数组；`list_num > 0` 时不可为 NULL。数据方向为 **remote_buf（源）→ local_buf（目标）**，`len` 为每次传输的字节数。 |
+| timeout_ms | 输入 | 整批任务的总等待超时（毫秒）。超时返回 `HIXL_TIMEOUT`。Host 端实现为轮询等待完成；Device 端为流同步超时预算。 |
+
+**返回值**
+
+- HIXL_SUCCESS：整批传输已完成
+- HIXL_PARAM_INVALID：参数错误（如 `list_num == 0`、`desc_list` 非法、`client_handle` 为 NULL 等）
+- HIXL_TIMEOUT：在 `timeout_ms` 内未完成
+- 其他：传输或内部错误（见日志与 `HixlStatus` 码）
+
+**约束说明**
+
+- 调用前须已完成与 Server 的建链（如 `HixlCSClientConnect`），且 `desc_list` 中的地址须为已注册/已通过 `HixlCSClientGetRemoteMem` 等途径获得的合法单边访问地址。
+- 与异步接口相同，建议关注最大并发子任务规模等限制（参见异步批量接口说明）。
 
 ### HixlCSClientQueryCompleteStatus
 
@@ -635,8 +712,9 @@ HixlStatus HixlCSClientDestroy(HixlClientHandle client_handle);
 - 准备本端 `CommMem` 并通过 `HixlCSClientRegMem` 注册（保存 `MemHandle`）。
 - 调用 `HixlCSClientConnect` 建链（阻塞或等待超时），确保Server处于侦听状态。
 - 调用 `HixlCSClientGetRemoteMem` 获取 Server 已注册的内存，从而获取远端地址用于后续操作。
-- 构造一组 `HixlOneSideOpDesc`（local/remote 地址、长度），调用 `HixlCSClientBatchPutAsync` 或 `HixlCSClientBatchGetAsync` 提交异步批量操作。
-- 轮询 `HixlCSClientQueryCompleteStatus` 直到状态为 `HIXL_COMPLETE_STATUS_COMPLETED`。
+- 构造一组 `HixlOneSideOpDesc`（local/remote 地址、长度），任选其一：
+  - 调用 `HixlCSClientBatchPutAsync` / `HixlCSClientBatchGetAsync` 提交异步批量操作，并轮询 `HixlCSClientQueryCompleteStatus` 直到状态为 `HIXL_COMPLETE_STATUS_COMPLETED`；
+  - 或调用 `HixlCSClientBatchPutSync` / `HixlCSClientBatchGetSync` 同步完成整批传输（需传入整批超时时间 `timeout_ms`）。
 - 完成后按需读取/校验内存内容，最后 `HixlCSClientUnregMem` 注销本端内存并 `HixlCSClientDestroy`。
 
 ## 示例
@@ -681,15 +759,18 @@ HixlCSClientGetRemoteMem(client, &remote_list, &tags, &num, 2000);
 
 // 构造批量操作描述，示例：分块循环 varying block size
 std::vector<HixlOneSideOpDesc> ops = ...; // 填写 local/remote addr 与 len
+
+// 方式一：异步 + 轮询完成
 CompleteHandle ch;
 HixlCSClientBatchPutAsync(client, ops.size(), ops.data(), &ch);
-
-// 查询直到完成
 HixlCompleteStatus st;
 do {
   HixlCSClientQueryCompleteStatus(client, ch, &st);
   std::this_thread::sleep_for(std::chrono::milliseconds(1));
 } while (st == HIXL_COMPLETE_STATUS_WAITING);
+
+// 方式二：同步（整批在 timeout 内完成则返回 HIXL_SUCCESS）
+// HixlCSClientBatchPutSync(client, ops.size(), ops.data(), 5000);
 
 // 清理
 HixlCSClientUnregMem(client, client_mem_h);

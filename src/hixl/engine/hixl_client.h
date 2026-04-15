@@ -11,6 +11,8 @@
 #ifndef CANN_HIXL_SRC_HIXL_ENGINE_HIXL_CLIENT_H_
 #define CANN_HIXL_SRC_HIXL_ENGINE_HIXL_CLIENT_H_
 
+#include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <mutex>
 #include <string>
@@ -197,11 +199,19 @@ class HixlClient {
   Status BatchTransfer(const std::vector<TransferOpDesc> &op_descs, TransferOp operation,
                        std::vector<TransferCompleteInfo> &complete_handle_list);
 
+  Status BatchTransferSync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation,
+                           const std::chrono::steady_clock::time_point &sync_start, uint32_t timeout_ms);
+
   Status ProcessRemoteMem(uint32_t timeout_ms);
 
   Status RegisterMemToCsClient(const MemDesc &mem, const MemType type);
 
   Status UnregisterMemToCsClient(CommType type, const std::vector<MemHandle> &mem_handles);
+
+  void WaitBatchCsSyncInflightDrain();
+  Status FinalizeUnregisterAllMemHandles();
+  Status FinalizeDestroyAllCsClients();
+  void FinalizeClearSharedResources();
 
   std::string server_ip_;
   uint32_t server_port_;
@@ -209,13 +219,16 @@ class HixlClient {
   uint8_t rdma_sl_{kRdmaServiceLevel};
   bool is_connected_{false};  // true为已建链；false未建链
   bool is_finalized_{false};
+  // Finalize 置位后拒绝新 TransferSync；在析构 CS client 前等待为 0（与 TransferSync 内 fetch_add 配对）
+  bool finalize_pending_{false};
+  std::atomic<int> batch_cs_sync_inflight_{0};
   std::map<CommType, HixlClientHandle> client_handles_;  // ub链路时会创建4个 cs_client，roce链路会创建1个 cs_client
   std::map<TransferReq, std::vector<TransferCompleteInfo>> complete_handles_;  // 保存异步传输的完成句柄
   std::map<CommType, std::vector<MemHandle>> client_mem_handles_;              // 每种类型 cs client 注册的内存句柄
   std::vector<SegmentPtr> local_segments_;  // 内存段数组，包含 MEM_DEVICE and MEM_HOST 两种 std::shared_ptr<Segment>
   std::vector<SegmentPtr> remote_segments_;
 
-  std::mutex status_mutex_;            // 保护is_connected_和is_finalized_
+  std::mutex status_mutex_;  // 保护 is_connected_、is_finalized_、finalize_pending_；TransferSync 与 Finalize 在此与 inflight 配对
   std::mutex client_handles_mutex_;    // 保护client_handles_
   std::mutex complete_handles_mutex_;  // 保护complete_handles_
   std::mutex mem_handles_mutex_;       // 保护client_mem_handles_

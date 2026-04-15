@@ -18,6 +18,11 @@
 
 namespace hixl {
 
+// C API 句柄与 HixlCSClientCreate 返回一致，均为 HixlCSClient* 的 void* 别名
+inline HixlClientHandle ClientHandleFrom(HixlCSClient *client) {
+  return reinterpret_cast<HixlClientHandle>(client);
+}
+
 // 初始化源endpoint和本地endpoint
 
 EndpointDesc MakeSrcEp() {
@@ -200,7 +205,7 @@ TEST_F(HixlCSClientFixture, BatchPutSuccessWithStubbedHccl) {
   EXPECT_EQ(cli.BatchTransfer(false, com_mem, &query_handle), SUCCESS);
   std::cout << "执行批量写入，返回queryhandle" << std::endl;
   EXPECT_NE(query_handle, nullptr);
-  CompleteHandle *task_flag = static_cast<CompleteHandle *>(query_handle);
+  CompleteHandleInfo *task_flag = static_cast<CompleteHandleInfo *>(query_handle);
   // 首次检查通常为 NOT_READY（flag 还未被置 1)
   HixlCompleteStatus status_out = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
   uint64_t* flag = task_flag->flag_address;
@@ -224,10 +229,81 @@ TEST_F(HixlCSClientFixture, BatchGetSuccessWithStubbedHccl) {
   CommunicateMem com_mem{1, local_list, remote_list, len_list};
   EXPECT_EQ(cli.BatchTransfer(true, com_mem, &query_handle), SUCCESS);
   EXPECT_NE(query_handle, nullptr);
-  CompleteHandle *task_flag = static_cast<CompleteHandle *>(query_handle);
+  CompleteHandleInfo *task_flag = static_cast<CompleteHandleInfo *>(query_handle);
   HixlCompleteStatus status_out = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
   EXPECT_EQ(cli.CheckStatus(task_flag, &status_out), SUCCESS);
   EXPECT_EQ(status_out, HixlCompleteStatus::HIXL_COMPLETE_STATUS_COMPLETED);
+}
+
+TEST_F(HixlCSClientFixture, BatchPutSyncSuccess) {
+  const char *client_ip = "127.0.0.1";
+  uint32_t port = 22340;
+  PrepareConnectionAndImport(cli, client_ip, port);
+  CommMem local{};
+  local.type = COMM_MEM_TYPE_HOST;
+  local.addr = &kClientBufAddr;
+  local.size = kClientBufSizeBytes;
+  MemHandle local_handle = nullptr;
+  ASSERT_EQ(cli.RegMem("client_buf", &local, &local_handle), SUCCESS);
+  void *remote_list[] = {&kServerDataAddr};
+  const void *local_list[] = {&kClientBufAddr};
+  uint64_t len_list[] = {4};
+  CommunicateMem com_mem{1, remote_list, local_list, len_list};
+  EXPECT_EQ(cli.BatchTransferSync(false, com_mem, 5000U), SUCCESS);
+}
+
+// 覆盖 C 封装 HixlCSClientBatchPutSync（与 BatchTransferSync Put 路径一致）
+TEST_F(HixlCSClientFixture, CsApiBatchPutSyncSuccess) {
+  const char *client_ip = "127.0.0.1";
+  uint32_t port = 22341;
+  PrepareConnectionAndImport(cli, client_ip, port);
+  CommMem local{};
+  local.type = COMM_MEM_TYPE_HOST;
+  local.addr = &kClientBufAddr;
+  local.size = kClientBufSizeBytes;
+  MemHandle local_handle = nullptr;
+  ASSERT_EQ(cli.RegMem("client_buf", &local, &local_handle), SUCCESS);
+  HixlOneSideOpDesc op{};
+  op.remote_buf = &kServerDataAddr;
+  op.local_buf = static_cast<void *>(&kClientBufAddr);
+  op.len = 4;
+  HixlClientHandle ch = ClientHandleFrom(&cli);
+  EXPECT_EQ(HixlCSClientBatchPutSync(ch, 1, &op, 5000U), HIXL_SUCCESS);
+}
+
+// 覆盖 C 封装 HixlCSClientBatchGetSync
+TEST_F(HixlCSClientFixture, CsApiBatchGetSyncSuccess) {
+  const char *client_ip = "127.0.0.1";
+  uint32_t port = 22342;
+  PrepareConnectionAndImport(cli, client_ip, port);
+  CommMem local{};
+  local.type = COMM_MEM_TYPE_HOST;
+  local.addr = &kClientBufAddr;
+  local.size = kClientBufSizeBytes;
+  MemHandle local_handle = nullptr;
+  ASSERT_EQ(cli.RegMem("client_buf", &local, &local_handle), SUCCESS);
+  HixlOneSideOpDesc op{};
+  op.remote_buf = &kServerDataAddr;
+  op.local_buf = &kClientBufAddr;
+  op.len = 4;
+  HixlClientHandle ch = ClientHandleFrom(&cli);
+  EXPECT_EQ(HixlCSClientBatchGetSync(ch, 1, &op, 5000U), HIXL_SUCCESS);
+}
+
+TEST_F(HixlCSClientFixture, CsApiBatchPutSyncInvalidListNum) {
+  const char *client_ip = "127.0.0.1";
+  uint32_t port = 22343;
+  CreateHixlClient(cli, client_ip, port);
+  HixlOneSideOpDesc op{};
+  EXPECT_EQ(HixlCSClientBatchPutSync(ClientHandleFrom(&cli), 0, &op, 1000U), HIXL_PARAM_INVALID);
+}
+
+TEST_F(HixlCSClientFixture, CsApiBatchGetSyncInvalidListNum) {
+  const char *client_ip = "127.0.0.1";
+  uint32_t port = 22344;
+  CreateHixlClient(cli, client_ip, port);
+  HixlOneSideOpDesc op{};
+  EXPECT_EQ(HixlCSClientBatchGetSync(ClientHandleFrom(&cli), 0, &op, 1000U), HIXL_PARAM_INVALID);
 }
 
 TEST_F(HixlCSClientFixture, BatchPutFailsOnUnrecordedMemory) {

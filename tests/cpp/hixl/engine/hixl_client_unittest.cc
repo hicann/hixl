@@ -858,32 +858,28 @@ TEST_F(HixlClientUTest, TransferSyncTimeoutTest) {
   SetupTransferTest();
 
   auto op_descs = CreateTransferOps();
-  Status st = client_->TransferSync(op_descs, WRITE, kShortMs);
+  // 0ms 预算：BatchTransferSync 在发起传输前即判定超时，避免桩快速完成导致无法覆盖 TIMEOUT 路径
+  Status st = client_->TransferSync(op_descs, WRITE, 0U);
   EXPECT_EQ(st, TIMEOUT);
 }
 
-// TransferSync 接口测试：异常场景 - Finalize中断
-TEST_F(HixlClientUTest, TransferSyncFinalizeInterruptTest) {
+// TransferSync 接口测试：Finalize 在同步传输未结束时调用会阻塞，直至传输完成后再断链销毁
+TEST_F(HixlClientUTest, TransferSyncFinalizeWaitsForSyncCompleteTest) {
   SetupTransferTest();
   auto op_descs = CreateTransferOps();
 
-  // 创建线程执行TransferSync
   std::atomic<Status> transfer_status = SUCCESS;
   std::thread transfer_thread([&]() { transfer_status = client_->TransferSync(op_descs, WRITE, kDefaultTimeoutMs); });
 
-  // 等待一段时间确保TransferSync开始执行
-  std::this_thread::sleep_for(std::chrono::milliseconds(kShortMs));
+  std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
-  // 调用Finalize中断传输
-  client_->Finalize();
+  EXPECT_EQ(client_->Finalize(), SUCCESS);
 
-  // 等待线程结束
   if (transfer_thread.joinable()) {
     transfer_thread.join();
   }
 
-  // 验证传输被中断
-  EXPECT_EQ(transfer_status, FAILED);
+  EXPECT_EQ(transfer_status, SUCCESS);
 }
 
 // TransferAsync 接口测试：正常场景

@@ -114,6 +114,7 @@ public:
   virtual aclError aclrtBinaryGetFunction(aclrtBinHandle binHandle, const char *functionName, aclrtFuncHandle *funcHandle);
   virtual aclError aclrtCreateNotify(aclrtNotify *notify, uint64_t flag);
   virtual aclError aclrtDestroyNotify(aclrtNotify notify);
+  virtual aclError aclrtNotifyBatchReset(aclrtNotify *notifies, size_t num);
   virtual aclError aclrtGetNotifyId(aclrtNotify notify, uint32_t *notifyId);
   virtual aclError aclrtSetStreamAttribute(aclrtStream stream, aclrtStreamAttr attr, aclrtStreamAttrValue *attrValue);
   virtual aclError aclrtKernelArgsInit(aclrtFuncHandle funcHandle, aclrtArgsHandle *argsHandle);

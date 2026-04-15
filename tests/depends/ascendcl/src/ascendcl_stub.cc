@@ -542,6 +542,12 @@ aclError AclRuntimeStub::aclrtDestroyNotify(aclrtNotify notify) {
   return ACL_SUCCESS;
 }
 
+aclError AclRuntimeStub::aclrtNotifyBatchReset(aclrtNotify *notifies, size_t num) {
+  (void)notifies;
+  (void)num;
+  return ACL_SUCCESS;
+}
+
 aclError AclRuntimeStub::aclrtGetNotifyId(aclrtNotify notify, uint32_t *notifyId) {
   (void)notify;
   if (notifyId != nullptr) {
@@ -835,6 +841,10 @@ aclError aclrtCreateNotify(aclrtNotify *notify, uint64_t flag) {
 
 aclError aclrtDestroyNotify(aclrtNotify notify) {
   return llm::AclRuntimeStub::GetInstance()-> aclrtDestroyNotify(notify);
+}
+
+aclError aclrtNotifyBatchReset(aclrtNotify *notifies, size_t num) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtNotifyBatchReset(notifies, num);
 }
 
 aclError aclrtGetNotifyId(aclrtNotify notify, uint32_t *notifyId) {
