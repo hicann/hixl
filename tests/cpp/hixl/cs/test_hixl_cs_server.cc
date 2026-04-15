@@ -114,6 +114,7 @@ class HixlCSTest : public ::testing::Test {
     CreateChannelReq body{};
     body.src = default_eps[0];
     body.dst_ep_handle = dst_ep_handle;
+    body.channel_index = 0U;
     auto ret = CtrlMsgPlugin::Send(client_fd, &header, static_cast<uint64_t>(sizeof(header)));
     EXPECT_EQ(ret, SUCCESS);
     ret = CtrlMsgPlugin::Send(client_fd, &msg_type, static_cast<uint64_t>(sizeof(msg_type)));

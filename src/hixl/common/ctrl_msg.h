@@ -57,6 +57,7 @@ struct CreateChannelReq {
   uint64_t dst_ep_handle = 0UL;
   uint8_t tc;
   uint8_t sl;
+  uint32_t channel_index = 0U;
 };
 
 struct CreateChannelResp {

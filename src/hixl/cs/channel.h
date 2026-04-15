@@ -18,10 +18,19 @@
 #include "common/hixl_log.h"
 
 namespace hixl {
+
+// Values align with HcommSocketRole for HcommChannelDesc.role.
+enum class ChannelType : int32_t {
+  kClient = HCOMM_SOCKET_ROLE_CLIENT,
+  kServer = HCOMM_SOCKET_ROLE_SERVER,
+};
+
 struct ChannelDesc {
   EndpointDesc remote_endpoint;
   uint8_t tc;
   uint8_t sl;
+  ChannelType channel_type{ChannelType::kClient};
+  uint32_t channel_index{0U};
 };
 
 class Channel {

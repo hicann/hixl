@@ -26,7 +26,7 @@ class ConnMsgHandler {
  public:
   static Status SendMatchEndpointRequest(int32_t socket, const EndpointDesc &dst);
   static Status RecvMatchEndpointResponse(int32_t socket, uint64_t &remote_endpoint_handle, uint32_t timeout_ms);
-  // 发送 CreateChannelReq：src、dst_ep_handle、tc、sl（与 HixlCSServer::CreateChannel 一致）
+  // 发送 CreateChannelReq：src、dst_ep_handle、tc、sl、channel_index（role 由收发两端各自固定）
   static Status SendCreateChannelRequest(int32_t socket, const CreateChannelReq &body);
   static Status RecvCreateChannelResponse(int32_t socket, uint32_t timeout_ms);
 };

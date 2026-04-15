@@ -121,6 +121,9 @@ Status Endpoint::CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &c
   }
   HcommChannelDesc ch_desc{};
   HIXL_CHK_HCCL_RET(static_cast<HcclResult>(HcommChannelDescInit(&ch_desc, 1)));
+  ch_desc.role = static_cast<HcommSocketRole>(channel_desc.channel_type);
+  *reinterpret_cast<uint32_t *>(ch_desc.raws + sizeof(ch_desc.raws) - sizeof(uint32_t)) =
+      channel_desc.channel_index;
   ch_desc.remoteEndpoint = channel_desc.remote_endpoint;
   ch_desc.notifyNum = 1U;
   ch_desc.exchangeAllMems = true;
