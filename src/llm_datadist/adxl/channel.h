@@ -122,6 +122,9 @@ class Channel {
   bool IsDisconnecting() const {
     return disconnect_flag_.load(std::memory_order_acquire);
   }
+  bool IsFinalized() const {
+    return finalized_.load(std::memory_order_acquire);
+  }
   bool GetHasTransferred() const {
     return has_transfered_.load(std::memory_order_acquire);
   }
@@ -160,6 +163,7 @@ class Channel {
 
   std::atomic<int32_t> transfer_count_{0};
   std::atomic<bool> disconnect_flag_{false};
+  std::atomic<bool> finalized_{false};
   std::atomic<bool> has_transfered_{false};
 
   int32_t fd_ = -1;

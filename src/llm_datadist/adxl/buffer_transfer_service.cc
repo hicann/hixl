@@ -304,13 +304,18 @@ void BufferTransferService::ProcessBufferReqFirstStep() {
       req = std::move(buffer_req_queue_.front());
       buffer_req_queue_.pop();
     }
+    auto &channel = req.first;
     auto &buffer_req = req.second;
+    if (channel->IsFinalized()) {
+      LLMLOGW("Skip first step, channel is finalized, channel_id:%s.", channel->GetChannelId().c_str());
+      continue;
+    }
     if (!CheckTimeout(buffer_req)) {
       auto type = buffer_req.transfer_type;
       (type == TransferType::kReadRH2H || type == TransferType::kReadRD2H || type == TransferType::kReadRH2D ||
        type == TransferType::kReadRD2D)
-          ? HandleBufferCopy(req.first, req.second)
-          : HandleBufferD2D(req.first, req.second);
+          ? HandleBufferCopy(channel, req.second)
+          : HandleBufferD2D(channel, req.second);
     }
   }
 }
@@ -328,13 +333,21 @@ void BufferTransferService::ProcessBufferReqSecondStep() {
       req = std::move(buffer_second_step_queue_.front());
       buffer_second_step_queue_.pop();
     }
+    auto &channel = req.first;
     auto &buffer_req = req.second;
+    if (channel->IsFinalized()) {
+      LLMLOGW("Skip second step, channel is finalized, channel_id:%s.", channel->GetChannelId().c_str());
+      ReleaseServerBuffer(llm::ValueToPtr(buffer_req.local_buffer_addr));
+      continue;
+    }
     if (!CheckTimeout(buffer_req)) {
       auto type = buffer_req.transfer_type;
       (type == TransferType::kReadRH2H || type == TransferType::kReadRD2H || type == TransferType::kReadRH2D ||
        type == TransferType::kReadRD2D)
-          ? HandleBufferD2D(req.first, req.second)
-          : HandleBufferCopy(req.first, req.second);
+          ? HandleBufferD2D(channel, req.second)
+          : HandleBufferCopy(channel, req.second);
+    } else {
+      ReleaseServerBuffer(llm::ValueToPtr(buffer_req.local_buffer_addr));
     }
   }
 }
@@ -589,7 +602,13 @@ void BufferTransferService::ProcessCtrlMsg() {
       buffer_req = std::move(buffer_ctrl_msg_queue_.front());
       buffer_ctrl_msg_queue_.pop();
     }
-    HandleCtrlMsg(buffer_req.first, buffer_req.second);
+    auto &channel = buffer_req.first;
+    if (channel->IsFinalized()) {
+      LLMLOGW("Skip ctrl msg, channel is finalized, channel_id:%s.", channel->GetChannelId().c_str());
+      ReleaseServerBuffer(llm::ValueToPtr(buffer_req.second.local_buffer_addr));
+      continue;
+    }
+    HandleCtrlMsg(channel, buffer_req.second);
   }
 }
 

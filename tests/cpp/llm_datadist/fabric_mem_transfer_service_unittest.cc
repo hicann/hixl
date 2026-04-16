@@ -18,6 +18,7 @@
 #include "adxl/fabric_mem_transfer_service.h"
 #include "adxl/channel.h"
 #include "depends/ascendcl/src/ascendcl_stub.h"
+#include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
 #include "acl/acl.h"
 #include "common/def_types.h"
 #include "adxl/virtual_memory_manager.h"
@@ -83,6 +84,17 @@ ChannelPtr CreateInitializedChannel() {
   return channel;
 }
 
+ChannelPtr CreateHcclInitializedChannel() {
+  ChannelInfo channel_info{};
+  channel_info.channel_id = kChannelId;
+  channel_info.local_rank_id = 0;
+  channel_info.peer_rank_id = kPeerRankId;
+  channel_info.rank_table = "{}";
+  auto channel = std::make_shared<Channel>(channel_info);
+  EXPECT_EQ(channel->Initialize(), SUCCESS);
+  return channel;
+}
+
 void *GetBackingRemotePtr(const ChannelPtr &channel, uint64_t remote_addr) {
   auto va_map = channel->GetNewVaToOldVa();
   if (va_map.empty()) {
@@ -102,6 +114,8 @@ void *GetBackingRemotePtr(const ChannelPtr &channel, uint64_t remote_addr) {
 class FabricMemTransferServiceUTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    llm::MockMmpaForHcclApi::Install();
+    ASSERT_EQ(llm::HcclAdapter::GetInstance().Initialize(), SUCCESS);
     mock_runtime_ = std::make_shared<llm::AclRuntimeStub>();
     scoped_mock_ = std::make_unique<ScopedRuntimeMock>(mock_runtime_);
     VirtualMemoryManager::GetInstance().Initialize();
@@ -114,6 +128,8 @@ class FabricMemTransferServiceUTest : public ::testing::Test {
     scoped_mock_.reset();
     mock_runtime_.reset();
     VirtualMemoryManager::GetInstance().Finalize();
+    llm::HcclAdapter::GetInstance().Finalize();
+    llm::MockMmpaForHcclApi::Reset();
   }
   std::shared_ptr<FabricMemTransferService> service_;
   std::shared_ptr<llm::AclRuntimeStub> mock_runtime_;
@@ -237,6 +253,26 @@ TEST_F(FabricMemTransferServiceUTest, TestTransferAsync) {
     EXPECT_EQ(local_buf[i], kPatternA) << "Async Read verification failed at index " << i;
   }
   channel->Finalize();
+}
+
+TEST_F(FabricMemTransferServiceUTest, TestChannelFinalizeRejectsDirectTransfer) {
+  auto channel = CreateHcclInitializedChannel();
+  ASSERT_NE(channel, nullptr);
+  EXPECT_FALSE(channel->IsFinalized());
+
+  std::vector<uint8_t> local_buf(kMemLen, kPatternA);
+  std::vector<uint8_t> remote_buf(kMemLen, 0);
+  TransferOpDesc desc{};
+  desc.local_addr = llm::PtrToValue(local_buf.data());
+  desc.remote_addr = llm::PtrToValue(remote_buf.data());
+  desc.len = kTransferLen;
+
+  EXPECT_EQ(channel->TransferAsync(TransferOp::WRITE, {desc}, nullptr), SUCCESS);
+  EXPECT_EQ(channel->Finalize(), SUCCESS);
+  EXPECT_TRUE(channel->IsFinalized());
+
+  EXPECT_EQ(channel->TransferAsync(TransferOp::WRITE, {desc}, nullptr), FAILED);
+  EXPECT_EQ(channel->TransferAsyncWithTimeout(TransferOp::WRITE, {desc}, nullptr, kTimeout), FAILED);
 }
 
 TEST_F(FabricMemTransferServiceUTest, TestTransferAsync_RemoteAddrNotFound) {

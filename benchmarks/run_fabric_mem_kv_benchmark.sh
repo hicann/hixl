@@ -37,7 +37,12 @@ SYNC_DIR="${TMPDIR:-/tmp}/fabric_mem_kv_sync_$$"
 LOG_PART_DIR="${TMPDIR:-/tmp}/fabric_mem_kv_ranklogs_$$"
 
 cleanup() {
-  rm -rf "${SYNC_DIR}" "${LOG_PART_DIR}"
+  if [[ -n "${SYNC_DIR}" && -d "${SYNC_DIR}" ]]; then
+    rm -r -- "${SYNC_DIR}"
+  fi
+  if [[ -n "${LOG_PART_DIR}" && -d "${LOG_PART_DIR}" ]]; then
+    rm -r -- "${LOG_PART_DIR}"
+  fi
 }
 trap cleanup EXIT
 

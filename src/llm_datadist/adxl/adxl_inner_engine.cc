@@ -376,6 +376,12 @@ Status AdxlInnerEngine::InitBufferTransferService(const std::map<ge::AscendStrin
 
 void AdxlInnerEngine::Finalize() {
   hixl::TemporaryRtContext with_context(aclrt_context_);
+  if (buffer_transfer_service_ != nullptr) {
+    buffer_transfer_service_->Finalize();
+  }
+  if (fabric_mem_transfer_service_ != nullptr) {
+    fabric_mem_transfer_service_->Finalize();
+  }
   channel_manager_.Finalize();
   msg_handler_.Finalize();
   if (stream_pool_ != nullptr) {
@@ -386,12 +392,6 @@ void AdxlInnerEngine::Finalize() {
       auto ret = aclrtFree(mem);
       LLMLOGI("Call aclrtFree ret:%d.", ret);
     }
-  }
-  if (buffer_transfer_service_ != nullptr) {
-    buffer_transfer_service_->Finalize();
-  }
-  if (fabric_mem_transfer_service_ != nullptr) {
-    fabric_mem_transfer_service_->Finalize();
   }
   if (aclrt_context_ != nullptr) {
     (void) aclrtDestroyContext(aclrt_context_);

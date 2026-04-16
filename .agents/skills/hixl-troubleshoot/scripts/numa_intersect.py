@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 # ----------------------------------------------------------------------------
 # Copyright (c) 2026 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of
@@ -30,19 +31,19 @@ RANGE_SIZE = 682 * 1024 * 1024 * 1024  # 682GB
 
 
 def get_all_nodes():
-    base = "/sys/devices/system/node/"
+    base = os.path.join("/sys", "devices", "system", "node")
     return sorted(
         [int(d.replace("node", "")) for d in os.listdir(base) if d.startswith("node")]
     )
 
 
 def get_memory_block_size():
-    with open("/sys/devices/system/memory/block_size_bytes") as f:
+    with open(os.path.join("/sys", "devices", "system", "memory", "block_size_bytes")) as f:
         return int(f.read().strip(), 16)
 
 
 def get_node_blocks(node):
-    path = f"/sys/devices/system/node/node{node}/"
+    path = os.path.join("/sys", "devices", "system", "node", f"node{node}")
     block_size = get_memory_block_size()
     blocks = []
 
@@ -116,7 +117,7 @@ def scan_node_free_segments(node):
     prev_state = None
     prev_end = None
 
-    with open("/proc/kpageflags", "rb") as kpf:
+    with open(os.path.join("/proc", "kpageflags"), "rb") as kpf:
         for start_pfn, end_pfn in blocks:
             merged_start, prev_state = _reset_run_if_block_gap(
                 prev_end, start_pfn, merged_start, prev_state)

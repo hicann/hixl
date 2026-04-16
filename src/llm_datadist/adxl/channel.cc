@@ -118,6 +118,7 @@ void Channel::ClearNotifyMessages() {
 }
 
 Status Channel::Finalize() {
+  finalized_.store(true, std::memory_order_release);
   auto ret = SUCCESS;
   if (enable_use_fabric_mem_) {
     ClearImportedMem();
@@ -136,6 +137,7 @@ Status Channel::Finalize() {
   ClearNotifyMessages();
   disconnect_flag_.store(false, std::memory_order_release);
   transfer_count_.store(0, std::memory_order_release);
+  LLMLOGI("Channel finalized, channel_id:%s.", channel_info_.channel_id.c_str());
   return ret;
 }
 
@@ -150,6 +152,7 @@ Status Channel::ClearResources() {
 
   if (channel_info_.comm != nullptr) {
     auto hccl_ret = llm::HcclAdapter::GetInstance().HcclCommDestroy(channel_info_.comm);
+    channel_info_.comm = nullptr;
     ret = hccl_ret != HcclResult::HCCL_SUCCESS ? FAILED : ret;
   }
 
@@ -318,6 +321,9 @@ Status Channel::GetTransferStatus(const TransferReq &req, TransferStatus &status
 
 Status Channel::TransferAsync(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
                               aclrtStream stream) {
+  ADXL_CHK_BOOL_RET_STATUS(channel_info_.comm != nullptr, FAILED,
+                           "Channel comm is null, channel may have been finalized, channel_id:%s.",
+                           channel_info_.channel_id.c_str());
   auto trans_func = [this, operation, &stream](HcclOneSideOpDesc *descs, uint32_t desc_num) -> Status {
     HcclResult ret = HCCL_SUCCESS;
     if (operation == READ) {
@@ -340,6 +346,9 @@ Status Channel::TransferAsync(TransferOp operation, const std::vector<TransferOp
 
 Status Channel::TransferAsyncWithTimeout(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
                                          aclrtStream stream, uint64_t timeout) {
+  ADXL_CHK_BOOL_RET_STATUS(channel_info_.comm != nullptr, FAILED,
+                           "Channel comm is null, channel may have been finalized, channel_id:%s.",
+                           channel_info_.channel_id.c_str());
   const auto start = std::chrono::steady_clock::now();
   std::vector<HcclOneSideOpDesc> hccl_op_descs;
   hccl_op_descs.reserve(kMaxOpDescNum);
