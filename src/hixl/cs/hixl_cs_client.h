@@ -113,9 +113,9 @@ class HixlCSClient {
   Status RegMem(const char *mem_tag, const CommMem *mem, MemHandle *mem_handle);
 
   // 通过已经建立好的channel，从用户提供的地址列表等信息，进行数据传输
-  Status BatchTransfer(bool is_get, const CommunicateMem &communicate_mem_param, void **query_handle);
+  Status BatchTransfer(bool is_get, CommunicateMem &communicate_mem_param, void **query_handle);
 
-  Status BatchTransferSync(bool is_get, const CommunicateMem &communicate_mem_param, uint32_t timeout_ms);
+  Status BatchTransferSync(bool is_get, CommunicateMem &communicate_mem_param, uint32_t timeout_ms);
 
   // 通过已经建立好的channel，检查批量读写的状态。
   Status CheckStatus(void *query_handle, HixlCompleteStatus *status);
@@ -144,6 +144,9 @@ class HixlCSClient {
   Status BatchTransferHostSync(bool is_get, const CommunicateMem &p, uint32_t timeout_ms);
   Status BatchTransferDevice(bool is_get, const CommunicateMem &p, void **queryhandle);
   Status BatchTransferDeviceSync(bool is_get, const CommunicateMem &p, uint32_t timeout_ms);
+  template <typename T>
+  Status ConvertHostRegisterAddr(bool is_server, const char *name, T &addr);
+  Status ConvertUboeCommunicateMem(bool is_get, CommunicateMem &communicate_mem_param);
   Status EnsureDeviceRemoteFlagInitedLocked();
   Status EnsureDeviceKernelLoadedLocked();
   void *GetDeviceKernelFunc(bool is_get);

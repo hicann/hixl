@@ -222,4 +222,13 @@ TEST_F(HixlUtilsUTest, GetDeviceIpFallbackToHccnToolWhenConfMissingTest) {
   EXPECT_EQ(GetDeviceIp(0, device_ip), SUCCESS);
   EXPECT_EQ(device_ip, "10.10.10.10");
 }
+
+TEST_F(HixlUtilsUTest, GetBondIpAddress) {
+  InstallConfStub(false);
+  CreateHccnTool("ipaddr:192.168.1.111\n255.255.255.0");
+
+  std::string bond_ip;
+  EXPECT_EQ(GetBondIpAddress(0, bond_ip), SUCCESS);
+  EXPECT_EQ(bond_ip, "192.168.1.111");
+}
 }  // namespace hixl

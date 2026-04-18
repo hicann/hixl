@@ -15,9 +15,39 @@
 #include "hixl_mem_store.h"
 
 namespace hixl {
-Status HixlMemStore::RecordMemory(bool is_server, const void *addr, size_t size) {
+namespace {
+bool IsAddrInRegion(const MemoryRegion &region, const void *addr) {
+  if (addr < region.addr) {
+    return false;
+  }
+  auto region_end = static_cast<const void *>(static_cast<const uint8_t *>(region.addr) + region.size);
+  return addr < region_end;
+}
+
+// 检查内存区域是否连续（addr和register_dev_addr都必须连续）
+bool CheckRegionsContiguous(const MemoryRegion &prev, const MemoryRegion &curr) {
+  // 首先检查addr连续性（这是基本前提）
+  uintptr_t prev_end = reinterpret_cast<uintptr_t>(prev.addr) + prev.size;
+  uintptr_t curr_start = reinterpret_cast<uintptr_t>(curr.addr);
+  if (prev_end != curr_start) {
+    return false;  // addr不连续，直接返回 false
+  }
+
+  // 如果addr连续，检查register_dev_addr连续性（当有register_dev_addr地址时）
+  if (prev.register_dev_addr != nullptr && curr.register_dev_addr != nullptr) {
+    uintptr_t prev_dev_end = reinterpret_cast<uintptr_t>(prev.register_dev_addr) + prev.size;
+    uintptr_t curr_dev_start = reinterpret_cast<uintptr_t>(curr.register_dev_addr);
+    return prev_dev_end == curr_dev_start;  // register_dev_addr也必须连续
+  }
+
+  // 如果没有 register_dev_addr 地址，addr地址连续即可
+  return true;
+}
+}
+Status HixlMemStore::RecordMemory(bool is_server, const void *addr, size_t size, bool is_host_mem,
+                                  void *register_dev_addr) {
   std::lock_guard<std::mutex> lock(mutex_);
-  MemoryRegion new_region(addr, size);
+  MemoryRegion new_region(addr, size, is_host_mem, register_dev_addr);
   if (is_server) {  // server侧内存注册
     auto it = server_regions_.find(addr);
     if (it != server_regions_.end()) {
@@ -157,7 +187,7 @@ bool HixlMemStore::CheckMergedRegionsAccess(const std::map<const void *, MemoryR
   auto start_it = it;
   while (start_it != regions.begin()) {
     auto prev_it = std::prev(start_it);
-    if (get_region_end(prev_it->second) != get_addr(start_it->second)) {
+    if (!CheckRegionsContiguous(prev_it->second, start_it->second)) {
       break;
     }
     start_it = prev_it;
@@ -167,7 +197,7 @@ bool HixlMemStore::CheckMergedRegionsAccess(const std::map<const void *, MemoryR
   auto end_it = it;
   while (end_it != regions.end()) {
     auto next_it = std::next(end_it);
-    if (next_it == regions.end() || get_region_end(end_it->second) != get_addr(next_it->second)) {
+    if (next_it == regions.end() || !CheckRegionsContiguous(end_it->second, next_it->second)) {
       break;
     }
     end_it = next_it;
@@ -212,5 +242,36 @@ Status HixlMemStore::ValidateMemoryAccess(const void *server_addr, size_t mem_si
     return PARAM_INVALID;
   }
   return SUCCESS;
+}
+
+Status HixlMemStore::FindMemoryRegion(bool is_server, const void *addr, MemoryRegion &region) const {
+  if (addr == nullptr) {
+    HIXL_LOGE(PARAM_INVALID, "Invalid parameter: addr is nullptr");
+    return PARAM_INVALID;
+  }
+
+  std::lock_guard<std::mutex> lock(mutex_);
+  const auto &regions = is_server ? server_regions_ : client_regions_;
+  if (regions.empty()) {
+    return FAILED;
+  }
+  auto it = regions.lower_bound(addr);
+  // 检查找到的段
+  if (it != regions.end()) {
+    if (IsAddrInRegion(it->second, addr)) {
+      region = it->second;
+      return SUCCESS;
+    }
+  }
+
+  // 检查前一个段
+  if (it != regions.begin()) {
+    const auto &prev = std::prev(it)->second;
+    if (IsAddrInRegion(prev, addr)) {
+      region = prev;
+      return SUCCESS;
+    }
+  }
+  return FAILED;
 }
 }  // namespace hixl

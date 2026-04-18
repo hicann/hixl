@@ -445,6 +445,21 @@ aclError AclRuntimeStub::aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, 
   return ACL_ERROR_NONE;
 }
 
+aclError AclRuntimeStub::aclrtGetLogicDevIdByPhyDevId(const int32_t phyDevId, int32_t *const logicDevId) {
+  *logicDevId = phyDevId;
+  return ACL_SUCCESS;
+}
+aclError AclRuntimeStub::aclrtHostRegister(void *ptr, uint64_t size, aclrtHostRegisterType type, void **devPtr) {
+  (void)size;
+  (void)type;
+  *devPtr = ptr;
+  return ACL_SUCCESS;
+}
+aclError AclRuntimeStub::aclrtHostUnregister(void *ptr) {
+  (void)ptr;
+  return ACL_SUCCESS;
+}
+
 aclError AclRuntimeStub::aclrtMemcpyBatch(void **dsts, size_t *destMax, void **srcs, size_t *sizes, size_t numBatches,
                           aclrtMemcpyBatchAttr *attrs, size_t *attrsIndexex, size_t numAttrs, size_t *failIndex)
 {
@@ -771,6 +786,18 @@ aclError aclrtGetDeviceInfo(uint32_t deviceId, aclrtDevAttr attr, int64_t *value
 
 aclError aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, int32_t *const phyDevId) {
   return llm::AclRuntimeStub::GetInstance()->aclrtGetPhyDevIdByLogicDevId(logicDevId, phyDevId);
+}
+
+aclError aclrtGetLogicDevIdByPhyDevId(const int32_t phyDevId, int32_t *const logicDevId) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtGetLogicDevIdByPhyDevId(phyDevId, logicDevId);
+}
+
+aclError aclrtHostRegister(void *ptr, uint64_t size, aclrtHostRegisterType type, void **devPtr) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtHostRegister(ptr, size, type, devPtr);
+}
+
+aclError aclrtHostUnregister(void *ptr) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtHostUnregister(ptr);
 }
 
 aclError aclrtMemcpyBatch(void **dsts, size_t *destMax, void **srcs, size_t *sizes, size_t numBatches,

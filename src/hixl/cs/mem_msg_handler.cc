@@ -183,6 +183,9 @@ hixl::Status ParseOneMemDesc(const nlohmann::json &item, uint32_t idx, hixl::Hix
     HIXL_CHK_STATUS_RET(ret);
     out.mem = mem;
     out.tag = item["tag"].get<std::string>();
+    if (item.contains("registered_dev_mem")) {
+      out.registered_dev_mem = reinterpret_cast<void *>(item["registered_dev_mem"].get<uintptr_t>());
+    }
     return FillExportDescFromJsonField(item["export_desc"], out);
   } catch (const nlohmann::json::exception &e) {
     HIXL_LOGE(hixl::PARAM_INVALID, "[HixlClient] JSON error in ParseOneMemDesc[%u]: %s", idx, e.what());

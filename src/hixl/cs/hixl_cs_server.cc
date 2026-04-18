@@ -327,6 +327,9 @@ static inline void to_json(nlohmann::json &j, const HixlMemDesc &m) {
       j["export_desc"].push_back(static_cast<int>(data_ptr[i]));
     }
   }
+  if (m.registered_dev_mem != nullptr) {
+    j["registered_dev_mem"] = reinterpret_cast<uintptr_t>(m.registered_dev_mem);
+  }
 }
 
 static inline void to_json(nlohmann::json &j, const GetRemoteMemResp &r) {

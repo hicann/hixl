@@ -26,6 +26,7 @@
 #include "common/scope_guard.h"
 #include "common/ctrl_msg_plugin.h"
 #include "conn_msg_handler.h"
+#include "host_register_proxy.h"
 #include "load_kernel.h"
 #include "mem_msg_handler.h"
 #include "proxy/hcomm_proxy.h"
@@ -139,13 +140,14 @@ hixl::Status ImportOneDesc(hixl::ImportCtx &ctx, uint32_t idx, hixl::HixlMemDesc
   mem.type = desc.mem.type;
   mem.addr = desc.mem.addr;
   mem.size = desc.mem.size;
+  bool is_host_mem = desc.mem.type == COMM_MEM_TYPE_HOST;
   HIXL_LOGI("[HixlClient] ImportOneDesc desc.tag=%s mem.addr=%p", safe_tag, mem.addr);
   ctx.mems.emplace_back(mem);
   if (!desc.tag.empty()) {
     ctx.tag_mem_map[desc.tag] = mem;
   }
   HIXL_LOGD("[HixlClient] Imported mem[%u]: tag='%s', addr=%p, size=%llu", idx, safe_tag, mem.addr, mem.size);
-  ret = ctx.store->RecordMemory(true, mem.addr, static_cast<size_t>(mem.size));
+  ret = ctx.store->RecordMemory(true, mem.addr, static_cast<size_t>(mem.size), is_host_mem, desc.registered_dev_mem);
   if (ret == hixl::SUCCESS) {
     ctx.recorded_addrs.emplace_back(mem.addr);
   } else {
@@ -409,7 +411,17 @@ Status HixlCSClient::RegMem(const char *mem_tag, const CommMem *mem, MemHandle *
   HIXL_CHK_STATUS_RET(local_endpoint_->RegisterMem(mem_tag, *mem, ep_mem_handle),
                       "[HixlClient] Failed to register client endpoint mem.");
   *mem_handle = ep_mem_handle;
-  Status ret = mem_store_.RecordMemory(false, mem->addr, mem->size);  // 记录client侧给endpoint分配的内存信息
+  bool is_host_mem = mem->type == COMM_MEM_TYPE_HOST;
+  void *register_dev_addr = nullptr;
+  const auto &local_endpoint_desc = local_endpoint_->GetEndpoint();
+  if (is_host_mem && (local_endpoint_desc.protocol == COMM_PROTOCOL_UBOE)) {
+    HIXL_CHK_STATUS_RET(HostRegisterProxy::GetRegisteredDeviceAddrByDev(local_endpoint_desc.loc.device.devPhyId,
+                                                                        mem->addr, register_dev_addr),
+                        "Failed to get registered device addr, devPhyId=%d, addr=%p",
+                        local_endpoint_desc.loc.device.devPhyId, mem->addr);
+  }
+  // 记录client侧给endpoint分配的内存信息
+  Status ret = mem_store_.RecordMemory(false, mem->addr, mem->size, is_host_mem, register_dev_addr);
   if (ret != SUCCESS) {
     HIXL_LOGE(FAILED, "[HixlClient] Client record memory failed. mem_addr = %p, mem_size = %u", mem->addr, mem->size);
     return FAILED;
@@ -893,11 +905,15 @@ Status HixlCSClient::BatchTransferHostSync(bool is_get, const CommunicateMem &co
   }
 }
 
-Status HixlCSClient::BatchTransferSync(bool is_get, const CommunicateMem &communicate_mem_param, uint32_t timeout_ms) {
+Status HixlCSClient::BatchTransferSync(bool is_get, CommunicateMem &communicate_mem_param, uint32_t timeout_ms) {
   HIXL_CHK_STATUS_RET(ValidateAddress(is_get, communicate_mem_param), "[HixlClient] ValidateAddress failed.");
   HIXL_CHECK_NOTNULL(local_endpoint_);
   const EndpointDesc ep = local_endpoint_->GetEndpoint();
   if (IsDeviceEndpoint(ep)) {
+    if (ep.protocol == COMM_PROTOCOL_UBOE) {
+      HIXL_CHK_STATUS_RET(ConvertUboeCommunicateMem(is_get, communicate_mem_param),
+                          "[HixlClient] convert uboe communicate mem failed.");
+    }
     return BatchTransferDeviceSync(is_get, communicate_mem_param, timeout_ms);
   }
   if (ep.loc.locType == ENDPOINT_LOC_TYPE_HOST) {
@@ -907,12 +923,47 @@ Status HixlCSClient::BatchTransferSync(bool is_get, const CommunicateMem &commun
   return PARAM_INVALID;
 }
 
+template <typename T>
+Status HixlCSClient::ConvertHostRegisterAddr(bool is_server, const char *name, T &addr) {
+  MemoryRegion region;
+  Status status = mem_store_.FindMemoryRegion(is_server, addr, region);
+  HIXL_CHK_STATUS_RET(status, "[HixlClient][UB] %s addr %p not registered in %s regions", name, addr,
+                      is_server ? "server" : "client");
+
+  if (region.is_host_mem) {
+    HIXL_CHECK_NOTNULL(region.register_dev_addr, ", register_dev_addr is nullptr.");
+    auto host_addr = addr;
+    uintptr_t offset = reinterpret_cast<uintptr_t>(host_addr) - reinterpret_cast<uintptr_t>(region.addr);
+    addr = static_cast<T>(static_cast<char *>(region.register_dev_addr) + offset);
+    HIXL_LOGI("[HixlClient][UB] Convert %s addr: %p -> %p (is_server=%d)", name, host_addr, addr, is_server);
+  }
+  return SUCCESS;
+}
+
+Status HixlCSClient::ConvertUboeCommunicateMem(bool is_get, CommunicateMem &communicate_mem_param) {
+  // 遍历所有 buffer 进行地址转换
+  for (uint32_t i = 0; i < communicate_mem_param.list_num; i++) {
+    // is_get=true: src是server, dst是client
+    // is_get=false: src是client, dst是server
+    HIXL_CHK_STATUS_RET(ConvertHostRegisterAddr(is_get, "src", communicate_mem_param.src_buf_list[i]),
+                        "[HixlClient][UBOE] Convert src addr failed");
+
+    HIXL_CHK_STATUS_RET(ConvertHostRegisterAddr(!is_get, "dst", communicate_mem_param.dst_buf_list[i]),
+                        "[HixlClient][UBOE] Convert dst addr failed");
+  }
+  return SUCCESS;
+}
+
 // 通过已经建立好的channel，从用户提取的地址列表中，批量读取server内存地址中的内容
-Status HixlCSClient::BatchTransfer(bool is_get, const CommunicateMem &communicate_mem_param, void **query_handle) {
+Status HixlCSClient::BatchTransfer(bool is_get, CommunicateMem &communicate_mem_param, void **query_handle) {
   HIXL_CHK_STATUS_RET(ValidateAddress(is_get, communicate_mem_param), "[HixlClient] ValidateAddress failed.");
   HIXL_CHECK_NOTNULL(local_endpoint_);
   const EndpointDesc ep = local_endpoint_->GetEndpoint();
   if (IsDeviceEndpoint(ep)) {
+    if (ep.protocol == COMM_PROTOCOL_UBOE) {
+      HIXL_CHK_STATUS_RET(ConvertUboeCommunicateMem(is_get, communicate_mem_param),
+                          "[HixlClient] convert uboe communicate mem failed.");
+    }
     return BatchTransferDevice(is_get, communicate_mem_param, query_handle);
   } else if (ep.loc.locType == ENDPOINT_LOC_TYPE_HOST) {
     return BatchTransferHost(is_get, communicate_mem_param, query_handle);

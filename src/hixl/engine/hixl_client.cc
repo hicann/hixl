@@ -48,6 +48,8 @@ const char *CommTypeToString(CommType type) {
       return "ROCE";
     case CommType::COMM_TYPE_HCCS:
       return "HCCS";
+    case CommType::COMM_TYPE_UBOE:
+      return "UBOE";
     default:
       return "UNKNOWN";
   }
@@ -243,8 +245,25 @@ Status HixlClient::ParseJsonField(const nlohmann::json &json_obj, const std::str
   }
 }
 
+Status HixlClient::TryMatchUboeEndpoints(const std::vector<EndpointConfig> &local_endpoint_list,
+                                         const std::vector<EndpointConfig> &remote_endpoint_list) {
+  auto local_it = std::find_if(local_endpoint_list.begin(), local_endpoint_list.end(),
+                                [](const EndpointConfig &endpoint) { return endpoint.protocol == kProtocolUboe; });
+  auto remote_it = std::find_if(remote_endpoint_list.begin(), remote_endpoint_list.end(),
+                                 [](const EndpointConfig &endpoint) { return endpoint.protocol == kProtocolUboe; });
+  if (local_it != local_endpoint_list.end() && remote_it != remote_endpoint_list.end()) {
+    return CreateCsClients(*local_it, *remote_it, CommType::COMM_TYPE_UBOE);
+  }
+  // 不打印错误日志，因为非UBOE场景下找不到是正常的
+  return FAILED;
+}
+
 Status HixlClient::FindMatchedEndpoints(const std::vector<EndpointConfig> &local_endpoint_list,
                                         const std::vector<EndpointConfig> &remote_endpoint_list) {
+  // 优先尝试uboe协议连接。
+  if (TryMatchUboeEndpoints(local_endpoint_list, remote_endpoint_list) == SUCCESS) {
+    return SUCCESS;
+  }
   // 如果必须使用ROCE，直接匹配并创建ROCE链路
   if (MustUseRoce(local_endpoint_list, remote_endpoint_list)) {
     return TryMatchRoceEndpoints(local_endpoint_list, remote_endpoint_list);
@@ -446,6 +465,7 @@ Status HixlClient::RegisterMemToCsClient(const MemDesc &mem, const MemType type)
     comm_types_to_register.push_back(CommType::COMM_TYPE_UB_H2H);
   }
   comm_types_to_register.push_back(CommType::COMM_TYPE_ROCE);
+  comm_types_to_register.push_back(CommType::COMM_TYPE_UBOE);
 
   // 注册内存到对应的cs client
   std::lock_guard<std::mutex> lock(client_handles_mutex_);
@@ -688,14 +708,21 @@ Status HixlClient::ClassifyTransfers(const std::vector<TransferOpDesc> &op_descs
       }
     }
 
-    // 如果是roce，直接将op_desc保存在op_descs_table中
-    {
+    bool has_found = false;
+    // 如果是roce或者uboe，直接将op_desc保存在op_descs_table中
+    for (const auto comm_type : {CommType::COMM_TYPE_ROCE, CommType::COMM_TYPE_UBOE}) {
       std::lock_guard<std::mutex> lock(client_handles_mutex_);
-      if (client_handles_.find(CommType::COMM_TYPE_ROCE) != client_handles_.end()) {
-        op_descs_table[CommType::COMM_TYPE_ROCE].push_back(op_desc);
-        HIXL_LOGI("Current communication type: %s.", CommTypeToString(CommType::COMM_TYPE_ROCE));
-        continue;
+      if (client_handles_.find(comm_type) != client_handles_.end()) {
+        has_found = true;
+        op_descs_table[comm_type].push_back(op_desc);
+        HIXL_LOGI("Current communication type: %s, local memory type: %s, remote memory type: %s.",
+                  CommTypeToString(comm_type), (local_mem_type == MemType::MEM_DEVICE) ? kMemTypeDevice : kMemTypetHost,
+                  (remote_mem_type == MemType::MEM_DEVICE) ? kMemTypeDevice : kMemTypetHost);
       }
+    }
+
+    if (has_found) {
+      continue;
     }
 
     // 判断通信类型，将op_desc保存在op_descs_table中

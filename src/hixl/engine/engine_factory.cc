@@ -14,25 +14,37 @@
 #include "adxl/adxl_inner_engine.h"
 #include "hixl/hixl_types.h"
 #include "adxl/adxl_types.h"
+#include "common/hixl_log.h"
 
 namespace hixl {
+namespace {
+bool UseUboe(const std::map<AscendString, AscendString> &options) {
+  std::vector<std::string> protocol_desc;
+  (void)ParseConfigProtocolDesc(options, protocol_desc);
+  return protocol_desc.size() == 1 && protocol_desc[0] == "uboe:device";
+}
+}  // namespace
 std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string local_engine,
                                                     const std::map<AscendString, AscendString> &options) {
-  const auto &hixl_it = options.find(hixl::OPTION_LOCAL_COMM_RES);
-  const auto &adxl_it = options.find(adxl::OPTION_LOCAL_COMM_RES);
-  if ((hixl_it == options.end()) && (adxl_it == options.end())) {
-    return std::make_unique<AdxlEngine>(AscendString(local_engine.c_str()));
-  }
-  const auto &it = hixl_it == options.end() ? adxl_it : hixl_it;
-  bool use_hixl = false;
-  std::string local_comm_res = it->second.GetString();
-  try {
-    if (!local_comm_res.empty()) {
-      use_hixl = nlohmann::json::parse(local_comm_res)["version"] == "1.3";
+  bool config_use_uboe = UseUboe(options);
+  // uboe must use hixl
+  bool use_hixl = config_use_uboe;
+  if (!use_hixl) {
+    const auto hixl_it = options.find(hixl::OPTION_LOCAL_COMM_RES);
+    const auto adxl_it = options.find(adxl::OPTION_LOCAL_COMM_RES);
+    if ((hixl_it == options.end()) && (adxl_it == options.end())) {
+      return std::make_unique<AdxlEngine>(AscendString(local_engine.c_str()));
     }
-  } catch (const nlohmann::json::exception &e) {
-    HIXL_LOGE(PARAM_INVALID, "Invalid json, exception:%s", e.what());
-    return nullptr;
+    const auto &it = hixl_it == options.end() ? adxl_it : hixl_it;
+    std::string local_comm_res = it->second.GetString();
+    try {
+      if (!local_comm_res.empty()) {
+        use_hixl = nlohmann::json::parse(local_comm_res)["version"] == "1.3";
+      }
+    } catch (const nlohmann::json::exception &e) {
+      HIXL_LOGE(PARAM_INVALID, "Invalid json, exception:%s", e.what());
+      return nullptr;
+    }
   }
   if (use_hixl) {
     return std::make_unique<HixlEngine>(AscendString(local_engine.c_str()));

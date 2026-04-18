@@ -14,14 +14,17 @@ set(HIXL_TEST_FILES
         cs/test_hixl_cs_server.cc
         cs/hixl_cs_client_ut.cc
         cs/hixl_mem_store_basic_ut.cc
+        cs/hixl_mem_store_uboe_ut.cc
         cs/hixl_cs_client_basic_ut.cc
         cs/hixl_cs_client_ub_ut.cc
         cs/transfer_pool_ut.cc
+        cs/host_register_proxy_ut.cc
         engine/hixl_server_unittest.cpp
         engine/hixl_client_unittest.cc
         engine/hixl_utils_unittest.cc
         engine/hixl_engine_unittest.cc
         engine/hixl_profiling_unittest.cc
+        engine/hixl_engine_uboe_unittest.cc
         ../ops/hixl_kernel/hixl_kernel_basic_unittest.cc
 )
 

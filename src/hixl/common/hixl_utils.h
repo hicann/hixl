@@ -74,9 +74,14 @@ Status HcclError2Status(HcclResult ret);
 
 Status ParseIpAddress(const std::string &ip_str, CommAddr &addr);
 
+Status ParseConfigProtocolDesc(const std::map<AscendString, AscendString> &options,
+                               std::vector<std::string> &protocol_desc);
+
 Status CheckIp(const std::string &ip);
 
 Status GetDeviceIp(int32_t phy_device_id, std::string &device_ip);
+
+Status GetBondIpAddress(int32_t phy_device_id, std::string &ip);
 
 Status CheckOptions(const std::map<AscendString, AscendString> &options);
 

@@ -20,6 +20,7 @@ namespace hixl {
 constexpr const char *kProtocolRoce = "roce";
 constexpr const char *kProtocolUbCtp = "ub_ctp";
 constexpr const char *kProtocolUbTp = "ub_tp";
+constexpr const char *kProtocolUboe = "uboe";
 constexpr const char *kPlacementDevice = "device";
 constexpr const char *kPlacementHost = "host";
 constexpr uint8_t kRdmaTrafficClass = 132; // RDMA网卡的traffic class 默认值

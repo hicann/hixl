@@ -21,7 +21,16 @@
 #include "adxl/adxl_types.h"
 
 namespace hixl {
-
+namespace {
+Status GetUboeIp(std::string &ip) {
+  int32_t dev_logic_id = 0;
+  int32_t dev_phy_id = 0;
+  HIXL_CHK_ACL_RET(aclrtGetDevice(&dev_logic_id));
+  HIXL_CHK_ACL_RET(aclrtGetPhyDevIdByLogicDevId(dev_logic_id, &dev_phy_id));
+  HIXL_LOGI("current dev_logic_id=%d, dev_phy_id=%d", dev_logic_id, dev_phy_id);
+  return GetBondIpAddress(dev_phy_id, ip);
+}
+}  // namespace
 void from_json(const nlohmann::json &j, hixl::EndpointConfig &ep) {
   j.at("protocol").get_to(ep.protocol);
   j.at("comm_id").get_to(ep.comm_id);
@@ -52,21 +61,33 @@ Status HixlEngine::Initialize(const std::map<AscendString, AscendString> &option
   if (it != options.cend()) {
     local_comm_res = it->second.GetString();
   }
-  HIXL_CHK_STATUS_RET(ParseEndPoint(local_comm_res, endpoint_list_), 
-                      "[HixlEngine] Failed to parse endpoint from local_comm_res, local_comm_res:%s",
-                      local_comm_res.c_str());
+  if (!local_comm_res.empty()) {
+    HIXL_CHK_STATUS_RET(ParseEndPoint(local_comm_res, endpoint_list_),
+                        "[HixlEngine] Failed to parse endpoint from local_comm_res, local_comm_res:%s",
+                        local_comm_res.c_str());
+  }
   HIXL_CHK_STATUS_RET(ParseTrafficClass(options), "[HixlEngine] Failed to parse traffic class");
   HIXL_CHK_STATUS_RET(ParseServiceLevel(options), "[HixlEngine] Failed to parse service level");
+
+  if (endpoint_list_.empty()) {
+    HIXL_CHK_STATUS_RET(GenDefaultEndpointConfig(options, endpoint_list_), "Gen default endpoint config failed.");
+    if (endpoint_list_.empty()) {
+      HIXL_LOGE(PARAM_INVALID, "[HixlEngine] endpoint_list is empty, please check options, local_comm_res:%s",
+                local_comm_res.c_str());
+      return PARAM_INVALID;
+    }
+  }
+
   std::string ip;
   int32_t port = 0;
-  HIXL_CHK_STATUS_RET(ParseListenInfo(local_engine_, ip, port), 
+  HIXL_CHK_STATUS_RET(ParseListenInfo(local_engine_, ip, port),
                       "[HixlEngine] Failed to parse ip and port, local_engine should be in form as below: "
                       "ipv4 should be 'host_ip:host_port' or 'host_ip' "
                       "ipv6 should be '[host_ip]:host_port' or '[host_ip]' "
                       "current local_engine:%s",
                       local_engine_.c_str());
-  HIXL_CHK_STATUS_RET(server_.Initialize(ip, port, endpoint_list_), 
-                      "[HixlEngine] Failed to initialize HixlEngine, local_engine:%s, local_comm_res:%s", 
+  HIXL_CHK_STATUS_RET(server_.Initialize(ip, port, endpoint_list_),
+                      "[HixlEngine] Failed to initialize HixlEngine, local_engine:%s, local_comm_res:%s",
                       local_engine_.c_str(), local_comm_res.c_str());
   is_initialized_ = true;
   HIXL_LOGI("[HixlEngine] Initialization succeeded, local_engine:%s", local_engine_.c_str());
@@ -74,16 +95,16 @@ Status HixlEngine::Initialize(const std::map<AscendString, AscendString> &option
 }
 
 Status HixlEngine::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
-  HIXL_LOGI("[HixlEngine] Registration started, type:%s, addr:%p, size:%lu", 
-            MemTypeToString(type).c_str(), reinterpret_cast<void *>(mem.addr), mem.len);
-  HIXL_CHK_STATUS_RET(server_.RegisterMem(mem, type, mem_handle), 
-                      "[HixlEngine] Failed to register mem, type:%s, addr:%p, size:%lu",
-                      MemTypeToString(type).c_str(), reinterpret_cast<void *>(mem.addr), mem.len);
+  HIXL_LOGI("[HixlEngine] Registration started, type:%s, addr:%p, size:%lu", MemTypeToString(type).c_str(),
+            reinterpret_cast<void *>(mem.addr), mem.len);
+  HIXL_CHK_STATUS_RET(server_.RegisterMem(mem, type, mem_handle),
+                      "[HixlEngine] Failed to register mem, type:%s, addr:%p, size:%lu", MemTypeToString(type).c_str(),
+                      reinterpret_cast<void *>(mem.addr), mem.len);
   MemInfo mem_info = {mem_handle, mem, type};
   std::lock_guard<std::mutex> lock(mutex_);
   mem_map_.emplace(mem_handle, mem_info);
-  HIXL_LOGI("[HixlEngine] Registration succeeded, type:%s, addr:%p, size:%lu", 
-            MemTypeToString(type).c_str(), reinterpret_cast<void *>(mem.addr), mem.len);
+  HIXL_LOGI("[HixlEngine] Registration succeeded, type:%s, addr:%p, size:%lu", MemTypeToString(type).c_str(),
+            reinterpret_cast<void *>(mem.addr), mem.len);
   return SUCCESS;
 }
 
@@ -95,31 +116,30 @@ Status HixlEngine::DeregisterMem(MemHandle mem_handle) {
     HIXL_LOGW("[HixlEngine] handle:%p is not registered", mem_handle);
     return SUCCESS;
   }
-  HIXL_CHK_BOOL_RET_STATUS(client_manager_.IsEmpty(), FAILED,
-                           "[HixlEngine] Failed to deregister mem. All clients must be disconnected before deregistration, "
-                           "mem_handle: %p, local_engine: %s",
-                           mem_handle, local_engine_.c_str());
+  HIXL_CHK_BOOL_RET_STATUS(
+      client_manager_.IsEmpty(), FAILED,
+      "[HixlEngine] Failed to deregister mem. All clients must be disconnected before deregistration, "
+      "mem_handle: %p, local_engine: %s",
+      mem_handle, local_engine_.c_str());
   HIXL_CHK_STATUS_RET(server_.DeregisterMem(mem_handle),
-                      "[HixlEngine] Failed to deregister mem, mem_handle: %p, local_engine: %s", 
-                      mem_handle, local_engine_.c_str());
+                      "[HixlEngine] Failed to deregister mem, mem_handle: %p, local_engine: %s", mem_handle,
+                      local_engine_.c_str());
   mem_map_.erase(it);
   HIXL_LOGI("[HixlEngine] Deregistration succeeded, mem_handle: %p", mem_handle);
   return SUCCESS;
 }
 
 Status HixlEngine::Connect(const AscendString &remote_engine, int32_t timeout_in_millis) {
-  HIXL_CHK_BOOL_RET_STATUS(strcmp(local_engine_.c_str(), remote_engine.GetString()) != 0, 
-                           PARAM_INVALID, 
+  HIXL_CHK_BOOL_RET_STATUS(strcmp(local_engine_.c_str(), remote_engine.GetString()) != 0, PARAM_INVALID,
                            "[HixlEngine] Do not support connection with self, please check remote engine. "
-                           "local_engine:%s, remote_engine:%s", 
+                           "local_engine:%s, remote_engine:%s",
                            local_engine_.c_str(), remote_engine.GetString());
-  HIXL_LOGI("[HixlEngine] Connection started, local_engine:%s, remote_engine:%s", 
-            local_engine_.c_str(), remote_engine.GetString());
+  HIXL_LOGI("[HixlEngine] Connection started, local_engine:%s, remote_engine:%s", local_engine_.c_str(),
+            remote_engine.GetString());
   ClientPtr client_ptr = nullptr;
   client_ptr = client_manager_.GetClient(remote_engine.GetString());
   if (client_ptr != nullptr) {
-    HIXL_LOGE(ALREADY_CONNECTED, 
-              "[HixlEngine] remote engine:%s is already connected to local_engine:%s", 
+    HIXL_LOGE(ALREADY_CONNECTED, "[HixlEngine] remote engine:%s is already connected to local_engine:%s",
               remote_engine.GetString(), local_engine_.c_str());
     return ALREADY_CONNECTED;
   }
@@ -131,24 +151,25 @@ Status HixlEngine::Connect(const AscendString &remote_engine, int32_t timeout_in
   HIXL_CHK_STATUS_RET(client_manager_.CreateClient(config, client_ptr),
                       "[HixlEngine] Failed to create HixlClient, local_engine: %s, remote engine: %s",
                       local_engine_.c_str(), remote_engine.GetString());
-  HIXL_CHECK_NOTNULL(client_ptr, 
-                     "[HixlEngine] Created client is null, please check your parameters! local_engine:%s, remote_engine:%s",
-                     local_engine_.c_str(), remote_engine.GetString());
+  HIXL_CHECK_NOTNULL(
+      client_ptr,
+      "[HixlEngine] Created client is null, please check your parameters! local_engine:%s, remote_engine:%s",
+      local_engine_.c_str(), remote_engine.GetString());
   std::vector<MemInfo> mem_info_list;
   std::lock_guard<std::mutex> lock(mutex_);
   for (const auto &pair : mem_map_) {
     mem_info_list.push_back(pair.second);
   }
-  HIXL_DISMISSABLE_GUARD(rollback, ([this, &remote_engine]() { client_manager_.DestroyClient(remote_engine.GetString()); }));
-  HIXL_CHK_STATUS_RET(client_ptr->SetLocalMemInfo(mem_info_list), 
-                      "[HixlEngine] Failed to set local memory info, local_engine:%s",
-                      local_engine_.c_str());
-  HIXL_CHK_STATUS_RET(client_ptr->Connect(timeout_in_millis), 
+  HIXL_DISMISSABLE_GUARD(rollback,
+                         ([this, &remote_engine]() { client_manager_.DestroyClient(remote_engine.GetString()); }));
+  HIXL_CHK_STATUS_RET(client_ptr->SetLocalMemInfo(mem_info_list),
+                      "[HixlEngine] Failed to set local memory info, local_engine:%s", local_engine_.c_str());
+  HIXL_CHK_STATUS_RET(client_ptr->Connect(timeout_in_millis),
                       "[HixlEngine] Failed to connect, local_engine:%s, remote_engine:%s, timeout:%d ms",
                       local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
   HIXL_DISMISS_GUARD(rollback);
-  HIXL_LOGI("[HixlEngine] Connection succeeded, local_engine:%s, remote_engine:%s", 
-            local_engine_.c_str(), remote_engine.GetString());
+  HIXL_LOGI("[HixlEngine] Connection succeeded, local_engine:%s, remote_engine:%s", local_engine_.c_str(),
+            remote_engine.GetString());
   return SUCCESS;
 }
 
@@ -156,7 +177,7 @@ Status HixlEngine::Disconnect(const AscendString &remote_engine, int32_t timeout
   HIXL_LOGI("[HixlEngine] Disconnection started, local_engine:%s, remote_engine:%s, timeout:%d ms",
             local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
   HIXL_CHK_STATUS_RET(client_manager_.DestroyClient(remote_engine.GetString()),
-                      "[HixlEngine] Failed to disconnect, local_engine:%s, remote_engine:%s, timeout:%d ms", 
+                      "[HixlEngine] Failed to disconnect, local_engine:%s, remote_engine:%s, timeout:%d ms",
                       local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
   HIXL_LOGI("[HixlEngine] Disconnection succeeded, local_engine:%s, remote_engine:%s, timeout:%d ms",
             local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
@@ -164,15 +185,12 @@ Status HixlEngine::Disconnect(const AscendString &remote_engine, int32_t timeout
 }
 
 void HixlEngine::Disconnect() {
-  HIXL_LOGI("[HixlEngine] Disconnection with all clients started, local_engine:%s",
-              local_engine_.c_str());
+  HIXL_LOGI("[HixlEngine] Disconnection with all clients started, local_engine:%s", local_engine_.c_str());
   Status ret = client_manager_.Finalize();
   if (ret != SUCCESS) {
-    HIXL_LOGE(FAILED, "[HixlEngine] Failed to disconnect with all clients, local_engine:%s", 
-              local_engine_.c_str());
+    HIXL_LOGE(FAILED, "[HixlEngine] Failed to disconnect with all clients, local_engine:%s", local_engine_.c_str());
   } else {
-    HIXL_LOGI("[HixlEngine] Disconnection with all clients succeeded, local_engine:%s",
-              local_engine_.c_str());
+    HIXL_LOGI("[HixlEngine] Disconnection with all clients succeeded, local_engine:%s", local_engine_.c_str());
   }
 }
 
@@ -181,14 +199,14 @@ Status HixlEngine::TransferSync(const AscendString &remote_engine, TransferOp op
   HIXL_LOGI("[HixlEngine] Synchronous transmission started, local_engine:%s, remote_engine:%s, timeout:%d ms",
             local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
   ClientPtr client_ptr = client_manager_.GetClient(remote_engine.GetString());
-  HIXL_CHK_BOOL_RET_STATUS(client_ptr != nullptr, 
-                           NOT_CONNECTED, 
-                           "[HixlEngine] Failed to get client through remote engine, please check connection. local_engine:%s, remote_engine:%s",
+  HIXL_CHK_BOOL_RET_STATUS(client_ptr != nullptr, NOT_CONNECTED,
+                           "[HixlEngine] Failed to get client through remote engine, please check connection. "
+                           "local_engine:%s, remote_engine:%s",
                            local_engine_.c_str(), remote_engine.GetString());
   HixlProfType type = (operation == READ ? HixlProfType::HixlOpBatchRead : HixlProfType::HixlOpBatchWrite);
   HIXL_API_PROFILING(type);
   HIXL_CHK_STATUS_RET(client_ptr->TransferSync(op_descs, operation, timeout_in_millis),
-                      "[HixlEngine] Failed to TransferSync, local_engine:%s, remote_engine:%s, timeout:%d ms", 
+                      "[HixlEngine] Failed to TransferSync, local_engine:%s, remote_engine:%s, timeout:%d ms",
                       local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
   HIXL_LOGI("[HixlEngine] Synchronous transmission succeeded, local_engine:%s, remote_engine:%s, timeout:%d ms",
             local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
@@ -198,17 +216,17 @@ Status HixlEngine::TransferSync(const AscendString &remote_engine, TransferOp op
 Status HixlEngine::TransferAsync(const AscendString &remote_engine, TransferOp operation,
                                  const std::vector<TransferOpDesc> &op_descs, const TransferArgs &optional_args,
                                  TransferReq &req) {
-  HIXL_LOGI("[HixlEngine] Asynchronous transmission started, local_engine:%s, remote_engine:%s",
-            local_engine_.c_str(), remote_engine.GetString());
+  HIXL_LOGI("[HixlEngine] Asynchronous transmission started, local_engine:%s, remote_engine:%s", local_engine_.c_str(),
+            remote_engine.GetString());
   (void)optional_args;
   ClientPtr client_ptr = client_manager_.GetClient(remote_engine.GetString());
-  HIXL_CHK_BOOL_RET_STATUS(client_ptr != nullptr, 
-                           NOT_CONNECTED, 
-                           "[HixlEngine] Failed to get client through remote engine, please check connection. remote_engine:%s",
-                           remote_engine.GetString());
-  HIXL_CHK_STATUS_RET(client_ptr->TransferAsync(op_descs, operation, req), 
-                      "[HixlEngine] Failed to TransferAsync, local_engine:%s, remote_engine:%s",
-                      local_engine_.c_str(), remote_engine.GetString());
+  HIXL_CHK_BOOL_RET_STATUS(
+      client_ptr != nullptr, NOT_CONNECTED,
+      "[HixlEngine] Failed to get client through remote engine, please check connection. remote_engine:%s",
+      remote_engine.GetString());
+  HIXL_CHK_STATUS_RET(client_ptr->TransferAsync(op_descs, operation, req),
+                      "[HixlEngine] Failed to TransferAsync, local_engine:%s, remote_engine:%s", local_engine_.c_str(),
+                      remote_engine.GetString());
   auto id = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(req));
   uint64_t start_time = 0;
   start_time = HixlProfilingReporter::GetSysCycleTime();
@@ -226,13 +244,14 @@ Status HixlEngine::GetTransferStatus(const TransferReq &req, TransferStatus &sta
   auto it = req_map_.find(id);
   if (it == req_map_.cend()) {
     status = TransferStatus::FAILED;
-    HIXL_LOGE(PARAM_INVALID, "[HixlEngine] Request not found, request has been completed or does not exist, req: %p", req);
+    HIXL_LOGE(PARAM_INVALID, "[HixlEngine] Request not found, request has been completed or does not exist, req: %p",
+              req);
     return PARAM_INVALID;
   }
   auto remote_engine = it->second.remote_engine;
   auto client = client_manager_.GetClient(remote_engine.GetString());
-  HIXL_CHECK_NOTNULL(client, 
-                     "[HixlEngine] Failed to get client through remote engine, local_engine:%s, remote_engine:%s", 
+  HIXL_CHECK_NOTNULL(client,
+                     "[HixlEngine] Failed to get client through remote engine, local_engine:%s, remote_engine:%s",
                      local_engine_.c_str(), remote_engine.GetString());
   HIXL_CHK_STATUS_RET(client->GetTransferStatus(req, status), 
                       "[HixlEngine] Failed to get status through client, req:%p, status:%d", 
@@ -273,8 +292,7 @@ Status HixlEngine::GetNotifies(std::vector<NotifyDesc> &notifies) {
 
 Status HixlEngine::RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor) {
   HIXL_CHK_STATUS_RET(server_.RegisterCallbackProcessor(msg_type, processor),
-                      "[HixlEngine] Failed to register msg callback, msg type:%d", 
-                      msg_type);
+                      "[HixlEngine] Failed to register msg callback, msg type:%d", msg_type);
   return SUCCESS;
 }
 
@@ -282,17 +300,16 @@ Status HixlEngine::ParseEndPoint(const std::string &local_comm_res, std::vector<
   try {
     auto config = nlohmann::json::parse(local_comm_res);
     std::string net_id = config["net_instance_id"];
-    for (auto &item : config["endpoint_list"]) {
-      item["_net_instance_id"] = net_id;
+    if (config.contains("endpoint_list") && !config["endpoint_list"].is_null()) {
+      auto &endpoints = config["endpoint_list"];
+      for (auto &item : endpoints) {
+        item["_net_instance_id"] = net_id;
+      }
+      endpoints.get_to(endpoint_list);
     }
-    config["endpoint_list"].get_to(endpoint_list);
-    HIXL_CHK_BOOL_RET_STATUS(!endpoint_list.empty(), PARAM_INVALID, 
-                             "[HixlEngine] endpoint_list is empty, please check options, local_comm_res:%s", 
-                             local_comm_res.c_str());
   } catch (const nlohmann::json::exception &e) {
-    HIXL_LOGE(PARAM_INVALID, 
-              "[HixlEngine] Failed to parse local_comm_res, exception:%s, local_comm_res:%s",
-              e.what(), local_comm_res.c_str());
+    HIXL_LOGE(PARAM_INVALID, "[HixlEngine] Failed to parse local_comm_res, exception:%s, local_comm_res:%s", e.what(),
+              local_comm_res.c_str());
     return PARAM_INVALID;
   }
   return SUCCESS;
@@ -354,6 +371,34 @@ Status HixlEngine::ParseServiceLevel(const std::map<AscendString, AscendString> 
     rdma_service_level_ = static_cast<uint8_t>(service_level);
     HIXL_LOGI("Set rdma service level to %u.", service_level);
   }
+  return SUCCESS;
+}
+
+Status HixlEngine::GenDefaultEndpointConfig(const std::map<AscendString, AscendString> &options,
+                                            std::vector<EndpointConfig> &endpoint_list) {
+  std::vector<std::string> protocol_desc;
+  HIXL_CHK_STATUS_RET(ParseConfigProtocolDesc(options, protocol_desc), "Parse config protocol_desc failed.");
+  if (protocol_desc.empty()) {
+    HIXL_LOGW("only support uboe endpoint config now.");
+    return SUCCESS;
+  }
+  if (protocol_desc.size() == 1 && protocol_desc[0] == "uboe:device") {
+    EndpointConfig endpoint_config{};
+    HIXL_CHK_STATUS_RET(GenDefaultUboeEndpointConfig(endpoint_config), "Gen default uboe endpoint config failed.");
+    endpoint_list.emplace_back(endpoint_config);
+    return SUCCESS;
+  }
+  HIXL_LOGE(PARAM_INVALID, "option[%s] only support [\"uboe:device\"] now.", OPTION_GLOBAL_RESOURCE_CONFIG);
+  return PARAM_INVALID;
+}
+
+Status HixlEngine::GenDefaultUboeEndpointConfig(EndpointConfig &endpoint_config) {
+  std::string uboe_ip;
+  HIXL_CHK_STATUS_RET(GetUboeIp(uboe_ip), "get uboe ip failed");
+  endpoint_config.protocol = kProtocolUboe;
+  endpoint_config.comm_id = uboe_ip;
+  endpoint_config.placement = kPlacementDevice;
+  endpoint_config.net_instance_id = "default_superpod1_1";
   return SUCCESS;
 }
 }  // namespace hixl

@@ -10,9 +10,11 @@
 
 #include "endpoint.h"
 
+#include "host_register_proxy.h"
 #include "common/hixl_utils.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
+#include "common/scope_guard.h"
 #include "proxy/hcomm_proxy.h"
 
 namespace hixl {
@@ -44,6 +46,10 @@ Status Endpoint::Finalize() {
       ret = hixl::HcclError2Status(hccl_ret);
       HIXL_LOGE(ret, "HcommMemUnreg failed, ret: %d", hccl_ret);
     }
+
+    if (it.second.registered_dev_mem != nullptr) {
+      (void)HostRegisterProxy::UnregisterByDev(endpoint_.loc.device.devPhyId, it.second.mem.addr);
+    }
   }
   reg_mems_.clear();
   auto hccl_ret = HcommProxy::EndpointDestroy(handle_);
@@ -66,17 +72,39 @@ const EndpointDesc &Endpoint::GetEndpoint() const {
 Status Endpoint::RegisterMem(const char *mem_tag, const CommMem &mem, MemHandle &mem_handle) {
   std::lock_guard<std::mutex> lock(mutex_);
   Status ret = SUCCESS;
-  HcclResult hccl_ret = HcommProxy::MemReg(handle_, mem_tag, &mem, &mem_handle);
+  HcclResult hccl_ret = HCCL_SUCCESS;
+  void *registered_dev_mem = nullptr;
+  ScopeGuard reg_guard([this, &mem, &registered_dev_mem]() {
+    if (registered_dev_mem != nullptr) {
+      (void)HostRegisterProxy::UnregisterByDev(endpoint_.loc.device.devPhyId, mem.addr);
+    }
+  });
+  if (endpoint_.protocol == COMM_PROTOCOL_UBOE && mem.type == COMM_MEM_TYPE_HOST) {
+    HIXL_CHK_STATUS_RET(
+        HostRegisterProxy::RegisterByDev(endpoint_.loc.device.devPhyId, mem.addr, mem.size, registered_dev_mem),
+        "Register mem failed, as host mem register failed, host addr=%p, size=%lu, devPhyId=%d.", mem.addr, mem.size,
+        endpoint_.loc.device.devPhyId);
+
+    CommMem reg_mem{};
+    reg_mem.type = COMM_MEM_TYPE_DEVICE;
+    reg_mem.addr = registered_dev_mem;
+    reg_mem.size = mem.size;
+    hccl_ret = HcommProxy::MemReg(handle_, mem_tag, &reg_mem, &mem_handle);
+  } else {
+    hccl_ret = HcommProxy::MemReg(handle_, mem_tag, &mem, &mem_handle);
+  }
   if (hccl_ret != HCCL_SUCCESS && hccl_ret != HCCL_E_AGAIN) {
     ret = hixl::HcclError2Status(hccl_ret);
     HIXL_LOGE(ret, "HcommMemReg failed, hccl_ret %d", hccl_ret);
     return ret;
   }
+  reg_guard.Dismiss();
   HixlMemDesc desc{};
   if (mem_tag != nullptr) {
     desc.tag = mem_tag;
   }
   desc.mem = mem;
+  desc.registered_dev_mem = registered_dev_mem;
   reg_mems_[mem_handle] = desc;
   return ret;
 }
@@ -89,6 +117,11 @@ Status Endpoint::DeregisterMem(MemHandle mem_handle) {
     return SUCCESS;
   }
   HIXL_CHK_HCCL_RET(HcommProxy::MemUnreg(handle_, mem_handle));
+  if (it->second.registered_dev_mem != nullptr) {
+    HIXL_CHK_STATUS_RET(HostRegisterProxy::UnregisterByDev(endpoint_.loc.device.devPhyId, it->second.mem.addr),
+                        "Deregister mem failed, as host mem unregister failed, host addr=%p, devPhyId=%d.",
+                        it->second.mem.addr, endpoint_.loc.device.devPhyId);
+  }
   reg_mems_.erase(it);
   return SUCCESS;
 }

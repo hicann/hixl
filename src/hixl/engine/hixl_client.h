@@ -40,7 +40,8 @@ enum class CommType : uint32_t {
   COMM_TYPE_UB_D2H = 2U,
   COMM_TYPE_UB_H2H = 3U,
   COMM_TYPE_ROCE = 4U,
-  COMM_TYPE_HCCS = 5U
+  COMM_TYPE_HCCS = 5U,
+  COMM_TYPE_UBOE = 6U
 };
 
 struct MatchKey {
@@ -173,6 +174,9 @@ class HixlClient {
                    const std::vector<EndpointConfig> &remote_endpoint_list) const;
 
   Status TryMatchRoceEndpoints(const std::vector<EndpointConfig> &local_endpoint_list,
+                               const std::vector<EndpointConfig> &remote_endpoint_list);
+
+  Status TryMatchUboeEndpoints(const std::vector<EndpointConfig> &local_endpoint_list,
                                const std::vector<EndpointConfig> &remote_endpoint_list);
 
   Status TryMatchUbEndpoints(const EndpointConfig &local_endpoint,

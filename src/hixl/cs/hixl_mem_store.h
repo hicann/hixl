@@ -18,9 +18,12 @@ namespace hixl {
 struct MemoryRegion {
   const void *addr = nullptr;  // 内存起始地址
   size_t size = 0U;            // 内存区域大小
+  bool is_host_mem = false;
+  void *register_dev_addr = nullptr; // 非空时有效
 
   MemoryRegion() = default;
-  MemoryRegion(const void *a, size_t s) noexcept : addr(a), size(s) {}
+  MemoryRegion(const void *a, size_t s, bool is_host = false, void *dev_addr = nullptr) noexcept
+      : addr(a), size(s), is_host_mem(is_host), register_dev_addr(dev_addr) {}
 };
 
 /**
@@ -40,7 +43,8 @@ class HixlMemStore {
    * @param size 要注册的内存区域大小
    * @return 操作结果
    */
-  Status RecordMemory(bool is_server, const void *addr, size_t size);
+  Status RecordMemory(bool is_server, const void *addr, size_t size, bool is_host_mem = false,
+                      void *register_dev_addr = nullptr);
 
   /**
    * @brief channel销毁后，注销Server端已经注册的内存区域
@@ -56,7 +60,7 @@ class HixlMemStore {
    */
   Status ValidateMemoryAccess(const void *server_addr, size_t mem_size, const void *client_addr);
   bool CheckMemoryForRegister(bool is_server, const void *check_addr, size_t check_size);
-
+  Status FindMemoryRegion(bool is_server, const void *addr, MemoryRegion &region) const;
 
  private:
   bool CheckMemoryForAccess(bool is_server, const void *check_addr, size_t check_size);
@@ -65,7 +69,7 @@ class HixlMemStore {
   // 内存区域信息结构体
   std::map<const void *, MemoryRegion> server_regions_;
   std::map<const void *, MemoryRegion> client_regions_;
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
 
   HixlMemStore(const HixlMemStore &) = delete;
   HixlMemStore &operator=(const HixlMemStore &) = delete;
