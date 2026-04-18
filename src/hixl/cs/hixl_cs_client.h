@@ -167,7 +167,7 @@ class HixlCSClient {
   Status LaunchDeviceKernel(bool is_get, DeviceCompleteHandle &handle, const void *remote_flag);
   void ReleaseLegacyHandlesLocked();
   void AbortAllPendingDeviceHandlesLocked();
-  Status ReleaseDeviceResourcesLocked();
+  void ReleaseDeviceResourcesLocked();
 
  private:
   std::mutex mutex_;

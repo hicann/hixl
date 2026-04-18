@@ -375,22 +375,24 @@ Status AdxlInnerEngine::InitBufferTransferService(const std::map<ge::AscendStrin
 }
 
 void AdxlInnerEngine::Finalize() {
-  hixl::TemporaryRtContext with_context(aclrt_context_);
-  if (buffer_transfer_service_ != nullptr) {
-    buffer_transfer_service_->Finalize();
-  }
-  if (fabric_mem_transfer_service_ != nullptr) {
-    fabric_mem_transfer_service_->Finalize();
-  }
-  channel_manager_.Finalize();
-  msg_handler_.Finalize();
-  if (stream_pool_ != nullptr) {
-    stream_pool_->Finalize();
-  }
-  for (auto &mem : npu_pool_memorys_) {
-    if (mem != nullptr) {
-      auto ret = aclrtFree(mem);
-      LLMLOGI("Call aclrtFree ret:%d.", ret);
+  {
+    hixl::TemporaryRtContext with_context(aclrt_context_);
+    if (buffer_transfer_service_ != nullptr) {
+      buffer_transfer_service_->Finalize();
+    }
+    if (fabric_mem_transfer_service_ != nullptr) {
+      fabric_mem_transfer_service_->Finalize();
+    }
+    channel_manager_.Finalize();
+    msg_handler_.Finalize();
+    if (stream_pool_ != nullptr) {
+      stream_pool_->Finalize();
+    }
+    for (auto &mem : npu_pool_memorys_) {
+      if (mem != nullptr) {
+        auto ret = aclrtFree(mem);
+        LLMLOGI("Call aclrtFree ret:%d.", ret);
+      }
     }
   }
   if (aclrt_context_ != nullptr) {

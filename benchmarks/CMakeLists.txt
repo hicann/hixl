@@ -14,42 +14,38 @@ project(hixl_benchmarks)
 set(HIXL_INC_DIR "${HIXL_CODE_DIR}/include")
 add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 
-file(GLOB COMMON_FILES "${HIXL_CODE_DIR}/benchmarks/common/*.cpp")
-
-# 只定义目标名称列表（与cpp文件名前缀相同）
-set(targets_list
-    "benchmark"
+set(BENCHMARK_COMMON_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/common/benchmark_config.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/common/tcp_client_server.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/common/client_runner.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/common/server_runner.cc"
 )
 
-foreach(target_name IN LISTS targets_list)
-    # 自动构建源文件路径（目标名.cpp）
-    set(source_file "${target_name}.cpp")
-
-    if(NOT TARGET ${target_name})
-        add_executable(${target_name} ${source_file} ${COMMON_FILES})
-        target_include_directories(${target_name} PRIVATE
-            ${HIXL_INC_DIR}
-            ${CANN_INSTALL_PATH}/include
-        )
-        target_compile_options(${target_name} PRIVATE
-            -ftrapv
-            -O2
-            -fno-common
-            -Wfloat-equal
-            -Wall
-            -Werror
-            -Wextra
-        )
-        target_link_libraries(${target_name} PRIVATE
-            cann_hixl
-            acl_rt_headers
-            acl_rt
-            -lpthread
-            -lrt
-        )
-        target_link_ascend_hal(${target_name})
-    endif()
-endforeach()
+# benchmark：主程序 + common 下各模块 .cpp
+add_executable(benchmark benchmark.cpp ${BENCHMARK_COMMON_SOURCES})
+target_include_directories(benchmark PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/common
+    ${HIXL_INC_DIR}
+    ${CANN_INSTALL_PATH}/include
+)
+target_compile_options(benchmark PRIVATE
+    -ftrapv
+    -O2
+    -fno-common
+    -Wfloat-equal
+    -Wall
+    -Werror
+    -Wextra
+)
+target_link_libraries(benchmark PRIVATE
+    cann_hixl
+    acl_rt_headers
+    acl_rt
+    -lpthread
+    -lrt
+)
+target_link_ascend_hal(benchmark)
 
 if(NOT TARGET fabric_mem_kv_benchmark)
     add_executable(fabric_mem_kv_benchmark fabric_mem_kv_benchmark.cpp)
