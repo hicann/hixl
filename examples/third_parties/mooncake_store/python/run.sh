@@ -18,5 +18,6 @@ export ASCEND_HOST_LOG_FILE_NUM=500
 # source /usr/local/Ascend/cann/set_env.sh
 export MC_LOG_LEVEL=ERROR
 export ASCEND_BUFFER_POOL=4:8 # BUFFER_NUM:BUFFER_SIZE (MB)
+# export ASCEND_ENABLE_USE_FABRIC_MEM=1
 
 python3 $@

@@ -17,7 +17,8 @@ import torch_npu
 
 SEGMENT_SIZE = 1024 * 1024 * 1024
 LOCAL_BUFFER = 20 * 1024 * 1024
-ALIGNMENT = 2 * 1024 * 1024
+HCCS_ALIGNMENT = 2 * 1024 * 1024
+FABRIC_ALIGNMENT = 1024 * 1024 * 1024
 SUPPORTED_SCHEMA = ["h2h", "h2d", "d2h", "d2d"]
 
 
@@ -30,6 +31,15 @@ def create_parser(description):
     parser.add_argument('--rank', type=int, required=True, help='Rank ID (must be provided to sync process group)')
     parser.add_argument('--world_size', type=int, help='World size (optional, default: 1)')
     parser.add_argument('--distributed', action='store_true', help='Enable distributed mode')
+    # Dummy client mode options
+    parser.add_argument('--use_dummy', action='store_true',
+                        help='Use dummy client mode to connect to standalone Real Client')
+    parser.add_argument('--real_client_address', type=str, default='127.0.0.1:54000',
+                        help='Real Client address for dummy mode (default: 127.0.0.1:54000)')
+    parser.add_argument('--mem_pool_size', type=int, default=0,
+                        help='Memory pool size in bytes for dummy mode (optional)')
+    parser.add_argument('--local_buffer_size', type=int, default=0,
+                        help='Local buffer size in bytes for dummy mode (optional)')
     return parser
 
 
@@ -38,6 +48,8 @@ def setup_environment(args):
     logging.info(f"Running on device: {args.device_id}")
 
 
-def validate_schema(schema):
-    if schema not in SUPPORTED_SCHEMA:
-        raise RuntimeError(f"Unsupported Schema: {schema}")
+def validate_schema(args):
+    if args.schema not in SUPPORTED_SCHEMA:
+        raise RuntimeError(f"Unsupported Schema: {args.schema}")
+    if args.use_dummy and args.schema not in ["h2h", "d2d"]:
+        raise RuntimeError(f"Only h2h and d2d supported for Dummy/Real Clients now.") 
