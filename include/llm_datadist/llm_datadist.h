@@ -297,7 +297,7 @@ class ASCEND_FUNC_VISIBILITY LlmDataDist {
    * @param [in] src_cache 本地cache
    * @param [in] dst_cache_index 远端cache索引
    * @param [in] src_batch_index 本地cache的batch index
-   * @param [in] size 拉取的大小, -1表示拉取源cache的完整数据
+   * @param [in] size 推送的大小, -1表示拉取源cache的完整数据
    * @param [in] ext_param 扩展参数
    * @return 成功:LLM_SUCCESS, 失败:其它
    */

@@ -1,11 +1,10 @@
 # pre-commit使用指导书
 
-[TOC]
---
+---
 
 ## 1 使用背景
 
-本指导书主要用于指导如何在本地使用代码仓中部署的pre-commit能力（主要包括代码格式化、单词拼写检查及OAT扫描能力）。
+本指导书主要用于指导如何在本地使用代码仓中部署的pre-commit能力（主要包括代码格式化、单词拼写检查及OAT扫描能力），更多使用方式请参考 [pre-commit官方文档](https://pre-commit.com/)。
 
 ## 2 功能概述
 
@@ -17,7 +16,7 @@
 
 ### 3.1 pre-commit安装步骤
 
-步骤 1: 安装 pre-commit 框架
+步骤 1: 安装 pre-commit 框架（请确保已安装 python 和 pip）
 
 ```bash
 # 使用 pip（推荐）
@@ -27,8 +26,6 @@ pip install pre-commit
 pre-commit --version
 # 输出: pre-commit 3.x.x
 ```
-
-**Windows 用户**: 确保已安装 Python 和 pip。
 
 步骤 2: 进入项目目录
 
