@@ -65,8 +65,7 @@ target_link_libraries(cann_hixl PRIVATE
         -Wl,--as-needed
         )
 
-install(TARGETS cann_hixl OPTIONAL
-        EXPORT cann_hixl-targets
-        LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR}
-        RUNTIME DESTINATION ${INSTALL_LIBRARY_DIR})
-
+install(TARGETS cann_hixl 
+         EXPORT cann_hixl-targets 
+         LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} COMPONENT hixl 
+         RUNTIME DESTINATION ${INSTALL_LIBRARY_DIR} COMPONENT hixl)

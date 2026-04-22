@@ -9,15 +9,16 @@
 # -----------------------------------------------------------------------------------------------------------
 
 cmake_minimum_required(VERSION 3.16)
+include(../fetch_cann_cmake.cmake)
 project (device_hixl_ops)
+
+init_cann_project()
 
 set(PRODUCT_SIDE device)
 include(../function.cmake)
 include(../intf_pub_linux.cmake)
 
-set(CMAKE_CXX_STANDARD 17)
 set(HIXL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../" CACHE PATH "Project top directory")
-set(TARGET_SYSTEM_NAME Linux)
 
 set(PROJECT_SOURCE_DIR ${HIXL_DIR})
 include(../variables.cmake)
@@ -54,4 +55,5 @@ sign_file(
 install(FILES
   ${aicpu_hixl_sign_file}
   DESTINATION hixl/aicpu_kernel
+  COMPONENT hixl
 )

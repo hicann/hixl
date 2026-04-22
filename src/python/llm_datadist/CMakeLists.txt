@@ -24,6 +24,7 @@ add_custom_command(
         && echo "package llm datadist whl end"
         DEPENDS version_hixl_info llm_datadist_wrapper metadef_wrapper
 )
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/llm_datadist-0.0.1-py3-none-any.whl OPTIONAL
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/llm_datadist-0.0.1-py3-none-any.whl
         DESTINATION ${INSTALL_LIBRARY_DIR}
+        COMPONENT hixl
 )

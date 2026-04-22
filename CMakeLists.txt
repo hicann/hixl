@@ -9,9 +9,11 @@
 # ----------------------------------------------------------------------------
 
 cmake_minimum_required(VERSION 3.16)
+include(cmake/fetch_cann_cmake.cmake)
 project(hixl VERSION 1.0.0)
 
-set(CMAKE_CXX_STANDARD 17)
+init_cann_project()
+
 option(ENABLE_TEST "Enable test" OFF)
 option(ENABLE_EXAMPLES "Enable examples" OFF)
 option(ENABLE_BENCHMARKS "Enable benchmarks" OFF)
@@ -22,10 +24,8 @@ include(cmake/variables.cmake)
 include(cmake/dependencies.cmake)
 
 include(version.cmake)
-if(BUILD_WITH_INSTALLED_DEPENDENCY_CANN_PKG)
-    check_pkg_build_deps("hixl")
-endif()
-add_version_info_targets()
+check_cann_pkg_build_deps("hixl")
+add_cann_version_info_targets()
 
 if (ENABLE_TEST)
     add_subdirectory(tests)
@@ -73,5 +73,6 @@ ExternalProject_Add(device
         -DENABLE_ASAN=${ENABLE_ASAN}
         -DENABLE_GVOC=${ENABLE_GCOV}
         -DCANN_VERSION_hixl_VERSION=${CANN_VERSION_hixl_VERSION}
+        -DCANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}
     BUILD_ALWAYS TRUE
 )

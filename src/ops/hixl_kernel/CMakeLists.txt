@@ -43,5 +43,6 @@ add_dependencies(cann_hixl_kernel aicpu_kernel_json)
 
 install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/libcann_hixl_kernel.json
-        DESTINATION hixl/aicpu_kernel OPTIONAL
+        DESTINATION hixl/aicpu_kernel
+        COMPONENT hixl
 )

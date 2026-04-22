@@ -31,6 +31,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/third_party/makeself-fetch.cmake)
 set(script_prefix ${CMAKE_CURRENT_SOURCE_DIR}/scripts/package/hixl/scripts)
 install(DIRECTORY ${script_prefix}/
     DESTINATION share/info/hixl/script
+    COMPONENT hixl
     FILE_PERMISSIONS
     OWNER_READ OWNER_WRITE OWNER_EXECUTE  # 文件权限
     GROUP_READ GROUP_EXECUTE
@@ -51,6 +52,7 @@ set(SCRIPTS_FILES
 
 install(FILES ${SCRIPTS_FILES}
     DESTINATION share/info/hixl/script
+    COMPONENT hixl
 )
 set(COMMON_FILES
     ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/install_common_parser.sh
@@ -76,41 +78,54 @@ set(CONF_FILES
 
 install(FILES ${CMAKE_BINARY_DIR}/version.hixl.info
     DESTINATION share/info/hixl
+    COMPONENT hixl
     RENAME version.info
-    OPTIONAL
 )
 
 install(FILES ${CONF_FILES}
     DESTINATION hixl/conf
+    COMPONENT hixl
 )
 install(FILES ${PACKAGE_FILES}
     DESTINATION share/info/hixl/script
+    COMPONENT hixl
 )
 install(FILES ${LATEST_MANGER_FILES}
     DESTINATION latest_manager
+    COMPONENT hixl
 )
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/scripts/package/latest_manager/scripts/
     DESTINATION latest_manager
+    COMPONENT hixl
 )
 
 set(hixl_include ${CMAKE_SOURCE_DIR}/include)
 install(DIRECTORY ${hixl_include}/
     DESTINATION hixl/include
+    COMPONENT hixl
     FILE_PERMISSIONS
     OWNER_READ OWNER_WRITE
     GROUP_READ GROUP_EXECUTE
 )
 install(TARGETS llm_datadist
-        LIBRARY DESTINATION hixl/lib)
+        LIBRARY DESTINATION hixl/lib
+        COMPONENT hixl
+)
+install(TARGETS cann_hixl
+        LIBRARY DESTINATION hixl/lib
+        COMPONENT hixl
+)
 
 install(FILES
   ${CMAKE_SOURCE_DIR}/build/device_install/hixl/aicpu_kernel/cann-hixl-compat.tar.gz
   DESTINATION hixl/aicpu_kernel
+  COMPONENT hixl
 )
 
 install(FILES
   ${CMAKE_SOURCE_DIR}/build/device_install/hixl/aicpu_kernel/libcann_hixl_kernel.json
   DESTINATION hixl/aicpu_kernel
+  COMPONENT hixl
 )
 
 # ============= CPack =============
