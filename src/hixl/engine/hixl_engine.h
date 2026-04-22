@@ -143,12 +143,9 @@ class HixlEngine : public hixl::Engine {
   void Finalize() override;
 
  private:
-  Status ParseEndPoint(const std::string &local_comm_res, std::vector<EndpointConfig> &endpoint_list);
+  Status InitServer();
   Status ParseTrafficClass(const std::map<AscendString, AscendString> &options);
   Status ParseServiceLevel(const std::map<AscendString, AscendString> &options);
-  static Status GenDefaultEndpointConfig(const std::map<AscendString, AscendString> &options,
-                                         std::vector<EndpointConfig> &endpoint_list);
-  static Status GenDefaultUboeEndpointConfig(EndpointConfig &endpoint_config);
 
   std::mutex mutex_;
 

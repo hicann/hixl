@@ -20,6 +20,7 @@
 #include "securec.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
+#include "engine/endpoint_generator.h"
 #include "common/hixl_utils.h"
 #include "common/ctrl_msg.h"
 #include "common/ctrl_msg_plugin.h"
@@ -194,55 +195,7 @@ Status HixlClient::RecvEndpointInfoResp(int32_t fd, std::vector<EndpointConfig> 
 
   const size_t json_len = static_cast<size_t>(body_size - sizeof(CtrlMsgType));
   std::string json_str(reinterpret_cast<const char *>(body.data() + sizeof(msg_type)), json_len);
-  HIXL_CHK_STATUS_RET(Deserialize(json_str, remote_endpoint_list), "Failed to deserialize json_str, json_str:%s",
-                      json_str.c_str());
-  return SUCCESS;
-}
-
-Status HixlClient::Deserialize(const std::string &json_str, std::vector<EndpointConfig> &endpoint_list) {
-  nlohmann::json j;
-  try {
-    j = nlohmann::json::parse(json_str);
-  } catch (const nlohmann::json::exception &e) {
-    HIXL_LOGE(PARAM_INVALID, "Failed to parse json, exception:%s", e.what());
-    return PARAM_INVALID;
-  }
-  // 检查是否为数组
-  if (!j.is_array()) {
-    HIXL_LOGE(PARAM_INVALID, "Invalid json format, expect array");
-    return PARAM_INVALID;
-  }
-
-  for (const auto &item : j) {
-    EndpointConfig endpoint{};
-    // 解析字段
-    HIXL_CHK_STATUS_RET(ParseJsonField(item, "protocol", endpoint.protocol), "Failed to parse protocol");
-    HIXL_CHK_STATUS_RET(ParseJsonField(item, "comm_id", endpoint.comm_id), "Failed to parse comm_id");
-    HIXL_CHK_STATUS_RET(ParseJsonField(item, "net_instance_id", endpoint.net_instance_id),
-                        "Failed to parse net_instance_id");
-    HIXL_CHK_STATUS_RET(ParseJsonField(item, "placement", endpoint.placement), "Failed to parse placement");
-    HIXL_CHK_STATUS_RET(ParseJsonField(item, "plane", endpoint.plane), "Failed to parse plane");
-    HIXL_CHK_STATUS_RET(ParseJsonField(item, "dst_eid", endpoint.dst_eid), "Failed to parse dst_eid");
-
-    endpoint_list.emplace_back(std::move(endpoint));
-  }
-  return SUCCESS;
-}
-
-Status HixlClient::ParseJsonField(const nlohmann::json &json_obj, const std::string &field_name,
-                                  std::string &field_value) {
-  if (!json_obj.contains(field_name)) {
-    HIXL_LOGE(PARAM_INVALID, "Missing required field '%s' in EndpointConfig", field_name.c_str());
-    return PARAM_INVALID;
-  }
-
-  try {
-    field_value = json_obj[field_name].get<std::string>();
-    return SUCCESS;
-  } catch (const nlohmann::json::exception &e) {
-    HIXL_LOGE(PARAM_INVALID, "Failed to parse field '%s', exception: %s", field_name.c_str(), e.what());
-    return PARAM_INVALID;
-  }
+  return EndpointGenerator::DeserializeEndpointConfigList(json_str, remote_endpoint_list);
 }
 
 Status HixlClient::TryMatchUboeEndpoints(const std::vector<EndpointConfig> &local_endpoint_list,
@@ -289,7 +242,13 @@ Status HixlClient::FindMatchedEndpoints(const std::vector<EndpointConfig> &local
     HIXL_LOGW("Found only %u/%u expected UB endpoint pairs", count, kMaxUbCsClientNum);
     return SUCCESS;
   }
-  HIXL_LOGE(FAILED, "Failed to find matched UB endpoints");
+
+  HIXL_LOGI("No matched UB endpoints found, try HCCS matching");
+  if (TryMatchHccsEndpoints(local_endpoint_list, remote_endpoint_list) == SUCCESS) {
+    return SUCCESS;
+  }
+
+  HIXL_LOGE(FAILED, "Failed to find matched UB/HCCS endpoints");
   return FAILED;
 }
 
@@ -322,6 +281,21 @@ Status HixlClient::TryMatchRoceEndpoints(const std::vector<EndpointConfig> &loca
     HIXL_LOGE(FAILED, "Failed to find matched ROCE endpoints");
     return FAILED;
   }
+}
+
+Status HixlClient::TryMatchHccsEndpoints(const std::vector<EndpointConfig> &local_endpoint_list,
+                                         const std::vector<EndpointConfig> &remote_endpoint_list) {
+  auto local_it = std::find_if(local_endpoint_list.begin(), local_endpoint_list.end(),
+                               [](const EndpointConfig &endpoint) { return endpoint.protocol == kProtocolHccs; });
+  auto remote_it = std::find_if(remote_endpoint_list.begin(), remote_endpoint_list.end(),
+                                [](const EndpointConfig &endpoint) { return endpoint.protocol == kProtocolHccs; });
+
+  if (local_it != local_endpoint_list.end() && remote_it != remote_endpoint_list.end()) {
+    return CreateCsClients(*local_it, *remote_it, CommType::COMM_TYPE_HCCS);
+  }
+
+  HIXL_LOGE(FAILED, "Failed to find matched HCCS endpoints");
+  return FAILED;
 }
 
 void HixlClient::BuildEndpointsMatchMap(const std::vector<EndpointConfig> &endpoint_list,
@@ -381,11 +355,12 @@ Status HixlClient::CreateCsClients(const EndpointConfig &local_endpoint_config,
   HIXL_CHK_ACL_RET(aclrtGetPhyDevIdByLogicDevId(dev_logic_id, &dev_phy_id));
   EndpointDesc local_endpoint{};
   EndpointDesc remote_endpoint{};
-  HIXL_CHK_STATUS_RET(ConvertToEndpointDesc(local_endpoint_config, local_endpoint, static_cast<uint32_t>(dev_phy_id)),
+  HIXL_CHK_STATUS_RET(EndpointGenerator::ConvertToEndpointDesc(local_endpoint_config, local_endpoint,
+                                                               static_cast<uint32_t>(dev_phy_id)),
                       "HixlClient convert EndpointConfig to EndpointInfo failed, local_endpoint_config:%s",
                       local_endpoint_config.ToString().c_str());
   HIXL_LOGI("Local_endpoint dev_phy_id: %u", local_endpoint.loc.device.devPhyId);
-  HIXL_CHK_STATUS_RET(ConvertToEndpointDesc(remote_endpoint_config, remote_endpoint),
+  HIXL_CHK_STATUS_RET(EndpointGenerator::ConvertToEndpointDesc(remote_endpoint_config, remote_endpoint),
                       "HixlClient convert EndpointConfig to EndpointInfo failed, remote_endpoint_config:%s",
                       remote_endpoint_config.ToString().c_str());
   HIXL_LOGI("Remote_endpoint dev_phy_id: %u", remote_endpoint.loc.device.devPhyId);
@@ -466,6 +441,7 @@ Status HixlClient::RegisterMemToCsClient(const MemDesc &mem, const MemType type)
   }
   comm_types_to_register.push_back(CommType::COMM_TYPE_ROCE);
   comm_types_to_register.push_back(CommType::COMM_TYPE_UBOE);
+  comm_types_to_register.push_back(CommType::COMM_TYPE_HCCS);
 
   // 注册内存到对应的cs client
   std::lock_guard<std::mutex> lock(client_handles_mutex_);
@@ -709,18 +685,20 @@ Status HixlClient::ClassifyTransfers(const std::vector<TransferOpDesc> &op_descs
     }
 
     bool has_found = false;
-    // 如果是roce或者uboe，直接将op_desc保存在op_descs_table中
-    for (const auto comm_type : {CommType::COMM_TYPE_ROCE, CommType::COMM_TYPE_UBOE}) {
+    {
       std::lock_guard<std::mutex> lock(client_handles_mutex_);
-      if (client_handles_.find(comm_type) != client_handles_.end()) {
+      for (const auto comm_type : {CommType::COMM_TYPE_UBOE, CommType::COMM_TYPE_ROCE, CommType::COMM_TYPE_HCCS}) {
+        if (client_handles_.find(comm_type) == client_handles_.end()) {
+          continue;
+        }
         has_found = true;
         op_descs_table[comm_type].push_back(op_desc);
         HIXL_LOGI("Current communication type: %s, local memory type: %s, remote memory type: %s.",
                   CommTypeToString(comm_type), (local_mem_type == MemType::MEM_DEVICE) ? kMemTypeDevice : kMemTypetHost,
                   (remote_mem_type == MemType::MEM_DEVICE) ? kMemTypeDevice : kMemTypetHost);
+        break;
       }
     }
-
     if (has_found) {
       continue;
     }

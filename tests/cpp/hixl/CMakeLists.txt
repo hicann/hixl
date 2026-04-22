@@ -23,6 +23,7 @@ set(HIXL_TEST_FILES
         engine/hixl_client_unittest.cc
         engine/hixl_utils_unittest.cc
         engine/hixl_engine_unittest.cc
+        engine/endpoint_generator_ut.cc
         engine/hixl_profiling_unittest.cc
         engine/hixl_engine_uboe_unittest.cc
         ../ops/hixl_kernel/hixl_kernel_basic_unittest.cc

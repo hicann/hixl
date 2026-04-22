@@ -9,6 +9,9 @@
  */
 
 #include "engine_factory.h"
+
+#include <algorithm>
+
 #include "nlohmann/json.hpp"
 #include "hixl_engine.h"
 #include "adxl/adxl_inner_engine.h"
@@ -21,7 +24,8 @@ namespace {
 bool UseUboe(const std::map<AscendString, AscendString> &options) {
   std::vector<std::string> protocol_desc;
   (void)ParseConfigProtocolDesc(options, protocol_desc);
-  return protocol_desc.size() == 1 && protocol_desc[0] == "uboe:device";
+  return !protocol_desc.empty() &&
+         std::find(protocol_desc.begin(), protocol_desc.end(), "uboe:device") != protocol_desc.end();
 }
 }  // namespace
 std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string local_engine,

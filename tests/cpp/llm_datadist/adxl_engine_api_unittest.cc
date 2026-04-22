@@ -160,6 +160,20 @@ TEST_F(AdxlEngineUTest, TestEngineFactoryUseHixlEngineWithLocalCommRes) {
   EXPECT_EQ(dynamic_cast<hixl::AdxlEngine *>(engine.get()), nullptr);
 }
 
+TEST_F(AdxlEngineUTest, TestEngineFactoryUseHixlEngineWhenUboeNotFirstInProtocolDesc) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"(
+    {
+      "comm_resource_config.protocol_desc": ["roce:device", "uboe:device"]
+    }
+  )";
+
+  auto engine = hixl::EngineFactory::CreateEngine("127.0.0.1", options);
+  ASSERT_NE(engine, nullptr);
+  EXPECT_NE(dynamic_cast<hixl::HixlEngine *>(engine.get()), nullptr);
+  EXPECT_EQ(dynamic_cast<hixl::AdxlEngine *>(engine.get()), nullptr);
+}
+
 TEST_F(AdxlEngineUTest, TestAdxlEngine) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;

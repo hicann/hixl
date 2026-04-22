@@ -19,7 +19,11 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include "cs/hixl_cs.h"
+#include "engine/endpoint_test_utils.h"
+#define private public
 #include "engine/hixl_client.h"
+#undef private
+#include "engine/endpoint_generator.h"
 #include "common/hixl_inner_types.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "common/hixl_utils.h"
@@ -85,7 +89,7 @@ class MockHixlServer {
     std::vector<EndpointDesc> endpointInfoList;
     for (const auto &ep : remote_endpoint_list) {
       EndpointDesc endpointInfo;
-      ConvertToEndpointDesc(ep, endpointInfo);
+      EndpointGenerator::ConvertToEndpointDesc(ep, endpointInfo);
       endpointInfoList.push_back(endpointInfo);
     }
     HixlServerDesc server_desc{};
@@ -942,4 +946,87 @@ TEST_F(HixlClientUTest, SegmentAddRangeOverflowTest) {
   Status st = segment.AddRange(start, len);
   EXPECT_EQ(st, PARAM_INVALID);
 }
+
+TEST_F(HixlClientUTest, DeserializePreservesDeviceInfoAfterSerializeRoundTrip) {
+  std::vector<EndpointConfig> input_list = {endpoint_test::BuildSampleDeviceRoceEndpoint()};
+
+  std::string msg_str;
+  EXPECT_EQ(EndpointGenerator::SerializeEndpointConfigList(input_list, msg_str), SUCCESS);
+
+  std::vector<EndpointConfig> output_list;
+  EXPECT_EQ(EndpointGenerator::DeserializeEndpointConfigList(msg_str, output_list), SUCCESS);
+  ASSERT_EQ(output_list.size(), 1U);
+
+  const auto &out = output_list[0];
+  EXPECT_EQ(out.protocol, kProtocolRoce);
+  EXPECT_EQ(out.comm_id, "127.0.0.1");
+  EXPECT_EQ(out.placement, kPlacementDevice);
+  EXPECT_EQ(out.plane, "plane-a");
+  EXPECT_EQ(out.dst_eid, "00010002000300040005000600070008");
+  EXPECT_EQ(out.net_instance_id, "superpod_1");
+  EXPECT_EQ(out.device_info.phy_device_id, 3);
+  EXPECT_EQ(out.device_info.super_device_id, 7);
+  EXPECT_EQ(out.device_info.super_pod_id, 9);
+}
+
+TEST_F(HixlClientUTest, DeserializeOldFormatWithoutDeviceInfoSuccess) {
+  const std::string json_str = endpoint_test::BuildLegacyEndpointListJson();
+
+  std::vector<EndpointConfig> endpoint_list;
+  EXPECT_EQ(EndpointGenerator::DeserializeEndpointConfigList(json_str, endpoint_list), SUCCESS);
+  ASSERT_EQ(endpoint_list.size(), 1U);
+
+  const auto &ep = endpoint_list[0];
+  EXPECT_EQ(ep.protocol, kProtocolRoce);
+  EXPECT_EQ(ep.comm_id, "127.0.0.1");
+  EXPECT_EQ(ep.placement, kPlacementDevice);
+  EXPECT_EQ(ep.plane, "plane-a");
+  EXPECT_EQ(ep.dst_eid, "00010002000300040005000600070008");
+  EXPECT_EQ(ep.net_instance_id, "superpod_legacy");
+  EXPECT_EQ(ep.device_info.phy_device_id, -1);
+  EXPECT_EQ(ep.device_info.super_device_id, -1);
+  EXPECT_EQ(ep.device_info.super_pod_id, -1);
+}
+
+TEST_F(HixlClientUTest, ClassifyTransfersUseHccsWhenHccsHandleExists) {
+  ASSERT_NE(client_, nullptr);
+
+  client_->client_handles_.clear();
+  client_->client_handles_[CommType::COMM_TYPE_HCCS] = reinterpret_cast<HixlClientHandle>(0x1234);
+
+  client_->local_segments_.clear();
+  client_->remote_segments_.clear();
+
+  auto local_seg = std::make_shared<Segment>(MEM_DEVICE);
+  EXPECT_EQ(local_seg->AddRange(0x1000, 0x1000), SUCCESS);
+  client_->local_segments_.emplace_back(local_seg);
+
+  auto remote_seg = std::make_shared<Segment>(MEM_DEVICE);
+  EXPECT_EQ(remote_seg->AddRange(0x3000, 0x1000), SUCCESS);
+  client_->remote_segments_.emplace_back(remote_seg);
+
+  TransferOpDesc op_desc{};
+  op_desc.local_addr = 0x1100;
+  op_desc.remote_addr = 0x3100;
+  op_desc.len = 0x100;
+
+  std::vector<TransferOpDesc> op_descs = {op_desc};
+  std::map<CommType, std::vector<TransferOpDesc>> op_descs_table;
+
+  EXPECT_EQ(client_->ClassifyTransfers(op_descs, op_descs_table), SUCCESS);
+
+  ASSERT_EQ(op_descs_table[CommType::COMM_TYPE_HCCS].size(), 1U);
+  EXPECT_EQ(op_descs_table[CommType::COMM_TYPE_HCCS][0].local_addr, op_desc.local_addr);
+  EXPECT_EQ(op_descs_table[CommType::COMM_TYPE_HCCS][0].remote_addr, op_desc.remote_addr);
+  EXPECT_EQ(op_descs_table[CommType::COMM_TYPE_HCCS][0].len, op_desc.len);
+
+  EXPECT_TRUE(op_descs_table[CommType::COMM_TYPE_UB_D2D].empty());
+  EXPECT_TRUE(op_descs_table[CommType::COMM_TYPE_UB_D2H].empty());
+  EXPECT_TRUE(op_descs_table[CommType::COMM_TYPE_UB_H2D].empty());
+  EXPECT_TRUE(op_descs_table[CommType::COMM_TYPE_UB_H2H].empty());
+  EXPECT_TRUE(op_descs_table[CommType::COMM_TYPE_ROCE].empty());
+
+  client_->client_handles_.clear();
+}
+
 }  // namespace hixl

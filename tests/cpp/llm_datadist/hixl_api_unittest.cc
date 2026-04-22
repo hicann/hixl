@@ -11,6 +11,8 @@
 #include <memory>
 #include <vector>
 #include <cstdlib>
+#include <fstream>
+#include <sys/stat.h>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
@@ -449,7 +451,7 @@ TEST_F(HixlUTest, TestHixlTransferAsyncWithMultiThread) {
 }
 
 TEST_F(HixlUTest, TestHixlGetTransferStatusFalied) {
-  llm:AutoCommResRuntimeMock::SetDevice(0);
+  llm::AutoCommResRuntimeMock::SetDevice(0);
   Hixl engine1;
   std::map<AscendString, AscendString> options1;
   EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);

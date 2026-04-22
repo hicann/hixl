@@ -226,7 +226,7 @@ run() {
       detect_lcov_flags() {
           LCOV_VERSION=$(lcov --version 2>/dev/null | head -n1 | sed 's/.*LCOV version //' | cut -d. -f1)
           if [[ "${LCOV_VERSION}" -ge 2 ]]; then
-              LCOV_IGNORE_FLAGS="--ignore-errors empty,negative,mismatch"
+              LCOV_IGNORE_FLAGS="--ignore-errors empty,negative,mismatch,corrupt"
           else
               LCOV_IGNORE_FLAGS=""
           fi

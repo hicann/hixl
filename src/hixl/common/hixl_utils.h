@@ -72,11 +72,8 @@ std::string ToString(const std::vector<T> &v) {
 
 Status HcclError2Status(HcclResult ret);
 
-Status ParseIpAddress(const std::string &ip_str, CommAddr &addr);
-
 Status ParseConfigProtocolDesc(const std::map<AscendString, AscendString> &options,
                                std::vector<std::string> &protocol_desc);
-
 Status CheckIp(const std::string &ip);
 
 Status GetDeviceIp(int32_t phy_device_id, std::string &device_ip);
@@ -89,14 +86,8 @@ std::vector<std::string, std::allocator<std::string>> Split(const std::string &s
 
 Status ParseListenInfo(const std::string &listen_info, std::string &listen_ip, int32_t &listen_port);
 
-Status ParseEidAddress(const std::string &eid_str, CommAddr &addr);
-
-Status ConvertToEndpointDesc(const EndpointConfig &endpoint_config, EndpointDesc &endpoint, uint32_t dev_phy_id = 0);
-
 Status CheckAddrOverlap(const AddrInfo &cur_info, const std::map<MemHandle, AddrInfo> &addr_map, bool &is_duplicate,
                         MemHandle &existing_handle);
-
-Status SerializeEndpointConfigList(const std::vector<EndpointConfig> &list, std::string &msg_str);
 
 std::string MemTypeToString(MemType type);
 std::string TransferOpToString(TransferOp op);

@@ -40,7 +40,7 @@ class MockAclRuntimeStub : public llm::AclRuntimeStub {
 
 namespace {
 
-constexpr uint32_t kUbDevId = 2U;
+constexpr uint32_t kDeviceDevId = 2U;
 constexpr uint32_t kDummyPort = 12345U;
 
 constexpr uint32_t kListNum1 = 1U;
@@ -48,7 +48,7 @@ constexpr uint64_t kLen8 = 8ULL;
 
 constexpr const char *kTransFlagNameDevice = "_hixl_builtin_dev_trans_flag";
 
-EndpointDesc MakeUbDeviceEp(CommProtocol protocol, uint32_t dev_id) {
+EndpointDesc MakeDeviceEp(CommProtocol protocol, uint32_t dev_id) {
   EndpointDesc ep{};
   ep.loc.locType = ENDPOINT_LOC_TYPE_DEVICE;
   ep.protocol = protocol;
@@ -123,11 +123,11 @@ public:
   }
 };
 
-class HixlCSClientUbFixture : public ::testing::Test {
+class HixlCSClientDeviceFixture : public ::testing::Test {
  protected:
   void SetUp() override {
-    const EndpointDesc src = MakeUbDeviceEp(COMM_PROTOCOL_UBC_TP, kUbDevId);
-    const EndpointDesc dst = MakeUbDeviceEp(COMM_PROTOCOL_UBC_TP, kUbDevId);
+    const EndpointDesc src = MakeDeviceEp(COMM_PROTOCOL_UBC_TP, kDeviceDevId);
+    const EndpointDesc dst = MakeDeviceEp(COMM_PROTOCOL_UBC_TP, kDeviceDevId);
 
     HixlClientConfig config{};
     HixlClientDesc desc{};
@@ -147,7 +147,7 @@ class HixlCSClientUbFixture : public ::testing::Test {
 
   void TearDown() override {
     (void)cli_.Destroy();
-    unsetenv("HIXL_UT_UB_FLAG_HACK");
+    unsetenv("HIXL_UT_DEVICE_FLAG_HACK");
   }
 
   CommunicateMem SetupBatchTransfer(bool is_get) {
@@ -186,8 +186,8 @@ class HixlCSClientUbFixture : public ::testing::Test {
   CommunicateMem mem_{};
 };
 
-TEST_F(HixlCSClientUbFixture, BatchPutUbDeviceSuccessUseMemcpyHackFlag) {
-  setenv("HIXL_UT_UB_FLAG_HACK", "1", 1);
+TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSuccessUseMemcpyHackFlag) {
+  setenv("HIXL_UT_DEVICE_FLAG_HACK", "1", 1);
   CommunicateMem mem = SetupBatchTransfer(false);
 
   void *qh = nullptr;
@@ -200,8 +200,8 @@ TEST_F(HixlCSClientUbFixture, BatchPutUbDeviceSuccessUseMemcpyHackFlag) {
   EXPECT_EQ(st, HixlCompleteStatus::HIXL_COMPLETE_STATUS_COMPLETED);
 }
 
-TEST_F(HixlCSClientUbFixture, BatchGetUbDeviceSuccessUseMemcpyHackFlag) {
-  setenv("HIXL_UT_UB_FLAG_HACK", "1", 1);
+TEST_F(HixlCSClientDeviceFixture, BatchGetDeviceSuccessUseMemcpyHackFlag) {
+  setenv("HIXL_UT_DEVICE_FLAG_HACK", "1", 1);
   CommunicateMem mem = SetupBatchTransfer(true);
 
   void *qh = nullptr;
@@ -214,7 +214,7 @@ TEST_F(HixlCSClientUbFixture, BatchGetUbDeviceSuccessUseMemcpyHackFlag) {
   EXPECT_EQ(st, HixlCompleteStatus::HIXL_COMPLETE_STATUS_COMPLETED);
 }
 
-TEST_F(HixlCSClientUbFixture, PrepareDeviceRemoteFlagAndKernelMissingTagFail) {
+TEST_F(HixlCSClientDeviceFixture, PrepareDeviceRemoteFlagAndKernelMissingTagFail) {
   cli_.device_remote_flag_inited_ = false;
   cli_.tag_mem_descs_.clear();
 
@@ -223,7 +223,7 @@ TEST_F(HixlCSClientUbFixture, PrepareDeviceRemoteFlagAndKernelMissingTagFail) {
   EXPECT_EQ(remote_flag, nullptr);
 }
 
-TEST_F(HixlCSClientUbFixture, BatchPutDeviceSyncUsesStreamSyncNoMemcpy) {
+TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSyncUsesStreamSyncNoMemcpy) {
   CommunicateMem mem = SetupBatchTransfer(false);
   MockAclRuntimeStub mock_acl;
   llm::AclRuntimeStub::Install(&mock_acl);
@@ -237,7 +237,7 @@ TEST_F(HixlCSClientUbFixture, BatchPutDeviceSyncUsesStreamSyncNoMemcpy) {
   EXPECT_TRUE(cli_.pending_device_handles_.empty());
 }
 
-TEST_F(HixlCSClientUbFixture, BatchPutDeviceSyncStreamSyncTimeoutAbortsSlot) {
+TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSyncStreamSyncTimeoutAbortsSlot) {
   CommunicateMem mem = SetupBatchTransfer(false);
   MockAclRuntimeStub mock_acl;
   llm::AclRuntimeStub::Install(&mock_acl);
@@ -251,7 +251,7 @@ TEST_F(HixlCSClientUbFixture, BatchPutDeviceSyncStreamSyncTimeoutAbortsSlot) {
   EXPECT_TRUE(cli_.pending_device_handles_.empty());
 }
 
-TEST_F(HixlCSClientUbFixture, BatchPutUbDeviceNotifyWaitFail) {
+TEST_F(HixlCSClientDeviceFixture, BatchPutUbDeviceNotifyWaitFail) {
   CommunicateMem mem = SetupBatchTransfer(false);
   void *qh = nullptr;
 
@@ -269,8 +269,8 @@ TEST_F(HixlCSClientUbFixture, BatchPutUbDeviceNotifyWaitFail) {
   EXPECT_TRUE(cli_.pending_device_handles_.empty());
 }
 
-TEST_F(HixlCSClientUbFixture, BatchPutUbDeviceSlotExhaustedFail) {
-  setenv("HIXL_UT_UB_FLAG_HACK", "1", 1);
+TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSlotExhaustedFail) {
+  setenv("HIXL_UT_DEVICE_FLAG_HACK", "1", 1);
   CommunicateMem mem = SetupBatchTransfer(false);
   std::vector<void *> handles;
   handles.reserve(128U);
