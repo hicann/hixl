@@ -1,4 +1,4 @@
-**提交 PR 前，请先阅读 [HIXL贡献指南](../CONTRIBUTING.md) ，查看 PR 提交方式并遵守相关提交规范。**
+**提交 PR 前，请先阅读 [HIXL贡献指南](https://gitcode.com/cann/hixl/blob/master/CONTRIBUTING.md) ，查看 PR 提交方式并遵守相关提交规范。**
 
 ## 类型标签
 <!--  [x] 表示选中 -->
