@@ -91,7 +91,7 @@ class HixlEngine : public hixl::Engine {
    * @param [in] remote_engine 远端HixlEngine的唯一标识
    * @param [in] operation 将远端内存读到本地或者将本地内存写到远端
    * @param [in] op_descs 批量操作的本地以及远端地址
-   * @param [in] timeout_in_millis 断链的超时时间，单位ms
+   * @param [in] timeout_in_millis 传输的超时时间，单位ms
    * @return 成功:SUCCESS, 失败:其它.
    */
   Status TransferSync(const AscendString &remote_engine, TransferOp operation,

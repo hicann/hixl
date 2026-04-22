@@ -485,7 +485,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 ```
   //初始化客户端和服务端engine，并完成链接
-  Status transfer_status = client_engine.TransferAsync(remote_engine, operation, op_descs, optional_args, req)；
+  Status transfer_status = client_engine.TransferAsync(remote_engine, operation, op_descs, optional_args, req);
   //req是TransferAsync()的输出值，使用这个请求句柄进行传输状态查询
   Status query_status = GetTransferStatus(req, status);
   //对传输状态进行检查，判断传输是否完成

@@ -32,7 +32,7 @@ usage() {
   echo "    -j<N>             Set the number of threads used for building HIXL, default is 8"
   echo "    --build_type=<Release|Debug> |--build-type=<Release|Debug>"
   echo "                      Set build type, default Release"
-  echo "    --cann_3rd_lib_path=<PATH> | --cann_3rd_lib_path=<PATH>"
+  echo "    --cann_3rd_lib_path=<PATH> | --cann-3rd-lib-path=<PATH>"
   echo "                      Set ascend third_party package install path, default ./third_party"
   echo "    --output_path=<PATH> | --output-path=<PATH>"
   echo "                      Set output path, default ./build_out"

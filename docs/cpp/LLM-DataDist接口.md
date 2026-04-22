@@ -175,7 +175,7 @@ Status SetRole(LlmRole role, const std::map<AscendString, AscendString> &options
 
 | 配置项 | 可选/必选 | 描述 |
 | --- | --- | --- |
-| OPTION_LISTEN_IP_INFO | 可选 | - 当LLM-DataDist初始化是Client时，如果需要切换为Server，则配置该option为侦听的Host的IP地址和端口，配置示例："192.168.1.1:26000"。否则不需要配置。<br>  - 当LLM-DataDist初始化是Server时，若不配置该option，则表示切换为Client。若配置了该opiton，则表示当前仍是Server，如果配置的端口号与初始化不一致，以当前配置为准。配置示例："192.168.1.1:26001"。<br>  -  该配置项指定hixl传输后端时，不支持通过SetRole变更侦听端口。|
+| OPTION_LISTEN_IP_INFO | 可选 | - 当LLM-DataDist初始化是Client时，如果需要切换为Server，则配置该option为侦听的Host的IP地址和端口，配置示例："192.168.1.1:26000"。否则不需要配置。<br>  - 当LLM-DataDist初始化是Server时，若不配置该option，则表示切换为Client。若配置了该option，则表示当前仍是Server，如果配置的端口号与初始化不一致，以当前配置为准。配置示例："192.168.1.1:26001"。<br>  -  该配置项指定hixl传输后端时，不支持通过SetRole变更侦听端口。|
 
 **调用示例**
 

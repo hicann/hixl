@@ -87,7 +87,7 @@ class ASCEND_FUNC_VISIBILITY AdxlEngine {
    * @param [in] remote_engine 远端AdxlEngine的唯一标识
    * @param [in] operation 将远端内存读到本地或者将本地内存写到远端
    * @param [in] op_descs 批量操作的本地以及远端地址
-   * @param [in] timeout_in_millis 断链的超时时间，单位ms
+   * @param [in] timeout_in_millis 传输的超时时间，单位ms
    * @return 成功:SUCCESS, 失败:其它.
    */
   Status TransferSync(const AscendString &remote_engine,
@@ -97,7 +97,7 @@ class ASCEND_FUNC_VISIBILITY AdxlEngine {
   
   /**
    * @brief 批量异步传输，下发传输请求
-   * @param [in] remote_engine 远端Hixl的唯一标识
+   * @param [in] remote_engine 远端AdxlEngine的唯一标识
    * @param [in] operation 将远端内存读到本地或者将本地内存写到远端
    * @param [in] op_descs 批量操作的本地以及远端地址
    * @param [in] optional_args 可选参数，预留
@@ -129,7 +129,7 @@ class ASCEND_FUNC_VISIBILITY AdxlEngine {
 
   /**
    * @brief 获取当前AdxlEngine内所有Server收到的Notify信息，并清空已收到信息
-   * @param [in] notifies 存放notify信息的vector
+   * @param [out] notifies 存放notify信息的vector
    * @return 成功:SUCCESS, 失败:其它.
    */
   Status GetNotifies(std::vector<NotifyDesc> &notifies);
@@ -144,7 +144,7 @@ class ASCEND_FUNC_VISIBILITY AdxlEngine {
   static Status MallocMem(MemType type, size_t size, void **ptr);
 
   /**
-   * @brief 释放MallocMem申请的内存内存
+   * @brief 释放MallocMem申请的内存
    * @param [in] ptr 释放的虚拟内存ptr
    * @return 成功:SUCCESS, 失败:其它.
    */

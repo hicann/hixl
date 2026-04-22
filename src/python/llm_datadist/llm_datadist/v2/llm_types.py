@@ -346,7 +346,7 @@ class CacheKey(object):
             kwargs["prefix_id"] = args[3]
         raise_if_false("prompt_cluster_id" in kwargs or "cluster_id" in kwargs,
                        "Param prompt_cluster_id or cluster_id is required")
-        raise_if_false("req_id" in kwargs or "req_id" in kwargs,
+        raise_if_false("req_id" in kwargs,
                        "Param req_id is required")
         valid_keys = ["prompt_cluster_id", "cluster_id", "req_id", "model_id", "prefix_id"]
         for k in kwargs.keys():
@@ -605,7 +605,7 @@ class TransferConfig:
         self.dst_layer_range = None
 
     def __repr__(self) -> str:
-        return (f"TransferConfig(src_cluster_id={self._dst_cluster_id},"
+        return (f"TransferConfig(dst_cluster_id={self._dst_cluster_id},"
                 f" dst_addrs={self._dst_addrs},"
                 f" src_layer_range={self._src_layer_range},"
                 f" src_batch_index={self._src_batch_index})")

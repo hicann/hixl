@@ -81,8 +81,8 @@ HixlStatus HixlCSServerCreate(const HixlServerDesc *server_desc,
 /**
  * @brief Server注册内存
  * @param [in] server_handle 创建server返回的handle
- * @param [in] mem_tag 用于表标识注册内存的描述信息
- * @param [in] mem server的注册的内存信息
+ * @param [in] mem_tag 用于标识注册内存的描述信息
+ * @param [in] mem server注册的内存信息
  * @param [out] mem_handle server注册内存返回的handle信息
  * @return 成功:SUCCESS, 失败:其它.
  */
@@ -145,7 +145,7 @@ HixlStatus HixlCSClientGetRemoteMem(HixlClientHandle client_handle, CommMem **re
 /**
  * @brief 注册client给endpoint分配的内存
  * @param [in] client_handle 客户端句柄
- * @param [in] mem_tag 用于表标识注册内存的描述信息
+ * @param [in] mem_tag 用于标识注册内存的描述信息
  * @param [in] mem client的注册的内存信息
  * @param [out] mem_handle client注册内存返回的handle信息
  * @return 成功:SUCCESS, 失败:其它.

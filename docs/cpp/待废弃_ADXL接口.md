@@ -351,7 +351,7 @@ Status TransferSync(const AscendString &remote_engine,
 |remote_engine|输入|远端AdxlEngine的唯一标识。|
 |operation|输入|将远端内存读到本地或者将本地内存写到远端。|
 |op_descs|输入|批量操作的本地以及远端地址。|
-|timeout_in_millis|输入|断链的超时时间，单位：ms，默认值：1000。|
+|timeout_in_millis|输入|传输的超时时间，单位：ms，默认值：1000。|
 
 
 **调用示例**
@@ -393,7 +393,7 @@ Status SendNotify(const AscendString &remote_engine, const NotifyDesc &notify, i
 |--|--|--|
 |remote_engine|输入|远端AdxlEngine的唯一标识|
 |notify|输入|需要发送的Notify内容。内容中的name和notify_msg长度上限均为1024字符。|
-|timeout_in_millis|输入|发送超时时间，单位ms。缺省值：1000|
+|timeout_in_millis|输入|发送超时时间，单位ms。默认值：1000|
 
 
 **调用示例**
@@ -427,7 +427,7 @@ Status GetNotifies(std::vector<NotifyDesc> &notifies)
 
 |**参数名称**|输入/输出|**取值说明**|
 |--|--|--|
-|notifies|输入|存放Notify信息的vector。|
+|notifies|输出|存放Notify信息的vector。|
 
 
 **调用示例**

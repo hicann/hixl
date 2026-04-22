@@ -15,7 +15,7 @@ HIXL（Huawei Xfer Library）是面向昇腾芯片的单边通信库，用于分
 | 目录 | 用途 |
 |------|------|
 | `src/hixl/` | HIXL Engine 主要实现 |
-| `src/llm_datadist/` | LLM-DataDist 主要实现） |
+| `src/llm_datadist/` | LLM-DataDist 主要实现 |
 | `src/python/` | Python 绑定实现 |
 | `include/` | 公开头文件和对外接口边界 |
 | `tests/cpp/` | C++ 测试 |

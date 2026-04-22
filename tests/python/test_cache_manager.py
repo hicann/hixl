@@ -311,6 +311,7 @@ class LlmCacheManagerSt(unittest.TestCase):
 
         dst_addrs_1 = [10000000, 20000000, 30000000, 40000000, 50000000, 60000000]
         transfer_config_1 = TransferConfig(1, dst_addrs_1, range(0, 3))
+        print(transfer_config_1)
         dst_addrs_2 = [10000000, 20000000, 30000000, 40000000]
         transfer_config_2 = TransferConfig(2, dst_addrs_2, range(2, 4))
         transfer_configs = [transfer_config_1, transfer_config_2]

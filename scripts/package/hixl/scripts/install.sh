@@ -368,7 +368,7 @@ is_valid_path() {
         if [ ! -d "${pkg_install_path}" ]; then
             local up_dir=$(dirname "${pkg_install_path}")
             if [ ! -d "${up_dir}" ]; then
-                log "ERROR" "ERR_NO:0x0003;ERR_DES:The $up_dir dose not exist, please retry a right path."
+                log "ERROR" "ERR_NO:0x0003;ERR_DES:The $up_dir does not exist, please retry a right path."
                 exit_install_log 1
             fi
         else
@@ -566,7 +566,7 @@ log_base_version() {
  
 update_install_path() {
     if [ ! -d "$pkg_install_path" ]; then
-        log "ERROR" "ERR_NO:0x0003;ERR_DES:The $pkg_install_path dose not exist, please retry a right path."
+        log "ERROR" "ERR_NO:0x0003;ERR_DES:The $pkg_install_path does not exist, please retry a right path."
         exit_install_log 1
     fi
 }
@@ -1140,26 +1140,26 @@ if [ "${is_quiet}" = "y" ]; then
     elif [ "${input_pre_check}" = "y" ] || [ "${check}" = "y" ]; then
         is_quiet=y
     else
-        log "ERROR" "'--quiet' is not supported to used by this way, please use with '--full', '--devel', '--run', '--upgrade', '--uninstall', '--check' or '--pre-check'"
+        log "ERROR" "'--quiet' is not supported to be used by this way, please use with '--full', '--devel', '--run', '--upgrade', '--uninstall', '--check' or '--pre-check'"
         exit 1
     fi
 fi
  
 # 检查chip参数是否冲突
 if [ "${chip_flag}" = "y" ] && [ "${uninstall}" = "y" ]; then
-    log "ERROR" "'--chip' is not supported to used by this way, please use with '--full', '--devel', '--run', '--upgrade'"
+    log "ERROR" "'--chip' is not supported to be used by this way, please use with '--full', '--devel', '--run', '--upgrade'"
     exit 1
 fi
  
 # 检查feature参数是否冲突
 if [ "${feature_flag}" = "y" ] && [ "${uninstall}" = "y" ]; then
-    log "ERROR" "'--feature' is not supported to used by this way, please use with '--full', '--devel', '--run', '--upgrade'"
+    log "ERROR" "'--feature' is not supported to be used by this way, please use with '--full', '--devel', '--run', '--upgrade'"
     exit 1
 fi
  
 if [ "${pylocal}" = "y" ]; then
     if [ "${upgrade}" != "y" ] && [ "${full_install}" != "y" ] && [ "${run_install}" != "y" ] && [ "${devel_install}" != "y" ]; then
-        log "ERROR" "'--pylocal' is not supported to used by this way, please use with '--full', '--devel', '--run' or '--upgrade'."
+        log "ERROR" "'--pylocal' is not supported to be used by this way, please use with '--full', '--devel', '--run' or '--upgrade'."
         exit 1
     fi
 fi
@@ -1174,7 +1174,7 @@ fi
  
 if [ "$docker_install" = "y" ]; then
     log "ERROR" "ERR_NO:0x0004;ERR_DES:Unsupported parameters, operation failed."
-    log "INFO" "--docker not uesd in hixl"
+    log "INFO" "--docker not used in hixl"
     exit 1
 fi
  
@@ -1194,7 +1194,7 @@ fi
 
 architecture=$(uname -m)
 if [ "${architecture}" != "${platform_data}" ] ; then
-    log "INFO" "the architecture of the run package is inconsistent with that of the current enviroment, hixl skip installation."
+    log "INFO" "the architecture of the run package is inconsistent with that of the current environment, hixl skip installation."
     exit 0
 fi
 
@@ -1320,7 +1320,7 @@ if [ "$input_install_for_all" = "n" ]; then
             usergroup_base=$(grep -i usergroup= "${install_info_old}" | cut -d"=" -f2-)
             check_group "${usergroup_base}" "${username}"
             if [ $? -ne 0 ]; then
-                log "ERROR" "ERR_NO:0x0093;ERR_DES:User is not belong to the dirver or firmware's installed usergroup! Please add the user (${username}) to the group (${usergroup_base})."
+                log "ERROR" "ERR_NO:0x0093;ERR_DES:User is not belong to the driver or firmware's installed usergroup! Please add the user (${username}) to the group (${usergroup_base})."
                 confirm=y
                 exit_install_log 1
             fi

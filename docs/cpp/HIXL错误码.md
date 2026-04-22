@@ -26,5 +26,5 @@ constexpr Status RESOURCE_EXHAUSTED = 203900U;
 | ALREADY_CONNECTED | 已经建链 | 是 | 上层排查建链情况。 |
 | NOTIFY_FAILED | 通知失败 | 否 | 预留错误码，暂不会返回。 |
 | UNSUPPORTED | 不支持的参数或接口 | 是 | 预留错误码，暂不会返回。 |
-| FAILED | 通用失败 | 否 | 保留现场，获取Host/Device日志，并备份。
+| FAILED | 通用失败 | 否 | 保留现场，获取Host/Device日志，并备份。 |
 | RESOURCE_EXHAUSTED | 资源耗尽，当前仅包含stream资源 | 是 | 等待资源释放后再进行尝试。 |
