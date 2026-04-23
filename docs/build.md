@@ -195,7 +195,7 @@ bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
 
 成功编译后会在build_out目录下生成`cann-hixl_${cann_version}_linux-${arch}.run`。
 - ${cann_version}表示cann版本号。
-- ${arch}表示表示CPU架构，如aarch64、x86_64。
+- ${arch}表示CPU架构，如aarch64、x86_64。
 - 如需要进行样例验证或者基准测试Benchmarks验证，编译时候附加指定参数--examples
 - 更多执行选项可以用-h查看，或查询下表。
   ```
