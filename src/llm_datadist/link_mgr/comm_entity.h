@@ -11,6 +11,7 @@
 #ifndef CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_ENTITY_H_
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_ENTITY_H_
 
+#include <atomic>
 #include <vector>
 #include <list>
 
@@ -193,7 +194,7 @@ class CommEntity {
 
  private:
   std::mutex process_mutex_;
-  FsmState cur_state_ = FsmState::FSM_INIT_STATE;
+  std::atomic<FsmState> cur_state_{FsmState::FSM_INIT_STATE};
   uint64_t comm_id_;
   uint64_t cluster_id_;  // remote cluster id
   uint32_t rank_id_;     // remote rank id

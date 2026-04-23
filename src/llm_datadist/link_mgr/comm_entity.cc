@@ -312,30 +312,31 @@ const std::string &CommEntity::GetDesc() const {
 }
 
 void CommEntity::MarkEntityDestroyed() {
-  cur_state_ = FsmState::FSM_DESTROYED_STATE;
+  cur_state_.store(FsmState::FSM_DESTROYED_STATE, std::memory_order_release);
 }
 
 void CommEntity::MarkEntityError() {
-  cur_state_ = FsmState::FSM_ERROR_STATE;
+  cur_state_.store(FsmState::FSM_ERROR_STATE, std::memory_order_release);
 }
 
 void CommEntity::MarkEntityIdle() {
-  cur_state_ = FsmState::FSM_IDLE_STATE;
+  cur_state_.store(FsmState::FSM_IDLE_STATE, std::memory_order_release);
   ClearReqFlag();
 }
 
 ge::Status CommEntity::ProcessState() {
-  const auto state = StateManager::GetInstance().GetState(cur_state_);
+  const auto state = StateManager::GetInstance().GetState(cur_state_.load(std::memory_order_acquire));
   LLM_CHK_BOOL_RET_STATUS(state != nullptr, ge::FAILED, "Failed to get state:%s, entity:%s",
-                         StateManager::GetInstance().GetStateDesc(cur_state_).c_str(), desc_.c_str());
+                         StateManager::GetInstance().GetStateDesc(cur_state_.load(std::memory_order_acquire)).c_str(),
+                         desc_.c_str());
   return state->Process(*this);
 }
 
 ge::Status CommEntity::ChangeState(FsmState next_state) {
-  cur_state_ = next_state;
+  cur_state_.store(next_state, std::memory_order_release);
   const auto state = StateManager::GetInstance().GetState(next_state);
   LLM_CHK_BOOL_RET_STATUS(state != nullptr, ge::FAILED, "Failed to get state:%s, entity:%s",
-                         StateManager::GetInstance().GetStateDesc(next_state).c_str(), desc_.c_str());
+                          StateManager::GetInstance().GetStateDesc(next_state).c_str(), desc_.c_str());
   return state->Preprocess(*this);
 }
 
@@ -463,7 +464,7 @@ CacheManager *CommEntity::GetCacheManager() const {
 }
 
 FsmState CommEntity::GetCurState() const {
-  return cur_state_;
+  return cur_state_.load(std::memory_order_acquire);
 }
 
 aclrtContext CommEntity::GetCurrentContext() const {

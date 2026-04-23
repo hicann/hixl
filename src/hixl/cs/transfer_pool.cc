@@ -327,7 +327,7 @@ void TransferPool::DeinitAllSlotsLocked() {
   inited_ = false;
 }
 
-Status TransferPool::EnsureContextLocked(Slot &slot) {
+Status TransferPool::EnsureContextLocked(Slot &slot) const {
   if (slot.ctx != nullptr) {
     return SUCCESS;
   }
@@ -337,7 +337,7 @@ Status TransferPool::EnsureContextLocked(Slot &slot) {
   return SUCCESS;
 }
 
-Status TransferPool::EnsureDefaultStreamLocked(Slot &slot) {
+Status TransferPool::EnsureDefaultStreamLocked(Slot &slot) const {
   if (slot.stream != nullptr) {
     return SUCCESS;
   }
@@ -349,7 +349,7 @@ Status TransferPool::EnsureDefaultStreamLocked(Slot &slot) {
   return SUCCESS;
 }
 
-Status TransferPool::EnsureThreadLocked(Slot &slot) {
+Status TransferPool::EnsureThreadLocked(Slot &slot) const {
   if (slot.thread != 0U) {
     return SUCCESS;
   }
@@ -358,7 +358,7 @@ Status TransferPool::EnsureThreadLocked(Slot &slot) {
   return SUCCESS;
 }
 
-Status TransferPool::EnsurePinnedHostFlagLocked(Slot &slot) {
+Status TransferPool::EnsurePinnedHostFlagLocked(Slot &slot) const {
   if (slot.host_flag != nullptr) {
     return SUCCESS;
   }
@@ -370,7 +370,7 @@ Status TransferPool::EnsurePinnedHostFlagLocked(Slot &slot) {
   return SUCCESS;
 }
 
-void TransferPool::DestroySlotLocked(Slot &slot) {
+void TransferPool::DestroySlotLocked(Slot &slot) const {
   hixl::TemporaryRtContext with_context(slot.ctx);
 
   if (slot.notify != nullptr) {

@@ -136,14 +136,14 @@ class HixlCSClient {
   Status GetRemoteMemLocked(uint32_t timeout_ms, CommMem **remote_mem_list, char ***mem_tag_list, uint32_t *list_num);
   Status InitFlagQueue() noexcept;
   int32_t AcquireFlagIndex();
-  Status ReleaseCompleteHandle(CompleteHandleInfo *queryhandle);
-  Status ReleaseCompleteHandle(DeviceCompleteHandle *handle);
-  Status CheckStatusHost(CompleteHandleInfo &queryhandle, HixlCompleteStatus &status);
-  Status CheckStatusDevice(DeviceCompleteHandle &queryhandle, HixlCompleteStatus &status);
-  Status BatchTransferHost(bool is_get, const CommunicateMem &p, void **queryhandle);
-  Status BatchTransferHostSync(bool is_get, const CommunicateMem &p, uint32_t timeout_ms);
-  Status BatchTransferDevice(bool is_get, const CommunicateMem &p, void **queryhandle);
-  Status BatchTransferDeviceSync(bool is_get, const CommunicateMem &p, uint32_t timeout_ms);
+  Status ReleaseCompleteHandle(CompleteHandleInfo *query_handle);
+  Status ReleaseDevCompleteHandle(DeviceCompleteHandle *handle);
+  Status CheckStatusHost(CompleteHandleInfo &query_handle, HixlCompleteStatus &status);
+  Status CheckStatusDevice(DeviceCompleteHandle &query_handle, HixlCompleteStatus &status);
+  Status BatchTransferHost(bool is_get, const CommunicateMem &communicate_mem, void **query_handle);
+  Status BatchTransferHostSync(bool is_get, const CommunicateMem &communicate_mem, uint32_t timeout_ms);
+  Status BatchTransferDevice(bool is_get, const CommunicateMem &communicate_mem, void **query_handle);
+  Status BatchTransferDeviceSync(bool is_get, const CommunicateMem &communicate_mem, uint32_t timeout_ms);
   template <typename T>
   Status ConvertHostRegisterAddr(bool is_server, const char *name, T &addr);
   Status ConvertUboeCommunicateMem(bool is_get, CommunicateMem &communicate_mem_param);
@@ -159,7 +159,7 @@ class HixlCSClient {
   Status ClearRemoteMemInfo();
   Status ValidateDeviceInputs(bool is_get, const CommunicateMem &mem_param, void *&query_handle) const;
   Status PrepareDeviceRemoteFlagAndKernel(void *&remote_flag);
-  Status PrepareDeviceBatchMemBuffers(const CommunicateMem &communicate_mem_param, MemDev &mem_dev);
+  Status PrepareDeviceBatchMemBuffers(const CommunicateMem &communicate_mem_param, MemDev &mem_dev) const;
   Status ResolveNotifyDeviceAddress(aclrtNotify notify, uint64_t &notify_addr, uint32_t &notify_len);
   Status RegisterNotifyMemForAllSlots(const std::vector<TransferPool::SlotHandle> &slots);
   Status FillDeviceArgs(const CommunicateMem &mem_param, MemDev &mem_dev, const TransferPool::SlotHandle &slot,

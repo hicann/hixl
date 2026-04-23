@@ -69,11 +69,11 @@ class TransferPool {
   Status InitAllSlotsLocked();
   void RollbackInitLocked(uint32_t failed_index);
   void DeinitAllSlotsLocked();
-  Status EnsureContextLocked(Slot &slot);
-  Status EnsureDefaultStreamLocked(Slot &slot);
-  Status EnsureThreadLocked(Slot &slot);
-  Status EnsurePinnedHostFlagLocked(Slot &slot);
-  void DestroySlotLocked(Slot &slot);
+  Status EnsureContextLocked(Slot &slot) const;
+  Status EnsureDefaultStreamLocked(Slot &slot) const;
+  Status EnsureThreadLocked(Slot &slot) const;
+  Status EnsurePinnedHostFlagLocked(Slot &slot) const;
+  void DestroySlotLocked(Slot &slot) const;
   void AbortSlotByIndexLocked(uint32_t slot_index);
   static void FillHandleFromSlot(int32_t device_id, uint32_t index, const Slot &slot, SlotHandle *handle);
 
