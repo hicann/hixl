@@ -145,7 +145,7 @@ Status HostRegisterProxy::Register(void *host_addr, uint64_t size, void *&device
   registered_mems_[host_addr] = info;
 
   device_addr = dev_ptr;
-  HIXL_LOGI("Host memory registered successfully. host_addr=%p, device_addr=%p, size%lu", host_addr, dev_ptr, size);
+  HIXL_LOGI("Host memory registered successfully. host_addr=%p, device_addr=%p, size=%lu", host_addr, dev_ptr, size);
   return SUCCESS;
 }
 
