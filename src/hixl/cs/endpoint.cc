@@ -140,7 +140,6 @@ Status Endpoint::ExportMem(std::vector<HixlMemDesc> &mem_descs) {
 }
 
 Status Endpoint::CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &channel_handle) {
-  std::lock_guard<std::mutex> lock(mutex_);
   HIXL_CHK_BOOL_RET_STATUS(handle_ != nullptr, FAILED, "[channel] CreateChannel called before Initialize");
   CommEngine engine = CommEngine::COMM_ENGINE_RESERVED;
   if (endpoint_.loc.locType == EndpointLocType::ENDPOINT_LOC_TYPE_HOST) {
@@ -170,8 +169,11 @@ Status Endpoint::CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &c
   Status ret = channel->Create(handle_, ch_desc, engine);
   HIXL_CHK_STATUS_RET(ret, "[Channel] Create failed in Endpoint::CreateChannel");
   ChannelHandle h = channel->GetChannelHandle();
-  channels_[h] = channel;
-  channel_handle = h;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    channels_[h] = channel;
+    channel_handle = h;
+  }
   return SUCCESS;
 }
 

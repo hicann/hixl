@@ -79,6 +79,10 @@ for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
       ```
       [INFO] Transfer success, loop 1/1, block size: 134217728 Bytes, transfer num: 1, time cost: 1044 us, throughput: 119.732 GB/s
       ```
+      - 异步传输模式（`--use_async=true`）：批量下发 `async_batch_num` 个异步请求，地址连续划分（每个请求传输 `total_size/async_batch_num` 大小的数据），统一等待完成后统计性能。输出包含 **submit time**（下发阶段耗时）和 **wait time**（等待阶段耗时）：
+      ```
+      [INFO] Async transfer success, loop 1/1, step 0, block size: 4194304 Bytes, trans_num: 32, async_batch_num: 4, total time: 1044 us (submit: 200 us, wait: 844 us), throughput: 119.732 GB/s
+      ```
 
 - 配置环境变量
     - 若运行环境上安装的“Ascend-cann-toolkit”包，环境变量设置如下：
@@ -99,7 +103,7 @@ for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
 
 - 在运行环境执行可执行文件。
 
-  - 执行 benchmark，client-server 模式，使用 **`参数名=值`** 形式传参（除 `--hixl_option` / `-H` 的选项键名外，其余参数名均为小写；支持长名 `--xxx` 与短名 `-x`，见下表）。**必选**：`--role=client` 或 `--role=server`（或 `-r=client` / `-r=server`）。**推荐启动顺序**：先启动 **server** 进程（在 `--tcp_port` 上监听并接受 TCP），再启动 **client**（作为 TCP 客户端连接 `remote_engine` 中 **主机名/IP** 与 `--tcp_port`）。**多 client**：可并行启动多个 client 进程连同一 `tcp_port`；server 在独立线程内 accept，对每个连接下发同一内存地址，建连阶段在达到 **`--tcp_client_count`** 个 TCP 握手完成或墙钟超出 **`--tcp_accept_wait_s`** 时结束（先满足者为准；未满 `tcp_client_count` 且超时则失败）。未指定的项使用默认值（client 默认 `device_id=0`、`local_engine=127.0.0.1:16000`、`remote_engine=127.0.0.1:16001`；server 默认 `device_id=1`、`local_engine=127.0.0.1:16001`、`remote_engine=127.0.0.1`；公共默认 `transfer_mode=d2d`、`transfer_op=read`、`use_buffer_pool=false`、`tcp_port=20000`、`tcp_accept_wait_s=30`、`tcp_client_count=1`；`total_size=134217728`；**未指定 `-k`/`--block_size` 时 `block_size` 与 `total_size` 相同**；`block_steps=1`；`loops=1`）。可选 **`--hixl_option=KEY=VALUE`**（或 **`-H=KEY=VALUE`**）可重复传入，合并为 `Hixl::Initialize` 的 options；若未指定 `BufferPool` / `adxl.BufferPool` 且 `--use_buffer_pool=false`，程序会自动补 `BufferPool=0:0`（与历史行为一致）。client/server 若使用自定义 HIXL 选项，两端需保持一致。运行 `./benchmark --help` 可查看帮助。
+  - 执行 benchmark，client-server 模式，使用 **`参数名=值`** 形式传参（除 `--hixl_option` / `-H` 的选项键名外，其余参数名均为小写；支持长名 `--xxx` 与短名 `-x`，见下表）。**必选**：`--role=client` 或 `--role=server`（或 `-r=client` / `-r=server`）。**推荐启动顺序**：先启动 **server** 进程（在 `--tcp_port` 上监听并接受 TCP），再启动 **client**（作为 TCP 客户端连接 `remote_engine` 中 **主机名/IP** 与 `--tcp_port`）。**多 client**：可并行启动多个 client 进程连同一 `tcp_port`；server 在独立线程内 accept，对每个连接下发同一内存地址，建连阶段在达到 **`--tcp_client_count`** 个 TCP 握手完成或墙钟超出 **`--tcp_accept_wait_s`** 时结束（先满足者为准；未满 `tcp_client_count` 且超时则失败）。未指定的项使用默认值（client 默认 `device_id=0`、`local_engine=127.0.0.1:16000`、`remote_engine=127.0.0.1:16001`；server 默认 `device_id=1`、`local_engine=127.0.0.1:16001`、`remote_engine=127.0.0.1`；公共默认 `transfer_mode=d2d`、`transfer_op=read`、`use_buffer_pool=false`、`use_async=false`、`async_batch_num=1`、`connect_timeout=60000`、`tcp_port=20000`、`tcp_accept_wait_s=30`、`tcp_client_count=1`；`total_size=134217728`；**未指定 `-k`/`--block_size` 时 `block_size` 与 `total_size` 相同**；`block_steps=1`；`loops=1`）。可选 **`--hixl_option=KEY=VALUE`**（或 **`-H=KEY=VALUE`**）可重复传入，合并为 `Hixl::Initialize` 的 options；若未指定 `BufferPool` / `adxl.BufferPool` 且 `--use_buffer_pool=false`，程序会自动补 `BufferPool=0:0`（与历史行为一致）。client/server 若使用自定义 HIXL 选项，两端需保持一致。运行 `./benchmark --help` 可查看帮助。
 
     - 参数说明
         | **参数名** | **短名** | **可选/必选** | **描述** |
@@ -118,6 +122,9 @@ for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
         | `--block_size` | `-k` | 可选 | 第一档块大小，**十进制字节**（未指定时与 `total_size` 相同） |
         | `--block_steps` | `-s` | 可选 | 块大小档位数：第 i 档为 `block_size * 2^i`（默认 1） |
         | `--loops` | `-n` | 可选 | 整档阶梯重复次数（默认 1；仅 1 次时首传多为预热，可看第二次输出或加大 `loops`） |
+        | `--use_async` | `-x` | 可选 | `true`/`false` 或 `1`/`0`（默认 false）。启用异步传输模式，批量下发多个异步请求后统一等待完成 |
+        | `--async_batch_num` | `-y` | 可选 | 每批异步请求数量（默认 1）。启用异步模式时，`total_size` 必须能被 `async_batch_num` 整除，且每请求大小 `(total_size/async_batch_num)` 必须能被各档 `block_size` 整除 |
+        | `--connect_timeout` | `-C` | 可选 | 建链超时时间，毫秒（默认 60000，即 60 秒） |
         | `--hixl_option` | `-H` | 可选，可重复 | 传入 `Hixl::Initialize(local_engine, options)` 的一项：`--hixl_option=KEY=VALUE`，`KEY` 为完整选项名（区分大小写），如 `LocalCommRes`、`BufferPool`、`RdmaTrafficClass`、`RdmaServiceLevel` 或 `adxl.*` 等；同键多次出现时以后者为准 |
 
     - 测试HIXL引擎通过HCCS链路进行传输的带宽, 以d2d场景，写操作，不开启中转内存池为例：

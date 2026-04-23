@@ -34,6 +34,7 @@ using namespace ::testing;
 
 namespace hixl {
 static constexpr uint32_t kServerPort = 16001;
+static constexpr uint32_t kBackLog = 1024U;
 static constexpr uint32_t kDefaultTimeoutMs = 5000;
 static constexpr uint32_t kShortMs = 1;
 static constexpr uint32_t kMilliSeconds1 = 1;
@@ -132,7 +133,7 @@ class MockHixlServer {
       return;
     }
 
-    ret = HixlCSServerListen(server_handle_, kServerPort);
+    ret = HixlCSServerListen(server_handle_, kBackLog);
     if (ret != HIXL_SUCCESS) {
       std::cerr << "Failed to listen CsServer" << std::endl;
       return;

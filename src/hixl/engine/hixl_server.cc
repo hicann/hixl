@@ -21,6 +21,10 @@
 #include "common/hixl_utils.h"
 
 namespace hixl {
+namespace {
+constexpr uint32_t kDefaultBackLog = 1024U;
+}
+
 Status HixlServer::Initialize(const std::string &ip, int32_t port,
                               const std::vector<EndpointConfig> &data_endpoint_config_list) {
   data_endpoint_config_list_ = data_endpoint_config_list;
@@ -68,8 +72,8 @@ Status HixlServer::Initialize(const std::string &ip, int32_t port,
     };
     HIXL_CHK_STATUS_RET(HixlCSServerRegProc(server_handle_, CtrlMsgType::kGetEndpointInfoReq, send_endpoint_cb),
                         "Failed to register send endpoint info processor.");
-    HIXL_CHK_STATUS_RET(HixlCSServerListen(server_handle_, static_cast<uint32_t>(port)),
-                        "HixlServer listen failed, port:%d.", port);
+    HIXL_CHK_STATUS_RET(HixlCSServerListen(server_handle_, kDefaultBackLog),
+                        "HixlServer listen failed, backlog:%u.", kDefaultBackLog);
   }
   return SUCCESS;
 }

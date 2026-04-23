@@ -10,7 +10,7 @@
 
 cmake_minimum_required(VERSION 3.16.0)
 project(hixl)
-
+set(CMAKE_SKIP_RPATH TRUE)
 add_subdirectory(proxy)
 
 set(HIXL_INC_DIR

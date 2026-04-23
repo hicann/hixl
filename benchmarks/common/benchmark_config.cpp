@@ -181,6 +181,9 @@ void ApplyCommonDefaults(BenchmarkConfig *cfg) {
   cfg->block_size = kDefaultTotalSize;
   cfg->block_steps = kDefaultBlockSteps;
   cfg->loops = kDefaultLoops;
+  cfg->use_async = false;
+  cfg->async_batch_num = 1U;
+  cfg->connect_timeout_ms = 60000U;
 }
 
 using KvApplyFn = bool (*)(const std::string &val, BenchmarkConfig *cfg);
@@ -334,6 +337,30 @@ bool ApplyLoopsKv(const std::string &val, BenchmarkConfig *cfg) {
   return true;
 }
 
+bool ApplyUseAsyncKv(const std::string &val, BenchmarkConfig *cfg) {
+  if (!ParseBool(val, &cfg->use_async)) {
+    fprintf(stderr, "[ERROR] Invalid --use_async=%s (expect true|false|0|1)\n", val.c_str());
+    return false;
+  }
+  return true;
+}
+
+bool ApplyAsyncBatchNumKv(const std::string &val, BenchmarkConfig *cfg) {
+  if (!ParseU32(val, &cfg->async_batch_num) || cfg->async_batch_num == 0) {
+    fprintf(stderr, "[ERROR] Invalid --async_batch_num=%s (expect positive integer)\n", val.c_str());
+    return false;
+  }
+  return true;
+}
+
+bool ApplyConnectTimeoutKv(const std::string &val, BenchmarkConfig *cfg) {
+  if (!ParseU32(val, &cfg->connect_timeout_ms) || cfg->connect_timeout_ms == 0) {
+    fprintf(stderr, "[ERROR] Invalid --connect_timeout=%s (expect positive integer ms)\n", val.c_str());
+    return false;
+  }
+  return true;
+}
+
 const std::map<std::string, KvApplyFn> &KvHandlerTable() {
   static const std::map<std::string, KvApplyFn> kTable = {
       {"--role", ApplyRoleKv},
@@ -364,6 +391,12 @@ const std::map<std::string, KvApplyFn> &KvHandlerTable() {
       {"-s", ApplyBlockStepsKv},
       {"--loops", ApplyLoopsKv},
       {"-n", ApplyLoopsKv},
+      {"--use_async", ApplyUseAsyncKv},
+      {"-x", ApplyUseAsyncKv},
+      {"--async_batch_num", ApplyAsyncBatchNumKv},
+      {"-y", ApplyAsyncBatchNumKv},
+      {"--connect_timeout", ApplyConnectTimeoutKv},
+      {"-C", ApplyConnectTimeoutKv},
   };
   return kTable;
 }
@@ -419,10 +452,13 @@ void BenchmarkConfigParser::PrintUsage(FILE *out) {
           "  --transfer_op|-o     read|write\n"
           "  --use_buffer_pool|-b true|false\n"
           "  --total_size|-t      total buffer size in bytes (default %" PRIu64 ")\n"
-          "  --block_size|-k      first block size in bytes (default: same as total_size)\n"
-          "  --block_steps|-s     block count: sizes are block_size<<i, i in [0,steps-1] (default %u)\n"
-          "  --loops|-n           repeat full step ladder (default %u)\n"
-          "  --hixl_option|-H     HIXL Initialize() option, form KEY=VALUE (repeatable); "
+"  --block_size|-k      first block size in bytes (default: same as total_size)\n"
+           "  --block_steps|-s     block count: sizes are block_size<<i, i in [0,steps-1] (default %u)\n"
+           "  --loops|-n           repeat full step ladder (default %u)\n"
+           "  --use_async|-x       true|false (default false), enable async transfer mode\n"
+           "  --async_batch_num|-y async requests per batch (default 1), requires: total_size %% async_batch_num == 0\n"
+           "  --connect_timeout|-C connect timeout in ms (default 60000)\n"
+           "  --hixl_option|-H     HIXL Initialize() option, form KEY=VALUE (repeatable); "
           "KEY e.g. LocalCommRes, BufferPool, RdmaTrafficClass, RdmaServiceLevel, adxl.*\n"
           "                       If neither BufferPool nor adxl.BufferPool is set and "
           "--use_buffer_pool=false, BufferPool=0:0 is added (legacy).\n"
@@ -614,6 +650,31 @@ bool ValidateBlockSteps(const BenchmarkConfig *cfg) {
   return true;
 }
 
+bool ValidateAsyncConfig(const BenchmarkConfig *cfg) {
+  if (!cfg->use_async) {
+    return true;
+  }
+  if (cfg->total_size % cfg->async_batch_num != 0) {
+    fprintf(stderr,
+            "[ERROR] total_size (%" PRIu64 ") must be divisible by async_batch_num (%" PRIu32 ") "
+            "when use_async=true\n",
+            cfg->total_size, cfg->async_batch_num);
+    return false;
+  }
+  const uint64_t per_req_size = cfg->total_size / cfg->async_batch_num;
+  for (uint32_t i = 0; i < cfg->block_steps; ++i) {
+    const uint64_t block = cfg->block_size << i;
+    if (per_req_size % block != 0) {
+      fprintf(stderr,
+              "[ERROR] per-request size (%" PRIu64 ") must be divisible by block size (%" PRIu64 ") "
+              "at step %u when use_async=true\n",
+              per_req_size, block, i);
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace
 
 bool BenchmarkConfigParser::Validate(BenchmarkConfig *cfg) {
@@ -653,6 +714,9 @@ bool BenchmarkConfigParser::Validate(BenchmarkConfig *cfg) {
     return false;
   }
   if (!ValidateBlockSteps(cfg)) {
+    return false;
+  }
+  if (!ValidateAsyncConfig(cfg)) {
     return false;
   }
   return true;

@@ -12,7 +12,9 @@
 #define HIXL_CLIENT_RUNNER_H
 
 #include <cstdint>
+#include <map>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -35,7 +37,10 @@ struct TransferBenchRecord {
   std::uint32_t step_index = 0;
   std::uint32_t block_size = 0;
   std::uint32_t trans_num = 0;
+  std::uint32_t async_batch_num = 0;
   std::int64_t time_us = 0;
+  std::int64_t submit_time_us = 0;
+  std::int64_t wait_time_us = 0;
   double throughput_gbps = 0;
 };
 
@@ -90,6 +95,11 @@ class ClientRunner {
 
   std::vector<std::unique_ptr<detail::LaneState>> lane_runtimes_;
   std::vector<std::thread> multi_lane_threads_;
+
+  std::mutex remote_mutex_map_mu_;
+  std::map<std::string, std::unique_ptr<std::mutex>> remote_mutexes_;
+
+  std::mutex *GetOrCreateRemoteMutex(const std::string &remote);
 
   void ReleaseLaneResources();
   void ReleaseAllLaneRuntimes();

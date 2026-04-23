@@ -10,7 +10,7 @@
 
 cmake_minimum_required(VERSION 3.5.1)
 project(llm_datadist_sample)
-
+set(CMAKE_SKIP_RPATH TRUE)
 set(HIXL_INC_DIR "${HIXL_CODE_DIR}/include")
 add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 

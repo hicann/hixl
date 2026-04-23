@@ -45,6 +45,9 @@ struct BenchmarkConfig {
   std::string transfer_mode = "d2d";
   std::string transfer_op = "read";
   bool use_buffer_pool = false;
+  bool use_async = false;
+  uint32_t async_batch_num = 1U;
+  uint32_t connect_timeout_ms = 60000U;
   uint64_t total_size = kDefaultTotalSize;
   uint64_t block_size = kDefaultTotalSize;
   uint32_t block_steps = kDefaultBlockSteps;

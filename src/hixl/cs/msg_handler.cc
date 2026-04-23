@@ -22,8 +22,9 @@ void MsgHandler::SubmitMsg(int32_t fd, const CtrlMsgPtr &msg) {
 }
 
 Status MsgHandler::Initialize() {
-  constexpr uint32_t kThreadPoolSize = 4U;
-  thread_pool_ = MakeUnique<ThreadPool>("cs_server", kThreadPoolSize);
+  constexpr uint32_t kMinThreadPoolSize = 4U;
+  constexpr uint32_t kMaxThreadPoolSize = 1024U;
+  thread_pool_ = MakeUnique<ThreadPool>("cs_server", kMinThreadPoolSize, kMaxThreadPoolSize);
   HIXL_CHECK_NOTNULL(thread_pool_);
   running_ = true;
 

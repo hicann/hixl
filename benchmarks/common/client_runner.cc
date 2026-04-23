@@ -27,8 +27,11 @@ using hixl::MemDesc;
 using hixl::MemHandle;
 using hixl::MemType;
 using hixl::SUCCESS;
+using hixl::TransferArgs;
 using hixl::TransferOp;
 using hixl::TransferOpDesc;
+using hixl::TransferReq;
+using hixl::TransferStatus;
 
 namespace {
 
@@ -102,8 +105,8 @@ int32_t AllocLocalBuffer(const BenchmarkConfig &cfg, bool *is_host, void **out_s
   return 0;
 }
 
-int32_t RegisterLocalMem(Hixl &hixl_engine, const BenchmarkConfig &cfg, void *src, bool is_host,
-                         bool need_register, size_t register_len, MemHandle *handle) {
+int32_t RegisterLocalMem(Hixl &hixl_engine, const BenchmarkConfig &cfg, void *src, bool is_host, bool need_register,
+                         size_t register_len, MemHandle *handle) {
   (void)cfg;
   if (!need_register) {
     return 0;
@@ -111,6 +114,8 @@ int32_t RegisterLocalMem(Hixl &hixl_engine, const BenchmarkConfig &cfg, void *sr
   MemDesc desc{};
   desc.addr = reinterpret_cast<uintptr_t>(src);
   desc.len = register_len;
+  std::printf("[DEBUG] RegisterMem: addr=0x%" PRIxPTR ", len=%zu, range=[0x%" PRIxPTR ", 0x%" PRIxPTR "), is_host=%d\n",
+              desc.addr, register_len, desc.addr, desc.addr + register_len, is_host);
   const auto ret = hixl_engine.RegisterMem(desc, is_host ? MemType::MEM_HOST : MemType::MEM_DEVICE, *handle);
   if (ret != SUCCESS) {
     std::printf("[ERROR] RegisterMem failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
@@ -120,7 +125,8 @@ int32_t RegisterLocalMem(Hixl &hixl_engine, const BenchmarkConfig &cfg, void *sr
   return 0;
 }
 
-bool GetRemoteAddr(TCPClient *tcp_client, const std::string &remote_engine, uint16_t tcp_port, uint64_t *out_remote_addr) {
+bool GetRemoteAddr(TCPClient *tcp_client, const std::string &remote_engine, uint16_t tcp_port,
+                    uint64_t *out_remote_addr) {
   const std::string host = hixl_benchmark::ExtractTcpHost(remote_engine);
   if (host.empty()) {
     return false;
@@ -131,13 +137,16 @@ bool GetRemoteAddr(TCPClient *tcp_client, const std::string &remote_engine, uint
   if (!tcp_client->ReceiveUint64(out_remote_addr)) {
     return false;
   }
+  std::printf("[DEBUG] GetRemoteAddr: received remote_addr=0x%" PRIx64 "\n", *out_remote_addr);
   if (!tcp_client->ReceiveTaskStatus()) {
     return false;
   }
   return true;
 }
 
-bool SendNotify(TCPClient *tcp_client) { return tcp_client->SendTaskStatus(); }
+bool SendNotify(TCPClient *tcp_client) {
+  return tcp_client->SendTaskStatus();
+}
 
 void DisconnectAllRemoteEngines(Hixl &hixl, const std::vector<std::string> &remotes) {
   for (const auto &re : remotes) {
@@ -157,31 +166,52 @@ void MarkFirstFail(std::atomic<int> *first_fail, std::mutex *fail_mu) {
   }
 }
 
-constexpr int32_t kWaitTransTime = 20;
+constexpr int32_t kWaitTransTime = 60;
 
 using hixl_benchmark::detail::BenchWorkerTag;
 using hixl_benchmark::detail::TransferBenchRecord;
 
 void PrintBenchRecords(const std::vector<TransferBenchRecord> &recs) {
   for (const auto &r : recs) {
+    const char *worker_prefix = "";
+    std::size_t worker_idx = 0;
     if (r.tag == BenchWorkerTag::kLane) {
-      std::printf(
-          "[INFO] [lane %zu] Transfer success, loop %u/%u, step %u, block size: %u Bytes, transfer num: %u, time cost: "
-          "%ld us, throughput: %.3lf GB/s\n",
-          r.worker_index, r.loop_plus_one, r.loops_total, r.step_index, r.block_size, r.trans_num,
-          static_cast<long>(r.time_us), r.throughput_gbps);
+      worker_prefix = "[lane ";
+      worker_idx = r.worker_index;
     } else if (r.tag == BenchWorkerTag::kRemote) {
-      std::printf(
-          "[INFO] [remote %zu] Transfer success, loop %u/%u, step %u, block size: %u Bytes, transfer num: %u, time "
-          "cost: %ld us, throughput: %.3lf GB/s\n",
-          r.worker_index, r.loop_plus_one, r.loops_total, r.step_index, r.block_size, r.trans_num,
-          static_cast<long>(r.time_us), r.throughput_gbps);
+      worker_prefix = "[remote ";
+      worker_idx = r.worker_index;
+    }
+    if (r.async_batch_num > 0) {
+      if (r.tag != BenchWorkerTag::kSingle) {
+        std::printf(
+            "[INFO] %s%zu] Async transfer success, loop %u/%u, step %u, block size: %u Bytes, trans_num: %u, "
+            "async_batch_num: %u, total time: %ld us (submit: %ld us, wait: %ld us), throughput: %.3lf GB/s\n",
+            worker_prefix, worker_idx, r.loop_plus_one, r.loops_total, r.step_index, r.block_size, r.trans_num,
+            r.async_batch_num, static_cast<long>(r.time_us), static_cast<long>(r.submit_time_us),
+            static_cast<long>(r.wait_time_us), r.throughput_gbps);
+      } else {
+        std::printf(
+            "[INFO] Async transfer success, loop %u/%u, step %u, block size: %u Bytes, trans_num: %u, "
+            "async_batch_num: %u, total time: %ld us (submit: %ld us, wait: %ld us), throughput: %.3lf GB/s\n",
+            r.loop_plus_one, r.loops_total, r.step_index, r.block_size, r.trans_num, r.async_batch_num,
+            static_cast<long>(r.time_us), static_cast<long>(r.submit_time_us), static_cast<long>(r.wait_time_us),
+            r.throughput_gbps);
+      }
     } else {
-      std::printf(
-          "[INFO] Transfer success, loop %u/%u, step %u, block size: %u Bytes, transfer num: %u, time cost: %ld us, "
-          "throughput: %.3lf GB/s\n",
-          r.loop_plus_one, r.loops_total, r.step_index, r.block_size, r.trans_num, static_cast<long>(r.time_us),
-          r.throughput_gbps);
+      if (r.tag != BenchWorkerTag::kSingle) {
+        std::printf(
+            "[INFO] %s%zu] Transfer success, loop %u/%u, step %u, block size: %u Bytes, transfer num: %u, time cost: "
+            "%ld us, throughput: %.3lf GB/s\n",
+            worker_prefix, worker_idx, r.loop_plus_one, r.loops_total, r.step_index, r.block_size, r.trans_num,
+            static_cast<long>(r.time_us), r.throughput_gbps);
+      } else {
+        std::printf(
+            "[INFO] Transfer success, loop %u/%u, step %u, block size: %u Bytes, transfer num: %u, time cost: %ld us, "
+            "throughput: %.3lf GB/s\n",
+            r.loop_plus_one, r.loops_total, r.step_index, r.block_size, r.trans_num, static_cast<long>(r.time_us),
+            r.throughput_gbps);
+      }
     }
   }
 }
@@ -198,6 +228,7 @@ struct TransferBlockStepCtx {
   std::vector<TransferBenchRecord> *bench_records = nullptr;
   BenchWorkerTag bench_worker_tag = BenchWorkerTag::kSingle;
   std::size_t bench_worker_index = 0;
+  int32_t connect_timeout_ms = 60000;
 };
 
 int32_t TransferOneBlockStep(Hixl &hixl_engine, const TransferBlockStepCtx &ctx) {
@@ -248,10 +279,142 @@ int32_t TransferOneBlockStep(Hixl &hixl_engine, const TransferBlockStepCtx &ctx)
   return 0;
 }
 
+struct AsyncTransferContext {
+  std::vector<TransferReq> reqs;
+  std::chrono::steady_clock::time_point submit_start;
+  std::chrono::steady_clock::time_point submit_end;
+  std::chrono::steady_clock::time_point wait_end;
+};
+
+int32_t SubmitAsyncRequests(Hixl &hixl_engine, const TransferBlockStepCtx &ctx, uint64_t per_req_size,
+                            uint32_t block_size, uint32_t per_req_trans_num, AsyncTransferContext &async_ctx) {
+  async_ctx.submit_start = std::chrono::steady_clock::now();
+  TransferArgs optional_args{};
+  std::printf("[DEBUG] SubmitAsyncRequests: ctx.base=0x%" PRIxPTR ", ctx.dst_addr=0x%" PRIx64 ", per_req_size=%" PRIu64 ", block_size=%u, per_req_trans_num=%u, async_batch_num=%u\n",
+              ctx.base, ctx.dst_addr, per_req_size, block_size, per_req_trans_num, ctx.cfg->async_batch_num);
+  for (uint32_t batch_idx = 0; batch_idx < ctx.cfg->async_batch_num; ++batch_idx) {
+    std::vector<TransferOpDesc> descs;
+    descs.reserve(per_req_trans_num);
+    const uintptr_t req_base = ctx.base + static_cast<uintptr_t>(batch_idx) * static_cast<uintptr_t>(per_req_size);
+    const uintptr_t req_remote_base = ctx.dst_addr + static_cast<uintptr_t>(batch_idx) * static_cast<uintptr_t>(per_req_size);
+    std::printf("[DEBUG] batch %u: req_base=0x%" PRIxPTR ", req_remote_base=0x%" PRIxPTR "\n", batch_idx, req_base, req_remote_base);
+    for (uint32_t j = 0; j < per_req_trans_num; ++j) {
+      const auto offset = static_cast<uintptr_t>(j) * static_cast<uintptr_t>(block_size);
+      descs.push_back({req_base + offset, req_remote_base + offset, block_size});
+    }
+    for (uint32_t j = 0; j < per_req_trans_num; ++j) {
+      std::printf("[DEBUG] batch %u desc[%u]: local=0x%" PRIxPTR ", remote=0x%" PRIxPTR ", len=%zu\n",
+                  batch_idx, j, descs[j].local_addr, descs[j].remote_addr, descs[j].len);
+    }
+    TransferReq req = nullptr;
+    if (hixl_engine.TransferAsync(AscendString(ctx.remote_engine), ctx.transfer_op, descs, optional_args, req) !=
+        SUCCESS) {
+      std::printf("[ERROR] TransferAsync failed at batch %u\n", batch_idx);
+      return -1;
+    }
+    async_ctx.reqs.emplace_back(req);
+  }
+  async_ctx.submit_end = std::chrono::steady_clock::now();
+  return 0;
+}
+
+int32_t CheckTransferStatus(Hixl &hixl_engine, const TransferReq &req, TransferStatus &status, size_t idx) {
+  if (status != TransferStatus::WAITING) {
+    return 0;
+  }
+  if (hixl_engine.GetTransferStatus(req, status) != SUCCESS) {
+    std::printf("[ERROR] GetTransferStatus failed at req %zu\n", idx);
+    return -1;
+  }
+  if (status == TransferStatus::WAITING) {
+    return 1;
+  }
+  if (status != TransferStatus::COMPLETED) {
+    std::printf("[ERROR] Transfer failed at req %zu, status=%d\n", idx, static_cast<int>(status));
+    return -1;
+  }
+  std::printf("[DEBUG] req %zu transfer completed\n", idx);
+  return 0;
+}
+
+int32_t WaitAsyncRequests(Hixl &hixl_engine, AsyncTransferContext &async_ctx) {
+  std::vector<TransferStatus> statuses(async_ctx.reqs.size(), TransferStatus::WAITING);
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(kWaitTransTime);
+  bool has_waiting = true;
+  while (has_waiting && std::chrono::steady_clock::now() < deadline) {
+    has_waiting = false;
+    for (size_t i = 0; i < async_ctx.reqs.size(); ++i) {
+      const auto ret = CheckTransferStatus(hixl_engine, async_ctx.reqs[i], statuses[i], i);
+      if (ret < 0) {
+        return -1;
+      }
+      if (ret == 1) {
+        has_waiting = true;
+      }
+    }
+    if (has_waiting) {
+      std::this_thread::sleep_for(std::chrono::microseconds(1));
+    }
+  }
+  async_ctx.wait_end = std::chrono::steady_clock::now();
+  return has_waiting ? -1 : 0;
+}
+
+void RecordAsyncBenchResult(const TransferBlockStepCtx &ctx, uint32_t block_size, const AsyncTransferContext &actx) {
+  const auto submit_us =
+      std::chrono::duration_cast<std::chrono::microseconds>(actx.submit_end - actx.submit_start).count();
+  const auto wait_us = std::chrono::duration_cast<std::chrono::microseconds>(actx.wait_end - actx.submit_end).count();
+  const auto total_us = std::chrono::duration_cast<std::chrono::microseconds>(actx.wait_end - actx.submit_start).count();
+  const double throughput = static_cast<double>(ctx.cfg->total_size) / 1024.0 / 1024.0 / 1024.0 /
+                            (static_cast<double>(total_us) / 1000.0 / 1000.0);
+  const auto total_trans_num = static_cast<uint32_t>(ctx.cfg->total_size / ctx.block_size_u);
+  if (ctx.bench_records != nullptr) {
+    TransferBenchRecord rec{};
+    rec.tag = ctx.bench_worker_tag;
+    rec.worker_index = ctx.bench_worker_index;
+    rec.loop_plus_one = ctx.loop + 1U;
+    rec.loops_total = ctx.cfg->loops;
+    rec.step_index = ctx.step_index;
+    rec.block_size = block_size;
+    rec.trans_num = total_trans_num;
+    rec.async_batch_num = ctx.cfg->async_batch_num;
+    rec.time_us = total_us;
+    rec.submit_time_us = submit_us;
+    rec.wait_time_us = wait_us;
+    rec.throughput_gbps = throughput;
+    ctx.bench_records->push_back(rec);
+  } else {
+    std::printf("[INFO] Async transfer success, loop %u/%u, step %u, block: %u, trans_num: %u, batch_num: %u, "
+                "total: %ld us (submit: %ld, wait: %ld), %.3lf GB/s\n",
+                ctx.loop + 1U, ctx.cfg->loops, ctx.step_index, block_size, total_trans_num, ctx.cfg->async_batch_num,
+                static_cast<long>(total_us), static_cast<long>(submit_us), static_cast<long>(wait_us), throughput);
+  }
+}
+
+int32_t TransferOneBlockStepAsync(Hixl &hixl_engine, const TransferBlockStepCtx &ctx) {
+  const auto block_size = static_cast<uint32_t>(ctx.block_size_u);
+  if (static_cast<uint64_t>(block_size) != ctx.block_size_u) {
+    std::printf("[ERROR] block size too large at step %u\n", ctx.step_index);
+    return -1;
+  }
+  const uint64_t per_req_size = ctx.cfg->total_size / ctx.cfg->async_batch_num;
+  const auto per_req_trans_num = static_cast<uint32_t>(per_req_size / ctx.block_size_u);
+  
+  AsyncTransferContext async_ctx;
+  if (SubmitAsyncRequests(hixl_engine, ctx, per_req_size, block_size, per_req_trans_num, async_ctx) != 0) {
+    return -1;
+  }
+  if (WaitAsyncRequests(hixl_engine, async_ctx) != 0) {
+    std::printf("[ERROR] Async transfer timeout at step %u\n", ctx.step_index);
+    return -1;
+  }
+  RecordAsyncBenchResult(ctx, block_size, async_ctx);
+  return 0;
+}
+
 int32_t RunTransfer(Hixl &hixl_engine, void *src_base, const char *remote_engine, uint64_t dst_addr,
                     const BenchmarkConfig &cfg, std::vector<TransferBenchRecord> *bench_records = nullptr,
-                    BenchWorkerTag bench_worker_tag = BenchWorkerTag::kSingle,
-                    std::size_t bench_worker_index = 0) {
+                    BenchWorkerTag bench_worker_tag = BenchWorkerTag::kSingle, std::size_t bench_worker_index = 0) {
   const TransferOp transfer_op = (cfg.transfer_op == "read") ? TransferOp::READ : TransferOp::WRITE;
   const uintptr_t base = reinterpret_cast<uintptr_t>(src_base);
   TransferBlockStepCtx step_ctx{};
@@ -263,12 +426,18 @@ int32_t RunTransfer(Hixl &hixl_engine, void *src_base, const char *remote_engine
   step_ctx.bench_records = bench_records;
   step_ctx.bench_worker_tag = bench_worker_tag;
   step_ctx.bench_worker_index = bench_worker_index;
+  step_ctx.connect_timeout_ms = static_cast<int32_t>(cfg.connect_timeout_ms);
   for (uint32_t loop = 0; loop < cfg.loops; ++loop) {
     step_ctx.loop = loop;
     for (uint32_t i = 0; i < cfg.block_steps; ++i) {
       step_ctx.step_index = i;
       step_ctx.block_size_u = cfg.block_size << i;
-      const int32_t step_ret = TransferOneBlockStep(hixl_engine, step_ctx);
+      int32_t step_ret = 0;
+      if (cfg.use_async) {
+        step_ret = TransferOneBlockStepAsync(hixl_engine, step_ctx);
+      } else {
+        step_ret = TransferOneBlockStep(hixl_engine, step_ctx);
+      }
       if (step_ret != 0) {
         return step_ret;
       }
@@ -280,16 +449,17 @@ int32_t RunTransfer(Hixl &hixl_engine, void *src_base, const char *remote_engine
 bool SharedRemoteConnectTransferAndCleanup(Hixl *hixl, size_t idx, void *slice_base, const std::string &remote,
                                            uint64_t remote_addr, const BenchmarkConfig &cfg, TCPClient *tcp_client,
                                            std::atomic<int> *first_fail, std::mutex *fail_mu,
-                                           std::vector<TransferBenchRecord> *bench_records) {
-  const auto connect_ret = hixl->Connect(AscendString(remote.c_str()));
+                                           std::vector<TransferBenchRecord> *bench_records, std::mutex *remote_mu) {
+  const auto connect_ret = hixl->Connect(AscendString(remote.c_str()), static_cast<int32_t>(cfg.connect_timeout_ms));
   if (connect_ret != SUCCESS) {
     std::printf("[ERROR] [remote %zu] Connect failed ret=%u %s\n", idx, connect_ret, RecentErrMsg());
     (void)SendNotify(tcp_client);
     MarkFirstFail(first_fail, fail_mu);
     return false;
   }
-  if (RunTransfer(*hixl, slice_base, remote.c_str(), remote_addr, cfg, bench_records, BenchWorkerTag::kRemote,
-                  idx) != 0) {
+  std::lock_guard<std::mutex> remote_lock(*remote_mu);
+  if (RunTransfer(*hixl, slice_base, remote.c_str(), remote_addr, cfg, bench_records, BenchWorkerTag::kRemote, idx) !=
+      0) {
     MarkFirstFail(first_fail, fail_mu);
     (void)hixl->Disconnect(AscendString(remote.c_str()));
     (void)SendNotify(tcp_client);
@@ -298,23 +468,33 @@ bool SharedRemoteConnectTransferAndCleanup(Hixl *hixl, size_t idx, void *slice_b
   return true;
 }
 
-void SharedRemoteWorker(size_t idx, Hixl *hixl, const BenchmarkConfig &cfg, void *slice_base, std::atomic<int> *first_fail,
-                        std::mutex *fail_mu, std::vector<TransferBenchRecord> *bench_records) {
+void SharedRemoteWorker(size_t idx, int32_t device_id, Hixl *hixl, const BenchmarkConfig &cfg, void *slice_base,
+                        std::atomic<int> *first_fail, std::mutex *fail_mu,
+                        std::vector<TransferBenchRecord> *bench_records, std::mutex *remote_mu) {
   const std::string &remote = cfg.expanded_remote_engines[idx];
   std::printf("[INFO] [remote %zu] worker start -> %s\n", idx, remote.c_str());
+
+  aclError ar = aclrtSetDevice(device_id);
+  if (ar != ACL_ERROR_NONE) {
+    std::printf("[ERROR] [remote %zu] aclrtSetDevice failed %d\n", idx, static_cast<int>(ar));
+    MarkFirstFail(first_fail, fail_mu);
+    return;
+  }
 
   TCPClient tcp_client;
   uint64_t remote_addr = 0;
   if (!GetRemoteAddr(&tcp_client, remote, cfg.expanded_tcp_ports[idx], &remote_addr)) {
     MarkFirstFail(first_fail, fail_mu);
+    (void)aclrtResetDevice(device_id);
     return;
   }
   if (remote_addr != 0U) {
     std::printf("[INFO] [remote %zu] server mem addr: 0x%" PRIx64 "\n", idx, remote_addr);
   }
 
-  if (!SharedRemoteConnectTransferAndCleanup(hixl, idx, slice_base, remote, remote_addr, cfg, &tcp_client, first_fail,
-                                             fail_mu, bench_records)) {
+if (!SharedRemoteConnectTransferAndCleanup(hixl, idx, slice_base, remote, remote_addr, cfg, &tcp_client, first_fail,
+                                              fail_mu, bench_records, remote_mu)) {
+    (void)aclrtResetDevice(device_id);
     return;
   }
 
@@ -325,6 +505,7 @@ void SharedRemoteWorker(size_t idx, Hixl *hixl, const BenchmarkConfig &cfg, void
   if (!SendNotify(&tcp_client)) {
     MarkFirstFail(first_fail, fail_mu);
   }
+  (void)aclrtResetDevice(device_id);
   std::printf("[INFO] [remote %zu] worker done\n", idx);
 }
 
@@ -390,8 +571,8 @@ bool LaneWorkerAllocAndRegisterMem(LaneState *p, const BenchmarkConfig &cfg, std
   return true;
 }
 
-bool LaneWorkerRemoteTransferPhase(LaneState *p, const BenchmarkConfig &cfg, size_t lane_idx,
-                                   const std::string &remote, std::atomic<int> *first_fail, std::mutex *fail_mu) {
+bool LaneWorkerRemoteTransferPhase(LaneState *p, const BenchmarkConfig &cfg, size_t lane_idx, const std::string &remote,
+                                   std::atomic<int> *first_fail, std::mutex *fail_mu, std::mutex *remote_mu) {
   uint64_t remote_addr = 0;
   if (!GetRemoteAddr(&p->tcp_client, remote, cfg.expanded_tcp_ports[lane_idx], &remote_addr)) {
     MarkFirstFail(first_fail, fail_mu);
@@ -401,7 +582,7 @@ bool LaneWorkerRemoteTransferPhase(LaneState *p, const BenchmarkConfig &cfg, siz
     std::printf("[INFO] Success to receive server mem addr: 0x%" PRIx64 "\n", remote_addr);
   }
 
-  const auto connect_ret = p->hixl.Connect(AscendString(remote.c_str()));
+  const auto connect_ret = p->hixl.Connect(AscendString(remote.c_str()), static_cast<int32_t>(cfg.connect_timeout_ms));
   if (connect_ret != SUCCESS) {
     std::printf("[ERROR] Connect failed, ret = %u, errmsg: %s\n", connect_ret, RecentErrMsg());
     MarkFirstFail(first_fail, fail_mu);
@@ -409,6 +590,7 @@ bool LaneWorkerRemoteTransferPhase(LaneState *p, const BenchmarkConfig &cfg, siz
   }
   p->hixl_connected = true;
 
+  std::lock_guard<std::mutex> remote_lock(*remote_mu);
   p->bench_records.clear();
   if (RunTransfer(p->hixl, p->buffer, remote.c_str(), remote_addr, cfg, &p->bench_records, BenchWorkerTag::kLane,
                   lane_idx) != 0) {
@@ -419,22 +601,29 @@ bool LaneWorkerRemoteTransferPhase(LaneState *p, const BenchmarkConfig &cfg, siz
 }
 
 void LaneWorkerEntry(size_t idx, LaneState *p, const BenchmarkConfig &cfg, std::atomic<int> *first_fail,
-                     std::mutex *fail_mu) {
+                     std::mutex *fail_mu, std::mutex *remote_mu) {
   const int32_t dev = cfg.expanded_device_ids[idx];
   const std::string &local = cfg.expanded_local_engines[idx];
   const std::string &remote = cfg.expanded_remote_engines[idx];
   std::printf("[INFO] [lane %zu] start device=%d\n", idx, static_cast<int>(dev));
 
   if (!LaneWorkerSetDevice(idx, dev, first_fail, fail_mu)) {
+    (void)aclrtResetDevice(dev);
     return;
   }
   if (!LaneWorkerInitHixlEngine(p, cfg, local, first_fail, fail_mu)) {
+    FinalizeLaneState(p, remote);
+    (void)aclrtResetDevice(dev);
     return;
   }
   if (!LaneWorkerAllocAndRegisterMem(p, cfg, first_fail, fail_mu)) {
+    FinalizeLaneState(p, remote);
+    (void)aclrtResetDevice(dev);
     return;
   }
-  if (!LaneWorkerRemoteTransferPhase(p, cfg, idx, remote, first_fail, fail_mu)) {
+  if (!LaneWorkerRemoteTransferPhase(p, cfg, idx, remote, first_fail, fail_mu, remote_mu)) {
+    FinalizeLaneState(p, remote);
+    (void)aclrtResetDevice(dev);
     return;
   }
 
@@ -447,6 +636,8 @@ void LaneWorkerEntry(size_t idx, LaneState *p, const BenchmarkConfig &cfg, std::
   p->hixl_connected = false;
   (void)SendNotify(&p->tcp_client);
 
+  FinalizeLaneState(p, remote);
+  (void)aclrtResetDevice(dev);
   std::printf("[INFO] [lane %zu] end\n", idx);
 }
 
@@ -454,7 +645,21 @@ void LaneWorkerEntry(size_t idx, LaneState *p, const BenchmarkConfig &cfg, std::
 
 namespace hixl_benchmark {
 
-ClientRunner::~ClientRunner() { Shutdown(); }
+std::mutex *ClientRunner::GetOrCreateRemoteMutex(const std::string &remote) {
+  std::lock_guard<std::mutex> lk(remote_mutex_map_mu_);
+  auto it = remote_mutexes_.find(remote);
+  if (it != remote_mutexes_.end()) {
+    return it->second.get();
+  }
+  auto mu = std::make_unique<std::mutex>();
+  auto *ptr = mu.get();
+  remote_mutexes_[remote] = std::move(mu);
+  return ptr;
+}
+
+ClientRunner::~ClientRunner() {
+  Shutdown();
+}
 
 void ClientRunner::ReleaseAllLaneRuntimes() {
   for (auto &t : multi_lane_threads_) {
@@ -463,14 +668,6 @@ void ClientRunner::ReleaseAllLaneRuntimes() {
     }
   }
   multi_lane_threads_.clear();
-
-  const size_t n = lane_runtimes_.size();
-  for (size_t i = 0; i < n; ++i) {
-    if (lane_runtimes_[i]) {
-      detail::FinalizeLaneState(lane_runtimes_[i].get(), cfg_.expanded_remote_engines[i]);
-      (void)aclrtResetDevice(cfg_.expanded_device_ids[i]);
-    }
-  }
   lane_runtimes_.clear();
 }
 
@@ -488,8 +685,7 @@ void ClientRunner::ReleaseLaneResources() {
   }
 
   const bool skip_bulk_disconnect = lane_shared_multi_remote_workers_disconnected_ &&
-                                   cfg_.expanded_remote_engines.size() > 1U &&
-                                   cfg_.local_engine_list.size() == 1U;
+                                    cfg_.expanded_remote_engines.size() > 1U && cfg_.local_engine_list.size() == 1U;
   lane_shared_multi_remote_workers_disconnected_ = false;
   if (!skip_bulk_disconnect) {
     DisconnectAllRemoteEngines(lane_hixl_, cfg_.expanded_remote_engines);
@@ -557,7 +753,7 @@ int ClientRunner::RunOnePair(const std::string &remote, void *src_slice, size_t 
   }
   std::printf("[INFO] Server RegisterMem success\n");
 
-  const auto connect_ret = lane_hixl_.Connect(AscendString(remote.c_str()));
+  const auto connect_ret = lane_hixl_.Connect(AscendString(remote.c_str()), static_cast<int32_t>(cfg_.connect_timeout_ms));
   if (connect_ret != SUCCESS) {
     std::printf("[ERROR] Connect failed, ret = %u, errmsg: %s\n", connect_ret, RecentErrMsg());
     return -1;
@@ -604,6 +800,8 @@ int ClientRunner::RunSingleDevice() {
   if (AllocLocalBuffer(cfg_, &lane_is_host_, &lane_buffer_, alloc_size) != 0) {
     return -1;
   }
+  std::printf("[DEBUG] RunSingleDevice: allocated lane_buffer_=0x%" PRIxPTR ", alloc_size=%zu\n",
+              reinterpret_cast<uintptr_t>(lane_buffer_), alloc_size);
 
   return RunOnePair(remote, lane_buffer_, alloc_size);
 }
@@ -623,6 +821,8 @@ int ClientRunner::RunSharedMultiRemote() {
   if (AllocLocalBuffer(cfg_, &lane_is_host_, &lane_buffer_, alloc_size) != 0) {
     return -1;
   }
+  std::printf("[DEBUG] RunSharedMultiRemote: allocated lane_buffer_=0x%" PRIxPTR ", alloc_size=%zu, n=%zu\n",
+              reinterpret_cast<uintptr_t>(lane_buffer_), alloc_size, n);
 
   lane_need_register_ = !(lane_is_host_ && cfg_.use_buffer_pool);
   if (RegisterLocalMem(lane_hixl_, cfg_, lane_buffer_, lane_is_host_, lane_need_register_, alloc_size,
@@ -643,10 +843,13 @@ int ClientRunner::RunClientSharedRemoteWorkers() {
   std::vector<std::thread> threads;
   threads.reserve(n);
   for (size_t i = 0; i < n; ++i) {
-    void *sl =
-        reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(lane_buffer_) + static_cast<uintptr_t>(i * slice));
-    threads.emplace_back(SharedRemoteWorker, i, &lane_hixl_, std::cref(cfg_), sl, &first_fail, &fail_mu,
-                         &per_remote[i]);
+    void *sl = reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(lane_buffer_) + static_cast<uintptr_t>(i * slice));
+    std::printf("[DEBUG] RunClientSharedRemoteWorkers: remote[%zu] slice_addr=0x%" PRIxPTR ", slice_size=%zu\n",
+                i, reinterpret_cast<uintptr_t>(sl), slice);
+    const std::string &remote = cfg_.expanded_remote_engines[i];
+    std::mutex *remote_mu = GetOrCreateRemoteMutex(remote);
+    threads.emplace_back(SharedRemoteWorker, i, device_id_, &lane_hixl_, std::cref(cfg_), sl, &first_fail, &fail_mu,
+                         &per_remote[i], remote_mu);
   }
   for (auto &t : threads) {
     t.join();
@@ -673,8 +876,10 @@ int ClientRunner::RunClientLaneWorkers() {
   std::mutex fail_mu;
   multi_lane_threads_.reserve(n);
   for (size_t i = 0; i < n; ++i) {
+    const std::string &remote = cfg_.expanded_remote_engines[i];
+    std::mutex *remote_mu = GetOrCreateRemoteMutex(remote);
     multi_lane_threads_.emplace_back(detail::LaneWorkerEntry, i, lane_runtimes_[i].get(), std::cref(cfg_), &first_fail,
-                                     &fail_mu);
+                                     &fail_mu, remote_mu);
   }
   for (auto &t : multi_lane_threads_) {
     t.join();
@@ -686,18 +891,13 @@ int ClientRunner::RunClientLaneWorkers() {
       PrintBenchRecords(lane_runtimes_[i]->bench_records);
     }
   }
-
-  for (size_t i = 0; i < n; ++i) {
-    if (lane_runtimes_[i]) {
-      detail::FinalizeLaneState(lane_runtimes_[i].get(), cfg_.expanded_remote_engines[i]);
-      (void)aclrtResetDevice(cfg_.expanded_device_ids[i]);
-    }
-  }
   lane_runtimes_.clear();
 
   return first_fail.load() != 0 ? -1 : 0;
 }
 
-int ClientRunner::RunMultiLane() { return RunClientLaneWorkers(); }
+int ClientRunner::RunMultiLane() {
+  return RunClientLaneWorkers();
+}
 
 }  // namespace hixl_benchmark
