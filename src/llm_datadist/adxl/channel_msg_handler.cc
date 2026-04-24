@@ -30,6 +30,8 @@ namespace adxl {
 namespace {
 constexpr int32_t kWaitRespTime = 20;
 constexpr int32_t kCheckDisconnetPeriod = 10;
+constexpr size_t kShareHandleDataSize = sizeof(aclrtMemFabricHandle{}.data);
+
 std::string GetDebugStr(aclrtMemFabricHandle share_handle) {
   std::stringstream ss;
   for (auto &i : share_handle.data) {
@@ -37,7 +39,21 @@ std::string GetDebugStr(aclrtMemFabricHandle share_handle) {
   }
   return ss.str();
 }
+
+void CheckShareHandleArray(const nlohmann::json &share_array) {
+  if (!share_array.is_array()) {
+    throw nlohmann::json::type_error::create(
+        302, "share_handle must be an array, but is " + std::string(share_array.type_name()), &share_array);
+  }
+  if (share_array.size() != kShareHandleDataSize) {
+    throw nlohmann::json::out_of_range::create(
+        401, "share_handle size must be " + std::to_string(kShareHandleDataSize) + ", but is " +
+                 std::to_string(share_array.size()),
+        &share_array);
+  }
+}
 }  // namespace
+
 static inline void from_json(const nlohmann::json &j, AddrInfo &op_desc) {
   j.at("mem_type").get_to(op_desc.mem_type);
   j.at("start_addr").get_to(op_desc.start_addr);
@@ -52,9 +68,10 @@ static inline void to_json(nlohmann::json &j, const AddrInfo &op_desc) {
 static void from_json(const nlohmann::json &j, ShareHandleInfo &c) {
   j.at("va_addr").get_to(c.va_addr);
   j.at("len").get_to(c.len);
-  const auto& share_array = j["share_handle"];
-  for (size_t i = 0; i < share_array.size(); ++i) {
-    c.share_handle.data[i] = share_array[i].get<uint8_t>();
+  const auto &share_array = j.at("share_handle");
+  CheckShareHandleArray(share_array);
+  for (size_t i = 0; i < kShareHandleDataSize; ++i) {
+    c.share_handle.data[i] = share_array.at(i).get<uint8_t>();
   }
 }
 
@@ -63,7 +80,7 @@ static void to_json(nlohmann::json &j, const ShareHandleInfo &c) {
   j["va_addr"] = c.va_addr;
   j["len"] = c.len;
   auto share_array = nlohmann::json::array();
-  for (size_t i = 0; i < sizeof(c.share_handle.data); ++i) {
+  for (size_t i = 0; i < kShareHandleDataSize; ++i) {
     share_array.push_back(c.share_handle.data[i]);
   }
   j["share_handle"] = share_array;

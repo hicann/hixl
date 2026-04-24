@@ -9,6 +9,8 @@
 # ----------------------------------------------------------------------------
 
 set(LLM_DATADIST_TEST_FILES
+        channel_manager_unittest.cc
+        channel_msg_handler_unittest.cc
         channel_pool_unit_test.cc
         channel_pool_system_test.cc
         test_data_cache_engine.cc

@@ -29,8 +29,20 @@ constexpr int64_t kWaitTimeInMillis = 10000;
 constexpr int64_t kSendMsgTimeout = 1000000;
 constexpr int32_t kMaxEvents = 1024;
 const size_t kRecvChunkSize = 4096;
+constexpr size_t kMaxControlMsgBodySizeInBytes = 4U * 1024U * 1024U;
 constexpr int32_t kEpollWaitTimeInMillis = 1000;
 Status kNoNeedRetry = 1U;
+
+Status ValidateProtocolHeader(const ProtocolHeader &header, const std::string &channel_id) {
+  if (header.magic != kMagicNumber) {
+    LLMLOGE(FAILED, "Invalid magic number received on channel:%s.", channel_id.c_str());
+    return FAILED;
+  }
+  ADXL_CHK_BOOL_RET_STATUS(header.body_size <= kMaxControlMsgBodySizeInBytes, FAILED,
+                           "Invalid body size:%lu received on channel:%s, must <= %zu.", header.body_size,
+                           channel_id.c_str(), kMaxControlMsgBodySizeInBytes);
+  return SUCCESS;
+}
 }
 
 int64_t ChannelManager::wait_time_in_millis_ = kWaitTimeInMillis;
@@ -143,12 +155,8 @@ Status ChannelManager::ProcessReceivedData(const ChannelPtr &channel) const {
       if (channel->bytes_received_ < sizeof(ProtocolHeader)) {
         break;
       }
-      ProtocolHeader *header = nullptr;
-      header = llm::PtrToPtr<char, ProtocolHeader>(channel->recv_buffer_.data());
-      if (header->magic != kMagicNumber) {
-        LLMLOGE(FAILED, "Invalid magic number received on channel:%s.", channel->GetChannelId().c_str());
-        return FAILED;
-      }
+      auto *header = llm::PtrToPtr<char, ProtocolHeader>(channel->recv_buffer_.data());
+      ADXL_CHK_STATUS_RET(ValidateProtocolHeader(*header, channel->GetChannelId()), "Failed to validate header");
       channel->expected_body_size_ = header->body_size;
       channel->recv_state_ = RecvState::WAITING_FOR_BODY;
 
