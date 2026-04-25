@@ -374,6 +374,103 @@ Status TransferSync(const AscendString &remote_engine,
 -   在开启中转内存池情况下，op\_descs中本地内存和远端内存如有一个未注册就会判断为需要采用中转传输模式，且没有注册过的内存判断为Host内存，用户需保证地址合法。
 -   在中转传输模式下，所有op\_descs的传输类型需要相同，举例：所有的op\_descs都是本地Host内存往远端Host内存写。
 
+## TransferAsync
+
+**函数功能**
+
+与远端HIXL进行批量异步内存传输。
+
+**函数原型**
+
+```
+  Status TransferAsync(const AscendString &remote_engine,
+                       TransferOp operation,
+                       const std::vector<TransferOpDesc> &op_descs,
+                       const TransferArgs &optional_args,
+                       TransferReq &req)
+```
+
+**参数说明**
+
+| 参数名称 | 输入/输出 | 取值说明 |
+| --- | --- | --- |
+| remote_engine | 输入 | 远端HIXL的唯一标识。 |
+| operation | 输入 | 将远端内存读到本地或者将本地内存写到远端。 |
+| op_descs | 输入 | 批量操作的本地以及远端地址。 |
+| optional_args | 输入 | 可选参数（预留）。 |
+| req | 输出 | 请求的句柄，用户查询传输的请求状态。 |
+
+**调用示例**
+
+```
+  //初始化客户端和服务端engine，并完成链接
+  client_engine.TransferAsync(remote_engine, operation, op_descs, optional_args, req);
+```
+
+**返回值**
+
+- SUCCESS：成功
+- NOT\_CONNECTED：没有与对端创建链接
+- RESOURCE_EXHAUSTED：资源耗尽
+- 其他：失败
+
+**约束说明**
+
+- 调用该接口之前，存在如下约束：
+  <br>需要先调用Connect接口完成与对端的建链。
+  <br>或者在HIXL初始化时开启了链路池机制（通过配置options中的OPTION_GLOBAL_RESOURCE_CONFIG参数进行开启）。该约束支持的型号如下：
+  <br>- Atlas A2 训练系列产品/Atlas A2 推理系列产品
+  <br>- Atlas A3 训练系列产品/Atlas A3 推理系列产品
+- 该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
+- 当前异步传输仅支持直传，暂不支持中转传输，默认直传。
+- 在Fabric Mem传输模式下, 所有op_descs的传输类型需要相同，系统会根据第一个op_desc的内存类型判定传输方向。该约束支持的型号如下：
+  <br>- Atlas A3 训练系列产品/Atlas A3 推理系列产品
+
+## GetTransferStatus
+
+**函数功能**
+
+获取异步内存传输的状态。
+
+**函数原型**
+
+```
+  Status GetTransferStatus(const TransferReq &req, TransferStatus &status)
+```
+
+**参数说明**
+
+| 参数名称 | 输入/输出 | 取值说明 |
+| --- | --- | --- |
+| req | 输入 | 请求的句柄，通过调用TransferAsync产生。 |
+| status | 输出 | 传输状态，枚举值如下。<br><br>-  WAITING<br>-  COMPLETED<br>-  TIMEOUT（暂不支持）<br>-  FAILED |
+
+**调用示例**
+
+```
+  //初始化客户端和服务端engine，并完成链接
+  Status transfer_status = client_engine.TransferAsync(remote_engine, operation, op_descs, optional_args, req);
+  //req是TransferAsync()的输出值，使用这个请求句柄进行传输状态查询
+  Status query_status = GetTransferStatus(req, status);
+  //对传输状态进行检查，判断传输是否完成
+  ...
+```
+
+**返回值**
+
+- SUCCESS：成功
+- PARAM\_INVALID：参数错误
+- NOT\_CONNECTED：没有与对端创建链接
+- 其他：失败
+
+**约束说明**
+
+- 调用该接口之前，需要先调用Connect接口完成与对端的建链。
+- 该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
+- 在调用TransferAsync接口进行异步传输后，需要使用该接口查询对应请求状态，如果查询状态是COMPLETED或FAILED，将释放相关资源。该场景下不支持再次查询。
+- 异步传输时，用户自行判断是否超时，如果用户判断任务超时，建议调用Disconnect接口销毁链路，清理相关资源。
+- 异步传输任务失败后，调用该接口查询的状态和接口返回状态都是FAILED。
+
 
 ## SendNotify
 
