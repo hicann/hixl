@@ -557,9 +557,8 @@ Status HixlCSClient::BatchTransferHost(bool is_get, const CommunicateMem &commun
   // 使用 scope_guard 自动管理 flag 资源的释放
   HIXL_DISMISSABLE_GUARD(flag_guard, ([this, flag_index]() { ReleaseFlagIndex(flag_index); }));
   uint64_t *flag_addr = &flag_queue_[flag_index];
-  EndpointDesc endpoint = local_endpoint_->GetEndpoint();
   const char *kTransFlagName = nullptr;
-  if (endpoint.loc.locType == ENDPOINT_LOC_TYPE_HOST) {
+  if (remote_endpoint_.loc.locType == ENDPOINT_LOC_TYPE_HOST) {
     kTransFlagName = kTransFlagNameHost;
   } else {
     kTransFlagName = kTransFlagNameDevice;
