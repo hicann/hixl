@@ -25,13 +25,6 @@ __all__ = ["LLMClusterInfo", "LLMStatusCode", "LLMException",
            "BlocksCacheKey", "LLMDataDist", "Placement", "RegisterMemStatus", "LayerSynchronizer",
            "TransferConfig", "CacheTask", "TransferWithCacheKeyConfig", "Memtype", "MemInfo"]
 
-try:
-    from llm_datadist_v1.tensor import TensorDesc, Tensor
-    from llm_datadist_v1.kv_cache_manager import KvCacheManager
-    __all__ += ['TensorDesc', 'Tensor', 'KvCacheManager']
-except ModuleNotFoundError:
-    pass
-
 _ENV_VAR_NAME_AUTO_USE_UC_MEMORY = 'AUTO_USE_UC_MEMORY'
 
 if _ENV_VAR_NAME_AUTO_USE_UC_MEMORY not in os.environ:

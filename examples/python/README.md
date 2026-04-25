@@ -36,41 +36,21 @@ pip3 install -r requirements.txt
 ```
 根据实际环境，安装对应的**torch**与**torch_npu**包(建议使用大于等于2.1.0的版本)， [获取方法](https://gitcode.com/Ascend/pytorch)。
 
+## 样例配置说明
 
-## 样例运行
 以下所有用例运行均需正确设置Ascend环境变量，所有双机示例需尽量保证同步执行。
 ```
 source ${HOME}/Ascend/cann/set_env.sh
 ```
-“${HOME}/Ascend”请替换相关软件包的实际安装路径。
+`${HOME}/Ascend`请替换相关软件包的实际安装路径。
 
-### 执行前准备
-- 注：此步骤**并非对所有样例都是必须**，若非标注，则执行前无须做此准备
-- 使用双机，在Prompt与Decoder的主机分别执行以下命令，查询该主机的device ip信息，以8卡为样例：
-    ```
-    for i in {0..7}; do hccn_tool -i $i -ip -g; done
-    ```
-  **注: 如果出现hccn_tool命令找不到的情况，可在CANN包安装目录下搜索hccn_tool，找到可执行文件执行。更多hccn_tool的用法请参考[hccn_tool接口文档](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743?category=developer-documents&subcategory=interface-reference)。**
-- 更改脚本中的device信息
+- 更改样例中的device信息
   - 将PROMPT_IP_LIST中的device_ip修改为Prompt主机的各device_ip。
   - 将PROMPT_HOST_IP修改为Prompt主机的host_ip。
   - 将DECODER_IP_LIST中的device_ip修改为Decoder主机的各device_ip。
   - 将DECODER_HOST_IP修改为Decoder主机的host_ip。
   - 两台机器脚本保持一致。
-- 执行样例前检查设备之间网络是否连通（可选）：
-    ```
-    # 检查设备ID为0的设备是否能ping通其他设备ip x.x.x.x
-    hccn_tool -i 0 -ping -g address x.x.x.x
-    ```
-  **注: 其中-i后面为指定的设备ID；address后面为目的设备的ip地址。**
-- 执行样例前检查设备之间TLS设置是否一致（可选）：
-    ```shell
-    # 检查设备的TLS状态
-    for i in {0..7}; do hccn_tool -i $i -tls -g; done | grep switch
 
-    # TLS使能的设备和TLS不使能的设备无法建链，建议统一保持TLS关闭
-    for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
-    ```
 - 下面个别用例支持在A5环境使用RDMA链路执行，并且需要在双机上执行，会在对应用例中进行特别说明。在执行前需要手动配置local_comm_res，配置格式参考：[通信设备配置](https://gitcode.com/cann/hixl/issues/37)。可通过以下操作获取 host 网卡的 ip 信息：
   ```shell
   # 查询RoCE设备和网口的对应关系，查看状态为Up的网口名
@@ -80,8 +60,7 @@ source ${HOME}/Ascend/cann/set_env.sh
   ifconfig
   ```
 
-
-### 执行
+## 样例运行
 - 执行pull cache样例程序，此样例程序展示了配置内存池场景下，使用allocate_cache，双向建链，并从远端pull_cache
   - 说明：
     本示例必须使用双机，参考[执行前准备](#执行前准备)
