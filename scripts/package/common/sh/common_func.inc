@@ -116,7 +116,7 @@ comm_log_operation() {
     local runfilename="$2"
     local result="$3"
     local installmode="$4"
-    local all_parma="$5"
+    local all_param="$5"
     local level=""
     if [ "${operation}"  = "Install" ]; then
         level="SUGGESTION"
@@ -133,7 +133,7 @@ comm_log_operation() {
         chmod 640 "${COMM_OPERATION_LOGFILE}"
     fi
 
-    echo "${operation} ${level} ${COMM_USERNAME} ${cur_date} 127.0.0.1 ${runfilename} ${result} installmode=${installmode}; cmdlist=${all_parma}" >> "${COMM_OPERATION_LOGFILE}"
+    echo "${operation} ${level} ${COMM_USERNAME} ${cur_date} 127.0.0.1 ${runfilename} ${result} installmode=${installmode}; cmdlist=${all_param}" >> "${COMM_OPERATION_LOGFILE}"
 }
 
 ## end module
@@ -340,11 +340,11 @@ comm_update_install_info() {
 
 # 开始安装前打印开始信息
 comm_start_log() {
-    local all_parma="$@"
+    local all_param="$@"
     local cur_date="$(date +'%Y-%m-%d %H:%M:%S')"
     comm_log "INFO" "Start time:$cur_date"
     comm_log "INFO" "LogFile:${COMM_LOGFILE}"
-    comm_log "INFO" "InputParams:$all_parma"
+    comm_log "INFO" "InputParams:$all_param"
     comm_log "INFO" "OperationLogFile:${COMM_OPERATION_LOGFILE}"
 }
 
@@ -488,7 +488,7 @@ version_ge() {
     fi
 }
 
-version_vaild() {
+version_valid() {
     local ver_range="$1"        #version range
     local ver="$2"              #version provider
     local clean_ver_range=$(echo "$ver_range" | sed 's/"//g')   # clean ver_range,去除引号啥的
@@ -542,7 +542,7 @@ check_pkg_ver_deps() {
         itf=`echo $line | cut -d":" -f 3`
         ver=`echo $line | cut -d":" -f 5`
         req_ver=`awk -F '=' '$1=="'$itf'_version" {print $2}' "$req_ver_path"`
-        if ! version_vaild $ver $req_ver; then
+        if ! version_valid $ver $req_ver; then
             VerCheckStatus=FAIL
             ver_check_status=FAIL
             return
@@ -996,7 +996,7 @@ preinstall_process() {
         real_install_path="${docker_root}/${install_path}"
     fi
 
-    _check_version_compatiable "$package" "${real_install_path}" "${script_dir}"
+    _check_version_compatible "$package" "${real_install_path}" "${script_dir}"
     if [ $? -ne 0 ]; then
         return 1
     fi

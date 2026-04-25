@@ -47,7 +47,7 @@ set(SCRIPTS_FILES
     ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/common_interface.bash
     ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/common_interface.csh
     ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/common_interface.fish
-    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/version_compatiable.inc
+    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/version_compatible.inc
 )
 
 install(FILES ${SCRIPTS_FILES}
@@ -69,7 +69,7 @@ set(PACKAGE_FILES
 set(LATEST_MANGER_FILES
     ${COMMON_FILES}
     ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/common_func.inc
-    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/version_compatiable.inc
+    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/version_compatible.inc
     ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/check_version_required.awk
 )
 set(CONF_FILES

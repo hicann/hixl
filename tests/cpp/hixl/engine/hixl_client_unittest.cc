@@ -41,14 +41,14 @@ static constexpr uint32_t kMilliSeconds1 = 1;
 static constexpr uint32_t kSleepMs = 10;
 static constexpr uint32_t kSleepLongTimeMs = 30000;
 static constexpr uint32_t kMemNum = 100U;
-static constexpr uint32_t kNUm1 = 1;
-static constexpr uint32_t kNUm2 = 2;
+static constexpr uint32_t kNum1 = 1;
+static constexpr uint32_t kNum2 = 2;
 static constexpr uint32_t default_list_num = 2;
 static constexpr uint32_t list_num_4ub = 4;
 static constexpr uint8_t kDefaultRdmaTc = 132;
 static constexpr uint8_t kDefaultRdmaSl = 4;
-static std::vector<uint32_t> kLocalMems(kMemNum, kNUm1);
-static std::vector<uint32_t> kRemoteMems(kMemNum, kNUm2);
+static std::vector<uint32_t> kLocalMems(kMemNum, kNum1);
+static std::vector<uint32_t> kRemoteMems(kMemNum, kNum2);
 enum class MockHixlServerMode : uint32_t {
   k4UbNormal = 0,
   k2UbNormal,

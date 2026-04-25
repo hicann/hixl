@@ -118,7 +118,7 @@ _check_version_required() {
 }
 
 # 检查版本兼容性。
-_check_version_compatiable() {
+_check_version_compatible() {
     local package="$1"
     local install_path="$2"
     local script_dir="$3"

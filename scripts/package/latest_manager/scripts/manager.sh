@@ -12,14 +12,14 @@
 CURPATH=$(dirname "$(readlink -f "$0")")
 VAR_PATH="$CURPATH"
 common_func_path="$CURPATH/manager/common_func.inc"
-version_compatiable_path="$CURPATH/manager/version_compatiable.inc"
+version_compatible_path="$CURPATH/manager/version_compatible.inc"
 common_func_v2_path="$CURPATH/manager/common_func_v2.inc"
 version_cfg_path="$CURPATH/manager/version_cfg.inc"
 script_operator_path="$CURPATH/manager/script_operator.inc"
 manager_func_path="$CURPATH/manager/manager_func.sh"
 
 . "$common_func_path"
-. "$version_compatiable_path"
+. "$version_compatible_path"
 . "$common_func_v2_path"
 . "$version_cfg_path"
 . "$script_operator_path"

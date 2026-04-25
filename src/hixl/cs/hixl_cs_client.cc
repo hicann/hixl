@@ -403,7 +403,7 @@ Status HixlCSClient::RegMem(const char *mem_tag, const CommMem *mem, MemHandle *
   if (check_result) {
     HIXL_LOGE(PARAM_INVALID,
               "[HixlClient] Memory registration failed. This memory may overlap with the already recorded memory. "
-              "Please check Mem, mem_adrr: %p, mem_size: %u.",
+              "Please check Mem, mem_addr: %p, mem_size: %u.",
               mem->addr, mem->size);
     return PARAM_INVALID;
   }

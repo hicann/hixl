@@ -37,10 +37,10 @@ static constexpr uint32_t kBackLog = 1024U;
 static constexpr uint32_t kRecvTimeoutMs = 1000U;
 static constexpr uint32_t kTimeSleepMs = 10U;
 static constexpr uint32_t kCaptureLogTimeoutMs = 1000U;
-static constexpr int32_t kNUm1 = 1;
-static constexpr int32_t kNUm2 = 2;
-static std::vector<int32_t> kHostMems(kMemNum, kNUm1);
-static std::vector<int32_t> kDeviceMems(kMemNum, kNUm2);
+static constexpr int32_t kNum1 = 1;
+static constexpr int32_t kNum2 = 2;
+static std::vector<int32_t> kHostMems(kMemNum, kNum1);
+static std::vector<int32_t> kDeviceMems(kMemNum, kNum2);
 
 static constexpr int32_t kCtrlMsgType = 1024;
 class HixlCSTest : public ::testing::Test {

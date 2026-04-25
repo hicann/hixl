@@ -40,7 +40,7 @@ class ThreadPool {
     HIXL_LOGD("[ThreadPool:%s] commit task enter", thread_name_prefix_.c_str());
     using retType = decltype(func(args...));
     std::future<retType> fail_future;
-    if (is_stoped_.load()) {
+    if (is_stopped_.load()) {
       HIXL_LOGE(ge::FAILED, "[ThreadPool:%s] has been stopped", thread_name_prefix_.c_str());
       return fail_future;
     }
@@ -87,7 +87,7 @@ class ThreadPool {
   std::queue<ThreadTask> tasks_;
   std::mutex m_lock_;
   std::condition_variable cond_var_;
-  std::atomic<bool> is_stoped_;
+  std::atomic<bool> is_stopped_;
   std::atomic<uint32_t> idle_thrd_num_;
   std::atomic<uint32_t> busy_thrd_num_;
   std::atomic<uint32_t> total_thrd_num_;

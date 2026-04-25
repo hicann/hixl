@@ -19,7 +19,7 @@
 
 namespace llm {
 LLMThreadPool::LLMThreadPool(std::string thread_name_prefix, const uint32_t size)
-    : thread_name_prefix_(std::move(thread_name_prefix)), is_stoped_(false) {
+    : thread_name_prefix_(std::move(thread_name_prefix)), is_stopped_(false) {
   idle_thrd_num_ = size < 1U ? 1U : size;
 
   for (uint32_t i = 0U; i < idle_thrd_num_; ++i) {
@@ -32,10 +32,10 @@ LLMThreadPool::~LLMThreadPool() {
 }
 
 void LLMThreadPool::Destroy() {
-  if (is_stoped_.load() == true) {
+  if (is_stopped_.load() == true) {
     return;
   }
-  is_stoped_.store(true);
+  is_stopped_.store(true);
   {
     const std::unique_lock<std::mutex> lock{m_lock_};
     cond_var_.notify_all();
@@ -62,13 +62,13 @@ void LLMThreadPool::ThreadFunc(LLMThreadPool *const thread_pool, uint32_t thread
     LLMLOGD("set thread name to [%s], ret=%d", thread_name.c_str(), set_ret);
   }
 
-  while (!thread_pool->is_stoped_) {
+  while (!thread_pool->is_stopped_) {
     std::function<void()> task;
     {
       std::unique_lock<std::mutex> lock{thread_pool->m_lock_};
       thread_pool->cond_var_.wait(
-          lock, [thread_pool]() -> bool { return thread_pool->is_stoped_.load() || (!thread_pool->tasks_.empty()); });
-      if (thread_pool->is_stoped_ && thread_pool->tasks_.empty()) {
+          lock, [thread_pool]() -> bool { return thread_pool->is_stopped_.load() || (!thread_pool->tasks_.empty()); });
+      if (thread_pool->is_stopped_ && thread_pool->tasks_.empty()) {
         return;
       }
       task = std::move(thread_pool->tasks_.front());

@@ -63,10 +63,10 @@ if [ -f "${multi_version_path}" ]; then
     . "${multi_version_path}"
 fi
 
-# 导入version_compatiable.inc
-version_compatiable_path="${curpath}/version_compatiable.inc"
-if [ -f "${version_compatiable_path}" ]; then
-    . "${version_compatiable_path}"
+# 导入version_compatible.inc
+version_compatible_path="${curpath}/version_compatible.inc"
+if [ -f "${version_compatible_path}" ]; then
+    . "${version_compatible_path}"
 fi
 
 # 导入config.inc

@@ -589,9 +589,9 @@ extract_2nd() {
 path_to_regex() {
     local _outvar="$1"
     local _path="$2"
-    local _reslut_ptr="$(echo "${_path}" | sed "s#\/#\\\/#g")"
+    local _result_ptr="$(echo "${_path}" | sed "s#\/#\\\/#g")"
 
-    eval "${_outvar}=\"${_reslut_ptr}\""
+    eval "${_outvar}=\"${_result_ptr}\""
 }
 
 # 设置默认值

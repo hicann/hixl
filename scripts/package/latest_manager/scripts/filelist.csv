@@ -7,7 +7,7 @@ NA,copy,latest_manager/manager_func.sh,manager/manager_func.sh,TRUE,440,\\$usern
 NA,copy,latest_manager/script_operator.inc,manager/script_operator.inc,TRUE,440,\\$username:\\$usergroup,all,NA,all,N,FALSE,NA,latest_manager,NA,all
 NA,copy,latest_manager/uninstall.sh,manager/uninstall.sh,TRUE,550,\\$username:\\$usergroup,all,NA,all,N,FALSE,NA,latest_manager,NA,all
 NA,copy,latest_manager/version.info,manager/version.info,TRUE,440,\\$username:\\$usergroup,all,NA,all,N,FALSE,NA,latest_manager,NA,all
-NA,copy,latest_manager/version_compatiable.inc,manager/version_compatiable.inc,TRUE,440,\\$username:\\$usergroup,all,NA,all,N,FALSE,NA,latest_manager,NA,all
+NA,copy,latest_manager/version_compatible.inc,manager/version_compatible.inc,TRUE,440,\\$username:\\$usergroup,all,NA,all,N,FALSE,NA,latest_manager,NA,all
 NA,copy,latest_manager/check_version_required.awk,manager/check_version_required.awk,TRUE,440,\\$username:\\$usergroup,all,NA,all,N,FALSE,NA,latest_manager,NA,all
 NA,copy,latest_manager/common_func_v2.inc,manager/common_func_v2.inc,TRUE,440,\\$username:\\$usergroup,all,NA,all,N,FALSE,NA,latest_manager,NA,all
 NA,copy,latest_manager/common_func.inc,manager/common_func.inc,TRUE,440,\\$username:\\$usergroup,all,NA,all,N,FALSE,NA,latest_manager,NA,all
