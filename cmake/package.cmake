@@ -83,48 +83,68 @@ install(FILES ${CMAKE_BINARY_DIR}/version.hixl.info
 )
 
 install(FILES ${CONF_FILES}
-    DESTINATION hixl/conf
+    DESTINATION ${ARCH_LINUX_PATH}/conf
     COMPONENT hixl
 )
 install(FILES ${PACKAGE_FILES}
     DESTINATION share/info/hixl/script
     COMPONENT hixl
 )
-install(FILES ${LATEST_MANGER_FILES}
-    DESTINATION latest_manager
-    COMPONENT hixl
-)
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/scripts/package/latest_manager/scripts/
-    DESTINATION latest_manager
-    COMPONENT hixl
-)
 
 set(hixl_include ${CMAKE_SOURCE_DIR}/include)
-install(DIRECTORY ${hixl_include}/
-    DESTINATION hixl/include
+install(DIRECTORY ${hixl_include}/cs
+    DESTINATION ${ARCH_LINUX_PATH}/include
     COMPONENT hixl
     FILE_PERMISSIONS
     OWNER_READ OWNER_WRITE
     GROUP_READ GROUP_EXECUTE
 )
-install(TARGETS llm_datadist
-        LIBRARY DESTINATION hixl/lib
-        COMPONENT hixl
+install(DIRECTORY ${hixl_include}/adxl
+    DESTINATION ${ARCH_LINUX_PATH}/include
+    COMPONENT hixl
+    FILE_PERMISSIONS
+    OWNER_READ OWNER_WRITE
+    GROUP_READ GROUP_EXECUTE
 )
-install(TARGETS cann_hixl
-        LIBRARY DESTINATION hixl/lib
+install(DIRECTORY ${hixl_include}/hixl
+    DESTINATION ${ARCH_LINUX_PATH}/include
+    COMPONENT hixl
+    FILE_PERMISSIONS
+    OWNER_READ OWNER_WRITE
+    GROUP_READ GROUP_EXECUTE
+)
+install(FILES ${hixl_include}/llm_datadist/llm_datadist.h
+    DESTINATION ${ARCH_LINUX_PATH}/include/llm_datadist
+    COMPONENT hixl
+)
+install(FILES ${hixl_include}/llm_datadist/llm_error_codes.h
+    DESTINATION ${ARCH_LINUX_PATH}/include/ge
+    COMPONENT hixl
+)
+install(FILES ${hixl_include}/llm_datadist/llm_engine_types.h
+    DESTINATION ${ARCH_LINUX_PATH}/include/ge
+    COMPONENT hixl
+)
+install(TARGETS llm_datadist
+        LIBRARY DESTINATION ${ARCH_LINUX_PATH}/lib64
         COMPONENT hixl
 )
 
+install(TARGETS cann_hixl
+        LIBRARY DESTINATION ${ARCH_LINUX_PATH}/lib64
+        COMPONENT hixl
+)
+
+
 install(FILES
   ${CMAKE_SOURCE_DIR}/build/device_install/hixl/aicpu_kernel/cann-hixl-compat.tar.gz
-  DESTINATION hixl/aicpu_kernel
+  DESTINATION opp/built-in/op_impl/aicpu/kernel
   COMPONENT hixl
 )
 
 install(FILES
   ${CMAKE_SOURCE_DIR}/build/device_install/hixl/aicpu_kernel/libcann_hixl_kernel.json
-  DESTINATION hixl/aicpu_kernel
+  DESTINATION opp/built-in/op_impl/aicpu/config
   COMPONENT hixl
 )
 

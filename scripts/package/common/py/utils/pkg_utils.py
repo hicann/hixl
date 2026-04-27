@@ -44,6 +44,14 @@ class BlockConfigError(PackageError):
     """块配置错误异常。"""
 
 
+class MultiPkgModError(PackageError):
+    """多个pkg_mod元素异常。"""
+
+
+class MultiPkgSoftlinkError(PackageError):
+    """多个pkg_softlink元素异常。"""
+
+
 class ParseOsArchError(PackageError):
     """解析os_arch失败异常。"""
 
@@ -66,6 +74,10 @@ class FilelistError(PackageError):
 
 class UnknownOperateTypeError(PackageError):
     """未知的操作类型。"""
+
+
+class PkgInnerSoftlinkNotAllowed(PackageError):
+    """不允许使用pkg_inner_softlink。"""
 
 
 class PackageNameEmptyError(PackageError):

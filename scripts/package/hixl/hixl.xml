@@ -18,8 +18,9 @@
         <version>package/hixl/version.xml</version>
         <cleanup>share/info/hixl/script/cleanup.sh</cleanup>
         <parallel>true</parallel>
+        <copy_all>true</copy_all>
     </package_info>
-    <generate_info value="hixl_version.h" dst_path="hixl" install_path="$(TARGET_ENV)/include/version" install_mod="440" install_type="devel" generator="version_header">
+    <generate_info value="hixl_version.h" dst_path="$(TARGET_ENV)/include/version" install_path="$(TARGET_ENV)/include/version" install_mod="440" install_type="devel" generator="version_header">
         <HIXL_VERSION>$(ASCEND_VER)</HIXL_VERSION>
         <HIXL_TIMESTAMP>$(TIMESTAMP_NO)</HIXL_TIMESTAMP>
     </generate_info>
@@ -33,22 +34,22 @@
         <file value="script" entity="true"/>
         <file value="version.info" dst_path="share/info/hixl"/>
     </file_info>
-    <file_info copy_type="source" src_path="" dst_path="hixl/include" install_path="$(TARGET_ENV)/include" install_type="all">
+    <file_info copy_type="source" src_path="" dst_path="$(TARGET_ENV)/include" install_path="$(TARGET_ENV)/include" install_type="all">
         <file value="adxl" install_mod="550" entity="true" />
         <file value="hixl" install_mod="550" entity="true" />
         <file value="cs" install_mod="550" entity="true" />
     </file_info>
-    <file_info copy_type="delivery" src_path="" dst_path="hixl/aicpu_kernel" install_path="opp/built-in/op_impl/aicpu/kernel" install_type="all">
+    <file_info copy_type="delivery" src_path="" dst_path="opp/built-in/op_impl/aicpu/kernel" install_path="opp/built-in/op_impl/aicpu/kernel" install_type="all">
         <file value="cann-hixl-compat.tar.gz" install_mod="440" entity="true" />
     </file_info>
-        <file_info copy_type="delivery" src_path="" dst_path="hixl/aicpu_kernel" install_path="opp/built-in/op_impl/aicpu/config" install_type="all">
+        <file_info copy_type="delivery" src_path="" dst_path="opp/built-in/op_impl/aicpu/config" install_path="opp/built-in/op_impl/aicpu/config" install_type="all">
         <file value="libcann_hixl_kernel.json" install_mod="440" entity="true" />
     </file_info>
-    <file_info value="hixl_lib" copy_type="delivery" src_path="" dst_path="hixl/lib" install_path="$(TARGET_ENV)/lib64" install_mod="440">
+    <file_info value="hixl_lib" copy_type="delivery" src_path="" dst_path="$(TARGET_ENV)/lib64" install_path="$(TARGET_ENV)/lib64" install_mod="440">
         <file value="libllm_datadist.so" file_type="shared" />
         <file value="libcann_hixl.so" file_type="shared" />
     </file_info>
-    <block_info dependtree="false" dst_path="hixl" block_conf_path="ascend">
+    <block_info dependtree="false" dst_path="" block_conf_path="ascend">
         <block name="EngineeringCommon"/>
         <block name="EngineeringFiles"/>
         <block name="LlmDatadistCompatiableInc"/>

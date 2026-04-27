@@ -359,6 +359,17 @@ custom_install() {
         fi
     fi
 
+    if [ -d "$common_parse_dir/hixl" ]; then
+ 	    rm -rf "$common_parse_dir/hixl"
+ 	fi
+
+    if [ -d "$common_parse_dir/include/llm_datadist/llm_engine_types.h" ]; then
+ 	    rm -rf "$common_parse_dir/include/llm_datadist/llm_engine_types.h"
+ 	fi
+
+    if [ -d "$common_parse_dir/include/llm_datadist/llm_error_codes.h" ]; then
+ 	    rm -rf "$common_parse_dir/include/llm_datadist/llm_error_codes.h"
+ 	fi
     return 0
 }
 

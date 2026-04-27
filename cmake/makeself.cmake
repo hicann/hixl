@@ -18,6 +18,7 @@ endif()
 
 # 创建临时安装目录
 set(STAGING_DIR "${CPACK_CMAKE_BINARY_DIR}/_CPack_Packages/makeself_staging")
+file(REMOVE_RECURSE "${STAGING_DIR}")
 file(MAKE_DIRECTORY "${STAGING_DIR}")
 
 # 执行安装到临时目录
@@ -63,7 +64,7 @@ set(OPS_VERSION_OUT_PUT
 )
 configure_file(
     ${OPS_VERSION_OUT_PUT}
-    ${STAGING_DIR}/hixl/
+    ${STAGING_DIR}/${CMAKE_SYSTEM_PROCESSOR}-linux/include/version/hixl_version.h
     COPYONLY
 )
 configure_file(
@@ -71,6 +72,18 @@ configure_file(
     ${STAGING_DIR}/share/info/hixl/script
     COPYONLY
 )
+
+# 统一设置安装的文件权限为555
+execute_process(
+    COMMAND find ${STAGING_DIR} -type f -exec chmod 555 {} \;
+ 	RESULT_VARIABLE CHMOD_RESULT
+)
+if(EXISTS "${STAGING_DIR}/${CMAKE_SYSTEM_PROCESSOR}-linux/include/version/hixl_version.h")
+ 	execute_process(COMMAND chmod 440 "${STAGING_DIR}/${CMAKE_SYSTEM_PROCESSOR}-linux/include/version/hixl_version.h")
+endif()
+if(EXISTS "${STAGING_DIR}/${CMAKE_SYSTEM_PROCESSOR}-linux/conf/path.cfg")
+ 	execute_process(COMMAND chmod 440 "${STAGING_DIR}/${CMAKE_SYSTEM_PROCESSOR}-linux/conf/path.cfg")
+endif()
 # makeself打包
 file(STRINGS ${CPACK_CMAKE_BINARY_DIR}/makeself.txt script_output)
 string(REPLACE " " ";" makeself_param_string "${script_output}")

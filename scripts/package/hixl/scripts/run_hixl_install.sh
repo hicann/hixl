@@ -150,7 +150,7 @@ new_install() {
 
     # 执行安装
     custom_options="--custom-options=--common-parse-dir=$common_parse_dir,--logfile=$logfile,--stage=install,--quiet=$is_quiet,--pylocal=$pylocal,--hetero-arch=$hetero_arch"
-    sh "$curpath/install_common_parser.sh" --package="hixl" --install --username="$username" --usergroup="$usergroup" --set-cann-uninstall \
+    sh "$curpath/install_common_parser.sh" --copy_all --package="hixl" --install --username="$username" --usergroup="$usergroup" --set-cann-uninstall \
         --version=$pkg_version --version-dir=$pkg_version_dir --use-share-info \
         $setenv_option $in_install_for_all --docker-root="$docker_root" --chip="$chip_type" --feature="$feature_type" \
         $custom_options "$common_parse_type" "$input_install_dir" "$curpath/filelist.csv"

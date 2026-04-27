@@ -13,10 +13,10 @@
         <path value="$(TARGET_ENV)/include/llm_datadist" install_mod="550"/>
         <path value="$(TARGET_ENV)/include/ge" install_mod="550"/>
     </dir_info>
-    <file_info value="include" copy_type="source" dst_path="include/llm_datadist" install_path="$(TARGET_ENV)/include/llm_datadist" install_type="all">
+    <file_info value="include" copy_type="source" dst_path="$(TARGET_ENV)/include/llm_datadist" install_path="$(TARGET_ENV)/include/llm_datadist" install_type="all">
         <file value="llm_datadist.h"/>
     </file_info>
-    <file_info value="include" copy_type="source" dst_path="include/llm_datadist" install_path="$(TARGET_ENV)/include/ge" install_type="all">
+    <file_info value="include" copy_type="source" dst_path="$(TARGET_ENV)/include/ge" install_path="$(TARGET_ENV)/include/ge" install_type="all">
         <file value="llm_error_codes.h"/>
         <file value="llm_engine_types.h"/>
     </file_info>
