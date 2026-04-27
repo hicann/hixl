@@ -15,10 +15,7 @@
 **1.安装固件和驱动**：请参考[CANN软件安装指南](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)。
 
 **2.安装依赖、CANN Toolkit开发套件包以及CANN ops算子包**，操作步骤如下。
-
-   - **配套 X86 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu24.04_x86:lv6_v1.1039` 
- 
- 
+ - **配套 X86 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu24.04_x86:lv6_v1.1039`
  - **配套 ARM 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu24.04_arm:lv6_v1.1039`
 
   以下是推荐的使用方式，可供参考:
@@ -40,7 +37,9 @@
     --cap-add SYS_PTRACE \
     -v /usr/local/dcmi:/usr/local/dcmi \
     -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi \
+    -v /usr/bin/hccn_tool:/usr/bin/hccn_tool \
     -v /usr/local/Ascend/driver/lib64/:/usr/local/Ascend/driver/lib64/ \
+    -v /usr/local/Ascend/driver/tools/:/usr/local/Ascend/driver/tools/ \
     -v /usr/local/Ascend/driver/version.info:/usr/local/Ascend/driver/version.info \
     -v /etc/ascend_install.info:/etc/ascend_install.info \
     -it ${image} bash
@@ -62,7 +61,7 @@
 如果您想体验**master分支最新能力**，单击[下载链接](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/master)获取软件包，按照如下步骤进行安装。更多安装指导请参考[CANN软件安装指南](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)。
 
 1. 安装固件和驱动：请参考[CANN软件安装指南](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)。
-2. 安装依赖。   
+2. 安装依赖。
    <br>以下所列为源码编译用到的依赖，请注意版本要求。
 
  ```shell
@@ -139,7 +138,7 @@ source /usr/local/Ascend/cann/set_env.sh
   ```
 - GCC >= 7.3.0
 - Python >= 3.9.0
-- CMake >= 3.16.0  (建议使用3.20.0版本)
+- CMake >= 3.16.0
 - bash >= 5.1.16，由于测试用例开启了地址消毒，代码中执行system函数会触发低版本的bash被地址消毒检查出内存泄露。
 - ccache（可选），ccache为编译器缓存优化工具，用于加快二次编译速度。
 
@@ -271,7 +270,7 @@ bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
   - 关闭验签功能依赖Ascend NPU驱动软件包（Ascend HDK 25.5.T2.B001或以上版本），可以通过该Ascend HDK配套的npu-smi工具查询版本和关闭验签，详见[查询基本信息](https://support.huawei.com/enterprise/zh/doc/EDOC1100540362/4a8adb57?idPath=23710424|251366513|254884019|261408772|252764743)，[设置自定义验签能力使能状态](https://support.huawei.com/enterprise/zh/doc/EDOC1100540362/3152813c?idPath=23710424|251366513|254884019|261408772|252764743)，[设置验签模式](https://support.huawei.com/enterprise/zh/doc/EDOC1100540362/a484ba7b?idPath=23710424|251366513|254884019|261408772|252764743)命令文档，需要以root用户在物理机上执行。
   - 以device 0为例（其中 -i 后面的参数是device id）：
     ```
-    npu-smi info     # 查询基本信息，包含驱动版本 
+    npu-smi info     # 查询基本信息，包含驱动版本
     npu-smi set -t custom-op-secverify-enable -i 0 -d 1     # 使能自定义验签
     npu-smi set -t custom-op-secverify-mode -i 0 -d 0      # 设置成"关闭验签"模式
     ```

@@ -4,7 +4,7 @@
 
 ## 目录说明
 ```
-├── examples                       
+├── examples
 │   ├── cpp                # C++样例
 │   ├── python             # Python样例
 │   ├── third_parties      # 对接三方库样例
@@ -28,7 +28,9 @@
 
 ### 2. Device连通性检查
 在执行样例前，请先使用驱动包提供的 [hccn_tool工具](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743?category=developer-documents&subcategory=interface-reference) 检查**两个device之间的连通性**。以A2场景为例，检查示例如下：
-> 若hccn_tool命令找不到，可在CANN驱动包安装目录下搜索hccn_tool可执行文件(默认路径为`/usr/local/Ascend/driver/tools/hccn_tool`)，并通过`ln -s /usr/local/Ascend/driver/tools/hccn_tool /usr/bin/hccn_tool`手动建立软链。
+> 容器环境下，若hccn_tool命令找不到，通常是由于创建容器时没有指定软链接`-v /usr/bin/hccn_tool:/usr/bin/hccn_tool`。可通过如下方式解决：
+>
+> 在CANN驱动包安装目录下搜索hccn_tool可执行文件(默认路径为`/usr/local/Ascend/driver/tools/hccn_tool`)，并通过`ln -s /usr/local/Ascend/driver/tools/hccn_tool /usr/bin/hccn_tool`手动建立软链。
 
 - step1：查询所需device的ip信息，以8卡为例：
 ```shell
