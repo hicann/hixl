@@ -20,6 +20,7 @@ namespace adxl {
 namespace {
 constexpr char kChannelId[] = "test_channel";
 constexpr uint64_t kMaxControlMsgBodySizeInBytes = 4ULL * 1024ULL * 1024ULL;
+constexpr size_t kMaxNotifyStorageSize = 4096;
 
 class ChannelManagerUnitTest : public ::testing::Test {
  protected:
@@ -35,6 +36,13 @@ class ChannelManagerUnitTest : public ::testing::Test {
     channel->recv_state_ = RecvState::WAITING_FOR_HEADER;
     channel->expected_body_size_ = 0U;
     return channel;
+  }
+
+  std::string CreateNotifyMsgStr(uint64_t req_id, const std::string& name = "test_name", const std::string& msg = "test_msg") {
+    NotifyMsg notify_msg{req_id, name, msg};
+    std::string serialized_str;
+    ControlMsgHandler::Serialize(notify_msg, serialized_str);
+    return serialized_str;
   }
 
   ChannelManager manager_;
@@ -65,6 +73,23 @@ TEST_F(ChannelManagerUnitTest, ProcessReceivedDataRejectsInvalidMagicNumber) {
   EXPECT_EQ(channel->recv_state_, RecvState::WAITING_FOR_HEADER);
   EXPECT_EQ(channel->expected_body_size_, 0U);
   EXPECT_EQ(channel->bytes_received_, sizeof(ProtocolHeader));
+}
+
+TEST_F(ChannelManagerUnitTest, HandleNotifyMessage_WhenStorageLimitExceeded_ReturnsFailed) {
+  ChannelInfo channel_info{};
+  channel_info.channel_type = ChannelType::kServer;
+  channel_info.channel_id = kChannelId;
+  auto channel = std::make_shared<Channel>(channel_info);
+
+  // Fill notify messages to reach limit
+  for (size_t i = 0; i < kMaxNotifyStorageSize; ++i) {
+    EXPECT_EQ(manager_.HandleNotifyMessage(channel, CreateNotifyMsgStr(i)), SUCCESS);
+  }
+  EXPECT_EQ(channel->notify_messages_.size(), kMaxNotifyStorageSize);
+
+  // Attempt to add one more notify message
+  EXPECT_EQ(manager_.HandleNotifyMessage(channel, CreateNotifyMsgStr(kMaxNotifyStorageSize)), FAILED);
+  EXPECT_EQ(channel->notify_messages_.size(), kMaxNotifyStorageSize);
 }
 }  // namespace
 }  // namespace adxl

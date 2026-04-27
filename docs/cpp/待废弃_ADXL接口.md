@@ -506,6 +506,7 @@ Status SendNotify(const AscendString &remote_engine, const NotifyDesc &notify, i
 
 -   调用该接口之前，需要先调用Connect接口完成与对端的建链。
 -   该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
+-   每条链路中最多存在4096条Notify，需要确保远端AdxlEngine及时调用GetNotifies接口消费Notify，防止触发上限导致发送失败。
 
 
 ## GetNotifies

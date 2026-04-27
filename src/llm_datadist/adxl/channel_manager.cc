@@ -31,6 +31,7 @@ constexpr int32_t kMaxEvents = 1024;
 const size_t kRecvChunkSize = 4096;
 constexpr size_t kMaxControlMsgBodySizeInBytes = 4U * 1024U * 1024U;
 constexpr int32_t kEpollWaitTimeInMillis = 1000;
+constexpr size_t kMaxNotifyStorageSize = 4096;
 Status kNoNeedRetry = 1U;
 
 Status ValidateProtocolHeader(const ProtocolHeader &header, const std::string &channel_id) {
@@ -300,13 +301,19 @@ Status ChannelManager::HandleRequestDisconnectMessage(const ChannelPtr &channel,
 Status ChannelManager::HandleNotifyMessage(const ChannelPtr &channel, const std::string &msg_str) const {
   NotifyMsg notify_msg{};
   ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), notify_msg), "Failed to deserialize notify msg");
-  LLMLOGI("Recv notify msg from channel:%s, req_id:%lu, name:%s, msg:%s", channel->GetChannelId().c_str(), 
-         notify_msg.req_id, notify_msg.name.c_str(), notify_msg.notify_msg.c_str());
   {
     std::lock_guard<std::mutex> lock(channel->notify_message_mutex_);
+    if (channel->notify_messages_.size() >= kMaxNotifyStorageSize) {
+      LLMLOGE(FAILED, "Notify storage limit exceeded for channel:%s. Current count: %zu, limit: %zu. "
+              "Please call get notify to consume pending notify messages.",
+              channel->GetChannelId().c_str(), channel->notify_messages_.size(), kMaxNotifyStorageSize);
+      return FAILED;
+    }
     channel->notify_messages_.push_back(std::move(notify_msg));
   }
 
+  LLMLOGI("Recv notify msg from channel:%s, req_id:%lu, name:%s, msg:%s", channel->GetChannelId().c_str(),
+         notify_msg.req_id, notify_msg.name.c_str(), notify_msg.notify_msg.c_str());
   AckMsg ack_msg;
   ack_msg.channel = channel;
   ack_msg.req_id = notify_msg.req_id;
