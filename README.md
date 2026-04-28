@@ -9,6 +9,7 @@
 [![meeting](https://img.shields.io/badge/meeting-社区会议-yellow)](https://meeting.osinfra.cn/cann?sig=sig-hccl)
 [![contributing](https://img.shields.io/badge/CONTRIBUTING-贡献指南-teal)](https://gitcode.com/cann/hixl/blob/master/CONTRIBUTING.md)
 [![WeChat](https://img.shields.io/badge/contact_us-HIXL微信交流群-blue)](https://gitcode.com/cann/hixl/blob/master/docs/figures/HIXL_contact.png)
+[![zread](https://img.shields.io/badge/Ask_Zread-_.svg?style=flat&color=00b0aa&labelColor=000000&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQuOTYxNTYgMS42MDAxSDIuMjQxNTZDMS44ODgxIDEuNjAwMSAxLjYwMTU2IDEuODg2NjQgMS42MDE1NiAyLjI0MDFWNC45NjAxQzEuNjAxNTYgNS4zMTM1NiAxLjg4ODEgNS42MDAxIDIuMjQxNTYgNS42MDAxSDQuOTYxNTZDNS4zMTUwMiA1LjYwMDEgNS42MDE1NiA1LjMxMzU2IDUuNjAxNTYgNC45NjAxVjIuMjQwMUM1LjYwMTU2IDEuODg2NjQgNS4zMTUwMiAxLjYwMDEgNC45NjE1NiAxLjYwMDFaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00Ljk2MTU2IDEwLjM5OTlIMi4yNDE1NkMxLjg4ODEgMTAuMzk5OSAxLjYwMTU2IDEwLjY4NjQgMS42MDE1NiAxMS4wMzk5VjEzLjc1OTlDMS42MDE1NiAxNC4xMTM0IDEuODg4MSAxNC4zOTk5IDIuMjQxNTYgMTQuMzk5OUg0Ljk2MTU2QzUuMzE1MDIgMTQuMzk5OSA1LjYwMTU2IDE0LjExMzQgNS42MDE1NiAxMy43NTk5VjExLjAzOTlDNS42MDE1NiAxMC42ODY0IDUuMzE1MDIgMTAuMzk5OSA0Ljk2MTU2IDEwLjM5OTlaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik0xMy43NTg0IDEuNjAwMUgxMS4wMzg0QzEwLjY4NSAxLjYwMDEgMTAuMzk4NCAxLjg4NjY0IDEwLjM5ODQgMi4yNDAxVjQuOTYwMUMxMC4zOTg0IDUuMzEzNTYgMTAuNjg1IDUuNjAwMSAxMS4wMzg0IDUuNjAwMUgxMy43NTg0QzE0LjExMTkgNS42MDAxIDE0LjM5ODQgNS4zMTM1NiAxNC4zOTg0IDQuOTYwMVYyLjI0MDFDMTQuMzk4NCAxLjg4NjY0IDE0LjExMTkgMS42MDAxIDEzLjc1ODQgMS42MDAxWiIgZmlsbD0iI2ZmZiIvPgo8cGF0aCBkPSJNNCAxMkwxMiA0TDQgMTJaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00IDEyTDEyIDQiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K&logoColor=ffffff)](https://zread.ai/hicann/hixl)
 </div>
 
 ## 🔥Latest News
@@ -98,7 +99,14 @@ HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，
 如果希望深入了解 HIXL 开发指南和技术文章等内容，可参考以下文档：
 
 - [HIXL 资料书架总览](docs/README.md)：汇总HIXL相关资料、技术文章和培训视频链接。
-- [AI Agent支持](.agents/README.md)：介绍仓内默认使用的一些skills及触发方式。
+
+## 🤖 AI Agent支持
+
+- [AI辅助编程](.agents/README.md)：介绍仓内默认使用的一些skills及触发方式，用于提升开发者编程效率和代码质量。
+- [Zread智能问答](https://zread.ai/hicann/hixl)：本仓已集成 Zread 代码仓智能体，旨在通过 AI 技术为您提供更深度的代码理解与技术支持，开启在线智能代码学习与知识问答体验！
+
+> ⚠️ 说明：
+当前代码AI Agent服务处于试点阶段。在使用过程中，如果您发现 AI 生成的内容存在准确性问题，或对智能助手的功能有任何改进建议，欢迎通过 Issues 与我们交流，您的反馈对我们非常重要！
 
 
 ## 📝相关信息
