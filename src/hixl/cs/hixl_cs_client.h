@@ -131,7 +131,6 @@ class HixlCSClient {
   void ReleaseFlagIndex(int32_t flag_index);
   Status InitBaseClient(const HixlClientDesc *client_desc);
   Status InitDeviceResource();
-  Status InitDeviceConstMemory();
   Status ExchangeEndpointAndCreateChannelLocked(uint32_t timeout_ms);
   Status GetRemoteMemLocked(uint32_t timeout_ms, CommMem **remote_mem_list, char ***mem_tag_list, uint32_t *list_num);
   Status InitFlagQueue() noexcept;
@@ -205,7 +204,6 @@ class HixlCSClient {
   aclrtBinHandle device_kernel_handle_{nullptr};
   void *device_func_get_{nullptr};
   void *device_func_put_{nullptr};
-  void *dev_const_one_{nullptr};
   std::vector<MemHandle> notify_mem_handles_{};
   std::unordered_set<DeviceCompleteHandle *> pending_device_handles_{};
 };

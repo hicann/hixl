@@ -35,6 +35,7 @@ class TransferPool {
     ThreadHandle thread;
     aclrtNotify notify;
     void *host_flag;
+    void *dev_const_one;
   };
 
   TransferPool(const TransferPool &) = delete;
@@ -76,6 +77,7 @@ class TransferPool {
   void DestroySlotLocked(Slot &slot) const;
   void AbortSlotByIndexLocked(uint32_t slot_index);
   static void FillHandleFromSlot(int32_t device_id, uint32_t index, const Slot &slot, SlotHandle *handle);
+  Status EnsureDevConstOneLocked();
 
   mutable std::mutex mu_{};
   const int32_t device_id_;
@@ -84,6 +86,7 @@ class TransferPool {
   uint32_t pool_size_;
   std::deque<uint32_t> free_list_;
   std::vector<Slot> slots_;
+  void *dev_const_one_{nullptr};
 };
 
 }  // namespace hixl

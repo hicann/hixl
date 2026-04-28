@@ -331,35 +331,14 @@ Status HixlCSClient::InitBaseClient(const HixlClientDesc *client_desc) {
   return SUCCESS;
 }
 
-Status HixlCSClient::InitDeviceConstMemory() {
-  HIXL_CHK_ACL_RET(aclrtMalloc(&dev_const_one_, sizeof(uint64_t), ACL_MEM_MALLOC_NORMAL_ONLY),
-                   "[HixlClient] aclrtMalloc dev_const_one_ failed");
-  HIXL_DISMISSABLE_GUARD(mem_guard, [this]() {
-    if (this->dev_const_one_ != nullptr) {
-      aclrtFree(this->dev_const_one_);
-      this->dev_const_one_ = nullptr;
-    }
-  });
-  constexpr uint64_t host_one = 1U;
-  HIXL_CHK_ACL_RET(
-      aclrtMemcpy(dev_const_one_, sizeof(uint64_t), &host_one, sizeof(uint64_t), ACL_MEMCPY_HOST_TO_DEVICE),
-      "[HixlClient] aclrtMemcpy dev_const_one_ failed");
-  HIXL_CHK_ACL_RET(aclrtGetDevice(&device_id_), "[HixlClient] aclrtGetDevice failed");
-  HIXL_DISMISS_GUARD(mem_guard);
-  return SUCCESS;
-}
-
 Status HixlCSClient::InitDeviceResource() {
   const EndpointDesc &ep = local_endpoint_->GetEndpoint();
   if (!IsDeviceEndpoint(ep)) {
     device_id_ = -1;
     return SUCCESS;
   }
-  if (dev_const_one_ == nullptr) {
-    Status ret = InitDeviceConstMemory();
-    HIXL_CHK_STATUS_RET(ret, "[HixlClient] InitDeviceConstMemory failed");
-    HIXL_LOGI("[HixlClient] const one initialized at %p on dev %d", dev_const_one_, device_id_);
-  }
+  HIXL_CHK_ACL_RET(aclrtGetDevice(&device_id_), "[HixlClient] aclrtGetDevice failed");
+  HIXL_LOGI("[HixlClient] device_id=%d", device_id_);
   Status pret = TransferPool::GetInstance(device_id_).Initialize(kDeviceTransferPoolSize);
   HIXL_CHK_STATUS_RET(pret, "[HixlClient] TransferPool Initialize failed. devId=%d", device_id_);
   std::vector<TransferPool::SlotHandle> all_slots;
@@ -814,7 +793,7 @@ Status HixlCSClient::BatchTransferDevice(bool is_get, const CommunicateMem &comm
   HIXL_LOGI("[HixlClient] BatchTransferUB. is_get=%d list_num=%u slot=%u magic=%u", static_cast<int32_t>(is_get),
             handle->args.list_num, handle->slot->slot_index, handle->magic);
   HIXL_CHK_STATUS_RET(LaunchDeviceKernel(is_get, *handle, remote_flag), "LaunchDeviceKernel failed");
-  HIXL_CHK_ACL_RET(aclrtMemcpyAsync(handle->slot->host_flag, sizeof(uint64_t), dev_const_one_, sizeof(uint64_t),
+  HIXL_CHK_ACL_RET(aclrtMemcpyAsync(handle->slot->host_flag, sizeof(uint64_t), handle->slot->dev_const_one, sizeof(uint64_t),
                                     ACL_MEMCPY_DEVICE_TO_HOST, handle->slot->stream),
                    "[HixlClient] aclrtMemcpyAsync (Flag D2H) failed");
   *query_handle = static_cast<void *>(handle);
@@ -1294,17 +1273,6 @@ void HixlCSClient::AbortAllPendingDeviceHandlesLocked() {
 }
 
 void HixlCSClient::ReleaseDeviceResourcesLocked() {
-  {
-    std::lock_guard<std::mutex> lock(device_mu_);
-    if (dev_const_one_ != nullptr) {
-      aclError ret = aclrtFree(dev_const_one_);
-      if (ret != ACL_SUCCESS) {
-        HIXL_LOGE(FAILED, "[HixlClient] aclrtFree dev_const_one_ failed. ret=%d", ret);
-      }
-      HIXL_LOGI("[HixlClient] Destroy: released dev_const_one_");
-      dev_const_one_ = nullptr;
-    }
-  }
   for (size_t i = 0U; i < notify_mem_handles_.size(); ++i) {
     if (notify_mem_handles_[i] != nullptr) {
       if (local_endpoint_ != nullptr) {

@@ -90,6 +90,11 @@ Status TransferPool::Initialize(uint32_t pool_size) {
     DeinitAllSlotsLocked();
     return ret;
   }
+  ret = EnsureDevConstOneLocked();
+  if (ret != SUCCESS) {
+    DeinitAllSlotsLocked();
+    return ret;
+  }
   ref_cnt_ = 1U;
   inited_ = true;
   return SUCCESS;
@@ -131,6 +136,7 @@ Status TransferPool::Acquire(SlotHandle *handle) {
   Slot &slot = slots_[idx];
   slot.in_use = true;
   FillHandleFromSlot(device_id_, idx, slot, handle);
+  handle->dev_const_one = dev_const_one_;
   HIXL_LOGI("[TransferPool] Acquire slot success. device_id=%d index=%u", device_id_, idx);
   return SUCCESS;
 }
@@ -200,6 +206,7 @@ void TransferPool::FillHandleFromSlot(int32_t device_id, uint32_t index, const S
   handle->thread = slot.thread;
   handle->notify = slot.notify;
   handle->host_flag = slot.host_flag;
+  handle->dev_const_one = nullptr;  // dev_const_one 在 GetAllSlots 时为空，只有 Acquire 时才填充
 }
 
 Status TransferPool::InitAllSlotsLocked() {
@@ -316,6 +323,12 @@ Status TransferPool::CreateNotifyLocked(Slot &slot, uint32_t &notify_id) {
 }
 
 void TransferPool::DeinitAllSlotsLocked() {
+  if (dev_const_one_ != nullptr && !slots_.empty() && slots_[0].ctx != nullptr) {
+    hixl::TemporaryRtContext guard(slots_[0].ctx);
+    HIXL_CHK_ACL(aclrtFree(dev_const_one_));
+    dev_const_one_ = nullptr;
+    HIXL_LOGI("[TransferPool] released dev_const_one_ on device %d", device_id_);
+  }
   for (uint32_t i = 0U; i < pool_size_; ++i) {
     DestroySlotLocked(slots_[i]);
     slots_[i] = Slot{};
@@ -367,6 +380,22 @@ Status TransferPool::EnsurePinnedHostFlagLocked(Slot &slot) const {
   HIXL_CHECK_NOTNULL(p, "[TransferPool] aclrtMallocHost returned null");
   slot.host_flag = p;
   *(static_cast<uint64_t *>(slot.host_flag)) = kFlagInitValue;
+  return SUCCESS;
+}
+
+Status TransferPool::EnsureDevConstOneLocked() {
+  if (dev_const_one_ != nullptr) {
+    return SUCCESS;
+  }
+  HIXL_CHK_BOOL_RET_STATUS(!slots_.empty() && slots_[0].ctx != nullptr, FAILED,
+                           "[TransferPool] EnsureDevConstOneLocked: no valid context");
+  const hixl::TemporaryRtContext guard(slots_[0].ctx);
+  HIXL_CHK_ACL_RET(aclrtMalloc(&dev_const_one_, sizeof(uint64_t), ACL_MEM_MALLOC_NORMAL_ONLY),
+                   "[TransferPool] aclrtMalloc dev_const_one_ failed");
+  constexpr uint64_t host_one = 1U;
+  HIXL_CHK_ACL_RET(aclrtMemcpy(dev_const_one_, sizeof(uint64_t), &host_one, sizeof(uint64_t), ACL_MEMCPY_HOST_TO_DEVICE),
+                   "[TransferPool] aclrtMemcpy dev_const_one_ failed");
+  HIXL_LOGI("[TransferPool] dev_const_one initialized at %p on device %d", dev_const_one_, device_id_);
   return SUCCESS;
 }
 
