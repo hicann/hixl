@@ -48,18 +48,28 @@ hccn_tool -i ${device_id_a} -ping -g address ${ip_address_b}
 # 检查设备b是否能ping通设备a
 hccn_tool -i ${device_id_b} -ping -g address ${ip_address_a}
 ```
-其中`device_id`为设备id，可通过`npu-smi info`查询；`ip_address`为上一步查询的设备ip地址。
+其中`device_id`为设备id，可通过`npu-smi info`查询；`ip_address`为上一步查询的设备ip地址，如：
+```shell
+hccn_tool -i 0 -ping -g address 10.10.10.1
+hccn_tool -i 1 -ping -g address 10.10.10.0
+```
 
 若返回recv time out seq字样，说明两个设备之间不连通，请尝试其他设备。
 
-**注意：** A3环境单卡双die之间不互通，如0号和1号device不通，2号和3号device不通，以此类推，在A3环境执行样例时，请注意传入的device id是否满足连通要求。
+> **注意：** A3环境为一卡双die架构，两个die共用一个os，即dev-os-0包含了device-0和device-1。
+>
+> 单卡双die之间不互通，如device-0和device-1不通，device-2和device-3不通，以此类推，在A3环境执行样例时，请注意传入的device id是否满足连通要求。
 
 - step3：检查设备之间TLS证书配置的一致性
 ```shell
 # 检查设备的TLS状态
 for i in {0..7}; do hccn_tool -i $i -tls -g; done | grep switch
+```
+打印的结果中 `tls switch[0](0:disable, 1:enable)` 表示TLS证书使能情况，请确保需要连通的设备的TLS证书配置一致。
 
-# TLS使能的设备和TLS不使能的设备无法建链，建议统一保持TLS关闭
+TLS使能的设备和TLS不使能的设备无法建链，建议使用如下命令统一保持TLS关闭：
+```shell
+# 关闭TLS证书
 for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
 ```
 **注意：** 如果执行上述命令出现`hccn_tool is busy, please try again`，请确保没有其他进行并发执行该命令，然后重试。
@@ -68,7 +78,7 @@ for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
 
 1. 参考[构建](../docs/build.md)里的**编译执行**章节，利用build.sh附加指定--examples参数进行编译。
 
-2. 编译结束后，在**build/benchmarks**目录下生成可执行文件。
+2. 编译结束后，在**build/benchmarks**目录下生成可执行文件 `benchmark`。
 
 ## Benchmark运行
 
@@ -177,4 +187,3 @@ ${path_of_benchmark}/run_fabric_mem_kv_benchmark.sh 127.0.0.1 22000 ./fabric_mem
 ## 性能数据
 
 HIXL在昇腾A2/A3芯片上部分场景传输数据的实测性能,可参见[A2性能数据](A2_benchmark_performance.md)/[A3性能数据](A3_benchmark_performance.md)。
-

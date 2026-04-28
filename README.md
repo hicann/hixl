@@ -1,4 +1,15 @@
+<div align="center">
+
 # HIXL
+
+<h4>面向集群场景提供简单、可靠、高效的点对点数据传输能力</h4>
+
+[![Documentation](https://img.shields.io/badge/docs-HIXL书架-brightgreen)](https://gitcode.com/cann/hixl/blob/master/docs/README.md)
+[![SIG](https://img.shields.io/badge/SIG-hccl-yellow)](https://gitcode.com/cann/community/tree/master/CANN/sigs/hccl)
+[![meeting](https://img.shields.io/badge/meeting-社区会议-yellow)](https://meeting.osinfra.cn/cann?sig=sig-hccl)
+[![contributing](https://img.shields.io/badge/CONTRIBUTING-贡献指南-teal)](https://gitcode.com/cann/hixl/blob/master/CONTRIBUTING.md)
+[![WeChat](https://img.shields.io/badge/contact_us-HIXL微信交流群-blue)](https://gitcode.com/cann/hixl/blob/master/docs/figures/HIXL_contact.png)
+</div>
 
 ## 🔥Latest News
 
@@ -103,7 +114,7 @@ HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，
 
 - **问题反馈**：通过GitCode[【Issues】](https://gitcode.com/cann/hixl/issues)提交问题。
 - **社区互动**：通过GitCode[【讨论】](https://gitcode.com/cann/hixl/discussions)参与交流。
-- **技术专栏**：通过GitCode[【Wiki】](https://gitcode.com/cann/hixl/wiki)获取技术文章。
+- **经验分享**：通过GitCode[【Wiki】](https://gitcode.com/cann/hixl/wiki)分享经验总结。
 - **加入交流群**：通过扫描下方微信二维码添加HIXL小助手微信，加入微信群与我们进一步交流。
 
 <img src="docs/figures/HIXL_contact.png" alt="contact us" width="50%">
