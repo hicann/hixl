@@ -176,7 +176,7 @@ cd build/benchmarks
 # 默认 16 进程、日志 fabric_mem_kv_benchmark.log
 ${path_of_benchmark}/run_fabric_mem_kv_benchmark.sh 127.0.0.1 22000 ./fabric_mem_kv_benchmark
 
-# 指定 world_size=2（烟测）、日志文件
+# 指定 world_size=2、日志文件
 ${path_of_benchmark}/run_fabric_mem_kv_benchmark.sh 127.0.0.1 22000 ./fabric_mem_kv_benchmark 2 ./kv_bench.log
 ```
 
