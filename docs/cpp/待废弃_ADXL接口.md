@@ -192,7 +192,7 @@ Status RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle)
 **约束说明**
 
 -   在调用Connect与对端建链之前需要完成所有local内存的注册。
--   单进程支持注册的内存个数上限是256。
+-   建议单个实例注册的内存个数不超过4K个。注册数量过多可能存在device OOM风险；同时注册个数越多，建链耗时越长，过多易出现建链超时问题；需用户根据业务场景自行管控内存注册数量和大小。
 -   最大注册50GB的Device内存，20GB的Host内存。注册内存越大，占用的OS内存越多。
 -   注册Host内存需使用“aclrtMallocHost”进行申请，该接口申请的内存地址自动对齐。
 -   注册Device内存使用“aclrtMalloc”进行申请，如通过HCCS传输，则内存分配规则需配置为ACL\_MEM\_MALLOC\_HUGE\_ONLY。
