@@ -127,6 +127,15 @@ Status Initialize(const AscendString &local_engine, const std::map<AscendString,
 | 参数名 | 可选/必选 | 描述 |
 | --- | --- | --- |
 | OPTION_LOCAL_COMM_RES | 必选 | 配置本地通信资源信息，格式是json格式的字符串。配置格式参考：<https://gitcode.com/cann/hixl/issues/37>。配置为空不会自动生成相关信息。 |
+| OPTION_GLOBAL_RESOURCE_CONFIG | 可选 | 字符串取值"GlobalResourceConfig"。用于开启并配置全局资源配置。该参数配置示例和使用约束请参考表格下方 |
+
+OPTION_GLOBAL_RESOURCE_CONFIG的配置示例和使用约束如下：<br>对于UBOE场景，该参数配置示例如下：
+
+```
+{
+    "comm_resource_config.protocol_desc": ["uboe:device"], // 配置通信资源协议，当前仅支持"uboe:device"，当没有配置OPTION_LOCAL_COMM_RES或配置的OPTION_LOCAL_COMM_RES中endpoint_list为空时，会自动生成uboe的endpoint信息，否则配置项不起作用.
+}
+```
 
 **调用示例**
 
