@@ -66,8 +66,7 @@ void ThreadPool::AddTemporaryThread() {
   }
   uint32_t thread_idx = total_thrd_num_.load();
   ++total_thrd_num_;
-  std::thread temp_thread(&ThreadFunc, this, thread_idx, true);
-  temp_thread.detach();
+  std::thread(&ThreadFunc, this, thread_idx, true).detach();
   HIXL_LOGI("[ThreadPool:%s] add temp thread, idx:%u, idle:%u, busy:%u, total:%u, max:%u",
             thread_name_prefix_.c_str(), thread_idx,
             idle_thrd_num_.load(), busy_thrd_num_.load(), total_thrd_num_.load(), max_thrd_num_);

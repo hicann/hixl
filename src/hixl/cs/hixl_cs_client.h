@@ -21,6 +21,7 @@
 #include <map>
 #include "cs/hixl_cs.h"
 #include "common/hixl_inner_types.h"
+#include "common/hixl_utils.h"
 #include "endpoint.h"
 #include "channel.h"
 #include "hixl_mem_store.h"
@@ -69,7 +70,8 @@ struct MemDev {
 struct DeviceCompleteHandle {
   uint32_t magic;
   uint32_t reserved;
-  std::unique_ptr<TransferPool::SlotHandle> slot;
+  std::shared_ptr<TransferPool::SlotHandle> shared_slot;  // Shared slot reference for concurrent transfers
+  void *host_flag;  // Per-transfer host flag for async completion tracking, nullptr for sync transfers
   DeviceArgs args;
   MemDev mem_dev;
 };
@@ -167,6 +169,15 @@ class HixlCSClient {
   void ReleaseLegacyHandlesLocked();
   void AbortAllPendingDeviceHandlesLocked();
   void ReleaseDeviceResourcesLocked();
+  Status AcquireSharedSlot(std::shared_ptr<TransferPool::SlotHandle> &slot_out);
+  void ReleaseSharedSlotRef(std::shared_ptr<TransferPool::SlotHandle> &slot_ref);
+  void CleanupActiveSlot();
+  Status PrepareDeviceTransferArgs(const CommunicateMem &communicate_mem, DeviceCompleteHandle &handle,
+                                   void *&remote_flag);
+  Status AllocateHostFlag(void *&host_flag);
+
+  // 获取 context 切换 guard，用于对外接口的 context 管理
+  std::unique_ptr<hixl::TemporaryRtContext> GetContextGuard() const;
 
  private:
   std::mutex mutex_;
@@ -206,6 +217,11 @@ class HixlCSClient {
   void *device_func_put_{nullptr};
   std::vector<MemHandle> notify_mem_handles_{};
   std::unordered_set<DeviceCompleteHandle *> pending_device_handles_{};
+  // Active slot shared by concurrent transfers - reference counted
+  std::shared_ptr<TransferPool::SlotHandle> active_slot_;
+  std::mutex active_slot_mu_;
+  // Mutex to protect LaunchDeviceKernel + memcpy/sync serialization
+  std::mutex device_launch_mu_;
 };
 }  // namespace hixl
 

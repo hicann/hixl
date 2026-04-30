@@ -65,9 +65,7 @@ std::shared_ptr<HostRegisterProxy> HostRegisterProxy::GetInstance(uint32_t dev_p
 HostRegisterProxy::HostRegisterProxy(int32_t dev_phy_id) : dev_phy_id_(dev_phy_id) {}
 
 Status HostRegisterProxy::Initialize() {
-  int32_t device_id = dev_phy_id_;
-  HIXL_CHK_ACL_RET(aclrtGetLogicDevIdByPhyDevId(dev_phy_id_, &device_id));
-  HIXL_CHK_ACL_RET(aclrtCreateContext(&context_, device_id));
+  // 外部接口已切换 context，不需要内部创建和切换
   return SUCCESS;
 }
 
@@ -82,11 +80,6 @@ HostRegisterProxy::~HostRegisterProxy() {
     }
   }
   registered_mems_.clear();
-
-  if (context_ != nullptr) {
-    HIXL_CHK_ACL(aclrtDestroyContext(context_));
-    context_ = nullptr;
-  }
 }
 
 Status HostRegisterProxy::RegisterByDev(uint32_t dev_phy_id, void *host_addr, uint64_t size, void *&device_addr) {
@@ -136,10 +129,7 @@ Status HostRegisterProxy::Register(void *host_addr, uint64_t size, void *&device
     return SUCCESS;
   }
   void *dev_ptr = nullptr;
-  {
-    TemporaryRtContext context_guard(context_);
-    HIXL_CHK_ACL_RET(aclrtHostRegister(host_addr, size, ACL_HOST_REGISTER_MAPPED, &dev_ptr));
-  }
+  HIXL_CHK_ACL_RET(aclrtHostRegister(host_addr, size, ACL_HOST_REGISTER_MAPPED, &dev_ptr));
   HostMemInfo info(host_addr, size, dev_ptr);
   info.ref_cnt++;
   registered_mems_[host_addr] = info;
@@ -165,10 +155,7 @@ Status HostRegisterProxy::Unregister(void *host_addr) {
               mem_info.ref_cnt);
     return SUCCESS;
   }
-  {
-    TemporaryRtContext context_guard(context_);
-    HIXL_CHK_ACL_RET(aclrtHostUnregister(host_addr));
-  }
+  HIXL_CHK_ACL_RET(aclrtHostUnregister(host_addr));
 
   registered_mems_.erase(it);
   HIXL_LOGI("Host memory unregistered successfully. host_addr=%p", host_addr);

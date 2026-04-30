@@ -63,7 +63,6 @@ class HostRegisterProxy {
   std::map<void *, HostMemInfo> registered_mems_;
   mutable std::mutex mutex_;
   int32_t dev_phy_id_;
-  aclrtContext context_ = nullptr;
 };
 
 }  // namespace hixl

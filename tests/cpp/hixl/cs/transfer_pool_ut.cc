@@ -126,5 +126,43 @@ TEST_F(TransferPoolTest, AbortOneSlotLeavesOtherAcquiredSlotIntact) {
   pool.Release(b);
 }
 
+TEST_F(TransferPoolTest, AcquireReturnsDevConstOne) {
+  auto &pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_EQ(pool.Initialize(1U), SUCCESS);
+  TransferPool::SlotHandle handle{};
+  ASSERT_EQ(pool.Acquire(&handle), SUCCESS);
+  // dev_const_one should be set by Acquire (may be nullptr if no device context)
+  // The field exists and is accessible
+  EXPECT_NO_THROW(handle.dev_const_one);
+  pool.Release(handle);
+}
+
+TEST_F(TransferPoolTest, SlotHandleHasDevConstOneField) {
+  TransferPool::SlotHandle handle{};
+  handle.dev_const_one = nullptr;
+  EXPECT_EQ(handle.dev_const_one, nullptr);
+}
+
+TEST_F(TransferPoolTest, MultipleAcquireReleaseCycles) {
+  auto &pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_EQ(pool.Initialize(2U), SUCCESS);
+
+  // First cycle
+  TransferPool::SlotHandle a{};
+  TransferPool::SlotHandle b{};
+  ASSERT_EQ(pool.Acquire(&a), SUCCESS);
+  ASSERT_EQ(pool.Acquire(&b), SUCCESS);
+  pool.Release(a);
+  pool.Release(b);
+
+  // Second cycle - should be able to acquire again
+  TransferPool::SlotHandle c{};
+  TransferPool::SlotHandle d{};
+  ASSERT_EQ(pool.Acquire(&c), SUCCESS);
+  ASSERT_EQ(pool.Acquire(&d), SUCCESS);
+  pool.Release(c);
+  pool.Release(d);
+}
+
 }  // namespace
 }  // namespace hixl

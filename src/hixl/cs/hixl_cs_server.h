@@ -14,8 +14,10 @@
 #include <map>
 #include <vector>
 #include <mutex>
+#include <memory>
 #include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
+#include "common/hixl_utils.h"
 #include "endpoint_store.h"
 #include "msg_handler.h"
 #include "msg_receiver.h"
@@ -62,6 +64,9 @@ class HixlCSServer {
   static Status SendRemoteMemResp(int32_t fd,
                                   const GetRemoteMemResp &resp);
   void CleanupClient(int32_t fd);
+
+  // 获取 context 切换 guard，用于对外接口的 context 管理
+  std::unique_ptr<hixl::TemporaryRtContext> GetContextGuard() const;
 
   std::string ip_;
   uint32_t port_ = 0U;
