@@ -137,6 +137,8 @@ bash run.sh batch_put_get_sample.py --device_id=0 --schema="d2d"
 - **Dummy Client**：轻量级包装器，嵌入在应用进程中，通过 RPC 将所有操作转发给 Real Client
 - **通信机制**：Dummy Client 与 Real Client 通过 RPC 和共享内存通信，支持零拷贝数据传输
 
+> Dummy/Real Client详细介绍可以参考 [Mooncke Store Dummy Real Client 介绍文档](https://gitcode.com/cann/hixl/wiki/Mooncake%20Store%20Dummy-Real%20Client%20%E4%BB%8B%E7%BB%8D.md)
+
 #### 使用 Dummy Client 模式(单机实例)
 
 1. **启动 Mooncake Master**（如果尚未启动）：
@@ -150,7 +152,7 @@ mooncake_master \
 2. **启动 Real Client** 作为独立进程：
 ```bash
 export ASCEND_ENABLE_USE_FABRIC_MEM=1
-export ASCEND_RT_CISIBLE_DEVICES=0,1,2,3,4,5,6,7
+export ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 mooncake_client \
     --master_server_address=127.0.0.1:50051 \
     --metadata_server=http://127.0.0.1:8080/metadata \
