@@ -126,16 +126,25 @@ Status Initialize(const AscendString &local_engine, const std::map<AscendString,
 **表 2**  options（Ascend 950PR/Ascend 950DT）
 | 参数名 | 可选/必选 | 描述 |
 | --- | --- | --- |
-| OPTION_LOCAL_COMM_RES | 必选 | 配置本地通信资源信息，格式是json格式的字符串。配置格式参考：<https://gitcode.com/cann/hixl/issues/37>。配置为空不会自动生成相关信息。 |
-| OPTION_GLOBAL_RESOURCE_CONFIG | 可选 | 字符串取值"GlobalResourceConfig"。用于开启并配置全局资源配置。该参数配置示例和使用约束请参考表格下方 |
+| OPTION_LOCAL_COMM_RES | 必选 | 配置本地通信资源信息，格式是json格式的字符串。配置格式参考[通信资源配置字段说明](#通信资源配置字段说明)。配置为空不会自动生成相关信息。 |
+| OPTION_GLOBAL_RESOURCE_CONFIG | 可选 | 字符串取值"GlobalResourceConfig"。用于开启并配置全局资源，格式为json格式的字符串，字段说明参考[全局资源配置字段说明](#全局资源配置字段说明)。 |
 
-OPTION_GLOBAL_RESOURCE_CONFIG的配置示例和使用约束如下：<br>对于UBOE场景，该参数配置示例如下：
+<a name="通信资源配置字段说明"></a>**通信资源配置字段说明**  
+| 字段名 | 数据类型 | 必选/可选 | 说明 | 支持值/填写规则 |
+| ---- | ---- | ---- | ---- | ---- |
+| version | 字符串 | 必选 | 版本号 | "1.3" |
+| net_instance_id | 字符串 | 必选 | 当前超节点的唯一标识 | 每个超节点唯一即可 |
+| endpoint_list | 数组 | 必选 | 可以使用的通信设备列表 | - |
+| endpoint_list[].protocol | 字符串 | 必选 | 通信协议 | "roce"/"ub_ctp"/"ub_tp"/"uboe" |
+| endpoint_list[].comm_id | 字符串 | 必选 | 通信标识 | protocol为ub_ctp/ub_tp时填${eid}；protocol为roce时填ipv4/ipv6网卡地址；protocol为uboe时填device uboe网卡ip地址 |
+| endpoint_list[].placement | 字符串 | 必选 | 通信设备位置 | "host"/"device" |
+| endpoint_list[].plane | 字符串 | 可选 | 通信设备平面 | protocol为ub_ctp/ub_tp时，设备区分平面则填写，每个平面唯一（如"plane-a"/"plan-b"） |
+| endpoint_list[].dst_eid | 字符串 | 可选 | 与当前通信设备连接的对端通信设备的${eid} | protocol为ub_ctp时，存在full-mesh直连对端则填写对端${eid} |
 
-```
-{
-    "comm_resource_config.protocol_desc": ["uboe:device"], // 配置通信资源协议，当前仅支持"uboe:device"，当没有配置OPTION_LOCAL_COMM_RES或配置的OPTION_LOCAL_COMM_RES中endpoint_list为空时，会自动生成uboe的endpoint信息，否则配置项不起作用.
-}
-```
+<a name="全局资源配置字段说明"></a>**全局资源配置字段说明**  
+| 字段名 | 数据类型 | 必选/可选 | 说明 | 支持值/填写规则 |
+| ---- | ---- | ---- | ---- | ---- |
+| comm_resource_config.protocol_desc | 字符串数组 | 可选 | 配置通信协议以及通信设备位置 | 当前仅支持["uboe:device"]，表示使用uboe协议，通信设备在device；当没有配置OPTION_LOCAL_COMM_RES或配置的OPTION_LOCAL_COMM_RES中endpoint_list为空时，会自动生成uboe的endpoint信息，否则配置项不起作用. |
 
 **调用示例**
 
