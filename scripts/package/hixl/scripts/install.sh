@@ -1051,15 +1051,6 @@ do
         input_path_flag=y
         shift
         ;;
-    --chip=*)
-        chip_flag=y
-        shift
-        ;;
-    --feature=*)
-        featuremode=$(echo "$1" | cut -d"=" -f2-)
-        feature_flag=y
-        shift
-        ;;
     --install-for-all)
         input_install_for_all=y
         in_install_for_all="--install_for_all"
