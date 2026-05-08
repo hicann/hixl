@@ -9,6 +9,7 @@
  */
 
 #include "adxl_engine.h"
+#include "common/hixl_checker.h"
 
 namespace hixl {
 Status AdxlEngine::Initialize(const std::map<AscendString, AscendString> &options) {
@@ -47,6 +48,7 @@ void AdxlEngine::Disconnect() {
 
 Status AdxlEngine::TransferSync(const AscendString &remote_engine, TransferOp operation,
                                 const std::vector<TransferOpDesc> &op_descs, int32_t timeout_in_millis) {
+  HIXL_CHK_BOOL_RET_STATUS(!op_descs.empty(), PARAM_INVALID, "[AdxlEngine] TransferSync failed, op_descs is empty.");
   adxl::TransferOp adxl_operation = static_cast<adxl::TransferOp>(operation);
   std::vector<adxl::TransferOpDesc> adxl_op_descs;
   for (const auto &op_desc : op_descs) {
@@ -58,6 +60,7 @@ Status AdxlEngine::TransferSync(const AscendString &remote_engine, TransferOp op
 Status AdxlEngine::TransferAsync(const AscendString &remote_engine, TransferOp operation,
                                  const std::vector<TransferOpDesc> &op_descs, const TransferArgs &optional_args,
                                  TransferReq &req) {
+  HIXL_CHK_BOOL_RET_STATUS(!op_descs.empty(), PARAM_INVALID, "[AdxlEngine] TransferAsync failed, op_descs is empty.");
   (void)optional_args;
   adxl::TransferOp adxl_operation = static_cast<adxl::TransferOp>(operation);
   std::vector<adxl::TransferOpDesc> adxl_op_descs;
