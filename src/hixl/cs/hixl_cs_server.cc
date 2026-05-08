@@ -70,6 +70,7 @@ Status HixlCSServer::InitTransFinishedFlag() {
 
 Status HixlCSServer::RegisterHostTransFinishedFlag() {
   void *host_flag = malloc(sizeof(int64_t));
+  HIXL_CHK_BOOL_RET_STATUS(host_flag != nullptr, FAILED, "HOST trans finished flag malloc failed.");
   *static_cast<int64_t *>(host_flag) = 1;
   CommMem mem{};
   mem.type = COMM_MEM_TYPE_HOST;
