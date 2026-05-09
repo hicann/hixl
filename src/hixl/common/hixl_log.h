@@ -29,7 +29,6 @@
 extern "C" {
 #endif
 #define HIXL_MODULE_NAME static_cast<int32_t>(GE)
-#define HIXL_GET_ERRORNO_STR(value) ge::StatusFactory::Instance()->GetErrDesc(value)
 #define HIXL_GET_ERROR_LOG_HEADER "[HIXL]"
 
 class HixlLog {
@@ -56,11 +55,10 @@ inline bool HixlLogPrintStdout() {
   return (stdout_flag == 1);
 }
 
-#define HIXL_LOGE(ERROR_CODE, fmt, ...)                                                                    \
-  do {                                                                                                     \
-    dlog_error(HIXL_MODULE_NAME, "%" PRIu64 " %s: ErrorNo: %" PRIuLEAST8 "(%s) %s" fmt, HixlLog::GetTid(), \
-               &__FUNCTION__[0U], (ERROR_CODE), ((HIXL_GET_ERRORNO_STR(ERROR_CODE)).c_str()),              \
-               HIXL_GET_ERROR_LOG_HEADER, ##__VA_ARGS__);                                                  \
+#define HIXL_LOGE(ERROR_CODE, fmt, ...)                                                                \
+  do {                                                                                                 \
+    dlog_error(HIXL_MODULE_NAME, "%" PRIu64 " %s: ErrorNo: %" PRIuLEAST8 " %s" fmt, HixlLog::GetTid(), \
+               &__FUNCTION__[0U], (ERROR_CODE), HIXL_GET_ERROR_LOG_HEADER, ##__VA_ARGS__);             \
   } while (false)
 
 #define HIXL_LOGW(fmt, ...)                                                                                  \

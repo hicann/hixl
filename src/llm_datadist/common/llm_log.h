@@ -40,7 +40,6 @@ extern "C" {
 #endif
 #define LLM_MODULE_NAME static_cast<int32_t>(GE)
 #define LLM_MODULE_NAME_U16 static_cast<int32_t>(GE)
-#define LLM_GET_ERRORNO_STR(value) ge::StatusFactory::Instance()->GetErrDesc(value)
 #define LLM_GET_ERROR_LOG_HEADER "[GE][MODULE]"
 
 class GE_FUNC_VISIBILITY LlmLog {
@@ -71,12 +70,10 @@ inline bool LlmLogPrintStdout() {
   return (stdout_flag == 1) ? true : false;
 }
 
-#define LLMLOGE(ERROR_CODE, fmt, ...)                                                                \
+#define LLMLOGE(ERROR_CODE, fmt, ...)                                                               \
   do {                                                                                              \
-    dlog_error(LLM_MODULE_NAME, "%" PRIu64 " %s: ErrorNo: %" PRIuLEAST8 "(%s) %s" fmt, \
-	       LlmLog::GetTid(), &__FUNCTION__[0U], \
-               (ERROR_CODE), ((LLM_GET_ERRORNO_STR(ERROR_CODE)).c_str()),                            \
-               LLM_GET_ERROR_LOG_HEADER, ##__VA_ARGS__);                  \
+    dlog_error(LLM_MODULE_NAME, "%" PRIu64 " %s: ErrorNo: %" PRIuLEAST8 " %s" fmt, LlmLog::GetTid(), \
+               &__FUNCTION__[0U], (ERROR_CODE), LLM_GET_ERROR_LOG_HEADER, ##__VA_ARGS__);           \
   } while (false)
 
 #define LLMLOGW(fmt, ...)                                                                          \
