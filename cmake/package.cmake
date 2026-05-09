@@ -42,12 +42,12 @@ install(DIRECTORY ${script_prefix}/
     WORLD_READ WORLD_EXECUTE
 )
 set(SCRIPTS_FILES
-    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/check_version_required.awk
-    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/common_func.inc
-    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/common_interface.bash
-    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/common_interface.csh
-    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/common_interface.fish
-    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/version_compatible.inc
+    ${CANN_CMAKE_DIR}/scripts/install/check_version_required.awk
+    ${CANN_CMAKE_DIR}/scripts/install/common_func.inc
+    ${CANN_CMAKE_DIR}/scripts/install/common_interface.sh
+    ${CANN_CMAKE_DIR}/scripts/install/common_interface.csh
+    ${CANN_CMAKE_DIR}/scripts/install/common_interface.fish
+    ${CANN_CMAKE_DIR}/scripts/install/version_compatiable.inc
 )
 
 install(FILES ${SCRIPTS_FILES}
@@ -55,25 +55,19 @@ install(FILES ${SCRIPTS_FILES}
     COMPONENT hixl
 )
 set(COMMON_FILES
-    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/install_common_parser.sh
-    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/common_func_v2.inc
-    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/common_installer.inc
-    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/script_operator.inc
-    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/version_cfg.inc
+    ${CANN_CMAKE_DIR}/scripts/install/install_common_parser.sh
+    ${CANN_CMAKE_DIR}/scripts/install/common_func_v2.inc
+    ${CANN_CMAKE_DIR}/scripts/install/common_installer.inc
+    ${CANN_CMAKE_DIR}/scripts/install/script_operator.inc
+    ${CANN_CMAKE_DIR}/scripts/install/version_cfg.inc
 )
 
 set(PACKAGE_FILES
     ${COMMON_FILES}
-    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/multi_version.inc
-)
-set(LATEST_MANGER_FILES
-    ${COMMON_FILES}
-    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/common_func.inc
-    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/version_compatible.inc
-    ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/check_version_required.awk
+    ${CANN_CMAKE_DIR}/scripts/install/multi_version.inc
 )
 set(CONF_FILES
-    ${CMAKE_SOURCE_DIR}/scripts/package/common/cfg/path.cfg
+    ${CANN_CMAKE_DIR}/scripts/package/cfg/path.cfg
 )
 
 install(FILES ${CMAKE_BINARY_DIR}/version.hixl.info
@@ -137,35 +131,18 @@ install(TARGETS cann_hixl
 
 
 install(FILES
-  ${CMAKE_SOURCE_DIR}/build/device_install/hixl/aicpu_kernel/cann-hixl-compat.tar.gz
-  DESTINATION opp/built-in/op_impl/aicpu/kernel
-  COMPONENT hixl
+    ${CMAKE_SOURCE_DIR}/build/device_install/hixl/aicpu_kernel/cann-hixl-compat.tar.gz
+    DESTINATION opp/built-in/op_impl/aicpu/kernel
+    COMPONENT hixl
 )
 
 install(FILES
-  ${CMAKE_SOURCE_DIR}/build/device_install/hixl/aicpu_kernel/libcann_hixl_kernel.json
-  DESTINATION opp/built-in/op_impl/aicpu/config
-  COMPONENT hixl
+    ${CMAKE_SOURCE_DIR}/build/device_install/hixl/aicpu_kernel/libcann_hixl_kernel.json
+    DESTINATION opp/built-in/op_impl/aicpu/config
+    COMPONENT hixl
 )
 
 # ============= CPack =============
-set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
-set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
-set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CMAKE_SYSTEM_NAME}")
-
-set(CPACK_INSTALL_PREFIX "/")
-
-set(CPACK_CMAKE_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
-set(CPACK_CMAKE_BINARY_DIR "${CMAKE_BINARY_DIR}")
-set(CPACK_CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
-set(CPACK_CMAKE_CURRENT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
-set(CPACK_MAKESELF_PATH "${MAKESELF_PATH}")
-set(CPACK_ARCH "${ARCH}")
-set(CPACK_SET_DESTDIR ON)
-set(CPACK_GENERATOR External)
-set(CPACK_EXTERNAL_PACKAGE_SCRIPT "${CMAKE_SOURCE_DIR}/cmake/makeself.cmake")
-set(CPACK_EXTERNAL_ENABLE_STAGING true)
-set(CPACK_PACKAGE_DIRECTORY "${CMAKE_BINARY_DIR}")
-
-message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
-include(CPack)
+if (NOT ENABLE_COV AND NOT ENABLE_UT)
+    set_cann_cpack_config(hixl ENABLE_DEVICE ${ENABLE_DEVICE} SHARE_INFO_NAME hixl)
+endif()
