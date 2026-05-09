@@ -80,7 +80,7 @@ TEST_F(AdxlEngineSTest, TestAdxlEngineH2HWithBuffer) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
   std::map<AscendString, AscendString> options1;
-  options1[OPTION_RDMA_TRAFFIC_CLASS] = "1";
+  options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
   options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
   options1["adxl.BufferPool"] = "4:8";
   EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
@@ -134,7 +134,7 @@ TEST_F(AdxlEngineSTest, TestAdxlEngineD2HWithBuffer) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
   std::map<AscendString, AscendString> options1;
-  options1[OPTION_RDMA_TRAFFIC_CLASS] = "1";
+  options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
   options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
   options1["adxl.BufferPool"] = "4:8";
   EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
@@ -195,7 +195,7 @@ TEST_F(AdxlEngineSTest, TestAdxlDefaultBufferPoolD2D) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
   std::map<AscendString, AscendString> options1;
-  options1[OPTION_RDMA_TRAFFIC_CLASS] = "1";
+  options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
   options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
   EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
 
@@ -250,7 +250,7 @@ TEST_F(AdxlEngineSTest, TestAdxlDisableBufferPoolD2D) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
   std::map<AscendString, AscendString> options1;
-  options1[OPTION_RDMA_TRAFFIC_CLASS] = "1";
+  options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
   options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
   options1["adxl.BufferPool"] = "0:0";
   EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
@@ -314,7 +314,7 @@ TEST_F(AdxlEngineSTest, TestAdxlEngineFabricMemWithStartAddress) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
   std::map<AscendString, AscendString> options1;
-  options1[OPTION_RDMA_TRAFFIC_CLASS] = "1";
+  options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
   options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
   options1[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
   options1[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
@@ -323,7 +323,7 @@ TEST_F(AdxlEngineSTest, TestAdxlEngineFabricMemWithStartAddress) {
   llm::AutoCommResRuntimeMock::SetDevice(1);
   AdxlEngine engine2;
   std::map<AscendString, AscendString> options2;
-  options2[OPTION_RDMA_TRAFFIC_CLASS] = "1";
+  options2[OPTION_RDMA_TRAFFIC_CLASS] = "4";
   options2[OPTION_RDMA_SERVICE_LEVEL] = "1";
   options2[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
   options2[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());

@@ -160,4 +160,31 @@ TEST_F(ChannelMsgHandlerUnitTest, SerializeConnectInfoWritesFixedSizeShareHandle
     EXPECT_EQ(share_handle_json.at(i).get<uint8_t>(), share_handle_bytes[i]);
   }
 }
+
+TEST_F(ChannelMsgHandlerUnitTest, ParseTcSlRejectsOutOfRangeValues) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_RDMA_TRAFFIC_CLASS] = "-1";
+  EXPECT_EQ(handler_->ParseTrafficClass(options), PARAM_INVALID);
+
+  options[hixl::OPTION_RDMA_TRAFFIC_CLASS] = "256";
+  EXPECT_EQ(handler_->ParseTrafficClass(options), PARAM_INVALID);
+
+  options[hixl::OPTION_RDMA_TRAFFIC_CLASS] = "invalid";
+  EXPECT_EQ(handler_->ParseTrafficClass(options), PARAM_INVALID);
+
+  options.clear();
+  options[hixl::OPTION_RDMA_SERVICE_LEVEL] = "8";
+  EXPECT_EQ(handler_->ParseServiceLevel(options), PARAM_INVALID);
+}
+
+TEST_F(ChannelMsgHandlerUnitTest, ParseTcSlAcceptsValidBoundaryValues) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_RDMA_TRAFFIC_CLASS] = "252";
+  options[adxl::OPTION_RDMA_SERVICE_LEVEL] = "7";
+
+  EXPECT_EQ(handler_->ParseTrafficClass(options), SUCCESS);
+  EXPECT_EQ(handler_->ParseServiceLevel(options), SUCCESS);
+  EXPECT_EQ(handler_->comm_config_.hcclRdmaTrafficClass, 252U);
+  EXPECT_EQ(handler_->comm_config_.hcclRdmaServiceLevel, 7U);
+}
 }  // namespace adxl

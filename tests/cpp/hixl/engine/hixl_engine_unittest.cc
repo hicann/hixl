@@ -540,7 +540,7 @@ TEST_F(HixlEngineTest, TestParseTcAndSlWithValidValue) {
 }
 
 TEST_F(HixlEngineTest, TestParseTcSlInvalidValue) {
-  options1[hixl::OPTION_RDMA_TRAFFIC_CLASS] = "129";
+  options1[hixl::OPTION_RDMA_TRAFFIC_CLASS] = "-1";
   HixlEngine engine("127.0.0.1");
   EXPECT_EQ(engine.Initialize(options1), PARAM_INVALID);
   engine.Finalize();
@@ -551,6 +551,9 @@ TEST_F(HixlEngineTest, TestParseTcSlInvalidValue) {
   EXPECT_EQ(engine.Initialize(options1), PARAM_INVALID);
   engine.Finalize();
   options2[hixl::OPTION_RDMA_SERVICE_LEVEL] = "8";
+  EXPECT_EQ(engine.Initialize(options2), PARAM_INVALID);
+  engine.Finalize();
+  options2[hixl::OPTION_RDMA_SERVICE_LEVEL] = "-1";
   EXPECT_EQ(engine.Initialize(options2), PARAM_INVALID);
   engine.Finalize();
 }

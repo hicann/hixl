@@ -48,7 +48,7 @@ class HixlUTest : public ::testing::Test {
   void SetupEngines(Hixl &engine1, Hixl &engine2) {
     llm::AutoCommResRuntimeMock::SetDevice(0);
     std::map<AscendString, AscendString> options1;
-    options1[OPTION_RDMA_TRAFFIC_CLASS] = "1";
+    options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
     options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
     options1[OPTION_BUFFER_POOL] = "0:0";
     EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
@@ -119,7 +119,7 @@ TEST_F(HixlUTest, TestHixl) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   Hixl engine1;
   std::map<AscendString, AscendString> options1;
-  options1[OPTION_RDMA_TRAFFIC_CLASS] = "1";
+  options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
   options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
   EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
 
@@ -254,7 +254,7 @@ TEST_F(HixlUTest, TestHixlH2HWithBuffer) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   Hixl engine1;
   std::map<AscendString, AscendString> options1;
-  options1[OPTION_RDMA_TRAFFIC_CLASS] = "1";
+  options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
   options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
   options1["BufferPool"] = "4:8";
   EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
@@ -308,7 +308,7 @@ TEST_F(HixlUTest, TestHixlRD2HWithBuffer) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   Hixl engine1;
   std::map<AscendString, AscendString> options1;
-  options1[OPTION_RDMA_TRAFFIC_CLASS] = "1";
+  options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
   options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
   options1["BufferPool"] = "4:8";
   EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);

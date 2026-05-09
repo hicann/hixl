@@ -93,7 +93,7 @@ class AdxlEngineUTest : public ::testing::Test {
   void SetupEngines(AdxlEngine &engine1, AdxlEngine &engine2) {
     llm::AutoCommResRuntimeMock::SetDevice(0);
     std::map<AscendString, AscendString> options1;
-    options1[OPTION_RDMA_TRAFFIC_CLASS] = "1";
+    options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
     options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
     options1[OPTION_BUFFER_POOL] = "0:0";
     EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
@@ -144,7 +144,7 @@ class AdxlEngineUTest : public ::testing::Test {
 
 TEST_F(AdxlEngineUTest, TestEngineFactoryFallbackToAdxlEngineWithoutLocalCommRes) {
   std::map<AscendString, AscendString> options;
-  options[OPTION_RDMA_TRAFFIC_CLASS] = "1";
+  options[OPTION_RDMA_TRAFFIC_CLASS] = "4";
   options[OPTION_RDMA_SERVICE_LEVEL] = "1";
 
   auto engine = hixl::EngineFactory::CreateEngine("127.0.0.1", options);
@@ -178,7 +178,7 @@ TEST_F(AdxlEngineUTest, TestAdxlEngine) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
   std::map<AscendString, AscendString> options1;
-  options1[OPTION_RDMA_TRAFFIC_CLASS] = "1";
+  options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
   options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
   EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
 
@@ -422,7 +422,7 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineH2HWithBuffer) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
   std::map<AscendString, AscendString> options1;
-  options1[OPTION_RDMA_TRAFFIC_CLASS] = "1";
+  options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
   options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
   options1["adxl.BufferPool"] = "4:8";
   EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
@@ -476,7 +476,7 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineRD2HWithBuffer) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
   std::map<AscendString, AscendString> options1;
-  options1[OPTION_RDMA_TRAFFIC_CLASS] = "1";
+  options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
   options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
   options1["adxl.BufferPool"] = "4:8";
   EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);

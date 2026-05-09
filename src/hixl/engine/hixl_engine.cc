@@ -279,14 +279,14 @@ Status HixlEngine::ParseTrafficClass(const std::map<AscendString, AscendString> 
     traffic_class_str = env_tc;
   }
   if (!traffic_class_str.empty()) {
-    uint32_t traffic_class = 0U;
+    int32_t traffic_class = 0;
     HIXL_CHK_STATUS_RET(ToNumber(traffic_class_str, traffic_class), "Traffic class is invalid, value = %s",
                         traffic_class_str.c_str());
-    HIXL_CHK_BOOL_RET_STATUS(traffic_class <= 255 && (traffic_class % 4 == 0), PARAM_INVALID,
-                             "Traffic class is invalid, value = %u, must be between 0-255 and a multiple of 4",
+    HIXL_CHK_BOOL_RET_STATUS(traffic_class >= 0 && traffic_class <= 255 && (traffic_class % 4 == 0), PARAM_INVALID,
+                             "Traffic class is invalid, value = %d, must be between 0-255 and a multiple of 4",
                              traffic_class);
     rdma_traffic_class_ = static_cast<uint8_t>(traffic_class);
-    HIXL_LOGI("Set rdma traffic class to %u.", traffic_class);
+    HIXL_LOGI("Set rdma traffic class to %d.", traffic_class);
   }
   return SUCCESS;
 }
@@ -309,13 +309,14 @@ Status HixlEngine::ParseServiceLevel(const std::map<AscendString, AscendString> 
     service_level_str = env_sl;
   }
   if (!service_level_str.empty()) {
-    uint32_t service_level = 0U;
+    int32_t service_level = 0;
     HIXL_CHK_STATUS_RET(ToNumber(service_level_str, service_level), "Service level is invalid, value = %s",
                         service_level_str.c_str());
-    HIXL_CHK_BOOL_RET_STATUS(service_level <= 7, PARAM_INVALID, "service_level must be in [0, 7], value = %u",
+    HIXL_CHK_BOOL_RET_STATUS(service_level >= 0 && service_level <= 7, PARAM_INVALID,
+                             "service_level must be in [0, 7], value = %d",
                              service_level);
     rdma_service_level_ = static_cast<uint8_t>(service_level);
-    HIXL_LOGI("Set rdma service level to %u.", service_level);
+    HIXL_LOGI("Set rdma service level to %d.", service_level);
   }
   return SUCCESS;
 }
