@@ -68,6 +68,9 @@ target_link_libraries(llm_datadist_base PRIVATE
         msprof_stub
         mmpa_stub
         json
+        -Wl,--no-as-needed
+        error_manager_stub
+        -Wl,--as-needed
         ${DT_COMMON_LINK_OPTION}
 )
 
