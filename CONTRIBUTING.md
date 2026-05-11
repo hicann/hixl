@@ -2,7 +2,7 @@
 
 本项目欢迎广大开发者体验并参与贡献，在参与社区贡献之前。请参见[cann-community](https://gitcode.com/cann/community)了解行为准则，进行CLA协议签署，了解源码仓的贡献流程，该仓详细介绍了如何参与CANN开源项目的贡献的前置条件，包括但不限于：
 
-1. 如何提交PR
+1. 如何提交PR [代码贡献流程：从0开始合入代码](https://gitcode.com/cann/hixl/wiki/%E4%BB%A3%E7%A0%81%E8%B4%A1%E7%8C%AE%E6%B5%81%E7%A8%8B%EF%BC%9A%E4%BB%8E0%E5%BC%80%E5%A7%8B%E5%90%88%E5%85%A5%E4%BB%A3%E7%A0%81.md)
 2. gitcode工作流
 3. 流水线触发命令
 4. 代码检视
