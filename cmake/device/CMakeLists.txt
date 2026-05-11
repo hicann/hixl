@@ -15,6 +15,8 @@ project (device_hixl_ops)
 init_cann_project()
 
 set(PRODUCT_SIDE device)
+set(USE_CXX11_ABI OFF)
+add_cann_target_options()
 include(../function.cmake)
 include(../intf_pub_linux.cmake)
 
