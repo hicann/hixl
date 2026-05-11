@@ -58,6 +58,7 @@ Status ChannelManager::Initialize(BufferTransferService *buffer_transfer_service
   }
   // send heartbeat periodically
   heartbeat_sender_ = std::thread([this]() {
+    aclrtSetCurrentContext(aclrt_context_);
     std::unique_lock<std::mutex> lock(cv_mutex_);
     while (!stop_signal_.load()) {
       SendHeartbeats();

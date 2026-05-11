@@ -545,8 +545,9 @@ Status AdxlInnerEngine::TransferSync(const AscendString &remote_engine,
   }));
 
   if (fabric_mem_transfer_service_ != nullptr) {
-    std::lock_guard<std::mutex> transfer_lock(channel->GetTransferMutex());
+    std::unique_lock<std::mutex> transfer_lock(channel->GetTransferMutex());
     auto ret = fabric_mem_transfer_service_->Transfer(channel, operation, op_descs, timeout_in_millis);
+    transfer_lock.unlock();
     ADXL_CHK_BOOL_RET_STATUS(ret != ACL_ERROR_RT_SUSPECT_REMOTE_ERROR, ACL_ERROR_RT_SUSPECT_REMOTE_ERROR,
                              "Probably caused by temporary sdma error, please try again.");
     if (ret != SUCCESS) {
@@ -576,8 +577,9 @@ Status AdxlInnerEngine::TransferSync(const AscendString &remote_engine,
       return ret;
     }
   }
-  std::lock_guard<std::mutex> transfer_lock(channel->GetTransferMutex());
+  std::unique_lock<std::mutex> transfer_lock(channel->GetTransferMutex());
   Status ret = channel->TransferSync(operation, op_descs, timeout_in_millis);
+  transfer_lock.unlock();
   if (ret != SUCCESS) {
     LLMLOGE(ret, "Failed to transfer sync, remote_engine:%s", remote_engine.GetString());
     ADXL_CHK_STATUS_RET(DisconnectOnError(remote_engine.GetString(), timeout_in_millis),
@@ -601,7 +603,7 @@ Status AdxlInnerEngine::TransferAsync(const AscendString &remote_engine,
                            "Failed to get channel, remote_engine:%s", remote_engine.GetString());
   auto id = next_req_id_.fetch_add(1);
   req = reinterpret_cast<void *>(static_cast<uintptr_t>(id));
-  std::lock_guard<std::mutex> transfer_lock(channel->GetTransferMutex());
+  std::unique_lock<std::mutex> transfer_lock(channel->GetTransferMutex());
   if (user_config_channel_pool_) {
     channel->SetHasTransferred(true);
     channel->IncrementTransferCount();
@@ -617,6 +619,7 @@ Status AdxlInnerEngine::TransferAsync(const AscendString &remote_engine,
   } else {
     trans_status = channel->TransferAsync(operation, op_descs, optional_args, req);
   }
+  transfer_lock.unlock();
   if (trans_status != SUCCESS) {
     LLMLOGE(trans_status, "Failed to transfer async, remote_engine:%s", remote_engine.GetString());
     ADXL_CHK_STATUS_RET(DisconnectOnError(remote_engine.GetString(), kConnectWhenTransferTimeout),
