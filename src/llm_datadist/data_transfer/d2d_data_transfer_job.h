@@ -13,7 +13,6 @@
 
 #include <list>
 #include <queue>
-#include <list>
 #include "common/common.h"
 #include "hccl/hccl_adapter.h"
 #include "link_mgr/comm_entity.h"

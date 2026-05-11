@@ -11,13 +11,12 @@
 #include "data_transfer/data_transfer_client.h"
 #include "data_transfer/d2d_data_transfer_job.h"
 #include "common/llm_utils.h"
-#include "common/llm_scope_guard.h"
+
+#include <cinttypes>
 
 namespace llm {
 namespace {
 constexpr size_t kSrcAndDstNum = 2U;
-constexpr uint64_t kDefaultReqBufferSize = 112U * 1024U;
-constexpr uint32_t kFlagSize = 8U;
 
 ge::Status SetBufferInfoCount(const PullCacheParam &pull_cache_param, uint32_t &buffer_info_count,
                               uint32_t &is_pull_block,
@@ -107,7 +106,7 @@ ge::Status SetBufferInfo(const PullCacheParam &pull_cache_param, const CacheEntr
 
 ge::Status DataTransferClient::ConstructTransferInfo(const PullCacheParam &pull_cache_param,
                                                      const CacheEntry &cache_entry, const CacheKey &cache_key,
-                                                     int32_t timeout, TransferCacheReq &request) const {
+                                                     int32_t timeout) const {
   std::vector<std::vector<std::pair<int64_t, int64_t>>> contiguous_blocks_pair;
   uint32_t buffer_info_count = 0U;
   uint32_t is_pull_block = 0U;
@@ -116,10 +115,11 @@ ge::Status DataTransferClient::ConstructTransferInfo(const PullCacheParam &pull_
   uint64_t request_size =
       sizeof(TransferCacheReq) + sizeof(TransferInfo) * (static_cast<uint64_t>(buffer_info_count) * kSrcAndDstNum +
                                                          cache_entry.cache_addrs.size());
-  LLM_CHK_BOOL_RET_STATUS(request_size <= (kDefaultReqBufferSize - kFlagSize), ge::LLM_PARAM_INVALID,
-                         "buffer info count[%u] is to large, request size[%lu] is out of range[0, %lu]",
-                         buffer_info_count, request_size, (kDefaultReqBufferSize - kFlagSize));
-
+  TransferCacheReq *request_ptr = nullptr;
+  LLM_CHK_STATUS_RET(comm_entity_->GetTransferCacheReq(request_size, request_ptr),
+                     "Failed to get transfer cache req");
+  LLM_ASSERT_NOTNULL(request_ptr);
+  TransferCacheReq &request = *request_ptr;
   request.cache_id = cache_key.prompt_cache_id;
   request.batch_index = cache_key.prompt_batch_index;
   request.req_id = cache_key.req_id;
@@ -213,8 +213,7 @@ ge::Status DataTransferClient::PullCache(const CacheEntry &cache_entry, const Ca
                                          const PullCacheParam &pull_cache_param, int32_t timeout_in_ms) {
   const auto start = std::chrono::steady_clock::now();
   timeout_in_ms_ = timeout_in_ms;
-  auto &request = *PtrToPtr<uint8_t, TransferCacheReq>(comm_entity_->GetEntityInfo().send_buffer_req_ptr);
-  LLM_CHK_STATUS_RET(ConstructTransferInfo(pull_cache_param, cache_entry, cache_key, timeout_in_ms, request));
+  LLM_CHK_STATUS_RET(ConstructTransferInfo(pull_cache_param, cache_entry, cache_key, timeout_in_ms));
   LLM_CHK_STATUS_RET(PullCacheFromRemote(start), "Failed to pull kv from remote cluster:%lu",
                     cache_key.prompt_cluster_id);
   return ge::SUCCESS;
@@ -222,8 +221,8 @@ ge::Status DataTransferClient::PullCache(const CacheEntry &cache_entry, const Ca
 
 ge::Status DataTransferClient::PullCacheByGet(const CacheEntry &cache_entry, const CacheKey &cache_key,
                                               const PullCacheParam &pull_cache_param, int32_t timeout_in_ms) const {
-  auto &request = *PtrToPtr<void, TransferCacheReq>(comm_entity_->GetEntityInfo().local_req_ptr);
-  LLM_CHK_STATUS_RET(ConstructTransferInfo(pull_cache_param, cache_entry, cache_key, timeout_in_ms, request));
+  LLM_CHK_STATUS_RET(ConstructTransferInfo(pull_cache_param, cache_entry, cache_key, timeout_in_ms));
+  const auto &request = comm_entity_->GetRequest();
   CacheEntry remote_cache_entry;
   LLM_CHK_STATUS_RET(comm_entity_->GetCacheAccessTable().FindCacheEntry(request, remote_cache_entry));
   LLM_CHK_BOOL_RET_STATUS(cache_entry.remote_accessible, ge::LLM_PARAM_INVALID,
@@ -235,7 +234,7 @@ ge::Status DataTransferClient::PullCacheByGet(const CacheEntry &cache_entry, con
   if (cache_entry.cache_mem_type != CacheMemType::BLOCKS) {
     offset += cache_key.prompt_batch_index * cache_entry.stride;
   }
-  LLMLOGI("pull_cache begin from the offset: %u.", offset);
+  LLMLOGI("pull_cache begin from the offset: (%" PRIu64 ").", offset);
   LLM_CHK_STATUS_RET(job.Initialize(remote_cache_entry, *comm_entity_, offset));
   LLM_CHK_STATUS_RET(job.PullCache(), "Failed to pull cache");
   return ge::SUCCESS;

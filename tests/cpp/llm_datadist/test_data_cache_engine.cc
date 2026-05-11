@@ -179,6 +179,33 @@ class DataCacheEngineRunner {
   std::vector<std::vector<int32_t>> host_buffers_;
 };
 
+std::vector<uint64_t> BuildSparseBlocks(size_t block_count, uint64_t start_index = 0U) {
+  std::vector<uint64_t> blocks;
+  blocks.reserve(block_count);
+  for (size_t i = 0; i < block_count; ++i) {
+    blocks.push_back(start_index + static_cast<uint64_t>(i * 2U));
+  }
+  return blocks;
+}
+
+llm::CacheDesc BuildBlockCacheDesc(size_t block_count) {
+  llm::CacheDesc desc{};
+  desc.num_tensors = 1;
+  desc.shape = {static_cast<int64_t>(block_count * 2U), 4};
+  desc.data_type = DT_INT32;
+  desc.placement = 1;
+  desc.cache_mem_type = llm::CacheMemType::BLOCKS;
+  return desc;
+}
+
+llm::PullCacheParam BuildSparsePullCacheParam(size_t block_count, uint64_t decoder_start_index = 1U) {
+  llm::PullCacheParam param{};
+  param.size = -1;
+  param.prompt_blocks = BuildSparseBlocks(block_count);
+  param.decoder_blocks = BuildSparseBlocks(block_count, decoder_start_index);
+  return param;
+}
+
 HcclResult HcclExchangeMemDesc1(HcclComm comm, uint32_t remoteRank, HcclMemDescs *local, int timeout,
                                 HcclMemDescs *remote, uint32_t *actualNum) {
   for (uint32_t i = 0U; i < local->arrayLength; ++i) {
@@ -682,6 +709,43 @@ TEST_F(DataCacheEngineSTest, PullCache_D2D_B2B_BatchGet) {
 
   std::vector<int32_t> actual(&pull_result[128], &pull_result[128 + 4]);
   EXPECT_EQ(actual, (std::vector<int32_t>{1, 2, 3, 4}));
+}
+
+TEST_F(DataCacheEngineSTest, PullCache_D2D_B2B_BatchGet_DynamicRequestBuffer) {
+  constexpr size_t kBlockCount = 4096U;
+
+  llm::CacheDesc src_cache_desc = BuildBlockCacheDesc(kBlockCount);
+  llm::CacheDesc dst_cache_desc = src_cache_desc;
+  llm::PullCacheParam pull_cache_param = BuildSparsePullCacheParam(kBlockCount);
+
+  std::vector<int32_t> pull_result(8);
+  DataCacheEngineRunner data_cache_engine_runner;
+  data_cache_engine_runner.LlmDatadistInitAndLink(src_cache_desc, dst_cache_desc, pull_cache_param, false, true);
+  data_cache_engine_runner.PullDataCache(pull_cache_param, pull_result);
+  data_cache_engine_runner.ReleaseResource();
+
+  std::vector<int32_t> actual(&pull_result[4], &pull_result[8]);
+  EXPECT_EQ(actual, (std::vector<int32_t>{1, 2, 3, 4}));
+}
+
+TEST_F(DataCacheEngineSTest, PullCache_D2D_B2B_BatchGet_RequestTooLarge) {
+  constexpr size_t kBlockCount = 70000U;
+
+  llm::CacheDesc src_cache_desc = BuildBlockCacheDesc(kBlockCount);
+  llm::CacheDesc dst_cache_desc = src_cache_desc;
+  llm::PullCacheParam pull_cache_param = BuildSparsePullCacheParam(kBlockCount);
+
+  DataCacheEngineRunner data_cache_engine_runner;
+  data_cache_engine_runner.LlmDatadistInitAndLink(src_cache_desc, dst_cache_desc, pull_cache_param, false, true);
+
+  llm::CacheKey cache_key{};
+  cache_key.prompt_cluster_id = 0;
+  cache_key.prompt_cache_id = 1;
+
+  EXPECT_EQ(data_cache_engine_runner.GetLlmDataDist().PullCache(data_cache_engine_runner.GetDstCache().cache_id,
+                                                                cache_key,
+                                                                pull_cache_param), ge::LLM_PARAM_INVALID);
+  data_cache_engine_runner.ReleaseResource();
 }
 
 TEST_F(DataCacheEngineSTest, PullDataCache_D2D_C2B) {

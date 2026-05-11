@@ -20,12 +20,16 @@
 #include "common/llm_checker.h"
 #include "common/llm_scope_guard.h"
 
+#include <cinttypes>
+
 namespace llm {
 namespace {
 constexpr uint64_t kDefaultMsgBufferSize = 128U * 1024U;
 // evaluate with the maximum block number set to 1k and the maximum tensor number set to 1k.
 constexpr uint64_t kDefaultReqBufferSize = 112U * 1024U;
 constexpr uint64_t kDefaultRespBufferSize = 16U * 1024U;
+constexpr uint64_t kMaxDynamicReqBufferSize = 2U * 1024U * 1024U;
+constexpr uint64_t kReqBufferAlignSize = 1024U;
 constexpr uint32_t kFlagSize = 8U;
 constexpr size_t kMaxOpDescNum = 64U;
 constexpr size_t kMinRemoteMemSize = 3U;
@@ -107,7 +111,7 @@ void RegBufferPool::Free(void *buffer) {
   }
 }
 
-EntityMemInfo::EntityMemInfo(bool remote_cache_accessible, 
+EntityMemInfo::EntityMemInfo(bool remote_cache_accessible,
                              RegBufferPool *host_reg_pool,
                              RegBufferPool *device_reg_pool)
     : remote_cache_accessible_(remote_cache_accessible),
@@ -124,6 +128,7 @@ EntityMemInfo::EntityMemInfo(bool remote_cache_accessible,
       device_reg_pool_(device_reg_pool) {};
 
 ge::Status EntityMemInfo::Initialize() {
+  req_buffer_size_ = kDefaultReqBufferSize;
   if (remote_cache_accessible_) {
     LLM_CHK_ACL_RET(aclrtMallocHost(&msg_buffer_, kDefaultMsgBufferSize));
   } else {
@@ -138,8 +143,9 @@ ge::Status EntityMemInfo::Initialize() {
     transfer_resp_ = static_cast<uint8_t *>(transfer_buffer_) + kDefaultReqBufferSize;
   }
   req_ = msg_buffer_;
-  resp_ = static_cast<uint8_t *>(msg_buffer_) + kDefaultReqBufferSize;
-  LLMLOGI("Mem info init success, remote_cache_accessible:%d", static_cast<int32_t>(remote_cache_accessible_));
+  resp_ = static_cast<uint8_t *>(msg_buffer_) + req_buffer_size_;
+  LLMLOGI("Mem info init success, remote_cache_accessible:%d, req_buffer_size=(%" PRIu64 ")",
+          static_cast<int32_t>(remote_cache_accessible_), req_buffer_size_);
   return ge::SUCCESS;
 }
 
@@ -195,7 +201,7 @@ ge::Status EntityCommInfo::Initialize() {
   }
 
   LLM_CHK_STATUS_RET(PrepareHcclComm(), "Failed to prepare hccl comm");
-  LLM_CHK_BOOL_RET_STATUS(params_.timeout >= 0, ge::LLM_PARAM_INVALID, 
+  LLM_CHK_BOOL_RET_STATUS(params_.timeout >= 0, ge::LLM_PARAM_INVALID,
                          "timeout should be greater than or equal 0, given value is %d", params_.timeout);
   LLM_CHK_BOOL_RET_STATUS(params_.link_retry_count >= kRetryCountMin && params_.link_retry_count <= kRetryCountMax,
                          ge::LLM_PARAM_INVALID,
@@ -212,9 +218,9 @@ ge::Status EntityCommInfo::PrepareHcclComm() const {
   for (int32_t i = 0; i < params_.link_retry_count; i++) {
     prepare_ret = HcclAdapter::GetInstance().HcclCommPrepare(comm_, &prepareConfig, avg_timeout);
     if (prepare_ret != HcclResult::HCCL_SUCCESS && (!stop_flag_)) {
-      LLMEVENT("Retrying, there will be a total of %d retries, this time is %d, returned value this time:%d; " 
-              "the hccl logs during the calling of HcclCommPrepare from current thread could be ignored " 
-              "if HcclCommPrepare finally succeeds.", 
+      LLMEVENT("Retrying, there will be a total of %d retries, this time is %d, returned value this time:%d; "
+              "the hccl logs during the calling of HcclCommPrepare from current thread could be ignored "
+              "if HcclCommPrepare finally succeeds.",
               params_.link_retry_count, i + 1, prepare_ret);
     } else {
       break;
@@ -768,5 +774,52 @@ ge::Status BufferedSender::Flush() {
 
 CacheAccessTable &CommEntity::GetCacheAccessTable() {
   return cache_access_table_;
+}
+
+ge::Status CommEntity::GetTransferCacheReq(uint64_t request_size, TransferCacheReq *&request) {
+  auto *mem_info = mem_info_ptr_.get();
+  const bool remote_cache_accessible = mem_info->remote_cache_accessible_;
+  const uint64_t max_request_buffer_size =
+      remote_cache_accessible ? kMaxDynamicReqBufferSize : kDefaultReqBufferSize;
+  LLM_CHK_BOOL_RET_STATUS(request_size <= (max_request_buffer_size - kFlagSize), ge::LLM_PARAM_INVALID,
+                         "request size[%" PRIu64 "] is out of range[0, %" PRIu64 "]",
+                         request_size, (max_request_buffer_size - kFlagSize));
+
+  if (!remote_cache_accessible) {
+    request = PtrToPtr<uint8_t, TransferCacheReq>(info_.send_buffer_req_ptr);
+    return ge::SUCCESS;
+  }
+
+  const uint64_t request_buffer_size =
+      ((request_size + kFlagSize + kReqBufferAlignSize - 1U) / kReqBufferAlignSize) * kReqBufferAlignSize;
+  if (request_buffer_size > mem_info->req_buffer_size_) {
+    const uint64_t prev_req_size = mem_info->req_buffer_size_;
+    const uint64_t new_msg_buffer_size = request_buffer_size + kDefaultRespBufferSize;
+    void *new_msg_buffer = nullptr;
+    LLM_CHK_ACL_RET(aclrtMallocHost(&new_msg_buffer, new_msg_buffer_size));
+    LLM_DISMISSABLE_GUARD(fail_guard, ([&new_msg_buffer]() {
+      if (new_msg_buffer != nullptr) {
+        LLM_CHK_ACL(aclrtFreeHost(new_msg_buffer));
+      }
+    }));
+
+    if (mem_info->msg_buffer_ != nullptr) {
+      LLM_CHK_ACL(aclrtFreeHost(mem_info->msg_buffer_));
+    }
+    mem_info->msg_buffer_ = new_msg_buffer;
+    mem_info->req_buffer_size_ = request_buffer_size;
+    mem_info->req_ = mem_info->msg_buffer_;
+    mem_info->resp_ = static_cast<uint8_t *>(mem_info->msg_buffer_) + request_buffer_size;
+    LLM_DISMISS_GUARD(fail_guard);
+    LLMLOGI("Expand remote cache req buffer success, req (%" PRIu64 ") -> (%" PRIu64 "), msg_total (%" PRIu64 ")",
+            prev_req_size, mem_info->req_buffer_size_, new_msg_buffer_size);
+  }
+
+  info_.local_req_flag_ptr = mem_info->req_;
+  info_.local_req_ptr = static_cast<uint8_t *>(mem_info->req_) + kFlagSize;
+  info_.local_resp_flag_ptr = mem_info->resp_;
+  info_.local_resp_ptr = static_cast<uint8_t *>(mem_info->resp_) + kFlagSize;
+  request = PtrToPtr<void, TransferCacheReq>(info_.local_req_ptr);
+  return ge::SUCCESS;
 }
 }  // namespace llm

@@ -86,6 +86,7 @@ class EntityMemInfo {
 
   bool remote_cache_accessible_;
   void *msg_buffer_ = nullptr;
+  uint64_t req_buffer_size_ = 0U;
   void *req_ = nullptr;
   void *transfer_buffer_ = nullptr;
   void *host_transfer_buffer_ = nullptr;
@@ -191,6 +192,7 @@ class CommEntity {
   void *GetTransferBuffer() const;
   ge::Status SetRemoteAddresses();
   CacheAccessTable &GetCacheAccessTable();
+  ge::Status GetTransferCacheReq(uint64_t request_size, TransferCacheReq *&request);
 
  private:
   std::mutex process_mutex_;
