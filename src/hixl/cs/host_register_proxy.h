@@ -55,7 +55,6 @@ class HostRegisterProxy {
   static std::shared_ptr<HostRegisterProxy> GetOrCreateInstance(uint32_t dev_phy_id);
   static std::shared_ptr<HostRegisterProxy> GetInstance(uint32_t dev_phy_id);
   explicit HostRegisterProxy(int32_t dev_phy_id);
-  Status Initialize();
   Status Register(void *host_addr, uint64_t size, void *&device_addr);
   Status Unregister(void *host_addr);
   Status GetRegisteredDeviceAddr(void *host_addr, void *&device_addr) const;

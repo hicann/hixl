@@ -36,14 +36,6 @@ std::shared_ptr<HostRegisterProxy> HostRegisterProxy::GetOrCreateInstance(uint32
     return proxy;
   }
   proxy.reset(new (std::nothrow) HostRegisterProxy(dev_phy_id_int));
-  if (proxy != nullptr) {
-    Status init_ret = proxy->Initialize();
-    if (init_ret != SUCCESS) {
-      HIXL_LOGE(init_ret, "Failed to initialize host register proxy, dev_phy_id=%u.", dev_phy_id);
-      proxy.reset();
-      return nullptr;
-    }
-  }
   return proxy;
 }
 
@@ -63,11 +55,6 @@ std::shared_ptr<HostRegisterProxy> HostRegisterProxy::GetInstance(uint32_t dev_p
 }
 
 HostRegisterProxy::HostRegisterProxy(int32_t dev_phy_id) : dev_phy_id_(dev_phy_id) {}
-
-Status HostRegisterProxy::Initialize() {
-  // 外部接口已切换 context，不需要内部创建和切换
-  return SUCCESS;
-}
 
 HostRegisterProxy::~HostRegisterProxy() {
   std::lock_guard<std::mutex> lock(mutex_);
