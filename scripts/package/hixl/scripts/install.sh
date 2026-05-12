@@ -384,7 +384,7 @@ is_valid_path() {
                     exit 1
                 fi
                 if [ "${ret}" -ne 0 ]; then
-                    log "WARNING" "You are going to put run-files on a unsecure install-path, do you want to continue? [y/n]"
+                    log "WARNING" "You are going to put run-files on a insecure install-path, do you want to continue? [y/n]"
                     while true
                     do
                         read yn

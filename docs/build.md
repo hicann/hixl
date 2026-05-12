@@ -61,19 +61,8 @@
 如果您想体验**master分支最新能力**，单击[下载链接](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/master)获取软件包，按照如下步骤进行安装。更多安装指导请参考[CANN软件安装指南](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)。
 
 1. 安装固件和驱动：请参考[CANN软件安装指南](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)。
-2. 安装依赖。
-   <br>以下所列为源码编译用到的依赖，请注意版本要求。
 
- ```shell
-  # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
-  sudo apt-get install cmake bash ccache
-  ```
-- GCC >= 7.3.0
-- Python >= 3.9.0
-- CMake >= 3.16.0  (建议使用3.20.0版本)
-- bash >= 5.1.16，由于测试用例开启了地址消毒，代码中执行system函数会触发低版本的bash被地址消毒检查出内存泄露。
-- ccache（可选），ccache为编译器缓存优化工具，用于加快二次编译速度。
-3. 安装社区版CANN toolkit包。
+2. 安装社区版CANN toolkit包。
 
     ```bash
     # 确保安装包具有可执行权限
@@ -82,7 +71,7 @@
     ./Ascend-cann-toolkit_${cann_version}_linux-${arch}.run --install --install-path=${install_path}
     ```
 
-4. 安装社区版CANN ops包。
+3. 安装社区版CANN ops包。
 
     ```bash
     # 确保安装包具有可执行权限
@@ -136,10 +125,11 @@ source /usr/local/Ascend/cann/set_env.sh
   # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
   sudo apt-get install cmake bash ccache
   ```
-- GCC >= 7.3.0
-- Python >= 3.9.0
+- GCC 7.3.x - 13.x
+- Python 3.9.x - 3.13.x
 - CMake >= 3.16.0
 - bash >= 5.1.16，由于测试用例开启了地址消毒，代码中执行system函数会触发低版本的bash被地址消毒检查出内存泄露。
+- unzip，用于解压下载的第三方开源软件的zip压缩包。
 - ccache（可选），ccache为编译器缓存优化工具，用于加快二次编译速度。
 
 HIXL在编译时，依赖的第三方开源软件列表如下：

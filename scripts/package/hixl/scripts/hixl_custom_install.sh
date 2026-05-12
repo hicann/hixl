@@ -124,7 +124,7 @@ hixl_install_package() {
             log "INFO" "install ${_package} successfully!"
         fi
     else
-        log "ERROR" "ERR_NO:0x0080;ERR_DES:install ${_package} faied, can not find the matched package for this platform."
+        log "ERROR" "ERR_NO:0x0080;ERR_DES:install ${_package} failed, can not find the matched package for this platform."
         exit 1
     fi
 }
@@ -345,7 +345,7 @@ custom_install() {
         if [ "${pylocal}" = "y" ]; then
             log "INFO" "please make sure PYTHONPATH include ${WHL_INSTALL_DIR_PATH}."
         else
-            log "INFO" "The package te is already installed in python default path. It is recommended to install it using the '--pylocal' parameter, install the package hixl in the ${WHL_INSTALL_DIR_PATH}."
+            log "INFO" "The package llm_datadist is already installed in python default path. It is recommended to install it using the '--pylocal' parameter, install the package hixl in the ${WHL_INSTALL_DIR_PATH}."
         fi
 
         if [ "x$stage" = "xinstall" ]; then
