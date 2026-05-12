@@ -57,7 +57,7 @@ ge::Status ScalableAllocator::Finalize() {
         if (layer->GetLayerId() < span_layers_.size()) {
           span_layers_[layer->GetLayerId()] = nullptr;
         }
-        delete layer;
+        layer_allocator_.Free(*layer);
       }
     }
   }
