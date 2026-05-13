@@ -37,12 +37,23 @@ Status MsgHandler::Initialize() {
 }
 
 void MsgHandler::Finalize() {
-  running_ = false;
+  bool expected = true;
+  if (!running_.compare_exchange_strong(expected, false)) {
+    return;
+  }
   req_cv_.notify_one();
   if (listener_.joinable()) {
     listener_.join();
   }
-  thread_pool_->Destroy();
+  if (thread_pool_ != nullptr) {
+    thread_pool_->Destroy();
+  }
+}
+
+MsgHandler::~MsgHandler() {
+  if (running_.load()) {
+    Finalize();
+  }
 }
 
 Status MsgHandler::HandleMsg(int32_t fd, CtrlMsgPtr msg, MsgProcessor proc) {

@@ -339,6 +339,7 @@ Status HixlCSClient::InitDeviceResource() {
   }
   HIXL_CHK_ACL_RET(aclrtGetDevice(&device_id_), "[HixlClient] aclrtGetDevice failed");
   HIXL_LOGI("[HixlClient] device_id=%d", device_id_);
+  hixl::TemporaryRtContext with_context(nullptr);  // 创建context会切换当前context, 因此需要在析构时恢复原用户context
   Status pret = TransferPool::GetInstance(device_id_).Initialize(kDeviceTransferPoolSize);
   HIXL_CHK_STATUS_RET(pret, "[HixlClient] TransferPool Initialize failed. devId=%d", device_id_);
   std::vector<TransferPool::SlotHandle> all_slots;
@@ -352,8 +353,6 @@ Status HixlCSClient::InitDeviceResource() {
 }
 
 Status HixlCSClient::Create(const HixlClientDesc *client_desc, const HixlClientConfig *config) {
-  auto ctx_guard = GetContextGuard();
-  (void)ctx_guard;
   HIXL_CHECK_NOTNULL(client_desc->server_ip);
   HIXL_CHECK_NOTNULL(client_desc->local_endpoint);
   HIXL_CHECK_NOTNULL(client_desc->remote_endpoint);

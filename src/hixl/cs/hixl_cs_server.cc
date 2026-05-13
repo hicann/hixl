@@ -86,6 +86,7 @@ Status HixlCSServer::RegisterHostTransFinishedFlag() {
 Status HixlCSServer::RegisterDeviceTransFinishedFlag() {
   int32_t dev_id = 0;
   HIXL_CHK_ACL_RET(aclrtGetDevice(&dev_id), "Failed to aclrtGetDevice for CS server TransferPool");
+  hixl::TemporaryRtContext with_context(nullptr);  // 创建context会切换当前context, 因此需要在析构时恢复原用户context
   HIXL_CHK_STATUS_RET(TransferPool::GetInstance(dev_id).Initialize(kDeviceTransferPoolSize),
                       "Failed to init TransferPool for CS server, dev_id:%d", dev_id);
   HIXL_DISMISSABLE_GUARD(pool_rollback, ([dev_id]() { TransferPool::GetInstance(dev_id).Finalize(); }));
@@ -108,8 +109,6 @@ Status HixlCSServer::RegisterDeviceTransFinishedFlag() {
 }
 
 Status HixlCSServer::Initialize(const EndpointDesc *endpoint_list, uint32_t list_num, const HixlServerConfig *config) {
-  auto ctx_guard = GetContextGuard();
-  (void)ctx_guard;
   HIXL_CHECK_NOTNULL(endpoint_list);
   HIXL_CHECK_NOTNULL(config);
   HIXL_CHK_BOOL_RET_STATUS(list_num > 0, PARAM_INVALID, "endpoint list num:%u is invalid, must > 0", list_num);

@@ -22,6 +22,7 @@
 namespace hixl {
 class MsgHandler {
  public:
+  ~MsgHandler();
   Status Initialize();
   void Finalize();
   void SubmitMsg(int32_t fd, const CtrlMsgPtr &msg);

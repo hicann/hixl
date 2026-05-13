@@ -14,6 +14,7 @@
 
 ## 🔥Latest News
 
+- [2026/04] HIXL支持Device UBoE，详见[Request](https://gitcode.com/cann/hixl/pull/365); HIXL跨代际能力增强，支持A2/A3/A5异构 [[Issue #138](https://gitcode.com/cann/hixl/issues/138)]，[[Issue #115](https://gitcode.com/cann/hcomm/issues/115)]。
 - [2026/03] HIXL已支持超节点内FabricMem模式，详见 [FabricMem](docs/FabricMem.md)。
 - [2026/01] LLM-DataDist与HIXL已支持下一代芯片的Host RoCE传输能力。
 - [2025/12] 基于A3超平面实现D2rH直传；新增链路池与IPv6支持，并对接Mooncake社区的下一代TENT架构。
