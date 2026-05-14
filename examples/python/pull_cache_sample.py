@@ -14,6 +14,7 @@ import argparse
 import json
 import logging
 import re
+import os
 import time
 import subprocess
 from llm_datadist import LLMDataDist, LLMRole, LLMConfig, CacheDesc, CacheKey, Cache, DataType, RegisterMemStatus, Placement
@@ -56,17 +57,11 @@ def get_device_ip_from_hccn_tool(device_id: int) -> str:
 
 
 def get_physical_device_id() -> list[str]:
-    cmd = ["ls", "-l", "/dev", "|", "grep", "davinci"]
-    result = subprocess.run(cmd, stdout=subprocess.PIPE, text=True)
-    outputlines = result.stdout.splitlines()
-
     numbers = []
-    pattern = r"davinci(\d+)"
-
-    for line in outputlines:
-        match = re.search(pattern, line)
-        if match:
-            numbers.append(match.group(1))
+    for name in os.listdir("/dev"):
+        if re.match(r"^davinci\d+$", name):
+            num = name.replace("davinci", "")
+            numbers.append(num)
     numbers.sort(key=int)
     return numbers
 

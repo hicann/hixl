@@ -11,26 +11,47 @@
 # ----------------------------------------------------------------------------
 
 import os
-from .status import LLMStatusCode, LLMException, Status
-from .configs import LLMClusterInfo, LLMRole, LlmConfig, LlmConfig as LLMConfig
-from .data_type import DataType
-from .v2.llm_types import KvCache, CacheDesc, CacheKey, CacheKeyByIdAndIndex, BlocksCacheKey, Placement, \
+import sys
+from llm_datadist.status import LLMStatusCode, LLMException, Status
+from llm_datadist.configs import LLMClusterInfo, LLMRole, LlmConfig, LlmConfig as LLMConfig
+from llm_datadist.data_type import DataType
+from llm_datadist.v2.llm_types import KvCache, CacheDesc, CacheKey, CacheKeyByIdAndIndex, BlocksCacheKey, Placement, \
     RegisterMemStatus, Cache, LayerSynchronizer, TransferConfig, CacheTask, TransferWithCacheKeyConfig, \
     Memtype, MemInfo
-from .v2.llm_datadist import LLMDataDist
+from llm_datadist.v2.llm_datadist import LLMDataDist
 
 __all__ = ["LLMClusterInfo", "LLMStatusCode", "LLMException",
            "LLMRole", "LlmConfig", "LLMConfig", "DataType", "Status",
            "CacheDesc", "CacheKey", "CacheKeyByIdAndIndex", "KvCache", "Cache",
            "BlocksCacheKey", "LLMDataDist", "Placement", "RegisterMemStatus", "LayerSynchronizer",
+           "TransferConfig", "CacheTask", "TransferWithCacheKeyConfig", "Memtype", "MemInfo", 
+           "TensorDesc", "Tensor", "KvCacheManager"]
+
+v2_list = ["LLMClusterInfo", "LLMStatusCode", "LLMException",
+           "LLMRole", "LlmConfig", "LLMConfig", "DataType", "Status",
+           "CacheDesc", "CacheKey", "CacheKeyByIdAndIndex", "KvCache", "Cache",
+           "BlocksCacheKey", "LLMDataDist", "Placement", "RegisterMemStatus", "LayerSynchronizer",
            "TransferConfig", "CacheTask", "TransferWithCacheKeyConfig", "Memtype", "MemInfo"]
 
-try:
-    from llm_datadist_v1.tensor import TensorDesc, Tensor  # pragma: no cover: optional-import
-    from llm_datadist_v1.kv_cache_manager import KvCacheManager  # pragma: no cover: optional-import
-    __all__ += ['TensorDesc', 'Tensor', 'KvCacheManager']  # pragma: no cover: optional-import
-except ModuleNotFoundError:
-    pass
+
+# 懒加载, 只有外部用例真正使用v1里独有的类时才会触发import
+def __getattr__(name):
+    if name not in ("TensorDesc", "Tensor", "KvCacheManager"):
+        raise AttributeError(f"Module 'llm_datadist' has not attribute '{name}'")
+
+    if name == "TensorDesc":
+        from llm_datadist_v1 import TensorDesc
+        return TensorDesc
+    
+    if name == "Tensor":
+        from llm_datadist_v1 import Tensor
+        return Tensor
+
+    if name == "KvCacheManager":
+        from llm_datadist_v1 import KvCacheManager
+        return KvCacheManager
+
+    raise AttributeError(f"Module 'llm_datadist' has not attribute '{name}'")
 
 _ENV_VAR_NAME_AUTO_USE_UC_MEMORY = 'AUTO_USE_UC_MEMORY'
 

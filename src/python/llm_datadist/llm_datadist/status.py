@@ -10,15 +10,13 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
-from enum import Enum
+from enum import IntEnum
 from llm_datadist.utils import log
 
-try:
-    from llm_datadist import llm_datadist_wrapper as llm_wrapper
-except ImportError:
-    from llm_datadist_v1 import llm_wrapper
+from llm_datadist import llm_datadist_wrapper as llm_wrapper
 
-class LLMStatusCode(Enum):
+
+class LLMStatusCode(IntEnum):
     LLM_SUCCESS = llm_wrapper.kSuccess
     LLM_FAILED = llm_wrapper.kFailed
     LLM_PARAM_INVALID = llm_wrapper.kParamInvalid

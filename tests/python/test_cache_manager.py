@@ -15,10 +15,14 @@ import time
 import unittest
 import ctypes
 
-from llm_datadist import *
+import llm_datadist as ld
+from llm_datadist import v2_list
 from llm_datadist.v2.llm_types import RegisterMemStatus, Cache, Memtype, MemInfo
 
 _INVALID_ID = 2 ** 64 - 1
+
+for item in v2_list:
+    globals()[item] = getattr(ld, item)
 
 
 class LlmCacheManagerSt(unittest.TestCase):

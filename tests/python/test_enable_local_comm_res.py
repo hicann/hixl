@@ -12,7 +12,10 @@
 
 import unittest
 import time
-from llm_datadist import *
+import llm_datadist as ld
+from llm_datadist import v2_list
+for item in v2_list:
+    globals()[item] = getattr(ld, item)
 
 class LlmLocalCommResSt(unittest.TestCase):
 

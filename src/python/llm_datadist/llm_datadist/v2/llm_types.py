@@ -14,7 +14,7 @@ __all__ = ['CacheDesc', 'CacheKey', 'CacheKeyByIdAndIndex', 'KvCache', 'BlocksCa
            'Placement', 'CacheTask', 'TransferConfig', 'LayerSynchronizer', 'Cache']
 
 from abc import abstractmethod, ABC
-from enum import Enum
+from enum import Enum, IntEnum
 from typing import List, Optional, Tuple, Union
 
 from llm_datadist import llm_datadist_wrapper as llm_wrapper, LLMException
@@ -82,7 +82,7 @@ class MemInfo(object):
 int_to_mem_status_dict = {0: RegisterMemStatus.OK, 1: RegisterMemStatus.PREPARING, 2: RegisterMemStatus.FAILED}
 
 
-class Placement(Enum):
+class Placement(IntEnum):
     HOST = 0
     DEVICE = 1
 
