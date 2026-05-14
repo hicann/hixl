@@ -71,6 +71,7 @@ Status HixlCSServer::InitTransFinishedFlag() {
 Status HixlCSServer::RegisterHostTransFinishedFlag() {
   void *host_flag = malloc(sizeof(int64_t));
   HIXL_CHK_BOOL_RET_STATUS(host_flag != nullptr, FAILED, "HOST trans finished flag malloc failed.");
+  HIXL_DISMISSABLE_GUARD(host_flag_guard, ([host_flag]() { free(host_flag); }));
   *static_cast<int64_t *>(host_flag) = 1;
   CommMem mem{};
   mem.type = COMM_MEM_TYPE_HOST;
@@ -80,6 +81,7 @@ Status HixlCSServer::RegisterHostTransFinishedFlag() {
   HIXL_CHK_STATUS_RET(RegisterMem(kTransFlagNameHost, &mem, &handle), "Failed to reg HOST trans finished flag");
   host_trans_flag_ = host_flag;
   host_trans_flag_handle_ = handle;
+  HIXL_DISMISS_GUARD(host_flag_guard);
   return SUCCESS;
 }
 
