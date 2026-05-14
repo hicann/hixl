@@ -12,7 +12,7 @@
 #define AIR_CXX_MEMORY_POOL_H
 
 #include "ge/ge_allocator.h"
-#include "ge_common/ge_api_types.h"
+#include "ge_common/ge_api_error_codes.h"
 #include "memory/type/mem_size.h"
 
 namespace llm {

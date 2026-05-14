@@ -14,7 +14,7 @@
 #include <thread>
 #include <mutex>
 #include <functional>
-#include "ge_common/ge_api_types.h"
+#include "ge_common/ge_api_error_codes.h"
 
 namespace llm {
 using TimerCallback = std::function<void(void)>;

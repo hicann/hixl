@@ -13,7 +13,7 @@
 
 #include <future>
 #include "llm_datadist/llm_error_codes.h"
-#include "ge_common/ge_api_types.h"
+#include "ge_common/ge_api_error_codes.h"
 #include "link_mgr/comm_entity.h"
 
 namespace llm {

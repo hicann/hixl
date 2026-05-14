@@ -11,7 +11,7 @@
 #ifndef CANN_GRAPH_ENGINE_RUNTIME_LLM_ENGINE_DATA_TRANSFER_LAYER_WISE_TRANSFER_JOB_H_
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_ENGINE_DATA_TRANSFER_LAYER_WISE_TRANSFER_JOB_H_
 
-#include "ge_common/ge_api_types.h"
+#include "ge_common/ge_api_error_codes.h"
 #include "link_mgr/comm_entity.h"
 
 namespace llm {

@@ -12,7 +12,7 @@
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_LLM_INNER_TYPES_H
 
 #include <vector>
-#include "ge_common/ge_api_types.h"
+#include "ge_common/ge_api_error_codes.h"
 #include "llm_log.h"
 
 namespace llm {

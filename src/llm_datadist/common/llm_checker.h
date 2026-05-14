@@ -18,7 +18,7 @@ struct LlmErrorResult {
   operator bool() const {
     return false;
   }
-  operator ge::graphStatus() const {
+  operator ge::Status() const {
     return ge::LLM_PARAM_INVALID;
   }
   template<typename T>
