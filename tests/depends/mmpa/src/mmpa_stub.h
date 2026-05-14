@@ -40,6 +40,7 @@ class MmpaStubApiGe {
   }
 
   virtual int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) {
+    (void)realPathLen;
     INT32 ret = EN_OK;
     char *ptr = realpath(path, realPath);
     if (ptr == nullptr) {

@@ -21,6 +21,11 @@
 
 namespace hixl {
 namespace test {
+
+/**
+ * Common MmpaStub mock for kernel json file path handling in unit tests.
+ * Used by multiple test files to avoid code duplication.
+ */
 class TestMmpaStub : public llm::MmpaStubApiGe {
  public:
   std::string fake_real_path_;
@@ -28,7 +33,12 @@ class TestMmpaStub : public llm::MmpaStubApiGe {
   bool access_ok_ = false;
 
   INT32 RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
-    (void)path;
+    std::string path_str(path);
+    // Handle kernel json file path for EnsureDeviceKernelLoadedLocked
+    if (path_str.find("libcann_hixl_kernel.json") != std::string::npos && real_path_ok_) {
+      strncpy_s(realPath, realPathLen, path, strlen(path));
+      return EN_OK;
+    }
     if (!real_path_ok_ || fake_real_path_.empty() || realPathLen <= 0) {
       return EN_ERROR;
     }
@@ -38,8 +48,36 @@ class TestMmpaStub : public llm::MmpaStubApiGe {
   }
 
   INT32 Access(const CHAR *path_name) override {
-    (void)path_name;
+    std::string path_str(path_name);
+    // Handle kernel json file path for EnsureDeviceKernelLoadedLocked
+    if (path_str.find("libcann_hixl_kernel.json") != std::string::npos && access_ok_) {
+      return EN_OK;
+    }
     return access_ok_ ? EN_OK : EN_ERROR;
+  }
+};
+
+/**
+ * Simplified MmpaStub mock that only handles kernel json file path.
+ * Returns EN_OK for kernel json paths, delegates to base class for others.
+ */
+class KernelJsonMmpaStub : public llm::MmpaStubApiGe {
+ public:
+  INT32 Access(const CHAR *path_name) override {
+    std::string path_str(path_name);
+    if (path_str.find("libcann_hixl_kernel.json") != std::string::npos) {
+      return EN_OK;
+    }
+    return llm::MmpaStubApiGe::Access(path_name);
+  }
+
+  int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
+    std::string path_str(path);
+    if (path_str.find("libcann_hixl_kernel.json") != std::string::npos) {
+      strncpy_s(realPath, realPathLen, path, strlen(path));
+      return EN_OK;
+    }
+    return llm::MmpaStubApiGe::RealPath(path, realPath, realPathLen);
   }
 };
 

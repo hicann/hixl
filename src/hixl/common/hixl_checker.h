@@ -16,12 +16,18 @@
 #include "acl/acl.h"
 #include "hixl_log.h"
 
+#ifdef PRODUCT_SIDE_DEVICE
+#define HIXL_REPORT_ERR_MSG(...)
+#else
+#define HIXL_REPORT_ERR_MSG(...) REPORT_INNER_ERR_MSG(__VA_ARGS__)
+#endif
+
 // If expr is not SUCCESS, print the log and return the same value
 #define HIXL_CHK_STATUS_RET(expr, ...)       \
   do {                                       \
     const hixl::Status _chk_status = (expr); \
     if (_chk_status != hixl::SUCCESS) {      \
-      REPORT_INNER_ERR_MSG("E19999", "Call " #expr " fail. " __VA_ARGS__); \
+      HIXL_REPORT_ERR_MSG("E19999", "Call " #expr " fail. " __VA_ARGS__); \
       HIXL_LOGE((_chk_status), __VA_ARGS__); \
       return _chk_status;                    \
     }                                        \
@@ -32,7 +38,7 @@
   do {                                       \
     const hixl::Status _chk_status = (expr); \
     if (_chk_status != hixl::SUCCESS) {      \
-      REPORT_INNER_ERR_MSG("E19999", "Call " #expr " fail. " __VA_ARGS__); \
+      HIXL_REPORT_ERR_MSG("E19999", "Call " #expr " fail. " __VA_ARGS__); \
       HIXL_LOGE(_chk_status, __VA_ARGS__);   \
     }                                        \
   } while (false)
@@ -42,7 +48,7 @@
   do {                                               \
     const bool b = (expr);                           \
     if (!b) {                                        \
-      REPORT_INNER_ERR_MSG("E19999", __VA_ARGS__);   \
+      HIXL_REPORT_ERR_MSG("E19999", __VA_ARGS__);   \
       HIXL_LOGE((_status), __VA_ARGS__);             \
       return (_status);                              \
     }                                                \
@@ -62,7 +68,7 @@
 #define HIXL_CHECK_NOTNULL(val, ...)                                                          \
   do {                                                                                        \
     if ((val) == nullptr) {                                                                   \
-      REPORT_INNER_ERR_MSG("E19999", "Param:" #val " is nullptr, check invalid" __VA_ARGS__); \
+      HIXL_REPORT_ERR_MSG("E19999", "Param:" #val " is nullptr, check invalid" __VA_ARGS__); \
       HIXL_LOGE(hixl::PARAM_INVALID, "[Check][Param:" #val "]null is invalid" __VA_ARGS__);   \
       return hixl::PARAM_INVALID;                                                             \
     }                                                                                         \
@@ -73,7 +79,7 @@
   do {                                                                                               \
     const HcclResult _ret = (expr);                                                                  \
     if (_ret != HCCL_SUCCESS) {                                                                      \
-      REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret)); \
+      HIXL_REPORT_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret)); \
       const auto _hixl_ret = hixl::HcclError2Status(_ret);                                           \
       HIXL_LOGE(_hixl_ret, "Call hccl api:%s failed, ret: 0x%X", #expr, static_cast<uint32_t>(_ret));          \
       return _hixl_ret;                                                                              \
@@ -84,7 +90,7 @@
   do {                                                                                               \
     const HcclResult _ret = (expr);                                                                  \
     if (_ret != HCCL_SUCCESS) {                                                                      \
-      REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret)); \
+      HIXL_REPORT_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret)); \
       const auto _hixl_ret = hixl::HcclError2Status(_ret);                                           \
       HIXL_LOGE(_hixl_ret, "Call hccl api:%s failed, ret: 0x%X", #expr, static_cast<uint32_t>(_ret));          \
     }                                                                                                \
@@ -94,7 +100,7 @@
   do {                                                                                                         \
     const aclError _acl_ret = (expr);                                                                          \
     if (_acl_ret != ACL_SUCCESS) {                                                                             \
-      REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_acl_ret));       \
+      HIXL_REPORT_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_acl_ret));       \
       const hixl::Status _acl_hixl_status =                                                                    \
           (_acl_ret == ACL_ERROR_RT_STREAM_SYNC_TIMEOUT) ? hixl::TIMEOUT : static_cast<hixl::Status>(_acl_ret); \
       HIXL_LOGE(_acl_hixl_status, "Call acl api:%s failed, ret: 0x%X. " __VA_ARGS__, #expr,                     \
@@ -108,7 +114,7 @@
   do {                                                                                                \
     const aclError _ret = (expr);                                                                     \
     if (_ret != ACL_SUCCESS) {                                                                        \
-      REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret));  \
+      HIXL_REPORT_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret));  \
       HIXL_LOGE(FAILED, "Call acl api failed, ret: 0x%X. " __VA_ARGS__, static_cast<uint32_t>(_ret)); \
     }                                                                                                 \
   } while (false)

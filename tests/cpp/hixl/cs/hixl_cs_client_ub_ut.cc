@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 #include "ascendcl_stub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "engine/test_mmpa_utils.h"
 #include "load_kernel.h"
 #define private public
 #define protected public
@@ -28,8 +29,9 @@ namespace hixl {
 
 class MockAclRuntimeStub : public llm::AclRuntimeStub {
  public:
-  MOCK_METHOD(aclError, aclrtBinaryLoadFromFile, (const char*, aclrtBinaryLoadOptions*, aclrtBinHandle*), (override));
-  MOCK_METHOD(aclError, aclrtBinaryGetFunction, (aclrtBinHandle, const char*, aclrtFuncHandle*), (override));
+  MOCK_METHOD(aclError, aclrtBinaryLoadFromFile, (const char *, aclrtBinaryLoadOptions *, aclrtBinHandle *),
+              (override));
+  MOCK_METHOD(aclError, aclrtBinaryGetFunction, (aclrtBinHandle, const char *, aclrtFuncHandle *), (override));
   MOCK_METHOD(aclError, aclrtWaitAndResetNotify, (aclrtNotify, aclrtStream, uint32_t), (override));
   MOCK_METHOD(aclError, aclrtSynchronizeStreamWithTimeout, (aclrtStream, int32_t), (override));
   MOCK_METHOD(aclError, aclrtNotifyBatchReset, (aclrtNotify *, size_t), (override));
@@ -97,35 +99,18 @@ Status PollUntilCompleted(HixlCSClient &cli, void *qh, HixlCompleteStatus *out_s
 
 }  // namespace
 
-class MockMmpaStub : public llm::MmpaStubApiGe {
-public:
-  std::string fake_real_path_;
-  bool real_path_ok_ = false;
-  bool access_ok_ = false;
-  INT32 RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
-    (void)path;
-    if (!real_path_ok_) {
-      return EN_ERROR;
-    }
-    if (fake_real_path_.empty() || realPathLen <= 0) {
-      return EN_ERROR;
-    }
-    size_t destMax = static_cast<size_t>(realPathLen);
-    errno_t ret = strncpy_s(realPath, destMax, fake_real_path_.c_str(), destMax - 1);
-    if (ret != EOK) {
-      return EN_ERROR;
-    }
-    return EN_OK;
-  }
-  INT32 Access(const CHAR *path_name) override {
-    (void)path_name;
-    return access_ok_ ? EN_OK : EN_ERROR;
-  }
-};
+// Use common TestMmpaStub from test_mmpa_utils.h
+using MockMmpaStub = hixl::test::TestMmpaStub;
 
 class HixlCSClientDeviceFixture : public ::testing::Test {
  protected:
   void SetUp() override {
+    // EnsureDeviceKernelLoadedLocked 现在在初始化阶段调用，需要提前设置 MmpaStub
+    auto kernel_stub = std::make_shared<MockMmpaStub>();
+    kernel_stub->real_path_ok_ = true;
+    kernel_stub->access_ok_ = true;
+    llm::MmpaStub::GetInstance().SetImpl(kernel_stub);
+
     const EndpointDesc src = MakeDeviceEp(COMM_PROTOCOL_UBC_TP, kDeviceDevId);
     const EndpointDesc dst = MakeDeviceEp(COMM_PROTOCOL_UBC_TP, kDeviceDevId);
 
@@ -143,30 +128,33 @@ class HixlCSClientDeviceFixture : public ::testing::Test {
     FillTagMem(cli_, kTransFlagNameDevice, static_cast<void *>(&remote_flag_dev_), sizeof(uint64_t));
 
     PrepareKernelReadyForUt(cli_);
+
+    // 手动初始化 remote flag，模拟 GetRemoteMemLocked 的行为
+    ASSERT_EQ(cli_.EnsureDeviceRemoteFlagInitedLocked(), SUCCESS);
   }
 
   void TearDown() override {
     (void)cli_.Destroy();
     unsetenv("HIXL_UT_DEVICE_FLAG_HACK");
+    llm::MmpaStub::GetInstance().Reset();
   }
 
   CommunicateMem SetupBatchTransfer(bool is_get) {
-    RecordMemForBatchTransfer(cli_, remote_buf_.data(), remote_buf_.size(),
-                              local_buf_.data(), local_buf_.size());
+    RecordMemForBatchTransfer(cli_, remote_buf_.data(), remote_buf_.size(), local_buf_.data(), local_buf_.size());
 
     if (is_get) {
       remote_list_const_[0] = remote_buf_.data();
-      local_list_[0]        = local_buf_.data();
-      mem_.src_buf_list     = remote_list_const_;
-      mem_.dst_buf_list     = local_list_;
+      local_list_[0] = local_buf_.data();
+      mem_.src_buf_list = remote_list_const_;
+      mem_.dst_buf_list = local_list_;
     } else {
-      local_list_const_[0]  = local_buf_.data();
-      remote_list_[0]       = remote_buf_.data();
-      mem_.src_buf_list     = local_list_const_;
-      mem_.dst_buf_list     = remote_list_;
+      local_list_const_[0] = local_buf_.data();
+      remote_list_[0] = remote_buf_.data();
+      mem_.src_buf_list = local_list_const_;
+      mem_.dst_buf_list = remote_list_;
     }
 
-    len_list_[0]  = kLen8;
+    len_list_[0] = kLen8;
     mem_.len_list = len_list_;
     mem_.list_num = kListNum1;
 
@@ -178,10 +166,10 @@ class HixlCSClientDeviceFixture : public ::testing::Test {
 
   std::array<uint8_t, 8> local_buf_{};
   std::array<uint8_t, 8> remote_buf_{};
-  void* local_list_[1]{};
-  void* remote_list_[1]{};
-  const void* local_list_const_[1]{};
-  const void* remote_list_const_[1]{};
+  void *local_list_[1]{};
+  void *remote_list_[1]{};
+  const void *local_list_const_[1]{};
+  const void *remote_list_const_[1]{};
   uint64_t len_list_[1]{};
   CommunicateMem mem_{};
 };
@@ -214,13 +202,33 @@ TEST_F(HixlCSClientDeviceFixture, BatchGetDeviceSuccessUseMemcpyHackFlag) {
   EXPECT_EQ(st, HixlCompleteStatus::HIXL_COMPLETE_STATUS_COMPLETED);
 }
 
-TEST_F(HixlCSClientDeviceFixture, PrepareDeviceRemoteFlagAndKernelMissingTagFail) {
+TEST_F(HixlCSClientDeviceFixture, EnsureDeviceRemoteFlagInitedLockedMissingTagNoError) {
   cli_.device_remote_flag_inited_ = false;
+  cli_.device_remote_flag_addr_ = nullptr;  // 重置为 nullptr
   cli_.tag_mem_descs_.clear();
 
+  // EnsureDeviceRemoteFlagInitedLocked 现在不报错，只跳过初始化
+  // 错误延迟到传输阶段的 PrepareDeviceRemoteFlagAndKernel
+  EXPECT_EQ(cli_.EnsureDeviceRemoteFlagInitedLocked(), SUCCESS);
+  EXPECT_EQ(cli_.device_remote_flag_addr_, nullptr);
+
+  // 实际传输时 PrepareDeviceRemoteFlagAndKernel 会检查并报错
   void *remote_flag = nullptr;
   EXPECT_EQ(cli_.PrepareDeviceRemoteFlagAndKernel(remote_flag), PARAM_INVALID);
-  EXPECT_EQ(remote_flag, nullptr);
+}
+
+TEST_F(HixlCSClientDeviceFixture, PrepareDeviceRemoteFlagAndKernelReturnsFlagAddr) {
+  // 设置 remote flag 已初始化，有正确的 tag
+  cli_.device_remote_flag_inited_ = false;
+  FillTagMem(cli_, kTransFlagNameDevice, static_cast<void *>(&remote_flag_dev_), sizeof(uint64_t));
+
+  // 先初始化 remote flag
+  EXPECT_EQ(cli_.EnsureDeviceRemoteFlagInitedLocked(), SUCCESS);
+
+  // PrepareDeviceRemoteFlagAndKernel 现在只返回已初始化的 flag 地址
+  void *remote_flag = nullptr;
+  EXPECT_EQ(cli_.PrepareDeviceRemoteFlagAndKernel(remote_flag), SUCCESS);
+  EXPECT_EQ(remote_flag, static_cast<void *>(&remote_flag_dev_));
 }
 
 TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSyncUsesStreamSyncNoMemcpy) {
@@ -346,7 +354,7 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceIndependentHostFlags) {
 }
 
 class LoadKernelFixture : public ::testing::Test {
-protected:
+ protected:
   void SetUp() override {
     llm::MmpaStub::GetInstance().Reset();
     const char *env = std::getenv("ASCEND_HOME_PATH");

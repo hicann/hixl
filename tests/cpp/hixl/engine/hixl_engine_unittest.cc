@@ -68,8 +68,7 @@ std::string BuildHostRoceEndpoint(const std::string &comm_id) {
   return oss.str();
 }
 
-std::string BuildLocalCommRes(const std::string &net_instance_id,
-                              const std::string &version,
+std::string BuildLocalCommRes(const std::string &net_instance_id, const std::string &version,
                               const std::vector<std::string> &endpoint_items) {
   std::ostringstream oss;
   oss << "{\n";
@@ -107,6 +106,9 @@ class HixlEngineTest : public ::testing::Test {
   void SetUp() override {
     SetSocStub("Ascend910B1", 0, 0, 9, 8);
     mmpa_stub_ = std::make_shared<MockEngineMmpaStub>();
+    // EnsureDeviceKernelLoadedLocked 现在在初始化阶段调用，需要提前设置
+    mmpa_stub_->real_path_ok_ = true;
+    mmpa_stub_->access_ok_ = true;
     llm::MmpaStub::GetInstance().SetImpl(mmpa_stub_);
     const char *old_intra_roce_enable = std::getenv("HCCL_INTRA_ROCE_ENABLE");
     old_intra_roce_enable_ = (old_intra_roce_enable == nullptr) ? "" : old_intra_roce_enable;
@@ -183,7 +185,7 @@ class HixlEngineTest : public ::testing::Test {
   }
 
   void VerifyLogCapture(const std::shared_ptr<llm::LogCaptureStub> &log_capture,
-                       const std::vector<std::string> &patterns) {
+                        const std::vector<std::string> &patterns) {
     EXPECT_TRUE(log_capture->WaitForAllPatternsCaptured(kCaptureLogTimeoutMs));
     for (const auto &pattern : patterns) {
       EXPECT_TRUE(log_capture->IsPatternCaptured(pattern)) << "Log pattern capture failed: " << pattern;
@@ -207,10 +209,9 @@ class HixlEngineTest : public ::testing::Test {
 
   std::shared_ptr<MockEngineAclRuntimeStub> acl_stub_;
 
-  void SetSocStub(const std::string &soc_name, int32_t device_id, int32_t phy_device_id,
-                  int64_t super_device_id, int64_t super_pod_id) {
-    acl_stub_ =
-        endpoint_test::CreateAclRuntimeStub(soc_name, device_id, phy_device_id, super_device_id, super_pod_id);
+  void SetSocStub(const std::string &soc_name, int32_t device_id, int32_t phy_device_id, int64_t super_device_id,
+                  int64_t super_pod_id) {
+    acl_stub_ = endpoint_test::CreateAclRuntimeStub(soc_name, device_id, phy_device_id, super_device_id, super_pod_id);
     llm::AclRuntimeStub::SetInstance(acl_stub_);
   }
 
@@ -235,7 +236,7 @@ class HixlEngineTest : public ::testing::Test {
     if (fd < 0) {
       return false;
     }
-    struct sockaddr_in6 addr{};
+    struct sockaddr_in6 addr {};
     addr.sin6_family = AF_INET6;
     (void)inet_pton(AF_INET6, "::1", &addr.sin6_addr);
     addr.sin6_port = htons(0U);
@@ -270,7 +271,7 @@ TEST_F(HixlEngineTest, TestHixl) {
   dst_mem.len = sizeof(int32_t);
   MemHandle handle2 = nullptr;
   EXPECT_EQ(engine2.RegisterMem(dst_mem, MEM_DEVICE, handle2), SUCCESS);
-  
+
   EXPECT_EQ(engine1.Connect("127.0.0.1:16000", kTimeOut), SUCCESS);
 
   TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
@@ -621,13 +622,8 @@ TEST_F(HixlEngineTest, TestTcAndSlWithUb) {
 TEST_F(HixlEngineTest, TestInitializeFillDeviceInfoForV2FullConfigured) {
   SetSocStub("Ascend910B1", 0, 12, 99, 88);
 
-  const std::string local_comm_res = BuildLocalCommRes(
-      "sp_v2",
-      "1.3",
-      {
-          BuildDeviceRoceEndpoint("127.0.0.1"),
-          BuildDeviceHccsEndpoint("5")
-      });
+  const std::string local_comm_res =
+      BuildLocalCommRes("sp_v2", "1.3", {BuildDeviceRoceEndpoint("127.0.0.1"), BuildDeviceHccsEndpoint("5")});
 
   HixlEngine engine("127.0.0.1");
   auto options = BuildOptions(local_comm_res);
@@ -647,13 +643,8 @@ TEST_F(HixlEngineTest, TestInitializeFillDeviceInfoForV2FullConfigured) {
 TEST_F(HixlEngineTest, TestInitializeFillDeviceInfoForV3FullConfigured) {
   SetSocStub("Ascend910_9391", 1, 23, 45, 67);
 
-  const std::string local_comm_res = BuildLocalCommRes(
-      "sp_v3",
-      "1.3",
-      {
-          BuildDeviceRoceEndpoint("127.0.0.1"),
-          BuildDeviceHccsEndpoint("7")
-      });
+  const std::string local_comm_res =
+      BuildLocalCommRes("sp_v3", "1.3", {BuildDeviceRoceEndpoint("127.0.0.1"), BuildDeviceHccsEndpoint("7")});
 
   HixlEngine engine("127.0.0.1");
   auto options = BuildOptions(local_comm_res);
@@ -673,12 +664,7 @@ TEST_F(HixlEngineTest, TestInitializeFillDeviceInfoForV3FullConfigured) {
 TEST_F(HixlEngineTest, TestInitializeParsesConfiguredEndpointListRegardlessOfVersion) {
   SetSocStub("Ascend910_9391", 1, 23, 45, 67);
 
-  const std::string local_comm_res = BuildLocalCommRes(
-      "sp_old",
-      "1.2",
-      {
-          BuildDeviceRoceEndpoint("127.0.0.1")
-      });
+  const std::string local_comm_res = BuildLocalCommRes("sp_old", "1.2", {BuildDeviceRoceEndpoint("127.0.0.1")});
 
   HixlEngine engine("127.0.0.1");
   auto options = BuildOptions(local_comm_res);
@@ -697,13 +683,8 @@ TEST_F(HixlEngineTest, TestInitializeParsesConfiguredEndpointListRegardlessOfVer
 TEST_F(HixlEngineTest, TestInitializeFillDeviceInfoOnlyForDevicePlacement) {
   SetSocStub("Ascend910_9391", 1, 23, 45, 67);
 
-  const std::string local_comm_res = BuildLocalCommRes(
-      "sp_mix",
-      "1.3",
-      {
-          BuildHostRoceEndpoint("127.0.0.1"),
-          BuildDeviceHccsEndpoint("7")
-      });
+  const std::string local_comm_res =
+      BuildLocalCommRes("sp_mix", "1.3", {BuildHostRoceEndpoint("127.0.0.1"), BuildDeviceHccsEndpoint("7")});
 
   HixlEngine engine("127.0.0.1");
   auto options = BuildOptions(local_comm_res);

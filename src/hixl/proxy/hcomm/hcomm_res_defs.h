@@ -216,6 +216,96 @@ typedef struct {
     };
 } HcommChannelDesc;
 
+// 传输类型定义
+typedef enum {
+    HCOMM_TRANSFER_TYPE_INVALID = -1,
+    HCOMM_TRANSFER_TYPE_WRITE = 0,
+    HCOMM_TRANSFER_TYPE_WRITE_REDUCE = 1,
+    HCOMM_TRANSFER_TYPE_WRITE_WITH_NOTIFY = 2,
+    HCOMM_TRANSFER_TYPE_WRITE_REDUCE_WITH_NOTIFY = 3,
+    HCOMM_TRANSFER_TYPE_READ = 4,
+    HCOMM_TRANSFER_TYPE_READ_REDUCE = 5,
+    HCOMM_TRANSFER_TYPE_NOTIFY_RECORD = 6,
+    HCOMM_TRANSFER_TYPE_NOTIFY_WAIT = 7
+} HcommTransferType;
+
+// 归约操作类型定义
+typedef enum {
+    HCOMM_REDUCE_SUM = 0,
+    HCOMM_REDUCE_PROD = 1,
+    HCOMM_REDUCE_MAX = 2,
+    HCOMM_REDUCE_MIN = 3,
+    HCOMM_REDUCE_RESERVED = 255
+} HcommReduceOp;
+
+// 数据类型定义
+typedef enum {
+    HCOMM_DATA_TYPE_INT8 = 0,
+    HCOMM_DATA_TYPE_INT16 = 1,
+    HCOMM_DATA_TYPE_INT32 = 2,
+    HCOMM_DATA_TYPE_FP16 = 3,
+    HCOMM_DATA_TYPE_FP32 = 4,
+    HCOMM_DATA_TYPE_INT64 = 5,
+    HCOMM_DATA_TYPE_UINT64 = 6,
+    HCOMM_DATA_TYPE_UINT8 = 7,
+    HCOMM_DATA_TYPE_UINT16 = 8,
+    HCOMM_DATA_TYPE_UINT32 = 9,
+    HCOMM_DATA_TYPE_FP64 = 10,
+    HCOMM_DATA_TYPE_BFP16 = 11,
+    HCOMM_DATA_TYPE_INT128 = 12,
+    HCOMM_DATA_TYPE_HIF8 = 14,
+    HCOMM_DATA_TYPE_FP8E4M3 = 15,
+    HCOMM_DATA_TYPE_FP8E5M2 = 16,
+    HCOMM_DATA_TYPE_FP8E8M0 = 17,
+    HCOMM_DATA_TYPE_RESERVED = 255
+} HcommDataType;
+
+typedef struct {
+    HcommTransferType transType;
+    uint8_t reserved[4];
+    union {
+        uint8_t raws[56];
+        struct {
+            uint64_t len;
+            void *dst;
+            void *src;
+        } write;
+        struct {
+            uint64_t len;
+            void *dst;
+            void *src;
+        } read;
+        struct {
+            uint64_t count;
+            void *dst;
+            void *src;
+            HcommReduceOp reduceOp;
+            HcommDataType dataType;
+        } reduce;
+        struct {
+            uint32_t notifyIdx;
+        } notifyRecord;
+        struct {
+            uint32_t notifyIdx;
+            uint32_t timeOut;
+        } notifyWait;
+        struct {
+            uint64_t len;
+            void *dst;
+            void *src;
+            uint32_t notifyIdx;
+        } writeWithNotify;
+        struct {
+            uint64_t count;
+            void *dst;
+            void *src;
+            HcommReduceOp reduceOp;
+            HcommDataType dataType;
+            uint32_t notifyIdx;
+        } writeReduceWithNotify;
+    } transferInfo;
+} HcommBatchTransferDesc;
+
 /**
  * @brief 初始化EndpointDesc结构体
  *

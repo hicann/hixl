@@ -22,10 +22,13 @@
 #include "engine/endpoint_test_utils.h"
 #define private public
 #include "engine/hixl_client.h"
+#include "engine/direct_client_handler.h"
+#include "engine/ub_client_handler.h"
 #undef private
 #include "engine/endpoint_generator.h"
 #include "common/hixl_inner_types.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "engine/test_mmpa_utils.h"
 #include "common/hixl_utils.h"
 #include "common/ctrl_msg_plugin.h"
 #include "common/segment.h"
@@ -62,18 +65,18 @@ enum class MockHixlServerMode : uint32_t {
 };
 // server 内存信息
 static CommMem default_remote_mem_list[] = {{COMM_MEM_TYPE_HOST, &kRemoteMems[0], sizeof(uint32_t)},
-                                             {COMM_MEM_TYPE_DEVICE, &kRemoteMems[2], sizeof(uint32_t)}};
+                                            {COMM_MEM_TYPE_DEVICE, &kRemoteMems[2], sizeof(uint32_t)}};
 static CommMem remote_mem_list_4ub[] = {{COMM_MEM_TYPE_HOST, &kRemoteMems[0], sizeof(uint32_t)},
-                                         {COMM_MEM_TYPE_DEVICE, &kRemoteMems[2], sizeof(uint32_t)},
-                                         {COMM_MEM_TYPE_HOST, &kRemoteMems[4], sizeof(uint32_t)},
-                                         {COMM_MEM_TYPE_DEVICE, &kRemoteMems[6], sizeof(uint32_t)}};
+                                        {COMM_MEM_TYPE_DEVICE, &kRemoteMems[2], sizeof(uint32_t)},
+                                        {COMM_MEM_TYPE_HOST, &kRemoteMems[4], sizeof(uint32_t)},
+                                        {COMM_MEM_TYPE_DEVICE, &kRemoteMems[6], sizeof(uint32_t)}};
 // client 内存信息
 static CommMem default_local_mem_list[] = {{COMM_MEM_TYPE_HOST, &kLocalMems[0], sizeof(uint32_t)},
-                                            {COMM_MEM_TYPE_DEVICE, &kLocalMems[2], sizeof(uint32_t)}};
+                                           {COMM_MEM_TYPE_DEVICE, &kLocalMems[2], sizeof(uint32_t)}};
 static CommMem local_mem_list_4ub[] = {{COMM_MEM_TYPE_DEVICE, &kLocalMems[0], sizeof(uint32_t)},
-                                        {COMM_MEM_TYPE_DEVICE, &kLocalMems[2], sizeof(uint32_t)},
-                                        {COMM_MEM_TYPE_HOST, &kLocalMems[4], sizeof(uint32_t)},
-                                        {COMM_MEM_TYPE_HOST, &kLocalMems[6], sizeof(uint32_t)}};
+                                       {COMM_MEM_TYPE_DEVICE, &kLocalMems[2], sizeof(uint32_t)},
+                                       {COMM_MEM_TYPE_HOST, &kLocalMems[4], sizeof(uint32_t)},
+                                       {COMM_MEM_TYPE_HOST, &kLocalMems[6], sizeof(uint32_t)}};
 
 class MockHixlServer {
  public:
@@ -324,9 +327,14 @@ class EnvGuard {
   const std::string key_;
 };
 
+// Use common KernelJsonMmpaStub from test_mmpa_utils.h
+using ClientMmpaStub = hixl::test::KernelJsonMmpaStub;
+
 class HixlClientUTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    // EnsureDeviceKernelLoadedLocked 现在在初始化阶段调用，需要提前设置 MmpaStub
+    llm::MmpaStub::GetInstance().SetImpl(std::make_shared<ClientMmpaStub>());
     ClientConfig config{};
     config.rdma_tc = kDefaultRdmaTc;
     config.rdma_sl = kDefaultRdmaSl;
@@ -337,6 +345,7 @@ class HixlClientUTest : public ::testing::Test {
   void TearDown() override {
     client_->Finalize();
     server_->DestroyServerAndUnreg();
+    llm::MmpaStub::GetInstance().Reset();
   }
 
   void StartServer(MockHixlServerMode mode) {
@@ -614,6 +623,31 @@ class HixlClientUTest : public ::testing::Test {
     EXPECT_NE(req, nullptr);
     return req;
   }
+
+  void SetupUbHandlerWithSegments(UbClientHandler &handler) {
+    handler.handles_[CommType::COMM_TYPE_UB_D2D] = reinterpret_cast<HixlClientHandle>(0x1000);
+    handler.handles_[CommType::COMM_TYPE_UB_D2H] = reinterpret_cast<HixlClientHandle>(0x2000);
+    handler.handles_[CommType::COMM_TYPE_UB_H2D] = reinterpret_cast<HixlClientHandle>(0x3000);
+    handler.handles_[CommType::COMM_TYPE_UB_H2H] = reinterpret_cast<HixlClientHandle>(0x4000);
+
+    auto dev_seg = std::make_shared<Segment>(MEM_DEVICE);
+    EXPECT_EQ(dev_seg->AddRange(0x1000, 0x2000), SUCCESS);
+    handler.local_segments_.push_back(dev_seg);
+    handler.remote_segments_.push_back(std::make_shared<Segment>(MEM_DEVICE));
+    EXPECT_EQ(handler.remote_segments_[0]->AddRange(0x3000, 0x2000), SUCCESS);
+
+    auto host_seg = std::make_shared<Segment>(MEM_HOST);
+    EXPECT_EQ(host_seg->AddRange(0x5000, 0x2000), SUCCESS);
+    handler.local_segments_.push_back(host_seg);
+    handler.remote_segments_.push_back(std::make_shared<Segment>(MEM_HOST));
+    EXPECT_EQ(handler.remote_segments_[1]->AddRange(0x7000, 0x2000), SUCCESS);
+  }
+
+  void VerifyClassifyResult(const std::map<CommType, std::vector<TransferOpDesc>> &table, CommType type,
+                            uintptr_t expected_addr) {
+    ASSERT_EQ(table.at(type).size(), 1U);
+    EXPECT_EQ(table.at(type)[0].local_addr, expected_addr);
+  }
 };
 
 // Initialize 接口测试：正常场景 创建 ub 链路4条
@@ -692,7 +726,7 @@ TEST_F(HixlClientUTest, InitializeNoRoceTest) {
   local_endpoint_list.push_back(MakeUbDiffNetLocalEp1());
   local_endpoint_list.push_back(MakeUbDiffNetLocalEp2());
   Status st = client_->Initialize(local_endpoint_list);
-  EXPECT_EQ(st, FAILED);
+  EXPECT_EQ(st, PARAM_INVALID);  // 重构后 handler 创建失败返回 PARAM_INVALID
   st = client_->Finalize();
   EXPECT_EQ(st, SUCCESS);
   server_->DestroyServerAndUnreg();
@@ -706,7 +740,7 @@ TEST_F(HixlClientUTest, InitializeNoPairTest) {
   local_endpoint_list.push_back(MakeUbDeviceLocalEp3());
   local_endpoint_list.push_back(MakeUbDeviceLocalEp4());
   Status st = client_->Initialize(local_endpoint_list);
-  EXPECT_EQ(st, FAILED);
+  EXPECT_EQ(st, PARAM_INVALID);  // 重构后 handler 创建失败返回 PARAM_INVALID
   st = client_->Finalize();
   EXPECT_EQ(st, SUCCESS);
   server_->DestroyServerAndUnreg();
@@ -796,6 +830,27 @@ TEST_F(HixlClientUTest, TransferSyncSuccessTest) {
   st = client_->TransferSync(op_descs, READ, kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
   std::cout << kLocalMems[0] << std::endl;
+}
+
+// TransferSync 接口测试：正常场景 - UB协议传输 (D2D, D2H, H2D, H2H)
+TEST_F(HixlClientUTest, TransferSyncSuccessWithUbTest) {
+  SetupTransferTest(true);  // use_4ub = true, 启用 UB 协议传输
+  auto op_descs = CreateTransferOps(4, &kLocalMems[0], &kRemoteMems[0]);
+
+  // WRITE 操作：测试 UB 协议的 D2D, D2H, H2D, H2H 传输
+  Status st = client_->TransferSync(op_descs, WRITE, kDefaultTimeoutMs);
+  EXPECT_EQ(st, SUCCESS);
+
+  // READ 操作：测试 UB 协议的反向传输
+  st = client_->TransferSync(op_descs, READ, kDefaultTimeoutMs);
+  EXPECT_EQ(st, SUCCESS);
+}
+
+// TransferAsync 接口测试：正常场景 - UB协议异步传输
+TEST_F(HixlClientUTest, TransferAsyncSuccessWithUbTest) {
+  SetupTransferTest(true);
+  auto op_descs = CreateTransferOps(4, &kLocalMems[0], &kRemoteMems[0]);
+  CreateAsyncTransfer(op_descs, WRITE);
 }
 
 // TransferSync 接口测试：异常场景 - 未建链
@@ -989,45 +1044,66 @@ TEST_F(HixlClientUTest, DeserializeOldFormatWithoutDeviceInfoSuccess) {
   EXPECT_EQ(ep.device_info.super_pod_id, -1);
 }
 
-TEST_F(HixlClientUTest, ClassifyTransfersUseHccsWhenHccsHandleExists) {
-  ASSERT_NE(client_, nullptr);
+TEST_F(HixlClientUTest, DirectClientHandlerSingleHandle) {
+  auto handle = reinterpret_cast<HixlClientHandle>(0x1234);
+  DirectClientHandler handler(handle);
+  EXPECT_NE(&handler, nullptr);
+}
 
-  client_->client_handles_.clear();
-  client_->client_handles_[CommType::COMM_TYPE_HCCS] = reinterpret_cast<HixlClientHandle>(0x1234);
+TEST_F(HixlClientUTest, UbHandlerClassifyD2D) {
+  UbClientHandler handler({});
+  SetupUbHandlerWithSegments(handler);
 
-  client_->local_segments_.clear();
-  client_->remote_segments_.clear();
+  TransferOpDesc op{0x1100, 0x3100, 0x100};
+  std::map<CommType, std::vector<TransferOpDesc>> table;
+  EXPECT_EQ(handler.ClassifyTransfers({op}, table), SUCCESS);
+  VerifyClassifyResult(table, CommType::COMM_TYPE_UB_D2D, 0x1100U);
 
-  auto local_seg = std::make_shared<Segment>(MEM_DEVICE);
-  EXPECT_EQ(local_seg->AddRange(0x1000, 0x1000), SUCCESS);
-  client_->local_segments_.emplace_back(local_seg);
+  handler.local_segments_.clear();
+  handler.remote_segments_.clear();
+  handler.handles_.clear();
+}
 
-  auto remote_seg = std::make_shared<Segment>(MEM_DEVICE);
-  EXPECT_EQ(remote_seg->AddRange(0x3000, 0x1000), SUCCESS);
-  client_->remote_segments_.emplace_back(remote_seg);
+TEST_F(HixlClientUTest, UbHandlerClassifyD2H) {
+  UbClientHandler handler({});
+  SetupUbHandlerWithSegments(handler);
 
-  TransferOpDesc op_desc{};
-  op_desc.local_addr = 0x1100;
-  op_desc.remote_addr = 0x3100;
-  op_desc.len = 0x100;
+  TransferOpDesc op{0x1100, 0x7100, 0x100};
+  std::map<CommType, std::vector<TransferOpDesc>> table;
+  EXPECT_EQ(handler.ClassifyTransfers({op}, table), SUCCESS);
+  VerifyClassifyResult(table, CommType::COMM_TYPE_UB_D2H, 0x1100U);
 
-  std::vector<TransferOpDesc> op_descs = {op_desc};
-  std::map<CommType, std::vector<TransferOpDesc>> op_descs_table;
+  handler.local_segments_.clear();
+  handler.remote_segments_.clear();
+  handler.handles_.clear();
+}
 
-  EXPECT_EQ(client_->ClassifyTransfers(op_descs, op_descs_table), SUCCESS);
+TEST_F(HixlClientUTest, UbHandlerClassifyH2D) {
+  UbClientHandler handler({});
+  SetupUbHandlerWithSegments(handler);
 
-  ASSERT_EQ(op_descs_table[CommType::COMM_TYPE_HCCS].size(), 1U);
-  EXPECT_EQ(op_descs_table[CommType::COMM_TYPE_HCCS][0].local_addr, op_desc.local_addr);
-  EXPECT_EQ(op_descs_table[CommType::COMM_TYPE_HCCS][0].remote_addr, op_desc.remote_addr);
-  EXPECT_EQ(op_descs_table[CommType::COMM_TYPE_HCCS][0].len, op_desc.len);
+  TransferOpDesc op{0x5100, 0x3100, 0x100};
+  std::map<CommType, std::vector<TransferOpDesc>> table;
+  EXPECT_EQ(handler.ClassifyTransfers({op}, table), SUCCESS);
+  VerifyClassifyResult(table, CommType::COMM_TYPE_UB_H2D, 0x5100U);
 
-  EXPECT_TRUE(op_descs_table[CommType::COMM_TYPE_UB_D2D].empty());
-  EXPECT_TRUE(op_descs_table[CommType::COMM_TYPE_UB_D2H].empty());
-  EXPECT_TRUE(op_descs_table[CommType::COMM_TYPE_UB_H2D].empty());
-  EXPECT_TRUE(op_descs_table[CommType::COMM_TYPE_UB_H2H].empty());
-  EXPECT_TRUE(op_descs_table[CommType::COMM_TYPE_ROCE].empty());
+  handler.local_segments_.clear();
+  handler.remote_segments_.clear();
+  handler.handles_.clear();
+}
 
-  client_->client_handles_.clear();
+TEST_F(HixlClientUTest, UbHandlerClassifyH2H) {
+  UbClientHandler handler({});
+  SetupUbHandlerWithSegments(handler);
+
+  TransferOpDesc op{0x5100, 0x7100, 0x100};
+  std::map<CommType, std::vector<TransferOpDesc>> table;
+  EXPECT_EQ(handler.ClassifyTransfers({op}, table), SUCCESS);
+  VerifyClassifyResult(table, CommType::COMM_TYPE_UB_H2H, 0x5100U);
+
+  handler.local_segments_.clear();
+  handler.remote_segments_.clear();
+  handler.handles_.clear();
 }
 
 }  // namespace hixl

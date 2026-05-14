@@ -18,8 +18,6 @@ add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 add_library(hcomm_proxy_static STATIC "${CMAKE_CURRENT_LIST_DIR}/hcomm_proxy.cc")
 
 if(PRODUCT_SIDE STREQUAL "device")
-        # AICPU/device 子工程（cmake/device）：不编译 hccp_proxy；供源码侧 #if defined(PRODUCT_SIDE_DEVICE) 等使用
-        target_compile_definitions(hcomm_proxy_static PRIVATE PRODUCT_SIDE_DEVICE=1)
         set(_HIXL_PROXY_TARGETS hcomm_proxy_static)
 else()
         add_library(hccp_proxy_static STATIC "${CMAKE_CURRENT_LIST_DIR}/hccp_proxy.cc")

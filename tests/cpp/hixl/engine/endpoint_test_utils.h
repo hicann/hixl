@@ -30,6 +30,8 @@ class MockAclRuntimeStub : public llm::AclRuntimeStub {
   bool return_null_soc_name_ = false;
   bool phy_dev_failed_ = false;
   bool device_info_failed_ = false;
+  bool binary_load_failed_ = false;
+  bool binary_get_func_failed_ = false;
 
   const char *aclrtGetSocName() override {
     if (return_null_soc_name_) {
@@ -69,6 +71,28 @@ class MockAclRuntimeStub : public llm::AclRuntimeStub {
       return ACL_SUCCESS;
     }
     *value = 0;
+    return ACL_SUCCESS;
+  }
+
+  aclError aclrtBinaryLoadFromFile(const char *path, aclrtBinaryLoadOptions *options,
+                                   aclrtBinHandle *binHandle) override {
+    (void)path;
+    (void)options;
+    if (binary_load_failed_ || binHandle == nullptr) {
+      return ACL_ERROR_FAILURE;
+    }
+    *binHandle = reinterpret_cast<aclrtBinHandle>(0xDEADBEEF);
+    return ACL_SUCCESS;
+  }
+
+  aclError aclrtBinaryGetFunction(aclrtBinHandle binHandle, const char *funcName,
+                                  aclrtFuncHandle *funcHandle) override {
+    (void)binHandle;
+    (void)funcName;
+    if (binary_get_func_failed_ || funcHandle == nullptr) {
+      return ACL_ERROR_FAILURE;
+    }
+    *funcHandle = reinterpret_cast<aclrtFuncHandle>(0xCAFEBABE);
     return ACL_SUCCESS;
   }
 };

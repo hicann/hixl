@@ -216,6 +216,8 @@ class HixlCSClient {
   void *device_func_get_{nullptr};
   void *device_func_put_{nullptr};
   std::vector<MemHandle> notify_mem_handles_{};
+  std::vector<uint64_t> slot_notify_addrs_{};
+  uint32_t notify_len_{0U};
   std::unordered_set<DeviceCompleteHandle *> pending_device_handles_{};
   // Active slot shared by concurrent transfers - reference counted
   std::shared_ptr<TransferPool::SlotHandle> active_slot_;
