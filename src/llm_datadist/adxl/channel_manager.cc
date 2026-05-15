@@ -44,7 +44,7 @@ Status ValidateProtocolHeader(const ProtocolHeader &header, const std::string &c
                            channel_id.c_str(), kMaxControlMsgBodySizeInBytes);
   return SUCCESS;
 }
-}
+}  // namespace
 
 int64_t ChannelManager::wait_time_in_millis_ = kWaitTimeInMillis;
 
@@ -74,10 +74,7 @@ Status ChannelManager::Initialize(BufferTransferService *buffer_transfer_service
     }
   });
   // ack processor thread
-  ack_processor_ = std::thread(
-    [this]() {
-    ProcessAckMessages();
-  });
+  ack_processor_ = std::thread([this]() { ProcessAckMessages(); });
   return SUCCESS;
 }
 
@@ -166,8 +163,8 @@ Status ChannelManager::ProcessReceivedData(const ChannelPtr &channel) const {
         size_t remaining = channel->bytes_received_ - sizeof(ProtocolHeader);
         auto buffer = channel->recv_buffer_.data();
         errno_t rc = memmove_s(buffer, remaining, buffer + sizeof(ProtocolHeader), remaining);
-        ADXL_CHK_BOOL_RET_STATUS(rc == EOK, FAILED,
-            "Call api:memmove_s failed, ret:%d, dst_addr:%p, dst_max:%zu, src_addr:%p, count:%zu",
+        ADXL_CHK_BOOL_RET_STATUS(
+            rc == EOK, FAILED, "Call api:memmove_s failed, ret:%d, dst_addr:%p, dst_max:%zu, src_addr:%p, count:%zu",
             static_cast<int32_t>(rc), buffer, remaining, buffer + sizeof(ProtocolHeader), remaining);
         channel->bytes_received_ = remaining;
       } else {
@@ -178,15 +175,14 @@ Status ChannelManager::ProcessReceivedData(const ChannelPtr &channel) const {
       if (channel->bytes_received_ < channel->expected_body_size_) {
         break;
       }
-      ADXL_CHK_STATUS_RET(HandleControlMessage(channel),
-                          "Failed to handle control message");
+      ADXL_CHK_STATUS_RET(HandleControlMessage(channel), "Failed to handle control message");
 
       if (channel->bytes_received_ > channel->expected_body_size_) {
         size_t remaining = channel->bytes_received_ - channel->expected_body_size_;
         auto buffer = channel->recv_buffer_.data();
         errno_t rc = memmove_s(buffer, remaining, buffer + channel->expected_body_size_, remaining);
-        ADXL_CHK_BOOL_RET_STATUS(rc == EOK, FAILED,
-            "Call api:memmove_s failed, ret:%d, dst_addr:%p, dst_max:%zu, src_addr:%p, count:%zu",
+        ADXL_CHK_BOOL_RET_STATUS(
+            rc == EOK, FAILED, "Call api:memmove_s failed, ret:%d, dst_addr:%p, dst_max:%zu, src_addr:%p, count:%zu",
             static_cast<int32_t>(rc), buffer, remaining, buffer + channel->expected_body_size_, remaining);
         channel->bytes_received_ = remaining;
         channel->recv_state_ = RecvState::WAITING_FOR_HEADER;
@@ -204,8 +200,7 @@ Status ChannelManager::HandleControlMessage(const ChannelPtr &channel) const {
   ADXL_CHK_BOOL_RET_STATUS(channel->expected_body_size_ > sizeof(ControlMsgType), FAILED,
                            "Received msg invalid, channel:%s.", channel->GetChannelId().c_str());
   auto data = channel->recv_buffer_.data();
-  ControlMsgType msg_type = 
-    *llm::PtrToPtr<char, ControlMsgType>(data);
+  ControlMsgType msg_type = *llm::PtrToPtr<char, ControlMsgType>(data);
   std::string msg_str(data + sizeof(ControlMsgType), channel->expected_body_size_ - sizeof(ControlMsgType));
 
   switch (msg_type) {
@@ -237,7 +232,8 @@ Status ChannelManager::HandleHeartBeatMessage(const ChannelPtr &channel) const {
 
 Status ChannelManager::HandleBufferReqMessage(const ChannelPtr &channel, const std::string &msg_str) const {
   BufferReq buffer_req{};
-  ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), buffer_req), "Failed to deserialize buffer req msg");
+  ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), buffer_req),
+                      "Failed to deserialize buffer req msg");
   LLMLOGI("Recv buffer req for channel:%s", channel->GetChannelId().c_str());
   if (buffer_transfer_service_ != nullptr) {
     (void)buffer_transfer_service_->PushBufferReq(channel, buffer_req);
@@ -247,7 +243,8 @@ Status ChannelManager::HandleBufferReqMessage(const ChannelPtr &channel, const s
 
 Status ChannelManager::HandleBufferRespMessage(const ChannelPtr &channel, const std::string &msg_str) const {
   BufferResp buffer_resp{};
-  ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), buffer_resp), "Failed to deserialize buffer resp msg");
+  ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), buffer_resp),
+                      "Failed to deserialize buffer resp msg");
   LLMLOGI("Recv buffer resp for channel:%s", channel->GetChannelId().c_str());
   if (buffer_transfer_service_ != nullptr) {
     (void)buffer_transfer_service_->PushBufferResp(channel, buffer_resp);
@@ -257,9 +254,10 @@ Status ChannelManager::HandleBufferRespMessage(const ChannelPtr &channel, const 
 
 Status ChannelManager::HandleRequestDisconnectMessage(const ChannelPtr &channel, const std::string &msg_str) const {
   RequestDisconnectMsg req_msg{};
-  ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), req_msg), "Failed to deserialize RequestDisconnectMsg");
-  LLMLOGI("Recv request disconnect for channel:%s, target:%s, req_id=%lu", 
-          channel->GetChannelId().c_str(), req_msg.channel_id.c_str(), req_msg.req_id);
+  ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), req_msg),
+                      "Failed to deserialize RequestDisconnectMsg");
+  LLMLOGI("Recv request disconnect for channel:%s, target:%s, req_id=%lu", channel->GetChannelId().c_str(),
+          req_msg.channel_id.c_str(), req_msg.req_id);
   bool can_disconnect = (channel->GetTransferCount() == 0);
   RequestDisconnectResp resp;
   resp.channel_id = req_msg.channel_id;
@@ -282,14 +280,14 @@ Status ChannelManager::HandleRequestDisconnectMessage(const ChannelPtr &channel,
   } else if (!can_disconnect) {
     resp.error_code = static_cast<uint32_t>(FAILED);
     resp.error_message = "Channel is busy";
-    LLMLOGI("Channel %s is busy, cannot disconnect. transfer_count=%d, disconnecting=%d", 
-            req_msg.channel_id.c_str(), channel->GetTransferCount(), channel->IsDisconnecting());
+    LLMLOGI("Channel %s is busy, cannot disconnect. transfer_count=%d, disconnecting=%d", req_msg.channel_id.c_str(),
+            channel->GetTransferCount(), channel->IsDisconnecting());
   } else {
     resp.error_code = static_cast<uint32_t>(FAILED);
     resp.error_message = "Disconnect callback not set";
     LLMLOGI("Disconnect callback not set, cannot disconnect channel %s", req_msg.channel_id.c_str());
   }
-  
+
   Status send_ret = channel->SendControlMsg([&resp](int32_t fd) {
     return ControlMsgHandler::SendMsg(fd, ControlMsgType::kRequestDisconnectResp, resp, kSendMsgTimeout);
   });
@@ -305,7 +303,8 @@ Status ChannelManager::HandleNotifyMessage(const ChannelPtr &channel, const std:
   {
     std::lock_guard<std::mutex> lock(channel->notify_message_mutex_);
     if (channel->notify_messages_.size() >= kMaxNotifyStorageSize) {
-      LLMLOGE(FAILED, "Notify storage limit exceeded for channel:%s. Current count: %zu, limit: %zu. "
+      LLMLOGE(FAILED,
+              "Notify storage limit exceeded for channel:%s. Current count: %zu, limit: %zu. "
               "Please call get notify to consume pending notify messages.",
               channel->GetChannelId().c_str(), channel->notify_messages_.size(), kMaxNotifyStorageSize);
       return FAILED;
@@ -314,17 +313,17 @@ Status ChannelManager::HandleNotifyMessage(const ChannelPtr &channel, const std:
   }
 
   LLMLOGI("Recv notify msg from channel:%s, req_id:%lu, name:%s, msg:%s", channel->GetChannelId().c_str(),
-         notify_msg.req_id, notify_msg.name.c_str(), notify_msg.notify_msg.c_str());
+          notify_msg.req_id, notify_msg.name.c_str(), notify_msg.notify_msg.c_str());
   AckMsg ack_msg;
   ack_msg.channel = channel;
   ack_msg.req_id = notify_msg.req_id;
-  
+
   {
     std::lock_guard<std::mutex> lock(ack_queue_mutex_);
     ack_queue_.push(std::move(ack_msg));
     ack_queue_cv_.notify_one();
   }
-  
+
   return SUCCESS;
 }
 
@@ -340,9 +339,10 @@ Status ChannelManager::HandleNotifyAckMessage(const ChannelPtr &channel, const s
 
 Status ChannelManager::HandleRequestDisconnectRespMessage(const ChannelPtr &channel, const std::string &msg_str) const {
   RequestDisconnectResp resp{};
-  ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), resp), "Failed to deserialize RequestDisconnectResp");
-  LLMLOGI("Recv disconnect response for channel:%s, req_id=%lu, disconnected=%d", 
-          channel->GetChannelId().c_str(), resp.req_id, resp.disconnected);
+  ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), resp),
+                      "Failed to deserialize RequestDisconnectResp");
+  LLMLOGI("Recv disconnect response for channel:%s, req_id=%lu, disconnected=%d", channel->GetChannelId().c_str(),
+          resp.req_id, resp.disconnected);
   if (disconnect_response_callback_) {
     disconnect_response_callback_(resp);
   }
@@ -353,7 +353,7 @@ Status ChannelManager::Finalize() {
   stop_signal_.store(true);
   cv_.notify_all();
   ack_queue_cv_.notify_all();
-  
+
   if (heartbeat_sender_.joinable()) {
     heartbeat_sender_.join();
   }
@@ -412,14 +412,14 @@ void ChannelManager::SendHeartbeats() {
     if (ret == kNoNeedRetry) {
       channel->StopHeartbeat();
       if (auto_connect_) {
-        (void) DestroyChannel(ChannelType::kClient, channel->GetChannelId());
+        (void)DestroyChannel(ChannelType::kClient, channel->GetChannelId());
       }
     }
     ADXL_CHK_STATUS(ret, "Failed to send heartbeat msg to:%s.", channel->GetChannelId().c_str());
   }
 }
 
-Status ChannelManager::CreateChannel(const ChannelInfo &channel_info, ChannelPtr &channel_ptr, bool enable_use_fabric_mem) {
+Status ChannelManager::CreateChannel(const ChannelInfo &channel_info, ChannelPtr &channel_ptr) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
     const auto &it = channels_.find(std::make_pair(channel_info.channel_type, channel_info.channel_id));
@@ -429,9 +429,9 @@ Status ChannelManager::CreateChannel(const ChannelInfo &channel_info, ChannelPtr
   }
   ChannelPtr channel = llm::MakeShared<Channel>(channel_info);
   ADXL_CHECK_NOTNULL(channel);
-  ADXL_CHK_STATUS_RET(channel->Initialize(enable_use_fabric_mem), "Failed to init channel");
+  ADXL_CHK_STATUS_RET(channel->Initialize(), "Failed to init channel");
   channel->SetStreamPool(stream_pool_);
-  LLM_DISMISSABLE_GUARD(failed_guard, ([channel]() { (void) channel->Finalize(); }));
+  LLM_DISMISSABLE_GUARD(failed_guard, ([channel]() { (void)channel->Finalize(); }));
   std::lock_guard<std::mutex> lock(mutex_);
   auto key = std::make_pair(channel_info.channel_type, channel_info.channel_id);
   const auto &it = channels_.find(key);
@@ -440,8 +440,8 @@ Status ChannelManager::CreateChannel(const ChannelInfo &channel_info, ChannelPtr
                            static_cast<int32_t>(channel_info.channel_type), channel_info.channel_id.c_str());
   (void)channels_.emplace(std::make_pair(channel_info.channel_type, channel_info.channel_id), channel);
   channel_ptr = channel;
-  LLMLOGI("Create channel success, channel_type = %d, channel id = %s",
-         static_cast<int32_t>(channel_info.channel_type), channel_info.channel_id.c_str());
+  LLMLOGI("Create channel success, channel_type = %d, channel id = %s", static_cast<int32_t>(channel_info.channel_type),
+          channel_info.channel_id.c_str());
   LLM_DISMISS_GUARD(failed_guard);
   return SUCCESS;
 }
@@ -456,7 +456,7 @@ void ChannelManager::CheckHeartbeatTimeouts() {
   }
   for (const auto &timeout_channel : timeout_channels) {
     LLMEVENT("Destroy timeout channel:%s.", timeout_channel->GetChannelId().c_str());
-    (void) DestroyChannel(ChannelType::kServer, timeout_channel->GetChannelId());
+    (void)DestroyChannel(ChannelType::kServer, timeout_channel->GetChannelId());
   }
 }
 
@@ -493,8 +493,8 @@ Status ChannelManager::DestroyChannel(ChannelType channel_type, const std::strin
     channels_.erase(it);
     const bool is_client = (channel_type == ChannelType::kClient);
     StatisticManager::GetInstance().RemoveStatisticChannel(channel_id, is_client);
-    LLMLOGI("Destroy channel end, channel_type = %d, channel_id = %s",
-           static_cast<int32_t>(channel_type), channel_id.c_str());
+    LLMLOGI("Destroy channel end, channel_type = %d, channel_id = %s", static_cast<int32_t>(channel_type),
+            channel_id.c_str());
   }
   return ret;
 }
@@ -520,25 +520,19 @@ void ChannelManager::ProcessAckMessages() {
     AckMsg ack_msg;
     {
       std::unique_lock<std::mutex> lock(ack_queue_mutex_);
-      ack_queue_cv_.wait(
-        lock, 
-        [this] {
-        return !ack_queue_.empty() || stop_signal_.load();
-      });
-      
+      ack_queue_cv_.wait(lock, [this] { return !ack_queue_.empty() || stop_signal_.load(); });
+
       if (stop_signal_.load() && ack_queue_.empty()) {
         break;
       }
-      
+
       ack_msg = std::move(ack_queue_.front());
       ack_queue_.pop();
     }
     NotifyAck notify_ack;
     notify_ack.req_id = ack_msg.req_id;
-    auto ret = ack_msg.channel->SendControlMsg(
-      [&notify_ack](int32_t fd) {
-      return ControlMsgHandler::SendMsg(
-        fd, ControlMsgType::kNotifyAck, notify_ack, kSendMsgTimeout);
+    auto ret = ack_msg.channel->SendControlMsg([&notify_ack](int32_t fd) {
+      return ControlMsgHandler::SendMsg(fd, ControlMsgType::kNotifyAck, notify_ack, kSendMsgTimeout);
     });
     if (ret != SUCCESS) {
       LLMLOGW("Failed to send notify ack, req_id: %lu", notify_ack.req_id);

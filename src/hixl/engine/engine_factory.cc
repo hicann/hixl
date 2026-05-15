@@ -13,6 +13,7 @@
 #include <algorithm>
 
 #include "nlohmann/json.hpp"
+#include "fabric_mem_engine.h"
 #include "hixl_engine.h"
 #include "adxl/adxl_inner_engine.h"
 #include "hixl/hixl_types.h"
@@ -27,11 +28,19 @@ bool UseUboe(const std::map<AscendString, AscendString> &options) {
   return !protocol_desc.empty() &&
          std::find(protocol_desc.begin(), protocol_desc.end(), "uboe:device") != protocol_desc.end();
 }
+
+bool UseFabricMemEngine(const std::map<AscendString, AscendString> &options) {
+  const auto it = options.find(hixl::OPTION_ENABLE_USE_FABRIC_MEM);
+  return it != options.end() && !std::string(it->second.GetString()).empty() &&
+         std::string(it->second.GetString()) != "0";
+}
 }  // namespace
 std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string local_engine,
                                                     const std::map<AscendString, AscendString> &options) {
+  if (UseFabricMemEngine(options)) {
+    return std::make_unique<FabricMemEngine>(AscendString(local_engine.c_str()));
+  }
   bool config_use_uboe = UseUboe(options);
-  // uboe must use hixl
   bool use_hixl = config_use_uboe;
   if (!use_hixl) {
     const auto hixl_it = options.find(hixl::OPTION_LOCAL_COMM_RES);

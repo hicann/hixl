@@ -76,7 +76,6 @@ TEST_F(StatisticManagerUTest, TestConnectStatisticSnapshot) {
 TEST_F(StatisticManagerUTest, TestTransferStatisticSnapshot) {
   StatisticManager::GetInstance().UpdateBufferTransferCost(kClientChannelId, kCost, kBytes, 2U);
   StatisticManager::GetInstance().UpdateDirectTransferCost(kClientChannelId, kCost * 2U, kBytes * 2U, 4U);
-  StatisticManager::GetInstance().UpdateFabricMemCosts(kClientChannelId, kCost * 3U, kCost, kBytes * 3U, 3U);
 
   const auto snapshot = StatisticManager::GetInstance().GetStatisticInfoSnapshot(kClientChannelId);
   EXPECT_EQ(snapshot.buffer_transfer_statistic_info.transfer.total_cost, kCost);
@@ -85,16 +84,12 @@ TEST_F(StatisticManagerUTest, TestTransferStatisticSnapshot) {
   EXPECT_EQ(snapshot.direct_transfer_statistic_info.transfer.total_cost, kCost * 2U);
   EXPECT_EQ(snapshot.direct_transfer_statistic_info.total_bytes, kBytes * 2U);
   EXPECT_EQ(snapshot.direct_transfer_statistic_info.total_op_desc_count, 4U);
-  EXPECT_EQ(snapshot.fabric_mem_transfer_statistic_info.transfer.total_cost, kCost * 3U);
-  EXPECT_EQ(snapshot.fabric_mem_transfer_statistic_info.total_bytes, kBytes * 3U);
-  EXPECT_EQ(snapshot.fabric_mem_transfer_statistic_info.total_op_desc_count, 3U);
 }
 
-TEST_F(StatisticManagerUTest, TestRemoveStatisticChannelsAndFabricMemDump) {
-  StatisticManager::GetInstance().SetEnableUseFabricMem(true);
+TEST_F(StatisticManagerUTest, TestRemoveStatisticChannelsAndDump) {
   StatisticManager::GetInstance().UpdateConnectTotalCost(kClientChannelId, kCost);
   StatisticManager::GetInstance().UpdateTcpConnectCost(kClientChannelId, kCost);
-  StatisticManager::GetInstance().UpdateFabricMemCosts(kClientChannelId, kCost, kCost, kBytes, 1U);
+  StatisticManager::GetInstance().UpdateBufferTransferCost(kClientChannelId, kCost, kBytes, 1U);
   StatisticManager::GetInstance().Dump();
   RemoveClientAndServerStatisticChannels(kChannelId);
 
@@ -102,7 +97,6 @@ TEST_F(StatisticManagerUTest, TestRemoveStatisticChannelsAndFabricMemDump) {
   const auto server_snapshot = StatisticManager::GetInstance().GetStatisticInfoSnapshot(kServerChannelId);
   EXPECT_EQ(client_snapshot.connect_statistic_info.connect_total.times, 0UL);
   EXPECT_EQ(server_snapshot.connect_statistic_info.connect_total.times, 0UL);
-  StatisticManager::GetInstance().SetEnableUseFabricMem(false);
 }
 
 // Client disconnect must not clear server-side stats for the same peer id.

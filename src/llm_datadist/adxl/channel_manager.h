@@ -24,8 +24,7 @@
 
 namespace adxl {
 
-using NotifyAckCallback = 
-  std::function<void(uint64_t req_id)>;
+using NotifyAckCallback = std::function<void(uint64_t req_id)>;
 
 class ChannelManager {
  public:
@@ -33,12 +32,12 @@ class ChannelManager {
   ~ChannelManager() = default;
   Status Initialize(BufferTransferService *buffer_transfer_service);
   Status Finalize();
-  Status CreateChannel(const ChannelInfo &channel_info, ChannelPtr &channel_ptr, bool enable_use_fabric_mem = false);
+  Status CreateChannel(const ChannelInfo &channel_info, ChannelPtr &channel_ptr);
   ChannelPtr GetChannel(ChannelType channel_type, const std::string &channel_id);
   Status DestroyChannel(ChannelType channel_type, const std::string &channel_id);
   void DestroyChannels();
   static void SetHeartbeatWaitTime(int32_t time_in_millis);
-  
+
   void RegisterNotifyAckCallback(NotifyAckCallback callback) {
     notify_ack_callback_ = std::move(callback);
   }
@@ -46,15 +45,15 @@ class ChannelManager {
   void SetStreamPool(StreamPool *stream_pool);
 
   Status AddSocketToEpoll(int32_t fd, ChannelPtr channel);
-  
+
   std::vector<ChannelPtr> GetAllClientChannel();
   std::vector<ChannelPtr> GetAllServerChannel();
 
-  void SetDisconnectCallback(std::function<Status(const std::string&, int32_t)> callback) {
+  void SetDisconnectCallback(std::function<Status(const std::string &, int32_t)> callback) {
     disconnect_callback_ = callback;
   }
 
-  void SetDisconnectResponseCallback(std::function<void(const RequestDisconnectResp&)> callback) {
+  void SetDisconnectResponseCallback(std::function<void(const RequestDisconnectResp &)> callback) {
     disconnect_response_callback_ = callback;
   }
 
@@ -63,13 +62,13 @@ class ChannelManager {
  private:
   void SendHeartbeats();
   void CheckHeartbeatTimeouts();
-  
+
   // this struct used for send notify message acks
   struct AckMsg {
     ChannelPtr channel;
     uint64_t req_id;
   };
-  
+
   void ProcessAckMessages();
   mutable std::queue<AckMsg> ack_queue_;
   mutable std::mutex ack_queue_mutex_;
@@ -87,7 +86,7 @@ class ChannelManager {
   Status HandleNotifyMessage(const ChannelPtr &channel, const std::string &msg_str) const;
   Status HandleNotifyAckMessage(const ChannelPtr &channel, const std::string &msg_str) const;
   Status RemoveFd(int32_t fd);
-  
+
   NotifyAckCallback notify_ack_callback_;
 
   Status HandleRequestDisconnectMessage(const ChannelPtr &channel, const std::string &msg_str) const;
@@ -113,9 +112,8 @@ class ChannelManager {
   std::thread msg_receiver_;
   aclrtContext aclrt_context_{nullptr};
 
-  std::function<Status(const std::string&, int32_t)> disconnect_callback_;
-  std::function<void(const RequestDisconnectResp&)>
-                disconnect_response_callback_;
+  std::function<Status(const std::string &, int32_t)> disconnect_callback_;
+  std::function<void(const RequestDisconnectResp &)> disconnect_response_callback_;
   bool auto_connect_{false};
 };
 }  // namespace adxl

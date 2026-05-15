@@ -27,11 +27,13 @@ set(HIXL_TEST_FILES
         engine/endpoint_generator_ut.cc
         engine/hixl_profiling_unittest.cc
         engine/hixl_engine_uboe_unittest.cc
+        fabric_mem/fabric_mem_unittest.cc
         ../ops/hixl_kernel/hixl_kernel_basic_unittest.cc
 )
 
 file(GLOB HIXL_SRC_LIST
         "${HIXL_CODE_DIR}/src/hixl/common/*.cc"
+        "${HIXL_CODE_DIR}/src/hixl/fabric_mem/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/engine/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/profiling/*.cc"

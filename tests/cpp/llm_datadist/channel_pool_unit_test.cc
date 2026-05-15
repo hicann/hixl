@@ -23,17 +23,17 @@
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 
-namespace adxl{
+namespace adxl {
 class MockChannelMsgHandler : public ChannelMsgHandler {
-public:
-  explicit MockChannelMsgHandler(const std::string& listen_info, ChannelManager* channel_manager)
-    : ChannelMsgHandler(listen_info, channel_manager) {};
-  
+ public:
+  explicit MockChannelMsgHandler(const std::string &listen_info, ChannelManager *channel_manager)
+      : ChannelMsgHandler(listen_info, channel_manager){};
+
   ~MockChannelMsgHandler() = default;
 
-  Status ProcessEvictionByChannelId(ChannelType channel_type, const std::string& channel_id) {
+  Status ProcessEvictionByChannelId(ChannelType channel_type, const std::string &channel_id) {
     auto channel = channel_manager_->GetChannel(channel_type, channel_id);
-    if (channel == nullptr){
+    if (channel == nullptr) {
       return SUCCESS;
     }
     if (channel->GetTransferCount() > 0) {
@@ -44,7 +44,7 @@ public:
 };
 
 class ChannelPoolUnitTest : public ::testing::Test {
-protected:
+ protected:
   void SetUp() override {
     llm::MockMmpaForHcclApi::Install();
     llm::AutoCommResRuntimeMock::Install();
@@ -66,15 +66,15 @@ protected:
 
   void TearDown() override {
     if (channel_msg_handler_) {
-        channel_msg_handler_->Finalize();
+      channel_msg_handler_->Finalize();
     }
-    
+
     if (channel_manager_) {
-        channel_manager_->Finalize();
+      channel_manager_->Finalize();
     }
 
     if (buffer_transfer_service_) {
-        buffer_transfer_service_->Finalize();
+      buffer_transfer_service_->Finalize();
     }
 
     llm::HcclAdapter::GetInstance().Finalize();
@@ -84,9 +84,10 @@ protected:
 
   void CreateChannels(int count, ChannelType channel_type = ChannelType::kClient) {
     for (int i = 0; i < count; i++) {
-      std::string channel_id = channel_type == ChannelType::kClient 
-                    ? "127.0.0.1:" + std::to_string(20000 + channel_manager_->GetAllClientChannel().size())
-                    : "127.0.0.1:" + std::to_string(26000 + channel_manager_->GetAllServerChannel().size());
+      std::string channel_id =
+          channel_type == ChannelType::kClient
+              ? "127.0.0.1:" + std::to_string(20000 + channel_manager_->GetAllClientChannel().size())
+              : "127.0.0.1:" + std::to_string(26000 + channel_manager_->GetAllServerChannel().size());
 
       ChannelInfo channel_info{};
       channel_info.channel_type = channel_type;
@@ -103,13 +104,14 @@ protected:
     }
   }
 
-  bool ChannelExists(const std::string& channel_id, ChannelType channel_type = ChannelType::kClient) {
+  bool ChannelExists(const std::string &channel_id, ChannelType channel_type = ChannelType::kClient) {
     ChannelPtr channel = channel_manager_->GetChannel(channel_type, channel_id);
     if (channel) {
       return true;
     }
 
-    channel = channel_manager_->GetChannel(channel_type == ChannelType::kClient ? ChannelType::kServer : ChannelType::kClient, channel_id);
+    channel = channel_manager_->GetChannel(
+        channel_type == ChannelType::kClient ? ChannelType::kServer : ChannelType::kClient, channel_id);
     return channel != nullptr;
   }
 
@@ -117,12 +119,12 @@ protected:
     std::vector<std::string> channel_ids;
 
     auto client_channels = channel_manager_->GetAllClientChannel();
-    for (const auto& channel : client_channels) {
+    for (const auto &channel : client_channels) {
       channel_ids.push_back(channel->GetChannelId());
     }
 
     auto server_channels = channel_manager_->GetAllServerChannel();
-    for (const auto& channel : server_channels) {
+    for (const auto &channel : server_channels) {
       channel_ids.push_back(channel->GetChannelId());
     }
 
@@ -134,7 +136,6 @@ protected:
   }
 
   std::unique_ptr<BufferTransferService> buffer_transfer_service_;
-  std::unique_ptr<FabricMemTransferService> fabric_mem_transfer_service_;
   std::unique_ptr<ChannelManager> channel_manager_;
   std::unique_ptr<MockChannelMsgHandler> channel_msg_handler_;
 
@@ -143,7 +144,7 @@ protected:
 };
 
 TEST_F(ChannelPoolUnitTest, TestTrigger) {
-  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr, fabric_mem_transfer_service_.get());
+  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr);
   ASSERT_EQ(ret, SUCCESS);
 
   EXPECT_EQ(GetCurrentChannelCount(), 0);
@@ -168,8 +169,8 @@ TEST_F(ChannelPoolUnitTest, TestTrigger) {
   EXPECT_TRUE(channel_msg_handler_->ShouldTriggerEviction());
 }
 
-TEST_F(ChannelPoolUnitTest, TestChannelEvictionByCreateTime) { 
-  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr, fabric_mem_transfer_service_.get());
+TEST_F(ChannelPoolUnitTest, TestChannelEvictionByCreateTime) {
+  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr);
   ASSERT_EQ(ret, SUCCESS);
 
   // create 8 client channels
@@ -180,7 +181,7 @@ TEST_F(ChannelPoolUnitTest, TestChannelEvictionByCreateTime) {
   // current channel count is 8
   EXPECT_EQ(current_channels.size(), 8);
 
-  for (const auto& channel_id : created_channel_ids_) {
+  for (const auto &channel_id : created_channel_ids_) {
     EXPECT_TRUE(std::find(current_channels.begin(), current_channels.end(), channel_id) != current_channels.end());
   }
 
@@ -188,8 +189,9 @@ TEST_F(ChannelPoolUnitTest, TestChannelEvictionByCreateTime) {
   // Mock eviction to low waterline 5
   int evict_size = GetCurrentChannelCount() - 5;
   std::vector<EvictItem> candidates = channel_msg_handler_->SelectEvictionCandidates(evict_size);
-  for (auto& item : candidates) {
-    dynamic_cast<MockChannelMsgHandler*>(channel_msg_handler_.get())->ProcessEvictionByChannelId(item.channel_type, item.channel_id);
+  for (auto &item : candidates) {
+    dynamic_cast<MockChannelMsgHandler *>(channel_msg_handler_.get())
+        ->ProcessEvictionByChannelId(item.channel_type, item.channel_id);
   }
   // sleep 500 ms for eviction task
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -203,7 +205,7 @@ TEST_F(ChannelPoolUnitTest, TestChannelEvictionByCreateTime) {
 }
 
 TEST_F(ChannelPoolUnitTest, TestClientEvictionByTransferFlag) {
-  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr, fabric_mem_transfer_service_.get());
+  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr);
   ASSERT_EQ(ret, SUCCESS);
   // create 8 client channels
   CreateChannels(8, ChannelType::kClient);
@@ -213,7 +215,7 @@ TEST_F(ChannelPoolUnitTest, TestClientEvictionByTransferFlag) {
   // current channel count should be 8
   EXPECT_EQ(current_channels.size(), 8);
 
-  for (const auto& channel_id : created_channel_ids_) {
+  for (const auto &channel_id : created_channel_ids_) {
     EXPECT_TRUE(std::find(current_channels.begin(), current_channels.end(), channel_id) != current_channels.end());
   }
 
@@ -224,8 +226,9 @@ TEST_F(ChannelPoolUnitTest, TestClientEvictionByTransferFlag) {
   // Mock eviction to low waterline 5 channels
   int32_t evict_num = GetCurrentChannelCount() - 5;
   std::vector<EvictItem> candidates = channel_msg_handler_->SelectEvictionCandidates(evict_num);
-  for (auto& item : candidates) {
-    dynamic_cast<MockChannelMsgHandler*>(channel_msg_handler_.get())->ProcessEvictionByChannelId(item.channel_type, item.channel_id);
+  for (auto &item : candidates) {
+    dynamic_cast<MockChannelMsgHandler *>(channel_msg_handler_.get())
+        ->ProcessEvictionByChannelId(item.channel_type, item.channel_id);
   }
   // sleep 500 ms for evcition
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -239,9 +242,9 @@ TEST_F(ChannelPoolUnitTest, TestClientEvictionByTransferFlag) {
 }
 
 TEST_F(ChannelPoolUnitTest, TestMixChannelStrategy) {
-  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr, fabric_mem_transfer_service_.get());
+  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr);
   ASSERT_EQ(ret, SUCCESS);
-  
+
   // create 5 client channels
   CreateChannels(5, ChannelType::kClient);
   // create 4 server channels
@@ -252,7 +255,7 @@ TEST_F(ChannelPoolUnitTest, TestMixChannelStrategy) {
   // current channel count should be 9
   EXPECT_EQ(current_channels.size(), 9);
 
-  for(const auto& channel_id : created_channel_ids_) {
+  for (const auto &channel_id : created_channel_ids_) {
     EXPECT_TRUE(std::find(current_channels.begin(), current_channels.end(), channel_id) != current_channels.end());
   }
 
@@ -260,8 +263,9 @@ TEST_F(ChannelPoolUnitTest, TestMixChannelStrategy) {
   trans_channel->IncrementTransferCount();
   // select 9 candiadates for evcition
   std::vector<EvictItem> candidates = channel_msg_handler_->SelectEvictionCandidates(9);
-  for (auto& item : candidates) {
-    dynamic_cast<MockChannelMsgHandler*>(channel_msg_handler_.get())->ProcessEvictionByChannelId(item.channel_type, item.channel_id);
+  for (auto &item : candidates) {
+    dynamic_cast<MockChannelMsgHandler *>(channel_msg_handler_.get())
+        ->ProcessEvictionByChannelId(item.channel_type, item.channel_id);
   }
   // should left 1 channel which has transfer task
   EXPECT_EQ(GetCurrentChannelCount(), 1);
@@ -277,9 +281,9 @@ TEST_F(ChannelPoolUnitTest, TestMixChannelStrategy) {
 }
 
 TEST_F(ChannelPoolUnitTest, TestSelectClientEvictionCandidates) {
-  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr, fabric_mem_transfer_service_.get());
+  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr);
   ASSERT_EQ(ret, SUCCESS);
-  
+
   // create 6 client channels
   CreateChannels(6, ChannelType::kClient);
   // create 2 server channels
@@ -294,7 +298,7 @@ TEST_F(ChannelPoolUnitTest, TestSelectClientEvictionCandidates) {
 
   int client_count = 0;
   int server_count = 0;
-  for(const auto& item: candidates) {
+  for (const auto &item : candidates) {
     auto channel = channel_manager_->GetChannel(item.channel_type, item.channel_id);
     if (item.channel_type == ChannelType::kClient) {
       client_count++;
@@ -311,9 +315,9 @@ TEST_F(ChannelPoolUnitTest, TestSelectClientEvictionCandidates) {
 }
 
 TEST_F(ChannelPoolUnitTest, TestSelectServerEvictionCandidates) {
-  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr, fabric_mem_transfer_service_.get());
+  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr);
   ASSERT_EQ(ret, SUCCESS);
-  
+
   // create 7 server channels
   CreateChannels(7, ChannelType::kServer);
   // create 2 client channels
@@ -326,7 +330,7 @@ TEST_F(ChannelPoolUnitTest, TestSelectServerEvictionCandidates) {
 
   int client_count_ = 0;
   int server_count_ = 0;
-  for(const auto& item: candidates) {
+  for (const auto &item : candidates) {
     auto channel = channel_manager_->GetChannel(item.channel_type, item.channel_id);
     if (item.channel_type == ChannelType::kClient) {
       client_count_++;
@@ -343,9 +347,9 @@ TEST_F(ChannelPoolUnitTest, TestSelectServerEvictionCandidates) {
 }
 
 TEST_F(ChannelPoolUnitTest, TestMixEvictionCandidates) {
-  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr, fabric_mem_transfer_service_.get());
+  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr);
   ASSERT_EQ(ret, SUCCESS);
-  
+
   // create 3 server channels
   CreateChannels(3, ChannelType::kServer);
   // create 3 client channels
@@ -364,7 +368,7 @@ TEST_F(ChannelPoolUnitTest, TestMixEvictionCandidates) {
 }
 
 TEST_F(ChannelPoolUnitTest, TestMultipleConcurrentEvictionRequests) {
-  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr, fabric_mem_transfer_service_.get());
+  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr);
   ASSERT_EQ(ret, SUCCESS);
   // create 8 client channels
   CreateChannels(8, ChannelType::kClient);
@@ -378,12 +382,13 @@ TEST_F(ChannelPoolUnitTest, TestMultipleConcurrentEvictionRequests) {
     eviction_threads.emplace_back([this]() {
       // each thread select 3 candidates
       std::vector<EvictItem> candidates = channel_msg_handler_->SelectEvictionCandidates(3);
-      for (auto& item : candidates) {
-        dynamic_cast<MockChannelMsgHandler*>(channel_msg_handler_.get())->ProcessEvictionByChannelId(item.channel_type, item.channel_id);
+      for (auto &item : candidates) {
+        dynamic_cast<MockChannelMsgHandler *>(channel_msg_handler_.get())
+            ->ProcessEvictionByChannelId(item.channel_type, item.channel_id);
       }
     });
   }
-  for (auto& thread : eviction_threads) {
+  for (auto &thread : eviction_threads) {
     if (thread.joinable()) {
       thread.join();
     }
@@ -395,7 +400,7 @@ TEST_F(ChannelPoolUnitTest, TestMultipleConcurrentEvictionRequests) {
 }
 
 TEST_F(ChannelPoolUnitTest, TestTransferCompletionDuringEviction) {
-  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr, fabric_mem_transfer_service_.get());
+  Status ret = channel_msg_handler_->Initialize(channel_options_, nullptr);
   ASSERT_EQ(ret, SUCCESS);
   // create 8 client channels
   CreateChannels(8, ChannelType::kClient);
@@ -407,21 +412,19 @@ TEST_F(ChannelPoolUnitTest, TestTransferCompletionDuringEviction) {
 
   std::atomic<bool> transfer_complete(false);
 
-  std::thread eviction_thread(
-    [this]() {
+  std::thread eviction_thread([this]() {
     // mock evict 3 channels
     std::vector<EvictItem> candidates = channel_msg_handler_->SelectEvictionCandidates(3);
-    for (auto& item : candidates) {
-      dynamic_cast<MockChannelMsgHandler*>(channel_msg_handler_.get())->ProcessEvictionByChannelId(item.channel_type, item.channel_id);
+    for (auto &item : candidates) {
+      dynamic_cast<MockChannelMsgHandler *>(channel_msg_handler_.get())
+          ->ProcessEvictionByChannelId(item.channel_type, item.channel_id);
     }
   });
 
-  std::thread transfer_complete_thread(
-    [&channel, 
-    &transfer_complete]() {
+  std::thread transfer_complete_thread([&channel, &transfer_complete]() {
     // sleep 100 ms as transfer
-    std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
-    channel->DecrementTransferCount(); 
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    channel->DecrementTransferCount();
     transfer_complete = true;
   });
   if (eviction_thread.joinable()) {
@@ -469,4 +472,4 @@ TEST_F(ChannelPoolUnitTest, DestroyClientChannelRemovesClientStatistics) {
   const auto after = StatisticManager::GetInstance().GetStatisticInfoSnapshot(client_key);
   EXPECT_EQ(after.connect_statistic_info.connect_total.times, 0UL);
 }
-}
+}  // namespace adxl

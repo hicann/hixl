@@ -65,20 +65,6 @@ struct BufferTransferStatisticInfo {
   }
 };
 
-struct FabricMemTransferStatisticInfo {
-  CostStatisticInfo transfer;
-  CostStatisticInfo real_copy;
-  std::atomic<uint64_t> total_bytes = 0UL;
-  std::atomic<uint64_t> total_op_desc_count = 0UL;
-
-  void Reset() {
-    transfer.Reset();
-    real_copy.Reset();
-    total_bytes.store(0UL);
-    total_op_desc_count.store(0UL);
-  }
-};
-
 struct DirectTransferStatisticInfo {
   CostStatisticInfo transfer;
   std::atomic<uint64_t> total_bytes = 0UL;
@@ -94,7 +80,6 @@ struct DirectTransferStatisticInfo {
 struct StatisticInfo {
   ConnectStatisticInfo connect_statistic_info;
   BufferTransferStatisticInfo buffer_transfer_statistic_info;
-  FabricMemTransferStatisticInfo fabric_mem_transfer_statistic_info;
   DirectTransferStatisticInfo direct_transfer_statistic_info;
 };
 
@@ -122,7 +107,6 @@ struct TransferStatisticSnapshot {
 struct StatisticInfoSnapshot {
   ConnectStatisticSnapshot connect_statistic_info;
   TransferStatisticSnapshot buffer_transfer_statistic_info;
-  TransferStatisticSnapshot fabric_mem_transfer_statistic_info;
   TransferStatisticSnapshot direct_transfer_statistic_info;
 };
 
@@ -151,12 +135,9 @@ class StatisticManager {
   void UpdateHcclCommInitCost(const std::string &channel_id, uint64_t cost);
   void UpdateHcclCommBindMemCost(const std::string &channel_id, uint64_t cost);
   void UpdateHcclCommPrepareCost(const std::string &channel_id, uint64_t cost);
-  void UpdateFabricMemCosts(const std::string &channel_id, uint64_t transfer_cost, uint64_t real_copy_cost,
-                            uint64_t total_bytes, uint64_t op_desc_count);
   void UpdateDirectTransferCost(const std::string &channel_id, uint64_t cost, uint64_t total_bytes,
                                 uint64_t op_desc_count);
 
-  void SetEnableUseFabricMem(bool enable_use_fabric_mem);
   void RemoveStatisticChannel(const std::string &channel_id, bool is_client);
   void StartPeriodicDumpIfNeeded();
   StatisticInfoSnapshot GetStatisticInfoSnapshot(const std::string &channel_id) const;
@@ -171,12 +152,10 @@ class StatisticManager {
   static CostStatisticSnapshot ToSnapshot(const CostStatisticInfo &cost_info);
   void DumpBufferTransferStatisticInfo();
   void DumpConnectStatisticInfo();
-  void DumpFabricMemTransferStatisticInfo();
   void DumpDirectTransferStatisticInfo();
   std::shared_ptr<StatisticInfo> GetOrCreateStatisticInfo(const std::string &channel_id);
   std::shared_ptr<StatisticInfo> GetStatisticInfo(const std::string &channel_id) const;
 
-  bool enable_use_fabric_mem_ = false;
   std::mutex dump_mutex_;
   void *dump_timer_handle_{nullptr};
   mutable std::shared_mutex map_mutex_;

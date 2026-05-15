@@ -22,7 +22,7 @@
 
 namespace adxl {
 // Load JSON configuration from file and merge into option map
-Status LoadJsonConfig(const std::string& json_string, std::map<ge::AscendString, ge::AscendString>& options);
+Status LoadJsonConfig(const std::string &json_string, std::map<ge::AscendString, ge::AscendString> &options);
 Status HcclError2AdxlStatus(HcclResult ret);
 Status AclError2AdxlStatus(aclError ret);
 Status LLMError2AdxlStatus(ge::Status ret);
@@ -32,12 +32,9 @@ inline uint64_t GetTransferOpDescCount(const std::vector<TransferOpDesc> &op_des
   return static_cast<uint64_t>(op_descs.size());
 }
 
-constexpr const char* OPTION_MAX_CHANNEL = "channel_pool.max_channel";
-constexpr const char* OPTION_HIGH_WATERLINE = "channel_pool.high_waterline";
-constexpr const char* OPTION_LOW_WATERLINE = "channel_pool.low_waterline";
-constexpr const char* OPTION_MAX_FABRIC_MEMORY_CAPACITY = "fabric_memory.max_capacity";
-constexpr const char* OPTION_FABRIC_MEMORY_START_ADDRESS_TB = "fabric_memory.start_address";
-constexpr const char* OPTION_TASK_STREAM_NUM = "fabric_memory.task_stream_num";
+constexpr const char *OPTION_MAX_CHANNEL = "channel_pool.max_channel";
+constexpr const char *OPTION_HIGH_WATERLINE = "channel_pool.high_waterline";
+constexpr const char *OPTION_LOW_WATERLINE = "channel_pool.low_waterline";
 
 constexpr int kDefaultMaxChannel = 512;
 bool NeedErrorLog(Status status);
