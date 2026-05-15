@@ -788,6 +788,11 @@ aclError aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, int32_t *const p
   return llm::AclRuntimeStub::GetInstance()->aclrtGetPhyDevIdByLogicDevId(logicDevId, phyDevId);
 }
 
+aclError aclrtGetLogicDevIdByUserDevId(const int32_t userDevid, int32_t *const logicDevId) {
+  *logicDevId = userDevid;
+  return ACL_ERROR_NONE;
+}
+
 aclError aclrtGetLogicDevIdByPhyDevId(const int32_t phyDevId, int32_t *const logicDevId) {
   return llm::AclRuntimeStub::GetInstance()->aclrtGetLogicDevIdByPhyDevId(phyDevId, logicDevId);
 }

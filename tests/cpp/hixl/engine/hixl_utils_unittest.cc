@@ -164,7 +164,7 @@ TEST_F(HixlUtilsUTest, GetBondIpAddress) {
   CreateHccnTool("ipaddr:192.168.1.111\n255.255.255.0");
 
   std::string bond_ip;
-  EXPECT_EQ(GetBondIpAddress(0, bond_ip), SUCCESS);
+  EXPECT_EQ(GetBondIpAddress(0, 0, bond_ip), SUCCESS);
   EXPECT_EQ(bond_ip, "192.168.1.111");
 }
 }  // namespace hixl
