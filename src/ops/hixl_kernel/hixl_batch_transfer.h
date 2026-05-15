@@ -29,6 +29,8 @@ struct HixlOneSideOpParam {
   uint64_t remote_flag_addr;  ///< [in] 记录了本次传输任务中remote_flag的内存地址
   uint64_t local_flag_addr;   ///< [in] 记录了本次传输任务中local_flag的内存地址
   uint32_t flag_size;         ///< [in] 记录了本次传输任务中flag的内存大小
+  uint32_t notify_id;
+  uint32_t protocol;
 };
 
 uint32_t HixlBatchPut(HixlOneSideOpParam *param);

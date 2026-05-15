@@ -215,8 +215,10 @@ bool HixlCSClient::IsDeviceEndpoint(const EndpointDesc &ep) {
 Status HixlCSClient::ResolveNotifyDeviceAddress(aclrtNotify notify, uint64_t &notify_addr, uint32_t &notify_len) {
   HIXL_CHECK_NOTNULL(notify);
   const EndpointDesc &ep = local_endpoint_->GetEndpoint();
-  if ((ep.protocol == COMM_PROTOCOL_ROCE) || (ep.protocol == COMM_PROTOCOL_HCCS)) {
-    HIXL_LOGI("[HixlClient] ResolveNotifyDeviceAddress for ROCE/HCCS");
+  if (ep.protocol == COMM_PROTOCOL_HCCS) {
+    return SUCCESS;
+  } else if (ep.protocol == COMM_PROTOCOL_ROCE) {
+    HIXL_LOGI("[HixlClient] ResolveNotifyDeviceAddress for ROCE");
     return HccpProxy::RaGetNotifyAddrLen(device_id_, notify, notify_addr, notify_len);
   }
   constexpr rtDevResProcType_t kNotifyDevResProcType = RT_PROCESS_HCCP;
@@ -782,6 +784,7 @@ Status HixlCSClient::FillDeviceArgs(const CommunicateMem &mem_param, MemDev &mem
                                     const TransferPool::SlotHandle &slot, void *remote_flag, DeviceArgs &args) {
   HIXL_CHK_BOOL_RET_STATUS(slot.slot_index < slot_notify_addrs_.size(), PARAM_INVALID,
                            "[HixlClient] slot_index %u out of range %zu", slot.slot_index, slot_notify_addrs_.size());
+  const EndpointDesc &ep = local_endpoint_->GetEndpoint();
   uint64_t notify_addr = slot_notify_addrs_[slot.slot_index];
   args.thread = slot.thread;
   args.channel = static_cast<uint64_t>(client_channel_handle_);
@@ -794,6 +797,8 @@ Status HixlCSClient::FillDeviceArgs(const CommunicateMem &mem_param, MemDev &mem
   args.remote_flag = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(remote_flag));
   args.local_flag = notify_addr;
   args.flag_size = notify_len_;
+  args.notify_id = slot.notify_id;
+  args.protocol = ep.protocol;
   return SUCCESS;
 }
 

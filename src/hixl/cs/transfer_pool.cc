@@ -76,7 +76,7 @@ Status TransferPool::Initialize(uint32_t pool_size) {
   pool_size_ = pool_size;
   slots_.clear();
   slots_.resize(pool_size_);
-  // ‰∏∫ÂØπÂ§ñÊé•Âè£ÂàõÂª∫ÂÖ±‰∫´ rts context
+  // Œ™∂‘Õ‚Ω”ø⁄¥¥Ω®π≤œÌ rts context
   HIXL_CHK_ACL_RET(aclrtCreateContext(&rts_context_, device_id_), "aclrtCreateContext rts_context_ failed");
   for (uint32_t i = 0U; i < pool_size_; ++i) {
     Slot &s = slots_[i];
@@ -205,7 +205,8 @@ void TransferPool::FillHandleFromSlot(int32_t device_id, uint32_t index, const S
   handle->stream = slot.stream;
   handle->thread = slot.thread;
   handle->notify = slot.notify;
-  handle->dev_const_one = nullptr;  // dev_const_one Âú® GetAllSlots Êó∂‰∏∫Á©∫ÔºåÂè™Êúâ Acquire Êó∂ÊâçÂ°´ÂÖÖ
+  handle->dev_const_one = nullptr;  // dev_const_one ‘⁄ GetAllSlots  ±Œ™ø’£¨÷ª”– Acquire  ±≤≈ÃÓ≥‰
+  handle->notify_id = slot.notify_id;
 }
 
 Status TransferPool::InitAllSlotsLocked() {
@@ -295,7 +296,7 @@ Status TransferPool::EnsureNotifyLocked(Slot &slot) {
   }
   ResetNotifyResourcesLocked(slot);
   uint32_t notify_id = 0U;
-  HIXL_CHK_STATUS_RET(CreateNotifyLocked(slot, notify_id), "[TransferPool] CreateNotifyLocked failed");
+  HIXL_CHK_STATUS_RET(CreateNotifyLocked(slot), "[TransferPool] CreateNotifyLocked failed");
   (void)notify_id;
   return SUCCESS;
 }
@@ -307,17 +308,16 @@ void TransferPool::ResetNotifyResourcesLocked(Slot &slot) {
   }
 }
 
-Status TransferPool::CreateNotifyLocked(Slot &slot, uint32_t &notify_id) {
-  notify_id = 0U;
+Status TransferPool::CreateNotifyLocked(Slot &slot) {
   HIXL_CHK_ACL_RET(aclrtCreateNotify(&slot.notify, ACL_NOTIFY_DEVICE_USE_ONLY),
                    "[TransferPool] aclrtCreateNotify failed");
-  HIXL_CHK_ACL_RET(aclrtGetNotifyId(slot.notify, &notify_id), "[TransferPool] aclrtGetNotifyId failed");
-  HIXL_LOGD("[TransferPool] Created notify. notify_id=%u", notify_id);
+  HIXL_CHK_ACL_RET(aclrtGetNotifyId(slot.notify, &slot.notify_id), "[TransferPool] aclrtGetNotifyId failed");
+  HIXL_LOGD("[TransferPool] Created notify. notify_id=%u", slot.notify_id);
   return SUCCESS;
 }
 
 void TransferPool::DeinitAllSlotsLocked() {
-  // ÂÖàÈáäÊîæ dev_const_one_ÔºåÂÜçÈîÄÊØÅ rts_context_
+  // œ» Õ∑≈ dev_const_one_£¨‘Ÿœ˙ªŸ rts_context_
   if (dev_const_one_ != nullptr) {
     HIXL_CHK_ACL(aclrtFree(dev_const_one_));
     dev_const_one_ = nullptr;

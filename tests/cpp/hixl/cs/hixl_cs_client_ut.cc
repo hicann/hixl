@@ -569,6 +569,14 @@ static EndpointDesc MakeIdEp(uint32_t id) {
   return ep;
 }
 
+static EndpointDesc MakeIdEpEx(uint32_t id, CommProtocol protocol) {
+  EndpointDesc ep{};
+  ep.protocol = protocol;
+  ep.commAddr.type = COMM_ADDR_TYPE_ID;
+  ep.commAddr.id = id;
+  return ep;
+}
+
 class HixlCSClientUT : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -604,6 +612,19 @@ class HixlCSClientUT : public ::testing::Test {
     ASSERT_EQ(client_.Create(&desc, &config), SUCCESS);
   }
 
+  void CreateClientEx(CommProtocol protocol, const char *ip = "127.0.0.1") {
+    ASSERT_NE(port_, 0);
+    HixlClientConfig config{}; // 默认构造
+    HixlClientDesc desc{};
+    desc.server_ip = ip;
+    desc.server_port = port_;
+    srcEx_ = MakeIdEpEx(kSrcEpId, protocol);
+    dstEx_ = MakeIdEpEx(kDstEpId, protocol);
+    desc.local_endpoint = &srcEx_;
+    desc.remote_endpoint = &dstEx_;
+    ASSERT_EQ(client_.Create(&desc, &config), SUCCESS);
+  }
+
   void ConnectClient(uint64_t timeout_us = kDefaultConnectTimeoutMs) {
     ASSERT_EQ(client_.Connect(timeout_us), SUCCESS);
   }
@@ -611,6 +632,8 @@ class HixlCSClientUT : public ::testing::Test {
  protected:
   EndpointDesc src_{};
   EndpointDesc dst_{};
+  EndpointDesc srcEx_{};
+  EndpointDesc dstEx_{};
   MiniServer server_;
   uint16_t port_{0};
   HixlCSClient client_;
@@ -1057,4 +1080,19 @@ TEST_F(HixlCSClientUT, GetRemoteMemFailExportDescNotInt) {
   EXPECT_EQ(client_.GetRemoteMem(&remote, &tags, &num, kTimeOutOne), PARAM_INVALID);
 }
 
+TEST_F(HixlCSClientUT, GetHccsRemoteMemSuccessNormalWithTags) {
+  CommMem *remote = nullptr;
+  char **tags = nullptr;
+  uint32_t num = kZero;
+
+  StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
+  CreateClientEx(COMM_PROTOCOL_HCCS);
+  ConnectClient();
+
+  EXPECT_EQ(client_.GetRemoteMem(&remote, &tags, &num, kTimeOutOne), SUCCESS);
+  EXPECT_NE(remote, nullptr);
+  EXPECT_EQ(num, 3U);
+  ASSERT_NE(tags, nullptr);
+  EXPECT_STREQ(tags[0], kGetRemoteMemStr0);
+}
 }  // namespace hixl

@@ -59,7 +59,7 @@ HixlOneSideOpParam CreateTestParamFixed(std::array<std::array<uint8_t, 8>, kN> &
   param.remote_flag_addr = remote_flag_addr;
   param.local_flag_addr = local_flag_addr;
   param.flag_size = sizeof(uint64_t);
-
+  param.protocol = COMM_PROTOCOL_RESERVED; // skip hccs
   return param;
 }
 }  // namespace
@@ -160,6 +160,36 @@ TEST_F(HixlKernelBasicTest, BatchGetFailByMemSize) {
 
   uint32_t ret = HixlBatchGet(&param);
   EXPECT_EQ(ret, FAILED);
+}
+
+int32_t HcommAclrtNotifyRecordOnThread(ThreadHandle thread, uint64_t dstNotifyId)
+{
+  return 0;
+}
+
+TEST_F(HixlKernelBasicTest, BatchGetHccsError) {
+  // 模拟远端源数据和本地目标缓冲区
+  std::array<std::array<uint8_t, 8>, 3> remote_addr_hccs{};
+  std::array<std::array<uint8_t, 8>, 3> local_addr_hccs{};
+  std::array<uint64_t, 3> lens_storage{8, 8, 8};
+
+  for (auto &arr : remote_addr_hccs) {
+    std::fill(arr.begin(), arr.end(), 0xAA);
+  }
+  for (auto &arr : local_addr_hccs) {
+    std::fill(arr.begin(), arr.end(), 0xBB);
+  }
+
+  // ========== 核心修改1：使用真实的合法内存地址 ==========
+  uint64_t remote_flag_addr_hccs = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_remote_flag_buf));
+  uint64_t local_flag_addr_hccs = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_local_flag_buf));
+
+  // ========== 核心修改2：直接传递地址值 ==========
+  auto param = CreateTestParamFixed<3>(remote_addr_hccs, local_addr_hccs, lens_storage,
+    remote_flag_addr_hccs, local_flag_addr_hccs);
+  param.protocol = COMM_PROTOCOL_HCCS;
+  uint32_t ret = HixlBatchGet(&param);
+  EXPECT_NE(ret, SUCCESS);
 }
 
 // ========== 批量传输接口测试用例 ==========

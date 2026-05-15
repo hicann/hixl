@@ -59,6 +59,8 @@ struct DeviceArgs {
   uint64_t remote_flag;
   uint64_t local_flag;
   uint32_t flag_size;
+  uint32_t notify_id;
+  uint32_t protocol;
 };
 
 struct MemDev {
