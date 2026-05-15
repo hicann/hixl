@@ -9,6 +9,7 @@
  */
 
 #include "comm_link_manager.h"
+#include <cstring>
 #include "comm_entity_manager.h"
 #include "common/def_types.h"
 #include "common/hixl_utils.h"
@@ -81,12 +82,17 @@ ge::Status CommLinkManager::ExchangeMem(const EntityPtr &entity, uint32_t local_
   LLMLOGI("HcclExchangeMemDesc suc, remote num:%u", remote_mem_num);
   ExchangeMemInfo remote_mem_info{};
   try {
-    auto j = nlohmann::json::parse(&remote_desc.desc[0]);
+    auto desc_len = strnlen(remote_desc.desc, HCCL_MEM_DESC_LENGTH);
+    auto j = nlohmann::json::parse(remote_desc.desc, remote_desc.desc + desc_len);
     remote_mem_info = j.get<ExchangeMemInfo>();
   } catch (const nlohmann::json::exception &e) {
     LLMLOGE(ge::LLM_PARAM_INVALID, "Failed to load exchange mem info, exception:%s", e.what());
     return ge::LLM_PARAM_INVALID;
   }
+  LLM_CHK_BOOL_RET_STATUS(remote_mem_info.cache_table_size <= kCacheAccessTableBufferSize,
+                          ge::LLM_PARAM_INVALID,
+                          "Remote cache_table_size %lu exceeds max %lu",
+                          remote_mem_info.cache_table_size, kCacheAccessTableBufferSize);
   std::vector<HcclMem> &remote_mems = entity->GetRemoteMems();
   HcclMem mem{};
   SetMemAttribute(remote_mem_info, remote_mems, mem);

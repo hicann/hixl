@@ -92,7 +92,7 @@ ge::Status LinkMsgHandler::Serialize(const T &msg, std::string &msg_str) {
 template<typename T>
 ge::Status LinkMsgHandler::Deserialize(const std::vector<char> &msg_str, T &msg) {
    try {
-    auto j = nlohmann::json::parse(&msg_str[0]);
+    auto j = nlohmann::json::parse(msg_str.data(), msg_str.data() + msg_str.size());
     msg = j.get<T>();
   } catch (const nlohmann::json::exception &e) {
     LLMLOGE(ge::LLM_PARAM_INVALID, "Failed to load msg, exception:%s", e.what());
@@ -284,17 +284,29 @@ ge::Status LinkMsgHandler::SetEntityMemInfo(const LLMExchangeInfo &peer_exchange
   return ge::SUCCESS;
 }
 
+ge::Status LinkMsgHandler::GenerateRankInfo(const std::string &peer_comm_res, std::string &rank_table,
+                                            int32_t &local_rank_id, int32_t &peer_rank_id) {
+  auto rank_table_generator = RankTableGeneratorFactory::Create(local_comm_res_, peer_comm_res);
+  LLM_CHK_BOOL_RET_STATUS(rank_table_generator != nullptr, ge::LLM_PARAM_INVALID,
+                          "Failed to create rank table generator.");
+  LLM_CHK_STATUS_RET(rank_table_generator->Generate(device_id_, rank_table), "Failed to generate rank table");
+  local_rank_id = rank_table_generator->GetLocalRankId();
+  LLM_CHK_BOOL_RET_STATUS(local_rank_id >= 0, ge::LLM_PARAM_INVALID,
+                          "Failed to get local rank id, please check rank table.");
+  peer_rank_id = rank_table_generator->GetPeerRankId();
+  return ge::SUCCESS;
+}
+
 ge::Status LinkMsgHandler::ExchangeInfoProcess(const LLMExchangeInfo &peer_exchange_info, int32_t timeout,
                                                bool force_link, EntityMemInfoPtr &mem_info_ptr) {
-  auto rank_table_generator = RankTableGeneratorFactory::Create(local_comm_res_, peer_exchange_info.comm_res);
-  LLM_CHK_BOOL_RET_STATUS(rank_table_generator != nullptr, ge::LLM_PARAM_INVALID,
-                         "Failed to create rank table generator.");
+  LLM_CHK_BOOL_RET_STATUS(peer_exchange_info.cache_table_size <= kCacheAccessTableBufferSize, ge::LLM_PARAM_INVALID,
+                          "Remote cache_table_size %lu exceeds max %lu.", peer_exchange_info.cache_table_size,
+                          kCacheAccessTableBufferSize);
+  int32_t local_rank_id = -1;
+  int32_t peer_rank_id = -1;
   std::string rank_table;
-  LLM_CHK_STATUS_RET(rank_table_generator->Generate(device_id_, rank_table), "Failed to generate rank table");
-  auto local_rank_id = rank_table_generator->GetLocalRankId();
-  LLM_CHK_BOOL_RET_STATUS(local_rank_id >= 0, ge::LLM_PARAM_INVALID,
-                         "Failed to get local rank id, please check rank table.");
-  auto peer_rank_id = rank_table_generator->GetPeerRankId();
+  LLM_CHK_STATUS_RET(GenerateRankInfo(peer_exchange_info.comm_res, rank_table, local_rank_id, peer_rank_id),
+                     "Failed to generate rank info");
   if (force_link) {
     LLM_CHK_STATUS_RET(comm_entity_manager_->DestroyEntity(peer_exchange_info.cluster_id),
                       "Failed to destroy previous entity, peer cluster id:%lu.",
@@ -309,9 +321,7 @@ ge::Status LinkMsgHandler::ExchangeInfoProcess(const LLMExchangeInfo &peer_excha
                                   peer_rank_id, cluster_id_, local_rank_id);
   LLM_CHECK_NOTNULL(entity);
   LLM_CHK_STATUS_RET(entity->Initialize(remote_cache_accessible_), "Failed to init entity");
-  ScopeGuard entity_guard([entity]() {
-    entity->Finalize();
-  });
+  ScopeGuard entity_guard([entity]() { entity->Finalize(); });
   EntityCommInfo::CommParams comm_params{};
   comm_params.rank_id = local_rank_id;
   comm_params.comm_config = comm_config_;
