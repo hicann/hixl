@@ -938,7 +938,7 @@ Status ChannelMsgHandler::ProcessServerEviction(const std::string& channel_id, C
     } 
     RequestDisconnectResp resp = pending_req->resp;
     pending_disconnect_requests_.erase(req_id);
-    LLMLOGI("Client refused or failed to disconnect channel %s, error_code=%u, error_message=%s", 
+    LLMLOGW("Client refused or failed to disconnect channel %s, error_code=%u, error_message=%s", 
       channel_id.c_str(), resp.error_code, resp.error_message.c_str());
     channel->SetDisconnecting(false);
     return SUCCESS;

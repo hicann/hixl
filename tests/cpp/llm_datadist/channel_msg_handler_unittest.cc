@@ -187,4 +187,62 @@ TEST_F(ChannelMsgHandlerUnitTest, ParseTcSlAcceptsValidBoundaryValues) {
   EXPECT_EQ(handler_->comm_config_.hcclRdmaTrafficClass, 252U);
   EXPECT_EQ(handler_->comm_config_.hcclRdmaServiceLevel, 7U);
 }
+
+// Test that ProcessServerEviction handles error response from client correctly
+// This covers the LLMLOGW line at channel_msg_handler.cc:941
+TEST_F(ChannelMsgHandlerUnitTest, ProcessServerEviction_WhenClientReturnsError_LogsWarning) {
+  // Create a mock channel that will return a valid fd
+  ChannelInfo channel_info{};
+  channel_info.channel_type = ChannelType::kServer;
+  channel_info.channel_id = kRemoteEngine;
+  auto channel = std::make_shared<Channel>(channel_info);
+
+  // Create a socket pair for communication
+  int socket_pair[2];
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, socket_pair), 0);
+  int fd = socket_pair[0];
+  int peer_fd = socket_pair[1];
+
+  // Set the fd on the channel (accessing private member)
+  channel->fd_ = fd;
+
+  // Pre-set the next_req_id to a known value
+  uint64_t req_id = 100;
+  handler_->next_req_id_.store(req_id, std::memory_order_relaxed);
+
+  // Create a thread that will simulate receiving a disconnect response with error
+  // This needs to happen AFTER ProcessServerEviction sends the request
+  std::thread response_thread([this, req_id]() {
+
+    // Now inject the response
+    std::lock_guard<std::mutex> lock(handler_->pending_req_mutex_);
+    auto it = handler_->pending_disconnect_requests_.find(req_id);
+    if (it != handler_->pending_disconnect_requests_.end()) {
+      it->second->received = true;
+      it->second->resp.req_id = req_id;
+      it->second->resp.channel_id = kRemoteEngine;
+      it->second->resp.can_disconnect = false;
+      it->second->resp.disconnected = false;
+      it->second->resp.error_code = 123;  // Error code to trigger LLMLOGW
+      it->second->resp.error_message = "Test error message";
+      it->second->cv.notify_one();
+    }
+  });
+
+  // Set disconnecting flag on channel
+  channel->SetDisconnecting(true);
+
+  // Call ProcessServerEviction which should hit the LLMLOGW line
+  Status result = handler_->ProcessServerEviction(kRemoteEngine, channel);
+
+  // Wait for the response thread to finish
+  response_thread.join();
+
+  // The function should return SUCCESS even when client returns error
+  EXPECT_EQ(result, SUCCESS);
+
+  // Cleanup
+  close(fd);
+  close(peer_fd);
+}
 }  // namespace adxl

@@ -277,7 +277,7 @@ Status ChannelManager::HandleRequestDisconnectMessage(const ChannelPtr &channel,
     } else {
       resp.error_code = static_cast<uint32_t>(ret);
       resp.error_message = "Disconnect failed";
-      LLMLOGI("Failed to disconnect channel %s by request, ret=%d", req_msg.channel_id.c_str(), ret);
+      LLMLOGW("Failed to disconnect channel %s by request, ret=%d", req_msg.channel_id.c_str(), ret);
     }
   } else if (!can_disconnect) {
     resp.error_code = static_cast<uint32_t>(FAILED);

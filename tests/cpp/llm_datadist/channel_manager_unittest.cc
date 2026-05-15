@@ -91,5 +91,41 @@ TEST_F(ChannelManagerUnitTest, HandleNotifyMessage_WhenStorageLimitExceeded_Retu
   EXPECT_EQ(manager_.HandleNotifyMessage(channel, CreateNotifyMsgStr(kMaxNotifyStorageSize)), FAILED);
   EXPECT_EQ(channel->notify_messages_.size(), kMaxNotifyStorageSize);
 }
+
+// Helper function to create RequestDisconnectMsg string
+std::string CreateRequestDisconnectMsgStr(uint64_t req_id, const std::string& channel_id, uint64_t timeout = 1000) {
+  RequestDisconnectMsg msg;
+  msg.req_id = req_id;
+  msg.channel_id = channel_id;
+  msg.timeout = timeout;
+  std::string serialized_str;
+  ControlMsgHandler::Serialize(msg, serialized_str);
+  return serialized_str;
+}
+
+TEST_F(ChannelManagerUnitTest, HandleRequestDisconnectMessage_WhenDisconnectCallbackFails_LogsWarning) {
+  // Set up a mock disconnect callback that returns failure
+  bool callback_invoked = false;
+  manager_.SetDisconnectCallback([&callback_invoked](const std::string& channel_id, int32_t timeout_ms) -> Status {
+    callback_invoked = true;
+    (void)channel_id;
+    (void)timeout_ms;
+    return FAILED;  // Return failure to trigger the LLMLOGW line
+  });
+
+  // Create a channel with zero transfer count so can_disconnect will be true
+  ChannelInfo channel_info{};
+  channel_info.channel_type = ChannelType::kServer;
+  channel_info.channel_id = kChannelId;
+  auto channel = std::make_shared<Channel>(channel_info);
+
+  // Verify transfer count is 0
+  EXPECT_EQ(channel->GetTransferCount(), 0);
+
+  // Create and handle the disconnect request message
+  std::string msg_str = CreateRequestDisconnectMsgStr(1U, kChannelId, 1000);
+  EXPECT_EQ(manager_.HandleRequestDisconnectMessage(channel, msg_str), SUCCESS);
+  EXPECT_TRUE(callback_invoked);
+}
 }  // namespace
 }  // namespace adxl
