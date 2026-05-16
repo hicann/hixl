@@ -53,18 +53,18 @@ static hixl::Status ToNumber(const std::string &num_str, T &value) {
     return hixl::SUCCESS;
 }
 
-template <typename T>
-std::string ToString(const std::vector<T> &v) {
+template <typename Container>
+std::string ToString(const Container &c) {
   bool first = true;
   std::stringstream ss;
   ss << "[";
-  for (const T &x : v) {
+  for (const auto &x : c) {
     if (first) {
       first = false;
-      ss << x;
     } else {
-      ss << ", " << x;
+      ss << ", ";
     }
+    ss << x;
   }
   ss << "]";
   return ss.str();

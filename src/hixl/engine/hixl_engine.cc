@@ -18,6 +18,7 @@
 #include "common/llm_utils.h"
 #include "common/scope_guard.h"
 #include "profiling/prof_api_reg.h"
+#include "acl/acl.h"
 
 namespace hixl {
 
@@ -45,9 +46,11 @@ Status HixlEngine::Initialize(const std::map<AscendString, AscendString> &option
   std::lock_guard<std::mutex> lock(mutex_);
   HIXL_CHK_STATUS_RET(CheckOptions(options), "[HixlEngine] Failed to check options");
   std::string local_comm_res;
-  HIXL_CHK_STATUS_RET(
-      EndpointGenerator::BuildEndpointListFromOptions(options, local_engine_, local_comm_res, endpoint_list_),
-      "[HixlEngine] Failed to build endpoint list from options");
+  Status ret = EndpointGenerator::BuildEndpointListFromOptions(
+      options, local_engine_, local_comm_res, endpoint_list_);
+
+  HIXL_CHK_STATUS_RET(ret, "[HixlEngine] Failed to build endpoint list from options");
+
   HIXL_CHK_STATUS_RET(ParseTrafficClass(options), "[HixlEngine] Failed to parse traffic class");
   HIXL_CHK_STATUS_RET(ParseServiceLevel(options), "[HixlEngine] Failed to parse service level");
   HIXL_CHK_STATUS_RET(InitServer(),
@@ -320,4 +323,5 @@ Status HixlEngine::ParseServiceLevel(const std::map<AscendString, AscendString> 
   }
   return SUCCESS;
 }
+
 }  // namespace hixl

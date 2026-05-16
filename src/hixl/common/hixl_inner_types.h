@@ -56,7 +56,7 @@ struct EndpointConfig {
   std::string plane;
   std::string dst_eid;
   std::string net_instance_id;
-  DeviceInfoConfig device_info;
+  DeviceInfoConfig device_info{};
 
   std::string ToString() const {
     std::ostringstream oss;

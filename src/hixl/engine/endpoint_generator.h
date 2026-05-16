@@ -35,7 +35,7 @@ class EndpointGenerator {
                                               std::vector<EndpointConfig> &endpoint_list);
 
  private:
-  enum class SocType { kV2, kV3, kOther };
+  enum class SocType { kV2, kV3, kV5, kOther };
 
   struct EndpointInfo {
     std::string protocol;
