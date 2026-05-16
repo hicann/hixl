@@ -156,12 +156,12 @@ class HixlCSClient {
   Status ImportRemoteMem(std::vector<HixlMemDesc> &desc_list, CommMem **remote_mem_list, char ***mem_tag_list,
                          uint32_t *list_num);
   Status ValidateAddress(bool is_get, const CommunicateMem &communicate_mem_param);
-  Status TransferWithRetry(bool is_get, uint64_t channel_handle, void *dst_buf, const void *src_buf, uint64_t len);
+  Status TransferWithRetry(bool is_get, uint64_t channel_handle, void *dst_buf, const void *src_buf, uint64_t len) const;
   Status BatchTransferTask(bool is_get, const CommunicateMem &communicate_mem_param);
   void FillOutputParams(ImportCtx &ctx, CommMem **remote_mem_list, char ***mem_tag_list, uint32_t *list_num);
   Status ClearRemoteMemInfo();
   Status ValidateDeviceInputs(bool is_get, const CommunicateMem &mem_param, void *&query_handle) const;
-  Status PrepareDeviceRemoteFlagAndKernel(void *&remote_flag);
+  Status PrepareDeviceRemoteFlagAndKernel(void *&remote_flag) const;
   Status PrepareDeviceBatchMemBuffers(const CommunicateMem &communicate_mem_param, MemDev &mem_dev) const;
   Status ResolveNotifyDeviceAddress(aclrtNotify notify, uint64_t &notify_addr, uint32_t &notify_len);
   Status RegisterNotifyMemForAllSlots(const std::vector<TransferPool::SlotHandle> &slots);
@@ -176,7 +176,7 @@ class HixlCSClient {
   void CleanupActiveSlot();
   Status PrepareDeviceTransferArgs(const CommunicateMem &communicate_mem, DeviceCompleteHandle &handle,
                                    void *&remote_flag);
-  Status AllocateHostFlag(void *&host_flag);
+  Status AllocateHostFlag(void *&host_flag) const;
 
   // 获取 context 切换 guard，用于对外接口的 context 管理
   std::unique_ptr<hixl::TemporaryRtContext> GetContextGuard() const;

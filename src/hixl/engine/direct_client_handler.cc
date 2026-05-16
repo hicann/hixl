@@ -65,7 +65,6 @@ Status DirectClientHandler::RegisterMem(const MemInfo &mem_info) {
 
 Status DirectClientHandler::TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation,
                                            TransferReq &req) {
-  std::lock_guard<std::mutex> lock(mutex_);
   uint32_t list_num = static_cast<uint32_t>(op_descs.size());
   std::vector<HixlOneSideOpDesc> hixl_descs(list_num);
   for (size_t i = 0; i < list_num; i++) {
@@ -74,10 +73,13 @@ Status DirectClientHandler::TransferAsync(const std::vector<TransferOpDesc> &op_
     hixl_descs[i].len = op_descs[i].len;
   }
   CompleteHandle complete_handle = nullptr;
-  if (operation == WRITE) {
-    HIXL_CHK_STATUS_RET(HixlCSClientBatchPutAsync(handle_, list_num, hixl_descs.data(), &complete_handle));
-  } else {
-    HIXL_CHK_STATUS_RET(HixlCSClientBatchGetAsync(handle_, list_num, hixl_descs.data(), &complete_handle));
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (operation == WRITE) {
+      HIXL_CHK_STATUS_RET(HixlCSClientBatchPutAsync(handle_, list_num, hixl_descs.data(), &complete_handle));
+    } else {
+      HIXL_CHK_STATUS_RET(HixlCSClientBatchGetAsync(handle_, list_num, hixl_descs.data(), &complete_handle));
+    }
   }
   req = static_cast<TransferReq>(complete_handle);
   std::lock_guard<std::mutex> ch_lock(complete_handles_mutex_);
@@ -131,11 +133,8 @@ Status DirectClientHandler::GetTransferStatus(const TransferReq &req, TransferSt
 }
 
 Status DirectClientHandler::Finalize() {
-  {
-    std::lock_guard<std::mutex> lock(complete_handles_mutex_);
-    complete_handles_.clear();
-  }
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock lock(mutex_, complete_handles_mutex_);
+  complete_handles_.clear();
   for (auto &mh : mem_handles_) {
     if (mh != nullptr) {
       HixlCSClientUnregMem(handle_, mh);

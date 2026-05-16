@@ -342,10 +342,12 @@ Status HixlCSClient::InitDeviceResource() {
   HIXL_CHK_ACL_RET(aclrtGetDevice(&device_id_), "[HixlClient] aclrtGetDevice failed");
   HIXL_LOGI("[HixlClient] device_id=%d", device_id_);
   hixl::TemporaryRtContext with_context(nullptr);  // 创建context会切换当前context, 因此需要在析构时恢复原用户context
-  Status pret = TransferPool::GetInstance(device_id_).Initialize(kDeviceTransferPoolSize);
+  auto *pool = TransferPool::GetInstance(device_id_);
+  HIXL_CHECK_NOTNULL(pool);
+  Status pret = pool->Initialize(kDeviceTransferPoolSize);
   HIXL_CHK_STATUS_RET(pret, "[HixlClient] TransferPool Initialize failed. devId=%d", device_id_);
   std::vector<TransferPool::SlotHandle> all_slots;
-  HIXL_CHK_STATUS_RET(TransferPool::GetInstance(device_id_).GetAllSlots(all_slots),
+  HIXL_CHK_STATUS_RET(pool->GetAllSlots(all_slots),
                       "[HixlClient] TransferPool GetAllSlots failed. devId=%d", device_id_);
 
   // 预先解析所有 slot 的 notify 地址，避免传输时重新获取
@@ -482,7 +484,7 @@ Status HixlCSClient::ValidateAddress(bool is_get, const CommunicateMem &communic
   return SUCCESS;
 }
 Status HixlCSClient::TransferWithRetry(bool is_get, uint64_t channel_handle, void *dst_buf, const void *src_buf,
-                                       uint64_t len) {
+                                       uint64_t len) const {
   constexpr int64_t kRetryTimeoutMs = 20 * 60 * 1000;  // 20 minutes in milliseconds
 
   auto start_time = std::chrono::steady_clock::now();
@@ -490,11 +492,9 @@ Status HixlCSClient::TransferWithRetry(bool is_get, uint64_t channel_handle, voi
 
   while (true) {
     if (is_get) {
-      hccl_ret = HcommProxy::ReadNbiOnThread(static_cast<ThreadHandle>(0), channel_handle, dst_buf,
-                                             const_cast<void *>(src_buf), len);
+      hccl_ret = HcommProxy::ReadNbiOnThread(static_cast<ThreadHandle>(0), channel_handle, dst_buf, src_buf, len);
     } else {
-      hccl_ret = HcommProxy::WriteNbiOnThread(static_cast<ThreadHandle>(0), channel_handle, dst_buf,
-                                              const_cast<void *>(src_buf), len);
+      hccl_ret = HcommProxy::WriteNbiOnThread(static_cast<ThreadHandle>(0), channel_handle, dst_buf, src_buf, len);
     }
 
     if (hccl_ret == HCCL_SUCCESS) {
@@ -678,7 +678,9 @@ Status HixlCSClient::AcquireSharedSlot(std::shared_ptr<TransferPool::SlotHandle>
 
   // No active slot - acquire new from pool
   TransferPool::SlotHandle new_slot{};
-  HIXL_CHK_STATUS_RET(TransferPool::GetInstance(device_id_).Acquire(&new_slot),
+  auto *pool = TransferPool::GetInstance(device_id_);
+  HIXL_CHECK_NOTNULL(pool);
+  HIXL_CHK_STATUS_RET(pool->Acquire(&new_slot),
                       "[HixlClient] Acquire slot from pool failed");
 
   active_slot_ = std::make_shared<TransferPool::SlotHandle>(new_slot);
@@ -700,7 +702,10 @@ void HixlCSClient::ReleaseSharedSlotRef(std::shared_ptr<TransferPool::SlotHandle
 
     // If active_slot_ has no more references, release it to pool
     if (active_slot_.use_count() == 0) {
-      TransferPool::GetInstance(active_slot_->device_id).Release(*active_slot_);
+      auto *rel_pool = TransferPool::GetInstance(active_slot_->device_id);
+      if (rel_pool != nullptr) {
+        rel_pool->Release(*active_slot_);
+      }
       HIXL_LOGI("[HixlClient] Released slot to pool. slot_index=%u", active_slot_->slot_index);
       active_slot_.reset();
     }
@@ -712,7 +717,10 @@ void HixlCSClient::ReleaseSharedSlotRef(std::shared_ptr<TransferPool::SlotHandle
 void HixlCSClient::CleanupActiveSlot() {
   std::lock_guard<std::mutex> lock(active_slot_mu_);
   if (active_slot_ != nullptr) {
-    TransferPool::GetInstance(active_slot_->device_id).Abort(*active_slot_);
+    auto *abort_pool = TransferPool::GetInstance(active_slot_->device_id);
+    if (abort_pool != nullptr) {
+      abort_pool->Abort(*active_slot_);
+    }
     HIXL_LOGI("[HixlClient] Aborted active slot. slot_index=%u", active_slot_->slot_index);
     active_slot_.reset();
   }
@@ -754,7 +762,7 @@ Status HixlCSClient::ValidateDeviceInputs(bool is_get, const CommunicateMem &mem
   return SUCCESS;
 }
 
-Status HixlCSClient::PrepareDeviceRemoteFlagAndKernel(void *&remote_flag) {
+Status HixlCSClient::PrepareDeviceRemoteFlagAndKernel(void *&remote_flag) const {
   HIXL_LOGI("[HixlClient] PrepareDeviceRemoteFlagAndKernel start");
   remote_flag = device_remote_flag_addr_;
   HIXL_CHECK_NOTNULL(remote_flag, "[HixlClient] remote_flag is nullptr");
@@ -802,7 +810,7 @@ Status HixlCSClient::FillDeviceArgs(const CommunicateMem &mem_param, MemDev &mem
   return SUCCESS;
 }
 
-Status HixlCSClient::AllocateHostFlag(void *&host_flag) {
+Status HixlCSClient::AllocateHostFlag(void *&host_flag) const {
   host_flag = nullptr;
   HIXL_CHK_ACL_RET(aclrtMallocHost(&host_flag, sizeof(uint64_t)), "[HixlClient] aclrtMallocHost host_flag failed");
   *(static_cast<uint64_t *>(host_flag)) = kDeviceFlagInitValue;
@@ -811,7 +819,11 @@ Status HixlCSClient::AllocateHostFlag(void *&host_flag) {
 
 std::unique_ptr<hixl::TemporaryRtContext> HixlCSClient::GetContextGuard() const {
   if (device_id_ >= 0) {
-    aclrtContext ctx = TransferPool::GetInstance(device_id_).GetContext();
+    auto *pool = TransferPool::GetInstance(device_id_);
+    if (pool == nullptr) {
+      return nullptr;
+    }
+    auto ctx = pool->GetContext();
     if (ctx != nullptr) {
       return MakeUnique<hixl::TemporaryRtContext>(ctx);
     }
@@ -963,7 +975,10 @@ Status HixlCSClient::BatchTransferDeviceSync(bool is_get, const CommunicateMem &
     HIXL_CHK_STATUS_RET(LaunchDeviceKernel(is_get, *handle, remote_flag), "LaunchDeviceKernel failed");
     const aclError sync_ret = aclrtSynchronizeStreamWithTimeout(handle->shared_slot->stream, timeout_ms);
     if (sync_ret != ACL_SUCCESS && handle->shared_slot != nullptr) {
-      TransferPool::GetInstance(handle->shared_slot->device_id).Abort(*handle->shared_slot);
+      auto *pool = TransferPool::GetInstance(handle->shared_slot->device_id);
+      if (pool != nullptr) {
+        pool->Abort(*handle->shared_slot);
+      }
     }
     HIXL_CHK_ACL_RET(sync_ret, "[HixlClient] aclrtSynchronizeStreamWithTimeout failed, kernel=%s, ret=0x%X",
                      is_get ? kDeviceFuncGet : kDeviceFuncPut, static_cast<uint32_t>(sync_ret));
@@ -1394,7 +1409,10 @@ void HixlCSClient::AbortAllPendingDeviceHandlesLocked() {
       continue;
     }
     if (h->shared_slot != nullptr) {
-      TransferPool::GetInstance(h->shared_slot->device_id).Abort(*h->shared_slot);
+      auto *pool = TransferPool::GetInstance(h->shared_slot->device_id);
+      if (pool != nullptr) {
+        pool->Abort(*h->shared_slot);
+      }
     }
     (void)ReleaseDevCompleteHandle(h);
   }
@@ -1456,7 +1474,10 @@ Status HixlCSClient::Destroy() {
   }
   // ctx_guard 已析构，TransferPool 放到最后销毁
   if (device_id_ >= 0) {
-    TransferPool::GetInstance(device_id_).Finalize();
+    auto *pool = TransferPool::GetInstance(device_id_);
+    if (pool != nullptr) {
+      pool->Finalize();
+    }
     device_id_ = -1;
   }
   HIXL_EVENT("[HixlClient] Destroy done. first_error=%u", static_cast<uint32_t>(first_error));

@@ -30,16 +30,21 @@ constexpr uint32_t kDefaultNotifyNumPerThread = 0U;
 
 namespace hixl {
 
-TransferPool &TransferPool::GetInstance(int32_t device_id) {
+TransferPool *TransferPool::GetInstance(int32_t device_id) {
   static std::mutex registry_mu;
   static std::unordered_map<int32_t, std::unique_ptr<TransferPool>> pools;
   std::lock_guard<std::mutex> reg_lock(registry_mu);
   auto it = pools.find(device_id);
-  if (it == pools.end()) {
-    auto inserted = pools.emplace(device_id, std::unique_ptr<TransferPool>(new TransferPool(device_id)));
-    it = inserted.first;
+  if (it != pools.end()) {
+    return it->second.get();
   }
-  return *it->second;
+  auto pool_ptr = MakeUnique<TransferPool>(device_id);
+  if (pool_ptr == nullptr) {
+    HIXL_LOGE(FAILED, "[TransferPool] MakeUnique failed, device_id=%d", device_id);
+    return nullptr;
+  }
+  const auto &inserted = pools.emplace(device_id, std::move(pool_ptr));
+  return inserted.first->second.get();
 }
 
 TransferPool::TransferPool(int32_t device_id)
@@ -233,7 +238,7 @@ void TransferPool::RollbackInitLocked(uint32_t failed_index) {
   free_list_.clear();
 }
 
-Status TransferPool::InitOneSlotLocked(Slot &slot, uint32_t slot_index) {
+Status TransferPool::InitOneSlotLocked(Slot &slot, uint32_t slot_index) const {
   (void)slot_index;
   HIXL_CHK_STATUS_RET(EnsureContextLocked(slot), "[TransferPool] EnsureContextLocked failed");
   HIXL_CHK_STATUS_RET(EnsureDefaultStreamLocked(slot), "[TransferPool] EnsureDefaultStreamLocked failed");

@@ -394,9 +394,17 @@ local_comm_res(local_comm_res)
 
 | 参数名称 | 数据类型 | 取值说明 |
 | --- | --- | --- |
-| local_comm_res | str | 配置本地通信资源信息，格式是json的字符串。仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。若未配置enable_cache_manager和enable_remote_cache_accessible参数，在配置了当前option后，这两个参数默认为True。
+| local_comm_res | str | 配置本地通信资源信息，格式是json的字符串。<br>- 不配置或配置为空串：将自动生成相关信息，使用集合通信的通信域方式进行建链，链路上限存在单卡512限制。<br>- 配置version为"1.0"或"1.2"的ranktable格式：使用集合通信的通信域方式进行建链，链路上限存在单卡512限制。仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。<br>- 配置version为"1.3"（推荐使用，需要HDK版本大于等于25.5.0且toolkit包版本大于等于9.1.0）：使用HixlCS能力进行建链，没有链路上限限制。通信资源配置字段说明请参考[HIXL接口文档](../cpp/HIXL接口.md#通信资源配置字段说明)。<br><br>若未配置enable_cache_manager和enable_remote_cache_accessible参数，在配置了当前option后，这两个参数默认为True。
 
-Atlas A2 训练系列产品/Atlas A2 推理系列产品场景下，仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见[《HCCL集合通信库用户指南》](https://www.hiascend.com/document/redirect/CannCommunityHcclUg)。配置示例如下。
+Atlas A2 训练系列产品/Atlas A2 推理系列产品场景下或者Atlas A3 训练系列产品/Atlas A3 推理系列产品场景下或者Ascend 950PR/Ascend 950DT场景下，配置version为"1.3"时，配置格式参考[gitcode](https://gitcode.com/cann/hixl/issues/38)，其中A2/A3仅配置version为"1.3"时，其他字段将自动生成；配置示例如下。
+
+```
+local_comm_res = '''{
+    "version": "1.3"
+}'''
+```
+
+Atlas A2 训练系列产品/Atlas A2 推理系列产品场景下，配置version为"1.0"时，仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见[《HCCL集合通信库用户指南》](https://www.hiascend.com/document/redirect/CannCommunityHcclUg)。配置示例如下。
 
 ```
 {
@@ -422,7 +430,7 @@ Atlas A2 训练系列产品/Atlas A2 推理系列产品场景下，仅需配置r
 local_comm_res = ""
 ```
 
-Atlas A3 训练系列产品/Atlas A3 推理系列产品场景下，仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见[《HCCL集合通信库用户指南》](https://www.hiascend.com/document/redirect/CannCommunityHcclUg)。配置示例如下。
+Atlas A3 训练系列产品/Atlas A3 推理系列产品场景下，配置version为"1.2"时，仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见[《HCCL集合通信库用户指南》](https://www.hiascend.com/document/redirect/CannCommunityHcclUg)。配置示例如下。
 
 ```
 {
@@ -437,8 +445,16 @@ Atlas A3 训练系列产品/Atlas A3 推理系列产品场景下，仅需配置r
             "server_id": "xxxx"
         }
     ],
+     "super_pod_list": [
+        {
+            "super_pod_id": "0",          // 超节点唯一标识
+            "server_list": [              // 超节点内的AI Server列表
+                {"server_id": "xxxx"}  // server_id为Server标识，与"server_list"中的server_id对应
+            ]
+        },
+    ]
     "status": "completed",
-    "version": "1.0"
+    "version": "1.2"
 }
 ```
 
@@ -456,19 +472,7 @@ Ascend 950PR/Ascend 950DT场景的配置格式参考[gitcode](https://gitcode.co
 from llm_datadist import LLMConfig
 llm_config = LLMConfig()
 llm_config.local_comm_res = '''{
-    "status": "completed",
-    "version": "1.0",
-    "server_list": [
-        {
-            "server_id": "node_0",
-            "device": [
-                {
-                    "device_id": "0",
-                    "device_ip": "x.x.x.x"
-                }
-            ]
-        }
-    ]
+    "version": "1.3"
 }'''
 ```
 

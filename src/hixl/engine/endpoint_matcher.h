@@ -49,7 +49,7 @@ class EndpointMatcher {
       HandlerCreateArgs::HandlerType &handler_type);
 
   // ---------- Type utility functions ----------
-  static CommType ParseCommType(const std::string &local_placement, const std::string &remote_placement);
+  static CommType ParseCommType(const std::string &local, const std::string &remote);
   static bool IsUbProtocol(const std::string &protocol);
   static bool IsDirectProtocol(const std::string &protocol);
   static const char *HandlerTypeToString(HandlerCreateArgs::HandlerType type);

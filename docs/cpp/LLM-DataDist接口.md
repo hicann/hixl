@@ -94,10 +94,10 @@ Status Initialize(const std::map<AscendString, AscendString> &options)
 | OPTION_LISTEN_IP_INFO | 可选 | 配置当前option表示LLM-DataDist是Server，不配置表示Client。<br>当LLM-DataDist是Server时，需配置Host侧的IP地址和端口。<br>配置示例：如"192.168.1.1:26000"，不支持传入多个IP地址和端口。 |
 | OPTION_DEVICE_ID | 必选 | 设置当前进程的Device ID，如"0"，不支持单进程多卡场景。 |
 | OPTION_SYNC_CACHE_WAIT_TIME | 可选 | kv相关操作的超时时间，单位：ms。不配置默认为1000ms。相关接口如下。<br><br>  - PullKvCache<br>  - PullKvBlocks<br>  - PushKvCache<br>  - PushKvBlocks |
-| OPTION_LOCAL_COMM_RES | 可选 | 配置本地通信资源信息，格式是json格式的字符串。配置方法如下：<br>仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。该option可以不配置或配置为空串，为空将自动生成相关信息。该方法适用于如下型号：<br><br>- Atlas A2 训练系列产品/Atlas A2 推理系列产品<br><br>- Atlas A3 训练系列产品/Atlas A3 推理系列产品<br><br>Ascend 950PR/Ascend 950DT场景下，配置格式参考[gitcode](https://gitcode.com/cann/hixl/issues/38)，同时需要使能OPTION_TRANSFER_BACKEND为hixl传输后端。该option必选，配置为空不会自动生成相关信息。 |
+| OPTION_LOCAL_COMM_RES | 可选 | 配置本地通信资源信息，格式是json格式的字符串。<br>- 不配置或配置为空串：将自动生成相关信息，使用集合通信的通信域方式进行建链，链路上限存在单卡512限制。该方法适用于如下型号：<br>  - Atlas A2 训练系列产品/Atlas A2 推理系列产品<br>  - Atlas A3 训练系列产品/Atlas A3 推理系列产品<br>- 配置version为"1.0"或"1.2"的ranktable格式：使用集合通信的通信域方式进行建链，链路上限存在单卡512限制。仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。该方法适用于如下型号：<br>  - Atlas A2 训练系列产品/Atlas A2 推理系列产品<br>  - Atlas A3 训练系列产品/Atlas A3 推理系列产品<br>- 配置version为"1.3"（推荐使用，需要HDK版本大于等于25.5.0且toolkit包版本大于等于9.1.0）：使用HixlCS能力进行建链，没有链路上限限制。配置格式参考HIXL接口.md的[通信资源配置字段说明](#通信资源配置字段说明)。<br><br>Ascend 950PR/Ascend 950DT场景下，配置格式参考HIXL接口.md[通信资源配置字段说明](#通信资源配置字段说明)，同时需要使能OPTION_TRANSFER_BACKEND为hixl传输后端。该option必选，配置为空不会自动生成相关信息。 |
 | OPTION_TRANSFER_BACKEND | 可选 | 配置LLM-DataDist使用的传输后端引擎，当前支持配置的后端为“hixl”。hixl传输后端使用方法如下：<br><br>- 初始化option需指定OPTION_LISTEN_IP_INFO：当配置使用hixl传输后端时，每个传输端既可作为client也可以作为server。<br><br>- 与对端发起传输前需要调用LinkLlmClusters发起建链。 |
 
-如上表格中ranktable具体信息请参见[《HCCL集合通信库用户指南》](https://www.hiascend.com/document/redirect/CannCommunityHcclUg)。
+如上表格中ranktable具体信息请参见[《HCCL集合通信库用户指南》](https://www.hiascend.com/document/redirect/CannCommunityHcclUg)。<br>OPTION_LOCAL_COMM_RES配置version为"1.3"时，通信资源配置字段说明请参考[HIXL接口文档](./HIXL接口.md#通信资源配置字段说明)。
 
 **调用示例**
 
@@ -233,9 +233,10 @@ Status LinkLlmClusters(const std::vector<ClusterInfo> &clusters, std::vector<Sta
 **约束说明**
 
 - 调用该接口前，需要先在Client和Server调用Initialize接口完成初始化。
-- 允许创建的最大通信数量=512，建链数量过多存在内存OOM及KV Cache传输的性能风险。该约束支持的型号如下：
+- 当OPTION_LOCAL_COMM_RES配置为空、version为"1.0"或"1.2"时，使用集合通信的通信域方式进行建链，允许创建的最大通信数量=512，建链数量过多存在内存OOM及KV Cache传输的性能风险。该约束支持的型号如下：
 <br>- Atlas A2 训练系列产品/Atlas A2 推理系列产品
 <br>- Atlas A3 训练系列产品/Atlas A3 推理系列产品
+- 当OPTION_LOCAL_COMM_RES配置version为"1.3"时（推荐使用，需要HDK版本大于等于25.5.0且toolkit包版本大于等于9.1.0），使用HixlCS能力进行建链，没有链路上限限制。
 - 建议超时时间配置为200ms以上。如果TLS处于开启状态，建议超时时间配置为2000ms以上。查询TLS状态可以使用如下命令：
 
     ```

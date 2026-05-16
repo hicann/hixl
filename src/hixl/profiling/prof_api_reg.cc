@@ -24,6 +24,7 @@ std::mutex g_prof_mutex;
 std::unordered_set<uint32_t> g_device_list;
 constexpr uint32_t kStartProfiling = 1U;
 constexpr uint32_t kStopProfiling = 2U;
+constexpr uint32_t kHixlModuleId = 12;
 
 const std::map<hixl::HixlProfType, std::string> kProfTypeToNames = {
   {hixl::HixlProfType::HixlOpBatchRead,                       "hixlOpBatchRead"},
@@ -150,7 +151,7 @@ aclError HixlProfCtrlHandle(uint32_t data_type, void *data, uint32_t data_len) {
 class HixlRegProfCallback {
 public:
   HixlRegProfCallback() {
-    const auto prof_ret = MsprofRegisterCallback(HIXL_MODULE_ID, &HixlProfCtrlHandle);
+    const auto prof_ret = MsprofRegisterCallback(kHixlModuleId, &HixlProfCtrlHandle);
     if (prof_ret != 0) {
       HIXL_LOGE(ACL_ERROR_PROFILING_FAILURE, "[Hixl Profiling] Can not register Callback, prof result = %d", prof_ret);
     }
