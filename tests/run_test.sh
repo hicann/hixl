@@ -13,6 +13,9 @@ set -e
 
 BASEPATH=$(cd "$(dirname $0)/.."; pwd)
 
+unset LD_LIBRARY_PATH
+unset LD_PRELOAD
+
 # print usage message
 usage() {
   echo "Usage:"
