@@ -34,8 +34,8 @@ from llm_datadist import *
 cache_keys = [CacheKey(1, req_id=1), CacheKey(1, req_id=2)]
 try:
     kv_cache_manager.pull_cache(cache_keys[0], cache, 0)
-except LLMException as exe:
-    print(exe.status_code)
+except LLMException as exc:
+    print(exc.status_code)
 ```
 
 ## 返回值

@@ -62,7 +62,7 @@ graph LR
 
 | 依赖项                              | 版本要求                                                                                                                 |
 | -------------------------------- |----------------------------------------------------------------------------------------------------------------------|
-| HDK                              | [25.5以上](https://support.huawei.com/enterprise/zh/undefined/ascend-hdk-pid-252764743/software)                       |
+| HDK                              | [25.5以上](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743/software)                |
 | LingQu Computing Network（灵衢计算网络） | [1.5.0以上](https://support.huawei.com/enterprise/zh/ascend-computing/lingqu-computing-network-pid-258003841/software) |
 | CANN                             | **9.0以上**                                                                                                            |
 

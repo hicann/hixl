@@ -154,7 +154,7 @@ for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
 
         - 执行client benchmark：
             ```
-            HCCL_INTRA_ROCE_ENABLE=1 /benchmark --role=client --device_id=0 --local_engine=10.10.10.0 --remote_engine=10.10.10.0:16000 --transfer_mode=d2d --transfer_op=write
+            HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=client --device_id=0 --local_engine=10.10.10.0 --remote_engine=10.10.10.0:16000 --transfer_mode=d2d --transfer_op=write
             ```
 
         - 执行server benchmark：

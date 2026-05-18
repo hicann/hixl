@@ -56,10 +56,10 @@ class CacheManager(object):
     def check_cache_key(cache_key: CacheKey) -> None:
         raise_if_true(is_invalid_id(cache_key.req_id) and is_invalid_id(cache_key.prefix_id),
                       f'one of req id and prefix id should contain valid value:[0, 2**64-1), '
-                      f'req id:{cache_key.req_id},prefix id{cache_key.prefix_id}.')
+                      f'req id:{cache_key.req_id},prefix id:{cache_key.prefix_id}.')
         raise_if_true(is_valid_id(cache_key.req_id) and is_valid_id(cache_key.prefix_id),
                       'only one of req id and prefix id should contain valid value:[0, 2**64-1), '
-                      f'req id:{cache_key.req_id}, prefix id{cache_key.prefix_id}.')
+                      f'req id:{cache_key.req_id}, prefix id:{cache_key.prefix_id}.')
 
     def allocate_blocks_cache(self,
                               cache_desc: CacheDesc,

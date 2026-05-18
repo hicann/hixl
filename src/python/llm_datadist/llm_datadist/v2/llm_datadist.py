@@ -49,7 +49,6 @@ class LLMDataDist(object):
         self._is_initialized = False
         self._engine_options: Dict[str, str] = {}
         self._enable_cache_mgr = False
-        self._enable_free_comm = False
         self._enable_local_comm_res = False
 
     def _check_flow_graph_max_size(self, options: Dict[str, str]) -> None:

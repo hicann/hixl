@@ -239,7 +239,7 @@ bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
 
 ## 安装
 
-将[编译执行](#编译执行)环节生成的run包进行安装。
+将[源码编译](#源码编译)环节生成的run包进行安装。
 - 说明，此处的安装路径（无论默认还是指定）需与前面安装toolkit包时的路径保持一致。
 ```bash
 # 如果需要指定安装路径则加上--install-path=${cann_install_path}
