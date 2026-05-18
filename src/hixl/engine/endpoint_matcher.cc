@@ -165,7 +165,11 @@ Status EndpointMatcher::MatchEndpoints(const std::vector<EndpointConfig> &local,
   uint32_t count = 0;
   std::map<MatchKey, EndpointConfig> peers;
   BuildMatchMap(remote, peers);
-  for (const auto &ep : local) {
+  // 对local排序，dst_eid不为空的元素排在dst_eid为空的元素前面
+  auto sorted_local = local;
+  std::sort(sorted_local.begin(), sorted_local.end(),
+            [](const EndpointConfig &a, const EndpointConfig &b) { return !a.dst_eid.empty() && b.dst_eid.empty(); });
+  for (const auto &ep : sorted_local) {
     HIXL_CHK_STATUS_RET(TryMatchUb(ep, peers, expected, count, matched_pairs));
     if (count == kMaxUbCsClientNum) {
       handler_type = HandlerCreateArgs::HandlerType::UB;

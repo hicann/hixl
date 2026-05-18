@@ -26,6 +26,7 @@
 #include "engine/ub_client_handler.h"
 #undef private
 #include "engine/endpoint_generator.h"
+#include "engine/endpoint_matcher.h"
 #include "common/hixl_inner_types.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "engine/test_mmpa_utils.h"
@@ -648,6 +649,29 @@ class HixlClientUTest : public ::testing::Test {
     ASSERT_EQ(table.at(type).size(), 1U);
     EXPECT_EQ(table.at(type)[0].local_addr, expected_addr);
   }
+
+  // EndpointMatcher helpers
+  static EndpointConfig MakeUbEp(const std::string &comm_id, const std::string &dst_eid,
+                                 const std::string &placement, const std::string &plane = "") {
+    EndpointConfig ep;
+    ep.protocol = "ub_ctp";
+    ep.comm_id = comm_id;
+    ep.dst_eid = dst_eid;
+    ep.plane = plane;
+    ep.placement = placement;
+    ep.net_instance_id = "superpod1-1";
+    return ep;
+  }
+
+  void MatchAndVerify(const std::vector<EndpointConfig> &local, const std::vector<EndpointConfig> &remote,
+                      size_t expected_pair_count, HandlerCreateArgs::HandlerType expected_type) {
+    std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
+    HandlerCreateArgs::HandlerType handler_type;
+    Status st = EndpointMatcher::MatchEndpoints(local, remote, matched_pairs, handler_type);
+    EXPECT_EQ(st, SUCCESS);
+    EXPECT_EQ(handler_type, expected_type);
+    ASSERT_EQ(matched_pairs.size(), expected_pair_count);
+  }
 };
 
 // Initialize 接口测试：正常场景 创建 ub 链路4条
@@ -1104,6 +1128,46 @@ TEST_F(HixlClientUTest, UbHandlerClassifyH2H) {
   handler.local_segments_.clear();
   handler.remote_segments_.clear();
   handler.handles_.clear();
+}
+
+// 排序优先级：dst_eid非空的local先于空的尝试匹配，防止通配endpoint占用特定endpoint的匹配槽位
+TEST_F(HixlClientUTest, EndpointMatcherDstEidPriorityTest) {
+  std::vector<EndpointConfig> remote = {MakeUbEp("remote_1", "eid_x", "device"),
+                                        MakeUbEp("remote_2", "", "device", "default")};
+  // 通配(L2)在前, 精确(L1)在后, 验证sort将其纠正为精确endpoint优先
+  std::vector<EndpointConfig> local = {MakeUbEp("wildcard", "", "device", "default"),
+                                       MakeUbEp("eid_x", "remote_1", "device")};
+
+  std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
+  HandlerCreateArgs::HandlerType handler_type;
+  Status st = EndpointMatcher::MatchEndpoints(local, remote, matched_pairs, handler_type);
+  EXPECT_EQ(st, SUCCESS);
+  EXPECT_EQ(handler_type, HandlerCreateArgs::HandlerType::UB);
+  // L1(dst_eid非空)匹配R1, D2D槽位被占用后L2无法再匹配; 若排序失效L2会先抢占导致L1落空
+  ASSERT_EQ(matched_pairs.size(), 1U);
+  EXPECT_EQ(matched_pairs[0].local.comm_id, "eid_x");
+  EXPECT_EQ(matched_pairs[0].local.dst_eid, "remote_1");
+  EXPECT_EQ(matched_pairs[0].remote.comm_id, "remote_1");
+  EXPECT_EQ(matched_pairs[0].remote.dst_eid, "eid_x");
+  EXPECT_EQ(matched_pairs[0].type, CommType::COMM_TYPE_UB_D2D);
+}
+
+// 所有local dst_eid为空时排序是no-op，匹配不受影响
+TEST_F(HixlClientUTest, EndpointMatcherAllDstEidEmptyTest) {
+  std::vector<EndpointConfig> remote = {MakeUbEp("remote_1", "", "device", "default"),
+                                        MakeUbEp("remote_2", "", "host", "default")};
+  std::vector<EndpointConfig> local = {MakeUbEp("local_1", "", "device", "default"),
+                                       MakeUbEp("local_2", "", "host", "default")};
+  MatchAndVerify(local, remote, 4U, HandlerCreateArgs::HandlerType::UB);
+}
+
+// 所有local dst_eid都非空时排序也不影响匹配结果
+TEST_F(HixlClientUTest, EndpointMatcherAllDstEidNonEmptyTest) {
+  std::vector<EndpointConfig> remote = {MakeUbEp("remote_1", "l1_eid", "device"),
+                                        MakeUbEp("remote_2", "l2_eid", "host")};
+  std::vector<EndpointConfig> local = {MakeUbEp("l1_eid", "remote_1", "device"),
+                                       MakeUbEp("l2_eid", "remote_2", "host")};
+  MatchAndVerify(local, remote, 2U, HandlerCreateArgs::HandlerType::UB);
 }
 
 }  // namespace hixl
