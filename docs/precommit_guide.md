@@ -7,6 +7,22 @@
 
 本指导书主要用于指导如何在本地使用代码仓中部署的pre-commit能力（主要包括代码格式化、单词拼写检查及OAT扫描能力），更多使用方式请参考 [pre-commit官方文档](https://pre-commit.com/)。
 
+### 1.1 GitCode 镜像仓库说明
+
+**重要**：由于国内网络环境，访问 GitHub 可能受限，CANN 社区已将常用的 pre-commit hooks 仓库镜像到 GitCode。
+
+**常用镜像仓库对照表**：
+
+| GitHub 原仓库 | GitCode 镜像仓库 | 说明 |
+|--------------|-----------------|------|
+| `https://github.com/pre-commit/pre-commit-hooks` | `https://gitcode.com/pre-commit/pre-commit-hooks` | 基础检查 hooks |
+| `https://github.com/pre-commit/mirrors-clang-format` | `https://gitcode.com/pre-commit-clang/mirrors-clang-format` | C++ 格式化 |
+| `https://github.com/astral-sh/ruff-pre-commit` | `https://gitcode.com/gh_mirrors/ru/ruff-pre-commit` | Python lint/format |
+| `https://github.com/codespell-project/codespell` | `https://gitcode.com/gh_mirrors/co/codespell` | 拼写检查 |
+| `https://github.com/crate-ci/typos` | `https://gitcode.com/gh_mirrors/ty/typos` | typos 检查 |
+
+**使用建议**：在国内开发时，推荐使用 GitCode 镜像仓库，避免网络访问问题。
+
 ## 2 功能概述
 
 1. 安装pre-commit后，git提交代码前会自动进行代码格式化处理、单词拼写扫描及触发OAT检查。

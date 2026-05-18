@@ -417,6 +417,28 @@ echo "  [OK] OAT JAR: $OAT_JAR"
 # --- 6. Run OAT scan in INCREMENTAL mode ---
 mkdir -p "$OAT_REPORT_DIR"
 
+# --- Ensure OAT output dirs are in .gitignore (after dirs are created) ---
+GITIGNORE_FILE="$REPO_ROOT/.gitignore"
+for _entry in "oat_reports" "log"; do
+    # Strip \r before grep to handle CRLF files (Windows)
+    if ! sed 's/\r//' "$GITIGNORE_FILE" 2>/dev/null | grep -qE "^${_entry}/?$"; then
+        # Use awk to safely append: ensures a leading newline if file doesn't end with one.
+        # This is fully POSIX-compatible and works on both Windows (Git Bash) and Linux.
+        awk -v entry="${_entry}/" '
+            BEGIN { needs_newline = 0 }
+            { last_line = $0; has_content = 1 }
+            END {
+                if (has_content && last_line !~ /^[[:space:]]*$/) {
+                    printf "\n"
+                }
+                printf "%s\n", entry
+            }
+        ' "$GITIGNORE_FILE" >> "$GITIGNORE_FILE" 2>/dev/null \
+        || printf "\n%s/\n" "$_entry" >> "$GITIGNORE_FILE"
+        echo "[OAT] 已将 ${_entry}/ 添加到 .gitignore"
+    fi
+done
+
 echo ""
 echo "[OAT] Running compliance scan..."
 java -jar "$OAT_JAR" \
