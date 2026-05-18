@@ -9,6 +9,7 @@
 - [Benchmark运行](#benchmark运行)
 - [FabricMem KV benchmark](#fabricmem-kv-benchmark)
   - [推荐：使用脚本启动并汇总日志](#推荐使用脚本启动并汇总日志)
+- [FabricMem MEM_HOST two-rank probe](#fabricmem-mem_host-two-rank-probe)
 - [性能数据](#性能数据)
 
 ## Benchmarks
@@ -23,6 +24,7 @@
 |   ├── benchmark.cpp                                  // HIXL的数据传输benchmark用例
 |   ├── fabric_mem_kv_benchmark.cpp                    // FabricMem KV 块传输 benchmark（AdxlEngine）
 |   ├── fabric_mem_kv_benchmark_summary.awk            // 与运行脚本配套的日志汇总脚本
+|   ├── fabric_mem_tcp_2rank.cpp                       // FabricMem MEM_HOST 两rank TCP协调探测用例
 |   ├── run_fabric_mem_kv_benchmark.sh                 // 多进程启动与日志合并脚本
 |   ├── CMakeLists.txt                                 // 编译脚本
 ```
@@ -183,6 +185,36 @@ ${path_of_benchmark}/run_fabric_mem_kv_benchmark.sh 127.0.0.1 22000 ./fabric_mem
 参数顺序：`host_ip` `base_port` `可执行文件路径` `[world_size]` `[合并日志文件]`。
 
 脚本行为：为每个 rank 落盘独立日志，再按 rank 顺序合并到指定文件，并在文末追加 **SUMMARY**（对各 rank 的 Get 时间与带宽做平均；rank 0 的 Put / Get-max 行从原始日志解析）。
+
+## FabricMem MEM_HOST two-rank probe
+
+`fabric_mem_tcp_2rank`用于在无法依赖共享文件系统做跨节点同步时，验证两rank之间的 FabricMem MEM_HOST 访问链路。两个rank通过TCP控制通道交换FabricMem host VA并做阶段同步；rank 0执行D2RH WRITE，rank 1执行RH2D READ。
+
+编译方式同本目录其他benchmark：
+
+```shell
+bash build.sh --examples
+```
+
+编译后可执行文件位于`build/benchmarks/fabric_mem_tcp_2rank`。启动参数如下：
+
+```shell
+./fabric_mem_tcp_2rank <rank> <device_id> <local_engine> <remote_engine> <rank0_ip> <control_port>
+```
+
+示例：
+
+```shell
+# rank 0，先启动，监听TCP控制端口
+./fabric_mem_tcp_2rank 0 0 192.168.1.10:16000 192.168.1.11:16000 192.168.1.10 23000
+
+# rank 1，连接rank 0的TCP控制端口
+./fabric_mem_tcp_2rank 1 0 192.168.1.11:16000 192.168.1.10:16000 192.168.1.10 23000
+```
+
+`FABRICMEM_SKIP_CLEANUP`默认不设置。该变量仅用于实验环境中排查用例结果已经打印、但进程在HIXL/ACL清理阶段退出异常的场景：设置后，程序只会在所有block完成传输、校验和结果输出后跳过清理并直接退出；失败路径仍会执行已初始化资源的清理。常规运行、稳定性测试和长时间benchmark不建议设置该变量。
+
+正确性校验为轻量级smoke check：rank 1在D2RH WRITE后校验远端写入的前4096字节，在RH2D READ后从device拷回host并校验前4096字节。该校验用于确认数据路径可用，不代表对整块传输数据做全量逐字节校验。
 
 ## 性能数据
 

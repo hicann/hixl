@@ -75,3 +75,32 @@ if(NOT TARGET fabric_mem_kv_benchmark)
     )
     target_link_ascend_hal(fabric_mem_kv_benchmark)
 endif()
+
+if(NOT TARGET fabric_mem_tcp_2rank)
+    add_executable(fabric_mem_tcp_2rank fabric_mem_tcp_2rank.cpp)
+    target_include_directories(fabric_mem_tcp_2rank PRIVATE
+        ${HIXL_INC_DIR}
+        ${HIXL_CODE_DIR}/src/llm_datadist
+        ${HIXL_CODE_DIR}/src/llm_datadist/adxl
+        ${HIXL_CODE_DIR}/src/llm_datadist/common
+        ${HIXL_CODE_DIR}/src/hixl
+        ${CANN_INSTALL_PATH}/include
+    )
+    target_compile_options(fabric_mem_tcp_2rank PRIVATE
+        -ftrapv
+        -O2
+        -fno-common
+        -Wfloat-equal
+        -Wall
+        -Werror
+        -Wextra
+    )
+    target_link_libraries(fabric_mem_tcp_2rank PRIVATE
+        llm_datadist
+        acl_rt_headers
+        acl_rt
+        -lpthread
+        -lrt
+    )
+    target_link_ascend_hal(fabric_mem_tcp_2rank)
+endif()
