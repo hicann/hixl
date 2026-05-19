@@ -461,12 +461,12 @@ Status LlmDataDist::LlmDataDistImpl::RegisterKvCache(const CacheDesc &cache_desc
   (void) cfg;
   LLM_CHK_BOOL_RET_STATUS((llm_data_dist_.IsInitialized()),
                          ge::FAILED, "LlmDataDist is not initialized");
-  LLM_CHK_BOOL_RET_STATUS(!addrs.empty(), LLM_PARAM_INVALID,  "addrs cann not be empty");
+  LLM_CHK_BOOL_RET_STATUS(!addrs.empty(), LLM_PARAM_INVALID,  "addrs cannot be empty");
   LLM_CHK_BOOL_RET_STATUS(addrs.size() == static_cast<size_t>(cache_desc.num_tensors), LLM_PARAM_INVALID,
                          "addrs length:%zu should be equal to num_tensors:%u",
                          addrs.size(), cache_desc.num_tensors);
   for (auto addr : addrs) {
-    LLM_CHK_BOOL_RET_STATUS(addr != 0UL, LLM_PARAM_INVALID,  "addr cann not be nullptr");
+    LLM_CHK_BOOL_RET_STATUS(addr != 0UL, LLM_PARAM_INVALID,  "addr cannot be nullptr");
   }
 
   llm::CacheDesc internal_cache_desc{};

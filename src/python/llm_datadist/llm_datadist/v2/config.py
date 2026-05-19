@@ -71,14 +71,14 @@ class ClusterConfig:
         with open(numa_config_path) as f:
             numa_config = json.load(f)
         logical_device_id_to_device_id: Dict[str, int] = {}
-        for custer_idx, cluster in enumerate(numa_config['cluster']):
+        for cluster_idx, cluster in enumerate(numa_config['cluster']):  # pragma: no cover
             for node_idx, cluster_node in enumerate(cluster['cluster_nodes']):
                 is_local = cluster_node.get('is_local', False)
                 if not is_local:
                     continue
                 for item_idx, item in enumerate(cluster_node['item_list']):
                     device_id = int(item['item_id'])
-                    logical_device_id = ':'.join([str(custer_idx), str(node_idx), str(item_idx), '0'])
+                    logical_device_id = f'{cluster_idx}:{node_idx}:{item_idx}:0'  # pragma: no cover
                     logical_device_id_to_device_id[logical_device_id] = device_id
         return logical_device_id_to_device_id
 

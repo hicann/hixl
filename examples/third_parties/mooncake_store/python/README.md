@@ -137,7 +137,7 @@ bash run.sh batch_put_get_sample.py --device_id=0 --schema="d2d"
 - **Dummy Client**：轻量级包装器，嵌入在应用进程中，通过 RPC 将所有操作转发给 Real Client
 - **通信机制**：Dummy Client 与 Real Client 通过 RPC 和共享内存通信，支持零拷贝数据传输
 
-> Dummy/Real Client详细介绍可以参考 [Mooncke Store Dummy Real Client 介绍文档](https://gitcode.com/cann/hixl/wiki/Mooncake%20Store%20Dummy-Real%20Client%20%E4%BB%8B%E7%BB%8D.md)
+> Dummy/Real Client详细介绍可以参考 [Mooncake Store Dummy Real Client 介绍文档](https://gitcode.com/cann/hixl/wiki/Mooncake%20Store%20Dummy-Real%20Client%20%E4%BB%8B%E7%BB%8D.md)
 
 #### 使用 Dummy Client 模式(单机实例)
 

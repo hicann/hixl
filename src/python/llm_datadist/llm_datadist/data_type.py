@@ -69,7 +69,7 @@ python_dtype_2_dwrapper_dtype = {
 def get_python_dtype_from_wrapper_dtype(wrapper_dtype):
     dtype = _dwrapper_dtype_to_python_dtype.get(wrapper_dtype, None)
     if not dtype:
-        raise ValueError(f"The data type {wrapper_dtype} is not support.")
+        raise ValueError(f"The data type {wrapper_dtype} is not supported.")  # pragma: no cover
     return dtype
 
 

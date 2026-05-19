@@ -57,7 +57,7 @@ class LLMDataDist(object):
             return
         check_isinstance('ge.flowGraphMemMaxSize', value, str)
         raise_if_false(len(value.split(",")) == 1, "ge.flowGraphMemMaxSize only support one mem pool in llm datadist")
-        raise_if_false(value.isdigit(), "e.ge.flowGraphMemMaxSize must be digit, config value={0}", value)
+        raise_if_false(value.isdigit(), "ge.flowGraphMemMaxSize must be digit, config value={0}", value)
 
 
     def init(self, options: Dict[str, str]) -> None:

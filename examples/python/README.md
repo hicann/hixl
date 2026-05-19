@@ -24,7 +24,7 @@
 |   ├── push_cache_sample.py
 |   ├── switch_role_sample.py
 |   ├── transfer_cache_async_sample.py
-|   ├── hixl_tranfer_backend_sample.py
+|   ├── hixl_transfer_backend_sample.py
 ```
 
 ## 环境准备
@@ -170,12 +170,12 @@ source ${HOME}/Ascend/cann/set_env.sh
     # Decoder主机:
     GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python transfer_cache_async_sample.py --device_id 1 --role d --local_host_ip 10.170.10.1 --remote_host_ip 10.170.10.0 --local_comm_res ‘{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}’
     ```
-- 执行hixl_tranfer_backend_sample样例程序，此样例程序使用hixl作为llm_datadist的传输后端，完成内存注册、建链和传输。样例申请内存并注册blocks, decoder发起建链并push blocks，prompt发起建链并pull blocks。
+- 执行hixl_transfer_backend_sample样例程序，此样例程序使用hixl作为llm_datadist的传输后端，完成内存注册、建链和传输。样例申请内存并注册blocks, decoder发起建链并push blocks，prompt发起建链并pull blocks。
   分别在Prompt主机与Decoder主机，执行样例程序，其中device_id为要使用的device_id，role为集群角色，local_host_ip为本地host的ip，remote_host_ip为对端host的ip：
     ```
     # Prompt主机:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python hixl_tranfer_backend_sample.py --device_id 0 --role p --local_host_ip 10.170.10.0 --remote_host_ip 10.170.10.1
+    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python hixl_transfer_backend_sample.py --device_id 0 --role p --local_host_ip 10.170.10.0 --remote_host_ip 10.170.10.1
     # Decoder主机:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python hixl_tranfer_backend_sample.py --device_id 1 --role d --local_host_ip 10.170.10.1 --remote_host_ip 10.170.10.0
+    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python hixl_transfer_backend_sample.py --device_id 1 --role d --local_host_ip 10.170.10.1 --remote_host_ip 10.170.10.0
     ```
 **注**：**GLOO_SOCKET_IFNAME**为本地网卡名，可通过ifconfig查询；**HCCL_INTRA_ROCE_ENABLE=1**代表使用roce方式进行通信；

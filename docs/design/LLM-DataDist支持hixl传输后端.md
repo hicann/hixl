@@ -311,7 +311,7 @@ sequenceDiagram
 
 python使用参考
 ```
-examples/python/hixl_tranfer_backend_sample.py
+examples/python/hixl_transfer_backend_sample.py
 ```
 
 ## 备注
