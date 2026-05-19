@@ -112,10 +112,11 @@ TEST_F(ChannelMsgHandlerUnitTest, SerializeConnectInfoWritesAdxlConnectInfo) {
   ASSERT_EQ(ChannelMsgHandler::Serialize(connect_info, serialized), SUCCESS);
 
   const auto json = nlohmann::json::parse(serialized);
-  ASSERT_EQ(json.size(), 4U);
+  ASSERT_EQ(json.size(), 5U);
   EXPECT_EQ(json.at("channel_id").get<std::string>(), kListenInfo);
   EXPECT_EQ(json.at("comm_res").get<std::string>(), kRemoteCommRes);
   EXPECT_EQ(json.at("timeout").get<int32_t>(), kTimeoutMs);
+  EXPECT_EQ(json.at("share_handles").size(), 0U);
   ASSERT_EQ(json.at("addrs").size(), 1U);
   EXPECT_EQ(json.at("addrs").at(0).at("mem_type").get<int32_t>(), static_cast<int32_t>(MEM_HOST));
   EXPECT_EQ(json.at("addrs").at(0).at("start_addr").get<uintptr_t>(), kRemoteAddrStart);

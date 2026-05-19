@@ -25,26 +25,27 @@ constexpr int32_t kNumaNodeStep = 2;
 std::mutex g_va_to_pa_mutex;
 std::unordered_map<uintptr_t, aclrtDrvMemHandle> g_va_to_pa_handle_map;
 
-void *ValueToPtr(uintptr_t value) {
-  return reinterpret_cast<void *>(value);
-}
-
-uintptr_t PtrToValue(const void *ptr) {
-  return reinterpret_cast<uintptr_t>(ptr);
+aclrtPhysicalMemProp BuildDefaultPhysicalMemProp() {
+  aclrtPhysicalMemProp prop = {};
+  prop.handleType = ACL_MEM_HANDLE_TYPE_NONE;
+  prop.allocationType = ACL_MEM_ALLOCATION_TYPE_PINNED;
+  prop.reserve = 0;
+  return prop;
 }
 }  // namespace
 
 Status FabricMemAllocator::MallocMem(MemType type, size_t size, void **ptr) {
-  HIXL_CHK_BOOL_RET_STATUS(type == MemType::MEM_HOST, PARAM_INVALID, "Only support malloc host fabric memory.");
+  HIXL_CHK_BOOL_RET_STATUS(type == MemType::MEM_HOST || type == MemType::MEM_DEVICE, PARAM_INVALID,
+                           "Only support malloc host or device fabric memory.");
   HIXL_CHK_BOOL_RET_STATUS(size > 0, PARAM_INVALID, "Fabric memory size should be greater than zero.");
   HIXL_CHECK_NOTNULL(ptr);
 
   aclrtDrvMemHandle pa_handle = nullptr;
   uintptr_t virtual_addr = 0;
-  HIXL_CHK_STATUS_RET(AllocatePhysicalMemory(size, pa_handle), "Failed to allocate physical memory.");
+  HIXL_CHK_STATUS_RET(AllocatePhysicalMemory(type, size, pa_handle), "Failed to allocate physical memory.");
   HIXL_CHK_STATUS_RET(VirtualMemoryManager::GetInstance().ReserveMemory(size, virtual_addr),
                       "Failed to reserve virtual memory.");
-  const auto va_ptr = ValueToPtr(virtual_addr);
+  const auto va_ptr = reinterpret_cast<void *>(virtual_addr);
   auto map_ret = aclrtMapMem(va_ptr, size, 0, pa_handle, 0);
   if (map_ret != ACL_ERROR_NONE) {
     (void)VirtualMemoryManager::GetInstance().ReleaseMemory(virtual_addr);
@@ -61,7 +62,7 @@ Status FabricMemAllocator::MallocMem(MemType type, size_t size, void **ptr) {
 
 Status FabricMemAllocator::FreeMem(void *ptr) {
   HIXL_CHK_BOOL_RET_STATUS(ptr != nullptr, PARAM_INVALID, "Fabric memory address cannot be nullptr.");
-  const auto va_addr = PtrToValue(ptr);
+  const auto va_addr = reinterpret_cast<uintptr_t>(ptr);
   aclrtDrvMemHandle pa_handle = nullptr;
   HIXL_CHK_STATUS_RET(GetPaHandleFromVa(va_addr, pa_handle), "Failed to get physical memory handle.");
 
@@ -73,20 +74,27 @@ Status FabricMemAllocator::FreeMem(void *ptr) {
   return SUCCESS;
 }
 
-Status FabricMemAllocator::AllocatePhysicalMemory(size_t total_size, aclrtDrvMemHandle &handle) {
+Status FabricMemAllocator::AllocatePhysicalMemory(MemType type, size_t total_size, aclrtDrvMemHandle &handle) {
+  HIXL_CHK_BOOL_RET_STATUS(type == MemType::MEM_HOST || type == MemType::MEM_DEVICE, PARAM_INVALID,
+                           "Invalid fabric memory type:%d.", static_cast<int32_t>(type));
   int32_t logic_device_id = 0;
   HIXL_CHK_ACL_RET(aclrtGetDevice(&logic_device_id), "Get current device failed.");
+  aclrtPhysicalMemProp prop = BuildDefaultPhysicalMemProp();
+  if (type == MemType::MEM_DEVICE) {
+    prop.memAttr = ACL_HBM_MEM_HUGE;
+    prop.location.type = ACL_MEM_LOCATION_TYPE_DEVICE;
+    prop.location.id = logic_device_id;
+    HIXL_CHK_ACL_RET(aclrtMallocPhysical(&handle, total_size, &prop, 0), "Allocate device physical memory failed.");
+    return SUCCESS;
+  }
+
   int32_t physical_device_id = 0;
   HIXL_CHK_ACL_RET(aclrtGetPhyDevIdByLogicDevId(logic_device_id, &physical_device_id),
                    "Get physical device id failed.");
 
-  aclrtPhysicalMemProp prop = {};
-  prop.handleType = ACL_MEM_HANDLE_TYPE_NONE;
-  prop.allocationType = ACL_MEM_ALLOCATION_TYPE_PINNED;
   prop.memAttr = ACL_MEM_P2P_HUGE1G;
   prop.location.type = ACL_MEM_LOCATION_TYPE_HOST_NUMA;
   prop.location.id = (physical_device_id / kDevicesPerChip) * kNumaNodeStep;
-  prop.reserve = 0;
   HIXL_LOGI("Malloc host memory for numa:%d.", prop.location.id);
   auto ret = aclrtMallocPhysical(&handle, total_size, &prop, 0);
   if (ret == ACL_ERROR_NONE) {

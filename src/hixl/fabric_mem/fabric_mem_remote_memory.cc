@@ -16,11 +16,6 @@
 #include "fabric_mem/virtual_memory_manager.h"
 
 namespace hixl {
-namespace {
-void *ValueToPtr(uintptr_t value) {
-  return reinterpret_cast<void *>(value);
-}
-}  // namespace
 
 FabricMemRemoteMemory::~FabricMemRemoteMemory() {
   Finalize();
@@ -49,7 +44,8 @@ Status FabricMemRemoteMemory::Import(const std::vector<ShareHandleInfo> &remote_
     HIXL_CHK_ACL_RET(
         aclrtMemImportFromShareableHandleV2(&share_handle, ACL_MEM_SHARE_HANDLE_TYPE_FABRIC, 0U, &remote_pa_handle),
         "Import remote fabric share handle failed.");
-    HIXL_CHK_ACL_RET(aclrtMapMem(ValueToPtr(remote_va_addr), remote_share_handle_info.len, 0, remote_pa_handle, 0),
+    HIXL_CHK_ACL_RET(
+        aclrtMapMem(reinterpret_cast<void *>(remote_va_addr), remote_share_handle_info.len, 0, remote_pa_handle, 0),
                      "Map remote imported memory failed.");
     remote_pa_handles_.emplace_back(remote_pa_handle);
     new_va_to_old_va_[remote_va_addr] = {remote_share_handle_info.va_addr, remote_share_handle_info.len};
@@ -70,7 +66,7 @@ void FabricMemRemoteMemory::Finalize() {
 void FabricMemRemoteMemory::ClearLocked() {
   for (const auto &it : new_va_to_old_va_) {
     HIXL_LOGI("Unmap remote fabric mem:%lu.", it.first);
-    HIXL_CHK_ACL(aclrtUnmapMem(ValueToPtr(it.first)), "Unmap remote fabric mem failed.");
+    HIXL_CHK_ACL(aclrtUnmapMem(reinterpret_cast<void *>(it.first)), "Unmap remote fabric mem failed.");
     (void)VirtualMemoryManager::GetInstance().ReleaseMemory(it.first);
   }
   new_va_to_old_va_.clear();

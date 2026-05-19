@@ -25,14 +25,6 @@ constexpr uint64_t kReserveFlagHugePage = 1UL;
 constexpr size_t kBytesPerTB = 1024UL * 1024UL * 1024UL * 1024UL;
 constexpr size_t kMinGlobalStartAddrTB = 40UL;
 constexpr size_t kMaxGlobalStartAddrTB = 220UL;
-
-void *ValueToPtr(uintptr_t value) {
-  return reinterpret_cast<void *>(value);
-}
-
-uintptr_t PtrToValue(const void *ptr) {
-  return reinterpret_cast<uintptr_t>(ptr);
-}
 }  // namespace
 
 VirtualMemoryManager &VirtualMemoryManager::GetInstance() {
@@ -76,7 +68,7 @@ Status VirtualMemoryManager::SetGlobalStartAddress(size_t start_addr_in_tb) {
 
 Status VirtualMemoryManager::ReserveMemAddress(void *&virtual_address, size_t size) {
   const uintptr_t start_va = (global_start_va_ != 0) ? global_start_va_ : kGlobalVirtualMemoryStartAddr;
-  void *global_start_va = ValueToPtr(start_va);
+  void *global_start_va = reinterpret_cast<void *>(start_va);
   if (&aclrtReserveMemAddressNoUCMemory != nullptr) {
     auto ret = aclrtReserveMemAddressNoUCMemory(&virtual_address, size, 0, global_start_va, kReserveFlagHugePage);
     if (ret == ACL_ERROR_NONE) {
@@ -109,7 +101,7 @@ Status VirtualMemoryManager::InitProcess() {
     num_blocks_ = kDefaultNumBlocks;
   }
   HIXL_CHK_STATUS_RET(ReserveMemAddress(global_virtual_memory_, vm_size_), "Failed to reserve global virtual memory.");
-  global_virtual_memory_addr_ = PtrToValue(global_virtual_memory_);
+  global_virtual_memory_addr_ = reinterpret_cast<uintptr_t>(global_virtual_memory_);
   bitmap_.assign(num_blocks_, false);
   allocations_.clear();
   initialized_ = true;

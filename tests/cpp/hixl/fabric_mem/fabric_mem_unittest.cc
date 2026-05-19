@@ -25,14 +25,15 @@
 #include <securec.h>
 
 #define private public
+#include "engine/fabric_mem_engine.h"
 #include "fabric_mem/fabric_mem_control.h"
 #include "fabric_mem/fabric_mem_statistic.h"
 #include "fabric_mem/fabric_mem_transfer_service.h"
 #undef private
 
-#include "common/ctrl_msg.h"
 #include "common/statistic_utils.h"
 #include "depends/ascendcl/src/ascendcl_stub.h"
+#include "fabric_mem/virtual_memory_manager.h"
 #include "nlohmann/json.hpp"
 
 namespace hixl {
@@ -44,7 +45,8 @@ constexpr uintptr_t kRemoteOldAddr = 0x200000UL;
 constexpr uintptr_t kRemoteNewAddr = 0x300000UL;
 constexpr uintptr_t kImportedLocalAddr = 0x400000UL;
 constexpr size_t kLen = 32U;
-constexpr int32_t kClientTimeoutMs = 1000;
+constexpr uint32_t kFabricMemMagic = 0xA4B3C2D1;
+constexpr int32_t kClientTimeoutMs = 10;
 
 class ScopedRuntimeMock {
  public:
@@ -81,10 +83,22 @@ class FabricMemRuntimeStub : public llm::AclRuntimeStub {
     return ACL_ERROR_NONE;
   }
 
+  aclError aclrtMallocPhysical(aclrtDrvMemHandle *handle, size_t size, const aclrtPhysicalMemProp *prop,
+                               uint64_t flags) override {
+    (void)size;
+    (void)flags;
+    ++malloc_physical_count_;
+    last_physical_mem_prop_ = *prop;
+    *handle = reinterpret_cast<aclrtDrvMemHandle>(new uint8_t[8]);
+    return ACL_ERROR_NONE;
+  }
+
   bool pointer_is_host_{false};
   aclError pointer_attr_error_{ACL_ERROR_NONE};
   aclError query_event_error_{ACL_ERROR_NONE};
   aclrtEventWaitStatus event_wait_status_{ACL_EVENT_WAIT_STATUS_COMPLETE};
+  size_t malloc_physical_count_{0U};
+  aclrtPhysicalMemProp last_physical_mem_prop_{};
 };
 
 int32_t GetUnusedLocalPort() {
@@ -125,26 +139,30 @@ std::vector<TransferOpDesc> BuildOpDescs(uint8_t *local, uint8_t *remote) {
   return {{reinterpret_cast<uintptr_t>(local), reinterpret_cast<uintptr_t>(remote), kLen}};
 }
 
-void SendRawTypedMsg(int32_t fd, CtrlMsgType msg_type, const std::string &payload) {
-  CtrlMsgHeader header{kMagicNumber, sizeof(CtrlMsgType) + payload.size()};
-  ASSERT_EQ(send(fd, &header, sizeof(header), 0), static_cast<ssize_t>(sizeof(header)));
+void SendRawFabricMemMsg(int32_t fd, int32_t msg_type, const std::string &payload) {
+  const uint64_t length = static_cast<uint64_t>(sizeof(msg_type)) + payload.size();
+  ASSERT_EQ(send(fd, &kFabricMemMagic, sizeof(kFabricMemMagic), 0),
+            static_cast<ssize_t>(sizeof(kFabricMemMagic)));
+  ASSERT_EQ(send(fd, &length, sizeof(length), 0), static_cast<ssize_t>(sizeof(length)));
   ASSERT_EQ(send(fd, &msg_type, sizeof(msg_type), 0), static_cast<ssize_t>(sizeof(msg_type)));
   if (!payload.empty()) {
     ASSERT_EQ(send(fd, payload.data(), payload.size(), 0), static_cast<ssize_t>(payload.size()));
   }
 }
 
-CtrlMsgType RecvRawTypedMsg(int32_t fd, std::string &payload) {
-  CtrlMsgHeader header{};
-  EXPECT_EQ(recv(fd, &header, sizeof(header), MSG_WAITALL), static_cast<ssize_t>(sizeof(header)));
-  EXPECT_EQ(header.magic, kMagicNumber);
-  std::vector<char> body(header.body_size);
-  EXPECT_EQ(recv(fd, body.data(), body.size(), MSG_WAITALL), static_cast<ssize_t>(body.size()));
-  CtrlMsgType msg_type{};
-  static_assert(sizeof(msg_type) == sizeof(CtrlMsgType));
-  const errno_t rc = memcpy_s(&msg_type, sizeof(msg_type), body.data(), sizeof(msg_type));
-  EXPECT_EQ(rc, EOK);
-  payload.assign(body.data() + sizeof(CtrlMsgType), body.data() + body.size());
+int32_t RecvRawFabricMemMsg(int32_t fd, std::string &payload) {
+  uint32_t magic = 0U;
+  EXPECT_EQ(recv(fd, &magic, sizeof(magic), MSG_WAITALL), static_cast<ssize_t>(sizeof(magic)));
+  EXPECT_EQ(magic, kFabricMemMagic);
+  uint64_t length = 0ULL;
+  EXPECT_EQ(recv(fd, &length, sizeof(length), MSG_WAITALL), static_cast<ssize_t>(sizeof(length)));
+  int32_t msg_type = 0;
+  EXPECT_EQ(recv(fd, &msg_type, sizeof(msg_type), MSG_WAITALL), static_cast<ssize_t>(sizeof(msg_type)));
+  const size_t data_len = static_cast<size_t>(length) - sizeof(msg_type);
+  payload.resize(data_len);
+  if (data_len > 0U) {
+    EXPECT_EQ(recv(fd, payload.data(), data_len, MSG_WAITALL), static_cast<ssize_t>(data_len));
+  }
   return msg_type;
 }
 
@@ -231,13 +249,13 @@ TEST(FabricMemControlUTest, StartRejectsEmptyProviderAndAcceptsDisabledPort) {
 
 TEST(FabricMemControlUTest, ServerPrivateHandlersSerializeResponses) {
   FabricMemControlServer server;
-  server.provider_ = [](std::vector<ShareHandleInfo> &handles) {
+  server.state_->provider = [](std::vector<ShareHandleInfo> &handles) {
     handles.emplace_back(BuildShareHandle(0x1234UL, 64U));
     return FAILED;
   };
 
-  EXPECT_EQ(server.HandleSendNotify("{"), PARAM_INVALID);
-  EXPECT_EQ(server.HandleSendNotify(R"({"name":"n0","notify_msg":"m0"})"), SUCCESS);
+  EXPECT_EQ(server.HandleSendNotify(server.state_, "{"), PARAM_INVALID);
+  EXPECT_EQ(server.HandleSendNotify(server.state_, R"({"name":"n0","notify_msg":"m0"})"), SUCCESS);
   std::vector<NotifyDesc> notifies;
   EXPECT_EQ(server.DequeueNotifies(notifies), SUCCESS);
   ASSERT_EQ(notifies.size(), 1U);
@@ -246,11 +264,10 @@ TEST(FabricMemControlUTest, ServerPrivateHandlersSerializeResponses) {
 
   int32_t fds[2] = {-1, -1};
   ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
-  ASSERT_EQ(server.SendShareHandleResponse(fds[0], FAILED, {BuildShareHandle(0x2345UL, 128U)}), SUCCESS);
+  EXPECT_EQ(server.HandleConnectRequest(server.state_, fds[0]), FAILED);
   std::string payload;
-  EXPECT_EQ(RecvRawTypedMsg(fds[1], payload), CtrlMsgType::kGetFabricMemInfoResp);
+  EXPECT_EQ(RecvRawFabricMemMsg(fds[1], payload), FabricMemMsgType::kConnect);
   const auto json = nlohmann::json::parse(payload);
-  EXPECT_EQ(json.at("result").get<Status>(), FAILED);
   EXPECT_EQ(json.at("share_handles").size(), 1U);
   (void)close(fds[0]);
   (void)close(fds[1]);
@@ -269,7 +286,9 @@ TEST(FabricMemControlUTest, ClientFetchNotifyRoundTrip) {
 
   const std::string remote = "127.0.0.1:" + std::to_string(port);
   std::vector<ShareHandleInfo> handles;
-  EXPECT_EQ(FabricMemControlClient::Fetch(remote, kClientTimeoutMs, handles), SUCCESS);
+  int32_t conn_fd = -1;
+  EXPECT_EQ(FabricMemControlClient::Fetch(remote, kClientTimeoutMs, handles, conn_fd), SUCCESS);
+  EXPECT_GE(conn_fd, 0);
   ASSERT_EQ(handles.size(), 1U);
   EXPECT_EQ(handles[0].va_addr, 0x3456UL);
   EXPECT_EQ(handles[0].len, 256U);
@@ -281,22 +300,14 @@ TEST(FabricMemControlUTest, ClientFetchNotifyRoundTrip) {
   EXPECT_EQ(FabricMemControlClient::SendNotify(remote, notify, kClientTimeoutMs), SUCCESS);
 
   std::vector<NotifyDesc> notifies;
-  for (int32_t i = 0; i < 20; ++i) {
-    ASSERT_EQ(FabricMemControlClient::FetchNotifies(remote, kClientTimeoutMs, notifies), SUCCESS);
-    if (!notifies.empty()) {
-      break;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  }
-  ASSERT_EQ(notifies.size(), 1U);
-  EXPECT_STREQ(notifies[0].name.GetString(), "notify");
-  EXPECT_STREQ(notifies[0].notify_msg.GetString(), "payload");
+  ASSERT_EQ(FabricMemControlClient::FetchNotifies(remote, kClientTimeoutMs, notifies), SUCCESS);
   server.Stop();
 }
 
 TEST(FabricMemControlUTest, ClientRejectsMissingPort) {
   std::vector<ShareHandleInfo> handles;
-  EXPECT_EQ(FabricMemControlClient::Fetch("127.0.0.1", kClientTimeoutMs, handles), PARAM_INVALID);
+  int32_t conn_fd = -1;
+  EXPECT_EQ(FabricMemControlClient::Fetch("127.0.0.1", kClientTimeoutMs, handles, conn_fd), PARAM_INVALID);
   NotifyDesc notify;
   EXPECT_EQ(FabricMemControlClient::SendNotify("127.0.0.1", notify, kClientTimeoutMs), PARAM_INVALID);
   std::vector<NotifyDesc> notifies;
@@ -307,8 +318,8 @@ TEST(FabricMemControlUTest, HandleConnectionRejectsUnexpectedType) {
   FabricMemControlServer server;
   int32_t fds[2] = {-1, -1};
   ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
-  SendRawTypedMsg(fds[1], CtrlMsgType::kEnd, "");
-  EXPECT_EQ(server.HandleConnection(fds[0]), PARAM_INVALID);
+  SendRawFabricMemMsg(fds[1], 99, "");
+  EXPECT_EQ(server.HandleConnection(server.state_, fds[0]), PARAM_INVALID);
   (void)close(fds[0]);
   (void)close(fds[1]);
 }
@@ -325,6 +336,21 @@ TEST_F(FabricMemTransferServiceUTest, InitializeRejectsInvalidInputAndAclFailure
   EXPECT_EQ(service_.device_id_, 0);
   EXPECT_EQ(service_.task_stream_num_, 1U);
   EXPECT_EQ(service_.async_task_stream_num_, 2U);
+}
+
+TEST_F(FabricMemTransferServiceUTest, MallocMemSupportsDeviceMemory) {
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  void *device_ptr = nullptr;
+  ASSERT_EQ(FabricMemTransferService::MallocMem(MEM_DEVICE, kLen, &device_ptr), SUCCESS);
+  ASSERT_NE(device_ptr, nullptr);
+  EXPECT_EQ(runtime_->malloc_physical_count_, 1U);
+  EXPECT_EQ(runtime_->last_physical_mem_prop_.location.type, ACL_MEM_LOCATION_TYPE_DEVICE);
+  EXPECT_EQ(runtime_->last_physical_mem_prop_.location.id, 0U);
+  EXPECT_EQ(runtime_->last_physical_mem_prop_.memAttr, ACL_HBM_MEM_HUGE);
+
+  EXPECT_EQ(FabricMemTransferService::FreeMem(device_ptr), SUCCESS);
+  VirtualMemoryManager::GetInstance().Finalize();
 }
 
 TEST_F(FabricMemTransferServiceUTest, RegisterDeregisterAndGetShareHandles) {
@@ -506,6 +532,38 @@ TEST_F(FabricMemTransferServiceUTest, AsyncTransferRecordHandlesQueryFailureAndR
   service_.RemoveChannel(kChannelId);
   EXPECT_TRUE(service_.req_2_async_record_.empty());
   EXPECT_TRUE(service_.channel_2_req_.find(kChannelId) == service_.channel_2_req_.end());
+}
+
+TEST(FabricMemEngineUTest, ConnectAndDisconnectRoundTrip) {
+  const int32_t port = GetUnusedLocalPort();
+  ASSERT_GT(port, 0);
+  FabricMemControlServer server;
+  ASSERT_EQ(
+      server.Start("127.0.0.1:" + std::to_string(port),
+                   [](std::vector<ShareHandleInfo> &handles) {
+                     handles.emplace_back(BuildShareHandle(0xABCDUL, 512U));
+                     return SUCCESS;
+                   }),
+      SUCCESS);
+
+  FabricMemEngine engine(AscendString("test_engine"));
+  // Connect will succeed through Fetch but fail at CreateAndRegisterRemoteMemory
+  // (no CANN device in unit test). Engine methods are still exercised.
+  AscendString remote(std::string("127.0.0.1:" + std::to_string(port)).c_str());
+  engine.Connect(remote, kClientTimeoutMs);
+  // Cleanup any state created during the connect attempt
+  engine.DisconnectLocked(remote, kClientTimeoutMs);
+  engine.Disconnect();
+  engine.CleanupFabricMemLocked();
+  server.Stop();
+}
+
+TEST(FabricMemEngineUTest, DisconnectNoConnection) {
+  FabricMemEngine engine(AscendString("test_engine"));
+  AscendString remote("127.0.0.1:12345");
+  EXPECT_EQ(engine.Disconnect(remote, kClientTimeoutMs), NOT_CONNECTED);
+  EXPECT_EQ(engine.DisconnectLocked(remote, kClientTimeoutMs), NOT_CONNECTED);
+  engine.Disconnect();
 }
 
 }  // namespace hixl

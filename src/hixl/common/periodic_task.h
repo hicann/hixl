@@ -15,6 +15,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <thread>
 
@@ -35,14 +36,18 @@ class PeriodicTask {
   bool IsRunning() const;
 
  private:
-  void Run();
+  struct State {
+    mutable std::mutex mutex;
+    std::condition_variable cv;
+    std::function<void()> task;
+    std::chrono::milliseconds interval{0};
+    std::atomic<bool> running{false};
+  };
 
-  mutable std::mutex mutex_;
-  std::condition_variable cv_;
-  std::function<void()> task_;
-  std::chrono::milliseconds interval_{0};
+  static void Run(std::shared_ptr<State> state);
+
+  std::shared_ptr<State> state_{std::make_shared<State>()};
   std::thread worker_;
-  std::atomic<bool> running_{false};
 };
 }  // namespace hixl
 

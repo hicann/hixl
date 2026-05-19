@@ -84,6 +84,7 @@ class FabricMemEngine : public hixl::Engine {
   std::unique_ptr<FabricMemTransferService> fabric_mem_transfer_service_;
   std::unique_ptr<FabricMemControlServer> fabric_mem_control_server_;
   std::unordered_map<std::string, std::unique_ptr<FabricMemRemoteMemory>> fabric_mem_remote_mems_;
+  std::unordered_map<std::string, int32_t> keepalive_fds_;
   std::unordered_map<void *, MemInfo> mem_map_;
   std::unordered_map<uint64_t, TransferInfo> req_map_;
   std::atomic<uint64_t> next_req_id_{1U};

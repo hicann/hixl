@@ -25,7 +25,7 @@ class FabricMemAllocator {
   static Status GetPaHandleFromVa(uintptr_t va_addr, aclrtDrvMemHandle &pa_handle);
   static void AddVaToPaMapping(uintptr_t va_addr, aclrtDrvMemHandle pa_handle);
   static void RemoveVaToPaMapping(uintptr_t va_addr);
-  static Status AllocatePhysicalMemory(size_t total_size, aclrtDrvMemHandle &handle);
+  static Status AllocatePhysicalMemory(MemType type, size_t total_size, aclrtDrvMemHandle &handle);
 };
 }  // namespace hixl
 

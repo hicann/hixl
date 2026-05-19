@@ -12,6 +12,7 @@
 
 #include <limits>
 #include <string>
+#include <unistd.h>
 #include <unordered_set>
 
 #include "acl/acl_rt.h"
@@ -187,8 +188,12 @@ Status FabricMemEngine::ConnectLocked(const AscendString &remote_engine, int32_t
   HIXL_CHK_BOOL_RET_STATUS(fabric_mem_remote_mems_.find(remote) == fabric_mem_remote_mems_.end(), ALREADY_CONNECTED,
                            "[FabricMemEngine] remote engine:%s is already connected.", remote.c_str());
   std::vector<ShareHandleInfo> share_handles;
-  HIXL_CHK_STATUS_RET(FabricMemControlClient::Fetch(remote, timeout_in_millis, share_handles),
+  int32_t keepalive_fd = -1;
+  HIXL_CHK_STATUS_RET(FabricMemControlClient::Fetch(remote, timeout_in_millis, share_handles, keepalive_fd),
                       "[FabricMemEngine] Failed to fetch share handles from remote:%s.", remote.c_str());
+  if (keepalive_fd >= 0) {
+    keepalive_fds_[remote] = keepalive_fd;
+  }
   return CreateAndRegisterRemoteMemory(share_handles, remote);
 }
 
@@ -215,11 +220,23 @@ Status FabricMemEngine::EnsureConnected(const AscendString &remote_engine, int32
     }
   }
   std::vector<ShareHandleInfo> share_handles;
-  HIXL_CHK_STATUS_RET(FabricMemControlClient::Fetch(remote, timeout_in_millis, share_handles),
+  int32_t keepalive_fd = -1;
+  Status ret = FabricMemControlClient::Fetch(remote, timeout_in_millis, share_handles, keepalive_fd);
+  HIXL_CHK_STATUS_RET(ret,
                       "[FabricMemEngine] Failed to fetch share handles from remote:%s.", remote.c_str());
   std::lock_guard<std::mutex> lock(mutex_);
   if (fabric_mem_remote_mems_.find(remote) != fabric_mem_remote_mems_.end()) {
+    if (keepalive_fd >= 0) {
+      (void)close(keepalive_fd);
+    }
     return SUCCESS;
+  }
+  if (keepalive_fd >= 0) {
+    auto [it, inserted] = keepalive_fds_.emplace(remote, keepalive_fd);
+    (void)it;
+    if (!inserted) {
+      (void)close(keepalive_fd);
+    }
   }
   if (fabric_mem_transfer_service_ == nullptr) {
     HIXL_LOGE(FAILED, "[FabricMemEngine] Service finalized during auto-connect, remote:%s.", remote.c_str());
@@ -245,6 +262,13 @@ Status FabricMemEngine::DisconnectLocked(const AscendString &remote_engine, int3
   }
   fabric_mem_statistic_.RemoveStatisticChannel(FabricMemStatistic::GetClientStatisticChannelId(remote));
   fabric_mem_remote_mems_.erase(it);
+  auto legacy_it = keepalive_fds_.find(remote);
+  if (legacy_it != keepalive_fds_.end()) {
+    if (legacy_it->second >= 0) {
+      (void)close(legacy_it->second);
+    }
+    keepalive_fds_.erase(legacy_it);
+  }
   return SUCCESS;
 }
 
@@ -257,6 +281,12 @@ void FabricMemEngine::Disconnect() {
     }
   }
   fabric_mem_remote_mems_.clear();
+  for (auto &item : keepalive_fds_) {
+    if (item.second >= 0) {
+      (void)close(item.second);
+    }
+  }
+  keepalive_fds_.clear();
 }
 
 Status FabricMemEngine::BuildTransferContextLocked(const std::string &remote_engine,
@@ -364,6 +394,12 @@ void FabricMemEngine::CleanupFabricMemLocked() {
     fabric_mem_control_server_.reset();
   }
   fabric_mem_remote_mems_.clear();
+  for (auto &item : keepalive_fds_) {
+    if (item.second >= 0) {
+      (void)close(item.second);
+    }
+  }
+  keepalive_fds_.clear();
   if (fabric_mem_transfer_service_ != nullptr) {
     fabric_mem_transfer_service_->Finalize();
     fabric_mem_transfer_service_.reset();

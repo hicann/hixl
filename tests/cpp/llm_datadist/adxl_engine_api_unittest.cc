@@ -1184,9 +1184,7 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineMallocMemAndFreeMem) {
 }
 
 TEST_F(AdxlEngineUTest, TestAdxlEngineMallocMemInvalidParam) {
-  void *fabric_ptr = nullptr;
-  EXPECT_EQ(AdxlEngine::MallocMem(MEM_DEVICE, sizeof(int32_t), &fabric_ptr), PARAM_INVALID);
-  EXPECT_EQ(fabric_ptr, nullptr);
+  EXPECT_EQ(AdxlEngine::MallocMem(MEM_HOST, sizeof(int32_t), nullptr), PARAM_INVALID);
 }
 
 }  // namespace adxl

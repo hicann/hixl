@@ -55,6 +55,7 @@ static void to_json(nlohmann::json &j, const ChannelConnectInfo &c) {
   j["comm_res"] = c.comm_res;
   j["timeout"] = c.timeout;
   j["addrs"] = c.addrs;
+  j["share_handles"] = nlohmann::json::array();
 }
 
 static void from_json(const nlohmann::json &j, ChannelStatus &c) {

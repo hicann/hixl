@@ -25,14 +25,6 @@ namespace {
 constexpr uint64_t kMillisToMicros = 1000UL;
 constexpr uint32_t kStreamWaitIntervalUs = 1000U;
 
-void *ValueToPtr(uintptr_t value) {
-  return reinterpret_cast<void *>(value);
-}
-
-uintptr_t PtrToValue(const void *ptr) {
-  return reinterpret_cast<uintptr_t>(ptr);
-}
-
 uint64_t GetTransferBytes(const std::vector<TransferOpDesc> &op_descs) {
   uint64_t total_bytes = 0UL;
   for (const auto &op_desc : op_descs) {
@@ -99,7 +91,7 @@ void FabricMemTransferService::Finalize() {
     for (auto &share_handle : share_handles_) {
       const auto &info = share_handle.second;
       if (info.imported_va != 0) {
-        HIXL_CHK_ACL(aclrtUnmapMem(ValueToPtr(info.imported_va)), "Unmap local host mapping failed.");
+        HIXL_CHK_ACL(aclrtUnmapMem(reinterpret_cast<void *>(info.imported_va)), "Unmap local host mapping failed.");
         (void)VirtualMemoryManager::GetInstance().ReleaseMemory(info.imported_va);
       }
       if (info.imported_handle != nullptr) {
@@ -118,7 +110,7 @@ Status FabricMemTransferService::RegisterMem(const MemDesc &mem, MemType type, M
   aclrtDrvMemHandle pa_handle = nullptr;
   bool is_retained = false;
   if (FabricMemAllocator::GetPaHandleFromVa(mem.addr, pa_handle) != SUCCESS) {
-    HIXL_CHK_ACL_RET(aclrtMemRetainAllocationHandle(ValueToPtr(mem.addr), &pa_handle),
+    HIXL_CHK_ACL_RET(aclrtMemRetainAllocationHandle(reinterpret_cast<void *>(mem.addr), &pa_handle),
                      "Retain allocation handle failed.");
     is_retained = true;
   }
@@ -131,7 +123,8 @@ Status FabricMemTransferService::RegisterMem(const MemDesc &mem, MemType type, M
           HIXL_CHK_ACL(aclrtFreePhysical(pa_handle), "Free retained handle after register failure failed.");
         }
         if (imported_va != 0) {
-          HIXL_CHK_ACL(aclrtUnmapMem(ValueToPtr(imported_va)), "Unmap local import after register failure failed.");
+          HIXL_CHK_ACL(aclrtUnmapMem(reinterpret_cast<void *>(imported_va)),
+                       "Unmap local import after register failure failed.");
           (void)VirtualMemoryManager::GetInstance().ReleaseMemory(imported_va);
         }
         if (imported_pa_handle != nullptr) {
@@ -149,7 +142,7 @@ Status FabricMemTransferService::RegisterMem(const MemDesc &mem, MemType type, M
     HIXL_CHK_ACL_RET(
         aclrtMemImportFromShareableHandleV2(&share_handle, ACL_MEM_SHARE_HANDLE_TYPE_FABRIC, 0U, &imported_pa_handle),
         "Import local host fabric share handle failed.");
-    HIXL_CHK_ACL_RET(aclrtMapMem(ValueToPtr(imported_va), mem.len, 0, imported_pa_handle, 0),
+    HIXL_CHK_ACL_RET(aclrtMapMem(reinterpret_cast<void *>(imported_va), mem.len, 0, imported_pa_handle, 0),
                      "Map local host fabric memory failed.");
   }
 
@@ -176,7 +169,7 @@ Status FabricMemTransferService::DeregisterMem(MemHandle mem_handle) {
   }
   const auto info = it->second;
   if (info.imported_va != 0) {
-    HIXL_CHK_ACL(aclrtUnmapMem(ValueToPtr(info.imported_va)), "Unmap local host mapping failed.");
+    HIXL_CHK_ACL(aclrtUnmapMem(reinterpret_cast<void *>(info.imported_va)), "Unmap local host mapping failed.");
     (void)VirtualMemoryManager::GetInstance().ReleaseMemory(info.imported_va);
   }
   if (info.imported_handle != nullptr) {
@@ -263,13 +256,13 @@ Status FabricMemTransferService::TransferAsync(const FabricMemTransferContext &c
                               GetTransferBytes(op_descs_copy), static_cast<uint64_t>(op_descs_copy.size()));
   HIXL_DISMISS_GUARD(fail_guard);
   HIXL_LOGI("Fabric mem async transfer submitted, channel:%s, req:%lu, cost:%lu us.", context.channel_id.c_str(),
-            PtrToValue(req), GetDurationUs(start, std::chrono::steady_clock::now()));
+            reinterpret_cast<uintptr_t>(req), GetDurationUs(start, std::chrono::steady_clock::now()));
   return SUCCESS;
 }
 
 Status FabricMemTransferService::GetTransferStatus(const FabricMemTransferContext &context, const TransferReq &req,
                                                    TransferStatus &status) {
-  const uint64_t req_id = PtrToValue(req);
+  const uint64_t req_id = reinterpret_cast<uintptr_t>(req);
   AsyncRecord async_record;
   {
     std::lock_guard<std::mutex> lock(async_req_mutex_);
@@ -331,7 +324,7 @@ void FabricMemTransferService::RegisterAsyncTransferRecord(const FabricMemTransf
                                                            const std::chrono::steady_clock::time_point &transfer_start,
                                                            const std::chrono::steady_clock::time_point &real_copy_start,
                                                            uint64_t transfer_bytes, uint64_t op_desc_count) {
-  const uint64_t req_id = PtrToValue(req);
+  const uint64_t req_id = reinterpret_cast<uintptr_t>(req);
   {
     std::lock_guard<std::mutex> lock(channel_2_req_mutex_);
     channel_2_req_[context.channel_id].emplace(req_id);
@@ -610,13 +603,15 @@ Status FabricMemTransferService::ProcessCopyWithAsync(const std::vector<aclrtStr
       stream_idx = 0U;
     }
     if (operation == TransferOp::WRITE) {
-      HIXL_CHK_ACL_RET(aclrtMemcpyAsync(ValueToPtr(op.remote_addr), op.len, ValueToPtr(op.local_addr), op.len,
+      HIXL_CHK_ACL_RET(aclrtMemcpyAsync(reinterpret_cast<void *>(op.remote_addr), op.len,
+                                        reinterpret_cast<void *>(op.local_addr), op.len,
                                         ACL_MEMCPY_DEVICE_TO_DEVICE, stream),
                        "Fabric mem write copy failed.");
       continue;
     }
     HIXL_CHK_BOOL_RET_STATUS(operation == TransferOp::READ, PARAM_INVALID, "Invalid fabric mem transfer operation.");
-    HIXL_CHK_ACL_RET(aclrtMemcpyAsync(ValueToPtr(op.local_addr), op.len, ValueToPtr(op.remote_addr), op.len,
+    HIXL_CHK_ACL_RET(aclrtMemcpyAsync(reinterpret_cast<void *>(op.local_addr), op.len,
+                                      reinterpret_cast<void *>(op.remote_addr), op.len,
                                       ACL_MEMCPY_DEVICE_TO_DEVICE, stream),
                      "Fabric mem read copy failed.");
   }
@@ -643,7 +638,7 @@ Status FabricMemTransferService::NeedTransLocalAddr(const std::vector<TransferOp
     return SUCCESS;
   }
   aclrtPtrAttributes attributes{};
-  HIXL_CHK_ACL_RET(aclrtPointerGetAttributes(ValueToPtr(op_descs[0].local_addr), &attributes),
+  HIXL_CHK_ACL_RET(aclrtPointerGetAttributes(reinterpret_cast<void *>(op_descs[0].local_addr), &attributes),
                    "Get local pointer attributes failed.");
   need_trans_local_addr = (attributes.location.type == ACL_MEM_LOCATION_TYPE_HOST);
   return SUCCESS;
