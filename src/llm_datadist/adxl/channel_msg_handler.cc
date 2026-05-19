@@ -16,7 +16,7 @@
 #include "common/msg_handler_plugin.h"
 #include "hccl/hccl_adapter.h"
 #include "common/llm_utils.h"
-#include "channel.h"
+#include "comm_channel.h"
 #include "common/llm_checker.h"
 #include "common/llm_scope_guard.h"
 #include "common/def_types.h"

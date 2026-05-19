@@ -24,7 +24,7 @@
 #include "engine/engine_factory.h"
 #include "engine/fabric_mem_engine.h"
 #include "engine/hixl_engine.h"
-#include "engine/adxl_engine.h"
+#include "engine/comm_engine.h"
 #include "dlog_pub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
@@ -151,7 +151,7 @@ TEST_F(AdxlEngineUTest, TestEngineFactoryFallbackToAdxlEngineWithoutLocalCommRes
 
   auto engine = hixl::EngineFactory::CreateEngine("127.0.0.1", options);
   ASSERT_NE(engine, nullptr);
-  EXPECT_NE(dynamic_cast<hixl::AdxlEngine *>(engine.get()), nullptr);
+  EXPECT_NE(dynamic_cast<hixl::CommEngine *>(engine.get()), nullptr);
   EXPECT_EQ(dynamic_cast<hixl::HixlEngine *>(engine.get()), nullptr);
 }
 
@@ -159,7 +159,7 @@ TEST_F(AdxlEngineUTest, TestEngineFactoryUseHixlEngineWithLocalCommRes) {
   auto engine = hixl::EngineFactory::CreateEngine("127.0.0.1", BuildHixlCsOptions("127.0.0.1"));
   ASSERT_NE(engine, nullptr);
   EXPECT_NE(dynamic_cast<hixl::HixlEngine *>(engine.get()), nullptr);
-  EXPECT_EQ(dynamic_cast<hixl::AdxlEngine *>(engine.get()), nullptr);
+  EXPECT_EQ(dynamic_cast<hixl::CommEngine *>(engine.get()), nullptr);
 }
 
 TEST_F(AdxlEngineUTest, TestEngineFactoryUseHixlEngineWhenUboeNotFirstInProtocolDesc) {
@@ -173,7 +173,7 @@ TEST_F(AdxlEngineUTest, TestEngineFactoryUseHixlEngineWhenUboeNotFirstInProtocol
   auto engine = hixl::EngineFactory::CreateEngine("127.0.0.1", options);
   ASSERT_NE(engine, nullptr);
   EXPECT_NE(dynamic_cast<hixl::HixlEngine *>(engine.get()), nullptr);
-  EXPECT_EQ(dynamic_cast<hixl::AdxlEngine *>(engine.get()), nullptr);
+  EXPECT_EQ(dynamic_cast<hixl::CommEngine *>(engine.get()), nullptr);
 }
 
 TEST_F(AdxlEngineUTest, TestEngineFactoryUseFabricMemEngineWhenFabricMemEnabled) {
@@ -183,7 +183,7 @@ TEST_F(AdxlEngineUTest, TestEngineFactoryUseFabricMemEngineWhenFabricMemEnabled)
   ASSERT_NE(engine, nullptr);
   EXPECT_NE(dynamic_cast<hixl::FabricMemEngine *>(engine.get()), nullptr);
   EXPECT_EQ(dynamic_cast<hixl::HixlEngine *>(engine.get()), nullptr);
-  EXPECT_EQ(dynamic_cast<hixl::AdxlEngine *>(engine.get()), nullptr);
+  EXPECT_EQ(dynamic_cast<hixl::CommEngine *>(engine.get()), nullptr);
 }
 
 TEST_F(AdxlEngineUTest, TestAdxlEngine) {
@@ -378,7 +378,7 @@ TEST_F(AdxlEngineUTest, TestDeregisterUnregisterMem) {
 
 TEST_F(AdxlEngineUTest, TestHeartbeat) {
   ChannelManager::SetHeartbeatWaitTime(10);  // 10ms
-  Channel::SetHeartbeatTimeout(50);          // 50ms
+  CommChannel::SetHeartbeatTimeout(50);          // 50ms
   AdxlEngine engine1;
   llm::AutoCommResRuntimeMock::SetDevice(0);
   std::map<AscendString, AscendString> options1;

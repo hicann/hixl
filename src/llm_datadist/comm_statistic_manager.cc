@@ -9,13 +9,13 @@
  */
 
 #include "common/llm_log.h"
-#include "statistic_manager.h"
+#include "comm_statistic_manager.h"
 namespace llm {
-StatisticManager &StatisticManager::GetInstance() {
-  static StatisticManager instance;
+CommStatisticManager &CommStatisticManager::GetInstance() {
+  static CommStatisticManager instance;
   return instance;
 }
-void StatisticManager::UpdateCost(const uint64_t cost, uint64_t &total_times, uint64_t &min_cost, uint64_t &max_cost,
+void CommStatisticManager::UpdateCost(const uint64_t cost, uint64_t &total_times, uint64_t &min_cost, uint64_t &max_cost,
                                   uint64_t &total_cost) {
   total_times++;
   total_cost += cost;
@@ -23,7 +23,7 @@ void StatisticManager::UpdateCost(const uint64_t cost, uint64_t &total_times, ui
   min_cost = (min_cost > cost) ? cost : min_cost;
 }
 
-void StatisticManager::UpdateCost(const uint64_t cost, std::atomic<uint64_t> &total_times,
+void CommStatisticManager::UpdateCost(const uint64_t cost, std::atomic<uint64_t> &total_times,
                                   std::atomic<uint64_t> &min_cost, std::atomic<uint64_t> &max_cost,
                                   std::atomic<uint64_t> &total_cost) {
   (void)total_times.fetch_add(1U);
@@ -36,68 +36,68 @@ void StatisticManager::UpdateCost(const uint64_t cost, std::atomic<uint64_t> &to
   }
 }
 
-void StatisticManager::AddExchangeMemCost(const uint64_t cost) {
+void CommStatisticManager::AddExchangeMemCost(const uint64_t cost) {
   UpdateCost(cost, link_statistic_info_.exchange_mem_times, link_statistic_info_.exchange_mem_min_cost,
              link_statistic_info_.exchange_mem_max_cost, link_statistic_info_.exchange_mem_total_cost);
 }
 
-void StatisticManager::AddCommInitCost(const uint64_t cost) {
+void CommStatisticManager::AddCommInitCost(const uint64_t cost) {
   UpdateCost(cost, link_statistic_info_.comm_init_times, link_statistic_info_.comm_init_min_cost,
              link_statistic_info_.comm_init_max_cost, link_statistic_info_.comm_init_total_cost);
 }
 
-void StatisticManager::AddCommDestroyCost(const uint64_t cost) {
+void CommStatisticManager::AddCommDestroyCost(const uint64_t cost) {
   UpdateCost(cost, link_statistic_info_.comm_destroy_times, link_statistic_info_.comm_destroy_min_cost,
              link_statistic_info_.comm_destroy_max_cost, link_statistic_info_.comm_destroy_total_cost);
 }
 
-void StatisticManager::AddRegisterGlobalMemTimes() {
+void CommStatisticManager::AddRegisterGlobalMemTimes() {
   link_statistic_info_.register_global_mem_times++;
 }
 
-void StatisticManager::AddDeregisterGlobalMemTimes() {
+void CommStatisticManager::AddDeregisterGlobalMemTimes() {
   link_statistic_info_.deregister_global_mem_times++;
 }
 
-void StatisticManager::AddCommBindMemTimes() {
+void CommStatisticManager::AddCommBindMemTimes() {
   link_statistic_info_.comm_bind_mem_times++;
 }
 
-void StatisticManager::AddCommUnbindMemTimes() {
+void CommStatisticManager::AddCommUnbindMemTimes() {
   link_statistic_info_.comm_unbind_mem_times++;
 }
 
-void StatisticManager::AddCommPrepareCost(const uint64_t cost) {
+void CommStatisticManager::AddCommPrepareCost(const uint64_t cost) {
   UpdateCost(cost, link_statistic_info_.comm_prepare_times, link_statistic_info_.comm_prepare_min_cost,
              link_statistic_info_.comm_prepare_max_cost, link_statistic_info_.comm_prepare_total_cost);
 }
 
-void StatisticManager::AddBatchPutCost(const uint64_t cost) {
+void CommStatisticManager::AddBatchPutCost(const uint64_t cost) {
   send_statistic_info_.batch_put_times++;
   send_statistic_info_.batch_put_total_cost += cost;
 }
 
-MemoryStatisticInfo &StatisticManager::GetMemoryStatisticInfo() {
+MemoryStatisticInfo &CommStatisticManager::GetMemoryStatisticInfo() {
   return memory_statistic_info_;
 }
-FuncStatisticInfo &StatisticManager::GetFuncStatisticInfo() {
+FuncStatisticInfo &CommStatisticManager::GetFuncStatisticInfo() {
   return func_statistic_info_;
 }
 
-void StatisticManager::Dump() const{
+void CommStatisticManager::Dump() const{
   DumpMemoryProfilingTrack();
   DumpFuncProfilingTrack();
   DumpLinkProfilingTrack();
   DumpUnLinkProfilingTrack();
 }
 
-void StatisticManager::DumpMemoryProfilingTrack() const {
+void CommStatisticManager::DumpMemoryProfilingTrack() const {
   LLMEVENT("Memory statistic info:alloc mem:%lu, free mem:%lu, alloc times:%lu, free times%:lu",
           memory_statistic_info_.alloc_mem, memory_statistic_info_.free_mem, memory_statistic_info_.alloc_times,
           memory_statistic_info_.free_times);
 }
 
-void StatisticManager::DumpFuncProfilingTrack() const {
+void CommStatisticManager::DumpFuncProfilingTrack() const {
   const uint64_t link_func_avg_cost =
       func_statistic_info_.link_func_times == 0U
           ? 0U
@@ -143,7 +143,7 @@ void StatisticManager::DumpFuncProfilingTrack() const {
       func_statistic_info_.transfer_func_min_cost.load(), transfer_func_avg_cost);
 }
 
-void StatisticManager::DumpLinkProfilingTrack() const {
+void CommStatisticManager::DumpLinkProfilingTrack() const {
   const uint64_t comm_init_avg_cost =
       link_statistic_info_.comm_init_times == 0U
           ? 0U
@@ -172,7 +172,7 @@ void StatisticManager::DumpLinkProfilingTrack() const {
       );
 }
 
-void StatisticManager::DumpUnLinkProfilingTrack() const {
+void CommStatisticManager::DumpUnLinkProfilingTrack() const {
   const uint64_t comm_destroy_avg_cost =
       link_statistic_info_.comm_destroy_times == 0U
           ? 0U
@@ -187,7 +187,7 @@ void StatisticManager::DumpUnLinkProfilingTrack() const {
       );
 }
 
-void StatisticManager::Reset() {
+void CommStatisticManager::Reset() {
   link_statistic_info_.Reset();
   send_statistic_info_.Reset();
   recv_statistic_info_.Reset();

@@ -46,7 +46,7 @@ file(GLOB HIXL_SRC_LIST
 
 file(GLOB ADXL_SRC_LIST
         "${HIXL_CODE_DIR}/src/llm_datadist/api/adxl_engine_impl.cc"
-        "${HIXL_CODE_DIR}/src/llm_datadist/statistic_manager.cc"
+        "${HIXL_CODE_DIR}/src/llm_datadist/comm_statistic_manager.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/llm_datadist_timer.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/adxl/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/common/*.cc"

@@ -156,7 +156,7 @@ TEST_F(ChannelMsgHandlerUnitTest, ProcessServerEviction_WhenClientReturnsError_L
   ChannelInfo channel_info{};
   channel_info.channel_type = ChannelType::kServer;
   channel_info.channel_id = kRemoteEngine;
-  auto channel = std::make_shared<Channel>(channel_info);
+  auto channel = std::make_shared<CommChannel>(channel_info);
 
   // Create a socket pair for communication
   int socket_pair[2];

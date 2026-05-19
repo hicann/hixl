@@ -28,7 +28,7 @@ class ChannelManagerUnitTest : public ::testing::Test {
     ChannelInfo channel_info{};
     channel_info.channel_type = ChannelType::kServer;
     channel_info.channel_id = kChannelId;
-    auto channel = std::make_shared<Channel>(channel_info);
+    auto channel = std::make_shared<CommChannel>(channel_info);
     ProtocolHeader header{magic, body_size};
     channel->recv_buffer_.resize(sizeof(header));
     memcpy_s(channel->recv_buffer_.data(), sizeof(header), &header, sizeof(header));
@@ -79,7 +79,7 @@ TEST_F(ChannelManagerUnitTest, HandleNotifyMessage_WhenStorageLimitExceeded_Retu
   ChannelInfo channel_info{};
   channel_info.channel_type = ChannelType::kServer;
   channel_info.channel_id = kChannelId;
-  auto channel = std::make_shared<Channel>(channel_info);
+  auto channel = std::make_shared<CommChannel>(channel_info);
 
   // Fill notify messages to reach limit
   for (size_t i = 0; i < kMaxNotifyStorageSize; ++i) {
@@ -117,7 +117,7 @@ TEST_F(ChannelManagerUnitTest, HandleRequestDisconnectMessage_WhenDisconnectCall
   ChannelInfo channel_info{};
   channel_info.channel_type = ChannelType::kServer;
   channel_info.channel_id = kChannelId;
-  auto channel = std::make_shared<Channel>(channel_info);
+  auto channel = std::make_shared<CommChannel>(channel_info);
 
   // Verify transfer count is 0
   EXPECT_EQ(channel->GetTransferCount(), 0);

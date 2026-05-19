@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "channel.h"
+#include "comm_channel.h"
 #include <mutex>
 #include <fcntl.h>
 #include <unistd.h>
@@ -36,9 +36,9 @@ uint64_t GetDurationUs(const std::chrono::steady_clock::time_point &start,
 }
 }  // namespace
 
-int64_t Channel::timeout_in_millis_ = kHeartbeatTimeoutInMillis;
+int64_t CommChannel::timeout_in_millis_ = kHeartbeatTimeoutInMillis;
 
-Status Channel::Initialize() {
+Status CommChannel::Initialize() {
   const auto hccl_start = std::chrono::steady_clock::now();
   ADXL_CHK_STATUS_RET(InitializeHcclComm(), "Failed to initialize hccl comm");
 
@@ -55,16 +55,16 @@ Status Channel::Initialize() {
   return SUCCESS;
 }
 
-std::string Channel::GetChannelId() const {
+std::string CommChannel::GetChannelId() const {
   return channel_info_.channel_id;
 }
 
-std::string Channel::GetStatisticChannelId() const {
+std::string CommChannel::GetStatisticChannelId() const {
   return StatisticManager::GetStatisticChannelId(channel_info_.channel_id,
                                                  channel_info_.channel_type == ChannelType::kClient);
 }
 
-Status Channel::InitializeHcclComm() {
+Status CommChannel::InitializeHcclComm() {
   LLMLOGI("HcclCommInitClusterInfoMemConfig begin, comm_name=%s, local rank_id=%u, rank_table=%s",
           channel_info_.comm_config.hcclCommName, channel_info_.local_rank_id, channel_info_.rank_table.c_str());
   std::lock_guard<std::mutex> lock(g_mutex_);
@@ -78,7 +78,7 @@ Status Channel::InitializeHcclComm() {
   return SUCCESS;
 }
 
-Status Channel::BindRegisteredMemory(std::vector<void *> &bind_handles) {
+Status CommChannel::BindRegisteredMemory(std::vector<void *> &bind_handles) {
   const auto start = std::chrono::steady_clock::now();
   for (const auto &reg_handle_it : channel_info_.registered_mems) {
     auto reg_handle = reg_handle_it.first;
@@ -91,7 +91,7 @@ Status Channel::BindRegisteredMemory(std::vector<void *> &bind_handles) {
   return SUCCESS;
 }
 
-Status Channel::PrepareHcclComm(const std::chrono::steady_clock::time_point &hccl_start) {
+Status CommChannel::PrepareHcclComm(const std::chrono::steady_clock::time_point &hccl_start) {
   const auto start = std::chrono::steady_clock::now();
   HcclPrepareConfig prepareConfig{};
   ADXL_CHK_HCCL_RET(
@@ -104,14 +104,14 @@ Status Channel::PrepareHcclComm(const std::chrono::steady_clock::time_point &hcc
   return SUCCESS;
 }
 
-void Channel::ClearNotifyMessages() {
+void CommChannel::ClearNotifyMessages() {
   {
     std::lock_guard<std::mutex> notify_lock(notify_message_mutex_);
     notify_messages_.clear();
   }
 }
 
-Status Channel::Finalize() {
+Status CommChannel::Finalize() {
   finalized_.store(true, std::memory_order_release);
   ADXL_CHK_STATUS_RET(ClearResources(), "Failed to clear channel resources.");
 
@@ -130,7 +130,7 @@ Status Channel::Finalize() {
   return SUCCESS;
 }
 
-Status Channel::ClearResources() {
+Status CommChannel::ClearResources() {
   std::lock_guard<std::mutex> lock(transfer_mutex_);
   auto ret = SUCCESS;
   for (const auto &reg_handle_it : channel_info_.registered_mems) {
@@ -167,11 +167,11 @@ Status Channel::ClearResources() {
   return ret;
 }
 
-void Channel::SetStreamPool(StreamPool *stream_pool) {
+void CommChannel::SetStreamPool(StreamPool *stream_pool) {
   stream_pool_ = stream_pool;
 }
 
-Status Channel::TransferAsync(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
+Status CommChannel::TransferAsync(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
                               const TransferArgs &optional_args, TransferReq &req) {
   (void)optional_args;
   aclrtStream stream = nullptr;
@@ -200,7 +200,7 @@ Status Channel::TransferAsync(TransferOp operation, const std::vector<TransferOp
   return SUCCESS;
 }
 
-Status Channel::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
+Status CommChannel::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
   std::lock_guard<std::mutex> lock(transfer_reqs_mutex_);
   auto id = reinterpret_cast<uint64_t>(req);
   auto it = req_2_async_record_.find(id);
@@ -251,7 +251,7 @@ Status Channel::GetTransferStatus(const TransferReq &req, TransferStatus &status
   return SUCCESS;
 }
 
-Status Channel::TransferAsync(TransferOp operation, const std::vector<TransferOpDesc> &op_descs, aclrtStream stream) {
+Status CommChannel::TransferAsync(TransferOp operation, const std::vector<TransferOpDesc> &op_descs, aclrtStream stream) {
   ADXL_CHK_BOOL_RET_STATUS(channel_info_.comm != nullptr, FAILED,
                            "Channel comm is null, channel may have been finalized, channel_id:%s.",
                            channel_info_.channel_id.c_str());
@@ -273,7 +273,7 @@ Status Channel::TransferAsync(TransferOp operation, const std::vector<TransferOp
   return SUCCESS;
 }
 
-Status Channel::TransferAsyncWithTimeout(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
+Status CommChannel::TransferAsyncWithTimeout(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
                                          aclrtStream stream, uint64_t timeout) {
   ADXL_CHK_BOOL_RET_STATUS(channel_info_.comm != nullptr, FAILED,
                            "Channel comm is null, channel may have been finalized, channel_id:%s.",
@@ -309,7 +309,7 @@ Status Channel::TransferAsyncWithTimeout(TransferOp operation, const std::vector
   return SUCCESS;
 }
 
-Status Channel::TransferSync(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
+Status CommChannel::TransferSync(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
                              int32_t timeout_in_millis) {
   const auto start = std::chrono::steady_clock::now();
   aclrtStream stream = nullptr;
@@ -333,7 +333,7 @@ Status Channel::TransferSync(TransferOp operation, const std::vector<TransferOpD
   return SUCCESS;
 }
 
-Status Channel::SetSocketNonBlocking(int32_t fd) {
+Status CommChannel::SetSocketNonBlocking(int32_t fd) {
   std::lock_guard<std::mutex> lock(mutex_);
   int flags = fcntl(fd, F_GETFL, 0);
   ADXL_CHK_BOOL_RET_STATUS(flags != -1, FAILED, "Failed to get fd flags: %s", strerror(errno));
@@ -347,13 +347,13 @@ Status Channel::SetSocketNonBlocking(int32_t fd) {
   return SUCCESS;
 }
 
-void Channel::StopHeartbeat() {
+void CommChannel::StopHeartbeat() {
   std::lock_guard<std::mutex> lock(mutex_);
   with_heartbeat_.store(false, std::memory_order_release);
   disconnect_flag_.store(true, std::memory_order_release);
 }
 
-Status Channel::CommWithFd(const std::function<Status(int32_t)> &func) {
+Status CommChannel::CommWithFd(const std::function<Status(int32_t)> &func) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (fd_ < 0) {
     return FAILED;
@@ -361,26 +361,26 @@ Status Channel::CommWithFd(const std::function<Status(int32_t)> &func) {
   return func(fd_);
 }
 
-Status Channel::SendControlMsg(const std::function<Status(int32_t)> &func) {
+Status CommChannel::SendControlMsg(const std::function<Status(int32_t)> &func) {
   return CommWithFd(func);
 }
 
-Status Channel::SendHeartBeat(const std::function<Status(int32_t)> &func) {
+Status CommChannel::SendHeartBeat(const std::function<Status(int32_t)> &func) {
   if (with_heartbeat_.load(std::memory_order_acquire)) {
     return CommWithFd(func);
   }
   return SUCCESS;
 }
 
-void Channel::SetHeartbeatTimeout(int64_t timeout_in_millis) {
+void CommChannel::SetHeartbeatTimeout(int64_t timeout_in_millis) {
   timeout_in_millis_ = timeout_in_millis;
 }
 
-void Channel::UpdateHeartbeatTime() {
+void CommChannel::UpdateHeartbeatTime() {
   last_heartbeat_time_ = std::chrono::steady_clock::now();
 }
 
-bool Channel::IsHeartbeatTimeout() const {
+bool CommChannel::IsHeartbeatTimeout() const {
   if (with_heartbeat_.load(std::memory_order_acquire)) {
     auto now = std::chrono::steady_clock::now();
     const auto cost = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_heartbeat_time_).count();
@@ -392,15 +392,15 @@ bool Channel::IsHeartbeatTimeout() const {
   return false;
 }
 
-StreamPool *Channel::GetStreamPool() {
+StreamPool *CommChannel::GetStreamPool() {
   return stream_pool_;
 }
 
-std::mutex &Channel::GetTransferMutex() {
+std::mutex &CommChannel::GetTransferMutex() {
   return transfer_mutex_;
 }
 
-void Channel::GetNotifyMessages(std::vector<NotifyDesc> &notifies) {
+void CommChannel::GetNotifyMessages(std::vector<NotifyDesc> &notifies) {
   std::lock_guard<std::mutex> lock(notify_message_mutex_);
   for (auto &notify_msg : notify_messages_) {
     NotifyDesc notify;

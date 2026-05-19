@@ -218,7 +218,7 @@ TEST_F(HixlUTest, TestDeregisterUnregisterMem) {
 
 TEST_F(HixlUTest, TestHeartbeat) {
   adxl::ChannelManager::SetHeartbeatWaitTime(10);  // 10ms
-  adxl::Channel::SetHeartbeatTimeout(50);  // 50ms
+  adxl::CommChannel::SetHeartbeatTimeout(50);  // 50ms
   Hixl engine1;
   llm::AutoCommResRuntimeMock::SetDevice(0);
   std::map<AscendString, AscendString> options1;

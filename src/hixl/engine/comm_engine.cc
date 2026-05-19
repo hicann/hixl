@@ -8,47 +8,47 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "adxl_engine.h"
+#include "comm_engine.h"
 #include "common/hixl_checker.h"
 
 namespace hixl {
-Status AdxlEngine::Initialize(const std::map<AscendString, AscendString> &options) {
+Status CommEngine::Initialize(const std::map<AscendString, AscendString> &options) {
   return adxl_inner_engine_.Initialize(options);
 }
 
-void AdxlEngine::Finalize() {
+void CommEngine::Finalize() {
   adxl_inner_engine_.Finalize();
 }
 
-bool AdxlEngine::IsInitialized() const {
+bool CommEngine::IsInitialized() const {
   return adxl_inner_engine_.IsInitialized();
 }
 
-Status AdxlEngine::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
+Status CommEngine::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
   adxl::MemDesc adxl_mem{mem.addr, mem.len};
   adxl::MemType adxl_type = static_cast<adxl::MemType>(type);
   return adxl_inner_engine_.RegisterMem(adxl_mem, adxl_type, mem_handle);
 }
 
-Status AdxlEngine::DeregisterMem(MemHandle mem_handle) {
+Status CommEngine::DeregisterMem(MemHandle mem_handle) {
   return adxl_inner_engine_.DeregisterMem(mem_handle);
 }
 
-Status AdxlEngine::Connect(const AscendString &remote_engine, int32_t timeout_in_millis) {
+Status CommEngine::Connect(const AscendString &remote_engine, int32_t timeout_in_millis) {
   return adxl_inner_engine_.Connect(remote_engine, timeout_in_millis);
 }
 
-Status AdxlEngine::Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis) {
+Status CommEngine::Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis) {
   return adxl_inner_engine_.Disconnect(remote_engine, timeout_in_millis);
 }
 
-void AdxlEngine::Disconnect() {
+void CommEngine::Disconnect() {
   adxl_inner_engine_.Disconnect();
 }
 
-Status AdxlEngine::TransferSync(const AscendString &remote_engine, TransferOp operation,
+Status CommEngine::TransferSync(const AscendString &remote_engine, TransferOp operation,
                                 const std::vector<TransferOpDesc> &op_descs, int32_t timeout_in_millis) {
-  HIXL_CHK_BOOL_RET_STATUS(!op_descs.empty(), PARAM_INVALID, "[AdxlEngine] TransferSync failed, op_descs is empty.");
+  HIXL_CHK_BOOL_RET_STATUS(!op_descs.empty(), PARAM_INVALID, "[CommEngine] TransferSync failed, op_descs is empty.");
   adxl::TransferOp adxl_operation = static_cast<adxl::TransferOp>(operation);
   std::vector<adxl::TransferOpDesc> adxl_op_descs;
   for (const auto &op_desc : op_descs) {
@@ -57,10 +57,10 @@ Status AdxlEngine::TransferSync(const AscendString &remote_engine, TransferOp op
   return adxl_inner_engine_.TransferSync(remote_engine, adxl_operation, adxl_op_descs, timeout_in_millis);
 }
 
-Status AdxlEngine::TransferAsync(const AscendString &remote_engine, TransferOp operation,
+Status CommEngine::TransferAsync(const AscendString &remote_engine, TransferOp operation,
                                  const std::vector<TransferOpDesc> &op_descs, const TransferArgs &optional_args,
                                  TransferReq &req) {
-  HIXL_CHK_BOOL_RET_STATUS(!op_descs.empty(), PARAM_INVALID, "[AdxlEngine] TransferAsync failed, op_descs is empty.");
+  HIXL_CHK_BOOL_RET_STATUS(!op_descs.empty(), PARAM_INVALID, "[CommEngine] TransferAsync failed, op_descs is empty.");
   (void)optional_args;
   adxl::TransferOp adxl_operation = static_cast<adxl::TransferOp>(operation);
   std::vector<adxl::TransferOpDesc> adxl_op_descs;
@@ -71,19 +71,19 @@ Status AdxlEngine::TransferAsync(const AscendString &remote_engine, TransferOp o
   return adxl_inner_engine_.TransferAsync(remote_engine, adxl_operation, adxl_op_descs, adxl_optional_args, req);
 }
 
-Status AdxlEngine::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
+Status CommEngine::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
   adxl::TransferStatus adxl_status;
   auto ret = adxl_inner_engine_.GetTransferStatus(req, adxl_status);
   status = static_cast<hixl::TransferStatus>(adxl_status);
   return ret;
 }
 
-Status AdxlEngine::SendNotify(const AscendString &remote_engine, const NotifyDesc &notify, int32_t timeout_in_millis) {
+Status CommEngine::SendNotify(const AscendString &remote_engine, const NotifyDesc &notify, int32_t timeout_in_millis) {
   adxl::NotifyDesc adxl_notify{notify.name, notify.notify_msg};
   return adxl_inner_engine_.SendNotify(remote_engine, adxl_notify, timeout_in_millis);
 }
 
-Status AdxlEngine::GetNotifies(std::vector<NotifyDesc> &notifies) {
+Status CommEngine::GetNotifies(std::vector<NotifyDesc> &notifies) {
   std::vector<adxl::NotifyDesc> adxl_notifies;
   auto ret = adxl_inner_engine_.GetNotifies(adxl_notifies);
   for (const auto &adxl_notify : adxl_notifies) {
@@ -92,7 +92,7 @@ Status AdxlEngine::GetNotifies(std::vector<NotifyDesc> &notifies) {
   return ret;
 }
 
-Status AdxlEngine::RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor) {
+Status CommEngine::RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor) {
   return adxl_inner_engine_.RegisterCallbackProcessor(msg_type, processor);
 }
 }  // namespace hixl

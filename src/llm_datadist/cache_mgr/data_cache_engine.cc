@@ -11,7 +11,7 @@
 #include "data_cache_engine.h"
 #include <set>
 #include "llm_datadist/llm_error_codes.h"
-#include "statistic_manager.h"
+#include "comm_statistic_manager.h"
 #include "common/common.h"
 #include "common/llm_utils.h"
 #include "common/hixl_utils.h"

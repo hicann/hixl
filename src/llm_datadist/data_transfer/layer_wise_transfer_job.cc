@@ -175,7 +175,7 @@ ge::Status LayerWiseTransferJob::SynchronizeTransferCacheWithRecord(const int32_
   const auto cost =
       static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(finished - start).count());
   auto &send_statistic_info = comm_entity_->GetSendStatisticInfo(stream_);
-  StatisticManager::GetInstance().UpdateCost(cost, send_statistic_info.send_times, send_statistic_info.send_min_cost,
+  CommStatisticManager::GetInstance().UpdateCost(cost, send_statistic_info.send_times, send_statistic_info.send_min_cost,
                                              send_statistic_info.send_max_cost, send_statistic_info.send_total_cost);
   LLMLOGI("comm_entity:%s send all task of request finished", comm_entity_->GetDesc().c_str());
   return ge::SUCCESS;

@@ -14,7 +14,7 @@
 #include <vector>
 #include <atomic>
 #include <algorithm>
-#include "adxl/channel.h"
+#include "adxl/comm_channel.h"
 #include "adxl/channel_manager.h"
 #include "adxl/channel_msg_handler.h"
 #include "adxl/buffer_transfer_service.h"

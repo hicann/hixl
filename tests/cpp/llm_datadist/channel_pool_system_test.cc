@@ -13,7 +13,7 @@
 #include <chrono>
 #include <vector>
 #include <atomic>
-#include "adxl/channel.h"
+#include "adxl/comm_channel.h"
 #include "hixl/hixl.h"
 #include "adxl/channel_manager.h"
 #include "adxl/channel_msg_handler.h"

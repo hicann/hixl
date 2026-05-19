@@ -427,7 +427,7 @@ Status ChannelManager::CreateChannel(const ChannelInfo &channel_info, ChannelPtr
                              "Channel already exists, channel_type = %d, channel id:%s",
                              static_cast<int32_t>(channel_info.channel_type), channel_info.channel_id.c_str());
   }
-  ChannelPtr channel = llm::MakeShared<Channel>(channel_info);
+  ChannelPtr channel = llm::MakeShared<CommChannel>(channel_info);
   ADXL_CHECK_NOTNULL(channel);
   ADXL_CHK_STATUS_RET(channel->Initialize(), "Failed to init channel");
   channel->SetStreamPool(stream_pool_);

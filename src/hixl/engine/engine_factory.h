@@ -14,7 +14,7 @@
 #include <map>
 #include "engine.h"
 #include "hixl_engine.h"
-#include "adxl_engine.h"
+#include "comm_engine.h"
 
 namespace hixl {
 class EngineFactory {

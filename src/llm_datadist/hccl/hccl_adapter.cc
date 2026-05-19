@@ -12,7 +12,7 @@
 #include <map>
 #include "mmpa/mmpa_api.h"
 #include "common/common.h"
-#include "statistic_manager.h"
+#include "comm_statistic_manager.h"
 #include "common/llm_checker.h"
 #include "common/llm_scope_guard.h"
 
@@ -127,7 +127,7 @@ HcclResult HcclAdapter::HcclExchangeMemDesc(HcclComm comm, uint32_t remote_rank,
   const auto start = std::chrono::steady_clock::now();
   auto ret = hccl_exchange_mem_desc_func_(comm, remote_rank, local, timeout, remote, actual_num);
   const auto end = std::chrono::steady_clock::now();
-  StatisticManager::GetInstance().AddExchangeMemCost(
+  CommStatisticManager::GetInstance().AddExchangeMemCost(
       std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
   return ret;
 }
@@ -137,7 +137,7 @@ HcclResult HcclAdapter::HcclCommInitClusterInfoMemConfig(const char *cluster, ui
   const auto start = std::chrono::steady_clock::now();
   auto ret = hccl_comm_init_cluster_info_mem_func_(cluster, rank, config, comm);
   const auto end = std::chrono::steady_clock::now();
-  StatisticManager::GetInstance().AddCommInitCost(
+  CommStatisticManager::GetInstance().AddCommInitCost(
       std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
   return ret;
 }
@@ -176,7 +176,7 @@ HcclResult HcclAdapter::HcclCommDestroy(HcclComm comm) {
   const auto start = std::chrono::steady_clock::now();
   auto ret = hccl_comm_destroy_func_(comm);
   const auto end = std::chrono::steady_clock::now();
-  StatisticManager::GetInstance().AddCommDestroyCost(
+  CommStatisticManager::GetInstance().AddCommDestroyCost(
       std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
   return ret;
 }
@@ -186,7 +186,7 @@ HcclResult HcclAdapter::HcclBatchPut(HcclComm comm, uint32_t remote_rank, HcclOn
   const auto start = std::chrono::steady_clock::now();
   auto ret = hccl_batch_put_func_(comm, remote_rank, desc, desc_num, stream);
   const auto end = std::chrono::steady_clock::now();
-  StatisticManager::GetInstance().AddBatchPutCost(
+  CommStatisticManager::GetInstance().AddBatchPutCost(
       std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
   return ret;
 }
@@ -212,7 +212,7 @@ HcclResult HcclAdapter::HcclRegisterGlobalMem(HcclMem *mem, void **mem_handle) c
   auto ret = HCCL_E_NOT_SUPPORT;
   if (hccl_register_global_mem_func_ != nullptr) {
     ret = hccl_register_global_mem_func_(mem, mem_handle);
-    StatisticManager::GetInstance().AddRegisterGlobalMemTimes();
+    CommStatisticManager::GetInstance().AddRegisterGlobalMemTimes();
   }
   return ret;
 }
@@ -221,7 +221,7 @@ HcclResult HcclAdapter::HcclDeregisterGlobalMem(void *mem_handle) const {
   auto ret = HCCL_E_NOT_SUPPORT;
   if (hccl_deregister_global_mem_func_ != nullptr) {
     ret = hccl_deregister_global_mem_func_(mem_handle);
-    StatisticManager::GetInstance().AddDeregisterGlobalMemTimes();
+    CommStatisticManager::GetInstance().AddDeregisterGlobalMemTimes();
   }
   return ret;
 }
@@ -230,7 +230,7 @@ HcclResult HcclAdapter::HcclCommBindMem(HcclComm comm, void *mem_handle) const {
   auto ret = HCCL_E_NOT_SUPPORT;
   if (hccl_comm_bind_mem_func_ != nullptr) {
     ret = hccl_comm_bind_mem_func_(comm, mem_handle);
-    StatisticManager::GetInstance().AddCommBindMemTimes();
+    CommStatisticManager::GetInstance().AddCommBindMemTimes();
   }
   return ret;
 }
@@ -239,7 +239,7 @@ HcclResult HcclAdapter::HcclCommUnbindMem(HcclComm comm, void *mem_handle) const
   auto ret = HCCL_E_NOT_SUPPORT;
   if (hccl_comm_unbind_mem_func_ != nullptr) {
     ret = hccl_comm_unbind_mem_func_(comm, mem_handle);
-    StatisticManager::GetInstance().AddCommUnbindMemTimes();
+    CommStatisticManager::GetInstance().AddCommUnbindMemTimes();
   }
   return ret;
 }
@@ -250,7 +250,7 @@ HcclResult HcclAdapter::HcclCommPrepare(HcclComm comm, HcclPrepareConfig *prepar
     const auto start = std::chrono::steady_clock::now();
     ret = hccl_comm_prepare_func_(comm, prepare_config, timeout);
     const auto end = std::chrono::steady_clock::now();
-    StatisticManager::GetInstance().AddCommPrepareCost(
+    CommStatisticManager::GetInstance().AddCommPrepareCost(
         std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
   }
   return ret;

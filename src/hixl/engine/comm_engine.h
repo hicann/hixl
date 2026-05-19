@@ -17,11 +17,11 @@
 #include "hixl/hixl_types.h"
 
 namespace hixl {
-class AdxlEngine : public Engine {
+class CommEngine : public Engine {
  public:
-  explicit AdxlEngine(const AscendString &local_engine) : Engine(local_engine), adxl_inner_engine_(local_engine) {};
+  explicit CommEngine(const AscendString &local_engine) : Engine(local_engine), adxl_inner_engine_(local_engine) {};
 
-  ~AdxlEngine() override = default;
+  ~CommEngine() override = default;
 
   Status Initialize(const std::map<AscendString, AscendString> &options) override;
 

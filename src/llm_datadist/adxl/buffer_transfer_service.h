@@ -16,7 +16,7 @@
 #include "adxl/adxl_types.h"
 #include "common/llm_mem_pool.h"
 #include "common/llm_thread_pool.h"
-#include "channel.h"
+#include "comm_channel.h"
 #include "control_msg_handler.h"
 
 namespace adxl {

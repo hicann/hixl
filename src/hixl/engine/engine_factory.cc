@@ -46,7 +46,7 @@ std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string local_engi
     const auto hixl_it = options.find(hixl::OPTION_LOCAL_COMM_RES);
     const auto adxl_it = options.find(adxl::OPTION_LOCAL_COMM_RES);
     if ((hixl_it == options.end()) && (adxl_it == options.end())) {
-      return std::make_unique<AdxlEngine>(AscendString(local_engine.c_str()));
+      return std::make_unique<CommEngine>(AscendString(local_engine.c_str()));
     }
     const auto &it = hixl_it == options.end() ? adxl_it : hixl_it;
     std::string local_comm_res = it->second.GetString();
@@ -62,6 +62,6 @@ std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string local_engi
   if (use_hixl) {
     return std::make_unique<HixlEngine>(AscendString(local_engine.c_str()));
   }
-  return std::make_unique<AdxlEngine>(AscendString(local_engine.c_str()));
+  return std::make_unique<CommEngine>(AscendString(local_engine.c_str()));
 }
 }  // namespace hixl

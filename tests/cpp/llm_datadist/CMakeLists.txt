@@ -21,7 +21,6 @@ set(LLM_DATADIST_TEST_FILES
         llm_datadist_v2_api_unittest.cc
         llm_utils_v2_unittest.cc
         data_cache_engine_unittest.cc
-        aligned_ptr_unittest.cc
         hixl_api_unittest.cc
         adxl_engine_api_unittest.cc
         segment_table_unittest.cc

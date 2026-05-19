@@ -62,9 +62,9 @@ struct AsyncRecord {
 
 enum class RecvState { WAITING_FOR_HEADER, WAITING_FOR_BODY };
 
-class Channel {
+class CommChannel {
  public:
-  explicit Channel(ChannelInfo info) : channel_info_(std::move(info)){};
+  explicit CommChannel(ChannelInfo info) : channel_info_(std::move(info)){};
   Status Initialize();
   Status Finalize();
   std::string GetChannelId() const;
@@ -155,7 +155,7 @@ class Channel {
   std::unordered_map<uint64_t, AsyncRecord> req_2_async_record_;
   StreamPool *stream_pool_ = nullptr;
 };
-using ChannelPtr = std::shared_ptr<Channel>;
+using ChannelPtr = std::shared_ptr<CommChannel>;
 }  // namespace adxl
 
 #endif  // CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_CHANNEL_H_

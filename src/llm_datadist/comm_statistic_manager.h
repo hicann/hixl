@@ -215,18 +215,18 @@ struct FuncStatisticInfo {
   }
 };
 
-class StatisticManager {
+class CommStatisticManager {
  public:
-  static StatisticManager &GetInstance();
+  static CommStatisticManager &GetInstance();
   static void UpdateCost(const uint64_t cost, uint64_t &total_times, uint64_t &min_cost, uint64_t &max_cost,
                          uint64_t &total_cost);
   static void UpdateCost(const uint64_t cost, std::atomic<uint64_t> &total_times, std::atomic<uint64_t> &min_cost,
                          std::atomic<uint64_t> &max_cost, std::atomic<uint64_t> &total_cost);
-  ~StatisticManager() = default;
-  StatisticManager(const StatisticManager &) = delete;
-  StatisticManager(const StatisticManager &&) = delete;
-  StatisticManager &operator=(const StatisticManager &) = delete;
-  StatisticManager &operator=(const StatisticManager &&) = delete;
+  ~CommStatisticManager() = default;
+  CommStatisticManager(const CommStatisticManager &) = delete;
+  CommStatisticManager(const CommStatisticManager &&) = delete;
+  CommStatisticManager &operator=(const CommStatisticManager &) = delete;
+  CommStatisticManager &operator=(const CommStatisticManager &&) = delete;
   void Dump() const;
   void Reset();
 
@@ -243,7 +243,7 @@ class StatisticManager {
   FuncStatisticInfo &GetFuncStatisticInfo();
 
  private:
-  StatisticManager() = default;
+  CommStatisticManager() = default;
   void DumpMemoryProfilingTrack() const;
   void DumpFuncProfilingTrack() const;
   void DumpLinkProfilingTrack() const;

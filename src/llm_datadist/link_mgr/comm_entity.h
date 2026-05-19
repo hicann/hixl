@@ -24,7 +24,7 @@
 #include "cache_mgr/cache_manager.h"
 #include "hccl/hccl_adapter.h"
 #include "common/llm_mem_pool.h"
-#include "statistic_manager.h"
+#include "comm_statistic_manager.h"
 #include "utils/cache_access_table.h"
 
 namespace llm {

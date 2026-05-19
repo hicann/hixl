@@ -15,7 +15,6 @@
 #include <thread>
 #include "common/llm_inner_types.h"
 #include "comm_entity.h"
-#include "common/aligned_ptr.h"
 
 namespace llm {
 using EntityPtr = std::shared_ptr<CommEntity>;
@@ -45,7 +44,6 @@ class CommEntityManager {
   bool need_handle_request_ = false;
   std::thread cache_engine_thread_;
   std::unique_ptr<LlmMemPool> host_mem_pool_{};
-  std::shared_ptr<AlignedPtr> host_buffer_;
   aclrtContext aclrt_context_{};
   std::atomic_uint64_t entity_id_gen_{1LU};
   std::atomic_bool mgr_high_priority_flag_{false};

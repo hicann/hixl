@@ -500,7 +500,7 @@ ge::Status CommEntity::BatchPutAsync(std::vector<HcclOneSideOpDesc> &op_descs, a
   const auto cost = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
   LLMLOGI("HcclBatchPut success, num = %zu, cost = %ld us.", op_descs.size(), cost);
   auto &send_statistic_info = GetSendStatisticInfo(stream_to_use);
-  StatisticManager::GetInstance().UpdateCost(
+  CommStatisticManager::GetInstance().UpdateCost(
       cost, send_statistic_info.batch_put_times, send_statistic_info.batch_put_min_cost,
       send_statistic_info.batch_put_max_cost, send_statistic_info.batch_put_total_cost);
   send_statistic_info.send_total_num += op_descs.size();
@@ -531,7 +531,7 @@ ge::Status CommEntity::BatchGetAsync(std::vector<HcclOneSideOpDesc> &op_descs, a
   const auto end = std::chrono::steady_clock::now();
   const auto cost = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
   LLMLOGI("HcclBatchGet success, num = %zu, cost = %ld us.", op_descs.size(), cost);;
-  StatisticManager::UpdateCost(
+  CommStatisticManager::UpdateCost(
       cost, recv_statistic_info_.batch_get_times, recv_statistic_info_.batch_get_min_cost,
       recv_statistic_info_.batch_get_max_cost, recv_statistic_info_.batch_get_total_cost);
   recv_statistic_info_.get_total_num += op_descs.size();
@@ -567,13 +567,13 @@ ge::Status CommEntity::BatchTransfer(std::list<HcclOneSideOpDesc> &tasks, bool i
   LLMLOGI("sync stream success, cost = %ld us.", cost);
   if (is_put) {
     auto &send_statistic_info = GetSendStatisticInfo(stream_);
-    StatisticManager::GetInstance().UpdateCost(
+    CommStatisticManager::GetInstance().UpdateCost(
         cost, send_statistic_info.batch_put_times, send_statistic_info.batch_put_min_cost,
         send_statistic_info.batch_put_max_cost, send_statistic_info.batch_put_total_cost);
     send_statistic_info.send_total_num += task_num;
   } else {
     auto &recv_statistic_info = GetRecvStatisticInfo();
-    StatisticManager::UpdateCost(cost, recv_statistic_info.pull_times, recv_statistic_info.pull_min_cost,
+    CommStatisticManager::UpdateCost(cost, recv_statistic_info.pull_times, recv_statistic_info.pull_min_cost,
                                 recv_statistic_info.pull_max_cost, recv_statistic_info.pull_total_cost);
   }
   LLM_DISMISS_GUARD(stream);

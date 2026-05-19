@@ -484,25 +484,11 @@ Software: metadef fedff4f
 
 Official Repository: https://gitee.com/ascend/metadef
 
-Usage: "
-src/llm_datadist/common/aligned_ptr.cc,
-tests/depends/error_manager/src/error_manager.h"
+Usage: "tests/depends/error_manager/src/error_manager.h"
 
 Copyright Notice:
 Copyright 2020 Huawei Technologies Co., Ltd.
 Copyright 2019-2020 Huawei Technologies Co., Ltd.
-
-License: Apache License V2.0
-Please see above.
-
-
-Software: metadef 6e92218
-
-Official Repository: https://gitee.com/ascend/metadef
-
-Usage: "src/llm_datadist/common/aligned_ptr.h"
-
-Copyright Notice: Copyright 2020 Huawei Technologies Co., Ltd.
 
 License: Apache License V2.0
 Please see above.

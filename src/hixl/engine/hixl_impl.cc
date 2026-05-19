@@ -12,7 +12,7 @@
 #include "hixl/hixl.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_utils.h"
-#include "adxl_engine.h"
+#include "comm_engine.h"
 #include "base/err_msg.h"
 #include "engine.h"
 #include "engine_factory.h"

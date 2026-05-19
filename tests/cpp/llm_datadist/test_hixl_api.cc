@@ -375,7 +375,7 @@ TEST_F(HixlSTest, TestHixlDisableBufferPoolD2D) {
 
 TEST_F(HixlSTest, TestHeartbeat) {
   adxl::ChannelManager::SetHeartbeatWaitTime(10);  // 10ms
-  adxl::Channel::SetHeartbeatTimeout(50);  // 50ms
+  adxl::CommChannel::SetHeartbeatTimeout(50);  // 50ms
   Hixl engine1;
   llm::AutoCommResRuntimeMock::SetDevice(0);
   std::map<AscendString, AscendString> options1;
@@ -425,7 +425,7 @@ TEST_F(HixlSTest, TestHixlServerDown) {
 
 TEST_F(HixlSTest, TestHixlAutoClearChannel) {
   adxl::ChannelManager::SetHeartbeatWaitTime(10);  // 10ms
-  adxl::Channel::SetHeartbeatTimeout(50);  // 50ms
+  adxl::CommChannel::SetHeartbeatTimeout(50);  // 50ms
   llm::AutoCommResRuntimeMock::SetDevice(0);
   Hixl engine1;
   std::map<AscendString, AscendString> options1;

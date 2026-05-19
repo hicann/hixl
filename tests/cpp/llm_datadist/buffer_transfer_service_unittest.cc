@@ -17,7 +17,7 @@
 #include "adxl/buffer_transfer_service.h"
 #undef private
 
-#include "adxl/channel.h"
+#include "adxl/comm_channel.h"
 #include "depends/ascendcl/src/ascendcl_stub.h"
 
 namespace adxl {
@@ -46,7 +46,7 @@ ChannelPtr CreateChannel() {
   channel_info.channel_id = kChannelId;
   channel_info.local_rank_id = 0;
   channel_info.peer_rank_id = kPeerRankId;
-  return std::make_shared<Channel>(channel_info);
+  return std::make_shared<CommChannel>(channel_info);
 }
 }  // namespace
 

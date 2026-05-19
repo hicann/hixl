@@ -14,7 +14,7 @@
 #include "common/def_types.h"
 #include "common/llm_checker.h"
 #include "cache_mgr/cache_manager.h"
-#include "statistic_manager.h"
+#include "comm_statistic_manager.h"
 #include "data_transfer/data_transfer_utils.h"
 #include "acl/acl.h"
 #include "common/llm_scope_guard.h"
@@ -105,7 +105,7 @@ ge::Status D2DDataTransferJob::Process(bool &is_done) {
     const auto cost = static_cast<uint64_t>(
         std::chrono::duration_cast<std::chrono::microseconds>(finished_time_point - timeout_point_).count());
     auto &send_statistic_info = comm_entity_->GetSendStatisticInfo();
-    StatisticManager::GetInstance().UpdateCost(cost, send_statistic_info.send_times, send_statistic_info.send_min_cost,
+    CommStatisticManager::GetInstance().UpdateCost(cost, send_statistic_info.send_times, send_statistic_info.send_min_cost,
                                                send_statistic_info.send_max_cost, send_statistic_info.send_total_cost);
     LLMLOGI("comm_entity:%s send all task of request finished", comm_entity_->GetDesc().c_str());
     return ge::SUCCESS;
