@@ -19,6 +19,7 @@
 #include <set>
 #include <string>
 
+#include "dsmi_proxy.h"
 #include "adxl/adxl_types.h"
 #include "nlohmann/json.hpp"
 #include "securec.h"
@@ -62,8 +63,12 @@ Status GetUboeIp(std::string &ip) {
   HIXL_CHK_ACL_RET(aclrtGetLogicDevIdByUserDevId(dev_id, &dev_logic_id));
   HIXL_LOGI("current dev_id=%d, dev_logic_id=%d", dev_logic_id, dev_logic_id);
 
-  // change to get slot id later
-  int32_t slot_id = dev_logic_id;
+  uint32_t slot_id = 0;
+  auto get_ret = DsmiProxy::GetDevSlotId(dev_logic_id, slot_id);
+  if (get_ret != SUCCESS) {
+    HIXL_LOGW("can't find dev slot_id, use dev_logic_id instead, ret=%u, dev_logic_id=%d.", get_ret, dev_logic_id);
+    slot_id = static_cast<uint32_t>(dev_logic_id);
+  }
   return GetBondIpAddress(dev_logic_id, slot_id, ip);
 }
 

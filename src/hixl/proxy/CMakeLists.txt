@@ -21,12 +21,19 @@ if(PRODUCT_SIDE STREQUAL "device")
         set(_HIXL_PROXY_TARGETS hcomm_proxy_static)
 else()
         add_library(hccp_proxy_static STATIC "${CMAKE_CURRENT_LIST_DIR}/hccp_proxy.cc")
-        set(_HIXL_PROXY_TARGETS hcomm_proxy_static hccp_proxy_static)
+        add_library(dsmi_proxy_static STATIC "${CMAKE_CURRENT_LIST_DIR}/dsmi_proxy.cc")
+        set(_HIXL_PROXY_TARGETS hcomm_proxy_static hccp_proxy_static dsmi_proxy_static)
 
         target_link_libraries(hccp_proxy_static PRIVATE
                 $<BUILD_INTERFACE:intf_pub>
                 $<BUILD_INTERFACE:acl_rt_headers>
                 $<BUILD_INTERFACE:runtime_headers>
+                $<BUILD_INTERFACE:slog_headers>
+                $<BUILD_INTERFACE:mmpa_headers>
+        )
+
+        target_link_libraries(dsmi_proxy_static PRIVATE
+                $<BUILD_INTERFACE:intf_pub>
                 $<BUILD_INTERFACE:slog_headers>
                 $<BUILD_INTERFACE:mmpa_headers>
         )
