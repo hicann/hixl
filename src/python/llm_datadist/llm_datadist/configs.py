@@ -27,6 +27,9 @@ class LLMRole(IntEnum):
     DECODER = 2
     MIX = 3
 
+    def __str__(self):
+        return f"{self.__class__.__name__}.{self.name}"
+
 
 def trans_str_ip(ip):
     if isinstance(ip, str):

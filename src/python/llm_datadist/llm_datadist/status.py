@@ -47,6 +47,9 @@ class LLMStatusCode(IntEnum):
     LLM_SUSPECT_REMOTE_ERROR = llm_wrapper.kLLMSuspectRemoteError
     LLM_UNKNOWN_ERROR = -1
 
+    def __str__(self):
+        return f"{self.__class__.__name__}.{self.name}"
+
 
 class LLMException(RuntimeError):
     def __init__(self, *args, status_code=LLMStatusCode.LLM_SUCCESS):
