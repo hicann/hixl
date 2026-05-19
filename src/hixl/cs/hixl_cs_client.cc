@@ -801,7 +801,11 @@ Status HixlCSClient::BuildDeviceChunkParam(DeviceCompleteHandle &handle, uint32_
     param.flag_size = 0;
     param.notify_id = 0;
   }
-  param.protocol = local_endpoint_->GetEndpoint().protocol;
+  if (local_endpoint_->GetEndpoint().protocol == COMM_PROTOCOL_HCCS) {
+    param.use_notify_record = 1;
+  }
+  HIXL_LOGI("[HixlClient] protocol=%u, use_notify_record=%u",
+    local_endpoint_->GetEndpoint().protocol, param.use_notify_record);
   return SUCCESS;
 }
 

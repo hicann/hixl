@@ -54,7 +54,7 @@ TestArgs<kN> CreateTestArgs(
   args.param.remote_flag_addr = remote_flag_addr;
   args.param.local_flag_addr = local_flag_addr;
   args.param.flag_size = sizeof(uint64_t);
-  args.param.protocol = COMM_PROTOCOL_RESERVED;
+  args.param.use_notify_record = 0;
 
   for (size_t i = 0; i < kN; ++i) {
     args.ops[i].remote_buf = dst_buffers[i].data();
@@ -173,7 +173,7 @@ TEST_F(HixlKernelBasicTest, BatchGetHccsError) {
 
   auto args = CreateTestArgs<3>(remote_addr_hccs, local_addr_hccs, lens_storage,
     remote_flag_addr_hccs, local_flag_addr_hccs);
-  args.param.protocol = COMM_PROTOCOL_HCCS;
+  args.param.use_notify_record = 1;
   uint32_t ret = HixlBatchGet(&args.param);
   EXPECT_NE(ret, SUCCESS);
 }
