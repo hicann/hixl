@@ -126,7 +126,7 @@ source /usr/local/Ascend/cann/set_env.sh
   sudo apt-get install cmake bash ccache
   ```
 - GCC 7.3.x - 13.x
-- Python 3.9.x - 3.13.x
+- Python 3.9.x - 3.14.x
 - CMake >= 3.16.0
 - bash >= 5.1.16，由于测试用例开启了地址消毒，代码中执行system函数会触发低版本的bash被地址消毒检查出内存泄露。
 - unzip，用于解压下载的第三方开源软件的zip压缩包。
