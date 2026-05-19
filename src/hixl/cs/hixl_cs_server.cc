@@ -17,6 +17,7 @@
 #include "common/scope_guard.h"
 #include "common/ctrl_msg_plugin.h"
 #include "transfer_pool.h"
+#include "mmpa/mmpa_api.h"
 
 static inline void to_json(nlohmann::json &j, const CommMem &m) {
   j = nlohmann::json{};
@@ -73,8 +74,13 @@ Status HixlCSServer::InitTransFinishedFlag() {
 }
 
 Status HixlCSServer::RegisterHostTransFinishedFlag() {
-  void *host_flag = malloc(sizeof(int64_t));
-  HIXL_CHK_BOOL_RET_STATUS(host_flag != nullptr, FAILED, "HOST trans finished flag malloc failed.");
+  void *host_flag = nullptr;
+  size_t page_size = mmGetPageSize();
+  // Register host mem addr need aligned by page size.
+  int ret = posix_memalign(&host_flag, page_size, sizeof(int64_t));
+  HIXL_CHK_BOOL_RET_STATUS(ret == 0 && host_flag != nullptr, FAILED,
+                           "HOST trans finished flag posix_memalign failed, ret:%d, page_size=%zu, alloc size=%zu.",
+                           ret, page_size, sizeof(int64_t));
   HIXL_DISMISSABLE_GUARD(host_flag_guard, ([host_flag]() { free(host_flag); }));
   *static_cast<int64_t *>(host_flag) = 1;
   CommMem mem{};

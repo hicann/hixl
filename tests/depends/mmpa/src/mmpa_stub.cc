@@ -552,6 +552,10 @@ INT32 mmGetOptInd(VOID) {
 INT32 mmUmask(INT32 pmode) {
   return 0;
 }
+
+mmSize mmGetPageSize() {
+  return static_cast<mmSize>(getpagesize());
+}
 #ifdef __cplusplus
 }
 #endif
