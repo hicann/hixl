@@ -15,6 +15,19 @@
 #include <sstream>
 #include "hixl/hixl_types.h"
 #include "adxl/adxl_types.h"
+#include "hcomm/hcomm_res_defs.h"
+
+struct HixlOneSideOpParam {
+  ThreadHandle thread;
+  ChannelHandle channel;
+  uint32_t list_num;
+  uint32_t flag_size;
+  uint64_t op_desc_list_addr;
+  uint64_t remote_flag_addr;
+  uint64_t local_flag_addr;
+  uint32_t notify_id;
+  uint32_t protocol;
+};
 
 namespace hixl {
 constexpr const char *kProtocolRoce = "roce";

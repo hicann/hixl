@@ -139,26 +139,14 @@ class HixlCSClientDeviceFixture : public ::testing::Test {
     llm::MmpaStub::GetInstance().Reset();
   }
 
-  CommunicateMem SetupBatchTransfer(bool is_get) {
+  HixlOneSideOpDesc SetupBatchTransfer(bool is_get) {
+    (void)is_get;
     RecordMemForBatchTransfer(cli_, remote_buf_.data(), remote_buf_.size(), local_buf_.data(), local_buf_.size());
-
-    if (is_get) {
-      remote_list_const_[0] = remote_buf_.data();
-      local_list_[0] = local_buf_.data();
-      mem_.src_buf_list = remote_list_const_;
-      mem_.dst_buf_list = local_list_;
-    } else {
-      local_list_const_[0] = local_buf_.data();
-      remote_list_[0] = remote_buf_.data();
-      mem_.src_buf_list = local_list_const_;
-      mem_.dst_buf_list = remote_list_;
-    }
-
-    len_list_[0] = kLen8;
-    mem_.len_list = len_list_;
-    mem_.list_num = kListNum1;
-
-    return mem_;
+    HixlOneSideOpDesc desc{};
+    desc.remote_buf = remote_buf_.data();
+    desc.local_buf = local_buf_.data();
+    desc.len = kLen8;
+    return desc;
   }
 
   HixlCSClient cli_{};
@@ -166,20 +154,14 @@ class HixlCSClientDeviceFixture : public ::testing::Test {
 
   std::array<uint8_t, 8> local_buf_{};
   std::array<uint8_t, 8> remote_buf_{};
-  void *local_list_[1]{};
-  void *remote_list_[1]{};
-  const void *local_list_const_[1]{};
-  const void *remote_list_const_[1]{};
-  uint64_t len_list_[1]{};
-  CommunicateMem mem_{};
 };
 
 TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSuccessUseMemcpyHackFlag) {
   setenv("HIXL_UT_DEVICE_FLAG_HACK", "1", 1);
-  CommunicateMem mem = SetupBatchTransfer(false);
+  HixlOneSideOpDesc desc = SetupBatchTransfer(false);
 
   void *qh = nullptr;
-  const Status ret = cli_.BatchTransfer(false, mem, &qh);
+  const Status ret = cli_.BatchTransferAsync(false, 1, &desc, &qh);
   EXPECT_EQ(ret, SUCCESS);
   ASSERT_NE(qh, nullptr);
 
@@ -190,10 +172,10 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSuccessUseMemcpyHackFlag) {
 
 TEST_F(HixlCSClientDeviceFixture, BatchGetDeviceSuccessUseMemcpyHackFlag) {
   setenv("HIXL_UT_DEVICE_FLAG_HACK", "1", 1);
-  CommunicateMem mem = SetupBatchTransfer(true);
+  HixlOneSideOpDesc desc = SetupBatchTransfer(true);
 
   void *qh = nullptr;
-  const Status ret = cli_.BatchTransfer(true, mem, &qh);
+  const Status ret = cli_.BatchTransferAsync(true, 1, &desc, &qh);
   EXPECT_EQ(ret, SUCCESS);
   ASSERT_NE(qh, nullptr);
 
@@ -232,35 +214,35 @@ TEST_F(HixlCSClientDeviceFixture, PrepareDeviceRemoteFlagAndKernelReturnsFlagAdd
 }
 
 TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSyncUsesStreamSyncNoMemcpy) {
-  CommunicateMem mem = SetupBatchTransfer(false);
+  HixlOneSideOpDesc desc = SetupBatchTransfer(false);
   MockAclRuntimeStub mock_acl;
   llm::AclRuntimeStub::Install(&mock_acl);
   EXPECT_CALL(mock_acl, aclrtSynchronizeStreamWithTimeout(testing::_, testing::_))
       .WillOnce(testing::Return(ACL_ERROR_NONE));
   EXPECT_CALL(mock_acl, aclrtMemcpyAsync(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
       .Times(0);
-  const Status ret = cli_.BatchTransferSync(false, mem, 100U);
+  const Status ret = cli_.BatchTransferSync(false, 1, &desc, 100U);
   llm::AclRuntimeStub::UnInstall(&mock_acl);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_TRUE(cli_.pending_device_handles_.empty());
 }
 
 TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSyncStreamSyncTimeoutAbortsSlot) {
-  CommunicateMem mem = SetupBatchTransfer(false);
+  HixlOneSideOpDesc desc = SetupBatchTransfer(false);
   MockAclRuntimeStub mock_acl;
   llm::AclRuntimeStub::Install(&mock_acl);
   EXPECT_CALL(mock_acl, aclrtSynchronizeStreamWithTimeout(testing::_, testing::_))
       .WillOnce(testing::Return(ACL_ERROR_RT_STREAM_SYNC_TIMEOUT));
   EXPECT_CALL(mock_acl, aclrtNotifyBatchReset(testing::NotNull(), testing::Eq(static_cast<size_t>(1U))))
       .WillOnce(testing::Return(ACL_SUCCESS));
-  const Status ret = cli_.BatchTransferSync(false, mem, 100U);
+  const Status ret = cli_.BatchTransferSync(false, 1, &desc, 100U);
   llm::AclRuntimeStub::UnInstall(&mock_acl);
   EXPECT_EQ(ret, TIMEOUT);
   EXPECT_TRUE(cli_.pending_device_handles_.empty());
 }
 
 TEST_F(HixlCSClientDeviceFixture, BatchPutUbDeviceNotifyWaitFail) {
-  CommunicateMem mem = SetupBatchTransfer(false);
+  HixlOneSideOpDesc desc = SetupBatchTransfer(false);
   void *qh = nullptr;
 
   MockAclRuntimeStub mock_acl;
@@ -269,7 +251,7 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutUbDeviceNotifyWaitFail) {
   EXPECT_CALL(mock_acl, aclrtWaitAndResetNotify(testing::_, testing::_, testing::_))
       .WillOnce(testing::Return(static_cast<aclError>(FAILED)));
 
-  const Status ret = cli_.BatchTransfer(false, mem, &qh);
+  const Status ret = cli_.BatchTransferAsync(false, 1, &desc, &qh);
 
   llm::AclRuntimeStub::UnInstall(&mock_acl);
 
@@ -281,7 +263,7 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSlotReuse) {
   // With slot reuse mechanism, multiple concurrent transfers share the same slot
   // This test verifies that slot reuse works correctly
   setenv("HIXL_UT_DEVICE_FLAG_HACK", "1", 1);
-  CommunicateMem mem = SetupBatchTransfer(false);
+  HixlOneSideOpDesc desc = SetupBatchTransfer(false);
 
   MockAclRuntimeStub mock_acl;
   llm::AclRuntimeStub::Install(&mock_acl);
@@ -296,7 +278,7 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSlotReuse) {
   // Launch multiple transfers - they should reuse the same slot
   for (uint32_t i = 0; i < 16U; ++i) {
     void *qh = nullptr;
-    const Status ret = cli_.BatchTransfer(false, mem, &qh);
+    const Status ret = cli_.BatchTransferAsync(false, 1, &desc, &qh);
     ASSERT_EQ(ret, SUCCESS);
     ASSERT_NE(qh, nullptr);
     handles.emplace_back(qh);
@@ -319,7 +301,7 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSlotReuse) {
 TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceIndependentHostFlags) {
   // Verify that each async transfer gets its own independent host_flag
   setenv("HIXL_UT_DEVICE_FLAG_HACK", "1", 1);
-  CommunicateMem mem = SetupBatchTransfer(false);
+  HixlOneSideOpDesc desc = SetupBatchTransfer(false);
 
   MockAclRuntimeStub mock_acl;
   llm::AclRuntimeStub::Install(&mock_acl);
@@ -330,8 +312,8 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceIndependentHostFlags) {
 
   void *qh1 = nullptr;
   void *qh2 = nullptr;
-  ASSERT_EQ(cli_.BatchTransfer(false, mem, &qh1), SUCCESS);
-  ASSERT_EQ(cli_.BatchTransfer(false, mem, &qh2), SUCCESS);
+  ASSERT_EQ(cli_.BatchTransferAsync(false, 1, &desc, &qh1), SUCCESS);
+  ASSERT_EQ(cli_.BatchTransferAsync(false, 1, &desc, &qh2), SUCCESS);
 
   DeviceCompleteHandle *h1 = static_cast<DeviceCompleteHandle *>(qh1);
   DeviceCompleteHandle *h2 = static_cast<DeviceCompleteHandle *>(qh2);
@@ -511,7 +493,7 @@ TEST_F(HixlCSClientSlotReuseFixture, DeviceLaunchMutexExists) {
 
 TEST_F(HixlCSClientSlotReuseFixture, AsyncTransferWithEnvHackAllocatesHostFlag) {
   setenv("HIXL_UT_DEVICE_FLAG_HACK", "1", 1);
-  CommunicateMem mem = SetupBatchTransfer(false);
+  HixlOneSideOpDesc desc = SetupBatchTransfer(false);
 
   MockAclRuntimeStub mock_acl;
   llm::AclRuntimeStub::Install(&mock_acl);
@@ -521,7 +503,7 @@ TEST_F(HixlCSClientSlotReuseFixture, AsyncTransferWithEnvHackAllocatesHostFlag) 
       .WillRepeatedly(testing::Return(ACL_SUCCESS));
 
   void *qh = nullptr;
-  const Status ret = cli_.BatchTransfer(false, mem, &qh);
+  const Status ret = cli_.BatchTransferAsync(false, 1, &desc, &qh);
   llm::AclRuntimeStub::UnInstall(&mock_acl);
 
   if (ret != SUCCESS) {
@@ -540,7 +522,7 @@ TEST_F(HixlCSClientSlotReuseFixture, AsyncTransferWithEnvHackAllocatesHostFlag) 
 }
 
 TEST_F(HixlCSClientSlotReuseFixture, SyncTransferUsesStreamSync) {
-  CommunicateMem mem = SetupBatchTransfer(false);
+  HixlOneSideOpDesc desc = SetupBatchTransfer(false);
 
   MockAclRuntimeStub mock_acl;
   llm::AclRuntimeStub::Install(&mock_acl);
@@ -549,7 +531,7 @@ TEST_F(HixlCSClientSlotReuseFixture, SyncTransferUsesStreamSync) {
   EXPECT_CALL(mock_acl, aclrtMemcpyAsync(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
       .Times(0);  // Sync transfer should NOT call memcpy async for flag
 
-  const Status ret = cli_.BatchTransferSync(false, mem, 100U);
+  const Status ret = cli_.BatchTransferSync(false, 1, &desc, 100U);
   llm::AclRuntimeStub::UnInstall(&mock_acl);
 
   if (ret != SUCCESS) {

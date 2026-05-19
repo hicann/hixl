@@ -216,32 +216,15 @@ Status UbClientHandler::TransferSync(const std::vector<TransferOpDesc> &op_descs
     }
 
     uint32_t list_num = static_cast<uint32_t>(descs.size());
-    std::vector<void *> remote_bufs(list_num);
-    std::vector<const void *> local_const(list_num);
-    std::vector<void *> local_bufs(list_num);
-    std::vector<const void *> remote_const(list_num);
-    std::vector<uint64_t> lens(list_num);
+    std::vector<HixlOneSideOpDesc> op_descs(list_num);
     for (size_t i = 0; i < list_num; i++) {
-      remote_bufs[i] = reinterpret_cast<void *>(descs[i].remote_addr);
-      local_bufs[i] = reinterpret_cast<void *>(descs[i].local_addr);
-      local_const[i] = reinterpret_cast<const void *>(descs[i].local_addr);
-      remote_const[i] = reinterpret_cast<const void *>(descs[i].remote_addr);
-      lens[i] = descs[i].len;
+      op_descs[i].remote_buf = reinterpret_cast<void *>(descs[i].remote_addr);
+      op_descs[i].local_buf = reinterpret_cast<void *>(descs[i].local_addr);
+      op_descs[i].len = descs[i].len;
     }
-
-    CommunicateMem com_mem{};
-    com_mem.list_num = list_num;
-    com_mem.len_list = lens.data();
     auto *cs = static_cast<HixlCSClient *>(handle);
-    if (operation == WRITE) {
-      com_mem.dst_buf_list = remote_bufs.data();
-      com_mem.src_buf_list = local_const.data();
-      HIXL_CHK_STATUS_RET(cs->BatchTransferSync(false, com_mem, remaining_ms));
-    } else {
-      com_mem.dst_buf_list = local_bufs.data();
-      com_mem.src_buf_list = remote_const.data();
-      HIXL_CHK_STATUS_RET(cs->BatchTransferSync(true, com_mem, remaining_ms));
-    }
+    bool is_get = (operation != WRITE);
+    HIXL_CHK_STATUS_RET(cs->BatchTransferSync(is_get, list_num, op_descs.data(), remaining_ms));
   }
   return SUCCESS;
 }
