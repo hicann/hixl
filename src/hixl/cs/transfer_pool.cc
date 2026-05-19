@@ -81,7 +81,6 @@ Status TransferPool::Initialize(uint32_t pool_size) {
   pool_size_ = pool_size;
   slots_.clear();
   slots_.resize(pool_size_);
-  // 为对外接口创建共享 rts context
   HIXL_CHK_ACL_RET(aclrtCreateContext(&rts_context_, device_id_), "aclrtCreateContext rts_context_ failed");
   for (uint32_t i = 0U; i < pool_size_; ++i) {
     Slot &s = slots_[i];
@@ -210,7 +209,7 @@ void TransferPool::FillHandleFromSlot(int32_t device_id, uint32_t index, const S
   handle->stream = slot.stream;
   handle->thread = slot.thread;
   handle->notify = slot.notify;
-  handle->dev_const_one = nullptr;  // dev_const_one 在 GetAllSlots 时为空，只有 Acquire 时才填充
+  handle->dev_const_one = nullptr;
   handle->notify_id = slot.notify_id;
 }
 
@@ -271,15 +270,16 @@ void TransferPool::AbortSlotByIndexLocked(uint32_t slot_index) {
       }
     }
 
-    if (slot.thread != 0U) {
-      HIXL_CHK_ACL(HcommProxy::ThreadFree(&slot.thread, 1U), "HcommThreadFree failed");
-      slot.thread = 0U;
-    }
-    if (slot.ctx != nullptr) {
-      HIXL_LOGI("[TransferPool] destroying context %p in AbortSlotByIndexLocked", slot.ctx);
-      HIXL_CHK_ACL(aclrtDestroyContext(slot.ctx), "[TransferPool] aclrtDestroyContext failed in Abort");
-      slot.ctx = nullptr;
-    }
+  }
+  if (slot.thread != 0U) {
+    const hixl::TemporaryRtContext rts_guard(rts_context_);
+    HIXL_CHK_ACL(HcommProxy::ThreadFree(&slot.thread, 1U), "HcommThreadFree failed");
+    slot.thread = 0U;
+  }
+  if (slot.ctx != nullptr) {
+    HIXL_LOGI("[TransferPool] destroying context %p in AbortSlotByIndexLocked", slot.ctx);
+    HIXL_CHK_ACL(aclrtDestroyContext(slot.ctx), "[TransferPool] aclrtDestroyContext failed in Abort");
+    slot.ctx = nullptr;
     slot.stream = nullptr;
   }
 
@@ -322,7 +322,6 @@ Status TransferPool::CreateNotifyLocked(Slot &slot) {
 }
 
 void TransferPool::DeinitAllSlotsLocked() {
-  // 先释放 dev_const_one_，再销毁 rts_context_
   if (dev_const_one_ != nullptr) {
     HIXL_CHK_ACL(aclrtFree(dev_const_one_));
     dev_const_one_ = nullptr;
@@ -395,10 +394,11 @@ void TransferPool::DestroySlotLocked(Slot &slot) const {
       HIXL_CHK_ACL(aclrtDestroyNotify(slot.notify));
       slot.notify = nullptr;
     }
-    if (slot.thread != 0U) {
-      HIXL_CHK_ACL(HcommProxy::ThreadFree(&slot.thread, 1U), "HcommThreadFree failed");
-      slot.thread = 0U;
-    }
+  }
+  if (slot.thread != 0U) {
+    const hixl::TemporaryRtContext rts_guard(rts_context_);
+    HIXL_CHK_ACL(HcommProxy::ThreadFree(&slot.thread, 1U), "HcommThreadFree failed");
+    slot.thread = 0U;
   }
   if (slot.ctx != nullptr) {
     HIXL_LOGI("[TransferPool] destroying context %p", slot.ctx);

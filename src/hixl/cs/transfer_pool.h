@@ -89,7 +89,7 @@ class TransferPool {
   std::deque<uint32_t> free_list_;
   std::vector<Slot> slots_;
   void *dev_const_one_{nullptr};
-  aclrtContext rts_context_{nullptr};  // 用于对外接口的共享 context
+  aclrtContext rts_context_{nullptr};
 };
 
 }  // namespace hixl
