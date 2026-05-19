@@ -125,7 +125,7 @@ source /usr/local/Ascend/cann/set_env.sh
   # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
   sudo apt-get install cmake bash ccache
   ```
-- GCC 7.3.x - 13.x
+- GCC 7.3.x - 14.2.x
 - Python 3.9.x - 3.14.x
 - CMake >= 3.16.0
 - bash >= 5.1.16，由于测试用例开启了地址消毒，代码中执行system函数会触发低版本的bash被地址消毒检查出内存泄露。
