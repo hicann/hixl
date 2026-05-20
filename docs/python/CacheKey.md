@@ -27,7 +27,7 @@ __init__(*args, **kwargs)
 | cluster_id | int | cache所在远端集群id，必填。 |
 | req_id | int | cache关联的req_id，必填。 |
 | model_id | int | cache关联的model_id，默认为0。 |
-| prefix_id | int | cache关联的公共前缀id，默认为2的64方-1。 |
+| prefix_id | int | cache关联的公共前缀id，默认为2的64次方-1。 |
 
 ## 调用示例
 

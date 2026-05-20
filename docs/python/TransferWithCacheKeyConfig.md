@@ -24,7 +24,7 @@ __init__(cache_key: Union[BlocksCacheKey, CacheKeyByIdAndIndex], src_layer_range
 
 | 参数名 | 数据类型 | 取值说明 |
 | --- | --- | --- |
-| cache_key | Union[BlocksCacheKey, CacheKeyByIdAndIndex] | 目的Cache所在实例的cluster_id。 |
+| cache_key | Union[BlocksCacheKey, CacheKeyByIdAndIndex] | 远端Cache的索引。 |
 | src_layer_range | range | 必选参数，本地要传输的层的范围，step只支持为1。 |
 | dst_layer_range | range | 必选参数，远端要传输的层的范围，step只支持为1。 |
 | src_batch_index | int | 本地cache的batch下标。当源Cache为非PA场景时可以设置。 |

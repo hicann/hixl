@@ -333,7 +333,7 @@ class LlmConfig(object):
         self._host_mem_pool_cfg = host_mem_pool_cfg
 
     @property
-    def rdma_traffic_class(self) -> str:
+    def rdma_traffic_class(self) -> int:
         return self._rdma_traffic_class
 
     @rdma_traffic_class.setter
@@ -342,7 +342,7 @@ class LlmConfig(object):
         self._rdma_traffic_class = rdma_traffic_class
 
     @property
-    def rdma_service_level(self) -> str:
+    def rdma_service_level(self) -> int:
         return self._rdma_service_level
 
     @rdma_service_level.setter

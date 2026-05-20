@@ -119,7 +119,7 @@ checkopts() {
         ENABLE_SIGN=ON
         shift
         ;;
-      --sign-script | --sign-script)
+      --sign-script | --sign_script)
         CUSTOM_SIGN_SCRIPT="$(realpath $2)"
         shift 2
         ;;
