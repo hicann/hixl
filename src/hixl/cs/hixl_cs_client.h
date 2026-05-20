@@ -106,7 +106,7 @@ class HixlCSClient {
   Status BatchTransferDeviceSync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list, uint32_t timeout_ms);
   template <typename T>
   Status ConvertHostRegisterAddr(bool is_server, const char *name, T &addr);
-  Status ConvertUboeDescs(bool is_get, uint32_t list_num, HixlOneSideOpDesc *desc_list);
+  Status ConvertUboeDescs(uint32_t list_num, HixlOneSideOpDesc *desc_list);
   Status EnsureDeviceRemoteFlagInitedLocked();
   Status EnsureDeviceKernelLoadedLocked();
   void *GetDeviceKernelFunc(bool is_get);

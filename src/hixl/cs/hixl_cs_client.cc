@@ -1007,7 +1007,7 @@ Status HixlCSClient::BatchTransferSync(bool is_get, uint32_t list_num, const Hix
   if (IsDeviceEndpoint(endpoint)) {
     if (endpoint.protocol == COMM_PROTOCOL_UBOE) {
       std::vector<HixlOneSideOpDesc> mutable_descs(desc_list, desc_list + list_num);
-      HIXL_CHK_STATUS_RET(ConvertUboeDescs(is_get, list_num, mutable_descs.data()),
+      HIXL_CHK_STATUS_RET(ConvertUboeDescs(list_num, mutable_descs.data()),
                           "[HixlClient] convert uboe descs failed.");
       return BatchTransferDeviceSync(is_get, list_num, mutable_descs.data(), timeout_ms);
     }
@@ -1037,12 +1037,12 @@ Status HixlCSClient::ConvertHostRegisterAddr(bool is_server, const char *name, T
   return SUCCESS;
 }
 
-Status HixlCSClient::ConvertUboeDescs(bool is_get, uint32_t list_num, HixlOneSideOpDesc *desc_list) {
+Status HixlCSClient::ConvertUboeDescs(uint32_t list_num, HixlOneSideOpDesc *desc_list) {
   for (uint32_t i = 0; i < list_num; i++) {
-    HIXL_CHK_STATUS_RET(ConvertHostRegisterAddr(is_get, "src", desc_list[i].remote_buf),
-                        "[HixlClient][UBOE] Convert src addr failed");
-    HIXL_CHK_STATUS_RET(ConvertHostRegisterAddr(!is_get, "dst", desc_list[i].local_buf),
-                        "[HixlClient][UBOE] Convert dst addr failed");
+    HIXL_CHK_STATUS_RET(ConvertHostRegisterAddr(true, "remote", desc_list[i].remote_buf),
+                        "[HixlClient][UBOE] Convert remote addr failed");
+    HIXL_CHK_STATUS_RET(ConvertHostRegisterAddr(false, "local", desc_list[i].local_buf),
+                        "[HixlClient][UBOE] Convert local addr failed");
   }
   return SUCCESS;
 }
@@ -1057,7 +1057,7 @@ Status HixlCSClient::BatchTransferAsync(bool is_get, uint32_t list_num, const Hi
   if (IsDeviceEndpoint(ep)) {
     if (ep.protocol == COMM_PROTOCOL_UBOE) {
       std::vector<HixlOneSideOpDesc> mutable_descs(desc_list, desc_list + list_num);
-      HIXL_CHK_STATUS_RET(ConvertUboeDescs(is_get, list_num, mutable_descs.data()),
+      HIXL_CHK_STATUS_RET(ConvertUboeDescs(list_num, mutable_descs.data()),
                           "[HixlClient] convert uboe descs failed.");
       return BatchTransferDeviceAsync(is_get, list_num, mutable_descs.data(), query_handle);
     }
