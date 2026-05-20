@@ -9,7 +9,7 @@
  */
 
 /**
- * @file rootinfo_builder.h
+ * @file root_info_builder.h
  * @brief RootInfo 构建模块
  *
  * 提供根据 NPU ID 构建 RootInfo 的功能，包括：
@@ -25,7 +25,7 @@
 #include <vector>
 #include <map>
 #include "hixl/hixl_types.h"
-#include "proxy/hcomm/dcmi_proxy.h"
+#include "proxy/dcmi_proxy.h"
 
 namespace hixl {
 
@@ -93,13 +93,13 @@ EidByte6Info ParseEidByte6(const std::string &eid);
  * @brief 根据 NPU ID 构建 RootInfo
  * @param [in] npu_id NPU ID
  * @param [in] is_server 是否为 Server 产品形态
- * @param [out] rootinfo 输出的 RootInfo 结构
+ * @param [out] root_info 输出的 RootInfo 结构
  * @return 成功: SUCCESS, 失败: 其它错误码
  *
  * 该函数内部调用 DCMI 接口获取 URMA 设备信息，
  * 并根据产品形态构建 port 到 EID 的映射。
  */
-int32_t BuildNpuRootInfo(int32_t npu_id, bool is_server, NpuRootInfo &rootinfo);
+int32_t BuildNpuRootInfo(int32_t npu_id, bool is_server, NpuRootInfo &root_info);
 
 /**
  * @brief 获取 URMA Device 列表

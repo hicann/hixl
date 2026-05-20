@@ -95,7 +95,7 @@ struct EdgeCollectInput {
 // 在 /etc/ 目录下模糊匹配以 noroce.json 结尾的文件，返回修改时间最新的一个
 std::string FindLatestTopoFile() {
   DIR *dir = opendir(kDefaultTopoDir);
-  if (!dir) {
+  if (dir == nullptr) {
     HIXL_LOGW("Failed to open /etc/ for topo file scan");
     return "";
   }
@@ -108,8 +108,8 @@ std::string FindLatestTopoFile() {
     if (name.size() < std::strlen(kDefaultTopoSuffix)) {
       continue;
     }
-    if (name.compare(name.size() - std::strlen(kDefaultTopoSuffix), std::strlen(kDefaultTopoSuffix), kDefaultTopoSuffix) !=
-        0) {
+    if (name.compare(name.size() - std::strlen(kDefaultTopoSuffix), std::strlen(kDefaultTopoSuffix),
+                     kDefaultTopoSuffix) != 0) {
       continue;
     }
 
@@ -142,7 +142,9 @@ bool LoadRouteKvMap(std::ifstream &file, std::map<std::string, std::string> &kv_
     std::string value = line.substr(eq_pos + 1);
 
     size_t key_end = key.find_last_not_of(" \t\r\n");
-    if (key_end != std::string::npos) key = key.substr(0, key_end + 1);
+    if (key_end != std::string::npos) {
+      key = key.substr(0, key_end + 1);
+    }
 
     size_t val_start = value.find_first_not_of(" \t\r\n");
     size_t val_end = value.find_last_not_of(" \t\r\n");
@@ -208,7 +210,9 @@ int32_t BuildRouteEntries(const std::map<std::string, std::string> &kv_map, Rout
   for (int32_t i = 0; i < pair_device_num; ++i) {
     std::string dev_id_key = "pair" + std::to_string(i) + "_dev_id";
     auto dev_it = kv_map.find(dev_id_key);
-    if (dev_it == kv_map.end()) continue;
+    if (dev_it == kv_map.end()) {
+      continue;
+    }
 
     int32_t device_id = 0;
     try {
@@ -227,18 +231,18 @@ int32_t BuildRouteEntries(const std::map<std::string, std::string> &kv_map, Rout
 // ============ DCMI 接口封装实现 ============
 
 int32_t GetMainboardId(int32_t phy_dev_id, unsigned int &mainboard_id) {
-  if (LoadDcmi() != 0) {
+  if (DcmiProxy::LoadDcmi() != 0) {
     HIXL_LOGE(FAILED, "DCMI not loaded");
     return FAILED;
   }
 
   uint32_t logic_id = 0;
-  if (DcmiGetLogicIdFromPhyId(phy_dev_id, &logic_id) != 0) {
+  if (DcmiProxy::GetLogicIdFromPhyId(phy_dev_id, &logic_id) != 0) {
     HIXL_LOGE(FAILED, "Failed to get logic id from phy id: %d", phy_dev_id);
     return FAILED;
   }
 
-  int32_t ret = DcmiGetMainboardId(logic_id, &mainboard_id);
+  int32_t ret = DcmiProxy::GetMainboardId(logic_id, &mainboard_id);
   if (ret != 0) {
     HIXL_LOGE(FAILED, "Failed to get mainboard id, ret=%d", ret);
     return FAILED;
@@ -248,13 +252,13 @@ int32_t GetMainboardId(int32_t phy_dev_id, unsigned int &mainboard_id) {
 }
 
 int32_t GetClosNetInstanceId(int32_t phy_dev_id, std::string &net_instance_id) {
-  if (LoadDcmi() != 0) {
+  if (DcmiProxy::LoadDcmi() != 0) {
     HIXL_LOGE(FAILED, "DCMI not loaded");
     return FAILED;
   }
 
   uint32_t logic_id = 0;
-  if (DcmiGetLogicIdFromPhyId(phy_dev_id, &logic_id) != 0) {
+  if (DcmiProxy::GetLogicIdFromPhyId(phy_dev_id, &logic_id) != 0) {
     HIXL_LOGE(FAILED, "Failed to get logic id from phy id: %d", phy_dev_id);
     return FAILED;
   }
@@ -262,7 +266,7 @@ int32_t GetClosNetInstanceId(int32_t phy_dev_id, std::string &net_instance_id) {
   DcmiSpodInfo spod_info = {};
   uint32_t buf_size = sizeof(DcmiSpodInfo);
   int32_t ret =
-      DcmiGetDeviceInfo(logic_id, DCMI_MAIN_CMD_CHIP_INF, DCMI_CHIP_INFO_SUB_CMD_SPOD_INFO, &spod_info, &buf_size);
+      DcmiProxy::GetDeviceInfo(logic_id, DCMI_MAIN_CMD_CHIP_INF, DCMI_CHIP_INFO_SUB_CMD_SPOD_INFO, &spod_info, &buf_size);
   if (ret != 0) {
     HIXL_LOGE(FAILED, "Failed to get device info, ret=%d", ret);
     return FAILED;
@@ -727,6 +731,8 @@ int32_t GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, c
             local_comm_res.version.c_str(), local_comm_res.net_instance_id.c_str(),
             local_comm_res.endpoint_list.size());
   LogEndpointList(local_comm_res.endpoint_list);
+
+  DcmiProxy::UnloadDcmi();
   return SUCCESS;
 }
 

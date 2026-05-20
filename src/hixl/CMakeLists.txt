@@ -26,7 +26,6 @@ file(GLOB HIXL_SRC_LIST
         "${CMAKE_CURRENT_LIST_DIR}/fabric_mem/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/cs/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/profiling/*.cc"
-        "${CMAKE_CURRENT_LIST_DIR}/proxy/hcomm/*.cc"
         )
 
 add_library(cann_hixl SHARED ${HIXL_SRC_LIST})
@@ -56,6 +55,7 @@ target_link_libraries(cann_hixl PRIVATE
         hcomm_proxy_static
         hccp_proxy_static
         dsmi_proxy_static
+        dcmi_proxy_static
         alog
         error_manager
         acl_rt

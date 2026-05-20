@@ -41,7 +41,6 @@ file(GLOB HIXL_SRC_LIST
         "${HIXL_CODE_DIR}/src/hixl/cs/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/profiling/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/proxy/*.cc"
-        "${HIXL_CODE_DIR}/src/hixl/proxy/hcomm/*.cc"
         "${HIXL_CODE_DIR}/src/ops/hixl_kernel/*.cc"
 )
 

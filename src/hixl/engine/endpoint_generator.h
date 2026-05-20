@@ -59,12 +59,17 @@ class EndpointGenerator {
   static Status BuildNetInstanceId(int32_t device_id,
                                    const std::string &local_engine,
                                    std::string &net_instance_id);
+  static Status ParseEndpointListFromLocalCommRes(const std::map<AscendString, AscendString> &options,
+                                                     std::string &local_comm_res,
+                                                     std::vector<EndpointConfig> &endpoint_list);
+  static Status GenEndpointFromProtocolDesc(const std::map<AscendString, AscendString> &options,
+                                             std::vector<EndpointConfig> &endpoint_list);
   static Status BuildEndpointListFromLocalCommRes(const nlohmann::json &config,
                                                   bool has_endpoint_list,
                                                   const std::string &local_engine,
                                                   std::vector<EndpointConfig> &endpoint_list);
   static Status ParseLocalCommRes(const nlohmann::json &config, std::vector<EndpointConfig> &endpoint_list);
-  static Status FillDeviceInfoIfNeeded(SocType soc_type, std::vector<EndpointConfig> &endpoint_list);
+  static Status FillDeviceInfoIfNeeded(std::vector<EndpointConfig> &endpoint_list);
   static Status BuildEndpointList(int32_t phy_device_id, std::vector<EndpointInfo> &endpoint_list);
   static Status BuildRoceEndpoint(int32_t phy_device_id, EndpointInfo &endpoint);
   static Status BuildHccsEndpoint(int32_t phy_device_id, EndpointInfo &endpoint);

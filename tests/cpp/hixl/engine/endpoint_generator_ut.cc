@@ -493,13 +493,11 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsAutoGeneratesForA2And
                                                             endpoint_list),
             SUCCESS);
   EXPECT_EQ(local_comm_res, R"({"version":"1.3"})");
-  ASSERT_EQ(endpoint_list.size(), 3U);
-  EXPECT_EQ(endpoint_list[0].protocol, kProtocolRoce);
-  EXPECT_EQ(endpoint_list[1].protocol, kProtocolHccs);
-  EXPECT_EQ(endpoint_list[2].protocol, kProtocolUboe);
-  EXPECT_EQ(endpoint_list[2].comm_id, "192.168.100.200");
-  EXPECT_EQ(endpoint_list[2].placement, kPlacementDevice);
-  EXPECT_EQ(endpoint_list[2].net_instance_id, "default_superpod1_1");
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_EQ(endpoint_list[0].protocol, kProtocolUboe);
+  EXPECT_EQ(endpoint_list[0].comm_id, "192.168.100.200");
+  EXPECT_EQ(endpoint_list[0].placement, kPlacementDevice);
+  EXPECT_EQ(endpoint_list[0].net_instance_id, "default_superpod1_1");
 
   (void)remove(script_path.c_str());
 }
@@ -533,7 +531,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsRejectsEmptyLocalComm
   std::vector<EndpointConfig> endpoint_list;
   EXPECT_EQ(EndpointGenerator::BuildEndpointListFromOptions(options, "127.0.0.1:26000", local_comm_res,
                                                             endpoint_list),
-            PARAM_INVALID);
+            FAILED);
 }
 
 TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsAutoGeneratesBaseEndpointsAndUboeWhenLocalCommResMissing) {
@@ -560,17 +558,11 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsAutoGeneratesBaseEndp
                                                             endpoint_list),
             SUCCESS);
   EXPECT_TRUE(local_comm_res.empty());
-  ASSERT_EQ(endpoint_list.size(), 3U);
-  EXPECT_EQ(endpoint_list[0].protocol, kProtocolRoce);
-  EXPECT_EQ(endpoint_list[0].comm_id, "10.10.10.3");
-  EXPECT_EQ(endpoint_list[0].net_instance_id, "88");
-  EXPECT_EQ(endpoint_list[1].protocol, kProtocolHccs);
-  EXPECT_EQ(endpoint_list[1].comm_id, "3");
-  EXPECT_EQ(endpoint_list[1].net_instance_id, "88");
-  EXPECT_EQ(endpoint_list[2].protocol, kProtocolUboe);
-  EXPECT_EQ(endpoint_list[2].comm_id, "192.168.100.200");
-  EXPECT_EQ(endpoint_list[2].placement, kPlacementDevice);
-  EXPECT_EQ(endpoint_list[2].net_instance_id, "default_superpod1_1");
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_EQ(endpoint_list[0].protocol, kProtocolUboe);
+  EXPECT_EQ(endpoint_list[0].comm_id, "192.168.100.200");
+  EXPECT_EQ(endpoint_list[0].placement, kPlacementDevice);
+  EXPECT_EQ(endpoint_list[0].net_instance_id, "default_superpod1_1");
 
   (void)remove(file_path.c_str());
   (void)remove(script_path.c_str());
@@ -646,14 +638,10 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsGeneratesUboeWhenLoca
   EXPECT_EQ(EndpointGenerator::BuildEndpointListFromOptions(options, "127.0.0.1:26000", local_comm_res,
                                                             endpoint_list),
             SUCCESS);
-  ASSERT_EQ(endpoint_list.size(), 3U);
-  EXPECT_EQ(endpoint_list[0].protocol, kProtocolRoce);
-  EXPECT_EQ(endpoint_list[0].net_instance_id, "127.0.0.1");
-  EXPECT_EQ(endpoint_list[1].protocol, kProtocolHccs);
-  EXPECT_EQ(endpoint_list[1].comm_id, "3");
-  EXPECT_EQ(endpoint_list[2].protocol, kProtocolUboe);
-  EXPECT_EQ(endpoint_list[2].comm_id, "192.168.100.204");
-  EXPECT_EQ(endpoint_list[2].net_instance_id, "default_superpod1_1");
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_EQ(endpoint_list[0].protocol, kProtocolUboe);
+  EXPECT_EQ(endpoint_list[0].comm_id, "192.168.100.204");
+  EXPECT_EQ(endpoint_list[0].net_instance_id, "default_superpod1_1");
 
   (void)remove(file_path.c_str());
   (void)remove(script_path.c_str());
@@ -676,7 +664,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsAcceptsMixedProtocolD
   EXPECT_EQ(EndpointGenerator::BuildEndpointListFromOptions(options, "127.0.0.1:26000", local_comm_res,
                                                             endpoint_list),
             SUCCESS);
-  ExpectRoceHccsUboeEndpoints(endpoint_list, "192.168.100.201");
+  ExpectSingleUboeEndpoint(endpoint_list, "192.168.100.201");
 
   (void)remove(script_path.c_str());
 }
@@ -698,7 +686,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsAcceptsMixedProtocolD
   EXPECT_EQ(EndpointGenerator::BuildEndpointListFromOptions(options, "127.0.0.1:26000", local_comm_res,
                                                             endpoint_list),
             SUCCESS);
-  ExpectRoceHccsUboeEndpoints(endpoint_list, "192.168.100.202");
+  ExpectSingleUboeEndpoint(endpoint_list, "192.168.100.202");
 
   (void)remove(script_path.c_str());
 }
