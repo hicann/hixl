@@ -2,11 +2,12 @@
 
 ## Skills 列表
 
-| Skill                                          | 功能 | 触发场景 |
-|------------------------------------------------|-------|---------|
-| [hixl-troubleshoot](skills/hixl-troubleshoot/) | HIXL/ADXL 运行时问题定位 | 用户明确要求诊断 HIXL，或日志中出现 HIXL、ADXL、Ascend direct transport 相关报错或调用栈 |
-| [hixl-pr-review](skills/hixl-pr-review)        | HIXL代码检视/审查       | 用户明确要求检视PR或审查PR |
-| [hixl-ut-generator](skills/hixl-ut-generator/) | HIXL UT 生成        | 用户要求基于当前改动生成测试、补充 UT、或根据 git diff 编写测试用例 |
+| Skill                                         | 功能 | 触发场景 |
+|-----------------------------------------------|------|---------|
+| [hixl-troubleshoot](skills/hixl-troubleshoot) | HIXL/ADXL 运行时问题定位 | 用户明确要求诊断 HIXL，或日志中出现 HIXL、ADXL、Ascend direct transport 相关报错或调用栈 |
+| [hixl-pr-review](skills/hixl-pr-review)       | HIXL代码检视/审查       | 用户明确要求检视PR或审查PR |
+| [hixl-ut-generator](skills/hixl-ut-generator) | HIXL UT 生成        | 用户要求基于当前改动生成测试、补充 UT、或根据 git diff 编写测试用例 ||
+| [hixl-srs-doc-generator](skills/hixl-srs-doc-generator) | HIXL 设计文档生成 | 用户要求生成设计文档、需求文档、设计方案，或描述新功能需求时                 |
 
 ## SKILL 命名规范
 
