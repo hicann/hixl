@@ -29,9 +29,7 @@
 namespace hixl {
 
 namespace {
-constexpr const int32_t kTimeOut = 1000;
-constexpr const uint32_t kCaptureLogTimeoutMs = 1000U;
-constexpr const char kHccnToolPath[] = "/usr/local/Ascend/driver/tools/hccn_tool";
+constexpr int32_t kTimeOut = 500;
 using MockEngineAclRuntimeStub = endpoint_test::MockAclRuntimeStub;
 
 // Use common KernelJsonMmpaStub from test_mmpa_utils.h
