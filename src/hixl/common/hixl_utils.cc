@@ -90,10 +90,7 @@ struct CommResourceConfig {
 
 void from_json(const nlohmann::json &j, CommResourceConfig &config) {
   if (j.contains("comm_resource_config.protocol_desc")) {
-    auto json_protocol_desc = j.at("comm_resource_config.protocol_desc");
-    if (json_protocol_desc.is_array()) {
-      json_protocol_desc.get_to(config.protocol_desc);
-    }
+    j.at("comm_resource_config.protocol_desc").get_to(config.protocol_desc);
   }
 }
 

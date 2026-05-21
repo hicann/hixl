@@ -16,6 +16,8 @@
 #include <sys/stat.h>
 #include "common/hixl_utils.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "graph/ascend_string.h"
+#include "hixl/hixl_types.h"
 
 using namespace ::testing;
 
@@ -25,14 +27,15 @@ constexpr const char kHccnConfPath[] = "/etc/hccn.conf";
 
 class DeviceIpMmpaStub : public llm::MmpaStubApiGe {
  public:
-  DeviceIpMmpaStub(std::string conf_path, bool conf_exists) : conf_path_(std::move(conf_path)), conf_exists_(conf_exists) {}
+  DeviceIpMmpaStub(std::string conf_path, bool conf_exists)
+      : conf_path_(std::move(conf_path)), conf_exists_(conf_exists) {}
 
   int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
     if (std::string(path) != kHccnConfPath || !conf_exists_) {
       return EN_ERROR;
     }
     if (realPath == nullptr || realPathLen <= 0) {
-        return EN_ERROR;
+      return EN_ERROR;
     }
     size_t destMax = static_cast<size_t>(realPathLen);
     int ret = snprintf_s(realPath, destMax, destMax - 1, "%s", conf_path_.c_str());
@@ -166,5 +169,62 @@ TEST_F(HixlUtilsUTest, GetBondIpAddress) {
   std::string bond_ip;
   EXPECT_EQ(GetBondIpAddress(0, 0, bond_ip), SUCCESS);
   EXPECT_EQ(bond_ip, "192.168.1.111");
+}
+
+TEST_F(HixlUtilsUTest, ParseConfigProtocolDescValidStringArrayTest) {
+  std::map<ge::AscendString, ge::AscendString> options;
+  std::string json_str = R"({"comm_resource_config.protocol_desc": ["HCCS", "ROCE"]})";
+  options[ge::AscendString(hixl::OPTION_GLOBAL_RESOURCE_CONFIG)] = ge::AscendString(json_str.c_str());
+
+  std::vector<std::string> protocol_desc;
+  EXPECT_EQ(ParseConfigProtocolDesc(options, protocol_desc), SUCCESS);
+  EXPECT_EQ(protocol_desc.size(), 2U);
+  EXPECT_EQ(protocol_desc[0], "HCCS");
+  EXPECT_EQ(protocol_desc[1], "ROCE");
+}
+
+TEST_F(HixlUtilsUTest, ParseConfigProtocolDescEmptyArrayTest) {
+  std::map<ge::AscendString, ge::AscendString> options;
+  std::string json_str = R"({"comm_resource_config.protocol_desc": []})";
+  options[ge::AscendString(hixl::OPTION_GLOBAL_RESOURCE_CONFIG)] = ge::AscendString(json_str.c_str());
+
+  std::vector<std::string> protocol_desc;
+  EXPECT_EQ(ParseConfigProtocolDesc(options, protocol_desc), SUCCESS);
+  EXPECT_EQ(protocol_desc.size(), 0U);
+}
+
+TEST_F(HixlUtilsUTest, ParseConfigProtocolDescMissingFieldTest) {
+  std::map<ge::AscendString, ge::AscendString> options;
+
+  std::vector<std::string> protocol_desc;
+  EXPECT_EQ(ParseConfigProtocolDesc(options, protocol_desc), SUCCESS);
+  EXPECT_EQ(protocol_desc.size(), 0U);
+}
+
+TEST_F(HixlUtilsUTest, ParseConfigProtocolDescStringNotArrayTest) {
+  std::map<ge::AscendString, ge::AscendString> options;
+  std::string json_str = R"({"comm_resource_config.protocol_desc": "HCCS"})";
+  options[ge::AscendString(hixl::OPTION_GLOBAL_RESOURCE_CONFIG)] = ge::AscendString(json_str.c_str());
+
+  std::vector<std::string> protocol_desc;
+  EXPECT_EQ(ParseConfigProtocolDesc(options, protocol_desc), PARAM_INVALID);
+}
+
+TEST_F(HixlUtilsUTest, ParseConfigProtocolDescNumberArrayTest) {
+  std::map<ge::AscendString, ge::AscendString> options;
+  std::string json_str = R"({"comm_resource_config.protocol_desc": [123, 456]})";
+  options[ge::AscendString(hixl::OPTION_GLOBAL_RESOURCE_CONFIG)] = ge::AscendString(json_str.c_str());
+
+  std::vector<std::string> protocol_desc;
+  EXPECT_EQ(ParseConfigProtocolDesc(options, protocol_desc), PARAM_INVALID);
+}
+
+TEST_F(HixlUtilsUTest, ParseConfigProtocolDescInvalidJsonTest) {
+  std::map<ge::AscendString, ge::AscendString> options;
+  std::string json_str = R"(invalid_json)";
+  options[ge::AscendString(hixl::OPTION_GLOBAL_RESOURCE_CONFIG)] = ge::AscendString(json_str.c_str());
+
+  std::vector<std::string> protocol_desc;
+  EXPECT_EQ(ParseConfigProtocolDesc(options, protocol_desc), PARAM_INVALID);
 }
 }  // namespace hixl
