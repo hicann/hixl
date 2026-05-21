@@ -1020,19 +1020,18 @@ Status HixlCSClient::BatchTransferSync(bool is_get, uint32_t list_num, const Hix
   return PARAM_INVALID;
 }
 
-template <typename T>
-Status HixlCSClient::ConvertHostRegisterAddr(bool is_server, const char *name, T &addr) {
+Status HixlCSClient::ConvertHostRegisterAddr(bool is_server, const char *name, void *&addr) {
   MemoryRegion region;
   Status status = mem_store_.FindMemoryRegion(is_server, addr, region);
-  HIXL_CHK_STATUS_RET(status, "[HixlClient][UB] %s addr %p not registered in %s regions", name, addr,
+  HIXL_CHK_STATUS_RET(status, "[HixlClient] %s addr %p not registered in %s regions", name, addr,
                       is_server ? "server" : "client");
 
   if (region.is_host_mem) {
     HIXL_CHECK_NOTNULL(region.register_dev_addr, ", register_dev_addr is nullptr.");
     auto host_addr = addr;
     uintptr_t offset = reinterpret_cast<uintptr_t>(host_addr) - reinterpret_cast<uintptr_t>(region.addr);
-    addr = static_cast<T>(static_cast<char *>(region.register_dev_addr) + offset);
-    HIXL_LOGI("[HixlClient][UB] Convert %s addr: %p -> %p (is_server=%d)", name, host_addr, addr, is_server);
+    addr = static_cast<void *>(static_cast<char *>(region.register_dev_addr) + offset);
+    HIXL_LOGI("[HixlClient] Convert %s addr: %p -> %p (is_server=%d)", name, host_addr, addr, is_server);
   }
   return SUCCESS;
 }
