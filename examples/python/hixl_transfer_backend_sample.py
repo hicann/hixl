@@ -17,7 +17,6 @@ import datetime
 import torch
 import torch.distributed as dist
 import torch_npu
-import torchair
 from llm_datadist import LLMDataDist, LLMRole, LLMConfig, CacheDesc, DataType, BlocksCacheKey, \
     Placement, LLMClusterInfo, LLMStatusCode
 

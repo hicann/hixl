@@ -17,7 +17,6 @@ from llm_datadist import LLMDataDist, LLMRole, LLMConfig, CacheDesc, DataType, B
     Placement, LLMClusterInfo, LLMStatusCode
 import torch
 import torch_npu
-import torchair
 import socket
 import struct
 

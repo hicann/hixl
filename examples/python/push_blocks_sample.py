@@ -19,7 +19,6 @@ from llm_datadist import LLMDataDist, LLMRole, LLMConfig, CacheDesc, DataType, B
 import torch
 import torch.distributed as dist
 import torch_npu
-import torchair
 
 logging.basicConfig(format='%(asctime)s %(message)s', level=logging.INFO)
 

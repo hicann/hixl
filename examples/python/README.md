@@ -29,12 +29,15 @@
 
 ## 环境准备
 
-安装根目录下requirements.txt依赖（如果前面已经安装则跳过此步）：
+- 安装根目录下requirements.txt依赖（如果前面已经安装则跳过此步）：
 
-```bash
-pip3 install -r requirements.txt
-```
-根据实际环境，安装对应的**torch**与**torch_npu**包(建议使用大于等于2.1.0的版本)， [获取方法](https://gitcode.com/Ascend/pytorch)。
+  ```bash
+  pip3 install -r requirements.txt
+  ```
+- 安装**pytorch**与**torch_npu**包
+
+  根据使用的python版本，参照[版本配套说明](https://gitcode.com/Ascend/pytorch)，下载安装对应版本的`pytorch`和`torch_npu`，安装方法请参考[软件安装指南](https://gitcode.com/Ascend/pytorch/blob/v2.7.1/docs/zh/installation_guide/menu_installation_guide.md)。
+
 
 ## 样例配置说明
 

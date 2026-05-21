@@ -21,12 +21,11 @@ from llm_datadist import LLMDataDist, LLMRole, LLMConfig, CacheDesc, Cache, Data
     Placement
 import torch
 import torch_npu
-import torchair
 
-PROMPT_HOST_IP = '10.0.0.0'
+PROMPT_HOST_IP = '10.10.10.0'
 PROMPT_IP_LIST = ['192.168.1.1', '192.168.1.2', '192.168.1.3', '192.168.1.4',
                   '192.168.1.5', '192.168.1.6', '192.168.1.7', '192.168.1.8']
-DECODER_HOST_IP = '10.0.0.1'
+DECODER_HOST_IP = '10.10.10.1'
 DECODER_IP_LIST = ['192.168.2.1', '192.168.2.2', '192.168.2.3', '192.168.2.4',
                   '192.168.2.5', '192.168.2.6', '192.168.2.7', '192.168.2.8']
 
@@ -219,4 +218,3 @@ if __name__ == '__main__':
     else:
         run_decoder_sample(datadist, args.device_id, is_single, args.host_ip)
     logging.info('Sample end')
-PROMPT_HOST_IP

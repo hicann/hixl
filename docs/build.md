@@ -167,6 +167,9 @@ git clone https://gitcode.com/cann/hixl.git
 ```bash
 # 默认路径安装，root用户默认路径是/usr/local/Ascend，普通用户默认路径是${HOME}/Ascend
 bash build.sh
+
+# 若需要同时编译C++样例或基准测试benchmarks，需要额外指定"--examples"参数
+bash build.sh --examples
 ```
 
 若您的编译环境无法访问网络，您需要在联网环境中下载上述开源软件压缩包，并手动上传至您的编译环境中。
@@ -185,7 +188,6 @@ bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
 成功编译后会在build_out目录下生成`cann-hixl_${cann_version}_linux-${arch}.run`。
 - ${cann_version}表示cann版本号。
 - ${arch}表示CPU架构，如aarch64、x86_64。
-- 如需要进行样例验证或者基准测试Benchmarks验证，编译时候附加指定参数--examples
 - 更多执行选项可以用-h查看，或查询下表。
   ```
   bash build.sh -h
