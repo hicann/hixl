@@ -582,7 +582,7 @@ transfer_backend(transfer_backend)
 **调用示例**
 
 ```
-ffrom llm_datadist import LLMConfig
+from llm_datadist import LLMConfig
 llm_config = LLMConfig()
 llm_config.transfer_backend = "hixl"
 ```

@@ -396,7 +396,7 @@ Status PushKvCache(const Cache &src_cache,
 
 | 参数名称 | 输入/输出 | 取值说明 |
 | --- | --- | --- |
-| src_cache | 输入 | 本地目的Cache。仅需指定调用RegisterKvCache返回的cache_id。 |
+| src_cache | 输入 | 本地源Cache。仅需指定调用RegisterKvCache返回的cache_id。 |
 | dst_cache_index | 输入 | 远端目的Cache的索引。 |
 | src_batch_index | 输入 | 本地源batch的下标。 |
 | size | 输入 | 当前只支持默认值-1。 |
@@ -439,7 +439,7 @@ Status PushKvBlocks(const Cache &src_cache,
 
 | 参数名称 | 输入/输出 | 取值说明 |
 | --- | --- | --- |
-| src_cache | 输入 | 本地目的Cache。仅需指定调用RegisterKvCache返回的cache_id。 |
+| src_cache | 输入 | 本地源Cache。仅需指定调用RegisterKvCache返回的cache_id。 |
 | dst_cache_index | 输入 | 远端目的Cache的索引。 |
 | src_blocks | 输入 | 源Cache的block index列表。 |
 | dst_blocks | 输入 | 目的Cache的block index列表。 |

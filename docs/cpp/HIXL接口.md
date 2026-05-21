@@ -138,7 +138,7 @@ Status Initialize(const AscendString &local_engine, const std::map<AscendString,
 | endpoint_list[].protocol | 字符串 | 必选 | 通信协议 | "roce"/"ub_ctp"/"ub_tp"/"uboe" |
 | endpoint_list[].comm_id | 字符串 | 必选 | 通信标识 | protocol为ub_ctp/ub_tp时填${eid}；protocol为roce时填ipv4/ipv6网卡地址；protocol为uboe时填device uboe网卡ip地址 |
 | endpoint_list[].placement | 字符串 | 必选 | 通信设备位置 | "host"/"device" |
-| endpoint_list[].plane | 字符串 | 可选 | 通信设备平面 | protocol为ub_ctp/ub_tp时，设备区分平面则填写，每个平面唯一（如"plane-a"/"plan-b"） |
+| endpoint_list[].plane | 字符串 | 可选 | 通信设备平面 | protocol为ub_ctp/ub_tp时，设备区分平面则填写，每个平面唯一（如"plane-a"/"plane-b"） |
 | endpoint_list[].dst_eid | 字符串 | 可选 | 与当前通信设备连接的对端通信设备的${eid} | protocol为ub_ctp时，存在full-mesh直连对端则填写对端${eid} |
 
 <a name="全局资源配置字段说明"></a>**全局资源配置字段说明**  
@@ -261,7 +261,7 @@ Status RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle)
 Status DeregisterMem(MemHandle mem_handle)
 ```
 
-参数说明
+**参数说明**
 
 | 参数名 | 输入/输出 | 描述 |
 | --- | --- | --- |
@@ -543,7 +543,7 @@ Status TransferSync(const AscendString &remote_engine,
 | 参数名称 | 输入/输出 | 取值说明 |
 | --- | --- | --- |
 | remote_engine | 输入 | 远端Hixl的唯一标识 |
-| timeout_in_millis | 输入 | 发送超时时间，单位ms。
+| timeout_in_millis | 输入 | 发送超时时间，单位ms。 |
 | notify | 输入 | 要发送的Notify内容。内容中的notify_msg和name长度上限均为1024字符。 |
 
 **调用示例**

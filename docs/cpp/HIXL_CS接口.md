@@ -4,7 +4,7 @@
 ## 产品支持情况
 
 | 产品 | 是否支持 |
-|---|--- |
+| --- | --- |
 | Ascend 950PR/Ascend 950DT | √ |
 | Atlas A3 训练系列产品/Atlas A3 推理系列产品 | x |
 | Atlas A2 训练系列产品/Atlas A2 推理系列产品 | x |
@@ -154,9 +154,10 @@ enum HixlCompleteStatus {
   HIXL_COMPLETE_STATUS_FAILED
 };
 
+```
+
 说明：
 其中HIXL_COMPLETE_STATUS_TIMEOUT和HIXL_COMPLETE_STATUS_FAILED当前为预留字段。
-```
 
 ## 接口说明
 

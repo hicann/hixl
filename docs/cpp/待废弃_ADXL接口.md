@@ -378,7 +378,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 **函数功能**
 
-与远端HIXL进行批量异步内存传输。
+与远端AdxlEngine进行批量异步内存传输。
 
 **函数原型**
 
@@ -394,7 +394,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 | 参数名称 | 输入/输出 | 取值说明 |
 | --- | --- | --- |
-| remote_engine | 输入 | 远端HIXL的唯一标识。 |
+| remote_engine | 输入 | 远端AdxlEngine的唯一标识。 |
 | operation | 输入 | 将远端内存读到本地或者将本地内存写到远端。 |
 | op_descs | 输入 | 批量操作的本地以及远端地址。 |
 | optional_args | 输入 | 可选参数（预留）。 |

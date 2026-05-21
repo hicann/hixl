@@ -93,5 +93,5 @@ Notify的描述信息。
 struct NotifyDesc {
   AscendString name;
   AscendString notify_msg;
-  }
+};
 ```
