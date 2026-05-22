@@ -195,7 +195,7 @@ unlink_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], ti
 | --- | --- | --- |
 | clusters | Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]] | 集群列表。 |
 | timeout | int | 超时时间，单位：ms，默认超时时间3000ms。 |
-| force | bool | 是否强制断链，默认False。True表示强制断链。<br><br>  - 强制断链仅强制拆除本端链接，两端都要调用。<br>  - 非强制断链在Client发起。无故障时两端链路都会拆除。有故障导致断链失败时，需要在Server端也发起断链操作。<br>  - 无故障时两端链路都会拆除。<br>  - 有故障导致断链失败时，需要在Server端也发起断链操作。 |
+| force | bool | 是否强制断链，默认False。True表示强制断链。<br><br>  - 强制断链仅强制拆除本端链接，两端都要调用。<br>  - 非强制断链在Client发起。<br>  - 无故障时两端链路都会拆除。<br>  - 有故障导致断链失败时，需要在Server端也发起断链操作。 |
 
 **调用示例**
 
