@@ -454,7 +454,7 @@ Status FabricMemTransferService::ReuseStreamsLocked(std::vector<aclrtStream> &st
 }
 
 Status FabricMemTransferService::CreateStreamLocked(std::vector<aclrtStream> &streams,
-                                                    std::vector<aclrtStream> &new_streams) {
+                                                    std::vector<aclrtStream> &new_streams) const {
   aclrtStream stream = nullptr;
   HIXL_CHK_ACL_RET(aclrtCreateStreamWithConfig(&stream, 0, ACL_STREAM_FAST_LAUNCH | ACL_STREAM_FAST_SYNC),
                    "Create fabric mem stream failed.");
@@ -619,7 +619,8 @@ Status FabricMemTransferService::ProcessCopyWithAsync(const std::vector<aclrtStr
 }
 
 void FabricMemTransferService::UpdateStats(const FabricMemTransferContext &context, uint64_t transfer_cost,
-                                           uint64_t real_copy_cost, uint64_t transfer_bytes, uint64_t op_desc_count) {
+                                           uint64_t real_copy_cost, uint64_t transfer_bytes,
+                                           uint64_t op_desc_count) const {
   if (statistic_ == nullptr) {
     return;
   }
@@ -632,7 +633,7 @@ void FabricMemTransferService::UpdateStats(const FabricMemTransferContext &conte
 }
 
 Status FabricMemTransferService::NeedTransLocalAddr(const std::vector<TransferOpDesc> &op_descs,
-                                                    bool &need_trans_local_addr) {
+                                                    bool &need_trans_local_addr) const {
   need_trans_local_addr = false;
   if (op_descs.empty() || !has_host_memory_) {
     return SUCCESS;
