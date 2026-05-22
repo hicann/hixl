@@ -16,6 +16,9 @@
 #include <vector>
 #include <netinet/in.h>
 
+constexpr int kDefaultTcpListenBacklog = 128;
+constexpr uint32_t kDefaultTcpClientConnectTimeoutMs = 60000U;
+
 bool TcpSendUint64(int fd, uint64_t data);
 
 bool TcpSendTaskStatus(int fd);
@@ -26,7 +29,7 @@ class TCPServer {
  public:
   TCPServer();
 
-  bool StartServer(uint16_t port, int listen_backlog = 128);
+  bool StartServer(uint16_t port, int listen_backlog = kDefaultTcpListenBacklog);
 
   bool AcceptConnection();
 
@@ -59,7 +62,8 @@ class TCPClient {
  public:
   TCPClient();
 
-  bool ConnectToServer(const std::string &host, uint16_t port);
+  bool ConnectToServer(const std::string &host, uint16_t port,
+                      uint32_t timeout_ms = kDefaultTcpClientConnectTimeoutMs);
 
   bool SendUint64(uint64_t data) const;
 

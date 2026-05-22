@@ -11,16 +11,23 @@
 #include "benchmark_config.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cinttypes>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cerrno>
 #include <map>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
+#include "acl/acl.h"
+
 using hixl::AscendString;
 using hixl::OPTION_BUFFER_POOL;
+using hixl::OPTION_ENABLE_USE_FABRIC_MEM;
 
 namespace hixl_benchmark {
 
@@ -159,10 +166,12 @@ bool CollectArgs(int argc, char **argv, std::map<std::string, std::string> *kv,
 
 void ApplyRoleDefaults(BenchmarkConfig *cfg) {
   if (cfg->role == BenchmarkRole::kClient) {
+    cfg->role_name = "initiator";
     cfg->device_id = 0;
     cfg->local_engine = "127.0.0.1:" + std::to_string(kDefaultClientEnginePort);
     cfg->remote_engine = "127.0.0.1:" + std::to_string(kDefaultServerEnginePort);
   } else if (cfg->role == BenchmarkRole::kServer) {
+    cfg->role_name = "target";
     cfg->device_id = 1;
     cfg->local_engine = "127.0.0.1:" + std::to_string(kDefaultServerEnginePort);
     cfg->remote_engine = "127.0.0.1";
@@ -173,31 +182,76 @@ void ApplyCommonDefaults(BenchmarkConfig *cfg) {
   cfg->tcp_port = kDefaultTcpPort;
   cfg->tcp_accept_wait_sec = kDefaultAcceptWaitSec;
   cfg->tcp_client_count = 1U;
-  cfg->transfer_mode = "d2d";
   cfg->transfer_op = "read";
-  cfg->use_buffer_pool = false;
+  cfg->transport = "hccs";
+  cfg->initiator_memory_type = "device";
+  cfg->target_memory_type = "device";
+  cfg->check_consistency = false;
   cfg->total_size = kDefaultTotalSize;
+  cfg->buffer_size = kDefaultBufferSize;
   cfg->block_size = kDefaultTotalSize;
+  cfg->start_block_size = kDefaultTotalSize;
+  cfg->max_block_size = kDefaultTotalSize;
+  cfg->start_batch_size = 1U;
+  cfg->max_batch_size = 1U;
+  cfg->start_threads = 1U;
+  cfg->max_threads = 1U;
+  cfg->seed = 0U;
   cfg->block_steps = kDefaultBlockSteps;
   cfg->loops = kDefaultLoops;
   cfg->use_async = false;
   cfg->async_batch_num = 1U;
   cfg->connect_timeout_ms = kDefaultConnectTimeoutMs;
+  cfg->warmup_duration_sec = kDefaultWarmupDurationSec;
 }
 
 using KvApplyFn = bool (*)(const std::string &val, BenchmarkConfig *cfg);
 
 bool ApplyRoleKv(const std::string &val, BenchmarkConfig *cfg) {
-  if (val == "client") {
+  if (val == "client" || val == "initiator") {
     cfg->role = BenchmarkRole::kClient;
+    cfg->role_name = val;
     return true;
   }
-  if (val == "server") {
+  if (val == "server" || val == "target") {
     cfg->role = BenchmarkRole::kServer;
+    cfg->role_name = val;
     return true;
   }
-  fprintf(stderr, "[ERROR] Invalid --role=%s (expect client|server)\n", val.c_str());
+  fprintf(stderr, "[ERROR] Invalid --role=%s (expect target|initiator|client|server)\n", val.c_str());
   return false;
+}
+
+bool ApplyBenchmarkGroupKv(const std::string &val, BenchmarkConfig *cfg) {
+  cfg->benchmark_group = val;
+  return true;
+}
+
+bool ApplySocVariantKv(const std::string &val, BenchmarkConfig *cfg) {
+  std::string v = val;
+  std::transform(v.begin(), v.end(), v.begin(), [](unsigned char ch) {
+    return static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+  });
+  if (v != "auto" && v != "a2" && v != "a3" && v != "a5") {
+    fprintf(stderr, "[ERROR] Invalid --soc_variant=%s (expect auto|a2|a3|a5)\n", val.c_str());
+    return false;
+  }
+  cfg->soc_variant = v;
+  return true;
+}
+
+bool ApplyOutputDirKv(const std::string &val, BenchmarkConfig *cfg) {
+  cfg->output_dir = val;
+  return true;
+}
+
+bool ApplyTargetIdKv(const std::string &val, BenchmarkConfig *cfg) {
+  cfg->target_id = val;
+  if (!val.empty()) {
+    cfg->remote_engine = val;
+    cfg->remote_engine_list = SplitCommaList(val);
+  }
+  return true;
 }
 
 bool ApplyDeviceIdKv(const std::string &val, BenchmarkConfig *cfg) {
@@ -285,8 +339,13 @@ bool ApplyTcpClientCountKv(const std::string &val, BenchmarkConfig *cfg) {
   return true;
 }
 
-bool ApplyTransferModeKv(const std::string &val, BenchmarkConfig *cfg) {
-  cfg->transfer_mode = val;
+bool ApplyInitiatorMemoryKv(const std::string &val, BenchmarkConfig *cfg) {
+  cfg->initiator_memory_type = val;
+  return true;
+}
+
+bool ApplyTargetMemoryKv(const std::string &val, BenchmarkConfig *cfg) {
+  cfg->target_memory_type = val;
   return true;
 }
 
@@ -295,17 +354,27 @@ bool ApplyTransferOpKv(const std::string &val, BenchmarkConfig *cfg) {
   return true;
 }
 
-bool ApplyUseBufferPoolKv(const std::string &val, BenchmarkConfig *cfg) {
-  if (!ParseBool(val, &cfg->use_buffer_pool)) {
-    fprintf(stderr, "[ERROR] Invalid --use_buffer_pool=%s (expect true|false|0|1)\n", val.c_str());
-    return false;
-  }
+bool ApplyTransportKv(const std::string &val, BenchmarkConfig *cfg) {
+  cfg->transport = val;
+  return true;
+}
+
+bool ApplyOpTypeKv(const std::string &val, BenchmarkConfig *cfg) {
+  cfg->transfer_op = val;
   return true;
 }
 
 bool ApplyTotalSizeKv(const std::string &val, BenchmarkConfig *cfg) {
   if (!ParseU64(val, &cfg->total_size) || cfg->total_size == 0) {
     fprintf(stderr, "[ERROR] Invalid --total_size=%s\n", val.c_str());
+    return false;
+  }
+  return true;
+}
+
+bool ApplyBufferSizeKv(const std::string &val, BenchmarkConfig *cfg) {
+  if (!ParseU64(val, &cfg->buffer_size) || cfg->buffer_size == 0) {
+    fprintf(stderr, "[ERROR] Invalid --buffer_size=%s\n", val.c_str());
     return false;
   }
   return true;
@@ -360,43 +429,144 @@ bool ApplyConnectTimeoutKv(const std::string &val, BenchmarkConfig *cfg) {
   return true;
 }
 
+bool ApplyWarmupDurationKv(const std::string &val, BenchmarkConfig *cfg) {
+  if (!ParseU32(val, &cfg->warmup_duration_sec)) {
+    fprintf(stderr, "[ERROR] Invalid --warmup_duration=%s\n", val.c_str());
+    return false;
+  }
+  return true;
+}
+
+bool ApplyCheckConsistencyKv(const std::string &val, BenchmarkConfig *cfg) {
+  if (!ParseBool(val, &cfg->check_consistency)) {
+    fprintf(stderr, "[ERROR] Invalid --check_consistency=%s (expect true|false|0|1)\n", val.c_str());
+    return false;
+  }
+  return true;
+}
+
+bool ApplySeedKv(const std::string &val, BenchmarkConfig *cfg) {
+  if (!ParseU64(val, &cfg->seed)) {
+    fprintf(stderr, "[ERROR] Invalid --seed=%s\n", val.c_str());
+    return false;
+  }
+  return true;
+}
+
+bool ApplyStartBlockSizeKv(const std::string &val, BenchmarkConfig *cfg) {
+  if (!ParseU64(val, &cfg->start_block_size) || cfg->start_block_size == 0) {
+    fprintf(stderr, "[ERROR] Invalid --start_block_size=%s\n", val.c_str());
+    return false;
+  }
+  cfg->block_size = cfg->start_block_size;
+  cfg->block_size_explicit = true;
+  return true;
+}
+
+bool ApplyMaxBlockSizeKv(const std::string &val, BenchmarkConfig *cfg) {
+  if (!ParseU64(val, &cfg->max_block_size) || cfg->max_block_size == 0) {
+    fprintf(stderr, "[ERROR] Invalid --max_block_size=%s\n", val.c_str());
+    return false;
+  }
+  return true;
+}
+
+bool ApplyStartBatchSizeKv(const std::string &val, BenchmarkConfig *cfg) {
+  if (!ParseU32(val, &cfg->start_batch_size) || cfg->start_batch_size == 0U) {
+    fprintf(stderr, "[ERROR] Invalid --start_batch_size=%s\n", val.c_str());
+    return false;
+  }
+  cfg->async_batch_num = cfg->start_batch_size;
+  return true;
+}
+
+bool ApplyMaxBatchSizeKv(const std::string &val, BenchmarkConfig *cfg) {
+  if (!ParseU32(val, &cfg->max_batch_size) || cfg->max_batch_size == 0U) {
+    fprintf(stderr, "[ERROR] Invalid --max_batch_size=%s\n", val.c_str());
+    return false;
+  }
+  return true;
+}
+
+bool ApplyStartThreadsKv(const std::string &val, BenchmarkConfig *cfg) {
+  if (!ParseU32(val, &cfg->start_threads) || cfg->start_threads == 0U) {
+    fprintf(stderr, "[ERROR] Invalid --start_threads=%s\n", val.c_str());
+    return false;
+  }
+  return true;
+}
+
+bool ApplyMaxThreadsKv(const std::string &val, BenchmarkConfig *cfg) {
+  if (!ParseU32(val, &cfg->max_threads) || cfg->max_threads == 0U) {
+    fprintf(stderr, "[ERROR] Invalid --max_threads=%s\n", val.c_str());
+    return false;
+  }
+  return true;
+}
+
+void PopulateCoreKvHandlers(std::map<std::string, KvApplyFn> *table) {
+  auto &t = *table;
+  t["--role"] = ApplyRoleKv;
+  t["-r"] = ApplyRoleKv;
+  t["--benchmark_group"] = ApplyBenchmarkGroupKv;
+  t["--soc_variant"] = ApplySocVariantKv;
+  t["--output_dir"] = ApplyOutputDirKv;
+  t["--target_id"] = ApplyTargetIdKv;
+  t["--device_id"] = ApplyDeviceIdKv;
+  t["-d"] = ApplyDeviceIdKv;
+  t["--local_engine"] = ApplyLocalEngineKv;
+  t["-l"] = ApplyLocalEngineKv;
+  t["--remote_engine"] = ApplyRemoteEngineKv;
+  t["-e"] = ApplyRemoteEngineKv;
+  t["--tcp_port"] = ApplyTcpPortKv;
+  t["-p"] = ApplyTcpPortKv;
+  t["--tcp_accept_wait_s"] = ApplyTcpAcceptWaitSecKv;
+  t["-a"] = ApplyTcpAcceptWaitSecKv;
+  t["--tcp_client_count"] = ApplyTcpClientCountKv;
+  t["-c"] = ApplyTcpClientCountKv;
+  t["--initiator_memory"] = ApplyInitiatorMemoryKv;
+  t["--target_memory"] = ApplyTargetMemoryKv;
+  t["--transfer_op"] = ApplyTransferOpKv;
+  t["-o"] = ApplyTransferOpKv;
+  t["--op_type"] = ApplyOpTypeKv;
+  t["--transport"] = ApplyTransportKv;
+}
+
+void PopulateBenchKvHandlers(std::map<std::string, KvApplyFn> *table) {
+  auto &t = *table;
+  t["--total_size"] = ApplyTotalSizeKv;
+  t["-t"] = ApplyTotalSizeKv;
+  t["--buffer_size"] = ApplyBufferSizeKv;
+  t["--block_size"] = ApplyBlockSizeKv;
+  t["-k"] = ApplyBlockSizeKv;
+  t["--block_steps"] = ApplyBlockStepsKv;
+  t["-s"] = ApplyBlockStepsKv;
+  t["--loops"] = ApplyLoopsKv;
+  t["-n"] = ApplyLoopsKv;
+  t["--use_async"] = ApplyUseAsyncKv;
+  t["-x"] = ApplyUseAsyncKv;
+  t["--async_batch_num"] = ApplyAsyncBatchNumKv;
+  t["-y"] = ApplyAsyncBatchNumKv;
+  t["--connect_timeout"] = ApplyConnectTimeoutKv;
+  t["-C"] = ApplyConnectTimeoutKv;
+  t["--warmup_duration"] = ApplyWarmupDurationKv;
+  t["--check_consistency"] = ApplyCheckConsistencyKv;
+  t["--seed"] = ApplySeedKv;
+  t["--start_block_size"] = ApplyStartBlockSizeKv;
+  t["--max_block_size"] = ApplyMaxBlockSizeKv;
+  t["--start_batch_size"] = ApplyStartBatchSizeKv;
+  t["--max_batch_size"] = ApplyMaxBatchSizeKv;
+  t["--start_threads"] = ApplyStartThreadsKv;
+  t["--max_threads"] = ApplyMaxThreadsKv;
+}
+
 const std::map<std::string, KvApplyFn> &KvHandlerTable() {
-  static const std::map<std::string, KvApplyFn> kTable = {
-      {"--role", ApplyRoleKv},
-      {"-r", ApplyRoleKv},
-      {"--device_id", ApplyDeviceIdKv},
-      {"-d", ApplyDeviceIdKv},
-      {"--local_engine", ApplyLocalEngineKv},
-      {"-l", ApplyLocalEngineKv},
-      {"--remote_engine", ApplyRemoteEngineKv},
-      {"-e", ApplyRemoteEngineKv},
-      {"--tcp_port", ApplyTcpPortKv},
-      {"-p", ApplyTcpPortKv},
-      {"--tcp_accept_wait_s", ApplyTcpAcceptWaitSecKv},
-      {"-a", ApplyTcpAcceptWaitSecKv},
-      {"--tcp_client_count", ApplyTcpClientCountKv},
-      {"-c", ApplyTcpClientCountKv},
-      {"--transfer_mode", ApplyTransferModeKv},
-      {"-m", ApplyTransferModeKv},
-      {"--transfer_op", ApplyTransferOpKv},
-      {"-o", ApplyTransferOpKv},
-      {"--use_buffer_pool", ApplyUseBufferPoolKv},
-      {"-b", ApplyUseBufferPoolKv},
-      {"--total_size", ApplyTotalSizeKv},
-      {"-t", ApplyTotalSizeKv},
-      {"--block_size", ApplyBlockSizeKv},
-      {"-k", ApplyBlockSizeKv},
-      {"--block_steps", ApplyBlockStepsKv},
-      {"-s", ApplyBlockStepsKv},
-      {"--loops", ApplyLoopsKv},
-      {"-n", ApplyLoopsKv},
-      {"--use_async", ApplyUseAsyncKv},
-      {"-x", ApplyUseAsyncKv},
-      {"--async_batch_num", ApplyAsyncBatchNumKv},
-      {"-y", ApplyAsyncBatchNumKv},
-      {"--connect_timeout", ApplyConnectTimeoutKv},
-      {"-C", ApplyConnectTimeoutKv},
-  };
+  static const std::map<std::string, KvApplyFn> kTable = []() {
+    std::map<std::string, KvApplyFn> table;
+    PopulateCoreKvHandlers(&table);
+    PopulateBenchKvHandlers(&table);
+    return table;
+  }();
   return kTable;
 }
 
@@ -433,12 +603,33 @@ bool ParseHixlOptionPayloads(const std::vector<std::string> &payloads, Benchmark
 
 }  // namespace
 
+std::string BenchmarkConfig::ComputeDirection(const std::string &initiator_mem,
+                                               const std::string &target_mem,
+                                               const std::string &op_type) {
+  const bool wr = (op_type == "write");
+  if (initiator_mem == "device" && target_mem == "device") return wr ? "D2rD" : "rD2D";
+  if (initiator_mem == "device" && target_mem == "host")   return wr ? "D2rH" : "rH2D";
+  if (initiator_mem == "host"   && target_mem == "host")   return wr ? "H2rH" : "rH2H";
+  if (initiator_mem == "host"   && target_mem == "device") return wr ? "H2rD" : "rD2H";
+  return "unknown";
+}
+
 void BenchmarkConfigParser::PrintUsage(FILE *out) {
   fprintf(out,
-          "Usage: benchmark key=value ...\n"
-          "Required: --role=client|server  or  -r=client|server\n"
+          "Usage: hixl_comm_bench key=value ...\n"
+          "Required: --role=target|initiator (legacy: client|server) or -r=client|server\n"
           "Keys (all lowercase, value is decimal bytes where noted):\n"
-          "  --role|-r            client|server\n"
+          "  --role|-r            target|initiator|client|server\n"
+          "  --benchmark_group    result grouping name (default default)\n"
+          "  --soc_variant        auto|a2|a3|a5 — HCCS rules & SOC class (default auto: ACL SOC probe; a5 forbids HCCS)\n"
+          "  --transport          hccs|rdma|fabric_mem "
+          "(hccs: D2D everywhere; extra H2rD|rD2H on A3-class SOC only; fabric_mem adds EnableUseFabricMem=1)\n"
+          "  --initiator_memory   host|device (default device) — initiator-side buffer\n"
+          "  --target_memory      host|device (default device) — target-side buffer\n"
+          "  --op_type            read|write|mix (alias of --transfer_op)\n"
+          "  --start_block_size   first block size in bytes (alias of --block_size)\n"
+          "  --max_block_size     max block size in bytes; block size doubles until this value\n"
+          "  --output_dir         CSV/JSONL result output directory (default output)\n"
           "  --device_id|-d       device id (int), or comma list e.g. 0,1 (broadcast if single value)\n"
           "  --local_engine|-l    local HIXL endpoint(s), comma-separated; IPv6 use [ip]:port\n"
           "  --remote_engine|-e   client: one or more host:port (comma-separated); TCP uses each host + tcp coord port\n"
@@ -447,27 +638,25 @@ void BenchmarkConfigParser::PrintUsage(FILE *out) {
           "                        (e.g. two servers on one host need distinct ports: -p=20000,20001)\n"
           "  --tcp_accept_wait_s|-a  server only: max wall time for TCP connect phase in seconds (default 30)\n"
           "  --tcp_client_count|-c  server only: TCP clients to wait for before proceed (default 1, max %" PRIu32 ")\n"
-          "  --transfer_mode|-m   d2d|h2d|d2h|h2h\n"
           "  --transfer_op|-o     read|write\n"
-          "  --use_buffer_pool|-b true|false\n"
-          "  --total_size|-t      total buffer size in bytes (default %" PRIu64 ")\n"
-"  --block_size|-k      first block size in bytes (default: same as total_size)\n"
-           "  --block_steps|-s     block count: sizes are block_size<<i, i in [0,steps-1] (default %u)\n"
-           "  --loops|-n           repeat full step ladder (default %u)\n"
-           "  --use_async|-x       true|false (default false), enable async transfer mode\n"
-           "  --async_batch_num|-y async requests per batch (default 1), requires: total_size %% async_batch_num == 0\n"
-           "  --connect_timeout|-C connect timeout in ms (default 60000)\n"
-           "  --hixl_option|-H     HIXL Initialize() option, form KEY=VALUE (repeatable); "
+          "  --total_size|-t      bytes transferred per block-size step (default %" PRIu64 ")\n"
+          "  --buffer_size        allocation/register size in bytes (default %" PRIu64 ")\n"
+          "  --block_size|-k      first block size in bytes (default: same as total_size)\n"
+          "  --block_steps|-s     block count: sizes are block_size<<i, i in [0,steps-1] (default %u)\n"
+          "  --loops|-n           repeat full step ladder (default %u)\n"
+          "  --use_async|-x       true|false (default false), enable async transfer mode\n"
+          "  --async_batch_num|-y async requests per batch (default 1), requires: total_size %% async_batch_num == 0\n"
+          "  --connect_timeout|-C connect timeout in ms (default 60000)\n"
+          "  --hixl_option|-H     HIXL Initialize() option, form KEY=VALUE (repeatable); "
           "KEY e.g. LocalCommRes, BufferPool, RdmaTrafficClass, RdmaServiceLevel, adxl.*\n"
-          "                       If neither BufferPool nor adxl.BufferPool is set and "
-          "--use_buffer_pool=false, BufferPool=0:0 is added (legacy).\n"
+          "                       If neither BufferPool nor adxl.BufferPool is set, BufferPool=0:0 is added (benchmark default).\n"
           "Multi-endpoint: lengths must match max(n_d,n_l,n_r) after broadcasting single values; server allows only one.\n"
           "Client: one local + many remotes uses one Hixl and concurrent TCP/HIXL per remote; many locals use one thread per lane.\n"
           "Defaults: client device_id=0 local_engine=127.0.0.1:16000 remote_engine=127.0.0.1:16001\n"
           "          server device_id=1 local_engine=127.0.0.1:16001 remote_engine=127.0.0.1\n"
-          "          transfer_mode=d2d transfer_op=read use_buffer_pool=false tcp_port=20000 tcp_accept_wait_s=30 "
+          "          initiator_memory=device target_memory=device transfer_op=read tcp_port=20000 tcp_accept_wait_s=30 "
           "tcp_client_count=1\n",
-          kTcpClientCountMax, kDefaultTotalSize, kDefaultBlockSteps, kDefaultLoops);
+          kTcpClientCountMax, kDefaultTotalSize, kDefaultBufferSize, kDefaultBlockSteps, kDefaultLoops);
 }
 
 std::map<AscendString, AscendString> BenchmarkConfigParser::BuildInitializeOptions(const BenchmarkConfig &cfg) {
@@ -479,11 +668,41 @@ std::map<AscendString, AscendString> BenchmarkConfigParser::BuildInitializeOptio
   const bool has_explicit_buffer =
       cfg.hixl_init_options.find(OPTION_BUFFER_POOL) != cfg.hixl_init_options.cend() ||
       cfg.hixl_init_options.find(kAdxlBufferPoolKey) != cfg.hixl_init_options.cend();
-  if (!has_explicit_buffer && !cfg.use_buffer_pool) {
+  if (!has_explicit_buffer) {
     options[AscendString(OPTION_BUFFER_POOL)] = AscendString("0:0");
+  }
+  if (cfg.transport == "fabric_mem" &&
+      cfg.hixl_init_options.find(OPTION_ENABLE_USE_FABRIC_MEM) == cfg.hixl_init_options.cend()) {
+    options[AscendString(OPTION_ENABLE_USE_FABRIC_MEM)] = AscendString("1");
   }
   return options;
 }
+
+bool BenchmarkConfigParser::ApplyTransportEnvironment(const BenchmarkConfig &cfg) {
+  if (cfg.transport == "rdma") {
+    if (setenv("HCCL_INTRA_ROCE_ENABLE", "1", 1) != 0) {
+      std::fprintf(stderr, "[ERROR] setenv HCCL_INTRA_ROCE_ENABLE=1 failed: %s\n", std::strerror(errno));
+      return false;
+    }
+    return true;
+  }
+  // hccs / fabric_mem: do not modify HCCL environment variables (fabric_mem uses init options only)
+  return true;
+}
+
+namespace {
+
+uint32_t ComputeBlockSteps(uint64_t start, uint64_t max) {
+  uint32_t steps = 1U;
+  uint64_t cur = start;
+  while (cur < max && cur <= (UINT64_MAX >> 1U)) {
+    cur <<= 1U;
+    ++steps;
+  }
+  return steps;
+}
+
+}  // namespace
 
 bool BenchmarkConfigParser::BuildFromArgv(int argc, char **argv, BenchmarkConfig *cfg) {
   std::map<std::string, std::string> kv;
@@ -501,9 +720,9 @@ bool BenchmarkConfigParser::BuildFromArgv(int argc, char **argv, BenchmarkConfig
     return false;
   }
   const std::string &rv = it_role->second;
-  if (rv == "client") {
+  if (rv == "client" || rv == "initiator") {
     cfg->role = BenchmarkRole::kClient;
-  } else if (rv == "server") {
+  } else if (rv == "server" || rv == "target") {
     cfg->role = BenchmarkRole::kServer;
   } else {
     fprintf(stderr, "[ERROR] Invalid --role=%s\n", rv.c_str());
@@ -519,6 +738,13 @@ bool BenchmarkConfigParser::BuildFromArgv(int argc, char **argv, BenchmarkConfig
   }
   if (!cfg->block_size_explicit) {
     cfg->block_size = cfg->total_size;
+    cfg->start_block_size = cfg->block_size;
+  }
+  if (cfg->max_block_size < cfg->block_size) {
+    cfg->max_block_size = cfg->block_size;
+  }
+  if (cfg->max_block_size != cfg->block_size) {
+    cfg->block_steps = ComputeBlockSteps(cfg->block_size, cfg->max_block_size);
   }
   EnsureEndpointLists(cfg);
   return true;
@@ -612,17 +838,143 @@ bool ValidateServerConfig(const BenchmarkConfig *cfg, size_t n_max) {
   return true;
 }
 
-bool ValidateTransferMode(const std::string &mode) {
-  if (mode != "d2d" && mode != "h2d" && mode != "d2h" && mode != "h2h") {
-    fprintf(stderr, "[ERROR] Invalid transfer_mode: %s\n", mode.c_str());
+bool ValidateMemoryTypeValue(const std::string &mem) {
+  if (mem != "host" && mem != "device") {
+    fprintf(stderr, "[ERROR] Invalid memory type: %s\n", mem.c_str());
     return false;
   }
   return true;
 }
 
 bool ValidateTransferOp(const std::string &op) {
-  if (op != "write" && op != "read") {
-    fprintf(stderr, "[ERROR] Invalid transfer_op: %s\n", op.c_str());
+  if (op != "write" && op != "read" && op != "mix") {
+    fprintf(stderr, "[ERROR] Invalid transfer_op/op_type: %s\n", op.c_str());
+    return false;
+  }
+  return true;
+}
+
+bool ValidateTransport(const std::string &transport) {
+  if (transport != "hccs" && transport != "rdma" && transport != "fabric_mem") {
+    fprintf(stderr, "[ERROR] Invalid transport: %s\n", transport.c_str());
+    return false;
+  }
+  return true;
+}
+
+enum class BenchSocKind { kA2, kA3, kA5 };
+
+BenchSocKind ClassifySocNameForBenchRules(const std::string &soc_name) {
+  // Ascend950* → A5 (no HCCS in comm benchmarks).
+  if (soc_name.find("Ascend950") != std::string::npos) {
+    return BenchSocKind::kA5;
+  }
+  // Ascend910B* / *910B* → A2-class.
+  if (soc_name.find("910B") != std::string::npos) {
+    return BenchSocKind::kA2;
+  }
+  // Ascend910_* / Ascend910 without B → A3-class.
+  if (soc_name.find("Ascend910") != std::string::npos) {
+    return BenchSocKind::kA3;
+  }
+  return BenchSocKind::kA2;
+}
+
+BenchSocKind ProbeSocKindViaAcl(int32_t device_id) {
+  aclError er = aclInit(nullptr);
+  if (er != ACL_ERROR_NONE) {
+    // CANN returns ACL_ERROR_REPEAT_INITIALIZE when ACL was already initialized (often by peer tooling).
+    constexpr aclError kAclRepeatInitialize = static_cast<aclError>(100002);
+    if (er != kAclRepeatInitialize) {
+      fprintf(stderr,
+              "[WARN] aclInit failed for --soc_variant=auto probe (ret=%d); assuming A2-class HCCS rules "
+              "(override with --soc_variant=a3|a5 on Ascend910 / Ascend950 silicon)\n",
+              static_cast<int>(er));
+      return BenchSocKind::kA2;
+    }
+  }
+  er = aclrtSetDevice(device_id);
+  if (er != ACL_ERROR_NONE) {
+    fprintf(stderr,
+            "[WARN] aclrtSetDevice(%d) failed for SOC probe (ret=%d); assuming A2-class HCCS rules "
+            "(override with --soc_variant=a3|a5)\n",
+            static_cast<int>(device_id), static_cast<int>(er));
+    return BenchSocKind::kA2;
+  }
+  const char *soc_cstr = aclrtGetSocName();
+  if (soc_cstr == nullptr || soc_cstr[0] == '\0') {
+    fprintf(stderr,
+            "[WARN] aclrtGetSocName() empty; assuming A2-class HCCS rules "
+            "(override with --soc_variant=a3|a5)\n");
+    return BenchSocKind::kA2;
+  }
+  const std::string soc(soc_cstr);
+  fprintf(stdout, "[INFO] SOC probe for HCCS rules: aclrtGetSocName()=%s\n", soc_cstr);
+  return ClassifySocNameForBenchRules(soc);
+}
+
+BenchSocKind ResolveSocKindForHccs(const BenchmarkConfig *cfg) {
+  const std::string &sv = cfg->soc_variant;
+  if (sv == "a2") {
+    return BenchSocKind::kA2;
+  }
+  if (sv == "a3") {
+    return BenchSocKind::kA3;
+  }
+  if (sv == "a5") {
+    return BenchSocKind::kA5;
+  }
+  int32_t dev_id = cfg->device_id;
+  if (!cfg->expanded_device_ids.empty()) {
+    dev_id = cfg->expanded_device_ids[0];
+  }
+  return ProbeSocKindViaAcl(dev_id);
+}
+
+bool ValidateHccsMemoryCombination(const BenchmarkConfig *cfg) {
+  if (cfg->transport != "hccs") {
+    return true;
+  }
+  const BenchSocKind kind = ResolveSocKindForHccs(cfg);
+  if (kind == BenchSocKind::kA5) {
+    fprintf(stderr,
+            "[ERROR] transport=hccs is not supported on Ascend950-class (A5) SOC; use rdma or fabric_mem\n");
+    return false;
+  }
+  const std::string &im = cfg->initiator_memory_type;
+  const std::string &tm = cfg->target_memory_type;
+  if (im == "device" && tm == "device") {
+    return true;
+  }
+  if (cfg->transfer_op == "mix") {
+    fprintf(stderr,
+            "[ERROR] HCCS transport does not support transfer_op=mix unless initiator_memory=device and "
+            "target_memory=device\n");
+    return false;
+  }
+  if (im == "host" && tm == "device") {
+    if (kind == BenchSocKind::kA3 && (cfg->transfer_op == "read" || cfg->transfer_op == "write")) {
+      return true;
+    }
+    fprintf(stderr,
+            "[ERROR] HCCS host→device directions (H2rD/rD2H) require Ascend910-class SOC "
+            "(override mis-detection with --soc_variant=a3); "
+            "got initiator_memory=%s target_memory=%s transfer_op=%s\n",
+            im.c_str(), tm.c_str(), cfg->transfer_op.c_str());
+    return false;
+  }
+  fprintf(stderr,
+          "[ERROR] HCCS: A2 allows D2D only; A3 adds H2rD|rD2H on host→device; "
+          "got initiator_memory=%s target_memory=%s (use rdma or fabric_mem for other directions)\n",
+          im.c_str(), tm.c_str());
+  return false;
+}
+
+bool ValidateBufferSize(const BenchmarkConfig *cfg) {
+  if (cfg->buffer_size < cfg->total_size) {
+    fprintf(stderr,
+            "[ERROR] buffer_size (%" PRIu64 ") must be >= total_size (%" PRIu64 ")\n",
+            cfg->buffer_size, cfg->total_size);
     return false;
   }
   return true;
@@ -637,6 +989,12 @@ bool ValidateBlockSteps(const BenchmarkConfig *cfg) {
     const uint64_t block = cfg->block_size << i;
     if (block == 0) {
       fprintf(stderr, "[ERROR] computed block size is 0\n");
+      return false;
+    }
+    if (block > cfg->total_size) {
+      fprintf(stderr,
+              "[ERROR] block size (%" PRIu64 ") at step %u must be <= total_size (%" PRIu64 ")\n",
+              block, i, cfg->total_size);
       return false;
     }
     if (cfg->total_size % block != 0) {
@@ -674,18 +1032,14 @@ bool ValidateAsyncConfig(const BenchmarkConfig *cfg) {
   return true;
 }
 
-}  // namespace
-
-bool BenchmarkConfigParser::Validate(BenchmarkConfig *cfg) {
+bool ValidateBenchmarkTopology(BenchmarkConfig *cfg) {
   if (!ValidateEnginesNotEmpty(cfg)) {
     return false;
   }
-
   const size_t nd = cfg->device_id_list.size();
   const size_t nl = cfg->local_engine_list.size();
   const size_t nr = cfg->remote_engine_list.size();
   const size_t n_max = std::max(nd, std::max(nl, nr));
-
   if (cfg->tcp_port_list.empty()) {
     cfg->tcp_port_list.push_back(cfg->tcp_port);
   }
@@ -696,19 +1050,29 @@ bool BenchmarkConfigParser::Validate(BenchmarkConfig *cfg) {
   if (!ValidateMultiDeviceRequirement(n_max, nl, nr)) {
     return false;
   }
-
   ExpandConfigLists(cfg, n_max, nd, nl, nr, nt);
-
   if (cfg->role == BenchmarkRole::kClient && !ValidateClientRemoteEngines(cfg)) {
     return false;
   }
   if (cfg->role == BenchmarkRole::kServer && !ValidateServerConfig(cfg, n_max)) {
     return false;
   }
-  if (!ValidateTransferMode(cfg->transfer_mode)) {
+  return true;
+}
+
+bool ValidateBenchmarkWorkload(BenchmarkConfig *cfg) {
+  if (!ValidateTransferOp(cfg->transfer_op)) {
     return false;
   }
-  if (!ValidateTransferOp(cfg->transfer_op)) {
+  if (!ValidateTransport(cfg->transport) ||
+      !ValidateMemoryTypeValue(cfg->initiator_memory_type) ||
+      !ValidateMemoryTypeValue(cfg->target_memory_type)) {
+    return false;
+  }
+  if (!ValidateHccsMemoryCombination(cfg)) {
+    return false;
+  }
+  if (!ValidateBufferSize(cfg)) {
     return false;
   }
   if (!ValidateBlockSteps(cfg)) {
@@ -718,6 +1082,12 @@ bool BenchmarkConfigParser::Validate(BenchmarkConfig *cfg) {
     return false;
   }
   return true;
+}
+
+}  // namespace
+
+bool BenchmarkConfigParser::Validate(BenchmarkConfig *cfg) {
+  return ValidateBenchmarkTopology(cfg) && ValidateBenchmarkWorkload(cfg);
 }
 
 void BenchmarkConfigParser::LogExpandedEndpoints(FILE *out, const BenchmarkConfig &cfg) {

@@ -15,8 +15,10 @@
 #include <vector>
 
 #include "acl/acl.h"
+#include "fabric_mem/fabric_mem_transfer_service.h"
 
 using hixl::AscendString;
+using hixl::FabricMemTransferService;
 using hixl::MemDesc;
 using hixl::MemType;
 using hixl::SUCCESS;
@@ -44,35 +46,56 @@ int32_t InitializeHixl(const std::string &local_engine, const hixl_benchmark::Be
   return 0;
 }
 
+void DeregisterMemHandles(Hixl &hixl_engine, const std::vector<hixl::MemHandle> &handles) {
+  for (const auto &handle : handles) {
+    if (handle == nullptr) {
+      continue;
+    }
+    const auto ret = hixl_engine.DeregisterMem(handle);
+    if (ret != 0) {
+      std::printf("[ERROR] DeregisterMem failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
+    } else {
+      std::printf("[INFO] DeregisterMem success\n");
+    }
+  }
+}
+
+void FreeHostBuffers(const std::vector<void *> &buffers, const std::string &transport) {
+  for (const auto &buffer : buffers) {
+    if (buffer == nullptr) {
+      continue;
+    }
+    if (transport == "fabric_mem") {
+      (void)FabricMemTransferService::FreeMem(buffer);
+    } else {
+      (void)aclrtFreeHost(buffer);
+    }
+  }
+}
+
+void FreeDeviceBuffers(const std::vector<void *> &buffers, const std::string &transport) {
+  for (const auto &buffer : buffers) {
+    if (buffer == nullptr) {
+      continue;
+    }
+    if (transport == "fabric_mem") {
+      (void)FabricMemTransferService::FreeMem(buffer);
+    } else {
+      (void)aclrtFree(buffer);
+    }
+  }
+}
+
 void ReleaseHixlResources(Hixl &hixl_engine, bool need_register, bool is_host,
                           const std::vector<hixl::MemHandle> &handles,
-                          const std::vector<void *> &buffers) {
+                          const std::vector<void *> &buffers,
+                          const std::string &transport = "") {
   if (need_register) {
-    for (const auto &handle : handles) {
-      if (handle == nullptr) {
-        continue;
-      }
-      auto ret = hixl_engine.DeregisterMem(handle);
-      if (ret != 0) {
-        std::printf("[ERROR] DeregisterMem failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
-      } else {
-        std::printf("[INFO] DeregisterMem success\n");
-      }
-    }
+    DeregisterMemHandles(hixl_engine, handles);
   }
-  if (is_host) {
-    for (const auto &buffer : buffers) {
-      if (buffer != nullptr) {
-        (void)aclrtFreeHost(buffer);
-      }
-    }
-  } else {
-    for (const auto &buffer : buffers) {
-      if (buffer != nullptr) {
-        (void)aclrtFree(buffer);
-      }
-    }
-  }
+  using FreeBuffersFn = void (*)(const std::vector<void *> &, const std::string &);
+  const FreeBuffersFn free_buffers = is_host ? FreeHostBuffers : FreeDeviceBuffers;
+  free_buffers(buffers, transport);
   hixl_engine.Finalize();
 }
 
@@ -88,15 +111,15 @@ void ServerRunner::ReleaseServerResources() {
   if (hixl_initialized_) {
     if (buffer_allocated_) {
       if (need_register_ && mem_registered_) {
-        ReleaseHixlResources(hixl_, true, is_host_, {mem_handle_}, {buffer_});
+        ReleaseHixlResources(hixl_, true, is_host_, {mem_handle_}, {buffer_}, cfg_.transport);
       } else {
-        ReleaseHixlResources(hixl_, false, is_host_, {}, {buffer_});
+        ReleaseHixlResources(hixl_, false, is_host_, {}, {buffer_}, cfg_.transport);
       }
     } else {
       if (need_register_ && mem_registered_) {
-        ReleaseHixlResources(hixl_, true, is_host_, {mem_handle_}, {});
+        ReleaseHixlResources(hixl_, true, is_host_, {mem_handle_}, {}, cfg_.transport);
       } else {
-        ReleaseHixlResources(hixl_, false, is_host_, {}, {});
+        ReleaseHixlResources(hixl_, false, is_host_, {}, {}, cfg_.transport);
       }
     }
     hixl_initialized_ = false;
@@ -108,7 +131,13 @@ void ServerRunner::ReleaseServerResources() {
   }
   if (buffer_allocated_) {
     if (is_host_) {
-      (void)aclrtFreeHost(buffer_);
+      if (cfg_.transport == "fabric_mem") {
+        (void)FabricMemTransferService::FreeMem(buffer_);
+      } else {
+        (void)aclrtFreeHost(buffer_);
+      }
+    } else if (cfg_.transport == "fabric_mem") {
+      (void)FabricMemTransferService::FreeMem(buffer_);
     } else {
       (void)aclrtFree(buffer_);
     }
@@ -135,17 +164,32 @@ void ServerRunner::Shutdown() {
 }
 
 bool ServerRunner::AllocServerBufferForRun() {
-  is_host_ = (cfg_.transfer_mode == "d2h" || cfg_.transfer_mode == "h2h");
-  const size_t alloc_size = static_cast<size_t>(cfg_.total_size);
-  aclError ar_alloc = ACL_ERROR_NONE;
-  if (is_host_) {
-    ar_alloc = aclrtMallocHost(&buffer_, alloc_size);
+  is_host_ = (cfg_.target_memory_type == "host");
+  const size_t alloc_size = static_cast<size_t>(cfg_.buffer_size);
+  if (is_host_ && cfg_.transport == "fabric_mem") {
+    auto status = FabricMemTransferService::MallocMem(MemType::MEM_HOST, alloc_size, &buffer_);
+    if (status != SUCCESS) {
+      std::printf("[ERROR] server fabric_mem alloc failed status=%d\n", static_cast<int>(status));
+      return false;
+    }
+  } else if (is_host_) {
+    aclError ar_alloc = aclrtMallocHost(&buffer_, alloc_size);
+    if (ar_alloc != ACL_ERROR_NONE) {
+      std::printf("[ERROR] server alloc host failed acl=%d\n", static_cast<int>(ar_alloc));
+      return false;
+    }
+  } else if (cfg_.transport == "fabric_mem") {
+    auto status = FabricMemTransferService::MallocMem(MemType::MEM_DEVICE, alloc_size, &buffer_);
+    if (status != SUCCESS) {
+      std::printf("[ERROR] server fabric_mem device alloc failed status=%d\n", static_cast<int>(status));
+      return false;
+    }
   } else {
-    ar_alloc = aclrtMalloc(&buffer_, alloc_size, ACL_MEM_MALLOC_HUGE_ONLY);
-  }
-  if (ar_alloc != ACL_ERROR_NONE) {
-    std::printf("[ERROR] server alloc failed acl=%d\n", static_cast<int>(ar_alloc));
-    return false;
+    aclError ar_alloc = aclrtMalloc(&buffer_, alloc_size, ACL_MEM_MALLOC_HUGE_ONLY);
+    if (ar_alloc != ACL_ERROR_NONE) {
+      std::printf("[ERROR] server alloc device failed acl=%d\n", static_cast<int>(ar_alloc));
+      return false;
+    }
   }
   buffer_allocated_ = true;
   return true;
@@ -160,13 +204,10 @@ bool ServerRunner::InitHixlAndRegisterMem() {
 
   const std::uintptr_t addr = reinterpret_cast<std::uintptr_t>(buffer_);
   const auto mem_type = is_host_ ? MemType::MEM_HOST : MemType::MEM_DEVICE;
-  need_register_ = !(cfg_.use_buffer_pool && cfg_.transfer_mode == "d2h");
-  if (!need_register_) {
-    return true;
-  }
+  need_register_ = true;
   MemDesc desc{};
   desc.addr = addr;
-  desc.len = static_cast<size_t>(cfg_.total_size);
+  desc.len = static_cast<size_t>(cfg_.buffer_size);
   const auto ret = hixl_.RegisterMem(desc, mem_type, mem_handle_);
   if (ret != SUCCESS) {
     std::printf("[ERROR] RegisterMem failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());

@@ -1,0 +1,446 @@
+{
+  "models": [
+    {
+      "name": "deepseek-r1",
+      "tokens_per_key": 128,
+      "layer_count": 61,
+      "kv_strategy": "shared",
+      "caches_per_layer": [
+        {
+          "name": "rope",
+          "bytes_per_key": "16KiB"
+        },
+        {
+          "name": "latent",
+          "bytes_per_key": "128KiB"
+        }
+      ],
+      "source": "vLLM default DeepSeek-R1 MLA cache: num_hidden_layers=61, kv_lora_rank=512, qk_rope_head_dim=64, torch_dtype=bfloat16, kv_cache_dtype=auto"
+    },
+    {
+      "name": "glm5",
+      "tokens_per_key": 128,
+      "layer_count": 78,
+      "kv_strategy": "shared",
+      "caches_per_layer": [
+        {
+          "name": "rope",
+          "bytes_per_key": "16KiB"
+        },
+        {
+          "name": "latent",
+          "bytes_per_key": "128KiB"
+        },
+        {
+          "name": "dsa_indexer",
+          "bytes_per_key": "32KiB"
+        }
+      ],
+      "source": "vLLM default GLM-5 cache: num_hidden_layers=78, kv_lora_rank=512, qk_rope_head_dim=64, index_head_dim=128, dtype=bfloat16, kv_cache_dtype=auto; DSA indexer key cache uses bf16 payload in this default-size model"
+    },
+    {
+      "name": "deepseek-v4",
+      "tokens_per_key": 128,
+      "kv_strategy": "shared",
+      "layers": [
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "hca_compressed", "bytes_per_key": 584}
+          ]
+        },
+        {
+          "caches": [
+            {"name": "swa", "bytes_per_key": 74752, "max_key_count": 1},
+            {"name": "csa_compressed", "bytes_per_key": 18688},
+            {"name": "csa_indexer", "bytes_per_key": 4224}
+          ]
+        }
+      ],
+      "source": "vLLM default DeepSeek-V4-Pro cache: num_hidden_layers=61, head_dim=512, index_head_dim=128, sliding_window=128, compress_ratios first 61 entries contain 31 HCA(128) and 30 CSA(4) layers; DeepSeek-V4 defaults to fp8_ds_mla attention cache and FP8 indexer cache (use_fp4_indexer_cache=false). Per 128-token key: swa=128*584=74752B capped at max_key_count=1, hca=1*584B, csa=32*584B, csa_indexer=32*132B."
+    }
+  ]
+}

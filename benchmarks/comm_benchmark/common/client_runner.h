@@ -53,13 +53,14 @@ struct LaneState {
   bool need_register = false;
   bool hixl_initialized = false;
   bool hixl_connected = false;
+  std::string transport;
   TCPClient tcp_client;
   std::vector<TransferBenchRecord> bench_records;
 };
 
 }  // namespace detail
 
-/// Client benchmark: `Init()` 绑定 device（多 lane 拓扑除外）；`Run()` 执行业务；`Shutdown()` 统一回收并复位 device。
+/// Client benchmark: `Init()` binds device except multi-lane topology; `Run()` executes transfers; `Shutdown()` cleans up.
 class ClientRunner {
  public:
   explicit ClientRunner(const BenchmarkConfig &cfg) : cfg_(cfg) {}

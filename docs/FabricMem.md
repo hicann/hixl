@@ -74,25 +74,4 @@ graph LR
 
 ## 性能参考
 
-### 真实场景单机16卡benchmark
-
-**Benchmark 程序**：`fabric_mem_kv_benchmark`。
-
-**在测什么**：单块大小为 DeepSeek-R1 KV 形状，**61×128K + 61×16K = 8784KB/块**。总块数 16/32/48/64 时，块在多卡间均分；**Put（D2RH）仅在 rank 0**；**Get（RH2D）每卡都执行**。对外打印的 Get 时间为 **10 次的算术平均**。
-
-![fabric_mem_benchmark.jpg](https://raw.gitcode.com/user-images/assets/7838749/605569b7-4601-4f22-883e-8a333a34c3b6/fabric_mem_benchmark.jpg 'fabric_mem_benchmark.jpg')
-
-### 大块数据带宽测试
-
-| 数据传输方向                          | 单次数据大小（GB）| 时间(us) | 带宽（GB/s） |
-|---------------------------------|-----------------|------------|----------|
-| RH2D                            | 1 | 9723| 103      |
-| RH2D                            | 2 | 19388| 103      |
-| D2RH                            | 1 | 15650| 64       |
-| D2RH                            | 2 | 31250| 64       |
-| RD2D                            | 1 | 6500| 155      |
-| RD2D                            | 2 | 12929| 155      |
-| D2RD                            | 1 | 7832 | 128      |
-| D2RD                            | 2 | 15643 | 128      |
-
-> 注：此处 1 GB/s = 1024 * 1024 * 1024 B/s
+见 [benchmarks/performance.md](../benchmarks/performance.md)

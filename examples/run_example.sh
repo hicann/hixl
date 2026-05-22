@@ -184,62 +184,31 @@ all_samples() {
     --device_id ${device_id_2} --role d --local_ip_port ${IP_ADDRESS}:16001 --remote_ip_port '${IP_ADDRESS}:16000'"
 
     cd "${BASEPATH}/../build/benchmarks"
+    BENCH_BIN="./comm_benchmark/hixl_comm_bench"
     # benchmarks (key=value CLI; server --remote_engine is TCP peer IP only)
-    run_pair "./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2d --transfer_op=write --use_buffer_pool=false" \
-    "./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2d --transfer_op=write --use_buffer_pool=false"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2d --transfer_op=write --use_buffer_pool=false" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2d --transfer_op=write --use_buffer_pool=false"
+    # Non-ROCE (HCCS): d2d only
+    run_pair "${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2d --transfer_op=write" \
+    "${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2d --transfer_op=write"
+    run_pair "${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2d --transfer_op=read" \
+    "${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2d --transfer_op=read"
 
-    run_pair "./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2d --transfer_op=write --use_buffer_pool=false" \
-    "./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2d --transfer_op=write --use_buffer_pool=false"
-    run_pair "./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2d --transfer_op=write --use_buffer_pool=true" \
-    "./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2d --transfer_op=write --use_buffer_pool=true"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2d --transfer_op=write --use_buffer_pool=false" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2d --transfer_op=write --use_buffer_pool=false"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2d --transfer_op=write --use_buffer_pool=true" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2d --transfer_op=write --use_buffer_pool=true"
-
-    run_pair "./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2h --transfer_op=write --use_buffer_pool=true" \
-    "./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2h --transfer_op=write --use_buffer_pool=true"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2h --transfer_op=write --use_buffer_pool=false" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2h --transfer_op=write --use_buffer_pool=false"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2h --transfer_op=write --use_buffer_pool=true" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2h --transfer_op=write --use_buffer_pool=true"
-
-    run_pair "./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2h --transfer_op=write --use_buffer_pool=true" \
-    "./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2h --transfer_op=write --use_buffer_pool=true"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2h --transfer_op=write --use_buffer_pool=false" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2h --transfer_op=write --use_buffer_pool=false"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2h --transfer_op=write --use_buffer_pool=true" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2h --transfer_op=write --use_buffer_pool=true"
-
-    run_pair "./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2d --transfer_op=read --use_buffer_pool=false" \
-    "./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2d --transfer_op=read --use_buffer_pool=false"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2d --transfer_op=read --use_buffer_pool=false" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2d --transfer_op=read --use_buffer_pool=false"
-
-    run_pair "./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2d --transfer_op=read --use_buffer_pool=false" \
-    "./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2d --transfer_op=read --use_buffer_pool=false"
-    run_pair "./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2d --transfer_op=read --use_buffer_pool=true" \
-    "./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2d --transfer_op=read --use_buffer_pool=true"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2d --transfer_op=read --use_buffer_pool=false" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2d --transfer_op=read --use_buffer_pool=false"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2d --transfer_op=read --use_buffer_pool=true" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2d --transfer_op=read --use_buffer_pool=true"
-
-    run_pair "./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2h --transfer_op=read --use_buffer_pool=true" \
-    "./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2h --transfer_op=read --use_buffer_pool=true"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2h --transfer_op=read --use_buffer_pool=false" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2h --transfer_op=read --use_buffer_pool=false"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2h --transfer_op=read --use_buffer_pool=true" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2h --transfer_op=read --use_buffer_pool=true"
-
-    run_pair "./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2h --transfer_op=read --use_buffer_pool=true" \
-    "./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2h --transfer_op=read --use_buffer_pool=true"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2h --transfer_op=read --use_buffer_pool=false" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2h --transfer_op=read --use_buffer_pool=false"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2h --transfer_op=read --use_buffer_pool=true" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ./benchmark --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2h --transfer_op=read --use_buffer_pool=true"
+    # ROCE: all transfer modes
+    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2d --transfer_op=write" \
+    "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2d --transfer_op=write"
+    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2d --transfer_op=write" \
+    "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2d --transfer_op=write"
+    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2h --transfer_op=write" \
+    "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2h --transfer_op=write"
+    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2h --transfer_op=write" \
+    "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2h --transfer_op=write"
+    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2d --transfer_op=read" \
+    "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2d --transfer_op=read"
+    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2d --transfer_op=read" \
+    "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2d --transfer_op=read"
+    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2h --transfer_op=read" \
+    "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2h --transfer_op=read"
+    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2h --transfer_op=read" \
+    "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2h --transfer_op=read"
 
     if [ "$flag" -eq "0" ]; then
         echo "execute samples success"

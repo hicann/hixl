@@ -20,7 +20,7 @@
 
 namespace hixl_benchmark {
 
-/// Server benchmark: `Init()` 绑定 device；`Run()` 执行业务；`Shutdown()` 统一回收并 `aclrtResetDevice`。
+/// Server benchmark: `Init()` binds device; `Run()` serves transfers; `Shutdown()` cleans up and resets device.
 class ServerRunner {
  public:
   explicit ServerRunner(const BenchmarkConfig &cfg) : cfg_(cfg) {}
