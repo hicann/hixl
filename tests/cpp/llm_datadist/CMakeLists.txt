@@ -25,6 +25,7 @@ set(LLM_DATADIST_TEST_FILES
         adxl_engine_api_unittest.cc
         segment_table_unittest.cc
         statistic_manager_unittest.cc
+        rank_table_generator_unittest.cc
         buffer_transfer_service_unittest.cc
         virtual_memory_manager_unittest.cc
         control_msg_handler_unittest.cc

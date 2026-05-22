@@ -94,8 +94,10 @@ Status Initialize(const AscendString &local_engine, const std::map<AscendString,
 | OPTION_LOCAL_COMM_RES | 可选 | 配置本地通信资源信息，格式是json格式的字符串。<br>- 不配置或配置为空串：将自动生成相关信息，使用集合通信的通信域方式进行建链，链路上限存在单卡512限制。<br>- 配置version为"1.0"或"1.2"的ranktable格式：使用集合通信的通信域方式进行建链，链路上限存在单卡512限制。仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段，ranktable具体信息请参见《HCCL集合通信库用户指南》。<br>- 配置version为"1.3"（推荐使用，需要HDK版本大于等于25.5.0且toolkit包版本大于等于9.1.0）：使用HixlCS能力进行建链，没有链路上限限制。配置格式参考[通信资源配置字段说明](#通信资源配置字段说明)，仅配置version字段即可，其他字段将自动生成。 |
 
 如上表格中的环境变量请参考[《环境变量参考》](https://www.hiascend.com/document/redirect/CannCommunityEnvRef)，ranktable请参考[《HCCL集合通信库用户指南》](https://www.hiascend.com/document/redirect/CannCommunityHcclUg)。
-<br>OPTION_GLOBAL_RESOURCE_CONFIG的配置示例和使用约束如下：<br>对于Fabric Mem模式（仅Atlas A3 训练系列产品/Atlas A3 推理系列产品支持），该参数配置示例如下：
 
+OPTION_GLOBAL_RESOURCE_CONFIG的配置示例和使用约束如下：
+
+对于Fabric Mem模式（仅Atlas A3 训练系列产品/Atlas A3 推理系列产品支持），该参数配置示例如下：
 ```
 {
     "fabric_memory.max_capacity": "128", //虚拟内存池的大小。取值范围：(0, 1024]之间的整数，默认值：64，单位TB，实际可用范围由底层决定
@@ -104,8 +106,14 @@ Status Initialize(const AscendString &local_engine, const std::map<AscendString,
 }
 ```
 
-<br>对于链路池机制，该参数配置示例如下：
+device侧网卡默认监听端口为16666，如果在多个进程使用同一个网卡的场景，可以做如下配置：
+```
+{
+    "comm_resource_config.listen_port": "26666" //可选，取值范围：[1, 65535]之间的整数。不配置时，自动生成ranktable不携带device_port字段
+}
+```
 
+对于链路池机制，该参数配置示例如下：
 ```
 {
     "channel_pool.max_channel": "10", //最大的链路个数。取值范围：(0, 512]之间的整数，默认值：512

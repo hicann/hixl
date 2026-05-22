@@ -12,6 +12,7 @@
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_RANK_TABLE_GENERATOR_H_
 
 #include <memory>
+#include <optional>
 #include "llm_datadist/llm_error_codes.h"
 #include "common/llm_inner_types.h"
 #include "common/common.h"
@@ -30,7 +31,8 @@ class LocalCommResGenerator {
  public:
   static ge::Status Generate(const std::string &server_id,
                              int32_t device_id,
-                             std::string &local_comm_res);
+                             std::string &local_comm_res,
+                             std::optional<uint32_t> device_port = std::nullopt);
 };
 
 class RankTableGeneratorFactory {

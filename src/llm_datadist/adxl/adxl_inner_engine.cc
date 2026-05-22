@@ -31,6 +31,8 @@ constexpr size_t kMemPoolNum = 2U;
 constexpr uint32_t kCheckDisconnetPeriod = 10U;        // ms
 constexpr int32_t kConnectWhenTransferTimeout = 3000;  // ms
 constexpr size_t kMaxStreams = 512;
+constexpr uint32_t kMinDevicePort = 1U;
+constexpr uint32_t kMaxDevicePort = 65535U;
 
 // Helper function to determine transfer type based on operation and memory types
 TransferType DetermineTransferType(TransferOp operation, MemType local_mem_type, MemType remote_mem_type) {
@@ -111,6 +113,24 @@ Status AdxlInnerEngine::ParseChannelPoolConfig(const std::map<AscendString, Asce
   return SUCCESS;
 }
 
+Status AdxlInnerEngine::ParseCommResourceListenPortConfig(const std::map<AscendString, AscendString> &json_options) {
+  msg_handler_.SetDevicePort(std::nullopt);
+  auto listen_port_it = json_options.find(adxl::OPTION_COMM_RESOURCE_CONFIG_LISTEN_PORT);
+  if (listen_port_it == json_options.end()) {
+    return SUCCESS;
+  }
+
+  uint32_t listen_port = 0U;
+  ADXL_CHK_LLM_RET(llm::LLMUtils::ToNumber(listen_port_it->second.GetString(), listen_port),
+                   "Invalid %s: %s", adxl::OPTION_COMM_RESOURCE_CONFIG_LISTEN_PORT,
+                   listen_port_it->second.GetString());
+  ADXL_CHK_BOOL_RET_STATUS(listen_port >= kMinDevicePort && listen_port <= kMaxDevicePort, PARAM_INVALID,
+                           "Invalid %s: %u, must be in [%u, %u]", adxl::OPTION_COMM_RESOURCE_CONFIG_LISTEN_PORT,
+                           listen_port, kMinDevicePort, kMaxDevicePort);
+  msg_handler_.SetDevicePort(listen_port);
+  return SUCCESS;
+}
+
 Status AdxlInnerEngine::ParseAutoConnectConfig(const std::map<AscendString, AscendString> &options) {
   auto auto_connect_it = options.find(hixl::OPTION_AUTO_CONNECT);
   if (auto_connect_it != options.end()) {
@@ -139,6 +159,8 @@ Status AdxlInnerEngine::LoadGlobalResourceConfig(const std::map<AscendString, As
   }
 
   ADXL_CHK_STATUS_RET(ParseChannelPoolConfig(json_options), "Failed to parse channel pool config.");
+  ADXL_CHK_STATUS_RET(ParseCommResourceListenPortConfig(json_options),
+                      "Failed to parse comm resource listen port config.");
 
   return SUCCESS;
 }

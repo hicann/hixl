@@ -11,7 +11,9 @@
 #ifndef CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_RANK_TABLE_GENERATOR_V1_H_
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_RANK_TABLE_GENERATOR_V1_H_
 
+#include <optional>
 #include <vector>
+#include "rank_table_device_json.h"
 #include "rank_table_generator.h"
 
 namespace llm {
@@ -19,6 +21,7 @@ namespace rank_table_v1 {
 struct DeviceInfo {
   std::string device_id;
   std::string device_ip;
+  std::string device_port;
   int32_t rank_id = -1;
   bool is_local = true;
 
@@ -26,7 +29,7 @@ struct DeviceInfo {
     if (device_id != other.device_id) {
       return device_id < other.device_id;
     } else {
-      return device_ip < other.device_ip;
+      return rank_table_json::LessDeviceNetworkEndpoint(device_ip, device_port, other.device_ip, other.device_port);
     }
   }
 };
@@ -53,7 +56,8 @@ class RankTableGeneratorV1 : public RankTableGenerator {
   int32_t GetPeerRankId() override;
   static ge::Status GenerateLocalCommRes(const std::string &server_id,
                                          int32_t device_id,
-                                         std::string &local_comm_res);
+                                         std::string &local_comm_res,
+                                         std::optional<uint32_t> device_port = std::nullopt);
 
  private:
   static rank_table_v1::RankTableInfo LoadFromJsonStr(const std::string &rank_table);

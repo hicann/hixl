@@ -15,6 +15,7 @@
 #include "acl/acl.h"
 #include "llm_datadist/llm_datadist.h"
 #include "common/hixl_utils.h"
+#include "common/rank_table_device_json.h"
 
 namespace llm {
 namespace {
@@ -24,29 +25,22 @@ constexpr const char kConfigVersionV1[] = "1.0";
 namespace rank_table_v1 {
 static void from_json(const nlohmann::json &j, DeviceInfo &d) {
   j.at("device_id").get_to(d.device_id);
-  if (j.contains("device_ip")) {
-    j.at("device_ip").get_to(d.device_ip);
-  }
+  rank_table_json::LoadOptionalDeviceNetworkFields(j, d.device_ip, d.device_port);
 }
 
 static void to_json(nlohmann::json &j, const DeviceInfo &d) {
   j = nlohmann::json{};
   j["device_id"] = d.device_id;
-  if (!d.device_ip.empty()) {
-    j["device_ip"] = d.device_ip;
-  }
+  rank_table_json::StoreOptionalDeviceNetworkFields(j, d.device_ip, d.device_port);
   j["rank_id"] = std::to_string(d.rank_id);
 }
 
 static void from_json(const nlohmann::json &j, ServerInfo &s) {
-  j.at("server_id").get_to(s.server_id);
-  j.at("device").get_to(s.device_list);
+  rank_table_json::FromJsonServerInfo(j, s.server_id, s.device_list);
 }
 
 static void to_json(nlohmann::json &j, const ServerInfo &s) {
-  j = nlohmann::json{};
-  j["server_id"] = s.server_id;
-  j["device"] = s.device_list;
+  rank_table_json::ToJsonServerInfo(j, s.server_id, s.device_list);
 }
 
 static void from_json(const nlohmann::json &j, RankTableInfo &r) {
@@ -163,7 +157,8 @@ int32_t RankTableGeneratorV1::GetPeerRankId() {
 
 ge::Status RankTableGeneratorV1::GenerateLocalCommRes(const std::string &server_id,
                                                       int32_t device_id,
-                                                      std::string &local_comm_res) {
+                                                      std::string &local_comm_res,
+                                                      std::optional<uint32_t> device_port) {
   rank_table_v1::RankTableInfo local_rank_table{};
   local_rank_table.version = kConfigVersionV1;
   rank_table_v1::ServerInfo server_info{};
@@ -174,6 +169,9 @@ ge::Status RankTableGeneratorV1::GenerateLocalCommRes(const std::string &server_
   device_info.device_id = std::to_string(phy_device_id);
   LLM_CHK_HIXL_RET(hixl::GetDeviceIp(phy_device_id, device_info.device_ip),
                    "Failed to get device_ip, phy_device_id:%u", phy_device_id);
+  if (device_port.has_value()) {
+    device_info.device_port = std::to_string(device_port.value());
+  }
   server_info.device_list.emplace_back(device_info);
   local_rank_table.server_list.emplace_back(server_info);
   try {

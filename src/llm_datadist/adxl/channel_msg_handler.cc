@@ -178,7 +178,7 @@ Status ChannelMsgHandler::Initialize(const std::map<AscendString, AscendString> 
   ADXL_CHK_ACL_RET(aclrtGetCurrentContext(&aclrt_context_));
   ADXL_CHK_ACL_RET(aclrtGetDevice(&device_id_));
   HIXL_CHK_STATUS_RET(hixl::ParseListenInfo(listen_info_, local_ip_, listen_port_), "Failed to parse listen info");
-  ADXL_CHK_LLM_RET(llm::LocalCommResGenerator::Generate(local_ip_, device_id_, local_comm_res_),
+  ADXL_CHK_LLM_RET(llm::LocalCommResGenerator::Generate(local_ip_, device_id_, local_comm_res_, device_port_),
                    "Failed to generate local comm res, local_ip:%s, device_id:%d", local_ip_.c_str(), device_id_);
   llm::HcclAdapter::GetInstance().HcclCommConfigInit(&comm_config_);
   ADXL_CHK_STATUS_RET(ParseTrafficClass(options), "Failed to parse traffic class");

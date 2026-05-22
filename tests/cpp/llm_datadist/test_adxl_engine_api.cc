@@ -8,10 +8,16 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include <vector>
 #include <cstdlib>
+#include <memory>
+#include <mutex>
+#include <set>
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+
+#include "nlohmann/json.hpp"
 
 #include "adxl/adxl_engine.h"
 #include "adxl/channel_manager.h"
@@ -27,6 +33,55 @@ using ::testing::Invoke;
 using ::testing::Mock;
 
 namespace adxl {
+namespace {
+std::mutex g_rank_table_mutex;
+std::vector<std::string> g_captured_rank_tables;
+
+class RankTableCaptureHcclStub : public llm::HcclApiStub {
+ public:
+  HcclResult HcclCommInitClusterInfoMem(const char *cluster, uint32_t rank, HcclCommConfig *config,
+                                        HcclComm *comm) override {
+    if (cluster != nullptr) {
+      std::lock_guard<std::mutex> lock(g_rank_table_mutex);
+      g_captured_rank_tables.emplace_back(cluster);
+    }
+    return llm::HcclApiStub::HcclCommInitClusterInfoMem(cluster, rank, config, comm);
+  }
+};
+
+void CollectDevicePorts(const nlohmann::json &rank_table_json, std::set<std::string> &device_ports) {
+  for (const auto &server : rank_table_json.at("server_list")) {
+    for (const auto &device : server.at("device")) {
+      if (!device.contains("device_port")) {
+        continue;
+      }
+      device_ports.emplace(device.at("device_port").get<std::string>());
+    }
+  }
+}
+
+bool RankTableContainsDevicePorts(const std::string &rank_table, const std::string &first_port,
+                                  const std::string &second_port) {
+  try {
+    std::set<std::string> device_ports;
+    CollectDevicePorts(nlohmann::json::parse(rank_table), device_ports);
+    return device_ports.count(first_port) != 0U && device_ports.count(second_port) != 0U;
+  } catch (const nlohmann::json::exception &) {
+    return false;
+  }
+}
+
+bool CapturedRankTableContainsDevicePorts(const std::string &first_port, const std::string &second_port) {
+  std::lock_guard<std::mutex> lock(g_rank_table_mutex);
+  for (const auto &rank_table : g_captured_rank_tables) {
+    if (RankTableContainsDevicePorts(rank_table, first_port, second_port)) {
+      return true;
+    }
+  }
+  return false;
+}
+}  // namespace
+
 class AdxlEngineSTest : public ::testing::Test {
  protected:
   // 在测试类中设置一些准备工作，如果需要的话
@@ -37,10 +92,57 @@ class AdxlEngineSTest : public ::testing::Test {
   // 在测试类中进行清理工作，如果需要的话
   void TearDown() override {
     llm::HcclAdapter::GetInstance().Finalize();
+    llm::HcclApiStub::ResetStub();
     llm::MockMmpaForHcclApi::Reset();
     llm::AutoCommResRuntimeMock::Reset();
   }
 };
+
+TEST_F(AdxlEngineSTest, TestGlobalResourceConfigCommResourceListenPortValidation) {
+  for (const auto &listen_port : {"0", "65536", "invalid"}) {
+    AdxlEngine engine;
+    const std::string global_resource_config =
+        std::string(R"({"comm_resource_config.listen_port":")") + listen_port + R"("})";
+    std::map<AscendString, AscendString> options;
+    options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(global_resource_config.c_str());
+    EXPECT_EQ(engine.Initialize("127.0.0.1", options), PARAM_INVALID) << "listen_port=" << listen_port;
+  }
+
+  AdxlEngine engine;
+  std::map<AscendString, AscendString> options;
+  options[OPTION_BUFFER_POOL] = "0:0";
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.listen_port":"65535"})";
+  EXPECT_EQ(engine.Initialize("127.0.0.1", options), SUCCESS);
+  engine.Finalize();
+}
+
+TEST_F(AdxlEngineSTest, TestGlobalResourceConfigCommResourceListenPortInRankTable) {
+  {
+    std::lock_guard<std::mutex> lock(g_rank_table_mutex);
+    g_captured_rank_tables.clear();
+  }
+  llm::HcclApiStub::SetStub(std::make_unique<RankTableCaptureHcclStub>());
+
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  AdxlEngine engine1;
+  std::map<AscendString, AscendString> options1;
+  options1[OPTION_BUFFER_POOL] = "0:0";
+  options1[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.listen_port":"23456"})";
+  ASSERT_EQ(engine1.Initialize("127.0.0.1:26000", options1), SUCCESS);
+
+  llm::AutoCommResRuntimeMock::SetDevice(1);
+  AdxlEngine engine2;
+  std::map<AscendString, AscendString> options2;
+  options2[OPTION_BUFFER_POOL] = "0:0";
+  options2[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.listen_port":"23457"})";
+  ASSERT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
+
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
+  EXPECT_TRUE(CapturedRankTableContainsDevicePorts("23456", "23457"));
+  EXPECT_EQ(engine1.Disconnect("127.0.0.1:26001"), SUCCESS);
+  engine1.Finalize();
+  engine2.Finalize();
+}
 
 TEST_F(AdxlEngineSTest, TestAdxlEngine) {
   llm::AutoCommResRuntimeMock::SetDevice(0);

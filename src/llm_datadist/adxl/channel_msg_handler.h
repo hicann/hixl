@@ -105,6 +105,10 @@ class ChannelMsgHandler {
     max_channel_ = max_channel;
   }
 
+  void SetDevicePort(std::optional<uint32_t> device_port) {
+    device_port_ = device_port;
+  }
+
   Status RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor);
 
  private:
@@ -181,6 +185,7 @@ class ChannelMsgHandler {
 
   std::string local_comm_name_;
   std::string local_comm_res_;
+  std::optional<uint32_t> device_port_;
   HcclCommConfig comm_config_;
 
   SegmentTable *segment_table_ = nullptr;

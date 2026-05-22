@@ -35,6 +35,7 @@ inline uint64_t GetTransferOpDescCount(const std::vector<TransferOpDesc> &op_des
 constexpr const char *OPTION_MAX_CHANNEL = "channel_pool.max_channel";
 constexpr const char *OPTION_HIGH_WATERLINE = "channel_pool.high_waterline";
 constexpr const char *OPTION_LOW_WATERLINE = "channel_pool.low_waterline";
+constexpr const char *OPTION_COMM_RESOURCE_CONFIG_LISTEN_PORT = "comm_resource_config.listen_port";
 
 constexpr int kDefaultMaxChannel = 512;
 bool NeedErrorLog(Status status);

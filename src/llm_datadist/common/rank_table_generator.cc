@@ -60,7 +60,8 @@ std::unique_ptr<RankTableGenerator> RankTableGeneratorFactory::Create(const std:
 
 ge::Status LocalCommResGenerator::Generate(const std::string &server_id,
                                            int32_t device_id,
-                                           std::string &local_comm_res) {
+                                           std::string &local_comm_res,
+                                           std::optional<uint32_t> device_port) {
   const static std::set<std::string> kV2Version = {
       "Ascend910_9391", "Ascend910_9381", "Ascend910_9392", "Ascend910_9382", "Ascend910_9372", "Ascend910_9362"
   };
@@ -68,11 +69,11 @@ ge::Status LocalCommResGenerator::Generate(const std::string &server_id,
   LLM_CHECK_NOTNULL(version, "aclrt get soc name");
   const auto &it = kV2Version.find(version);
   if (it != kV2Version.cend()) {
-    LLM_CHK_STATUS_RET(RankTableGeneratorV2::GenerateLocalCommRes(server_id, device_id, local_comm_res),
+    LLM_CHK_STATUS_RET(RankTableGeneratorV2::GenerateLocalCommRes(server_id, device_id, local_comm_res, device_port),
                       "Failed to generate local comm res, server_id:%s, device_id:%d.",
                       server_id.c_str(), device_id);
   } else {
-    LLM_CHK_STATUS_RET(RankTableGeneratorV1::GenerateLocalCommRes(server_id, device_id, local_comm_res),
+    LLM_CHK_STATUS_RET(RankTableGeneratorV1::GenerateLocalCommRes(server_id, device_id, local_comm_res, device_port),
                       "Failed to generate local comm res, server_id:%s, device_id:%d.",
                       server_id.c_str(), device_id);
   }
