@@ -132,22 +132,25 @@ if [ ! -f "$BENCH_BIN" ]; then
 fi
 
 # Build Python args
-PY_ARGS="--loops ${LOOPS} --device_ids ${DEVICE_IDS}"
+PY_ARGS=(--loops "${LOOPS}" --device_ids "${DEVICE_IDS}")
 if [ -n "$PLATFORM" ]; then
-  PY_ARGS="${PY_ARGS} --platform ${PLATFORM}"
+  PY_ARGS+=(--platform "${PLATFORM}")
 fi
 if [ -n "$SKIP_COMM" ]; then
-  PY_ARGS="${PY_ARGS} ${SKIP_COMM}"
+  PY_ARGS+=("${SKIP_COMM}")
 fi
 if [ -n "$SKIP_KV" ]; then
-  PY_ARGS="${PY_ARGS} ${SKIP_KV}"
+  PY_ARGS+=("${SKIP_KV}")
 fi
 if [ "$TARGET_HOST" != "127.0.0.1" ]; then
-  PY_ARGS="${PY_ARGS} --target_host ${TARGET_HOST}"
+  PY_ARGS+=(--target_host "${TARGET_HOST}")
+fi
+if [ -n "$OUTPUT" ]; then
+  PY_ARGS+=(--output "${OUTPUT}")
 fi
 
 # Run benchmarks
-python3 "${BASEPATH}/benchmarks/run_all_benchmarks.py" ${PY_ARGS} "${EXTRA_PY[@]}"
+python3 "${BASEPATH}/benchmarks/run_all_benchmarks.py" "${PY_ARGS[@]}" "${EXTRA_PY[@]}"
 
 # Print output location
 if [ -n "$OUTPUT" ]; then

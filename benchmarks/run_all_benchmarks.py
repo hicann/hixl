@@ -18,6 +18,7 @@ Usage:
   python3 benchmarks/run_all_benchmarks.py
   python3 benchmarks/run_all_benchmarks.py --loops 10 --device_ids 0,1,2,3,4,5,6,7
   python3 benchmarks/run_all_benchmarks.py --skip-kv
+  python3 benchmarks/run_all_benchmarks.py --output /tmp/perf.md
   python3 benchmarks/run_all_benchmarks.py -H OPTION_KEY=OPTION_VALUE  # comm bench only (repeatable)
 """
 from __future__ import annotations
@@ -217,6 +218,7 @@ def run_kv_benchmarks(spec: KvSuiteSpec) -> int:
     ok = 0
     device_csv = ','.join(str(d) for d in spec.devices)
     for model in spec.models:
+        model_output_dir = spec.output_dir / model
         log.info(f"\n{'=' * 60}")
         log.info(f'[RUN] KV benchmark model={model} transport={spec.transport}')
         cmd = [
@@ -228,7 +230,7 @@ def run_kv_benchmarks(spec: KvSuiteSpec) -> int:
             f'--platform={spec.platform_id}',
             f'--num_processes={len(spec.devices)}',
             f'--devices={device_csv}',
-            f'--output_dir={spec.output_dir}',
+            f'--output_dir={model_output_dir}',
         ]
         log.info(f"[CMD] {' '.join(cmd)}")
         ret = subprocess.run(cmd).returncode
@@ -309,6 +311,7 @@ def parse_all_benchmark_args() -> argparse.Namespace:
     )
     parser.add_argument('--skip_comm', action='store_true', help='Skip communication benchmarks')
     parser.add_argument('--skip_kv', action='store_true', help='Skip KV benchmarks')
+    parser.add_argument('--output', type=Path, default=None, help='perf.md output path')
     parser.add_argument(
         '-H',
         '--hixl_option',
@@ -391,7 +394,7 @@ def run_comm_suite(args: argparse.Namespace, platform_id: str, devs: list[int]) 
     return comm_ok, comm_total
 
 
-def render_perf_report(platform_id: str, comm_ok: int) -> None:
+def render_perf_report(platform_id: str, comm_ok: int, output_path: Path | None) -> None:
     comm_csv_dir = BENCHMARKS_DIR / 'comm_benchmark' / 'output'
     if comm_ok <= 0 or not list(comm_csv_dir.glob('comm_result_*.csv')):
         return
@@ -402,6 +405,8 @@ def render_perf_report(platform_id: str, comm_ok: int) -> None:
         f'--csv-dir={comm_csv_dir}',
         f'--platform={platform_id}',
     ]
+    if output_path is not None:
+        render_cmd.append(f'--output={output_path}')
     ret = subprocess.run(render_cmd, check=False)
     if ret.returncode != 0:
         log.warning('[WARN] render_perf_md.py failed')
@@ -435,7 +440,7 @@ def main() -> None:
     if comm_ok + kv_ok == 0:
         log.warning('[WARN] No successful benchmarks, skipping perf.md generation')
         return
-    render_perf_report(platform_id, comm_ok)
+    render_perf_report(platform_id, comm_ok, args.output)
     log.info('\n[DONE]')
 
 

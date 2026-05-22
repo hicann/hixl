@@ -117,6 +117,7 @@ target_link_libraries(hixl_test
         dcmi_stub
         GTest::gtest GTest::gtest_main
         GTest::gmock
+        stdc++fs
         -Wl,--no-as-needed
         hccl_stub
         error_manager_stub

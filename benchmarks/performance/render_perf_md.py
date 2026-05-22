@@ -478,6 +478,7 @@ def main() -> None:
         sections.extend(chart_embeds)
     md_content = ''.join(sections)
     out_path = args.output or benchmarks_dir / 'perf.md'
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(md_content, encoding='utf-8')
     log.info(f'[INFO] wrote {out_path}')
     log.info('\n' + '=' * 70)

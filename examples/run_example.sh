@@ -119,6 +119,23 @@ run_pair() {
     done
 }
 
+run_comm_bench_pair() {
+    local bench_bin="$1"
+    local transport="$2"
+    local initiator_memory="$3"
+    local target_memory="$4"
+    local op_type="$5"
+    local client_device="$6"
+    local server_device="$7"
+    local ip_address="$8"
+    local hixl_port="$9"
+    local tcp_port="${10}"
+    local common_args="--transport=${transport} --initiator_memory=${initiator_memory} --target_memory=${target_memory} --op_type=${op_type}"
+
+    run_pair "${bench_bin} --role=client --device_id=${client_device} --local_engine=${ip_address} --remote_engine=${ip_address}:${hixl_port} --tcp_port=${tcp_port} ${common_args}" \
+    "${bench_bin} --role=server --device_id=${server_device} --local_engine=${ip_address}:${hixl_port} --remote_engine=${ip_address} --tcp_port=${tcp_port} ${common_args}"
+}
+
 all_samples() {
     # 若设置了 SOCKET_IFNAME 环境变量则使用环境变量中的网络接口名，否则默认使用 eth 或 enp 开头的网络接口名
     if [ -n "$SOCKET_IFNAME" ]; then
@@ -186,29 +203,19 @@ all_samples() {
     cd "${BASEPATH}/../build/benchmarks"
     BENCH_BIN="./comm_benchmark/hixl_comm_bench"
     # benchmarks (key=value CLI; server --remote_engine is TCP peer IP only)
-    # Non-ROCE (HCCS): d2d only
-    run_pair "${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2d --transfer_op=write" \
-    "${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2d --transfer_op=write"
-    run_pair "${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2d --transfer_op=read" \
-    "${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2d --transfer_op=read"
+    # HCCS: D2D smoke cases.
+    run_comm_bench_pair "${BENCH_BIN}" "hccs" "device" "device" "write" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
+    run_comm_bench_pair "${BENCH_BIN}" "hccs" "device" "device" "read" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
 
-    # ROCE: all transfer modes
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2d --transfer_op=write" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2d --transfer_op=write"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2d --transfer_op=write" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2d --transfer_op=write"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2h --transfer_op=write" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2h --transfer_op=write"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2h --transfer_op=write" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2h --transfer_op=write"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2d --transfer_op=read" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2d --transfer_op=read"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2d --transfer_op=read" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2d --transfer_op=read"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=d2h --transfer_op=read" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=d2h --transfer_op=read"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=client --device_id=${device_id_1} --local_engine=${IP_ADDRESS} --remote_engine=${IP_ADDRESS}:16000 --tcp_port=20000 --transfer_mode=h2h --transfer_op=read" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ${BENCH_BIN} --role=server --device_id=${device_id_2} --local_engine=${IP_ADDRESS}:16000 --remote_engine=${IP_ADDRESS} --tcp_port=20000 --transfer_mode=h2h --transfer_op=read"
+    # RDMA: all memory direction smoke cases.
+    run_comm_bench_pair "${BENCH_BIN}" "rdma" "device" "device" "write" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
+    run_comm_bench_pair "${BENCH_BIN}" "rdma" "host" "device" "write" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
+    run_comm_bench_pair "${BENCH_BIN}" "rdma" "device" "host" "write" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
+    run_comm_bench_pair "${BENCH_BIN}" "rdma" "host" "host" "write" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
+    run_comm_bench_pair "${BENCH_BIN}" "rdma" "device" "device" "read" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
+    run_comm_bench_pair "${BENCH_BIN}" "rdma" "host" "device" "read" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
+    run_comm_bench_pair "${BENCH_BIN}" "rdma" "device" "host" "read" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
+    run_comm_bench_pair "${BENCH_BIN}" "rdma" "host" "host" "read" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
 
     if [ "$flag" -eq "0" ]; then
         echo "execute samples success"

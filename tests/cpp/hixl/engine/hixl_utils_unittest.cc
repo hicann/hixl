@@ -11,7 +11,8 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <cstdlib>
-#include <filesystem>
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
 #include <fstream>
 #include <sys/stat.h>
 #include "common/hixl_utils.h"
@@ -43,7 +44,7 @@ class DeviceIpMmpaStub : public llm::MmpaStubApiGe {
   }
 
   INT32 Access(const CHAR *path_name) override {
-    if (conf_exists_ && std::string(path_name) == conf_path_ && std::filesystem::exists(conf_path_)) {
+    if (conf_exists_ && std::string(path_name) == conf_path_ && fs::exists(conf_path_)) {
       return EN_OK;
     }
     return EN_ERROR;
@@ -58,9 +59,9 @@ class DeviceIpMmpaStub : public llm::MmpaStubApiGe {
 class HixlUtilsUTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    temp_dir_ = std::filesystem::path("/tmp/hixl_utils_unittest");
-    std::filesystem::remove_all(temp_dir_);
-    std::filesystem::create_directories(temp_dir_);
+    temp_dir_ = fs::path("/tmp/hixl_utils_unittest");
+    fs::remove_all(temp_dir_);
+    fs::create_directories(temp_dir_);
     conf_path_ = temp_dir_ / "hccn.conf";
     old_path_ = getenv("PATH") == nullptr ? "" : getenv("PATH");
     llm::MmpaStub::GetInstance().Reset();
@@ -73,7 +74,7 @@ class HixlUtilsUTest : public ::testing::Test {
       setenv("PATH", old_path_.c_str(), 1);
     }
     llm::MmpaStub::GetInstance().Reset();
-    std::filesystem::remove_all(temp_dir_);
+    fs::remove_all(temp_dir_);
   }
 
   void WriteHccnConf(const std::string &content) const {
@@ -98,8 +99,8 @@ class HixlUtilsUTest : public ::testing::Test {
     setenv("PATH", new_path.c_str(), 1);
   }
 
-  std::filesystem::path temp_dir_;
-  std::filesystem::path conf_path_;
+  fs::path temp_dir_;
+  fs::path conf_path_;
   std::string old_path_;
 };
 

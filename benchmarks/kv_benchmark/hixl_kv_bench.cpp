@@ -15,7 +15,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <filesystem>
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
 #include <functional>
 #include <fstream>
 #include <iomanip>
@@ -467,11 +468,11 @@ std::uint64_t MaxLocalBytes(const std::vector<KvWorkload> &workloads) {
   return value;
 }
 
-std::filesystem::path SyncDir(const KvBenchConfig &cfg) {
-  return std::filesystem::path(cfg.output_dir) / ".kv_sync" / cfg.run_id;
+fs::path SyncDir(const KvBenchConfig &cfg) {
+  return fs::path(cfg.output_dir) / ".kv_sync" / cfg.run_id;
 }
 
-std::filesystem::path RankMetaPath(const KvBenchConfig &cfg, std::uint32_t rank) {
+fs::path RankMetaPath(const KvBenchConfig &cfg, std::uint32_t rank) {
   return SyncDir(cfg) / ("rank" + std::to_string(rank) + ".meta");
 }
 
@@ -483,8 +484,8 @@ std::string LocalConnectEndpoint(const KvBenchConfig &cfg) {
   return cfg.connect_host + ":" + std::to_string(cfg.base_port + cfg.rank);
 }
 
-void WriteTextFileAtomically(const std::filesystem::path &path, const std::string &text) {
-  std::filesystem::create_directories(path.parent_path());
+void WriteTextFileAtomically(const fs::path &path, const std::string &text) {
+  fs::create_directories(path.parent_path());
   const auto tmp = path.string() + ".tmp";
   {
     std::ofstream out(tmp);
@@ -493,7 +494,7 @@ void WriteTextFileAtomically(const std::filesystem::path &path, const std::strin
     }
     out << text;
   }
-  std::filesystem::rename(tmp, path);
+  fs::rename(tmp, path);
 }
 
 void WriteRankMeta(const KvBenchConfig &cfg, const KvRuntime &runtime, std::uint64_t pool_size) {
@@ -505,7 +506,7 @@ void WriteRankMeta(const KvBenchConfig &cfg, const KvRuntime &runtime, std::uint
   WriteTextFileAtomically(RankMetaPath(cfg, cfg.rank), text);
 }
 
-RankMeta ReadRankMeta(const std::filesystem::path &path) {
+RankMeta ReadRankMeta(const fs::path &path) {
   std::ifstream in(path);
   if (!in.good()) {
     throw std::runtime_error("failed to open rank meta: " + path.string());
@@ -527,12 +528,12 @@ RankMeta ReadRankMeta(const std::filesystem::path &path) {
   return meta;
 }
 
-void WaitForFiles(const std::vector<std::filesystem::path> &paths, std::uint32_t timeout_sec) {
+void WaitForFiles(const std::vector<fs::path> &paths, std::uint32_t timeout_sec) {
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeout_sec);
   while (std::chrono::steady_clock::now() < deadline) {
     bool all_exist = true;
     for (const auto &path : paths) {
-      if (!std::filesystem::exists(path)) {
+      if (!fs::exists(path)) {
         all_exist = false;
         break;
       }
@@ -546,7 +547,7 @@ void WaitForFiles(const std::vector<std::filesystem::path> &paths, std::uint32_t
 }
 
 std::vector<RankMeta> LoadAllRankMeta(const KvBenchConfig &cfg) {
-  std::vector<std::filesystem::path> paths;
+  std::vector<fs::path> paths;
   for (std::uint32_t rank = 0U; rank < cfg.num_processes; ++rank) {
     paths.push_back(RankMetaPath(cfg, rank));
   }
@@ -563,7 +564,7 @@ std::vector<RankMeta> LoadAllRankMeta(const KvBenchConfig &cfg) {
 }
 
 void Barrier(const KvBenchConfig &cfg, const std::string &name) {
-  std::filesystem::path dir = SyncDir(cfg);
+  fs::path dir = SyncDir(cfg);
   dir.append(name);
   const auto path = dir / ("rank" + std::to_string(cfg.rank));
   if (IsTraceRank(cfg)) {
@@ -571,7 +572,7 @@ void Barrier(const KvBenchConfig &cfg, const std::string &name) {
   }
   WriteTextFileAtomically(path, "ready\n");
 
-  std::vector<std::filesystem::path> paths;
+  std::vector<fs::path> paths;
   for (std::uint32_t rank = 0U; rank < cfg.num_processes; ++rank) {
     paths.push_back(dir / ("rank" + std::to_string(rank)));
   }
@@ -1011,7 +1012,7 @@ std::vector<KvBenchResult> RunBenchmark(const KvBenchConfig &cfg, KvRuntime *run
 
 void WriteCsv(const KvBenchConfig &cfg, const std::vector<KvBenchResult> &results,
               std::uint64_t rank_pool_size_bytes) {
-  std::filesystem::create_directories(cfg.output_dir);
+  fs::create_directories(cfg.output_dir);
   std::ofstream out(cfg.output_dir + "/kv_result_rank" + std::to_string(cfg.rank) + ".csv");
   out << "rank,model,token_length,key_count,tokens_per_key,max_slice_bytes,slice_count,total_bytes,transfer_threads,"
          "process_count,device_count,segment_count,pool_size_bytes,pool_memory,put_transfer_type,get_transfer_type,"

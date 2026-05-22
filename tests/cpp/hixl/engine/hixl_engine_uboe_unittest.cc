@@ -13,7 +13,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <filesystem>
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
 #include <fstream>
 #include <sys/stat.h>
 #include "ascendcl_stub.h"
@@ -47,9 +48,9 @@ class HixlEngineUboeTest : public ::testing::Test {
     llm::AclRuntimeStub::SetInstance(acl_stub_);
     // EnsureDeviceKernelLoadedLocked 现在在初始化阶段调用，需要提前设置 MmpaStub
     llm::MmpaStub::GetInstance().SetImpl(std::make_shared<UboeMmpaStub>());
-    temp_dir_ = std::filesystem::path("/tmp/hixl_engine_uboe_unittest");
-    std::filesystem::remove_all(temp_dir_);
-    std::filesystem::create_directories(temp_dir_);
+    temp_dir_ = fs::path("/tmp/hixl_engine_uboe_unittest");
+    fs::remove_all(temp_dir_);
+    fs::create_directories(temp_dir_);
     old_path_ = getenv("PATH") == nullptr ? "" : getenv("PATH");
 
     // UBOE 协议配置
@@ -105,7 +106,7 @@ class HixlEngineUboeTest : public ::testing::Test {
     } else {
       setenv("PATH", old_path_.c_str(), 1);
     }
-    std::filesystem::remove_all(temp_dir_);
+    fs::remove_all(temp_dir_);
   }
 
   void CreateHccnTool(const std::string &output) const {
@@ -131,7 +132,7 @@ class HixlEngineUboeTest : public ::testing::Test {
 
  private:
   std::shared_ptr<MockEngineAclRuntimeStub> acl_stub_;
-  std::filesystem::path temp_dir_;
+  fs::path temp_dir_;
   std::string old_path_;
 };
 

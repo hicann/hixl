@@ -41,6 +41,7 @@ target_link_libraries(hixl_kv_bench PRIVATE
     acl_rt
     -lpthread
     -lrt
+    stdc++fs
 )
 target_link_ascend_hal(hixl_kv_bench)
 
