@@ -29,6 +29,9 @@ namespace adxl {
 namespace {
 constexpr int32_t kWaitRespTime = 20;
 constexpr int32_t kCheckDisconnetPeriod = 10;
+constexpr int32_t kMaxTrafficClassRange = 255;
+constexpr int32_t kTrafficClassStep = 4;
+constexpr int32_t kMaxServiceLevel = 7;
 }  // namespace
 
 static inline void from_json(const nlohmann::json &j, AddrInfo &op_desc) {
@@ -137,9 +140,9 @@ Status ChannelMsgHandler::ParseTrafficClass(const std::map<AscendString, AscendS
     int32_t traffic_class = 0;
     ADXL_CHK_LLM_RET(llm::LLMUtils::ToNumber(traffic_class_str, traffic_class), "%s is invalid, value = %s",
                      hixl::OPTION_RDMA_TRAFFIC_CLASS, traffic_class_str.c_str());
-    ADXL_CHK_BOOL_RET_STATUS(traffic_class >= 0 && traffic_class <= 255 && (traffic_class % 4 == 0), PARAM_INVALID,
-                             "%s is invalid, value = %d, must be between 0-255 and a multiple of 4",
-                             hixl::OPTION_RDMA_TRAFFIC_CLASS, traffic_class);
+    ADXL_CHK_BOOL_RET_STATUS(traffic_class >= 0 && traffic_class <= kMaxTrafficClassRange && (traffic_class % kTrafficClassStep == 0), PARAM_INVALID,
+                             "%s is invalid, value = %d, must be in [0, %d] and a multiple of %d",
+                             hixl::OPTION_RDMA_TRAFFIC_CLASS, traffic_class, kMaxTrafficClassRange, kTrafficClassStep);
     comm_config_.hcclRdmaTrafficClass = traffic_class;
     LLMLOGI("set rdma traffic class to %d.", traffic_class);
   }
@@ -162,8 +165,8 @@ Status ChannelMsgHandler::ParseServiceLevel(const std::map<AscendString, AscendS
     int32_t service_level = 0;
     ADXL_CHK_LLM_RET(llm::LLMUtils::ToNumber(service_level_str, service_level), "%s is invalid, value = %s",
                      hixl::OPTION_RDMA_SERVICE_LEVEL, service_level_str.c_str());
-    ADXL_CHK_BOOL_RET_STATUS(service_level >= 0 && service_level <= 7, PARAM_INVALID,
-                             "%s must be in [0, 7], value = %d", hixl::OPTION_RDMA_SERVICE_LEVEL, service_level);
+    ADXL_CHK_BOOL_RET_STATUS(service_level >= 0 && service_level <= kMaxServiceLevel, PARAM_INVALID,
+                             "%s is invalid, value = %d, must be in [0, %d]", hixl::OPTION_RDMA_SERVICE_LEVEL, service_level, kMaxServiceLevel);
     comm_config_.hcclRdmaServiceLevel = service_level;
     LLMLOGI("set rdma service level to %d.", service_level);
   }
