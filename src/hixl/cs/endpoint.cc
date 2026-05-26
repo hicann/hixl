@@ -18,6 +18,9 @@
 #include "proxy/hcomm_proxy.h"
 
 namespace hixl {
+namespace {
+constexpr uint32_t kRoceQueueNum = 1U;  // ROCE QP数量默认值
+}  // namespace
 
 Status Endpoint::Initialize() {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -162,7 +165,9 @@ Status Endpoint::CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &c
   if (endpoint_.protocol == CommProtocol::COMM_PROTOCOL_ROCE) {
     ch_desc.roceAttr.tc = static_cast<uint32_t>(channel_desc.tc);
     ch_desc.roceAttr.sl = static_cast<uint32_t>(channel_desc.sl);
-    HIXL_LOGI("[channel] ROCE attributes set, tc=%u, sl=%u", ch_desc.roceAttr.tc, ch_desc.roceAttr.sl);
+    ch_desc.roceAttr.queueNum = kRoceQueueNum;
+    HIXL_LOGI("[channel] ROCE attributes set, tc=%u, sl=%u, queueNum=%u", ch_desc.roceAttr.tc, ch_desc.roceAttr.sl,
+              ch_desc.roceAttr.queueNum);
   }
   ChannelPtr channel = MakeShared<Channel>();
   HIXL_CHECK_NOTNULL(channel);
