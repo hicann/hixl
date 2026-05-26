@@ -106,7 +106,7 @@ Status HixlEngine::Connect(const AscendString &remote_engine, int32_t timeout_in
   ClientPtr client_ptr = nullptr;
   client_ptr = client_manager_.GetClient(remote_engine.GetString());
   if (client_ptr != nullptr) {
-    HIXL_LOGE(ALREADY_CONNECTED, "[HixlEngine] remote engine:%s is already connected to local_engine:%s",
+    HIXL_LOGE(ALREADY_CONNECTED, "[HixlEngine] remote_engine:%s is already connected to local_engine:%s",
               remote_engine.GetString(), local_engine_.c_str());
     return ALREADY_CONNECTED;
   }
@@ -116,7 +116,7 @@ Status HixlEngine::Connect(const AscendString &remote_engine, int32_t timeout_in
   config.rdma_tc = rdma_traffic_class_;
   config.rdma_sl = rdma_service_level_;
   HIXL_CHK_STATUS_RET(client_manager_.CreateClient(config, client_ptr),
-                      "[HixlEngine] Failed to create HixlClient, local_engine: %s, remote engine: %s",
+                      "[HixlEngine] Failed to create HixlClient, local_engine: %s, remote_engine: %s",
                       local_engine_.c_str(), remote_engine.GetString());
   HIXL_CHECK_NOTNULL(
       client_ptr,
