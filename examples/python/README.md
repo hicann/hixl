@@ -4,9 +4,8 @@
 - [样例介绍](#样例介绍)
 - [目录结构](#目录结构)
 - [环境准备](#环境准备)
+- [样例配置说明](#样例配置说明)
 - [样例运行](#样例运行)
-  - [执行前准备](#执行前准备)
-  - [执行](#执行)
 
 ## 样例介绍
 
@@ -70,7 +69,7 @@ source ${HOME}/Ascend/cann/set_env.sh
 ## 样例运行
 - 执行pull cache样例程序，此样例程序展示了配置内存池场景下，使用allocate_cache，双向建链，并从远端pull_cache
   - 说明：
-    本示例必须使用双机，参考[执行前准备](#执行前准备)
+    本示例必须使用双机，参考[样例配置说明](#样例配置说明)
 
   分别在Prompt主机与Decoder主机，执行样例程序，其中device_id为要使用的device_id，cluster_id为集群ID且在所有参与建链的范围内需要确保唯一：
     ```
@@ -81,7 +80,7 @@ source ${HOME}/Ascend/cann/set_env.sh
     ```
 - 执行pull blocks样例程序，此样例程序使用torch自行申请内存，双向建链，并从远端pull_cache
   - 说明：
-    本示例必须使用双机，参考[执行前准备](#执行前准备)
+    本示例必须使用双机，参考[样例配置说明](#样例配置说明)
 
   分别在Prompt主机与Decoder主机，执行样例程序，其中device_id为要使用的device_id，cluster_id为集群ID且在所有参与建链的范围内需要确保唯一：
     ```
@@ -92,7 +91,7 @@ source ${HOME}/Ascend/cann/set_env.sh
     ```
 - 执行pull_from_cache_to_blocks样例程序：
   - 说明：
-    本示例必须使用双机，参考[执行前准备](#执行前准备)
+    本示例必须使用双机，参考[样例配置说明](#样例配置说明)
 
   分别在Prompt主机与Decoder主机，执行样例程序，其中device_id为要使用的device_id，cluster_id为集群ID且在所有参与建链的范围内需要确保唯一：
     ```
