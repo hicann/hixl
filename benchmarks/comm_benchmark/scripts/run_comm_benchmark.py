@@ -67,7 +67,7 @@ TYPE_MAP = {
 ALL_TYPES = list(TYPE_MAP.keys())
 TRANSPORTS_A2 = ['hccs', 'rdma']
 TRANSPORTS_A3 = ['hccs', 'rdma', 'fabric_mem']
-TRANSPORTS_A5 = ['rdma', 'fabric_mem']
+TRANSPORTS_A5 = ['rdma', 'fabric_mem', 'uboe']
 DEFAULT_START_BLOCK = 16384
 DEFAULT_MAX_BLOCK = 2097152
 BLOCK_SORT_ORDER = ['16K', '32K', '64K', '128K', '256K', '512K', '1M', '2M', '4M', '8M']
@@ -538,7 +538,7 @@ def _add_transfer_args(parser) -> None:
     )
     parser.add_argument(
         '--transport',
-        choices=['hccs', 'rdma', 'fabric_mem', 'all'],
+        choices=['hccs', 'rdma', 'fabric_mem', 'uboe', 'all'],
         default=None,
         help='Transport path. Dual-machine default: all platform-supported transports.',
     )

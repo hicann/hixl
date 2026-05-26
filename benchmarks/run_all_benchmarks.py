@@ -50,7 +50,7 @@ MEM_TYPES = ['device', 'host']
 OP_TYPES = ['write', 'read']
 TRANSPORTS_A2 = ['hccs', 'rdma']
 TRANSPORTS_A3 = ['hccs', 'rdma', 'fabric_mem']
-TRANSPORTS_A5 = ['rdma', 'fabric_mem']
+TRANSPORTS_A5 = ['rdma', 'fabric_mem', 'uboe']
 BLOCK_SIZES = [
     16 * 1024,
     32 * 1024,
