@@ -528,9 +528,8 @@ Status TransferSync(const AscendString &remote_engine,
 
 - 调用该接口之前，需要先调用Connect接口完成与对端的建链。
 - 该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
-- 在调用TransferAsync接口进行异步传输后，需要使用该接口查询对应请求状态，如果查询状态是COMPLETED或FAILED，将释放相关资源。该场景下不支持再次查询。
-- 异步传输时，用户自行判断是否超时，如果用户判断任务超时，建议调用Disconnect接口销毁链路，清理相关资源。
-- 异步传输任务失败后，调用该接口查询的状态和接口返回状态都是FAILED。
+- 在调用TransferAsync接口进行异步传输后，需要使用该接口查询对应请求状态，如果查询状态是COMPLETED，将释放相关资源。该场景下不支持再次查询。
+- 异步传输时，用户自行判断是否超时，如果用户判断任务超时，需要调用Disconnect接口销毁链路，清理相关资源。
 
 ## SendNotify
 

@@ -260,6 +260,7 @@ Status FabricMemEngine::DisconnectLocked(const AscendString &remote_engine, int3
   if (fabric_mem_transfer_service_ != nullptr) {
     fabric_mem_transfer_service_->RemoveChannel(remote);
   }
+  RemoveChannelReqMapLocked(remote);
   fabric_mem_statistic_.RemoveStatisticChannel(FabricMemStatistic::GetClientStatisticChannelId(remote));
   fabric_mem_remote_mems_.erase(it);
   auto legacy_it = keepalive_fds_.find(remote);
@@ -287,6 +288,17 @@ void FabricMemEngine::Disconnect() {
     }
   }
   keepalive_fds_.clear();
+  req_map_.clear();
+}
+
+void FabricMemEngine::RemoveChannelReqMapLocked(const std::string &remote_engine) {
+  for (auto it = req_map_.begin(); it != req_map_.end();) {
+    if (it->second.remote_engine.GetString() == remote_engine) {
+      it = req_map_.erase(it);
+    } else {
+      ++it;
+    }
+  }
 }
 
 Status FabricMemEngine::BuildTransferContextLocked(const std::string &remote_engine,
@@ -365,17 +377,22 @@ Status FabricMemEngine::GetTransferStatus(const TransferReq &req, TransferStatus
   const auto it = req_map_.find(id);
   HIXL_CHK_BOOL_RET_STATUS(it != req_map_.end(), PARAM_INVALID, "[FabricMemEngine] request:%p not found.", req);
   HIXL_CHECK_NOTNULL(fabric_mem_transfer_service_.get(), "[FabricMemEngine] FabricMem service is null.");
+  const AscendString remote_engine = it->second.remote_engine;
   FabricMemTransferContext context;
-  Status ret = BuildTransferContextLocked(it->second.remote_engine.GetString(), context);
+  Status ret = BuildTransferContextLocked(remote_engine.GetString(), context);
   if (ret != SUCCESS) {
+    req_map_.erase(it);
     if (auto_connect_) {
-      (void)DisconnectLocked(it->second.remote_engine, 0);
+      (void)DisconnectLocked(remote_engine, 0);
     }
     return ret;
   }
   ret = fabric_mem_transfer_service_->GetTransferStatus(context, req, status);
-  if (ret != SUCCESS && auto_connect_) {
-    (void)DisconnectLocked(it->second.remote_engine, 0);
+  if (ret != SUCCESS) {
+    req_map_.erase(it);
+    if (auto_connect_) {
+      (void)DisconnectLocked(remote_engine, 0);
+    }
     return ret;
   }
   if (status != TransferStatus::WAITING) {

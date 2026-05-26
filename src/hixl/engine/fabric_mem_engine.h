@@ -72,6 +72,7 @@ class FabricMemEngine : public hixl::Engine {
   Status EnsureConnected(const AscendString &remote_engine, int32_t timeout_in_millis);
   Status CreateAndRegisterRemoteMemory(const std::vector<ShareHandleInfo> &share_handles,
                                        const std::string &remote);
+  void RemoveChannelReqMapLocked(const std::string &remote_engine);
 
   // Lock hierarchy (must be acquired in this order):
   //   mutex_ -> stream_pool_mutex_ -> channel_2_req_mutex_ -> async_req_mutex_

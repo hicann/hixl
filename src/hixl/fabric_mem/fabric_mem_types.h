@@ -37,10 +37,13 @@ struct ShareHandleInfo {
   bool is_retained = false;
 };
 
-using AsyncResource = std::pair<aclrtStream, aclrtEvent>;
+struct AsyncSlot {
+  std::vector<aclrtStream> streams;
+  std::vector<void *> host_flags;
+};
 
 struct AsyncRecord {
-  std::vector<AsyncResource> async_resources;
+  AsyncSlot slot;
   std::chrono::steady_clock::time_point transfer_start;
   std::chrono::steady_clock::time_point real_copy_start;
   uint64_t transfer_bytes = 0UL;

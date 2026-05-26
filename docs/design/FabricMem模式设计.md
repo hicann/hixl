@@ -187,13 +187,13 @@ sequenceDiagram
    - `FabricMemTransferService`进行用户地址和映射地址转换。
    - 从stream pool获取任务需要的流资源。
    - 使用`aclrtMemcpyAsync`执行内存拷贝操作。
-   - 同步传输阻塞等待；异步传输通过EventRecord和`aclrtQueryEventStatus`跟踪状态。
+   - 同步传输阻塞等待；异步传输在每个copy stream上追加host flag D2H，轮询host flag判定完成（不再使用EventRecord/query event）。
    - 传输耗时、真实拷贝耗时、总字节数和op desc数量记录在`FabricMemStatistic`中。
 
 5. **资源清理阶段**：
    - 用户调用`DeregisterMem`注销内存。
    - 释放物理内存句柄和共享句柄。
-   - 连接断开或Finalize时清理远端导入映射、流、异步资源和统计通道。
+   - 连接断开或Finalize时清理远端导入映射、stream、异步资源（含host flag池）和统计通道；`Disconnect`同时清理Engine层`req_map_`中该channel的未完成请求记录。
 
 ##### 端到端使用流程
 

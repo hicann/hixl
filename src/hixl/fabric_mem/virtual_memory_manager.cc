@@ -10,6 +10,9 @@
 
 #include "fabric_mem/virtual_memory_manager.h"
 
+#include <set>
+#include <string>
+
 #include "acl/acl.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
@@ -25,6 +28,17 @@ constexpr uint64_t kReserveFlagHugePage = 1UL;
 constexpr size_t kBytesPerTB = 1024UL * 1024UL * 1024UL * 1024UL;
 constexpr size_t kMinGlobalStartAddrTB = 40UL;
 constexpr size_t kMaxGlobalStartAddrTB = 220UL;
+
+const std::set<std::string> kSocV3 = {"Ascend910_9391", "Ascend910_9381", "Ascend910_9392",
+                                      "Ascend910_9382", "Ascend910_9372", "Ascend910_9362"};
+
+bool IsA3Soc() {
+  const char *soc_name_cstr = aclrtGetSocName();
+  if (soc_name_cstr == nullptr) {
+    return false;
+  }
+  return kSocV3.find(soc_name_cstr) != kSocV3.end();
+}
 }  // namespace
 
 VirtualMemoryManager &VirtualMemoryManager::GetInstance() {
@@ -69,10 +83,10 @@ Status VirtualMemoryManager::SetGlobalStartAddress(size_t start_addr_in_tb) {
 Status VirtualMemoryManager::ReserveMemAddress(void *&virtual_address, size_t size) {
   const uintptr_t start_va = (global_start_va_ != 0) ? global_start_va_ : kGlobalVirtualMemoryStartAddr;
   void *global_start_va = reinterpret_cast<void *>(start_va);
-  if (&aclrtReserveMemAddressNoUCMemory != nullptr) {
+  if (IsA3Soc() && &aclrtReserveMemAddressNoUCMemory != nullptr) {
     auto ret = aclrtReserveMemAddressNoUCMemory(&virtual_address, size, 0, global_start_va, kReserveFlagHugePage);
     if (ret == ACL_ERROR_NONE) {
-      HIXL_LOGI("Reserve virtual memory without UC memory, size:%zu.", size);
+      HIXL_LOGI("Reserve virtual memory without UC memory on A3, size:%zu.", size);
       return SUCCESS;
     }
     if (ret != ACL_ERROR_RT_FEATURE_NOT_SUPPORT) {
