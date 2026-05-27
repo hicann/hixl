@@ -1,0 +1,4 @@
+on:
+  pr_comment:
+    types: [ created ]
+    keyword: '^(?:\/)?compile*'

@@ -61,14 +61,12 @@ int32_t TryLoadDcmiSymbols() {
       reinterpret_cast<DcmiGetMainboardIdFunc>(dlsym(g_dcmi_handle, "dcmiv2_get_mainboard_id"));
   g_dcmi_get_logicid_from_phyid =
       reinterpret_cast<DcmiGetLogicIdFromPhyIdFunc>(dlsym(g_dcmi_handle, "dcmiv2_get_dev_id_by_chip_phy_id"));
-
   if (g_dcmi_get_logicid_from_phyid == nullptr) {
     g_dcmi_get_logicid_from_phyid =
         reinterpret_cast<DcmiGetLogicIdFromPhyIdFunc>(dlsym(g_dcmi_handle, "dcmiv2_get_dev_id_from_chip_phyid"));
   }
 
   g_dcmi_get_device_info = reinterpret_cast<DcmiGetDeviceInfoFunc>(dlsym(g_dcmi_handle, "dcmiv2_get_device_info"));
-
   if (g_dcmi_init == nullptr || g_dcmi_get_urma_device_cnt == nullptr || g_dcmi_get_eid_list == nullptr ||
       g_dcmi_get_mainboard_id == nullptr || g_dcmi_get_logicid_from_phyid == nullptr ||
       g_dcmi_get_device_info == nullptr) {

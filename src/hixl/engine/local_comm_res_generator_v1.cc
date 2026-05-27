@@ -25,6 +25,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <set>
 #include <dirent.h>
@@ -64,13 +65,27 @@ constexpr const char *kDefaultTopoDir = "/etc/";
 constexpr const char *kDefaultTopoSuffix = "noroce.json";
 constexpr const char *kDefaultRoutePath = "/lib/route.conf";
 
+// 文件路径校验辅助函数
+inline bool IsFileExists(const std::string &path) {
+  struct stat buffer;
+  return (stat(path.c_str(), &buffer) == 0);
+}
+
+// 魔法数字常量
+constexpr size_t kHexPrefixLength = 2;        // "0x" 前缀长度
+constexpr size_t kNpuGroupSize = 8;          // NPU 分组大小
+constexpr size_t kPgEidSecondIndex = 1;      // PG EID 第二索引
+constexpr size_t kSecondElementSize = 2;     // 第二元素 size 检查
+constexpr uint32_t kOddParity = 1;           // 奇校验
+constexpr uint32_t kEvenParity = 0;          // 偶校验
+
 // DCMI 主命令和子命令
-enum DcmiMainCmd {
-  DCMI_MAIN_CMD_CHIP_INF = 12,
+enum class DcmiMainCmd {
+  CHIP_INF = 12,
 };
 
-enum DcmiChipInfoSubCmd {
-  DCMI_CHIP_INFO_SUB_CMD_SPOD_INFO = 1,
+enum class DcmiChipInfoSubCmd {
+  SPOD_INFO = 1,
 };
 
 // D2D 边匹配输入参数封装（入参过多，合并为结构体）
@@ -167,6 +182,7 @@ void AddRouteEntriesForDevice(const std::map<std::string, std::string> &kv_map, 
     } catch (...) {
       chan_num = 1;
     }
+
   }
 
   for (int32_t j = 0; j < chan_num; ++j) {
@@ -182,11 +198,11 @@ void AddRouteEntriesForDevice(const std::map<std::string, std::string> &kv_map, 
       entry.local_eid = local_it->second;
       entry.remote_eid = remote_it->second;
       // 去掉 "0x" 前缀
-      if (entry.local_eid.size() >= 2 && entry.local_eid[0] == '0' && entry.local_eid[1] == 'x') {
-        entry.local_eid = entry.local_eid.substr(2);
+      if (entry.local_eid.size() >= kHexPrefixLength && entry.local_eid[0] == '0' && entry.local_eid[1] == 'x') {
+        entry.local_eid = entry.local_eid.substr(kHexPrefixLength);
       }
-      if (entry.remote_eid.size() >= 2 && entry.remote_eid[0] == '0' && entry.remote_eid[1] == 'x') {
-        entry.remote_eid = entry.remote_eid.substr(2);
+      if (entry.remote_eid.size() >= kHexPrefixLength && entry.remote_eid[0] == '0' && entry.remote_eid[1] == 'x') {
+        entry.remote_eid = entry.remote_eid.substr(kHexPrefixLength);
       }
       route_data.entries.push_back(entry);
     }
@@ -265,8 +281,8 @@ int32_t GetClosNetInstanceId(int32_t phy_dev_id, std::string &net_instance_id) {
 
   DcmiSpodInfo spod_info = {};
   uint32_t buf_size = sizeof(DcmiSpodInfo);
-  int32_t ret =
-      DcmiProxy::GetDeviceInfo(logic_id, DCMI_MAIN_CMD_CHIP_INF, DCMI_CHIP_INFO_SUB_CMD_SPOD_INFO, &spod_info, &buf_size);
+  int32_t ret = DcmiProxy::GetDeviceInfo(logic_id, static_cast<int32_t>(DcmiMainCmd::CHIP_INF),
+                                         static_cast<int32_t>(DcmiChipInfoSubCmd::SPOD_INFO), &spod_info, &buf_size);
   if (ret != 0) {
     HIXL_LOGE(FAILED, "Failed to get device info, ret=%d", ret);
     return FAILED;
@@ -311,6 +327,10 @@ static int32_t ParseSingleLink(const nlohmann::json &edge, TopoLink &link) {
 }
 
 static int32_t ParseTopoJson(const std::string &topo_path, nlohmann::json &j) {
+  if (!IsFileExists(topo_path)) {
+    HIXL_LOGE(PARAM_INVALID, "Topo file does not exist: %s", topo_path.c_str());
+    return PARAM_INVALID;
+  }
   std::ifstream file(topo_path);
   if (!file.is_open()) {
     HIXL_LOGE(PARAM_INVALID, "Failed to open topo file: %s", topo_path.c_str());
@@ -358,6 +378,10 @@ int32_t ParseTopoFile(const std::string &topo_path, TopoData &topo_data) {
 
 int32_t ParseRouteFile(const std::string &route_path, RouteData &route_data) {
   route_data.entries.clear();
+  if (!IsFileExists(route_path)) {
+    HIXL_LOGE(PARAM_INVALID, "Route file does not exist: %s", route_path.c_str());
+    return PARAM_INVALID;
+  }
   std::ifstream file(route_path);
   if (!file.is_open()) {
     HIXL_LOGE(PARAM_INVALID, "Failed to open route file: %s", route_path.c_str());
@@ -376,7 +400,7 @@ int32_t ParseRouteFile(const std::string &route_path, RouteData &route_data) {
 
 // ============ 边生成实现 ============
 
-bool ShouldSkipD2DLink(const TopoLink &link, size_t skip_reason[4]) {
+bool ShouldSkipD2DLink(const TopoLink &link, std::array<size_t, 4> &skip_reason) {
   if (link.net_layer != 0) {
     ++skip_reason[0];
     return true;
@@ -438,7 +462,7 @@ int32_t GenerateD2DEdges(const TopoData &topo_data, const std::map<int32_t, NpuR
   HIXL_LOGI("D2D: phy_id=%d, topo_links=%zu, self_rootinfo_size=%zu", phy_id, topo_data.links.size(),
             self_rootinfo.port_to_eid.size());
 
-  size_t skip_reason[4] = {0, 0, 0, 0};
+  std::array<size_t, 4> skip_reason = {0, 0, 0, 0};
   size_t no_rootinfo_peer = 0;
   size_t no_port_match_local = 0;
   size_t no_port_match_peer = 0;
@@ -545,16 +569,16 @@ bool IsProductPod(uint32_t mainboard_id) {
 
 bool IsProductServer(uint32_t mainboard_id) {
   return (
-      (mainboard_id >= kMainboardIdServerMin1 && mainboard_id <= kMainboardIdServerMax1 && (mainboard_id % 2 == 1)) ||
-      (mainboard_id >= kMainboardIdServerMin2 && mainboard_id <= kMainboardIdServerMax2 && (mainboard_id % 2 == 0)));
+      (mainboard_id >= kMainboardIdServerMin1 && mainboard_id <= kMainboardIdServerMax1 && (mainboard_id % 2 == kOddParity)) ||
+      (mainboard_id >= kMainboardIdServerMin2 && mainboard_id <= kMainboardIdServerMax2 && (mainboard_id % 2 == kEvenParity)));
 }
 
 std::set<int32_t> CollectRelatedNpuIds(int32_t phy_dev_id) {
-  // NPU 按 8 个一组划分，找出 phy_dev_id 所在组的所有 NPU
-  int32_t group_start = (phy_dev_id / 8) * 8;
+  // NPU 按 kNpuGroupSize 个一组划分，找出 phy_dev_id 所在组的所有 NPU
+  int32_t group_start = static_cast<int32_t>((phy_dev_id / kNpuGroupSize) * kNpuGroupSize);
   std::set<int32_t> related_npu_ids;
-  for (int32_t i = 0; i < 8; ++i) {
-    related_npu_ids.insert(group_start + i);
+  for (size_t i = 0; i < kNpuGroupSize; ++i) {
+    related_npu_ids.insert(group_start + static_cast<int32_t>(i));
   }
   HIXL_LOGI("phy_dev_id=%d, group_start=%d, Related NPU IDs: %s", phy_dev_id, group_start,
             ToString(related_npu_ids).c_str());
@@ -590,8 +614,8 @@ void CollectClosPgEids(const std::map<int32_t, NpuRootInfo> &npu_rootinfos, int3
   if (!pg_eids.empty()) {
     plane_pg_0_eid = pg_eids[0].eid;
   }
-  if (pg_eids.size() >= 2) {
-    plane_pg_1_eid = pg_eids[1].eid;
+  if (pg_eids.size() >= kSecondElementSize) {
+    plane_pg_1_eid = pg_eids[kPgEidSecondIndex].eid;
   }
   HIXL_LOGI("Mesh die_id=%d", mesh_die_id);
   HIXL_LOGI("plane_pg_0_eid=%s", plane_pg_0_eid.empty() ? "(none)" : plane_pg_0_eid.c_str());

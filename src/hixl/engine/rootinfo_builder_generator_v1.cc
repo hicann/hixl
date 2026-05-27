@@ -46,7 +46,7 @@ EidByte6Info ParseEidByte6(const std::string &eid) {
     info.byte6 = static_cast<uint8_t>(std::stoi(byte_str, nullptr, kHexBase));
     info.high_nibble = static_cast<uint8_t>((info.byte6 >> kNibbleShift) & kNibbleMask);
     info.low_nibble = static_cast<uint8_t>(info.byte6 & kNibbleMask);
-    info.die_id = (info.high_nibble & kDieIdBit) ? 1U : 0U;
+    info.die_id = (info.high_nibble & kDieIdBit) != 0 ? 1U : 0U;
     info.is_pg_eid = (info.high_nibble == kPgEidValue1 || info.high_nibble == kPgEidValue2);
     info.port = static_cast<int32_t>(info.low_nibble);
   } catch (...) {
@@ -59,13 +59,19 @@ EidByte6Info ParseEidByte6(const std::string &eid) {
 
 namespace {
 
+constexpr int32_t kSetwWidth = 2;
+constexpr int32_t kNpuGroupSize = 8;
+constexpr int32_t kFirstHalfThreshold = 3;
+constexpr int32_t kPortMaxValue = 8;
+constexpr size_t kSecondElementIndex = 2;
+
 std::string ConvertEidToString(const unsigned char *raw, size_t len) {
   if (raw == nullptr || len < static_cast<size_t>(kDcmiUrmaEidSize)) {
     return "";
   }
   std::ostringstream oss;
   for (int32_t k = 0; k < kDcmiUrmaEidSize; ++k) {
-    oss << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(raw[k]);
+    oss << std::hex << std::setfill('0') << std::setw(kSetwWidth) << static_cast<int>(raw[k]);
   }
   return oss.str();
 }
@@ -138,9 +144,9 @@ int32_t GetMeshDieId(int32_t npu_id, bool is_server) {
     // Server: Mesh 在 1die
     return 1;
   } else {
-    // Pod: Mesh 在哪个 die 取决于 npu_id % 8
-    int32_t mod = npu_id % 8;
-    if (mod >= 0 && mod <= 3) {
+    // Pod: Mesh 在哪个 die 取决于 npu_id % kNpuGroupSize
+    int32_t mod = npu_id % kNpuGroupSize;
+    if (mod >= 0 && mod <= kFirstHalfThreshold) {
       return 0;  // 前4个 NPU，Mesh 在 0die
     } else {
       return 1;  // 后4个 NPU，Mesh 在 1die
@@ -178,7 +184,7 @@ void CollectMeshPorts(const std::vector<UrmaDevice> &urma_devices, int32_t mesh_
         continue;
       }
 
-      if (info.port >= 0 && info.port <= 8 && info.die_id == mesh_die_id) {
+      if (info.port >= 0 && info.port <= kPortMaxValue && info.die_id == mesh_die_id) {
         std::string port_key = std::to_string(info.die_id) + "/" + std::to_string(info.port);
         root_info.port_to_eid[port_key] = eid;
         HIXL_LOGI("Add Mesh port: %s", port_key.c_str());
@@ -236,10 +242,10 @@ void CollectClosPgEids(const std::vector<UrmaDevice> &urma_devices, int32_t mesh
   }
 
   // mesh_die_id：多个 PG 取 EID 数第二多的作为 plane_pg_1
-  if (mesh_groups.size() >= 2) {
+  if (mesh_groups.size() >= kSecondElementIndex) {
     std::sort(mesh_groups.begin(), mesh_groups.end(),
               [](const UrmaGroupInfo &a, const UrmaGroupInfo &b) { return a.total_eids > b.total_eids; });
-    root_info.clos_pg_eids.push_back({mesh_groups[1].pg_eid, mesh_groups[1].die_id});
+    root_info.clos_pg_eids.push_back({mesh_groups[kSecondElementIndex - 1].pg_eid, mesh_groups[kSecondElementIndex - 1].die_id});
   }
 }
 
