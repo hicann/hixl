@@ -33,8 +33,16 @@ namespace {
 constexpr int32_t kTimeOut = 500;
 using MockEngineAclRuntimeStub = endpoint_test::MockAclRuntimeStub;
 
-// Use common KernelJsonMmpaStub from test_mmpa_utils.h
-using UboeMmpaStub = hixl::test::KernelJsonMmpaStub;
+class UboeMmpaStub : public hixl::test::KernelJsonMmpaStub {
+ public:
+  INT32 Access(const CHAR *path_name) override {
+    std::string path_str(path_name);
+    if (path_str == "/usr/local/Ascend/driver/tools/hccn_tool") {
+      return EN_ERROR;
+    }
+    return KernelJsonMmpaStub::Access(path_name);
+  }
+};
 }  // namespace
 
 class HixlEngineUboeTest : public ::testing::Test {
