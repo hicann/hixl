@@ -8,11 +8,11 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include <memory>
 #include <vector>
 #include <cstdlib>
 #include <fstream>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
@@ -30,6 +30,79 @@ using namespace ::testing;
 using ::testing::Invoke;
 using ::testing::Mock;
 namespace hixl {
+namespace {
+class HccnToolPathGuard {
+ public:
+  explicit HccnToolPathGuard(const std::string &test_name)
+      : old_path_(getenv("PATH") == nullptr ? "" : getenv("PATH")),
+        temp_dir_template_("/tmp/hixl_api_unittest_" + test_name + "_XXXXXX") {
+  }
+
+  ~HccnToolPathGuard() {
+    RestorePath();
+    if (!temp_dir_.empty()) {
+      const std::string tool_path = temp_dir_ + "/hccn_tool";
+      (void)unlink(tool_path.c_str());
+      (void)rmdir(temp_dir_.c_str());
+    }
+  }
+
+  bool UseEmptyPath() {
+    if (!CreateTempDir()) {
+      return false;
+    }
+    setenv("PATH", temp_dir_.c_str(), 1);
+    return true;
+  }
+
+  bool UseFakeHccnTool(const std::string &output) {
+    if (!CreateTempDir()) {
+      return false;
+    }
+
+    const std::string tool_path = temp_dir_ + "/hccn_tool";
+    std::ofstream tool_file(tool_path);
+    if (!tool_file.is_open()) {
+      return false;
+    }
+    tool_file << "#!/bin/sh\n"
+              << "printf '" << output << "\\n'\n";
+    tool_file.close();
+    if (chmod(tool_path.c_str(), S_IRWXU) != 0) {
+      return false;
+    }
+
+    setenv("PATH", temp_dir_.c_str(), 1);
+    return true;
+  }
+
+ private:
+  bool CreateTempDir() {
+    if (!temp_dir_.empty()) {
+      return true;
+    }
+    char *dir = mkdtemp(temp_dir_template_.data());
+    if (dir == nullptr) {
+      return false;
+    }
+    temp_dir_ = dir;
+    return true;
+  }
+
+  void RestorePath() const {
+    if (old_path_.empty()) {
+      unsetenv("PATH");
+      return;
+    }
+    setenv("PATH", old_path_.c_str(), 1);
+  }
+
+  std::string old_path_;
+  std::string temp_dir_template_;
+  std::string temp_dir_;
+};
+}  // namespace
+
 class HixlUTest : public ::testing::Test {
  protected:
   // 在测试类中设置一些准备工作，如果需要的话
@@ -74,18 +147,29 @@ class HixlUTest : public ::testing::Test {
   }
 };
 
-class HccnToolTest : public ::testing::Test {
-  protected:
+class HccnConfMissingTest : public ::testing::Test {
+ protected:
   void SetUp() override {
-    llm::MockHccnTool::Install();
+    llm::MockGetHccnResult::Install();
     llm::AutoCommResRuntimeMock::InstallWithoutHccnConfFile();
     llm::AutoCommResRuntimeMock::DeleteHccnConfIfExist();
   }
 
   void TearDown() override {
-    llm::MockHccnTool::Reset();
     llm::AutoCommResRuntimeMock::ResetWithoutHccnConfFile();
+    llm::MockGetHccnResult::Reset();
   }
+};
+
+class HccnToolTest : public HccnConfMissingTest {
+ protected:
+  void SetUp() override {
+    HccnConfMissingTest::SetUp();
+    ASSERT_TRUE(path_guard_.UseFakeHccnTool("ipaddr:1.1.1.0"));
+  }
+
+ private:
+  HccnToolPathGuard path_guard_{"hccn_tool"};
 };
 
 class HccnConfTest : public ::testing::Test {
@@ -101,18 +185,15 @@ class HccnConfTest : public ::testing::Test {
   }
 };
 
-class HccnGetOutputTest : public ::testing::Test {
-  protected:
+class HccnGetOutputTest : public HccnConfMissingTest {
+ protected:
   void SetUp() override {
-    llm::MockGetHccnResult::Install();
-    llm::AutoCommResRuntimeMock::InstallWithoutHccnConfFile();
-    llm::AutoCommResRuntimeMock::DeleteHccnConfIfExist();
+    HccnConfMissingTest::SetUp();
+    ASSERT_TRUE(path_guard_.UseEmptyPath());
   }
 
-  void TearDown() override {
-    llm::AutoCommResRuntimeMock::ResetWithoutHccnConfFile();
-    llm::MockGetHccnResult::Reset();
-  }
+ private:
+  HccnToolPathGuard path_guard_{"hccn_tool_unavailable"};
 };
 
 TEST_F(HixlUTest, TestHixl) {
@@ -166,7 +247,7 @@ TEST_F(HccnConfTest, TestGetDeviceIpFromHccnConf) {
 TEST_F(HccnToolTest, TestGetDeviceIpFromHccnToolWhenHccnConfMissing) {
   std::string device_ip = "";
   EXPECT_EQ(hixl::GetDeviceIp(0, device_ip), hixl::SUCCESS);
-  EXPECT_TRUE(device_ip.empty() || device_ip == "127.0.0.1");
+  EXPECT_EQ(device_ip, "1.1.1.0");
 }
 
 TEST_F(HccnGetOutputTest, TestGetDeviceIpEmptyWhenHccnConfAndToolUnavailable) {

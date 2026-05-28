@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <cstdlib>
 #include <thread>
 #include <gtest/gtest.h>
 #include <sys/socket.h>
@@ -31,16 +32,30 @@ namespace hixl {
 
 namespace {
 constexpr int32_t kTimeOut = 500;
+constexpr const char kHccnConfPath[] = "/etc/hccn.conf";
+constexpr const char kHccnToolPath[] = "/usr/local/Ascend/driver/tools/hccn_tool";
+constexpr const char kEmptyPathDir[] = "/tmp/hixl_engine_uboe_empty_path";
 using MockEngineAclRuntimeStub = endpoint_test::MockAclRuntimeStub;
 
 class UboeMmpaStub : public hixl::test::KernelJsonMmpaStub {
  public:
   INT32 Access(const CHAR *path_name) override {
     std::string path_str(path_name);
-    if (path_str == "/usr/local/Ascend/driver/tools/hccn_tool") {
+    if (path_str == kHccnToolPath) {
       return EN_ERROR;
     }
     return KernelJsonMmpaStub::Access(path_name);
+  }
+};
+
+class NoHccnConfMmpaStub : public UboeMmpaStub {
+ public:
+  int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
+    std::string path_str(path);
+    if (path_str == kHccnConfPath) {
+      return EN_ERROR;
+    }
+    return UboeMmpaStub::RealPath(path, realPath, realPathLen);
   }
 };
 }  // namespace
@@ -160,6 +175,10 @@ TEST_F(HixlEngineUboeTest, InitializeWithMixedProtocols) {
 
 // 测试空 endpoint_list 的处理
 TEST_F(HixlEngineUboeTest, InitializeWithEmptyEndpointList) {
+  fs::create_directories(kEmptyPathDir);
+  test::ScopedPathGuard path_guard(kEmptyPathDir);
+  llm::MmpaStub::GetInstance().SetImpl(std::make_shared<NoHccnConfMmpaStub>());
+
   Hixl engine;
   Status ret = engine.Initialize("127.0.0.1", options_default);
   EXPECT_NE(ret, SUCCESS);

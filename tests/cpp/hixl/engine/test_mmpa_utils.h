@@ -11,6 +11,7 @@
 #ifndef HIXL_TEST_MMPA_UTILS_H
 #define HIXL_TEST_MMPA_UTILS_H
 
+#include <cstdlib>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -21,6 +22,31 @@
 
 namespace hixl {
 namespace test {
+
+class ScopedPathGuard {
+ public:
+  explicit ScopedPathGuard(const std::string &path) {
+    const char *old_path = std::getenv("PATH");
+    had_path_ = old_path != nullptr;
+    old_path_ = had_path_ ? old_path : "";
+    setenv("PATH", path.c_str(), 1);
+  }
+
+  ~ScopedPathGuard() {
+    if (had_path_) {
+      setenv("PATH", old_path_.c_str(), 1);
+    } else {
+      unsetenv("PATH");
+    }
+  }
+
+  ScopedPathGuard(const ScopedPathGuard &) = delete;
+  ScopedPathGuard &operator=(const ScopedPathGuard &) = delete;
+
+ private:
+  bool had_path_ = false;
+  std::string old_path_;
+};
 
 /**
  * Common MmpaStub mock for kernel json file path handling in unit tests.
