@@ -14,6 +14,7 @@
 
 ## 🔥Latest News
 
+- [2026/05] [《HIXL应用开发系列教程》](https://gitcode.com/cann/cann-learning-hub/tree/master/tutorials/hixl_development)发布，讲解昇腾单边通信库核心概念与应用开发方法。
 - [2026/04] HIXL支持Device UBoE，详见[[Issue #275](https://gitcode.com/cann/hixl/issues/275)]; HIXL跨代际能力增强，支持A2/A3/A5异构 [[Issue #138](https://gitcode.com/cann/hixl/issues/138)]，[[Issue #115](https://gitcode.com/cann/hcomm/issues/115)]。
 - [2026/03] HIXL已支持超节点内FabricMem模式，详见 [FabricMem](docs/FabricMem.md)。
 - [2026/01] LLM-DataDist与HIXL已支持下一代芯片的Host RoCE传输能力。
