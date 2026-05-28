@@ -176,9 +176,9 @@ Status CommChannel::TransferAsync(TransferOp operation, const std::vector<Transf
   (void)optional_args;
   aclrtStream stream = nullptr;
   ADXL_CHK_STATUS_RET(stream_pool_->TryAllocStream(stream), "Stream pool get stream failed.");
-  auto id = reinterpret_cast<uint64_t>(req);
+  auto id = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(req));
   aclrtEvent event = nullptr;
-  LLM_DISMISSABLE_GUARD(fail_guard, ([&]() {
+  LLM_DISMISSABLE_GUARD(fail_guard, ([this, &event, &stream]() {
                           if (event != nullptr) {
                             aclrtDestroyEvent(event);
                           }
@@ -202,7 +202,7 @@ Status CommChannel::TransferAsync(TransferOp operation, const std::vector<Transf
 
 Status CommChannel::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
   std::lock_guard<std::mutex> lock(transfer_reqs_mutex_);
-  auto id = reinterpret_cast<uint64_t>(req);
+  auto id = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(req));
   auto it = req_2_async_record_.find(id);
   if (it == req_2_async_record_.end()) {
     status = TransferStatus::FAILED;
