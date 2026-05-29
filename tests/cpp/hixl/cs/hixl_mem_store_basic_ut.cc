@@ -12,6 +12,7 @@
 #include "gtest/gtest.h"
 #include "hixl_mem_store.h"
 #include "hixl/hixl_types.h"
+#include "cs/hixl_cs.h"
 
 namespace hixl {
 namespace {
@@ -94,7 +95,7 @@ TEST(HixlMemStoreBasicTest, CheckAccessAcrossGap) {
 
 TEST(HixlMemStoreBasicTest, CheckMergedRegionsAccessExceedMergedRange) {
   HixlMemStore store;
-  std::vector<std::pair<uint32_t, uint32_t>> regions = { {100, 100}, {200, 100}};
+  std::vector<std::pair<uint32_t, uint32_t>> regions = {{100, 100}, {200, 100}};
   RecordMemoryRegions(store, regions, true);
 
   void *test_addr = IntToPtr(150);
@@ -116,5 +117,59 @@ TEST(HixlMemStoreBasicTest, CheckMemoryForAccessOverflowDetected) {
 
   // check_size=100 > uintptr_t::max - near_max=50, so overflow is detected -> PARAM_INVALID
   EXPECT_EQ(store.ValidateMemoryAccess(server_addr, 100, client_addr), PARAM_INVALID);
+}
+
+TEST(HixlMemStoreBasicTest, BatchValidateMemoryAccessSuccess) {
+  HixlMemStore store;
+  void *server1 = IntToPtr(100);
+  void *server2 = IntToPtr(200);
+  void *client1 = IntToPtr(1000);
+  void *client2 = IntToPtr(2000);
+  EXPECT_EQ(store.RecordMemory(true, server1, 100), SUCCESS);
+  EXPECT_EQ(store.RecordMemory(true, server2, 100), SUCCESS);
+  EXPECT_EQ(store.RecordMemory(false, client1, 100), SUCCESS);
+  EXPECT_EQ(store.RecordMemory(false, client2, 100), SUCCESS);
+
+  HixlOneSideOpDesc desc_list[] = {
+      {server1, client1, 50},
+      {server2, client2, 50},
+  };
+  EXPECT_EQ(store.BatchValidateMemoryAccess(2, desc_list), SUCCESS);
+}
+
+TEST(HixlMemStoreBasicTest, BatchValidateMemoryAccessWithInvalidServer) {
+  HixlMemStore store;
+  void *server1 = IntToPtr(100);
+  void *client1 = IntToPtr(1000);
+  EXPECT_EQ(store.RecordMemory(true, server1, 100), SUCCESS);
+  EXPECT_EQ(store.RecordMemory(false, client1, 100), SUCCESS);
+
+  void *unregistered_server = IntToPtr(500);
+  HixlOneSideOpDesc desc_list[] = {
+      {server1, client1, 50},
+      {unregistered_server, client1, 50},
+  };
+  EXPECT_EQ(store.BatchValidateMemoryAccess(2, desc_list), PARAM_INVALID);
+}
+
+TEST(HixlMemStoreBasicTest, BatchValidateMemoryAccessWithNullAddr) {
+  HixlMemStore store;
+  HixlOneSideOpDesc desc_list[] = {
+      {nullptr, IntToPtr(100), 50},
+  };
+  EXPECT_EQ(store.BatchValidateMemoryAccess(1, desc_list), PARAM_INVALID);
+}
+
+TEST(HixlMemStoreBasicTest, BatchValidateMemoryAccessMergedRegions) {
+  HixlMemStore store;
+  std::vector<std::pair<uint32_t, uint32_t>> regions = {{100, 100}, {200, 100}};
+  RecordMemoryRegions(store, regions, true);
+  void *client_addr = IntToPtr(1);
+  EXPECT_EQ(store.RecordMemory(false, client_addr, 100), SUCCESS);
+
+  HixlOneSideOpDesc desc_list[] = {
+      {IntToPtr(150), client_addr, 100},
+  };
+  EXPECT_EQ(store.BatchValidateMemoryAccess(1, desc_list), SUCCESS);
 }
 }  // namespace hixl

@@ -11,6 +11,7 @@
 #include "gtest/gtest.h"
 #include "hixl_mem_store.h"
 #include "hixl/hixl_types.h"
+#include "cs/hixl_cs.h"
 
 namespace hixl {
 namespace {
@@ -24,18 +25,17 @@ TEST(HixlMemStoreUboeTest, RecordHostMemoryWithDeviceAddr) {
   HixlMemStore store;
   void *host_addr = IntToPtr(100);
   void *dev_addr = IntToPtr(200);
+  void *client_addr = IntToPtr(300);
   constexpr size_t kSize = 1024;
 
   // 记录 host 内存及其设备地址
   EXPECT_EQ(store.RecordMemory(true, host_addr, kSize, true, dev_addr), SUCCESS);
+  EXPECT_EQ(store.RecordMemory(false, client_addr, kSize, false, nullptr), SUCCESS);
 
-  // 验证可以通过 FindMemoryRegion 查找
-  MemoryRegion region;
-  EXPECT_EQ(store.FindMemoryRegion(true, host_addr, region), SUCCESS);
-  EXPECT_EQ(region.addr, host_addr);
-  EXPECT_EQ(region.size, kSize);
-  EXPECT_TRUE(region.is_host_mem);
-  EXPECT_EQ(region.register_dev_addr, dev_addr);
+  // 验证 BatchConvertHostAddr 可以正确转换
+  HixlOneSideOpDesc desc_list[] = {{host_addr, client_addr, kSize}};
+  EXPECT_EQ(store.BatchConvertHostAddr(1, desc_list), SUCCESS);
+  EXPECT_EQ(desc_list[0].remote_buf, dev_addr);
 
   // 注销
   EXPECT_EQ(store.UnrecordMemory(true, host_addr), SUCCESS);
@@ -44,18 +44,17 @@ TEST(HixlMemStoreUboeTest, RecordHostMemoryWithDeviceAddr) {
 TEST(HixlMemStoreUboeTest, RecordDeviceMemoryWithoutDeviceAddr) {
   HixlMemStore store;
   void *dev_addr = IntToPtr(100);
+  void *client_addr = IntToPtr(200);
   constexpr size_t kSize = 1024;
 
   // 记录设备内存（is_host_mem = false）
   EXPECT_EQ(store.RecordMemory(true, dev_addr, kSize, false, nullptr), SUCCESS);
+  EXPECT_EQ(store.RecordMemory(false, client_addr, kSize, false, nullptr), SUCCESS);
 
-  // 验证
-  MemoryRegion region;
-  EXPECT_EQ(store.FindMemoryRegion(true, dev_addr, region), SUCCESS);
-  EXPECT_EQ(region.addr, dev_addr);
-  EXPECT_EQ(region.size, kSize);
-  EXPECT_FALSE(region.is_host_mem);
-  EXPECT_EQ(region.register_dev_addr, nullptr);
+  // 验证 BatchConvertHostAddr 不转换设备内存
+  HixlOneSideOpDesc desc_list[] = {{dev_addr, client_addr, kSize}};
+  EXPECT_EQ(store.BatchConvertHostAddr(1, desc_list), SUCCESS);
+  EXPECT_EQ(desc_list[0].remote_buf, dev_addr);
 
   // 注销
   EXPECT_EQ(store.UnrecordMemory(true, dev_addr), SUCCESS);
@@ -64,83 +63,19 @@ TEST(HixlMemStoreUboeTest, RecordDeviceMemoryWithoutDeviceAddr) {
 TEST(HixlMemStoreUboeTest, RecordMemoryWithNullptrDeviceAddr) {
   HixlMemStore store;
   void *host_addr = IntToPtr(100);
+  void *client_addr = IntToPtr(200);
   constexpr size_t kSize = 1024;
 
   // 记录 host 内存，但设备地址为 nullptr
   EXPECT_EQ(store.RecordMemory(true, host_addr, kSize, true, nullptr), SUCCESS);
+  EXPECT_EQ(store.RecordMemory(false, client_addr, kSize, false, nullptr), SUCCESS);
 
-  // 验证
-  MemoryRegion region;
-  EXPECT_EQ(store.FindMemoryRegion(true, host_addr, region), SUCCESS);
-  EXPECT_EQ(region.addr, host_addr);
-  EXPECT_EQ(region.size, kSize);
-  EXPECT_TRUE(region.is_host_mem);
-  EXPECT_EQ(region.register_dev_addr, nullptr);
+  // 验证 BatchConvertHostAddr 会检测到 nullptr register_dev_addr
+  HixlOneSideOpDesc desc_list[] = {{host_addr, client_addr, kSize}};
+  EXPECT_EQ(store.BatchConvertHostAddr(1, desc_list), PARAM_INVALID);
 
   // 注销
   EXPECT_EQ(store.UnrecordMemory(true, host_addr), SUCCESS);
-}
-
-TEST(HixlMemStoreUboeTest, FindMemoryRegionSucceeds) {
-  HixlMemStore store;
-  void *addr = IntToPtr(100);
-  constexpr size_t kSize = 2048;
-
-  EXPECT_EQ(store.RecordMemory(true, addr, kSize, true, IntToPtr(200)), SUCCESS);
-
-  MemoryRegion region;
-  EXPECT_EQ(store.FindMemoryRegion(true, addr, region), SUCCESS);
-  EXPECT_EQ(region.addr, addr);
-  EXPECT_EQ(region.size, kSize);
-  EXPECT_TRUE(region.is_host_mem);
-}
-
-TEST(HixlMemStoreUboeTest, FindMemoryRegionWithinRange) {
-  HixlMemStore store;
-  void *addr = IntToPtr(100);
-  constexpr size_t kSize = 2048;
-
-  EXPECT_EQ(store.RecordMemory(true, addr, kSize), SUCCESS);
-
-  // 查找区域内的地址
-  MemoryRegion region;
-  void *within_addr = IntToPtr(150);  // 在 [100, 100+2048) 范围内
-  EXPECT_EQ(store.FindMemoryRegion(true, within_addr, region), SUCCESS);
-  EXPECT_EQ(region.addr, addr);
-  EXPECT_EQ(region.size, kSize);
-}
-
-TEST(HixlMemStoreUboeTest, FindMemoryRegionOutOfRange) {
-  HixlMemStore store;
-  void *addr = IntToPtr(100);
-  constexpr size_t kSize = 2048;
-
-  EXPECT_EQ(store.RecordMemory(true, addr, kSize), SUCCESS);
-
-  // 查找区域外的地址
-  MemoryRegion region;
-  void *outside_addr = IntToPtr(3000);  // 在 [100, 100+2048) 范围外
-  // 根据代码实现，找不到内存区域时返回 FAILED
-  EXPECT_EQ(store.FindMemoryRegion(true, outside_addr, region), FAILED);
-}
-
-TEST(HixlMemStoreUboeTest, FindMemoryRegionWithNullptrAddrReturnsInvalidParam) {
-  HixlMemStore store;
-  MemoryRegion region;
-  EXPECT_EQ(store.FindMemoryRegion(true, nullptr, region), PARAM_INVALID);
-}
-
-TEST(HixlMemStoreUboeTest, FindMemoryRegionClientSide) {
-  HixlMemStore store;
-  void *addr = IntToPtr(100);
-  constexpr size_t kSize = 2048;
-
-  EXPECT_EQ(store.RecordMemory(false, addr, kSize, false, nullptr), SUCCESS);
-
-  MemoryRegion region;
-  EXPECT_EQ(store.FindMemoryRegion(false, addr, region), SUCCESS);
-  EXPECT_EQ(region.addr, addr);
-  EXPECT_EQ(region.size, kSize);
 }
 
 TEST(HixlMemStoreUboeTest, CheckRegionsContiguousWithDeviceAddr) {
@@ -244,13 +179,94 @@ TEST(HixlMemStoreUboeTest, MultipleRegionsWithMixedDeviceAddr) {
   EXPECT_EQ(store.ValidateMemoryAccess(IntToPtr(150), kSize, client_addr), SUCCESS);
 }
 
-TEST(HixlMemStoreUboeTest, FindMemoryRegionUnregistered) {
+TEST(HixlMemStoreUboeTest, BatchConvertHostAddrSuccess) {
   HixlMemStore store;
-  MemoryRegion region;
-  void *unregistered_addr = IntToPtr(100);
+  void *host_addr1 = IntToPtr(100);
+  void *host_addr2 = IntToPtr(200);
+  void *dev_addr1 = IntToPtr(1000);
+  void *dev_addr2 = IntToPtr(1100);
+  void *client_host1 = IntToPtr(300);
+  void *client_host2 = IntToPtr(400);
+  void *client_dev1 = IntToPtr(2000);
+  void *client_dev2 = IntToPtr(2100);
+  constexpr size_t kSize = 100;
 
-  // 根据代码实现，regions 为空或找不到时返回 FAILED
-  EXPECT_EQ(store.FindMemoryRegion(true, unregistered_addr, region), FAILED);
+  EXPECT_EQ(store.RecordMemory(true, host_addr1, kSize, true, dev_addr1), SUCCESS);
+  EXPECT_EQ(store.RecordMemory(true, host_addr2, kSize, true, dev_addr2), SUCCESS);
+  EXPECT_EQ(store.RecordMemory(false, client_host1, kSize, true, client_dev1), SUCCESS);
+  EXPECT_EQ(store.RecordMemory(false, client_host2, kSize, true, client_dev2), SUCCESS);
+
+  HixlOneSideOpDesc desc_list[] = {
+      {host_addr1, client_host1, kSize},
+      {host_addr2, client_host2, kSize},
+  };
+  EXPECT_EQ(store.BatchConvertHostAddr(2, desc_list), SUCCESS);
+  EXPECT_EQ(desc_list[0].remote_buf, dev_addr1);
+  EXPECT_EQ(desc_list[0].local_buf, client_dev1);
+  EXPECT_EQ(desc_list[1].remote_buf, dev_addr2);
+  EXPECT_EQ(desc_list[1].local_buf, client_dev2);
+}
+
+TEST(HixlMemStoreUboeTest, BatchConvertHostAddrWithOffset) {
+  HixlMemStore store;
+  void *host_base = IntToPtr(100);
+  void *dev_base = IntToPtr(1000);
+  void *client_host_base = IntToPtr(300);
+  void *client_dev_base = IntToPtr(2000);
+  constexpr size_t kSize = 200;
+
+  EXPECT_EQ(store.RecordMemory(true, host_base, kSize, true, dev_base), SUCCESS);
+  EXPECT_EQ(store.RecordMemory(false, client_host_base, kSize, true, client_dev_base), SUCCESS);
+
+  void *host_offset = IntToPtr(150);
+  void *client_offset = IntToPtr(350);
+  HixlOneSideOpDesc desc_list[] = {
+      {host_offset, client_offset, 50},
+  };
+  EXPECT_EQ(store.BatchConvertHostAddr(1, desc_list), SUCCESS);
+  EXPECT_EQ(desc_list[0].remote_buf, IntToPtr(1050));
+  EXPECT_EQ(desc_list[0].local_buf, IntToPtr(2050));
+}
+
+TEST(HixlMemStoreUboeTest, BatchConvertHostAddrDeviceMemUnchanged) {
+  HixlMemStore store;
+  void *dev_addr = IntToPtr(100);
+  void *client_dev_addr = IntToPtr(200);
+  constexpr size_t kSize = 100;
+
+  EXPECT_EQ(store.RecordMemory(true, dev_addr, kSize, false, nullptr), SUCCESS);
+  EXPECT_EQ(store.RecordMemory(false, client_dev_addr, kSize, false, nullptr), SUCCESS);
+
+  HixlOneSideOpDesc desc_list[] = {
+      {dev_addr, client_dev_addr, kSize},
+  };
+  EXPECT_EQ(store.BatchConvertHostAddr(1, desc_list), SUCCESS);
+  EXPECT_EQ(desc_list[0].remote_buf, dev_addr);
+  EXPECT_EQ(desc_list[0].local_buf, client_dev_addr);
+}
+
+TEST(HixlMemStoreUboeTest, BatchConvertHostAddrUnregisteredRemote) {
+  HixlMemStore store;
+  void *client_addr = IntToPtr(200);
+  constexpr size_t kSize = 100;
+  EXPECT_EQ(store.RecordMemory(false, client_addr, kSize, false, nullptr), SUCCESS);
+
+  HixlOneSideOpDesc desc_list[] = {
+      {IntToPtr(999), client_addr, kSize},
+  };
+  EXPECT_EQ(store.BatchConvertHostAddr(1, desc_list), FAILED);
+}
+
+TEST(HixlMemStoreUboeTest, BatchConvertHostAddrUnregisteredLocal) {
+  HixlMemStore store;
+  void *server_addr = IntToPtr(100);
+  constexpr size_t kSize = 100;
+  EXPECT_EQ(store.RecordMemory(true, server_addr, kSize, false, nullptr), SUCCESS);
+
+  HixlOneSideOpDesc desc_list[] = {
+      {server_addr, IntToPtr(999), kSize},
+  };
+  EXPECT_EQ(store.BatchConvertHostAddr(1, desc_list), FAILED);
 }
 
 }  // namespace hixl

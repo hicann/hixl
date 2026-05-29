@@ -245,26 +245,15 @@ Status HixlMemStore::ValidateMemoryAccess(const void *server_addr, size_t mem_si
 }
 
 Status HixlMemStore::FindMemoryRegion(bool is_server, const void *addr, MemoryRegion &region) const {
-  if (addr == nullptr) {
-    HIXL_LOGE(PARAM_INVALID, "Invalid parameter: addr is nullptr");
-    return PARAM_INVALID;
-  }
-
-  std::lock_guard<std::mutex> lock(mutex_);
   const auto &regions = is_server ? server_regions_ : client_regions_;
   if (regions.empty()) {
     return FAILED;
   }
   auto it = regions.lower_bound(addr);
-  // 检查找到的段
-  if (it != regions.end()) {
-    if (IsAddrInRegion(it->second, addr)) {
-      region = it->second;
-      return SUCCESS;
-    }
+  if (it != regions.end() && IsAddrInRegion(it->second, addr)) {
+    region = it->second;
+    return SUCCESS;
   }
-
-  // 检查前一个段
   if (it != regions.begin()) {
     const auto &prev = std::prev(it)->second;
     if (IsAddrInRegion(prev, addr)) {
@@ -273,5 +262,75 @@ Status HixlMemStore::FindMemoryRegion(bool is_server, const void *addr, MemoryRe
     }
   }
   return FAILED;
+}
+
+Status HixlMemStore::BatchValidateMemoryAccess(uint32_t list_num, const HixlOneSideOpDesc *desc_list) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  for (uint32_t i = 0; i < list_num; ++i) {
+    const void *server_addr = desc_list[i].remote_buf;
+    const void *client_addr = desc_list[i].local_buf;
+    size_t mem_size = static_cast<size_t>(desc_list[i].len);
+    if (server_addr == nullptr || client_addr == nullptr || mem_size == size_t{0}) {
+      HIXL_LOGE(PARAM_INVALID,
+                "Batch validate failed at idx=%u: null addr or zero size. server_addr=%p, client_addr=%p, buf_len=%zu",
+                i, server_addr, client_addr, mem_size);
+      return PARAM_INVALID;
+    }
+    bool server_valid = CheckMemoryForAccess(true, server_addr, mem_size);
+    if (!server_valid) {
+      HIXL_LOGE(PARAM_INVALID,
+                "Server memory verification failed at idx=%u; the memory has not been registered yet. "
+                "server_addr=%p, buf_len=%zu",
+                i, server_addr, mem_size);
+      return PARAM_INVALID;
+    }
+    bool client_valid = CheckMemoryForAccess(false, client_addr, mem_size);
+    if (!client_valid) {
+      HIXL_LOGE(PARAM_INVALID,
+                "Client memory verification failed at idx=%u; the memory has not been registered yet. "
+                "client_addr=%p, buf_len=%zu",
+                i, client_addr, mem_size);
+      return PARAM_INVALID;
+    }
+  }
+  return SUCCESS;
+}
+
+Status HixlMemStore::ConvertHostAddr(HixlOneSideOpDesc &desc) const {
+  MemoryRegion remote_region;
+  Status status = FindMemoryRegion(true, desc.remote_buf, remote_region);
+  if (status != SUCCESS) {
+    HIXL_LOGE(status, "[HixlMemStore] remote addr %p not registered", desc.remote_buf);
+    return status;
+  }
+  if (remote_region.is_host_mem) {
+    HIXL_CHECK_NOTNULL(remote_region.register_dev_addr, ", register_dev_addr is nullptr.");
+    uintptr_t offset = reinterpret_cast<uintptr_t>(desc.remote_buf) - reinterpret_cast<uintptr_t>(remote_region.addr);
+    desc.remote_buf = static_cast<void *>(static_cast<char *>(remote_region.register_dev_addr) + offset);
+  }
+
+  MemoryRegion local_region;
+  status = FindMemoryRegion(false, desc.local_buf, local_region);
+  if (status != SUCCESS) {
+    HIXL_LOGE(status, "[HixlMemStore] local addr %p not registered", desc.local_buf);
+    return status;
+  }
+  if (local_region.is_host_mem) {
+    HIXL_CHECK_NOTNULL(local_region.register_dev_addr, ", register_dev_addr is nullptr.");
+    uintptr_t offset = reinterpret_cast<uintptr_t>(desc.local_buf) - reinterpret_cast<uintptr_t>(local_region.addr);
+    desc.local_buf = static_cast<void *>(static_cast<char *>(local_region.register_dev_addr) + offset);
+  }
+  return SUCCESS;
+}
+
+Status HixlMemStore::BatchConvertHostAddr(uint32_t list_num, HixlOneSideOpDesc *desc_list) const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  for (uint32_t i = 0; i < list_num; ++i) {
+    Status status = ConvertHostAddr(desc_list[i]);
+    if (status != SUCCESS) {
+      return status;
+    }
+  }
+  return SUCCESS;
 }
 }  // namespace hixl
