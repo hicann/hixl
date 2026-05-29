@@ -16,6 +16,7 @@
 #include "common/ctrl_msg.h"
 #include "common/scope_guard.h"
 #include "common/ctrl_msg_plugin.h"
+#include "proxy/hcomm_proxy.h"
 #include "transfer_pool.h"
 #include "mmpa/mmpa_api.h"
 
@@ -320,8 +321,20 @@ Status HixlCSServer::MatchEndpointMsg(int32_t fd, const char *msg, uint64_t msg_
     HIXL_DISMISS_GUARD(failed);
     return SUCCESS;
   }
+  //获取监听端口
+  uint32_t listen_port = 0;
+  auto ret = HcommProxy::EndpointGetListenPort(handle, &listen_port);
+  if (ret == HCCL_SUCCESS) {
+    ep->SetPort(listen_port);
+  } else if (ret == HCCL_E_NOT_SUPPORT) {
+    HIXL_LOGW("HcommEndpointGetListenPort is not supported.");
+  } else {
+    HIXL_LOGE(FAILED, "HcommEndpointGetListenPort failed, ret: 0x%X.", static_cast<uint32_t>(ret));
+    return FAILED;
+  }
   resp.result = SUCCESS;
   resp.dst_ep_handle = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(handle));
+  resp.port = ep->GetPort();
   HIXL_CHK_STATUS_RET(SendMatchEndpointResp(fd, resp), "Failed to send match endpoint resp");
   HIXL_DISMISS_GUARD(failed);
   HIXL_LOGI("SendMatchEndpointResp success");

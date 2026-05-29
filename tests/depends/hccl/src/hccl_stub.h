@@ -19,6 +19,7 @@ extern "C" {
 
 void SetNextNbiFailure(int32_t ret);
 void SetNextFenceFailure(int32_t ret);
+void SetListenPortResult(int32_t ret);
 void ResetTransferCounter();
 
 #ifdef __cplusplus

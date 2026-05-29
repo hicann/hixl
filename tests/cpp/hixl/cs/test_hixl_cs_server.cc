@@ -21,6 +21,8 @@
 #include "common/ctrl_msg.h"
 #include "common/ctrl_msg_plugin.h"
 #include "slog_stub.h"
+#include "hccl_stub.h"
+#include "hccl/hccl_types.h"
 
 using namespace std;
 using namespace ::testing;
@@ -89,7 +91,7 @@ class HixlCSTest : public ::testing::Test {
     EXPECT_EQ(ret, SUCCESS);
   }
 
-  void GetMatchEndpointResp(int32_t client_fd, MatchEndpointResp &resp_body) {
+  void RecvMatchEndpointResp(int32_t client_fd, MatchEndpointResp &resp_body) {
     CtrlMsgHeader recv_header{};
     const uint64_t expect_body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(MatchEndpointResp));
     recv_header.body_size = expect_body_size;
@@ -103,7 +105,27 @@ class HixlCSTest : public ::testing::Test {
     EXPECT_EQ(resp_type, CtrlMsgType::kMatchEndpointResp);
     ret = CtrlMsgPlugin::Recv(client_fd, &resp_body, static_cast<uint64_t>(sizeof(resp_body)), kRecvTimeoutMs);
     EXPECT_EQ(ret, SUCCESS);
+  }
+
+  void GetMatchEndpointResp(int32_t client_fd, MatchEndpointResp &resp_body) {
+    RecvMatchEndpointResp(client_fd, resp_body);
     EXPECT_EQ(resp_body.result, SUCCESS);
+  }
+
+  void SetupServerAndSendMatchReq(HixlServerHandle &server_handle, int32_t &client_fd) {
+    HixlServerConfig config{};
+    HixlServerDesc desc{};
+    desc.server_ip = "127.0.0.1";
+    desc.server_port = kPort;
+    desc.endpoint_list = &default_eps[0];
+    desc.endpoint_list_num = default_eps.size();
+    auto ret = HixlCSServerCreate(&desc, &config, &server_handle);
+    EXPECT_EQ(ret, SUCCESS);
+    ret = HixlCSServerListen(server_handle, kBackLog);
+    EXPECT_EQ(ret, SUCCESS);
+    ret = CtrlMsgPlugin::Connect("127.0.0.1", kPort, client_fd, 1);
+    EXPECT_EQ(ret, SUCCESS);
+    SendMatchEndpointReq(client_fd);
   }
 
   void SendCreateChannelReq(int32_t client_fd, uint64_t dst_ep_handle) {
@@ -255,24 +277,10 @@ TEST_F(HixlCSTest, TestHixlCSServerDisconnectionCleanup) {
   log_capture->AddCapturePattern("[HixlServer] client disconnected");
   llm::SlogStub::SetInstance(log_capture);
 
-  HixlServerConfig config{};
   HixlServerHandle server_handle = nullptr;
-  HixlServerDesc desc{};
-  desc.server_ip = "127.0.0.1";
-  desc.server_port = kPort;
-  desc.endpoint_list = &default_eps[0];
-  desc.endpoint_list_num = default_eps.size();
-  auto ret = HixlCSServerCreate(&desc, &config, &server_handle);
-  EXPECT_EQ(ret, SUCCESS);
-  ret = HixlCSServerListen(server_handle, kBackLog);
-  EXPECT_EQ(ret, SUCCESS);
-  
   int32_t client_fd = -1;
-  ret = CtrlMsgPlugin::Connect("127.0.0.1", kPort, client_fd, 1);
-  EXPECT_EQ(ret, SUCCESS);
-  EXPECT_NE(client_fd, -1);
+  SetupServerAndSendMatchReq(server_handle, client_fd);
 
-  SendMatchEndpointReq(client_fd);
   MatchEndpointResp match_resp{};
   GetMatchEndpointResp(client_fd, match_resp);
   SendGetRemoteMemReq(client_fd, match_resp.dst_ep_handle);
@@ -291,11 +299,60 @@ TEST_F(HixlCSTest, TestHixlCSServerDisconnectionCleanup) {
       << "Client disconnect event was not detected";
   EXPECT_TRUE(log_capture->IsPatternCaptured("[HixlServer] client disconnected"))
       << "CleanupClient was not called after client disconnection";
-  ret = HixlCSServerDestroy(server_handle);
-  EXPECT_EQ(ret, SUCCESS);
-  
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
   // 恢复默认的 SlogStub，避免影响其他测试用例
   llm::SlogStub::SetInstance(nullptr);
+}
+
+// 覆盖 EndpointGetListenPort 返回 HCCL_SUCCESS 分支：验证端口号正确设置
+TEST_F(HixlCSTest, TestEndpointGetListenPortSuccess) {
+  HixlServerHandle server_handle = nullptr;
+  int32_t client_fd = -1;
+  SetupServerAndSendMatchReq(server_handle, client_fd);
+
+  MatchEndpointResp match_resp{};
+  GetMatchEndpointResp(client_fd, match_resp);
+  EXPECT_EQ(match_resp.port, 8080U);
+  (void) close(client_fd);
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+}
+
+// 覆盖 EndpointGetListenPort 返回 HCCL_E_NOT_SUPPORT 分支：记录警告日志，端口号保持为0
+TEST_F(HixlCSTest, TestEndpointGetListenPortNotSupported) {
+  auto log_capture = std::make_shared<llm::LogCaptureStub>();
+  log_capture->SetLevel(DLOG_WARN);
+  log_capture->AddCapturePattern("HcommEndpointGetListenPort is not supported");
+  llm::SlogStub::SetInstance(log_capture);
+  SetListenPortResult(static_cast<int32_t>(HCCL_E_NOT_SUPPORT));
+
+  HixlServerHandle server_handle = nullptr;
+  int32_t client_fd = -1;
+  SetupServerAndSendMatchReq(server_handle, client_fd);
+
+  MatchEndpointResp match_resp{};
+  GetMatchEndpointResp(client_fd, match_resp);
+  EXPECT_EQ(match_resp.port, 0U);
+  (void) close(client_fd);
+
+  EXPECT_TRUE(log_capture->WaitForAllPatternsCaptured(kCaptureLogTimeoutMs));
+  EXPECT_TRUE(log_capture->IsPatternCaptured("HcommEndpointGetListenPort is not supported"));
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+  llm::SlogStub::SetInstance(nullptr);
+}
+
+// 覆盖 EndpointGetListenPort 返回其他错误分支（HIXL_CHK_HCCL_RET 返回错误，触发 DISMISSABLE_GUARD 发送 FAILED 响应）
+TEST_F(HixlCSTest, TestEndpointGetListenPortError) {
+  SetListenPortResult(static_cast<int32_t>(HCCL_E_INTERNAL));
+
+  HixlServerHandle server_handle = nullptr;
+  int32_t client_fd = -1;
+  SetupServerAndSendMatchReq(server_handle, client_fd);
+
+  MatchEndpointResp match_resp{};
+  RecvMatchEndpointResp(client_fd, match_resp);
+  EXPECT_EQ(match_resp.result, FAILED);
+  (void) close(client_fd);
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
 }
 
 TEST_F(HixlCSTest, TestStructSize) {

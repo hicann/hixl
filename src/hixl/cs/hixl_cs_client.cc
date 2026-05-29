@@ -1165,8 +1165,10 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannelLocked(uint32_t timeout_ms)
       remote_endpoint_.commAddr.type, remote_endpoint_.commAddr.id);
   Status ret = ConnMsgHandler::SendMatchEndpointRequest(socket_, remote_endpoint_);
   HIXL_CHK_STATUS_RET(ret, "[HixlClient] SendMatchEndpointRequest failed. fd=%d", socket_);
-  ret = ConnMsgHandler::RecvMatchEndpointResponse(socket_, remote_endpoint_handle_, timeout_ms);
+  uint32_t remote_listen_port = 0;
+  ret = ConnMsgHandler::RecvMatchEndpointResponse(socket_, remote_endpoint_handle_, remote_listen_port, timeout_ms);
   HIXL_CHK_STATUS_RET(ret, "[HixlClient] RecvMatchEndpointResponse failed. fd=%d, timeout=%u ms", socket_, timeout_ms);
+  local_endpoint_->SetPort(remote_listen_port);
   CommMem *prefetch_mems = nullptr;
   char **prefetch_tags = nullptr;
   uint32_t prefetch_num = 0U;

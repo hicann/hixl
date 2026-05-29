@@ -16,6 +16,8 @@ __attribute__((weak)) HcommResult HcommEndpointCreate(const EndpointDesc *endpoi
 
 __attribute__((weak)) HcommResult HcommEndpointDestroy(EndpointHandle endpoint_handle);
 
+__attribute__((weak)) HcommResult HcommEndpointGetListenPort(EndpointHandle endpointHandle, uint32_t *port);
+
 __attribute__((weak)) HcommResult HcommMemReg(EndpointHandle endpoint_handle, const char *mem_tag, const CommMem *mem,
                                               HcommMemHandle *mem_handle);
 
@@ -96,6 +98,14 @@ HcclResult HcommProxy::EndpointDestroy(EndpointHandle endpoint_handle) {
   HIXL_CHK_BOOL_RET_STATUS(HcommEndpointDestroy != nullptr, HCCL_E_NOT_SUPPORT,
                            "function HcommEndpointDestroy is null, maybe unsupported.");
   return static_cast<HcclResult>(HcommEndpointDestroy(endpoint_handle));
+}
+
+HcclResult HcommProxy::EndpointGetListenPort(EndpointHandle endpoint_handle, uint32_t *port) {
+  if (HcommEndpointGetListenPort == nullptr) {
+    HIXL_LOGI("function HcommEndpointGetListenPort is null, maybe unsupported.");
+    return HCCL_E_NOT_SUPPORT;
+  }
+  return static_cast<HcclResult>(HcommEndpointGetListenPort(endpoint_handle, port));
 }
 
 HcclResult HcommProxy::MemImport(EndpointHandle endpoint_handle, const void *mem_desc, uint32_t desc_len,
