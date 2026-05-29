@@ -24,7 +24,7 @@ namespace llm {
 class DataCacheEngineTest : public ::testing::Test {
  public:
   DataCacheEngineTest() : transfer_engine_(0) {};
-  
+
  protected:
   void SetUp() override {
     llm::MockMmpaForHcclApi::Install();
@@ -71,6 +71,42 @@ class MockRuntime : public llm::AclRuntimeStub {
 
   int32_t count_ = 0;
 };
+
+void DrainTaskBatcher(llm::TaskBatcher &generator) {
+  std::vector<llm::BufferSlice> buffer_slices;
+  while (true) {
+    EXPECT_NO_THROW(buffer_slices = generator.NextBatch());
+    if (buffer_slices.empty()) {
+      break;
+    }
+    std::cout << "batch start" << std::endl;
+    for (auto &task : buffer_slices) {
+      std::cout << "buffer offset = " << task.buffer_offset << ", data_index = " << task.data_index
+                << ", data_offset = " << task.data_offset << ", data_size = " << task.data_size << std::endl;
+    }
+    std::cout << "batch end" << std::endl;
+  }
+}
+
+std::map<ge::AscendString, ge::AscendString> DefaultSwapTestOptions() {
+  return {{llm::LLM_OPTION_ROLE, llm::kDecoder},
+          {ge::OPTION_EXEC_DEVICE_ID, "0"},
+          {llm::LLM_OPTION_SYNC_KV_CACHE_WAIT_TIME, "600000"},
+          {llm::LLM_OPTION_MEM_POOL_CONFIG, "{\"memory_size\": 102428800}"}};
+}
+
+llm::CacheDesc DefaultSwapTestCacheDesc() {
+  llm::CacheDesc kv_desc{};
+  kv_desc.num_tensors = 10;
+  kv_desc.data_type = ge::DT_FLOAT16;
+  kv_desc.shape = {10, 128};
+  return kv_desc;
+}
+
+void InitSwapTestDataDist(llm::LLMDataDistV2 &llm_data_dist) {
+  llm::HcclAdapter::GetInstance().Finalize();
+  EXPECT_EQ(llm_data_dist.LLMDataDistInitialize(DefaultSwapTestOptions()), ge::SUCCESS);
+}
 }  // namespace
 
 TEST_F(DataCacheEngineTest, CacheOps) {
@@ -254,12 +290,7 @@ TEST_F(DataCacheEngineTest, CopyCache_B2B) {
   auto dst_tensor_base = reinterpret_cast<int32_t *>(dst_cache.per_device_tensor_addrs[0][0]);
   std::iota(src_tensor_base, src_tensor_base + 4 * 128, 0);
   EXPECT_EQ(cache_engine_.CopyCache(cache_param), ge::SUCCESS);
-  std::vector<int32_t> expected {
-    16,17,18,19,
-    8,9,10,11,
-    12,13,14,15,
-    0,1,2,3
-  };
+  std::vector<int32_t> expected{16, 17, 18, 19, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3};
   std::vector<int32_t> dst_value(dst_tensor_base, dst_tensor_base + 4 * 4);
   EXPECT_EQ(dst_value, expected);
   cache_engine_.Finalize();
@@ -287,7 +318,7 @@ TEST_F(DataCacheEngineTest, InitializeMemoryPool_Failed) {
     config.page_idem_num = 9;
     config.page_mem_size_total_threshold = 20UL * 1024 * 1024 * 1024;
     llm::LlmMemPool llm_mem_pool(config);
-    EXPECT_EQ(llm_mem_pool.Initialize((void *) 0x1000000000, config.page_mem_size_total_threshold),
+    EXPECT_EQ(llm_mem_pool.Initialize((void *)0x1000000000, config.page_mem_size_total_threshold),
               ge::LLM_PARAM_INVALID);
   }
   {
@@ -295,7 +326,7 @@ TEST_F(DataCacheEngineTest, InitializeMemoryPool_Failed) {
     config.page_idem_num = 16;
     config.page_mem_size_total_threshold = (1UL << 16) - 1;
     llm::LlmMemPool llm_mem_pool(config);
-    EXPECT_EQ(llm_mem_pool.Initialize((void *) 0x1000000000, config.page_mem_size_total_threshold),
+    EXPECT_EQ(llm_mem_pool.Initialize((void *)0x1000000000, config.page_mem_size_total_threshold),
               ge::LLM_PARAM_INVALID);
   }
 }
@@ -744,7 +775,7 @@ TEST_F(DataCacheEngineTest, PullCache_D2H_B2C_Failed) {
   DataCacheEngineTestContext context;
   context.Initialize(false);
   D2HDataTransferClient client(context.GetCommEntry(), nullptr);
-  EXPECT_EQ(client.PullCache(cache_entry, cache_key,  pull_cache_param), ge::LLM_PARAM_INVALID);
+  EXPECT_EQ(client.PullCache(cache_entry, cache_key, pull_cache_param), ge::LLM_PARAM_INVALID);
   context.Finalize();
 }
 
@@ -1421,8 +1452,7 @@ TEST_F(DataCacheEngineTest, LlmDataDistV2ApiTest) {
       {llm::LLM_OPTION_ROLE, llm::kDecoder},
       {ge::OPTION_EXEC_DEVICE_ID, "0"},
       {llm::LLM_OPTION_SYNC_KV_CACHE_WAIT_TIME, "600000"},
-      {llm::LLM_OPTION_MEM_POOL_CONFIG, "{\"memory_size\": 102428800}"}
-  };
+      {llm::LLM_OPTION_MEM_POOL_CONFIG, "{\"memory_size\": 102428800}"}};
 
   EXPECT_EQ(llm_data_dist.LLMDataDistInitialize(default_options), ge::SUCCESS);
   llm::Cache cache;
@@ -1456,21 +1486,7 @@ TEST_F(DataCacheEngineTest, TaskBatcher_Cont) {
   transfer_infos[0].buffer_info.block_start_index = 0;
   transfer_infos[0].buffer_info.buffer_len = 3 * 1024 * 1024;
   generator.Initialize(8, 1024 * 1024, transfer_infos.size(), transfer_infos.data());
-  std::vector<llm::BufferSlice> buffer_slices;
-  while (true) {
-    EXPECT_NO_THROW(buffer_slices = generator.NextBatch());
-    if (buffer_slices.empty()) {
-      break;
-    }
-    std::cout << "batch start" << std::endl;
-    for (auto &task : buffer_slices) {
-      std::cout << "buffer offset = " << task.buffer_offset
-                << ", data_index = " << task.data_index
-                << ", data_offset = " << task.data_offset
-                << ", data_size = " << task.data_size << std::endl;
-    }
-    std::cout << "batch end" << std::endl;
-  }
+  DrainTaskBatcher(generator);
 }
 
 TEST_F(DataCacheEngineTest, TaskBatcher_Blocks) {
@@ -1481,40 +1497,33 @@ TEST_F(DataCacheEngineTest, TaskBatcher_Blocks) {
   transfer_infos[1].buffer_info.buffer_len = 3 * 128;
   llm::TaskBatcher generator(12 * 128);
   generator.Initialize(8, 128, transfer_infos.size(), transfer_infos.data());
+  DrainTaskBatcher(generator);
+}
+
+TEST_F(DataCacheEngineTest, TaskBatcher_ZeroBufferLen_NoInfiniteLoop) {
+  std::vector<llm::TransferInfo> transfer_infos(1);
+  transfer_infos[0].buffer_info.block_start_index = 0;
+  transfer_infos[0].buffer_info.buffer_len = 0;
+  llm::TaskBatcher generator(1024);
+  generator.Initialize(8, 128, transfer_infos.size(), transfer_infos.data());
 
   std::vector<llm::BufferSlice> buffer_slices;
-  while (true) {
-    EXPECT_NO_THROW(buffer_slices = generator.NextBatch());
-    if (buffer_slices.empty()) {
-      break;
-    }
-    std::cout << "batch start" << std::endl;
-    for (auto &task : buffer_slices) {
-      std::cout << "buffer offset = " << task.buffer_offset
-                << ", data_index = " << task.data_index
-                << ", data_offset = " << task.data_offset
-                << ", data_size = " << task.data_size << std::endl;
-    }
-    std::cout << "batch end" << std::endl;
-  }
+  EXPECT_NO_THROW(buffer_slices = generator.NextBatch());
+  EXPECT_TRUE(buffer_slices.empty());
+}
+
+TEST_F(DataCacheEngineTest, TaskBatcher_ZeroTransferInfoCount_NoInfiniteLoop) {
+  llm::TaskBatcher generator(1024);
+  generator.Initialize(8, 128, 0, nullptr);
+
+  std::vector<llm::BufferSlice> buffer_slices;
+  EXPECT_NO_THROW(buffer_slices = generator.NextBatch());
+  EXPECT_TRUE(buffer_slices.empty());
 }
 
 TEST_F(DataCacheEngineTest, SwapBlocks) {
-  llm::HcclAdapter::GetInstance().Finalize();
   llm::LLMDataDistV2 llm_data_dist(1);
-  std::map<ge::AscendString, ge::AscendString> default_options{
-      {llm::LLM_OPTION_ROLE, llm::kDecoder},
-      {ge::OPTION_EXEC_DEVICE_ID, "0"},
-      {llm::LLM_OPTION_SYNC_KV_CACHE_WAIT_TIME, "600000"},
-      {llm::LLM_OPTION_MEM_POOL_CONFIG, "{\"memory_size\": 102428800}"}
-  };
-
-  EXPECT_EQ(llm_data_dist.LLMDataDistInitialize(default_options), ge::SUCCESS);
-
-  llm::CacheDesc kv_desc{};
-  kv_desc.num_tensors = 10;
-  kv_desc.data_type = ge::DT_FLOAT16;
-  kv_desc.shape = {10, 128};
+  InitSwapTestDataDist(llm_data_dist);
 
   llm::CacheKey cache_key{};
   cache_key.prompt_cluster_id = 0;
@@ -1522,15 +1531,15 @@ TEST_F(DataCacheEngineTest, SwapBlocks) {
   cache_key.model_id = 0;
 
   llm::Cache cached_tensors;
-  EXPECT_EQ(llm_data_dist.AllocateCache(kv_desc, cached_tensors, {cache_key}), ge::SUCCESS);
+  EXPECT_EQ(llm_data_dist.AllocateCache(DefaultSwapTestCacheDesc(), cached_tensors, {cache_key}), ge::SUCCESS);
   EXPECT_EQ(cached_tensors.cache_id, 1);
   EXPECT_EQ(cached_tensors.per_device_tensor_addrs.size(), 1U);
 
   llm::Cache cached_tensors_2;
-  EXPECT_EQ(llm_data_dist.AllocateCache(kv_desc, cached_tensors_2), ge::SUCCESS);
+  EXPECT_EQ(llm_data_dist.AllocateCache(DefaultSwapTestCacheDesc(), cached_tensors_2), ge::SUCCESS);
   EXPECT_EQ(cached_tensors_2.cache_id, 2);
 
-  std::vector<std::pair<int64_t, int64_t>> block_mapping{{3,4}, {0,0}, {1,1}, {2,2}, {5,6}, {6,7}, {9,9}};
+  std::vector<std::pair<int64_t, int64_t>> block_mapping{{3, 4}, {0, 0}, {1, 1}, {2, 2}, {5, 6}, {6, 7}, {9, 9}};
   // swap in
   EXPECT_EQ(llm_data_dist.SwapBlocks(cached_tensors, cached_tensors_2, 128, 0, block_mapping), ge::SUCCESS);
   // swap out
@@ -1539,6 +1548,71 @@ TEST_F(DataCacheEngineTest, SwapBlocks) {
   // test deallocate success
   EXPECT_EQ(llm_data_dist.DeallocateCache(cached_tensors.cache_id), ge::SUCCESS);
   EXPECT_EQ(llm_data_dist.DeallocateCache(cached_tensors_2.cache_id), ge::SUCCESS);
+}
+
+TEST_F(DataCacheEngineTest, SwapBlocksWithAddressOnlyCacheId) {
+  llm::LLMDataDistV2 llm_data_dist(1);
+  InitSwapTestDataDist(llm_data_dist);
+
+  llm::Cache cached_tensors;
+  EXPECT_EQ(llm_data_dist.AllocateCache(DefaultSwapTestCacheDesc(), cached_tensors), ge::SUCCESS);
+  llm::Cache cached_tensors_2;
+  EXPECT_EQ(llm_data_dist.AllocateCache(DefaultSwapTestCacheDesc(), cached_tensors_2), ge::SUCCESS);
+
+  llm::Cache addr_only_src{};
+  addr_only_src.cache_id = -1;
+  addr_only_src.per_device_tensor_addrs = cached_tensors.per_device_tensor_addrs;
+  llm::Cache addr_only_dst{};
+  addr_only_dst.cache_id = -1;
+  addr_only_dst.per_device_tensor_addrs = cached_tensors_2.per_device_tensor_addrs;
+
+  const std::vector<std::pair<int64_t, int64_t>> block_mapping{{0, 0}, {1, 1}};
+  EXPECT_EQ(llm_data_dist.SwapBlocks(addr_only_src, addr_only_dst, 128, 0, block_mapping), ge::SUCCESS);
+  EXPECT_EQ(llm_data_dist.SwapBlocks(addr_only_dst, addr_only_src, 128, 1, block_mapping), ge::SUCCESS);
+
+  EXPECT_EQ(llm_data_dist.DeallocateCache(cached_tensors.cache_id), ge::SUCCESS);
+  EXPECT_EQ(llm_data_dist.DeallocateCache(cached_tensors_2.cache_id), ge::SUCCESS);
+}
+
+TEST_F(DataCacheEngineTest, SwapBlocksInvalidMapping) {
+  llm::HcclAdapter::GetInstance().Finalize();
+  llm::LLMDataDistV2 llm_data_dist(1);
+  std::map<ge::AscendString, ge::AscendString> default_options{
+      {llm::LLM_OPTION_ROLE, llm::kDecoder},
+      {ge::OPTION_EXEC_DEVICE_ID, "0"},
+      {llm::LLM_OPTION_SYNC_KV_CACHE_WAIT_TIME, "600000"},
+      {llm::LLM_OPTION_MEM_POOL_CONFIG, "{\"memory_size\": 102428800}"}};
+
+  EXPECT_EQ(llm_data_dist.LLMDataDistInitialize(default_options), ge::SUCCESS);
+
+  llm::CacheDesc kv_desc{};
+  kv_desc.num_tensors = 1;
+  kv_desc.data_type = ge::DT_FLOAT16;
+  kv_desc.shape = {10, 128};
+
+  llm::Cache src_cache;
+  EXPECT_EQ(llm_data_dist.AllocateCache(kv_desc, src_cache), ge::SUCCESS);
+  llm::Cache dst_cache;
+  EXPECT_EQ(llm_data_dist.AllocateCache(kv_desc, dst_cache), ge::SUCCESS);
+
+  const std::vector<std::pair<int64_t, int64_t>> negative_src_mapping{{-1, 0}};
+  EXPECT_EQ(llm_data_dist.SwapBlocks(src_cache, dst_cache, 128, 0, negative_src_mapping), ge::LLM_PARAM_INVALID);
+
+  const std::vector<std::pair<int64_t, int64_t>> out_of_range_mapping{{10, 0}};
+  EXPECT_EQ(llm_data_dist.SwapBlocks(src_cache, dst_cache, 128, 0, out_of_range_mapping), ge::LLM_PARAM_INVALID);
+
+  const std::vector<std::pair<int64_t, int64_t>> valid_mapping{{0, 0}};
+  EXPECT_EQ(llm_data_dist.SwapBlocks(src_cache, dst_cache, 0, 0, valid_mapping), ge::LLM_PARAM_INVALID);
+
+  llm::Cache invalid_cache_id_cache{};
+  invalid_cache_id_cache.cache_id = -1;
+  invalid_cache_id_cache.per_device_tensor_addrs = src_cache.per_device_tensor_addrs;
+  EXPECT_EQ(llm_data_dist.SwapBlocks(invalid_cache_id_cache, dst_cache, 128, 0, valid_mapping), ge::LLM_PARAM_INVALID);
+
+  EXPECT_EQ(llm_data_dist.DeallocateCache(src_cache.cache_id), ge::SUCCESS);
+  const std::vector<std::pair<int64_t, int64_t>> deallocated_mapping{{0, 0}};
+  EXPECT_EQ(llm_data_dist.SwapBlocks(src_cache, dst_cache, 128, 0, deallocated_mapping), ge::LLM_KV_CACHE_NOT_EXIST);
+  EXPECT_EQ(llm_data_dist.DeallocateCache(dst_cache.cache_id), ge::SUCCESS);
 }
 
 TEST_F(DataCacheEngineTest, TransferCache_D2D_B2B_with_cache_key) {
@@ -1575,9 +1649,8 @@ TEST_F(DataCacheEngineTest, TransferCache_D2D_B2B_with_cache_key) {
 
   std::vector<int32_t> pull_result(128 * 128);
   llm::TransferCacheConfig ret_config{};
-  ret_config.dst_addrs =
-  std::vector<uintptr_t>(dst_cache.per_device_tensor_addrs[0].begin() + layer_index * 2,
-                       dst_cache.per_device_tensor_addrs[0].begin() + layer_index * 2 + 2);
+  ret_config.dst_addrs = std::vector<uintptr_t>(dst_cache.per_device_tensor_addrs[0].begin() + layer_index * 2,
+                                                dst_cache.per_device_tensor_addrs[0].begin() + layer_index * 2 + 2);
   test_runner.GetTransferCacheData(ret_config, pull_result);
   std::vector<int32_t> actual(&pull_result[128], &pull_result[128 + 4]);
   EXPECT_EQ(actual, (std::vector<int32_t>{1, 2, 3, 4}));
@@ -1619,9 +1692,8 @@ TEST_F(DataCacheEngineTest, TransferCache_D2D_B2B_with_cache_key_by_index) {
 
   std::vector<int32_t> pull_result(128 * 128);
   llm::TransferCacheConfig ret_config{};
-  ret_config.dst_addrs =
-  std::vector<uintptr_t>(dst_cache.per_device_tensor_addrs[0].begin() + 1 * 2,
-                       dst_cache.per_device_tensor_addrs[0].begin() + 1 * 2 + 2);
+  ret_config.dst_addrs = std::vector<uintptr_t>(dst_cache.per_device_tensor_addrs[0].begin() + 1 * 2,
+                                                dst_cache.per_device_tensor_addrs[0].begin() + 1 * 2 + 2);
   test_runner.GetTransferCacheData(ret_config, pull_result);
   std::vector<int32_t> actual(&pull_result[128], &pull_result[128 + 4]);
   EXPECT_EQ(actual, (std::vector<int32_t>{1, 2, 3, 4}));

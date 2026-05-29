@@ -9,10 +9,38 @@
  */
 
 #include "control_msg_handler.h"
+
+#include <poll.h>
+
 namespace adxl {
 namespace {
-Status kNoNeedRetry = 1U;
+constexpr int64_t kMicrosPerMillis = 1000;
+
+Status PollForWriteReady(int32_t fd, int64_t remaining_us) {
+  if (remaining_us <= 0) {
+    return TIMEOUT;
+  }
+  struct pollfd pfd = {};
+  pfd.fd = fd;
+  pfd.events = POLLOUT;
+  const int poll_timeout_ms = static_cast<int>(remaining_us / kMicrosPerMillis);
+  const int poll_ret = poll(&pfd, 1, poll_timeout_ms);
+  if (poll_ret == 0) {
+    return TIMEOUT;
+  }
+  if (poll_ret < 0) {
+    if (errno == EINTR) {
+      return SUCCESS;
+    }
+    LLMLOGE(FAILED, "Socket poll failed, error msg:%s, errno:%d", strerror(errno), errno);
+    return FAILED;
+  }
+  return SUCCESS;
 }
+}  // namespace
+namespace {
+Status kNoNeedRetry = 1U;
+}  // namespace
 
 std::string TransferTypeToString(TransferType type) {
   switch (type) {
@@ -55,25 +83,33 @@ Status ControlMsgHandler::Write(int32_t fd, const void *buf, size_t len, uint64_
   const char *pos = static_cast<const char *>(buf);
   size_t nbytes = len;
   while (nbytes > 0U) {
+    const int64_t time_cost =
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+    ADXL_CHK_BOOL_RET_STATUS(time_cost < static_cast<int64_t>(timeout), TIMEOUT, "Transfer timeout.");
+
     auto rc = write(fd, pos, nbytes);
-    if (rc < 0 && (errno == EAGAIN || errno == EINTR)) {
+    if (rc < 0 && errno == EINTR) {
       continue;
-    } else if (rc < 0) {
+    }
+    if (rc < 0 && errno == EAGAIN) {
+      const int64_t remaining_us = static_cast<int64_t>(timeout) - time_cost;
+      ADXL_CHK_STATUS_RET(PollForWriteReady(fd, remaining_us), "Socket poll failed");
+      continue;
+    }
+    if (rc < 0) {
       Status ret = FAILED;
       if (errno == EPIPE || errno == EBADF) {
         ret = kNoNeedRetry;
       }
       LLMLOGE(FAILED, "Socket write failed, error msg:%s, errno:%d", strerror(errno), errno);
       return ret;
-    } else if (rc == 0) {
+    }
+    if (rc == 0) {
       LLMLOGW("Socket write incompleted: expected %zu bytes, actual %zu bytes", len, len - nbytes);
       return FAILED;
     }
     pos += rc;
     nbytes -= rc;
-    uint64_t time_cost =
-        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
-    ADXL_CHK_BOOL_RET_STATUS(time_cost < timeout, TIMEOUT, "Transfer timeout.");
   }
   return SUCCESS;
 }

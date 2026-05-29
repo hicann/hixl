@@ -145,6 +145,30 @@ Status ParseIpAddress(const std::string &ip_str, CommAddr &addr) {
   return PARAM_INVALID;
 }
 
+Status ParseHccsCommId(const std::string &comm_id_str, uint32_t &device_id) {
+  constexpr size_t kMaxHccsCommIdLen = 10U;
+  if (comm_id_str.empty() || comm_id_str.length() > kMaxHccsCommIdLen) {
+    HIXL_LOGE(PARAM_INVALID, "Invalid hccs comm_id length: %zu, max allowed: %zu", comm_id_str.length(),
+              kMaxHccsCommIdLen);
+    return PARAM_INVALID;
+  }
+  if (!std::all_of(comm_id_str.begin(), comm_id_str.end(), [](unsigned char c) { return std::isdigit(c); })) {
+    HIXL_LOGE(PARAM_INVALID, "Invalid hccs comm_id: %s", comm_id_str.c_str());
+    return PARAM_INVALID;
+  }
+
+  uint64_t parsed = 0;
+  for (const unsigned char c : comm_id_str) {
+    parsed = parsed * 10U + static_cast<uint64_t>(c - '0');
+    if (parsed > static_cast<uint64_t>(std::numeric_limits<uint32_t>::max())) {
+      HIXL_LOGE(PARAM_INVALID, "hccs comm_id out of range: %s", comm_id_str.c_str());
+      return PARAM_INVALID;
+    }
+  }
+  device_id = static_cast<uint32_t>(parsed);
+  return SUCCESS;
+}
+
 Status ParseEidAddress(const std::string &eid_str, CommAddr &addr) {
   if (eid_str.length() != 32) {
     HIXL_LOGE(PARAM_INVALID, "Invalid EID format: %s. Expected 32 hexadecimal characters without colons.",
@@ -374,18 +398,10 @@ Status EndpointGenerator::ConvertToEndpointDesc(const EndpointConfig &endpoint_c
   }
 
   if (endpoint_config.protocol == kProtocolHccs) {
-    uint64_t device_id = 0;
-    try {
-      device_id = std::stoull(endpoint_config.comm_id);
-    } catch (const std::exception &e) {
-      HIXL_LOGE(PARAM_INVALID, "Parse hccs comm_id failed, comm_id:%s, exception:%s", endpoint_config.comm_id.c_str(),
-                e.what());
-      return PARAM_INVALID;
-    }
-    HIXL_CHK_BOOL_RET_STATUS(device_id <= static_cast<uint64_t>(std::numeric_limits<uint32_t>::max()), PARAM_INVALID,
-                             "hccs comm_id out of range: %s", endpoint_config.comm_id.c_str());
+    uint32_t device_id = 0;
+    HIXL_CHK_STATUS_RET(ParseHccsCommId(endpoint_config.comm_id, device_id), "ParseHccsCommId failed");
     endpoint.commAddr.type = COMM_ADDR_TYPE_ID;
-    endpoint.commAddr.id = static_cast<uint32_t>(device_id);
+    endpoint.commAddr.id = device_id;
     if (endpoint.loc.locType == ENDPOINT_LOC_TYPE_DEVICE) {
       HIXL_CHK_STATUS_RET(FillDeviceLocInfo(endpoint_config, endpoint, dev_phy_id), "FillDeviceLocInfo failed");
     }

@@ -50,7 +50,7 @@ struct EntityInfo {
   void *remote_resp_ptr;
 };
 
-using FillRequestFunc = std::function<void(TransferCacheReq&, uint64_t &size)>;
+using FillRequestFunc = std::function<void(TransferCacheReq &, uint64_t &size)>;
 using FillResponseFunc = std::function<void(ResponseInfo &, uint64_t &size)>;
 
 class DataTransferJob;
@@ -113,7 +113,8 @@ class EntityCommInfo {
   };
 
   explicit EntityCommInfo(const CommParams &comm_params);
-  EntityCommInfo(const HcclComm &comm, std::vector<void *> mem_handles, int32_t link_total_time, int32_t link_retry_count);
+  EntityCommInfo(const HcclComm &comm, std::vector<void *> mem_handles, int32_t link_total_time,
+                 int32_t link_retry_count);
   ~EntityCommInfo();
   ge::Status Initialize();
 
@@ -136,8 +137,8 @@ using EntityCommInfoPtr = std::shared_ptr<EntityCommInfo>;
 
 class CommEntity {
  public:
-  CommEntity(uint64_t comm_id, uint64_t cluster_id, uint32_t rank_id,
-             uint64_t local_cluster_id, uint32_t local_rank_id);
+  CommEntity(uint64_t comm_id, uint64_t cluster_id, uint32_t rank_id, uint64_t local_cluster_id,
+             uint32_t local_rank_id);
   ge::Status Initialize(bool remote_cache_accessible);
   virtual ge::Status Finalize(bool force = false);
   virtual ~CommEntity();
@@ -150,7 +151,7 @@ class CommEntity {
 
   void *GetReq();
   void *GetResp();
-  aclrtStream  GetStream() const;
+  aclrtStream GetStream() const;
   aclrtContext GetCurrentContext() const;
   void SetContext(aclrtContext context);
   uint64_t GetClusterId() const;
@@ -169,8 +170,7 @@ class CommEntity {
   void SetEntityCommInfo(EntityCommInfoPtr comm_info);
   ge::Status BatchPutAsync(std::vector<HcclOneSideOpDesc> &op_descs, aclrtStream stream = nullptr);
   ge::Status BatchGetAsync(std::vector<HcclOneSideOpDesc> &op_descs, aclrtStream stream = nullptr);
-  virtual ge::Status BatchTransfer(std::list<HcclOneSideOpDesc> &tasks, bool is_put,
-                                   bool reversed, int32_t timeout_ms);
+  virtual ge::Status BatchTransfer(std::list<HcclOneSideOpDesc> &tasks, bool is_put, bool reversed, int32_t timeout_ms);
   SendStatisticInfo &GetSendStatisticInfo(aclrtStream stream = nullptr);
   RecvStatisticInfo &GetRecvStatisticInfo();
   void Dump() const;

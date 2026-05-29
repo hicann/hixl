@@ -9,15 +9,14 @@
  */
 
 #include "utils/task_batcher.h"
+#include "common/llm_log.h"
 
 namespace llm {
 namespace {
 constexpr int32_t kMaxTaskNumInBatch = 64;
 
 }  // namespace
-void TaskBatcher::Initialize(uint32_t num_tensors,
-                             uint32_t block_size,
-                             size_t num_transfer_infos,
+void TaskBatcher::Initialize(uint32_t num_tensors, uint32_t block_size, size_t num_transfer_infos,
                              const TransferInfo *transfer_infos) {
   num_tensors_ = num_tensors;
   block_size_ = block_size;
@@ -27,51 +26,64 @@ void TaskBatcher::Initialize(uint32_t num_tensors,
 
 std::vector<BufferSlice> TaskBatcher::NextBatch(uint32_t max_transfer_info_num) {
   std::vector<BufferSlice> ret;
-  uint32_t buffer_offset = 0;
-  uint32_t remaining_buffer_len = buffer_size_;
-  uint64_t prev_block_end_offset = UINT64_MAX;
-  uint32_t prev_tensor_index = UINT32_MAX;
-  uint32_t num_tasks = 0;
+  if ((buffer_size_ == 0U) || (num_transfer_infos_ == 0U)) {
+    LLMLOGW("invalid batcher state, buffer_size=%u, num_transfer_infos=%u", buffer_size_, num_transfer_infos_);
+    return ret;
+  }
+  BatchSliceState state{};
+  state.remaining_buffer_len = buffer_size_;
   transfer_info_num_ = 0;
-  while (remaining_buffer_len > 0) {
-    if (current_tensor_index_ >= num_tensors_) {
-      LLMLOGI("no more task");
+  while (state.remaining_buffer_len > 0) {
+    if (!AppendNextSlice(ret, state, max_transfer_info_num)) {
       break;
     }
-    if ((max_transfer_info_num == UINT32_MAX) && (num_tasks >= kMaxTaskNumInBatch)) {
-      LLMLOGI("reached max task number in batch");
-      break;
-    }
-    if (transfer_info_num_ >= max_transfer_info_num) {
-      LLMLOGI("reached max block number:%u in batch", max_transfer_info_num);
-      break;
-    }
-    uint64_t data_offset = 0U;
-    uint64_t data_size_cur_task = 0U;
-    GetOffsetAndLength(remaining_buffer_len, data_offset, data_size_cur_task);
-    const auto data_size = static_cast<uint32_t>(data_size_cur_task);
-    if ((current_tensor_index_ == prev_tensor_index) &&
-        (data_offset == prev_block_end_offset) &&
-        ((ret.back().data_size + data_size) <= max_block_size_)) {
-      ret.back().data_size += data_size;
-    } else {
-      ret.emplace_back(BufferSlice{
-          buffer_offset,
-          current_tensor_index_,
-          data_offset,
-          static_cast<uint32_t>(data_size),
-      });
-      ++num_tasks;
-    }
-
-    buffer_offset += data_size;
-    remaining_buffer_len -= data_size;
-    prev_block_end_offset = data_offset + data_size;
-    prev_tensor_index = current_tensor_index_;
-    ++transfer_info_num_;
-    UpdateIndices();
   }
   return ret;
+}
+
+bool TaskBatcher::AppendNextSlice(std::vector<BufferSlice> &ret, BatchSliceState &state,
+                                  uint32_t max_transfer_info_num) {
+  if (current_tensor_index_ >= num_tensors_) {
+    LLMLOGI("no more task");
+    return false;
+  }
+  if ((max_transfer_info_num == UINT32_MAX) && (state.num_tasks >= kMaxTaskNumInBatch)) {
+    LLMLOGI("reached max task number in batch");
+    return false;
+  }
+  if (transfer_info_num_ >= max_transfer_info_num) {
+    LLMLOGI("reached max block number:%u in batch", max_transfer_info_num);
+    return false;
+  }
+  uint64_t data_offset = 0U;
+  uint64_t data_size_cur_task = 0U;
+  GetOffsetAndLength(state.remaining_buffer_len, data_offset, data_size_cur_task);
+  if (data_size_cur_task == 0U) {
+    LLMLOGW("zero buffer_len at transfer_info_index=%u, tensor_index=%u", current_transfer_info_index_,
+            current_tensor_index_);
+    return false;
+  }
+  const auto data_size = static_cast<uint32_t>(data_size_cur_task);
+  if ((current_tensor_index_ == state.prev_tensor_index) && (data_offset == state.prev_block_end_offset) &&
+      ((ret.back().data_size + data_size) <= max_block_size_)) {
+    ret.back().data_size += data_size;
+  } else {
+    ret.emplace_back(BufferSlice{
+        state.buffer_offset,
+        current_tensor_index_,
+        data_offset,
+        static_cast<uint32_t>(data_size),
+    });
+    ++state.num_tasks;
+  }
+
+  state.buffer_offset += data_size;
+  state.remaining_buffer_len -= data_size;
+  state.prev_block_end_offset = data_offset + data_size;
+  state.prev_tensor_index = current_tensor_index_;
+  ++transfer_info_num_;
+  UpdateIndices();
+  return true;
 }
 
 void TaskBatcher::GetOffsetAndLength(uint32_t remaining_buffer_len, uint64_t &data_offset, uint64_t &data_size) {
@@ -99,6 +111,10 @@ void TaskBatcher::GetOffsetAndLength(uint32_t remaining_buffer_len, uint64_t &da
 
 void TaskBatcher::UpdateIndices() {
   if (remaining_data_len_ == 0) {
+    if (num_transfer_infos_ == 0U) {
+      current_tensor_index_ += 1U;
+      return;
+    }
     const auto is_tail_block = current_transfer_info_index_ == (num_transfer_infos_ - 1);
     if (is_tail_block) {
       current_transfer_info_index_ = 0U;

@@ -32,28 +32,22 @@ struct TransferBlocksTask {
 class DataTransferTaskGenerator {
  public:
   DataTransferTaskGenerator(uint32_t num_tensors, uint32_t num_buffers, uint32_t buffer_size)
-      : num_tensors_(num_tensors), num_buffers_(num_buffers), buffer_size_(buffer_size) {
-  }
+      : num_tensors_(num_tensors), num_buffers_(num_buffers), buffer_size_(buffer_size) {}
 
   // for continuous
-  std::vector<TransferBlocksTask> GenerateTasks(int64_t tensor_size,
-                                                uint32_t block_size);
+  std::vector<TransferBlocksTask> GenerateTasks(int64_t tensor_size, uint32_t block_size);
 
-  std::vector<TransferBlocksTask> GenerateTasks(uint32_t block_size,
-                                                uint32_t num_block_indices,
+  std::vector<TransferBlocksTask> GenerateTasks(uint32_t block_size, uint32_t num_block_indices,
                                                 const uint64_t *block_indices,
                                                 const uint64_t *remote_block_indices = nullptr);
 
  private:
-  std::vector<TransferBlocksTask> DoGenerate(uint32_t block_size,
-                                             uint32_t tail_block_size,
-                                             uint32_t num_block_indices,
+  std::vector<TransferBlocksTask> DoGenerate(uint32_t block_size, uint32_t tail_block_size, uint32_t num_block_indices,
                                              const uint64_t *block_indices);
   std::vector<TransferBlocksTask> DoGenerateForClientBlocks(uint32_t block_size, uint32_t tail_block_size,
                                                             uint32_t num_block_indices, const uint64_t *block_indices,
                                                             const uint64_t *remote_block_indices);
-  std::vector<TransferBlocksTask> DoGenerateForLargeBlock(uint32_t block_size,
-                                                          uint32_t num_block_indices,
+  std::vector<TransferBlocksTask> DoGenerateForLargeBlock(uint32_t block_size, uint32_t num_block_indices,
                                                           const uint64_t *block_indices) const;
   void GetNextBufBlockNum(uint32_t buffer_task_index, uint32_t &remote_buffer_block_num);
 
@@ -96,24 +90,18 @@ class D2HDataTransferClient {
   explicit D2HDataTransferClient(CommEntity &comm_entity, aclrtStream stream);
   ~D2HDataTransferClient();
 
-  ge::Status PullCache(const CacheEntry &cache_entry,
-                       const CacheKey &cache_key,
-                       const PullCacheParam &pull_cache_param,
+  ge::Status PullCache(const CacheEntry &cache_entry, const CacheKey &cache_key, const PullCacheParam &pull_cache_param,
                        int32_t timeout_in_ms = 1000);
+
  private:
   ge::Status Prepare(const CacheEntry &cache_entry, const CacheKey &cache_key, const PullCacheParam &pull_cache_param);
-  ge::Status GenerateTasks(const CacheEntry &cache_entry,
-                           const PullCacheParam &pull_cache_param,
+  ge::Status GenerateTasks(const CacheEntry &cache_entry, const PullCacheParam &pull_cache_param,
                            const ResponseInfo &response);
-  ge::Status SendRequest(const CacheEntry &cache_entry,
-                         const CacheKey &cache_key,
+  ge::Status SendRequest(const CacheEntry &cache_entry, const CacheKey &cache_key,
                          const PullCacheParam &pull_cache_param) const;
   ge::Status RunTasks();
-  void FillRequest(const CacheEntry &cache_entry,
-                   const CacheKey &cache_key,
-                   const PullCacheParam &pull_cache_param,
-                   TransferCacheReq &request,
-                   uint64_t &size) const;
+  void FillRequest(const CacheEntry &cache_entry, const CacheKey &cache_key, const PullCacheParam &pull_cache_param,
+                   TransferCacheReq &request, uint64_t &size) const;
   ge::Status CopyAsync(const TransferBlocksTask &task);
 
   CommEntity *comm_entity_ = nullptr;
@@ -126,6 +114,7 @@ class D2HDataTransferClient {
   uint8_t *send_dev_flag_ = nullptr;
   uint32_t buffer_size_ = 0U;
   uint32_t num_buffers_ = 2U;
+  uint64_t validated_request_size_ = 0U;
   uint32_t block_size_ = 0U;
   int64_t timeout_in_ms_ = 1000;
   std::chrono::steady_clock::time_point timeout_tp_;

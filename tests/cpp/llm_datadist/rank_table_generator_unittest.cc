@@ -16,6 +16,9 @@
 #include "nlohmann/json.hpp"
 
 #include "common/rank_table_generator.h"
+#include "common/rank_table_device_json.h"
+#include "common/rank_table_generator_v1.h"
+#include "common/rank_table_generator_v2.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 
@@ -115,5 +118,67 @@ TEST_F(RankTableGeneratorUnitTest, MergeRankTableKeepsDevicePorts) {
   const auto device_ports = CollectDevicePorts(nlohmann::json::parse(rank_table));
   EXPECT_EQ(device_ports.count("20000"), 1U);
   EXPECT_EQ(device_ports.count("20001"), 1U);
+}
+
+TEST_F(RankTableGeneratorUnitTest, CreateRejectsOversizedLocalCommRes) {
+  const std::string valid_comm_res = R"({
+      "version": "1.2",
+      "server_list": [
+        {"server_id": "node_1", "device": [
+          {"device_id": "1", "super_device_id": "1", "device_ip": "1.1.1.1", "device_port": "20001"}
+        ]}
+      ]
+    })";
+  const std::string oversized_comm_res(rank_table_json::kMaxCommResSizeInBytes + 1U, ' ');
+
+  EXPECT_EQ(RankTableGeneratorFactory::Create(oversized_comm_res, valid_comm_res), nullptr);
+}
+
+TEST_F(RankTableGeneratorUnitTest, CreateRejectsOversizedPeerCommRes) {
+  const std::string valid_comm_res = R"({
+      "version": "1.2",
+      "server_list": [
+        {"server_id": "node_0", "device": [
+          {"device_id": "0", "super_device_id": "0", "device_ip": "1.1.1.0", "device_port": "20000"}
+        ]}
+      ]
+    })";
+  const std::string oversized_comm_res(rank_table_json::kMaxCommResSizeInBytes + 1U, ' ');
+
+  EXPECT_EQ(RankTableGeneratorFactory::Create(valid_comm_res, oversized_comm_res), nullptr);
+}
+
+TEST_F(RankTableGeneratorUnitTest, GenerateV2RejectsOversizedPeerCommRes) {
+  const std::string local_comm_res = R"({
+      "version": "1.2",
+      "server_list": [
+        {"server_id": "node_0", "device": [
+          {"device_id": "0", "super_device_id": "0", "device_ip": "1.1.1.0", "device_port": "20000"}
+        ]}
+      ]
+    })";
+  const std::string oversized_comm_res(rank_table_json::kMaxCommResSizeInBytes + 1U, ' ');
+
+  RankTableGeneratorV2 generator(local_comm_res, oversized_comm_res);
+  std::string rank_table;
+  EXPECT_EQ(generator.Generate(kDeviceId, rank_table), ge::LLM_PARAM_INVALID);
+}
+
+TEST_F(RankTableGeneratorUnitTest, GenerateV1RejectsOversizedPeerCommRes) {
+  AclRuntimeStub::SetInstance(std::make_shared<AutoCommResV1RuntimeMock>());
+
+  const std::string local_comm_res = R"({
+      "version": "1.0",
+      "server_list": [
+        {"server_id": "node_0", "device": [
+          {"device_id": "0", "device_ip": "1.1.1.0", "device_port": "20000"}
+        ]}
+      ]
+    })";
+  const std::string oversized_comm_res(rank_table_json::kMaxCommResSizeInBytes + 1U, ' ');
+
+  RankTableGeneratorV1 generator(local_comm_res, oversized_comm_res);
+  std::string rank_table;
+  EXPECT_EQ(generator.Generate(kDeviceId, rank_table), ge::LLM_PARAM_INVALID);
 }
 }  // namespace llm

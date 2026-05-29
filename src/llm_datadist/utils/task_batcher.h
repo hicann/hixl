@@ -26,22 +26,29 @@ class TaskBatcher {
  public:
   TaskBatcher() = default;
   explicit TaskBatcher(uint32_t buffer_size) : buffer_size_(buffer_size) {}
-  void Initialize(uint32_t num_tensors,
-                  uint32_t block_size,
-                  size_t num_transfer_infos,
+  void Initialize(uint32_t num_tensors, uint32_t block_size, size_t num_transfer_infos,
                   const TransferInfo *transfer_infos);
 
   std::vector<BufferSlice> NextBatch(uint32_t max_transfer_info_num = UINT32_MAX);
   uint32_t GetTransferInfoNum() const;
 
  private:
+  struct BatchSliceState {
+    uint32_t buffer_offset{0U};
+    uint32_t remaining_buffer_len{0U};
+    uint64_t prev_block_end_offset{UINT64_MAX};
+    uint32_t prev_tensor_index{UINT32_MAX};
+    uint32_t num_tasks{0U};
+  };
+
   void GetOffsetAndLength(uint32_t remaining_buffer_len, uint64_t &data_offset, uint64_t &data_size);
   void UpdateIndices();
+  bool AppendNextSlice(std::vector<BufferSlice> &ret, BatchSliceState &state, uint32_t max_transfer_info_num);
 
   uint32_t buffer_size_ = 0U;
   uint32_t num_tensors_ = 0U;
   uint32_t block_size_ = 0U;
-  uint32_t max_block_size_ = 4 * 1024 * 1024; // 4MB
+  uint32_t max_block_size_ = 4 * 1024 * 1024;  // 4MB
   uint32_t current_tensor_index_ = 0U;
   uint32_t current_transfer_info_index_ = 0U;
   uint32_t num_transfer_infos_ = 0U;

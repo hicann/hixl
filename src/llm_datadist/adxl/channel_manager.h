@@ -91,6 +91,8 @@ class ChannelManager {
 
   Status HandleRequestDisconnectMessage(const ChannelPtr &channel, const std::string &msg_str) const;
   Status HandleRequestDisconnectRespMessage(const ChannelPtr &channel, const std::string &msg_str) const;
+  static void ResetRecvState(const ChannelPtr &channel);
+  static Status ShiftRecvBuffer(const ChannelPtr &channel, size_t src_offset, size_t remaining);
 
   std::atomic<bool> stop_signal_{false};
 

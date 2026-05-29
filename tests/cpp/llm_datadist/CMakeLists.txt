@@ -21,6 +21,7 @@ set(LLM_DATADIST_TEST_FILES
         llm_datadist_v2_api_unittest.cc
         llm_utils_v2_unittest.cc
         data_cache_engine_unittest.cc
+        comm_mem_manager_unittest.cc
         hixl_api_unittest.cc
         adxl_engine_api_unittest.cc
         segment_table_unittest.cc
@@ -29,6 +30,8 @@ set(LLM_DATADIST_TEST_FILES
         buffer_transfer_service_unittest.cc
         virtual_memory_manager_unittest.cc
         control_msg_handler_unittest.cc
+        control_msg_handler_write_unittest.cc
+        transfer_message_limits_unittest.cc
 )
 set(LLM_DATADIST_STUB_SRC_FILES
         "${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/data_cache_engine_test_helper.cc"

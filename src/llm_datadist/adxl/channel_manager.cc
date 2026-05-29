@@ -46,6 +46,28 @@ Status ValidateProtocolHeader(const ProtocolHeader &header, const std::string &c
 }
 }  // namespace
 
+void ChannelManager::ResetRecvState(const ChannelPtr &channel) {
+  channel->recv_state_ = RecvState::WAITING_FOR_HEADER;
+  channel->expected_body_size_ = 0U;
+  channel->bytes_received_ = 0U;
+  channel->recv_buffer_.clear();
+}
+
+Status ChannelManager::ShiftRecvBuffer(const ChannelPtr &channel, size_t src_offset, size_t remaining) {
+  auto buffer = channel->recv_buffer_.data();
+  const size_t buffer_size = channel->recv_buffer_.size();
+  errno_t rc = memmove_s(buffer, buffer_size, buffer + src_offset, remaining);
+  if (rc != EOK) {
+    LLMLOGE(
+        FAILED, "Call api:memmove_s failed, ret:%d, dst_addr:%p, dst_max:%zu, src_addr:%p, count:%zu on channel:%s.",
+        static_cast<int32_t>(rc), buffer, buffer_size, buffer + src_offset, remaining, channel->GetChannelId().c_str());
+    ResetRecvState(channel);
+    return FAILED;
+  }
+  channel->bytes_received_ = remaining;
+  return SUCCESS;
+}
+
 int64_t ChannelManager::wait_time_in_millis_ = kWaitTimeInMillis;
 
 Status ChannelManager::Initialize(BufferTransferService *buffer_transfer_service) {
@@ -135,6 +157,7 @@ Status ChannelManager::HandleReadEvent(const ChannelPtr &channel) {
                    channel->recv_buffer_.size() - channel->bytes_received_, 0);
   if (n == 0) {
     LLMLOGI("Connection closed by peer, fd: %d, channel:%s.", fd, channel->GetChannelId().c_str());
+    ResetRecvState(channel);
     return FAILED;
   }
   if (n < 0) {
@@ -142,6 +165,7 @@ Status ChannelManager::HandleReadEvent(const ChannelPtr &channel) {
       return SUCCESS;
     }
     LLMLOGE(FAILED, "recv error on channel:%s, errno:%s", channel->GetChannelId().c_str(), strerror(errno));
+    ResetRecvState(channel);
     return FAILED;
   }
   channel->bytes_received_ += n;
@@ -155,18 +179,18 @@ Status ChannelManager::ProcessReceivedData(const ChannelPtr &channel) const {
         break;
       }
       auto *header = llm::PtrToPtr<char, ProtocolHeader>(channel->recv_buffer_.data());
-      ADXL_CHK_STATUS_RET(ValidateProtocolHeader(*header, channel->GetChannelId()), "Failed to validate header");
+      const auto validate_ret = ValidateProtocolHeader(*header, channel->GetChannelId());
+      if (validate_ret != SUCCESS) {
+        ResetRecvState(channel);
+        return validate_ret;
+      }
       channel->expected_body_size_ = header->body_size;
       channel->recv_state_ = RecvState::WAITING_FOR_BODY;
 
       if (channel->bytes_received_ > sizeof(ProtocolHeader)) {
-        size_t remaining = channel->bytes_received_ - sizeof(ProtocolHeader);
-        auto buffer = channel->recv_buffer_.data();
-        errno_t rc = memmove_s(buffer, remaining, buffer + sizeof(ProtocolHeader), remaining);
-        ADXL_CHK_BOOL_RET_STATUS(
-            rc == EOK, FAILED, "Call api:memmove_s failed, ret:%d, dst_addr:%p, dst_max:%zu, src_addr:%p, count:%zu",
-            static_cast<int32_t>(rc), buffer, remaining, buffer + sizeof(ProtocolHeader), remaining);
-        channel->bytes_received_ = remaining;
+        const size_t remaining = channel->bytes_received_ - sizeof(ProtocolHeader);
+        ADXL_CHK_STATUS_RET(ShiftRecvBuffer(channel, sizeof(ProtocolHeader), remaining),
+                            "Failed to shift recv buffer after header on channel:%s.", channel->GetChannelId().c_str());
       } else {
         channel->bytes_received_ = 0;
       }
@@ -175,16 +199,16 @@ Status ChannelManager::ProcessReceivedData(const ChannelPtr &channel) const {
       if (channel->bytes_received_ < channel->expected_body_size_) {
         break;
       }
-      ADXL_CHK_STATUS_RET(HandleControlMessage(channel), "Failed to handle control message");
+      const auto handle_ret = HandleControlMessage(channel);
+      if (handle_ret != SUCCESS) {
+        ResetRecvState(channel);
+        return handle_ret;
+      }
 
       if (channel->bytes_received_ > channel->expected_body_size_) {
-        size_t remaining = channel->bytes_received_ - channel->expected_body_size_;
-        auto buffer = channel->recv_buffer_.data();
-        errno_t rc = memmove_s(buffer, remaining, buffer + channel->expected_body_size_, remaining);
-        ADXL_CHK_BOOL_RET_STATUS(
-            rc == EOK, FAILED, "Call api:memmove_s failed, ret:%d, dst_addr:%p, dst_max:%zu, src_addr:%p, count:%zu",
-            static_cast<int32_t>(rc), buffer, remaining, buffer + channel->expected_body_size_, remaining);
-        channel->bytes_received_ = remaining;
+        const size_t remaining = channel->bytes_received_ - channel->expected_body_size_;
+        ADXL_CHK_STATUS_RET(ShiftRecvBuffer(channel, channel->expected_body_size_, remaining),
+                            "Failed to shift recv buffer after body on channel:%s.", channel->GetChannelId().c_str());
         channel->recv_state_ = RecvState::WAITING_FOR_HEADER;
       } else {
         channel->bytes_received_ = 0;

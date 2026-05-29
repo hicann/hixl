@@ -25,13 +25,14 @@ class SwapImpl {
   explicit SwapImpl(int32_t device_id) : device_id_(device_id) {}
   ~SwapImpl() = default;
   ge::Status SwapBlocksV2(const Cache &src, const Cache &dst, const uint64_t block_size, const uint32_t type,
-                          const std::vector<std::pair<int64_t, int64_t>> &block_mapping) const;
+                          const std::vector<std::pair<int64_t, int64_t>> &block_mapping, uint64_t src_num_blocks = 0U,
+                          uint64_t dst_num_blocks = 0U) const;
 
  private:
   static ge::Status CheckParam(const Cache &src, const Cache &dst);
   static ge::Status SwapBlocks(const std::vector<uintptr_t> &src_addrs, const std::vector<uintptr_t> &dst_addrs,
                                const uint64_t block_size, const std::vector<std::pair<int64_t, int64_t>> &block_mapping,
-                               const CopyInfo &copy_info);
+                               const CopyInfo &copy_info, uint64_t src_num_blocks, uint64_t dst_num_blocks);
   int32_t device_id_{0};
 };
 }  // namespace llm

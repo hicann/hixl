@@ -38,7 +38,8 @@ class ChannelManagerUnitTest : public ::testing::Test {
     return channel;
   }
 
-  std::string CreateNotifyMsgStr(uint64_t req_id, const std::string& name = "test_name", const std::string& msg = "test_msg") {
+  std::string CreateNotifyMsgStr(uint64_t req_id, const std::string &name = "test_name",
+                                 const std::string &msg = "test_msg") {
     NotifyMsg notify_msg{req_id, name, msg};
     std::string serialized_str;
     ControlMsgHandler::Serialize(notify_msg, serialized_str);
@@ -63,7 +64,8 @@ TEST_F(ChannelManagerUnitTest, ProcessReceivedDataRejectsOversizedBodySize) {
   EXPECT_EQ(manager_.ProcessReceivedData(channel), FAILED);
   EXPECT_EQ(channel->recv_state_, RecvState::WAITING_FOR_HEADER);
   EXPECT_EQ(channel->expected_body_size_, 0U);
-  EXPECT_EQ(channel->bytes_received_, sizeof(ProtocolHeader));
+  EXPECT_EQ(channel->bytes_received_, 0U);
+  EXPECT_TRUE(channel->recv_buffer_.empty());
 }
 
 TEST_F(ChannelManagerUnitTest, ProcessReceivedDataRejectsInvalidMagicNumber) {
@@ -72,7 +74,8 @@ TEST_F(ChannelManagerUnitTest, ProcessReceivedDataRejectsInvalidMagicNumber) {
   EXPECT_EQ(manager_.ProcessReceivedData(channel), FAILED);
   EXPECT_EQ(channel->recv_state_, RecvState::WAITING_FOR_HEADER);
   EXPECT_EQ(channel->expected_body_size_, 0U);
-  EXPECT_EQ(channel->bytes_received_, sizeof(ProtocolHeader));
+  EXPECT_EQ(channel->bytes_received_, 0U);
+  EXPECT_TRUE(channel->recv_buffer_.empty());
 }
 
 TEST_F(ChannelManagerUnitTest, HandleNotifyMessage_WhenStorageLimitExceeded_ReturnsFailed) {
@@ -93,7 +96,7 @@ TEST_F(ChannelManagerUnitTest, HandleNotifyMessage_WhenStorageLimitExceeded_Retu
 }
 
 // Helper function to create RequestDisconnectMsg string
-std::string CreateRequestDisconnectMsgStr(uint64_t req_id, const std::string& channel_id, uint64_t timeout = 1000) {
+std::string CreateRequestDisconnectMsgStr(uint64_t req_id, const std::string &channel_id, uint64_t timeout = 1000) {
   RequestDisconnectMsg msg;
   msg.req_id = req_id;
   msg.channel_id = channel_id;
@@ -106,7 +109,7 @@ std::string CreateRequestDisconnectMsgStr(uint64_t req_id, const std::string& ch
 TEST_F(ChannelManagerUnitTest, HandleRequestDisconnectMessage_WhenDisconnectCallbackFails_LogsWarning) {
   // Set up a mock disconnect callback that returns failure
   bool callback_invoked = false;
-  manager_.SetDisconnectCallback([&callback_invoked](const std::string& channel_id, int32_t timeout_ms) -> Status {
+  manager_.SetDisconnectCallback([&callback_invoked](const std::string &channel_id, int32_t timeout_ms) -> Status {
     callback_invoked = true;
     (void)channel_id;
     (void)timeout_ms;

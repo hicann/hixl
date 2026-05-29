@@ -25,7 +25,7 @@ const std::string kConfigVersion = "version";
 constexpr const char kConfigVersionV1[] = "1.0";
 constexpr const char kConfigVersionV2[] = "1.2";
 constexpr uint32_t kVersionMaxLen = 32U;
-}
+}  // namespace
 
 std::unique_ptr<RankTableGenerator> RankTableGeneratorFactory::Create(const std::string &local_comm_res,
                                                                       const std::string &peer_comm_res) {
@@ -34,8 +34,13 @@ std::unique_ptr<RankTableGenerator> RankTableGeneratorFactory::Create(const std:
   std::string local_version;
   std::string peer_version;
   try {
-    local_res = nlohmann::json::parse(local_comm_res);
-    peer_res = nlohmann::json::parse(peer_comm_res);
+    if (!rank_table_json::IsCommResJsonSizeValid(local_comm_res) ||
+        !rank_table_json::IsCommResJsonSizeValid(peer_comm_res)) {
+      LLMLOGE(ge::LLM_PARAM_INVALID, "comm_res size exceeds limit");
+      return nullptr;
+    }
+    local_res = rank_table_json::ParseCommResJson(local_comm_res);
+    peer_res = rank_table_json::ParseCommResJson(peer_comm_res);
     LLMUtils::AssignRequired(local_version, kConfigVersion, local_res);
     LLMUtils::AssignRequired(peer_version, kConfigVersion, peer_res);
   } catch (const nlohmann::json::exception &e) {
@@ -46,8 +51,8 @@ std::unique_ptr<RankTableGenerator> RankTableGeneratorFactory::Create(const std:
   if ((local_version != kConfigVersionV1 && local_version != kConfigVersionV2) ||
       (peer_version != kConfigVersionV1 && peer_version != kConfigVersionV2)) {
     LLMLOGE(ge::LLM_PARAM_INVALID, "version in option:%s only support %s and %s, local version:%s, peer version:%s.",
-           llm_datadist::OPTION_LOCAL_COMM_RES, kConfigVersionV1, kConfigVersionV2,
-           local_version.c_str(), peer_version.c_str());
+            llm_datadist::OPTION_LOCAL_COMM_RES, kConfigVersionV1, kConfigVersionV2, local_version.c_str(),
+            peer_version.c_str());
     return nullptr;
   }
 
@@ -58,24 +63,19 @@ std::unique_ptr<RankTableGenerator> RankTableGeneratorFactory::Create(const std:
   return MakeUnique<RankTableGeneratorV2>(local_comm_res, peer_comm_res);
 }
 
-ge::Status LocalCommResGenerator::Generate(const std::string &server_id,
-                                           int32_t device_id,
-                                           std::string &local_comm_res,
+ge::Status LocalCommResGenerator::Generate(const std::string &server_id, int32_t device_id, std::string &local_comm_res,
                                            std::optional<uint32_t> device_port) {
-  const static std::set<std::string> kV2Version = {
-      "Ascend910_9391", "Ascend910_9381", "Ascend910_9392", "Ascend910_9382", "Ascend910_9372", "Ascend910_9362"
-  };
+  const static std::set<std::string> kV2Version = {"Ascend910_9391", "Ascend910_9381", "Ascend910_9392",
+                                                   "Ascend910_9382", "Ascend910_9372", "Ascend910_9362"};
   const char *version = aclrtGetSocName();
   LLM_CHECK_NOTNULL(version, "aclrt get soc name");
   const auto &it = kV2Version.find(version);
   if (it != kV2Version.cend()) {
     LLM_CHK_STATUS_RET(RankTableGeneratorV2::GenerateLocalCommRes(server_id, device_id, local_comm_res, device_port),
-                      "Failed to generate local comm res, server_id:%s, device_id:%d.",
-                      server_id.c_str(), device_id);
+                       "Failed to generate local comm res, server_id:%s, device_id:%d.", server_id.c_str(), device_id);
   } else {
     LLM_CHK_STATUS_RET(RankTableGeneratorV1::GenerateLocalCommRes(server_id, device_id, local_comm_res, device_port),
-                      "Failed to generate local comm res, server_id:%s, device_id:%d.",
-                      server_id.c_str(), device_id);
+                       "Failed to generate local comm res, server_id:%s, device_id:%d.", server_id.c_str(), device_id);
   }
   return ge::SUCCESS;
 }

@@ -22,6 +22,7 @@ set(HIXL_TEST_FILES
         cs/hixl_cs_client_ub_ut.cc
         cs/transfer_pool_ut.cc
         cs/host_register_proxy_ut.cc
+        cs/msg_receiver_ut.cc
         engine/hixl_server_unittest.cpp
         engine/hixl_client_unittest.cc
         engine/hixl_utils_unittest.cc

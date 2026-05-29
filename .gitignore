@@ -34,3 +34,7 @@ hixl-pr-review-reports
 # oat check
 oat_reports/
 log/
+.claude/skills*
+.opencode
+compile_commands.json
+.clangd
