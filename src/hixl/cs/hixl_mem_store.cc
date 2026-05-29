@@ -306,7 +306,9 @@ Status HixlMemStore::ConvertHostAddr(HixlOneSideOpDesc &desc) const {
   if (remote_region.is_host_mem) {
     HIXL_CHECK_NOTNULL(remote_region.register_dev_addr, ", register_dev_addr is nullptr.");
     uintptr_t offset = reinterpret_cast<uintptr_t>(desc.remote_buf) - reinterpret_cast<uintptr_t>(remote_region.addr);
+    void *host_addr = desc.remote_buf;
     desc.remote_buf = static_cast<void *>(static_cast<char *>(remote_region.register_dev_addr) + offset);
+    HIXL_LOGI("[HixlMemStore] Convert remote addr: %p -> %p", host_addr, desc.remote_buf);
   }
 
   MemoryRegion local_region;
@@ -318,7 +320,9 @@ Status HixlMemStore::ConvertHostAddr(HixlOneSideOpDesc &desc) const {
   if (local_region.is_host_mem) {
     HIXL_CHECK_NOTNULL(local_region.register_dev_addr, ", register_dev_addr is nullptr.");
     uintptr_t offset = reinterpret_cast<uintptr_t>(desc.local_buf) - reinterpret_cast<uintptr_t>(local_region.addr);
+    void *host_addr = desc.local_buf;
     desc.local_buf = static_cast<void *>(static_cast<char *>(local_region.register_dev_addr) + offset);
+    HIXL_LOGI("[HixlMemStore] Convert local addr: %p -> %p", host_addr, desc.local_buf);
   }
   return SUCCESS;
 }
