@@ -150,6 +150,14 @@ class ASCEND_FUNC_VISIBILITY Hixl {
   Status GetTransferStatus(const TransferReq &req, TransferStatus &status);
 
   /**
+   * @brief 获取全部请求状态
+   * @param [in] args 查询参数
+   * @param [out] results 查询结果
+   * @return 成功:SUCCESS, 失败:其它.
+   */
+  Status GetTransferStatus(const GetTransferStatusArgs &args, std::vector<TransferResult> &results);
+
+  /**
    * @brief Client向Server发送Notify信息
    * @param [in] remote_engine 远端Hixl的唯一标识
    * @param [in] notify 要发送的Notify内容

@@ -75,9 +75,10 @@ struct TransferOpDesc {
 传输操作的可选参数，暂未启用。
 
 ```
-struct TransferArgs{
-  uint8_t reserved[128] = {};
-}
+struct TransferArgs {
+  void *user_data = nullptr;
+  uint8_t reserved[120] = {};
+};
 ```
 
 ## TransferReq
@@ -99,6 +100,25 @@ enum class TransferStatus {
   TIMEOUT, //暂不支持
   FAILED
 }
+```
+
+## GetTransferStatusArgs
+```
+struct GetTransferStatusArgs {
+  uint32_t max_query_count = UINT32_MAX;
+  bool skip_waiting = false;
+  uint8_t reserved[123] = {};
+};
+```
+
+## TransferResult
+```
+struct TransferResult {
+  TransferReq req = nullptr;
+  void *user_data = nullptr;
+  TransferStatus status = TransferStatus::WAITING;
+  uint8_t reserved[108] = {};
+};
 ```
 
 ## NotifyDesc
