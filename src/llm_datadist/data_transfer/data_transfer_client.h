@@ -20,6 +20,7 @@
 
 namespace llm {
 using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
+
 class DataTransferClient {
  public:
   DataTransferClient(CommEntity &comm_entity, aclrtStream stream) : comm_entity_(&comm_entity), req_stream_(stream) {}
@@ -35,7 +36,7 @@ class DataTransferClient {
   ge::Status SynchronizeStreamTask(const TimePoint &start_time) const;
   ge::Status GetResponseInfo() const;
   ge::Status ConstructTransferInfo(const PullCacheParam &pull_cache_param, const CacheEntry &cache_entry,
-                                   const CacheKey &cache_key, int32_t timeout, TransferCacheReq &request) const;
+                                   const CacheKey &cache_key, int32_t timeout) const;
 
   CommEntity *comm_entity_;
   aclrtStream req_stream_{};
