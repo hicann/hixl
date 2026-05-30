@@ -54,12 +54,15 @@ class BufferTransferService {
 
   void ProcessBufferResp();
   Status HandleBufferResp(const ChannelPtr &channel, BufferResp &buffer_resp);
+  Status ResolveReadCopyTotalLen(const BufferResp &buffer_resp, uint64_t &max_total_len) const;
+  Status ProcessBufferReadCopyResp(const ChannelPtr &channel, BufferResp &buffer_resp);
 
   void ProcessBufferReqSecondStep();
   Status HandleBufferCopy(const ChannelPtr &channel, BufferReq &buffer_req);
   Status PrepareServerCopyBuffer(BufferReq &buffer_req, bool is_read, uint64_t &left_timeout,
                                  const std::chrono::steady_clock::time_point &start);
-  static std::vector<uintptr_t> BuildCopyBufferAddrs(const BufferReq &buffer_req);
+  Status BuildBufferSliceAddrs(uintptr_t base_addr, const std::vector<size_t> &buffer_lens, size_t count,
+                               uint64_t max_total_len, std::vector<uintptr_t> &addrs) const;
   Status ProcessBufferCopyByType(const ChannelPtr &channel, BufferReq &buffer_req,
                                  const std::vector<uintptr_t> &copy_buff_addrs, uint64_t left_timeout);
 

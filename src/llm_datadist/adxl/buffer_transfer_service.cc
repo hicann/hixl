@@ -19,6 +19,7 @@
 #include "adxl/adxl_types.h"
 #include "common/def_types.h"
 #include "base/err_msg.h"
+#include "common/llm_utils.h"
 #include "common/llm_scope_guard.h"
 #include "adxl/adxl_utils.h"
 #include "statistic_manager.h"
@@ -31,6 +32,11 @@ constexpr uint64_t kBlockSize = 512 * 1024U;
 constexpr size_t kServerPoolIndex = 1U;
 constexpr size_t kMemcpyBatchLimit = 4096;
 constexpr size_t kMemcpyBatchMinTime = 100000;
+
+bool IsReadTransferType(TransferType type) {
+  return type == TransferType::kReadRH2H || type == TransferType::kReadRD2H ||
+         type == TransferType::kReadRH2D || type == TransferType::kReadRD2D;
+}
 }  // namespace
 
 Status BufferTransferService::Initialize() {
@@ -436,15 +442,27 @@ Status BufferTransferService::PrepareServerCopyBuffer(BufferReq &buffer_req, boo
   return SUCCESS;
 }
 
-std::vector<uintptr_t> BufferTransferService::BuildCopyBufferAddrs(const BufferReq &buffer_req) {
-  std::vector<uintptr_t> copy_buff_addrs;
-  copy_buff_addrs.reserve(buffer_req.dst_addrs.size());
-  auto dev_buffer_addr = buffer_req.local_buffer_addr;
-  for (size_t i = 0; i < buffer_req.dst_addrs.size(); ++i) {
-    copy_buff_addrs.emplace_back(dev_buffer_addr);
-    dev_buffer_addr += buffer_req.buffer_lens[i];
+Status BufferTransferService::BuildBufferSliceAddrs(uintptr_t base_addr, const std::vector<size_t> &buffer_lens,
+                                                    size_t count, uint64_t max_total_len,
+                                                    std::vector<uintptr_t> &addrs) const {
+  ADXL_CHK_BOOL_RET_STATUS(buffer_lens.size() >= count, PARAM_INVALID,
+                           "buffer_lens size:%zu is smaller than required count:%zu.", buffer_lens.size(), count);
+  addrs.clear();
+  addrs.reserve(count);
+  // buffer_lens are peer-controlled; accumulate offsets with overflow detection and keep within max_total_len
+  // (local pool size for server copy, or server-reported total for client resp handling).
+  uint64_t accumulated = 0U;
+  for (size_t i = 0U; i < count; ++i) {
+    uintptr_t slice_addr = 0U;
+    ADXL_CHK_BOOL_RET_STATUS(!ge::AddOverflow(base_addr, accumulated, slice_addr),
+                             PARAM_INVALID, "base_addr + accumulated overflow at index:%zu.", i);
+    addrs.emplace_back(slice_addr);
+    ADXL_CHK_BOOL_RET_STATUS(!ge::AddOverflow(accumulated, buffer_lens[i], accumulated) &&
+                                 (accumulated <= max_total_len),
+                             PARAM_INVALID, "accumulated buffer length out of range at index:%zu, max_total_len:%lu.",
+                             i, max_total_len);
   }
-  return copy_buff_addrs;
+  return SUCCESS;
 }
 
 Status BufferTransferService::ProcessBufferCopyByType(const ChannelPtr &channel, BufferReq &buffer_req,
@@ -477,7 +495,10 @@ Status BufferTransferService::HandleBufferCopy(const ChannelPtr &channel, Buffer
                   type == TransferType::kReadRH2D || type == TransferType::kReadRD2D);
   ADXL_CHK_STATUS_RET(PrepareServerCopyBuffer(buffer_req, is_read, left_timeout, start),
                       "Failed to prepare server copy buffer.");
-  const auto copy_buff_addrs = BuildCopyBufferAddrs(buffer_req);
+  std::vector<uintptr_t> copy_buff_addrs;
+  ADXL_CHK_STATUS_RET(BuildBufferSliceAddrs(buffer_req.local_buffer_addr, buffer_req.buffer_lens,
+                                            buffer_req.dst_addrs.size(), buffer_size_, copy_buff_addrs),
+                      "Failed to build copy buffer addrs.");
   ADXL_CHK_STATUS_RET(ProcessBufferCopyByType(channel, buffer_req, copy_buff_addrs, left_timeout), "Copy failed.");
   const uint64_t time_cost =
       std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
@@ -622,6 +643,7 @@ Status BufferTransferService::HandleCtrlMsg(const ChannelPtr &channel, const Buf
   buffer_resp.buffer_addr = buffer_req.buffer_addr;
   buffer_resp.src_addrs = std::move(buffer_req.src_addrs);
   buffer_resp.buffer_lens = std::move(buffer_req.buffer_lens);
+  buffer_resp.total_buffer_len = buffer_req.total_buffer_len;
   buffer_resp.timeout = buffer_req.timeout;
   auto func = [&buffer_resp, &buffer_req, &start](int32_t fd) {
     uint64_t time_cost =
@@ -650,37 +672,67 @@ void BufferTransferService::ProcessBufferResp() {
   }
 }
 
+Status BufferTransferService::ResolveReadCopyTotalLen(const BufferResp &buffer_resp,
+                                                      uint64_t &max_total_len) const {
+  max_total_len = buffer_resp.total_buffer_len;
+  if (max_total_len != 0U) {
+    return SUCCESS;
+  }
+  max_total_len = 0U;
+  for (size_t i = 0U; i < buffer_resp.buffer_lens.size(); ++i) {
+    ADXL_CHK_BOOL_RET_STATUS(!ge::AddOverflow(max_total_len, buffer_resp.buffer_lens[i], max_total_len),
+                             PARAM_INVALID, "buffer_lens overflow at index:%zu.", i);
+  }
+  return SUCCESS;
+}
+
+Status BufferTransferService::ProcessBufferReadCopyResp(const ChannelPtr &channel, BufferResp &buffer_resp) {
+  auto start = std::chrono::steady_clock::now();
+  ADXL_CHK_BOOL_RET_STATUS(buffer_resp.src_addrs.size() == buffer_resp.buffer_lens.size(), FAILED,
+                           "Addr not valid.");
+  uint64_t max_total_len = 0U;
+  ADXL_CHK_STATUS_RET(ResolveReadCopyTotalLen(buffer_resp, max_total_len),
+                      "Failed to resolve read copy total length.");
+  ADXL_CHK_BOOL_RET_STATUS(max_total_len <= buffer_size_, PARAM_INVALID,
+                           "max_total_len:%lu exceeds local buffer_size_:%lu.", max_total_len, buffer_size_);
+  std::vector<uintptr_t> buffer_addrs;
+  ADXL_CHK_STATUS_RET(BuildBufferSliceAddrs(buffer_resp.buffer_addr, buffer_resp.buffer_lens,
+                                            buffer_resp.src_addrs.size(), max_total_len, buffer_addrs),
+                      "Failed to build buffer addrs.");
+  auto type = buffer_resp.transfer_type;
+  auto kind = (type == TransferType::kReadRH2D || type == TransferType::kReadRD2D) ? ACL_MEMCPY_DEVICE_TO_DEVICE
+                                                                                     : ACL_MEMCPY_DEVICE_TO_HOST;
+  ADXL_CHK_STATUS_RET(ProcessCopy(channel, buffer_addrs, buffer_resp.src_addrs, buffer_resp.buffer_lens,
+                                  std::make_pair(kind, buffer_resp.timeout)),
+                      "Copy failed.");
+  uint64_t time_cost =
+      std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
+  StatisticManager::GetInstance().UpdateClientCopyCost(channel->GetStatisticChannelId(), time_cost);
+  return SUCCESS;
+}
+
 Status BufferTransferService::HandleBufferResp(const ChannelPtr &channel, BufferResp &buffer_resp) {
   std::lock_guard<std::mutex> req_id_lock(req_id_mutex_);
-  if (req_id_buffers_.find(buffer_resp.req_id) != req_id_buffers_.end()) {
-    auto type = buffer_resp.transfer_type;
-    auto is_read = (type == TransferType::kReadRH2H || type == TransferType::kReadRD2H ||
-                    type == TransferType::kReadRH2D || type == TransferType::kReadRD2D);
-    if (is_read && buffer_resp.src_addrs.size() > 0) {
-      auto start = std::chrono::steady_clock::now();
-      ADXL_CHK_BOOL_RET_STATUS(buffer_resp.src_addrs.size() == buffer_resp.buffer_lens.size(), FAILED,
-                               "Addr not valid.");
-      std::vector<uintptr_t> buffer_addrs;
-      buffer_addrs.reserve(buffer_resp.src_addrs.size());
-      auto buffer_addr = buffer_resp.buffer_addr;
-      for (size_t i = 0; i < buffer_resp.src_addrs.size(); ++i) {
-        buffer_addrs.emplace_back(buffer_addr);
-        buffer_addr += buffer_resp.buffer_lens[i];
-      }
-      auto kind = (type == TransferType::kReadRH2D || type == TransferType::kReadRD2D) ? ACL_MEMCPY_DEVICE_TO_DEVICE
-                                                                                       : ACL_MEMCPY_DEVICE_TO_HOST;
-      ADXL_CHK_STATUS_RET(ProcessCopy(channel, buffer_addrs, buffer_resp.src_addrs, buffer_resp.buffer_lens,
-                                      std::make_pair(kind, buffer_resp.timeout)),
-                          "Copy failed.");
-      uint64_t time_cost =
-          std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
-      StatisticManager::GetInstance().UpdateClientCopyCost(channel->GetStatisticChannelId(), time_cost);
-    }
-    auto ptr = llm::ValueToPtr(buffer_resp.buffer_addr);
-    ReleaseBuffer(ptr);
-    req_id_buffers_[buffer_resp.req_id].erase(ptr);
-    req_id_cv_.notify_all();
+  auto req_it = req_id_buffers_.find(buffer_resp.req_id);
+  if (req_it == req_id_buffers_.end()) {
+    LLMLOGI("Recv resp, req id:%lu.", buffer_resp.req_id);
+    return SUCCESS;
   }
+
+  auto ptr = llm::ValueToPtr(buffer_resp.buffer_addr);
+  const auto &buf_set = req_it->second;
+  ADXL_CHK_BOOL_RET_STATUS(buf_set.find(ptr) != buf_set.end(), PARAM_INVALID,
+                           "buffer_addr not found in tracked buffers for req_id:%lu.", buffer_resp.req_id);
+
+  const bool is_read_with_src =
+      IsReadTransferType(buffer_resp.transfer_type) && !buffer_resp.src_addrs.empty();
+  if (is_read_with_src) {
+    ADXL_CHK_STATUS_RET(ProcessBufferReadCopyResp(channel, buffer_resp), "Failed to process read buffer resp.");
+  }
+
+  ReleaseBuffer(ptr);
+  req_id_buffers_[buffer_resp.req_id].erase(ptr);
+  req_id_cv_.notify_all();
   LLMLOGI("Recv resp, req id:%lu.", buffer_resp.req_id);
   return SUCCESS;
 }

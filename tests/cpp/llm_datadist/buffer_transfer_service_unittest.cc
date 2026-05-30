@@ -10,8 +10,10 @@
 
 #include <gtest/gtest.h>
 #include <chrono>
+#include <limits>
 #include <memory>
 #include <thread>
+#include <vector>
 
 #define private public
 #include "adxl/buffer_transfer_service.h"
@@ -142,5 +144,63 @@ TEST_F(BufferTransferServiceUTest, ProcessCtrlMsgSkipsFinalizedChannel) {
 
   service_->PushCtrlMsg(channel, buffer_req);
   WaitUntilQueueProcessed(service_->buffer_ctrl_msg_mutex_, service_->buffer_ctrl_msg_queue_, []() { return true; });
+}
+
+TEST_F(BufferTransferServiceUTest, BuildBufferSliceAddrsSuccess) {
+  constexpr uintptr_t kBaseAddr = 0x1000U;
+  constexpr uint64_t kMaxTotalLen = 1024U;
+  std::vector<size_t> buffer_lens = {256U, 256U};
+  std::vector<uintptr_t> addrs;
+  EXPECT_EQ(service_->BuildBufferSliceAddrs(kBaseAddr, buffer_lens, buffer_lens.size(), kMaxTotalLen, addrs), SUCCESS);
+  ASSERT_EQ(addrs.size(), 2U);
+  EXPECT_EQ(addrs[0], kBaseAddr);
+  EXPECT_EQ(addrs[1], kBaseAddr + 256U);
+}
+
+TEST_F(BufferTransferServiceUTest, BuildBufferSliceAddrsRejectsAddressOverflow) {
+  // A high base_addr plus accumulated offset must not wrap around the address space.
+  // First slice: base_addr + 0 = base_addr (valid), accumulated becomes 256.
+  // Second slice: base_addr + 256 wraps uintptr_t -> must be rejected.
+  constexpr uintptr_t kHighBase = std::numeric_limits<uintptr_t>::max() - 128U;
+  std::vector<size_t> buffer_lens = {256U, 256U};
+  std::vector<uintptr_t> addrs;
+  EXPECT_EQ(service_->BuildBufferSliceAddrs(kHighBase, buffer_lens, buffer_lens.size(), 1024U, addrs), PARAM_INVALID);
+}
+
+TEST_F(BufferTransferServiceUTest, BuildBufferSliceAddrsRejectsExceedingMaxTotalLen) {
+  std::vector<size_t> buffer_lens = {2048U};
+  std::vector<uintptr_t> addrs;
+  EXPECT_EQ(service_->BuildBufferSliceAddrs(0x1000U, buffer_lens, buffer_lens.size(), 1024U, addrs), PARAM_INVALID);
+}
+
+TEST_F(BufferTransferServiceUTest, BuildBufferSliceAddrsUsesExplicitMaxTotalLen) {
+  // BuildBufferSliceAddrs validates against the caller-supplied max_total_len parameter.
+  std::vector<size_t> buffer_lens = {512U};
+  std::vector<uintptr_t> addrs;
+  EXPECT_EQ(service_->BuildBufferSliceAddrs(0x1000U, buffer_lens, buffer_lens.size(), 512U, addrs), SUCCESS);
+  EXPECT_EQ(service_->BuildBufferSliceAddrs(0x1000U, buffer_lens, buffer_lens.size(), 256U, addrs), PARAM_INVALID);
+}
+
+TEST_F(BufferTransferServiceUTest, BuildBufferSliceAddrsRejectsCountExceedingLens) {
+  std::vector<size_t> buffer_lens = {256U};
+  std::vector<uintptr_t> addrs;
+  EXPECT_EQ(service_->BuildBufferSliceAddrs(0x1000U, buffer_lens, 2U, 1024U, addrs), PARAM_INVALID);
+}
+
+TEST_F(BufferTransferServiceUTest, HandleBufferRespRejectsExceedingBufferSize) {
+  // Inject a tracked buffer so req_id / buffer_addr lookup succeeds.
+  void *fake_buf = reinterpret_cast<void *>(0x2000);
+  service_->req_id_buffers_[42U].insert(fake_buf);
+
+  auto channel = CreateChannel();
+  BufferResp resp{};
+  resp.transfer_type = TransferType::kReadRH2H;
+  resp.req_id = 42U;
+  resp.timeout = 10000U;
+  resp.buffer_addr = reinterpret_cast<uintptr_t>(fake_buf);
+  resp.src_addrs = {0x3000U};
+  resp.buffer_lens = {512U};
+  resp.total_buffer_len = 2048U;  // exceeds local buffer_size_ (1024)
+  EXPECT_EQ(service_->HandleBufferResp(channel, resp), PARAM_INVALID);
 }
 }  // namespace adxl

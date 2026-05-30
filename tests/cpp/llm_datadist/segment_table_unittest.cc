@@ -70,4 +70,13 @@ TEST_F(SegmentTableUTest, TestNotContains) {
   auto channel = table.FindSegment(kChannelId, kSegmentMiddle, kSegmentQueryEnd);
   ASSERT_EQ(channel, nullptr);
 }
+
+TEST_F(SegmentTableUTest, TestAddInvalidRangeIgnored) {
+  SegmentTable table;
+  // An inverted range (start > end), e.g. produced by an overflowed addr + len, must be dropped so it cannot
+  // poison later Contains()/FindSegment lookups.
+  table.AddRange(kChannelId, kSegmentEnd3, kSegmentStart1, MemType::MEM_DEVICE);
+  auto channel = table.FindSegment(kChannelId, kSegmentStart1, kSegmentEnd3);
+  ASSERT_EQ(channel, nullptr);
+}
 }  // namespace adxl

@@ -9,6 +9,7 @@
 
 #include <atomic>
 #include <gtest/gtest.h>
+#include <limits>
 #include <memory>
 #include <string>
 #include <thread>
@@ -203,6 +204,16 @@ TEST_F(VirtualMemoryManagerTest, ReserveMemory_Exhaustion_Fails) {
   constexpr size_t huge_size = 1024UL * 1024UL * 1024UL * 1024UL * 129UL;  // 129TB > 128TB
   uintptr_t addr = 0;
   EXPECT_EQ(manager.ReserveMemory(huge_size, addr), RESOURCE_EXHAUSTED);
+}
+
+TEST_F(VirtualMemoryManagerTest, ReserveMemory_SizeNearMax_NoOverflow_Fails) {
+  VirtualMemoryManager &manager = VirtualMemoryManager::GetInstance();
+  manager.Initialize();
+  // A size near SIZE_MAX must not wrap blocks_needed to a tiny value that bypasses the capacity check; it must be
+  // rejected as RESOURCE_EXHAUSTED instead of silently succeeding.
+  uintptr_t addr = 0;
+  EXPECT_EQ(manager.ReserveMemory(std::numeric_limits<size_t>::max(), addr), RESOURCE_EXHAUSTED);
+  EXPECT_EQ(addr, 0U);
 }
 
 TEST_F(VirtualMemoryManagerTest, Concurrency_MultipleThreads) {

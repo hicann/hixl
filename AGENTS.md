@@ -54,6 +54,7 @@ pre-commit run --files <changed-files>     # 只检查受影响文件
 ## 代码风格与测试要求
 
 - **C++**：遵循 `.clang-format`（基于 Google 风格），2 空格缩进、120 列限制、附着式大括号、`SortIncludes: false`。类型用 `PascalCase`，函数用 `camelCase`。
+- **C++ 复杂度**：单函数不超过 50 行；嵌套深度（if/for/while/switch/try 及宏展开块）不超过 4，超出时提取 helper 或 early return。
 - **Python**：使用 `ruff-check` 和 `ruff-format`，模块和测试文件用 `snake_case`。
 - 测试文件命名：C++ 以 `_unittest.cc` 或 `_ut.cc` 结尾，Python 以 `test_*.py` 命名。
 - 行为变更必须补齐或更新测试。

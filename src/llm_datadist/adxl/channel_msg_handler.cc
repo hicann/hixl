@@ -216,18 +216,23 @@ void ChannelMsgHandler::Finalize() {
 }
 
 Status ChannelMsgHandler::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
+  // mem.addr/mem.len come from the API caller; reject ranges whose end wraps around so the segment table never
+  // stores a start > end range that would silently bypass later Contains() checks.
+  uint64_t mem_end = 0U;
+  ADXL_CHK_BOOL_RET_STATUS(!ge::AddOverflow(mem.addr, mem.len, mem_end), PARAM_INVALID,
+                           "mem range overflow, addr:%lu, len:%zu.", mem.addr, mem.len);
   HcclMem hccl_mem = {};
   hccl_mem.type = type == MEM_DEVICE ? COMM_MEM_TYPE_DEVICE : COMM_MEM_TYPE_HOST;
   hccl_mem.addr = reinterpret_cast<void *>(mem.addr);
   hccl_mem.size = mem.len;
   ADXL_CHK_HCCL_RET(llm::HcclAdapter::GetInstance().HcclRegisterGlobalMem(&hccl_mem, &mem_handle));
-  LLMLOGI("Add local mem range start:%lu, end:%lu, type:%s, channel:%s.", mem.addr, mem.addr + mem.len,
+  LLMLOGI("Add local mem range start:%lu, end:%lu, type:%s, channel:%s.", mem.addr, mem_end,
           hixl::MemTypeToString(static_cast<hixl::MemType>(type)).c_str(), listen_info_.c_str());
   // keep same lock order with DeregisterMem
   std::lock_guard<std::mutex> lock(mutex_);
   ADXL_CHK_BOOL_RET_STATUS(segment_table_ != nullptr, FAILED, "Segment table is null.");
-  segment_table_->AddRange(listen_info_, mem.addr, mem.addr + mem.len, type);
-  handle_to_addr_[mem_handle] = AddrInfo{mem.addr, mem.addr + mem.len, type};
+  segment_table_->AddRange(listen_info_, mem.addr, mem_end, type);
+  handle_to_addr_[mem_handle] = AddrInfo{mem.addr, mem_end, type};
   LLMLOGI("RegisterMem success: handle=%p, total registered handles=%zu.", mem_handle, handle_to_addr_.size());
   return SUCCESS;
 }
@@ -293,6 +298,11 @@ Status ChannelMsgHandler::CreateChannel(const ChannelInfo &channel_info, bool is
              channel_info.local_rank_id, channel_info.peer_rank_id);
     ADXL_CHK_STATUS_RET(channel_manager_->DestroyChannel(channel_info.channel_type, channel_info.channel_id),
                         "Failed to destroy previous channel, channel id:%s.", channel_info.channel_id.c_str());
+  }
+  for (const auto &remote_addr : peer_channel_info.addrs) {
+    ADXL_CHK_BOOL_RET_STATUS(remote_addr.start_addr <= remote_addr.end_addr, PARAM_INVALID,
+                             "Invalid remote mem range, start:%lu > end:%lu.", remote_addr.start_addr,
+                             remote_addr.end_addr);
   }
   ChannelPtr channel = nullptr;
   ADXL_CHK_STATUS_RET(channel_manager_->CreateChannel(channel_info, channel));

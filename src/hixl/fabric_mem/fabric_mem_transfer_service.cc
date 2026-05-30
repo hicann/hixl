@@ -29,6 +29,16 @@ constexpr uint64_t kHostFlagDoneValue = 1ULL;
 constexpr uint64_t kDevConstOneValue = 1ULL;
 constexpr size_t kHostFlagSize = sizeof(uint64_t);
 
+// Returns true if [old_addr, old_addr + len) is fully contained in [base, base + size). The arithmetic is
+// overflow-safe so a wrapped base/len (e.g. from a malformed peer registration) cannot yield a false match.
+bool IsRangeContained(uintptr_t old_addr, size_t len, uintptr_t base, size_t size) {
+  if (old_addr < base) {
+    return false;
+  }
+  const uintptr_t offset = old_addr - base;
+  return (offset <= size) && (len <= size - offset);
+}
+
 uint64_t GetTransferBytes(const std::vector<TransferOpDesc> &op_descs) {
   uint64_t total_bytes = 0UL;
   for (const auto &op_desc : op_descs) {
@@ -594,8 +604,7 @@ Status FabricMemTransferService::TransOpAddr(uintptr_t old_addr, size_t len,
                                              uintptr_t &new_addr) {
   for (const auto &item : new_va_to_old_va) {
     const auto &info = item.second;
-    const auto registered_old_va_end = info.va_addr + info.len;
-    if (old_addr >= info.va_addr && old_addr + len <= registered_old_va_end) {
+    if (IsRangeContained(old_addr, len, info.va_addr, info.len)) {
       new_addr = item.first + (old_addr - info.va_addr);
       return SUCCESS;
     }
@@ -611,8 +620,7 @@ bool FabricMemTransferService::FindLocalHostRegisteredAddrLocked(uintptr_t old_a
     if (info.imported_va == 0) {
       continue;
     }
-    const auto registered_end = info.va_addr + info.len;
-    if (old_addr < info.va_addr || old_addr + len > registered_end) {
+    if (!IsRangeContained(old_addr, len, info.va_addr, info.len)) {
       continue;
     }
     new_addr = info.imported_va + (old_addr - info.va_addr);

@@ -78,6 +78,12 @@ SegmentPtr SegmentTable::FindSegment(const std::string &channel_id, uint64_t sta
 }
 
 void Segment::AddRange(uint64_t start, uint64_t end) {
+  // Remote peers can supply ranges directly (see ChannelMsgHandler::CreateChannel), so reject inverted ranges here:
+  // a start > end entry would otherwise poison Contains()/RemoveRange() lookups.
+  if (start > end) {
+    LLMLOGW("Ignore invalid segment range, start:%lu > end:%lu.", start, end);
+    return;
+  }
   auto it = std::upper_bound(ranges_.begin(), ranges_.end(), start,
                              [](uint64_t val, const std::pair<uint64_t, uint64_t> &range) {
                                return val < range.first;

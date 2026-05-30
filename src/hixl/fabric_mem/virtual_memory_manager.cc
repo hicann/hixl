@@ -144,7 +144,9 @@ Status VirtualMemoryManager::ReserveMemory(size_t size, uintptr_t &mem_addr) {
   if (!initialized_) {
     HIXL_CHK_STATUS_RET(InitProcess(), "Failed to initialize virtual memory process.");
   }
-  const size_t blocks_needed = (size + kBlockSize - 1) / kBlockSize;
+  // Use ceil-division instead of (size + kBlockSize - 1) so a size close to SIZE_MAX cannot wrap around and yield a
+  // tiny blocks_needed that bypasses the capacity check below (which would later allow an out-of-bounds access).
+  const size_t blocks_needed = size / kBlockSize + ((size % kBlockSize != 0U) ? 1UL : 0UL);
   HIXL_CHK_BOOL_RET_STATUS(blocks_needed <= num_blocks_, RESOURCE_EXHAUSTED,
                            "Requested size %zu exceeds virtual memory capacity.", size);
 

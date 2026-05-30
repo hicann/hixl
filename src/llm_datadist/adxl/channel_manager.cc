@@ -221,11 +221,14 @@ Status ChannelManager::ProcessReceivedData(const ChannelPtr &channel) const {
 }
 
 Status ChannelManager::HandleControlMessage(const ChannelPtr &channel) const {
-  ADXL_CHK_BOOL_RET_STATUS(channel->expected_body_size_ > sizeof(ControlMsgType), FAILED,
+  // expected_body_size_ is the on-wire body length (ControlMsgType + payload) and is peer-controlled. Require it to
+  // be at least sizeof(ControlMsgType) so the payload length below can never underflow into a huge value.
+  ADXL_CHK_BOOL_RET_STATUS(channel->expected_body_size_ >= sizeof(ControlMsgType), FAILED,
                            "Received msg invalid, channel:%s.", channel->GetChannelId().c_str());
   auto data = channel->recv_buffer_.data();
   ControlMsgType msg_type = *llm::PtrToPtr<char, ControlMsgType>(data);
-  std::string msg_str(data + sizeof(ControlMsgType), channel->expected_body_size_ - sizeof(ControlMsgType));
+  const size_t msg_body_len = channel->expected_body_size_ - sizeof(ControlMsgType);
+  std::string msg_str(data + sizeof(ControlMsgType), msg_body_len);
 
   switch (msg_type) {
     case ControlMsgType::kHeartBeat:

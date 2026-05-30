@@ -90,6 +90,7 @@ struct BufferResp {
   std::vector<uintptr_t> src_addrs{};
   uintptr_t buffer_addr{0};
   std::vector<size_t> buffer_lens{};
+  uint64_t total_buffer_len{0};
 };
 
 inline void from_json(const nlohmann::json &j, BufferReq &req) {
@@ -122,6 +123,7 @@ inline void to_json(nlohmann::json &j, const BufferResp &resp) {
       {"src_addrs", resp.src_addrs},
       {"buffer_addr", resp.buffer_addr},
       {"buffer_lens", resp.buffer_lens},
+      {"total_buffer_len", resp.total_buffer_len},
   };
 }
 
@@ -132,6 +134,9 @@ inline void from_json(const nlohmann::json &j, BufferResp &resp) {
   j.at("src_addrs").get_to(resp.src_addrs);
   j.at("buffer_addr").get_to(resp.buffer_addr);
   j.at("buffer_lens").get_to(resp.buffer_lens);
+  if (j.contains("total_buffer_len")) {
+    j.at("total_buffer_len").get_to(resp.total_buffer_len);
+  }
 }
 
 inline void to_json(nlohmann::json &j, const HeartbeatMsg &msg) {

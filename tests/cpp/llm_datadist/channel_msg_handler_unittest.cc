@@ -12,6 +12,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <array>
+#include <limits>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -206,5 +207,32 @@ TEST_F(ChannelMsgHandlerUnitTest, ProcessServerEviction_WhenClientReturnsError_L
   // Cleanup
   close(fd);
   close(peer_fd);
+}
+
+TEST_F(ChannelMsgHandlerUnitTest, RegisterMemRejectsAddrLenOverflow) {
+  MemDesc mem{};
+  mem.addr = std::numeric_limits<uintptr_t>::max() - 0xFFU;
+  mem.len = 0x1000U;  // addr + len wraps around uintptr_t
+  MemHandle handle = nullptr;
+  // The overflow guard runs before any HCCL registration, so this is rejected up front.
+  EXPECT_EQ(handler_->RegisterMem(mem, MEM_DEVICE, handle), PARAM_INVALID);
+}
+
+TEST_F(ChannelMsgHandlerUnitTest, CreateChannelRejectsInvalidRemoteMemRange) {
+  ChannelInfo channel_info{};
+  channel_info.channel_id = kRemoteEngine;
+  channel_info.channel_type = ChannelType::kClient;
+  channel_info.local_rank_id = 0;
+  channel_info.peer_rank_id = 1;
+
+  ChannelConnectInfo peer_info{};
+  peer_info.channel_id = kRemoteEngine;
+  AddrInfo invalid_addr{};
+  invalid_addr.start_addr = kRemoteAddrEnd;
+  invalid_addr.end_addr = kRemoteAddrStart;
+  invalid_addr.mem_type = MEM_HOST;
+  peer_info.addrs.push_back(invalid_addr);
+
+  EXPECT_EQ(handler_->CreateChannel(channel_info, true, peer_info), PARAM_INVALID);
 }
 }  // namespace adxl

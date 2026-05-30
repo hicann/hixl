@@ -130,5 +130,16 @@ TEST_F(ChannelManagerUnitTest, HandleRequestDisconnectMessage_WhenDisconnectCall
   EXPECT_EQ(manager_.HandleRequestDisconnectMessage(channel, msg_str), SUCCESS);
   EXPECT_TRUE(callback_invoked);
 }
+
+TEST_F(ChannelManagerUnitTest, HandleControlMessageRejectsBodySmallerThanMsgType) {
+  ChannelInfo channel_info{};
+  channel_info.channel_type = ChannelType::kServer;
+  channel_info.channel_id = kChannelId;
+  auto channel = std::make_shared<CommChannel>(channel_info);
+  channel->recv_buffer_.resize(sizeof(ControlMsgType));
+  // A body shorter than ControlMsgType must be rejected so the payload length cannot underflow into a huge value.
+  channel->expected_body_size_ = sizeof(ControlMsgType) - 1U;
+  EXPECT_EQ(manager_.HandleControlMessage(channel), FAILED);
+}
 }  // namespace
 }  // namespace adxl
