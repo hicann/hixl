@@ -31,6 +31,22 @@ enum MemType {
 }
 ```
 
+## AsyncConnectStatus
+
+异步建链/拆链的状态。
+
+```
+enum class AsyncConnectStatus {
+  NOT_CONNECT,        // 未连接
+  CONNECT_PENDING,    // 建链待执行
+  CONNECTING,         // 建链执行中
+  CONNECTED,          // 建链成功
+  CONNECT_FAILED,     // 建链失败
+  DISCONNECT_PENDING, // 断链待执行
+  DISCONNECTING       // 断链执行中
+};
+```
+
 ## TransferOp
 
 传输操作的类型。

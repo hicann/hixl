@@ -83,6 +83,16 @@ struct NotifyDesc {
   AscendString name;
   AscendString notify_msg;
 };
+
+enum class AsyncConnectStatus {
+  NOT_CONNECT,
+  CONNECT_PENDING,
+  CONNECTING,
+  CONNECTED,
+  CONNECT_FAILED,
+  DISCONNECT_PENDING,
+  DISCONNECTING
+};
 }  // namespace hixl
 
 #endif  // CANN_HIXL_INCLUDE_HIXL_HIXL_TYPES_H_

@@ -83,6 +83,37 @@ class ASCEND_FUNC_VISIBILITY Hixl {
   Status Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis = 1000);
 
   /**
+   * @brief 与远端Hixl进行异步建链
+   * @param [in] remote_engine 远端Hixl的唯一标识
+   * @param [in] timeout_in_millis 建链的超时时间，单位ms
+   * @return 成功:SUCCESS, 失败:其它.
+   */
+  Status ConnectAsync(const AscendString &remote_engine, int32_t timeout_in_millis = 1000);
+
+  /**
+   * @brief 与远端Hixl进行异步断链
+   * @param [in] remote_engine 远端Hixl的唯一标识
+   * @param [in] timeout_in_millis 断链的超时时间，单位ms
+   * @return 成功:SUCCESS, 失败:其它.
+   */
+  Status DisconnectAsync(const AscendString &remote_engine, int32_t timeout_in_millis = 1000);
+
+  /**
+   * @brief 获取与远端Hixl进行异步建链/断链的状态
+   * @param [in] remote_engine 远端Hixl的唯一标识
+   * @param [out] status 建链状态
+   * @return 成功:SUCCESS, 失败:其它.
+   */
+  Status GetAsyncConnectStatus(const AscendString &remote_engine, AsyncConnectStatus &status);
+
+  /**
+   * @brief 获取与远端Hixl进行异步建链/断链的全部状态
+   * @param [out] statuses 建链状态表
+   * @return 成功:SUCCESS, 失败:其它.
+   */
+  Status GetAsyncConnectStatus(std::map<AscendString, AsyncConnectStatus> &statuses);
+
+  /**
    * @brief 与远端Hixl进行内存传输
    * @param [in] remote_engine 远端Hixl的唯一标识
    * @param [in] operation 将远端内存读到本地或者将本地内存写到远端
