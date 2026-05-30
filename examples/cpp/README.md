@@ -156,28 +156,56 @@ ifconfig
 
     (1) 执行client_server_h2d, client-server模式，h2d场景
 
-    - 执行client client_server_h2d, 参数为device_id、local engine和remote engine, 其中device_id为client要使用的device_id，如:
+    - 执行client client_server_h2d, 参数为device_id、local engine、remote engine和可选的protocol, 其中device_id为client要使用的device_id，protocol支持`uboe`、`roce`、`none`（默认不指定），如:
         ```
+        # 不指定protocol，使用环境变量指定RDMA传输
         HCCL_INTRA_ROCE_ENABLE=1 ./client_server_h2d 0 10.10.10.0 10.10.10.0:16000
+
+        # 使用roce协议（自动设置HCCL_INTRA_ROCE_ENABLE=1）
+        ./client_server_h2d 0 10.10.10.0 10.10.10.0:16000 roce
+
+        # 使用uboe协议
+        ./client_server_h2d 0 10.10.10.0 10.10.10.0:16000 uboe
         ```
 
-    - 执行server client_server_h2d, 参数为device_id、local engine, 其中device_id为server要使用的device_id, 如:
+    - 执行server client_server_h2d, 参数为device_id、local engine和可选的protocol, 其中device_id为server要使用的device_id, 如:
         ```
+        # 不指定protocol，使用环境变量指定RDMA传输
         HCCL_INTRA_ROCE_ENABLE=1 ./client_server_h2d 1 10.10.10.0:16000
+
+        # 使用roce协议
+        ./client_server_h2d 1 10.10.10.0:16000 roce
+
+        # 使用uboe协议
+        ./client_server_h2d 1 10.10.10.0:16000 uboe
         ```
 
     (2) 执行server_server_d2d, 均作为server，d2d场景
 
-    - 执行server1 server_server_d2d, 参数为device_id、local engine和remote engine, 其中device_id为当前engine要使用的device_id, 如:
+    - 执行server1 server_server_d2d, 参数为device_id、local engine、remote engine和可选的protocol, 其中device_id为当前engine要使用的device_id, 如:
         ```
+        # 不指定protocol，使用环境变量指定RDMA传输
         HCCL_INTRA_ROCE_ENABLE=1 ./server_server_d2d 0 10.10.10.0:16000 10.10.10.0:16001
+
+        # 使用roce协议（自动设置HCCL_INTRA_ROCE_ENABLE=1）
+        ./server_server_d2d 0 10.10.10.0:16000 10.10.10.0:16001 roce
+
+        # 使用uboe协议
+        ./server_server_d2d 0 10.10.10.0:16000 10.10.10.0:16001 uboe
         ```
 
-    - 执行server2 server_server_d2d, 参数为device_id、local engine和remote engine, 其中device_id为当前engine要使用的device_id, 如:
+    - 执行server2 server_server_d2d, 参数为device_id、local engine、remote engine和可选的protocol, 其中device_id为当前engine要使用的device_id, 如:
         ```
+        # 不指定protocol，使用环境变量指定RDMA传输
         HCCL_INTRA_ROCE_ENABLE=1 ./server_server_d2d 1 10.10.10.0:16001 10.10.10.0:16000
+
+        # 使用roce协议
+        ./server_server_d2d 1 10.10.10.0:16001 10.10.10.0:16000 roce
+
+        # 使用uboe协议
+        ./server_server_d2d 1 10.10.10.0:16001 10.10.10.0:16000 uboe
         ```
-    **注**：HCCL_INTRA_ROCE_ENABLE=1表示使用RDMA进行传输
+    **注**：protocol参数为`roce`时程序自动设置HCCL_INTRA_ROCE_ENABLE=1，使用RDMA进行传输
 
     (3) 执行fabric_mem_d2d, fabric mem模式下，d2d场景
 

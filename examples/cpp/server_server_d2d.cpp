@@ -10,6 +10,7 @@
 
 #include <numeric>
 #include <cstdio>
+#include <cstdlib>
 #include <thread>
 #include <iostream>
 #include <fstream>
@@ -20,11 +21,17 @@
 using namespace hixl;
 namespace {
 constexpr int32_t kWaitTime = 5;
-constexpr int32_t kExpectedArgCnt = 4;
+constexpr int32_t kMinArgCnt = 4;
+constexpr int32_t kMaxArgCnt = 5;
 constexpr uint32_t kArgIndexDeviceId = 1;
 constexpr uint32_t kArgIndexLocalEngine = 2;
 constexpr uint32_t kArgIndexRemoteEngine = 3;
+constexpr uint32_t kArgIndexProtocol = 4;
 constexpr uint32_t kMaxEngineNameLen = 30;
+constexpr const char *kProtocolUboe = "uboe";
+constexpr const char *kProtocolRoce = "roce";
+constexpr const char *kProtocolNone = "none";
+constexpr const char *kUboeResourceConfig = "{\"comm_resource_config.protocol_desc\": [\"uboe:device\"]}";
 
 #define CHECK_ACL(x)                                                                  \
   do {                                                                                \
@@ -43,9 +50,12 @@ const char *GetRecentErrMsg() {
 }
 }  // namespace
 
-int Initialize(Hixl &hixl_engine, const char *local_engine) {
+int Initialize(Hixl &hixl_engine, const char *local_engine, const char *protocol) {
   std::map<AscendString, AscendString> options;
   options["BufferPool"] = "0:0";
+  if (strcmp(protocol, kProtocolUboe) == 0) {
+    options[OPTION_GLOBAL_RESOURCE_CONFIG] = kUboeResourceConfig;
+  }
   auto ret = hixl_engine.Initialize(local_engine, options);
   if (ret != SUCCESS) {
     printf("[ERROR] Initialize failed, ret = %u, errmsg: %s\n", ret, GetRecentErrMsg());
@@ -95,8 +105,8 @@ int32_t Transfer(Hixl &hixl_engine, uint8_t *&buffer, uint8_t *&buffer2, const c
     std::this_thread::sleep_for(std::chrono::seconds(kWaitTime));
     char value[kMaxEngineNameLen] = {};
     CHECK_ACL(aclrtMemcpy(value, kMaxEngineNameLen, buffer, strlen(remote_engine), ACL_MEMCPY_DEVICE_TO_HOST));
-    printf("[INFO] Wait peer TransferSync write end, remote_addr:%p, value = %s\n", reinterpret_cast<void *>(remote_addr),
-           value);
+    printf("[INFO] Wait peer TransferSync write end, remote_addr:%p, value = %s\n",
+           reinterpret_cast<void *>(remote_addr), value);
     if (std::string(remote_engine) != value) {
       printf("[ERROR] Failed to check peer write value:%s, expect:%s\n", value, remote_engine);
       return -1;
@@ -149,11 +159,11 @@ void Finalize(Hixl &hixl_engine, bool connected, const char *remote_engine, cons
   hixl_engine.Finalize();
 }
 
-int32_t Run(const char *local_engine, const char *remote_engine) {
+int32_t Run(const char *local_engine, const char *remote_engine, const char *protocol) {
   printf("[INFO] run start\n");
   // 1. 初始化
   Hixl hixl_engine;
-  if (Initialize(hixl_engine, local_engine) != 0) {
+  if (Initialize(hixl_engine, local_engine, protocol) != 0) {
     printf("[ERROR] Initialize Hixl failed\n");
     return -1;
   }
@@ -215,19 +225,31 @@ int main(int32_t argc, char **argv) {
   std::string device_id;
   std::string local_engine;
   std::string remote_engine;
-  if (argc == kExpectedArgCnt) {
+  std::string protocol = kProtocolNone;
+  if (argc >= kMinArgCnt && argc <= kMaxArgCnt) {
     device_id = argv[kArgIndexDeviceId];
     local_engine = argv[kArgIndexLocalEngine];
     remote_engine = argv[kArgIndexRemoteEngine];
-    printf("[INFO] device_id = %s, local_engine = %s, remote_engine = %s\n", device_id.c_str(), local_engine.c_str(),
-           remote_engine.c_str());
+    if (argc == kMaxArgCnt) {
+      protocol = argv[kArgIndexProtocol];
+    }
+    printf("[INFO] device_id = %s, local_engine = %s, remote_engine = %s, protocol = %s\n", device_id.c_str(),
+           local_engine.c_str(), remote_engine.c_str(), protocol.c_str());
   } else {
-    printf("[ERROR] expect 3 args(device_id, local_engine, remote_engine), but got %d\n", argc - 1);
+    printf("[ERROR] expect 3~4 args(device_id, local_engine, remote_engine, [protocol]), but got %d\n", argc - 1);
     return -1;
+  }
+  if (protocol != kProtocolUboe && protocol != kProtocolRoce && protocol != kProtocolNone) {
+    printf("[ERROR] Invalid protocol: %s, expected 'uboe', 'roce' or 'none'\n", protocol.c_str());
+    return -1;
+  }
+  if (protocol == kProtocolRoce) {
+    setenv("HCCL_INTRA_ROCE_ENABLE", "1", 1);
+    printf("[INFO] Set HCCL_INTRA_ROCE_ENABLE=1 for roce protocol\n");
   }
   int32_t device = std::stoi(device_id);
   CHECK_ACL(aclrtSetDevice(device));
-  int32_t ret = Run(local_engine.c_str(), remote_engine.c_str());
+  int32_t ret = Run(local_engine.c_str(), remote_engine.c_str(), protocol.c_str());
   CHECK_ACL(aclrtResetDevice(device));
   return ret;
 }
