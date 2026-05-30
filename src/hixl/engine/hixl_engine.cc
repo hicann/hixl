@@ -123,9 +123,11 @@ Status HixlEngine::Connect(const AscendString &remote_engine, int32_t timeout_in
       "[HixlEngine] Created client is null, please check your parameters! local_engine:%s, remote_engine:%s",
       local_engine_.c_str(), remote_engine.GetString());
   std::vector<MemInfo> mem_info_list;
-  std::lock_guard<std::mutex> lock(mutex_);
-  for (const auto &pair : mem_map_) {
-    mem_info_list.push_back(pair.second);
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (const auto &pair : mem_map_) {
+      mem_info_list.push_back(pair.second);
+    }
   }
   HIXL_DISMISSABLE_GUARD(rollback,
                          ([this, &remote_engine]() { client_manager_.DestroyClient(remote_engine.GetString()); }));

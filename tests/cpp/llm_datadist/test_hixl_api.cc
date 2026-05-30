@@ -40,6 +40,28 @@ const std::string kPort = "26001";
 const std::string kEngine1Ip = kIp;
 const std::string kEngine2Ip = kIp + ":" + kPort;
 const char *const kEnableFabricMem = "1";
+
+void HixlWaitDisconnectAsyncDone(Hixl &engine, int32_t timeout_in_millis,
+                                 std::map<AscendString, AsyncConnectStatus> &statuses) {
+  const auto expire_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_in_millis);
+  while (std::chrono::steady_clock::now() <= expire_time) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    engine.GetAsyncConnectStatus(statuses);
+
+    AsyncConnectStatus status;
+    bool is_all_disconnected = true;
+    for (const auto &status : statuses) {
+      if (status.second == AsyncConnectStatus::DISCONNECT_PENDING ||
+          status.second == AsyncConnectStatus::DISCONNECTING) {
+        is_all_disconnected = false;
+        break;
+      }
+    }
+    if (is_all_disconnected) {
+      break;
+    }
+  }
+}
 }  // namespace
 class HixlSTest : public ::testing::Test {
  protected:
@@ -616,6 +638,102 @@ TEST_F(HixlSTest, TestHixlFabricMemAutoConnectAsync) {
   EXPECT_EQ(engine2.DeregisterMem(remote_handle), SUCCESS);
   engine1.Finalize();
   engine2.Finalize();
+}
+
+TEST_F(HixlSTest, TestHixlConnectAsync) {
+  constexpr int32_t ENGINE_NUM = 16;
+  constexpr int32_t SLEEP_IN_MILLIS = 10;
+  constexpr int32_t TIMEOUT_IN_MILLIS = 1000;
+  const std::string IP = "127.0.0.1:";
+  const std::map<AscendString, AscendString> OPTIONS = {
+      {"GlobalResourceConfig", R"({"connect_pool.thread_num":"2","connect_pool.task_queue_capacity":"8"})"}};
+
+  std::vector<Hixl> engine_list(ENGINE_NUM);
+  for (int32_t i = 0; i < ENGINE_NUM; ++i) {
+    llm::AutoCommResRuntimeMock::SetDevice(i);
+    EXPECT_EQ(engine_list[i].Initialize((IP + std::to_string(26000 + i)).c_str(), OPTIONS), SUCCESS);
+  }
+
+  for (int32_t i = 1; i < ENGINE_NUM; ++i) {
+    auto ret = engine_list[0].ConnectAsync((IP + std::to_string(26000 + i)).c_str(), TIMEOUT_IN_MILLIS);
+    while (ret == RESOURCE_EXHAUSTED) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_IN_MILLIS));
+      ret = engine_list[0].ConnectAsync((IP + std::to_string(26000 + i)).c_str(), TIMEOUT_IN_MILLIS);
+    }
+    EXPECT_EQ(ret, SUCCESS);
+  }
+
+  for (int32_t i = 1; i < ENGINE_NUM; ++i) {
+    AsyncConnectStatus status = AsyncConnectStatus::NOT_CONNECT;
+    const auto expire_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(TIMEOUT_IN_MILLIS);
+    while (std::chrono::steady_clock::now() <= expire_time) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_IN_MILLIS));
+      engine_list[0].GetAsyncConnectStatus((IP + std::to_string(26000 + i)).c_str(), status);
+      if (status != AsyncConnectStatus::CONNECT_PENDING && status != AsyncConnectStatus::CONNECTING) {
+        break;
+      }
+    }
+    EXPECT_EQ(status, AsyncConnectStatus::CONNECTED);
+  }
+
+  for (int32_t i = 1; i < ENGINE_NUM; ++i) {
+    auto ret = engine_list[0].DisconnectAsync((IP + std::to_string(26000 + i)).c_str(), TIMEOUT_IN_MILLIS);
+    while (ret == RESOURCE_EXHAUSTED) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_IN_MILLIS));
+      ret = engine_list[0].DisconnectAsync((IP + std::to_string(26000 + i)).c_str(), TIMEOUT_IN_MILLIS);
+    }
+    EXPECT_EQ(ret, SUCCESS);
+  }
+
+  std::map<AscendString, AsyncConnectStatus> statuses;
+  HixlWaitDisconnectAsyncDone(engine_list[0], TIMEOUT_IN_MILLIS * (ENGINE_NUM - 1), statuses);
+  EXPECT_EQ(statuses.empty(), true);
+
+  for (int32_t i = 0; i < ENGINE_NUM; ++i) {
+    engine_list[i].Finalize();
+  }
+}
+
+TEST_F(HixlSTest, TestHixlConnectAsyncFailed) {
+  constexpr int32_t SLEEP_IN_MILLIS = 10;
+  constexpr int32_t TIMEOUT_IN_MILLIS = 1000;
+  Hixl engine;
+  std::map<AscendString, AscendString> options;
+  EXPECT_EQ(engine.Initialize("127.0.0.1:26000", options), SUCCESS);
+  // not listen
+  EXPECT_EQ(engine.ConnectAsync("127.0.0.1:26001"), SUCCESS);
+
+  AsyncConnectStatus status = AsyncConnectStatus::NOT_CONNECT;
+  const auto expire_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(TIMEOUT_IN_MILLIS);
+  while (std::chrono::steady_clock::now() <= expire_time) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_IN_MILLIS));
+    engine.GetAsyncConnectStatus("127.0.0.1:26001", status);
+    if (status != AsyncConnectStatus::CONNECT_PENDING && status != AsyncConnectStatus::CONNECTING) {
+      break;
+    }
+  }
+  EXPECT_EQ(status, AsyncConnectStatus::CONNECT_FAILED);
+}
+
+TEST_F(HixlSTest, TestHixlDisconnectAsyncFailed) {
+  constexpr int32_t SLEEP_IN_MILLIS = 10;
+  constexpr int32_t TIMEOUT_IN_MILLIS = 1000;
+  Hixl engine;
+  std::map<AscendString, AscendString> options;
+  EXPECT_EQ(engine.Initialize("127.0.0.1:26000", options), SUCCESS);
+  // not listen
+  EXPECT_EQ(engine.DisconnectAsync("127.0.0.1:26001"), SUCCESS);
+
+  AsyncConnectStatus status = AsyncConnectStatus::NOT_CONNECT;
+  const auto expire_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(TIMEOUT_IN_MILLIS);
+  while (std::chrono::steady_clock::now() <= expire_time) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(SLEEP_IN_MILLIS));
+    engine.GetAsyncConnectStatus("127.0.0.1:26001", status);
+    if (status != AsyncConnectStatus::DISCONNECT_PENDING && status != AsyncConnectStatus::DISCONNECTING) {
+      break;
+    }
+  }
+  EXPECT_EQ(status, AsyncConnectStatus::NOT_CONNECT);
 }
 
 }  // namespace hixl

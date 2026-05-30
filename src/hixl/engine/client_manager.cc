@@ -40,12 +40,20 @@ ClientPtr ClientManager::GetClient(const std::string &remote_engine) {
 
 Status ClientManager::DestroyClient(const std::string &remote_engine) {
   auto ret = NOT_CONNECTED;
-  std::lock_guard<std::mutex> lock(mutex_);
-  const auto &it = clients_.find(remote_engine);
-  if (it != clients_.end()) {
-    auto client = it->second;
+  ClientPtr client = nullptr;
+
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto &it = clients_.find(remote_engine);
+    if (it != clients_.end()) {
+      client = it->second;
+      clients_.erase(it);
+      HIXL_LOGI("Erase client end, remote_engine=%s", remote_engine.c_str());
+    }
+  }
+
+  if (client != nullptr) {
     ret = client->Finalize();
-    clients_.erase(it);
     HIXL_LOGI("Destroy client end, remote_engine=%s", remote_engine.c_str());
   }
   return ret;
@@ -56,13 +64,17 @@ bool ClientManager::IsEmpty() {
 }
 
 Status ClientManager::Finalize() {
-  std::lock_guard<std::mutex> lock(mutex_);
-  for (auto &it : clients_) {
+  std::map<std::string, ClientPtr> clients;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    clients = std::move(clients_);
+  }
+
+  for (auto &it : clients) {
     if (it.second->Finalize() != SUCCESS) {
       HIXL_LOGE(FAILED, "Failed to finalize client, remote_engine:%s", it.first.c_str());
     }
   }
-  clients_.clear();
   return SUCCESS;
 }
 }  // namespace hixl
