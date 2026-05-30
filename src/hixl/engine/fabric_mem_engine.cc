@@ -366,7 +366,7 @@ Status FabricMemEngine::TransferAsync(const AscendString &remote_engine, Transfe
     return ret;
   }
   const uint64_t start_time = HixlProfilingReporter::GetSysCycleTime();
-  req_map_.emplace(id, TransferInfo{start_time, operation, remote_engine});
+  req_map_.emplace(id, TransferInfo{start_time, operation, remote_engine, nullptr});
   req = new_req;
   return SUCCESS;
 }
@@ -403,6 +403,12 @@ Status FabricMemEngine::GetTransferStatus(const TransferReq &req, TransferStatus
     req_map_.erase(it);
   }
   return SUCCESS;
+}
+
+Status FabricMemEngine::GetTransferStatus(const GetTransferStatusArgs &args, std::vector<TransferResult> &results) {
+  (void)args;
+  (void)results;
+  return UNSUPPORTED;
 }
 
 void FabricMemEngine::CleanupFabricMemLocked() {

@@ -78,6 +78,12 @@ Status CommEngine::GetTransferStatus(const TransferReq &req, TransferStatus &sta
   return ret;
 }
 
+Status CommEngine::GetTransferStatus(const GetTransferStatusArgs &args, std::vector<TransferResult> &results) {
+  (void)args;
+  (void)results;
+  return UNSUPPORTED;
+}
+
 Status CommEngine::SendNotify(const AscendString &remote_engine, const NotifyDesc &notify, int32_t timeout_in_millis) {
   adxl::NotifyDesc adxl_notify{notify.name, notify.notify_msg};
   return adxl_inner_engine_.SendNotify(remote_engine, adxl_notify, timeout_in_millis);

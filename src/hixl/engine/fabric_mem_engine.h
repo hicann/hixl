@@ -49,6 +49,7 @@ class FabricMemEngine : public hixl::Engine {
                        const std::vector<TransferOpDesc> &op_descs, const TransferArgs &optional_args,
                        TransferReq &req) override;
   Status GetTransferStatus(const TransferReq &req, TransferStatus &status) override;
+  Status GetTransferStatus(const GetTransferStatusArgs &args, std::vector<TransferResult> &results) override;
 
   Status SendNotify(const AscendString &remote_engine, const NotifyDesc &notify,
                     int32_t timeout_in_millis = 1000) override;

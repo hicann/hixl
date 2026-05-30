@@ -47,6 +47,8 @@ class Engine {
 
   virtual Status GetTransferStatus(const TransferReq &req, TransferStatus &status) = 0;
 
+  virtual Status GetTransferStatus(const GetTransferStatusArgs &args, std::vector<TransferResult> &results) = 0;
+
   virtual Status SendNotify(const AscendString &remote_engine, const NotifyDesc &notify,
                             int32_t timeout_in_millis = 1000) = 0;
 
