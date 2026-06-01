@@ -172,4 +172,14 @@ TEST(HixlMemStoreBasicTest, BatchValidateMemoryAccessMergedRegions) {
   };
   EXPECT_EQ(store.BatchValidateMemoryAccess(1, desc_list), SUCCESS);
 }
+
+TEST(HixlMemStoreBasicTest, CheckMemoryForRegisterOverflowDetected) {
+  HixlMemStore store;
+  uintptr_t near_max = std::numeric_limits<uintptr_t>::max() - 50;
+  void *server_addr = reinterpret_cast<void *>(near_max);
+  EXPECT_EQ(store.RecordMemory(true, server_addr, 50), SUCCESS);
+
+  // check_size=100 > uintptr_t::max - near_max=50, so s + check_size overflows -> returns true (overlap detected)
+  EXPECT_TRUE(store.CheckMemoryForRegister(true, server_addr, 100));
+}
 }  // namespace hixl

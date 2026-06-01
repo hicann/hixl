@@ -10,6 +10,7 @@
 
 #include <cstring>
 #include <cstdint>
+#include "utils/extern_math_util.h"
 #include "hixl/hixl_types.h"
 #include "common/hixl_checker.h"
 #include "hixl_mem_store.h"
@@ -105,11 +106,18 @@ bool HixlMemStore::CheckMemoryForRegister(bool is_server, const void *check_addr
   }  // regions为空，没有已注册，允许注册
 
   uintptr_t s = reinterpret_cast<uintptr_t>(check_addr);
-  uintptr_t e = s + check_size;  // 半开区间 [s, e)
+  uintptr_t e = 0;
+  if (ge::AddOverflow(s, check_size, e)) {
+    HIXL_LOGE(PARAM_INVALID, "Address overflow in CheckMemoryForRegister, addr:%p, size:%zu.", check_addr, check_size);
+    return true;
+  }
 
   auto overlaps = [s, e](const MemoryRegion &r) {
     auto rs = reinterpret_cast<uintptr_t>(r.addr);
-    auto re = rs + r.size;
+    uintptr_t re = 0;
+    if (ge::AddOverflow(rs, r.size, re)) {
+      return true;
+    }
     bool is_overlap = (s < re) && (rs < e); //内存重叠，返回true
     bool is_same = (s == rs) && (e == re); //当内存块与已注册内存块完全一致时，此时允许重新注册，返回false
     return is_overlap && !is_same;

@@ -16,6 +16,9 @@
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
 #include "depends/ascendcl/src/ascendcl_stub.h"
+#define private public
+#include "utils/cache_access_table.h"
+#undef private
 #include "utils/task_batcher.h"
 #include "acl/acl.h"
 #include "llm_datadist/llm_engine_types.h"
@@ -23,7 +26,7 @@
 namespace llm {
 class DataCacheEngineTest : public ::testing::Test {
  public:
-  DataCacheEngineTest() : transfer_engine_(0) {};
+  DataCacheEngineTest() : transfer_engine_(0){};
 
  protected:
   void SetUp() override {
@@ -1735,5 +1738,49 @@ TEST_F(DataCacheEngineTest, ConvertHcclErrorCode) {
   ASSERT_EQ(HcclUtils::ConvertHcclErrorCode(HCCL_E_PARA), ge::LLM_PARAM_INVALID);
   ASSERT_EQ(HcclUtils::ConvertHcclErrorCode(HCCL_E_TIMEOUT), ge::LLM_TIMEOUT);
   ASSERT_EQ(HcclUtils::ConvertHcclErrorCode(HCCL_E_INTERNAL, ge::LLM_PARAM_INVALID), ge::LLM_PARAM_INVALID);
+}
+
+namespace {
+struct TestCacheTableHeader {
+  uint64_t version_num;
+  uint64_t num_caches;
+  uint64_t num_cache_indices;
+};
+
+struct TestCacheSummary {
+  int64_t cache_id;
+  uint64_t num_blocks;
+  uint64_t batch_size;
+  uint64_t tensor_size;
+  uint64_t stride;
+  uint64_t placement;
+  uint64_t num_tensors;
+  bool remote_accessible;
+  uint32_t cache_mem_type;
+  uint64_t tensor_addresses[0];
+};
+}  // namespace
+
+TEST_F(DataCacheEngineTest, LoadFromBufferOverflowNumTensors) {
+  llm::CacheAccessTable cache_table;
+  std::vector<uint8_t> buffer(1024, 0);
+  auto *header = reinterpret_cast<TestCacheTableHeader *>(buffer.data());
+  header->version_num = 1;
+  header->num_caches = 1;
+  header->num_cache_indices = 0;
+  auto *summary = reinterpret_cast<TestCacheSummary *>(buffer.data() + sizeof(TestCacheTableHeader));
+  summary->cache_id = 1;
+  summary->num_tensors = UINT64_MAX / sizeof(uint64_t) + 1;
+  EXPECT_EQ(cache_table.LoadFromBuffer(buffer.data(), buffer.size()), ge::LLM_PARAM_INVALID);
+}
+
+TEST_F(DataCacheEngineTest, LoadFromBufferOverflowNumCacheIndices) {
+  llm::CacheAccessTable cache_table;
+  std::vector<uint8_t> buffer(1024, 0);
+  auto *header = reinterpret_cast<TestCacheTableHeader *>(buffer.data());
+  header->version_num = 1;
+  header->num_caches = 0;
+  header->num_cache_indices = UINT64_MAX;
+  EXPECT_EQ(cache_table.LoadFromBuffer(buffer.data(), buffer.size()), ge::LLM_PARAM_INVALID);
 }
 }  // namespace llm

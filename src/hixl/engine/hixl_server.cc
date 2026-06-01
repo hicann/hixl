@@ -10,6 +10,8 @@
 
 #include "hixl_server.h"
 
+#include "utils/extern_math_util.h"
+
 #include "cs/hixl_cs.h"
 #include "nlohmann/json.hpp"
 #include "cs/hixl_cs_server.h"
@@ -82,7 +84,8 @@ Status HixlServer::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_
   HIXL_CHECK_NOTNULL(server_handle_);
   AddrInfo cur_info{};
   cur_info.start_addr = mem.addr;
-  cur_info.end_addr = mem.addr + mem.len;
+  HIXL_CHK_BOOL_RET_STATUS(!ge::AddOverflow(mem.addr, mem.len, cur_info.end_addr), PARAM_INVALID,
+                           "Address overflow in RegisterMem, addr:0x%lx, len:%lu.", mem.addr, mem.len);
   cur_info.mem_type = type;
   std::lock_guard<std::mutex> lk(mtx_);
 

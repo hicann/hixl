@@ -9,6 +9,7 @@
  */
 
 #include "utils/cache_access_table.h"
+#include "utils/extern_math_util.h"
 #include "acl/acl.h"
 #include "common/llm_checker.h"
 #include "hccl/hccl_adapter.h"
@@ -229,24 +230,34 @@ ge::Status CacheAccessTable::Initialize(bool remote_cache_accessible) {
 }
 
 ge::Status CacheAccessTable::LoadFromBuffer(const uint8_t *buffer, size_t buffer_size) {
+  LLM_CHK_BOOL_RET_STATUS(buffer_size >= sizeof(CacheTableHeader), ge::LLM_PARAM_INVALID,
+                          "Buffer too small for header, size = %zu", buffer_size);
   auto &header = *PtrToPtr<uint8_t, CacheTableHeader>(buffer);
   LLMLOGI("version_num = %lu, num_caches = %lu, num_cache_indices = %lu",
          header.version_num, header.num_caches, header.num_cache_indices);
-  auto cache_summary_offset = sizeof(CacheTableHeader);
+  LLM_CHK_BOOL_RET_STATUS(header.num_caches <= (buffer_size - sizeof(CacheTableHeader)) / sizeof(CacheSummary),
+                          ge::LLM_PARAM_INVALID,
+                          "num_caches (%lu) exceeds buffer capacity", header.num_caches);
+  size_t cache_summary_offset = sizeof(CacheTableHeader);
   for (uint64_t i = 0U; i < header.num_caches; ++i) {
-    auto cache_summary_size = sizeof(CacheSummary);
-    LLM_CHK_BOOL_RET_STATUS(cache_summary_offset + cache_summary_size <= buffer_size,
-                           ge::LLM_PARAM_INVALID,
-                           "Parse cache[%lu] failed, version_num = %lu, num_caches = %lu",
-                           i, header.version_num, header.num_caches);
     auto cache_summary_buffer = buffer + cache_summary_offset;
     const CacheSummary &cache_summary = *PtrToPtr<uint8_t, CacheSummary>(cache_summary_buffer);
-    cache_summary_size += cache_summary.num_tensors * sizeof(uint64_t);
-    LLM_CHK_BOOL_RET_STATUS(cache_summary_offset + cache_summary_size <= buffer_size,
-                           ge::LLM_PARAM_INVALID,
-                           "Parse cache[%lu] failed, num_tensors = %lu, version_num = %lu, num_caches = %lu",
-                           i, cache_summary.num_tensors, header.version_num, header.num_caches);
-    cache_summary_offset += cache_summary_size;
+    size_t tensor_array_size = 0;
+    LLM_CHK_BOOL_RET_STATUS(!ge::MulOverflow(cache_summary.num_tensors, sizeof(uint64_t), tensor_array_size),
+                            ge::LLM_PARAM_INVALID,
+                            "num_tensors (%lu) overflow for cache[%lu]", cache_summary.num_tensors, i);
+    size_t cache_summary_size = 0;
+    LLM_CHK_BOOL_RET_STATUS(!ge::AddOverflow(sizeof(CacheSummary), tensor_array_size, cache_summary_size),
+                            ge::LLM_PARAM_INVALID,
+                            "cache_summary_size overflow for cache[%lu]", i);
+    size_t cache_summary_end = 0;
+    LLM_CHK_BOOL_RET_STATUS(!ge::AddOverflow(cache_summary_offset, cache_summary_size, cache_summary_end),
+                            ge::LLM_PARAM_INVALID,
+                            "Parse cache[%lu] failed, offset overflow", i);
+    LLM_CHK_BOOL_RET_STATUS(cache_summary_end <= buffer_size, ge::LLM_PARAM_INVALID,
+                            "Parse cache[%lu] failed, num_tensors = %lu, version_num = %lu, num_caches = %lu",
+                            i, cache_summary.num_tensors, header.version_num, header.num_caches);
+    cache_summary_offset = cache_summary_end;
     CacheEntry cache_entry = ToCacheEntry(cache_summary);
     LLMLOGI("Cache entry loaded, cache_id = %lu, num_blocks = %lu, batch_size = %u, "
            "tensor_size = %lu, stride = %lu, placement = %lu, num_tensors = %zu",
@@ -256,6 +267,18 @@ ge::Status CacheAccessTable::LoadFromBuffer(const uint8_t *buffer, size_t buffer
                            ge::LLM_PARAM_INVALID,
                            "duplicate cache_id: %ld", cache_summary.cache_id);
   }
+  LLM_CHK_BOOL_RET_STATUS(cache_summary_offset <= buffer_size, ge::LLM_PARAM_INVALID,
+                          "cache_summary_offset (%zu) exceeds buffer_size (%zu)", cache_summary_offset, buffer_size);
+  size_t cache_indices_size = 0;
+  LLM_CHK_BOOL_RET_STATUS(!ge::MulOverflow(header.num_cache_indices, sizeof(CacheIndex), cache_indices_size),
+                          ge::LLM_PARAM_INVALID,
+                          "num_cache_indices (%lu) overflow", header.num_cache_indices);
+  size_t cache_indices_end = 0;
+  LLM_CHK_BOOL_RET_STATUS(!ge::AddOverflow(cache_summary_offset, cache_indices_size, cache_indices_end),
+                          ge::LLM_PARAM_INVALID,
+                          "cache_indices offset overflow");
+  LLM_CHK_BOOL_RET_STATUS(cache_indices_end <= buffer_size, ge::LLM_PARAM_INVALID,
+                          "num_cache_indices (%lu) exceeds buffer capacity", header.num_cache_indices);
   auto *cache_indices = PtrToPtr<uint8_t, CacheIndex>(buffer + cache_summary_offset);
   for (uint64_t i = 0U; i < header.num_cache_indices; ++i) {
     const auto &cache_index = cache_indices[i];
