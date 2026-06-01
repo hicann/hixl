@@ -34,6 +34,7 @@ class ClientManager {
  private:
   std::mutex mutex_;
   std::map<std::string, ClientPtr> clients_;
+  bool finalized_ = false;
 };
 }  // namespace hixl
 

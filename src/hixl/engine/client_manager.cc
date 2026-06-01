@@ -20,6 +20,13 @@ Status ClientManager::CreateClient(const ClientConfig &config, ClientPtr &client
   int32_t port = 0;
   HIXL_CHK_STATUS_RET(ParseListenInfo(config.remote_engine, ip, port), "Failed to parse ip, remote_engine:%s",
                       config.remote_engine.c_str());
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (finalized_) {
+      HIXL_LOGE(FAILED, "ClientManager already finalized, cannot create new client");
+      return FAILED;
+    }
+  }
   client_ptr = MakeShared<HixlClient>(ip, static_cast<uint32_t>(port), config);
   HIXL_CHECK_NOTNULL(client_ptr, "Failed to create HixlClient, ip:%s, port:%u", ip.c_str(), port);
   HIXL_CHK_STATUS_RET(client_ptr->Initialize(config.endpoint_list), "Failed to initialize HixlClient, ip:%s, port:%u",
@@ -60,6 +67,7 @@ Status ClientManager::DestroyClient(const std::string &remote_engine) {
 }
 
 bool ClientManager::IsEmpty() {
+  std::lock_guard<std::mutex> lock(mutex_);
   return clients_.empty();
 }
 
@@ -67,6 +75,7 @@ Status ClientManager::Finalize() {
   std::map<std::string, ClientPtr> clients;
   {
     std::lock_guard<std::mutex> lock(mutex_);
+    finalized_ = true;
     clients = std::move(clients_);
   }
 

@@ -267,6 +267,11 @@ ge::Status SendState::CheckParam(const CacheEntry &cache_entry, const TransferCa
         ge::LLM_PARAM_INVALID,
         "src_tensor_indices_size[%u] or src_tensor_start_index[%u] is invalid, src_cache num is[%zu]",
         request.src_tensor_indices_size, request.src_tensor_start_index, cache_entry.cache_addrs.size());
+  } else {
+    LLM_CHK_BOOL_RET_STATUS(static_cast<size_t>(request.src_tensor_start_index) < cache_entry.cache_addrs.size(),
+                           ge::LLM_PARAM_INVALID,
+                           "src_tensor_start_index[%u] is out of range, cache_addrs size is[%zu]",
+                           request.src_tensor_start_index, cache_entry.cache_addrs.size());
   }
   return ge::SUCCESS;
 }

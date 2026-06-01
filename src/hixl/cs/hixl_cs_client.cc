@@ -972,6 +972,7 @@ Status HixlCSClient::BatchTransferHostSync(bool is_get, uint32_t list_num, const
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
   while (true) {
     if (std::chrono::steady_clock::now() >= deadline) {
+      std::lock_guard<std::mutex> lock(mutex_);
       (void)ReleaseCompleteHandle(static_cast<CompleteHandleInfo *>(raw_handle));
       HIXL_LOGE(TIMEOUT, "[HixlClient] BatchTransferHostSync timeout after %u ms", timeout_ms);
       return TIMEOUT;
@@ -979,6 +980,7 @@ Status HixlCSClient::BatchTransferHostSync(bool is_get, uint32_t list_num, const
     HixlCompleteStatus st = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
     const Status cs = CheckStatus(raw_handle, &st);
     if (cs != SUCCESS) {
+      std::lock_guard<std::mutex> lock(mutex_);
       (void)ReleaseCompleteHandle(static_cast<CompleteHandleInfo *>(raw_handle));
       return cs;
     }

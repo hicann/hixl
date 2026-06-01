@@ -67,6 +67,8 @@ private:
                                      int64_t tensor_size);
   static void NoDelete(void *) {}
   void AddCacheIndices(CacheEntry &cache_entry, int64_t cache_id, const std::vector<CacheKey> &cache_keys);
+  void RemoveCacheIndices(int64_t cache_id);
+  void RemoveBatchIndex(CacheEntry &cache_entry, int64_t cache_id, uint64_t batch_id);
   ge::Status CheckCacheKeys(const CacheDesc &cache_desc, const std::vector<CacheKey> &cache_keys);
   static DataCacheKey CreateDataCacheKey(const CacheKey &cache_key, bool &is_prefix);
   static ge::Status CheckCopyParams(const CacheEntry &src_cache_entry,

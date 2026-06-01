@@ -11,6 +11,8 @@
 #ifndef CANN_GRAPH_ENGINE_PYTHON_LLM_WRAPPER_LLM_DATADIST_V2_WRAPPER_H
 #define CANN_GRAPH_ENGINE_PYTHON_LLM_WRAPPER_LLM_DATADIST_V2_WRAPPER_H
 
+#include <shared_mutex>
+
 #include "llm_datadist_v2.h"
 
 namespace llm {
@@ -113,6 +115,7 @@ class LLMDataDistV2Wrapper {
 
  private:
   static std::unique_ptr<LLMDataDistV2> llm_data_dist;
+  static std::shared_mutex mutex_;
 };
 }  // namespace llm
 

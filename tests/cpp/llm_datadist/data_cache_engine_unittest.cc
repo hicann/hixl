@@ -170,6 +170,74 @@ TEST_F(DataCacheEngineTest, CacheOps) {
   cache_engine_.Finalize();
 }
 
+TEST_F(DataCacheEngineTest, RemoveCacheIndices_PrefixKey) {
+  std::map<ge::AscendString, ge::AscendString> options;
+  options[llm::LLM_OPTION_MEM_POOL_CONFIG] = "{\"memory_size\": 262144}";
+  EXPECT_EQ(cache_engine_.Initialize(options), ge::SUCCESS);
+
+  CacheDesc cache_desc{};
+  cache_desc.num_tensors = 4;
+  cache_desc.placement = 0;
+  cache_desc.shape = {4, 4096};
+  cache_desc.data_type = ge::DT_INT32;
+  // cache_mem_type defaults to CACHE, so num_blocks == 0
+
+  // Prepare host buffers and fill per_device_tensor_addrs (required by Register)
+  size_t num_elements = 1;
+  for (auto dim : cache_desc.shape) {
+    num_elements *= dim;
+  }
+  std::vector<std::vector<int32_t>> host_buffers(cache_desc.num_tensors, std::vector<int32_t>(num_elements));
+  Cache cache{};
+  cache.per_device_tensor_addrs.resize(1);
+  for (auto &host_buffer : host_buffers) {
+    cache.per_device_tensor_addrs[0].emplace_back(reinterpret_cast<uintptr_t>(&host_buffer[0]));
+  }
+
+  std::vector<CacheKey> cache_keys;
+  // Create a prefix cache key: prefix_id != UINT64_MAX
+  CacheKey prefix_key{};
+  prefix_key.prefix_id = 100;
+  prefix_key.model_id = 1;
+  prefix_key.req_id = UINT64_MAX;  // not used for prefix keys
+  cache_keys.emplace_back(prefix_key);
+
+  // Register cache entry with prefix key
+  // This should populate:
+  // 1. prefix_key_to_id_ (because is_prefix = true)
+  // 2. cache_id_and_batch_id_to_cache_key_ (because data_cache_key.first = 100 != UINT64_MAX)
+  // 3. cache_id_to_tensor_indices_
+  EXPECT_EQ(cache_engine_.Register(cache_desc, cache_keys, cache), ge::SUCCESS);
+
+  // Verify prefix key lookup works
+  CacheEntry cache_entry;
+  DataCacheKey data_cache_key = std::make_pair(prefix_key.prefix_id, prefix_key.model_id);
+  EXPECT_TRUE(cache_manager_.GetCacheEntry(data_cache_key, true, cache_entry));
+  EXPECT_EQ(cache_entry.cache_addrs.size(), cache_desc.num_tensors);
+
+  // Verify batch index lookup works
+  DataCacheKey retrieved_key;
+  EXPECT_TRUE(cache_manager_.GetCacheKey(std::make_pair(cache.cache_id, 0UL), retrieved_key));
+  EXPECT_EQ(retrieved_key.first, prefix_key.prefix_id);
+  EXPECT_EQ(retrieved_key.second, prefix_key.model_id);
+
+  // Unregister cache entry - this calls RemoveCacheIndices
+  // which should clean up prefix_key_to_id_, cache_id_and_batch_id_to_cache_key_,
+  // and cache_id_to_tensor_indices_
+  EXPECT_EQ(cache_engine_.Unregister(cache.cache_id), ge::SUCCESS);
+
+  // Verify prefix key lookup no longer works (stale mapping cleaned up)
+  EXPECT_FALSE(cache_manager_.GetCacheEntry(data_cache_key, true, cache_entry));
+
+  // Verify batch index lookup no longer works (stale mapping cleaned up)
+  EXPECT_FALSE(cache_manager_.GetCacheKey(std::make_pair(cache.cache_id, 0UL), retrieved_key));
+
+  // Verify cache entry no longer exists
+  EXPECT_FALSE(cache_manager_.GetCacheEntry(cache.cache_id, cache_entry));
+
+  cache_engine_.Finalize();
+}
+
 TEST_F(DataCacheEngineTest, CopyCache_C2C) {
   std::map<ge::AscendString, ge::AscendString> options;
   // 4 * 64K

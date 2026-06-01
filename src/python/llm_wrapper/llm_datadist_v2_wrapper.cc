@@ -15,10 +15,12 @@
 
 namespace llm {
 std::unique_ptr<LLMDataDistV2> LLMDataDistV2Wrapper::llm_data_dist;
+std::shared_mutex LLMDataDistV2Wrapper::mutex_;
 
 namespace {}  // namespace
 
 ge::Status LLMDataDistV2Wrapper::Init(uint64_t cluster_id, const std::map<std::string, std::string> &options) {
+  std::unique_lock<std::shared_mutex> lock(mutex_);
   LLM_CHK_BOOL_RET_STATUS(llm_data_dist == nullptr, ge::FAILED, "Repeat Init");
   std::unique_ptr<LLMDataDistV2> instance = llm::MakeUnique<LLMDataDistV2>(cluster_id);
   LLM_CHECK_NOTNULL(instance);
@@ -33,6 +35,7 @@ ge::Status LLMDataDistV2Wrapper::Init(uint64_t cluster_id, const std::map<std::s
 }
 
 void LLMDataDistV2Wrapper::Finalize() {
+  std::unique_lock<std::shared_mutex> lock(mutex_);
   if (llm_data_dist != nullptr) {
     llm_data_dist->LLMDataDistFinalize();
     llm_data_dist.reset();
@@ -44,13 +47,17 @@ std::pair<ge::Status, uint64_t> LLMDataDistV2Wrapper::Link(std::string &cluster_
                                                            std::string &rank_table) {
   ge::Status ret = ge::FAILED;
   uint64_t comm_id = 0UL;
-  if (llm_data_dist != nullptr) {
-    ret = llm_data_dist->Link(cluster_name, cluster2rank, rank_table, comm_id);
+  {
+    std::shared_lock<std::shared_mutex> lock(mutex_);
+    if (llm_data_dist != nullptr) {
+      ret = llm_data_dist->Link(cluster_name, cluster2rank, rank_table, comm_id);
+    }
   }
   return {ret, comm_id};
 }
 
 ge::Status LLMDataDistV2Wrapper::Unlink(uint64_t comm_id) {
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   if (llm_data_dist == nullptr) {
     return ge::FAILED;
   }
@@ -61,9 +68,12 @@ std::pair<ge::Status, std::vector<ge::Status>> LLMDataDistV2Wrapper::LinkCluster
     const std::vector<ClusterInfoTuple> &clusters, int32_t timeout) {
   ge::Status ret = ge::FAILED;
   std::vector<ge::Status> rets;
-  if (llm_data_dist != nullptr) {
-    auto cluster_infos = LLMDataDistV2Wrapper::UnpackClusterInfos(clusters);
-    ret = llm_data_dist->LinkClusters(cluster_infos, rets, timeout);
+  auto cluster_infos = LLMDataDistV2Wrapper::UnpackClusterInfos(clusters);
+  {
+    std::shared_lock<std::shared_mutex> lock(mutex_);
+    if (llm_data_dist != nullptr) {
+      ret = llm_data_dist->LinkClusters(cluster_infos, rets, timeout);
+    }
   }
   return {ret, rets};
 }
@@ -72,14 +82,18 @@ std::pair<ge::Status, std::vector<ge::Status>> LLMDataDistV2Wrapper::UnlinkClust
     const std::vector<ClusterInfoTuple> &clusters, int32_t timeout, bool force_flag) {
   ge::Status ret = ge::FAILED;
   std::vector<ge::Status> rets;
-  if (llm_data_dist != nullptr) {
-    auto cluster_infos = LLMDataDistV2Wrapper::UnpackClusterInfos(clusters);
-    ret = llm_data_dist->UnlinkClusters(cluster_infos, rets, timeout, force_flag);
+  auto cluster_infos = LLMDataDistV2Wrapper::UnpackClusterInfos(clusters);
+  {
+    std::shared_lock<std::shared_mutex> lock(mutex_);
+    if (llm_data_dist != nullptr) {
+      ret = llm_data_dist->UnlinkClusters(cluster_infos, rets, timeout, force_flag);
+    }
   }
   return {ret, rets};
 }
 
 std::pair<ge::Status, uint32_t> LLMDataDistV2Wrapper::QueryRegisterMemStatus(uint64_t comm_id) {
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   if (llm_data_dist == nullptr) {
     return {ge::FAILED, 0};
   }
@@ -94,19 +108,23 @@ std::pair<ge::Status, CacheTuple> LLMDataDistV2Wrapper::RegisterCache(const Cach
                                                                       bool remote_accessible) {
   ge::Status ret = ge::FAILED;
   CacheTuple result;
-  if (llm_data_dist != nullptr) {
-    Cache cache;
-    cache.per_device_tensor_addrs = {tensor_addrs};
-    auto real_cache_desc = LLMDataDistV2Wrapper::UnpackCacheDesc(cache_desc);
-    real_cache_desc.remote_accessible = remote_accessible;
-    ret = llm_data_dist->RegisterCache(real_cache_desc, cache,
-                                       LLMDataDistV2Wrapper::UnpackCacheKeys(cache_keys));
-    result = std::make_tuple(cache.cache_id, std::move(cache.per_device_tensor_addrs));
+  Cache cache;
+  cache.per_device_tensor_addrs = {tensor_addrs};
+  auto real_cache_desc = LLMDataDistV2Wrapper::UnpackCacheDesc(cache_desc);
+  real_cache_desc.remote_accessible = remote_accessible;
+  auto unpacked_keys = LLMDataDistV2Wrapper::UnpackCacheKeys(cache_keys);
+  {
+    std::shared_lock<std::shared_mutex> lock(mutex_);
+    if (llm_data_dist != nullptr) {
+      ret = llm_data_dist->RegisterCache(real_cache_desc, cache, unpacked_keys);
+      result = std::make_tuple(cache.cache_id, std::move(cache.per_device_tensor_addrs));
+    }
   }
   return {ret, result};
 }
 
 ge::Status LLMDataDistV2Wrapper::UnregisterCache(int64_t cache_id) {
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   ge::Status ret = ge::FAILED;
   if (llm_data_dist != nullptr) {
     ret = llm_data_dist->UnregisterCache(cache_id);
@@ -118,52 +136,67 @@ std::pair<ge::Status, CacheTuple> LLMDataDistV2Wrapper::AllocateCache(const Cach
                                                                       const std::vector<CacheKeyTuple> &cache_keys) {
   ge::Status ret = ge::FAILED;
   CacheTuple result;
-  if (llm_data_dist != nullptr) {
-    Cache cache;
-    ret = llm_data_dist->AllocateCache(LLMDataDistV2Wrapper::UnpackCacheDesc(cache_desc), cache,
-                                       LLMDataDistV2Wrapper::UnpackCacheKeys(cache_keys));
-    result = std::make_tuple(cache.cache_id, std::move(cache.per_device_tensor_addrs));
+  Cache cache;
+  auto unpacked_desc = LLMDataDistV2Wrapper::UnpackCacheDesc(cache_desc);
+  auto unpacked_keys = LLMDataDistV2Wrapper::UnpackCacheKeys(cache_keys);
+  {
+    std::shared_lock<std::shared_mutex> lock(mutex_);
+    if (llm_data_dist != nullptr) {
+      ret = llm_data_dist->AllocateCache(unpacked_desc, cache, unpacked_keys);
+      result = std::make_tuple(cache.cache_id, std::move(cache.per_device_tensor_addrs));
+    }
   }
   return {ret, result};
 }
 
 ge::Status LLMDataDistV2Wrapper::DeallocateCache(int64_t cache_id) {
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   LLM_CHECK_NOTNULL(llm_data_dist);
   return llm_data_dist->DeallocateCache(cache_id);
 }
 
 ge::Status LLMDataDistV2Wrapper::PullCache(int64_t cache_id, const CacheKeyTuple &cache_key,
                                            const PullCacheParamTuple &pull_cache_param) {
+  auto unpacked_key = LLMDataDistV2Wrapper::UnpackCacheKey(cache_key);
+  auto unpacked_param = LLMDataDistV2Wrapper::UnpackPullCacheParam(pull_cache_param);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   LLM_CHECK_NOTNULL(llm_data_dist);
-  return llm_data_dist->PullCache(cache_id, LLMDataDistV2Wrapper::UnpackCacheKey(cache_key),
-                                  LLMDataDistV2Wrapper::UnpackPullCacheParam(pull_cache_param));
+  return llm_data_dist->PullCache(cache_id, unpacked_key, unpacked_param);
 }
 
 ge::Status LLMDataDistV2Wrapper::CopyCache(CopyCacheParamTuple copy_cache_param) {
+  auto unpacked = LLMDataDistV2Wrapper::UnpackCopyCacheParam(std::move(copy_cache_param));
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   LLM_CHECK_NOTNULL(llm_data_dist);
-  return llm_data_dist->CopyCache(LLMDataDistV2Wrapper::UnpackCopyCacheParam(std::move(copy_cache_param)));
+  return llm_data_dist->CopyCache(unpacked);
 }
 
 ge::Status LLMDataDistV2Wrapper::RemoveCacheKey(const CacheKeyTuple &cache_key_tuple) {
+  auto unpacked = LLMDataDistV2Wrapper::UnpackCacheKey(cache_key_tuple);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   LLM_CHECK_NOTNULL(llm_data_dist);
-  return llm_data_dist->RemoveCacheKey(LLMDataDistV2Wrapper::UnpackCacheKey(cache_key_tuple));
+  return llm_data_dist->RemoveCacheKey(unpacked);
 }
 
 ge::Status LLMDataDistV2Wrapper::RemapRegisteredMemory(const std::vector<MemInfoTuple> &mem_infos) {
+  auto unpacked = LLMDataDistV2Wrapper::UnpackMemInfos(mem_infos);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   LLM_CHECK_NOTNULL(llm_data_dist);
-  return llm_data_dist->RemapRegisteredMemory(LLMDataDistV2Wrapper::UnpackMemInfos(mem_infos));
+  return llm_data_dist->RemapRegisteredMemory(unpacked);
 }
 
 ge::Status LLMDataDistV2Wrapper::SwapBlocks(const CacheTuple &src, const CacheTuple &dst, const uint64_t block_size,
                                             const uint32_t type,
                                             const std::vector<std::pair<int64_t, int64_t>> &block_mapping) {
+  auto unpacked_src = LLMDataDistV2Wrapper::UnpackCacheTuple(src);
+  auto unpacked_dst = LLMDataDistV2Wrapper::UnpackCacheTuple(dst);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   LLM_CHECK_NOTNULL(llm_data_dist);
-  return llm_data_dist->SwapBlocks(LLMDataDistV2Wrapper::UnpackCacheTuple(src),
-                                   LLMDataDistV2Wrapper::UnpackCacheTuple(dst),
-                                   block_size, type, block_mapping);
+  return llm_data_dist->SwapBlocks(unpacked_src, unpacked_dst, block_size, type, block_mapping);
 }
 
 ge::Status LLMDataDistV2Wrapper::CheckCapacity(const size_t seq_len) {
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   LLM_CHECK_NOTNULL(llm_data_dist);
   return llm_data_dist->CheckCapacity(seq_len);
 }
@@ -171,12 +204,15 @@ ge::Status LLMDataDistV2Wrapper::CheckCapacity(const size_t seq_len) {
 ge::Status LLMDataDistV2Wrapper::TransferCache(const uint64_t task_id,
                                                const TransferCacheConfigTuple &transfer_cache_param,
                                                const TransferBlockConfigTuple &transfer_block_param) {
+  auto unpacked_config = LLMDataDistV2Wrapper::UnpackTransferCacheConfig(transfer_cache_param);
+  auto unpacked_block = LLMDataDistV2Wrapper::UnpackTransferBlockConfig(transfer_block_param);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   LLM_CHECK_NOTNULL(llm_data_dist);
-  return llm_data_dist->TransferCache(task_id, LLMDataDistV2Wrapper::UnpackTransferCacheConfig(transfer_cache_param),
-                                      LLMDataDistV2Wrapper::UnpackTransferBlockConfig(transfer_block_param));
+  return llm_data_dist->TransferCache(task_id, unpacked_config, unpacked_block);
 }
 
 ge::Status LLMDataDistV2Wrapper::SwitchRole(const std::string &role, std::map<std::string, std::string> &options) {
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   LLM_CHECK_NOTNULL(llm_data_dist);
   return llm_data_dist->SwitchRole(role, options);
 }

@@ -131,8 +131,11 @@ bool CacheManager::GetCacheEntry(const DataCacheKey &cache_key, bool is_prefix, 
   if (iter == cache_key_to_id.cend()) {
     return false;
   }
-  // cache_key exist, cache entry necessarily exist
-  cache_entry = *DoGetCacheEntry(iter->second);
+  const auto *entry = DoGetCacheEntry(iter->second);
+  if (entry == nullptr) {
+    return false;
+  }
+  cache_entry = *entry;
   return true;
 }
 
@@ -142,6 +145,9 @@ ge::Status CacheManager::RegisterCacheEntry(int64_t cache_id, const std::vector<
   CacheEntry cache_entry = CreateCacheEntry(cache_desc, addrs, tensor_size);
   {
     std::lock_guard<std::mutex> lk(mu_);
+    LLM_CHK_STATUS_RET(CheckCacheKeys(cache_desc, cache_keys), "Check cache_keys failed");
+    LLM_CHK_BOOL_RET_STATUS(cache_id_to_entry_.find(cache_id) == cache_id_to_entry_.cend(),
+                           ge::LLM_PARAM_INVALID, "cache_id %ld already exists", cache_id);
     AddCacheIndices(cache_entry, cache_id, cache_keys);
     cache_id_to_entry_[cache_id] = std::move(cache_entry);
     LLM_CHK_STATUS_RET(UpdateCacheTable(), "Failed to update cache table");
@@ -155,6 +161,7 @@ ge::Status CacheManager::UnregisterCacheEntry(int64_t cache_id) {
   if (iter == cache_id_to_entry_.cend()) {
     return ge::SUCCESS;
   }
+  RemoveCacheIndices(cache_id);
   cache_id_to_entry_.erase(iter);
   LLM_CHK_STATUS_RET(UpdateCacheTable(), "Failed to update cache table");
   return ge::SUCCESS;
@@ -176,7 +183,6 @@ ge::Status CacheManager::Allocate(int64_t cache_id,
       (cache_desc.placement == static_cast<uint32_t>(CachePlacement::HOST)) ? host_mem_pool_ : npu_mem_pool_;
   LLM_CHK_BOOL_RET_STATUS(mem_pool != nullptr, ge::LLM_FEATURE_NOT_ENABLED,
                          "memory pool is not enabled");
-  LLM_CHK_STATUS_RET(CheckCacheKeys(cache_desc, cache_keys), "Check cache_keys failed");
   int64_t tensor_size;
   LLM_CHK_STATUS_RET(LLMUtils::CalcTensorMemSize(cache_desc.shape, cache_desc.data_type, tensor_size),
                     "Failed to calc tensor size");
@@ -200,15 +206,17 @@ ge::Status CacheManager::Allocate(int64_t cache_id,
   cache_entry.cache_addrs = cache_tensors;
   {
     std::lock_guard<std::mutex> lk(mu_);
+    LLM_CHK_STATUS_RET(CheckCacheKeys(cache_desc, cache_keys), "Check cache_keys failed");
+    LLM_CHK_BOOL_RET_STATUS(cache_id_to_entry_.find(cache_id) == cache_id_to_entry_.cend(),
+                           ge::LLM_PARAM_INVALID, "cache_id %ld already exists", cache_id);
     AddCacheIndices(cache_entry, cache_id, cache_keys);
     cache_id_to_entry_[cache_id] = std::move(cache_entry);
+    LLM_CHK_STATUS_RET(UpdateCacheTable(), "Failed to update cache table");
   }
   cache.cache_id = cache_id;
   (void)cache.per_device_tensor_addrs.emplace_back(std::move(tensor_addresses));
   LLMLOGI("[cache_id:%ld][Allocate] success, num_tensors = %u, shape = %s, placement = %u", cache_id,
          cache_desc.num_tensors, hixl::ToString(cache_desc.shape).c_str(), cache_desc.placement);
-  std::lock_guard<std::mutex> lk(mu_);
-  LLM_CHK_STATUS_RET(UpdateCacheTable(), "Failed to update cache table");
   return ge::SUCCESS;
 }
 
@@ -289,6 +297,39 @@ void CacheManager::AddCacheIndices(CacheEntry &cache_entry,
   }
 }
 
+void CacheManager::RemoveCacheIndices(int64_t cache_id) {
+  for (auto it = cache_key_to_id_.begin(); it != cache_key_to_id_.end();) {
+    if (it->second == cache_id) {
+      it = cache_key_to_id_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+  for (auto it = prefix_key_to_id_.begin(); it != prefix_key_to_id_.end();) {
+    if (it->second == cache_id) {
+      it = prefix_key_to_id_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+  for (auto it = cache_id_and_batch_id_to_cache_key_.begin(); it != cache_id_and_batch_id_to_cache_key_.end();) {
+    if (it->first.first == cache_id) {
+      it = cache_id_and_batch_id_to_cache_key_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+  (void)cache_id_to_tensor_indices_.erase(cache_id);
+}
+
+void CacheManager::RemoveBatchIndex(CacheEntry &cache_entry, int64_t cache_id, uint64_t batch_id) {
+  const auto it = cache_entry.id_to_batch_index_and_size.find(batch_id);
+  if (it != cache_entry.id_to_batch_index_and_size.cend()) {
+    (void) cache_id_and_batch_id_to_cache_key_.erase(std::make_pair(cache_id, it->second.first));
+    (void) cache_entry.id_to_batch_index_and_size.erase(it);
+  }
+}
+
 DataCacheKey CacheManager::CreateDataCacheKey(const CacheKey &cache_key, bool &is_prefix) {
   is_prefix = cache_key.prefix_id != UINT64_MAX;
   return is_prefix ? std::make_pair(cache_key.prefix_id, cache_key.model_id) :
@@ -309,14 +350,7 @@ ge::Status CacheManager::Deallocate(int64_t cache_id) {
     return ge::SUCCESS;
   }
   if (cache_entry.num_blocks > 0U) {
-    // remove cache keys for blocks cache
-    for (auto entry_it = cache_key_to_id_.begin(); entry_it != cache_key_to_id_.end();) {
-      if (entry_it->second == cache_id) {
-        entry_it = cache_key_to_id_.erase(entry_it);
-        continue;
-      }
-      entry_it++;
-    }
+    RemoveCacheIndices(cache_id);
     (void) cache_id_to_entry_.erase(it);
     LLMLOGI("[cache_id:%ld][Deallocate blocks cache] success", cache_id);
     LLM_CHK_STATUS_RET(UpdateCacheTable(), "Failed to update cache table");
@@ -351,7 +385,13 @@ ge::Status CacheManager::RemoveCacheKey(const DataCacheKey &data_cache_key, bool
     return ge::SUCCESS;
   }
   const auto cache_id = it->second;
-  auto &cache_entry = cache_id_to_entry_.at(cache_id);
+  auto entry_it = cache_id_to_entry_.find(cache_id);
+  if (entry_it == cache_id_to_entry_.end()) {
+    LLMLOGI("[RemoveCacheKey] cache_id %ld not found in entry map, cleaning up stale key_to_id mapping", cache_id);
+    (void) key_to_id.erase(it);
+    return ge::SUCCESS;
+  }
+  auto &cache_entry = entry_it->second;
   if (!cache_entry.is_owned) {
     LLMLOGI("[cache_id:%ld] [RemoveCacheKey] does not operate on registered cache, "
            "cache_key = (%lu, %lu), is_prefix = %d",
@@ -371,12 +411,7 @@ ge::Status CacheManager::RemoveCacheKey(const DataCacheKey &data_cache_key, bool
            cache_tensor_indices.size());
     return ge::SUCCESS;
   }
-  const auto batch_index_and_size_it = cache_entry.id_to_batch_index_and_size.find(data_cache_key.first);
-  if (batch_index_and_size_it != cache_entry.id_to_batch_index_and_size.cend()) {
-    const auto batch_index = batch_index_and_size_it->second.first;
-    (void) cache_id_and_batch_id_to_cache_key_.erase(std::make_pair(cache_id, batch_index));
-    (void) cache_entry.id_to_batch_index_and_size.erase(batch_index_and_size_it);
-  }
+  RemoveBatchIndex(cache_entry, cache_id, data_cache_key.first);
   (void) key_to_id.erase(it);
   LLMLOGI("[cache_id:%ld] [RemoveCacheKey] success, cache_key = (%lu, %lu), is_prefix = %d",
          cache_id, data_cache_key.first, data_cache_key.second, static_cast<int32_t>(is_prefix));

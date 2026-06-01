@@ -89,7 +89,11 @@ PageSpan *ScalableAllocator::FetchLayerSpan(const SpanLayerId layer_id) {
 
 PageSpan *ScalableAllocator::BlockAlloc(ge::Allocator &allocator, const BlockAddr block_addr, const MemAddr addr,
                                         const size_t size) {
-  auto span = new(span_allocator_.Alloc()) PageSpan{allocator, *this, block_addr, addr, size};
+  auto *mem = span_allocator_.Alloc();
+  if (mem == nullptr) {
+    return nullptr;
+  }
+  auto span = new(mem) PageSpan{allocator, *this, block_addr, addr, size};
   return span;
 }
 
@@ -102,11 +106,13 @@ SpanLayer *ScalableAllocator::FetchSpanLayer(const SpanLayerId layer_id) {
     return span_layers_[layer_id];
   }
 
-  auto newLayer = new(layer_allocator_.Alloc()) SpanLayer(layer_id, GetlayerSpanCapacity(layer_id));
-  if (newLayer != nullptr) {
-    span_layers_[layer_id] = newLayer;
-    span_layer_lut_->OnLayerCreated(*newLayer);
+  auto *mem = layer_allocator_.Alloc();
+  if (mem == nullptr) {
+    return nullptr;
   }
+  auto newLayer = new(mem) SpanLayer(layer_id, GetlayerSpanCapacity(layer_id));
+  span_layers_[layer_id] = newLayer;
+  span_layer_lut_->OnLayerCreated(*newLayer);
   return newLayer;
 }
 
