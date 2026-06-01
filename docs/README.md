@@ -26,7 +26,12 @@
 
 ## 培训视频
 
-- [hixl开源仓介绍及相关优秀实践分享](https://www.bilibili.com/video/BV1m1sbzrE7z/?spm_id_from=333.337.0.0)
+- 《hixl开源仓介绍及相关优秀实践分享》
+  - [直播回放](https://www.bilibili.com/video/BV1m1sbzrE7z/)
+  - [材料归档](https://gitcode.com/cann/community/tree/master/events/meetup/slides/sig-hccl/20251015)
+- 《HIXL协同Mooncake实现KV Cache池化技术实践分享》
+  - [直播回放](https://www.bilibili.com/video/BV12HVh6iE2t)
+  - [材料归档](https://gitcode.com/cann/community/tree/master/events/meetup/slides/sig-hccl/20260529)
 
 ## 接口文档
 
