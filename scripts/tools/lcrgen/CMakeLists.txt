@@ -11,6 +11,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(hixl_lcrgen_tool)
 
+set(CMAKE_SKIP_RPATH TRUE)
+
 add_executable(lcrgen local_comm_res_generator.cc)
 
 target_compile_features(lcrgen PRIVATE cxx_std_17)
@@ -23,7 +25,7 @@ target_include_directories(lcrgen PRIVATE
         ${HIXL_CODE_DIR}/src/hixl/proxy
         ${HIXL_CODE_DIR}/src/hixl/common
         ${HIXL_CODE_DIR}/third_party/json/include
-        ${CANN_INSTALL_PATH}/include
+        ${ASCEND_INSTALL_PATH}/include
 )
 
 target_compile_options(lcrgen PRIVATE
@@ -44,4 +46,4 @@ target_link_libraries(lcrgen PRIVATE
         stdc++fs
 )
 
-target_link_ascend_hal(lcrgen)
+target_link_libraries(lcrgen PRIVATE ascend_hal)

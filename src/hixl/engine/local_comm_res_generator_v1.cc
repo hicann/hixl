@@ -319,7 +319,7 @@ int32_t GetHostPgEid(int32_t phy_dev_id, const RouteData &route_data, std::strin
 
   // 1. 执行 urma_admin show
   std::string cmd_output;
-  int32_t ret = DefaultUrmaAdminExec("urma_admin show", cmd_output);
+  int32_t ret = DefaultUrmaAdminExec("show", cmd_output);
   HIXL_LOGI("[GetHostPgEid] the outcoming of urma_admin show are : %s", cmd_output.c_str());
   if (ret != SUCCESS) {
     HIXL_LOGE(FAILED, "[GetHostPgEid] Failed to execute urma_admin show");
@@ -1363,6 +1363,40 @@ int32_t GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, c
 
   // 3. 组装结果
   return BuildLocalCommResResult(phy_dev_id, is_server, topo_data, route_data, related_npu_ids, local_comm_res);
+}
+
+void ConvertLocalCommResToView(const LocalCommRes &src, LocalCommResView &dst) {
+  // std::string 字段仅在 .so 内部使用，不跨 .so 边界传递；外层通过 AscendString
+  // （内部封装 shared_ptr<std::string>）持有，跨 .so 边界 ABI 安全。
+  dst.version = AscendString(src.version.c_str());
+  dst.net_instance_id = AscendString(src.net_instance_id.c_str());
+  dst.endpoint_list.clear();
+  dst.endpoint_list.reserve(src.endpoint_list.size());
+  for (const auto &ep : src.endpoint_list) {
+    EndpointConfigView ep_view;
+    ep_view.protocol = AscendString(ep.protocol.c_str());
+    ep_view.comm_id = AscendString(ep.comm_id.c_str());
+    ep_view.placement = AscendString(ep.placement.c_str());
+    ep_view.plane = AscendString(ep.plane.c_str());
+    ep_view.dst_eid = AscendString(ep.dst_eid.c_str());
+    ep_view.net_instance_id = AscendString(ep.net_instance_id.c_str());
+    ep_view.device_info = ep.device_info;
+    dst.endpoint_list.push_back(std::move(ep_view));
+  }
+}
+
+int32_t GenerateLocalCommResJson(int32_t phy_dev_id, LocalCommResView &view) {
+  // 1. 调用 GenerateLocalCommRes 组装 LocalCommRes 结构体
+  LocalCommRes local_comm_res;
+  int32_t ret = GenerateLocalCommRes(phy_dev_id, local_comm_res);
+  if (ret != SUCCESS) {
+    HIXL_LOGE(ret, "[GenerateLocalCommResJson] GenerateLocalCommRes failed, ret=%d", ret);
+    return ret;
+  }
+
+  // 2. 把 std::string 字段全部转成 AscendString 填充到 view
+  ConvertLocalCommResToView(local_comm_res, view);
+  return SUCCESS;
 }
 
 }  // namespace hixl

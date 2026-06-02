@@ -1509,5 +1509,147 @@ TEST_F(TopoFileFinderTest, FindTopoFileServerOddMainboardId) {
   CleanupTopoTempDir(temp_dir);
 }
 
+// ============================================================================
+// GenerateLocalCommResJson 测试
+// ============================================================================
+//
+// GenerateLocalCommResJson 内部调用 GenerateLocalCommRes（无参版本）使用默认
+// 路径 /usr/local/Ascend/driver/topo/950/，UT 环境下该路径不存在，因此无法构造
+// "成功" 路径（需要真实系统环境）；但可以验证 "失败" 路径下的错误码传递。
+// （成功路径下 std::string → AscendString 转换逻辑被 lcrgen 工具本地测试覆盖，
+//  无需在单元测试中重复验证。）
+
+class LocalCommResJsonTest : public LocalCommResTopoPathTest {};
+
+TEST_F(LocalCommResJsonTest, PropagatesGetMainboardIdFailure) {
+  // GetMainboardId 失败 → GenerateLocalCommRes 内部立即返回错误码 →
+  // GenerateLocalCommResJson 应透传该错误码。
+  DcmiStubSetMainboardId(0, -1);
+
+  LocalCommResView view;
+  int32_t ret = GenerateLocalCommResJson(0, view);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(LocalCommResJsonTest, ParamInvalidWhenDefaultTopoMissing) {
+  // mainboard_id 成功获取 → 进入 FindTopoFile 逻辑；
+  // 默认 topo 目录 /usr/local/Ascend/driver/topo/950/ 在 UT 环境不存在 →
+  // 返回 PARAM_INVALID。
+  DcmiStubSetMainboardId(0x3, 0);  // Pod1
+
+  LocalCommResView view;
+  int32_t ret = GenerateLocalCommResJson(0, view);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
+
+TEST_F(LocalCommResJsonTest, ParamInvalidOnUnknownMainboardId) {
+  // 未知 mainboard_id（0x99）→ MatchProductForm 返回 false → PARAM_INVALID
+  DcmiStubSetMainboardId(0x99, 0);
+
+  LocalCommResView view;
+  int32_t ret = GenerateLocalCommResJson(0, view);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
+
+// ============================================================================
+// ConvertLocalCommResToView 测试
+// ============================================================================
+//
+// 纯 std::string → AscendString 字段转换测试，覆盖 GenerateLocalCommResJson
+// 中"成功路径"的转换逻辑（GenerateLocalCommRes 失败时这些代码不会执行）。
+
+TEST(ConvertLocalCommResToViewTest, AllFieldsPopulated) {
+  LocalCommRes src;
+  src.version = "1.3";
+  src.net_instance_id = "superpod_1";
+
+  EndpointConfig ep;
+  ep.protocol = "TCP";
+  ep.comm_id = "comm0";
+  ep.placement = "HOST";
+  ep.plane = "plane_pg_0";
+  ep.dst_eid = "0x1234";
+  ep.net_instance_id = "superpod_1";
+  ep.device_info.phy_device_id = 0;
+  ep.device_info.super_device_id = 1;
+  ep.device_info.super_pod_id = 2;
+  src.endpoint_list.push_back(ep);
+
+  LocalCommResView dst;
+  ConvertLocalCommResToView(src, dst);
+
+  EXPECT_STREQ(dst.version.GetString(), "1.3");
+  EXPECT_STREQ(dst.net_instance_id.GetString(), "superpod_1");
+  ASSERT_EQ(dst.endpoint_list.size(), 1u);
+  EXPECT_STREQ(dst.endpoint_list[0].protocol.GetString(), "TCP");
+  EXPECT_STREQ(dst.endpoint_list[0].comm_id.GetString(), "comm0");
+  EXPECT_STREQ(dst.endpoint_list[0].placement.GetString(), "HOST");
+  EXPECT_STREQ(dst.endpoint_list[0].plane.GetString(), "plane_pg_0");
+  EXPECT_STREQ(dst.endpoint_list[0].dst_eid.GetString(), "0x1234");
+  EXPECT_STREQ(dst.endpoint_list[0].net_instance_id.GetString(), "superpod_1");
+  EXPECT_EQ(dst.endpoint_list[0].device_info.phy_device_id, 0);
+  EXPECT_EQ(dst.endpoint_list[0].device_info.super_device_id, 1);
+  EXPECT_EQ(dst.endpoint_list[0].device_info.super_pod_id, 2);
+}
+
+TEST(ConvertLocalCommResToViewTest, EmptyEndpointList) {
+  LocalCommRes src;
+  src.version = "1.3";
+  src.net_instance_id = "superpod_2";
+  // src.endpoint_list 留空
+
+  LocalCommResView dst;
+  ConvertLocalCommResToView(src, dst);
+
+  EXPECT_STREQ(dst.version.GetString(), "1.3");
+  EXPECT_STREQ(dst.net_instance_id.GetString(), "superpod_2");
+  EXPECT_TRUE(dst.endpoint_list.empty());
+}
+
+TEST(ConvertLocalCommResToViewTest, EmptyStringFields) {
+  LocalCommRes src;
+  src.version = "";
+  src.net_instance_id = "";
+  EndpointConfig ep;  // 所有 std::string 字段留空
+  src.endpoint_list.push_back(ep);
+
+  LocalCommResView dst;
+  ConvertLocalCommResToView(src, dst);
+
+  EXPECT_EQ(dst.version.GetLength(), 0u);
+  EXPECT_EQ(dst.net_instance_id.GetLength(), 0u);
+  ASSERT_EQ(dst.endpoint_list.size(), 1u);
+  EXPECT_EQ(dst.endpoint_list[0].protocol.GetLength(), 0u);
+  EXPECT_EQ(dst.endpoint_list[0].comm_id.GetLength(), 0u);
+  EXPECT_EQ(dst.endpoint_list[0].placement.GetLength(), 0u);
+  EXPECT_EQ(dst.endpoint_list[0].plane.GetLength(), 0u);
+  EXPECT_EQ(dst.endpoint_list[0].dst_eid.GetLength(), 0u);
+  EXPECT_EQ(dst.endpoint_list[0].net_instance_id.GetLength(), 0u);
+}
+
+TEST(ConvertLocalCommResToViewTest, OverwritesExistingView) {
+  // 目标 dst 已有内容，调用后应被整体覆盖（不能残留旧数据）
+  LocalCommResView dst;
+  dst.version = AscendString("old_version");
+  dst.net_instance_id = AscendString("old_net_id");
+  EndpointConfigView old_ep;
+  old_ep.protocol = AscendString("old_proto");
+  dst.endpoint_list.push_back(std::move(old_ep));
+
+  LocalCommRes src;
+  src.version = "new_version";
+  src.net_instance_id = "new_net_id";
+  EndpointConfig new_ep;
+  new_ep.protocol = "new_proto";
+  src.endpoint_list.push_back(new_ep);
+
+  ConvertLocalCommResToView(src, dst);
+
+  EXPECT_STREQ(dst.version.GetString(), "new_version");
+  EXPECT_STREQ(dst.net_instance_id.GetString(), "new_net_id");
+  ASSERT_EQ(dst.endpoint_list.size(), 1u);
+  EXPECT_STREQ(dst.endpoint_list[0].protocol.GetString(), "new_proto");
+}
+
 }  // namespace test
 }  // namespace hixl
