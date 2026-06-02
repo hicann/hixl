@@ -34,6 +34,7 @@ namespace {
 constexpr const char kConfigVersion[] = "1.3";
 constexpr const char kUboeProtocolDesc[] = "uboe:device";
 constexpr const char kDefaultUboeNetInstanceId[] = "default_superpod1_1";
+constexpr size_t kEidHexStrLen = COMM_ADDR_EID_LEN * 2U;
 
 const std::set<std::string> kSocV2 = {"Ascend910B1", "Ascend910B2",  "Ascend910B3",
                                       "Ascend910B4", "Ascend910B2C", "Ascend910B4-1"};
@@ -170,9 +171,9 @@ Status ParseHccsCommId(const std::string &comm_id_str, uint32_t &device_id) {
 }
 
 Status ParseEidAddress(const std::string &eid_str, CommAddr &addr) {
-  if (eid_str.length() != 32) {
-    HIXL_LOGE(PARAM_INVALID, "Invalid EID format: %s. Expected 32 hexadecimal characters without colons.",
-              eid_str.c_str());
+  if (eid_str.length() != kEidHexStrLen) {
+    HIXL_LOGE(PARAM_INVALID, "Invalid EID format: %s. Expected %zu hexadecimal characters without colons.",
+              eid_str.c_str(), kEidHexStrLen);
     return PARAM_INVALID;
   }
 
