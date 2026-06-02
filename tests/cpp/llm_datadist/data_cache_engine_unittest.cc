@@ -400,6 +400,11 @@ TEST_F(DataCacheEngineTest, InitializeMemoryPool_Failed) {
     EXPECT_EQ(llm_mem_pool.Initialize((void *)0x1000000000, config.page_mem_size_total_threshold),
               ge::LLM_PARAM_INVALID);
   }
+  // SIZE_MAX (2^64 - 1): memory_size >> page_shift 截断为 uint32_t 后为 UINT32_MAX，
+  // ScalableAllocator 内部 1 + UINT32_MAX 回绕为 0，导致 span_layer_capacity_ = 0。
+  // 修复后在 ParseMemoryPoolConfig 阶段校验 pool_size >> page_shift < UINT32_MAX，直接拒绝。
+  options[llm::LLM_OPTION_MEM_POOL_CONFIG] = ("{\"memory_size\": " + std::to_string(SIZE_MAX) + "}").c_str();
+  EXPECT_EQ(cache_engine.Initialize(options), ge::LLM_PARAM_INVALID);
 }
 
 TEST_F(DataCacheEngineTest, PullCache_D2H_C2C) {

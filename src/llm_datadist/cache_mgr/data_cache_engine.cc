@@ -9,6 +9,7 @@
  */
 
 #include "data_cache_engine.h"
+#include <limits>
 #include <set>
 #include "llm_datadist/llm_error_codes.h"
 #include "comm_statistic_manager.h"
@@ -43,7 +44,12 @@ ge::Status ParseMemoryPoolConfig(const std::string &mem_pool_config, size_t &poo
       LLM_CHK_BOOL_RET_STATUS(json_obj.at("page_shift").is_number_unsigned(), ge::LLM_PARAM_INVALID,
                               "page_shift is not an unsigned integer: config = %s", json_str.c_str());
       page_shift = json_obj.at("page_shift").get<size_t>();
+      // page_shift valid range is [10, 31)
+      LLM_CHK_BOOL_RET_STATUS((page_shift >= 10) && (page_shift < 31), ge::LLM_PARAM_INVALID,
+                              "page_shift (%zu) out of range: [10, 31)", page_shift);
     }
+    LLM_CHK_BOOL_RET_STATUS((pool_size >> page_shift) < std::numeric_limits<uint32_t>::max(), ge::LLM_PARAM_INVALID,
+                            "memory_size (%zu) with page_shift (%zu) exceeds addressable limit", pool_size, page_shift);
   } catch (nlohmann::json::exception &e) {
     REPORT_INNER_ERR_MSG("E19999", "Failed to parse memory pool config: %s", json_str.c_str());
     LLMLOGE(ge::LLM_PARAM_INVALID, "Failed to parse memory pool config: \"%s\", exception = %s", json_str.c_str(),
