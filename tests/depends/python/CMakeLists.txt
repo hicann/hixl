@@ -22,6 +22,7 @@ target_include_directories(llm_datadist_wrapper_stub PRIVATE
         ${HIXL_CODE_DIR}/include
         ${HIXL_CODE_DIR}/src/llm_datadist
         ${HIXL_CODE_DIR}/tests/depends/llm_datadist/src
+        ${HIXL_CODE_DIR}/src/hixl/proxy
 )
 
 target_link_libraries(llm_datadist_wrapper_stub PRIVATE

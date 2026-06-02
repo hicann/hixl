@@ -47,10 +47,10 @@ else ()
 endif()
 
 message(STATUS "start build device")
-if(NOT EXISTS "${CANN_INSTALL_PATH}/toolkit/toolchain/hcc")
-    message(FATAL_ERROR "CANN toolchain path does not exist: ${CANN_INSTALL_PATH}/toolkit/toolchain/hcc")
+if(NOT EXISTS "${ASCEND_INSTALL_PATH}/toolkit/toolchain/hcc")
+    message(FATAL_ERROR "CANN toolchain path does not exist: ${ASCEND_INSTALL_PATH}/toolkit/toolchain/hcc")
 endif()
-set(TOOLCHAIN_DIR "${CANN_INSTALL_PATH}/toolkit/toolchain/hcc")
+set(TOOLCHAIN_DIR "${ASCEND_INSTALL_PATH}/toolkit/toolchain/hcc")
 # 对于libc_sec，只有makefile，需要传递编译器路径
 set(CMAKE_CXX_COMPILER_ "${TOOLCHAIN_DIR}/bin/aarch64-target-linux-gnu-g++")
 set(CMAKE_C_COMPILER_ "${TOOLCHAIN_DIR}/bin/aarch64-target-linux-gnu-gcc")
@@ -73,7 +73,7 @@ ExternalProject_Add(device
         -DENABLE_SIGN=${ENABLE_SIGN}
         -DCUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT}
         -DVERSION_INFO=${VERSION_INFO}
-        -DCANN_INSTALL_PATH=${CANN_INSTALL_PATH}
+        -DASCEND_INSTALL_PATH=${ASCEND_INSTALL_PATH}
         -DENABLE_ASAN=${ENABLE_ASAN}
         -DENABLE_GCOV=${ENABLE_GCOV}
         -DCANN_VERSION_hixl_VERSION=${CANN_VERSION_hixl_VERSION}

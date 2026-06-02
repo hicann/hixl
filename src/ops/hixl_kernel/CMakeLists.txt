@@ -21,6 +21,7 @@ add_library(cann_hixl_kernel SHARED
 
 target_include_directories(cann_hixl_kernel PRIVATE
         ${INCLUDE_LIST}
+        ${HIXL_CODE_DIR}/src/hixl/proxy
 )
 
 target_link_libraries(cann_hixl_kernel PRIVATE

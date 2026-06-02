@@ -27,8 +27,8 @@ else()
         target_link_libraries(hccp_proxy_static PRIVATE
                 $<BUILD_INTERFACE:intf_pub>
                 $<BUILD_INTERFACE:acl_rt_headers>
-                $<BUILD_INTERFACE:runtime_headers>
                 $<BUILD_INTERFACE:slog_headers>
+                $<BUILD_INTERFACE:runtime_headers>
                 $<BUILD_INTERFACE:mmpa_headers>
         )
 
@@ -46,7 +46,10 @@ else()
 endif()
 
 foreach(_proxy_target ${_HIXL_PROXY_TARGETS})
-        target_include_directories(${_proxy_target} PRIVATE ${HIXL_INC_DIR})
+        target_include_directories(${_proxy_target} PRIVATE 
+            ${HIXL_INC_DIR}
+            ${HIXL_CODE_DIR}/src/hixl/proxy
+            )
         target_compile_options(${_proxy_target} PRIVATE
                 -ftrapv
                 -O2

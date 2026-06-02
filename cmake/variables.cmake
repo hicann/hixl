@@ -24,18 +24,16 @@ if(BUILD_WITH_INSTALLED_DEPENDENCY_CANN_PKG)
     endif()
 
     if (DEFINED ENV{ASCEND_HOME_PATH})
-        set(CANN_INSTALL_PATH $ENV{ASCEND_HOME_PATH})
+        set(ASCEND_INSTALL_PATH $ENV{ASCEND_HOME_PATH})
     else()
         if (EXISTS ${ASCEND_DEFAULT_PATH}/ascend-toolkit/latest)
-            set(CANN_INSTALL_PATH ${ASCEND_DEFAULT_PATH}/ascend-toolkit/latest)
+            set(ASCEND_INSTALL_PATH ${ASCEND_DEFAULT_PATH}/ascend-toolkit/latest)
         elseif (EXISTS ${ASCEND_DEFAULT_PATH}/latest)
-            set(CANN_INSTALL_PATH ${ASCEND_DEFAULT_PATH}/latest)
+            set(ASCEND_INSTALL_PATH ${ASCEND_DEFAULT_PATH}/latest)
         else()
-            message(FATAL_ERROR "Please set CANN_INSTALL_PATH or env:ASCEND_HOME_PATH")
+            message(FATAL_ERROR "Please set ASCEND_INSTALL_PATH or env:ASCEND_HOME_PATH")
         endif()
     endif()
-    message("CANN_INSTALL_PATH:${CANN_INSTALL_PATH}")
-    set(ASCEND_INSTALL_PATH "${CANN_INSTALL_PATH}")
     message("ASCEND_INSTALL_PATH:${ASCEND_INSTALL_PATH}")
 
     if (NOT DEFINED CANN_3RD_LIB_PATH)
@@ -47,12 +45,12 @@ if(BUILD_WITH_INSTALLED_DEPENDENCY_CANN_PKG)
 endif()
 
 set(CMAKE_MODULE_PATH
-    ${PROJECT_SOURCE_DIR}/cmake/modules
+    ${CANN_CMAKE_DIR}/modules
     ${CMAKE_MODULE_PATH}
 )
 message("CMAKE_MODULE_PATH:${CMAKE_MODULE_PATH}")
 
-set(CMAKE_PREFIX_PATH ${CANN_INSTALL_PATH})
+set(CMAKE_PREFIX_PATH ${ASCEND_INSTALL_PATH})
 message("CMAKE_PREFIX_PATH:${CMAKE_PREFIX_PATH}")
 message("CMAKE_INSTALL_PREFIX:${CMAKE_INSTALL_PREFIX}")
 

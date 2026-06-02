@@ -15,7 +15,7 @@ if [ -z "$ASCEND_HOME_PATH" ];then
     echo "Error:CANN environment variables are not set."
     exit 1
 fi
-CANN_INSTALL_PATH=$(dirname "$ASCEND_HOME_PATH")
+ASCEND_INSTALL_PATH=$(dirname "$ASCEND_HOME_PATH")
 BASEPATH=$(cd "$(dirname $0)"; pwd)
 HIXLPATH=$(dirname $(dirname "$BASEPATH"))
 
@@ -86,7 +86,7 @@ install_hixl() {
     --full \
     --quiet \
     --pylocal \
-    --install-path="${CANN_INSTALL_PATH}"
+    --install-path="${ASCEND_INSTALL_PATH}"
     if [[ $? -eq 0 ]]; then
         echo "Install success."
     else

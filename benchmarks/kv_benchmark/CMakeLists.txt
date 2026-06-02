@@ -21,7 +21,7 @@ target_include_directories(hixl_kv_bench PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/kvstore
     ${HIXL_INC_DIR}
-    ${CANN_INSTALL_PATH}/include
+    ${ASCEND_INSTALL_PATH}/include
     ${HIXL_CODE_DIR}/third_party/json/include
     ${HIXL_CODE_DIR}/src/llm_datadist
 )
@@ -43,7 +43,7 @@ target_link_libraries(hixl_kv_bench PRIVATE
     -lrt
     stdc++fs
 )
-target_link_ascend_hal(hixl_kv_bench)
+target_link_libraries(hixl_kv_bench PRIVATE ascend_hal)
 
 file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/config/models.json"
      DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/config")

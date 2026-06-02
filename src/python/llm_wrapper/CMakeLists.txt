@@ -19,6 +19,7 @@ if (NOT ENABLE_TEST)
             ${pybind11_INCLUDE_DIR}
             ${HIXL_CODE_DIR}/include
             ${HIXL_CODE_DIR}/src/llm_datadist
+            ${HIXL_CODE_DIR}/src/hixl/proxy
     )
 
     target_link_libraries(llm_datadist_wrapper PRIVATE

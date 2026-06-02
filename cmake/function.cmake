@@ -202,7 +202,7 @@ macro(find_package_if_target_not_exists pkg)
     if (TARGET ${pkg})
         message(STATUS "SN_DEBUG package ${pkg} target exists")
     else ()
-        find_package(${pkg} ${ARGN})
+        find_cann_package(${pkg} ${ARGN})
     endif ()
 endmacro()
 

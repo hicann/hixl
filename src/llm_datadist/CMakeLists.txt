@@ -44,7 +44,10 @@ file(GLOB LLM_SRC_LIST
 
 add_library(llm_datadist SHARED ${LLM_SRC_LIST})
 
-target_include_directories(llm_datadist PRIVATE ${INC_DIR})
+target_include_directories(llm_datadist PRIVATE 
+    ${INC_DIR}
+    ${HIXL_CODE_DIR}/src/hixl/proxy
+    )
 
 target_compile_options(llm_datadist PRIVATE
         -ftrapv
@@ -62,6 +65,7 @@ target_link_libraries(llm_datadist PRIVATE
         $<BUILD_INTERFACE:acl_rt_headers>
         $<BUILD_INTERFACE:runtime_headers>
         $<BUILD_INTERFACE:msprof_headers>
+        $<BUILD_INTERFACE:error_manager_headers>
         PUBLIC c_sec
         static_mmpa
         cann_hixl
@@ -105,7 +109,10 @@ file(GLOB ADXL_SRC_LIST
 
 add_library(adxl_static STATIC ${ADXL_SRC_LIST})
 
-target_include_directories(adxl_static PRIVATE ${ADXL_INC_DIR})
+target_include_directories(adxl_static PRIVATE 
+    ${ADXL_INC_DIR}
+    ${HIXL_CODE_DIR}/src/hixl/proxy
+    )
 
 target_compile_options(adxl_static PRIVATE
         -ftrapv
@@ -123,6 +130,7 @@ target_link_libraries(adxl_static PRIVATE
         $<BUILD_INTERFACE:runtime_headers>
         $<BUILD_INTERFACE:acl_rt_headers>
         $<BUILD_INTERFACE:msprof_headers>
+        $<BUILD_INTERFACE:error_manager_headers>
         PUBLIC c_sec
         static_mmpa
         alog
