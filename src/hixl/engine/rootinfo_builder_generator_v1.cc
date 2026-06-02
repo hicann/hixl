@@ -266,10 +266,10 @@ int32_t BuildNpuRootInfo(int32_t npu_id, bool is_server, NpuRootInfo &root_info)
 
   HIXL_LOGI("Got %zu urma device(s)", urma_devices.size());
   for (size_t i = 0; i < urma_devices.size(); ++i) {
-    HIXL_LOGE(FAILED, "  urma_dev[%zu]: name=%s, eids=%zu", i, urma_devices[i].name.c_str(),
+    HIXL_LOGI("urma_dev[%zu]: name=%s, eids=%zu", i, urma_devices[i].name.c_str(),
               urma_devices[i].eid_list.size());
     for (size_t j = 0; j < urma_devices[i].eid_list.size(); ++j) {
-      HIXL_LOGE(FAILED, "    eid[%zu]=%s", j, urma_devices[i].eid_list[j].c_str());
+      HIXL_LOGI("eid[%zu]=%s", j, urma_devices[i].eid_list[j].c_str());
     }
   }
 

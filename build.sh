@@ -114,6 +114,7 @@ checkopts() {
         shift
         ENABLE_EXAMPLES=ON
         ENABLE_BENCHMARKS=ON
+        ENABLE_LCRGEN_TOOL=ON
         ;;
       --enable-sign | --enable_sign)
         ENABLE_SIGN=ON
@@ -160,6 +161,7 @@ build() {
         -D CMAKE_INSTALL_PREFIX=${OUTPUT_PATH} \
         -D ENABLE_EXAMPLES=${ENABLE_EXAMPLES} \
         -D ENABLE_BENCHMARKS=${ENABLE_BENCHMARKS} \
+        -D ENABLE_LCRGEN_TOOL=${ENABLE_LCRGEN_TOOL} \
         -D ENABLE_ASAN=${ENABLE_ASAN} \
         -D ENABLE_GCOV=${ENABLE_GCOV} \
         -D ENABLE_SIGN=${ENABLE_SIGN} \

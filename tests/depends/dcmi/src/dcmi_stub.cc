@@ -59,14 +59,13 @@ int dcmiv2_get_mainboard_id(int npu_id, unsigned int *mainboard_id) {
 }
 
 int dcmiv2_get_dev_id_by_chip_phy_id(unsigned int phy_id, unsigned int *logic_id) {
-  (void)phy_id;
   if (logic_id == nullptr) {
     return -1;
   }
   if (g_logicid_ret != 0) {
     return g_logicid_ret;
   }
-  *logic_id = phy_id;  // 返回 phy_id 作为 logic_id，使 EID 查询能拿到真实 NPU ID
+  *logic_id = phy_id % 8;  // logic_id = phy_dev_id % 8
   return 0;
 }
 

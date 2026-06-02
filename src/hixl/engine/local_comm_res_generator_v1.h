@@ -46,21 +46,19 @@ struct LocalCommRes {
 
 // ============ Topology 数据结构 ============
 
-// ============ Topology 数据结构 ============
-
 /**
  * @brief Topology 链路结构
  */
 struct TopoLink {
-  int32_t net_layer = 0;                       // 网络层级 (0: Mesh, 1: CLOS)
-  std::string link_type;                       // 连接类型: PEER2PEER, PEER2NET
-  std::string topo_type;                       // 拓扑类型: 1DMESH, CLOS
-  int32_t local_a = 0;                         // 本地节点 A
-  int32_t local_b = 0;                         // 本地节点 B
-  int32_t remote_a = -1;                       // 远端节点 A
-  int32_t remote_b = -1;                       // 远端节点 B
-  std::vector<std::string> local_a_ports;      // 本地 A 端口列表（串口标识，如 "die_id/port"）
-  std::vector<std::string> local_b_ports;      // 本地 B 端口列表
+  int32_t net_layer = 0;                   // 网络层级 (0: Mesh, 1: CLOS)
+  std::string link_type;                   // 连接类型: PEER2PEER, PEER2NET
+  std::string topo_type;                   // 拓扑类型: 1DMESH, CLOS
+  int32_t local_a = 0;                     // 本地节点 A
+  int32_t local_b = 0;                     // 本地节点 B
+  int32_t remote_a = -1;                   // 远端节点 A
+  int32_t remote_b = -1;                   // 远端节点 B
+  std::vector<std::string> local_a_ports;  // 本地 A 端口列表（串口标识，如 "die_id/port"）
+  std::vector<std::string> local_b_ports;  // 本地 B 端口列表
 };
 
 struct TopoData {
@@ -154,16 +152,12 @@ int32_t GenerateD2DEdges(const TopoData &topo_data, const std::map<int32_t, NpuR
 
 /**
  * @brief 生成 D2U 非直连边（Device to UB Gateway）
- * @param [in] topo_data topology 数据
- * @param [in] npu_rootinfos 所有相关 NPU 的 rootinfo 映射
- * @param [in] clos_plane_ids CLOS 层 plane_id 列表
- * @param [in] phy_id 当前 NPU 物理 ID
- * @param [out] edges 生成的边列表
- * @return 成功: SUCCESS, 失败: 其它错误码
+ * @param [in] plane_pg_0_eid plane_pg_0 的 EID
+ * @param [in] plane_pg_1_eid plane_pg_1 的 EID
+ * @param [out] d2u_edges 生成的边列表
  */
-int32_t GenerateD2UEdges(const TopoData &topo_data, const std::map<int32_t, NpuRootInfo> &npu_rootinfos,
-                         const std::vector<std::string> &clos_plane_ids, int32_t phy_id,
-                         std::vector<EndpointConfig> &edges);
+void GenerateD2UEdges(const std::string &plane_pg_0_eid, const std::string &plane_pg_1_eid,
+                      std::vector<EndpointConfig> &d2u_edges);
 
 /**
  * @brief 生成 H2D 直连边（Host to Device）
@@ -184,14 +178,15 @@ int32_t GenerateD2HEdges(const RouteData &route_data, int32_t phy_dev_id, std::v
 
 /**
  * @brief 生成 H2U 非直连边（Host to UB Gateway）
+ * @param [in] phy_dev_id 当前 NPU 物理 ID
  * @param [in] route_data route 数据
- * @param [in] clos_plane_ids CLOS 层 plane_id 列表
- * @param [in] phy_id 当前 NPU 物理 ID
- * @param [out] edges 生成的边列表
+ * @param [in] plane_pg_0_eid plane_pg_0 的 EID
+ * @param [in] plane_pg_1_eid plane_pg_1 的 EID
+ * @param [out] h2u_edges 生成的边列表
  * @return 成功: SUCCESS, 失败: 其它错误码
  */
-int32_t GenerateH2UEdges(const RouteData &route_data, const std::vector<std::string> &clos_plane_ids, int32_t phy_id,
-                         std::vector<EndpointConfig> &edges);
+int32_t GenerateH2UEdges(int32_t phy_dev_id, const RouteData &route_data, const std::string &plane_pg_0_eid,
+                         const std::string &plane_pg_1_eid, std::vector<EndpointConfig> &h2u_edges);
 
 /**
  * @brief 根据 topo 数据获取某个 NPU 的 CLOS PG EID 对应的 port 数量
@@ -201,6 +196,70 @@ int32_t GenerateH2UEdges(const RouteData &route_data, const std::vector<std::str
  * @return port 数量，失败返回 -1
  */
 int32_t GetClosPgPortCount(const TopoData &topo_data, int32_t phy_id, const std::string &clos_pg_eid);
+
+// ============ ProcfsRouteHandler 类 ============
+
+/**
+ * @brief Procfs 路由处理器（用于 route.conf 不存在时的 fallback）
+ * 通过读写 /proc/ascend_ub 或 /proc/asdrv_ub 获取路由信息
+ */
+class ProcfsRouteHandler {
+ public:
+  ProcfsRouteHandler();
+  /**
+   * @brief 构造时显式指定 proc 根目录
+   * @param [in] proc_base_path 注入的 proc 根目录；空字符串表示走默认双路径自动发现
+   */
+  explicit ProcfsRouteHandler(std::string proc_base_path);
+  ~ProcfsRouteHandler();
+
+  // 通过 procfs 生成路由数据
+  int32_t GenerateRouteData(const std::set<int32_t> &related_npu_ids, RouteData &route_data);
+
+ private:
+  // 私有辅助方法
+  std::string FindProcBasePath();
+  bool ReadFileToString(const std::string &path, std::string &content);
+  bool WriteStringToFile(const std::string &path, const std::string &content);
+  std::string TrimString(const std::string &s);
+  bool ParseSlotIdFromLine(const std::string &line, std::string &slot_id);
+  bool ParseEidFromLine(const std::string &line, const std::string &prefix, std::string &eid);
+  std::string FormatEidValue(const std::string &eid);
+  size_t SelectEidIndexByNpuId(int32_t npu_id, size_t local_count, size_t remote_count);
+  bool CollectEidsFromPairInfo(const std::string &pair_info_content, std::string &found_slot_id,
+                               std::vector<std::string> &local_eids, std::vector<std::string> &remote_eids);
+  bool ParsePairInfoForDevice(const std::string &pair_info_content, int32_t npu_id, int32_t &slot_id,
+                              std::string &local_eid, std::string &remote_eid);
+  int32_t ProcessNpuProcfsRoute(int32_t npu_id, const std::string &dev_id_path, const std::string &pair_info_path,
+                                RouteEntry &entry);
+
+  // 显式注入的 proc 根目录；空字符串表示走默认 ascend_ub / asdrv_ub 自动发现
+  std::string injected_proc_base_path_;
+};
+
+// ============ TopoFileFinder 类 ============
+
+/**
+ * @brief Topo 文件查找器
+ * 根据产品形态（mainboard_id）在指定目录下查找匹配的 topo 文件
+ */
+class TopoFileFinder {
+ public:
+  TopoFileFinder();
+  ~TopoFileFinder();
+
+  /**
+   * @brief 根据 mainboard_id 查找匹配的 topo 文件
+   * @param [in] topo_dir topo 文件目录
+   * @param [in] mainboard_id 主板 ID
+   * @return 匹配的 topo 文件路径，失败返回空字符串
+   */
+  std::string FindTopoFile(const std::string &topo_dir, uint32_t mainboard_id);
+
+ private:
+  bool IsProductServer(uint32_t mainboard_id);
+  bool MatchProductForm(uint32_t mainboard_id, std::string &topo_prefix);
+};
 
 }  // namespace hixl
 
