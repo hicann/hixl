@@ -145,9 +145,6 @@ ge::Status CacheManager::RegisterCacheEntry(int64_t cache_id, const std::vector<
   CacheEntry cache_entry = CreateCacheEntry(cache_desc, addrs, tensor_size);
   {
     std::lock_guard<std::mutex> lk(mu_);
-    LLM_CHK_STATUS_RET(CheckCacheKeys(cache_desc, cache_keys), "Check cache_keys failed");
-    LLM_CHK_BOOL_RET_STATUS(cache_id_to_entry_.find(cache_id) == cache_id_to_entry_.cend(),
-                           ge::LLM_PARAM_INVALID, "cache_id %ld already exists", cache_id);
     AddCacheIndices(cache_entry, cache_id, cache_keys);
     cache_id_to_entry_[cache_id] = std::move(cache_entry);
     LLM_CHK_STATUS_RET(UpdateCacheTable(), "Failed to update cache table");
