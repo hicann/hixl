@@ -86,6 +86,9 @@ class Placement(IntEnum):
     HOST = 0
     DEVICE = 1
 
+    def __str__(self):
+        return f"{self.__class__.__name__}.{self.name}"
+
 
 class CacheDesc(object):
     """
