@@ -78,7 +78,7 @@ Status CheckIp(const std::string &ip);
 
 Status GetDeviceIp(int32_t phy_device_id, std::string &device_ip);
 
-Status GetBondIpAddress(int32_t dev_logic_id, int32_t slot_id, std::string &ip);
+Status GetBondIpAddress(int32_t dev_logic_id, uint32_t slot_id, std::string &ip);
 
 Status CheckOptions(const std::map<AscendString, AscendString> &options);
 

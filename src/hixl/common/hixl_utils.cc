@@ -171,7 +171,7 @@ Status GetDeviceIp(int32_t phy_device_id, std::string &device_ip) {
   return SUCCESS;
 }
 
-Status GetBondIpAddress(int32_t dev_logic_id, int32_t slot_id, std::string &ip) {
+Status GetBondIpAddress(int32_t dev_logic_id, uint32_t slot_id, std::string &ip) {
   // query command is 'hccn_tool -g -ip -i 0 -d bond0'
   const std::string bond_name = "bond" + std::to_string(slot_id);
   auto hccn_tool_path = GetHccnToolPath();
