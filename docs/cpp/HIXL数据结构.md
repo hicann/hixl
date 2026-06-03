@@ -72,18 +72,18 @@ struct TransferOpDesc {
 
 ## TransferArgs
 
-传输操作的可选参数，暂未启用。
+传输操作的可选参数。
 
 ```
 struct TransferArgs {
-  void *user_data = nullptr;
-  uint8_t reserved[120] = {};
+  void *user_data = nullptr;  // 用户自定义信息，需配合获取全部异步传输请求状态接口使用
+  uint8_t reserved[120] = {};  // 预留参数
 };
 ```
 
 ## TransferReq
 
-请求传输的Handle。
+传输请求的Handle。
 
 ```
 using TransferReq = void *;
@@ -103,21 +103,27 @@ enum class TransferStatus {
 ```
 
 ## GetTransferStatusArgs
+
+获取全部异步传输请求状态时的参数。
+
 ```
 struct GetTransferStatusArgs {
-  uint32_t max_query_count = UINT32_MAX;
-  bool skip_waiting = false;
-  uint8_t reserved[123] = {};
+  uint32_t max_query_count = UINT32_MAX;  // 最大查询出的传输请求状态的个数
+  bool skip_waiting = false;  // 查询是否跳过状态为TransferStatus::WAITING的传输请求
+  uint8_t reserved[123] = {};  // 预留参数
 };
 ```
 
 ## TransferResult
+
+获取全部异步传输请求状态时每一个请求的结果信息。
+
 ```
 struct TransferResult {
-  TransferReq req = nullptr;
-  void *user_data = nullptr;
-  TransferStatus status = TransferStatus::WAITING;
-  uint8_t reserved[108] = {};
+  TransferReq req = nullptr;  // 传输请求的Handle
+  void *user_data = nullptr;  // 用户自定义信息
+  TransferStatus status = TransferStatus::WAITING;  // 传输请求状态
+  uint8_t reserved[108] = {};  // 预留参数
 };
 ```
 
