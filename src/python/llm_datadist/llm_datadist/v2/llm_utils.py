@@ -294,8 +294,6 @@ def transfer_cache_async(params: TransferCacheParameters,
                        "num_block_indices mismatches, src_num = {0}, dst_num = {1}",
                        len(params.src_block_indices), len(params.dst_block_indices))
     else:  # src is cache
-        raise_if_true(params.dst_block_indices is not None,
-                    "transfer from cache to blocks is not supported")
         if params.dst_block_indices:
             raise_if_false(params.dst_block_memory_size is not None,
                            "dst_block_memory_size must be set when transfer from cache to blocks")
