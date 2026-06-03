@@ -125,20 +125,25 @@ device侧网卡默认监听端口为16666，如果在多个进程使用同一个
 对于链路池机制，该参数配置示例如下：
 ```
 {
-    "channel_pool.max_channel": "10", //最大的链路个数。取值范围：(0, 512]之间的整数，默认值：512
-    "channel_pool.high_waterline": "0.3", //触发链路销毁的高水位，取值范围：（0，1）之间的小数，需要和channel_pool.low_waterline同时配置
-    "channel_pool.low_waterline": "0.1" //触发链路销毁的低水位，取值范围：（0，1）之间小数，并且小于高水位
+    "channel_pool.max_channel": "10", //最大链路个数。取值范围：(0, 512]之间的整数，默认值：512
+    "channel_pool.high_waterline": "0.3", //链路回收的高水位阈值，取值范围：(0, 1)之间的小数，需要和channel_pool.low_waterline同时配置
+    "channel_pool.low_waterline": "0.1" //链路回收的低水位阈值，即回收后保留的链路数比例，取值范围：(0, 1)之间的小数，且需要小于高水位、与高水位同时配置
 }
 ```
 
-链路池工作时，实际依据链路个数判断是否进行销毁，如果当前链路个数已经达到高水位对应的链路个数，则选择（当前链路个数-低水位对应的链路个数 ）条链路进行销毁（如存在正在传输的任务，则不会销毁），再建链。相关参数计算公式如下：<br>-
-高水位线对应的链路个数=max(1,static_cast<int32_t> (channel_pool.max_channel *channel_pool.high_waterline))
-<br>- 低水位线对应的链路个数=max(1,static_cast<int32_t> (channel_pool.max_channel* channel_pool.low_waterline))
-<br>在上述配置示例中，按照计算公式，高水位对应的链路个数=3，低水位对应的链路个数=1。每次建链前会检查当前HIXL内的链路是否达到3，如果已经达到，选择(当前链路个数-1 )条链路进行销毁（如存在正在传输的任务，则不会销毁），再建链。
-<br>当启用链路池机制时，有如下注意事项：
-<br>- 集群内的所有Hixl Engine都需要配置OPTION_GLOBAL_RESOURCE_CONFIG。
-<br>- 当调用TransferSync或TransferAsync接口时，若不存在相关链路，将执行建链操作。
-<br>- 会增加传输和建链的额外开销，可能导致性能下降。
+链路池工作时，当链路数达到高水位阈值，选取 (当前链路数 - 低水位阈值对应的链路数) 条链路进行销毁（其中正在传输的链路不会被销毁）。相关参数计算如下：
+
+```
+高水位线对应的链路数 = max(1, floor(channel_pool.max_channel × channel_pool.high_waterline))
+低水位线对应的链路数 = max(1, floor(channel_pool.max_channel × channel_pool.low_waterline))
+```
+
+在上述配置示例中，高水位对应的链路数=3，低水位对应的链路数=1。每次建链前检查当前链路数是否已达到3条，若已达到，则选取 (当前链路数 - 1) 条链路进行销毁（其中正在传输的链路不会被销毁）。
+
+启用链路池机制需注意：
+- 集群内的所有Hixl Engine均需配置OPTION_GLOBAL_RESOURCE_CONFIG。
+- 调用TransferSync或TransferAsync接口时，若不存在可用链路，链路池会自动执行建链操作。
+- 链路池机制会引入额外的传输与建链开销，可能导致性能下降。
 
 **表 2**  options（Ascend 950PR/Ascend 950DT）
 | 参数名 | 可选/必选 | 描述 |
