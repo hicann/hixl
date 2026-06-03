@@ -173,7 +173,7 @@ device侧网卡默认监听端口为16666，如果在多个进程使用同一个
 **表 2**  options（Ascend 950PR/Ascend 950DT）
 | 参数名 | 可选/必选 | 描述 |
 | --- | --- | --- |
-| OPTION_LOCAL_COMM_RES | 必选 | 配置本地通信资源信息，格式是json格式的字符串。配置格式参考[通信资源配置字段说明](#通信资源配置字段说明)。配置为空不会自动生成相关信息。 |
+| OPTION_LOCAL_COMM_RES | 必选 | 配置本地通信资源信息，格式是json格式的字符串。配置格式参考[通信资源配置字段说明](#通信资源配置字段说明)。配置为空不会自动生成相关信息。<br>配置样例：<br>UB：<br><pre>{<br>  "version": "1.3",<br>  "net_instance_id": "superpod1_1",<br>  "endpoint_list": [<br>    {<br>      "protocol": "ub_ctp",<br>      "comm_id": "00000000007f020000100000df149001",<br>      "placement": "host",<br>      "dst_eid": "00000000007f030000100000df141c01"<br>    }<br>  ]<br>}</pre>ROCE：<br><pre>{<br>  "version": "1.3",<br>  "net_instance_id": "superpod1_1",<br>  "endpoint_list": [<br>    {<br>      "protocol": "roce",<br>      "comm_id": "192.168.100.100",<br>      "placement": "host"<br>    }<br>  ]<br>}</pre>UBOE：<pre>{<br>  "version": "1.3",<br>  "net_instance_id": "superpod1_1",<br>  "endpoint_list": [<br>    {<br>      "protocol": "uboe",<br>      "comm_id": "192.168.100.123",<br>      "placement": "device"<br>    }<br>  ]<br>}</pre>**注意：以上配置样例中的具体值仅为格式参考示例，实际使用时必须从当前环境上查询真实的通信资源配置信息进行替换，直接照抄样例值将导致通信失败。** |
 | OPTION_GLOBAL_RESOURCE_CONFIG | 可选 | 字符串取值"GlobalResourceConfig"。用于开启并配置全局资源，格式为json格式的字符串，字段说明参考[全局资源配置字段说明](#全局资源配置字段说明)。 |
 
 <a name="通信资源配置字段说明"></a>**通信资源配置字段说明**  
