@@ -15,6 +15,7 @@
 #include <condition_variable>
 #include <functional>
 #include <future>
+#include <list>
 #include <memory>
 #include <queue>
 #include <stdexcept>
@@ -74,16 +75,24 @@ class ThreadPool {
     return future;
   }
 
-  static void ThreadFunc(ThreadPool *const thread_pool, uint32_t thread_idx, bool is_temporary);
+  static void ThreadFunc(ThreadPool *const thread_pool, uint32_t thread_idx, bool is_temporary,
+                         std::atomic<bool> *finished_flag);
 
  private:
   void AddTemporaryThread();
   void SetThreadName(const std::string &thread_type, uint32_t thread_idx);
   void LogTempThreadExit(const char *reason, uint32_t thread_idx);
   bool PopTask(std::function<void()> &task);
+  void CleanupFinishedTempThreads();
+
+  struct TempThreadEntry {
+    std::thread thread;
+    std::atomic<bool> finished{false};
+  };
 
   std::string thread_name_prefix_;
   std::vector<std::thread> pool_;
+  std::list<TempThreadEntry> temp_threads_;
   std::queue<ThreadTask> tasks_;
   std::mutex m_lock_;
   std::condition_variable cond_var_;

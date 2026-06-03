@@ -61,6 +61,7 @@ __attribute__((weak)) int32_t HcommChannelFenceOnThread(ThreadHandle thread, Cha
 __attribute__((weak)) int32_t HcommBatchTransferOnThread(ThreadHandle thread, ChannelHandle channel,
                                                          const HcommBatchTransferDesc *transfer_descs,
                                                          uint32_t transfer_desc_num);
+__attribute__((weak)) int32_t HcommAclrtNotifyRecordOnThread(ThreadHandle thread, uint64_t dstNotifyId);
 }
 
 namespace hixl {
@@ -194,6 +195,12 @@ int32_t HcommProxy::BatchTransferOnThread(ThreadHandle thread, ChannelHandle cha
     return HCCL_E_NOT_SUPPORT;
   }
   return HcommBatchTransferOnThread(thread, channel, transfer_descs, transfer_desc_num);
+}
+
+int32_t HcommProxy::aclrtNotifyRecordOnThread(ThreadHandle thread, int32_t notify_id) {
+  HIXL_CHK_BOOL_RET_STATUS(HcommAclrtNotifyRecordOnThread != nullptr, HCCL_E_NOT_SUPPORT,
+                           "function HcommAclrtNotifyRecordOnThread is null, maybe unsupported.");
+  return HcommAclrtNotifyRecordOnThread(thread, notify_id);
 }
 
 }  // namespace hixl

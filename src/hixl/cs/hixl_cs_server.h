@@ -63,6 +63,7 @@ class HixlCSServer {
   static Status SendMatchEndpointResp(int32_t fd, const MatchEndpointResp &resp);
   static Status SendRemoteMemResp(int32_t fd,
                                   const GetRemoteMemResp &resp);
+  static void FreeDeviceMem(void *&ptr);
   void CleanupClient(int32_t fd);
 
   // 获取 context 切换 guard，用于对外接口的 context 管理

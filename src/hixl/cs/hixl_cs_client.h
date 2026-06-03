@@ -27,7 +27,6 @@
 #include "hixl_mem_store.h"
 #include "transfer_pool.h"
 #include "hcomm/hcomm_res_defs.h"
-#include "hixl_mem_store.h"
 
 namespace hixl {
 struct CompleteHandleInfo {
@@ -36,51 +35,12 @@ struct CompleteHandleInfo {
   uint64_t *flag_address;
 };
 
-enum class DeviceOpType : uint32_t {
-  kGet = 0U,
-  kPut = 1U,
-};
-
-struct DeviceKernelArgs {
-  ThreadHandle thread;
-  ChannelHandle channel;
-  void *dev_flag;
-  uint32_t list_num;
-  DeviceOpType op;
-};
-
-struct DeviceArgs {
-  ThreadHandle thread;
-  ChannelHandle channel;
-  uint32_t list_num;
-  void **dst_buf_list;
-  void **src_buf_list;
-  uint64_t *len_list;
-  uint64_t remote_flag;
-  uint64_t local_flag;
-  uint32_t flag_size;
-};
-
-struct MemDev {
-  void *dst_buf_list_dev;
-  void *src_buf_list_dev;
-  uint64_t *len_list_dev;
-};
-
 struct DeviceCompleteHandle {
   uint32_t magic;
   uint32_t reserved;
-  std::shared_ptr<TransferPool::SlotHandle> shared_slot;  // Shared slot reference for concurrent transfers
-  void *host_flag;  // Per-transfer host flag for async completion tracking, nullptr for sync transfers
-  DeviceArgs args;
-  MemDev mem_dev;
-};
-
-struct CommunicateMem {
-  uint32_t list_num;
-  void **dst_buf_list;
-  const void **src_buf_list;
-  uint64_t *len_list;
+  std::shared_ptr<TransferPool::SlotHandle> shared_slot;
+  void *host_flag;
+  void *dev_op_desc_buf;
 };
 
 struct Buffers {
@@ -114,10 +74,9 @@ class HixlCSClient {
   // 注册client的endpoint的内存信息到内存注册表中。
   Status RegMem(const char *mem_tag, const CommMem *mem, MemHandle *mem_handle);
 
-  // 通过已经建立好的channel，从用户提供的地址列表等信息，进行数据传输
-  Status BatchTransfer(bool is_get, CommunicateMem &communicate_mem_param, void **query_handle);
+  Status BatchTransferAsync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list, void **query_handle);
 
-  Status BatchTransferSync(bool is_get, CommunicateMem &communicate_mem_param, uint32_t timeout_ms);
+  Status BatchTransferSync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list, uint32_t timeout_ms);
 
   // 通过已经建立好的channel，检查批量读写的状态。
   Status CheckStatus(void *query_handle, HixlCompleteStatus *status);
@@ -141,40 +100,43 @@ class HixlCSClient {
   Status ReleaseDevCompleteHandle(DeviceCompleteHandle *handle);
   Status CheckStatusHost(CompleteHandleInfo &query_handle, HixlCompleteStatus &status);
   Status CheckStatusDevice(DeviceCompleteHandle &query_handle, HixlCompleteStatus &status);
-  Status BatchTransferHost(bool is_get, const CommunicateMem &communicate_mem, void **query_handle);
-  Status BatchTransferHostSync(bool is_get, const CommunicateMem &communicate_mem, uint32_t timeout_ms);
-  Status BatchTransferDevice(bool is_get, const CommunicateMem &communicate_mem, void **query_handle);
-  Status BatchTransferDeviceSync(bool is_get, const CommunicateMem &communicate_mem, uint32_t timeout_ms);
+  Status BatchTransferHostAsync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list, void **query_handle);
+  Status BatchTransferHostSync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list, uint32_t timeout_ms);
+  Status BatchTransferDeviceAsync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list, void **query_handle);
+  Status BatchTransferDeviceSync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list, uint32_t timeout_ms);
   template <typename T>
   Status ConvertHostRegisterAddr(bool is_server, const char *name, T &addr);
-  Status ConvertUboeCommunicateMem(bool is_get, CommunicateMem &communicate_mem_param);
+  Status ConvertUboeDescs(uint32_t list_num, HixlOneSideOpDesc *desc_list);
   Status EnsureDeviceRemoteFlagInitedLocked();
   Status EnsureDeviceKernelLoadedLocked();
   void *GetDeviceKernelFunc(bool is_get);
   Status ImportRemoteMem(std::vector<HixlMemDesc> &desc_list, CommMem **remote_mem_list, char ***mem_tag_list,
                          uint32_t *list_num);
-  Status ValidateAddress(bool is_get, const CommunicateMem &communicate_mem_param);
-  Status TransferWithRetry(bool is_get, uint64_t channel_handle, void *dst_buf, const void *src_buf, uint64_t len);
-  Status BatchTransferTask(bool is_get, const CommunicateMem &communicate_mem_param);
+  Status ValidateAddress(uint32_t list_num, const HixlOneSideOpDesc *desc_list);
+  Status TransferWithRetry(bool is_get, uint64_t channel_handle, void *dst_buf, const void *src_buf, uint64_t len) const;
+  Status BatchTransferTask(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list);
   void FillOutputParams(ImportCtx &ctx, CommMem **remote_mem_list, char ***mem_tag_list, uint32_t *list_num);
   Status ClearRemoteMemInfo();
-  Status ValidateDeviceInputs(bool is_get, const CommunicateMem &mem_param, void *&query_handle) const;
-  Status PrepareDeviceRemoteFlagAndKernel(void *&remote_flag);
-  Status PrepareDeviceBatchMemBuffers(const CommunicateMem &communicate_mem_param, MemDev &mem_dev) const;
+  Status ValidateDeviceInputs(uint32_t list_num, const HixlOneSideOpDesc *desc_list, void *&query_handle) const;
+  Status PrepareDeviceRemoteFlagAndKernel(void *&remote_flag) const;
   Status ResolveNotifyDeviceAddress(aclrtNotify notify, uint64_t &notify_addr, uint32_t &notify_len);
   Status RegisterNotifyMemForAllSlots(const std::vector<TransferPool::SlotHandle> &slots);
-  Status FillDeviceArgs(const CommunicateMem &mem_param, MemDev &mem_dev, const TransferPool::SlotHandle &slot,
-                        void *remote_flag, DeviceArgs &args);
-  Status LaunchDeviceKernel(bool is_get, DeviceCompleteHandle &handle, const void *remote_flag);
+  Status LaunchDeviceKernel(bool is_get, DeviceCompleteHandle &handle,
+                            const HixlOneSideOpParam &param,
+                            bool wait_notify = true);
   void ReleaseLegacyHandlesLocked();
   void AbortAllPendingDeviceHandlesLocked();
   void ReleaseDeviceResourcesLocked();
   Status AcquireSharedSlot(std::shared_ptr<TransferPool::SlotHandle> &slot_out);
   void ReleaseSharedSlotRef(std::shared_ptr<TransferPool::SlotHandle> &slot_ref);
   void CleanupActiveSlot();
-  Status PrepareDeviceTransferArgs(const CommunicateMem &communicate_mem, DeviceCompleteHandle &handle,
-                                   void *&remote_flag);
-  Status AllocateHostFlag(void *&host_flag);
+  Status AllocateHostFlag(void *&host_flag) const;
+  Status AllocateDeviceDescBuf(DeviceCompleteHandle &handle, uint32_t total_list_num,
+                               const HixlOneSideOpDesc *desc_list);
+  Status BuildDeviceChunkParam(DeviceCompleteHandle &handle, uint32_t chunk_offset,
+                               uint32_t chunk_list_num, bool is_last_chunk,
+                               HixlOneSideOpParam &param);
+  Status LaunchDeviceChunkedKernels(bool is_get, DeviceCompleteHandle &handle, uint32_t list_num);
 
   // 获取 context 切换 guard，用于对外接口的 context 管理
   std::unique_ptr<hixl::TemporaryRtContext> GetContextGuard() const;

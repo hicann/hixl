@@ -25,6 +25,12 @@ constexpr uint64_t kDefaultTotalSize = 134217728ULL;  // 128 MiB
 constexpr uint32_t kDefaultBlockSteps = 1U;
 constexpr uint32_t kDefaultLoops = 1U;
 constexpr uint32_t kTcpClientCountMax = 65535U;
+constexpr uint16_t kDefaultTcpPort = 20000U;
+constexpr uint32_t kDefaultAcceptWaitSec = 30U;
+constexpr uint32_t kMaxAcceptWaitSec = 86400U;
+constexpr uint32_t kDefaultConnectTimeoutMs = 60000U;
+constexpr uint16_t kDefaultClientEnginePort = 16000U;
+constexpr uint16_t kDefaultServerEnginePort = 16001U;
 
 enum class BenchmarkRole { kUnknown, kClient, kServer };
 

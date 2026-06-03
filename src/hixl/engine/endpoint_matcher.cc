@@ -59,9 +59,9 @@ const EndpointConfig *EndpointMatcher::FindByProtocol(const std::vector<Endpoint
   return it != endpoints.end() ? &(*it) : nullptr;
 }
 
-void EndpointMatcher::BuildMatchMap(const std::vector<EndpointConfig> &eps,
+void EndpointMatcher::BuildMatchMap(const std::vector<EndpointConfig> &endpoints,
                                     std::map<MatchKey, EndpointConfig> &out) {
-  for (const auto &ep : eps) {
+  for (const auto &ep : endpoints) {
     if (IsUbProtocol(ep.protocol)) {
       out[{ep.dst_eid, ep.plane, ep.placement}] = ep;
     }

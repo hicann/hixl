@@ -29,6 +29,8 @@ namespace {
 
 constexpr int kListenPollSliceMs = 250;
 constexpr int kRecvNotifyPollTimeoutMs = 30 * 60 * 1000;
+constexpr uint16_t kConnectRetryTimes = 5;
+constexpr int kAcceptConnTimeoutMs = 5000;
 
 void CloseClientFds(std::vector<int> *fds) {
   for (int fd : *fds) {
@@ -291,7 +293,7 @@ bool TCPClient::ConnectToServer(const std::string &host, uint16_t port) {
     server_.sin_addr.s_addr = inet_addr(host.c_str());
   }
 
-  uint16_t retry_times = 5;
+  uint16_t retry_times = kConnectRetryTimes;
   uint16_t i = 0;
   while (i < retry_times) {
     auto ret = connect(sock_, reinterpret_cast<sockaddr *>(&server_), sizeof(server_));
@@ -462,9 +464,10 @@ bool TCPServer::AcceptIntoClientFd(int *out_fd, int poll_timeout_ms, bool *timed
 
 bool TCPServer::AcceptConnection() {
   bool timed_out = false;
-  if (!AcceptIntoClientFd(&client_socket_, 5000, &timed_out)) {
+  if (!AcceptIntoClientFd(&client_socket_, kAcceptConnTimeoutMs, &timed_out)) {
     if (timed_out) {
-      std::cerr << "[ERROR] Accept connection timeout (no new connection in 5000 ms)" << std::endl;
+      std::cerr << "[ERROR] Accept connection timeout (no new connection in " << kAcceptConnTimeoutMs << " ms)"
+                << std::endl;
     }
     return false;
   }

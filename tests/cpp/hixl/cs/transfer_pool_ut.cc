@@ -22,119 +22,134 @@ constexpr int32_t kTransferPoolUtDevId = 910246;
 
 class TransferPoolTest : public ::testing::Test {
  protected:
-  void TearDown() override { TransferPool::GetInstance(kTransferPoolUtDevId).Finalize(); }
+  void TearDown() override {
+    auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+    if (pool != nullptr) {
+      pool->Finalize();
+    }
+  }
 };
 
 TEST_F(TransferPoolTest, AbortWhenNotInitializedIsNoOp) {
   TransferPool::SlotHandle h{};
   h.device_id = kTransferPoolUtDevId;
   h.slot_index = 0U;
-  EXPECT_NO_THROW(TransferPool::GetInstance(kTransferPoolUtDevId).Abort(h));
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  EXPECT_NO_THROW(pool->Abort(h));
 }
 
 TEST_F(TransferPoolTest, AbortDeviceIdMismatchDoesNotFreeSlot) {
-  auto &pool = TransferPool::GetInstance(kTransferPoolUtDevId);
-  ASSERT_EQ(pool.Initialize(2U), SUCCESS);
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(2U), SUCCESS);
   TransferPool::SlotHandle acquired{};
-  ASSERT_EQ(pool.Acquire(&acquired), SUCCESS);
+  ASSERT_EQ(pool->Acquire(&acquired), SUCCESS);
   EXPECT_EQ(acquired.device_id, kTransferPoolUtDevId);
 
   TransferPool::SlotHandle wrong_dev = acquired;
   wrong_dev.device_id = acquired.device_id + 1;
-  pool.Abort(wrong_dev);
+  pool->Abort(wrong_dev);
 
   TransferPool::SlotHandle second{};
-  ASSERT_EQ(pool.Acquire(&second), SUCCESS);
-  pool.Release(second);
-  pool.Release(acquired);
+  ASSERT_EQ(pool->Acquire(&second), SUCCESS);
+  pool->Release(second);
+  pool->Release(acquired);
 }
 
 TEST_F(TransferPoolTest, AbortInvalidSlotIndexIsNoOp) {
-  auto &pool = TransferPool::GetInstance(kTransferPoolUtDevId);
-  ASSERT_EQ(pool.Initialize(1U), SUCCESS);
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
   TransferPool::SlotHandle bad{};
   bad.device_id = kTransferPoolUtDevId;
   bad.slot_index = 9999U;
-  EXPECT_NO_THROW(pool.Abort(bad));
+  EXPECT_NO_THROW(pool->Abort(bad));
 }
 
 TEST_F(TransferPoolTest, AbortInUseSlotReturnsItToPoolAndAcquireSucceedsAgain) {
-  auto &pool = TransferPool::GetInstance(kTransferPoolUtDevId);
-  ASSERT_EQ(pool.Initialize(2U), SUCCESS);
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(2U), SUCCESS);
   TransferPool::SlotHandle h{};
-  ASSERT_EQ(pool.Acquire(&h), SUCCESS);
-  pool.Abort(h);
+  ASSERT_EQ(pool->Acquire(&h), SUCCESS);
+  pool->Abort(h);
   TransferPool::SlotHandle a{};
   TransferPool::SlotHandle b{};
-  ASSERT_EQ(pool.Acquire(&a), SUCCESS);
-  ASSERT_EQ(pool.Acquire(&b), SUCCESS);
-  pool.Release(a);
-  pool.Release(b);
+  ASSERT_EQ(pool->Acquire(&a), SUCCESS);
+  ASSERT_EQ(pool->Acquire(&b), SUCCESS);
+  pool->Release(a);
+  pool->Release(b);
 }
 
 TEST_F(TransferPoolTest, AbortIdleSlotIsNoOp) {
-  auto &pool = TransferPool::GetInstance(kTransferPoolUtDevId);
-  ASSERT_EQ(pool.Initialize(2U), SUCCESS);
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(2U), SUCCESS);
   std::vector<TransferPool::SlotHandle> all;
-  ASSERT_EQ(pool.GetAllSlots(all), SUCCESS);
+  ASSERT_EQ(pool->GetAllSlots(all), SUCCESS);
   ASSERT_GE(all.size(), 2U);
   TransferPool::SlotHandle free_slot = all[0];
-  EXPECT_NO_THROW(pool.Abort(free_slot));
+  EXPECT_NO_THROW(pool->Abort(free_slot));
   TransferPool::SlotHandle h{};
-  ASSERT_EQ(pool.Acquire(&h), SUCCESS);
-  pool.Release(h);
+  ASSERT_EQ(pool->Acquire(&h), SUCCESS);
+  pool->Release(h);
 }
 
 TEST_F(TransferPoolTest, DoubleAbortSameHandleSecondIsNoOp) {
-  auto &pool = TransferPool::GetInstance(kTransferPoolUtDevId);
-  ASSERT_EQ(pool.Initialize(1U), SUCCESS);
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
   TransferPool::SlotHandle h{};
-  ASSERT_EQ(pool.Acquire(&h), SUCCESS);
-  pool.Abort(h);
-  EXPECT_NO_THROW(pool.Abort(h));
+  ASSERT_EQ(pool->Acquire(&h), SUCCESS);
+  pool->Abort(h);
+  EXPECT_NO_THROW(pool->Abort(h));
   TransferPool::SlotHandle again{};
-  ASSERT_EQ(pool.Acquire(&again), SUCCESS);
-  pool.Release(again);
+  ASSERT_EQ(pool->Acquire(&again), SUCCESS);
+  pool->Release(again);
 }
 
 TEST_F(TransferPoolTest, ReleaseAfterAbortOnSameHandleIsSafe) {
-  auto &pool = TransferPool::GetInstance(kTransferPoolUtDevId);
-  ASSERT_EQ(pool.Initialize(1U), SUCCESS);
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
   TransferPool::SlotHandle h{};
-  ASSERT_EQ(pool.Acquire(&h), SUCCESS);
-  pool.Abort(h);
-  EXPECT_NO_THROW(pool.Release(h));
+  ASSERT_EQ(pool->Acquire(&h), SUCCESS);
+  pool->Abort(h);
+  EXPECT_NO_THROW(pool->Release(h));
   TransferPool::SlotHandle again{};
-  ASSERT_EQ(pool.Acquire(&again), SUCCESS);
-  pool.Release(again);
+  ASSERT_EQ(pool->Acquire(&again), SUCCESS);
+  pool->Release(again);
 }
 
 TEST_F(TransferPoolTest, AbortOneSlotLeavesOtherAcquiredSlotIntact) {
-  auto &pool = TransferPool::GetInstance(kTransferPoolUtDevId);
-  ASSERT_EQ(pool.Initialize(2U), SUCCESS);
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(2U), SUCCESS);
   TransferPool::SlotHandle first{};
   TransferPool::SlotHandle second{};
-  ASSERT_EQ(pool.Acquire(&first), SUCCESS);
-  ASSERT_EQ(pool.Acquire(&second), SUCCESS);
-  pool.Abort(first);
-  EXPECT_NO_THROW(pool.Release(second));
+  ASSERT_EQ(pool->Acquire(&first), SUCCESS);
+  ASSERT_EQ(pool->Acquire(&second), SUCCESS);
+  pool->Abort(first);
+  EXPECT_NO_THROW(pool->Release(second));
   TransferPool::SlotHandle a{};
   TransferPool::SlotHandle b{};
-  ASSERT_EQ(pool.Acquire(&a), SUCCESS);
-  ASSERT_EQ(pool.Acquire(&b), SUCCESS);
-  pool.Release(a);
-  pool.Release(b);
+  ASSERT_EQ(pool->Acquire(&a), SUCCESS);
+  ASSERT_EQ(pool->Acquire(&b), SUCCESS);
+  pool->Release(a);
+  pool->Release(b);
 }
 
 TEST_F(TransferPoolTest, AcquireReturnsDevConstOne) {
-  auto &pool = TransferPool::GetInstance(kTransferPoolUtDevId);
-  ASSERT_EQ(pool.Initialize(1U), SUCCESS);
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
   TransferPool::SlotHandle handle{};
-  ASSERT_EQ(pool.Acquire(&handle), SUCCESS);
+  ASSERT_EQ(pool->Acquire(&handle), SUCCESS);
   // dev_const_one should be set by Acquire (may be nullptr if no device context)
   // The field exists and is accessible
   EXPECT_NO_THROW(handle.dev_const_one);
-  pool.Release(handle);
+  pool->Release(handle);
 }
 
 TEST_F(TransferPoolTest, SlotHandleHasDevConstOneField) {
@@ -144,24 +159,25 @@ TEST_F(TransferPoolTest, SlotHandleHasDevConstOneField) {
 }
 
 TEST_F(TransferPoolTest, MultipleAcquireReleaseCycles) {
-  auto &pool = TransferPool::GetInstance(kTransferPoolUtDevId);
-  ASSERT_EQ(pool.Initialize(2U), SUCCESS);
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(2U), SUCCESS);
 
   // First cycle
   TransferPool::SlotHandle a{};
   TransferPool::SlotHandle b{};
-  ASSERT_EQ(pool.Acquire(&a), SUCCESS);
-  ASSERT_EQ(pool.Acquire(&b), SUCCESS);
-  pool.Release(a);
-  pool.Release(b);
+  ASSERT_EQ(pool->Acquire(&a), SUCCESS);
+  ASSERT_EQ(pool->Acquire(&b), SUCCESS);
+  pool->Release(a);
+  pool->Release(b);
 
   // Second cycle - should be able to acquire again
   TransferPool::SlotHandle c{};
   TransferPool::SlotHandle d{};
-  ASSERT_EQ(pool.Acquire(&c), SUCCESS);
-  ASSERT_EQ(pool.Acquire(&d), SUCCESS);
-  pool.Release(c);
-  pool.Release(d);
+  ASSERT_EQ(pool->Acquire(&c), SUCCESS);
+  ASSERT_EQ(pool->Acquire(&d), SUCCESS);
+  pool->Release(c);
+  pool->Release(d);
 }
 
 }  // namespace

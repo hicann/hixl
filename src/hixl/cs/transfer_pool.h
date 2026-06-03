@@ -18,6 +18,7 @@
 #include "common/hixl_checker.h"
 #include "cs/hixl_cs.h"
 #include "hcomm/hcomm_res_defs.h"
+#include "common/hixl_utils.h"
 #include "runtime/runtime/rt.h"
 
 namespace hixl {
@@ -25,7 +26,7 @@ namespace hixl {
 class TransferPool {
  public:
   static constexpr uint32_t kMaxPoolSize = 4096U;
-  static TransferPool &GetInstance(int32_t device_id);
+  static TransferPool *GetInstance(int32_t device_id);
 
   struct SlotHandle {
     int32_t device_id;
@@ -35,6 +36,7 @@ class TransferPool {
     ThreadHandle thread;
     aclrtNotify notify;
     void *dev_const_one;
+    uint32_t notify_id;
   };
 
   TransferPool(const TransferPool &) = delete;
@@ -48,24 +50,24 @@ class TransferPool {
   Status GetAllSlots(std::vector<SlotHandle> &out) const;
   aclrtContext GetContext() const;
 
+  explicit TransferPool(int32_t device_id);
   ~TransferPool();
 
  private:
-  explicit TransferPool(int32_t device_id);
-
   struct Slot {
     bool in_use;
     aclrtContext ctx;
     aclrtStream stream;
     ThreadHandle thread;
     aclrtNotify notify;
+    uint32_t notify_id;
   };
 
   void InitFreeListLocked();
-  Status InitOneSlotLocked(Slot &slot, uint32_t slot_index);
+  Status InitOneSlotLocked(Slot &slot, uint32_t slot_index) const;
   static Status EnsureNotifyLocked(Slot &slot);
   static void ResetNotifyResourcesLocked(Slot &slot);
-  static Status CreateNotifyLocked(Slot &slot, uint32_t &notify_id);
+  static Status CreateNotifyLocked(Slot &slot);
   Status InitAllSlotsLocked();
   void RollbackInitLocked(uint32_t failed_index);
   void DeinitAllSlotsLocked();
@@ -73,7 +75,9 @@ class TransferPool {
   Status EnsureDefaultStreamLocked(Slot &slot) const;
   Status EnsureThreadLocked(Slot &slot) const;
   void DestroySlotLocked(Slot &slot) const;
+
   void AbortSlotByIndexLocked(uint32_t slot_index);
+
   static void FillHandleFromSlot(int32_t device_id, uint32_t index, const Slot &slot, SlotHandle *handle);
   Status EnsureDevConstOneLocked();
 
@@ -85,7 +89,7 @@ class TransferPool {
   std::deque<uint32_t> free_list_;
   std::vector<Slot> slots_;
   void *dev_const_one_{nullptr};
-  aclrtContext rts_context_{nullptr};  // 用于对外接口的共享 context
+  aclrtContext rts_context_{nullptr};
 };
 
 }  // namespace hixl

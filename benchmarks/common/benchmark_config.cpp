@@ -14,7 +14,6 @@
 #include <cinttypes>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -140,7 +139,7 @@ bool CollectArgs(int argc, char **argv, std::map<std::string, std::string> *kv,
     std::string arg = argv[i];
     if (arg == "-h" || arg == "--help") {
       BenchmarkConfigParser::PrintUsage(stdout);
-      std::exit(0);
+      return false;
     }
     auto pos = arg.find('=');
     if (pos == std::string::npos) {
@@ -161,18 +160,18 @@ bool CollectArgs(int argc, char **argv, std::map<std::string, std::string> *kv,
 void ApplyRoleDefaults(BenchmarkConfig *cfg) {
   if (cfg->role == BenchmarkRole::kClient) {
     cfg->device_id = 0;
-    cfg->local_engine = "127.0.0.1:16000";
-    cfg->remote_engine = "127.0.0.1:16001";
+    cfg->local_engine = "127.0.0.1:" + std::to_string(kDefaultClientEnginePort);
+    cfg->remote_engine = "127.0.0.1:" + std::to_string(kDefaultServerEnginePort);
   } else if (cfg->role == BenchmarkRole::kServer) {
     cfg->device_id = 1;
-    cfg->local_engine = "127.0.0.1:16001";
+    cfg->local_engine = "127.0.0.1:" + std::to_string(kDefaultServerEnginePort);
     cfg->remote_engine = "127.0.0.1";
   }
 }
 
 void ApplyCommonDefaults(BenchmarkConfig *cfg) {
-  cfg->tcp_port = 20000;
-  cfg->tcp_accept_wait_sec = 30U;
+  cfg->tcp_port = kDefaultTcpPort;
+  cfg->tcp_accept_wait_sec = kDefaultAcceptWaitSec;
   cfg->tcp_client_count = 1U;
   cfg->transfer_mode = "d2d";
   cfg->transfer_op = "read";
@@ -183,7 +182,7 @@ void ApplyCommonDefaults(BenchmarkConfig *cfg) {
   cfg->loops = kDefaultLoops;
   cfg->use_async = false;
   cfg->async_batch_num = 1U;
-  cfg->connect_timeout_ms = 60000U;
+  cfg->connect_timeout_ms = kDefaultConnectTimeoutMs;
 }
 
 using KvApplyFn = bool (*)(const std::string &val, BenchmarkConfig *cfg);
@@ -263,8 +262,8 @@ bool ApplyTcpAcceptWaitSecKv(const std::string &val, BenchmarkConfig *cfg) {
     fprintf(stderr, "[ERROR] Invalid --tcp_accept_wait_s=%s (expect positive integer)\n", val.c_str());
     return false;
   }
-  if (sec > 86400U) {
-    fprintf(stderr, "[ERROR] --tcp_accept_wait_s too large (max 86400)\n");
+  if (sec > kMaxAcceptWaitSec) {
+    fprintf(stderr, "[ERROR] --tcp_accept_wait_s too large (max %u)\n", kMaxAcceptWaitSec);
     return false;
   }
   cfg->tcp_accept_wait_sec = sec;
@@ -691,7 +690,6 @@ bool BenchmarkConfigParser::Validate(BenchmarkConfig *cfg) {
     cfg->tcp_port_list.push_back(cfg->tcp_port);
   }
   const size_t nt = cfg->tcp_port_list.size();
-
   if (!ValidateListLengths(nd, nl, nr, nt, n_max)) {
     return false;
   }

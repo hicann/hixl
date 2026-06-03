@@ -36,7 +36,11 @@ constexpr const char *kTransFlagNameDevice = "_hixl_builtin_dev_trans_flag";// c
 
 std::unique_ptr<hixl::TemporaryRtContext> HixlCSServer::GetContextGuard() const {
   if (device_id_ >= 0) {
-    aclrtContext ctx = TransferPool::GetInstance(device_id_).GetContext();
+    auto *pool = TransferPool::GetInstance(device_id_);
+    if (pool == nullptr) {
+      return nullptr;
+    }
+    aclrtContext ctx = pool->GetContext();
     if (ctx != nullptr) {
       return MakeUnique<hixl::TemporaryRtContext>(ctx);
     }
@@ -89,9 +93,16 @@ Status HixlCSServer::RegisterDeviceTransFinishedFlag() {
   int32_t dev_id = 0;
   HIXL_CHK_ACL_RET(aclrtGetDevice(&dev_id), "Failed to aclrtGetDevice for CS server TransferPool");
   hixl::TemporaryRtContext with_context(nullptr);  // 创建context会切换当前context, 因此需要在析构时恢复原用户context
-  HIXL_CHK_STATUS_RET(TransferPool::GetInstance(dev_id).Initialize(kDeviceTransferPoolSize),
+  auto *pool = TransferPool::GetInstance(dev_id);
+  HIXL_CHECK_NOTNULL(pool);
+  HIXL_CHK_STATUS_RET(pool->Initialize(kDeviceTransferPoolSize),
                       "Failed to init TransferPool for CS server, dev_id:%d", dev_id);
-  HIXL_DISMISSABLE_GUARD(pool_rollback, ([dev_id]() { TransferPool::GetInstance(dev_id).Finalize(); }));
+  HIXL_DISMISSABLE_GUARD(pool_rollback, ([dev_id]() {
+    auto *p = TransferPool::GetInstance(dev_id);
+    if (p != nullptr) {
+      p->Finalize();
+    }
+  }));
   void *dev_flag = nullptr;
   HIXL_CHK_ACL_RET(aclrtMalloc(&dev_flag, sizeof(int64_t),
                                static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_ONLY)));
@@ -159,13 +170,23 @@ Status HixlCSServer::DestroyChannel(int32_t fd, const char *msg, uint64_t msg_le
   return SUCCESS; 
 }
 
+void HixlCSServer::FreeDeviceMem(void *&ptr) {
+  if (ptr == nullptr) {
+    return;
+  }
+  auto rt_ret = aclrtFree(ptr);
+  if (rt_ret != ACL_SUCCESS) {
+    HIXL_LOGE(FAILED, "Failed to free device memory, ret:%d", rt_ret);
+  }
+  ptr = nullptr;
+}
+
 Status HixlCSServer::Finalize() {
   HIXL_LOGI("[HixlServer] finalize begin");
   Status ret = SUCCESS;
   // ctx_guard 在 TransferPool::Finalize() 之前必须析构，否则 Finalize 会销毁 rts_context_
   // 而 ctx_guard 析构时需要恢复到之前的 context，如果之前 context 和 rts_context_ 相同会报错
   {
-
     auto ctx_guard = GetContextGuard();
     (void)ctx_guard;
     if (listener_running_) {
@@ -177,28 +198,19 @@ Status HixlCSServer::Finalize() {
     msg_handler_.Finalize();
     ret = endpoint_store_.Finalize();
     HIXL_CHK_STATUS(ret, "Failed to finalize endpoint store.");
-    if (trans_flag_ != nullptr) {
-      auto rt_ret = aclrtFree(trans_flag_);
-      if (rt_ret != ACL_SUCCESS) {
-        HIXL_LOGE(FAILED, "Failed to free trans finished flag, ret:%d", rt_ret);
-      }
-      trans_flag_ = nullptr;
-    }
+    FreeDeviceMem(trans_flag_);
     if (host_trans_flag_ != nullptr) {
       free(host_trans_flag_);
       host_trans_flag_ = nullptr;
     }
-    if (dev_trans_flag_ != nullptr) {
-      auto rt_ret = aclrtFree(dev_trans_flag_);
-      if (rt_ret != ACL_SUCCESS) {
-        HIXL_LOGE(FAILED, "Failed to free DEVICE trans finished flag, ret:%d", rt_ret);
-      }
-      dev_trans_flag_ = nullptr;
-    }
+    FreeDeviceMem(dev_trans_flag_);
   }
   // ctx_guard 已析构，现在可以安全销毁 TransferPool
   if (device_id_ >= 0) {
-    TransferPool::GetInstance(device_id_).Finalize();
+    auto *pool = TransferPool::GetInstance(device_id_);
+    if (pool != nullptr) {
+      pool->Finalize();
+    }
     device_id_ = -1;
   }
 

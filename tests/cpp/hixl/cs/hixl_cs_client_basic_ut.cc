@@ -198,13 +198,9 @@ TEST_F(HixlCSClientFixture, BatchPutSuccessWithStubbedHccl) {
   // 通过 RegMem 登记本地缓冲
   RecordLocalMem(cli);
   std::cout << "client内存完成记录" << std::endl;
-  void *remote_list[] = {&kServerDataAddr};
-  const void *local_list[] = {&kClientBufAddr};
-  uint64_t len_list[] = {4};
   void *query_handle = nullptr;
-  CommunicateMem com_mem{1, remote_list, local_list, len_list};
-  // 批量写入，桩的 HcommWriteNbi/Fence/ReadNbi 都是空实现，流程应返回 SUCCESS
-  ASSERT_EQ(cli.BatchTransfer(false, com_mem, &query_handle), SUCCESS);
+  HixlOneSideOpDesc op_descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
+  ASSERT_EQ(cli.BatchTransferAsync(false, 1, op_descs, &query_handle), SUCCESS);
   std::cout << "执行批量写入，返回queryhandle" << std::endl;
   ASSERT_NE(query_handle, nullptr);
   CompleteHandleInfo *task_flag = static_cast<CompleteHandleInfo *>(query_handle);
@@ -232,12 +228,9 @@ TEST_F(HixlCSClientFixture, BatchPutFailsWhenDeviceEndpointImportsOnlyHostFlag) 
 
   RecordLocalMem(cli);
 
-  void *remote_list[] = {&kServerDataAddr};
-  const void *local_list[] = {&kClientBufAddr};
-  uint64_t len_list[] = {4};
   void *query_handle = nullptr;
-  CommunicateMem com_mem{1, remote_list, local_list, len_list};
-  EXPECT_EQ(cli.BatchTransfer(false, com_mem, &query_handle), FAILED);
+  HixlOneSideOpDesc op_descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
+  EXPECT_EQ(cli.BatchTransferAsync(false, 1, op_descs, &query_handle), FAILED);
   EXPECT_EQ(query_handle, nullptr);
 }
 
@@ -248,12 +241,9 @@ TEST_F(HixlCSClientFixture, BatchGetSuccessWithStubbedHccl) {
   // 登记本地缓冲
   RecordLocalMem(cli);
 
-  const void* remote_list[] = {&kServerDataAddr};
-  void* local_list[] = {&kClientBufAddr};
-  uint64_t len_list[] = {4};
-  void* query_handle = nullptr;
-  CommunicateMem com_mem{1, local_list, remote_list, len_list};
-  ASSERT_EQ(cli.BatchTransfer(true, com_mem, &query_handle), SUCCESS);
+  void *query_handle = nullptr;
+  HixlOneSideOpDesc descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
+  ASSERT_EQ(cli.BatchTransferAsync(true, 1, descs, &query_handle), SUCCESS);
   ASSERT_NE(query_handle, nullptr);
   CompleteHandleInfo *task_flag = static_cast<CompleteHandleInfo *>(query_handle);
   HixlCompleteStatus status_out = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
@@ -271,11 +261,8 @@ TEST_F(HixlCSClientFixture, BatchPutSyncSuccess) {
   local.size = kClientBufSizeBytes;
   MemHandle local_handle = nullptr;
   ASSERT_EQ(cli.RegMem("client_buf", &local, &local_handle), SUCCESS);
-  void *remote_list[] = {&kServerDataAddr};
-  const void *local_list[] = {&kClientBufAddr};
-  uint64_t len_list[] = {4};
-  CommunicateMem com_mem{1, remote_list, local_list, len_list};
-  EXPECT_EQ(cli.BatchTransferSync(false, com_mem, 5000U), SUCCESS);
+  HixlOneSideOpDesc descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
+  EXPECT_EQ(cli.BatchTransferSync(false, 1, descs, 5000U), SUCCESS);
 }
 
 // 覆盖 C 封装 HixlCSClientBatchPutSync（与 BatchTransferSync Put 路径一致）
@@ -336,13 +323,9 @@ TEST_F(HixlCSClientFixture, BatchPutFailsOnUnrecordedMemory) {
   const char *client_ip = "127.0.0.1";
   uint32_t port = 22337;
   PrepareConnectionAndImport(cli, client_ip, port);
-  //不注册本地内存，直接创建任务
-  void* remote_list[] = {&kServerDataAddr};
-  const void* local_list[] = {&kClientBufAddr};
-  uint64_t len_list[] = {4};
-  void* query_handle = nullptr;
-  CommunicateMem com_mem{1, remote_list, local_list, len_list};
-  EXPECT_EQ(cli.BatchTransfer(false, com_mem, &query_handle), PARAM_INVALID);
+  void *query_handle = nullptr;
+  HixlOneSideOpDesc descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
+  EXPECT_EQ(cli.BatchTransferAsync(false, 1, descs, &query_handle), PARAM_INVALID);
   EXPECT_EQ(query_handle, nullptr);
 }
 
@@ -372,12 +355,9 @@ TEST_F(HixlCSClientFixture, ReleaseCompleteHandleTest) {
   RecordLocalMem(cli);
 
   // 执行一次传输获取 query_handle
-  void *remote_list[] = {&kServerDataAddr};
-  const void *local_list[] = {&kClientBufAddr};
-  uint64_t len_list[] = {4};
   void *query_handle = nullptr;
-  CommunicateMem com_mem{1, remote_list, local_list, len_list};
-  ASSERT_EQ(cli.BatchTransfer(false, com_mem, &query_handle), SUCCESS);
+  HixlOneSideOpDesc descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
+  ASSERT_EQ(cli.BatchTransferAsync(false, 1, descs, &query_handle), SUCCESS);
   ASSERT_NE(query_handle, nullptr);
 
   // 通过 CheckStatus 检查状态（stub 环境下会自动释放 handle）
@@ -399,12 +379,9 @@ TEST_F(HixlCSClientFixture, MultipleBatchTransferAndCheckStatus) {
   // 执行多次传输
   std::vector<void *> query_handles;
   for (int i = 0; i < 3; ++i) {
-    void *remote_list[] = {&kServerDataAddr};
-    const void *local_list[] = {&kClientBufAddr};
-    uint64_t len_list[] = {4};
     void *query_handle = nullptr;
-    CommunicateMem com_mem{1, remote_list, local_list, len_list};
-    EXPECT_EQ(cli.BatchTransfer(false, com_mem, &query_handle), SUCCESS);
+    HixlOneSideOpDesc descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
+    EXPECT_EQ(cli.BatchTransferAsync(false, 1, descs, &query_handle), SUCCESS);
     if (query_handle != nullptr) {
       query_handles.push_back(query_handle);
     }
@@ -424,24 +401,13 @@ TEST_F(HixlCSClientFixture, BatchTransferWithRetryLogic) {
   RecordLocalMem(cli);
 
   // 创建15个传输任务
-  // 前10次：正常返回成功
-  // 第11次开始：返回 HCCL_RETRY_REQUIRED (20)，触发重试逻辑
-  // 重试时：Fence 会重置计数器，传输再次成功
-  void *remote_list[] = {&kServerDataAddr, &kServerDataAddr, &kServerDataAddr, &kServerDataAddr,
-                         &kServerDataAddr, &kServerDataAddr, &kServerDataAddr, &kServerDataAddr,
-                         &kServerDataAddr, &kServerDataAddr, &kServerDataAddr, &kServerDataAddr,
-                         &kServerDataAddr, &kServerDataAddr, &kServerDataAddr};
-  const void *local_list[] = {&kClientBufAddr, &kClientBufAddr, &kClientBufAddr, &kClientBufAddr,
-                              &kClientBufAddr, &kClientBufAddr, &kClientBufAddr, &kClientBufAddr,
-                              &kClientBufAddr, &kClientBufAddr, &kClientBufAddr, &kClientBufAddr,
-                              &kClientBufAddr, &kClientBufAddr, &kClientBufAddr};
-  uint64_t len_list[] = {4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4};
+  HixlOneSideOpDesc descs[15];
+  for (int i = 0; i < 15; ++i) {
+    descs[i] = {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4};
+  }
   void *query_handle = nullptr;
-  // 注意： CommunicateMem 的定义是 {dst_buf_list, src_buf_list, len_list}
-  // BatchTransfer(false) 表示 Put，即从 local (src) 写入 remote (dst)
-  CommunicateMem com_mem{15, remote_list, local_list, len_list};
   // 批量传输应该成功，因为重试逻辑会处理第11次开始的 HCCL_RETRY_REQUIRED
-  EXPECT_EQ(cli.BatchTransfer(false, com_mem, &query_handle), SUCCESS);
+  EXPECT_EQ(cli.BatchTransferAsync(false, 15, descs, &query_handle), SUCCESS);
   EXPECT_NE(query_handle, nullptr);
 }
 
@@ -457,20 +423,15 @@ TEST_F(HixlCSClientFixture, BatchTransferChannelFenceFailure) {
   RecordLocalMem(cli);
 
   // 创建2个传输任务
-  // 第1次传输会成功
-  // 第2次传输会触发 HCCL_RETRY_REQUIRED (20)
-  // 重试时 Fence 会返回 HCCL_E_PARA，BatchTransfer 应该返回 FAILED
-  void *remote_list[] = {&kServerDataAddr, &kServerDataAddr};
-  const void *local_list[] = {&kClientBufAddr, &kClientBufAddr};
-  uint64_t len_list[] = {4, 4};
+  HixlOneSideOpDesc descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4},
+                               {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
   void *query_handle = nullptr;
-  CommunicateMem com_mem{2, remote_list, local_list, len_list};
 
   // 设置在重试时 Fence 返回 HCCL_E_PARA
   SetNextFenceFailure(HCCL_E_PARA);
 
   // 批量传输应该失败，因为 Fence 执行失败
-  EXPECT_EQ(cli.BatchTransfer(false, com_mem, &query_handle), FAILED);
+  EXPECT_EQ(cli.BatchTransferAsync(false, 2, descs, &query_handle), FAILED);
 }
 
 // 测试传输任务在 ReadNbiOnThread 执行失败时的错误处理
@@ -484,18 +445,14 @@ TEST_F(HixlCSClientFixture, BatchTransferReadNbiFailure) {
   RecordLocalMem(cli);
 
   // 创建2个传输任务
-  // CommunicateMem: {dst_buf_list, src_buf_list, len_list}
-  // 对于 Get (BatchTransfer true): dst_buf_list=local, src_buf_list=remote
-  void *local_list[] = {&kClientBufAddr, &kClientBufAddr};
-  const void *remote_list[] = {&kServerDataAddr, &kServerDataAddr};
-  uint64_t len_list[] = {4, 4};
+  HixlOneSideOpDesc descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4},
+                               {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
   void *query_handle = nullptr;
-  CommunicateMem com_mem{2, local_list, remote_list, len_list};
 
   // 设置 ReadNbi 返回 HCCL_E_PARA
   SetNextNbiFailure(HCCL_E_PARA);
 
   // 批量传输应该失败，因为 ReadNbi 执行失败
-  EXPECT_EQ(cli.BatchTransfer(true, com_mem, &query_handle), FAILED);
+  EXPECT_EQ(cli.BatchTransferAsync(true, 2, descs, &query_handle), FAILED);
 }
 }  // namespace hixl

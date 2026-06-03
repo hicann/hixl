@@ -30,16 +30,21 @@ constexpr uint32_t kDefaultNotifyNumPerThread = 0U;
 
 namespace hixl {
 
-TransferPool &TransferPool::GetInstance(int32_t device_id) {
+TransferPool *TransferPool::GetInstance(int32_t device_id) {
   static std::mutex registry_mu;
   static std::unordered_map<int32_t, std::unique_ptr<TransferPool>> pools;
   std::lock_guard<std::mutex> reg_lock(registry_mu);
   auto it = pools.find(device_id);
-  if (it == pools.end()) {
-    auto inserted = pools.emplace(device_id, std::unique_ptr<TransferPool>(new TransferPool(device_id)));
-    it = inserted.first;
+  if (it != pools.end()) {
+    return it->second.get();
   }
-  return *it->second;
+  auto pool_ptr = MakeUnique<TransferPool>(device_id);
+  if (pool_ptr == nullptr) {
+    HIXL_LOGE(FAILED, "[TransferPool] MakeUnique failed, device_id=%d", device_id);
+    return nullptr;
+  }
+  const auto &inserted = pools.emplace(device_id, std::move(pool_ptr));
+  return inserted.first->second.get();
 }
 
 TransferPool::TransferPool(int32_t device_id)
@@ -76,7 +81,6 @@ Status TransferPool::Initialize(uint32_t pool_size) {
   pool_size_ = pool_size;
   slots_.clear();
   slots_.resize(pool_size_);
-  // 为对外接口创建共享 rts context
   HIXL_CHK_ACL_RET(aclrtCreateContext(&rts_context_, device_id_), "aclrtCreateContext rts_context_ failed");
   for (uint32_t i = 0U; i < pool_size_; ++i) {
     Slot &s = slots_[i];
@@ -205,7 +209,8 @@ void TransferPool::FillHandleFromSlot(int32_t device_id, uint32_t index, const S
   handle->stream = slot.stream;
   handle->thread = slot.thread;
   handle->notify = slot.notify;
-  handle->dev_const_one = nullptr;  // dev_const_one 在 GetAllSlots 时为空，只有 Acquire 时才填充
+  handle->dev_const_one = nullptr;
+  handle->notify_id = slot.notify_id;
 }
 
 Status TransferPool::InitAllSlotsLocked() {
@@ -232,7 +237,7 @@ void TransferPool::RollbackInitLocked(uint32_t failed_index) {
   free_list_.clear();
 }
 
-Status TransferPool::InitOneSlotLocked(Slot &slot, uint32_t slot_index) {
+Status TransferPool::InitOneSlotLocked(Slot &slot, uint32_t slot_index) const {
   (void)slot_index;
   HIXL_CHK_STATUS_RET(EnsureContextLocked(slot), "[TransferPool] EnsureContextLocked failed");
   HIXL_CHK_STATUS_RET(EnsureDefaultStreamLocked(slot), "[TransferPool] EnsureDefaultStreamLocked failed");
@@ -265,15 +270,16 @@ void TransferPool::AbortSlotByIndexLocked(uint32_t slot_index) {
       }
     }
 
-    if (slot.thread != 0U) {
-      HIXL_CHK_ACL(HcommProxy::ThreadFree(&slot.thread, 1U), "HcommThreadFree failed");
-      slot.thread = 0U;
-    }
-    if (slot.ctx != nullptr) {
-      HIXL_LOGI("[TransferPool] destroying context %p in AbortSlotByIndexLocked", slot.ctx);
-      HIXL_CHK_ACL(aclrtDestroyContext(slot.ctx), "[TransferPool] aclrtDestroyContext failed in Abort");
-      slot.ctx = nullptr;
-    }
+  }
+  if (slot.thread != 0U) {
+    const hixl::TemporaryRtContext rts_guard(rts_context_);
+    HIXL_CHK_ACL(HcommProxy::ThreadFree(&slot.thread, 1U), "HcommThreadFree failed");
+    slot.thread = 0U;
+  }
+  if (slot.ctx != nullptr) {
+    HIXL_LOGI("[TransferPool] destroying context %p in AbortSlotByIndexLocked", slot.ctx);
+    HIXL_CHK_ACL(aclrtDestroyContext(slot.ctx), "[TransferPool] aclrtDestroyContext failed in Abort");
+    slot.ctx = nullptr;
     slot.stream = nullptr;
   }
 
@@ -295,7 +301,7 @@ Status TransferPool::EnsureNotifyLocked(Slot &slot) {
   }
   ResetNotifyResourcesLocked(slot);
   uint32_t notify_id = 0U;
-  HIXL_CHK_STATUS_RET(CreateNotifyLocked(slot, notify_id), "[TransferPool] CreateNotifyLocked failed");
+  HIXL_CHK_STATUS_RET(CreateNotifyLocked(slot), "[TransferPool] CreateNotifyLocked failed");
   (void)notify_id;
   return SUCCESS;
 }
@@ -307,17 +313,15 @@ void TransferPool::ResetNotifyResourcesLocked(Slot &slot) {
   }
 }
 
-Status TransferPool::CreateNotifyLocked(Slot &slot, uint32_t &notify_id) {
-  notify_id = 0U;
+Status TransferPool::CreateNotifyLocked(Slot &slot) {
   HIXL_CHK_ACL_RET(aclrtCreateNotify(&slot.notify, ACL_NOTIFY_DEVICE_USE_ONLY),
                    "[TransferPool] aclrtCreateNotify failed");
-  HIXL_CHK_ACL_RET(aclrtGetNotifyId(slot.notify, &notify_id), "[TransferPool] aclrtGetNotifyId failed");
-  HIXL_LOGD("[TransferPool] Created notify. notify_id=%u", notify_id);
+  HIXL_CHK_ACL_RET(aclrtGetNotifyId(slot.notify, &slot.notify_id), "[TransferPool] aclrtGetNotifyId failed");
+  HIXL_LOGD("[TransferPool] Created notify. notify_id=%u", slot.notify_id);
   return SUCCESS;
 }
 
 void TransferPool::DeinitAllSlotsLocked() {
-  // 先释放 dev_const_one_，再销毁 rts_context_
   if (dev_const_one_ != nullptr) {
     HIXL_CHK_ACL(aclrtFree(dev_const_one_));
     dev_const_one_ = nullptr;
@@ -390,10 +394,11 @@ void TransferPool::DestroySlotLocked(Slot &slot) const {
       HIXL_CHK_ACL(aclrtDestroyNotify(slot.notify));
       slot.notify = nullptr;
     }
-    if (slot.thread != 0U) {
-      HIXL_CHK_ACL(HcommProxy::ThreadFree(&slot.thread, 1U), "HcommThreadFree failed");
-      slot.thread = 0U;
-    }
+  }
+  if (slot.thread != 0U) {
+    const hixl::TemporaryRtContext rts_guard(rts_context_);
+    HIXL_CHK_ACL(HcommProxy::ThreadFree(&slot.thread, 1U), "HcommThreadFree failed");
+    slot.thread = 0U;
   }
   if (slot.ctx != nullptr) {
     HIXL_LOGI("[TransferPool] destroying context %p", slot.ctx);

@@ -23,7 +23,7 @@ ThreadPool::ThreadPool(std::string thread_name_prefix,
   busy_thrd_num_ = 0U;
 
   for (uint32_t i = 0U; i < min_thrd_num_; ++i) {
-    pool_.emplace_back(&ThreadFunc, this, i, false);
+    pool_.emplace_back(&ThreadFunc, this, i, false, nullptr);
   }
   HIXL_LOGI("[ThreadPool] created, name:%s, min_size:%u, max_size:%u, core_threads:%u",
             thread_name_prefix_.c_str(), min_thrd_num_, max_thrd_num_, min_thrd_num_);
@@ -39,9 +39,9 @@ void ThreadPool::Destroy() {
   }
   HIXL_LOGI("[ThreadPool] destroying, name:%s, total_threads:%u, pending_tasks:%zu",
             thread_name_prefix_.c_str(), total_thrd_num_.load(), tasks_.size());
-  is_stopped_.store(true);
   {
     const std::unique_lock<std::mutex> lock{m_lock_};
+    is_stopped_.store(true);
     cond_var_.notify_all();
   }
 
@@ -54,19 +54,31 @@ void ThreadPool::Destroy() {
       }
     }
   }
+  for (auto &entry : temp_threads_) {
+    if (entry.thread.joinable()) {
+      try {
+        entry.thread.join();
+      } catch (...) {
+        HIXL_LOGW("[ThreadPool:%s] temp thread join exception", thread_name_prefix_.c_str());
+      }
+    }
+  }
   HIXL_LOGI("[ThreadPool] destroyed, name:%s", thread_name_prefix_.c_str());
 }
 
 void ThreadPool::AddTemporaryThread() {
   const std::lock_guard<std::mutex> lock{m_lock_};
-  if (total_thrd_num_.load() >= max_thrd_num_) {
-    HIXL_LOGD("[ThreadPool:%s] cannot add temp thread, total:%u >= max:%u",
-              thread_name_prefix_.c_str(), total_thrd_num_.load(), max_thrd_num_);
+  if (is_stopped_.load() || total_thrd_num_.load() >= max_thrd_num_) {
+    HIXL_LOGD("[ThreadPool:%s] cannot add temp thread, stopped:%d, total:%u >= max:%u",
+              thread_name_prefix_.c_str(), is_stopped_.load(), total_thrd_num_.load(), max_thrd_num_);
     return;
   }
+  CleanupFinishedTempThreads();
   uint32_t thread_idx = total_thrd_num_.load();
   ++total_thrd_num_;
-  std::thread(&ThreadFunc, this, thread_idx, true).detach();
+  temp_threads_.emplace_back();
+  auto &entry = temp_threads_.back();
+  entry.thread = std::thread(&ThreadFunc, this, thread_idx, true, &entry.finished);
   HIXL_LOGI("[ThreadPool:%s] add temp thread, idx:%u, idle:%u, busy:%u, total:%u, max:%u",
             thread_name_prefix_.c_str(), thread_idx,
             idle_thrd_num_.load(), busy_thrd_num_.load(), total_thrd_num_.load(), max_thrd_num_);
@@ -97,7 +109,22 @@ bool ThreadPool::PopTask(std::function<void()> &task) {
   return true;
 }
 
-void ThreadPool::ThreadFunc(ThreadPool *const thread_pool, uint32_t thread_idx, bool is_temporary) {
+void ThreadPool::CleanupFinishedTempThreads() {
+  auto it = temp_threads_.begin();
+  while (it != temp_threads_.end()) {
+    if (it->finished.load()) {
+      if (it->thread.joinable()) {
+        it->thread.join();
+      }
+      it = temp_threads_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+void ThreadPool::ThreadFunc(ThreadPool *const thread_pool, uint32_t thread_idx, bool is_temporary,
+                            std::atomic<bool> *finished_flag) {
   if (thread_pool == nullptr) {
     return;
   }
@@ -113,7 +140,7 @@ void ThreadPool::ThreadFunc(ThreadPool *const thread_pool, uint32_t thread_idx, 
         --thread_pool->total_thrd_num_;
         thread_pool->LogTempThreadExit("exit on stop", thread_idx);
       }
-      return;
+      break;
     }
     if (!is_temporary) {
       --thread_pool->idle_thrd_num_;
@@ -125,11 +152,14 @@ void ThreadPool::ThreadFunc(ThreadPool *const thread_pool, uint32_t thread_idx, 
     if (is_temporary && !thread_pool->is_stopped_) {
       --thread_pool->total_thrd_num_;
       thread_pool->LogTempThreadExit("exit after task", thread_idx);
-      return;
+      break;
     }
     if (!is_temporary) {
       ++thread_pool->idle_thrd_num_;
     }
+  }
+  if (finished_flag != nullptr) {
+    finished_flag->store(true);
   }
 }
 }  // namespace hixl
