@@ -25,10 +25,9 @@
 namespace hixl {
 namespace {
 constexpr uint64_t kMaxRecvRespBodySize = static_cast<uint64_t>(4ULL * 1024ULL * 1024ULL);
-constexpr uint32_t kCtrlMsgPluginTimeoutMs = 10000U;
 }  // namespace
 
-Status HixlClient::Initialize(const std::vector<EndpointConfig> &local_endpoint_list) {
+Status HixlClient::Initialize(const std::vector<EndpointConfig> &local_endpoint_list, uint32_t timeout_ms) {
   if (local_endpoint_list.empty()) {
     HIXL_LOGE(PARAM_INVALID, "The input local_endpoint_list is empty");
     return PARAM_INVALID;
@@ -37,7 +36,7 @@ Status HixlClient::Initialize(const std::vector<EndpointConfig> &local_endpoint_
   CtrlMsgPlugin::Initialize();
   {
     int32_t socket = -1;
-    HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Connect(server_ip_, server_port_, socket, kCtrlMsgPluginTimeoutMs),
+    HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Connect(server_ip_, server_port_, socket, static_cast<int32_t>(timeout_ms)),
                         "Connect socket failed");
     ScopeGuard socket_guard([&socket]() {
       if (socket != -1) {
@@ -49,7 +48,7 @@ Status HixlClient::Initialize(const std::vector<EndpointConfig> &local_endpoint_
     });
     HIXL_CHK_STATUS_RET(SendEndpointInfoReq(socket, CtrlMsgType::kGetEndpointInfoReq),
                         "HixlClient send GetEndpointInfoReq failed, socket:%d", socket);
-    HIXL_CHK_STATUS_RET(RecvEndpointInfoResp(socket, remote_endpoint_list),
+    HIXL_CHK_STATUS_RET(RecvEndpointInfoResp(socket, remote_endpoint_list, timeout_ms),
                         "HixlClient receive GetEndpointInfoResp failed, socket:%d", socket);
   }
   if (remote_endpoint_list.empty()) {
@@ -78,9 +77,10 @@ Status HixlClient::SendEndpointInfoReq(int32_t fd, CtrlMsgType msg_type) const {
   return SUCCESS;
 }
 
-Status HixlClient::RecvEndpointInfoResp(int32_t fd, std::vector<EndpointConfig> &remote_endpoint_list) const {
+Status HixlClient::RecvEndpointInfoResp(int32_t fd, std::vector<EndpointConfig> &remote_endpoint_list,
+                                        uint32_t timeout_ms) const {
   CtrlMsgHeader header{};
-  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Recv(fd, &header, static_cast<uint32_t>(sizeof(header)), kCtrlMsgPluginTimeoutMs),
+  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Recv(fd, &header, static_cast<uint32_t>(sizeof(header)), timeout_ms),
                       "HixlClient receive header failed, fd:%d", fd);
   HIXL_CHK_BOOL_RET_STATUS(header.magic == kMagicNumber, PARAM_INVALID,
                            "Invalid magic for HixlClient RecvEndpointInfoResp, expect:0x%X, actual:0x%X", kMagicNumber,
@@ -95,7 +95,7 @@ Status HixlClient::RecvEndpointInfoResp(int32_t fd, std::vector<EndpointConfig> 
   HIXL_EVENT("[HixlClient] RecvEndpointInfoResp: receiving remote_endpoint_list body (%" PRIu64
              " bytes) from fd=%d begin",
              body_size, fd);
-  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Recv(fd, body.data(), static_cast<uint32_t>(body_size), kCtrlMsgPluginTimeoutMs));
+  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Recv(fd, body.data(), static_cast<uint32_t>(body_size), timeout_ms));
   HIXL_EVENT("[HixlClient] RecvEndpointInfoResp: receiving remote_endpoint_list body (%" PRIu64
              " bytes) from fd=%d success",
              body_size, fd);

@@ -130,6 +130,7 @@ Status HixlEngine::Connect(const AscendString &remote_engine, int32_t timeout_in
   config.remote_engine = remote_engine.GetString();
   config.rdma_tc = rdma_traffic_class_;
   config.rdma_sl = rdma_service_level_;
+  config.timeout_ms = static_cast<uint32_t>(timeout_in_millis);
   HIXL_CHK_STATUS_RET(client_manager_.CreateClient(config, client_ptr),
                       "[HixlEngine] Failed to create HixlClient, local_engine: %s, remote_engine: %s",
                       local_engine_.c_str(), remote_engine.GetString());

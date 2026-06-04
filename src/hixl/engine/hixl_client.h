@@ -29,6 +29,7 @@ struct ClientConfig {
   std::string remote_engine;
   uint8_t rdma_tc;
   uint8_t rdma_sl;
+  uint32_t timeout_ms;
 };
 
 class HixlClient {
@@ -52,9 +53,10 @@ class HixlClient {
   /**
    * @brief client初始化
    * @param [in] local_endpoint_list 客户端本地 endpoint_list
+   * @param [in] timeout_ms          超时时间（ms）
    * @return 操作结果状态码
    */
-  Status Initialize(const std::vector<EndpointConfig> &local_endpoint_list);
+  Status Initialize(const std::vector<EndpointConfig> &local_endpoint_list, uint32_t timeout_ms);
 
   /**
    * @brief 建链
@@ -97,7 +99,7 @@ class HixlClient {
 
  private:
   Status SendEndpointInfoReq(int32_t fd, CtrlMsgType msg_type) const;
-  Status RecvEndpointInfoResp(int32_t fd, std::vector<EndpointConfig> &remote_endpoint_list) const;
+  Status RecvEndpointInfoResp(int32_t fd, std::vector<EndpointConfig> &remote_endpoint_list, uint32_t timeout_ms) const;
   void WaitBatchCsSyncInflightDrain();
 
   std::string server_ip_;

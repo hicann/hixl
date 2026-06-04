@@ -561,7 +561,7 @@ class HixlClientUTest : public ::testing::Test {
     StartServer(bad_json_mode);
     std::vector<EndpointConfig> local_endpoint_list;
     local_endpoint_list.push_back(MakeRoceDiffNetLocalEp());
-    Status st = client_->Initialize(local_endpoint_list);
+    Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
     EXPECT_EQ(st, PARAM_INVALID);
     st = client_->Finalize();
     EXPECT_EQ(st, SUCCESS);
@@ -586,7 +586,7 @@ class HixlClientUTest : public ::testing::Test {
       local_endpoint_list.push_back(MakeRoceDiffNetLocalEp());
     }
 
-    Status st = client_->Initialize(local_endpoint_list);
+    Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
     EXPECT_EQ(st, SUCCESS);
 
     st = client_->SetLocalMemInfo(use_4ub ? Make4UbMemInfoList() : MakeMemInfoList());
@@ -684,7 +684,7 @@ TEST_F(HixlClientUTest, Initialize4UBTest) {
   local_endpoint_list.push_back(MakeUbHostLocalEp2());
   local_endpoint_list.push_back(MakeUbDeviceLocalEp3());
   local_endpoint_list.push_back(MakeUbDeviceLocalEp4());
-  Status st = client_->Initialize(local_endpoint_list);
+  Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
 }
 
@@ -696,7 +696,7 @@ TEST_F(HixlClientUTest, Initialize2UBTest) {
   local_endpoint_list.push_back(MakeRoceHostLocalEp());
   local_endpoint_list.push_back(MakeUbHostLocalEp1());
   local_endpoint_list.push_back(MakeUbHostLocalEp2());
-  Status st = client_->Initialize(local_endpoint_list);
+  Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
 }
 
@@ -708,7 +708,7 @@ TEST_F(HixlClientUTest, Initialize1UBTest) {
   local_endpoint_list.push_back(MakeRoceHostLocalEp());
   local_endpoint_list.push_back(MakeUbHostLocalEp1());
   local_endpoint_list.push_back(MakeUbDeviceLocalEp3());
-  Status st = client_->Initialize(local_endpoint_list);
+  Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
 }
 
@@ -721,7 +721,7 @@ TEST_F(HixlClientUTest, InitializeEnvTest) {
   local_endpoint_list.push_back(MakeUbHostLocalEp2());
   {
     EnvGuard env_guard("HCCL_INTRA_ROCE_ENABLE", "1");
-    Status st = client_->Initialize(local_endpoint_list);
+    Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
     EXPECT_EQ(st, SUCCESS);
     st = client_->Finalize();
     EXPECT_EQ(st, SUCCESS);
@@ -736,7 +736,7 @@ TEST_F(HixlClientUTest, InitializeDiffNetTest) {
   local_endpoint_list.push_back(MakeRoceDiffNetLocalEp());
   local_endpoint_list.push_back(MakeUbDiffNetLocalEp1());
   local_endpoint_list.push_back(MakeUbDiffNetLocalEp2());
-  Status st = client_->Initialize(local_endpoint_list);
+  Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
   st = client_->Finalize();
   EXPECT_EQ(st, SUCCESS);
@@ -749,7 +749,7 @@ TEST_F(HixlClientUTest, InitializeNoRoceTest) {
   std::vector<EndpointConfig> local_endpoint_list;
   local_endpoint_list.push_back(MakeUbDiffNetLocalEp1());
   local_endpoint_list.push_back(MakeUbDiffNetLocalEp2());
-  Status st = client_->Initialize(local_endpoint_list);
+  Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
   EXPECT_EQ(st, PARAM_INVALID);  // 重构后 handler 创建失败返回 PARAM_INVALID
   st = client_->Finalize();
   EXPECT_EQ(st, SUCCESS);
@@ -763,7 +763,7 @@ TEST_F(HixlClientUTest, InitializeNoPairTest) {
   local_endpoint_list.push_back(MakeRoceHostLocalEp());
   local_endpoint_list.push_back(MakeUbDeviceLocalEp3());
   local_endpoint_list.push_back(MakeUbDeviceLocalEp4());
-  Status st = client_->Initialize(local_endpoint_list);
+  Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
   EXPECT_EQ(st, PARAM_INVALID);  // 重构后 handler 创建失败返回 PARAM_INVALID
   st = client_->Finalize();
   EXPECT_EQ(st, SUCCESS);
@@ -806,7 +806,7 @@ TEST_F(HixlClientUTest, SetLocalMemInfoTest) {
   // 初始化 roce 链路
   std::vector<EndpointConfig> local_endpoint_list;
   local_endpoint_list.push_back(MakeRoceDiffNetLocalEp());
-  Status st = client_->Initialize(local_endpoint_list);
+  Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
   std::vector<MemInfo> mem_info_list = MakeMemInfoList();
   st = client_->SetLocalMemInfo(mem_info_list);
@@ -822,7 +822,7 @@ TEST_F(HixlClientUTest, ConnectSuccessTest) {
   // 初始化 roce 链路
   std::vector<EndpointConfig> local_endpoint_list;
   local_endpoint_list.push_back(MakeRoceDiffNetLocalEp());
-  Status st = client_->Initialize(local_endpoint_list);
+  Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
   // 调用 Connect 方法
   st = client_->Connect(kDefaultTimeoutMs);
@@ -882,7 +882,7 @@ TEST_F(HixlClientUTest, TransferSyncNoConnectTest) {
   StartServer(MockHixlServerMode::k4UbNormal);
   std::vector<EndpointConfig> local_endpoint_list;
   local_endpoint_list.push_back(MakeRoceDiffNetLocalEp());
-  Status st = client_->Initialize(local_endpoint_list);
+  Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
 
   st = client_->SetLocalMemInfo(MakeMemInfoList());
@@ -898,7 +898,7 @@ TEST_F(HixlClientUTest, TransferSyncNoSetLocalMemInfoTest) {
   StartServer(MockHixlServerMode::k4UbNormal);
   std::vector<EndpointConfig> local_endpoint_list;
   local_endpoint_list.push_back(MakeRoceDiffNetLocalEp());
-  Status st = client_->Initialize(local_endpoint_list);
+  Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
 
   st = client_->Connect(kDefaultTimeoutMs);

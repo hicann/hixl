@@ -29,8 +29,8 @@ Status ClientManager::CreateClient(const ClientConfig &config, ClientPtr &client
   }
   client_ptr = MakeShared<HixlClient>(ip, static_cast<uint32_t>(port), config);
   HIXL_CHECK_NOTNULL(client_ptr, "Failed to create HixlClient, ip:%s, port:%u", ip.c_str(), port);
-  HIXL_CHK_STATUS_RET(client_ptr->Initialize(config.endpoint_list), "Failed to initialize HixlClient, ip:%s, port:%u",
-                      ip.c_str(), port);
+  HIXL_CHK_STATUS_RET(client_ptr->Initialize(config.endpoint_list, config.timeout_ms),
+                      "Failed to initialize HixlClient, ip:%s, port:%u", ip.c_str(), port);
   std::lock_guard<std::mutex> lock(mutex_);
   clients_.emplace(config.remote_engine, client_ptr);
   return SUCCESS;
