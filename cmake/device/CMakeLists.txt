@@ -30,9 +30,11 @@ find_package_if_target_not_exists(hccl MODULE REQUIRED)
 find_package_if_target_not_exists(slog MODULE REQUIRED)
 
 set(STUBS
-    slog
+    slog_dev
     ccl_kernel
 )
+set(STUB_OUTPUT_NAME_slog_dev slog)
+
 foreach(STUB ${STUBS})
     if(NOT TARGET ${STUB})
         generate_stub(${STUB})

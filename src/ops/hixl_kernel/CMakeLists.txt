@@ -29,7 +29,7 @@ target_link_libraries(cann_hixl_kernel PRIVATE
         $<BUILD_INTERFACE:hccl_headers>
         $<BUILD_INTERFACE:slog_headers>
         -Wl,--no-as-needed
-        slog
+        slog_dev
         hcomm_proxy_static
         -Wl,--no-as-needed
 )
