@@ -28,7 +28,6 @@ set(LLM_DATADIST_TEST_FILES
         statistic_manager_unittest.cc
         rank_table_generator_unittest.cc
         buffer_transfer_service_unittest.cc
-        virtual_memory_manager_unittest.cc
         control_msg_handler_unittest.cc
         control_msg_handler_write_unittest.cc
         transfer_message_limits_unittest.cc

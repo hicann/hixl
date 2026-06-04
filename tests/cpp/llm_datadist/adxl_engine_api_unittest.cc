@@ -22,7 +22,6 @@
 #include "adxl/statistic_manager.h"
 #include "fabric_mem/virtual_memory_manager.h"
 #include "engine/engine_factory.h"
-#include "engine/fabric_mem_engine.h"
 #include "engine/hixl_engine.h"
 #include "engine/comm_engine.h"
 #include "dlog_pub.h"
@@ -173,16 +172,6 @@ TEST_F(AdxlEngineUTest, TestEngineFactoryUseHixlEngineWhenUboeNotFirstInProtocol
   auto engine = hixl::EngineFactory::CreateEngine("127.0.0.1", options);
   ASSERT_NE(engine, nullptr);
   EXPECT_NE(dynamic_cast<hixl::HixlEngine *>(engine.get()), nullptr);
-  EXPECT_EQ(dynamic_cast<hixl::CommEngine *>(engine.get()), nullptr);
-}
-
-TEST_F(AdxlEngineUTest, TestEngineFactoryUseFabricMemEngineWhenFabricMemEnabled) {
-  std::map<AscendString, AscendString> options;
-  options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
-  auto engine = hixl::EngineFactory::CreateEngine("127.0.0.1", options);
-  ASSERT_NE(engine, nullptr);
-  EXPECT_NE(dynamic_cast<hixl::FabricMemEngine *>(engine.get()), nullptr);
-  EXPECT_EQ(dynamic_cast<hixl::HixlEngine *>(engine.get()), nullptr);
   EXPECT_EQ(dynamic_cast<hixl::CommEngine *>(engine.get()), nullptr);
 }
 
@@ -890,55 +879,6 @@ TEST_F(AdxlEngineUTest, TestAdxlGetTransferStatusWithStreamSyncFailed) {
   engine2.Finalize();
 }
 
-TEST_F(AdxlEngineUTest, TestAdxlEngineFabricMemoryCapacityConfig) {
-  // Ensure VirtualMemoryManager is not initialized
-  hixl::VirtualMemoryManager::GetInstance().Finalize();
-
-  // Test with custom fabric memory capacity (32TB)
-  constexpr size_t kCustomCapacityTB = 32UL;
-  std::string json_config = R"({
-    "fabric_memory": {
-      "max_capacity": )" + std::to_string(kCustomCapacityTB) +
-                            R"(
-    }
-  })";
-
-  llm::AutoCommResRuntimeMock::SetDevice(0);
-  AdxlEngine engine1;
-  std::map<AscendString, AscendString> options1;
-  options1[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
-  options1[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
-
-  // Initialize with custom capacity
-  EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options1), SUCCESS);
-
-  // Verify that VirtualMemoryManager is initialized with custom capacity
-  // by trying to allocate memory up to the custom capacity
-  uintptr_t addr = 0;
-  // Try to allocate 1GB - should succeed
-  constexpr size_t k1GB = 1024UL * 1024UL * 1024UL;
-  EXPECT_EQ(hixl::VirtualMemoryManager::GetInstance().ReserveMemory(k1GB, addr), SUCCESS);
-  EXPECT_NE(addr, 0);
-  EXPECT_EQ(hixl::VirtualMemoryManager::GetInstance().ReleaseMemory(addr), SUCCESS);
-
-  // Clean up
-  engine1.Finalize();
-}
-
-TEST_F(AdxlEngineUTest, TestAdxlEngineFabricMemoryInitFailureRollback) {
-  hixl::VirtualMemoryManager::GetInstance().Finalize();
-
-  llm::AutoCommResRuntimeMock::SetDevice(0);
-  AdxlEngine engine;
-  std::map<AscendString, AscendString> options;
-  options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
-
-  EXPECT_NE(engine.Initialize("invalid_local_engine", options), SUCCESS);
-  EXPECT_EQ(hixl::VirtualMemoryManager::GetInstance().SetGlobalStartAddress(50UL), SUCCESS);
-  EXPECT_EQ(hixl::VirtualMemoryManager::GetInstance().SetGlobalStartAddress(40UL), SUCCESS);
-  hixl::VirtualMemoryManager::GetInstance().Finalize();
-}
-
 TEST_F(AdxlEngineUTest, TestAdxlEngineSendNotifyMsgTooLong) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
@@ -1128,44 +1068,6 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineTaskStreamNumEmptyString) {
 
   // Should fail with invalid parameter
   EXPECT_EQ(engine.Initialize("127.0.0.1:26000", options), PARAM_INVALID);
-}
-
-TEST_F(AdxlEngineUTest, TestAdxlEngineFabricMemRegisterMemOverflow) {
-  hixl::VirtualMemoryManager::GetInstance().Finalize();
-
-  llm::AutoCommResRuntimeMock::SetDevice(0);
-  AdxlEngine engine;
-  std::map<AscendString, AscendString> options;
-  options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
-  ASSERT_EQ(engine.Initialize("127.0.0.1:26000", options), SUCCESS);
-
-  MemDesc mem{};
-  mem.addr = std::numeric_limits<uintptr_t>::max();
-  mem.len = 2U;
-  MemHandle handle = nullptr;
-  EXPECT_EQ(engine.RegisterMem(mem, MEM_HOST, handle), PARAM_INVALID);
-  EXPECT_EQ(handle, nullptr);
-
-  engine.Finalize();
-}
-
-TEST_F(AdxlEngineUTest, TestAdxlEngineFabricMemTransferAsyncFailureClearsReq) {
-  hixl::VirtualMemoryManager::GetInstance().Finalize();
-
-  llm::AutoCommResRuntimeMock::SetDevice(0);
-  AdxlEngine engine;
-  std::map<AscendString, AscendString> options;
-  options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
-  ASSERT_EQ(engine.Initialize("127.0.0.1:26000", options), SUCCESS);
-
-  int32_t src = 1;
-  int32_t dst = 2;
-  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
-  TransferReq req = reinterpret_cast<TransferReq>(0x1234U);
-  EXPECT_EQ(engine.TransferAsync("127.0.0.1:26001", WRITE, {desc}, {}, req), NOT_CONNECTED);
-  EXPECT_EQ(req, nullptr);
-
-  engine.Finalize();
 }
 
 TEST_F(AdxlEngineUTest, TestAdxlEngineMallocMemAndFreeMem) {

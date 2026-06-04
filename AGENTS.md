@@ -37,6 +37,7 @@ bash build.sh --examples                   # 同时编译示例和 benchmark
 # 测试
 bash tests/run_test.sh                     # 执行全部 C++ 和 Python 测试
 bash tests/run_test.sh -t cpp              # 仅执行 C++ 测试
+bash tests/run_test.sh -t fabric_mem       # 仅执行 fabric_mem_test
 bash tests/run_test.sh -t py               # 仅执行 Python 测试
 bash tests/run_test.sh --cov               # 按覆盖率模式构建并运行测试
 

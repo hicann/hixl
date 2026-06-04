@@ -31,7 +31,6 @@ set(HIXL_TEST_FILES
         engine/hixl_profiling_unittest.cc
         engine/hixl_engine_uboe_unittest.cc
         engine/local_comm_res_ut.cc
-        fabric_mem/fabric_mem_unittest.cc
         ../ops/hixl_kernel/hixl_kernel_basic_unittest.cc
 )
 
@@ -129,6 +128,8 @@ target_link_libraries(hixl_test
 set_target_properties(hixl_test PROPERTIES
         BUILD_RPATH "${CMAKE_BINARY_DIR}/tests/depends/dcmi"
 )
+
+add_subdirectory(fabric_mem)
 
 include(CTest)
 enable_testing()

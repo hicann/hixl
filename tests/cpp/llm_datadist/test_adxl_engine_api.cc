@@ -21,7 +21,6 @@
 
 #include "adxl/adxl_engine.h"
 #include "adxl/channel_manager.h"
-#include "fabric_mem/virtual_memory_manager.h"
 #include "dlog_pub.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
 #include "hixl/hixl_types.h"
@@ -401,42 +400,6 @@ TEST_F(AdxlEngineSTest, TestAdxlDisableBufferPoolD2D) {
   EXPECT_EQ(engine1.Disconnect("127.0.0.1:26001"), SUCCESS);
   EXPECT_EQ(engine1.DeregisterMem(handle1), SUCCESS);
   EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
-  engine1.Finalize();
-  engine2.Finalize();
-}
-
-TEST_F(AdxlEngineSTest, TestAdxlEngineFabricMemWithStartAddress) {
-  hixl::VirtualMemoryManager::GetInstance().Finalize();
-
-  constexpr size_t kCustomStartAddrTB = 100UL;
-  std::string json_config = R"({
-    "fabric_memory.start_address": ")" + std::to_string(kCustomStartAddrTB) + R"("
-  })";
-
-  llm::AutoCommResRuntimeMock::SetDevice(0);
-  AdxlEngine engine1;
-  std::map<AscendString, AscendString> options1;
-  options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
-  options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
-  options1[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
-  options1[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
-  EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options1), SUCCESS);
-
-  llm::AutoCommResRuntimeMock::SetDevice(1);
-  AdxlEngine engine2;
-  std::map<AscendString, AscendString> options2;
-  options2[OPTION_RDMA_TRAFFIC_CLASS] = "4";
-  options2[OPTION_RDMA_SERVICE_LEVEL] = "1";
-  options2[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
-  options2[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
-  EXPECT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
-
-  constexpr size_t k1GB = 1024UL * 1024UL * 1024UL;
-  uintptr_t addr = 0;
-  EXPECT_EQ(hixl::VirtualMemoryManager::GetInstance().ReserveMemory(k1GB, addr), SUCCESS);
-  EXPECT_NE(addr, 0);
-  EXPECT_EQ(hixl::VirtualMemoryManager::GetInstance().ReleaseMemory(addr), SUCCESS);
-
   engine1.Finalize();
   engine2.Finalize();
 }

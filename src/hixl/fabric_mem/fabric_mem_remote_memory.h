@@ -30,9 +30,8 @@ class FabricMemRemoteMemory {
 
   Status Import(const std::vector<ShareHandleInfo> &remote_share_handles, int32_t device_id);
   void Finalize();
-  // Engine mutex_ serializes Import/Transfer/Finalize; internal lock_guard here provides
-  // defense-in-depth against future callers that may not hold the engine lock.
-  const std::unordered_map<uintptr_t, VaInfo> &GetNewVaToOldVa() const;
+  // RemoteConnection::state_mutex serializes transfer/disconnect for the same remote.
+  std::unordered_map<uintptr_t, VaInfo> GetNewVaToOldVa() const;
 
  private:
   void ClearLocked();

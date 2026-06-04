@@ -11,6 +11,7 @@
 #include <map>
 #include <queue>
 #include <iostream>
+#include <sys/mman.h>
 #include "ascendcl_stub.h"
 #include "mmpa/mmpa_api.h"
 
@@ -22,6 +23,7 @@ static int32_t g_free_event_num = 2048;
 static int32_t g_cnt_rtStreamSynchronize_over_flow = 0;
 static int32_t g_cnt_rtStreamSynchronize_fail = 0;
 static size_t reserve_mem_size_ = 200UL * 1024UL * 1024UL;
+static size_t reserved_total_size_ = 0;
 
 #define EVENT_LENTH 10
 #define NOTIFY_LENTH 10
@@ -121,12 +123,12 @@ aclError AclRuntimeStub::aclrtSetCurrentContext(aclrtContext context) {
   if (std::string(&record_path[0]).find("mock_fail") != std::string::npos) {
     return ACL_ERROR_RT_INTERNAL_ERROR;
   }
+  current_context_ = context;
   return ACL_ERROR_NONE;
 }
 
 aclError AclRuntimeStub::aclrtGetCurrentContext(aclrtContext *context) {
-  uintptr_t x = 1;
-  *context = (aclrtContext *)x;
+  *context = current_context_;
   return ACL_ERROR_NONE;
 }
 
@@ -210,6 +212,28 @@ aclError AclRuntimeStub::aclrtStreamAbort(aclrtStream stream) {
 
 aclError AclRuntimeStub::aclrtStreamWaitEvent(aclrtStream stream, aclrtEvent event) {
   (void)stream;
+  (void)event;
+  return ACL_ERROR_NONE;
+}
+
+aclError AclRuntimeStub::aclrtStreamQuery(aclrtStream stream, aclrtStreamStatus *status) {
+  if (status == nullptr) {
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  if (std::string(__FUNCTION__) == g_acl_stub_mock) {
+    return ACL_ERROR_RT_INTERNAL_ERROR;
+  }
+  (void)stream;
+  *status = ACL_STREAM_STATUS_COMPLETE;
+  return ACL_ERROR_NONE;
+}
+
+aclError AclRuntimeStub::aclrtSetStreamFailureMode(aclrtStream stream, uint64_t mode) {
+  (void)stream;
+  (void)mode;
+  if (std::string(__FUNCTION__) == g_acl_stub_mock) {
+    return ACL_ERROR_RT_INTERNAL_ERROR;
+  }
   return ACL_ERROR_NONE;
 }
 
@@ -466,18 +490,29 @@ aclError AclRuntimeStub::aclrtMemcpyBatch(void **dsts, size_t *destMax, void **s
 
 aclError AclRuntimeStub::aclrtReserveMemAddress(void **devPtr, size_t size, size_t alignment, void *devAddr,
                                                 uint64_t flags) {
-  if (size < 200UL * 1024UL * 1024UL) {
-    *devPtr = new uint8_t[size];
-    reserve_mem_size_ = size;
-  } else {
-    *devPtr = new uint8_t[reserve_mem_size_];
+  (void)alignment;
+  (void)flags;
+  // Cap the allocation to a test-sufficient size (4GB). The VirtualMemoryManager
+  // reserves 64TB by default, but mmap-ing that much virtual space can fail on
+  // machines with tight overcommit limits or fragmented VA space. In tests we
+  // never allocate more than a handful of 1GB-aligned blocks, so 4GB is plenty.
+  constexpr size_t kMaxStubReserveSize = 4UL * 1024UL * 1024UL * 1024UL;
+  const size_t alloc_size = std::min(size, kMaxStubReserveSize);
+  *devPtr = mmap(devAddr, alloc_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE | MAP_NORESERVE, -1, 0);
+  if (*devPtr == MAP_FAILED) {
+    *devPtr = nullptr;
+    return ACL_ERROR_RT_INTERNAL_ERROR;
   }
-  memset_s(*devPtr, reserve_mem_size_, 0, reserve_mem_size_);
+  reserve_mem_size_ = alloc_size;
+  reserved_total_size_ = alloc_size;
   return ACL_ERROR_NONE;
 }
 
 aclError AclRuntimeStub::aclrtReleaseMemAddress(void *devPtr) {
-  delete[] (uint8_t *)devPtr;
+  if (devPtr != nullptr && reserved_total_size_ > 0) {
+    munmap(devPtr, reserved_total_size_);
+    reserved_total_size_ = 0;
+  }
   return ACL_ERROR_NONE;
 }
 
@@ -721,6 +756,14 @@ aclError aclrtStreamAbort(aclrtStream stream) {
 
 aclError aclrtStreamWaitEvent(aclrtStream stream, aclrtEvent event) {
   return llm::AclRuntimeStub::GetInstance()->aclrtStreamWaitEvent(stream, event);
+}
+
+aclError aclrtStreamQuery(aclrtStream stream, aclrtStreamStatus *status) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtStreamQuery(stream, status);
+}
+
+aclError aclrtSetStreamFailureMode(aclrtStream stream, uint64_t mode) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtSetStreamFailureMode(stream, mode);
 }
 
 aclError aclrtSynchronizeStream(aclrtStream stream) {

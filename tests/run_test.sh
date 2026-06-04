@@ -24,9 +24,11 @@ usage() {
   echo ""
   echo "Options:"
   echo "    -h, --help     Print usage"
-  echo "    -t, --test     Build all test"
-  echo "        =cpp               Build all cpp test"
-  echo "        =py                Build all py test"
+  echo "    -t, --test     Test target (omit -t for cpp+py; bare -t same as all)"
+  echo "        cpp                C++ tests only (llm_datadist + hixl + fabric_mem)"
+  echo "        fabric_mem         fabric_mem_test only"
+  echo "        py                 Python tests only"
+  echo "        TYPE may be glued (-tfabric_mem) or spaced (-t fabric_mem)."
   echo "    -c, --cov      Build test with coverage tag"
   echo "                   Please ensure that the environment has correctly installed lcov, gcov, and genhtml."
   echo "                   and the version matched gcc/g++, default is OFF."
@@ -44,6 +46,30 @@ mk_dir() {
   echo "created ${create_dir}"
 }
 
+set_test_type() {
+  case "$1" in
+    cpp)
+      ENABLE_CPP_TEST=ON
+      ENABLE_PY_TEST="off"
+      ENABLE_FABRIC_MEM_ONLY=OFF
+      ;;
+    fabric_mem)
+      ENABLE_CPP_TEST=ON
+      ENABLE_PY_TEST="off"
+      ENABLE_FABRIC_MEM_ONLY=ON
+      ;;
+    py)
+      ENABLE_PY_TEST=ON
+      ENABLE_CPP_TEST="off"
+      ENABLE_FABRIC_MEM_ONLY=OFF
+      ;;
+    *)
+      usage
+      exit 1
+      ;;
+  esac
+}
+
 # parse and set options
 checkopts() {
   VERBOSE=""
@@ -52,8 +78,10 @@ checkopts() {
   CMAKE_BUILD_TYPE="DT"
   ENABLE_CPP_TEST=ON
   ENABLE_PY_TEST=ON
+  ENABLE_FABRIC_MEM_ONLY=OFF
   ENABLE_ASAN=OFF
   ENABLE_GCOV=OFF
+  TEST_TYPE_DEFERRED=0
 
   CANN_3RD_LIB_PATH="$BASEPATH/third_party"
 
@@ -71,21 +99,14 @@ checkopts() {
           "")
             ENABLE_CPP_TEST=ON
             ENABLE_PY_TEST=ON
-            shift 2
-            ;;
-          "cpp")
-            ENABLE_CPP_TEST=ON
-            ENABLE_PY_TEST="off"
-            shift 2
-            ;;
-          "py")
-            ENABLE_PY_TEST=ON
-            ENABLE_CPP_TEST="off"
+            ENABLE_FABRIC_MEM_ONLY=OFF
+            TEST_TYPE_DEFERRED=1
             shift 2
             ;;
           *)
-            usage
-            exit 1
+            set_test_type "$2"
+            shift 2
+            ;;
         esac
         ;;
       -c | --cov)
@@ -125,6 +146,23 @@ checkopts() {
         ;;
     esac
   done
+
+  # GNU getopt optional-arg quirk: "-t fabric_mem" leaves TYPE as a positional arg.
+  if [[ $# -gt 0 ]]; then
+    if [[ "${TEST_TYPE_DEFERRED}" -eq 1 ]]; then
+      set_test_type "$1"
+      shift
+    else
+      echo "Unexpected argument(s): $*"
+      usage
+      exit 1
+    fi
+  fi
+  if [[ $# -gt 0 ]]; then
+    echo "Unexpected argument(s): $*"
+    usage
+    exit 1
+  fi
 }
 
 build() {
@@ -177,17 +215,60 @@ run() {
 
   echo "Run tests with leaks check"
   if [[ "X$ENABLE_CPP_TEST" = "XON" ]]; then
-      RUN_TEST_CASE="${BUILD_PATH}/tests/cpp/llm_datadist/llm_datadist_test --gtest_output=xml:${report_dir}/llm_datadist_test.xml" && ${RUN_TEST_CASE}
-      if [[ "$?" -ne 0 ]]; then
-          echo "!!! CPP TEST FAILED, PLEASE CHECK YOUR CHANGES !!!"
-          echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
-          exit 1;
-      fi
-      RUN_TEST_CASE="${BUILD_PATH}/tests/cpp/hixl/hixl_test --gtest_output=xml:${report_dir}/hixl_test.xml" && ${RUN_TEST_CASE}
-      if [[ "$?" -ne 0 ]]; then
-          echo "!!! CPP TEST FAILED, PLEASE CHECK YOUR CHANGES !!!"
-          echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
-          exit 1;
+      run_cpp_test() {
+          local test_bin="$1"
+          local report_name="$2"
+          local run_cmd="${test_bin} --gtest_output=xml:${report_dir}/${report_name}"
+          echo "Run: ${run_cmd}"
+          ${run_cmd}
+      }
+
+      if [[ "X$ENABLE_FABRIC_MEM_ONLY" = "XON" ]]; then
+          run_cpp_test "${BUILD_PATH}/tests/cpp/hixl/fabric_mem/fabric_mem_test" "fabric_mem_test.xml" || {
+              echo "!!! CPP TEST FAILED, PLEASE CHECK YOUR CHANGES !!!"
+              echo -e "\033[31m${BUILD_PATH}/tests/cpp/hixl/fabric_mem/fabric_mem_test\033[0m"
+              exit 1;
+          }
+      else
+          run_cpp_test "${BUILD_PATH}/tests/cpp/llm_datadist/llm_datadist_test" "llm_datadist_test.xml" || {
+              echo "!!! CPP TEST FAILED, PLEASE CHECK YOUR CHANGES !!!"
+              echo -e "\033[31m${BUILD_PATH}/tests/cpp/llm_datadist/llm_datadist_test\033[0m"
+              exit 1;
+          }
+          HIXL_PARALLEL_TEST_PIDS=()
+          HIXL_PARALLEL_TEST_CMDS=()
+          HIXL_PARALLEL_TEST_LOGS=()
+
+          run_cpp_test_parallel() {
+              local test_bin="$1"
+              local report_name="$2"
+              local run_cmd="${test_bin} --gtest_output=xml:${report_dir}/${report_name}"
+              local log_file="${report_dir}/${report_name%.xml}.log"
+              echo "Run (parallel): ${run_cmd} (log: ${log_file})"
+              ${run_cmd} > "${log_file}" 2>&1 &
+              HIXL_PARALLEL_TEST_PIDS+=("$!")
+              HIXL_PARALLEL_TEST_CMDS+=("${run_cmd}")
+              HIXL_PARALLEL_TEST_LOGS+=("${log_file}")
+          }
+
+          run_cpp_test_parallel "${BUILD_PATH}/tests/cpp/hixl/hixl_test" "hixl_test.xml"
+          run_cpp_test_parallel "${BUILD_PATH}/tests/cpp/hixl/fabric_mem/fabric_mem_test" "fabric_mem_test.xml"
+
+          HIXL_PARALLEL_FAILED=0
+          for idx in "${!HIXL_PARALLEL_TEST_PIDS[@]}"; do
+              # Each run is redirected to its own log to avoid interleaved parallel output; replay it here.
+              wait "${HIXL_PARALLEL_TEST_PIDS[$idx]}" && wait_ret=0 || wait_ret=1
+              echo "===== Output: ${HIXL_PARALLEL_TEST_CMDS[$idx]} ====="
+              cat "${HIXL_PARALLEL_TEST_LOGS[$idx]}"
+              if [[ "${wait_ret}" -ne 0 ]]; then
+                  HIXL_PARALLEL_FAILED=1
+                  echo "!!! CPP TEST FAILED, PLEASE CHECK YOUR CHANGES !!!"
+                  echo -e "\033[31m${HIXL_PARALLEL_TEST_CMDS[$idx]} (log: ${HIXL_PARALLEL_TEST_LOGS[$idx]})\033[0m"
+              fi
+          done
+          if [[ "${HIXL_PARALLEL_FAILED}" -ne 0 ]]; then
+              exit 1;
+          fi
       fi
   fi
 
@@ -237,11 +318,18 @@ run() {
 
       if [[ "X$ENABLE_CPP_TEST" = "XON" ]]; then
           detect_lcov_flags
-          lcov -c ${LCOV_IGNORE_FLAGS} -d ${BUILD_PATH}/tests/cpp/llm_datadist/CMakeFiles/llm_datadist_test.dir \
-                  -d ${BUILD_PATH}/tests/cpp/hixl/CMakeFiles/hixl_test.dir \
-                  -d ${BUILD_PATH}/tests/depends/python/CMakeFiles/llm_datadist_wrapper_stub.dir \
-                  -d ${BUILD_PATH}/tests/depends/python/CMakeFiles/metadef_wrapper_stub.dir \
-               -o cov/tmp.info
+          if [[ "X$ENABLE_FABRIC_MEM_ONLY" = "XON" ]]; then
+              lcov -c ${LCOV_IGNORE_FLAGS} \
+                      -d ${BUILD_PATH}/tests/cpp/hixl/fabric_mem/CMakeFiles/fabric_mem_test.dir \
+                   -o cov/tmp.info
+          else
+              lcov -c ${LCOV_IGNORE_FLAGS} -d ${BUILD_PATH}/tests/cpp/llm_datadist/CMakeFiles/llm_datadist_test.dir \
+                      -d ${BUILD_PATH}/tests/cpp/hixl/CMakeFiles/hixl_test.dir \
+                      -d ${BUILD_PATH}/tests/cpp/hixl/fabric_mem/CMakeFiles/fabric_mem_test.dir \
+                      -d ${BUILD_PATH}/tests/depends/python/CMakeFiles/llm_datadist_wrapper_stub.dir \
+                      -d ${BUILD_PATH}/tests/depends/python/CMakeFiles/metadef_wrapper_stub.dir \
+                   -o cov/tmp.info
+          fi
           lcov -e cov/tmp.info "${BASEPATH}/src/*" -o cov/coverage.info
           cd ${BASEPATH}/cov
           genhtml coverage.info

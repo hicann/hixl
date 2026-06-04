@@ -71,6 +71,8 @@ public:
   virtual aclError aclrtDestroyStream(aclrtStream stream);
   virtual aclError aclrtStreamAbort(aclrtStream stream);
   virtual aclError aclrtStreamWaitEvent(aclrtStream stream, aclrtEvent event);
+  virtual aclError aclrtStreamQuery(aclrtStream stream, aclrtStreamStatus *status);
+  virtual aclError aclrtSetStreamFailureMode(aclrtStream stream, uint64_t mode);
   virtual aclError aclrtSynchronizeStream(aclrtStream stream);
   virtual aclError aclrtSynchronizeStreamWithTimeout(aclrtStream stream, int32_t timeout);
   virtual aclError aclrtMalloc(void **devPtr, size_t size, aclrtMemMallocPolicy policy);
@@ -136,6 +138,7 @@ private:
   std::vector<aclrtStream> model_bind_streams_;
   std::vector<aclrtStream> model_unbind_streams_;
   size_t input_mem_copy_batch_count_{0UL};
+  aclrtContext current_context_{reinterpret_cast<aclrtContext>(static_cast<uintptr_t>(1U))};
 };
 }
 

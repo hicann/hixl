@@ -12,7 +12,9 @@
 #define CANN_HIXL_SRC_HIXL_FABRIC_MEM_FABRIC_MEM_TRANSFER_SERVICE_H_
 
 #include <chrono>
+#include <condition_variable>
 #include <mutex>
+#include <queue>
 #include <set>
 #include <unordered_map>
 #include <vector>
@@ -31,7 +33,8 @@ class FabricMemTransferService {
   FabricMemTransferService(FabricMemTransferService &&) = delete;
   FabricMemTransferService &operator=(FabricMemTransferService &&) = delete;
 
-  Status Initialize(size_t max_stream_num, size_t task_stream_num, FabricMemStatistic *statistic);
+  Status Initialize(int32_t device_id, size_t max_stream_num, size_t task_stream_num,
+                    FabricMemStatistic *statistic);
   void Finalize();
 
   Status RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle);
@@ -45,54 +48,75 @@ class FabricMemTransferService {
 
   std::vector<ShareHandleInfo> GetShareHandles();
   void RemoveChannel(const std::string &channel_id);
+  // Atomically look up and remove an async transfer record by req_id,
+  // releasing its slot. Returns true if the record was found and removed,
+  // false if it had already been consumed (e.g. by RemoveChannel or
+  // GetTransferStatus). Use this instead of GetTransferStatus for
+  // deterministic cleanup during disconnect races.
+  bool CancelAsyncTransfer(TransferReq req);
 
   static Status MallocMem(MemType type, size_t size, void **ptr);
   static Status FreeMem(void *ptr);
 
  private:
+  enum class AsyncStreamQueryResult { kWaiting, kFailed, kComplete };
+
   Status InitDevConstOne();
   void FreeDevConstOne();
   Status TryAcquireAsyncSlot(AsyncSlot &slot);
-  void ReleaseAsyncSlot(AsyncSlot &slot, bool abort_streams);
   Status AppendHostFlagCopies(const AsyncSlot &slot) const;
   static bool AllHostFlagsDone(const AsyncSlot &slot);
+  static AsyncStreamQueryResult QueryAsyncSlotStreams(const AsyncSlot &slot);
+  static Status SynchronizeAsyncSlotStreams(const AsyncSlot &slot);
+  Status HandleAsyncStreamQueryFailure(const FabricMemTransferContext &context, uint64_t req_id,
+                                       AsyncRecord &async_record, TransferStatus &status);
   void RegisterAsyncTransferRecord(const FabricMemTransferContext &context, TransferReq &req, AsyncSlot &&slot,
                                    const std::chrono::steady_clock::time_point &transfer_start,
                                    const std::chrono::steady_clock::time_point &real_copy_start,
                                    uint64_t transfer_bytes, uint64_t op_desc_count);
   Status CompleteAsyncTransferAndUpdateStats(const FabricMemTransferContext &context, uint64_t req_id,
                                              AsyncRecord &async_record, TransferStatus &status);
-  Status TryGetStreamOnceLocked(std::vector<aclrtStream> &streams, size_t stream_num);
-  Status TryAcquireHostFlagsLocked(std::vector<void *> &host_flags, size_t count);
-  void ReleaseHostFlagsLocked(std::vector<void *> &host_flags);
-  void FreeAllHostFlagsLocked();
-  void AbortStreamLocked(aclrtStream stream);
-  Status ReuseStreamsLocked(std::vector<aclrtStream> &streams, size_t stream_num);
-  Status CreateStreamLocked(std::vector<aclrtStream> &streams, std::vector<aclrtStream> &new_streams) const;
-  Status RollbackStreamsLocked(std::vector<aclrtStream> &streams, const std::vector<aclrtStream> &new_streams);
-  void ReturnStreamsLocked(const std::vector<aclrtStream> &streams);
-  static void DestroyStreams(const std::vector<aclrtStream> &streams);
-  Status TryGetStreamOnce(std::vector<aclrtStream> &streams, size_t stream_num);
-  Status TryGetStream(std::vector<aclrtStream> &streams, uint64_t timeout_us);
-  static Status ProcessCopyWithAsync(const std::vector<aclrtStream> &streams, TransferOp operation,
+  bool TryFastPathComplete(const FabricMemTransferContext &context, uint64_t req_id, AsyncRecord &async_record,
+                           TransferStatus &status);
+  std::shared_ptr<std::mutex> GetChannelMutex(const std::string &channel_id);
+  AsyncStreamQueryResult ResolveAsyncRecord(uint64_t req_id, const AsyncStreamQueryResult &query_result,
+                                            AsyncRecord &async_record);
+  Status TryAcquireSlotLocked(AsyncSlot &slot);
+  static Status CreateSlotStream(aclrtStream &stream);
+  static void DestroySlotStreams(std::vector<aclrtStream> &streams, bool abort_streams);
+  static void DestroySlotHostFlags(std::vector<void *> &host_flags);
+  static void ResetSlotHostFlags(const std::vector<void *> &host_flags);
+  static void DestroyCreatedSlotEntry(AsyncSlot &entry);
+  Status PopulateSlotStreams(AsyncSlot &entry);
+  Status PopulateSlotHostFlags(AsyncSlot &entry);
+  Status CreateSlotEntryLocked(AsyncSlot &entry);
+  void DestroySlotEntryLocked(AsyncSlot &entry, bool abort_streams);
+  Status TryAcquireSlotWithTimeout(AsyncSlot &slot, uint64_t timeout_us);
+  static Status ProcessCopyWithAsync(const AsyncSlot &slot, TransferOp operation,
                                      const std::vector<TransferOpDesc> &op_descs);
-  Status DoTransfer(const std::vector<aclrtStream> &streams, const FabricMemTransferContext &context,
-                    TransferOp operation, std::vector<TransferOpDesc> &op_descs,
-                    std::chrono::steady_clock::time_point &start);
-  void ReleaseStreams(std::vector<aclrtStream> &streams, bool abort_streams = false);
+  Status DoTransfer(const AsyncSlot &slot, const FabricMemTransferContext &context, TransferOp operation,
+                    std::vector<TransferOpDesc> &op_descs, std::chrono::steady_clock::time_point &start);
+  void ClearReleasedSlotLocked(AsyncSlot &slot);
+  bool ReleaseSlotEntryLocked(AsyncSlot &slot, bool destroy_slot);
+  void RebuildFreeSlotIndicesLocked();
+  void ReleaseSlot(AsyncSlot &slot, bool destroy_slot);
   void RemoveChannelReqRelation(const std::string &channel_id, uint64_t req_id);
   static Status TransOpAddr(uintptr_t old_addr, size_t len,
                             const std::unordered_map<uintptr_t, VaInfo> &new_va_to_old_va, uintptr_t &new_addr);
-  Status TransLocalHostOpAddr(uintptr_t old_addr, size_t len, uintptr_t &new_addr);
   Status TransLocalHostOpAddrs(std::vector<TransferOpDesc> &op_descs);
   bool FindLocalHostRegisteredAddrLocked(uintptr_t old_addr, size_t len, uintptr_t &new_addr) const;
   void UpdateStats(const FabricMemTransferContext &context, uint64_t transfer_cost, uint64_t real_copy_cost,
                    uint64_t transfer_bytes, uint64_t op_desc_count) const;
   Status NeedTransLocalAddr(const std::vector<TransferOpDesc> &op_descs, bool &need_trans_local_addr) const;
+  void FinalizeShareHandles();
+  Status ImportHostMemoryForRegister(const MemDesc &mem, aclrtMemFabricHandle &share_handle,
+                                     aclrtDrvMemHandle &imported_pa_handle, uintptr_t &imported_va);
 
   // Lock hierarchy (must be acquired in this order):
-  //   share_handle_mutex_ -> stream_pool_mutex_ -> channel_2_req_mutex_ -> async_req_mutex_
-  // The caller's engine mutex_ is held before any of these locks.
+  //   per-channel mutex -> async_req_mutex_ -> channel_2_req_mutex_
+  //   share_handle_mutex_ / stream_pool_mutex_ are independent leaf locks
+  std::mutex channel_mutex_map_mutex_;
+  std::unordered_map<std::string, std::shared_ptr<std::mutex>> channel_mutexes_;
   std::mutex share_handle_mutex_;
   std::unordered_map<aclrtDrvMemHandle, ShareHandleInfo> share_handles_;
   int32_t device_id_{-1};
@@ -102,9 +126,9 @@ class FabricMemTransferService {
   FabricMemStatistic *statistic_{nullptr};
 
   std::mutex stream_pool_mutex_;
-  std::unordered_map<aclrtStream, bool> stream_pool_;
-  std::vector<void *> free_host_flags_;
-  size_t allocated_host_flag_count_{0};
+  std::condition_variable slot_pool_cv_;
+  std::vector<AsyncSlot> slot_pool_;
+  std::queue<size_t> free_slot_indices_;
   void *dev_const_one_{nullptr};
 
   std::mutex async_req_mutex_;

@@ -77,7 +77,7 @@ void FabricMemRemoteMemory::ClearLocked() {
   remote_pa_handles_.clear();
 }
 
-const std::unordered_map<uintptr_t, VaInfo> &FabricMemRemoteMemory::GetNewVaToOldVa() const {
+std::unordered_map<uintptr_t, VaInfo> FabricMemRemoteMemory::GetNewVaToOldVa() const {
   std::lock_guard<std::mutex> lock(mutex_);
   return new_va_to_old_va_;
 }

@@ -8,15 +8,17 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include <arpa/inet.h>
-#include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <future>
+#include <limits>
 #include <memory>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
@@ -31,8 +33,10 @@
 #include "fabric_mem/fabric_mem_transfer_service.h"
 #undef private
 
+#include "common/hixl_utils.h"
 #include "common/statistic_utils.h"
 #include "depends/ascendcl/src/ascendcl_stub.h"
+#include "fabric_mem_test_utils.h"
 #include "fabric_mem/virtual_memory_manager.h"
 #include "nlohmann/json.hpp"
 
@@ -65,6 +69,20 @@ class ScopedRuntimeMock {
 
 class FabricMemRuntimeStub : public llm::AclRuntimeStub {
  public:
+  aclError aclrtSetCurrentContext(aclrtContext context) override {
+    ++set_current_context_count_;
+    last_set_context_ = context;
+    return llm::AclRuntimeStub::aclrtSetCurrentContext(context);
+  }
+
+  aclError aclrtGetCurrentContext(aclrtContext *context) override {
+    if (get_context_returns_null_) {
+      *context = nullptr;
+      return ACL_ERROR_NONE;
+    }
+    return llm::AclRuntimeStub::aclrtGetCurrentContext(context);
+  }
+
   aclError aclrtPointerGetAttributes(const void *ptr, aclrtPtrAttributes *attributes) override {
     (void)ptr;
     if (pointer_attr_error_ != ACL_ERROR_NONE) {
@@ -87,6 +105,37 @@ class FabricMemRuntimeStub : public llm::AclRuntimeStub {
     return llm::AclRuntimeStub::aclrtMemcpyAsync(dst, dest_max, src, src_count, kind, stream);
   }
 
+  aclError aclrtStreamQuery(aclrtStream stream, aclrtStreamStatus *status) override {
+    ++stream_query_count_;
+    if (stream_query_error_ != ACL_ERROR_NONE) {
+      return stream_query_error_;
+    }
+    if (status == nullptr) {
+      return ACL_ERROR_INVALID_PARAM;
+    }
+    if (streams_not_complete_.count(stream) != 0U) {
+      *status = ACL_STREAM_STATUS_NOT_READY;
+      return ACL_ERROR_NONE;
+    }
+    return llm::AclRuntimeStub::aclrtStreamQuery(stream, status);
+  }
+
+  aclError aclrtSetStreamFailureMode(aclrtStream stream, uint64_t mode) override {
+    ++stream_failure_mode_count_;
+    last_stream_failure_mode_ = mode;
+    (void)stream;
+    return ACL_ERROR_NONE;
+  }
+
+  aclError aclrtSynchronizeStream(aclrtStream stream) override {
+    ++stream_sync_count_;
+    streams_not_complete_.erase(stream);
+    if (stream_sync_error_ != ACL_ERROR_NONE) {
+      return stream_sync_error_;
+    }
+    return llm::AclRuntimeStub::aclrtSynchronizeStream(stream);
+  }
+
   aclError aclrtStreamAbort(aclrtStream stream) override {
     ++stream_abort_count_;
     return llm::AclRuntimeStub::aclrtStreamAbort(stream);
@@ -103,31 +152,26 @@ class FabricMemRuntimeStub : public llm::AclRuntimeStub {
   }
 
   bool pointer_is_host_{false};
+  bool get_context_returns_null_{false};
   aclError pointer_attr_error_{ACL_ERROR_NONE};
   aclError memcpy_async_error_{ACL_ERROR_NONE};
   aclrtMemcpyKind memcpy_async_fail_kind_{ACL_MEMCPY_DEVICE_TO_DEVICE};
   size_t memcpy_async_fail_on_count_{0U};
   size_t memcpy_async_count_{0U};
   size_t host_flag_d2h_count_{0U};
+  size_t stream_query_count_{0U};
+  size_t stream_failure_mode_count_{0U};
+  uint64_t last_stream_failure_mode_{0U};
   size_t stream_abort_count_{0U};
+  aclError stream_query_error_{ACL_ERROR_NONE};
+  aclError stream_sync_error_{ACL_ERROR_NONE};
+  size_t stream_sync_count_{0U};
+  std::set<aclrtStream> streams_not_complete_;
   size_t malloc_physical_count_{0U};
+  size_t set_current_context_count_{0U};
+  aclrtContext last_set_context_{nullptr};
   aclrtPhysicalMemProp last_physical_mem_prop_{};
 };
-
-int32_t GetUnusedLocalPort() {
-  const int32_t fd = socket(AF_INET, SOCK_STREAM, 0);
-  EXPECT_GE(fd, 0);
-  sockaddr_in addr{};
-  addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-  addr.sin_port = 0;
-  EXPECT_EQ(bind(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)), 0);
-  socklen_t addr_len = sizeof(addr);
-  EXPECT_EQ(getsockname(fd, reinterpret_cast<sockaddr *>(&addr), &addr_len), 0);
-  const int32_t port = ntohs(addr.sin_port);
-  (void)close(fd);
-  return port;
-}
 
 ShareHandleInfo BuildShareHandle(uintptr_t va_addr = kRemoteOldAddr, size_t len = kLen) {
   ShareHandleInfo info{};
@@ -139,12 +183,12 @@ ShareHandleInfo BuildShareHandle(uintptr_t va_addr = kRemoteOldAddr, size_t len 
   return info;
 }
 
-FabricMemTransferContext BuildContext(FabricMemTransferStatisticInfo *stat_info = nullptr) {
+FabricMemTransferContext BuildContext(std::shared_ptr<FabricMemTransferStatisticInfo> stat_info = nullptr) {
   FabricMemTransferContext context;
   context.channel_id = kChannelId;
   context.statistic_channel_id = kStatChannelId;
   context.remote_va_to_old_va.emplace(kRemoteNewAddr, VaInfo{kRemoteOldAddr, kLen * 4U});
-  context.stat_info = stat_info;
+  context.stat_info = std::move(stat_info);
   return context;
 }
 
@@ -168,8 +212,7 @@ std::vector<TransferOpDesc> BuildTwoOpDescs(uint8_t *local, uint8_t *remote) {
 
 void SendRawFabricMemMsg(int32_t fd, int32_t msg_type, const std::string &payload) {
   const uint64_t length = static_cast<uint64_t>(sizeof(msg_type)) + payload.size();
-  ASSERT_EQ(send(fd, &kFabricMemMagic, sizeof(kFabricMemMagic), 0),
-            static_cast<ssize_t>(sizeof(kFabricMemMagic)));
+  ASSERT_EQ(send(fd, &kFabricMemMagic, sizeof(kFabricMemMagic), 0), static_cast<ssize_t>(sizeof(kFabricMemMagic)));
   ASSERT_EQ(send(fd, &length, sizeof(length), 0), static_cast<ssize_t>(sizeof(length)));
   ASSERT_EQ(send(fd, &msg_type, sizeof(msg_type), 0), static_cast<ssize_t>(sizeof(msg_type)));
   if (!payload.empty()) {
@@ -219,6 +262,38 @@ class FabricMemTransferServiceUTest : public ::testing::Test {
   std::unique_ptr<ScopedRuntimeMock> scoped_runtime_;
   FabricMemTransferService service_;
   FabricMemStatistic statistic_;
+};
+
+void AttachTestContext(FabricMemEngine &engine) {
+  auto ctx_holder = std::make_shared<int>(1);
+  engine.aclrt_context_holder_ = std::static_pointer_cast<void>(ctx_holder);
+  engine.aclrt_context_ = reinterpret_cast<aclrtContext>(ctx_holder.get());
+}
+
+constexpr char kConfigEngineLocalId[] = "127.0.0.1:26000";
+constexpr char kConfigRemoteEngineId[] = "127.0.0.1:26001";
+constexpr size_t k1GB = 1024UL * 1024UL * 1024UL;
+
+std::map<AscendString, AscendString> BuildFabricMemOptions() {
+  std::map<AscendString, AscendString> options;
+  options[OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
+  return options;
+}
+
+class FabricMemEngineInitUTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    runtime_ = std::make_shared<FabricMemRuntimeStub>();
+    scoped_runtime_ = std::make_unique<ScopedRuntimeMock>(runtime_);
+  }
+
+  void TearDown() override {
+    scoped_runtime_.reset();
+    runtime_.reset();
+  }
+
+  std::shared_ptr<FabricMemRuntimeStub> runtime_;
+  std::unique_ptr<ScopedRuntimeMock> scoped_runtime_;
 };
 }  // namespace
 
@@ -301,7 +376,7 @@ TEST(FabricMemControlUTest, ServerPrivateHandlersSerializeResponses) {
 }
 
 TEST(FabricMemControlUTest, ClientFetchNotifyRoundTrip) {
-  const int32_t port = GetUnusedLocalPort();
+  const int32_t port = test::AllocateFabricMemTestPort();
   ASSERT_GT(port, 0);
   FabricMemControlServer server;
   ASSERT_EQ(server.Start("127.0.0.1:" + std::to_string(port),
@@ -352,14 +427,11 @@ TEST(FabricMemControlUTest, HandleConnectionRejectsUnexpectedType) {
 }
 
 TEST_F(FabricMemTransferServiceUTest, InitializeRejectsInvalidInputAndAclFailure) {
-  EXPECT_EQ(service_.Initialize(0U, 1U, &statistic_), PARAM_INVALID);
-  EXPECT_EQ(service_.Initialize(1U, 0U, &statistic_), PARAM_INVALID);
+  EXPECT_EQ(service_.Initialize(-1, 1U, 1U, &statistic_), PARAM_INVALID);
+  EXPECT_EQ(service_.Initialize(0, 0U, 1U, &statistic_), PARAM_INVALID);
+  EXPECT_EQ(service_.Initialize(0, 1U, 0U, &statistic_), PARAM_INVALID);
 
-  llm::GetAclStubMock() = "aclrtGetDevice";
-  EXPECT_NE(service_.Initialize(1U, 1U, &statistic_), SUCCESS);
-  llm::GetAclStubMock().clear();
-
-  EXPECT_EQ(service_.Initialize(3U, 1U, &statistic_), SUCCESS);
+  EXPECT_EQ(service_.Initialize(0, 3U, 1U, &statistic_), SUCCESS);
   EXPECT_EQ(service_.device_id_, 0);
   EXPECT_EQ(service_.task_stream_num_, 1U);
   EXPECT_EQ(service_.max_async_slot_num_, 3U);
@@ -368,11 +440,11 @@ TEST_F(FabricMemTransferServiceUTest, InitializeRejectsInvalidInputAndAclFailure
 
 TEST_F(FabricMemTransferServiceUTest, InitDevConstOneRollsBackOnMemcpyFailure) {
   llm::GetAclStubMock() = "aclrtMemcpy";
-  EXPECT_NE(service_.Initialize(1U, 1U, &statistic_), SUCCESS);
+  EXPECT_NE(service_.Initialize(0, 1U, 1U, &statistic_), SUCCESS);
   EXPECT_EQ(service_.dev_const_one_, nullptr);
   llm::GetAclStubMock().clear();
 
-  EXPECT_EQ(service_.Initialize(1U, 1U, &statistic_), SUCCESS);
+  EXPECT_EQ(service_.Initialize(0, 1U, 1U, &statistic_), SUCCESS);
   ASSERT_NE(service_.dev_const_one_, nullptr);
 }
 
@@ -392,7 +464,7 @@ TEST_F(FabricMemTransferServiceUTest, MallocMemSupportsDeviceMemory) {
 }
 
 TEST_F(FabricMemTransferServiceUTest, RegisterDeregisterAndGetShareHandles) {
-  ASSERT_EQ(service_.Initialize(4U, 1U, &statistic_), SUCCESS);
+  ASSERT_EQ(service_.Initialize(0, 4U, 1U, &statistic_), SUCCESS);
   MemHandle invalid_handle = nullptr;
   EXPECT_EQ(service_.RegisterMem({0U, kLen}, MEM_HOST, invalid_handle), PARAM_INVALID);
   EXPECT_EQ(service_.RegisterMem({kLocalAddr, 0U}, MEM_HOST, invalid_handle), PARAM_INVALID);
@@ -412,36 +484,44 @@ TEST_F(FabricMemTransferServiceUTest, RegisterDeregisterAndGetShareHandles) {
   EXPECT_EQ(service_.DeregisterMem(host_handle), SUCCESS);
 }
 
-TEST_F(FabricMemTransferServiceUTest, StreamPoolCreateReuseRollbackAndDestroy) {
-  ASSERT_EQ(service_.Initialize(2U, 1U, &statistic_), SUCCESS);
-  std::vector<aclrtStream> streams;
-  EXPECT_EQ(service_.TryGetStreamOnce(streams, 1U), SUCCESS);
-  ASSERT_EQ(streams.size(), 1U);
-  const auto first_stream = streams[0];
-  service_.ReleaseStreams(streams);
-  EXPECT_TRUE(streams.empty() || service_.stream_pool_[first_stream]);
-
-  EXPECT_EQ(service_.TryGetStreamOnce(streams, 1U), SUCCESS);
-  ASSERT_EQ(streams.size(), 1U);
-  EXPECT_EQ(streams[0], first_stream);
-  EXPECT_FALSE(service_.stream_pool_[first_stream]);
-  service_.ReleaseStreams(streams);
-
-  EXPECT_EQ(service_.TryGetStreamOnce(streams, 3U), FAILED);
-  EXPECT_TRUE(streams.empty());
-  EXPECT_TRUE(service_.stream_pool_[first_stream]);
-
+TEST_F(FabricMemTransferServiceUTest, SlotPoolCreateReuseRollbackAndDestroy) {
+  ASSERT_EQ(service_.Initialize(0, 2U, 1U, &statistic_), SUCCESS);
   AsyncSlot slot;
-  slot.streams = {first_stream};
-  service_.ReleaseAsyncSlot(slot, true);
-  EXPECT_TRUE(service_.stream_pool_.empty());
+  EXPECT_EQ(service_.TryAcquireAsyncSlot(slot), SUCCESS);
+  ASSERT_EQ(slot.streams.size(), 1U);
+  ASSERT_NE(slot.ctx, nullptr);
+  EXPECT_EQ(runtime_->stream_failure_mode_count_, 1U);
+  EXPECT_EQ(runtime_->last_stream_failure_mode_, ACL_STOP_ON_FAILURE);
+  const auto first_ctx = slot.ctx;
+  const auto first_stream = slot.streams[0];
+  service_.ReleaseSlot(slot, false);
+  EXPECT_EQ(slot.ctx, nullptr);
+  EXPECT_TRUE(service_.slot_pool_[0].available);
+
+  EXPECT_EQ(service_.TryAcquireAsyncSlot(slot), SUCCESS);
+  ASSERT_EQ(slot.streams.size(), 1U);
+  EXPECT_EQ(slot.ctx, first_ctx);
+  EXPECT_EQ(slot.streams[0], first_stream);
+  EXPECT_FALSE(service_.slot_pool_[0].available);
+  service_.ReleaseSlot(slot, false);
+
+  AsyncSlot slot2;
+  EXPECT_EQ(service_.TryAcquireAsyncSlot(slot2), SUCCESS);
+  service_.ReleaseSlot(slot2, false);
+  EXPECT_EQ(service_.TryAcquireAsyncSlot(slot), SUCCESS);
+  EXPECT_EQ(service_.TryAcquireAsyncSlot(slot2), SUCCESS);
+  AsyncSlot slot3;
+  EXPECT_EQ(service_.TryAcquireAsyncSlot(slot3), FAILED);
+  service_.ReleaseSlot(slot, true);
+  service_.ReleaseSlot(slot2, true);
+  EXPECT_TRUE(service_.slot_pool_.empty());
 }
 
 TEST_F(FabricMemTransferServiceUTest, AddressTranslationAndCopyValidation) {
   uint8_t local[kLen] = {};
   uint8_t remote[kLen] = {};
   std::fill(std::begin(local), std::end(local), 7U);
-  ASSERT_EQ(service_.Initialize(4U, 1U, &statistic_), SUCCESS);
+  ASSERT_EQ(service_.Initialize(0, 4U, 1U, &statistic_), SUCCESS);
 
   uintptr_t new_addr = 0;
   EXPECT_EQ(
@@ -457,8 +537,6 @@ TEST_F(FabricMemTransferServiceUTest, AddressTranslationAndCopyValidation) {
       ShareHandleInfo{kLocalAddr, kLen, {}, nullptr, kImportedLocalAddr, false};
   EXPECT_TRUE(service_.FindLocalHostRegisteredAddrLocked(kLocalAddr + 4U, 8U, new_addr));
   EXPECT_EQ(new_addr, kImportedLocalAddr + 4U);
-  EXPECT_EQ(service_.TransLocalHostOpAddr(kLocalAddr + 8U, 8U, new_addr), SUCCESS);
-  EXPECT_EQ(new_addr, kImportedLocalAddr + 8U);
 
   std::vector<TransferOpDesc> op_descs = {{kLocalAddr + 2U, kRemoteOldAddr, 8U}};
   EXPECT_EQ(service_.TransLocalHostOpAddrs(op_descs), SUCCESS);
@@ -467,21 +545,25 @@ TEST_F(FabricMemTransferServiceUTest, AddressTranslationAndCopyValidation) {
   EXPECT_EQ(service_.TransLocalHostOpAddrs(op_descs), PARAM_INVALID);
 
   std::vector<aclrtStream> streams;
-  ASSERT_EQ(service_.TryGetStreamOnce(streams, 2U), SUCCESS);
-  EXPECT_EQ(FabricMemTransferService::ProcessCopyWithAsync({}, WRITE, BuildOpDescs(local, remote)), PARAM_INVALID);
-  EXPECT_EQ(FabricMemTransferService::ProcessCopyWithAsync(streams, WRITE, BuildOpDescs(local, remote)), SUCCESS);
+  AsyncSlot slot;
+  ASSERT_EQ(service_.TryAcquireAsyncSlot(slot), SUCCESS);
+  TemporaryRtContext ctx_guard(slot.ctx);
+  AsyncSlot empty_slot;
+  EXPECT_EQ(FabricMemTransferService::ProcessCopyWithAsync(empty_slot, WRITE, BuildOpDescs(local, remote)),
+            PARAM_INVALID);
+  EXPECT_EQ(FabricMemTransferService::ProcessCopyWithAsync(slot, WRITE, BuildOpDescs(local, remote)), SUCCESS);
   EXPECT_EQ(remote[0], 7U);
   std::fill(std::begin(remote), std::end(remote), 9U);
-  EXPECT_EQ(FabricMemTransferService::ProcessCopyWithAsync(streams, READ, BuildOpDescs(local, remote)), SUCCESS);
+  EXPECT_EQ(FabricMemTransferService::ProcessCopyWithAsync(slot, READ, BuildOpDescs(local, remote)), SUCCESS);
   EXPECT_EQ(local[0], 9U);
   EXPECT_EQ(
-      FabricMemTransferService::ProcessCopyWithAsync(streams, static_cast<TransferOp>(99), BuildOpDescs(local, remote)),
+      FabricMemTransferService::ProcessCopyWithAsync(slot, static_cast<TransferOp>(99), BuildOpDescs(local, remote)),
       PARAM_INVALID);
-  service_.ReleaseStreams(streams);
+  service_.ReleaseSlot(slot, false);
 }
 
 TEST_F(FabricMemTransferServiceUTest, NeedTransLocalAddrHandlesHostDeviceEmptyAndFailure) {
-  ASSERT_EQ(service_.Initialize(3U, 1U, &statistic_), SUCCESS);
+  ASSERT_EQ(service_.Initialize(0, 3U, 1U, &statistic_), SUCCESS);
   bool need_trans = true;
   EXPECT_EQ(service_.NeedTransLocalAddr({}, need_trans), SUCCESS);
   EXPECT_FALSE(need_trans);
@@ -508,44 +590,43 @@ TEST_F(FabricMemTransferServiceUTest, NeedTransLocalAddrHandlesHostDeviceEmptyAn
 }
 
 TEST_F(FabricMemTransferServiceUTest, UpdateStatsSupportsDirectInfoChannelAndNullStatistic) {
-  FabricMemTransferStatisticInfo direct_info;
-  auto context = BuildContext(&direct_info);
-  ASSERT_EQ(service_.Initialize(3U, 1U, &statistic_), SUCCESS);
+  auto direct_info = std::make_shared<FabricMemTransferStatisticInfo>();
+  auto context = BuildContext(direct_info);
+  ASSERT_EQ(service_.Initialize(0, 3U, 1U, &statistic_), SUCCESS);
   service_.UpdateStats(context, 10U, 4U, 512U, 2U);
-  EXPECT_EQ(direct_info.transfer.total_cost.load(std::memory_order_relaxed), 10UL);
-  EXPECT_EQ(direct_info.real_copy.total_cost.load(std::memory_order_relaxed), 4UL);
+  EXPECT_EQ(direct_info->transfer.total_cost.load(std::memory_order_relaxed), 10UL);
+  EXPECT_EQ(direct_info->real_copy.total_cost.load(std::memory_order_relaxed), 4UL);
 
   context.stat_info = nullptr;
   service_.UpdateStats(context, 20U, 8U, 1024U, 4U);
   EXPECT_EQ(statistic_.GetSnapshot(kStatChannelId).transfer.total_cost, 20UL);
 
   FabricMemTransferService no_stat_service;
-  ASSERT_EQ(no_stat_service.Initialize(1U, 1U, nullptr), SUCCESS);
+  ASSERT_EQ(no_stat_service.Initialize(0, 1U, 1U, nullptr), SUCCESS);
   no_stat_service.UpdateStats(BuildContext(), 1U, 1U, 1U, 1U);
   no_stat_service.Finalize();
 }
 
-TEST_F(FabricMemTransferServiceUTest, HostFlagPoolAcquireReleaseAndReuse) {
-  ASSERT_EQ(service_.Initialize(4U, 1U, &statistic_), SUCCESS);
-  std::vector<void *> host_flags;
-  {
-    std::lock_guard<std::mutex> lock(service_.stream_pool_mutex_);
-    ASSERT_EQ(service_.TryAcquireHostFlagsLocked(host_flags, 2U), SUCCESS);
-    ASSERT_EQ(host_flags.size(), 2U);
-    EXPECT_EQ(*static_cast<uint64_t *>(host_flags[0]), 0ULL);
-    *static_cast<uint64_t *>(host_flags[0]) = 1ULL;
-    service_.ReleaseHostFlagsLocked(host_flags);
-    EXPECT_TRUE(host_flags.empty());
-    ASSERT_EQ(service_.TryAcquireHostFlagsLocked(host_flags, 1U), SUCCESS);
-    EXPECT_EQ(*static_cast<uint64_t *>(host_flags[0]), 0ULL);
-    service_.ReleaseHostFlagsLocked(host_flags);
-  }
+TEST_F(FabricMemTransferServiceUTest, SlotHostFlagsAreZeroedOnReuse) {
+  ASSERT_EQ(service_.Initialize(0, 4U, 2U, &statistic_), SUCCESS);
+  AsyncSlot slot;
+  ASSERT_EQ(service_.TryAcquireAsyncSlot(slot), SUCCESS);
+  ASSERT_EQ(slot.host_flags.size(), 2U);
+  EXPECT_EQ(*static_cast<uint64_t *>(slot.host_flags[0]), 0ULL);
+  *static_cast<uint64_t *>(slot.host_flags[0]) = 1ULL;
+  service_.ReleaseSlot(slot, false);
+
+  AsyncSlot reused;
+  ASSERT_EQ(service_.TryAcquireAsyncSlot(reused), SUCCESS);
+  ASSERT_EQ(reused.host_flags.size(), 2U);
+  EXPECT_EQ(*static_cast<uint64_t *>(reused.host_flags[0]), 0ULL);
+  service_.ReleaseSlot(reused, false);
 }
 
 TEST_F(FabricMemTransferServiceUTest, TransferFailureAbortsStreams) {
   uint8_t local[kLen * 2U] = {};
   uint8_t remote[kLen * 2U] = {};
-  ASSERT_EQ(service_.Initialize(2U, 2U, &statistic_), SUCCESS);
+  ASSERT_EQ(service_.Initialize(0, 2U, 2U, &statistic_), SUCCESS);
   runtime_->memcpy_async_error_ = ACL_ERROR_RT_INTERNAL_ERROR;
   runtime_->memcpy_async_fail_kind_ = ACL_MEMCPY_DEVICE_TO_DEVICE;
   runtime_->memcpy_async_fail_on_count_ = 2U;
@@ -553,48 +634,45 @@ TEST_F(FabricMemTransferServiceUTest, TransferFailureAbortsStreams) {
   EXPECT_NE(service_.Transfer(BuildSelfMappedContext(remote, sizeof(remote)), WRITE, BuildTwoOpDescs(local, remote),
                               kClientTimeoutMs),
             SUCCESS);
-  EXPECT_TRUE(service_.stream_pool_.empty());
+  EXPECT_TRUE(service_.slot_pool_.empty());
   EXPECT_EQ(runtime_->stream_abort_count_, 2U);
 }
 
 TEST_F(FabricMemTransferServiceUTest, AsyncTransferFailureAbortsSlot) {
   uint8_t local[kLen * 2U] = {};
   uint8_t remote[kLen * 2U] = {};
-  ASSERT_EQ(service_.Initialize(1U, 1U, &statistic_), SUCCESS);
+  ASSERT_EQ(service_.Initialize(0, 1U, 1U, &statistic_), SUCCESS);
   runtime_->memcpy_async_error_ = ACL_ERROR_RT_INTERNAL_ERROR;
   runtime_->memcpy_async_fail_kind_ = ACL_MEMCPY_DEVICE_TO_DEVICE;
   runtime_->memcpy_async_fail_on_count_ = 2U;
 
   TransferReq req = reinterpret_cast<TransferReq>(0x1111UL);
   auto op_descs = BuildTwoOpDescs(local, remote);
-  EXPECT_NE(service_.TransferAsync(BuildSelfMappedContext(remote, sizeof(remote)), WRITE, op_descs, req),
-            SUCCESS);
-  EXPECT_TRUE(service_.stream_pool_.empty());
+  EXPECT_NE(service_.TransferAsync(BuildSelfMappedContext(remote, sizeof(remote)), WRITE, op_descs, req), SUCCESS);
+  EXPECT_TRUE(service_.slot_pool_.empty());
   EXPECT_TRUE(service_.req_2_async_record_.empty());
-  EXPECT_EQ(service_.free_host_flags_.size(), 1U);
   EXPECT_EQ(runtime_->stream_abort_count_, 1U);
 }
 
 TEST_F(FabricMemTransferServiceUTest, AsyncHostFlagCopyFailureAbortsSlot) {
   uint8_t local[kLen] = {};
   uint8_t remote[kLen] = {};
-  ASSERT_EQ(service_.Initialize(1U, 1U, &statistic_), SUCCESS);
+  ASSERT_EQ(service_.Initialize(0, 1U, 1U, &statistic_), SUCCESS);
   runtime_->memcpy_async_error_ = ACL_ERROR_RT_INTERNAL_ERROR;
   runtime_->memcpy_async_fail_kind_ = ACL_MEMCPY_DEVICE_TO_HOST;
   runtime_->memcpy_async_fail_on_count_ = 2U;
 
   TransferReq req = reinterpret_cast<TransferReq>(0x2222UL);
-  EXPECT_NE(service_.TransferAsync(BuildSelfMappedContext(remote, sizeof(remote)), WRITE, BuildOpDescs(local, remote),
-                                   req),
-            SUCCESS);
-  EXPECT_TRUE(service_.stream_pool_.empty());
+  EXPECT_NE(
+      service_.TransferAsync(BuildSelfMappedContext(remote, sizeof(remote)), WRITE, BuildOpDescs(local, remote), req),
+      SUCCESS);
+  EXPECT_TRUE(service_.slot_pool_.empty());
   EXPECT_TRUE(service_.req_2_async_record_.empty());
-  EXPECT_EQ(service_.free_host_flags_.size(), 1U);
   EXPECT_EQ(runtime_->stream_abort_count_, 1U);
 }
 
 TEST_F(FabricMemTransferServiceUTest, AsyncTransferRecordCompletesAndUpdatesStats) {
-  ASSERT_EQ(service_.Initialize(4U, 1U, &statistic_), SUCCESS);
+  ASSERT_EQ(service_.Initialize(0, 4U, 1U, &statistic_), SUCCESS);
   AsyncSlot slot;
   ASSERT_EQ(service_.TryAcquireAsyncSlot(slot), SUCCESS);
   ASSERT_EQ(service_.AppendHostFlagCopies(slot), SUCCESS);
@@ -614,11 +692,15 @@ TEST_F(FabricMemTransferServiceUTest, AsyncTransferRecordCompletesAndUpdatesStat
 }
 
 TEST_F(FabricMemTransferServiceUTest, AsyncTransferWaitsUntilAllHostFlagsDone) {
-  ASSERT_EQ(service_.Initialize(4U, 2U, &statistic_), SUCCESS);
+  ASSERT_EQ(service_.Initialize(0, 4U, 2U, &statistic_), SUCCESS);
   AsyncSlot slot;
   ASSERT_EQ(service_.TryAcquireAsyncSlot(slot), SUCCESS);
   ASSERT_EQ(slot.host_flags.size(), 2U);
   *static_cast<uint64_t *>(slot.host_flags[0]) = 1ULL;
+  // Mark streams as not complete so query returns WAITING (not kComplete).
+  for (const auto &stream : slot.streams) {
+    runtime_->streams_not_complete_.insert(stream);
+  }
 
   TransferReq req = reinterpret_cast<TransferReq>(0x2468UL);
   const auto start = std::chrono::steady_clock::now();
@@ -634,12 +716,119 @@ TEST_F(FabricMemTransferServiceUTest, AsyncTransferWaitsUntilAllHostFlagsDone) {
   EXPECT_EQ(status, TransferStatus::COMPLETED);
 }
 
-TEST_F(FabricMemTransferServiceUTest, AsyncTransferRemoveChannelAbortsStreams) {
-  ASSERT_EQ(service_.Initialize(4U, 1U, &statistic_), SUCCESS);
+TEST_F(FabricMemTransferServiceUTest, AsyncTransferStreamQueryFailureReturnsFailedWhileHostFlagPending) {
+  ASSERT_EQ(service_.Initialize(0, 4U, 1U, &statistic_), SUCCESS);
   AsyncSlot slot;
   ASSERT_EQ(service_.TryAcquireAsyncSlot(slot), SUCCESS);
   ASSERT_EQ(service_.AppendHostFlagCopies(slot), SUCCESS);
-  EXPECT_EQ(service_.stream_pool_.size(), 1U);
+
+  TransferReq req = reinterpret_cast<TransferReq>(0x3579UL);
+  const auto start = std::chrono::steady_clock::now();
+  service_.RegisterAsyncTransferRecord(BuildContext(), req, std::move(slot), start, start, 64U, 1U);
+  auto &record = service_.req_2_async_record_[reinterpret_cast<uintptr_t>(req)];
+  for (void *host_flag : record.slot.host_flags) {
+    *static_cast<uint64_t *>(host_flag) = 0ULL;
+  }
+  runtime_->stream_query_error_ = ACL_ERROR_RT_INTERNAL_ERROR;
+
+  TransferStatus status = TransferStatus::WAITING;
+  EXPECT_EQ(service_.GetTransferStatus(BuildContext(), req, status), SUCCESS);
+  EXPECT_EQ(status, TransferStatus::FAILED);
+  EXPECT_GT(runtime_->stream_query_count_, 0U);
+  EXPECT_TRUE(service_.req_2_async_record_.empty());
+}
+
+TEST_F(FabricMemTransferServiceUTest, AsyncTransferHostFlagsDoneSkipsStreamSync) {
+  ASSERT_EQ(service_.Initialize(0, 4U, 1U, &statistic_), SUCCESS);
+  AsyncSlot slot;
+  ASSERT_EQ(service_.TryAcquireAsyncSlot(slot), SUCCESS);
+  ASSERT_EQ(service_.AppendHostFlagCopies(slot), SUCCESS);
+  for (void *host_flag : slot.host_flags) {
+    *static_cast<uint64_t *>(host_flag) = 1ULL;
+  }
+
+  TransferReq req = reinterpret_cast<TransferReq>(0x579BUL);
+  const auto start = std::chrono::steady_clock::now();
+  service_.RegisterAsyncTransferRecord(BuildContext(), req, std::move(slot), start, start, 64U, 1U);
+  // Inject sync error — should be ignored because host flags are done (sync is skipped).
+  runtime_->stream_sync_error_ = ACL_ERROR_RT_INTERNAL_ERROR;
+
+  TransferStatus status = TransferStatus::WAITING;
+  EXPECT_EQ(service_.GetTransferStatus(BuildContext(), req, status), SUCCESS);
+  EXPECT_EQ(status, TransferStatus::COMPLETED);
+  EXPECT_EQ(runtime_->stream_sync_count_, 0U);
+  EXPECT_TRUE(service_.req_2_async_record_.empty());
+}
+
+TEST_F(FabricMemTransferServiceUTest, AsyncTransferFastPathDoesNotHoldAsyncReqMutexWhileCompleting) {
+  ASSERT_EQ(service_.Initialize(0, 4U, 1U, &statistic_), SUCCESS);
+  AsyncSlot slot;
+  ASSERT_EQ(service_.TryAcquireAsyncSlot(slot), SUCCESS);
+  ASSERT_EQ(service_.AppendHostFlagCopies(slot), SUCCESS);
+  for (void *host_flag : slot.host_flags) {
+    *static_cast<uint64_t *>(host_flag) = 1ULL;
+  }
+
+  TransferReq req = reinterpret_cast<TransferReq>(0x67ACUL);
+  const auto start = std::chrono::steady_clock::now();
+  service_.RegisterAsyncTransferRecord(BuildContext(), req, std::move(slot), start, start, 64U, 1U);
+
+  std::atomic<bool> lock_acquired{false};
+  std::atomic<bool> release_lock{false};
+  std::thread holder([this, &lock_acquired, &release_lock]() {
+    std::unique_lock<std::mutex> lock(service_.async_req_mutex_);
+    lock_acquired.store(true, std::memory_order_release);
+    while (!release_lock.load(std::memory_order_acquire)) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  });
+  while (!lock_acquired.load(std::memory_order_acquire)) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+
+  TransferStatus status = TransferStatus::WAITING;
+  auto future = std::async(std::launch::async,
+                           [this, req, &status]() { return service_.GetTransferStatus(BuildContext(), req, status); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  EXPECT_EQ(future.wait_for(std::chrono::milliseconds(0)), std::future_status::timeout);
+  release_lock.store(true, std::memory_order_release);
+  holder.join();
+
+  ASSERT_EQ(future.wait_for(std::chrono::seconds(1)), std::future_status::ready);
+  EXPECT_EQ(future.get(), SUCCESS);
+  EXPECT_EQ(status, TransferStatus::COMPLETED);
+  EXPECT_TRUE(service_.req_2_async_record_.empty());
+}
+
+TEST_F(FabricMemTransferServiceUTest, AsyncTransferStreamQueryCompleteTriggersSync) {
+  ASSERT_EQ(service_.Initialize(0, 4U, 1U, &statistic_), SUCCESS);
+  AsyncSlot slot;
+  ASSERT_EQ(service_.TryAcquireAsyncSlot(slot), SUCCESS);
+  ASSERT_EQ(service_.AppendHostFlagCopies(slot), SUCCESS);
+
+  TransferReq req = reinterpret_cast<TransferReq>(0x468AUL);
+  const auto start = std::chrono::steady_clock::now();
+  service_.RegisterAsyncTransferRecord(BuildContext(), req, std::move(slot), start, start, 64U, 1U);
+  auto &record = service_.req_2_async_record_[reinterpret_cast<uintptr_t>(req)];
+  // Host flags not done, but streams report COMPLETE via query.
+  for (void *host_flag : record.slot.host_flags) {
+    *static_cast<uint64_t *>(host_flag) = 0ULL;
+  }
+  runtime_->stream_sync_error_ = ACL_ERROR_RT_INTERNAL_ERROR;
+
+  TransferStatus status = TransferStatus::WAITING;
+  EXPECT_EQ(service_.GetTransferStatus(BuildContext(), req, status), SUCCESS);
+  EXPECT_EQ(status, TransferStatus::FAILED);
+  EXPECT_GT(runtime_->stream_sync_count_, 0U);
+  EXPECT_TRUE(service_.req_2_async_record_.empty());
+}
+
+TEST_F(FabricMemTransferServiceUTest, AsyncTransferRemoveChannelAbortsStreams) {
+  ASSERT_EQ(service_.Initialize(0, 4U, 1U, &statistic_), SUCCESS);
+  AsyncSlot slot;
+  ASSERT_EQ(service_.TryAcquireAsyncSlot(slot), SUCCESS);
+  ASSERT_EQ(service_.AppendHostFlagCopies(slot), SUCCESS);
+  EXPECT_EQ(service_.slot_pool_.size(), 1U);
 
   TransferReq req = reinterpret_cast<TransferReq>(0x9ABCUL);
   const auto start = std::chrono::steady_clock::now();
@@ -649,44 +838,41 @@ TEST_F(FabricMemTransferServiceUTest, AsyncTransferRemoveChannelAbortsStreams) {
   service_.RemoveChannel(kChannelId);
   EXPECT_TRUE(service_.req_2_async_record_.empty());
   EXPECT_TRUE(service_.channel_2_req_.find(kChannelId) == service_.channel_2_req_.end());
-  EXPECT_TRUE(service_.stream_pool_.empty());
+  EXPECT_TRUE(service_.slot_pool_.empty());
 
   AsyncSlot lazy_slot;
   EXPECT_EQ(service_.TryAcquireAsyncSlot(lazy_slot), SUCCESS);
-  EXPECT_EQ(service_.stream_pool_.size(), 1U);
-  service_.ReleaseAsyncSlot(lazy_slot, false);
+  EXPECT_EQ(service_.slot_pool_.size(), 1U);
+  service_.ReleaseSlot(lazy_slot, false);
 }
 
 TEST_F(FabricMemTransferServiceUTest, AsyncSlotAcquireFailsWhenPoolFull) {
-  ASSERT_EQ(service_.Initialize(2U, 2U, &statistic_), SUCCESS);
+  ASSERT_EQ(service_.Initialize(0, 2U, 2U, &statistic_), SUCCESS);
   AsyncSlot slot1;
   ASSERT_EQ(service_.TryAcquireAsyncSlot(slot1), SUCCESS);
   AsyncSlot slot2;
   EXPECT_EQ(service_.TryAcquireAsyncSlot(slot2), FAILED);
-  service_.ReleaseAsyncSlot(slot1, false);
+  service_.ReleaseSlot(slot1, false);
 }
 
 TEST(FabricMemEngineUTest, ConnectAndDisconnectRoundTrip) {
-  const int32_t port = GetUnusedLocalPort();
+  const int32_t port = test::AllocateFabricMemTestPort();
   ASSERT_GT(port, 0);
   FabricMemControlServer server;
-  ASSERT_EQ(
-      server.Start("127.0.0.1:" + std::to_string(port),
-                   [](std::vector<ShareHandleInfo> &handles) {
-                     handles.emplace_back(BuildShareHandle(0xABCDUL, 512U));
-                     return SUCCESS;
-                   }),
-      SUCCESS);
+  ASSERT_EQ(server.Start("127.0.0.1:" + std::to_string(port),
+                         [](std::vector<ShareHandleInfo> &handles) {
+                           handles.emplace_back(BuildShareHandle(0xABCDUL, 512U));
+                           return SUCCESS;
+                         }),
+            SUCCESS);
 
   FabricMemEngine engine(AscendString("test_engine"));
   // Connect will succeed through Fetch but fail at CreateAndRegisterRemoteMemory
   // (no CANN device in unit test). Engine methods are still exercised.
   AscendString remote(std::string("127.0.0.1:" + std::to_string(port)).c_str());
   engine.Connect(remote, kClientTimeoutMs);
-  // Cleanup any state created during the connect attempt
-  engine.DisconnectLocked(remote, kClientTimeoutMs);
+  engine.Disconnect(remote, kClientTimeoutMs);
   engine.Disconnect();
-  engine.CleanupFabricMemLocked();
   server.Stop();
 }
 
@@ -694,17 +880,21 @@ TEST(FabricMemEngineUTest, DisconnectNoConnection) {
   FabricMemEngine engine(AscendString("test_engine"));
   AscendString remote("127.0.0.1:12345");
   EXPECT_EQ(engine.Disconnect(remote, kClientTimeoutMs), NOT_CONNECTED);
-  EXPECT_EQ(engine.DisconnectLocked(remote, kClientTimeoutMs), NOT_CONNECTED);
   engine.Disconnect();
 }
 
 TEST(FabricMemEngineUTest, DisconnectClearsChannelReqMap) {
   FabricMemEngine engine(AscendString("test_engine"));
+  AttachTestContext(engine);
   const std::string remote_a = "127.0.0.1:12345";
   const std::string remote_b = "127.0.0.1:54321";
-  engine.req_map_.emplace(1U, TransferInfo{0U, WRITE, AscendString(remote_a.c_str())});
-  engine.req_map_.emplace(2U, TransferInfo{0U, READ, AscendString(remote_a.c_str())});
-  engine.req_map_.emplace(3U, TransferInfo{0U, WRITE, AscendString(remote_b.c_str())});
+  auto conn_a = std::make_shared<RemoteConnection>();
+  auto conn_b = std::make_shared<RemoteConnection>();
+  engine.fabric_mem_remote_mems_[remote_a] = conn_a;
+  engine.fabric_mem_remote_mems_[remote_b] = conn_b;
+  engine.req_map_.emplace(1U, FabricMemTransferRequest{TransferInfo{0U, WRITE, AscendString(remote_a.c_str())}, conn_a});
+  engine.req_map_.emplace(2U, FabricMemTransferRequest{TransferInfo{0U, READ, AscendString(remote_a.c_str())}, conn_a});
+  engine.req_map_.emplace(3U, FabricMemTransferRequest{TransferInfo{0U, WRITE, AscendString(remote_b.c_str())}, conn_b});
 
   engine.RemoveChannelReqMapLocked(remote_a);
   ASSERT_EQ(engine.req_map_.size(), 1U);
@@ -712,6 +902,507 @@ TEST(FabricMemEngineUTest, DisconnectClearsChannelReqMap) {
 
   engine.Disconnect();
   EXPECT_TRUE(engine.req_map_.empty());
+  EXPECT_TRUE(engine.fabric_mem_remote_mems_.empty());
+}
+
+TEST(FabricMemEngineUTest, DisconnectTimeoutKeepsConnectionAndReqMap) {
+  FabricMemEngine engine(AscendString("test_engine"));
+  AttachTestContext(engine);
+  const std::string remote = "127.0.0.1:12345";
+  auto conn = std::make_shared<RemoteConnection>();
+  conn->in_flight = 1U;
+  engine.fabric_mem_remote_mems_[remote] = conn;
+
+  EXPECT_EQ(engine.Disconnect(AscendString(remote.c_str()), 1), TIMEOUT);
+  EXPECT_EQ(engine.fabric_mem_remote_mems_.count(remote), 1U);
+  EXPECT_TRUE(engine.req_map_.empty());
+  {
+    std::lock_guard<std::mutex> lock(conn->state_mutex);
+    conn->in_flight = 0U;
+  }
+  conn->cv.notify_all();
+  EXPECT_EQ(engine.Disconnect(AscendString(remote.c_str()), 1), SUCCESS);
+}
+
+TEST(FabricMemEngineUTest, GetTransferStatusFailureDoesNotSelfDeadlock) {
+  FabricMemEngine engine(AscendString("test_engine"));
+  engine.auto_connect_ = true;
+  const std::string remote = "127.0.0.1:12345";
+  auto conn = std::make_shared<RemoteConnection>();
+  engine.fabric_mem_remote_mems_[remote] = conn;
+  const auto req = reinterpret_cast<TransferReq>(1U);
+  engine.req_map_.emplace(1U, FabricMemTransferRequest{TransferInfo{0U, WRITE, AscendString(remote.c_str())}, conn});
+
+  TransferStatus status = TransferStatus::WAITING;
+  auto future =
+      std::async(std::launch::async, [&engine, req, &status]() { return engine.GetTransferStatus(req, status); });
+  ASSERT_EQ(future.wait_for(std::chrono::seconds(1)), std::future_status::ready);
+  EXPECT_EQ(future.get(), NOT_CONNECTED);
+  EXPECT_TRUE(engine.req_map_.empty());
+  EXPECT_TRUE(engine.fabric_mem_remote_mems_.empty());
+}
+
+TEST(FabricMemEngineUTest, GetTransferStatusAsyncFailureDisconnectsWhenAutoConnect) {
+  auto runtime = std::make_shared<FabricMemRuntimeStub>();
+  auto scoped_runtime = std::make_unique<ScopedRuntimeMock>(runtime);
+
+  FabricMemEngine engine(AscendString("test_engine"));
+  engine.auto_connect_ = true;
+  AttachTestContext(engine);
+
+  const std::string remote = "127.0.0.1:12345";
+  auto conn = std::make_shared<RemoteConnection>();
+  conn->remote_memory = std::make_unique<FabricMemRemoteMemory>();
+  conn->in_flight = 1U;
+  engine.fabric_mem_remote_mems_[remote] = conn;
+
+  // Set up a service with an async record whose stream query will fail.
+  auto service = std::make_shared<FabricMemTransferService>();
+  ASSERT_EQ(service->Initialize(0, 4U, 1U, nullptr), SUCCESS);
+  engine.fabric_mem_transfer_service_ = service;
+
+  AsyncSlot slot;
+  ASSERT_EQ(service->TryAcquireAsyncSlot(slot), SUCCESS);
+  ASSERT_EQ(service->AppendHostFlagCopies(slot), SUCCESS);
+
+  // Build context with remote as channel_id (matches engine BuildTransferContext).
+  FabricMemTransferContext context;
+  context.channel_id = remote;
+  context.statistic_channel_id = FabricMemStatistic::GetClientStatisticChannelId(remote);
+
+  const uint64_t req_id = 0xABCDUL;
+  TransferReq req = reinterpret_cast<TransferReq>(req_id);
+  const auto start = std::chrono::steady_clock::now();
+  service->RegisterAsyncTransferRecord(context, req, std::move(slot), start, start, 64U, 1U);
+
+  // Ensure host flags are pending so fast-path is skipped.
+  auto &record = service->req_2_async_record_[req_id];
+  for (void *host_flag : record.slot.host_flags) {
+    *static_cast<uint64_t *>(host_flag) = 0ULL;
+  }
+  // Force stream query failure.
+  runtime->stream_query_error_ = ACL_ERROR_RT_INTERNAL_ERROR;
+
+  engine.req_map_.emplace(req_id,
+                          FabricMemTransferRequest{TransferInfo{0U, WRITE, AscendString(remote.c_str())}, conn});
+
+  TransferStatus status = TransferStatus::WAITING;
+  // Service returns SUCCESS with status == FAILED; engine must disconnect the failed connection.
+  EXPECT_EQ(engine.GetTransferStatus(req, status), SUCCESS);
+  EXPECT_EQ(status, TransferStatus::FAILED);
+  EXPECT_TRUE(engine.req_map_.empty());
+  EXPECT_TRUE(engine.fabric_mem_remote_mems_.empty());
+
+  service->Finalize();
+  engine.fabric_mem_transfer_service_.reset();
+  scoped_runtime.reset();
+  runtime.reset();
+}
+
+TEST(FabricMemEngineUTest, ConnectOnFinalizedEngineReturnsFailed) {
+  FabricMemEngine engine(AscendString("test_engine"));
+  engine.is_initialized_ = false;
+  engine.aclrt_context_ = nullptr;
+  const AscendString remote("127.0.0.1:12345");
+  EXPECT_EQ(engine.Connect(remote, kClientTimeoutMs), FAILED);
+}
+
+TEST(FabricMemEngineUTest, TransferAsyncPreRegistersReqMapBeforeServiceCall) {
+  // Verify that req_map_ is populated before TransferAsync returns successfully,
+  // which guarantees DisconnectRemote can always find and release the lease.
+  FabricMemEngine engine(AscendString("test_engine"));
+  AttachTestContext(engine);
+  const std::string remote = "127.0.0.1:12345";
+  auto conn = std::make_shared<RemoteConnection>();
+  engine.fabric_mem_remote_mems_[remote] = conn;
+  engine.auto_connect_ = false;
+
+  // Use a no-op service so TransferAsync() completes without real CANN hardware.
+  auto service = std::make_shared<FabricMemTransferService>();
+  ASSERT_EQ(service->Initialize(0, 4U, 1U, nullptr), SUCCESS);
+  engine.fabric_mem_transfer_service_ = service;
+
+  TransferReq req = nullptr;
+  std::vector<TransferOpDesc> op_descs;
+  TransferArgs optional_args;
+  // With an empty op_descs vector the service-side TransferAsync will fail
+  // (no streams), but req_map_ should already be pre-registered by the engine
+  // before the service call returns.
+  (void)engine.TransferAsync(AscendString(remote.c_str()), WRITE, op_descs, optional_args, req);
+  // req_map_ should be empty because the error path cleans up. Verify the
+  // cleanup didn't deadlock and the lease was released.
+  EXPECT_TRUE(engine.req_map_.empty());
+
+  service->Finalize();
+  engine.fabric_mem_transfer_service_.reset();
+}
+
+TEST(FabricMemEngineUTest, TransferAsyncRejectsWhenConnectionDisconnecting) {
+  FabricMemEngine engine(AscendString("test_engine"));
+  AttachTestContext(engine);
+  const std::string remote = "127.0.0.1:12345";
+  auto conn = std::make_shared<RemoteConnection>();
+  {
+    std::lock_guard<std::mutex> lock(conn->state_mutex);
+    conn->disconnecting = true;
+  }
+  engine.fabric_mem_remote_mems_[remote] = conn;
+  engine.auto_connect_ = false;
+
+  int32_t src = 1;
+  int32_t dst = 2;
+  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+  TransferReq req = nullptr;
+  TransferArgs optional_args;
+  EXPECT_EQ(engine.TransferAsync(AscendString(remote.c_str()), WRITE, {desc}, optional_args, req), NOT_CONNECTED);
+}
+
+TEST(FabricMemEngineUTest, DisconnectDoesNotReleasePreSubmitAsyncLease) {
+  FabricMemEngine engine(AscendString("test_engine"));
+  AttachTestContext(engine);
+  const std::string remote = "127.0.0.1:12345";
+  auto conn = std::make_shared<RemoteConnection>();
+  conn->remote_memory = MakeUnique<FabricMemRemoteMemory>();
+  conn->in_flight = 1U;
+  engine.fabric_mem_remote_mems_[remote] = conn;
+  const auto req = reinterpret_cast<TransferReq>(0x123UL);
+  engine.req_map_.emplace(0x123UL,
+                          FabricMemTransferRequest{TransferInfo{0U, WRITE, AscendString(remote.c_str())}, conn});
+
+  EXPECT_EQ(engine.Disconnect(AscendString(remote.c_str()), 1), TIMEOUT);
+  EXPECT_EQ(engine.req_map_.count(0x123UL), 0U);
+  EXPECT_EQ(conn->in_flight, 1U);
+  engine.ReleaseTransferLease(conn);
+  EXPECT_EQ(engine.Disconnect(AscendString(remote.c_str()), 1), SUCCESS);
+}
+
+TEST_F(FabricMemTransferServiceUTest, SlotPoolWaitWakesOnFinalize) {
+  ASSERT_EQ(service_.Initialize(0, 2U, 2U, &statistic_), SUCCESS);
+  // Exhaust the pool (max_async_slot_num_ = 2/2 = 1).
+  AsyncSlot slot1;
+  ASSERT_EQ(service_.TryAcquireAsyncSlot(slot1), SUCCESS);
+
+  // Start a thread that tries to acquire a slot — it will block.
+  std::atomic<bool> acquire_finished{false};
+  std::thread waiter([this, &acquire_finished]() {
+    AsyncSlot slot;
+    // Use a long timeout so we don't rely on the timer.
+    Status result = service_.TryAcquireSlotWithTimeout(slot, 10000000ULL);
+    (void)result;
+    acquire_finished.store(true, std::memory_order_release);
+  });
+
+  // Give the waiter thread time to enter the wait.
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  EXPECT_FALSE(acquire_finished.load(std::memory_order_acquire));
+
+  // Finalize should notify slot_pool_cv_ and the waiter should wake up.
+  service_.Finalize();
+  waiter.join();
+  EXPECT_TRUE(acquire_finished.load(std::memory_order_acquire));
+  service_.ReleaseSlot(slot1, true);
+}
+
+TEST_F(FabricMemEngineInitUTest, FabricMemoryCapacityConfig) {
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  constexpr size_t kCustomCapacityTB = 32UL;
+  const std::string json_config = R"({
+    "fabric_memory": {
+      "max_capacity": )" + std::to_string(kCustomCapacityTB) +
+                                    R"(
+    }
+  })";
+
+  FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
+  auto options = BuildFabricMemOptions();
+  options[OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
+  EXPECT_EQ(engine.Initialize(options), SUCCESS);
+
+  uintptr_t addr = 0U;
+  EXPECT_EQ(VirtualMemoryManager::GetInstance().ReserveMemory(k1GB, addr), SUCCESS);
+  EXPECT_NE(addr, 0U);
+  EXPECT_EQ(VirtualMemoryManager::GetInstance().ReleaseMemory(addr), SUCCESS);
+
+  engine.Finalize();
+}
+
+TEST_F(FabricMemEngineInitUTest, FabricMemoryInitFailureRollback) {
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  FabricMemEngine engine{AscendString("invalid_local_engine")};
+  EXPECT_NE(engine.Initialize(BuildFabricMemOptions()), SUCCESS);
+  EXPECT_EQ(VirtualMemoryManager::GetInstance().SetGlobalStartAddress(50UL), SUCCESS);
+  EXPECT_EQ(VirtualMemoryManager::GetInstance().SetGlobalStartAddress(40UL), SUCCESS);
+  VirtualMemoryManager::GetInstance().Finalize();
+}
+
+TEST_F(FabricMemEngineInitUTest, FabricMemRegisterMemOverflow) {
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
+  ASSERT_EQ(engine.Initialize(BuildFabricMemOptions()), SUCCESS);
+
+  MemDesc mem{};
+  mem.addr = std::numeric_limits<uintptr_t>::max();
+  mem.len = 2U;
+  MemHandle handle = nullptr;
+  EXPECT_EQ(engine.RegisterMem(mem, MEM_HOST, handle), PARAM_INVALID);
+  EXPECT_EQ(handle, nullptr);
+
+  engine.Finalize();
+}
+
+TEST_F(FabricMemEngineInitUTest, FabricMemTransferAsyncFailureClearsReq) {
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
+  ASSERT_EQ(engine.Initialize(BuildFabricMemOptions()), SUCCESS);
+
+  int32_t src = 1;
+  int32_t dst = 2;
+  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+  TransferReq req = reinterpret_cast<TransferReq>(0x1234U);
+  EXPECT_EQ(engine.TransferAsync(AscendString(kConfigRemoteEngineId), WRITE, {desc}, {}, req), NOT_CONNECTED);
+  EXPECT_EQ(req, nullptr);
+
+  engine.Finalize();
+}
+
+class FabricMemConfigParserUTest : public ::testing::Test {};
+
+namespace {
+std::map<AscendString, AscendString> MakeOptions() {
+  std::map<AscendString, AscendString> options;
+  options[OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
+  return options;
+}
+
+std::map<AscendString, AscendString> MakeOptionsWithJson(const std::string &json) {
+  auto options = MakeOptions();
+  options[OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json.c_str());
+  return options;
+}
+}  // namespace
+
+TEST_F(FabricMemConfigParserUTest, DisabledByDefaultWhenOptionMissing) {
+  std::map<AscendString, AscendString> options;
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
+  EXPECT_FALSE(config.enabled);
+}
+
+TEST_F(FabricMemConfigParserUTest, DisabledWhenEnableOptionEmpty) {
+  std::map<AscendString, AscendString> options;
+  options[OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
+  EXPECT_FALSE(config.enabled);
+}
+
+TEST_F(FabricMemConfigParserUTest, DisabledWhenEnableOptionZero) {
+  std::map<AscendString, AscendString> options;
+  options[OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("0");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
+  EXPECT_FALSE(config.enabled);
+}
+
+TEST_F(FabricMemConfigParserUTest, EnableRejectsNonBinaryValue) {
+  std::map<AscendString, AscendString> options;
+  options[OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("2");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+}
+
+TEST_F(FabricMemConfigParserUTest, EnableRejectsNonNumericValue) {
+  std::map<AscendString, AscendString> options;
+  options[OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("abc");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+}
+
+TEST_F(FabricMemConfigParserUTest, AllFieldsParsedCorrectly) {
+  const std::string json = R"({
+    "fabric_memory": {
+      "max_capacity": 64,
+      "start_address": 100,
+      "task_stream_num": 4
+    }
+  })";
+  auto options = MakeOptionsWithJson(json);
+  options[OPTION_AUTO_CONNECT] = AscendString("1");
+
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
+  EXPECT_TRUE(config.enabled);
+  EXPECT_TRUE(config.auto_connect);
+  EXPECT_TRUE(config.has_capacity_tb);
+  EXPECT_EQ(config.capacity_tb, 64UL);
+  EXPECT_TRUE(config.has_start_address_tb);
+  EXPECT_EQ(config.start_address_tb, 100UL);
+  EXPECT_EQ(config.task_stream_num, 4U);
+}
+
+TEST_F(FabricMemConfigParserUTest, InvalidJsonReturnsError) {
+  auto options = MakeOptionsWithJson("{invalid json");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+}
+
+TEST_F(FabricMemConfigParserUTest, JsonArrayReturnsError) {
+  auto options = MakeOptionsWithJson("[1, 2, 3]");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+}
+
+TEST_F(FabricMemConfigParserUTest, CapacityZeroRejected) {
+  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"max_capacity": 0}})");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+}
+
+TEST_F(FabricMemConfigParserUTest, CapacityBoundaryMinAccepted) {
+  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"max_capacity": 1}})");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
+  EXPECT_TRUE(config.has_capacity_tb);
+  EXPECT_EQ(config.capacity_tb, 1UL);
+}
+
+TEST_F(FabricMemConfigParserUTest, CapacityBoundaryMaxAccepted) {
+  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"max_capacity": 1024}})");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
+  EXPECT_TRUE(config.has_capacity_tb);
+  EXPECT_EQ(config.capacity_tb, 1024UL);
+}
+
+TEST_F(FabricMemConfigParserUTest, CapacityAboveMaxRejected) {
+  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"max_capacity": 1025}})");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+}
+
+TEST_F(FabricMemConfigParserUTest, CapacityNonNumericRejected) {
+  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"max_capacity": "abc"}})");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+}
+
+TEST_F(FabricMemConfigParserUTest, StartAddressBelowMinRejected) {
+  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"start_address": 39}})");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+}
+
+TEST_F(FabricMemConfigParserUTest, StartAddressBoundaryMinAccepted) {
+  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"start_address": 40}})");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
+  EXPECT_TRUE(config.has_start_address_tb);
+  EXPECT_EQ(config.start_address_tb, 40UL);
+}
+
+TEST_F(FabricMemConfigParserUTest, StartAddressBoundaryMaxAccepted) {
+  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"start_address": 220}})");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
+  EXPECT_TRUE(config.has_start_address_tb);
+  EXPECT_EQ(config.start_address_tb, 220UL);
+}
+
+TEST_F(FabricMemConfigParserUTest, StartAddressAboveMaxRejected) {
+  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"start_address": 221}})");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+}
+
+TEST_F(FabricMemConfigParserUTest, TaskStreamNumZeroRejected) {
+  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"task_stream_num": 0}})");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+}
+
+TEST_F(FabricMemConfigParserUTest, TaskStreamNumBoundaryMinMaxAccepted) {
+  auto options_min = MakeOptionsWithJson(R"({"fabric_memory": {"task_stream_num": 1}})");
+  FabricMemConfig config_min;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options_min, config_min), SUCCESS);
+  EXPECT_EQ(config_min.task_stream_num, 1U);
+
+  auto options_max = MakeOptionsWithJson(R"({"fabric_memory": {"task_stream_num": 8}})");
+  FabricMemConfig config_max;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options_max, config_max), SUCCESS);
+  EXPECT_EQ(config_max.task_stream_num, 8U);
+}
+
+TEST_F(FabricMemConfigParserUTest, TaskStreamNumAboveMaxRejected) {
+  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"task_stream_num": 9}})");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+}
+
+TEST_F(FabricMemConfigParserUTest, MissingSubFieldsKeepDefaults) {
+  auto options = MakeOptionsWithJson(R"({"fabric_memory": {}})");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
+  EXPECT_TRUE(config.enabled);
+  EXPECT_FALSE(config.has_capacity_tb);
+  EXPECT_FALSE(config.has_start_address_tb);
+  EXPECT_EQ(config.task_stream_num, 4U);
+}
+
+TEST_F(FabricMemConfigParserUTest, NonFabricMemoryJsonKeysPassThrough) {
+  auto options = MakeOptionsWithJson(R"({"other_group": {"key": "value"}, "plain_key": 42})");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
+  EXPECT_FALSE(config.has_capacity_tb);
+  EXPECT_FALSE(config.has_start_address_tb);
+  EXPECT_EQ(config.task_stream_num, 4U);
+}
+
+TEST_F(FabricMemConfigParserUTest, AutoConnectEmptyValueRejected) {
+  auto options = MakeOptions();
+  options[OPTION_AUTO_CONNECT] = AscendString("");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+}
+
+TEST_F(FabricMemConfigParserUTest, AutoConnectZeroAndOneAccepted) {
+  auto options_zero = MakeOptions();
+  options_zero[OPTION_AUTO_CONNECT] = AscendString("0");
+  FabricMemConfig config_zero;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options_zero, config_zero), SUCCESS);
+  EXPECT_FALSE(config_zero.auto_connect);
+
+  auto options_one = MakeOptions();
+  options_one[OPTION_AUTO_CONNECT] = AscendString("1");
+  FabricMemConfig config_one;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options_one, config_one), SUCCESS);
+  EXPECT_TRUE(config_one.auto_connect);
+}
+
+TEST_F(FabricMemConfigParserUTest, AutoConnectNonBinaryRejected) {
+  auto options = MakeOptions();
+  options[OPTION_AUTO_CONNECT] = AscendString("2");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+}
+
+TEST_F(FabricMemConfigParserUTest, AutoConnectNonNumericRejected) {
+  auto options = MakeOptions();
+  options[OPTION_AUTO_CONNECT] = AscendString("abc");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+}
+
+TEST_F(FabricMemConfigParserUTest, EnabledSkipsParsingWhenDisabled) {
+  std::map<AscendString, AscendString> options;
+  options[OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("0");
+  options[OPTION_AUTO_CONNECT] = AscendString("invalid_should_fail_if_parsed");
+  FabricMemConfig config;
+  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
+  EXPECT_FALSE(config.enabled);
 }
 
 }  // namespace hixl
