@@ -31,7 +31,7 @@
 #include "mem_msg_handler.h"
 #include "proxy/hcomm_proxy.h"
 #include "proxy/hccp_proxy.h"
-#include "runtime/runtime/rts/rts_device.h"
+#include "rt_external.h"
 
 namespace hixl {
 namespace {

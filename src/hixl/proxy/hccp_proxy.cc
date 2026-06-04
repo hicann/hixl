@@ -15,7 +15,7 @@
 #include <thread>
 #include "acl/acl.h"
 #include "mmpa/mmpa_api.h"
-#include "runtime/rt_external_event.h"
+#include "rt_external_event.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 

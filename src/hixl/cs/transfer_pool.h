@@ -19,7 +19,7 @@
 #include "cs/hixl_cs.h"
 #include "hcomm/hcomm_res_defs.h"
 #include "common/hixl_utils.h"
-#include "runtime/runtime/rt.h"
+#include "rt_external.h"
 
 namespace hixl {
 

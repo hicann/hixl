@@ -17,8 +17,7 @@
 #include "mmpa/mmpa_api.h"
 #include "acl/acl.h"
 
-#include <runtime/runtime/base.h>
-#include <runtime/runtime/dev.h>
+#include "rt_external.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,7 +51,7 @@ class RuntimeStub {
 //  virtual void LaunchTaskToStream(TaskTypeOnStream task_type, rtStream_t stream) {};
 
 
-  virtual rtError_t rtGetDevResAddress(const rtDevResInfo *resInfo, rtDevResAddrInfo *addrInfo);
+  virtual rtError_t rtGetDevResAddress(rtDevResInfo *resInfo, rtDevResAddrInfo *addrInfo);
 
   virtual rtError_t rtNotifyGetAddrOffset(rtNotify_t notify, uint64_t *devAddrOffset);
 

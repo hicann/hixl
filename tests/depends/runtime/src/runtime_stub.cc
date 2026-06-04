@@ -16,11 +16,7 @@
 #include "acl/acl_rt.h"
 #include "runtime_stub.h"
 #include "acl/acl.h"
-#include "runtime/base.h"
-#include "runtime/rt_preload_task.h"
-#include "rt_error_codes.h"
 #include <iostream>
-#include <runtime/runtime/dev.h>
 
 namespace llm {
 namespace {
@@ -67,7 +63,7 @@ void RuntimeStub::UnInstall(RuntimeStub*){
   fake_instance_ = nullptr;
 }
 
-rtError_t RuntimeStub::rtGetDevResAddress(const rtDevResInfo *resInfo, rtDevResAddrInfo *addrInfo) {
+rtError_t RuntimeStub::rtGetDevResAddress(rtDevResInfo *resInfo, rtDevResAddrInfo *addrInfo) {
   (void)resInfo;
   static uint64_t g_dummy_dev_mem = 0x88888888ULL;
   if (addrInfo != nullptr) {
@@ -105,7 +101,7 @@ void rtStubTearDown() {
   SetMockRtGetDeviceWay(0);
 }
 
-rtError_t rtGetDevResAddress(const rtDevResInfo *resInfo, rtDevResAddrInfo *addrInfo) {
+rtError_t rtGetDevResAddress(rtDevResInfo *resInfo, rtDevResAddrInfo *addrInfo) {
   return llm::RuntimeStub::GetInstance()->rtGetDevResAddress(resInfo, addrInfo);
 }
 
