@@ -295,19 +295,23 @@ int32_t GetCpuEidFromRouteData(int32_t phy_dev_id, const RouteData &route_data, 
     HIXL_LOGE(FAILED, "[GetHostPgEid] Failed to get logic id from phy id: %d", phy_dev_id);
     return FAILED;
   }
-  int32_t target_device_id = static_cast<int32_t>(logic_id);
-  HIXL_LOGI("[GetHostPgEid] phy_dev_id=%d, logic_id=%u, target_device_id=%d", phy_dev_id, logic_id, target_device_id);
+  HIXL_LOGI("[GetHostPgEid] phy_dev_id=%d, logic_id=%u", phy_dev_id, logic_id);
 
   for (const auto &entry : route_data.entries) {
-    if (entry.device_id == target_device_id && !entry.local_eid.empty()) {
+    if (entry.device_id == phy_dev_id && !entry.local_eid.empty()) {
       cpu_eid = entry.local_eid;
       break;
     }
   }
 
   if (cpu_eid.empty()) {
-    HIXL_LOGE(FAILED, "[GetHostPgEid] No local_eid found for device_id=%d (phy_dev_id=%d)", target_device_id,
-              phy_dev_id);
+    HIXL_LOGE(FAILED, "[GetHostPgEid] No local_eid found for device_id=%d", phy_dev_id);
+    HIXL_LOGE(FAILED, "[GetHostPgEid] Available route_data.entries (%zu total):", route_data.entries.size());
+    for (size_t i = 0; i < route_data.entries.size(); ++i) {
+      const auto &entry = route_data.entries[i];
+      HIXL_LOGE(FAILED, "[GetHostPgEid] entry[%zu]: device_id=%d, local_eid=[%s], remote_eid=[%s]", i, entry.device_id,
+                entry.local_eid.c_str(), entry.remote_eid.c_str());
+    }
     return FAILED;
   }
   return SUCCESS;
@@ -611,14 +615,12 @@ bool ProcfsRouteHandler::ParsePairInfoForDevice(const std::string &pair_info_con
 
 int32_t ProcfsRouteHandler::ProcessNpuProcfsRoute(int32_t npu_id, const std::string &dev_id_path,
                                                   const std::string &pair_info_path, RouteEntry &entry) {
-  int32_t device_id = npu_id % kNpuGroupSize;
-  HIXL_LOGI("[Procfs] Processing npu_id=%d, device_id=%d", npu_id, device_id);
-
-  // 写入 device_id（组内相对 ID）选择设备
+  HIXL_LOGI("[Procfs] Processing npu_id=%d", npu_id);
+  // 写入phyid选择设备
   std::ostringstream dev_id_ss;
-  dev_id_ss << device_id << "\n";
+  dev_id_ss << npu_id << "\n";
   if (!WriteStringToFile(dev_id_path, dev_id_ss.str())) {
-    HIXL_LOGW("[Procfs] Failed to write device_id=%d to %s", device_id, dev_id_path.c_str());
+    HIXL_LOGW("[Procfs] Failed to write npu_id=%d to %s", npu_id, dev_id_path.c_str());
     return FAILED;
   }
 
@@ -645,7 +647,7 @@ int32_t ProcfsRouteHandler::ProcessNpuProcfsRoute(int32_t npu_id, const std::str
             local_eid.c_str(), remote_eid.c_str());
 
   // 只生成 H2D 方向的 RouteEntry
-  entry.device_id = device_id;
+  entry.device_id = npu_id;
   entry.local_eid = local_eid;
   entry.remote_eid = remote_eid;
   return SUCCESS;
@@ -790,6 +792,11 @@ int32_t BuildRouteEntries(const std::map<std::string, std::string> &kv_map, Rout
   }
 
   HIXL_LOGI("Parsed %zu route entries", route_data.entries.size());
+  for (size_t i = 0; i < route_data.entries.size(); ++i) {
+    const auto &entry = route_data.entries[i];
+    HIXL_LOGI("  route_entry[%zu]: device_id=%d, local_eid=[%s], remote_eid=[%s]", i, entry.device_id,
+              entry.local_eid.c_str(), entry.remote_eid.c_str());
+  }
   return SUCCESS;
 }
 
@@ -1323,21 +1330,29 @@ int32_t ParseTopoAndRouteFiles(int32_t phy_dev_id, const std::string &topo_path,
   return SUCCESS;
 }
 
-int32_t GenerateLocalCommRes(int32_t phy_dev_id, LocalCommRes &local_comm_res) {
+int32_t ResolveDefaultLocalCommResPaths(int32_t phy_dev_id, std::string &topo_path, std::string &route_path) {
   // 1. 获取 mainboard_id，根据产品形态选择 topo 文件
   uint32_t mainboard_id = 0;
   int32_t ret = GetMainboardId(phy_dev_id, mainboard_id);
   if (ret != SUCCESS) {
     return ret;
   }
-  std::string topo_path = TopoFileFinder().FindTopoFile(kDefaultTopoDir, mainboard_id);
+  topo_path = TopoFileFinder().FindTopoFile(kDefaultTopoDir, mainboard_id);
   if (topo_path.empty()) {
     HIXL_LOGE(PARAM_INVALID, "No topo file found for mainboard_id=0x%x in %s", mainboard_id, kDefaultTopoDir);
     return PARAM_INVALID;
   }
-  std::string route_path = kDefaultRoutePath;
+  route_path = kDefaultRoutePath;
+  return SUCCESS;
+}
 
-  // 2. 调用有参版本
+int32_t GenerateLocalCommRes(int32_t phy_dev_id, LocalCommRes &local_comm_res) {
+  std::string topo_path;
+  std::string route_path;
+  int32_t ret = ResolveDefaultLocalCommResPaths(phy_dev_id, topo_path, route_path);
+  if (ret != SUCCESS) {
+    return ret;
+  }
   return GenerateLocalCommRes(phy_dev_id, topo_path, route_path, local_comm_res);
 }
 
@@ -1365,37 +1380,49 @@ int32_t GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, c
   return BuildLocalCommResResult(phy_dev_id, is_server, topo_data, route_data, related_npu_ids, local_comm_res);
 }
 
-void ConvertLocalCommResToView(const LocalCommRes &src, LocalCommResView &dst) {
-  // std::string 字段仅在 .so 内部使用，不跨 .so 边界传递；外层通过 AscendString
-  // （内部封装 shared_ptr<std::string>）持有，跨 .so 边界 ABI 安全。
-  dst.version = AscendString(src.version.c_str());
-  dst.net_instance_id = AscendString(src.net_instance_id.c_str());
-  dst.endpoint_list.clear();
-  dst.endpoint_list.reserve(src.endpoint_list.size());
-  for (const auto &ep : src.endpoint_list) {
-    EndpointConfigView ep_view;
-    ep_view.protocol = AscendString(ep.protocol.c_str());
-    ep_view.comm_id = AscendString(ep.comm_id.c_str());
-    ep_view.placement = AscendString(ep.placement.c_str());
-    ep_view.plane = AscendString(ep.plane.c_str());
-    ep_view.dst_eid = AscendString(ep.dst_eid.c_str());
-    ep_view.net_instance_id = AscendString(ep.net_instance_id.c_str());
-    ep_view.device_info = ep.device_info;
-    dst.endpoint_list.push_back(std::move(ep_view));
+int32_t TransLocalCommRes(int32_t phy_dev_id, AscendString &result) {
+  // 1. 按 mainboard_id 解析默认 topo / route 路径
+  std::string topo_path;
+  std::string route_path;
+  int32_t ret = ResolveDefaultLocalCommResPaths(phy_dev_id, topo_path, route_path);
+  if (ret != SUCCESS) {
+    HIXL_LOGE(ret, "[TransLocalCommRes] ResolveDefaultLocalCommResPaths failed, ret=%d", ret);
+    return ret;
   }
+  return TransLocalCommRes(phy_dev_id, topo_path, route_path, result);
 }
 
-int32_t GenerateLocalCommResJson(int32_t phy_dev_id, LocalCommResView &view) {
-  // 1. 调用 GenerateLocalCommRes 组装 LocalCommRes 结构体
+int32_t TransLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, const std::string &route_path,
+                          AscendString &result) {
+  // 1. 调用 4 参 GenerateLocalCommRes 组装 LocalCommRes 结构体
   LocalCommRes local_comm_res;
-  int32_t ret = GenerateLocalCommRes(phy_dev_id, local_comm_res);
+  int32_t ret = GenerateLocalCommRes(phy_dev_id, topo_path, route_path, local_comm_res);
   if (ret != SUCCESS) {
-    HIXL_LOGE(ret, "[GenerateLocalCommResJson] GenerateLocalCommRes failed, ret=%d", ret);
+    HIXL_LOGE(ret, "[TransLocalCommRes] GenerateLocalCommRes failed, ret=%d", ret);
     return ret;
   }
 
-  // 2. 把 std::string 字段全部转成 AscendString 填充到 view
-  ConvertLocalCommResToView(local_comm_res, view);
+  // 2. 序列化为带 2 空格缩进的 JSON 字符串
+  nlohmann::json j;
+  j["version"] = local_comm_res.version;
+  j["net_instance_id"] = local_comm_res.net_instance_id;
+  j["endpoint_list"] = nlohmann::json::array();
+  for (const auto &ep : local_comm_res.endpoint_list) {
+    nlohmann::json ep_json;
+    ep_json["protocol"] = ep.protocol;
+    ep_json["comm_id"] = ep.comm_id;
+    ep_json["placement"] = ep.placement;
+    if (!ep.plane.empty()) {
+      ep_json["plane"] = ep.plane;
+    }
+    if (!ep.dst_eid.empty()) {
+      ep_json["dst_eid"] = ep.dst_eid;
+    }
+    j["endpoint_list"].push_back(std::move(ep_json));
+  }
+
+  // 3. 通过 AscendString 返回（内部封装 shared_ptr<std::string>，跨 .so 边界 ABI 安全）
+  result = AscendString(j.dump(2).c_str());
   return SUCCESS;
 }
 

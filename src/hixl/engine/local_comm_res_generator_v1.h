@@ -45,28 +45,6 @@ struct LocalCommRes {
   std::vector<EndpointConfig> endpoint_list;  // 端点列表
 };
 
-/**
- * @brief 端点配置视图，所有字符串字段均为 AscendString（ABI 安全）
- */
-struct EndpointConfigView {
-  AscendString protocol;
-  AscendString comm_id;
-  AscendString placement;
-  AscendString plane;
-  AscendString dst_eid;
-  AscendString net_instance_id;
-  DeviceInfoConfig device_info{};
-};
-
-/**
- * @brief LocalCommRes 视图，所有字符串字段均为 AscendString（ABI 安全）
- */
-struct LocalCommResView {
-  AscendString version;                           // 版本号，默认 "1.3"
-  AscendString net_instance_id;                   // 网络实例 ID
-  std::vector<EndpointConfigView> endpoint_list;  // 端点列表
-};
-
 // ============ Topology 数据结构 ============
 
 /**
@@ -125,30 +103,43 @@ int32_t GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, c
                              LocalCommRes &local_comm_res);
 
 /**
- * @brief 把 LocalCommRes（std::string 字段）转成 LocalCommResView（AscendString 字段）
+ * @brief 内部 helper：按 mainboard_id 解析默认 topo / route 路径
  *
- * 纯数据转换，**不调用任何 DCMI/urma_admin/procfs 接口**，
- * 仅依赖 LocalCommRes 输入。提供给 GenerateLocalCommResJson 调用，
- * 也方便单元测试覆盖 std::string → AscendString 的转换逻辑。
+ * 供 2 参 GenerateLocalCommRes 和 2 参 TransLocalCommRes 共用，避免重复实现。
+ * **仅供内部使用**，调用方应保证 phy_dev_id 合法。
  *
- * @param [in]  src  源 LocalCommRes（std::string 字段）
- * @param [out] dst  目标 LocalCommResView（AscendString 字段），会被整体覆盖
+ * @param [in]  phy_dev_id 物理设备 ID
+ * @param [out] topo_path  默认 topo 目录中匹配到的 topo 文件全路径
+ * @param [out] route_path 默认 route.conf 路径
+ * @return 成功: SUCCESS；失败: GetMainboardId 错误码或 PARAM_INVALID
  */
-void ConvertLocalCommResToView(const LocalCommRes &src, LocalCommResView &dst);
+int32_t ResolveDefaultLocalCommResPaths(int32_t phy_dev_id, std::string &topo_path, std::string &route_path);
 
 /**
- * @brief 生成 LocalCommRes 的视图数据（lcrgen 工具使用）
+ * @brief 生成 LocalCommRes 的 JSON 字符串（lcrgen 工具使用）
  *
- * 内部完成 GenerateLocalCommRes，并通过 ConvertLocalCommResToView 把
- * LocalCommRes 的 std::string 字段全部转成 AscendString 填充到 LocalCommResView 中。
- * **所有 std::string → AscendString 转换都在 libcann_hixl.so 内部完成**，
- * 避免 std::string 跨 .so 边界传递。JSON 序列化由 lcrgen 工具本地完成。
+ * 内部完成 GenerateLocalCommRes（无参版本），把 LocalCommRes 直接序列化为
+ * 带 2 空格缩进的 JSON 字符串，再通过 AscendString 返回。**所有 std::string
+ * 处理都在 libcann_hixl.so 内部完成**，外层只持有 AscendString
+ * （内部封装 shared_ptr<std::string>），跨 .so 边界 ABI 安全。
  *
  * @param [in] phy_dev_id 物理设备 ID
- * @param [out] view 成功时填入 LocalCommResView；失败时状态未定义
+ * @param [out] result 成功时填入 JSON 字符串；失败时状态未定义
  * @return 成功: SUCCESS, 失败: 其它错误码
  */
-int32_t GenerateLocalCommResJson(int32_t phy_dev_id, LocalCommResView &view);
+int32_t TransLocalCommRes(int32_t phy_dev_id, AscendString &result);
+
+/**
+ * @brief 生成 LocalCommRes 的 JSON 字符串（测试用重载，允许注入 topo / route 路径）
+ *
+ * @param [in] phy_dev_id 物理设备 ID
+ * @param [in] topo_path topology 文件路径
+ * @param [in] route_path route.conf 文件路径
+ * @param [out] result 成功时填入 JSON 字符串；失败时状态未定义
+ * @return 成功: SUCCESS, 失败: 其它错误码
+ */
+int32_t TransLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, const std::string &route_path,
+                          AscendString &result);
 
 // ============ DCMI 接口封装 ============
 

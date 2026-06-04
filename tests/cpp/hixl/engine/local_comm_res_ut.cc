@@ -830,20 +830,6 @@ TEST_F(LocalCommResGenerateTest, GeneratePod3MainboardId) {
   EXPECT_FALSE(res.endpoint_list.empty());
 }
 
-// --- CollectRelatedNpuIds / GetMeshDieId 分组覆盖 ---
-
-TEST_F(LocalCommResGenerateTest, GeneratePhyIdInSecondGroup) {
-  // phy_dev_id=9 → group_start=8, NPU 8-15; GetMeshDieId(9, false) → 9%8=1 → die_id=1
-  DcmiStubSetMainboardId(0x3, 0);  // Pod
-
-  std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
-  LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(9, topo_path, route_path, res);
-  EXPECT_EQ(ret, SUCCESS);
-  EXPECT_FALSE(res.endpoint_list.empty());
-}
-
 TEST_F(LocalCommResGenerateTest, GenerateServerMeshDieId) {
   // Server 产品形态 → GetMeshDieId 始终返回 1
   DcmiStubSetMainboardId(0x21, 0);  // Server
@@ -1306,7 +1292,7 @@ TEST_F(ProcfsRouteHandlerTest, GenerateRouteDataNpuIdGreaterThan7) {
   WriteProcFile("pair_info", MakePairInfoContent("0", {"0x0000000000f2008000100000dfdf0091"},
                                                  {"0x000000000072008000100000dfdf0001"}));
 
-  // npu_id = 10, device_id = 10 % 8 = 2
+  // npu_id = 10, device_id = 10 采用物理id
   hixl::ProcfsRouteHandler handler(proc_base_);
   std::set<int32_t> related_npu_ids = {10};
   hixl::RouteData route_data;
@@ -1314,7 +1300,7 @@ TEST_F(ProcfsRouteHandlerTest, GenerateRouteDataNpuIdGreaterThan7) {
 
   EXPECT_EQ(ret, hixl::SUCCESS);
   ASSERT_EQ(route_data.entries.size(), 1U);
-  EXPECT_EQ(route_data.entries[0].device_id, 2);  // 10 % 8 = 2
+  EXPECT_EQ(route_data.entries[0].device_id, 10);  // 采用物理id
 }
 
 TEST_F(ProcfsRouteHandlerTest, GenerateRouteDataEid0xPrefixStripped) {
@@ -1510,145 +1496,73 @@ TEST_F(TopoFileFinderTest, FindTopoFileServerOddMainboardId) {
 }
 
 // ============================================================================
-// GenerateLocalCommResJson 测试
+// TransLocalCommRes / ResolveDefaultLocalCommResPaths 测试
 // ============================================================================
 //
-// GenerateLocalCommResJson 内部调用 GenerateLocalCommRes（无参版本）使用默认
-// 路径 /usr/local/Ascend/driver/topo/950/，UT 环境下该路径不存在，因此无法构造
-// "成功" 路径（需要真实系统环境）；但可以验证 "失败" 路径下的错误码传递。
-// （成功路径下 std::string → AscendString 转换逻辑被 lcrgen 工具本地测试覆盖，
-//  无需在单元测试中重复验证。）
+// 2 参 TransLocalCommRes 内部使用默认路径 /usr/local/Ascend/driver/topo/950/，
+// UT 环境下该路径不存在，无法构造 "成功" 路径。
+// - SUCCESS 路径通过 4 参重载（注入 topo / route 路径）覆盖
+// - 失败路径通过 ResolveDefaultLocalCommResPaths 的 GetMainboardId 失败覆盖
 
-class LocalCommResJsonTest : public LocalCommResTopoPathTest {};
+TEST_F(LocalCommResGenerateTest, TransLocalCommResSuccess) {
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+  std::string route_path = data_dir_ + "route.conf";
 
-TEST_F(LocalCommResJsonTest, PropagatesGetMainboardIdFailure) {
-  // GetMainboardId 失败 → GenerateLocalCommRes 内部立即返回错误码 →
-  // GenerateLocalCommResJson 应透传该错误码。
+  hixl::AscendString result;
+  int32_t ret = TransLocalCommRes(0, topo_path, route_path, result);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_GT(result.GetLength(), 0u);
+
+  // 验证 JSON 内容包含 LocalCommRes 的关键字段
+  const char *json = result.GetString();
+  ASSERT_NE(json, nullptr);
+  EXPECT_NE(std::strstr(json, "\"version\": \"1.3\""), nullptr);
+  EXPECT_NE(std::strstr(json, "\"net_instance_id\": "), nullptr);
+  EXPECT_NE(std::strstr(json, "\"endpoint_list\": ["), nullptr);
+}
+
+TEST_F(LocalCommResTopoPathTest, ResolveDefaultPathsPropagatesGetMainboardIdFailure) {
+  // GetMainboardId 失败 → ResolveDefaultLocalCommResPaths 透传错误码
   DcmiStubSetMainboardId(0, -1);
 
-  LocalCommResView view;
-  int32_t ret = GenerateLocalCommResJson(0, view);
+  std::string topo_path;
+  std::string route_path;
+  int32_t ret = ResolveDefaultLocalCommResPaths(0, topo_path, route_path);
   EXPECT_NE(ret, SUCCESS);
+  // 失败时 topo_path / route_path 不应被填充
+  EXPECT_TRUE(topo_path.empty());
+  EXPECT_TRUE(route_path.empty());
 }
 
-TEST_F(LocalCommResJsonTest, ParamInvalidWhenDefaultTopoMissing) {
-  // mainboard_id 成功获取 → 进入 FindTopoFile 逻辑；
-  // 默认 topo 目录 /usr/local/Ascend/driver/topo/950/ 在 UT 环境不存在 →
-  // 返回 PARAM_INVALID。
-  DcmiStubSetMainboardId(0x3, 0);  // Pod1
-
-  LocalCommResView view;
-  int32_t ret = GenerateLocalCommResJson(0, view);
-  EXPECT_EQ(ret, PARAM_INVALID);
-}
-
-TEST_F(LocalCommResJsonTest, ParamInvalidOnUnknownMainboardId) {
-  // 未知 mainboard_id（0x99）→ MatchProductForm 返回 false → PARAM_INVALID
+TEST_F(LocalCommResTopoPathTest, ResolveDefaultPathsUnknownMainboardIdReturnsInvalid) {
+  // 未知 mainboard_id（0x99）→ MatchProductForm 返回 false → topo_path 为空 → PARAM_INVALID
   DcmiStubSetMainboardId(0x99, 0);
 
-  LocalCommResView view;
-  int32_t ret = GenerateLocalCommResJson(0, view);
+  std::string topo_path;
+  std::string route_path;
+  int32_t ret = ResolveDefaultLocalCommResPaths(0, topo_path, route_path);
+  EXPECT_EQ(ret, PARAM_INVALID);
+  EXPECT_TRUE(topo_path.empty());
+  EXPECT_TRUE(route_path.empty());
+}
+
+TEST_F(LocalCommResTopoPathTest, TransLocalCommResDefaultOverloadTopoMissing) {
+  // 2 参 TransLocalCommRes 走默认路径，UT 环境 /usr/local/Ascend/driver/topo/950/ 不存在
+  // → ResolveDefaultLocalCommResPaths 返回 PARAM_INVALID → 2 参 TransLocalCommRes 透传
+  DcmiStubSetMainboardId(0x3, 0);  // Pod1
+
+  hixl::AscendString result;
+  int32_t ret = TransLocalCommRes(0, result);
   EXPECT_EQ(ret, PARAM_INVALID);
 }
 
-// ============================================================================
-// ConvertLocalCommResToView 测试
-// ============================================================================
-//
-// 纯 std::string → AscendString 字段转换测试，覆盖 GenerateLocalCommResJson
-// 中"成功路径"的转换逻辑（GenerateLocalCommRes 失败时这些代码不会执行）。
+TEST_F(LocalCommResTopoPathTest, TransLocalCommResDefaultOverloadGetMainboardIdFailed) {
+  // 2 参 TransLocalCommRes：GetMainboardId 失败 → ResolveDefaultLocalCommResPaths 透传 → 2 参 TransLocalCommRes 透传
+  DcmiStubSetMainboardId(0, -1);
 
-TEST(ConvertLocalCommResToViewTest, AllFieldsPopulated) {
-  LocalCommRes src;
-  src.version = "1.3";
-  src.net_instance_id = "superpod_1";
-
-  EndpointConfig ep;
-  ep.protocol = "TCP";
-  ep.comm_id = "comm0";
-  ep.placement = "HOST";
-  ep.plane = "plane_pg_0";
-  ep.dst_eid = "0x1234";
-  ep.net_instance_id = "superpod_1";
-  ep.device_info.phy_device_id = 0;
-  ep.device_info.super_device_id = 1;
-  ep.device_info.super_pod_id = 2;
-  src.endpoint_list.push_back(ep);
-
-  LocalCommResView dst;
-  ConvertLocalCommResToView(src, dst);
-
-  EXPECT_STREQ(dst.version.GetString(), "1.3");
-  EXPECT_STREQ(dst.net_instance_id.GetString(), "superpod_1");
-  ASSERT_EQ(dst.endpoint_list.size(), 1u);
-  EXPECT_STREQ(dst.endpoint_list[0].protocol.GetString(), "TCP");
-  EXPECT_STREQ(dst.endpoint_list[0].comm_id.GetString(), "comm0");
-  EXPECT_STREQ(dst.endpoint_list[0].placement.GetString(), "HOST");
-  EXPECT_STREQ(dst.endpoint_list[0].plane.GetString(), "plane_pg_0");
-  EXPECT_STREQ(dst.endpoint_list[0].dst_eid.GetString(), "0x1234");
-  EXPECT_STREQ(dst.endpoint_list[0].net_instance_id.GetString(), "superpod_1");
-  EXPECT_EQ(dst.endpoint_list[0].device_info.phy_device_id, 0);
-  EXPECT_EQ(dst.endpoint_list[0].device_info.super_device_id, 1);
-  EXPECT_EQ(dst.endpoint_list[0].device_info.super_pod_id, 2);
-}
-
-TEST(ConvertLocalCommResToViewTest, EmptyEndpointList) {
-  LocalCommRes src;
-  src.version = "1.3";
-  src.net_instance_id = "superpod_2";
-  // src.endpoint_list 留空
-
-  LocalCommResView dst;
-  ConvertLocalCommResToView(src, dst);
-
-  EXPECT_STREQ(dst.version.GetString(), "1.3");
-  EXPECT_STREQ(dst.net_instance_id.GetString(), "superpod_2");
-  EXPECT_TRUE(dst.endpoint_list.empty());
-}
-
-TEST(ConvertLocalCommResToViewTest, EmptyStringFields) {
-  LocalCommRes src;
-  src.version = "";
-  src.net_instance_id = "";
-  EndpointConfig ep;  // 所有 std::string 字段留空
-  src.endpoint_list.push_back(ep);
-
-  LocalCommResView dst;
-  ConvertLocalCommResToView(src, dst);
-
-  EXPECT_EQ(dst.version.GetLength(), 0u);
-  EXPECT_EQ(dst.net_instance_id.GetLength(), 0u);
-  ASSERT_EQ(dst.endpoint_list.size(), 1u);
-  EXPECT_EQ(dst.endpoint_list[0].protocol.GetLength(), 0u);
-  EXPECT_EQ(dst.endpoint_list[0].comm_id.GetLength(), 0u);
-  EXPECT_EQ(dst.endpoint_list[0].placement.GetLength(), 0u);
-  EXPECT_EQ(dst.endpoint_list[0].plane.GetLength(), 0u);
-  EXPECT_EQ(dst.endpoint_list[0].dst_eid.GetLength(), 0u);
-  EXPECT_EQ(dst.endpoint_list[0].net_instance_id.GetLength(), 0u);
-}
-
-TEST(ConvertLocalCommResToViewTest, OverwritesExistingView) {
-  // 目标 dst 已有内容，调用后应被整体覆盖（不能残留旧数据）
-  LocalCommResView dst;
-  dst.version = AscendString("old_version");
-  dst.net_instance_id = AscendString("old_net_id");
-  EndpointConfigView old_ep;
-  old_ep.protocol = AscendString("old_proto");
-  dst.endpoint_list.push_back(std::move(old_ep));
-
-  LocalCommRes src;
-  src.version = "new_version";
-  src.net_instance_id = "new_net_id";
-  EndpointConfig new_ep;
-  new_ep.protocol = "new_proto";
-  src.endpoint_list.push_back(new_ep);
-
-  ConvertLocalCommResToView(src, dst);
-
-  EXPECT_STREQ(dst.version.GetString(), "new_version");
-  EXPECT_STREQ(dst.net_instance_id.GetString(), "new_net_id");
-  ASSERT_EQ(dst.endpoint_list.size(), 1u);
-  EXPECT_STREQ(dst.endpoint_list[0].protocol.GetString(), "new_proto");
+  hixl::AscendString result;
+  int32_t ret = TransLocalCommRes(0, result);
+  EXPECT_NE(ret, SUCCESS);
 }
 
 }  // namespace test

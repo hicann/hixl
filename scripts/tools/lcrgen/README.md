@@ -1,6 +1,6 @@
 # LocalCommRes Generator Tool
 
-本工具用于生成本地通信资源（LocalCommRes）信息，并以 JSON 格式输出到文件。
+本工具用于生成本地通信资源（LocalCommRes）信息，并以 JSON 格式打印生成的localcommres信息到屏幕。
 
 ## 功能说明
 
@@ -9,7 +9,6 @@
 - 网络实例 ID（net_instance_id）
 - 端点列表（endpoint_list），包含所有通信边的配置信息
 
-生成的 JSON 文件将保存在当前执行目录下，文件名为 `local_comm_res_{device_id}.json`。
 
 ## 编译
 
@@ -20,16 +19,16 @@ bash build.sh --examples
 ```
 
 ## 运行
-进入build目录下，找工具的同名目录，其中有编译生成的可执行文件。
+等编译完成后，进入build/scripts/tools/lcrgen/目录，其中有编译生成的可执行文件。
 ```bash
 ./lcrgen <npu_id>
 ```
 
 ### 参数说明
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| npu_id | int | 是 | NPU 逻辑设备 ID（从 0 开始）|
+| 参数 | 类型 | 必填 | 说明                       |
+|------|------|------|--------------------------|
+| npu_id | int | 是 | NPU 逻辑设备 ID（从 0 开始，到7截止） |
 
 ### 示例
 
@@ -53,10 +52,6 @@ bash build.sh --examples
 - 网络实例 ID
 - 端点列表大小
 - 每个端点的详细信息
-
-### JSON 文件输出
-
-在当前执行目录下生成 JSON 文件，文件名格式：`local_comm_res_{npu_id}.json`
 
 **JSON 文件格式：**
 
@@ -99,11 +94,12 @@ bash build.sh --examples
 - ACL（Ascend Computing Language）运行时库
 - CANN（Compute Architecture for Neural Networks）软件栈
 - NPU 驱动和固件
+- 执行工具时需要有root权限
 
 ## 注意事项
 
 1. 运行前请确保 NPU 设备可用且已正确配置
-2. 需要有足够的权限访问 NPU 设备, 
-3. JSON 文件会覆盖同名的已有文件
-4. 端点列表可能为空（当拓扑信息不完整时）
-5. 需要有root权限执行可执行文件
+2. 需要有足够的权限访问 NPU 设备,
+3. 端点列表可能为空（当拓扑信息不完整时）
+4. 需要有root权限执行可执行文件
+5. 如果在容器场景使用本工具，需要注意容器是否映射urma_admin show命令

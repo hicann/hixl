@@ -20,7 +20,6 @@
 #include "acl/acl.h"
 #include "local_comm_res_generator_v1.h"
 #include "graph/ascend_string.h"
-#include <nlohmann/json.hpp>
 
 namespace {
 void PrintUsage(const char *prog_name) {
@@ -79,29 +78,6 @@ aclError GetPhyDevId(int32_t logic_id, int32_t *phy_id) {
   return ACL_SUCCESS;
 }
 
-// 基于 libcann_hixl.so 通过 GenerateLocalCommResJson 给出的 LocalCommResView
-// 在本地拼成 JSON 字符串并打屏输出，保留 2 空格缩进便于用户复制粘贴。
-void PrintLocalCommRes(const hixl::LocalCommResView &view) {
-  nlohmann::json j;
-  j["version"] = view.version.GetString();
-  j["net_instance_id"] = view.net_instance_id.GetString();
-  j["endpoint_list"] = nlohmann::json::array();
-  for (const auto &ep : view.endpoint_list) {
-    nlohmann::json ep_json;
-    ep_json["protocol"] = ep.protocol.GetString();
-    ep_json["comm_id"] = ep.comm_id.GetString();
-    ep_json["placement"] = ep.placement.GetString();
-    if (ep.plane.GetLength() > 0) {
-      ep_json["plane"] = ep.plane.GetString();
-    }
-    if (ep.dst_eid.GetLength() > 0) {
-      ep_json["dst_eid"] = ep.dst_eid.GetString();
-    }
-    j["endpoint_list"].push_back(std::move(ep_json));
-  }
-  std::cout << j.dump(2) << "\n";
-}
-
 }  // anonymous namespace
 
 int main(int argc, char *argv[]) {
@@ -152,22 +128,22 @@ int main(int argc, char *argv[]) {
     return ACL_ERROR_INVALID_PARAM;
   }
 
-  // Step 5: 调用 GenerateLocalCommResJson
-  // 内部完成 LocalCommRes 组装 + std::string → AscendString 转换，输出
-  // LocalCommResView（所有字符串字段均为 AscendString，跨 .so 边界 ABI 安全）。
-  // JSON 序列化由 lcrgen 工具在本地完成，避免 lcrgen 持有 std::string 变量。
-  std::cout << "\nCalling GenerateLocalCommResJson(phy_id=" << phy_id << ")...\n";
-  hixl::LocalCommResView view;
-  int32_t ret = hixl::GenerateLocalCommResJson(phy_id, view);
+  // Step 5: 调用 TransLocalCommRes
+  // 内部完成 LocalCommRes 组装 + JSON 序列化，通过 AscendString 返回 JSON 字符串
+  // （AscendString 内部封装 shared_ptr<std::string>，跨 .so 边界 ABI 安全），
+  // lcrgen 工具仅做打印，避免持有 std::string 变量。
+  std::cout << "\nCalling TransLocalCommRes(phy_id=" << phy_id << ")...\n";
+  hixl::AscendString result;
+  int32_t ret = hixl::TransLocalCommRes(phy_id, result);
   if (ret != hixl::SUCCESS) {
-    std::cerr << "GenerateLocalCommResJson failed, ret=" << ret << std::endl;
+    std::cerr << "TransLocalCommRes failed, ret=" << ret << std::endl;
     aclrtResetDevice(npu_id);
     FinalizeAcl();
     return ACL_ERROR_INVALID_PARAM;
   }
 
   // Step 6: 打印结果
-  PrintLocalCommRes(view);
+  std::cout << result.GetString() << "\n";
 
   // Step 7: 清理
   aclrtResetDevice(npu_id);
