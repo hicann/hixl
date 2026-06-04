@@ -11,6 +11,7 @@
 #include <string>
 
 #include "hixl_engine.h"
+#include "hixl_options.h"
 #include "engine/endpoint_generator.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
@@ -21,6 +22,13 @@
 #include "acl/acl.h"
 
 namespace hixl {
+
+const std::unordered_set<std::string> HixlEngine::kSupportedOptions = {
+    OPTION_RDMA_TRAFFIC_CLASS, adxl::OPTION_RDMA_TRAFFIC_CLASS,
+    OPTION_RDMA_SERVICE_LEVEL, adxl::OPTION_RDMA_SERVICE_LEVEL,
+    OPTION_LOCAL_COMM_RES, adxl::OPTION_LOCAL_COMM_RES,
+    OPTION_BUFFER_POOL, adxl::OPTION_BUFFER_POOL,
+    OPTION_GLOBAL_RESOURCE_CONFIG};
 
 bool HixlEngine::IsInitialized() const {
   return is_initialized_.load(std::memory_order::memory_order_relaxed);
@@ -41,21 +49,28 @@ Status HixlEngine::InitServer() {
   return SUCCESS;
 }
 
-Status HixlEngine::Initialize(const std::map<AscendString, AscendString> &options) {
+Status HixlEngine::Initialize(const HixlOptions &options) {
   HIXL_LOGI("[HixlEngine] Initialization started, local_engine:%s", local_engine_.c_str());
   std::lock_guard<std::mutex> lock(mutex_);
-  HIXL_CHK_STATUS_RET(CheckOptions(options), "[HixlEngine] Failed to check options");
+  HIXL_CHK_STATUS_RET(options.CheckSupportedOptions(kSupportedOptions),
+                      "[HixlEngine] Unsupported option");
+  const auto &raw = options.RawOptions();
+  const auto &hixl_bp_it = raw.find(hixl::OPTION_BUFFER_POOL);
+  const auto &adxl_bp_it = raw.find(adxl::OPTION_BUFFER_POOL);
+  auto bp_it = (hixl_bp_it != raw.cend()) ? hixl_bp_it : adxl_bp_it;
+  if (bp_it != raw.cend()) {
+    HIXL_CHK_BOOL_RET_STATUS(std::string(bp_it->second.GetString()) == "0:0", PARAM_INVALID,
+                             "Invalid option fields, OPTION_BUFFER_POOL for hixl engine only supports 0:0");
+  }
   std::string local_comm_res;
-  Status ret = EndpointGenerator::BuildEndpointListFromOptions(
+  Status ret = EndpointGenerator::BuildEndpointList(
       options, local_engine_, local_comm_res, endpoint_list_);
-
   HIXL_CHK_STATUS_RET(ret, "[HixlEngine] Failed to build endpoint list from options");
-
-  HIXL_CHK_STATUS_RET(ParseTrafficClass(options), "[HixlEngine] Failed to parse traffic class");
-  HIXL_CHK_STATUS_RET(ParseServiceLevel(options), "[HixlEngine] Failed to parse service level");
   HIXL_CHK_STATUS_RET(InitServer(),
                       "[HixlEngine] Failed to initialize server, local_engine:%s, local_comm_res:%s",
                       local_engine_.c_str(), local_comm_res.c_str());
+  rdma_traffic_class_ = options.RdmaTrafficClass().value_or(kRdmaTrafficClass);
+  rdma_service_level_ = options.RdmaServiceLevel().value_or(kRdmaServiceLevel);
   is_initialized_ = true;
   HIXL_LOGI("[HixlEngine] Initialization succeeded, local_engine:%s", local_engine_.c_str());
   return SUCCESS;
@@ -294,66 +309,6 @@ Status HixlEngine::GetNotifies(std::vector<NotifyDesc> &notifies) {
 Status HixlEngine::RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor) {
   HIXL_CHK_STATUS_RET(server_.RegisterCallbackProcessor(msg_type, processor),
                       "[HixlEngine] Failed to register msg callback, msg type:%d", msg_type);
-  return SUCCESS;
-}
-
-Status HixlEngine::ParseTrafficClass(const std::map<AscendString, AscendString> &options) {
-  std::string traffic_class_str;
-  const auto &traffic_it = options.find(hixl::OPTION_RDMA_TRAFFIC_CLASS);
-  const auto &traffic_it2 = options.find(adxl::OPTION_RDMA_TRAFFIC_CLASS);
-  auto it = traffic_it == options.cend() ? traffic_it2 : traffic_it;
-  if (it != options.cend()) {
-    traffic_class_str = it->second.GetString();
-  }
-  // 若options未设置 traffic_class 则检查环境变量 HCCL_RDMA_TC 是否设置
-  if (traffic_class_str.empty()) {
-    std::string env_tc;
-    const char *env_ret = std::getenv("HCCL_RDMA_TC");
-    if (env_ret != nullptr) {
-      env_tc = env_ret;
-    }
-    traffic_class_str = env_tc;
-  }
-  if (!traffic_class_str.empty()) {
-    int32_t traffic_class = 0;
-    HIXL_CHK_STATUS_RET(ToNumber(traffic_class_str, traffic_class), "Traffic class is invalid, value = %s",
-                        traffic_class_str.c_str());
-    HIXL_CHK_BOOL_RET_STATUS(traffic_class >= 0 && traffic_class <= 255 && (traffic_class % 4 == 0), PARAM_INVALID,
-                             "Traffic class is invalid, value = %d, must be between 0-255 and a multiple of 4",
-                             traffic_class);
-    rdma_traffic_class_ = static_cast<uint8_t>(traffic_class);
-    HIXL_LOGI("Set rdma traffic class to %d.", traffic_class);
-  }
-  return SUCCESS;
-}
-
-Status HixlEngine::ParseServiceLevel(const std::map<AscendString, AscendString> &options) {
-  std::string service_level_str;
-  const auto &service_it = options.find(hixl::OPTION_RDMA_SERVICE_LEVEL);
-  const auto &service_it2 = options.find(adxl::OPTION_RDMA_SERVICE_LEVEL);
-  auto it = service_it == options.cend() ? service_it2 : service_it;
-  if (it != options.cend()) {
-    service_level_str = it->second.GetString();
-  }
-  // 若options未设置 service_level 则检查环境变量 HCCL_RDMA_SL 是否设置
-  if (service_level_str.empty()) {
-    std::string env_sl;
-    const char *env_ret = std::getenv("HCCL_RDMA_SL");
-    if (env_ret != nullptr) {
-      env_sl = env_ret;
-    }
-    service_level_str = env_sl;
-  }
-  if (!service_level_str.empty()) {
-    int32_t service_level = 0;
-    HIXL_CHK_STATUS_RET(ToNumber(service_level_str, service_level), "Service level is invalid, value = %s",
-                        service_level_str.c_str());
-    HIXL_CHK_BOOL_RET_STATUS(service_level >= 0 && service_level <= 7, PARAM_INVALID,
-                             "service_level must be in [0, 7], value = %d",
-                             service_level);
-    rdma_service_level_ = static_cast<uint8_t>(service_level);
-    HIXL_LOGI("Set rdma service level to %d.", service_level);
-  }
   return SUCCESS;
 }
 

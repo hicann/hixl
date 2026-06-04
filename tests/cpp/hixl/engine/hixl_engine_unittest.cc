@@ -22,6 +22,7 @@
 #include "engine/hixl_engine.h"
 #undef private
 #include "hixl/hixl_types.h"
+#include "engine/hixl_options.h"
 #include "cs/hixl_cs_client.h"
 #include "hixl/hixl.h"
 #include "slog_stub.h"
@@ -195,9 +196,62 @@ class HixlEngineTest : public ::testing::Test {
 
   void InitializeAndConnectEngines(HixlEngine &engine1, const std::map<AscendString, AscendString> &opts1,
                                    HixlEngine &engine2, const std::map<AscendString, AscendString> &opts2) {
-    EXPECT_EQ(engine1.Initialize(opts1), SUCCESS);
-    EXPECT_EQ(engine2.Initialize(opts2), SUCCESS);
+    {
+      HixlOptions parsed;
+      ASSERT_EQ(HixlOptions::Parse(opts1, parsed), SUCCESS);
+      EXPECT_EQ(engine1.Initialize(parsed), SUCCESS);
+    }
+    {
+      HixlOptions parsed;
+      ASSERT_EQ(HixlOptions::Parse(opts2, parsed), SUCCESS);
+      EXPECT_EQ(engine2.Initialize(parsed), SUCCESS);
+    }
     EXPECT_EQ(engine1.Connect("127.0.0.1:16000", kTimeOut), SUCCESS);
+  }
+
+  void CreateAndInitEngine(HixlEngine &engine, const std::map<AscendString, AscendString> &opts) {
+    HixlOptions parsed;
+    EXPECT_EQ(HixlOptions::Parse(opts, parsed), SUCCESS);
+    EXPECT_EQ(engine.Initialize(parsed), SUCCESS);
+  }
+
+  TransferStatus WaitForTransferStatus(HixlEngine &engine, TransferReq req) {
+    TransferStatus status = TransferStatus::WAITING;
+    for (int32_t i = 0; i < kMaxRetryCount && status == TransferStatus::WAITING; i++) {
+      engine.GetTransferStatus(req, status);
+      std::this_thread::sleep_for(std::chrono::milliseconds(kInterval));
+    }
+    return status;
+  }
+
+  void TransferSyncTest(const std::string &addr1, const std::string &addr2, const std::string &connect_addr) {
+    HixlEngine engine1(AscendString(addr1.c_str()));
+    CreateAndInitEngine(engine1, options1);
+    HixlEngine engine2(AscendString(addr2.c_str()));
+    CreateAndInitEngine(engine2, options2);
+
+    int32_t num1 = 1;
+    MemHandle handle1 = nullptr;
+    Register(engine1, &num1, handle1);
+
+    int32_t num2 = 2;
+    MemHandle handle2 = nullptr;
+    Register(engine2, &num2, handle2);
+
+    AscendString remote(connect_addr.c_str());
+    EXPECT_EQ(engine1.Connect(remote, kTimeOut), SUCCESS);
+    TransferOpDesc desc{reinterpret_cast<uintptr_t>(&num1), reinterpret_cast<uintptr_t>(&num2), sizeof(int32_t)};
+    EXPECT_EQ(engine1.TransferSync(remote, READ, {desc}, kTimeOut), SUCCESS);
+    EXPECT_EQ(num1, 2);
+    num1 = 1;
+    EXPECT_EQ(engine1.TransferSync(remote, WRITE, {desc}, kTimeOut), SUCCESS);
+    EXPECT_EQ(num2, 1);
+
+    EXPECT_EQ(engine1.Disconnect(remote, kTimeOut), SUCCESS);
+    EXPECT_EQ(engine1.DeregisterMem(handle1), SUCCESS);
+    EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
+    engine1.Finalize();
+    engine2.Finalize();
   }
 
   void CleanupEngines(HixlEngine &engine1, HixlEngine &engine2) {
@@ -205,6 +259,28 @@ class HixlEngineTest : public ::testing::Test {
     engine1.Finalize();
     engine2.Disconnect();
     engine2.Finalize();
+  }
+
+  std::vector<EndpointConfig> InitEngineAndGetEndpoints(HixlEngine &engine, const std::string &local_comm_res) {
+    auto options = BuildOptions(local_comm_res);
+    HixlOptions parsed;
+    EXPECT_EQ(HixlOptions::Parse(options, parsed), SUCCESS);
+    EXPECT_EQ(engine.Initialize(parsed), SUCCESS);
+    return engine.endpoint_list_;
+  }
+
+  static bool CheckIpv6Supported() {
+    int fd = socket(AF_INET6, SOCK_STREAM, 0);
+    if (fd < 0) {
+      return false;
+    }
+    struct sockaddr_in6 addr {};
+    addr.sin6_family = AF_INET6;
+    (void)inet_pton(AF_INET6, "::1", &addr.sin6_addr);
+    addr.sin6_port = htons(0U);
+    bool ok = (connect(fd, (sockaddr *)&addr, sizeof(addr)) != -1 || errno != EADDRNOTAVAIL);
+    close(fd);
+    return ok;
   }
 
   std::shared_ptr<MockEngineAclRuntimeStub> acl_stub_;
@@ -231,20 +307,6 @@ class HixlEngineTest : public ::testing::Test {
   }
 
  private:
-  bool CheckIpv6Supported() {
-    int fd = socket(AF_INET6, SOCK_STREAM, 0);
-    if (fd < 0) {
-      return false;
-    }
-    struct sockaddr_in6 addr {};
-    addr.sin6_family = AF_INET6;
-    (void)inet_pton(AF_INET6, "::1", &addr.sin6_addr);
-    addr.sin6_port = htons(0U);
-    bool ok = (connect(fd, (sockaddr *)&addr, sizeof(addr)) != -1 || errno != EADDRNOTAVAIL);
-    close(fd);
-    return ok;
-  }
-
   std::shared_ptr<MockEngineMmpaStub> mmpa_stub_;
   std::vector<std::string> temp_files_;
   std::string old_intra_roce_enable_;
@@ -298,84 +360,25 @@ TEST_F(HixlEngineTest, TestHixl) {
   engine2.Finalize();
 }
 
-TEST_F(HixlEngineTest, TestHixlEngine) {
+TEST_F(HixlEngineTest, TestHixlEngineIPv4) {
   SetSocStub("Ascend910B1", 0, 12, 99, 88);
-  // IPV4
-  HixlEngine engine1("127.0.0.1");
-  EXPECT_EQ(engine1.Initialize(options1), SUCCESS);
+  TransferSyncTest("127.0.0.1", "127.0.0.1:16000", "127.0.0.1:16000");
+}
 
-  // IPV4 with port
-  HixlEngine engine2("127.0.0.1:16000");
-  EXPECT_EQ(engine2.Initialize(options2), SUCCESS);
-
-  int32_t num1 = 1;
-  MemHandle handle1 = nullptr;
-  Register(engine1, &num1, handle1);
-
-  int32_t num2 = 2;
-  MemHandle handle2 = nullptr;
-  Register(engine2, &num2, handle2);
-
-  EXPECT_EQ(engine1.Connect("127.0.0.1:16000", kTimeOut), SUCCESS);
-  TransferOpDesc desc1{reinterpret_cast<uintptr_t>(&num1), reinterpret_cast<uintptr_t>(&num2), sizeof(int32_t)};
-  EXPECT_EQ(engine1.TransferSync("127.0.0.1:16000", READ, {desc1}, kTimeOut), SUCCESS);
-  EXPECT_EQ(num1, 2);
-  num1 = 1;
-  EXPECT_EQ(engine1.TransferSync("127.0.0.1:16000", WRITE, {desc1}, kTimeOut), SUCCESS);
-  EXPECT_EQ(num2, 1);
-
-  EXPECT_EQ(engine1.Disconnect("127.0.0.1:16000", kTimeOut), SUCCESS);
-
-  EXPECT_EQ(engine1.DeregisterMem(handle1), SUCCESS);
-  EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
-
-  engine1.Finalize();
-  engine2.Finalize();
-
-  if (CheckIpv6Supported()) {
-    // IPV6
-    HixlEngine engine3("[::1]");
-    EXPECT_EQ(engine3.Initialize(options1), SUCCESS);
-
-    // IPV6 with port
-    HixlEngine engine4("[::1]:26000");
-    EXPECT_EQ(engine4.Initialize(options2), SUCCESS);
-
-    int32_t num3 = 3;
-    MemHandle handle3 = nullptr;
-    Register(engine3, &num3, handle3);
-
-    int32_t num4 = 4;
-    MemHandle handle4 = nullptr;
-    Register(engine4, &num4, handle4);
-
-    EXPECT_EQ(engine3.Connect("[::1]:26000", kTimeOut), SUCCESS);
-    TransferOpDesc desc2{reinterpret_cast<uintptr_t>(&num3), reinterpret_cast<uintptr_t>(&num4), sizeof(int32_t)};
-    EXPECT_EQ(engine3.TransferSync("[::1]:26000", READ, {desc2}, kTimeOut), SUCCESS);
-    EXPECT_EQ(num3, 4);
-    num3 = 3;
-    EXPECT_EQ(engine3.TransferSync("[::1]:26000", WRITE, {desc2}, kTimeOut), SUCCESS);
-    EXPECT_EQ(num4, 3);
-
-    EXPECT_EQ(engine3.Disconnect("[::1]:26000", kTimeOut), SUCCESS);
-
-    EXPECT_EQ(engine3.DeregisterMem(handle3), SUCCESS);
-    EXPECT_EQ(engine4.DeregisterMem(handle4), SUCCESS);
-
-    engine3.Finalize();
-    engine4.Finalize();
+TEST_F(HixlEngineTest, TestHixlEngineIPv6) {
+  if (!HixlEngineTest::CheckIpv6Supported()) {
+    GTEST_SKIP() << "IPv6 not supported on this system";
   }
+  SetSocStub("Ascend910B1", 0, 12, 99, 88);
+  TransferSyncTest("[::1]", "[::1]:26000", "[::1]:26000");
 }
 
 TEST_F(HixlEngineTest, TestTransferAsync) {
   SetSocStub("Ascend910B1", 0, 12, 99, 88);
-  std::string local_engine1 = "127.0.0.1";
-  HixlEngine engine1(AscendString(local_engine1.c_str()));
-  EXPECT_EQ(engine1.Initialize(options1), SUCCESS);
-
-  std::string local_engine2 = "127.0.0.1:16000";
-  HixlEngine engine2(AscendString(local_engine2.c_str()));
-  EXPECT_EQ(engine2.Initialize(options2), SUCCESS);
+  HixlEngine engine1("127.0.0.1");
+  CreateAndInitEngine(engine1, options1);
+  HixlEngine engine2("127.0.0.1:16000");
+  CreateAndInitEngine(engine2, options2);
 
   int32_t src = 1;
   MemHandle handle1 = nullptr;
@@ -388,32 +391,17 @@ TEST_F(HixlEngineTest, TestTransferAsync) {
   EXPECT_EQ(engine1.Connect("127.0.0.1:16000", kTimeOut), SUCCESS);
   TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
   TransferReq req = nullptr;
+  TransferStatus status;
 
   ASSERT_EQ(engine1.TransferAsync("127.0.0.1:16000", READ, {desc}, {}, req), SUCCESS);
-
-  TransferStatus status = TransferStatus::WAITING;
-  GetTransferStatusArgs args;
-  std::vector<TransferResult> results;
-  for (int32_t i = 0; i < kMaxRetryCount && status == TransferStatus::WAITING; i++) {
-    engine1.GetTransferStatus(args, results);
-    auto it = std::find_if(results.begin(), results.end(),
-                           [req](const TransferResult &r) { return r.req == req; });
-    status = (it != results.end()) ? it->status : status;
-    std::this_thread::sleep_for(std::chrono::milliseconds(kInterval));
-  }
-  EXPECT_EQ(status, TransferStatus::COMPLETED);
+  EXPECT_EQ(WaitForTransferStatus(engine1, req), TransferStatus::COMPLETED);
   EXPECT_EQ(src, 2);
   EXPECT_EQ(engine1.GetTransferStatus(req, status), PARAM_INVALID);
   EXPECT_EQ(status, TransferStatus::FAILED);
 
   src = 1;
   ASSERT_EQ(engine1.TransferAsync("127.0.0.1:16000", WRITE, {desc}, {}, req), SUCCESS);
-  status = TransferStatus::WAITING;
-  for (int32_t i = 0; i < kMaxRetryCount && status == TransferStatus::WAITING; i++) {
-    engine1.GetTransferStatus(req, status);
-    std::this_thread::sleep_for(std::chrono::milliseconds(kInterval));
-  }
-  EXPECT_EQ(status, TransferStatus::COMPLETED);
+  EXPECT_EQ(WaitForTransferStatus(engine1, req), TransferStatus::COMPLETED);
   EXPECT_EQ(dst, 1);
   EXPECT_EQ(engine1.GetTransferStatus(req, status), PARAM_INVALID);
   EXPECT_EQ(status, TransferStatus::FAILED);
@@ -430,7 +418,11 @@ TEST_F(HixlEngineTest, TestInitFailed) {
   // invalid ip
   std::string local_engine = "ad.0.0.1:26000";
   HixlEngine engine(AscendString(local_engine.c_str()));
-  EXPECT_EQ(engine.Initialize(options1), PARAM_INVALID);
+  {
+    HixlOptions parsed;
+    HixlOptions::Parse(options1, parsed);
+    EXPECT_EQ(engine.Initialize(parsed), PARAM_INVALID);
+  }
   engine.Finalize();
 }
 
@@ -438,7 +430,11 @@ TEST_F(HixlEngineTest, TestNotListenFailed) {
   SetSocStub("Ascend910B1", 0, 12, 99, 88);
   std::string local_engine = "127.0.0.1:16000";
   HixlEngine engine(AscendString(local_engine.c_str()));
-  EXPECT_EQ(engine.Initialize(options1), SUCCESS);
+  {
+    HixlOptions parsed;
+    ASSERT_EQ(HixlOptions::Parse(options1, parsed), SUCCESS);
+    EXPECT_EQ(engine.Initialize(parsed), SUCCESS);
+  }
   // not listen
   EXPECT_EQ(engine.Connect("127.0.0.1:16001", kTimeOut), FAILED);
   engine.Finalize();
@@ -446,13 +442,10 @@ TEST_F(HixlEngineTest, TestNotListenFailed) {
 
 TEST_F(HixlEngineTest, TestAlreadyConnectedFailed) {
   SetSocStub("Ascend910B1", 0, 12, 99, 88);
-  std::string local_engine1 = "127.0.0.1";
-  HixlEngine engine1(AscendString(local_engine1.c_str()));
-  EXPECT_EQ(engine1.Initialize(options1), SUCCESS);
-
-  std::string local_engine2 = "127.0.0.1:16000";
-  HixlEngine engine2(AscendString(local_engine2.c_str()));
-  EXPECT_EQ(engine2.Initialize(options2), SUCCESS);
+  HixlEngine engine1("127.0.0.1");
+  CreateAndInitEngine(engine1, options1);
+  HixlEngine engine2("127.0.0.1:16000");
+  CreateAndInitEngine(engine2, options2);
   EXPECT_EQ(engine1.Connect("127.0.0.1:16000", kTimeOut), SUCCESS);
   EXPECT_EQ(engine1.Connect("127.0.0.1:16000", kTimeOut), ALREADY_CONNECTED);
   engine1.Finalize();
@@ -463,7 +456,11 @@ TEST_F(HixlEngineTest, TestDeregisterUnregisteredMem) {
   SetSocStub("Ascend910B1", 0, 12, 99, 88);
   std::string local_engine = "127.0.0.1";
   HixlEngine engine(AscendString(local_engine.c_str()));
-  EXPECT_EQ(engine.Initialize(options1), SUCCESS);
+  {
+    HixlOptions parsed;
+    ASSERT_EQ(HixlOptions::Parse(options1, parsed), SUCCESS);
+    EXPECT_EQ(engine.Initialize(parsed), SUCCESS);
+  }
   MemHandle handle = (MemHandle)0x100;
   // deregister unregister mem
   EXPECT_EQ(engine.DeregisterMem(handle), SUCCESS);
@@ -472,14 +469,10 @@ TEST_F(HixlEngineTest, TestDeregisterUnregisteredMem) {
 
 TEST_F(HixlEngineTest, TestGetTransferStatusWithInterrupt) {
   SetSocStub("Ascend910B1", 0, 12, 99, 88);
-  std::string local_engine1 = "127.0.0.1";
-  HixlEngine engine1(AscendString(local_engine1.c_str()));
-
-  std::string local_engine2 = "127.0.0.1:16000";
-  HixlEngine engine2(AscendString(local_engine2.c_str()));
-
-  EXPECT_EQ(engine1.Initialize(options1), SUCCESS);
-  EXPECT_EQ(engine2.Initialize(options2), SUCCESS);
+  HixlEngine engine1("127.0.0.1");
+  CreateAndInitEngine(engine1, options1);
+  HixlEngine engine2("127.0.0.1:16000");
+  CreateAndInitEngine(engine2, options2);
 
   int32_t src = 1;
   int32_t dst = 2;
@@ -502,13 +495,10 @@ TEST_F(HixlEngineTest, TestGetTransferStatusWithInterrupt) {
 
 TEST_F(HixlEngineTest, TestSendAndGetNotifies) {
   SetSocStub("Ascend910B1", 0, 12, 99, 88);
-  std::string local_engine1 = "127.0.0.1";
-  HixlEngine engine1(AscendString(local_engine1.c_str()));
-  EXPECT_EQ(engine1.Initialize(options1), SUCCESS);
-
-  std::string local_engine2 = "127.0.0.1:16000";
-  HixlEngine engine2(AscendString(local_engine2.c_str()));
-  EXPECT_EQ(engine2.Initialize(options2), SUCCESS);
+  HixlEngine engine1("127.0.0.1");
+  CreateAndInitEngine(engine1, options1);
+  HixlEngine engine2("127.0.0.1:16000");
+  CreateAndInitEngine(engine2, options2);
 
   EXPECT_EQ(engine1.Connect("127.0.0.1:16000", kTimeOut), SUCCESS);
   NotifyDesc notify;
@@ -547,21 +537,30 @@ TEST_F(HixlEngineTest, TestParseTcAndSlWithValidValue) {
 
 TEST_F(HixlEngineTest, TestParseTcSlInvalidValue) {
   options1[hixl::OPTION_RDMA_TRAFFIC_CLASS] = "-1";
-  HixlEngine engine("127.0.0.1");
-  EXPECT_EQ(engine.Initialize(options1), PARAM_INVALID);
-  engine.Finalize();
+  {
+    HixlOptions parsed;
+    EXPECT_EQ(HixlOptions::Parse(options1, parsed), PARAM_INVALID);
+  }
   options1[hixl::OPTION_RDMA_TRAFFIC_CLASS] = "256";
-  EXPECT_EQ(engine.Initialize(options1), PARAM_INVALID);
-  engine.Finalize();
+  {
+    HixlOptions parsed;
+    EXPECT_EQ(HixlOptions::Parse(options1, parsed), PARAM_INVALID);
+  }
   options1[hixl::OPTION_RDMA_TRAFFIC_CLASS] = "invalid";
-  EXPECT_EQ(engine.Initialize(options1), PARAM_INVALID);
-  engine.Finalize();
+  {
+    HixlOptions parsed;
+    EXPECT_EQ(HixlOptions::Parse(options1, parsed), PARAM_INVALID);
+  }
   options2[hixl::OPTION_RDMA_SERVICE_LEVEL] = "8";
-  EXPECT_EQ(engine.Initialize(options2), PARAM_INVALID);
-  engine.Finalize();
+  {
+    HixlOptions parsed;
+    EXPECT_EQ(HixlOptions::Parse(options2, parsed), PARAM_INVALID);
+  }
   options2[hixl::OPTION_RDMA_SERVICE_LEVEL] = "-1";
-  EXPECT_EQ(engine.Initialize(options2), PARAM_INVALID);
-  engine.Finalize();
+  {
+    HixlOptions parsed;
+    EXPECT_EQ(HixlOptions::Parse(options2, parsed), PARAM_INVALID);
+  }
 }
 
 TEST_F(HixlEngineTest, TestParseTcAndSlWithEnv) {
@@ -631,11 +630,10 @@ TEST_F(HixlEngineTest, TestInitializeFillDeviceInfoForV2FullConfigured) {
       BuildLocalCommRes("sp_v2", "1.3", {BuildDeviceRoceEndpoint("127.0.0.1"), BuildDeviceHccsEndpoint("5")});
 
   HixlEngine engine("127.0.0.1");
-  auto options = BuildOptions(local_comm_res);
-  EXPECT_EQ(engine.Initialize(options), SUCCESS);
-  ASSERT_EQ(engine.endpoint_list_.size(), 2U);
+  auto endpoints = InitEngineAndGetEndpoints(engine, local_comm_res);
+  ASSERT_EQ(endpoints.size(), 2U);
 
-  for (const auto &ep : engine.endpoint_list_) {
+  for (const auto &ep : endpoints) {
     EXPECT_EQ(ep.placement, kPlacementDevice);
     EXPECT_EQ(ep.device_info.phy_device_id, 12);
     EXPECT_EQ(ep.device_info.super_device_id, -1);
@@ -652,11 +650,10 @@ TEST_F(HixlEngineTest, TestInitializeFillDeviceInfoForV3FullConfigured) {
       BuildLocalCommRes("sp_v3", "1.3", {BuildDeviceRoceEndpoint("127.0.0.1"), BuildDeviceHccsEndpoint("7")});
 
   HixlEngine engine("127.0.0.1");
-  auto options = BuildOptions(local_comm_res);
-  EXPECT_EQ(engine.Initialize(options), SUCCESS);
-  ASSERT_EQ(engine.endpoint_list_.size(), 2U);
+  auto endpoints = InitEngineAndGetEndpoints(engine, local_comm_res);
+  ASSERT_EQ(endpoints.size(), 2U);
 
-  for (const auto &ep : engine.endpoint_list_) {
+  for (const auto &ep : endpoints) {
     EXPECT_EQ(ep.placement, kPlacementDevice);
     EXPECT_EQ(ep.device_info.phy_device_id, 23);
     EXPECT_EQ(ep.device_info.super_device_id, 45);
@@ -672,15 +669,14 @@ TEST_F(HixlEngineTest, TestInitializeParsesConfiguredEndpointListRegardlessOfVer
   const std::string local_comm_res = BuildLocalCommRes("sp_old", "1.2", {BuildDeviceRoceEndpoint("127.0.0.1")});
 
   HixlEngine engine("127.0.0.1");
-  auto options = BuildOptions(local_comm_res);
-  EXPECT_EQ(engine.Initialize(options), SUCCESS);
-  ASSERT_EQ(engine.endpoint_list_.size(), 1U);
-  EXPECT_EQ(engine.endpoint_list_[0].protocol, kProtocolRoce);
-  EXPECT_EQ(engine.endpoint_list_[0].placement, kPlacementDevice);
-  EXPECT_EQ(engine.endpoint_list_[0].net_instance_id, "sp_old");
-  EXPECT_EQ(engine.endpoint_list_[0].device_info.phy_device_id, 23);
-  EXPECT_EQ(engine.endpoint_list_[0].device_info.super_device_id, 45);
-  EXPECT_EQ(engine.endpoint_list_[0].device_info.super_pod_id, 67);
+  auto endpoints = InitEngineAndGetEndpoints(engine, local_comm_res);
+  ASSERT_EQ(endpoints.size(), 1U);
+  EXPECT_EQ(endpoints[0].protocol, kProtocolRoce);
+  EXPECT_EQ(endpoints[0].placement, kPlacementDevice);
+  EXPECT_EQ(endpoints[0].net_instance_id, "sp_old");
+  EXPECT_EQ(endpoints[0].device_info.phy_device_id, 23);
+  EXPECT_EQ(endpoints[0].device_info.super_device_id, 45);
+  EXPECT_EQ(endpoints[0].device_info.super_pod_id, 67);
 
   engine.Finalize();
 }
@@ -692,17 +688,16 @@ TEST_F(HixlEngineTest, TestInitializeFillDeviceInfoOnlyForDevicePlacement) {
       BuildLocalCommRes("sp_mix", "1.3", {BuildHostRoceEndpoint("127.0.0.1"), BuildDeviceHccsEndpoint("7")});
 
   HixlEngine engine("127.0.0.1");
-  auto options = BuildOptions(local_comm_res);
-  EXPECT_EQ(engine.Initialize(options), SUCCESS);
-  ASSERT_EQ(engine.endpoint_list_.size(), 2U);
+  auto endpoints = InitEngineAndGetEndpoints(engine, local_comm_res);
+  ASSERT_EQ(endpoints.size(), 2U);
 
-  const auto &host_ep = engine.endpoint_list_[0];
+  const auto &host_ep = endpoints[0];
   EXPECT_EQ(host_ep.placement, kPlacementHost);
   EXPECT_EQ(host_ep.device_info.phy_device_id, -1);
   EXPECT_EQ(host_ep.device_info.super_device_id, -1);
   EXPECT_EQ(host_ep.device_info.super_pod_id, -1);
 
-  const auto &device_ep = engine.endpoint_list_[1];
+  const auto &device_ep = endpoints[1];
   EXPECT_EQ(device_ep.placement, kPlacementDevice);
   EXPECT_EQ(device_ep.device_info.phy_device_id, 23);
   EXPECT_EQ(device_ep.device_info.super_device_id, 45);
@@ -716,11 +711,10 @@ TEST_F(HixlEngineTest, TestInitializeAutoGenerateForV2FillsDeviceInfo) {
   SetHccnConfContent("address_12=10.10.10.12\n");
 
   HixlEngine engine("127.0.0.1");
-  auto options = BuildOptions(BuildVersionOnlyLocalCommRes("1.3"));
-  EXPECT_EQ(engine.Initialize(options), SUCCESS);
-  ASSERT_EQ(engine.endpoint_list_.size(), 2U);
+  auto endpoints = InitEngineAndGetEndpoints(engine, BuildVersionOnlyLocalCommRes("1.3"));
+  ASSERT_EQ(endpoints.size(), 2U);
 
-  const auto &roce_ep = engine.endpoint_list_[0];
+  const auto &roce_ep = endpoints[0];
   EXPECT_EQ(roce_ep.protocol, kProtocolRoce);
   EXPECT_EQ(roce_ep.comm_id, "10.10.10.12");
   EXPECT_EQ(roce_ep.net_instance_id, "127.0.0.1");
@@ -728,7 +722,7 @@ TEST_F(HixlEngineTest, TestInitializeAutoGenerateForV2FillsDeviceInfo) {
   EXPECT_EQ(roce_ep.device_info.super_device_id, -1);
   EXPECT_EQ(roce_ep.device_info.super_pod_id, -1);
 
-  const auto &hccs_ep = engine.endpoint_list_[1];
+  const auto &hccs_ep = endpoints[1];
   EXPECT_EQ(hccs_ep.protocol, kProtocolHccs);
   EXPECT_EQ(hccs_ep.comm_id, "12");
   EXPECT_EQ(hccs_ep.net_instance_id, "127.0.0.1");
@@ -744,11 +738,10 @@ TEST_F(HixlEngineTest, TestInitializeAutoGenerateForV3FillsDeviceInfo) {
   SetHccnConfContent("address_23=10.10.10.23\n");
 
   HixlEngine engine("127.0.0.1");
-  auto options = BuildOptions(BuildVersionOnlyLocalCommRes("1.3"));
-  EXPECT_EQ(engine.Initialize(options), SUCCESS);
-  ASSERT_EQ(engine.endpoint_list_.size(), 2U);
+  auto endpoints = InitEngineAndGetEndpoints(engine, BuildVersionOnlyLocalCommRes("1.3"));
+  ASSERT_EQ(endpoints.size(), 2U);
 
-  const auto &roce_ep = engine.endpoint_list_[0];
+  const auto &roce_ep = endpoints[0];
   EXPECT_EQ(roce_ep.protocol, kProtocolRoce);
   EXPECT_EQ(roce_ep.comm_id, "10.10.10.23");
   EXPECT_EQ(roce_ep.net_instance_id, "67");
@@ -756,7 +749,7 @@ TEST_F(HixlEngineTest, TestInitializeAutoGenerateForV3FillsDeviceInfo) {
   EXPECT_EQ(roce_ep.device_info.super_device_id, 45);
   EXPECT_EQ(roce_ep.device_info.super_pod_id, 67);
 
-  const auto &hccs_ep = engine.endpoint_list_[1];
+  const auto &hccs_ep = endpoints[1];
   EXPECT_EQ(hccs_ep.protocol, kProtocolHccs);
   EXPECT_EQ(hccs_ep.comm_id, "23");
   EXPECT_EQ(hccs_ep.net_instance_id, "67");

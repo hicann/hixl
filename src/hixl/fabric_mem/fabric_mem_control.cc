@@ -365,19 +365,29 @@ Status FabricMemControlClient::Fetch(const std::string &remote_engine, int32_t t
   req["addrs"] = nlohmann::json::array();
   req["share_handles"] = nlohmann::json::array();
   Status ret = SendFabricMemMsg(conn_fd, FabricMemMsgType::kConnect, req.dump());
-  if (ret != SUCCESS) return ret;
+  if (ret != SUCCESS) {
+    return ret;
+  }
 
   int32_t msg_type = 0;
   std::string payload;
   ret = RecvFabricMemMsg(conn_fd, timeout_ms, msg_type, payload);
-  if (ret != SUCCESS) return ret;
-  if (msg_type != FabricMemMsgType::kConnect) return PARAM_INVALID;
+  if (ret != SUCCESS) {
+    return ret;
+  }
+  if (msg_type != FabricMemMsgType::kConnect) {
+    return PARAM_INVALID;
+  }
 
   ret = ParseShareHandlesFromResponse(payload, share_handles);
-  if (ret != SUCCESS) return ret;
+  if (ret != SUCCESS) {
+    return ret;
+  }
 
   ret = RecvFabricMemMsg(conn_fd, timeout_ms, msg_type, payload);
-  if (ret != SUCCESS) return ret;
+  if (ret != SUCCESS) {
+    return ret;
+  }
 
   HIXL_DISMISS_GUARD(close_fd);
   HIXL_LOGI("Fetch received %zu share handles from remote:%s, conn_fd:%d.",

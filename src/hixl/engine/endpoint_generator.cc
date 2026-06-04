@@ -257,16 +257,13 @@ Status ParseEndpointProtocol(const EndpointConfig &endpoint_config, EndpointDesc
 }
 }  // namespace
 
-Status EndpointGenerator::ParseEndpointListFromLocalCommRes(const std::map<AscendString, AscendString> &options,
+Status EndpointGenerator::ParseEndpointListFromLocalCommRes(const HixlOptions &options,
                                                             std::string &local_comm_res,
                                                             std::vector<EndpointConfig> &endpoint_list) {
   endpoint_list.clear();
 
-  auto hixl_it = options.find(hixl::OPTION_LOCAL_COMM_RES);
-  auto adxl_it = options.find(adxl::OPTION_LOCAL_COMM_RES);
-  auto it = hixl_it == options.cend() ? adxl_it : hixl_it;
-
-  const char *local_comm_res_cstr = (it != options.cend()) ? it->second.GetString() : nullptr;
+  auto lcr = options.LocalCommRes();
+  const char *local_comm_res_cstr = lcr.has_value() ? lcr->c_str() : nullptr;
   if (local_comm_res_cstr == nullptr || local_comm_res_cstr[0] == '\0') {
     local_comm_res.clear();
     return SUCCESS;
@@ -289,12 +286,15 @@ Status EndpointGenerator::ParseEndpointListFromLocalCommRes(const std::map<Ascen
   return SUCCESS;
 }
 
-Status EndpointGenerator::GenEndpointFromProtocolDesc(const std::map<AscendString, AscendString> &options,
+Status EndpointGenerator::GenEndpointFromProtocolDesc(const HixlOptions &options,
                                                       std::vector<EndpointConfig> &endpoint_list) {
   endpoint_list.clear();
 
+  auto grc = options.GlobalResourceCfg();
   std::vector<std::string> protocol_desc;
-  HIXL_CHK_STATUS_RET(ParseConfigProtocolDesc(options, protocol_desc), "ParseConfigProtocolDesc failed");
+  if (grc.has_value() && grc->comm_resource_config.protocol_desc.has_value()) {
+    protocol_desc = *grc->comm_resource_config.protocol_desc;
+  }
 
   if (protocol_desc.empty()) {
     return SUCCESS;
@@ -311,9 +311,9 @@ Status EndpointGenerator::GenEndpointFromProtocolDesc(const std::map<AscendStrin
   return SUCCESS;
 }
 
-Status EndpointGenerator::BuildEndpointListFromOptions(const std::map<AscendString, AscendString> &options,
-                                                       const std::string &local_engine, std::string &local_comm_res,
-                                                       std::vector<EndpointConfig> &endpoint_list) {
+Status EndpointGenerator::BuildEndpointList(const HixlOptions &options,
+                                             const std::string &local_engine, std::string &local_comm_res,
+                                             std::vector<EndpointConfig> &endpoint_list) {
   endpoint_list.clear();
 
   // Step 1: Parse endpoint_list from localCommRes

@@ -12,6 +12,7 @@
 #define HIXL_SRC_HIXL_ENGINE_ADXL_ENGINE_H_
 
 #include "engine.h"
+#include "hixl_options.h"
 #include "adxl/adxl_types.h"
 #include "adxl/adxl_inner_engine.h"
 #include "hixl/hixl_types.h"
@@ -23,7 +24,7 @@ class CommEngine : public Engine {
 
   ~CommEngine() override = default;
 
-  Status Initialize(const std::map<AscendString, AscendString> &options) override;
+  Status Initialize(const HixlOptions &options) override;
 
   void Finalize() override;
 

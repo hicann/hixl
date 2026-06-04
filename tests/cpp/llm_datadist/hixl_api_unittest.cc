@@ -123,7 +123,7 @@ class HixlUTest : public ::testing::Test {
     std::map<AscendString, AscendString> options1;
     options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
     options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
-    options1[OPTION_BUFFER_POOL] = "0:0";
+    options1[OPTION_BUFFER_POOL] = "4:8";
     EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
 
     llm::AutoCommResRuntimeMock::SetDevice(1);

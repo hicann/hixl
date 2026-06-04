@@ -13,6 +13,7 @@
 #include "common/llm_log.h"
 #include "common/llm_utils.h"
 #include "engine/engine_factory.h"
+#include "engine/hixl_options.h"
 #include "common/ctrl_msg.h"
 #include "common/ctrl_msg_plugin.h"
 #include "link_mgr/hixl_entity.h"
@@ -99,9 +100,10 @@ ge::Status HixlTransferEngine::Initialize(const std::map<ge::AscendString, ge::A
   std::map<ge::AscendString, ge::AscendString> hixl_options{};
   hixl_options[hixl::OPTION_BUFFER_POOL] = "0:0";
   LLMDataDist2HixlOptions(options, hixl_options);
-  engine_ = hixl::EngineFactory::CreateEngine(local_engine_, hixl_options);
+  hixl::HixlOptions parsed_options;
+  engine_ = hixl::EngineFactory::CreateEngine(local_engine_, hixl_options, parsed_options);
   LLM_CHECK_NOTNULL(engine_);
-  LLM_CHK_HIXL_RET(engine_->Initialize(hixl_options), "Failed to initialize Hixl engine.");
+  LLM_CHK_HIXL_RET(engine_->Initialize(parsed_options), "Failed to initialize Hixl engine.");
   LLM_CHK_STATUS_RET(InitMsgProcessor(), "Failed to init msg processor");
   return ge::SUCCESS;
 }

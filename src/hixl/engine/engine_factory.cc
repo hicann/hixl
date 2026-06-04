@@ -22,38 +22,38 @@
 
 namespace hixl {
 namespace {
-bool UseUboe(const std::map<AscendString, AscendString> &options) {
-  std::vector<std::string> protocol_desc;
-  (void)ParseConfigProtocolDesc(options, protocol_desc);
-  return !protocol_desc.empty() &&
-         std::find(protocol_desc.begin(), protocol_desc.end(), "uboe:device") != protocol_desc.end();
-}
-
-bool UseFabricMemEngine(const std::map<AscendString, AscendString> &options) {
-  const auto it = options.find(hixl::OPTION_ENABLE_USE_FABRIC_MEM);
-  return it != options.end() && !std::string(it->second.GetString()).empty() &&
-         std::string(it->second.GetString()) != "0";
+bool UseUboe(const HixlOptions &options) {
+  auto grc = options.GlobalResourceCfg();
+  if (!grc.has_value()) {
+    return false;
+  }
+  auto desc = grc->comm_resource_config.protocol_desc;
+  return desc.has_value() && !desc->empty() &&
+         std::find(desc->begin(), desc->end(), "uboe:device") != desc->end();
 }
 }  // namespace
 std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string local_engine,
-                                                    const std::map<AscendString, AscendString> &options) {
-  if (UseFabricMemEngine(options)) {
+                                                    const std::map<AscendString, AscendString> &options,
+                                                    HixlOptions &parsed_options) {
+  Status ret = HixlOptions::Parse(options, parsed_options);
+  if (ret != SUCCESS) {
+    HIXL_LOGE(ret, "[EngineFactory] Failed to parse options");
+    return nullptr;
+  }
+
+  if (parsed_options.EnableFabricMem().value_or(false)) {
     return std::make_unique<FabricMemEngine>(AscendString(local_engine.c_str()));
   }
-  bool config_use_uboe = UseUboe(options);
+  bool config_use_uboe = UseUboe(parsed_options);
   bool use_hixl = config_use_uboe;
   if (!use_hixl) {
-    const auto hixl_it = options.find(hixl::OPTION_LOCAL_COMM_RES);
-    const auto adxl_it = options.find(adxl::OPTION_LOCAL_COMM_RES);
-    if ((hixl_it == options.end()) && (adxl_it == options.end())) {
+    auto lcr = parsed_options.LocalCommRes();
+    if (!lcr.has_value() || lcr->empty()) {
       return std::make_unique<CommEngine>(AscendString(local_engine.c_str()));
     }
-    const auto &it = hixl_it == options.end() ? adxl_it : hixl_it;
-    std::string local_comm_res = it->second.GetString();
     try {
-      if (!local_comm_res.empty()) {
-        use_hixl = nlohmann::json::parse(local_comm_res)["version"] == "1.3";
-      }
+      auto json = nlohmann::json::parse(*lcr);
+      use_hixl = json["version"] == "1.3";
     } catch (const nlohmann::json::exception &e) {
       HIXL_LOGE(PARAM_INVALID, "Invalid json, exception:%s", e.what());
       return nullptr;

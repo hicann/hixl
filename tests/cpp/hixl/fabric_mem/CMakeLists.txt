@@ -22,6 +22,7 @@ file(GLOB FABRIC_MEM_SRC_LIST
 
 set(FABRIC_MEM_ENGINE_SRC
         "${HIXL_CODE_DIR}/src/hixl/engine/fabric_mem_engine.cc"
+        "${HIXL_CODE_DIR}/src/hixl/engine/hixl_options.cc"
 )
 
 set(FABRIC_MEM_STUB_SRC_FILES

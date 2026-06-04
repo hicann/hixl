@@ -16,8 +16,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
-#include <unordered_set>
-#include "nlohmann/json.hpp"
 #include "securec.h"
 #include "acl/acl.h"
 #include "mmpa/mmpa_api.h"
@@ -84,26 +82,6 @@ Status GetIpAddressFromHccnTool(uint32_t phy_device_id, std::string &ip) {
   return SUCCESS;
 }
 
-struct CommResourceConfig {
-  std::vector<std::string> protocol_desc;
-};
-
-void from_json(const nlohmann::json &j, CommResourceConfig &config) {
-  if (j.contains("comm_resource_config.protocol_desc")) {
-    j.at("comm_resource_config.protocol_desc").get_to(config.protocol_desc);
-  }
-}
-
-Status ParseCommResourceConfig(const std::string &json_str, CommResourceConfig &config) {
-  try {
-    auto j = nlohmann::json::parse(json_str);
-    j.get_to(config);
-    return SUCCESS;
-  } catch (const nlohmann::json::exception &e) {
-    HIXL_LOGE(PARAM_INVALID, "parse CommResourceConfig json failed, json=%s, exception=%s", json_str.c_str(), e.what());
-    return PARAM_INVALID;
-  }
-}
 }  // namespace
 Status HcclError2Status(HcclResult ret) {
   static const std::map<HcclResult, Status> result2status = {
@@ -184,27 +162,6 @@ Status GetBondIpAddress(int32_t dev_logic_id, uint32_t slot_id, std::string &ip)
       "query device=%d bond ip is empty, please make sure bond ip is set correctly, query command=%s.", dev_logic_id,
       command.c_str());
   HIXL_LOGI("get bond ip from device[%d]=%s", dev_logic_id, ip.c_str());
-  return SUCCESS;
-}
-
-Status CheckOptions(const std::map<AscendString, AscendString> &options) {
-  static std::unordered_set<std::string> kOptionsFields = {hixl::OPTION_LOCAL_COMM_RES, hixl::OPTION_BUFFER_POOL, 
-                                                           adxl::OPTION_LOCAL_COMM_RES, adxl::OPTION_BUFFER_POOL,
-                                                           hixl::OPTION_RDMA_TRAFFIC_CLASS, adxl::OPTION_RDMA_TRAFFIC_CLASS,
-                                                           hixl::OPTION_RDMA_SERVICE_LEVEL, adxl::OPTION_RDMA_SERVICE_LEVEL,
-                                                           hixl::OPTION_GLOBAL_RESOURCE_CONFIG};
-  for (const auto &pair : options) {
-    HIXL_CHK_BOOL_RET_SPECIAL_STATUS(kOptionsFields.find(pair.first.GetString()) == kOptionsFields.end(), 
-                                     PARAM_INVALID, 
-                                     "Invalid option '%s' is not supported, options for hixl engine only support "
-                                     "OPTION_LOCAL_COMM_RES, OPTION_BUFFER_POOL, OPTION_RDMA_TRAFFIC_CLASS and OPTION_RDMA_SERVICE_LEVEL",
-                                     pair.first.GetString());
-    if ((pair.first == hixl::OPTION_BUFFER_POOL) || (pair.first == adxl::OPTION_BUFFER_POOL)) {
-      HIXL_CHK_BOOL_RET_STATUS(pair.second.GetString() == std::string("0:0"), 
-                               PARAM_INVALID, 
-                               "Invalid option fields, OPTION_BUFFER_POOL for hixl engine only supports 0:0");
-    }
-  }
   return SUCCESS;
 }
 
@@ -312,18 +269,5 @@ TemporaryRtContext::~TemporaryRtContext() {
     HIXL_LOGI("Restore previous aclrt ctx:%p", prev_context_);
     HIXL_CHK_STATUS(aclrtSetCurrentContext(prev_context_));
   }
-}
-
-Status ParseConfigProtocolDesc(const std::map<AscendString, AscendString> &options,
-                               std::vector<std::string> &protocol_desc) {
-  auto find_ret = options.find(OPTION_GLOBAL_RESOURCE_CONFIG);
-  if (find_ret != options.cend()) {
-    HIXL_LOGD("option[%s] config value=%s.", OPTION_GLOBAL_RESOURCE_CONFIG, find_ret->second.GetString());
-    CommResourceConfig config{};
-    HIXL_CHK_STATUS_RET(ParseCommResourceConfig(find_ret->second.GetString(), config),
-                        "Parse comm resource config failed.");
-    protocol_desc = std::move(config.protocol_desc);
-  }
-  return SUCCESS;
 }
 }  // namespace hixl

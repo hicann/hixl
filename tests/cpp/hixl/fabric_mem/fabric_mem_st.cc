@@ -24,6 +24,7 @@
 
 #include "depends/ascendcl/src/ascendcl_stub.h"
 #include "engine/fabric_mem_engine.h"
+#include "engine/hixl_options.h"
 #include "fabric_mem_test_utils.h"
 #include "hixl/hixl_types.h"
 
@@ -96,7 +97,9 @@ std::map<AscendString, AscendString> BuildEngineOptions(bool auto_connect) {
 
 Status InitializeEngine(FabricMemEngine &engine, int32_t device_id, bool auto_connect = false) {
   FabricMemRuntimeMock::SetDevice(device_id);
-  return engine.Initialize(BuildEngineOptions(auto_connect));
+  HixlOptions parsed;
+  EXPECT_EQ(HixlOptions::Parse(BuildEngineOptions(auto_connect), parsed), SUCCESS);
+  return engine.Initialize(parsed);
 }
 
 MemDesc BuildMemDesc(DeviceBuffer &buffer) {

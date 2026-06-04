@@ -20,6 +20,7 @@
 
 #include "common/hixl_inner_types.h"
 #include "engine.h"
+#include "hixl_options.h"
 #include "fabric_mem/fabric_mem_config.h"
 #include "fabric_mem/fabric_mem_control.h"
 #include "fabric_mem/fabric_mem_remote_memory.h"
@@ -50,7 +51,7 @@ class FabricMemEngine : public hixl::Engine {
 
   ~FabricMemEngine() override = default;
 
-  Status Initialize(const std::map<AscendString, AscendString> &options) override;
+  Status Initialize(const HixlOptions &options) override;
   void Finalize() override;
   bool IsInitialized() const override;
 
@@ -104,6 +105,7 @@ class FabricMemEngine : public hixl::Engine {
 
   bool TryAcquireOperation(aclrtContext &ctx);
   void ReleaseOperation();
+  static const std::unordered_set<std::string> kSupportedOptions;
   Status ApplyVirtualMemoryConfig();
   Status InitTransferService();
   Status StartControlServer();

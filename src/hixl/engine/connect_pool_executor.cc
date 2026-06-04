@@ -10,7 +10,6 @@
 
 #include "connect_pool_executor.h"
 #include "common/hixl_checker.h"
-#include "nlohmann/json.hpp"
 
 namespace hixl {
 namespace {
@@ -31,19 +30,25 @@ ConnectPoolExecutor::~ConnectPoolExecutor() {
   }
 }
 
-Status ConnectPoolExecutor::Initialize(const std::map<AscendString, AscendString> &options) {
+Status ConnectPoolExecutor::Initialize(const HixlOptions &options) {
   HIXL_LOGI("ConnectPoolExecutor initialize start");
   if (IsInitialized()) {
     HIXL_LOGW("ConnectPoolExecutor is already initialized");
     return SUCCESS;
   }
-  HIXL_CHK_STATUS_RET(ParseGlobalResourceConfig(options), "Failed to parse global resource config");
+  thread_num_ = kOptionConnectPoolThreadNum;
+  task_queue_capacity_ = kOptionConnectPoolTaskQueueCapacity;
+  auto grc = options.GlobalResourceCfg();
+  if (grc.has_value()) {
+    thread_num_ = grc->connect_pool.thread_num.value_or(kOptionConnectPoolThreadNum);
+    task_queue_capacity_ = grc->connect_pool.task_queue_capacity.value_or(kOptionConnectPoolTaskQueueCapacity);
+  }
   HIXL_CHK_BOOL_RET_STATUS(thread_num_ >= kLimitThreadNumMin && thread_num_ <= kLimitThreadNumMax, PARAM_INVALID,
                            "thread_num:%d must in [%d, %d]", thread_num_, kLimitThreadNumMin, kLimitThreadNumMax);
   HIXL_CHK_BOOL_RET_STATUS(
       task_queue_capacity_ >= kLimitTaskQueueCapacityMin && task_queue_capacity_ <= kLimitTaskQueueCapacityMax,
-      PARAM_INVALID, "task_queue_capacity:%d must in [%d, %d]", task_queue_capacity_, kLimitTaskQueueCapacityMin,
-      kLimitTaskQueueCapacityMax);
+      PARAM_INVALID, "task_queue_capacity:%d must in [%d, %d]", task_queue_capacity_,
+      kLimitTaskQueueCapacityMin, kLimitTaskQueueCapacityMax);
 
   is_initialized_.store(true, std::memory_order::memory_order_relaxed);
   (void)aclrtGetCurrentContext(&ctx_);
@@ -130,44 +135,6 @@ Status ConnectPoolExecutor::GetStatus(std::map<AscendString, AsyncConnectStatus>
 
 bool ConnectPoolExecutor::IsInitialized() const {
   return is_initialized_.load(std::memory_order::memory_order_relaxed);
-}
-
-Status ConnectPoolExecutor::ParseGlobalResourceConfig(const std::map<AscendString, AscendString> &options) {
-  HIXL_LOGI("ParseGlobalResourceConfig start");
-  thread_num_ = hixl::kOptionConnectPoolThreadNum;
-  task_queue_capacity_ = hixl::kOptionConnectPoolTaskQueueCapacity;
-
-  const auto &it = options.find(hixl::OPTION_GLOBAL_RESOURCE_CONFIG);
-  if (it == options.end()) {
-    HIXL_LOGW("Failed to find %s, use default thread_num:%d task_queue_capacity:%d",
-              hixl::OPTION_GLOBAL_RESOURCE_CONFIG, thread_num_, task_queue_capacity_);
-    return SUCCESS;
-  }
-
-  std::string config_str = it->second.GetString();
-  if (config_str.empty()) {
-    HIXL_LOGW("Failed to parse empty %s, use default thread_num:%d task_queue_capacity:%d",
-              hixl::OPTION_GLOBAL_RESOURCE_CONFIG, thread_num_, task_queue_capacity_);
-    return SUCCESS;
-  }
-
-  try {
-    auto config = nlohmann::json::parse(config_str);
-    if (config.contains("connect_pool.thread_num")) {
-      std::string thread_num = config["connect_pool.thread_num"];
-      thread_num_ = std::stoi(thread_num);
-    }
-    if (config.contains("connect_pool.task_queue_capacity")) {
-      std::string task_queue_capacity = config["connect_pool.task_queue_capacity"];
-      task_queue_capacity_ = std::stoi(task_queue_capacity);
-    }
-  } catch (const std::exception &e) {
-    HIXL_LOGE(PARAM_INVALID, "Failed to parse %s error %s", hixl::OPTION_GLOBAL_RESOURCE_CONFIG, e.what());
-    return PARAM_INVALID;
-  }
-  HIXL_LOGI("ParseGlobalResourceConfig success, thread_num:%d task_queue_capacity:%d", thread_num_,
-            task_queue_capacity_);
-  return SUCCESS;
 }
 
 void ConnectPoolExecutor::WorkerHandler(const int32_t worker_id) {

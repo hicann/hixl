@@ -13,7 +13,9 @@
 
 #include <mutex>
 #include <map>
+#include <unordered_set>
 #include "engine.h"
+#include "hixl_options.h"
 #include "client_manager.h"
 #include "hixl_server.h"
 #include "hixl/hixl_types.h"
@@ -47,7 +49,7 @@ class HixlEngine : public hixl::Engine {
    * @param [in] options 初始化所需的选项
    * @return 成功:SUCCESS, 失败:其它.
    */
-  Status Initialize(const std::map<AscendString, AscendString> &options) override;
+  Status Initialize(const HixlOptions &options) override;
 
   /**
    * @brief 注册内存
@@ -150,9 +152,8 @@ class HixlEngine : public hixl::Engine {
   void Finalize() override;
 
  private:
+  static const std::unordered_set<std::string> kSupportedOptions;
   Status InitServer();
-  Status ParseTrafficClass(const std::map<AscendString, AscendString> &options);
-  Status ParseServiceLevel(const std::map<AscendString, AscendString> &options);
   Status GetTransferStatusInner(const TransferReq &req, TransferStatus &status);
   std::mutex mutex_;
 

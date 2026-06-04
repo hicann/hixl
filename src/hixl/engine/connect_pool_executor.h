@@ -23,6 +23,7 @@
 #include <thread>
 #include "acl/acl.h"
 #include "hixl/hixl_types.h"
+#include "hixl_options.h"
 
 namespace hixl {
 struct ConnectPoolExecutorTask {
@@ -36,7 +37,7 @@ class ConnectPoolExecutor {
   ConnectPoolExecutor();
   ~ConnectPoolExecutor();
 
-  Status Initialize(const std::map<AscendString, AscendString> &options);
+  Status Initialize(const HixlOptions &options);
 
   void Shutdown();
 
@@ -50,8 +51,6 @@ class ConnectPoolExecutor {
 
  private:
   bool IsInitialized() const;
-
-  Status ParseGlobalResourceConfig(const std::map<AscendString, AscendString> &options);
 
   void WorkerHandler(const int32_t worker_id);
 

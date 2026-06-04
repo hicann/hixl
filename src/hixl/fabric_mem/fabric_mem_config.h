@@ -12,7 +12,6 @@
 #define CANN_HIXL_SRC_HIXL_FABRIC_MEM_FABRIC_MEM_CONFIG_H_
 
 #include <cstddef>
-#include <map>
 
 #include "hixl/hixl_types.h"
 
@@ -26,11 +25,6 @@ struct FabricMemConfig {
   size_t start_address_tb = 0;
   size_t task_stream_num = 4U;
   size_t max_stream_num = 512U;
-};
-
-class FabricMemConfigParser {
- public:
-  static Status Parse(const std::map<AscendString, AscendString> &options, FabricMemConfig &config);
 };
 }  // namespace hixl
 

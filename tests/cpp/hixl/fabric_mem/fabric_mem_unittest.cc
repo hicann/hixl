@@ -28,6 +28,7 @@
 
 #define private public
 #include "engine/fabric_mem_engine.h"
+#include "engine/hixl_options.h"
 #include "fabric_mem/fabric_mem_control.h"
 #include "fabric_mem/fabric_mem_statistic.h"
 #include "fabric_mem/fabric_mem_transfer_service.h"
@@ -278,6 +279,12 @@ std::map<AscendString, AscendString> BuildFabricMemOptions() {
   std::map<AscendString, AscendString> options;
   options[OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
   return options;
+}
+
+Status InitEngineWithOptions(FabricMemEngine &engine, const std::map<AscendString, AscendString> &raw_options) {
+  HixlOptions parsed;
+  HIXL_CHK_STATUS_RET(HixlOptions::Parse(raw_options, parsed), "Failed to parse options");
+  return engine.Initialize(parsed);
 }
 
 class FabricMemEngineInitUTest : public ::testing::Test {
@@ -1117,7 +1124,7 @@ TEST_F(FabricMemEngineInitUTest, FabricMemoryCapacityConfig) {
   FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
   auto options = BuildFabricMemOptions();
   options[OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
-  EXPECT_EQ(engine.Initialize(options), SUCCESS);
+  EXPECT_EQ(InitEngineWithOptions(engine, options), SUCCESS);
 
   uintptr_t addr = 0U;
   EXPECT_EQ(VirtualMemoryManager::GetInstance().ReserveMemory(k1GB, addr), SUCCESS);
@@ -1131,7 +1138,7 @@ TEST_F(FabricMemEngineInitUTest, FabricMemoryInitFailureRollback) {
   VirtualMemoryManager::GetInstance().Finalize();
 
   FabricMemEngine engine{AscendString("invalid_local_engine")};
-  EXPECT_NE(engine.Initialize(BuildFabricMemOptions()), SUCCESS);
+  EXPECT_NE(InitEngineWithOptions(engine, BuildFabricMemOptions()), SUCCESS);
   EXPECT_EQ(VirtualMemoryManager::GetInstance().SetGlobalStartAddress(50UL), SUCCESS);
   EXPECT_EQ(VirtualMemoryManager::GetInstance().SetGlobalStartAddress(40UL), SUCCESS);
   VirtualMemoryManager::GetInstance().Finalize();
@@ -1141,7 +1148,7 @@ TEST_F(FabricMemEngineInitUTest, FabricMemRegisterMemOverflow) {
   VirtualMemoryManager::GetInstance().Finalize();
 
   FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
-  ASSERT_EQ(engine.Initialize(BuildFabricMemOptions()), SUCCESS);
+  ASSERT_EQ(InitEngineWithOptions(engine, BuildFabricMemOptions()), SUCCESS);
 
   MemDesc mem{};
   mem.addr = std::numeric_limits<uintptr_t>::max();
@@ -1157,7 +1164,7 @@ TEST_F(FabricMemEngineInitUTest, FabricMemTransferAsyncFailureClearsReq) {
   VirtualMemoryManager::GetInstance().Finalize();
 
   FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
-  ASSERT_EQ(engine.Initialize(BuildFabricMemOptions()), SUCCESS);
+  ASSERT_EQ(InitEngineWithOptions(engine, BuildFabricMemOptions()), SUCCESS);
 
   int32_t src = 1;
   int32_t dst = 2;
@@ -1187,39 +1194,39 @@ std::map<AscendString, AscendString> MakeOptionsWithJson(const std::string &json
 
 TEST_F(FabricMemConfigParserUTest, DisabledByDefaultWhenOptionMissing) {
   std::map<AscendString, AscendString> options;
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
-  EXPECT_FALSE(config.enabled);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  EXPECT_FALSE(result.EnableFabricMem().value_or(false));
 }
 
 TEST_F(FabricMemConfigParserUTest, DisabledWhenEnableOptionEmpty) {
   std::map<AscendString, AscendString> options;
   options[OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
-  EXPECT_FALSE(config.enabled);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  EXPECT_FALSE(result.EnableFabricMem().value_or(false));
 }
 
 TEST_F(FabricMemConfigParserUTest, DisabledWhenEnableOptionZero) {
   std::map<AscendString, AscendString> options;
   options[OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("0");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
-  EXPECT_FALSE(config.enabled);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  EXPECT_FALSE(result.EnableFabricMem().value_or(false));
 }
 
 TEST_F(FabricMemConfigParserUTest, EnableRejectsNonBinaryValue) {
   std::map<AscendString, AscendString> options;
   options[OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("2");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 TEST_F(FabricMemConfigParserUTest, EnableRejectsNonNumericValue) {
   std::map<AscendString, AscendString> options;
   options[OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("abc");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 TEST_F(FabricMemConfigParserUTest, AllFieldsParsedCorrectly) {
@@ -1233,176 +1240,183 @@ TEST_F(FabricMemConfigParserUTest, AllFieldsParsedCorrectly) {
   auto options = MakeOptionsWithJson(json);
   options[OPTION_AUTO_CONNECT] = AscendString("1");
 
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
-  EXPECT_TRUE(config.enabled);
-  EXPECT_TRUE(config.auto_connect);
-  EXPECT_TRUE(config.has_capacity_tb);
-  EXPECT_EQ(config.capacity_tb, 64UL);
-  EXPECT_TRUE(config.has_start_address_tb);
-  EXPECT_EQ(config.start_address_tb, 100UL);
-  EXPECT_EQ(config.task_stream_num, 4U);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  EXPECT_TRUE(result.EnableFabricMem().value_or(false));
+  EXPECT_TRUE(result.AutoConnect().value_or(false));
+  auto grc = result.GlobalResourceCfg();
+  ASSERT_TRUE(grc.has_value());
+  EXPECT_EQ(grc->fabric_memory.max_capacity.value(), 64UL);
+  EXPECT_EQ(grc->fabric_memory.start_address.value(), 100UL);
+  EXPECT_EQ(grc->fabric_memory.task_stream_num.value(), 4U);
 }
 
 TEST_F(FabricMemConfigParserUTest, InvalidJsonReturnsError) {
   auto options = MakeOptionsWithJson("{invalid json");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 TEST_F(FabricMemConfigParserUTest, JsonArrayReturnsError) {
   auto options = MakeOptionsWithJson("[1, 2, 3]");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 TEST_F(FabricMemConfigParserUTest, CapacityZeroRejected) {
   auto options = MakeOptionsWithJson(R"({"fabric_memory": {"max_capacity": 0}})");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 TEST_F(FabricMemConfigParserUTest, CapacityBoundaryMinAccepted) {
   auto options = MakeOptionsWithJson(R"({"fabric_memory": {"max_capacity": 1}})");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
-  EXPECT_TRUE(config.has_capacity_tb);
-  EXPECT_EQ(config.capacity_tb, 1UL);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  auto grc = result.GlobalResourceCfg();
+  ASSERT_TRUE(grc.has_value());
+  EXPECT_EQ(grc->fabric_memory.max_capacity.value(), 1UL);
 }
 
 TEST_F(FabricMemConfigParserUTest, CapacityBoundaryMaxAccepted) {
   auto options = MakeOptionsWithJson(R"({"fabric_memory": {"max_capacity": 1024}})");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
-  EXPECT_TRUE(config.has_capacity_tb);
-  EXPECT_EQ(config.capacity_tb, 1024UL);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  auto grc = result.GlobalResourceCfg();
+  ASSERT_TRUE(grc.has_value());
+  EXPECT_EQ(grc->fabric_memory.max_capacity.value(), 1024UL);
 }
 
 TEST_F(FabricMemConfigParserUTest, CapacityAboveMaxRejected) {
   auto options = MakeOptionsWithJson(R"({"fabric_memory": {"max_capacity": 1025}})");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 TEST_F(FabricMemConfigParserUTest, CapacityNonNumericRejected) {
   auto options = MakeOptionsWithJson(R"({"fabric_memory": {"max_capacity": "abc"}})");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 TEST_F(FabricMemConfigParserUTest, StartAddressBelowMinRejected) {
   auto options = MakeOptionsWithJson(R"({"fabric_memory": {"start_address": 39}})");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 TEST_F(FabricMemConfigParserUTest, StartAddressBoundaryMinAccepted) {
   auto options = MakeOptionsWithJson(R"({"fabric_memory": {"start_address": 40}})");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
-  EXPECT_TRUE(config.has_start_address_tb);
-  EXPECT_EQ(config.start_address_tb, 40UL);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  auto grc = result.GlobalResourceCfg();
+  ASSERT_TRUE(grc.has_value());
+  EXPECT_EQ(grc->fabric_memory.start_address.value(), 40UL);
 }
 
 TEST_F(FabricMemConfigParserUTest, StartAddressBoundaryMaxAccepted) {
   auto options = MakeOptionsWithJson(R"({"fabric_memory": {"start_address": 220}})");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
-  EXPECT_TRUE(config.has_start_address_tb);
-  EXPECT_EQ(config.start_address_tb, 220UL);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  auto grc = result.GlobalResourceCfg();
+  ASSERT_TRUE(grc.has_value());
+  EXPECT_EQ(grc->fabric_memory.start_address.value(), 220UL);
 }
 
 TEST_F(FabricMemConfigParserUTest, StartAddressAboveMaxRejected) {
   auto options = MakeOptionsWithJson(R"({"fabric_memory": {"start_address": 221}})");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 TEST_F(FabricMemConfigParserUTest, TaskStreamNumZeroRejected) {
   auto options = MakeOptionsWithJson(R"({"fabric_memory": {"task_stream_num": 0}})");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 TEST_F(FabricMemConfigParserUTest, TaskStreamNumBoundaryMinMaxAccepted) {
   auto options_min = MakeOptionsWithJson(R"({"fabric_memory": {"task_stream_num": 1}})");
-  FabricMemConfig config_min;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options_min, config_min), SUCCESS);
-  EXPECT_EQ(config_min.task_stream_num, 1U);
+  HixlOptions result_min;
+  EXPECT_EQ(HixlOptions::Parse(options_min, result_min), SUCCESS);
+  EXPECT_EQ(result_min.GlobalResourceCfg()->fabric_memory.task_stream_num.value(), 1U);
 
   auto options_max = MakeOptionsWithJson(R"({"fabric_memory": {"task_stream_num": 8}})");
-  FabricMemConfig config_max;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options_max, config_max), SUCCESS);
-  EXPECT_EQ(config_max.task_stream_num, 8U);
+  HixlOptions result_max;
+  EXPECT_EQ(HixlOptions::Parse(options_max, result_max), SUCCESS);
+  EXPECT_EQ(result_max.GlobalResourceCfg()->fabric_memory.task_stream_num.value(), 8U);
 }
 
 TEST_F(FabricMemConfigParserUTest, TaskStreamNumAboveMaxRejected) {
   auto options = MakeOptionsWithJson(R"({"fabric_memory": {"task_stream_num": 9}})");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 TEST_F(FabricMemConfigParserUTest, MissingSubFieldsKeepDefaults) {
   auto options = MakeOptionsWithJson(R"({"fabric_memory": {}})");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
-  EXPECT_TRUE(config.enabled);
-  EXPECT_FALSE(config.has_capacity_tb);
-  EXPECT_FALSE(config.has_start_address_tb);
-  EXPECT_EQ(config.task_stream_num, 4U);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  EXPECT_TRUE(result.EnableFabricMem().value_or(false));
+  auto grc = result.GlobalResourceCfg();
+  ASSERT_TRUE(grc.has_value());
+  EXPECT_FALSE(grc->fabric_memory.max_capacity.has_value());
+  EXPECT_FALSE(grc->fabric_memory.start_address.has_value());
+  EXPECT_FALSE(grc->fabric_memory.task_stream_num.has_value());
 }
 
 TEST_F(FabricMemConfigParserUTest, NonFabricMemoryJsonKeysPassThrough) {
   auto options = MakeOptionsWithJson(R"({"other_group": {"key": "value"}, "plain_key": 42})");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
-  EXPECT_FALSE(config.has_capacity_tb);
-  EXPECT_FALSE(config.has_start_address_tb);
-  EXPECT_EQ(config.task_stream_num, 4U);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  auto grc = result.GlobalResourceCfg();
+  ASSERT_TRUE(grc.has_value());
+  EXPECT_FALSE(grc->fabric_memory.max_capacity.has_value());
+  EXPECT_FALSE(grc->fabric_memory.start_address.has_value());
+  EXPECT_FALSE(grc->fabric_memory.task_stream_num.has_value());
 }
 
 TEST_F(FabricMemConfigParserUTest, AutoConnectEmptyValueRejected) {
   auto options = MakeOptions();
   options[OPTION_AUTO_CONNECT] = AscendString("");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 TEST_F(FabricMemConfigParserUTest, AutoConnectZeroAndOneAccepted) {
   auto options_zero = MakeOptions();
   options_zero[OPTION_AUTO_CONNECT] = AscendString("0");
-  FabricMemConfig config_zero;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options_zero, config_zero), SUCCESS);
-  EXPECT_FALSE(config_zero.auto_connect);
+  HixlOptions result_zero;
+  EXPECT_EQ(HixlOptions::Parse(options_zero, result_zero), SUCCESS);
+  EXPECT_FALSE(result_zero.AutoConnect().value_or(true));
 
   auto options_one = MakeOptions();
   options_one[OPTION_AUTO_CONNECT] = AscendString("1");
-  FabricMemConfig config_one;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options_one, config_one), SUCCESS);
-  EXPECT_TRUE(config_one.auto_connect);
+  HixlOptions result_one;
+  EXPECT_EQ(HixlOptions::Parse(options_one, result_one), SUCCESS);
+  EXPECT_TRUE(result_one.AutoConnect().value_or(false));
 }
 
 TEST_F(FabricMemConfigParserUTest, AutoConnectNonBinaryRejected) {
   auto options = MakeOptions();
   options[OPTION_AUTO_CONNECT] = AscendString("2");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 TEST_F(FabricMemConfigParserUTest, AutoConnectNonNumericRejected) {
   auto options = MakeOptions();
   options[OPTION_AUTO_CONNECT] = AscendString("abc");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), PARAM_INVALID);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 TEST_F(FabricMemConfigParserUTest, EnabledSkipsParsingWhenDisabled) {
   std::map<AscendString, AscendString> options;
   options[OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("0");
   options[OPTION_AUTO_CONNECT] = AscendString("invalid_should_fail_if_parsed");
-  FabricMemConfig config;
-  EXPECT_EQ(FabricMemConfigParser::Parse(options, config), SUCCESS);
-  EXPECT_FALSE(config.enabled);
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 }  // namespace hixl

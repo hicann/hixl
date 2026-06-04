@@ -12,8 +12,8 @@
 #include "common/hixl_checker.h"
 
 namespace hixl {
-Status CommEngine::Initialize(const std::map<AscendString, AscendString> &options) {
-  return adxl_inner_engine_.Initialize(options);
+Status CommEngine::Initialize(const HixlOptions &options) {
+  return adxl_inner_engine_.Initialize(options.RawOptions());
 }
 
 void CommEngine::Finalize() {

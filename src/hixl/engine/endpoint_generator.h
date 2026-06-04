@@ -18,15 +18,16 @@
 #include "nlohmann/json.hpp"
 #include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
+#include "hixl_options.h"
 #include "common/hixl_inner_types.h"
 
 namespace hixl {
 class EndpointGenerator {
  public:
-  static Status BuildEndpointListFromOptions(const std::map<AscendString, AscendString> &options,
-                                             const std::string &local_engine,
-                                             std::string &local_comm_res,
-                                             std::vector<EndpointConfig> &endpoint_list);
+  static Status BuildEndpointList(const HixlOptions &options,
+                                  const std::string &local_engine,
+                                  std::string &local_comm_res,
+                                  std::vector<EndpointConfig> &endpoint_list);
   static Status ConvertToEndpointDesc(const EndpointConfig &endpoint_config,
                                       EndpointDesc &endpoint,
                                       uint32_t dev_phy_id = 0);
@@ -59,11 +60,11 @@ class EndpointGenerator {
   static Status BuildNetInstanceId(int32_t device_id,
                                    const std::string &local_engine,
                                    std::string &net_instance_id);
-  static Status ParseEndpointListFromLocalCommRes(const std::map<AscendString, AscendString> &options,
-                                                     std::string &local_comm_res,
-                                                     std::vector<EndpointConfig> &endpoint_list);
-  static Status GenEndpointFromProtocolDesc(const std::map<AscendString, AscendString> &options,
-                                             std::vector<EndpointConfig> &endpoint_list);
+  static Status ParseEndpointListFromLocalCommRes(const HixlOptions &options,
+                                                  std::string &local_comm_res,
+                                                  std::vector<EndpointConfig> &endpoint_list);
+  static Status GenEndpointFromProtocolDesc(const HixlOptions &options,
+                                            std::vector<EndpointConfig> &endpoint_list);
   static Status BuildEndpointListFromLocalCommRes(const nlohmann::json &config,
                                                   bool has_endpoint_list,
                                                   const std::string &local_engine,
