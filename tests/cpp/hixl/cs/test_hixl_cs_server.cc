@@ -36,7 +36,7 @@ using ::testing::Invoke;
 using ::testing::Mock;
 
 namespace hixl {
-static constexpr uint32_t kPort = 16000;
+static constexpr uint32_t kPort = 26360;
 static constexpr uint32_t kEpAddrId0 = 1U;
 static constexpr uint32_t kEpAddrId1 = 2U;
 static constexpr uint32_t kEpAddrId2 = 3U;
@@ -76,8 +76,7 @@ class HixlCSTest : public ::testing::Test {
     default_eps.emplace_back(ep_dev);
   }
   // 在测试类中进行清理工作，如果需要的话
-  void TearDown() override {
-  }
+  void TearDown() override {}
 
  private:
   std::vector<EndpointDesc> default_eps;
@@ -206,9 +205,9 @@ TEST_F(HixlCSTest, TestHixlCSServer) {
   auto ret = HixlCSServerCreate(&desc, &config, &server_handle);
   EXPECT_EQ(ret, SUCCESS);
   auto proc = [](int32_t fd, const char *msg, uint64_t msg_len) -> Status {
-    (void) fd;
-    (void) msg;
-    (void) msg_len;
+    (void)fd;
+    (void)msg;
+    (void)msg_len;
     return 0;
   };
   ret = HixlCSServerRegProc(server_handle, static_cast<CtrlMsgType>(kCtrlMsgType), proc);
@@ -268,7 +267,7 @@ TEST_F(HixlCSTest, TestHixlCSClient2Server) {
   SendGetRemoteMemReq(client_fd, match_resp.dst_ep_handle);
   std::this_thread::sleep_for(std::chrono::milliseconds(kTimeSleepMs));
   // 没有读取缓冲区数据，测试server recv报错场景
-  (void) close(client_fd);
+  (void)close(client_fd);
 
   ret = HixlCSServerUnregMem(server_handle, mem_handle);
   EXPECT_EQ(ret, SUCCESS);
@@ -295,7 +294,7 @@ TEST_F(HixlCSTest, TestHixlCSServerDisconnectionCleanup) {
   CreateChannelResp resp_body{};
   GetCreateChannelResp(client_fd, resp_body);
 
-  (void) close(client_fd);
+  (void)close(client_fd);
 
   // 等待所有预期的日志模式被捕获
   EXPECT_TRUE(log_capture->WaitForAllPatternsCaptured(kCaptureLogTimeoutMs));
@@ -319,7 +318,7 @@ TEST_F(HixlCSTest, TestEndpointGetListenPortSuccess) {
   MatchEndpointResp match_resp{};
   GetMatchEndpointResp(client_fd, match_resp);
   EXPECT_EQ(match_resp.port, 8080U);
-  (void) close(client_fd);
+  (void)close(client_fd);
   EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
 }
 
@@ -338,7 +337,7 @@ TEST_F(HixlCSTest, TestEndpointGetListenPortNotSupported) {
   MatchEndpointResp match_resp{};
   GetMatchEndpointResp(client_fd, match_resp);
   EXPECT_EQ(match_resp.port, 0U);
-  (void) close(client_fd);
+  (void)close(client_fd);
 
   EXPECT_TRUE(log_capture->WaitForAllPatternsCaptured(kCaptureLogTimeoutMs));
   EXPECT_TRUE(log_capture->IsPatternCaptured("HcommEndpointGetListenPort is not supported"));
@@ -357,7 +356,7 @@ TEST_F(HixlCSTest, TestEndpointGetListenPortError) {
   MatchEndpointResp match_resp{};
   RecvMatchEndpointResp(client_fd, match_resp);
   EXPECT_EQ(match_resp.result, FAILED);
-  (void) close(client_fd);
+  (void)close(client_fd);
   EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
 }
 

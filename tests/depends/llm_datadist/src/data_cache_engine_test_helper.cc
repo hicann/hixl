@@ -10,14 +10,26 @@
 
 #include "data_cache_engine_test_helper.h"
 #include "llm_datadist/llm_engine_types.h"
+#include <algorithm>
 
 namespace llm {
 HcclMem hccl_mems[16];
 int cnt = 0;
 
+namespace {
+void CopyTestMemory(void *dst, const void *src, size_t size) {
+  if (size == 0U) {
+    return;
+  }
+  std::copy_n(static_cast<const char *>(src), size, static_cast<char *>(dst));
+}
+}  // namespace
+
 int32_t AutoCommResRuntimeMock::device_id_ = 0;
 
 std::unique_ptr<HcclApiStub> HcclApiStub::instance_;
+
+#ifndef HIXL_SKIP_DATA_CACHE_ENGINE_TEST_CONTEXT
 void DataCacheEngineTestContext::Finalize() {
   cache_engine_.Finalize();
   comm_entity_.reset();
@@ -70,8 +82,7 @@ llm::DataCacheEngine &DataCacheEngineTestContext::CacheEngine() {
   return cache_engine_;
 }
 
-void DataCacheEngineTestContext::LinkEntities(CommEntity &src_comm_entity,
-                                              CommEntity &dst_comm_entity,
+void DataCacheEngineTestContext::LinkEntities(CommEntity &src_comm_entity, CommEntity &dst_comm_entity,
                                               llm::CommEntityManager &src_comm_entity_manager,
                                               llm::CommEntityManager &dst_comm_entity_manager,
                                               bool remote_cache_accessible) {
@@ -83,8 +94,7 @@ void DataCacheEngineTestContext::LinkEntities(CommEntity &src_comm_entity,
   EntityCommInfo::CommParams src_params{0, {}, "ranktable", {}, 1};
   auto src_comm = std::make_shared<EntityCommInfo>(src_params);
   src_comm->Initialize();
-  auto src_mem = std::make_unique<EntityMemInfo>(remote_cache_accessible,
-                                                 src_comm_entity_manager.GetHostRegPool(),
+  auto src_mem = std::make_unique<EntityMemInfo>(remote_cache_accessible, src_comm_entity_manager.GetHostRegPool(),
                                                  src_comm_entity_manager.GetDeviceRegPool());
   src_mem->Initialize();
   src_comm_entity.Initialize(remote_cache_accessible);
@@ -93,8 +103,7 @@ void DataCacheEngineTestContext::LinkEntities(CommEntity &src_comm_entity,
   EntityCommInfo::CommParams dst_params{0, {}, "ranktable", {}, 1};
   auto dst_comm = std::make_shared<EntityCommInfo>(dst_params);
   dst_comm->Initialize();
-  auto dst_mem = std::make_unique<EntityMemInfo>(remote_cache_accessible,
-                                                 dst_comm_entity_manager.GetHostRegPool(),
+  auto dst_mem = std::make_unique<EntityMemInfo>(remote_cache_accessible, dst_comm_entity_manager.GetHostRegPool(),
                                                  dst_comm_entity_manager.GetDeviceRegPool());
   dst_mem->Initialize();
   dst_comm_entity.Initialize(remote_cache_accessible);
@@ -127,13 +136,10 @@ void DataCacheEngineTestContext::LinkEntities(CommEntity &src_comm_entity,
   src_comm_entity.MarkEntityIdle();
   dst_comm_entity.MarkEntityIdle();
 }
+#endif
 
-HcclResult HcclApiStub::HcclExchangeMemDesc(HcclComm comm,
-                                            uint32_t remoteRank,
-                                            HcclMemDescs *local,
-                                            int timeout,
-                                            HcclMemDescs *remote,
-                                            uint32_t *actualNum) {
+HcclResult HcclApiStub::HcclExchangeMemDesc(HcclComm comm, uint32_t remoteRank, HcclMemDescs *local, int timeout,
+                                            HcclMemDescs *remote, uint32_t *actualNum) {
   for (uint32_t i = 0U; i < local->arrayLength; ++i) {
     strcpy(remote->array[i].desc, local->array[i].desc);
   }
@@ -153,10 +159,7 @@ HcclResult HcclApiStub::HcclCommDestroy(HcclComm comm) {
   return HCCL_SUCCESS;
 }
 
-HcclResult HcclApiStub::HcclBatchPut(HcclComm comm,
-                                     uint32_t remoteRank,
-                                     HcclOneSideOpDesc *desc,
-                                     uint32_t descNum,
+HcclResult HcclApiStub::HcclBatchPut(HcclComm comm, uint32_t remoteRank, HcclOneSideOpDesc *desc, uint32_t descNum,
                                      aclrtStream stream) {
   LLMLOGI("remote_rank = %u, num_tasks = %u", remoteRank, descNum);
   for (uint32_t i = 0; i < descNum; ++i) {
@@ -164,15 +167,12 @@ HcclResult HcclApiStub::HcclBatchPut(HcclComm comm,
     auto dst = desc[i].remoteAddr;
     auto size = desc[i].count;
     LLMLOGI("src:%p, dst:%p, size:%zu", src, dst, size);
-    (void) memcpy(dst, src, size);
+    CopyTestMemory(dst, src, size);
   }
   return HCCL_SUCCESS;
 }
 
-HcclResult HcclApiStub::HcclBatchGet(HcclComm comm,
-                                     uint32_t remoteRank,
-                                     HcclOneSideOpDesc *desc,
-                                     uint32_t descNum,
+HcclResult HcclApiStub::HcclBatchGet(HcclComm comm, uint32_t remoteRank, HcclOneSideOpDesc *desc, uint32_t descNum,
                                      aclrtStream stream) {
   LLMLOGI("remote_rank = %u, num_tasks = %u", remoteRank, descNum);
   for (uint32_t i = 0; i < descNum; ++i) {
@@ -180,18 +180,15 @@ HcclResult HcclApiStub::HcclBatchGet(HcclComm comm,
     auto src = desc[i].remoteAddr;
     auto size = desc[i].count;
     LLMLOGI("memcpy: dst = %p, src = %p, size = %zu", dst, src, size);
-    (void) memcpy(dst, src, size);
+    CopyTestMemory(dst, src, size);
   }
   return HCCL_SUCCESS;
 }
 
-HcclResult HcclApiStub::HcclRemapRegistedMemory(HcclComm *comm,
-                                                HcclMem *memInfoArray,
-                                                uint64_t commSize,
+HcclResult HcclApiStub::HcclRemapRegistedMemory(HcclComm *comm, HcclMem *memInfoArray, uint64_t commSize,
                                                 uint64_t arraySize) {
   return HCCL_SUCCESS;
 }
-
 
 HcclResult HcclApiStub::HcclRegisterGlobalMem(HcclMem *mem, void **memHandle) {
   *memHandle = mem;
@@ -231,23 +228,23 @@ void HcclApiStub::ResetStub() {
 }
 
 void *MockMmpaForHcclApi::DlOpen(const char *file_name, int32_t mode) {
-  return (void *) 0x10000000;
+  return (void *)0x10000000;
 }
 
 void *MockMmpaForHcclApi::DlSym(void *handle, const char *func_name) {
-  static const std::map<std::string, void*> func_map = {
-      {"HcclCommInitClusterInfoMemConfig", reinterpret_cast<void*>(&HcclCommInitClusterInfoMem)},
-      {"HcclCommConfigInit", reinterpret_cast<void*>(&HcclCommConfigInit)},
-      {"HcclExchangeMemDesc", reinterpret_cast<void*>(&HcclExchangeMemDesc)},
-      {"HcclCommDestroy", reinterpret_cast<void*>(&HcclCommDestroy)},
-      {"HcclBatchPut", reinterpret_cast<void*>(&HcclBatchPut)},
-      {"HcclBatchGet", reinterpret_cast<void*>(&HcclBatchGet)},
-      {"HcclRemapRegistedMemory", reinterpret_cast<void*>(&HcclRemapRegistedMemory)},
-      {"HcclRegisterGlobalMem", reinterpret_cast<void*>(&HcclRegisterGlobalMem)},
-      {"HcclDeregisterGlobalMem", reinterpret_cast<void*>(&HcclDeregisterGlobalMem)},
-      {"HcclCommBindMem", reinterpret_cast<void*>(&HcclCommBindMem)},
-      {"HcclCommUnbindMem", reinterpret_cast<void*>(&HcclCommUnbindMem)},
-      {"HcclCommPrepare", reinterpret_cast<void*>(&HcclCommPrepare)},
+  static const std::map<std::string, void *> func_map = {
+      {"HcclCommInitClusterInfoMemConfig", reinterpret_cast<void *>(&HcclCommInitClusterInfoMem)},
+      {"HcclCommConfigInit", reinterpret_cast<void *>(&HcclCommConfigInit)},
+      {"HcclExchangeMemDesc", reinterpret_cast<void *>(&HcclExchangeMemDesc)},
+      {"HcclCommDestroy", reinterpret_cast<void *>(&HcclCommDestroy)},
+      {"HcclBatchPut", reinterpret_cast<void *>(&HcclBatchPut)},
+      {"HcclBatchGet", reinterpret_cast<void *>(&HcclBatchGet)},
+      {"HcclRemapRegistedMemory", reinterpret_cast<void *>(&HcclRemapRegistedMemory)},
+      {"HcclRegisterGlobalMem", reinterpret_cast<void *>(&HcclRegisterGlobalMem)},
+      {"HcclDeregisterGlobalMem", reinterpret_cast<void *>(&HcclDeregisterGlobalMem)},
+      {"HcclCommBindMem", reinterpret_cast<void *>(&HcclCommBindMem)},
+      {"HcclCommUnbindMem", reinterpret_cast<void *>(&HcclCommUnbindMem)},
+      {"HcclCommPrepare", reinterpret_cast<void *>(&HcclCommPrepare)},
   };
   auto it = func_map.find(func_name);
   if (it != func_map.end()) {

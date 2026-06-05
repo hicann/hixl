@@ -273,8 +273,8 @@ void AttachTestContext(FabricMemEngine &engine) {
   engine.aclrt_context_ = reinterpret_cast<aclrtContext>(ctx_holder.get());
 }
 
-constexpr char kConfigEngineLocalId[] = "127.0.0.1:26000";
-constexpr char kConfigRemoteEngineId[] = "127.0.0.1:26001";
+constexpr char kConfigEngineLocalId[] = "127.0.0.1:28000";
+constexpr char kConfigRemoteEngineId[] = "127.0.0.1:28001";
 constexpr size_t k1GB = 1024UL * 1024UL * 1024UL;
 
 std::map<AscendString, AscendString> BuildFabricMemOptions() {

@@ -13,10 +13,9 @@
 #include "profiling/prof_api_reg.h"
 #include "depends/msprof/src/msprof_stub.h"
 
-
-#define kAclProfHixlApi     0x0001U
-#define kStartProfiling       1U
-#define kStopProfiling        2U
+#define kAclProfHixlApi 0x0001U
+#define kStartProfiling 1U
+#define kStopProfiling 2U
 
 namespace hixl {
 class HixlProfilingTest : public ::testing::Test {
@@ -41,7 +40,7 @@ TEST(HixlProfilingTest, StartProfilingOK) {
   cfg.devNums = 1;
 
   int32_t ret = cb(PROF_CTRL_SWITCH, &cfg, sizeof(cfg));
-  EXPECT_EQ(ret, ACL_SUCCESS); // 成功
+  EXPECT_EQ(ret, ACL_SUCCESS);  // 成功
 }
 
 // 测试3：正常Stop → 返回0
@@ -103,4 +102,4 @@ TEST(HixlProfilingTest, ReporterDisableNoRun) {
   HixlProfilingReporter reporter(HixlProfType::HixlOpBatchWrite);
   // 无崩溃 = 覆盖成功
 }
-}
+}  // namespace hixl

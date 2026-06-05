@@ -276,13 +276,13 @@ TEST_F(HixlEngineUboeTest, ConnectTwoUboeEngines) {
   Hixl engine1;
   Hixl engine2;
   ASSERT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
-  ASSERT_EQ(engine2.Initialize("127.0.0.1:16000", options2), SUCCESS);
+  ASSERT_EQ(engine2.Initialize("127.0.0.1:26320", options2), SUCCESS);
 
   // 连接
-  EXPECT_EQ(engine1.Connect("127.0.0.1:16000", kTimeOut), SUCCESS);
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26320", kTimeOut), SUCCESS);
 
   // 断开连接并清理
-  engine1.Disconnect("127.0.0.1:16000");
+  engine1.Disconnect("127.0.0.1:26320");
   engine1.Finalize();
   engine2.Finalize();
 }
@@ -334,12 +334,12 @@ TEST_F(HixlEngineUboeTest, PreferUboeProtocolForConnection) {
   Hixl engine1;
   Hixl engine2;
   ASSERT_EQ(engine1.Initialize("127.0.0.1", local_options), SUCCESS);
-  ASSERT_EQ(engine2.Initialize("127.0.0.1:16000", remote_options), SUCCESS);
+  ASSERT_EQ(engine2.Initialize("127.0.0.1:26320", remote_options), SUCCESS);
 
   // 连接，应该优先使用 UBOE
-  EXPECT_EQ(engine1.Connect("127.0.0.1:16000", kTimeOut), SUCCESS);
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26320", kTimeOut), SUCCESS);
 
-  engine1.Disconnect("127.0.0.1:16000");
+  engine1.Disconnect("127.0.0.1:26320");
   engine1.Finalize();
   engine2.Finalize();
 }
@@ -440,9 +440,9 @@ TEST_F(HixlEngineUboeTest, EndToEndUboeBatchTransferHostToHost) {
   Hixl engine1;
   Hixl engine2;
   // Server 使用带端口的 local_engine
-  ASSERT_EQ(engine1.Initialize("127.0.0.1:16000", options), SUCCESS);
+  ASSERT_EQ(engine1.Initialize("127.0.0.1:26320", options), SUCCESS);
   // Client 使用不同的端口
-  ASSERT_EQ(engine2.Initialize("127.0.0.1:16001", options), SUCCESS);
+  ASSERT_EQ(engine2.Initialize("127.0.0.1:26321", options), SUCCESS);
 
   // 注册 host 内存 - Server side (H2H: 双方都是 host 内存)
   std::vector<int32_t> server_data(100, 42);
@@ -463,7 +463,7 @@ TEST_F(HixlEngineUboeTest, EndToEndUboeBatchTransferHostToHost) {
   EXPECT_EQ(engine2.RegisterMem(client_mem, MEM_HOST, client_handle), SUCCESS);
 
   // 连接 - Client 连接 Server
-  EXPECT_EQ(engine2.Connect("127.0.0.1:16000", kTimeOut), SUCCESS);
+  EXPECT_EQ(engine2.Connect("127.0.0.1:26320", kTimeOut), SUCCESS);
 
   // 执行传输 (client 从 server 获取数据) - Host to Host
   std::vector<TransferOpDesc> op_descs;
@@ -474,10 +474,10 @@ TEST_F(HixlEngineUboeTest, EndToEndUboeBatchTransferHostToHost) {
   op_descs.push_back(desc);
 
   // 执行传输
-  (void)engine2.TransferSync("127.0.0.1:16000", TransferOp::READ, op_descs, kTimeOut);
+  (void)engine2.TransferSync("127.0.0.1:26320", TransferOp::READ, op_descs, kTimeOut);
 
   // 清理
-  (void)engine2.Disconnect("127.0.0.1:16000");
+  (void)engine2.Disconnect("127.0.0.1:26320");
   EXPECT_EQ(engine2.DeregisterMem(client_handle), SUCCESS);
   EXPECT_EQ(engine1.DeregisterMem(server_handle), SUCCESS);
   engine2.Finalize();
@@ -494,9 +494,9 @@ TEST_F(HixlEngineUboeTest, EndToEndUboeBatchTransferHostToDevice) {
   Hixl engine1;
   Hixl engine2;
   // Server 使用带端口的 local_engine
-  ASSERT_EQ(engine1.Initialize("127.0.0.1:16100", options), SUCCESS);
+  ASSERT_EQ(engine1.Initialize("127.0.0.1:26330", options), SUCCESS);
   // Client 使用不同的端口
-  ASSERT_EQ(engine2.Initialize("127.0.0.1:16101", options), SUCCESS);
+  ASSERT_EQ(engine2.Initialize("127.0.0.1:26331", options), SUCCESS);
 
   // Server: 注册 host 内存
   std::vector<int32_t> server_data(100, 42);
@@ -515,7 +515,7 @@ TEST_F(HixlEngineUboeTest, EndToEndUboeBatchTransferHostToDevice) {
   MemHandle client_handle = nullptr;
   EXPECT_EQ(engine2.RegisterMem(client_mem, MEM_DEVICE, client_handle), SUCCESS);
 
-  EXPECT_EQ(engine2.Connect("127.0.0.1:16100", kTimeOut), SUCCESS);
+  EXPECT_EQ(engine2.Connect("127.0.0.1:26330", kTimeOut), SUCCESS);
 
   // Host to Device 传输
   std::vector<TransferOpDesc> op_descs;
@@ -526,9 +526,9 @@ TEST_F(HixlEngineUboeTest, EndToEndUboeBatchTransferHostToDevice) {
   op_descs.push_back(desc);
 
   // 执行传输
-  EXPECT_EQ(engine2.TransferSync("127.0.0.1:16100", TransferOp::READ, op_descs, kTimeOut), SUCCESS);
+  EXPECT_EQ(engine2.TransferSync("127.0.0.1:26330", TransferOp::READ, op_descs, kTimeOut), SUCCESS);
 
-  EXPECT_EQ(engine2.Disconnect("127.0.0.1:16100"), SUCCESS);
+  EXPECT_EQ(engine2.Disconnect("127.0.0.1:26330"), SUCCESS);
   EXPECT_EQ(engine2.DeregisterMem(client_handle), SUCCESS);
   EXPECT_EQ(engine1.DeregisterMem(server_handle), SUCCESS);
   engine2.Finalize();
@@ -545,9 +545,9 @@ TEST_F(HixlEngineUboeTest, EndToEndUboeBatchTransferDeviceToHost) {
   Hixl engine1;
   Hixl engine2;
   // Server 使用带端口的 local_engine
-  ASSERT_EQ(engine1.Initialize("127.0.0.1:16200", options), SUCCESS);
+  ASSERT_EQ(engine1.Initialize("127.0.0.1:26340", options), SUCCESS);
   // Client 使用不同的端口
-  ASSERT_EQ(engine2.Initialize("127.0.0.1:16201", options), SUCCESS);
+  ASSERT_EQ(engine2.Initialize("127.0.0.1:26341", options), SUCCESS);
 
   // Server: 注册 device 内存 (D2H: server 是 device 内存)
   hixl::MemDesc server_mem{};
@@ -566,7 +566,7 @@ TEST_F(HixlEngineUboeTest, EndToEndUboeBatchTransferDeviceToHost) {
   MemHandle client_handle = nullptr;
   EXPECT_EQ(engine2.RegisterMem(client_mem, MEM_HOST, client_handle), SUCCESS);
 
-  EXPECT_EQ(engine2.Connect("127.0.0.1:16200", kTimeOut), SUCCESS);
+  EXPECT_EQ(engine2.Connect("127.0.0.1:26340", kTimeOut), SUCCESS);
 
   // Device to Host 传输
   std::vector<TransferOpDesc> op_descs;
@@ -577,9 +577,9 @@ TEST_F(HixlEngineUboeTest, EndToEndUboeBatchTransferDeviceToHost) {
   op_descs.push_back(desc);
 
   // 执行传输
-  EXPECT_EQ(engine2.TransferSync("127.0.0.1:16200", TransferOp::READ, op_descs, kTimeOut), SUCCESS);
+  EXPECT_EQ(engine2.TransferSync("127.0.0.1:26340", TransferOp::READ, op_descs, kTimeOut), SUCCESS);
 
-  EXPECT_EQ(engine2.Disconnect("127.0.0.1:16200"), SUCCESS);
+  EXPECT_EQ(engine2.Disconnect("127.0.0.1:26340"), SUCCESS);
   EXPECT_EQ(engine2.DeregisterMem(client_handle), SUCCESS);
   EXPECT_EQ(engine1.DeregisterMem(server_handle), SUCCESS);
   engine2.Finalize();
@@ -597,9 +597,9 @@ TEST_F(HixlEngineUboeTest, EndToEndUboeBatchTransferDeviceToDevice) {
   Hixl engine1;
   Hixl engine2;
   // Server 使用带端口的 local_engine
-  ASSERT_EQ(engine1.Initialize("127.0.0.1:16300", options), SUCCESS);
+  ASSERT_EQ(engine1.Initialize("127.0.0.1:26350", options), SUCCESS);
   // Client 使用不同的端口
-  ASSERT_EQ(engine2.Initialize("127.0.0.1:16301", options), SUCCESS);
+  ASSERT_EQ(engine2.Initialize("127.0.0.1:26351", options), SUCCESS);
 
   // Server: 注册 device 内存 (D2D: 双方都是 device 内存)
   hixl::MemDesc server_mem{};
@@ -617,7 +617,7 @@ TEST_F(HixlEngineUboeTest, EndToEndUboeBatchTransferDeviceToDevice) {
   MemHandle client_handle = nullptr;
   EXPECT_EQ(engine2.RegisterMem(client_mem, MEM_DEVICE, client_handle), SUCCESS);
 
-  EXPECT_EQ(engine2.Connect("127.0.0.1:16300", kTimeOut), SUCCESS);
+  EXPECT_EQ(engine2.Connect("127.0.0.1:26350", kTimeOut), SUCCESS);
 
   // Device to Device 传输
   std::vector<TransferOpDesc> op_descs;
@@ -628,9 +628,9 @@ TEST_F(HixlEngineUboeTest, EndToEndUboeBatchTransferDeviceToDevice) {
   op_descs.push_back(desc);
 
   // 执行传输
-  EXPECT_EQ(engine2.TransferSync("127.0.0.1:16300", TransferOp::READ, op_descs, kTimeOut), SUCCESS);
+  EXPECT_EQ(engine2.TransferSync("127.0.0.1:26350", TransferOp::READ, op_descs, kTimeOut), SUCCESS);
 
-  EXPECT_EQ(engine2.Disconnect("127.0.0.1:16300"), SUCCESS);
+  EXPECT_EQ(engine2.Disconnect("127.0.0.1:26350"), SUCCESS);
   EXPECT_EQ(engine2.DeregisterMem(client_handle), SUCCESS);
   EXPECT_EQ(engine1.DeregisterMem(server_handle), SUCCESS);
   engine2.Finalize();

@@ -16,12 +16,10 @@ using namespace ::testing;
 
 namespace adxl {
 class ControMsgHandlerUnitTest : public ::testing::Test {
-protected:
-  void SetUp() override {
-  }
+ protected:
+  void SetUp() override {}
 
-  void TearDown() override {
-  }
+  void TearDown() override {}
 };
 
 TEST_F(ControMsgHandlerUnitTest, TransferTypeToStringAllTypes) {
@@ -35,4 +33,4 @@ TEST_F(ControMsgHandlerUnitTest, TransferTypeToStringAllTypes) {
   EXPECT_EQ(TransferTypeToString(TransferType::kReadRD2D), "ReadRD2D");
   EXPECT_EQ(TransferTypeToString(TransferType::kEnd), "End");
 }
-} // namespace adxl
+}  // namespace adxl

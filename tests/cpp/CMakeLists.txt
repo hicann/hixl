@@ -9,4 +9,5 @@
 # ----------------------------------------------------------------------------
 
 add_subdirectory(llm_datadist)
+add_subdirectory(adxl)
 add_subdirectory(hixl)

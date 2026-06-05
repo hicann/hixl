@@ -33,7 +33,7 @@
 #include <securec.h>
 
 namespace hixl {
-static constexpr uint32_t kPort = 16000;
+static constexpr uint32_t kPort = 26370;
 static constexpr int kMemReqCnt = 0U;
 static constexpr uint32_t kSrcEpId = 1U;
 static constexpr uint32_t kDstEpId = 2U;
@@ -614,7 +614,7 @@ class HixlCSClientUT : public ::testing::Test {
 
   void CreateClientEx(CommProtocol protocol, const char *ip = "127.0.0.1") {
     ASSERT_NE(port_, 0);
-    HixlClientConfig config{}; // 默认构造
+    HixlClientConfig config{};  // 默认构造
     HixlClientDesc desc{};
     desc.server_ip = ip;
     desc.server_port = port_;

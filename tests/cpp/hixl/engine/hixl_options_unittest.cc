@@ -233,8 +233,7 @@ TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigConnectPool) {
 
 TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigProtocolDesc) {
   std::map<AscendString, AscendString> options;
-  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
-      R"({"comm_resource_config.protocol_desc":["uboe:device"]})";
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.protocol_desc":["uboe:device"]})";
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
   ASSERT_TRUE(result.GlobalResourceCfg().has_value());
@@ -260,24 +259,21 @@ TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigNotObject) {
 
 TEST_F(HixlOptionsUTest, ParseFabricMemCapacityOutOfRange) {
   std::map<AscendString, AscendString> options;
-  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
-      R"({"fabric_memory":{"max_capacity":"2048"}})";
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"fabric_memory":{"max_capacity":"2048"}})";
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 TEST_F(HixlOptionsUTest, ParseFabricMemStartAddressOutOfRange) {
   std::map<AscendString, AscendString> options;
-  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
-      R"({"fabric_memory":{"start_address":"250"}})";
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"fabric_memory":{"start_address":"250"}})";
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 TEST_F(HixlOptionsUTest, ParseFabricMemTaskStreamNumOutOfRange) {
   std::map<AscendString, AscendString> options;
-  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
-      R"({"fabric_memory":{"task_stream_num":"16"}})";
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"fabric_memory":{"task_stream_num":"16"}})";
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
@@ -288,8 +284,7 @@ TEST_F(HixlOptionsUTest, CheckSupportedOptionsAllSupported) {
   options[hixl::OPTION_LOCAL_COMM_RES] = "{}";
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
-  std::unordered_set<std::string> whitelist = {
-      hixl::OPTION_RDMA_TRAFFIC_CLASS, hixl::OPTION_LOCAL_COMM_RES};
+  std::unordered_set<std::string> whitelist = {hixl::OPTION_RDMA_TRAFFIC_CLASS, hixl::OPTION_LOCAL_COMM_RES};
   EXPECT_EQ(result.CheckSupportedOptions(whitelist), SUCCESS);
 }
 

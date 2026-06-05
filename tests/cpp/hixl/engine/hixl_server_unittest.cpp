@@ -19,7 +19,7 @@ static constexpr uint32_t kMemAddr1 = 0x1000;
 static constexpr uint32_t kMemAddr2 = 0x1080;  // Overlaps
 static constexpr uint32_t kMemAddr3 = 0x1100;  // No overlap
 static constexpr uint32_t kMemLen = 0x100;
-static constexpr uint32_t kPort = 16000;
+static constexpr uint32_t kPort = 26390;
 
 class HixlServerTest : public ::testing::Test {
  protected:

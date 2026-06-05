@@ -9,27 +9,14 @@
 # ----------------------------------------------------------------------------
 
 set(LLM_DATADIST_TEST_FILES
-        channel_manager_unittest.cc
-        channel_msg_handler_unittest.cc
-        channel_pool_unit_test.cc
-        channel_pool_system_test.cc
         test_data_cache_engine.cc
         test_llm_datadist_v2_api.cc
-        test_hixl_api.cc
-        test_adxl_engine_api.cc
         llm_comm_link_manager_unittest.cc
         llm_datadist_v2_api_unittest.cc
         llm_utils_v2_unittest.cc
         data_cache_engine_unittest.cc
         comm_mem_manager_unittest.cc
-        hixl_api_unittest.cc
-        adxl_engine_unittest.cc
-        segment_table_unittest.cc
-        statistic_manager_unittest.cc
         rank_table_generator_unittest.cc
-        buffer_transfer_service_unittest.cc
-        control_msg_handler_unittest.cc
-        control_msg_handler_write_unittest.cc
         transfer_message_limits_unittest.cc
 )
 set(LLM_DATADIST_STUB_SRC_FILES

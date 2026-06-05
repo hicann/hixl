@@ -20,10 +20,10 @@ namespace {
 constexpr int32_t kListenBacklog = 128;
 constexpr int64_t kDefaultSleepTime = 1;
 constexpr uint32_t kMagicNumber = 0xA4B3C2D1;
-}
+}  // namespace
 
 void MsgHandlerPlugin::Initialize() {
-  (void) std::signal(SIGPIPE, SIG_IGN);
+  (void)std::signal(SIGPIPE, SIG_IGN);
 }
 
 ge::Status MsgHandlerPlugin::GetAiFamily(const std::string &ip, int32_t &ai_family) {
@@ -43,8 +43,8 @@ ge::Status MsgHandlerPlugin::GetAiFamily(const std::string &ip, int32_t &ai_fami
   return ge::LLM_PARAM_INVALID;
 }
 
-ge::Status MsgHandlerPlugin::Connect(const std::string &ip, uint32_t port, int32_t &conn_fd,
-                                     int32_t timeout, ge::Status default_err) {
+ge::Status MsgHandlerPlugin::Connect(const std::string &ip, uint32_t port, int32_t &conn_fd, int32_t timeout,
+                                     ge::Status default_err) {
   auto start = std::chrono::high_resolution_clock::now();
   struct ::addrinfo hints;
   struct ::addrinfo *result = nullptr;
@@ -54,67 +54,64 @@ ge::Status MsgHandlerPlugin::Connect(const std::string &ip, uint32_t port, int32
   hints.ai_socktype = SOCK_STREAM;
 
   auto socket_ret = getaddrinfo(ip.c_str(), std::to_string(port).c_str(), &hints, &result);
-  LLM_CHK_BOOL_RET_STATUS(socket_ret == 0,
-                         ge::LLM_PARAM_INVALID,
-                         "Failed to get IP address of peer %s:%u, please check addr and port, "
-                         "socket_ret:%d, error msg:%s, errno:%d",
-                         ip.c_str(), port, socket_ret, strerror(errno), errno);
+  LLM_CHK_BOOL_RET_STATUS(socket_ret == 0, ge::LLM_PARAM_INVALID,
+                          "Failed to get IP address of peer %s:%u, please check addr and port, "
+                          "socket_ret:%d, error msg:%s, errno:%d",
+                          ip.c_str(), port, socket_ret, strerror(errno), errno);
   LLM_MAKE_GUARD(free_addr, ([result]() { freeaddrinfo(result); }));
 
   ge::Status ret = ge::SUCCESS;
-  int32_t err_no = 0; // for last error record
+  int32_t err_no = 0;  // for last error record
   for (rp = result; rp != nullptr; rp = rp->ai_next) {
     ret = DoConnect(rp, conn_fd, err_no, timeout, default_err);
     if (ret == ge::SUCCESS) {
       break;
     }
     LLM_CHK_BOOL_RET_STATUS(!LLMUtils::IsTimeout(start, timeout), ge::LLM_TIMEOUT,
-                           "connect to the peer %s:%u timed out, timeout:%d ms.",
-                           ip.c_str(), port, timeout);
+                            "connect to the peer %s:%u timed out, timeout:%d ms.", ip.c_str(), port, timeout);
   }
   if (ret != ge::SUCCESS) {
-    LLMLOGE(ret, "Failed to connect peer %s:%u, error msg:%s, errno:%d",
-           ip.c_str(), port, strerror(err_no), err_no);
+    LLMLOGE(ret, "Failed to connect peer %s:%u, error msg:%s, errno:%d", ip.c_str(), port, strerror(err_no), err_no);
   }
   return ret;
 }
 
-ge::Status MsgHandlerPlugin::DoConnect(struct ::addrinfo *addr, int32_t &conn_fd, int32_t &err_no,
-                                       int32_t timeout, ge::Status default_err) {
+ge::Status MsgHandlerPlugin::DoConnect(struct ::addrinfo *addr, int32_t &conn_fd, int32_t &err_no, int32_t timeout,
+                                       ge::Status default_err) {
   int32_t on = 1;
-  LLMLOGI("Attempting to create socket with family:%d, type:%d, protocol:%d",
-         addr->ai_family, addr->ai_socktype, addr->ai_protocol);
+  LLMLOGI("Attempting to create socket with family:%d, type:%d, protocol:%d", addr->ai_family, addr->ai_socktype,
+          addr->ai_protocol);
   LLM_DISMISSABLE_GUARD(record_err, ([&err_no]() { err_no = errno; }));
   conn_fd = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
-  LLM_CHK_BOOL_RET_SPECIAL_STATUS(conn_fd == -1, default_err,
-                                 "Try to create socket, error msg:%s, errno:%d", strerror(errno), errno);
+  LLM_CHK_BOOL_RET_SPECIAL_STATUS(conn_fd == -1, default_err, "Try to create socket, error msg:%s, errno:%d",
+                                  strerror(errno), errno);
 
   LLM_DISMISSABLE_GUARD(close_fd, ([conn_fd]() { close(conn_fd); }));
   auto socket_ret = setsockopt(conn_fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
   LLM_CHK_BOOL_RET_SPECIAL_STATUS(socket_ret != 0, default_err,
-                                 "Try to setsockopt(SO_REUSEADDR), socket_ret:%d, error msg:%s, errno:%d",
-                                 socket_ret, strerror(errno), errno);
+                                  "Try to setsockopt(SO_REUSEADDR), socket_ret:%d, error msg:%s, errno:%d", socket_ret,
+                                  strerror(errno), errno);
   constexpr int32_t kTimeInSec = 1000;
   struct timeval socket_timeout;
   socket_timeout.tv_sec = timeout / kTimeInSec;
   socket_timeout.tv_usec = (timeout % kTimeInSec) * kTimeInSec;
-  socket_ret = setsockopt(conn_fd, SOL_SOCKET, SO_RCVTIMEO,  &socket_timeout, sizeof(socket_timeout));
+  socket_ret = setsockopt(conn_fd, SOL_SOCKET, SO_RCVTIMEO, &socket_timeout, sizeof(socket_timeout));
   LLM_CHK_BOOL_RET_SPECIAL_STATUS(socket_ret != 0, default_err,
-                                 "Try to setsockopt(SO_RCVTIMEO), socket_ret:%d, error msg:%s, errno:%d",
-                                 socket_ret, strerror(errno), errno);
+                                  "Try to setsockopt(SO_RCVTIMEO), socket_ret:%d, error msg:%s, errno:%d", socket_ret,
+                                  strerror(errno), errno);
   int32_t flag = 1;
-  socket_ret = setsockopt(conn_fd, IPPROTO_TCP, TCP_NODELAY,  &flag, sizeof(flag));
+  socket_ret = setsockopt(conn_fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
   LLM_CHK_BOOL_RET_SPECIAL_STATUS(socket_ret != 0, default_err,
-                                 "Try to setsockopt(TCP_NODELAY), socket_ret:%d, error msg:%s, errno:%d",
-                                 socket_ret, strerror(errno), errno);
-  socket_ret = setsockopt(conn_fd, SOL_SOCKET, SO_SNDTIMEO,  &socket_timeout, sizeof(socket_timeout));
+                                  "Try to setsockopt(TCP_NODELAY), socket_ret:%d, error msg:%s, errno:%d", socket_ret,
+                                  strerror(errno), errno);
+  socket_ret = setsockopt(conn_fd, SOL_SOCKET, SO_SNDTIMEO, &socket_timeout, sizeof(socket_timeout));
   LLM_CHK_BOOL_RET_SPECIAL_STATUS(socket_ret != 0, default_err,
-                                 "Try to setsockopt(SO_SNDTIMEO), socket_ret:%d, error msg:%s, errno:%d",
-                                 socket_ret, strerror(errno), errno);
+                                  "Try to setsockopt(SO_SNDTIMEO), socket_ret:%d, error msg:%s, errno:%d", socket_ret,
+                                  strerror(errno), errno);
   socket_ret = connect(conn_fd, addr->ai_addr, addr->ai_addrlen);
   LLM_CHK_BOOL_RET_SPECIAL_STATUS(socket_ret != 0, default_err,
-                                 "Try to socket connect, socket_ret:%d, error msg:%s, errno:%d",
-                                 socket_ret, strerror(errno), errno);
+                                  "Try to socket connect, socket_ret:%d, error msg:%s, errno:%d", socket_ret,
+                                  strerror(errno), errno);
   LLM_DISMISS_GUARD(close_fd);
   LLM_DISMISS_GUARD(record_err);
   return ge::SUCCESS;
@@ -126,6 +123,7 @@ void MsgHandlerPlugin::Disconnect(int32_t conn_fd) {
 
 void MsgHandlerPlugin::ListenClose() {
   if (listen_fd_ >= 0) {
+    (void)shutdown(listen_fd_, SHUT_RDWR);
     close(listen_fd_);
     listen_fd_ = -1;
   }
@@ -179,20 +177,20 @@ void MsgHandlerPlugin::RegisterConnectedProcess(ConnectedProcess proc) {
 ge::Status MsgHandlerPlugin::DoConnectedProcess(int32_t conn_fd) {
   LLM_DISMISSABLE_GUARD(close_fd, ([conn_fd]() { close(conn_fd); }));
   LLM_CHK_BOOL_RET_STATUS(aclrtSetCurrentContext(aclrt_context_) == ACL_ERROR_NONE, ge::LLM_PARAM_INVALID,
-                         "Set aclrt context failed.");
+                          "Set aclrt context failed.");
   constexpr int32_t kTimeInSec = 60;
   struct timeval timeout;
   timeout.tv_sec = kTimeInSec;
   timeout.tv_usec = 0;
   auto socket_ret = setsockopt(conn_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
   LLM_CHK_BOOL_RET_STATUS(socket_ret == 0, ge::FAILED,
-                         "Failed to setsockopt(SO_RCVTIMEO), socket_ret:%d, error msg:%s, errno:%d",
-                         socket_ret, strerror(errno), errno);
+                          "Failed to setsockopt(SO_RCVTIMEO), socket_ret:%d, error msg:%s, errno:%d", socket_ret,
+                          strerror(errno), errno);
   int32_t flag = 1;
-  socket_ret = setsockopt(conn_fd, IPPROTO_TCP, TCP_NODELAY,  &flag, sizeof(flag));
+  socket_ret = setsockopt(conn_fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
   LLM_CHK_BOOL_RET_SPECIAL_STATUS(socket_ret != 0, ge::FAILED,
-                                 "Try to setsockopt(TCP_NODELAY), socket_ret:%d, error msg:%s, errno:%d",
-                                 socket_ret, strerror(errno), errno);
+                                  "Try to setsockopt(TCP_NODELAY), socket_ret:%d, error msg:%s, errno:%d", socket_ret,
+                                  strerror(errno), errno);
   bool keep_fd = false;
   connected_process_(conn_fd, keep_fd);
   if (keep_fd) {
@@ -201,26 +199,30 @@ ge::Status MsgHandlerPlugin::DoConnectedProcess(int32_t conn_fd) {
   }
   socket_ret = shutdown(conn_fd, SHUT_RDWR);
   LLM_CHK_BOOL_RET_STATUS(socket_ret == 0, ge::FAILED,
-                         "Failed to shutdown conn_fd, connection may be incomplete, "
-                         "socket_ret:%d, error msg:%s, errno:%d",
-                         socket_ret, strerror(errno), errno);
+                          "Failed to shutdown conn_fd, connection may be incomplete, "
+                          "socket_ret:%d, error msg:%s, errno:%d",
+                          socket_ret, strerror(errno), errno);
   // Wait for the client to close the connection
   char byte;
   auto rc = read(conn_fd, &byte, sizeof(byte));
-  LLM_CHK_BOOL_RET_STATUS(rc == 0U,
-                         ge::FAILED, "Failed to wait client close, byte = %d, rc = %zu",
-                         static_cast<int32_t>(byte), static_cast<size_t>(rc));
+  LLM_CHK_BOOL_RET_STATUS(rc == 0U, ge::FAILED, "Failed to wait client close, byte = %d, rc = %zu",
+                          static_cast<int32_t>(byte), static_cast<size_t>(rc));
   return ge::SUCCESS;
 }
 
 ge::Status MsgHandlerPlugin::DoAccept() {
+  if (!listener_running_ || listen_fd_ < 0) {
+    return ge::SUCCESS;
+  }
   struct sockaddr_storage addr;
   socklen_t addr_len = sizeof(addr);
   auto conn_fd = accept(listen_fd_, reinterpret_cast<sockaddr *>(&addr), &addr_len);
   if (conn_fd < 0) {
+    if (!listener_running_) {
+      return ge::SUCCESS;
+    }
     LLM_CHK_BOOL_RET_STATUS(errno == EWOULDBLOCK || errno == EINTR || errno == ECONNABORTED, ge::FAILED,
-                           "Failed to accept, error msg=%s, errno=%d",
-                           strerror(errno), errno);
+                            "Failed to accept, error msg=%s, errno=%d", strerror(errno), errno);
     return ge::SUCCESS;
   }
   LLM_DISMISSABLE_GUARD(close_fd, ([conn_fd]() { close(conn_fd); }));
@@ -235,21 +237,21 @@ ge::Status MsgHandlerPlugin::DoAccept() {
 ge::Status MsgHandlerPlugin::SockAddrInit(const std::string &ip, uint32_t listen_port, int32_t ai_family,
                                           struct sockaddr_storage &server_addr, socklen_t &addr_len) {
   if (ai_family == AF_INET) {
-    struct sockaddr_in* ipv4_addr = reinterpret_cast<struct sockaddr_in*>(&server_addr);
+    struct sockaddr_in *ipv4_addr = reinterpret_cast<struct sockaddr_in *>(&server_addr);
     (void)memset_s(ipv4_addr, sizeof(*ipv4_addr), 0, sizeof(*ipv4_addr));
     ipv4_addr->sin_family = AF_INET;
     ipv4_addr->sin_port = htons(listen_port);
-    (void) inet_pton(AF_INET, ip.c_str(), &ipv4_addr->sin_addr);
+    (void)inet_pton(AF_INET, ip.c_str(), &ipv4_addr->sin_addr);
     addr_len = sizeof(*ipv4_addr);
   } else {
-    struct sockaddr_in6* ipv6_addr = reinterpret_cast<struct sockaddr_in6*>(&server_addr);
+    struct sockaddr_in6 *ipv6_addr = reinterpret_cast<struct sockaddr_in6 *>(&server_addr);
     (void)memset_s(ipv6_addr, sizeof(*ipv6_addr), 0, sizeof(*ipv6_addr));
     ipv6_addr->sin6_family = AF_INET6;
     ipv6_addr->sin6_port = htons(listen_port);
-    (void) inet_pton(AF_INET6, ip.c_str(), &ipv6_addr->sin6_addr);
+    (void)inet_pton(AF_INET6, ip.c_str(), &ipv6_addr->sin6_addr);
     addr_len = sizeof(*ipv6_addr);
     int v6only = 1;
-    (void) setsockopt(listen_fd_, IPPROTO_IPV6, IPV6_V6ONLY, &v6only, sizeof(v6only));
+    (void)setsockopt(listen_fd_, IPPROTO_IPV6, IPV6_V6ONLY, &v6only, sizeof(v6only));
   }
   return ge::SUCCESS;
 }
@@ -264,28 +266,26 @@ ge::Status MsgHandlerPlugin::StartDaemon(const std::string &ip, uint32_t listen_
 
   struct sockaddr_storage server_addr;
   socklen_t addr_len;
-  LLM_CHK_STATUS_RET(SockAddrInit(ip, listen_port, ai_family, server_addr, addr_len),
-                     "Failed to init sockaddr, ip:%s", ip.c_str());
+  LLM_CHK_STATUS_RET(SockAddrInit(ip, listen_port, ai_family, server_addr, addr_len), "Failed to init sockaddr, ip:%s",
+                     ip.c_str());
 
   struct timeval timeout;
   timeout.tv_sec = 1;
   timeout.tv_usec = 0;
   auto socket_ret = setsockopt(listen_fd_, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
   LLM_CHK_BOOL_RET_STATUS(socket_ret == 0, ge::FAILED,
-                         "Failed to set socket opt timeout, socket_ret:%d, error msg:%s, errno:%d",
-                         socket_ret, strerror(errno), errno);
+                          "Failed to set socket opt timeout, socket_ret:%d, error msg:%s, errno:%d", socket_ret,
+                          strerror(errno), errno);
   int32_t on = 1;
   socket_ret = setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
   LLM_CHK_BOOL_RET_STATUS(socket_ret == 0, ge::FAILED,
-                         "Failed to set socket opt SO_REUSEADDR, socket_ret:%d, error msg:%s, errno:%d",
-                         socket_ret, strerror(errno), errno);
-  LLM_CHK_BOOL_RET_STATUS(bind(listen_fd_, reinterpret_cast<sockaddr *>(&server_addr),
-                               addr_len) >= 0,
-                         ge::FAILED, "Failed to bind port:%u, error msg:%s, errno:%d.",
-                         listen_port, strerror(errno), errno);
+                          "Failed to set socket opt SO_REUSEADDR, socket_ret:%d, error msg:%s, errno:%d", socket_ret,
+                          strerror(errno), errno);
+  LLM_CHK_BOOL_RET_STATUS(bind(listen_fd_, reinterpret_cast<sockaddr *>(&server_addr), addr_len) >= 0, ge::FAILED,
+                          "Failed to bind port:%u, error msg:%s, errno:%d.", listen_port, strerror(errno), errno);
   socket_ret = listen(listen_fd_, kListenBacklog);
   LLM_CHK_BOOL_RET_STATUS(socket_ret == 0, ge::FAILED, "Failed to listen, socket_ret:%d, error msg:%s, errno:%d",
-                         socket_ret, strerror(errno), errno);
+                          socket_ret, strerror(errno), errno);
   constexpr uint32_t kThreadPoolSize = 16U;
   thread_pool_ = MakeUnique<LLMThreadPool>("ge_llm_mhp", kThreadPoolSize);
   LLM_CHECK_NOTNULL(thread_pool_);
@@ -293,7 +293,7 @@ ge::Status MsgHandlerPlugin::StartDaemon(const std::string &ip, uint32_t listen_
   listener_ = std::thread([this]() {
     while (listener_running_) {
       auto ret = DoAccept();
-      if (ret != ge::SUCCESS) {
+      if (ret != ge::SUCCESS && listener_running_) {
         std::this_thread::sleep_for(std::chrono::seconds(kDefaultSleepTime));
       }
     }
@@ -312,45 +312,43 @@ ge::Status MsgHandlerPlugin::SendMsg(int32_t fd, int32_t msg_type, const std::st
   uint64_t length = msg_str.size() + sizeof(msg_type);
   len = Write(fd, &length, sizeof(length));
   LLM_CHK_BOOL_RET_STATUS(len == static_cast<ssize_t>(sizeof(length)), ge::FAILED,
-                         "Failed to send msg len:%zu, expect write len:%zu, actually write len:%zd",
-                         length, sizeof(length), len);
+                          "Failed to send msg len:%zu, expect write len:%zu, actually write len:%zd", length,
+                          sizeof(length), len);
   len = Write(fd, &msg_type, sizeof(msg_type));
-  LLM_CHK_BOOL_RET_STATUS(len == static_cast<ssize_t>(sizeof(msg_type)),
-                         ge::FAILED, "Failed to send msg type:%d, expect write len:%zu, actually write len:%zd",
-                         msg_type, sizeof(msg_type), len);
+  LLM_CHK_BOOL_RET_STATUS(len == static_cast<ssize_t>(sizeof(msg_type)), ge::FAILED,
+                          "Failed to send msg type:%d, expect write len:%zu, actually write len:%zd", msg_type,
+                          sizeof(msg_type), len);
   len = Write(fd, msg_str.c_str(), msg_str.size());
-  LLM_CHK_BOOL_RET_STATUS(len == static_cast<ssize_t>(msg_str.size()),
-                         ge::FAILED, "Failed to send msg:%s, expect write len:%zu, actually write len:%zd",
-                         msg_str.c_str(), msg_str.size(), len);
+  LLM_CHK_BOOL_RET_STATUS(len == static_cast<ssize_t>(msg_str.size()), ge::FAILED,
+                          "Failed to send msg:%s, expect write len:%zu, actually write len:%zd", msg_str.c_str(),
+                          msg_str.size(), len);
   return ge::SUCCESS;
 }
 
 ge::Status MsgHandlerPlugin::RecvMsg(int32_t fd, int32_t &msg_type, std::vector<char> &msg) {
   uint32_t magic_number = 0U;
   auto n = Read(fd, &magic_number, sizeof(magic_number));
-  LLM_CHK_BOOL_RET_STATUS(n == static_cast<ssize_t>(sizeof(magic_number)),
-                          ge::FAILED, "Failed to recv magic num len:%zd, expect len:%zu", n, sizeof(magic_number));
-  LLM_CHK_BOOL_RET_STATUS(magic_number == kMagicNumber,
-                          ge::FAILED, "Failed to check recv magic num:%u", magic_number);
+  LLM_CHK_BOOL_RET_STATUS(n == static_cast<ssize_t>(sizeof(magic_number)), ge::FAILED,
+                          "Failed to recv magic num len:%zd, expect len:%zu", n, sizeof(magic_number));
+  LLM_CHK_BOOL_RET_STATUS(magic_number == kMagicNumber, ge::FAILED, "Failed to check recv magic num:%u", magic_number);
   const static size_t kMaxLength = 1ULL << 20;
   uint64_t length = 0;
   n = Read(fd, &length, sizeof(length));
-  LLM_CHK_BOOL_RET_STATUS(n == static_cast<ssize_t>(sizeof(length)),
-                         ge::FAILED, "Failed to recv msg len:%zd, expect len:%zu", n, sizeof(length));
-  LLM_CHK_BOOL_RET_STATUS(length <= kMaxLength && length >= sizeof(int32_t),
-                         ge::FAILED, "Failed to check msg len:%lu, must in range: [%zu, %zu]",
-                         length, sizeof(int32_t), kMaxLength);
+  LLM_CHK_BOOL_RET_STATUS(n == static_cast<ssize_t>(sizeof(length)), ge::FAILED,
+                          "Failed to recv msg len:%zd, expect len:%zu", n, sizeof(length));
+  LLM_CHK_BOOL_RET_STATUS(length <= kMaxLength && length >= sizeof(int32_t), ge::FAILED,
+                          "Failed to check msg len:%lu, must in range: [%zu, %zu]", length, sizeof(int32_t),
+                          kMaxLength);
   int32_t type = 0;
   n = Read(fd, &type, sizeof(type));
-  LLM_CHK_BOOL_RET_STATUS(n == static_cast<ssize_t>(sizeof(type)),
-                         ge::FAILED, "Failed to recv msg type len:%zd, expect len:%zu", n, sizeof(type));
+  LLM_CHK_BOOL_RET_STATUS(n == static_cast<ssize_t>(sizeof(type)), ge::FAILED,
+                          "Failed to recv msg type len:%zd, expect len:%zu", n, sizeof(type));
   msg_type = type;
   size_t msg_len = static_cast<size_t>(length) - sizeof(int32_t);
   msg.resize(msg_len + 1U);
   n = Read(fd, msg.data(), msg_len);
-  LLM_CHK_BOOL_RET_STATUS(n == static_cast<ssize_t>(msg_len),
-                         ge::FAILED, "Failed to check recv msg type:%d, recv msg len:%zd, expect len:%zu",
-                         type, n, msg_len);
+  LLM_CHK_BOOL_RET_STATUS(n == static_cast<ssize_t>(msg_len), ge::FAILED,
+                          "Failed to check recv msg type:%d, recv msg len:%zd, expect len:%zu", type, n, msg_len);
   msg[msg_len] = '\0';
   return ge::SUCCESS;
 }
@@ -362,9 +360,11 @@ MsgHandlerPlugin::~MsgHandlerPlugin() {
 }
 
 void MsgHandlerPlugin::Finalize() {
-  ListenClose();
   if (listener_running_) {
     listener_running_ = false;
+  }
+  ListenClose();
+  if (listener_.joinable()) {
     listener_.join();
   }
 }

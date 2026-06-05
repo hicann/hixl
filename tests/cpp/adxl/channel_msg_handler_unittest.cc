@@ -27,8 +27,8 @@
 
 namespace adxl {
 namespace {
-constexpr char kListenInfo[] = "127.0.0.1:26000";
-constexpr char kRemoteEngine[] = "127.0.0.1:26001";
+constexpr char kListenInfo[] = "127.0.0.1:28100";
+constexpr char kRemoteEngine[] = "127.0.0.1:28101";
 constexpr char kRemoteCommRes[] = "remote_comm_res";
 constexpr int32_t kTimeoutMs = 1000;
 constexpr uintptr_t kRemoteAddrStart = 0x1234U;
@@ -176,7 +176,6 @@ TEST_F(ChannelMsgHandlerUnitTest, ProcessServerEviction_WhenClientReturnsError_L
   // Create a thread that will simulate receiving a disconnect response with error
   // This needs to happen AFTER ProcessServerEviction sends the request
   std::thread response_thread([this, req_id]() {
-
     // Now inject the response
     std::lock_guard<std::mutex> lock(handler_->pending_req_mutex_);
     auto it = handler_->pending_disconnect_requests_.find(req_id);

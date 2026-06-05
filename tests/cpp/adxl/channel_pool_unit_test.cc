@@ -11,6 +11,8 @@
 #include <gtest/gtest.h>
 #include <thread>
 #include <chrono>
+#include <cstdint>
+#include <string>
 #include <vector>
 #include <atomic>
 #include <algorithm>
@@ -24,10 +26,21 @@
 #include "depends/mmpa/src/mmpa_stub.h"
 
 namespace adxl {
+namespace {
+constexpr char kLoopbackPrefix[] = "127.0.0.1:";
+constexpr char kChannelPoolListenInfo[] = "127.0.0.1:26170";
+constexpr uint32_t kClientChannelBasePort = 26180U;
+constexpr uint32_t kServerChannelBasePort = 26190U;
+
+std::string BuildChannelId(uint32_t port) {
+  return std::string(kLoopbackPrefix) + std::to_string(port);
+}
+}  // namespace
+
 class MockChannelMsgHandler : public ChannelMsgHandler {
  public:
   explicit MockChannelMsgHandler(const std::string &listen_info, ChannelManager *channel_manager)
-      : ChannelMsgHandler(listen_info, channel_manager){};
+      : ChannelMsgHandler(listen_info, channel_manager) {};
 
   ~MockChannelMsgHandler() = default;
 
@@ -54,8 +67,7 @@ class ChannelPoolUnitTest : public ::testing::Test {
     channel_manager_ = std::make_unique<ChannelManager>();
     Status ret = channel_manager_->Initialize(buffer_transfer_service_.get());
     ASSERT_EQ(ret, SUCCESS) << "Failed to initialize ChannelManager";
-    std::string listen_info = "127.0.0.1:20000";
-    channel_msg_handler_ = std::make_unique<MockChannelMsgHandler>(listen_info, channel_manager_.get());
+    channel_msg_handler_ = std::make_unique<MockChannelMsgHandler>(kChannelPoolListenInfo, channel_manager_.get());
     // Enable channel pool by calling SetUserChannelPoolConfig
     channel_msg_handler_->SetUserChannelPoolConfig();
     // set high waterline to 8
@@ -84,10 +96,10 @@ class ChannelPoolUnitTest : public ::testing::Test {
 
   void CreateChannels(int count, ChannelType channel_type = ChannelType::kClient) {
     for (int i = 0; i < count; i++) {
-      std::string channel_id =
-          channel_type == ChannelType::kClient
-              ? "127.0.0.1:" + std::to_string(20000 + channel_manager_->GetAllClientChannel().size())
-              : "127.0.0.1:" + std::to_string(26000 + channel_manager_->GetAllServerChannel().size());
+      const auto channel_port = channel_type == ChannelType::kClient
+                                    ? kClientChannelBasePort + channel_manager_->GetAllClientChannel().size()
+                                    : kServerChannelBasePort + channel_manager_->GetAllServerChannel().size();
+      std::string channel_id = BuildChannelId(channel_port);
 
       ChannelInfo channel_info{};
       channel_info.channel_type = channel_type;
@@ -197,11 +209,11 @@ TEST_F(ChannelPoolUnitTest, TestChannelEvictionByCreateTime) {
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
   // current channel count should be 5
   EXPECT_EQ(GetCurrentChannelCount(), 5);
-  EXPECT_FALSE(ChannelExists("127.0.0.1:20000", ChannelType::kClient));
-  EXPECT_FALSE(ChannelExists("127.0.0.1:20001", ChannelType::kClient));
-  EXPECT_FALSE(ChannelExists("127.0.0.1:20002", ChannelType::kClient));
-  EXPECT_FALSE(ChannelExists("127.0.0.1:20003", ChannelType::kClient));
-  EXPECT_TRUE(ChannelExists("127.0.0.1:20004", ChannelType::kClient));
+  EXPECT_FALSE(ChannelExists(BuildChannelId(kClientChannelBasePort), ChannelType::kClient));
+  EXPECT_FALSE(ChannelExists(BuildChannelId(kClientChannelBasePort + 1U), ChannelType::kClient));
+  EXPECT_FALSE(ChannelExists(BuildChannelId(kClientChannelBasePort + 2U), ChannelType::kClient));
+  EXPECT_FALSE(ChannelExists(BuildChannelId(kClientChannelBasePort + 3U), ChannelType::kClient));
+  EXPECT_TRUE(ChannelExists(BuildChannelId(kClientChannelBasePort + 4U), ChannelType::kClient));
 }
 
 TEST_F(ChannelPoolUnitTest, TestClientEvictionByTransferFlag) {
@@ -219,7 +231,7 @@ TEST_F(ChannelPoolUnitTest, TestClientEvictionByTransferFlag) {
     EXPECT_TRUE(std::find(current_channels.begin(), current_channels.end(), channel_id) != current_channels.end());
   }
 
-  ChannelPtr trans_channel = channel_manager_->GetChannel(ChannelType::kClient, "127.0.0.1:20000");
+  ChannelPtr trans_channel = channel_manager_->GetChannel(ChannelType::kClient, BuildChannelId(kClientChannelBasePort));
   trans_channel->SetHasTransferred(true);
   // create 1 client channel
   CreateChannels(1, ChannelType::kClient);
@@ -234,11 +246,11 @@ TEST_F(ChannelPoolUnitTest, TestClientEvictionByTransferFlag) {
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
   // current channel count should be 5
   EXPECT_EQ(GetCurrentChannelCount(), 5);
-  EXPECT_TRUE(ChannelExists("127.0.0.1:20000", ChannelType::kClient));
-  EXPECT_FALSE(ChannelExists("127.0.0.1:20001", ChannelType::kClient));
-  EXPECT_FALSE(ChannelExists("127.0.0.1:20002", ChannelType::kClient));
-  EXPECT_FALSE(ChannelExists("127.0.0.1:20003", ChannelType::kClient));
-  EXPECT_FALSE(ChannelExists("127.0.0.1:20004", ChannelType::kClient));
+  EXPECT_TRUE(ChannelExists(BuildChannelId(kClientChannelBasePort), ChannelType::kClient));
+  EXPECT_FALSE(ChannelExists(BuildChannelId(kClientChannelBasePort + 1U), ChannelType::kClient));
+  EXPECT_FALSE(ChannelExists(BuildChannelId(kClientChannelBasePort + 2U), ChannelType::kClient));
+  EXPECT_FALSE(ChannelExists(BuildChannelId(kClientChannelBasePort + 3U), ChannelType::kClient));
+  EXPECT_FALSE(ChannelExists(BuildChannelId(kClientChannelBasePort + 4U), ChannelType::kClient));
 }
 
 TEST_F(ChannelPoolUnitTest, TestMixChannelStrategy) {
@@ -259,7 +271,7 @@ TEST_F(ChannelPoolUnitTest, TestMixChannelStrategy) {
     EXPECT_TRUE(std::find(current_channels.begin(), current_channels.end(), channel_id) != current_channels.end());
   }
 
-  ChannelPtr trans_channel = channel_manager_->GetChannel(ChannelType::kClient, "127.0.0.1:20000");
+  ChannelPtr trans_channel = channel_manager_->GetChannel(ChannelType::kClient, BuildChannelId(kClientChannelBasePort));
   trans_channel->IncrementTransferCount();
   // select 9 candiadates for evcition
   std::vector<EvictItem> candidates = channel_msg_handler_->SelectEvictionCandidates(9);
@@ -269,10 +281,10 @@ TEST_F(ChannelPoolUnitTest, TestMixChannelStrategy) {
   }
   // should left 1 channel which has transfer task
   EXPECT_EQ(GetCurrentChannelCount(), 1);
-  EXPECT_TRUE(ChannelExists("127.0.0.1:20000", ChannelType::kClient));
-  EXPECT_FALSE(ChannelExists("127.0.0.1:20001", ChannelType::kClient));
-  EXPECT_FALSE(ChannelExists("127.0.0.1:20002", ChannelType::kClient));
-  EXPECT_FALSE(ChannelExists("127.0.0.1:26000", ChannelType::kServer));
+  EXPECT_TRUE(ChannelExists(BuildChannelId(kClientChannelBasePort), ChannelType::kClient));
+  EXPECT_FALSE(ChannelExists(BuildChannelId(kClientChannelBasePort + 1U), ChannelType::kClient));
+  EXPECT_FALSE(ChannelExists(BuildChannelId(kClientChannelBasePort + 2U), ChannelType::kClient));
+  EXPECT_FALSE(ChannelExists(BuildChannelId(kServerChannelBasePort), ChannelType::kServer));
 
   // left 1 client channel
   EXPECT_EQ(channel_manager_->GetAllClientChannel().size(), 1);
@@ -289,8 +301,8 @@ TEST_F(ChannelPoolUnitTest, TestSelectClientEvictionCandidates) {
   // create 2 server channels
   CreateChannels(2, ChannelType::kServer);
 
-  channel_manager_->GetChannel(ChannelType::kClient, "127.0.0.1:20000")->SetHasTransferred(true);
-  channel_manager_->GetChannel(ChannelType::kServer, "127.0.0.1:26000")->SetHasTransferred(true);
+  channel_manager_->GetChannel(ChannelType::kClient, BuildChannelId(kClientChannelBasePort))->SetHasTransferred(true);
+  channel_manager_->GetChannel(ChannelType::kServer, BuildChannelId(kServerChannelBasePort))->SetHasTransferred(true);
   // select 5 candidates
   std::vector<EvictItem> candidates = channel_msg_handler_->SelectEvictionCandidates(5);
   // get 5 candidates
@@ -356,9 +368,9 @@ TEST_F(ChannelPoolUnitTest, TestMixEvictionCandidates) {
   CreateChannels(3, ChannelType::kClient);
   // set transferflag for 3 server and client channels
   for (int i = 0; i < 3; i++) {
-    std::string client_id = "127.0.0.1:2000" + std::to_string(i);
+    std::string client_id = BuildChannelId(kClientChannelBasePort + i);
     channel_manager_->GetChannel(ChannelType::kClient, client_id)->SetHasTransferred(true);
-    std::string server_id = "127.0.0.1:2600" + std::to_string(i);
+    std::string server_id = BuildChannelId(kServerChannelBasePort + i);
     channel_manager_->GetChannel(ChannelType::kServer, server_id)->SetHasTransferred(false);
   }
   // select 4 candidates
@@ -406,7 +418,7 @@ TEST_F(ChannelPoolUnitTest, TestTransferCompletionDuringEviction) {
   CreateChannels(8, ChannelType::kClient);
   EXPECT_TRUE(channel_msg_handler_->ShouldTriggerEviction());
 
-  std::string channel_id = "127.0.0.1:20000";
+  std::string channel_id = BuildChannelId(kClientChannelBasePort);
   ChannelPtr channel = channel_manager_->GetChannel(ChannelType::kClient, channel_id);
   channel->IncrementTransferCount();
 
