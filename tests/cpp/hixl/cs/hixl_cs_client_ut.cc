@@ -685,6 +685,88 @@ TEST_F(HixlCSClientUT, CreateFailNullDstEndpoint) {
   EXPECT_NE(client_.Create(&desc, &config), SUCCESS);
 }
 
+TEST_F(HixlCSClientUT, CreateFailInvalidJsonConfig) {
+  port_ = kPort;
+  HixlClientConfig config{};
+  config.global_resource_config = "{invalid json";
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientHandle handle = nullptr;
+  EXPECT_NE(HixlCSClientCreate(&desc, &config, &handle), HIXL_SUCCESS);
+}
+
+TEST_F(HixlCSClientUT, CreateFailListenPortZero) {
+  port_ = kPort;
+  HixlClientConfig config{};
+  config.global_resource_config = R"({"comm_resource_config.listen_port":0})";
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientHandle handle = reinterpret_cast<HixlClientHandle>(&client_);
+  EXPECT_EQ(HixlCSClientCreate(&desc, &config, &handle), HIXL_PARAM_INVALID);
+  EXPECT_EQ(handle, nullptr);
+}
+
+TEST_F(HixlCSClientUT, CreateFailListenPortNegative) {
+  port_ = kPort;
+  HixlClientConfig config{};
+  config.global_resource_config = R"({"comm_resource_config.listen_port":-1})";
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientHandle handle = reinterpret_cast<HixlClientHandle>(&client_);
+  EXPECT_EQ(HixlCSClientCreate(&desc, &config, &handle), HIXL_PARAM_INVALID);
+  EXPECT_EQ(handle, nullptr);
+}
+
+TEST_F(HixlCSClientUT, CreateFailListenPortOutOfRange) {
+  port_ = kPort;
+  HixlClientConfig config{};
+  config.global_resource_config = R"({"comm_resource_config.listen_port":65536})";
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientHandle handle = reinterpret_cast<HixlClientHandle>(&client_);
+  EXPECT_EQ(HixlCSClientCreate(&desc, &config, &handle), HIXL_PARAM_INVALID);
+  EXPECT_EQ(handle, nullptr);
+}
+
+TEST_F(HixlCSClientUT, CreateSuccessWithListenPort) {
+  port_ = kPort;
+  HixlClientConfig config{};
+  config.global_resource_config = R"({"comm_resource_config.listen_port":65535})";
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  EXPECT_EQ(client_.Create(&desc, &config), SUCCESS);
+  EXPECT_TRUE(client_.global_config_.ListenPort().has_value());
+  EXPECT_EQ(client_.global_config_.ListenPort().value(), 65535U);
+}
+
+TEST_F(HixlCSClientUT, CreateSuccessNullConfig) {
+  port_ = kPort;
+  HixlClientConfig config{};
+  config.global_resource_config = nullptr;
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  EXPECT_EQ(client_.Create(&desc, &config), SUCCESS);
+  EXPECT_FALSE(client_.global_config_.ListenPort().has_value());
+}
+
 TEST_F(HixlCSClientUT, ConnectFailWithoutCreate) {
   EXPECT_NE(client_.Connect(kConnectTime), SUCCESS);
 }

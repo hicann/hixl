@@ -241,6 +241,38 @@ TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigProtocolDesc) {
   ASSERT_TRUE(grc.comm_resource_config.protocol_desc.has_value());
   EXPECT_EQ(grc.comm_resource_config.protocol_desc->size(), 1U);
   EXPECT_EQ((*grc.comm_resource_config.protocol_desc)[0], "uboe:device");
+  ASSERT_EQ(result.GetProtocolDesc().size(), 1U);
+  EXPECT_EQ(result.GetProtocolDesc()[0], "uboe:device");
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigProtocolDescString) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
+      R"({"comm_resource_config.protocol_desc":"roce:device"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.GlobalResourceCfg().has_value());
+  auto grc = *result.GlobalResourceCfg();
+  ASSERT_TRUE(grc.comm_resource_config.protocol_desc.has_value());
+  ASSERT_EQ(grc.comm_resource_config.protocol_desc->size(), 1U);
+  EXPECT_EQ((*grc.comm_resource_config.protocol_desc)[0], "roce:device");
+  ASSERT_EQ(result.GetProtocolDesc().size(), 1U);
+  EXPECT_EQ(result.GetProtocolDesc()[0], "roce:device");
+}
+
+TEST_F(HixlOptionsUTest, GetProtocolDescReturnsEmptyWhenNotConfigured) {
+  std::map<AscendString, AscendString> options;
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  EXPECT_TRUE(result.GetProtocolDesc().empty());
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigProtocolDescInvalidType) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
+      R"({"comm_resource_config.protocol_desc":123})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigInvalidJson) {

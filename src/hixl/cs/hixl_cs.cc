@@ -17,16 +17,17 @@
 #include "hixl_cs_server.h"
 #include "hixl_cs_client.h"
 
-HixlStatus HixlCSServerCreate(const HixlServerDesc *server_desc,
-                              const HixlServerConfig *config, HixlServerHandle *server_handle) {
+HixlStatus HixlCSServerCreate(const HixlServerDesc *server_desc, const HixlServerConfig *config,
+                              HixlServerHandle *server_handle) {
   HIXL_CHECK_NOTNULL(server_handle);
   HIXL_CHECK_NOTNULL(server_desc);
+  HIXL_CHECK_NOTNULL(config);
   auto server = new (std::nothrow) hixl::HixlCSServer(server_desc->server_ip, server_desc->server_port);
   HIXL_CHECK_NOTNULL(server);
   HIXL_DISMISSABLE_GUARD(rollback, ([server]() { delete server; }));
-  HIXL_CHK_STATUS_RET(server->Initialize(server_desc->endpoint_list, server_desc->endpoint_list_num, config),
-                      "Failed to init hixl cs server, ip:%s, port:%u",
-                      server_desc->server_ip, server_desc->server_port);
+  HIXL_CHK_STATUS_RET(server->Initialize(server_desc->endpoint_list, server_desc->endpoint_list_num),
+                      "Failed to init hixl cs server, ip:%s, port:%u", server_desc->server_ip,
+                      server_desc->server_port);
   HIXL_DISMISS_GUARD(rollback);
   *server_handle = server;
   HIXL_EVENT("[HixlCSServer] create server success, server_handle:%p", *server_handle);
@@ -68,6 +69,7 @@ HixlStatus HixlCSServerListen(HixlServerHandle server_handle, uint32_t backlog) 
 HixlStatus HixlCSClientCreate(const HixlClientDesc *client_desc, const HixlClientConfig *config,
                               HixlClientHandle *client_handle) {
   HIXL_CHECK_NOTNULL(client_handle);
+  *client_handle = nullptr;
   HIXL_CHECK_NOTNULL(client_desc);
   HIXL_CHECK_NOTNULL(client_desc->server_ip);
   HIXL_CHECK_NOTNULL(client_desc->local_endpoint);
@@ -174,7 +176,7 @@ HixlStatus HixlCSClientBatchPutSync(HixlClientHandle client_handle, uint32_t lis
 }
 
 HixlStatus HixlCSClientBatchGetSync(HixlClientHandle client_handle, uint32_t list_num,
-                                     const HixlOneSideOpDesc *desc_list, uint32_t timeout_ms) {
+                                    const HixlOneSideOpDesc *desc_list, uint32_t timeout_ms) {
   HIXL_CHECK_NOTNULL(client_handle);
   if (list_num > 0) {
     HIXL_CHECK_NOTNULL(desc_list);
@@ -240,4 +242,4 @@ HixlStatus HixlCSServerRegProc(HixlServerHandle server_handle, hixl::CtrlMsgType
                       static_cast<int32_t>(msg_type));
   return HIXL_SUCCESS;
 }
-}
+}  // namespace hixl

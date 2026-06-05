@@ -18,6 +18,7 @@
 #include <securec.h>
 #include <thread>
 #include "acl/acl.h"
+#include "nlohmann/json.hpp"
 #include "hixl/hixl_types.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
@@ -350,6 +351,8 @@ Status HixlCSClient::Create(const HixlClientDesc *client_desc, const HixlClientC
   HIXL_CHECK_NOTNULL(client_desc->local_endpoint);
   HIXL_CHECK_NOTNULL(client_desc->remote_endpoint);
   HIXL_CHECK_NOTNULL(config);
+  HIXL_CHK_STATUS_RET(GlobalConfig::Parse(config->global_resource_config, global_config_),
+                      "[HixlClient] Failed to parse global_resource_config");
   HIXL_EVENT(
       "[HixlClient] Create begin. Server=%s:%u. "
       "SrcEndpoint[Loc:%d, protocol:%d, commAddr.Type:%d, commAddr.id:0x%x], "
@@ -859,6 +862,9 @@ Status HixlCSClient::BatchTransferDeviceAsync(bool is_get, uint32_t list_num, co
   void *handle_ptr = nullptr;
   HIXL_CHK_STATUS_RET(ValidateDeviceInputs(list_num, desc_list, handle_ptr), "ValidateDeviceInputs failed");
 
+  // Serialize the entire device transfer lifecycle to prevent concurrent threads from
+  // sharing the same stream or triggering Abort on it.
+  std::lock_guard<std::mutex> launch_lock(device_launch_mu_);
   std::shared_ptr<TransferPool::SlotHandle> slot;
   HIXL_CHK_STATUS_RET(AcquireSharedSlot(slot), "[HixlClient] AcquireSharedSlot failed");
 
@@ -895,7 +901,6 @@ Status HixlCSClient::BatchTransferDeviceAsync(bool is_get, uint32_t list_num, co
             static_cast<int32_t>(is_get), list_num, handle->shared_slot->slot_index, handle->magic);
 
   {
-    std::lock_guard<std::mutex> lock(device_launch_mu_);
     hixl::TemporaryRtContext ctx_guard(handle->shared_slot->ctx);
     HIXL_CHK_STATUS_RET(LaunchDeviceChunkedKernels(is_get, *handle, list_num), "LaunchDeviceChunkedKernels failed");
     HIXL_CHK_ACL_RET(aclrtMemcpyAsync(handle->host_flag, sizeof(uint64_t), handle->shared_slot->dev_const_one,
@@ -919,6 +924,9 @@ Status HixlCSClient::BatchTransferDeviceSync(bool is_get, uint32_t list_num, con
   void *handle_ptr = nullptr;
   HIXL_CHK_STATUS_RET(ValidateDeviceInputs(list_num, desc_list, handle_ptr), "ValidateDeviceInputs failed");
 
+  // Serialize the entire device transfer lifecycle to prevent concurrent threads from
+  // sharing the same stream or triggering Abort on it.
+  std::lock_guard<std::mutex> launch_lock(device_launch_mu_);
   std::shared_ptr<TransferPool::SlotHandle> slot;
   HIXL_CHK_STATUS_RET(AcquireSharedSlot(slot), "[HixlClient] AcquireSharedSlot failed");
   HIXL_CHECK_NOTNULL(slot->notify, "[HixlClient] slot->notify is null");
@@ -945,7 +953,6 @@ Status HixlCSClient::BatchTransferDeviceSync(bool is_get, uint32_t list_num, con
             list_num, handle->shared_slot->slot_index);
 
   {
-    std::lock_guard<std::mutex> lock(device_launch_mu_);
     hixl::TemporaryRtContext ctx_guard(handle->shared_slot->ctx);
     HIXL_CHK_STATUS_RET(LaunchDeviceChunkedKernels(is_get, *handle, list_num), "LaunchDeviceChunkedKernels failed");
     const aclError sync_ret = aclrtSynchronizeStreamWithTimeout(handle->shared_slot->stream, timeout_ms);
@@ -1165,7 +1172,8 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannelLocked(uint32_t timeout_ms)
       "Src[protocol:%u, type:%u, id:%u], Dst[protocol:%u, type:%u, id:%u]",
       socket_, timeout_ms, src_ep.protocol, src_ep.commAddr.type, src_ep.commAddr.id, remote_endpoint_.protocol,
       remote_endpoint_.commAddr.type, remote_endpoint_.commAddr.id);
-  Status ret = ConnMsgHandler::SendMatchEndpointRequest(socket_, remote_endpoint_);
+  Status ret = ConnMsgHandler::SendMatchEndpointRequest(socket_, remote_endpoint_,
+                                                        global_config_.ListenPort().value_or(0));
   HIXL_CHK_STATUS_RET(ret, "[HixlClient] SendMatchEndpointRequest failed. fd=%d", socket_);
   uint32_t remote_listen_port = 0;
   ret = ConnMsgHandler::RecvMatchEndpointResponse(socket_, remote_endpoint_handle_, remote_listen_port, timeout_ms);

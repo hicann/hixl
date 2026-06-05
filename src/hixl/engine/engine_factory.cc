@@ -10,8 +10,6 @@
 
 #include "engine_factory.h"
 
-#include <algorithm>
-
 #include "nlohmann/json.hpp"
 #include "fabric_mem_engine.h"
 #include "hixl_engine.h"
@@ -22,14 +20,13 @@
 
 namespace hixl {
 namespace {
-bool UseUboe(const HixlOptions &options) {
+bool UseProtocolDesc(const HixlOptions &options) {
   auto grc = options.GlobalResourceCfg();
   if (!grc.has_value()) {
     return false;
   }
   auto desc = grc->comm_resource_config.protocol_desc;
-  return desc.has_value() && !desc->empty() &&
-         std::find(desc->begin(), desc->end(), "uboe:device") != desc->end();
+  return desc.has_value() && !desc->empty();
 }
 }  // namespace
 std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string local_engine,
@@ -44,8 +41,7 @@ std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string local_engi
   if (parsed_options.EnableFabricMem().value_or(false)) {
     return std::make_unique<FabricMemEngine>(AscendString(local_engine.c_str()));
   }
-  bool config_use_uboe = UseUboe(parsed_options);
-  bool use_hixl = config_use_uboe;
+  bool use_hixl = UseProtocolDesc(parsed_options);
   if (!use_hixl) {
     auto lcr = parsed_options.LocalCommRes();
     if (!lcr.has_value() || lcr->empty()) {

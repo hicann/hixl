@@ -360,9 +360,23 @@ TEST_F(HixlCSTest, TestEndpointGetListenPortError) {
   EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
 }
 
+TEST_F(HixlCSTest, TestCreateServerRejectsNullConfig) {
+  HixlServerHandle server_handle = nullptr;
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = kPort;
+  desc.endpoint_list = &default_eps[0];
+  desc.endpoint_list_num = default_eps.size();
+  auto ret = HixlCSServerCreate(&desc, nullptr, &server_handle);
+  EXPECT_EQ(ret, HIXL_PARAM_INVALID);
+  EXPECT_EQ(server_handle, nullptr);
+}
+
 TEST_F(HixlCSTest, TestStructSize) {
   EXPECT_EQ(sizeof(HixlClientDesc), 128) << "HixlClientDesc size should be 128 bytes";
   EXPECT_EQ(sizeof(HixlServerDesc), 128) << "HixlServerDesc size should be 128 bytes";
+  EXPECT_EQ(sizeof(HixlClientConfig), 128) << "HixlClientConfig size should be 128 bytes";
+  EXPECT_EQ(sizeof(HixlServerConfig), 128) << "HixlServerConfig size should be 128 bytes";
 }
 
 TEST_F(HixlCSTest, CtrlMsgPluginSendEpipe) {

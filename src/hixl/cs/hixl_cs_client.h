@@ -26,6 +26,7 @@
 #include "channel.h"
 #include "hixl_mem_store.h"
 #include "transfer_pool.h"
+#include "global_config.h"
 #include "hcomm/hcomm_res_defs.h"
 
 namespace hixl {
@@ -149,6 +150,7 @@ class HixlCSClient {
   EndpointDesc remote_endpoint_{};
   uint8_t tc_{kRdmaTrafficClass};
   uint8_t sl_{kRdmaServiceLevel};
+  GlobalConfig global_config_;
   Channel client_channel_;
   ChannelHandle client_channel_handle_ = 0UL;
   uint64_t remote_endpoint_handle_{0U};

@@ -145,14 +145,15 @@ hixl::Status RecvCreateChannelOnlyResponse(int32_t socket, uint32_t timeout_ms) 
 }
 }  // namespace
 namespace hixl {
-Status ConnMsgHandler::SendMatchEndpointRequest(int32_t socket, const EndpointDesc &dst) {
-  HIXL_EVENT("SendMatchEndpointRequest start. socket: %d", socket);
+Status ConnMsgHandler::SendMatchEndpointRequest(int32_t socket, const EndpointDesc &dst, uint32_t listen_port) {
+  HIXL_EVENT("SendMatchEndpointRequest start. socket: %d, listen_port: %u", socket, listen_port);
   CtrlMsgHeader header{};
   header.magic = kMagicNumber;
   header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(MatchEndpointReq));
   CtrlMsgType msg_type = CtrlMsgType::kMatchEndpointReq;
   MatchEndpointReq body{};
   body.dst = dst;
+  body.listen_port = listen_port;
   Status ret = SendHeaderTypeBody(socket, header, msg_type, &body, static_cast<uint64_t>(sizeof(body)));
   if (ret == SUCCESS) {
     HIXL_EVENT("SendMatchEndpointRequest success.");

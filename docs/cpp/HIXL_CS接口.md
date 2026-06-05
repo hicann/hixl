@@ -55,14 +55,44 @@ struct HixlServerConfig {
 };
 ```
 
+字段说明：
+
+| 字段 | 类型 | 描述 |
+|---|---|---|
+| reserved | uint8_t[128] | Server配置保留字段，用于未来扩展，结构体总大小保持为128字节。 |
+
 ### HixlClientConfig
 
-Client配置保留字段，用于未来扩展。
+Client配置。
 
 ```
 struct HixlClientConfig {
-  uint8_t reserved[128] = {};
+  const char *global_resource_config = nullptr;
+  uint8_t reserved[120] = {};
 };
+```
+
+字段说明：
+
+| 字段 | 类型 | 描述 |
+|---|---|---|
+| global_resource_config | const char* | 全局资源配置，JSON字符串，当前用于配置通信资源参数。可传入NULL或空字符串表示不配置。 |
+| reserved | uint8_t[120] | HixlClientConfig配置保留字段，用于未来扩展，结构体总大小保持为128字节。 |
+
+### global_resource_config配置说明
+
+Client侧`global_resource_config`当前支持的配置项如下。
+
+| 配置项 | 类型 | 是否必选 | 描述 |
+|---|---|---|---|
+| comm_resource_config.listen_port | 整数 | 可选 | 配置CS建链时使用的通信资源监听端口，取值范围为[1, 65535]。Client配置该字段后，会在建链匹配Endpoint阶段将该端口发送给Server；Server收到有效端口后优先使用该端口。未配置时不携带有效端口，Server保持原有自动查询监听端口逻辑；取值不在范围内时，Client创建失败并返回参数错误。 |
+
+配置示例：
+
+```
+{
+  "comm_resource_config.listen_port": 26666
+}
 ```
 
 ### HixlClientDesc
@@ -182,7 +212,7 @@ HixlStatus HixlCSServerCreate(const HixlServerDesc *server_desc,
 | 参数名 | 输入/输出 | 描述 |
 | --- | --- | --- |
 | server_desc | 输入 | Server 描述信息，包含侦听 IP/端口与端点列表。 |
-| config | 输入 | server配置，预留配置，暂未使用。 |
+| config | 输入 | Server配置，保留字段，用于未来扩展，不支持传入NULL。 |
 | server_handle | 输出 | 返回创建的 HixlServerHandle。 |
 
 **返回值**
@@ -341,7 +371,7 @@ HixlStatus HixlCSClientCreate(const HixlClientDesc *client_desc,
 | 参数名 | 输入/输出 | 描述 |
 | --- | --- | --- |
 | client_desc | 输入 | Client 描述，包含 server IP/port 与端点。 |
-| config | 输入 | client配置，预留配置，暂未使用。 |
+| config | 输入 | Client配置，不支持传入NULL；如需配置通信资源参数，填写 `HixlClientConfig.global_resource_config`。 |
 | client_handle | 输出 | 返回创建的客户端句柄。 |
 
 **返回值**
@@ -708,7 +738,7 @@ HixlStatus HixlCSClientDestroy(HixlClientHandle client_handle);
 
 4. Client 流程：
 
-- 构造 `HixlClientDesc` 与 `HixlClientConfig`。
+- 构造 `HixlClientDesc` 与 `HixlClientConfig`，如需指定通信资源监听端口，在 `global_resource_config` 中配置 `comm_resource_config.listen_port`。
 - 调用 `HixlCSClientCreate` 创建 `HixlClientHandle`。
 - 准备本端 `CommMem` 并通过 `HixlCSClientRegMem` 注册（保存 `MemHandle`）。
 - 调用 `HixlCSClientConnect` 建链（阻塞或等待超时），确保Server处于侦听状态。
@@ -725,8 +755,13 @@ HixlStatus HixlCSClientDestroy(HixlClientHandle client_handle);
 ```c
 // --- Server (伪代码) ---
 HixlServerHandle server = NULL;
-HixlServerDesc sdesc = {"0.0.0.0", 12345, &endpoint, 1};
-HixlCSServerCreate(&sdesc, NULL, &server);
+HixlServerDesc sdesc = {};
+HixlServerConfig sconfig = {};
+sdesc.endpoint_list = &endpoint;
+sdesc.server_ip = "0.0.0.0";
+sdesc.server_port = 12345;
+sdesc.endpoint_list_num = 1;
+HixlCSServerCreate(&sdesc, &sconfig, &server);
 
 // 分配并初始化 server 内存（Host 或 Device）
 CommMem server_mem = { .addr = server_buf, .size = size, .type = COMM_MEM_TYPE_DEVICE };
@@ -743,8 +778,14 @@ HixlCSServerDestroy(server);
 
 // --- Client (伪代码) ---
 HixlClientHandle client = NULL;
-HixlClientDesc cdesc = {"server.ip", 12345, &local_ep, &remote_ep};
-HixlCSClientCreate(&cdesc, NULL, &client);
+HixlClientDesc cdesc = {};
+cdesc.local_endpoint = &local_ep;
+cdesc.remote_endpoint = &remote_ep;
+cdesc.server_ip = "server.ip";
+cdesc.server_port = 12345;
+HixlClientConfig cconfig = {};
+cconfig.global_resource_config = "{\"comm_resource_config.listen_port\":26666}";
+HixlCSClientCreate(&cdesc, &cconfig, &client);
 
 // 分配并注册本地内存
 CommMem client_mem = { .addr = client_buf, .size = size, .type = COMM_MEM_TYPE_DEVICE };

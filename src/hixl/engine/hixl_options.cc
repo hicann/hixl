@@ -63,7 +63,12 @@ void from_json(const nlohmann::json &j, ConnectPoolConfig &cfg) {
 
 void from_json(const nlohmann::json &j, CommResourceConfigDesc &cfg) {
   if (j.contains("comm_resource_config.protocol_desc")) {
-    cfg.protocol_desc = j.at("comm_resource_config.protocol_desc").get<std::vector<std::string>>();
+    const auto &protocol_desc = j.at("comm_resource_config.protocol_desc");
+    if (protocol_desc.is_string()) {
+      cfg.protocol_desc = std::vector<std::string>{protocol_desc.get<std::string>()};
+      return;
+    }
+    cfg.protocol_desc = protocol_desc.get<std::vector<std::string>>();
   }
 }
 
@@ -106,6 +111,14 @@ Status HixlOptions::CheckSupportedOptions(const std::unordered_set<std::string> 
         "Unsupported option '%s' for this engine", key.c_str());
   }
   return SUCCESS;
+}
+
+std::vector<std::string> HixlOptions::GetProtocolDesc() const {
+  if (!global_resource_config_.has_value() ||
+      !global_resource_config_->comm_resource_config.protocol_desc.has_value()) {
+    return {};
+  }
+  return *global_resource_config_->comm_resource_config.protocol_desc;
 }
 
 Status HixlOptions::ParseRdmaOptions(const std::map<AscendString, AscendString> &options) {

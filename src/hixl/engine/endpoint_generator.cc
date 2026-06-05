@@ -47,11 +47,6 @@ bool IsIntraRoceEnabled() {
   return std::string(env_ret) == "1";
 }
 
-bool IsUboeProtocolDescEnabled(const std::vector<std::string> &protocol_desc) {
-  return !protocol_desc.empty() &&
-         std::find(protocol_desc.begin(), protocol_desc.end(), kUboeProtocolDesc) != protocol_desc.end();
-}
-
 Status GetUboeIp(std::string &ip) {
   int32_t dev_id = 0;
   HIXL_CHK_ACL_RET(aclrtGetDevice(&dev_id));
@@ -255,6 +250,68 @@ Status ParseEndpointProtocol(const EndpointConfig &endpoint_config, EndpointDesc
   endpoint.protocol = protocol_it->second;
   return SUCCESS;
 }
+
+std::string BuildProtocolDescKey(const std::string &protocol, const std::string &placement) {
+  return protocol + ":" + placement;
+}
+
+bool IsSupportedProtocolDesc(const std::string &protocol, const std::string &placement) {
+  static const std::set<std::string> kSupportedProtocols = {kProtocolRoce, kProtocolHccs, kProtocolUbCtp,
+                                                            kProtocolUbTp, kProtocolUboe};
+  static const std::set<std::string> kSupportedPlacements = {kPlacementHost, kPlacementDevice};
+  return kSupportedProtocols.find(protocol) != kSupportedProtocols.end() &&
+         kSupportedPlacements.find(placement) != kSupportedPlacements.end();
+}
+
+Status ParseProtocolDesc(const std::vector<std::string> &protocol_desc, std::set<std::string> &desc_set) {
+  desc_set.clear();
+  for (const auto &desc : protocol_desc) {
+    const auto split_pos = desc.find(':');
+    if (split_pos == std::string::npos || split_pos == 0U || split_pos + 1U >= desc.size() ||
+        desc.find(':', split_pos + 1U) != std::string::npos) {
+      HIXL_LOGE(PARAM_INVALID, "Invalid protocol_desc: %s, expected format protocol:placement", desc.c_str());
+      return PARAM_INVALID;
+    }
+    const std::string protocol = desc.substr(0, split_pos);
+    const std::string placement = desc.substr(split_pos + 1U);
+    if (!IsSupportedProtocolDesc(protocol, placement)) {
+      HIXL_LOGE(PARAM_INVALID, "Unsupported protocol_desc: %s", desc.c_str());
+      return PARAM_INVALID;
+    }
+    desc_set.insert(BuildProtocolDescKey(protocol, placement));
+  }
+  return SUCCESS;
+}
+
+Status IsProtocolDescMatched(const HixlOptions &options, const std::string &protocol, const std::string &placement,
+                             bool &matched) {
+  std::vector<std::string> protocol_desc = options.GetProtocolDesc();
+  if (protocol_desc.empty()) {
+    matched = true;
+    return SUCCESS;
+  }
+
+  std::set<std::string> desc_set;
+  HIXL_CHK_STATUS_RET(ParseProtocolDesc(protocol_desc, desc_set), "ParseProtocolDesc failed");
+  matched = desc_set.find(BuildProtocolDescKey(protocol, placement)) != desc_set.end();
+  return SUCCESS;
+}
+
+Status IsA5UbAutoGenNeeded(const HixlOptions &options, bool &needed) {
+  if (options.GetProtocolDesc().empty()) {
+    needed = true;
+    return SUCCESS;
+  }
+  bool device_ub_needed = false;
+  bool host_ub_needed = false;
+  HIXL_CHK_STATUS_RET(IsProtocolDescMatched(options, kProtocolUbCtp, kPlacementDevice, device_ub_needed),
+                      "IsProtocolDescMatched failed");
+  HIXL_CHK_STATUS_RET(IsProtocolDescMatched(options, kProtocolUbCtp, kPlacementHost, host_ub_needed),
+                      "IsProtocolDescMatched failed");
+  needed = device_ub_needed || host_ub_needed;
+  return SUCCESS;
+}
+
 }  // namespace
 
 Status EndpointGenerator::ParseEndpointListFromLocalCommRes(const HixlOptions &options,
@@ -279,6 +336,8 @@ Status EndpointGenerator::ParseEndpointListFromLocalCommRes(const HixlOptions &o
       return SUCCESS;
     }
     HIXL_CHK_STATUS_RET(ParseLocalCommRes(config, endpoint_list), "ParseLocalCommRes failed");
+    HIXL_CHK_STATUS_RET(FilterEndpointListByProtocolDesc(options, endpoint_list),
+                        "FilterEndpointListByProtocolDesc failed");
   } catch (const nlohmann::json::exception &e) {
     HIXL_LOGE(PARAM_INVALID, "Parse local_comm_res failed, exception:%s", e.what());
     return PARAM_INVALID;
@@ -290,24 +349,41 @@ Status EndpointGenerator::GenEndpointFromProtocolDesc(const HixlOptions &options
                                                       std::vector<EndpointConfig> &endpoint_list) {
   endpoint_list.clear();
 
-  auto grc = options.GlobalResourceCfg();
-  std::vector<std::string> protocol_desc;
-  if (grc.has_value() && grc->comm_resource_config.protocol_desc.has_value()) {
-    protocol_desc = *grc->comm_resource_config.protocol_desc;
-  }
-
+  std::vector<std::string> protocol_desc = options.GetProtocolDesc();
   if (protocol_desc.empty()) {
     return SUCCESS;
   }
 
-  if (!IsUboeProtocolDescEnabled(protocol_desc)) {
-    HIXL_LOGE(PARAM_INVALID, "Unsupported protocol_desc, currently only support uboe:device");
-    return PARAM_INVALID;
+  std::set<std::string> desc_set;
+  HIXL_CHK_STATUS_RET(ParseProtocolDesc(protocol_desc, desc_set), "ParseProtocolDesc failed");
+
+  if (desc_set.find(kUboeProtocolDesc) != desc_set.end()) {
+    EndpointConfig uboe_endpoint{};
+    HIXL_CHK_STATUS_RET(GenDefaultUboeEndpointConfig(uboe_endpoint), "GenDefaultUboeEndpointConfig failed");
+    endpoint_list.emplace_back(uboe_endpoint);
+  }
+  return SUCCESS;
+}
+
+Status EndpointGenerator::FilterEndpointListByProtocolDesc(const HixlOptions &options,
+                                                           std::vector<EndpointConfig> &endpoint_list) {
+  std::vector<std::string> protocol_desc = options.GetProtocolDesc();
+  if (protocol_desc.empty()) {
+    return SUCCESS;
   }
 
-  EndpointConfig uboe_endpoint{};
-  HIXL_CHK_STATUS_RET(GenDefaultUboeEndpointConfig(uboe_endpoint), "GenDefaultUboeEndpointConfig failed");
-  endpoint_list.emplace_back(uboe_endpoint);
+  std::set<std::string> desc_set;
+  HIXL_CHK_STATUS_RET(ParseProtocolDesc(protocol_desc, desc_set), "ParseProtocolDesc failed");
+  std::vector<EndpointConfig> filtered;
+  filtered.reserve(endpoint_list.size());
+  for (auto &ep : endpoint_list) {
+    if (desc_set.find(BuildProtocolDescKey(ep.protocol, ep.placement)) != desc_set.end()) {
+      filtered.emplace_back(std::move(ep));
+    }
+  }
+  endpoint_list = std::move(filtered);
+  HIXL_CHK_BOOL_RET_STATUS(!endpoint_list.empty(), PARAM_INVALID,
+                           "endpoint_list is empty after filtering by protocol_desc");
   return SUCCESS;
 }
 
@@ -319,71 +395,57 @@ Status EndpointGenerator::BuildEndpointList(const HixlOptions &options,
   // Step 1: Parse endpoint_list from localCommRes
   HIXL_CHK_STATUS_RET(ParseEndpointListFromLocalCommRes(options, local_comm_res, endpoint_list),
                       "ParseEndpointListFromLocalCommRes failed");
-  bool has_endpoint_list = !endpoint_list.empty();
-
-  // Step 2: Generate endpoint from protocol_desc (currently only support uboe)
-  if (endpoint_list.empty()) {
-    HIXL_CHK_STATUS_RET(GenEndpointFromProtocolDesc(options, endpoint_list), "GenEndpointFromProtocolDesc failed");
+  if (!endpoint_list.empty()) {
+    HIXL_CHK_STATUS_RET(FillDeviceInfoIfNeeded(endpoint_list), "FillDeviceInfoIfNeeded failed");
+    return SUCCESS;
   }
 
-  // Step 3: Build default endpoint list based on soc type
-  if (endpoint_list.empty()) {
-    nlohmann::json config = nlohmann::json::object();
-    if (!local_comm_res.empty()) {
-      try {
-        config = nlohmann::json::parse(local_comm_res);
-      } catch (const nlohmann::json::exception &e) {
-        HIXL_LOGE(PARAM_INVALID, "Parse local_comm_res failed, exception:%s", e.what());
-        return PARAM_INVALID;
-      }
-    }
-    HIXL_CHK_STATUS_RET(BuildEndpointListFromLocalCommRes(config, has_endpoint_list, local_engine, endpoint_list),
-                        "BuildEndpointListFromLocalCommRes failed");
-
-    HIXL_CHK_BOOL_RET_STATUS(!endpoint_list.empty(), PARAM_INVALID,
-                             "[HixlEngine] endpoint_list is empty after all generation attempts");
-  }
-
-  // Step 4: Fill device info if needed
+  // Step 2: Build default endpoint list based on soc type
+  HIXL_CHK_STATUS_RET(AutoGenEndpointList(options, local_engine, endpoint_list), "AutoGenEndpointList failed");
+  HIXL_CHK_BOOL_RET_STATUS(!endpoint_list.empty(), PARAM_INVALID,
+                           "[HixlEngine] endpoint_list is empty after all generation attempts");
   HIXL_CHK_STATUS_RET(FillDeviceInfoIfNeeded(endpoint_list), "FillDeviceInfoIfNeeded failed");
   return SUCCESS;
 }
 
-Status EndpointGenerator::BuildEndpointListFromLocalCommRes(const nlohmann::json &config, bool has_endpoint_list,
-                                                            const std::string &local_engine,
-                                                            std::vector<EndpointConfig> &endpoint_list) {
+Status EndpointGenerator::AutoGenEndpointList(const HixlOptions &options,
+                                              const std::string &local_engine,
+                                              std::vector<EndpointConfig> &endpoint_list) {
   SocType soc_type = SocType::kOther;
   HIXL_CHK_STATUS_RET(GetSocType(soc_type), "GetSocType failed");
-  const bool auto_generate = (soc_type == SocType::kV2 || soc_type == SocType::kV3 || soc_type == SocType::kV5) &&
-                             config.is_object() && !has_endpoint_list;
-
   endpoint_list.clear();
-  if (has_endpoint_list) {
-    HIXL_CHK_STATUS_RET(ParseLocalCommRes(config, endpoint_list), "ParseLocalCommRes failed");
-  } else {
-    if (auto_generate && soc_type == SocType::kV5) {
-      int32_t device_id = 0;
-      HIXL_CHK_ACL_RET(aclrtGetDevice(&device_id));
-      int32_t phy_id = 0;
-      HIXL_CHK_ACL_RET(aclrtGetPhyDevIdByLogicDevId(device_id, &phy_id));
-      HIXL_LOGI("[BuildEndpointListFromLocalCommRes] A5 auto-generate: logic_id=%d, phy_id=%d", device_id, phy_id);
+
+  if (soc_type == SocType::kV5) {
+    int32_t device_id = 0;
+    HIXL_CHK_ACL_RET(aclrtGetDevice(&device_id));
+    int32_t phy_id = 0;
+    HIXL_CHK_ACL_RET(aclrtGetPhyDevIdByLogicDevId(device_id, &phy_id));
+    bool ub_auto_gen_needed = false;
+    HIXL_CHK_STATUS_RET(IsA5UbAutoGenNeeded(options, ub_auto_gen_needed), "IsA5UbAutoGenNeeded failed");
+    if (ub_auto_gen_needed) {
+      HIXL_LOGI("[AutoGenEndpointList] A5 UB auto-generate: logic_id=%d, phy_id=%d", device_id, phy_id);
       hixl::LocalCommRes local_comm_res;
       HIXL_CHK_STATUS_RET(hixl::GenerateLocalCommRes(phy_id, local_comm_res),
-                          "[BuildEndpointListFromLocalCommRes] GenerateLocalCommRes failed");
+                          "[AutoGenEndpointList] GenerateLocalCommRes failed");
       endpoint_list = std::move(local_comm_res.endpoint_list);
-      HIXL_LOGI("[BuildEndpointListFromLocalCommRes] kA5 generated %zu endpoints", endpoint_list.size());
-    } else if (auto_generate) {
-      int32_t device_id = 0;
-      HIXL_CHK_ACL_RET(aclrtGetDevice(&device_id));
-      LocCommResInfo loc_comm_res_info{};
-      HIXL_CHK_STATUS_RET(GenerateInfo(device_id, local_engine, loc_comm_res_info), "GenerateInfo failed");
-      ConvertLocCommResInfoToEndpointList(loc_comm_res_info, endpoint_list);
     }
+    std::vector<EndpointConfig> protocol_desc_endpoints;
+    HIXL_CHK_STATUS_RET(GenEndpointFromProtocolDesc(options, protocol_desc_endpoints),
+                        "GenEndpointFromProtocolDesc failed");
+    endpoint_list.insert(endpoint_list.end(), protocol_desc_endpoints.begin(), protocol_desc_endpoints.end());
+    HIXL_LOGI("[AutoGenEndpointList] kA5 generated %zu endpoints", endpoint_list.size());
+  } else if (soc_type == SocType::kV2 || soc_type == SocType::kV3) {
+    int32_t device_id = 0;
+    HIXL_CHK_ACL_RET(aclrtGetDevice(&device_id));
+    LocCommResInfo loc_comm_res_info{};
+    HIXL_CHK_STATUS_RET(GenerateInfo(device_id, local_engine, loc_comm_res_info), "GenerateInfo failed");
+    ConvertLocCommResInfoToEndpointList(loc_comm_res_info, endpoint_list);
   }
-  if (!endpoint_list.empty()) {
-    HIXL_CHK_STATUS_RET(FillDeviceInfoIfNeeded(endpoint_list), "FillDeviceInfoIfNeeded failed");
+
+  if (endpoint_list.empty()) {
+    return SUCCESS;
   }
-  return SUCCESS;
+  return FilterEndpointListByProtocolDesc(options, endpoint_list);
 }
 
 Status EndpointGenerator::ConvertToEndpointDesc(const EndpointConfig &endpoint_config, EndpointDesc &endpoint,
