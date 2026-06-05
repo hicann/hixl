@@ -16,6 +16,8 @@
 #include <chrono>
 #include <fstream>
 #include <cstdio>
+#include <sys/socket.h>
+#include <unistd.h>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include "cs/hixl_cs.h"
@@ -686,6 +688,28 @@ TEST_F(HixlClientUTest, Initialize4UBTest) {
   local_endpoint_list.push_back(MakeUbDeviceLocalEp4());
   Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
+  EXPECT_GE(client_->ctrl_socket_, 0);
+  EXPECT_EQ(client_->Finalize(), SUCCESS);
+}
+
+TEST_F(HixlClientUTest, InitializeKeepsControlSocket) {
+  StartServer(MockHixlServerMode::k4UbNormal);
+  ClientConfig config{};
+  config.rdma_tc = kDefaultRdmaTc;
+  config.rdma_sl = kDefaultRdmaSl;
+  HixlClient client("127.0.0.1", kServerPort, config);
+  std::vector<EndpointConfig> local_endpoint_list;
+  local_endpoint_list.push_back(MakeRoceHostLocalEp());
+  local_endpoint_list.push_back(MakeUbHostLocalEp1());
+  local_endpoint_list.push_back(MakeUbHostLocalEp2());
+  local_endpoint_list.push_back(MakeUbDeviceLocalEp3());
+  local_endpoint_list.push_back(MakeUbDeviceLocalEp4());
+
+  Status st = client.Initialize(local_endpoint_list, kDefaultTimeoutMs);
+
+  EXPECT_EQ(st, SUCCESS);
+  EXPECT_GE(client.ctrl_socket_, 0);
+  EXPECT_EQ(client.Finalize(), SUCCESS);
 }
 
 // Initialize 接口测试：正常场景 创建 ub 链路2条
@@ -1168,6 +1192,53 @@ TEST_F(HixlClientUTest, EndpointMatcherAllDstEidNonEmptyTest) {
   std::vector<EndpointConfig> local = {MakeUbEp("l1_eid", "remote_1", "device"),
                                        MakeUbEp("l2_eid", "remote_2", "host")};
   MatchAndVerify(local, remote, 2U, HandlerCreateArgs::HandlerType::UB);
+}
+
+TEST_F(HixlClientUTest, CheckAliveWritesControlSocket) {
+  ClientConfig config{};
+  config.remote_engine = "127.0.0.1:16001";
+  HixlClient client("127.0.0.1", kServerPort, config);
+  int32_t fds[2] = {-1, -1};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+  client.ctrl_socket_ = fds[0];
+
+  Status ret = client.CheckAlive();
+  EXPECT_EQ(ret, SUCCESS);
+
+  CtrlMsgHeader header{};
+  ASSERT_EQ(read(fds[1], &header, sizeof(header)), static_cast<ssize_t>(sizeof(header)));
+  EXPECT_EQ(header.magic, kMagicNumber);
+  EXPECT_EQ(header.body_size, sizeof(CtrlMsgType));
+  CtrlMsgType msg_type{};
+  ASSERT_EQ(read(fds[1], &msg_type, sizeof(msg_type)), static_cast<ssize_t>(sizeof(msg_type)));
+  EXPECT_EQ(msg_type, CtrlMsgType::kHeartBeat);
+
+  EXPECT_EQ(client.Finalize(), SUCCESS);
+  close(fds[1]);
+}
+
+TEST_F(HixlClientUTest, CheckAliveBrokenPipeReturnsFailed) {
+  CtrlMsgPlugin::Initialize();
+  ClientConfig config{};
+  config.remote_engine = "127.0.0.1:16001";
+  HixlClient client("127.0.0.1", kServerPort, config);
+  int32_t fds[2] = {-1, -1};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+  client.ctrl_socket_ = fds[0];
+  close(fds[1]);
+
+  Status ret = client.CheckAlive();
+  EXPECT_EQ(ret, FAILED);
+  EXPECT_EQ(client.ctrl_socket_, -1);
+}
+
+TEST_F(HixlClientUTest, CheckAliveInvalidControlSocketFails) {
+  ClientConfig config{};
+  config.remote_engine = "127.0.0.1:16001";
+  HixlClient client("127.0.0.1", kServerPort, config);
+
+  Status ret = client.CheckAlive();
+  EXPECT_EQ(ret, FAILED);
 }
 
 }  // namespace hixl

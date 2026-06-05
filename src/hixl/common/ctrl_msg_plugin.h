@@ -28,6 +28,7 @@ class CtrlMsgPlugin {
   static void Initialize();
   static Status Connect(const std::string &ip, uint32_t port, int32_t &conn_fd, int32_t timeout);
   static Status Send(int32_t fd, const void *buf, size_t len);
+  static Status Send(int32_t fd, const void *buf, size_t len, int32_t &err_no);
   static Status Recv(int32_t fd, void *buf, size_t len, uint32_t timeout_ms);
   static Status Listen(const std::string &ip, uint32_t listen_port, int32_t backlog, int32_t &listen_fd);
   static Status AddFdToEpoll(int32_t &epoll_fd, int32_t fd, uint32_t events = EPOLLIN | EPOLLRDHUP);

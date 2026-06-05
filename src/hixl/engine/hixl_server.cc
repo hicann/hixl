@@ -25,7 +25,20 @@
 namespace hixl {
 namespace {
 constexpr uint32_t kDefaultBackLog = 1024U;
+
+NotifyMsg ParseNotifyMsg(const char *msg, uint64_t msg_len) {
+  NotifyMsg notify_msg;
+  auto j = nlohmann::json::parse(std::string(msg, msg_len));
+  j.at("name").get_to(notify_msg.name);
+  j.at("notify_msg").get_to(notify_msg.notify_msg);
+  return notify_msg;
 }
+
+std::string SerializeNotifyAck(Status result) {
+  nlohmann::json j{{"result", result}};
+  return j.dump();
+}
+}  // namespace
 
 Status HixlServer::Initialize(const std::string &ip, int32_t port,
                               const std::vector<EndpointConfig> &data_endpoint_config_list) {
@@ -54,28 +67,8 @@ Status HixlServer::Initialize(const std::string &ip, int32_t port,
   server_desc.endpoint_list_num = static_cast<uint32_t>(data_endpoint_config_list.size());
   HIXL_CHK_STATUS_RET(HixlCSServerCreate(&server_desc, &config, &server_handle_),
                       "Failed to create hixl server, ip:%s, port:%d.", ip.c_str(), port);
-  // port > 0 初始化hixl server，否则作为hixl client注册内存用
   if (port > 0) {
-    // 注册回调函数且监听端口
-    MsgProcessor send_endpoint_cb = [this](int32_t fd, const char *msg, uint64_t msg_len) -> Status {
-      (void)msg;
-      (void)msg_len;
-      std::string msg_str;
-      HIXL_CHK_STATUS_RET(EndpointGenerator::SerializeEndpointConfigList(data_endpoint_config_list_, msg_str),
-                          "Failed to serialize endpoint config.");
-      CtrlMsgHeader header{};
-      header.magic = kMagicNumber;
-      header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + msg_str.size());
-      CtrlMsgType msg_type = CtrlMsgType::kGetEndpointInfoResp;
-      HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &header, static_cast<uint64_t>(sizeof(header))));
-      HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &msg_type, static_cast<uint64_t>(sizeof(msg_type))));
-      HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, msg_str.c_str(), static_cast<uint64_t>(msg_str.size())));
-      return SUCCESS;
-    };
-    HIXL_CHK_STATUS_RET(HixlCSServerRegProc(server_handle_, CtrlMsgType::kGetEndpointInfoReq, send_endpoint_cb),
-                        "Failed to register send endpoint info processor.");
-    HIXL_CHK_STATUS_RET(HixlCSServerListen(server_handle_, kDefaultBackLog),
-                        "HixlServer listen failed, backlog:%u.", kDefaultBackLog);
+    HIXL_CHK_STATUS_RET(RegisterProcessors(), "Failed to register processors.");
   }
   return SUCCESS;
 }
@@ -154,4 +147,101 @@ Status HixlServer::RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor
                       "Failed to register send endpoint info processor.");
   return SUCCESS;
 }
+
+Status HixlServer::GetNotifies(std::vector<NotifyDesc> &notifies) {
+  std::lock_guard<std::mutex> lock(notify_mutex_);
+  HIXL_EVENT("HixlServer GetNotifies, count:%zu", notify_messages_.size());
+  notifies = std::move(notify_messages_);
+  return SUCCESS;
+}
+
+Status HixlServer::RegisterNotifyHandlers() {
+  MsgProcessor notify_processor = [this](int32_t fd, const char *msg, uint64_t msg_len) -> Status {
+    return ProcessNotifyMsg(fd, msg, msg_len);
+  };
+  HIXL_CHK_STATUS_RET(HixlCSServerRegProc(server_handle_, CtrlMsgType::kNotify, notify_processor),
+                      "Failed to register kNotify processor.");
+  return SUCCESS;
+}
+
+Status HixlServer::ProcessNotifyMsg(int32_t fd, const char *msg, uint64_t msg_len) {
+  NotifyMsg notify_msg{};
+  try {
+    notify_msg = ParseNotifyMsg(msg, msg_len);
+  } catch (const nlohmann::json::exception &e) {
+    HIXL_LOGE(PARAM_INVALID, "Failed to parse NotifyMsg, exception:%s", e.what());
+    return PARAM_INVALID;
+  }
+  Status result = SUCCESS;
+  {
+    std::lock_guard<std::mutex> lock(notify_mutex_);
+    if (notify_messages_.size() >= kMaxNotifyQueueSize) {
+      HIXL_LOGE(RESOURCE_EXHAUSTED, "Notify queue is full, size:%zu, max:%zu", notify_messages_.size(),
+                kMaxNotifyQueueSize);
+      result = RESOURCE_EXHAUSTED;
+    } else if (notify_msg.name.size() > kMaxNotifyNameLen) {
+      HIXL_LOGE(PARAM_INVALID, "Notify name length invalid, size:%zu, max:%zu", notify_msg.name.size(),
+                kMaxNotifyNameLen);
+      result = PARAM_INVALID;
+    } else if (notify_msg.notify_msg.size() > kMaxNotifyMsgLen) {
+      HIXL_LOGE(PARAM_INVALID, "Notify message too long, size:%zu, max:%zu", notify_msg.notify_msg.size(),
+                kMaxNotifyMsgLen);
+      result = PARAM_INVALID;
+    } else {
+      NotifyDesc notify_desc;
+      notify_desc.name = AscendString(notify_msg.name.c_str());
+      notify_desc.notify_msg = AscendString(notify_msg.notify_msg.c_str());
+      notify_messages_.push_back(notify_desc);
+    }
+  }
+  std::string ack_str;
+  try {
+    ack_str = SerializeNotifyAck(result);
+  } catch (const nlohmann::json::exception &e) {
+    HIXL_LOGE(FAILED, "Failed to serialize NotifyAck, exception:%s", e.what());
+    return FAILED;
+  }
+  CtrlMsgHeader header{};
+  header.magic = kMagicNumber;
+  header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + ack_str.size());
+  CtrlMsgType msg_type = CtrlMsgType::kNotifyAck;
+  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &header, static_cast<uint64_t>(sizeof(header))));
+  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &msg_type, static_cast<uint64_t>(sizeof(msg_type))));
+  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, ack_str.c_str(), static_cast<uint64_t>(ack_str.size())));
+  HIXL_LOGI("Received NotifyMsg and sent NotifyAck, name:%s", notify_msg.name.c_str());
+  return result;
+}
+
+Status HixlServer::RegisterProcessors() {
+  MsgProcessor send_endpoint_cb = [this](int32_t fd, const char *msg, uint64_t msg_len) -> Status {
+    (void)msg;
+    (void)msg_len;
+    std::string msg_str;
+    HIXL_CHK_STATUS_RET(EndpointGenerator::SerializeEndpointConfigList(data_endpoint_config_list_, msg_str),
+                        "Failed to serialize endpoint config.");
+    CtrlMsgHeader header{};
+    header.magic = kMagicNumber;
+    header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + msg_str.size());
+    CtrlMsgType msg_type = CtrlMsgType::kGetEndpointInfoResp;
+    HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &header, static_cast<uint64_t>(sizeof(header))));
+    HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &msg_type, static_cast<uint64_t>(sizeof(msg_type))));
+    HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, msg_str.c_str(), static_cast<uint64_t>(msg_str.size())));
+    return SUCCESS;
+  };
+  HIXL_CHK_STATUS_RET(HixlCSServerRegProc(server_handle_, CtrlMsgType::kGetEndpointInfoReq, send_endpoint_cb),
+                      "Failed to register send endpoint info processor.");
+  MsgProcessor heartbeat_cb = [](int32_t fd, const char *msg, uint64_t msg_len) -> Status {
+    (void)fd;
+    (void)msg;
+    (void)msg_len;
+    return SUCCESS;
+  };
+  HIXL_CHK_STATUS_RET(HixlCSServerRegProc(server_handle_, CtrlMsgType::kHeartBeat, heartbeat_cb),
+                      "Failed to register heartbeat processor.");
+  HIXL_CHK_STATUS_RET(RegisterNotifyHandlers(), "Failed to register notify handlers.");
+  HIXL_CHK_STATUS_RET(HixlCSServerListen(server_handle_, kDefaultBackLog),
+                      "HixlServer listen failed, backlog:%u.", kDefaultBackLog);
+  return SUCCESS;
+}
+
 }  // namespace hixl

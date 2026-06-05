@@ -94,6 +94,7 @@ Status HixlOptions::Parse(const std::map<AscendString, AscendString> &options, H
   HIXL_CHK_STATUS_RET(result.ParseRdmaOptions(options), "Failed to parse RDMA options.");
   HIXL_CHK_STATUS_RET(result.ParseEndpointOptions(options), "Failed to parse endpoint options.");
   HIXL_CHK_STATUS_RET(result.ParseFabricMemOptions(options), "Failed to parse FabricMem options.");
+  HIXL_CHK_STATUS_RET(result.ParseAutoConnectOptions(options), "Failed to parse AutoConnect options.");
   HIXL_CHK_STATUS_RET(result.ParseGlobalResourceConfig(options), "Failed to parse GlobalResourceConfig.");
   return SUCCESS;
 }
@@ -181,19 +182,25 @@ Status HixlOptions::ParseFabricMemOptions(const std::map<AscendString, AscendStr
     HIXL_LOGI("Set %s to %u.", hixl::OPTION_ENABLE_USE_FABRIC_MEM, enabled);
   }
 
+  return SUCCESS;
+}
+
+Status HixlOptions::ParseAutoConnectOptions(const std::map<AscendString, AscendString> &options) {
   const auto &ac_it = options.find(hixl::OPTION_AUTO_CONNECT);
-  if (ac_it != options.end()) {
-    std::string auto_connect_str = ac_it->second.GetString();
-    HIXL_CHK_BOOL_RET_STATUS(!auto_connect_str.empty(), PARAM_INVALID,
-                             "%s value is empty, should be zero or one.", hixl::OPTION_AUTO_CONNECT);
-    uint32_t auto_connect = 0U;
-    HIXL_CHK_STATUS_RET(ToNumber(auto_connect_str, auto_connect),
-                        "%s is invalid, value = %s", hixl::OPTION_AUTO_CONNECT, auto_connect_str.c_str());
-    HIXL_CHK_BOOL_RET_STATUS(auto_connect == 0U || auto_connect == 1U, PARAM_INVALID,
-                             "%s is invalid, should be zero or one.", hixl::OPTION_AUTO_CONNECT);
-    auto_connect_ = (auto_connect == 1U);
-    HIXL_LOGI("Set %s to %u.", hixl::OPTION_AUTO_CONNECT, auto_connect);
+  if (ac_it == options.end()) {
+    return SUCCESS;
   }
+
+  std::string auto_connect_str = ac_it->second.GetString();
+  HIXL_CHK_BOOL_RET_STATUS(!auto_connect_str.empty(), PARAM_INVALID,
+                           "%s value is empty, should be zero or one.", hixl::OPTION_AUTO_CONNECT);
+  uint32_t auto_connect = 0U;
+  HIXL_CHK_STATUS_RET(ToNumber(auto_connect_str, auto_connect),
+                      "%s is invalid, value = %s", hixl::OPTION_AUTO_CONNECT, auto_connect_str.c_str());
+  HIXL_CHK_BOOL_RET_STATUS(auto_connect == 0U || auto_connect == 1U, PARAM_INVALID,
+                           "%s is invalid, should be zero or one.", hixl::OPTION_AUTO_CONNECT);
+  auto_connect_ = (auto_connect == 1U);
+  HIXL_LOGI("Set %s to %u.", hixl::OPTION_AUTO_CONNECT, auto_connect);
   return SUCCESS;
 }
 

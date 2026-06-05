@@ -14,6 +14,7 @@
 #include <thread>
 #include <gtest/gtest.h>
 #include <sys/socket.h>
+#include <unistd.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "ascendcl_stub.h"
@@ -22,6 +23,7 @@
 #include "engine/hixl_engine.h"
 #undef private
 #include "hixl/hixl_types.h"
+#include "common/ctrl_msg_plugin.h"
 #include "engine/hixl_options.h"
 #include "cs/hixl_cs_client.h"
 #include "hixl/hixl.h"
@@ -209,6 +211,22 @@ class HixlEngineTest : public ::testing::Test {
     EXPECT_EQ(engine1.Connect("127.0.0.1:16000", kTimeOut), SUCCESS);
   }
 
+  void InitAutoConnectEngines(HixlEngine &engine1, HixlEngine &engine2, int32_t &src, int32_t &dst,
+                              MemHandle &handle1, MemHandle &handle2) {
+    std::map<AscendString, AscendString> auto_connect_options = options1;
+    auto_connect_options[hixl::OPTION_AUTO_CONNECT] = "1";
+    HixlOptions parsed1;
+    ASSERT_EQ(HixlOptions::Parse(auto_connect_options, parsed1), SUCCESS);
+    EXPECT_EQ(engine1.Initialize(parsed1), SUCCESS);
+
+    HixlOptions parsed2;
+    ASSERT_EQ(HixlOptions::Parse(options2, parsed2), SUCCESS);
+    EXPECT_EQ(engine2.Initialize(parsed2), SUCCESS);
+
+    Register(engine1, &src, handle1);
+    Register(engine2, &dst, handle2);
+  }
+
   void CreateAndInitEngine(HixlEngine &engine, const std::map<AscendString, AscendString> &opts) {
     HixlOptions parsed;
     EXPECT_EQ(HixlOptions::Parse(opts, parsed), SUCCESS);
@@ -348,10 +366,13 @@ TEST_F(HixlEngineTest, TestHixl) {
   notify.name = AscendString(notify_name.c_str());
   std::string notify_msg = "message";
   notify.notify_msg = AscendString(notify_msg.c_str());
-  EXPECT_EQ(engine1.SendNotify("127.0.0.1:16000", notify, kTimeOut), UNSUPPORTED);
+  EXPECT_EQ(engine1.SendNotify("127.0.0.1:16000", notify, kTimeOut), SUCCESS);
 
   std::vector<NotifyDesc> notifies;
-  EXPECT_EQ(engine2.GetNotifies(notifies), UNSUPPORTED);
+  EXPECT_EQ(engine2.GetNotifies(notifies), SUCCESS);
+  ASSERT_EQ(notifies.size(), 1U);
+  EXPECT_EQ(std::string(notifies[0].name.GetString()), notify_name);
+  EXPECT_EQ(std::string(notifies[0].notify_msg.GetString()), notify_msg);
 
   EXPECT_EQ(engine1.Disconnect("127.0.0.1:16000"), SUCCESS);
   EXPECT_EQ(engine1.DeregisterMem(handle1), SUCCESS);
@@ -501,14 +522,212 @@ TEST_F(HixlEngineTest, TestSendAndGetNotifies) {
   CreateAndInitEngine(engine2, options2);
 
   EXPECT_EQ(engine1.Connect("127.0.0.1:16000", kTimeOut), SUCCESS);
+  auto client = engine1.client_manager_.GetClient("127.0.0.1:16000");
+  ASSERT_NE(client, nullptr);
+  EXPECT_GE(client->ctrl_socket_, 0);
   NotifyDesc notify;
   std::string notify_name = "test_notify";
   notify.name = AscendString(notify_name.c_str());
   std::string notify_msg = "message";
   notify.notify_msg = AscendString(notify_msg.c_str());
-  EXPECT_EQ(engine1.SendNotify("127.0.0.1:16000", notify, kTimeOut), UNSUPPORTED);
+  EXPECT_EQ(engine1.SendNotify("127.0.0.1:16000", notify, kTimeOut), SUCCESS);
+  EXPECT_GE(client->ctrl_socket_, 0);
   std::vector<NotifyDesc> notifies;
-  EXPECT_EQ(engine2.GetNotifies(notifies), UNSUPPORTED);
+  EXPECT_EQ(engine2.GetNotifies(notifies), SUCCESS);
+  ASSERT_EQ(notifies.size(), 1U);
+  EXPECT_EQ(std::string(notifies[0].name.GetString()), notify_name);
+  EXPECT_EQ(std::string(notifies[0].notify_msg.GetString()), notify_msg);
+  engine1.Finalize();
+  engine2.Finalize();
+}
+
+TEST_F(HixlEngineTest, TestSendNotifyWithoutConnection) {
+  HixlEngine engine1("127.0.0.1");
+  HixlOptions parsed;
+  ASSERT_EQ(HixlOptions::Parse(options1, parsed), SUCCESS);
+  EXPECT_EQ(engine1.Initialize(parsed), SUCCESS);
+
+  NotifyDesc notify;
+  notify.name = AscendString("test_notify");
+  notify.notify_msg = AscendString("message");
+  EXPECT_EQ(engine1.SendNotify("127.0.0.1:16000", notify, kTimeOut), NOT_CONNECTED);
+
+  engine1.Finalize();
+}
+
+TEST_F(HixlEngineTest, TestMultipleNotifyMessages) {
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:16000");
+  InitializeAndConnectEngines(engine1, options1, engine2, options2);
+
+  constexpr size_t kNotifyCount = 5U;
+  for (size_t i = 0; i < kNotifyCount; ++i) {
+    NotifyDesc notify;
+    const std::string notify_name = "test_notify" + std::to_string(i);
+    const std::string notify_msg = "message " + std::to_string(i);
+    notify.name = AscendString(notify_name.c_str());
+    notify.notify_msg = AscendString(notify_msg.c_str());
+    EXPECT_EQ(engine1.SendNotify("127.0.0.1:16000", notify, kTimeOut), SUCCESS);
+  }
+
+  std::vector<NotifyDesc> notifies;
+  EXPECT_EQ(engine2.GetNotifies(notifies), SUCCESS);
+  ASSERT_EQ(notifies.size(), kNotifyCount);
+  for (size_t i = 0; i < kNotifyCount; ++i) {
+    EXPECT_EQ(std::string(notifies[i].name.GetString()), "test_notify" + std::to_string(i));
+    EXPECT_EQ(std::string(notifies[i].notify_msg.GetString()), "message " + std::to_string(i));
+  }
+
+  notifies.clear();
+  EXPECT_EQ(engine2.GetNotifies(notifies), SUCCESS);
+  EXPECT_TRUE(notifies.empty());
+  CleanupEngines(engine1, engine2);
+}
+
+TEST_F(HixlEngineTest, TestNotifyWithTooLongMessage) {
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:16000");
+  InitializeAndConnectEngines(engine1, options1, engine2, options2);
+
+  NotifyDesc notify;
+  notify.name = AscendString("test_notify");
+  std::string long_msg(1025U, 'a');
+  notify.notify_msg = AscendString(long_msg.c_str());
+
+  EXPECT_EQ(engine1.SendNotify("127.0.0.1:16000", notify, kTimeOut), PARAM_INVALID);
+  CleanupEngines(engine1, engine2);
+}
+
+TEST_F(HixlEngineTest, TestNotifyWithTooLongName) {
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:16000");
+  InitializeAndConnectEngines(engine1, options1, engine2, options2);
+
+  NotifyDesc notify;
+  std::string long_name(1025U, 'n');
+  notify.name = AscendString(long_name.c_str());
+  notify.notify_msg = AscendString("message");
+
+  EXPECT_EQ(engine1.SendNotify("127.0.0.1:16000", notify, kTimeOut), PARAM_INVALID);
+  CleanupEngines(engine1, engine2);
+}
+
+TEST_F(HixlEngineTest, TestNotifyWithMaxLengthFields) {
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:16000");
+  InitializeAndConnectEngines(engine1, options1, engine2, options2);
+
+  NotifyDesc notify;
+  std::string max_name(1024U, 'n');
+  std::string max_msg(1024U, 'm');
+  notify.name = AscendString(max_name.c_str());
+  notify.notify_msg = AscendString(max_msg.c_str());
+
+  EXPECT_EQ(engine1.SendNotify("127.0.0.1:16000", notify, kTimeOut), SUCCESS);
+  std::vector<NotifyDesc> notifies;
+  EXPECT_EQ(engine2.GetNotifies(notifies), SUCCESS);
+  ASSERT_EQ(notifies.size(), 1U);
+  EXPECT_EQ(std::string(notifies[0].name.GetString()), max_name);
+  EXPECT_EQ(std::string(notifies[0].notify_msg.GetString()), max_msg);
+  CleanupEngines(engine1, engine2);
+}
+
+TEST_F(HixlEngineTest, TestAutoConnectSync) {
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:16000");
+  int32_t src = 1;
+  int32_t dst = 2;
+  MemHandle handle1 = nullptr;
+  MemHandle handle2 = nullptr;
+  InitAutoConnectEngines(engine1, engine2, src, dst, handle1, handle2);
+
+  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+  EXPECT_EQ(engine1.TransferSync("127.0.0.1:16000", READ, {desc}, kTimeOut), SUCCESS);
+  EXPECT_EQ(src, 2);
+  src = 3;
+  EXPECT_EQ(engine1.TransferSync("127.0.0.1:16000", WRITE, {desc}, kTimeOut), SUCCESS);
+  EXPECT_EQ(dst, 3);
+
+  EXPECT_EQ(engine1.Disconnect("127.0.0.1:16000", kTimeOut), SUCCESS);
+  EXPECT_EQ(engine1.DeregisterMem(handle1), SUCCESS);
+  EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
+  engine1.Finalize();
+  engine2.Finalize();
+}
+
+TEST_F(HixlEngineTest, TestInitializeUsesParsedAutoConnectOption) {
+  std::map<AscendString, AscendString> auto_connect_options = options1;
+  auto_connect_options[hixl::OPTION_AUTO_CONNECT] = "1";
+  HixlOptions parsed;
+  ASSERT_EQ(HixlOptions::Parse(auto_connect_options, parsed), SUCCESS);
+
+  HixlEngine engine("127.0.0.1");
+  EXPECT_EQ(engine.Initialize(parsed), SUCCESS);
+  EXPECT_TRUE(engine.auto_connect_);
+  engine.Finalize();
+}
+
+TEST_F(HixlEngineTest, TestConcurrentConnectReturnsSingleSuccess) {
+  SetSocStub("Ascend910B1", 0, 12, 99, 88);
+  HixlEngine engine1("127.0.0.1");
+  HixlOptions parsed1;
+  ASSERT_EQ(HixlOptions::Parse(options1, parsed1), SUCCESS);
+  EXPECT_EQ(engine1.Initialize(parsed1), SUCCESS);
+  HixlEngine engine2("127.0.0.1:16000");
+  HixlOptions parsed2;
+  ASSERT_EQ(HixlOptions::Parse(options2, parsed2), SUCCESS);
+  EXPECT_EQ(engine2.Initialize(parsed2), SUCCESS);
+  Status first_ret = FAILED;
+  Status second_ret = FAILED;
+  std::thread first_thread([&engine1, &first_ret]() { first_ret = engine1.Connect("127.0.0.1:16000", kTimeOut); });
+  std::thread second_thread([&engine1, &second_ret]() { second_ret = engine1.Connect("127.0.0.1:16000", kTimeOut); });
+  first_thread.join();
+  second_thread.join();
+
+  int32_t success_count = 0;
+  int32_t already_connected_count = 0;
+  for (Status ret : {first_ret, second_ret}) {
+    if (ret == SUCCESS) {
+      ++success_count;
+    } else if (ret == ALREADY_CONNECTED) {
+      ++already_connected_count;
+    }
+  }
+  EXPECT_EQ(success_count, 1);
+  EXPECT_EQ(already_connected_count, 1);
+  EXPECT_NE(engine1.client_manager_.GetClient("127.0.0.1:16000"), nullptr);
+
+  engine1.Finalize();
+  engine2.Finalize();
+}
+
+TEST_F(HixlEngineTest, TestParseAutoConnectConfigInvalid) {
+  for (const char *invalid_auto_connect : {"2", "invalid"}) {
+    std::map<AscendString, AscendString> invalid_options = options1;
+    invalid_options[hixl::OPTION_AUTO_CONNECT] = AscendString(invalid_auto_connect);
+    HixlOptions parsed;
+    EXPECT_EQ(HixlOptions::Parse(invalid_options, parsed), PARAM_INVALID);
+  }
+}
+
+TEST_F(HixlEngineTest, TestAutoConnectAutoDisconnect) {
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:16000");
+  int32_t src = 1;
+  int32_t dst = 2;
+  MemHandle handle1 = nullptr;
+  MemHandle handle2 = nullptr;
+  InitAutoConnectEngines(engine1, engine2, src, dst, handle1, handle2);
+
+  int32_t unregistered = 3;
+  TransferOpDesc invalid_desc{reinterpret_cast<uintptr_t>(&unregistered), reinterpret_cast<uintptr_t>(&dst),
+                              sizeof(int32_t)};
+  EXPECT_NE(engine1.TransferSync("127.0.0.1:16000", READ, {invalid_desc}, kTimeOut), SUCCESS);
+  // 如果断链成功，显式 Disconnect 应返回失败（因为 client 已经不存在了）
+  EXPECT_NE(engine1.Disconnect("127.0.0.1:16000", kTimeOut), SUCCESS);
+  EXPECT_EQ(engine1.DeregisterMem(handle1), SUCCESS);
+  EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
+
   engine1.Finalize();
   engine2.Finalize();
 }
@@ -758,5 +977,86 @@ TEST_F(HixlEngineTest, TestInitializeAutoGenerateForV3FillsDeviceInfo) {
   EXPECT_EQ(hccs_ep.device_info.super_pod_id, 67);
 
   engine.Finalize();
+}
+
+class MockClientHandler : public IClientHandler {
+ public:
+  Status Connect(uint32_t) override { return SUCCESS; }
+  Status RegisterMem(const MemInfo &) override { return SUCCESS; }
+  Status TransferAsync(const std::vector<TransferOpDesc> &, TransferOp, TransferReq &) override { return SUCCESS; }
+  Status TransferSync(const std::vector<TransferOpDesc> &, TransferOp, uint32_t) override { return SUCCESS; }
+  Status GetTransferStatus(const TransferReq &, TransferStatus &) override { return SUCCESS; }
+  Status Finalize() override { return SUCCESS; }
+};
+
+static ClientPtr CreateMockClient() {
+  ClientConfig config{};
+  config.remote_engine = "127.0.0.1:16000";
+  auto client = std::make_shared<HixlClient>("127.0.0.1", 16000, config);
+  auto handler = std::make_unique<MockClientHandler>();
+  client->client_handler_ = std::move(handler);
+  client->is_connected_ = true;
+  return client;
+}
+
+static bool AttachClosedCtrlSocket(const ClientPtr &client) {
+  int32_t fds[2] = {-1, -1};
+  if (socketpair(AF_UNIX, SOCK_STREAM, 0, fds) != 0) {
+    return false;
+  }
+  client->ctrl_socket_ = fds[0];
+  close(fds[1]);
+  return true;
+}
+
+TEST(ClientManagerTest, HeartbeatInitializeStartsAndStopsThread) {
+  ClientManager manager;
+  EXPECT_EQ(manager.Initialize(true), SUCCESS);
+  EXPECT_TRUE(manager.heartbeat_sender_.joinable());
+  EXPECT_EQ(manager.Finalize(), SUCCESS);
+}
+
+TEST(ClientManagerTest, HeartbeatInitializeWithoutAutoConnectDoesNotStartThread) {
+  ClientManager manager;
+  EXPECT_EQ(manager.Initialize(false), SUCCESS);
+  EXPECT_FALSE(manager.heartbeat_sender_.joinable());
+  EXPECT_EQ(manager.Finalize(), SUCCESS);
+}
+
+TEST(ClientManagerTest, GetOrCreateClientReturnsExistingClient) {
+  ClientManager manager;
+  EXPECT_EQ(manager.Initialize(false), SUCCESS);
+
+  auto client = CreateMockClient();
+  manager.clients_["127.0.0.1:16000"] = client;
+
+  ClientConfig config{};
+  config.remote_engine = "127.0.0.1:16000";
+  ClientPtr returned_client = nullptr;
+  EXPECT_EQ(manager.GetOrCreateClient(config, {}, kTimeOut, returned_client), ALREADY_CONNECTED);
+  EXPECT_EQ(returned_client, client);
+  EXPECT_EQ(manager.Finalize(), SUCCESS);
+}
+
+TEST(ClientManagerTest, HeartbeatDestroysUnhealthyClient) {
+  ClientManager manager;
+  EXPECT_EQ(manager.Initialize(false), SUCCESS);
+  CtrlMsgPlugin::Initialize();
+  auto client = CreateMockClient();
+  ASSERT_TRUE(AttachClosedCtrlSocket(client));
+  manager.clients_["127.0.0.1:16000"] = client;
+  manager.SendHeartbeat();
+  EXPECT_EQ(manager.GetClient("127.0.0.1:16000"), nullptr);
+  EXPECT_EQ(manager.Finalize(), SUCCESS);
+}
+
+TEST(ClientManagerTest, HeartbeatDestroysClientWithInvalidSocket) {
+  ClientManager manager;
+  EXPECT_EQ(manager.Initialize(false), SUCCESS);
+  auto client = CreateMockClient();
+  manager.clients_["127.0.0.1:16000"] = client;
+  manager.SendHeartbeat();
+  EXPECT_EQ(manager.GetClient("127.0.0.1:16000"), nullptr);
+  EXPECT_EQ(manager.Finalize(), SUCCESS);
 }
 }  // namespace hixl

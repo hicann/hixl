@@ -9,11 +9,14 @@
  */
 
 #include <vector>
+#include <cerrno>
 #include <cstdlib>
 #include <thread>
 #include <chrono>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sys/socket.h>
+#include <unistd.h>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include "cs/hixl_cs.h"
@@ -23,6 +26,9 @@
 #include "slog_stub.h"
 #include "hccl_stub.h"
 #include "hccl/hccl_types.h"
+#define private public
+#include "cs/hixl_cs_server.h"
+#undef private
 
 using namespace std;
 using namespace ::testing;
@@ -358,5 +364,21 @@ TEST_F(HixlCSTest, TestEndpointGetListenPortError) {
 TEST_F(HixlCSTest, TestStructSize) {
   EXPECT_EQ(sizeof(HixlClientDesc), 128) << "HixlClientDesc size should be 128 bytes";
   EXPECT_EQ(sizeof(HixlServerDesc), 128) << "HixlServerDesc size should be 128 bytes";
+}
+
+TEST_F(HixlCSTest, CtrlMsgPluginSendEpipe) {
+  int fds[2];
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+  close(fds[1]);
+
+  CtrlMsgHeader header{};
+  header.magic = kMagicNumber;
+  header.body_size = sizeof(CtrlMsgType);
+  int32_t err_no = 0;
+  Status ret = CtrlMsgPlugin::Send(fds[0], &header, sizeof(header), err_no);
+  EXPECT_EQ(ret, FAILED);
+  EXPECT_EQ(err_no, EPIPE);
+
+  close(fds[0]);
 }
 }  // namespace hixl

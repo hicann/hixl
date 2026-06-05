@@ -74,6 +74,7 @@ class HixlOptions {
   Status ParseRdmaOptions(const std::map<AscendString, AscendString> &options);
   Status ParseEndpointOptions(const std::map<AscendString, AscendString> &options);
   Status ParseFabricMemOptions(const std::map<AscendString, AscendString> &options);
+  Status ParseAutoConnectOptions(const std::map<AscendString, AscendString> &options);
   Status ParseGlobalResourceConfig(const std::map<AscendString, AscendString> &options);
 };
 

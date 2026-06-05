@@ -237,6 +237,12 @@ Status CtrlMsgPlugin::Accept(int32_t listen_fd, int32_t &conn_fd) {
 }
 
 Status CtrlMsgPlugin::Send(int32_t fd, const void *buf, size_t len) {
+  int32_t err_no = 0;
+  return Send(fd, buf, len, err_no);
+}
+
+Status CtrlMsgPlugin::Send(int32_t fd, const void *buf, size_t len, int32_t &err_no) {
+  err_no = 0;
   HIXL_LOGI("Socket write begin: %zu bytes, fd:%d", len, fd);
   const char *pos = static_cast<const char *>(buf);
   auto nbytes = static_cast<ssize_t>(len);
@@ -246,6 +252,7 @@ Status CtrlMsgPlugin::Send(int32_t fd, const void *buf, size_t len) {
       HIXL_LOGI("Socket write need to eagain");
       continue;
     } else if (rc <= 0) {
+      err_no = errno;
       HIXL_LOGE(FAILED, "Socket write failed, error msg:%s, errno:%d", strerror(errno), errno);
       return FAILED;
     }

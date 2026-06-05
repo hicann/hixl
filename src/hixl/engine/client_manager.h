@@ -11,8 +11,13 @@
 #ifndef HIXL_SRC_HIXL_ENGINE_CLIENT_MANAGER_H_
 #define HIXL_SRC_HIXL_ENGINE_CLIENT_MANAGER_H_
 
-#include <mutex>
+#include <atomic>
+#include <condition_variable>
 #include <map>
+#include <memory>
+#include <mutex>
+#include <thread>
+#include <unordered_map>
 #include <vector>
 #include "hixl_client.h"
 #include "common/hixl_inner_types.h"
@@ -24,17 +29,32 @@ class ClientManager {
  public:
   ClientManager() = default;
   ~ClientManager() = default;
-  Status Initialize();
+  Status Initialize(bool auto_connect);
   Status Finalize();
-  Status CreateClient(const ClientConfig &config, ClientPtr &client_ptr);
+  Status GetOrCreateClient(const ClientConfig &config, const std::vector<MemInfo> &mem_info_list,
+                           int32_t timeout_in_millis, ClientPtr &client_ptr);
   ClientPtr GetClient(const std::string &remote_engine);
   Status DestroyClient(const std::string &remote_engine);
   bool IsEmpty();
 
  private:
+  Status StartHeartbeat();
+  Status CreateClient(const ClientConfig &config, ClientPtr &client_ptr);
+  std::shared_ptr<std::mutex> GetClientMutex(const std::string &remote_engine);
+  void DestroyClientMutex(const std::string &remote_engine);
+  void SendHeartbeat();
+
   std::mutex mutex_;
   std::map<std::string, ClientPtr> clients_;
   bool finalized_ = false;
+  std::mutex client_mutexes_mutex_;
+  std::unordered_map<std::string, std::shared_ptr<std::mutex>> client_mutexes_;
+
+  std::thread heartbeat_sender_;
+  std::atomic<bool> stop_signal_{false};
+  std::mutex cv_mutex_;
+  std::condition_variable cv_;
+  bool auto_connect_{false};
 };
 }  // namespace hixl
 
