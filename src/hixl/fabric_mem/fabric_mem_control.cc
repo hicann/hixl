@@ -11,6 +11,7 @@
 #include "fabric_mem/fabric_mem_control.h"
 
 #include <poll.h>
+#include <sys/socket.h>
 #include <utility>
 #include <unistd.h>
 
@@ -69,8 +70,7 @@ Status SendFabricMemMsg(int32_t fd, int32_t msg_type, const std::string &payload
   HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &length, sizeof(length)), "Send fabric mem length failed.");
   HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &msg_type, sizeof(msg_type)), "Send fabric mem msg type failed.");
   if (!payload.empty()) {
-    HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, payload.data(), payload.size()),
-                        "Send fabric mem msg body failed.");
+    HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, payload.data(), payload.size()), "Send fabric mem msg body failed.");
   }
   return SUCCESS;
 }
@@ -104,10 +104,8 @@ Status RecvFabricMemMsg(int32_t fd, int32_t timeout_ms, int32_t &msg_type, std::
 Status ConnectToEngine(const std::string &remote_engine, int32_t timeout_ms, int32_t &conn_fd) {
   std::string remote_ip;
   int32_t remote_port = -1;
-  HIXL_CHK_STATUS_RET(ParseListenInfo(remote_engine, remote_ip, remote_port),
-                      "Parse remote fabric mem engine failed.");
-  HIXL_CHK_BOOL_RET_STATUS(remote_port > 0, PARAM_INVALID,
-                           "Remote fabric mem engine port must be greater than zero.");
+  HIXL_CHK_STATUS_RET(ParseListenInfo(remote_engine, remote_ip, remote_port), "Parse remote fabric mem engine failed.");
+  HIXL_CHK_BOOL_RET_STATUS(remote_port > 0, PARAM_INVALID, "Remote fabric mem engine port must be greater than zero.");
   CtrlMsgPlugin::Initialize();
   HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Connect(remote_ip, static_cast<uint32_t>(remote_port), conn_fd, timeout_ms),
                       "Connect remote fabric mem engine failed:%s.", remote_engine.c_str());
@@ -176,6 +174,7 @@ void FabricMemControlServer::Stop() {
     }
     state->running.store(false, std::memory_order_release);
     if (state->listen_fd >= 0) {
+      (void)shutdown(state->listen_fd, SHUT_RDWR);
       (void)close(state->listen_fd);
       state->listen_fd = -1;
     }
@@ -206,17 +205,23 @@ void FabricMemControlServer::Run(std::shared_ptr<State> state) {
     if (ret <= 0) {
       continue;
     }
+    {
+      std::lock_guard<std::mutex> lock(state->mutex);
+      if (!state->running.load(std::memory_order_acquire) || state->listen_fd != listen_fd) {
+        break;
+      }
+    }
     int32_t conn_fd = -1;
     if (CtrlMsgPlugin::Accept(listen_fd, conn_fd) != SUCCESS || conn_fd < 0) {
       continue;
     }
     HIXL_MAKE_GUARD(close_conn, ([conn_fd, state]() {
-      std::lock_guard<std::mutex> lock(state->mutex);
-      if (state->keepalive_fds.count(conn_fd) > 0U) {
-        return;
-      }
-      (void)close(conn_fd);
-    }));
+                      std::lock_guard<std::mutex> lock(state->mutex);
+                      if (state->keepalive_fds.count(conn_fd) > 0U) {
+                        return;
+                      }
+                      (void)close(conn_fd);
+                    }));
     (void)CtrlMsgPlugin::SetTcpNoDelay(conn_fd);
     (void)CtrlMsgPlugin::SetTcpKeepAlive(conn_fd);
     (void)HandleConnection(state, conn_fd);
@@ -274,8 +279,7 @@ Status FabricMemControlServer::HandleConnectRequest(const std::shared_ptr<State>
   nlohmann::json status;
   status["error_code"] = static_cast<uint32_t>(result);
   status["error_message"] = "";
-  HIXL_CHK_STATUS_RET(SendFabricMemMsg(fd, FabricMemMsgType::kStatus, status.dump()),
-                      "Send status response failed.");
+  HIXL_CHK_STATUS_RET(SendFabricMemMsg(fd, FabricMemMsgType::kStatus, status.dump()), "Send status response failed.");
 
   // Register fd for keepalive
   {
@@ -335,8 +339,7 @@ Status FabricMemControlServer::HandleDisconnectRequest(const std::shared_ptr<Sta
   nlohmann::json status;
   status["error_code"] = static_cast<uint32_t>(SUCCESS);
   status["error_message"] = "";
-  HIXL_CHK_STATUS_RET(SendFabricMemMsg(fd, FabricMemMsgType::kStatus, status.dump()),
-                      "Send disconnect status failed.");
+  HIXL_CHK_STATUS_RET(SendFabricMemMsg(fd, FabricMemMsgType::kStatus, status.dump()), "Send disconnect status failed.");
 
   {
     std::lock_guard<std::mutex> lock(state->mutex);
@@ -352,11 +355,11 @@ Status FabricMemControlClient::Fetch(const std::string &remote_engine, int32_t t
   HIXL_CHK_STATUS_RET(ConnectToEngine(remote_engine, timeout_ms, conn_fd),
                       "Connect remote fabric mem engine failed:%s.", remote_engine.c_str());
   HIXL_DISMISSABLE_GUARD(close_fd, ([&conn_fd]() {
-    if (conn_fd >= 0) {
-      (void)close(conn_fd);
-      conn_fd = -1;
-    }
-  }));
+                           if (conn_fd >= 0) {
+                             (void)close(conn_fd);
+                             conn_fd = -1;
+                           }
+                         }));
 
   nlohmann::json req;
   req["channel_id"] = "";
@@ -390,8 +393,8 @@ Status FabricMemControlClient::Fetch(const std::string &remote_engine, int32_t t
   }
 
   HIXL_DISMISS_GUARD(close_fd);
-  HIXL_LOGI("Fetch received %zu share handles from remote:%s, conn_fd:%d.",
-            share_handles.size(), remote_engine.c_str(), conn_fd);
+  HIXL_LOGI("Fetch received %zu share handles from remote:%s, conn_fd:%d.", share_handles.size(), remote_engine.c_str(),
+            conn_fd);
   return SUCCESS;
 }
 

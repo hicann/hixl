@@ -110,8 +110,6 @@ class FabricMemEngine : public hixl::Engine {
   Status InitTransferService();
   Status StartControlServer();
   Status InitFabricMem();
-  Status AcquireVirtualMemoryManager();
-  void ReleaseVirtualMemoryManager();
   void CleanupFabricMemLocked();
   Status BuildTransferContext(const RemoteConnection &conn, const std::string &remote_engine,
                               FabricMemTransferContext &context);
@@ -168,7 +166,6 @@ class FabricMemEngine : public hixl::Engine {
   std::unordered_map<void *, MemInfo> mem_map_;
   std::unordered_map<uint64_t, FabricMemTransferRequest> req_map_;
   std::atomic<uint64_t> next_req_id_{1U};
-  bool has_acquired_virtual_memory_ = false;
   bool auto_connect_{false};
   int32_t device_id_{-1};
   std::shared_ptr<void> aclrt_context_holder_;

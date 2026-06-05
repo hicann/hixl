@@ -37,6 +37,7 @@
 #include "common/hixl_utils.h"
 #include "common/statistic_utils.h"
 #include "depends/ascendcl/src/ascendcl_stub.h"
+#include "depends/slog/src/slog_stub.h"
 #include "fabric_mem_test_utils.h"
 #include "fabric_mem/virtual_memory_manager.h"
 #include "nlohmann/json.hpp"
@@ -52,6 +53,7 @@ constexpr uintptr_t kImportedLocalAddr = 0x400000UL;
 constexpr size_t kLen = 32U;
 constexpr uint32_t kFabricMemMagic = 0xA4B3C2D1;
 constexpr int32_t kClientTimeoutMs = 10;
+constexpr uint32_t kCaptureLogTimeoutMs = 1000U;
 
 class ScopedRuntimeMock {
  public:
@@ -413,6 +415,49 @@ TEST(FabricMemControlUTest, ClientFetchNotifyRoundTrip) {
   server.Stop();
 }
 
+TEST(FabricMemControlUTest, StopWhileClientConnectingDoesNotHang) {
+  const int32_t port = test::AllocateFabricMemTestPort();
+  ASSERT_GT(port, 0);
+  const std::string remote = "127.0.0.1:" + std::to_string(port);
+  FabricMemControlServer server;
+  ASSERT_EQ(server.Start(remote,
+                         [](std::vector<ShareHandleInfo> &handles) {
+                           handles.emplace_back(BuildShareHandle());
+                           return SUCCESS;
+                         }),
+            SUCCESS);
+
+  std::atomic<bool> client_running{true};
+  std::thread client([&] {
+    while (client_running.load(std::memory_order_relaxed)) {
+      std::vector<ShareHandleInfo> handles;
+      int32_t conn_fd = -1;
+      (void)FabricMemControlClient::Fetch(remote, 50, handles, conn_fd);
+      if (conn_fd >= 0) {
+        (void)close(conn_fd);
+      }
+    }
+  });
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  client_running.store(false, std::memory_order_relaxed);
+  server.Stop();
+  client.join();
+}
+
+TEST(FabricMemControlUTest, HandleDisconnectRequestSendsStatus) {
+  FabricMemControlServer server;
+  int32_t fds[2] = {-1, -1};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+  server.state_->keepalive_fds.insert(fds[0]);
+  EXPECT_EQ(server.HandleDisconnectRequest(server.state_, fds[0]), SUCCESS);
+  std::string payload;
+  EXPECT_EQ(RecvRawFabricMemMsg(fds[1], payload), FabricMemMsgType::kStatus);
+  const auto json = nlohmann::json::parse(payload);
+  EXPECT_EQ(json.at("error_code").get<uint32_t>(), static_cast<uint32_t>(SUCCESS));
+  (void)close(fds[1]);
+}
+
 TEST(FabricMemControlUTest, ClientRejectsMissingPort) {
   std::vector<ShareHandleInfo> handles;
   int32_t conn_fd = -1;
@@ -468,6 +513,24 @@ TEST_F(FabricMemTransferServiceUTest, MallocMemSupportsDeviceMemory) {
 
   EXPECT_EQ(FabricMemTransferService::FreeMem(device_ptr), SUCCESS);
   VirtualMemoryManager::GetInstance().Finalize();
+}
+
+TEST_F(FabricMemTransferServiceUTest, MallocMemAndFreeMemHost) {
+  VirtualMemoryManager::GetInstance().Finalize();
+  ASSERT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
+
+  void *host_ptr = nullptr;
+  ASSERT_EQ(FabricMemTransferService::MallocMem(MEM_HOST, sizeof(int32_t), &host_ptr), SUCCESS);
+  ASSERT_NE(host_ptr, nullptr);
+  auto *value = static_cast<int32_t *>(host_ptr);
+  *value = 123;
+  EXPECT_EQ(*value, 123);
+  EXPECT_EQ(FabricMemTransferService::FreeMem(host_ptr), SUCCESS);
+  VirtualMemoryManager::GetInstance().Finalize();
+}
+
+TEST_F(FabricMemTransferServiceUTest, MallocMemRejectsNullPtr) {
+  EXPECT_EQ(FabricMemTransferService::MallocMem(MEM_HOST, sizeof(int32_t), nullptr), PARAM_INVALID);
 }
 
 TEST_F(FabricMemTransferServiceUTest, RegisterDeregisterAndGetShareHandles) {
@@ -884,10 +947,18 @@ TEST(FabricMemEngineUTest, ConnectAndDisconnectRoundTrip) {
 }
 
 TEST(FabricMemEngineUTest, DisconnectNoConnection) {
+  auto log_capture = std::make_shared<llm::LogCaptureStub>();
+  log_capture->SetLevel(DLOG_WARN);
+  log_capture->AddCapturePattern("is not connected, skip disconnect");
+  llm::SlogStub::SetInstance(log_capture);
+
   FabricMemEngine engine(AscendString("test_engine"));
   AscendString remote("127.0.0.1:12345");
   EXPECT_EQ(engine.Disconnect(remote, kClientTimeoutMs), NOT_CONNECTED);
+  EXPECT_TRUE(log_capture->WaitForAllPatternsCaptured(kCaptureLogTimeoutMs));
+  EXPECT_TRUE(log_capture->IsPatternCaptured("is not connected, skip disconnect"));
   engine.Disconnect();
+  llm::SlogStub::SetInstance(nullptr);
 }
 
 TEST(FabricMemEngineUTest, DisconnectClearsChannelReqMap) {
@@ -899,9 +970,11 @@ TEST(FabricMemEngineUTest, DisconnectClearsChannelReqMap) {
   auto conn_b = std::make_shared<RemoteConnection>();
   engine.fabric_mem_remote_mems_[remote_a] = conn_a;
   engine.fabric_mem_remote_mems_[remote_b] = conn_b;
-  engine.req_map_.emplace(1U, FabricMemTransferRequest{TransferInfo{0U, WRITE, AscendString(remote_a.c_str())}, conn_a});
+  engine.req_map_.emplace(1U,
+                          FabricMemTransferRequest{TransferInfo{0U, WRITE, AscendString(remote_a.c_str())}, conn_a});
   engine.req_map_.emplace(2U, FabricMemTransferRequest{TransferInfo{0U, READ, AscendString(remote_a.c_str())}, conn_a});
-  engine.req_map_.emplace(3U, FabricMemTransferRequest{TransferInfo{0U, WRITE, AscendString(remote_b.c_str())}, conn_b});
+  engine.req_map_.emplace(3U,
+                          FabricMemTransferRequest{TransferInfo{0U, WRITE, AscendString(remote_b.c_str())}, conn_b});
 
   engine.RemoveChannelReqMapLocked(remote_a);
   ASSERT_EQ(engine.req_map_.size(), 1U);
@@ -1117,7 +1190,7 @@ TEST_F(FabricMemEngineInitUTest, FabricMemoryCapacityConfig) {
   const std::string json_config = R"({
     "fabric_memory": {
       "max_capacity": )" + std::to_string(kCustomCapacityTB) +
-                                    R"(
+                                  R"(
     }
   })";
 
@@ -1139,9 +1212,97 @@ TEST_F(FabricMemEngineInitUTest, FabricMemoryInitFailureRollback) {
 
   FabricMemEngine engine{AscendString("invalid_local_engine")};
   EXPECT_NE(InitEngineWithOptions(engine, BuildFabricMemOptions()), SUCCESS);
-  EXPECT_EQ(VirtualMemoryManager::GetInstance().SetGlobalStartAddress(50UL), SUCCESS);
-  EXPECT_EQ(VirtualMemoryManager::GetInstance().SetGlobalStartAddress(40UL), SUCCESS);
+  // InitFabricMem may initialize the process-wide VMM before failing; it is not
+  // torn down when engine initialization rolls back.
+  EXPECT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
+  EXPECT_EQ(VirtualMemoryManager::GetInstance().SetGlobalStartAddress(50UL), PARAM_INVALID);
   VirtualMemoryManager::GetInstance().Finalize();
+}
+
+TEST_F(FabricMemEngineInitUTest, FabricMemEnabledOptionInitializesEngine) {
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
+  const auto options = BuildFabricMemOptions();
+  HixlOptions parsed;
+  ASSERT_EQ(HixlOptions::Parse(options, parsed), SUCCESS);
+  EXPECT_TRUE(parsed.EnableFabricMem().value_or(false));
+  EXPECT_EQ(InitEngineWithOptions(engine, options), SUCCESS);
+  engine.Finalize();
+  VirtualMemoryManager::GetInstance().Finalize();
+}
+
+TEST_F(FabricMemEngineInitUTest, StartAddressConfig) {
+  for (size_t start_address_tb : {40UL, 220UL}) {
+    VirtualMemoryManager::GetInstance().Finalize();
+    const std::string json_config =
+        R"({"fabric_memory": {"start_address": )" + std::to_string(start_address_tb) + R"(}})";
+    FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
+    auto options = BuildFabricMemOptions();
+    options[OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
+    EXPECT_EQ(InitEngineWithOptions(engine, options), SUCCESS);
+    engine.Finalize();
+    VirtualMemoryManager::GetInstance().Finalize();
+  }
+
+  VirtualMemoryManager::GetInstance().Finalize();
+  EXPECT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
+  EXPECT_EQ(VirtualMemoryManager::GetInstance().SetGlobalStartAddress(40UL), PARAM_INVALID);
+  VirtualMemoryManager::GetInstance().Finalize();
+}
+
+TEST_F(FabricMemEngineInitUTest, StartAddressInvalidConfig) {
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
+  auto options = BuildFabricMemOptions();
+  options[OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(R"({"fabric_memory": {"start_address": 221}})");
+  EXPECT_EQ(InitEngineWithOptions(engine, options), PARAM_INVALID);
+}
+
+TEST_F(FabricMemEngineInitUTest, TaskStreamNumConfig) {
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  for (size_t task_stream_num = 1U; task_stream_num <= 8U; ++task_stream_num) {
+    const std::string json_config =
+        R"({"fabric_memory": {"task_stream_num": )" + std::to_string(task_stream_num) + R"(}})";
+    FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
+    auto options = BuildFabricMemOptions();
+    options[OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
+    EXPECT_EQ(InitEngineWithOptions(engine, options), SUCCESS);
+    engine.Finalize();
+  }
+  VirtualMemoryManager::GetInstance().Finalize();
+}
+
+TEST_F(FabricMemEngineInitUTest, TaskStreamNumInvalidConfig) {
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  for (const char *json_config :
+       {R"({"fabric_memory": {"task_stream_num": 0}})", R"({"fabric_memory": {"task_stream_num": 9}})"}) {
+    FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
+    auto options = BuildFabricMemOptions();
+    options[OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config);
+    EXPECT_EQ(InitEngineWithOptions(engine, options), PARAM_INVALID);
+  }
+}
+
+TEST_F(FabricMemEngineInitUTest, TaskStreamNumInvalidString) {
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
+  auto options = BuildFabricMemOptions();
+  options[OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(R"({"fabric_memory": {"task_stream_num": "not_a_number"}})");
+  EXPECT_EQ(InitEngineWithOptions(engine, options), PARAM_INVALID);
+}
+
+TEST_F(FabricMemEngineInitUTest, TaskStreamNumEmptyString) {
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
+  auto options = BuildFabricMemOptions();
+  options[OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(R"({"fabric_memory": {"task_stream_num": ""}})");
+  EXPECT_EQ(InitEngineWithOptions(engine, options), PARAM_INVALID);
 }
 
 TEST_F(FabricMemEngineInitUTest, FabricMemRegisterMemOverflow) {

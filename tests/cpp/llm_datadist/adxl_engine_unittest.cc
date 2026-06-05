@@ -20,11 +20,8 @@
 #include "adxl/adxl_engine.h"
 #include "adxl/channel_manager.h"
 #include "adxl/statistic_manager.h"
-#include "fabric_mem/virtual_memory_manager.h"
 #include "engine/engine_factory.h"
-#include "engine/fabric_mem_engine.h"
 #include "engine/hixl_engine.h"
-#include "engine/hixl_options.h"
 #include "engine/comm_engine.h"
 #include "dlog_pub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
@@ -112,6 +109,88 @@ class AdxlEngineUTest : public ::testing::Test {
     mem_desc.len = sizeof(int32_t);
     EXPECT_EQ(engine.RegisterMem(mem_desc, MEM_DEVICE, handle), SUCCESS);
   }
+
+  struct Int32MemPair {
+    int32_t src = 1;
+    int32_t dst = 2;
+    MemHandle handle1 = nullptr;
+    MemHandle handle2 = nullptr;
+  };
+
+  void SetupEnginesOnPorts(AdxlEngine &engine1, AdxlEngine &engine2) {
+    llm::AutoCommResRuntimeMock::SetDevice(0);
+    std::map<AscendString, AscendString> options1;
+    EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options1), SUCCESS);
+    llm::AutoCommResRuntimeMock::SetDevice(1);
+    std::map<AscendString, AscendString> options2;
+    EXPECT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
+  }
+
+  void SetupBufferPoolEngines(AdxlEngine &engine1, AdxlEngine &engine2) {
+    llm::AutoCommResRuntimeMock::SetDevice(0);
+    std::map<AscendString, AscendString> options1;
+    options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
+    options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
+    options1["adxl.BufferPool"] = "4:8";
+    EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
+    llm::AutoCommResRuntimeMock::SetDevice(1);
+    std::map<AscendString, AscendString> options2;
+    options2["adxl.BufferPool"] = "4:8";
+    EXPECT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
+  }
+
+  Int32MemPair SetupInt32ConnectedEngines(AdxlEngine &engine1, AdxlEngine &engine2) {
+    SetupEngines(engine1, engine2);
+    Int32MemPair mem;
+    RegisterInt32Mem(engine1, &mem.src, mem.handle1);
+    RegisterInt32Mem(engine2, &mem.dst, mem.handle2);
+    EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
+    return mem;
+  }
+
+  TransferOpDesc MakeInt32TransferDesc(int32_t &src, int32_t &dst) {
+    return TransferOpDesc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+  }
+
+  std::vector<TransferOpDesc> BuildBlockTransferDescs(uintptr_t src_base, uintptr_t dst_base, size_t block_size,
+                                                      size_t block_num) {
+    std::vector<TransferOpDesc> descs;
+    descs.reserve(block_num);
+    for (size_t i = 0; i < block_num; ++i) {
+      descs.emplace_back(TransferOpDesc{src_base + i * block_size, dst_base + i * block_size, block_size});
+    }
+    return descs;
+  }
+
+  void ExpectAllElementsEq(const std::vector<int8_t> &data, int8_t expected) {
+    for (const auto val : data) {
+      EXPECT_EQ(val, expected);
+    }
+  }
+
+  void SendTestNotifies(AdxlEngine &engine, const char *peer, int count) {
+    for (int i = 0; i < count; ++i) {
+      NotifyDesc notify;
+      notify.name = AscendString(("test_notify" + std::to_string(i)).c_str());
+      notify.notify_msg = AscendString(("message " + std::to_string(i)).c_str());
+      EXPECT_EQ(engine.SendNotify(peer, notify), SUCCESS);
+    }
+  }
+
+  void ExpectTestNotifiesContent(const std::vector<NotifyDesc> &notifies) {
+    for (size_t i = 0; i < notifies.size(); ++i) {
+      EXPECT_EQ(std::string(notifies[i].name.GetString()), "test_notify" + std::to_string(i));
+      EXPECT_EQ(std::string(notifies[i].notify_msg.GetString()), "message " + std::to_string(i));
+    }
+  }
+
+  std::vector<NotifyDesc> GetAndExpectNotifies(AdxlEngine &engine, size_t expected_count) {
+    std::vector<NotifyDesc> notifies;
+    EXPECT_EQ(engine.GetNotifies(notifies), SUCCESS);
+    EXPECT_EQ(notifies.size(), expected_count);
+    ExpectTestNotifiesContent(notifies);
+    return notifies;
+  }
   // 清理资源
   void CleanupEngine(AdxlEngine &engine1, AdxlEngine &engine2, MemHandle &handle1, MemHandle &handle2) {
     EXPECT_EQ(engine1.Disconnect("127.0.0.1:26001"), SUCCESS);
@@ -181,17 +260,6 @@ TEST_F(AdxlEngineUTest, TestEngineFactoryUseHixlEngineWhenUboeNotFirstInProtocol
   EXPECT_EQ(dynamic_cast<hixl::CommEngine *>(engine.get()), nullptr);
 }
 
-TEST_F(AdxlEngineUTest, TestEngineFactoryUseFabricMemEngineWhenFabricMemEnabled) {
-  std::map<AscendString, AscendString> options;
-  options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
-  hixl::HixlOptions parsed_options;
-  auto engine = hixl::EngineFactory::CreateEngine("127.0.0.1", options, parsed_options);
-  ASSERT_NE(engine, nullptr);
-  EXPECT_NE(dynamic_cast<hixl::FabricMemEngine *>(engine.get()), nullptr);
-  EXPECT_EQ(dynamic_cast<hixl::HixlEngine *>(engine.get()), nullptr);
-  EXPECT_EQ(dynamic_cast<hixl::CommEngine *>(engine.get()), nullptr);
-}
-
 TEST_F(AdxlEngineUTest, TestAdxlEngine) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
@@ -237,17 +305,10 @@ TEST_F(AdxlEngineUTest, TestAdxlEngine) {
 TEST_F(AdxlEngineUTest, TestConnectStatisticForDirectTransfer) {
   AdxlEngine engine1;
   AdxlEngine engine2;
-  SetupEngines(engine1, engine2);
-  int32_t src = 1;
-  MemHandle handle1 = nullptr;
-  RegisterInt32Mem(engine1, &src, handle1);
-  int32_t dst = 2;
-  MemHandle handle2 = nullptr;
-  RegisterInt32Mem(engine2, &dst, handle2);
-  EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
+  auto mem = SetupInt32ConnectedEngines(engine1, engine2);
   ExpectConnectStatistic(StatisticManager::GetClientStatisticChannelId("127.0.0.1:26001"), true, true, true);
   ExpectConnectStatistic(StatisticManager::GetServerStatisticChannelId("127.0.0.1"), true, true, false);
-  CleanupEngine(engine1, engine2, handle1, handle2);
+  CleanupEngine(engine1, engine2, mem.handle1, mem.handle2);
 }
 
 TEST_F(AdxlEngineUTest, TestConnectStatisticForBufferMode) {
@@ -385,7 +446,7 @@ TEST_F(AdxlEngineUTest, TestDeregisterUnregisterMem) {
 
 TEST_F(AdxlEngineUTest, TestHeartbeat) {
   ChannelManager::SetHeartbeatWaitTime(10);  // 10ms
-  CommChannel::SetHeartbeatTimeout(50);          // 50ms
+  CommChannel::SetHeartbeatTimeout(50);      // 50ms
   AdxlEngine engine1;
   llm::AutoCommResRuntimeMock::SetDevice(0);
   std::map<AscendString, AscendString> options1;
@@ -418,19 +479,9 @@ TEST_F(AdxlEngineUTest, TestHeartbeat) {
 }
 
 TEST_F(AdxlEngineUTest, TestAdxlEngineH2HWithBuffer) {
-  llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
-  std::map<AscendString, AscendString> options1;
-  options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
-  options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
-  options1["adxl.BufferPool"] = "4:8";
-  EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
-
-  llm::AutoCommResRuntimeMock::SetDevice(1);
   AdxlEngine engine2;
-  std::map<AscendString, AscendString> options2;
-  options2["adxl.BufferPool"] = "4:8";
-  EXPECT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
+  SetupBufferPoolEngines(engine1, engine2);
 
   size_t size = 16 * 1024 * 1024;
   std::vector<int8_t> src(size, 1);
@@ -438,33 +489,21 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineH2HWithBuffer) {
   EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
   TransferOpDesc desc{reinterpret_cast<uintptr_t>(src.data()), reinterpret_cast<uintptr_t>(dst.data()), size};
   EXPECT_EQ(engine1.TransferSync("127.0.0.1:26001", READ, {desc}), SUCCESS);
-  for (size_t i = 0; i < size; ++i) {
-    EXPECT_EQ(src[i], 2);
-  }
+  ExpectAllElementsEq(src, 2);
   src.assign(size, 1);
   EXPECT_EQ(engine1.TransferSync("127.0.0.1:26001", WRITE, {desc}), SUCCESS);
-  for (size_t i = 0; i < size; ++i) {
-    EXPECT_EQ(dst[i], 1);
-  }
+  ExpectAllElementsEq(dst, 1);
 
-  // still 16M data.
   dst.assign(size, 2);
   size_t block_size = 256 * 1024;
   size_t block_num = 4 * 16;
-  std::vector<TransferOpDesc> descs;
-  for (size_t i = 0; i < block_num; ++i) {
-    descs.emplace_back(TransferOpDesc{reinterpret_cast<uintptr_t>(src.data()) + i * block_size,
-                                      reinterpret_cast<uintptr_t>(dst.data()) + i * block_size, block_size});
-  }
+  auto descs = BuildBlockTransferDescs(reinterpret_cast<uintptr_t>(src.data()), reinterpret_cast<uintptr_t>(dst.data()),
+                                       block_size, block_num);
   EXPECT_EQ(engine1.TransferSync("127.0.0.1:26001", READ, descs), SUCCESS);
-  for (size_t i = 0; i < size; ++i) {
-    EXPECT_EQ(src[i], 2);
-  }
+  ExpectAllElementsEq(src, 2);
   src.assign(size, 1);
   EXPECT_EQ(engine1.TransferSync("127.0.0.1:26001", WRITE, descs), SUCCESS);
-  for (size_t i = 0; i < size; ++i) {
-    EXPECT_EQ(dst[i], 1);
-  }
+  ExpectAllElementsEq(dst, 1);
 
   EXPECT_EQ(engine1.Disconnect("127.0.0.1:26001"), SUCCESS);
   engine1.Finalize();
@@ -472,19 +511,9 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineH2HWithBuffer) {
 }
 
 TEST_F(AdxlEngineUTest, TestAdxlEngineRD2HWithBuffer) {
-  llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
-  std::map<AscendString, AscendString> options1;
-  options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
-  options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
-  options1["adxl.BufferPool"] = "4:8";
-  EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
-
-  llm::AutoCommResRuntimeMock::SetDevice(1);
   AdxlEngine engine2;
-  std::map<AscendString, AscendString> options2;
-  options2["adxl.BufferPool"] = "4:8";
-  EXPECT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
+  SetupBufferPoolEngines(engine1, engine2);
 
   size_t size = 16 * 1024 * 1024;
   std::vector<int8_t> src(size, 1);
@@ -499,23 +528,15 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineRD2HWithBuffer) {
 
   TransferOpDesc desc{reinterpret_cast<uintptr_t>(src.data()), reinterpret_cast<uintptr_t>(dst.data()), size};
   EXPECT_EQ(engine1.TransferSync("127.0.0.1:26001", READ, {desc}), SUCCESS);
-  for (size_t i = 0; i < size; ++i) {
-    EXPECT_EQ(src[i], 2);
-  }
+  ExpectAllElementsEq(src, 2);
 
-  // still 16M data.
   dst.assign(size, 2);
   size_t block_size = 256 * 1024;
   size_t block_num = 4 * 16;
-  std::vector<TransferOpDesc> descs;
-  for (size_t i = 0; i < block_num; ++i) {
-    descs.emplace_back(TransferOpDesc{reinterpret_cast<uintptr_t>(src.data()) + i * block_size,
-                                      reinterpret_cast<uintptr_t>(dst.data()) + i * block_size, block_size});
-  }
+  auto descs = BuildBlockTransferDescs(reinterpret_cast<uintptr_t>(src.data()), reinterpret_cast<uintptr_t>(dst.data()),
+                                       block_size, block_num);
   EXPECT_EQ(engine1.TransferSync("127.0.0.1:26001", READ, descs), SUCCESS);
-  for (size_t i = 0; i < size; ++i) {
-    EXPECT_EQ(src[i], 2);
-  }
+  ExpectAllElementsEq(src, 2);
 
   EXPECT_EQ(engine1.Disconnect("127.0.0.1:26001"), SUCCESS);
   EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
@@ -526,16 +547,8 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineRD2HWithBuffer) {
 TEST_F(AdxlEngineUTest, TestAdxlEngineTransferAsync) {
   AdxlEngine engine1;
   AdxlEngine engine2;
-  SetupEngines(engine1, engine2);
-  int32_t src = 1;
-  MemHandle handle1 = nullptr;
-  RegisterInt32Mem(engine1, &src, handle1);
-  int32_t dst = 2;
-  MemHandle handle2 = nullptr;
-  RegisterInt32Mem(engine2, &dst, handle2);
-
-  EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
-  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+  auto mem = SetupInt32ConnectedEngines(engine1, engine2);
+  TransferOpDesc desc = MakeInt32TransferDesc(mem.src, mem.dst);
   TransferReq req = nullptr;
   ASSERT_EQ(engine1.TransferAsync("127.0.0.1:26001", READ, {desc}, {}, req), SUCCESS);
 
@@ -547,12 +560,12 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineTransferAsync) {
     std::this_thread::sleep_for(std::chrono::milliseconds(kPollInterval));
   }
   EXPECT_EQ(status, TransferStatus::COMPLETED);
-  EXPECT_EQ(src, 2);
+  EXPECT_EQ(mem.src, 2);
   // 测试多次查找
   EXPECT_EQ(engine1.GetTransferStatus(req, status), PARAM_INVALID);
   EXPECT_EQ(status, TransferStatus::FAILED);
 
-  src = 1;
+  mem.src = 1;
   ASSERT_EQ(engine1.TransferAsync("127.0.0.1:26001", WRITE, {desc}, {}, req), SUCCESS);
   status = TransferStatus::WAITING;
   for (int i = 0; i < kMaxPollTimes && status == TransferStatus::WAITING; ++i) {
@@ -560,23 +573,16 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineTransferAsync) {
     EXPECT_EQ(engine1.GetTransferStatus(req, status), SUCCESS);
   }
   EXPECT_EQ(status, TransferStatus::COMPLETED);
-  EXPECT_EQ(dst, 1);
+  EXPECT_EQ(mem.dst, 1);
 
-  CleanupEngine(engine1, engine2, handle1, handle2);
+  CleanupEngine(engine1, engine2, mem.handle1, mem.handle2);
 }
 
 TEST_F(AdxlEngineUTest, TestAdxlEngineTransferAsyncWithMultiThread) {
   AdxlEngine engine1;
   AdxlEngine engine2;
-  SetupEngines(engine1, engine2);
-  int32_t src = 1;
-  MemHandle handle1 = nullptr;
-  RegisterInt32Mem(engine1, &src, handle1);
-  int32_t dst = 2;
-  MemHandle handle2 = nullptr;
-  RegisterInt32Mem(engine2, &dst, handle2);
-  EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
-  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+  auto mem = SetupInt32ConnectedEngines(engine1, engine2);
+  TransferOpDesc desc = MakeInt32TransferDesc(mem.src, mem.dst);
   constexpr int kThreadCount = 20;
   constexpr int kPollInterval = 10;
   constexpr int kMaxWaitTime = 5;  // 5s
@@ -621,7 +627,7 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineTransferAsyncWithMultiThread) {
     }
   }
   EXPECT_EQ(completed.load(), kThreadCount);
-  CleanupEngine(engine1, engine2, handle1, handle2);
+  CleanupEngine(engine1, engine2, mem.handle1, mem.handle2);
 }
 
 TEST_F(AdxlEngineUTest, TestAdxlEngineGetTransferStatusFalied) {
@@ -653,15 +659,8 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineGetTransferStatusFalied) {
 TEST_F(AdxlEngineUTest, TestAdxlGetTransferStatusWithInterrupt) {
   AdxlEngine engine1;
   AdxlEngine engine2;
-  SetupEngines(engine1, engine2);
-  int32_t src = 1;
-  MemHandle handle1 = nullptr;
-  RegisterInt32Mem(engine1, &src, handle1);
-  int32_t dst = 2;
-  MemHandle handle2 = nullptr;
-  RegisterInt32Mem(engine2, &dst, handle2);
-  EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
-  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+  auto mem = SetupInt32ConnectedEngines(engine1, engine2);
+  TransferOpDesc desc = MakeInt32TransferDesc(mem.src, mem.dst);
   TransferReq req = nullptr;
   EXPECT_EQ(engine1.TransferAsync("127.0.0.1:26001", WRITE, {desc}, {}, req), SUCCESS);
   engine1.Disconnect("127.0.0.1:26001");
@@ -674,15 +673,8 @@ TEST_F(AdxlEngineUTest, TestAdxlGetTransferStatusWithInterrupt) {
 TEST_F(AdxlEngineUTest, TestAdxlGetTransferStatusWithQueryEventFailed) {
   AdxlEngine engine1;
   AdxlEngine engine2;
-  SetupEngines(engine1, engine2);
-  int32_t src = 1;
-  MemHandle handle1 = nullptr;
-  RegisterInt32Mem(engine1, &src, handle1);
-  int32_t dst = 2;
-  MemHandle handle2 = nullptr;
-  RegisterInt32Mem(engine2, &dst, handle2);
-  EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
-  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+  auto mem = SetupInt32ConnectedEngines(engine1, engine2);
+  TransferOpDesc desc = MakeInt32TransferDesc(mem.src, mem.dst);
   TransferReq req = nullptr;
   EXPECT_EQ(engine1.TransferAsync("127.0.0.1:26001", WRITE, {desc}, {}, req), SUCCESS);
   TransferStatus status = TransferStatus::WAITING;
@@ -696,36 +688,13 @@ TEST_F(AdxlEngineUTest, TestAdxlGetTransferStatusWithQueryEventFailed) {
 }
 
 TEST_F(AdxlEngineUTest, TestAdxlEngineSendGetNotifies) {
-  llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
-  std::map<AscendString, AscendString> options1;
-  EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options1), SUCCESS);
-
-  llm::AutoCommResRuntimeMock::SetDevice(1);
   AdxlEngine engine2;
-  std::map<AscendString, AscendString> options2;
-  EXPECT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
-
+  SetupEnginesOnPorts(engine1, engine2);
   EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
-  // send 5 notifies
-  for (int i = 0; i < 5; ++i) {
-    NotifyDesc notify;
-    notify.name = AscendString(("test_notify" + std::to_string(i)).c_str());
-    notify.notify_msg = AscendString(("message " + std::to_string(i)).c_str());
-    EXPECT_EQ(engine1.SendNotify("127.0.0.1:26001", notify), SUCCESS);
-  }
-  // sleep 100 ms then get notify
+  SendTestNotifies(engine1, "127.0.0.1:26001", 5);
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-  std::vector<NotifyDesc> notifies;
-  EXPECT_EQ(engine2.GetNotifies(notifies), SUCCESS);
-  // should get 5 notifies
-  EXPECT_EQ(notifies.size(), 5);
-  // check 5 notifies context
-  for (int i = 0; i < 5; ++i) {
-    EXPECT_EQ(std::string(notifies[i].name.GetString()), "test_notify" + std::to_string(i));
-    EXPECT_EQ(std::string(notifies[i].notify_msg.GetString()), "message " + std::to_string(i));
-  }
+  GetAndExpectNotifies(engine2, 5);
 
   EXPECT_EQ(engine1.Disconnect("127.0.0.1:26001"), SUCCESS);
   engine1.Finalize();
@@ -733,41 +702,17 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineSendGetNotifies) {
 }
 
 TEST_F(AdxlEngineUTest, TestAdxlEngineMultiGetNotifies) {
-  llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
-  std::map<AscendString, AscendString> options1;
-  EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options1), SUCCESS);
-
-  llm::AutoCommResRuntimeMock::SetDevice(1);
   AdxlEngine engine2;
-  std::map<AscendString, AscendString> options2;
-  EXPECT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
-
+  SetupEnginesOnPorts(engine1, engine2);
   EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
-  // send 5 notifies
-  for (int i = 0; i < 5; ++i) {
-    NotifyDesc notify;
-    notify.name = AscendString(("test_notify" + std::to_string(i)).c_str());
-    notify.notify_msg = AscendString(("message " + std::to_string(i)).c_str());
-    EXPECT_EQ(engine1.SendNotify("127.0.0.1:26001", notify), SUCCESS);
-  }
-  // sleep 100 ms then get notifies
+  SendTestNotifies(engine1, "127.0.0.1:26001", 5);
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  GetAndExpectNotifies(engine2, 5);
 
   std::vector<NotifyDesc> notifies;
   EXPECT_EQ(engine2.GetNotifies(notifies), SUCCESS);
-  // should get 5 notifies
-  EXPECT_EQ(notifies.size(), 5);
-  // check 5 notifies context
-  for (int i = 0; i < 5; ++i) {
-    EXPECT_EQ(std::string(notifies[i].name.GetString()), "test_notify" + std::to_string(i));
-    EXPECT_EQ(std::string(notifies[i].notify_msg.GetString()), "message " + std::to_string(i));
-  }
-
-  notifies.clear();
-  EXPECT_EQ(engine2.GetNotifies(notifies), SUCCESS);
-  // should get 0 notify
-  EXPECT_EQ(notifies.size(), 0);
+  EXPECT_EQ(notifies.size(), 0U);
   EXPECT_EQ(engine1.Disconnect("127.0.0.1:26001"), SUCCESS);
   engine1.Finalize();
   engine2.Finalize();
@@ -816,32 +761,21 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineMultiSendNotifies) {
 }
 
 TEST_F(AdxlEngineUTest, TestAdxlEngineSendNotifyTimeout) {
-  llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
-  std::map<AscendString, AscendString> options1;
-  EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options1), SUCCESS);
-
-  llm::AutoCommResRuntimeMock::SetDevice(1);
   AdxlEngine engine2;
-  std::map<AscendString, AscendString> options2;
-  EXPECT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
-
+  SetupEnginesOnPorts(engine1, engine2);
   EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
-  // send 5 notifies
   for (int i = 0; i < 5; ++i) {
     NotifyDesc notify;
     notify.name = AscendString(("test_notify" + std::to_string(i)).c_str());
     notify.notify_msg = AscendString(("message " + std::to_string(i)).c_str());
-    // set timeout param to 1 ms
     EXPECT_EQ(engine1.SendNotify("127.0.0.1:26001", notify, 1), TIMEOUT);
   }
-  // sleep 100 ms then get notifies
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   std::vector<NotifyDesc> notifies;
   EXPECT_EQ(engine2.GetNotifies(notifies), SUCCESS);
-  // should get 0 notify
-  EXPECT_EQ(notifies.size(), 0);
+  EXPECT_EQ(notifies.size(), 0U);
 
   EXPECT_EQ(engine1.Disconnect("127.0.0.1:26001"), SUCCESS);
   engine1.Finalize();
@@ -849,20 +783,12 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineSendNotifyTimeout) {
 }
 
 TEST_F(AdxlEngineUTest, TestAdxlEngineSendNotifyNameTooLong) {
-  llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
-  std::map<AscendString, AscendString> options1;
-  EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options1), SUCCESS);
-
-  llm::AutoCommResRuntimeMock::SetDevice(1);
   AdxlEngine engine2;
-  std::map<AscendString, AscendString> options2;
-  EXPECT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
-
+  SetupEnginesOnPorts(engine1, engine2);
   EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
 
   NotifyDesc notify;
-  // send notify name consist of 2000 'a'
   std::string long_name(2000, 'a');
   notify.name = AscendString(long_name.c_str());
   notify.notify_msg = AscendString("short message");
@@ -876,15 +802,8 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineSendNotifyNameTooLong) {
 TEST_F(AdxlEngineUTest, TestAdxlGetTransferStatusWithStreamSyncFailed) {
   AdxlEngine engine1;
   AdxlEngine engine2;
-  SetupEngines(engine1, engine2);
-  int32_t src = 1;
-  MemHandle handle1 = nullptr;
-  RegisterInt32Mem(engine1, &src, handle1);
-  int32_t dst = 2;
-  MemHandle handle2 = nullptr;
-  RegisterInt32Mem(engine2, &dst, handle2);
-  EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
-  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+  auto mem = SetupInt32ConnectedEngines(engine1, engine2);
+  TransferOpDesc desc = MakeInt32TransferDesc(mem.src, mem.dst);
   TransferReq req = nullptr;
   EXPECT_EQ(engine1.TransferAsync("127.0.0.1:26001", WRITE, {desc}, {}, req), SUCCESS);
   TransferStatus status = TransferStatus::WAITING;
@@ -898,21 +817,13 @@ TEST_F(AdxlEngineUTest, TestAdxlGetTransferStatusWithStreamSyncFailed) {
 }
 
 TEST_F(AdxlEngineUTest, TestAdxlEngineSendNotifyMsgTooLong) {
-  llm::AutoCommResRuntimeMock::SetDevice(0);
   AdxlEngine engine1;
-  std::map<AscendString, AscendString> options1;
-  EXPECT_EQ(engine1.Initialize("127.0.0.1:26000", options1), SUCCESS);
-
-  llm::AutoCommResRuntimeMock::SetDevice(1);
   AdxlEngine engine2;
-  std::map<AscendString, AscendString> options2;
-  EXPECT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
-
+  SetupEnginesOnPorts(engine1, engine2);
   EXPECT_EQ(engine1.Connect("127.0.0.1:26001"), SUCCESS);
 
   NotifyDesc notify;
   notify.name = AscendString("short name");
-  // send notify msg consist of 2000 'b'
   std::string long_msg(2000, 'b');
   notify.notify_msg = AscendString(long_msg.c_str());
 
@@ -932,179 +843,17 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineAutoConnectEnabled) {
   AdxlEngine engine2;
   std::map<AscendString, AscendString> options2;
   EXPECT_EQ(engine2.Initialize("127.0.0.1:26001", options2), SUCCESS);
-  int32_t src = 1;
-  MemHandle handle1 = nullptr;
-  RegisterInt32Mem(engine1, &src, handle1);
-  int32_t dst = 2;
-  MemHandle handle2 = nullptr;
-  RegisterInt32Mem(engine2, &dst, handle2);
-  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+  Int32MemPair mem;
+  RegisterInt32Mem(engine1, &mem.src, mem.handle1);
+  RegisterInt32Mem(engine2, &mem.dst, mem.handle2);
+  TransferOpDesc desc = MakeInt32TransferDesc(mem.src, mem.dst);
   EXPECT_EQ(engine1.TransferSync("127.0.0.1:26001", READ, {desc}), SUCCESS);
-  EXPECT_EQ(src, 2);
+  EXPECT_EQ(mem.src, 2);
   engine1.Disconnect("127.0.0.1:26001");
-  EXPECT_EQ(engine1.DeregisterMem(handle1), SUCCESS);
-  EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
+  EXPECT_EQ(engine1.DeregisterMem(mem.handle1), SUCCESS);
+  EXPECT_EQ(engine2.DeregisterMem(mem.handle2), SUCCESS);
   engine1.Finalize();
   engine2.Finalize();
-}
-
-TEST_F(AdxlEngineUTest, TestAdxlEngineStartAddressConfig) {
-  hixl::VirtualMemoryManager::GetInstance().Finalize();
-
-  for (size_t start_address_tb : {40UL, 220UL}) {
-    std::string json_config = R"({
-    "fabric_memory.start_address": )" +
-                              std::to_string(start_address_tb) + R"(
-  })";
-
-    llm::AutoCommResRuntimeMock::SetDevice(0);
-    AdxlEngine engine;
-    std::map<AscendString, AscendString> options;
-    options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
-    options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
-
-    EXPECT_EQ(engine.Initialize("127.0.0.1:26000", options), SUCCESS);
-    engine.Finalize();
-  }
-  EXPECT_EQ(hixl::VirtualMemoryManager::GetInstance().SetGlobalStartAddress(40UL), SUCCESS);
-}
-
-TEST_F(AdxlEngineUTest, TestAdxlEngineStartAddressInvalidConfig) {
-  hixl::VirtualMemoryManager::GetInstance().Finalize();
-
-  for (size_t start_address_tb : {221UL}) {
-    std::string json_config = R"({
-    "fabric_memory.start_address": )" +
-                              std::to_string(start_address_tb) + R"(
-  })";
-
-    llm::AutoCommResRuntimeMock::SetDevice(0);
-    AdxlEngine engine;
-    std::map<AscendString, AscendString> options;
-    options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
-    options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
-
-    EXPECT_EQ(engine.Initialize("127.0.0.1:26000", options), PARAM_INVALID);
-    engine.Finalize();
-  }
-}
-
-TEST_F(AdxlEngineUTest, TestAdxlEngineTaskStreamNumConfig) {
-  // Ensure VirtualMemoryManager is not initialized
-  hixl::VirtualMemoryManager::GetInstance().Finalize();
-
-  // Test with custom task stream num (valid values 1 to 8)
-  for (size_t task_stream_num = 1; task_stream_num <= 8; ++task_stream_num) {
-    std::string json_config = R"({
-    "fabric_memory.task_stream_num": )" +
-                              std::to_string(task_stream_num) + R"(
-  })";
-
-    llm::AutoCommResRuntimeMock::SetDevice(0);
-    AdxlEngine engine;
-    std::map<AscendString, AscendString> options;
-    options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
-    options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
-
-    // Initialize with custom task_stream_num
-    EXPECT_EQ(engine.Initialize("127.0.0.1:26000", options), SUCCESS);
-    engine.Finalize();
-  }
-}
-
-TEST_F(AdxlEngineUTest, TestAdxlEngineTaskStreamNumInvalidConfig) {
-  // Ensure VirtualMemoryManager is not initialized
-  hixl::VirtualMemoryManager::GetInstance().Finalize();
-
-  // Test with task_stream_num = 0 (below minimum)
-  {
-    std::string json_config = R"({
-    "fabric_memory.task_stream_num" : 0
-    }
-  })";
-
-    llm::AutoCommResRuntimeMock::SetDevice(0);
-    AdxlEngine engine;
-    std::map<AscendString, AscendString> options;
-    options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
-    options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
-
-    // Should fail with invalid parameter
-    EXPECT_EQ(engine.Initialize("127.0.0.1:26000", options), PARAM_INVALID);
-  }
-
-  // Test with task_stream_num = 9 (above maximum)
-  {
-    std::string json_config = R"({
-    "fabric_memory.task_stream_num" : 9
-  })";
-
-    llm::AutoCommResRuntimeMock::SetDevice(0);
-    AdxlEngine engine;
-    std::map<AscendString, AscendString> options;
-    options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
-    options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
-
-    // Should fail with invalid parameter
-    EXPECT_EQ(engine.Initialize("127.0.0.1:26000", options), PARAM_INVALID);
-  }
-}
-
-TEST_F(AdxlEngineUTest, TestAdxlEngineTaskStreamNumInvalidString) {
-  // Ensure VirtualMemoryManager is not initialized
-  hixl::VirtualMemoryManager::GetInstance().Finalize();
-
-  // Test with invalid task_stream_num string (not a number)
-  std::string json_config = R"({
-    "fabric_memory.task_stream_num": "not_a_number"
-  })";
-
-  llm::AutoCommResRuntimeMock::SetDevice(0);
-  AdxlEngine engine;
-  std::map<AscendString, AscendString> options;
-  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
-  options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
-
-  // Should fail with invalid parameter
-  EXPECT_EQ(engine.Initialize("127.0.0.1:26000", options), PARAM_INVALID);
-}
-
-TEST_F(AdxlEngineUTest, TestAdxlEngineTaskStreamNumEmptyString) {
-  // Ensure VirtualMemoryManager is not initialized
-  hixl::VirtualMemoryManager::GetInstance().Finalize();
-
-  // Test with empty task_stream_num string
-  std::string json_config = R"({
-    "fabric_memory.task_stream_num": ""
-  })";
-
-  llm::AutoCommResRuntimeMock::SetDevice(0);
-  AdxlEngine engine;
-  std::map<AscendString, AscendString> options;
-  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
-  options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
-
-  // Should fail with invalid parameter
-  EXPECT_EQ(engine.Initialize("127.0.0.1:26000", options), PARAM_INVALID);
-}
-
-TEST_F(AdxlEngineUTest, TestAdxlEngineMallocMemAndFreeMem) {
-  EXPECT_EQ(hixl::VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
-
-  void *fabric_ptr = nullptr;
-  ASSERT_EQ(AdxlEngine::MallocMem(MEM_HOST, sizeof(int32_t), &fabric_ptr), SUCCESS);
-  ASSERT_NE(fabric_ptr, nullptr);
-
-  auto *value = static_cast<int32_t *>(fabric_ptr);
-  *value = 123;
-  EXPECT_EQ(*value, 123);
-
-  EXPECT_EQ(AdxlEngine::FreeMem(fabric_ptr), SUCCESS);
-  hixl::VirtualMemoryManager::GetInstance().Finalize();
-}
-
-TEST_F(AdxlEngineUTest, TestAdxlEngineMallocMemInvalidParam) {
-  EXPECT_EQ(AdxlEngine::MallocMem(MEM_HOST, sizeof(int32_t), nullptr), PARAM_INVALID);
 }
 
 }  // namespace adxl

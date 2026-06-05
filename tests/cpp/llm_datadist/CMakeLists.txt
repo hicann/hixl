@@ -23,7 +23,7 @@ set(LLM_DATADIST_TEST_FILES
         data_cache_engine_unittest.cc
         comm_mem_manager_unittest.cc
         hixl_api_unittest.cc
-        adxl_engine_api_unittest.cc
+        adxl_engine_unittest.cc
         segment_table_unittest.cc
         statistic_manager_unittest.cc
         rank_table_generator_unittest.cc

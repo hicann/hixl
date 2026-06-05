@@ -27,13 +27,9 @@
 namespace hixl {
 
 const std::unordered_set<std::string> FabricMemEngine::kSupportedOptions = {
-    OPTION_ENABLE_USE_FABRIC_MEM, OPTION_AUTO_CONNECT,
-    OPTION_GLOBAL_RESOURCE_CONFIG};
+    OPTION_ENABLE_USE_FABRIC_MEM, OPTION_AUTO_CONNECT, OPTION_GLOBAL_RESOURCE_CONFIG};
 
 namespace {
-std::mutex g_fabric_mem_vm_mutex;
-size_t g_fabric_mem_vm_ref_count = 0;
-
 Status BuildAddrInfo(const MemDesc &mem, MemType type, AddrInfo &addr_info) {
   HIXL_CHK_BOOL_RET_STATUS(mem.len > 0, PARAM_INVALID, "[FabricMemEngine] Memory length must be greater than zero.");
   const auto max_addr = std::numeric_limits<uintptr_t>::max();
@@ -107,33 +103,11 @@ Status FabricMemEngine::StartControlServer() {
   return SUCCESS;
 }
 
-Status FabricMemEngine::AcquireVirtualMemoryManager() {
-  std::lock_guard<std::mutex> lock(g_fabric_mem_vm_mutex);
+Status FabricMemEngine::InitFabricMem() {
+  HIXL_DISMISSABLE_GUARD(fail_guard, ([this]() { CleanupFabricMemLocked(); }));
   HIXL_CHK_STATUS_RET(ApplyVirtualMemoryConfig(), "[FabricMemEngine] Failed to apply virtual memory config.");
   HIXL_CHK_STATUS_RET(VirtualMemoryManager::GetInstance().Initialize(),
                       "[FabricMemEngine] Failed to initialize fabric virtual memory manager.");
-  ++g_fabric_mem_vm_ref_count;
-  has_acquired_virtual_memory_ = true;
-  return SUCCESS;
-}
-
-void FabricMemEngine::ReleaseVirtualMemoryManager() {
-  if (!has_acquired_virtual_memory_) {
-    return;
-  }
-  std::lock_guard<std::mutex> lock(g_fabric_mem_vm_mutex);
-  if (g_fabric_mem_vm_ref_count > 0) {
-    --g_fabric_mem_vm_ref_count;
-    if (g_fabric_mem_vm_ref_count == 0) {
-      VirtualMemoryManager::GetInstance().Finalize();
-    }
-  }
-  has_acquired_virtual_memory_ = false;
-}
-
-Status FabricMemEngine::InitFabricMem() {
-  HIXL_DISMISSABLE_GUARD(fail_guard, ([this]() { CleanupFabricMemLocked(); }));
-  HIXL_CHK_STATUS_RET(AcquireVirtualMemoryManager(), "[FabricMemEngine] Failed to acquire virtual memory manager.");
   HIXL_CHK_STATUS_RET(InitTransferService(), "[FabricMemEngine] Failed to initialize transfer service.");
   HIXL_CHK_STATUS_RET(fabric_mem_statistic_.StartPeriodicDump(),
                       "[FabricMemEngine] Failed to start fabric mem statistic dump.");
@@ -350,7 +324,7 @@ Status FabricMemEngine::AcquireTransferLease(const std::string &remote_engine,
     std::lock_guard<std::mutex> lock(mutex_);
     const auto it = fabric_mem_remote_mems_.find(remote_engine);
     HIXL_CHK_BOOL_RET_STATUS(it != fabric_mem_remote_mems_.end(), NOT_CONNECTED,
-                            "[FabricMemEngine] remote engine:%s is not connected.", remote_engine.c_str());
+                             "[FabricMemEngine] remote engine:%s is not connected.", remote_engine.c_str());
     conn = it->second;
   }
   std::lock_guard<std::mutex> conn_lock(conn->state_mutex);
@@ -424,6 +398,7 @@ Status FabricMemEngine::DisconnectRemote(const AscendString &remote_engine, int3
     std::lock_guard<std::mutex> lock(mutex_);
     const auto it = fabric_mem_remote_mems_.find(remote);
     if (it == fabric_mem_remote_mems_.end()) {
+      HIXL_LOGW("[FabricMemEngine] remote engine:%s is not connected, skip disconnect.", remote.c_str());
       return NOT_CONNECTED;
     }
     conn = it->second;
@@ -446,8 +421,7 @@ Status FabricMemEngine::DisconnectRemote(const AscendString &remote_engine, int3
     std::unique_lock<std::mutex> conn_lock(conn->state_mutex);
     const auto in_flight_done = [&conn]() { return conn->in_flight == 0U; };
     if (timeout_in_millis > 0) {
-      if (!conn->cv.wait_for(conn_lock, std::chrono::milliseconds(timeout_in_millis),
-                             in_flight_done)) {
+      if (!conn->cv.wait_for(conn_lock, std::chrono::milliseconds(timeout_in_millis), in_flight_done)) {
         HIXL_LOGW("[FabricMemEngine] Timed out waiting for in-flight transfers on disconnect, remote:%s.",
                   remote.c_str());
         conn->disconnecting = false;
@@ -817,7 +791,6 @@ void FabricMemEngine::CleanupFabricMemLocked() {
       std::lock_guard<std::mutex> req_lock(req_map_mutex_);
       req_map_.clear();
     }
-    ReleaseVirtualMemoryManager();
   }
   if (aclrt_context_ != nullptr) {
     aclrt_context_holder_.reset();
