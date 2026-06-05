@@ -50,6 +50,7 @@ struct MatchEndpointReq {
 struct MatchEndpointResp {
   Status result;
   uint64_t dst_ep_handle = 0UL;
+  uint32_t port;
 };
 
 struct CreateChannelReq {

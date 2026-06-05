@@ -97,7 +97,8 @@ hixl::Status ParseMatchEndpointResp(const std::vector<uint8_t> &body, size_t off
   return hixl::SUCCESS;
 }
 
-hixl::Status RecvMatchEndpointHandleResponse(int32_t socket, uint64_t &remote_endpoint_handle, uint32_t timeout_ms) {
+hixl::Status RecvMatchEndpointHandleResponse(int32_t socket, uint64_t &remote_endpoint_handle,
+                                             uint32_t &remote_listen_port, uint32_t timeout_ms) {
   const uint64_t expect_body_size = static_cast<uint64_t>(sizeof(hixl::CtrlMsgType) + sizeof(hixl::MatchEndpointResp));
 
   hixl::CtrlMsgHeader header{};
@@ -116,7 +117,9 @@ hixl::Status RecvMatchEndpointHandleResponse(int32_t socket, uint64_t &remote_en
   HIXL_CHK_BOOL_RET_STATUS(resp.result == hixl::SUCCESS, hixl::FAILED,
                            "MatchEndpointResp result not SUCCESS, result=%u", static_cast<uint32_t>(resp.result));
   remote_endpoint_handle = resp.dst_ep_handle;
-  HIXL_LOGI("MatchEndpointResp check passed. remote_endpoint_handle set to %lu", remote_endpoint_handle);
+  remote_listen_port = resp.port;
+  HIXL_LOGI("MatchEndpointResp check passed. remote_endpoint_handle set to %lu, remote_listen_port=%u",
+            remote_endpoint_handle, remote_listen_port);
   return hixl::SUCCESS;
 }
 
@@ -160,9 +163,9 @@ Status ConnMsgHandler::SendMatchEndpointRequest(int32_t socket, const EndpointDe
 }
 
 Status ConnMsgHandler::RecvMatchEndpointResponse(int32_t socket, uint64_t &remote_endpoint_handle,
-                                                 uint32_t timeout_ms) {
+                                                 uint32_t &remote_listen_port, uint32_t timeout_ms) {
   HIXL_EVENT("RecvMatchEndpointResponse start. socket: %d", socket);
-  Status ret = RecvMatchEndpointHandleResponse(socket, remote_endpoint_handle, timeout_ms);
+  Status ret = RecvMatchEndpointHandleResponse(socket, remote_endpoint_handle, remote_listen_port, timeout_ms);
   if (ret == SUCCESS) {
     HIXL_EVENT("RecvMatchEndpointResponse success. Remote handle: %lu", remote_endpoint_handle);
   } else {

@@ -40,6 +40,8 @@ class Endpoint {
   Status DestroyChannel(ChannelHandle channel_handle);
   Status GetMemDesc(MemHandle mem_handle, HixlMemDesc &desc);
   Status MemImport(const void *mem_desc, uint32_t desc_len, CommMem &out_buf);
+  void SetPort(uint32_t port);
+  uint32_t GetPort() const;
 
  private:
   std::mutex mutex_;
@@ -47,6 +49,7 @@ class Endpoint {
   EndpointHandle handle_ = nullptr;
   std::map<MemHandle, HixlMemDesc> reg_mems_;
   std::map<ChannelHandle, ChannelPtr> channels_;
+  uint32_t port_ = 0;
 };
 
 using EndpointPtr = std::shared_ptr<Endpoint>;

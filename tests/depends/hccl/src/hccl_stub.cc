@@ -27,6 +27,7 @@ static uint32_t g_transfer_retry_counter = 0;
 // 设置后下一次调用会返回指定的错误码（既不是成功也不是重试所需）
 static int32_t g_next_nbi_failure_ret = 0;    // 下一次NBI传输的返回值
 static int32_t g_next_fence_failure_ret = 0;  // 下一次Fence的返回值
+static int32_t g_listen_port_ret = 0;         // HcommEndpointGetListenPort的返回值, 0表示使用默认行为(返回HCCL_SUCCESS)
 
 // 辅助函数：执行 NBI 传输并处理重试逻辑
 static int32_t DoNbiTransferWithRetry(void *dst, const void *src, uint64_t len) {
@@ -80,6 +81,17 @@ HcommResult HcommEndpointCreate(const EndpointDesc *endPoint, EndpointHandle *en
 
 HcommResult HcommEndpointDestroy(EndpointHandle endPointHandle) {
   (void)endPointHandle;
+  return static_cast<HcommResult>(HCCL_SUCCESS);
+}
+
+HcommResult HcommEndpointGetListenPort(EndpointHandle endpointHandle, uint32_t *port) {
+  (void)endpointHandle;
+  *port = 8080;
+  if (g_listen_port_ret != 0) {
+    int32_t ret = g_listen_port_ret;
+    g_listen_port_ret = 0;
+    return static_cast<HcommResult>(ret);
+  }
   return static_cast<HcommResult>(HCCL_SUCCESS);
 }
 
@@ -224,6 +236,11 @@ void SetNextNbiFailure(int32_t ret) {
 // 设置下一次Fence返回指定错误码
 void SetNextFenceFailure(int32_t ret) {
   g_next_fence_failure_ret = ret;
+}
+
+// 设置 HcommEndpointGetListenPort 的返回值
+void SetListenPortResult(int32_t ret) {
+  g_listen_port_ret = ret;
 }
 
 // 重置传输计数器
