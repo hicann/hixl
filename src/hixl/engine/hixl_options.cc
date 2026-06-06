@@ -25,6 +25,8 @@ constexpr size_t kMinStartAddressTB = 40UL;
 constexpr size_t kMaxStartAddressTB = 220UL;
 constexpr size_t kMinTaskStreamNum = 1U;
 constexpr size_t kMaxTaskStreamNum = 8U;
+constexpr uint32_t kMinListenPort = 1U;
+constexpr uint32_t kMaxListenPort = 65535U;
 
 template <typename T>
 T JsonToNumber(const nlohmann::json &val) {
@@ -69,6 +71,9 @@ void from_json(const nlohmann::json &j, CommResourceConfigDesc &cfg) {
       return;
     }
     cfg.protocol_desc = protocol_desc.get<std::vector<std::string>>();
+  }
+  if (j.contains("comm_resource_config.listen_port")) {
+    cfg.listen_port = JsonToNumber<uint32_t>(j.at("comm_resource_config.listen_port"));
   }
 }
 
@@ -251,6 +256,12 @@ Status HixlOptions::ParseGlobalResourceConfig(const std::map<AscendString, Ascen
       HIXL_CHK_BOOL_RET_STATUS(val >= kMinTaskStreamNum && val <= kMaxTaskStreamNum, PARAM_INVALID,
                                "fabric_memory.task_stream_num must be between %zu and %zu, got %zu",
                                kMinTaskStreamNum, kMaxTaskStreamNum, val);
+    }
+    if (cfg.comm_resource_config.listen_port.has_value()) {
+      uint32_t val = *cfg.comm_resource_config.listen_port;
+      HIXL_CHK_BOOL_RET_STATUS(val >= kMinListenPort && val <= kMaxListenPort, PARAM_INVALID,
+                               "comm_resource_config.listen_port must be in [%u, %u], got %u",
+                               kMinListenPort, kMaxListenPort, val);
     }
 
     global_resource_config_ = std::move(cfg);

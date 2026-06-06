@@ -10,7 +10,6 @@
 
 #include "engine/endpoint_matcher.h"
 #include <algorithm>
-#include <cstdlib>
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 #include "engine/client_handler_factory.h"
@@ -18,6 +17,41 @@
 namespace hixl {
 namespace {
 constexpr uint32_t kMaxUbCsClientNum = 4U;
+
+enum class MatchRuleType {
+  GROUP,
+  SINGLE,
+};
+
+struct MatchRule {
+  MatchRuleType rule_type;
+  HandlerCreateArgs::HandlerType handler_type;
+  const char *protocol;
+  const char *placement;
+  CommType type;
+};
+
+constexpr MatchRule kCrossInstanceRules[] = {
+    {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolUboe, kPlacementDevice,
+     CommType::COMM_TYPE_UBOE},
+    {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolRoce, kPlacementDevice,
+     CommType::COMM_TYPE_ROCE},
+    {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolRoce, kPlacementHost,
+     CommType::COMM_TYPE_ROCE},
+};
+
+constexpr MatchRule kSameInstanceRules[] = {
+    {MatchRuleType::GROUP, HandlerCreateArgs::HandlerType::UB, nullptr, nullptr,
+     CommType::COMM_TYPE_UB_D2D},
+    {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolHccs, kPlacementDevice,
+     CommType::COMM_TYPE_HCCS},
+    {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolUboe, kPlacementDevice,
+     CommType::COMM_TYPE_UBOE},
+    {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolRoce, kPlacementDevice,
+     CommType::COMM_TYPE_ROCE},
+    {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolRoce, kPlacementHost,
+     CommType::COMM_TYPE_ROCE},
+};
 }  // namespace
 
 CommType EndpointMatcher::ParseCommType(const std::string &local, const std::string &remote) {
@@ -68,12 +102,8 @@ void EndpointMatcher::BuildMatchMap(const std::vector<EndpointConfig> &endpoints
   }
 }
 
-bool EndpointMatcher::MustUseRoce(const std::vector<EndpointConfig> &local,
-                                  const std::vector<EndpointConfig> &remote) {
-  const char *env = std::getenv("HCCL_INTRA_ROCE_ENABLE");
-  if (env != nullptr && std::string(env) == "1") {
-    return true;
-  }
+bool EndpointMatcher::IsCrossInstance(const std::vector<EndpointConfig> &local,
+                                      const std::vector<EndpointConfig> &remote) {
   return local[0].net_instance_id != remote[0].net_instance_id;
 }
 
@@ -87,42 +117,20 @@ std::map<MatchKey, EndpointConfig>::const_iterator EndpointMatcher::FindMatching
   return map.end();
 }
 
-Status EndpointMatcher::TryMatchUboe(const std::vector<EndpointConfig> &local,
-                                     const std::vector<EndpointConfig> &remote,
-                                     std::vector<HandlerCreateArgs::EndpointPair> &pairs) {
-  auto *li = FindByProtocol(local, kProtocolUboe);
-  auto *ri = FindByProtocol(remote, kProtocolUboe);
-  if (li != nullptr && ri != nullptr) {
-    pairs.push_back({*li, *ri, CommType::COMM_TYPE_UBOE});
+Status EndpointMatcher::TryMatchSingle(const std::vector<EndpointConfig> &local,
+                                       const std::vector<EndpointConfig> &remote,
+                                       const std::string &protocol, const std::string &placement,
+                                       CommType type, std::vector<HandlerCreateArgs::EndpointPair> &pairs) {
+  auto is_matched = [&protocol, &placement](const EndpointConfig &endpoint) {
+    return endpoint.protocol == protocol && endpoint.placement == placement;
+  };
+  auto local_it = std::find_if(local.begin(), local.end(), is_matched);
+  auto remote_it = std::find_if(remote.begin(), remote.end(), is_matched);
+  if (local_it != local.end() && remote_it != remote.end()) {
+    pairs.push_back({*local_it, *remote_it, type});
     return SUCCESS;
   }
   return FAILED;
-}
-
-Status EndpointMatcher::TryMatchRoce(const std::vector<EndpointConfig> &local,
-                                     const std::vector<EndpointConfig> &remote,
-                                     std::vector<HandlerCreateArgs::EndpointPair> &pairs) {
-  auto *li = FindByProtocol(local, kProtocolRoce);
-  auto *ri = FindByProtocol(remote, kProtocolRoce);
-  if (li != nullptr && ri != nullptr) {
-    pairs.push_back({*li, *ri, CommType::COMM_TYPE_ROCE});
-    return SUCCESS;
-  }
-  HIXL_LOGE(PARAM_INVALID, "Failed to find matched ROCE endpoints");
-  return PARAM_INVALID;
-}
-
-Status EndpointMatcher::TryMatchHccs(const std::vector<EndpointConfig> &local,
-                                     const std::vector<EndpointConfig> &remote,
-                                     std::vector<HandlerCreateArgs::EndpointPair> &pairs) {
-  auto *li = FindByProtocol(local, kProtocolHccs);
-  auto *ri = FindByProtocol(remote, kProtocolHccs);
-  if (li != nullptr && ri != nullptr) {
-    pairs.push_back({*li, *ri, CommType::COMM_TYPE_HCCS});
-    return SUCCESS;
-  }
-  HIXL_LOGE(PARAM_INVALID, "Failed to find matched HCCS endpoints");
-  return PARAM_INVALID;
 }
 
 Status EndpointMatcher::TryMatchUb(const EndpointConfig &local,
@@ -147,45 +155,73 @@ Status EndpointMatcher::TryMatchUb(const EndpointConfig &local,
   return SUCCESS;
 }
 
-Status EndpointMatcher::MatchEndpoints(const std::vector<EndpointConfig> &local,
-                                       const std::vector<EndpointConfig> &remote,
-                                       std::vector<HandlerCreateArgs::EndpointPair> &matched_pairs,
-                                       HandlerCreateArgs::HandlerType &handler_type) {
-  if (TryMatchUboe(local, remote, matched_pairs) == SUCCESS) {
-    handler_type = HandlerCreateArgs::HandlerType::DIRECT;
-    return SUCCESS;
-  }
-  if (MustUseRoce(local, remote)) {
-    HIXL_CHK_STATUS_RET(TryMatchRoce(local, remote, matched_pairs));
-    handler_type = HandlerCreateArgs::HandlerType::DIRECT;
-    return SUCCESS;
-  }
+Status EndpointMatcher::TryMatchGroup(const std::vector<EndpointConfig> &local,
+                                      const std::vector<EndpointConfig> &remote,
+                                      std::vector<HandlerCreateArgs::EndpointPair> &pairs) {
   std::map<CommType, bool> expected = {{CommType::COMM_TYPE_UB_D2D, false}, {CommType::COMM_TYPE_UB_H2D, false},
                                        {CommType::COMM_TYPE_UB_D2H, false}, {CommType::COMM_TYPE_UB_H2H, false}};
   uint32_t count = 0;
   std::map<MatchKey, EndpointConfig> peers;
   BuildMatchMap(remote, peers);
-  // 对local排序，dst_eid不为空的元素排在dst_eid为空的元素前面
   auto sorted_local = local;
   std::sort(sorted_local.begin(), sorted_local.end(),
             [](const EndpointConfig &a, const EndpointConfig &b) { return !a.dst_eid.empty() && b.dst_eid.empty(); });
   for (const auto &ep : sorted_local) {
-    HIXL_CHK_STATUS_RET(TryMatchUb(ep, peers, expected, count, matched_pairs));
+    HIXL_CHK_STATUS_RET(TryMatchUb(ep, peers, expected, count, pairs));
     if (count == kMaxUbCsClientNum) {
-      handler_type = HandlerCreateArgs::HandlerType::UB;
       return SUCCESS;
     }
   }
-  if (count > 0) {
-    handler_type = HandlerCreateArgs::HandlerType::UB;
-    return SUCCESS;
-  }
-  if (TryMatchHccs(local, remote, matched_pairs) == SUCCESS) {
-    handler_type = HandlerCreateArgs::HandlerType::DIRECT;
-    return SUCCESS;
+  return count > 0 ? SUCCESS : FAILED;
+}
+
+Status EndpointMatcher::TryMatchByPriority(const std::vector<EndpointConfig> &local,
+                                           const std::vector<EndpointConfig> &remote,
+                                           bool cross_instance,
+                                           std::vector<HandlerCreateArgs::EndpointPair> &pairs,
+                                           HandlerCreateArgs::HandlerType &handler_type) {
+  const MatchRule *rules = cross_instance ? kCrossInstanceRules : kSameInstanceRules;
+  const size_t rule_count = cross_instance ? sizeof(kCrossInstanceRules) / sizeof(kCrossInstanceRules[0])
+                                           : sizeof(kSameInstanceRules) / sizeof(kSameInstanceRules[0]);
+  for (size_t i = 0; i < rule_count; ++i) {
+    const auto &rule = rules[i];
+    Status status = FAILED;
+    switch (rule.rule_type) {
+      case MatchRuleType::GROUP:
+        status = TryMatchGroup(local, remote, pairs);
+        break;
+      case MatchRuleType::SINGLE:
+        status = TryMatchSingle(local, remote, rule.protocol, rule.placement, rule.type, pairs);
+        break;
+      default:
+        break;
+    }
+    if (status == SUCCESS) {
+      handler_type = rule.handler_type;
+      LogMatchedEndpoints(pairs, handler_type);
+      return SUCCESS;
+    }
   }
   HIXL_LOGE(PARAM_INVALID, "Failed to find matched endpoints");
   return PARAM_INVALID;
+}
+
+void EndpointMatcher::LogMatchedEndpoints(const std::vector<HandlerCreateArgs::EndpointPair> &pairs,
+                                          HandlerCreateArgs::HandlerType handler_type) {
+  HIXL_EVENT("EndpointMatcher selected handler:%s, matched pairs:%zu", HandlerTypeToString(handler_type),
+             pairs.size());
+  for (size_t i = 0; i < pairs.size(); ++i) {
+    const auto &pair = pairs[i];
+    HIXL_EVENT("EndpointMatcher pair[%zu], protocol:%s, placement:%s, comm_type:%s", i,
+               pair.local.protocol.c_str(), pair.local.placement.c_str(), CommTypeToString(pair.type));
+  }
+}
+
+Status EndpointMatcher::MatchEndpoints(const std::vector<EndpointConfig> &local,
+                                       const std::vector<EndpointConfig> &remote,
+                                       std::vector<HandlerCreateArgs::EndpointPair> &matched_pairs,
+                                       HandlerCreateArgs::HandlerType &handler_type) {
+  return TryMatchByPriority(local, remote, IsCrossInstance(local, remote), matched_pairs, handler_type);
 }
 
 }  // namespace hixl

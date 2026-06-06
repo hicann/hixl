@@ -14,6 +14,7 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 #include <map>
@@ -30,6 +31,7 @@ struct ClientConfig {
   uint8_t rdma_tc;
   uint8_t rdma_sl;
   uint32_t timeout_ms;
+  std::optional<uint32_t> local_listen_port;
 };
 
 class HixlClient {
@@ -40,7 +42,11 @@ class HixlClient {
    * @param [in] server_port  服务端监听端口号
    */
   HixlClient(const std::string &server_ip, uint32_t server_port, const ClientConfig &config)
-      : server_ip_(server_ip), server_port_(server_port), rdma_tc_(config.rdma_tc), rdma_sl_(config.rdma_sl) {}
+      : server_ip_(server_ip),
+        server_port_(server_port),
+        rdma_tc_(config.rdma_tc),
+        rdma_sl_(config.rdma_sl),
+        local_listen_port_(config.local_listen_port) {}
   ~HixlClient() = default;
 
   /**
@@ -112,6 +118,7 @@ class HixlClient {
   uint32_t server_port_;
   uint8_t rdma_tc_{kRdmaTrafficClass};
   uint8_t rdma_sl_{kRdmaServiceLevel};
+  std::optional<uint32_t> local_listen_port_;
   bool is_connected_{false};  // true为已建链；false未建链
   bool is_finalized_{false};
   bool finalize_pending_{

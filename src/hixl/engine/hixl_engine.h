@@ -13,6 +13,7 @@
 
 #include <mutex>
 #include <map>
+#include <optional>
 #include <unordered_set>
 #include "engine.h"
 #include "hixl_options.h"
@@ -169,6 +170,7 @@ class HixlEngine : public hixl::Engine {
 
   uint8_t rdma_traffic_class_{kRdmaTrafficClass};
   uint8_t rdma_service_level_{kRdmaServiceLevel};
+  std::optional<uint32_t> local_listen_port_;
   std::mutex req_map_mutex_;
   std::map<uint64_t, TransferInfo> req_map_;
 

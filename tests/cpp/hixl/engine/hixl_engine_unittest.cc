@@ -328,6 +328,37 @@ TEST_F(HixlEngineTest, EngineFactoryUsesHixlEngineWhenProtocolDescConfigured) {
   EXPECT_NE(dynamic_cast<HixlEngine *>(engine.get()), nullptr);
 }
 
+TEST_F(HixlEngineTest, InitializeSetsClientListenPortFromGlobalResourceConfig) {
+  std::map<AscendString, AscendString> options = options1;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.listen_port":26301})";
+  HixlOptions parsed;
+  ASSERT_EQ(HixlOptions::Parse(options, parsed), SUCCESS);
+
+  HixlEngine engine("127.0.0.1");
+  EXPECT_EQ(engine.Initialize(parsed), SUCCESS);
+
+  ClientConfig config{};
+  std::vector<MemInfo> mem_info_list;
+  engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, mem_info_list, kTimeOut);
+  ASSERT_TRUE(config.local_listen_port.has_value());
+  EXPECT_EQ(*config.local_listen_port, 26301U);
+  engine.Finalize();
+}
+
+TEST_F(HixlEngineTest, InitializeWithoutListenPortDoesNotSetClientListenPort) {
+  HixlOptions parsed;
+  ASSERT_EQ(HixlOptions::Parse(options1, parsed), SUCCESS);
+
+  HixlEngine engine("127.0.0.1");
+  EXPECT_EQ(engine.Initialize(parsed), SUCCESS);
+
+  ClientConfig config{};
+  std::vector<MemInfo> mem_info_list;
+  engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, mem_info_list, kTimeOut);
+  EXPECT_FALSE(config.local_listen_port.has_value());
+  engine.Finalize();
+}
+
 TEST_F(HixlEngineTest, TestHixl) {
   SetSocStub("Ascend910B1", 0, 12, 99, 88);
   Hixl engine1;

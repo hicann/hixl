@@ -312,6 +312,13 @@ Status IsA5UbAutoGenNeeded(const HixlOptions &options, bool &needed) {
   return SUCCESS;
 }
 
+void LogEndpointList(const char *source, const std::vector<EndpointConfig> &endpoint_list) {
+  HIXL_LOGI("[EndpointGenerator] %s, count:%zu", source, endpoint_list.size());
+  for (size_t i = 0; i < endpoint_list.size(); ++i) {
+    HIXL_LOGI("[EndpointGenerator] endpoint[%zu]: %s", i, endpoint_list[i].ToString().c_str());
+  }
+}
+
 }  // namespace
 
 Status EndpointGenerator::ParseEndpointListFromLocalCommRes(const HixlOptions &options,
@@ -372,6 +379,7 @@ Status EndpointGenerator::FilterEndpointListByProtocolDesc(const HixlOptions &op
     return SUCCESS;
   }
 
+  LogEndpointList("parsed or generated endpoint list", endpoint_list);
   std::set<std::string> desc_set;
   HIXL_CHK_STATUS_RET(ParseProtocolDesc(protocol_desc, desc_set), "ParseProtocolDesc failed");
   std::vector<EndpointConfig> filtered;
@@ -382,6 +390,7 @@ Status EndpointGenerator::FilterEndpointListByProtocolDesc(const HixlOptions &op
     }
   }
   endpoint_list = std::move(filtered);
+  LogEndpointList("endpoint list after protocol_desc filter", endpoint_list);
   HIXL_CHK_BOOL_RET_STATUS(!endpoint_list.empty(), PARAM_INVALID,
                            "endpoint_list is empty after filtering by protocol_desc");
   return SUCCESS;

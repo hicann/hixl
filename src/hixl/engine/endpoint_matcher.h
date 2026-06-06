@@ -73,23 +73,29 @@ class EndpointMatcher {
  private:
   EndpointMatcher() = delete;
 
-  static bool MustUseRoce(const std::vector<EndpointConfig> &local,
-                          const std::vector<EndpointConfig> &remote);
+  static bool IsCrossInstance(const std::vector<EndpointConfig> &local,
+                              const std::vector<EndpointConfig> &remote);
 
   static std::map<MatchKey, EndpointConfig>::const_iterator FindMatchingKey(
       const std::map<MatchKey, EndpointConfig> &map, const MatchKey &query);
 
-  static Status TryMatchUboe(const std::vector<EndpointConfig> &local,
-                             const std::vector<EndpointConfig> &remote,
-                             std::vector<HandlerCreateArgs::EndpointPair> &pairs);
+  static Status TryMatchSingle(const std::vector<EndpointConfig> &local,
+                               const std::vector<EndpointConfig> &remote,
+                               const std::string &protocol, const std::string &placement,
+                               CommType type, std::vector<HandlerCreateArgs::EndpointPair> &pairs);
 
-  static Status TryMatchRoce(const std::vector<EndpointConfig> &local,
-                             const std::vector<EndpointConfig> &remote,
-                             std::vector<HandlerCreateArgs::EndpointPair> &pairs);
+  static Status TryMatchGroup(const std::vector<EndpointConfig> &local,
+                              const std::vector<EndpointConfig> &remote,
+                              std::vector<HandlerCreateArgs::EndpointPair> &pairs);
 
-  static Status TryMatchHccs(const std::vector<EndpointConfig> &local,
-                             const std::vector<EndpointConfig> &remote,
-                             std::vector<HandlerCreateArgs::EndpointPair> &pairs);
+  static Status TryMatchByPriority(const std::vector<EndpointConfig> &local,
+                                   const std::vector<EndpointConfig> &remote,
+                                   bool cross_instance,
+                                   std::vector<HandlerCreateArgs::EndpointPair> &pairs,
+                                   HandlerCreateArgs::HandlerType &handler_type);
+
+  static void LogMatchedEndpoints(const std::vector<HandlerCreateArgs::EndpointPair> &pairs,
+                                  HandlerCreateArgs::HandlerType handler_type);
 
   static Status TryMatchUb(const EndpointConfig &local,
                            const std::map<MatchKey, EndpointConfig> &peers,

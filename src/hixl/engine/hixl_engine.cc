@@ -75,6 +75,12 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
                       local_engine_.c_str(), local_comm_res.c_str());
   rdma_traffic_class_ = options.RdmaTrafficClass().value_or(kRdmaTrafficClass);
   rdma_service_level_ = options.RdmaServiceLevel().value_or(kRdmaServiceLevel);
+  auto global_resource_config = options.GlobalResourceCfg();
+  if (global_resource_config.has_value()) {
+    local_listen_port_ = global_resource_config->comm_resource_config.listen_port;
+  } else {
+    local_listen_port_.reset();
+  }
   auto_connect_ = options.AutoConnect().value_or(false);
   HIXL_CHK_STATUS_RET(client_manager_.Initialize(auto_connect_),
                       "[HixlEngine] Failed to initialize client manager");
@@ -371,6 +377,7 @@ void HixlEngine::BuildClientConfig(const AscendString &remote_engine, ClientConf
   config.rdma_tc = rdma_traffic_class_;
   config.rdma_sl = rdma_service_level_;
   config.timeout_ms = static_cast<uint32_t>(timeout_in_millis);
+  config.local_listen_port = local_listen_port_;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     for (const auto &pair : mem_map_) {

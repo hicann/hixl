@@ -13,6 +13,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <sstream>
 #include <vector>
@@ -26,6 +27,7 @@ struct HandlerCreateArgs {
   uint32_t server_port;
   uint8_t rdma_tc;
   uint8_t rdma_sl;
+  std::optional<uint32_t> local_listen_port;
 
   enum class HandlerType { DIRECT, UB };
   HandlerType handler_type;
