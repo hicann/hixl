@@ -112,13 +112,13 @@ Status DirectClientHandler::TransferSync(const std::vector<TransferOpDesc> &op_d
 Status DirectClientHandler::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
   std::scoped_lock lock(mutex_, complete_handles_mutex_);
   if (complete_handles_.empty()) {
-    HIXL_LOGE(FAILED, "DirectClientHandler GetTransferStatus failed, no transfer tasks in progress");
+    HIXL_LOGE(FAILED, "DirectClientHandler GetTransferStatus failed, no transfer tasks in progress, req:%p", req);
     status = TransferStatus::FAILED;
     return FAILED;
   }
   auto it = complete_handles_.find(req);
   if (it == complete_handles_.end()) {
-    HIXL_LOGE(PARAM_INVALID, "DirectClientHandler GetTransferStatus failed, invalid req");
+    HIXL_LOGE(PARAM_INVALID, "DirectClientHandler GetTransferStatus failed, invalid req:%p", req);
     status = TransferStatus::FAILED;
     return PARAM_INVALID;
   }
@@ -130,8 +130,10 @@ Status DirectClientHandler::GetTransferStatus(const TransferReq &req, TransferSt
     return ret;
   }
   if (cs == HIXL_COMPLETE_STATUS_WAITING) {
+    HIXL_LOGI("DirectClientHandler GetTransferStatus waiting, req:%p", req);
     status = TransferStatus::WAITING;
   } else {
+    HIXL_LOGI("DirectClientHandler GetTransferStatus completed, req:%p", req);
     status = TransferStatus::COMPLETED;
     complete_handles_.erase(req);
   }

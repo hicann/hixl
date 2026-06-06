@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include "cs/hixl_cs.h"
+#include "cs/hixl_cs_client.h"
 #include "engine/endpoint_test_utils.h"
 #define private public
 #include "engine/hixl_client.h"
@@ -667,6 +668,36 @@ class HixlClientUTest : public ::testing::Test {
     EXPECT_EQ(table.at(type)[0].local_addr, expected_addr);
   }
 
+  static EndpointDesc MakeStatusHostEndpoint() {
+    EndpointDesc ep{};
+    ep.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+    ep.protocol = COMM_PROTOCOL_ROCE;
+    ep.commAddr.type = COMM_ADDR_TYPE_IP_V4;
+    inet_pton(AF_INET, "127.0.0.1", &ep.commAddr.addr);
+    return ep;
+  }
+
+  static Status CreateStatusHostClient(HixlCSClient &client) {
+    EndpointDesc local = MakeStatusHostEndpoint();
+    EndpointDesc remote = MakeStatusHostEndpoint();
+    HixlClientConfig config{};
+    HixlClientDesc desc{};
+    desc.server_ip = "127.0.0.1";
+    desc.server_port = kServerPort;
+    desc.local_endpoint = &local;
+    desc.remote_endpoint = &remote;
+    return client.Create(&desc, &config);
+  }
+
+  static CompleteHandleInfo *MakeHostCompleteHandle(uint64_t *flag) {
+    constexpr uint32_t kRoceCompleteMagicForTest = 0x524F4345U;
+    auto *complete_handle = new CompleteHandleInfo{};
+    complete_handle->magic = kRoceCompleteMagicForTest;
+    complete_handle->flag_index = 0;
+    complete_handle->flag_address = flag;
+    return complete_handle;
+  }
+
   // EndpointMatcher helpers
   static EndpointConfig MakeUbEp(const std::string &comm_id, const std::string &dst_eid, const std::string &placement,
                                  const std::string &plane = "") {
@@ -1145,6 +1176,78 @@ TEST_F(HixlClientUTest, DirectClientHandlerSingleHandle) {
   auto handle = reinterpret_cast<HixlClientHandle>(0x1234);
   DirectClientHandler handler(handle);
   EXPECT_NE(&handler, nullptr);
+}
+
+TEST_F(HixlClientUTest, DirectClientHandlerGetTransferStatusWaiting) {
+  constexpr uint32_t kRoceCompleteMagicForTest = 0x524F4345U;
+  HixlCSClient client;
+  DirectClientHandler handler(static_cast<HixlClientHandle>(&client));
+
+  uint64_t flag = 0;
+  CompleteHandleInfo complete_handle{};
+  complete_handle.magic = kRoceCompleteMagicForTest;
+  complete_handle.flag_index = 0;
+  complete_handle.flag_address = &flag;
+
+  auto req = reinterpret_cast<TransferReq>(0x1234);
+  handler.complete_handles_[req] = static_cast<CompleteHandle>(&complete_handle);
+
+  TransferStatus status = TransferStatus::TIMEOUT;
+  EXPECT_EQ(handler.GetTransferStatus(req, status), SUCCESS);
+  EXPECT_EQ(status, TransferStatus::WAITING);
+  EXPECT_EQ(handler.complete_handles_.count(req), 1U);
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerGetTransferStatusNoTransfer) {
+  UbClientHandler handler({});
+
+  TransferStatus status = TransferStatus::WAITING;
+  EXPECT_EQ(handler.GetTransferStatus(reinterpret_cast<TransferReq>(0x1234), status), FAILED);
+  EXPECT_EQ(status, TransferStatus::FAILED);
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerGetTransferStatusInvalidReq) {
+  UbClientHandler handler({});
+  handler.complete_handles_[reinterpret_cast<TransferReq>(0x1234)] = {};
+
+  TransferStatus status = TransferStatus::WAITING;
+  EXPECT_EQ(handler.GetTransferStatus(reinterpret_cast<TransferReq>(0x5678), status), PARAM_INVALID);
+  EXPECT_EQ(status, TransferStatus::FAILED);
+  EXPECT_EQ(handler.complete_handles_.count(reinterpret_cast<TransferReq>(0x1234)), 1U);
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerGetTransferStatusWaiting) {
+  HixlCSClient client;
+  UbClientHandler handler({{CommType::COMM_TYPE_UB_D2D, static_cast<HixlClientHandle>(&client)}});
+
+  uint64_t flag = 0;
+  auto *complete_handle = MakeHostCompleteHandle(&flag);
+  auto req = reinterpret_cast<TransferReq>(0x1234);
+  handler.complete_handles_[req] = {{CommType::COMM_TYPE_UB_D2D, static_cast<CompleteHandle>(complete_handle)}};
+
+  TransferStatus status = TransferStatus::TIMEOUT;
+  EXPECT_EQ(handler.GetTransferStatus(req, status), SUCCESS);
+  EXPECT_EQ(status, TransferStatus::WAITING);
+  EXPECT_EQ(handler.complete_handles_.count(req), 1U);
+
+  handler.complete_handles_.clear();
+  delete complete_handle;
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerGetTransferStatusCompleted) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  UbClientHandler handler({{CommType::COMM_TYPE_UB_D2D, static_cast<HixlClientHandle>(&client)}});
+
+  uint64_t flag = 1ULL;
+  auto req = reinterpret_cast<TransferReq>(0x1234);
+  handler.complete_handles_[req] = {
+      {CommType::COMM_TYPE_UB_D2D, static_cast<CompleteHandle>(MakeHostCompleteHandle(&flag))}};
+
+  TransferStatus status = TransferStatus::TIMEOUT;
+  EXPECT_EQ(handler.GetTransferStatus(req, status), SUCCESS);
+  EXPECT_EQ(status, TransferStatus::COMPLETED);
+  EXPECT_EQ(handler.complete_handles_.count(req), 0U);
 }
 
 TEST_F(HixlClientUTest, UbHandlerClassifyD2D) {

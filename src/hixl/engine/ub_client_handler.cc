@@ -238,7 +238,7 @@ Status UbClientHandler::TransferSync(const std::vector<TransferOpDesc> &op_descs
 Status UbClientHandler::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
   std::lock_guard<std::mutex> ch_lock(complete_handles_mutex_);
   if (complete_handles_.empty()) {
-    HIXL_LOGE(FAILED, "UbClientHandler GetTransferStatus failed, no transfer tasks in progress");
+    HIXL_LOGE(FAILED, "UbClientHandler GetTransferStatus failed, no transfer tasks in progress, req:%p", req);
     status = TransferStatus::FAILED;
     return FAILED;
   }
@@ -272,7 +272,10 @@ Status UbClientHandler::GetTransferStatus(const TransferReq &req, TransferStatus
 
   status = all_complete ? TransferStatus::COMPLETED : TransferStatus::WAITING;
   if (all_complete) {
+    HIXL_LOGI("UbClientHandler GetTransferStatus completed, req:%p", req);
     complete_handles_.erase(req);
+  } else {
+    HIXL_LOGI("UbClientHandler GetTransferStatus waiting, req:%p", req);
   }
   return SUCCESS;
 }
