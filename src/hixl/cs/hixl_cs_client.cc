@@ -664,24 +664,27 @@ Status HixlCSClient::AcquireSharedSlot(std::shared_ptr<TransferPool::SlotHandle>
 void HixlCSClient::ReleaseSharedSlotRef(std::shared_ptr<TransferPool::SlotHandle> &slot_ref) {
   std::lock_guard<std::mutex> lock(active_slot_mu_);
 
-  if (active_slot_ != nullptr) {
-    const long ref_before = active_slot_.use_count();
-    // Clear the reference first
+  if (slot_ref == nullptr) {
+    return;
+  }
+  if (active_slot_ == nullptr || active_slot_ != slot_ref) {
     slot_ref.reset();
-    HIXL_LOGI("[HixlClient] ReleaseSharedSlotRef. slot_index=%u ref_before=%ld ref_after=%ld", active_slot_->slot_index,
-              ref_before, active_slot_.use_count());
+    return;
+  }
 
-    // If active_slot_ has no more references, release it to pool
-    if (active_slot_.use_count() == 0) {
-      auto *rel_pool = TransferPool::GetInstance(active_slot_->device_id);
-      if (rel_pool != nullptr) {
-        rel_pool->Release(*active_slot_);
-      }
-      HIXL_LOGI("[HixlClient] Released slot to pool. slot_index=%u", active_slot_->slot_index);
-      active_slot_.reset();
+  const uint32_t slot_index = active_slot_->slot_index;
+  const long ref_before = active_slot_.use_count();
+  slot_ref.reset();
+  HIXL_LOGI("[HixlClient] ReleaseSharedSlotRef. slot_index=%u ref_before=%ld ref_after=%ld", slot_index, ref_before,
+            active_slot_.use_count());
+
+  if (active_slot_.use_count() == 1) {
+    auto *rel_pool = TransferPool::GetInstance(active_slot_->device_id);
+    if (rel_pool != nullptr) {
+      rel_pool->Release(*active_slot_);
     }
-  } else {
-    slot_ref.reset();
+    active_slot_.reset();
+    HIXL_LOGI("[HixlClient] Released slot to pool. slot_index=%u", slot_index);
   }
 }
 
@@ -890,7 +893,7 @@ Status HixlCSClient::BatchTransferDeviceAsync(bool is_get, uint32_t list_num, co
                          }));
   handle->magic = kDeviceCompleteMagic;
   handle->reserved = 0U;
-  handle->shared_slot = slot;
+  handle->shared_slot = std::move(slot);
   handle->host_flag = host_flag;
   handle->dev_op_desc_buf = nullptr;
   HIXL_DISMISS_GUARD(flag_guard);
@@ -943,7 +946,7 @@ Status HixlCSClient::BatchTransferDeviceSync(bool is_get, uint32_t list_num, con
                   }));
   handle->magic = kDeviceCompleteMagic;
   handle->reserved = 0U;
-  handle->shared_slot = slot;
+  handle->shared_slot = std::move(slot);
   handle->host_flag = nullptr;
   handle->dev_op_desc_buf = nullptr;
 
