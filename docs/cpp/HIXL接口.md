@@ -191,7 +191,7 @@ device侧网卡默认监听端口为16666，如果在多个进程使用同一个
 <a name="全局资源配置字段说明"></a>**全局资源配置字段说明**  
 | 字段名 | 数据类型 | 必选/可选 | 说明 | 支持值/填写规则 |
 | ---- | ---- | ---- | ---- | ---- |
-| comm_resource_config.protocol_desc | 字符串或字符串数组 | 可选 | 配置可使用的通信协议以及通信设备位置范围，格式为"${protocol}:${placement}" | 支持"roce:device"/"hccs:device"/"ub_ctp:device"/"ub_tp:device"/"uboe:device"/"roce:host"/"hccs:host"/"ub_ctp:host"/"ub_tp:host"/"uboe:host"。配置后会对OPTION_LOCAL_COMM_RES中显式配置的endpoint_list和自动生成的endpoint_list按该范围进行过滤。 |
+| comm_resource_config.protocol_desc | 字符串或字符串数组 | 可选 | 配置可使用的通信协议以及通信设备位置范围，格式为"${protocol}:${placement}" | 支持"roce:device"/"hccs:device"/"ub_ctp:device"/"ub_tp:device"/"uboe:device"/"roce:host"/"ub_ctp:host"/"ub_tp:host"。配置后会对OPTION_LOCAL_COMM_RES中显式配置的endpoint_list和自动生成的endpoint_list按该范围进行过滤。 |
 
 **调用示例**
 

@@ -201,7 +201,6 @@ Status HixlEngine::TransferAsync(const AscendString &remote_engine, TransferOp o
                                  TransferReq &req) {
   HIXL_LOGI("[HixlEngine] Asynchronous transmission started, local_engine:%s, remote_engine:%s", local_engine_.c_str(),
             remote_engine.GetString());
-  (void)optional_args;
   HIXL_CHK_STATUS_RET(AutoConnect(remote_engine, kAutoConnectTimeout),
                       "[HixlEngine] Failed to auto connect before TransferAsync, local_engine:%s, remote_engine:%s",
                       local_engine_.c_str(), remote_engine.GetString());
@@ -210,7 +209,7 @@ Status HixlEngine::TransferAsync(const AscendString &remote_engine, TransferOp o
       client_ptr != nullptr, NOT_CONNECTED,
       "[HixlEngine] Failed to get client through remote engine, please check connection. remote_engine:%s",
       remote_engine.GetString());
-  Status trans_status = client_ptr->TransferAsync(op_descs, operation, req);
+  Status trans_status = client_ptr->TransferAsync(op_descs, operation, optional_args, req);
   if (trans_status != SUCCESS) {
     HIXL_LOGE(trans_status, "[HixlEngine] Failed to TransferAsync, local_engine:%s, remote_engine:%s",
               local_engine_.c_str(), remote_engine.GetString());
@@ -218,77 +217,65 @@ Status HixlEngine::TransferAsync(const AscendString &remote_engine, TransferOp o
                         "[HixlEngine] Failed to disconnect on error.");
     return trans_status;
   }
-  auto id = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(req));
-  uint64_t start_time = 0;
-  start_time = HixlProfilingReporter::GetSysCycleTime();
-  TransferInfo transfer_info = {start_time, operation, remote_engine, optional_args.user_data};
-  std::lock_guard<std::mutex> lock(req_map_mutex_);
-  req_map_.emplace(id, transfer_info);
+  client_manager_.RegisterTransferReq(req, client_ptr, optional_args.user_data);
   HIXL_LOGI("[HixlEngine] Asynchronous transmission succeeded, local_engine:%s, remote_engine:%s",
             local_engine_.c_str(), remote_engine.GetString());
   return SUCCESS;
 }
 
-Status HixlEngine::GetTransferStatusInner(const TransferReq &req, TransferStatus &status) {
-  auto id = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(req));
-  auto it = req_map_.find(id);
-  if (it == req_map_.cend()) {
+Status HixlEngine::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
+  ClientPtr client = client_manager_.GetClientByReq(req);
+  if (client == nullptr) {
     status = TransferStatus::FAILED;
     HIXL_LOGE(PARAM_INVALID, "[HixlEngine] Request not found, request has been completed or does not exist, req: %p",
               req);
     return PARAM_INVALID;
   }
-  auto remote_engine = it->second.remote_engine;
-  auto client = client_manager_.GetClient(remote_engine.GetString());
-  HIXL_CHECK_NOTNULL(client,
-                     "[HixlEngine] Failed to get client through remote engine, local_engine:%s, remote_engine:%s",
-                     local_engine_.c_str(), remote_engine.GetString());
   Status ret = client->GetTransferStatus(req, status);
   if (ret != SUCCESS) {
-    HIXL_LOGE(ret,
-              "[HixlEngine] Failed to get status through client, local_engine:%s, remote_engine:%s, req:%p, "
-              "status:%d",
-              local_engine_.c_str(), remote_engine.GetString(), req, static_cast<int32_t>(status));
-    HIXL_CHK_STATUS_RET(AutoDisconnect(remote_engine, kAutoConnectTimeout),
+    HIXL_LOGE(ret, "[HixlEngine] Failed to get status through client, local_engine:%s, req:%p, status:%d",
+              local_engine_.c_str(), req, static_cast<int32_t>(status));
+    client_manager_.EraseTransferReq(req);
+    HIXL_CHK_STATUS_RET(AutoDisconnect(AscendString(client->GetRemoteEngine().c_str()), kAutoConnectTimeout),
                         "[HixlEngine] Failed to disconnect on error.");
     return ret;
   }
-  if (status == TransferStatus::COMPLETED) {
-    auto op_type = it->second.op_type;
-    auto start_time = it->second.start_time;
-    HixlProfType type = (op_type == READ ? HixlProfType::HixlOpBatchRead : HixlProfType::HixlOpBatchWrite);
-    HIXL_API_PROFILING_WITH_TIME(type, start_time);
-    req_map_.erase(it);
+  if (status != TransferStatus::WAITING) {
+    client_manager_.EraseTransferReq(req);
   }
   return SUCCESS;
 }
 
-Status HixlEngine::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
-  std::lock_guard<std::mutex> lock(req_map_mutex_);
-  return GetTransferStatusInner(req, status);
-}
-
 Status HixlEngine::GetTransferStatus(const GetTransferStatusArgs &args, std::vector<TransferResult> &results) {
-  std::vector<std::pair<TransferReq, void *>> reqs;
-
-  std::lock_guard<std::mutex> lock(req_map_mutex_);
-  reqs.reserve(req_map_.size());
-  for (const auto &it : req_map_) {
-    TransferReq req = reinterpret_cast<TransferReq>(static_cast<uintptr_t>(it.first));
-    reqs.emplace_back(req, it.second.user_data);
-  }
-
   results.clear();
-  results.reserve(std::min(reqs.size(), static_cast<size_t>(args.max_query_count)));
+  if (args.max_query_count == 0) {
+    return SUCCESS;
+  }
+  auto reqs = client_manager_.GetOrderedReqs(0);
+  results.reserve(reqs.size());
   for (const auto &it : reqs) {
-    TransferStatus status;
-    Status ret = GetTransferStatusInner(it.first, status);
+    TransferReq req = it.req;
+    ClientPtr client = it.client;
+    if (client == nullptr) {
+      client_manager_.EraseTransferReq(req);
+      continue;
+    }
+    TransferStatus status = TransferStatus::FAILED;
+    Status ret = client->GetTransferStatus(req, status);
     status = (ret == SUCCESS) ? status : TransferStatus::FAILED;
+    if (ret != SUCCESS) {
+      HIXL_LOGE(ret, "[HixlEngine] Failed to get status through client, local_engine:%s, req:%p, status:%d",
+                local_engine_.c_str(), req, static_cast<int32_t>(status));
+      (void)AutoDisconnect(AscendString(client->GetRemoteEngine().c_str()), kAutoConnectTimeout);
+    }
+    if (status != TransferStatus::WAITING) {
+      client_manager_.EraseTransferReq(req);
+    }
     if (args.skip_waiting && status == TransferStatus::WAITING) {
       continue;
     }
-    results.emplace_back(TransferResult{it.first, it.second, status});
-    if (results.size() >= results.capacity()) {
+    results.emplace_back(TransferResult{req, it.user_data, status});
+    if (results.size() >= static_cast<size_t>(args.max_query_count)) {
       break;
     }
   }
@@ -301,8 +288,6 @@ void HixlEngine::Finalize() {
   server_.Finalize();
   client_manager_.Finalize();
   mem_map_.clear();
-  std::lock_guard<std::mutex> req_map_lock(req_map_mutex_);
-  req_map_.clear();
   is_initialized_ = false;
   HIXL_LOGI("[HixlEngine] Finalization succeeded");
 }

@@ -107,6 +107,84 @@ ClientPtr ClientManager::GetClient(const std::string &remote_engine) {
   return nullptr;
 }
 
+ClientPtr ClientManager::GetClientByReq(const TransferReq &req) {
+  std::lock_guard<std::mutex> lock(req_index_mutex_);
+  auto it = req_to_client_.find(req);
+  if (it == req_to_client_.end()) {
+    return nullptr;
+  }
+  ClientPtr client = it->second.client.lock();
+  if (client == nullptr) {
+    ordered_reqs_.erase(it->second.order_it);
+    req_to_client_.erase(it);
+  }
+  return client;
+}
+
+void ClientManager::EraseTransferReqLocked(const TransferReq &req) {
+  auto it = req_to_client_.find(req);
+  if (it == req_to_client_.end()) {
+    return;
+  }
+  ordered_reqs_.erase(it->second.order_it);
+  req_to_client_.erase(it);
+}
+
+void ClientManager::RegisterTransferReq(const TransferReq &req, const ClientPtr &client, void *user_data) {
+  if (req == nullptr || client == nullptr) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock(req_index_mutex_);
+  EraseTransferReqLocked(req);
+  ordered_reqs_.push_back(req);
+  req_to_client_[req] = ReqOwner{client, user_data, std::prev(ordered_reqs_.end())};
+}
+
+void ClientManager::EraseTransferReq(const TransferReq &req) {
+  std::lock_guard<std::mutex> lock(req_index_mutex_);
+  EraseTransferReqLocked(req);
+}
+
+std::vector<TransferReqInfo> ClientManager::GetOrderedReqs(size_t max_count) {
+  std::vector<TransferReqInfo> reqs;
+  std::lock_guard<std::mutex> lock(req_index_mutex_);
+  for (auto it = ordered_reqs_.begin(); it != ordered_reqs_.end();) {
+    const TransferReq req = *it;
+    auto owner_it = req_to_client_.find(req);
+    if (owner_it == req_to_client_.end()) {
+      it = ordered_reqs_.erase(it);
+      continue;
+    }
+
+    ClientPtr client = owner_it->second.client.lock();
+    if (client == nullptr) {
+      req_to_client_.erase(owner_it);
+      it = ordered_reqs_.erase(it);
+      continue;
+    }
+
+    reqs.emplace_back(TransferReqInfo{req, client, owner_it->second.user_data});
+    ++it;
+    if (max_count > 0 && reqs.size() >= max_count) {
+      break;
+    }
+  }
+  return reqs;
+}
+
+void ClientManager::EraseReqIndexByClient(const ClientPtr &client) {
+  std::lock_guard<std::mutex> lock(req_index_mutex_);
+  for (auto it = req_to_client_.begin(); it != req_to_client_.end();) {
+    ClientPtr owner = it->second.client.lock();
+    if (owner == nullptr || owner == client) {
+      ordered_reqs_.erase(it->second.order_it);
+      it = req_to_client_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
 Status ClientManager::DestroyClient(const std::string &remote_engine) {
   auto ret = NOT_CONNECTED;
   ClientPtr client = nullptr;
@@ -123,6 +201,7 @@ Status ClientManager::DestroyClient(const std::string &remote_engine) {
   }
 
   if (client != nullptr) {
+    EraseReqIndexByClient(client);
     ret = client->Finalize();
     HIXL_LOGI("Destroy client end, remote_engine=%s", remote_engine.c_str());
   }
@@ -186,11 +265,17 @@ Status ClientManager::Finalize() {
   }
 
   for (auto &it : clients) {
+    EraseReqIndexByClient(it.second);
     if (it.second->Finalize() != SUCCESS) {
       HIXL_LOGE(FAILED, "Failed to finalize client, remote_engine:%s", it.first.c_str());
     }
   }
   clients_.clear();
+  {
+    std::lock_guard<std::mutex> req_lock(req_index_mutex_);
+    ordered_reqs_.clear();
+    req_to_client_.clear();
+  }
   {
     std::lock_guard<std::mutex> client_mutexes_lock(client_mutexes_mutex_);
     client_mutexes_.clear();

@@ -23,6 +23,7 @@
 #include "engine/client_handler_factory.h"
 #include "engine/endpoint_generator.h"
 #include "engine/endpoint_matcher.h"
+#include "profiling/prof_api_reg.h"
 #include "nlohmann/json.hpp"
 
 namespace hixl {
@@ -170,7 +171,8 @@ Status HixlClient::TransferSync(const std::vector<TransferOpDesc> &op_descs, Tra
   return client_handler_->TransferSync(op_descs, operation, timeout_ms);
 }
 
-Status HixlClient::TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation, TransferReq &req) {
+Status HixlClient::TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation,
+                                 const TransferArgs &, TransferReq &req) {
   if (op_descs.empty()) {
     HIXL_LOGE(PARAM_INVALID, "HixlClient TransferAsync failed, op_descs is empty");
     return PARAM_INVALID;
@@ -186,7 +188,11 @@ Status HixlClient::TransferAsync(const std::vector<TransferOpDesc> &op_descs, Tr
     HIXL_LOGE(FAILED, "HixlClient is not initialized");
     return FAILED;
   }
-  return client_handler_->TransferAsync(op_descs, operation, req);
+  HIXL_CHK_STATUS_RET(client_handler_->TransferAsync(op_descs, operation, req));
+  TransferInfo transfer_info = {HixlProfilingReporter::GetSysCycleTime(), operation, AscendString()};
+  std::lock_guard<std::mutex> lock(req_map_mutex_);
+  req_map_[req] = transfer_info;
+  return SUCCESS;
 }
 
 Status HixlClient::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
@@ -195,7 +201,51 @@ Status HixlClient::GetTransferStatus(const TransferReq &req, TransferStatus &sta
     status = TransferStatus::FAILED;
     return FAILED;
   }
-  return client_handler_->GetTransferStatus(req, status);
+  TransferInfo transfer_info{};
+  {
+    std::lock_guard<std::mutex> lock(req_map_mutex_);
+    auto it = req_map_.find(req);
+    if (it == req_map_.end()) {
+      HIXL_LOGE(PARAM_INVALID, "HixlClient GetTransferStatus failed, request not found, req:%p", req);
+      status = TransferStatus::FAILED;
+      return PARAM_INVALID;
+    }
+    transfer_info = it->second;
+  }
+
+  Status ret = client_handler_->GetTransferStatus(req, status);
+  if (ret != SUCCESS) {
+    RemoveTransferReq(req);
+    return ret;
+  }
+  if (status == TransferStatus::COMPLETED) {
+    HixlProfType type =
+        (transfer_info.op_type == READ ? HixlProfType::HixlOpBatchRead : HixlProfType::HixlOpBatchWrite);
+    HIXL_API_PROFILING_WITH_TIME(type, transfer_info.start_time);
+    RemoveTransferReq(req);
+  } else if (status == TransferStatus::FAILED) {
+    RemoveTransferReq(req);
+  }
+  return SUCCESS;
+}
+
+bool HixlClient::HasTransferReq(const TransferReq &req) {
+  std::lock_guard<std::mutex> lock(req_map_mutex_);
+  return req_map_.find(req) != req_map_.end();
+}
+
+void HixlClient::ClearTransferReqs() {
+  std::lock_guard<std::mutex> lock(req_map_mutex_);
+  req_map_.clear();
+}
+
+void HixlClient::RemoveTransferReq(const TransferReq &req) {
+  std::lock_guard<std::mutex> lock(req_map_mutex_);
+  req_map_.erase(req);
+}
+
+const std::string &HixlClient::GetRemoteEngine() const {
+  return remote_engine_;
 }
 
 void HixlClient::WaitBatchCsSyncInflightDrain() {
@@ -226,6 +276,7 @@ Status HixlClient::Finalize() {
     std::lock_guard<std::mutex> lock(status_mutex_);
     is_finalized_ = true;
   }
+  ClearTransferReqs();
   {
     std::lock_guard<std::mutex> lock(ctrl_socket_mutex_);
     CloseCtrlSocketLocked();

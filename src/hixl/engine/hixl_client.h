@@ -13,11 +13,11 @@
 
 #include <atomic>
 #include <cstdint>
+#include <map>
 #include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
-#include <map>
 #include "cs/hixl_cs.h"
 #include "common/hixl_inner_types.h"
 #include "common/ctrl_msg.h"
@@ -44,6 +44,7 @@ class HixlClient {
   HixlClient(const std::string &server_ip, uint32_t server_port, const ClientConfig &config)
       : server_ip_(server_ip),
         server_port_(server_port),
+        remote_engine_(config.remote_engine),
         rdma_tc_(config.rdma_tc),
         rdma_sl_(config.rdma_sl),
         local_listen_port_(config.local_listen_port) {}
@@ -93,7 +94,8 @@ class HixlClient {
    * @param [out] req             请求的handle，用于查询请求状态
    * @return 操作结果状态码
    */
-  Status TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation, TransferReq &req);
+  Status TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation,
+                       const TransferArgs &optional_args, TransferReq &req);
 
   /**
    * @brief 查询异步传输状态
@@ -103,9 +105,17 @@ class HixlClient {
    */
   Status GetTransferStatus(const TransferReq &req, TransferStatus &status);
 
+  bool HasTransferReq(const TransferReq &req);
+
+  void ClearTransferReqs();
+
+  void RemoveTransferReq(const TransferReq &req);
+
   Status SendNotify(const NotifyDesc &notify, int32_t timeout_ms);
 
   Status CheckAlive();
+
+  const std::string &GetRemoteEngine() const;
 
  private:
   Status SendEndpointInfoReq(int32_t fd, CtrlMsgType msg_type) const;
@@ -116,6 +126,7 @@ class HixlClient {
 
   std::string server_ip_;
   uint32_t server_port_;
+  std::string remote_engine_;
   uint8_t rdma_tc_{kRdmaTrafficClass};
   uint8_t rdma_sl_{kRdmaServiceLevel};
   std::optional<uint32_t> local_listen_port_;
@@ -129,6 +140,8 @@ class HixlClient {
   std::mutex ctrl_socket_mutex_;
   std::mutex status_mutex_;  // 保护 is_connected_、is_finalized_、finalize_pending_；TransferSync 与 Finalize 在此与
                              // inflight 配对
+  std::mutex req_map_mutex_;
+  std::map<TransferReq, TransferInfo> req_map_;
 };
 
 }  // namespace hixl

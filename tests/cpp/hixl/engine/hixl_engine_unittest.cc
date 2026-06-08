@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <algorithm>
+#include <map>
 #include <memory>
 #include <thread>
 #include <gtest/gtest.h>
@@ -1008,8 +1009,20 @@ class MockClientHandler : public IClientHandler {
   Status RegisterMem(const MemInfo &) override { return SUCCESS; }
   Status TransferAsync(const std::vector<TransferOpDesc> &, TransferOp, TransferReq &) override { return SUCCESS; }
   Status TransferSync(const std::vector<TransferOpDesc> &, TransferOp, uint32_t) override { return SUCCESS; }
-  Status GetTransferStatus(const TransferReq &, TransferStatus &) override { return SUCCESS; }
+  Status GetTransferStatus(const TransferReq &req, TransferStatus &status) override {
+    auto it = status_by_req.find(req);
+    if (it == status_by_req.end()) {
+      status = default_status;
+      return default_ret;
+    }
+    status = it->second;
+    return SUCCESS;
+  }
   Status Finalize() override { return SUCCESS; }
+
+  std::map<TransferReq, TransferStatus> status_by_req;
+  TransferStatus default_status = TransferStatus::WAITING;
+  Status default_ret = SUCCESS;
 };
 
 static ClientPtr CreateMockClient() {
@@ -1020,6 +1033,20 @@ static ClientPtr CreateMockClient() {
   client->client_handler_ = std::move(handler);
   client->is_connected_ = true;
   return client;
+}
+
+static ClientPtr CreateMockClient(std::unique_ptr<MockClientHandler> handler) {
+  ClientConfig config{};
+  config.remote_engine = "127.0.0.1:26300";
+  auto client = std::make_shared<HixlClient>("127.0.0.1", 26300, config);
+  client->client_handler_ = std::move(handler);
+  client->is_connected_ = true;
+  return client;
+}
+
+static void RegisterMockTransferReq(HixlEngine &engine, const ClientPtr &client, TransferReq req, void *user_data) {
+  client->req_map_[req] = TransferInfo{0U, READ, AscendString()};
+  engine.client_manager_.RegisterTransferReq(req, client, user_data);
 }
 
 static bool AttachClosedCtrlSocket(const ClientPtr &client) {
@@ -1081,5 +1108,140 @@ TEST(ClientManagerTest, HeartbeatDestroysClientWithInvalidSocket) {
   manager.SendHeartbeat();
   EXPECT_EQ(manager.GetClient("127.0.0.1:26300"), nullptr);
   EXPECT_EQ(manager.Finalize(), SUCCESS);
+}
+
+TEST(ClientManagerTest, TransferReqIndexKeepsSubmitOrderAndFindsClient) {
+  ClientManager manager;
+  EXPECT_EQ(manager.Initialize(false), SUCCESS);
+  auto client = CreateMockClient();
+
+  TransferReq req1 = reinterpret_cast<TransferReq>(0x1000);
+  TransferReq req2 = reinterpret_cast<TransferReq>(0x2000);
+  void *user_data1 = reinterpret_cast<void *>(0x3000);
+  void *user_data2 = reinterpret_cast<void *>(0x4000);
+  manager.RegisterTransferReq(req1, client, user_data1);
+  manager.RegisterTransferReq(req2, client, user_data2);
+
+  EXPECT_EQ(manager.GetClientByReq(req1), client);
+  auto reqs = manager.GetOrderedReqs(0);
+  ASSERT_EQ(reqs.size(), 2U);
+  EXPECT_EQ(reqs[0].req, req1);
+  EXPECT_EQ(reqs[0].client, client);
+  EXPECT_EQ(reqs[0].user_data, user_data1);
+  EXPECT_EQ(reqs[1].req, req2);
+  EXPECT_EQ(reqs[1].client, client);
+  EXPECT_EQ(reqs[1].user_data, user_data2);
+
+  manager.EraseTransferReq(req1);
+  EXPECT_EQ(manager.GetClientByReq(req1), nullptr);
+  reqs = manager.GetOrderedReqs(0);
+  ASSERT_EQ(reqs.size(), 1U);
+  EXPECT_EQ(reqs[0].req, req2);
+  EXPECT_EQ(reqs[0].client, client);
+  EXPECT_EQ(reqs[0].user_data, user_data2);
+  EXPECT_EQ(manager.Finalize(), SUCCESS);
+}
+
+TEST(ClientManagerTest, RegisterDuplicateTransferReqRemovesOldOrderNode) {
+  ClientManager manager;
+  EXPECT_EQ(manager.Initialize(false), SUCCESS);
+  auto client = CreateMockClient();
+
+  TransferReq req1 = reinterpret_cast<TransferReq>(0x1000);
+  TransferReq req2 = reinterpret_cast<TransferReq>(0x2000);
+  void *user_data1 = reinterpret_cast<void *>(0x3000);
+  void *user_data2 = reinterpret_cast<void *>(0x4000);
+  void *updated_user_data1 = reinterpret_cast<void *>(0x5000);
+  manager.RegisterTransferReq(req1, client, user_data1);
+  manager.RegisterTransferReq(req2, client, user_data2);
+  manager.RegisterTransferReq(req1, client, updated_user_data1);
+
+  auto reqs = manager.GetOrderedReqs(0);
+  ASSERT_EQ(reqs.size(), 2U);
+  EXPECT_EQ(reqs[0].req, req2);
+  EXPECT_EQ(reqs[0].user_data, user_data2);
+  EXPECT_EQ(reqs[1].req, req1);
+  EXPECT_EQ(reqs[1].user_data, updated_user_data1);
+  EXPECT_EQ(manager.Finalize(), SUCCESS);
+}
+
+TEST(ClientManagerTest, DestroyClientClearsTransferReqIndex) {
+  ClientManager manager;
+  EXPECT_EQ(manager.Initialize(false), SUCCESS);
+  auto client = CreateMockClient();
+  manager.clients_["127.0.0.1:26300"] = client;
+
+  TransferReq req = reinterpret_cast<TransferReq>(0x1000);
+  manager.RegisterTransferReq(req, client, nullptr);
+  EXPECT_EQ(manager.DestroyClient("127.0.0.1:26300"), SUCCESS);
+  EXPECT_EQ(manager.GetClientByReq(req), nullptr);
+  EXPECT_TRUE(manager.GetOrderedReqs(0).empty());
+  EXPECT_EQ(manager.Finalize(), SUCCESS);
+}
+
+TEST(HixlEngineBatchStatusTest, ReturnsResultsInSubmitOrderWithUserData) {
+  HixlEngine engine("127.0.0.1:26200");
+  ASSERT_EQ(engine.client_manager_.Initialize(false), SUCCESS);
+  auto handler = std::make_unique<MockClientHandler>();
+  TransferReq req1 = reinterpret_cast<TransferReq>(0x1000);
+  TransferReq req2 = reinterpret_cast<TransferReq>(0x2000);
+  handler->status_by_req[req1] = TransferStatus::WAITING;
+  handler->status_by_req[req2] = TransferStatus::COMPLETED;
+  auto client = CreateMockClient(std::move(handler));
+
+  void *user_data1 = reinterpret_cast<void *>(0x3000);
+  void *user_data2 = reinterpret_cast<void *>(0x4000);
+  RegisterMockTransferReq(engine, client, req1, user_data1);
+  RegisterMockTransferReq(engine, client, req2, user_data2);
+
+  GetTransferStatusArgs args{};
+  std::vector<TransferResult> results;
+  EXPECT_EQ(engine.GetTransferStatus(args, results), SUCCESS);
+
+  ASSERT_EQ(results.size(), 2U);
+  EXPECT_EQ(results[0].req, req1);
+  EXPECT_EQ(results[0].user_data, user_data1);
+  EXPECT_EQ(results[0].status, TransferStatus::WAITING);
+  EXPECT_EQ(results[1].req, req2);
+  EXPECT_EQ(results[1].user_data, user_data2);
+  EXPECT_EQ(results[1].status, TransferStatus::COMPLETED);
+  EXPECT_EQ(engine.client_manager_.GetClientByReq(req1), client);
+  EXPECT_EQ(engine.client_manager_.GetClientByReq(req2), nullptr);
+  EXPECT_EQ(engine.client_manager_.Finalize(), SUCCESS);
+}
+
+TEST(HixlEngineBatchStatusTest, SkipWaitingAndMaxQueryCountFilterResults) {
+  HixlEngine engine("127.0.0.1:26200");
+  ASSERT_EQ(engine.client_manager_.Initialize(false), SUCCESS);
+  auto handler = std::make_unique<MockClientHandler>();
+  TransferReq waiting_req = reinterpret_cast<TransferReq>(0x1000);
+  TransferReq completed_req1 = reinterpret_cast<TransferReq>(0x2000);
+  TransferReq completed_req2 = reinterpret_cast<TransferReq>(0x3000);
+  handler->status_by_req[waiting_req] = TransferStatus::WAITING;
+  handler->status_by_req[completed_req1] = TransferStatus::COMPLETED;
+  handler->status_by_req[completed_req2] = TransferStatus::COMPLETED;
+  auto client = CreateMockClient(std::move(handler));
+
+  void *waiting_user_data = reinterpret_cast<void *>(0x4000);
+  void *completed_user_data1 = reinterpret_cast<void *>(0x5000);
+  void *completed_user_data2 = reinterpret_cast<void *>(0x6000);
+  RegisterMockTransferReq(engine, client, waiting_req, waiting_user_data);
+  RegisterMockTransferReq(engine, client, completed_req1, completed_user_data1);
+  RegisterMockTransferReq(engine, client, completed_req2, completed_user_data2);
+
+  GetTransferStatusArgs args{};
+  args.skip_waiting = true;
+  args.max_query_count = 1;
+  std::vector<TransferResult> results;
+  EXPECT_EQ(engine.GetTransferStatus(args, results), SUCCESS);
+
+  ASSERT_EQ(results.size(), 1U);
+  EXPECT_EQ(results[0].req, completed_req1);
+  EXPECT_EQ(results[0].user_data, completed_user_data1);
+  EXPECT_EQ(results[0].status, TransferStatus::COMPLETED);
+  EXPECT_EQ(engine.client_manager_.GetClientByReq(waiting_req), client);
+  EXPECT_EQ(engine.client_manager_.GetClientByReq(completed_req1), nullptr);
+  EXPECT_EQ(engine.client_manager_.GetClientByReq(completed_req2), client);
+  EXPECT_EQ(engine.client_manager_.Finalize(), SUCCESS);
 }
 }  // namespace hixl

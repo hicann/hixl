@@ -637,7 +637,7 @@ class HixlClientUTest : public ::testing::Test {
   // 创建异步传输请求
   TransferReq CreateAsyncTransfer(const std::vector<TransferOpDesc> &op_descs, TransferOp operation) {
     TransferReq req = nullptr;
-    Status st = client_->TransferAsync(op_descs, operation, req);
+    Status st = client_->TransferAsync(op_descs, operation, {}, req);
     EXPECT_EQ(st, SUCCESS);
     EXPECT_NE(req, nullptr);
     return req;
@@ -1094,7 +1094,8 @@ TEST_F(HixlClientUTest, GetTransferStatusNoTransferTest) {
   TransferReq req = nullptr;
   TransferStatus status;
   Status st = client_->GetTransferStatus(req, status);
-  EXPECT_EQ(st, FAILED);
+  EXPECT_EQ(st, PARAM_INVALID);
+  EXPECT_EQ(status, TransferStatus::FAILED);
 }
 
 // GetTransferStatus 接口测试：异常场景 - req不对

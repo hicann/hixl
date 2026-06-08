@@ -609,7 +609,7 @@ Status FabricMemEngine::PreRegisterAndSubmitAsync(const std::shared_ptr<FabricMe
   // DisconnectRemote until MarkAsyncRequestSubmitted publishes it.
   {
     std::lock_guard<std::mutex> req_lock(req_map_mutex_);
-    req_map_.emplace(id, FabricMemTransferRequest{TransferInfo{0U, operation, remote_engine, nullptr}, conn});
+    req_map_.emplace(id, FabricMemTransferRequest{TransferInfo{0U, operation, remote_engine}, conn});
   }
   Status ret = transfer_service->TransferAsync(context, operation, op_descs, new_req);
   // Check whether the connection was marked disconnecting concurrently (e.g. by

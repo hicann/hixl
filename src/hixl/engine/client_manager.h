@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <list>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -24,6 +25,11 @@
 
 namespace hixl {
 using ClientPtr = std::shared_ptr<HixlClient>;
+struct TransferReqInfo {
+  TransferReq req = nullptr;
+  ClientPtr client = nullptr;
+  void *user_data = nullptr;
+};
 
 class ClientManager {
  public:
@@ -34,15 +40,27 @@ class ClientManager {
   Status GetOrCreateClient(const ClientConfig &config, const std::vector<MemInfo> &mem_info_list,
                            int32_t timeout_in_millis, ClientPtr &client_ptr);
   ClientPtr GetClient(const std::string &remote_engine);
+  ClientPtr GetClientByReq(const TransferReq &req);
   Status DestroyClient(const std::string &remote_engine);
+  void RegisterTransferReq(const TransferReq &req, const ClientPtr &client, void *user_data);
+  void EraseTransferReq(const TransferReq &req);
+  std::vector<TransferReqInfo> GetOrderedReqs(size_t max_count);
   bool IsEmpty();
 
  private:
+  struct ReqOwner {
+    std::weak_ptr<HixlClient> client;
+    void *user_data = nullptr;
+    std::list<TransferReq>::iterator order_it;
+  };
+
   Status StartHeartbeat();
   Status CreateClient(const ClientConfig &config, ClientPtr &client_ptr);
   std::shared_ptr<std::mutex> GetClientMutex(const std::string &remote_engine);
   void DestroyClientMutex(const std::string &remote_engine);
   void SendHeartbeat();
+  void EraseTransferReqLocked(const TransferReq &req);
+  void EraseReqIndexByClient(const ClientPtr &client);
 
   std::mutex mutex_;
   std::map<std::string, ClientPtr> clients_;
@@ -55,6 +73,10 @@ class ClientManager {
   std::mutex cv_mutex_;
   std::condition_variable cv_;
   bool auto_connect_{false};
+
+  std::mutex req_index_mutex_;
+  std::list<TransferReq> ordered_reqs_;
+  std::unordered_map<TransferReq, ReqOwner> req_to_client_;
 };
 }  // namespace hixl
 
