@@ -121,7 +121,7 @@ class HixlClient {
   Status SendEndpointInfoReq(int32_t fd, CtrlMsgType msg_type) const;
   Status RecvEndpointInfoResp(int32_t fd, std::vector<EndpointConfig> &remote_endpoint_list, uint32_t timeout_ms) const;
   void WaitBatchCsSyncInflightDrain();
-  Status RecvNotifyAck(int32_t fd, int32_t timeout_ms);
+  Status RecvNotifyAck(int32_t fd, int32_t timeout_ms) const;
   void CloseCtrlSocketLocked();
 
   std::string server_ip_;

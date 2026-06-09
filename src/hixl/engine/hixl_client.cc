@@ -289,7 +289,7 @@ Status HixlClient::Finalize() {
   return ret;
 }
 
-Status HixlClient::RecvNotifyAck(int32_t fd, int32_t timeout_ms) {
+Status HixlClient::RecvNotifyAck(int32_t fd, int32_t timeout_ms) const {
   CtrlMsgHeader header{};
   HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Recv(fd, &header, static_cast<uint32_t>(sizeof(header)), timeout_ms),
                       "HixlClient receive NotifyAck header failed, fd:%d", fd);
