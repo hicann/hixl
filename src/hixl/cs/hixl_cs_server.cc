@@ -19,6 +19,7 @@
 #include "proxy/hcomm_proxy.h"
 #include "transfer_pool.h"
 #include "mmpa/mmpa_api.h"
+#include "common/hixl_inner_types.h"
 
 static inline void to_json(nlohmann::json &j, const CommMem &m) {
   j = nlohmann::json{};
@@ -355,6 +356,9 @@ Status HixlCSServer::CreateChannel(int32_t fd, const char *msg, uint64_t msg_len
   HIXL_CHK_BOOL_RET_STATUS(msg_len == sizeof(CreateChannelReq), PARAM_INVALID,
                            "invalid msg len:%lu of create channel, must = %zu", msg_len, sizeof(CreateChannelReq));
   const auto &req = *reinterpret_cast<const CreateChannelReq *>(msg);
+  HIXL_CHK_BOOL_RET_STATUS((req.qos >= kQosMin && req.qos <= kQosMax), PARAM_INVALID,
+                           "invalid req qos:%d of create channel, must in range= [%d, %d]",
+                           req.qos, kQosMin, kQosMax);
   EndpointHandle handle = reinterpret_cast<EndpointHandle>(static_cast<uintptr_t>(req.dst_ep_handle));
   auto ep = endpoint_store_.GetEndpoint(handle);
   HIXL_CHECK_NOTNULL(ep);
@@ -366,6 +370,7 @@ Status HixlCSServer::CreateChannel(int32_t fd, const char *msg, uint64_t msg_len
   channel_desc.sl = req.sl;
   channel_desc.channel_type = ChannelType::kServer;
   channel_desc.channel_index = req.channel_index;
+  channel_desc.qos = req.qos;
   HIXL_CHK_STATUS_RET(ep->CreateChannel(channel_desc, channel_handle), "Failed to create channel");
   std::lock_guard<std::mutex> lock(chn_mutex_);
   EndpointChannelInfo info{};

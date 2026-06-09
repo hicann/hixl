@@ -72,7 +72,7 @@ Status HixlClient::Initialize(const std::vector<EndpointConfig> &local_endpoint_
                                                       matched_pairs, handler_type),
                       "EndpointMatcher::MatchEndpoints failed");
   HandlerCreateArgs args{server_ip_, server_port_, rdma_tc_, rdma_sl_, local_listen_port_, handler_type,
-                         std::move(matched_pairs)};
+                         std::move(matched_pairs), qos_};
   client_handler_ = ClientHandlerFactory::Create(args);
   HIXL_CHECK_NOTNULL(client_handler_, "ClientHandlerFactory create handler failed");
   HIXL_DISMISS_GUARD(close_ctrl_socket);

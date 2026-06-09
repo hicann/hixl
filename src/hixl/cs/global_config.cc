@@ -12,6 +12,7 @@
 
 #include "nlohmann/json.hpp"
 #include "common/hixl_log.h"
+#include "common/hixl_inner_types.h"
 
 namespace hixl {
 namespace {
@@ -37,10 +38,34 @@ Status ParseListenPort(const nlohmann::json &json, CommResourceConfig &config) {
   return SUCCESS;
 }
 
+Status ParseQos(const nlohmann::json &json, CommResourceConfig &config) {
+  const auto it = json.find(kQosName);
+  if (it == json.end()) {
+    return SUCCESS;
+  }
+
+  const auto val = it->get<int64_t>();
+  if (val < kQosMin || val > kQosMax) {
+    HIXL_LOGE(PARAM_INVALID, "[GlobalConfig] qos out of range: %ld, must be in [%ld, %ld]", val,
+              kQosMin, kQosMax);
+    return PARAM_INVALID;
+  }
+
+  config.qos = static_cast<int32_t>(val);
+  HIXL_LOGI("[GlobalConfig] qos=%d", config.qos.value());
+  return SUCCESS;
+}
+
 Status ParseCommResourceConfig(const nlohmann::json &json, CommResourceConfig &config) {
   Status ret = ParseListenPort(json, config);
   if (ret != SUCCESS) {
     HIXL_LOGE(ret, "[GlobalConfig] Failed to parse listen_port");
+    return ret;
+  }
+
+  ret = ParseQos(json, config);
+  if (ret != SUCCESS) {
+    HIXL_LOGE(ret, "[GlobalConfig] Failed to parse qos");
     return ret;
   }
   return SUCCESS;
@@ -75,4 +100,7 @@ std::optional<uint32_t> GlobalConfig::ListenPort() const {
   return comm_resource_config_.listen_port;
 }
 
+std::optional<int32_t> GlobalConfig::Qos() const {
+  return comm_resource_config_.qos;
+}
 }  // namespace hixl

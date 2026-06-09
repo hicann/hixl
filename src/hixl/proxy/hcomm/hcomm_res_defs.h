@@ -24,7 +24,8 @@ extern "C" {
 static const uint32_t COMM_ADDR_EID_LEN = 16U;
 static const uint32_t HCOMM_CHANNEL_MAGIC_WORD = 0x0fcf0f0fU;
 static const uint32_t HCOMM_CHANNEL_VERSION_ONE = 1U;
-static const uint32_t HCOMM_CHANNEL_VERSION = HCOMM_CHANNEL_VERSION_ONE;
+/** ABI v2：在 union 之后增加与协议解耦的通信域 qos（uint32_t）等布局变更 */
+static const uint32_t HCOMM_CHANNEL_VERSION = 2u;
 
 typedef int32_t HcommResult;
 
@@ -214,6 +215,7 @@ typedef struct {
             uint32_t qos;            ///< HCCS QoS
         } hccsAttr;
     };
+    uint32_t qos;
 } HcommChannelDesc;
 
 // 传输类型定义

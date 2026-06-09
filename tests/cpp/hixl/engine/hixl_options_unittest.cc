@@ -398,4 +398,78 @@ TEST_F(HixlOptionsUTest, RawOptionsPreserved) {
   EXPECT_EQ(result.RawOptions().at(hixl::OPTION_RDMA_TRAFFIC_CLASS).GetString(), std::string("132"));
 }
 
+TEST_F(HixlOptionsUTest, ParseConfigQosDefault) {
+  std::map<ge::AscendString, ge::AscendString> options;
+
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  EXPECT_FALSE(result.GlobalResourceCfg().has_value());
+}
+
+TEST_F(HixlOptionsUTest, ParseConfigQosMin) {
+  std::map<ge::AscendString, ge::AscendString> options;
+  std::string json_str = R"({"comm_resource_config.qos": 0})";
+  options[ge::AscendString(hixl::OPTION_GLOBAL_RESOURCE_CONFIG)] = ge::AscendString(json_str.c_str());
+
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  EXPECT_TRUE(result.GlobalResourceCfg().has_value());
+  EXPECT_EQ(result.GlobalResourceCfg()->comm_resource_config.qos.value(), 0);
+}
+
+TEST_F(HixlOptionsUTest, ParseConfigQosMax) {
+  std::map<ge::AscendString, ge::AscendString> options;
+  std::string json_str = R"({"comm_resource_config.qos": 7})";
+  options[ge::AscendString(hixl::OPTION_GLOBAL_RESOURCE_CONFIG)] = ge::AscendString(json_str.c_str());
+
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  EXPECT_TRUE(result.GlobalResourceCfg().has_value());
+  EXPECT_EQ(result.GlobalResourceCfg()->comm_resource_config.qos.value(), 7);
+}
+
+TEST_F(HixlOptionsUTest, ParseConfigQosInValidMin) {
+  std::map<ge::AscendString, ge::AscendString> options;
+  std::string json_str = R"({"comm_resource_config.qos": -1})";
+  options[ge::AscendString(hixl::OPTION_GLOBAL_RESOURCE_CONFIG)] = ge::AscendString(json_str.c_str());
+
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseConfigQosInValidMax) {
+  std::map<ge::AscendString, ge::AscendString> options;
+  std::string json_str = R"({"comm_resource_config.qos": 8})";
+  options[ge::AscendString(hixl::OPTION_GLOBAL_RESOURCE_CONFIG)] = ge::AscendString(json_str.c_str());
+
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseConfigQosInValidInt8) {
+  std::map<ge::AscendString, ge::AscendString> options;
+  std::string json_str = R"({"comm_resource_config.qos": 8888})";
+  options[ge::AscendString(hixl::OPTION_GLOBAL_RESOURCE_CONFIG)] = ge::AscendString(json_str.c_str());
+
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseConfigQosInValidPartString) {
+  std::map<ge::AscendString, ge::AscendString> options;
+  std::string json_str = R"({"comm_resource_config.qos": "0invalid"})";
+  options[ge::AscendString(hixl::OPTION_GLOBAL_RESOURCE_CONFIG)] = ge::AscendString(json_str.c_str());
+
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseConfigQosInValidAllString) {
+  std::map<ge::AscendString, ge::AscendString> options;
+  std::string json_str = R"({"comm_resource_config.qos": "invalid"})";
+  options[ge::AscendString(hixl::OPTION_GLOBAL_RESOURCE_CONFIG)] = ge::AscendString(json_str.c_str());
+
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
 }  // namespace hixl

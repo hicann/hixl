@@ -20,12 +20,14 @@ namespace hixl {
 
 struct CommResourceConfig {
   std::optional<uint32_t> listen_port;
+  std::optional<int32_t> qos;
 };
 
 class GlobalConfig {
  public:
   static Status Parse(const char *config_str, GlobalConfig &result);
   std::optional<uint32_t> ListenPort() const;
+  std::optional<int32_t> Qos() const;
 
  private:
   CommResourceConfig comm_resource_config_;

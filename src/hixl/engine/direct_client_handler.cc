@@ -38,8 +38,7 @@ Status DirectClientHandler::Create(const HandlerCreateArgs &args, std::unique_pt
   desc.sl = args.rdma_sl;
   HixlClientHandle handle = nullptr;
   HixlClientConfig config{};
-  const std::string global_resource_config = ClientHandlerConfigHelper::BuildGlobalResourceConfig(
-      args.local_listen_port);
+  const std::string global_resource_config = ClientHandlerConfigHelper::BuildGlobalResourceConfig(args);
   if (!global_resource_config.empty()) {
     config.global_resource_config = global_resource_config.c_str();
   }

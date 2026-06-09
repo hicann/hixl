@@ -40,6 +40,11 @@ constexpr const char *kPlacementHost = "host";
 constexpr uint8_t kRdmaTrafficClass = 132; // RDMA网卡的traffic class 默认值
 constexpr uint8_t kRdmaServiceLevel = 4; // RDMA网卡的service level 默认值
 
+constexpr const char *kQosName = "comm_resource_config.qos";
+constexpr int32_t kQosDefault = 0;
+constexpr int32_t kQosMin = 0;
+constexpr int32_t kQosMax = 7;
+
 struct AddrInfo {
   uintptr_t start_addr{0};
   uintptr_t end_addr{0};

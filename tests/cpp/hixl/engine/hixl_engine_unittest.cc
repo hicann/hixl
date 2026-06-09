@@ -360,6 +360,37 @@ TEST_F(HixlEngineTest, InitializeWithoutListenPortDoesNotSetClientListenPort) {
   engine.Finalize();
 }
 
+TEST_F(HixlEngineTest, InitializeSetsClientQosFromGlobalResourceConfig) {
+  std::map<AscendString, AscendString> options = options1;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.qos": 7})";
+  HixlOptions parsed;
+  ASSERT_EQ(HixlOptions::Parse(options, parsed), SUCCESS);
+
+  HixlEngine engine("127.0.0.1");
+  EXPECT_EQ(engine.Initialize(parsed), SUCCESS);
+
+  ClientConfig config{};
+  std::vector<MemInfo> mem_info_list;
+  engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, mem_info_list, kTimeOut);
+  ASSERT_TRUE(config.qos.has_value());
+  EXPECT_EQ(config.qos.value(), 7);
+  engine.Finalize();
+}
+
+TEST_F(HixlEngineTest, InitializeWithoutQosDoesNotSetClientQos) {
+  HixlOptions parsed;
+  ASSERT_EQ(HixlOptions::Parse(options1, parsed), SUCCESS);
+
+  HixlEngine engine("127.0.0.1");
+  EXPECT_EQ(engine.Initialize(parsed), SUCCESS);
+
+  ClientConfig config{};
+  std::vector<MemInfo> mem_info_list;
+  engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, mem_info_list, kTimeOut);
+  EXPECT_FALSE(config.qos.has_value());
+  engine.Finalize();
+}
+
 TEST_F(HixlEngineTest, TestHixl) {
   SetSocStub("Ascend910B1", 0, 12, 99, 88);
   Hixl engine1;

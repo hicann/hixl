@@ -16,16 +16,24 @@
 #include <string>
 
 #include "nlohmann/json.hpp"
+#include "engine/client_handler_factory.h"
 
 namespace hixl {
 
 class ClientHandlerConfigHelper {
  public:
-  static std::string BuildGlobalResourceConfig(const std::optional<uint32_t> &listen_port) {
-    if (!listen_port.has_value()) {
+  static std::string BuildGlobalResourceConfig(const HandlerCreateArgs &args) {
+    // force return "", default json construction will dump to "null" which not as expect
+    if (!args.local_listen_port.has_value() && !args.qos.has_value()) {
       return "";
     }
-    nlohmann::json json{{"comm_resource_config.listen_port", *listen_port}};
+    nlohmann::json json;
+    if (args.local_listen_port.has_value()) {
+      json["comm_resource_config.listen_port"] = args.local_listen_port.value();
+    }
+    if (args.qos.has_value()) {
+      json["comm_resource_config.qos"] = args.qos.value();
+    }
     return json.dump();
   }
 };

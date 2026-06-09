@@ -1177,4 +1177,90 @@ TEST_F(HixlCSClientUT, GetHccsRemoteMemSuccessNormalWithTags) {
   ASSERT_NE(tags, nullptr);
   EXPECT_STREQ(tags[0], kGetRemoteMemStr0);
 }
+
+// ============qos====================
+TEST_F(HixlCSClientUT, ParseConfigQosDefault) {
+  port_ = kPort;
+  HixlClientConfig config{};
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  EXPECT_EQ(client_.Create(&desc, &config), SUCCESS);
+  EXPECT_FALSE(client_.global_config_.Qos().has_value());
+  client_.Destroy();
+}
+
+TEST_F(HixlCSClientUT, ParseConfigQosMin) {
+  port_ = kPort;
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientConfig config{};
+  config.global_resource_config = R"({"comm_resource_config.qos": 0})";
+  EXPECT_EQ(client_.Create(&desc, &config), SUCCESS);
+  EXPECT_TRUE(client_.global_config_.Qos().has_value());
+  EXPECT_EQ(client_.global_config_.Qos().value(), 0);
+  client_.Destroy();
+}
+
+TEST_F(HixlCSClientUT, ParseConfigQosMax) {
+  port_ = kPort;
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientConfig config{};
+  config.global_resource_config = R"({"comm_resource_config.qos": 7})";
+  EXPECT_EQ(client_.Create(&desc, &config), SUCCESS);
+  EXPECT_TRUE(client_.global_config_.Qos().has_value());
+  EXPECT_EQ(client_.global_config_.Qos().value(), 7);
+  client_.Destroy();
+}
+
+TEST_F(HixlCSClientUT, ParseConfigQosInValidMin) {
+  port_ = kPort;
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientConfig config{};
+  config.global_resource_config = R"({"comm_resource_config.qos":-1})";
+  HixlClientHandle handle = reinterpret_cast<HixlClientHandle>(&client_);
+  EXPECT_EQ(HixlCSClientCreate(&desc, &config, &handle), HIXL_PARAM_INVALID);
+  EXPECT_EQ(handle, nullptr);
+}
+
+TEST_F(HixlCSClientUT, ParseConfigQosInValidMax) {
+  port_ = kPort;
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientConfig config{};
+  config.global_resource_config = R"({"comm_resource_config.qos":8})";
+  HixlClientHandle handle = reinterpret_cast<HixlClientHandle>(&client_);
+  EXPECT_EQ(HixlCSClientCreate(&desc, &config, &handle), HIXL_PARAM_INVALID);
+  EXPECT_EQ(handle, nullptr);
+}
+
+TEST_F(HixlCSClientUT, ParseConfigQosInValidPartString) {
+  port_ = kPort;
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientConfig config{};
+  config.global_resource_config = R"({"comm_resource_config.qos": "invalid"})";
+  HixlClientHandle handle = reinterpret_cast<HixlClientHandle>(&client_);
+  EXPECT_EQ(HixlCSClientCreate(&desc, &config, &handle), HIXL_PARAM_INVALID);
+  EXPECT_EQ(handle, nullptr);
+}
 }  // namespace hixl

@@ -38,6 +38,7 @@ struct ConnectPoolConfig {
 struct CommResourceConfigDesc {
   std::optional<std::vector<std::string>> protocol_desc;
   std::optional<uint32_t> listen_port;
+  std::optional<int32_t> qos;
 };
 
 struct GlobalResourceConfig {
@@ -78,6 +79,7 @@ class HixlOptions {
   Status ParseFabricMemOptions(const std::map<AscendString, AscendString> &options);
   Status ParseAutoConnectOptions(const std::map<AscendString, AscendString> &options);
   Status ParseGlobalResourceConfig(const std::map<AscendString, AscendString> &options);
+  Status ParseGlobalResourceConfig(const std::string &config_str);
 };
 
 }  // namespace hixl

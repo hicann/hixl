@@ -40,8 +40,7 @@ UbClientHandler::UbClientHandler(std::map<CommType, HixlClientHandle> handles) :
 
 Status UbClientHandler::Create(const HandlerCreateArgs &args, std::unique_ptr<UbClientHandler> &out) {
   std::map<CommType, HixlClientHandle> handles;
-  const std::string global_resource_config = ClientHandlerConfigHelper::BuildGlobalResourceConfig(
-      args.local_listen_port);
+  const std::string global_resource_config = ClientHandlerConfigHelper::BuildGlobalResourceConfig(args);
   for (const auto &pair : args.matched_pairs) {
     int32_t dev_logic_id = 0;
     int32_t dev_phy_id = 0;
