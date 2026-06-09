@@ -77,20 +77,21 @@ inline bool IsFileExists(const std::string &path) {
 }
 
 // 魔法数字常量
-constexpr size_t kHexPrefixLength = 2;    // "0x" 前缀长度
-constexpr size_t kNpuGroupSize = 8;       // NPU 分组大小
-constexpr size_t kJsonExtLen = 5;         // ".json" 长度
-constexpr size_t kPgEidSecondIndex = 1;   // PG EID 第二索引
-constexpr size_t kSecondElementSize = 2;  // 第二元素 size 检查
-constexpr uint32_t kOddParity = 1;        // 奇校验
-constexpr uint32_t kEvenParity = 0;       // 偶校验
+constexpr size_t kHexPrefixLength = 2;     // "0x" 前缀长度
+constexpr size_t kNpuGroupSize = 8;        // NPU 分组大小
+constexpr size_t kJsonExtLen = 5;          // ".json" 长度
+constexpr size_t kPgEidSecondIndex = 1;    // PG EID 第二索引
+constexpr size_t kSecondElementSize = 2;   // 第二元素 size 检查
+constexpr uint32_t kOddParity = 1;         // 奇校验
+constexpr uint32_t kEvenParity = 0;        // 偶校验
+constexpr uint32_t kParityModuloBase = 2;  // 奇偶校验模基数
 
 // 产品形态判断函数
 inline bool IsProductServer(uint32_t mainboard_id) {
   return ((mainboard_id >= kMainboardIdServerMin1 && mainboard_id <= kMainboardIdServerMax1 &&
-           (mainboard_id % 2 == kOddParity)) ||
+           (mainboard_id % kParityModuloBase == kOddParity)) ||
           (mainboard_id >= kMainboardIdServerMin2 && mainboard_id <= kMainboardIdServerMax2 &&
-           (mainboard_id % 2 == kEvenParity)));
+           (mainboard_id % kParityModuloBase == kEvenParity)));
 }
 
 // topo 文件名前缀
@@ -234,7 +235,8 @@ int32_t ParseUrmaAdminOutput(const std::string &cmd_output, std::vector<UrmaEidE
     // 提取 eid_index: "eid1" → 1
     int eid_index = 0;
     try {
-      eid_index = std::stoi(eid_name.substr(3));
+      // "eid" 前缀长度为 3，跳过前缀取数字部分
+      eid_index = std::stoi(eid_name.substr(std::strlen("eid")));
     } catch (const std::exception &) {
       continue;
     }
@@ -396,9 +398,9 @@ bool TopoFileFinder::MatchProductForm(uint32_t mainboard_id, std::string &topo_p
 
 bool TopoFileFinder::IsProductServer(uint32_t mainboard_id) {
   return ((mainboard_id >= kMainboardIdServerMin1 && mainboard_id <= kMainboardIdServerMax1 &&
-           (mainboard_id % 2 == kOddParity)) ||
+           (mainboard_id % kParityModuloBase == kOddParity)) ||
           (mainboard_id >= kMainboardIdServerMin2 && mainboard_id <= kMainboardIdServerMax2 &&
-           (mainboard_id % 2 == kEvenParity)));
+           (mainboard_id % kParityModuloBase == kEvenParity)));
 }
 
 std::string TopoFileFinder::FindTopoFile(const std::string &topo_dir, uint32_t mainboard_id) {
@@ -451,7 +453,7 @@ ProcfsRouteHandler::ProcfsRouteHandler(std::string proc_base_path)
 
 ProcfsRouteHandler::~ProcfsRouteHandler() {}
 
-std::string ProcfsRouteHandler::FindProcBasePath() {
+std::string ProcfsRouteHandler::FindProcBasePath() const {
   // 显式注入的路径优先；空字符串表示走默认 ascend_ub / asdrv_ub 自动发现
   if (!injected_proc_base_path_.empty()) {
     if (IsFileExists(injected_proc_base_path_ + "/" + kProcDevIdFile)) {
@@ -540,9 +542,8 @@ bool ProcfsRouteHandler::ParseEidFromLine(const std::string &line, const std::st
 
 std::string ProcfsRouteHandler::FormatEidValue(const std::string &eid) {
   std::string result = eid;
-  // 去掉 0x 前缀
-  if (result.size() >= 2 && result[0] == '0' && (result[1] == 'x' || result[1] == 'X')) {
-    result = result.substr(2);
+  if (result.size() >= kHexPrefixLength && result[0] == '0' && (result[1] == 'x' || result[1] == 'X')) {
+    result = result.substr(kHexPrefixLength);
   }
   // 去掉所有冒号
   result.erase(std::remove(result.begin(), result.end(), ':'), result.end());
@@ -956,7 +957,7 @@ int32_t ParseRouteFile(const std::string &route_path, RouteData &route_data) {
 
 // ============ 边生成实现 ============
 
-bool ShouldSkipD2DLink(const TopoLink &link, std::array<size_t, 4> &skip_reason) {
+bool ShouldSkipD2DLink(const TopoLink &link, std::array<size_t, 4> &skip_reason) {  // 4: skip reason categories
   if (link.net_layer != 0) {
     ++skip_reason[0];
     return true;
@@ -1091,7 +1092,7 @@ int32_t GenerateD2HEdges(const RouteData &route_data, int32_t phy_dev_id, std::v
   HIXL_LOGI("D2H: route_entries=%zu, phy_dev_id=%d", route_data.entries.size(), phy_dev_id);
 
   for (const auto &entry : route_data.entries) {
-    if (entry.device_id != (phy_dev_id % 8)) {
+    if (entry.device_id != static_cast<int32_t>(phy_dev_id % kNpuGroupSize)) {
       continue;
     }
     EndpointConfig edge;
@@ -1422,7 +1423,9 @@ int32_t TransLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, cons
   }
 
   // 3. 通过 AscendString 返回（内部封装 shared_ptr<std::string>，跨 .so 边界 ABI 安全）
-  result = AscendString(j.dump(2).c_str());
+  // JSON 输出使用 2 空格缩进
+  constexpr int32_t kJsonIndent = 2;
+  result = AscendString(j.dump(kJsonIndent).c_str());
   return SUCCESS;
 }
 
