@@ -1348,20 +1348,20 @@ TEST_F(ProcfsRouteHandlerTest, GenerateRouteDataEidColonStripped) {
 class TopoFileFinderTest : public ::testing::Test {};
 
 // Helper: Create temp dir with topo files
-std::string CreateTempTopoDir(const std::string &prefix, bool with_850_file, bool with_950_file) {
+std::string CreateTempTopoDir(bool with_850_file, bool with_950_file) {
   std::string temp_dir = "/tmp/hixl_topo_ut_XXXXXX";
   char *result = mkdtemp(&temp_dir[0]);
   if (result == nullptr) {
     return "";
   }
   if (with_850_file) {
-    std::string file_path = temp_dir + "/" + prefix + "_850_server.json";
+    std::string file_path = temp_dir + "/atlas_850_1.json";
     std::ofstream of(file_path.c_str());
     of << "{}";
     of.close();
   }
   if (with_950_file) {
-    std::string file_path = temp_dir + "/" + prefix + "_950_pod.json";
+    std::string file_path = temp_dir + "/atlas_950_1.json";
     std::ofstream of(file_path.c_str());
     of << "{}";
     of.close();
@@ -1379,7 +1379,7 @@ void CleanupTopoTempDir(const std::string &temp_dir) {
 
 TEST_F(TopoFileFinderTest, FindTopoFileServerProduct) {
   // Server 产品 (mainboard_id=0x21) 应匹配 atlas_850_* 前缀
-  std::string temp_dir = CreateTempTopoDir("atlas", true, true);
+  std::string temp_dir = CreateTempTopoDir(true, true);
   ASSERT_FALSE(temp_dir.empty());
 
   hixl::TopoFileFinder finder;
@@ -1393,7 +1393,7 @@ TEST_F(TopoFileFinderTest, FindTopoFileServerProduct) {
 
 TEST_F(TopoFileFinderTest, FindTopoFilePodProduct) {
   // Pod 产品 (mainboard_id=0x3) 应匹配 atlas_950_* 前缀
-  std::string temp_dir = CreateTempTopoDir("atlas", true, true);
+  std::string temp_dir = CreateTempTopoDir(true, true);
   ASSERT_FALSE(temp_dir.empty());
 
   hixl::TopoFileFinder finder;
@@ -1407,7 +1407,7 @@ TEST_F(TopoFileFinderTest, FindTopoFilePodProduct) {
 
 TEST_F(TopoFileFinderTest, FindTopoFilePod2Product) {
   // Pod2 产品 (mainboard_id=0x5) 应匹配 atlas_950_* 前缀
-  std::string temp_dir = CreateTempTopoDir("atlas", true, true);
+  std::string temp_dir = CreateTempTopoDir(true, true);
   ASSERT_FALSE(temp_dir.empty());
 
   hixl::TopoFileFinder finder;
@@ -1421,7 +1421,7 @@ TEST_F(TopoFileFinderTest, FindTopoFilePod2Product) {
 
 TEST_F(TopoFileFinderTest, FindTopoFilePod3Product) {
   // Pod3 产品 (mainboard_id=0x7) 应匹配 atlas_950_* 前缀
-  std::string temp_dir = CreateTempTopoDir("atlas", true, true);
+  std::string temp_dir = CreateTempTopoDir(true, true);
   ASSERT_FALSE(temp_dir.empty());
 
   hixl::TopoFileFinder finder;
@@ -1435,7 +1435,7 @@ TEST_F(TopoFileFinderTest, FindTopoFilePod3Product) {
 
 TEST_F(TopoFileFinderTest, FindTopoFileServerEvenRange2) {
   // Server 产品偶数范围 (mainboard_id=0x42) 应匹配 atlas_850_* 前缀
-  std::string temp_dir = CreateTempTopoDir("atlas", true, true);
+  std::string temp_dir = CreateTempTopoDir(true, true);
   ASSERT_FALSE(temp_dir.empty());
 
   hixl::TopoFileFinder finder;
@@ -1457,7 +1457,7 @@ TEST_F(TopoFileFinderTest, FindTopoFileDirectoryNotExist) {
 
 TEST_F(TopoFileFinderTest, FindTopoFileNoMatchingFile) {
   // 目录存在但没有匹配的文件应返回空
-  std::string temp_dir = CreateTempTopoDir("atlas", false, false);  // 不创建任何文件
+  std::string temp_dir = CreateTempTopoDir(false, false);  // 不创建任何文件
   ASSERT_FALSE(temp_dir.empty());
 
   hixl::TopoFileFinder finder;
@@ -1470,7 +1470,7 @@ TEST_F(TopoFileFinderTest, FindTopoFileNoMatchingFile) {
 
 TEST_F(TopoFileFinderTest, FindTopoFileUnknownMainboardId) {
   // 未知 mainboard_id 应返回空
-  std::string temp_dir = CreateTempTopoDir("atlas", true, true);
+  std::string temp_dir = CreateTempTopoDir(true, true);
   ASSERT_FALSE(temp_dir.empty());
 
   hixl::TopoFileFinder finder;
@@ -1483,7 +1483,7 @@ TEST_F(TopoFileFinderTest, FindTopoFileUnknownMainboardId) {
 
 TEST_F(TopoFileFinderTest, FindTopoFileServerOddMainboardId) {
   // Server 产品奇数 mainboard_id (0x23) 应匹配 atlas_850_* 前缀
-  std::string temp_dir = CreateTempTopoDir("atlas", true, true);
+  std::string temp_dir = CreateTempTopoDir(true, true);
   ASSERT_FALSE(temp_dir.empty());
 
   hixl::TopoFileFinder finder;

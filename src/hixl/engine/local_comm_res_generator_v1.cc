@@ -31,7 +31,6 @@
 #include <cerrno>
 #include <cstdio>
 #include <set>
-#include <dirent.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -79,7 +78,6 @@ inline bool IsFileExists(const std::string &path) {
 // 魔法数字常量
 constexpr size_t kHexPrefixLength = 2;     // "0x" 前缀长度
 constexpr size_t kNpuGroupSize = 8;        // NPU 分组大小
-constexpr size_t kJsonExtLen = 5;          // ".json" 长度
 constexpr size_t kPgEidSecondIndex = 1;    // PG EID 第二索引
 constexpr size_t kSecondElementSize = 2;   // 第二元素 size 检查
 constexpr uint32_t kOddParity = 1;         // 奇校验
@@ -94,9 +92,9 @@ inline bool IsProductServer(uint32_t mainboard_id) {
            (mainboard_id % kParityModuloBase == kEvenParity)));
 }
 
-// topo 文件名前缀
-constexpr const char *kTopoPrefixAtlas950 = "atlas_950_";
-constexpr const char *kTopoPrefixAtlas850 = "atlas_850_";
+// topo 文件名
+constexpr const char *kTopoFileAtlas950 = "atlas_950_1.json";
+constexpr const char *kTopoFileAtlas850 = "atlas_850_1.json";
 
 // Procfs 路径常量
 constexpr const char *kProcPathAscendUb = "/proc/ascend_ub";
@@ -384,13 +382,13 @@ TopoFileFinder::TopoFileFinder() {}
 
 TopoFileFinder::~TopoFileFinder() {}
 
-bool TopoFileFinder::MatchProductForm(uint32_t mainboard_id, std::string &topo_prefix) {
+bool TopoFileFinder::MatchProductForm(uint32_t mainboard_id, std::string &topo_file_name) {
   if (mainboard_id == kMainboardIdPod1 || mainboard_id == kMainboardIdPod2 || mainboard_id == kMainboardIdPod3) {
-    topo_prefix = kTopoPrefixAtlas950;
+    topo_file_name = kTopoFileAtlas950;
     return true;
   }
   if (IsProductServer(mainboard_id)) {
-    topo_prefix = kTopoPrefixAtlas850;
+    topo_file_name = kTopoFileAtlas850;
     return true;
   }
   return false;
@@ -404,42 +402,20 @@ bool TopoFileFinder::IsProductServer(uint32_t mainboard_id) {
 }
 
 std::string TopoFileFinder::FindTopoFile(const std::string &topo_dir, uint32_t mainboard_id) {
-  std::string topo_prefix;
-  if (!MatchProductForm(mainboard_id, topo_prefix)) {
+  std::string topo_file_name;
+  if (!MatchProductForm(mainboard_id, topo_file_name)) {
     HIXL_LOGW("Unknown product form for mainboard_id=0x%x", mainboard_id);
     return "";
   }
-  HIXL_LOGI("mainboard_id=0x%x, topo_prefix=%s", mainboard_id, topo_prefix.c_str());
+  HIXL_LOGI("mainboard_id=0x%x, topo_file_name=%s", mainboard_id, topo_file_name.c_str());
 
-  DIR *dir = opendir(topo_dir.c_str());
-  if (dir == nullptr) {
-    HIXL_LOGW("Failed to open topo dir: %s", topo_dir.c_str());
+  std::string full_path = topo_dir + "/" + topo_file_name;
+  if (!IsFileExists(full_path)) {
+    HIXL_LOGW("Topo file not found: %s", full_path.c_str());
     return "";
   }
-
-  std::string matched_file;
-  struct dirent *entry = nullptr;
-  while ((entry = readdir(dir)) != nullptr) {
-    std::string name(entry->d_name);
-    // 必须以 .json 结尾
-    if (name.size() < kJsonExtLen || name.compare(name.size() - kJsonExtLen, kJsonExtLen, ".json") != 0) {
-      continue;
-    }
-    // 必须匹配产品形态前缀
-    if (name.compare(0, topo_prefix.size(), topo_prefix) != 0) {
-      continue;
-    }
-    matched_file = topo_dir + name;
-    break;  // 取第一个匹配的文件
-  }
-  closedir(dir);
-
-  if (matched_file.empty()) {
-    HIXL_LOGW("No topo file matching '%s*.json' in %s", topo_prefix.c_str(), topo_dir.c_str());
-  } else {
-    HIXL_LOGI("Matched topo file: %s", matched_file.c_str());
-  }
-  return matched_file;
+  HIXL_LOGI("Matched topo file: %s", full_path.c_str());
+  return full_path;
 }
 
 // ============================================================================

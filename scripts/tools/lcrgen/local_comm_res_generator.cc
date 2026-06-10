@@ -81,7 +81,7 @@ aclError GetPhyDevId(int32_t logic_id, int32_t *phy_id) {
 }  // anonymous namespace
 
 int main(int argc, char *argv[]) {
-  if (argc != 2) {
+  if (argc != 2) { //当传入的参数数目不为2时，提醒用户检查输入
     PrintUsage(argv[0]);
     return ACL_ERROR_INVALID_PARAM;
   }
