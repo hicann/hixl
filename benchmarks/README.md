@@ -204,7 +204,7 @@ python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
 | 参数 | 说明                                                                                  | 可选值 | 默认值          |
 |---|-------------------------------------------------------------------------------------|---|--------------|
 | `--type` | 传输方向                                                                                | `D2rD`, `rD2D`, `D2rH`, `rH2D`, `H2rH`, `rH2H`, `H2rD`, `rD2H` | `D2rD`       |
-| `--transport` | 传输路径                                                                                | `hccs` / `rdma` / `fabric_mem` | `hccs`       |
+| `--transport` | 传输路径                                                                                | `hccs` / `rdma` / `fabric_mem` / `uboe` / `ub` | `hccs`       |
 | `--pattern` | 通信拓扑                                                                                | `pairwise` / `one_to_many` / `many_to_one` | `pairwise`   |
 | `--start_block_size` | 起始 block 大小（字节）                                                                     | 整数 | 16384 (16K)  |
 | `--max_block_size` | 最大 block 大小，2 倍递增                                                                   | 整数 | 2097152 (2M) |

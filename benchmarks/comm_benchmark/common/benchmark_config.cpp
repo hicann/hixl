@@ -29,6 +29,7 @@ using hixl::AscendString;
 using hixl::OPTION_BUFFER_POOL;
 using hixl::OPTION_ENABLE_USE_FABRIC_MEM;
 using hixl::OPTION_GLOBAL_RESOURCE_CONFIG;
+using hixl::OPTION_LOCAL_COMM_RES;
 
 namespace hixl_benchmark {
 
@@ -623,8 +624,9 @@ void BenchmarkConfigParser::PrintUsage(FILE *out) {
           "  --role|-r            target|initiator|client|server\n"
           "  --benchmark_group    result grouping name (default default)\n"
           "  --soc_variant        auto|a2|a3|a5 — HCCS rules & SOC class (default auto: ACL SOC probe; a5 forbids HCCS)\n"
-          "  --transport          hccs|rdma|fabric_mem|uboe "
-          "(hccs: D2D everywhere; extra H2rD|rD2H on A3-class SOC only; fabric_mem adds EnableUseFabricMem=1; uboe adds GlobalResourceConfig with uboe:device, only on A5)\n"
+          "  --transport          hccs|rdma|fabric_mem|uboe|ub "
+          "(hccs: D2D everywhere; extra H2rD|rD2H on A3-class SOC only; fabric_mem adds EnableUseFabricMem=1;\n"
+          " uboe adds GlobalResourceConfig with uboe:device, only on A5; ub adds LocalCommRes with version:1.3, only on A5)\n"
           "  --initiator_memory   host|device (default device) — initiator-side buffer\n"
           "  --target_memory      host|device (default device) — target-side buffer\n"
           "  --op_type            read|write|mix (alias of --transfer_op)\n"
@@ -681,6 +683,10 @@ std::map<AscendString, AscendString> BenchmarkConfigParser::BuildInitializeOptio
     options[AscendString(OPTION_GLOBAL_RESOURCE_CONFIG)] =
         AscendString("{\"comm_resource_config.protocol_desc\":[\"uboe:device\"]}");
   }
+  if (cfg.transport == "ub" &&
+      cfg.hixl_init_options.find(OPTION_LOCAL_COMM_RES) == cfg.hixl_init_options.cend()) {
+    options[AscendString(OPTION_LOCAL_COMM_RES)] = AscendString("{\"version\":\"1.3\"}");
+  }
   return options;
 }
 
@@ -692,7 +698,7 @@ bool BenchmarkConfigParser::ApplyTransportEnvironment(const BenchmarkConfig &cfg
     }
     return true;
   }
-  // hccs / fabric_mem / uboe: do not modify HCCL environment variables (fabric_mem uses init options only)
+  // hccs / fabric_mem / uboe / ub: do not modify HCCL environment variables (fabric_mem uses init options only)
   return true;
 }
 
@@ -861,8 +867,9 @@ bool ValidateTransferOp(const std::string &op) {
 }
 
 bool ValidateTransport(const std::string &transport) {
-  if (transport != "hccs" && transport != "rdma" && transport != "fabric_mem" && transport != "uboe") {
-    fprintf(stderr, "[ERROR] Invalid transport: %s (expect hccs|rdma|fabric_mem|uboe)\n", transport.c_str());
+  if (transport != "hccs" && transport != "rdma" && transport != "fabric_mem" && transport != "uboe" &&
+      transport != "ub") {
+    fprintf(stderr, "[ERROR] Invalid transport: %s (expect hccs|rdma|fabric_mem|uboe|ub)\n", transport.c_str());
     return false;
   }
   return true;
