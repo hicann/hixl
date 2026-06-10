@@ -27,6 +27,11 @@ constexpr size_t kMinTaskStreamNum = 1U;
 constexpr size_t kMaxTaskStreamNum = 8U;
 constexpr uint32_t kMinListenPort = 1U;
 constexpr uint32_t kMaxListenPort = 65535U;
+constexpr int32_t kMinRdmaTrafficClass = 0;
+constexpr int32_t kMaxRdmaTrafficClass = 255;
+constexpr int32_t kRdmaTrafficClassAlign = 4;
+constexpr int32_t kMinRdmaServiceLevel = 0;
+constexpr int32_t kMaxRdmaServiceLevel = 7;
 
 template <typename T>
 T JsonToNumber(const nlohmann::json &val) {
@@ -76,7 +81,11 @@ void from_json(const nlohmann::json &j, CommResourceConfigDesc &cfg) {
     cfg.listen_port = JsonToNumber<uint32_t>(j.at("comm_resource_config.listen_port"));
   }
   if (j.contains(kQosName)) {
-    cfg.qos = JsonToNumber<int32_t>(j.at(kQosName));
+    const auto val = JsonToNumber<int64_t>(j.at(kQosName));
+    if (val < static_cast<int64_t>(kQosMin) || val > static_cast<int64_t>(kQosMax)) {
+      throw nlohmann::json::out_of_range::create(0, "comm_resource_config.qos out of range", nullptr);
+    }
+    cfg.qos = static_cast<uint8_t>(val);
   }
 }
 
@@ -147,7 +156,8 @@ Status HixlOptions::ParseRdmaOptions(const std::map<AscendString, AscendString> 
     int32_t traffic_class = 0;
     HIXL_CHK_STATUS_RET(ToNumber(traffic_class_str, traffic_class),
                         "Traffic class is invalid, value = %s", traffic_class_str.c_str());
-    HIXL_CHK_BOOL_RET_STATUS(traffic_class >= 0 && traffic_class <= 255 && (traffic_class % 4 == 0),
+    HIXL_CHK_BOOL_RET_STATUS(traffic_class >= kMinRdmaTrafficClass && traffic_class <= kMaxRdmaTrafficClass &&
+                                 (traffic_class % kRdmaTrafficClassAlign == 0),
                              PARAM_INVALID,
                              "Traffic class is invalid, value = %d, must be between 0-255 and a multiple of 4",
                              traffic_class);
@@ -172,7 +182,8 @@ Status HixlOptions::ParseRdmaOptions(const std::map<AscendString, AscendString> 
     int32_t service_level = 0;
     HIXL_CHK_STATUS_RET(ToNumber(service_level_str, service_level),
                         "Service level is invalid, value = %s", service_level_str.c_str());
-    HIXL_CHK_BOOL_RET_STATUS(service_level >= 0 && service_level <= 7, PARAM_INVALID,
+    HIXL_CHK_BOOL_RET_STATUS(service_level >= kMinRdmaServiceLevel && service_level <= kMaxRdmaServiceLevel,
+                             PARAM_INVALID,
                              "service_level must be in [0, 7], value = %d", service_level);
     rdma_service_level_ = static_cast<uint8_t>(service_level);
     HIXL_LOGI("Set rdma service level to %d.", service_level);
@@ -259,9 +270,9 @@ Status HixlOptions::ParseGlobalResourceConfig(const std::string &config_str) {
                                kMinListenPort, kMaxListenPort, val);
     }
     if (cfg.comm_resource_config.qos.has_value()) {
-      int32_t val = cfg.comm_resource_config.qos.value();
-      HIXL_CHK_BOOL_RET_STATUS(val >= kQosMin && val <= kQosMax, PARAM_INVALID,
-                               "comm_resource_config.qos must be in [%d, %d], got %d",
+      uint8_t val = cfg.comm_resource_config.qos.value();
+      HIXL_CHK_BOOL_RET_STATUS(val <= kQosMax, PARAM_INVALID,
+                               "comm_resource_config.qos must be in [%u, %u], got %u",
                                kQosMin, kQosMax, val);
     }
     global_resource_config_ = std::move(cfg);

@@ -373,7 +373,7 @@ TEST_F(HixlEngineTest, InitializeSetsClientQosFromGlobalResourceConfig) {
   std::vector<MemInfo> mem_info_list;
   engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, mem_info_list, kTimeOut);
   ASSERT_TRUE(config.qos.has_value());
-  EXPECT_EQ(config.qos.value(), 7);
+  EXPECT_EQ(static_cast<uint32_t>(config.qos.value()), 7U);
   engine.Finalize();
 }
 

@@ -113,7 +113,7 @@ class HixlCSClient {
                          uint32_t *list_num);
   Status ValidateAddress(uint32_t list_num, const HixlOneSideOpDesc *desc_list);
   Status TransferWithRetry(bool is_get, uint64_t channel_handle, void *dst_buf, const void *src_buf, uint64_t len) const;
-  Status BatchTransferTask(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list);
+  Status BatchTransferTask(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list) const;
   void FillOutputParams(ImportCtx &ctx, CommMem **remote_mem_list, char ***mem_tag_list, uint32_t *list_num);
   Status ClearRemoteMemInfo();
   Status ValidateDeviceInputs(uint32_t list_num, const HixlOneSideOpDesc *desc_list, void *&query_handle) const;
@@ -131,7 +131,7 @@ class HixlCSClient {
   void CleanupActiveSlot();
   Status AllocateHostFlag(void *&host_flag) const;
   Status AllocateDeviceDescBuf(DeviceCompleteHandle &handle, uint32_t total_list_num,
-                               const HixlOneSideOpDesc *desc_list);
+                               const HixlOneSideOpDesc *desc_list) const;
   Status BuildDeviceChunkParam(DeviceCompleteHandle &handle, uint32_t chunk_offset,
                                uint32_t chunk_list_num, bool is_last_chunk,
                                HixlOneSideOpParam &param);

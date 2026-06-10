@@ -32,7 +32,7 @@ struct ClientConfig {
   uint8_t rdma_sl;
   uint32_t timeout_ms;
   std::optional<uint32_t> local_listen_port;
-  std::optional<int32_t> qos;
+  std::optional<uint8_t> qos;
 };
 
 class HixlClient {
@@ -144,7 +144,7 @@ class HixlClient {
                              // inflight 配对
   std::mutex req_map_mutex_;
   std::map<TransferReq, TransferInfo> req_map_;
-  std::optional<int32_t> qos_;
+  std::optional<uint8_t> qos_;
 };
 
 }  // namespace hixl

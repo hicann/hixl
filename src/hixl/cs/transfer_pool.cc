@@ -269,7 +269,6 @@ void TransferPool::AbortSlotByIndexLocked(uint32_t slot_index) {
         slot.notify = nullptr;
       }
     }
-
   }
   if (slot.thread != 0U) {
     const hixl::TemporaryRtContext rts_guard(rts_context_);

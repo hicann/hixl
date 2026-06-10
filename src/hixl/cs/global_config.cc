@@ -45,14 +45,14 @@ Status ParseQos(const nlohmann::json &json, CommResourceConfig &config) {
   }
 
   const auto val = it->get<int64_t>();
-  if (val < kQosMin || val > kQosMax) {
-    HIXL_LOGE(PARAM_INVALID, "[GlobalConfig] qos out of range: %ld, must be in [%ld, %ld]", val,
+  if (val < static_cast<int64_t>(kQosMin) || val > static_cast<int64_t>(kQosMax)) {
+    HIXL_LOGE(PARAM_INVALID, "[GlobalConfig] qos out of range: %ld, must be in [%u, %u]", val,
               kQosMin, kQosMax);
     return PARAM_INVALID;
   }
 
-  config.qos = static_cast<int32_t>(val);
-  HIXL_LOGI("[GlobalConfig] qos=%d", config.qos.value());
+  config.qos = static_cast<uint8_t>(val);
+  HIXL_LOGI("[GlobalConfig] qos=%u", *config.qos);
   return SUCCESS;
 }
 
@@ -100,7 +100,7 @@ std::optional<uint32_t> GlobalConfig::ListenPort() const {
   return comm_resource_config_.listen_port;
 }
 
-std::optional<int32_t> GlobalConfig::Qos() const {
+std::optional<uint8_t> GlobalConfig::Qos() const {
   return comm_resource_config_.qos;
 }
 }  // namespace hixl

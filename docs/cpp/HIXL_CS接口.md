@@ -86,12 +86,14 @@ Client侧`global_resource_config`当前支持的配置项如下。
 | 配置项 | 类型 | 是否必选 | 描述 |
 |---|---|---|---|
 | comm_resource_config.listen_port | 整数 | 可选 | 配置CS建链时使用的通信资源监听端口，取值范围为[1, 65535]。Client配置该字段后，会在建链匹配Endpoint阶段将该端口发送给Server；Server收到有效端口后优先使用该端口。未配置时不携带有效端口，Server保持原有自动查询监听端口逻辑；取值不在范围内时，Client创建失败并返回参数错误。 |
+| comm_resource_config.qos | 数字 | 可选 | 配置通信协议qos，当前仅支持[0-7]，当未配置的时候，默认为0。 |
 
 配置示例：
 
 ```
 {
-  "comm_resource_config.listen_port": 26666
+  "comm_resource_config.listen_port": 26666,
+  "comm_resource_config.qos": 7
 }
 ```
 
@@ -738,7 +740,7 @@ HixlStatus HixlCSClientDestroy(HixlClientHandle client_handle);
 
 4. Client 流程：
 
-- 构造 `HixlClientDesc` 与 `HixlClientConfig`，如需指定通信资源监听端口，在 `global_resource_config` 中配置 `comm_resource_config.listen_port`。
+- 构造 `HixlClientDesc` 与 `HixlClientConfig`，如需指定通信资源监听端口或QoS，在 `global_resource_config` 中配置 `comm_resource_config.listen_port` 或 `comm_resource_config.qos`。
 - 调用 `HixlCSClientCreate` 创建 `HixlClientHandle`。
 - 准备本端 `CommMem` 并通过 `HixlCSClientRegMem` 注册（保存 `MemHandle`）。
 - 调用 `HixlCSClientConnect` 建链（阻塞或等待超时），确保Server处于侦听状态。
@@ -784,7 +786,7 @@ cdesc.remote_endpoint = &remote_ep;
 cdesc.server_ip = "server.ip";
 cdesc.server_port = 12345;
 HixlClientConfig cconfig = {};
-cconfig.global_resource_config = "{\"comm_resource_config.listen_port\":26666}";
+cconfig.global_resource_config = "{\"comm_resource_config.listen_port\":26666,\"comm_resource_config.qos\":7}";
 HixlCSClientCreate(&cdesc, &cconfig, &client);
 
 // 分配并注册本地内存

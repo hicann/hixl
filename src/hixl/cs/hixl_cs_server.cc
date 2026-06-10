@@ -356,8 +356,8 @@ Status HixlCSServer::CreateChannel(int32_t fd, const char *msg, uint64_t msg_len
   HIXL_CHK_BOOL_RET_STATUS(msg_len == sizeof(CreateChannelReq), PARAM_INVALID,
                            "invalid msg len:%lu of create channel, must = %zu", msg_len, sizeof(CreateChannelReq));
   const auto &req = *reinterpret_cast<const CreateChannelReq *>(msg);
-  HIXL_CHK_BOOL_RET_STATUS((req.qos >= kQosMin && req.qos <= kQosMax), PARAM_INVALID,
-                           "invalid req qos:%d of create channel, must in range= [%d, %d]",
+  HIXL_CHK_BOOL_RET_STATUS(req.qos <= kQosMax, PARAM_INVALID,
+                           "invalid req qos:%u of create channel, must in range= [%u, %u]",
                            req.qos, kQosMin, kQosMax);
   EndpointHandle handle = reinterpret_cast<EndpointHandle>(static_cast<uintptr_t>(req.dst_ep_handle));
   auto ep = endpoint_store_.GetEndpoint(handle);

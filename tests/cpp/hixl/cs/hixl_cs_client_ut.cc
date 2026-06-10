@@ -1203,7 +1203,7 @@ TEST_F(HixlCSClientUT, ParseConfigQosMin) {
   config.global_resource_config = R"({"comm_resource_config.qos": 0})";
   EXPECT_EQ(client_.Create(&desc, &config), SUCCESS);
   EXPECT_TRUE(client_.global_config_.Qos().has_value());
-  EXPECT_EQ(client_.global_config_.Qos().value(), 0);
+  EXPECT_EQ(static_cast<uint32_t>(client_.global_config_.Qos().value()), 0U);
   client_.Destroy();
 }
 
@@ -1218,7 +1218,7 @@ TEST_F(HixlCSClientUT, ParseConfigQosMax) {
   config.global_resource_config = R"({"comm_resource_config.qos": 7})";
   EXPECT_EQ(client_.Create(&desc, &config), SUCCESS);
   EXPECT_TRUE(client_.global_config_.Qos().has_value());
-  EXPECT_EQ(client_.global_config_.Qos().value(), 7);
+  EXPECT_EQ(static_cast<uint32_t>(client_.global_config_.Qos().value()), 7U);
   client_.Destroy();
 }
 

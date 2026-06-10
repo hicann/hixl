@@ -172,7 +172,7 @@ class HixlEngine : public hixl::Engine {
   std::optional<uint32_t> local_listen_port_;
 
   std::atomic<bool> auto_connect_{false};
-  std::optional<int32_t> qos_;
+  std::optional<uint8_t> qos_;
 };
 }  // namespace hixl
 

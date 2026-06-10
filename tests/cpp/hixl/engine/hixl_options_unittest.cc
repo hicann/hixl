@@ -414,7 +414,7 @@ TEST_F(HixlOptionsUTest, ParseConfigQosMin) {
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
   EXPECT_TRUE(result.GlobalResourceCfg().has_value());
-  EXPECT_EQ(result.GlobalResourceCfg()->comm_resource_config.qos.value(), 0);
+  EXPECT_EQ(static_cast<uint32_t>(result.GlobalResourceCfg()->comm_resource_config.qos.value()), 0U);
 }
 
 TEST_F(HixlOptionsUTest, ParseConfigQosMax) {
@@ -425,7 +425,7 @@ TEST_F(HixlOptionsUTest, ParseConfigQosMax) {
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
   EXPECT_TRUE(result.GlobalResourceCfg().has_value());
-  EXPECT_EQ(result.GlobalResourceCfg()->comm_resource_config.qos.value(), 7);
+  EXPECT_EQ(static_cast<uint32_t>(result.GlobalResourceCfg()->comm_resource_config.qos.value()), 7U);
 }
 
 TEST_F(HixlOptionsUTest, ParseConfigQosInValidMin) {

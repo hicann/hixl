@@ -37,8 +37,13 @@ void ThreadPool::Destroy() {
   if (is_stopped_.load() == true) {
     return;
   }
+  size_t pending_tasks = 0U;
+  {
+    const std::unique_lock<std::mutex> lock{m_lock_};
+    pending_tasks = tasks_.size();
+  }
   HIXL_LOGI("[ThreadPool] destroying, name:%s, total_threads:%u, pending_tasks:%zu",
-            thread_name_prefix_.c_str(), total_thrd_num_.load(), tasks_.size());
+            thread_name_prefix_.c_str(), total_thrd_num_.load(), pending_tasks);
   {
     const std::unique_lock<std::mutex> lock{m_lock_};
     is_stopped_.store(true);

@@ -493,7 +493,7 @@ Status HixlCSClient::TransferWithRetry(bool is_get, uint64_t channel_handle, voi
   }
 }
 
-Status HixlCSClient::BatchTransferTask(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list) {
+Status HixlCSClient::BatchTransferTask(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list) const {
   for (uint32_t i = 0; i < list_num; i++) {
     void *dst = is_get ? desc_list[i].local_buf : desc_list[i].remote_buf;
     const void *src = is_get ? desc_list[i].remote_buf : desc_list[i].local_buf;
@@ -766,7 +766,7 @@ Status HixlCSClient::LaunchDeviceChunkedKernels(bool is_get, DeviceCompleteHandl
 }
 
 Status HixlCSClient::AllocateDeviceDescBuf(DeviceCompleteHandle &handle, uint32_t total_list_num,
-                                            const HixlOneSideOpDesc *desc_list) {
+                                            const HixlOneSideOpDesc *desc_list) const {
   size_t desc_buf_size = total_list_num * sizeof(HixlOneSideOpDesc);
   HIXL_CHK_ACL_RET(aclrtMalloc(&handle.dev_op_desc_buf, desc_buf_size, ACL_MEM_MALLOC_HUGE_ONLY),
                    "[HixlClient] aclrtMalloc op_desc_buf failed");
@@ -997,7 +997,8 @@ Status HixlCSClient::BatchTransferHostSync(bool is_get, uint32_t list_num, const
     if (st == HixlCompleteStatus::HIXL_COMPLETE_STATUS_COMPLETED) {
       return SUCCESS;
     }
-    std::this_thread::sleep_for(std::chrono::microseconds(10));
+    constexpr auto kSyncQueryIntervalUs = 10U;
+    std::this_thread::sleep_for(std::chrono::microseconds(kSyncQueryIntervalUs));
   }
 }
 
