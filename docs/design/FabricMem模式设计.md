@@ -57,7 +57,7 @@ classDiagram
     }
 
     class FabricMemEngine {
-        +Initialize(map~AscendString, AscendString~) Status
+        +Initialize(HixlOptions) Status
         +RegisterMem(MemDesc, MemType, MemHandle&) Status
         +DeregisterMem(MemHandle) Status
         +Connect(AscendString, int32_t) Status
@@ -66,21 +66,58 @@ classDiagram
         +TransferAsync(AscendString, TransferOp, vector~TransferOpDesc~, TransferArgs, TransferReq&) Status
         +GetTransferStatus(TransferReq, TransferStatus&) Status
         -fabric_mem_config_ : FabricMemConfig
-        -fabric_mem_transfer_service_ : unique_ptr~FabricMemTransferService~
-        -fabric_mem_control_server_ : unique_ptr~FabricMemControlServer~
-        -fabric_mem_remote_mems_ : map~string, FabricMemRemoteMemory~
         -fabric_mem_statistic_ : FabricMemStatistic
+        -local_memory_ : FabricMemLocalMemory
+        -fabric_mem_transfer_service_ : shared_ptr~FabricMemTransferService~
+        -fabric_mem_control_server_ : unique_ptr~FabricMemControlServer~
     }
 
     class FabricMemTransferService {
-        +Initialize(size_t max_stream_num, size_t task_stream_num, FabricMemStatistic*) Status
+        +Initialize(FabricMemTransferServiceInitParam) Status
         +Finalize() void
+        +Connect(AscendString, int32_t) Status
+        +Disconnect(AscendString, int32_t) Status
+        +TransferSync(string, TransferOp, vector~TransferOpDesc~, int32_t) Status
+        +TransferAsync(string, TransferOp, vector~TransferOpDesc~, TransferReq&) Status
+        +GetTransferStatus(TransferReq, TransferStatus&, AsyncTransferPollInfo*) Status
+        +CleanupAsyncTransfer(TransferReq) void
+        +StartKeepaliveMonitor() Status
+        -channel_manager_ : FabricMemChannelManager
+        -slot_pool_ : FabricMemSlotPool
+        -local_memory_ : FabricMemLocalMemory*
+    }
+
+    class FabricMemChannelManager {
+        +Initialize(FabricMemChannelManagerInitParam) Status
+        +Connect(AscendString, int32_t) Status
+        +Disconnect(AscendString, int32_t) Status
+        +GetChannel(string, shared_ptr~FabricMemChannel~&) Status
+        +AddReqRoute(uint64_t, shared_ptr~FabricMemChannel~) void
+        +FindChannelByReq(uint64_t, shared_ptr~FabricMemChannel~&) Status
+        -channels_ : map~string, shared_ptr~FabricMemChannel~~
+        -req_2_channel_ : map~uint64_t, shared_ptr~FabricMemChannel~~
+        -keepalive_monitor_ : thread
+    }
+
+    class FabricMemChannel {
+        +remote_memory : unique_ptr~FabricMemRemoteMemory~
+        +async_records : map~uint64_t, AsyncRecord~
+        +active_sync_slots : vector~AsyncSlot~
+        +keepalive_fd : int32_t
+    }
+
+    class FabricMemSlotPool {
+        +Initialize(int32_t, size_t, size_t) Status
+        +AcquireAsync(AsyncSlot&) Status
+        +AcquireWithTimeout(AsyncSlot&, uint64_t) Status
+        +Release(AsyncSlot&, bool) void
+    }
+
+    class FabricMemLocalMemory {
         +RegisterMem(MemDesc, MemType, MemHandle&) Status
         +DeregisterMem(MemHandle) Status
-        +Transfer(FabricMemTransferContext, TransferOp, vector~TransferOpDesc~, int32_t) Status
-        +TransferAsync(FabricMemTransferContext, TransferOp, vector~TransferOpDesc~, TransferReq&) Status
-        +GetTransferStatus(FabricMemTransferContext, TransferReq, TransferStatus&) Status
         +GetShareHandles() vector~ShareHandleInfo~
+        +TranslateLocalHostOpAddrs(vector~TransferOpDesc~&) Status
     }
 
     class FabricMemControlServer {
@@ -90,7 +127,7 @@ classDiagram
 
     class FabricMemRemoteMemory {
         +Import(vector~ShareHandleInfo~, int32_t) Status
-        +Clear() void
+        +Finalize() void
         +GetNewVaToOldVa() unordered_map~uintptr_t, VaInfo~
     }
 
@@ -108,9 +145,16 @@ classDiagram
     EngineFactory --> FabricMemEngine : EnableUseFabricMem=1时创建
     FabricMemEngine --> FabricMemTransferService : 持有
     FabricMemEngine --> FabricMemControlServer : 持有
-    FabricMemEngine --> FabricMemRemoteMemory : 每个remote持有
+    FabricMemEngine --> FabricMemLocalMemory : 持有
     FabricMemEngine --> FabricMemStatistic : 持有
+    FabricMemTransferService --> FabricMemChannelManager : 持有
+    FabricMemTransferService --> FabricMemSlotPool : 持有
+    FabricMemTransferService ..> FabricMemLocalMemory : 引用(本地地址转换)
+    FabricMemChannelManager --> FabricMemChannel : 每个remote持有
+    FabricMemChannelManager ..> FabricMemSlotPool : disconnect时abort/release
+    FabricMemChannel --> FabricMemRemoteMemory : 持有
     FabricMemRemoteMemory --> VirtualMemoryManager : 使用
+    FabricMemLocalMemory --> VirtualMemoryManager : 使用
     FabricMemTransferService --> FabricMemStatistic : 更新统计
 ```
 
@@ -118,44 +162,44 @@ classDiagram
 ```mermaid
 sequenceDiagram
    participant User
-   participant EngineFactory
    participant FabricMemEngine
-   participant FabricMemService
-   participant FabricMemControl
-   participant RemoteMemory
-   participant VirtualMemoryManager
-   participant AscendRuntime
+   participant LocalMemory as FabricMemLocalMemory
+   participant Service as FabricMemTransferService
+   participant ChannelMgr as FabricMemChannelManager
+   participant SlotPool as FabricMemSlotPool
+   participant Control as FabricMemControl
+   participant RemoteMemory as FabricMemRemoteMemory
+   participant Runtime as AscendRuntime
 
-   User->>EngineFactory: CreateEngine(options with ENABLE_USE_FABRIC_MEM=1)
-   EngineFactory-->>User: FabricMemEngine
    User->>FabricMemEngine: Initialize(options)
-   FabricMemEngine->>FabricMemEngine: Parse FabricMemConfig
-   FabricMemEngine->>VirtualMemoryManager: Initialize()
-   VirtualMemoryManager->>AscendRuntime: aclrtReserveMemAddress预留虚拟内存
-   FabricMemEngine->>FabricMemService: Initialize(max_streams, task_streams, statistic)
-   FabricMemEngine->>FabricMemControl: Start(local_engine, share_handle_provider)
+   FabricMemEngine->>FabricMemEngine: Parse FabricMemConfig + VirtualMemoryManager.Initialize()
+   FabricMemEngine->>Control: Start(local_engine, share_handle_provider)
+   FabricMemEngine->>Service: Initialize(FabricMemTransferServiceInitParam)
+   Service->>SlotPool: Initialize(device, max_async_slot, task_stream)
+   Service->>ChannelMgr: Initialize(FabricMemChannelManagerInitParam)
 
    User->>FabricMemEngine: RegisterMem(mem_desc, type, handle)
-   FabricMemEngine->>FabricMemService: RegisterMem(mem_desc, type, handle)
-   FabricMemService->>AscendRuntime: aclrtMemRetainAllocationHandle()
-   FabricMemService->>AscendRuntime: aclrtMemExportToShareableHandleV2()
-   FabricMemService->>FabricMemService: 存储共享句柄和虚拟地址映射
+   FabricMemEngine->>LocalMemory: RegisterMem(mem_desc, type, handle)
+   LocalMemory->>Runtime: aclrtMemRetainAllocationHandle()/aclrtMemExportToShareableHandleV2()
+   LocalMemory->>LocalMemory: 存储共享句柄和虚拟地址映射
 
    User->>FabricMemEngine: Connect(remote_engine)
-   FabricMemEngine->>FabricMemControl: Fetch(remote_engine)
-   FabricMemControl-->>FabricMemEngine: remote_share_handles
-   FabricMemEngine->>RemoteMemory: Import(remote_share_handles, device_id)
-   RemoteMemory->>AscendRuntime: aclrtMemImportFromShareableHandleV2()
-   RemoteMemory->>VirtualMemoryManager: ReserveMemory()
-   RemoteMemory->>AscendRuntime: aclrtMapMem()
-   RemoteMemory->>RemoteMemory: 建立远端用户地址到本地映射地址的映射
+   FabricMemEngine->>Service: Connect(remote_engine)
+   Service->>ChannelMgr: Connect(remote_engine)
+   ChannelMgr->>Control: Fetch(remote_engine) 取 share_handles 与 keepalive_fd
+   Control-->>ChannelMgr: remote_share_handles
+   ChannelMgr->>RemoteMemory: Import(remote_share_handles, device_id)
+   RemoteMemory->>Runtime: aclrtMemImportFromShareableHandleV2()/aclrtMapMem()
+   ChannelMgr->>ChannelMgr: 登记 channel 至 channels_（含 keepalive_fd）
 
    User->>FabricMemEngine: TransferSync(remote_engine, WRITE, op_descs)
-   FabricMemEngine->>FabricMemEngine: Build FabricMemTransferContext(remote_engine)
-   FabricMemEngine->>FabricMemService: Transfer(context, WRITE, op_descs, timeout)
-   FabricMemService->>FabricMemService: 将用户地址转换为虚拟地址
-   FabricMemService->>AscendRuntime: aclrtMemcpyAsync(src_virtual_addr, dst_virtual_addr, size)
-   FabricMemService->>AscendRuntime: aclrtSynchronizeStream()
+   FabricMemEngine->>Service: TransferSync(remote_engine, WRITE, op_descs, timeout)
+   Service->>ChannelMgr: GetChannel + BuildTransferContext(remote_engine)
+   Service->>SlotPool: AcquireWithTimeout(slot)
+   Service->>Service: submit_gate 共享锁下将用户地址转换为映射地址并下发拷贝
+   Service->>Runtime: aclrtMemcpyAsync(src_mapped_addr, dst_mapped_addr, size)
+   Service->>Runtime: aclrtSynchronizeStream()
+   Service->>SlotPool: Release(slot)
 ```
 
 **整个特性的处理过程介绍**：
@@ -177,14 +221,14 @@ sequenceDiagram
    - 然后进行VMM映射，将物理内存映射到虚拟地址空间。
 
 3. **连接建立阶段**：
-   - 本端`FabricMemControlClient`向对端`FabricMemControlServer`拉取`share_handles_`。
-   - `FabricMemEngine`通过`FabricMemRemoteMemory`导入远程内存的共享句柄。
-   - 使用`aclrtMemImportFromShareableHandleV2`导入共享句柄，映射到虚拟地址空间。
-   - 建立远端用户地址到本地映射地址的映射关系，并登记到`fabric_mem_remote_mems_`。
+   - 本端 `FabricMemChannelManager` 通过 `FabricMemControlClient` 向对端 `FabricMemControlServer` 拉取 `share_handles_`。
+   - `FabricMemChannelManager` 通过 `FabricMemRemoteMemory` 导入远程内存的共享句柄。
+   - 使用 `aclrtMemImportFromShareableHandleV2` 导入共享句柄，映射到虚拟地址空间。
+   - 建立远端用户地址到本地映射地址的映射关系，并登记到 `channels_` 连接表。
 
 4. **数据传输阶段**：
-   - `FabricMemEngine`根据remote engine取得`FabricMemRemoteMemory`中的地址映射。
-   - `FabricMemTransferService`进行用户地址和映射地址转换。
+   - `FabricMemEngine` 通过 `FabricMemChannelManager` 获取 channel 并构建 `FabricMemTransferContext`。
+   - `FabricMemTransferService` 进行用户地址和映射地址转换。
    - 从stream pool获取任务需要的流资源。
    - 使用`aclrtMemcpyAsync`执行内存拷贝操作。
    - 同步传输阻塞等待；异步传输在每个copy stream上追加host flag D2H，轮询host flag判定完成（不再使用EventRecord/query event）。
@@ -193,9 +237,55 @@ sequenceDiagram
 5. **资源清理阶段**：
    - 用户调用`DeregisterMem`注销内存。
    - 释放物理内存句柄和共享句柄。
-   - 连接断开或Finalize时清理远端导入映射、stream、异步资源（含host flag池）和统计通道；`Disconnect`同时清理Engine层`req_map_`中该channel的未完成请求记录。
+   - 连接断开或 Finalize 时清理远端导入映射、stream、异步资源（含 host flag 池）和统计通道；`Disconnect` 立即 abort 该 channel 在途的 sync/async stream（不等待传输完成），清空其 async record 与请求路由后销毁 async slot。
 
-##### 端到端使用流程
+##### 并发与锁设计
+
+**设计前提**：不考虑 `Finalize` 与对外 API 并发；对外 API 入口仅做 `is_initialized_` 检查。
+
+**组件职责**：
+- `FabricMemEngine`：薄门面，编排 TransferService / LocalMemory / ControlServer；持有 `FabricMemLocalMemory`，不持有连接表或 async record。
+- `FabricMemTransferService`：对外传输门面，持有 `FabricMemChannelManager` 与 `FabricMemSlotPool`；负责拷贝编排、async record 的查询/完成（含 prof 元数据）。
+- `FabricMemChannelManager`：连接生命周期（Fetch/Install/Disconnect）、请求路由 `req_2_channel_`、出站 keepalive 线程、disconnect 时立即 abort。
+- `FabricMemSlotPool`：async slot（stream + host flag）池。
+- `FabricMemLocalMemory`：本地内存注册、Export、share handle 管理。
+- `FabricMemRemoteMemory`：单 channel 导入的远端内存映射（由 channel 持有）。
+
+**锁层级**：
+
+| 组件 | 锁 | 保护对象 |
+|------|-----|----------|
+| Engine | `mutex_` | Initialize/Finalize 编排 |
+| LocalMemory | `share_handle_mutex_` | `share_handles_`（含 overlap 校验） |
+| ChannelManager | `connect_mutex_` | Fetch + Install 串行化（独立，网络 I/O 阶段不持 `channels_mutex_`） |
+| ChannelManager | `channels_mutex_` | `channels_` 连接表与 `initialized_` |
+| ChannelManager | `req_route_mutex_` | `req_2_channel_` 请求路由表 |
+| Channel | `submit_gate`（`shared_mutex`） | 传输提交与断链互斥：提交持**共享锁**并行下发拷贝，断链 `AbortAndClearChannelRecords` 持**独占锁** drain 在途提交后再 abort/unmap（abort-before-unmap） |
+| Channel | `records_mutex` | 单 channel 的 `disconnecting` / `async_records` / `active_sync_slots` 简短簿记（不含拷贝下发） |
+| SlotPool | `pool_mutex_` | slot 池（叶锁） |
+| RemoteMemory | `mutex_` | 单 channel 导入映射（叶锁） |
+| ControlServer | `State::mutex` | `sessions` / `client_id_to_fd` / 监听与 epoll fd；发送一律在锁外 |
+
+**固定加锁顺序**：
+1. `channels_mutex_` 独立持有，禁止在其内执行网络 I/O。
+2. 单 channel 内：`submit_gate` → `records_mutex`：传输提交持 `submit_gate` 共享锁，仅在登记 record/slot 时短暂持 `records_mutex`；`AbortAndClearChannelRecords` 先持 `submit_gate` 独占锁再持 `records_mutex`。
+3. `submit_gate` → `req_route_mutex_`：`IssueAsyncCopyAndRegister` 在释放 `records_mutex` **之后**、仍持 `submit_gate` 共享锁时调用 `AddReqRoute`；`RemoveReqRoute` 在释放 `submit_gate` 之后调用。禁止逆序。
+4. `connect_mutex_` 与 `channels_mutex_` 分离。
+5. `pool_mutex_` / `share_handle_mutex_` / RemoteMemory `mutex_` 为叶锁，不与上述锁嵌套。
+
+**跨组件规则**：Engine API 不在多个组件间嵌套持锁；典型传输路径为 TransferService 经 ChannelManager 取 channel → 持 `submit_gate` 共享锁下发拷贝，在 `records_mutex` 内登记 record/slot，异步路径再持 `submit_gate` 共享锁下调用 `AddReqRoute` → `GetTransferStatus` 在 `records_mutex` 内查询 stream 状态并取出 record，仅在锁外做阻塞 synchronize。
+
+**典型并发场景**：
+
+| 场景 | 行为 |
+|------|------|
+| 多线程 TransferSync 同一 remote | 拷贝在 `submit_gate` 共享锁下并行下发，`records_mutex` 仅用于登记 `active_sync_slots` 供 disconnect abort |
+| TransferAsync + GetTransferStatus | 拷贝在 `submit_gate` 共享锁下并行下发；async record 由 channel `records_mutex` 保护；`GetTransferStatus` 在锁内查询 stream 状态并取出 record（避免与 disconnect 销毁 stream 竞争），仅需 `req` |
+| Disconnect | 立即 abort、不等待传输完成：先设 `disconnecting=true`，持 `submit_gate` 独占锁 drain 在途提交，在 `records_mutex` 内取出并清空 async record、abort sync slot（仅 abort）；锁外销毁 async slot 并清理请求路由 |
+| keepalive 线程 auto-disconnect | keepalive 线程内聚于 ChannelManager；不持 Engine 锁，独立 Disconnect |
+| RemoveChannel | 先 abort/清理该 channel 的 async record 与请求路由，再清理导入映射、stream、统计通道 |
+
+**Heartbeat**：`FabricMemControlClient::SendHeartBeat` / 入站 ADXL 解析均内聚于 `fabric_mem_control`；自连 session 与远端 session 统一启用 heartbeat 超时检查。`ControlServer` 的 worker 线程仅在 `State::mutex` 内做 session 读取与 map 变更，所有发送在锁外完成；`pending_connections` 仅由 worker 线程访问，`Stop()` 在 join worker 之后再清理 map。
 
 1. **内存申请**：
    ```cpp

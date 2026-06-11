@@ -237,9 +237,8 @@ void WaitForAllAsyncWrites(FabricMemEngine &engine, const std::array<TransferReq
   std::atomic<bool> stop{false};
   std::vector<std::thread> poll_threads;
   for (auto req : reqs) {
-    poll_threads.emplace_back([&engine, req, &completed, &stop]() {
-      PollRequestUntilDone(engine, req, completed, stop);
-    });
+    poll_threads.emplace_back(
+        [&engine, req, &completed, &stop]() { PollRequestUntilDone(engine, req, completed, stop); });
   }
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(kAsyncWaitSeconds);
   while (std::chrono::steady_clock::now() < deadline && completed.load() < kAsyncRequestCount) {
@@ -304,6 +303,35 @@ TEST_F(FabricMemSTest, TestHixlFabricMemAutoConnect) {
   env.Finalize();
 }
 
+TEST_F(FabricMemSTest, TestFabricMemAutoClearOnPeerFinalize) {
+  FabricMemEngine::SetKeepaliveCheckIntervalMs(50);
+  const int32_t port = test::AllocateFabricMemTestPort();
+  ASSERT_GT(port, 0);
+  FabricMemTestEnv env(BuildRemoteEngineId(port), true);
+  TransferBuffers buffers;
+  RegisterStandardBuffers(env, buffers);
+
+  const AscendString remote_engine = env.RemoteEngine();
+  EXPECT_EQ(env.engine1.Connect(remote_engine, kTimeoutMs), SUCCESS);
+  TransferWriteReadSync(env, buffers);
+
+  env.engine2.Finalize();
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+  Status disconnect_ret = SUCCESS;
+  while (std::chrono::steady_clock::now() < deadline) {
+    disconnect_ret = env.engine1.Disconnect(remote_engine, kTimeoutMs);
+    if (disconnect_ret == NOT_CONNECTED) {
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+  EXPECT_EQ(disconnect_ret, NOT_CONNECTED);
+  EXPECT_EQ(env.engine1.DeregisterMem(buffers.src.handle), SUCCESS);
+  EXPECT_EQ(env.engine1.DeregisterMem(buffers.dst.handle), SUCCESS);
+  env.engine1.Finalize();
+  FabricMemEngine::SetKeepaliveCheckIntervalMs(10000);
+}
+
 TEST_F(FabricMemSTest, TestHixlFabricMemMultiTargetParallel) {
   const int32_t port2 = test::AllocateFabricMemTestPort();
   ASSERT_GT(port2, 0);
@@ -326,10 +354,8 @@ TEST_F(FabricMemSTest, TestHixlFabricMemMultiTargetParallel) {
   const TransferOpDesc desc2 = BuildTransferDesc(src, remote_buf2);
   const TransferOpDesc desc3 = BuildTransferDesc(src, remote_buf3);
   std::vector<std::thread> threads;
-  threads.emplace_back(
-      [&]() { EXPECT_EQ(env.engine1.TransferSync(remote2, WRITE, {desc2}, kTimeoutMs), SUCCESS); });
-  threads.emplace_back(
-      [&]() { EXPECT_EQ(env.engine1.TransferSync(remote3, WRITE, {desc3}, kTimeoutMs), SUCCESS); });
+  threads.emplace_back([&]() { EXPECT_EQ(env.engine1.TransferSync(remote2, WRITE, {desc2}, kTimeoutMs), SUCCESS); });
+  threads.emplace_back([&]() { EXPECT_EQ(env.engine1.TransferSync(remote3, WRITE, {desc3}, kTimeoutMs), SUCCESS); });
   JoinThreads(threads);
 
   EXPECT_EQ(env.engine1.Disconnect(remote2, kTimeoutMs), SUCCESS);
@@ -382,8 +408,8 @@ TEST_F(FabricMemSTest, TestHixlFabricMemDisconnectDuringAsync) {
 
   TransferStatus status = TransferStatus::WAITING;
   Status get_status_ret = env.engine1.GetTransferStatus(req, status);
-  // After Disconnect, ReleasePendingAsyncLeasesLocked erases the request from req_map_,
-  // so GetTransferStatus may return PARAM_INVALID (request not found) in addition to
+  // Disconnect aborts in-flight transfers immediately (no wait) and clears their async records and
+  // request routes, so GetTransferStatus may return PARAM_INVALID (request not found) in addition to
   // NOT_CONNECTED, COMPLETED, or FAILED.
   EXPECT_TRUE(get_status_ret == NOT_CONNECTED || get_status_ret == PARAM_INVALID ||
               status == TransferStatus::COMPLETED || status == TransferStatus::FAILED);

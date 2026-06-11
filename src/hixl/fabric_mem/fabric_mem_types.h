@@ -13,6 +13,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -20,6 +21,7 @@
 #include <vector>
 
 #include "acl/acl.h"
+#include "hixl/hixl_types.h"
 
 namespace hixl {
 struct FabricMemTransferStatisticInfo;
@@ -35,6 +37,7 @@ struct ShareHandleInfo {
   aclrtDrvMemHandle imported_handle = nullptr;
   uintptr_t imported_va = 0;
   bool is_retained = false;
+  MemType mem_type = MEM_DEVICE;
 };
 
 struct AsyncSlot {
@@ -50,6 +53,17 @@ struct AsyncRecord {
   std::chrono::steady_clock::time_point real_copy_start;
   uint64_t transfer_bytes = 0UL;
   uint64_t op_desc_count = 0UL;
+  std::string channel_id;
+  std::string statistic_channel_id;
+  std::shared_ptr<FabricMemTransferStatisticInfo> stat_info;
+  TransferOp op_type = READ;
+  uint64_t prof_start_time{0U};
+};
+
+struct AsyncTransferPollInfo {
+  TransferOp op_type = READ;
+  uint64_t prof_start_time{0U};
+  std::string channel_id;
 };
 
 struct FabricMemTransferContext {

@@ -10,6 +10,7 @@
 
 set(FABRIC_MEM_TEST_FILES
         fabric_mem_unittest.cc
+        fabric_mem_config_parser_unittest.cc
         virtual_memory_manager_unittest.cc
         fabric_mem_st.cc
 )
