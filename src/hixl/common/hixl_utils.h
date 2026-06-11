@@ -70,6 +70,14 @@ std::string ToString(const Container &c) {
   return ss.str();
 }
 
+inline uint64_t PtrToValue(const void *const ptr) {
+  return static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ptr));
+}
+
+inline void *ValueToPtr(const uint64_t value) {
+  return reinterpret_cast<void *>(static_cast<uintptr_t>(value));
+}
+
 Status HcclError2Status(HcclResult ret);
 
 Status CheckIp(const std::string &ip);

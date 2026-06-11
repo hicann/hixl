@@ -785,11 +785,11 @@ Status HixlCSClient::BuildDeviceChunkParam(DeviceCompleteHandle &handle, uint32_
   param.channel = static_cast<uint64_t>(client_channel_handle_);
   param.list_num = chunk_list_num;
   auto *chunk_base = static_cast<uint8_t *>(handle.dev_op_desc_buf) + chunk_offset * sizeof(HixlOneSideOpDesc);
-  param.op_desc_list_addr = reinterpret_cast<uint64_t>(chunk_base);
+  param.op_desc_list_addr = PtrToValue(chunk_base);
   if (is_last_chunk) {
     void *remote_flag = nullptr;
     HIXL_CHK_STATUS_RET(PrepareDeviceRemoteFlagAndKernel(remote_flag), "PrepareDeviceRemoteFlagAndKernel failed");
-    param.remote_flag_addr = reinterpret_cast<uint64_t>(remote_flag);
+    param.remote_flag_addr = PtrToValue(remote_flag);
     param.local_flag_addr = slot_notify_addrs_[handle.shared_slot->slot_index];
     param.flag_size = notify_len_;
     param.notify_id = handle.shared_slot->notify_id;

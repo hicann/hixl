@@ -130,7 +130,7 @@ void ClientManager::EraseTransferReqLocked(const TransferReq &req) {
   req_to_client_.erase(it);
 }
 
-void ClientManager::RegisterTransferReq(const TransferReq &req, const ClientPtr &client, void *user_data) {
+void ClientManager::RegisterTransferReq(const TransferReq &req, const ClientPtr &client, const void *user_data) {
   if (req == nullptr || client == nullptr) {
     return;
   }

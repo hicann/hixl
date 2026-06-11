@@ -76,7 +76,7 @@ enum class TransferStatus {
 };
 
 struct TransferArgs {
-  void *user_data = nullptr;
+  const void *user_data = nullptr;
   uint8_t reserved[120] = {};
 };
 
@@ -88,7 +88,7 @@ struct GetTransferStatusArgs {
 
 struct TransferResult {
   TransferReq req = nullptr;
-  void *user_data = nullptr;
+  const void *user_data = nullptr;
   TransferStatus status = TransferStatus::WAITING;
   uint8_t reserved[108] = {};
 };

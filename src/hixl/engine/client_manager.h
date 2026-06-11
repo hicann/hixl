@@ -28,7 +28,7 @@ using ClientPtr = std::shared_ptr<HixlClient>;
 struct TransferReqInfo {
   TransferReq req = nullptr;
   ClientPtr client = nullptr;
-  void *user_data = nullptr;
+  const void *user_data = nullptr;
 };
 
 class ClientManager {
@@ -42,7 +42,7 @@ class ClientManager {
   ClientPtr GetClient(const std::string &remote_engine);
   ClientPtr GetClientByReq(const TransferReq &req);
   Status DestroyClient(const std::string &remote_engine);
-  void RegisterTransferReq(const TransferReq &req, const ClientPtr &client, void *user_data);
+  void RegisterTransferReq(const TransferReq &req, const ClientPtr &client, const void *user_data);
   void EraseTransferReq(const TransferReq &req);
   std::vector<TransferReqInfo> GetOrderedReqs(size_t max_count);
   bool IsEmpty();
@@ -50,7 +50,7 @@ class ClientManager {
  private:
   struct ReqOwner {
     std::weak_ptr<HixlClient> client;
-    void *user_data = nullptr;
+    const void *user_data = nullptr;
     std::list<TransferReq>::iterator order_it;
   };
 

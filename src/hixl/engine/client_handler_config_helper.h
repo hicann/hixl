@@ -11,7 +11,6 @@
 #ifndef CANN_HIXL_SRC_HIXL_ENGINE_CLIENT_HANDLER_CONFIG_HELPER_H_
 #define CANN_HIXL_SRC_HIXL_ENGINE_CLIENT_HANDLER_CONFIG_HELPER_H_
 
-#include <cstdint>
 #include <optional>
 #include <string>
 
