@@ -19,6 +19,7 @@
 #include "engine/engine.h"
 #include "engine/hixl_options.h"
 #include "fabric_mem/fabric_mem_transfer_service.h"
+#include "hixl/hixl.h"
 #include "hixl/hixl_types.h"
 
 namespace adxl {
@@ -342,6 +343,10 @@ Status AdxlEngine::MallocMem(MemType type, size_t size, void **ptr) {
 
 Status AdxlEngine::FreeMem(void *ptr) {
   return hixl::FabricMemTransferService::FreeMem(ptr);
+}
+
+Status AdxlEngine::GetCapability(FeatureType feature_type, int32_t &value) {
+  return hixl::Hixl::GetCapability(static_cast<hixl::FeatureType>(feature_type), value);
 }
 
 }  // namespace adxl

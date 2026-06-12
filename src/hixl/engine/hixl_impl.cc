@@ -439,4 +439,18 @@ Status Hixl::GetNotifies(std::vector<NotifyDesc> &notifies) {
   HIXL_LOGI("GetNotifies success, got %zu notifies", notifies.size());
   return SUCCESS;
 }
+
+Status Hixl::GetCapability(FeatureType feature_type, int32_t &value) {
+  if (static_cast<int32_t>(feature_type) < 0) {
+    return PARAM_INVALID;
+  }
+  switch (feature_type) {
+    case AUTO_CONNECT:
+    case CLIENT_SERVER_COMM:
+      value = FEATURE_SUPPORTED;
+      return SUCCESS;
+    default:
+      return UNSUPPORTED;
+  }
+}
 }  // namespace hixl

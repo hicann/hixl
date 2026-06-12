@@ -9,6 +9,7 @@
 # ----------------------------------------------------------------------------
 
 set(ADXL_CORE_TEST_FILES
+        adxl_capability_unittest.cc
         adxl_engine_unittest.cc
         buffer_transfer_service_unittest.cc
         channel_manager_unittest.cc

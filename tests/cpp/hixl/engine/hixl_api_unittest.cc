@@ -843,4 +843,22 @@ TEST_F(HixlUTest, TestCommEngineGetTransferStatusUnsupported) {
   std::vector<hixl::TransferResult> results;
   EXPECT_EQ(engine.GetTransferStatus(args, results), UNSUPPORTED);
 }
+
+TEST_F(HixlUTest, TestGetCapabilityWithoutInitialize) {
+  int32_t value = 0;
+  EXPECT_EQ(Hixl::GetCapability(AUTO_CONNECT, value), SUCCESS);
+  EXPECT_EQ(value, FEATURE_SUPPORTED);
+  EXPECT_EQ(Hixl::GetCapability(CLIENT_SERVER_COMM, value), SUCCESS);
+  EXPECT_EQ(value, FEATURE_SUPPORTED);
+}
+
+TEST_F(HixlUTest, TestGetCapabilityUnknownFeature) {
+  int32_t value = 0;
+  EXPECT_EQ(Hixl::GetCapability(static_cast<FeatureType>(999), value), UNSUPPORTED);
+}
+
+TEST_F(HixlUTest, TestGetCapabilityInvalidFeature) {
+  int32_t value = 0;
+  EXPECT_EQ(Hixl::GetCapability(static_cast<FeatureType>(-1), value), PARAM_INVALID);
+}
 }  // namespace hixl

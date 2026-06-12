@@ -175,6 +175,14 @@ class ASCEND_FUNC_VISIBILITY Hixl {
    */
   Status GetNotifies(std::vector<NotifyDesc> &notifies);
 
+  /**
+   * @brief 查询库能力特性
+   * @param [in] feature_type 特性类型
+   * @param [out] value 1=支持，0=不支持
+   * @return 成功:SUCCESS；未知特性:UNSUPPORTED；参数非法:PARAM_INVALID
+   */
+  static Status GetCapability(FeatureType feature_type, int32_t &value);
+
  private:
   class HixlImpl;
   std::unique_ptr<HixlImpl> impl_;
