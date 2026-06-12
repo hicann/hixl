@@ -613,6 +613,12 @@ aclError AclRuntimeStub::aclrtSetStreamAttribute(aclrtStream stream, aclrtStream
   return ACL_SUCCESS;
 }
 
+aclError AclRuntimeStub::aclrtSetStreamFailureMode(aclrtStream stream, uint64_t mode) {
+  (void)stream;
+  (void)mode;
+  return ACL_SUCCESS;
+}
+
 // 3. Kernel 参数组装与启动相关
 aclError AclRuntimeStub::aclrtKernelArgsInit(aclrtFuncHandle funcHandle, aclrtArgsHandle *argsHandle) {
   (void)funcHandle;
@@ -919,6 +925,10 @@ aclError aclrtGetNotifyId(aclrtNotify notify, uint32_t *notifyId) {
 
 aclError aclrtSetStreamAttribute(aclrtStream stream, aclrtStreamAttr attr, aclrtStreamAttrValue *attrValue) {
   return llm::AclRuntimeStub::GetInstance()->aclrtSetStreamAttribute(stream, attr, attrValue);
+}
+
+aclError aclrtSetStreamFailureMode(aclrtStream stream, uint64_t mode) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtSetStreamFailureMode(stream, mode);
 }
 
 aclError aclrtKernelArgsInit(aclrtFuncHandle funcHandle, aclrtArgsHandle *argsHandle) {

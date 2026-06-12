@@ -122,6 +122,7 @@ public:
   virtual aclError aclrtNotifyBatchReset(aclrtNotify *notifies, size_t num);
   virtual aclError aclrtGetNotifyId(aclrtNotify notify, uint32_t *notifyId);
   virtual aclError aclrtSetStreamAttribute(aclrtStream stream, aclrtStreamAttr attr, aclrtStreamAttrValue *attrValue);
+  virtual aclError aclrtSetStreamFailureMode(aclrtStream stream, uint64_t mode);
   virtual aclError aclrtKernelArgsInit(aclrtFuncHandle funcHandle, aclrtArgsHandle *argsHandle);
   virtual aclError aclrtKernelArgsAppend(aclrtArgsHandle argsHandle, void *data, size_t size, aclrtParamHandle *paraHandle);
   virtual aclError aclrtKernelArgsFinalize(aclrtArgsHandle argsHandle);

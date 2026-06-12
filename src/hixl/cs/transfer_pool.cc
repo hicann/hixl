@@ -360,6 +360,8 @@ Status TransferPool::EnsureDefaultStreamLocked(Slot &slot) const {
   const hixl::TemporaryRtContext guard(slot.ctx);
   aclrtStream stream = nullptr;
   HIXL_CHK_ACL_RET(aclrtCtxGetCurrentDefaultStream(&stream), "[TransferPool] aclrtCtxGetCurrentDefaultStream failed");
+  HIXL_CHK_ACL_RET(aclrtSetStreamFailureMode(stream, ACL_STOP_ON_FAILURE),
+                   "[TransferPool] aclrtSetStreamFailureMode failed");
   slot.stream = stream;
   return SUCCESS;
 }
