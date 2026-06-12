@@ -17,7 +17,6 @@
 
 namespace hixl {
 namespace {
-constexpr uint32_t kMaxBatchSize = 1000;
 
 int32_t TransferWithBatch(bool is_read, HixlOneSideOpParam *param) {
   auto *op_list = reinterpret_cast<HixlOneSideOpDesc *>(static_cast<uintptr_t>(param->op_desc_list_addr));
@@ -35,21 +34,15 @@ int32_t TransferWithBatch(bool is_read, HixlOneSideOpParam *param) {
     }
   }
 
-  int32_t ret = 0;
-  uint32_t offset = 0;
-  while (offset < param->list_num) {
-    uint32_t batch_size = std::min(kMaxBatchSize, param->list_num - offset);
-    ret = HcommProxy::BatchTransferOnThread(param->thread, param->channel, descs.data() + offset, batch_size);
-    if (ret != 0) {
-      if (ret == HCCL_E_NOT_SUPPORT) {
-        HIXL_LOGI("[HixlBatchTransfer] HcommBatchTransferOnThread not supported.");
-        return HCCL_E_NOT_SUPPORT;
-      }
-      HIXL_LOGE(FAILED, "[HixlBatchTransfer] BatchTransferOnThread failed at offset %u, batch_size %u, ret=%d",
-                offset, batch_size, ret);
-      return ret;
+  int32_t ret = HcommProxy::BatchTransferOnThread(param->thread, param->channel, descs.data(), param->list_num);
+  if (ret != 0) {
+    if (ret == HCCL_E_NOT_SUPPORT) {
+      HIXL_LOGI("[HixlBatchTransfer] HcommBatchTransferOnThread not supported.");
+      return HCCL_E_NOT_SUPPORT;
     }
-    offset += batch_size;
+    HIXL_LOGE(FAILED, "[HixlBatchTransfer] BatchTransferOnThread failed, list_num %u, ret=%d",
+              param->list_num, ret);
+    return ret;
   }
   return ret;
 }
@@ -112,6 +105,16 @@ uint32_t HixlBatchTransfer(bool is_read, HixlOneSideOpParam *param) {
   HIXL_LOGI("[HixlBatchPutAndGet] HixlBatchTransfer %s start.", is_read ? "read" : "write");
   if (param == nullptr) {
     HIXL_LOGE(PARAM_INVALID, "[HixlBatchPutAndGet] param is nullptr");
+    return PARAM_INVALID;
+  }
+  constexpr uint32_t kMaxBatchSize = 8192;
+  if (param->list_num == 0 || param->list_num > kMaxBatchSize) {
+    HIXL_LOGE(PARAM_INVALID, "[HixlBatchPutAndGet] invalid list_num=%u, valid range is [1, %u]",
+              param->list_num, kMaxBatchSize);
+    return PARAM_INVALID;
+  }
+  if (param->op_desc_list_addr == 0) {
+    HIXL_LOGE(PARAM_INVALID, "[HixlBatchPutAndGet] op_desc_list_addr is null");
     return PARAM_INVALID;
   }
 

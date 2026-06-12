@@ -287,6 +287,95 @@ TEST_F(HixlBatchTransferTest, BatchGetSuccess) {
   EXPECT_EQ(g_mock_batch_transfer_call_count, 1u);
 }
 
+
+TEST_F(HixlBatchTransferTest, BatchPutNullParam) {
+  uint32_t ret = HixlBatchPut(nullptr);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(HixlBatchTransferTest, BatchGetNullParam) {
+  uint32_t ret = HixlBatchGet(nullptr);
+  EXPECT_NE(ret, SUCCESS);
+}
+
+TEST_F(HixlBatchTransferTest, BatchPutListNumZero) {
+  std::array<std::array<uint8_t, 8>, 1> local_addr{};
+  std::array<std::array<uint8_t, 8>, 1> remote_addr{};
+  std::array<uint64_t, 1> lens_storage{8};
+
+  auto args = CreateTestArgs<1>(local_addr, remote_addr, lens_storage, 0, 0);
+  args.param.list_num = 0;
+
+  uint32_t ret = HixlBatchPut(&args.param);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(g_mock_batch_transfer_call_count, 0u);
+}
+
+TEST_F(HixlBatchTransferTest, BatchGetListNumZero) {
+  std::array<std::array<uint8_t, 8>, 1> local_addr{};
+  std::array<std::array<uint8_t, 8>, 1> remote_addr{};
+  std::array<uint64_t, 1> lens_storage{8};
+
+  auto args = CreateTestArgs<1>(local_addr, remote_addr, lens_storage, 0, 0);
+  args.param.list_num = 0;
+
+  uint32_t ret = HixlBatchGet(&args.param);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(g_mock_batch_transfer_call_count, 0u);
+}
+
+TEST_F(HixlBatchTransferTest, BatchPutListNumExceedMax) {
+  std::array<std::array<uint8_t, 8>, 1> local_addr{};
+  std::array<std::array<uint8_t, 8>, 1> remote_addr{};
+  std::array<uint64_t, 1> lens_storage{8};
+
+  auto args = CreateTestArgs<1>(local_addr, remote_addr, lens_storage, 0, 0);
+  args.param.list_num = 8193;
+
+  uint32_t ret = HixlBatchPut(&args.param);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(g_mock_batch_transfer_call_count, 0u);
+}
+
+TEST_F(HixlBatchTransferTest, BatchGetListNumExceedMax) {
+  std::array<std::array<uint8_t, 8>, 1> local_addr{};
+  std::array<std::array<uint8_t, 8>, 1> remote_addr{};
+  std::array<uint64_t, 1> lens_storage{8};
+
+  auto args = CreateTestArgs<1>(local_addr, remote_addr, lens_storage, 0, 0);
+  args.param.list_num = 8193;
+
+  uint32_t ret = HixlBatchGet(&args.param);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(g_mock_batch_transfer_call_count, 0u);
+}
+
+TEST_F(HixlBatchTransferTest, BatchPutOpDescListAddrNull) {
+  std::array<std::array<uint8_t, 8>, 1> local_addr{};
+  std::array<std::array<uint8_t, 8>, 1> remote_addr{};
+  std::array<uint64_t, 1> lens_storage{8};
+
+  auto args = CreateTestArgs<1>(local_addr, remote_addr, lens_storage, 0, 0);
+  args.param.op_desc_list_addr = 0;
+
+  uint32_t ret = HixlBatchPut(&args.param);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(g_mock_batch_transfer_call_count, 0u);
+}
+
+TEST_F(HixlBatchTransferTest, BatchGetOpDescListAddrNull) {
+  std::array<std::array<uint8_t, 8>, 1> local_addr{};
+  std::array<std::array<uint8_t, 8>, 1> remote_addr{};
+  std::array<uint64_t, 1> lens_storage{8};
+
+  auto args = CreateTestArgs<1>(local_addr, remote_addr, lens_storage, 0, 0);
+  args.param.op_desc_list_addr = 0;
+
+  uint32_t ret = HixlBatchGet(&args.param);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(g_mock_batch_transfer_call_count, 0u);
+}
+
 TEST_F(HixlBatchTransferTest, BatchGetFallbackToSingle) {
   std::array<std::array<uint8_t, 8>, 3> remote_addr{};
   std::array<std::array<uint8_t, 8>, 3> local_addr{};
