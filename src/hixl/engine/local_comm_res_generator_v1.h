@@ -266,8 +266,8 @@ class ProcfsRouteHandler {
   static bool ParseEidFromLine(const std::string &line, const std::string &prefix, std::string &eid);
   static std::string FormatEidValue(const std::string &eid);
   static size_t SelectEidIndexByNpuId(int32_t npu_id, size_t local_count, size_t remote_count);
-  bool CollectEidsFromPairInfo(const std::string &pair_info_content, std::string &found_slot_id,
-                               std::vector<std::string> &local_eids, std::vector<std::string> &remote_eids);
+  static bool CollectEidsFromPairInfo(const std::string &pair_info_content, std::string &found_slot_id,
+                                      std::vector<std::string> &local_eids, std::vector<std::string> &remote_eids);
   bool ParsePairInfoForDevice(const std::string &pair_info_content, int32_t npu_id, int32_t &slot_id,
                               std::string &local_eid, std::string &remote_eid);
   int32_t ProcessNpuProcfsRoute(int32_t npu_id, const std::string &dev_id_path, const std::string &pair_info_path,
@@ -294,11 +294,11 @@ class TopoFileFinder {
    * @param [in] mainboard_id 主板 ID
    * @return 匹配的 topo 文件路径，失败返回空字符串
    */
-  std::string FindTopoFile(const std::string &topo_dir, uint32_t mainboard_id);
+  static std::string FindTopoFile(const std::string &topo_dir, uint32_t mainboard_id);
 
  private:
   static bool IsProductServer(uint32_t mainboard_id);
-  static bool MatchProductForm(uint32_t mainboard_id, std::string &topo_prefix);
+  static bool MatchProductForm(uint32_t mainboard_id, std::string &topo_file_name);
 };
 
 }  // namespace hixl

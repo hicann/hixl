@@ -719,7 +719,6 @@ void AddRouteEntriesForDevice(const std::map<std::string, std::string> &kv_map, 
 
     auto local_it = kv_map.find(local_key);
     auto remote_it = kv_map.find(remote_key);
-
     if (local_it != kv_map.end() && remote_it != kv_map.end()) {
       RouteEntry entry;
       entry.device_id = device_id;
@@ -995,7 +994,7 @@ int32_t GenerateD2DEdges(const TopoData &topo_data, const std::map<int32_t, NpuR
   HIXL_LOGI("D2D: phy_id=%d, topo_links=%zu, self_rootinfo_size=%zu", phy_id, topo_data.links.size(),
             self_rootinfo.port_to_eid.size());
 
-  std::array<size_t, 4> skip_reason = {0, 0, 0, 0};
+  std::array<size_t, 4> skip_reason = {0, 0, 0, 0};  // 4: skip reason categories for D2D links
   size_t no_rootinfo_peer = 0;
   size_t no_port_match_local = 0;
   size_t no_port_match_peer = 0;
