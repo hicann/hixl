@@ -43,7 +43,8 @@ class FabricMemLocalMemory {
  private:
   static Status ImportHostMemoryForRegister(const MemDesc &mem, aclrtMemFabricHandle &share_handle,
                                             aclrtDrvMemHandle &imported_pa_handle, uintptr_t &imported_va);
-  Status FindExistingHandleForOverlap(const MemDesc &mem, MemType type, MemHandle &mem_handle, bool &is_duplicate);
+  Status FindExistingHandleForOverlap(const MemDesc &mem, MemType type, MemHandle &mem_handle,
+                                      bool &is_duplicate) const;
   bool FindLocalHostRegisteredAddrLocked(uintptr_t old_addr, size_t len, uintptr_t &new_addr) const;
 
   mutable std::mutex share_handle_mutex_;

@@ -42,11 +42,11 @@ struct FabricMemChannel {
   // waits for all in-flight submits to finish (by then their slots/records are already registered),
   // aborts those streams, and only afterwards is the channel memory unmapped -- preserving
   // abort-before-unmap safety.
-  std::shared_mutex submit_gate;
+  std::shared_mutex submit_gate{};
   // records_mutex protects the bookkeeping containers below (brief mutations only). disconnecting is
   // atomic so the transfer fast path can reject a disconnecting channel before doing any work; it is
   // re-checked under submit_gate to close the race with a concurrent disconnect.
-  std::mutex records_mutex;
+  std::mutex records_mutex{};
   std::atomic<bool> disconnecting{false};
   std::unordered_map<uint64_t, AsyncRecord> async_records;
   std::vector<AsyncSlot> active_sync_slots;
@@ -72,14 +72,14 @@ class FabricMemChannelManager {
   FabricMemChannelManager &operator=(FabricMemChannelManager &&) = delete;
 
   Status Initialize(const FabricMemChannelManagerInitParam &param);
-  void Finalize();
+  void Finalize() noexcept;
   Status Connect(const AscendString &remote_engine, int32_t timeout_in_millis);
   Status Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis);
   void DisconnectAll();
   Status EnsureConnected(const AscendString &remote_engine, int32_t timeout_in_millis);
   Status GetChannel(const std::string &remote_engine, std::shared_ptr<FabricMemChannel> &channel) const;
   Status BuildTransferContext(const std::string &remote_engine, FabricMemStatistic *statistic,
-                              FabricMemTransferContext &context);
+                              FabricMemTransferContext &context) const;
   bool HasChannels() const;
   bool IsConnected(const std::string &remote_engine) const;
   Status StartKeepaliveMonitor();
@@ -94,8 +94,7 @@ class FabricMemChannelManager {
  private:
   Status FetchAndInstallRemote(const std::string &remote, int32_t timeout_in_millis, Status if_already_connected);
   Status CreateAndRegisterRemoteMemory(const std::vector<ShareHandleInfo> &share_handles, const std::string &remote);
-  Status DisconnectRemote(const AscendString &remote_engine, int32_t timeout_in_millis,
-                          bool from_auto_cleanup = false);
+  Status DisconnectRemote(const AscendString &remote_engine, int32_t timeout_in_millis, bool from_auto_cleanup = false);
   void AbortAndClearChannelRecords(const std::shared_ptr<FabricMemChannel> &channel);
   void RemoveChannelEntryLocked(const std::string &remote);
   void CleanupChannelsLocked();

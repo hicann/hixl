@@ -52,8 +52,8 @@ class FabricMemSlotPool {
   static void DestroyCreatedSlotEntry(AsyncSlot &entry);
   Status PopulateSlotStreams(AsyncSlot &entry) const;
   Status PopulateSlotHostFlags(AsyncSlot &entry) const;
-  Status CreateSlotEntryLocked(AsyncSlot &entry);
-  void DestroySlotEntryLocked(AsyncSlot &entry, bool abort_streams);
+  Status CreateSlotEntryLocked(AsyncSlot &entry) const;
+  void DestroySlotEntryLocked(AsyncSlot &entry, bool abort_streams) const;
   Status TryAcquireSlotLocked(AsyncSlot &slot);
   void RebuildFreeSlotIndicesLocked();
   bool ReleaseSlotEntryLocked(AsyncSlot &slot, bool destroy_slot);

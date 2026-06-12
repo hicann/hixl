@@ -35,7 +35,7 @@ class VirtualMemoryManager {
   Status ReleaseMemory(uintptr_t mem_addr);
   Status SetVirtualMemoryCapacity(size_t capacity_in_tb);
   Status SetGlobalStartAddress(size_t start_addr_in_tb);
-  Status ReserveMemAddress(void *&virtual_address, size_t size);
+  Status ReserveMemAddress(void *&virtual_address, size_t size) const;
 
  private:
   VirtualMemoryManager() = default;

@@ -45,6 +45,9 @@ constexpr int64_t kDefaultHeartbeatTimeoutMs = 120000;
 constexpr int32_t kHeartBeatMsgType = static_cast<int32_t>(FabricMemAdxlMsgType::kHeartBeat);
 constexpr int64_t kAdxlMicrosPerMillis = 1000;
 constexpr size_t kFabricMemRequestHeaderSize = sizeof(uint32_t) + sizeof(uint64_t);
+// Bounds how long a control-plane send may block when a peer stops reading. Used for server-side
+// responses that have no caller-supplied timeout; client requests derive it from their timeout_ms.
+constexpr uint64_t kDefaultCtrlSendTimeoutUs = 3ULL * 1000ULL * 1000ULL;
 
 std::atomic<int64_t> heartbeat_timeout_ms_{kDefaultHeartbeatTimeoutMs};
 
@@ -77,7 +80,7 @@ Status PollForAdxlWriteReady(int32_t fd, int64_t remaining_us) {
 }
 
 Status WriteAdxlWithTimeout(int32_t fd, const void *buf, size_t len, uint64_t timeout_us,
-                            std::chrono::steady_clock::time_point &start) {
+                            const std::chrono::steady_clock::time_point &start) {
   const auto *data = static_cast<const char *>(buf);
   size_t written = 0U;
   while (written < len) {
@@ -138,14 +141,27 @@ void from_json(const nlohmann::json &j, ShareHandleInfo &info) {
   }
 }
 
-Status SendFabricMemMsg(int32_t fd, int32_t msg_type, const std::string &payload) {
+uint64_t CtrlSendTimeoutUs(int32_t timeout_ms) {
+  return timeout_ms > 0 ? static_cast<uint64_t>(timeout_ms) * static_cast<uint64_t>(kAdxlMicrosPerMillis)
+                        : kDefaultCtrlSendTimeoutUs;
+}
+
+// Sends a FabricMem control message through the timeout-aware write path so a peer that stops reading
+// cannot make the worker (server) or caller (client) spin/block forever on EAGAIN. The whole message
+// must be flushed within timeout_us; the wire format (magic + length + msg_type + payload) is unchanged.
+Status SendFabricMemMsg(int32_t fd, int32_t msg_type, const std::string &payload,
+                        uint64_t timeout_us = kDefaultCtrlSendTimeoutUs) {
   const uint64_t length = static_cast<uint64_t>(sizeof(msg_type)) + payload.size();
-  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &kFabricMemMagic, sizeof(kFabricMemMagic)),
+  auto start = std::chrono::steady_clock::now();
+  HIXL_CHK_STATUS_RET(WriteAdxlWithTimeout(fd, &kFabricMemMagic, sizeof(kFabricMemMagic), timeout_us, start),
                       "Send fabric mem magic failed.");
-  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &length, sizeof(length)), "Send fabric mem length failed.");
-  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &msg_type, sizeof(msg_type)), "Send fabric mem msg type failed.");
+  HIXL_CHK_STATUS_RET(WriteAdxlWithTimeout(fd, &length, sizeof(length), timeout_us, start),
+                      "Send fabric mem length failed.");
+  HIXL_CHK_STATUS_RET(WriteAdxlWithTimeout(fd, &msg_type, sizeof(msg_type), timeout_us, start),
+                      "Send fabric mem msg type failed.");
   if (!payload.empty()) {
-    HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, payload.data(), payload.size()), "Send fabric mem msg body failed.");
+    HIXL_CHK_STATUS_RET(WriteAdxlWithTimeout(fd, payload.data(), payload.size(), timeout_us, start),
+                        "Send fabric mem msg body failed.");
   }
   return SUCCESS;
 }
@@ -254,7 +270,7 @@ Status SetNonBlocking(int32_t fd) {
     HIXL_LOGE(FAILED, "fcntl F_GETFL failed, fd:%d, errno:%d.", fd, errno);
     return FAILED;
   }
-  if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+  if (fcntl(fd, F_SETFL, static_cast<uint32_t>(flags) | static_cast<uint32_t>(O_NONBLOCK)) < 0) {
     HIXL_LOGE(FAILED, "fcntl F_SETFL failed, fd:%d, errno:%d.", fd, errno);
     return FAILED;
   }
@@ -773,6 +789,13 @@ void FabricMemControlServer::Run(std::shared_ptr<State> state) {
 
     {
       std::lock_guard<std::mutex> lock(state->mutex);
+      // Stop() holds state->mutex while it shuts down and closes listen_fd. Re-check running/listen_fd
+      // under the same lock after epoll_wait so a teardown that raced the wait makes the worker exit
+      // instead of letting HandleEpollEvent call accept() on an already-closed listen_fd (which would
+      // log a spurious "Failed to accept: Bad file descriptor"). See bugfix 553ec23.
+      if (!state->running.load(std::memory_order_acquire) || state->listen_fd != listen_fd) {
+        break;
+      }
       if (state->auto_cleanup_enabled) {
         CheckClientHeartbeatTimeoutsLocked(state, epoll_fd);
       }
@@ -944,7 +967,7 @@ Status FabricMemControlClient::Fetch(const std::string &remote_engine, const std
   req["timeout"] = timeout_ms;
   req["addrs"] = nlohmann::json::array();
   req["share_handles"] = nlohmann::json::array();
-  Status ret = SendFabricMemMsg(conn_fd, FabricMemMsgType::kConnect, req.dump());
+  Status ret = SendFabricMemMsg(conn_fd, FabricMemMsgType::kConnect, req.dump(), CtrlSendTimeoutUs(timeout_ms));
   if (ret != SUCCESS) {
     return ret;
   }
@@ -983,17 +1006,18 @@ Status FabricMemControlClient::Fetch(const std::string &remote_engine, const std
 }
 
 Status FabricMemControlClient::Disconnect(const std::string &remote_engine, const std::string &channel_id,
-                                            int32_t timeout_ms, bool from_auto_cleanup) {
+                                          int32_t timeout_ms, bool from_auto_cleanup) {
   const char *scene_prefix = from_auto_cleanup ? "Auto cleanup disconnect, " : "";
   if (from_auto_cleanup) {
-    HIXL_EVENT("FabricMemControlClient disconnect from auto cleanup, remote:%s, channel_id:%s.",
-               remote_engine.c_str(), channel_id.c_str());
+    HIXL_EVENT("FabricMemControlClient disconnect from auto cleanup, remote:%s, channel_id:%s.", remote_engine.c_str(),
+               channel_id.c_str());
   }
   int32_t conn_fd = -1;
   const Status connect_ret = ConnectToEngine(remote_engine, timeout_ms, conn_fd);
   if (connect_ret != SUCCESS) {
-    HIXL_REPORT_ERR_MSG("E19999", "Call ConnectToEngine(remote_engine, timeout_ms, conn_fd) fail. "
-                                  "%sconnect remote fabric mem engine failed:%s.",
+    HIXL_REPORT_ERR_MSG("E19999",
+                        "Call ConnectToEngine(remote_engine, timeout_ms, conn_fd) fail. "
+                        "%sconnect remote fabric mem engine failed:%s.",
                         scene_prefix, remote_engine.c_str());
     HIXL_LOGE(connect_ret, "%sconnect remote fabric mem engine failed:%s.", scene_prefix, remote_engine.c_str());
     return connect_ret;
@@ -1002,8 +1026,9 @@ Status FabricMemControlClient::Disconnect(const std::string &remote_engine, cons
 
   nlohmann::json req;
   req["channel_id"] = channel_id;
-  HIXL_CHK_STATUS_RET(SendFabricMemMsg(conn_fd, FabricMemMsgType::kDisconnect, req.dump()),
-                      "Send fabric mem disconnect failed.");
+  HIXL_CHK_STATUS_RET(
+      SendFabricMemMsg(conn_fd, FabricMemMsgType::kDisconnect, req.dump(), CtrlSendTimeoutUs(timeout_ms)),
+      "Send fabric mem disconnect failed.");
 
   int32_t msg_type = 0;
   std::string payload;
@@ -1028,8 +1053,9 @@ Status FabricMemControlClient::SendNotify(const std::string &remote_engine, cons
   nlohmann::json payload;
   payload["name"] = name;
   payload["notify_msg"] = notify_msg;
-  HIXL_CHK_STATUS_RET(SendFabricMemMsg(conn_fd, FabricMemMsgType::kSendNotifyReq, payload.dump()),
-                      "Send fabric mem notify failed.");
+  HIXL_CHK_STATUS_RET(
+      SendFabricMemMsg(conn_fd, FabricMemMsgType::kSendNotifyReq, payload.dump(), CtrlSendTimeoutUs(timeout_ms)),
+      "Send fabric mem notify failed.");
   return SUCCESS;
 }
 

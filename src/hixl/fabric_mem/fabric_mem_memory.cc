@@ -25,8 +25,8 @@ namespace {
 Status BuildRegisteredAddrInfo(uintptr_t addr, size_t len, MemType type, AddrInfo &addr_info) {
   HIXL_CHK_BOOL_RET_STATUS(len > 0, PARAM_INVALID, "Invalid fabric mem registration range.");
   const auto max_addr = std::numeric_limits<uintptr_t>::max();
-  HIXL_CHK_BOOL_RET_STATUS(addr <= max_addr - len, PARAM_INVALID,
-                           "Fabric mem range overflow, addr:%p, size:%lu.", reinterpret_cast<void *>(addr), len);
+  HIXL_CHK_BOOL_RET_STATUS(addr <= max_addr - len, PARAM_INVALID, "Fabric mem range overflow, addr:%p, size:%lu.",
+                           reinterpret_cast<void *>(addr), len);
   addr_info = AddrInfo{addr, addr + len, type};
   return SUCCESS;
 }
@@ -73,7 +73,7 @@ Status FabricMemLocalMemory::ImportHostMemoryForRegister(const MemDesc &mem, acl
 }
 
 Status FabricMemLocalMemory::FindExistingHandleForOverlap(const MemDesc &mem, MemType type, MemHandle &mem_handle,
-                                                          bool &is_duplicate) {
+                                                          bool &is_duplicate) const {
   AddrInfo cur_info{};
   HIXL_CHK_STATUS_RET(BuildRegisteredAddrInfo(mem.addr, mem.len, type, cur_info),
                       "Invalid fabric mem registration range.");
@@ -112,9 +112,9 @@ Status FabricMemLocalMemory::RegisterMem(const MemDesc &mem, MemType type, MemHa
   }
   aclrtDrvMemHandle imported_pa_handle = nullptr;
   uintptr_t imported_va = 0;
-  HIXL_DISMISSABLE_GUARD(fail_guard, ([&]() {
-                             CleanupRegisterMemFailure(pa_handle, is_retained, imported_va, imported_pa_handle);
-                           }));
+  HIXL_DISMISSABLE_GUARD(fail_guard, ([&pa_handle, &is_retained, &imported_va, &imported_pa_handle]() {
+                           CleanupRegisterMemFailure(pa_handle, is_retained, imported_va, imported_pa_handle);
+                         }));
 
   aclrtMemFabricHandle share_handle = {};
   HIXL_CHK_ACL_RET(aclrtMemExportToShareableHandleV2(pa_handle, ACL_RT_VMM_EXPORT_FLAG_DISABLE_PID_VALIDATION,
@@ -247,7 +247,7 @@ Status FabricMemRemoteMemory::Import(const std::vector<ShareHandleInfo> &remote_
         "Import remote fabric share handle failed.");
     HIXL_CHK_ACL_RET(
         aclrtMapMem(reinterpret_cast<void *>(remote_va_addr), remote_share_handle_info.len, 0, remote_pa_handle, 0),
-                     "Map remote imported memory failed.");
+        "Map remote imported memory failed.");
     remote_pa_handles_.emplace_back(remote_pa_handle);
     new_va_to_old_va_[remote_va_addr] = {remote_share_handle_info.va_addr, remote_share_handle_info.len};
     HIXL_DISMISS_GUARD(free_mem_guard);

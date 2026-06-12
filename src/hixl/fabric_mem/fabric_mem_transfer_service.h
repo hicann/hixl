@@ -71,7 +71,7 @@ class FabricMemTransferService {
   Status TransferAsync(const std::string &remote_engine, TransferOp operation,
                        const std::vector<TransferOpDesc> &op_descs, TransferReq &req);
   Status GetTransferStatus(const TransferReq &req, TransferStatus &status, AsyncTransferPollInfo *info = nullptr);
-  void CleanupAsyncTransfer(TransferReq req);
+  void CleanupAsyncTransfer(const TransferReq req);
 
   static void SetKeepaliveCheckIntervalMs(int64_t interval_ms);
   static Status MallocMem(MemType type, size_t size, void **ptr);
@@ -95,10 +95,10 @@ class FabricMemTransferService {
   void FreeDevConstOne();
 
   Status PrepareChannelTransfer(const std::string &remote_engine, std::shared_ptr<FabricMemChannel> &channel,
-                                FabricMemTransferContext &context);
+                                FabricMemTransferContext &context) const;
   Status IssueSyncCopy(const std::shared_ptr<FabricMemChannel> &channel, const AsyncSlot &slot,
                        const FabricMemTransferContext &context, std::vector<TransferOpDesc> &op_descs,
-                       TransferInvocation &invocation);
+                       TransferInvocation &invocation) const;
   Status WaitSyncStreams(const AsyncSlot &slot, const std::chrono::steady_clock::time_point &start,
                          uint64_t timeout_us) const;
   static void UnregisterSyncSlot(const std::shared_ptr<FabricMemChannel> &channel, const AsyncSlot &slot);
@@ -111,10 +111,10 @@ class FabricMemTransferService {
   static AsyncStreamQueryResult QueryAsyncSlotStreams(const AsyncSlot &slot);
   static Status SynchronizeAsyncSlotStreams(const AsyncSlot &slot);
   Status HandleAsyncStreamQueryFailure(uint64_t req_id, AsyncRecord &record, TransferStatus &status);
-  Status CompleteAsyncTransferAndUpdateStats(uint64_t req_id, AsyncRecord &record, TransferStatus &status);
+  Status CompleteAsyncTransferAndUpdateStats(uint64_t req_id, AsyncRecord &async_record, TransferStatus &status);
   static void FillPollInfo(const AsyncRecord &record, AsyncTransferPollInfo *info);
 
-  Status ResolveTransferAddrs(std::vector<TransferOpDesc> &op_descs, const FabricMemTransferContext &context);
+  Status ResolveTransferAddrs(std::vector<TransferOpDesc> &op_descs, const FabricMemTransferContext &context) const;
   static Status TransOpAddr(uintptr_t old_addr, size_t len,
                             const std::unordered_map<uintptr_t, VaInfo> &new_va_to_old_va, uintptr_t &new_addr);
   static Status ProcessCopyWithAsync(const AsyncSlot &slot, TransferOp operation,
