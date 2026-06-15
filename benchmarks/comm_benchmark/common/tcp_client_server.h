@@ -62,8 +62,7 @@ class TCPClient {
  public:
   TCPClient();
 
-  bool ConnectToServer(const std::string &host, uint16_t port,
-                      uint32_t timeout_ms = kDefaultTcpClientConnectTimeoutMs);
+  bool ConnectToServer(const std::string &host, uint16_t port, uint32_t timeout_ms = kDefaultTcpClientConnectTimeoutMs);
 
   bool SendUint64(uint64_t data) const;
 
@@ -101,7 +100,9 @@ class TcpServerSession {
   /// Closes all client fds and stops listen on success or failure.
   bool WaitAllNotify();
 
-  size_t ConnectedPeerCount() const { return client_fds_.size(); }
+  size_t ConnectedPeerCount() const {
+    return client_fds_.size();
+  }
 
  private:
   void ShutdownClientsAndListen();

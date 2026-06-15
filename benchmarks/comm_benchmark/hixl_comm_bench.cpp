@@ -30,13 +30,14 @@ void LogCommBenchConfig(const BenchmarkConfig &cfg) {
   std::printf(
       "[INFO] role=%s group=%s transport=%s initiator_memory=%s target_memory=%s device_id=%d "
       "local_engine=%s remote_engine=%s "
-      "tcp_port=%u tcp_accept_wait_s=%" PRIu32 " tcp_client_count=%" PRIu32 " transfer_op=%s direction=%s "
+      "tcp_port=%u tcp_accept_wait_s=%" PRIu32 " tcp_client_count=%" PRIu32
+      " transfer_op=%s direction=%s "
       "total_size=%" PRIu64 " buffer_size=%" PRIu64 " block_size=%" PRIu64 " block_steps=%u loops=%u\n",
       cfg.role_name.empty() ? (cfg.role == BenchmarkRole::kClient ? "client" : "server") : cfg.role_name.c_str(),
-      cfg.benchmark_group.c_str(), cfg.transport.c_str(),
-      cfg.initiator_memory_type.c_str(), cfg.target_memory_type.c_str(),
-      static_cast<int>(cfg.device_id), cfg.local_engine.c_str(), cfg.remote_engine.c_str(),
-      static_cast<unsigned>(cfg.tcp_port), cfg.tcp_accept_wait_sec, cfg.tcp_client_count, cfg.transfer_op.c_str(),
+      cfg.benchmark_group.c_str(), cfg.transport.c_str(), cfg.initiator_memory_type.c_str(),
+      cfg.target_memory_type.c_str(), static_cast<int>(cfg.device_id), cfg.local_engine.c_str(),
+      cfg.remote_engine.c_str(), static_cast<unsigned>(cfg.tcp_port), cfg.tcp_accept_wait_sec, cfg.tcp_client_count,
+      cfg.transfer_op.c_str(),
       BenchmarkConfig::ComputeDirection(cfg.initiator_memory_type, cfg.target_memory_type, cfg.transfer_op).c_str(),
       cfg.total_size, cfg.buffer_size, cfg.block_size, cfg.block_steps, cfg.loops);
   std::printf("[INFO] HCCL_INTRA_ROCE_ENABLE=%s\n", std::getenv("HCCL_INTRA_ROCE_ENABLE"));

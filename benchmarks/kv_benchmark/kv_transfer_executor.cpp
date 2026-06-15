@@ -44,9 +44,8 @@ std::uint64_t CurrentThreadId() {
   return static_cast<std::uint64_t>(syscall(SYS_gettid));
 }
 
-void TraceKeyTransfer(const char *stage, std::uint32_t local_rank, std::uint32_t worker_id,
-                      const KeyTransferTask &task, TransferOp op, std::mutex *trace_mu,
-                      std::uint64_t elapsed_us = 0U) {
+void TraceKeyTransfer(const char *stage, std::uint32_t local_rank, std::uint32_t worker_id, const KeyTransferTask &task,
+                      TransferOp op, std::mutex *trace_mu, std::uint64_t elapsed_us = 0U) {
   if (trace_mu == nullptr || task.descs.empty() || local_rank != 0U) {
     return;
   }
@@ -134,9 +133,9 @@ void RunOneRemoteKey(hixl::Hixl &hixl, std::uint32_t local_rank, std::uint32_t w
 }  // namespace
 
 KvTransferExecutor::KvTransferExecutor(hixl::Hixl *hixl, std::map<std::uint32_t, RankMeta> metas_by_rank,
-                                       std::uint32_t self_rank, std::uint32_t num_threads,
-                                       std::int32_t timeout_ms, aclrtContext device_context,
-                                       const char *(*recent_errmsg)(), bool local_copy_for_self)
+                                       std::uint32_t self_rank, std::uint32_t num_threads, std::int32_t timeout_ms,
+                                       aclrtContext device_context, const char *(*recent_errmsg)(),
+                                       bool local_copy_for_self)
     : hixl_(hixl),
       metas_by_rank_(std::move(metas_by_rank)),
       self_rank_(self_rank),

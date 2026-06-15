@@ -16,8 +16,7 @@
 
 namespace hixl_kv_benchmark {
 
-KvStore::KvStore(SegmentManager segment_manager)
-    : segment_manager_(std::move(segment_manager)) {}
+KvStore::KvStore(SegmentManager segment_manager) : segment_manager_(std::move(segment_manager)) {}
 
 bool KvStore::CheckInput(const std::vector<std::string> &keys, const std::vector<BufferView> &buffers) const {
   if (keys.empty() || keys.size() != buffers.size()) {

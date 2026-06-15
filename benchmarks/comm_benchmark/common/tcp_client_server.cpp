@@ -68,8 +68,8 @@ int AcceptOnePeerInConnectPhase(TCPServer *srv, uint64_t addr_to_send,
     return 0;
   }
   const int64_t remain_ms = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
-  const int poll_ms = static_cast<int>(std::min<int64_t>(static_cast<int64_t>(kListenPollSliceMs),
-                                                         std::max<int64_t>(remain_ms, kMinPollRemainMs)));
+  const int poll_ms = static_cast<int>(
+      std::min<int64_t>(static_cast<int64_t>(kListenPollSliceMs), std::max<int64_t>(remain_ms, kMinPollRemainMs)));
   int cfd = -1;
   bool timed_out = false;
   if (!srv->AcceptIntoClientFd(&cfd, poll_ms, &timed_out)) {
@@ -96,9 +96,8 @@ bool RunConnectPhaseFill(TCPServer *srv, uint16_t port, uint64_t addr_to_send, u
     std::printf("[ERROR] Failed to start TCP server.\n");
     return false;
   }
-  std::printf(
-      "[INFO] TCP server started (connect phase, expect %" PRIu32 " peer(s), max %" PRIu32 " s wall time).\n",
-      expected_peer_count, max_connect_phase_sec);
+  std::printf("[INFO] TCP server started (connect phase, expect %" PRIu32 " peer(s), max %" PRIu32 " s wall time).\n",
+              expected_peer_count, max_connect_phase_sec);
   const auto deadline =
       std::chrono::steady_clock::now() + std::chrono::seconds(static_cast<int>(max_connect_phase_sec));
 
@@ -116,9 +115,8 @@ bool RunConnectPhaseFill(TCPServer *srv, uint16_t port, uint64_t addr_to_send, u
     if (got == 0U) {
       std::printf("[ERROR] TCP connect phase: no client within %" PRIu32 " s.\n", max_connect_phase_sec);
     } else {
-      std::printf(
-          "[ERROR] TCP connect phase: timeout after %" PRIu32 " s (expected %" PRIu32 " peers, got %zu).\n",
-          max_connect_phase_sec, expected_peer_count, got);
+      std::printf("[ERROR] TCP connect phase: timeout after %" PRIu32 " s (expected %" PRIu32 " peers, got %zu).\n",
+                  max_connect_phase_sec, expected_peer_count, got);
     }
     CloseClientFds(out_client_fds);
     return false;
@@ -246,7 +244,9 @@ bool TcpRecvTaskStatusOk(int fd) {
 TcpServerSession::TcpServerSession(uint16_t port, uint32_t max_connect_phase_wall_sec, uint32_t expected_peer_count)
     : port_(port), max_wall_sec_(max_connect_phase_wall_sec), expected_peer_count_(expected_peer_count) {}
 
-TcpServerSession::~TcpServerSession() { ShutdownClientsAndListen(); }
+TcpServerSession::~TcpServerSession() {
+  ShutdownClientsAndListen();
+}
 
 void TcpServerSession::ShutdownClientsAndListen() {
   for (int fd : client_fds_) {
@@ -310,8 +310,7 @@ bool TCPClient::ConnectToServer(const std::string &host, uint16_t port, uint32_t
     server_.sin_addr.s_addr = inet_addr(host.c_str());
   }
 
-  const auto deadline =
-      std::chrono::steady_clock::now() + std::chrono::milliseconds(static_cast<int64_t>(timeout_ms));
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(static_cast<int64_t>(timeout_ms));
   uint32_t attempt = 0U;
   while (std::chrono::steady_clock::now() < deadline) {
     const auto ret = connect(sock_, reinterpret_cast<sockaddr *>(&server_), sizeof(server_));
@@ -325,14 +324,13 @@ bool TCPClient::ConnectToServer(const std::string &host, uint16_t port, uint32_t
     if (now >= deadline) {
       break;
     }
-    const auto remain_ms =
-        std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
+    const auto remain_ms = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
     const auto sleep_ms = static_cast<int64_t>(kConnectRetryIntervalMs);
     const auto wait_ms = std::min<int64_t>(sleep_ms, std::max<int64_t>(remain_ms, 1LL));
     std::this_thread::sleep_for(std::chrono::milliseconds(wait_ms));
   }
-  std::cerr << "[ERROR] Connect to tcp server failed after " << attempt << " attempt(s), timeout_ms="
-            << timeout_ms << std::endl;
+  std::cerr << "[ERROR] Connect to tcp server failed after " << attempt << " attempt(s), timeout_ms=" << timeout_ms
+            << std::endl;
   return false;
 }
 
@@ -390,7 +388,7 @@ bool TCPClient::ReceiveTaskStatus() const {
   } else if (bytes_received == 0) {
     std::cout << "[INFO] Server connection break" << std::endl;
     return false;
-  } 
+  }
 
   if (received) {
     std::cout << "[INFO] Tcp client received status success" << std::endl;
@@ -553,7 +551,7 @@ bool TCPServer::ReceiveTaskStatus() const {
   } else if (bytes_received == 0) {
     std::cout << "[INFO] Client connection break" << std::endl;
     return false;
-  } 
+  }
 
   if (received) {
     std::cout << "[INFO] Tcp server received status success" << std::endl;

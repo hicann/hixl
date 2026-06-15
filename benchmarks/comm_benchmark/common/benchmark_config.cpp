@@ -231,9 +231,8 @@ bool ApplyBenchmarkGroupKv(const std::string &val, BenchmarkConfig *cfg) {
 
 bool ApplySocVariantKv(const std::string &val, BenchmarkConfig *cfg) {
   std::string v = val;
-  std::transform(v.begin(), v.end(), v.begin(), [](unsigned char ch) {
-    return static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-  });
+  std::transform(v.begin(), v.end(), v.begin(),
+                 [](unsigned char ch) { return static_cast<char>(std::tolower(static_cast<unsigned char>(ch))); });
   if (v != "auto" && v != "a2" && v != "a3" && v != "a5") {
     fprintf(stderr, "[ERROR] Invalid --soc_variant=%s (expect auto|a2|a3|a5)\n", val.c_str());
     return false;
@@ -591,8 +590,7 @@ bool ParseHixlOptionPayloads(const std::vector<std::string> &payloads, Benchmark
   for (const std::string &payload : payloads) {
     const auto inner_eq = payload.find('=');
     if (inner_eq == std::string::npos || inner_eq == 0U) {
-      fprintf(stderr,
-              "[ERROR] Invalid --hixl_option value %s (expect KEY=VALUE with KEY non-empty)\n",
+      fprintf(stderr, "[ERROR] Invalid --hixl_option value %s (expect KEY=VALUE with KEY non-empty)\n",
               payload.c_str());
       return false;
     }
@@ -605,61 +603,67 @@ bool ParseHixlOptionPayloads(const std::vector<std::string> &payloads, Benchmark
 
 }  // namespace
 
-std::string BenchmarkConfig::ComputeDirection(const std::string &initiator_mem,
-                                               const std::string &target_mem,
-                                               const std::string &op_type) {
+std::string BenchmarkConfig::ComputeDirection(const std::string &initiator_mem, const std::string &target_mem,
+                                              const std::string &op_type) {
   const bool wr = (op_type == "write");
   if (initiator_mem == "device" && target_mem == "device") return wr ? "D2rD" : "rD2D";
-  if (initiator_mem == "device" && target_mem == "host")   return wr ? "D2rH" : "rH2D";
-  if (initiator_mem == "host"   && target_mem == "host")   return wr ? "H2rH" : "rH2H";
-  if (initiator_mem == "host"   && target_mem == "device") return wr ? "H2rD" : "rD2H";
+  if (initiator_mem == "device" && target_mem == "host") return wr ? "D2rH" : "rH2D";
+  if (initiator_mem == "host" && target_mem == "host") return wr ? "H2rH" : "rH2H";
+  if (initiator_mem == "host" && target_mem == "device") return wr ? "H2rD" : "rD2H";
   return "unknown";
 }
 
 void BenchmarkConfigParser::PrintUsage(FILE *out) {
-  fprintf(out,
-          "Usage: hixl_comm_bench key=value ...\n"
-          "Required: --role=target|initiator (legacy: client|server) or -r=client|server\n"
-          "Keys (all lowercase, value is decimal bytes where noted):\n"
-          "  --role|-r            target|initiator|client|server\n"
-          "  --benchmark_group    result grouping name (default default)\n"
-          "  --soc_variant        auto|a2|a3|a5 — HCCS rules & SOC class (default auto: ACL SOC probe; a5 forbids HCCS)\n"
-          "  --transport          hccs|rdma|fabric_mem|uboe|ub "
-          "(hccs: D2D everywhere; extra H2rD|rD2H on A3-class SOC only; fabric_mem adds EnableUseFabricMem=1;\n"
-          " uboe adds GlobalResourceConfig with uboe:device, only on A5; ub adds LocalCommRes with version:1.3, only on A5)\n"
-          "  --initiator_memory   host|device (default device) — initiator-side buffer\n"
-          "  --target_memory      host|device (default device) — target-side buffer\n"
-          "  --op_type            read|write|mix (alias of --transfer_op)\n"
-          "  --start_block_size   first block size in bytes (alias of --block_size)\n"
-          "  --max_block_size     max block size in bytes; block size doubles until this value\n"
-          "  --output_dir         CSV/JSONL result output directory (default output)\n"
-          "  --device_id|-d       device id (int), or comma list e.g. 0,1 (broadcast if single value)\n"
-          "  --local_engine|-l    local HIXL endpoint(s), comma-separated; IPv6 use [ip]:port\n"
-          "  --remote_engine|-e   client: one or more host:port (comma-separated); TCP uses each host + tcp coord port\n"
-          "                        server: optional (TCP binds --tcp_port only; default kept); multi-value not supported\n"
-          "  --tcp_port|-p        TCP coordination port(s): one value, or comma list matching multi-endpoint count\n"
-          "                        (e.g. two servers on one host need distinct ports: -p=20000,20001)\n"
-          "  --tcp_accept_wait_s|-a  server only: max wall time for TCP connect phase in seconds (default 30)\n"
-          "  --tcp_client_count|-c  server only: TCP clients to wait for before proceed (default 1, max %" PRIu32 ")\n"
-          "  --transfer_op|-o     read|write\n"
-          "  --total_size|-t      bytes transferred per block-size step (default %" PRIu64 ")\n"
-          "  --buffer_size        allocation/register size in bytes (default %" PRIu64 ")\n"
-          "  --block_size|-k      first block size in bytes (default: same as total_size)\n"
-          "  --block_steps|-s     block count: sizes are block_size<<i, i in [0,steps-1] (default %u)\n"
-          "  --loops|-n           repeat full step ladder (default %u)\n"
-          "  --use_async|-x       true|false (default false), enable async transfer mode\n"
-          "  --async_batch_num|-y async requests per batch (default 1), requires: total_size %% async_batch_num == 0\n"
-          "  --connect_timeout|-C connect timeout in ms (default 60000)\n"
-          "  --hixl_option|-H     HIXL Initialize() option, form KEY=VALUE (repeatable); "
-          "KEY e.g. LocalCommRes, BufferPool, RdmaTrafficClass, RdmaServiceLevel, adxl.*\n"
-          "                       If neither BufferPool nor adxl.BufferPool is set, BufferPool=0:0 is added (benchmark default).\n"
-          "Multi-endpoint: lengths must match max(n_d,n_l,n_r) after broadcasting single values; server allows only one.\n"
-          "Client: one local + many remotes uses one Hixl and concurrent TCP/HIXL per remote; many locals use one thread per lane.\n"
-          "Defaults: client device_id=0 local_engine=127.0.0.1:16000 remote_engine=127.0.0.1:16001\n"
-          "          server device_id=1 local_engine=127.0.0.1:16001 remote_engine=127.0.0.1\n"
-          "          initiator_memory=device target_memory=device transfer_op=read tcp_port=20000 tcp_accept_wait_s=30 "
-          "tcp_client_count=1\n",
-          kTcpClientCountMax, kDefaultTotalSize, kDefaultBufferSize, kDefaultBlockSteps, kDefaultLoops);
+  fprintf(
+      out,
+      "Usage: hixl_comm_bench key=value ...\n"
+      "Required: --role=target|initiator (legacy: client|server) or -r=client|server\n"
+      "Keys (all lowercase, value is decimal bytes where noted):\n"
+      "  --role|-r            target|initiator|client|server\n"
+      "  --benchmark_group    result grouping name (default default)\n"
+      "  --soc_variant        auto|a2|a3|a5 — HCCS rules & SOC class (default auto: ACL SOC probe; a5 forbids HCCS)\n"
+      "  --transport          hccs|rdma|fabric_mem|uboe|ub "
+      "(hccs: D2D everywhere; extra H2rD|rD2H on A3-class SOC only; fabric_mem adds EnableUseFabricMem=1;\n"
+      " uboe adds GlobalResourceConfig with uboe:device, only on A5; ub adds LocalCommRes with version:1.3, only on "
+      "A5)\n"
+      "  --initiator_memory   host|device (default device) — initiator-side buffer\n"
+      "  --target_memory      host|device (default device) — target-side buffer\n"
+      "  --op_type            read|write|mix (alias of --transfer_op)\n"
+      "  --start_block_size   first block size in bytes (alias of --block_size)\n"
+      "  --max_block_size     max block size in bytes; block size doubles until this value\n"
+      "  --output_dir         CSV/JSONL result output directory (default output)\n"
+      "  --device_id|-d       device id (int), or comma list e.g. 0,1 (broadcast if single value)\n"
+      "  --local_engine|-l    local HIXL endpoint(s), comma-separated; IPv6 use [ip]:port\n"
+      "  --remote_engine|-e   client: one or more host:port (comma-separated); TCP uses each host + tcp coord port\n"
+      "                        server: optional (TCP binds --tcp_port only; default kept); multi-value not supported\n"
+      "  --tcp_port|-p        TCP coordination port(s): one value, or comma list matching multi-endpoint count\n"
+      "                        (e.g. two servers on one host need distinct ports: -p=20000,20001)\n"
+      "  --tcp_accept_wait_s|-a  server only: max wall time for TCP connect phase in seconds (default 30)\n"
+      "  --tcp_client_count|-c  server only: TCP clients to wait for before proceed (default 1, max %" PRIu32
+      ")\n"
+      "  --transfer_op|-o     read|write\n"
+      "  --total_size|-t      bytes transferred per block-size step (default %" PRIu64
+      ")\n"
+      "  --buffer_size        allocation/register size in bytes (default %" PRIu64
+      ")\n"
+      "  --block_size|-k      first block size in bytes (default: same as total_size)\n"
+      "  --block_steps|-s     block count: sizes are block_size<<i, i in [0,steps-1] (default %u)\n"
+      "  --loops|-n           repeat full step ladder (default %u)\n"
+      "  --use_async|-x       true|false (default false), enable async transfer mode\n"
+      "  --async_batch_num|-y async requests per batch (default 1), requires: total_size %% async_batch_num == 0\n"
+      "  --connect_timeout|-C connect timeout in ms (default 60000)\n"
+      "  --hixl_option|-H     HIXL Initialize() option, form KEY=VALUE (repeatable); "
+      "KEY e.g. LocalCommRes, BufferPool, RdmaTrafficClass, RdmaServiceLevel, adxl.*\n"
+      "                       If neither BufferPool nor adxl.BufferPool is set, BufferPool=0:0 is added (benchmark "
+      "default).\n"
+      "Multi-endpoint: lengths must match max(n_d,n_l,n_r) after broadcasting single values; server allows only one.\n"
+      "Client: one local + many remotes uses one Hixl and concurrent TCP/HIXL per remote; many locals use one thread "
+      "per lane.\n"
+      "Defaults: client device_id=0 local_engine=127.0.0.1:16000 remote_engine=127.0.0.1:16001\n"
+      "          server device_id=1 local_engine=127.0.0.1:16001 remote_engine=127.0.0.1\n"
+      "          initiator_memory=device target_memory=device transfer_op=read tcp_port=20000 tcp_accept_wait_s=30 "
+      "tcp_client_count=1\n",
+      kTcpClientCountMax, kDefaultTotalSize, kDefaultBufferSize, kDefaultBlockSteps, kDefaultLoops);
 }
 
 std::map<AscendString, AscendString> BenchmarkConfigParser::BuildInitializeOptions(const BenchmarkConfig &cfg) {
@@ -668,9 +672,8 @@ std::map<AscendString, AscendString> BenchmarkConfigParser::BuildInitializeOptio
     options[AscendString(entry.first.c_str())] = AscendString(entry.second.c_str());
   }
   constexpr const char kAdxlBufferPoolKey[] = "adxl.BufferPool";
-  const bool has_explicit_buffer =
-      cfg.hixl_init_options.find(OPTION_BUFFER_POOL) != cfg.hixl_init_options.cend() ||
-      cfg.hixl_init_options.find(kAdxlBufferPoolKey) != cfg.hixl_init_options.cend();
+  const bool has_explicit_buffer = cfg.hixl_init_options.find(OPTION_BUFFER_POOL) != cfg.hixl_init_options.cend() ||
+                                   cfg.hixl_init_options.find(kAdxlBufferPoolKey) != cfg.hixl_init_options.cend();
   if (!has_explicit_buffer) {
     options[AscendString(OPTION_BUFFER_POOL)] = AscendString("0:0");
   }
@@ -683,8 +686,7 @@ std::map<AscendString, AscendString> BenchmarkConfigParser::BuildInitializeOptio
     options[AscendString(OPTION_GLOBAL_RESOURCE_CONFIG)] =
         AscendString("{\"comm_resource_config.protocol_desc\":[\"uboe:device\"]}");
   }
-  if (cfg.transport == "ub" &&
-      cfg.hixl_init_options.find(OPTION_LOCAL_COMM_RES) == cfg.hixl_init_options.cend()) {
+  if (cfg.transport == "ub" && cfg.hixl_init_options.find(OPTION_LOCAL_COMM_RES) == cfg.hixl_init_options.cend()) {
     options[AscendString(OPTION_LOCAL_COMM_RES)] = AscendString("{\"version\":\"1.3\"}");
   }
   return options;
@@ -795,8 +797,7 @@ bool ValidateListLengths(size_t nd, size_t nl, size_t nr, size_t nt, size_t n_ma
 
 bool ValidateMultiDeviceRequirement(size_t n_max, size_t nl, size_t nr) {
   if (n_max > 1U && nl == 1U && nr == 1U) {
-    fprintf(stderr,
-            "[ERROR] multiple device_id values require multiple local_engine or remote_engine entries\n");
+    fprintf(stderr, "[ERROR] multiple device_id values require multiple local_engine or remote_engine entries\n");
     return false;
   }
   return true;
@@ -825,8 +826,7 @@ bool ValidateClientRemoteEngines(const BenchmarkConfig *cfg) {
   for (size_t i = 0; i < cfg->expanded_remote_engines.size(); ++i) {
     const std::string &re = cfg->expanded_remote_engines[i];
     if (re.find(':') == std::string::npos) {
-      fprintf(stderr,
-              "[ERROR] client remote_engine[%zu] must be host:port (e.g. 127.0.0.1:16001), got \"%s\"\n", i,
+      fprintf(stderr, "[ERROR] client remote_engine[%zu] must be host:port (e.g. 127.0.0.1:16001), got \"%s\"\n", i,
               re.c_str());
       return false;
     }
@@ -950,8 +950,7 @@ bool ValidateHccsMemoryCombination(const BenchmarkConfig *cfg) {
   }
   const BenchSocKind kind = ResolveSocKindForHccs(cfg);
   if (kind == BenchSocKind::kA5) {
-    fprintf(stderr,
-            "[ERROR] transport=hccs is not supported on Ascend950-class (A5) SOC; use rdma or fabric_mem\n");
+    fprintf(stderr, "[ERROR] transport=hccs is not supported on Ascend950-class (A5) SOC; use rdma or fabric_mem\n");
     return false;
   }
   const std::string &im = cfg->initiator_memory_type;
@@ -985,9 +984,8 @@ bool ValidateHccsMemoryCombination(const BenchmarkConfig *cfg) {
 
 bool ValidateBufferSize(const BenchmarkConfig *cfg) {
   if (cfg->buffer_size < cfg->total_size) {
-    fprintf(stderr,
-            "[ERROR] buffer_size (%" PRIu64 ") must be >= total_size (%" PRIu64 ")\n",
-            cfg->buffer_size, cfg->total_size);
+    fprintf(stderr, "[ERROR] buffer_size (%" PRIu64 ") must be >= total_size (%" PRIu64 ")\n", cfg->buffer_size,
+            cfg->total_size);
     return false;
   }
   return true;
@@ -1005,14 +1003,12 @@ bool ValidateBlockSteps(const BenchmarkConfig *cfg) {
       return false;
     }
     if (block > cfg->total_size) {
-      fprintf(stderr,
-              "[ERROR] block size (%" PRIu64 ") at step %u must be <= total_size (%" PRIu64 ")\n",
-              block, i, cfg->total_size);
+      fprintf(stderr, "[ERROR] block size (%" PRIu64 ") at step %u must be <= total_size (%" PRIu64 ")\n", block, i,
+              cfg->total_size);
       return false;
     }
     if (cfg->total_size % block != 0) {
-      fprintf(stderr,
-              "[ERROR] total_size (%" PRIu64 ") must be divisible by block size (%" PRIu64 ") at step %u\n",
+      fprintf(stderr, "[ERROR] total_size (%" PRIu64 ") must be divisible by block size (%" PRIu64 ") at step %u\n",
               cfg->total_size, block, i);
       return false;
     }
@@ -1026,7 +1022,8 @@ bool ValidateAsyncConfig(const BenchmarkConfig *cfg) {
   }
   if (cfg->total_size % cfg->async_batch_num != 0) {
     fprintf(stderr,
-            "[ERROR] total_size (%" PRIu64 ") must be divisible by async_batch_num (%" PRIu32 ") "
+            "[ERROR] total_size (%" PRIu64 ") must be divisible by async_batch_num (%" PRIu32
+            ") "
             "when use_async=true\n",
             cfg->total_size, cfg->async_batch_num);
     return false;
@@ -1036,7 +1033,8 @@ bool ValidateAsyncConfig(const BenchmarkConfig *cfg) {
     const uint64_t block = cfg->block_size << i;
     if (per_req_size % block != 0) {
       fprintf(stderr,
-              "[ERROR] per-request size (%" PRIu64 ") must be divisible by block size (%" PRIu64 ") "
+              "[ERROR] per-request size (%" PRIu64 ") must be divisible by block size (%" PRIu64
+              ") "
               "at step %u when use_async=true\n",
               per_req_size, block, i);
       return false;
@@ -1077,8 +1075,7 @@ bool ValidateBenchmarkWorkload(BenchmarkConfig *cfg) {
   if (!ValidateTransferOp(cfg->transfer_op)) {
     return false;
   }
-  if (!ValidateTransport(cfg->transport) ||
-      !ValidateMemoryTypeValue(cfg->initiator_memory_type) ||
+  if (!ValidateTransport(cfg->transport) || !ValidateMemoryTypeValue(cfg->initiator_memory_type) ||
       !ValidateMemoryTypeValue(cfg->target_memory_type)) {
     return false;
   }
@@ -1107,8 +1104,7 @@ void BenchmarkConfigParser::LogExpandedEndpoints(FILE *out, const BenchmarkConfi
   const size_t n = cfg.expanded_device_ids.size();
   fprintf(out, "[INFO] endpoint_pairs=%zu\n", n);
   for (size_t i = 0; i < n; ++i) {
-    const unsigned tcp_p =
-        (i < cfg.expanded_tcp_ports.size()) ? static_cast<unsigned>(cfg.expanded_tcp_ports[i]) : 0U;
+    const unsigned tcp_p = (i < cfg.expanded_tcp_ports.size()) ? static_cast<unsigned>(cfg.expanded_tcp_ports[i]) : 0U;
     fprintf(out, "[INFO]   [%zu] device_id=%d local_engine=%s remote_engine=%s tcp_coord_port=%u\n", i,
             static_cast<int>(cfg.expanded_device_ids[i]), cfg.expanded_local_engines[i].c_str(),
             cfg.expanded_remote_engines[i].c_str(), tcp_p);

@@ -188,7 +188,7 @@ int32_t RegisterLocalMem(Hixl &hixl_engine, const BenchmarkConfig &cfg, void *sr
 }
 
 bool GetRemoteAddr(TCPClient *tcp_client, const std::string &remote_engine, uint16_t tcp_port,
-                    uint64_t *out_remote_addr, uint32_t connect_timeout_ms) {
+                   uint64_t *out_remote_addr, uint32_t connect_timeout_ms) {
   const std::string host = hixl_benchmark::ExtractTcpHost(remote_engine);
   if (host.empty()) {
     return false;
@@ -300,26 +300,22 @@ void AppendCommResult(const BenchmarkConfig &cfg, const TransferBenchRecord &rec
   const double ops =
       record.time_us == 0 ? 0.0 : static_cast<double>(record.trans_num) * kMicrosecondsPerSecond / record.time_us;
   csv << "hixl_comm_bench," << cfg.benchmark_group << ",,," << record.block_size << ','
-      << (record.async_batch_num == 0U ? cfg.start_batch_size : record.async_batch_num) << ','
-      << cfg.start_threads << ',' << cfg.transport << ','
+      << (record.async_batch_num == 0U ? cfg.start_batch_size : record.async_batch_num) << ',' << cfg.start_threads
+      << ',' << cfg.transport << ','
       << BenchmarkConfig::ComputeDirection(cfg.initiator_memory_type, cfg.target_memory_type, cfg.transfer_op) << ','
-      << cfg.initiator_memory_type << ',' << cfg.target_memory_type << ','
-      << record.throughput_gbps << ','
-      << ops << ',' << avg_us << ',' << avg_us << ",0," << (cfg.check_consistency ? "true" : "not_checked")
-      << '\n';
+      << cfg.initiator_memory_type << ',' << cfg.target_memory_type << ',' << record.throughput_gbps << ',' << ops
+      << ',' << avg_us << ',' << avg_us << ",0," << (cfg.check_consistency ? "true" : "not_checked") << '\n';
 
   std::ofstream json(CommResultBasePath(cfg) + ".jsonl", std::ios::app);
   if (json.good()) {
     json << "{\"benchmark\":\"hixl_comm_bench\",\"pattern\":\"" << cfg.benchmark_group
-         << "\",\"block_size\":" << record.block_size << ",\"batch_size\":"
-         << (record.async_batch_num == 0U ? cfg.start_batch_size : record.async_batch_num)
-         << ",\"threads\":" << cfg.start_threads << ",\"transport\":\"" << cfg.transport
-         << "\",\"direction\":\""
+         << "\",\"block_size\":" << record.block_size
+         << ",\"batch_size\":" << (record.async_batch_num == 0U ? cfg.start_batch_size : record.async_batch_num)
+         << ",\"threads\":" << cfg.start_threads << ",\"transport\":\"" << cfg.transport << "\",\"direction\":\""
          << BenchmarkConfig::ComputeDirection(cfg.initiator_memory_type, cfg.target_memory_type, cfg.transfer_op)
-         << "\",\"initiator_memory\":\"" << cfg.initiator_memory_type
-         << "\",\"target_memory\":\"" << cfg.target_memory_type
-         << "\",\"bandwidth_gbps\":" << record.throughput_gbps
-         << ",\"p99_us\":" << avg_us << "}\n";
+         << "\",\"initiator_memory\":\"" << cfg.initiator_memory_type << "\",\"target_memory\":\""
+         << cfg.target_memory_type << "\",\"bandwidth_gbps\":" << record.throughput_gbps << ",\"p99_us\":" << avg_us
+         << "}\n";
   }
 }
 
@@ -387,21 +383,21 @@ void LogSyncTransferSuccess(const TransferBlockStepCtx &ctx, uint32_t block_size
   std::printf(
       "[INFO] Transfer success, loop %u/%u, step %u, block size: %s, transfer num: %u, time cost: %ld us, "
       "throughput: %.3lf GB/s\n",
-      ctx.loop + 1U, ctx.cfg->loops, ctx.step_index, bs_log.c_str(), trans_num, static_cast<long>(time_us),
-      throughput);
+      ctx.loop + 1U, ctx.cfg->loops, ctx.step_index, bs_log.c_str(), trans_num, static_cast<long>(time_us), throughput);
 }
 
-void LogAsyncTransferSuccess(const TransferBlockStepCtx &ctx, uint32_t block_size, uint32_t trans_num,
-                             int64_t total_us, int64_t submit_us, int64_t wait_us, double throughput) {
+void LogAsyncTransferSuccess(const TransferBlockStepCtx &ctx, uint32_t block_size, uint32_t trans_num, int64_t total_us,
+                             int64_t submit_us, int64_t wait_us, double throughput) {
   const std::string bs_log = FormatBlockSizeHuman(static_cast<uint64_t>(block_size));
-  std::printf("[INFO] Async transfer success, loop %u/%u, step %u, block size: %s, trans_num: %u, batch_num: %u, "
-              "total: %ld us (submit: %ld, wait: %ld), %.3lf GB/s\n",
-              ctx.loop + 1U, ctx.cfg->loops, ctx.step_index, bs_log.c_str(), trans_num, ctx.cfg->async_batch_num,
-              static_cast<long>(total_us), static_cast<long>(submit_us), static_cast<long>(wait_us), throughput);
+  std::printf(
+      "[INFO] Async transfer success, loop %u/%u, step %u, block size: %s, trans_num: %u, batch_num: %u, "
+      "total: %ld us (submit: %ld, wait: %ld), %.3lf GB/s\n",
+      ctx.loop + 1U, ctx.cfg->loops, ctx.step_index, bs_log.c_str(), trans_num, ctx.cfg->async_batch_num,
+      static_cast<long>(total_us), static_cast<long>(submit_us), static_cast<long>(wait_us), throughput);
 }
 
 std::vector<TransferOpDesc> BuildSyncTransferDescriptors(const TransferBlockStepCtx &ctx, uint32_t block_size,
-                                                        uint32_t trans_num) {
+                                                         uint32_t trans_num) {
   std::vector<TransferOpDesc> descs;
   descs.reserve(trans_num);
   for (uint32_t j = 0; j < trans_num; j++) {
@@ -457,21 +453,24 @@ int32_t SubmitAsyncRequests(Hixl &hixl_engine, const TransferBlockStepCtx &ctx, 
                             uint32_t block_size, uint32_t per_req_trans_num, AsyncTransferContext &async_ctx) {
   async_ctx.submit_start = std::chrono::steady_clock::now();
   TransferArgs optional_args{};
-  std::printf("[DEBUG] SubmitAsyncRequests: ctx.base=0x%" PRIxPTR ", ctx.dst_addr=0x%" PRIx64 ", per_req_size=%" PRIu64 ", block_size=%u, per_req_trans_num=%u, async_batch_num=%u\n",
+  std::printf("[DEBUG] SubmitAsyncRequests: ctx.base=0x%" PRIxPTR ", ctx.dst_addr=0x%" PRIx64 ", per_req_size=%" PRIu64
+              ", block_size=%u, per_req_trans_num=%u, async_batch_num=%u\n",
               ctx.base, ctx.dst_addr, per_req_size, block_size, per_req_trans_num, ctx.cfg->async_batch_num);
   for (uint32_t batch_idx = 0; batch_idx < ctx.cfg->async_batch_num; ++batch_idx) {
     std::vector<TransferOpDesc> descs;
     descs.reserve(per_req_trans_num);
     const uintptr_t req_base = ctx.base + static_cast<uintptr_t>(batch_idx) * static_cast<uintptr_t>(per_req_size);
-    const uintptr_t req_remote_base = ctx.dst_addr + static_cast<uintptr_t>(batch_idx) * static_cast<uintptr_t>(per_req_size);
-    std::printf("[DEBUG] batch %u: req_base=0x%" PRIxPTR ", req_remote_base=0x%" PRIxPTR "\n", batch_idx, req_base, req_remote_base);
+    const uintptr_t req_remote_base =
+        ctx.dst_addr + static_cast<uintptr_t>(batch_idx) * static_cast<uintptr_t>(per_req_size);
+    std::printf("[DEBUG] batch %u: req_base=0x%" PRIxPTR ", req_remote_base=0x%" PRIxPTR "\n", batch_idx, req_base,
+                req_remote_base);
     for (uint32_t j = 0; j < per_req_trans_num; ++j) {
       const auto offset = static_cast<uintptr_t>(j) * static_cast<uintptr_t>(block_size);
       descs.push_back({req_base + offset, req_remote_base + offset, block_size});
     }
     for (uint32_t j = 0; j < per_req_trans_num; ++j) {
-      std::printf("[DEBUG] batch %u desc[%u]: local=0x%" PRIxPTR ", remote=0x%" PRIxPTR ", len=%zu\n",
-                  batch_idx, j, descs[j].local_addr, descs[j].remote_addr, descs[j].len);
+      std::printf("[DEBUG] batch %u desc[%u]: local=0x%" PRIxPTR ", remote=0x%" PRIxPTR ", len=%zu\n", batch_idx, j,
+                  descs[j].local_addr, descs[j].remote_addr, descs[j].len);
     }
     TransferReq req = nullptr;
     if (hixl_engine.TransferAsync(AscendString(ctx.remote_engine), ctx.transfer_op, descs, optional_args, req) !=
@@ -531,7 +530,8 @@ void RecordAsyncBenchResult(const TransferBlockStepCtx &ctx, uint32_t block_size
   const auto submit_us =
       std::chrono::duration_cast<std::chrono::microseconds>(actx.submit_end - actx.submit_start).count();
   const auto wait_us = std::chrono::duration_cast<std::chrono::microseconds>(actx.wait_end - actx.submit_end).count();
-  const auto total_us = std::chrono::duration_cast<std::chrono::microseconds>(actx.wait_end - actx.submit_start).count();
+  const auto total_us =
+      std::chrono::duration_cast<std::chrono::microseconds>(actx.wait_end - actx.submit_start).count();
   const double throughput = static_cast<double>(ctx.cfg->total_size) / kDecimalBytesPerGb /
                             (static_cast<double>(total_us) / kMicrosecondsPerSecond);
   const auto total_trans_num = static_cast<uint32_t>(ctx.cfg->total_size / ctx.block_size_u);
@@ -551,7 +551,7 @@ int32_t TransferOneBlockStepAsync(Hixl &hixl_engine, const TransferBlockStepCtx 
   }
   const uint64_t per_req_size = ctx.cfg->total_size / ctx.cfg->async_batch_num;
   const auto per_req_trans_num = static_cast<uint32_t>(per_req_size / ctx.block_size_u);
-  
+
   AsyncTransferContext async_ctx;
   if (SubmitAsyncRequests(hixl_engine, ctx, per_req_size, block_size, per_req_trans_num, async_ctx) != 0) {
     return -1;
@@ -911,7 +911,8 @@ int ClientRunner::RunOnePair(const std::string &remote, void *src_slice, size_t 
   }
   std::printf("[INFO] Server RegisterMem success\n");
 
-  const auto connect_ret = lane_hixl_.Connect(AscendString(remote.c_str()), static_cast<int32_t>(cfg_.connect_timeout_ms));
+  const auto connect_ret =
+      lane_hixl_.Connect(AscendString(remote.c_str()), static_cast<int32_t>(cfg_.connect_timeout_ms));
   if (connect_ret != SUCCESS) {
     std::printf("[ERROR] Connect failed, ret = %u, errmsg: %s\n", connect_ret, RecentErrMsg());
     return -1;
@@ -1002,8 +1003,8 @@ int ClientRunner::RunClientSharedRemoteWorkers() {
   threads.reserve(n);
   for (size_t i = 0; i < n; ++i) {
     void *sl = reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(lane_buffer_) + static_cast<uintptr_t>(i * slice));
-    std::printf("[DEBUG] RunClientSharedRemoteWorkers: remote[%zu] slice_addr=0x%" PRIxPTR ", slice_size=%zu\n",
-                i, reinterpret_cast<uintptr_t>(sl), slice);
+    std::printf("[DEBUG] RunClientSharedRemoteWorkers: remote[%zu] slice_addr=0x%" PRIxPTR ", slice_size=%zu\n", i,
+                reinterpret_cast<uintptr_t>(sl), slice);
     const std::string &remote = cfg_.expanded_remote_engines[i];
     std::mutex *remote_mu = GetOrCreateRemoteMutex(remote);
     threads.emplace_back(SharedRemoteWorker, i, device_id_, &lane_hixl_, std::cref(cfg_), sl, &first_fail, &fail_mu,

@@ -55,7 +55,9 @@ struct ModelSpec {
   void CollectCacheSlicesForKey(std::uint64_t key_index, std::vector<KvCacheSlice> *out) const;
   std::uint64_t MaxSliceBytesForKeys(std::uint64_t key_count) const;
   std::uint64_t CountTransferSlicesForKeys(std::uint64_t key_count) const;
-  bool IsShared() const { return kv_strategy == "shared"; }
+  bool IsShared() const {
+    return kv_strategy == "shared";
+  }
 };
 
 std::vector<ModelSpec> LoadModelSpecsFromJson(const std::string &config_path);

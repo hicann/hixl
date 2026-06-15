@@ -28,8 +28,8 @@ std::string BuildSlicePlacementKey(std::uint32_t rank, std::uint64_t token_lengt
   if (shared) {
     return "tokens" + std::to_string(token_length) + "_key" + std::to_string(key_index) + suffix;
   }
-  return "rank" + std::to_string(rank) + "_tokens" + std::to_string(token_length) + "_key" +
-         std::to_string(key_index) + suffix;
+  return "rank" + std::to_string(rank) + "_tokens" + std::to_string(token_length) + "_key" + std::to_string(key_index) +
+         suffix;
 }
 
 std::string ExtractKeyPlacementGroupKey(const std::string &slice_placement_key) {
@@ -41,8 +41,8 @@ std::string ExtractKeyPlacementGroupKey(const std::string &slice_placement_key) 
 }
 
 std::vector<KvSliceEntry> BuildWorkloadSlicePlan(const std::uintptr_t buffer_base, const std::uint32_t rank,
-                                                   const std::uint64_t token_length, const std::uint64_t key_count,
-                                                   const ModelSpec &model) {
+                                                 const std::uint64_t token_length, const std::uint64_t key_count,
+                                                 const ModelSpec &model) {
   std::vector<KvSliceEntry> entries;
   std::uint64_t offset = 0U;
   for (std::uint64_t key_index = 0U; key_index < key_count; ++key_index) {

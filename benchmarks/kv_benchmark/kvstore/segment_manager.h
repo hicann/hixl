@@ -33,7 +33,9 @@ class SegmentManager {
  public:
   void AddSegment(std::uint32_t segment_id, std::uint64_t size);
   std::optional<SegmentAllocation> AllocateFrom(std::uint32_t start_index, std::uint64_t size);
-  const std::vector<Segment> &Segments() const { return segments_; }
+  const std::vector<Segment> &Segments() const {
+    return segments_;
+  }
 
  private:
   std::vector<Segment> segments_;

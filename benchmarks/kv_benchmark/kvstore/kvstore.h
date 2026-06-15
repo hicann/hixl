@@ -38,7 +38,9 @@ class KvStore {
 
   bool EnsurePlacements(const std::vector<std::string> &keys, const std::vector<BufferView> &buffers);
 
-  const std::map<std::string, KeyPlacement> &Placements() const { return placements_; }
+  const std::map<std::string, KeyPlacement> &Placements() const {
+    return placements_;
+  }
 
  private:
   bool CheckInput(const std::vector<std::string> &keys, const std::vector<BufferView> &buffers) const;

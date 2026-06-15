@@ -25,17 +25,14 @@ constexpr std::size_t kMiB = kKiB * 1024U;
 constexpr std::size_t kGiB = kMiB * 1024U;
 
 std::string RemoveSpaces(std::string value) {
-  value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char ch) {
-                return std::isspace(ch) != 0;
-              }),
+  value.erase(std::remove_if(value.begin(), value.end(), [](unsigned char ch) { return std::isspace(ch) != 0; }),
               value.end());
   return value;
 }
 
 std::string ToUpper(std::string value) {
-  std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-    return static_cast<char>(std::toupper(ch));
-  });
+  std::transform(value.begin(), value.end(), value.begin(),
+                 [](unsigned char ch) { return static_cast<char>(std::toupper(ch)); });
   return value;
 }
 
@@ -256,9 +253,8 @@ std::vector<ModelSpec> LoadModelSpecsFromJson(const std::string &config_path) {
 }
 
 const ModelSpec *FindModelSpec(const std::vector<ModelSpec> &models, const std::string &name) {
-  const auto it = std::find_if(models.begin(), models.end(), [&name](const ModelSpec &spec) {
-    return spec.name == name;
-  });
+  const auto it =
+      std::find_if(models.begin(), models.end(), [&name](const ModelSpec &spec) { return spec.name == name; });
   return it == models.end() ? nullptr : &(*it);
 }
 

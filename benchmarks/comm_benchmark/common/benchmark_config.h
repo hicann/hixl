@@ -58,7 +58,8 @@ struct BenchmarkConfig {
   uint32_t tcp_client_count = 1U;
   std::string transfer_op = "read";
   std::string transport = "hccs";
-  /// SOC class for HCCS / transport hints: auto (ACL probe), a2 (910B-class), a3 (910 excluding 910B), a5 (Ascend950, no HCCS).
+  /// SOC class for HCCS / transport hints: auto (ACL probe), a2 (910B-class), a3 (910 excluding 910B), a5 (Ascend950,
+  /// no HCCS).
   std::string soc_variant = "auto";
   std::string initiator_memory_type = "device";
   std::string target_memory_type = "device";
@@ -86,8 +87,7 @@ struct BenchmarkConfig {
 
   /// Compute human-readable direction from initiator/target memory and op type.
   /// Returns "D2rD", "rD2D", "D2rH", "rH2D", "H2rH", "rH2H", "H2rD", or "rD2H".
-  static std::string ComputeDirection(const std::string &initiator_mem,
-                                      const std::string &target_mem,
+  static std::string ComputeDirection(const std::string &initiator_mem, const std::string &target_mem,
                                       const std::string &op_type);
 
   /// Comma-separated CLI values (filled after role defaults + overrides; see EnsureEndpointLists).

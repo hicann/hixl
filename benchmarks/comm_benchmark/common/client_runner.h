@@ -60,7 +60,8 @@ struct LaneState {
 
 }  // namespace detail
 
-/// Client benchmark: `Init()` binds device except multi-lane topology; `Run()` executes transfers; `Shutdown()` cleans up.
+/// Client benchmark: `Init()` binds device except multi-lane topology; `Run()` executes transfers; `Shutdown()` cleans
+/// up.
 class ClientRunner {
  public:
   explicit ClientRunner(const BenchmarkConfig &cfg) : cfg_(cfg) {}

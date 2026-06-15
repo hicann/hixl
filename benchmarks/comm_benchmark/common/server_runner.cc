@@ -19,10 +19,10 @@
 
 using hixl::AscendString;
 using hixl::FabricMemTransferService;
+using hixl::Hixl;
 using hixl::MemDesc;
 using hixl::MemType;
 using hixl::SUCCESS;
-using hixl::Hixl;
 
 namespace {
 
@@ -87,8 +87,7 @@ void FreeDeviceBuffers(const std::vector<void *> &buffers, const std::string &tr
 }
 
 void ReleaseHixlResources(Hixl &hixl_engine, bool need_register, bool is_host,
-                          const std::vector<hixl::MemHandle> &handles,
-                          const std::vector<void *> &buffers,
+                          const std::vector<hixl::MemHandle> &handles, const std::vector<void *> &buffers,
                           const std::string &transport = "") {
   if (need_register) {
     DeregisterMemHandles(hixl_engine, handles);
@@ -103,7 +102,9 @@ void ReleaseHixlResources(Hixl &hixl_engine, bool need_register, bool is_host,
 
 namespace hixl_benchmark {
 
-ServerRunner::~ServerRunner() { Shutdown(); }
+ServerRunner::~ServerRunner() {
+  Shutdown();
+}
 
 void ServerRunner::ReleaseServerResources() {
   tcp_session_.reset();

@@ -389,10 +389,8 @@ std::vector<KvWorkload> BuildWorkloads(const KvBenchConfig &cfg, const ModelSpec
     if (key_count == 0U) {
       throw std::invalid_argument("key_count must be greater than zero");
     }
-    workloads.push_back(KvWorkload{key_count * model.tokens_per_key, key_count,
-                                   model.MaxSliceBytesForKeys(key_count),
-                                   model.CountTransferSlicesForKeys(key_count),
-                                   model.TransferBytesForKeys(key_count)});
+    workloads.push_back(KvWorkload{key_count * model.tokens_per_key, key_count, model.MaxSliceBytesForKeys(key_count),
+                                   model.CountTransferSlicesForKeys(key_count), model.TransferBytesForKeys(key_count)});
   }
   return workloads;
 }
@@ -411,8 +409,7 @@ void PlaceSlicePlan(KvStore *store, const std::vector<KvSliceEntry> &slice_plan)
   }
 }
 
-std::vector<PreparedTransferSlice> BuildPreparedTransferSlices(std::uintptr_t local_base,
-                                                               const KvWorkload &workload,
+std::vector<PreparedTransferSlice> BuildPreparedTransferSlices(std::uintptr_t local_base, const KvWorkload &workload,
                                                                const ModelSpec &model) {
   std::vector<PreparedTransferSlice> slices;
   slices.reserve(static_cast<std::size_t>(workload.slice_count));
@@ -424,8 +421,8 @@ std::vector<PreparedTransferSlice> BuildPreparedTransferSlices(std::uintptr_t lo
       if (offset > (std::numeric_limits<std::uint64_t>::max() - cache_slice.size_bytes)) {
         throw std::overflow_error("KV prepared slice offset overflow");
       }
-      slices.push_back(PreparedTransferSlice{key_index, local_base + static_cast<std::uintptr_t>(offset),
-                                             cache_slice.size_bytes});
+      slices.push_back(
+          PreparedTransferSlice{key_index, local_base + static_cast<std::uintptr_t>(offset), cache_slice.size_bytes});
       offset += cache_slice.size_bytes;
     }
   }
@@ -444,8 +441,8 @@ std::vector<std::uint64_t> ComputeMaxSegmentUsage(const KvBenchConfig &cfg, cons
                                                   std::uint64_t uniform_segment_capacity) {
   std::vector<std::uint64_t> max_usage(cfg.num_processes, 0U);
   for (const auto &workload : workloads) {
-    const auto slice_plan = BuildWorkloadSlicePlan(kFakeBufferBase, cfg.rank, workload.token_length,
-                                                   workload.key_count, model);
+    const auto slice_plan =
+        BuildWorkloadSlicePlan(kFakeBufferBase, cfg.rank, workload.token_length, workload.key_count, model);
     KvStore store(BuildSegmentManagerUniform(cfg.num_processes, uniform_segment_capacity));
     PlaceSlicePlan(&store, slice_plan);
     for (const auto &item : store.Placements()) {
@@ -459,12 +456,11 @@ std::vector<std::uint64_t> ComputeMaxSegmentUsage(const KvBenchConfig &cfg, cons
   return max_usage;
 }
 
-void VerifyRankPoolLayouts(const KvBenchConfig &cfg, const ModelSpec &model,
-                           const std::vector<KvWorkload> &workloads,
+void VerifyRankPoolLayouts(const KvBenchConfig &cfg, const ModelSpec &model, const std::vector<KvWorkload> &workloads,
                            const std::vector<std::uint64_t> &rank_pool_sizes) {
   for (const auto &workload : workloads) {
-    const auto slice_plan = BuildWorkloadSlicePlan(kFakeBufferBase, cfg.rank, workload.token_length,
-                                                   workload.key_count, model);
+    const auto slice_plan =
+        BuildWorkloadSlicePlan(kFakeBufferBase, cfg.rank, workload.token_length, workload.key_count, model);
     KvStore store(BuildSegmentManagerFromPoolSizes(rank_pool_sizes));
     PlaceSlicePlan(&store, slice_plan);
   }
@@ -594,8 +590,7 @@ void Barrier(const KvBenchConfig &cfg, const std::string &name) {
 
 void AllocHostBuffer(const KvBenchConfig &cfg, std::uint64_t size, void **buffer) {
   if (cfg.transport == kTransportFabricMem) {
-    const auto status =
-        FabricMemTransferService::MallocMem(MemType::MEM_HOST, static_cast<size_t>(size), buffer);
+    const auto status = FabricMemTransferService::MallocMem(MemType::MEM_HOST, static_cast<size_t>(size), buffer);
     if (status != SUCCESS) {
       throw std::runtime_error("fabric_mem host allocation failed");
     }
@@ -752,9 +747,8 @@ void PrintTransferPlanSummary(const KvBenchConfig &cfg, const std::vector<KeyTra
   if (!IsTraceRank(cfg)) {
     return;
   }
-  std::cout << "[TRACE] rank=" << cfg.rank << " transfer_plan op=" << TransferOpName(op)
-            << " model=" << cfg.model << " key_count=" << workload.key_count << " tasks=" << tasks.size()
-            << std::endl;
+  std::cout << "[TRACE] rank=" << cfg.rank << " transfer_plan op=" << TransferOpName(op) << " model=" << cfg.model
+            << " key_count=" << workload.key_count << " tasks=" << tasks.size() << std::endl;
   for (const auto &task : tasks) {
     std::cout << "[TRACE] rank=" << cfg.rank << " transfer_key op=" << TransferOpName(op) << " key=" << task.key_index
               << " segment=" << task.segment_id << " self=" << task.is_self << " descs=" << task.descs.size()
@@ -767,14 +761,12 @@ void PrintStageTiming(const KvBenchConfig &cfg, TransferOp op, const KvWorkload 
   if (!IsTraceRank(cfg)) {
     return;
   }
-  std::cout << "[TRACE] rank=" << cfg.rank << " transfer_stage op=" << TransferOpName(op)
-            << " model=" << cfg.model << " key_count=" << workload.key_count
-            << " plan_us=" << plan_us << " transfer_us=" << transfer_us
+  std::cout << "[TRACE] rank=" << cfg.rank << " transfer_stage op=" << TransferOpName(op) << " model=" << cfg.model
+            << " key_count=" << workload.key_count << " plan_us=" << plan_us << " transfer_us=" << transfer_us
             << " total_us=" << (plan_us + transfer_us) << std::endl;
 }
 
-void GeneratePlacements(const std::vector<std::uint64_t> &rank_pool_sizes,
-                        WorkloadTransferState *state) {
+void GeneratePlacements(const std::vector<std::uint64_t> &rank_pool_sizes, WorkloadTransferState *state) {
   SegmentManager manager = BuildSegmentManagerFromPoolSizes(rank_pool_sizes);
   state->placements.clear();
   state->placements.reserve(state->slices.size());
@@ -797,16 +789,14 @@ void GeneratePlacements(const std::vector<std::uint64_t> &rank_pool_sizes,
   state->placements_ready = true;
 }
 
-void EnsurePlacementMetadata(const std::vector<std::uint64_t> &rank_pool_sizes,
-                             WorkloadTransferState *state) {
+void EnsurePlacementMetadata(const std::vector<std::uint64_t> &rank_pool_sizes, WorkloadTransferState *state) {
   if (state->placements_ready) {
     return;
   }
   GeneratePlacements(rank_pool_sizes, state);
 }
 
-std::vector<std::uint64_t> BuildKeyDistribution(std::uint32_t segment_count,
-                                                const WorkloadTransferState &state) {
+std::vector<std::uint64_t> BuildKeyDistribution(std::uint32_t segment_count, const WorkloadTransferState &state) {
   std::vector<std::uint64_t> distribution(segment_count, 0U);
   if (!state.placements_ready) {
     throw std::runtime_error("missing KV placement metadata before building key distribution");
@@ -870,8 +860,8 @@ std::vector<KeyTransferTask> BuildKeyTransferTasks(const std::vector<RankMeta> &
     const auto &placement = state.placements[i];
     if (slice.key_index != current_key) {
       current_key = slice.key_index;
-      tasks.push_back(MakeKeyTransferTask(current_key, placement.segment_id, metas.at(placement.segment_id),
-                                          self_rank, local_copy_for_self));
+      tasks.push_back(MakeKeyTransferTask(current_key, placement.segment_id, metas.at(placement.segment_id), self_rank,
+                                          local_copy_for_self));
     }
     tasks.back().descs.push_back(MakeTransferOpDesc(slice, placement, metas.at(placement.segment_id)));
   }
@@ -951,8 +941,8 @@ double BandwidthGbps(std::uint64_t bytes, double us) {
 }
 
 TimingStats RunWorkloadPut(const KvBenchConfig &cfg, KvTransferExecutor *transfer_executor,
-                         const std::vector<RankMeta> &metas, const ModelSpec &model, const KvWorkload &workload,
-                         const std::vector<std::uint64_t> &rank_pool_sizes, WorkloadTransferState *transfer_state) {
+                           const std::vector<RankMeta> &metas, const ModelSpec &model, const KvWorkload &workload,
+                           const std::vector<std::uint64_t> &rank_pool_sizes, WorkloadTransferState *transfer_state) {
   if (model.IsShared() && cfg.rank != 0U) {
     return TimingStats{};
   }
@@ -969,8 +959,7 @@ TimingStats RunWorkloadPut(const KvBenchConfig &cfg, KvTransferExecutor *transfe
 
 KvBenchResult RunWorkload(const KvBenchConfig &cfg, KvRuntime *runtime, KvTransferExecutor *transfer_executor,
                           const std::vector<RankMeta> &metas, const ModelSpec &model, const KvWorkload &workload,
-                          std::size_t index,
-                          const std::vector<std::uint64_t> &rank_pool_sizes) {
+                          std::size_t index, const std::vector<std::uint64_t> &rank_pool_sizes) {
   WorkloadTransferState transfer_state = BuildWorkloadTransferState(runtime->local_buffer, workload, model);
 
   Barrier(cfg, "workload_" + std::to_string(index) + "_ready");
@@ -982,8 +971,8 @@ KvBenchResult RunWorkload(const KvBenchConfig &cfg, KvRuntime *runtime, KvTransf
   const TimingStats get = MeasureRepeated(
       cfg, "workload_" + std::to_string(index) + "_get",
       [&](bool trace_transfer) {
-        return ExecuteKvTransfer(cfg, transfer_executor, metas, workload, hixl::READ, rank_pool_sizes,
-                                 &transfer_state, trace_transfer);
+        return ExecuteKvTransfer(cfg, transfer_executor, metas, workload, hixl::READ, rank_pool_sizes, &transfer_state,
+                                 trace_transfer);
       },
       true,
       [&](const TransferStageTiming &timing) {
@@ -1010,8 +999,7 @@ KvBenchResult RunWorkload(const KvBenchConfig &cfg, KvRuntime *runtime, KvTransf
 
 std::vector<KvBenchResult> RunBenchmark(const KvBenchConfig &cfg, KvRuntime *runtime,
                                         KvTransferExecutor *transfer_executor, const std::vector<RankMeta> &metas,
-                                        const ModelSpec &model,
-                                        const std::vector<KvWorkload> &workloads,
+                                        const ModelSpec &model, const std::vector<KvWorkload> &workloads,
                                         const std::vector<std::uint64_t> &rank_pool_sizes) {
   std::vector<KvBenchResult> results;
   for (std::size_t i = 0U; i < workloads.size(); ++i) {
@@ -1020,8 +1008,7 @@ std::vector<KvBenchResult> RunBenchmark(const KvBenchConfig &cfg, KvRuntime *run
   return results;
 }
 
-void WriteCsv(const KvBenchConfig &cfg, const std::vector<KvBenchResult> &results,
-              std::uint64_t rank_pool_size_bytes) {
+void WriteCsv(const KvBenchConfig &cfg, const std::vector<KvBenchResult> &results, std::uint64_t rank_pool_size_bytes) {
   fs::create_directories(cfg.output_dir);
   std::ofstream out(cfg.output_dir + "/kv_result_rank" + std::to_string(cfg.rank) + ".csv");
   out << "rank,model,token_length,key_count,tokens_per_key,max_slice_bytes,slice_count,total_bytes,transfer_threads,"
@@ -1030,12 +1017,11 @@ void WriteCsv(const KvBenchConfig &cfg, const std::vector<KvBenchResult> &result
   for (const auto &result : results) {
     out << cfg.rank << ',' << result.model << ',' << result.token_length << ',' << result.key_count << ','
         << result.tokens_per_key << ',' << result.max_slice_bytes << ',' << result.slice_count << ','
-        << result.total_bytes << ',' << cfg.transfer_threads << ',' << cfg.num_processes << ','
-        << cfg.num_processes << ',' << cfg.num_processes << ',' << rank_pool_size_bytes
-        << ','
-        << cfg.pool_memory << ",d2rh,rh2d," << cfg.transport << ',' << cfg.warmup << ',' << cfg.repeat << ','
-        << result.put_bandwidth_gbps << ',' << result.get_bandwidth_gbps << ',' << result.put_avg_us << ','
-        << result.get_avg_us << ',' << result.put_p99_us << ',' << result.get_p99_us << '\n';
+        << result.total_bytes << ',' << cfg.transfer_threads << ',' << cfg.num_processes << ',' << cfg.num_processes
+        << ',' << cfg.num_processes << ',' << rank_pool_size_bytes << ',' << cfg.pool_memory << ",d2rh,rh2d,"
+        << cfg.transport << ',' << cfg.warmup << ',' << cfg.repeat << ',' << result.put_bandwidth_gbps << ','
+        << result.get_bandwidth_gbps << ',' << result.put_avg_us << ',' << result.get_avg_us << ',' << result.put_p99_us
+        << ',' << result.get_p99_us << '\n';
   }
 }
 
@@ -1047,9 +1033,9 @@ void WriteJson(const KvBenchConfig &cfg, const std::vector<KvBenchResult> &resul
     out << (i == 0U ? "" : ",") << "{\"model\":\"" << r.model << "\",\"token_length\":" << r.token_length
         << ",\"key_count\":" << r.key_count << ",\"max_slice_bytes\":" << r.max_slice_bytes
         << ",\"slice_count\":" << r.slice_count << ",\"total_bytes\":" << r.total_bytes
-        << ",\"put_avg_us\":" << r.put_avg_us
-        << ",\"get_avg_us\":" << r.get_avg_us << ",\"put_p99_us\":" << r.put_p99_us
-        << ",\"get_p99_us\":" << r.get_p99_us << ",\"put_transfer_type\":\"d2rh\",\"get_transfer_type\":\"rh2d\"}";
+        << ",\"put_avg_us\":" << r.put_avg_us << ",\"get_avg_us\":" << r.get_avg_us
+        << ",\"put_p99_us\":" << r.put_p99_us << ",\"get_p99_us\":" << r.get_p99_us
+        << ",\"put_transfer_type\":\"d2rh\",\"get_transfer_type\":\"rh2d\"}";
   }
   out << "]}\n";
 }
@@ -1057,10 +1043,9 @@ void WriteJson(const KvBenchConfig &cfg, const std::vector<KvBenchResult> &resul
 void PrintWorkloadTransferPlan(const std::string &model_name, const std::vector<KvWorkload> &workloads) {
   for (const auto &workload : workloads) {
     std::cout << "[INFO] model=" << model_name << " key_count=" << workload.key_count
-              << " token_length=" << workload.token_length
-              << " total_transfer=" << FormatBytesKiB(workload.total_bytes)
-              << " slice_count=" << workload.slice_count
-              << " max_slice=" << FormatBytesKiB(workload.max_slice_bytes) << std::endl;
+              << " token_length=" << workload.token_length << " total_transfer=" << FormatBytesKiB(workload.total_bytes)
+              << " slice_count=" << workload.slice_count << " max_slice=" << FormatBytesKiB(workload.max_slice_bytes)
+              << std::endl;
   }
 }
 
@@ -1126,7 +1111,8 @@ std::vector<KvBenchResult> ExecuteKvBenchmark(const KvBenchConfig &cfg, KvRuntim
 
 int RunKvBenchParsed(KvBenchConfig &cfg, KvRuntime *runtime, std::vector<RankMeta> *metas) {
   if (cfg.transport == kTransportHccs) {
-    std::cerr << "[ERROR] KV benchmark does not support transport=hccs (HCCS is D2D-only; use rdma, fabric_mem, uboe, or ub)\n";
+    std::cerr << "[ERROR] KV benchmark does not support transport=hccs (HCCS is D2D-only; use rdma, fabric_mem, uboe, "
+                 "or ub)\n";
     return 1;
   }
   if (!ValidateConfig(cfg)) {
@@ -1138,8 +1124,8 @@ int RunKvBenchParsed(KvBenchConfig &cfg, KvRuntime *runtime, std::vector<RankMet
   const auto models = LoadModelSpecsFromJson(cfg.model_config);
   const ModelSpec *model = FindModelSpec(models, cfg.model);
   if (model == nullptr) {
-    std::cerr << "[ERROR] unsupported model: " << cfg.model
-              << " (supported: " << JoinNames(SupportedModelNames(models)) << ")" << std::endl;
+    std::cerr << "[ERROR] unsupported model: " << cfg.model << " (supported: " << JoinNames(SupportedModelNames(models))
+              << ")" << std::endl;
     return 1;
   }
   const auto workloads = BuildWorkloads(cfg, *model);
@@ -1149,12 +1135,10 @@ int RunKvBenchParsed(KvBenchConfig &cfg, KvRuntime *runtime, std::vector<RankMet
   const auto workload_local_bytes = MaxLocalBytes(workloads);
   const auto bootstrap_segment_capacity =
       AlignAllocSizeUp(std::max<std::uint64_t>(workload_local_bytes, 1U), kBytesPerGiB);
-  const auto max_segment_usage =
-      ComputeMaxSegmentUsage(cfg, *model, workloads, bootstrap_segment_capacity);
+  const auto max_segment_usage = ComputeMaxSegmentUsage(cfg, *model, workloads, bootstrap_segment_capacity);
   const auto rank_pool_sizes = BuildAlignedRankPoolSizes(cfg, max_segment_usage);
   VerifyRankPoolLayouts(cfg, *model, workloads, rank_pool_sizes);
-  const auto local_size =
-      AlignAllocSizeUp(std::max(workload_local_bytes, cfg.local_buffer_min), kBytesPerGiB);
+  const auto local_size = AlignAllocSizeUp(std::max(workload_local_bytes, cfg.local_buffer_min), kBytesPerGiB);
   const auto pool_size = rank_pool_sizes.at(cfg.rank);
 
   PrintKvBufferPlan(cfg, local_size, pool_size);

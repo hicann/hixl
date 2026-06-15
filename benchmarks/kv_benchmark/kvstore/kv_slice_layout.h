@@ -26,7 +26,7 @@ struct KvSliceEntry {
 };
 
 std::string BuildSlicePlacementKey(std::uint32_t rank, std::uint64_t token_length, std::uint64_t key_index,
-                                 std::uint32_t layer_index, const std::string &cache_name, bool shared);
+                                   std::uint32_t layer_index, const std::string &cache_name, bool shared);
 
 /// Group key for placement: all slices of one KV block share the same segment.
 std::string ExtractKeyPlacementGroupKey(const std::string &slice_placement_key);
