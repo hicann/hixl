@@ -26,7 +26,7 @@ HIXL（Huawei Xfer Library）是面向昇腾芯片的单边通信库，用于分
 
 ## 构建与测试命令
 
-前置条件：已安装 Ascend CANN toolkit，且已执行 `source /usr/local/Ascend/cann/set_env.sh`。如果环境未满足，Agent 需要先说明阻塞原因，不要虚报构建或测试结果。
+前置条件：已安装 Ascend CANN toolkit，且已执行环境变量加载。如果设置了 `ASCEND_HOME_PATH`，执行 `source ${ASCEND_HOME_PATH}/set_env.sh`；否则使用默认路径 `source /usr/local/Ascend/cann/set_env.sh`。如果环境未满足，Agent 需要先说明阻塞原因，不要虚报构建或测试结果。
 
 ```bash
 # 构建
