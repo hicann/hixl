@@ -43,9 +43,9 @@ struct HixlClientDesc {
   const EndpointDesc *remote_endpoint;
   const char *server_ip;
   uint32_t server_port;
-  uint8_t tc; // RDMA网卡的traffic class
-  uint8_t sl; // RDMA网卡的service level
-  uint8_t reserved[98] = {}; // 保留字段：预留空间以供未来扩展，结构体总大小保持为128字节
+  uint8_t tc;                 // RDMA网卡的traffic class
+  uint8_t sl;                 // RDMA网卡的service level
+  uint8_t reserved[98] = {};  // 保留字段：预留空间以供未来扩展，结构体总大小保持为128字节
 };
 
 struct HixlServerDesc {
@@ -53,7 +53,7 @@ struct HixlServerDesc {
   const char *server_ip;
   uint32_t server_port;
   uint32_t endpoint_list_num;
-  uint8_t reserved[104] = {}; // 保留字段：预留空间以供未来扩展，结构体总大小保持为128字节
+  uint8_t reserved[104] = {};  // 保留字段：预留空间以供未来扩展，结构体总大小保持为128字节
 };
 
 struct HixlOneSideOpDesc {
@@ -76,8 +76,8 @@ enum HixlCompleteStatus {
  * @param [out] server_handle server创建返回的handle信息，用于后续调用其他接口
  * @return 成功:HIXL_SUCCESS, 失败:其它.
  */
-HixlStatus HixlCSServerCreate(const HixlServerDesc *server_desc,
-                              const HixlServerConfig *config, HixlServerHandle *server_handle);
+HixlStatus HixlCSServerCreate(const HixlServerDesc *server_desc, const HixlServerConfig *config,
+                              HixlServerHandle *server_handle);
 
 /**
  * @brief Server注册内存
@@ -151,7 +151,8 @@ HixlStatus HixlCSClientGetRemoteMem(HixlClientHandle client_handle, CommMem **re
  * @param [out] mem_handle client注册内存返回的handle信息
  * @return 成功:HIXL_SUCCESS, 失败:其它.
  */
-HixlStatus HixlCSClientRegMem(HixlClientHandle client_handle, const char *mem_tag, const CommMem *mem, MemHandle *mem_handle);
+HixlStatus HixlCSClientRegMem(HixlClientHandle client_handle, const char *mem_tag, const CommMem *mem,
+                              MemHandle *mem_handle);
 
 /**
  * @brief 注销client给endpoint分配的内存
