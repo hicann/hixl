@@ -11,7 +11,6 @@
 # ----------------------------------------------------------------------------
 
 import os
-import argparse
 import yaml
 
 
@@ -28,39 +27,41 @@ class Config:
         self.metadata_url = "http://127.0.0.1:8080/metadata"
         self.grpc_url = "127.0.0.1:50051"
         self.device_id = 0
-        
+
         if config_file and os.path.exists(config_file):
             self.load_config(config_file)
-    
+
     def load_config(self, config_file):
-        with open(config_file, 'r') as f:
+        with open(config_file, "r") as f:
             self.config = yaml.safe_load(f)
-        
-        dist_config = self.config.get('distributed', {})
-        self.distributed = dist_config.get('enabled', False)
-        self.world_size = dist_config.get('world_size', 1)
-        self.master_addr = dist_config.get('master_addr', "127.0.0.1")
-        self.master_port = dist_config.get('master_port', "29500")
-        
-        mooncake_config = self.config.get('mooncake', {})
-        self.mooncake_store_ip = mooncake_config.get('store_ip', "127.0.0.1")
-        self.mooncake_store_port_start = mooncake_config.get('port_start', 12345)
-        self.metadata_url = mooncake_config.get('metadata_url', "http://127.0.0.1:8080/metadata")
-        self.grpc_url = mooncake_config.get('grpc_url', "127.0.0.1:50051")
-    
+
+        dist_config = self.config.get("distributed", {})
+        self.distributed = dist_config.get("enabled", False)
+        self.world_size = dist_config.get("world_size", 1)
+        self.master_addr = dist_config.get("master_addr", "127.0.0.1")
+        self.master_port = dist_config.get("master_port", "29500")
+
+        mooncake_config = self.config.get("mooncake", {})
+        self.mooncake_store_ip = mooncake_config.get("store_ip", "127.0.0.1")
+        self.mooncake_store_port_start = mooncake_config.get("port_start", 12345)
+        self.metadata_url = mooncake_config.get(
+            "metadata_url", "http://127.0.0.1:8080/metadata"
+        )
+        self.grpc_url = mooncake_config.get("grpc_url", "127.0.0.1:50051")
+
     def parse_args(self, parser):
         args = parser.parse_args()
-        
+
         if args.config:
             self.load_config(args.config)
-        
+
         self.device_id = args.device_id
         self.rank = args.rank
-        
+
         if args.distributed:
             self.distributed = True
-        
+
         if args.world_size is not None:
             self.world_size = args.world_size
-        
+
         return args

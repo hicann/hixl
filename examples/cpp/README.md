@@ -83,7 +83,7 @@ ifconfig
         ```
         ./decoder_pull_cache_and_blocks 2 10.170.10.1 10.170.10.1
         ```
-    
+
     - 若在A5环境执行还需要增加参数local_comm_res，如：
         ```
         # prompt主机

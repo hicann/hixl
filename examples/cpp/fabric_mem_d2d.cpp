@@ -87,8 +87,8 @@ bool WaitFile(const std::string &name) {
   return true;
 }
 
-int32_t Transfer(Hixl &hixl_engine, void *va, const char *local_engine,
-                 const char *remote_engine, uint32_t &remote_dev_id) {
+int32_t Transfer(Hixl &hixl_engine, void *va, const char *local_engine, const char *remote_engine,
+                 uint32_t &remote_dev_id) {
   if (!WaitFile(remote_engine)) {
     return -1;
   }
@@ -97,15 +97,15 @@ int32_t Transfer(Hixl &hixl_engine, void *va, const char *local_engine,
 
   printf("[INFO] Local engine test write, remote engine:%s\n", remote_engine);
   // Write local first 512K to remote last 512K
-  TransferOpDesc desc{reinterpret_cast<uintptr_t>(va), reinterpret_cast<uintptr_t>(remote_addr) + kWriteSize, kWriteSize};
+  TransferOpDesc desc{reinterpret_cast<uintptr_t>(va), reinterpret_cast<uintptr_t>(remote_addr) + kWriteSize,
+                      kWriteSize};
   auto ret = hixl_engine.TransferSync(remote_engine, WRITE, {desc});
   if (ret != SUCCESS) {
     printf("[ERROR] TransferSync write failed, remote_addr:%lu, ret = %u, errmsg: %s\n", remote_addr, ret,
            GetRecentErrMsg());
     return -1;
   }
-  printf("[INFO] TransferSync write success, remote_addr:%lu, value:%s\n", remote_addr,
-         local_engine);
+  printf("[INFO] TransferSync write success, remote_addr:%lu, value:%s\n", remote_addr, local_engine);
   return 0;
 }
 
@@ -152,7 +152,7 @@ int VerifyBuffer(void *va, int32_t expected_val) {
   void *host_data;
   CHECK_ACL(aclrtMallocHost(&host_data, kWriteSize));
   // Check the second half of the buffer
-  void *dev_ptr = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(va) + kWriteSize);
+  void *dev_ptr = reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(va) + kWriteSize);
   CHECK_ACL(aclrtMemcpy(host_data, kWriteSize, dev_ptr, kWriteSize, ACL_MEMCPY_DEVICE_TO_HOST));
 
   uint8_t *data = static_cast<uint8_t *>(host_data);
