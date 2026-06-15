@@ -61,9 +61,8 @@ hixl::Status ParseMsgType(const std::vector<uint8_t> &body, size_t &offset, hixl
   HIXL_CHK_BOOL_RET_STATUS(rc == EOK, hixl::FAILED, "memcpy_s msg_type failed, rc=%d", static_cast<int32_t>(rc));
 
   offset += sizeof(hixl::CtrlMsgType);
-  HIXL_CHK_BOOL_RET_STATUS(msg_type == expected, hixl::PARAM_INVALID,
-                           "Unexpected msg_type=%d in ctrl resp, expect=%d", static_cast<int32_t>(msg_type),
-                           static_cast<int32_t>(expected));
+  HIXL_CHK_BOOL_RET_STATUS(msg_type == expected, hixl::PARAM_INVALID, "Unexpected msg_type=%d in ctrl resp, expect=%d",
+                           static_cast<int32_t>(msg_type), static_cast<int32_t>(expected));
   return hixl::SUCCESS;
 }
 

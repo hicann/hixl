@@ -52,15 +52,29 @@ class HixlOptions {
   static Status Parse(const std::map<AscendString, AscendString> &options, HixlOptions &result);
 
   Status CheckSupportedOptions(const std::unordered_set<std::string> &supported_keys) const;
-  const std::map<AscendString, AscendString>& RawOptions() const { return raw_options_; }
+  const std::map<AscendString, AscendString> &RawOptions() const {
+    return raw_options_;
+  }
 
-  std::optional<uint8_t> RdmaTrafficClass() const { return rdma_traffic_class_; }
-  std::optional<uint8_t> RdmaServiceLevel() const { return rdma_service_level_; }
-  std::optional<std::string> LocalCommRes() const { return local_comm_res_; }
-  std::optional<bool> EnableFabricMem() const { return enable_fabric_mem_; }
-  std::optional<bool> AutoConnect() const { return auto_connect_; }
+  std::optional<uint8_t> RdmaTrafficClass() const {
+    return rdma_traffic_class_;
+  }
+  std::optional<uint8_t> RdmaServiceLevel() const {
+    return rdma_service_level_;
+  }
+  std::optional<std::string> LocalCommRes() const {
+    return local_comm_res_;
+  }
+  std::optional<bool> EnableFabricMem() const {
+    return enable_fabric_mem_;
+  }
+  std::optional<bool> AutoConnect() const {
+    return auto_connect_;
+  }
 
-  std::optional<GlobalResourceConfig> GlobalResourceCfg() const { return global_resource_config_; }
+  std::optional<GlobalResourceConfig> GlobalResourceCfg() const {
+    return global_resource_config_;
+  }
   std::vector<std::string> GetProtocolDesc() const;
 
  private:

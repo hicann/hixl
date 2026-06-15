@@ -169,8 +169,7 @@ Status FabricMemEngine::RegisterMem(const MemDesc &mem, MemType type, MemHandle 
   TemporaryRtContext with_context(aclrt_context_);
   HIXL_LOGI("[FabricMemEngine] Registration started, type:%s, addr:%p, size:%lu", MemTypeToString(type).c_str(),
             reinterpret_cast<void *>(mem.addr), mem.len);
-  HIXL_CHK_STATUS_RET(local_memory_.RegisterMem(mem, type, mem_handle),
-                      "[FabricMemEngine] Failed to register memory.");
+  HIXL_CHK_STATUS_RET(local_memory_.RegisterMem(mem, type, mem_handle), "[FabricMemEngine] Failed to register memory.");
   HIXL_LOGI("[FabricMemEngine] Registration succeeded, handle:%p.", mem_handle);
   return SUCCESS;
 }
@@ -182,8 +181,7 @@ Status FabricMemEngine::DeregisterMem(MemHandle mem_handle) {
   HIXL_LOGI("[FabricMemEngine] Deregistration started, handle:%p.", mem_handle);
   HIXL_CHK_BOOL_RET_STATUS(!fabric_mem_transfer_service_->HasChannels(), FAILED,
                            "[FabricMemEngine] Disconnect peers before deregistering memory.");
-  HIXL_CHK_STATUS_RET(local_memory_.DeregisterMem(mem_handle),
-                      "[FabricMemEngine] Failed to deregister memory.");
+  HIXL_CHK_STATUS_RET(local_memory_.DeregisterMem(mem_handle), "[FabricMemEngine] Failed to deregister memory.");
   return SUCCESS;
 }
 
@@ -226,8 +224,8 @@ void FabricMemEngine::DisconnectOnTransferError(const AscendString &remote_engin
   }
   const Status ret = fabric_mem_transfer_service_->Disconnect(remote_engine, 0);
   if (ret != SUCCESS && ret != NOT_CONNECTED) {
-    HIXL_LOGW("[FabricMemEngine] Failed to disconnect on transfer error, remote:%s, ret:%u.",
-              remote_engine.GetString(), static_cast<uint32_t>(ret));
+    HIXL_LOGW("[FabricMemEngine] Failed to disconnect on transfer error, remote:%s, ret:%u.", remote_engine.GetString(),
+              static_cast<uint32_t>(ret));
   }
 }
 

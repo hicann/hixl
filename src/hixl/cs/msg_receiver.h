@@ -17,10 +17,7 @@
 #include "common/ctrl_msg.h"
 
 namespace hixl {
-enum class RecvState : int32_t {
-  WAITING_FOR_HEADER,
-  WAITING_FOR_BODY
-};
+enum class RecvState : int32_t { WAITING_FOR_HEADER, WAITING_FOR_BODY };
 
 class MsgReceiver {
  public:

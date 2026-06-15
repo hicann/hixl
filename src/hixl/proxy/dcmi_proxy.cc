@@ -24,14 +24,14 @@ namespace hixl {
 namespace {
 
 // DCMI 接口函数指针类型
-using DcmiInitFunc = int32_t(*)();
-using DcmiGetUrmaDeviceCntFunc = int32_t(*)(int32_t npu_id, uint32_t* dev_cnt);
-using DcmiGetEidListFunc = int32_t(*)(int32_t npu_id, int32_t urma_dev_index,
-                                    DcmiUrmaEidInfo* eid_list, int32_t* eid_cnt);
-using DcmiGetMainboardIdFunc = int32_t(*)(int32_t npu_id, uint32_t* mainboard_id);
-using DcmiGetLogicIdFromPhyIdFunc = int32_t(*)(uint32_t phy_id, uint32_t* logic_id);
-using DcmiGetDeviceInfoFunc = int32_t(*)(int32_t npu_id, int32_t main_cmd,
-                                      uint32_t sub_cmd, void* buf, uint32_t* size);
+using DcmiInitFunc = int32_t (*)();
+using DcmiGetUrmaDeviceCntFunc = int32_t (*)(int32_t npu_id, uint32_t *dev_cnt);
+using DcmiGetEidListFunc = int32_t (*)(int32_t npu_id, int32_t urma_dev_index, DcmiUrmaEidInfo *eid_list,
+                                       int32_t *eid_cnt);
+using DcmiGetMainboardIdFunc = int32_t (*)(int32_t npu_id, uint32_t *mainboard_id);
+using DcmiGetLogicIdFromPhyIdFunc = int32_t (*)(uint32_t phy_id, uint32_t *logic_id);
+using DcmiGetDeviceInfoFunc = int32_t (*)(int32_t npu_id, int32_t main_cmd, uint32_t sub_cmd, void *buf,
+                                          uint32_t *size);
 
 // DCMI 接口函数指针
 DcmiInitFunc g_dcmi_init = nullptr;
@@ -57,8 +57,7 @@ int32_t TryLoadDcmiSymbols() {
       reinterpret_cast<DcmiGetUrmaDeviceCntFunc>(dlsym(g_dcmi_handle, "dcmiv2_get_urma_device_cnt"));
   g_dcmi_get_eid_list =
       reinterpret_cast<DcmiGetEidListFunc>(dlsym(g_dcmi_handle, "dcmiv2_get_eid_list_by_urma_dev_index"));
-  g_dcmi_get_mainboard_id =
-      reinterpret_cast<DcmiGetMainboardIdFunc>(dlsym(g_dcmi_handle, "dcmiv2_get_mainboard_id"));
+  g_dcmi_get_mainboard_id = reinterpret_cast<DcmiGetMainboardIdFunc>(dlsym(g_dcmi_handle, "dcmiv2_get_mainboard_id"));
   g_dcmi_get_logicid_from_phyid =
       reinterpret_cast<DcmiGetLogicIdFromPhyIdFunc>(dlsym(g_dcmi_handle, "dcmiv2_get_dev_id_by_chip_phy_id"));
   if (g_dcmi_get_logicid_from_phyid == nullptr) {
@@ -156,8 +155,7 @@ int32_t DcmiProxy::GetUrmaDeviceCnt(uint32_t logic_id, uint32_t *dev_cnt) {
   return g_dcmi_get_urma_device_cnt(static_cast<int32_t>(logic_id), dev_cnt);
 }
 
-int32_t DcmiProxy::GetEidList(uint32_t logic_id, int32_t urma_dev_index,
-                               DcmiUrmaEidInfo *eid_list, int32_t *eid_cnt) {
+int32_t DcmiProxy::GetEidList(uint32_t logic_id, int32_t urma_dev_index, DcmiUrmaEidInfo *eid_list, int32_t *eid_cnt) {
   if (LoadDcmi() != 0) {
     return -1;
   }
@@ -171,8 +169,7 @@ int32_t DcmiProxy::GetMainboardId(uint32_t logic_id, uint32_t *mainboard_id) {
   return g_dcmi_get_mainboard_id(static_cast<int32_t>(logic_id), mainboard_id);
 }
 
-int32_t DcmiProxy::GetDeviceInfo(uint32_t logic_id, int32_t main_cmd,
-                                 uint32_t sub_cmd, void *buf, uint32_t *size) {
+int32_t DcmiProxy::GetDeviceInfo(uint32_t logic_id, int32_t main_cmd, uint32_t sub_cmd, void *buf, uint32_t *size) {
   if (LoadDcmi() != 0) {
     return -1;
   }

@@ -37,7 +37,7 @@ class ThreadPool {
   void Destroy();
 
   template <class Func, class... Args>
-  auto commit(Func &&func, Args &&... args) -> std::future<decltype(func(args...))> {
+  auto commit(Func &&func, Args &&...args) -> std::future<decltype(func(args...))> {
     HIXL_LOGD("[ThreadPool:%s] commit task enter", thread_name_prefix_.c_str());
     using retType = decltype(func(args...));
     std::future<retType> fail_future;

@@ -199,8 +199,7 @@ int32_t HcommProxy::ChannelFenceOnThread(ThreadHandle thread, ChannelHandle chan
 }
 
 int32_t HcommProxy::BatchTransferOnThread(ThreadHandle thread, ChannelHandle channel,
-                                          const HcommBatchTransferDesc *transfer_descs,
-                                          uint32_t transfer_desc_num) {
+                                          const HcommBatchTransferDesc *transfer_descs, uint32_t transfer_desc_num) {
   if (HcommBatchTransferOnThread == nullptr) {
     HIXL_LOGI("function HcommBatchTransferOnThread is null, maybe unsupported.");
     return HCCL_E_NOT_SUPPORT;

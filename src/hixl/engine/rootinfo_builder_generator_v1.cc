@@ -245,7 +245,8 @@ void CollectClosPgEids(const std::vector<UrmaDevice> &urma_devices, int32_t mesh
   if (mesh_groups.size() >= kSecondElementIndex) {
     std::sort(mesh_groups.begin(), mesh_groups.end(),
               [](const UrmaGroupInfo &a, const UrmaGroupInfo &b) { return a.total_eids > b.total_eids; });
-    root_info.clos_pg_eids.push_back({mesh_groups[kSecondElementIndex - 1].pg_eid, mesh_groups[kSecondElementIndex - 1].die_id});
+    root_info.clos_pg_eids.push_back(
+        {mesh_groups[kSecondElementIndex - 1].pg_eid, mesh_groups[kSecondElementIndex - 1].die_id});
   }
 }
 
@@ -266,8 +267,7 @@ int32_t BuildNpuRootInfo(int32_t npu_id, bool is_server, NpuRootInfo &root_info)
 
   HIXL_LOGI("Got %zu urma device(s)", urma_devices.size());
   for (size_t i = 0; i < urma_devices.size(); ++i) {
-    HIXL_LOGI("urma_dev[%zu]: name=%s, eids=%zu", i, urma_devices[i].name.c_str(),
-              urma_devices[i].eid_list.size());
+    HIXL_LOGI("urma_dev[%zu]: name=%s, eids=%zu", i, urma_devices[i].name.c_str(), urma_devices[i].eid_list.size());
     for (size_t j = 0; j < urma_devices[i].eid_list.size(); ++j) {
       HIXL_LOGI("eid[%zu]=%s", j, urma_devices[i].eid_list[j].c_str());
     }
@@ -284,8 +284,8 @@ int32_t BuildNpuRootInfo(int32_t npu_id, bool is_server, NpuRootInfo &root_info)
   PrintRootInfo(root_info);
 
   if (root_info.port_to_eid.empty() || root_info.clos_pg_eids.empty()) {
-    HIXL_LOGE(FAILED, "Incomplete root_info for npu_id=%d, ports=%zu, clos_pg=%zu", npu_id, root_info.port_to_eid.size(),
-              root_info.clos_pg_eids.size());
+    HIXL_LOGE(FAILED, "Incomplete root_info for npu_id=%d, ports=%zu, clos_pg=%zu", npu_id,
+              root_info.port_to_eid.size(), root_info.clos_pg_eids.size());
     return FAILED;
   }
 

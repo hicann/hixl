@@ -59,8 +59,8 @@ Status EnsureLibRaLoaded() {
   if (lr.handle != nullptr) {
     return SUCCESS;
   }
-  const int32_t dl_mode = static_cast<int32_t>(static_cast<uint32_t>(MMPA_RTLD_NOW) |
-                                                 static_cast<uint32_t>(MMPA_RTLD_GLOBAL));
+  const int32_t dl_mode =
+      static_cast<int32_t>(static_cast<uint32_t>(MMPA_RTLD_NOW) | static_cast<uint32_t>(MMPA_RTLD_GLOBAL));
   void *h = mmDlopen(kLibRaSo, dl_mode);
   if (h == nullptr) {
     HIXL_LOGE(FAILED, "[HccpProxy] mmDlopen %s failed: %s", kLibRaSo, mmDlerror());
@@ -79,15 +79,14 @@ Status EnsureLibRaLoaded() {
   return SUCCESS;
 }
 
-Status RaGetNotifyBaseAddrWithRetry(RaGetNotifyBaseAddrFn fn, RdmaHandle rdma_handle,
-                                    unsigned long long *va, unsigned long long *total_size) {
+Status RaGetNotifyBaseAddrWithRetry(RaGetNotifyBaseAddrFn fn, RdmaHandle rdma_handle, unsigned long long *va,
+                                    unsigned long long *total_size) {
   const auto t_start = std::chrono::steady_clock::now();
   const auto deadline = t_start + std::chrono::seconds(30);
   while (true) {
     const int ret = fn(rdma_handle, va, total_size);
     const auto t_now = std::chrono::steady_clock::now();
-    const int64_t elapsed_us =
-        std::chrono::duration_cast<std::chrono::microseconds>(t_now - t_start).count();
+    const int64_t elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(t_now - t_start).count();
     if (ret == 0) {
       HIXL_LOGI("[HccpProxy] RaGetNotifyBaseAddrWithRetry ok, ret=%d, elapsed_us=%lld", ret,
                 static_cast<long long>(elapsed_us));
@@ -144,10 +143,8 @@ Status CombineNotifyDeviceVa(unsigned int phy_id, unsigned long long base_va, ac
   uint64_t offset = 0ULL;
   const rtError_t rt_ret = rtNotifyGetAddrOffset(reinterpret_cast<rtNotify_t>(notify), &offset);
   if (rt_ret != RT_ERROR_NONE) {
-    REPORT_INNER_ERR_MSG("E19999", "Call rtNotifyGetAddrOffset fail, ret: 0x%X",
-                         static_cast<uint32_t>(rt_ret));
-    HIXL_LOGE(FAILED, "[HccpProxy] rtNotifyGetAddrOffset failed, ret: 0x%X",
-              static_cast<uint32_t>(rt_ret));
+    REPORT_INNER_ERR_MSG("E19999", "Call rtNotifyGetAddrOffset fail, ret: 0x%X", static_cast<uint32_t>(rt_ret));
+    HIXL_LOGE(FAILED, "[HccpProxy] rtNotifyGetAddrOffset failed, ret: 0x%X", static_cast<uint32_t>(rt_ret));
     return FAILED;
   }
   if (base_va > (UINT64_MAX - offset)) {

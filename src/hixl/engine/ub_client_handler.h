@@ -26,8 +26,7 @@ class UbClientHandler : public IClientHandler {
 
   Status Connect(uint32_t timeout_ms) override;
   Status RegisterMem(const MemInfo &mem_info) override;
-  Status TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation,
-                       TransferReq &req) override;
+  Status TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation, TransferReq &req) override;
   Status TransferSync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation, uint32_t timeout_ms) override;
   Status GetTransferStatus(const TransferReq &req, TransferStatus &status) override;
   Status Finalize() override;

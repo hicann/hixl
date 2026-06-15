@@ -20,7 +20,7 @@
 
 namespace {
 constexpr uint64_t kMaxGetRemoteMemBodySize = static_cast<uint64_t>(4ULL * 1024ULL * 1024ULL);  // 4MB 示例上限
-constexpr uint32_t kMaxGetRemoteMemNum = 4096U;                                                 // 最多 4096 段远端内存
+constexpr uint32_t kMaxGetRemoteMemNum = 4096U;  // 最多 4096 段远端内存
 
 hixl::Status ExtractTypeAndJsonPtr(const std::vector<uint8_t> &body, hixl::CtrlMsgType &msg_type, const char *&json_ptr,
                                    size_t &json_len) {

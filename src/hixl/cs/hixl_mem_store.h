@@ -20,7 +20,7 @@ struct MemoryRegion {
   const void *addr = nullptr;  // 内存起始地址
   size_t size = 0U;            // 内存区域大小
   bool is_host_mem = false;
-  void *register_dev_addr = nullptr; // 非空时有效
+  void *register_dev_addr = nullptr;  // 非空时有效
 
   MemoryRegion() = default;
   MemoryRegion(const void *a, size_t s, bool is_host = false, void *dev_addr = nullptr) noexcept

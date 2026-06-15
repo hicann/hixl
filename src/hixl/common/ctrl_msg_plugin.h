@@ -19,7 +19,6 @@
 #include <unistd.h>
 #include "hixl/hixl_types.h"
 
-
 namespace hixl {
 class CtrlMsgPlugin {
  public:

@@ -55,7 +55,7 @@ else()
 endif()
 
 foreach(_proxy_target ${_HIXL_PROXY_TARGETS})
-        target_include_directories(${_proxy_target} PRIVATE 
+        target_include_directories(${_proxy_target} PRIVATE
             ${HIXL_INC_DIR}
             ${HIXL_CODE_DIR}/src/hixl/proxy
             )

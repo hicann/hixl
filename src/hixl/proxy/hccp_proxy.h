@@ -26,8 +26,7 @@ namespace hixl {
 class HccpProxy {
  public:
   HccpProxy() = delete;
-  static Status RaGetNotifyAddrLen(int32_t device_id, aclrtNotify notify, uint64_t &notify_addr,
-                                   uint32_t &notify_len);
+  static Status RaGetNotifyAddrLen(int32_t device_id, aclrtNotify notify, uint64_t &notify_addr, uint32_t &notify_len);
 };
 
 }  // namespace hixl

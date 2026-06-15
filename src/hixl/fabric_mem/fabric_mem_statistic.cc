@@ -108,7 +108,7 @@ void FabricMemStatistic::UpdateCosts(const std::string &channel_id, uint64_t tra
 }
 
 void FabricMemStatistic::UpdateCostsDirect(FabricMemTransferStatisticInfo &info, uint64_t transfer_cost,
-                                            uint64_t real_copy_cost, uint64_t total_bytes, uint64_t op_desc_count) {
+                                           uint64_t real_copy_cost, uint64_t total_bytes, uint64_t op_desc_count) {
   UpdateCost(transfer_cost, info.transfer);
   UpdateCost(real_copy_cost, info.real_copy);
   (void)info.total_bytes.fetch_add(total_bytes, std::memory_order_relaxed);

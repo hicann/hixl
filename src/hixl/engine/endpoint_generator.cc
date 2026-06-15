@@ -256,8 +256,8 @@ std::string BuildProtocolDescKey(const std::string &protocol, const std::string 
 }
 
 bool IsSupportedProtocolDesc(const std::string &protocol, const std::string &placement) {
-  static const std::set<std::string> kSupportedProtocols = {kProtocolRoce, kProtocolHccs, kProtocolUbCtp,
-                                                            kProtocolUbTp, kProtocolUboe};
+  static const std::set<std::string> kSupportedProtocols = {kProtocolRoce, kProtocolHccs, kProtocolUbCtp, kProtocolUbTp,
+                                                            kProtocolUboe};
   static const std::set<std::string> kSupportedPlacements = {kPlacementHost, kPlacementDevice};
   return kSupportedProtocols.find(protocol) != kSupportedProtocols.end() &&
          kSupportedPlacements.find(placement) != kSupportedPlacements.end();
@@ -321,8 +321,7 @@ void LogEndpointList(const char *source, const std::vector<EndpointConfig> &endp
 
 }  // namespace
 
-Status EndpointGenerator::ParseEndpointListFromLocalCommRes(const HixlOptions &options,
-                                                            std::string &local_comm_res,
+Status EndpointGenerator::ParseEndpointListFromLocalCommRes(const HixlOptions &options, std::string &local_comm_res,
                                                             std::vector<EndpointConfig> &endpoint_list) {
   endpoint_list.clear();
 
@@ -396,9 +395,8 @@ Status EndpointGenerator::FilterEndpointListByProtocolDesc(const HixlOptions &op
   return SUCCESS;
 }
 
-Status EndpointGenerator::BuildEndpointList(const HixlOptions &options,
-                                             const std::string &local_engine, std::string &local_comm_res,
-                                             std::vector<EndpointConfig> &endpoint_list) {
+Status EndpointGenerator::BuildEndpointList(const HixlOptions &options, const std::string &local_engine,
+                                            std::string &local_comm_res, std::vector<EndpointConfig> &endpoint_list) {
   endpoint_list.clear();
 
   // Step 1: Parse endpoint_list from localCommRes
@@ -417,8 +415,7 @@ Status EndpointGenerator::BuildEndpointList(const HixlOptions &options,
   return SUCCESS;
 }
 
-Status EndpointGenerator::AutoGenEndpointList(const HixlOptions &options,
-                                              const std::string &local_engine,
+Status EndpointGenerator::AutoGenEndpointList(const HixlOptions &options, const std::string &local_engine,
                                               std::vector<EndpointConfig> &endpoint_list) {
   SocType soc_type = SocType::kOther;
   HIXL_CHK_STATUS_RET(GetSocType(soc_type), "GetSocType failed");

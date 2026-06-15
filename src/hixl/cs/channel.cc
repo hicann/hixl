@@ -19,8 +19,8 @@ Status Channel::Create(EndpointHandle ep_handle, HcommChannelDesc &ch_desc, Comm
   constexpr uint32_t list_num = 1U;
   ChannelHandle ch_list[1] = {};
   HIXL_LOGI("HcommChannelCreate start, protocol=%d, devPhyId=%u, ep_handle=%p",
-            static_cast<int32_t>(ch_desc.remoteEndpoint.protocol),
-            ch_desc.remoteEndpoint.loc.device.devPhyId, ep_handle);
+            static_cast<int32_t>(ch_desc.remoteEndpoint.protocol), ch_desc.remoteEndpoint.loc.device.devPhyId,
+            ep_handle);
   HIXL_CHK_HCCL_RET(HcommProxy::ChannelCreate(ep_handle, engine, &ch_desc, list_num, ch_list));
   channel_handle_ = ch_list[0];
   HIXL_LOGI("Channel::Create success, handle=%lu", channel_handle_);
