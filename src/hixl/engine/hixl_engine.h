@@ -15,6 +15,7 @@
 #include <map>
 #include <optional>
 #include <unordered_set>
+#include "acl/acl.h"
 #include "engine.h"
 #include "hixl_options.h"
 #include "client_manager.h"
@@ -172,6 +173,7 @@ class HixlEngine : public hixl::Engine {
 
   std::atomic<bool> auto_connect_{false};
   std::optional<uint8_t> qos_;
+  aclrtContext aclrt_context_{nullptr};
 };
 }  // namespace hixl
 

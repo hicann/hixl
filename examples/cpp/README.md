@@ -1,14 +1,17 @@
 ## 目录
 
+- [目录](#目录)
 - [样例介绍](#样例介绍)
 - [目录结构](#目录结构)
-- [环境要求](#环境要求)
+- [样例配置说明](#样例配置说明)
 - [程序编译](#程序编译)
 - [样例运行](#样例运行)
+  - [1. LLM-DataDist样例](#1-llm-datadist样例)
+  - [2. HIXL样例](#2-hixl样例)
 
 ## 样例介绍
 
-功能：通过LLM-DataDist接口实现分离部署场景下KvCache管理功能。
+功能：通过LLM-DataDist、HIXL接口实现分离部署场景下KvCache传输功能。
 
 ## 目录结构
 
@@ -20,8 +23,9 @@
 |   ├── decoder_push_cache_and_blocks.cpp              // push cache和push blocks的decoder侧实现
 |   ├── prompt_switch_roles.cpp                        // switch_roles的prompt侧实现
 |   ├── decoder_switch_roles.cpp                       // switch_roles的decoder侧实现
-|   ├── client_server_h2d.cpp                          // HIXL的client-server模式, h2d场景样例
-|   ├── server_server_d2d.cpp                          // HIXL的server-server模式, d2d场景样例
+|   ├── hixl_example_d2rd.cpp                          // HIXL的D2rD单进程场景样例
+|   ├── hixl_example_d2rh.cpp                          // HIXL的D2rH单进程场景样例
+|   ├── hixl_example_d2rd_multiproc.cpp                // HIXL的D2rD多进程场景样例
 |   ├── fabric_mem_d2d.cpp                             // HIXL的fabric-mem模式下的d2d场景样例
 |   ├── CMakeLists.txt                                 // 编译脚本
 ```
@@ -46,7 +50,7 @@ ifconfig
 
 ## 样例运行
 
-### 1. prompt/decoder样例
+### 1. LLM-DataDist样例
  - 说明：
     - 所有样例需要成对运行，prompt侧和decoder侧执行间隔时间不要过长，样例中decoder侧设置WAIT_PROMPT_TIME为5s，prompt侧设置WAIT_TIME为10s，用户可根据实际情况自行修改这两个变量的值以保证用例成功运行。
     - 下面所有样例是以prompt和decoder运行在相同机器上为前提编写，将local_ip和remote_ip设为相同。
@@ -132,11 +136,12 @@ ifconfig
 
 ### 2. HIXL样例
   - 说明：
-    - 所有样例需要成对运行，client侧和server侧执行间隔时间不要过长，client-server用例中设置WAIT_REG_TIME为5s，WAIT_TRANS_TIME为20s，server-server用例中设置WAIT_TIME为5s，用户可根据实际情况自行修改这两个变量的值以保证用例成功运行。
-    - 下面所有用例都只能在单机上执行，local_engine和remote_engine的ip部分设为相同，server侧engine为ip:port形式，client侧engine为ip形式。如果需要多机执行，需对用例进行改造。
+    - 单进程用例（hixl_example_d2rd、hixl_example_d2rh）在一个进程内启动两个engine，无需分开终端。
+    - 多进程用例（hixl_example_d2rd_multiproc）需要分别在两个终端启动server和client，server先启动。
+    - fabric_mem_d2d需要成对运行，两个终端分别启动。
 
   - 配置环境变量
-    - 若运行环境上安装的“Ascend-cann-toolkit”包，环境变量设置如下：
+    - 若运行环境上安装的”Ascend-cann-toolkit”包，环境变量设置如下：
 
         ```
         source ${HOME}/Ascend/cann/set_env.sh
@@ -144,7 +149,7 @@ ifconfig
 
         “${HOME}/Ascend”请替换相关软件包的实际安装路径。
 
-    - 若运行环境上安装的“CANN-XXX.run”包，环境变量设置如下：
+    - 若运行环境上安装的”CANN-XXX.run”包，环境变量设置如下：
 
         ```
         source ${HOME}/Ascend/latest/bin/setenv.bash
@@ -154,60 +159,67 @@ ifconfig
 
   - 在运行环境执行可执行文件。
 
-    (1) 执行client_server_h2d, client-server模式，h2d场景
+    (1) 执行hixl_example_d2rd, D2RD单进程场景
 
-    - 执行client client_server_h2d, 参数为device_id、local engine、remote engine和可选的protocol, 其中device_id为client要使用的device_id，protocol支持`uboe`、`roce`、`none`（默认不指定），如:
-        ```
-        # 不指定protocol，使用环境变量指定RDMA传输
-        HCCL_INTRA_ROCE_ENABLE=1 ./client_server_h2d 0 10.10.10.0 10.10.10.0:16000
+      - 说明：
+        - 单进程内启动两个engine，分别绑定不同device，由engine A发起WRITE传输到engine B的device buffer。
+        - 支持协议：`roce:device`、`roce:host`、`uboe:device`、`ubg:device`、`ub_ctp:device`、`ub_tp:device`。
+        - 参数：`--protocol=<type>[,...]` 必选，支持逗号分隔多协议；`--device=id1,id2` 可选，默认0,2；`--version=0|1` 可选，默认1。
 
-        # 使用roce协议（自动设置HCCL_INTRA_ROCE_ENABLE=1）
-        ./client_server_h2d 0 10.10.10.0 10.10.10.0:16000 roce
+      - 运行示例：
+          ```
+          # 使用roce:device协议
+          ./hixl_example_d2rd --protocol=roce:device
 
-        # 使用uboe协议
-        ./client_server_h2d 0 10.10.10.0 10.10.10.0:16000 uboe
-        ```
+          # 指定device
+          ./hixl_example_d2rd --protocol=roce:device --device=0,2
 
-    - 执行server client_server_h2d, 参数为device_id、local engine和可选的protocol, 其中device_id为server要使用的device_id, 如:
-        ```
-        # 不指定protocol，使用环境变量指定RDMA传输
-        HCCL_INTRA_ROCE_ENABLE=1 ./client_server_h2d 1 10.10.10.0:16000
+          # 使用legacy模式（仅支持roce:device）
+          ./hixl_example_d2rd --protocol=roce:device --version=0
+          ```
 
-        # 使用roce协议
-        ./client_server_h2d 1 10.10.10.0:16000 roce
+    (2) 执行hixl_example_d2rh, D2RH单进程场景
 
-        # 使用uboe协议
-        ./client_server_h2d 1 10.10.10.0:16000 uboe
-        ```
+      - 说明：
+        - 单进程内启动两个engine，分别绑定不同device，双方各自发起WRITE传输到对方的host buffer。
+        - 支持协议：`roce:device`、`roce:host`、`uboe:device`、`ubg:device`、`ub_ctp:device`、`ub_tp:device`、`ub_ctp:host`、`ub_tp:host`。
+        - 参数：`--protocol=<type>[,...]` 必选，支持逗号分隔多协议；`--device=id1,id2` 可选，默认0,2；`--version=0|1` 可选，默认1。
 
-    (2) 执行server_server_d2d, 均作为server，d2d场景
+      - 运行示例：
+          ```
+          # 使用roce:device协议
+          ./hixl_example_d2rh --protocol=roce:device
 
-    - 执行server1 server_server_d2d, 参数为device_id、local engine、remote engine和可选的protocol, 其中device_id为当前engine要使用的device_id, 如:
-        ```
-        # 不指定protocol，使用环境变量指定RDMA传输
-        HCCL_INTRA_ROCE_ENABLE=1 ./server_server_d2d 0 10.10.10.0:16000 10.10.10.0:16001
+          # 使用host侧协议
+          ./hixl_example_d2rh --protocol=ub_ctp:host,ub_ctp:device
 
-        # 使用roce协议（自动设置HCCL_INTRA_ROCE_ENABLE=1）
-        ./server_server_d2d 0 10.10.10.0:16000 10.10.10.0:16001 roce
+          # 使用legacy模式
+          ./hixl_example_d2rh --protocol=roce:device --version=0
+          ```
 
-        # 使用uboe协议
-        ./server_server_d2d 0 10.10.10.0:16000 10.10.10.0:16001 uboe
-        ```
+    (3) 执行hixl_example_d2rd_multiproc, d2rd多进程场景
 
-    - 执行server2 server_server_d2d, 参数为device_id、local engine、remote engine和可选的protocol, 其中device_id为当前engine要使用的device_id, 如:
-        ```
-        # 不指定protocol，使用环境变量指定RDMA传输
-        HCCL_INTRA_ROCE_ENABLE=1 ./server_server_d2d 1 10.10.10.0:16001 10.10.10.0:16000
+      - 说明：
+        - 两个独立进程分别启动engine，通过socket交换buffer地址后，由client发起READ传输并本地校验。
+        - 支持协议：`hccs:device`、`roce:device`、`roce:host`、`uboe:device`、`ubg:device`、`ub_ctp:device`、`ub_tp:device`。
+        - 参数：`--role=client|server` 必选；`--protocol=<type>[,...]` 必选，支持逗号分隔多协议；`--device=<id>` 可选，默认client=0、server=2；`--version=0|1` 可选，默认1；`--local-engine=<ip:port>` 和 `--remote-engine=<ip:port>` 可选，默认client=127.0.0.1:16000、server=127.0.0.1:16001。
 
-        # 使用roce协议
-        ./server_server_d2d 1 10.10.10.0:16001 10.10.10.0:16000 roce
+      - 运行示例：
+          ```
+          # 使用roce协议
+          ./hixl_example_d2rd_multiproc --role=server --protocol=roce:device
+          ./hixl_example_d2rd_multiproc --role=client --protocol=roce:device
 
-        # 使用uboe协议
-        ./server_server_d2d 1 10.10.10.0:16001 10.10.10.0:16000 uboe
-        ```
-    **注**：protocol参数为`roce`时程序自动设置HCCL_INTRA_ROCE_ENABLE=1，使用RDMA进行传输
+          # 使用hccs协议
+          ./hixl_example_d2rd_multiproc --role=server --protocol=hccs:device
+          ./hixl_example_d2rd_multiproc --role=client --protocol=hccs:device
 
-    (3) 执行fabric_mem_d2d, fabric mem模式下，d2d场景
+          # 使用legacy模式
+          ./hixl_example_d2rd_multiproc --role=server --protocol=roce:device --version=0
+          ./hixl_example_d2rd_multiproc --role=client --protocol=roce:device --version=0
+          ```
+
+    (4) 执行fabric_mem_d2d, fabric mem模式下，d2d场景
 
     **注意**：要使用fabric mem模式，HDK需升级至26.0以上版本
 

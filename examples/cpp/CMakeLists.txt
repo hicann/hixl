@@ -22,9 +22,10 @@ set(targets_list
     "decoder_push_cache_and_blocks"
     "prompt_switch_roles"
     "decoder_switch_roles"
-    "client_server_h2d"
-    "server_server_d2d"
+    "hixl_example_d2rd_multiproc"
     "fabric_mem_d2d"
+    "hixl_example_d2rh"
+    "hixl_example_d2rd"
 )
 
 foreach(target_name IN LISTS targets_list)
@@ -46,7 +47,7 @@ foreach(target_name IN LISTS targets_list)
             -Werror
             -Wextra
         )
-        if(${target_name} MATCHES "client_server_h2d|server_server_d2d|fabric_mem_d2d")
+        if(${target_name} MATCHES "hixl_example_d2rd_multiproc|fabric_mem_d2d|hixl_example_d2rh|hixl_example_d2rd")
             target_link_libraries(${target_name} PRIVATE
                 cann_hixl
                 acl_rt_headers
