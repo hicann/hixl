@@ -44,7 +44,7 @@ file(GLOB LLM_SRC_LIST
 
 add_library(llm_datadist SHARED ${LLM_SRC_LIST})
 
-target_include_directories(llm_datadist PRIVATE 
+target_include_directories(llm_datadist PRIVATE
     ${INC_DIR}
     ${HIXL_CODE_DIR}/src/hixl/proxy
     )
@@ -79,9 +79,9 @@ target_link_libraries(llm_datadist PRIVATE
         -fPIC -Wextra -Wfloat-equal
         )
 
-install(TARGETS llm_datadist 
-         EXPORT llm_datadist-targets 
-         LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} COMPONENT hixl 
+install(TARGETS llm_datadist
+         EXPORT llm_datadist-targets
+         LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} COMPONENT hixl
          RUNTIME DESTINATION ${INSTALL_LIBRARY_DIR} COMPONENT hixl)
 
 set(ADXL_INC_DIR
@@ -109,7 +109,7 @@ file(GLOB ADXL_SRC_LIST
 
 add_library(adxl_static STATIC ${ADXL_SRC_LIST})
 
-target_include_directories(adxl_static PRIVATE 
+target_include_directories(adxl_static PRIVATE
     ${ADXL_INC_DIR}
     ${HIXL_CODE_DIR}/src/hixl/proxy
     )

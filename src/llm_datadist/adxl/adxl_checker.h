@@ -18,26 +18,26 @@
 #include "common/llm_log.h"
 
 // If expr is not SUCCESS, print the log and return the same value
-#define ADXL_CHK_STATUS_RET(expr, ...)        \
-  do {                                        \
-    const adxl::Status _chk_status = (expr);  \
-    if (_chk_status != adxl::SUCCESS) {       \
-      if (adxl::NeedErrorLog(_chk_status)) {         \
+#define ADXL_CHK_STATUS_RET(expr, ...)                                       \
+  do {                                                                       \
+    const adxl::Status _chk_status = (expr);                                 \
+    if (_chk_status != adxl::SUCCESS) {                                      \
+      if (adxl::NeedErrorLog(_chk_status)) {                                 \
         REPORT_INNER_ERR_MSG("E19999", "Call " #expr " fail. " __VA_ARGS__); \
-        LLMLOGE((_chk_status), __VA_ARGS__);  \
-      }                                     \
-      return _chk_status;                     \
-    }                                         \
+        LLMLOGE((_chk_status), __VA_ARGS__);                                 \
+      }                                                                      \
+      return _chk_status;                                                    \
+    }                                                                        \
   } while (false)
 
 // If expr is not SUCCESS, print the log and do not execute return
-#define ADXL_CHK_STATUS(expr, ...)            \
-  do {                                        \
-    const adxl::Status _chk_status = (expr);  \
-    if (_chk_status != adxl::SUCCESS) {       \
+#define ADXL_CHK_STATUS(expr, ...)                                         \
+  do {                                                                     \
+    const adxl::Status _chk_status = (expr);                               \
+    if (_chk_status != adxl::SUCCESS) {                                    \
       REPORT_INNER_ERR_MSG("E19999", "Call " #expr " fail. " __VA_ARGS__); \
-      LLMLOGE(_chk_status, __VA_ARGS__);       \
-    }                                         \
+      LLMLOGE(_chk_status, __VA_ARGS__);                                   \
+    }                                                                      \
   } while (false)
 
 // If expr is not true, print the log and return the specified status
@@ -45,8 +45,8 @@
   do {                                               \
     const bool b = (expr);                           \
     if (!b) {                                        \
-      REPORT_INNER_ERR_MSG("E19999", __VA_ARGS__);     \
-      LLMLOGE((_status), __VA_ARGS__);                \
+      REPORT_INNER_ERR_MSG("E19999", __VA_ARGS__);   \
+      LLMLOGE((_status), __VA_ARGS__);               \
       return (_status);                              \
     }                                                \
   } while (false)
@@ -56,7 +56,7 @@
   do {                                                       \
     const bool b = (expr);                                   \
     if (b) {                                                 \
-      LLMLOGI(__VA_ARGS__);                                   \
+      LLMLOGI(__VA_ARGS__);                                  \
       return (_status);                                      \
     }                                                        \
   } while (false)
@@ -65,46 +65,46 @@
 #define ADXL_CHECK_NOTNULL(val, ...)                                                          \
   do {                                                                                        \
     if ((val) == nullptr) {                                                                   \
-      REPORT_INNER_ERR_MSG("E19999", "Param:" #val " is nullptr, check invalid" __VA_ARGS__);   \
-      LLMLOGE(adxl::PARAM_INVALID, "[Check][Param:" #val "]null is invalid" __VA_ARGS__);      \
+      REPORT_INNER_ERR_MSG("E19999", "Param:" #val " is nullptr, check invalid" __VA_ARGS__); \
+      LLMLOGE(adxl::PARAM_INVALID, "[Check][Param:" #val "]null is invalid" __VA_ARGS__);     \
       return adxl::PARAM_INVALID;                                                             \
     }                                                                                         \
   } while (false)
 
 // If expr is not SUCCESS, print the log and return the adxl ret
-#define ADXL_CHK_LLM_RET(expr, ...)                             \
-  do {                                                          \
-    const ge::Status _ret = (expr);                             \
-    if (_ret != ge::SUCCESS) {                                  \
-      REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret));  \
-      const auto _adxl_ret = adxl::LLMError2AdxlStatus(_ret);   \
-      LLMLOGE((_adxl_ret), __VA_ARGS__);                         \
-      return _adxl_ret;                                         \
-    }                                                           \
+#define ADXL_CHK_LLM_RET(expr, ...)                                                                  \
+  do {                                                                                               \
+    const ge::Status _ret = (expr);                                                                  \
+    if (_ret != ge::SUCCESS) {                                                                       \
+      REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret)); \
+      const auto _adxl_ret = adxl::LLMError2AdxlStatus(_ret);                                        \
+      LLMLOGE((_adxl_ret), __VA_ARGS__);                                                             \
+      return _adxl_ret;                                                                              \
+    }                                                                                                \
   } while (false)
 
 // If expr is not 0, print the log and return
-#define ADXL_CHK_HCCL_RET(expr)                                                                   \
-  do {                                                                                            \
-    const HcclResult _ret = (expr);                                                               \
-    if (_ret != HCCL_SUCCESS) {                                                                   \
-      REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret));  \
-      const auto _adxl_ret = adxl::HcclError2AdxlStatus(_ret);                                    \
-      LLMLOGE(_adxl_ret, "Call hccl api failed, ret: 0x%X", static_cast<uint32_t>(_ret));           \
-      return _adxl_ret;                                                                           \
-    }                                                                                             \
+#define ADXL_CHK_HCCL_RET(expr)                                                                      \
+  do {                                                                                               \
+    const HcclResult _ret = (expr);                                                                  \
+    if (_ret != HCCL_SUCCESS) {                                                                      \
+      REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret)); \
+      const auto _adxl_ret = adxl::HcclError2AdxlStatus(_ret);                                       \
+      LLMLOGE(_adxl_ret, "Call hccl api failed, ret: 0x%X", static_cast<uint32_t>(_ret));            \
+      return _adxl_ret;                                                                              \
+    }                                                                                                \
   } while (false)
 
 // If expr is not 0, print the log and return
-#define ADXL_CHK_ACL_RET(expr)                                                                    \
-  do {                                                                                            \
-    const aclError _ret = (expr);                                                                 \
-    if (_ret != ACL_ERROR_NONE) {                                                                 \
-      REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret));  \
-      const auto _adxl_ret = adxl::AclError2AdxlStatus(_ret);                                     \
-      LLMLOGE(_adxl_ret, "Call aclrt api failed, ret: 0x%X", static_cast<uint32_t>(_ret));          \
-      return _adxl_ret;                                                                           \
-    }                                                                                             \
+#define ADXL_CHK_ACL_RET(expr)                                                                       \
+  do {                                                                                               \
+    const aclError _ret = (expr);                                                                    \
+    if (_ret != ACL_ERROR_NONE) {                                                                    \
+      REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret)); \
+      const auto _adxl_ret = adxl::AclError2AdxlStatus(_ret);                                        \
+      LLMLOGE(_adxl_ret, "Call aclrt api failed, ret: 0x%X", static_cast<uint32_t>(_ret));           \
+      return _adxl_ret;                                                                              \
+    }                                                                                                \
   } while (false)
 
 #endif  // CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_ADXL_CHECKER_H

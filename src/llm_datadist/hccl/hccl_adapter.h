@@ -23,7 +23,7 @@ using HcclExchangeMemDescFunc = HcclResult (*)(HcclComm comm, uint32_t remote_ra
                                                HcclMemDescs *remote, uint32_t *actual_num);
 using HcclCommConfigInitFunc = void (*)(HcclCommConfig *config);
 using HcclCommInitClusterInfoMemConfigFunc = HcclResult (*)(const char *cluster, uint32_t rank, HcclCommConfig *config,
-                                                      HcclComm *comm);
+                                                            HcclComm *comm);
 using HcclCommDestroyFunc = HcclResult (*)(HcclComm comm);
 using HcclBatchPutFunc = HcclResult (*)(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t desc_num,
                                         aclrtStream stream);
@@ -92,24 +92,24 @@ class HcclUtils {
   static const std::string HcclMemTypeToString(CommMemType type);
 };
 
-template<typename T>
-class FunctionLoader{
+template <typename T>
+class FunctionLoader {
  private:
   union FunctionPointerConverter {
-    void* from;
+    void *from;
     T to;
   };
 
  public:
-  static T load(void* so_handle, const char* func_name) {
-    void* symbol = mmDlsym(so_handle, func_name);
-        if (!symbol) {
-            return nullptr;
-        }
-        
-        FunctionPointerConverter converter;
-        converter.from = symbol;
-        return converter.to;
+  static T load(void *so_handle, const char *func_name) {
+    void *symbol = mmDlsym(so_handle, func_name);
+    if (!symbol) {
+      return nullptr;
+    }
+
+    FunctionPointerConverter converter;
+    converter.from = symbol;
+    return converter.to;
   }
 };
 }  // namespace llm

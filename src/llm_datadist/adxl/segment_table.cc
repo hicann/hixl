@@ -40,8 +40,7 @@ void SegmentTable::AddRange(const std::string &channel_id, uint64_t start, uint6
     auto new_segment = std::make_shared<Segment>(type);
     new_segment->AddRange(start, end);
     segments.push_back(new_segment);
-    LLMLOGI("Created new segment, channel_id:%s, start:%lu, end:%lu, type:%s.",
-            channel_id.c_str(), start, end,
+    LLMLOGI("Created new segment, channel_id:%s, start:%lu, end:%lu, type:%s.", channel_id.c_str(), start, end,
             hixl::MemTypeToString(static_cast<hixl::MemType>(type)).c_str());
   }
 }
@@ -84,18 +83,16 @@ void Segment::AddRange(uint64_t start, uint64_t end) {
     LLMLOGW("Ignore invalid segment range, start:%lu > end:%lu.", start, end);
     return;
   }
-  auto it = std::upper_bound(ranges_.begin(), ranges_.end(), start,
-                             [](uint64_t val, const std::pair<uint64_t, uint64_t> &range) {
-                               return val < range.first;
-                             });
+  auto it =
+      std::upper_bound(ranges_.begin(), ranges_.end(), start,
+                       [](uint64_t val, const std::pair<uint64_t, uint64_t> &range) { return val < range.first; });
   ranges_.insert(it, {start, end});
 }
 
 void Segment::RemoveRange(uint64_t start, uint64_t end) {
-  auto it = std::lower_bound(ranges_.begin(), ranges_.end(), start,
-                             [](const std::pair<uint64_t, uint64_t> &range, uint64_t val) {
-                               return range.first < val;
-                             });
+  auto it =
+      std::lower_bound(ranges_.begin(), ranges_.end(), start,
+                       [](const std::pair<uint64_t, uint64_t> &range, uint64_t val) { return range.first < val; });
   for (; it != ranges_.end() && it->first == start; ++it) {
     if (it->second == end) {
       ranges_.erase(it);
@@ -109,10 +106,9 @@ bool Segment::Contains(uint64_t start, uint64_t end) const {
   if (start > end) {
     return false;
   }
-  auto it = std::upper_bound(ranges_.begin(), ranges_.end(), start,
-                             [](uint64_t val, const std::pair<uint64_t, uint64_t> &range) {
-                               return val < range.first;
-                             });
+  auto it =
+      std::upper_bound(ranges_.begin(), ranges_.end(), start,
+                       [](uint64_t val, const std::pair<uint64_t, uint64_t> &range) { return val < range.first; });
 
   uint64_t max_reached = start;
   bool covered_start = false;

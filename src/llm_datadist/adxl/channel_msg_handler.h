@@ -69,11 +69,8 @@ using CallbackProcessor = std::function<Status(int32_t fd, const char *msg, uint
 class ChannelMsgHandler {
  public:
   ChannelMsgHandler(const std::string &listen_info, ChannelManager *channel_manager)
-      : listen_info_(listen_info),
-        channel_manager_(channel_manager),
-        device_id_(0),
-        listen_port_(-1),
-        comm_config_{} {};
+      : listen_info_(listen_info), channel_manager_(channel_manager), device_id_(0), listen_port_(-1), comm_config_{} {
+        };
 
   ~ChannelMsgHandler() = default;
   Status Initialize(const std::map<AscendString, AscendString> &options, SegmentTable *segment_table);

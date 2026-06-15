@@ -20,16 +20,17 @@
 
 #define DLOG_EVENT 0x10
 
-#define LOG_BY_TYPE(type, fmt, ...)                           \
-  do {                                                        \
-    if (type == DLOG_INFO) {                                  \
-      dlog_info(LLM_MODULE_NAME, "%lu %s %s:" fmt, LlmLog::GetTid(), GetId().c_str(), __FUNCTION__, ##__VA_ARGS__);  \
-    } else if (type == DLOG_ERROR) {                          \
-      LLMLOGE(ge::FAILED, fmt, ##__VA_ARGS__);                 \
-    } else if (type == DLOG_EVENT){                           \
+#define LOG_BY_TYPE(type, fmt, ...)                                                                                 \
+  do {                                                                                                              \
+    if (type == DLOG_INFO) {                                                                                        \
+      dlog_info(LLM_MODULE_NAME, "%lu %s %s:" fmt, LlmLog::GetTid(), GetId().c_str(), __FUNCTION__, ##__VA_ARGS__); \
+    } else if (type == DLOG_ERROR) {                                                                                \
+      LLMLOGE(ge::FAILED, fmt, ##__VA_ARGS__);                                                                      \
+    } else if (type == DLOG_EVENT) {                                                                                \
       dlog_info(static_cast<int32_t>(static_cast<uint32_t>(RUN_LOG_MASK) | static_cast<uint32_t>(LLM_MODULE_NAME)), \
-                "%lu %s %s:" fmt, LlmLog::GetTid(), GetId().c_str(), __FUNCTION__, ##__VA_ARGS__); \
-    } else {}                                                 \
+                "%lu %s %s:" fmt, LlmLog::GetTid(), GetId().c_str(), __FUNCTION__, ##__VA_ARGS__);                  \
+    } else {                                                                                                        \
+    }                                                                                                               \
   } while (false)
 
 namespace llm {
@@ -43,7 +44,9 @@ class ScalableAllocator : public MemoryPool {
   void PrintDetails(const int32_t level = DLOG_ERROR) override;
   ge::Status InitFixSizedAllocator(ge::Allocator &allocator, void *base_addr, size_t size);
 
-  const ScalableConfig &GetScalableConfig() const { return config_; }
+  const ScalableConfig &GetScalableConfig() const {
+    return config_;
+  }
   const std::string &GetId() const override;
   float GetReachTheoryRate() const;
 
@@ -51,8 +54,9 @@ class ScalableAllocator : public MemoryPool {
   ge::Status Finalize();
   virtual PageSpan *BlockAlloc(ge::Allocator &allocator, const BlockAddr block_addr, const MemAddr addr,
                                const size_t size);
-  virtual PageSpan *SplitSpan(ge::Allocator &allocator, const SpanLayerId fix_layer_id,
-                              const SpanLayerId fit_layer_id, PageSpan *const span, const MemSize size);
+  virtual PageSpan *SplitSpan(ge::Allocator &allocator, const SpanLayerId fix_layer_id, const SpanLayerId fit_layer_id,
+                              PageSpan *const span, const MemSize size);
+
  private:
   PageSpan *FetchLayerSpan(const SpanLayerId layer_id);
   PageSpan *FetchSplitedSpan(ge::Allocator &allocator, const SpanLayerId fix_layer_id, const SpanLayerId fit_layer_id,
@@ -98,6 +102,6 @@ class ScalableAllocator : public MemoryPool {
   size_t real_theory_min_size_{0U};
   bool is_fix_sized_{false};
 };
-}
+}  // namespace llm
 
 #endif

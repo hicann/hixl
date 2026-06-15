@@ -27,9 +27,7 @@ void LlmMemPool::LlmMemAllocator::SetScalableAllocator(ScalableAllocator *scalab
   scalable_allocator_ = scalable_allocator;
 }
 
-LlmMemPool::LlmMemPool(const ScalableConfig &config)
-    : scalable_allocator_(span_allocator_, config) {
-}
+LlmMemPool::LlmMemPool(const ScalableConfig &config) : scalable_allocator_(span_allocator_, config) {}
 
 LlmMemPool::~LlmMemPool() {
   LLMLOGI("Destroyed, unfree count = %zu", addr_to_mem_block_.size());
@@ -43,10 +41,10 @@ ge::Status LlmMemPool::Initialize(void *base_addr, size_t size) {
   constexpr size_t kMaxPageShift = 30;
   const auto page_shift = scalable_allocator_.GetScalableConfig().page_idem_num;
   LLM_CHK_BOOL_RET_STATUS(((page_shift >= kMinPageShift) && (page_shift <= kMaxPageShift)), ge::LLM_PARAM_INVALID,
-                         "page_shift (%zu) out of range: [10, 31)", page_shift);
+                          "page_shift (%zu) out of range: [10, 31)", page_shift);
   LLM_CHK_BOOL_RET_STATUS((1UL << page_shift) <= size, ge::LLM_PARAM_INVALID,
-                         "Check page_size <= memory_size failed, page_shift = %zu, page_size = %zu, memory_size = %lu",
-                         page_shift, (1UL << page_shift), size);
+                          "Check page_size <= memory_size failed, page_shift = %zu, page_size = %zu, memory_size = %lu",
+                          page_shift, (1UL << page_shift), size);
   allocator_.SetScalableAllocator(&scalable_allocator_);
   LLM_CHK_STATUS_RET(scalable_allocator_.InitFixSizedAllocator(allocator_, base_addr, size));
   return ge::SUCCESS;

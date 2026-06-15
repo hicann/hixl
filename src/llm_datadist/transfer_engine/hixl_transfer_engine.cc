@@ -24,15 +24,15 @@ namespace {
 constexpr const char LLM_OPTION_RDMA_TRAFFIC_CLASS[] = "llm.RdmaTrafficClass";
 constexpr const char LLM_OPTION_RDMA_SERVICE_LEVEL[] = "llm.RdmaServiceLevel";
 constexpr const char ADXL_OPTION_LOCAL_COMM_RES[] = "adxl.LocalCommRes";
-}
+}  // namespace
 
 void HixlTransferEngine::LLMDataDist2HixlOptions(
     const std::map<ge::AscendString, ge::AscendString> &llm_datdsist_options,
     std::map<ge::AscendString, ge::AscendString> &hixl_options) {
   const static std::map<ge::AscendString, ge::AscendString> llm_to_hixl_options = {
-    {LLM_OPTION_RDMA_TRAFFIC_CLASS, hixl::OPTION_RDMA_TRAFFIC_CLASS},
-    {LLM_OPTION_RDMA_SERVICE_LEVEL, hixl::OPTION_RDMA_SERVICE_LEVEL},
-    {llm_datadist::OPTION_LOCAL_COMM_RES, ADXL_OPTION_LOCAL_COMM_RES},
+      {LLM_OPTION_RDMA_TRAFFIC_CLASS, hixl::OPTION_RDMA_TRAFFIC_CLASS},
+      {LLM_OPTION_RDMA_SERVICE_LEVEL, hixl::OPTION_RDMA_SERVICE_LEVEL},
+      {llm_datadist::OPTION_LOCAL_COMM_RES, ADXL_OPTION_LOCAL_COMM_RES},
   };
   for (const auto &option : llm_datdsist_options) {
     const auto &iter = llm_to_hixl_options.find(option.first);
@@ -46,8 +46,8 @@ void HixlTransferEngine::LLMDataDist2HixlOptions(
 
 ge::Status HixlTransferEngine::InitMsgProcessor() {
   hixl::CtrlMsgPlugin::Initialize();
-  hixl::CallbackProcessor callback = [this](
-      int32_t fd, const char *msg, uint64_t msg_len, bool &keep_fd) -> hixl::Status {
+  hixl::CallbackProcessor callback = [this](int32_t fd, const char *msg, uint64_t msg_len,
+                                            bool &keep_fd) -> hixl::Status {
     (void)msg;
     (void)msg_len;
     keep_fd = false;
@@ -67,17 +67,15 @@ ge::Status HixlTransferEngine::InitMsgProcessor() {
                         "Failed to send cache table msg body");
     return hixl::SUCCESS;
   };
-  LLM_CHK_HIXL_RET(engine_->RegisterCallbackProcessor(
-      static_cast<int32_t>(hixl::CtrlMsgType::kGetCacheTableReq), callback),
+  LLM_CHK_HIXL_RET(
+      engine_->RegisterCallbackProcessor(static_cast<int32_t>(hixl::CtrlMsgType::kGetCacheTableReq), callback),
       "Failed to initialize Hixl engine.");
   return ge::SUCCESS;
 }
 
 ge::Status HixlTransferEngine::Initialize(const std::map<ge::AscendString, ge::AscendString> &options) {
   bool remote_cache_accessible = false;
-  LLM_CHK_STATUS_RET(LLMUtils::ParseFlag(kLlmOptionEnableRemoteCacheAccessible,
-                                         options,
-                                         remote_cache_accessible),
+  LLM_CHK_STATUS_RET(LLMUtils::ParseFlag(kLlmOptionEnableRemoteCacheAccessible, options, remote_cache_accessible),
                      "Failed to parse option %s", kLlmOptionEnableRemoteCacheAccessible);
   LLM_CHK_BOOL_RET_STATUS(remote_cache_accessible, ge::LLM_PARAM_INVALID,
                           "When using hixl backend, option:%s needs to be specified to true.",
@@ -90,10 +88,8 @@ ge::Status HixlTransferEngine::Initialize(const std::map<ge::AscendString, ge::A
                           llm_datadist::OPTION_LISTEN_IP_INFO);
   std::string ip = ip_iter->second.GetString();
   uint32_t port = 0U;
-  LLM_CHK_STATUS_RET(LLMUtils::ToNumber(port_iter->second.GetString(), port),
-                     "Option %s is invalid: [%s]",
-                     kLlmOptionListenPort,
-                     port_iter->second.GetString());
+  LLM_CHK_STATUS_RET(LLMUtils::ToNumber(port_iter->second.GetString(), port), "Option %s is invalid: [%s]",
+                     kLlmOptionListenPort, port_iter->second.GetString());
   local_engine_ = ip + ":" + std::to_string(port);
   LLMLOGI("listen option %s=%s", llm_datadist::OPTION_LISTEN_IP_INFO, local_engine_.c_str());
   LLM_ASSERT_RT_OK(aclrtGetCurrentContext(&rt_context_));
@@ -118,8 +114,7 @@ ge::Status HixlTransferEngine::RegisterMem(void *addr, uint64_t size, CommMemTyp
   desc.addr = reinterpret_cast<uintptr_t>(addr);
   desc.len = size;
   hixl::MemType mem_type = type == COMM_MEM_TYPE_HOST ? hixl::MEM_HOST : hixl::MEM_DEVICE;
-  LLM_CHK_HIXL_RET(engine_->RegisterMem(desc, mem_type, handle),
-                   "Failed to register mem, addr:%p, size:%lu, type:%d.",
+  LLM_CHK_HIXL_RET(engine_->RegisterMem(desc, mem_type, handle), "Failed to register mem, addr:%p, size:%lu, type:%d.",
                    addr, size, static_cast<int32_t>(type));
   LLMLOGI("Register mem success, addr:%p, size:%lu, type:%d", addr, size, static_cast<int32_t>(type));
   return ge::SUCCESS;
@@ -136,26 +131,23 @@ ge::Status HixlTransferEngine::LinkCluster(const ClusterInfo &cluster, int32_t t
   std::string remote_ip_str;
   LLM_CHK_STATUS_RET(LLMUtils::IntToIp(cluster.remote_ip_infos[0].ip, remote_ip_str), "Failed to convert remote ip.");
   uint32_t remote_port = static_cast<uint32_t>(cluster.remote_ip_infos[0].port);
-  LLMLOGI("Start to link cluster, remote cluster_id:%lu, remote info %s:%u, timeout:%d ms.",
-          cluster.remote_cluster_id, remote_ip_str.c_str(), remote_port, timeout);
+  LLMLOGI("Start to link cluster, remote cluster_id:%lu, remote info %s:%u, timeout:%d ms.", cluster.remote_cluster_id,
+          remote_ip_str.c_str(), remote_port, timeout);
   auto entity = llm::MakeShared<HixlEntity>(remote_ip_str, remote_port, engine_.get());
   LLM_CHECK_NOTNULL(entity);
-  auto mem_info_ptr = MakeUnique<EntityMemInfo>(true,
-                                                comm_entity_manager_->GetHostRegPool(),
-                                                comm_entity_manager_->GetDeviceRegPool());
+  auto mem_info_ptr =
+      MakeUnique<EntityMemInfo>(true, comm_entity_manager_->GetHostRegPool(), comm_entity_manager_->GetDeviceRegPool());
   LLM_CHECK_NOTNULL(mem_info_ptr);
   LLM_CHK_STATUS_RET(mem_info_ptr->Initialize(), "Failed to init mem info");
   entity->SetEntityMemInfo(mem_info_ptr);
   entity->SetCacheManager(cache_manager_);
   entity->SetContext(rt_context_);
   LLM_CHK_STATUS_RET(entity->Initialize(timeout), "Failed to init hixl entity");
-  ScopeGuard guard([entity]() {
-    entity->Finalize();
-  });
+  ScopeGuard guard([entity]() { entity->Finalize(); });
   LLM_CHK_STATUS_RET(entity->SetInfo(), "Failed to set entity info");
   entity->MarkEntityIdle();
   LLM_CHK_STATUS_RET(comm_entity_manager_->AddEntity(cluster.remote_cluster_id, entity),
-                    "Failed to create entity, remote_cluster_id:%lu", cluster.remote_cluster_id);
+                     "Failed to create entity, remote_cluster_id:%lu", cluster.remote_cluster_id);
   guard.Dismiss();
   return ge::SUCCESS;
 }
@@ -188,8 +180,7 @@ ge::Status HixlTransferEngine::LinkClusters(const std::vector<ClusterInfo> &clus
 }
 
 ge::Status HixlTransferEngine::UnlinkCluster(const ClusterInfo &cluster, int32_t timeout) const {
-  LLMLOGI("Start to unlink cluster, remote cluster_id:%lu, timeout:%d ms.",
-          cluster.remote_cluster_id, timeout);
+  LLMLOGI("Start to unlink cluster, remote cluster_id:%lu, timeout:%d ms.", cluster.remote_cluster_id, timeout);
   LLM_CHK_STATUS_RET(comm_entity_manager_->DestroyEntity(cluster.remote_cluster_id),
                      "Failed to destroy entity, remote_cluster_id:%lu", cluster.remote_cluster_id);
   return ge::SUCCESS;
@@ -197,7 +188,7 @@ ge::Status HixlTransferEngine::UnlinkCluster(const ClusterInfo &cluster, int32_t
 
 ge::Status HixlTransferEngine::UnlinkClusters(const std::vector<ClusterInfo> &clusters, std::vector<ge::Status> &rets,
                                               int32_t timeout, bool force_flag) {
-  (void) force_flag;
+  (void)force_flag;
   LLM_CHK_BOOL_RET_STATUS(clusters.size() > 0, ge::LLM_PARAM_INVALID, "clusters size must > 0");
   LLMThreadPool thread_pool("llm_link_mem", 16U);
   std::vector<std::future<ge::Status>> future_rets;
@@ -228,44 +219,42 @@ void HixlTransferEngine::UnlinkAllClusters() {
   engine_->Disconnect();
 }
 
-ge::Status HixlTransferEngine::Link(std::string &cluster_name, const std::map<uint64_t, uint32_t> &cluster2rank, std::string &rank_table,
-                                    uint64_t &comm_id) {
-  (void) cluster_name;
-  (void) cluster2rank;
-  (void) rank_table;
-  (void) comm_id;
+ge::Status HixlTransferEngine::Link(std::string &cluster_name, const std::map<uint64_t, uint32_t> &cluster2rank,
+                                    std::string &rank_table, uint64_t &comm_id) {
+  (void)cluster_name;
+  (void)cluster2rank;
+  (void)rank_table;
+  (void)comm_id;
   LLMLOGE(llm_datadist::LLM_FEATURE_NOT_ENABLED, "The feature is not supported.");
   return llm_datadist::LLM_FEATURE_NOT_ENABLED;
 }
 
 ge::Status HixlTransferEngine::Unlink(uint64_t comm_id) {
-  (void) comm_id;
+  (void)comm_id;
   LLMLOGE(llm_datadist::LLM_FEATURE_NOT_ENABLED, "The feature is not supported.");
   return llm_datadist::LLM_FEATURE_NOT_ENABLED;
 }
 
 ge::Status HixlTransferEngine::QueryRegisterMemStatus(uint64_t comm_id, RegisterMemoryStatus &status) {
-  (void) comm_id;
-  (void) status;
+  (void)comm_id;
+  (void)status;
   LLMLOGE(llm_datadist::LLM_FEATURE_NOT_ENABLED, "The feature is not supported.");
   return llm_datadist::LLM_FEATURE_NOT_ENABLED;
 }
 
 ge::Status HixlTransferEngine::SwitchRole(const std::string &role, const std::map<std::string, std::string> &options) {
-  (void) role;
+  (void)role;
   const auto &port_iter = options.find(kLlmOptionListenPort);
   const auto &ip_iter = options.find(kLlmOptionListenIp);
   if (port_iter != options.cend() && ip_iter != options.cend()) {
     std::string ip = ip_iter->second;
     uint32_t port = 0U;
-    LLM_CHK_STATUS_RET(LLMUtils::ToNumber(port_iter->second, port),
-                       "Option %s is invalid: [%s]",
-                       kLlmOptionListenPort,
+    LLM_CHK_STATUS_RET(LLMUtils::ToNumber(port_iter->second, port), "Option %s is invalid: [%s]", kLlmOptionListenPort,
                        port_iter->second.c_str());
     auto local_engine = ip + ":" + std::to_string(port);
     LLM_CHK_BOOL_RET_STATUS(local_engine == local_engine_, ge::LLM_FEATURE_NOT_ENABLED,
-                            "listen ip info:%s is not the same with init listen ip info:%s.",
-                            local_engine.c_str(), local_engine_.c_str());
+                            "listen ip info:%s is not the same with init listen ip info:%s.", local_engine.c_str(),
+                            local_engine_.c_str());
   }
   return ge::SUCCESS;
 }

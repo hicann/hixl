@@ -15,8 +15,8 @@ CommStatisticManager &CommStatisticManager::GetInstance() {
   static CommStatisticManager instance;
   return instance;
 }
-void CommStatisticManager::UpdateCost(const uint64_t cost, uint64_t &total_times, uint64_t &min_cost, uint64_t &max_cost,
-                                  uint64_t &total_cost) {
+void CommStatisticManager::UpdateCost(const uint64_t cost, uint64_t &total_times, uint64_t &min_cost,
+                                      uint64_t &max_cost, uint64_t &total_cost) {
   total_times++;
   total_cost += cost;
   max_cost = (max_cost < cost) ? cost : max_cost;
@@ -24,8 +24,8 @@ void CommStatisticManager::UpdateCost(const uint64_t cost, uint64_t &total_times
 }
 
 void CommStatisticManager::UpdateCost(const uint64_t cost, std::atomic<uint64_t> &total_times,
-                                  std::atomic<uint64_t> &min_cost, std::atomic<uint64_t> &max_cost,
-                                  std::atomic<uint64_t> &total_cost) {
+                                      std::atomic<uint64_t> &min_cost, std::atomic<uint64_t> &max_cost,
+                                      std::atomic<uint64_t> &total_cost) {
   (void)total_times.fetch_add(1U);
   (void)total_cost.fetch_add(cost);
   if (max_cost.load() < cost) {
@@ -84,7 +84,7 @@ FuncStatisticInfo &CommStatisticManager::GetFuncStatisticInfo() {
   return func_statistic_info_;
 }
 
-void CommStatisticManager::Dump() const{
+void CommStatisticManager::Dump() const {
   DumpMemoryProfilingTrack();
   DumpFuncProfilingTrack();
   DumpLinkProfilingTrack();
@@ -93,8 +93,8 @@ void CommStatisticManager::Dump() const{
 
 void CommStatisticManager::DumpMemoryProfilingTrack() const {
   LLMEVENT("Memory statistic info:alloc mem:%lu, free mem:%lu, alloc times:%lu, free times%:lu",
-          memory_statistic_info_.alloc_mem, memory_statistic_info_.free_mem, memory_statistic_info_.alloc_times,
-          memory_statistic_info_.free_times);
+           memory_statistic_info_.alloc_mem, memory_statistic_info_.free_mem, memory_statistic_info_.alloc_times,
+           memory_statistic_info_.free_times);
 }
 
 void CommStatisticManager::DumpFuncProfilingTrack() const {
@@ -121,8 +121,8 @@ void CommStatisticManager::DumpFuncProfilingTrack() const {
 
   const uint64_t transfer_func_avg_cost =
       func_statistic_info_.transfer_func_times == 0U
-      ? 0U
-      : func_statistic_info_.transfer_func_total_cost / func_statistic_info_.transfer_func_times;
+          ? 0U
+          : func_statistic_info_.transfer_func_total_cost / func_statistic_info_.transfer_func_times;
   LLMEVENT(
       "Func statistic info:"
       "link info[times:%lu, max_cost:%lu us, min_cost:%lu us, avg_cost:%lu us], "
@@ -163,13 +163,11 @@ void CommStatisticManager::DumpLinkProfilingTrack() const {
       "register global mem info[times:%lu], comm bind mem info[times:%lu], ",
       "exchange mem info[times:%lu, max_cost:%lu us, min_cost:%lu us, avg_cost:%lu us]",
       link_statistic_info_.comm_init_times, link_statistic_info_.comm_init_max_cost,
-      link_statistic_info_.comm_init_min_cost, comm_init_avg_cost,
-      link_statistic_info_.comm_prepare_times, link_statistic_info_.comm_prepare_max_cost,
-      link_statistic_info_.comm_prepare_min_cost, comm_prepare_avg_cost,
+      link_statistic_info_.comm_init_min_cost, comm_init_avg_cost, link_statistic_info_.comm_prepare_times,
+      link_statistic_info_.comm_prepare_max_cost, link_statistic_info_.comm_prepare_min_cost, comm_prepare_avg_cost,
       link_statistic_info_.register_global_mem_times, link_statistic_info_.comm_bind_mem_times,
       link_statistic_info_.exchange_mem_times, link_statistic_info_.exchange_mem_max_cost,
-      link_statistic_info_.exchange_mem_min_cost, exchange_mem_avg_cost
-      );
+      link_statistic_info_.exchange_mem_min_cost, exchange_mem_avg_cost);
 }
 
 void CommStatisticManager::DumpUnLinkProfilingTrack() const {
@@ -181,10 +179,9 @@ void CommStatisticManager::DumpUnLinkProfilingTrack() const {
       "Unlink statistic info:"
       "destroy comm info[times:%lu, max_cost:%lu us, min_cost:%lu us, avg_cost:%lu us], "
       "deregister global mem info[times:%lu], comm unbind mem info[times:%lu]",
-      link_statistic_info_.comm_destroy_times,link_statistic_info_.comm_destroy_max_cost,
+      link_statistic_info_.comm_destroy_times, link_statistic_info_.comm_destroy_max_cost,
       link_statistic_info_.comm_destroy_min_cost, comm_destroy_avg_cost,
-      link_statistic_info_.deregister_global_mem_times, link_statistic_info_.comm_unbind_mem_times
-      );
+      link_statistic_info_.deregister_global_mem_times, link_statistic_info_.comm_unbind_mem_times);
 }
 
 void CommStatisticManager::Reset() {

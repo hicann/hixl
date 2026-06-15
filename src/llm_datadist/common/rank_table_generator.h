@@ -29,15 +29,14 @@ class RankTableGenerator {
 
 class LocalCommResGenerator {
  public:
-  static ge::Status Generate(const std::string &server_id,
-                             int32_t device_id,
-                             std::string &local_comm_res,
+  static ge::Status Generate(const std::string &server_id, int32_t device_id, std::string &local_comm_res,
                              std::optional<uint32_t> device_port = std::nullopt);
 };
 
 class RankTableGeneratorFactory {
  public:
-  static std::unique_ptr<RankTableGenerator> Create(const std::string &local_comm_res, const std::string &peer_comm_res);
+  static std::unique_ptr<RankTableGenerator> Create(const std::string &local_comm_res,
+                                                    const std::string &peer_comm_res);
 };
 }  // namespace llm
 #endif  // CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_RANK_TABLE_GENERATOR_H_

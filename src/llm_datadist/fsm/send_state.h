@@ -38,20 +38,17 @@ class SendState : public BaseState {
   SendState(const SendState &&) = delete;
   SendState &operator=(const SendState &) = delete;
   SendState &operator=(const SendState &&) = delete;
+
  private:
   static ge::Status Prepare(CommEntity &entity);
   static ge::Status CheckParam(const CacheEntry &cache_entry, const TransferCacheReq &request);
   static ge::Status QueryCacheEntryAndOffset(CommEntity &entity, CacheEntry &cache_entry, uint64_t &offset);
-  static ge::Status QueryBlocksCache(const CacheManager &cache_manager,
-                                     const TransferCacheReq &request,
+  static ge::Status QueryBlocksCache(const CacheManager &cache_manager, const TransferCacheReq &request,
                                      CacheEntry &cache_entry);
-  static ge::Status QueryCacheByCacheId(const CacheManager &cache_manager,
-                                        const TransferCacheReq &request,
+  static ge::Status QueryCacheByCacheId(const CacheManager &cache_manager, const TransferCacheReq &request,
                                         CacheEntry &cache_entry);
-  static bool GetCacheKey(const CacheManager &cache_manager,
-                          const TransferCacheReq &request,
-                          std::pair<uint64_t, uint64_t> &cache_key,
-                          bool &is_prefix);
+  static bool GetCacheKey(const CacheManager &cache_manager, const TransferCacheReq &request,
+                          std::pair<uint64_t, uint64_t> &cache_key, bool &is_prefix);
   static int32_t ResolveTransferType(const TransferCacheReq &request, const CacheEntry &cache_entry);
   static std::unordered_set<uint64_t> GetLayerRangeTensorIndices(const TransferCacheReq &request);
 };

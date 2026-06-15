@@ -64,7 +64,7 @@ enum class RecvState { WAITING_FOR_HEADER, WAITING_FOR_BODY };
 
 class CommChannel {
  public:
-  explicit CommChannel(ChannelInfo info) : channel_info_(std::move(info)){};
+  explicit CommChannel(ChannelInfo info) : channel_info_(std::move(info)) {};
   Status Initialize();
   Status Finalize();
   std::string GetChannelId() const;

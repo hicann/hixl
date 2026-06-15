@@ -18,8 +18,8 @@
 
 namespace adxl {
 
-class StreamPool { 
-public:
+class StreamPool {
+ public:
   explicit StreamPool(size_t max_stream_num) : max_stream_num_(max_stream_num) {}
   ~StreamPool() = default;
   void Finalize();
@@ -27,11 +27,11 @@ public:
   void FreeStream(aclrtStream &stream);
   void DestroyStream(aclrtStream &stream);
 
-private:
+ private:
   std::mutex pool_mutex_;
   std::map<aclrtStream, bool> pool_;
   size_t max_stream_num_;
 };
-}// namespace adxl
+}  // namespace adxl
 
 #endif  // HIXL_SRC_LLMDATADIST_ADXL_STREAM_POOL_H

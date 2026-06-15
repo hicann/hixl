@@ -47,9 +47,9 @@ class SpanBuddyLink {
   }
 
  private:
-   PageSpan *volatile prev_{nullptr};
-   PageSpan *volatile next_{nullptr};
+  PageSpan *volatile prev_{nullptr};
+  PageSpan *volatile next_{nullptr};
 };
-}
+}  // namespace llm
 
 #endif

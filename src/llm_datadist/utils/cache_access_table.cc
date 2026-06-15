@@ -34,7 +34,7 @@ struct CacheSummary {
   uint64_t num_blocks;
   uint64_t batch_size;
   uint64_t tensor_size;
-  uint64_t stride; // batch stride or block size
+  uint64_t stride;  // batch stride or block size
   uint64_t placement;
   uint64_t num_tensors;
   bool remote_accessible;
@@ -83,8 +83,8 @@ CacheEntry ToCacheEntry(const CacheSummary &cache_summary) {
 void *SharedDevBuffer::GetOrCreateBuffer(size_t size) {
   std::lock_guard<std::mutex> lk(mu_);
   if (buffer_ == nullptr) {
-    LLM_ASSERT_RT_OK(aclrtMalloc(&buffer_, size,
-                                static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_ONLY)));
+    LLM_ASSERT_RT_OK(aclrtMalloc(
+        &buffer_, size, static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_ONLY)));
     LLM_DISMISSABLE_GUARD(fail_guard, ([this]() { LLM_CHK_ACL(aclrtFree(buffer_)); }));
     auto ret = GlobalMemManager::GetInstance().RegisterMem(buffer_, size, CommMemType::COMM_MEM_TYPE_DEVICE,
                                                            mem_register_handle_);
@@ -120,19 +120,17 @@ ge::Status CacheAccessTableUpdater::Initialize(bool enable) {
   LLM_CHK_BOOL_RET_SPECIAL_STATUS(dev_buffer_ != nullptr, ge::SUCCESS, "Already initialized");
   if (enable) {
     buffer_size_ = kCacheAccessTableBufferSize;
-    LLM_CHK_ACL_RET(aclrtMalloc(&dev_buffer_, buffer_size_,
-                                static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH| ACL_MEM_MALLOC_HUGE_ONLY)));
+    LLM_CHK_ACL_RET(
+        aclrtMalloc(&dev_buffer_, buffer_size_,
+                    static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_ONLY)));
   } else {
     buffer_size_ = sizeof(CacheTableHeader);
-    LLM_CHK_ACL_RET(aclrtMalloc(&dev_buffer_, buffer_size_,
-                                static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_ONLY)));
+    LLM_CHK_ACL_RET(
+        aclrtMalloc(&dev_buffer_, buffer_size_,
+                    static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_ONLY)));
     CacheTableHeader header{};
     header.version_num = UINT64_MAX;
-    LLM_CHK_ACL_RET(aclrtMemcpy(dev_buffer_,
-                           buffer_size_,
-                           &header,
-                           sizeof(header),
-                           ACL_MEMCPY_HOST_TO_DEVICE));
+    LLM_CHK_ACL_RET(aclrtMemcpy(dev_buffer_, buffer_size_, &header, sizeof(header), ACL_MEMCPY_HOST_TO_DEVICE));
   }
   return ge::SUCCESS;
 }
@@ -144,24 +142,20 @@ void CacheAccessTableUpdater::Finalize() {
   }
 }
 
-ge::Status CacheAccessTableUpdater::UpdateTableBuffer(const std::map<int64_t, CacheEntry> &cache_id_to_entry,
-                                                      std::map<std::pair<uint64_t, uint64_t>,
-                                                          int64_t> &cache_key_to_id) {
+ge::Status CacheAccessTableUpdater::UpdateTableBuffer(
+    const std::map<int64_t, CacheEntry> &cache_id_to_entry,
+    std::map<std::pair<uint64_t, uint64_t>, int64_t> &cache_key_to_id) {
   uint64_t version_num = ++version_num_;  // start from 1
   LLM_CHK_BOOL_RET_STATUS(version_num != UINT64_MAX, ge::FAILED, "version_num reached UINT64_MAX");
   std::vector<uint8_t> buffer;
-  LLMLOGI("Update cache access table start, version_num = %lu, num_caches = %zu, num_cache_indices = %zu",
-         version_num, cache_id_to_entry.size(), cache_key_to_id.size());
+  LLMLOGI("Update cache access table start, version_num = %lu, num_caches = %zu, num_cache_indices = %zu", version_num,
+          cache_id_to_entry.size(), cache_key_to_id.size());
   LLM_CHK_STATUS_RET(ToBuffer(version_num, cache_id_to_entry, cache_key_to_id, buffer),
-                    "Failed to generate cache access table, "
-                    "version_num = %lu, num_caches = %zu, num_cache_indices = %zu",
-                    version_num, cache_id_to_entry.size(), cache_key_to_id.size());
+                     "Failed to generate cache access table, "
+                     "version_num = %lu, num_caches = %zu, num_cache_indices = %zu",
+                     version_num, cache_id_to_entry.size(), cache_key_to_id.size());
   LLMLOGI("Generate cache access table success");
-  LLM_CHK_ACL_RET(aclrtMemcpy(dev_buffer_,
-                         buffer_size_,
-                         buffer.data(),
-                         buffer.size(),
-                         ACL_MEMCPY_HOST_TO_DEVICE));
+  LLM_CHK_ACL_RET(aclrtMemcpy(dev_buffer_, buffer_size_, buffer.data(), buffer.size(), ACL_MEMCPY_HOST_TO_DEVICE));
   LLMLOGI("Write to device memory success");
   return ge::SUCCESS;
 }
@@ -175,12 +169,11 @@ ge::Status CacheAccessTableUpdater::ToBuffer(uint64_t version_num,
   std::unordered_map<int64_t, size_t> cache_id_to_summary_size;
   for (const auto &cache_id_and_entry : cache_id_to_entry) {
     auto size = sizeof(CacheSummary) + sizeof(uint64_t) * cache_id_and_entry.second.cache_addrs.size();
-    (void) cache_id_to_summary_size.emplace(cache_id_and_entry.first, size);
+    (void)cache_id_to_summary_size.emplace(cache_id_and_entry.first, size);
     total_size += size;
   }
-  LLM_CHK_BOOL_RET_STATUS(total_size <= kCacheAccessTableBufferSize,
-                         ge::LLM_PARAM_INVALID,
-                         "Serialize cache access table failed, sized needed (%zu) exceeds 1MB", total_size);
+  LLM_CHK_BOOL_RET_STATUS(total_size <= kCacheAccessTableBufferSize, ge::LLM_PARAM_INVALID,
+                          "Serialize cache access table failed, sized needed (%zu) exceeds 1MB", total_size);
   buffer.resize(total_size);
   auto &header = *PtrToPtr<uint8_t, CacheTableHeader>(buffer.data());
   header.version_num = version_num;
@@ -192,19 +185,18 @@ ge::Status CacheAccessTableUpdater::ToBuffer(uint64_t version_num,
     auto &cache_summary = *PtrToPtr<uint8_t, CacheSummary>(cache_summary_buffer);
     FillCacheSummary(cache_id_and_entry.first, cache_id_and_entry.second, cache_summary);
     buffer_offset += cache_id_to_summary_size[cache_id_and_entry.first];  // move to the next cache summary
-    LLMLOGI("Serialize cache success, cache_id = %lu, num_blocks = %lu, batch_size = %u, "
-           "tensor_size = %lu, stride = %lu, placement = %lu, num_tensors = %zu",
-           cache_summary.cache_id, cache_summary.num_blocks, cache_summary.batch_size,
-           cache_summary.tensor_size, cache_summary.stride, cache_summary.placement, cache_summary.num_tensors);
+    LLMLOGI(
+        "Serialize cache success, cache_id = %lu, num_blocks = %lu, batch_size = %u, "
+        "tensor_size = %lu, stride = %lu, placement = %lu, num_tensors = %zu",
+        cache_summary.cache_id, cache_summary.num_blocks, cache_summary.batch_size, cache_summary.tensor_size,
+        cache_summary.stride, cache_summary.placement, cache_summary.num_tensors);
   }
   auto *cache_index = PtrToPtr<uint8_t, CacheIndex>(buffer.data() + buffer_offset);
   for (const auto &cache_key_and_cache_id : cache_key_to_id) {
     *cache_index = CacheIndex{cache_key_and_cache_id.second, cache_key_and_cache_id.first.first,
                               cache_key_and_cache_id.first.second};
-    LLMLOGI("CacheIndex added, cache_id = %ld, cache_key = (%lu, %lu)",
-           cache_index->cache_id,
-           cache_index->req_id,
-           cache_index->model_id);
+    LLMLOGI("CacheIndex added, cache_id = %ld, cache_key = (%lu, %lu)", cache_index->cache_id, cache_index->req_id,
+            cache_index->model_id);
     ++cache_index;
   }
   return ge::SUCCESS;
@@ -233,85 +225,74 @@ ge::Status CacheAccessTable::LoadFromBuffer(const uint8_t *buffer, size_t buffer
   LLM_CHK_BOOL_RET_STATUS(buffer_size >= sizeof(CacheTableHeader), ge::LLM_PARAM_INVALID,
                           "Buffer too small for header, size = %zu", buffer_size);
   auto &header = *PtrToPtr<uint8_t, CacheTableHeader>(buffer);
-  LLMLOGI("version_num = %lu, num_caches = %lu, num_cache_indices = %lu",
-         header.version_num, header.num_caches, header.num_cache_indices);
+  LLMLOGI("version_num = %lu, num_caches = %lu, num_cache_indices = %lu", header.version_num, header.num_caches,
+          header.num_cache_indices);
   LLM_CHK_BOOL_RET_STATUS(header.num_caches <= (buffer_size - sizeof(CacheTableHeader)) / sizeof(CacheSummary),
-                          ge::LLM_PARAM_INVALID,
-                          "num_caches (%lu) exceeds buffer capacity", header.num_caches);
+                          ge::LLM_PARAM_INVALID, "num_caches (%lu) exceeds buffer capacity", header.num_caches);
   size_t cache_summary_offset = sizeof(CacheTableHeader);
   for (uint64_t i = 0U; i < header.num_caches; ++i) {
     auto cache_summary_buffer = buffer + cache_summary_offset;
     const CacheSummary &cache_summary = *PtrToPtr<uint8_t, CacheSummary>(cache_summary_buffer);
     size_t tensor_array_size = 0;
     LLM_CHK_BOOL_RET_STATUS(!ge::MulOverflow(cache_summary.num_tensors, sizeof(uint64_t), tensor_array_size),
-                            ge::LLM_PARAM_INVALID,
-                            "num_tensors (%lu) overflow for cache[%lu]", cache_summary.num_tensors, i);
+                            ge::LLM_PARAM_INVALID, "num_tensors (%lu) overflow for cache[%lu]",
+                            cache_summary.num_tensors, i);
     size_t cache_summary_size = 0;
     LLM_CHK_BOOL_RET_STATUS(!ge::AddOverflow(sizeof(CacheSummary), tensor_array_size, cache_summary_size),
-                            ge::LLM_PARAM_INVALID,
-                            "cache_summary_size overflow for cache[%lu]", i);
+                            ge::LLM_PARAM_INVALID, "cache_summary_size overflow for cache[%lu]", i);
     size_t cache_summary_end = 0;
     LLM_CHK_BOOL_RET_STATUS(!ge::AddOverflow(cache_summary_offset, cache_summary_size, cache_summary_end),
-                            ge::LLM_PARAM_INVALID,
-                            "Parse cache[%lu] failed, offset overflow", i);
+                            ge::LLM_PARAM_INVALID, "Parse cache[%lu] failed, offset overflow", i);
     LLM_CHK_BOOL_RET_STATUS(cache_summary_end <= buffer_size, ge::LLM_PARAM_INVALID,
-                            "Parse cache[%lu] failed, num_tensors = %lu, version_num = %lu, num_caches = %lu",
-                            i, cache_summary.num_tensors, header.version_num, header.num_caches);
+                            "Parse cache[%lu] failed, num_tensors = %lu, version_num = %lu, num_caches = %lu", i,
+                            cache_summary.num_tensors, header.version_num, header.num_caches);
     cache_summary_offset = cache_summary_end;
     CacheEntry cache_entry = ToCacheEntry(cache_summary);
-    LLMLOGI("Cache entry loaded, cache_id = %lu, num_blocks = %lu, batch_size = %u, "
-           "tensor_size = %lu, stride = %lu, placement = %lu, num_tensors = %zu",
-           cache_summary.cache_id, cache_entry.num_blocks, cache_entry.batch_size,
-           cache_entry.tensor_size, cache_entry.stride, cache_entry.placement, cache_entry.cache_addrs.size());
+    LLMLOGI(
+        "Cache entry loaded, cache_id = %lu, num_blocks = %lu, batch_size = %u, "
+        "tensor_size = %lu, stride = %lu, placement = %lu, num_tensors = %zu",
+        cache_summary.cache_id, cache_entry.num_blocks, cache_entry.batch_size, cache_entry.tensor_size,
+        cache_entry.stride, cache_entry.placement, cache_entry.cache_addrs.size());
     LLM_CHK_BOOL_RET_STATUS(cache_id_to_entry_.emplace(cache_summary.cache_id, std::move(cache_entry)).second,
-                           ge::LLM_PARAM_INVALID,
-                           "duplicate cache_id: %ld", cache_summary.cache_id);
+                            ge::LLM_PARAM_INVALID, "duplicate cache_id: %ld", cache_summary.cache_id);
   }
   LLM_CHK_BOOL_RET_STATUS(cache_summary_offset <= buffer_size, ge::LLM_PARAM_INVALID,
                           "cache_summary_offset (%zu) exceeds buffer_size (%zu)", cache_summary_offset, buffer_size);
   size_t cache_indices_size = 0;
   LLM_CHK_BOOL_RET_STATUS(!ge::MulOverflow(header.num_cache_indices, sizeof(CacheIndex), cache_indices_size),
-                          ge::LLM_PARAM_INVALID,
-                          "num_cache_indices (%lu) overflow", header.num_cache_indices);
+                          ge::LLM_PARAM_INVALID, "num_cache_indices (%lu) overflow", header.num_cache_indices);
   size_t cache_indices_end = 0;
   LLM_CHK_BOOL_RET_STATUS(!ge::AddOverflow(cache_summary_offset, cache_indices_size, cache_indices_end),
-                          ge::LLM_PARAM_INVALID,
-                          "cache_indices offset overflow");
+                          ge::LLM_PARAM_INVALID, "cache_indices offset overflow");
   LLM_CHK_BOOL_RET_STATUS(cache_indices_end <= buffer_size, ge::LLM_PARAM_INVALID,
                           "num_cache_indices (%lu) exceeds buffer capacity", header.num_cache_indices);
   auto *cache_indices = PtrToPtr<uint8_t, CacheIndex>(buffer + cache_summary_offset);
   for (uint64_t i = 0U; i < header.num_cache_indices; ++i) {
     const auto &cache_index = cache_indices[i];
-    LLM_CHK_BOOL_RET_STATUS(cache_id_to_entry_.find(cache_index.cache_id) != cache_id_to_entry_.cend(),
-                           ge::FAILED,
-                           "Cache access table is inconsistent, cache_id:%ld not found",
-                           cache_index.cache_id);
+    LLM_CHK_BOOL_RET_STATUS(cache_id_to_entry_.find(cache_index.cache_id) != cache_id_to_entry_.cend(), ge::FAILED,
+                            "Cache access table is inconsistent, cache_id:%ld not found", cache_index.cache_id);
     auto cache_key = std::make_pair(cache_index.req_id, cache_index.model_id);
     LLM_CHK_BOOL_RET_STATUS(cache_key_to_cache_id_.emplace(cache_key, cache_index.cache_id).second,
-                           ge::LLM_PARAM_INVALID,
-                           "cache_key: (%lu, %lu) already bound to cache_id: %ld",
-                           cache_key.first, cache_key.second, cache_key_to_cache_id_.at(cache_key));
-    LLMLOGI("CacheIndex added, cache_id = %lu, cache_key = (%lu, %lu)",
-           cache_index.cache_id, cache_key.first, cache_key.second);
+                            ge::LLM_PARAM_INVALID, "cache_key: (%lu, %lu) already bound to cache_id: %ld",
+                            cache_key.first, cache_key.second, cache_key_to_cache_id_.at(cache_key));
+    LLMLOGI("CacheIndex added, cache_id = %lu, cache_key = (%lu, %lu)", cache_index.cache_id, cache_key.first,
+            cache_key.second);
   }
   LLMLOGI("Load cache table success");
   version_num_ = header.version_num;
   return ge::SUCCESS;
 }
 
-ge::Status CacheAccessTable::FindCacheEntry(const TransferCacheReq &request,
-                                            CacheEntry &cache_entry) {
+ge::Status CacheAccessTable::FindCacheEntry(const TransferCacheReq &request, CacheEntry &cache_entry) {
   if (version_num_ == 0) {  // first pull
     LLM_CHK_STATUS_RET(SyncFromRemote(request.timeout_in_ms),
-                      "Failed to sync remote cache access table, timeout = %d ms",
-                      request.timeout_in_ms);
+                       "Failed to sync remote cache access table, timeout = %d ms", request.timeout_in_ms);
   }
   const auto cache_id = request.cache_id;
   if (cache_id > 0) {
     const auto it = cache_id_to_entry_.find(cache_id);
-    LLM_CHK_BOOL_RET_STATUS(it != cache_id_to_entry_.cend(),
-                           ge::LLM_KV_CACHE_NOT_EXIST,
-                           "cache_id: %ld does not exist", cache_id);
+    LLM_CHK_BOOL_RET_STATUS(it != cache_id_to_entry_.cend(), ge::LLM_KV_CACHE_NOT_EXIST, "cache_id: %ld does not exist",
+                            cache_id);
     cache_entry = it->second;
     LLMLOGI("CacheEntry found by cache_id: %ld", cache_id);
     return ge::SUCCESS;
@@ -319,9 +300,8 @@ ge::Status CacheAccessTable::FindCacheEntry(const TransferCacheReq &request,
 
   auto cache_key = std::make_pair(request.req_id, request.model_id);
   const auto it = cache_key_to_cache_id_.find(cache_key);
-  LLM_CHK_BOOL_RET_STATUS(it != cache_key_to_cache_id_.cend(),
-                         ge::LLM_KV_CACHE_NOT_EXIST,
-                         "cache_key: (%lu, %lu) does not exist", cache_key.first, cache_key.second);
+  LLM_CHK_BOOL_RET_STATUS(it != cache_key_to_cache_id_.cend(), ge::LLM_KV_CACHE_NOT_EXIST,
+                          "cache_key: (%lu, %lu) does not exist", cache_key.first, cache_key.second);
   LLMLOGI("CacheEntry found by cache_key: (%lu, %lu), cache_id = %lu", cache_key.first, cache_key.second, it->second);
   cache_entry = cache_id_to_entry_.at(it->second);
   return ge::SUCCESS;
@@ -334,11 +314,8 @@ ge::Status CacheAccessTable::SyncFromRemote(int32_t timeout) {
     std::lock_guard<std::mutex> lk(shared_mu_);
     LLM_CHK_STATUS_RET(transfer_func_(remote_dev_buffer_, dev_buffer_, kCacheAccessTableBufferSize, timeout));
     LLMLOGI("Sync cache access table data success");
-    LLM_CHK_ACL_RET(aclrtMemcpy(buffer.data(),
-                           buffer.size(),
-                           dev_buffer_,
-                           kCacheAccessTableBufferSize,
-                           ACL_MEMCPY_DEVICE_TO_HOST));
+    LLM_CHK_ACL_RET(
+        aclrtMemcpy(buffer.data(), buffer.size(), dev_buffer_, kCacheAccessTableBufferSize, ACL_MEMCPY_DEVICE_TO_HOST));
   }
   LLM_CHK_STATUS_RET(LoadFromBuffer(buffer.data(), buffer.size()));
   return ge::SUCCESS;
@@ -359,19 +336,14 @@ ge::Status CacheAccessTable::CheckRemoteFlag(bool expected_flag) const {
     std::lock_guard<std::mutex> lk(shared_mu_);
     LLM_CHK_STATUS_RET(transfer_func_(remote_dev_buffer_, dev_buffer_, buffer.size(), kDefaultTimeout));
     LLMLOGI("Sync cache access table data success");
-    LLM_CHK_ACL_RET(aclrtMemcpy(buffer.data(),
-                           buffer.size(),
-                           dev_buffer_,
-                           buffer.size(),
-                           ACL_MEMCPY_DEVICE_TO_HOST));
+    LLM_CHK_ACL_RET(aclrtMemcpy(buffer.data(), buffer.size(), dev_buffer_, buffer.size(), ACL_MEMCPY_DEVICE_TO_HOST));
   }
   auto &header = *PtrToPtr<uint8_t, CacheTableHeader>(buffer.data());
   LLMLOGI("Get remote version success, version_num = %lu", header.version_num);
   bool remote_flag_enabled = (header.version_num != UINT64_MAX);
-  LLM_CHK_BOOL_RET_STATUS(expected_flag == remote_flag_enabled,
-                         ge::LLM_PARAM_INVALID,
-                         "Check failed, RemoteCacheAccessible is not identical, local = %d, remote = %d",
-                         static_cast<int32_t>(expected_flag), static_cast<int32_t>(remote_flag_enabled));
+  LLM_CHK_BOOL_RET_STATUS(expected_flag == remote_flag_enabled, ge::LLM_PARAM_INVALID,
+                          "Check failed, RemoteCacheAccessible is not identical, local = %d, remote = %d",
+                          static_cast<int32_t>(expected_flag), static_cast<int32_t>(remote_flag_enabled));
   LLMLOGI("Check success, RemoteCacheAccessible is identical, value = %d", static_cast<int32_t>(remote_flag_enabled));
   return ge::SUCCESS;
 }

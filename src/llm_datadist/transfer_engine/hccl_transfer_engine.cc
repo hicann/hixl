@@ -18,14 +18,12 @@ HcclTransferEngine::~HcclTransferEngine() {}
 ge::Status HcclTransferEngine::Initialize(const std::map<ge::AscendString, ge::AscendString> &options) {
   LLM_CHK_STATUS_RET(HcclAdapter::GetInstance().Initialize(), "HcclSoManager initialize failed.");
   bool remote_cache_accessible = false;
-  LLM_CHK_STATUS_RET(LLMUtils::ParseFlag(kLlmOptionEnableRemoteCacheAccessible,
-                                         options,
-                                         remote_cache_accessible),
+  LLM_CHK_STATUS_RET(LLMUtils::ParseFlag(kLlmOptionEnableRemoteCacheAccessible, options, remote_cache_accessible),
                      "Failed to parse option %s", kLlmOptionEnableRemoteCacheAccessible);
   int32_t device_id = 0;
   LLM_CHK_STATUS_RET(LLMUtils::ParseDeviceId(options, device_id), "Failed to get device id");
-  llm_link_mgr_ = MakeUnique<LLMLinkManager>(cluster_id_, device_id, comm_entity_manager_,
-                                             cache_manager_, remote_cache_accessible);
+  llm_link_mgr_ =
+      MakeUnique<LLMLinkManager>(cluster_id_, device_id, comm_entity_manager_, cache_manager_, remote_cache_accessible);
   LLM_CHECK_NOTNULL(llm_link_mgr_);
   llm_link_mgr_->SetCommEntityManager(comm_entity_manager_);
   llm_link_mgr_->SetCacheManager(cache_manager_);
@@ -43,8 +41,8 @@ ge::Status HcclTransferEngine::RegisterMem(void *addr, uint64_t size, CommMemTyp
   mem.addr = addr;
   mem.size = size;
   mem.type = type;
-  LLM_CHK_STATUS_RET(llm_link_mgr_->RegisterMem(&mem, &handle),
-                     "Failed to register mem, addr:%p, size:%lu, type:%d", addr, size, static_cast<int32_t>(type));
+  LLM_CHK_STATUS_RET(llm_link_mgr_->RegisterMem(&mem, &handle), "Failed to register mem, addr:%p, size:%lu, type:%d",
+                     addr, size, static_cast<int32_t>(type));
   return ge::SUCCESS;
 }
 
@@ -63,16 +61,15 @@ ge::Status HcclTransferEngine::LinkClusters(const std::vector<ClusterInfo> &clus
 ge::Status HcclTransferEngine::UnlinkClusters(const std::vector<ClusterInfo> &clusters, std::vector<ge::Status> &rets,
                                               int32_t timeout, bool force_flag) {
   LLM_CHK_STATUS_RET(llm_link_mgr_->UnlinkClusters(clusters, rets, timeout, force_flag),
-                     "Failed to unlink clusters, clusters size:%zu, timeout:%d, force_flag:%d",
-                     clusters.size(), timeout, static_cast<int32_t>(force_flag));
+                     "Failed to unlink clusters, clusters size:%zu, timeout:%d, force_flag:%d", clusters.size(),
+                     timeout, static_cast<int32_t>(force_flag));
   return ge::SUCCESS;
 }
 
-ge::Status HcclTransferEngine::Link(std::string &cluster_name, const std::map<uint64_t, uint32_t> &cluster2rank, std::string &rank_table,
-                                    uint64_t &comm_id) {
+ge::Status HcclTransferEngine::Link(std::string &cluster_name, const std::map<uint64_t, uint32_t> &cluster2rank,
+                                    std::string &rank_table, uint64_t &comm_id) {
   LLM_CHK_STATUS_RET(llm_link_mgr_->Link(cluster_name, cluster2rank, rank_table, comm_id),
-                     "Failed to link, cluster name:%s, rank_table:%s",
-                     cluster_name.c_str(), rank_table.c_str());
+                     "Failed to link, cluster name:%s, rank_table:%s", cluster_name.c_str(), rank_table.c_str());
   return ge::SUCCESS;
 }
 
@@ -87,8 +84,8 @@ void HcclTransferEngine::UnlinkAllClusters() {
 }
 
 ge::Status HcclTransferEngine::QueryRegisterMemStatus(uint64_t comm_id, RegisterMemoryStatus &status) {
-  LLM_CHK_STATUS_RET(llm_link_mgr_->QueryRegisterMemStatus(comm_id, status),
-                     "Failed to query link status, comm_id:%lu", comm_id);
+  LLM_CHK_STATUS_RET(llm_link_mgr_->QueryRegisterMemStatus(comm_id, status), "Failed to query link status, comm_id:%lu",
+                     comm_id);
   return ge::SUCCESS;
 }
 

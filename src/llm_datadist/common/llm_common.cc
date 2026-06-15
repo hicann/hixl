@@ -39,8 +39,7 @@ const std::set<ge::Status> kLlmStatus = {ge::SUCCESS,
                                          ge::LLM_EXIST_LINK,
                                          ge::LLM_FEATURE_NOT_ENABLED,
                                          ge::LLM_LINK_BUSY,
-                                         ge::LLM_OUT_OF_MEMORY
-};
+                                         ge::LLM_OUT_OF_MEMORY};
 }
 ge::Status TransRetToLlmCodes(const ge::Status &ret) {
   if (kLlmStatus.find(ret) == kLlmStatus.cend()) {

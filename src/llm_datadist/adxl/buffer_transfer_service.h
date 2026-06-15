@@ -101,7 +101,7 @@ class BufferTransferService {
 
   static bool CheckTimeout(const BufferReq &req);
 
-  std::vector<llm::LlmMemPool*> npu_mem_pools_;
+  std::vector<llm::LlmMemPool *> npu_mem_pools_;
   uint64_t buffer_size_;
 
   aclrtContext aclrt_context_{nullptr};

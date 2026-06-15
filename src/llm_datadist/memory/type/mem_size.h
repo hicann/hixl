@@ -19,25 +19,25 @@ constexpr MemSize MEM_SIZE_KB = 1024;
 constexpr MemSize MEM_SIZE_MB = 1024 * MEM_SIZE_KB;
 constexpr MemSize MEM_SIZE_GB = 1024 * MEM_SIZE_MB;
 
-constexpr MemSize operator "" _BYTE(MemSize size) noexcept {
+constexpr MemSize operator"" _BYTE(MemSize size) noexcept {
   return size;
 }
 
-constexpr MemSize operator "" _KB(MemSize size) noexcept {
+constexpr MemSize operator"" _KB(MemSize size) noexcept {
   return size * MEM_SIZE_KB;
 }
 
-constexpr MemSize operator "" _MB(MemSize size) noexcept {
+constexpr MemSize operator"" _MB(MemSize size) noexcept {
   return size * MEM_SIZE_MB;
 }
 
-constexpr MemSize operator "" _GB(MemSize size) noexcept {
+constexpr MemSize operator"" _GB(MemSize size) noexcept {
   return size * MEM_SIZE_GB;
 }
 
 constexpr MemSize MemSize_GetAlignedOf(MemSize size, MemSize alignSize) noexcept {
   return ((size + alignSize - 1) & ~(alignSize - 1));
 }
-}
+}  // namespace llm
 
 #endif

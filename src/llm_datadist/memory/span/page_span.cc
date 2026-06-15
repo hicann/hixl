@@ -39,7 +39,6 @@ void PageSpan::MergeBuddy(PageSpan &buddy_span) {
 }
 
 size_t PageSpan::GetSize() const {
-  return PageLen_GetMemSize(page_len_, scalable_allocator_.GetScalableConfig().page_idem_num) ;
+  return PageLen_GetMemSize(page_len_, scalable_allocator_.GetScalableConfig().page_idem_num);
 }
-}
-
+}  // namespace llm

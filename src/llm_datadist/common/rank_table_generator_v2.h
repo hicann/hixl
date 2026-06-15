@@ -26,7 +26,7 @@ struct DeviceInfo {
   int32_t rank_id = -1;
   bool is_local = true;
 
-  bool operator < (const DeviceInfo &other) const {
+  bool operator<(const DeviceInfo &other) const {
     if (device_id != other.device_id) {
       return device_id < other.device_id;
     } else if (super_device_id != other.super_device_id) {
@@ -45,7 +45,7 @@ struct ServerInfo {
 struct ServerIdInfo {
   std::string server_id;
 
-  bool operator < (const ServerIdInfo &other) const {
+  bool operator<(const ServerIdInfo &other) const {
     return server_id < other.server_id;
   }
 };
@@ -61,7 +61,7 @@ struct RankTableInfo {
   std::vector<SuperPodInfo> super_pod_list;
   std::string status = "completed";
 };
-}
+}  // namespace rank_table_v2
 
 class RankTableGeneratorV2 : public RankTableGenerator {
  public:
@@ -71,15 +71,12 @@ class RankTableGeneratorV2 : public RankTableGenerator {
   ge::Status Generate(int32_t local_device_id, std::string &rank_table) override;
   int32_t GetLocalRankId() override;
   int32_t GetPeerRankId() override;
-  static ge::Status GenerateLocalCommRes(const std::string &server_id,
-                                         int32_t device_id,
-                                         std::string &local_comm_res,
+  static ge::Status GenerateLocalCommRes(const std::string &server_id, int32_t device_id, std::string &local_comm_res,
                                          std::optional<uint32_t> device_port = std::nullopt);
 
  private:
   static rank_table_v2::RankTableInfo LoadFromJsonStr(const std::string &rank_table);
-  static ge::Status MergeRankTable(int32_t local_device_id,
-                                   const rank_table_v2::RankTableInfo &local_rank_table,
+  static ge::Status MergeRankTable(int32_t local_device_id, const rank_table_v2::RankTableInfo &local_rank_table,
                                    const rank_table_v2::RankTableInfo &peer_rank_table,
                                    rank_table_v2::RankTableInfo &merged_rank_table);
 

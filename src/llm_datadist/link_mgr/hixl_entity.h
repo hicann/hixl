@@ -28,7 +28,8 @@ class HixlEntity : public CommEntity {
   ~HixlEntity() override = default;
   ge::Status Initialize(int32_t timeout_ms);
   ge::Status Finalize(bool force = false) override;
-  ge::Status BatchTransfer(std::list<HcclOneSideOpDesc> &tasks, bool is_put, bool reversed, int32_t timeout_ms) override;
+  ge::Status BatchTransfer(std::list<HcclOneSideOpDesc> &tasks, bool is_put, bool reversed,
+                           int32_t timeout_ms) override;
 
  private:
   static ge::Status RecvCacheTableResp(int32_t fd, CacheTableInfo &cache_table_info, int32_t timeout_ms);

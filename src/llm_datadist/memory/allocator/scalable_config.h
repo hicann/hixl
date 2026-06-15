@@ -29,6 +29,6 @@ struct ScalableConfig {
   MemSize unsplitable_size_threshold{SPAN_UNSPLITABLE_MEM_SIZE_DEFAULT};
   MemSize uncacheable_size_threshold{SPAN_UNCACHEABLE_MEM_SIZE_DEFAULT[0U]};
 };
-}
+}  // namespace llm
 
 #endif
