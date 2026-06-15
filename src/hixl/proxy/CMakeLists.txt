@@ -30,18 +30,27 @@ else()
                 $<BUILD_INTERFACE:slog_headers>
                 $<BUILD_INTERFACE:runtime_headers>
                 $<BUILD_INTERFACE:mmpa_headers>
+                $<BUILD_INTERFACE:c_sec_headers>
+                $<BUILD_INTERFACE:error_manager_headers>
+                $<BUILD_INTERFACE:metadef_headers>
         )
 
         target_link_libraries(dsmi_proxy_static PRIVATE
                 $<BUILD_INTERFACE:intf_pub>
                 $<BUILD_INTERFACE:slog_headers>
                 $<BUILD_INTERFACE:mmpa_headers>
+                $<BUILD_INTERFACE:acl_rt_headers>
+                $<BUILD_INTERFACE:c_sec_headers>
+                $<BUILD_INTERFACE:error_manager_headers>
+                $<BUILD_INTERFACE:metadef_headers>
         )
 
         target_link_libraries(dcmi_proxy_static PRIVATE
                 $<BUILD_INTERFACE:intf_pub>
                 $<BUILD_INTERFACE:slog_headers>
                 $<BUILD_INTERFACE:mmpa_headers>
+                $<BUILD_INTERFACE:error_manager_headers>
+                $<BUILD_INTERFACE:metadef_headers>
         )
 endif()
 
@@ -64,4 +73,8 @@ target_link_libraries(hcomm_proxy_static PRIVATE
         $<BUILD_INTERFACE:intf_pub>
         $<BUILD_INTERFACE:hccl_headers>
         $<BUILD_INTERFACE:slog_headers>
+        $<BUILD_INTERFACE:acl_rt_headers>
+        $<BUILD_INTERFACE:c_sec_headers>
+        $<BUILD_INTERFACE:error_manager_headers>
+        $<BUILD_INTERFACE:metadef_headers>
 )

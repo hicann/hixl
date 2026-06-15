@@ -18,4 +18,4 @@ target_link_libraries(hccl_stub PRIVATE intf_pub c_sec slog_headers
                                 PUBLIC hccl_headers
 )
 
-stub_module(hccl hccl_stub)
+stub_module(hcomm hccl_stub)

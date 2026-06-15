@@ -28,11 +28,17 @@ target_link_libraries(cann_hixl_kernel PRIVATE
         $<BUILD_INTERFACE:intf_pub>
         $<BUILD_INTERFACE:hccl_headers>
         $<BUILD_INTERFACE:slog_headers>
+        $<BUILD_INTERFACE:acl_rt_headers>
+        $<BUILD_INTERFACE:c_sec_headers>
+        $<BUILD_INTERFACE:error_manager_headers>
+        $<BUILD_INTERFACE:metadef_headers>
         -Wl,--no-as-needed
         slog_dev
         hcomm_proxy_static
         -Wl,--no-as-needed
 )
+
+target_compile_options(cann_hixl_kernel PRIVATE -O2)
 
 # 基于ini生成json文件
 message(STATUS "HIXL_DIR = ${HIXL_DIR}")
@@ -44,6 +50,6 @@ add_dependencies(cann_hixl_kernel aicpu_kernel_json)
 
 install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/libcann_hixl_kernel.json
-        DESTINATION hixl/aicpu_kernel
+        DESTINATION opp/built-in/op_impl/aicpu/config
         COMPONENT hixl
 )

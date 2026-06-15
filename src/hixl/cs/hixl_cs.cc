@@ -229,8 +229,8 @@ HixlStatus HixlCSClientDestroy(HixlClientHandle client_handle) {
   auto *client = static_cast<hixl::HixlCSClient *>(client_handle);
   HIXL_CHECK_NOTNULL(client);
   const auto ret = client->Destroy();
-  delete client;
   HIXL_CHK_STATUS_RET(ret, "HixlCSClientDestroy failed, client_handle is %p.", client_handle);
+  delete client;
   return HIXL_SUCCESS;
 }
 

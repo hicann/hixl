@@ -67,7 +67,7 @@ target_link_libraries(cann_hixl PRIVATE
         -ldl
         -O2 -fPIC -Wextra -Wfloat-equal
         -Wl,--no-as-needed
-        hccl
+        hcomm
         -Wl,--as-needed
         )
 

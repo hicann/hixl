@@ -12,34 +12,27 @@ cmake_minimum_required(VERSION 3.16)
 include(../fetch_cann_cmake.cmake)
 project (device_hixl_ops)
 
-init_cann_project()
-
-set(PRODUCT_SIDE device)
+init_cann_project(PRODUCT_SIDE "device")
 add_definitions(-DPRODUCT_SIDE_DEVICE)
 set(USE_CXX11_ABI OFF)
 add_cann_target_options()
 include(../function.cmake)
 include(../intf_pub_linux.cmake)
 
-set(HIXL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../" CACHE PATH "Project top directory")
+get_filename_component(HIXL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+set(HIXL_CODE_DIR ${HIXL_DIR})
 
-set(PROJECT_SOURCE_DIR ${HIXL_DIR})
-include(../variables.cmake)
+include(${HIXL_DIR}/cmake/variables.cmake)
+include(${HIXL_DIR}/version.cmake)
 
+find_package_if_target_not_exists(acl_rt MODULE REQUIRED)
+find_package_if_target_not_exists(error_manager MODULE REQUIRED)
 find_package_if_target_not_exists(hccl MODULE REQUIRED)
+find_package_if_target_not_exists(metadef MODULE REQUIRED)
+find_package_if_target_not_exists(securec MODULE REQUIRED)
 find_package_if_target_not_exists(slog MODULE REQUIRED)
 
-set(STUBS
-    slog_dev
-    ccl_kernel
-)
-set(STUB_OUTPUT_NAME_slog_dev slog)
-
-foreach(STUB ${STUBS})
-    if(NOT TARGET ${STUB})
-        generate_stub(${STUB})
-    endif()
-endforeach()
+generate_cann_stub_library(slog_dev OUTPUT_NAME slog)
 
 add_subdirectory(${HIXL_DIR}/src/hixl/proxy ${CMAKE_BINARY_DIR}/src/hixl/proxy)
 add_subdirectory(${HIXL_DIR}/src/ops ${CMAKE_BINARY_DIR}/src/ops)
@@ -59,6 +52,8 @@ sign_file(
 
 install(FILES
   ${aicpu_hixl_sign_file}
-  DESTINATION hixl/aicpu_kernel
+  DESTINATION opp/built-in/op_impl/aicpu/kernel
   COMPONENT hixl
 )
+
+set_cann_subprj_package()

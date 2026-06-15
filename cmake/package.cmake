@@ -22,7 +22,7 @@ else ()
 endif ()
 # 打印路径
 message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
-message(STATUS "CMAKE_SOURCE_DIR = ${CMAKE_SOURCE_DIR}")
+message(STATUS "CMAKE_CURRENT_SOURCE_DIR = ${CMAKE_CURRENT_SOURCE_DIR}")
 message(STATUS "CMAKE_BINARY_DIR = ${CMAKE_BINARY_DIR}")
 set(ARCH_LINUX_PATH "${ARCH}-linux")
 
@@ -85,7 +85,7 @@ install(FILES ${PACKAGE_FILES}
     COMPONENT hixl
 )
 
-set(hixl_include ${CMAKE_SOURCE_DIR}/include)
+set(hixl_include ${CMAKE_CURRENT_SOURCE_DIR}/include)
 install(DIRECTORY ${hixl_include}/cs
     DESTINATION ${ARCH_LINUX_PATH}/include
     COMPONENT hixl
@@ -129,20 +129,7 @@ install(TARGETS cann_hixl
         COMPONENT hixl
 )
 
-
-install(FILES
-    ${CMAKE_SOURCE_DIR}/build/device_install/hixl/aicpu_kernel/cann-hixl-compat.tar.gz
-    DESTINATION opp/built-in/op_impl/aicpu/kernel
-    COMPONENT hixl
-)
-
-install(FILES
-    ${CMAKE_SOURCE_DIR}/build/device_install/hixl/aicpu_kernel/libcann_hixl_kernel.json
-    DESTINATION opp/built-in/op_impl/aicpu/config
-    COMPONENT hixl
-)
-
 # ============= CPack =============
 if (NOT ENABLE_COV AND NOT ENABLE_UT)
-    set_cann_cpack_config(hixl ENABLE_DEVICE ${ENABLE_DEVICE} SHARE_INFO_NAME hixl)
+    set_cann_cpack_config(hixl ENABLE_DEVICE TRUE)
 endif()
