@@ -177,6 +177,7 @@ void CommEntityManager::Dump() {
 }
 
 ge::Status CommEntityManager::RemapRegisteredMemory(const std::vector<LLMMemInfo> &mem_infos) {
+  LLM_CHK_BOOL_RET_STATUS(!mem_infos.empty(), ge::LLM_PARAM_INVALID, "mem_infos is empty");
   std::lock_guard<std::mutex> lock(mutex_);
   std::vector<HcclComm> comms;
   for (const auto &it : entity_map_) {

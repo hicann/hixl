@@ -425,4 +425,23 @@ TEST_F(LLMCommLinkManagerUTest, RemapRegisteredMemorySuc) {
   EXPECT_EQ(llm_datadist.RemapRegisteredMemory({mem_info}), ge::SUCCESS);
   llm_datadist.LLMDataDistFinalize();
 }
+
+TEST_F(LLMCommLinkManagerUTest, RemapRegisteredMemoryRejectsEmptyInput) {
+  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+  LLMDataDistV2 llm_datadist(1U);
+  std::map<ge::AscendString, ge::AscendString> options{};
+  options["llm.Role"] = "Decoder";
+  EXPECT_EQ(llm_datadist.LLMDataDistInitialize(options), ge::SUCCESS);
+
+  std::map<uint64_t, uint32_t> cluster2rank{{1, 0}, {2, 1}};
+  std::string rank_table;
+  uint64_t comm_id;
+  std::string cluster_name = "link";
+  EXPECT_EQ(llm_datadist.Link(cluster_name, cluster2rank, rank_table, comm_id), ge::SUCCESS);
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+  std::vector<LLMMemInfo> empty_mem_infos{};
+  EXPECT_NE(llm_datadist.RemapRegisteredMemory(empty_mem_infos), ge::SUCCESS);
+  llm_datadist.LLMDataDistFinalize();
+}
 }  // namespace llm
