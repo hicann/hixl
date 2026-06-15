@@ -493,7 +493,7 @@ aclError AclRuntimeStub::aclrtReserveMemAddress(void **devPtr, size_t size, size
   (void)alignment;
   (void)flags;
   // Cap the allocation to a test-sufficient size (4GB). The VirtualMemoryManager
-  // reserves 64TB by default, but mmap-ing that much virtual space can fail on
+  // reserves 32TB by default, but mmap-ing that much virtual space can fail on
   // machines with tight overcommit limits or fragmented VA space. In tests we
   // never allocate more than a handful of 1GB-aligned blocks, so 4GB is plenty.
   constexpr size_t kMaxStubReserveSize = 4UL * 1024UL * 1024UL * 1024UL;

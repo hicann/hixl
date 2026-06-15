@@ -21,7 +21,7 @@
 namespace hixl {
 namespace {
 constexpr size_t kBlockSize = 1024UL * 1024UL * 1024UL;
-constexpr size_t kDefaultNumBlocks = 64UL * 1024UL;
+constexpr size_t kDefaultNumBlocks = 32UL * 1024UL;
 constexpr size_t kDefaultGlobalVirtualMemorySize = kBlockSize * kDefaultNumBlocks;
 constexpr size_t kGlobalVirtualMemoryStartAddr = kBlockSize * 1024UL * 40UL;
 constexpr uint64_t kReserveFlagHugePage = 1UL;

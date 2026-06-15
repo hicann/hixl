@@ -21,12 +21,15 @@
 #include "common/scope_guard.h"
 
 namespace hixl {
+namespace {
+constexpr int64_t kDefaultKeepaliveCheckIntervalMs = 10000;
+}  // namespace
 
-int64_t FabricMemChannelManager::keepalive_check_interval_ms_ = 10000;
+int64_t FabricMemChannelManager::keepalive_check_interval_ms_ = kDefaultKeepaliveCheckIntervalMs;
 
 void FabricMemChannelManager::SetKeepaliveCheckIntervalMs(int64_t interval_ms) {
   // Lock: none (static interval).
-  keepalive_check_interval_ms_ = interval_ms > 0 ? interval_ms : 10000;
+  keepalive_check_interval_ms_ = interval_ms > 0 ? interval_ms : kDefaultKeepaliveCheckIntervalMs;
 }
 
 FabricMemChannelManager::~FabricMemChannelManager() {

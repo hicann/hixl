@@ -200,8 +200,8 @@ TEST_F(VirtualMemoryManagerTest, ReserveMemory_AfterRelease_ReusesAddress) {
 TEST_F(VirtualMemoryManagerTest, ReserveMemory_Exhaustion_Fails) {
   VirtualMemoryManager &manager = VirtualMemoryManager::GetInstance();
   manager.Initialize();
-  // Try to allocate more than total capacity (128TB)
-  constexpr size_t huge_size = 1024UL * 1024UL * 1024UL * 1024UL * 129UL;  // 129TB > 128TB
+  // Try to allocate more than total capacity (32TB)
+  constexpr size_t huge_size = 1024UL * 1024UL * 1024UL * 1024UL * 33UL;  // 33TB > 32TB
   uintptr_t addr = 0;
   EXPECT_EQ(manager.ReserveMemory(huge_size, addr), RESOURCE_EXHAUSTED);
 }

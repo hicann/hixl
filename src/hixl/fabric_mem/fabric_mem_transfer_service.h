@@ -71,7 +71,7 @@ class FabricMemTransferService {
   Status TransferAsync(const std::string &remote_engine, TransferOp operation,
                        const std::vector<TransferOpDesc> &op_descs, TransferReq &req);
   Status GetTransferStatus(const TransferReq &req, TransferStatus &status, AsyncTransferPollInfo *info = nullptr);
-  void CleanupAsyncTransfer(const TransferReq req);
+  void CleanupAsyncTransfer(const TransferReq &req);
 
   static void SetKeepaliveCheckIntervalMs(int64_t interval_ms);
   static Status MallocMem(MemType type, size_t size, void **ptr);
@@ -110,7 +110,7 @@ class FabricMemTransferService {
   static bool AllHostFlagsDone(const AsyncSlot &slot);
   static AsyncStreamQueryResult QueryAsyncSlotStreams(const AsyncSlot &slot);
   static Status SynchronizeAsyncSlotStreams(const AsyncSlot &slot);
-  Status HandleAsyncStreamQueryFailure(uint64_t req_id, AsyncRecord &record, TransferStatus &status);
+  Status HandleAsyncStreamQueryFailure(uint64_t req_id, AsyncRecord &async_record, TransferStatus &status);
   Status CompleteAsyncTransferAndUpdateStats(uint64_t req_id, AsyncRecord &async_record, TransferStatus &status);
   static void FillPollInfo(const AsyncRecord &record, AsyncTransferPollInfo *info);
 

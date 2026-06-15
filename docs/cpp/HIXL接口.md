@@ -125,7 +125,7 @@ OPTION_GLOBAL_RESOURCE_CONFIG的配置示例和使用约束如下：
 对于Fabric Mem模式（仅Atlas A3 训练系列产品/Atlas A3 推理系列产品支持），该参数配置示例如下：
 ```
 {
-    "fabric_memory.max_capacity": "128", //虚拟内存池的大小。取值范围：(0, 1024]之间的整数，默认值：64，单位TB，实际可用范围由底层决定
+    "fabric_memory.max_capacity": "128", //虚拟内存池的大小。取值范围：(0, 1024]之间的整数，默认值：32，单位TB，实际可用范围由底层决定
     "fabric_memory.start_address": "40", //虚拟内存池起始地址。取值范围：[0, 1024]之间的整数，默认值：40，单位TB
     "fabric_memory.task_stream_num": "1", //配置Fabric Mem模式下单个任务使用的流数量。取值范围：[1, 8]之间的整数，默认值：4
 }

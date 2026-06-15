@@ -458,7 +458,7 @@ void FabricMemTransferService::FillPollInfo(const AsyncRecord &record, AsyncTran
   info->channel_id = record.channel_id;
 }
 
-void FabricMemTransferService::CleanupAsyncTransfer(const TransferReq req) {
+void FabricMemTransferService::CleanupAsyncTransfer(const TransferReq &req) {
   const uint64_t req_id = reinterpret_cast<uintptr_t>(req);
   std::shared_ptr<FabricMemChannel> channel;
   if (channel_manager_.FindChannelByReq(req_id, channel) != SUCCESS) {
