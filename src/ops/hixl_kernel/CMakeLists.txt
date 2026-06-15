@@ -45,11 +45,14 @@ message(STATUS "HIXL_DIR = ${HIXL_DIR}")
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/libcann_hixl_kernel.json
         COMMAND python3 ${HIXL_DIR}/scripts/kernel/parser_ini.py ${HIXL_DIR}/src/ops/hixl_kernel/libcann_hixl_kernel.ini ${CMAKE_CURRENT_BINARY_DIR}/libcann_hixl_kernel.json
 )
-add_custom_target(aicpu_kernel_json DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libcann_hixl_kernel.json)
-add_dependencies(cann_hixl_kernel aicpu_kernel_json)
+add_custom_target(hixl_aicpu_kernel_json DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/libcann_hixl_kernel.json)
+add_dependencies(cann_hixl_kernel hixl_aicpu_kernel_json)
 
 install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/libcann_hixl_kernel.json
         DESTINATION opp/built-in/op_impl/aicpu/config
         COMPONENT hixl
 )
+
+install(TARGETS cann_hixl_kernel
+        DESTINATION ${INSTALL_LIBRARY_DIR} ${INSTALL_OPTIONAL})
