@@ -22,7 +22,7 @@ import logging
 import torch
 import torch_npu
 
-from mooncake_sample_common import create_parser, setup_environment, validate_schema, ALIGNMENT
+from mooncake_sample_common import create_parser, setup_environment, validate_schema, HCCS_ALIGNMENT
 from mooncake_sample_base import MooncakeSampleBase
 from config import Config
 
@@ -65,12 +65,12 @@ class BandwidthBenchmark(MooncakeSampleBase):
         buffer_size = block_size_kb * 1024 * self.args.num_blocks
         
         if self.args.register_size_gb is not None:
-            tensor_size = int(self.args.register_size_gb * 1024 * 1024 * 1024) + ALIGNMENT * 2
+            tensor_size = int(self.args.register_size_gb * 1024 * 1024 * 1024) + HCCS_ALIGNMENT * 2
             logging.info(
                 f"Creating tensor of size {tensor_size} bytes "
                 f"({tensor_size / (1024 ** 3):.3f} GB) for stress testing")
         else:
-            tensor_size = buffer_size + ALIGNMENT * 2
+            tensor_size = buffer_size + HCCS_ALIGNMENT * 2
         
         is_host = self.args.schema.startswith("h")
         target_is_host = self.args.schema.endswith("h")
@@ -112,7 +112,7 @@ class BandwidthBenchmark(MooncakeSampleBase):
         return aligned_addr
     
     def _align_address(self, addr):
-        return (addr + ALIGNMENT - 1) // ALIGNMENT * ALIGNMENT
+        return (addr + HCCS_ALIGNMENT - 1) // HCCS_ALIGNMENT * HCCS_ALIGNMENT
     
     def _unregister_all_buffers(self):
         for addr in self.registered_addrs:
@@ -165,21 +165,10 @@ class BandwidthBenchmark(MooncakeSampleBase):
         return iter_id
     
     def _timed_put_operation(self, block_size_kb, addr, remote_addr, iter_id):
-        ops = {
-            'pairwise': self._timed_put_pairwise,
-            'full_mesh': self._timed_put_full_mesh,
-            'one_to_many': self._timed_put_one_to_many
-        }
-        
-        op = ops.get(self.args.transfer_mode)
-        if not op:
-            raise ValueError(f"Unknown transfer mode: {self.args.transfer_mode}")
-        
-        return op(block_size_kb, addr, remote_addr, iter_id)
+        return self._timed_put(block_size_kb, addr, remote_addr, iter_id)
     
     def _timed_get_operation(self, block_size_kb, addr, remote_addr, iter_id):
         ops = {
-            'pairwise': self._timed_get_pairwise,
             'full_mesh': self._timed_get_full_mesh,
             'one_to_many': self._timed_get_one_to_many
         }
@@ -223,37 +212,8 @@ class BandwidthBenchmark(MooncakeSampleBase):
     def _compute_average(self, times):
         return sum(times) / len(times) if times else 0
     
-    def _timed_put_pairwise(self, block_size_kb, addr, remote_addr, iter_id):
-        put_keys = self._generate_keys(self.config.rank, iter_id, self.args.num_blocks)
-        local_addrs = self._generate_addrs(addr, block_size_kb, self.args.num_blocks)
-        sizes = [block_size_kb * 1024] * self.args.num_blocks
-        
-        start = time.time()
-        self.store.batch_put_from(put_keys, local_addrs, sizes)
-        return time.time() - start
-    
-    def _timed_get_pairwise(self, block_size_kb, addr, remote_addr, iter_id):
-        target_rank = (self.config.rank + 1) % self.config.world_size
-        get_keys = self._generate_keys(target_rank, iter_id, self.args.num_blocks)
-        remote_addrs = self._generate_addrs(remote_addr, block_size_kb, self.args.num_blocks)
-        sizes = [block_size_kb * 1024] * self.args.num_blocks
-        
-        start = time.time()
-        results = self.store.batch_get_into(get_keys, remote_addrs, sizes)
-        end = time.time()
-        
-        self._validate_results(get_keys, results)
-        return end - start
-    
-    def _timed_put_full_mesh(self, block_size_kb, addr, remote_addr, iter_id):
-        my_rank = self.config.rank
-        put_keys = self._generate_keys(my_rank, iter_id, self.args.num_blocks)
-        local_addrs = self._generate_addrs(addr, block_size_kb, self.args.num_blocks)
-        sizes = [block_size_kb * 1024] * self.args.num_blocks
-        
-        start = time.time()
-        self.store.batch_put_from(put_keys, local_addrs, sizes)
-        return time.time() - start
+
+
     
     def _timed_get_full_mesh(self, block_size_kb, addr, remote_addr, iter_id):
         my_rank = self.config.rank
@@ -275,14 +235,14 @@ class BandwidthBenchmark(MooncakeSampleBase):
             self._validate_results(get_keys, results)
         return total_time
     
-    def _timed_put_one_to_many(self, block_size_kb, addr, remote_addr, iter_id):
-        if self.config.rank != 0:
+    def _timed_put(self, block_size_kb, addr, remote_addr, iter_id):
+        if self.args.transfer_mode == 'one_to_many' and self.config.rank != 0:
             return 0
-        
-        put_keys = self._generate_keys(0, iter_id, self.args.num_blocks)
+
+        put_keys = self._generate_keys(self.config.rank, iter_id, self.args.num_blocks)
         local_addrs = self._generate_addrs(addr, block_size_kb, self.args.num_blocks)
         sizes = [block_size_kb * 1024] * self.args.num_blocks
-        
+
         start = time.time()
         self.store.batch_put_from(put_keys, local_addrs, sizes)
         return time.time() - start
@@ -347,8 +307,8 @@ class BandwidthBenchmark(MooncakeSampleBase):
 def main():
     parser = create_parser("Bandwidth Benchmark")
     
-    parser.add_argument("--transfer_mode", type=str, default="pairwise",
-                        choices=["pairwise", "full_mesh", "one_to_many"],
+    parser.add_argument("--transfer_mode", type=str, default="full_mesh",
+                        choices=["full_mesh", "one_to_many"],
                         help="Transfer mode")
     parser.add_argument("--block_sizes", type=str, default="1,4,16,64,144,256,512,1024",
                         help="Comma-separated block sizes in KB")
@@ -364,9 +324,10 @@ def main():
     args.schema = args.schema.lower()
     args.block_sizes = [int(x.strip()) for x in args.block_sizes.split(",")]
     
-    runner = BandwidthBenchmark(args, config)
-    validate_schema(args.schema)
+    validate_schema(args)
     setup_environment(args)
+
+    runner = BandwidthBenchmark(args, config)
     runner.init_process_group()
     runner.run()
 
