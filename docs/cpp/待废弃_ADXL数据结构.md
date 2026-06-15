@@ -65,3 +65,28 @@ struct NotifyDesc {
 }
 ```
 
+**FeatureType**
+
+库能力特性类型，用于GetCapability接口查询。枚举值必须显式赋值，新增能力仅允许在末尾扩展。
+
+```
+enum FeatureType : int32_t {
+  AUTO_CONNECT = 0,
+  CLIENT_SERVER_COMM = 1,
+}
+```
+
+|枚举值|描述|
+|--|--|
+|AUTO_CONNECT|Auto Connect模式，对应Initialize时OPTION_AUTO_CONNECT选项。|
+|CLIENT_SERVER_COMM|Client/Server通信模式，即Server端监听端口、Client端发起建链的能力。|
+
+**FEATURE_SUPPORTED / FEATURE_NOT_SUPPORTED**
+
+GetCapability接口输出参数value的取值常量。
+
+```
+constexpr int32_t FEATURE_SUPPORTED = 1;
+constexpr int32_t FEATURE_NOT_SUPPORTED = 0;
+```
+

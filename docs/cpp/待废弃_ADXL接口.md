@@ -611,3 +611,39 @@ Status FreeMem(void *ptr)
 无。
 
 
+## GetCapability
+
+**函数功能**
+
+查询库能力特性。上层可在Initialize之前调用该接口，探测当前AdxlEngine库是否支持特定能力（如Auto Connect、Client/Server通信），避免硬编码默认值或与旧版.so不兼容。
+
+**函数原型**
+
+```
+static Status GetCapability(FeatureType feature_type, int32_t &value)
+```
+
+**参数说明**
+
+|**参数名称**|输入/输出|**取值说明**|
+|--|--|--|
+|feature_type|输入|特性类型，取值参见 FeatureType。|
+|value|输出|特性支持情况。1表示支持（FEATURE_SUPPORTED），0表示不支持（FEATURE_NOT_SUPPORTED）。|
+
+
+**调用示例**
+
+无
+
+**返回值**
+
+-   SUCCESS：成功
+-   UNSUPPORTED：未知或不支持的特性类型
+-   PARAM_INVALID：参数非法（feature_type为负数）
+
+**约束说明**
+
+-   无需调用Initialize即可调用。
+-   静态方法，不依赖AdxlEngine实例。
+
+
