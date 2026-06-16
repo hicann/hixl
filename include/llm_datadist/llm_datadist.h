@@ -60,47 +60,47 @@ constexpr Status LLM_LINK_BUSY = 0x5010B01BU;
 constexpr Status LLM_OUT_OF_MEMORY = 0x5010B01CU;
 
 // data types
-using ge::DT_BOOL;
 using ge::DT_BF16;
-using ge::DT_FLOAT16;
-using ge::DT_FLOAT;
-using ge::DT_INT8;
-using ge::DT_UINT8;
-using ge::DT_INT16;
-using ge::DT_UINT16;
-using ge::DT_INT32;
-using ge::DT_UINT32;
-using ge::DT_INT64;
-using ge::DT_UINT64;
+using ge::DT_BOOL;
+using ge::DT_COMPLEX128;
+using ge::DT_COMPLEX32;
+using ge::DT_COMPLEX64;
 using ge::DT_DOUBLE;
-using ge::DT_STRING;
+using ge::DT_DUAL;
 using ge::DT_DUAL_SUB_INT8;
 using ge::DT_DUAL_SUB_UINT8;
-using ge::DT_COMPLEX64;
-using ge::DT_COMPLEX128;
-using ge::DT_QINT8;
-using ge::DT_QUINT8;
-using ge::DT_QINT16;
-using ge::DT_QUINT16;
-using ge::DT_QINT32;
-using ge::DT_RESOURCE;
-using ge::DT_STRING_REF;
-using ge::DT_DUAL;
-using ge::DT_VARIANT;
-using ge::DT_INT4;
-using ge::DT_UINT1;
-using ge::DT_INT2;
-using ge::DT_UINT2;
-using ge::DT_COMPLEX32;
-using ge::DT_HIFLOAT8;
-using ge::DT_FLOAT8_E5M2;
-using ge::DT_FLOAT8_E4M3FN;
-using ge::DT_FLOAT8_E8M0;
-using ge::DT_FLOAT6_E3M2;
-using ge::DT_FLOAT6_E2M3;
-using ge::DT_FLOAT4_E2M1;
+using ge::DT_FLOAT;
+using ge::DT_FLOAT16;
 using ge::DT_FLOAT4_E1M2;
+using ge::DT_FLOAT4_E2M1;
+using ge::DT_FLOAT6_E2M3;
+using ge::DT_FLOAT6_E3M2;
+using ge::DT_FLOAT8_E4M3FN;
+using ge::DT_FLOAT8_E5M2;
+using ge::DT_FLOAT8_E8M0;
+using ge::DT_HIFLOAT8;
+using ge::DT_INT16;
+using ge::DT_INT2;
+using ge::DT_INT32;
+using ge::DT_INT4;
+using ge::DT_INT64;
+using ge::DT_INT8;
+using ge::DT_QINT16;
+using ge::DT_QINT32;
+using ge::DT_QINT8;
+using ge::DT_QUINT16;
+using ge::DT_QUINT8;
+using ge::DT_RESOURCE;
+using ge::DT_STRING;
+using ge::DT_STRING_REF;
+using ge::DT_UINT1;
+using ge::DT_UINT16;
+using ge::DT_UINT2;
+using ge::DT_UINT32;
+using ge::DT_UINT64;
+using ge::DT_UINT8;
 using ge::DT_UNDEFINED;
+using ge::DT_VARIANT;
 
 struct IpInfo {
   AscendString ip;
@@ -116,12 +116,7 @@ struct ClusterInfo {
   uint8_t reserved[128];
 };
 
-enum class LlmRole : int32_t {
-  kPrompt = 1,
-  kDecoder = 2,
-  kMix = 3,
-  kEnd
-};
+enum class LlmRole : int32_t { kPrompt = 1, kDecoder = 2, kMix = 3, kEnd };
 
 struct CacheIndex {
   uint64_t cluster_id;
@@ -200,8 +195,7 @@ class ASCEND_FUNC_VISIBILITY LlmDataDist {
    *  @param [out] rets 每个cluster建链结果
    *  @return 成功:LLM_SUCCESS, 失败:其它
    */
-  Status LinkLlmClusters(const std::vector<ClusterInfo> &clusters,
-                         std::vector<Status> &rets,
+  Status LinkLlmClusters(const std::vector<ClusterInfo> &clusters, std::vector<Status> &rets,
                          int32_t timeout_in_millis = 1000);
 
   /**
@@ -212,10 +206,8 @@ class ASCEND_FUNC_VISIBILITY LlmDataDist {
    *  @param [out] rets 每个cluster断链结果
    *  @return 成功:LLM_SUCCESS, 失败:其它
    */
-  Status UnlinkLlmClusters(const std::vector<ClusterInfo> &clusters,
-                           std::vector<Status> &rets,
-                           int32_t timeout_in_millis = 1000,
-                           bool force_flag = false);
+  Status UnlinkLlmClusters(const std::vector<ClusterInfo> &clusters, std::vector<Status> &rets,
+                           int32_t timeout_in_millis = 1000, bool force_flag = false);
 
   /**
    *  @brief 分配Cache
@@ -241,11 +233,8 @@ class ASCEND_FUNC_VISIBILITY LlmDataDist {
    * @param [in] ext_param 扩展参数
    * @return 成功:LLM_SUCCESS, 失败:其它
    */
-  Status PullKvCache(const CacheIndex &src_cache_index,
-                     const Cache &dst_cache,
-                     uint32_t batch_index = 0U,
-                     int64_t size = -1,
-                     const KvCacheExtParam &ext_param = {});
+  Status PullKvCache(const CacheIndex &src_cache_index, const Cache &dst_cache, uint32_t batch_index = 0U,
+                     int64_t size = -1, const KvCacheExtParam &ext_param = {});
 
   /**
    * @brief 从远端拉取KV blocks
@@ -256,10 +245,8 @@ class ASCEND_FUNC_VISIBILITY LlmDataDist {
    * @param [in] ext_param 扩展参数
    * @return 成功:LLM_SUCCESS, 失败:其它
    */
-  Status PullKvBlocks(const CacheIndex &src_cache_index,
-                      const Cache &dst_cache,
-                      const std::vector<uint64_t> &src_blocks,
-                      const std::vector<uint64_t> &dst_blocks,
+  Status PullKvBlocks(const CacheIndex &src_cache_index, const Cache &dst_cache,
+                      const std::vector<uint64_t> &src_blocks, const std::vector<uint64_t> &dst_blocks,
                       const KvCacheExtParam &ext_param = {});
 
   /**
@@ -272,12 +259,8 @@ class ASCEND_FUNC_VISIBILITY LlmDataDist {
    * @param size 大小, -1表示拷贝源cache的完整数据
    * @return 成功:LLM_SUCCESS, 失败:其它
    */
-  Status CopyKvCache(const Cache &src_cache,
-                     const Cache &dst_cache,
-                     uint32_t src_batch_index = 0U,
-                     uint32_t dst_batch_index = 0U,
-                     uint64_t offset = 0U,
-                     int64_t size = -1);
+  Status CopyKvCache(const Cache &src_cache, const Cache &dst_cache, uint32_t src_batch_index = 0U,
+                     uint32_t dst_batch_index = 0U, uint64_t offset = 0U, int64_t size = -1);
 
   /**
    * @brief 拷贝KV block
@@ -287,9 +270,7 @@ class ASCEND_FUNC_VISIBILITY LlmDataDist {
    * @param dst_blocks_list 目标block列表，可以为多组，即可以同时拷贝到多个目标
    * @return 成功:LLM_SUCCESS, 失败:其它
    */
-  Status CopyKvBlocks(const Cache &src_cache,
-                      const Cache &dst_cache,
-                      const std::vector<uint64_t> &src_blocks,
+  Status CopyKvBlocks(const Cache &src_cache, const Cache &dst_cache, const std::vector<uint64_t> &src_blocks,
                       const std::vector<std::vector<uint64_t>> &dst_blocks_list);
 
   /**
@@ -301,11 +282,8 @@ class ASCEND_FUNC_VISIBILITY LlmDataDist {
    * @param [in] ext_param 扩展参数
    * @return 成功:LLM_SUCCESS, 失败:其它
    */
-  Status PushKvCache(const Cache &src_cache,
-                     const CacheIndex &dst_cache_index,
-                     uint32_t src_batch_index = 0U,
-                     int64_t size = -1,
-                     const KvCacheExtParam &ext_param = {});
+  Status PushKvCache(const Cache &src_cache, const CacheIndex &dst_cache_index, uint32_t src_batch_index = 0U,
+                     int64_t size = -1, const KvCacheExtParam &ext_param = {});
 
   /**
    * @brief 向远端push KV blocks
@@ -316,10 +294,8 @@ class ASCEND_FUNC_VISIBILITY LlmDataDist {
    * @param [in] ext_param 扩展参数
    * @return 成功:LLM_SUCCESS, 失败:其它
    */
-  Status PushKvBlocks(const Cache &src_cache,
-                      const CacheIndex &dst_cache_index,
-                      const std::vector<uint64_t> &src_blocks,
-                      const std::vector<uint64_t> &dst_blocks,
+  Status PushKvBlocks(const Cache &src_cache, const CacheIndex &dst_cache_index,
+                      const std::vector<uint64_t> &src_blocks, const std::vector<uint64_t> &dst_blocks,
                       const KvCacheExtParam &ext_param = {});
 
   /**
@@ -330,9 +306,7 @@ class ASCEND_FUNC_VISIBILITY LlmDataDist {
    * @param [out] cache_id 内存cache
    * @return 成功:LLM_SUCCESS, 失败:其它
    */
-  Status RegisterKvCache(const CacheDesc &cache_desc,
-                         const std::vector<uint64_t> &addrs,
-                         const RegisterCfg &cfg,
+  Status RegisterKvCache(const CacheDesc &cache_desc, const std::vector<uint64_t> &addrs, const RegisterCfg &cfg,
                          int64_t &cache_id);
 
   /**

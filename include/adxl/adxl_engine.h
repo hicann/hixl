@@ -50,7 +50,7 @@ class ASCEND_FUNC_VISIBILITY AdxlEngine {
    */
   void Finalize();
 
- /**
+  /**
    * @brief 注册内存
    * @param [in] mem 需要注册的内存的描述信息
    * @param [in] type 需要注册的内存的类型
@@ -90,11 +90,9 @@ class ASCEND_FUNC_VISIBILITY AdxlEngine {
    * @param [in] timeout_in_millis 传输的超时时间，单位ms
    * @return 成功:SUCCESS, 失败:其它.
    */
-  Status TransferSync(const AscendString &remote_engine,
-                      TransferOp operation,
-                      const std::vector<TransferOpDesc> &op_descs,
-                      int32_t timeout_in_millis = 1000);
-  
+  Status TransferSync(const AscendString &remote_engine, TransferOp operation,
+                      const std::vector<TransferOpDesc> &op_descs, int32_t timeout_in_millis = 1000);
+
   /**
    * @brief 批量异步传输，下发传输请求
    * @param [in] remote_engine 远端AdxlEngine的唯一标识
@@ -104,12 +102,10 @@ class ASCEND_FUNC_VISIBILITY AdxlEngine {
    * @param [out] req 请求的handle，用于查询请求状态
    * @return 成功:SUCCESS, 失败:其它.
    */
-  Status TransferAsync(const AscendString &remote_engine,
-                       TransferOp operation,
-                       const std::vector<TransferOpDesc> &op_descs,
-                       const TransferArgs &optional_args,
+  Status TransferAsync(const AscendString &remote_engine, TransferOp operation,
+                       const std::vector<TransferOpDesc> &op_descs, const TransferArgs &optional_args,
                        TransferReq &req);
-  
+
   /**
    * @brief 获取请求状态
    * @param [in] req 请求handle，由TransferAsync API调用产生
