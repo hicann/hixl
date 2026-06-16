@@ -75,7 +75,7 @@ TEST_F(LLMUtilsTest, CheckMultiplyOverflowInt64) {
 }
 
 TEST_F(LLMUtilsTest, TestParserOptions) {
-    // 构建选项参数
+  // 构建选项参数
   const std::map<ge::AscendString, ge::AscendString> llm_options = {
       {"ge.socVersion", "Ascend910B1"},
       {"ge.graphRunMode", "0"},

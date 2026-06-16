@@ -15,8 +15,8 @@
 
 namespace hixl {
 namespace {
-void* IntToPtr(uint32_t addr) {
-  return reinterpret_cast<void*>(static_cast<uintptr_t>(addr));
+void *IntToPtr(uint32_t addr) {
+  return reinterpret_cast<void *>(static_cast<uintptr_t>(addr));
 }
 }  // anonymous namespace
 

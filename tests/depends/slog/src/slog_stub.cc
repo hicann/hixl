@@ -22,7 +22,7 @@
 
 namespace llm {
 int ge_log_level = DLOG_ERROR;
-auto ins = llm::SlogStub::GetInstance(); // 让log提前初始化
+auto ins = llm::SlogStub::GetInstance();  // 让log提前初始化
 class DefaultSlogStub : public SlogStub {
  public:
   DefaultSlogStub() : SlogStub() {
@@ -76,7 +76,9 @@ void SlogStub::SetInstance(std::shared_ptr<SlogStub> stub) {
 int EraseFolderFromPath(char *buff, int len) {
   int i = 0;
   // 跳过第一组[LogLevel]，下面一组方框就是[/path/to/file]了
-  while (buff[i++] != ' ' && i < len) {}
+  while (i < len && buff[i] != ' ') {
+    ++i;
+  }
 
   int first_pos = -1;
   int last_pos = -1;
@@ -129,13 +131,10 @@ int SlogStub::Format(char *buff, size_t buff_len, int module_id, int level, cons
   return EraseFolderFromPath(buff, pos);
 }
 
+LogCaptureStub::LogCaptureStub() {}
 
-LogCaptureStub::LogCaptureStub() {
-}
- 
-LogCaptureStub::~LogCaptureStub() {
-}
- 
+LogCaptureStub::~LogCaptureStub() {}
+
 void LogCaptureStub::Log(int module_id, int level, const char *fmt, va_list args) {
   if (!log_init) {
     return;
@@ -162,13 +161,13 @@ void LogCaptureStub::Log(int module_id, int level, const char *fmt, va_list args
     }
   }
 }
- 
+
 void LogCaptureStub::AddCapturePattern(const std::string &pattern) {
   std::lock_guard<std::mutex> lock(log_mutex_);
   capture_patterns_.push_back(pattern);
   pattern_captured_.push_back(false);
 }
- 
+
 bool LogCaptureStub::IsPatternCaptured(const std::string &pattern) const {
   std::lock_guard<std::mutex> lock(log_mutex_);
   if (pattern.empty()) {
@@ -189,12 +188,12 @@ bool LogCaptureStub::IsPatternCaptured(const std::string &pattern) const {
     return false;
   }
 }
- 
+
 const std::vector<std::string> &LogCaptureStub::GetCapturedLogs() const {
   std::lock_guard<std::mutex> lock(log_mutex_);
   return captured_logs_;
 }
- 
+
 void LogCaptureStub::Reset() {
   std::lock_guard<std::mutex> lock(log_mutex_);
   captured_logs_.clear();
@@ -204,7 +203,7 @@ void LogCaptureStub::Reset() {
 bool LogCaptureStub::WaitForAllPatternsCaptured(int timeout_ms) {
   std::unique_lock<std::mutex> lock(log_mutex_);
   auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
-  
+
   // 检查是否所有模式都已被捕获
   auto all_captured = [this]() {
     for (bool captured : pattern_captured_) {
@@ -214,7 +213,7 @@ bool LogCaptureStub::WaitForAllPatternsCaptured(int timeout_ms) {
     }
     return true;
   };
-  
+
   // 等待所有模式被捕获或超时
   while (!all_captured()) {
     if (log_cv_.wait_until(lock, deadline) == std::cv_status::timeout) {

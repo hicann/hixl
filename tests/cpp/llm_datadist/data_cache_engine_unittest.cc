@@ -26,7 +26,7 @@
 namespace llm {
 class DataCacheEngineTest : public ::testing::Test {
  public:
-  DataCacheEngineTest() : transfer_engine_(0){};
+  DataCacheEngineTest() : transfer_engine_(0) {};
 
  protected:
   void SetUp() override {

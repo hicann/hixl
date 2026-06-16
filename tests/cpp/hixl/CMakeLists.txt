@@ -83,6 +83,7 @@ target_compile_options(hixl_test PRIVATE
 target_compile_definitions(hixl_test PRIVATE
         HIXL_TEST_SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
         HIXL_SKIP_DATA_CACHE_ENGINE_TEST_CONTEXT
+        HCCN_TEST_CONF_PATH="${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/hccn_test.conf"
         )
 
 target_include_directories(hixl_test PRIVATE

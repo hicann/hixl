@@ -20,7 +20,7 @@ extern "C" {
 #endif
 
 // 函数指针类型定义
-typedef int32_t (*ProfCommandHandle)(uint32_t, void*, uint32_t);
+typedef int32_t (*ProfCommandHandle)(uint32_t, void *, uint32_t);
 
 ProfCommandHandle GetHixlProfCallback(void);
 
@@ -31,4 +31,4 @@ void SetMsprofRegisterCallbackRet(int32_t ret);
 }
 #endif
 
-#endif // AIR_TESTS_DEPENDS_MMPA_SRC_MSPROF_STUB_H_
+#endif  // AIR_TESTS_DEPENDS_MMPA_SRC_MSPROF_STUB_H_

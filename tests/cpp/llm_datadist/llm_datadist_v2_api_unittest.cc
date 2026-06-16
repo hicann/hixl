@@ -19,6 +19,7 @@
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "acl/acl.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
+#include "depends/llm_datadist/src/llm_datadist_test_helper.h"
 
 using namespace std;
 using namespace ge;
@@ -42,222 +43,100 @@ class LlmDataDistUTest : public ::testing::Test {
   }
 };
 
+// Helper struct to hold common test context for kv cache setup + link + pull preparation
+struct KvCacheTestContext {
+  KvCacheSetupResult d_setup;
+  KvCacheSetupResult p_setup;
+  ClusterInfo cluster_info;
+  CacheIndex cache_index;
+  Cache dst_cache;
+};
+
+// Helper to set up kv caches on both sides, link clusters, and prepare pull cache structures.
+// This extracts the common logic shared by TestLocalCommResA2 and TestLocalCommResA3.
+inline KvCacheTestContext SetupKvCachesAndLink(LlmDataDist &llm_datadist_d, LlmDataDist &llm_datadist_p,
+                                               const CacheDesc &kv_desc) {
+  KvCacheTestContext ctx;
+  ctx.d_setup = SetupKvCache(llm_datadist_d, kv_desc);
+  ctx.p_setup = SetupKvCache(llm_datadist_p, kv_desc);
+
+  // link
+  IpInfo ip_info;
+  ip_info.ip = "127.0.0.1";
+  ip_info.port = 26000;
+  ctx.cluster_info.local_ip_infos = {ip_info};
+  ctx.cluster_info.remote_ip_infos = {ip_info};
+  std::vector<ge::Status> rets;
+  EXPECT_EQ(llm_datadist_d.LinkLlmClusters({ctx.cluster_info}, rets), ge::SUCCESS);
+
+  // pull cache setup
+  ctx.cache_index = CacheIndex{1U, ctx.p_setup.cache_id, 0U, {}};
+  ctx.dst_cache = Cache{};
+  ctx.dst_cache.cache_id = ctx.d_setup.cache_id;
+
+  return ctx;
+}
+
 TEST_F(LlmDataDistUTest, TestLocalCommResA2) {
   LlmDataDist llm_datadist_p(1U, LlmRole::kPrompt);
-  std::map<AscendString, AscendString> options_p;
-  options_p[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26000";
-  options_p[llm_datadist::OPTION_DEVICE_ID] = "0";
-  options_p["llm.LocalCommRes"] = R"(
-    {
-      "server_count": "1",
-      "server_list": [{
-        "device": [{
-          "device_id": "0",
-          "device_ip": "1.1.1.1"
-        }],
-        "server_id": "127.0.0.1"
-      }],
-      "status": "completed",
-      "version": "1.0"
-    }
-    )";
-
-  EXPECT_EQ(llm_datadist_p.Initialize(options_p), SUCCESS);
-
   LlmDataDist llm_datadist_d(2U, LlmRole::kDecoder);
-  std::map<AscendString, AscendString> options_d;
-  options_d[llm_datadist::OPTION_DEVICE_ID] = "1";
-  options_d["llm.LocalCommRes"] = R"(
-    {
-      "server_count": "1",
-      "server_list": [{
-        "device": [{
-          "device_id": "1",
-          "device_ip": "1.1.1.2"
-        }],
-        "server_id": "127.0.0.1"
-      }],
-      "status": "completed",
-      "version": "1.0"
-    }
-    )";
+  InitTestLlmDataDist(llm_datadist_p, "0", "1.1.1.1", true);
+  InitTestLlmDataDist(llm_datadist_d, "1", "1.1.1.2", false);
 
-  EXPECT_EQ(llm_datadist_d.Initialize(options_d), SUCCESS);
-
-  // register d kv cache
   CacheDesc kv_desc{};
   kv_desc.num_tensors = 10;
   kv_desc.data_type = DT_INT32;
   kv_desc.shape = {4, 16};
-  std::vector<uint64_t> d_tensor_addrs;
-  auto d_buffers = std::vector<std::vector<int32_t>>(10, std::vector<int32_t>(4 * 16));
-  for (uint32_t i = 0; i < kv_desc.num_tensors; ++i) {
-    d_tensor_addrs.emplace_back(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(d_buffers[i].data())));
-  }
 
-  std::iota(d_buffers[0].begin(), d_buffers[0].end(), 0);
-  RegisterCfg cfg{};
-  int64_t d_cache_id = 0;
-  EXPECT_EQ(llm_datadist_d.RegisterKvCache(kv_desc, d_tensor_addrs, cfg, d_cache_id), ge::SUCCESS);
-
-  std::vector<uint64_t> p_tensor_addrs;
-  auto p_buffers = std::vector<std::vector<int32_t>>(10, std::vector<int32_t>(4 * 16));
-  for (uint32_t i = 0; i < kv_desc.num_tensors; ++i) {
-    p_tensor_addrs.emplace_back(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(p_buffers[i].data())));
-  }
-
-  std::iota(p_buffers[0].begin(), p_buffers[0].end(), 0);
-  int64_t p_cache_id = 0;
-  EXPECT_EQ(llm_datadist_p.RegisterKvCache(kv_desc, p_tensor_addrs, cfg, p_cache_id), ge::SUCCESS);
-
-  // link
-  ClusterInfo cluster_info;
-  IpInfo ip_info;
-  ip_info.ip = "127.0.0.1";
-  ip_info.port = 26000;
-  cluster_info.local_ip_infos = {ip_info};
-  cluster_info.remote_ip_infos = {ip_info};
-  std::vector<ge::Status> rets;
-  EXPECT_EQ(llm_datadist_d.LinkLlmClusters({cluster_info}, rets), ge::SUCCESS);
+  auto ctx = SetupKvCachesAndLink(llm_datadist_d, llm_datadist_p, kv_desc);
 
   // pull cache
-  CacheIndex cache_index{};
-  cache_index.cluster_id = 1U;
-  cache_index.cache_id = p_cache_id;
-  Cache dst_cache{};
-  dst_cache.cache_id = d_cache_id;
-  EXPECT_EQ(llm_datadist_d.PullKvCache(cache_index, dst_cache), ge::SUCCESS);
+  EXPECT_EQ(llm_datadist_d.PullKvCache(ctx.cache_index, ctx.dst_cache), ge::SUCCESS);
+
   // push cache
-  CacheIndex dst_cache_index{};
-  dst_cache_index.cluster_id = 2U;
-  dst_cache_index.cache_id = d_cache_id;
+  CacheIndex dst_cache_index{2U, ctx.d_setup.cache_id, 0U, {}};
   Cache src_cache{};
-  src_cache.cache_id = p_cache_id;
-  KvCacheExtParam ext_param{};
-  ext_param.src_layer_range = std::make_pair(0, 0);
-  ext_param.dst_layer_range = std::make_pair(0, 0);
+  src_cache.cache_id = ctx.p_setup.cache_id;
+  KvCacheExtParam ext_param{{0, 0}, {0, 0}, 2, {}};
   EXPECT_EQ(llm_datadist_p.PushKvCache(src_cache, dst_cache_index, 0, -1, ext_param), ge::SUCCESS);
 
-  EXPECT_EQ(llm_datadist_d.UnlinkLlmClusters({cluster_info}, rets), ge::SUCCESS);
-  EXPECT_EQ(llm_datadist_p.UnregisterKvCache(p_cache_id), ge::SUCCESS);
-  EXPECT_EQ(llm_datadist_d.UnregisterKvCache(d_cache_id), ge::SUCCESS);
+  // cleanup
+  std::vector<ge::Status> rets;
+  EXPECT_EQ(llm_datadist_d.UnlinkLlmClusters({ctx.cluster_info}, rets), ge::SUCCESS);
+  EXPECT_EQ(llm_datadist_p.UnregisterKvCache(ctx.p_setup.cache_id), ge::SUCCESS);
+  EXPECT_EQ(llm_datadist_d.UnregisterKvCache(ctx.d_setup.cache_id), ge::SUCCESS);
   llm_datadist_p.Finalize();
   llm_datadist_d.Finalize();
 }
 
 TEST_F(LlmDataDistUTest, TestLocalCommResA3) {
   LlmDataDist llm_datadist_p(1U, LlmRole::kPrompt);
-  std::map<AscendString, AscendString> options_p;
-  options_p[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26000";
-  options_p[llm_datadist::OPTION_DEVICE_ID] = "0";
-  options_p["llm.LocalCommRes"] = R"(
-    {
-      "server_count": "1",
-      "server_list": [{
-        "device": [{
-          "device_id": "0",
-          "super_device_id": "0",
-          "device_ip": "1.1.1.1"
-        }],
-        "server_id": "127.0.0.1"
-      }],
-      "super_pod_list": [
-      {
-          "super_pod_id": "0",
-          "server_list": [
-          {"server_id": "127.0.0.1"}]
-      }],
-      "status": "completed",
-      "version": "1.2"
-    }
-    )";
-
-  EXPECT_EQ(llm_datadist_p.Initialize(options_p), SUCCESS);
-
   LlmDataDist llm_datadist_d(2U, LlmRole::kDecoder);
-  std::map<AscendString, AscendString> options_d;
-  options_d[llm_datadist::OPTION_DEVICE_ID] = "1";
-  options_d["llm.LocalCommRes"] = R"(
-    {
-      "server_count": "1",
-      "server_list": [{
-        "device": [{
-          "device_id": "1",
-          "super_device_id": "1",
-          "device_ip": "1.1.1.2"
-        }],
-        "server_id": "127.0.0.1"
-      }],
-      "super_pod_list": [
-      {
-          "super_pod_id": "0",
-          "server_list": [
-          {"server_id": "127.0.0.1"}]
-      }],
-      "status": "completed",
-      "version": "1.2"
-    }
-    )";
+  InitTestLlmDataDistV12(llm_datadist_p, "0", "1.1.1.1", true);
+  InitTestLlmDataDistV12(llm_datadist_d, "1", "1.1.1.2", false);
 
-  EXPECT_EQ(llm_datadist_d.Initialize(options_d), SUCCESS);
-
-  // register d kv cache
   CacheDesc kv_desc{};
   kv_desc.num_tensors = 10;
   kv_desc.data_type = DT_INT32;
   kv_desc.shape = {4, 16};
-  std::vector<uint64_t> d_tensor_addrs;
-  auto d_buffers = std::vector<std::vector<int32_t>>(10, std::vector<int32_t>(4 * 16));
-  for (uint32_t i = 0; i < kv_desc.num_tensors; ++i) {
-    d_tensor_addrs.emplace_back(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(d_buffers[i].data())));
-  }
 
-  std::iota(d_buffers[0].begin(), d_buffers[0].end(), 0);
-  RegisterCfg cfg{};
-  int64_t d_cache_id = 0;
-  EXPECT_EQ(llm_datadist_d.RegisterKvCache(kv_desc, d_tensor_addrs, cfg, d_cache_id), ge::SUCCESS);
-
-  std::vector<uint64_t> p_tensor_addrs;
-  auto p_buffers = std::vector<std::vector<int32_t>>(10, std::vector<int32_t>(4 * 16));
-  for (uint32_t i = 0; i < kv_desc.num_tensors; ++i) {
-    p_tensor_addrs.emplace_back(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(p_buffers[i].data())));
-  }
-
-  std::iota(p_buffers[0].begin(), p_buffers[0].end(), 0);
-  int64_t p_cache_id = 0;
-  EXPECT_EQ(llm_datadist_p.RegisterKvCache(kv_desc, p_tensor_addrs, cfg, p_cache_id), ge::SUCCESS);
-
-  // link
-  ClusterInfo cluster_info;
-  IpInfo ip_info;
-  ip_info.ip = "127.0.0.1";
-  ip_info.port = 26000;
-  cluster_info.local_ip_infos = {ip_info};
-  cluster_info.remote_ip_infos = {ip_info};
-  std::vector<ge::Status> rets;
-  EXPECT_EQ(llm_datadist_d.LinkLlmClusters({cluster_info}, rets), ge::SUCCESS);
+  auto ctx = SetupKvCachesAndLink(llm_datadist_d, llm_datadist_p, kv_desc);
 
   // pull cache
-  CacheIndex cache_index{};
-  cache_index.cluster_id = 1U;
-  cache_index.cache_id = p_cache_id;
-  Cache dst_cache{};
-  dst_cache.cache_id = d_cache_id;
-  EXPECT_EQ(llm_datadist_d.PullKvBlocks(cache_index, dst_cache, {0}, {0}), ge::SUCCESS);
+  EXPECT_EQ(llm_datadist_d.PullKvBlocks(ctx.cache_index, ctx.dst_cache, {0}, {0}), ge::SUCCESS);
+
   // push cache
-  CacheIndex dst_cache_index{};
-  dst_cache_index.cluster_id = 2U;
-  dst_cache_index.cache_id = d_cache_id;
+  CacheIndex dst_cache_index{2U, ctx.d_setup.cache_id, 0U, {}};
   Cache src_cache{};
-  src_cache.cache_id = p_cache_id;
-  KvCacheExtParam ext_param{};
-  ext_param.src_layer_range = std::make_pair(0, 0);
-  ext_param.dst_layer_range = std::make_pair(0, 0);
+  src_cache.cache_id = ctx.p_setup.cache_id;
+  KvCacheExtParam ext_param{{0, 0}, {0, 0}, 2, {}};
   EXPECT_EQ(llm_datadist_p.PushKvBlocks(src_cache, dst_cache_index, {0}, {0}, ext_param), ge::SUCCESS);
 
-  EXPECT_EQ(llm_datadist_d.UnlinkLlmClusters({cluster_info}, rets), ge::SUCCESS);
-  EXPECT_EQ(llm_datadist_p.UnregisterKvCache(p_cache_id), ge::SUCCESS);
-  EXPECT_EQ(llm_datadist_d.UnregisterKvCache(d_cache_id), ge::SUCCESS);
+  // cleanup
+  std::vector<ge::Status> rets;
+  EXPECT_EQ(llm_datadist_d.UnlinkLlmClusters({ctx.cluster_info}, rets), ge::SUCCESS);
+  EXPECT_EQ(llm_datadist_p.UnregisterKvCache(ctx.p_setup.cache_id), ge::SUCCESS);
+  EXPECT_EQ(llm_datadist_d.UnregisterKvCache(ctx.d_setup.cache_id), ge::SUCCESS);
   llm_datadist_p.Finalize();
   llm_datadist_d.Finalize();
 }
@@ -265,7 +144,7 @@ TEST_F(LlmDataDistUTest, TestLocalCommResA3) {
 TEST_F(LlmDataDistUTest, TestAutoLocalCommResA2) {
   class AutoCommResV1RuntimeMock : public llm::AutoCommResRuntimeMock {
    public:
-    const char* aclrtGetSocName() override {
+    const char *aclrtGetSocName() override {
       return "Ascend910B1";
     }
   };
@@ -555,9 +434,9 @@ TEST_F(LlmDataDistUTest, LocalCommResSwitchRoleSuccess) {
   EXPECT_EQ(llm_datadist.SetRole(LlmRole::kDecoder, switch_options), ge::SUCCESS);
   EXPECT_EQ(llm_datadist.SetRole(LlmRole::kMix, {}), ge::SUCCESS);
   EXPECT_EQ(llm_datadist.SetRole(LlmRole::kPrompt, switch_options), ge::SUCCESS);
-  EXPECT_EQ(llm_datadist.SetRole(LlmRole::kPrompt), ge::SUCCESS);  // close listen
-  EXPECT_EQ(llm_datadist.SetRole(LlmRole::kDecoder, switch_options), ge::SUCCESS); // decode listen
-  EXPECT_EQ(llm_datadist.SetRole(LlmRole::kDecoder), ge::SUCCESS); // close listen
+  EXPECT_EQ(llm_datadist.SetRole(LlmRole::kPrompt), ge::SUCCESS);                   // close listen
+  EXPECT_EQ(llm_datadist.SetRole(LlmRole::kDecoder, switch_options), ge::SUCCESS);  // decode listen
+  EXPECT_EQ(llm_datadist.SetRole(LlmRole::kDecoder), ge::SUCCESS);                  // close listen
   llm_datadist.Finalize();
 }
 
@@ -633,178 +512,60 @@ TEST_F(LlmDataDistUTest, TestPushWithRangeAndTensorNumV2) {
   uint64_t prompt_cluster_id = 0U;
   uint64_t decoder_cluster_id = 1U;
   LlmDataDist llm_datadist_p(prompt_cluster_id, LlmRole::kPrompt);
-  std::map<AscendString, AscendString> options_p;
-  options_p[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26000";
-  options_p[llm_datadist::OPTION_DEVICE_ID] = "0";
-  options_p["llm.LocalCommRes"] = R"(
-    {
-      "server_count": "1",
-      "server_list": [{
-        "device": [{
-          "device_id": "0",
-          "device_ip": "1.1.1.1"
-        }],
-        "server_id": "127.0.0.1"
-      }],
-      "status": "completed",
-      "version": "1.0"
-    }
-    )";
-
-  EXPECT_EQ(llm_datadist_p.Initialize(options_p), SUCCESS);
-
   LlmDataDist llm_datadist_d(decoder_cluster_id, LlmRole::kDecoder);
-  std::map<AscendString, AscendString> options_d;
-  options_d[llm_datadist::OPTION_DEVICE_ID] = "1";
-  options_d["llm.LocalCommRes"] = R"(
-    {
-      "server_count": "1",
-      "server_list": [{
-        "device": [{
-          "device_id": "1",
-          "device_ip": "1.1.1.2"
-        }],
-        "server_id": "127.0.0.1"
-      }],
-      "status": "completed",
-      "version": "1.0"
-    }
-    )";
+  InitTestLlmDataDist(llm_datadist_p, "0", "1.1.1.1", true);
+  InitTestLlmDataDist(llm_datadist_d, "1", "1.1.1.2", false);
 
-  EXPECT_EQ(llm_datadist_d.Initialize(options_d), SUCCESS);
-
-  // register d kv cache
   CacheDesc kv_desc{};
   kv_desc.num_tensors = 10;
   kv_desc.data_type = DT_INT32;
   kv_desc.shape = {4, 16};
-  std::vector<uint64_t> d_tensor_addrs;
-  auto d_buffers = std::vector<std::vector<int32_t>>(10, std::vector<int32_t>(4 * 16));
-  for (uint32_t i = 0; i < kv_desc.num_tensors; ++i) {
-    d_tensor_addrs.emplace_back(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(d_buffers[i].data())));
-  }
 
-  std::iota(d_buffers[0].begin(), d_buffers[0].end(), 0);
-  RegisterCfg cfg{};
-  int64_t d_cache_id = 0;
-  EXPECT_EQ(llm_datadist_d.RegisterKvCache(kv_desc, d_tensor_addrs, cfg, d_cache_id), ge::SUCCESS);
+  auto d_setup = SetupKvCache(llm_datadist_d, kv_desc);
+  auto p_setup = SetupKvCache(llm_datadist_p, kv_desc);
 
-  std::vector<uint64_t> p_tensor_addrs;
-  auto p_buffers = std::vector<std::vector<int32_t>>(10, std::vector<int32_t>(4 * 16));
-  for (uint32_t i = 0; i < kv_desc.num_tensors; ++i) {
-    p_tensor_addrs.emplace_back(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(p_buffers[i].data())));
-  }
-
-  std::iota(p_buffers[0].begin(), p_buffers[0].end(), 0);
-  int64_t p_cache_id = 0;
-  EXPECT_EQ(llm_datadist_p.RegisterKvCache(kv_desc, p_tensor_addrs, cfg, p_cache_id), ge::SUCCESS);
-
-  // link
-  ClusterInfo cluster_info;
+  // link clusters
   IpInfo ip_info;
   ip_info.ip = "127.0.0.1";
   ip_info.port = 26000;
+  ClusterInfo cluster_info;
   cluster_info.local_ip_infos = {ip_info};
   cluster_info.remote_ip_infos = {ip_info};
   std::vector<ge::Status> rets;
   EXPECT_EQ(llm_datadist_d.LinkLlmClusters({cluster_info}, rets), ge::SUCCESS);
 
-  // prompt push cache to decoder
-  CacheIndex dst_cache_index{decoder_cluster_id, d_cache_id};
-
+  CacheIndex dst_cache_index{decoder_cluster_id, d_setup.cache_id, 0U, {}};
   Cache src_cache{};
-  src_cache.cache_id = p_cache_id;
+  src_cache.cache_id = p_setup.cache_id;
   src_cache.cache_desc = kv_desc;
-  KvCacheExtParam ext_param = {};
+
+  auto TestPush = [&](const KvCacheExtParam &ep, bool expect_ok) {
+    if (expect_ok) {
+      EXPECT_EQ(llm_datadist_p.PushKvBlocks(src_cache, dst_cache_index, {0U, 1U}, {0U, 1U}, ep), ge::SUCCESS);
+      EXPECT_EQ(llm_datadist_p.PushKvCache(src_cache, dst_cache_index, 0, -1, ep), ge::SUCCESS);
+    } else {
+      EXPECT_NE(llm_datadist_p.PushKvBlocks(src_cache, dst_cache_index, {0U, 1U}, {0U, 1U}, ep), ge::SUCCESS);
+      EXPECT_NE(llm_datadist_p.PushKvCache(src_cache, dst_cache_index, 0, -1, ep), ge::SUCCESS);
+    }
+  };
 
   // test default range and tensor num
-  EXPECT_EQ(llm_datadist_p.PushKvBlocks(src_cache,
-                                      dst_cache_index,
-                                      {0U, 1U},
-                                      {0U, 1U},
-                                      ext_param), ge::SUCCESS);
-  EXPECT_EQ(llm_datadist_p.PushKvCache(src_cache, dst_cache_index, 0, -1, ext_param), ge::SUCCESS);
-
+  TestPush({}, true);
   // test appointed range and tensor num
-  ext_param.src_layer_range = std::make_pair(0, 1);
-  ext_param.dst_layer_range = std::make_pair(0, 1);
-
-  ext_param.tensor_num_per_layer = 1;
-  EXPECT_EQ(llm_datadist_p.PushKvBlocks(src_cache,
-                                      dst_cache_index,
-                                      {0U, 1U},
-                                      {0U, 1U},
-                                      ext_param), ge::SUCCESS);
-  EXPECT_EQ(llm_datadist_p.PushKvCache(src_cache, dst_cache_index, 0, -1, ext_param), ge::SUCCESS);
-
-  ext_param.tensor_num_per_layer = 2;
-  EXPECT_EQ(llm_datadist_p.PushKvBlocks(src_cache,
-                                      dst_cache_index,
-                                      {0U, 1U},
-                                      {0U, 1U},
-                                      ext_param), ge::SUCCESS);
-  EXPECT_EQ(llm_datadist_p.PushKvCache(src_cache, dst_cache_index, 0, -1, ext_param), ge::SUCCESS);
-
-  ext_param.tensor_num_per_layer = 7;
-  EXPECT_NE(llm_datadist_p.PushKvBlocks(src_cache,
-                                      dst_cache_index,
-                                      {0U, 1U},
-                                      {0U, 1U},
-                                      ext_param), ge::SUCCESS);
-  EXPECT_NE(llm_datadist_p.PushKvCache(src_cache, dst_cache_index, 0, -1, ext_param), ge::SUCCESS);
-
-  ext_param.tensor_num_per_layer = 17;
-  EXPECT_NE(llm_datadist_p.PushKvBlocks(src_cache,
-                                      dst_cache_index,
-                                      {0U, 1U},
-                                      {0U, 1U},
-                                      ext_param), ge::SUCCESS);
-  EXPECT_NE(llm_datadist_p.PushKvCache(src_cache, dst_cache_index, 0, -1, ext_param), ge::SUCCESS);
-
+  TestPush({{0, 1}, {0, 1}, 1, {}}, true);
+  TestPush({{0, 1}, {0, 1}, 2, {}}, true);
+  TestPush({{0, 1}, {0, 1}, 7, {}}, false);
+  TestPush({{0, 1}, {0, 1}, 17, {}}, false);
   // test invalid range and tensor num
-  ext_param.tensor_num_per_layer = 2;
-  ext_param.dst_layer_range = std::make_pair(0, 1);
-  ext_param.src_layer_range = std::make_pair(-2, 0);
-  EXPECT_NE(llm_datadist_p.PushKvBlocks(src_cache,
-                                      dst_cache_index,
-                                      {0U, 1U},
-                                      {0U, 1U},
-                                      ext_param), ge::SUCCESS);
-  EXPECT_NE(llm_datadist_p.PushKvCache(src_cache, dst_cache_index, 0, -1, ext_param), ge::SUCCESS);
+  TestPush({{-2, 0}, {0, 1}, 2, {}}, false);
+  TestPush({{0, 1}, {0, 3}, 2, {}}, false);
+  TestPush({{4, 5}, {0, 1}, 2, {}}, false);
+  TestPush({{0, 1}, {4, 5}, 2, {}}, false);
 
-  // the range not same
-  ext_param.src_layer_range = std::make_pair(0, 1);
-  ext_param.dst_layer_range = std::make_pair(0, 3);
-  EXPECT_NE(llm_datadist_p.PushKvBlocks(src_cache,
-                                      dst_cache_index,
-                                      {0U, 1U},
-                                      {0U, 1U},
-                                      ext_param), ge::SUCCESS);
-  EXPECT_NE(llm_datadist_p.PushKvCache(src_cache, dst_cache_index, 0, -1, ext_param), ge::SUCCESS);
-
-  // the src range over range
-  ext_param.src_layer_range = std::make_pair(4, 5);
-  ext_param.dst_layer_range = std::make_pair(0, 1);
-  EXPECT_NE(llm_datadist_p.PushKvBlocks(src_cache,
-                                      dst_cache_index,
-                                      {0U, 1U},
-                                      {0U, 1U},
-                                      ext_param), ge::SUCCESS);
-  EXPECT_NE(llm_datadist_p.PushKvCache(src_cache, dst_cache_index, 0, -1, ext_param), ge::SUCCESS);
-
-  // the dst range over range
-  ext_param.src_layer_range = std::make_pair(0, 1);
-  ext_param.dst_layer_range = std::make_pair(4, 5);
-  EXPECT_NE(llm_datadist_p.PushKvBlocks(src_cache,
-                                      dst_cache_index,
-                                      {0U, 1U},
-                                      {0U, 1U},
-                                      ext_param), ge::SUCCESS);
-  EXPECT_NE(llm_datadist_p.PushKvCache(src_cache, dst_cache_index, 0, -1, ext_param), ge::SUCCESS);
-
+  // cleanup
   EXPECT_EQ(llm_datadist_d.UnlinkLlmClusters({cluster_info}, rets), ge::SUCCESS);
-  EXPECT_EQ(llm_datadist_p.UnregisterKvCache(p_cache_id), ge::SUCCESS);
-  EXPECT_EQ(llm_datadist_d.UnregisterKvCache(d_cache_id), ge::SUCCESS);
+  EXPECT_EQ(llm_datadist_p.UnregisterKvCache(p_setup.cache_id), ge::SUCCESS);
+  EXPECT_EQ(llm_datadist_d.UnregisterKvCache(d_setup.cache_id), ge::SUCCESS);
   llm_datadist_p.Finalize();
   llm_datadist_d.Finalize();
 }
@@ -813,129 +574,56 @@ TEST_F(LlmDataDistUTest, TestPullWithRangeAndTensorNumV2) {
   uint64_t prompt_cluster_id = 0U;
   uint64_t decoder_cluster_id = 1U;
   LlmDataDist llm_datadist_p(prompt_cluster_id, LlmRole::kPrompt);
-  std::map<AscendString, AscendString> options_p;
-  options_p[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26000";
-  options_p[llm_datadist::OPTION_DEVICE_ID] = "0";
-  options_p["llm.LocalCommRes"] = R"(
-    {
-      "server_count": "1",
-      "server_list": [{
-        "device": [{
-          "device_id": "0",
-          "device_ip": "1.1.1.1"
-        }],
-        "server_id": "127.0.0.1"
-      }],
-      "status": "completed",
-      "version": "1.0"
-    }
-    )";
-
-  EXPECT_EQ(llm_datadist_p.Initialize(options_p), SUCCESS);
-
   LlmDataDist llm_datadist_d(decoder_cluster_id, LlmRole::kDecoder);
-  std::map<AscendString, AscendString> options_d;
-  options_d[llm_datadist::OPTION_DEVICE_ID] = "1";
-  options_d["llm.LocalCommRes"] = R"(
-    {
-      "server_count": "1",
-      "server_list": [{
-        "device": [{
-          "device_id": "1",
-          "device_ip": "1.1.1.2"
-        }],
-        "server_id": "127.0.0.1"
-      }],
-      "status": "completed",
-      "version": "1.0"
-    }
-    )";
+  InitTestLlmDataDist(llm_datadist_p, "0", "1.1.1.1", true);
+  InitTestLlmDataDist(llm_datadist_d, "1", "1.1.1.2", false);
 
-  EXPECT_EQ(llm_datadist_d.Initialize(options_d), SUCCESS);
-
-  // register d kv cache
   CacheDesc kv_desc{};
   kv_desc.num_tensors = 10;
   kv_desc.data_type = DT_INT32;
   kv_desc.shape = {4, 16};
-  std::vector<uint64_t> d_tensor_addrs;
-  auto d_buffers = std::vector<std::vector<int32_t>>(10, std::vector<int32_t>(4 * 16));
-  for (uint32_t i = 0; i < kv_desc.num_tensors; ++i) {
-    d_tensor_addrs.emplace_back(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(d_buffers[i].data())));
-  }
 
-  std::iota(d_buffers[0].begin(), d_buffers[0].end(), 0);
-  RegisterCfg cfg{};
-  int64_t d_cache_id = 0;
-  EXPECT_EQ(llm_datadist_d.RegisterKvCache(kv_desc, d_tensor_addrs, cfg, d_cache_id), ge::SUCCESS);
+  auto d_setup = SetupKvCache(llm_datadist_d, kv_desc);
+  auto p_setup = SetupKvCache(llm_datadist_p, kv_desc);
 
-  std::vector<uint64_t> p_tensor_addrs;
-  auto p_buffers = std::vector<std::vector<int32_t>>(10, std::vector<int32_t>(4 * 16));
-  for (uint32_t i = 0; i < kv_desc.num_tensors; ++i) {
-    p_tensor_addrs.emplace_back(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(p_buffers[i].data())));
-  }
-
-  std::iota(p_buffers[0].begin(), p_buffers[0].end(), 0);
-  int64_t p_cache_id = 0;
-  EXPECT_EQ(llm_datadist_p.RegisterKvCache(kv_desc, p_tensor_addrs, cfg, p_cache_id), ge::SUCCESS);
-
-  // link
-  ClusterInfo cluster_info;
+  // link clusters
   IpInfo ip_info;
   ip_info.ip = "127.0.0.1";
   ip_info.port = 26000;
+  ClusterInfo cluster_info;
   cluster_info.local_ip_infos = {ip_info};
   cluster_info.remote_ip_infos = {ip_info};
   std::vector<ge::Status> rets;
   EXPECT_EQ(llm_datadist_d.LinkLlmClusters({cluster_info}, rets), ge::SUCCESS);
 
-  // pull cache
-  CacheIndex cache_index{};
-  cache_index.cluster_id = prompt_cluster_id;
-  cache_index.cache_id = p_cache_id;
+  CacheIndex cache_index{prompt_cluster_id, p_setup.cache_id, 0U, {}};
   Cache dst_cache{};
-  dst_cache.cache_id = d_cache_id;
+  dst_cache.cache_id = d_setup.cache_id;
   dst_cache.cache_desc = kv_desc;
-  KvCacheExtParam ext_param = {};
 
-  EXPECT_EQ(llm_datadist_d.PullKvCache(cache_index, dst_cache, 0, -1, ext_param), ge::SUCCESS);
-  EXPECT_EQ(llm_datadist_d.PullKvBlocks(cache_index, dst_cache, {0U, 1U}, {0U, 1U}, ext_param), ge::SUCCESS);
+  auto TestPull = [&](const KvCacheExtParam &ep, bool expect_ok) {
+    if (expect_ok) {
+      EXPECT_EQ(llm_datadist_d.PullKvCache(cache_index, dst_cache, 0, -1, ep), ge::SUCCESS);
+      EXPECT_EQ(llm_datadist_d.PullKvBlocks(cache_index, dst_cache, {0U, 1U}, {0U, 1U}, ep), ge::SUCCESS);
+    } else {
+      EXPECT_NE(llm_datadist_d.PullKvCache(cache_index, dst_cache, 0, -1, ep), ge::SUCCESS);
+      EXPECT_NE(llm_datadist_d.PullKvBlocks(cache_index, dst_cache, {0U, 1U}, {0U, 1U}, ep), ge::SUCCESS);
+    }
+  };
 
-  ext_param.src_layer_range = std::make_pair(0, 1);
-  ext_param.dst_layer_range = std::make_pair(0, 1);
-  EXPECT_EQ(llm_datadist_d.PullKvCache(cache_index, dst_cache, 0, -1, ext_param), ge::SUCCESS);
-  EXPECT_EQ(llm_datadist_d.PullKvBlocks(cache_index, dst_cache, {0U, 1U}, {0U, 1U}, ext_param), ge::SUCCESS);
+  TestPull({}, true);
+  TestPull({{0, 1}, {0, 1}, 2, {}}, true);
+  TestPull({{0, 1}, {0, 1}, 1, {}}, true);
+  TestPull({{0, 1}, {0, 1}, 2, {}}, true);
+  TestPull({{0, 1}, {0, 1}, 7, {}}, false);
+  TestPull({{0, 1}, {0, 1}, 17, {}}, false);
+  TestPull({{0, 1}, {0, 2}, 2, {}}, false);
+  TestPull({{-2, 1}, {0, 1}, 2, {}}, false);
 
-  ext_param.tensor_num_per_layer = 1;
-  EXPECT_EQ(llm_datadist_d.PullKvCache(cache_index, dst_cache, 0, -1, ext_param), ge::SUCCESS);
-  EXPECT_EQ(llm_datadist_d.PullKvBlocks(cache_index, dst_cache, {0U, 1U}, {0U, 1U}, ext_param), ge::SUCCESS);
-
-  ext_param.tensor_num_per_layer = 2;
-  EXPECT_EQ(llm_datadist_d.PullKvCache(cache_index, dst_cache, 0, -1, ext_param), ge::SUCCESS);
-  EXPECT_EQ(llm_datadist_d.PullKvBlocks(cache_index, dst_cache, {0U, 1U}, {0U, 1U}, ext_param), ge::SUCCESS);
-
-  ext_param.tensor_num_per_layer = 7;
-  EXPECT_NE(llm_datadist_d.PullKvCache(cache_index, dst_cache, 0, -1, ext_param), ge::SUCCESS);
-  EXPECT_NE(llm_datadist_d.PullKvBlocks(cache_index, dst_cache, {0U, 1U}, {0U, 1U}, ext_param), ge::SUCCESS);
-
-  ext_param.tensor_num_per_layer = 17;
-  EXPECT_NE(llm_datadist_d.PullKvCache(cache_index, dst_cache, 0, -1, ext_param), ge::SUCCESS);
-  EXPECT_NE(llm_datadist_d.PullKvBlocks(cache_index, dst_cache, {0U, 1U}, {0U, 1U}, ext_param), ge::SUCCESS);
-
-  ext_param.tensor_num_per_layer = 2;
-  ext_param.src_layer_range = std::make_pair(0, 1);
-  ext_param.dst_layer_range = std::make_pair(0, 2);
-  EXPECT_NE(llm_datadist_d.PullKvCache(cache_index, dst_cache, 0, -1, ext_param), ge::SUCCESS);
-  EXPECT_NE(llm_datadist_d.PullKvBlocks(cache_index, dst_cache, {0U, 1U}, {0U, 1U}, ext_param), ge::SUCCESS);
-
-  ext_param.dst_layer_range = std::make_pair(0, 1);
-  ext_param.src_layer_range = std::make_pair(-2, 1);
-  EXPECT_NE(llm_datadist_d.PullKvCache(cache_index, dst_cache, 0, -1, ext_param), ge::SUCCESS);
-  EXPECT_NE(llm_datadist_d.PullKvBlocks(cache_index, dst_cache, {0U, 1U}, {0U, 1U}, ext_param), ge::SUCCESS);
-
+  // cleanup
   EXPECT_EQ(llm_datadist_d.UnlinkLlmClusters({cluster_info}, rets), ge::SUCCESS);
-  EXPECT_EQ(llm_datadist_p.UnregisterKvCache(p_cache_id), ge::SUCCESS);
-  EXPECT_EQ(llm_datadist_d.UnregisterKvCache(d_cache_id), ge::SUCCESS);
+  EXPECT_EQ(llm_datadist_p.UnregisterKvCache(p_setup.cache_id), ge::SUCCESS);
+  EXPECT_EQ(llm_datadist_d.UnregisterKvCache(d_setup.cache_id), ge::SUCCESS);
   llm_datadist_p.Finalize();
   llm_datadist_d.Finalize();
 }

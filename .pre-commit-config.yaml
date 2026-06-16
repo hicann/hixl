@@ -50,7 +50,7 @@ repos:
     rev: v2.4.1
     hooks:
       - id: codespell
-        args: [ '--ignore-words-list=CANN,cann,alog' ]
+        args: [ '--ignore-words-list=CANN,cann,alog,CLOS' ]
         exclude: '^(.agents/)'
 
   # OAT 合规性检查 (Open Source Audit Tool)

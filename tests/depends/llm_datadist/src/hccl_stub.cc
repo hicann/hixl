@@ -21,7 +21,8 @@ HcclResult HcclExchangeMemDesc(HcclComm comm, uint32_t remoteRank, HcclMemDescs 
   return HcclResult::HCCL_SUCCESS;
 }
 
-HcclResult HcclCommInitClusterInfoMemConfig(const char *cluster, uint32_t rank, HcclCommConfig *config, HcclComm *comm) {
+HcclResult HcclCommInitClusterInfoMemConfig(const char *cluster, uint32_t rank, HcclCommConfig *config,
+                                            HcclComm *comm) {
   static int32_t mock_comm;
   *comm = reinterpret_cast<HcclComm>(&mock_comm);
   return HcclResult::HCCL_SUCCESS;

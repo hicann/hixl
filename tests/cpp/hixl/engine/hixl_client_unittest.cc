@@ -32,6 +32,7 @@
 #include "engine/endpoint_matcher.h"
 #include "common/hixl_inner_types.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/runtime/src/runtime_stub.h"
 #include "engine/test_mmpa_utils.h"
 #include "common/hixl_utils.h"
 #include "common/ctrl_msg_plugin.h"
@@ -318,19 +319,6 @@ const std::string MockHixlServer::kMissingFieldJson = R"([
       "net_instance_id": "superpod1-1"
     }
   ])";
-
-class EnvGuard {
- public:
-  EnvGuard(const char *key, const char *value) : key_(key) {
-    mmSetEnv(key, value, 1);
-  }
-  ~EnvGuard() {
-    unsetenv(key_.c_str());
-  }
-
- private:
-  const std::string key_;
-};
 
 // Use common KernelJsonMmpaStub from test_mmpa_utils.h
 using ClientMmpaStub = hixl::test::KernelJsonMmpaStub;
@@ -1385,14 +1373,12 @@ TEST_F(HixlClientUTest, EndpointMatcherCrossInstanceFallsBackToHostRoce) {
 }
 
 TEST_F(HixlClientUTest, EndpointMatcherSameInstanceUbPreemptsDirectPriority) {
-  std::vector<EndpointConfig> local = {MakeUbEp("local_1", "", "device", "default"),
-                                       MakeUbEp("local_2", "", "host", "default"),
-                                       MakeDirectEp(kProtocolHccs, kPlacementDevice),
-                                       MakeDirectEp(kProtocolUboe, kPlacementDevice)};
-  std::vector<EndpointConfig> remote = {MakeUbEp("remote_1", "", "device", "default"),
-                                        MakeUbEp("remote_2", "", "host", "default"),
-                                        MakeDirectEp(kProtocolHccs, kPlacementDevice),
-                                        MakeDirectEp(kProtocolUboe, kPlacementDevice)};
+  std::vector<EndpointConfig> local = {
+      MakeUbEp("local_1", "", "device", "default"), MakeUbEp("local_2", "", "host", "default"),
+      MakeDirectEp(kProtocolHccs, kPlacementDevice), MakeDirectEp(kProtocolUboe, kPlacementDevice)};
+  std::vector<EndpointConfig> remote = {
+      MakeUbEp("remote_1", "", "device", "default"), MakeUbEp("remote_2", "", "host", "default"),
+      MakeDirectEp(kProtocolHccs, kPlacementDevice), MakeDirectEp(kProtocolUboe, kPlacementDevice)};
 
   std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
   HandlerCreateArgs::HandlerType handler_type;

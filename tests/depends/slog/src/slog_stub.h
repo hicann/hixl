@@ -75,19 +75,12 @@ class SlogStub {
  private:
   int log_level_ = DLOG_ERROR;
   int event_log_level_ = 0;
-  std::map<int, std::string> level_str = {
-      {DLOG_DEBUG, "[DEBUG]"},
-      {DLOG_INFO, "[INFO]"},
-      {DLOG_WARN, "[WARNING]"},
-      {DLOG_ERROR, "[ERROR]"},
-      {DLOG_DEBUG, "[TRACE]"}
-  };
-  std::map<int, std::string> module_id_str = {
-      {GE, "GE"},
-      {FE, "FE"},
-      {HCCL, "HCCL"},
-      {RUNTIME, "RUNTIME"}
-  };
+  std::map<int, std::string> level_str = {{DLOG_DEBUG, "[DEBUG]"},
+                                          {DLOG_INFO, "[INFO]"},
+                                          {DLOG_WARN, "[WARNING]"},
+                                          {DLOG_ERROR, "[ERROR]"},
+                                          {DLOG_DEBUG, "[TRACE]"}};
+  std::map<int, std::string> module_id_str = {{GE, "GE"}, {FE, "FE"}, {HCCL, "HCCL"}, {RUNTIME, "RUNTIME"}};
 };
 
 /**
@@ -100,12 +93,12 @@ class LogCaptureStub : public SlogStub {
    * @brief 构造函数
    */
   LogCaptureStub();
- 
+
   /**
    * @brief 析构函数
    */
   virtual ~LogCaptureStub();
- 
+
   /**
    * @brief 日志处理函数
    * @param module_id 模块ID
@@ -114,38 +107,38 @@ class LogCaptureStub : public SlogStub {
    * @param args 日志参数
    */
   void Log(int module_id, int level, const char *fmt, va_list args) override;
- 
+
   /**
    * @brief 添加要捕获的日志模式
    * @param pattern 日志模式字符串
    */
   void AddCapturePattern(const std::string &pattern);
- 
+
   /**
    * @brief 检查是否捕获到指定模式的日志
    * @param pattern 日志模式字符串，如果为空则检查是否捕获到任何模式的日志
    * @return 是否捕获到指定模式的日志
    */
   bool IsPatternCaptured(const std::string &pattern = "") const;
- 
+
   /**
    * @brief 获取捕获到的日志
    * @return 捕获到的日志列表
    */
   const std::vector<std::string> &GetCapturedLogs() const;
- 
+
   /**
    * @brief 重置捕获状态
    */
   void Reset();
- 
+
   /**
    * @brief 等待所有模式被捕获
    * @param timeout_ms 超时时间，毫秒
    * @return 是否所有模式都被捕获
    */
   bool WaitForAllPatternsCaptured(int timeout_ms);
- 
+
  private:
   std::vector<std::string> capture_patterns_;  // 要捕获的日志模式
   std::vector<std::string> captured_logs_;     // 捕获到的日志

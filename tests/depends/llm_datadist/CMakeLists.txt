@@ -76,6 +76,10 @@ target_link_libraries(llm_datadist_base PRIVATE
         ${DT_COMMON_LINK_OPTION}
 )
 
+target_compile_definitions(llm_datadist_base PRIVATE
+    HCCN_TEST_CONF_PATH="${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/hccn_test.conf"
+)
+
 target_compile_options(llm_datadist_base PRIVATE
         ${DT_COMMON_COMPILE_OPTION}
 )

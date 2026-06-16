@@ -257,12 +257,13 @@ bool StartDefaultShareHandleServer(FabricMemControlServer &server, int32_t &port
     return false;
   }
   remote = "127.0.0.1:" + std::to_string(port);
-  return server.Start(remote,
-                      [](std::vector<ShareHandleInfo> &handles) {
-                        handles.emplace_back(BuildShareHandle());
-                        return SUCCESS;
-                      },
-                      auto_cleanup_enabled) == SUCCESS;
+  return server.Start(
+             remote,
+             [](std::vector<ShareHandleInfo> &handles) {
+               handles.emplace_back(BuildShareHandle());
+               return SUCCESS;
+             },
+             auto_cleanup_enabled) == SUCCESS;
 }
 
 Status FetchFabricMemClientConn(const std::string &remote, const std::string &channel_id, int32_t &conn_fd) {
@@ -762,8 +763,7 @@ TEST(FabricMemControlUTest, HandleSendNotifyRejectsOversizedFieldsAndFullQueue) 
             PARAM_INVALID);
 
   for (size_t i = 0; i < kMaxNotifyQueueSize; ++i) {
-    EXPECT_EQ(server.HandleSendNotify(server.state_,
-                                      R"({"name":"n)" + std::to_string(i) + R"(","notify_msg":"m"})"),
+    EXPECT_EQ(server.HandleSendNotify(server.state_, R"({"name":"n)" + std::to_string(i) + R"(","notify_msg":"m"})"),
               SUCCESS);
   }
   EXPECT_EQ(server.HandleSendNotify(server.state_, R"({"name":"overflow","notify_msg":"m"})"), RESOURCE_EXHAUSTED);
@@ -866,12 +866,13 @@ TEST(FabricMemControlUTest, ServerAppliesHeartbeatTimeoutToSelfLoopback) {
 TEST(FabricMemControlUTest, ServerSkipsHeartbeatTimeoutWithoutAutoCleanup) {
   FabricMemControlServer::SetHeartbeatTimeoutMs(100);
   FabricMemControlServer server;
-  ASSERT_EQ(server.Start("127.0.0.1:0",
-                         [](std::vector<ShareHandleInfo> &handles) {
-                           handles.emplace_back(BuildShareHandle());
-                           return SUCCESS;
-                         },
-                         false),
+  ASSERT_EQ(server.Start(
+                "127.0.0.1:0",
+                [](std::vector<ShareHandleInfo> &handles) {
+                  handles.emplace_back(BuildShareHandle());
+                  return SUCCESS;
+                },
+                false),
             SUCCESS);
 
   int32_t fds[2] = {-1, -1};
@@ -1766,9 +1767,8 @@ TEST(FabricMemEngineUTest, TransferSyncConcurrentDisconnectAbortsAndCompletes) {
   TransferOpDesc desc{reinterpret_cast<uintptr_t>(local_buf), reinterpret_cast<uintptr_t>(remote_buf), kLen};
 
   runtime->block_sync_with_timeout_.store(true, std::memory_order_release);
-  auto transfer_future = std::async(std::launch::async, [&]() {
-    return engine.TransferSync(AscendString(remote.c_str()), WRITE, {desc}, 60000);
-  });
+  auto transfer_future = std::async(
+      std::launch::async, [&]() { return engine.TransferSync(AscendString(remote.c_str()), WRITE, {desc}, 60000); });
 
   auto wait_for_sync = [&]() {
     for (int i = 0; i < 500; ++i) {
