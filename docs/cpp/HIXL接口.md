@@ -171,13 +171,73 @@ device侧网卡默认监听端口为16666，如果在多个进程使用同一个
 - 链路池机制会引入额外的传输与建链开销，可能导致性能下降。
 
 **表 2**  options（Ascend 950PR/Ascend 950DT）
-| 参数名 | 可选/必选 | 描述 |
-| --- | --- | --- |
-| OPTION_LOCAL_COMM_RES | 必选 | 配置本地通信资源信息，格式是json格式的字符串。配置格式参考[通信资源配置字段说明](#通信资源配置字段说明)。配置为空不会自动生成相关信息。<br>配置样例：<br>UB：<br><pre>{<br>  "version": "1.3",<br>  "net_instance_id": "superpod1_1",<br>  "endpoint_list": [<br>    {<br>      "protocol": "ub_ctp",<br>      "comm_id": "00000000007f020000100000df149001",<br>      "placement": "host",<br>      "dst_eid": "00000000007f030000100000df141c01"<br>    }<br>  ]<br>}</pre>ROCE：<br><pre>{<br>  "version": "1.3",<br>  "net_instance_id": "superpod1_1",<br>  "endpoint_list": [<br>    {<br>      "protocol": "roce",<br>      "comm_id": "192.168.100.100",<br>      "placement": "host"<br>    }<br>  ]<br>}</pre>UBOE：<pre>{<br>  "version": "1.3",<br>  "net_instance_id": "superpod1_1",<br>  "endpoint_list": [<br>    {<br>      "protocol": "uboe",<br>      "comm_id": "192.168.100.123",<br>      "placement": "device"<br>    }<br>  ]<br>}</pre>**注意：以上配置样例中的具体值仅为格式参考示例，实际使用时必须从当前环境上查询真实的通信资源配置信息进行替换，直接照抄样例值将导致通信失败。** |
-| OPTION_GLOBAL_RESOURCE_CONFIG | 可选 | 字符串取值"GlobalResourceConfig"。用于开启并配置全局资源，格式为json格式的字符串，字段说明参考[全局资源配置字段说明](#全局资源配置字段说明)。 |
-| OPTION_AUTO_CONNECT | 可选 | 字符串取值"AutoConnect"。 <br>- 0：不开启Auto Connect模式 <br>- 1：开启Auto Connect模式  <br><br>说明：<br>- 开启该选项后，可跳过建链，直接进行传输。<br>- 开启该选项后，传输发生异常或对端销毁后自动清理异常链路（对端销毁需要心跳机制来检测，心跳间隔默认10s）。|
 
-<a name="通信资源配置字段说明"></a>**通信资源配置字段说明**  
+| 参数名 | 可选/必选 | 描述                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| --- | --- |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| OPTION_LOCAL_COMM_RES | 必选 | 配置本地通信资源信息，格式是 json 格式的字符串。配置格式参考[通信资源配置字段说明](#通信资源配置字段说明)，配置为空不会自动生成相关信息。配置样例见下方[配置样例](#配置样例)<br/>**注意：<br/>1、以上配置样例中的具体值仅为格式参考示例，实际使用时必须从当前环境上查询真实的通信资源配置信息进行替换，直接拷贝样例值将导致通信失败。<br/>2、自动生成localcommres能力需要用户使用root权限调用hixl接口，且要求LCNE版本不低LCNE: UBM_2.0.0.B011，可前往1213前台执行dis startup查看LCNE版本信息；HDK版本不低于25.1.RC1.B108，可通过npu-smi info来查看HDK版本信息。<br/>3、目前仅UB场景支持自动生成net_instance_id与endpoint_list，如果用户想要自行配置localcommres信息，可以使用工具来辅助生成指定npu的localcommres信息，具体使用方法详见[scripts/tools/lcrgen/README.md](../../scripts/tools/lcrgen/README.md)。** |
+| OPTION_GLOBAL_RESOURCE_CONFIG | 可选 | 字符串取值 "GlobalResourceConfig"。用于开启并配置全局资源，格式为 json 格式的字符串，字段说明参考[全局资源配置字段说明](#全局资源配置字段说明)。                                                                                                                                                                                                                                                                                                                                                                                                     |
+| OPTION_AUTO_CONNECT | 可选 | 字符串取值 "AutoConnect"。取值：0 — 不开启 Auto Connect 模式；1 — 开启 Auto Connect 模式。说明：开启该选项后，可跳过建链，直接进行传输；开启该选项后，传输发生异常或对端销毁后自动清理异常链路（对端销毁需要心跳机制来检测，心跳间隔默认 10s）。                                                                                                                                                                                                                                                                                                                                           |
+
+<a name="配置样例"></a>**配置样例**
+
+UB——最小配置（仅配置version字段，其他字段自动生成）
+
+```json
+{
+    "version": "1.3"
+}
+```
+
+UB——完整配置
+
+```json
+{
+  "version": "1.3",
+  "net_instance_id": "superpod1_1",
+  "endpoint_list": [
+    {
+      "protocol": "ub_ctp",
+      "comm_id": "00000000007f020000100000df149001",
+      "placement": "host",
+      "dst_eid": "00000000007f030000100000df141c01"
+    }
+  ]
+}
+```
+
+ROCE
+
+```json
+  {
+  "version": "1.3",
+  "net_instance_id": "superpod1_1",
+  "endpoint_list": [
+    {
+      "protocol": "roce",
+      "comm_id": "192.168.100.100",
+      "placement": "host"
+    }
+  ]
+}
+```
+
+UBOE
+
+```json
+{
+  "version": "1.3",
+  "net_instance_id": "superpod1_1",
+  "endpoint_list": [
+    {
+      "protocol": "uboe",
+      "comm_id": "192.168.100.123",
+      "placement": "device"
+    }
+  ]
+}
+```
+
+<a name="通信资源配置字段说明"></a>**通信资源配置字段说明**
 | 字段名 | 数据类型 | 必选/可选 | 说明 | 支持值/填写规则 |
 | ---- | ---- | ---- | ---- | ---- |
 | version | 字符串 | 必选 | 版本号 | "1.3"。需要HDK版本大于等于25.5.0且toolkit包版本大于等于9.1.0。 |
@@ -189,7 +249,7 @@ device侧网卡默认监听端口为16666，如果在多个进程使用同一个
 | endpoint_list[].plane | 字符串 | 可选 | 通信设备平面 | protocol为ub_ctp/ub_tp时，设备区分平面则填写，每个平面唯一（如"plane-a"/"plane-b"） |
 | endpoint_list[].dst_eid | 字符串 | 可选 | 与当前通信设备连接的对端通信设备的${eid} | protocol为ub_ctp时，存在full-mesh直连对端则填写对端${eid} |
 
-<a name="全局资源配置字段说明"></a>**全局资源配置字段说明**  
+<a name="全局资源配置字段说明"></a>**全局资源配置字段说明**
 | 字段名 | 数据类型 | 必选/可选 | 说明 | 支持值/填写规则 |
 | ---- | ---- | ---- | ---- | ---- |
 | comm_resource_config.protocol_desc | 字符串或字符串数组 | 可选 | 配置可使用的通信协议以及通信设备位置范围，格式为"${protocol}:${placement}" | 支持"roce:device"/"hccs:device"/"ub_ctp:device"/"ub_tp:device"/"uboe:device"/"roce:host"/"ub_ctp:host"/"ub_tp:host"。配置后会对OPTION_LOCAL_COMM_RES中显式配置的endpoint_list和自动生成的endpoint_list按该范围进行过滤。 |
@@ -386,7 +446,7 @@ Status Connect(const AscendString &remote_engine, int32_t timeout_in_millis = 10
     ```
     export PATH=$PATH:{hccn_tool_install_path}
     ```
-  
+
 - 该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
 
 ## Disconnect
@@ -862,4 +922,3 @@ static Status GetCapability(FeatureType feature_type, int32_t &value)
 
 - 无需调用Initialize即可调用。
 - 静态方法，不依赖Hixl实例。
-
