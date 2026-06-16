@@ -102,8 +102,8 @@ mooncake_master \
 
 执行时通过在终端执行：
 
-``````bash 
-bash run.sh **.py 
+``````bash
+bash run.sh **.py
 ``````
 
 > 其中`**.py`  为需要测试的接口对应的样例，例如测试`batch_put_get`接口时，就使用`batch_put_get_sample.py`

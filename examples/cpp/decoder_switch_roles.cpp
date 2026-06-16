@@ -32,7 +32,6 @@ constexpr uint32_t kArgIndexDeviceId = 1;
 constexpr uint32_t kArgIndexLocalIp = 2;
 constexpr uint32_t kArgIndexRemoteIp = 3;
 
-
 #define CHECK_ACL(x)                                                                  \
   do {                                                                                \
     aclError __ret = x;                                                               \

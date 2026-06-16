@@ -98,7 +98,7 @@ run_pair() {
             abs_path=$(readlink -f "$tmp" 2>/dev/null)
             [[ -z "$abs_path" ]] && continue
             if [[ "$abs_path" =~ ^/tmp/tmp\.[0-9a-zA-Z_]+$ && -f "$abs_path" ]]; then
-                rm -f "$abs_path" 
+                rm -f "$abs_path"
                 echo "Deleted safe temp file: $abs_path"
             fi
         done
@@ -113,7 +113,7 @@ run_pair() {
         abs_path=$(readlink -f "$tmp" 2>/dev/null)
         [[ -z "$abs_path" ]] && continue
         if [[ "$abs_path" =~ ^/tmp/tmp\.[0-9a-zA-Z_]+$ && -f "$abs_path" ]]; then
-            rm -f "$abs_path" 
+            rm -f "$abs_path"
             echo "Deleted safe temp file: $abs_path"
         fi
     done
@@ -158,7 +158,7 @@ all_samples() {
         exit 1
     fi
     echo "IP_ADDRESS: ${IP_ADDRESS}"
-    
+
     if [ $# -lt 2 ]; then
         echo "ERROR: At least 2 device IDs are required."
         exit 1
