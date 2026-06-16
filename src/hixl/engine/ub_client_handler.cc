@@ -166,7 +166,7 @@ Status UbClientHandler::RegisterMem(const MemInfo &mem_info) {
 }
 
 Status UbClientHandler::TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation,
-                                       TransferReq &req) {
+                                      TransferReq &req) {
   std::map<CommType, std::vector<TransferOpDesc>> table;
   HIXL_CHK_STATUS_RET(ClassifyTransfers(op_descs, table));
 

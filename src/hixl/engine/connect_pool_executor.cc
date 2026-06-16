@@ -47,8 +47,8 @@ Status ConnectPoolExecutor::Initialize(const HixlOptions &options) {
                            "thread_num:%d must in [%d, %d]", thread_num_, kLimitThreadNumMin, kLimitThreadNumMax);
   HIXL_CHK_BOOL_RET_STATUS(
       task_queue_capacity_ >= kLimitTaskQueueCapacityMin && task_queue_capacity_ <= kLimitTaskQueueCapacityMax,
-      PARAM_INVALID, "task_queue_capacity:%d must in [%d, %d]", task_queue_capacity_,
-      kLimitTaskQueueCapacityMin, kLimitTaskQueueCapacityMax);
+      PARAM_INVALID, "task_queue_capacity:%d must in [%d, %d]", task_queue_capacity_, kLimitTaskQueueCapacityMin,
+      kLimitTaskQueueCapacityMax);
 
   is_initialized_.store(true, std::memory_order::memory_order_relaxed);
   (void)aclrtGetCurrentContext(&ctx_);

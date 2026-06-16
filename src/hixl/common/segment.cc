@@ -21,10 +21,9 @@ Status Segment::AddRange(uint64_t start, uint64_t len) {
     return PARAM_INVALID;
   }
   uint64_t end = start + len;
-  auto it = std::upper_bound(ranges_.begin(), ranges_.end(), start,
-                             [](uint64_t val, const std::pair<uint64_t, uint64_t> &range) {
-                               return val < range.first;
-                             });
+  auto it =
+      std::upper_bound(ranges_.begin(), ranges_.end(), start,
+                       [](uint64_t val, const std::pair<uint64_t, uint64_t> &range) { return val < range.first; });
   // 检查是否已经存在完全相同的范围
   if (it != ranges_.begin()) {
     auto prev_it = std::prev(it);
@@ -43,10 +42,9 @@ Status Segment::AddRange(uint64_t start, uint64_t len) {
 }
 
 void Segment::RemoveRange(uint64_t start, uint64_t end) {
-  auto it = std::lower_bound(ranges_.begin(), ranges_.end(), start,
-                             [](const std::pair<uint64_t, uint64_t> &range, uint64_t val) {
-                               return range.first < val;
-                             });
+  auto it =
+      std::lower_bound(ranges_.begin(), ranges_.end(), start,
+                       [](const std::pair<uint64_t, uint64_t> &range, uint64_t val) { return range.first < val; });
   if (it == ranges_.end() || it->first > start) {
     HIXL_LOGW("Range not found, start:%lu, end:%lu", start, end);
     return;
@@ -66,10 +64,9 @@ bool Segment::Contains(uint64_t start, uint64_t end) const {
     HIXL_LOGE(PARAM_INVALID, "Invalid range, start:%lu, end:%lu", start, end);
     return false;
   }
-  auto it = std::upper_bound(ranges_.begin(), ranges_.end(), start,
-                             [](uint64_t val, const std::pair<uint64_t, uint64_t> &range) {
-                               return val < range.first;
-                             });
+  auto it =
+      std::upper_bound(ranges_.begin(), ranges_.end(), start,
+                       [](uint64_t val, const std::pair<uint64_t, uint64_t> &range) { return val < range.first; });
 
   uint64_t max_reached = start;
   bool covered_start = false;

@@ -316,8 +316,8 @@ Status HixlCSClient::InitDeviceResource() {
   Status pret = pool->Initialize(kDeviceTransferPoolSize);
   HIXL_CHK_STATUS_RET(pret, "[HixlClient] TransferPool Initialize failed. devId=%d", device_id_);
   std::vector<TransferPool::SlotHandle> all_slots;
-  HIXL_CHK_STATUS_RET(pool->GetAllSlots(all_slots),
-                      "[HixlClient] TransferPool GetAllSlots failed. devId=%d", device_id_);
+  HIXL_CHK_STATUS_RET(pool->GetAllSlots(all_slots), "[HixlClient] TransferPool GetAllSlots failed. devId=%d",
+                      device_id_);
 
   // 预先解析所有 slot 的 notify 地址，避免传输时重新获取
   slot_notify_addrs_.clear();
@@ -444,7 +444,7 @@ Status HixlCSClient::ValidateAddress(uint32_t list_num, const HixlOneSideOpDesc 
 }
 
 Status HixlCSClient::TransferWithRetry(bool is_get, uint64_t channel_handle, void *dst_buf, const void *src_buf,
-                                      uint64_t len) const {
+                                       uint64_t len) const {
   constexpr int64_t kRetryTimeoutMs = 20 * 60 * 1000;  // 20 minutes in milliseconds
 
   auto start_time = std::chrono::steady_clock::now();
@@ -651,8 +651,7 @@ Status HixlCSClient::AcquireSharedSlot(std::shared_ptr<TransferPool::SlotHandle>
   TransferPool::SlotHandle new_slot{};
   auto *pool = TransferPool::GetInstance(device_id_);
   HIXL_CHECK_NOTNULL(pool);
-  HIXL_CHK_STATUS_RET(pool->Acquire(&new_slot),
-                      "[HixlClient] Acquire slot from pool failed");
+  HIXL_CHK_STATUS_RET(pool->Acquire(&new_slot), "[HixlClient] Acquire slot from pool failed");
 
   active_slot_ = std::make_shared<TransferPool::SlotHandle>(new_slot);
   slot_out = active_slot_;
@@ -766,21 +765,21 @@ Status HixlCSClient::LaunchDeviceChunkedKernels(bool is_get, DeviceCompleteHandl
 }
 
 Status HixlCSClient::AllocateDeviceDescBuf(DeviceCompleteHandle &handle, uint32_t total_list_num,
-                                            const HixlOneSideOpDesc *desc_list) const {
+                                           const HixlOneSideOpDesc *desc_list) const {
   size_t desc_buf_size = total_list_num * sizeof(HixlOneSideOpDesc);
   HIXL_CHK_ACL_RET(aclrtMalloc(&handle.dev_op_desc_buf, desc_buf_size, ACL_MEM_MALLOC_HUGE_ONLY),
                    "[HixlClient] aclrtMalloc op_desc_buf failed");
-  HIXL_CHK_ACL_RET(aclrtMemcpy(handle.dev_op_desc_buf, desc_buf_size, desc_list, desc_buf_size, ACL_MEMCPY_HOST_TO_DEVICE),
-                   "[HixlClient] aclrtMemcpy op_desc_buf failed");
+  HIXL_CHK_ACL_RET(
+      aclrtMemcpy(handle.dev_op_desc_buf, desc_buf_size, desc_list, desc_buf_size, ACL_MEMCPY_HOST_TO_DEVICE),
+      "[HixlClient] aclrtMemcpy op_desc_buf failed");
   return SUCCESS;
 }
 
-Status HixlCSClient::BuildDeviceChunkParam(DeviceCompleteHandle &handle, uint32_t chunk_offset,
-                                            uint32_t chunk_list_num, bool is_last_chunk,
-                                            HixlOneSideOpParam &param) {
+Status HixlCSClient::BuildDeviceChunkParam(DeviceCompleteHandle &handle, uint32_t chunk_offset, uint32_t chunk_list_num,
+                                           bool is_last_chunk, HixlOneSideOpParam &param) {
   HIXL_CHK_BOOL_RET_STATUS(handle.shared_slot->slot_index < slot_notify_addrs_.size(), PARAM_INVALID,
-                           "[HixlClient] slot_index %u out of range %zu",
-                           handle.shared_slot->slot_index, slot_notify_addrs_.size());
+                           "[HixlClient] slot_index %u out of range %zu", handle.shared_slot->slot_index,
+                           slot_notify_addrs_.size());
   param.thread = handle.shared_slot->thread;
   param.channel = static_cast<uint64_t>(client_channel_handle_);
   param.list_num = chunk_list_num;
@@ -802,8 +801,8 @@ Status HixlCSClient::BuildDeviceChunkParam(DeviceCompleteHandle &handle, uint32_
   if (local_endpoint_->GetEndpoint().protocol == COMM_PROTOCOL_HCCS) {
     param.use_notify_record = 1;
   }
-  HIXL_LOGI("[HixlClient] protocol=%u, use_notify_record=%u",
-    local_endpoint_->GetEndpoint().protocol, param.use_notify_record);
+  HIXL_LOGI("[HixlClient] protocol=%u, use_notify_record=%u", local_endpoint_->GetEndpoint().protocol,
+            param.use_notify_record);
   return SUCCESS;
 }
 
@@ -821,8 +820,7 @@ std::unique_ptr<hixl::TemporaryRtContext> HixlCSClient::GetContextGuard() const 
   return nullptr;  // 不切换 context
 }
 
-Status HixlCSClient::LaunchDeviceKernel(bool is_get, DeviceCompleteHandle &handle,
-                                        const HixlOneSideOpParam &param,
+Status HixlCSClient::LaunchDeviceKernel(bool is_get, DeviceCompleteHandle &handle, const HixlOneSideOpParam &param,
                                         bool wait_notify) {
   const char *kernel_name = is_get ? kDeviceFuncGet : kDeviceFuncPut;
   HIXL_LOGI("[HixlClient] LaunchDeviceKernel start. kernel=%s wait_notify=%d", kernel_name, wait_notify);
@@ -1012,8 +1010,7 @@ Status HixlCSClient::BatchTransferSync(bool is_get, uint32_t list_num, const Hix
   if (IsDeviceEndpoint(endpoint)) {
     if (endpoint.protocol == COMM_PROTOCOL_UBOE) {
       std::vector<HixlOneSideOpDesc> mutable_descs(desc_list, desc_list + list_num);
-      HIXL_CHK_STATUS_RET(ConvertUboeDescs(list_num, mutable_descs.data()),
-                          "[HixlClient] convert uboe descs failed.");
+      HIXL_CHK_STATUS_RET(ConvertUboeDescs(list_num, mutable_descs.data()), "[HixlClient] convert uboe descs failed.");
       return BatchTransferDeviceSync(is_get, list_num, mutable_descs.data(), timeout_ms);
     }
     return BatchTransferDeviceSync(is_get, list_num, desc_list, timeout_ms);
@@ -1039,8 +1036,7 @@ Status HixlCSClient::BatchTransferAsync(bool is_get, uint32_t list_num, const Hi
   if (IsDeviceEndpoint(ep)) {
     if (ep.protocol == COMM_PROTOCOL_UBOE) {
       std::vector<HixlOneSideOpDesc> mutable_descs(desc_list, desc_list + list_num);
-      HIXL_CHK_STATUS_RET(ConvertUboeDescs(list_num, mutable_descs.data()),
-                          "[HixlClient] convert uboe descs failed.");
+      HIXL_CHK_STATUS_RET(ConvertUboeDescs(list_num, mutable_descs.data()), "[HixlClient] convert uboe descs failed.");
       return BatchTransferDeviceAsync(is_get, list_num, mutable_descs.data(), query_handle);
     }
     return BatchTransferDeviceAsync(is_get, list_num, desc_list, query_handle);
@@ -1176,8 +1172,8 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannelLocked(uint32_t timeout_ms)
       "Src[protocol:%u, type:%u, id:%u], Dst[protocol:%u, type:%u, id:%u]",
       socket_, timeout_ms, src_ep.protocol, src_ep.commAddr.type, src_ep.commAddr.id, remote_endpoint_.protocol,
       remote_endpoint_.commAddr.type, remote_endpoint_.commAddr.id);
-  Status ret = ConnMsgHandler::SendMatchEndpointRequest(socket_, remote_endpoint_,
-                                                        global_config_.ListenPort().value_or(0));
+  Status ret =
+      ConnMsgHandler::SendMatchEndpointRequest(socket_, remote_endpoint_, global_config_.ListenPort().value_or(0));
   HIXL_CHK_STATUS_RET(ret, "[HixlClient] SendMatchEndpointRequest failed. fd=%d", socket_);
   uint32_t remote_listen_port = 0;
   ret = ConnMsgHandler::RecvMatchEndpointResponse(socket_, remote_endpoint_handle_, remote_listen_port, timeout_ms);

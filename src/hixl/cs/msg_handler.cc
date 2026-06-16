@@ -30,9 +30,7 @@ Status MsgHandler::Initialize() {
 
   HIXL_CHK_ACL_RET(aclrtGetCurrentContext(&ctx_));
   HIXL_LOGI("aclrtGetCurrentContext ctx=%p", ctx_);
-  listener_ = std::thread([this]() {
-    HandleMsg();
-  });
+  listener_ = std::thread([this]() { HandleMsg(); });
   return SUCCESS;
 }
 
@@ -57,11 +55,11 @@ MsgHandler::~MsgHandler() {
 }
 
 Status MsgHandler::HandleMsg(int32_t fd, CtrlMsgPtr msg, MsgProcessor proc) {
-  HIXL_EVENT("[HixlServer] handle msg begin, msg type:%d, msg size:%zu",
-             static_cast<int32_t>(msg->msg_type), msg->msg.size());
+  HIXL_EVENT("[HixlServer] handle msg begin, msg type:%d, msg size:%zu", static_cast<int32_t>(msg->msg_type),
+             msg->msg.size());
   HIXL_CHK_STATUS_RET(proc(fd, msg->msg.c_str(), msg->msg.size()), "Failed to handle msg");
-  HIXL_EVENT("[HixlServer] handle msg success, msg type:%d, msg size:%zu",
-             static_cast<int32_t>(msg->msg_type), msg->msg.size());
+  HIXL_EVENT("[HixlServer] handle msg success, msg type:%d, msg size:%zu", static_cast<int32_t>(msg->msg_type),
+             msg->msg.size());
   return SUCCESS;
 }
 

@@ -26,7 +26,8 @@ class HcommProxy {
   static HcclResult EndpointCreate(const EndpointDesc *endpoint, EndpointHandle *endpoint_handle);
   static HcclResult EndpointDestroy(EndpointHandle endpoint_handle);
   static HcclResult EndpointGetListenPort(EndpointHandle endpoint_handle, uint32_t *port);
-  static HcclResult MemImport(EndpointHandle endpoint_handle, const void *mem_desc, uint32_t desc_len, CommMem *out_mem);
+  static HcclResult MemImport(EndpointHandle endpoint_handle, const void *mem_desc, uint32_t desc_len,
+                              CommMem *out_mem);
   static HcclResult MemUnimport(EndpointHandle endpoint_handle, const void *mem_desc, uint32_t desc_len);
   static HcclResult ChannelCreate(EndpointHandle endpoint_handle, CommEngine engine, HcommChannelDesc *channel_descs,
                                   uint32_t channel_num, ChannelHandle *channels);

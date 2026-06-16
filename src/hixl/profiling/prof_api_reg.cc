@@ -17,7 +17,6 @@
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 
-
 namespace {
 bool g_prof_run = false;
 std::mutex g_prof_mutex;
@@ -27,16 +26,17 @@ constexpr uint32_t kStopProfiling = 2U;
 constexpr uint32_t kHixlModuleId = 12;
 
 const std::map<hixl::HixlProfType, std::string> kProfTypeToNames = {
-  {hixl::HixlProfType::HixlOpBatchRead,                       "hixlOpBatchRead"},
-  {hixl::HixlProfType::HixlOpBatchWrite,                      "hixlOpBatchWrite"},
+    {hixl::HixlProfType::HixlOpBatchRead, "hixlOpBatchRead"},
+    {hixl::HixlProfType::HixlOpBatchWrite, "hixlOpBatchWrite"},
 };
 
 aclError RegisterProfType() {
-  for (const auto &iter: kProfTypeToNames) {
+  for (const auto &iter : kProfTypeToNames) {
     uint32_t type_id = static_cast<uint32_t>(iter.first);
     const auto ret = MsprofRegTypeInfo(MSPROF_REPORT_ACL_LEVEL, type_id, iter.second.c_str());
     if (ret != MSPROF_ERROR_NONE) {
-      HIXL_LOGE(ACL_ERROR_PROFILING_FAILURE, "[Hixl Profiling] Profiling registered api type [%u] failed = %d", type_id, ret);
+      HIXL_LOGE(ACL_ERROR_PROFILING_FAILURE, "[Hixl Profiling] Profiling registered api type [%u] failed = %d", type_id,
+                ret);
       return ACL_ERROR_PROFILING_FAILURE;
     }
   }
@@ -45,7 +45,7 @@ aclError RegisterProfType() {
 
 aclError AddDeviceList(const uint32_t *const device_id_list, const uint32_t device_nums) {
   if (device_id_list == nullptr) {
-    HIXL_LOGE(ACL_ERROR_INVALID_PARAM,"[Hixl Profiling] Device_id_list is null, please check");
+    HIXL_LOGE(ACL_ERROR_INVALID_PARAM, "[Hixl Profiling] Device_id_list is null, please check");
     return ACL_ERROR_INVALID_PARAM;
   }
   for (size_t idx = 0U; idx < device_nums; idx++) {
@@ -115,7 +115,8 @@ aclError ProcessProfData(void *const data, const uint32_t len) {
   }
   constexpr size_t command_len = sizeof(MsprofCommandHandle);
   if (len < command_len) {
-    HIXL_LOGE(ACL_ERROR_INVALID_PARAM, "[Hixl Profiling] [Check][Len]len[%u] is invalid, it should not be smaller than %zu", len, command_len);
+    HIXL_LOGE(ACL_ERROR_INVALID_PARAM,
+              "[Hixl Profiling] [Check][Len]len[%u] is invalid, it should not be smaller than %zu", len, command_len);
     return ACL_ERROR_INVALID_PARAM;
   }
   MsprofCommandHandle *const profiler_config = static_cast<MsprofCommandHandle *>(data);
@@ -149,7 +150,7 @@ aclError HixlProfCtrlHandle(uint32_t data_type, void *data, uint32_t data_len) {
 }
 
 class HixlRegProfCallback {
-public:
+ public:
   HixlRegProfCallback() {
     const auto prof_ret = MsprofRegisterCallback(kHixlModuleId, &HixlProfCtrlHandle);
     if (prof_ret != 0) {
@@ -159,40 +160,40 @@ public:
   ~HixlRegProfCallback() {}
 };
 static HixlRegProfCallback prof_cb_reg;
-}
+}  // namespace
 
 namespace hixl {
-  HixlProfilingReporter::HixlProfilingReporter(const HixlProfType api_id) : hixl_api_(api_id) {
-    const std::lock_guard<std::mutex> lk(g_prof_mutex);
-    if (g_prof_run) {
-      start_time_ = MsprofSysCycleTime();
-    }
-  }
-
-  HixlProfilingReporter::HixlProfilingReporter(const HixlProfType api_id, uint64_t start_time) 
-      : start_time_(start_time), hixl_api_(api_id) {}
-
-  uint64_t HixlProfilingReporter::GetSysCycleTime() {
-    uint64_t sys_cycle_time = 0;
-    const std::lock_guard<std::mutex> lk(g_prof_mutex);
-    if (g_prof_run) {
-      HIXL_LOGI("[Hixl Profiling] Profiling is enabled. Get start time.");
-      sys_cycle_time  = MsprofSysCycleTime();
-    }
-    return sys_cycle_time;
-  }
-
-  HixlProfilingReporter::~HixlProfilingReporter() noexcept {
-    const std::lock_guard<std::mutex> lk(g_prof_mutex);
-    if (g_prof_run && (start_time_ != 0UL)) {
-      const uint64_t end_time = MsprofSysCycleTime();
-      MsprofApi api{};
-      api.beginTime = start_time_;
-      api.endTime = end_time;
-      api.threadId = static_cast<uint32_t>(mmGetTid());
-      api.level = MSPROF_REPORT_ACL_LEVEL;
-      api.type = static_cast<uint32_t>(hixl_api_);
-      (void)MsprofReportApi(true, &api);
-    }
+HixlProfilingReporter::HixlProfilingReporter(const HixlProfType api_id) : hixl_api_(api_id) {
+  const std::lock_guard<std::mutex> lk(g_prof_mutex);
+  if (g_prof_run) {
+    start_time_ = MsprofSysCycleTime();
   }
 }
+
+HixlProfilingReporter::HixlProfilingReporter(const HixlProfType api_id, uint64_t start_time)
+    : start_time_(start_time), hixl_api_(api_id) {}
+
+uint64_t HixlProfilingReporter::GetSysCycleTime() {
+  uint64_t sys_cycle_time = 0;
+  const std::lock_guard<std::mutex> lk(g_prof_mutex);
+  if (g_prof_run) {
+    HIXL_LOGI("[Hixl Profiling] Profiling is enabled. Get start time.");
+    sys_cycle_time = MsprofSysCycleTime();
+  }
+  return sys_cycle_time;
+}
+
+HixlProfilingReporter::~HixlProfilingReporter() noexcept {
+  const std::lock_guard<std::mutex> lk(g_prof_mutex);
+  if (g_prof_run && (start_time_ != 0UL)) {
+    const uint64_t end_time = MsprofSysCycleTime();
+    MsprofApi api{};
+    api.beginTime = start_time_;
+    api.endTime = end_time;
+    api.threadId = static_cast<uint32_t>(mmGetTid());
+    api.level = MSPROF_REPORT_ACL_LEVEL;
+    api.type = static_cast<uint32_t>(hixl_api_);
+    (void)MsprofReportApi(true, &api);
+  }
+}
+}  // namespace hixl

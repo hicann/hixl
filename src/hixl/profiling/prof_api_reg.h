@@ -38,10 +38,9 @@ class HixlProfilingReporter {
   uint64_t start_time_ = 0UL;
   const HixlProfType hixl_api_;
 };
-} // namespace hixl
+}  // namespace hixl
 
-#define HIXL_API_PROFILING(api_id) \
-  const hixl::HixlProfilingReporter profilingReporter(api_id)
+#define HIXL_API_PROFILING(api_id) const hixl::HixlProfilingReporter profilingReporter(api_id)
 
 #define HIXL_API_PROFILING_WITH_TIME(apiId, startTime) \
   const hixl::HixlProfilingReporter profilingReporter(apiId, startTime)

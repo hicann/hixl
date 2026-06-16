@@ -37,8 +37,7 @@ Status ClientManager::StartHeartbeat() {
     std::unique_lock<std::mutex> lock(cv_mutex_);
     while (!stop_signal_.load()) {
       SendHeartbeat();
-      cv_.wait_for(lock, std::chrono::milliseconds(kHeartbeatIntervalMs),
-                   [this] { return stop_signal_.load(); });
+      cv_.wait_for(lock, std::chrono::milliseconds(kHeartbeatIntervalMs), [this] { return stop_signal_.load(); });
     }
     return SUCCESS;
   });
@@ -78,18 +77,16 @@ Status ClientManager::GetOrCreateClient(const ClientConfig &config, const std::v
   }
 
   ClientPtr new_client = nullptr;
-  HIXL_CHK_STATUS_RET(CreateClient(config, new_client),
-                      "Failed to create HixlClient, remote_engine:%s", config.remote_engine.c_str());
+  HIXL_CHK_STATUS_RET(CreateClient(config, new_client), "Failed to create HixlClient, remote_engine:%s",
+                      config.remote_engine.c_str());
   HIXL_CHECK_NOTNULL(new_client, "Created client is null, remote_engine:%s", config.remote_engine.c_str());
 
-  HIXL_DISMISSABLE_GUARD(fail_guard, ([new_client]() {
-    (void)new_client->Finalize();
-  }));
-  HIXL_CHK_STATUS_RET(new_client->SetLocalMemInfo(mem_info_list),
-                      "Failed to set local memory info, remote_engine:%s", config.remote_engine.c_str());
+  HIXL_DISMISSABLE_GUARD(fail_guard, ([new_client]() { (void)new_client->Finalize(); }));
+  HIXL_CHK_STATUS_RET(new_client->SetLocalMemInfo(mem_info_list), "Failed to set local memory info, remote_engine:%s",
+                      config.remote_engine.c_str());
   HIXL_CHK_STATUS_RET(new_client->Connect(timeout_in_millis),
-                      "Failed to connect client, remote_engine:%s, timeout:%d ms",
-                      config.remote_engine.c_str(), timeout_in_millis);
+                      "Failed to connect client, remote_engine:%s, timeout:%d ms", config.remote_engine.c_str(),
+                      timeout_in_millis);
   HIXL_DISMISS_GUARD(fail_guard);
 
   std::lock_guard<std::mutex> lock(mutex_);

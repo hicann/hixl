@@ -70,9 +70,8 @@ Status TransferPool::Initialize(uint32_t pool_size) {
   std::lock_guard<std::mutex> lock(mu_);
   if (inited_) {
     if (pool_size != pool_size_) {
-      HIXL_LOGE(PARAM_INVALID,
-                "[TransferPool] Initialize pool_size mismatch. inited=%u got=%u (device_id=%d)", pool_size_, pool_size,
-                device_id_);
+      HIXL_LOGE(PARAM_INVALID, "[TransferPool] Initialize pool_size mismatch. inited=%u got=%u (device_id=%d)",
+                pool_size_, pool_size, device_id_);
       return PARAM_INVALID;
     }
     ref_cnt_ += 1U;
@@ -134,8 +133,8 @@ Status TransferPool::Acquire(SlotHandle *handle) {
     return FAILED;
   }
   if (free_list_.empty()) {
-    HIXL_LOGE(RESOURCE_EXHAUSTED,
-              "[TransferPool] Acquire failed: no free slots (device_id=%d, pool_size=%u)", device_id_, pool_size_);
+    HIXL_LOGE(RESOURCE_EXHAUSTED, "[TransferPool] Acquire failed: no free slots (device_id=%d, pool_size=%u)",
+              device_id_, pool_size_);
     return RESOURCE_EXHAUSTED;
   }
   const uint32_t idx = free_list_.front();
@@ -284,8 +283,7 @@ void TransferPool::AbortSlotByIndexLocked(uint32_t slot_index) {
 
   Status ret = InitOneSlotLocked(slot, slot_index);
   if (ret != SUCCESS) {
-    HIXL_LOGE(ret, "[TransferPool] AbortSlotByIndexLocked re-init failed slot=%u device_id=%d", slot_index,
-              device_id_);
+    HIXL_LOGE(ret, "[TransferPool] AbortSlotByIndexLocked re-init failed slot=%u device_id=%d", slot_index, device_id_);
     slot.in_use = false;
     free_list_.push_back(slot_index);
     return;
@@ -382,8 +380,9 @@ Status TransferPool::EnsureDevConstOneLocked() {
   HIXL_CHK_ACL_RET(aclrtMalloc(&dev_const_one_, sizeof(uint64_t), ACL_MEM_MALLOC_NORMAL_ONLY),
                    "[TransferPool] aclrtMalloc dev_const_one_ failed");
   constexpr uint64_t host_one = 1U;
-  HIXL_CHK_ACL_RET(aclrtMemcpy(dev_const_one_, sizeof(uint64_t), &host_one, sizeof(uint64_t), ACL_MEMCPY_HOST_TO_DEVICE),
-                   "[TransferPool] aclrtMemcpy dev_const_one_ failed");
+  HIXL_CHK_ACL_RET(
+      aclrtMemcpy(dev_const_one_, sizeof(uint64_t), &host_one, sizeof(uint64_t), ACL_MEMCPY_HOST_TO_DEVICE),
+      "[TransferPool] aclrtMemcpy dev_const_one_ failed");
   HIXL_LOGI("[TransferPool] dev_const_one initialized at %p on device %d", dev_const_one_, device_id_);
   return SUCCESS;
 }

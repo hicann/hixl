@@ -30,7 +30,7 @@ file(GLOB HIXL_SRC_LIST
 
 add_library(cann_hixl SHARED ${HIXL_SRC_LIST})
 
-target_include_directories(cann_hixl PRIVATE 
+target_include_directories(cann_hixl PRIVATE
     ${HIXL_INC_DIR}
     ${HIXL_CODE_DIR}/src/hixl/proxy
     )
@@ -71,7 +71,7 @@ target_link_libraries(cann_hixl PRIVATE
         -Wl,--as-needed
         )
 
-install(TARGETS cann_hixl 
-         EXPORT cann_hixl-targets 
-         LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} COMPONENT hixl 
+install(TARGETS cann_hixl
+         EXPORT cann_hixl-targets
+         LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} COMPONENT hixl
          RUNTIME DESTINATION ${INSTALL_LIBRARY_DIR} COMPONENT hixl)

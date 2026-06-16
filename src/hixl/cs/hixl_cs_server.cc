@@ -31,10 +31,10 @@ static inline void to_json(nlohmann::json &j, const CommMem &m) {
 namespace hixl {
 namespace {
 constexpr uint32_t kDeviceTransferPoolSize = 128U;  // 与 HixlCSClient 侧设备池大小一致
-constexpr int32_t kMaxEventsNum = 128;  // epoll_wait并发处理事件数量，减少epoll系统调用
-constexpr int32_t kEpollWaitTimeInMillis = 100;  // epoll_wait等待超时时间
-constexpr const char *kTransFlagNameHost = "_hixl_builtin_host_trans_flag";// client用于感知收发完成的标识
-constexpr const char *kTransFlagNameDevice = "_hixl_builtin_dev_trans_flag";// client用于感知收发完成的标识
+constexpr int32_t kMaxEventsNum = 128;              // epoll_wait并发处理事件数量，减少epoll系统调用
+constexpr int32_t kEpollWaitTimeInMillis = 100;     // epoll_wait等待超时时间
+constexpr const char *kTransFlagNameHost = "_hixl_builtin_host_trans_flag";   // client用于感知收发完成的标识
+constexpr const char *kTransFlagNameDevice = "_hixl_builtin_dev_trans_flag";  // client用于感知收发完成的标识
 }  // namespace
 
 std::unique_ptr<hixl::TemporaryRtContext> HixlCSServer::GetContextGuard() const {
@@ -103,17 +103,18 @@ Status HixlCSServer::RegisterDeviceTransFinishedFlag() {
   hixl::TemporaryRtContext with_context(nullptr);  // 创建context会切换当前context, 因此需要在析构时恢复原用户context
   auto *pool = TransferPool::GetInstance(dev_id);
   HIXL_CHECK_NOTNULL(pool);
-  HIXL_CHK_STATUS_RET(pool->Initialize(kDeviceTransferPoolSize),
-                      "Failed to init TransferPool for CS server, dev_id:%d", dev_id);
+  HIXL_CHK_STATUS_RET(pool->Initialize(kDeviceTransferPoolSize), "Failed to init TransferPool for CS server, dev_id:%d",
+                      dev_id);
   HIXL_DISMISSABLE_GUARD(pool_rollback, ([dev_id]() {
-    auto *p = TransferPool::GetInstance(dev_id);
-    if (p != nullptr) {
-      p->Finalize();
-    }
-  }));
+                           auto *p = TransferPool::GetInstance(dev_id);
+                           if (p != nullptr) {
+                             p->Finalize();
+                           }
+                         }));
   void *dev_flag = nullptr;
-  HIXL_CHK_ACL_RET(aclrtMalloc(&dev_flag, sizeof(int64_t),
-                               static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_ONLY)));
+  HIXL_CHK_ACL_RET(
+      aclrtMalloc(&dev_flag, sizeof(int64_t),
+                  static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_ONLY)));
   int64_t val = 1;
   HIXL_CHK_ACL_RET(aclrtMemcpy(dev_flag, sizeof(int64_t), &val, sizeof(int64_t), ACL_MEMCPY_HOST_TO_DEVICE));
   CommMem mem{};
@@ -144,10 +145,9 @@ Status HixlCSServer::Initialize(const EndpointDesc *endpoint_list, uint32_t list
                                     [this](int32_t fd, const char *msg, uint64_t msg_len) -> Status {
                                       return this->CreateChannel(fd, msg, msg_len);
                                     });
-  msg_handler_.RegisterMsgProcessor(CtrlMsgType::kGetRemoteMemReq,
-                                    [this](int32_t fd, const char *msg, uint64_t msg_len) -> Status {
-                                      return this->ExportMem(fd, msg, msg_len);
-                                    });
+  msg_handler_.RegisterMsgProcessor(
+      CtrlMsgType::kGetRemoteMemReq,
+      [this](int32_t fd, const char *msg, uint64_t msg_len) -> Status { return this->ExportMem(fd, msg, msg_len); });
   msg_handler_.RegisterMsgProcessor(CtrlMsgType::kDestroyChannelReq,
                                     [this](int32_t fd, const char *msg, uint64_t msg_len) -> Status {
                                       return this->DestroyChannel(fd, msg, msg_len);
@@ -159,22 +159,22 @@ Status HixlCSServer::Initialize(const EndpointDesc *endpoint_list, uint32_t list
   return SUCCESS;
 }
 
-Status HixlCSServer::DestroyChannel(int32_t fd, const char *msg, uint64_t msg_len) { 
-  (void)msg; 
-  (void)msg_len; 
-  std::lock_guard<std::mutex> lock(chn_mutex_); 
-  auto it = channels_.find(fd); 
-  if (it != channels_.end()) { 
-    auto handle = it->second.endpoint_handle; 
-    auto ep = endpoint_store_.GetEndpoint(handle); 
+Status HixlCSServer::DestroyChannel(int32_t fd, const char *msg, uint64_t msg_len) {
+  (void)msg;
+  (void)msg_len;
+  std::lock_guard<std::mutex> lock(chn_mutex_);
+  auto it = channels_.find(fd);
+  if (it != channels_.end()) {
+    auto handle = it->second.endpoint_handle;
+    auto ep = endpoint_store_.GetEndpoint(handle);
     if (ep != nullptr) {
       HIXL_CHK_STATUS(ep->DestroyChannel(it->second.channel_handle),
                       "Failed to destroy channel, fd:%d, endpoint_handle:%p, channel_handle:0x%lx", fd, handle,
                       it->second.channel_handle);
     }
-    channels_.erase(it); 
-  } 
-  return SUCCESS; 
+    channels_.erase(it);
+  }
+  return SUCCESS;
 }
 
 void HixlCSServer::FreeDeviceMem(void *&ptr) {
@@ -237,8 +237,8 @@ Status HixlCSServer::Finalize() {
 Status HixlCSServer::RegisterMem(const char *mem_tag, const CommMem *mem, MemHandle *mem_handle) {
   auto ctx_guard = GetContextGuard();
   (void)ctx_guard;
-  HIXL_EVENT("[HixlServer] register mem start, addr:%p, size:%lu, type:%d",
-             mem->addr, mem->size, static_cast<int32_t>(mem->type));
+  HIXL_EVENT("[HixlServer] register mem start, addr:%p, size:%lu, type:%d", mem->addr, mem->size,
+             static_cast<int32_t>(mem->type));
   auto all_handles = endpoint_store_.GetAllEndpointHandles();
   HIXL_CHK_BOOL_RET_STATUS(all_handles.size() > 0, PARAM_INVALID, "no endpoint is available");
   std::vector<EndpointMemInfo> ep_mem_infos;
@@ -253,8 +253,8 @@ Status HixlCSServer::RegisterMem(const char *mem_tag, const CommMem *mem, MemHan
     ep_mem_infos.emplace_back(ep_mem_info);
   }
   *mem_handle = ep_mem_infos[0].mem_handle;
-  HIXL_EVENT("[HixlServer] register mem success, addr:%p, size:%lu, type:%d, handle:%p",
-             mem->addr, mem->size, static_cast<int32_t>(mem->type), *mem_handle);
+  HIXL_EVENT("[HixlServer] register mem success, addr:%p, size:%lu, type:%d, handle:%p", mem->addr, mem->size,
+             static_cast<int32_t>(mem->type), *mem_handle);
   std::lock_guard<std::mutex> lock(reg_mutex_);
   reg_mems_[ep_mem_infos[0].mem_handle] = std::move(ep_mem_infos);
   return SUCCESS;
@@ -278,12 +278,10 @@ Status HixlCSServer::DeregisterMem(MemHandle mem_handle) {
   return SUCCESS;
 }
 
-Status HixlCSServer::SendCreateChannelResp(int32_t fd,
-                                           const CreateChannelResp &resp) {
+Status HixlCSServer::SendCreateChannelResp(int32_t fd, const CreateChannelResp &resp) {
   CtrlMsgHeader header{};
   header.magic = kMagicNumber;
-  header.body_size = static_cast<uint64_t>(
-      sizeof(CtrlMsgType) + sizeof(CreateChannelResp));
+  header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(CreateChannelResp));
   CtrlMsgType msg_type = CtrlMsgType::kCreateChannelResp;
   HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &header, static_cast<uint64_t>(sizeof(header))));
   HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &msg_type, static_cast<uint64_t>(sizeof(msg_type))));
@@ -304,10 +302,10 @@ Status HixlCSServer::SendMatchEndpointResp(int32_t fd, const MatchEndpointResp &
 
 Status HixlCSServer::MatchEndpointMsg(int32_t fd, const char *msg, uint64_t msg_len) {
   HIXL_DISMISSABLE_GUARD(failed, ([fd, this]() {
-    MatchEndpointResp resp{};
-    resp.result = FAILED;
-    HIXL_CHK_STATUS(SendMatchEndpointResp(fd, resp));
-  }));
+                           MatchEndpointResp resp{};
+                           resp.result = FAILED;
+                           HIXL_CHK_STATUS(SendMatchEndpointResp(fd, resp));
+                         }));
   HIXL_CHECK_NOTNULL(msg);
   HIXL_CHK_BOOL_RET_STATUS(msg_len == sizeof(MatchEndpointReq), PARAM_INVALID,
                            "invalid msg len:%lu of match endpoint, must = %zu", msg_len, sizeof(MatchEndpointReq));
@@ -347,18 +345,17 @@ Status HixlCSServer::MatchEndpointMsg(int32_t fd, const char *msg, uint64_t msg_
 
 Status HixlCSServer::CreateChannel(int32_t fd, const char *msg, uint64_t msg_len) {
   HIXL_DISMISSABLE_GUARD(failed, ([fd, this]() {
-    CreateChannelResp resp{};
-    resp.result = FAILED;
-    HIXL_LOGI("SendCreateChannelResp start");
-    HIXL_CHK_STATUS(SendCreateChannelResp(fd, resp));
-  }));
+                           CreateChannelResp resp{};
+                           resp.result = FAILED;
+                           HIXL_LOGI("SendCreateChannelResp start");
+                           HIXL_CHK_STATUS(SendCreateChannelResp(fd, resp));
+                         }));
   HIXL_CHECK_NOTNULL(msg);
   HIXL_CHK_BOOL_RET_STATUS(msg_len == sizeof(CreateChannelReq), PARAM_INVALID,
                            "invalid msg len:%lu of create channel, must = %zu", msg_len, sizeof(CreateChannelReq));
   const auto &req = *reinterpret_cast<const CreateChannelReq *>(msg);
   HIXL_CHK_BOOL_RET_STATUS(req.qos <= kQosMax, PARAM_INVALID,
-                           "invalid req qos:%u of create channel, must in range= [%u, %u]",
-                           req.qos, kQosMin, kQosMax);
+                           "invalid req qos:%u of create channel, must in range= [%u, %u]", req.qos, kQosMin, kQosMax);
   EndpointHandle handle = reinterpret_cast<EndpointHandle>(static_cast<uintptr_t>(req.dst_ep_handle));
   auto ep = endpoint_store_.GetEndpoint(handle);
   HIXL_CHECK_NOTNULL(ep);
@@ -390,7 +387,7 @@ static inline void to_json(nlohmann::json &j, const HixlMemDesc &m) {
   j["tag"] = m.tag;
   j["export_desc"] = nlohmann::json::array();
   if (m.export_desc != nullptr && m.export_len > 0) {
-    const uint8_t* data_ptr = static_cast<const uint8_t*>(m.export_desc);
+    const uint8_t *data_ptr = static_cast<const uint8_t *>(m.export_desc);
     for (size_t i = 0; i < m.export_len; ++i) {
       j["export_desc"].push_back(static_cast<int>(data_ptr[i]));
     }
@@ -418,15 +415,13 @@ Status HixlCSServer::Serialize(const T &msg, std::string &msg_str) {
   return SUCCESS;
 }
 
-Status HixlCSServer::SendRemoteMemResp(int32_t fd,
-                                       const GetRemoteMemResp &resp) {
+Status HixlCSServer::SendRemoteMemResp(int32_t fd, const GetRemoteMemResp &resp) {
   CtrlMsgHeader header{};
   header.magic = kMagicNumber;
   std::string msg_str;
   HIXL_CHK_STATUS_RET(Serialize(resp, msg_str), "Failed to serialize msg");
   HIXL_LOGI("remote mem serialize success, str:%s", msg_str.c_str());
-  header.body_size = static_cast<uint64_t>(
-      sizeof(CtrlMsgType) + msg_str.size());
+  header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + msg_str.size());
   CtrlMsgType msg_type = CtrlMsgType::kGetRemoteMemResp;
   HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &header, static_cast<uint64_t>(sizeof(header))));
   HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &msg_type, static_cast<uint64_t>(sizeof(msg_type))));
@@ -436,10 +431,10 @@ Status HixlCSServer::SendRemoteMemResp(int32_t fd,
 
 Status HixlCSServer::ExportMem(int32_t fd, const char *msg, uint64_t msg_len) {
   HIXL_DISMISSABLE_GUARD(failed, ([fd, this]() {
-    GetRemoteMemResp resp{};
-    resp.result = FAILED;
-    HIXL_CHK_STATUS(SendRemoteMemResp(fd, resp));
-  }));
+                           GetRemoteMemResp resp{};
+                           resp.result = FAILED;
+                           HIXL_CHK_STATUS(SendRemoteMemResp(fd, resp));
+                         }));
   HIXL_CHECK_NOTNULL(msg);
   HIXL_CHK_BOOL_RET_STATUS(msg_len == sizeof(GetRemoteMemReq), PARAM_INVALID, "invalid msg len:%lu of get remote mem",
                            msg_len);
@@ -475,8 +470,8 @@ Status HixlCSServer::Listen(uint32_t backlog) {
 Status HixlCSServer::RegProc(CtrlMsgType msg_type, MsgProcessor proc) {
   auto ctx_guard = GetContextGuard();
   (void)ctx_guard;
-  HIXL_CHK_STATUS_RET(msg_handler_.RegisterMsgProcessor(msg_type, proc),
-                      "Failed to reg msg processor, msg type:%d", static_cast<int32_t>(msg_type));
+  HIXL_CHK_STATUS_RET(msg_handler_.RegisterMsgProcessor(msg_type, proc), "Failed to reg msg processor, msg type:%d",
+                      static_cast<int32_t>(msg_type));
   return SUCCESS;
 }
 
@@ -493,7 +488,7 @@ void HixlCSServer::CleanupClient(int32_t fd) {
   std::lock_guard<std::mutex> lock(client_mutex_);
   auto it = clients_.find(fd);
   if (it != clients_.end()) {
-    auto msg = MakeShared<CtrlMsg>(); 
+    auto msg = MakeShared<CtrlMsg>();
     if (msg != nullptr) {
       msg->msg_type = CtrlMsgType::kDestroyChannelReq;
       msg_handler_.SubmitMsg(fd, msg);
@@ -523,7 +518,8 @@ Status HixlCSServer::DoWait() {
       int32_t connect_fd = -1;
       HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Accept(listen_fd_, connect_fd), "Failed to accept fd");
       HIXL_CHK_STATUS_RET(CtrlMsgPlugin::SetTcpNoDelay(connect_fd), "Failed to set tcp nodelay, fd:%d", connect_fd);
-      HIXL_CHK_STATUS_RET(CtrlMsgPlugin::SetTcpKeepAlive(connect_fd), "Failed to set tcp keep alive, fd:%d", connect_fd);
+      HIXL_CHK_STATUS_RET(CtrlMsgPlugin::SetTcpKeepAlive(connect_fd), "Failed to set tcp keep alive, fd:%d",
+                          connect_fd);
       HIXL_CHK_STATUS_RET(CtrlMsgPlugin::AddFdToEpoll(epoll_fd_, connect_fd), "Failed to add connect fd to epoll");
       HIXL_EVENT("[HixlServer] accept socket success, client fd:%d", connect_fd);
       auto receiver = MakeShared<MsgReceiver>(connect_fd);

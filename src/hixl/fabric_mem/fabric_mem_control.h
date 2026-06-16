@@ -158,7 +158,7 @@ class FabricMemControlClient {
   static Status Fetch(const std::string &remote_engine, const std::string &channel_id, int32_t timeout_ms,
                       std::vector<ShareHandleInfo> &share_handles, int32_t &conn_fd);
   static Status Disconnect(const std::string &remote_engine, const std::string &channel_id, int32_t timeout_ms,
-                         bool from_auto_cleanup = false);
+                           bool from_auto_cleanup = false);
   static Status SendNotify(const std::string &remote_engine, const NotifyDesc &notify, int32_t timeout_ms);
   static Status SendHeartBeat(int32_t fd, uint64_t timeout_us = 3000000ULL);
   static Status SendAdxlMsg(int32_t fd, FabricMemAdxlMsgType msg_type, const std::string &payload, uint64_t timeout_us);

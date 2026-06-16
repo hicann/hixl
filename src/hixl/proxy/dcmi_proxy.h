@@ -31,19 +31,19 @@ constexpr int32_t kMaxEidPerUe = 32;
  * @brief DCMI URMA EID 结构
  */
 union DcmiUrmaEid {
-    unsigned char raw[kDcmiUrmaEidSize];
-    struct {
-        unsigned long subnet_prefix;
-        unsigned long interface_id;
-    } in6;
+  unsigned char raw[kDcmiUrmaEidSize];
+  struct {
+    unsigned long subnet_prefix;
+    unsigned long interface_id;
+  } in6;
 };
 
 /**
  * @brief DCMI URMA EID 信息结构
  */
 struct DcmiUrmaEidInfo {
-    DcmiUrmaEid eid;
-    unsigned int eid_index;
+  DcmiUrmaEid eid;
+  unsigned int eid_index;
 };
 
 // ============ DCMI SPOD 信息结构 ============
@@ -70,62 +70,61 @@ struct DcmiSpodInfo {
  * 使用 static 方法，不允许实例化。
  */
 class DcmiProxy {
-public:
-    DcmiProxy() = delete;
+ public:
+  DcmiProxy() = delete;
 
-    /**
-     * @brief 加载 DCMI 动态库并初始化
-     * @return 成功: 0, 失败: -1
-     */
-    static int LoadDcmi();
+  /**
+   * @brief 加载 DCMI 动态库并初始化
+   * @return 成功: 0, 失败: -1
+   */
+  static int LoadDcmi();
 
-    /**
-     * @brief 根据物理 ID 获取逻辑 ID
-     * @param phy_id 物理设备 ID
-     * @param logic_id 逻辑设备 ID（输出）
-     * @return 成功: 0, 失败: -1
-     */
-    static int32_t GetLogicIdFromPhyId(unsigned int phy_id, unsigned int *logic_id);
+  /**
+   * @brief 根据物理 ID 获取逻辑 ID
+   * @param phy_id 物理设备 ID
+   * @param logic_id 逻辑设备 ID（输出）
+   * @return 成功: 0, 失败: -1
+   */
+  static int32_t GetLogicIdFromPhyId(unsigned int phy_id, unsigned int *logic_id);
 
-    /**
-     * @brief 获取 URMA 设备数量
-     * @param logic_id 逻辑设备 ID
-     * @param dev_cnt 设备数量（输出）
-     * @return 成功: 0, 失败: -1
-     */
-    static int32_t GetUrmaDeviceCnt(unsigned int logic_id, unsigned int *dev_cnt);
+  /**
+   * @brief 获取 URMA 设备数量
+   * @param logic_id 逻辑设备 ID
+   * @param dev_cnt 设备数量（输出）
+   * @return 成功: 0, 失败: -1
+   */
+  static int32_t GetUrmaDeviceCnt(unsigned int logic_id, unsigned int *dev_cnt);
 
-    /**
-     * @brief 获取 EID 列表
-     * @param logic_id 逻辑设备 ID
-     * @param urma_dev_index URMA 设备索引
-     * @param eid_list EID 列表（输出）
-     * @param eid_cnt EID 数量（输入/输出）
-     * @return 成功: 0, 失败: -1
-     */
-    static int32_t GetEidList(unsigned int logic_id, int urma_dev_index,
-                               DcmiUrmaEidInfo *eid_list, int *eid_cnt);
+  /**
+   * @brief 获取 EID 列表
+   * @param logic_id 逻辑设备 ID
+   * @param urma_dev_index URMA 设备索引
+   * @param eid_list EID 列表（输出）
+   * @param eid_cnt EID 数量（输入/输出）
+   * @return 成功: 0, 失败: -1
+   */
+  static int32_t GetEidList(unsigned int logic_id, int urma_dev_index, DcmiUrmaEidInfo *eid_list, int *eid_cnt);
 
-    /**
-     * @brief 获取主板 ID
-     * @param logic_id 逻辑设备 ID
-     * @param mainboard_id 主板 ID（输出）
-     * @return 成功: 0, 失败: -1
-     */
-    static int32_t GetMainboardId(unsigned int logic_id, unsigned int *mainboard_id);
+  /**
+   * @brief 获取主板 ID
+   * @param logic_id 逻辑设备 ID
+   * @param mainboard_id 主板 ID（输出）
+   * @return 成功: 0, 失败: -1
+   */
+  static int32_t GetMainboardId(unsigned int logic_id, unsigned int *mainboard_id);
 
-    /**
-     * @brief 获取设备信息
-     * @param logic_id 逻辑设备 ID
-     * @param main_cmd 主命令
-     * @param sub_cmd 子命令
-     * @param buf 缓冲区（输出）
-     * @param size 缓冲区大小（输入/输出）
-     * @return 成功: 0, 失败: -1
-     */
-    static int32_t GetDeviceInfo(unsigned int logic_id, int main_cmd,
-                                 unsigned int sub_cmd, void *buf, unsigned int *size);
-    static void UnloadDcmi();
+  /**
+   * @brief 获取设备信息
+   * @param logic_id 逻辑设备 ID
+   * @param main_cmd 主命令
+   * @param sub_cmd 子命令
+   * @param buf 缓冲区（输出）
+   * @param size 缓冲区大小（输入/输出）
+   * @return 成功: 0, 失败: -1
+   */
+  static int32_t GetDeviceInfo(unsigned int logic_id, int main_cmd, unsigned int sub_cmd, void *buf,
+                               unsigned int *size);
+  static void UnloadDcmi();
 };
 
 }  // namespace hixl

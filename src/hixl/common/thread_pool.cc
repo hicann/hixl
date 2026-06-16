@@ -11,9 +11,7 @@
 #include "thread_pool.h"
 
 namespace hixl {
-ThreadPool::ThreadPool(std::string thread_name_prefix,
-                       const uint32_t min_size,
-                       const uint32_t max_size)
+ThreadPool::ThreadPool(std::string thread_name_prefix, const uint32_t min_size, const uint32_t max_size)
     : thread_name_prefix_(std::move(thread_name_prefix)),
       is_stopped_(false),
       min_thrd_num_(min_size < 1U ? 1U : min_size),
@@ -25,8 +23,8 @@ ThreadPool::ThreadPool(std::string thread_name_prefix,
   for (uint32_t i = 0U; i < min_thrd_num_; ++i) {
     pool_.emplace_back(&ThreadFunc, this, i, false, nullptr);
   }
-  HIXL_LOGI("[ThreadPool] created, name:%s, min_size:%u, max_size:%u, core_threads:%u",
-            thread_name_prefix_.c_str(), min_thrd_num_, max_thrd_num_, min_thrd_num_);
+  HIXL_LOGI("[ThreadPool] created, name:%s, min_size:%u, max_size:%u, core_threads:%u", thread_name_prefix_.c_str(),
+            min_thrd_num_, max_thrd_num_, min_thrd_num_);
 }
 
 ThreadPool::~ThreadPool() {
@@ -42,8 +40,8 @@ void ThreadPool::Destroy() {
     const std::unique_lock<std::mutex> lock{m_lock_};
     pending_tasks = tasks_.size();
   }
-  HIXL_LOGI("[ThreadPool] destroying, name:%s, total_threads:%u, pending_tasks:%zu",
-            thread_name_prefix_.c_str(), total_thrd_num_.load(), pending_tasks);
+  HIXL_LOGI("[ThreadPool] destroying, name:%s, total_threads:%u, pending_tasks:%zu", thread_name_prefix_.c_str(),
+            total_thrd_num_.load(), pending_tasks);
   {
     const std::unique_lock<std::mutex> lock{m_lock_};
     is_stopped_.store(true);
@@ -74,8 +72,8 @@ void ThreadPool::Destroy() {
 void ThreadPool::AddTemporaryThread() {
   const std::lock_guard<std::mutex> lock{m_lock_};
   if (is_stopped_.load() || total_thrd_num_.load() >= max_thrd_num_) {
-    HIXL_LOGD("[ThreadPool:%s] cannot add temp thread, stopped:%d, total:%u >= max:%u",
-              thread_name_prefix_.c_str(), is_stopped_.load(), total_thrd_num_.load(), max_thrd_num_);
+    HIXL_LOGD("[ThreadPool:%s] cannot add temp thread, stopped:%d, total:%u >= max:%u", thread_name_prefix_.c_str(),
+              is_stopped_.load(), total_thrd_num_.load(), max_thrd_num_);
     return;
   }
   CleanupFinishedTempThreads();
@@ -84,9 +82,8 @@ void ThreadPool::AddTemporaryThread() {
   temp_threads_.emplace_back();
   auto &entry = temp_threads_.back();
   entry.thread = std::thread(&ThreadFunc, this, thread_idx, true, &entry.finished);
-  HIXL_LOGI("[ThreadPool:%s] add temp thread, idx:%u, idle:%u, busy:%u, total:%u, max:%u",
-            thread_name_prefix_.c_str(), thread_idx,
-            idle_thrd_num_.load(), busy_thrd_num_.load(), total_thrd_num_.load(), max_thrd_num_);
+  HIXL_LOGI("[ThreadPool:%s] add temp thread, idx:%u, idle:%u, busy:%u, total:%u, max:%u", thread_name_prefix_.c_str(),
+            thread_idx, idle_thrd_num_.load(), busy_thrd_num_.load(), total_thrd_num_.load(), max_thrd_num_);
 }
 
 void ThreadPool::SetThreadName(const std::string &thread_type, uint32_t thread_idx) {
@@ -98,9 +95,8 @@ void ThreadPool::SetThreadName(const std::string &thread_type, uint32_t thread_i
 }
 
 void ThreadPool::LogTempThreadExit(const char *reason, uint32_t thread_idx) {
-  HIXL_LOGI("[ThreadPool:%s] temp thread %s, idx:%u, idle:%u, busy:%u, total:%u",
-            thread_name_prefix_.c_str(), reason, thread_idx,
-            idle_thrd_num_.load(), busy_thrd_num_.load(), total_thrd_num_.load());
+  HIXL_LOGI("[ThreadPool:%s] temp thread %s, idx:%u, idle:%u, busy:%u, total:%u", thread_name_prefix_.c_str(), reason,
+            thread_idx, idle_thrd_num_.load(), busy_thrd_num_.load(), total_thrd_num_.load());
 }
 
 bool ThreadPool::PopTask(std::function<void()> &task) {
@@ -135,8 +131,8 @@ void ThreadPool::ThreadFunc(ThreadPool *const thread_pool, uint32_t thread_idx, 
   }
   const std::string thread_type = is_temporary ? "temp" : "core";
   thread_pool->SetThreadName(thread_type, thread_idx);
-  HIXL_LOGD("[ThreadPool:%s] thread started, type:%s, idx:%u",
-             thread_pool->thread_name_prefix_.c_str(), thread_type.c_str(), thread_idx);
+  HIXL_LOGD("[ThreadPool:%s] thread started, type:%s, idx:%u", thread_pool->thread_name_prefix_.c_str(),
+            thread_type.c_str(), thread_idx);
 
   while (!thread_pool->is_stopped_) {
     std::function<void()> task;

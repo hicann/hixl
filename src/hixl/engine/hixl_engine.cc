@@ -27,11 +27,11 @@ constexpr int32_t kAutoConnectTimeout = 3000;
 }
 
 const std::unordered_set<std::string> HixlEngine::kSupportedOptions = {
-    OPTION_RDMA_TRAFFIC_CLASS, adxl::OPTION_RDMA_TRAFFIC_CLASS,
-    OPTION_RDMA_SERVICE_LEVEL, adxl::OPTION_RDMA_SERVICE_LEVEL,
-    OPTION_LOCAL_COMM_RES, adxl::OPTION_LOCAL_COMM_RES,
-    OPTION_BUFFER_POOL, adxl::OPTION_BUFFER_POOL,
-    OPTION_AUTO_CONNECT, adxl::OPTION_AUTO_CONNECT,
+    OPTION_RDMA_TRAFFIC_CLASS,    adxl::OPTION_RDMA_TRAFFIC_CLASS,
+    OPTION_RDMA_SERVICE_LEVEL,    adxl::OPTION_RDMA_SERVICE_LEVEL,
+    OPTION_LOCAL_COMM_RES,        adxl::OPTION_LOCAL_COMM_RES,
+    OPTION_BUFFER_POOL,           adxl::OPTION_BUFFER_POOL,
+    OPTION_AUTO_CONNECT,          adxl::OPTION_AUTO_CONNECT,
     OPTION_GLOBAL_RESOURCE_CONFIG};
 
 bool HixlEngine::IsInitialized() const {
@@ -48,16 +48,14 @@ Status HixlEngine::InitServer() {
                       "current local_engine:%s",
                       local_engine_.c_str());
   HIXL_CHK_STATUS_RET(server_.Initialize(ip, port, endpoint_list_),
-                      "[HixlEngine] Failed to initialize HixlEngine, local_engine:%s",
-                      local_engine_.c_str());
+                      "[HixlEngine] Failed to initialize HixlEngine, local_engine:%s", local_engine_.c_str());
   return SUCCESS;
 }
 
 Status HixlEngine::Initialize(const HixlOptions &options) {
   HIXL_LOGI("[HixlEngine] Initialization started, local_engine:%s", local_engine_.c_str());
   std::lock_guard<std::mutex> lock(mutex_);
-  HIXL_CHK_STATUS_RET(options.CheckSupportedOptions(kSupportedOptions),
-                      "[HixlEngine] Unsupported option");
+  HIXL_CHK_STATUS_RET(options.CheckSupportedOptions(kSupportedOptions), "[HixlEngine] Unsupported option");
   const auto &raw = options.RawOptions();
   const auto &hixl_bp_it = raw.find(hixl::OPTION_BUFFER_POOL);
   const auto &adxl_bp_it = raw.find(adxl::OPTION_BUFFER_POOL);
@@ -67,11 +65,9 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
                              "Invalid option fields, OPTION_BUFFER_POOL for hixl engine only supports 0:0");
   }
   std::string local_comm_res;
-  Status ret = EndpointGenerator::BuildEndpointList(
-      options, local_engine_, local_comm_res, endpoint_list_);
+  Status ret = EndpointGenerator::BuildEndpointList(options, local_engine_, local_comm_res, endpoint_list_);
   HIXL_CHK_STATUS_RET(ret, "[HixlEngine] Failed to build endpoint list from options");
-  HIXL_CHK_STATUS_RET(InitServer(),
-                      "[HixlEngine] Failed to initialize server, local_engine:%s, local_comm_res:%s",
+  HIXL_CHK_STATUS_RET(InitServer(), "[HixlEngine] Failed to initialize server, local_engine:%s, local_comm_res:%s",
                       local_engine_.c_str(), local_comm_res.c_str());
   rdma_traffic_class_ = options.RdmaTrafficClass().value_or(kRdmaTrafficClass);
   rdma_service_level_ = options.RdmaServiceLevel().value_or(kRdmaServiceLevel);
@@ -84,8 +80,7 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
     qos_.reset();
   }
   auto_connect_ = options.AutoConnect().value_or(false);
-  HIXL_CHK_STATUS_RET(client_manager_.Initialize(auto_connect_),
-                      "[HixlEngine] Failed to initialize client manager");
+  HIXL_CHK_STATUS_RET(client_manager_.Initialize(auto_connect_), "[HixlEngine] Failed to initialize client manager");
   is_initialized_ = true;
   HIXL_LOGI("[HixlEngine] Initialization succeeded, local_engine:%s", local_engine_.c_str());
   return SUCCESS;
@@ -298,26 +293,23 @@ Status HixlEngine::SendNotify(const AscendString &remote_engine, const NotifyDes
   HIXL_LOGI("[HixlEngine] SendNotify started, local_engine:%s, remote_engine:%s, timeout:%d ms", local_engine_.c_str(),
             remote_engine.GetString(), timeout_in_millis);
   ClientPtr client_ptr = client_manager_.GetClient(remote_engine.GetString());
-  HIXL_CHK_BOOL_RET_STATUS(client_ptr != nullptr,
-                           NOT_CONNECTED,
+  HIXL_CHK_BOOL_RET_STATUS(client_ptr != nullptr, NOT_CONNECTED,
                            "[HixlEngine] Failed to get client, remote_engine:%s is not connected",
                            remote_engine.GetString());
 
   HIXL_CHK_STATUS_RET(client_ptr->SendNotify(notify, timeout_in_millis),
-                      "[HixlEngine] Failed to SendNotify, local_engine:%s, remote_engine:%s",
-                      local_engine_.c_str(), remote_engine.GetString());
-  HIXL_LOGI("[HixlEngine] SendNotify succeeded, local_engine:%s, remote_engine:%s",
-            local_engine_.c_str(), remote_engine.GetString());
+                      "[HixlEngine] Failed to SendNotify, local_engine:%s, remote_engine:%s", local_engine_.c_str(),
+                      remote_engine.GetString());
+  HIXL_LOGI("[HixlEngine] SendNotify succeeded, local_engine:%s, remote_engine:%s", local_engine_.c_str(),
+            remote_engine.GetString());
   return SUCCESS;
 }
 
 Status HixlEngine::GetNotifies(std::vector<NotifyDesc> &notifies) {
   HIXL_LOGI("[HixlEngine] GetNotifies started, local_engine:%s", local_engine_.c_str());
-  HIXL_CHK_STATUS_RET(server_.GetNotifies(notifies),
-                      "[HixlEngine] Failed to get notifies from server, local_engine:%s",
+  HIXL_CHK_STATUS_RET(server_.GetNotifies(notifies), "[HixlEngine] Failed to get notifies from server, local_engine:%s",
                       local_engine_.c_str());
-  HIXL_LOGI("[HixlEngine] GetNotifies succeeded, local_engine:%s, count:%zu",
-            local_engine_.c_str(), notifies.size());
+  HIXL_LOGI("[HixlEngine] GetNotifies succeeded, local_engine:%s, count:%zu", local_engine_.c_str(), notifies.size());
   return SUCCESS;
 }
 
@@ -351,8 +343,7 @@ Status HixlEngine::AutoConnect(const AscendString &remote_engine, int32_t timeou
   if (ret == ALREADY_CONNECTED) {
     return SUCCESS;
   }
-  HIXL_CHK_STATUS_RET(ret,
-                      "[HixlEngine] Failed to auto connect, local_engine:%s, remote_engine:%s, timeout:%d ms",
+  HIXL_CHK_STATUS_RET(ret, "[HixlEngine] Failed to auto connect, local_engine:%s, remote_engine:%s, timeout:%d ms",
                       local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
   return SUCCESS;
 }

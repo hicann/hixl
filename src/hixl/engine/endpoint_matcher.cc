@@ -41,8 +41,7 @@ constexpr MatchRule kCrossInstanceRules[] = {
 };
 
 constexpr MatchRule kSameInstanceRules[] = {
-    {MatchRuleType::GROUP, HandlerCreateArgs::HandlerType::UB, nullptr, nullptr,
-     CommType::COMM_TYPE_UB_D2D},
+    {MatchRuleType::GROUP, HandlerCreateArgs::HandlerType::UB, nullptr, nullptr, CommType::COMM_TYPE_UB_D2D},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolHccs, kPlacementDevice,
      CommType::COMM_TYPE_HCCS},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolUboe, kPlacementDevice,
@@ -88,8 +87,8 @@ const char *EndpointMatcher::HandlerTypeToString(HandlerCreateArgs::HandlerType 
 
 const EndpointConfig *EndpointMatcher::FindByProtocol(const std::vector<EndpointConfig> &endpoints,
                                                       const std::string &protocol) {
-  auto it = std::find_if(endpoints.begin(), endpoints.end(),
-                         [&protocol](const auto &e) { return e.protocol == protocol; });
+  auto it =
+      std::find_if(endpoints.begin(), endpoints.end(), [&protocol](const auto &e) { return e.protocol == protocol; });
   return it != endpoints.end() ? &(*it) : nullptr;
 }
 
@@ -118,9 +117,9 @@ std::map<MatchKey, EndpointConfig>::const_iterator EndpointMatcher::FindMatching
 }
 
 Status EndpointMatcher::TryMatchSingle(const std::vector<EndpointConfig> &local,
-                                       const std::vector<EndpointConfig> &remote,
-                                       const std::string &protocol, const std::string &placement,
-                                       CommType type, std::vector<HandlerCreateArgs::EndpointPair> &pairs) {
+                                       const std::vector<EndpointConfig> &remote, const std::string &protocol,
+                                       const std::string &placement, CommType type,
+                                       std::vector<HandlerCreateArgs::EndpointPair> &pairs) {
   auto is_matched = [&protocol, &placement](const EndpointConfig &endpoint) {
     return endpoint.protocol == protocol && endpoint.placement == placement;
   };
@@ -133,8 +132,7 @@ Status EndpointMatcher::TryMatchSingle(const std::vector<EndpointConfig> &local,
   return FAILED;
 }
 
-Status EndpointMatcher::TryMatchUb(const EndpointConfig &local,
-                                   const std::map<MatchKey, EndpointConfig> &peers,
+Status EndpointMatcher::TryMatchUb(const EndpointConfig &local, const std::map<MatchKey, EndpointConfig> &peers,
                                    std::map<CommType, bool> &expected, uint32_t &count,
                                    std::vector<HandlerCreateArgs::EndpointPair> &pairs) {
   if (!IsUbProtocol(local.protocol)) {
@@ -158,8 +156,10 @@ Status EndpointMatcher::TryMatchUb(const EndpointConfig &local,
 Status EndpointMatcher::TryMatchGroup(const std::vector<EndpointConfig> &local,
                                       const std::vector<EndpointConfig> &remote,
                                       std::vector<HandlerCreateArgs::EndpointPair> &pairs) {
-  std::map<CommType, bool> expected = {{CommType::COMM_TYPE_UB_D2D, false}, {CommType::COMM_TYPE_UB_H2D, false},
-                                       {CommType::COMM_TYPE_UB_D2H, false}, {CommType::COMM_TYPE_UB_H2H, false}};
+  std::map<CommType, bool> expected = {{CommType::COMM_TYPE_UB_D2D, false},
+                                       {CommType::COMM_TYPE_UB_H2D, false},
+                                       {CommType::COMM_TYPE_UB_D2H, false},
+                                       {CommType::COMM_TYPE_UB_H2H, false}};
   uint32_t count = 0;
   std::map<MatchKey, EndpointConfig> peers;
   BuildMatchMap(remote, peers);
@@ -176,8 +176,7 @@ Status EndpointMatcher::TryMatchGroup(const std::vector<EndpointConfig> &local,
 }
 
 Status EndpointMatcher::TryMatchByPriority(const std::vector<EndpointConfig> &local,
-                                           const std::vector<EndpointConfig> &remote,
-                                           bool cross_instance,
+                                           const std::vector<EndpointConfig> &remote, bool cross_instance,
                                            std::vector<HandlerCreateArgs::EndpointPair> &pairs,
                                            HandlerCreateArgs::HandlerType &handler_type) {
   const MatchRule *rules = cross_instance ? kCrossInstanceRules : kSameInstanceRules;
@@ -208,12 +207,11 @@ Status EndpointMatcher::TryMatchByPriority(const std::vector<EndpointConfig> &lo
 
 void EndpointMatcher::LogMatchedEndpoints(const std::vector<HandlerCreateArgs::EndpointPair> &pairs,
                                           HandlerCreateArgs::HandlerType handler_type) {
-  HIXL_EVENT("EndpointMatcher selected handler:%s, matched pairs:%zu", HandlerTypeToString(handler_type),
-             pairs.size());
+  HIXL_EVENT("EndpointMatcher selected handler:%s, matched pairs:%zu", HandlerTypeToString(handler_type), pairs.size());
   for (size_t i = 0; i < pairs.size(); ++i) {
     const auto &pair = pairs[i];
-    HIXL_EVENT("EndpointMatcher pair[%zu], protocol:%s, placement:%s, comm_type:%s", i,
-               pair.local.protocol.c_str(), pair.local.placement.c_str(), CommTypeToString(pair.type));
+    HIXL_EVENT("EndpointMatcher pair[%zu], protocol:%s, placement:%s, comm_type:%s", i, pair.local.protocol.c_str(),
+               pair.local.placement.c_str(), CommTypeToString(pair.type));
   }
 }
 

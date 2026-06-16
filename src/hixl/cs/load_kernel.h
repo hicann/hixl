@@ -22,7 +22,7 @@ struct DeviceFuncHandles {
 };
 
 Status LoadDeviceKernelAndGetHandles(const char *func_get, const char *func_put, aclrtBinHandle &bin_handle,
-                                          DeviceFuncHandles &func_handles);
+                                     DeviceFuncHandles &func_handles);
 
 }  // namespace hixl
 

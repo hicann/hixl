@@ -58,11 +58,9 @@ class HixlCSServer {
   Status InitTransFinishedFlag();
   Status RegisterHostTransFinishedFlag();
   Status RegisterDeviceTransFinishedFlag();
-  static Status SendCreateChannelResp(int32_t fd,
-                                      const CreateChannelResp &resp);
+  static Status SendCreateChannelResp(int32_t fd, const CreateChannelResp &resp);
   static Status SendMatchEndpointResp(int32_t fd, const MatchEndpointResp &resp);
-  static Status SendRemoteMemResp(int32_t fd,
-                                  const GetRemoteMemResp &resp);
+  static Status SendRemoteMemResp(int32_t fd, const GetRemoteMemResp &resp);
   static void FreeDeviceMem(void *&ptr);
   void CleanupClient(int32_t fd);
 
@@ -91,10 +89,10 @@ class HixlCSServer {
   void *trans_flag_ = nullptr;
   MemHandle trans_flag_handle_ = nullptr;
 
-  void *host_trans_flag_ = nullptr;        // Host 侧 Flag 内存指针
-  MemHandle host_trans_flag_handle_ = nullptr; // Host 侧 Flag 注册句柄
+  void *host_trans_flag_ = nullptr;             // Host 侧 Flag 内存指针
+  MemHandle host_trans_flag_handle_ = nullptr;  // Host 侧 Flag 注册句柄
 
-  void *dev_trans_flag_ = nullptr;         // Device 侧 Flag 内存指针
+  void *dev_trans_flag_ = nullptr;             // Device 侧 Flag 内存指针
   MemHandle dev_trans_flag_handle_ = nullptr;  // Device 侧 Flag 注册句柄
 
   int32_t device_id_{-1};  // has_device_ep 时初始化 TransferPool，Finalize 时释放

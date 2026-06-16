@@ -24,16 +24,12 @@
 namespace hixl {
 class EndpointGenerator {
  public:
-  static Status BuildEndpointList(const HixlOptions &options,
-                                  const std::string &local_engine,
-                                  std::string &local_comm_res,
-                                  std::vector<EndpointConfig> &endpoint_list);
-  static Status ConvertToEndpointDesc(const EndpointConfig &endpoint_config,
-                                      EndpointDesc &endpoint,
+  static Status BuildEndpointList(const HixlOptions &options, const std::string &local_engine,
+                                  std::string &local_comm_res, std::vector<EndpointConfig> &endpoint_list);
+  static Status ConvertToEndpointDesc(const EndpointConfig &endpoint_config, EndpointDesc &endpoint,
                                       uint32_t dev_phy_id = 0);
   static Status SerializeEndpointConfigList(const std::vector<EndpointConfig> &list, std::string &msg_str);
-  static Status DeserializeEndpointConfigList(const std::string &json_str,
-                                              std::vector<EndpointConfig> &endpoint_list);
+  static Status DeserializeEndpointConfigList(const std::string &json_str, std::vector<EndpointConfig> &endpoint_list);
 
  private:
   enum class SocType { kV2, kV3, kV5, kOther };
@@ -57,18 +53,13 @@ class EndpointGenerator {
   static Status GetSocType(SocType &soc_type);
   static void ConvertLocCommResInfoToEndpointList(const LocCommResInfo &loc_comm_res_info,
                                                   std::vector<EndpointConfig> &endpoint_list);
-  static Status BuildNetInstanceId(int32_t device_id,
-                                   const std::string &local_engine,
-                                   std::string &net_instance_id);
-  static Status ParseEndpointListFromLocalCommRes(const HixlOptions &options,
-                                                  std::string &local_comm_res,
+  static Status BuildNetInstanceId(int32_t device_id, const std::string &local_engine, std::string &net_instance_id);
+  static Status ParseEndpointListFromLocalCommRes(const HixlOptions &options, std::string &local_comm_res,
                                                   std::vector<EndpointConfig> &endpoint_list);
-  static Status GenEndpointFromProtocolDesc(const HixlOptions &options,
-                                            std::vector<EndpointConfig> &endpoint_list);
+  static Status GenEndpointFromProtocolDesc(const HixlOptions &options, std::vector<EndpointConfig> &endpoint_list);
   static Status FilterEndpointListByProtocolDesc(const HixlOptions &options,
                                                  std::vector<EndpointConfig> &endpoint_list);
-  static Status AutoGenEndpointList(const HixlOptions &options,
-                                    const std::string &local_engine,
+  static Status AutoGenEndpointList(const HixlOptions &options, const std::string &local_engine,
                                     std::vector<EndpointConfig> &endpoint_list);
   static Status ParseLocalCommRes(const nlohmann::json &config, std::vector<EndpointConfig> &endpoint_list);
   static Status FillDeviceInfoIfNeeded(std::vector<EndpointConfig> &endpoint_list);

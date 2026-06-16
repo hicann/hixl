@@ -71,4 +71,4 @@ class ConnectPoolExecutor {
 };
 }  // namespace hixl
 
-#endif // CANN_HIXL_SRC_HIXL_ENGINE_CONNECT_POOL_EXECUTOR_H_
+#endif  // CANN_HIXL_SRC_HIXL_ENGINE_CONNECT_POOL_EXECUTOR_H_

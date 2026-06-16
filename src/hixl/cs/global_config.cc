@@ -46,8 +46,7 @@ Status ParseQos(const nlohmann::json &json, CommResourceConfig &config) {
 
   const auto val = it->get<int64_t>();
   if (val < static_cast<int64_t>(kQosMin) || val > static_cast<int64_t>(kQosMax)) {
-    HIXL_LOGE(PARAM_INVALID, "[GlobalConfig] qos out of range: %ld, must be in [%u, %u]", val,
-              kQosMin, kQosMax);
+    HIXL_LOGE(PARAM_INVALID, "[GlobalConfig] qos out of range: %ld, must be in [%u, %u]", val, kQosMin, kQosMax);
     return PARAM_INVALID;
   }
 

@@ -59,8 +59,7 @@ class IClientHandler {
 
   virtual Status Connect(uint32_t timeout_ms) = 0;
   virtual Status RegisterMem(const MemInfo &mem_info) = 0;
-  virtual Status TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation,
-                               TransferReq &req) = 0;
+  virtual Status TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation, TransferReq &req) = 0;
   virtual Status TransferSync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation,
                               uint32_t timeout_ms) = 0;
   virtual Status GetTransferStatus(const TransferReq &req, TransferStatus &status) = 0;

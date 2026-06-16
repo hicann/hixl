@@ -44,7 +44,7 @@ bool CheckRegionsContiguous(const MemoryRegion &prev, const MemoryRegion &curr) 
   // 如果没有 register_dev_addr 地址，addr地址连续即可
   return true;
 }
-}
+}  // namespace
 Status HixlMemStore::RecordMemory(bool is_server, const void *addr, size_t size, bool is_host_mem,
                                   void *register_dev_addr) {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -118,8 +118,8 @@ bool HixlMemStore::CheckMemoryForRegister(bool is_server, const void *check_addr
     if (ge::AddOverflow(rs, r.size, re)) {
       return true;
     }
-    bool is_overlap = (s < re) && (rs < e); //内存重叠，返回true
-    bool is_same = (s == rs) && (e == re); //当内存块与已注册内存块完全一致时，此时允许重新注册，返回false
+    bool is_overlap = (s < re) && (rs < e);  // 内存重叠，返回true
+    bool is_same = (s == rs) && (e == re);  // 当内存块与已注册内存块完全一致时，此时允许重新注册，返回false
     return is_overlap && !is_same;
   };
 
@@ -183,8 +183,7 @@ bool HixlMemStore::CheckMemoryForAccess(bool is_server, const void *check_addr, 
 }
 
 bool HixlMemStore::CheckMergedRegionsAccess(const std::map<const void *, MemoryRegion> &regions, uintptr_t s,
-                                            uintptr_t e,
-                                            std::map<const void *, MemoryRegion>::const_iterator it) {
+                                            uintptr_t e, std::map<const void *, MemoryRegion>::const_iterator it) {
   auto get_addr = [](const MemoryRegion &r) { return reinterpret_cast<uintptr_t>(r.addr); };
   auto get_region_end = [&get_addr](const MemoryRegion &r) { return get_addr(r) + r.size; };
   auto contains = [s, e, get_addr, get_region_end](const MemoryRegion &r) {

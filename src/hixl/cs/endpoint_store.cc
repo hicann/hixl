@@ -93,5 +93,4 @@ Status EndpointStore::Finalize() {
   return final_status;
 }
 
-
 }  // namespace hixl

@@ -24,8 +24,8 @@ constexpr uint32_t kRoceQueueNum = 1U;  // ROCE QP数量默认值
 
 Status Endpoint::Initialize() {
   std::lock_guard<std::mutex> lock(mutex_);
-  HIXL_LOGI("HcommEndpointCreate start, protocol:%d, devPhyId:%u",
-            static_cast<int32_t>(endpoint_.protocol), endpoint_.loc.device.devPhyId);
+  HIXL_LOGI("HcommEndpointCreate start, protocol:%d, devPhyId:%u", static_cast<int32_t>(endpoint_.protocol),
+            endpoint_.loc.device.devPhyId);
   HIXL_CHK_HCCL_RET(HcommProxy::EndpointCreate(&endpoint_, &handle_));
   HIXL_LOGI("HcommEndpointCreate success, handle_:%p", handle_);
   return SUCCESS;
@@ -150,15 +150,13 @@ Status Endpoint::CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &c
   } else if (endpoint_.loc.locType == EndpointLocType::ENDPOINT_LOC_TYPE_DEVICE) {
     engine = CommEngine::COMM_ENGINE_AICPU;
   } else {
-    HIXL_LOGE(PARAM_INVALID, "[channel] invalid endpoint location=%d",
-              static_cast<int32_t>(endpoint_.loc.locType));
+    HIXL_LOGE(PARAM_INVALID, "[channel] invalid endpoint location=%d", static_cast<int32_t>(endpoint_.loc.locType));
     return PARAM_INVALID;
   }
   HcommChannelDesc ch_desc{};
   HIXL_CHK_HCCL_RET(static_cast<HcclResult>(HcommChannelDescInit(&ch_desc, 1)));
   ch_desc.role = static_cast<HcommSocketRole>(channel_desc.channel_type);
-  *reinterpret_cast<uint32_t *>(ch_desc.raws + sizeof(ch_desc.raws) - sizeof(uint32_t)) =
-      channel_desc.channel_index;
+  *reinterpret_cast<uint32_t *>(ch_desc.raws + sizeof(ch_desc.raws) - sizeof(uint32_t)) = channel_desc.channel_index;
   ch_desc.remoteEndpoint = channel_desc.remote_endpoint;
   ch_desc.notifyNum = 1U;
   ch_desc.exchangeAllMems = true;
@@ -190,8 +188,8 @@ Status Endpoint::CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &c
 Status Endpoint::DestroyChannel(ChannelHandle channel_handle) {
   std::lock_guard<std::mutex> lock(mutex_);
   auto it = channels_.find(channel_handle);
-  HIXL_CHK_BOOL_RET_STATUS(it != channels_.end(), PARAM_INVALID,
-                           "DestroyChannel failed, channel not found, handle=%lu", channel_handle);
+  HIXL_CHK_BOOL_RET_STATUS(it != channels_.end(), PARAM_INVALID, "DestroyChannel failed, channel not found, handle=%lu",
+                           channel_handle);
 
   Status ret = it->second->Destroy();
   HIXL_CHK_STATUS_RET(ret, "Channel::Destroy failed, handle=%lu", channel_handle);

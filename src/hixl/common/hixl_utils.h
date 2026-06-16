@@ -24,7 +24,7 @@
 
 namespace hixl {
 template <typename _Tp, typename... _Args>
-static inline std::shared_ptr<_Tp> MakeShared(_Args &&... __args) {
+static inline std::shared_ptr<_Tp> MakeShared(_Args &&...__args) {
   using _Tp_nc = typename std::remove_const<_Tp>::type;
   const std::shared_ptr<_Tp> ret(new (std::nothrow) _Tp_nc(std::forward<_Args>(__args)...));
   return ret;
@@ -44,13 +44,13 @@ inline auto MakeUnique(Args &&...args) -> typename MakeUniq<T>::unique_obj {
 template <typename T, typename... Args>
 inline typename MakeUniq<T>::invalid_type MakeUnique(Args &&...) = delete;
 
-template<typename T>
+template <typename T>
 static hixl::Status ToNumber(const std::string &num_str, T &value) {
-    std::stringstream ss(num_str);
-    ss >> value;
-    HIXL_CHK_BOOL_RET_STATUS(!ss.fail(), hixl::PARAM_INVALID, "Failed to convert [%s] to number", num_str.c_str());
-    HIXL_CHK_BOOL_RET_STATUS(ss.eof(), hixl::PARAM_INVALID, "Failed to convert [%s] to number", num_str.c_str());
-    return hixl::SUCCESS;
+  std::stringstream ss(num_str);
+  ss >> value;
+  HIXL_CHK_BOOL_RET_STATUS(!ss.fail(), hixl::PARAM_INVALID, "Failed to convert [%s] to number", num_str.c_str());
+  HIXL_CHK_BOOL_RET_STATUS(ss.eof(), hixl::PARAM_INVALID, "Failed to convert [%s] to number", num_str.c_str());
+  return hixl::SUCCESS;
 }
 
 template <typename Container>
