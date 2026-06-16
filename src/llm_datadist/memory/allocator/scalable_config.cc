@@ -27,11 +27,11 @@ ge::Status GetDeviceTotalMemorySize(size_t &total_mem_size) {
   (void)free_mem;
   return ge::SUCCESS;
 }
-}
+}  // namespace
 
 ScalableConfig::ScalableConfig() {
   size_t total_mem_size = 0U;
-  (void) GetDeviceTotalMemorySize(total_mem_size);
+  (void)GetDeviceTotalMemorySize(total_mem_size);
 
   for (size_t i = 0U; i < MEMORY_SPECIFICATION_LEVEL_MAX - 1U; ++i) {
     if (total_mem_size > kDeviceTotalMemorySizeLevel[i]) {
@@ -48,7 +48,7 @@ ScalableConfig::ScalableConfig() {
   if (!printed) {
     printed = true;
     LLMEVENT("device total max size: %zu, page_mem_size_total_threshold: %lu, uncacheable_size_threshold: %lu",
-            total_mem_size, page_mem_size_total_threshold, uncacheable_size_threshold);
+             total_mem_size, page_mem_size_total_threshold, uncacheable_size_threshold);
   }
 }
-}
+}  // namespace llm

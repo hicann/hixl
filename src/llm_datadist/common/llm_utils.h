@@ -31,7 +31,7 @@ class LLMUtils {
   static ge::Status ParserWaitTimeInfo(const std::map<ge::AscendString, ge::AscendString> &options,
                                        DecoderWaitTimeInfo &wait_time_info);
 
-  template<typename T>
+  template <typename T>
   static ge::Status ToNumber(const std::string &num_str, T &value) {
     std::stringstream ss(num_str);
     ss >> value;
@@ -45,8 +45,7 @@ class LLMUtils {
   static ge::Status ParseDeviceId(const std::map<ge::AscendString, ge::AscendString> &options,
                                   std::vector<int32_t> &device_ids, const char *option);
 
-  static ge::Status ParseListenIpInfo(const std::map<ge::AscendString, ge::AscendString> &options,
-                                      std::string &ip,
+  static ge::Status ParseListenIpInfo(const std::map<ge::AscendString, ge::AscendString> &options, std::string &ip,
                                       uint32_t &port);
 
   static ge::Status IpToInt(const std::string &ip, uint32_t &ip_int);
@@ -60,8 +59,7 @@ class LLMUtils {
                                                  const std::vector<uint64_t> &dst_blocks,
                                                  std::vector<std::vector<std::pair<int64_t, int64_t>>> &result);
   static ge::Status ParseFlag(const std::string &option_name,
-                              const std::map<ge::AscendString, ge::AscendString> &options,
-                              bool &enabled);
+                              const std::map<ge::AscendString, ge::AscendString> &options, bool &enabled);
 
   static bool CheckMultiplyOverflowInt64(int64_t a, int64_t b);
 
@@ -73,11 +71,10 @@ class LLMUtils {
 
   static ge::Status GetSizeInBytes(int64_t element_count, ge::DataType data_type, int64_t &mem_size);
 
-  static ge::Status CalcTensorMemSize(const std::vector<int64_t> &dims,
-                                      const ge::DataType data_type,
+  static ge::Status CalcTensorMemSize(const std::vector<int64_t> &dims, const ge::DataType data_type,
                                       int64_t &mem_size);
 
-  static bool IsTimeout(const std::chrono::high_resolution_clock::time_point& start_time, int32_t timeout_ms);
+  static bool IsTimeout(const std::chrono::high_resolution_clock::time_point &start_time, int32_t timeout_ms);
 
   template <typename T>
   inline static void AssignRequired(T &variable, const std::string &key, const nlohmann::json &json) {
@@ -88,10 +85,9 @@ class LLMUtils {
       throw e;
     }
   }
+
  private:
-  static ge::Status ParseListenIpInfo(const std::string &option,
-                                      std::string &ip,
-                                      uint32_t &port);
+  static ge::Status ParseListenIpInfo(const std::string &option, std::string &ip, uint32_t &port);
 };
 }  // namespace llm
 #endif  // CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_LLM_UTILS_H

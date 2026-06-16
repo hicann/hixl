@@ -20,11 +20,10 @@ void SpanLayer::Release(SpanAllocator &span_allocator) {
       continue;
     }
     if (span->HasSplited()) {
-      LLMLOGE(ge::FAILED, "[SpanLayer]: releasing split span [addr : %p, len : %u]",
-             span->GetBlockAddr(), span->GetPageLen());
+      LLMLOGE(ge::FAILED, "[SpanLayer]: releasing split span [addr : %p, len : %u]", span->GetBlockAddr(),
+              span->GetPageLen());
     }
     span_allocator.Free(*span);
   }
 }
-}
-
+}  // namespace llm

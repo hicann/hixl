@@ -121,9 +121,8 @@ Status AdxlInnerEngine::ParseCommResourceListenPortConfig(const std::map<AscendS
   }
 
   uint32_t listen_port = 0U;
-  ADXL_CHK_LLM_RET(llm::LLMUtils::ToNumber(listen_port_it->second.GetString(), listen_port),
-                   "Invalid %s: %s", adxl::OPTION_COMM_RESOURCE_CONFIG_LISTEN_PORT,
-                   listen_port_it->second.GetString());
+  ADXL_CHK_LLM_RET(llm::LLMUtils::ToNumber(listen_port_it->second.GetString(), listen_port), "Invalid %s: %s",
+                   adxl::OPTION_COMM_RESOURCE_CONFIG_LISTEN_PORT, listen_port_it->second.GetString());
   ADXL_CHK_BOOL_RET_STATUS(listen_port >= kMinDevicePort && listen_port <= kMaxDevicePort, PARAM_INVALID,
                            "Invalid %s: %u, must be in [%u, %u]", adxl::OPTION_COMM_RESOURCE_CONFIG_LISTEN_PORT,
                            listen_port, kMinDevicePort, kMaxDevicePort);

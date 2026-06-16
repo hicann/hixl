@@ -172,7 +172,7 @@ void CommChannel::SetStreamPool(StreamPool *stream_pool) {
 }
 
 Status CommChannel::TransferAsync(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
-                              const TransferArgs &optional_args, TransferReq &req) {
+                                  const TransferArgs &optional_args, TransferReq &req) {
   (void)optional_args;
   aclrtStream stream = nullptr;
   ADXL_CHK_STATUS_RET(stream_pool_->TryAllocStream(stream), "Stream pool get stream failed.");
@@ -251,7 +251,8 @@ Status CommChannel::GetTransferStatus(const TransferReq &req, TransferStatus &st
   return SUCCESS;
 }
 
-Status CommChannel::TransferAsync(TransferOp operation, const std::vector<TransferOpDesc> &op_descs, aclrtStream stream) {
+Status CommChannel::TransferAsync(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
+                                  aclrtStream stream) {
   ADXL_CHK_BOOL_RET_STATUS(channel_info_.comm != nullptr, FAILED,
                            "Channel comm is null, channel may have been finalized, channel_id:%s.",
                            channel_info_.channel_id.c_str());
@@ -274,7 +275,7 @@ Status CommChannel::TransferAsync(TransferOp operation, const std::vector<Transf
 }
 
 Status CommChannel::TransferAsyncWithTimeout(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
-                                         aclrtStream stream, uint64_t timeout) {
+                                             aclrtStream stream, uint64_t timeout) {
   ADXL_CHK_BOOL_RET_STATUS(channel_info_.comm != nullptr, FAILED,
                            "Channel comm is null, channel may have been finalized, channel_id:%s.",
                            channel_info_.channel_id.c_str());
@@ -310,7 +311,7 @@ Status CommChannel::TransferAsyncWithTimeout(TransferOp operation, const std::ve
 }
 
 Status CommChannel::TransferSync(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
-                             int32_t timeout_in_millis) {
+                                 int32_t timeout_in_millis) {
   const auto start = std::chrono::steady_clock::now();
   aclrtStream stream = nullptr;
   ADXL_CHK_STATUS_RET(stream_pool_->TryAllocStream(stream), "Stream pool get stream failed.");

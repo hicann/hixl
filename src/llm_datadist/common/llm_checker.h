@@ -21,30 +21,30 @@ struct LlmErrorResult {
   operator ge::Status() const {
     return ge::LLM_PARAM_INVALID;
   }
-  template<typename T>
+  template <typename T>
   operator std::unique_ptr<T>() const {
     return nullptr;
   }
-  template<typename T>
+  template <typename T>
   operator std::shared_ptr<T>() const {
     return nullptr;
   }
-  template<typename T>
+  template <typename T>
   operator T *() const {
     return nullptr;
   }
-  template<typename T>
+  template <typename T>
   operator std::vector<std::shared_ptr<T>>() const {
     return {};
   }
-  template<typename T>
+  template <typename T>
   operator std::vector<T>() const {
     return {};
   }
   operator std::string() const {
     return "";
   }
-  template<typename T>
+  template <typename T>
   operator T() const {
     return T();
   }
@@ -64,32 +64,32 @@ inline std::vector<char> LlmCreateErrorMsg() {
   return {};
 }
 
-#define LLM_ASSERT_EQ(x, y)                                                                                             \
-  do {                                                                                                                 \
-    const auto &xv = (x);                                                                                              \
-    const auto &yv = (y);                                                                                              \
-    if (xv != yv) {                                                                                                    \
-      std::stringstream ss;                                                                                            \
-      ss << "Assert (" << #x << " == " << #y << ") failed, expect " << yv << " actual " << xv;                         \
-      REPORT_INNER_ERR_MSG("E19999", "%s", ss.str().c_str());                                                            \
-      LLMLOGE(ge::FAILED, "%s", ss.str().c_str());                                                                      \
-      return ::LlmErrorResult();                                                                                          \
-    }                                                                                                                  \
+#define LLM_ASSERT_EQ(x, y)                                                                    \
+  do {                                                                                         \
+    const auto &xv = (x);                                                                      \
+    const auto &yv = (y);                                                                      \
+    if (xv != yv) {                                                                            \
+      std::stringstream ss;                                                                    \
+      ss << "Assert (" << #x << " == " << #y << ") failed, expect " << yv << " actual " << xv; \
+      REPORT_INNER_ERR_MSG("E19999", "%s", ss.str().c_str());                                  \
+      LLMLOGE(ge::FAILED, "%s", ss.str().c_str());                                             \
+      return ::LlmErrorResult();                                                               \
+    }                                                                                          \
   } while (false)
 
-#define LLM_ASSERT(exp, ...)                                                                                            \
-  do {                                                                                                                 \
-    if (!(exp)) {                                                                                                      \
-      auto msg = LlmCreateErrorMsg(__VA_ARGS__);                                                                          \
-      if (msg.empty()) {                                                                                               \
-        REPORT_INNER_ERR_MSG("E19999", "Assert %s failed", #exp);                                                        \
-        LLMLOGE(ge::FAILED, "Assert %s failed", #exp);                                                                  \
-      } else {                                                                                                         \
-        REPORT_INNER_ERR_MSG("E19999", "%s", msg.data());                                                                \
-        LLMLOGE(ge::FAILED, "%s", msg.data());                                                                          \
-      }                                                                                                                \
-      return ::LlmErrorResult();                                                                                          \
-    }                                                                                                                  \
+#define LLM_ASSERT(exp, ...)                                      \
+  do {                                                            \
+    if (!(exp)) {                                                 \
+      auto msg = LlmCreateErrorMsg(__VA_ARGS__);                  \
+      if (msg.empty()) {                                          \
+        REPORT_INNER_ERR_MSG("E19999", "Assert %s failed", #exp); \
+        LLMLOGE(ge::FAILED, "Assert %s failed", #exp);            \
+      } else {                                                    \
+        REPORT_INNER_ERR_MSG("E19999", "%s", msg.data());         \
+        LLMLOGE(ge::FAILED, "%s", msg.data());                    \
+      }                                                           \
+      return ::LlmErrorResult();                                  \
+    }                                                             \
   } while (false)
 
 #define LLM_ASSERT_NOTNULL(v, ...) LLM_ASSERT(((v) != nullptr), __VA_ARGS__)

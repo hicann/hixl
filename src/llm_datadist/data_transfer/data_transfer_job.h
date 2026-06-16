@@ -28,5 +28,5 @@ class DataTransferJob {
     return ge::LLM_FEATURE_NOT_ENABLED;
   }
 };
-}  // namespace
+}  // namespace llm
 #endif  // CANN_GRAPH_ENGINE_RUNTIME_LLM_ENGINE_V2_DATA_TRANSFER_DATA_TRANSFER_JOB_H_

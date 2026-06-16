@@ -63,8 +63,7 @@ EntityPtr CommEntityManager::GetEntityByRemoteClusterId(const uint64_t remote_cl
   auto entity_id = it->second;
   auto entity = entity_map_[entity_id];
   // destroy or memory not prepared
-  if (entity->GetCurState() == FsmState::FSM_DESTROYED_STATE ||
-      entity->GetCurState() == FsmState::FSM_INIT_STATE) {
+  if (entity->GetCurState() == FsmState::FSM_DESTROYED_STATE || entity->GetCurState() == FsmState::FSM_INIT_STATE) {
     return nullptr;
   }
   return entity;
@@ -112,8 +111,7 @@ void CommEntityManager::HandleAllEntities() {
   std::lock_guard<std::mutex> lock(mutex_);
   for (auto it = entity_map_.begin(); it != entity_map_.end();) {
     auto entity = it->second;
-    if ((entity->GetCurState() == FsmState::FSM_INIT_STATE) ||
-        (entity->GetCurState() == FsmState::FSM_ERROR_STATE)) {
+    if ((entity->GetCurState() == FsmState::FSM_INIT_STATE) || (entity->GetCurState() == FsmState::FSM_ERROR_STATE)) {
       it++;
       continue;
     }
@@ -124,15 +122,14 @@ void CommEntityManager::HandleAllEntities() {
         it = entity_map_.erase(it);
         continue;
       }
-      LLM_CHK_BOOL_EXEC(entity->ProcessState() == ge::SUCCESS, entity->MarkEntityError(),
-                       "Failed to process state");
+      LLM_CHK_BOOL_EXEC(entity->ProcessState() == ge::SUCCESS, entity->MarkEntityError(), "Failed to process state");
     }
     it++;
   }
 }
 
 void CommEntityManager::HandleCacheRequest() {
-  (void) pthread_setname_np(pthread_self(), "ge_llm_fsm");
+  (void)pthread_setname_np(pthread_self(), "ge_llm_fsm");
   LLM_CHK_ACL(aclrtSetCurrentContext(aclrt_context_));
   while (running_) {
     HandleAllEntities();
@@ -195,11 +192,10 @@ ge::Status CommEntityManager::RemapRegisteredMemory(const std::vector<LLMMemInfo
     hccl_mems.emplace_back(hccl_mem);
   }
   const auto start = std::chrono::steady_clock::now();
-  auto ret = HcclAdapter::GetInstance().HcclRemapRegisteredMemory(&comms[0], &hccl_mems[0],
-      comms.size(), hccl_mems.size());
-  LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED,
-                         "Failed to invoke HcclRemapRegisteredMemory, ret = %d",
-                         static_cast<int32_t>(ret));
+  auto ret =
+      HcclAdapter::GetInstance().HcclRemapRegisteredMemory(&comms[0], &hccl_mems[0], comms.size(), hccl_mems.size());
+  LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke HcclRemapRegisteredMemory, ret = %d",
+                          static_cast<int32_t>(ret));
   const auto end = std::chrono::steady_clock::now();
   const auto cost = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
   LLMLOGI("RemapRegisteredMemory success, mem info size = %zu, cost = %ld us.", mem_infos.size(), cost);

@@ -37,9 +37,10 @@ class SpanAllocatorImp : public SpanAllocator {
   void Free(PageSpan &span) override {
     span_allocator_.Free(span);
   }
+
  private:
   ObjectAllocator<PageSpan> span_allocator_;
 };
-}
+}  // namespace llm
 
 #endif

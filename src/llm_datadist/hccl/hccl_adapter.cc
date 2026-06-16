@@ -65,33 +65,30 @@ ge::Status HcclAdapter::LoadSo() {
   hccl_batch_get_func_ = llm::FunctionLoader<HcclBatchGetFunc>::load(so_handle_, kHcclBatchGetName);
   LLM_CHECK_NOTNULL(hccl_batch_get_func_, ",failed to get function:%s.", kHcclBatchGetName);
 
-  hccl_remap_registered_memory_func_ = llm::FunctionLoader<HcclRemapRegisteredMemoryFunc>::load(so_handle_,
-      kHcclRemapRegisteredMemoryName);
+  hccl_remap_registered_memory_func_ =
+      llm::FunctionLoader<HcclRemapRegisteredMemoryFunc>::load(so_handle_, kHcclRemapRegisteredMemoryName);
   LLM_CHECK_NOTNULL(hccl_remap_registered_memory_func_, ",failed to get function:%s.", kHcclRemapRegisteredMemoryName);
 
-  hccl_comm_prepare_func_ = llm::FunctionLoader<HcclCommPrepareFunc>::load(so_handle_,
-      kHcclCommPrepareName);
+  hccl_comm_prepare_func_ = llm::FunctionLoader<HcclCommPrepareFunc>::load(so_handle_, kHcclCommPrepareName);
 
-  hccl_register_global_mem_func_ = llm::FunctionLoader<HcclRegisterGlobalMemFunc>::load(so_handle_,
-      kHcclRegisterGlobalMemName);
+  hccl_register_global_mem_func_ =
+      llm::FunctionLoader<HcclRegisterGlobalMemFunc>::load(so_handle_, kHcclRegisterGlobalMemName);
   LLM_CHECK_NOTNULL(hccl_register_global_mem_func_, ",failed to get function:%s.", kHcclRegisterGlobalMemName);
 
-  hccl_deregister_global_mem_func_ = llm::FunctionLoader<HcclDeregisterGlobalMemFunc>::load(so_handle_,
-      kHcclDeregisterGlobalMemName);
+  hccl_deregister_global_mem_func_ =
+      llm::FunctionLoader<HcclDeregisterGlobalMemFunc>::load(so_handle_, kHcclDeregisterGlobalMemName);
   LLM_CHECK_NOTNULL(hccl_deregister_global_mem_func_, ",failed to get function:%s.", kHcclDeregisterGlobalMemName);
 
-  hccl_comm_bind_mem_func_ = llm::FunctionLoader<HcclCommBindMemFunc>::load(so_handle_,
-      kHcclCommBindMemName);
+  hccl_comm_bind_mem_func_ = llm::FunctionLoader<HcclCommBindMemFunc>::load(so_handle_, kHcclCommBindMemName);
   LLM_CHECK_NOTNULL(hccl_comm_bind_mem_func_, ",failed to get function:%s.", kHcclCommBindMemName);
 
-  hccl_comm_unbind_mem_func_ = llm::FunctionLoader<HcclCommUnbindMemFunc>::load(so_handle_,
-      kHcclCommUnbindMemName);
+  hccl_comm_unbind_mem_func_ = llm::FunctionLoader<HcclCommUnbindMemFunc>::load(so_handle_, kHcclCommUnbindMemName);
   LLM_CHECK_NOTNULL(hccl_comm_unbind_mem_func_, ",failed to get function:%s.", kHcclCommUnbindMemName);
 
   hccl_comm_init_cluster_info_mem_func_ =
       llm::FunctionLoader<HcclCommInitClusterInfoMemConfigFunc>::load(so_handle_, kHcclCommInitClusterInfoMemName);
   LLM_CHECK_NOTNULL(hccl_comm_init_cluster_info_mem_func_, ",failed to get function:%s.",
-                   kHcclCommInitClusterInfoMemName);
+                    kHcclCommInitClusterInfoMemName);
 
   hccl_comm_destroy_func_ = llm::FunctionLoader<HcclCommDestroyFunc>::load(so_handle_, kHcclCommDestroyName);
   LLM_CHECK_NOTNULL(hccl_comm_destroy_func_, ",failed to get function:%s.", kHcclCommDestroyName);
@@ -191,18 +188,13 @@ HcclResult HcclAdapter::HcclBatchPut(HcclComm comm, uint32_t remote_rank, HcclOn
   return ret;
 }
 
-HcclResult HcclAdapter::HcclBatchGet(HcclComm comm,
-                                     uint32_t remote_rank,
-                                     HcclOneSideOpDesc *desc,
-                                     uint32_t desc_num,
+HcclResult HcclAdapter::HcclBatchGet(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t desc_num,
                                      aclrtStream stream) const {
   auto ret = hccl_batch_get_func_(comm, remote_rank, desc, desc_num, stream);
   return ret;
 }
 
-HcclResult HcclAdapter::HcclRemapRegisteredMemory(HcclComm *comm,
-                                                  HcclMem *mem_info_array,
-                                                  uint64_t comm_size,
+HcclResult HcclAdapter::HcclRemapRegisteredMemory(HcclComm *comm, HcclMem *mem_info_array, uint64_t comm_size,
                                                   uint64_t arraySize) const {
   auto ret = hccl_remap_registered_memory_func_(comm, mem_info_array, comm_size, arraySize);
   return ret;

@@ -16,12 +16,12 @@
 #include "common/llm_checker.h"
 
 namespace llm {
-template<typename T>
+template <typename T>
 class ObjectAllocator {
  public:
   explicit ObjectAllocator(size_t capacity) {
     for (size_t i = 0; i < capacity; i++) {
-      auto elem = new(std::nothrow) Element();
+      auto elem = new (std::nothrow) Element();
       if (elem != nullptr) {
         elems.push_back(elem->node);
       }
@@ -54,7 +54,7 @@ class ObjectAllocator {
 
   // Alloc memory and construct with args!!!
   template <class... Args>
-  T *New(Args &&... args) {
+  T *New(Args &&...args) {
     return new (AllocMem()) T(std::forward<Args>(args)...);
   }
 
@@ -64,7 +64,7 @@ class ObjectAllocator {
     if (elem != nullptr) {
       return reinterpret_cast<T *>(elem);
     }
-    return reinterpret_cast<T *>(new(std::nothrow) Element());
+    return reinterpret_cast<T *>(new (std::nothrow) Element());
   }
 
   // Free memory and destruct !!!
@@ -78,8 +78,7 @@ class ObjectAllocator {
   }
 
  private:
-  struct ElemNode : LinkNode<ElemNode> {
-  };
+  struct ElemNode : LinkNode<ElemNode> {};
 
   union Element {
     Element() {}
@@ -90,6 +89,6 @@ class ObjectAllocator {
  private:
   Link<ElemNode> elems;
 };
-}
+}  // namespace llm
 
 #endif

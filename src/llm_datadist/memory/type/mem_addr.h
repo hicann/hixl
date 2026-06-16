@@ -17,6 +17,6 @@
 namespace llm {
 using MemAddr = uint8_t *;
 using BlockAddr = ge::MemBlock *;
-}
+}  // namespace llm
 
 #endif

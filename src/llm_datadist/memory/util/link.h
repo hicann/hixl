@@ -17,20 +17,14 @@
 #include "memory/util/link_node.h"
 
 namespace llm {
-template<typename T>
+template <typename T>
 struct Link {
   struct Iterator {
-    Iterator() noexcept
-        : elem_(nullptr), next_(nullptr) {
-    }
+    Iterator() noexcept : elem_(nullptr), next_(nullptr) {}
 
-    explicit Iterator(T *const elem) noexcept
-        : elem_(elem), next_(next_of(elem)) {
-    }
+    explicit Iterator(T *const elem) noexcept : elem_(elem), next_(next_of(elem)) {}
 
-    Iterator(const Iterator &rhs) noexcept
-        : elem_(rhs.elem_), next_(rhs.next_) {
-    }
+    Iterator(const Iterator &rhs) noexcept : elem_(rhs.elem_), next_(rhs.next_) {}
 
     Iterator &operator=(const Iterator &other) noexcept {
       if (this != &other) {
@@ -86,23 +80,18 @@ struct Link {
     static T *prev_of(const T *const elem) noexcept {
       return elem == nullptr ? nullptr : Link<T>::prev_of(elem);
     }
+
    private:
     T *elem_;
     T *next_;
   };
 
   struct ReverseIterator {
-    ReverseIterator() noexcept
-        : elem_(nullptr), next_(nullptr) {
-    }
+    ReverseIterator() noexcept : elem_(nullptr), next_(nullptr) {}
 
-    explicit ReverseIterator(T *elem) noexcept
-        : elem_(elem), next_(next_of(elem)) {
-    }
+    explicit ReverseIterator(T *elem) noexcept : elem_(elem), next_(next_of(elem)) {}
 
-    ReverseIterator(const ReverseIterator &rhs) noexcept
-        : elem_(rhs.elem_), next_(rhs.next_) {
-    }
+    ReverseIterator(const ReverseIterator &rhs) noexcept : elem_(rhs.elem_), next_(rhs.next_) {}
 
     ReverseIterator &operator=(const ReverseIterator &other) noexcept {
       if (this != &other) {
@@ -279,7 +268,8 @@ struct Link {
   }
 
   void clear() {
-    while (pop_front() != nullptr) {};
+    while (pop_front() != nullptr) {
+    };
   }
 
   Iterator next_of(Iterator &i) const {
@@ -302,19 +292,19 @@ struct Link {
   }
 
   T *sentinel() {
-    return reinterpret_cast<T *>(reinterpret_cast<uint8_t volatile *>(&(head_.next_))
-                                 - reinterpret_cast<uint8_t volatile *>(&(static_cast<T *>(nullptr)->link_)));
+    return reinterpret_cast<T *>(reinterpret_cast<uint8_t volatile *>(&(head_.next_)) -
+                                 reinterpret_cast<uint8_t volatile *>(&(static_cast<T *>(nullptr)->link_)));
   }
 
   const T *sentinel() const {
-    return reinterpret_cast<T *>(reinterpret_cast<uint8_t const volatile *>(&(head_.next_))
-                                 - reinterpret_cast<uint8_t volatile *>(&(static_cast<T *>(nullptr)->link_)));
+    return reinterpret_cast<T *>(reinterpret_cast<uint8_t const volatile *>(&(head_.next_)) -
+                                 reinterpret_cast<uint8_t volatile *>(&(static_cast<T *>(nullptr)->link_)));
   }
 
  private:
   typename LinkNode<T>::Chain head_;
   size_t num_;
 };
-}
+}  // namespace llm
 
 #endif

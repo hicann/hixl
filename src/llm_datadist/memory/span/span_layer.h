@@ -19,9 +19,7 @@
 namespace llm {
 class SpanLayer : public LinkNode<SpanLayer> {
  public:
-  SpanLayer(SpanLayerId layer_id, size_t span_capacity)
-      : layer_id_{layer_id}, span_capacity_{span_capacity} {
-  }
+  SpanLayer(SpanLayerId layer_id, size_t span_capacity) : layer_id_{layer_id}, span_capacity_{span_capacity} {}
 
   void PushSpan(PageSpan &span) {
     free_link_.push_front(span);
@@ -63,6 +61,6 @@ class SpanLayer : public LinkNode<SpanLayer> {
 
   Link<PageSpan> free_link_;
 };
-}
+}  // namespace llm
 
 #endif

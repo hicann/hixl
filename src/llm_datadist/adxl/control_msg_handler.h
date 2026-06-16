@@ -24,15 +24,15 @@ struct ProtocolHeader {
   uint64_t body_size;
 };
 
-enum class ControlMsgType : int32_t { 
-  kHeartBeat = 1, 
-  kBufferReq = 2, 
-  kBufferResp = 3, 
-  kNotify = 4, 
-  kNotifyAck = 5, 
+enum class ControlMsgType : int32_t {
+  kHeartBeat = 1,
+  kBufferReq = 2,
+  kBufferResp = 3,
+  kNotify = 4,
+  kNotifyAck = 5,
   kRequestDisconnect = 6,
   kRequestDisconnectResp = 7,
-  kEnd 
+  kEnd
 };
 
 struct HeartbeatMsg {
@@ -159,7 +159,7 @@ inline void from_json(const nlohmann::json &j, NotifyMsg &msg) {
 
 struct RequestDisconnectMsg {
   std::string channel_id;
-  uint64_t timeout{1000}; 
+  uint64_t timeout{1000};
   uint64_t req_id{0};
 };
 
@@ -180,17 +180,14 @@ struct RequestDisconnectResp {
   uint64_t req_id{0};
   bool can_disconnect{false};
   bool disconnected{false};
-  uint32_t error_code{0}; 
+  uint32_t error_code{0};
   std::string error_message;
 };
 
 inline void to_json(nlohmann::json &j, const RequestDisconnectResp &resp) {
-  j = nlohmann::json{{"channel_id", resp.channel_id},
-                     {"req_id", resp.req_id},
-                     {"can_disconnect", resp.can_disconnect},
-                     {"disconnected", resp.disconnected},
-                     {"error_code", resp.error_code},
-                     {"error_message", resp.error_message}};
+  j = nlohmann::json{{"channel_id", resp.channel_id},         {"req_id", resp.req_id},
+                     {"can_disconnect", resp.can_disconnect}, {"disconnected", resp.disconnected},
+                     {"error_code", resp.error_code},         {"error_message", resp.error_message}};
 }
 
 inline void from_json(const nlohmann::json &j, RequestDisconnectResp &resp) {

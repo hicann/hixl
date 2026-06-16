@@ -75,8 +75,8 @@ ge::Status CommLinkManager::ExchangeMem(const EntityPtr &entity, uint32_t local_
   uint32_t remote_mem_num = 0U;
   LLMLOGI("start call HcclExchangeMemDesc, remote_rank:%u", remote_rank);
   int32_t timeout = link_total_time_ > 0 ? link_total_time_ : 30;
-  HcclResult ret = HcclAdapter::GetInstance().HcclExchangeMemDesc(entity->GetComm(), remote_rank, &local_descs,
-                                                                  timeout, &remote_descs, &remote_mem_num);
+  HcclResult ret = HcclAdapter::GetInstance().HcclExchangeMemDesc(entity->GetComm(), remote_rank, &local_descs, timeout,
+                                                                  &remote_descs, &remote_mem_num);
   LLM_CHK_BOOL_RET_STATUS(ret == HcclResult::HCCL_SUCCESS, ge::LLM_LINK_FAILED,
                           "Call HcclExchangeMemDesc failed, ret:%d", ret);
   LLMLOGI("HcclExchangeMemDesc suc, remote num:%u", remote_mem_num);
@@ -89,18 +89,16 @@ ge::Status CommLinkManager::ExchangeMem(const EntityPtr &entity, uint32_t local_
     LLMLOGE(ge::LLM_PARAM_INVALID, "Failed to load exchange mem info, exception:%s", e.what());
     return ge::LLM_PARAM_INVALID;
   }
-  LLM_CHK_BOOL_RET_STATUS(remote_mem_info.cache_table_size <= kCacheAccessTableBufferSize,
-                          ge::LLM_PARAM_INVALID,
-                          "Remote cache_table_size %lu exceeds max %lu",
-                          remote_mem_info.cache_table_size, kCacheAccessTableBufferSize);
+  LLM_CHK_BOOL_RET_STATUS(remote_mem_info.cache_table_size <= kCacheAccessTableBufferSize, ge::LLM_PARAM_INVALID,
+                          "Remote cache_table_size %lu exceeds max %lu", remote_mem_info.cache_table_size,
+                          kCacheAccessTableBufferSize);
   std::vector<HcclMem> &remote_mems = entity->GetRemoteMems();
   HcclMem mem{};
   SetMemAttribute(remote_mem_info, remote_mems, mem);
   return ge::SUCCESS;
 }
 
-void CommLinkManager::SetMemAttribute(const ExchangeMemInfo &remote_mem_info, 
-                                      std::vector<HcclMem> &remote_mems, 
+void CommLinkManager::SetMemAttribute(const ExchangeMemInfo &remote_mem_info, std::vector<HcclMem> &remote_mems,
                                       HcclMem &mem) {
   mem.type = CommMemType::COMM_MEM_TYPE_DEVICE;
   mem.addr = ValueToPtr(remote_mem_info.cache_table_addr);
@@ -161,10 +159,9 @@ void CommLinkManager::FlagGuard(PrepareMemArg &req) {
   }
 }
 
-ge::Status CommLinkManager::PrepareComm(const PrepareMemArg &req,
-                                        EntityCommInfoPtr &comm_info_ptr) {
-  comm_info_ptr = MakeShared<EntityCommInfo>(req.comm, GetAllRegisterMemHandles(),
-                                             req.link_total_time, req.link_retry_count);
+ge::Status CommLinkManager::PrepareComm(const PrepareMemArg &req, EntityCommInfoPtr &comm_info_ptr) {
+  comm_info_ptr =
+      MakeShared<EntityCommInfo>(req.comm, GetAllRegisterMemHandles(), req.link_total_time, req.link_retry_count);
   LLM_CHECK_NOTNULL(comm_info_ptr);
   {
     std::lock_guard<std::mutex> lock(map_mutex_);
@@ -176,19 +173,16 @@ ge::Status CommLinkManager::PrepareComm(const PrepareMemArg &req,
   return ge::SUCCESS;
 }
 
-ge::Status CommLinkManager::CreateClustersEntity(PrepareMemArg &req,
-                                                 std::map<uint64_t, EntityPtr> &cluster2entity) {
+ge::Status CommLinkManager::CreateClustersEntity(PrepareMemArg &req, std::map<uint64_t, EntityPtr> &cluster2entity) {
   auto local_rank_id = req.cluster2rank[cluster_id_];
   for (auto &iter : req.cluster2rank) {
     if (iter.first != cluster_id_) {
       // create comm entity
-      EntityPtr entity = MakeShared<CommEntity>(req.comm_id, iter.first, iter.second, cluster_id_,
-                                                local_rank_id);
+      EntityPtr entity = MakeShared<CommEntity>(req.comm_id, iter.first, iter.second, cluster_id_, local_rank_id);
       LLM_CHECK_NOTNULL(entity);
       LLM_CHK_STATUS_RET(entity->Initialize(remote_cache_accessible_), "Failed to init entity");
       LLMLOGI("Success to create comm entity:%s", entity->GetDesc().c_str());
-      auto mem_info_ptr = MakeUnique<EntityMemInfo>(remote_cache_accessible_,
-                                                    comm_entity_manager_->GetHostRegPool(),
+      auto mem_info_ptr = MakeUnique<EntityMemInfo>(remote_cache_accessible_, comm_entity_manager_->GetHostRegPool(),
                                                     comm_entity_manager_->GetDeviceRegPool());
       LLM_CHECK_NOTNULL(mem_info_ptr);
       LLM_CHK_STATUS_RET(mem_info_ptr->Initialize(), "Failed to init mem info");
@@ -216,7 +210,7 @@ ge::Status CommLinkManager::PrepareMem(PrepareMemArg &req) {
   std::map<uint64_t, EntityPtr> cluster2entity;
   ScopeGuard entity_guard([&cluster2entity]() {
     for (auto &iter : cluster2entity) {
-      (void) iter.second->Finalize();
+      (void)iter.second->Finalize();
     }
   });
   LLM_CHK_STATUS_RET(CreateClustersEntity(req, cluster2entity), "Failed to create clusters entity.");
@@ -231,7 +225,7 @@ ge::Status CommLinkManager::PrepareMem(PrepareMemArg &req) {
     (void)rank_ids.emplace_back(iter.second);
   }
   LLMEVENT("Begin to prepare memory for clusters[%s], ranks[%s].", hixl::ToString(cluster_ids).c_str(),
-          hixl::ToString(rank_ids).c_str());
+           hixl::ToString(rank_ids).c_str());
   std::vector<EntityPtr> new_entities;
   auto local_rank_id = req.cluster2rank[cluster_id_];
   for (auto &iter : req.cluster2rank) {
@@ -241,8 +235,7 @@ ge::Status CommLinkManager::PrepareMem(PrepareMemArg &req) {
       entity->SetEntityCommInfo(comm_info_ptr);
       LLM_CHK_STATUS_RET(ExchangeMem(entity, local_rank_id, iter.second), "Failed to exchange mem");
       LLM_CHK_STATUS_RET(entity->SetInfo(), "Failed to set entity info");
-      LLM_CHK_STATUS_RET(comm_entity_manager_->AddEntity(iter.first, entity),
-                         "Failed to add entity");
+      LLM_CHK_STATUS_RET(comm_entity_manager_->AddEntity(iter.first, entity), "Failed to add entity");
       (void)new_entities.emplace_back(entity);
     }
   }
@@ -288,7 +281,7 @@ void CommLinkManager::Finalize() {
   LLMLOGI("Deregister global mem start");
   std::lock_guard<std::mutex> lock(handles_mutex_);
   for (auto handle : handles_) {
-    (void) HcclAdapter::GetInstance().HcclDeregisterGlobalMem(handle);
+    (void)HcclAdapter::GetInstance().HcclDeregisterGlobalMem(handle);
   }
   handles_.clear();
   LLMLOGI("Deregister global mem end");
@@ -299,27 +292,24 @@ ge::Status CommLinkManager::Initialize(const std::map<ge::AscendString, ge::Asce
   const auto it = options.find(LLM_OPTION_RDMA_TRAFFIC_CLASS);
   if (it != options.end()) {
     LLM_CHK_STATUS_RET(LLMUtils::ToNumber(it->second.GetString(), rdmaTrafficClass_),
-                      "llm.RdmaTrafficClass is invalid, value = %s",
-                      it->second.GetString());
+                       "llm.RdmaTrafficClass is invalid, value = %s", it->second.GetString());
     hasTrafficClass_ = true;
   }
   const auto serviceLevelIter = options.find(LLM_OPTION_RDMA_SERVICE_LEVEL);
   if (serviceLevelIter != options.end()) {
     LLM_CHK_STATUS_RET(LLMUtils::ToNumber(serviceLevelIter->second.GetString(), rdmaServiceLevel_),
-                      "llm.RdmaServiceLevel is invalid, value = %s", serviceLevelIter->second.GetString());
+                       "llm.RdmaServiceLevel is invalid, value = %s", serviceLevelIter->second.GetString());
     hasServiceLevel_ = true;
   }
   const auto total_time = options.find(LLM_OPTION_LINK_TOTAL_TIME);
   if (total_time != options.end()) {
     LLM_CHK_STATUS_RET(LLMUtils::ToNumber(total_time->second.GetString(), link_total_time_),
-                      "llm.linkTotalTime is invalid, value = %s",
-                      total_time->second.GetString());
+                       "llm.linkTotalTime is invalid, value = %s", total_time->second.GetString());
   }
   const auto retry_count = options.find(LLM_OPTION_LINK_RETRY_COUNT);
   if (retry_count != options.end()) {
     LLM_CHK_STATUS_RET(LLMUtils::ToNumber(retry_count->second.GetString(), link_retry_count_),
-                      "llm.linkRetryCount is invalid, value = %s",
-                      retry_count->second.GetString());
+                       "llm.linkRetryCount is invalid, value = %s", retry_count->second.GetString());
   }
   return ge::SUCCESS;
 }
@@ -330,22 +320,21 @@ uint64_t CommLinkManager::GenerateCommId() {
 
 ge::Status CommLinkManager::Link(std::string &cluster_name, const std::map<uint64_t, uint32_t> &cluster2rank,
                                  std::string &rank_table, uint64_t &comm_id) {
-  LLM_CHK_BOOL_RET_STATUS(!cluster_name.empty(), ge::LLM_PARAM_INVALID,
-                         "param cluster_name can not be empty.");
+  LLM_CHK_BOOL_RET_STATUS(!cluster_name.empty(), ge::LLM_PARAM_INVALID, "param cluster_name can not be empty.");
   LLM_CHK_BOOL_RET_STATUS(cluster_name.size() < COMM_NAME_MAX_LENGTH, ge::LLM_PARAM_INVALID,
-                         "param cluster_name size should be smaller than:%u", COMM_NAME_MAX_LENGTH);
+                          "param cluster_name size should be smaller than:%u", COMM_NAME_MAX_LENGTH);
   LLM_CHK_BOOL_RET_STATUS(cluster2rank.find(cluster_id_) != cluster2rank.end(), ge::LLM_PARAM_INVALID,
-                         "local cluster id does not exist in cluster2rank");
+                          "local cluster id does not exist in cluster2rank");
   // lock for process
   std::lock_guard<std::mutex> lock(mutex_);
   {
     std::lock_guard<std::mutex> map_lock(map_mutex_);
-    LLM_CHK_BOOL_RET_STATUS(comm_to_status_.size() < kMaxLinkNum, ge::LLM_PARAM_INVALID,
-                           "Link num is over limit:%u.", kMaxLinkNum);
+    LLM_CHK_BOOL_RET_STATUS(comm_to_status_.size() < kMaxLinkNum, ge::LLM_PARAM_INVALID, "Link num is over limit:%u.",
+                            kMaxLinkNum);
   }
   auto local_rank = cluster2rank.at(cluster_id_);
   LLM_CHK_BOOL_RET_STATUS(aclrtSetCurrentContext(aclrt_context_) == ACL_ERROR_NONE, ge::LLM_UNLINK_FAILED,
-                         "Set aclrt context failed.");
+                          "Set aclrt context failed.");
   HcclCommConfig config{};
   HcclAdapter::GetInstance().HcclCommConfigInit(&config);
   LLM_ASSERT_EOK(strcpy_s(config.hcclCommName, COMM_NAME_MAX_LENGTH, cluster_name.data()));
@@ -358,13 +347,13 @@ ge::Status CommLinkManager::Link(std::string &cluster_name, const std::map<uint6
     config.hcclRdmaServiceLevel = rdmaServiceLevel_;
   }
 
-  LLMLOGI("HcclCommInitClusterInfoMemConfig begin, comm_name=%s, local rank_id=%u, rank_table=%s",
-         config.hcclCommName, local_rank, rank_table.c_str());
+  LLMLOGI("HcclCommInitClusterInfoMemConfig begin, comm_name=%s, local rank_id=%u, rank_table=%s", config.hcclCommName,
+          local_rank, rank_table.c_str());
   HcclComm comm{};
-  HcclResult ret = HcclAdapter::GetInstance().HcclCommInitClusterInfoMemConfig(rank_table.c_str(), local_rank,
-                                                                               &config, &comm);
+  HcclResult ret =
+      HcclAdapter::GetInstance().HcclCommInitClusterInfoMemConfig(rank_table.c_str(), local_rank, &config, &comm);
   LLM_CHK_BOOL_RET_STATUS(ret == HcclResult::HCCL_SUCCESS, ge::LLM_LINK_FAILED,
-                         "Call HcclCommInitClusterInfoMemConfig failed, ret:%d.", ret);
+                          "Call HcclCommInitClusterInfoMemConfig failed, ret:%d.", ret);
 
   comm_id = GenerateCommId();
   {
@@ -373,8 +362,8 @@ ge::Status CommLinkManager::Link(std::string &cluster_name, const std::map<uint6
     comm_status.unlink_flag.store(false);
     comm_status.prepare_mem_flag.store(false);
     comm_status.status = RegisterMemoryStatus::PREPARING;
-    PrepareMemArg prepare_mem_arg{comm_id, comm, cluster2rank, GetAllRegisterMemHandles(),
-                                  link_total_time_, link_retry_count_};
+    PrepareMemArg prepare_mem_arg{comm_id,          comm, cluster2rank, GetAllRegisterMemHandles(), link_total_time_,
+                                  link_retry_count_};
     auto fut = thread_pool_.commit(&CommLinkManager::PrepareMemTask, this, prepare_mem_arg);
     comm_status.task_fut = std::move(fut);
   }
@@ -431,8 +420,7 @@ ge::Status CommLinkManager::QueryRegisterMemStatus(uint64_t comm_id, RegisterMem
   auto iter = comm_to_status_.find(comm_id);
   if (iter != comm_to_status_.end()) {
     status = iter->second.status;
-    if (status == RegisterMemoryStatus::PREPARING &&
-        iter->second.task_fut.valid() &&
+    if (status == RegisterMemoryStatus::PREPARING && iter->second.task_fut.valid() &&
         iter->second.task_fut.wait_for(std::chrono::microseconds(1)) == std::future_status::ready) {
       auto prepare_ret = iter->second.task_fut.get();
       status = (prepare_ret == ge::SUCCESS) ? RegisterMemoryStatus::OK : RegisterMemoryStatus::FAILED;
@@ -454,9 +442,9 @@ void CommLinkManager::SetCacheManager(CacheManager *cache_manager) {
 ge::Status CommLinkManager::RegisterMem(HcclMem *mem, void **mem_handle) {
   auto ret = HcclAdapter::GetInstance().HcclRegisterGlobalMem(mem, mem_handle);
   LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke HcclRegisterGlobalMem, ret = %d",
-                         static_cast<int32_t>(ret));
-  LLMLOGI("Register global mem success, addr:%p, size:%lu, type:%d, handle:%p",
-          mem->addr, mem->size, static_cast<int32_t>(mem->type), *mem_handle);
+                          static_cast<int32_t>(ret));
+  LLMLOGI("Register global mem success, addr:%p, size:%lu, type:%d, handle:%p", mem->addr, mem->size,
+          static_cast<int32_t>(mem->type), *mem_handle);
 
   std::lock_guard<std::mutex> lock(handles_mutex_);
   handles_.emplace(*mem_handle);
@@ -472,7 +460,7 @@ ge::Status CommLinkManager::DeregisterGlobalMem(void *mem_handle) {
   }
   auto ret = HcclAdapter::GetInstance().HcclDeregisterGlobalMem(mem_handle);
   LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke HcclDeregisterGlobalMem, ret = %d",
-                         static_cast<int32_t>(ret));
+                          static_cast<int32_t>(ret));
   handles_.erase(it);
   return ge::SUCCESS;
 }

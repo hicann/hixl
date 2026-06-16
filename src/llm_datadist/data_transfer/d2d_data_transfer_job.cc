@@ -35,7 +35,7 @@ ge::Status GetSendTask(const CacheEntry &cache_entry, const TransferCacheReq &re
   const size_t src_addr_num =
       (request.src_tensor_indices_size == 0U) ? cache_entry.cache_addrs.size() : src_layer_range_cache_num;
   LLM_CHK_BOOL_RET_STATUS(src_addr_num == static_cast<size_t>(dst_addr_count), ge::LLM_PARAM_INVALID,
-                         "src addr count:%zu, not match received dst_addr_count:%u", src_addr_num, dst_addr_count);
+                          "src addr count:%zu, not match received dst_addr_count:%u", src_addr_num, dst_addr_count);
   for (size_t i = 0UL; i < src_addr_num; ++i) {
     for (uint32_t j = 0U; j < buffer_info_count; ++j) {
       HcclOneSideOpDesc hccl_one_side_op_desc;
@@ -44,22 +44,22 @@ ge::Status GetSendTask(const CacheEntry &cache_entry, const TransferCacheReq &re
       const auto dst_buffer_info = request.transfer_infos[dst_addr_count + buffer_info_count + j].buffer_info;
       const uint64_t dst_block_index = dst_buffer_info.block_start_index;
       LLM_CHK_BOOL_RET_STATUS(src_block_index < batch_or_block_num, ge::LLM_PARAM_INVALID,
-                             "req_id[%lu], model_id[%lu], src block index[%lu] is out of range[0, %lu)",
-                             request.req_id, request.model_id, src_block_index, batch_or_block_num);
+                              "req_id[%lu], model_id[%lu], src block index[%lu] is out of range[0, %lu)",
+                              request.req_id, request.model_id, src_block_index, batch_or_block_num);
       LLM_CHK_BOOL_RET_STATUS(src_buffer_info.buffer_len == dst_buffer_info.buffer_len, ge::LLM_PARAM_INVALID,
-                             "req_id[%lu], model_id[%lu], src buffer_len[%lu] not equal dst buffer_len[%lu]",
-                             request.req_id, request.model_id, src_buffer_info.buffer_len, dst_buffer_info.buffer_len);
+                              "req_id[%lu], model_id[%lu], src buffer_len[%lu] not equal dst buffer_len[%lu]",
+                              request.req_id, request.model_id, src_buffer_info.buffer_len, dst_buffer_info.buffer_len);
       // offset is used batch index cache key, if send contiguous to contiguous, block_index is 0
       const size_t src_addr_index = i + static_cast<uint64_t>(request.src_tensor_start_index);
-      hccl_one_side_op_desc.localAddr = ValueToPtr(PtrToValue(cache_entry.cache_addrs[src_addr_index].get()) +
-                                                   offset + src_block_index * block_size);
+      hccl_one_side_op_desc.localAddr =
+          ValueToPtr(PtrToValue(cache_entry.cache_addrs[src_addr_index].get()) + offset + src_block_index * block_size);
       // if dst_addr is contiguous, offset is done in pull
       hccl_one_side_op_desc.remoteAddr =
           ValueToPtr(PtrToValue(request.transfer_infos[i].dst_addr) + dst_block_index * block_size);
       const uint64_t target_size = request.is_pull_block == 1U ? cache_entry.tensor_size : cache_entry.stride;
       LLM_CHK_BOOL_RET_STATUS(src_buffer_info.buffer_len <= target_size, ge::LLM_PARAM_INVALID,
-                             "req_id[%lu], model_id[%lu], tensor size (%lu) < required size (%lu)", request.req_id,
-                             request.model_id, target_size, src_buffer_info.buffer_len);
+                              "req_id[%lu], model_id[%lu], tensor size (%lu) < required size (%lu)", request.req_id,
+                              request.model_id, target_size, src_buffer_info.buffer_len);
       hccl_one_side_op_desc.count =
           (j == buffer_info_count - 1) && (remainder > 0) ? remainder : src_buffer_info.buffer_len;
       hccl_one_side_op_desc.dataType = HCCL_DATA_TYPE_INT8;
@@ -69,7 +69,7 @@ ge::Status GetSendTask(const CacheEntry &cache_entry, const TransferCacheReq &re
   size_t total_num = 0UL;
   LLM_ASSERT_TRUE(!ge::MulOverflow(src_addr_num, static_cast<size_t>(buffer_info_count), total_num));
   LLM_CHK_BOOL_RET_STATUS(send_tasks.size() == total_num, ge::LLM_PARAM_INVALID,
-                         "send task size:%zu, not match total num:%zu", send_tasks.size(), total_num);
+                          "send task size:%zu, not match total num:%zu", send_tasks.size(), total_num);
   return ge::SUCCESS;
 }
 }  // namespace
@@ -77,7 +77,7 @@ ge::Status GetSendTask(const CacheEntry &cache_entry, const TransferCacheReq &re
 ge::Status D2DDataTransferJob::Initialize(const CacheEntry &cache_entry, CommEntity &comm_entity, uint64_t offset) {
   comm_entity_ = &comm_entity;
   LLM_CHK_STATUS_RET(GenerateSendTask(cache_entry, offset), "comm_entity:%s generate send task failed",
-                    comm_entity.GetDesc().c_str());
+                     comm_entity.GetDesc().c_str());
   timeout_point_ = std::chrono::steady_clock::now();
   return ge::SUCCESS;
 }
@@ -91,7 +91,7 @@ ge::Status D2DDataTransferJob::Process(bool &is_done) {
       return ge::LLM_TIMEOUT;
     }
     LLM_CHK_STATUS_RET(DataTransferUtils::QueryEventStatus(event_, status), "comm_entity:%s query event status failed",
-                      comm_entity_->GetDesc().c_str());
+                       comm_entity_->GetDesc().c_str());
     LLMLOGI("QueryEventStatus ret=%d", status);
   }
   if (event_ != nullptr) {
@@ -105,13 +105,14 @@ ge::Status D2DDataTransferJob::Process(bool &is_done) {
     const auto cost = static_cast<uint64_t>(
         std::chrono::duration_cast<std::chrono::microseconds>(finished_time_point - timeout_point_).count());
     auto &send_statistic_info = comm_entity_->GetSendStatisticInfo();
-    CommStatisticManager::GetInstance().UpdateCost(cost, send_statistic_info.send_times, send_statistic_info.send_min_cost,
-                                               send_statistic_info.send_max_cost, send_statistic_info.send_total_cost);
+    CommStatisticManager::GetInstance().UpdateCost(cost, send_statistic_info.send_times,
+                                                   send_statistic_info.send_min_cost, send_statistic_info.send_max_cost,
+                                                   send_statistic_info.send_total_cost);
     LLMLOGI("comm_entity:%s send all task of request finished", comm_entity_->GetDesc().c_str());
     return ge::SUCCESS;
   }
   LLM_CHK_STATUS_RET(DataTransferUtils::SendCache(comm_entity_->GetStream(), *comm_entity_, send_tasks_, event_),
-                    "comm_entity:%s send cache failed", comm_entity_->GetDesc().c_str());
+                     "comm_entity:%s send cache failed", comm_entity_->GetDesc().c_str());
   return ge::SUCCESS;
 }
 
@@ -119,8 +120,8 @@ ge::Status D2DDataTransferJob::GenerateCacheTask(const CacheEntry &cache_entry, 
                                                  const uint64_t offset) {
   if (request.is_pull_block == 1U) {
     LLM_CHK_BOOL_RET_STATUS(request.block_size != 0U, ge::LLM_PARAM_INVALID,
-                           "req:%lu, model_id:%lu, block size(%lu) is invalid", request.req_id, request.model_id,
-                           request.block_size);
+                            "req:%lu, model_id:%lu, block size(%lu) is invalid", request.req_id, request.model_id,
+                            request.block_size);
   }
   uint64_t stride_or_block_size = (request.block_size != 0U) ? request.block_size : cache_entry.stride;
   const auto ret = GetSendTask(cache_entry, request, stride_or_block_size, offset, send_tasks_);

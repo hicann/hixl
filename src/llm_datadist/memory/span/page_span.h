@@ -26,8 +26,7 @@ class PageSpan : public ge::MemBlock, public LinkNode<PageSpan> {
  public:
   PageSpan(ge::Allocator &allocator, ScalableAllocator &scalable_allocator, BlockAddr block_addr, MemAddr addr,
            size_t mem_size)
-      : ge::MemBlock(allocator, addr, mem_size), block_addr_{block_addr}, scalable_allocator_{scalable_allocator} {
-  }
+      : ge::MemBlock(allocator, addr, mem_size), block_addr_{block_addr}, scalable_allocator_{scalable_allocator} {}
 
   ~PageSpan() override {
     page_len_ = 0;
@@ -103,6 +102,6 @@ class PageSpan : public ge::MemBlock, public LinkNode<PageSpan> {
   size_t real_size_{0U};
   bool splitable_{false};
 };
-}
+}  // namespace llm
 
 #endif

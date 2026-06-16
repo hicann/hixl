@@ -12,10 +12,10 @@
 #define HEAAB628E_761B_4552_BEFF_EE3AAA1F9A19
 
 namespace llm {
-template<typename T>
+template <typename T>
 struct List;
 
-template<typename T>
+template <typename T>
 struct LinkNode {
   LinkNode() {
     link_.prev_ = nullptr;
@@ -49,10 +49,10 @@ struct LinkNode {
   struct Chain {
     T *volatile next_;
     T *volatile prev_;
-  }; // __cacheline_aligned;
+  };  // __cacheline_aligned;
 
   Chain link_;
 };
-}
+}  // namespace llm
 
 #endif

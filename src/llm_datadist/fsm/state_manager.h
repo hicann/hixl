@@ -32,6 +32,7 @@ class StateManager {
   StateManager(const StateManager &&) = delete;
   StateManager &operator=(const StateManager &) = delete;
   StateManager &operator=(const StateManager &&) = delete;
+
  private:
   StateManager();
   BaseState *state_[static_cast<size_t>(FsmState::FSM_INVALID_STATE)] = {nullptr};

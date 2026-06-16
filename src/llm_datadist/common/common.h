@@ -54,7 +54,7 @@ struct TransferCacheReq {
   int32_t timeout_in_ms = 1000;
   uint32_t dst_addr_count = 0U;
   uint64_t dst_buffer_size = 0UL;
-  uint32_t buffer_info_count = 0U; // block index num or cache num
+  uint32_t buffer_info_count = 0U;        // block index num or cache num
   uint32_t src_tensor_indices_size = 0U;  // used by pull with layer
   uint32_t src_tensor_start_index = 0U;   // used by pull with layer
   uint64_t req_size = 0U;
@@ -71,11 +71,11 @@ struct ResponseInfo {
 };
 
 struct CacheEntry {
-  uint64_t num_blocks = 0U; // > 0 means is blocks when cache_mem_type is not MIX
+  uint64_t num_blocks = 0U;  // > 0 means is blocks when cache_mem_type is not MIX
   uint32_t batch_size;
   int32_t seq_len_dim_index = -1;
   uint64_t tensor_size;
-  uint64_t stride; // batch stride or block size
+  uint64_t stride;  // batch stride or block size
   int32_t ext_ref_count = 0;
   CachePlacement placement;
   std::vector<std::shared_ptr<void>> cache_addrs;

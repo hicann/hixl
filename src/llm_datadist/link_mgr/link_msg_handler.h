@@ -20,12 +20,7 @@
 #include "common/msg_handler_plugin.h"
 
 namespace llm {
-enum class LinkMsgType : int32_t {
-  kConnect = 1,
-  kDisconnect = 2,
-  kStatus = 3,
-  kEnd
-};
+enum class LinkMsgType : int32_t { kConnect = 1, kDisconnect = 2, kStatus = 3, kEnd };
 
 struct LLMExchangeInfo {
   uint64_t cache_table_addr;
@@ -51,7 +46,7 @@ struct LLMDisconnectInfo {
   int32_t timeout;
 };
 
-using GetMemHandles = std::function<std::vector<void *> ()>;
+using GetMemHandles = std::function<std::vector<void *>()>;
 
 class LinkMsgHandler {
  public:
@@ -76,25 +71,25 @@ class LinkMsgHandler {
   void SetMemHandlesCallback(GetMemHandles callback);
 
  private:
-  template<typename T>
+  template <typename T>
   static ge::Status SendMsg(int32_t fd, LinkMsgType msg_type, const T &msg);
-  template<typename T>
+  template <typename T>
   static ge::Status RecvMsg(int32_t fd, LinkMsgType msg_type, T &msg);
   ge::Status ConnectedProcess(int32_t fd, bool &keep_fd);
   ge::Status ExchangeInfoProcess(const LLMExchangeInfo &peer_exchange_info, int32_t timeout, bool force_link,
                                  EntityMemInfoPtr &mem_info_ptr);
-  ge::Status GenerateRankInfo(const std::string &peer_comm_res, std::string &rank_table,
-                              int32_t &local_rank_id, int32_t &peer_rank_id);
+  ge::Status GenerateRankInfo(const std::string &peer_comm_res, std::string &rank_table, int32_t &local_rank_id,
+                              int32_t &peer_rank_id);
   ge::Status DisconnectInfoProcess(const LLMDisconnectInfo &peer_disconnect_info) const;
   ge::Status ProcessDisconnectRequest(int32_t fd, const std::vector<char> &msg) const;
   ge::Status ProcessConnectRequest(int32_t fd, const std::vector<char> &msg);
   ge::Status GenerateLocalCommRes(const ClusterInfo &cluster);
   ge::Status CreateEntityMemInfo(EntityMemInfoPtr &mem_info_ptr);
-  ge::Status SetEntityMemInfo(const LLMExchangeInfo &peer_exchange_info,
-                              EntityPtr entity, EntityMemInfoPtr &mem_info_ptr) const;
-  template<typename T>
+  ge::Status SetEntityMemInfo(const LLMExchangeInfo &peer_exchange_info, EntityPtr entity,
+                              EntityMemInfoPtr &mem_info_ptr) const;
+  template <typename T>
   static ge::Status Serialize(const T &msg, std::string &msg_str);
-  template<typename T>
+  template <typename T>
   static ge::Status Deserialize(const std::vector<char> &msg_str, T &msg);
 
   uint64_t cluster_id_;

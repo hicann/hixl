@@ -19,15 +19,12 @@ class LayerWiseTransferJob {
  public:
   LayerWiseTransferJob(CommEntity &comm_entity, aclrtStream stream);
   ~LayerWiseTransferJob() = default;
-  ge::Status TransferCache(const CacheEntry &cache_entry,
-                           const TransferCacheConfig &transfer_cache_config,
-                           const TransferBlockConfig &transfer_block_config,
-                           int32_t timeout_in_ms,
+  ge::Status TransferCache(const CacheEntry &cache_entry, const TransferCacheConfig &transfer_cache_config,
+                           const TransferBlockConfig &transfer_block_config, int32_t timeout_in_ms,
                            bool access_remote_cache);
 
  private:
-  ge::Status Prepare(const CacheEntry &cache_entry,
-                     const TransferCacheConfig &transfer_cache_config,
+  ge::Status Prepare(const CacheEntry &cache_entry, const TransferCacheConfig &transfer_cache_config,
                      const TransferBlockConfig &transfer_block_config);
   ge::Status GenerateCacheToCacheTask(const CacheEntry &cache_entry,
                                       const std::vector<std::shared_ptr<void>> &src_layer_addrs,
@@ -41,8 +38,7 @@ class LayerWiseTransferJob {
                                         const TransferCacheConfig &transfer_cache_config,
                                         const TransferBlockConfig &transfer_block_config);
   ge::Status SynchronizeTransferCacheWithRecord(const int32_t timeout_in_ms);
-  ge::Status FillRemoteLayerAddrs(int32_t timeout_in_ms,
-                                  TransferCacheConfig &transfer_config,
+  ge::Status FillRemoteLayerAddrs(int32_t timeout_in_ms, TransferCacheConfig &transfer_config,
                                   const TransferBlockConfig &transfer_block_config) const;
 
   ge::Status ValidateRemoteCache(const CacheEntry &remote_cache_entry, const TransferCacheConfig &transfer_cache_config,

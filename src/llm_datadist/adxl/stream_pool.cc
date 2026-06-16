@@ -22,16 +22,15 @@ Status StreamPool::TryAllocStream(aclrtStream &stream) {
       stream = item.first;
       return SUCCESS;
     }
-  }  
+  }
   if (pool_.size() < max_stream_num_) {
     aclrtStream new_stream = nullptr;
-    ADXL_CHK_ACL_RET(aclrtCreateStreamWithConfig(&new_stream, 0,
-                     ACL_STREAM_FAST_LAUNCH | ACL_STREAM_FAST_SYNC));
+    ADXL_CHK_ACL_RET(aclrtCreateStreamWithConfig(&new_stream, 0, ACL_STREAM_FAST_LAUNCH | ACL_STREAM_FAST_SYNC));
     pool_[new_stream] = false;
     stream = new_stream;
     LLMLOGI("Create new stream, current stream pool size: %zu", pool_.size());
     return SUCCESS;
-  }  
+  }
   LLMLOGW("Stream Pool capacity limit reached, current stream pool size: %zu", pool_.size());
   return RESOURCE_EXHAUSTED;
 }
@@ -68,4 +67,4 @@ void StreamPool::DestroyStream(aclrtStream &stream) {
     pool_.erase(it);
   }
 }
-}// namespace adxl
+}  // namespace adxl

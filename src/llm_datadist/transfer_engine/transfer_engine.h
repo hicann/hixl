@@ -35,8 +35,8 @@ class TransferEngine {
                                   int32_t timeout) = 0;
   virtual ge::Status UnlinkClusters(const std::vector<ClusterInfo> &clusters, std::vector<ge::Status> &rets,
                                     int32_t timeout, bool force_flag = false) = 0;
-  virtual ge::Status Link(std::string &cluster_name, const std::map<uint64_t, uint32_t> &cluster2rank, std::string &rank_table,
-                          uint64_t &comm_id) = 0;
+  virtual ge::Status Link(std::string &cluster_name, const std::map<uint64_t, uint32_t> &cluster2rank,
+                          std::string &rank_table, uint64_t &comm_id) = 0;
   virtual ge::Status Unlink(uint64_t comm_id) = 0;
   virtual void UnlinkAllClusters() = 0;
 
@@ -54,7 +54,8 @@ class TransferEngine {
 
 class TransferEngineFactory {
  public:
-  static std::unique_ptr<TransferEngine> Create(const std::map<ge::AscendString, ge::AscendString> &options, uint64_t cluster_id);
+  static std::unique_ptr<TransferEngine> Create(const std::map<ge::AscendString, ge::AscendString> &options,
+                                                uint64_t cluster_id);
 };
 }  // namespace llm
 #endif  // HIXL_SRC_LLM_DATADIST_TRANSFER_ENGINE_TRANSFER_ENGINE_H_

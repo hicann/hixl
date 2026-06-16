@@ -18,25 +18,25 @@
 
 namespace llm {
 namespace {
-constexpr uint64_t kMaxBlockSize = 4UL * 1024 * 1024 * 1024; // 4GB
+constexpr uint64_t kMaxBlockSize = 4UL * 1024 * 1024 * 1024;  // 4GB
 
 class CopyJob {
  public:
   explicit CopyJob(aclrtStream stream, uint64_t max_block_size = kMaxBlockSize)
-      : stream_(stream), max_block_size_(max_block_size) {
-  }
+      : stream_(stream), max_block_size_(max_block_size) {}
   ~CopyJob() = default;
 
   ge::Status AddCopyTask(void *dst, uint64_t dest_max, const void *src, uint64_t count, aclrtMemcpyKind kind) {
     if (!NeedCopyAsync(kind, count)) {
       if (aclrt_context_ == nullptr) {
-        LLM_CHK_BOOL_RET_STATUS(aclrtGetCurrentContext(&aclrt_context_) == ACL_ERROR_NONE, ge::FAILED, "Failed to get aclrt context");
+        LLM_CHK_BOOL_RET_STATUS(aclrtGetCurrentContext(&aclrt_context_) == ACL_ERROR_NONE, ge::FAILED,
+                                "Failed to get aclrt context");
       }
       auto fut = pool_.commit([this, dst, dest_max, src, count, kind]() -> ge::Status {
-        (void) aclrtSetCurrentContext(aclrt_context_);
+        (void)aclrtSetCurrentContext(aclrt_context_);
         const auto ret = aclrtMemcpy(dst, dest_max, src, count, kind);
-        LLM_CHK_BOOL_RET_STATUS(ret == ACL_ERROR_NONE, ge::FAILED,
-                               "failed to copy cache, aclrt_ret = 0x%X", static_cast<uint32_t>(ret));
+        LLM_CHK_BOOL_RET_STATUS(ret == ACL_ERROR_NONE, ge::FAILED, "failed to copy cache, aclrt_ret = 0x%X",
+                                static_cast<uint32_t>(ret));
         return ge::SUCCESS;
       });
       LLM_CHK_BOOL_RET_STATUS(fut.valid(), ge::FAILED, "Failed to commit copy task");
@@ -50,12 +50,8 @@ class CopyJob {
       uint64_t size_to_copy = remaining <= max_block_size_ ? remaining : max_block_size_;
       auto dst_start = static_cast<uint8_t *>(dst) + offset;
       auto src_start = static_cast<const uint8_t *>(src) + offset;
-      LLM_CHK_ACL_RET(aclrtMemcpyAsync(dst_start,
-                                                    dest_max,
-                                                    src_start,
-                                                    size_to_copy,
-                                                    ACL_MEMCPY_DEVICE_TO_DEVICE,
-                                                    stream_));
+      LLM_CHK_ACL_RET(
+          aclrtMemcpyAsync(dst_start, dest_max, src_start, size_to_copy, ACL_MEMCPY_DEVICE_TO_DEVICE, stream_));
       offset += max_block_size_;
       remaining -= size_to_copy;
     }
@@ -74,7 +70,7 @@ class CopyJob {
 
  private:
   bool NeedCopyAsync(aclrtMemcpyKind kind, uint64_t count) const {
-    constexpr uint64_t kMinBlockSize = 2UL * 1024 * 1024; // 2MB
+    constexpr uint64_t kMinBlockSize = 2UL * 1024 * 1024;  // 2MB
     return (kind == ACL_MEMCPY_DEVICE_TO_DEVICE) && (count >= kMinBlockSize);
   }
 
@@ -172,17 +168,14 @@ void CacheManager::SetHostMemPool(LlmMemPool *llm_mem_pool) {
   host_mem_pool_ = llm_mem_pool;
 }
 
-ge::Status CacheManager::Allocate(int64_t cache_id,
-                                  const CacheDesc &cache_desc,
-                                  const std::vector<CacheKey> &cache_keys,
-                                  Cache &cache) {
+ge::Status CacheManager::Allocate(int64_t cache_id, const CacheDesc &cache_desc,
+                                  const std::vector<CacheKey> &cache_keys, Cache &cache) {
   LlmMemPool *mem_pool =
       (cache_desc.placement == static_cast<uint32_t>(CachePlacement::HOST)) ? host_mem_pool_ : npu_mem_pool_;
-  LLM_CHK_BOOL_RET_STATUS(mem_pool != nullptr, ge::LLM_FEATURE_NOT_ENABLED,
-                         "memory pool is not enabled");
+  LLM_CHK_BOOL_RET_STATUS(mem_pool != nullptr, ge::LLM_FEATURE_NOT_ENABLED, "memory pool is not enabled");
   int64_t tensor_size;
   LLM_CHK_STATUS_RET(LLMUtils::CalcTensorMemSize(cache_desc.shape, cache_desc.data_type, tensor_size),
-                    "Failed to calc tensor size");
+                     "Failed to calc tensor size");
   std::vector<std::shared_ptr<void>> cache_tensors;
   std::vector<uintptr_t> tensor_addresses;
   tensor_addresses.reserve(cache_desc.num_tensors);
@@ -198,14 +191,14 @@ ge::Status CacheManager::Allocate(int64_t cache_id,
     (void)tensor_addresses.emplace_back(reinterpret_cast<uintptr_t>(tensor_addr.get()));
   }
   auto cache_entry = CreateCacheEntry(cache_desc, tensor_addresses, tensor_size);
-  cache_entry.is_owned = true; // allocated by llm datadist
+  cache_entry.is_owned = true;  // allocated by llm datadist
   cache_entry.ext_ref_count = 1;
   cache_entry.cache_addrs = cache_tensors;
   {
     std::lock_guard<std::mutex> lk(mu_);
     LLM_CHK_STATUS_RET(CheckCacheKeys(cache_desc, cache_keys), "Check cache_keys failed");
-    LLM_CHK_BOOL_RET_STATUS(cache_id_to_entry_.find(cache_id) == cache_id_to_entry_.cend(),
-                           ge::LLM_PARAM_INVALID, "cache_id %ld already exists", cache_id);
+    LLM_CHK_BOOL_RET_STATUS(cache_id_to_entry_.find(cache_id) == cache_id_to_entry_.cend(), ge::LLM_PARAM_INVALID,
+                            "cache_id %ld already exists", cache_id);
     AddCacheIndices(cache_entry, cache_id, cache_keys);
     cache_id_to_entry_[cache_id] = std::move(cache_entry);
     LLM_CHK_STATUS_RET(UpdateCacheTable(), "Failed to update cache table");
@@ -213,12 +206,11 @@ ge::Status CacheManager::Allocate(int64_t cache_id,
   cache.cache_id = cache_id;
   (void)cache.per_device_tensor_addrs.emplace_back(std::move(tensor_addresses));
   LLMLOGI("[cache_id:%ld][Allocate] success, num_tensors = %u, shape = %s, placement = %u", cache_id,
-         cache_desc.num_tensors, hixl::ToString(cache_desc.shape).c_str(), cache_desc.placement);
+          cache_desc.num_tensors, hixl::ToString(cache_desc.shape).c_str(), cache_desc.placement);
   return ge::SUCCESS;
 }
 
-CacheEntry CacheManager::CreateCacheEntry(const CacheDesc &cache_desc,
-                                          std::vector<uintptr_t> &addrs,
+CacheEntry CacheManager::CreateCacheEntry(const CacheDesc &cache_desc, std::vector<uintptr_t> &addrs,
                                           int64_t tensor_size) {
   CacheEntry cache_entry{};
   cache_entry.cache_addrs.reserve(addrs.size());
@@ -247,29 +239,24 @@ CacheEntry CacheManager::CreateCacheEntry(const CacheDesc &cache_desc,
 
 ge::Status CacheManager::CheckCacheKeys(const CacheDesc &cache_desc, const std::vector<CacheKey> &cache_keys) {
   LLM_CHK_BOOL_RET_STATUS(cache_keys.size() <= static_cast<size_t>(cache_desc.shape.front()), ge::LLM_PARAM_INVALID,
-                         "Number of cache_keys(%zu) > batch_size (%ld)", cache_keys.size(), cache_desc.shape.front());
+                          "Number of cache_keys(%zu) > batch_size (%ld)", cache_keys.size(), cache_desc.shape.front());
   std::set<DataCacheKey> data_cache_keys;
   for (const auto &cache_key : cache_keys) {
     bool is_prefix = false;
     auto data_cache_key = CreateDataCacheKey(cache_key, is_prefix);
     const auto &key_to_id = is_prefix ? prefix_key_to_id_ : cache_key_to_id_;
     const auto it = key_to_id.find(data_cache_key);
-    LLM_CHK_BOOL_RET_STATUS(it == key_to_id.cend(),
-                           ge::LLM_PARAM_INVALID,
-                           "cache_key (%lu, %lu) already bound to cache_id(%ld), is_prefix = %d",
-                           data_cache_key.first, data_cache_key.second, it->second, static_cast<int32_t>(is_prefix));
-    LLM_CHK_BOOL_RET_STATUS(data_cache_keys.emplace(data_cache_key).second,
-                           ge::LLM_PARAM_INVALID,
-                           "multiply identical cache_keys (%lu, %lu) occurred in the request",
-                           data_cache_key.first,
-                           data_cache_key.second);
+    LLM_CHK_BOOL_RET_STATUS(it == key_to_id.cend(), ge::LLM_PARAM_INVALID,
+                            "cache_key (%lu, %lu) already bound to cache_id(%ld), is_prefix = %d", data_cache_key.first,
+                            data_cache_key.second, it->second, static_cast<int32_t>(is_prefix));
+    LLM_CHK_BOOL_RET_STATUS(data_cache_keys.emplace(data_cache_key).second, ge::LLM_PARAM_INVALID,
+                            "multiply identical cache_keys (%lu, %lu) occurred in the request", data_cache_key.first,
+                            data_cache_key.second);
   }
   return ge::SUCCESS;
 }
 
-void CacheManager::AddCacheIndices(CacheEntry &cache_entry,
-                                   int64_t cache_id,
-                                   const std::vector<CacheKey> &cache_keys) {
+void CacheManager::AddCacheIndices(CacheEntry &cache_entry, int64_t cache_id, const std::vector<CacheKey> &cache_keys) {
   uint32_t batch_index = 0U;
   for (const auto &cache_key : cache_keys) {
     bool is_prefix = false;
@@ -278,7 +265,7 @@ void CacheManager::AddCacheIndices(CacheEntry &cache_entry,
       cache_key_to_id_[data_cache_key] = cache_id;
     } else if (data_cache_key.first != UINT64_MAX) {
       auto &key_to_id = is_prefix ? prefix_key_to_id_ : cache_key_to_id_;
-      (void) key_to_id.emplace(data_cache_key, cache_id);
+      (void)key_to_id.emplace(data_cache_key, cache_id);
       cache_entry.id_to_batch_index_and_size[data_cache_key.first] = std::make_pair(batch_index, cache_entry.stride);
       cache_id_and_batch_id_to_cache_key_[std::make_pair(cache_id, batch_index)] = data_cache_key;
       std::vector<uint64_t> tmp_tensor_indices(cache_entry.cache_addrs.size());
@@ -286,7 +273,7 @@ void CacheManager::AddCacheIndices(CacheEntry &cache_entry,
       std::unordered_set<uint64_t> tensor_indices(tmp_tensor_indices.begin(), tmp_tensor_indices.end());
       cache_id_to_tensor_indices_[cache_id] = tensor_indices;
       LLMLOGI("[cache_id:%ld][AddCacheIndex] success, cache_key(%lu, %lu) added, batch_index = %u, size = %lu",
-             cache_id, data_cache_key.first, data_cache_key.second, batch_index, cache_entry.stride);
+              cache_id, data_cache_key.first, data_cache_key.second, batch_index, cache_entry.stride);
     } else {
       // do nothing
     }
@@ -322,15 +309,15 @@ void CacheManager::RemoveCacheIndices(int64_t cache_id) {
 void CacheManager::RemoveBatchIndex(CacheEntry &cache_entry, int64_t cache_id, uint64_t batch_id) {
   const auto it = cache_entry.id_to_batch_index_and_size.find(batch_id);
   if (it != cache_entry.id_to_batch_index_and_size.cend()) {
-    (void) cache_id_and_batch_id_to_cache_key_.erase(std::make_pair(cache_id, it->second.first));
-    (void) cache_entry.id_to_batch_index_and_size.erase(it);
+    (void)cache_id_and_batch_id_to_cache_key_.erase(std::make_pair(cache_id, it->second.first));
+    (void)cache_entry.id_to_batch_index_and_size.erase(it);
   }
 }
 
 DataCacheKey CacheManager::CreateDataCacheKey(const CacheKey &cache_key, bool &is_prefix) {
   is_prefix = cache_key.prefix_id != UINT64_MAX;
-  return is_prefix ? std::make_pair(cache_key.prefix_id, cache_key.model_id) :
-         std::make_pair(cache_key.req_id, cache_key.model_id);
+  return is_prefix ? std::make_pair(cache_key.prefix_id, cache_key.model_id)
+                   : std::make_pair(cache_key.req_id, cache_key.model_id);
 }
 
 ge::Status CacheManager::Deallocate(int64_t cache_id) {
@@ -348,19 +335,19 @@ ge::Status CacheManager::Deallocate(int64_t cache_id) {
   }
   if (cache_entry.num_blocks > 0U) {
     RemoveCacheIndices(cache_id);
-    (void) cache_id_to_entry_.erase(it);
+    (void)cache_id_to_entry_.erase(it);
     LLMLOGI("[cache_id:%ld][Deallocate blocks cache] success", cache_id);
     LLM_CHK_STATUS_RET(UpdateCacheTable(), "Failed to update cache table");
     return ge::SUCCESS;
   }
   cache_entry.ext_ref_count = 0;
   if (cache_entry.id_to_batch_index_and_size.empty()) {
-    (void) cache_id_to_entry_.erase(it);
+    (void)cache_id_to_entry_.erase(it);
     LLMLOGI("[cache_id:%ld][Deallocate] success", cache_id);
     LLM_CHK_STATUS_RET(UpdateCacheTable(), "Failed to update cache table");
   } else {
-    LLMLOGI("[cache_id:%ld][Deallocate] delayed for that it is still referenced by %zu cache_key(s)",
-           cache_id, cache_entry.id_to_batch_index_and_size.size());
+    LLMLOGI("[cache_id:%ld][Deallocate] delayed for that it is still referenced by %zu cache_key(s)", cache_id,
+            cache_entry.id_to_batch_index_and_size.size());
   }
   return ge::SUCCESS;
 }
@@ -377,22 +364,23 @@ ge::Status CacheManager::RemoveCacheKey(const DataCacheKey &data_cache_key, bool
   std::lock_guard<std::mutex> lk(mu_);
   auto it = key_to_id.find(data_cache_key);
   if (it == key_to_id.cend()) {
-    LLMLOGI("[RemoveCacheKey] cache_key (%lu, %lu) does not exist, is_prefix = %d",
-           data_cache_key.first, data_cache_key.second, static_cast<int32_t>(is_prefix));
+    LLMLOGI("[RemoveCacheKey] cache_key (%lu, %lu) does not exist, is_prefix = %d", data_cache_key.first,
+            data_cache_key.second, static_cast<int32_t>(is_prefix));
     return ge::SUCCESS;
   }
   const auto cache_id = it->second;
   auto entry_it = cache_id_to_entry_.find(cache_id);
   if (entry_it == cache_id_to_entry_.end()) {
     LLMLOGI("[RemoveCacheKey] cache_id %ld not found in entry map, cleaning up stale key_to_id mapping", cache_id);
-    (void) key_to_id.erase(it);
+    (void)key_to_id.erase(it);
     return ge::SUCCESS;
   }
   auto &cache_entry = entry_it->second;
   if (!cache_entry.is_owned) {
-    LLMLOGI("[cache_id:%ld] [RemoveCacheKey] does not operate on registered cache, "
-           "cache_key = (%lu, %lu), is_prefix = %d",
-           cache_id, data_cache_key.first, data_cache_key.second, static_cast<int32_t>(is_prefix));
+    LLMLOGI(
+        "[cache_id:%ld] [RemoveCacheKey] does not operate on registered cache, "
+        "cache_key = (%lu, %lu), is_prefix = %d",
+        cache_id, data_cache_key.first, data_cache_key.second, static_cast<int32_t>(is_prefix));
     return ge::SUCCESS;
   }
   auto &cache_tensor_indices = cache_id_to_tensor_indices_[cache_id];
@@ -401,17 +389,17 @@ ge::Status CacheManager::RemoveCacheKey(const DataCacheKey &data_cache_key, bool
   } else {
     RemoveTensorIndices(tensor_indices, cache_tensor_indices);
     LLMLOGI("[cache_id:%ld] [RemoveCacheKey] already removed num[%zu] tensors, start index is:%lu", cache_id,
-           tensor_indices.size(), *tensor_indices.begin());
+            tensor_indices.size(), *tensor_indices.begin());
   }
   if (!cache_tensor_indices.empty()) {
     LLMLOGI("[cache_id:%ld] [RemoveCacheKey] There are still %zu tensors that have not been removed", cache_id,
-           cache_tensor_indices.size());
+            cache_tensor_indices.size());
     return ge::SUCCESS;
   }
   RemoveBatchIndex(cache_entry, cache_id, data_cache_key.first);
-  (void) key_to_id.erase(it);
-  LLMLOGI("[cache_id:%ld] [RemoveCacheKey] success, cache_key = (%lu, %lu), is_prefix = %d",
-         cache_id, data_cache_key.first, data_cache_key.second, static_cast<int32_t>(is_prefix));
+  (void)key_to_id.erase(it);
+  LLMLOGI("[cache_id:%ld] [RemoveCacheKey] success, cache_key = (%lu, %lu), is_prefix = %d", cache_id,
+          data_cache_key.first, data_cache_key.second, static_cast<int32_t>(is_prefix));
   if ((cache_entry.ext_ref_count == 0) && cache_entry.id_to_batch_index_and_size.empty()) {
     (void)cache_id_to_entry_.erase(cache_id);
     LLMLOGI("[cache_id:%ld][Deallocate] success", cache_id);
@@ -427,13 +415,12 @@ ge::Status CacheManager::CopyCache(const CopyCacheParam &copy_cache_param) {
   CacheEntry src_cache_entry;
   CacheEntry dst_cache_entry;
   LLM_CHK_BOOL_RET_STATUS(GetCacheEntry(src_id, src_cache_entry), ge::LLM_KV_CACHE_NOT_EXIST,
-                         "[Copy][%ld->%ld] failed, src_cache_id not found", src_id, dst_id);
+                          "[Copy][%ld->%ld] failed, src_cache_id not found", src_id, dst_id);
   LLM_CHK_BOOL_RET_STATUS(GetCacheEntry(dst_id, dst_cache_entry), ge::LLM_KV_CACHE_NOT_EXIST,
-                         "[Copy][%ld->%ld] failed, dst_cache_id not found", src_id, dst_id);
+                          "[Copy][%ld->%ld] failed, dst_cache_id not found", src_id, dst_id);
   LLM_CHK_BOOL_RET_STATUS(src_cache_entry.cache_addrs.size() == dst_cache_entry.cache_addrs.size(),
-                         ge::LLM_PARAM_INVALID,
-                         "num_tensors mismatches, src_tensor_num = %zu, dst_tensor_num = %zu",
-                         src_cache_entry.cache_addrs.size(), dst_cache_entry.cache_addrs.size());
+                          ge::LLM_PARAM_INVALID, "num_tensors mismatches, src_tensor_num = %zu, dst_tensor_num = %zu",
+                          src_cache_entry.cache_addrs.size(), dst_cache_entry.cache_addrs.size());
   if (copy_cache_param.copy_block_infos.empty()) {
     return CopyCacheForContinuous(src_cache_entry, dst_cache_entry, copy_cache_param,
                                   src_cache_entry.cache_addrs.size());
@@ -442,16 +429,14 @@ ge::Status CacheManager::CopyCache(const CopyCacheParam &copy_cache_param) {
   }
 }
 
-ge::Status CacheManager::CopyCacheForContinuous(const CacheEntry &src_cache_entry,
-                                                const CacheEntry &dst_cache_entry,
-                                                const CopyCacheParam &copy_cache_param,
-                                                size_t per_device_addr_num,
+ge::Status CacheManager::CopyCacheForContinuous(const CacheEntry &src_cache_entry, const CacheEntry &dst_cache_entry,
+                                                const CopyCacheParam &copy_cache_param, size_t per_device_addr_num,
                                                 size_t device_index) {
   const auto src_id = copy_cache_param.src_cache_id;
   const auto dst_id = copy_cache_param.dst_cache_id;
   uint64_t copy_size;
   LLM_CHK_STATUS_RET(CheckCopyParams(src_cache_entry, dst_cache_entry, copy_cache_param, copy_size),
-                    "[Copy][%ld->%ld] check param failed", src_id, dst_id);
+                     "[Copy][%ld->%ld] check param failed", src_id, dst_id);
   auto src_offset = src_cache_entry.stride * copy_cache_param.src_batch_index + copy_cache_param.offset;
   auto dst_offset = dst_cache_entry.stride * copy_cache_param.dst_batch_index + copy_cache_param.offset;
   LLMLOGI("[Copy][%ld->%ld] start", src_id, dst_id);
@@ -464,29 +449,25 @@ ge::Status CacheManager::CopyCacheForContinuous(const CacheEntry &src_cache_entr
     auto dst_max = dst_cache_entry.stride - copy_cache_param.offset;
     auto dst_addr = PtrToPtr<void, uint8_t>(dst_cache_entry.cache_addrs[begin + i].get()) + dst_offset;
     LLM_CHK_STATUS_RET(copy_job.AddCopyTask(dst_addr, dst_max, src_addr, copy_size, copy_kind),
-                      "[Copy][%ld->%ld] invoke aclrtMemcpy failed, index = %zu",
-                      src_id,
-                      dst_id,
-                      i);
+                       "[Copy][%ld->%ld] invoke aclrtMemcpy failed, index = %zu", src_id, dst_id, i);
   }
   LLM_CHK_STATUS_RET(copy_job.GetResult(), "[Copy][%ld->%ld] invoke aclrtSynchronizeStream failed", src_id, dst_id);
-  LLMLOGI("[Copy][%ld->%ld] success, num_tensors = %zu, src_batch_index = %u, "
-         "dst_batch_index = %u, offset = %lu, size = %ld",
-         src_id, dst_id, per_device_addr_num, copy_cache_param.src_batch_index,
-         copy_cache_param.dst_batch_index, copy_cache_param.offset, copy_cache_param.size);
+  LLMLOGI(
+      "[Copy][%ld->%ld] success, num_tensors = %zu, src_batch_index = %u, "
+      "dst_batch_index = %u, offset = %lu, size = %ld",
+      src_id, dst_id, per_device_addr_num, copy_cache_param.src_batch_index, copy_cache_param.dst_batch_index,
+      copy_cache_param.offset, copy_cache_param.size);
   return ge::SUCCESS;
 }
 
-ge::Status CacheManager::CopyCacheForBlocks(const CacheEntry &src_cache_entry,
-                                            const CacheEntry &dst_cache_entry,
-                                            const CopyCacheParam &copy_cache_param,
-                                            size_t per_device_addr_num,
+ge::Status CacheManager::CopyCacheForBlocks(const CacheEntry &src_cache_entry, const CacheEntry &dst_cache_entry,
+                                            const CopyCacheParam &copy_cache_param, size_t per_device_addr_num,
                                             size_t device_index) {
   const auto src_id = copy_cache_param.src_cache_id;
   const auto dst_id = copy_cache_param.dst_cache_id;
   LLM_CHK_BOOL_RET_STATUS(src_cache_entry.stride == dst_cache_entry.stride, ge::FAILED,
-                         "[Copy][%ld->%ld] failed, block_size mismatches, src = %lu, dst = %lu",
-                         src_id, dst_id, src_cache_entry.stride, dst_cache_entry.stride);
+                          "[Copy][%ld->%ld] failed, block_size mismatches, src = %lu, dst = %lu", src_id, dst_id,
+                          src_cache_entry.stride, dst_cache_entry.stride);
   const auto block_size = src_cache_entry.stride;
   LLMLOGI("[Copy][%ld->%ld] start", src_id, dst_id);
   EnsureCopyStream(device_index);
@@ -500,64 +481,56 @@ ge::Status CacheManager::CopyCacheForBlocks(const CacheEntry &src_cache_entry,
       const auto src_block_index = block_index_pair.first;
       const auto dst_block_index = block_index_pair.second;
       LLM_CHK_BOOL_RET_STATUS(src_block_index < src_cache_entry.num_blocks, ge::LLM_PARAM_INVALID,
-                             "src_block_index:%lu out of range [0, %lu)", src_block_index, src_cache_entry.num_blocks);
+                              "src_block_index:%lu out of range [0, %lu)", src_block_index, src_cache_entry.num_blocks);
       LLM_CHK_BOOL_RET_STATUS(dst_block_index < dst_cache_entry.num_blocks, ge::LLM_PARAM_INVALID,
-                             "dst_block_index:%lu out of range [0, %lu)", dst_block_index, src_cache_entry.num_blocks);
+                              "dst_block_index:%lu out of range [0, %lu)", dst_block_index, src_cache_entry.num_blocks);
       auto src_addr = src_addr_base + block_size * src_block_index;
       auto dst_addr = dst_addr_base + block_size * dst_block_index;
       LLM_CHK_STATUS_RET(copy_job.AddCopyTask(dst_addr, block_size, src_addr, block_size, copy_kind),
-                        "[Copy][%ld->%ld] invoke aclrtMemcpy failed, index = %zu", src_id, dst_id, i);
+                         "[Copy][%ld->%ld] invoke aclrtMemcpy failed, index = %zu", src_id, dst_id, i);
     }
   }
   LLM_CHK_STATUS_RET(copy_job.GetResult(), "[Copy][%ld->%ld] invoke aclrtSynchronizeStream failed", src_id, dst_id);
-  LLMLOGI("[Copy][%ld->%ld] success, num_tensors = %zu, num_blocks = %zu",
-         src_id, dst_id, per_device_addr_num, copy_cache_param.copy_block_infos.size());
+  LLMLOGI("[Copy][%ld->%ld] success, num_tensors = %zu, num_blocks = %zu", src_id, dst_id, per_device_addr_num,
+          copy_cache_param.copy_block_infos.size());
   return ge::SUCCESS;
 }
 
-ge::Status CacheManager::CheckCopyParams(const CacheEntry &src_cache_entry,
-                                         const CacheEntry &dst_cache_entry,
-                                         const CopyCacheParam &copy_cache_param,
-                                         uint64_t &copy_size) {
+ge::Status CacheManager::CheckCopyParams(const CacheEntry &src_cache_entry, const CacheEntry &dst_cache_entry,
+                                         const CopyCacheParam &copy_cache_param, uint64_t &copy_size) {
   const auto src_batch_size = src_cache_entry.batch_size;
-  LLM_CHK_BOOL_RET_STATUS(copy_cache_param.src_batch_index < src_batch_size,
-                         ge::LLM_PARAM_INVALID,
-                         "src_batch_index (%u) out of range [0, %u)",
-                         copy_cache_param.src_batch_index, src_batch_size);
+  LLM_CHK_BOOL_RET_STATUS(copy_cache_param.src_batch_index < src_batch_size, ge::LLM_PARAM_INVALID,
+                          "src_batch_index (%u) out of range [0, %u)", copy_cache_param.src_batch_index,
+                          src_batch_size);
   const auto dst_batch_size = dst_cache_entry.batch_size;
-  LLM_CHK_BOOL_RET_STATUS(copy_cache_param.dst_batch_index < dst_batch_size,
-                         ge::LLM_PARAM_INVALID,
-                         "dst_batch_index (%u) out of range [0, %u)",
-                         copy_cache_param.dst_batch_index, dst_batch_size);
+  LLM_CHK_BOOL_RET_STATUS(copy_cache_param.dst_batch_index < dst_batch_size, ge::LLM_PARAM_INVALID,
+                          "dst_batch_index (%u) out of range [0, %u)", copy_cache_param.dst_batch_index,
+                          dst_batch_size);
   if (copy_cache_param.offset > 0) {
-    LLM_CHK_BOOL_RET_STATUS(copy_cache_param.offset < src_cache_entry.stride,
-                           ge::LLM_PARAM_INVALID,
-                           "offset out of range of src cache tensor, offset = %lu, tensor stride = %lu",
-                           copy_cache_param.offset, src_cache_entry.stride);
-    LLM_CHK_BOOL_RET_STATUS(copy_cache_param.offset < dst_cache_entry.stride,
-                           ge::LLM_PARAM_INVALID,
-                           "offset out of range of dst cache tensor, offset = %lu, tensor stride = %lu",
-                           copy_cache_param.offset, dst_cache_entry.stride);
+    LLM_CHK_BOOL_RET_STATUS(copy_cache_param.offset < src_cache_entry.stride, ge::LLM_PARAM_INVALID,
+                            "offset out of range of src cache tensor, offset = %lu, tensor stride = %lu",
+                            copy_cache_param.offset, src_cache_entry.stride);
+    LLM_CHK_BOOL_RET_STATUS(copy_cache_param.offset < dst_cache_entry.stride, ge::LLM_PARAM_INVALID,
+                            "offset out of range of dst cache tensor, offset = %lu, tensor stride = %lu",
+                            copy_cache_param.offset, dst_cache_entry.stride);
   }
   copy_size = copy_cache_param.size != -1 ? static_cast<uint64_t>(copy_cache_param.size)
                                           : src_cache_entry.stride - copy_cache_param.offset;
-  LLM_CHK_BOOL_RET_STATUS(copy_size <= (src_cache_entry.stride - copy_cache_param.offset),
-                         ge::LLM_PARAM_INVALID,
-                         "src_tensor out of range, offset = %lu, copy_size = %ld, tensor stride = %lu",
-                         copy_cache_param.offset, copy_cache_param.size, src_cache_entry.stride);
-  LLM_CHK_BOOL_RET_STATUS(copy_size <= (dst_cache_entry.stride - copy_cache_param.offset),
-                         ge::LLM_PARAM_INVALID,
-                         "dst_tensor out of range, offset = %lu, copy_size = %ld, tensor stride = %lu, "
-                         "src tensor stride = %lu",
-                         copy_cache_param.offset, copy_cache_param.size, dst_cache_entry.stride,
-                         src_cache_entry.stride);
+  LLM_CHK_BOOL_RET_STATUS(copy_size <= (src_cache_entry.stride - copy_cache_param.offset), ge::LLM_PARAM_INVALID,
+                          "src_tensor out of range, offset = %lu, copy_size = %ld, tensor stride = %lu",
+                          copy_cache_param.offset, copy_cache_param.size, src_cache_entry.stride);
+  LLM_CHK_BOOL_RET_STATUS(copy_size <= (dst_cache_entry.stride - copy_cache_param.offset), ge::LLM_PARAM_INVALID,
+                          "dst_tensor out of range, offset = %lu, copy_size = %ld, tensor stride = %lu, "
+                          "src tensor stride = %lu",
+                          copy_cache_param.offset, copy_cache_param.size, dst_cache_entry.stride,
+                          src_cache_entry.stride);
   return ge::SUCCESS;
 }
 
 aclrtMemcpyKind CacheManager::ResolveCopyKind(CachePlacement src_placement, CachePlacement dst_placement) {
-  return (src_placement == CachePlacement::HOST) ?
-         ((dst_placement == CachePlacement::HOST) ? ACL_MEMCPY_HOST_TO_HOST : ACL_MEMCPY_HOST_TO_DEVICE) :
-         ((dst_placement == CachePlacement::HOST) ? ACL_MEMCPY_DEVICE_TO_HOST : ACL_MEMCPY_DEVICE_TO_DEVICE);
+  return (src_placement == CachePlacement::HOST)
+             ? ((dst_placement == CachePlacement::HOST) ? ACL_MEMCPY_HOST_TO_HOST : ACL_MEMCPY_HOST_TO_DEVICE)
+             : ((dst_placement == CachePlacement::HOST) ? ACL_MEMCPY_DEVICE_TO_HOST : ACL_MEMCPY_DEVICE_TO_DEVICE);
 }
 
 void CacheManager::DestroyCopyStream(size_t device_index) {

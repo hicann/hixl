@@ -30,10 +30,9 @@ class LLMLinkManager : public CommLinkManager {
   ~LLMLinkManager() override = default;
   ge::Status Initialize(const std::map<ge::AscendString, ge::AscendString> &options) override;
   void Finalize() override;
-  ge::Status LinkClusters(const std::vector<ClusterInfo> &clusters, std::vector<ge::Status> &rets,
-                          int32_t timeout);
-  ge::Status UnlinkClusters(const std::vector<ClusterInfo> &clusters, std::vector<ge::Status> &rets,
-                            int32_t timeout, bool force_flag = false);
+  ge::Status LinkClusters(const std::vector<ClusterInfo> &clusters, std::vector<ge::Status> &rets, int32_t timeout);
+  ge::Status UnlinkClusters(const std::vector<ClusterInfo> &clusters, std::vector<ge::Status> &rets, int32_t timeout,
+                            bool force_flag = false);
   void UnlinkAllClusters();
   ge::Status SwitchRole(const std::string &role, const std::map<std::string, std::string> &options);
 

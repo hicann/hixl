@@ -19,6 +19,6 @@ class SpanLayerAllocator : public ObjectAllocator<SpanLayer> {
  public:
   explicit SpanLayerAllocator(size_t capacity) : ObjectAllocator(capacity) {}
 };
-}
+}  // namespace llm
 
 #endif

@@ -46,10 +46,10 @@ constexpr MemSize SPAN_UNSPLITABLE_MEM_SIZE_DEFAULT = 16_GB;
 constexpr MemSize SPAN_UNCACHEABLE_MEM_SIZE_DEFAULT[MEMORY_SPECIFICATION_LEVEL_MAX] = {16_GB, 32_GB};
 
 // Find fitable span layer by set or by sequential order
-constexpr bool SPAN_LAYER_QUICK_MODE_ENABLE_DEFAULT = true; // locate fitable span by set default
+constexpr bool SPAN_LAYER_QUICK_MODE_ENABLE_DEFAULT = true;  // locate fitable span by set default
 
 // Max traveling layer count when finding fitable span;
-constexpr size_t SPAN_LAYER_LIFT_LEVEL_DEFAULT = PAGE_LENGTH_INVALID; // not limit default
-}
+constexpr size_t SPAN_LAYER_LIFT_LEVEL_DEFAULT = PAGE_LENGTH_INVALID;  // not limit default
+}  // namespace llm
 
 #endif

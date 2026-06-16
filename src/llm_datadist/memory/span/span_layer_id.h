@@ -45,6 +45,6 @@ constexpr SpanLayerId SpanLayerId_GetIdFromSize(MemSize size, size_t page_idem_n
 constexpr SpanLayerId SpanLayerId_GetMemSize(SpanLayerId layer_id, size_t page_idem_num) noexcept {
   return PageLen_GetMemSize(layer_id, page_idem_num);
 }
-}
+}  // namespace llm
 
 #endif

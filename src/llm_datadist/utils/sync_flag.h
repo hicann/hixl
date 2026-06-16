@@ -8,7 +8,6 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-
 #ifndef CANN_GRAPH_ENGINE_RUNTIME_LLM_ENGINE_V2_UTILS_SYNC_FLAG_H_
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_ENGINE_V2_UTILS_SYNC_FLAG_H_
 

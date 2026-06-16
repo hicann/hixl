@@ -19,10 +19,9 @@
 namespace llm {
 class SpanLayerLut {
   using SpanLayerIdIterator = std::set<SpanLayerId>::iterator;
+
  public:
-  explicit SpanLayerLut(const std::vector<SpanLayer *> &span_layers)
-      : span_layers_{span_layers} {
-  }
+  explicit SpanLayerLut(const std::vector<SpanLayer *> &span_layers) : span_layers_{span_layers} {}
 
  public:
   virtual void OnLayerCreated(const SpanLayer &) = 0;
@@ -63,8 +62,7 @@ class SpanLayerQuickLut : public SpanLayerLut {
   using SpanLayerLut::SpanLayerLut;
 
  private:
-  void OnLayerCreated(const SpanLayer &) override {
-  }
+  void OnLayerCreated(const SpanLayer &) override {}
   void OnLayerAddSpan(const SpanLayer &layer) override {
     if (layer.GetSize() == 1) {
       span_layer_ids_.emplace(layer.GetLayerId());
@@ -91,6 +89,6 @@ class SpanLayerQuickLut : public SpanLayerLut {
     span_layer_ids_.clear();
   }
 };
-}
+}  // namespace llm
 
 #endif
