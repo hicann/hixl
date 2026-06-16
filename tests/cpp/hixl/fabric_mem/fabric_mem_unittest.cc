@@ -175,6 +175,11 @@ class FabricMemRuntimeStub : public llm::AclRuntimeStub {
     return ACL_ERROR_NONE;
   }
 
+  aclError aclrtFreePhysical(aclrtDrvMemHandle handle) override {
+    ++free_physical_count_;
+    return llm::AclRuntimeStub::aclrtFreePhysical(handle);
+  }
+
   bool pointer_is_host_{false};
   bool get_context_returns_null_{false};
   aclError pointer_attr_error_{ACL_ERROR_NONE};
@@ -195,6 +200,7 @@ class FabricMemRuntimeStub : public llm::AclRuntimeStub {
   std::atomic<uint32_t> sync_with_timeout_entered_{0U};
   std::set<aclrtStream> streams_not_complete_;
   size_t malloc_physical_count_{0U};
+  size_t free_physical_count_{0U};
   size_t set_current_context_count_{0U};
   aclrtContext last_set_context_{nullptr};
   aclrtPhysicalMemProp last_physical_mem_prop_{};
@@ -1275,6 +1281,42 @@ TEST_F(FabricMemTransferServiceUTest, MallocMemAndFreeMemHost) {
 
 TEST_F(FabricMemTransferServiceUTest, MallocMemRejectsNullPtr) {
   EXPECT_EQ(FabricMemTransferService::MallocMem(MEM_HOST, sizeof(int32_t), nullptr), PARAM_INVALID);
+}
+
+TEST_F(FabricMemTransferServiceUTest, MallocMemFreesPhysicalWhenReserveFails) {
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  // A size larger than the virtual memory capacity makes ReserveMemory fail after the physical
+  // memory has already been allocated; the allocator must release that physical handle.
+  void *ptr = nullptr;
+  EXPECT_EQ(FabricMemTransferService::MallocMem(MEM_DEVICE, std::numeric_limits<size_t>::max(), &ptr),
+            RESOURCE_EXHAUSTED);
+  EXPECT_EQ(ptr, nullptr);
+  EXPECT_EQ(runtime_->malloc_physical_count_, 1U);
+  EXPECT_EQ(runtime_->free_physical_count_, 1U);
+  VirtualMemoryManager::GetInstance().Finalize();
+}
+
+TEST_F(FabricMemTransferServiceUTest, MallocMemRollsBackWhenMapFails) {
+  VirtualMemoryManager::GetInstance().Finalize();
+  ASSERT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
+
+  // aclrtMapMem fails after the physical memory is allocated and the virtual block is reserved; both
+  // the physical handle and the reserved virtual block must be released.
+  llm::GetAclStubMock() = "aclrtMapMem";
+  void *ptr = nullptr;
+  EXPECT_NE(FabricMemTransferService::MallocMem(MEM_DEVICE, kLen, &ptr), SUCCESS);
+  EXPECT_EQ(ptr, nullptr);
+  EXPECT_EQ(runtime_->malloc_physical_count_, 1U);
+  EXPECT_EQ(runtime_->free_physical_count_, 1U);
+  llm::GetAclStubMock().clear();
+
+  // The reserved virtual block must have been released, so a subsequent malloc still succeeds.
+  void *ptr2 = nullptr;
+  ASSERT_EQ(FabricMemTransferService::MallocMem(MEM_DEVICE, kLen, &ptr2), SUCCESS);
+  ASSERT_NE(ptr2, nullptr);
+  EXPECT_EQ(FabricMemTransferService::FreeMem(ptr2), SUCCESS);
+  VirtualMemoryManager::GetInstance().Finalize();
 }
 
 TEST_F(FabricMemTransferServiceUTest, AddressTranslationAndCopyValidation) {

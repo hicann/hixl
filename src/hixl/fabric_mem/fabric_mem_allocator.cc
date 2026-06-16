@@ -15,6 +15,7 @@
 
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
+#include "common/scope_guard.h"
 #include "fabric_mem/virtual_memory_manager.h"
 
 namespace hixl {
@@ -43,19 +44,21 @@ Status FabricMemAllocator::MallocMem(MemType type, size_t size, void **ptr) {
   aclrtDrvMemHandle pa_handle = nullptr;
   uintptr_t virtual_addr = 0;
   HIXL_CHK_STATUS_RET(AllocatePhysicalMemory(type, size, pa_handle), "Failed to allocate physical memory.");
+  HIXL_DISMISSABLE_GUARD(free_pa_guard, ([&pa_handle]() {
+                           HIXL_CHK_ACL(aclrtFreePhysical(pa_handle), "Free physical memory failed.");
+                         }));
   HIXL_CHK_STATUS_RET(VirtualMemoryManager::GetInstance().ReserveMemory(size, virtual_addr),
                       "Failed to reserve virtual memory.");
+  HIXL_DISMISSABLE_GUARD(release_va_guard, ([&virtual_addr]() {
+                           (void)VirtualMemoryManager::GetInstance().ReleaseMemory(virtual_addr);
+                         }));
   const auto va_ptr = reinterpret_cast<void *>(virtual_addr);
-  auto map_ret = aclrtMapMem(va_ptr, size, 0, pa_handle, 0);
-  if (map_ret != ACL_ERROR_NONE) {
-    (void)VirtualMemoryManager::GetInstance().ReleaseMemory(virtual_addr);
-    HIXL_CHK_ACL(aclrtFreePhysical(pa_handle), "Free physical memory after map failure failed.");
-    HIXL_LOGE(static_cast<Status>(map_ret), "aclrtMapMem failed, ret:%d.", map_ret);
-    return static_cast<Status>(map_ret);
-  }
+  HIXL_CHK_ACL_RET(aclrtMapMem(va_ptr, size, 0, pa_handle, 0), "Map fabric memory failed.");
 
   AddVaToPaMapping(virtual_addr, pa_handle);
   *ptr = va_ptr;
+  HIXL_DISMISS_GUARD(release_va_guard);
+  HIXL_DISMISS_GUARD(free_pa_guard);
   HIXL_LOGI("MallocFabricMemory success, va:%lu, size:%zu.", virtual_addr, size);
   return SUCCESS;
 }
