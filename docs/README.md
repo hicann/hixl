@@ -40,4 +40,4 @@
   - [HIXL_CS C接口](./cpp/HIXL_CS接口.md)
   - [LLM-DataDist C++接口](./cpp/LLM-DataDist接口.md)
 - Python API
-  - [LLM-DataDist Python接口](./python/README.md)
+  - [LLM-DataDist Python接口](./python/LLMDataDist.md)
