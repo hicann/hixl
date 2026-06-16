@@ -372,6 +372,36 @@ TEST_F(HixlCSTest, TestCreateServerRejectsNullConfig) {
   EXPECT_EQ(server_handle, nullptr);
 }
 
+TEST_F(HixlCSTest, TestCreateServerRejectsNullServerIp) {
+  HixlServerHandle server_handle = nullptr;
+  HixlServerConfig config{};
+  HixlServerDesc desc{};
+  desc.server_ip = nullptr;
+  desc.server_port = kPort;
+  desc.endpoint_list = &default_eps[0];
+  desc.endpoint_list_num = default_eps.size();
+  auto ret = HixlCSServerCreate(&desc, &config, &server_handle);
+  EXPECT_EQ(ret, HIXL_PARAM_INVALID);
+}
+
+TEST_F(HixlCSTest, TestServerRegMemRejectsNullMemHandle) {
+  HixlServerHandle server_handle = nullptr;
+  HixlServerConfig config{};
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = kPort;
+  desc.endpoint_list = &default_eps[0];
+  desc.endpoint_list_num = default_eps.size();
+  auto ret = HixlCSServerCreate(&desc, &config, &server_handle);
+  EXPECT_EQ(ret, SUCCESS);
+  CommMem mem{};
+  mem.size = sizeof(int32_t);
+  mem.addr = &kDeviceMems[0];
+  ret = HixlCSServerRegMem(server_handle, nullptr, &mem, nullptr);
+  EXPECT_EQ(ret, HIXL_PARAM_INVALID);
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+}
+
 TEST_F(HixlCSTest, TestStructSize) {
   EXPECT_EQ(sizeof(HixlClientDesc), 128) << "HixlClientDesc size should be 128 bytes";
   EXPECT_EQ(sizeof(HixlServerDesc), 128) << "HixlServerDesc size should be 128 bytes";
