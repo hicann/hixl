@@ -28,6 +28,8 @@ include(../variables.cmake)
 
 find_package_if_target_not_exists(hccl MODULE REQUIRED)
 find_package_if_target_not_exists(slog MODULE REQUIRED)
+find_package_if_target_not_exists(metadef MODULE REQUIRED)
+find_package_if_target_not_exists(securec MODULE REQUIRED)
 
 set(STUBS
     slog_dev

@@ -64,4 +64,6 @@ target_link_libraries(hcomm_proxy_static PRIVATE
         $<BUILD_INTERFACE:intf_pub>
         $<BUILD_INTERFACE:hccl_headers>
         $<BUILD_INTERFACE:slog_headers>
+        $<BUILD_INTERFACE:metadef_headers>
+        $<BUILD_INTERFACE:c_sec_headers>
 )
