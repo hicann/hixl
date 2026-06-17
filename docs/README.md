@@ -9,9 +9,6 @@
 
 - [Mooncake与CANN联合共创HIXL组件](https://mp.weixin.qq.com/s/Iel6VVkMbCQvdXQ3eZbGgw)
 - [HIXL：昇腾生态KV传输性能优化利器](https://mp.weixin.qq.com/s/TElCVSeUv4ydeV-kkHgjZg)
-- [Mooncake-Hixl总结](https://gitcode.com/cann/hixl/wiki/Mooncake-Hixl总结.md)
-- [MooncakeTE-Hixl使用说明](https://gitcode.com/cann/hixl/wiki/MooncakeTE-Hixl使用说明.md)
-- [vllm_mooncake_hixl技术介绍](https://gitcode.com/cann/hixl/wiki/vllm_mooncake_hixl技术介绍.md)
 - [基于HIXL+Mooncake+vLLM的KV Cache池化与高性能传输联创实践](https://mp.weixin.qq.com/s/LU_bwZomHaVeaol90EPCAA)
 - [SGLang+Mooncake+CANN HIXL的PD分离D2D部署实践](https://mp.weixin.qq.com/s/oBjtKTpeNuEzptvMUaIe_A)
 - [昇腾CANN HIXL助力破解RL推理长尾难题](https://mp.weixin.qq.com/s/rQc_9fyH4uidk0z8Px6pjg)
