@@ -23,12 +23,13 @@
 #define LOG_BY_TYPE(type, fmt, ...)                                                                                 \
   do {                                                                                                              \
     if (type == DLOG_INFO) {                                                                                        \
-      dlog_info(LLM_MODULE_NAME, "%lu %s %s:" fmt, LlmLog::GetTid(), GetId().c_str(), __FUNCTION__, ##__VA_ARGS__); \
+      dlog_info(LLM_MODULE_NAME, "[HIXL] %lu %s %s:" fmt, LlmLog::GetTid(), GetId().c_str(), __FUNCTION__,          \
+                ##__VA_ARGS__);                                                                                     \
     } else if (type == DLOG_ERROR) {                                                                                \
       LLMLOGE(ge::FAILED, fmt, ##__VA_ARGS__);                                                                      \
     } else if (type == DLOG_EVENT) {                                                                                \
       dlog_info(static_cast<int32_t>(static_cast<uint32_t>(RUN_LOG_MASK) | static_cast<uint32_t>(LLM_MODULE_NAME)), \
-                "%lu %s %s:" fmt, LlmLog::GetTid(), GetId().c_str(), __FUNCTION__, ##__VA_ARGS__);                  \
+                "[HIXL] %lu %s %s:" fmt, LlmLog::GetTid(), GetId().c_str(), __FUNCTION__, ##__VA_ARGS__);           \
     } else {                                                                                                        \
     }                                                                                                               \
   } while (false)
