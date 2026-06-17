@@ -16,12 +16,12 @@
 
 namespace hixl {
 namespace {
-void* IntToPtr(uint32_t addr) {
-  return reinterpret_cast<void*>(static_cast<uintptr_t>(addr));
+void *IntToPtr(uint32_t addr) {
+  return reinterpret_cast<void *>(static_cast<uintptr_t>(addr));
 }
 
 void RecordMemoryRegions(HixlMemStore &store, const std::vector<std::pair<uint32_t, uint32_t>> &regions,
-                       bool is_server) {
+                         bool is_server) {
   for (const auto &region : regions) {
     void *addr = IntToPtr(region.first);
     EXPECT_EQ(store.RecordMemory(is_server, addr, region.second), SUCCESS);

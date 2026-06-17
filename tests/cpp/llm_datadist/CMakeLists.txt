@@ -56,6 +56,10 @@ add_executable(llm_datadist_test
         ${LLM_V2_SRC_LIST}
         )
 
+target_compile_definitions(llm_datadist_test PRIVATE
+    HCCN_TEST_CONF_PATH="${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/hccn_test.conf"
+)
+
 target_compile_options(llm_datadist_test PRIVATE
         ${DT_COMMON_COMPILE_OPTION}
         -Wno-deprecated-declarations

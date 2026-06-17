@@ -24,7 +24,8 @@ static uint32_t g_mock_batch_transfer_call_count = 0;
 
 // Mock 函数覆盖弱引用
 extern "C" int32_t HcommBatchTransferOnThread(ThreadHandle thread, ChannelHandle channel,
-    const HcommBatchTransferDesc *transfer_descs, uint32_t transfer_desc_num) {
+                                              const HcommBatchTransferDesc *transfer_descs,
+                                              uint32_t transfer_desc_num) {
   (void)thread;
   (void)channel;
   (void)transfer_descs;
@@ -41,12 +42,10 @@ struct TestArgs {
 };
 
 template <size_t kN>
-TestArgs<kN> CreateTestArgs(
-    std::array<std::array<uint8_t, 8>, kN> &src_buffers,
-    std::array<std::array<uint8_t, 8>, kN> &dst_buffers,
-    std::array<uint64_t, kN> &lens_storage, uint64_t remote_flag_addr,
-    uint64_t local_flag_addr, ThreadHandle thread = 0ULL,
-    ChannelHandle channel = 0ULL) {
+TestArgs<kN> CreateTestArgs(std::array<std::array<uint8_t, 8>, kN> &src_buffers,
+                            std::array<std::array<uint8_t, 8>, kN> &dst_buffers, std::array<uint64_t, kN> &lens_storage,
+                            uint64_t remote_flag_addr, uint64_t local_flag_addr, ThreadHandle thread = 0ULL,
+                            ChannelHandle channel = 0ULL) {
   TestArgs<kN> args{};
   args.param.thread = thread;
   args.param.channel = channel;
@@ -151,8 +150,7 @@ TEST_F(HixlKernelBasicTest, BatchGetFailByMemSize) {
   EXPECT_EQ(ret, FAILED);
 }
 
-int32_t HcommAclrtNotifyRecordOnThread(ThreadHandle thread, uint64_t dstNotifyId)
-{
+int32_t HcommAclrtNotifyRecordOnThread(ThreadHandle thread, uint64_t dstNotifyId) {
   return 0;
 }
 
@@ -171,8 +169,8 @@ TEST_F(HixlKernelBasicTest, BatchGetHccsError) {
   uint64_t remote_flag_addr_hccs = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_remote_flag_buf));
   uint64_t local_flag_addr_hccs = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_local_flag_buf));
 
-  auto args = CreateTestArgs<3>(remote_addr_hccs, local_addr_hccs, lens_storage,
-    remote_flag_addr_hccs, local_flag_addr_hccs);
+  auto args =
+      CreateTestArgs<3>(remote_addr_hccs, local_addr_hccs, lens_storage, remote_flag_addr_hccs, local_flag_addr_hccs);
   args.param.use_notify_record = 1;
   uint32_t ret = HixlBatchGet(&args.param);
   EXPECT_NE(ret, SUCCESS);
@@ -286,7 +284,6 @@ TEST_F(HixlBatchTransferTest, BatchGetSuccess) {
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(g_mock_batch_transfer_call_count, 1u);
 }
-
 
 TEST_F(HixlBatchTransferTest, BatchPutNullParam) {
   uint32_t ret = HixlBatchPut(nullptr);

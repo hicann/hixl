@@ -247,8 +247,7 @@ TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigProtocolDesc) {
 
 TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigProtocolDescString) {
   std::map<AscendString, AscendString> options;
-  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
-      R"({"comm_resource_config.protocol_desc":"roce:device"})";
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.protocol_desc":"roce:device"})";
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
   ASSERT_TRUE(result.GlobalResourceCfg().has_value());
@@ -291,8 +290,7 @@ TEST_F(HixlOptionsUTest, GetProtocolDescReturnsEmptyWhenNotConfigured) {
 
 TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigProtocolDescInvalidType) {
   std::map<AscendString, AscendString> options;
-  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
-      R"({"comm_resource_config.protocol_desc":123})";
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.protocol_desc":123})";
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }

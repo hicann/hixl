@@ -49,8 +49,12 @@ extern "C" int ut_mock_ra_get_notify_base_addr(void *handle, unsigned long long 
 
 class ScopedAclStubInstall {
  public:
-  explicit ScopedAclStubInstall(llm::AclRuntimeStub *stub) : stub_(stub) { llm::AclRuntimeStub::Install(stub_); }
-  ~ScopedAclStubInstall() { llm::AclRuntimeStub::UnInstall(stub_); }
+  explicit ScopedAclStubInstall(llm::AclRuntimeStub *stub) : stub_(stub) {
+    llm::AclRuntimeStub::Install(stub_);
+  }
+  ~ScopedAclStubInstall() {
+    llm::AclRuntimeStub::UnInstall(stub_);
+  }
 
   ScopedAclStubInstall(const ScopedAclStubInstall &) = delete;
   ScopedAclStubInstall &operator=(const ScopedAclStubInstall &) = delete;
@@ -64,7 +68,9 @@ class ScopedMmpaRaMock {
   explicit ScopedMmpaRaMock(const std::shared_ptr<llm::MmpaStubApiGe> &impl) {
     llm::MmpaStub::GetInstance().SetImpl(impl);
   }
-  ~ScopedMmpaRaMock() { llm::MmpaStub::GetInstance().Reset(); }
+  ~ScopedMmpaRaMock() {
+    llm::MmpaStub::GetInstance().Reset();
+  }
 
   ScopedMmpaRaMock(const ScopedMmpaRaMock &) = delete;
   ScopedMmpaRaMock &operator=(const ScopedMmpaRaMock &) = delete;

@@ -9,6 +9,7 @@
  */
 
 #include "data_cache_engine_test_helper.h"
+#include "depends/llm_datadist/src/hccl_test_helper.h"
 #include "llm_datadist/llm_engine_types.h"
 #include <algorithm>
 
@@ -246,12 +247,7 @@ void *MockMmpaForHcclApi::DlSym(void *handle, const char *func_name) {
       {"HcclCommUnbindMem", reinterpret_cast<void *>(&HcclCommUnbindMem)},
       {"HcclCommPrepare", reinterpret_cast<void *>(&HcclCommPrepare)},
   };
-  auto it = func_map.find(func_name);
-  if (it != func_map.end()) {
-    LLMLOGI("%s addr:%lu", func_name, static_cast<uint64_t>(reinterpret_cast<uintptr_t>(it->second)));
-    return it->second;
-  }
-  return nullptr;
+  return LookupFuncByName(func_map, func_name);
 }
 
 int32_t MockMmpaForHcclApi::DlClose(void *handle) {

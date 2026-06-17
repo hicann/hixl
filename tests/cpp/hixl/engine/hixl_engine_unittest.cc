@@ -215,8 +215,8 @@ class HixlEngineTest : public ::testing::Test {
     EXPECT_EQ(engine1.Connect("127.0.0.1:26300", kTimeOut), SUCCESS);
   }
 
-  void InitAutoConnectEngines(HixlEngine &engine1, HixlEngine &engine2, int32_t &src, int32_t &dst,
-                              MemHandle &handle1, MemHandle &handle2) {
+  void InitAutoConnectEngines(HixlEngine &engine1, HixlEngine &engine2, int32_t &src, int32_t &dst, MemHandle &handle1,
+                              MemHandle &handle2) {
     std::map<AscendString, AscendString> auto_connect_options = options1;
     auto_connect_options[hixl::OPTION_AUTO_CONNECT] = "1";
     HixlOptions parsed1;
@@ -1036,10 +1036,18 @@ TEST_F(HixlEngineTest, TestInitializeAutoGenerateForV3FillsDeviceInfo) {
 
 class MockClientHandler : public IClientHandler {
  public:
-  Status Connect(uint32_t) override { return SUCCESS; }
-  Status RegisterMem(const MemInfo &) override { return SUCCESS; }
-  Status TransferAsync(const std::vector<TransferOpDesc> &, TransferOp, TransferReq &) override { return SUCCESS; }
-  Status TransferSync(const std::vector<TransferOpDesc> &, TransferOp, uint32_t) override { return SUCCESS; }
+  Status Connect(uint32_t) override {
+    return SUCCESS;
+  }
+  Status RegisterMem(const MemInfo &) override {
+    return SUCCESS;
+  }
+  Status TransferAsync(const std::vector<TransferOpDesc> &, TransferOp, TransferReq &) override {
+    return SUCCESS;
+  }
+  Status TransferSync(const std::vector<TransferOpDesc> &, TransferOp, uint32_t) override {
+    return SUCCESS;
+  }
   Status GetTransferStatus(const TransferReq &req, TransferStatus &status) override {
     auto it = status_by_req.find(req);
     if (it == status_by_req.end()) {
@@ -1049,7 +1057,9 @@ class MockClientHandler : public IClientHandler {
     status = it->second;
     return SUCCESS;
   }
-  Status Finalize() override { return SUCCESS; }
+  Status Finalize() override {
+    return SUCCESS;
+  }
 
   std::map<TransferReq, TransferStatus> status_by_req;
   TransferStatus default_status = TransferStatus::WAITING;
@@ -1075,7 +1085,8 @@ static ClientPtr CreateMockClient(std::unique_ptr<MockClientHandler> handler) {
   return client;
 }
 
-static void RegisterMockTransferReq(HixlEngine &engine, const ClientPtr &client, TransferReq req, const void *user_data) {
+static void RegisterMockTransferReq(HixlEngine &engine, const ClientPtr &client, TransferReq req,
+                                    const void *user_data) {
   client->req_map_[req] = TransferInfo{0U, READ, AscendString()};
   engine.client_manager_.RegisterTransferReq(req, client, user_data);
 }

@@ -29,7 +29,7 @@ struct MbufStub {
     head.resize(1024, 0);
   }
   ~MbufStub() {
-    delete []buffer;
+    delete[] buffer;
   }
   std::vector<uint8_t> head;
   uint8_t *buffer = nullptr;
@@ -43,10 +43,10 @@ std::map<int32_t, std::map<uint32_t, std::queue<void *>>> mem_queues_;
 
 std::shared_ptr<RuntimeStub> RuntimeStub::instance_;
 std::mutex RuntimeStub::mutex_;
-thread_local RuntimeStub* RuntimeStub::fake_instance_;
+thread_local RuntimeStub *RuntimeStub::fake_instance_;
 RuntimeStub *RuntimeStub::GetInstance() {
   const std::lock_guard<std::mutex> lock(mutex_);
-  if(fake_instance_ != nullptr){
+  if (fake_instance_ != nullptr) {
     return fake_instance_;
   }
   if (instance_ == nullptr) {
@@ -55,11 +55,11 @@ RuntimeStub *RuntimeStub::GetInstance() {
   return instance_.get();
 }
 
-void RuntimeStub::Install(RuntimeStub* instance){
+void RuntimeStub::Install(RuntimeStub *instance) {
   fake_instance_ = instance;
 }
 
-void RuntimeStub::UnInstall(RuntimeStub*){
+void RuntimeStub::UnInstall(RuntimeStub *) {
   fake_instance_ = nullptr;
 }
 
@@ -68,7 +68,7 @@ rtError_t RuntimeStub::rtGetDevResAddress(rtDevResInfo *resInfo, rtDevResAddrInf
   static uint64_t g_dummy_dev_mem = 0x88888888ULL;
   if (addrInfo != nullptr) {
     if (addrInfo->resAddress != nullptr) {
-      *static_cast<uint64_t*>(addrInfo->resAddress) = g_dummy_dev_mem;
+      *static_cast<uint64_t *>(addrInfo->resAddress) = g_dummy_dev_mem;
     }
     if (addrInfo->len != nullptr) {
       *(addrInfo->len) = static_cast<uint32_t>(sizeof(g_dummy_dev_mem));
@@ -84,7 +84,7 @@ rtError_t RuntimeStub::rtNotifyGetAddrOffset(rtNotify_t notify, uint64_t *devAdd
   }
   return RT_ERROR_NONE;
 }
-} // namespace llm
+}  // namespace llm
 
 #ifdef __cplusplus
 extern "C" {

@@ -132,7 +132,7 @@ INT32 mmRmdir(const CHAR *lp_path_name) {
   }
 
   const struct dirent *entry = NULL;
-  size_t bufSize = strlen(lp_path_name) + (size_t)(PATH_SIZE + 2); // make sure the length is large enough
+  size_t bufSize = strlen(lp_path_name) + (size_t)(PATH_SIZE + 2);  // make sure the length is large enough
   while ((entry = readdir(dir)) != NULL) {
     if ((strcmp(".", entry->d_name) == MMPA_ZERO) || (strcmp("..", entry->d_name) == MMPA_ZERO)) {
       continue;
@@ -156,8 +156,8 @@ INT32 mmRmdir(const CHAR *lp_path_name) {
 
     childDir = opendir(buf);
     if (childDir != NULL) {
-      (VOID)closedir(childDir);
-      (VOID)mmRmdir(buf);
+      (VOID) closedir(childDir);
+      (VOID) mmRmdir(buf);
       free(buf);
       buf = NULL;
       continue;
@@ -171,7 +171,7 @@ INT32 mmRmdir(const CHAR *lp_path_name) {
     free(buf);
     buf = NULL;
   }
-  (VOID)closedir(dir);
+  (VOID) closedir(dir);
 
   ret = rmdir(lp_path_name);
   if (ret == EN_ERROR) {
@@ -235,8 +235,7 @@ INT32 mmGetFileSize(const CHAR *file_name, ULONGLONG *length) {
   return EN_OK;
 }
 
-INT32 mmScandir(const CHAR *path, mmDirent ***entryList, mmFilter filterFunc,  mmSort sort)
-{
+INT32 mmScandir(const CHAR *path, mmDirent ***entryList, mmFilter filterFunc, mmSort sort) {
   if ((path == NULL) || (entryList == NULL)) {
     return EN_INVALID_PARAM;
   }
@@ -247,8 +246,7 @@ INT32 mmScandir(const CHAR *path, mmDirent ***entryList, mmFilter filterFunc,  m
   return count;
 }
 
-VOID mmScandirFree(mmDirent **entryList, INT32 count)
-{
+VOID mmScandirFree(mmDirent **entryList, INT32 count) {
   if (entryList == NULL) {
     return;
   }
@@ -262,8 +260,7 @@ VOID mmScandirFree(mmDirent **entryList, INT32 count)
   free(entryList);
 }
 
-INT32 mmAccess2(const CHAR *pathName, INT32 mode)
-{
+INT32 mmAccess2(const CHAR *pathName, INT32 mode) {
   return llm::MmpaStub::GetInstance().GetImpl()->mmAccess2(pathName, mode);
 }
 
@@ -271,8 +268,7 @@ INT32 mmGetTimeOfDay(mmTimeval *timeVal, mmTimezone *timeZone) {
   return gettimeofday(reinterpret_cast<timeval *>(timeVal), reinterpret_cast<struct timezone *>(timeZone));
 }
 
-INT32 mmRealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen)
-{
+INT32 mmRealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) {
   if (path == nullptr || realPath == nullptr || realPathLen < MMPA_MAX_PATH) {
     return EN_INVALID_PARAM;
   }
@@ -286,8 +282,7 @@ INT32 mmRealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen)
   return llm::MmpaStub::GetInstance().GetImpl()->RealPath(path, realPath, realPathLen);
 }
 
-INT32 mmRWLockInit(mmRWLock_t *rwLock)
-{
+INT32 mmRWLockInit(mmRWLock_t *rwLock) {
   if (rwLock == NULL) {
     return EN_INVALID_PARAM;
   }
@@ -300,8 +295,7 @@ INT32 mmRWLockInit(mmRWLock_t *rwLock)
   return EN_OK;
 }
 
-INT32 mmRWLockRDLock(mmRWLock_t *rwLock)
-{
+INT32 mmRWLockRDLock(mmRWLock_t *rwLock) {
   if (rwLock == NULL) {
     return EN_INVALID_PARAM;
   }
@@ -314,8 +308,7 @@ INT32 mmRWLockRDLock(mmRWLock_t *rwLock)
   return EN_OK;
 }
 
-INT32 mmRWLockWRLock(mmRWLock_t *rwLock)
-{
+INT32 mmRWLockWRLock(mmRWLock_t *rwLock) {
   if (rwLock == NULL) {
     return EN_INVALID_PARAM;
   }
@@ -328,8 +321,7 @@ INT32 mmRWLockWRLock(mmRWLock_t *rwLock)
   return EN_OK;
 }
 
-INT32 mmRDLockUnLock(mmRWLock_t *rwLock)
-{
+INT32 mmRDLockUnLock(mmRWLock_t *rwLock) {
   if (rwLock == NULL) {
     return EN_INVALID_PARAM;
   }
@@ -342,8 +334,7 @@ INT32 mmRDLockUnLock(mmRWLock_t *rwLock)
   return EN_OK;
 }
 
-INT32 mmWRLockUnLock(mmRWLock_t *rwLock)
-{
+INT32 mmWRLockUnLock(mmRWLock_t *rwLock) {
   if (rwLock == NULL) {
     return EN_INVALID_PARAM;
   }
@@ -356,8 +347,7 @@ INT32 mmWRLockUnLock(mmRWLock_t *rwLock)
   return EN_OK;
 }
 
-INT32 mmRWLockDestroy(mmRWLock_t *rwLock)
-{
+INT32 mmRWLockDestroy(mmRWLock_t *rwLock) {
   if (rwLock == NULL) {
     return EN_INVALID_PARAM;
   }
@@ -370,27 +360,24 @@ INT32 mmRWLockDestroy(mmRWLock_t *rwLock)
   return EN_OK;
 }
 
-INT32 mmGetErrorCode()
-{
+INT32 mmGetErrorCode() {
   return errno;
 }
 
-INT32 mmIsDir(const CHAR *fileName)
-{
+INT32 mmIsDir(const CHAR *fileName) {
   if (fileName == nullptr) {
     return EN_ERR;
   }
 
-  DIR *pDir = opendir (fileName);
+  DIR *pDir = opendir(fileName);
   if (pDir != nullptr) {
-    (void) closedir (pDir);
+    (void)closedir(pDir);
     return EN_OK;
   }
   return EN_ERR;
 }
 
-INT32 mmGetEnv(const CHAR *name, CHAR *value, UINT32 len)
-{
+INT32 mmGetEnv(const CHAR *name, CHAR *value, UINT32 len) {
   const char *env = getenv(name);
   if (env == nullptr) {
     return EN_ERROR;
@@ -406,7 +393,7 @@ CHAR *mmDlerror() {
 
 INT32 mmDladdr(VOID *addr, mmDlInfo *info) {
   int ret = dladdr(addr, (Dl_info *)info);
-  if (ret != -1){
+  if (ret != -1) {
     return 0;
   }
   return -1;
@@ -417,7 +404,7 @@ VOID *mmDlopen(const CHAR *fileName, INT32 mode) {
 }
 
 INT32 mmDlclose(VOID *handle) {
-  if (handle == nullptr){
+  if (handle == nullptr) {
     return 1;
   }
   if (handle == (void *)0x8888) {
@@ -435,23 +422,19 @@ VOID *mmDlsym(VOID *handle, const CHAR *funcName) {
   return llm::MmpaStub::GetInstance().GetImpl()->DlSym(handle, funcName);
 }
 
-INT32 mmGetPid()
-{
+INT32 mmGetPid() {
   return (INT32)getpid();
 }
 
-INT32 mmSetCurrentThreadName(const CHAR *name)
-{
+INT32 mmSetCurrentThreadName(const CHAR *name) {
   return EN_OK;
 }
 
-INT32 mmGetCwd(CHAR *buffer, INT32 maxLen)
-{
+INT32 mmGetCwd(CHAR *buffer, INT32 maxLen) {
   return EN_OK;
 }
 
-CHAR *mmGetErrorFormatMessage(mmErrorMSg errnum, CHAR *buf, mmSize size)
-{
+CHAR *mmGetErrorFormatMessage(mmErrorMSg errnum, CHAR *buf, mmSize size) {
   if ((buf == NULL) || (size <= 0)) {
     return NULL;
   }
@@ -537,11 +520,11 @@ VOID mmSetOptErr(INT32 mmOptErr) {
   opterr = mmOptErr;
 }
 
-INT32 mmGetOptLong(INT32 argc, CHAR * const * argv, const CHAR *opts, const mmStructOption *longOpts, INT32 *longIndex) {
+INT32 mmGetOptLong(INT32 argc, CHAR *const *argv, const CHAR *opts, const mmStructOption *longOpts, INT32 *longIndex) {
   return getopt_long(argc, argv, opts, longOpts, longIndex);
 }
 
-CHAR* mmGetOptArg(VOID) {
+CHAR *mmGetOptArg(VOID) {
   return optarg;
 }
 
