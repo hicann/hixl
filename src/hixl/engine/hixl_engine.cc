@@ -38,7 +38,7 @@ bool HixlEngine::IsInitialized() const {
   return is_initialized_.load(std::memory_order::memory_order_relaxed);
 }
 
-Status HixlEngine::InitServer() {
+Status HixlEngine::InitServer(std::optional<uint32_t> listen_port) {
   std::string ip;
   int32_t port = 0;
   HIXL_CHK_STATUS_RET(ParseListenInfo(local_engine_, ip, port),
@@ -47,7 +47,7 @@ Status HixlEngine::InitServer() {
                       "ipv6 should be '[host_ip]:host_port' or '[host_ip]' "
                       "current local_engine:%s",
                       local_engine_.c_str());
-  HIXL_CHK_STATUS_RET(server_.Initialize(ip, port, endpoint_list_),
+  HIXL_CHK_STATUS_RET(server_.Initialize(ip, port, endpoint_list_, listen_port),
                       "[HixlEngine] Failed to initialize HixlEngine, local_engine:%s", local_engine_.c_str());
   return SUCCESS;
 }
@@ -67,6 +67,15 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
   std::string local_comm_res;
   Status ret = EndpointGenerator::BuildEndpointList(options, local_engine_, local_comm_res, endpoint_list_);
   HIXL_CHK_STATUS_RET(ret, "[HixlEngine] Failed to build endpoint list from options");
+  auto global_resource_config = options.GlobalResourceCfg();
+  std::optional<uint32_t> listen_port;
+  if (global_resource_config.has_value()) {
+    listen_port = global_resource_config->comm_resource_config.listen_port;
+    qos_ = global_resource_config->comm_resource_config.qos;
+  } else {
+    listen_port.reset();
+    qos_.reset();
+  }
   int32_t device_id = -1;
   HIXL_CHK_ACL_RET(aclrtGetDevice(&device_id));
   HIXL_CHK_ACL_RET(aclrtCreateContext(&aclrt_context_, device_id));
@@ -77,19 +86,12 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
                          }));
   {
     hixl::TemporaryRtContext with_context(aclrt_context_);
-    HIXL_CHK_STATUS_RET(InitServer(), "[HixlEngine] Failed to initialize server, local_engine:%s, local_comm_res:%s",
+    HIXL_CHK_STATUS_RET(InitServer(listen_port),
+                        "[HixlEngine] Failed to initialize server, local_engine:%s, local_comm_res:%s",
                         local_engine_.c_str(), local_comm_res.c_str());
   }
   rdma_traffic_class_ = options.RdmaTrafficClass().value_or(kRdmaTrafficClass);
   rdma_service_level_ = options.RdmaServiceLevel().value_or(kRdmaServiceLevel);
-  auto global_resource_config = options.GlobalResourceCfg();
-  if (global_resource_config.has_value()) {
-    local_listen_port_ = global_resource_config->comm_resource_config.listen_port;
-    qos_ = global_resource_config->comm_resource_config.qos;
-  } else {
-    local_listen_port_.reset();
-    qos_.reset();
-  }
   auto_connect_ = options.AutoConnect().value_or(false);
   HIXL_CHK_STATUS_RET(client_manager_.Initialize(auto_connect_), "[HixlEngine] Failed to initialize client manager");
   HIXL_DISMISS_GUARD(ctx_fail_guard);
@@ -383,7 +385,6 @@ void HixlEngine::BuildClientConfig(const AscendString &remote_engine, ClientConf
   config.rdma_tc = rdma_traffic_class_;
   config.rdma_sl = rdma_service_level_;
   config.timeout_ms = static_cast<uint32_t>(timeout_in_millis);
-  config.local_listen_port = local_listen_port_;
   config.qos = qos_;
   {
     std::lock_guard<std::mutex> lock(mutex_);

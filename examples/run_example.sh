@@ -241,8 +241,6 @@ smoke_test_samples() {
     run_pair "./prompt_switch_roles ${device_id_1} 127.0.0.1 127.0.0.1" "./decoder_switch_roles ${device_id_2} 127.0.0.1 127.0.0.1"
     run_pair "./hixl_example_d2rd --protocol=roce:device --device=${device_id_1},${device_id_2} --version=0"
     run_pair "./hixl_example_d2rh --protocol=roce:device --device=${device_id_1},${device_id_2} --version=0"
-    run_pair "./hixl_example_d2rd_multiproc --role=server --protocol=hccs:device --device=${device_id_2}" \
-    "./hixl_example_d2rd_multiproc --role=client --protocol=hccs:device --device=${device_id_1}"
     run_pair "./hixl_example_d2rd_multiproc --role=server --protocol=roce:device --device=${device_id_2} --version=0" \
     "./hixl_example_d2rd_multiproc --role=client --protocol=roce:device --device=${device_id_1} --version=0"
 

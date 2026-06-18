@@ -20,10 +20,15 @@
 HixlStatus HixlCSServerCreate(const HixlServerDesc *server_desc, const HixlServerConfig *config,
                               HixlServerHandle *server_handle) {
   HIXL_CHECK_NOTNULL(server_handle);
+  *server_handle = nullptr;
   HIXL_CHECK_NOTNULL(server_desc);
   HIXL_CHECK_NOTNULL(server_desc->server_ip);
   HIXL_CHECK_NOTNULL(config);
-  auto server = new (std::nothrow) hixl::HixlCSServer(server_desc->server_ip, server_desc->server_port);
+  hixl::GlobalConfig global_config;
+  HIXL_CHK_STATUS_RET(hixl::GlobalConfig::Parse(config->global_resource_config, global_config,
+                                                hixl::GlobalConfig::ParseTarget::kServer),
+                      "Failed to parse hixl cs server global_resource_config");
+  auto server = new (std::nothrow) hixl::HixlCSServer(server_desc->server_ip, server_desc->server_port, global_config);
   HIXL_CHECK_NOTNULL(server);
   HIXL_DISMISSABLE_GUARD(rollback, ([server]() { delete server; }));
   HIXL_CHK_STATUS_RET(server->Initialize(server_desc->endpoint_list, server_desc->endpoint_list_num),

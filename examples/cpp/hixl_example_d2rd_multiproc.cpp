@@ -192,14 +192,10 @@ int32_t ParseArgs(int32_t argc, char **argv, EngineCtx &ctx, std::vector<std::st
   return 0;
 }
 
-int32_t PrepareLegacyOpts(EngineCtx &ctx, const std::vector<std::string> &protocols,
-                          std::map<AscendString, AscendString> &options) {
+int32_t PrepareLegacyOpts(const std::vector<std::string> &protocols, std::map<AscendString, AscendString> &options) {
   printf("[INFO] Using legacy flow (version=0)\n");
-  uint32_t listen_port = static_cast<uint32_t>(ParsePort(ctx.local_engine));
   std::string local_comm_res = "{\"version\": \"1.2\"}";
   options[OPTION_LOCAL_COMM_RES] = local_comm_res.c_str();
-  std::string resource_config = "{\"comm_resource_config.listen_port\": " + std::to_string(listen_port) + "}";
-  options[OPTION_GLOBAL_RESOURCE_CONFIG] = resource_config.c_str();
   options[OPTION_BUFFER_POOL] = "0:0";
   if (protocols[0] == "roce:device") {
     setenv("HCCL_INTRA_ROCE_ENABLE", "1", 1);
@@ -224,7 +220,7 @@ int32_t InitEngine(EngineCtx &ctx, const std::vector<std::string> &protocols, in
   CHECK_ACL(aclrtSetDevice(ctx.device_id));
   std::map<AscendString, AscendString> options;
   if (version == kVersionLegacy) {
-    PrepareLegacyOpts(ctx, protocols, options);
+    PrepareLegacyOpts(protocols, options);
   } else {
     PrepareV2Opts(protocols, options);
   }

@@ -42,6 +42,7 @@ static constexpr uint32_t kEpAddrId1 = 2U;
 static constexpr uint32_t kEpAddrId2 = 3U;
 static constexpr uint32_t kMemNum = 100U;
 static constexpr uint32_t kBackLog = 1024U;
+static constexpr uint32_t kConfiguredListenPort = 65535U;
 static constexpr uint32_t kRecvTimeoutMs = 1000U;
 static constexpr uint32_t kTimeSleepMs = 10U;
 static constexpr uint32_t kCaptureLogTimeoutMs = 1000U;
@@ -320,6 +321,50 @@ TEST_F(HixlCSTest, TestEndpointGetListenPortSuccess) {
   EXPECT_EQ(match_resp.port, 8080U);
   (void)close(client_fd);
   EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+}
+
+TEST_F(HixlCSTest, TestConfiguredListenPortInServerConfig) {
+  HixlServerConfig config{};
+  config.global_resource_config = R"({"comm_resource_config.listen_port":65535})";
+  HixlServerHandle server_handle = nullptr;
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = kPort;
+  desc.endpoint_list = &default_eps[0];
+  desc.endpoint_list_num = default_eps.size();
+  auto ret = HixlCSServerCreate(&desc, &config, &server_handle);
+  EXPECT_EQ(ret, SUCCESS);
+  ret = HixlCSServerListen(server_handle, kBackLog);
+  EXPECT_EQ(ret, SUCCESS);
+
+  int32_t client_fd = -1;
+  ret = CtrlMsgPlugin::Connect("127.0.0.1", kPort, client_fd, 1);
+  EXPECT_EQ(ret, SUCCESS);
+  SendMatchEndpointReq(client_fd);
+  MatchEndpointResp match_resp{};
+  GetMatchEndpointResp(client_fd, match_resp);
+  EXPECT_EQ(match_resp.port, kConfiguredListenPort);
+
+  (void)close(client_fd);
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+}
+
+TEST_F(HixlCSTest, TestCreateServerRejectsInvalidListenPortConfig) {
+  for (const char *config_str :
+       {R"({"comm_resource_config.listen_port":0})", R"({"comm_resource_config.listen_port":65536})",
+        R"({"comm_resource_config.listen_port":-1})", "{invalid json"}) {
+    HixlServerConfig config{};
+    config.global_resource_config = config_str;
+    HixlServerHandle server_handle = reinterpret_cast<HixlServerHandle>(this);
+    HixlServerDesc desc{};
+    desc.server_ip = "127.0.0.1";
+    desc.server_port = kPort;
+    desc.endpoint_list = &default_eps[0];
+    desc.endpoint_list_num = default_eps.size();
+    auto ret = HixlCSServerCreate(&desc, &config, &server_handle);
+    EXPECT_NE(ret, SUCCESS) << "config_str=" << config_str;
+    EXPECT_EQ(server_handle, nullptr) << "config_str=" << config_str;
+  }
 }
 
 // 覆盖 EndpointGetListenPort 返回 HCCL_E_NOT_SUPPORT 分支：记录警告日志，端口号保持为0

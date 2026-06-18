@@ -17,6 +17,7 @@
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
+#include "common/json_utils.h"
 
 namespace hixl {
 namespace {
@@ -32,20 +33,6 @@ constexpr int32_t kMaxRdmaTrafficClass = 255;
 constexpr int32_t kRdmaTrafficClassAlign = 4;
 constexpr int32_t kMinRdmaServiceLevel = 0;
 constexpr int32_t kMaxRdmaServiceLevel = 7;
-
-template <typename T>
-T JsonToNumber(const nlohmann::json &val) {
-  if (val.is_string()) {
-    T result{};
-    Status ret = ToNumber(val.get<std::string>(), result);
-    if (ret != SUCCESS) {
-      throw nlohmann::json::type_error::create(0, "Failed to convert string to number: " + val.get<std::string>(),
-                                               nullptr);
-    }
-    return result;
-  }
-  return val.get<T>();
-}
 
 void from_json(const nlohmann::json &j, FabricMemoryConfig &cfg) {
   if (j.contains("max_capacity")) {
@@ -73,9 +60,9 @@ void from_json(const nlohmann::json &j, CommResourceConfigDesc &cfg) {
     const auto &protocol_desc = j.at("comm_resource_config.protocol_desc");
     if (protocol_desc.is_string()) {
       cfg.protocol_desc = std::vector<std::string>{protocol_desc.get<std::string>()};
-      return;
+    } else {
+      cfg.protocol_desc = protocol_desc.get<std::vector<std::string>>();
     }
-    cfg.protocol_desc = protocol_desc.get<std::vector<std::string>>();
   }
   if (j.contains("comm_resource_config.listen_port")) {
     cfg.listen_port = JsonToNumber<uint32_t>(j.at("comm_resource_config.listen_port"));
@@ -109,6 +96,10 @@ void from_json(const nlohmann::json &j, GlobalResourceConfig &cfg) {
 }  // namespace
 
 Status HixlOptions::Parse(const std::map<AscendString, AscendString> &options, HixlOptions &result) {
+  HIXL_LOGI("Start parsing options, total options count: %zu", options.size());
+  for (const auto &pair : options) {
+    HIXL_LOGI("  option key: \"%s\", value: \"%s\"", pair.first.GetString(), pair.second.GetString());
+  }
   result.raw_options_ = options;
   for (const auto &pair : options) {
     result.parsed_keys_.insert(pair.first.GetString());
@@ -161,7 +152,7 @@ Status HixlOptions::ParseRdmaOptions(const std::map<AscendString, AscendString> 
                              "Traffic class is invalid, value = %d, must be between 0-255 and a multiple of 4",
                              traffic_class);
     rdma_traffic_class_ = static_cast<uint8_t>(traffic_class);
-    HIXL_LOGI("Set rdma traffic class to %d.", traffic_class);
+    HIXL_EVENT("Set rdma traffic class to %u", rdma_traffic_class_.value());
   }
 
   std::string service_level_str;
@@ -184,7 +175,7 @@ Status HixlOptions::ParseRdmaOptions(const std::map<AscendString, AscendString> 
     HIXL_CHK_BOOL_RET_STATUS(service_level >= kMinRdmaServiceLevel && service_level <= kMaxRdmaServiceLevel,
                              PARAM_INVALID, "service_level must be in [0, 7], value = %d", service_level);
     rdma_service_level_ = static_cast<uint8_t>(service_level);
-    HIXL_LOGI("Set rdma service level to %d.", service_level);
+    HIXL_EVENT("Set rdma service level to %u", rdma_service_level_.value());
   }
   return SUCCESS;
 }
@@ -195,6 +186,7 @@ Status HixlOptions::ParseEndpointOptions(const std::map<AscendString, AscendStri
   auto lcr_it = (hixl_lcr_it != options.cend()) ? hixl_lcr_it : adxl_lcr_it;
   if (lcr_it != options.cend()) {
     local_comm_res_ = std::string(lcr_it->second.GetString());
+    HIXL_EVENT("ParseEndpointOptions success: local_comm_res=%s", local_comm_res_.value_or("").c_str());
   }
   return SUCCESS;
 }
@@ -208,9 +200,8 @@ Status HixlOptions::ParseFabricMemOptions(const std::map<AscendString, AscendStr
     HIXL_CHK_BOOL_RET_STATUS(enabled == 0U || enabled == 1U, PARAM_INVALID, "%s is invalid, should be zero or one.",
                              hixl::OPTION_ENABLE_USE_FABRIC_MEM);
     enable_fabric_mem_ = (enabled == 1U);
-    HIXL_LOGI("Set %s to %u.", hixl::OPTION_ENABLE_USE_FABRIC_MEM, enabled);
+    HIXL_EVENT("ParseFabricMemOptions success: enable_fabric_mem=%d", enable_fabric_mem_.value());
   }
-
   return SUCCESS;
 }
 
@@ -229,7 +220,7 @@ Status HixlOptions::ParseAutoConnectOptions(const std::map<AscendString, AscendS
   HIXL_CHK_BOOL_RET_STATUS(auto_connect == 0U || auto_connect == 1U, PARAM_INVALID,
                            "%s is invalid, should be zero or one.", hixl::OPTION_AUTO_CONNECT);
   auto_connect_ = (auto_connect == 1U);
-  HIXL_LOGI("Set %s to %u.", hixl::OPTION_AUTO_CONNECT, auto_connect);
+  HIXL_EVENT("ParseAutoConnectOptions success: auto_connect=%d", auto_connect_);
   return SUCCESS;
 }
 
