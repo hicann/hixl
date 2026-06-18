@@ -95,6 +95,7 @@ Status CheckAddrOverlap(const AddrInfo &cur_info, const std::map<MemHandle, Addr
 
 std::string MemTypeToString(MemType type);
 std::string TransferOpToString(TransferOp op);
+std::string EndpointToString(const EndpointDesc &ep);
 
 class TemporaryRtContext {
  public:

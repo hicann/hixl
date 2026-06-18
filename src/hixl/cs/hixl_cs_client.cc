@@ -1020,19 +1020,26 @@ Status HixlCSClient::BatchTransferSync(bool is_get, uint32_t list_num, const Hix
   HIXL_CHK_STATUS_RET(ValidateAddress(list_num, desc_list), "[HixlClient] ValidateAddress failed.");
   HIXL_CHECK_NOTNULL(local_endpoint_);
   const EndpointDesc endpoint = local_endpoint_->GetEndpoint();
+  Status ret = FAILED;
   if (IsDeviceEndpoint(endpoint)) {
     if (endpoint.protocol == COMM_PROTOCOL_UBOE) {
       std::vector<HixlOneSideOpDesc> mutable_descs(desc_list, desc_list + list_num);
       HIXL_CHK_STATUS_RET(ConvertUboeDescs(list_num, mutable_descs.data()), "[HixlClient] convert uboe descs failed.");
-      return BatchTransferDeviceSync(is_get, list_num, mutable_descs.data(), timeout_ms);
+      ret = BatchTransferDeviceSync(is_get, list_num, mutable_descs.data(), timeout_ms);
+    } else {
+      ret = BatchTransferDeviceSync(is_get, list_num, desc_list, timeout_ms);
     }
-    return BatchTransferDeviceSync(is_get, list_num, desc_list, timeout_ms);
+  } else if (endpoint.loc.locType == ENDPOINT_LOC_TYPE_HOST) {
+    ret = BatchTransferHostSync(is_get, list_num, desc_list, timeout_ms);
+  } else {
+    HIXL_LOGE(PARAM_INVALID, "[HixlClient] Invalid endpoint location: %d", endpoint.loc.locType);
+    return PARAM_INVALID;
   }
-  if (endpoint.loc.locType == ENDPOINT_LOC_TYPE_HOST) {
-    return BatchTransferHostSync(is_get, list_num, desc_list, timeout_ms);
+  if (ret != SUCCESS) {
+    HIXL_LOGE(ret, "[HixlClient] BatchTransferSync failed, local=[%s], remote=[%s]", EndpointToString(endpoint).c_str(),
+              EndpointToString(remote_endpoint_).c_str());
   }
-  HIXL_LOGE(PARAM_INVALID, "[HixlClient] Invalid endpoint location: %d", endpoint.loc.locType);
-  return PARAM_INVALID;
+  return ret;
 }
 
 Status HixlCSClient::ConvertUboeDescs(uint32_t list_num, HixlOneSideOpDesc *desc_list) {
@@ -1046,20 +1053,26 @@ Status HixlCSClient::BatchTransferAsync(bool is_get, uint32_t list_num, const Hi
   HIXL_CHK_STATUS_RET(ValidateAddress(list_num, desc_list), "[HixlClient] ValidateAddress failed.");
   HIXL_CHECK_NOTNULL(local_endpoint_);
   const EndpointDesc ep = local_endpoint_->GetEndpoint();
+  Status ret = FAILED;
   if (IsDeviceEndpoint(ep)) {
     if (ep.protocol == COMM_PROTOCOL_UBOE) {
       std::vector<HixlOneSideOpDesc> mutable_descs(desc_list, desc_list + list_num);
       HIXL_CHK_STATUS_RET(ConvertUboeDescs(list_num, mutable_descs.data()), "[HixlClient] convert uboe descs failed.");
-      return BatchTransferDeviceAsync(is_get, list_num, mutable_descs.data(), query_handle);
+      ret = BatchTransferDeviceAsync(is_get, list_num, mutable_descs.data(), query_handle);
+    } else {
+      ret = BatchTransferDeviceAsync(is_get, list_num, desc_list, query_handle);
     }
-    return BatchTransferDeviceAsync(is_get, list_num, desc_list, query_handle);
   } else if (ep.loc.locType == ENDPOINT_LOC_TYPE_HOST) {
-    return BatchTransferHostAsync(is_get, list_num, desc_list, query_handle);
+    ret = BatchTransferHostAsync(is_get, list_num, desc_list, query_handle);
   } else {
     HIXL_LOGE(PARAM_INVALID, "[HixlClient] Invalid endpoint location: %d", ep.loc.locType);
     return PARAM_INVALID;
   }
-  return PARAM_INVALID;
+  if (ret != SUCCESS) {
+    HIXL_LOGE(ret, "[HixlClient] BatchTransferAsync failed, local=[%s], remote=[%s]", EndpointToString(ep).c_str(),
+              EndpointToString(remote_endpoint_).c_str());
+  }
+  return ret;
 }
 
 Status HixlCSClient::CheckStatusHost(CompleteHandleInfo &query_handle, HixlCompleteStatus &status) {
