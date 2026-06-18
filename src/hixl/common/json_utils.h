@@ -8,32 +8,28 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef CANN_HIXL_SRC_HIXL_ENGINE_CLIENT_HANDLER_CONFIG_HELPER_H_
-#define CANN_HIXL_SRC_HIXL_ENGINE_CLIENT_HANDLER_CONFIG_HELPER_H_
-
-#include <optional>
-#include <string>
+#ifndef CANN_HIXL_SRC_HIXL_COMMON_JSON_UTILS_H_
+#define CANN_HIXL_SRC_HIXL_COMMON_JSON_UTILS_H_
 
 #include "nlohmann/json.hpp"
-#include "engine/client_handler_factory.h"
+#include "common/hixl_utils.h"
 
 namespace hixl {
 
-class ClientHandlerConfigHelper {
- public:
-  static std::string BuildGlobalResourceConfig(const HandlerCreateArgs &args) {
-    // force return "", default json construction will dump to "null" which not as expect
-    if (!args.qos.has_value()) {
-      return "";
+template <typename T>
+T JsonToNumber(const nlohmann::json &val) {
+  if (val.is_string()) {
+    T result{};
+    Status ret = ToNumber(val.get<std::string>(), result);
+    if (ret != SUCCESS) {
+      throw nlohmann::json::type_error::create(0, "Failed to convert string to number: " + val.get<std::string>(),
+                                               nullptr);
     }
-    nlohmann::json json;
-    if (args.qos.has_value()) {
-      json["comm_resource_config.qos"] = args.qos.value();
-    }
-    return json.dump();
+    return result;
   }
-};
+  return val.get<T>();
+}
 
 }  // namespace hixl
 
-#endif  // CANN_HIXL_SRC_HIXL_ENGINE_CLIENT_HANDLER_CONFIG_HELPER_H_
+#endif  // CANN_HIXL_SRC_HIXL_COMMON_JSON_UTILS_H_

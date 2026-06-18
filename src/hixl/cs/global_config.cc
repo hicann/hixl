@@ -13,6 +13,7 @@
 #include "nlohmann/json.hpp"
 #include "common/hixl_log.h"
 #include "common/hixl_inner_types.h"
+#include "common/json_utils.h"
 
 namespace hixl {
 namespace {
@@ -26,7 +27,7 @@ Status ParseListenPort(const nlohmann::json &json, CommResourceConfig &config) {
     return SUCCESS;
   }
 
-  const auto val = it->get<int64_t>();
+  const auto val = JsonToNumber<int64_t>(*it);
   if (val < kMinListenPort || val > kMaxListenPort) {
     HIXL_LOGE(PARAM_INVALID, "[GlobalConfig] listen_port out of range: %ld, must be in [%ld, %ld]", val, kMinListenPort,
               kMaxListenPort);
@@ -44,7 +45,7 @@ Status ParseQos(const nlohmann::json &json, CommResourceConfig &config) {
     return SUCCESS;
   }
 
-  const auto val = it->get<int64_t>();
+  const auto val = JsonToNumber<int64_t>(*it);
   if (val < static_cast<int64_t>(kQosMin) || val > static_cast<int64_t>(kQosMax)) {
     HIXL_LOGE(PARAM_INVALID, "[GlobalConfig] qos out of range: %ld, must be in [%u, %u]", val, kQosMin, kQosMax);
     return PARAM_INVALID;
@@ -55,23 +56,32 @@ Status ParseQos(const nlohmann::json &json, CommResourceConfig &config) {
   return SUCCESS;
 }
 
-Status ParseCommResourceConfig(const nlohmann::json &json, CommResourceConfig &config) {
-  Status ret = ParseListenPort(json, config);
-  if (ret != SUCCESS) {
-    HIXL_LOGE(ret, "[GlobalConfig] Failed to parse listen_port");
-    return ret;
+Status ParseCommResourceConfig(const nlohmann::json &json, CommResourceConfig &config,
+                               GlobalConfig::ParseTarget target) {
+  if (target == GlobalConfig::ParseTarget::kAll || target == GlobalConfig::ParseTarget::kServer) {
+    Status ret = ParseListenPort(json, config);
+    if (ret != SUCCESS) {
+      HIXL_LOGE(ret, "[GlobalConfig] Failed to parse listen_port");
+      return ret;
+    }
   }
 
-  ret = ParseQos(json, config);
-  if (ret != SUCCESS) {
-    HIXL_LOGE(ret, "[GlobalConfig] Failed to parse qos");
-    return ret;
+  if (target == GlobalConfig::ParseTarget::kAll || target == GlobalConfig::ParseTarget::kClient) {
+    Status ret = ParseQos(json, config);
+    if (ret != SUCCESS) {
+      HIXL_LOGE(ret, "[GlobalConfig] Failed to parse qos");
+      return ret;
+    }
   }
   return SUCCESS;
 }
 }  // namespace
 
 Status GlobalConfig::Parse(const char *config_str, GlobalConfig &result) {
+  return Parse(config_str, result, ParseTarget::kAll);
+}
+
+Status GlobalConfig::Parse(const char *config_str, GlobalConfig &result, ParseTarget target) {
   if (config_str == nullptr || config_str[0] == '\0') {
     return SUCCESS;
   }
@@ -83,7 +93,7 @@ Status GlobalConfig::Parse(const char *config_str, GlobalConfig &result) {
       return PARAM_INVALID;
     }
 
-    Status ret = ParseCommResourceConfig(json, result.comm_resource_config_);
+    Status ret = ParseCommResourceConfig(json, result.comm_resource_config_, target);
     if (ret != SUCCESS) {
       HIXL_LOGE(ret, "[GlobalConfig] Failed to parse comm_resource_config");
       return ret;

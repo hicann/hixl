@@ -25,7 +25,14 @@ struct CommResourceConfig {
 
 class GlobalConfig {
  public:
+  enum class ParseTarget {
+    kAll,
+    kClient,
+    kServer,
+  };
+
   static Status Parse(const char *config_str, GlobalConfig &result);
+  static Status Parse(const char *config_str, GlobalConfig &result, ParseTarget target);
   std::optional<uint32_t> ListenPort() const;
   std::optional<uint8_t> Qos() const;
 

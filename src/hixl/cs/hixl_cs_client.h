@@ -92,7 +92,8 @@ class HixlCSClient {
  private:
   void ReleaseFlagIndex(int32_t flag_index);
   Status InitBaseClient(const HixlClientDesc *client_desc);
-  Status InitDeviceResource();
+  Status InitDeviceResource(const EndpointDesc &ep);
+  Status InitNotifyResources(const EndpointDesc &ep);
   Status ExchangeEndpointAndCreateChannelLocked(uint32_t timeout_ms);
   Status GetRemoteMemLocked(uint32_t timeout_ms, CommMem **remote_mem_list, char ***mem_tag_list, uint32_t *list_num);
   Status InitFlagQueue() noexcept;

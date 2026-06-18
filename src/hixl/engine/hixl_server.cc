@@ -41,7 +41,8 @@ std::string SerializeNotifyAck(Status result) {
 }  // namespace
 
 Status HixlServer::Initialize(const std::string &ip, int32_t port,
-                              const std::vector<EndpointConfig> &data_endpoint_config_list) {
+                              const std::vector<EndpointConfig> &data_endpoint_config_list,
+                              std::optional<uint32_t> listen_port) {
   data_endpoint_config_list_ = data_endpoint_config_list;
   std::vector<EndpointDesc> data_end_point_list;
   int32_t dev_logic_id = 0;
@@ -59,6 +60,13 @@ Status HixlServer::Initialize(const std::string &ip, int32_t port,
     port = 0;
   }
   HixlServerConfig config{};
+  std::string global_resource_config;
+  if (listen_port.has_value()) {
+    nlohmann::json json;
+    json["comm_resource_config.listen_port"] = listen_port.value();
+    global_resource_config = json.dump();
+    config.global_resource_config = global_resource_config.c_str();
+  }
   HixlServerDesc server_desc{};
   server_desc.server_ip = ip.c_str();
   server_desc.server_port = static_cast<uint32_t>(port);

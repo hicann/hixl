@@ -19,6 +19,7 @@
 #include "hixl/hixl_types.h"
 #include "common/hixl_utils.h"
 #include "endpoint_store.h"
+#include "global_config.h"
 #include "msg_handler.h"
 #include "msg_receiver.h"
 
@@ -35,7 +36,8 @@ struct EndpointChannelInfo {
 
 class HixlCSServer {
  public:
-  HixlCSServer(const char *ip, uint32_t port) : ip_(ip), port_(port) {};
+  HixlCSServer(const char *ip, uint32_t port, const GlobalConfig &global_config)
+      : ip_(ip), port_(port), global_config_(global_config) {};
 
   ~HixlCSServer() = default;
 
@@ -85,6 +87,7 @@ class HixlCSServer {
 
   MsgHandler msg_handler_;
   EndpointStore endpoint_store_;
+  GlobalConfig global_config_;
 
   void *trans_flag_ = nullptr;
   MemHandle trans_flag_handle_ = nullptr;

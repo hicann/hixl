@@ -41,21 +41,21 @@ std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string local_engi
   if (parsed_options.EnableFabricMem().value_or(false)) {
     return std::make_unique<FabricMemEngine>(AscendString(local_engine.c_str()));
   }
-  bool use_hixl = UseProtocolDesc(parsed_options);
-  if (!use_hixl) {
-    auto lcr = parsed_options.LocalCommRes();
-    if (!lcr.has_value() || lcr->empty()) {
-      return std::make_unique<CommEngine>(AscendString(local_engine.c_str()));
-    }
+  auto lcr = parsed_options.LocalCommRes();
+  if (lcr.has_value() && !lcr->empty()) {
     try {
       auto json = nlohmann::json::parse(*lcr);
-      use_hixl = json["version"] == "1.3";
+      if (json.contains("version") && json["version"] == "1.3") {
+        return std::make_unique<HixlEngine>(AscendString(local_engine.c_str()));
+      }
+      HIXL_LOGI("[EngineFactory] local_comm_res version is not 1.3, using CommEngine");
     } catch (const nlohmann::json::exception &e) {
       HIXL_LOGE(PARAM_INVALID, "Invalid json, exception:%s", e.what());
       return nullptr;
     }
+    return std::make_unique<CommEngine>(AscendString(local_engine.c_str()));
   }
-  if (use_hixl) {
+  if (UseProtocolDesc(parsed_options)) {
     return std::make_unique<HixlEngine>(AscendString(local_engine.c_str()));
   }
   return std::make_unique<CommEngine>(AscendString(local_engine.c_str()));

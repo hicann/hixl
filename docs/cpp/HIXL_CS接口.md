@@ -47,11 +47,12 @@ typedef void *MemHandle;
 
 ### HixlServerConfig
 
-Server配置保留字段，用于未来扩展。
+Server配置。
 
 ```
 struct HixlServerConfig {
-  uint8_t reserved[128] = {};
+  const char *global_resource_config = nullptr;
+  uint8_t reserved[120] = {};
 };
 ```
 
@@ -59,7 +60,8 @@ struct HixlServerConfig {
 
 | 字段 | 类型 | 描述 |
 |---|---|---|
-| reserved | uint8_t[128] | Server配置保留字段，用于未来扩展，结构体总大小保持为128字节。 |
+| global_resource_config | const char* | 全局资源配置，JSON字符串，当前用于配置Server侧通信资源参数。可传入NULL或空字符串表示不配置。 |
+| reserved | uint8_t[120] | HixlServerConfig配置保留字段，用于未来扩展，结构体总大小保持为128字节。 |
 
 ### HixlClientConfig
 
@@ -76,23 +78,35 @@ struct HixlClientConfig {
 
 | 字段 | 类型 | 描述 |
 |---|---|---|
-| global_resource_config | const char* | 全局资源配置，JSON字符串，当前用于配置通信资源参数。可传入NULL或空字符串表示不配置。 |
+| global_resource_config | const char* | 全局资源配置，JSON字符串，当前用于配置Client侧通信资源参数。可传入NULL或空字符串表示不配置。 |
 | reserved | uint8_t[120] | HixlClientConfig配置保留字段，用于未来扩展，结构体总大小保持为128字节。 |
 
 ### global_resource_config配置说明
+
+Server侧`global_resource_config`当前支持的配置项如下。
+
+| 配置项 | 类型 | 是否必选 | 描述 |
+|---|---|---|---|
+| comm_resource_config.listen_port | 整数 | 可选 | 配置CS建链时Server侧通信资源监听端口，取值范围为[1, 65535]。Server配置该字段后，会在Client建链匹配Endpoint阶段通过响应返回该端口；未配置时，Server保持原有自动查询监听端口逻辑；取值不在范围内时，Server创建失败并返回参数错误。 |
 
 Client侧`global_resource_config`当前支持的配置项如下。
 
 | 配置项 | 类型 | 是否必选 | 描述 |
 |---|---|---|---|
-| comm_resource_config.listen_port | 整数 | 可选 | 配置CS建链时使用的通信资源监听端口，取值范围为[1, 65535]。Client配置该字段后，会在建链匹配Endpoint阶段将该端口发送给Server；Server收到有效端口后优先使用该端口。未配置时不携带有效端口，Server保持原有自动查询监听端口逻辑；取值不在范围内时，Client创建失败并返回参数错误。 |
 | comm_resource_config.qos | 数字 | 可选 | 配置通信协议qos，当前仅支持[0-7]，当未配置的时候，默认为0。 |
 
-配置示例：
+Server配置示例：
 
 ```
 {
-  "comm_resource_config.listen_port": 26666,
+  "comm_resource_config.listen_port": 26666
+}
+```
+
+Client配置示例：
+
+```
+{
   "comm_resource_config.qos": 7
 }
 ```
@@ -214,7 +228,7 @@ HixlStatus HixlCSServerCreate(const HixlServerDesc *server_desc,
 | 参数名 | 输入/输出 | 描述 |
 | --- | --- | --- |
 | server_desc | 输入 | Server 描述信息，包含侦听 IP/端口与端点列表。 |
-| config | 输入 | Server配置，保留字段，用于未来扩展，不支持传入NULL。 |
+| config | 输入 | Server配置，不支持传入NULL；如需配置通信资源监听端口，填写 `HixlServerConfig.global_resource_config`。 |
 | server_handle | 输出 | 返回创建的 HixlServerHandle。 |
 
 **返回值**
@@ -412,7 +426,7 @@ HixlStatus HixlCSClientConnect(HixlClientHandle client_handle, uint32_t timeout_
 - HIXL_PARAM_INVALID：参数错误
 - HIXL_TIMEOUT：连接超时
 - 其他：失败
-  
+
 **约束说明**
 
 - 调用当前接口与server建链前，需要完成所有本地内存的注册。
@@ -731,7 +745,7 @@ HixlStatus HixlCSClientDestroy(HixlClientHandle client_handle);
 2. 准备 Endpoint 描述（`EndpointDesc`）。
 3. Server 流程：
 
-- 构造 `HixlServerDesc` 与 `HixlServerConfig`。
+- 构造 `HixlServerDesc` 与 `HixlServerConfig`，如需指定通信资源监听端口，在 `HixlServerConfig.global_resource_config` 中配置 `comm_resource_config.listen_port`。
 - 调用 `HixlCSServerCreate` 创建 `HixlServerHandle`。
 - 为要被远端访问的内存分配并准备 `CommMem`（Host/Device 内存），调用 `HixlCSServerRegMem` 注册并保存返回的 `MemHandle`。
 - 调用 `HixlCSServerListen` 开始侦听连接。
@@ -740,7 +754,7 @@ HixlStatus HixlCSClientDestroy(HixlClientHandle client_handle);
 
 4. Client 流程：
 
-- 构造 `HixlClientDesc` 与 `HixlClientConfig`，如需指定通信资源监听端口或QoS，在 `global_resource_config` 中配置 `comm_resource_config.listen_port` 或 `comm_resource_config.qos`。
+- 构造 `HixlClientDesc` 与 `HixlClientConfig`，如需指定QoS，在 `HixlClientConfig.global_resource_config` 中配置 `comm_resource_config.qos`。
 - 调用 `HixlCSClientCreate` 创建 `HixlClientHandle`。
 - 准备本端 `CommMem` 并通过 `HixlCSClientRegMem` 注册（保存 `MemHandle`）。
 - 调用 `HixlCSClientConnect` 建链（阻塞或等待超时），确保Server处于侦听状态。
@@ -759,6 +773,7 @@ HixlStatus HixlCSClientDestroy(HixlClientHandle client_handle);
 HixlServerHandle server = NULL;
 HixlServerDesc sdesc = {};
 HixlServerConfig sconfig = {};
+sconfig.global_resource_config = "{\"comm_resource_config.listen_port\":26666}";
 sdesc.endpoint_list = &endpoint;
 sdesc.server_ip = "0.0.0.0";
 sdesc.server_port = 12345;
@@ -786,7 +801,7 @@ cdesc.remote_endpoint = &remote_ep;
 cdesc.server_ip = "server.ip";
 cdesc.server_port = 12345;
 HixlClientConfig cconfig = {};
-cconfig.global_resource_config = "{\"comm_resource_config.listen_port\":26666,\"comm_resource_config.qos\":7}";
+cconfig.global_resource_config = "{\"comm_resource_config.qos\":7}";
 HixlCSClientCreate(&cdesc, &cconfig, &client);
 
 // 分配并注册本地内存

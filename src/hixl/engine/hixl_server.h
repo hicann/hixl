@@ -11,6 +11,7 @@
 #ifndef CANN_HIXL_SRC_HIXL_ENGINE_HIXL_SERVER_H
 #define CANN_HIXL_SRC_HIXL_ENGINE_HIXL_SERVER_H
 
+#include <optional>
 #include <vector>
 #include <mutex>
 #include <map>
@@ -31,7 +32,8 @@ class HixlServer {
    * @param [in] data_endpoint_config_list 服务端支持的传输协议
    * @return 成功:SUCCESS, 失败:其它.
    */
-  Status Initialize(const std::string &ip, int32_t port, const std::vector<EndpointConfig> &data_endpoint_config_list);
+  Status Initialize(const std::string &ip, int32_t port, const std::vector<EndpointConfig> &data_endpoint_config_list,
+                    std::optional<uint32_t> listen_port = std::nullopt);
 
   /**
    * @brief 注册内存

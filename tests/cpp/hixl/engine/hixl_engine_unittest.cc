@@ -23,6 +23,7 @@
 #include "engine/endpoint_test_utils.h"
 #define private public
 #include "engine/hixl_engine.h"
+#include "cs/hixl_cs_server.h"
 #undef private
 #include "hixl/hixl_types.h"
 #include "engine/engine_factory.h"
@@ -329,7 +330,7 @@ TEST_F(HixlEngineTest, EngineFactoryUsesHixlEngineWhenProtocolDescConfigured) {
   EXPECT_NE(dynamic_cast<HixlEngine *>(engine.get()), nullptr);
 }
 
-TEST_F(HixlEngineTest, InitializeSetsClientListenPortFromGlobalResourceConfig) {
+TEST_F(HixlEngineTest, InitializeSetsServerListenPortFromGlobalResourceConfig) {
   std::map<AscendString, AscendString> options = options1;
   options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.listen_port":26301})";
   HixlOptions parsed;
@@ -338,25 +339,28 @@ TEST_F(HixlEngineTest, InitializeSetsClientListenPortFromGlobalResourceConfig) {
   HixlEngine engine("127.0.0.1");
   EXPECT_EQ(engine.Initialize(parsed), SUCCESS);
 
+  auto *cs_server = static_cast<hixl::HixlCSServer *>(engine.server_.server_handle_);
+  ASSERT_NE(cs_server, nullptr);
+  ASSERT_TRUE(cs_server->global_config_.ListenPort().has_value());
+  EXPECT_EQ(*cs_server->global_config_.ListenPort(), 26301U);
+
   ClientConfig config{};
   std::vector<MemInfo> mem_info_list;
   engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, mem_info_list, kTimeOut);
-  ASSERT_TRUE(config.local_listen_port.has_value());
-  EXPECT_EQ(*config.local_listen_port, 26301U);
+  EXPECT_FALSE(config.qos.has_value());
   engine.Finalize();
 }
 
-TEST_F(HixlEngineTest, InitializeWithoutListenPortDoesNotSetClientListenPort) {
+TEST_F(HixlEngineTest, InitializeWithoutListenPortDoesNotSetServerListenPort) {
   HixlOptions parsed;
   ASSERT_EQ(HixlOptions::Parse(options1, parsed), SUCCESS);
 
   HixlEngine engine("127.0.0.1");
   EXPECT_EQ(engine.Initialize(parsed), SUCCESS);
 
-  ClientConfig config{};
-  std::vector<MemInfo> mem_info_list;
-  engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, mem_info_list, kTimeOut);
-  EXPECT_FALSE(config.local_listen_port.has_value());
+  auto *cs_server = static_cast<hixl::HixlCSServer *>(engine.server_.server_handle_);
+  ASSERT_NE(cs_server, nullptr);
+  EXPECT_FALSE(cs_server->global_config_.ListenPort().has_value());
   engine.Finalize();
 }
 

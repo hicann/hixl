@@ -172,10 +172,12 @@ all_samples() {
     run_pair "./prompt_pull_cache_and_blocks ${device_id_1} ${IP_ADDRESS}" "./decoder_pull_cache_and_blocks ${device_id_2} ${IP_ADDRESS} ${IP_ADDRESS}"
     run_pair "./prompt_push_cache_and_blocks ${device_id_1} ${IP_ADDRESS} ${IP_ADDRESS}" "./decoder_push_cache_and_blocks ${device_id_2} ${IP_ADDRESS}"
     run_pair "./prompt_switch_roles ${device_id_1} ${IP_ADDRESS} ${IP_ADDRESS}" "./decoder_switch_roles ${device_id_2} ${IP_ADDRESS} ${IP_ADDRESS}"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./client_server_h2d ${device_id_1} ${IP_ADDRESS} ${IP_ADDRESS}:16000" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ./client_server_h2d ${device_id_2} ${IP_ADDRESS}:16000"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./server_server_d2d ${device_id_1} ${IP_ADDRESS}:16000 ${IP_ADDRESS}:16001" \
-    "HCCL_INTRA_ROCE_ENABLE=1 ./server_server_d2d ${device_id_2} ${IP_ADDRESS}:16001 ${IP_ADDRESS}:16000"
+    run_pair "./hixl_example_d2rd --protocol=roce:device --device=${device_id_1},${device_id_2} --version=0"
+    run_pair "./hixl_example_d2rh --protocol=roce:device --device=${device_id_1},${device_id_2} --version=0"
+    run_pair "./hixl_example_d2rd_multiproc --role=server --protocol=hccs:device --device=${device_id_2}" \
+    "./hixl_example_d2rd_multiproc --role=client --protocol=hccs:device --device=${device_id_1}"
+    run_pair "./hixl_example_d2rd_multiproc --role=server --protocol=roce:device --device=${device_id_2} --version=0" \
+    "./hixl_example_d2rd_multiproc --role=client --protocol=roce:device --device=${device_id_1} --version=0"
 
     cd "${BASEPATH}/python"
     # examples/python 单机用例
@@ -237,8 +239,10 @@ smoke_test_samples() {
     run_pair "./prompt_pull_cache_and_blocks ${device_id_1} 127.0.0.1" "./decoder_pull_cache_and_blocks ${device_id_2} 127.0.0.1 127.0.0.1"
     run_pair "./prompt_push_cache_and_blocks ${device_id_1} 127.0.0.1 127.0.0.1" "./decoder_push_cache_and_blocks ${device_id_2} 127.0.0.1"
     run_pair "./prompt_switch_roles ${device_id_1} 127.0.0.1 127.0.0.1" "./decoder_switch_roles ${device_id_2} 127.0.0.1 127.0.0.1"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./client_server_h2d ${device_id_1} 127.0.0.1 127.0.0.1:16000" "HCCL_INTRA_ROCE_ENABLE=1 ./client_server_h2d ${device_id_2} 127.0.0.1:16000"
-    run_pair "HCCL_INTRA_ROCE_ENABLE=1 ./server_server_d2d ${device_id_1} 127.0.0.1:16000 127.0.0.1:16001" "HCCL_INTRA_ROCE_ENABLE=1 ./server_server_d2d ${device_id_2} 127.0.0.1:16001 127.0.0.1:16000"
+    run_pair "./hixl_example_d2rd --protocol=roce:device --device=${device_id_1},${device_id_2} --version=0"
+    run_pair "./hixl_example_d2rh --protocol=roce:device --device=${device_id_1},${device_id_2} --version=0"
+    run_pair "./hixl_example_d2rd_multiproc --role=server --protocol=roce:device --device=${device_id_2} --version=0" \
+    "./hixl_example_d2rd_multiproc --role=client --protocol=roce:device --device=${device_id_1} --version=0"
 
     # Python examples
     cd "${BASEPATH}/python"
