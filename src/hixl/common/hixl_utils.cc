@@ -11,6 +11,8 @@
 #include "hixl_utils.h"
 
 #include <arpa/inet.h>
+#include <cinttypes>
+#include <endian.h>
 #include <array>
 #include <cerrno>
 #include <cstdlib>
@@ -21,6 +23,7 @@
 #include "mmpa/mmpa_api.h"
 #include "hixl_log.h"
 #include "hixl_checker.h"
+#include "hixl_inner_types.h"
 
 namespace hixl {
 namespace {
@@ -80,6 +83,58 @@ Status GetIpAddressFromHccnTool(uint32_t phy_device_id, std::string &ip) {
     HIXL_LOGW("Please make sure device ip is set correctly.");
   }
   return SUCCESS;
+}
+
+std::string ProtocolToString(CommProtocol protocol) {
+  switch (protocol) {
+    case COMM_PROTOCOL_HCCS:
+      return kProtocolHccs;
+    case COMM_PROTOCOL_ROCE:
+      return kProtocolRoce;
+    case COMM_PROTOCOL_UBC_CTP:
+      return kProtocolUbCtp;
+    case COMM_PROTOCOL_UBC_TP:
+      return kProtocolUbTp;
+    case COMM_PROTOCOL_UBOE:
+      return kProtocolUboe;
+    default:
+      return "UNKNOWN(" + std::to_string(static_cast<int32_t>(protocol)) + ")";
+  }
+}
+
+std::string FormatCommAddr(const CommAddr &addr) {
+  switch (addr.type) {
+    case COMM_ADDR_TYPE_IP_V4: {
+      char buf[INET_ADDRSTRLEN] = {};
+      (void)inet_ntop(AF_INET, &addr.addr, buf, sizeof(buf));
+      return std::string("IPv4:") + buf;
+    }
+    case COMM_ADDR_TYPE_IP_V6: {
+      char buf[INET6_ADDRSTRLEN] = {};
+      (void)inet_ntop(AF_INET6, &addr.addr6, buf, sizeof(buf));
+      return std::string("IPv6:") + buf;
+    }
+    case COMM_ADDR_TYPE_ID: {
+      char buf[32] = {};  // "ID:0x" + 8 hex digits + '\0' = 14 bytes max, 32 is safe
+      (void)snprintf_s(buf, sizeof(buf), sizeof(buf) - 1, "ID:0x%x", addr.id);
+      return std::string(buf);
+    }
+    case COMM_ADDR_TYPE_EID: {
+      // EID is 16 bytes: first 8 bytes = subnetPrefix, last 8 bytes = interfaceId (network byte order)
+      uint64_t subnet_prefix = 0;
+      uint64_t interface_id = 0;
+      (void)memcpy_s(&subnet_prefix, sizeof(subnet_prefix), addr.eid, sizeof(subnet_prefix));
+      (void)memcpy_s(&interface_id, sizeof(interface_id), addr.eid + sizeof(subnet_prefix), sizeof(interface_id));
+      subnet_prefix = be64toh(subnet_prefix);
+      interface_id = be64toh(interface_id);
+      char buf[64] = {};  // "EID[" + 16 hex + ":" + 16 hex + "]" + '\0' = 38 bytes max, 64 is safe
+      (void)snprintf_s(buf, sizeof(buf), sizeof(buf) - 1, "EID[%016" PRIx64 ":%016" PRIx64 "]", subnet_prefix,
+                       interface_id);
+      return std::string(buf);
+    }
+    default:
+      return "UNKNOWN";
+  }
 }
 
 }  // namespace
@@ -253,6 +308,16 @@ std::string TransferOpToString(TransferOp op) {
     default:
       return "unknown";
   }
+}
+
+std::string EndpointToString(const EndpointDesc &ep) {
+  std::string result = "protocol=" + ProtocolToString(ep.protocol) + ", addr=" + FormatCommAddr(ep.commAddr);
+  if (ep.loc.locType == ENDPOINT_LOC_TYPE_DEVICE) {
+    result += ", devPhyId=" + std::to_string(ep.loc.device.devPhyId);
+  } else if (ep.loc.locType == ENDPOINT_LOC_TYPE_HOST) {
+    result += ", hostId=" + std::to_string(ep.loc.host.id);
+  }
+  return result;
 }
 
 TemporaryRtContext::TemporaryRtContext(aclrtContext context) {

@@ -656,7 +656,7 @@ Status EndpointGenerator::FillDeviceInfoIfNeeded(std::vector<EndpointConfig> &en
 
   SocType soc_type = SocType::kOther;
   HIXL_CHK_STATUS_RET(GetSocType(soc_type), "GetSocType failed");
-  if (soc_type == SocType::kOther || soc_type == SocType::kV5) {
+  if (soc_type == SocType::kOther) {
     return SUCCESS;
   }
 

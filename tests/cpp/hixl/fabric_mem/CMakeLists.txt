@@ -55,6 +55,7 @@ target_include_directories(fabric_mem_test PRIVATE
         ${HIXL_CODE_DIR}/src/hixl/common
         ${HIXL_CODE_DIR}/src/hixl/engine
         ${HIXL_CODE_DIR}/src/hixl/profiling
+        ${HIXL_CODE_DIR}/src/hixl/proxy
         ${HIXL_CODE_DIR}/src/llm_datadist
         ${HIXL_CODE_DIR}/tests
         ${HIXL_CODE_DIR}/tests/depends/ascendcl/src
