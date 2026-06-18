@@ -29,7 +29,6 @@
 extern "C" {
 #endif
 #define HIXL_MODULE_NAME static_cast<int32_t>(GE)
-#define HIXL_GET_ERROR_LOG_HEADER "[HIXL]"
 
 class HixlLog {
  public:
@@ -55,34 +54,34 @@ inline bool HixlLogPrintStdout() {
   return (stdout_flag == 1);
 }
 
-#define HIXL_LOGE(ERROR_CODE, fmt, ...)                                                                \
-  do {                                                                                                 \
-    dlog_error(HIXL_MODULE_NAME, "%" PRIu64 " %s: ErrorNo: %" PRIuLEAST8 " %s" fmt, HixlLog::GetTid(), \
-               &__FUNCTION__[0U], (ERROR_CODE), HIXL_GET_ERROR_LOG_HEADER, ##__VA_ARGS__);             \
+#define HIXL_LOGE(ERROR_CODE, fmt, ...)                                                                     \
+  do {                                                                                                      \
+    dlog_error(HIXL_MODULE_NAME, "[HIXL] %" PRIu64 " %s: ErrorNo: %" PRIuLEAST8 " " fmt, HixlLog::GetTid(), \
+               &__FUNCTION__[0U], (ERROR_CODE), ##__VA_ARGS__);                                             \
   } while (false)
 
-#define HIXL_LOGW(fmt, ...)                                                                                  \
-  do {                                                                                                       \
-    dlog_warn(HIXL_MODULE_NAME, "%" PRIu64 " %s:" fmt, HixlLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__); \
+#define HIXL_LOGW(fmt, ...)                                                                                         \
+  do {                                                                                                              \
+    dlog_warn(HIXL_MODULE_NAME, "[HIXL] %" PRIu64 " %s:" fmt, HixlLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__); \
   } while (false)
 
-#define HIXL_LOGI(fmt, ...)                                                                                  \
-  do {                                                                                                       \
-    dlog_info(HIXL_MODULE_NAME, "%" PRIu64 " %s:" fmt, HixlLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__); \
+#define HIXL_LOGI(fmt, ...)                                                                                         \
+  do {                                                                                                              \
+    dlog_info(HIXL_MODULE_NAME, "[HIXL] %" PRIu64 " %s:" fmt, HixlLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__); \
   } while (false)
 
-#define HIXL_LOGD(fmt, ...)                                                                                   \
-  do {                                                                                                        \
-    dlog_debug(HIXL_MODULE_NAME, "%" PRIu64 " %s:" fmt, HixlLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__); \
+#define HIXL_LOGD(fmt, ...)                                                                                          \
+  do {                                                                                                               \
+    dlog_debug(HIXL_MODULE_NAME, "[HIXL] %" PRIu64 " %s:" fmt, HixlLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__); \
   } while (false)
 
-#define HIXL_EVENT(fmt, ...)                                                                                       \
-  do {                                                                                                             \
-    dlog_info(static_cast<int32_t>(static_cast<uint32_t>(RUN_LOG_MASK) | static_cast<uint32_t>(HIXL_MODULE_NAME)), \
-              "%" PRIu64 " %s:" fmt, HixlLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__);                         \
-    if (!HixlLogPrintStdout()) {                                                                                   \
-      dlog_info(HIXL_MODULE_NAME, "%" PRIu64 " %s:" fmt, HixlLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__);     \
-    }                                                                                                              \
+#define HIXL_EVENT(fmt, ...)                                                                                          \
+  do {                                                                                                                \
+    dlog_info(static_cast<int32_t>(static_cast<uint32_t>(RUN_LOG_MASK) | static_cast<uint32_t>(HIXL_MODULE_NAME)),    \
+              "[HIXL] %" PRIu64 " %s:" fmt, HixlLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__);                     \
+    if (!HixlLogPrintStdout()) {                                                                                      \
+      dlog_info(HIXL_MODULE_NAME, "[HIXL] %" PRIu64 " %s:" fmt, HixlLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__); \
+    }                                                                                                                 \
   } while (false)
 
 #ifdef __cplusplus

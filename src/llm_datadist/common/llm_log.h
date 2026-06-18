@@ -40,7 +40,6 @@ extern "C" {
 #endif
 #define LLM_MODULE_NAME static_cast<int32_t>(GE)
 #define LLM_MODULE_NAME_U16 static_cast<int32_t>(GE)
-#define LLM_GET_ERROR_LOG_HEADER "[GE][MODULE]"
 
 class GE_FUNC_VISIBILITY LlmLog {
  public:
@@ -70,34 +69,34 @@ inline bool LlmLogPrintStdout() {
   return (stdout_flag == 1) ? true : false;
 }
 
-#define LLMLOGE(ERROR_CODE, fmt, ...)                                                                \
-  do {                                                                                               \
-    dlog_error(LLM_MODULE_NAME, "%" PRIu64 " %s: ErrorNo: %" PRIuLEAST8 " %s" fmt, LlmLog::GetTid(), \
-               &__FUNCTION__[0U], (ERROR_CODE), LLM_GET_ERROR_LOG_HEADER, ##__VA_ARGS__);            \
+#define LLMLOGE(ERROR_CODE, fmt, ...)                                                                     \
+  do {                                                                                                    \
+    dlog_error(LLM_MODULE_NAME, "[HIXL] %" PRIu64 " %s: ErrorNo: %" PRIuLEAST8 " " fmt, LlmLog::GetTid(), \
+               &__FUNCTION__[0U], (ERROR_CODE), ##__VA_ARGS__);                                           \
   } while (false)
 
-#define LLMLOGW(fmt, ...)                                                                                  \
-  do {                                                                                                     \
-    dlog_warn(LLM_MODULE_NAME, "%" PRIu64 " %s:" fmt, LlmLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__); \
-  } while (false)
-
-#define LLMLOGI(fmt, ...)                                                                                  \
-  do {                                                                                                     \
-    dlog_info(LLM_MODULE_NAME, "%" PRIu64 " %s:" fmt, LlmLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__); \
-  } while (false)
-
-#define LLMLOGD(fmt, ...)                                                                                   \
-  do {                                                                                                      \
-    dlog_debug(LLM_MODULE_NAME, "%" PRIu64 " %s:" fmt, LlmLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__); \
-  } while (false)
-
-#define LLMEVENT(fmt, ...)                                                                                        \
+#define LLMLOGW(fmt, ...)                                                                                         \
   do {                                                                                                            \
-    dlog_info(static_cast<int32_t>(static_cast<uint32_t>(RUN_LOG_MASK) | static_cast<uint32_t>(LLM_MODULE_NAME)), \
-              "%" PRIu64 " %s:" fmt, LlmLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__);                         \
-    if (!LlmLogPrintStdout()) {                                                                                   \
-      dlog_info(LLM_MODULE_NAME, "%" PRIu64 " %s:" fmt, LlmLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__);      \
-    }                                                                                                             \
+    dlog_warn(LLM_MODULE_NAME, "[HIXL] %" PRIu64 " %s:" fmt, LlmLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__); \
+  } while (false)
+
+#define LLMLOGI(fmt, ...)                                                                                         \
+  do {                                                                                                            \
+    dlog_info(LLM_MODULE_NAME, "[HIXL] %" PRIu64 " %s:" fmt, LlmLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__); \
+  } while (false)
+
+#define LLMLOGD(fmt, ...)                                                                                          \
+  do {                                                                                                             \
+    dlog_debug(LLM_MODULE_NAME, "[HIXL] %" PRIu64 " %s:" fmt, LlmLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__); \
+  } while (false)
+
+#define LLMEVENT(fmt, ...)                                                                                          \
+  do {                                                                                                              \
+    dlog_info(static_cast<int32_t>(static_cast<uint32_t>(RUN_LOG_MASK) | static_cast<uint32_t>(LLM_MODULE_NAME)),   \
+              "[HIXL] %" PRIu64 " %s:" fmt, LlmLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__);                    \
+    if (!LlmLogPrintStdout()) {                                                                                     \
+      dlog_info(LLM_MODULE_NAME, "[HIXL] %" PRIu64 " %s:" fmt, LlmLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__); \
+    }                                                                                                               \
   } while (false)
 
 #define LLM_LOGE_IF(condition, ...)     \
