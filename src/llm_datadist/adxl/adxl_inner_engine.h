@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * Copyright (c) 2025-2026 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
@@ -64,6 +64,10 @@ class AdxlInnerEngine {
  private:
   Status GetTransferType(const ChannelPtr &channel, TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
                          bool &need_buffer, TransferType &type) const;
+  // Handle the sync transfer through the buffer transfer service. Sets handled=true when the buffer path produced
+  // the final result (success or failure); handled=false means the caller should fall back to a direct transfer.
+  Status TransferSyncViaBuffer(const AscendString &remote_engine, const ChannelPtr &channel, TransferOp operation,
+                               const std::vector<TransferOpDesc> &op_descs, int32_t timeout_in_millis, bool &handled);
   Status InitBufferTransferService(const std::map<ge::AscendString, ge::AscendString> &options);
   static void ParseBufferPool(const std::map<AscendString, AscendString> &options, std::string &pool_config);
   Status ParseWaterlineRatio(const std::map<AscendString, AscendString> &json_options, const char *option_name,
@@ -76,6 +80,15 @@ class AdxlInnerEngine {
                                uint64_t &npu_pool_size);
   Status ParseAutoConnectConfig(const std::map<AscendString, AscendString> &options);
   Status DisconnectOnError(const std::string &remote_engine, int32_t timeout_in_millis);
+  // Fail-fast on a transport failure is enabled in plain mode and auto-connect mode, i.e. everything except a
+  // user-configured channel pool (whose link lifecycle is managed via eviction; marking would brick a pooled
+  // channel that is never destroyed on error). In auto-connect the channel is destroyed on error
+  // (DisconnectOnError), so marking it unavailable never bricks the link: the next transfer rebuilds a fresh one.
+  bool IsLinkFailFastEnabled() const {
+    return auto_connect_ || !user_config_channel_pool_;
+  }
+  // Mark the link unavailable when a transport-level failure (including sync timeout) trips the breaker.
+  void MarkUnavailableOnError(const ChannelPtr &channel, Status ret) const;
 
   std::string local_engine_;
   ChannelManager channel_manager_;
