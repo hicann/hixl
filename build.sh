@@ -20,7 +20,7 @@ BUILD_PATH="${BASEPATH}/${BUILD_RELATIVE_PATH}/"
 usage() {
   echo "Usage:"
   echo "  sh build.sh [-h | --help] [-v | --verbose] [-j<N>]"
-  echo "              [--pkg] [--examples]"
+  echo "              [--pkg] [--pkg-type=<TYPE>] [--examples]"
   echo "              [--build_type=<Release|Debug> | --build-type=<Release|Debug]"
   echo "              [--cann_3rd_lib_path=<PATH> | --cann-3rd-lib-path=<PATH>]"
   echo "              [--output_path=<PATH> | --output-path=<PATH>]"
@@ -30,6 +30,7 @@ usage() {
   echo "    -h, --help        Print usage"
   echo "    -v, --verbose     Display build command"
   echo "    -j<N>             Set the number of threads used for building HIXL, default is 8"
+  echo "    --pkg-type=<TYPE> Specify package type (TYPE option: run/rpm/deb), Default: run"
   echo "    --build_type=<Release|Debug> |--build-type=<Release|Debug>"
   echo "                      Set build type, default Release"
   echo "    --cann_3rd_lib_path=<PATH> | --cann-3rd-lib-path=<PATH>"
@@ -57,6 +58,17 @@ check_build_type() {
   fi
 }
 
+# check value of pkg-type option
+# usage: check_pkg_type pkg_type
+check_pkg_type() {
+  arg_value="$1"
+  if [ "X$arg_value" != "Xrun" ] && [ "X$arg_value" != "Xrpm" ] && [ "X$arg_value" != "Xdeb" ]; then
+    echo "Invalid value $arg_value for option --$2"
+    usage
+    exit 1
+  fi
+}
+
 # parse and set options
 checkopts() {
   VERBOSE=""
@@ -65,6 +77,7 @@ checkopts() {
   OUTPUT_PATH="${BASEPATH}/build_out"
   CANN_3RD_LIB_PATH="$BASEPATH/third_party"
   CMAKE_BUILD_TYPE="Release"
+  PACKAGE_TYPE="run"
   ENABLE_EXAMPLES=OFF
   ENABLE_BENCHMARKS=OFF
   ENABLE_ASAN=OFF
@@ -73,7 +86,7 @@ checkopts() {
   CUSTOM_SIGN_SCRIPT="${BASEPATH}/scripts/sign/community_sign_build.py"
 
   # Process the options
-  parsed_args=$(getopt -a -o j:hv -l help,verbose,pkg,examples,cann_3rd_lib_path:,cann-3rd-lib-path:,output_path:,output-path:,build_type:,build-type:,sign-script:,sign_script:,asan,cov,enable_sign,enable-sign -- "$@") || {
+  parsed_args=$(getopt -a -o j:hv -l help,verbose,pkg,pkg-type:,examples,cann_3rd_lib_path:,cann-3rd-lib-path:,output_path:,output-path:,build_type:,build-type:,sign-script:,sign_script:,asan,cov,enable_sign,enable-sign -- "$@") || {
     usage
     exit 1
   }
@@ -109,6 +122,11 @@ checkopts() {
         ;;
       --pkg)
         shift
+        ;;
+      --pkg-type)
+        check_pkg_type "$2" pkg-type
+        PACKAGE_TYPE="$2"
+        shift 2
         ;;
       --examples)
         shift
@@ -159,6 +177,7 @@ build() {
   cd "${BUILD_PATH}"
   cmake -D CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
         -D CMAKE_INSTALL_PREFIX=${OUTPUT_PATH} \
+        -D PACKAGE_TYPE=${PACKAGE_TYPE} \
         -D ENABLE_EXAMPLES=${ENABLE_EXAMPLES} \
         -D ENABLE_BENCHMARKS=${ENABLE_BENCHMARKS} \
         -D ENABLE_LCRGEN_TOOL=${ENABLE_LCRGEN_TOOL} \
@@ -177,12 +196,33 @@ build() {
   fi
   echo "Build success!"
 
-  if [ -f _CPack_Packages/makeself_staging/cann*.run ];then
-    mv _CPack_Packages/makeself_staging/cann*.run ${OUTPUT_PATH}
-  else
-    echo "package hixl run failed"
-    return 1
-  fi
+  case "${PACKAGE_TYPE}" in
+    deb)
+      if ls *.deb 1>/dev/null 2>&1; then
+        mv *.deb ${OUTPUT_PATH}
+      else
+        echo "package hixl deb failed"
+        return 1
+      fi
+      ;;
+    rpm)
+      if ls *.rpm 1>/dev/null 2>&1; then
+        mv *.rpm ${OUTPUT_PATH}
+      else
+        echo "package hixl rpm failed"
+        return 1
+      fi
+      ;;
+    *)
+      # default "run": makeself .run package
+      if [ -f _CPack_Packages/makeself_staging/cann*.run ]; then
+        mv _CPack_Packages/makeself_staging/cann*.run ${OUTPUT_PATH}
+      else
+        echo "package hixl run failed"
+        return 1
+      fi
+      ;;
+  esac
 
   echo "hixl package success!"
 }

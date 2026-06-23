@@ -90,22 +90,25 @@ install(DIRECTORY ${hixl_include}/cs
     DESTINATION ${ARCH_LINUX_PATH}/include
     COMPONENT hixl
     FILE_PERMISSIONS
-    OWNER_READ OWNER_WRITE
+    OWNER_READ OWNER_EXECUTE
     GROUP_READ GROUP_EXECUTE
+    WORLD_READ WORLD_EXECUTE
 )
 install(DIRECTORY ${hixl_include}/adxl
     DESTINATION ${ARCH_LINUX_PATH}/include
     COMPONENT hixl
     FILE_PERMISSIONS
-    OWNER_READ OWNER_WRITE
+    OWNER_READ OWNER_EXECUTE
     GROUP_READ GROUP_EXECUTE
+    WORLD_READ WORLD_EXECUTE
 )
 install(DIRECTORY ${hixl_include}/hixl
     DESTINATION ${ARCH_LINUX_PATH}/include
     COMPONENT hixl
     FILE_PERMISSIONS
-    OWNER_READ OWNER_WRITE
+    OWNER_READ OWNER_EXECUTE
     GROUP_READ GROUP_EXECUTE
+    WORLD_READ WORLD_EXECUTE
 )
 install(FILES ${hixl_include}/llm_datadist/llm_datadist.h
     DESTINATION ${ARCH_LINUX_PATH}/include/llm_datadist
@@ -131,5 +134,5 @@ install(TARGETS cann_hixl
 
 # ============= CPack =============
 if (NOT ENABLE_COV AND NOT ENABLE_UT)
-    set_cann_cpack_config(hixl ENABLE_DEVICE TRUE)
+    set_cann_cpack_config(hixl ENABLE_DEVICE TRUE SHARE_INFO_NAME hixl PACKAGE_TYPE ${PACKAGE_TYPE})
 endif()
