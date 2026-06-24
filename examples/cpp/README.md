@@ -44,7 +44,7 @@ ifconfig
 ## 程序编译
 
 
-1. 参考[构建](../../docs/build.md)里的**编译执行**章节，利用 `bash build.sh --examples` 进行编译。
+1. 参考[构建](../../docs/zh/build.md)里的**编译执行**章节，利用 `bash build.sh --examples` 进行编译。
 
 2. 编译结束后，在**build/examples/cpp**目录下生成多个可执行文件。
 

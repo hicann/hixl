@@ -38,3 +38,5 @@ log/
 .opencode
 compile_commands.json
 .clangd
+.claude/
+.opencode/

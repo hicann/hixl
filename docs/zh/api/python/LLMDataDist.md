@@ -1,0 +1,441 @@
+# LLMDataDist
+
+## 产品支持情况
+
+<!-- npu="950" id1 -->
+- Ascend 950PR/Ascend 950DT：支持
+<!-- end id1 -->
+<!-- npu="A3" id2 -->
+- Atlas A3 训练系列产品/Atlas A3 推理系列产品：支持
+<!-- end id2 -->
+<!-- npu="910b" id3 -->
+- Atlas A2 推理系列产品/Atlas A2 训练系列产品：支持
+<!-- end id3 -->
+
+说明：
+<!-- npu="910b" id4 -->
+针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，仅支持Atlas 800I A2 推理服务器、A200I A2 Box 异构组件。
+<!-- end id4 -->
+<!-- npu="950" id5 -->
+针对Ascend 950PR/Ascend 950DT，不支持link、unlink和query_register_mem_status。
+<!-- end id5 -->
+
+## LLMDataDist构造函数
+
+**函数功能**
+
+构造LLMDataDist。
+
+**函数原型**
+
+```python
+__init__(role: LLMRole, cluster_id: int)
+```
+
+**参数说明**
+
+| 参数名称 | 数据类型 | 取值说明 |
+| --- | --- | --- |
+| role | LLMRole | 集群角色。该参数只用于标识当前角色，对传输过程无影响，取值如下。<br><br>  - LLMRole.DECODER：增量集群<br>  - LLMRole.PROMPT：全量集群 |
+| cluster_id | int | 集群ID。LLMDataDist标识，在所有参与建链的范围内需要确保唯一。 |
+
+**调用示例**
+
+```python
+from llm_datadist import LLMDataDist, LLMRole
+llm_datadist = LLMDataDist(LLMRole.DECODER, 0)
+```
+
+**返回值**
+
+正常情况下返回LLMDataDist的实例。
+
+参数错误可能抛出TypeError或ValueError。
+
+**约束说明**
+
+无
+
+## init
+
+**函数功能**
+
+初始化LLMDataDist，需要在init的options中配置CacheManager模式，即enable\_cache\_manager设置为True或者指定local\_comm\_res。
+
+该模式下，Decode和Prompt可以双向拉取Cache。
+
+**函数原型**
+
+```python
+init(options: Dict[str, str])
+```
+
+**参数说明**
+
+| 参数名称 | 数据类型 | 取值说明 |
+| --- | --- | --- |
+| options | Dict[str, str] | 配置项。<br>传入的options可以通过LLMConfig来生成。<br><br>  - device_id必填。<br>  - enable_cache_manager为True或者设置local_comm_res。 |
+
+**调用示例**
+
+```python
+from llm_datadist import LLMDataDist, LLMRole, LLMConfig
+llm_datadist = LLMDataDist(LLMRole.PROMPT, 0)
+llm_config = LLMConfig()
+llm_config.enable_cache_manager = True
+llm_config.device_id = 0
+engine_options = llm_config.generate_options()
+llm_datadist.init(engine_options)
+```
+
+**返回值**
+
+正常情况下无返回值。
+
+异常情况会抛出LLMException。
+
+参数错误可能抛出TypeError或ValueError。
+
+**约束说明**
+
+初始化成功后，系统退出前需要调用finalize。
+
+## finalize
+
+**函数功能**
+
+释放LLMDataDist。
+
+**函数原型**
+
+```python
+finalize()
+```
+
+**参数说明**
+
+无
+
+**调用示例**
+
+```python
+from llm_datadist import LLMDataDist, LLMRole, LLMConfig
+llm_datadist = LLMDataDist(LLMRole.DECODER, 0)
+llm_config = LLMConfig()
+llm_config.enable_cache_manager = True
+llm_config.device_id = 0
+engine_options = llm_config.generate_options()
+llm_datadist.init(engine_options)
+llm_datadist.finalize()
+```
+
+**返回值**
+
+无
+
+**约束说明**
+
+- 初始化成功后，系统退出前需要调用finalize。
+
+- finalize不能和其他接口并发调用。
+
+## link\_clusters
+
+**函数功能**
+
+单边建链，由Client单侧发起建链。是Client还是Server与角色prompt或者decoder无关。设置listen\_ip\_info标识端口监听，即为Server端。
+
+**函数原型**
+
+```python
+link_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], timeout=3000)
+```
+
+**参数说明**
+
+| 参数名称 | 数据类型 | 取值说明 |
+| --- | --- | --- |
+| clusters | Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]] | 集群列表。 |
+| timeout | int | 超时时间，单位：ms，默认超时时间3000ms。 |
+
+**调用示例**
+
+请参考[样例运行](../../../../examples/python/README.md)。
+
+**返回值**
+
+正常情况下返回两个值的元组，第一个值是接口的返回值，类型是LLMStatusCode，第二个是每个集群建链结果的列表，类型是LLMStatusCode。
+
+参数错误可能抛出TypeError或ValueError。
+
+**约束说明**
+
+- 建链的要求如下。建链数量过多存在内存OOM及KV Cache传输的性能风险。
+  - 当local_comm_res配置为空、version为"1.0"或"1.2"时，使用集合通信的通信域方式进行建链，允许创建的最大通信数量=512。
+  - 当local_comm_res配置version为"1.3"时（推荐使用，需要HDK版本大于等于25.5.0且toolkit包版本大于等于9.1.0），使用HixlCS能力进行建链，没有链路上限限制。
+
+- 建议超时时间配置200ms以上。如果TLS处于开启状态，建议超时时间配置为2000ms以上。查询TLS状态可以使用如下命令：
+
+    ```sh
+    hccn_tool [-i %d] -tls -g [host]
+    ```
+
+- 调用该接口前需提前注册所有内存，否则建链后注册不支持远端访问。
+- 容器场景若未配置local\_comm\_res或配置为空，需在容器内映射“/etc/hccn.conf”文件或者确保默认路径“/usr/local/Ascend/driver/tools”下存在hccn_tool，如果两者都不能满足，则需要用户将hccn_tool所在路径配置到PATH中。配置实例如下，hccn_tool_install_path表示hccn_tool所在路径。
+
+    ```sh
+    export PATH=$PATH:{hccn_tool_install_path}
+    ```
+
+## unlink\_clusters
+
+**函数功能**
+
+单边断链，可以由Client单侧发起，通知Server进行断链；也可以Client和Server均发起强制断链，只清理本地链路。
+
+**函数原型**
+
+```python
+unlink_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], timeout=3000, force=False)
+```
+
+**参数说明**
+
+| 参数名称 | 数据类型 | 取值说明 |
+| --- | --- | --- |
+| clusters | Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]] | 集群列表。 |
+| timeout | int | 超时时间，单位：ms，默认超时时间3000ms。 |
+| force | bool | 是否强制断链，默认False。True表示强制断链。<br><br>  - 强制断链仅强制拆除本端链接，两端都要调用。<br>  - 非强制断链在Client发起。<br>  - 无故障时两端链路都会拆除。<br>  - 有故障导致断链失败时，需要在Server端也发起断链操作。 |
+
+**调用示例**
+
+请参考[样例运行](../../../../examples/python/README.md)。
+
+**返回值**
+
+正常情况下返回两个值的元组，第一个值是接口的返回值，类型是LLMStatusCode，第二个是每个集群建链结果的列表，类型是LLMStatusCode。
+
+参数错误可能抛出TypeError或ValueError。
+
+**约束说明**
+
+无
+
+## switch\_role
+
+**函数功能**
+
+切换当前LLMDataDist的角色，同时可通过配置switch\_options切换Client或者Server。
+
+**函数原型**
+
+```python
+switch_role(self, role: LLMRole, switch_options: Optional[Dict[str, str]] = None)
+```
+
+**参数说明**
+
+| 参数名称 | 数据类型 | 取值说明 |
+| --- | --- | --- |
+| role | LLMRole | 切换的目标角色。 |
+| switch_options | options: Dict[str, str] | 切换角色配置项。<br>可选参数，默认值为None。<br>若作为Server，需通过listen_ip_info配置监听的Host IP和端口，如"192.168.1.1:26000"；若未设置则作为Client。<br>Server切换为Client将会关闭之前监听的端口；如果仅切换Server的监听端口，可通过options设置监听另一个端口，将关闭之前的监听端口。<br>该配置项指定hixl传输后端时，不支持通过switch\_role变更侦听端口。 |
+
+**调用示例**
+
+请参考[样例运行](../../../../examples/python/README.md)。
+
+**返回值**
+
+- 正常情况下无返回值。
+- 传入数据类型错误情况下会抛出TypeError或ValueError异常。
+- 如果switch\_role时存在残留链路资源，则会抛出LLMException，status\_code为LLM\_EXIST\_LINK。
+
+**约束说明**
+
+无
+
+## link
+
+**函数功能**
+
+双边建链，通过建立通信域方式建链。（推荐使用更易用的单边建链的link\_clusters接口，无需指定ranktable信息）
+
+如果要在单机内且想使用RDMA网卡通信，需要设置HCCL\_INTRA\_ROCE\_ENABLE=1环境变量。
+
+**函数原型**
+
+```python
+link(comm_name: str, cluster_rank_info: Dict[int, int], rank_table: str) -> int
+```
+
+**参数说明**
+
+| 参数名称 | 数据类型 | 取值说明 |
+| --- | --- | --- |
+| comm_name | str | 通信域名称。<br>取值范围：小于128个字符。 |
+| cluster_rank_info | Dict[int, int] | 集群ID到rank ID的映射。<br>例如：{1: 0, 2: 1}。 |
+| rank_table | str | 开发者可以通过该参数配置参与集合通信的NPU资源信息。
+
+如上表格中ranktable具体信息请参见[《HCCL集合通信库用户指南》](https://www.hiascend.com/document/redirect/CannCommunityHcclUg)。<br>如上表格中rank_table的配置示例如下:
+
+```sh
+{
+    "server_count": "2",
+    "server_list": [
+        {
+            "device": [
+                {
+                    "device_id": "0",
+                    "device_ip": "x.x.x.x",
+                    "rank_id": "0"
+                },
+            ],
+            "server_id": "xxxx"
+        },{
+            "device": [
+                {
+                    "device_id": "0",
+                    "device_ip": "x.x.x.x",
+                    "rank_id": "1"
+                },
+            ],
+            "server_id": "xxxx"
+        }
+    ],
+    "status": "completed",
+    "version": "1.0"
+}
+```
+
+**调用示例**
+
+请参考[样例运行](../../../../examples/python/README.md)。
+
+**返回值**
+
+正常情况下返回标识通信域的ID。
+
+参数错误可能抛出TypeError或ValueError。
+
+**约束说明**
+
+- 需要通信域内所有节点同时发起。
+- 通信域内节点数量最大支持4。
+- 通信域数量建议不超过16，最大支持512。建链数量过多存在内存OOM及cache传输的性能下降风险。
+- link底层会在通信域内部交换内存描述符，对于用来传输的cache，需要在link前先配置内存池或者先注册内存。
+- 不支持fork子进程方式调用。
+- 最多支持16条链路并发建链，超过16条底层会排队。
+- 需保证多通信域建链不出现循环依赖。
+<!-- npu="950" id6 -->
+- Ascend 950PR/Ascend 950DT不支持该接口。
+<!-- end id6 -->
+
+## unlink
+
+**函数功能**
+
+双边建链对应的断链接口，调用此接口进行断链。
+
+**函数原型**
+
+```python
+unlink(comm_id: int)
+```
+
+**参数说明**
+
+| 参数名称 | 数据类型 | 取值说明 |
+| --- | --- | --- |
+| comm_id | int | link接口的返回值 |
+
+**调用示例**
+
+请参考[样例运行](../../../../examples/python/README.md)。
+
+**返回值**
+
+正常情况下无返回值。
+
+异常场景会抛出LLMException异常。
+
+参数错误可能抛出TypeError或ValueError。
+
+<!-- npu="950" id7 -->
+Ascend 950PR/Ascend 950DT不支持该接口。
+<!-- end id7 -->
+
+**约束说明**
+
+无
+
+## query\_register\_mem\_status
+
+**函数功能**
+
+调用此接口查询注册内存状态。
+
+**函数原型**
+
+```python
+query_register_mem_status(comm_id: int) -> RegisterMemStatus
+```
+
+**参数说明**
+
+| 参数名称 | 数据类型 | 取值说明 |
+| --- | --- | --- |
+| comm_id | int | link接口的返回值 |
+
+**调用示例**
+
+请参考[样例运行](../../../../examples/python/README.md)。
+
+**返回值**
+
+正常场景下无返回值。
+
+异常场景会抛出LLMException异常。
+
+参数错误可能抛出TypeError或ValueError。
+
+<!-- npu="950" id8 -->
+Ascend 950PR/Ascend 950DT不支持该接口。
+<!-- end id8 -->
+
+**约束说明**
+
+配合link使用。
+
+## cache\_manager
+
+**函数功能**
+
+获取CacheManager实例。
+
+**函数原型**
+
+```python
+cache_manager()
+```
+
+**参数说明**
+
+无
+
+**调用示例**
+
+```python
+from llm_datadist import LLMDataDist, LLMRole
+llm_datadist = LLMDataDist(LLMRole.DECODER, 0)
+...
+llm_datadist.init(engine_options)
+cache_manager = llm_datadist.cache_manager
+```
+
+**返回值**
+
+返回CacheManager实例。
+
+**约束说明**
+
+无

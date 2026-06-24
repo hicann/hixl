@@ -24,7 +24,7 @@
 
 ### 1. 硬件和软件准备
 -   芯片：Atlas A3 训练/推理系列产品、Atlas 800I A2 推理产品/A200I A2 Box 异构组件、Ascend 950PR/Ascend 950DT
--   参考 [环境准备](../docs/build.md#环境准备) 完成昇腾AI软件栈在运行环境上的部署
+-   参考 [环境准备](../docs/zh/build.md#环境准备) 完成昇腾AI软件栈在运行环境上的部署
 
 ### 2. Device连通性检查
 在执行样例前，请先使用驱动包提供的 [hccn_tool工具](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743?category=developer-documents&subcategory=interface-reference) 检查**两个device之间的连通性**。以A2场景为例，检查示例如下：

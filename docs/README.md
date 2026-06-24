@@ -2,7 +2,7 @@
 
 ## 开发文档
 
-- [单边通信库开发指南](https://hiascend.com/document/redirect/CannCommunityHixlDev)：介绍HIXL基本概念、HIXL相关特性以及如何使用HIXL API实现集群间的数据传输。
+- [单边通信库开发指南](./zh/guide/README.md)：介绍HIXL基本概念、HIXL相关特性以及如何使用HIXL API实现集群间的数据传输。
 - [hixl wiki](https://gitcode.com/cann/hixl/wiki)：汇总了HIXL的使用经验帖，包括问题定位、性能分析和常用工具使用的一些经验总结。
 
 ## 技术文章
@@ -15,7 +15,6 @@
 - [FabricMem模式介绍](https://gitcode.com/cann/hixl/wiki/FabricMem模式介绍.md)
 - [HIXL快速适配NIXL昇腾后端](https://mp.weixin.qq.com/s/XW1rVtDEzyeJtdeeowiNMA)
 - [Mooncake Store Dummy-Real Client 介绍](https://gitcode.com/cann/hixl/wiki/Mooncake%20Store%20Dummy-Real%20Client%20%E4%BB%8B%E7%BB%8D.md)
-
 
 ## 开发实践系列教程
 
@@ -33,8 +32,8 @@
 ## 接口文档
 
 - C/C++ API
-  - [HIXL C++接口](./cpp/HIXL接口.md)
-  - [HIXL_CS C接口](./cpp/HIXL_CS接口.md)
-  - [LLM-DataDist C++接口](./cpp/LLM-DataDist接口.md)
+  - [HIXL C++接口](./zh/api/cpp/HIXL-interface.md)
+  - [HIXL_CS C接口](./zh/api/cpp/HIXL_CS-interface.md)
+  - [LLM-DataDist C++接口](./zh/api/cpp/LLM-DataDist-interface.md)
 - Python API
-  - [LLM-DataDist Python接口](./python/LLMDataDist.md)
+  - [LLM-DataDist Python接口](./zh/api/python/README.md)

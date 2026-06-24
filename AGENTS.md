@@ -54,7 +54,7 @@ pre-commit run --files <changed-files>     # 只检查受影响文件
 
 ## 编码规范与代码风格
 
-- **编写代码**：务必遵守[编码规范和安全规范](docs/guidelines/coding_standards)。
+- **编写代码**：务必遵守[编码规范和安全规范](docs/zh/contributions/coding_standards)。
 - **C++**：遵循 `.clang-format`（基于 Google 风格），2 空格缩进、120 列限制、附着式大括号、`SortIncludes: false`。类型用 `PascalCase`，函数用 `camelCase`。
 - **C++ 复杂度**：单函数不超过 50 行；嵌套深度（if/for/while/switch/try 及宏展开块）不超过 4，超出时提取 helper 或 early return。
 - **Python**：使用 `ruff-check` 和 `ruff-format`，模块和测试文件用 `snake_case`。
@@ -67,7 +67,7 @@ pre-commit run --files <changed-files>     # 只检查受影响文件
 
 ## 提交前检查与提交规范
 
-- 建议先阅读 `docs/precommit_guide.md`，再执行 `pre-commit install` 和 `pre-commit run --files <changed-files>`。
+- 建议先阅读 `docs/zh/contributions/precommit_guide.md`，再执行 `pre-commit install` 和 `pre-commit run --files <changed-files>`。
 - OAT（开源审计工具）会在 pre-commit 中检查二进制文件和许可证头；新增源码文件需要带正确的许可证头。
 - 禁止提交 `build_out/`、`build_test/`、手动下载的第三方压缩包或其他二进制产物。
 - 如果 pre-commit 或 OAT 因环境问题未执行成功，Agent 需要在最终说明中写明原因和影响范围。
