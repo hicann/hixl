@@ -18,6 +18,7 @@
 #include "hixl/hixl_types.h"
 #include "common/thread_pool.h"
 #include "common/ctrl_msg.h"
+#include "common/optional_aclrt_context.h"
 
 namespace hixl {
 class MsgHandler {
@@ -40,7 +41,7 @@ class MsgHandler {
   std::unique_ptr<ThreadPool> thread_pool_ = nullptr;
   std::atomic<bool> running_{false};
   std::thread listener_;
-  aclrtContext ctx_ = nullptr;
+  OptionalAclrtContext ctx_;
 };
 }  // namespace hixl
 

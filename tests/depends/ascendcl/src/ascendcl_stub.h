@@ -50,6 +50,7 @@ class AclRuntimeStub {
   virtual aclError aclrtWaitAndResetNotify(aclrtNotify notify, aclrtStream stream, uint32_t timeout);
   virtual aclError aclrtSetDevice(int32_t deviceId);
   virtual aclError aclrtResetDevice(int32_t deviceId);
+  virtual aclError aclrtGetDeviceCount(uint32_t *count);
   virtual aclError aclrtGetDevice(int32_t *deviceId);
   virtual aclError aclrtGetThreadLastTaskId(uint32_t *taskId);
   virtual aclError aclrtCreateContext(aclrtContext *context, int32_t deviceId);
@@ -139,6 +140,8 @@ class AclRuntimeStub {
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+aclError aclrtGetDeviceCount(uint32_t *count);
 
 #ifdef __cplusplus
 }

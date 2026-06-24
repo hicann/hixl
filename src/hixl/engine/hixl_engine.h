@@ -22,6 +22,7 @@
 #include "hixl_server.h"
 #include "hixl/hixl_types.h"
 #include "common/hixl_inner_types.h"
+#include "common/optional_aclrt_context.h"
 
 namespace hixl {
 class HixlEngine : public hixl::Engine {
@@ -171,7 +172,7 @@ class HixlEngine : public hixl::Engine {
   uint8_t rdma_service_level_{kRdmaServiceLevel};
   std::atomic<bool> auto_connect_{false};
   std::optional<uint8_t> qos_;
-  aclrtContext aclrt_context_{nullptr};
+  OptionalAclrtContext aclrt_context_;
 };
 }  // namespace hixl
 

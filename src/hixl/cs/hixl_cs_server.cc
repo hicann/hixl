@@ -155,7 +155,7 @@ Status HixlCSServer::Initialize(const EndpointDesc *endpoint_list, uint32_t list
                                       return this->DestroyChannel(fd, msg, msg_len);
                                     });
   CtrlMsgPlugin::Initialize();
-  msg_handler_.Initialize();
+  HIXL_CHK_STATUS_RET(msg_handler_.Initialize(), "Failed to initialize msg handler");
   HIXL_CHK_STATUS_RET(InitTransFinishedFlag(), "Failed to init trans finished flag");
   HIXL_EVENT("[HixlServer] init success, endpoint_list_num:%u", list_num);
   return SUCCESS;

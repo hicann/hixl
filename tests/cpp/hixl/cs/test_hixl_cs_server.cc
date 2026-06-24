@@ -23,6 +23,7 @@
 #include "hixl/hixl_types.h"
 #include "common/ctrl_msg.h"
 #include "common/ctrl_msg_plugin.h"
+#include "engine/endpoint_test_utils.h"
 #include "slog_stub.h"
 #include "hccl_stub.h"
 #include "hccl/hccl_types.h"
@@ -445,6 +446,33 @@ TEST_F(HixlCSTest, TestServerRegMemRejectsNullMemHandle) {
   ret = HixlCSServerRegMem(server_handle, nullptr, &mem, nullptr);
   EXPECT_EQ(ret, HIXL_PARAM_INVALID);
   EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+}
+
+TEST_F(HixlCSTest, TestCreateServerPropagatesMsgHandlerRuntimeFailure) {
+  auto acl_stub = endpoint_test::CreateAclRuntimeStub("Ascend910_9391", 0, 3, 0, 8);
+  acl_stub->device_count_failed_ = true;
+  llm::AclRuntimeStub::SetInstance(acl_stub);
+
+  EndpointDesc ep{};
+  ep.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+  ep.protocol = COMM_PROTOCOL_UBC_CTP;
+  ep.commAddr.type = COMM_ADDR_TYPE_ID;
+  ep.commAddr.id = kEpAddrId0;
+
+  HixlServerConfig config{};
+  HixlServerHandle server_handle = nullptr;
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = kPort;
+  desc.endpoint_list = &ep;
+  desc.endpoint_list_num = 1U;
+  auto ret = HixlCSServerCreate(&desc, &config, &server_handle);
+
+  EXPECT_NE(ret, HIXL_SUCCESS);
+  EXPECT_EQ(server_handle, nullptr);
+  EXPECT_EQ(acl_stub->get_device_count_calls_, 1);
+  EXPECT_EQ(acl_stub->get_current_context_calls_, 0);
+  llm::AclRuntimeStub::Reset();
 }
 
 TEST_F(HixlCSTest, TestStructSize) {

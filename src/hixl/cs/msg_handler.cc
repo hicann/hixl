@@ -28,8 +28,7 @@ Status MsgHandler::Initialize() {
   HIXL_CHECK_NOTNULL(thread_pool_);
   running_ = true;
 
-  HIXL_CHK_ACL_RET(aclrtGetCurrentContext(&ctx_));
-  HIXL_LOGI("aclrtGetCurrentContext ctx=%p", ctx_);
+  HIXL_CHK_STATUS_RET(ctx_.GetCurrentContext(), "GetCurrentContext failed");
   listener_ = std::thread([this]() { HandleMsg(); });
   return SUCCESS;
 }
@@ -90,9 +89,7 @@ void MsgHandler::HandleMsg() {
     }
     auto proc = it->second;
     (void)thread_pool_->commit([this, req, proc]() -> void {
-      if (ctx_ != nullptr) {
-        aclrtSetCurrentContext(ctx_);
-      }
+      HIXL_CHK_STATUS(ctx_.SetCurrentContext(), "SetCurrentContext failed");
       (void)HandleMsg(req.first, req.second, proc);
     });
   }

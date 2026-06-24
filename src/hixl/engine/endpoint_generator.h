@@ -24,16 +24,15 @@
 namespace hixl {
 class EndpointGenerator {
  public:
+  enum class SocType { kV2, kV3, kV5, kOther };
+
   static Status BuildEndpointList(const HixlOptions &options, const std::string &local_engine,
                                   std::string &local_comm_res, std::vector<EndpointConfig> &endpoint_list);
-  static Status ConvertToEndpointDesc(const EndpointConfig &endpoint_config, EndpointDesc &endpoint,
-                                      uint32_t dev_phy_id = 0);
+  static Status ConvertToEndpointDesc(const EndpointConfig &endpoint_config, EndpointDesc &endpoint);
   static Status SerializeEndpointConfigList(const std::vector<EndpointConfig> &list, std::string &msg_str);
   static Status DeserializeEndpointConfigList(const std::string &json_str, std::vector<EndpointConfig> &endpoint_list);
 
  private:
-  enum class SocType { kV2, kV3, kV5, kOther };
-
   struct EndpointInfo {
     std::string protocol;
     std::string comm_id;
@@ -62,8 +61,9 @@ class EndpointGenerator {
   static Status AutoGenEndpointList(const HixlOptions &options, const std::string &local_engine,
                                     std::vector<EndpointConfig> &endpoint_list);
   static Status ParseLocalCommRes(const nlohmann::json &config, std::vector<EndpointConfig> &endpoint_list);
-  static Status FillDeviceInfoIfNeeded(std::vector<EndpointConfig> &endpoint_list);
-  static Status BuildEndpointList(int32_t phy_device_id, std::vector<EndpointInfo> &endpoint_list);
+  static bool HasDeviceEndpoint(const std::vector<EndpointConfig> &endpoint_list);
+  static Status PopulateLocalDeviceInfo(std::vector<EndpointConfig> &endpoint_list);
+  static Status BuildDefaultDeviceEndpointInfoList(int32_t phy_device_id, std::vector<EndpointInfo> &endpoint_list);
   static Status BuildRoceEndpoint(int32_t phy_device_id, EndpointInfo &endpoint);
   static Status BuildHccsEndpoint(int32_t phy_device_id, EndpointInfo &endpoint);
   static Status GetHostIpFromLocalEngine(const std::string &local_engine, std::string &host_ip);

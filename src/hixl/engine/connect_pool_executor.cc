@@ -50,8 +50,8 @@ Status ConnectPoolExecutor::Initialize(const HixlOptions &options) {
       PARAM_INVALID, "task_queue_capacity:%d must in [%d, %d]", task_queue_capacity_, kLimitTaskQueueCapacityMin,
       kLimitTaskQueueCapacityMax);
 
+  HIXL_CHK_STATUS_RET(ctx_.GetCurrentContext(), "Failed to capture acl context");
   is_initialized_.store(true, std::memory_order::memory_order_relaxed);
-  (void)aclrtGetCurrentContext(&ctx_);
   for (int32_t i = 0; i < thread_num_; ++i) {
     workers_.emplace_back([this, i]() { WorkerHandler(i); });
   }
@@ -139,7 +139,7 @@ bool ConnectPoolExecutor::IsInitialized() const {
 
 void ConnectPoolExecutor::WorkerHandler(const int32_t worker_id) {
   HIXL_LOGI("ConnectPoolExecutor worker %d start", worker_id);
-  HIXL_CHK_ACL(aclrtSetCurrentContext(ctx_));
+  HIXL_CHK_STATUS(ctx_.SetCurrentContext(), "Failed to set acl context");
   auto cv_wait_func = [this]() {
     if (!is_initialized_.load(std::memory_order::memory_order_relaxed)) {
       return true;

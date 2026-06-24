@@ -13,6 +13,7 @@
 #include "engine/hixl_server.h"
 #include "hixl/hixl_types.h"
 #include "common/hixl_inner_types.h"
+#include "engine/endpoint_test_utils.h"
 
 namespace hixl {
 static constexpr uint32_t kMemAddr1 = 0x1000;
@@ -28,6 +29,9 @@ class HixlServerTest : public ::testing::Test {
     ep0.protocol = "roce";
     ep0.comm_id = "192.168.1.2";
     ep0.placement = "device";
+    ep0.device_info.phy_device_id = 3;
+    ep0.device_info.super_device_id = 7;
+    ep0.device_info.super_pod_id = 9;
     EndpointConfig ep1;
     ep1.protocol = "roce";
     ep1.comm_id = "192.168.1.1";
@@ -36,11 +40,16 @@ class HixlServerTest : public ::testing::Test {
     default_eps.emplace_back(ep0);
     default_eps.emplace_back(ep1);
 
+    acl_stub_ = endpoint_test::CreateAclRuntimeStub("Ascend910_9391", 0, 3, 7, 9);
+    llm::AclRuntimeStub::SetInstance(acl_stub_);
+
     mem_.addr = kMemAddr1;
     mem_.len = kMemLen;
   }
 
-  void TearDown() override {}
+  void TearDown() override {
+    llm::AclRuntimeStub::Reset();
+  }
 
  private:
   HixlServer server_;
@@ -48,6 +57,7 @@ class HixlServerTest : public ::testing::Test {
   MemDesc mem_{};
   std::string ip_ = "127.0.0.1";
   int32_t port_ = kPort;
+  std::shared_ptr<endpoint_test::MockAclRuntimeStub> acl_stub_;
 };
 
 TEST_F(HixlServerTest, RegisterMemWithoutInit) {
@@ -177,5 +187,33 @@ TEST_F(HixlServerTest, RegisterMemAddrLenOverflow) {
   MemHandle handle = nullptr;
   EXPECT_EQ(server_.RegisterMem(mem_overflow, MemType::MEM_DEVICE, handle), PARAM_INVALID);
   EXPECT_EQ(server_.Finalize(), SUCCESS);
+}
+
+TEST_F(HixlServerTest, InitializeHostOnlySkipsDeviceQueries) {
+  std::vector<EndpointConfig> host_eps;
+  EndpointConfig ep{};
+  ep.protocol = "roce";
+  ep.comm_id = "127.0.0.1";
+  ep.placement = "host";
+  host_eps.emplace_back(ep);
+
+  EXPECT_EQ(server_.Initialize(ip_, port_, host_eps), SUCCESS);
+  EXPECT_EQ(acl_stub_->get_device_calls_, 0);
+  EXPECT_EQ(acl_stub_->get_phy_dev_calls_, 0);
+  EXPECT_EQ(server_.Finalize(), SUCCESS);
+}
+
+TEST_F(HixlServerTest, InitializeFailsWhenDeviceEndpointHasNoLocalDeviceResource) {
+  std::vector<EndpointConfig> device_eps;
+  EndpointConfig ep{};
+  ep.protocol = "hccs";
+  ep.comm_id = "7";
+  ep.placement = "device";
+  device_eps.emplace_back(ep);
+
+  EXPECT_NE(server_.Initialize(ip_, port_, device_eps), SUCCESS);
+  EXPECT_EQ(acl_stub_->get_device_count_calls_, 0);
+  EXPECT_EQ(acl_stub_->get_device_calls_, 0);
+  EXPECT_EQ(acl_stub_->get_phy_dev_calls_, 0);
 }
 }  // namespace hixl

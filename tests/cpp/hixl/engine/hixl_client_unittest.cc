@@ -272,7 +272,12 @@ const std::string MockHixlServer::kUbCtpDeviceEndpointJson = R"({
       "dst_eid" : "000000000000000000000000c0a80763",
       "plane": "",
       "placement" : "device",
-      "net_instance_id" : "superpod1-1"
+      "net_instance_id" : "superpod1-1",
+      "device_info": {
+        "phy_device_id": 12,
+        "super_device_id": -1,
+        "super_pod_id": -1
+      }
     })";
 
 const std::string MockHixlServer::kUbCtpPlaneAEndpointJson = R"({
@@ -281,7 +286,12 @@ const std::string MockHixlServer::kUbCtpPlaneAEndpointJson = R"({
       "dst_eid": "",
       "plane" : "plane-a",
       "placement" : "device",
-      "net_instance_id" : "superpod1-1"
+      "net_instance_id" : "superpod1-1",
+      "device_info": {
+        "phy_device_id": 12,
+        "super_device_id": -1,
+        "super_pod_id": -1
+      }
     })";
 
 const std::string MockHixlServer::kUbTpPlaneBEndpointJson = R"({
@@ -415,6 +425,7 @@ class HixlClientUTest : public ::testing::Test {
     ep.dst_eid = "000000000000000000000000c0a80763";
     ep.placement = "device";
     ep.net_instance_id = "superpod1-1";
+    ep.device_info.phy_device_id = 12;
     return ep;
   }
 
@@ -425,6 +436,7 @@ class HixlClientUTest : public ::testing::Test {
     ep.plane = "plane-a";
     ep.placement = "device";
     ep.net_instance_id = "superpod1-1";
+    ep.device_info.phy_device_id = 12;
     return ep;
   }
 
@@ -435,6 +447,7 @@ class HixlClientUTest : public ::testing::Test {
     ep.plane = "plane-a";
     ep.placement = "device";
     ep.net_instance_id = "superpod1-1";
+    ep.device_info.phy_device_id = 12;
     return ep;
   }
 
@@ -445,6 +458,7 @@ class HixlClientUTest : public ::testing::Test {
     ep.plane = "plane-b";
     ep.placement = "device";
     ep.net_instance_id = "superpod1-1";
+    ep.device_info.phy_device_id = 12;
     return ep;
   }
 

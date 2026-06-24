@@ -16,6 +16,7 @@
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
+#include "common/optional_aclrt_context.h"
 #include "common/thread_pool.h"
 #include "engine/client_handler_config_helper.h"
 #include "engine/endpoint_generator.h"
@@ -42,13 +43,9 @@ Status UbClientHandler::Create(const HandlerCreateArgs &args, std::unique_ptr<Ub
   std::map<CommType, HixlClientHandle> handles;
   const std::string global_resource_config = ClientHandlerConfigHelper::BuildGlobalResourceConfig(args);
   for (const auto &pair : args.matched_pairs) {
-    int32_t dev_logic_id = 0;
-    int32_t dev_phy_id = 0;
-    HIXL_CHK_ACL_RET(aclrtGetDevice(&dev_logic_id));
-    HIXL_CHK_ACL_RET(aclrtGetPhyDevIdByLogicDevId(dev_logic_id, &dev_phy_id));
     EndpointDesc le{};
     EndpointDesc re{};
-    HIXL_CHK_STATUS_RET(EndpointGenerator::ConvertToEndpointDesc(pair.local, le, static_cast<uint32_t>(dev_phy_id)));
+    HIXL_CHK_STATUS_RET(EndpointGenerator::ConvertToEndpointDesc(pair.local, le));
     HIXL_CHK_STATUS_RET(EndpointGenerator::ConvertToEndpointDesc(pair.remote, re));
     HixlClientDesc desc{};
     desc.server_ip = args.server_ip.c_str();
@@ -79,12 +76,12 @@ Status UbClientHandler::Connect(uint32_t timeout_ms) {
 
   ThreadPool thread_pool("ub_connect", handles_.size());
   std::vector<std::future<Status>> futures;
-  aclrtContext context = nullptr;
-  HIXL_CHK_ACL_RET(aclrtGetCurrentContext(&context));
+  OptionalAclrtContext context;
+  HIXL_CHK_STATUS_RET(context.GetCurrentContext(), "GetCurrentContext failed");
 
   for (const auto &[type, handle] : handles_) {
-    futures.emplace_back(thread_pool.commit([handle, timeout_ms, type, context]() -> Status {
-      HIXL_CHK_ACL_RET(aclrtSetCurrentContext(context));
+    futures.emplace_back(thread_pool.commit([handle, timeout_ms, type, &context]() -> Status {
+      HIXL_CHK_STATUS_RET(context.SetCurrentContext(), "SetCurrentContext failed");
       HIXL_CHK_STATUS_RET(HixlCSClientConnect(handle, timeout_ms), "UbClientHandler Connect failed for type:%s",
                           CommTypeToString(type));
       return SUCCESS;

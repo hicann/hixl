@@ -27,13 +27,33 @@ class MockAclRuntimeStub : public llm::AclRuntimeStub {
   int32_t phy_device_id_ = 0;
   int64_t super_device_id_ = 9;
   int64_t super_pod_id_ = 8;
+  uint32_t device_count_ = 1;
   bool return_null_soc_name_ = false;
+  bool device_count_failed_ = false;
   bool phy_dev_failed_ = false;
   bool device_info_failed_ = false;
   bool binary_load_failed_ = false;
   bool binary_get_func_failed_ = false;
+  int32_t get_device_count_calls_ = 0;
+  int32_t get_soc_name_calls_ = 0;
+  int32_t get_device_calls_ = 0;
+  int32_t create_context_calls_ = 0;
+  int32_t destroy_context_calls_ = 0;
+  int32_t get_phy_dev_calls_ = 0;
+  int32_t get_current_context_calls_ = 0;
+  int32_t set_current_context_calls_ = 0;
+
+  aclError aclrtGetDeviceCount(uint32_t *count) override {
+    ++get_device_count_calls_;
+    if (device_count_failed_ || count == nullptr) {
+      return ACL_ERROR_FAILURE;
+    }
+    *count = device_count_;
+    return ACL_SUCCESS;
+  }
 
   const char *aclrtGetSocName() override {
+    ++get_soc_name_calls_;
     if (return_null_soc_name_) {
       return nullptr;
     }
@@ -41,6 +61,7 @@ class MockAclRuntimeStub : public llm::AclRuntimeStub {
   }
 
   aclError aclrtGetDevice(int32_t *deviceId) override {
+    ++get_device_calls_;
     if (deviceId == nullptr) {
       return ACL_ERROR_FAILURE;
     }
@@ -48,13 +69,34 @@ class MockAclRuntimeStub : public llm::AclRuntimeStub {
     return ACL_SUCCESS;
   }
 
+  aclError aclrtCreateContext(aclrtContext *context, int32_t deviceId) override {
+    ++create_context_calls_;
+    return llm::AclRuntimeStub::aclrtCreateContext(context, deviceId);
+  }
+
+  aclError aclrtDestroyContext(aclrtContext context) override {
+    ++destroy_context_calls_;
+    return llm::AclRuntimeStub::aclrtDestroyContext(context);
+  }
+
   aclError aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, int32_t *const phyDevId) override {
+    ++get_phy_dev_calls_;
     (void)logicDevId;
     if (phy_dev_failed_ || phyDevId == nullptr) {
       return ACL_ERROR_FAILURE;
     }
     *phyDevId = phy_device_id_;
     return ACL_SUCCESS;
+  }
+
+  aclError aclrtGetCurrentContext(aclrtContext *context) override {
+    ++get_current_context_calls_;
+    return llm::AclRuntimeStub::aclrtGetCurrentContext(context);
+  }
+
+  aclError aclrtSetCurrentContext(aclrtContext context) override {
+    ++set_current_context_calls_;
+    return llm::AclRuntimeStub::aclrtSetCurrentContext(context);
   }
 
   aclError aclrtGetDeviceInfo(uint32_t deviceId, aclrtDevAttr attr, int64_t *value) override {
