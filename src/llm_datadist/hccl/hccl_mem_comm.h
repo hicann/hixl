@@ -16,12 +16,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif  // __cplusplus
-typedef struct {
-  CommMemType type;
-  void *addr;
-  u64 size;
-} HcclMem;
-
 const u32 HCCL_MEM_DESC_LENGTH = 504;
 
 typedef struct {

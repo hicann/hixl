@@ -74,7 +74,7 @@ class CommLinkManager {
 
   static ge::Status PrepareMemTask(CommLinkManager *link_manager, PrepareMemArg request);
 
-  ge::Status RegisterMem(HcclMem *mem, void **mem_handle);
+  ge::Status RegisterMem(CommMem *mem, void **mem_handle);
   ge::Status DeregisterGlobalMem(void *mem_handle);
   std::vector<void *> GetAllRegisterMemHandles();
 
@@ -88,7 +88,7 @@ class CommLinkManager {
   void CheckUnlink(PrepareMemArg &req, bool &check_unlink_flag);
   ge::Status PrepareMem(PrepareMemArg &req);
   ge::Status ExchangeMem(const EntityPtr &entity, uint32_t local_rank, uint32_t remote_rank) const;
-  static void SetMemAttribute(const ExchangeMemInfo &remote_mem_info, std::vector<HcclMem> &remote_mems, HcclMem &mem);
+  static void SetMemAttribute(const ExchangeMemInfo &remote_mem_info, std::vector<CommMem> &remote_mems, CommMem &mem);
   ge::Status DestroyRes(EntityCommInfoPtr comm_ptr, std::vector<EntityPtr> &comm_entities) const;
   ge::Status PrepareComm(const PrepareMemArg &req, EntityCommInfoPtr &comm_info_ptr);
   uint64_t GenerateCommId();

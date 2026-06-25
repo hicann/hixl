@@ -14,7 +14,7 @@
 #include <algorithm>
 
 namespace llm {
-HcclMem hccl_mems[16];
+CommMem hccl_mems[16];
 int cnt = 0;
 
 namespace {
@@ -110,10 +110,10 @@ void DataCacheEngineTestContext::LinkEntities(CommEntity &src_comm_entity, CommE
   dst_comm_entity.Initialize(remote_cache_accessible);
   dst_comm_entity.SetEntityMemInfo(dst_mem);
   dst_comm_entity.SetEntityCommInfo(dst_comm);
-  std::vector<HcclMem> src_remote_mems(3);
+  std::vector<CommMem> src_remote_mems(3);
   src_remote_mems[0].addr = dst_comm_entity.GetCacheManager()->GetCacheTableBufferAndSize().first;
   src_remote_mems[0].size = dst_comm_entity.GetCacheManager()->GetCacheTableBufferAndSize().second;
-  std::vector<HcclMem> dst_remote_mems(3);
+  std::vector<CommMem> dst_remote_mems(3);
   dst_remote_mems[0].addr = src_comm_entity.GetCacheManager()->GetCacheTableBufferAndSize().first;
   dst_remote_mems[0].size = src_comm_entity.GetCacheManager()->GetCacheTableBufferAndSize().second;
   if (!remote_cache_accessible) {
@@ -186,12 +186,12 @@ HcclResult HcclApiStub::HcclBatchGet(HcclComm comm, uint32_t remoteRank, HcclOne
   return HCCL_SUCCESS;
 }
 
-HcclResult HcclApiStub::HcclRemapRegistedMemory(HcclComm *comm, HcclMem *memInfoArray, uint64_t commSize,
+HcclResult HcclApiStub::HcclRemapRegistedMemory(HcclComm *comm, CommMem *memInfoArray, uint64_t commSize,
                                                 uint64_t arraySize) {
   return HCCL_SUCCESS;
 }
 
-HcclResult HcclApiStub::HcclRegisterGlobalMem(HcclMem *mem, void **memHandle) {
+HcclResult HcclApiStub::HcclRegisterGlobalMem(CommMem *mem, void **memHandle) {
   *memHandle = mem;
   return HcclResult::HCCL_SUCCESS;
 }

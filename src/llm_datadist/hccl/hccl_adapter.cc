@@ -194,13 +194,13 @@ HcclResult HcclAdapter::HcclBatchGet(HcclComm comm, uint32_t remote_rank, HcclOn
   return ret;
 }
 
-HcclResult HcclAdapter::HcclRemapRegisteredMemory(HcclComm *comm, HcclMem *mem_info_array, uint64_t comm_size,
+HcclResult HcclAdapter::HcclRemapRegisteredMemory(HcclComm *comm, CommMem *mem_info_array, uint64_t comm_size,
                                                   uint64_t arraySize) const {
   auto ret = hccl_remap_registered_memory_func_(comm, mem_info_array, comm_size, arraySize);
   return ret;
 }
 
-HcclResult HcclAdapter::HcclRegisterGlobalMem(HcclMem *mem, void **mem_handle) const {
+HcclResult HcclAdapter::HcclRegisterGlobalMem(CommMem *mem, void **mem_handle) const {
   auto ret = HCCL_E_NOT_SUPPORT;
   if (hccl_register_global_mem_func_ != nullptr) {
     ret = hccl_register_global_mem_func_(mem, mem_handle);

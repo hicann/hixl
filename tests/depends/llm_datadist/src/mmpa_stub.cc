@@ -18,7 +18,7 @@
 #include "common/llm_log.h"
 #include "common/llm_checker.h"
 
-HcclMem hccl_mems[9];
+CommMem hccl_mems[9];
 HcclResult HcclBatchPut1(HcclComm comm, uint32_t remoteRank, HcclOneSideOpDesc *desc, uint32_t descNum,
                          aclrtStream stream) {
   LLMLOGI("remote_rank = %u, num_tasks = %u", remoteRank, descNum);

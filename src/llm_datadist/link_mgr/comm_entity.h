@@ -157,7 +157,7 @@ class CommEntity {
   uint64_t GetClusterId() const;
   uint64_t GetCommId() const;
   HcclComm GetComm() const;
-  std::vector<HcclMem> &GetRemoteMems();
+  std::vector<CommMem> &GetRemoteMems();
   const EntityInfo &GetEntityInfo() const;
   void SetCacheManager(CacheManager *cache_manager);
   CacheManager *GetCacheManager() const;
@@ -210,7 +210,7 @@ class CommEntity {
   bool inner_comm_ = false;
   CacheAccessTable cache_access_table_;
   EntityInfo info_{};
-  std::vector<HcclMem> remote_mems_{};
+  std::vector<CommMem> remote_mems_{};
   CacheManager *cache_manager_{};
   LlmMemPool *host_mem_pool_{};
   std::mutex info_mutex_;

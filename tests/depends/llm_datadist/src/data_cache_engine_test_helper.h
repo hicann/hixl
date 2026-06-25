@@ -38,9 +38,9 @@ class HcclApiStub {
                                   aclrtStream stream);
   virtual HcclResult HcclBatchGet(HcclComm comm, uint32_t remoteRank, HcclOneSideOpDesc *desc, uint32_t descNum,
                                   aclrtStream stream);
-  virtual HcclResult HcclRemapRegistedMemory(HcclComm *comm, HcclMem *memInfoArray, uint64_t commSize,
+  virtual HcclResult HcclRemapRegistedMemory(HcclComm *comm, CommMem *memInfoArray, uint64_t commSize,
                                              uint64_t arraySize);
-  virtual HcclResult HcclRegisterGlobalMem(HcclMem *mem, void **memHandle);
+  virtual HcclResult HcclRegisterGlobalMem(CommMem *mem, void **memHandle);
 
   virtual HcclResult HcclDeregisterGlobalMem(void *memHandle);
 
@@ -175,12 +175,12 @@ class MockMmpaForHcclApi : public llm::MmpaStubApiGe {
     return HcclApiStub::GetInstance().HcclBatchGet(comm, remoteRank, desc, descNum, stream);
   }
   static void HcclCommConfigInit(HcclCommConfig *config) {}
-  static HcclResult HcclRemapRegistedMemory(HcclComm *comm, HcclMem *memInfoArray, uint64_t commSize,
+  static HcclResult HcclRemapRegistedMemory(HcclComm *comm, CommMem *memInfoArray, uint64_t commSize,
                                             uint64_t arraySize) {
     return HcclApiStub::GetInstance().HcclRemapRegistedMemory(comm, memInfoArray, commSize, arraySize);
   }
 
-  static HcclResult HcclRegisterGlobalMem(HcclMem *mem, void **memHandle) {
+  static HcclResult HcclRegisterGlobalMem(CommMem *mem, void **memHandle) {
     return HcclApiStub::GetInstance().HcclRegisterGlobalMem(mem, memHandle);
   }
 

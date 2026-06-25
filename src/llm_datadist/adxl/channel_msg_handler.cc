@@ -223,7 +223,7 @@ Status ChannelMsgHandler::RegisterMem(const MemDesc &mem, MemType type, MemHandl
   uint64_t mem_end = 0U;
   ADXL_CHK_BOOL_RET_STATUS(!ge::AddOverflow(mem.addr, mem.len, mem_end), PARAM_INVALID,
                            "mem range overflow, addr:%lu, len:%zu.", mem.addr, mem.len);
-  HcclMem hccl_mem = {};
+  CommMem hccl_mem = {};
   hccl_mem.type = type == MEM_DEVICE ? COMM_MEM_TYPE_DEVICE : COMM_MEM_TYPE_HOST;
   hccl_mem.addr = reinterpret_cast<void *>(mem.addr);
   hccl_mem.size = mem.len;

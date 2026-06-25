@@ -403,12 +403,12 @@ ge::Status CommEntity::SetRemoteAddresses() {
                           "remote mem num:%zu, expected min:%zu.", remote_mems_.size(), kMinRemoteMemSize);
   LLM_CHK_BOOL_RET_STATUS((remote_mems_[kIndexRemoteReq].type == CommMemType::COMM_MEM_TYPE_HOST) &&
                               (remote_mems_[kIndexRemoteReq].size == kDefaultReqBufferSize),
-                          ge::LLM_LINK_FAILED, "Remote mem type:%s, size:%llu is not valid.",
+                          ge::LLM_LINK_FAILED, "Remote mem type:%s, size:%lu is not valid.",
                           HcclUtils::HcclMemTypeToString(remote_mems_[kIndexRemoteReq].type).c_str(),
                           remote_mems_[kIndexRemoteReq].size);
   LLM_CHK_BOOL_RET_STATUS((remote_mems_[kIndexRemoteResp].type == CommMemType::COMM_MEM_TYPE_HOST) &&
                               (remote_mems_[kIndexRemoteResp].size == kDefaultRespBufferSize),
-                          ge::LLM_LINK_FAILED, "Remote mem type:%s, size:%llu is not valid.",
+                          ge::LLM_LINK_FAILED, "Remote mem type:%s, size:%lu is not valid.",
                           HcclUtils::HcclMemTypeToString(remote_mems_[kIndexRemoteResp].type).c_str(),
                           remote_mems_[kIndexRemoteResp].size);
 
@@ -437,7 +437,7 @@ aclrtStream CommEntity::GetStream() const {
   return stream_;
 }
 
-std::vector<HcclMem> &CommEntity::GetRemoteMems() {
+std::vector<CommMem> &CommEntity::GetRemoteMems() {
   return remote_mems_;
 }
 

@@ -92,14 +92,14 @@ ge::Status CommLinkManager::ExchangeMem(const EntityPtr &entity, uint32_t local_
   LLM_CHK_BOOL_RET_STATUS(remote_mem_info.cache_table_size <= kCacheAccessTableBufferSize, ge::LLM_PARAM_INVALID,
                           "Remote cache_table_size %lu exceeds max %lu", remote_mem_info.cache_table_size,
                           kCacheAccessTableBufferSize);
-  std::vector<HcclMem> &remote_mems = entity->GetRemoteMems();
-  HcclMem mem{};
+  std::vector<CommMem> &remote_mems = entity->GetRemoteMems();
+  CommMem mem{};
   SetMemAttribute(remote_mem_info, remote_mems, mem);
   return ge::SUCCESS;
 }
 
-void CommLinkManager::SetMemAttribute(const ExchangeMemInfo &remote_mem_info, std::vector<HcclMem> &remote_mems,
-                                      HcclMem &mem) {
+void CommLinkManager::SetMemAttribute(const ExchangeMemInfo &remote_mem_info, std::vector<CommMem> &remote_mems,
+                                      CommMem &mem) {
   mem.type = CommMemType::COMM_MEM_TYPE_DEVICE;
   mem.addr = ValueToPtr(remote_mem_info.cache_table_addr);
   mem.size = remote_mem_info.cache_table_size;
@@ -439,7 +439,7 @@ void CommLinkManager::SetCacheManager(CacheManager *cache_manager) {
   cache_manager_ = cache_manager;
 }
 
-ge::Status CommLinkManager::RegisterMem(HcclMem *mem, void **mem_handle) {
+ge::Status CommLinkManager::RegisterMem(CommMem *mem, void **mem_handle) {
   auto ret = HcclAdapter::GetInstance().HcclRegisterGlobalMem(mem, mem_handle);
   LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke HcclRegisterGlobalMem, ret = %d",
                           static_cast<int32_t>(ret));
