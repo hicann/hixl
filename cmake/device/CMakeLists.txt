@@ -35,6 +35,7 @@ find_package_if_target_not_exists(metadef MODULE REQUIRED)
 find_package_if_target_not_exists(securec MODULE REQUIRED)
 
 generate_cann_stub_library(slog_dev OUTPUT_NAME slog)
+generate_cann_stub_library(ccl_kernel_dev OUTPUT_NAME ccl_kernel)
 
 add_subdirectory(${HIXL_DIR}/src/hixl/proxy ${CMAKE_BINARY_DIR}/src/hixl/proxy)
 add_subdirectory(${HIXL_DIR}/src/ops ${CMAKE_BINARY_DIR}/src/ops)
