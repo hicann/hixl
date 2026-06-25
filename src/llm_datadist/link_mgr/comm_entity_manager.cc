@@ -183,9 +183,9 @@ ge::Status CommEntityManager::RemapRegisteredMemory(const std::vector<LLMMemInfo
     }
   }
   LLM_CHK_BOOL_RET_STATUS(!comms.empty(), ge::LLM_NOT_YET_LINK, "No comm link yet");
-  std::vector<HcclMem> hccl_mems;
+  std::vector<CommMem> hccl_mems;
   for (const auto &mem_info : mem_infos) {
-    HcclMem hccl_mem = {};
+    CommMem hccl_mem = {};
     hccl_mem.type = static_cast<CommMemType>(mem_info.mem_type);
     hccl_mem.addr = ValueToPtr(mem_info.addr);
     hccl_mem.size = mem_info.size;

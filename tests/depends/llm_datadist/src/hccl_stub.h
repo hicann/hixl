@@ -21,8 +21,8 @@ HcclResult HcclCommInitClusterInfoMemConfig(const char *cluster, uint32_t rank, 
 
 HcclResult HcclCommDestroy(HcclComm comm);
 
-HcclResult HcclRemapRegistedMemory(HcclComm *comm, HcclMem *memInfoArray, uint64_t commSize, uint64_t arraySize);
-HcclResult HcclRegisterGlobalMem(HcclMem *mem, void **memHandle);
+HcclResult HcclRemapRegistedMemory(HcclComm *comm, CommMem *memInfoArray, uint64_t commSize, uint64_t arraySize);
+HcclResult HcclRegisterGlobalMem(CommMem *mem, void **memHandle);
 
 HcclResult HcclDeregisterGlobalMem(void *memHandle);
 

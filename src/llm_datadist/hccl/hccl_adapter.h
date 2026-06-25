@@ -29,10 +29,10 @@ using HcclBatchPutFunc = HcclResult (*)(HcclComm comm, uint32_t remote_rank, Hcc
                                         aclrtStream stream);
 using HcclBatchGetFunc = HcclResult (*)(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t desc_num,
                                         aclrtStream stream);
-using HcclRemapRegisteredMemoryFunc = HcclResult (*)(HcclComm *comm, HcclMem *mem_info_array, uint64_t comm_size,
+using HcclRemapRegisteredMemoryFunc = HcclResult (*)(HcclComm *comm, CommMem *mem_info_array, uint64_t comm_size,
                                                      uint64_t array_size);
 
-using HcclRegisterGlobalMemFunc = HcclResult (*)(HcclMem *mem, void **mem_handle);
+using HcclRegisterGlobalMemFunc = HcclResult (*)(CommMem *mem, void **mem_handle);
 using HcclDeregisterGlobalMemFunc = HcclResult (*)(void *mem_handle);
 using HcclCommBindMemFunc = HcclResult (*)(HcclComm comm, void *mem_handle);
 using HcclCommUnbindMemFunc = HcclResult (*)(HcclComm comm, void *mem_handle);
@@ -54,9 +54,9 @@ class HcclAdapter {
                           aclrtStream stream);
   HcclResult HcclBatchGet(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t desc_num,
                           aclrtStream stream) const;
-  HcclResult HcclRemapRegisteredMemory(HcclComm *comm, HcclMem *mem_info_array, uint64_t comm_size,
+  HcclResult HcclRemapRegisteredMemory(HcclComm *comm, CommMem *mem_info_array, uint64_t comm_size,
                                        uint64_t arraySize) const;
-  HcclResult HcclRegisterGlobalMem(HcclMem *mem, void **mem_handle) const;
+  HcclResult HcclRegisterGlobalMem(CommMem *mem, void **mem_handle) const;
   HcclResult HcclDeregisterGlobalMem(void *mem_handle) const;
   HcclResult HcclCommBindMem(HcclComm comm, void *mem_handle) const;
   HcclResult HcclCommUnbindMem(HcclComm comm, void *mem_handle) const;

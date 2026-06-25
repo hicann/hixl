@@ -32,11 +32,11 @@ HcclResult HcclCommDestroy(HcclComm comm) {
   return HcclResult::HCCL_SUCCESS;
 }
 
-HcclResult HcclRemapRegistedMemory(HcclComm *comm, HcclMem *memInfoArray, uint64_t commSize, uint64_t arraySize) {
+HcclResult HcclRemapRegistedMemory(HcclComm *comm, CommMem *memInfoArray, uint64_t commSize, uint64_t arraySize) {
   return HcclResult::HCCL_SUCCESS;
 }
 
-HcclResult HcclRegisterGlobalMem(HcclMem *mem, void **memHandle) {
+HcclResult HcclRegisterGlobalMem(CommMem *mem, void **memHandle) {
   return HcclResult::HCCL_SUCCESS;
 }
 

@@ -42,7 +42,7 @@ ge::Status HixlEntity::Initialize(int32_t timeout_ms) {
   CacheTableInfo info{};
   LLM_CHK_STATUS_RET(RecvCacheTableResp(client_fd, info, timeout_ms), "Failed to recv cache table info");
   auto &remote_mems = GetRemoteMems();
-  HcclMem remote_mem{};
+  CommMem remote_mem{};
   remote_mem.type = CommMemType::COMM_MEM_TYPE_DEVICE;
   remote_mem.addr = ValueToPtr(info.cache_table_addr);
   remote_mem.size = info.cache_table_size;
