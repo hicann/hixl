@@ -97,6 +97,8 @@ std::string ProtocolToString(CommProtocol protocol) {
       return kProtocolUbTp;
     case COMM_PROTOCOL_UBOE:
       return kProtocolUboe;
+    case COMM_PROTOCOL_UBG:
+      return kProtocolUbg;
     default:
       return "UNKNOWN(" + std::to_string(static_cast<int32_t>(protocol)) + ")";
   }
@@ -335,4 +337,14 @@ TemporaryRtContext::~TemporaryRtContext() {
     HIXL_CHK_STATUS(aclrtSetCurrentContext(prev_context_));
   }
 }
+
+bool IsIntraRoceEnabled() {
+  const char *env = std::getenv("HCCL_INTRA_ROCE_ENABLE");
+  return env != nullptr && std::string(env) == "1";
+}
+
+bool IsHostRegisterMappedProtocol(CommProtocol protocol) {
+  return protocol == COMM_PROTOCOL_UBOE || protocol == COMM_PROTOCOL_UBG;
+}
+
 }  // namespace hixl

@@ -19,6 +19,7 @@
 #define AIR_TESTS_DEPENDS_MMPA_SRC_MMAP_STUB_H_
 
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include "mmpa/mmpa_api.h"
 
@@ -28,6 +29,9 @@ class MmpaStubApiGe {
   virtual ~MmpaStubApiGe() = default;
 
   virtual void *DlOpen(const char *file_name, int32_t mode) {
+    if (file_name != nullptr && std::strcmp(file_name, "libdrvdsmi_host.so") == 0) {
+      return dlopen(nullptr, mode);
+    }
     return dlopen(file_name, mode);
   }
 

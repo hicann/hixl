@@ -9,106 +9,29 @@
  */
 
 #include <cstdint>
-#include <cstring>
 #include <memory>
 #include "gtest/gtest.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/dsmi/src/dsmi_stub.h"
 #include "proxy/dsmi_proxy.h"
 
 namespace hixl {
 
 namespace {
 
-constexpr uintptr_t kMockLibDrvdsmiHandle = 0x8001ULL;
-constexpr uint32_t kUtMockSlotId = 3U;
-
-struct dsmi_board_info_stru {
-  unsigned int board_id;
-  unsigned int pcb_id;
-  unsigned int bom_id;
-  unsigned int slot_id;
-};
-
-bool g_mock_success = true;
-extern "C" int ut_mock_dsmi_get_board_info(int device_id, struct dsmi_board_info_stru *pboard_info) {
-  (void)device_id;
-  if (!g_mock_success) {
-    return -1;
-  }
-  if (pboard_info != nullptr) {
-    pboard_info->board_id = 0x1000;
-    pboard_info->pcb_id = 0x2000;
-    pboard_info->bom_id = 0x3000;
-    pboard_info->slot_id = kUtMockSlotId;
-  }
-  return 0;
-}
-
-class ScopedMmpaDsmiMock {
+class ScopedMmpaStub {
  public:
-  explicit ScopedMmpaDsmiMock(const std::shared_ptr<llm::MmpaStubApiGe> &impl) {
+  explicit ScopedMmpaStub(const std::shared_ptr<llm::MmpaStubApiGe> &impl) {
     llm::MmpaStub::GetInstance().SetImpl(impl);
   }
-  ~ScopedMmpaDsmiMock() {
+  ~ScopedMmpaStub() {
     llm::MmpaStub::GetInstance().Reset();
   }
-
-  ScopedMmpaDsmiMock(const ScopedMmpaDsmiMock &) = delete;
-  ScopedMmpaDsmiMock &operator=(const ScopedMmpaDsmiMock &) = delete;
+  ScopedMmpaStub(const ScopedMmpaStub &) = delete;
+  ScopedMmpaStub &operator=(const ScopedMmpaStub &) = delete;
 };
 
-class MockMmpaDsmi : public llm::MmpaStubApiGe {
- public:
-  MockMmpaDsmi(void *mock_dsmi_get_board_info_func) : mock_dsmi_get_board_info_func_(mock_dsmi_get_board_info_func) {}
-
-  void *DlOpen(const char *file_name, int32_t mode) override {
-    if (file_name != nullptr && std::strcmp(file_name, "libdrvdsmi_host.so") == 0) {
-      // Return a real dlopen handle so ~LibRaLoader's mmDlclose remains valid after MmpaStub::Reset() at test exit.
-      handle_stub_ = llm::MmpaStubApiGe::DlOpen("libdl.so.2", mode);
-      return handle_stub_;
-    }
-    return llm::MmpaStubApiGe::DlOpen(file_name, mode);
-  }
-
-  void *DlSym(void *handle, const char *func_name) override {
-    if (func_name == nullptr) {
-      return nullptr;
-    }
-    if (handle == handle_stub_) {
-      if (std::strcmp(func_name, "dsmi_get_board_info") == 0) {
-        return mock_dsmi_get_board_info_func_;
-      }
-      return nullptr;
-    }
-    return llm::MmpaStubApiGe::DlSym(handle, func_name);
-  }
-
-  int32_t DlClose(void *handle) override {
-    return llm::MmpaStubApiGe::DlClose(handle);
-  }
-
- protected:
-  void *mock_dsmi_get_board_info_func_ = nullptr;
-
- private:
-  void *handle_stub_ = nullptr;
-};
-
-class MockMmpaDsmiDlSymAlwaysFailBase : public llm::MmpaStubApiGe {
- public:
-  void *DlSym(void *handle, const char *func_name) override {
-    (void)handle;
-    (void)func_name;
-    return nullptr;
-  }
-
-  int32_t DlClose(void *handle) override {
-    (void)handle;
-    return 0;
-  }
-};
-
-class MockMmpaDsmiDlOpenFail : public MockMmpaDsmiDlSymAlwaysFailBase {
+class DlOpenFailStub : public llm::MmpaStubApiGe {
  public:
   void *DlOpen(const char *file_name, int32_t mode) override {
     (void)file_name;
@@ -117,52 +40,63 @@ class MockMmpaDsmiDlOpenFail : public MockMmpaDsmiDlSymAlwaysFailBase {
   }
 };
 
-class MockMmpaDsmiDlSymFail : public MockMmpaDsmiDlSymAlwaysFailBase {
+class DlSymFailStub : public llm::MmpaStubApiGe {
  public:
-  void *DlOpen(const char *file_name, int32_t mode) override {
-    (void)mode;
-    if (file_name != nullptr && std::strcmp(file_name, "libdrvdsmi_host.so") == 0) {
-      return reinterpret_cast<void *>(kMockLibDrvdsmiHandle);
-    }
+  void *DlSym(void *handle, const char *func_name) override {
+    (void)handle;
+    (void)func_name;
     return nullptr;
   }
 };
 
 }  // namespace
 
-// Single test keeps scenarios in order: DsmiProxy uses a static LibDrvdsmiHostLoader; after a successful mmDlopen
-// the library handle is cached, so mmDlopen/mmDlsym/dsmi_get_board_info failure paths must run before the success
-// path here.
-TEST(DsmiProxyUt, AllScenariosInOrder) {
+// Failure scenarios must run before success scenario because EnsureLibDrvdsmiHostLoaded caches handle on success.
+TEST(DsmiProxyUt, LoadFailureThenSuccess) {
   int32_t device_id = 0;
   uint32_t slot_id = 0;
 
-  // Scenario 1: mmDlopen fail
+  // Scenario 1: dlopen fail — no caching
   {
-    auto mock_mmpa = std::make_shared<MockMmpaDsmiDlOpenFail>();
-    ScopedMmpaDsmiMock mmpa_guard(mock_mmpa);
+    auto stub = std::make_shared<DlOpenFailStub>();
+    ScopedMmpaStub guard(stub);
     EXPECT_EQ(DsmiProxy::GetDevSlotId(device_id, slot_id), FAILED);
   }
 
-  // Scenario 2: mmDlsym fail
+  // Scenario 2: dlsym fail — no caching
   {
-    auto mock_mmpa = std::make_shared<MockMmpaDsmiDlSymFail>();
-    ScopedMmpaDsmiMock mmpa_guard(mock_mmpa);
+    auto stub = std::make_shared<DlSymFailStub>();
+    ScopedMmpaStub guard(stub);
     EXPECT_EQ(DsmiProxy::GetDevSlotId(device_id, slot_id), FAILED);
   }
 
-  // Scenario 3: dlopen success mock func failed and success
+  // Scenario 3: success via DSMI stub — caches stub function pointers
+  // Default MmpaStubApiGe::DlOpen returns dlopen(nullptr) for libdrvdsmi_host.so,
+  // dlsym finds the stub's symbols in global scope (loaded via DT_NEEDED).
   {
-    auto mock_mmpa = std::make_shared<MockMmpaDsmi>(reinterpret_cast<void *>(&ut_mock_dsmi_get_board_info));
-    ScopedMmpaDsmiMock mmpa_guard(mock_mmpa);
-    g_mock_success = true;
+    DsmiStubSetSlotId(3, 0);
     EXPECT_EQ(DsmiProxy::GetDevSlotId(device_id, slot_id), SUCCESS);
-    EXPECT_EQ(slot_id, kUtMockSlotId);
-    g_mock_success = false;
+    EXPECT_EQ(slot_id, 3U);
+
+    DsmiStubSetInterconType(4U);
+    uint32_t intercon_type = 0;
+    EXPECT_EQ(DsmiProxy::GetInterconType(device_id, intercon_type), SUCCESS);
+    EXPECT_EQ(intercon_type, 4U);
+
+    DsmiStubSetDeviceInfoRet(-1);
+    EXPECT_NE(DsmiProxy::GetInterconType(device_id, intercon_type), SUCCESS);
+    DsmiStubSetDeviceInfoRet(0);
+
+    DsmiStubSetSlotId(0, -1);
     EXPECT_NE(DsmiProxy::GetDevSlotId(device_id, slot_id), SUCCESS);
-    // reset to mock success
-    g_mock_success = true;
+    DsmiStubSetSlotId(0, 0);
   }
+}
+
+TEST(DsmiProxyUt, IsInterconTypeSupportedAfterLoad) {
+  // After LoadFailureThenSuccess, singleton has cached stub function pointers.
+  // IsInterconTypeSupported should return true (dsmi_get_device_info != nullptr).
+  EXPECT_TRUE(DsmiProxy::IsInterconTypeSupported());
 }
 
 }  // namespace hixl

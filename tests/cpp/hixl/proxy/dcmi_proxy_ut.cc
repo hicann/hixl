@@ -16,12 +16,11 @@
  * - 5个代理函数成功路径（DcmiProxy::GetLogicIdFromPhyId / DcmiProxy::GetUrmaDeviceCnt / DcmiProxy::GetEidList /
  *   DcmiProxy::GetMainboardId / DcmiProxy::GetDeviceInfo）
  * - LoadDcmi() 已加载缓存路径
- * - LoadDcmi() 失败路径（dlopen 模拟失败）
+ * - DCMI 函数返回失败路径
  * - UnloadDcmi() 未加载场景
  *
- * 注意：dcmi_proxy.cc 使用 dlopen/dlsym/dlclose（来自 <dlfcn.h>），dcmi_stub.cc 通过
- * LD_PRELOAD=libdcmi.so 提供桩函数。dlopen 失败路径通过 dcmi_stub.cc 中的 dlopen 包装
- * 函数模拟（受 DcmiStubSetDlopenFail 控制）。
+ * 注意：dcmi_proxy.cc 使用 dlopen/dlsym/dlclose（来自 <dlfcn.h>），dcmi_stub.cc 提供
+ * dcmiv2_* 桩函数。libdcmi.so 通过 DT_NEEDED 加载，dlopen("libdcmi.so") 复用已加载的桩。
  */
 
 #include <cstdint>
@@ -30,17 +29,7 @@
 #include <memory>
 #include "gtest/gtest.h"
 #include "proxy/dcmi_proxy.h"
-
-// DCMI 桩函数控制接口（定义在 tests/depends/dcmi/src/dcmi_stub.cc）
-extern "C" {
-void DcmiStubSetInitRet(int ret);
-void DcmiStubSetMainboardId(unsigned int id, int ret);
-void DcmiStubSetLogicId(unsigned int id, int ret);
-void DcmiStubSetUrmaDeviceCnt(unsigned int cnt, int ret);
-void DcmiStubSetSuperPodId(unsigned int id, int ret);
-void DcmiStubSetEidCount(int count);
-void DcmiStubSetDlopenFail(bool fail);
-}
+#include "depends/dcmi/src/dcmi_stub.h"
 
 namespace hixl {
 
@@ -222,9 +211,9 @@ class DcmiProxyLoadFailTest : public ::testing::Test {
   }
 };
 
-// dlopen 失败时，LoadDcmi 返回 -1，所有代理函数返回 -1
-TEST_F(DcmiProxyLoadFailTest, LoadDcmiFailsWhenDlopenFails) {
-  DcmiStubSetDlopenFail(true);  // 下次 dlopen 返回 nullptr
+// DCMI 函数返回失败时，代理函数返回错误码
+TEST_F(DcmiProxyLoadFailTest, GetMainboardIdReturnsErrorWhenDcmiFuncFails) {
+  DcmiStubSetMainboardId(0U, -1);
 
   unsigned int logic_id = 0;
   unsigned int mainboard_id = 0;

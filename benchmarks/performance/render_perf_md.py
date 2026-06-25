@@ -37,7 +37,7 @@ configure_logging()
 log = logging.getLogger(__name__)
 
 DIRECTION_ORDER = ['D2rD', 'D2rH', 'H2rH', 'H2rD', 'rD2D', 'rH2D', 'rH2H', 'rD2H']
-TRANSPORT_ORDER = ['hccs', 'rdma', 'fabric_mem', 'uboe', 'ub']
+TRANSPORT_ORDER = ['hccs', 'rdma', 'fabric_mem', 'uboe', 'ubg', 'ub']
 HCCS_DIRECTIONS_A2 = frozenset({'D2rD', 'rD2D'})
 HCCS_DIRECTIONS_A3 = frozenset({'D2rD', 'rD2D', 'H2rD', 'rD2H'})
 UBOE_DIRECTIONS = frozenset(DIRECTION_ORDER)
@@ -55,6 +55,7 @@ TRANSPORT_LABEL: dict[str, str] = {
     "hccs": "HCCS",
     "rdma": "ROCE",
     "uboe": "UBOE",
+    "ubg": "UBG",
     "fabric_mem": "FabricMem",
     "ub": "UB",
 }
@@ -99,7 +100,7 @@ def hccs_supported_directions(platform: str) -> frozenset[str]:
 
 
 def cell_not_supported(direction: str, transport: str, platform: str) -> bool:
-    if transport in ('uboe', 'ub') and platform in ('a2', 'a3'):
+    if transport in ('uboe', 'ubg', 'ub') and platform in ('a2', 'a3'):
         return True
     if transport != 'hccs':
         return False
@@ -183,7 +184,7 @@ def transports_for_platform(platform: str, deployment: str) -> list[str]:
         return ['hccs', 'rdma']
     if pid == 'a3':
         return ['hccs', 'rdma', 'fabric_mem']
-    return ['rdma', 'fabric_mem', 'uboe', 'ub']
+    return ['rdma', 'fabric_mem', 'uboe', 'ubg', 'ub']
 
 
 def collect_columns_for_platform(platform: str, deployment: str = 'single') -> list[tuple[str, str]]:

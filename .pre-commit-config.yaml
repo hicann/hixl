@@ -43,14 +43,14 @@ repos:
         exclude: '^(.agents/)'
       - id: ruff-format
         types: [python]
-        exclude: '^(.agents/)'
+        exclude: '^(.agents/|benchmarks/)'
 
   # 拼写检查
   - repo: https://gitcode.com/gh_mirrors/co/codespell
     rev: v2.4.1
     hooks:
       - id: codespell
-        args: [ '--ignore-words-list=CANN,cann,alog,CLOS' ]
+        args: [ '--ignore-words-list=CANN,cann,alog,CLOS,nd,inout' ]
         exclude: '^(.agents/)'
 
   # OAT 合规性检查 (Open Source Audit Tool)

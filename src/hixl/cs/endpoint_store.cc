@@ -47,9 +47,10 @@ inline bool operator==(const EndpointDesc &lhs, const EndpointDesc &rhs) {
   }
   if (lhs.protocol == COMM_PROTOCOL_HCCS) {
     return lhs.commAddr.id == rhs.commAddr.id;
-  } else if (lhs.protocol == COMM_PROTOCOL_UBC_TP || lhs.protocol == COMM_PROTOCOL_UBC_CTP) {
+  } else if (lhs.protocol == COMM_PROTOCOL_UBC_TP || lhs.protocol == COMM_PROTOCOL_UBC_CTP ||
+             lhs.protocol == COMM_PROTOCOL_UBG) {
     return std::memcmp(lhs.commAddr.eid, rhs.commAddr.eid, COMM_ADDR_EID_LEN) == 0;
-  } else if (lhs.protocol == COMM_PROTOCOL_ROCE) {
+  } else if (lhs.protocol == COMM_PROTOCOL_ROCE || lhs.protocol == COMM_PROTOCOL_UBOE) {
     if (lhs.commAddr.type != rhs.commAddr.type) {
       return false;
     }
@@ -61,7 +62,7 @@ inline bool operator==(const EndpointDesc &lhs, const EndpointDesc &rhs) {
       return false;
     }
   }
-  return true;
+  return false;
 }
 
 EndpointPtr EndpointStore::MatchEndpoint(const EndpointDesc &endpoint, EndpointHandle &endpoint_handle) {

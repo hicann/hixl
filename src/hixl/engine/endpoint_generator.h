@@ -60,6 +60,7 @@ class EndpointGenerator {
                                                  std::vector<EndpointConfig> &endpoint_list);
   static Status AutoGenEndpointList(const HixlOptions &options, const std::string &local_engine,
                                     std::vector<EndpointConfig> &endpoint_list);
+  static Status AutoGenA5EndpointList(const HixlOptions &options, std::vector<EndpointConfig> &endpoint_list);
   static Status ParseLocalCommRes(const nlohmann::json &config, std::vector<EndpointConfig> &endpoint_list);
   static bool HasDeviceEndpoint(const std::vector<EndpointConfig> &endpoint_list);
   static Status PopulateLocalDeviceInfo(std::vector<EndpointConfig> &endpoint_list);

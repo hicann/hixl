@@ -82,7 +82,7 @@ struct HixlMemDesc {
   std::string tag;
   void *export_desc = nullptr;
   uint32_t export_len = 0U;
-  void *registered_dev_mem = nullptr;  // 记录host内存注册的device内存，当前仅uboe时有效
+  void *registered_dev_mem = nullptr;  // 记录host内存注册的device内存，当前用于UBoE/UBG等映射协议
 };
 
 struct GetRemoteMemResp {

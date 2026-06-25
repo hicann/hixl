@@ -97,6 +97,10 @@ std::string MemTypeToString(MemType type);
 std::string TransferOpToString(TransferOp op);
 std::string EndpointToString(const EndpointDesc &ep);
 
+bool IsIntraRoceEnabled();
+
+bool IsHostRegisterMappedProtocol(CommProtocol protocol);
+
 class TemporaryRtContext {
  public:
   explicit TemporaryRtContext(aclrtContext context);

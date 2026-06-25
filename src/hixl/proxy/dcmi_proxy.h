@@ -61,6 +61,10 @@ struct DcmiSpodInfo {
   unsigned int reserve[6];
 };
 
+constexpr int32_t kDcmiMainCmdChipInf = 12;
+constexpr int32_t kDcmiSubCmdSpodInfo = 1;
+constexpr const char *kSuperPodNetInstancePrefix = "superpod_";
+
 // ============ DCMI 代理接口 ============
 
 /**

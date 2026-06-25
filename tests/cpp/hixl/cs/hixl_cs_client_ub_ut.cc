@@ -543,11 +543,11 @@ TEST_F(HixlCSClientSlotReuseFixture, SyncTransferUsesStreamSync) {
 }
 
 // ============================================================================
-// ConvertUboeDescs 地址转换测试
+// ConvertHostMappedDescs 地址转换测试
 // ============================================================================
 
 // 测试场景：remote_buf 错误地注册到 client_regions_（应该在 server_regions_），地址转换应失败
-TEST_F(HixlCSClientDeviceFixture, ConvertUboeDescsFailsIfRemoteRegisteredInWrongRegion) {
+TEST_F(HixlCSClientDeviceFixture, ConvertHostMappedDescsFailsIfRemoteRegisteredInWrongRegion) {
   // 错误：remote_buf 注册到 client_regions_（应该是 server_regions_）
   // local_buf 也注册到 client_regions_（正确）
   cli_.mem_store_.RecordMemory(false, remote_buf_.data(), remote_buf_.size());
@@ -558,14 +558,14 @@ TEST_F(HixlCSClientDeviceFixture, ConvertUboeDescsFailsIfRemoteRegisteredInWrong
   desc.local_buf = local_buf_.data();
   desc.len = kLen8;
 
-  // 直接调用 ConvertUboeDescs，绕过 ValidateAddress
+  // 直接调用 ConvertHostMappedDescs，绕过 ValidateAddress
   std::vector<HixlOneSideOpDesc> mutable_descs(1, desc);
-  const Status ret = cli_.ConvertUboeDescs(1, mutable_descs.data());
-  EXPECT_EQ(ret, FAILED);  // remote_buf 在错误的 regions，ConvertUboeDescs 会失败
+  const Status ret = cli_.ConvertHostMappedDescs(1, mutable_descs.data());
+  EXPECT_EQ(ret, FAILED);  // remote_buf 在错误的 regions，ConvertHostMappedDescs 会失败
 }
 
 // 测试场景：local_buf 错误地注册到 server_regions_（应该在 client_regions_），地址转换应失败
-TEST_F(HixlCSClientDeviceFixture, ConvertUboeDescsFailsIfLocalRegisteredInWrongRegion) {
+TEST_F(HixlCSClientDeviceFixture, ConvertHostMappedDescsFailsIfLocalRegisteredInWrongRegion) {
   // remote_buf 注册到 server_regions_（正确）
   // 错误：local_buf 也注册到 server_regions_（应该是 client_regions_）
   cli_.mem_store_.RecordMemory(true, remote_buf_.data(), remote_buf_.size());
@@ -576,10 +576,10 @@ TEST_F(HixlCSClientDeviceFixture, ConvertUboeDescsFailsIfLocalRegisteredInWrongR
   desc.local_buf = local_buf_.data();
   desc.len = kLen8;
 
-  // 直接调用 ConvertUboeDescs，绕过 ValidateAddress
+  // 直接调用 ConvertHostMappedDescs，绕过 ValidateAddress
   std::vector<HixlOneSideOpDesc> mutable_descs(1, desc);
-  const Status ret = cli_.ConvertUboeDescs(1, mutable_descs.data());
-  EXPECT_EQ(ret, FAILED);  // local_buf 在错误的 regions，ConvertUboeDescs 会失败
+  const Status ret = cli_.ConvertHostMappedDescs(1, mutable_descs.data());
+  EXPECT_EQ(ret, FAILED);  // local_buf 在错误的 regions，ConvertHostMappedDescs 会失败
 }
 
 }  // namespace hixl

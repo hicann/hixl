@@ -34,6 +34,8 @@ struct MatchRule {
 constexpr MatchRule kCrossInstanceRules[] = {
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolUboe, kPlacementDevice,
      CommType::COMM_TYPE_UBOE},
+    {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolUbg, kPlacementDevice,
+     CommType::COMM_TYPE_UBG},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolRoce, kPlacementDevice,
      CommType::COMM_TYPE_ROCE},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolRoce, kPlacementHost,
@@ -46,6 +48,8 @@ constexpr MatchRule kSameInstanceRules[] = {
      CommType::COMM_TYPE_HCCS},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolUboe, kPlacementDevice,
      CommType::COMM_TYPE_UBOE},
+    {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolUbg, kPlacementDevice,
+     CommType::COMM_TYPE_UBG},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolRoce, kPlacementDevice,
      CommType::COMM_TYPE_ROCE},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolRoce, kPlacementHost,
@@ -70,10 +74,6 @@ bool EndpointMatcher::IsUbProtocol(const std::string &protocol) {
   return protocol == kProtocolUbCtp || protocol == kProtocolUbTp;
 }
 
-bool EndpointMatcher::IsDirectProtocol(const std::string &protocol) {
-  return protocol == kProtocolRoce || protocol == kProtocolHccs || protocol == kProtocolUboe;
-}
-
 const char *EndpointMatcher::HandlerTypeToString(HandlerCreateArgs::HandlerType type) {
   switch (type) {
     case HandlerCreateArgs::HandlerType::DIRECT:
@@ -83,13 +83,6 @@ const char *EndpointMatcher::HandlerTypeToString(HandlerCreateArgs::HandlerType 
     default:
       return "UNKNOWN";
   }
-}
-
-const EndpointConfig *EndpointMatcher::FindByProtocol(const std::vector<EndpointConfig> &endpoints,
-                                                      const std::string &protocol) {
-  auto it =
-      std::find_if(endpoints.begin(), endpoints.end(), [&protocol](const auto &e) { return e.protocol == protocol; });
-  return it != endpoints.end() ? &(*it) : nullptr;
 }
 
 void EndpointMatcher::BuildMatchMap(const std::vector<EndpointConfig> &endpoints,

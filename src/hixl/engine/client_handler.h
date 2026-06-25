@@ -29,7 +29,8 @@ enum class CommType : uint32_t {
   COMM_TYPE_UB_H2H = 3U,
   COMM_TYPE_ROCE = 4U,
   COMM_TYPE_HCCS = 5U,
-  COMM_TYPE_UBOE = 6U
+  COMM_TYPE_UBOE = 6U,
+  COMM_TYPE_UBG = 7U
 };
 
 inline const char *CommTypeToString(CommType type) {
@@ -48,6 +49,8 @@ inline const char *CommTypeToString(CommType type) {
       return "HCCS";
     case CommType::COMM_TYPE_UBOE:
       return "UBOE";
+    case CommType::COMM_TYPE_UBG:
+      return "UBG";
     default:
       return "UNKNOWN";
   }

@@ -13,6 +13,24 @@
 #include <cstdint>
 #include "hixl/hixl_types.h"
 
+struct DsmiBoardInfoStru {
+  uint32_t board_id;
+  uint32_t pcb_id;
+  uint32_t bom_id;
+  uint32_t slot_id;
+};
+
+struct DsmiSpodInfo {
+  uint32_t sdid;
+  uint32_t scale_type;
+  uint32_t super_pod_id;
+  uint32_t server_id;
+  uint32_t chassis_id;
+  uint32_t super_pod_type;
+  uint32_t super_pod_intercon_type;
+  uint32_t reserve[5];
+};
+
 namespace hixl {
 
 /**
@@ -30,6 +48,21 @@ class DsmiProxy {
    * @return SUCCESS or FAILED.
    */
   static Status GetDevSlotId(int32_t device_id, uint32_t &slot_id);
+
+  /**
+   * @brief Get ScaleOut interconnection type.
+   * @param device_id Logical device ID.
+   * @param intercon_type Output interconnection type. 0=UBoE over Switch, 1=RoCE over NPU,
+   *                      2=UBoE over NPU, 3=RoCE over CPU, 4=UBG over NPU.
+   * @return SUCCESS or FAILED.
+   */
+  static Status GetInterconType(int32_t device_id, uint32_t &intercon_type);
+
+  /**
+   * @brief Whether the DSMI InterconType query interface is available in the loaded driver.
+   * @return true if the underlying DSMI symbol is present; false when the driver does not provide it yet.
+   */
+  static bool IsInterconTypeSupported();
 };
 
 }  // namespace hixl

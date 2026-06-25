@@ -59,12 +59,9 @@ class EndpointMatcher {
   // ---------- Type utility functions ----------
   static CommType ParseCommType(const std::string &local, const std::string &remote);
   static bool IsUbProtocol(const std::string &protocol);
-  static bool IsDirectProtocol(const std::string &protocol);
   static const char *HandlerTypeToString(HandlerCreateArgs::HandlerType type);
 
   // ---------- Endpoint lookup tools ----------
-  static const EndpointConfig *FindByProtocol(const std::vector<EndpointConfig> &endpoints,
-                                              const std::string &protocol);
   static void BuildMatchMap(const std::vector<EndpointConfig> &endpoints, std::map<MatchKey, EndpointConfig> &out);
 
  private:

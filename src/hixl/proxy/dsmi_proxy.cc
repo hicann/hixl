@@ -9,6 +9,7 @@
  */
 
 #include "dsmi_proxy.h"
+#include <cstddef>
 #include <mutex>
 #include "mmpa/mmpa_api.h"
 #include "common/hixl_checker.h"
@@ -19,18 +20,17 @@ namespace {
 
 constexpr const char *kLibDrvdsmiHostSo = "libdrvdsmi_host.so";
 
-struct dsmi_board_info_stru {
-  unsigned int board_id;
-  unsigned int pcb_id;
-  unsigned int bom_id;
-  unsigned int slot_id;
-};
+constexpr uint32_t kDsmiMainCmdChipInf = 12U;
+constexpr uint32_t kDsmiChipInfSubCmdSpodInfo = 1U;
 
-using DsmiGetBoardInfoFn = int (*)(int device_id, struct dsmi_board_info_stru *pboard_info);
+using DsmiGetBoardInfoFn = int (*)(int device_id, struct DsmiBoardInfoStru *pboard_info);
+using DsmiGetDeviceInfoFn = int (*)(uint32_t device_id, uint32_t main_cmd, uint32_t sub_cmd, void *buf,
+                                    uint32_t *buf_size);
 
 struct LibDrvdsmiHostLoader {
   void *handle = nullptr;
   DsmiGetBoardInfoFn dsmi_get_board_info = nullptr;
+  DsmiGetDeviceInfoFn dsmi_get_device_info = nullptr;
   std::mutex mu;
 
   ~LibDrvdsmiHostLoader() {
@@ -40,6 +40,7 @@ struct LibDrvdsmiHostLoader {
       (void)mmDlclose(handle);
       handle = nullptr;
       dsmi_get_board_info = nullptr;
+      dsmi_get_device_info = nullptr;
     }
   }
 };
@@ -72,6 +73,10 @@ Status EnsureLibDrvdsmiHostLoaded() {
 
   ldr.handle = dsmi_handle;
   ldr.dsmi_get_board_info = get_board_info_fn;
+  ldr.dsmi_get_device_info = reinterpret_cast<DsmiGetDeviceInfoFn>(mmDlsym(dsmi_handle, "dsmi_get_device_info"));
+  if (ldr.dsmi_get_device_info == nullptr) {
+    HIXL_LOGW("[DsmiProxy] mmDlsym dsmi_get_device_info failed, InterconType unavailable: %s", mmDlerror());
+  }
   return SUCCESS;
 }
 
@@ -83,7 +88,7 @@ Status DsmiProxy::GetDevSlotId(int32_t device_id, uint32_t &slot_id) {
   LibDrvdsmiHostLoader &ldr = LibDrvdsmiHost();
   std::lock_guard<std::mutex> lock(ldr.mu);
 
-  struct dsmi_board_info_stru board_info = {};
+  struct DsmiBoardInfoStru board_info = {};
   const int ret = ldr.dsmi_get_board_info(device_id, &board_info);
   if (ret != 0) {
     HIXL_LOGE(FAILED, "[DsmiProxy] dsmi_get_board_info failed, ret=%d, device_id=%d", ret, device_id);
@@ -93,6 +98,40 @@ Status DsmiProxy::GetDevSlotId(int32_t device_id, uint32_t &slot_id) {
   slot_id = board_info.slot_id;
   HIXL_LOGI("[DsmiProxy] GetDevSlotId success, device_id=%d, slot_id=%u", device_id, slot_id);
   return SUCCESS;
+}
+
+Status DsmiProxy::GetInterconType(int32_t device_id, uint32_t &intercon_type) {
+  HIXL_CHK_STATUS_RET(EnsureLibDrvdsmiHostLoaded(), "[DsmiProxy] EnsureLibDrvdsmiHostLoaded failed");
+
+  LibDrvdsmiHostLoader &ldr = LibDrvdsmiHost();
+  std::lock_guard<std::mutex> lock(ldr.mu);
+  if (ldr.dsmi_get_device_info == nullptr) {
+    HIXL_LOGW("[DsmiProxy] dsmi_get_device_info symbol not available, cannot query InterconType");
+    intercon_type = 0U;
+    return FAILED;
+  }
+
+  DsmiSpodInfo spod_info{};
+  uint32_t buf_size = static_cast<uint32_t>(sizeof(spod_info));
+  const int ret = ldr.dsmi_get_device_info(static_cast<uint32_t>(device_id), kDsmiMainCmdChipInf,
+                                           kDsmiChipInfSubCmdSpodInfo, &spod_info, &buf_size);
+  if (ret != 0) {
+    HIXL_LOGE(FAILED, "[DsmiProxy] dsmi_get_device_info failed, ret=%d, device_id=%d", ret, device_id);
+    intercon_type = 0U;
+    return FAILED;
+  }
+  intercon_type = spod_info.super_pod_intercon_type;
+  HIXL_LOGI("[DsmiProxy] GetInterconType success, device_id=%d, intercon_type=%u", device_id, intercon_type);
+  return SUCCESS;
+}
+
+bool DsmiProxy::IsInterconTypeSupported() {
+  if (EnsureLibDrvdsmiHostLoaded() != SUCCESS) {
+    return false;
+  }
+  LibDrvdsmiHostLoader &ldr = LibDrvdsmiHost();
+  std::lock_guard<std::mutex> lock(ldr.mu);
+  return ldr.dsmi_get_device_info != nullptr;
 }
 
 }  // namespace hixl

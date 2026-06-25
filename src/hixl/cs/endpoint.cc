@@ -26,8 +26,7 @@ constexpr uint32_t kRoceQueueNum = 1U;  // ROCE QP数量默认值
 
 Status Endpoint::Initialize() {
   std::lock_guard<std::mutex> lock(mutex_);
-  HIXL_LOGI("HcommEndpointCreate start, protocol:%d, devPhyId:%u", static_cast<int32_t>(endpoint_.protocol),
-            endpoint_.loc.device.devPhyId);
+  HIXL_LOGI("HcommEndpointCreate start, %s", EndpointToString(endpoint_).c_str());
   HIXL_CHK_HCCL_RET(HcommProxy::EndpointCreate(&endpoint_, &handle_));
   HIXL_LOGI("HcommEndpointCreate success, handle_:%p", handle_);
   return SUCCESS;
@@ -84,7 +83,7 @@ Status Endpoint::RegisterMem(const char *mem_tag, const CommMem &mem, MemHandle 
       (void)HostRegisterProxy::UnregisterByDev(endpoint_.loc.device.devPhyId, mem.addr);
     }
   });
-  if (endpoint_.protocol == COMM_PROTOCOL_UBOE && mem.type == COMM_MEM_TYPE_HOST) {
+  if (mem.type == COMM_MEM_TYPE_HOST && IsHostRegisterMappedProtocol(endpoint_.protocol)) {
     HIXL_CHK_STATUS_RET(
         HostRegisterProxy::RegisterByDev(endpoint_.loc.device.devPhyId, mem.addr, mem.size, registered_dev_mem),
         "Register mem failed, as host mem register failed, host addr=%p, size=%lu, devPhyId=%d.", mem.addr, mem.size,
@@ -94,6 +93,8 @@ Status Endpoint::RegisterMem(const char *mem_tag, const CommMem &mem, MemHandle 
     reg_mem.type = COMM_MEM_TYPE_DEVICE;
     reg_mem.addr = registered_dev_mem;
     reg_mem.size = mem.size;
+    HIXL_LOGI("HcommMemReg start (host-mapped), ep_handle=%p, host_addr=%p, dev_addr=%p, size=%lu", handle_, mem.addr,
+              registered_dev_mem, mem.size);
     hccl_ret = HcommProxy::MemReg(handle_, mem_tag, &reg_mem, &mem_handle);
   } else {
     hccl_ret = HcommProxy::MemReg(handle_, mem_tag, &mem, &mem_handle);
@@ -111,6 +112,8 @@ Status Endpoint::RegisterMem(const char *mem_tag, const CommMem &mem, MemHandle 
   desc.mem = mem;
   desc.registered_dev_mem = registered_dev_mem;
   reg_mems_[mem_handle] = desc;
+  HIXL_LOGI("HcommMemReg success, ep_handle=%p, mem_handle=%p, addr=%p, size=%lu", handle_, mem_handle, mem.addr,
+            mem.size);
   return ret;
 }
 

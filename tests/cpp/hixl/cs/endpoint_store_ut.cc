@@ -90,6 +90,42 @@ TEST(EndpointStoreUt, MatchEndpointFailsForUbCtpWhenEidDiffers) {
   EXPECT_EQ(store.Finalize(), SUCCESS);
 }
 
+TEST(EndpointStoreUt, MatchEndpointFailsForUbgWhenEidDiffers) {
+  EndpointStore store;
+  const std::array<uint8_t, COMM_ADDR_EID_LEN> eid = {0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x0a, 0xc0,
+                                                      0x00, 0x00, 0x00, 0x00, 0x0a, 0x14, 0x02, 0x00};
+  std::array<uint8_t, COMM_ADDR_EID_LEN> different_eid = eid;
+  different_eid[COMM_ADDR_EID_LEN - 1] ^= 0x01U;
+
+  EndpointHandle created_handle = nullptr;
+  ASSERT_EQ(store.CreateEndpoint(MakeUbEndpoint(COMM_PROTOCOL_UBG, eid), created_handle), SUCCESS);
+  ASSERT_NE(created_handle, nullptr);
+
+  EndpointHandle matched_handle = reinterpret_cast<EndpointHandle>(kTestHandleSeed);
+  auto matched = store.MatchEndpoint(MakeUbEndpoint(COMM_PROTOCOL_UBG, different_eid), matched_handle);
+  EXPECT_EQ(matched, nullptr);
+  EXPECT_EQ(matched_handle, reinterpret_cast<EndpointHandle>(kTestHandleSeed));
+
+  EXPECT_EQ(store.Finalize(), SUCCESS);
+}
+
+TEST(EndpointStoreUt, MatchEndpointSucceedsForUbgWhenEidSame) {
+  EndpointStore store;
+  const std::array<uint8_t, COMM_ADDR_EID_LEN> eid = {0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x0a, 0x80,
+                                                      0x00, 0x00, 0x00, 0x00, 0x0a, 0x14, 0x02, 0x00};
+
+  EndpointHandle created_handle = nullptr;
+  ASSERT_EQ(store.CreateEndpoint(MakeUbEndpoint(COMM_PROTOCOL_UBG, eid), created_handle), SUCCESS);
+  ASSERT_NE(created_handle, nullptr);
+
+  EndpointHandle matched_handle = reinterpret_cast<EndpointHandle>(kTestHandleSeed);
+  auto matched = store.MatchEndpoint(MakeUbEndpoint(COMM_PROTOCOL_UBG, eid), matched_handle);
+  EXPECT_NE(matched, nullptr);
+  EXPECT_EQ(matched_handle, created_handle);
+
+  EXPECT_EQ(store.Finalize(), SUCCESS);
+}
+
 TEST(EndpointStoreUt, MatchEndpointSucceedsForRoceIpv4) {
   EndpointStore store;
   const EndpointDesc endpoint = MakeRoceIpv4Endpoint("127.0.0.1");

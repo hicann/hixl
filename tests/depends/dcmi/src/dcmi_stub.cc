@@ -1,4 +1,14 @@
 /**
+ * Copyright (c) 2026 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
+
+/**
  * @file dcmi_stub.cc
  * @brief DCMI 接口桩函数，用于单元测试环境
  *
@@ -6,8 +16,10 @@
  * 通过 dlopen("libdcmi.so") 加载的 DCMI 接口在测试环境下可调用。
  */
 
+#include "dcmi_stub.h"
+
 #include <algorithm>
-#include <dlfcn.h>
+#include <cstdint>
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,28 +31,24 @@ extern "C" {
 static int g_dcmi_init_ret = 0;
 
 // dcmiv2_get_mainboard_id 控制
-static unsigned int g_mainboard_id = 0x3;  // 默认 Pod1
+static uint32_t g_mainboard_id = 0x3;  // 默认 Pod1
 static int g_mainboard_id_ret = 0;
 
 // dcmiv2_get_dev_id_by_chip_phy_id 控制
-static unsigned int g_logic_id = 0;
+static uint32_t g_logic_id = 0;
 static int g_logicid_ret = 0;
 
 // dcmiv2_get_urma_device_cnt 控制
-static unsigned int g_urma_device_cnt = 1;
+static uint32_t g_urma_device_cnt = 1;
 static int g_urma_device_cnt_ret = 0;
 
 // dcmiv2_get_device_info (SPOD) 控制
-static unsigned int g_super_pod_id = 0;
+static uint32_t g_super_pod_id = 0;
 static int g_device_info_ret = 0;
 
 // dcmiv2_get_eid_list_by_urma_dev_index 控制：返回 EID 数量（0=不返回, 1=仅非PG, 2=全部）
 static int g_eid_count = 2;
-
-// dlopen 失败模拟控制：true=下次 dlopen 返回 nullptr
-static bool g_dlopen_fail = false;
-
-// ============ 桩函数实现 ============
+static bool g_enable_ubg_eid = false;
 
 int dcmiv2_init(void) {
   return g_dcmi_init_ret;
@@ -95,7 +103,7 @@ static void BuildDefaultEid(unsigned char *eid, unsigned char byte5) {
     eid[i] = 0x00;
   }
   eid[5] = byte5;
-  eid[7] = 0x80;
+  eid[7] = 0xc0;  // high two bits 11 means UBoE; tests enable UBG explicitly when needed.
   eid[9] = 0x10;
   eid[12] = 0xdf;
   eid[13] = 0xdf;
@@ -131,6 +139,9 @@ int dcmiv2_get_eid_list_by_urma_dev_index(int npu_id, int urma_dev_index, void *
     // 非 PG EID，die_id 匹配 mesh_die_id
     unsigned char byte5 = (mesh_die_id == 0) ? 0x02 : 0x52;
     BuildDefaultEid(infos[0].eid.raw, byte5);
+    if (g_enable_ubg_eid) {
+      infos[0].eid.raw[7] = 0x80;  // high two bits 10 means UBG for issue302 UBG EID filtering.
+    }
     infos[0].eid_index = 0;
     count++;
   }
@@ -173,22 +184,22 @@ void DcmiStubSetInitRet(int ret) {
   g_dcmi_init_ret = ret;
 }
 
-void DcmiStubSetMainboardId(unsigned int id, int ret) {
+void DcmiStubSetMainboardId(uint32_t id, int ret) {
   g_mainboard_id = id;
   g_mainboard_id_ret = ret;
 }
 
-void DcmiStubSetLogicId(unsigned int id, int ret) {
+void DcmiStubSetLogicId(uint32_t id, int ret) {
   g_logic_id = id;
   g_logicid_ret = ret;
 }
 
-void DcmiStubSetUrmaDeviceCnt(unsigned int cnt, int ret) {
+void DcmiStubSetUrmaDeviceCnt(uint32_t cnt, int ret) {
   g_urma_device_cnt = cnt;
   g_urma_device_cnt_ret = ret;
 }
 
-void DcmiStubSetSuperPodId(unsigned int id, int ret) {
+void DcmiStubSetSuperPodId(uint32_t id, int ret) {
   g_super_pod_id = id;
   g_device_info_ret = ret;
 }
@@ -197,23 +208,8 @@ void DcmiStubSetEidCount(int count) {
   g_eid_count = count;
 }
 
-// dlopen 包装：模拟 dlopen 失败
-void *dlopen(const char *filename, int flag) {
-  using DlopenFunc = void *(*)(const char *, int);
-  static DlopenFunc real_dlopen = nullptr;
-  if (real_dlopen == nullptr) {
-    // NOLINTNEXTLINE(performance-no-int-to-ptr)
-    real_dlopen = (DlopenFunc)dlsym(RTLD_NEXT, "dlopen");
-  }
-  if (g_dlopen_fail) {
-    g_dlopen_fail = false;  // 重置，下次正常加载
-    return nullptr;
-  }
-  return real_dlopen(filename, flag);
-}
-
-void DcmiStubSetDlopenFail(bool fail) {
-  g_dlopen_fail = fail;
+void DcmiStubSetEnableUbgEid(bool enable) {
+  g_enable_ubg_eid = enable;
 }
 
 #ifdef __cplusplus
