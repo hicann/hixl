@@ -144,6 +144,11 @@ HcclResult HcclApiStub::HcclExchangeMemDesc(HcclComm comm,
 
 HcclResult HcclApiStub::HcclCommInitClusterInfoMem(const char *cluster, uint32_t rank, HcclCommConfig *config,
                                                    HcclComm *comm) {
+  static int dummy_comm = 1;
+  *comm = reinterpret_cast<HcclComm>(&dummy_comm);
+  (void)cluster;
+  (void)rank;
+  (void)config;
   return HCCL_SUCCESS;
 }
 

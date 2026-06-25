@@ -83,5 +83,19 @@ Status LoadJsonConfig(const std::string& json_string, std::map<AscendString, Asc
 bool NeedErrorLog(Status status) {
   std::set<Status> warnning_status = {RESOURCE_EXHAUSTED};
   return !warnning_status.count(status);
-} 
+}
+
+bool IsLinkFatal(Status status) {
+  switch (status) {
+    case SUCCESS:
+    case PARAM_INVALID:
+    case NOT_CONNECTED:
+    case ALREADY_CONNECTED:
+    case UNSUPPORTED:
+    case RESOURCE_EXHAUSTED:
+      return false;
+    default:
+      return true;
+  }
+}
 }  // namespace adxl

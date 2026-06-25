@@ -865,4 +865,114 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineMallocMemInvalidParam) {
   EXPECT_EQ(fabric_ptr, nullptr);
 }
 
+namespace {
+constexpr char kPeerEngine[] = "127.0.0.1:26001";
+
+class SyncTransferFailMock : public llm::AutoCommResRuntimeMock {
+ public:
+  aclError aclrtSynchronizeStreamWithTimeout(aclrtStream stream, int32_t timeout) override {
+    (void)stream;
+    (void)timeout;
+    return ACL_ERROR_RT_STREAM_SYNC_TIMEOUT;
+  }
+};
+
+void RegisterInt32MemForTest(AdxlEngine &engine, int32_t *ptr, MemHandle &handle) {
+  adxl::MemDesc mem_desc{};
+  mem_desc.addr = reinterpret_cast<uintptr_t>(ptr);
+  mem_desc.len = sizeof(int32_t);
+  EXPECT_EQ(engine.RegisterMem(mem_desc, MEM_DEVICE, handle), SUCCESS);
+}
+
+void SetupPlainConnectedEngines(AdxlEngine &engine1, AdxlEngine &engine2, int32_t &src, int32_t &dst,
+                                MemHandle &handle1, MemHandle &handle2) {
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  std::map<AscendString, AscendString> options1;
+  options1[OPTION_RDMA_TRAFFIC_CLASS] = "1";
+  options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
+  options1[OPTION_BUFFER_POOL] = "0:0";
+  EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
+  llm::AutoCommResRuntimeMock::SetDevice(1);
+  std::map<AscendString, AscendString> options2;
+  EXPECT_EQ(engine2.Initialize(kPeerEngine, options2), SUCCESS);
+  src = 1;
+  dst = 2;
+  RegisterInt32MemForTest(engine1, &src, handle1);
+  RegisterInt32MemForTest(engine2, &dst, handle2);
+  EXPECT_EQ(engine1.Connect(kPeerEngine), SUCCESS);
+}
+
+void SetupAutoConnectEngines(AdxlEngine &engine1, AdxlEngine &engine2, int32_t &src, int32_t &dst,
+                             MemHandle &handle1, MemHandle &handle2) {
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  std::map<AscendString, AscendString> options1;
+  options1[OPTION_AUTO_CONNECT] = "1";
+  options1[OPTION_BUFFER_POOL] = "0:0";
+  EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
+  llm::AutoCommResRuntimeMock::SetDevice(1);
+  std::map<AscendString, AscendString> options2;
+  EXPECT_EQ(engine2.Initialize(kPeerEngine, options2), SUCCESS);
+  src = 1;
+  dst = 2;
+  RegisterInt32MemForTest(engine1, &src, handle1);
+  RegisterInt32MemForTest(engine2, &dst, handle2);
+}
+}  // namespace
+
+TEST_F(AdxlEngineUTest, TestLinkUnavailableAfterSyncTransferFailure) {
+  AdxlEngine engine1;
+  AdxlEngine engine2;
+  int32_t src = 1;
+  int32_t dst = 2;
+  MemHandle handle1 = nullptr;
+  MemHandle handle2 = nullptr;
+  SetupPlainConnectedEngines(engine1, engine2, src, dst, handle1, handle2);
+  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+
+  SyncTransferFailMock fail_mock;
+  llm::AclRuntimeStub::Install(&fail_mock);
+  EXPECT_EQ(engine1.TransferSync(kPeerEngine, READ, {desc}), TIMEOUT);
+  llm::AclRuntimeStub::UnInstall(&fail_mock);
+
+  EXPECT_EQ(engine1.TransferSync(kPeerEngine, READ, {desc}), FAILED);
+
+  EXPECT_EQ(engine1.Disconnect(kPeerEngine), SUCCESS);
+  EXPECT_EQ(engine1.Connect(kPeerEngine), SUCCESS);
+  src = 1;
+  EXPECT_EQ(engine1.TransferSync(kPeerEngine, READ, {desc}), SUCCESS);
+  EXPECT_EQ(src, 2);
+
+  EXPECT_EQ(engine1.Disconnect(kPeerEngine), SUCCESS);
+  EXPECT_EQ(engine1.DeregisterMem(handle1), SUCCESS);
+  EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
+  engine1.Finalize();
+  engine2.Finalize();
+}
+
+TEST_F(AdxlEngineUTest, TestAutoConnectNotBrickedByTransferFailure) {
+  AdxlEngine engine1;
+  AdxlEngine engine2;
+  int32_t src = 1;
+  int32_t dst = 2;
+  MemHandle handle1 = nullptr;
+  MemHandle handle2 = nullptr;
+  SetupAutoConnectEngines(engine1, engine2, src, dst, handle1, handle2);
+  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+
+  SyncTransferFailMock fail_mock;
+  llm::AclRuntimeStub::Install(&fail_mock);
+  EXPECT_EQ(engine1.TransferSync(kPeerEngine, READ, {desc}), TIMEOUT);
+  llm::AclRuntimeStub::UnInstall(&fail_mock);
+
+  src = 1;
+  EXPECT_EQ(engine1.TransferSync(kPeerEngine, READ, {desc}), SUCCESS);
+  EXPECT_EQ(src, 2);
+
+  EXPECT_EQ(engine1.Disconnect(kPeerEngine), SUCCESS);
+  EXPECT_EQ(engine1.DeregisterMem(handle1), SUCCESS);
+  EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
+  engine1.Finalize();
+  engine2.Finalize();
+}
+
 }  // namespace adxl

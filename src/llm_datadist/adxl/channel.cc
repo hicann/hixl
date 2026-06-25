@@ -10,6 +10,7 @@
 
 #include "channel.h"
 #include <mutex>
+#include <thread>
 #include <fcntl.h>
 #include <unistd.h>
 #include "adxl/adxl_checker.h"
@@ -29,6 +30,7 @@ std::mutex g_mutex_;
 constexpr uint32_t kMaxOpDescNum = 256U;
 constexpr int64_t kHeartbeatTimeoutInMillis = 120000;
 constexpr int32_t kMillisToMicros = 1000;
+constexpr int32_t kCommDestroyGuardMs = 100;
 }
 
 int64_t Channel::timeout_in_millis_ = kHeartbeatTimeoutInMillis;
@@ -113,6 +115,7 @@ Status Channel::Finalize() {
   }
   ClearNotifyMessages();
   disconnect_flag_.store(false, std::memory_order_release);
+  unavailable_.store(false, std::memory_order_release);
   transfer_count_.store(0, std::memory_order_release);
   return ret;
 }
@@ -127,7 +130,9 @@ Status Channel::ClearResources() {
   }
 
   if (channel_info_.comm != nullptr) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(kCommDestroyGuardMs));
     auto hccl_ret = llm::HcclAdapter::GetInstance().HcclCommDestroy(channel_info_.comm);
+    channel_info_.comm = nullptr;
     ret = hccl_ret != HcclResult::HCCL_SUCCESS ? FAILED : ret;
   }
 
@@ -291,6 +296,9 @@ Status Channel::GetTransferStatus(const TransferReq &req, TransferStatus &status
 
 Status Channel::TransferAsync(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
                               aclrtStream stream) {
+  ADXL_CHK_BOOL_RET_STATUS(channel_info_.comm != nullptr, FAILED,
+                           "Channel comm is null, channel may have been finalized, channel_id:%s.",
+                           channel_info_.channel_id.c_str());
   auto trans_func = [this, operation, &stream](HcclOneSideOpDesc *descs, uint32_t desc_num) -> Status {
     HcclResult ret = HCCL_SUCCESS;
     if (operation == READ) {
@@ -313,6 +321,9 @@ Status Channel::TransferAsync(TransferOp operation, const std::vector<TransferOp
 
 Status Channel::TransferAsyncWithTimeout(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
                                          aclrtStream stream, uint64_t timeout) {
+  ADXL_CHK_BOOL_RET_STATUS(channel_info_.comm != nullptr, FAILED,
+                           "Channel comm is null, channel may have been finalized, channel_id:%s.",
+                           channel_info_.channel_id.c_str());
   const auto start = std::chrono::steady_clock::now();
   std::vector<HcclOneSideOpDesc> hccl_op_descs;
   hccl_op_descs.reserve(kMaxOpDescNum);
@@ -347,6 +358,9 @@ Status Channel::TransferAsyncWithTimeout(TransferOp operation, const std::vector
 Status Channel::TransferSync(TransferOp operation,
                              const std::vector<TransferOpDesc> &op_descs,
                              int32_t timeout_in_millis) {
+  ADXL_CHK_BOOL_RET_STATUS(channel_info_.comm != nullptr, FAILED,
+                           "Channel comm is null, channel may have been finalized, channel_id:%s.",
+                           channel_info_.channel_id.c_str());
   const auto start = std::chrono::steady_clock::now();
   aclrtStream stream = nullptr;
   ADXL_CHK_STATUS_RET(stream_pool_->TryAllocStream(stream), "Stream pool get stream failed.");
@@ -385,6 +399,14 @@ void Channel::StopHeartbeat() {
   std::lock_guard<std::mutex> lock(mutex_);
   with_heartbeat_.store(false, std::memory_order_release);
   disconnect_flag_.store(true, std::memory_order_release);
+}
+
+void Channel::MarkUnavailable() {
+  unavailable_.store(true, std::memory_order_release);
+}
+
+bool Channel::IsUnavailable() const {
+  return unavailable_.load(std::memory_order_acquire);
 }
 
 Status Channel::CommWithFd(const std::function<Status(int32_t)> &func) {

@@ -35,5 +35,6 @@ constexpr const char* OPTION_TASK_STREAM_NUM = "fabric_memory.task_stream_num";
 
 constexpr int kDefaultMaxChannel = 512;
 bool NeedErrorLog(Status status);
+bool IsLinkFatal(Status status);
 }  // namespace adxl
 #endif  // CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_ADXL_UTILS_H

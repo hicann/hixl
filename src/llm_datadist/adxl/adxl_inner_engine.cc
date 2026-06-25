@@ -497,6 +497,17 @@ Status AdxlInnerEngine::DisconnectOnError(const std::string &remote_engine, int3
   return SUCCESS;
 }
 
+void AdxlInnerEngine::MarkUnavailableOnError(const ChannelPtr &channel, Status ret) const {
+  if (channel == nullptr || !IsLinkFatal(ret)) {
+    return;
+  }
+  if (!channel->IsUnavailable()) {
+    LLMLOGW("Mark link unavailable due to transport failure, channel_id:%s, status:%u.",
+            channel->GetChannelId().c_str(), ret);
+  }
+  channel->MarkUnavailable();
+}
+
 Status AdxlInnerEngine::ConnectWhenTransfer(const AscendString &remote_engine, int32_t timeout_in_millis) {
   auto start_time = std::chrono::steady_clock::now();
   ChannelPtr channel;
@@ -529,6 +540,34 @@ Status AdxlInnerEngine::ConnectWhenTransfer(const AscendString &remote_engine, i
     }
   }
   return SUCCESS;
+}
+
+Status AdxlInnerEngine::TransferSyncViaBuffer(const AscendString &remote_engine, const ChannelPtr &channel,
+                                              TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
+                                              int32_t timeout_in_millis, bool &handled) {
+  handled = false;
+  if (buffer_transfer_service_ == nullptr) {
+    return SUCCESS;
+  }
+  const auto start = std::chrono::steady_clock::now();
+  bool need_buffer = false;
+  TransferType type = TransferType::kEnd;
+  ADXL_CHK_STATUS_RET(GetTransferType(channel, operation, op_descs, need_buffer, type),
+                      "Failed to get transfer type.");
+  LLMLOGI("Transfer type is:%s, cost:%lu us.", TransferTypeToString(type).c_str(),
+          std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count());
+  if (!need_buffer) {
+    return SUCCESS;
+  }
+  handled = true;
+  ADXL_CHK_BOOL_RET_STATUS(type != TransferType::kEnd, PARAM_INVALID, "Transfer type is invalid.");
+  Status ret = buffer_transfer_service_->Transfer(channel, type, op_descs, timeout_in_millis);
+  if (ret != SUCCESS) {
+    LLMLOGE(ret, "Failed to transfer via buffer transfer service, remote_engine:%s", remote_engine.GetString());
+    ADXL_CHK_STATUS_RET(DisconnectOnError(remote_engine.GetString(), timeout_in_millis),
+                        "Failed to disconnect on error.");
+  }
+  return ret;
 }
 
 Status AdxlInnerEngine::TransferSync(const AscendString &remote_engine,
@@ -565,31 +604,22 @@ Status AdxlInnerEngine::TransferSync(const AscendString &remote_engine,
     }
     return ret;
   }
-  if (buffer_transfer_service_ != nullptr) {
-    const auto start = std::chrono::steady_clock::now();
-    bool need_buffer = false;
-    TransferType type = TransferType::kEnd;
-    ADXL_CHK_STATUS_RET(GetTransferType(channel, operation, op_descs, need_buffer, type),
-                        "Failed to get transfer type.");
-    LLMLOGI("Transfer type is:%s, cost:%lu us.", TransferTypeToString(type).c_str(),
-            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count());
-    if (need_buffer) {
-      ADXL_CHK_BOOL_RET_STATUS(type != TransferType::kEnd, PARAM_INVALID, "Transfer type is invalid.");
-      // do not need lock, add lock inner
-      Status ret = buffer_transfer_service_->Transfer(channel, type, op_descs, timeout_in_millis);
-      if (ret != SUCCESS) {
-        LLMLOGE(ret, "Failed to transfer via buffer transfer service, remote_engine:%s", remote_engine.GetString());
-        ADXL_CHK_STATUS_RET(DisconnectOnError(remote_engine.GetString(), timeout_in_millis),
-                            "Failed to disconnect on error.");
-      }
-      return ret;
-    }
+  bool handled = false;
+  Status buffer_ret = TransferSyncViaBuffer(remote_engine, channel, operation, op_descs, timeout_in_millis, handled);
+  if (handled) {
+    return buffer_ret;
   }
   std::unique_lock<std::mutex> transfer_lock(channel->GetTransferMutex());
+  if (IsLinkFailFastEnabled() && channel->IsUnavailable()) {
+    LLMLOGE(FAILED, "Link is unavailable due to a previous transport failure, please reconnect. remote_engine:%s",
+            remote_engine.GetString());
+    return FAILED;
+  }
   Status ret = channel->TransferSync(operation, op_descs, timeout_in_millis);
-  transfer_lock.unlock();
   if (ret != SUCCESS) {
     LLMLOGE(ret, "Failed to transfer sync, remote_engine:%s", remote_engine.GetString());
+    MarkUnavailableOnError(channel, ret);
+    transfer_lock.unlock();
     ADXL_CHK_STATUS_RET(DisconnectOnError(remote_engine.GetString(), timeout_in_millis),
                         "Failed to disconnect on error.");
     return ret;
