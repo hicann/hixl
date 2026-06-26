@@ -77,4 +77,5 @@ target_link_libraries(hcomm_proxy_static PRIVATE
         $<BUILD_INTERFACE:c_sec_headers>
         $<BUILD_INTERFACE:error_manager_headers>
         $<BUILD_INTERFACE:metadef_headers>
+        $<IF:$<STREQUAL:${PRODUCT_SIDE},device>,ccl_kernel,hcomm>
 )
