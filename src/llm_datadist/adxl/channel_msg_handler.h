@@ -135,6 +135,8 @@ class ChannelMsgHandler {
   Status ConnectToPeer(const std::string &remote_engine, int32_t timeout_in_millis, int32_t &conn_fd);
   Status ExchangeConnectInfo(int32_t conn_fd, int32_t timeout_in_millis, ChannelConnectInfo &peer_connect_info);
   Status PrepareDisconnect(const std::string &remote_engine, int32_t timeout_in_millis, int32_t &conn_fd) const;
+  Status CheckPrepareDisconnectResult(Status prepare_ret, const std::string &remote_engine,
+                                      int32_t timeout_in_millis) const;
   void SendDisconnectRequest(int32_t conn_fd, Status &send_status);
   Status CleanupDisconnectResources(const std::string &remote_engine) const;
   Status ValidateDisconnectResponse(int32_t conn_fd, Status send_status) const;

@@ -384,7 +384,7 @@ Status BufferTransferService::HandleBufferD2D(const ChannelPtr &channel, BufferR
   auto left_time = timeout - time_cost;
   std::vector<TransferOpDesc> op_descs{
       TransferOpDesc{buffer_req.local_buffer_addr, buffer_req.buffer_addr, buffer_req.total_buffer_len}};
-  ADXL_CHK_STATUS_RET(D2DTransfer(channel, op, op_descs, left_time, start), "D2D transfer failed.");
+  ADXL_CHK_STATUS_RET(D2DTransfer(channel, op, op_descs, left_time), "D2D transfer failed.");
   time_cost = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
   LLMLOGI("D2D time cost:%lu us, data num:%zu.", time_cost, op_descs.size());
   StatisticManager::GetInstance().UpdateServerD2DCost(channel->GetStatisticChannelId(), time_cost);
@@ -401,28 +401,15 @@ Status BufferTransferService::HandleBufferD2D(const ChannelPtr &channel, BufferR
 }
 
 Status BufferTransferService::D2DTransfer(const ChannelPtr &channel, TransferOp transfer_op,
-                                          const std::vector<TransferOpDesc> &op_descs, uint64_t timeout,
-                                          const std::chrono::steady_clock::time_point &start) {
-  std::lock_guard<std::mutex> lock(channel->GetTransferMutex());
-  StreamPool *stream_pool = channel->GetStreamPool();
-  ADXL_CHK_BOOL_RET_STATUS(stream_pool != nullptr, FAILED, "Stream pool is null.");
-  aclrtStream stream = nullptr;
-  ADXL_CHK_STATUS_RET(stream_pool->TryAllocStream(stream), "Stream pool get stream failed.");
-  LLM_DISMISSABLE_GUARD(fail_guard, ([stream_pool, &stream]() {
-                          if (stream != nullptr) {
-                            stream_pool->DestroyStream(stream);
-                          }
-                        }));
-  ADXL_CHK_STATUS_RET(channel->TransferAsyncWithTimeout(transfer_op, op_descs, stream, timeout), "transfer failed.");
-  uint64_t time_cost =
-      std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count();
-  ADXL_CHK_BOOL_RET_STATUS(time_cost < timeout, TIMEOUT, "Transfer timeout.");
-  auto left_timeout = timeout - time_cost;
-  auto timeout_in_millis = left_timeout / kMillisToMicros;
+                                          const std::vector<TransferOpDesc> &op_descs, uint64_t timeout) {
+  // `timeout` is the remaining budget (μs) handed down by the caller; RunSyncOnSlot expects milliseconds. The HcclBatch
+  // issue runs inside RunSyncOnSlot's lambda, so nothing is spent here before the sync — convert the full budget.
+  auto timeout_in_millis = timeout / kMillisToMicros;
   ADXL_CHK_BOOL_RET_STATUS(timeout_in_millis > 0, TIMEOUT, "Transfer timeout.");
-  ADXL_CHK_ACL_RET(aclrtSynchronizeStreamWithTimeout(stream, timeout_in_millis));
-  LLM_DISMISS_GUARD(fail_guard);
-  stream_pool->FreeStream(stream);
+  auto issue_fn = [&channel, transfer_op, &op_descs, timeout](aclrtStream stream) -> Status {
+    return channel->TransferAsyncWithTimeout(transfer_op, op_descs, stream, timeout);
+  };
+  ADXL_CHK_STATUS_RET(channel->RunSyncOnSlot(issue_fn, static_cast<int32_t>(timeout_in_millis)), "transfer failed.");
   return SUCCESS;
 }
 
@@ -579,33 +566,23 @@ Status BufferTransferService::ProcessCopyWithBatch(const SliceInfo &slice_info, 
 Status BufferTransferService::ProcessCopyWithAsync(const ChannelPtr &channel, const std::vector<uintptr_t> &src_addrs,
                                                    const std::vector<uintptr_t> &dst_addrs, std::vector<size_t> &sizes,
                                                    CopyExtraInfo extra_info) {
-  std::lock_guard<std::mutex> lock(channel->GetTransferMutex());
-  auto &timeout = extra_info.second;
-  StreamPool *stream_pool = channel->GetStreamPool();
-  aclrtStream stream = nullptr;
-  ADXL_CHK_STATUS_RET(stream_pool->TryAllocStream(stream), "Stream pool get stream failed.");
-  LLM_DISMISSABLE_GUARD(fail_guard, ([stream_pool, &stream]() {
-                          if (stream != nullptr) {
-                            stream_pool->DestroyStream(stream);
-                          }
-                        }));
-  ADXL_CHK_BOOL_RET_STATUS(stream != nullptr, FAILED, "Channel is finalized.");
+  auto timeout = extra_info.second;
+  auto memcpy_kind = extra_info.first;
   auto start = std::chrono::steady_clock::now();
-  for (size_t i = 0; i < src_addrs.size(); ++i) {
-    ADXL_CHK_ACL_RET(aclrtMemcpyAsync(llm::ValueToPtr(dst_addrs[i]), sizes[i], llm::ValueToPtr(src_addrs[i]), sizes[i],
-                                      extra_info.first, stream));
-  }
-  uint64_t time_cost =
-      std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
-  ADXL_CHK_BOOL_RET_STATUS(time_cost < timeout, TIMEOUT, "Transfer timeout.");
-  auto left_timeout = timeout - time_cost;
-  auto timeout_in_millis = left_timeout / kMillisToMicros;
+  // extra_info.second carries the copy budget in microseconds; RunSyncOnSlot expects milliseconds. The memcpy issue
+  // runs inside RunSyncOnSlot's lambda, so nothing is spent here before the sync — convert the full budget directly.
+  auto timeout_in_millis = timeout / kMillisToMicros;
   ADXL_CHK_BOOL_RET_STATUS(timeout_in_millis > 0, TIMEOUT, "Transfer timeout.");
-  ADXL_CHK_ACL_RET(aclrtSynchronizeStreamWithTimeout(stream, timeout_in_millis));
+  auto issue_fn = [&src_addrs, &dst_addrs, &sizes, memcpy_kind](aclrtStream stream) -> Status {
+    for (size_t i = 0; i < src_addrs.size(); ++i) {
+      ADXL_CHK_ACL_RET(aclrtMemcpyAsync(llm::ValueToPtr(dst_addrs[i]), sizes[i], llm::ValueToPtr(src_addrs[i]),
+                                        sizes[i], memcpy_kind, stream));
+    }
+    return SUCCESS;
+  };
+  ADXL_CHK_STATUS_RET(channel->RunSyncOnSlot(issue_fn, static_cast<int32_t>(timeout_in_millis)), "Async copy failed.");
   LLMLOGI("Async copy time cost:%lu us",
           std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - start).count());
-  LLM_DISMISS_GUARD(fail_guard);
-  stream_pool->FreeStream(stream);
   return SUCCESS;
 }
 

@@ -85,6 +85,20 @@ bool NeedErrorLog(Status status) {
   return !warnning_status.count(status);
 }
 
+bool IsLinkFatal(Status status) {
+  switch (status) {
+    case SUCCESS:
+    case PARAM_INVALID:
+    case NOT_CONNECTED:
+    case ALREADY_CONNECTED:
+    case UNSUPPORTED:
+    case RESOURCE_EXHAUSTED:
+      return false;
+    default:
+      return true;
+  }
+}
+
 uint64_t GetTransferBytes(const std::vector<TransferOpDesc> &op_descs) {
   uint64_t total_bytes = 0UL;
   for (const auto &op_desc : op_descs) {

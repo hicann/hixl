@@ -80,15 +80,6 @@ class AdxlInnerEngine {
                                uint64_t &npu_pool_size);
   Status ParseAutoConnectConfig(const std::map<AscendString, AscendString> &options);
   Status DisconnectOnError(const std::string &remote_engine, int32_t timeout_in_millis);
-  // Fail-fast on a transport failure is enabled in plain mode and auto-connect mode, i.e. everything except a
-  // user-configured channel pool (whose link lifecycle is managed via eviction; marking would brick a pooled
-  // channel that is never destroyed on error). In auto-connect the channel is destroyed on error
-  // (DisconnectOnError), so marking it unavailable never bricks the link: the next transfer rebuilds a fresh one.
-  bool IsLinkFailFastEnabled() const {
-    return auto_connect_ || !user_config_channel_pool_;
-  }
-  // Mark the link unavailable when a transport-level failure (including sync timeout) trips the breaker.
-  void MarkUnavailableOnError(const ChannelPtr &channel, Status ret) const;
 
   std::string local_engine_;
   ChannelManager channel_manager_;
@@ -100,7 +91,7 @@ class AdxlInnerEngine {
   std::vector<MemHandle> pool_mem_handles_{};
   std::unique_ptr<BufferTransferService> buffer_transfer_service_ = nullptr;
   std::unique_ptr<SegmentTable> segment_table_ = nullptr;
-  std::unique_ptr<StreamPool> stream_pool_ = nullptr;
+  std::unique_ptr<TransferSlotPool> slot_pool_ = nullptr;
   bool user_config_buffer_pool_{false};
   bool user_config_channel_pool_{false};
   bool auto_connect_{false};

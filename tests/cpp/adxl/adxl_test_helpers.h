@@ -17,10 +17,27 @@
 #include <gtest/gtest.h>
 
 #include "adxl/adxl_engine.h"
+#include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
+#include "depends/mmpa/src/mmpa_stub.h"
 #include "../common/async_transfer_test_helpers.h"
 
 namespace adxl {
 namespace test_helpers {
+
+class AdxlHcclRuntimeTestBase : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    llm::MockMmpaForHcclApi::Install();
+    llm::AutoCommResRuntimeMock::Install();
+    llm::HcclAdapter::GetInstance().Initialize();
+  }
+
+  void TearDown() override {
+    llm::HcclAdapter::GetInstance().Finalize();
+    llm::AutoCommResRuntimeMock::Reset();
+    llm::MockMmpaForHcclApi::Reset();
+  }
+};
 
 inline void RegisterDeviceBufferMem(AdxlEngine &engine, const std::vector<int8_t> &buffer, MemHandle &handle) {
   adxl::MemDesc mem{};

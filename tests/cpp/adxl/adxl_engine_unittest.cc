@@ -639,23 +639,6 @@ TEST_F(AdxlEngineUTest, TestAdxlGetTransferStatusWithInterrupt) {
   engine2.Finalize();
 }
 
-TEST_F(AdxlEngineUTest, TestAdxlGetTransferStatusWithQueryEventFailed) {
-  AdxlEngine engine1;
-  AdxlEngine engine2;
-  auto mem = SetupInt32ConnectedEngines(engine1, engine2);
-  TransferOpDesc desc = MakeInt32TransferDesc(mem.src, mem.dst);
-  TransferReq req = nullptr;
-  EXPECT_EQ(engine1.TransferAsync("127.0.0.1:28101", WRITE, {desc}, {}, req), SUCCESS);
-  TransferStatus status = TransferStatus::WAITING;
-  TransferAsyncRuntimeMock instance;
-  ;
-  llm::AclRuntimeStub::Install(&instance);
-  EXPECT_EQ(engine1.GetTransferStatus(req, status), FAILED);
-  llm::AclRuntimeStub::UnInstall(&instance);
-  engine1.Finalize();
-  engine2.Finalize();
-}
-
 TEST_F(AdxlEngineUTest, TestAdxlEngineSendGetNotifies) {
   AdxlEngine engine1;
   AdxlEngine engine2;
@@ -768,23 +751,6 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineSendNotifyNameTooLong) {
   engine1.Finalize();
   engine2.Finalize();
 }
-TEST_F(AdxlEngineUTest, TestAdxlGetTransferStatusWithStreamSyncFailed) {
-  AdxlEngine engine1;
-  AdxlEngine engine2;
-  auto mem = SetupInt32ConnectedEngines(engine1, engine2);
-  TransferOpDesc desc = MakeInt32TransferDesc(mem.src, mem.dst);
-  TransferReq req = nullptr;
-  EXPECT_EQ(engine1.TransferAsync("127.0.0.1:28101", WRITE, {desc}, {}, req), SUCCESS);
-  TransferStatus status = TransferStatus::WAITING;
-  TransferAsyncSteamRuntimeMocak instance;
-  ;
-  llm::AclRuntimeStub::Install(&instance);
-  EXPECT_EQ(engine1.GetTransferStatus(req, status), FAILED);
-  llm::AclRuntimeStub::UnInstall(&instance);
-  engine1.Finalize();
-  engine2.Finalize();
-}
-
 TEST_F(AdxlEngineUTest, TestAdxlEngineSendNotifyMsgTooLong) {
   AdxlEngine engine1;
   AdxlEngine engine2;

@@ -34,25 +34,6 @@ constexpr size_t kMaxStreams = 512;
 constexpr uint32_t kMinDevicePort = 1U;
 constexpr uint32_t kMaxDevicePort = 65535U;
 
-// A transport-level failure that should trip the link circuit breaker. Caller-side errors (PARAM_INVALID),
-// "no link" errors (NOT_CONNECTED), local resource shortages (RESOURCE_EXHAUSTED) and capability errors
-// (UNSUPPORTED/ALREADY_CONNECTED) are not link failures and must not mark the link unavailable.
-bool IsLinkFatal(Status status) {
-  switch (status) {
-    case SUCCESS:
-    case PARAM_INVALID:
-    case NOT_CONNECTED:
-    case ALREADY_CONNECTED:
-    case UNSUPPORTED:
-    case RESOURCE_EXHAUSTED:
-      return false;
-    default:
-      // FAILED, TIMEOUT (a sync transfer timeout from aclrtSynchronizeStreamWithTimeout is mapped to TIMEOUT),
-      // and other hccl-mapped transport errors.
-      return true;
-  }
-}
-
 // Helper function to determine transfer type based on operation and memory types
 TransferType DetermineTransferType(TransferOp operation, MemType local_mem_type, MemType remote_mem_type) {
   if (operation == TransferOp::READ) {
@@ -198,13 +179,16 @@ Status AdxlInnerEngine::Initialize(const std::map<AscendString, AscendString> &o
                           aclrt_context_ = nullptr;
                         }));
   segment_table_ = llm::MakeUnique<SegmentTable>();
-  stream_pool_ = llm::MakeUnique<StreamPool>(kMaxStreams);
+  slot_pool_ = llm::MakeUnique<TransferSlotPool>(device_id, kMaxStreams);
+  ADXL_CHECK_NOTNULL(slot_pool_, "Failed to create transfer slot pool.");
+  ADXL_CHK_STATUS_RET(slot_pool_->Initialize(), "Failed to init transfer slot pool.");
   ADXL_CHK_STATUS_RET(msg_handler_.Initialize(options, segment_table_.get()), "Failed to init msg handler.");
   ADXL_CHK_STATUS_RET(InitBufferTransferService(options), "Failed to init buffer memory pool.");
   ADXL_CHK_STATUS_RET(ParseAutoConnectConfig(options));
   ADXL_CHK_STATUS_RET(channel_manager_.Initialize(buffer_transfer_service_.get()), "Failed to init channel manager.");
   channel_manager_.SetAutoConnect(auto_connect_);
-  channel_manager_.SetStreamPool(stream_pool_.get());
+  channel_manager_.SetSlotPool(slot_pool_.get());
+  channel_manager_.SetFailFastEnabled(auto_connect_ || !user_config_channel_pool_);
   channel_manager_.RegisterNotifyAckCallback([this](uint64_t req_id) {
     std::lock_guard<std::mutex> lock(notify_mutex_);
     notify_ack_ready_[req_id] = true;
@@ -325,8 +309,8 @@ void AdxlInnerEngine::Finalize() {
     }
     channel_manager_.Finalize();
     msg_handler_.Finalize();
-    if (stream_pool_ != nullptr) {
-      stream_pool_->Finalize();
+    if (slot_pool_ != nullptr) {
+      slot_pool_->Finalize();
     }
     for (auto &mem : npu_pool_memorys_) {
       if (mem != nullptr) {
@@ -421,21 +405,10 @@ Status AdxlInnerEngine::GetTransferType(const ChannelPtr &channel, TransferOp op
 Status AdxlInnerEngine::DisconnectOnError(const std::string &remote_engine, int32_t timeout_in_millis) {
   if (auto_connect_) {
     ADXL_CHK_STATUS_RET(msg_handler_.Disconnect(remote_engine, timeout_in_millis),
-                        "Failed to disconnect, remote engine:%s, timeout:%d ms", remote_engine.c_str(),
-                        timeout_in_millis);
+                        "Failed to disconnect on transfer error, remote engine:%s, timeout:%d ms",
+                        remote_engine.c_str(), timeout_in_millis);
   }
   return SUCCESS;
-}
-
-void AdxlInnerEngine::MarkUnavailableOnError(const ChannelPtr &channel, Status ret) const {
-  if (channel == nullptr || !IsLinkFailFastEnabled() || !IsLinkFatal(ret)) {
-    return;
-  }
-  if (!channel->IsUnavailable()) {
-    LLMLOGW("Mark link unavailable due to transport failure, channel_id:%s, status:%u.",
-            channel->GetChannelId().c_str(), ret);
-  }
-  channel->MarkUnavailable();
 }
 
 Status AdxlInnerEngine::ConnectWhenTransfer(const AscendString &remote_engine, int32_t timeout_in_millis) {
@@ -495,7 +468,6 @@ Status AdxlInnerEngine::TransferSyncViaBuffer(const AscendString &remote_engine,
   Status ret = buffer_transfer_service_->Transfer(channel, type, op_descs, timeout_in_millis);
   if (ret != SUCCESS) {
     LLMLOGE(ret, "Failed to transfer via buffer transfer service, remote_engine:%s", remote_engine.GetString());
-    MarkUnavailableOnError(channel, ret);
     ADXL_CHK_STATUS_RET(DisconnectOnError(remote_engine.GetString(), timeout_in_millis),
                         "Failed to disconnect on error.");
   }
@@ -529,25 +501,13 @@ Status AdxlInnerEngine::TransferSync(const AscendString &remote_engine, Transfer
   if (handled) {
     return buffer_ret;
   }
-  std::unique_lock<std::mutex> transfer_lock(channel->GetTransferMutex());
-  // Strict fail-fast: the unavailable check and the mark below both run under the per-channel transfer mutex, so
-  // once one thread's transfer fails and marks the link, any thread acquiring the lock afterwards observes it and
-  // refuses to transfer on the dying channel (instead of racing into channel->TransferSync after the unlock).
-  if (IsLinkFailFastEnabled() && channel->IsUnavailable()) {
-    LLMLOGE(FAILED, "Link is unavailable due to a previous transport failure, please reconnect. remote_engine:%s",
-            remote_engine.GetString());
-    return FAILED;
-  }
   Status ret = channel->TransferSync(operation, op_descs, timeout_in_millis);
   if (ret != SUCCESS) {
     LLMLOGE(ret, "Failed to transfer sync, remote_engine:%s", remote_engine.GetString());
-    MarkUnavailableOnError(channel, ret);
-    transfer_lock.unlock();
     ADXL_CHK_STATUS_RET(DisconnectOnError(remote_engine.GetString(), timeout_in_millis),
                         "Failed to disconnect on error.");
     return ret;
   }
-  transfer_lock.unlock();
   return SUCCESS;
 }
 
@@ -561,14 +521,6 @@ Status AdxlInnerEngine::TransferAsync(const AscendString &remote_engine, Transfe
   auto channel = channel_manager_.GetChannel(ChannelType::kClient, remote_engine.GetString());
   ADXL_CHK_BOOL_RET_STATUS(channel != nullptr, NOT_CONNECTED, "Failed to get channel, remote_engine:%s",
                            remote_engine.GetString());
-  std::unique_lock<std::mutex> transfer_lock(channel->GetTransferMutex());
-  // Strict fail-fast: the unavailable check and the mark below both run under the per-channel transfer mutex, so
-  // a thread that acquires the lock after a previously failed transfer observes the mark and refuses to transfer.
-  if (IsLinkFailFastEnabled() && channel->IsUnavailable()) {
-    LLMLOGE(FAILED, "Link is unavailable due to a previous transport failure, please reconnect. remote_engine:%s",
-            remote_engine.GetString());
-    return FAILED;
-  }
   auto id = next_req_id_.fetch_add(1);
   req = reinterpret_cast<void *>(static_cast<uintptr_t>(id));
   if (user_config_channel_pool_) {
@@ -583,13 +535,10 @@ Status AdxlInnerEngine::TransferAsync(const AscendString &remote_engine, Transfe
   Status trans_status = channel->TransferAsync(operation, op_descs, optional_args, req);
   if (trans_status != SUCCESS) {
     LLMLOGE(trans_status, "Failed to transfer async, remote_engine:%s", remote_engine.GetString());
-    MarkUnavailableOnError(channel, trans_status);
-    transfer_lock.unlock();
     ADXL_CHK_STATUS_RET(DisconnectOnError(remote_engine.GetString(), kConnectWhenTransferTimeout),
                         "Failed to disconnect on error.");
     return trans_status;
   }
-  transfer_lock.unlock();
   LLM_DISMISS_GUARD(transfer_count_guard);
   uint64_t start_time = 0;
   start_time = hixl::HixlProfilingReporter::GetSysCycleTime();
@@ -618,15 +567,18 @@ Status AdxlInnerEngine::GetTransferStatus(const TransferReq &req, TransferStatus
     status = TransferStatus::FAILED;
     return NOT_CONNECTED;
   }
-  if (IsLinkFailFastEnabled() && channel->IsUnavailable()) {
-    LLMLOGE(FAILED, "Link is unavailable due to a previous transport failure, please reconnect. remote_engine:%s",
-            remote_engine.GetString());
-    req_map_.erase(it);
-    status = TransferStatus::FAILED;
-    return FAILED;
-  }
 
   Status ret = channel->GetTransferStatus(req, status);
+  if (ret != SUCCESS) {
+    if (user_config_channel_pool_) {
+      channel->DecrementTransferCount();
+    }
+    req_map_.erase(it);
+    LLMLOGE(ret, "Failed to get transfer status, remote_engine:%s", remote_engine.GetString());
+    ADXL_CHK_STATUS_RET(DisconnectOnError(remote_engine.GetString(), kConnectWhenTransferTimeout),
+                        "Failed to disconnect on error.");
+    return ret;
+  }
   if (status != TransferStatus::WAITING) {
     if (user_config_channel_pool_) {
       channel->DecrementTransferCount();
@@ -637,12 +589,6 @@ Status AdxlInnerEngine::GetTransferStatus(const TransferReq &req, TransferStatus
                                                                  : hixl::HixlProfType::HixlOpBatchWrite);
     HIXL_API_PROFILING_WITH_TIME(type, start_time);
     req_map_.erase(it);
-  }
-  if (ret != SUCCESS) {
-    LLMLOGE(ret, "Failed to get transfer status, remote_engine:%s", remote_engine.GetString());
-    MarkUnavailableOnError(channel, ret);
-    ADXL_CHK_STATUS_RET(DisconnectOnError(remote_engine.GetString(), kConnectWhenTransferTimeout),
-                        "Failed to disconnect on error.");
   }
   return ret;
 }

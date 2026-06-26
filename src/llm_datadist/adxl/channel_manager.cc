@@ -457,7 +457,8 @@ Status ChannelManager::CreateChannel(const ChannelInfo &channel_info, ChannelPtr
   ChannelPtr channel = llm::MakeShared<CommChannel>(channel_info);
   ADXL_CHECK_NOTNULL(channel);
   ADXL_CHK_STATUS_RET(channel->Initialize(), "Failed to init channel");
-  channel->SetStreamPool(stream_pool_);
+  channel->SetSlotPool(slot_pool_);
+  channel->SetFailFastEnabled(fail_fast_enabled_);
   LLM_DISMISSABLE_GUARD(failed_guard, ([channel]() { (void)channel->Finalize(); }));
   std::lock_guard<std::mutex> lock(mutex_);
   auto key = std::make_pair(channel_info.channel_type, channel_info.channel_id);
@@ -567,8 +568,12 @@ void ChannelManager::ProcessAckMessages() {
   }
 }
 
-void ChannelManager::SetStreamPool(StreamPool *stream_pool) {
-  stream_pool_ = stream_pool;
+void ChannelManager::SetSlotPool(TransferSlotPool *slot_pool) {
+  slot_pool_ = slot_pool;
+}
+
+void ChannelManager::SetFailFastEnabled(bool enabled) {
+  fail_fast_enabled_ = enabled;
 }
 
 void ChannelManager::SetAutoConnect(bool auto_connect) {
