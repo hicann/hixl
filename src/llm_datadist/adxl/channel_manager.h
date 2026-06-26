@@ -42,7 +42,8 @@ class ChannelManager {
     notify_ack_callback_ = std::move(callback);
   }
 
-  void SetStreamPool(StreamPool *stream_pool);
+  void SetSlotPool(TransferSlotPool *slot_pool);
+  void SetFailFastEnabled(bool enabled);
 
   Status AddSocketToEpoll(int32_t fd, ChannelPtr channel);
 
@@ -109,7 +110,8 @@ class ChannelManager {
   BufferTransferService *buffer_transfer_service_ = nullptr;
   std::mutex fd_mutex_;
   std::map<int32_t, ChannelPtr> fd_to_channel_map_;
-  StreamPool *stream_pool_ = nullptr;
+  TransferSlotPool *slot_pool_ = nullptr;
+  bool fail_fast_enabled_{true};
 
   std::thread msg_receiver_;
   aclrtContext aclrt_context_{nullptr};

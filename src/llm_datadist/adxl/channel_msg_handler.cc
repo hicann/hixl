@@ -572,16 +572,17 @@ Status ChannelMsgHandler::PrepareDisconnect(const std::string &remote_engine, in
                                             int32_t &conn_fd) const {
   std::string remote_ip;
   int32_t remote_port = -1;
-  HIXL_CHK_STATUS_RET(hixl::ParseListenInfo(remote_engine, remote_ip, remote_port), "Failed to parse listen info");
+  HIXL_CHK_STATUS_RET(hixl::ParseListenInfo(remote_engine, remote_ip, remote_port),
+                      "Disconnect prepare failed to parse listen info, remote:%s.", remote_engine.c_str());
   auto channel = channel_manager_->GetChannel(ChannelType::kClient, remote_engine);
   if (channel == nullptr) {
     return NOT_CONNECTED;
   }
   channel->StopHeartbeat();
-  ADXL_CHK_STATUS(llm::MsgHandlerPlugin::Connect(remote_ip, static_cast<uint32_t>(remote_port), conn_fd,
-                                                 timeout_in_millis, SUCCESS),
-                  "Failed to connect remote addr %s:%d, timeout=%d ms.", remote_ip.c_str(), remote_port,
-                  timeout_in_millis);
+  ADXL_CHK_LLM_RET(llm::MsgHandlerPlugin::Connect(remote_ip, static_cast<uint32_t>(remote_port), conn_fd,
+                                                  timeout_in_millis, SUCCESS),
+                   "Disconnect prepare failed to connect peer %s:%d, local:%s, remote:%s, timeout:%d ms.",
+                   remote_ip.c_str(), remote_port, listen_info_.c_str(), remote_engine.c_str(), timeout_in_millis);
   return SUCCESS;
 }
 
@@ -603,12 +604,33 @@ Status ChannelMsgHandler::CleanupDisconnectResources(const std::string &remote_e
 
 Status ChannelMsgHandler::ValidateDisconnectResponse(int32_t conn_fd, Status send_status) const {
   if (send_status != SUCCESS) {
+    // Peer may already be down; local cleanup is done, skip recv.
     return SUCCESS;
   }
   ChannelStatus status{};
-  ADXL_CHK_STATUS_RET(RecvMsg(conn_fd, ChannelMsgType::kStatus, status), "Failed to recv status msg");
-  ADXL_CHK_STATUS_RET(status.error_code, "Failed to check peer process ret status, error code[%u], err msg[%s]",
-                      status.error_code, status.error_message.c_str());
+  ADXL_CHK_STATUS_RET(RecvMsg(conn_fd, ChannelMsgType::kStatus, status),
+                      "Disconnect failed to recv peer status response, local:%s, conn_fd:%d.", listen_info_.c_str(),
+                      conn_fd);
+  if (status.error_code != SUCCESS) {
+    LLMLOGE(status.error_code, "Disconnect rejected by peer, local:%s, conn_fd:%d, peer_error_code:%u, peer_msg:%s.",
+            listen_info_.c_str(), conn_fd, status.error_code, status.error_message.c_str());
+    return static_cast<Status>(status.error_code);
+  }
+  return SUCCESS;
+}
+
+Status ChannelMsgHandler::CheckPrepareDisconnectResult(Status prepare_ret, const std::string &remote_engine,
+                                                       int32_t timeout_in_millis) const {
+  if (prepare_ret == NOT_CONNECTED) {
+    LLMLOGE(NOT_CONNECTED, "Disconnect failed, client channel not found, local:%s, remote:%s.", listen_info_.c_str(),
+            remote_engine.c_str());
+    return NOT_CONNECTED;
+  }
+  if (prepare_ret != SUCCESS) {
+    LLMLOGE(prepare_ret, "Disconnect failed at prepare, local:%s, remote:%s, timeout:%d ms.", listen_info_.c_str(),
+            remote_engine.c_str(), timeout_in_millis);
+    return prepare_ret;
+  }
   return SUCCESS;
 }
 
@@ -621,22 +643,39 @@ Status ChannelMsgHandler::Disconnect(const std::string &remote_engine, int32_t t
                      llm::MsgHandlerPlugin::Disconnect(conn_fd);
                    }
                  }));
-  auto prepare_ret = PrepareDisconnect(remote_engine, timeout_in_millis, conn_fd);
-  if (prepare_ret == NOT_CONNECTED) {
-    LLMEVENT("Channel does not exist or is already disconnected, channel_id:%s", remote_engine.c_str());
-    return NOT_CONNECTED;
+  const Status prepare_ret = PrepareDisconnect(remote_engine, timeout_in_millis, conn_fd);
+  const Status check_ret = CheckPrepareDisconnectResult(prepare_ret, remote_engine, timeout_in_millis);
+  if (check_ret != SUCCESS) {
+    return check_ret;
   }
-  ADXL_CHK_STATUS_RET(prepare_ret, "Failed to prepare disconnect, remote engine:%s, timeout:%d ms.",
-                      remote_engine.c_str(), timeout_in_millis);
   Status send_status = FAILED;
   SendDisconnectRequest(conn_fd, send_status);
-  ADXL_CHK_STATUS_RET(CleanupDisconnectResources(remote_engine), "Failed to cleanup disconnect resources");
+  if (send_status != SUCCESS) {
+    LLMLOGE(send_status,
+            "Disconnect failed at send_disconnect_msg, peer may be down, continue local cleanup, local:%s, "
+            "remote:%s, conn_fd:%d.",
+            listen_info_.c_str(), remote_engine.c_str(), conn_fd);
+  }
+  const Status cleanup_ret = CleanupDisconnectResources(remote_engine);
+  if (cleanup_ret != SUCCESS) {
+    LLMLOGE(cleanup_ret, "Disconnect failed at cleanup_resources, local:%s, remote:%s.", listen_info_.c_str(),
+            remote_engine.c_str());
+    return cleanup_ret;
+  }
   ChannelDisconnectInfo local_disconnect_info = {};
   local_disconnect_info.channel_id = remote_engine;
-  auto ret = DisconnectInfoProcess(ChannelType::kClient, local_disconnect_info);
-  ADXL_CHK_STATUS_RET(ValidateDisconnectResponse(conn_fd, send_status), "Failed to validate disconnect response");
-  ADXL_CHK_STATUS_RET(ret, "Failed to disconnect, local engine:%s, remote engine:%s, timeout:%d ms.",
-                      listen_info_.c_str(), remote_engine.c_str(), timeout_in_millis);
+  const Status destroy_ret = DisconnectInfoProcess(ChannelType::kClient, local_disconnect_info);
+  if (destroy_ret != SUCCESS) {
+    LLMLOGE(destroy_ret, "Disconnect failed at destroy_channel, local:%s, remote:%s.", listen_info_.c_str(),
+            remote_engine.c_str());
+    return destroy_ret;
+  }
+  const Status validate_ret = ValidateDisconnectResponse(conn_fd, send_status);
+  if (validate_ret != SUCCESS) {
+    LLMLOGE(validate_ret, "Disconnect failed at validate_peer_response, local:%s, remote:%s, conn_fd:%d.",
+            listen_info_.c_str(), remote_engine.c_str(), conn_fd);
+    return validate_ret;
+  }
   LLMEVENT("Success to disconnect, local engine:%s, remote engine:%s, timeout:%d ms.", listen_info_.c_str(),
            remote_engine.c_str(), timeout_in_millis);
   return SUCCESS;

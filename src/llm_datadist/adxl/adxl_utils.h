@@ -39,5 +39,7 @@ constexpr const char *OPTION_COMM_RESOURCE_CONFIG_LISTEN_PORT = "comm_resource_c
 
 constexpr int kDefaultMaxChannel = 512;
 bool NeedErrorLog(Status status);
+// Transport-level failures that should trip the link circuit breaker (excludes caller/param/not-connected errors).
+bool IsLinkFatal(Status status);
 }  // namespace adxl
 #endif  // CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_ADXL_UTILS_H

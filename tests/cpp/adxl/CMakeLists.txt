@@ -20,6 +20,8 @@ set(ADXL_CORE_TEST_FILES
         segment_table_unittest.cc
         statistic_manager_unittest.cc
         test_adxl_engine_api.cc
+        transfer_slot_pool_unittest.cc
+        adxl_async_hostflag_unittest.cc
 )
 
 set(CHANNEL_POOL_TEST_FILES

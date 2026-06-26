@@ -14,8 +14,8 @@
 #include <gtest/gtest.h>
 
 #include "adxl/adxl_engine.h"
+#include "adxl_test_helpers.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
-#include "depends/mmpa/src/mmpa_stub.h"
 
 namespace adxl {
 namespace {
@@ -92,20 +92,7 @@ void CleanupEngines(AdxlEngine &engine1, AdxlEngine &engine2, MemHandle handle1,
 }
 }  // namespace
 
-class AdxlCircuitBreakerUTest : public ::testing::Test {
- protected:
-  void SetUp() override {
-    llm::MockMmpaForHcclApi::Install();
-    llm::AutoCommResRuntimeMock::Install();
-    llm::HcclAdapter::GetInstance().Initialize();
-  }
-
-  void TearDown() override {
-    llm::HcclAdapter::GetInstance().Finalize();
-    llm::AutoCommResRuntimeMock::Reset();
-    llm::MockMmpaForHcclApi::Reset();
-  }
-};
+class AdxlCircuitBreakerUTest : public test_helpers::AdxlHcclRuntimeTestBase {};
 
 TEST_F(AdxlCircuitBreakerUTest, TestLinkUnavailableAfterSyncTransferFailure) {
   AdxlEngine engine1;
@@ -127,38 +114,6 @@ TEST_F(AdxlCircuitBreakerUTest, TestLinkUnavailableAfterSyncTransferFailure) {
   mem.src = 1;
   EXPECT_EQ(engine1.TransferSync(kPeerEngine, READ, {desc}), SUCCESS);
   EXPECT_EQ(mem.src, 2);
-
-  CleanupEngines(engine1, engine2, mem.handle1, mem.handle2);
-}
-
-TEST_F(AdxlCircuitBreakerUTest, TestLinkUnavailableAfterAsyncCompletionFailure) {
-  AdxlEngine engine1;
-  AdxlEngine engine2;
-  auto mem = SetupPlainConnectedEngines(engine1, engine2);
-  TransferOpDesc desc = MakeInt32TransferDesc(mem.src, mem.dst);
-
-  TransferReq req1 = nullptr;
-  TransferReq req2 = nullptr;
-  EXPECT_EQ(engine1.TransferAsync(kPeerEngine, WRITE, {desc}, {}, req1), SUCCESS);
-  EXPECT_EQ(engine1.TransferAsync(kPeerEngine, WRITE, {desc}, {}, req2), SUCCESS);
-
-  TransferStatus status = TransferStatus::WAITING;
-  llm::TransferAsyncSteamRuntimeMocak stream_fail_mock;
-  llm::AclRuntimeStub::Install(&stream_fail_mock);
-  EXPECT_EQ(engine1.GetTransferStatus(req1, status), FAILED);
-  EXPECT_EQ(status, TransferStatus::FAILED);
-  llm::AclRuntimeStub::UnInstall(&stream_fail_mock);
-
-  status = TransferStatus::WAITING;
-  EXPECT_EQ(engine1.GetTransferStatus(req2, status), FAILED);
-  EXPECT_EQ(status, TransferStatus::FAILED);
-  EXPECT_EQ(engine1.TransferSync(kPeerEngine, WRITE, {desc}), FAILED);
-
-  EXPECT_EQ(engine1.Disconnect(kPeerEngine), SUCCESS);
-  EXPECT_EQ(engine1.Connect(kPeerEngine), SUCCESS);
-  mem.src = 1;
-  EXPECT_EQ(engine1.TransferSync(kPeerEngine, WRITE, {desc}), SUCCESS);
-  EXPECT_EQ(mem.dst, 1);
 
   CleanupEngines(engine1, engine2, mem.handle1, mem.handle2);
 }

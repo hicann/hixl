@@ -96,8 +96,7 @@ class BufferTransferService {
                                      CopyExtraInfo extra_info);
 
   static Status D2DTransfer(const ChannelPtr &channel, TransferOp transfer_op,
-                            const std::vector<TransferOpDesc> &op_descs, uint64_t timeout,
-                            const std::chrono::steady_clock::time_point &start);
+                            const std::vector<TransferOpDesc> &op_descs, uint64_t timeout);
 
   static bool CheckTimeout(const BufferReq &req);
 
