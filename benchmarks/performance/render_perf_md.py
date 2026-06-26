@@ -497,7 +497,7 @@ def main() -> None:
     log.info(f'  {platform_title(platform)}')
     log.info('=' * 70)
     log.info('  Bandwidth (GB/s, decimal)')
-    log.info()
+    log.info('')
     log.info(render_table_terminal(lookup, platform, deployment))
 
 
