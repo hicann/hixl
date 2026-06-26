@@ -8,12 +8,8 @@
 - HIXL：Huawei Xfer Library
   - HIXL相关接口存放在："INSTALL\_DIR/include/hixl/hixl.h"。INSTALL\_DIR请替换为CANN软件安装后文件存储路径。若安装的Ascend-cann-toolkit软件包，以root安装举例，则安装后文件存储路径为：/usr/local/Ascend/cann。
   - HIXL接口对应的库文件是：libcann_hixl.so。
-  <!-- npu="950" id1 -->
-  - HIXL_CS相关接口存放在："INSTALL\_DIR/include/cs/hixl_cs.h"。INSTALL\_DIR请替换为CANN软件安装后文件存储路径。若安装的Ascend-cann-toolkit软件包，以root安装举例，则安装后文件存储路径为：/usr/local/Ascend/cann。该接口仅支持Ascend 950PR/Ascend 950DT。
-  <!-- end id1 -->
-  <!-- npu="950" id2 -->
-  - HIXL_CS接口对应的库文件是：libcann_hixl.so。仅支持Ascend 950PR/Ascend 950DT。
-  <!-- end id2 -->
+  - HIXL_CS相关接口存放在："INSTALL\_DIR/include/cs/hixl_cs.h"。INSTALL\_DIR请替换为CANN软件安装后文件存储路径。若安装的Ascend-cann-toolkit软件包，以root安装举例，则安装后文件存储路径为：/usr/local/Ascend/cann。
+  - HIXL_CS接口对应的库文件是：libcann_hixl.so。
 
 支持的产品形态如下：
 
