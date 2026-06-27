@@ -48,10 +48,10 @@ constexpr const char *kDeviceFuncPut = "HixlBatchPut";
 constexpr uint32_t kFlagSizeBytes = 8;
 constexpr uint64_t kFlagDoneValue = 1ULL;
 constexpr uint64_t kFlagResetValue = 0ULL;
-constexpr uint32_t kCustomTimeoutMs = 1800;
+constexpr uint32_t kCustomTimeoutS = 1800;
 constexpr uint32_t kMaxKernelBatchSize = 128U;
-// notifywait默认1836ms等待时长，通过异步接口提供给用户使用，由用户感知超时主动退出，不使用notify的超时时间
-constexpr uint16_t kNotifyDefaultWaitTimeMs = 27 * 68;
+// notifywait默认1836s等待时长，通过异步接口提供给用户使用，由用户感知超时主动退出，不使用notify的超时时间
+constexpr uint16_t kNotifyDefaultWaitTimeS = 27 * 68;
 void FreeExportDesc(std::vector<hixl::HixlMemDesc> &desc_list) {
   for (auto &d : desc_list) {
     if (d.export_desc != nullptr && d.export_len > 0U) {
@@ -835,7 +835,7 @@ Status HixlCSClient::LaunchDeviceKernel(bool is_get, DeviceCompleteHandle &handl
   aclrtLaunchKernelCfg cfg;
   aclrtLaunchKernelAttr attr;
   attr.id = ACL_RT_LAUNCH_KERNEL_ATTR_TIMEOUT;
-  attr.value.timeout = kNotifyDefaultWaitTimeMs;
+  attr.value.timeout = kNotifyDefaultWaitTimeS;
   cfg.numAttrs = 1;
   cfg.attrs = &attr;
 
@@ -843,7 +843,7 @@ Status HixlCSClient::LaunchDeviceKernel(bool is_get, DeviceCompleteHandle &handl
       aclrtLaunchKernelWithConfig(funcHandle, block_dim, handle.shared_slot->stream, &cfg, argsHandle, nullptr),
       "[HixlClient] aclrtLaunchKernelWithConfig failed");
   if (wait_notify) {
-    HIXL_CHK_ACL_RET(aclrtWaitAndResetNotify(handle.shared_slot->notify, handle.shared_slot->stream, kCustomTimeoutMs),
+    HIXL_CHK_ACL_RET(aclrtWaitAndResetNotify(handle.shared_slot->notify, handle.shared_slot->stream, kCustomTimeoutS),
                      "[HixlClient] aclrtWaitAndResetNotify failed");
   }
   HIXL_LOGI("[HixlClient] LaunchDeviceKernel end. kernel=%s", kernel_name);
