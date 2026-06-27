@@ -274,8 +274,9 @@ Status FabricMemEngine::GetTransferStatus(const TransferReq &req, TransferStatus
   AsyncTransferPollInfo poll_info;
   Status ret = fabric_mem_transfer_service_->GetTransferStatus(req, status, &poll_info);
   if (ret != SUCCESS) {
+    HIXL_LOGE(ret, "[FabricMemEngine] GetTransferStatus failed, req:%p, ret:%u.", req, static_cast<uint32_t>(ret));
     fabric_mem_transfer_service_->CleanupAsyncTransfer(req);
-    return PARAM_INVALID;
+    return ret;
   }
   if (status != TransferStatus::WAITING) {
     if (status == TransferStatus::COMPLETED) {

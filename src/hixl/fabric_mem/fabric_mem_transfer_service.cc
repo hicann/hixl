@@ -323,7 +323,10 @@ Status FabricMemTransferService::GetTransferStatus(const TransferReq &req, Trans
                                                    AsyncTransferPollInfo *info) {
   const uint64_t req_id = reinterpret_cast<uintptr_t>(req);
   std::shared_ptr<FabricMemChannel> channel;
-  HIXL_CHK_STATUS_RET(channel_manager_.FindChannelByReq(req_id, channel), "Fabric mem request:%lu not found.", req_id);
+  // Unknown req / route already removed (completed) / route cleared by Disconnect abort -> PARAM_INVALID.
+  // FindChannelByReq returns FAILED internally; map to PARAM_INVALID for the caller-facing contract.
+  HIXL_CHK_BOOL_RET_STATUS(channel_manager_.FindChannelByReq(req_id, channel) == SUCCESS, PARAM_INVALID,
+                           "Fabric mem request:%lu not found.", req_id);
 
   AsyncRecord async_record;
   bool host_flags_done = false;
@@ -336,7 +339,8 @@ Status FabricMemTransferService::GetTransferStatus(const TransferReq &req, Trans
     // blocking SynchronizeAsyncSlotStreams below runs only after the record is locally owned.
     std::lock_guard<std::mutex> lock(channel->records_mutex);
     const auto it = channel->async_records.find(req_id);
-    HIXL_CHK_BOOL_RET_STATUS(it != channel->async_records.end(), FAILED, "Fabric mem request:%lu not found.", req_id);
+    HIXL_CHK_BOOL_RET_STATUS(it != channel->async_records.end(), PARAM_INVALID, "Fabric mem request:%lu not found.",
+                             req_id);
     host_flags_done = AllHostFlagsDone(it->second.slot);
     if (!host_flags_done) {
       TemporaryRtContext ctx_guard(it->second.slot.ctx);

@@ -431,6 +431,11 @@ Status CommChannel::GetTransferStatus(const TransferReq &req, TransferStatus &st
   Status lookup_ret = LookupPendingAsyncTransfer(id, slot, host_flag, transfer_start, transfer_bytes, op_desc_count);
   if (lookup_ret != SUCCESS) {
     status = TransferStatus::FAILED;
+    // LookupPendingAsyncTransfer may fail with the record still present but holding an invalid slot/host_flag
+    // (e.g. nullptr). Without releasing it here the entry lingers in req_2_async_record_ and, in the slot-pool
+    // (channel-pool) mode, leaks the per-request host_flag and slot reference. ReleaseAsyncRecord is idempotent
+    // when the record is absent and safe when slot/host_flag are null, so mirror the CheckAvailableLocked branch.
+    ReleaseAsyncRecord(id);
     return lookup_ret;
   }
 

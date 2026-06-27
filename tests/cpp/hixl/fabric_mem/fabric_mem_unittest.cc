@@ -1473,7 +1473,9 @@ TEST_F(FabricMemTransferServiceUTest, AsyncTransferRecordCompletesAndUpdatesStat
   TransferStatus status = TransferStatus::WAITING;
   EXPECT_EQ(service_.GetTransferStatus(req, status), SUCCESS);
   EXPECT_EQ(status, TransferStatus::COMPLETED);
-  EXPECT_EQ(service_.GetTransferStatus(req, status), FAILED);
+  // Record was consumed by the first poll (erase + RemoveReqRoute), so the second lookup misses and
+  // returns PARAM_INVALID (request not found) per the not-found contract.
+  EXPECT_EQ(service_.GetTransferStatus(req, status), PARAM_INVALID);
   EXPECT_EQ(statistic_.GetSnapshot(kStatChannelId).transfer.times, 1UL);
   {
     std::lock_guard<std::mutex> lock(channel->records_mutex);
