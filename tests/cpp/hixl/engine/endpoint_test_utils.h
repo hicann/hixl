@@ -118,24 +118,18 @@ class MockAclRuntimeStub : public llm::AclRuntimeStub {
 
   aclError aclrtBinaryLoadFromFile(const char *path, aclrtBinaryLoadOptions *options,
                                    aclrtBinHandle *binHandle) override {
-    (void)path;
-    (void)options;
     if (binary_load_failed_ || binHandle == nullptr) {
       return ACL_ERROR_FAILURE;
     }
-    *binHandle = reinterpret_cast<aclrtBinHandle>(0xDEADBEEF);
-    return ACL_SUCCESS;
+    return llm::AclRuntimeStub::aclrtBinaryLoadFromFile(path, options, binHandle);
   }
 
   aclError aclrtBinaryGetFunction(aclrtBinHandle binHandle, const char *funcName,
                                   aclrtFuncHandle *funcHandle) override {
-    (void)binHandle;
-    (void)funcName;
     if (binary_get_func_failed_ || funcHandle == nullptr) {
       return ACL_ERROR_FAILURE;
     }
-    *funcHandle = reinterpret_cast<aclrtFuncHandle>(0xCAFEBABE);
-    return ACL_SUCCESS;
+    return llm::AclRuntimeStub::aclrtBinaryGetFunction(binHandle, funcName, funcHandle);
   }
 };
 

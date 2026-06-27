@@ -13,7 +13,12 @@ target_compile_options(ascendcl_stub PRIVATE -g)
 target_compile_definitions(ascendcl_stub PRIVATE
     $<$<STREQUAL:${ENABLE_OPEN_SRC},True>:ONLY_COMPILE_OPEN_SRC>
 )
-target_include_directories(ascendcl_stub PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src)
+target_include_directories(ascendcl_stub PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/src
+    ${HIXL_CODE_DIR}/include
+    ${HIXL_CODE_DIR}/src/hixl
+    ${HIXL_CODE_DIR}/src/hixl/proxy
+)
 target_link_libraries(ascendcl_stub
     PRIVATE
         intf_pub

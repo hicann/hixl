@@ -11,6 +11,7 @@
 #include <cstring>
 #include <string>
 #include <thread>
+#include <vector>
 #include "hccl/hccl_types.h"
 #include "hcomm/hcomm_res_defs.h"
 
@@ -22,6 +23,10 @@ extern "C" {
 // 当计数器 >= 10 时，传输任务返回 HCCL_RETRY_REQUIRED (20)，触发重试
 // 当执行 HcommChannelFenceOnThread 时，计数器重置为 0
 static uint32_t g_transfer_retry_counter = 0;
+static ThreadHandle g_next_thread_handle = 999U;
+static uint32_t g_thread_alloc_call_count = 0U;
+static uint32_t g_thread_free_call_count = 0U;
+static std::vector<std::string> g_thread_lifecycle_events;
 
 // 控制失败模式的全局变量
 // 设置后下一次调用会返回指定的错误码（既不是成功也不是重试所需）
@@ -170,15 +175,19 @@ HcommResult HcommThreadAlloc(CommEngine engine, uint32_t threadNum, const uint32
   if (threads == nullptr) {
     return static_cast<HcommResult>(HCCL_E_PARA);
   }
+  g_thread_alloc_call_count++;
   for (uint32_t i = 0; i < threadNum; ++i) {
-    threads[i] = static_cast<ThreadHandle>(999U + i);
+    threads[i] = g_next_thread_handle++;
+    g_thread_lifecycle_events.push_back("alloc:" + std::to_string(threads[i]));
   }
   return static_cast<HcommResult>(HCCL_SUCCESS);
 }
 
 HcommResult HcommThreadFree(const ThreadHandle *threads, uint32_t threadNum) {
-  (void)threads;
-  (void)threadNum;
+  g_thread_free_call_count++;
+  for (uint32_t i = 0; i < threadNum; ++i) {
+    g_thread_lifecycle_events.push_back("free:" + std::to_string(threads == nullptr ? 0U : threads[i]));
+  }
   return static_cast<HcommResult>(HCCL_SUCCESS);
 }
 
@@ -246,6 +255,21 @@ void SetListenPortResult(int32_t ret) {
 // 重置传输计数器
 void ResetTransferCounter() {
   g_transfer_retry_counter = 0;
+}
+
+uint32_t GetThreadAllocCallCount() {
+  return g_thread_alloc_call_count;
+}
+
+uint32_t GetThreadFreeCallCount() {
+  return g_thread_free_call_count;
+}
+
+void ResetThreadLifecycleStats() {
+  g_next_thread_handle = 999U;
+  g_thread_alloc_call_count = 0U;
+  g_thread_free_call_count = 0U;
+  g_thread_lifecycle_events.clear();
 }
 
 #ifdef __cplusplus

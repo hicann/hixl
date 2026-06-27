@@ -114,7 +114,7 @@ class HixlEngineTest : public ::testing::Test {
   void SetUp() override {
     SetSocStub("Ascend910B1", 0, 0, 9, 8);
     mmpa_stub_ = std::make_shared<MockEngineMmpaStub>();
-    // EnsureDeviceKernelLoadedLocked 现在在初始化阶段调用，需要提前设置
+    // TransferPool initialization loads device kernels, so MmpaStub must be ready before Create.
     mmpa_stub_->real_path_ok_ = true;
     mmpa_stub_->access_ok_ = true;
     llm::MmpaStub::GetInstance().SetImpl(mmpa_stub_);

@@ -29,6 +29,29 @@ struct HixlOneSideOpParam {
   uint32_t use_notify_record;
 };
 
+enum TransferThreadState : uint32_t {
+  TRANSFER_THREAD_STATE_INITIALIZED = 0U,
+  TRANSFER_THREAD_STATE_DELETING = 1U,
+  TRANSFER_THREAD_STATE_DELETED = 2U,
+};
+
+enum TransferContextOp : uint32_t {
+  TRANSFER_CONTEXT_OP_ADD = 0U,
+  TRANSFER_CONTEXT_OP_DELETE = 1U,
+};
+
+struct TransferContextSyncEntry {
+  ThreadHandle thread;
+  uint32_t op;
+};
+
+struct TransferContextSyncParam {
+  uint64_t entry_list_addr;
+  uint64_t state_list_addr;
+  uint32_t entry_num;
+  uint32_t reserved;
+};
+
 namespace hixl {
 constexpr const char *kProtocolRoce = "roce";
 constexpr const char *kProtocolUbCtp = "ub_ctp";

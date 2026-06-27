@@ -10,8 +10,10 @@
 
 #include "transfer_pool.h"
 
+#include <chrono>
 #include <memory>
 #include <mutex>
+#include <thread>
 #include <unordered_map>
 
 #include "acl/acl.h"
@@ -19,6 +21,7 @@
 #include "common/hixl_utils.h"
 #include "common/llm_utils.h"
 #include "common/scope_guard.h"
+#include "load_kernel.h"
 #include "proxy/hcomm_proxy.h"
 
 namespace {
@@ -26,6 +29,12 @@ constexpr uint64_t kFlagInitValue = 0ULL;
 constexpr CommEngine kDefaultEngine = CommEngine::COMM_ENGINE_AICPU_TS;
 constexpr uint32_t kDefaultThreadNum = 1U;
 constexpr uint32_t kDefaultNotifyNumPerThread = 0U;
+constexpr uint32_t kSyncContextKernelTimeoutMs = 10U * 1000U;
+constexpr uint32_t kSyncContextRetryTimeoutMs = 30U * 1000U;
+constexpr uint32_t kSyncContextRetryIntervalMs = 100U;
+constexpr const char *kDeviceFuncGet = "HixlBatchGet";
+constexpr const char *kDeviceFuncPut = "HixlBatchPut";
+constexpr const char *kDeviceFuncSyncContext = "HixlSyncTransferContext";
 }  // namespace
 
 namespace hixl {
@@ -80,6 +89,7 @@ Status TransferPool::Initialize(uint32_t pool_size) {
   pool_size_ = pool_size;
   slots_.clear();
   slots_.resize(pool_size_);
+  HIXL_DISMISSABLE_GUARD(init_rollback, ([this]() { DeinitAllSlotsLocked(); }));
   HIXL_CHK_ACL_RET(aclrtCreateContext(&rts_context_, device_id_), "aclrtCreateContext rts_context_ failed");
   for (uint32_t i = 0U; i < pool_size_; ++i) {
     Slot &s = slots_[i];
@@ -89,18 +99,25 @@ Status TransferPool::Initialize(uint32_t pool_size) {
     s.thread = 0U;
     s.notify = nullptr;
   }
-  Status ret = InitAllSlotsLocked();
+  Status ret = EnsureDeviceKernelsLocked();
   if (ret != SUCCESS) {
-    DeinitAllSlotsLocked();
+    return ret;
+  }
+  ret = InitAllSlotsLocked();
+  if (ret != SUCCESS) {
     return ret;
   }
   ret = EnsureDevConstOneLocked();
   if (ret != SUCCESS) {
-    DeinitAllSlotsLocked();
+    return ret;
+  }
+  ret = AddTransferContextsLocked();
+  if (ret != SUCCESS) {
     return ret;
   }
   ref_cnt_ = 1U;
   inited_ = true;
+  HIXL_DISMISS_GUARD(init_rollback);
   return SUCCESS;
 }
 
@@ -115,11 +132,7 @@ void TransferPool::Finalize() {
   }
   HIXL_LOGI("[TransferPool] Finalize start. device_id=%d", device_id_);
   if (inited_) {
-    for (uint32_t i = 0U; i < pool_size_; ++i) {
-      if (slots_[i].in_use) {
-        AbortSlotByIndexLocked(i);
-      }
-    }
+    AbortInUseStreamsLocked();
   }
   DeinitAllSlotsLocked();
   HIXL_LOGI("[TransferPool] Finalize end. device_id=%d", device_id_);
@@ -217,23 +230,10 @@ Status TransferPool::InitAllSlotsLocked() {
   for (uint32_t i = 0U; i < pool_size_; ++i) {
     Status ret = InitOneSlotLocked(slots_[i], i);
     if (ret != SUCCESS) {
-      RollbackInitLocked(i);
       return ret;
     }
   }
   return SUCCESS;
-}
-
-void TransferPool::RollbackInitLocked(uint32_t failed_index) {
-  for (uint32_t j = 0U; j < failed_index; ++j) {
-    DestroySlotLocked(slots_[j]);
-    slots_[j] = Slot{};
-  }
-  if (failed_index < pool_size_) {
-    DestroySlotLocked(slots_[failed_index]);
-    slots_[failed_index] = Slot{};
-  }
-  free_list_.clear();
 }
 
 Status TransferPool::InitOneSlotLocked(Slot &slot, uint32_t slot_index) const {
@@ -254,40 +254,96 @@ void TransferPool::AbortSlotByIndexLocked(uint32_t slot_index) {
     return;
   }
 
-  {
-    hixl::TemporaryRtContext guard(slot.ctx);
-    if (slot.stream != nullptr) {
-      HIXL_CHK_ACL(aclrtStreamAbort(slot.stream), "[TransferPool] aclrtStreamAbort failed");
-    }
+  AbortSlotRuntimeLocked(slot);
+  DeleteSlotThreadContextForAbortLocked(slot, slot_index);
+  DestroySlotContextForAbortLocked(slot);
+  Status ret = ReinitSlotAfterAbortLocked(slot, slot_index);
+  if (ret == SUCCESS) {
+    ReturnSlotToFreeListLocked(slot_index);
+  }
+}
 
-    if (slot.notify != nullptr) {
-      aclrtNotify *notify_ptr = &slot.notify;
-      const aclError reset_ret = aclrtNotifyBatchReset(notify_ptr, static_cast<size_t>(1));
-      if (reset_ret != ACL_SUCCESS) {
-        HIXL_CHK_ACL(aclrtDestroyNotify(slot.notify), "[TransferPool] aclrtDestroyNotify fallback after BatchReset");
-        slot.notify = nullptr;
-      }
+void TransferPool::AbortInUseStreamsLocked() const {
+  for (uint32_t i = 0U; i < pool_size_; ++i) {
+    if (slots_[i].in_use) {
+      AbortInUseStreamLocked(slots_[i]);
     }
   }
+}
+
+void TransferPool::AbortInUseStreamLocked(const Slot &slot) {
+  hixl::TemporaryRtContext guard(slot.ctx);
+  if (slot.stream != nullptr) {
+    HIXL_CHK_ACL(aclrtStreamAbort(slot.stream), "[TransferPool] aclrtStreamAbort failed in Finalize");
+  }
+}
+
+void TransferPool::AbortSlotRuntimeLocked(Slot &slot) const {
+  hixl::TemporaryRtContext guard(slot.ctx);
+  if (slot.stream != nullptr) {
+    HIXL_CHK_ACL(aclrtStreamAbort(slot.stream), "[TransferPool] aclrtStreamAbort failed");
+  }
+  ResetAbortSlotNotifyLocked(slot);
+}
+
+void TransferPool::ResetAbortSlotNotifyLocked(Slot &slot) {
+  if (slot.notify == nullptr) {
+    return;
+  }
+  aclrtNotify *notify_ptr = &slot.notify;
+  const aclError reset_ret = aclrtNotifyBatchReset(notify_ptr, static_cast<size_t>(1));
+  if (reset_ret == ACL_SUCCESS) {
+    return;
+  }
+  HIXL_CHK_ACL(aclrtDestroyNotify(slot.notify), "[TransferPool] aclrtDestroyNotify fallback after BatchReset");
+  slot.notify = nullptr;
+}
+
+void TransferPool::DeleteSlotThreadContextForAbortLocked(Slot &slot, uint32_t slot_index) const {
   if (slot.thread != 0U) {
+    Status sync_ret =
+        SyncOneTransferContextLocked(slot.thread, TRANSFER_CONTEXT_OP_DELETE, TRANSFER_THREAD_STATE_DELETED);
+    HIXL_CHK_STATUS(sync_ret,
+                    "[TransferPool] delete transfer context failed in AbortSlotByIndexLocked, slot=%u device_id=%d",
+                    slot_index, device_id_);
     const hixl::TemporaryRtContext rts_guard(rts_context_);
     HIXL_CHK_ACL(HcommProxy::ThreadFree(&slot.thread, 1U), "HcommThreadFree failed");
     slot.thread = 0U;
   }
+}
+
+void TransferPool::DestroySlotContextForAbortLocked(Slot &slot) {
   if (slot.ctx != nullptr) {
     HIXL_LOGI("[TransferPool] destroying context %p in AbortSlotByIndexLocked", slot.ctx);
     HIXL_CHK_ACL(aclrtDestroyContext(slot.ctx), "[TransferPool] aclrtDestroyContext failed in Abort");
     slot.ctx = nullptr;
     slot.stream = nullptr;
   }
+}
 
+Status TransferPool::ReinitSlotAfterAbortLocked(Slot &slot, uint32_t slot_index) {
   Status ret = InitOneSlotLocked(slot, slot_index);
   if (ret != SUCCESS) {
     HIXL_LOGE(ret, "[TransferPool] AbortSlotByIndexLocked re-init failed slot=%u device_id=%d", slot_index, device_id_);
     slot.in_use = false;
     free_list_.push_back(slot_index);
-    return;
+    return ret;
   }
+  ret = SyncOneTransferContextLocked(slot.thread, TRANSFER_CONTEXT_OP_ADD, TRANSFER_THREAD_STATE_INITIALIZED);
+  if (ret != SUCCESS) {
+    HIXL_LOGE(ret, "[TransferPool] AbortSlotByIndexLocked add context failed slot=%u device_id=%d", slot_index,
+              device_id_);
+    HIXL_CHK_STATUS(DestroySlotLocked(slot), "[TransferPool] AbortSlotByIndexLocked destroy reinit slot failed");
+    slot = Slot{};
+    slot.in_use = false;
+    free_list_.push_back(slot_index);
+    return ret;
+  }
+  return SUCCESS;
+}
+
+void TransferPool::ReturnSlotToFreeListLocked(uint32_t slot_index) {
+  Slot &slot = slots_[slot_index];
   slot.in_use = false;
   free_list_.push_back(slot_index);
 }
@@ -319,15 +375,27 @@ Status TransferPool::CreateNotifyLocked(Slot &slot) {
 }
 
 void TransferPool::DeinitAllSlotsLocked() {
+  const std::vector<ThreadHandle> threads = CollectLiveThreads(slots_);
+  if (!threads.empty()) {
+    HIXL_CHK_STATUS(DeleteTransferContextsLocked(threads),
+                    "[TransferPool] delete transfer contexts failed in DeinitAllSlotsLocked, device_id=%d", device_id_);
+  }
   if (dev_const_one_ != nullptr) {
     HIXL_CHK_ACL(aclrtFree(dev_const_one_));
     dev_const_one_ = nullptr;
     HIXL_LOGI("[TransferPool] released dev_const_one_ on device %d", device_id_);
   }
   for (uint32_t i = 0U; i < pool_size_; ++i) {
-    DestroySlotLocked(slots_[i]);
+    HIXL_CHK_STATUS(DestroySlotLocked(slots_[i], false),
+                    "[TransferPool] DeinitAllSlotsLocked destroy slot failed, idx=%u", i);
     slots_[i] = Slot{};
     slots_[i].in_use = false;
+  }
+  if (kernel_bin_handle_ != nullptr) {
+    const hixl::TemporaryRtContext rts_guard(rts_context_);
+    HIXL_CHK_ACL(aclrtBinaryUnLoad(kernel_bin_handle_));
+    kernel_bin_handle_ = nullptr;
+    device_func_handles_ = {};
   }
   if (rts_context_ != nullptr) {
     HIXL_LOGI("[TransferPool] destroying rts context %p", rts_context_);
@@ -387,7 +455,191 @@ Status TransferPool::EnsureDevConstOneLocked() {
   return SUCCESS;
 }
 
-void TransferPool::DestroySlotLocked(Slot &slot) const {
+Status TransferPool::EnsureDeviceKernelsLocked() {
+  if ((device_func_handles_.batch_get != nullptr) && (device_func_handles_.batch_put != nullptr) &&
+      (device_func_handles_.sync_transfer_context != nullptr)) {
+    return SUCCESS;
+  }
+  HIXL_CHECK_NOTNULL(rts_context_, "[TransferPool] rts_context_ is null when loading device kernels");
+  const hixl::TemporaryRtContext rts_guard(rts_context_);
+  HIXL_CHK_STATUS_RET(hixl::LoadDeviceKernelAndGetHandles(kDeviceFuncGet, kDeviceFuncPut, kernel_bin_handle_,
+                                                          device_func_handles_, kDeviceFuncSyncContext),
+                      "[TransferPool] LoadDeviceKernelAndGetHandles failed");
+  HIXL_CHECK_NOTNULL(device_func_handles_.batch_get, "[TransferPool] batch get func is null");
+  HIXL_CHECK_NOTNULL(device_func_handles_.batch_put, "[TransferPool] batch put func is null");
+  HIXL_CHECK_NOTNULL(device_func_handles_.sync_transfer_context, "[TransferPool] sync transfer context func is null");
+  return SUCCESS;
+}
+
+Status TransferPool::LaunchSyncContextKernelLocked(const std::vector<TransferContextSyncEntry> &entries,
+                                                   std::vector<uint32_t> &states) const {
+  HIXL_CHECK_NOTNULL(device_func_handles_.sync_transfer_context);
+  HIXL_CHECK_NOTNULL(rts_context_, "[TransferPool] rts_context_ is null when launching sync context kernel");
+  HIXL_CHK_BOOL_RET_STATUS(!entries.empty(), PARAM_INVALID, "[TransferPool] sync context entries is empty");
+  const hixl::TemporaryRtContext rts_guard(rts_context_);
+  const size_t entry_bytes = entries.size() * sizeof(TransferContextSyncEntry);
+  void *dev_entries = nullptr;
+  HIXL_CHK_ACL_RET(aclrtMalloc(&dev_entries, entry_bytes, ACL_MEM_MALLOC_NORMAL_ONLY),
+                   "[TransferPool] aclrtMalloc sync context entries failed");
+  HIXL_DISMISSABLE_GUARD(free_dev_entries, ([dev_entries]() {
+                           HIXL_CHK_ACL(aclrtFree(dev_entries), "[TransferPool] aclrtFree sync context entries failed");
+                         }));
+  states.assign(entries.size(), TRANSFER_THREAD_STATE_DELETED);
+  const size_t state_bytes = states.size() * sizeof(uint32_t);
+  void *dev_states = nullptr;
+  HIXL_CHK_ACL_RET(aclrtMalloc(&dev_states, state_bytes, ACL_MEM_MALLOC_NORMAL_ONLY),
+                   "[TransferPool] aclrtMalloc sync context states failed");
+  HIXL_DISMISSABLE_GUARD(free_dev_states, ([dev_states]() {
+                           HIXL_CHK_ACL(aclrtFree(dev_states), "[TransferPool] aclrtFree sync context states failed");
+                         }));
+  HIXL_CHK_ACL_RET(aclrtMemcpy(dev_entries, entry_bytes, entries.data(), entry_bytes, ACL_MEMCPY_HOST_TO_DEVICE),
+                   "[TransferPool] aclrtMemcpy sync context entries H2D failed");
+  TransferContextSyncParam param{};
+  param.entry_list_addr = PtrToValue(dev_entries);
+  param.state_list_addr = PtrToValue(dev_states);
+  param.entry_num = static_cast<uint32_t>(entries.size());
+  aclrtArgsHandle args_handle = nullptr;
+  HIXL_CHK_ACL_RET(aclrtKernelArgsInit(device_func_handles_.sync_transfer_context, &args_handle),
+                   "[TransferPool] aclrtKernelArgsInit HixlSyncTransferContext failed");
+  aclrtParamHandle para_handle = nullptr;
+  HIXL_CHK_ACL_RET(aclrtKernelArgsAppend(args_handle, &param, sizeof(TransferContextSyncParam), &para_handle),
+                   "[TransferPool] aclrtKernelArgsAppend HixlSyncTransferContext failed");
+  HIXL_CHK_ACL_RET(aclrtKernelArgsFinalize(args_handle), "[TransferPool] aclrtKernelArgsFinalize failed");
+  aclrtStream stream = nullptr;
+  HIXL_CHK_ACL_RET(aclrtCtxGetCurrentDefaultStream(&stream),
+                   "[TransferPool] aclrtCtxGetCurrentDefaultStream for HixlSyncTransferContext failed");
+  constexpr uint32_t kBlockDim = 1U;
+  HIXL_LOGI("[TransferPool] Launch HixlSyncTransferContext start. entries=%zu stream=%p device_id=%d", entries.size(),
+            stream, device_id_);
+  HIXL_CHK_ACL_RET(aclrtLaunchKernelWithConfig(device_func_handles_.sync_transfer_context, kBlockDim, stream, nullptr,
+                                               args_handle, nullptr),
+                   "[TransferPool] aclrtLaunchKernelWithConfig HixlSyncTransferContext failed");
+  HIXL_CHK_ACL_RET(aclrtSynchronizeStreamWithTimeout(stream, static_cast<int32_t>(kSyncContextKernelTimeoutMs)),
+                   "[TransferPool] aclrtSynchronizeStreamWithTimeout HixlSyncTransferContext failed");
+  HIXL_CHK_ACL_RET(aclrtMemcpy(states.data(), state_bytes, dev_states, state_bytes, ACL_MEMCPY_DEVICE_TO_HOST),
+                   "[TransferPool] aclrtMemcpy sync context states D2H failed");
+  HIXL_LOGI("[TransferPool] Launch HixlSyncTransferContext end. entries=%zu device_id=%d", entries.size(), device_id_);
+  return SUCCESS;
+}
+
+Status TransferPool::SyncContextsLocked(const std::vector<ThreadHandle> &threads, uint32_t op,
+                                        uint32_t expect_state) const {
+  if (threads.empty()) {
+    return SUCCESS;
+  }
+  HIXL_CHK_BOOL_RET_STATUS(device_func_handles_.sync_transfer_context != nullptr, FAILED,
+                           "[TransferPool] sync context func is null");
+  std::vector<TransferContextSyncEntry> pending;
+  pending.reserve(threads.size());
+  for (ThreadHandle thread : threads) {
+    if (thread == 0U) {
+      continue;
+    }
+    pending.push_back({thread, op});
+  }
+  if (pending.empty()) {
+    return SUCCESS;
+  }
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kSyncContextRetryTimeoutMs);
+  std::vector<uint32_t> pending_states;
+  while (!pending.empty()) {
+    std::vector<TransferContextSyncEntry> retry_entries;
+    std::vector<uint32_t> retry_states;
+    HIXL_CHK_STATUS_RET(RunSyncContextOnceLocked(pending, op, expect_state, retry_entries, retry_states),
+                        "[TransferPool] run sync context failed");
+    pending.swap(retry_entries);
+    pending_states.swap(retry_states);
+    if (pending.empty()) {
+      return SUCCESS;
+    }
+    if (std::chrono::steady_clock::now() >= deadline) {
+      return HandleSyncContextTimeout(pending, pending_states, op);
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(kSyncContextRetryIntervalMs));
+  }
+  return SUCCESS;
+}
+
+Status TransferPool::RunSyncContextOnceLocked(std::vector<TransferContextSyncEntry> &pending, uint32_t op,
+                                              uint32_t expect_state,
+                                              std::vector<TransferContextSyncEntry> &retry_entries,
+                                              std::vector<uint32_t> &retry_states) const {
+  std::vector<uint32_t> states;
+  HIXL_CHK_STATUS_RET(LaunchSyncContextKernelLocked(pending, states),
+                      "[TransferPool] launch sync context kernel failed");
+  retry_entries.reserve(pending.size());
+  retry_states.reserve(pending.size());
+  return CollectRetrySyncEntries(pending, states, op, expect_state, retry_entries, retry_states);
+}
+
+Status TransferPool::CollectRetrySyncEntries(const std::vector<TransferContextSyncEntry> &entries,
+                                             const std::vector<uint32_t> &states, uint32_t op, uint32_t expect_state,
+                                             std::vector<TransferContextSyncEntry> &retry_entries,
+                                             std::vector<uint32_t> &retry_states) const {
+  HIXL_CHK_BOOL_RET_STATUS(entries.size() == states.size(), FAILED,
+                           "[TransferPool] sync context state size mismatch, entries=%zu states=%zu", entries.size(),
+                           states.size());
+  for (size_t i = 0U; i < entries.size(); ++i) {
+    const uint32_t state = states[i];
+    if (state == expect_state) {
+      continue;
+    }
+    if (state != TRANSFER_THREAD_STATE_DELETING) {
+      HIXL_LOGE(FAILED, "[TransferPool] unexpected transfer context state=%u thread=%lu op=%u expect=%u", state,
+                static_cast<uint64_t>(entries[i].thread), op, expect_state);
+      return FAILED;
+    }
+    retry_entries.push_back({entries[i].thread, op});
+    retry_states.push_back(state);
+  }
+  return SUCCESS;
+}
+
+Status TransferPool::HandleSyncContextTimeout(const std::vector<TransferContextSyncEntry> &pending,
+                                              const std::vector<uint32_t> &states, uint32_t op) const {
+  if (op != TRANSFER_CONTEXT_OP_DELETE) {
+    HIXL_LOGE(TIMEOUT, "[TransferPool] sync transfer context timeout, pending=%zu op=%u device_id=%d", pending.size(),
+              op, device_id_);
+    return TIMEOUT;
+  }
+  for (size_t i = 0U; i < pending.size(); ++i) {
+    const uint32_t state = (i < states.size()) ? states[i] : TRANSFER_THREAD_STATE_DELETING;
+    HIXL_EVENT(
+        "[TransferPool] delete transfer context timeout after %u ms, force cleanup. thread=%lu state=%u device_id=%d",
+        kSyncContextRetryTimeoutMs, static_cast<uint64_t>(pending[i].thread), state, device_id_);
+  }
+  return SUCCESS;
+}
+
+Status TransferPool::AddTransferContextsLocked() const {
+  std::vector<ThreadHandle> threads = CollectLiveThreads(slots_);
+  return SyncContextsLocked(threads, TRANSFER_CONTEXT_OP_ADD, TRANSFER_THREAD_STATE_INITIALIZED);
+}
+
+Status TransferPool::DeleteTransferContextsLocked(const std::vector<ThreadHandle> &threads) const {
+  return SyncContextsLocked(threads, TRANSFER_CONTEXT_OP_DELETE, TRANSFER_THREAD_STATE_DELETED);
+}
+
+Status TransferPool::SyncOneTransferContextLocked(ThreadHandle thread, uint32_t op, uint32_t expect_state) const {
+  if (thread == 0U) {
+    return SUCCESS;
+  }
+  std::vector<ThreadHandle> threads{thread};
+  return SyncContextsLocked(threads, op, expect_state);
+}
+
+std::vector<ThreadHandle> TransferPool::CollectLiveThreads(const std::vector<Slot> &slots) {
+  std::vector<ThreadHandle> threads;
+  threads.reserve(slots.size());
+  for (const auto &slot : slots) {
+    if (slot.thread != 0U) {
+      threads.push_back(slot.thread);
+    }
+  }
+  return threads;
+}
+
+Status TransferPool::DestroySlotLocked(Slot &slot, bool sync_context) const {
   {
     hixl::TemporaryRtContext with_context(slot.ctx);
     if (slot.notify != nullptr) {
@@ -396,6 +648,10 @@ void TransferPool::DestroySlotLocked(Slot &slot) const {
     }
   }
   if (slot.thread != 0U) {
+    if (sync_context) {
+      Status ret = SyncOneTransferContextLocked(slot.thread, TRANSFER_CONTEXT_OP_DELETE, TRANSFER_THREAD_STATE_DELETED);
+      HIXL_CHK_STATUS(ret, "[TransferPool] delete transfer context failed before ThreadFree");
+    }
     const hixl::TemporaryRtContext rts_guard(rts_context_);
     HIXL_CHK_ACL(HcommProxy::ThreadFree(&slot.thread, 1U), "HcommThreadFree failed");
     slot.thread = 0U;
@@ -406,10 +662,16 @@ void TransferPool::DestroySlotLocked(Slot &slot) const {
     slot.ctx = nullptr;
   }
   slot.stream = nullptr;
+  return SUCCESS;
 }
 
 aclrtContext TransferPool::GetContext() const {
   return rts_context_;
+}
+
+aclrtFuncHandle TransferPool::GetDeviceKernelFunc(bool is_get) const {
+  std::lock_guard<std::mutex> lock(mu_);
+  return is_get ? device_func_handles_.batch_get : device_func_handles_.batch_put;
 }
 
 }  // namespace hixl

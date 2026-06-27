@@ -582,7 +582,7 @@ class HixlCSClientUT : public ::testing::Test {
   void SetUp() override {
     src_ = MakeIdEp(kSrcEpId);
     dst_ = MakeIdEp(kDstEpId);
-    // EnsureDeviceKernelLoadedLocked 现在在初始化阶段调用，需要提前设置 MmpaStub
+    // TransferPool initialization loads device kernels, so MmpaStub must be ready before Create.
     llm::MmpaStub::GetInstance().SetImpl(std::make_shared<CsClientMmpaStub>());
   }
 

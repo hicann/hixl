@@ -28,7 +28,6 @@
 #include "common/ctrl_msg_plugin.h"
 #include "conn_msg_handler.h"
 #include "host_register_proxy.h"
-#include "load_kernel.h"
 #include "mem_msg_handler.h"
 #include "proxy/hcomm_proxy.h"
 #include "proxy/hccp_proxy.h"
@@ -312,14 +311,8 @@ Status HixlCSClient::InitDeviceResource(const EndpointDesc &ep) {
   hixl::TemporaryRtContext with_context(nullptr);  // 创建context会切换当前context, 因此需要在析构时恢复原用户context
   auto *pool = TransferPool::GetInstance(device_id_);
   HIXL_CHECK_NOTNULL(pool);
-  Status pret = pool->Initialize(kDeviceTransferPoolSize);
-  HIXL_CHK_STATUS_RET(pret, "[HixlClient] TransferPool Initialize failed. devId=%d", device_id_);
-
-  // 提前加载 kernel，避免传输时引入耗时
-  {
-    std::lock_guard<std::mutex> lock(device_mu_);
-    HIXL_CHK_STATUS_RET(EnsureDeviceKernelLoadedLocked(), "[HixlClient] EnsureDeviceKernelLoadedLocked failed");
-  }
+  HIXL_CHK_STATUS_RET(pool->Initialize(kDeviceTransferPoolSize),
+                      "[HixlClient] TransferPool Initialize failed. devId=%d", device_id_);
   return SUCCESS;
 }
 
@@ -376,8 +369,18 @@ Status HixlCSClient::Create(const HixlClientDesc *client_desc, const HixlClientC
   local_endpoint_ = MakeShared<Endpoint>(*(client_desc->local_endpoint));
   HIXL_CHECK_NOTNULL(local_endpoint_);
   HIXL_CHK_STATUS_RET(InitDeviceResource(*(client_desc->local_endpoint)), "[HixlClient] InitDeviceResource failed");
+  HIXL_DISMISSABLE_GUARD(pool_rollback, ([this]() {
+                           if (device_id_ >= 0) {
+                             auto *pool = TransferPool::GetInstance(device_id_);
+                             if (pool != nullptr) {
+                               pool->Finalize();
+                             }
+                             device_id_ = -1;
+                           }
+                         }));
   HIXL_CHK_STATUS_RET(InitBaseClient(client_desc), "[HixlClient] InitBaseClient failed");
   HIXL_CHK_STATUS_RET(InitNotifyResources(*(client_desc->local_endpoint)), "[HixlClient] InitNotifyResources failed");
+  HIXL_DISMISS_GUARD(pool_rollback);
   EndpointHandle endpoint_handle = local_endpoint_->GetHandle();
   HIXL_EVENT("[HixlClient] Create success. server=%s:%u, src_ep_handle=%p", server_ip_.c_str(), server_port_,
              endpoint_handle);
@@ -712,32 +715,6 @@ void HixlCSClient::CleanupActiveSlot() {
   }
 }
 
-Status HixlCSClient::EnsureDeviceKernelLoadedLocked() {
-  if (device_kernel_loaded_) {
-    return SUCCESS;
-  }
-  HIXL_LOGI("[HixlClient] EnsureDeviceKernelLoadedLocked start. Loading UB kernels...");
-  HIXL_CHK_BOOL_RET_STATUS(device_id_ >= 0, FAILED, "[HixlClient] Invalid device_id_: %d", device_id_);
-  hixl::DeviceFuncHandles func_handles{};
-  Status ret = hixl::LoadDeviceKernelAndGetHandles(kDeviceFuncGet, kDeviceFuncPut, device_kernel_handle_, func_handles);
-  if (ret != SUCCESS) {
-    HIXL_LOGE(ret, "[HixlClient] LoadDeviceKernelAndGetHandles failed. dev=%d", device_id_);
-    return ret;
-  }
-  HIXL_CHECK_NOTNULL(func_handles.batch_get, "[HixlClient] batchGet stub is null");
-  HIXL_CHECK_NOTNULL(func_handles.batch_put, "[HixlClient] batchPut stub is null");
-  device_func_get_ = func_handles.batch_get;
-  device_func_put_ = func_handles.batch_put;
-  device_kernel_loaded_ = true;
-  HIXL_LOGI("[HixlClient] UB Kernels loaded successfully. dev=%d handle=%p get=%p put=%p", device_id_,
-            device_kernel_handle_, device_func_get_, device_func_put_);
-  return SUCCESS;
-}
-
-void *HixlCSClient::GetDeviceKernelFunc(bool is_get) {
-  return is_get ? device_func_get_ : device_func_put_;
-}
-
 Status HixlCSClient::ValidateDeviceInputs(uint32_t list_num, const HixlOneSideOpDesc *desc_list,
                                           void *&query_handle) const {
   (void)query_handle;
@@ -837,7 +814,10 @@ Status HixlCSClient::LaunchDeviceKernel(bool is_get, DeviceCompleteHandle &handl
                                         bool wait_notify) {
   const char *kernel_name = is_get ? kDeviceFuncGet : kDeviceFuncPut;
   HIXL_LOGI("[HixlClient] LaunchDeviceKernel start. kernel=%s wait_notify=%d", kernel_name, wait_notify);
-  void *func = GetDeviceKernelFunc(is_get);
+  HIXL_CHECK_NOTNULL(handle.shared_slot.get(), "[HixlClient] LaunchDeviceKernel shared_slot is null");
+  auto *pool = TransferPool::GetInstance(handle.shared_slot->device_id);
+  HIXL_CHECK_NOTNULL(pool, "[HixlClient] TransferPool is null for device=%d", handle.shared_slot->device_id);
+  void *func = pool->GetDeviceKernelFunc(is_get);
   HIXL_CHECK_NOTNULL(func, "[HixlClient] func is null for %s", kernel_name);
   constexpr uint32_t block_dim = 1U;
 
@@ -859,7 +839,6 @@ Status HixlCSClient::LaunchDeviceKernel(bool is_get, DeviceCompleteHandle &handl
   cfg.numAttrs = 1;
   cfg.attrs = &attr;
 
-  HIXL_CHECK_NOTNULL(handle.shared_slot.get(), "[HixlClient] LaunchDeviceKernel shared_slot is null");
   HIXL_CHK_ACL_RET(
       aclrtLaunchKernelWithConfig(funcHandle, block_dim, handle.shared_slot->stream, &cfg, argsHandle, nullptr),
       "[HixlClient] aclrtLaunchKernelWithConfig failed");
@@ -1423,17 +1402,7 @@ void HixlCSClient::ReleaseDeviceResourcesLocked() {
     }
   }
   notify_mem_handles_.clear();
-  // Cleanup active slot before finalizing TransferPool
   CleanupActiveSlot();
-  if (device_kernel_loaded_) {
-    if (device_kernel_handle_ != nullptr) {
-      aclrtBinaryUnLoad(device_kernel_handle_);
-    }
-    device_kernel_handle_ = nullptr;
-    device_func_get_ = nullptr;
-    device_func_put_ = nullptr;
-    device_kernel_loaded_ = false;
-  }
 }
 
 Status HixlCSClient::Destroy() {
