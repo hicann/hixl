@@ -9,7 +9,6 @@
  */
 
 #include "dsmi_proxy.h"
-#include <cstddef>
 #include <mutex>
 #include "mmpa/mmpa_api.h"
 #include "common/hixl_checker.h"

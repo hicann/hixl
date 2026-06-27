@@ -251,6 +251,21 @@ TEST_F(HixlUtilsUTest, EndpointToStringUboeIpv4HostTest) {
   EXPECT_THAT(text, Not(HasSubstr("devPhyId")));
 }
 
+TEST_F(HixlUtilsUTest, EndpointToStringUbgEidDeviceTest) {
+  EndpointDesc ep{};
+  ep.protocol = COMM_PROTOCOL_UBG;
+  ep.commAddr.type = COMM_ADDR_TYPE_EID;
+  ep.commAddr.eid[0] = 0x00;
+  ep.commAddr.eid[7] = 0x80;  // UBG marker
+  ep.loc.locType = ENDPOINT_LOC_TYPE_DEVICE;
+  ep.loc.device.devPhyId = 3;
+
+  const std::string text = EndpointToString(ep);
+  EXPECT_THAT(text, HasSubstr("protocol=ubg"));
+  EXPECT_THAT(text, HasSubstr("addr=EID"));
+  EXPECT_THAT(text, HasSubstr("devPhyId=3"));
+}
+
 TEST_F(HixlUtilsUTest, EndpointToStringUnknownProtocolTest) {
   EndpointDesc ep{};
   ep.protocol = static_cast<CommProtocol>(99);
