@@ -7,6 +7,7 @@
 - [通信 Benchmark](#通信-benchmark-hixl_comm_bench)
 - [KV Benchmark](#kv-benchmark-hixl_kv_bench)
 - [目录结构](#目录结构)
+- [性能数据](performance.md)
 
 
 ## 环境要求
