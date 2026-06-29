@@ -20,6 +20,8 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
+#include "securec.h"
 #include "mmpa/mmpa_api.h"
 
 namespace llm {
@@ -40,7 +42,11 @@ class MmpaStubApiGe {
   }
 
   virtual int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) {
-    (void)realPathLen;
+    if ((path != NULL) && (realPath != NULL) &&
+        (std::string(path).find("libcann_hixl_kernel.json") != std::string::npos)) {
+      errno_t copy_ret = strncpy_s(realPath, realPathLen, path, strlen(path));
+      return (copy_ret == EOK) ? EN_OK : EN_ERROR;
+    }
     INT32 ret = EN_OK;
     char *ptr = realpath(path, realPath);
     if (ptr == nullptr) {
@@ -132,6 +138,10 @@ class MmpaStubApiGe {
   virtual INT32 Access(const CHAR *path_name) {
     if (path_name == NULL) {
       return EN_INVALID_PARAM;
+    }
+
+    if (std::string(path_name).find("libcann_hixl_kernel.json") != std::string::npos) {
+      return EN_OK;
     }
 
     INT32 ret = access(path_name, F_OK);

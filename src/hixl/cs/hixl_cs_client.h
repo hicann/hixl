@@ -111,8 +111,6 @@ class HixlCSClient {
                                  uint32_t timeout_ms);
   Status ConvertUboeDescs(uint32_t list_num, HixlOneSideOpDesc *desc_list);
   Status EnsureDeviceRemoteFlagInitedLocked();
-  Status EnsureDeviceKernelLoadedLocked();
-  void *GetDeviceKernelFunc(bool is_get);
   Status ImportRemoteMem(std::vector<HixlMemDesc> &desc_list, CommMem **remote_mem_list, char ***mem_tag_list,
                          uint32_t *list_num);
   Status ValidateAddress(uint32_t list_num, const HixlOneSideOpDesc *desc_list);
@@ -176,10 +174,6 @@ class HixlCSClient {
   bool device_remote_flag_inited_{false};
   void *device_remote_flag_addr_{nullptr};
   uint64_t device_remote_flag_size_{0ULL};
-  bool device_kernel_loaded_{false};
-  aclrtBinHandle device_kernel_handle_{nullptr};
-  void *device_func_get_{nullptr};
-  void *device_func_put_{nullptr};
   std::vector<MemHandle> notify_mem_handles_{};
   std::vector<uint64_t> slot_notify_addrs_{};
   uint32_t notify_len_{0U};

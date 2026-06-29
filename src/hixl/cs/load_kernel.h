@@ -19,10 +19,11 @@ namespace hixl {
 struct DeviceFuncHandles {
   aclrtFuncHandle batch_get;
   aclrtFuncHandle batch_put;
+  aclrtFuncHandle sync_transfer_context;
 };
 
 Status LoadDeviceKernelAndGetHandles(const char *func_get, const char *func_put, aclrtBinHandle &bin_handle,
-                                     DeviceFuncHandles &func_handles);
+                                     DeviceFuncHandles &func_handles, const char *func_sync_context = nullptr);
 
 }  // namespace hixl
 

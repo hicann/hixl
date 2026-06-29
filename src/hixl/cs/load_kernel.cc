@@ -94,9 +94,10 @@ Status GetFuncHandle(aclrtBinHandle bin_handle, const char *func_name, aclrtFunc
 }  // namespace
 
 Status LoadDeviceKernelAndGetHandles(const char *func_get, const char *func_put, aclrtBinHandle &bin_handle,
-                                     DeviceFuncHandles &func_handles) {
+                                     DeviceFuncHandles &func_handles, const char *func_sync_context) {
   func_handles.batch_get = nullptr;
   func_handles.batch_put = nullptr;
+  func_handles.sync_transfer_context = nullptr;
   std::string json_path;
   HIXL_CHK_STATUS_RET(GetKernelFilePath(json_path), "[LoadKernel] GetKernelFilePath failed");
   if (bin_handle == nullptr) {
@@ -107,6 +108,10 @@ Status LoadDeviceKernelAndGetHandles(const char *func_get, const char *func_put,
                       "[LoadKernel] GetFuncHandle failed for get_func. func=%s", func_get);
   HIXL_CHK_STATUS_RET(GetFuncHandle(bin_handle, func_put, func_handles.batch_put),
                       "[LoadKernel] GetFuncHandle failed for put_func. func=%s", func_put);
+  if (func_sync_context != nullptr) {
+    HIXL_CHK_STATUS_RET(GetFuncHandle(bin_handle, func_sync_context, func_handles.sync_transfer_context),
+                        "[LoadKernel] GetFuncHandle failed for sync_context_func. func=%s", func_sync_context);
+  }
   return SUCCESS;
 }
 

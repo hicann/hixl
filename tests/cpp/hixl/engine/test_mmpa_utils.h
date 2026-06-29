@@ -60,7 +60,7 @@ class TestMmpaStub : public llm::MmpaStubApiGe {
 
   INT32 RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
     std::string path_str(path);
-    // Handle kernel json file path for EnsureDeviceKernelLoadedLocked
+    // Handle kernel json file path for TransferPool kernel loading.
     if (path_str.find("libcann_hixl_kernel.json") != std::string::npos && real_path_ok_) {
       strncpy_s(realPath, realPathLen, path, strlen(path));
       return EN_OK;
@@ -75,7 +75,7 @@ class TestMmpaStub : public llm::MmpaStubApiGe {
 
   INT32 Access(const CHAR *path_name) override {
     std::string path_str(path_name);
-    // Handle kernel json file path for EnsureDeviceKernelLoadedLocked
+    // Handle kernel json file path for TransferPool kernel loading.
     if (path_str.find("libcann_hixl_kernel.json") != std::string::npos && access_ok_) {
       return EN_OK;
     }

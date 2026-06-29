@@ -15,6 +15,7 @@
 #include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
 #include "hixl_kernel/hixl_batch_transfer.h"
+#include "hixl_kernel/transfer_context_manager.h"
 #include "proxy/hcomm/hcomm_res_defs.h"
 #include "hccl/hccl_types.h"
 
@@ -70,15 +71,37 @@ using namespace hixl;
 
 static uint64_t g_remote_flag_buf = 1;
 static uint64_t g_local_flag_buf = 0;
+constexpr ThreadHandle kKernelTestThread = 910001ULL;
+
+uint32_t SyncContext(ThreadHandle thread, uint32_t op, uint32_t *state) {
+  TransferContextSyncEntry entry{};
+  entry.thread = thread;
+  entry.op = op;
+  uint32_t result_state = TRANSFER_THREAD_STATE_DELETED;
+  TransferContextSyncParam param{};
+  param.entry_list_addr = reinterpret_cast<uint64_t>(&entry);
+  param.state_list_addr = reinterpret_cast<uint64_t>(&result_state);
+  param.entry_num = 1U;
+  uint32_t ret = HixlSyncTransferContext(&param);
+  if (state != nullptr) {
+    *state = result_state;
+  }
+  return ret;
+}
 
 class HixlKernelBasicTest : public ::testing::Test {
  protected:
   void SetUp() override {
     g_mock_batch_transfer_ret = HCCL_E_NOT_SUPPORT;
     g_mock_batch_transfer_call_count = 0;
+    uint32_t state = TRANSFER_THREAD_STATE_DELETED;
+    ASSERT_EQ(SyncContext(kKernelTestThread, TRANSFER_CONTEXT_OP_ADD, &state), SUCCESS);
+    ASSERT_EQ(state, TRANSFER_THREAD_STATE_INITIALIZED);
   }
 
   void TearDown() override {
+    uint32_t state = TRANSFER_THREAD_STATE_DELETED;
+    (void)SyncContext(kKernelTestThread, TRANSFER_CONTEXT_OP_DELETE, &state);
     g_mock_batch_transfer_ret = HCCL_E_NOT_SUPPORT;
     g_mock_batch_transfer_call_count = 0;
   }
@@ -99,7 +122,8 @@ TEST_F(HixlKernelBasicTest, BatchPutSuccess) {
   uint64_t remote_flag_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_remote_flag_buf));
   uint64_t local_flag_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_local_flag_buf));
 
-  auto args = CreateTestArgs<3>(local_addr, remote_addr, lens_storage, remote_flag_addr, local_flag_addr);
+  auto args =
+      CreateTestArgs<3>(local_addr, remote_addr, lens_storage, remote_flag_addr, local_flag_addr, kKernelTestThread);
   uint32_t ret = HixlBatchPut(&args.param);
   EXPECT_EQ(ret, SUCCESS);
 }
@@ -119,7 +143,8 @@ TEST_F(HixlKernelBasicTest, BatchGetSuccess) {
   uint64_t remote_flag_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_remote_flag_buf));
   uint64_t local_flag_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_local_flag_buf));
 
-  auto args = CreateTestArgs<3>(remote_addr, local_addr, lens_storage, remote_flag_addr, local_flag_addr);
+  auto args =
+      CreateTestArgs<3>(remote_addr, local_addr, lens_storage, remote_flag_addr, local_flag_addr, kKernelTestThread);
   uint32_t ret = HixlBatchGet(&args.param);
   EXPECT_EQ(ret, SUCCESS);
 }
@@ -132,7 +157,8 @@ TEST_F(HixlKernelBasicTest, BatchPutFailByMemSize) {
   uint64_t remote_flag_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_remote_flag_buf));
   uint64_t local_flag_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_local_flag_buf));
 
-  auto args = CreateTestArgs<1>(local_src, remote_addr, lens_storage, remote_flag_addr, local_flag_addr);
+  auto args =
+      CreateTestArgs<1>(local_src, remote_addr, lens_storage, remote_flag_addr, local_flag_addr, kKernelTestThread);
   uint32_t ret = HixlBatchPut(&args.param);
   EXPECT_EQ(ret, FAILED);
 }
@@ -145,7 +171,8 @@ TEST_F(HixlKernelBasicTest, BatchGetFailByMemSize) {
   uint64_t remote_flag_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_remote_flag_buf));
   uint64_t local_flag_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_local_flag_buf));
 
-  auto args = CreateTestArgs<1>(remote_addr, local_addr, lens_storage, remote_flag_addr, local_flag_addr);
+  auto args =
+      CreateTestArgs<1>(remote_addr, local_addr, lens_storage, remote_flag_addr, local_flag_addr, kKernelTestThread);
   uint32_t ret = HixlBatchGet(&args.param);
   EXPECT_EQ(ret, FAILED);
 }
@@ -169,8 +196,8 @@ TEST_F(HixlKernelBasicTest, BatchGetHccsError) {
   uint64_t remote_flag_addr_hccs = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_remote_flag_buf));
   uint64_t local_flag_addr_hccs = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_local_flag_buf));
 
-  auto args =
-      CreateTestArgs<3>(remote_addr_hccs, local_addr_hccs, lens_storage, remote_flag_addr_hccs, local_flag_addr_hccs);
+  auto args = CreateTestArgs<3>(remote_addr_hccs, local_addr_hccs, lens_storage, remote_flag_addr_hccs,
+                                local_flag_addr_hccs, kKernelTestThread);
   args.param.use_notify_record = 1;
   uint32_t ret = HixlBatchGet(&args.param);
   EXPECT_NE(ret, SUCCESS);
@@ -181,9 +208,14 @@ class HixlBatchTransferTest : public ::testing::Test {
   void SetUp() override {
     g_mock_batch_transfer_ret = 0;
     g_mock_batch_transfer_call_count = 0;
+    uint32_t state = TRANSFER_THREAD_STATE_DELETED;
+    ASSERT_EQ(SyncContext(kKernelTestThread, TRANSFER_CONTEXT_OP_ADD, &state), SUCCESS);
+    ASSERT_EQ(state, TRANSFER_THREAD_STATE_INITIALIZED);
   }
 
   void TearDown() override {
+    uint32_t state = TRANSFER_THREAD_STATE_DELETED;
+    (void)SyncContext(kKernelTestThread, TRANSFER_CONTEXT_OP_DELETE, &state);
     g_mock_batch_transfer_ret = 0;
     g_mock_batch_transfer_call_count = 0;
   }
@@ -204,7 +236,8 @@ TEST_F(HixlBatchTransferTest, BatchTransferSuccess) {
   uint64_t remote_flag_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_remote_flag_buf));
   uint64_t local_flag_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_local_flag_buf));
 
-  auto args = CreateTestArgs<3>(local_addr, remote_addr, lens_storage, remote_flag_addr, local_flag_addr);
+  auto args =
+      CreateTestArgs<3>(local_addr, remote_addr, lens_storage, remote_flag_addr, local_flag_addr, kKernelTestThread);
 
   g_mock_batch_transfer_ret = HCCL_SUCCESS;
 
@@ -228,7 +261,8 @@ TEST_F(HixlBatchTransferTest, BatchTransferFallbackToSingle) {
   uint64_t remote_flag_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_remote_flag_buf));
   uint64_t local_flag_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_local_flag_buf));
 
-  auto args = CreateTestArgs<3>(local_addr, remote_addr, lens_storage, remote_flag_addr, local_flag_addr);
+  auto args =
+      CreateTestArgs<3>(local_addr, remote_addr, lens_storage, remote_flag_addr, local_flag_addr, kKernelTestThread);
 
   g_mock_batch_transfer_ret = HCCL_E_NOT_SUPPORT;
 
@@ -252,7 +286,8 @@ TEST_F(HixlBatchTransferTest, BatchTransferOtherError) {
   uint64_t remote_flag_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_remote_flag_buf));
   uint64_t local_flag_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_local_flag_buf));
 
-  auto args = CreateTestArgs<3>(local_addr, remote_addr, lens_storage, remote_flag_addr, local_flag_addr);
+  auto args =
+      CreateTestArgs<3>(local_addr, remote_addr, lens_storage, remote_flag_addr, local_flag_addr, kKernelTestThread);
 
   g_mock_batch_transfer_ret = HCCL_E_PARA;
 
@@ -276,7 +311,8 @@ TEST_F(HixlBatchTransferTest, BatchGetSuccess) {
   uint64_t remote_flag_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_remote_flag_buf));
   uint64_t local_flag_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_local_flag_buf));
 
-  auto args = CreateTestArgs<3>(remote_addr, local_addr, lens_storage, remote_flag_addr, local_flag_addr);
+  auto args =
+      CreateTestArgs<3>(remote_addr, local_addr, lens_storage, remote_flag_addr, local_flag_addr, kKernelTestThread);
 
   g_mock_batch_transfer_ret = HCCL_SUCCESS;
 
@@ -300,7 +336,7 @@ TEST_F(HixlBatchTransferTest, BatchPutListNumZero) {
   std::array<std::array<uint8_t, 8>, 1> remote_addr{};
   std::array<uint64_t, 1> lens_storage{8};
 
-  auto args = CreateTestArgs<1>(local_addr, remote_addr, lens_storage, 0, 0);
+  auto args = CreateTestArgs<1>(local_addr, remote_addr, lens_storage, 0, 0, kKernelTestThread);
   args.param.list_num = 0;
 
   uint32_t ret = HixlBatchPut(&args.param);
@@ -313,7 +349,7 @@ TEST_F(HixlBatchTransferTest, BatchGetListNumZero) {
   std::array<std::array<uint8_t, 8>, 1> remote_addr{};
   std::array<uint64_t, 1> lens_storage{8};
 
-  auto args = CreateTestArgs<1>(local_addr, remote_addr, lens_storage, 0, 0);
+  auto args = CreateTestArgs<1>(local_addr, remote_addr, lens_storage, 0, 0, kKernelTestThread);
   args.param.list_num = 0;
 
   uint32_t ret = HixlBatchGet(&args.param);
@@ -326,7 +362,7 @@ TEST_F(HixlBatchTransferTest, BatchPutListNumExceedMax) {
   std::array<std::array<uint8_t, 8>, 1> remote_addr{};
   std::array<uint64_t, 1> lens_storage{8};
 
-  auto args = CreateTestArgs<1>(local_addr, remote_addr, lens_storage, 0, 0);
+  auto args = CreateTestArgs<1>(local_addr, remote_addr, lens_storage, 0, 0, kKernelTestThread);
   args.param.list_num = 8193;
 
   uint32_t ret = HixlBatchPut(&args.param);
@@ -339,7 +375,7 @@ TEST_F(HixlBatchTransferTest, BatchGetListNumExceedMax) {
   std::array<std::array<uint8_t, 8>, 1> remote_addr{};
   std::array<uint64_t, 1> lens_storage{8};
 
-  auto args = CreateTestArgs<1>(local_addr, remote_addr, lens_storage, 0, 0);
+  auto args = CreateTestArgs<1>(local_addr, remote_addr, lens_storage, 0, 0, kKernelTestThread);
   args.param.list_num = 8193;
 
   uint32_t ret = HixlBatchGet(&args.param);
@@ -388,11 +424,54 @@ TEST_F(HixlBatchTransferTest, BatchGetFallbackToSingle) {
   uint64_t remote_flag_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_remote_flag_buf));
   uint64_t local_flag_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(&g_local_flag_buf));
 
-  auto args = CreateTestArgs<3>(remote_addr, local_addr, lens_storage, remote_flag_addr, local_flag_addr);
+  auto args =
+      CreateTestArgs<3>(remote_addr, local_addr, lens_storage, remote_flag_addr, local_flag_addr, kKernelTestThread);
 
   g_mock_batch_transfer_ret = HCCL_E_NOT_SUPPORT;
 
   uint32_t ret = HixlBatchGet(&args.param);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(g_mock_batch_transfer_call_count, 1u);
+}
+
+TEST_F(HixlBatchTransferTest, BatchPutFailsWhenContextMissing) {
+  uint32_t state = TRANSFER_THREAD_STATE_DELETED;
+  ASSERT_EQ(SyncContext(kKernelTestThread, TRANSFER_CONTEXT_OP_DELETE, &state), SUCCESS);
+  ASSERT_EQ(state, TRANSFER_THREAD_STATE_DELETED);
+
+  std::array<std::array<uint8_t, 8>, 1> local_addr{};
+  std::array<std::array<uint8_t, 8>, 1> remote_addr{};
+  std::array<uint64_t, 1> lens_storage{8};
+  auto args = CreateTestArgs<1>(local_addr, remote_addr, lens_storage, 0, 0, kKernelTestThread);
+
+  uint32_t ret = HixlBatchPut(&args.param);
+  EXPECT_EQ(ret, FAILED);
+  EXPECT_EQ(g_mock_batch_transfer_call_count, 0u);
+
+  ASSERT_EQ(SyncContext(kKernelTestThread, TRANSFER_CONTEXT_OP_ADD, &state), SUCCESS);
+}
+
+TEST_F(HixlBatchTransferTest, DeleteMissingContextReturnsDeleted) {
+  constexpr ThreadHandle kMissingThread = 910099ULL;
+  uint32_t state = TRANSFER_THREAD_STATE_INITIALIZED;
+  ASSERT_EQ(SyncContext(kMissingThread, TRANSFER_CONTEXT_OP_DELETE, &state), SUCCESS);
+  EXPECT_EQ(state, TRANSFER_THREAD_STATE_DELETED);
+}
+
+TEST_F(HixlBatchTransferTest, DeleteBusyContextReturnsDeletingThenDeleted) {
+  constexpr ThreadHandle kBusyThread = 910100ULL;
+  uint32_t state = TRANSFER_THREAD_STATE_DELETED;
+  ASSERT_EQ(SyncContext(kBusyThread, TRANSFER_CONTEXT_OP_ADD, &state), SUCCESS);
+  ASSERT_EQ(state, TRANSFER_THREAD_STATE_INITIALIZED);
+
+  auto ctx = TransferContextManager::Instance().Get(kBusyThread);
+  ASSERT_NE(ctx, nullptr);
+
+  ctx->lock();
+  ASSERT_EQ(SyncContext(kBusyThread, TRANSFER_CONTEXT_OP_DELETE, &state), SUCCESS);
+  EXPECT_EQ(state, TRANSFER_THREAD_STATE_DELETING);
+
+  ctx->unlock();
+  ASSERT_EQ(SyncContext(kBusyThread, TRANSFER_CONTEXT_OP_DELETE, &state), SUCCESS);
+  EXPECT_EQ(state, TRANSFER_THREAD_STATE_DELETED);
 }
