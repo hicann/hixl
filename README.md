@@ -23,6 +23,7 @@
 - [2025/10] HIXL项目开源，在昇腾芯片上提供高效的多链路D2D/D2H/H2D等单边通信能力，并优化了小数据量批量传输场景的性能。同时HIXL已对接多个开源社区，包含[Mooncake](https://github.com/kvcache-ai/Mooncake/issues/719)，[DeepLink](https://github.com/DeepLink-org/DLSlime/pull/21)等。
 
 ## 🚀概述
+
 HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，面向集群场景提供简单、可靠、高效的点对点数据传输能力，并通过简易API开放给用户, 在多AI应用和多传输链路之间建立了桥梁。可用于构建大模型PD分离、RL后训练参数切换、模型参数缓存等多种业务场景。
 
 **核心优势**
@@ -33,16 +34,15 @@ HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，
 
 <img src="docs/zh/figures/architecture.png" alt="架构图">
 
-
 **核心组件**
 
 - **HIXL Engine**：作为核心传输引擎，提供了基础传输接口，支持多种类型内存类型传输，比如D2D、D2H、H2D。同时兼容多种传输协议，包括HCCS、RDMA等。可实现高速、可靠的数据传输。原生支持多类型数据链路，可灵活同构集群、异构集群的复杂场景。面对集群节点动态扩缩容需求时，可快速完成链路适配与资源调度，为集群整体运行构建可靠通信基础。
 - **LLM-DataDist**：基于HIXL Engine构建，提供了一套携带KV Cache语义的数据传输接口。可快速、灵活对接vLLM、SGLang等推理引擎。
 
-
 **性能表现**
 
 在昇腾A3芯片上传输128M数据场景下：
+
 - 通过HCCS链路进行传输，HIXL传输引擎的带宽可达119GB/s
 - 通过RDMA链路进行传输，HIXL传输引擎的带宽可达22GB/s
 
@@ -50,19 +50,20 @@ HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，
 
 查看[基准测试Benchmarks](benchmarks/README.md)了解更多细节。
 
-
 ## 🔍目录结构
 
 本项目的关键目录说明如下：
 
-```
+```sh
 ├── build.sh                       # 项目工程编译脚本
 ├── benchmarks                     # 项目benchmark性能用例
 ├── cmake                          # 项目工程编译目录
 ├── CMakeLists.txt                 # 项目的CMakeList
 ├── docs                           # 项目文档介绍
-│  ├── cpp                         # C++文档
-│  └── python                      # Python文档
+│  ├── zh                          # 中文文档
+│  └── en                          # 英文文档
+│  └── README.md                   # 中文文档导读
+│  └── README_en.md                # 英文文档导读
 ├── examples                       # 端到端样例开发和调用示例
 │  ├── cpp                         # C++样例
 │  ├── python                      # Python样例
@@ -82,14 +83,12 @@ HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，
 └── tests                          # 测试工程目录
 ```
 
-
 ## ⚡️快速入门
 
 若您希望快速体验该组件的构建和样例执行，请访问如下文档获取简易教程。
 
 - [构建](docs/zh/build.md)：介绍组件的编译和安装，包括编译成功后利用tests进行本地验证。
 - [样例执行](examples/README.md)：介绍如何端到端执行样例代码，包括C++和Python样例。
-
 
 ## 📖学习教程
 
@@ -109,7 +108,6 @@ HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，
 
 > ⚠️ 说明：
 当前代码AI Agent服务处于试点阶段。在使用过程中，如果您发现 AI 生成的内容存在准确性问题，或对智能助手的功能有任何改进建议，欢迎通过 Issues 与我们交流，您的反馈对我们非常重要！
-
 
 ## 📝相关信息
 

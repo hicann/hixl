@@ -7,6 +7,7 @@
 HIXL（Huawei Xfer Library）是面向昇腾芯片的单边通信库，用于分布式 AI 场景（LLM 推理 KV Cache 传输、PD 分离等）。支持通过 HCCS 和 RDMA 协议进行点对点 D2D/D2H/H2D 数据传输，并通过 pybind11 提供 Python 绑定。
 
 两个核心组件：
+
 - **HIXL Engine**（`src/hixl/`）：底层传输引擎，支持多种内存类型和传输协议。
 - **LLM-DataDist**（`src/llm_datadist/`）：基于 HIXL 构建的上层 KV Cache 传输接口，对接 vLLM/SGLang。
 
@@ -60,6 +61,7 @@ pre-commit run --files <changed-files>     # 只检查受影响文件
 - **Python**：使用 `ruff-check` 和 `ruff-format`，模块和测试文件用 `snake_case`。
 
 ## 测试要求
+
 - 测试文件命名：C++ 以 `_unittest.cc` 或 `_ut.cc` 结尾，Python 以 `test_*.py` 命名。
 - 行为变更必须补齐或更新测试。
 - C++ 用例按 suite 放置：`tests/cpp/llm_datadist/`、`tests/cpp/adxl/`、`tests/cpp/hixl/`（含 `fabric_mem/`）；端口规划见 `tests/cpp/TEST_PORTS.md`。

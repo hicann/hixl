@@ -9,12 +9,14 @@
 该 benchmark 支持两种传输模式：
 
 ### 1. full_mesh（全互联传输）
+
 - 所有 rank 相互之间都进行数据传输
 - 每个 rank 都 put 数据，并从其他所有 rank get 数据
 - 适用于测试复杂的分布式通信场景
 - **要求 `world_size >= 2`，单卡场景如需测试请使用 `one_to_many` 模式**
 
 ### 2. one_to_many（一对多传输）
+
 - rank 0 向其他所有 rank put 数据
 - 其他 rank 从 rank 0 get 数据
 - 适用于测试广播场景的性能
@@ -174,7 +176,7 @@ bash run.sh benchmark/benchmark_bandwidth.py \
 
 ### 启动信息
 
-```
+```sh
 Starting bandwidth benchmark
 Schema: d2d
 Transfer mode: full_mesh
@@ -183,7 +185,7 @@ World Size: 4
 
 ### 单个 Block Size 的输出
 
-```
+```sh
 ================================================================================
 Benchmark Configuration:
   Block Size: 144 KB
@@ -205,7 +207,7 @@ Results for 144 KB:
 
 ### 汇总输出
 
-```
+```sh
 ================================================================================
 SUMMARY - Bandwidth Results
 Mode: full_mesh

@@ -3,64 +3,64 @@
 ## Environment Setup
 This project supports build from source code. Before compiling the source code, ensure that the CANN Toolkit has been installed. Before running all samples, ensure that the driver and firmware have been installed. Before running Python samples, ensure that the OPS package has been installed.
 
-Select an installation method based on the following description.
+Select an installation method based on the following description:
 
-| Installation Mode| Description|Scenario|
+| Installation Mode | Description | Scenario |
 | :--- | :--- | :--- |
-| Deployment using Docker| Docker images provide an efficient CANN deployment method. Currently, it applies only to Atlas A2 products with Ubuntu OS.|This method is suitable for developers who have Ascend devices and need to quickly set up the environment.|
-| Manual installation| - |This method is suitable for developers who have Ascend devices and want to manually install the CANN package or experience the latest master branch capabilities.|
+| Deployment using Docker | Docker images provide an efficient CANN deployment method. Currently, it applies only to Atlas A2 products with Ubuntu OS. | This method is suitable for developers who have Ascend devices and need to quickly set up the environment. |
+| Manual installation | - | This method is suitable for developers who have Ascend devices and want to manually install the CANN package or experience the latest master branch capabilities. |
 
 ### Scenario I: Deployment Using Docker
 
-**1. Install the firmware and driver.** See [CANN Software Installation](https://hiascend.com/document/redirect/CannCommercialInstSoftware).
+**1. Install the firmware and driver.** See [CANN Software Installation](https://www.hiascend.com/document/redirect/CannCommunityInstWizard).
 
 **2. Install the dependencies, CANN Toolkit, and CANN ops package.**
  - **x86 build image address**: `swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu24.04_x86:lv6_v1.1039`
  - **Arm build image address**: `swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu24.04_arm:lv6_v1.1039`
 
-  Recommended usage:
+   Recommended usage:
 
-  ```bash
-  image=${Select a matching image based on the local machine architecture}
+   ```bash
+   image=${Select a matching image based on the local machine architecture}
 
-  # 1. Pull the matching build image
-  docker pull ${image}
-  # 2. Create and access the container
-  # Assume that your NPU devices are installed in /dev/davinci0 and /dev/davinci1, and the NPU driver is installed in /usr/local/Ascend.
-  docker run \
-    --name env_for_hixl_build \
-    --device /dev/davinci0 \
-    --device /dev/davinci1 \
-    --device /dev/davinci_manager \
-    --device /dev/devmm_svm \
-    --device /dev/hisi_hdc \
-    --cap-add SYS_PTRACE \
-    -v /usr/local/dcmi:/usr/local/dcmi \
-    -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi \
-    -v /usr/bin/hccn_tool:/usr/bin/hccn_tool \
-    -v /usr/local/Ascend/driver/lib64/:/usr/local/Ascend/driver/lib64/ \
-    -v /usr/local/Ascend/driver/tools/:/usr/local/Ascend/driver/tools/ \
-    -v /usr/local/Ascend/driver/version.info:/usr/local/Ascend/driver/version.info \
-    -v /etc/ascend_install.info:/etc/ascend_install.info \
-    -it ${image} bash
-  ```
+   # 1. Pull the matching build image
+   docker pull ${image}
+   # 2. Create and access the container
+   # Assume that your NPU devices are installed in /dev/davinci0 and /dev/davinci1, and the NPU driver is installed in /usr/local/Ascend.
+   docker run \
+     --name env_for_hixl_build \
+     --device /dev/davinci0 \
+     --device /dev/davinci1 \
+     --device /dev/davinci_manager \
+     --device /dev/devmm_svm \
+     --device /dev/hisi_hdc \
+     --cap-add SYS_PTRACE \
+     -v /usr/local/dcmi:/usr/local/dcmi \
+     -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi \
+     -v /usr/bin/hccn_tool:/usr/bin/hccn_tool \
+     -v /usr/local/Ascend/driver/lib64/:/usr/local/Ascend/driver/lib64/ \
+     -v /usr/local/Ascend/driver/tools/:/usr/local/Ascend/driver/tools/ \
+     -v /usr/local/Ascend/driver/version.info:/usr/local/Ascend/driver/version.info \
+     -v /etc/ascend_install.info:/etc/ascend_install.info \
+     -it ${image} bash
+   ```
 
-  > [!NOTE]NOTE
-  > - `--cap-add SYS_PTRACE`: Adds the `SYS_PTRACE` permission when creating a Docker to support memory leak detection during [local verification (Tests)](#local-verification-tests).
-  > - For more Docker options, run the `docker --help` command.
+   > [!NOTE] Note
+   > - `--cap-add SYS_PTRACE`: Adds the `SYS_PTRACE` permission when creating a Docker to support memory leak detection during [local verification (Tests)](#local-verification-tests).
+   > - For more Docker options, run the `docker --help` command.
 
-  The installation path of the CANN package for the build image is `/home/jenkins/Ascend`. If you need to use a different CANN version outside the image, manually install the CANN package in Docker by referring to the following sections.
+   The installation path of the CANN package for the build image is `/home/jenkins/Ascend`. If you need to use a different CANN version outside the image, manually install the CANN package in Docker by referring to the following sections.
 
-  For more image versions and how to use them, see [Ascend-CANN Images](https://www.hiascend.com/developer/ascendhub/detail/17da20d1c2b6493cb38765adeba85884).
+   For more image versions and how to use them, see [Ascend-CANN Images](https://www.hiascend.com/developer/ascendhub/detail/17da20d1c2b6493cb38765adeba85884).
 
 
 ### Scenario II: Manual Installation
 
 **Scenario 1: Experience the master branch or perform development based on the master branch.**
 
-If you want to experience the latest capabilities of the master branch, download the software package from [the download link](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/master) and perform the following steps. For detailed instructions, see [CANN Software Installation](https://hiascend.com/document/redirect/CannCommercialInstSoftware).
+If you want to experience the latest capabilities of the master branch, download the software package from [the download link](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/master) and perform the following steps. For detailed instructions, see [CANN Software Installation](https://www.hiascend.com/document/redirect/CannCommunityInstWizard).
 
-1. Install the firmware and driver. See [CANN Software Installation](https://hiascend.com/document/redirect/CannCommercialInstSoftware).
+1. Install the firmware and driver. See [CANN Software Installation](https://www.hiascend.com/document/redirect/CannCommunityInstWizard).
 
 2. Install the community edition CANN Toolkit.
 
@@ -79,10 +79,10 @@ If you want to experience the latest capabilities of the master branch, download
     # Installation command
     ./Ascend-cann-${soc_name}-ops_${cann_version}_linux-${arch}.run --install --install-path=${install_path}
     ```
-    - `\$\{cann\_version\}`: CANN package version.
-    - `\$\{arch\}`: CPU architecture, such as `aarch64` and `x86_64`.
-    - `\$\{soc\_name\}`: NPU model name.
-    - `\$\{install\_path\}`: installation path. The CANN package and Toolkit package must be in the same path. For the `root` user, the default path is `/usr/local/Ascend`.
+    - `${cann_version}`: CANN package version.
+    - `${arch}`: CPU architecture, such as `aarch64` and `x86_64`.
+    - `${soc_name}`: NPU model name.
+    - `${install_path}`: installation path. The CANN package and Toolkit package must be in the same path. For the `root` user, the default path is `/usr/local/Ascend`.
 
 **Scenario 2: Experience a released version or perform development based on a released version.**
 
@@ -115,6 +115,7 @@ source /usr/local/Ascend/cann/set_env.sh
 # Custom installation path
 # source ${install_path}/cann/set_env.sh
 ```
+
 ## Source Code Compilation
 
 ### Install Third-Party Open-Source Dependencies
@@ -122,27 +123,27 @@ source /usr/local/Ascend/cann/set_env.sh
 The following lists the dependencies required for source code compilation. Check the version requirements.
 
   ```shell
-  # Run the following commands for Ubuntu/Debian. For other OSs, Use proper commands for other OS.
+  # Run the following commands for Ubuntu/Debian. Use proper commands for other OS.
   sudo apt-get install cmake bash ccache
   ```
 - GCC 7.3.x - 14.2.x
 - Python 3.9.x - 3.14.x
 - CMake >= 3.16.0
-- Bash >= 5.1.16 (Address sanitization is enabled in the test cases. Low versions of bash may trigger false memory leak detections in `system` calls.)
+- bash >= 5.1.16 (Address sanitization is enabled in the test cases. Low versions of bash may trigger false memory leak detections in `system` calls.)
 - unzip (extracts the ZIP packages of third-party open-source software)
 - ccache (optional, a compiler cache optimization tool used to speed up incremental builds)
 
 During compilation, HIXL depends on the following third-party open-source software.
 
-| Open-Source Software| Version| Download Address|
+| Open-Source Software | Version | Download Address |
 |---|---|---|
 | googletest | 1.14.0 | [googletest-1.14.0.tar.gz](https://gitcode.com/cann-src-third-party/googletest/releases/download/v1.14.0/googletest-1.14.0.tar.gz) |
 | json | 3.11.3 | [include.zip](https://gitcode.com/cann-src-third-party/json/releases/download/v3.11.3/include.zip) |
 | makeself | 2.5.0 | [makeself-release-2.5.0-patch1.tar.gz](https://gitcode.com/cann-src-third-party/makeself/releases/download/release-2.5.0-patch1.0/makeself-release-2.5.0-patch1.tar.gz) |
 | pybind11 | 2.13.6 | [pybind11-2.13.6.tar.gz](https://gitcode.com/cann-src-third-party/pybind11/releases/download/v2.13.6/pybind11-2.13.6.tar.gz) |
-| cann-cmake | master-006 | [cmake-master-006.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/cmake/cmake-master-006.tar.gz) |
+| cann-cmake | master-025 | [cmake-master-025.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/cmake/cmake-master-025.tar.gz) |
 
-> [!NOTE]NOTE
+> [!NOTE] Note
 > If you download the packages from other addresses, ensure that the version numbers match exactly.
 
 ### Download Source Code
@@ -152,7 +153,7 @@ Run the following commands to download the source code of this repository:
 git clone https://gitcode.com/cann/hixl.git
 ```
 
-> [!NOTE]NOTE
+> [!NOTE] Note
 > When using HTTPS on GitCode, configure and use a personal access token instead of the login password for operations such as cloning and pushing.
 
 If your build environment cannot access the Internet, you cannot download code via `git`. In this case, you need to download the source code in an environment with Internet access and manually upload it to the target environment.
@@ -167,6 +168,9 @@ If your build environment can access the Internet, the compilation process will 
 ```bash
 # Default installation path (root user: /usr/local/Ascend; non-root user: ${HOME}/Ascend)
 bash build.sh
+
+# If you need to compile C++ samples or benchmark tests, specify the "--examples" parameter
+bash build.sh --examples
 ```
 
 If your build environment cannot access the Internet, download the required open-source packages in an environment with Internet access and manually upload them to your build environment.
@@ -185,26 +189,25 @@ bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
 After the build is successful, the `cann-hixl_${cann_version}_linux-${arch}.run` file is generated in the `build_out` directory.
 - `${cann_version}`: CANN version.
 - `${arch}`: CPU architecture, such as `aarch64` and `x86_64`.
-- If sample verification or benchmark verification is required, add the `--examples` parameter during the build.
 - For more execution options, run `-h` or refer to the following table.
   ```
   bash build.sh -h
   ```
 
-| Parameter| Description| Default Value|
+| Parameter | Description | Default Value |
 |---|---|---|
-| `-h, --help` | Displays help information.| - |
-| `-v, --verbose` | Displays detailed compilation commands.| - |
-| `-j<N>` | Sets the number of threads used for build.| 8 |
-| `--build_type=<Release\|Debug>`<br>`--build-type=<Release\|Debug>` | Sets the build type.| Release |
-| `--cann_3rd_lib_path=<PATH>`<br>`--cann-3rd-lib-path=<PATH>` | Sets the installation path of the third-party dependency packages.| `./third_party` |
-| `--output_path=<PATH>`<br>`--output-path=<PATH>` | Sets the build output path.| `./build_out` |
-| `--pkg` | Builds a `.run` file (reserved).| - |
-| `--examples` | Builds the sample and benchmark test.| OFF |
-| `--asan` | Enables address sanitization for memory leak detection.| OFF |
-| `--cov` | Enables code coverage.| OFF |
-| `--sign-script=<PATH>`<br>`--sign_script=<PATH>` | Sets the path for the signature script.| - |
-| `--enable-sign` | Enables the signature function.| - |
+| `-h, --help` | Displays help information. | - |
+| `-v, --verbose` | Displays detailed compilation commands. | - |
+| `-j<N>` | Sets the number of threads used for build. | 8 |
+| `--build_type=<Release\|Debug>`<br>`--build-type=<Release\|Debug>` | Sets the build type. | Release |
+| `--cann_3rd_lib_path=<PATH>`<br>`--cann-3rd-lib-path=<PATH>` | Sets the installation path of the third-party dependency packages. | `./third_party` |
+| `--output_path=<PATH>`<br>`--output-path=<PATH>` | Sets the build output path. | `./build_out` |
+| `--pkg` | Builds a `.run` file (reserved). | - |
+| `--examples` | Builds the sample and benchmark test. | OFF |
+| `--asan` | Enables address sanitization for memory leak detection. | OFF |
+| `--cov` | Enables code coverage. | OFF |
+| `--sign-script=<PATH>`<br>`--sign_script=<PATH>` | Sets the path for the signature script. | - |
+| `--enable-sign` | Enables the signature function. | - |
 
 ## Local Verification (Tests)
 
@@ -215,7 +218,7 @@ Use the test cases in the `tests` directory for local verification.
     # Install the dependencies in the requirements.txt file under the root directory
     pip3 install -r requirements.txt
     ```
-  To view the test coverage locally, install `coverage` and add the Python 3 binary path to the `PATH` environment variable. 
+  To view the test coverage locally, install `coverage` and add the Python 3 binary path to the `PATH` environment variable.
 
      ```shell
      pip3 install coverage
@@ -264,4 +267,4 @@ Install the `.run` file generated during [Compile Source Code](#source-code-comp
     npu-smi set -t custom-op-secverify-enable -i 0 -d 1 # Enable custom signature verification
     npu-smi set -t custom-op-secverify-mode -i 0 -d 0 # Disable signature verification
     ```
-**After the installation is complete, run the sample test by referring to [Sample Running](../../examples/README_en.md) or run the benchmark test by referring to [Benchmarks](../../benchmarks/README.md).**
+**After the installation is complete, you can run the sample test by referring to [Sample Running](../../examples/README.md) or run the benchmark test by referring to [Benchmarks](../../benchmarks/README.md).**

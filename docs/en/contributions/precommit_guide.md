@@ -7,6 +7,22 @@
 
 This guide describes how to use the pre-commit capabilities deployed in the local code repository. These capabilities mainly include code formatting, spell check, and Open Source Audit Tool (OAT) scan. For more usage details, see the [official pre-commit documentation](https://pre-commit.com/).
 
+### 1.1 GitCode Mirror Repository Notice
+
+**Important**: Due to network environment in China, GitHub access may be restricted. CANN community has mirrored commonly used pre-commit hooks repositories to GitCode.
+
+**Mirror Repository Mapping Table**:
+
+| GitHub Original Repository | GitCode Mirror Repository | Description |
+|--------------|-----------------|------|
+| `https://github.com/pre-commit/pre-commit-hooks` | `https://gitcode.com/pre-commit/pre-commit-hooks` | Basic check hooks |
+| `https://github.com/pre-commit/mirrors-clang-format` | `https://gitcode.com/pre-commit-clang/mirrors-clang-format` | C++ formatting |
+| `https://github.com/astral-sh/ruff-pre-commit` | `https://gitcode.com/gh_mirrors/ru/ruff-pre-commit` | Python lint/format |
+| `https://github.com/codespell-project/codespell` | `https://gitcode.com/gh_mirrors/co/codespell` | Spell check |
+| `https://github.com/crate-ci/typos` | `https://gitcode.com/gh_mirrors/ty/typos` | typos check |
+
+**Recommendation**: When developing in China, recommend using GitCode mirror repositories to avoid network access issues.
+
 ## 2 Feature Overview
 
 1. After pre-commit is installed, code formatting, spell check, and OAT check are automatically triggered before code is committed with Git.

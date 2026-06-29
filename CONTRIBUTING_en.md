@@ -11,10 +11,11 @@ Developers are welcome to experience and contribute to this project. Before cont
 
 In addition, developers need to pay close attention to the following points when preparing local code and submitting PRs:
 
-1. When submitting a PR, fill in the PR template carefully, providing information such as business background, purpose, solution, etc.
+1. When submitting a PR, please fill in the [PR template](.gitcode/PULL_REQUEST_TEMPLATE.zh-CN.md) carefully, providing information such as business background, purpose, solution, etc.
 2. Before committing code using Git, refer to [pre-commit Usage Guide](./docs/en/contributions/precommit_guide.md)​ to ensure that your submissions are compliant and efficient.
 3. If your changes are not simple bug fixes, but involve adding new features, interfaces, configuration parameters, or modifying code flows, please discuss the design through an issue first to avoid rejection. If you are not sure whether the modification can be classified as a simple bug fix, you can submit an issue for discussion. 
 4. When submitting a PR, ensure that your code complies with the project's coding standards. For details, see [Google Style Guides](https://google.github.io/styleguide/), including but not limited to:
+
   - Code formatting
   - Comment conventions
   - Variable naming conventions
@@ -23,6 +24,7 @@ In addition, developers need to pay close attention to the following points when
   - API naming conventions
   - Configuration parameter naming conventions
   - Code flow conventions
+  
 5. If multiple invalid commits exist when submitting a PR, you are advised to perform a rebase​ beforehand to combine them into one commit, keeping the code clean and readable. For details, see [git rebase](https://git-scm.com/docs/git-rebase). Also, the commit message must conform to project code conventions, clearly describing the intent and content of the change in the format: `<type>: <short description>`.  Example:
 
 | Type| Description                   | Example                    |

@@ -9,7 +9,6 @@
 - [目录结构](#目录结构)
 - [性能数据](performance.md)
 
-
 ## 环境要求
 
 ### 1. 硬件和软件准备
@@ -69,7 +68,6 @@ for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
 
 - **HCCS**：在 **A2（Ascend910B-class）** 上仅 **D2D**（`--type=D2rD` / `rD2D`）；在 **A3（Ascend910-class）** 上还支持 **H2rD** / **rD2H**。
 
-
 ## 快速开始
 
 ### 1. 编译
@@ -92,6 +90,7 @@ bash benchmarks/run_all_bench.sh
 ```
 
 这个脚本会自动：
+
 - 检查并 source CANN 环境
 - 通过 `npu-smi info` 检测芯片型号（A2 / A3 / A5；设备名含 Ascend910B→A2、Ascend910→A3、Ascend950→A5）
 - 依次跑完所有支持的通信方向 × 传输类型的组合
@@ -107,10 +106,10 @@ bash benchmarks/run_all_bench.sh
 # 自定义通信基准重复轮数和设备
 bash benchmarks/run_all_bench.sh --loops 10 --device-ids 0,1,2,3,4,5,6,7
 
-# 只跑通信测试
+# 只跑KV测试
 bash benchmarks/run_all_bench.sh --skip-comm
 
-# 只跑 KV 测试
+# 只跑通信测试
 bash benchmarks/run_all_bench.sh --skip-kv
 
 # 向通信基准传入 HIXL Initialize() 选项（与 hixl_comm_bench 的 -H=KEY=VALUE 一致，可重复）
@@ -129,6 +128,7 @@ bash benchmarks/run_all_bench.sh --hixl-option 'LocalCommRes={"version":"1.3"}'
 测量 HIXL 在不同方向、不同传输类型下的 block 传输带宽。 带宽数据「GB/s」按 **十进制** 定义：**1 GB = 10⁹ 字节**。
 
 **概念**：
+
 - **Initiator**：发起传输的一方（read / write）
 - **Target**：响应传输的一方（注册内存，等待 initiator 连接）
 - **方向**：由 Initiator 内存类型 + Target 内存类型 + 操作类型决定
@@ -270,7 +270,7 @@ python3 benchmarks/kv_benchmark/scripts/run_kv_benchmark.py \
 
 ## 目录结构
 
-```
+```sh
 benchmarks/
 ├── README.md
 ├── run_all_bench.sh                        # 一键运行全部测试（入口）

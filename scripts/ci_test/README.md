@@ -11,25 +11,29 @@
 
 ## 目录结构
 
-```
+```sh
 ├── ci_test
 |   ├── hixl.sh                                         // 二级冒烟脚本
 ```
 
 ## 环境要求
 
--   操作系统及架构：Euleros x86系统、Euleros aarch64系统
--   编译器：g++
--   芯片：Atlas A3 训练/推理系列产品、Atlas 800I A2 推理产品/A200I A2 Box 异构组件
--   已完成昇腾AI软件栈在运行环境上的部署
+- 操作系统及架构：Euleros x86系统、Euleros aarch64系统
+- 编译器：g++
+- 芯片：Atlas A3 训练/推理系列产品、Atlas 800I A2 推理产品/A200I A2 Box 异构组件
+- 已完成昇腾AI软件栈在运行环境上的部署
 
 ## 详细用法
+
 - 进入到scripts/ci_test目录：
-```
+
+```cpp
 $ cd ./scripts/ci_test
 ```
+
 - 运行 `bash hixl.sh --help` 即可查看到所有命令集合。
-```
+
+```sh
 Usage:
   sh hixl.sh [<device_id_1> <device_id_2>]            Build, test, install hixl and run samples with default or specified devices
   sh hixl.sh hixl_build [--Build options]             Build code
@@ -70,6 +74,7 @@ Test options:
                    Set ascend third_party package install path, default ./third_party
     --asan         Enable AddressSanitizer, default is OFF. when cov is set, asan is set too.
 ```
+
 - 参数详细解释
 
   - `hixl_build`：执行编译
@@ -81,15 +86,18 @@ Test options:
   - `[<device_id_1> <device_id_2>]`：执行samples使用的两个device_id
 
 - 用户可以直接执行所有功能：
-  ```
+
+  ```bash
   # 使用默认的device_id
   bash hixl.sh
 
   # 使用指定的device_id
   bash hixl.sh 0 2
   ```
+
 - 用户可以根据自己的需要将`hixl_build`、`hixl_test`、`hixl_install` 和 `hixl_samples` 进行组合，例如：
-  ```
+
+  ```bash
   # 仅编译
   bash hixl.sh hixl_build --examples --output-path=./build_out
 
@@ -99,8 +107,10 @@ Test options:
   # 编译 + 执行samples
   bash hixl.sh hixl_build --examples hixl_samples 0 2
   ```
+
 - 用户可以根据需要指定网络接口名，若不指定则默认使用 eth 或 enp 开头的网络接口名
-  ```
+
+  ```sh
   # 使用指定的网络接口名
   export SOCKET_IFNAME=enp67s0f5
   bash hixl.sh 0 2

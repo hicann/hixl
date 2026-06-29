@@ -19,6 +19,7 @@ To ensure security and minimize permissions, you are not advised to use administ
 - If an exception occurs during running, the process exits and error information is printed. You are advised to locate the error cause based on the error information.
 
 ## Public Network Address Statement
+
 The public network addresses contained in the code of this project are as follows.
 
 |      Type     |                                           Open-Source Code Address                                          |                            File                            |             Public IP Address/Public URL/Domain Name/Email Address/Compressed File Address            |                   Description                   |
@@ -30,6 +31,7 @@ The public network addresses contained in the code of this project are as follow
 ---
 
 ## Vulnerability Handling Mechanism
+
 [Vulnerability Management](https://gitcode.com/cann/community/blob/master/security/security.md)
 
 ## Appendix

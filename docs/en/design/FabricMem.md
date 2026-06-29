@@ -1,27 +1,30 @@
-#### Fabric Mem Transmission Mode Requirements
-##### Overview
-**Background**
-1. As the scale of Large Language Model (LLM) inference expands, the size of the KV Cache is growing significantly. The industry has adopted multi-level caching solutions, represented by Mooncake. The Mooncake Store component can be used to build a distributed DRAM cache pool, which places higher demands on the transmission performance of data transferred from the NPU's HBM to DRAM (D2RH).
-2. The A3 server provides Fabric Memory technology, which supports unified addressing of DRAM within a supernode. It can utilize the HCCS link for D2RH/RH2D transfers, with measured transmission bandwidths reaching 64 GB/s and 103 GB/s, respectively. In contrast, the RoCE transmission bandwidth is only 20 GB/s.
+# FabricMem Transmission Mode Requirements
+
+##### Introduction
+
+**Background**:
+1. As the scale of Large Language Model (LLM) inference expands, KV Cache scales become increasingly large. Mooncake store and other distributed DRAM cache pool scenarios place higher demands on NPU to DRAM (D2RH) transmission performance.
+2. A3 servers provide FabricMemory technology, supporting unified addressing of DRAM within superpods, enabling D2RH/RH2D transmission via HCCS links.
 3. Limitations and disadvantages of other modes:
-   * The HCCS transfer mode, which calls the underlying HCCL interface, does not support D2RH transfers.
-   * The performance of the relay mode on the A3 is limited by the lack of PCIe, and it competes with the model for HBM bandwidth, significantly impacting model inference.
+    * HCCS transmission mode calling underlying HCCL interfaces does not support D2RH transmission.
+    * Relay mode on A3 occupies HBM bandwidth, significantly impacting model inference.
 
-##### Input/Output
-**Introduction to Inputs during Usage**
-1. **Configuration Option**: Enable Fabric Mem mode via the `OPTION_ENABLE_USE_FABRIC_MEM` option, where a value of `1` indicates enabled.
-2. **Memory Description**: Register memory using the `MemDesc` structure, which includes the memory address and length.
-3. **Transfer Operation**: Use the `TransferOp` enum (READ/WRITE) to describe the direction during transfer, and use `TransferOpDesc` to describe the transfer addresses.
+##### Input & Output
 
-**Example:**
+**Input description during usage**:
+1. **Configuration option**: Enable FabricMem mode via `OPTION_ENABLE_USE_FABRIC_MEM` option, value "1" means enabled.
+2. **Memory description**: Use `MemDesc` structure when registering memory, containing memory address and length.
+3. **Transfer operation**: Use `TransferOp` enum (READ/WRITE) to describe direction during transfer, use `TransferOpDesc` to describe transfer addresses.
+
+**Usage example**:
 ```cpp
-// Initialize the HIXL engine, enabling Fabric Mem mode.
+// Initialize HIXL engine, enable FabricMem mode
 Hixl engine1;
 std::map<AscendString, AscendString> options1;
 options1[OPTION_ENABLE_USE_FABRIC_MEM] = "1";
-engine1.Initialize("127.0.0.1", options1);
+engine1.Initialize("127.0.0.1:26000", options1);
 
-// Register the memory.
+// Register memory
 std::vector<uint8_t> buffer(size, 0xAA);
 hixl::MemDesc mem_desc{};
 mem_desc.addr = reinterpret_cast<uintptr_t>(buffer.data());
@@ -29,207 +32,301 @@ mem_desc.len = size;
 MemHandle handle = nullptr;
 engine1.RegisterMem(mem_desc, MEM_HOST, handle);
 
-// Establish a connection.
+// Establish connection
 engine1.Connect("127.0.0.1:26001");
 
-// Perform the transfer.
+// Execute transfer
 TransferOpDesc desc{src_addr, dst_addr, size};
 engine1.TransferSync("127.0.0.1:26001", WRITE, {desc});
 ```
 
-**Introduction to Outputs during Usage**
-1. **Memory Handle**: When registering memory, a `MemHandle` type is returned to identify the registered memory region.
-2. **Transfer Request**: During asynchronous transfer, a `TransferReq` type is returned for querying the status of the asynchronous transfer.
-3. **Transfer Status**: When querying the status of an asynchronous task, a `TransferStatus` enum is returned to indicate the completion status of the asynchronous transfer.
+**Output description during usage**:
+1. **Memory handle**: Returns `MemHandle` when registering memory, used to identify registered memory region.
+2. **Transfer request**: Returns `TransferReq` during async transfer, used for async transfer status query.
+3. **Transfer status**: Returns `TransferStatus` enum when querying async task status.
 
 ##### Processing
 
+FabricMem is carried by independent `FabricMemEngine`, no longer intruding `HixlEngine`, `AdxlInnerEngine`, `ChannelMsgHandler` or `Channel`. `EngineFactory` creates `FabricMemEngine` when discovering `OPTION_ENABLE_USE_FABRIC_MEM=1`, subsequent registration, connection, transfer, statistics and cleanup are handled by `src/hixl/fabric_mem` and `src/hixl/engine/fabric_mem_engine.cc`.
 
-**Class Diagram**
+**Class Diagram**:
 ```mermaid
 classDiagram
-    class FabricMemTransferService {
-        +Initialize(size_t max_stream_num) Status
-        +Finalize() void
+    class EngineFactory {
+        +CreateEngine(string, map~AscendString, AscendString~) unique_ptr~Engine~
+    }
+
+    class FabricMemEngine {
+        +Initialize(HixlOptions) Status
         +RegisterMem(MemDesc, MemType, MemHandle&) Status
         +DeregisterMem(MemHandle) Status
-        +Transfer(ChannelPtr, TransferOp, vector~TransferOpDesc~, int32_t) Status
-        +TransferAsync(ChannelPtr, TransferOp, vector~TransferOpDesc~, TransferReq&) Status
-        +GetTransferStatus(ChannelPtr, TransferReq, TransferStatus&) Status
-        +GetShareHandles() vector~ShareHandleInfo~
-        +ImportMem(ChannelPtr, vector~ShareHandleInfo~) Status
-        -share_handles_ : unordered_map~aclrtDrvMemHandle, ShareHandleInfo~
-        -stream_pool_ : unordered_map~aclrtStream, bool~
-        -req_2_async_record_ : unordered_map~uint64_t, AsyncRecord~
-    }
-
-    class Channel {
-        +Initialize(bool enable_use_fabric_mem) Status
-        +ImportMem(vector~ShareHandleInfo~, int32_t) Status
-        +GetNewVaToOldVa() unordered_map~uintptr_t, ShareHandleInfo~&
-        -new_va_to_old_va_ : unordered_map~uintptr_t, ShareHandleInfo~
-    }
-
-    class AdxlInnerEngine {
-        +Initialize(map~AscendString, AscendString~) Status
+        +Connect(AscendString, int32_t) Status
+        +Disconnect(AscendString, int32_t) Status
         +TransferSync(AscendString, TransferOp, vector~TransferOpDesc~, int32_t) Status
-        +TransferAsync(AscendString, TransferOp, vector~TransferOpDesc~, TransferReq&) Status
-        -fabric_mem_transfer_service_ : unique_ptr~FabricMemTransferService~
-        -enable_use_fabric_mem_ : bool
-        -ParseEnableFabricMem(map~AscendString, AscendString~) Status
+        +TransferAsync(AscendString, TransferOp, vector~TransferOpDesc~, TransferArgs, TransferReq&) Status
+        +GetTransferStatus(TransferReq, TransferStatus&) Status
+        -fabric_mem_config_ : FabricMemConfig
+        -fabric_mem_statistic_ : FabricMemStatistic
+        -local_memory_ : FabricMemLocalMemory
+        -fabric_mem_transfer_service_ : shared_ptr~FabricMemTransferService~
+        -fabric_mem_control_server_ : unique_ptr~FabricMemControlServer~
     }
 
-    class ChannelMsgHandler {
-        +Initialize(map~AscendString, AscendString~, SegmentTable*, FabricMemTransferService*) Status
+    class FabricMemTransferService {
+        +Initialize(FabricMemTransferServiceInitParam) Status
+        +Finalize() void
+        +Connect(AscendString, int32_t) Status
+        +Disconnect(AscendString, int32_t) Status
+        +TransferSync(string, TransferOp, vector~TransferOpDesc~, int32_t) Status
+        +TransferAsync(string, TransferOp, vector~TransferOpDesc~, TransferReq&) Status
+        +GetTransferStatus(TransferReq, TransferStatus&, AsyncTransferPollInfo*) Status
+        +CleanupAsyncTransfer(TransferReq) void
+        +StartKeepaliveMonitor() Status
+        -channel_manager_ : FabricMemChannelManager
+        -slot_pool_ : FabricMemSlotPool
+        -local_memory_ : FabricMemLocalMemory*
+    }
+
+    class FabricMemChannelManager {
+        +Initialize(FabricMemChannelManagerInitParam) Status
+        +Connect(AscendString, int32_t) Status
+        +Disconnect(AscendString, int32_t) Status
+        +GetChannel(string, shared_ptr~FabricMemChannel~&) Status
+        +AddReqRoute(uint64_t, shared_ptr~FabricMemChannel~) void
+        +FindChannelByReq(uint64_t, shared_ptr~FabricMemChannel~&) Status
+        -channels_ : map~string, shared_ptr~FabricMemChannel~~
+        -req_2_channel_ : map~uint64_t, shared_ptr~FabricMemChannel~~
+        -keepalive_monitor_ : thread
+    }
+
+    class FabricMemChannel {
+        +remote_memory : unique_ptr~FabricMemRemoteMemory~
+        +async_records : map~uint64_t, AsyncRecord~
+        +active_sync_slots : vector~AsyncSlot~
+        +keepalive_fd : int32_t
+    }
+
+    class FabricMemSlotPool {
+        +Initialize(int32_t, size_t, size_t) Status
+        +AcquireAsync(AsyncSlot&) Status
+        +AcquireWithTimeout(AsyncSlot&, uint64_t) Status
+        +Release(AsyncSlot&, bool) void
+    }
+
+    class FabricMemLocalMemory {
         +RegisterMem(MemDesc, MemType, MemHandle&) Status
         +DeregisterMem(MemHandle) Status
-        -fabric_mem_transfer_service_ : FabricMemTransferService*
-        -enable_use_fabric_mem_ : bool
+        +GetShareHandles() vector~ShareHandleInfo~
+        +TranslateLocalHostOpAddrs(vector~TransferOpDesc~&) Status
     }
 
-    FabricMemTransferService --> Channel : Uses
-    AdxlInnerEngine --> FabricMemTransferService : Includes
-    ChannelMsgHandler --> FabricMemTransferService : Uses
+    class FabricMemControlServer {
+        +Start(string, ShareHandleProvider) Status
+        +Stop() void
+    }
+
+    class FabricMemRemoteMemory {
+        +Import(vector~ShareHandleInfo~, int32_t) Status
+        +Finalize() void
+        +GetNewVaToOldVa() unordered_map~uintptr_t, VaInfo~
+    }
+
+    class VirtualMemoryManager {
+        +Initialize() Status
+        +ReserveMemory(size_t, uintptr_t&) Status
+        +ReleaseMemory(uintptr_t) Status
+    }
+
+    class FabricMemStatistic {
+        +RegisterChannel(string) void
+        +UpdateCosts(string, uint64_t, uint64_t, uint64_t, uint64_t) void
+    }
+
+    EngineFactory --> FabricMemEngine : Creates when EnableUseFabricMem=1
+    FabricMemEngine --> FabricMemTransferService : Holds
+    FabricMemEngine --> FabricMemControlServer : Holds
+    FabricMemEngine --> FabricMemLocalMemory : Holds
+    FabricMemEngine --> FabricMemStatistic : Holds
+    FabricMemTransferService --> FabricMemChannelManager : Holds
+    FabricMemTransferService --> FabricMemSlotPool : Holds
+    FabricMemTransferService ..> FabricMemLocalMemory : References (local address translation)
+    FabricMemChannelManager --> FabricMemChannel : Holds per remote
+    FabricMemChannelManager ..> FabricMemSlotPool : abort/release on disconnect
+    FabricMemChannel --> FabricMemRemoteMemory : Holds
+    FabricMemRemoteMemory --> VirtualMemoryManager : Uses
+    FabricMemLocalMemory --> VirtualMemoryManager : Uses
+    FabricMemTransferService --> FabricMemStatistic : Updates statistics
 ```
 
-**Sequence Diagram** (Data Transfer in Fabric Mem Mode)
+**Sequence Diagram** (Data transfer in FabricMem mode):
 ```mermaid
 sequenceDiagram
    participant User
-   participant HixlEngine
-   participant AdxlInnerEngine
-   participant FabricMemService
-   participant Channel
-   participant VirtualMemoryManager
-   participant AscendRuntime
+   participant FabricMemEngine
+   participant LocalMemory as FabricMemLocalMemory
+   participant Service as FabricMemTransferService
+   participant ChannelMgr as FabricMemChannelManager
+   participant SlotPool as FabricMemSlotPool
+   participant Control as FabricMemControl
+   participant RemoteMemory as FabricMemRemoteMemory
+   participant Runtime as AscendRuntime
 
-   User->>HixlEngine: Initialize(options with ENABLE_USE_FABRIC_MEM=1)
-   HixlEngine->>AdxlInnerEngine: Initialize(options)
-   AdxlInnerEngine->>AdxlInnerEngine: ParseEnableFabricMem(options)
-   AdxlInnerEngine->>FabricMemService: Initialize(max_streams)
-   AdxlInnerEngine->>VirtualMemoryManager: Initialize()
-   VirtualMemoryManager->>AscendRuntime: aclrtReserveMemAddress reserves virtual memory for the entire system.
+   User->>FabricMemEngine: Initialize(options)
+   FabricMemEngine->>FabricMemEngine: Parse FabricMemConfig + VirtualMemoryManager.Initialize()
+   FabricMemEngine->>Control: Start(local_engine, share_handle_provider)
+   FabricMemEngine->>Service: Initialize(FabricMemTransferServiceInitParam)
+   Service->>SlotPool: Initialize(device, max_async_slot, task_stream)
+   Service->>ChannelMgr: Initialize(FabricMemChannelManagerInitParam)
 
-   User->>HixlEngine: RegisterMem(mem_desc, type, handle)
-   HixlEngine->>AdxlInnerEngine: RegisterMem(mem_desc, type, handle)
-   AdxlInnerEngine->>FabricMemService: RegisterMem(mem_desc, type, handle)
-   FabricMemService->>AscendRuntime: aclrtMemRetainAllocationHandle()
-   FabricMemService->>AscendRuntime: aclrtMemExportToShareableHandleV2()
-   FabricMemService->>FabricMemService: Store share handle and virtual address mapping.
+   User->>FabricMemEngine: RegisterMem(mem_desc, type, handle)
+   FabricMemEngine->>LocalMemory: RegisterMem(mem_desc, type, handle)
+   LocalMemory->>Runtime: aclrtMemRetainAllocationHandle()/aclrtMemExportToShareableHandleV2()
+   LocalMemory->>LocalMemory: Store share handles and virtual address mapping
 
-   User->>HixlEngine: Connect(remote_engine)
-   HixlEngine->>AdxlInnerEngine: Connect(remote_engine)
-   AdxlInnerEngine->>Channel: Establish connection and exchange share handle information.
-   Channel->>Channel: ImportMem(remote_share_handles)
-   Channel->>AscendRuntime: aclrtMemImportFromShareableHandleV2()
-   Channel->>VirtualMemoryManager: ReserveMemory()
-   Channel->>AscendRuntime: aclrtMapMem()
-   Channel->>Channel: Establish mapping from user virtual address to local virtual address.
+   User->>FabricMemEngine: Connect(remote_engine)
+   FabricMemEngine->>Service: Connect(remote_engine)
+   Service->>ChannelMgr: Connect(remote_engine)
+   ChannelMgr->>Control: Fetch(remote_engine) get share_handles and keepalive_fd
+   Control-->>ChannelMgr: remote_share_handles
+   ChannelMgr->>RemoteMemory: Import(remote_share_handles, device_id)
+   RemoteMemory->>Runtime: aclrtMemImportFromShareableHandleV2()/aclrtMapMem()
+   ChannelMgr->>ChannelMgr: Register channel to channels_ (with keepalive_fd)
 
-   User->>HixlEngine: TransferSync(remote_engine, WRITE, op_descs)
-   HixlEngine->>AdxlInnerEngine: TransferSync(remote_engine, WRITE, op_descs)
-   AdxlInnerEngine->>FabricMemService: Transfer(channel, WRITE, op_descs, timeout)
-   FabricMemService->>FabricMemService: Convert the user address into a virtual address.
-   FabricMemService->>AscendRuntime: aclrtMemcpyAsync(src_virtual_addr, dst_virtual_addr, size)
-   FabricMemService->>AscendRuntime: aclrtSynchronizeStream()
+   User->>FabricMemEngine: TransferSync(remote_engine, WRITE, op_descs)
+   FabricMemEngine->>Service: TransferSync(remote_engine, WRITE, op_descs, timeout)
+   Service->>ChannelMgr: GetChannel + BuildTransferContext(remote_engine)
+   Service->>SlotPool: AcquireWithTimeout(slot)
+   Service->>Service: submit_gate shared lock, translate user addresses to mapped addresses and submit copy
+   Service->>Runtime: aclrtMemcpyAsync(src_mapped_addr, dst_mapped_addr, size)
+   Service->>Runtime: aclrtSynchronizeStream()
+   Service->>SlotPool: Release(slot)
 ```
 
-**Introduction to the Overall Feature Processing**
-1. **Initialization Phase**
-   - The user enables Fabric Mem mode via the `OPTION_ENABLE_USE_FABRIC_MEM` option.
-   - `AdxlInnerEngine` parses the option and creates a `FabricMemTransferService` instance.
-   - Upon service initialization, it obtains the device ID and sets the maximum number of streams.
+**Overall feature processing flow introduction**:
+1. **Initialization phase**:
+    - User enables FabricMem mode via `OPTION_ENABLE_USE_FABRIC_MEM` option.
+    - `EngineFactory` creates `FabricMemEngine` based on this option, not entering `AdxlInnerEngine` or `HixlEngine`.
+    - `FabricMemEngine` parses `FabricMemConfig`, initializes `VirtualMemoryManager`, `FabricMemTransferService`, `FabricMemControlServer` and `FabricMemStatistic`.
 
-2. **Memory Registration Phase**
-   - The user calls `RegisterMem` to register memory.
-   - `FabricMemTransferService` obtains the physical memory handle via `aclrtMemRetainAllocationHandle`.
-   - It exports the handle as a Fabric-shareable handle using `aclrtMemExportToShareableHandleV2`.
-   - The share handle information is stored in the `share_handles_` map.
+2. **Memory registration phase**:
+    - User calls `RegisterMem` to register memory.
+    - `FabricMemTransferService` obtains physical memory handle via `aclrtMemRetainAllocationHandle`.
+    - Uses `aclrtMemExportToShareableHandleV2` to export as Fabric-shareable handle.
+    - Stores share handle information in `share_handles_`.
 
-   **Specifics of H2H Transfer Mode**
-   - For HOST memory, Fabric Mem transfer requires additional conversion processing.
-   - HOST memory must first obtain the physical memory handle via `aclrtMemRetainAllocationHandle`.
-   - Then, it is exported as a shareable handle using `aclrtMemExportToShareableHandleV2`.
-   - Subsequently, VMM mapping is performed to map the physical memory to the virtual address space.
+    **H2H transfer mode specifics**:
+    - For HOST memory, FabricMem transfer requires additional conversion processing.
+    - HOST memory needs to first obtain physical memory handle via `aclrtMemRetainAllocationHandle`.
+    - Then use `aclrtMemExportToShareableHandleV2` to export as shareable handle.
+    - Then perform VMM mapping, mapping physical memory to virtual address space.
 
-3. **Connection Establishment Phase**
-   - When establishing a connection, both sides exchange memory registration information: primarily the `share_handles_` information.
-   - The remote end imports the remote memory's share handles via `ImportMem`.
-   - It imports the share handles using `aclrtMemImportFromShareableHandleV2` and maps them to the virtual address space.
-   - It establishes the mapping relationship from local virtual addresses to remote virtual addresses.
+3. **Connection establishment phase**:
+    - Local `FabricMemChannelManager` pulls `share_handles_` from remote `FabricMemControlServer` via `FabricMemControlClient`.
+    - `FabricMemChannelManager` imports remote memory's share handles via `FabricMemRemoteMemory`.
+    - Uses `aclrtMemImportFromShareableHandleV2` to import share handles, mapping to virtual address space.
+    - Establishes mapping from remote user address to local mapped address, registers to `channels_` connection table.
 
-4. **Data Transfer Phase**
-   - First, convert the user virtual address to the mapped virtual address.
-   - Obtain the required stream resources from the stream pool. Currently, 4 streams are used by default per task, which is customizable.
-   - Execute memory copy operations between devices using `aclrtMemcpyAsync`.
-   - For synchronous transfer, it blocks and waits. For asynchronous transfer, it issues an EventRecord on an additional stream, uses `aclrtStreamWaitEvent` to establish the relationship between the copy task stream and the additional EventRecord stream, and queries the task status by calling `aclrtQueryEventStatus`.
+4. **Data transfer phase**:
+    - `FabricMemEngine` obtains channel via `FabricMemChannelManager` and builds `FabricMemTransferContext`.
+    - `FabricMemTransferService` performs user address and mapped address translation.
+    - Acquires stream resources needed for tasks from stream pool.
+    - Uses `aclrtMemcpyAsync` to execute memory copy operation.
+    - Sync transfer blocks and waits; async transfer appends host flag D2H on each copy stream, polls host flag to determine completion (no longer uses EventRecord/query event).
+    - Transfer duration, real copy duration, total bytes and op desc count are recorded in `FabricMemStatistic`.
 
-5. **Resource Cleanup Phase**
-   - The user calls `DeregisterMem` to unregister memory.
-   - Release the physical memory handle and share handle.
-   - Clean up all resources, including streams, asynchronous resources, and imported memory mappings.
+5. **Resource cleanup phase**:
+    - User calls `DeregisterMem` to deregister memory.
+    - Releases physical memory handle and share handle.
+    - On connection disconnect or Finalize, cleans up remote imported mappings, streams, async resources (including host flag pool) and statistics channels; `Disconnect` immediately aborts in-flight sync/async streams for that channel (not waiting for transfer completion), clears its async record and request routing, then destroys async slot.
 
-##### End-to-End Usage Flow
+##### Concurrency and Lock Design
 
-1. **Memory Allocation**
+**Design premise**: Does not consider `Finalize` concurrent with external APIs; external API entry only does `is_initialized_` check.
+
+**Component responsibilities**:
+- `FabricMemEngine`: Thin facade, orchestrates TransferService / LocalMemory / ControlServer; holds `FabricMemLocalMemory`, does not hold connection table or async record.
+- `FabricMemTransferService`: External transfer facade, holds `FabricMemChannelManager` and `FabricMemSlotPool`; responsible for copy orchestration, async record query/completion (including prof metadata).
+- `FabricMemChannelManager`: Connection lifecycle (Fetch/Install/Disconnect), request routing `req_2_channel_`, outbound keepalive thread, disconnect immediately aborts.
+- `FabricMemSlotPool`: async slot (stream + host flag) pool.
+- `FabricMemLocalMemory`: Local memory registration, Export, share handle management.
+- `FabricMemRemoteMemory`: Single channel imported remote memory mapping (held by channel).
+
+**Lock hierarchy**:
+
+| Component | Lock | Protected Object |
+|------|-----|----------|
+| Engine | `mutex_` | Initialize/Finalize orchestration |
+| LocalMemory | `share_handle_mutex_` | `share_handles_` (including overlap check) |
+| ChannelManager | `connect_mutex_` | Fetch + Install serialization (independent, no `channels_mutex_` held during network I/O phase) |
+| ChannelManager | `channels_mutex_` | `channels_` connection table and `initialized_` |
+| ChannelManager | `req_route_mutex_` | `req_2_channel_` request routing table |
+| Channel | `submit_gate` (`shared_mutex`) | Transfer submission and disconnect mutual exclusion: submission holds **shared lock** parallel copy submission, disconnect `AbortAndClearChannelRecords` holds **exclusive lock** drain in-flight submission then abort/unmap (abort-before-unmap) |
+| Channel | `records_mutex` | Single channel's `disconnecting` / `async_records` / `active_sync_slots` brief bookkeeping (not including copy submission) |
+| SlotPool | `pool_mutex_` | slot pool (leaf lock) |
+| RemoteMemory | `mutex_` | Single channel imported mapping (leaf lock) |
+| ControlServer | `State::mutex` | `sessions` / `client_id_to_fd` / listen and epoll fd; all sends outside lock |
+
+**Fixed lock order**:
+1. `channels_mutex_` held independently, no network I/O inside.
+2. Single channel: `submit_gate` → `records_mutex`: transfer submission holds `submit_gate` shared lock, only briefly holds `records_mutex` when registering record/slot; `AbortAndClearChannelRecords` first holds `submit_gate` exclusive lock then `records_mutex`.
+3. `submit_gate` → `req_route_mutex_`: `IssueAsyncCopyAndRegister` calls `AddReqRoute` **after** releasing `records_mutex`, still holding `submit_gate` shared lock; `RemoveReqRoute` calls after releasing `submit_gate`. Reverse order prohibited.
+4. `connect_mutex_` and `channels_mutex_` separated.
+5. `pool_mutex_` / `share_handle_mutex_` / RemoteMemory `mutex_` are leaf locks, no nesting with above locks.
+
+**Cross-component rules**: Engine API does not nest locks across multiple components; typical transfer path is TransferService via ChannelManager get channel → hold `submit_gate` shared lock submit copy, inside `records_mutex` register record/slot, async path then hold `submit_gate` shared lock call `AddReqRoute` → `GetTransferStatus` queries stream status inside `records_mutex` and retrieves record, only blocking synchronize outside lock.
+
+**Typical concurrency scenarios**:
+
+| Scenario | Behavior |
+|------|------|
+| Multi-thread TransferSync same remote | Copy submits under `submit_gate` shared lock parallel, `records_mutex` only for registering `active_sync_slots` for disconnect abort |
+| TransferAsync + GetTransferStatus | Copy submits under `submit_gate` shared lock parallel; async record protected by channel `records_mutex`; `GetTransferStatus` queries stream status inside lock and retrieves record (avoid racing with disconnect destroying stream), only needs `req` |
+| Disconnect | Immediately aborts, not waiting for transfer completion: first sets `disconnecting=true`, holds `submit_gate` exclusive lock drain in-flight submissions, inside `records_mutex` retrieves and clears async record, abort sync slot (only abort); outside lock destroys async slot and clears request routing |
+| keepalive thread auto-disconnect | keepalive thread encapsulated in ChannelManager; does not hold Engine lock, independent Disconnect |
+| RemoveChannel | First abort/clear that channel's async record and request routing, then clean imported mapping, streams, statistics channel |
+
+**Heartbeat**: `FabricMemControlClient::SendHeartBeat` / inbound ADXL parsing encapsulated in `fabric_mem_control`; self-connect session and remote session uniformly enable heartbeat timeout check. `ControlServer`'s worker thread only does session read and map changes inside `State::mutex`, all sends outside lock; `pending_connections` only accessed by worker thread, `Stop()` cleans map after join worker.
+
+1. **Memory allocation**:
    ```cpp
-   // Use `aclrtReserveMemAddress` to reserve virtual address space.
-   aclrtReserveMemAddress(&va, mem_size, 0, nullptr, 1);
-
-   // Configure physical memory attributes: device memory and huge page mode.
-   aclrtPhysicalMemProp prop{};
-   prop.handleType = ACL_MEM_HANDLE_TYPE_NONE;
-   prop.allocationType = ACL_MEM_ALLOCATION_TYPE_PINNED;
-   prop.memAttr = ACL_HBM_MEM_HUGE;
-   prop.location.type = ACL_MEM_LOCATION_TYPE_DEVICE;
-   prop.location.id = device_id;
-
-   // Allocate physical memory and map it to the virtual address space.
-   aclrtMallocPhysical(&pa_handle, mem_size, &prop, 0);
-   aclrtMapMem(va, mem_size, 0, pa_handle, 0);
-
-   // Initialize memory data: Copy data from the host to the device.
-   aclrtMallocHost(&host_data, mem_size);
-   memset_s(host_data, mem_size, device_id, mem_size);
-   aclrtMemcpy(va, kMemSize, host_data, mem_size, ACL_MEMCPY_HOST_TO_DEVICE);
+   void *fabric_ptr = nullptr;
+   Hixl::MallocMem(MEM_HOST, mem_size, &fabric_ptr);
    ```
-   - Unlike traditional memory allocation, Fabric Mem requires the use of physical memory handles.
-   - It requires explicit mapping of physical memory to virtual addresses.
-   - Huge page mode (`ACL_HBM_MEM_HUGE`) is used to improve performance.
+   - FabricMem host memory allocation encapsulated by `FabricMemTransferService::MallocMem`.
+   - Underlying completes virtual address reservation, physical memory allocation and mapping.
+   - Released via `Hixl::FreeMem` after transfer.
 
-2. **Engine Initialization and Memory Registration**
-   - Enable Fabric Mem mode: `options[OPTION_ENABLE_USE_FABRIC_MEM] = "1"`
-   - Initialize HIXL
-   - Register specially allocated memory: `engine.RegisterMem(desc, MEM_DEVICE, handle)`
+2. **Engine initialization and memory registration**:
+   - Enable FabricMem mode: `options[OPTION_ENABLE_USE_FABRIC_MEM] = "1"`.
+   - Initialize Hixl.
+   - Register memory: `engine.RegisterMem(desc, MEM_HOST, handle)` or `engine.RegisterMem(desc, MEM_DEVICE, handle)`.
 
-3. **Connection Establishment and Data Exchange**
-   - Call the `Connect` method to establish a connection.
+3. **Connection establishment and data exchange**:
+   - Call `Connect` method to establish connection.
+   - `FabricMemEngine` pulls and imports remote share handles.
 
-4. **Data Transfer and Verification**
-   - Execute D2D transfer: `engine.TransferSync(remote_engine, WRITE, {desc})`
-   - Verify transfer results: Read the data written remotely and verify it.
-
-**Key Features of the End-to-End Flow**
-- Memory allocation requires using special physical memory APIs instead of the traditional `aclrtMalloc`.
-- It requires explicit management of the mapping relationship from virtual addresses to physical memory.
-- After the transfer is complete, verification is required to ensure data correctness.
-
+4. **Data transfer and verification**:
+   - Execute transfer: `engine.TransferSync(remote_engine, WRITE, {desc})`.
+   - Verify transfer result: read remotely written data and verify.
 
 ##### Key Checkpoints
-**List of Checkpoints**
-1. **Configuration Conflict Check**: Fabric Mem mode and Buffer Pool mode cannot be enabled simultaneously; this is checked in `ParseBufferPoolParams`.
-2. **Memory Type Check**: In Fabric Mem mode, device memory registration requires special handling.
-3. **Transfer Parameter Check**: Verify that the address range in the transfer descriptor is within the registered memory range.
-4. **Stream Resource Management Check**: Ensure stream resources in the stream pool are correctly allocated and released to avoid resource leaks.
-5. **Asynchronous Request Status Check**: Correctly track request status during asynchronous transfers to ensure accurate status queries.
-6. **Memory Mapping Cleanup Check**: Correctly clean up imported memory mapping relationships when the connection is disconnected.
-7. **Concurrency Safety Check**: Ensure safe access to shared data structures in a multi-threaded environment.
-8. **Peer Abnormal Offline**: When the peer goes offline abnormally, relevant resources need to be cleaned up to avoid resource leaks.
 
-**Performance Key Points**
-1. **Stream Pool Management**: Pre-create and manage device streams to avoid the overhead of frequent creation and destruction.
-2. **Multi-stream Concurrency**: Support the concurrent processing of multiple streams in a single task.
-3. **Asynchronous Operations**: Support asynchronous transfers, allowing the overlapping of computation and communication.
+**Checkpoint list**:
+1. **Engine routing check**: `OPTION_ENABLE_USE_FABRIC_MEM=1` must be `FabricMemEngine` created by `EngineFactory`.
+2. **Configuration validity check**: `FabricMemConfig` parses `EnableUseFabricMem`, `GlobalResourceConfig`, stream count, virtual address capacity and start address.
+3. **Memory type check**: In FabricMem mode, HOST memory registration requires additional local import and mapping processing.
+4. **Transfer parameter check**: Validates address range in transfer description is within locally registered or remotely imported memory range.
+5. **Stream resource management check**: Ensures stream resources in stream pool correctly allocated and released, avoiding resource leak.
+6. **Async request status check**: Async transfer correctly tracks request status, ensures status query accuracy.
+7. **Memory mapping cleanup check**: Connection disconnect correctly cleans `FabricMemRemoteMemory` imported mapping relationships.
+8. **Concurrency safety check**: Access to shared data structures safe in multi-thread environment.
+9. **Peer abnormal offline**: When peer abnormal offline, needs to clean related resources, avoiding resource leak.
 
-**Compatibility Considerations**
-1. **Backward Compatibility**: Fabric Mem mode is not enabled by default, maintaining compatibility with traditional modes.
+**Performance key points**:
+1. **Stream pool management**: Pre-create and manage device streams, avoiding frequent creation/destruction overhead.
+2. **Multi-stream concurrency**: Supports using multiple streams concurrently for single task.
+3. **Async operations**: Supports async transfer, allowing overlap of computation and communication.
+
+**Compatibility considerations**:
+1. **Backward compatibility**: FabricMem mode not enabled by default, maintains compatibility with traditional ADXL/HCCL paths.
+2. **Statistics attribution**: FabricMem transfer statistics maintained by `FabricMemStatistic`, ADXL side `StatisticManager` only maintains ADXL/HCCL path connection and transfer statistics.
