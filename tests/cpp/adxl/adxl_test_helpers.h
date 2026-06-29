@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include "adxl/adxl_engine.h"
+#include "../llm_datadist/heartbeat_test_utils.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "../common/async_transfer_test_helpers.h"

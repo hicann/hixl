@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 
 #include "hixl/hixl.h"
+#include "../../llm_datadist/heartbeat_test_utils.h"
 #include "../common/async_transfer_test_helpers.h"
 
 namespace hixl {

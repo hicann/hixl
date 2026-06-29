@@ -88,6 +88,10 @@ class AdxlEngineUTest : public ::testing::Test {
   // 在测试类中进行清理工作，如果需要的话
   void TearDown() override {
     ClearStatisticChannels();
+    // TestHeartbeat 等用例会把全局心跳设置为 10ms/50ms（远低于默认 10s/120s），
+    // 不恢复会导致后续 16MB 大块传输用例因心跳超时被断开（Connection reset by peer），
+    // 进而触发逐字节 EXPECT_EQ 刷千万行日志。这里统一恢复默认值。
+    llm::test::ResetHeartbeatConfig();
     llm::HcclAdapter::GetInstance().Finalize();
     llm::AutoCommResRuntimeMock::Reset();
     llm::MockMmpaForHcclApi::Reset();
