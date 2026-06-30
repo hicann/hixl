@@ -12,17 +12,25 @@
 #include <cstdio>
 #include <thread>
 #include <iostream>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <unistd.h>
 #include "acl/acl.h"
 #include "llm_datadist/llm_datadist.h"
 
 using namespace llm_datadist;
 namespace {
 constexpr uint16_t kPromptListenPort = 26000;
+constexpr uint16_t kPromptControlPort = 26002;
 constexpr uint16_t kPromptClusterId = 0;
 constexpr uint32_t kNumTensors = 4U;
 constexpr size_t kTensorSize = 8 * 16 * sizeof(int32_t);
 const std::vector<int64_t> kTensorShape = {8, 16};
-constexpr int32_t kWaitTime = 10;
+constexpr int32_t kControlTimeoutSec = 60;
+constexpr int32_t kSocketBacklog = 1;
+constexpr char kUnlinkDoneMessage = '1';
 constexpr int32_t kExpectedArgCnt = 4;
 constexpr uint32_t kArgIndexDeviceId = 1;
 constexpr uint32_t kArgIndexLocalIp = 2;
@@ -42,6 +50,75 @@ const char *GetRecentErrMsg() {
     return "no error";
   }
   return errmsg;
+}
+
+void CloseSocket(int32_t fd) {
+  if (fd >= 0) {
+    (void)close(fd);
+  }
+}
+
+int32_t CreateControlServer(const char *local_ip, uint16_t port) {
+  int32_t listen_fd = socket(AF_INET, SOCK_STREAM, 0);
+  if (listen_fd < 0) {
+    printf("[ERROR] Create control socket failed\n");
+    return -1;
+  }
+  int32_t reuse = 1;
+  (void)setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+  sockaddr_in addr{};
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(port);
+  if (inet_pton(AF_INET, local_ip, &addr.sin_addr) != 1) {
+    printf("[ERROR] Parse control ip failed, ip = %s\n", local_ip);
+    CloseSocket(listen_fd);
+    return -1;
+  }
+  if (bind(listen_fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) != 0) {
+    printf("[ERROR] Bind control socket failed, ip = %s, port = %u\n", local_ip, static_cast<unsigned int>(port));
+    CloseSocket(listen_fd);
+    return -1;
+  }
+  if (listen(listen_fd, kSocketBacklog) != 0) {
+    printf("[ERROR] Listen control socket failed, ip = %s, port = %u\n", local_ip, static_cast<unsigned int>(port));
+    CloseSocket(listen_fd);
+    return -1;
+  }
+  return listen_fd;
+}
+
+int32_t WaitUnlinkDone(const char *local_ip) {
+  int32_t listen_fd = CreateControlServer(local_ip, kPromptControlPort);
+  if (listen_fd < 0) {
+    return -1;
+  }
+  fd_set read_fds;
+  FD_ZERO(&read_fds);
+  FD_SET(listen_fd, &read_fds);
+  timeval timeout{};
+  timeout.tv_sec = kControlTimeoutSec;
+  int32_t ret = select(listen_fd + 1, &read_fds, nullptr, nullptr, &timeout);
+  if (ret <= 0) {
+    printf("[ERROR] Wait decoder unlink done %s\n", ret == 0 ? "timeout" : "failed");
+    CloseSocket(listen_fd);
+    return -1;
+  }
+  int32_t conn_fd = accept(listen_fd, nullptr, nullptr);
+  if (conn_fd < 0) {
+    printf("[ERROR] Accept control socket failed\n");
+    CloseSocket(listen_fd);
+    return -1;
+  }
+  char message = 0;
+  auto nread = recv(conn_fd, &message, sizeof(message), 0);
+  CloseSocket(conn_fd);
+  CloseSocket(listen_fd);
+  if (nread != static_cast<ssize_t>(sizeof(message)) || message != kUnlinkDoneMessage) {
+    printf("[ERROR] Receive decoder unlink done failed\n");
+    return -1;
+  }
+  printf("[INFO] Wait decoder unlink done success\n");
+  return 0;
 }
 }  // namespace
 
@@ -118,8 +195,11 @@ int32_t RunPromptSample(const char *device_id, const char *local_ip, const std::
     printf("[INFO] Tensor[%zu] addr = %p\n", i, reinterpret_cast<void *>(tensor_addrs[i]));
   }
 
-  // 4. 等待decoder拉取cache
-  std::this_thread::sleep_for(std::chrono::seconds(kWaitTime));
+  // 4. 等待decoder完成UnlinkLlmClusters后再释放本端cache
+  if (WaitUnlinkDone(local_ip) != 0) {
+    Finalize(llm_datadist, cache_id, buffers);
+    return -1;
+  }
 
   // 5. 释放Cache与llmDataDist
   Finalize(llm_datadist, cache_id, buffers);

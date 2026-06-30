@@ -12,6 +12,10 @@
 #include <cstdio>
 #include <thread>
 #include <iostream>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
 #include "acl/acl.h"
 #include "llm_datadist/llm_datadist.h"
 
@@ -19,6 +23,7 @@ using namespace llm_datadist;
 namespace {
 constexpr uint16_t kDecoderListenPort = 26001;
 constexpr uint16_t kPromptListenPort = 26000;
+constexpr uint16_t kDecoderControlPort = 26003;
 constexpr uint16_t kPromptClusterId = 0;
 constexpr uint32_t kNumTensors = 4U;
 constexpr size_t kTensorSize = 8 * 16 * sizeof(int32_t);
@@ -29,6 +34,9 @@ constexpr uint32_t kArgIndexDeviceId = 1;
 constexpr uint32_t kArgIndexLocalIp = 2;
 constexpr uint32_t kArgIndexRemoteIp = 3;
 constexpr uint32_t kArgIndexLocalCommRes = 4;
+constexpr int32_t kNotifyRetryTimes = 600;
+constexpr useconds_t kNotifyRetryIntervalUs = 100000U;
+constexpr char kUnlinkDoneMessage = '1';
 constexpr uint32_t kPushBatchIndex = 4;
 constexpr uint8_t kPushTensorNumPerLayer = 4;
 
@@ -46,6 +54,12 @@ const char *GetRecentErrMsg() {
     return "no error";
   }
   return errmsg;
+}
+
+void CloseSocket(int32_t fd) {
+  if (fd >= 0) {
+    (void)close(fd);
+  }
 }
 }  // namespace
 
@@ -107,6 +121,38 @@ int Unlink(LlmDataDist &llm_datadist, const char *remote_ip) {
   }
   printf("[INFO] UnlinkLlmClusters success\n");
   return 0;
+}
+
+int32_t NotifyUnlinkDone(const char *remote_ip, uint16_t port) {
+  sockaddr_in addr{};
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(port);
+  if (inet_pton(AF_INET, remote_ip, &addr.sin_addr) != 1) {
+    printf("[ERROR] Parse control ip failed, ip = %s\n", remote_ip);
+    return -1;
+  }
+  for (int32_t retry = 0; retry < kNotifyRetryTimes; ++retry) {
+    int32_t fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) {
+      printf("[ERROR] Create control socket failed\n");
+      return -1;
+    }
+    if (connect(fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) == 0) {
+      auto nsent = send(fd, &kUnlinkDoneMessage, sizeof(kUnlinkDoneMessage), 0);
+      CloseSocket(fd);
+      if (nsent == static_cast<ssize_t>(sizeof(kUnlinkDoneMessage))) {
+        printf("[INFO] Notify decoder unlink done success\n");
+        return 0;
+      }
+      printf("[ERROR] Send decoder unlink done failed\n");
+      return -1;
+    }
+    CloseSocket(fd);
+    usleep(kNotifyRetryIntervalUs);
+  }
+  printf("[ERROR] Notify decoder unlink done timeout, ip = %s, port = %u\n", remote_ip,
+         static_cast<unsigned int>(port));
+  return -1;
 }
 
 int32_t PushCache(LlmDataDist &llm_datadist, int64_t cache_id) {
@@ -232,7 +278,17 @@ int32_t RunPromptSample(const char *device_id, const char *local_ip, const char 
     return -1;
   }
 
-  // 6. 释放Cache与llmDataDist
+  // 6. 解除链路并通知decoder后释放Cache与llmDataDist
+  if (Unlink(llm_datadist, remote_ip) != 0) {
+    Finalize(llm_datadist, cache_id, linked, remote_ip, buffers);
+    return -1;
+  }
+  linked = false;
+  if (NotifyUnlinkDone(remote_ip, kDecoderControlPort) != 0) {
+    Finalize(llm_datadist, cache_id, linked, remote_ip, buffers);
+    return -1;
+  }
+
   Finalize(llm_datadist, cache_id, linked, remote_ip, buffers);
   printf("[INFO] Prompt Sample end\n");
   return 0;

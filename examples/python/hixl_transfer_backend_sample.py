@@ -109,20 +109,6 @@ def run_prompt_sample(datadist, local_host_ip, remote_host_ip):
     # 等对端推送完成
     dist.barrier()
 
-    logging.info(f"after push and pull, tensor={tensor.cpu()}")
-    logging.info(f"after push and pull, tensor2={tensor2.cpu()}")
-
-    expect_tensor = torch.full((BLOCKS_NUM, KV_SHAPE), 0, dtype=torch.float).npu()
-    if not torch.equal(expect_tensor, tensor):
-        raise Exception(
-            f"check tensor val failed, tensor={tensor.cpu()}, expect_tensor={expect_tensor.cpu()}"
-        )
-    if not torch.equal(expect_tensor, tensor2):
-        raise Exception(
-            f"check tensor val failed, tensor2={tensor2.cpu()}, expect_tensor={expect_tensor.cpu()}"
-        )
-    logging.info("check tensor val success")
-
     # 断链
     cluster = LLMClusterInfo()
     cluster.remote_cluster_id = DECODER_CLUSTER_ID
@@ -132,6 +118,22 @@ def run_prompt_sample(datadist, local_host_ip, remote_host_ip):
 
     # wait peer unlink end
     dist.barrier()
+
+    tensor_cpu = tensor.cpu()
+    tensor2_cpu = tensor2.cpu()
+    logging.info(f"after push and pull, tensor={tensor_cpu}")
+    logging.info(f"after push and pull, tensor2={tensor2_cpu}")
+
+    expect_tensor = torch.zeros((BLOCKS_NUM, KV_SHAPE), dtype=torch.float)
+    if not torch.equal(expect_tensor, tensor_cpu):
+        raise Exception(
+            f"check tensor val failed, tensor={tensor_cpu}, expect_tensor={expect_tensor}"
+        )
+    if not torch.equal(expect_tensor, tensor2_cpu):
+        raise Exception(
+            f"check tensor val failed, tensor2={tensor2_cpu}, expect_tensor={expect_tensor}"
+        )
+    logging.info("check tensor val success")
 
     cache_manager.unregister_cache(cache.cache_id)
     datadist.finalize()
