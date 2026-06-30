@@ -9,6 +9,7 @@
  */
 
 #include "conn_msg_handler.h"
+#include <cinttypes>
 #include <cstring>
 #include <vector>
 #include <securec.h>
@@ -91,13 +92,14 @@ hixl::Status ParseMatchEndpointResp(const std::vector<uint8_t> &body, size_t off
   errno_t rc = memcpy_s(&resp, sizeof(resp), src, sizeof(resp));
   HIXL_CHK_BOOL_RET_STATUS(rc == EOK, hixl::FAILED, "memcpy_s MatchEndpointResp failed, rc=%d",
                            static_cast<int32_t>(rc));
-  HIXL_LOGD("Parsed MatchEndpointResp. result: %d, dst_ep_handle: %lu", static_cast<int32_t>(resp.result),
-            resp.dst_ep_handle);
+  HIXL_LOGD("Parsed MatchEndpointResp. result: %d, dst_ep_handle: %lu, channel_index: %" PRIu64,
+            static_cast<int32_t>(resp.result), resp.dst_ep_handle, resp.channel_index);
   return hixl::SUCCESS;
 }
 
 hixl::Status RecvMatchEndpointHandleResponse(int32_t socket, uint64_t &remote_endpoint_handle,
-                                             uint32_t &remote_listen_port, uint32_t timeout_ms) {
+                                             uint32_t &remote_listen_port, uint64_t &channel_index,
+                                             uint32_t timeout_ms) {
   const uint64_t expect_body_size = static_cast<uint64_t>(sizeof(hixl::CtrlMsgType) + sizeof(hixl::MatchEndpointResp));
 
   hixl::CtrlMsgHeader header{};
@@ -117,8 +119,11 @@ hixl::Status RecvMatchEndpointHandleResponse(int32_t socket, uint64_t &remote_en
                            "MatchEndpointResp result not SUCCESS, result=%u", static_cast<uint32_t>(resp.result));
   remote_endpoint_handle = resp.dst_ep_handle;
   remote_listen_port = resp.port;
-  HIXL_LOGI("MatchEndpointResp check passed. remote_endpoint_handle set to %lu, remote_listen_port=%u",
-            remote_endpoint_handle, remote_listen_port);
+  channel_index = resp.channel_index;
+  HIXL_LOGI(
+      "MatchEndpointResp check passed. remote_endpoint_handle set to %lu, remote_listen_port=%u, "
+      "channel_index=%" PRIu64,
+      remote_endpoint_handle, remote_listen_port, channel_index);
   return hixl::SUCCESS;
 }
 
@@ -162,11 +167,14 @@ Status ConnMsgHandler::SendMatchEndpointRequest(int32_t socket, const EndpointDe
 }
 
 Status ConnMsgHandler::RecvMatchEndpointResponse(int32_t socket, uint64_t &remote_endpoint_handle,
-                                                 uint32_t &remote_listen_port, uint32_t timeout_ms) {
+                                                 uint32_t &remote_listen_port, uint64_t &channel_index,
+                                                 uint32_t timeout_ms) {
   HIXL_EVENT("RecvMatchEndpointResponse start. socket: %d", socket);
-  Status ret = RecvMatchEndpointHandleResponse(socket, remote_endpoint_handle, remote_listen_port, timeout_ms);
+  Status ret =
+      RecvMatchEndpointHandleResponse(socket, remote_endpoint_handle, remote_listen_port, channel_index, timeout_ms);
   if (ret == SUCCESS) {
-    HIXL_EVENT("RecvMatchEndpointResponse success. Remote handle: %lu", remote_endpoint_handle);
+    HIXL_EVENT("RecvMatchEndpointResponse success. Remote handle: %lu, channel_index=%" PRIu64, remote_endpoint_handle,
+               channel_index);
   } else {
     HIXL_LOGE(ret, "RecvMatchEndpointResponse failed.");
   }

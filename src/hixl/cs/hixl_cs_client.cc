@@ -9,7 +9,6 @@
  */
 
 #include "hixl_cs_client.h"
-#include <atomic>
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
@@ -35,7 +34,6 @@
 
 namespace hixl {
 namespace {
-std::atomic<uint32_t> g_next_channel_index{0U};
 constexpr uint32_t kDeviceTransferPoolSize = 128U;
 constexpr uint32_t kDeviceCompleteMagic = 0x55425548U;
 constexpr uint32_t kRoceCompleteMagic = 0x524F4345U;
@@ -1182,7 +1180,9 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannelLocked(uint32_t timeout_ms)
   Status ret = ConnMsgHandler::SendMatchEndpointRequest(socket_, remote_endpoint_);
   HIXL_CHK_STATUS_RET(ret, "[HixlClient] SendMatchEndpointRequest failed. fd=%d", socket_);
   uint32_t remote_listen_port = 0;
-  ret = ConnMsgHandler::RecvMatchEndpointResponse(socket_, remote_endpoint_handle_, remote_listen_port, timeout_ms);
+  uint64_t channel_index = 0UL;
+  ret = ConnMsgHandler::RecvMatchEndpointResponse(socket_, remote_endpoint_handle_, remote_listen_port, channel_index,
+                                                  timeout_ms);
   HIXL_CHK_STATUS_RET(ret, "[HixlClient] RecvMatchEndpointResponse failed. fd=%d, timeout=%u ms", socket_, timeout_ms);
   local_endpoint_->SetPort(remote_listen_port);
   CommMem *prefetch_mems = nullptr;
@@ -1192,7 +1192,6 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannelLocked(uint32_t timeout_ms)
   ret = GetRemoteMemLocked(timeout_ms, &prefetch_mems, &prefetch_tags, &prefetch_num);
   HIXL_CHK_STATUS_RET(ret, "[HixlClient] Connect prefetch GetRemoteMem/Import failed. fd=%d, timeout=%u ms", socket_,
                       timeout_ms);
-  const uint32_t channel_index = g_next_channel_index.fetch_add(1U, std::memory_order_relaxed);
   CreateChannelReq create_body{};
   create_body.src = src_ep;
   create_body.dst_ep_handle = remote_endpoint_handle_;

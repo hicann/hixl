@@ -104,41 +104,6 @@ std::string ProtocolToString(CommProtocol protocol) {
   }
 }
 
-std::string FormatCommAddr(const CommAddr &addr) {
-  switch (addr.type) {
-    case COMM_ADDR_TYPE_IP_V4: {
-      char buf[INET_ADDRSTRLEN] = {};
-      (void)inet_ntop(AF_INET, &addr.addr, buf, sizeof(buf));
-      return std::string("IPv4:") + buf;
-    }
-    case COMM_ADDR_TYPE_IP_V6: {
-      char buf[INET6_ADDRSTRLEN] = {};
-      (void)inet_ntop(AF_INET6, &addr.addr6, buf, sizeof(buf));
-      return std::string("IPv6:") + buf;
-    }
-    case COMM_ADDR_TYPE_ID: {
-      char buf[32] = {};  // "ID:0x" + 8 hex digits + '\0' = 14 bytes max, 32 is safe
-      (void)snprintf_s(buf, sizeof(buf), sizeof(buf) - 1, "ID:0x%x", addr.id);
-      return std::string(buf);
-    }
-    case COMM_ADDR_TYPE_EID: {
-      // EID is 16 bytes: first 8 bytes = subnetPrefix, last 8 bytes = interfaceId (network byte order)
-      uint64_t subnet_prefix = 0;
-      uint64_t interface_id = 0;
-      (void)memcpy_s(&subnet_prefix, sizeof(subnet_prefix), addr.eid, sizeof(subnet_prefix));
-      (void)memcpy_s(&interface_id, sizeof(interface_id), addr.eid + sizeof(subnet_prefix), sizeof(interface_id));
-      subnet_prefix = be64toh(subnet_prefix);
-      interface_id = be64toh(interface_id);
-      char buf[64] = {};  // "EID[" + 16 hex + ":" + 16 hex + "]" + '\0' = 38 bytes max, 64 is safe
-      (void)snprintf_s(buf, sizeof(buf), sizeof(buf) - 1, "EID[%016" PRIx64 ":%016" PRIx64 "]", subnet_prefix,
-                       interface_id);
-      return std::string(buf);
-    }
-    default:
-      return "UNKNOWN";
-  }
-}
-
 }  // namespace
 Status HcclError2Status(HcclResult ret) {
   static const std::map<HcclResult, Status> result2status = {
@@ -309,6 +274,41 @@ std::string TransferOpToString(TransferOp op) {
       return "write";
     default:
       return "unknown";
+  }
+}
+
+std::string FormatCommAddr(const CommAddr &addr) {
+  switch (addr.type) {
+    case COMM_ADDR_TYPE_IP_V4: {
+      char buf[INET_ADDRSTRLEN] = {};
+      (void)inet_ntop(AF_INET, &addr.addr, buf, sizeof(buf));
+      return std::string("IPv4:") + buf;
+    }
+    case COMM_ADDR_TYPE_IP_V6: {
+      char buf[INET6_ADDRSTRLEN] = {};
+      (void)inet_ntop(AF_INET6, &addr.addr6, buf, sizeof(buf));
+      return std::string("IPv6:") + buf;
+    }
+    case COMM_ADDR_TYPE_ID: {
+      char buf[32] = {};  // "ID:0x" + 8 hex digits + '\0' = 14 bytes max, 32 is safe
+      (void)snprintf_s(buf, sizeof(buf), sizeof(buf) - 1, "ID:0x%x", addr.id);
+      return std::string(buf);
+    }
+    case COMM_ADDR_TYPE_EID: {
+      // EID is 16 bytes: first 8 bytes = subnetPrefix, last 8 bytes = interfaceId (network byte order)
+      uint64_t subnet_prefix = 0;
+      uint64_t interface_id = 0;
+      (void)memcpy_s(&subnet_prefix, sizeof(subnet_prefix), addr.eid, sizeof(subnet_prefix));
+      (void)memcpy_s(&interface_id, sizeof(interface_id), addr.eid + sizeof(subnet_prefix), sizeof(interface_id));
+      subnet_prefix = be64toh(subnet_prefix);
+      interface_id = be64toh(interface_id);
+      char buf[64] = {};  // "EID[" + 16 hex + ":" + 16 hex + "]" + '\0' = 38 bytes max, 64 is safe
+      (void)snprintf_s(buf, sizeof(buf), sizeof(buf) - 1, "EID[%016" PRIx64 ":%016" PRIx64 "]", subnet_prefix,
+                       interface_id);
+      return std::string(buf);
+    }
+    default:
+      return "UNKNOWN";
   }
 }
 

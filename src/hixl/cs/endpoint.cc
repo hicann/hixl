@@ -11,6 +11,7 @@
 #include "endpoint.h"
 
 #include <cinttypes>
+#include <string>
 
 #include "host_register_proxy.h"
 #include "common/hixl_utils.h"
@@ -22,6 +23,46 @@
 namespace hixl {
 namespace {
 constexpr uint32_t kRoceQueueNum = 1U;  // ROCE QP数量默认值
+
+Status BuildChannelName(const EndpointDesc &endpoint, const ChannelDesc &channel_desc, uint32_t port,
+                        std::string &channel_name) {
+  // channelName作为两端channel业务匹配标识，两端需一致：
+  // client_ep + server_ep + server_port + server_channel_index(进程级自增)
+  const EndpointDesc &client_ep =
+      (channel_desc.channel_type == ChannelType::kClient) ? endpoint : channel_desc.remote_endpoint;
+  const EndpointDesc &server_ep =
+      (channel_desc.channel_type == ChannelType::kClient) ? channel_desc.remote_endpoint : endpoint;
+  channel_name = FormatCommAddr(client_ep.commAddr) + "_" + FormatCommAddr(server_ep.commAddr) + "_" +
+                 std::to_string(port) + "_" + std::to_string(channel_desc.channel_index);
+  HIXL_CHK_BOOL_RET_STATUS(channel_name.length() <= HCOMM_CHANNEL_NAME_MAX_LEN, PARAM_INVALID,
+                           "[channel] channelName length=%zu exceeds max=%u, channelName=%s", channel_name.length(),
+                           HCOMM_CHANNEL_NAME_MAX_LEN, channel_name.c_str());
+  return SUCCESS;
+}
+
+Status InitChannelDesc(const EndpointDesc &endpoint, const ChannelDesc &channel_desc, uint32_t port,
+                       HcommChannelDesc &ch_desc, std::string &channel_name) {
+  HIXL_CHK_HCCL_RET(static_cast<HcclResult>(HcommChannelDescInit(&ch_desc, 1)));
+  ch_desc.role = static_cast<HcommSocketRole>(channel_desc.channel_type);
+  ch_desc.remoteEndpoint = channel_desc.remote_endpoint;
+  ch_desc.notifyNum = 1U;
+  ch_desc.exchangeAllMems = true;
+  if (endpoint.protocol == CommProtocol::COMM_PROTOCOL_ROCE) {
+    ch_desc.roceAttr.tc = static_cast<uint32_t>(channel_desc.tc);
+    ch_desc.roceAttr.sl = static_cast<uint32_t>(channel_desc.sl);
+    ch_desc.roceAttr.queueNum = kRoceQueueNum;
+    HIXL_LOGI("[channel] ROCE attributes set, tc=%u, sl=%u, queueNum=%u", ch_desc.roceAttr.tc, ch_desc.roceAttr.sl,
+              ch_desc.roceAttr.queueNum);
+  }
+  ch_desc.port = port;
+  // need add qos at here when HcommChannelDesc exist qos
+  ch_desc.qos = static_cast<uint32_t>(channel_desc.qos);
+  HIXL_LOGI("[channel] attributes set, qos=%u", ch_desc.qos);
+  HIXL_CHK_STATUS_RET(BuildChannelName(endpoint, channel_desc, port, channel_name));
+  ch_desc.channelName = channel_name.c_str();
+  HIXL_LOGI("[channel] channelName=%s", ch_desc.channelName);
+  return SUCCESS;
+}
 }  // namespace
 
 Status Endpoint::Initialize() {
@@ -159,28 +200,14 @@ Status Endpoint::CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &c
     return PARAM_INVALID;
   }
   HcommChannelDesc ch_desc{};
-  HIXL_CHK_HCCL_RET(static_cast<HcclResult>(HcommChannelDescInit(&ch_desc, 1)));
-  ch_desc.role = static_cast<HcommSocketRole>(channel_desc.channel_type);
-  *reinterpret_cast<uint32_t *>(ch_desc.raws + sizeof(ch_desc.raws) - sizeof(uint32_t)) = channel_desc.channel_index;
-  ch_desc.remoteEndpoint = channel_desc.remote_endpoint;
-  ch_desc.notifyNum = 1U;
-  ch_desc.exchangeAllMems = true;
-  if (endpoint_.protocol == CommProtocol::COMM_PROTOCOL_ROCE) {
-    ch_desc.roceAttr.tc = static_cast<uint32_t>(channel_desc.tc);
-    ch_desc.roceAttr.sl = static_cast<uint32_t>(channel_desc.sl);
-    ch_desc.roceAttr.queueNum = kRoceQueueNum;
-    HIXL_LOGI("[channel] ROCE attributes set, tc=%u, sl=%u, queueNum=%u", ch_desc.roceAttr.tc, ch_desc.roceAttr.sl,
-              ch_desc.roceAttr.queueNum);
-  }
-  ch_desc.port = port_;
-  // need add qos at here when HcommChannelDesc exist qos
-  ch_desc.qos = static_cast<uint32_t>(channel_desc.qos);
-  HIXL_LOGI("[channel] attributes set, qos=%u", ch_desc.qos);
+  std::string channel_name;
+  HIXL_CHK_STATUS_RET(InitChannelDesc(endpoint_, channel_desc, port_, ch_desc, channel_name));
 
   ChannelPtr channel = MakeShared<Channel>();
   HIXL_CHECK_NOTNULL(channel);
+
   Status ret = channel->Create(handle_, ch_desc, engine);
-  HIXL_CHK_STATUS_RET(ret, "[Channel] Create failed, local=[%s], remote=[%s], type=%d, index=%u",
+  HIXL_CHK_STATUS_RET(ret, "[Channel] Create failed, local=[%s], remote=[%s], type=%d, index=%" PRIu64,
                       EndpointToString(endpoint_).c_str(), EndpointToString(channel_desc.remote_endpoint).c_str(),
                       static_cast<int32_t>(channel_desc.channel_type), channel_desc.channel_index);
   ChannelHandle h = channel->GetChannelHandle();
@@ -189,7 +216,7 @@ Status Endpoint::CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &c
     channels_[h] = channel;
     channel_handle = h;
   }
-  HIXL_LOGI("[Channel] Create success, handle=%" PRIu64 ", local=[%s], remote=[%s], type=%d, index=%u", h,
+  HIXL_LOGI("[Channel] Create success, handle=%" PRIu64 ", local=[%s], remote=[%s], type=%d, index=%" PRIu64, h,
             EndpointToString(endpoint_).c_str(), EndpointToString(channel_desc.remote_endpoint).c_str(),
             static_cast<int32_t>(channel_desc.channel_type), channel_desc.channel_index);
   return SUCCESS;
