@@ -360,6 +360,16 @@ bool ApplyTransportKv(const std::string &val, BenchmarkConfig *cfg) {
   return true;
 }
 
+bool ApplyRoceIpKv(const std::string &val, BenchmarkConfig *cfg) {
+  cfg->roce_ip = val;
+  cfg->roce_ip_list = SplitCommaList(val);
+  if (cfg->roce_ip_list.empty()) {
+    fprintf(stderr, "[ERROR] roce_ip is empty\n");
+    return false;
+  }
+  return true;
+}
+
 bool ApplyOpTypeKv(const std::string &val, BenchmarkConfig *cfg) {
   cfg->transfer_op = val;
   return true;
@@ -531,6 +541,7 @@ void PopulateCoreKvHandlers(std::map<std::string, KvApplyFn> *table) {
   t["-o"] = ApplyTransferOpKv;
   t["--op_type"] = ApplyOpTypeKv;
   t["--transport"] = ApplyTransportKv;
+  t["--roce_ip"] = ApplyRoceIpKv;
 }
 
 void PopulateBenchKvHandlers(std::map<std::string, KvApplyFn> *table) {
@@ -622,10 +633,15 @@ void BenchmarkConfigParser::PrintUsage(FILE *out) {
       "  --role|-r            target|initiator|client|server\n"
       "  --benchmark_group    result grouping name (default default)\n"
       "  --soc_variant        auto|a2|a3|a5 — HCCS rules & SOC class (default auto: ACL SOC probe; a5 forbids HCCS)\n"
-      "  --transport          hccs|rdma|fabric_mem|uboe|ubg|ub "
+      "  --transport          hccs|roce|fabric_mem|uboe|ubg|ub "
       "(hccs: D2D everywhere; extra H2rD|rD2H on A3-class SOC only; fabric_mem adds EnableUseFabricMem=1; "
       "uboe/ubg add GlobalResourceConfig with uboe:device/ubg:device, only on A5; "
-      "ub adds LocalCommRes with version:1.3, only on A5)\n"
+      "ub adds LocalCommRes with version:1.3, only on A5; "
+      "roce: RDMA over Converged Ethernet, supported on A2, A3 and A5; on A5 uses HixlCS LocalCommRes with "
+      "protocol:roce placement:host and requires --roce_ip)\n"
+      "  --roce_ip            RoCE NIC IP address for LocalCommRes endpoint (data plane; required for transport=roce\n"
+      " on A5 unless -H LocalCommRes is used; ignored on A2/A3). Note: this is separate from host IP used by\n"
+      " --remote_engine/--target_id for TCP coordination (control plane).\n"
       "  --initiator_memory   host|device (default device) — initiator-side buffer\n"
       "  --target_memory      host|device (default device) — target-side buffer\n"
       "  --op_type            read|write|mix (alias of --transfer_op)\n"
@@ -666,7 +682,81 @@ void BenchmarkConfigParser::PrintUsage(FILE *out) {
       kTcpClientCountMax, kDefaultTotalSize, kDefaultBufferSize, kDefaultBlockSteps, kDefaultLoops);
 }
 
-std::map<AscendString, AscendString> BenchmarkConfigParser::BuildInitializeOptions(const BenchmarkConfig &cfg) {
+namespace {
+
+enum class BenchSocKind { kA2, kA3, kA5 };
+
+BenchSocKind ClassifySocNameForBenchRules(const std::string &soc_name) {
+  // Ascend950* → A5 (no HCCS in comm benchmarks).
+  if (soc_name.find("Ascend950") != std::string::npos) {
+    return BenchSocKind::kA5;
+  }
+  // Ascend910B* / *910B* → A2-class.
+  if (soc_name.find("910B") != std::string::npos) {
+    return BenchSocKind::kA2;
+  }
+  // Ascend910_* / Ascend910 without B → A3-class.
+  if (soc_name.find("Ascend910") != std::string::npos) {
+    return BenchSocKind::kA3;
+  }
+  return BenchSocKind::kA2;
+}
+
+BenchSocKind ProbeSocKindViaAcl(int32_t device_id) {
+  aclError er = aclInit(nullptr);
+  if (er != ACL_ERROR_NONE) {
+    // CANN returns ACL_ERROR_REPEAT_INITIALIZE when ACL was already initialized (often by peer tooling).
+    constexpr aclError kAclRepeatInitialize = static_cast<aclError>(100002);
+    if (er != kAclRepeatInitialize) {
+      fprintf(stderr,
+              "[WARN] aclInit failed for --soc_variant=auto probe (ret=%d); assuming A2-class HCCS rules "
+              "(override with --soc_variant=a3|a5 on Ascend910 / Ascend950 silicon)\n",
+              static_cast<int>(er));
+      return BenchSocKind::kA2;
+    }
+  }
+  er = aclrtSetDevice(device_id);
+  if (er != ACL_ERROR_NONE) {
+    fprintf(stderr,
+            "[WARN] aclrtSetDevice(%d) failed for SOC probe (ret=%d); assuming A2-class HCCS rules "
+            "(override with --soc_variant=a3|a5)\n",
+            static_cast<int>(device_id), static_cast<int>(er));
+    return BenchSocKind::kA2;
+  }
+  const char *soc_cstr = aclrtGetSocName();
+  if (soc_cstr == nullptr || soc_cstr[0] == '\0') {
+    fprintf(stderr,
+            "[WARN] aclrtGetSocName() empty; assuming A2-class HCCS rules "
+            "(override with --soc_variant=a3|a5)\n");
+    return BenchSocKind::kA2;
+  }
+  const std::string soc(soc_cstr);
+  fprintf(stdout, "[INFO] SOC probe for HCCS rules: aclrtGetSocName()=%s\n", soc_cstr);
+  return ClassifySocNameForBenchRules(soc);
+}
+
+BenchSocKind ResolveSocKindForHccs(const BenchmarkConfig *cfg) {
+  const std::string &sv = cfg->soc_variant;
+  if (sv == "a2") {
+    return BenchSocKind::kA2;
+  }
+  if (sv == "a3") {
+    return BenchSocKind::kA3;
+  }
+  if (sv == "a5") {
+    return BenchSocKind::kA5;
+  }
+  int32_t dev_id = cfg->device_id;
+  if (!cfg->expanded_device_ids.empty()) {
+    dev_id = cfg->expanded_device_ids[0];
+  }
+  return ProbeSocKindViaAcl(dev_id);
+}
+
+}  // namespace
+
+std::map<AscendString, AscendString> BenchmarkConfigParser::BuildInitializeOptions(const BenchmarkConfig &cfg,
+                                                                                   size_t lane_index) {
   std::map<AscendString, AscendString> options;
   for (const auto &entry : cfg.hixl_init_options) {
     options[AscendString(entry.first.c_str())] = AscendString(entry.second.c_str());
@@ -694,11 +784,25 @@ std::map<AscendString, AscendString> BenchmarkConfigParser::BuildInitializeOptio
   if (cfg.transport == "ub" && cfg.hixl_init_options.find(OPTION_LOCAL_COMM_RES) == cfg.hixl_init_options.cend()) {
     options[AscendString(OPTION_LOCAL_COMM_RES)] = AscendString("{\"version\":\"1.3\"}");
   }
+  if (cfg.transport == "roce") {
+    const BenchSocKind soc_kind = ResolveSocKindForHccs(&cfg);
+    if (soc_kind == BenchSocKind::kA5) {
+      const std::string &lane_roce_ip =
+          (lane_index < cfg.expanded_roce_ips.size()) ? cfg.expanded_roce_ips[lane_index] : cfg.roce_ip;
+      if (cfg.hixl_init_options.find(OPTION_LOCAL_COMM_RES) == cfg.hixl_init_options.cend()) {
+        std::string local_comm_res =
+            "{\"version\":\"1.3\",\"net_instance_id\":\"default\",\"endpoint_list\":["
+            "{\"protocol\":\"roce\",\"comm_id\":\"" +
+            lane_roce_ip + "\",\"placement\":\"host\"}]}";
+        options[AscendString(OPTION_LOCAL_COMM_RES)] = AscendString(local_comm_res.c_str());
+      }
+    }
+  }
   return options;
 }
 
 bool BenchmarkConfigParser::ApplyTransportEnvironment(const BenchmarkConfig &cfg) {
-  if (cfg.transport == "rdma") {
+  if (cfg.transport == "roce") {
     if (setenv("HCCL_INTRA_ROCE_ENABLE", "1", 1) != 0) {
       std::fprintf(stderr, "[ERROR] setenv HCCL_INTRA_ROCE_ENABLE=1 failed: %s\n", std::strerror(errno));
       return false;
@@ -825,6 +929,20 @@ void ExpandConfigLists(BenchmarkConfig *cfg, size_t n_max, size_t nd, size_t nl,
   }
   cfg->device_id = cfg->expanded_device_ids[0];
   cfg->tcp_port = cfg->expanded_tcp_ports[0];
+  // Expand roce_ip_list with same broadcast rule as other lists.
+  if (!cfg->roce_ip_list.empty()) {
+    const size_t nr_ip = cfg->roce_ip_list.size();
+    cfg->expanded_roce_ips.clear();
+    cfg->expanded_roce_ips.reserve(n_max);
+    for (size_t i = 0; i < n_max; ++i) {
+      cfg->expanded_roce_ips.push_back(cfg->roce_ip_list[nr_ip == 1U ? 0 : i]);
+    }
+    cfg->roce_ip = cfg->expanded_roce_ips[0];
+  } else if (!cfg->roce_ip.empty()) {
+    cfg->expanded_roce_ips.clear();
+    cfg->expanded_roce_ips.push_back(cfg->roce_ip);
+    cfg->roce_ip_list.push_back(cfg->roce_ip);
+  }
 }
 
 bool ValidateClientRemoteEngines(const BenchmarkConfig *cfg) {
@@ -872,81 +990,12 @@ bool ValidateTransferOp(const std::string &op) {
 }
 
 bool ValidateTransport(const std::string &transport) {
-  if (transport != "hccs" && transport != "rdma" && transport != "fabric_mem" && transport != "uboe" &&
+  if (transport != "hccs" && transport != "roce" && transport != "fabric_mem" && transport != "uboe" &&
       transport != "ubg" && transport != "ub") {
-    fprintf(stderr, "[ERROR] Invalid transport: %s (expect hccs|rdma|fabric_mem|uboe|ubg|ub)\n", transport.c_str());
+    fprintf(stderr, "[ERROR] Invalid transport: %s (expect hccs|roce|fabric_mem|uboe|ubg|ub)\n", transport.c_str());
     return false;
   }
   return true;
-}
-
-enum class BenchSocKind { kA2, kA3, kA5 };
-
-BenchSocKind ClassifySocNameForBenchRules(const std::string &soc_name) {
-  // Ascend950* → A5 (no HCCS in comm benchmarks).
-  if (soc_name.find("Ascend950") != std::string::npos) {
-    return BenchSocKind::kA5;
-  }
-  // Ascend910B* / *910B* → A2-class.
-  if (soc_name.find("910B") != std::string::npos) {
-    return BenchSocKind::kA2;
-  }
-  // Ascend910_* / Ascend910 without B → A3-class.
-  if (soc_name.find("Ascend910") != std::string::npos) {
-    return BenchSocKind::kA3;
-  }
-  return BenchSocKind::kA2;
-}
-
-BenchSocKind ProbeSocKindViaAcl(int32_t device_id) {
-  aclError er = aclInit(nullptr);
-  if (er != ACL_ERROR_NONE) {
-    // CANN returns ACL_ERROR_REPEAT_INITIALIZE when ACL was already initialized (often by peer tooling).
-    constexpr aclError kAclRepeatInitialize = static_cast<aclError>(100002);
-    if (er != kAclRepeatInitialize) {
-      fprintf(stderr,
-              "[WARN] aclInit failed for --soc_variant=auto probe (ret=%d); assuming A2-class HCCS rules "
-              "(override with --soc_variant=a3|a5 on Ascend910 / Ascend950 silicon)\n",
-              static_cast<int>(er));
-      return BenchSocKind::kA2;
-    }
-  }
-  er = aclrtSetDevice(device_id);
-  if (er != ACL_ERROR_NONE) {
-    fprintf(stderr,
-            "[WARN] aclrtSetDevice(%d) failed for SOC probe (ret=%d); assuming A2-class HCCS rules "
-            "(override with --soc_variant=a3|a5)\n",
-            static_cast<int>(device_id), static_cast<int>(er));
-    return BenchSocKind::kA2;
-  }
-  const char *soc_cstr = aclrtGetSocName();
-  if (soc_cstr == nullptr || soc_cstr[0] == '\0') {
-    fprintf(stderr,
-            "[WARN] aclrtGetSocName() empty; assuming A2-class HCCS rules "
-            "(override with --soc_variant=a3|a5)\n");
-    return BenchSocKind::kA2;
-  }
-  const std::string soc(soc_cstr);
-  fprintf(stdout, "[INFO] SOC probe for HCCS rules: aclrtGetSocName()=%s\n", soc_cstr);
-  return ClassifySocNameForBenchRules(soc);
-}
-
-BenchSocKind ResolveSocKindForHccs(const BenchmarkConfig *cfg) {
-  const std::string &sv = cfg->soc_variant;
-  if (sv == "a2") {
-    return BenchSocKind::kA2;
-  }
-  if (sv == "a3") {
-    return BenchSocKind::kA3;
-  }
-  if (sv == "a5") {
-    return BenchSocKind::kA5;
-  }
-  int32_t dev_id = cfg->device_id;
-  if (!cfg->expanded_device_ids.empty()) {
-    dev_id = cfg->expanded_device_ids[0];
-  }
-  return ProbeSocKindViaAcl(dev_id);
 }
 
 bool ValidateHccsMemoryCombination(const BenchmarkConfig *cfg) {
@@ -955,7 +1004,7 @@ bool ValidateHccsMemoryCombination(const BenchmarkConfig *cfg) {
   }
   const BenchSocKind kind = ResolveSocKindForHccs(cfg);
   if (kind == BenchSocKind::kA5) {
-    fprintf(stderr, "[ERROR] transport=hccs is not supported on Ascend950-class (A5) SOC; use rdma or fabric_mem\n");
+    fprintf(stderr, "[ERROR] transport=hccs is not supported on Ascend950-class (A5) SOC; use roce or fabric_mem\n");
     return false;
   }
   const std::string &im = cfg->initiator_memory_type;
@@ -982,7 +1031,7 @@ bool ValidateHccsMemoryCombination(const BenchmarkConfig *cfg) {
   }
   fprintf(stderr,
           "[ERROR] HCCS: A2 allows D2D only; A3 adds H2rD|rD2H on host→device; "
-          "got initiator_memory=%s target_memory=%s (use rdma or fabric_mem for other directions)\n",
+          "got initiator_memory=%s target_memory=%s (use roce or fabric_mem for other directions)\n",
           im.c_str(), tm.c_str());
   return false;
 }
@@ -1066,6 +1115,14 @@ bool ValidateBenchmarkTopology(BenchmarkConfig *cfg) {
   if (!ValidateMultiDeviceRequirement(n_max, nl, nr)) {
     return false;
   }
+  // Validate roce_ip_list length before expanding (same rule as tcp_port).
+  if (cfg->roce_ip_list.size() > 1U && cfg->roce_ip_list.size() != n_max) {
+    fprintf(stderr,
+            "[ERROR] --roce_ip comma-list length (%zu) must be 1 or %zu (same rule as multi local_engine / "
+            "remote_engine)\n",
+            cfg->roce_ip_list.size(), n_max);
+    return false;
+  }
   ExpandConfigLists(cfg, n_max, nd, nl, nr, nt);
   if (cfg->role == BenchmarkRole::kClient && !ValidateClientRemoteEngines(cfg)) {
     return false;
@@ -1077,6 +1134,20 @@ bool ValidateBenchmarkTopology(BenchmarkConfig *cfg) {
 }
 
 bool ValidateBenchmarkWorkload(BenchmarkConfig *cfg) {
+  if (cfg->soc_variant == "auto") {
+    const BenchSocKind kind = ResolveSocKindForHccs(cfg);
+    switch (kind) {
+      case BenchSocKind::kA2:
+        cfg->soc_variant = "a2";
+        break;
+      case BenchSocKind::kA3:
+        cfg->soc_variant = "a3";
+        break;
+      case BenchSocKind::kA5:
+        cfg->soc_variant = "a5";
+        break;
+    }
+  }
   if (!ValidateTransferOp(cfg->transfer_op)) {
     return false;
   }
@@ -1086,6 +1157,18 @@ bool ValidateBenchmarkWorkload(BenchmarkConfig *cfg) {
   }
   if (!ValidateHccsMemoryCombination(cfg)) {
     return false;
+  }
+  if (cfg->transport == "roce") {
+    const BenchSocKind soc_kind = ResolveSocKindForHccs(cfg);
+    if (soc_kind == BenchSocKind::kA5) {
+      if (cfg->hixl_init_options.find("LocalCommRes") == cfg->hixl_init_options.cend() && cfg->roce_ip.empty()) {
+        fprintf(stderr, "[ERROR] transport=roce on A5 requires --roce_ip=<ROCE_NIC_IP> or -H LocalCommRes=...\n");
+        return false;
+      }
+    } else if (soc_kind != BenchSocKind::kA3 && soc_kind != BenchSocKind::kA2) {
+      fprintf(stderr, "[ERROR] transport=roce is only supported on A2, A3 and A5 platforms\n");
+      return false;
+    }
   }
   if (!ValidateBufferSize(cfg)) {
     return false;
@@ -1110,9 +1193,16 @@ void BenchmarkConfigParser::LogExpandedEndpoints(FILE *out, const BenchmarkConfi
   fprintf(out, "[INFO] endpoint_pairs=%zu\n", n);
   for (size_t i = 0; i < n; ++i) {
     const unsigned tcp_p = (i < cfg.expanded_tcp_ports.size()) ? static_cast<unsigned>(cfg.expanded_tcp_ports[i]) : 0U;
-    fprintf(out, "[INFO]   [%zu] device_id=%d local_engine=%s remote_engine=%s tcp_coord_port=%u\n", i,
-            static_cast<int>(cfg.expanded_device_ids[i]), cfg.expanded_local_engines[i].c_str(),
-            cfg.expanded_remote_engines[i].c_str(), tcp_p);
+    const char *roce_ip_str = (i < cfg.expanded_roce_ips.size()) ? cfg.expanded_roce_ips[i].c_str() : "";
+    if (cfg.transport == "roce" && roce_ip_str[0] != '\0') {
+      fprintf(out, "[INFO]   [%zu] device_id=%d local_engine=%s remote_engine=%s tcp_coord_port=%u roce_ip=%s\n", i,
+              static_cast<int>(cfg.expanded_device_ids[i]), cfg.expanded_local_engines[i].c_str(),
+              cfg.expanded_remote_engines[i].c_str(), tcp_p, roce_ip_str);
+    } else {
+      fprintf(out, "[INFO]   [%zu] device_id=%d local_engine=%s remote_engine=%s tcp_coord_port=%u\n", i,
+              static_cast<int>(cfg.expanded_device_ids[i]), cfg.expanded_local_engines[i].c_str(),
+              cfg.expanded_remote_engines[i].c_str(), tcp_p);
+    }
   }
 }
 

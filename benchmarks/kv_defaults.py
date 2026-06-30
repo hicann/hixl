@@ -19,7 +19,7 @@ Key exports:
     KV_PROCESS_COUNT_BY_PLATFORM : dict[str, int]
         Number of KV ranks per platform — A2/A3/A5: 8.
     KV_TRANSPORT_BY_PLATFORM : dict[str, str]
-        Default transport per platform — A2: rdma, A3/A5: fabric_mem.
+        Default transport per platform — A2: roce, A3/A5: fabric_mem.
     default_kv_transport(platform_id) -> str
         Return the recommended transport for *platform_id*.
     default_kv_device_ids(platform_id) -> str
@@ -37,14 +37,14 @@ KV_PROCESS_COUNT_BY_PLATFORM: dict[str, int] = {
 }
 
 KV_TRANSPORT_BY_PLATFORM: dict[str, str] = {
-    "a2": "rdma",
+    "a2": "roce",
     "a3": "fabric_mem",
     "a5": "fabric_mem",
 }
 
 
 def default_kv_transport(platform_id: str) -> str:
-    return KV_TRANSPORT_BY_PLATFORM.get(platform_id, "rdma")
+    return KV_TRANSPORT_BY_PLATFORM.get(platform_id, "roce")
 
 
 def default_kv_device_ids(platform_id: str) -> str:

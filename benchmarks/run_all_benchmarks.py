@@ -48,9 +48,9 @@ KV_BENCH_SCRIPT = BENCHMARKS_DIR / 'kv_benchmark' / 'scripts' / 'run_kv_benchmar
 
 MEM_TYPES = ['device', 'host']
 OP_TYPES = ['write', 'read']
-TRANSPORTS_A2 = ['hccs', 'rdma']
-TRANSPORTS_A3 = ['hccs', 'rdma', 'fabric_mem']
-TRANSPORTS_A5 = ['rdma', 'fabric_mem', 'uboe', 'ubg', 'ub']
+TRANSPORTS_A2 = ['hccs', 'roce']
+TRANSPORTS_A3 = ['hccs', 'roce', 'fabric_mem']
+TRANSPORTS_A5 = ['roce', 'fabric_mem', 'uboe', 'ubg', 'ub']
 BLOCK_SIZES = [
     16 * 1024,
     32 * 1024,

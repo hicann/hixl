@@ -13,8 +13,8 @@
 
 Examples (single machine — default):
   python3 run_comm_benchmark.py --type=D2rD --transport=hccs
-  python3 run_comm_benchmark.py --transport=rdma --device_ids=0,1   # all rdma directions
-  python3 run_comm_benchmark.py --type=D2rH --transport=rdma --device_ids=0,1
+  python3 run_comm_benchmark.py --transport=roce --device_ids=0,1   # all roce directions
+  python3 run_comm_benchmark.py --type=D2rH --transport=roce --device_ids=0,1
   python3 run_comm_benchmark.py --pattern=one_to_many --device_ids=0,1,2,3,4 --type=D2rD
   python3 run_comm_benchmark.py --pattern=many_to_one --device_ids=0,1,2,3,4 --type=D2rD
   python3 run_comm_benchmark.py --pattern=pairwise --device_ids=0,1,2,3 --type=D2rD
@@ -65,9 +65,9 @@ TYPE_MAP = {
     'rD2H': ('host', 'device', 'read'),
 }
 ALL_TYPES = list(TYPE_MAP.keys())
-TRANSPORTS_A2 = ['hccs', 'rdma']
-TRANSPORTS_A3 = ['hccs', 'rdma', 'fabric_mem']
-TRANSPORTS_A5 = ['rdma', 'fabric_mem', 'uboe', 'ubg', 'ub']
+TRANSPORTS_A2 = ['hccs', 'roce']
+TRANSPORTS_A3 = ['hccs', 'roce', 'fabric_mem']
+TRANSPORTS_A5 = ['roce', 'fabric_mem', 'uboe', 'ubg', 'ub']
 DEFAULT_START_BLOCK = 16384
 DEFAULT_MAX_BLOCK = 2097152
 BLOCK_SORT_ORDER = ['16K', '32K', '64K', '128K', '256K', '512K', '1M', '2M', '4M', '8M']
@@ -210,7 +210,7 @@ def supported_transports_for_soc(gate_soc: str | None, dual: bool = False) -> li
     if gate_soc == 'a5':
         return list(TRANSPORTS_A5)
     if dual:
-        return ['rdma']
+        return ['roce']
     return list(TRANSPORTS_A2)
 
 
@@ -312,6 +312,7 @@ class SingleTargetCommandSpec:
     device_id: int
     target: str
     tcp_port: int
+    lane_index: int = 0
 
 
 @dataclass
@@ -323,6 +324,7 @@ class SingleInitiatorCommandSpec:
     local_port: int
     remotes: str
     ports: str
+    lane_index: int = 0
 
 
 @dataclass
@@ -538,7 +540,7 @@ def _add_transfer_args(parser) -> None:
     )
     parser.add_argument(
         '--transport',
-        choices=['hccs', 'rdma', 'fabric_mem', 'uboe', 'ubg', 'ub', 'all'],
+        choices=['hccs', 'roce', 'fabric_mem', 'uboe', 'ubg', 'ub', 'all'],
         default=None,
         help='Transport path. Dual-machine default: all platform-supported transports.',
     )
@@ -547,6 +549,14 @@ def _add_transfer_args(parser) -> None:
         choices=['auto', 'a2', 'a3', 'a5'],
         default=None,
         help='SOC class forwarded to hixl_comm_bench. Default: npu-smi hint or ACL probe.',
+    )
+    parser.add_argument(
+        '--roce_ip',
+        type=str,
+        default=None,
+        help='RoCE NIC IP address for LocalCommRes endpoint (data plane; required for transport=roce unless -H '
+        'LocalCommRes is used). Note: this is separate from host IP (--target-host) used for TCP coordination '
+        '(control plane).',
     )
 
 
@@ -671,7 +681,18 @@ def benchmark_group_for_run(args) -> str:
     return 'single'
 
 
-def base_options(args, bench_type: str):
+def _get_roce_ip_for_lane(roce_ip: str | None, lane_index: int) -> str | None:
+    if not roce_ip:
+        return None
+    ips = [ip.strip() for ip in roce_ip.split(',') if ip.strip()]
+    if not ips:
+        return None
+    if lane_index < len(ips):
+        return ips[lane_index]
+    return ips[0] if len(ips) == 1 else None
+
+
+def base_options(args, bench_type: str, lane_index: int = 0):
     (im, tm, op) = TYPE_MAP[bench_type]
     options = [
         f'--benchmark_group={benchmark_group_for_run(args)}',
@@ -694,6 +715,9 @@ def base_options(args, bench_type: str):
         options.append(f'--total_size={args.total_size}')
     if args.buffer_size is not None:
         options.append(f'--buffer_size={args.buffer_size}')
+    lane_roce_ip = _get_roce_ip_for_lane(args.roce_ip, lane_index)
+    if lane_roce_ip:
+        options.append(f'--roce_ip={lane_roce_ip}')
     return options
 
 
@@ -708,6 +732,7 @@ def tcp_accept_wait_for_run(args, run_count: int) -> int:
 def build_target_cmd(spec: TargetCommandSpec) -> list[str]:
     lane = spec.lane
     args = spec.args
+    lane_index = lane.get('lane_index', 0)
     return [
         spec.bench_bin,
         '--role=target',
@@ -716,7 +741,7 @@ def build_target_cmd(spec: TargetCommandSpec) -> list[str]:
         f"--tcp_port={lane['tcp_port']}",
         f"--tcp_client_count={lane['tcp_client_count']}",
         f'--tcp_accept_wait_s={spec.tcp_accept_wait_s}',
-        *base_options(args, spec.bench_type),
+        *base_options(args, spec.bench_type, lane_index),
         *hixl_init_extra_args(args),
     ]
 
@@ -726,14 +751,16 @@ def build_initiator_cmd(spec: InitiatorCommandSpec) -> list[str]:
     args = spec.args
     remote = lane['remote_engines']
     local_port = lane['local_hixl_port']
+    local_ip = args.host if args.host != '127.0.0.1' else get_local_ip()
+    lane_index = lane.get('lane_index', 0)
     return [
         spec.bench_bin,
         '--role=initiator',
         f"--device_id={lane['device_id']}",
-        f"--local_engine={endpoint('127.0.0.1', local_port)}",
+        f'--local_engine={endpoint(local_ip, local_port)}',
         f'--remote_engine={remote}',
         f"--tcp_port={lane['tcp_port']}",
-        *base_options(args, spec.bench_type),
+        *base_options(args, spec.bench_type, lane_index),
         *hixl_init_extra_args(args),
     ]
 
@@ -783,6 +810,8 @@ def _peer_launcher_common_args(spec: PeerLauncherSpec) -> list[str]:
     if args.report_path is not None:
         cmd.append(f'--report_path={args.report_path}')
     cmd.extend(peer_launcher_hixl_flags(args))
+    if args.roce_ip:
+        cmd.append(f'--roce_ip={args.roce_ip}')
     return cmd
 
 
@@ -968,6 +997,7 @@ def _dual_target_lanes(topology: DualTopology, local_ip: str, base_hixl_port: in
                     'hixl_port': base_hixl_port + idx,
                     'tcp_port': base_tcp_port + idx,
                     'tcp_client_count': 1,
+                    'lane_index': idx,
                 }
             )
         return lanes
@@ -1004,6 +1034,7 @@ def _dual_initiator_lanes(topology: DualTopology, target_host: str, base_hixl_po
                     'remote_engines': remote,
                     'tcp_port': str(base_tcp_port),
                     'local_hixl_port': base_hixl_port + 1 + idx,
+                    'lane_index': idx,
                 }
             )
         return lanes
@@ -1298,7 +1329,7 @@ def _single_target_cmd(spec: SingleTargetCommandSpec) -> list[str]:
         f'--tcp_port={spec.tcp_port}',
         f'--tcp_client_count={target_peer_count(args.pattern, args.initiator_count)}',
         f'--tcp_accept_wait_s={args.tcp_accept_wait_s}',
-        *base_options(args, spec.bench_type),
+        *base_options(args, spec.bench_type, spec.lane_index),
         *hixl_init_extra_args(args),
     ]
 
@@ -1312,7 +1343,7 @@ def _single_initiator_cmd(spec: SingleInitiatorCommandSpec) -> list[str]:
         f'--local_engine={endpoint(args.host, spec.local_port)}',
         f'--remote_engine={spec.remotes}',
         f'--tcp_port={spec.ports}',
-        *base_options(args, spec.bench_type),
+        *base_options(args, spec.bench_type, spec.lane_index),
         *hixl_init_extra_args(args),
     ]
 
@@ -1331,7 +1362,8 @@ def _run_single_direction(args, bench_bin: str, devices: list[int], bench_type: 
         procs.append(
             start_process(
                 _single_target_cmd(
-                    SingleTargetCommandSpec(args, bench_bin, bench_type, devices[idx], target, tcp_ports[idx])
+                    SingleTargetCommandSpec(args, bench_bin, bench_type, devices[idx], target, tcp_ports[idx],
+                                            lane_index=idx)
                 )
             )
         )
@@ -1350,6 +1382,7 @@ def _run_single_direction(args, bench_bin: str, devices: list[int], bench_type: 
                         local_port,
                         remotes,
                         ports,
+                        lane_index=idx,
                     )
                 )
             )

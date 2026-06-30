@@ -37,7 +37,7 @@ configure_logging()
 log = logging.getLogger(__name__)
 
 DIRECTION_ORDER = ['D2rD', 'D2rH', 'H2rH', 'H2rD', 'rD2D', 'rH2D', 'rH2H', 'rD2H']
-TRANSPORT_ORDER = ['hccs', 'rdma', 'fabric_mem', 'uboe', 'ubg', 'ub']
+TRANSPORT_ORDER = ['hccs', 'roce', 'fabric_mem', 'uboe', 'ubg', 'ub']
 HCCS_DIRECTIONS_A2 = frozenset({'D2rD', 'rD2D'})
 HCCS_DIRECTIONS_A3 = frozenset({'D2rD', 'rD2D', 'H2rD', 'rD2H'})
 UBOE_DIRECTIONS = frozenset(DIRECTION_ORDER)
@@ -53,7 +53,7 @@ DIRECTION_LABEL: dict[str, str] = {
 }
 TRANSPORT_LABEL: dict[str, str] = {
     "hccs": "HCCS",
-    "rdma": "ROCE",
+    "roce": "ROCE",
     "uboe": "UBOE",
     "ubg": "UBG",
     "fabric_mem": "FabricMem",
@@ -180,11 +180,11 @@ def transports_for_platform(platform: str, deployment: str) -> list[str]:
     pid = normalize_platform(platform)
     if pid == 'a2':
         if deployment == 'dual':
-            return ['rdma']
-        return ['hccs', 'rdma']
+            return ['roce']
+        return ['hccs', 'roce']
     if pid == 'a3':
-        return ['hccs', 'rdma', 'fabric_mem']
-    return ['rdma', 'fabric_mem', 'uboe', 'ubg', 'ub']
+        return ['hccs', 'roce', 'fabric_mem']
+    return ['roce', 'fabric_mem', 'uboe', 'ubg', 'ub']
 
 
 def collect_columns_for_platform(platform: str, deployment: str = 'single') -> list[tuple[str, str]]:

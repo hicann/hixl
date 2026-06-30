@@ -77,8 +77,10 @@ std::string FormatBlockSizeHuman(uint64_t bytes) {
   return std::to_string(bytes) + " B";
 }
 
-int32_t InitializeHixl(const std::string &local_engine, const BenchmarkConfig &cfg, Hixl *hixl) {
-  const std::map<AscendString, AscendString> init_options = BenchmarkConfigParser::BuildInitializeOptions(cfg);
+int32_t InitializeHixl(const std::string &local_engine, const BenchmarkConfig &cfg, Hixl *hixl,
+                       size_t lane_index = 0U) {
+  const std::map<AscendString, AscendString> init_options =
+      BenchmarkConfigParser::BuildInitializeOptions(cfg, lane_index);
   const auto ret = hixl->Initialize(AscendString(local_engine.c_str()), init_options);
   if (ret != SUCCESS) {
     std::printf("[ERROR] Initialize failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
@@ -102,13 +104,15 @@ void DeregisterMemHandles(Hixl &hixl_engine, const std::vector<MemHandle> &handl
   }
 }
 
-void FreeHostBuffers(const std::vector<void *> &buffers, const std::string &transport) {
+void FreeHostBuffers(const std::vector<void *> &buffers, const std::string &transport, const std::string &soc_variant) {
   for (const auto &element : buffers) {
     if (element == nullptr) {
       continue;
     }
     if (transport == "fabric_mem") {
       (void)FabricMemTransferService::FreeMem(element);
+    } else if (transport == "roce" && soc_variant == "a5") {
+      std::free(element);
     } else {
       (void)aclrtFreeHost(element);
     }
@@ -125,12 +129,13 @@ void FreeDeviceBuffers(const std::vector<void *> &buffers) {
 }
 
 void ReleaseHixlResources(Hixl &hixl_engine, bool need_register, bool is_host, const std::vector<MemHandle> &handles,
-                          const std::vector<void *> &buffers, const std::string &transport) {
+                          const std::vector<void *> &buffers, const std::string &transport,
+                          const std::string &soc_variant) {
   if (need_register) {
     DeregisterMemHandles(hixl_engine, handles);
   }
   if (is_host) {
-    FreeHostBuffers(buffers, transport);
+    FreeHostBuffers(buffers, transport, soc_variant);
   } else {
     FreeDeviceBuffers(buffers);
   }
@@ -149,6 +154,12 @@ int32_t AllocLocalBuffer(const BenchmarkConfig &cfg, bool *is_host, void **out_s
     auto status = FabricMemTransferService::MallocMem(MemType::MEM_HOST, alloc_size, &tmp);
     if (status != SUCCESS) {
       std::fprintf(stderr, "[ERROR] client fabric_mem host alloc failed status=%d\n", static_cast<int>(status));
+      return -1;
+    }
+  } else if (*is_host && cfg.transport == "roce" && cfg.soc_variant == "a5") {
+    tmp = std::malloc(alloc_size);
+    if (tmp == nullptr) {
+      std::fprintf(stderr, "[ERROR] client alloc host failed: malloc returned null\n");
       return -1;
     }
   } else if (*is_host) {
@@ -680,9 +691,10 @@ void FinalizeLaneState(LaneState *p, const std::string &remote_engine) {
   }
   if (p->hixl_initialized) {
     if (p->buffer != nullptr) {
-      ReleaseHixlResources(p->hixl, p->need_register, p->is_host, {p->mem_handle}, {p->buffer}, p->transport);
+      ReleaseHixlResources(p->hixl, p->need_register, p->is_host, {p->mem_handle}, {p->buffer}, p->transport,
+                           p->soc_variant);
     } else {
-      ReleaseHixlResources(p->hixl, p->need_register, p->is_host, {p->mem_handle}, {}, p->transport);
+      ReleaseHixlResources(p->hixl, p->need_register, p->is_host, {p->mem_handle}, {}, p->transport, p->soc_variant);
     }
     p->hixl_initialized = false;
     p->buffer = nullptr;
@@ -700,9 +712,9 @@ bool LaneWorkerSetDevice(size_t idx, int32_t dev, std::atomic<int> *first_fail, 
   return true;
 }
 
-bool LaneWorkerInitHixlEngine(LaneState *p, const BenchmarkConfig &cfg, const std::string &local,
+bool LaneWorkerInitHixlEngine(LaneState *p, const BenchmarkConfig &cfg, const std::string &local, size_t lane_idx,
                               std::atomic<int> *first_fail, std::mutex *fail_mu) {
-  if (InitializeHixl(local, cfg, &p->hixl) != 0) {
+  if (InitializeHixl(local, cfg, &p->hixl, lane_idx) != 0) {
     p->hixl.Finalize();
     MarkFirstFail(first_fail, fail_mu);
     return false;
@@ -761,13 +773,14 @@ void LaneWorkerEntry(size_t idx, LaneState *p, const BenchmarkConfig &cfg, std::
   const std::string &local = cfg.expanded_local_engines[idx];
   const std::string &remote = cfg.expanded_remote_engines[idx];
   p->transport = cfg.transport;
+  p->soc_variant = cfg.soc_variant;
   std::printf("[INFO] [lane %zu] start device=%d\n", idx, static_cast<int>(dev));
 
   if (!LaneWorkerSetDevice(idx, dev, first_fail, fail_mu)) {
     (void)aclrtResetDevice(dev);
     return;
   }
-  if (!LaneWorkerInitHixlEngine(p, cfg, local, first_fail, fail_mu)) {
+  if (!LaneWorkerInitHixlEngine(p, cfg, local, idx, first_fail, fail_mu)) {
     FinalizeLaneState(p, remote);
     (void)aclrtResetDevice(dev);
     return;
@@ -859,9 +872,10 @@ void ClientRunner::ReleaseLaneResources() {
 
   if (lane_buffer_ != nullptr) {
     ReleaseHixlResources(lane_hixl_, lane_need_register_, lane_is_host_, {lane_mem_handle_}, {lane_buffer_},
-                         cfg_.transport);
+                         cfg_.transport, cfg_.soc_variant);
   } else {
-    ReleaseHixlResources(lane_hixl_, lane_need_register_, lane_is_host_, {lane_mem_handle_}, {}, cfg_.transport);
+    ReleaseHixlResources(lane_hixl_, lane_need_register_, lane_is_host_, {lane_mem_handle_}, {}, cfg_.transport,
+                         cfg_.soc_variant);
   }
   lane_hixl_initialized_ = false;
   lane_buffer_ = nullptr;

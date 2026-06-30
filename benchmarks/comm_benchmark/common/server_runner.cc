@@ -34,9 +34,10 @@ const char *RecentErrMsg() {
   return errmsg;
 }
 
-int32_t InitializeHixl(const std::string &local_engine, const hixl_benchmark::BenchmarkConfig &cfg, Hixl *hixl) {
+int32_t InitializeHixl(const std::string &local_engine, const hixl_benchmark::BenchmarkConfig &cfg, Hixl *hixl,
+                       size_t lane_index = 0U) {
   const std::map<AscendString, AscendString> init_options =
-      hixl_benchmark::BenchmarkConfigParser::BuildInitializeOptions(cfg);
+      hixl_benchmark::BenchmarkConfigParser::BuildInitializeOptions(cfg, lane_index);
   const auto ret = hixl->Initialize(AscendString(local_engine.c_str()), init_options);
   if (ret != SUCCESS) {
     std::printf("[ERROR] Initialize failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
@@ -60,20 +61,24 @@ void DeregisterMemHandles(Hixl &hixl_engine, const std::vector<hixl::MemHandle> 
   }
 }
 
-void FreeHostBuffers(const std::vector<void *> &buffers, const std::string &transport) {
+void FreeHostBuffers(const std::vector<void *> &buffers, const std::string &transport, const std::string &soc_variant) {
   for (const auto &buffer : buffers) {
     if (buffer == nullptr) {
       continue;
     }
     if (transport == "fabric_mem") {
       (void)FabricMemTransferService::FreeMem(buffer);
+    } else if (transport == "roce" && soc_variant == "a5") {
+      std::free(buffer);
     } else {
       (void)aclrtFreeHost(buffer);
     }
   }
 }
 
-void FreeDeviceBuffers(const std::vector<void *> &buffers, const std::string &transport) {
+void FreeDeviceBuffers(const std::vector<void *> &buffers, const std::string &transport,
+                       const std::string &soc_variant) {
+  (void)soc_variant;
   for (const auto &buffer : buffers) {
     if (buffer == nullptr) {
       continue;
@@ -88,13 +93,13 @@ void FreeDeviceBuffers(const std::vector<void *> &buffers, const std::string &tr
 
 void ReleaseHixlResources(Hixl &hixl_engine, bool need_register, bool is_host,
                           const std::vector<hixl::MemHandle> &handles, const std::vector<void *> &buffers,
-                          const std::string &transport = "") {
+                          const std::string &transport = "", const std::string &soc_variant = "") {
   if (need_register) {
     DeregisterMemHandles(hixl_engine, handles);
   }
-  using FreeBuffersFn = void (*)(const std::vector<void *> &, const std::string &);
+  using FreeBuffersFn = void (*)(const std::vector<void *> &, const std::string &, const std::string &);
   const FreeBuffersFn free_buffers = is_host ? FreeHostBuffers : FreeDeviceBuffers;
-  free_buffers(buffers, transport);
+  free_buffers(buffers, transport, soc_variant);
   hixl_engine.Finalize();
 }
 
@@ -112,15 +117,15 @@ void ServerRunner::ReleaseServerResources() {
   if (hixl_initialized_) {
     if (buffer_allocated_) {
       if (need_register_ && mem_registered_) {
-        ReleaseHixlResources(hixl_, true, is_host_, {mem_handle_}, {buffer_}, cfg_.transport);
+        ReleaseHixlResources(hixl_, true, is_host_, {mem_handle_}, {buffer_}, cfg_.transport, cfg_.soc_variant);
       } else {
-        ReleaseHixlResources(hixl_, false, is_host_, {}, {buffer_}, cfg_.transport);
+        ReleaseHixlResources(hixl_, false, is_host_, {}, {buffer_}, cfg_.transport, cfg_.soc_variant);
       }
     } else {
       if (need_register_ && mem_registered_) {
-        ReleaseHixlResources(hixl_, true, is_host_, {mem_handle_}, {}, cfg_.transport);
+        ReleaseHixlResources(hixl_, true, is_host_, {mem_handle_}, {}, cfg_.transport, cfg_.soc_variant);
       } else {
-        ReleaseHixlResources(hixl_, false, is_host_, {}, {}, cfg_.transport);
+        ReleaseHixlResources(hixl_, false, is_host_, {}, {}, cfg_.transport, cfg_.soc_variant);
       }
     }
     hixl_initialized_ = false;
@@ -134,6 +139,8 @@ void ServerRunner::ReleaseServerResources() {
     if (is_host_) {
       if (cfg_.transport == "fabric_mem") {
         (void)FabricMemTransferService::FreeMem(buffer_);
+      } else if (cfg_.transport == "roce" && cfg_.soc_variant == "a5") {
+        std::free(buffer_);
       } else {
         (void)aclrtFreeHost(buffer_);
       }
@@ -171,6 +178,12 @@ bool ServerRunner::AllocServerBufferForRun() {
     auto status = FabricMemTransferService::MallocMem(MemType::MEM_HOST, alloc_size, &buffer_);
     if (status != SUCCESS) {
       std::printf("[ERROR] server fabric_mem alloc failed status=%d\n", static_cast<int>(status));
+      return false;
+    }
+  } else if (is_host_ && cfg_.transport == "roce" && cfg_.soc_variant == "a5") {
+    buffer_ = std::malloc(alloc_size);
+    if (buffer_ == nullptr) {
+      std::printf("[ERROR] server alloc host failed: malloc returned null\n");
       return false;
     }
   } else if (is_host_) {

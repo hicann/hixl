@@ -98,6 +98,12 @@ struct BenchmarkConfig {
   std::vector<int32_t> expanded_device_ids;
   std::vector<std::string> expanded_local_engines;
   std::vector<std::string> expanded_remote_engines;
+  /// RoCE NIC IP address, used to build LocalCommRes when transport=roce.
+  std::string roce_ip;
+  /// Parsed from `--roce_ip` (comma-separated); if empty before Validate, set to `{roce_ip}`.
+  std::vector<std::string> roce_ip_list;
+  /// After Validate: same length as expanded_*; per-lane RoCE NIC IP.
+  std::vector<std::string> expanded_roce_ips;
 };
 
 /// Split on comma; trim ASCII spaces; drop empty segments. IPv6 endpoints should use `[ip]:port`.
@@ -118,7 +124,8 @@ class BenchmarkConfigParser {
   /// Validates cfg and fills expanded_* vectors (same length N).
   static bool Validate(BenchmarkConfig *cfg);
   static void LogExpandedEndpoints(FILE *out, const BenchmarkConfig &cfg);
-  static std::map<hixl::AscendString, hixl::AscendString> BuildInitializeOptions(const BenchmarkConfig &cfg);
+  static std::map<hixl::AscendString, hixl::AscendString> BuildInitializeOptions(const BenchmarkConfig &cfg,
+                                                                                 size_t lane_index = 0U);
   static bool ApplyTransportEnvironment(const BenchmarkConfig &cfg);
 };
 
