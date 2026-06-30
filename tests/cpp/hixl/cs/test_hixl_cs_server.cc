@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <thread>
 #include <chrono>
+#include <cstdint>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -48,6 +49,7 @@ static constexpr uint32_t kTimeSleepMs = 10U;
 static constexpr uint32_t kCaptureLogTimeoutMs = 1000U;
 static constexpr int32_t kNum1 = 1;
 static constexpr int32_t kNum2 = 2;
+static constexpr uint64_t kInvalidChannelIndex = UINT64_MAX;
 static std::vector<int32_t> kHostMems(kMemNum, kNum1);
 static std::vector<int32_t> kDeviceMems(kMemNum, kNum2);
 
@@ -116,6 +118,7 @@ class HixlCSTest : public ::testing::Test {
   void GetMatchEndpointResp(int32_t client_fd, MatchEndpointResp &resp_body) {
     RecvMatchEndpointResp(client_fd, resp_body);
     EXPECT_EQ(resp_body.result, SUCCESS);
+    EXPECT_NE(resp_body.channel_index, kInvalidChannelIndex);
   }
 
   void SetupServerAndSendMatchReq(HixlServerHandle &server_handle, int32_t &client_fd) {
@@ -134,7 +137,7 @@ class HixlCSTest : public ::testing::Test {
     SendMatchEndpointReq(client_fd);
   }
 
-  void SendCreateChannelReq(int32_t client_fd, uint64_t dst_ep_handle) {
+  void SendCreateChannelReq(int32_t client_fd, uint64_t dst_ep_handle, uint64_t channel_index) {
     CtrlMsgHeader header{};
     header.magic = kMagicNumber;
     header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(CreateChannelReq));
@@ -142,7 +145,7 @@ class HixlCSTest : public ::testing::Test {
     CreateChannelReq body{};
     body.src = default_eps[0];
     body.dst_ep_handle = dst_ep_handle;
-    body.channel_index = 0U;
+    body.channel_index = channel_index;
     auto ret = CtrlMsgPlugin::Send(client_fd, &header, static_cast<uint64_t>(sizeof(header)));
     EXPECT_EQ(ret, SUCCESS);
     ret = CtrlMsgPlugin::Send(client_fd, &msg_type, static_cast<uint64_t>(sizeof(msg_type)));
@@ -262,7 +265,7 @@ TEST_F(HixlCSTest, TestHixlCSClient2Server) {
   GetMatchEndpointResp(client_fd, match_resp);
   SendGetRemoteMemReq(client_fd, match_resp.dst_ep_handle);
   RecvGetRemoteMemRespDrain(client_fd);
-  SendCreateChannelReq(client_fd, match_resp.dst_ep_handle);
+  SendCreateChannelReq(client_fd, match_resp.dst_ep_handle, match_resp.channel_index);
   CreateChannelResp resp_body{};
   GetCreateChannelResp(client_fd, resp_body);
   SendGetRemoteMemReq(client_fd, match_resp.dst_ep_handle);
@@ -291,7 +294,7 @@ TEST_F(HixlCSTest, TestHixlCSServerDisconnectionCleanup) {
   GetMatchEndpointResp(client_fd, match_resp);
   SendGetRemoteMemReq(client_fd, match_resp.dst_ep_handle);
   RecvGetRemoteMemRespDrain(client_fd);
-  SendCreateChannelReq(client_fd, match_resp.dst_ep_handle);
+  SendCreateChannelReq(client_fd, match_resp.dst_ep_handle, match_resp.channel_index);
   CreateChannelResp resp_body{};
   GetCreateChannelResp(client_fd, resp_body);
 

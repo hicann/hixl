@@ -12,6 +12,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <cstring>
 #include <string>
 #include <thread>
@@ -47,6 +48,7 @@ static constexpr uint32_t kConnectTime = 100U;
 static constexpr uint32_t kConnectTime1 = 50U;
 static constexpr uint32_t kConnectTime2 = 200U;
 static constexpr uint32_t kTimeOutOne = 1000U;
+static constexpr uint64_t kMatchChannelIndex = 7UL;
 static constexpr char kGetRemoteMemStr0[] = "_hixl_builtin_dev_trans_flag";
 static constexpr char kGetRemoteMemStr1[] = "a";
 static constexpr char kGetRemoteMemStr2[] = "b";
@@ -292,7 +294,7 @@ class MiniServer {
       return true;
     }
     if (msg_type == CtrlMsgType::kCreateChannelReq) {
-      HandleCreateChannel(conn_fd_);
+      HandleCreateChannel(conn_fd_, body);
       return true;
     }
     if (msg_type == CtrlMsgType::kGetRemoteMemReq) {
@@ -336,6 +338,7 @@ class MiniServer {
     MatchEndpointResp resp{};
     resp.result = SUCCESS;
     resp.dst_ep_handle = 0x12345678ULL;
+    resp.channel_index = kMatchChannelIndex;
     std::vector<uint8_t> body;
     if (!PackCtrlTypeAndPayload(body, resp_hdr.body_size, resp_type, &resp, sizeof(resp))) {
       return;
@@ -343,7 +346,15 @@ class MiniServer {
     SendCtrlResponse(fd, resp_hdr, body);
   }
 
-  void HandleCreateChannel(int fd) {
+  void HandleCreateChannel(int fd, const std::vector<uint8_t> &req_body) {
+    CreateChannelReq req{};
+    if (req_body.size() >= sizeof(CtrlMsgType) + sizeof(req)) {
+      const void *src = static_cast<const void *>(req_body.data() + sizeof(CtrlMsgType));
+      errno_t rc = memcpy_s(&req, sizeof(req), src, sizeof(req));
+      EXPECT_EQ(rc, EOK);
+      EXPECT_EQ(req.channel_index, kMatchChannelIndex);
+    }
+
     CtrlMsgHeader resp_hdr{};
     resp_hdr.magic = kMagicNumber;
     resp_hdr.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(CreateChannelResp));

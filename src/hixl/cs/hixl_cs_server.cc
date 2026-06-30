@@ -9,6 +9,8 @@
  */
 
 #include "hixl_cs_server.h"
+#include <atomic>
+#include <cinttypes>
 #include <memory>
 #include <sys/epoll.h>
 #include "nlohmann/json.hpp"
@@ -35,6 +37,8 @@ constexpr int32_t kMaxEventsNum = 128;              // epoll_wait并发处理事
 constexpr int32_t kEpollWaitTimeInMillis = 100;     // epoll_wait等待超时时间
 constexpr const char *kTransFlagNameHost = "_hixl_builtin_host_trans_flag";   // client用于感知收发完成的标识
 constexpr const char *kTransFlagNameDevice = "_hixl_builtin_dev_trans_flag";  // client用于感知收发完成的标识
+// server端进程级channel索引计数器，用于两端构建一致的channelName
+std::atomic<uint64_t> g_next_server_channel_index{0UL};
 }  // namespace
 
 std::unique_ptr<hixl::TemporaryRtContext> HixlCSServer::GetContextGuard() const {
@@ -339,9 +343,10 @@ Status HixlCSServer::MatchEndpointMsg(int32_t fd, const char *msg, uint64_t msg_
   resp.result = SUCCESS;
   resp.dst_ep_handle = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(handle));
   resp.port = ep->GetPort();
+  resp.channel_index = g_next_server_channel_index.fetch_add(1U, std::memory_order_relaxed);
   HIXL_CHK_STATUS_RET(SendMatchEndpointResp(fd, resp), "Failed to send match endpoint resp");
   HIXL_DISMISS_GUARD(failed);
-  HIXL_LOGI("SendMatchEndpointResp success");
+  HIXL_LOGI("SendMatchEndpointResp success, channel_index=%" PRIu64, resp.channel_index);
   return SUCCESS;
 }
 
@@ -361,7 +366,6 @@ Status HixlCSServer::CreateChannel(int32_t fd, const char *msg, uint64_t msg_len
   EndpointHandle handle = reinterpret_cast<EndpointHandle>(static_cast<uintptr_t>(req.dst_ep_handle));
   auto ep = endpoint_store_.GetEndpoint(handle);
   HIXL_CHECK_NOTNULL(ep);
-  CreateChannelResp resp{};
   ChannelHandle channel_handle = 0UL;
   ChannelDesc channel_desc{};
   channel_desc.remote_endpoint = req.src;
@@ -377,9 +381,10 @@ Status HixlCSServer::CreateChannel(int32_t fd, const char *msg, uint64_t msg_len
   info.channel_handle = channel_handle;
   channels_[fd] = std::move(info);
   HIXL_DISMISS_GUARD(failed);
+  CreateChannelResp resp{};
   resp.result = SUCCESS;
   HIXL_CHK_STATUS_RET(SendCreateChannelResp(fd, resp), "Failed to send create channel resp");
-  HIXL_LOGI("SendCreateChannelResp success");
+  HIXL_LOGI("CreateChannel success, channel_index=%" PRIu64, req.channel_index);
   return SUCCESS;
 }
 

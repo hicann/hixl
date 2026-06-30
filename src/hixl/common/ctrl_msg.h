@@ -57,6 +57,7 @@ struct MatchEndpointResp {
   Status result;
   uint64_t dst_ep_handle = 0UL;
   uint32_t port;
+  uint64_t channel_index = 0UL;  ///< server端生成的进程级channel索引，用于两端构建一致的channelName
 };
 
 struct CreateChannelReq {
@@ -64,7 +65,7 @@ struct CreateChannelReq {
   uint64_t dst_ep_handle = 0UL;
   uint8_t tc;
   uint8_t sl;
-  uint32_t channel_index = 0U;
+  uint64_t channel_index = 0UL;
   uint8_t qos = 0U;
 };
 
