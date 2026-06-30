@@ -54,7 +54,7 @@ struct LaneState {
   bool hixl_initialized = false;
   bool hixl_connected = false;
   std::string transport;
-  std::string soc_variant;
+  std::string roce_endpoint_placement;
   TCPClient tcp_client;
   std::vector<TransferBenchRecord> bench_records;
 };

@@ -61,6 +61,9 @@ struct BenchmarkConfig {
   /// SOC class for HCCS / transport hints: auto (ACL probe), a2 (910B-class), a3 (910 excluding 910B), a5 (Ascend950,
   /// no HCCS).
   std::string soc_variant = "auto";
+  /// Resolved in Validate(): RoCE endpoint placement ("host" on A5 host-NIC DMA, "device" on NPU RoCE NIC).
+  /// Drives host-buffer alloc/free path; decouples alloc logic from soc_variant.
+  std::string roce_endpoint_placement = "device";
   std::string initiator_memory_type = "device";
   std::string target_memory_type = "device";
   bool use_async = false;

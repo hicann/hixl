@@ -398,7 +398,10 @@ ge::Status LinkMsgHandler::LinkCluster(const ClusterInfo &cluster, int32_t timeo
 
   peer_exchange_info.comm_name =
       "llm_datadist_" + std::to_string(cluster_id_) + "_" + std::to_string(peer_exchange_info.cluster_id);
-  auto ret = ExchangeInfoProcess(peer_exchange_info, timeout, false, mem_info_ptr);
+  // 使用 exchange_info.force_link 而非硬编码 false：自连接场景下，服务端 daemon 线程可能先于客户端
+  // 完成 AddEntity，导致客户端 ExchangeInfoProcess 命中 ALREADY_LINK。传 true 可在本地已存在 entity
+  // 时先 destroy 再重建，规避竞态；首次建链本地无 entity 时 DestroyEntity 返回 SUCCESS，行为不变。
+  auto ret = ExchangeInfoProcess(peer_exchange_info, timeout, exchange_info.force_link, mem_info_ptr);
   LLMLinkStatus status{};
   LLM_CHK_STATUS_RET(RecvMsg(conn_fd, LinkMsgType::kStatus, status), "Failed to recv status msg");
   LLM_CHK_STATUS_RET(status.error_code, "Failed to check peer process ret status, error code[%u], err msg[%s]",

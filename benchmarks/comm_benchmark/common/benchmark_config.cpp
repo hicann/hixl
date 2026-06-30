@@ -1160,6 +1160,7 @@ bool ValidateBenchmarkWorkload(BenchmarkConfig *cfg) {
   }
   if (cfg->transport == "roce") {
     const BenchSocKind soc_kind = ResolveSocKindForHccs(cfg);
+    cfg->roce_endpoint_placement = (soc_kind == BenchSocKind::kA5) ? "host" : "device";
     if (soc_kind == BenchSocKind::kA5) {
       if (cfg->hixl_init_options.find("LocalCommRes") == cfg->hixl_init_options.cend() && cfg->roce_ip.empty()) {
         fprintf(stderr, "[ERROR] transport=roce on A5 requires --roce_ip=<ROCE_NIC_IP> or -H LocalCommRes=...\n");

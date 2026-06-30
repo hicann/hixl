@@ -279,6 +279,11 @@ check_changed_files() {
       continue
     fi
 
+    # check if file is in .agents/ directory
+    if echo "$file" | grep -q "^\.agents/"; then
+      continue
+    fi
+
     # check if file is AGENTS.md (case insensitive)
     if echo "$file" | grep -qi "^AGENTS\.md$"; then
       continue
@@ -290,7 +295,7 @@ check_changed_files() {
   done <<< "$changed_files"
 
   if [ "$skip_build" = true ]; then
-    echo "[INFO] Changed files only contain docs/, examples/, .claude/, .opencode/, README.md, CONTRIBUTING.md or AGENTS.md, skipping test."
+    echo "[INFO] Changed files only contain docs/, examples/, .claude/, .opencode/, .agents/, README.md, CONTRIBUTING.md or AGENTS.md, skipping test."
     echo "[INFO] Changed files: $changed_files"
     return 0
   fi

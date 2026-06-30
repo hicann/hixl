@@ -104,14 +104,15 @@ void DeregisterMemHandles(Hixl &hixl_engine, const std::vector<MemHandle> &handl
   }
 }
 
-void FreeHostBuffers(const std::vector<void *> &buffers, const std::string &transport, const std::string &soc_variant) {
+void FreeHostBuffers(const std::vector<void *> &buffers, const std::string &transport,
+                     const std::string &roce_endpoint_placement) {
   for (const auto &element : buffers) {
     if (element == nullptr) {
       continue;
     }
     if (transport == "fabric_mem") {
       (void)FabricMemTransferService::FreeMem(element);
-    } else if (transport == "roce" && soc_variant == "a5") {
+    } else if (transport == "roce" && roce_endpoint_placement == "host") {
       std::free(element);
     } else {
       (void)aclrtFreeHost(element);
@@ -130,12 +131,12 @@ void FreeDeviceBuffers(const std::vector<void *> &buffers) {
 
 void ReleaseHixlResources(Hixl &hixl_engine, bool need_register, bool is_host, const std::vector<MemHandle> &handles,
                           const std::vector<void *> &buffers, const std::string &transport,
-                          const std::string &soc_variant) {
+                          const std::string &roce_endpoint_placement) {
   if (need_register) {
     DeregisterMemHandles(hixl_engine, handles);
   }
   if (is_host) {
-    FreeHostBuffers(buffers, transport, soc_variant);
+    FreeHostBuffers(buffers, transport, roce_endpoint_placement);
   } else {
     FreeDeviceBuffers(buffers);
   }
@@ -156,7 +157,7 @@ int32_t AllocLocalBuffer(const BenchmarkConfig &cfg, bool *is_host, void **out_s
       std::fprintf(stderr, "[ERROR] client fabric_mem host alloc failed status=%d\n", static_cast<int>(status));
       return -1;
     }
-  } else if (*is_host && cfg.transport == "roce" && cfg.soc_variant == "a5") {
+  } else if (*is_host && cfg.transport == "roce" && cfg.roce_endpoint_placement == "host") {
     tmp = std::malloc(alloc_size);
     if (tmp == nullptr) {
       std::fprintf(stderr, "[ERROR] client alloc host failed: malloc returned null\n");
@@ -692,9 +693,10 @@ void FinalizeLaneState(LaneState *p, const std::string &remote_engine) {
   if (p->hixl_initialized) {
     if (p->buffer != nullptr) {
       ReleaseHixlResources(p->hixl, p->need_register, p->is_host, {p->mem_handle}, {p->buffer}, p->transport,
-                           p->soc_variant);
+                           p->roce_endpoint_placement);
     } else {
-      ReleaseHixlResources(p->hixl, p->need_register, p->is_host, {p->mem_handle}, {}, p->transport, p->soc_variant);
+      ReleaseHixlResources(p->hixl, p->need_register, p->is_host, {p->mem_handle}, {}, p->transport,
+                           p->roce_endpoint_placement);
     }
     p->hixl_initialized = false;
     p->buffer = nullptr;
@@ -773,7 +775,7 @@ void LaneWorkerEntry(size_t idx, LaneState *p, const BenchmarkConfig &cfg, std::
   const std::string &local = cfg.expanded_local_engines[idx];
   const std::string &remote = cfg.expanded_remote_engines[idx];
   p->transport = cfg.transport;
-  p->soc_variant = cfg.soc_variant;
+  p->roce_endpoint_placement = cfg.roce_endpoint_placement;
   std::printf("[INFO] [lane %zu] start device=%d\n", idx, static_cast<int>(dev));
 
   if (!LaneWorkerSetDevice(idx, dev, first_fail, fail_mu)) {
@@ -872,10 +874,10 @@ void ClientRunner::ReleaseLaneResources() {
 
   if (lane_buffer_ != nullptr) {
     ReleaseHixlResources(lane_hixl_, lane_need_register_, lane_is_host_, {lane_mem_handle_}, {lane_buffer_},
-                         cfg_.transport, cfg_.soc_variant);
+                         cfg_.transport, cfg_.roce_endpoint_placement);
   } else {
     ReleaseHixlResources(lane_hixl_, lane_need_register_, lane_is_host_, {lane_mem_handle_}, {}, cfg_.transport,
-                         cfg_.soc_variant);
+                         cfg_.roce_endpoint_placement);
   }
   lane_hixl_initialized_ = false;
   lane_buffer_ = nullptr;
