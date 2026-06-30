@@ -106,39 +106,58 @@ recreate_common_stub_softlink() {
     cd $pwdbak
 }
 
+remove_whl_residuals() {
+    local _module_path="$1"
+    local _whl_name="$2"
+
+    if [ -z "${_module_path}" ] || [ -z "${_whl_name}" ]; then
+        log "ERROR" "remove whl residuals failed, invalid path or package name."
+        exit 1
+    fi
+
+    chmod +w -R "${_module_path}/${_whl_name}" 2> /dev/null
+    chmod +w -R "${_module_path}/${_whl_name}-"*.dist-info 2> /dev/null
+    rm -rf "${_module_path:?}/${_whl_name}" 2> /dev/null
+    rm -rf "${_module_path:?}/${_whl_name}-"*.dist-info 2> /dev/null
+}
+
 whl_uninstall_package() {
     local _module="$1"
-    local _module_apth="$2"
+    local _module_path="$2"
     local _hixl_whl="llm_datadist"
-    if [ ! -d "${WHL_INSTALL_DIR_PATH}/${_hixl_whl}" ]; then
+    local ret=0
+
+    if [ ! -d "${_module_path}/${_hixl_whl}" ]; then
         pip3 show "${_hixl_whl}" > /dev/null 2>&1
         if [ $? -ne 0 ]; then
             log "WARNING" "${_module} is not exist."
         else
-            pip3 uninstall -y "${_hixl_whl}" 1> /dev/null
-            local ret=$?
+            pip3 uninstall -y "${_hixl_whl}" > /dev/null 2>&1
+            ret=$?
             if [ $ret -ne 0 ]; then
-                log "WARNING" "uninstall ${_module} failed, error code: $ret."
-                exit 1
+                log "WARNING" "pip uninstall ${_module} failed, error code: $ret."
             else
-                log "INFO" "${_module} uninstalled successfully!"
+                log "INFO" "${_module} uninstalled by pip successfully!"
             fi
         fi
+        remove_whl_residuals "${_module_path}" "${_hixl_whl}"
     else
-        export PYTHONPATH="${_module_apth}"
+        export PYTHONPATH="${_module_path}"
         pip3 uninstall -y "${_hixl_whl}" > /dev/null 2>&1
-        local ret=$?
+        ret=$?
         if [ $ret -ne 0 ]; then
-            log "WARNING" "uninstall ${_module} failed, error code: $ret."
-            exit 1
+            log "WARNING" "pip uninstall ${_module} failed, error code: $ret, clean install path residuals instead."
         else
-            # Delete the directory if uninstall leaves residuals.
-            if [ -d "${WHL_INSTALL_DIR_PATH}/${_hixl_whl}" ]; then
-              rm -fr "${WHL_INSTALL_DIR_PATH}/${_hixl_whl}" > /dev/null 2>&1
-            fi
-            log "INFO" "${_module} uninstalled successfully!"
+            log "INFO" "${_module} uninstalled by pip successfully!"
         fi
+        remove_whl_residuals "${_module_path}" "${_hixl_whl}"
     fi
+
+    if [ -d "${_module_path}/${_hixl_whl}" ] || ls "${_module_path}/${_hixl_whl}-"*.dist-info > /dev/null 2>&1; then
+        log "ERROR" "remove ${_module} residual files failed."
+        exit 1
+    fi
+    log "INFO" "${_module} uninstalled successfully!"
 }
 
 remove_rl_soft_link() {
@@ -183,7 +202,7 @@ WHL_INSTALL_DIR_PATH="${common_parse_dir}/python/site-packages"
 HIXL_NAME="hixl"
 
 custom_uninstall() {
-    if [ -z "$common_parse_dir/share/info/hixl" ]; then
+    if [ ! -d "$common_parse_dir/share/info/hixl" ]; then
         log "ERROR" "ERR_NO:0x0001;ERR_DES:hixl directory is empty"
         exit 1
     fi
