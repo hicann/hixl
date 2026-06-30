@@ -14,6 +14,7 @@ license: CANN Open Software License Agreement Version 2.0
 
 - 🚀 **自动分析代码变更** - 使用 GitCode API 获取 PR 信息和差异
 - 🔍 **代码质量检查** - 检查内存泄漏、安全漏洞、可读性
+- 📝 **文档与日志检查** - 检查 Markdown 语法、文档规范、日志合规
 - 📊 **生成检视报告** - 结构化报告，清晰展示问题和建议
 - 💬 **自动发布评论** - 直接发布到 GitCode PR
 - ✅ **智能 LGTM** - 中低风险自动打上 `/lgtm` 标记
@@ -70,7 +71,7 @@ curl -H "Authorization: Bearer $GITCODE_API_TOKEN" \
 
 **当变更涉及信任边界入口函数（`extern "C"` 导出函数、公开 C API、Python 绑定、跨进程回调）时，必须执行此检查。如果修改不包含信任边界入口，则跳过。**
 
-不可信入参参数校验检查（参考文件 [cpp-param-validation.md](../../../docs/guidelines/coding_standards/cpp-param-validation.md)）
+不可信入参参数校验检查（参考文件 [cpp-param-validation.md](../../../docs/zh/contributions/coding_standards/cpp-param-validation.md)）
 
 ---
 
@@ -91,6 +92,30 @@ C++ 代码风格规范检查（参考文件 [cpp-style.md](../../../docs/guideli
 **所有的 Python 文件必须经过 Python 安全编码规范检查。如果修改不包含 Python 文件，则跳过下面文件加载和 Python 检视流程。**
 
 Python 安全编码规范检查（参考文件 [python-secure.md](../../../docs/guidelines/coding_standards/python-secure.md)）
+
+---
+
+#### 文档与日志规范检查
+
+**所有 PR 修改涉及文档（`.md`）、注释或日志输出时，必须执行以下检查。如果修改不涉及上述内容，则跳过。**
+
+1. **Markdown 语法规范**
+   - 表格完整性：表头与内容列数一致，避免渲染错位
+   - 代码块闭合：\`\`\` 标记成对出现，且指定正确的语言标识
+   - 链接有效性：站内相对链接指向真实存在的路径；锚点（`#xxx`）在目标文档中存在
+   - 图片引用：图片路径正确且资源存在
+
+2. **文档内容规范**
+   - 中英文混排：中英文之间加空格（如 "CANN 版本" 而非 "CANN版本"）
+   - 术语一致性：使用仓库统一的术语表，避免同一概念出现多种译名
+   - 标点符号：中文文档使用中文标点，英文文档使用英文标点
+   - 版本号格式：遵循 `X.Y.Z` 格式，与实际发布版本一致
+
+3. **日志输出规范**
+   - 日志级别：合理使用 ERROR/WARN/INFO/DEBUG，生产环境不应出现 DEBUG 级别持续输出
+   - 敏感信息：日志中不包含密钥、密码、token、用户隐私等敏感数据
+   - 日志格式：遵循仓库定义的日志模板，包含必要的时间戳、模块标识和上下文信息
+   - 中文日志：面向用户的日志使用中文时，确保用语专业、无歧义
 
 ### 步骤 4: 生成检视报告
 
@@ -146,7 +171,7 @@ Python 安全编码规范检查（参考文件 [python-secure.md](../../../docs/
 
 #### 1. 不可信入参参数校验检查 <✅/⚠️/❌>
 
-> 依据 [cpp-param-validation.md](../../../docs/guidelines/coding_standards/cpp-param-validation.md) 中的"校验检查清单"
+> 依据 [cpp-param-validation.md](../../../docs/zh/contributions/coding_standards/cpp-param-validation.md) 中的"校验检查清单"
 
 | 编号 | 检查项 | 结果 | 说明 |
 |------|--------|------|------|
@@ -188,6 +213,16 @@ Python 安全编码规范检查（参考文件 [python-secure.md](../../../docs/
 |------|----------|------|------|
 | <从规范列表读取的编号> | <从规范列表读取的规范名称> | <✅/⚠️/❌> | <发现、风险说明或 N/A 原因> |
 | ... | ... | ... | ... |
+
+#### 6. 文档与日志规范检查 <✅/⚠️/❌>
+
+> 依据上述"文档与日志规范检查"中的检查项
+
+| 检查项 | 结果 | 问题说明 |
+|--------|------|----------|
+| Markdown 语法规范（表格/代码块/链接） | <✅/⚠️/❌> | <发现的问题或 N/A> |
+| 文档内容规范（中英文/术语/标点） | <✅/⚠️/❌> | <发现的问题或 N/A> |
+| 日志输出规范（级别/敏感信息/格式） | <✅/⚠️/❌> | <发现的问题或 N/A> |
 
 ---
 

@@ -46,7 +46,7 @@ license: CANN Open Software License Agreement Version 2.0
    - 传输类：常见锚点包括 `CheckMemCpyAttr`、`Can't find remoteBuffer by key`、`HcclBatchGet`、`HcclBatchPut`、stream sync timeout。
 
 4. **再判路径**
-   - 先用 **[adxl-transfer-modes.md](adxl-transfer-modes.md)** 判断当前走的是 **FabricMem**、**HCCL 直传** 还是 **Buffer**。
+   - 先用 **[adxl-transfer-modes.md](references/adxl-transfer-modes.md)** 判断当前走的是 **FabricMem**、**HCCL 直传** 还是 **Buffer**。
    - 需要时继续区分 **ROCE** 或 **HCCS**。
    - 路径不明时，先给出判断依据，再给结论；不要跳过这一步直接套 case。
 
