@@ -38,6 +38,7 @@ struct HandlerCreateArgs {
   };
   std::vector<EndpointPair> matched_pairs;
   std::optional<uint8_t> qos;
+  std::optional<uint32_t> max_active_channels;
   bool is_lazy = false;
   uint32_t timeout_ms = 0;
   int32_t ctrl_socket = -1;

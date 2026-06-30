@@ -157,7 +157,8 @@ device侧网卡默认监听端口为16666，如果在多个进程使用同一个
 
 ```sh
 {
-    "comm_resource_config.listen_port": "26666" //可选，取值范围：[1, 65535]之间的整数。不配置时，自动生成ranktable不携带device_port字段
+    "comm_resource_config.listen_port": "26666", //可选，取值范围：[1, 65535]之间的整数。不配置时，自动生成ranktable不携带device_port字段
+    "comm_resource_config.max_active_channels": "128" //可选，CS场景下配置设备侧同时活跃传输通道数量。取值为正整数，默认值：128
 }
 ```
 
@@ -291,6 +292,7 @@ UBG
 | ---- | ---- | ---- | ---- | ---- |
 | comm_resource_config.protocol_desc | 字符串或字符串数组 | 可选 | 配置可使用的通信协议以及通信设备位置范围，格式为`${protocol}:${placement}` | 支持"roce:device"/"hccs:device"/"ub_ctp:device"/"ub_tp:device"/"uboe:device"/"ubg:device"/"roce:host"/"ub_ctp:host"/"ub_tp:host"。配置后会对OPTION_LOCAL_COMM_RES中显式配置的endpoint_list和自动生成的endpoint_list按该范围进行过滤。 |
 | comm_resource_config.qos | 数字 | 可选 | 配置通信协议qos | 当前仅支持[0-7]，当未配置的时候，默认为0。|
+| comm_resource_config.max_active_channels | 数字 | 可选 | CS场景下配置设备侧同时活跃传输通道数量 | 取值为正整数，未配置时默认值为128。|
 
 **调用示例**
 

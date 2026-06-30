@@ -281,6 +281,28 @@ TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigListenPortString) {
   EXPECT_EQ(*grc.comm_resource_config.listen_port, 26300U);
 }
 
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigMaxActiveChannels) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.max_active_channels":8192})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.GlobalResourceCfg().has_value());
+  auto grc = *result.GlobalResourceCfg();
+  ASSERT_TRUE(grc.comm_resource_config.max_active_channels.has_value());
+  EXPECT_EQ(*grc.comm_resource_config.max_active_channels, 8192U);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigMaxActiveChannelsString) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.max_active_channels":"8192"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.GlobalResourceCfg().has_value());
+  auto grc = *result.GlobalResourceCfg();
+  ASSERT_TRUE(grc.comm_resource_config.max_active_channels.has_value());
+  EXPECT_EQ(*grc.comm_resource_config.max_active_channels, 8192U);
+}
+
 TEST_F(HixlOptionsUTest, GetProtocolDescReturnsEmptyWhenNotConfigured) {
   std::map<AscendString, AscendString> options;
   HixlOptions result;
@@ -319,6 +341,27 @@ TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigListenPortNegativeInvalid) {
 TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigListenPortTypeInvalid) {
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.listen_port":"invalid"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigMaxActiveChannelsZeroInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.max_active_channels":0})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigMaxActiveChannelsNegativeInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.max_active_channels":-1})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigMaxActiveChannelsTypeInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.max_active_channels":"invalid"})";
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }

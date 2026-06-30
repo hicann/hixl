@@ -60,7 +60,7 @@ std::string SerializeNotifyAck(Status result) {
 
 Status HixlServer::Initialize(const std::string &ip, int32_t port,
                               const std::vector<EndpointConfig> &data_endpoint_config_list,
-                              std::optional<uint32_t> listen_port) {
+                              std::optional<uint32_t> listen_port, std::optional<uint32_t> max_active_channels) {
   data_endpoint_config_list_ = data_endpoint_config_list;
   std::vector<EndpointDesc> data_end_point_list;
   for (const auto &it : data_endpoint_config_list) {
@@ -75,9 +75,14 @@ Status HixlServer::Initialize(const std::string &ip, int32_t port,
   }
   HixlServerConfig config{};
   std::string global_resource_config;
-  if (listen_port.has_value()) {
+  if (listen_port.has_value() || max_active_channels.has_value()) {
     nlohmann::json json;
-    json["comm_resource_config.listen_port"] = listen_port.value();
+    if (listen_port.has_value()) {
+      json["comm_resource_config.listen_port"] = listen_port.value();
+    }
+    if (max_active_channels.has_value()) {
+      json["comm_resource_config.max_active_channels"] = max_active_channels.value();
+    }
     global_resource_config = json.dump();
     config.global_resource_config = global_resource_config.c_str();
   }

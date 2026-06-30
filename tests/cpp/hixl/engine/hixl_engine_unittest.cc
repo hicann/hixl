@@ -398,6 +398,40 @@ TEST_F(HixlEngineTest, InitializeWithoutQosDoesNotSetClientQos) {
   engine.Finalize();
 }
 
+TEST_F(HixlEngineTest, InitializeSetsMaxActiveChannelsFromGlobalResourceConfig) {
+  std::map<AscendString, AscendString> options = options1;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.max_active_channels":8192})";
+  HixlEngine engine("127.0.0.1");
+  CreateAndInitEngine(engine, options);
+
+  auto *cs_server = static_cast<hixl::HixlCSServer *>(engine.server_.server_handle_);
+  ASSERT_NE(cs_server, nullptr);
+  ASSERT_TRUE(cs_server->global_config_.MaxActiveChannels().has_value());
+  EXPECT_EQ(*cs_server->global_config_.MaxActiveChannels(), 8192U);
+
+  ClientConfig config{};
+  std::vector<MemHandleInfo> mem_info_list;
+  engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, mem_info_list, kTimeOut);
+  ASSERT_TRUE(config.max_active_channels.has_value());
+  EXPECT_EQ(config.max_active_channels.value(), 8192U);
+  engine.Finalize();
+}
+
+TEST_F(HixlEngineTest, InitializeWithoutMaxActiveChannelsDoesNotSetConfig) {
+  HixlEngine engine("127.0.0.1");
+  CreateAndInitEngine(engine, options1);
+
+  auto *cs_server = static_cast<hixl::HixlCSServer *>(engine.server_.server_handle_);
+  ASSERT_NE(cs_server, nullptr);
+  EXPECT_FALSE(cs_server->global_config_.MaxActiveChannels().has_value());
+
+  ClientConfig config{};
+  std::vector<MemHandleInfo> mem_info_list;
+  engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, mem_info_list, kTimeOut);
+  EXPECT_FALSE(config.max_active_channels.has_value());
+  engine.Finalize();
+}
+
 TEST_F(HixlEngineTest, TestHixl) {
   SetSocStub("Ascend910B1", 0, 12, 99, 88);
   Hixl engine1;

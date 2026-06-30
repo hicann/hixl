@@ -1270,4 +1270,65 @@ TEST_F(HixlCSClientUT, ParseConfigQosInValidPartString) {
   EXPECT_EQ(HixlCSClientCreate(&desc, &config, &handle), HIXL_PARAM_INVALID);
   EXPECT_EQ(handle, nullptr);
 }
+
+TEST_F(HixlCSClientUT, ParseConfigMaxActiveChannelsDefault) {
+  port_ = kPort;
+  HixlClientConfig config{};
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  EXPECT_EQ(client_.Create(&desc, &config), SUCCESS);
+  EXPECT_FALSE(client_.global_config_.MaxActiveChannels().has_value());
+  client_.Destroy();
+}
+
+TEST_F(HixlCSClientUT, ParseConfigMaxActiveChannelsMin) {
+  port_ = kPort;
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientConfig config{};
+  config.global_resource_config = R"({"comm_resource_config.max_active_channels":1})";
+  EXPECT_EQ(client_.Create(&desc, &config), SUCCESS);
+  ASSERT_TRUE(client_.global_config_.MaxActiveChannels().has_value());
+  EXPECT_EQ(client_.global_config_.MaxActiveChannels().value(), 1U);
+  client_.Destroy();
+}
+
+TEST_F(HixlCSClientUT, ParseConfigMaxActiveChannelsLargeValue) {
+  port_ = kPort;
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientConfig config{};
+  config.global_resource_config = R"({"comm_resource_config.max_active_channels":8192})";
+  EXPECT_EQ(client_.Create(&desc, &config), SUCCESS);
+  ASSERT_TRUE(client_.global_config_.MaxActiveChannels().has_value());
+  EXPECT_EQ(client_.global_config_.MaxActiveChannels().value(), 8192U);
+  client_.Destroy();
+}
+
+TEST_F(HixlCSClientUT, ParseConfigMaxActiveChannelsInvalid) {
+  port_ = kPort;
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  for (const char *config_str :
+       {R"({"comm_resource_config.max_active_channels":0})", R"({"comm_resource_config.max_active_channels":-1})",
+        R"({"comm_resource_config.max_active_channels":"invalid"})"}) {
+    HixlClientConfig config{};
+    config.global_resource_config = config_str;
+    HixlClientHandle handle = reinterpret_cast<HixlClientHandle>(&client_);
+    EXPECT_EQ(HixlCSClientCreate(&desc, &config, &handle), HIXL_PARAM_INVALID) << "config_str=" << config_str;
+    EXPECT_EQ(handle, nullptr) << "config_str=" << config_str;
+  }
+}
 }  // namespace hixl

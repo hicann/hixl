@@ -32,9 +32,9 @@ static inline void to_json(nlohmann::json &j, const CommMem &m) {
 
 namespace hixl {
 namespace {
-constexpr uint32_t kDeviceTransferPoolSize = 128U;  // 与 HixlCSClient 侧设备池大小一致
-constexpr int32_t kMaxEventsNum = 128;              // epoll_wait并发处理事件数量，减少epoll系统调用
-constexpr int32_t kEpollWaitTimeInMillis = 100;     // epoll_wait等待超时时间
+constexpr uint32_t kDefaultTransferPoolSize = 128U;  // 与 HixlCSClient 侧设备池大小一致
+constexpr int32_t kMaxEventsNum = 128;               // epoll_wait并发处理事件数量，减少epoll系统调用
+constexpr int32_t kEpollWaitTimeInMillis = 100;      // epoll_wait等待超时时间
 constexpr const char *kTransFlagNameHost = "_hixl_builtin_host_trans_flag";   // client用于感知收发完成的标识
 constexpr const char *kTransFlagNameDevice = "_hixl_builtin_dev_trans_flag";  // client用于感知收发完成的标识
 // server端进程级channel索引计数器，用于两端构建一致的channelName
@@ -107,8 +107,8 @@ Status HixlCSServer::RegisterDeviceTransFinishedFlag() {
   hixl::TemporaryRtContext with_context(nullptr);  // 创建context会切换当前context, 因此需要在析构时恢复原用户context
   auto *pool = TransferPool::GetInstance(dev_id);
   HIXL_CHECK_NOTNULL(pool);
-  HIXL_CHK_STATUS_RET(pool->Initialize(kDeviceTransferPoolSize), "Failed to init TransferPool for CS server, dev_id:%d",
-                      dev_id);
+  HIXL_CHK_STATUS_RET(pool->Initialize(global_config_.MaxActiveChannels().value_or(kDefaultTransferPoolSize)),
+                      "Failed to init TransferPool for CS server, dev_id:%d", dev_id);
   HIXL_DISMISSABLE_GUARD(pool_rollback, ([dev_id]() {
                            auto *p = TransferPool::GetInstance(dev_id);
                            if (p != nullptr) {

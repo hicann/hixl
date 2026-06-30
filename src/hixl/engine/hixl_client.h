@@ -32,6 +32,7 @@ struct ClientConfig {
   uint8_t rdma_sl;
   uint32_t timeout_ms;
   std::optional<uint8_t> qos;
+  std::optional<uint32_t> max_active_channels;
   bool is_lazy = false;
 };
 
@@ -48,7 +49,8 @@ class HixlClient {
         remote_engine_(config.remote_engine),
         rdma_tc_(config.rdma_tc),
         rdma_sl_(config.rdma_sl),
-        qos_(config.qos) {}
+        qos_(config.qos),
+        max_active_channels_(config.max_active_channels) {}
   ~HixlClient() = default;
 
   /**
@@ -144,6 +146,7 @@ class HixlClient {
   std::mutex req_map_mutex_;
   std::map<TransferReq, TransferInfo> req_map_;
   std::optional<uint8_t> qos_;
+  std::optional<uint32_t> max_active_channels_;
 };
 
 }  // namespace hixl
