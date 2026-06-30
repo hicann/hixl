@@ -45,7 +45,8 @@ Status ParseNotifyAckResult(const std::string &json_str) {
 }
 }  // namespace
 
-Status HixlClient::Initialize(const std::vector<EndpointConfig> &local_endpoint_list, uint32_t timeout_ms) {
+Status HixlClient::Initialize(const std::vector<EndpointConfig> &local_endpoint_list, uint32_t timeout_ms,
+                              bool is_lazy) {
   if (local_endpoint_list.empty()) {
     HIXL_LOGE(PARAM_INVALID, "The input local_endpoint_list is empty");
     return PARAM_INVALID;
@@ -71,7 +72,8 @@ Status HixlClient::Initialize(const std::vector<EndpointConfig> &local_endpoint_
   HIXL_CHK_STATUS_RET(
       EndpointMatcher::MatchEndpoints(local_endpoint_list, remote_endpoint_list, matched_pairs, handler_type),
       "EndpointMatcher::MatchEndpoints failed");
-  HandlerCreateArgs args{server_ip_, server_port_, rdma_tc_, rdma_sl_, handler_type, std::move(matched_pairs), qos_};
+  HandlerCreateArgs args{server_ip_, server_port_, rdma_tc_,   rdma_sl_,    handler_type, std::move(matched_pairs),
+                         qos_,       is_lazy,      timeout_ms, ctrl_socket_};
   client_handler_ = ClientHandlerFactory::Create(args);
   HIXL_CHECK_NOTNULL(client_handler_, "ClientHandlerFactory create handler failed");
   HIXL_DISMISS_GUARD(close_ctrl_socket);
@@ -125,7 +127,7 @@ Status HixlClient::RecvEndpointInfoResp(int32_t fd, std::vector<EndpointConfig> 
   return EndpointGenerator::DeserializeEndpointConfigList(json_str, remote_endpoint_list);
 }
 
-Status HixlClient::SetLocalMemInfo(const std::vector<MemInfo> &mem_info_list) {
+Status HixlClient::SetLocalMemInfo(const std::vector<MemHandleInfo> &mem_info_list) {
   for (const auto &mi : mem_info_list) {
     HIXL_CHK_STATUS_RET(client_handler_->RegisterMem(mi));
   }
@@ -137,7 +139,7 @@ Status HixlClient::Connect(uint32_t timeout_ms) {
     HIXL_LOGE(FAILED, "HixlClient is not initialized");
     return FAILED;
   }
-  HIXL_CHK_STATUS_RET(client_handler_->Connect(timeout_ms));
+  HIXL_CHK_STATUS_RET(client_handler_->Connect(timeout_ms), "HixlClient Connect failed");
   std::lock_guard<std::mutex> lock(status_mutex_);
   is_connected_ = true;
   return SUCCESS;

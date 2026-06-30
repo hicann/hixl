@@ -71,6 +71,12 @@ class HixlServer {
    */
   Status RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor) const;
 
+  /**
+   * @brief 获取已注册内存信息列表，用于通过控制面Socket交换给对端
+   * @return 已注册内存信息列表
+   */
+  std::vector<MemInfo> GetRegisteredMemInfo();
+
  private:
   Status RegisterNotifyHandlers();
   Status ProcessNotifyMsg(int32_t fd, const char *msg, uint64_t msg_len);

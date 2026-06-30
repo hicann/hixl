@@ -125,6 +125,12 @@ class MockHixlServer {
         return;
       }
       mem_handles_.emplace_back(mem_handle);
+      // 跟踪已注册内存信息，用于构建端点响应中的 mem_info 字段
+      MemInfo info;
+      info.type = (mem_list[i].type == COMM_MEM_TYPE_DEVICE) ? MEM_DEVICE : MEM_HOST;
+      info.addr = reinterpret_cast<uintptr_t>(mem_list[i].addr);
+      info.size = mem_list[i].size;
+      registered_mem_.push_back(info);
     }
   }
 
@@ -138,7 +144,20 @@ class MockHixlServer {
     };
     HixlStatus ret = HixlCSServerRegProc(server_handle_, CtrlMsgType::kGetEndpointInfoReq, send_endpoint_cb);
     if (ret != HIXL_SUCCESS) {
-      std::cerr << "Failed to reg proc CsServer" << std::endl;
+      std::cerr << "Failed to reg endpoint proc CsServer" << std::endl;
+      return;
+    }
+
+    MsgProcessor send_mem_info_cb = [this](int32_t fd, const char *msg, uint64_t msg_len) -> Status {
+      (void)msg;
+      (void)msg_len;
+      conn_fd_ = fd;
+      SendMemInfoResponse();
+      return SUCCESS;
+    };
+    ret = HixlCSServerRegProc(server_handle_, CtrlMsgType::kGetMemInfoReq, send_mem_info_cb);
+    if (ret != HIXL_SUCCESS) {
+      std::cerr << "Failed to reg mem info proc CsServer" << std::endl;
       return;
     }
 
@@ -177,6 +196,7 @@ class MockHixlServer {
  private:
   HixlServerHandle server_handle_ = nullptr;
   std::vector<MemHandle> mem_handles_{};
+  std::vector<MemInfo> registered_mem_{};
   int32_t conn_fd_ = -1;
   MockHixlServerMode mode_;
 
@@ -244,6 +264,19 @@ class MockHixlServer {
                          k4UbJson);
         break;
     }
+  }
+
+  void SendMemInfoResponse() {
+    std::string mem_info_json = "[";
+    for (size_t i = 0; i < registered_mem_.size(); ++i) {
+      if (i > 0) mem_info_json += ",";
+      mem_info_json += R"({"type":)" + std::to_string(static_cast<int>(registered_mem_[i].type));
+      mem_info_json += R"(,"addr":)" + std::to_string(registered_mem_[i].addr);
+      mem_info_json += R"(,"size":)" + std::to_string(registered_mem_[i].size) + "}";
+    }
+    mem_info_json += "]";
+    SendResponseImpl(kMagicNumber, CtrlMsgType::kGetMemInfoResp, sizeof(CtrlMsgType) + mem_info_json.size(),
+                     mem_info_json);
   }
 };
 
@@ -511,10 +544,10 @@ class HixlClientUTest : public ::testing::Test {
     return ep_list;
   }
 
-  std::vector<MemInfo> MakeMemInfoList() {
-    std::vector<MemInfo> mem_info_list;
+  std::vector<MemHandleInfo> MakeMemInfoList() {
+    std::vector<MemHandleInfo> mem_info_list;
     // 添加DEVICE类型内存
-    MemInfo device_mem;
+    MemHandleInfo device_mem;
     device_mem.mem_handle = nullptr;
     device_mem.mem.addr = reinterpret_cast<uintptr_t>(&kLocalMems[0]);
     device_mem.mem.len = sizeof(uint32_t);
@@ -522,7 +555,7 @@ class HixlClientUTest : public ::testing::Test {
     mem_info_list.push_back(device_mem);
 
     // 添加HOST类型内存
-    MemInfo host_mem;
+    MemHandleInfo host_mem;
     host_mem.mem_handle = nullptr;
     host_mem.mem.addr = reinterpret_cast<uintptr_t>(&kLocalMems[2]);
     host_mem.mem.len = sizeof(uint32_t);
@@ -531,30 +564,30 @@ class HixlClientUTest : public ::testing::Test {
     return mem_info_list;
   }
 
-  std::vector<MemInfo> Make4UbMemInfoList() {
-    std::vector<MemInfo> mem_info_list;
-    MemInfo mem1;
+  std::vector<MemHandleInfo> Make4UbMemInfoList() {
+    std::vector<MemHandleInfo> mem_info_list;
+    MemHandleInfo mem1;
     mem1.mem_handle = nullptr;
     mem1.mem.addr = reinterpret_cast<uintptr_t>(&kLocalMems[0]);
     mem1.mem.len = sizeof(uint32_t);
     mem1.type = MEM_DEVICE;
     mem_info_list.push_back(mem1);
 
-    MemInfo mem2;
+    MemHandleInfo mem2;
     mem2.mem_handle = nullptr;
     mem2.mem.addr = reinterpret_cast<uintptr_t>(&kLocalMems[2]);
     mem2.mem.len = sizeof(uint32_t);
     mem2.type = MEM_DEVICE;
     mem_info_list.push_back(mem2);
 
-    MemInfo mem3;
+    MemHandleInfo mem3;
     mem3.mem_handle = nullptr;
     mem3.mem.addr = reinterpret_cast<uintptr_t>(&kLocalMems[4]);
     mem3.mem.len = sizeof(uint32_t);
     mem3.type = MEM_HOST;
     mem_info_list.push_back(mem3);
 
-    MemInfo mem4;
+    MemHandleInfo mem4;
     mem4.mem_handle = nullptr;
     mem4.mem.addr = reinterpret_cast<uintptr_t>(&kLocalMems[6]);
     mem4.mem.len = sizeof(uint32_t);
@@ -588,7 +621,7 @@ class HixlClientUTest : public ::testing::Test {
     return client_->batch_cs_sync_inflight_.load(std::memory_order_acquire) > 0;
   }
 
-  void SetupTransferTest(bool use_4ub = false) {
+  void SetupTransferTest(bool use_4ub = false, bool is_lazy = false) {
     if (use_4ub) {
       StartServerReg4Ub(MockHixlServerMode::k4UbNormal);
     } else {
@@ -606,7 +639,7 @@ class HixlClientUTest : public ::testing::Test {
       local_endpoint_list.push_back(MakeRoceDiffNetLocalEp());
     }
 
-    Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
+    Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs, is_lazy);
     EXPECT_EQ(st, SUCCESS);
 
     st = client_->SetLocalMemInfo(use_4ub ? Make4UbMemInfoList() : MakeMemInfoList());
@@ -614,6 +647,10 @@ class HixlClientUTest : public ::testing::Test {
 
     st = client_->Connect(kDefaultTimeoutMs);
     EXPECT_EQ(st, SUCCESS);
+  }
+
+  void SetupLazyTransferTest(bool use_4ub = true) {
+    SetupTransferTest(use_4ub, true);
   }
 
   // 创建单个传输操作
@@ -900,7 +937,7 @@ TEST_F(HixlClientUTest, SetLocalMemInfoTest) {
   local_endpoint_list.push_back(MakeRoceDiffNetLocalEp());
   Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
-  std::vector<MemInfo> mem_info_list = MakeMemInfoList();
+  std::vector<MemHandleInfo> mem_info_list = MakeMemInfoList();
   st = client_->SetLocalMemInfo(mem_info_list);
   EXPECT_EQ(st, SUCCESS);
   st = client_->Finalize();
@@ -1484,6 +1521,192 @@ TEST_F(HixlClientUTest, CheckAliveInvalidControlSocketFails) {
 
   Status ret = client.CheckAlive();
   EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(HixlClientUTest, LazyConnectSkipsInConnect) {
+  SetupLazyTransferTest(true);
+
+  auto *ub_handler = dynamic_cast<UbClientHandler *>(client_->client_handler_.get());
+  ASSERT_NE(ub_handler, nullptr);
+  EXPECT_TRUE(ub_handler->lazy_mode_);
+  EXPECT_TRUE(ub_handler->connected_types_.empty());
+}
+
+TEST_F(HixlClientUTest, LazyConnectOnTransferSync) {
+  SetupLazyTransferTest(true);
+
+  auto *ub_handler = dynamic_cast<UbClientHandler *>(client_->client_handler_.get());
+  ASSERT_NE(ub_handler, nullptr);
+
+  // 传输 D2D 数据（本端 device → 对端 device）
+  auto op_descs = CreateTransferOps(1, &kLocalMems[0], &kRemoteMems[2]);
+  Status st = client_->TransferSync(op_descs, WRITE, kDefaultTimeoutMs);
+  EXPECT_EQ(st, SUCCESS);
+  EXPECT_EQ(ub_handler->connected_types_.size(), 1U);
+  EXPECT_NE(ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_D2D), 0U);
+}
+
+TEST_F(HixlClientUTest, LazyConnectIncremental) {
+  SetupLazyTransferTest(true);
+
+  auto *ub_handler = dynamic_cast<UbClientHandler *>(client_->client_handler_.get());
+  ASSERT_NE(ub_handler, nullptr);
+
+  // 首次：D2D 传输
+  auto d2d_ops = CreateTransferOps(1, &kLocalMems[0], &kRemoteMems[2]);
+  Status st = client_->TransferSync(d2d_ops, WRITE, kDefaultTimeoutMs);
+  EXPECT_EQ(st, SUCCESS);
+  EXPECT_EQ(ub_handler->connected_types_.size(), 1U);
+  EXPECT_NE(ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_D2D), 0U);
+
+  // 二次：H2D 传输（本端 host → 对端 device）
+  auto h2d_ops = CreateTransferOps(1, &kLocalMems[4], &kRemoteMems[2]);
+  st = client_->TransferSync(h2d_ops, WRITE, kDefaultTimeoutMs);
+  EXPECT_EQ(st, SUCCESS);
+  EXPECT_EQ(ub_handler->connected_types_.size(), 2U);
+  EXPECT_NE(ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_H2D), 0U);
+}
+
+TEST_F(HixlClientUTest, LazyConnectSkipsAlreadyConnected) {
+  SetupLazyTransferTest(true);
+
+  auto *ub_handler = dynamic_cast<UbClientHandler *>(client_->client_handler_.get());
+  ASSERT_NE(ub_handler, nullptr);
+
+  // 首次 D2D 传输
+  auto op_descs = CreateTransferOps(1, &kLocalMems[0], &kRemoteMems[2]);
+  Status st = client_->TransferSync(op_descs, WRITE, kDefaultTimeoutMs);
+  EXPECT_EQ(st, SUCCESS);
+  EXPECT_EQ(ub_handler->connected_types_.size(), 1U);
+  EXPECT_NE(ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_D2D), 0U);
+
+  // 再次 D2D 传输，不应新增连接
+  st = client_->TransferSync(op_descs, WRITE, kDefaultTimeoutMs);
+  EXPECT_EQ(st, SUCCESS);
+  EXPECT_EQ(ub_handler->connected_types_.size(), 1U);
+}
+
+TEST_F(HixlClientUTest, LazyConnectOnTransferAsync) {
+  SetupLazyTransferTest(true);
+
+  auto *ub_handler = dynamic_cast<UbClientHandler *>(client_->client_handler_.get());
+  ASSERT_NE(ub_handler, nullptr);
+
+  auto op_descs = CreateTransferOps(1, &kLocalMems[0], &kRemoteMems[2]);
+  auto req = CreateAsyncTransfer(op_descs, WRITE);
+  EXPECT_EQ(ub_handler->connected_types_.size(), 1U);
+  EXPECT_NE(ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_D2D), 0U);
+}
+
+TEST_F(HixlClientUTest, LazyConnectNoRemoteMem) {
+  // 使用 k2UbNormal 但不在 mock server 上注册内存
+  server_->SetMode(MockHixlServerMode::k2UbNormal);
+  auto st = server_->CreateServer(Make4UbRemoteEpList());
+  ASSERT_EQ(st, SUCCESS);
+  // 不调用 RegMem，registered_mem_ 为空
+  server_->ListenServer();
+
+  std::vector<EndpointConfig> local_list;
+  local_list.push_back(MakeRoceHostLocalEp());
+  local_list.push_back(MakeUbHostLocalEp1());
+  local_list.push_back(MakeUbDeviceLocalEp3());
+
+  st = client_->Initialize(local_list, kDefaultTimeoutMs, true);
+  EXPECT_EQ(st, SUCCESS);
+
+  auto *ub_handler = dynamic_cast<UbClientHandler *>(client_->client_handler_.get());
+  ASSERT_NE(ub_handler, nullptr);
+  // remote_segments_ 应为空（对端无注册内存）
+  EXPECT_TRUE(ub_handler->remote_segments_.empty());
+
+  st = client_->SetLocalMemInfo(MakeMemInfoList());
+  EXPECT_EQ(st, SUCCESS);
+  st = client_->Connect(kDefaultTimeoutMs);
+  EXPECT_EQ(st, SUCCESS);
+
+  // 传输应对端地址无法分类而失败
+  auto op_descs = CreateTransferOps(1);
+  st = client_->TransferSync(op_descs, WRITE, kDefaultTimeoutMs);
+  EXPECT_EQ(st, PARAM_INVALID);
+}
+
+TEST_F(HixlClientUTest, LazyConnectNoMatchingEndpoint) {
+  // server 端注册全部 4 种 UB remote endpoint，client 端仅提供 2 种 local endpoint
+  StartServerReg4Ub(MockHixlServerMode::k4UbNormal);
+  std::vector<EndpointConfig> local_ep_list = {MakeUbHostLocalEp1(), MakeUbDeviceLocalEp3()};
+  Status st = client_->Initialize(local_ep_list, kDefaultTimeoutMs, true);  // is_lazy=true
+  EXPECT_EQ(st, SUCCESS);
+  st = client_->SetLocalMemInfo(MakeMemInfoList());
+  EXPECT_EQ(st, SUCCESS);
+  st = client_->Connect(kDefaultTimeoutMs);
+  EXPECT_EQ(st, SUCCESS);
+
+  auto *ub_handler = dynamic_cast<UbClientHandler *>(client_->client_handler_.get());
+  ASSERT_NE(ub_handler, nullptr);
+  // handles_ 仅含匹配到的 2 种类型，H2D 自然缺失
+  EXPECT_LT(ub_handler->handles_.size(), 4U);
+
+  // 构造 H2D 传输（local=HOST, remote=DEVICE），因 H2D handle 缺失，TransferSync 应返回 FAILED
+  TransferOpDesc op;
+  op.local_addr = reinterpret_cast<uintptr_t>(&kLocalMems[2]);    // HOST
+  op.remote_addr = reinterpret_cast<uintptr_t>(&kRemoteMems[2]);  // DEVICE
+  op.len = sizeof(uint32_t);
+  st = client_->TransferSync({op}, WRITE, kDefaultTimeoutMs);
+  EXPECT_EQ(st, FAILED);
+}
+
+// auto_connect 模式：lazy 首次延迟建链 → transfer 按需触发 D2D → 显式 Connect 补齐剩余链路
+TEST_F(HixlClientUTest, ExplicitConnectAfterLazyConnect) {
+  SetupLazyTransferTest(true);
+
+  auto *ub_handler = dynamic_cast<UbClientHandler *>(client_->client_handler_.get());
+  ASSERT_NE(ub_handler, nullptr);
+  EXPECT_TRUE(ub_handler->lazy_mode_);
+  // 首次 Connect（SetupLazyTransferTest 内部）延迟建链
+  EXPECT_TRUE(ub_handler->connected_types_.empty());
+  EXPECT_TRUE(ub_handler->connect_triggered_);
+
+  // 首次 transfer：按需触发 D2D 建链
+  auto d2d_ops = CreateTransferOps(1, &kLocalMems[0], &kRemoteMems[2]);
+  Status st = client_->TransferSync(d2d_ops, WRITE, kDefaultTimeoutMs);
+  EXPECT_EQ(st, SUCCESS);
+  EXPECT_NE(ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_D2D), 0U);
+  EXPECT_EQ(ub_handler->connected_types_.size(), 1U);
+
+  // 用户显式调 Connect：补齐剩余链路
+  st = client_->Connect(kDefaultTimeoutMs);
+  EXPECT_EQ(st, SUCCESS);
+  EXPECT_EQ(ub_handler->connected_types_.size(), 4U);
+}
+
+// DirectHandler 已建链后再次 Connect 返回 ALREADY_CONNECTED
+TEST_F(HixlClientUTest, DirectHandlerDoubleConnectReturnsAlreadyConnected) {
+  SetupTransferTest(false);
+
+  // 首次 Connect 成功
+  auto *direct_handler = dynamic_cast<DirectClientHandler *>(client_->client_handler_.get());
+  ASSERT_NE(direct_handler, nullptr);
+  EXPECT_TRUE(client_->is_connected_);
+
+  // 二次 Connect：DirectClientHandler 不支持重复建链，返回 ALREADY_CONNECTED
+  Status st = client_->Connect(kDefaultTimeoutMs);
+  EXPECT_EQ(st, ALREADY_CONNECTED);
+}
+
+// 非 lazy UB handler 已建链后再次 Connect 正常返回 ALREADY_CONNECTED
+TEST_F(HixlClientUTest, UbNonLazyHandlerDoubleConnect) {
+  SetupTransferTest(true, false);
+
+  auto *ub_handler = dynamic_cast<UbClientHandler *>(client_->client_handler_.get());
+  ASSERT_NE(ub_handler, nullptr);
+  EXPECT_FALSE(ub_handler->lazy_mode_);
+  // 首次 Connect 已全量建链
+  EXPECT_EQ(ub_handler->connected_types_.size(), 4U);
+
+  // 二次 Connect：返回 ALREADY_CONNECTED
+  Status st = client_->Connect(kDefaultTimeoutMs);
+  EXPECT_EQ(st, ALREADY_CONNECTED);
+  EXPECT_EQ(ub_handler->connected_types_.size(), 4U);
 }
 
 }  // namespace hixl

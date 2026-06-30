@@ -37,8 +37,8 @@ class ClientManager {
   ~ClientManager() = default;
   Status Initialize(bool auto_connect);
   Status Finalize();
-  Status GetOrCreateClient(const ClientConfig &config, const std::vector<MemInfo> &mem_info_list,
-                           int32_t timeout_in_millis, ClientPtr &client_ptr);
+  Status GetOrCreateClient(const ClientConfig &config, const std::vector<MemHandleInfo> &mem_info_list,
+                           ClientPtr &client_ptr);
   ClientPtr GetClient(const std::string &remote_engine);
   ClientPtr GetClientByReq(const TransferReq &req);
   Status DestroyClient(const std::string &remote_engine);

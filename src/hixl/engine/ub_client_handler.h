@@ -13,6 +13,7 @@
 
 #include <map>
 #include <mutex>
+#include <set>
 #include <vector>
 #include "engine/client_handler.h"
 #include "engine/client_handler_factory.h"
@@ -25,7 +26,7 @@ class UbClientHandler : public IClientHandler {
   ~UbClientHandler() override = default;
 
   Status Connect(uint32_t timeout_ms) override;
-  Status RegisterMem(const MemInfo &mem_info) override;
+  Status RegisterMem(const MemHandleInfo &mem_info) override;
   Status TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation, TransferReq &req) override;
   Status TransferSync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation, uint32_t timeout_ms) override;
   Status GetTransferStatus(const TransferReq &req, TransferStatus &status) override;
@@ -35,6 +36,22 @@ class UbClientHandler : public IClientHandler {
   Status ClassifyTransfers(const std::vector<TransferOpDesc> &op_descs,
                            std::map<CommType, std::vector<TransferOpDesc>> &table);
   Status GetMemType(const std::vector<SegmentPtr> &segments, uintptr_t addr, size_t len, MemType &mem_type) const;
+
+  /**
+   * @brief 懒惰模式下确保传输所需链路已连接
+   */
+  Status EnsureLinksConnected(const std::vector<CommType> &types, uint32_t timeout_ms);
+
+  /**
+   * @brief 并行连接一组链路并批量标记
+   */
+  Status ConnectHandles(const std::map<CommType, HixlClientHandle> &handles, uint32_t timeout_ms);
+
+  /**
+   * @brief 从MemInfo列表构建remote_segments_
+   * @param [in] mem_info_list 对端内存信息列表
+   */
+  Status BuildRemoteSegmentsFromMemInfo(const std::vector<MemInfo> &mem_info_list);
 
   struct BatchHandle {
     CommType type;
@@ -51,6 +68,11 @@ class UbClientHandler : public IClientHandler {
   std::mutex local_seg_mutex_;
   std::mutex remote_seg_mutex_;
   std::mutex complete_handles_mutex_;
+
+  bool lazy_mode_ = false;
+  bool connect_triggered_ = false;  // 区分 GetOrCreateClient 内部首次调用（延迟）与用户显式 Connect（实际建链）
+  std::set<CommType> connected_types_;
+  uint32_t connect_timeout_ms_ = 0;
 };
 
 }  // namespace hixl

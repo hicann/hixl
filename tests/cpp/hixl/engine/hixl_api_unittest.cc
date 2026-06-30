@@ -690,11 +690,16 @@ TEST_F(HixlUTest, TestHixlMultiSendNotifies) {
     EXPECT_EQ(engine1.SendNotify("127.0.0.1:26201", notify), SUCCESS);
     EXPECT_EQ(engine3.SendNotify("127.0.0.1:26201", notify), SUCCESS);
   }
-  // sleep 100 ms then get notifies
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
+  // 轮询等待所有 notify 到达，避免 ASAN 模式下固定 sleep 不足导致的偶发失败
+  constexpr int kMaxNotifyRetries = 50;
+  constexpr int kNotifyPollIntervalMs = 20;
   std::vector<NotifyDesc> notifies;
-  EXPECT_EQ(engine2.GetNotifies(notifies), SUCCESS);
+  for (int retry = 0; retry < kMaxNotifyRetries; ++retry) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(kNotifyPollIntervalMs));
+    EXPECT_EQ(engine2.GetNotifies(notifies), SUCCESS);
+    if (notifies.size() >= 10) break;
+  }
   // should get 10 notifies
   EXPECT_EQ(notifies.size(), 10);
 

@@ -101,7 +101,7 @@ Status HixlEngine::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_
   HIXL_CHK_STATUS_RET(server_.RegisterMem(mem, type, mem_handle),
                       "[HixlEngine] Failed to register mem, type:%s, addr:%p, size:%lu", MemTypeToString(type).c_str(),
                       reinterpret_cast<void *>(mem.addr), mem.len);
-  MemInfo mem_info = {mem_handle, mem, type};
+  MemHandleInfo mem_info = {mem_handle, mem, type};
   std::lock_guard<std::mutex> lock(mutex_);
   mem_map_.emplace(mem_handle, mem_info);
   HIXL_LOGI("[HixlEngine] Registration succeeded, type:%s, addr:%p, size:%lu", MemTypeToString(type).c_str(),
@@ -140,16 +140,16 @@ Status HixlEngine::Connect(const AscendString &remote_engine, int32_t timeout_in
             remote_engine.GetString());
   auto with_context = aclrt_context_.GetContextGuard();
   ClientConfig config{};
-  std::vector<MemInfo> mem_info_list;
+  std::vector<MemHandleInfo> mem_info_list;
   BuildClientConfig(remote_engine, config, mem_info_list, timeout_in_millis);
+  config.is_lazy = false;
   ClientPtr client_ptr = nullptr;
-  Status ret = client_manager_.GetOrCreateClient(config, mem_info_list, timeout_in_millis, client_ptr);
-  if (ret == ALREADY_CONNECTED) {
-    HIXL_LOGE(ALREADY_CONNECTED, "[HixlEngine] remote_engine:%s is already connected to local_engine:%s",
-              remote_engine.GetString(), local_engine_.c_str());
-    return ALREADY_CONNECTED;
-  }
-  HIXL_CHK_STATUS_RET(ret, "[HixlEngine] Failed to connect, local_engine:%s, remote_engine:%s, timeout:%d ms",
+  Status ret = client_manager_.GetOrCreateClient(config, mem_info_list, client_ptr);
+  HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS || ret == ALREADY_CONNECTED, ret,
+                           "[HixlEngine] Failed to create client, local_engine:%s, remote_engine:%s, timeout:%d ms",
+                           local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
+  HIXL_CHK_STATUS_RET(client_ptr->Connect(timeout_in_millis),
+                      "[HixlEngine] Failed to connect client, local_engine:%s, remote_engine:%s, timeout:%d ms",
                       local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
   HIXL_LOGI("[HixlEngine] Connection succeeded, local_engine:%s, remote_engine:%s", local_engine_.c_str(),
             remote_engine.GetString());
@@ -354,29 +354,34 @@ Status HixlEngine::AutoConnect(const AscendString &remote_engine, int32_t timeou
   }
 
   ClientConfig config{};
-  std::vector<MemInfo> mem_info_list;
+  std::vector<MemHandleInfo> mem_info_list;
   BuildClientConfig(remote_engine, config, mem_info_list, timeout_in_millis);
 
   HIXL_LOGI("[HixlEngine] Auto connect started, local_engine:%s, remote_engine:%s, timeout:%d ms.",
             local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
   auto with_context = aclrt_context_.GetContextGuard();
-  Status ret = client_manager_.GetOrCreateClient(config, mem_info_list, timeout_in_millis, client_ptr);
+  Status ret = client_manager_.GetOrCreateClient(config, mem_info_list, client_ptr);
   if (ret == ALREADY_CONNECTED) {
     return SUCCESS;
   }
   HIXL_CHK_STATUS_RET(ret, "[HixlEngine] Failed to auto connect, local_engine:%s, remote_engine:%s, timeout:%d ms",
                       local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
+  HIXL_CHK_STATUS_RET(
+      client_ptr->Connect(timeout_in_millis),
+      "[HixlEngine] Failed to connect client in auto connect, local_engine:%s, remote_engine:%s, timeout:%d ms",
+      local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
   return SUCCESS;
 }
 
 void HixlEngine::BuildClientConfig(const AscendString &remote_engine, ClientConfig &config,
-                                   std::vector<MemInfo> &mem_info_list, int32_t timeout_in_millis) {
+                                   std::vector<MemHandleInfo> &mem_info_list, int32_t timeout_in_millis) {
   config.endpoint_list = endpoint_list_;
   config.remote_engine = remote_engine.GetString();
   config.rdma_tc = rdma_traffic_class_;
   config.rdma_sl = rdma_service_level_;
   config.timeout_ms = static_cast<uint32_t>(timeout_in_millis);
   config.qos = qos_;
+  config.is_lazy = auto_connect_;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     for (const auto &pair : mem_map_) {
