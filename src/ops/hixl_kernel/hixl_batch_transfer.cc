@@ -13,6 +13,7 @@
 #include <vector>
 #include "common/hixl_log.h"
 #include "common/hixl_checker.h"
+#include "common/scope_guard.h"
 #include "proxy/hcomm_proxy.h"
 #include "transfer_context_manager.h"
 #include "hixl/hixl.h"
@@ -120,6 +121,39 @@ uint32_t HixlBatchTransferTask(bool is_read, HixlOneSideOpParam *param) {
   return SUCCESS;
 }
 
+Status ReadRemoteFlag(HixlOneSideOpParam *param) {
+  HIXL_LOGI(
+      "[HixlBatchPutAndGet] HcommReadOnThread start to read remote flag, flag_size=%u, "
+      "local_flag=%lu, remote_flag=%lu",
+      param->flag_size, param->local_flag_addr, param->remote_flag_addr);
+  int32_t ret = HcommProxy::ReadOnThread(
+      param->thread, param->channel, reinterpret_cast<void *>(static_cast<uintptr_t>(param->local_flag_addr)),
+      reinterpret_cast<void *>(static_cast<uintptr_t>(param->remote_flag_addr)), param->flag_size);
+  HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED,
+                           "[HixlBatchPutAndGet] Remote flag read failed. dst:%lu, src:%lu, len:%u, ret=%d.",
+                           param->local_flag_addr, param->remote_flag_addr, param->flag_size, ret);
+  return SUCCESS;
+}
+
+Status RecordRemoteNotify(HixlOneSideOpParam *param) {
+  HIXL_LOGI("[HixlBatchPutAndGet] aclrtNotifyRecordOnThread start to read remote flag, thread[%lu], notify_id[%u]",
+            param->thread, param->notify_id);
+  int32_t ret = HcommProxy::aclrtNotifyRecordOnThread(param->thread, param->notify_id);
+  HIXL_CHK_BOOL_RET_STATUS(
+      ret == 0, FAILED,
+      "[HixlBatchPutAndGet] aclrtNotifyRecordOnThread start to read remote flag failed, thread[%lu], notify_id[%u]",
+      param->thread, param->notify_id);
+  return SUCCESS;
+}
+
+Status HandleRemoteFlag(HixlOneSideOpParam *param) {
+  HIXL_LOGI("[HixlBatchPutAndGet] HixlBatchTransfer use_notify_record=%u.", param->use_notify_record);
+  if (param->remote_flag_addr == 0) {
+    return SUCCESS;
+  }
+  return param->use_notify_record == 0 ? ReadRemoteFlag(param) : RecordRemoteNotify(param);
+}
+
 uint32_t HixlBatchTransfer(bool is_read, HixlOneSideOpParam *param) {
   HIXL_LOGI("[HixlBatchPutAndGet] HixlBatchTransfer %s start.", is_read ? "read" : "write");
   HIXL_CHK_STATUS_RET(ValidateBatchTransferParam(param), "[HixlBatchPutAndGet] validate param failed");
@@ -139,6 +173,12 @@ uint32_t HixlBatchTransfer(bool is_read, HixlOneSideOpParam *param) {
   constexpr const char *kBatchTag = "HixlKernel";
   int32_t ret = HcommProxy::BatchModeStart(kBatchTag);
   HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED, "[HixlBatchPutAndGet] HcommBatchModeStart failed, ret is %d", ret);
+  HIXL_DISMISSABLE_GUARD(batch_mode, ([kBatchTag]() {
+                           int32_t ret = HcommProxy::BatchModeEnd(kBatchTag);
+                           if (ret != 0) {
+                             HIXL_LOGE(FAILED, "[HixlBatchPutAndGet] HcommBatchModeEnd failed, ret is %d", ret);
+                           }
+                         }));
 
   ret = HixlBatchTransferTask(is_read, param);
   HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED, "[HixlBatchPutAndGet] HixlBatchTransferTask failed, ret is %d", ret);
@@ -146,31 +186,10 @@ uint32_t HixlBatchTransfer(bool is_read, HixlOneSideOpParam *param) {
   ret = HcommProxy::ChannelFenceOnThread(param->thread, param->channel);
   HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED, "[HixlBatchPutAndGet] HcommChannelFenceOnThread failed, ret is %d", ret);
 
-  HIXL_LOGI("[HixlBatchPutAndGet] HixlBatchTransfer use_notify_record=%u.", param->use_notify_record);
-  if (param->remote_flag_addr != 0) {
-    if (param->use_notify_record == 0) {
-      HIXL_LOGI(
-          "[HixlBatchPutAndGet] HcommReadOnThread start to read remote flag, flag_size=%u, "
-          "local_flag=%lu, remote_flag=%lu",
-          param->flag_size, param->local_flag_addr, param->remote_flag_addr);
-      ret = HcommProxy::ReadOnThread(
-          param->thread, param->channel, reinterpret_cast<void *>(static_cast<uintptr_t>(param->local_flag_addr)),
-          reinterpret_cast<void *>(static_cast<uintptr_t>(param->remote_flag_addr)), param->flag_size);
-      HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED,
-                               "[HixlBatchPutAndGet] Remote flag read failed. dst:%lu, src:%lu, len:%u, ret=%d.",
-                               param->local_flag_addr, param->remote_flag_addr, param->flag_size, ret);
-    } else {
-      HIXL_LOGI("[HixlBatchPutAndGet] aclrtNotifyRecordOnThread start to read remote flag, thread[%lu], notify_id[%u]",
-                param->thread, param->notify_id);
-      ret = HcommProxy::aclrtNotifyRecordOnThread(param->thread, param->notify_id);
-      HIXL_CHK_BOOL_RET_STATUS(
-          ret == 0, FAILED,
-          "[HixlBatchPutAndGet] aclrtNotifyRecordOnThread start to read remote flag failed, thread[%lu], notify_id[%u]",
-          param->thread, param->notify_id);
-    }
-  }
+  HIXL_CHK_STATUS_RET(HandleRemoteFlag(param), "[HixlBatchPutAndGet] handle remote flag failed");
 
   ret = HcommProxy::BatchModeEnd(kBatchTag);
+  HIXL_DISMISS_GUARD(batch_mode);
   HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED, "[HixlBatchPutAndGet] HcommBatchModeEnd failed, ret is %d", ret);
 
   return SUCCESS;
