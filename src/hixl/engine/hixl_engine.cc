@@ -80,6 +80,7 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
   }
   int32_t device_id = -1;
   HIXL_CHK_ACL_RET(aclrtGetDevice(&device_id));
+  hixl::TemporaryRtContext with_context(nullptr);
   HIXL_CHK_ACL_RET(aclrtCreateContext(&aclrt_context_, device_id));
   HIXL_LOGI("[HixlEngine] Created aclrt context:%p, device_id:%d", aclrt_context_, device_id);
   HIXL_DISMISSABLE_GUARD(ctx_fail_guard, ([this]() {
