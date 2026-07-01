@@ -25,7 +25,7 @@ class DirectClientHandler : public IClientHandler {
   ~DirectClientHandler() override = default;
 
   Status Connect(uint32_t timeout_ms) override;
-  Status RegisterMem(const MemInfo &mem_info) override;
+  Status RegisterMem(const MemHandleInfo &mem_info) override;
   Status TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation, TransferReq &req) override;
   Status TransferSync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation, uint32_t timeout_ms) override;
   Status GetTransferStatus(const TransferReq &req, TransferStatus &status) override;
@@ -36,6 +36,7 @@ class DirectClientHandler : public IClientHandler {
 
  private:
   HixlClientHandle handle_;
+  bool is_connected_{false};
   std::vector<MemHandle> mem_handles_;
   std::map<TransferReq, CompleteHandle> complete_handles_;
   std::mutex mutex_;

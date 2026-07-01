@@ -115,9 +115,15 @@ struct EndpointConfig {
 };
 
 struct MemInfo {
+  uintptr_t addr;  // 内存地址
+  size_t size;     // 内存大小
+  MemType type;    // 内存类型
+};
+
+struct MemHandleInfo {
   MemHandle mem_handle;
-  MemDesc mem;
-  MemType type;
+  MemDesc mem{};
+  MemType type = MEM_DEVICE;
 };
 
 struct TransferInfo {

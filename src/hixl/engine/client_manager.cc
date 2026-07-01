@@ -58,13 +58,13 @@ Status ClientManager::CreateClient(const ClientConfig &config, ClientPtr &client
   }
   client_ptr = MakeShared<HixlClient>(ip, static_cast<uint32_t>(port), config);
   HIXL_CHECK_NOTNULL(client_ptr, "Failed to create HixlClient, ip:%s, port:%u", ip.c_str(), port);
-  HIXL_CHK_STATUS_RET(client_ptr->Initialize(config.endpoint_list, config.timeout_ms),
+  HIXL_CHK_STATUS_RET(client_ptr->Initialize(config.endpoint_list, config.timeout_ms, config.is_lazy),
                       "Failed to initialize HixlClient, ip:%s, port:%u", ip.c_str(), port);
   return SUCCESS;
 }
 
-Status ClientManager::GetOrCreateClient(const ClientConfig &config, const std::vector<MemInfo> &mem_info_list,
-                                        int32_t timeout_in_millis, ClientPtr &client_ptr) {
+Status ClientManager::GetOrCreateClient(const ClientConfig &config, const std::vector<MemHandleInfo> &mem_info_list,
+                                        ClientPtr &client_ptr) {
   auto client_mutex = GetClientMutex(config.remote_engine);
   std::lock_guard<std::mutex> client_lock(*client_mutex);
   {
@@ -84,9 +84,6 @@ Status ClientManager::GetOrCreateClient(const ClientConfig &config, const std::v
   HIXL_DISMISSABLE_GUARD(fail_guard, ([new_client]() { (void)new_client->Finalize(); }));
   HIXL_CHK_STATUS_RET(new_client->SetLocalMemInfo(mem_info_list), "Failed to set local memory info, remote_engine:%s",
                       config.remote_engine.c_str());
-  HIXL_CHK_STATUS_RET(new_client->Connect(timeout_in_millis),
-                      "Failed to connect client, remote_engine:%s, timeout:%d ms", config.remote_engine.c_str(),
-                      timeout_in_millis);
   HIXL_DISMISS_GUARD(fail_guard);
 
   std::lock_guard<std::mutex> lock(mutex_);

@@ -41,6 +41,8 @@ enum class CtrlMsgType : int32_t {
   kNotify = 12,
   kNotifyAck = 13,
   kHeartBeat = 14,
+  kGetMemInfoReq = 15,
+  kGetMemInfoResp = 16,
   kEnd
 };
 

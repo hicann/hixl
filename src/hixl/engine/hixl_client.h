@@ -33,6 +33,7 @@ struct ClientConfig {
   uint32_t timeout_ms;
   std::optional<uint8_t> qos;
   std::optional<uint32_t> max_active_channels;
+  bool is_lazy = false;
 };
 
 class HixlClient {
@@ -57,15 +58,16 @@ class HixlClient {
    * @param [in] mem_info_list 本端注册内存信息
    * @return 操作结果状态码
    */
-  Status SetLocalMemInfo(const std::vector<MemInfo> &mem_info_list);
+  Status SetLocalMemInfo(const std::vector<MemHandleInfo> &mem_info_list);
 
   /**
    * @brief client初始化
    * @param [in] local_endpoint_list 客户端本地 endpoint_list
    * @param [in] timeout_ms          超时时间（ms）
+   * @param [in] is_lazy             是否懒惰建链模式
    * @return 操作结果状态码
    */
-  Status Initialize(const std::vector<EndpointConfig> &local_endpoint_list, uint32_t timeout_ms);
+  Status Initialize(const std::vector<EndpointConfig> &local_endpoint_list, uint32_t timeout_ms, bool is_lazy = false);
 
   /**
    * @brief 建链
