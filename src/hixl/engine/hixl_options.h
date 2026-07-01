@@ -39,6 +39,7 @@ struct CommResourceConfigDesc {
   std::optional<std::vector<std::string>> protocol_desc;
   std::optional<uint32_t> listen_port;
   std::optional<uint8_t> qos;
+  std::optional<uint32_t> max_active_channels;
 };
 
 struct GlobalResourceConfig {

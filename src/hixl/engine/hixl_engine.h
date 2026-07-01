@@ -154,7 +154,7 @@ class HixlEngine : public hixl::Engine {
 
  private:
   static const std::unordered_set<std::string> kSupportedOptions;
-  Status InitServer(std::optional<uint32_t> listen_port);
+  Status InitServer(std::optional<uint32_t> listen_port, std::optional<uint32_t> max_active_channels);
   Status AutoConnect(const AscendString &remote_engine, int32_t timeout_in_millis);
   Status AutoDisconnect(const AscendString &remote_engine, int32_t timeout_in_millis);
   void BuildClientConfig(const AscendString &remote_engine, ClientConfig &config, std::vector<MemInfo> &mem_info_list,
@@ -171,6 +171,7 @@ class HixlEngine : public hixl::Engine {
   uint8_t rdma_service_level_{kRdmaServiceLevel};
   std::atomic<bool> auto_connect_{false};
   std::optional<uint8_t> qos_;
+  std::optional<uint32_t> max_active_channels_;
   aclrtContext aclrt_context_{nullptr};
 };
 }  // namespace hixl

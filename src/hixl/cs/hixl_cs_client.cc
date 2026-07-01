@@ -34,7 +34,7 @@
 
 namespace hixl {
 namespace {
-constexpr uint32_t kDeviceTransferPoolSize = 128U;
+constexpr uint32_t kDefaultTransferPoolSize = 128U;
 constexpr uint32_t kDeviceCompleteMagic = 0x55425548U;
 constexpr uint32_t kRoceCompleteMagic = 0x524F4345U;
 constexpr const char *kTransFlagNameHost = "_hixl_builtin_host_trans_flag";
@@ -309,7 +309,7 @@ Status HixlCSClient::InitDeviceResource(const EndpointDesc &ep) {
   hixl::TemporaryRtContext with_context(nullptr);  // 创建context会切换当前context, 因此需要在析构时恢复原用户context
   auto *pool = TransferPool::GetInstance(device_id_);
   HIXL_CHECK_NOTNULL(pool);
-  HIXL_CHK_STATUS_RET(pool->Initialize(kDeviceTransferPoolSize),
+  HIXL_CHK_STATUS_RET(pool->Initialize(global_config_.MaxActiveChannels().value_or(kDefaultTransferPoolSize)),
                       "[HixlClient] TransferPool Initialize failed. devId=%d", device_id_);
   return SUCCESS;
 }

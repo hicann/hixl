@@ -10,7 +10,10 @@
 
 #include "global_config.h"
 
+#include <limits>
+
 #include "nlohmann/json.hpp"
+#include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 #include "common/hixl_inner_types.h"
 #include "common/json_utils.h"
@@ -18,8 +21,10 @@
 namespace hixl {
 namespace {
 constexpr const char *kListenPort = "comm_resource_config.listen_port";
+constexpr const char *kMaxActiveChannels = "comm_resource_config.max_active_channels";
 constexpr int64_t kMinListenPort = 1;
 constexpr int64_t kMaxListenPort = 65535;
+constexpr int64_t kMinActiveChannels = 1;
 
 Status ParseListenPort(const nlohmann::json &json, CommResourceConfig &config) {
   const auto it = json.find(kListenPort);
@@ -56,6 +61,24 @@ Status ParseQos(const nlohmann::json &json, CommResourceConfig &config) {
   return SUCCESS;
 }
 
+Status ParseMaxActiveChannels(const nlohmann::json &json, CommResourceConfig &config) {
+  const auto it = json.find(kMaxActiveChannels);
+  if (it == json.end()) {
+    return SUCCESS;
+  }
+
+  const auto val = JsonToNumber<int64_t>(*it);
+  if (val < kMinActiveChannels || val > std::numeric_limits<uint32_t>::max()) {
+    HIXL_LOGE(PARAM_INVALID, "[GlobalConfig] max_active_channels out of range: %ld, must be >= %ld", val,
+              kMinActiveChannels);
+    return PARAM_INVALID;
+  }
+
+  config.max_active_channels = static_cast<uint32_t>(val);
+  HIXL_LOGI("[GlobalConfig] max_active_channels=%u", *config.max_active_channels);
+  return SUCCESS;
+}
+
 Status ParseCommResourceConfig(const nlohmann::json &json, CommResourceConfig &config,
                                GlobalConfig::ParseTarget target) {
   if (target == GlobalConfig::ParseTarget::kAll || target == GlobalConfig::ParseTarget::kServer) {
@@ -73,6 +96,7 @@ Status ParseCommResourceConfig(const nlohmann::json &json, CommResourceConfig &c
       return ret;
     }
   }
+  HIXL_CHK_STATUS_RET(ParseMaxActiveChannels(json, config), "[GlobalConfig] Failed to parse max_active_channels");
   return SUCCESS;
 }
 }  // namespace
@@ -111,5 +135,9 @@ std::optional<uint32_t> GlobalConfig::ListenPort() const {
 
 std::optional<uint8_t> GlobalConfig::Qos() const {
   return comm_resource_config_.qos;
+}
+
+std::optional<uint32_t> GlobalConfig::MaxActiveChannels() const {
+  return comm_resource_config_.max_active_channels;
 }
 }  // namespace hixl

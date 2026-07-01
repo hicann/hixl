@@ -38,7 +38,7 @@ bool HixlEngine::IsInitialized() const {
   return is_initialized_.load(std::memory_order::memory_order_relaxed);
 }
 
-Status HixlEngine::InitServer(std::optional<uint32_t> listen_port) {
+Status HixlEngine::InitServer(std::optional<uint32_t> listen_port, std::optional<uint32_t> max_active_channels) {
   std::string ip;
   int32_t port = 0;
   HIXL_CHK_STATUS_RET(ParseListenInfo(local_engine_, ip, port),
@@ -47,7 +47,7 @@ Status HixlEngine::InitServer(std::optional<uint32_t> listen_port) {
                       "ipv6 should be '[host_ip]:host_port' or '[host_ip]' "
                       "current local_engine:%s",
                       local_engine_.c_str());
-  HIXL_CHK_STATUS_RET(server_.Initialize(ip, port, endpoint_list_, listen_port),
+  HIXL_CHK_STATUS_RET(server_.Initialize(ip, port, endpoint_list_, listen_port, max_active_channels),
                       "[HixlEngine] Failed to initialize HixlEngine, local_engine:%s", local_engine_.c_str());
   return SUCCESS;
 }
@@ -72,9 +72,11 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
   if (global_resource_config.has_value()) {
     listen_port = global_resource_config->comm_resource_config.listen_port;
     qos_ = global_resource_config->comm_resource_config.qos;
+    max_active_channels_ = global_resource_config->comm_resource_config.max_active_channels;
   } else {
     listen_port.reset();
     qos_.reset();
+    max_active_channels_.reset();
   }
   int32_t device_id = -1;
   HIXL_CHK_ACL_RET(aclrtGetDevice(&device_id));
@@ -86,7 +88,7 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
                          }));
   {
     hixl::TemporaryRtContext with_context(aclrt_context_);
-    HIXL_CHK_STATUS_RET(InitServer(listen_port),
+    HIXL_CHK_STATUS_RET(InitServer(listen_port, max_active_channels_),
                         "[HixlEngine] Failed to initialize server, local_engine:%s, local_comm_res:%s",
                         local_engine_.c_str(), local_comm_res.c_str());
   }
@@ -386,6 +388,7 @@ void HixlEngine::BuildClientConfig(const AscendString &remote_engine, ClientConf
   config.rdma_sl = rdma_service_level_;
   config.timeout_ms = static_cast<uint32_t>(timeout_in_millis);
   config.qos = qos_;
+  config.max_active_channels = max_active_channels_;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     for (const auto &pair : mem_map_) {

@@ -38,6 +38,7 @@ struct HandlerCreateArgs {
   };
   std::vector<EndpointPair> matched_pairs;
   std::optional<uint8_t> qos;
+  std::optional<uint32_t> max_active_channels;
 };
 
 class ClientHandlerFactory {

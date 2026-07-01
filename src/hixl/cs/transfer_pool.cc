@@ -72,7 +72,7 @@ void TransferPool::InitFreeListLocked() {
 }
 
 Status TransferPool::Initialize(uint32_t pool_size) {
-  if ((pool_size == 0U) || (pool_size > kMaxPoolSize)) {
+  if (pool_size == 0U) {
     HIXL_LOGE(PARAM_INVALID, "[TransferPool] Initialize invalid pool_size=%u (device_id=%d)", pool_size, device_id_);
     return PARAM_INVALID;
   }
