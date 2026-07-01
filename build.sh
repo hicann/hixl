@@ -30,7 +30,7 @@ usage() {
   echo "    -h, --help        Print usage"
   echo "    -v, --verbose     Display build command"
   echo "    -j<N>             Set the number of threads used for building HIXL, default is 8"
-  echo "    --pkg-type=<TYPE> Specify package type (TYPE option: run/rpm/deb), Default: run"
+  echo "    --pkg-type=<TYPE> Specify package type (TYPE option: run/rpm/deb/all), Default: run"
   echo "    --build_type=<Release|Debug> |--build-type=<Release|Debug>"
   echo "                      Set build type, default Release"
   echo "    --cann_3rd_lib_path=<PATH> | --cann-3rd-lib-path=<PATH>"
@@ -41,7 +41,7 @@ usage() {
   echo "    --examples        Build with examples and benchmarks, default is OFF"
   echo "    --asan            Enable AddressSanitizer, default is OFF"
   echo "    --cov             Enable Coverage, default is OFF"
-  echo "    --sign-script=<PATH> | --sign_script=<PATH>" 
+  echo "    --sign-script=<PATH> | --sign_script=<PATH>"
   echo "                          Set sign-script's path to <PATH>"
   echo "    --enable-sign    Enable to sign"
   echo ""
@@ -62,7 +62,7 @@ check_build_type() {
 # usage: check_pkg_type pkg_type
 check_pkg_type() {
   arg_value="$1"
-  if [ "X$arg_value" != "Xrun" ] && [ "X$arg_value" != "Xrpm" ] && [ "X$arg_value" != "Xdeb" ]; then
+  if [ "X$arg_value" != "Xrun" ] && [ "X$arg_value" != "Xrpm" ] && [ "X$arg_value" != "Xdeb" ] && [ "X$arg_value" != "Xall" ]; then
     echo "Invalid value $arg_value for option --$2"
     usage
     exit 1
@@ -171,6 +171,37 @@ mk_dir() {
   echo "created ${create_dir}"
 }
 
+# move a single package type to OUTPUT_PATH, return 1 if not found
+move_pkg() {
+  local type="$1"
+  case "${type}" in
+    deb)
+      if ls *.deb 1>/dev/null 2>&1; then
+        mv *.deb ${OUTPUT_PATH}
+      else
+        echo "package hixl deb failed"
+        return 1
+      fi
+      ;;
+    rpm)
+      if ls *.rpm 1>/dev/null 2>&1; then
+        mv *.rpm ${OUTPUT_PATH}
+      else
+        echo "package hixl rpm failed"
+        return 1
+      fi
+      ;;
+    run)
+      if [ -f _CPack_Packages/makeself_staging/cann*.run ]; then
+        mv _CPack_Packages/makeself_staging/cann*.run ${OUTPUT_PATH}
+      else
+        echo "package hixl run failed"
+        return 1
+      fi
+      ;;
+  esac
+}
+
 build() {
   echo "create build directory and build hixl";
   mk_dir "${BUILD_PATH}"
@@ -197,30 +228,15 @@ build() {
   echo "Build success!"
 
   case "${PACKAGE_TYPE}" in
-    deb)
-      if ls *.deb 1>/dev/null 2>&1; then
-        mv *.deb ${OUTPUT_PATH}
-      else
-        echo "package hixl deb failed"
-        return 1
-      fi
-      ;;
-    rpm)
-      if ls *.rpm 1>/dev/null 2>&1; then
-        mv *.rpm ${OUTPUT_PATH}
-      else
-        echo "package hixl rpm failed"
-        return 1
-      fi
+    all)
+      local has_err=0
+      move_pkg deb || has_err=1
+      move_pkg rpm || has_err=1
+      move_pkg run || has_err=1
+      [ $has_err -eq 0 ] || return 1
       ;;
     *)
-      # default "run": makeself .run package
-      if [ -f _CPack_Packages/makeself_staging/cann*.run ]; then
-        mv _CPack_Packages/makeself_staging/cann*.run ${OUTPUT_PATH}
-      else
-        echo "package hixl run failed"
-        return 1
-      fi
+      move_pkg "${PACKAGE_TYPE}" || return 1
       ;;
   esac
 

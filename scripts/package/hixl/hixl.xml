@@ -51,7 +51,6 @@
     </file_info>
     <block_info dependtree="false" dst_path="" block_conf_path="ascend">
         <block name="EngineeringCommon"/>
-        <block name="EngineeringFiles"/>
         <block name="LlmDatadistCompatiableInc"/>
     </block_info>
     <dir_info value="hixl" install_path="hixl" install_mod="550" install_type="all">

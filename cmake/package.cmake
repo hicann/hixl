@@ -66,9 +66,6 @@ set(PACKAGE_FILES
     ${COMMON_FILES}
     ${CANN_CMAKE_DIR}/scripts/install/multi_version.inc
 )
-set(CONF_FILES
-    ${CANN_CMAKE_DIR}/scripts/package/cfg/path.cfg
-)
 
 install(FILES ${CMAKE_BINARY_DIR}/version.hixl.info
     DESTINATION share/info/hixl
@@ -76,10 +73,6 @@ install(FILES ${CMAKE_BINARY_DIR}/version.hixl.info
     RENAME version.info
 )
 
-install(FILES ${CONF_FILES}
-    DESTINATION ${ARCH_LINUX_PATH}/conf
-    COMPONENT hixl
-)
 install(FILES ${PACKAGE_FILES}
     DESTINATION share/info/hixl/script
     COMPONENT hixl
