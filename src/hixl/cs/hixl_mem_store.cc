@@ -303,7 +303,8 @@ Status HixlMemStore::BatchValidateMemoryAccess(uint32_t list_num, const HixlOneS
   return SUCCESS;
 }
 
-Status HixlMemStore::ConvertHostAddr(HixlOneSideOpDesc &desc) const {
+Status HixlMemStore::ConvertHostAddr(HixlOneSideOpDesc &desc, uint32_t &local_host_cnt,
+                                     uint32_t &remote_host_cnt) const {
   MemoryRegion remote_region;
   Status status = FindMemoryRegion(true, desc.remote_buf, remote_region);
   if (status != SUCCESS) {
@@ -315,7 +316,9 @@ Status HixlMemStore::ConvertHostAddr(HixlOneSideOpDesc &desc) const {
     uintptr_t offset = reinterpret_cast<uintptr_t>(desc.remote_buf) - reinterpret_cast<uintptr_t>(remote_region.addr);
     void *host_addr = desc.remote_buf;
     desc.remote_buf = static_cast<void *>(static_cast<char *>(remote_region.register_dev_addr) + offset);
-    HIXL_LOGI("[HixlMemStore] Convert remote addr: %p -> %p", host_addr, desc.remote_buf);
+    HIXL_LOGD("[HixlMemStore] Convert remote addr: %p -> %p, region_size=%zu, desc_len=%lu", host_addr, desc.remote_buf,
+              remote_region.size, desc.len);
+    remote_host_cnt++;
   }
 
   MemoryRegion local_region;
@@ -329,19 +332,26 @@ Status HixlMemStore::ConvertHostAddr(HixlOneSideOpDesc &desc) const {
     uintptr_t offset = reinterpret_cast<uintptr_t>(desc.local_buf) - reinterpret_cast<uintptr_t>(local_region.addr);
     void *host_addr = desc.local_buf;
     desc.local_buf = static_cast<void *>(static_cast<char *>(local_region.register_dev_addr) + offset);
-    HIXL_LOGI("[HixlMemStore] Convert local addr: %p -> %p", host_addr, desc.local_buf);
+    HIXL_LOGD("[HixlMemStore] Convert local addr: %p -> %p, region_size=%zu, desc_len=%lu", host_addr, desc.local_buf,
+              local_region.size, desc.len);
+    local_host_cnt++;
   }
   return SUCCESS;
 }
 
 Status HixlMemStore::BatchConvertHostAddr(uint32_t list_num, HixlOneSideOpDesc *desc_list) const {
   std::lock_guard<std::mutex> lock(mutex_);
+  uint32_t local_host_cnt = 0U;
+  uint32_t remote_host_cnt = 0U;
   for (uint32_t i = 0; i < list_num; ++i) {
-    Status status = ConvertHostAddr(desc_list[i]);
+    Status status = ConvertHostAddr(desc_list[i], local_host_cnt, remote_host_cnt);
     if (status != SUCCESS) {
       return status;
     }
   }
+  HIXL_LOGI(
+      "[HixlMemStore] BatchConvertHostAddr success, list_num=%u, local host mem count=%u, remote host mem count=%u",
+      list_num, local_host_cnt, remote_host_cnt);
   return SUCCESS;
 }
 }  // namespace hixl

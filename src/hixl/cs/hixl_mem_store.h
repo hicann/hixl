@@ -68,7 +68,7 @@ class HixlMemStore {
  private:
   bool CheckMemoryForAccess(bool is_server, const void *check_addr, size_t check_size);
   Status FindMemoryRegion(bool is_server, const void *addr, MemoryRegion &region) const;
-  Status ConvertHostAddr(HixlOneSideOpDesc &desc) const;
+  Status ConvertHostAddr(HixlOneSideOpDesc &desc, uint32_t &local_host_cnt, uint32_t &remote_host_cnt) const;
   bool CheckMergedRegionsAccess(const std::map<const void *, MemoryRegion> &regions, uintptr_t s, uintptr_t e,
                                 typename std::map<const void *, MemoryRegion>::const_iterator it);
   // 内存区域信息结构体
