@@ -50,6 +50,7 @@ Status OptionalAclrtContext::CreateContext() {
     return SUCCESS;
   }
 
+  TemporaryRtContext guard(nullptr);
   int32_t device_id = -1;
   aclrtContext ctx = nullptr;
   HIXL_CHK_ACL_RET(aclrtGetDevice(&device_id), "aclrtGetDevice failed");

@@ -71,7 +71,11 @@ class MockAclRuntimeStub : public llm::AclRuntimeStub {
 
   aclError aclrtCreateContext(aclrtContext *context, int32_t deviceId) override {
     ++create_context_calls_;
-    return llm::AclRuntimeStub::aclrtCreateContext(context, deviceId);
+    aclError ret = llm::AclRuntimeStub::aclrtCreateContext(context, deviceId);
+    if (ret == ACL_SUCCESS) {
+      current_context_ = *context;
+    }
+    return ret;
   }
 
   aclError aclrtDestroyContext(aclrtContext context) override {

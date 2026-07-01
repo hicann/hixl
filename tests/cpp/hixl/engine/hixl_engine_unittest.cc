@@ -9,6 +9,7 @@
  */
 
 #include <cstdio>
+#include <cstdint>
 #include <cstdlib>
 #include <algorithm>
 #include <map>
@@ -370,6 +371,19 @@ TEST_F(HixlEngineTest, InitializeWithoutListenPortDoesNotSetServerListenPort) {
   auto *cs_server = static_cast<hixl::HixlCSServer *>(engine.server_.server_handle_);
   ASSERT_NE(cs_server, nullptr);
   EXPECT_FALSE(cs_server->global_config_.ListenPort().has_value());
+  engine.Finalize();
+}
+
+TEST_F(HixlEngineTest, InitializeRestoresCallerCurrentContext) {
+  auto *const user_context = reinterpret_cast<aclrtContext>(static_cast<uintptr_t>(0xACEU));
+  acl_stub_->current_context_ = user_context;
+
+  HixlEngine engine("127.0.0.1");
+  CreateAndInitEngine(engine, options1);
+
+  aclrtContext current_context = nullptr;
+  EXPECT_EQ(aclrtGetCurrentContext(&current_context), ACL_SUCCESS);
+  EXPECT_EQ(current_context, user_context);
   engine.Finalize();
 }
 
