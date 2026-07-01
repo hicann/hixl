@@ -1014,8 +1014,11 @@ Status HixlCSClient::BatchTransferSync(bool is_get, uint32_t list_num, const Hix
     return PARAM_INVALID;
   }
   if (ret != SUCCESS) {
-    HIXL_LOGE(ret, "[HixlClient] BatchTransferSync failed, local=[%s], remote=[%s]", EndpointToString(endpoint).c_str(),
+    HIXL_LOGE(ret, "[HixlClient] BatchTransferSync failed, is_get=%d, list_num=%u, local=[%s], remote=[%s]",
+              static_cast<int32_t>(is_get), list_num, EndpointToString(endpoint).c_str(),
               EndpointToString(remote_endpoint_).c_str());
+  } else {
+    HIXL_LOGI("[HixlClient] BatchTransferSync success, is_get=%d, list_num=%u", static_cast<int32_t>(is_get), list_num);
   }
   return ret;
 }
@@ -1048,8 +1051,12 @@ Status HixlCSClient::BatchTransferAsync(bool is_get, uint32_t list_num, const Hi
     return PARAM_INVALID;
   }
   if (ret != SUCCESS) {
-    HIXL_LOGE(ret, "[HixlClient] BatchTransferAsync failed, local=[%s], remote=[%s]", EndpointToString(ep).c_str(),
+    HIXL_LOGE(ret, "[HixlClient] BatchTransferAsync failed, is_get=%d, list_num=%u, local=[%s], remote=[%s]",
+              static_cast<int32_t>(is_get), list_num, EndpointToString(ep).c_str(),
               EndpointToString(remote_endpoint_).c_str());
+  } else {
+    HIXL_LOGI("[HixlClient] BatchTransferAsync success, is_get=%d, list_num=%u", static_cast<int32_t>(is_get),
+              list_num);
   }
   return ret;
 }
