@@ -24,11 +24,11 @@ struct TransferContext {
   TransferContext(const TransferContext &) = delete;
   TransferContext &operator=(const TransferContext &) = delete;
 
-  TransferThreadState GetState() const {
+  HixlTransferThreadState GetState() const {
     return state.load(std::memory_order_acquire);
   }
 
-  void SetState(TransferThreadState new_state) {
+  void SetState(HixlTransferThreadState new_state) {
     state.store(new_state, std::memory_order_release);
   }
 
@@ -46,7 +46,10 @@ struct TransferContext {
   }
 
   std::atomic_flag spin_lock = ATOMIC_FLAG_INIT;
-  std::atomic<TransferThreadState> state{TRANSFER_THREAD_STATE_INITIALIZED};
+  std::atomic<HixlTransferThreadState> state{TRANSFER_THREAD_STATE_INITIALIZED};
+  uint32_t user_stream_id{0};
+  uint32_t notify_id{0};
+  uint64_t err_flag_dev_va{0};
 };
 
 class TransferContextManager {
@@ -54,8 +57,9 @@ class TransferContextManager {
   static TransferContextManager &Instance();
 
   std::shared_ptr<TransferContext> Get(ThreadHandle thread);
-  TransferThreadState Add(ThreadHandle thread);
-  TransferThreadState Delete(ThreadHandle thread);
+  HixlTransferThreadState Add(ThreadHandle thread, uint32_t user_stream_id = 0U, uint32_t notify_id = 0U,
+                              uint64_t err_flag_dev_va = 0U);
+  HixlTransferThreadState Delete(ThreadHandle thread);
 
  private:
   TransferContextManager() = default;
@@ -63,8 +67,6 @@ class TransferContextManager {
   std::mutex mutex_;
   std::unordered_map<ThreadHandle, std::shared_ptr<TransferContext>> contexts_;
 };
-
-uint32_t DoSyncTransferContext(TransferContextSyncParam *param);
 
 }  // namespace hixl
 

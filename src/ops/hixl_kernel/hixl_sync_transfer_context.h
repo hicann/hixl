@@ -7,21 +7,19 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-#ifndef CANN_HIXL_SRC_HIXL_OPS_HIXL_KERNEL_HIXL_BATCH_TRANSFER_H_
-#define CANN_HIXL_SRC_HIXL_OPS_HIXL_KERNEL_HIXL_BATCH_TRANSFER_H_
+#ifndef CANN_HIXL_SRC_OPS_HIXL_KERNEL_HIXL_SYNC_TRANSFER_CONTEXT_H_
+#define CANN_HIXL_SRC_OPS_HIXL_KERNEL_HIXL_SYNC_TRANSFER_CONTEXT_H_
 
-#include "cs/hixl_cs.h"
 #include "common/hixl_inner_types.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-uint32_t HixlBatchPut(HixlOneSideOpParam *param);
+uint32_t HixlSyncTransferContext(HixlTransferContextSyncParam *param);
 
-uint32_t HixlBatchGet(HixlOneSideOpParam *param);
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif  // CANN_HIXL_SRC_OPS_HIXL_KERNEL_HIXL_SYNC_TRANSFER_CONTEXT_H_

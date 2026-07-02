@@ -99,19 +99,19 @@ class TransferPool {
   Status EnsureDevConstOneLocked();
   Status EnsureDeviceKernelsLocked();
   Status SyncContextsLocked(const std::vector<ThreadHandle> &threads, uint32_t op, uint32_t expect_state) const;
-  Status RunSyncContextOnceLocked(std::vector<TransferContextSyncEntry> &pending, uint32_t op, uint32_t expect_state,
-                                  std::vector<TransferContextSyncEntry> &retry_entries,
+  Status RunSyncContextOnceLocked(std::vector<HixlTransferContextSyncEntry> &pending, uint32_t op,
+                                  uint32_t expect_state, std::vector<HixlTransferContextSyncEntry> &retry_entries,
                                   std::vector<uint32_t> &retry_states) const;
-  Status CollectRetrySyncEntries(const std::vector<TransferContextSyncEntry> &entries,
+  Status CollectRetrySyncEntries(const std::vector<HixlTransferContextSyncEntry> &entries,
                                  const std::vector<uint32_t> &states, uint32_t op, uint32_t expect_state,
-                                 std::vector<TransferContextSyncEntry> &retry_entries,
+                                 std::vector<HixlTransferContextSyncEntry> &retry_entries,
                                  std::vector<uint32_t> &retry_states) const;
-  Status HandleSyncContextTimeout(const std::vector<TransferContextSyncEntry> &pending,
+  Status HandleSyncContextTimeout(const std::vector<HixlTransferContextSyncEntry> &pending,
                                   const std::vector<uint32_t> &states, uint32_t op) const;
   Status AddTransferContextsLocked() const;
   Status DeleteTransferContextsLocked(const std::vector<ThreadHandle> &threads) const;
   Status SyncOneTransferContextLocked(ThreadHandle thread, uint32_t op, uint32_t expect_state) const;
-  Status LaunchSyncContextKernelLocked(const std::vector<TransferContextSyncEntry> &entries,
+  Status LaunchSyncContextKernelLocked(const std::vector<HixlTransferContextSyncEntry> &entries,
                                        std::vector<uint32_t> &states) const;
   static std::vector<ThreadHandle> CollectLiveThreads(const std::vector<Slot> &slots);
 

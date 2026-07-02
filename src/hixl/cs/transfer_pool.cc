@@ -510,13 +510,13 @@ Status TransferPool::EnsureDeviceKernelsLocked() {
   return SUCCESS;
 }
 
-Status TransferPool::LaunchSyncContextKernelLocked(const std::vector<TransferContextSyncEntry> &entries,
+Status TransferPool::LaunchSyncContextKernelLocked(const std::vector<HixlTransferContextSyncEntry> &entries,
                                                    std::vector<uint32_t> &states) const {
   HIXL_CHECK_NOTNULL(device_func_handles_.sync_transfer_context);
   HIXL_CHECK_NOTNULL(rts_context_, "[TransferPool] rts_context_ is null when launching sync context kernel");
   HIXL_CHK_BOOL_RET_STATUS(!entries.empty(), PARAM_INVALID, "[TransferPool] sync context entries is empty");
   const hixl::TemporaryRtContext rts_guard(rts_context_);
-  const size_t entry_bytes = entries.size() * sizeof(TransferContextSyncEntry);
+  const size_t entry_bytes = entries.size() * sizeof(HixlTransferContextSyncEntry);
   void *dev_entries = nullptr;
   HIXL_CHK_ACL_RET(aclrtMalloc(&dev_entries, entry_bytes, ACL_MEM_MALLOC_NORMAL_ONLY),
                    "[TransferPool] aclrtMalloc sync context entries failed");
@@ -533,7 +533,7 @@ Status TransferPool::LaunchSyncContextKernelLocked(const std::vector<TransferCon
                          }));
   HIXL_CHK_ACL_RET(aclrtMemcpy(dev_entries, entry_bytes, entries.data(), entry_bytes, ACL_MEMCPY_HOST_TO_DEVICE),
                    "[TransferPool] aclrtMemcpy sync context entries H2D failed");
-  TransferContextSyncParam param{};
+  HixlTransferContextSyncParam param{};
   param.entry_list_addr = PtrToValue(dev_entries);
   param.state_list_addr = PtrToValue(dev_states);
   param.entry_num = static_cast<uint32_t>(entries.size());
@@ -541,7 +541,7 @@ Status TransferPool::LaunchSyncContextKernelLocked(const std::vector<TransferCon
   HIXL_CHK_ACL_RET(aclrtKernelArgsInit(device_func_handles_.sync_transfer_context, &args_handle),
                    "[TransferPool] aclrtKernelArgsInit HixlSyncTransferContext failed");
   aclrtParamHandle para_handle = nullptr;
-  HIXL_CHK_ACL_RET(aclrtKernelArgsAppend(args_handle, &param, sizeof(TransferContextSyncParam), &para_handle),
+  HIXL_CHK_ACL_RET(aclrtKernelArgsAppend(args_handle, &param, sizeof(HixlTransferContextSyncParam), &para_handle),
                    "[TransferPool] aclrtKernelArgsAppend HixlSyncTransferContext failed");
   HIXL_CHK_ACL_RET(aclrtKernelArgsFinalize(args_handle), "[TransferPool] aclrtKernelArgsFinalize failed");
   aclrtStream stream = nullptr;
@@ -568,13 +568,16 @@ Status TransferPool::SyncContextsLocked(const std::vector<ThreadHandle> &threads
   }
   HIXL_CHK_BOOL_RET_STATUS(device_func_handles_.sync_transfer_context != nullptr, FAILED,
                            "[TransferPool] sync context func is null");
-  std::vector<TransferContextSyncEntry> pending;
+  std::vector<HixlTransferContextSyncEntry> pending;
   pending.reserve(threads.size());
   for (ThreadHandle thread : threads) {
     if (thread == 0U) {
       continue;
     }
-    pending.push_back({thread, op});
+    HixlTransferContextSyncEntry entry{};
+    entry.thread = thread;
+    entry.op = op;
+    pending.push_back(entry);
   }
   if (pending.empty()) {
     return SUCCESS;
@@ -582,7 +585,7 @@ Status TransferPool::SyncContextsLocked(const std::vector<ThreadHandle> &threads
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kSyncContextRetryTimeoutMs);
   std::vector<uint32_t> pending_states;
   while (!pending.empty()) {
-    std::vector<TransferContextSyncEntry> retry_entries;
+    std::vector<HixlTransferContextSyncEntry> retry_entries;
     std::vector<uint32_t> retry_states;
     HIXL_CHK_STATUS_RET(RunSyncContextOnceLocked(pending, op, expect_state, retry_entries, retry_states),
                         "[TransferPool] run sync context failed");
@@ -599,9 +602,9 @@ Status TransferPool::SyncContextsLocked(const std::vector<ThreadHandle> &threads
   return SUCCESS;
 }
 
-Status TransferPool::RunSyncContextOnceLocked(std::vector<TransferContextSyncEntry> &pending, uint32_t op,
+Status TransferPool::RunSyncContextOnceLocked(std::vector<HixlTransferContextSyncEntry> &pending, uint32_t op,
                                               uint32_t expect_state,
-                                              std::vector<TransferContextSyncEntry> &retry_entries,
+                                              std::vector<HixlTransferContextSyncEntry> &retry_entries,
                                               std::vector<uint32_t> &retry_states) const {
   std::vector<uint32_t> states;
   HIXL_CHK_STATUS_RET(LaunchSyncContextKernelLocked(pending, states),
@@ -611,9 +614,9 @@ Status TransferPool::RunSyncContextOnceLocked(std::vector<TransferContextSyncEnt
   return CollectRetrySyncEntries(pending, states, op, expect_state, retry_entries, retry_states);
 }
 
-Status TransferPool::CollectRetrySyncEntries(const std::vector<TransferContextSyncEntry> &entries,
+Status TransferPool::CollectRetrySyncEntries(const std::vector<HixlTransferContextSyncEntry> &entries,
                                              const std::vector<uint32_t> &states, uint32_t op, uint32_t expect_state,
-                                             std::vector<TransferContextSyncEntry> &retry_entries,
+                                             std::vector<HixlTransferContextSyncEntry> &retry_entries,
                                              std::vector<uint32_t> &retry_states) const {
   HIXL_CHK_BOOL_RET_STATUS(entries.size() == states.size(), FAILED,
                            "[TransferPool] sync context state size mismatch, entries=%zu states=%zu", entries.size(),
@@ -628,13 +631,16 @@ Status TransferPool::CollectRetrySyncEntries(const std::vector<TransferContextSy
                 static_cast<uint64_t>(entries[i].thread), op, expect_state);
       return FAILED;
     }
-    retry_entries.push_back({entries[i].thread, op});
+    HixlTransferContextSyncEntry entry{};
+    entry.thread = entries[i].thread;
+    entry.op = op;
+    retry_entries.push_back(entry);
     retry_states.push_back(state);
   }
   return SUCCESS;
 }
 
-Status TransferPool::HandleSyncContextTimeout(const std::vector<TransferContextSyncEntry> &pending,
+Status TransferPool::HandleSyncContextTimeout(const std::vector<HixlTransferContextSyncEntry> &pending,
                                               const std::vector<uint32_t> &states, uint32_t op) const {
   if (op != TRANSFER_CONTEXT_OP_DELETE) {
     HIXL_LOGE(TIMEOUT, "[TransferPool] sync transfer context timeout, pending=%zu op=%u device_id=%d", pending.size(),

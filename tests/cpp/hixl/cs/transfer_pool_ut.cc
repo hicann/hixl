@@ -53,7 +53,7 @@ class CountingAclRuntimeStub : public llm::AclRuntimeStub {
   }
 
   aclError aclrtMemcpy(void *dst, size_t dest_max, const void *src, size_t count, aclrtMemcpyKind kind) override {
-    if ((count == sizeof(TransferContextSyncEntry)) && (kind == ACL_MEMCPY_HOST_TO_DEVICE)) {
+    if ((count == sizeof(HixlTransferContextSyncEntry)) && (kind == ACL_MEMCPY_HOST_TO_DEVICE)) {
       ++sync_entry_h2d_count_;
     }
     if ((count == sizeof(uint32_t)) && (kind == ACL_MEMCPY_DEVICE_TO_HOST)) {

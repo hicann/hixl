@@ -17,6 +17,7 @@ set(INCLUDE_LIST
 
 add_library(cann_hixl_kernel SHARED
         hixl_batch_transfer.cc
+        hixl_sync_transfer_context.cc
         transfer_context_manager.cc
 )
 

@@ -15,6 +15,7 @@
 #include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
 #include "hixl_kernel/hixl_batch_transfer.h"
+#include "hixl_kernel/hixl_sync_transfer_context.h"
 #include "hixl_kernel/transfer_context_manager.h"
 #include "proxy/hcomm/hcomm_res_defs.h"
 #include "hccl/hccl_types.h"
@@ -74,11 +75,11 @@ static uint64_t g_local_flag_buf = 0;
 constexpr ThreadHandle kKernelTestThread = 910001ULL;
 
 uint32_t SyncContext(ThreadHandle thread, uint32_t op, uint32_t *state) {
-  TransferContextSyncEntry entry{};
+  HixlTransferContextSyncEntry entry{};
   entry.thread = thread;
   entry.op = op;
   uint32_t result_state = TRANSFER_THREAD_STATE_DELETED;
-  TransferContextSyncParam param{};
+  HixlTransferContextSyncParam param{};
   param.entry_list_addr = reinterpret_cast<uint64_t>(&entry);
   param.state_list_addr = reinterpret_cast<uint64_t>(&result_state);
   param.entry_num = 1U;
@@ -474,4 +475,112 @@ TEST_F(HixlBatchTransferTest, DeleteBusyContextReturnsDeletingThenDeleted) {
   ctx->unlock();
   ASSERT_EQ(SyncContext(kBusyThread, TRANSFER_CONTEXT_OP_DELETE, &state), SUCCESS);
   EXPECT_EQ(state, TRANSFER_THREAD_STATE_DELETED);
+}
+
+class HixlSyncTransferContextTest : public ::testing::Test {
+ protected:
+  void TearDown() override {
+    std::vector<ThreadHandle> threads{910200ULL, 910201ULL, 910300ULL};
+    for (ThreadHandle thread : threads) {
+      uint32_t state = TRANSFER_THREAD_STATE_DELETED;
+      (void)SyncContext(thread, TRANSFER_CONTEXT_OP_DELETE, &state);
+    }
+  }
+};
+
+TEST_F(HixlSyncTransferContextTest, NullParamReturnsFailed) {
+  EXPECT_EQ(HixlSyncTransferContext(nullptr), FAILED);
+}
+
+TEST_F(HixlSyncTransferContextTest, ZeroEntryNumReturnsFailed) {
+  HixlTransferContextSyncParam param{};
+  param.entry_num = 0U;
+  EXPECT_EQ(HixlSyncTransferContext(&param), FAILED);
+}
+
+TEST_F(HixlSyncTransferContextTest, ZeroEntryListAddrReturnsFailed) {
+  HixlTransferContextSyncParam param{};
+  param.entry_num = 1U;
+  param.entry_list_addr = 0U;
+  EXPECT_EQ(HixlSyncTransferContext(&param), FAILED);
+}
+
+TEST_F(HixlSyncTransferContextTest, ZeroStateListAddrReturnsFailed) {
+  HixlTransferContextSyncEntry entry{};
+  entry.thread = kKernelTestThread;
+  entry.op = TRANSFER_CONTEXT_OP_ADD;
+  HixlTransferContextSyncParam param{};
+  param.entry_num = 1U;
+  param.entry_list_addr = reinterpret_cast<uint64_t>(&entry);
+  param.state_list_addr = 0U;
+  EXPECT_EQ(HixlSyncTransferContext(&param), FAILED);
+}
+
+TEST_F(HixlSyncTransferContextTest, InvalidOpReturnsFailed) {
+  HixlTransferContextSyncEntry entry{};
+  entry.thread = kKernelTestThread;
+  entry.op = 99U;
+  uint32_t state = 0U;
+  HixlTransferContextSyncParam param{};
+  param.entry_num = 1U;
+  param.entry_list_addr = reinterpret_cast<uint64_t>(&entry);
+  param.state_list_addr = reinterpret_cast<uint64_t>(&state);
+  EXPECT_EQ(HixlSyncTransferContext(&param), FAILED);
+}
+
+TEST_F(HixlSyncTransferContextTest, MultipleEntriesBatch) {
+  constexpr uint32_t kEntryCount = 3U;
+  HixlTransferContextSyncEntry entries[kEntryCount]{};
+  uint32_t states[kEntryCount]{};
+
+  entries[0].thread = 910200ULL;
+  entries[0].op = TRANSFER_CONTEXT_OP_ADD;
+  entries[0].user_stream_id = 1U;
+  entries[0].notify_id = 2U;
+  entries[0].err_flag_dev_va = 0x1000ULL;
+
+  entries[1].thread = 910201ULL;
+  entries[1].op = TRANSFER_CONTEXT_OP_ADD;
+
+  entries[2].thread = 910200ULL;
+  entries[2].op = TRANSFER_CONTEXT_OP_DELETE;
+
+  HixlTransferContextSyncParam param{};
+  param.entry_list_addr = reinterpret_cast<uint64_t>(entries);
+  param.state_list_addr = reinterpret_cast<uint64_t>(states);
+  param.entry_num = kEntryCount;
+
+  EXPECT_EQ(HixlSyncTransferContext(&param), SUCCESS);
+  EXPECT_EQ(states[0], TRANSFER_THREAD_STATE_INITIALIZED);
+  EXPECT_EQ(states[1], TRANSFER_THREAD_STATE_INITIALIZED);
+  EXPECT_EQ(states[2], TRANSFER_THREAD_STATE_DELETED);
+}
+
+TEST_F(HixlSyncTransferContextTest, ExtendedFieldsStoredAfterAdd) {
+  constexpr ThreadHandle kThread = 910300ULL;
+  constexpr uint32_t kUserStreamId = 42U;
+  constexpr uint32_t kNotifyId = 7U;
+  constexpr uint64_t kErrFlagDevVa = 0xDEADBEEFULL;
+
+  HixlTransferContextSyncEntry entry{};
+  entry.thread = kThread;
+  entry.op = TRANSFER_CONTEXT_OP_ADD;
+  entry.user_stream_id = kUserStreamId;
+  entry.notify_id = kNotifyId;
+  entry.err_flag_dev_va = kErrFlagDevVa;
+
+  uint32_t state = 0U;
+  HixlTransferContextSyncParam param{};
+  param.entry_list_addr = reinterpret_cast<uint64_t>(&entry);
+  param.state_list_addr = reinterpret_cast<uint64_t>(&state);
+  param.entry_num = 1U;
+
+  EXPECT_EQ(HixlSyncTransferContext(&param), SUCCESS);
+  EXPECT_EQ(state, TRANSFER_THREAD_STATE_INITIALIZED);
+
+  auto ctx = TransferContextManager::Instance().Get(kThread);
+  ASSERT_NE(ctx, nullptr);
+  EXPECT_EQ(ctx->user_stream_id, kUserStreamId);
+  EXPECT_EQ(ctx->notify_id, kNotifyId);
+  EXPECT_EQ(ctx->err_flag_dev_va, kErrFlagDevVa);
 }

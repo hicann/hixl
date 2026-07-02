@@ -214,13 +214,4 @@ uint32_t HixlBatchGet(HixlOneSideOpParam *param) {
   }
   return ret;
 }
-
-uint32_t HixlSyncTransferContext(TransferContextSyncParam *param) {
-  uint32_t ret = hixl::DoSyncTransferContext(param);
-  if (ret != 0) {
-    HIXL_LOGE(hixl::FAILED, "[HixlSyncTransferContext] failed, ret is %u", ret);
-    return hixl::FAILED;
-  }
-  return ret;
-}
 }  // extern "C"

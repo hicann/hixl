@@ -29,23 +29,27 @@ struct HixlOneSideOpParam {
   uint32_t use_notify_record;
 };
 
-enum TransferThreadState : uint32_t {
+enum HixlTransferThreadState : uint32_t {
   TRANSFER_THREAD_STATE_INITIALIZED = 0U,
   TRANSFER_THREAD_STATE_DELETING = 1U,
   TRANSFER_THREAD_STATE_DELETED = 2U,
 };
 
-enum TransferContextOp : uint32_t {
+enum HixlTransferContextOp : uint32_t {
   TRANSFER_CONTEXT_OP_ADD = 0U,
   TRANSFER_CONTEXT_OP_DELETE = 1U,
 };
 
-struct TransferContextSyncEntry {
+struct HixlTransferContextSyncEntry {
   ThreadHandle thread;
   uint32_t op;
+  uint32_t user_stream_id;
+  uint32_t notify_id;
+  uint32_t reserved;
+  uint64_t err_flag_dev_va;
 };
 
-struct TransferContextSyncParam {
+struct HixlTransferContextSyncParam {
   uint64_t entry_list_addr;
   uint64_t state_list_addr;
   uint32_t entry_num;
