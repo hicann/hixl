@@ -150,9 +150,20 @@ Status HixlEngine::Connect(const AscendString &remote_engine, int32_t timeout_in
   HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS || ret == ALREADY_CONNECTED, ret,
                            "[HixlEngine] Failed to create client, local_engine:%s, remote_engine:%s, timeout:%d ms",
                            local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
+
+  bool is_new_client = (ret == SUCCESS);
+  HIXL_DISMISSABLE_GUARD(connect_guard,
+                         ([this, is_new_client, remote_engine_str = std::string(remote_engine.GetString())]() {
+                           if (is_new_client) {
+                             (void)client_manager_.DestroyClient(remote_engine_str);
+                           }
+                         }));
+
   HIXL_CHK_STATUS_RET(client_ptr->Connect(timeout_in_millis),
                       "[HixlEngine] Failed to connect client, local_engine:%s, remote_engine:%s, timeout:%d ms",
                       local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
+
+  HIXL_DISMISS_GUARD(connect_guard);
   HIXL_LOGI("[HixlEngine] Connection succeeded, local_engine:%s, remote_engine:%s", local_engine_.c_str(),
             remote_engine.GetString());
   return SUCCESS;
@@ -368,10 +379,17 @@ Status HixlEngine::AutoConnect(const AscendString &remote_engine, int32_t timeou
   }
   HIXL_CHK_STATUS_RET(ret, "[HixlEngine] Failed to auto connect, local_engine:%s, remote_engine:%s, timeout:%d ms",
                       local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
+
+  HIXL_DISMISSABLE_GUARD(connect_guard, ([this, remote_engine_str = std::string(remote_engine.GetString())]() {
+                           (void)client_manager_.DestroyClient(remote_engine_str);
+                         }));
+
   HIXL_CHK_STATUS_RET(
       client_ptr->Connect(timeout_in_millis),
       "[HixlEngine] Failed to connect client in auto connect, local_engine:%s, remote_engine:%s, timeout:%d ms",
       local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
+
+  HIXL_DISMISS_GUARD(connect_guard);
   return SUCCESS;
 }
 

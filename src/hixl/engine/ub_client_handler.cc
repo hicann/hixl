@@ -133,6 +133,13 @@ Status UbClientHandler::Create(const HandlerCreateArgs &args, std::unique_ptr<Ub
   out = MakeUnique<UbClientHandler>(std::move(handles));
   HIXL_CHECK_NOTNULL(out, "UbClientHandler create failed");
 
+  // 若后续步骤失败，确保已创建的 handles 通过 Finalize 释放，避免资源泄漏
+  HIXL_DISMISSABLE_GUARD(finalize_guard, [&out]() {
+    if (out != nullptr) {
+      (void)out->Finalize();
+    }
+  });
+
   // 通过复用 ctrl_socket 向 server 获取对端内存信息，提前构建 remote_segments_
   out->lazy_mode_ = args.is_lazy;
   if (args.is_lazy) {
@@ -142,6 +149,7 @@ Status UbClientHandler::Create(const HandlerCreateArgs &args, std::unique_ptr<Ub
   HIXL_CHK_STATUS_RET(FetchRemoteMemInfo(args.ctrl_socket, args.timeout_ms, remote_mem_info),
                       "Failed to fetch remote mem info");
   HIXL_CHK_STATUS_RET(out->BuildRemoteSegmentsFromMemInfo(remote_mem_info), "Failed to build remote segments");
+  HIXL_DISMISS_GUARD(finalize_guard);
   return SUCCESS;
 }
 
@@ -202,12 +210,14 @@ Status UbClientHandler::EnsureLinksConnected(const std::vector<CommType> &types,
 }
 
 Status UbClientHandler::ConnectHandles(const std::map<CommType, HixlClientHandle> &handles, uint32_t timeout_ms) {
-  ThreadPool thread_pool("ub_connect", handles.size());
   std::vector<std::future<Status>> futures;
+  std::vector<CommType> type_order;  // 保持与 futures 索引对应，用于结果收集时回写 connected_types_
   OptionalAclrtContext context;
   HIXL_CHK_STATUS_RET(context.GetCurrentContext(), "GetCurrentContext failed");
 
+  ThreadPool thread_pool("ub_connect", handles.size());
   for (const auto &[type, handle] : handles) {
+    type_order.push_back(type);
     futures.emplace_back(thread_pool.commit([handle, timeout_ms, type, &context]() -> Status {
       HIXL_CHK_STATUS_RET(context.SetCurrentContext(), "SetCurrentContext failed");
       HIXL_CHK_STATUS_RET(HixlCSClientConnect(handle, timeout_ms), "UbClientHandler Connect failed for type:%s",
@@ -216,13 +226,12 @@ Status UbClientHandler::ConnectHandles(const std::map<CommType, HixlClientHandle
       return SUCCESS;
     }));
   }
-  for (auto &f : futures) {
-    HIXL_CHK_STATUS_RET(f.get(), "[UbClientHandler] ConnectHandles failed");
+  for (size_t i = 0; i < futures.size(); ++i) {
+    Status s = futures[i].get();
+    HIXL_CHK_STATUS_RET(s, "[UbClientHandler] ConnectHandles failed for type:%s", CommTypeToString(type_order[i]));
+    connected_types_.insert(type_order[i]);
   }
 
-  for (const auto &pair : handles) {
-    connected_types_.insert(pair.first);
-  }
   return SUCCESS;
 }
 

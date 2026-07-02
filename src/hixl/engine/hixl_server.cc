@@ -243,7 +243,7 @@ std::vector<MemInfo> HixlServer::GetRegisteredMemInfo() {
   std::vector<MemInfo> result;
   for (const auto &kv : handle_to_addr_) {
     const auto &addr_info = kv.second;
-    MemInfo mi;
+    MemInfo mi{};
     mi.type = addr_info.mem_type;
     mi.addr = addr_info.start_addr;
     mi.size = addr_info.end_addr - addr_info.start_addr;
