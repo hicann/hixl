@@ -69,6 +69,7 @@ struct CreateChannelReq {
   uint8_t sl;
   uint64_t channel_index = 0UL;
   uint8_t qos = 0U;
+  uint32_t timeout_ms = 0U;
 };
 
 struct CreateChannelResp {
