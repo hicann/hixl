@@ -303,4 +303,17 @@ TEST_F(HixlUtilsUTest, EndpointToStringReservedLocNoLocInfoTest) {
   EXPECT_THAT(text, Not(HasSubstr("hostId")));
 }
 
+TEST_F(HixlUtilsUTest, ProtocolToStringMapsKnownProtocolsTest) {
+  EXPECT_EQ(ProtocolToString(COMM_PROTOCOL_HCCS), std::string("hccs"));
+  EXPECT_EQ(ProtocolToString(COMM_PROTOCOL_ROCE), std::string("roce"));
+  EXPECT_EQ(ProtocolToString(COMM_PROTOCOL_UBC_CTP), std::string("ub_ctp"));
+  EXPECT_EQ(ProtocolToString(COMM_PROTOCOL_UBC_TP), std::string("ub_tp"));
+  EXPECT_EQ(ProtocolToString(COMM_PROTOCOL_UBOE), std::string("uboe"));
+  EXPECT_EQ(ProtocolToString(COMM_PROTOCOL_UBG), std::string("ubg"));
+}
+
+TEST_F(HixlUtilsUTest, ProtocolToStringUnknownProtocolTest) {
+  EXPECT_EQ(ProtocolToString(static_cast<CommProtocol>(99)), std::string("UNKNOWN(99)"));
+}
+
 }  // namespace hixl

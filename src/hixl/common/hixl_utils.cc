@@ -85,25 +85,6 @@ Status GetIpAddressFromHccnTool(uint32_t phy_device_id, std::string &ip) {
   return SUCCESS;
 }
 
-std::string ProtocolToString(CommProtocol protocol) {
-  switch (protocol) {
-    case COMM_PROTOCOL_HCCS:
-      return kProtocolHccs;
-    case COMM_PROTOCOL_ROCE:
-      return kProtocolRoce;
-    case COMM_PROTOCOL_UBC_CTP:
-      return kProtocolUbCtp;
-    case COMM_PROTOCOL_UBC_TP:
-      return kProtocolUbTp;
-    case COMM_PROTOCOL_UBOE:
-      return kProtocolUboe;
-    case COMM_PROTOCOL_UBG:
-      return kProtocolUbg;
-    default:
-      return "UNKNOWN(" + std::to_string(static_cast<int32_t>(protocol)) + ")";
-  }
-}
-
 }  // namespace
 Status HcclError2Status(HcclResult ret) {
   static const std::map<HcclResult, Status> result2status = {
@@ -309,6 +290,25 @@ std::string FormatCommAddr(const CommAddr &addr) {
     }
     default:
       return "UNKNOWN";
+  }
+}
+
+std::string ProtocolToString(CommProtocol protocol) {
+  switch (protocol) {
+    case COMM_PROTOCOL_HCCS:
+      return kProtocolHccs;
+    case COMM_PROTOCOL_ROCE:
+      return kProtocolRoce;
+    case COMM_PROTOCOL_UBC_CTP:
+      return kProtocolUbCtp;
+    case COMM_PROTOCOL_UBC_TP:
+      return kProtocolUbTp;
+    case COMM_PROTOCOL_UBOE:
+      return kProtocolUboe;
+    case COMM_PROTOCOL_UBG:
+      return kProtocolUbg;
+    default:
+      return "UNKNOWN(" + std::to_string(static_cast<int32_t>(protocol)) + ")";
   }
 }
 

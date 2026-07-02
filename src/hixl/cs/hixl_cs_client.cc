@@ -289,8 +289,8 @@ Status HixlCSClient::InitBaseClient(const HixlClientDesc *client_desc) {
   Status ret = local_endpoint_->Initialize();
   HIXL_CHK_STATUS_RET(ret,
                       "[HixlClient] Failed to initialize src endpoint. "
-                      "Check Config: [Loc:%d, protocol:%d, AddrVal:0x%x]",
-                      local_ep.loc.locType, local_ep.protocol, local_ep.commAddr.id);
+                      "Check Config: [Loc:%d, protocol:%s, AddrVal:0x%x]",
+                      local_ep.loc.locType, ProtocolToString(local_ep.protocol).c_str(), local_ep.commAddr.id);
   HIXL_LOGI("[HixlClient] local_endpoint initialized. ep_handle=%p", local_endpoint_->GetHandle());
   if (local_ep.loc.locType == ENDPOINT_LOC_TYPE_HOST) {
     Status init_ret = InitFlagQueue();
@@ -357,12 +357,12 @@ Status HixlCSClient::Create(const HixlClientDesc *client_desc, const HixlClientC
       "[HixlClient] Failed to parse global_resource_config");
   HIXL_EVENT(
       "[HixlClient] Create begin. Server=%s:%u. "
-      "SrcEndpoint[Loc:%d, protocol:%d, commAddr.Type:%d, commAddr.id:0x%x], "
-      "DstEndpoint[Loc:%d, protocol:%d, commAddr.Type:%d, commAddr.id:0x%x]",
+      "SrcEndpoint[Loc:%d, protocol:%s, commAddr.Type:%d, commAddr.id:0x%x], "
+      "DstEndpoint[Loc:%d, protocol:%s, commAddr.Type:%d, commAddr.id:0x%x]",
       client_desc->server_ip, client_desc->server_port, client_desc->local_endpoint->loc.locType,
-      client_desc->local_endpoint->protocol, client_desc->local_endpoint->commAddr.type,
+      ProtocolToString(client_desc->local_endpoint->protocol).c_str(), client_desc->local_endpoint->commAddr.type,
       client_desc->local_endpoint->commAddr.id, client_desc->remote_endpoint->loc.locType,
-      client_desc->remote_endpoint->protocol, client_desc->remote_endpoint->commAddr.type,
+      ProtocolToString(client_desc->remote_endpoint->protocol).c_str(), client_desc->remote_endpoint->commAddr.type,
       client_desc->remote_endpoint->commAddr.id);
   local_endpoint_ = MakeShared<Endpoint>(*(client_desc->local_endpoint));
   HIXL_CHECK_NOTNULL(local_endpoint_);
@@ -787,8 +787,8 @@ Status HixlCSClient::BuildDeviceChunkParam(DeviceCompleteHandle &handle, uint32_
   if (local_endpoint_->GetEndpoint().protocol == COMM_PROTOCOL_HCCS) {
     param.use_notify_record = 1;
   }
-  HIXL_LOGI("[HixlClient] protocol=%u, use_notify_record=%u", local_endpoint_->GetEndpoint().protocol,
-            param.use_notify_record);
+  HIXL_LOGI("[HixlClient] protocol=%s, use_notify_record=%u",
+            ProtocolToString(local_endpoint_->GetEndpoint().protocol).c_str(), param.use_notify_record);
   return SUCCESS;
 }
 
@@ -1169,9 +1169,10 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannel(uint32_t timeout_ms) {
   const EndpointDesc &src_ep = local_endpoint_->GetEndpoint();
   HIXL_LOGD(
       "[HixlClient] MatchEndpoint then CreateChannel. socket: %d, timeout: %u ms, "
-      "Src[protocol:%u, type:%u, id:%u], Dst[protocol:%u, type:%u, id:%u]",
-      socket_, timeout_ms, src_ep.protocol, src_ep.commAddr.type, src_ep.commAddr.id, remote_endpoint_.protocol,
-      remote_endpoint_.commAddr.type, remote_endpoint_.commAddr.id);
+      "Src[protocol:%s, type:%u, id:%u], Dst[protocol:%s, type:%u, id:%u]",
+      socket_, timeout_ms, ProtocolToString(src_ep.protocol).c_str(), src_ep.commAddr.type, src_ep.commAddr.id,
+      ProtocolToString(remote_endpoint_.protocol).c_str(), remote_endpoint_.commAddr.type,
+      remote_endpoint_.commAddr.id);
   Status ret = ConnMsgHandler::SendMatchEndpointRequest(socket_, remote_endpoint_);
   HIXL_CHK_STATUS_RET(ret, "[HixlClient] SendMatchEndpointRequest failed. fd=%d", socket_);
   uint32_t remote_listen_port = 0;
