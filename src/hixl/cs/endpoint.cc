@@ -185,7 +185,7 @@ Status Endpoint::ExportMem(std::vector<HixlMemDesc> &mem_descs) {
   return SUCCESS;
 }
 
-Status Endpoint::CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &channel_handle) {
+Status Endpoint::CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &channel_handle, uint32_t timeout_ms) {
   HIXL_CHK_BOOL_RET_STATUS(handle_ != nullptr, FAILED, "[channel] CreateChannel called before Initialize");
   CommEngine engine = CommEngine::COMM_ENGINE_RESERVED;
   if (endpoint_.loc.locType == EndpointLocType::ENDPOINT_LOC_TYPE_HOST) {
@@ -203,7 +203,7 @@ Status Endpoint::CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &c
   ChannelPtr channel = MakeShared<Channel>();
   HIXL_CHECK_NOTNULL(channel);
 
-  Status ret = channel->Create(handle_, ch_desc, engine);
+  Status ret = channel->Create(handle_, ch_desc, engine, timeout_ms);
   HIXL_CHK_STATUS_RET(ret, "[Channel] Create failed, local=[%s], remote=[%s], type=%d, index=%" PRIu64,
                       EndpointToString(endpoint_).c_str(), EndpointToString(channel_desc.remote_endpoint).c_str(),
                       static_cast<int32_t>(channel_desc.channel_type), channel_desc.channel_index);

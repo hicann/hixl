@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <atomic>
 #include <cstring>
 #include <string>
 #include <thread>
@@ -33,6 +34,18 @@ static std::vector<std::string> g_thread_lifecycle_events;
 static int32_t g_next_nbi_failure_ret = 0;    // 下一次NBI传输的返回值
 static int32_t g_next_fence_failure_ret = 0;  // 下一次Fence的返回值
 static int32_t g_listen_port_ret = 0;  // HcommEndpointGetListenPort的返回值, 0表示使用默认行为(返回HCCL_SUCCESS)
+static std::atomic<uint32_t> g_channel_status_pending_count{0U};
+static std::atomic<uint32_t> g_channel_get_status_call_count{0U};
+
+static bool ConsumeChannelStatusPending() {
+  uint32_t pending = g_channel_status_pending_count.load(std::memory_order_relaxed);
+  while (pending > 0U) {
+    if (g_channel_status_pending_count.compare_exchange_weak(pending, pending - 1U, std::memory_order_relaxed)) {
+      return true;
+    }
+  }
+  return false;
+}
 
 // 辅助函数：执行 NBI 传输并处理重试逻辑
 static int32_t DoNbiTransferWithRetry(void *dst, const void *src, uint64_t len) {
@@ -141,8 +154,14 @@ HcommResult HcommChannelDestroy(const ChannelHandle *channels, uint32_t channelN
 
 HcommResult HcommChannelGetStatus(const ChannelHandle *channelList, uint32_t listNum, int32_t *statusList) {
   (void)channelList;
-  (void)listNum;
-  (void)statusList;
+  if (statusList == nullptr) {
+    return static_cast<HcommResult>(HCCL_E_PARA);
+  }
+  g_channel_get_status_call_count.fetch_add(1U, std::memory_order_relaxed);
+  const bool is_pending = ConsumeChannelStatusPending();
+  for (uint32_t i = 0; i < listNum; ++i) {
+    statusList[i] = is_pending ? 1 : 0;
+  }
   return static_cast<HcommResult>(HCCL_SUCCESS);
 }
 
@@ -250,6 +269,15 @@ void SetNextFenceFailure(int32_t ret) {
 // 设置 HcommEndpointGetListenPort 的返回值
 void SetListenPortResult(int32_t ret) {
   g_listen_port_ret = ret;
+}
+
+void SetChannelGetStatusPendingCount(uint32_t count) {
+  g_channel_status_pending_count.store(count, std::memory_order_relaxed);
+  g_channel_get_status_call_count.store(0U, std::memory_order_relaxed);
+}
+
+uint32_t GetChannelGetStatusCallCount() {
+  return g_channel_get_status_call_count.load(std::memory_order_relaxed);
 }
 
 // 重置传输计数器

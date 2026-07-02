@@ -20,6 +20,8 @@ extern "C" {
 void SetNextNbiFailure(int32_t ret);
 void SetNextFenceFailure(int32_t ret);
 void SetListenPortResult(int32_t ret);
+void SetChannelGetStatusPendingCount(uint32_t count);
+uint32_t GetChannelGetStatusCallCount();
 void ResetTransferCounter();
 
 #ifdef __cplusplus

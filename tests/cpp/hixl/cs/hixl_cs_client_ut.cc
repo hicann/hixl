@@ -28,6 +28,7 @@
 #include "hixl/hixl_types.h"
 #include "hixl_cs_client.h"
 #include "common/ctrl_msg.h"
+#include "depends/hccl/src/hccl_stub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "engine/test_mmpa_utils.h"
 
@@ -593,6 +594,7 @@ class HixlCSClientUT : public ::testing::Test {
   void SetUp() override {
     src_ = MakeIdEp(kSrcEpId);
     dst_ = MakeIdEp(kDstEpId);
+    SetChannelGetStatusPendingCount(0U);
     // TransferPool initialization loads device kernels, so MmpaStub must be ready before Create.
     llm::MmpaStub::GetInstance().SetImpl(std::make_shared<CsClientMmpaStub>());
   }
@@ -601,6 +603,7 @@ class HixlCSClientUT : public ::testing::Test {
     (void)client_.Destroy();
     server_.Stop();
     port_ = kZero;
+    SetChannelGetStatusPendingCount(0U);
     llm::MmpaStub::GetInstance().Reset();
   }
 
@@ -802,6 +805,21 @@ TEST_F(HixlCSClientUT, ConnectSuccessNormal) {
   StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
   CreateClient();
   EXPECT_EQ(client_.Connect(kDefaultConnectTimeoutMs), SUCCESS);
+}
+
+TEST_F(HixlCSClientUT, ConnectWaitsChannelStatusUntilSuccess) {
+  StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
+  CreateClient();
+  SetChannelGetStatusPendingCount(2U);
+  EXPECT_EQ(client_.Connect(kDefaultConnectTimeoutMs), SUCCESS);
+  EXPECT_EQ(GetChannelGetStatusCallCount(), 3U);
+}
+
+TEST_F(HixlCSClientUT, ConnectFailChannelStatusTimeout) {
+  StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
+  CreateClient();
+  SetChannelGetStatusPendingCount(1000U);
+  EXPECT_EQ(client_.Connect(kConnectTime1), TIMEOUT);
 }
 
 // -- CreateChannelResp 异常：magic/body_size/msg_type/result --

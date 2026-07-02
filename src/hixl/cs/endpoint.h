@@ -36,7 +36,7 @@ class Endpoint {
   Status RegisterMem(const char *mem_tag, const CommMem &mem, MemHandle &mem_handle);
   Status DeregisterMem(MemHandle mem_handle);
   Status ExportMem(std::vector<HixlMemDesc> &mem_descs);
-  Status CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &channel_handle);
+  Status CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &channel_handle, uint32_t timeout_ms);
   Status DestroyChannel(ChannelHandle channel_handle);
   Status GetMemDesc(MemHandle mem_handle, HixlMemDesc &desc);
   Status MemImport(const void *mem_desc, uint32_t desc_len, CommMem &out_buf);
