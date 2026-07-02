@@ -1612,7 +1612,7 @@ TEST_F(HixlClientUTest, LazyConnectNoMatchingEndpoint) {
   EXPECT_EQ(st, FAILED);
 }
 
-// auto_connect 模式：lazy 首次延迟建链 → transfer 按需触发 D2D → 显式 Connect 补齐剩余链路
+// auto_connect 模式：lazy 首次延迟建链 → transfer 按需触发 D2D → 再次 Connect 返回 ALREADY_CONNECTED
 TEST_F(HixlClientUTest, ExplicitConnectAfterLazyConnect) {
   SetupLazyTransferTest(true);
 
@@ -1630,10 +1630,10 @@ TEST_F(HixlClientUTest, ExplicitConnectAfterLazyConnect) {
   EXPECT_NE(ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_D2D), 0U);
   EXPECT_EQ(ub_handler->connected_types_.size(), 1U);
 
-  // 用户显式调 Connect：补齐剩余链路
+  // 再次调 Connect：不补齐剩余链路
   st = client_->Connect(kDefaultTimeoutMs);
-  EXPECT_EQ(st, SUCCESS);
-  EXPECT_EQ(ub_handler->connected_types_.size(), 4U);
+  EXPECT_EQ(st, ALREADY_CONNECTED);
+  EXPECT_EQ(ub_handler->connected_types_.size(), 1U);
 }
 
 // DirectHandler 已建链后再次 Connect 返回 ALREADY_CONNECTED

@@ -1161,7 +1161,7 @@ TEST(ClientManagerTest, GetOrCreateClientReturnsExistingClient) {
   ClientConfig config{};
   config.remote_engine = "127.0.0.1:26300";
   ClientPtr returned_client = nullptr;
-  EXPECT_EQ(manager.GetOrCreateClient(config, {}, returned_client), ALREADY_CONNECTED);
+  EXPECT_EQ(manager.GetOrCreateClient(config, {}, kTimeOut, returned_client), ALREADY_CONNECTED);
   EXPECT_EQ(returned_client, client);
   EXPECT_EQ(manager.Finalize(), SUCCESS);
 }
@@ -1447,7 +1447,7 @@ TEST_F(HixlEngineTest, TestAutoConnectUbTransferThenExplicitConnect) {
 }
 
 // auto_connect=1 + 同实例（UB handler 4条链路）：先 transfer 再显式 Connect 再 transfer
-// transfer 按需建 D2D 后，显式 Connect 补齐剩余 3 条链路 → SUCCESS
+// client 已存在时，显式 Connect 直接返回 ALREADY_CONNECTED
 TEST_F(HixlEngineTest, TestAutoConnectUb4LinksTransferThenExplicitConnect) {
   HixlEngine engine1("127.0.0.1");
   HixlEngine engine2("127.0.0.1:26300");
@@ -1464,8 +1464,7 @@ TEST_F(HixlEngineTest, TestAutoConnectUb4LinksTransferThenExplicitConnect) {
   TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
   EXPECT_EQ(engine1.TransferSync("127.0.0.1:26300", READ, {desc}, kTimeOut), SUCCESS);
 
-  // 4 条链路中 transfer 仅按需建了 D2D，显式 Connect 补齐剩余 3 条
-  EXPECT_EQ(engine1.Connect("127.0.0.1:26300", kTimeOut), SUCCESS);
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26300", kTimeOut), ALREADY_CONNECTED);
 
   EXPECT_EQ(engine1.TransferSync("127.0.0.1:26300", WRITE, {desc}, kTimeOut), SUCCESS);
 

@@ -70,7 +70,7 @@ class UbClientHandler : public IClientHandler {
   std::mutex complete_handles_mutex_;
 
   bool lazy_mode_ = false;
-  bool connect_triggered_ = false;  // 区分 GetOrCreateClient 内部首次调用（延迟）与用户显式 Connect（实际建链）
+  bool connect_triggered_ = false;
   std::set<CommType> connected_types_;
   uint32_t connect_timeout_ms_ = 0;
 };
