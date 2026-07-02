@@ -176,19 +176,8 @@ Status UbClientHandler::Connect(uint32_t timeout_ms) {
     return SUCCESS;
   }
 
-  // lazy 模式显式调用hixl的Connect：补齐 transfer 未覆盖的剩余链路
-  std::map<CommType, HixlClientHandle> pending;
-  for (const auto &[type, handle] : handles_) {
-    if (connected_types_.count(type) == 0U) {
-      pending.emplace(type, handle);
-    }
-  }
-  if (pending.empty()) {
-    HIXL_LOGE(ALREADY_CONNECTED, "[UbClientHandler] All links already connected");
-    return ALREADY_CONNECTED;
-  }
-  HIXL_LOGI("[UbClientHandler] Auto-connect mode, connecting %zu remaining link(s)", pending.size());
-  return ConnectHandles(pending, timeout_ms);
+  HIXL_LOGE(ALREADY_CONNECTED, "[UbClientHandler] Auto-connect mode already triggered");
+  return ALREADY_CONNECTED;
 }
 
 Status UbClientHandler::EnsureLinksConnected(const std::vector<CommType> &types, uint32_t timeout_ms) {
