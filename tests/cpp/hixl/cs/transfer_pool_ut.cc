@@ -29,6 +29,9 @@ namespace {
 // 使用非常规 device_id，避免与其它用例共享 GetInstance 单例时互相干扰
 constexpr int32_t kTransferPoolUtDevId = 910246;
 constexpr int32_t kTransferPoolKernelDevId = 910247;
+constexpr int32_t kTransferPoolNotifyDevId = 910248;
+constexpr int32_t kTransferPoolReinitFailDevId = 910249;
+constexpr uint64_t kRuntimeNotifyAddr = 0x88888888ULL;
 
 class CountingAclRuntimeStub : public llm::AclRuntimeStub {
  public:
@@ -66,6 +69,22 @@ class CountingAclRuntimeStub : public llm::AclRuntimeStub {
   std::vector<std::string> func_names_{};
 };
 
+class ReinitCreateContextFailStub : public llm::AclRuntimeStub {
+ public:
+  aclError aclrtCreateContext(aclrtContext *context, int32_t device_id) override {
+    ++create_context_calls_;
+    if (create_context_calls_ > kInitialContextCreateCount) {
+      return ACL_ERROR_FAILURE;
+    }
+    return llm::AclRuntimeStub::aclrtCreateContext(context, device_id);
+  }
+
+  uint32_t create_context_calls_{0U};
+
+ private:
+  static constexpr uint32_t kInitialContextCreateCount = 2U;
+};
+
 class TransferPoolTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -82,6 +101,14 @@ class TransferPoolTest : public ::testing::Test {
     auto *kernel_pool = TransferPool::GetInstance(kTransferPoolKernelDevId);
     if (kernel_pool != nullptr) {
       kernel_pool->Finalize();
+    }
+    auto *notify_pool = TransferPool::GetInstance(kTransferPoolNotifyDevId);
+    if (notify_pool != nullptr) {
+      notify_pool->Finalize();
+    }
+    auto *reinit_fail_pool = TransferPool::GetInstance(kTransferPoolReinitFailDevId);
+    if (reinit_fail_pool != nullptr) {
+      reinit_fail_pool->Finalize();
     }
     llm::AclRuntimeStub::Reset();
     llm::MmpaStub::GetInstance().Reset();
@@ -219,6 +246,51 @@ TEST_F(TransferPoolTest, SlotHandleHasDevConstOneField) {
   TransferPool::SlotHandle handle{};
   handle.dev_const_one = nullptr;
   EXPECT_EQ(handle.dev_const_one, nullptr);
+}
+
+TEST_F(TransferPoolTest, NotifyAddressResolvedDuringInitialize) {
+  auto *pool = TransferPool::GetInstance(kTransferPoolNotifyDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(2U), SUCCESS);
+  std::vector<TransferPool::SlotHandle> slots;
+  ASSERT_EQ(pool->GetAllSlots(slots), SUCCESS);
+  ASSERT_EQ(slots.size(), 2U);
+  for (const auto &slot : slots) {
+    EXPECT_EQ(slot.notify_addr, kRuntimeNotifyAddr);
+    EXPECT_EQ(slot.notify_len, sizeof(kRuntimeNotifyAddr));
+  }
+}
+
+TEST_F(TransferPoolTest, AbortReinitKeepsNotifyAddressResolved) {
+  auto *pool = TransferPool::GetInstance(kTransferPoolNotifyDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  TransferPool::SlotHandle old_handle{};
+  ASSERT_EQ(pool->Acquire(&old_handle), SUCCESS);
+  EXPECT_EQ(old_handle.notify_addr, kRuntimeNotifyAddr);
+  pool->Abort(old_handle);
+
+  TransferPool::SlotHandle new_handle{};
+  ASSERT_EQ(pool->Acquire(&new_handle), SUCCESS);
+  EXPECT_EQ(new_handle.notify_addr, kRuntimeNotifyAddr);
+  EXPECT_EQ(new_handle.notify_len, sizeof(kRuntimeNotifyAddr));
+  pool->Release(new_handle);
+}
+
+TEST_F(TransferPoolTest, AbortReinitFailureDoesNotReturnSlotToFreeList) {
+  auto acl_stub = std::make_shared<ReinitCreateContextFailStub>();
+  llm::AclRuntimeStub::SetInstance(acl_stub);
+  auto *pool = TransferPool::GetInstance(kTransferPoolReinitFailDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  TransferPool::SlotHandle handle{};
+  ASSERT_EQ(pool->Acquire(&handle), SUCCESS);
+
+  pool->Abort(handle);
+
+  TransferPool::SlotHandle next{};
+  EXPECT_EQ(pool->Acquire(&next), RESOURCE_EXHAUSTED);
+  EXPECT_GE(acl_stub->create_context_calls_, 3U);
 }
 
 TEST_F(TransferPoolTest, MultipleAcquireReleaseCycles) {
