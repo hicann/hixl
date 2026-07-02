@@ -10,6 +10,10 @@ See LICENSE in the root of the software repository for the full text of the Lice
 
 # 建链失败类问题
 
+<!-- 离线兜底快照，来源: https://gitcode.com/cann/hixl/wiki/HIXL常见问题定位手册.md -->
+<!-- 同步日期: 2026-07-02。运行时优先 WebFetch Wiki，本地仅在无网络时使用。 -->
+<!-- 注意: 中转(Buffer)模式已下线；FabricMem 为独立 FabricMemEngine，不再走 AdxlInnerEngine 内部分支。 -->
+
 ## 快速索引
 
 先看首条致命错误，再按下面的关键词跳读对应章节，不要整份从头到尾顺读。
@@ -21,12 +25,19 @@ See LICENSE in the root of the software repository for the full text of the Lice
 | `LINK_ERROR_INFO` | `1.建链超时 -> 场景二/三` | 重点看链路一致性与 TLS 配置 |
 | `super_device_id`、`invalid host device id 65535` | `1.建链超时 -> 场景四` | HCCS + ranktable 场景常见 |
 | `device_ip is not set correctly` | `2.建链报错 -> 报错现象二` | 常与 `hccn.conf` 或 CANN 版本相关 |
-| `CheckMemCpyAttr` | `2.数据传输时内存类型校验失败` | 先判断是否落入 Buffer 路径 |
+| `IP is used repeatedly`、`device_ip.*already exist`、`Ranktable_Check_Failed`、`EI0014` | `2.建链报错 -> 报错现象三` | 同 NPU 多进程；各进程配不同 `comm_resource_config.listen_port` |
+| `comm_resource_config.listen_port`、`ASCEND_GLOBAL_RESOURCE_CONFIG` | `2.建链报错 -> 报错现象三` | Mooncake 经 env 透传；默认 16666，多进程须显式区分 |
+| `CheckMemCpyAttr` | `2.数据传输时内存类型校验失败` | 内存类型不匹配或未注册内存 |
 | `Can't find remoteBuffer by key` | `3.报错：Can't find remoteBuffer by key` | 常见于对端内存未注册或注册时机不对 |
-| `out of memory`、`DevMemAllocHugePageManaged` | `2.建链报错 -> 场景三` | 重点看 device 侧空闲内存 |
+| `out of memory`、`DevMemAllocHugePageManaged` | `2.建链报错 -> 场景三` | **用户 HBM** 不足（建链占 HBM ~7MB/链路） |
+| `ibv_cmd_create_cq failed, ret 12`、`create cq failed ret -259`、`qp create failed` | `2.建链报错 -> 场景四` | **device 系统内存**不足（非 HBM）；ROCE 注册 HOST 池化内存消耗页表/CQ 资源，量级约几百 MB |
 | `stream sync timeout`、`RtStreamSynchronizeWithTimeout` | `1.数据传输超时` | 结合 RDMA 重传参数一起分析 |
 | `roce`、`ping`、`ib_send_bw` | `环境ROCE不通` | 先确认设备间联通性 |
 | `PFC`、`DSCP`、`priority 4` | `网卡和交换机PFC配置不匹配问题` | 环境类问题，和业务日志分开看 |
+| `HCCL_NPU_SOCKET_PORT_RANGE`、`isAutoPort` | `1.建链超时 -> 场景五` | 容器化场景随机端口 |
+| `halMemImportFromShareableHandleV2 failed` | `FabricMem模式报错` | 可能跨超节点 |
+| `suspect remote error` | `4.FabricMem模式报错` | 灵渠版本需 > 1.5.0 |
+| `cpu stuck`、`fabric_memory.max_capacity` | `5.CANN9.0 FabricMem cpu stuck` | CANN 9.0 需配置资源上限 |
 
 ## 1.建链超时
 
@@ -138,6 +149,34 @@ $ grep -r "HcclCommPrepare" |grep "141.61.29.108:20311_141.61.29.108:21035"
 - id：设备id。通过`npu-smi info -l`命令查出的NPU ID即为设备id。
 - chip_id：芯片id。通过`npu-smi info -m`命令查出的Chip ID即为芯片id。
 
+#### 场景五：容器化场景下，p端日志中出现随机的端口号
+
+- **问题定位：**
+
+需开启 INFO 级别日志：
+
+```bash
+export ASCEND_GLOBAL_LOG_LEVEL=1
+```
+
+在 p 端日志中执行：
+
+```bash
+grep -nr ${p_virtual_ip} plog/ | grep "Listen"
+```
+
+其中 `${p_virtual_ip}` 是 p 端的虚拟 ip，获取方式为：
+
+```bash
+hccn_tool -i ${device_id} -vnic -g
+```
+
+日志里出现两次监听端口号不同（如 42155 与 45655），但 ranktable 中默认端口为 16666，则建链会超时。
+
+- **解决方法：**
+
+随机端口通常由容器化场景设置了 `HCCL_NPU_SOCKET_PORT_RANGE="auto"` 导致，关闭该环境变量即可。
+
 ## 2.建链报错
 
 ### 报错现象一：
@@ -206,7 +245,9 @@ aligned_mem_size = mem_size - (aligned_addr - addr)
 1. 排查业务代码中，内存注册传入的内存大小是否超过了内存申请时传入的大小；
 2. 当申请的是普通页内存并且手动对齐了内存时，需确保偏移后的内存大小不会越界。
 
-#### 场景三：out of memory导致建链失败
+#### 场景三：out of memory 导致建链失败（用户 HBM 不足）
+
+> **与场景四区分：** 本场景 plog 中能见到 `DevMemAllocHugePageManaged` / `halMemAlloc ... out of memory`（**用户 HBM** 不足）。若首错为 `ibv_cmd_create_cq failed, ret 12` 且无 HBM OOM 日志，见 **场景四（device 系统内存）**。
 
 - 问题定位：
 
@@ -229,9 +270,44 @@ ERROR] RUNTIME(27271,ker_DP7_EP7) :2026-02-27-16:24:15.735.937 [npu_driver.cc:15
 
 ```
 
-在建链时底层每条链路会占用大约2M的device侧内存，推测由于内存申请失败导致建链失败
+在建链时底层每条链路会占用大约2M的**用户 HBM**，推测由于 HBM 申请失败导致建链失败
 
-- 解决方法：减少device内存占用，以便有空闲内存可以申请。
+- 解决方法：减少 P 端 **HBM** 占用（如调低 vLLM `--gpu-memory-utilization`）。ROCE 池化 HBM 与 device 系统内存区分见 Wiki「池化方案总览 · HOST 内存大小限制」。
+
+#### 场景四：ROCE 注册 HOST 内存导致 device 系统内存不足（非 HBM）
+
+[参考ISSUE](https://gitcode.com/cann/hixl/issues/382)
+
+- **与场景三的区别：**
+  - 场景三：`DevMemAllocHugePageManaged` / `halMemAlloc ... out of memory` → **用户 HBM** 不足。
+  - 场景四：`ibv_cmd_create_cq failed, ret 12`（errno 12 = ENOMEM）→ **NPU device 系统内存**（页表/RDMA CQ·QP，单卡约几百 MB）不足；**不是**调低 `--gpu-memory-utilization` 能直接解决的 HBM 问题。
+
+- **问题定位：**
+
+  ROCE 池化需把 **HOST(DRAM) 内存注册给 RDMA 网卡**。注册会在 device 侧消耗**系统内存**（页表等）：
+  - HDK < 25.5.0：按 **4KB** 粒度建页表，大池极易打满 device 系统内存；
+  - HDK ≥ 25.5.0：按 host 实际页粒度（2MB 大页 → 每 2MB 约 1 个 device 页表项），全大页可显著降低消耗。
+
+  典型 plog（首错常在 HCCL 建链失败之前约 1s）：
+
+  ```bash
+  [ERROR] ROCE(...,hccp_service.bin):... ibv_cmd_create_cq failed, ret 12
+  [ERROR] HCCP(...,hccp_service.bin):... create cq failed ret -259
+  [ERROR] HCCP(...,hccp_service.bin):... qp create failed ret[-259]
+  [ERROR] HCCL(...):... Connect failed. userrank[...], ret[13].
+  [ERROR] HCCL(...):... [HcclCommPrepare]call trace: hcclRet -> 13
+  [ERROR] GE(...):... ErrorNo: 503900() ... Call hccl api failed
+  ```
+
+- **Wiki 参考（HOST 注册与 device 系统内存）：**
+  [Mooncake + HIXL 池化方案总览（A2 - A3）](https://gitcode.com/cann/hixl/wiki/Mooncake%20+%20HIXL%20%E6%B1%A0%E5%8C%96%E6%96%B9%E6%A1%88%E6%80%BB%E8%A7%88%EF%BC%88A2%20-%20A3%EF%BC%89.md) → **「HOST 内存大小限制」** 小节（注册消耗 device 系统内存、大页、`MC_STORE_USE_HUGEPAGE`）。
+
+- **解决方法：**
+  1. **保证 HOST 池化内存用大页申请**（`aclrtMallocHost` 优先 2MB 大页；启动前 `drop_caches` + `compact_memory`）；
+  2. 大池使用 **预留大页 + mmap**：`nr_hugepages` + `export MC_STORE_USE_HUGEPAGE=1`（mooncake ≥ 0.3.11）；
+  3. **降低池化 HOST 内存规模**（如减小 `global_segment_size_gb`）；
+  4. 升级 HDK ≥ 25.5.0，使页表按大页粒度计费；
+  5. 勿与场景三混淆：若无 `DevMemAllocHugePageManaged`，优先按本场景排查。
 
 ### 报错现象二：
 
@@ -274,6 +350,57 @@ ERROR] RUNTIME(27271,ker_DP7_EP7) :2026-02-27-16:24:15.735.937 [npu_driver.cc:15
 - **解决方法**
 
   参考[hccn_tool文档](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743?category=developer-documents&subcategory=interface-reference)，使用hccn_tool工具查询并将device信息补充到hccn.conf文件中。
+
+### 报错现象三：
+
+多个进程共用同一张 NPU（同一张 device 网卡）时，ADXL 建链会在 ranktable 校验阶段失败。典型场景包括：Mooncake store 与 client 调度到同一物理节点且均 `set_device(0)`；standalone `mooncake_client` 与推理进程 embedded client 同卡共存。通常 plog 首错如下：
+
+```bash
+Ranktable_Check_Failed(EI0014): The ranktable information check failed, Reason:[The IP is used repeatedly].
+[ERROR] HCCL(...):... [topoinfo_ranktableParser.cc:522] ... [RanktableCheck] ... [device_ip]:[172.16.0.70] is already exist
+[ERROR] HCCL(...):... [topoinfo_ranktableConcise.cc:308] ... get dev list error:serverId[172.30.126.149]
+[ERROR] GE(...):... [adxl_engine_impl.cc:205] ... Failed to connect, remote engine:172.30.126.149:20010
+```
+
+> **机制说明：** device 侧网卡默认监听端口为 **16666**。未配置 `comm_resource_config.listen_port` 时，HIXL 自动生成的 ranktable **不携带** `device_port` 字段；多进程共用同一 NPU 时，合并后的 ranktable 无法区分各进程通信资源，HCCL 校验失败。配置 `listen_port` 后，ADXL 将其写入 ranktable 的 `device_port`，支持单卡多进程建链。详见 [HIXL GlobalResourceConfig — listen_port](https://gitcode.com/cann/hixl/blob/master/docs/zh/api/cpp/HIXL-interface.md)。
+
+#### 场景一：Mooncake store 与 client 同节点同卡
+
+[参考ISSUE](https://gitcode.com/cann/hixl/issues/185)
+
+- **问题定位：**
+
+  store 与 client 在同一物理节点绑定同一张 NPU（如均为 `torch_npu.npu.set_device(0)`）。Pod 重调度到不同节点时可能偶发成功。
+
+- **解决方法：**
+
+  为 **每个进程** 配置 **不同** 的 `comm_resource_config.listen_port`（取值范围 [1, 65535]），通过环境变量 `ASCEND_GLOBAL_RESOURCE_CONFIG` 传入 Mooncake / ADXL：
+
+  ```bash
+  # mooncake-store 侧
+  export ASCEND_GLOBAL_RESOURCE_CONFIG='{"comm_resource_config.listen_port":26666}'
+
+  # client 侧（端口必须与 store 不同）
+  export ASCEND_GLOBAL_RESOURCE_CONFIG='{"comm_resource_config.listen_port":26667}'
+  ```
+
+  也可在 HIXL 初始化时通过 `OPTION_GLOBAL_RESOURCE_CONFIG` 传入同等 JSON。
+
+- **备选规避：** 两进程使用不同 logic device（如 `set_device(0)` / `set_device(1)`），或调度策略避免同节点同卡共存。
+
+#### 场景二：standalone mooncake_client 与 embedded client 同卡
+
+- **问题定位：**
+
+  除 **16666 端口冲突** 外，未区分 `listen_port` 时亦可能触发 ranktable 校验失败（见报错现象三日志）。
+
+- **解决方法：**
+
+  为 standalone `mooncake_client` 配置与 embedded client **不同** 的 `listen_port`，参见 [Mooncake Store 各种部署模式介绍](https://gitcode.com/cann/hixl/wiki/Mooncake%20Store%20%E5%90%84%E7%A7%8D%E9%83%A8%E7%BD%B2%E6%A8%A1%E5%BC%8F%E4%BB%8B%E7%BB%8D.md) §2.6。
+
+### FabricMem模式报错：halMemImportFromShareableHandleV2 failed
+
+- **可能原因：** 机器跨了超节点
 
 # 数据传输失败类问题
 
@@ -419,3 +546,74 @@ rtError_t ApiImpl::CheckMemCpyAttr(const void * const dst, const void * const sr
 可能情况:
 * 没有注册对端的内存，或者在建链之后注册的内存：在对端的日志查找注册内存的日志，比如INFO日志：Add local mem range start ...
 * 没有配置HCCL_INTRA_ROCE_ENABLE=1，对端是HOST内存 （HCCS不支持HOST内存）
+
+## 4.FabricMem模式报错：suspect remote error
+
+- **原因：** 灵渠版本没有升级，要求大于 1.5.0
+
+## 5.使用CANN9.0 FabricMem模式出现cpu stuck
+
+CANN 9.0 需要开启下面的配置，否则可能出现 cpu stuck：
+
+```bash
+export ASCEND_GLOBAL_RESOURCE_CONFIG='{"fabric_memory.max_capacity": "32"}'
+```
+
+# 典型案例分析
+
+## RoCE 直传多对一场景下性能退化的定位与修复
+
+### 1.案例背景
+
+模拟在 PD 分离架构中，利用 RoCE 协议进行 KV Cache 数据传输。在 8 卡环境中分别做 Put/Get 操作，0 卡将 32 个 Block 数据分发到 Host 内存，0-7 卡同时从 Host 内存中 Get 这 32 个 Block。
+
+### 2.问题现象
+
+通过 Host 侧 CPU 展开传输平均耗时 200ms 左右，而通过 AICPU 展开时部分任务耗时高达 10s 左右，严重不符合预期。
+
+### 3.定位与分析
+
+- 通过 Profiling 发现 AICPU 多线程展开存在排队；
+- AICPU 展开 HCCL 单边通讯过程中存在 WQE 耗时很长（20s 左右）；
+- 将 WR 队列深度从 128 提升至 1024，重传间隔从 1ms 缩短至 100μs 后，单 Block 耗时大部分 200μs；
+- 网卡统计存在大量 RDMA 重传，多打一（多个口进单口出）冲突导致带宽下降；
+- 在交换机上配置 PFC 与 NPU 参数一致后，单次任务传输耗时约 30ms。
+
+### 4.解决方法
+
+总体原则：NPU 和交换机关于 PFC 参数保持一致。NPU 侧检查 priority 4 与 DSCP 映射，交换机侧参考 Wiki 配置 PFC 队列 4。
+
+# 常用配置及查询方式
+
+### hccl_tool常用命令
+
+查询节点 device ip 信息，以 8 卡为例：
+
+```bash
+for i in {0..7}; do hccn_tool -i $i -ip -g; done
+```
+
+查询 device 之间网络是否连通：
+
+```bash
+hccn_tool -i 0 -ping -g address x.x.x.x
+```
+
+检查设备之间 TLS 设置是否一致（**只读查询**，勿在此执行修改命令）：
+
+```bash
+for i in {0..7}; do hccn_tool -i $i -tls -g; done | grep switch
+```
+
+若两端 TLS 不一致且需统一关闭，参见上文「建链超时 → 场景三」中的修改命令（含风险说明）。
+
+查询 device 网络连接状态及历史状态：
+
+```bash
+for i in {0..7}; do hccn_tool -i $i -link -g; done
+for i in {0..7}; do hccn_tool -i $i -link_stat -g; done
+```
+
+### RoCE网口网络配置
+
+Atlas A3 训练/推理系列产品默认同卡双 die 之间网络不互通，若需配置同卡双 die 通信，请参考 RoCE 网口网络配置文档。

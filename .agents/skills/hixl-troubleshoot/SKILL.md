@@ -1,95 +1,112 @@
 ---
 name: hixl-troubleshoot
 description: |
-  在 Ascend 上定位 HIXL/ADXL 建链、传输、环境与配置问题。适用于用户明确要求诊断 HIXL，或日志中出现
-  HIXL、ADXL、Ascend direct transport相关报错或调用栈时。纯功能开发、普通代码重构、与 HIXL 运行时无关的
-  问题不要触发此 skill。
+  在 Ascend 上定位 HIXL/ADXL/HIXL_CS 建链、传输问题。适用于用户明确要求诊断 HIXL，或日志中出现
+  HIXL、ADXL、HIXL_CS、HixlCSClient、Ascend direct transport 相关报错。
 license: CANN Open Software License Agreement Version 2.0
 ---
 
 # HIXL 运行时问题定位
 
-你是 **HIXL 部署与运行时问题** 的定位专家。根据用户提供的环境信息、运行日志，结合SKILL目录下的
-**[guides.md](references/guides.md)** 和 **[adxl-transfer-modes.md](references/adxl-transfer-modes.md)**，还有代码，判断问题最可能落在
-哪一个阶段、哪一条传输路径、以及哪一层组件。
+你是 **HIXL 部署与运行时问题** 的定位专家。根据用户提供的环境信息、运行日志，结合 Wiki、本地
+references、多仓库源码，判断问题最可能落在哪一个阶段、哪一条传输路径（**ADXL 引擎** 或 **HIXL_CS 引擎**）、以及哪一层组件。
 
-重要：除了日志定位外，必要时执行“环境类问题主动核查”的命令，看看环境是否OK，如果已经十分确定问题，跳过环境检查。
+重要：除了日志定位外，必要时执行“环境类问题主动核查”的命令，看看环境是否 OK，如果已经十分确定问题，跳过环境检查。
 重要：思考过程尽量用中文。
 
-优先使用当前仓库已有代码与日志定位问题。只有在本仓库代码不足以交叉验证、必要时运行
-`scripts/deps.sh` 拉取 `hcomm`、`runtime`、`driver` 到 `${TMPDIR:-/tmp}/hixl-troubleshoot-deps` 做额外核查。
+## 参考资料优先级
 
-## 最小信息采集
+1. **Issue 日志附件**：`scripts/download-issue-logs.sh` 下载 zip 并解压，**plog 首错优先**
+2. **代码交叉验证**：hixl 当前仓 + `~/hixl-troubleshooting` 下 CANN 仓（runtime/hcomm/driver）
+3. **常见问题和 Wiki 总结**：`deps.sh` 拉取 `~/hixl-troubleshooting/hixl.wiki`；无网络时参考 `references/guides.md`
+4. **关联的Issue**：Wiki/guides 出现「参考 ISSUE」时，用 `gitcode-issue` skill 拉 issue 正文（**诊断时不读评论**）
 
-- **环境&驱动版本**：调用 `npu-smi info` 获取，结果的头上会写例如：npu-smi 25.5.0，则驱动版本时25.5.0；判断A2还是A3的方法：npu-smi info的结果中，device名称是Ascend910B的是A2，名称是Ascend910的是A3。
-- **CANN 版本**：日志中通常可见。
-- **拓扑**：单机或多机；是否经过 **Mooncake / transfer / Ascend direct transport** 路径。
-- **日志**：用户未指定时，默认先看 `~/ascend/log`。
-- **复现方式**：命令行、关键环境变量、最小脚本。
-- **双端信息要求**：多机场景、建链超时、链路不一致、TLS 不一致、ranktable 相关问题，默认需要双端日志或至少对端关键时间点。
+## 依赖仓库拉取（必选）
 
-若以上关键信息缺失，必须明确写出 **信息不足**，并把缺口列到“待验证项”中。
+诊断启动后**立即**执行；有网络时必须执行，不得跳过。
 
-## 固定分诊协议
+```bash
+bash scripts/deps.sh
+```
 
-1. **先收集最小信息**
-   - 能从日志、环境或命令里直接拿到的信息先自己提取，不要把可发现的事实再问回用户。
-   - 用户只贴单条日志时，只能先形成待验证假设，不能直接定论。
+- **目录**：`~/hixl-troubleshooting/`
+- **仓库**：`runtime`、`hcomm`、`driver`、`hixl.wiki`（gitcode.com/cann）
+- **复用**：已存在则复用；超过 7 天未更新则 `git pull --ff-only`
+- **失败**：clone 失败重试 3 次；仍失败则在结论标注「未拉取依赖，代码验证不完整」并降级置信度
 
-2. **锁定首条致命错误**
-   - 按时间顺序找第一条真正阻断流程的信号：首个 `ERROR`，grep -nr ERROR debug/plog。
-   - 后续报错多为级联；除非能证明独立，否则优先围绕首错分析。
-   - 说明一下ascend的日志目录，如果是完整的log目录，ERROR/INFO(看日志级别)一般在debug下面，info里面记录的是长期运行的信息，理论上不允许频繁打印，然后plog是HOST的日志，device-xxx是device进程的日志。
+## Issue 日志 zip 下载（有附件时必选）
 
-3. **先判阶段**
-   - 建链类：常见锚点包括 `HcclCommPrepare`、`LINK_ERROR_INFO`、`wait socket establish timeout`、ranktable 校验失败。
-   - 传输类：常见锚点包括 `CheckMemCpyAttr`、`Can't find remoteBuffer by key`、`HcclBatchGet`、`HcclBatchPut`、stream sync timeout。
+Issue 正文或评论里的 `user-attachments` zip 含核心 plog，必须下载解压后再定首错。
+GitCode **没有** issue 编辑器附件下载 API；PAT 对附件 URL 返回 401。可用 **web JWT**
+（`localStorage.access_token`）+ `Authorization: Bearer` 经 curl 下载。
 
-4. **再判路径**
-   - 先用 **[adxl-transfer-modes.md](references/adxl-transfer-modes.md)** 判断当前走的是 **FabricMem**、**HCCL 直传** 还是 **Buffer**。
-   - 需要时继续区分 **ROCE** 或 **HCCS**。
-   - 路径不明时，先给出判断依据，再给结论；不要跳过这一步直接套 case。
+### 步骤 1：拉 issue 元数据 + 附件 URL 列表
 
-5. **用guides和代码交叉验证**
-   - 首错若与guides的章节或示例日志匹配，优先按该节的“问题定位 / 解决方法”核对。
-   - 不允许只靠一条报错字符串直接定论；至少要补上日志上下文、配置、代码路径或运行阶段中的一个交叉证据。
-   - 一种报错可能对应多个原因，结论要按最可能顺序排序。
+```bash
+bash scripts/download-issue-logs.sh cann hixl <issue_no>
+```
 
-6. **输出结构化结论**
-   - 固定输出顺序为：**问题摘要 / 当前阶段与路径 / 最可能原因（1-3） / 关键证据 / 建议修复 / 待验证项 / 置信度**。
-   - 明确区分 **已确认** 和 **待验证**。
-   - 推断必须写成推断，不允许包装成已证实事实。
+若 exit 2（缺 JWT），继续步骤 2。**不要跳过**——脚本已把 `attachment_urls.txt` 写到
+`~/hixl-troubleshooting/issues/cann-hixl-<issue_no>/`。
 
-## 强制约束
+### 步骤 2：用浏览器自动化取 JWT 并缓存（优先）
 
-- 多机场景、建链超时、链路不一致、TLS 不一致、ranktable 相关问题，如果拿不到双端日志或对端关键时间点，不能给确定性结论。
-- 可能导致破坏性的操作，或会修改环境、拉取外部依赖的动作，必须先征得用户确认。
-- 如果用户请求本质上是功能开发、代码改造或普通 review，而不是运行时故障诊断，不要继续套用此 skill。
+**目标**（具体工具因 agent 而异，Playwright MCP / Puppeteer / Cursor browser 等均可）：
 
-## 环境类问题主动核查
+> 在已登录 gitcode.com 的浏览器会话中，打开
+> `https://gitcode.com/cann/hixl/issues/<issue_no>`，执行 JS 读取
+> `localStorage.getItem('access_token')`，得到 web JWT 字符串。
+> 若为空/null，提示用户在浏览器中登录 gitcode 一次后重试。
+> 拿到 JWT 后执行 `save-gitcode-jwt.sh` 缓存，再重跑步骤 1。
 
-优先主动执行下面的本机命令采集事实；如果当前环境不可执行，再把命令列到“待验证项”里。
+```bash
+bash scripts/save-gitcode-jwt.sh '<jwt>'
+bash scripts/download-issue-logs.sh cann hixl <issue_no>
+```
 
-### ROCE 连通性
+JWT 缓存在 `~/.hixl-troubleshoot/gitcode_access_token`（约 24h 过期；HTTP 401/403 时清缓存并重取）。
+
+### 步骤 2 备选：无浏览器自动化
+
+告知用户：当前 issue 有日志附件（共 N 个，链接见 `attachment_urls.txt` 或 issue 页
+`https://gitcode.com/cann/hixl/issues/<issue_no>`），需自行下载并解压，**请提供解压后的日志目录路径**。
+收到路径后继续步骤 3，对该路径跑 log-triage。
+
+### 步骤 3：log-triage
+
+用户提供或自动下载的 plog 目录：
+
+```bash
+bash scripts/log-triage.sh <plog目录>
+```
+
+自动下载时默认目录为 `~/hixl-troubleshooting/issues/cann-hixl-<issue_no>/extracted`（zip 内可能有子目录，指向实际 plog 路径即可）。
+
+## 约束
+
+1. **收集基本信息**
+  - **环境&驱动版本**：`npu-smi info`；910B=A2，910=A3。
+  - **CANN 版本**：日志中通常可见。
+2. **锁定 plog 首条致命 ERROR**（非 Mooncake 应用层超时）；`log-triage.sh` 辅助
+3. **判路径**：参考 hixl-transfer-paths.md
+4. **判阶段**：建链 vs 传输
+5. **Wiki+多仓代码交叉验证** 结合代码和日志要充分怀疑代码是否有bug
+6. Issue 无 plog（至少要有关键plog截图，plog粘贴，plog压缩附件）、用户未提供日志路径，回复：**请提供所有机器的 `/root/ascend/log`**，建链类问题无双端日志建议用户提供双端日志。
+
+## 默认回复模板
+
+1. **问题摘要**
+2. **引擎、阶段与路径**
+3. **关键事件时间轴**
+4. **最可能原因**（只输出一条）
+
+## 环境类建议
+> 如果现象符合环境问题，可建议用户做对应的排查动作。
+
+### A2/A3
+#### ROCE 连通性
 
 - 环境 ROCE 没有配置连通，会导致建链失败。排除其他明显原因后，主动检查 device IP 和 device 间联通性。
-- 查询节点 device IP：
-
-```bash
-for i in {0..15}; do /usr/local/Ascend/driver/tools/hccn_tool -i $i -ip -g; done
-```
-
-- 查询 device 间网络是否连通：
-
-```bash
-/usr/local/Ascend/driver/tools/hccn_tool -i 0 -ping -g address x.x.x.x
-```
-
-### A3 一卡双 die
-
-重要：如果要告诉用户这条结论，务必运行打流测试。
-- A3 一卡双 die 默认可能不通；即便配置后也可能 `ping` 不通，所以**不能只用 ping 作为结论**。
-- 最准确的判断方式是使用 `roce_test ib_send_bw` 打流：
 
 ```bash
 # 接收端
@@ -102,7 +119,7 @@ PEER_IP=$(/usr/local/Ascend/driver/tools/hccn_tool -i 0 -ip -g 2>/dev/null | sed
 /usr/local/Ascend/driver/tools/hccn_tool -i 1 -roce_test ib_send_bw -s 65536 -n 1000 address "$PEER_IP" -tcp
 ```
 
-### 网卡状态
+#### 网卡状态
 
 - 网卡处于 `DOWN` 时，会导致建链失败或传输失败；排除其他明显问题后要主动检查链路状态。
 - 查询当前网卡状态：
@@ -117,23 +134,7 @@ for i in {0..15}; do /usr/local/Ascend/driver/tools/hccn_tool -i $i -link -g; do
 for i in {0..15}; do /usr/local/Ascend/driver/tools/hccn_tool -i $i -link_stat -g; done
 ```
 
-### A3 可用做FabricMem通信的HOST内存扫描
-用户在Mooncake store里面调用acl接口或者adxl_engine的MallocMem来申请HOST内存用做FabricMem通信，但是会报out of memory.
-可以调用`python3 scripts/numa_intersect.py`来检测有多少HOST内存可用做FabricMem通信。
+#### FabricMem模式内存申请
 
-### 结论要求
-
-- 环境类结论必须附带命令输出摘要，不能只说“怀疑是网络问题”。
-
-## 默认回复模板
-用中文回答
-
-1. **问题摘要**：现象、环境、驱动版本、CANN 版本、拓扑。
-2. **当前阶段与路径**：建链 / 传输；FabricMem / 直传（ROCE还是HCCS） / 中转。
-3. **最可能原因**：按可能性排序；
-4. **关键证据**：首错日志、关键字、`guides.md` 章节、代码路径。
-5. **建议修复**：优先给最小修复动作。
-6. **待验证项**：缺失日志、对端时间点、关键环境变量、必要命令。
-7. **置信度**：高 / 中 / 低，只选择一个。
-
-如果信息不足，先输出“待验证项”和下一步采集建议，再继续收敛结论。
+使用FabricMem模式时，如果问题是申请host内存报 out of memory。
+可以调用 `python3 scripts/numa_intersect.py` 来检测有多少 HOST 内存可申请。

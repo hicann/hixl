@@ -9,26 +9,88 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-set -euo pipefail
+set -uo pipefail
 
-base_dir="${TMPDIR:-/tmp}/hixl-troubleshoot-deps"
+base_dir="${HOME}/hixl-troubleshooting"
+max_age_days=7
+
+usage() {
+  echo "Usage: $0"
+  echo "  Clone/update CANN dependency repos under ${base_dir}"
+  echo "  Reuses existing clones; pulls if last update is older than ${max_age_days} days."
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
 
 mkdir -p "${base_dir}"
 
-clone_if_missing() {
-    local repo="$1"
-    local dst="${base_dir}/${repo}"
-
-    if [ -d "${dst}/.git" ]; then
-        echo "${repo} already exists at ${dst}"
-        return 0
-    fi
-
-    git clone "https://github.com/cann/${repo}.git" "${dst}"
+needs_update() {
+  local dst="$1" stamp mtime age
+  [ -d "${dst}/.git" ] || return 0
+  stamp="${dst}/.last_update"
+  [ -f "${stamp}" ] || return 0
+  mtime="$(stat -c %Y "${stamp}" 2>/dev/null || stat -f %m "${stamp}" 2>/dev/null || echo 0)"
+  age=$(( ( $(date +%s) - mtime ) / 86400 ))
+  [ "${age}" -ge "${max_age_days}" ]
 }
 
-clone_if_missing runtime
-clone_if_missing hcomm
-clone_if_missing driver
+clone_or_update_gitcode() {
+  local repo="$1"
+  local dst="${base_dir}/${repo}"
+  local url="https://gitcode.com/cann/${repo}.git"
 
-echo "Dependencies are available under ${base_dir}"
+  if [ -d "${dst}/.git" ]; then
+    if needs_update "${dst}"; then
+      echo "Updating ${repo} at ${dst}"
+      if git -C "${dst}" pull --ff-only; then
+        touch "${dst}/.last_update"
+      else
+        echo "WARN: pull --ff-only failed for ${repo}; keeping existing copy." >&2
+        return 1
+      fi
+    else
+      echo "Reusing ${repo} at ${dst}"
+    fi
+    return 0
+  fi
+
+  echo "Cloning ${repo} to ${dst}"
+  rm -rf "${dst}"
+  local attempt
+  for attempt in 1 2 3; do
+    if git clone --depth 1 --single-branch "${url}" "${dst}"; then
+      touch "${dst}/.last_update"
+      return 0
+    fi
+    echo "Clone ${repo} failed (attempt ${attempt}/3), retrying..." >&2
+    rm -rf "${dst}"
+    sleep "$((attempt * 2))"
+  done
+  echo "Failed to clone ${repo} after 3 attempts" >&2
+  return 1
+}
+
+rc=0
+for repo in runtime hcomm driver hixl.wiki; do
+  clone_or_update_gitcode "${repo}" || { rc=1; echo "WARN: ${repo} unavailable (code verification incomplete for this repo)." >&2; }
+done
+
+echo
+if [ "${rc}" -eq 0 ]; then
+  echo "Dependencies are available under ${base_dir}"
+else
+  echo "Some dependencies unavailable; see warnings above. Available repos under ${base_dir}" >&2
+fi
+exit "${rc}"
