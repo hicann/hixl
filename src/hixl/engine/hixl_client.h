@@ -11,7 +11,6 @@
 #ifndef CANN_HIXL_SRC_HIXL_ENGINE_HIXL_CLIENT_H_
 #define CANN_HIXL_SRC_HIXL_ENGINE_HIXL_CLIENT_H_
 
-#include <atomic>
 #include <cstdint>
 #include <map>
 #include <mutex>
@@ -109,12 +108,6 @@ class HixlClient {
    */
   Status GetTransferStatus(const TransferReq &req, TransferStatus &status);
 
-  bool HasTransferReq(const TransferReq &req);
-
-  void ClearTransferReqs();
-
-  void RemoveTransferReq(const TransferReq &req);
-
   Status SendNotify(const NotifyDesc &notify, int32_t timeout_ms);
 
   Status CheckAlive();
@@ -124,9 +117,11 @@ class HixlClient {
  private:
   Status SendEndpointInfoReq(int32_t fd, CtrlMsgType msg_type) const;
   Status RecvEndpointInfoResp(int32_t fd, std::vector<EndpointConfig> &remote_endpoint_list, uint32_t timeout_ms) const;
-  void WaitBatchCsSyncInflightDrain();
   Status RecvNotifyAck(int32_t fd, int32_t timeout_ms) const;
-  void CloseCtrlSocketLocked();
+  void CloseCtrlSocket();
+  bool HasTransferReq(const TransferReq &req);
+  void ClearTransferReqs();
+  void RemoveTransferReq(const TransferReq &req);
 
   std::string server_ip_;
   uint32_t server_port_;
@@ -135,15 +130,9 @@ class HixlClient {
   uint8_t rdma_sl_{kRdmaServiceLevel};
   bool is_connected_{false};  // true为已建链；false未建链
   bool is_finalized_{false};
-  bool finalize_pending_{
-      false};  // Finalize 置位后拒绝新 TransferSync；在析构 CS client 前等待为 0（与 TransferSync 内 fetch_add 配对）
-  std::atomic<int> batch_cs_sync_inflight_{0};
   int32_t ctrl_socket_{-1};
   std::unique_ptr<IClientHandler> client_handler_;
-  std::mutex ctrl_socket_mutex_;
-  std::mutex status_mutex_;  // 保护 is_connected_、is_finalized_、finalize_pending_；TransferSync 与 Finalize 在此与
-                             // inflight 配对
-  std::mutex req_map_mutex_;
+  std::mutex mutex_;  // 所有方法串行执行，不支持并发调用
   std::map<TransferReq, TransferInfo> req_map_;
   std::optional<uint8_t> qos_;
   std::optional<uint32_t> max_active_channels_;

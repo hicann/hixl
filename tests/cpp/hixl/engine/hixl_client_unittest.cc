@@ -12,7 +12,6 @@
 #include <vector>
 #include <cstdlib>
 #include <thread>
-#include <atomic>
 #include <chrono>
 #include <fstream>
 #include <cstdio>
@@ -55,7 +54,6 @@ static constexpr uint32_t default_list_num = 2;
 static constexpr uint32_t list_num_4ub = 4;
 static constexpr uint8_t kDefaultRdmaTc = 132;
 static constexpr uint8_t kDefaultRdmaSl = 4;
-static constexpr uint32_t kInflightPollIntervalMs = 1U;
 static std::vector<uint32_t> kLocalMems(kMemNum, kNum1);
 static std::vector<uint32_t> kRemoteMems(kMemNum, kNum2);
 enum class MockHixlServerMode : uint32_t {
@@ -607,20 +605,6 @@ class HixlClientUTest : public ::testing::Test {
     server_->DestroyServerAndUnreg();
   }
 
-  bool WaitForTransferSyncInflight(std::atomic<bool> &transfer_done, uint32_t timeout_ms) {
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
-    while (std::chrono::steady_clock::now() < deadline) {
-      if (client_->batch_cs_sync_inflight_.load(std::memory_order_acquire) > 0) {
-        return true;
-      }
-      if (transfer_done.load(std::memory_order_acquire)) {
-        return false;
-      }
-      std::this_thread::sleep_for(std::chrono::milliseconds(kInflightPollIntervalMs));
-    }
-    return client_->batch_cs_sync_inflight_.load(std::memory_order_acquire) > 0;
-  }
-
   void SetupTransferTest(bool use_4ub = false, bool is_lazy = false) {
     if (use_4ub) {
       StartServerReg4Ub(MockHixlServerMode::k4UbNormal);
@@ -1073,33 +1057,6 @@ TEST_F(HixlClientUTest, TransferSyncTimeoutTest) {
   // 0ms 预算：BatchTransferSync 在发起传输前即判定超时，避免桩快速完成导致无法覆盖 TIMEOUT 路径
   Status st = client_->TransferSync(op_descs, WRITE, 0U);
   EXPECT_EQ(st, TIMEOUT);
-}
-
-// TransferSync 接口测试：Finalize 在同步传输未结束时调用会阻塞，直至传输完成后再断链销毁
-TEST_F(HixlClientUTest, TransferSyncFinalizeWaitsForSyncCompleteTest) {
-  SetupTransferTest();
-  auto op_descs = CreateTransferOps();
-
-  std::atomic<Status> transfer_status = SUCCESS;
-  std::atomic<bool> transfer_done = false;
-  std::thread transfer_thread([&]() {
-    transfer_status = client_->TransferSync(op_descs, WRITE, kDefaultTimeoutMs);
-    transfer_done.store(true, std::memory_order_release);
-  });
-
-  const bool sync_inflight = WaitForTransferSyncInflight(transfer_done, kDefaultTimeoutMs);
-  if (sync_inflight) {
-    EXPECT_EQ(client_->Finalize(), SUCCESS);
-  }
-
-  if (transfer_thread.joinable()) {
-    transfer_thread.join();
-  }
-
-  EXPECT_EQ(transfer_status.load(), SUCCESS);
-  if (!sync_inflight) {
-    EXPECT_EQ(client_->Finalize(), SUCCESS);
-  }
 }
 
 // TransferAsync 接口测试：正常场景
