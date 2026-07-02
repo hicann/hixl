@@ -375,8 +375,11 @@ run() {
       }
 
       HIXL_PARALLEL_TEST_PIDS=()
+      HIXL_PARALLEL_TEST_MONITOR_PIDS=()
       HIXL_PARALLEL_TEST_CMDS=()
       HIXL_PARALLEL_TEST_LOGS=()
+      HIXL_PARALLEL_TEST_TIMEOUT_FILES=()
+      CPP_TEST_TIMEOUT_SECONDS=600
 
       run_cpp_test_parallel() {
           local suite="$1"
@@ -385,11 +388,29 @@ run() {
           local report_name="${suite}_test.xml"
           local run_cmd="${test_bin} --gtest_output=xml:${report_dir}/${report_name}"
           local log_file="${report_dir}/${suite}.log"
+          local timeout_file="${report_dir}/${suite}.timeout"
           echo "Run (parallel): ${run_cmd} (log: ${log_file})"
+          rm -f "${timeout_file}"
           ${run_cmd} > "${log_file}" 2>&1 &
-          HIXL_PARALLEL_TEST_PIDS+=("$!")
+          local test_pid="$!"
+          (
+              sleep "${CPP_TEST_TIMEOUT_SECONDS}"
+              if kill -0 "${test_pid}" 2>/dev/null; then
+                  echo "CPP test timeout after ${CPP_TEST_TIMEOUT_SECONDS}s: ${run_cmd}" > "${timeout_file}"
+                  cat "${timeout_file}"
+                  kill "${test_pid}" 2>/dev/null || true
+                  sleep 2
+                  kill -9 "${test_pid}" 2>/dev/null || true
+                  echo "===== Timeout Output: ${run_cmd} ====="
+                  cat "${log_file}"
+              fi
+          ) &
+          local monitor_pid="$!"
+          HIXL_PARALLEL_TEST_PIDS+=("${test_pid}")
+          HIXL_PARALLEL_TEST_MONITOR_PIDS+=("${monitor_pid}")
           HIXL_PARALLEL_TEST_CMDS+=("${run_cmd}")
           HIXL_PARALLEL_TEST_LOGS+=("${log_file}")
+          HIXL_PARALLEL_TEST_TIMEOUT_FILES+=("${timeout_file}")
       }
 
       for suite in "${CPP_TEST_SUITES[@]}"; do
@@ -399,8 +420,18 @@ run() {
       HIXL_PARALLEL_FAILED=0
       for idx in "${!HIXL_PARALLEL_TEST_PIDS[@]}"; do
           wait "${HIXL_PARALLEL_TEST_PIDS[$idx]}" && wait_ret=0 || wait_ret=1
+          if [[ -f "${HIXL_PARALLEL_TEST_TIMEOUT_FILES[$idx]}" ]]; then
+              wait "${HIXL_PARALLEL_TEST_MONITOR_PIDS[$idx]}" 2>/dev/null || true
+          else
+              kill "${HIXL_PARALLEL_TEST_MONITOR_PIDS[$idx]}" 2>/dev/null || true
+              wait "${HIXL_PARALLEL_TEST_MONITOR_PIDS[$idx]}" 2>/dev/null || true
+          fi
           echo "===== Output: ${HIXL_PARALLEL_TEST_CMDS[$idx]} ====="
-          cat "${HIXL_PARALLEL_TEST_LOGS[$idx]}"
+          if [[ -f "${HIXL_PARALLEL_TEST_TIMEOUT_FILES[$idx]}" ]]; then
+              cat "${HIXL_PARALLEL_TEST_TIMEOUT_FILES[$idx]}"
+          else
+              cat "${HIXL_PARALLEL_TEST_LOGS[$idx]}"
+          fi
           if [[ "${wait_ret}" -ne 0 ]]; then
               HIXL_PARALLEL_FAILED=1
               echo "!!! CPP TEST FAILED, PLEASE CHECK YOUR CHANGES !!!"

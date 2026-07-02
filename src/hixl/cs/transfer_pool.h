@@ -38,6 +38,8 @@ class TransferPool {
     aclrtNotify notify;
     void *dev_const_one;
     uint32_t notify_id;
+    uint64_t notify_addr;
+    uint32_t notify_len;
   };
 
   TransferPool(const TransferPool &) = delete;
@@ -63,11 +65,16 @@ class TransferPool {
     ThreadHandle thread;
     aclrtNotify notify;
     uint32_t notify_id;
+    uint64_t notify_addr;
+    uint32_t notify_len;
   };
 
   void InitFreeListLocked();
+  void ResetSlotsLocked(uint32_t pool_size);
+  Status InitializeResourcesLocked();
   Status InitOneSlotLocked(Slot &slot, uint32_t slot_index) const;
-  static Status EnsureNotifyLocked(Slot &slot);
+  Status ResolveNotifyAddressLocked(Slot &slot) const;
+  Status EnsureNotifyLocked(Slot &slot) const;
   static void ResetNotifyResourcesLocked(Slot &slot);
   static Status CreateNotifyLocked(Slot &slot);
   Status InitAllSlotsLocked();
@@ -83,6 +90,7 @@ class TransferPool {
   static void ResetAbortSlotNotifyLocked(Slot &slot);
   void DeleteSlotThreadContextForAbortLocked(Slot &slot, uint32_t slot_index) const;
   static void DestroySlotContextForAbortLocked(Slot &slot);
+  void CleanupSlotAfterAbortReinitFailureLocked(Slot &slot, uint32_t slot_index) const;
   Status ReinitSlotAfterAbortLocked(Slot &slot, uint32_t slot_index);
   void ReturnSlotToFreeListLocked(uint32_t slot_index);
   void AbortSlotByIndexLocked(uint32_t slot_index);
