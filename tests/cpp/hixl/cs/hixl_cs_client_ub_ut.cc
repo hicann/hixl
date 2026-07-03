@@ -120,8 +120,8 @@ class HixlCSClientDeviceFixture : public ::testing::Test {
     remote_flag_dev_ = 0ULL;
     FillTagMem(cli_, kTransFlagNameDevice, static_cast<void *>(&remote_flag_dev_), sizeof(uint64_t));
 
-    // 手动初始化 remote flag，模拟 GetRemoteMemLocked 的行为
-    ASSERT_EQ(cli_.EnsureDeviceRemoteFlagInitedLocked(), SUCCESS);
+    // 手动初始化 remote flag，模拟 GetRemoteMemImpl 的行为
+    ASSERT_EQ(cli_.EnsureDeviceRemoteFlagInited(), SUCCESS);
   }
 
   void TearDown() override {
@@ -175,14 +175,14 @@ TEST_F(HixlCSClientDeviceFixture, BatchGetDeviceSuccessUseMemcpyHackFlag) {
   EXPECT_EQ(st, HixlCompleteStatus::HIXL_COMPLETE_STATUS_COMPLETED);
 }
 
-TEST_F(HixlCSClientDeviceFixture, EnsureDeviceRemoteFlagInitedLockedMissingTagNoError) {
+TEST_F(HixlCSClientDeviceFixture, EnsureDeviceRemoteFlagInitedMissingTagNoError) {
   cli_.device_remote_flag_inited_ = false;
   cli_.device_remote_flag_addr_ = nullptr;  // 重置为 nullptr
   cli_.tag_mem_descs_.clear();
 
-  // EnsureDeviceRemoteFlagInitedLocked 现在不报错，只跳过初始化
+  // EnsureDeviceRemoteFlagInited 现在不报错，只跳过初始化
   // 错误延迟到传输阶段的 PrepareDeviceRemoteFlagAndKernel
-  EXPECT_EQ(cli_.EnsureDeviceRemoteFlagInitedLocked(), SUCCESS);
+  EXPECT_EQ(cli_.EnsureDeviceRemoteFlagInited(), SUCCESS);
   EXPECT_EQ(cli_.device_remote_flag_addr_, nullptr);
 
   // 实际传输时 PrepareDeviceRemoteFlagAndKernel 会检查并报错
@@ -196,7 +196,7 @@ TEST_F(HixlCSClientDeviceFixture, PrepareDeviceRemoteFlagAndKernelReturnsFlagAdd
   FillTagMem(cli_, kTransFlagNameDevice, static_cast<void *>(&remote_flag_dev_), sizeof(uint64_t));
 
   // 先初始化 remote flag
-  EXPECT_EQ(cli_.EnsureDeviceRemoteFlagInitedLocked(), SUCCESS);
+  EXPECT_EQ(cli_.EnsureDeviceRemoteFlagInited(), SUCCESS);
 
   // PrepareDeviceRemoteFlagAndKernel 现在只返回已初始化的 flag 地址
   void *remote_flag = nullptr;
@@ -485,13 +485,6 @@ TEST_F(HixlCSClientSlotReuseFixture, HostFlagInDeviceCompleteHandle) {
   void *test_flag = reinterpret_cast<void *>(0x1234);
   handle.host_flag = test_flag;
   EXPECT_EQ(handle.host_flag, test_flag);
-}
-
-TEST_F(HixlCSClientSlotReuseFixture, DeviceLaunchMutexExists) {
-  // Verify the mutex exists and can be locked
-  std::lock_guard<std::mutex> lock(cli_.device_launch_mu_);
-  // If we can acquire the lock, the mutex works correctly
-  SUCCEED();
 }
 
 TEST_F(HixlCSClientSlotReuseFixture, AsyncTransferWithEnvHackAllocatesHostFlag) {

@@ -94,14 +94,15 @@ class HixlCSClient {
   Status InitBaseClient(const HixlClientDesc *client_desc);
   Status InitDeviceResource(const EndpointDesc &ep);
   Status InitNotifyResources(const EndpointDesc &ep);
-  Status ExchangeEndpointAndCreateChannelLocked(uint32_t timeout_ms);
-  Status GetRemoteMemLocked(uint32_t timeout_ms, CommMem **remote_mem_list, char ***mem_tag_list, uint32_t *list_num);
+  Status ExchangeEndpointAndCreateChannel(uint32_t timeout_ms);
+  Status GetRemoteMemImpl(uint32_t timeout_ms, CommMem **remote_mem_list, char ***mem_tag_list, uint32_t *list_num);
   Status InitFlagQueue() noexcept;
   int32_t AcquireFlagIndex();
   Status ReleaseCompleteHandle(CompleteHandleInfo *query_handle);
   Status ReleaseDevCompleteHandle(DeviceCompleteHandle *handle);
   Status CheckStatusHost(CompleteHandleInfo &query_handle, HixlCompleteStatus &status);
   Status CheckStatusDevice(DeviceCompleteHandle &query_handle, HixlCompleteStatus &status);
+  Status CheckStatusLocked(void *query_handle, HixlCompleteStatus *status);
   Status BatchTransferHostAsync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list,
                                 void **query_handle);
   Status BatchTransferHostSync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list, uint32_t timeout_ms);
@@ -110,7 +111,8 @@ class HixlCSClient {
   Status BatchTransferDeviceSync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list,
                                  uint32_t timeout_ms);
   Status ConvertUboeDescs(uint32_t list_num, HixlOneSideOpDesc *desc_list);
-  Status EnsureDeviceRemoteFlagInitedLocked();
+  Status EnsureDeviceRemoteFlagInited();
+  Status RegMemLocked(const char *mem_tag, const CommMem *mem, MemHandle *mem_handle);
   Status ImportRemoteMem(std::vector<HixlMemDesc> &desc_list, CommMem **remote_mem_list, char ***mem_tag_list,
                          uint32_t *list_num);
   Status ValidateAddress(uint32_t list_num, const HixlOneSideOpDesc *desc_list);
@@ -124,9 +126,9 @@ class HixlCSClient {
   Status RegisterNotifyMemForAllSlots(const std::vector<TransferPool::SlotHandle> &slots);
   Status LaunchDeviceKernel(bool is_get, DeviceCompleteHandle &handle, const HixlOneSideOpParam &param,
                             bool wait_notify = true);
-  void ReleaseLegacyHandlesLocked();
-  void AbortAllPendingDeviceHandlesLocked();
-  void ReleaseDeviceResourcesLocked();
+  void ReleaseLegacyHandles();
+  void AbortAllPendingDeviceHandles();
+  void ReleaseDeviceResources();
   Status AcquireSharedSlot(std::shared_ptr<TransferPool::SlotHandle> &slot_out);
   void ReleaseSharedSlotRef(std::shared_ptr<TransferPool::SlotHandle> &slot_ref);
   void CleanupActiveSlot();
@@ -141,7 +143,7 @@ class HixlCSClient {
   std::unique_ptr<hixl::TemporaryRtContext> GetContextGuard() const;
 
  private:
-  std::mutex mutex_;
+  std::mutex mutex_;  // 所有方法串行执行，不支持并发调用
   // 用于记录内存地址的分配情况
   HixlMemStore mem_store_;
   std::string server_ip_;
@@ -157,8 +159,7 @@ class HixlCSClient {
   static constexpr size_t kFlagQueueSize = 4096;  // 用于初始化队列和内存地址列表
   uint64_t *flag_queue_ = nullptr;
   std::array<uint32_t, kFlagQueueSize> available_indices_{};
-  size_t top_index_ = 0;  // 栈顶指针
-  std::mutex indices_mutex_;
+  size_t top_index_ = 0;                                             // 栈顶指针
   std::array<CompleteHandleInfo *, kFlagQueueSize> live_handles_{};  // 用来记录读写生成的 query_handle
   int32_t socket_ = -1;
   std::map<std::string, CommMem> tag_mem_descs_;
@@ -169,7 +170,6 @@ class HixlCSClient {
   std::vector<CommMem> imported_remote_bufs_;
   std::vector<HixlMemDesc> desc_list_;
   int32_t device_id_{-1};
-  std::mutex device_mu_;
   bool device_remote_flag_inited_{false};
   void *device_remote_flag_addr_{nullptr};
   uint64_t device_remote_flag_size_{0ULL};
@@ -177,9 +177,6 @@ class HixlCSClient {
   std::unordered_set<DeviceCompleteHandle *> pending_device_handles_{};
   // Active slot shared by concurrent transfers - reference counted
   std::shared_ptr<TransferPool::SlotHandle> active_slot_;
-  std::mutex active_slot_mu_;
-  // Mutex to protect LaunchDeviceKernel + memcpy/sync serialization
-  std::mutex device_launch_mu_;
 };
 }  // namespace hixl
 
