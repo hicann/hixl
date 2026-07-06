@@ -28,6 +28,7 @@
 #include "slog_stub.h"
 #include "hccl_stub.h"
 #include "hccl/hccl_types.h"
+#include "transfer_pool.h"
 #define private public
 #include "cs/hixl_cs_server.h"
 #undef private
@@ -48,6 +49,7 @@ static constexpr uint32_t kConfiguredListenPort = 65535U;
 static constexpr uint32_t kRecvTimeoutMs = 1000U;
 static constexpr uint32_t kTimeSleepMs = 10U;
 static constexpr uint32_t kCaptureLogTimeoutMs = 1000U;
+static constexpr uint64_t kRuntimeNotifyAddr = 0x88888888ULL;
 static constexpr int32_t kNum1 = 1;
 static constexpr int32_t kNum2 = 2;
 static constexpr uint64_t kInvalidChannelIndex = UINT64_MAX;
@@ -237,6 +239,60 @@ TEST_F(HixlCSTest, TestHixlCSServer) {
   EXPECT_EQ(ret, SUCCESS);
   ret = HixlCSServerDestroy(server_handle);
   EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(HixlCSTest, CreateServerWithNonHccsDeviceEndpointResolvesNotifyAddress) {
+  EndpointDesc ep{};
+  ep.loc.locType = ENDPOINT_LOC_TYPE_DEVICE;
+  ep.protocol = COMM_PROTOCOL_UBC_TP;
+  ep.commAddr.type = COMM_ADDR_TYPE_ID;
+  ep.commAddr.id = kEpAddrId2;
+
+  HixlServerConfig config{};
+  HixlServerHandle server_handle = nullptr;
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = kPort;
+  desc.endpoint_list = &ep;
+  desc.endpoint_list_num = 1U;
+  ASSERT_EQ(HixlCSServerCreate(&desc, &config, &server_handle), SUCCESS);
+
+  auto *pool = TransferPool::GetInstance(0);
+  ASSERT_NE(pool, nullptr);
+  std::vector<TransferPool::SlotHandle> slots;
+  ASSERT_EQ(pool->GetAllSlots(slots), SUCCESS);
+  ASSERT_FALSE(slots.empty());
+  EXPECT_EQ(slots[0].notify_addr, kRuntimeNotifyAddr);
+  EXPECT_EQ(slots[0].notify_len, sizeof(kRuntimeNotifyAddr));
+
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+}
+
+TEST_F(HixlCSTest, CreateServerWithHccsDeviceEndpointSkipsNotifyAddressResolve) {
+  EndpointDesc ep{};
+  ep.loc.locType = ENDPOINT_LOC_TYPE_DEVICE;
+  ep.protocol = COMM_PROTOCOL_HCCS;
+  ep.commAddr.type = COMM_ADDR_TYPE_ID;
+  ep.commAddr.id = kEpAddrId2;
+
+  HixlServerConfig config{};
+  HixlServerHandle server_handle = nullptr;
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = kPort;
+  desc.endpoint_list = &ep;
+  desc.endpoint_list_num = 1U;
+  ASSERT_EQ(HixlCSServerCreate(&desc, &config, &server_handle), SUCCESS);
+
+  auto *pool = TransferPool::GetInstance(0);
+  ASSERT_NE(pool, nullptr);
+  std::vector<TransferPool::SlotHandle> slots;
+  ASSERT_EQ(pool->GetAllSlots(slots), SUCCESS);
+  ASSERT_FALSE(slots.empty());
+  EXPECT_EQ(slots[0].notify_addr, 0U);
+  EXPECT_EQ(slots[0].notify_len, 0U);
+
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
 }
 
 TEST_F(HixlCSTest, TestHixlCSClient2Server) {

@@ -14,6 +14,7 @@
 
 #include "ascendcl_stub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/runtime/src/runtime_stub.h"
 #include "engine/test_mmpa_utils.h"
 #include "gtest/gtest.h"
 #include "hixl/hixl_types.h"
@@ -85,6 +86,16 @@ class ReinitCreateContextFailStub : public llm::AclRuntimeStub {
   static constexpr uint32_t kInitialContextCreateCount = 2U;
 };
 
+class CountingRuntimeStub : public llm::RuntimeStub {
+ public:
+  rtError_t rtGetDevResAddress(rtDevResInfo *res_info, rtDevResAddrInfo *addr_info) override {
+    ++get_dev_res_address_count_;
+    return llm::RuntimeStub::rtGetDevResAddress(res_info, addr_info);
+  }
+
+  uint32_t get_dev_res_address_count_{0U};
+};
+
 class TransferPoolTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -111,6 +122,7 @@ class TransferPoolTest : public ::testing::Test {
       reinit_fail_pool->Finalize();
     }
     llm::AclRuntimeStub::Reset();
+    llm::RuntimeStub::Reset();
     llm::MmpaStub::GetInstance().Reset();
   }
 };
@@ -248,7 +260,7 @@ TEST_F(TransferPoolTest, SlotHandleHasDevConstOneField) {
   EXPECT_EQ(handle.dev_const_one, nullptr);
 }
 
-TEST_F(TransferPoolTest, NotifyAddressResolvedDuringInitialize) {
+TEST_F(TransferPoolTest, InitializeDoesNotResolveNotifyAddress) {
   auto *pool = TransferPool::GetInstance(kTransferPoolNotifyDevId);
   ASSERT_NE(pool, nullptr);
   ASSERT_EQ(pool->Initialize(2U), SUCCESS);
@@ -256,15 +268,38 @@ TEST_F(TransferPoolTest, NotifyAddressResolvedDuringInitialize) {
   ASSERT_EQ(pool->GetAllSlots(slots), SUCCESS);
   ASSERT_EQ(slots.size(), 2U);
   for (const auto &slot : slots) {
-    EXPECT_EQ(slot.notify_addr, kRuntimeNotifyAddr);
-    EXPECT_EQ(slot.notify_len, sizeof(kRuntimeNotifyAddr));
+    EXPECT_EQ(slot.notify_addr, 0U);
+    EXPECT_EQ(slot.notify_len, 0U);
   }
 }
 
-TEST_F(TransferPoolTest, AbortReinitKeepsNotifyAddressResolved) {
+TEST_F(TransferPoolTest, ResolveNotifyAddrResolvesOnlyEmptyAddresses) {
+  auto runtime_stub = std::make_shared<CountingRuntimeStub>();
+  llm::RuntimeStub::SetInstance(runtime_stub);
+  auto *pool = TransferPool::GetInstance(kTransferPoolNotifyDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(2U), SUCCESS);
+  EXPECT_EQ(runtime_stub->get_dev_res_address_count_, 0U);
+
+  ASSERT_EQ(pool->ResolveNotifyAddr(), SUCCESS);
+  EXPECT_EQ(runtime_stub->get_dev_res_address_count_, 2U);
+  std::vector<TransferPool::SlotHandle> slots;
+  ASSERT_EQ(pool->GetAllSlots(slots), SUCCESS);
+  ASSERT_EQ(slots.size(), 2U);
+  for (const auto &slot : slots) {
+    EXPECT_EQ(slot.notify_addr, kRuntimeNotifyAddr);
+    EXPECT_EQ(slot.notify_len, sizeof(kRuntimeNotifyAddr));
+  }
+
+  ASSERT_EQ(pool->ResolveNotifyAddr(), SUCCESS);
+  EXPECT_EQ(runtime_stub->get_dev_res_address_count_, 2U);
+}
+
+TEST_F(TransferPoolTest, AbortReinitKeepsResolvedNotifyAddress) {
   auto *pool = TransferPool::GetInstance(kTransferPoolNotifyDevId);
   ASSERT_NE(pool, nullptr);
   ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  ASSERT_EQ(pool->ResolveNotifyAddr(), SUCCESS);
   TransferPool::SlotHandle old_handle{};
   ASSERT_EQ(pool->Acquire(&old_handle), SUCCESS);
   EXPECT_EQ(old_handle.notify_addr, kRuntimeNotifyAddr);

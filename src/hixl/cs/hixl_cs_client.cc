@@ -292,6 +292,10 @@ Status HixlCSClient::InitNotifyResources(const EndpointDesc &ep) {
 
   auto *pool = TransferPool::GetInstance(device_id_);
   HIXL_CHECK_NOTNULL(pool);
+  if (ep.protocol != COMM_PROTOCOL_HCCS) {
+    HIXL_CHK_STATUS_RET(pool->ResolveNotifyAddr(), "[HixlClient] TransferPool ResolveNotifyAddr failed. devId=%d",
+                        device_id_);
+  }
   std::vector<TransferPool::SlotHandle> all_slots;
   HIXL_CHK_STATUS_RET(pool->GetAllSlots(all_slots), "[HixlClient] TransferPool GetAllSlots failed. devId=%d",
                       device_id_);
