@@ -60,7 +60,7 @@ Replace `${HOME}/Ascend` with the actual software installation path.
   - Change `DECODER_HOST_IP` to the host IP address of the Decoder host.
   - Ensure that the scripts are identical on both hosts.
 
-- Some samples support RDMA links in A5 environments and must be executed on dual hosts. These samples will be noted explicitly in the corresponding sample descriptions. Before execution, manually configure `local_comm_res`. The configuration format reference is available at: [Communication Device Configuration](https://gitcode.com/cann/hixl/issues/37). You can obtain the host NIC IP information using the following commands:
+- Some samples support RDMA links in A5 environments and must be executed on dual hosts. These samples will be noted explicitly in the corresponding sample descriptions. Before execution, configure `local_comm_res`. The configuration format reference is available at: [Communication Device Configuration](https://gitcode.com/cann/hixl/issues/37). You can use the [LocalCommRes Generator Tool](../../scripts/tools/lcrgen/README.md) to automatically generate `local_comm_res` information based on the local npu_id, then modify it as needed. You can obtain the host NIC IP information using the following commands:
 
   ```sh
   # Query the mapping between RoCE devices and network ports, and identify the ports in Up state

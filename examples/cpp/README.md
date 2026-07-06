@@ -32,7 +32,7 @@
 
 ## 样例配置说明
 
-部分用例支持在A5环境使用RDMA链路执行，且需要在双机上执行，会在对应用例中进行特别说明。在执行前需要手动配置local_comm_res，配置格式参考：[通信设备配置](https://gitcode.com/cann/hixl/issues/37)。可通过以下操作获取 host 网卡的 ip 信息：
+部分用例支持在A5环境使用RDMA链路执行，且需要在双机上执行，会在对应用例中进行特别说明。在执行前需要配置local_comm_res，配置格式参考：[通信设备配置](https://gitcode.com/cann/hixl/issues/37)。可使用 [LocalCommRes 自动生成工具](../../scripts/tools/lcrgen/README.md) 根据本机 npu_id 自动生成 local_comm_res 信息后再按需修改。可通过以下操作获取 host 网卡的 ip 信息：
 ```shell
 # 查询RoCE设备和网口的对应关系，查看状态为Up的网口名
 ibdev2netdev
@@ -91,10 +91,10 @@ ifconfig
     - 若在A5环境执行还需要增加参数local_comm_res，如：
         ```
         # prompt主机
-        HCCL_INTRA_ROCE_ENABLE=1 ./prompt_pull_cache_and_blocks 0 10.10.170.0 ‘{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}’
+        HCCL_INTRA_ROCE_ENABLE=1 ./prompt_pull_cache_and_blocks 0 10.10.170.0 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
 
         # decoder主机
-        HCCL_INTRA_ROCE_ENABLE=1 ./decoder_pull_cache_and_blocks 0 10.170.10.1 10.170.10.0 ‘{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}’
+        HCCL_INTRA_ROCE_ENABLE=1 ./decoder_pull_cache_and_blocks 0 10.170.10.1 10.170.10.0 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
         ```
 
     (2) 执行push_cache_and_blocks
@@ -114,10 +114,10 @@ ifconfig
     - 若在A5环境执行还需要增加参数local_comm_res，如：
         ```
         # prompt主机
-        HCCL_INTRA_ROCE_ENABLE=1 ./prompt_push_cache_and_blocks 0 10.10.10.0 10.10.10.1 ‘{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}’
+        HCCL_INTRA_ROCE_ENABLE=1 ./prompt_push_cache_and_blocks 0 10.10.10.0 10.10.10.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
 
         # decoder主机
-        HCCL_INTRA_ROCE_ENABLE=1 ./decoder_push_cache_and_blocks 0 10.10.10.1 ‘{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}’
+        HCCL_INTRA_ROCE_ENABLE=1 ./decoder_push_cache_and_blocks 0 10.10.10.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
         ```
 
     (3) 执行switch_roles

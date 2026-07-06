@@ -57,7 +57,7 @@ source ${HOME}/Ascend/cann/set_env.sh
   - 将DECODER_HOST_IP修改为Decoder主机的host_ip。
   - 两台机器脚本保持一致。
 
-- 下面个别用例支持在A5环境使用RDMA链路执行，并且需要在双机上执行，会在对应用例中进行特别说明。在执行前需要手动配置local_comm_res，配置格式参考：[通信设备配置](https://gitcode.com/cann/hixl/issues/37)。可通过以下操作获取 host 网卡的 ip 信息：
+- 下面个别用例支持在A5环境使用RDMA链路执行，并且需要在双机上执行，会在对应用例中进行特别说明。在执行前需要配置local_comm_res，配置格式参考：[通信设备配置](https://gitcode.com/cann/hixl/issues/37)。可使用 [LocalCommRes 自动生成工具](../../scripts/tools/lcrgen/README.md) 根据本机 npu_id 自动生成 local_comm_res 信息后再按需修改。可通过以下操作获取 host 网卡的 ip 信息：
   ```shell
   # 查询RoCE设备和网口的对应关系，查看状态为Up的网口名
   ibdev2netdev
@@ -111,9 +111,9 @@ source ${HOME}/Ascend/cann/set_env.sh
   若在A5环境执行还需要增加参数local_comm_res，如：
     ```
     # Prompt主机:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_blocks_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1 --local_comm_res ‘{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}’
+    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_blocks_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1 --local_comm_res '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
     # Decoder主机:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_blocks_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --local_comm_res ‘{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}’
+    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_blocks_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --local_comm_res '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
     ```
 - 执行push_cache样例程序：此样例程序使用单侧建链方式，申请内存并注册cache,  decoder发起建链并push cache
   分别在Prompt主机与Decoder主机，执行样例程序，其中device_id为要使用的device_id，role为集群角色，local_host_ip为本地host的ip，remote_host_ip为对端host的ip：
@@ -126,9 +126,9 @@ source ${HOME}/Ascend/cann/set_env.sh
   若在A5环境执行还需要增加参数local_comm_res，如：
     ```
     # Prompt主机:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_cache_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1 --local_comm_res ‘{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}’
+    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_cache_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1 --local_comm_res '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
     # Decoder主机:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_cache_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --local_comm_res ‘{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}’
+    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_cache_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --local_comm_res '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
     ```
 - 执行switch_role样例程序：此样例程序使用单侧建链方式，首先torch自行申请内存并注册blocks, decoder发起建链并pull blocks, 然后两侧切换角色, 并prompt发起建链， decoder进行push_blocks
   分别在Prompt主机与Decoder主机，执行样例程序，其中device_id为要使用的device_id，role为集群角色，local_host_ip为本地host的ip，remote_host_ip为对端host的ip：
@@ -172,9 +172,9 @@ source ${HOME}/Ascend/cann/set_env.sh
   若在A5环境执行还需要增加参数local_comm_res，如：
     ```
     # Prompt主机:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python transfer_cache_async_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1 --local_comm_res ‘{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}’
+    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python transfer_cache_async_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1 --local_comm_res '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
     # Decoder主机:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python transfer_cache_async_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --local_comm_res ‘{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}’
+    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python transfer_cache_async_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --local_comm_res '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
     ```
 - 执行hixl_transfer_backend_sample样例程序，此样例程序使用hixl作为llm_datadist的传输后端，完成内存注册、建链和传输。样例申请内存并注册blocks, decoder发起建链并push blocks，prompt发起建链并pull blocks。
   分别在Prompt主机与Decoder主机，执行样例程序，其中device_id为要使用的device_id，role为集群角色，local_host_ip为本地host的ip，remote_host_ip为对端host的ip：

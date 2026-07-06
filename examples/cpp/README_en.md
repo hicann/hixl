@@ -32,7 +32,7 @@ Function: Implements KV Cache transmission functionality in disaggregated deploy
 
 ## Sample Configuration
 
-Some samples support execution over RDMA links in the A5 environment and must run on two machines. These cases are explicitly noted in the corresponding sample descriptions. Before execution, manually configure `local_comm_res`. The configuration format reference is available at: [Communication Device Configuration](https://gitcode.com/cann/hixl/issues/37). You can obtain the host NIC IP information using the following commands:
+Some samples support execution over RDMA links in the A5 environment and must run on two machines. These cases are explicitly noted in the corresponding sample descriptions. Before execution, configure `local_comm_res`. The configuration format reference is available at: [Communication Device Configuration](https://gitcode.com/cann/hixl/issues/37). You can use the [LocalCommRes Generator Tool](../../scripts/tools/lcrgen/README.md) to automatically generate `local_comm_res` information based on the local npu_id, then modify it as needed. You can obtain the host NIC IP information using the following commands:
 
 ```shell
 # Query the mapping between RoCE devices and network ports, and identify the ports in Up state
