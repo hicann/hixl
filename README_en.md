@@ -48,7 +48,7 @@ In 128M data transmission scenario on Ascend A3 chip:
 
 <img src="docs/en/figures/perf.png" alt="Performance Data">
 
-See [Benchmarks](benchmarks/README.md) for more details.
+See [Benchmarks](benchmarks/README_en.md) for more details.
 
 ## 🔍 Directory Structure
 
@@ -61,8 +61,8 @@ Key directories of this project are described as follows:
 ├── CMakeLists.txt                 # Project CMakeList
 ├── docs                           # Project documentation
 │  ├── zh                          # Chinese documentation
-│  └── en                          # English documentation
-│  └── README.md                   # Chinese documentation guide
+│  ├── en                          # English documentation
+│  ├── README.md                   # Chinese documentation guide
 │  └── README_en.md                # English documentation guide
 ├── examples                       # End-to-end sample development and calling examples
 │  ├── cpp                         # C++ samples
@@ -88,7 +88,7 @@ Key directories of this project are described as follows:
 If you want to quickly experience the component build and sample execution, please visit the following documents for simple tutorials.
 
 - [Build](docs/en/build.md): Introduces component compilation and installation, including local verification using tests after successful compilation.
-- [Sample Execution](examples/README.md): Introduces how to execute sample code end-to-end, including C++ and Python samples.
+- [Sample Execution](examples/README_en.md): Introduces how to execute sample code end-to-end, including C++ and Python samples.
 
 ## 📖 Learning Tutorials
 
@@ -99,7 +99,7 @@ If you want to deeply understand the component interfaces and modify source code
 
 If you want to deeply understand HIXL development guide and technical articles, you can refer to the following documents:
 
-- [HIXL Documentation Overview](docs/README.md): Summarizes HIXL related materials, technical articles and training video links.
+- [HIXL Documentation Overview](docs/README_en.md): Summarizes HIXL related materials, technical articles and training video links.
 
 ## 🤖 AI Agent Support
 
@@ -111,8 +111,8 @@ The current code AI Agent service is in pilot stage. During use, if you find acc
 
 ## 📝 Related Information
 
-- [Contributing Guide](CONTRIBUTING.md)
-- [Security Statement](SECURITY.md)
+- [Contributing Guide](CONTRIBUTING_en.md)
+- [Security Statement](SECURITY_en.md)
 - [License](LICENSE)
 - [Owning SIG](https://gitcode.com/cann/community/tree/master/CANN/sigs/hccl)
 
