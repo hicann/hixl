@@ -4,10 +4,14 @@
 
 <h4>Simple, reliable, and efficient point-to-point data transmission for cluster scenarios</h4>
 
-[![Documentation](https://img.shields.io/badge/docs-HIXL_Bookshelf-brightgreen)](https://gitcode.com/cann/hixl/blob/master/docs/README.md)
+<p align="center">
+  English · <a href="./README.md">简体中文</a>
+</p>
+
+[![Documentation](https://img.shields.io/badge/docs-HIXL_Bookshelf-brightgreen)](https://gitcode.com/cann/hixl/blob/master/docs/README_en.md)
 [![SIG](https://img.shields.io/badge/SIG-hccl-yellow)](https://gitcode.com/cann/community/tree/master/CANN/sigs/hccl)
 [![meeting](https://img.shields.io/badge/meeting-Community_Meeting-yellow)](https://meeting.osinfra.cn/cann?sig=sig-hccl)
-[![contributing](https://img.shields.io/badge/CONTRIBUTING-Contribution_Guide-teal)](https://gitcode.com/cann/hixl/blob/master/CONTRIBUTING.md)
+[![contributing](https://img.shields.io/badge/CONTRIBUTING-Contribution_Guide-teal)](https://gitcode.com/cann/hixl/blob/master/CONTRIBUTING_en.md)
 [![WeChat](https://img.shields.io/badge/contact_us-HIXL_WeChat_Group-blue)](docs/en/figures/HIXL_contact.png)
 [![zread](https://img.shields.io/badge/Ask_Zread-_.svg?style=flat&color=00b0aa&labelColor=000000&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQuOTYxNTYgMS42MDAxSDIuMjQxNTZDMS44ODgxIDEuNjAwMSAxLjYwMTU2IDEuODg2NjQgMS42MDE1NiAyLjI0MDFWNC45NjAxQzEuNjAxNTYgNS4zMTM1NiAxLjg4ODEgNS42MDAxIDIuMjQxNTYgNS42MDAxSDQuOTYxNTZDNS4zMTUwMiA1LjYwMDEgNS42MDE1NiA1LjMxMzU2IDUuNjAxNTYgNC45NjAxVjIuMjQwMUM1LjYwMTU2IDEuODg2NjQgNS4zMTUwMiAxLjYwMDEgNC45NjE1NiAxLjYwMDFaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00Ljk2MTU2IDEwLjM5OTlIMi4yNDE1NkMxLjg4ODEgMTAuMzk5OSAxLjYwMTU2IDEwLjY4NjQgMS42MDE1NiAxMS4wMzk5VjEzLjc1OTlDMS42MDE1NiAxNC4xMTM0IDEuODg4MSAxNC4zOTk5IDIuMjQxNTYgMTQuMzk5OUg0Ljk2MTU2QzUuMzE1MDIgMTQuMzk5OSA1LjYwMTU2IDE0LjExMzQgNS42MDE1NiAxMy43NTk5VjExLjAzOTlDNS42MDE1NiAxMC42ODY0IDUuMzE1MDIgMTAuMzk5OSA0Ljk2MTU2IDEwLjM5OTlaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik0xMy43NTg0IDEuNjAwMUgxMS4wMzg0QzEwLjY4NSAxLjYwMDEgMTAuMzk4NCAxLjg4NjY0IDEwLjM5ODQgMi4yNDAxVjQuOTYwMUMxMC4zOTg0IDUuMzEzNTYgMTAuNjg1IDUuNjAwMSAxMS4wMzg0IDUuNjAwMUgxMy43NTg0QzE0LjExMTkgNS42MDAxIDE0LjM5ODQgNS4zMTM1NiAxNC4zOTg0IDQuOTYwMVYyLjI0MDFDMTQuMzk4NCAxLjg4NjY0IDE0LjExMTkgMS42MDAxIDEzLjc1ODQgMS42MDAxWiIgZmlsbPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00IDEyTDEyIDRMNCAxMiIgZmlsbD0iI2ZmZiI%2BCjxwYXRoIGQ9Ik00IDEyTDEyIDQiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K&logoColor=ffffff)](https://zread.ai/hicann/hixl)
 </div>

@@ -4,6 +4,10 @@
 
 <h4>面向集群场景提供简单、可靠、高效的点对点数据传输能力</h4>
 
+<p align="center">
+  <a href="./README_en.md">English</a> · 简体中文
+</p>
+
 [![Documentation](https://img.shields.io/badge/docs-HIXL书架-brightgreen)](https://gitcode.com/cann/hixl/blob/master/docs/README.md)
 [![SIG](https://img.shields.io/badge/SIG-hccl-yellow)](https://gitcode.com/cann/community/tree/master/CANN/sigs/hccl)
 [![meeting](https://img.shields.io/badge/meeting-社区会议-yellow)](https://meeting.osinfra.cn/cann?sig=sig-hccl)
