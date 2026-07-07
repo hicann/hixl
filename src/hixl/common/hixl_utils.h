@@ -101,6 +101,8 @@ std::string EndpointToString(const EndpointDesc &ep);
 
 bool IsIntraRoceEnabled();
 
+const char *IntraRoceEnableStatusStr();
+
 bool IsHostRegisterMappedProtocol(CommProtocol protocol);
 
 class TemporaryRtContext {

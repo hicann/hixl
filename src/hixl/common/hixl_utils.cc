@@ -343,6 +343,10 @@ bool IsIntraRoceEnabled() {
   return env != nullptr && std::string(env) == "1";
 }
 
+const char *IntraRoceEnableStatusStr() {
+  return IsIntraRoceEnabled() ? "HCCL_INTRA_ROCE_ENABLE is set" : "HCCL_INTRA_ROCE_ENABLE is not set";
+}
+
 bool IsHostRegisterMappedProtocol(CommProtocol protocol) {
   return protocol == COMM_PROTOCOL_UBOE || protocol == COMM_PROTOCOL_UBG;
 }

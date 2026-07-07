@@ -297,7 +297,8 @@ Status AdxlInnerEngine::InitBufferTransferService(const std::map<ge::AscendStrin
   buffer_transfer_service_ = llm::MakeUnique<BufferTransferService>(mem_pools, buffer_size * kBaseBufferSize);
   ADXL_CHK_STATUS_RET(buffer_transfer_service_->Initialize(), "Failed to initialize buffer transfer service.");
   LLM_DISMISS_GUARD(failed_guard);
-  LLMLOGI("Init buffer transfer service suc.");
+  LLMEVENT("transfer mode:buffer_transfer, Init buffer transfer service success, buffer_size:%lu, pool_size:%lu.",
+           buffer_size, npu_pool_size);
   return SUCCESS;
 }
 

@@ -17,6 +17,7 @@
 #include "hixl/hixl_types.h"
 #include "adxl/adxl_types.h"
 #include "common/hixl_log.h"
+#include "common/hixl_utils.h"
 
 namespace hixl {
 namespace {
@@ -27,6 +28,11 @@ bool UseProtocolDesc(const HixlOptions &options) {
   }
   auto desc = grc->comm_resource_config.protocol_desc;
   return desc.has_value() && !desc->empty();
+}
+
+void LogTransferMode(const char *mode, const std::string &local_engine) {
+  HIXL_EVENT("transfer mode:%s, [EngineFactory] %s, local_engine:%s.", mode, IntraRoceEnableStatusStr(),
+             local_engine.c_str());
 }
 }  // namespace
 std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string local_engine,
@@ -39,6 +45,7 @@ std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string local_engi
   }
 
   if (parsed_options.EnableFabricMem().value_or(false)) {
+    HIXL_EVENT("transfer mode:fabric_mem, [EngineFactory] local_engine:%s.", local_engine.c_str());
     return std::make_unique<FabricMemEngine>(AscendString(local_engine.c_str()));
   }
   auto lcr = parsed_options.LocalCommRes();
@@ -46,6 +53,7 @@ std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string local_engi
     try {
       auto json = nlohmann::json::parse(*lcr);
       if (json.contains("version") && json["version"] == "1.3") {
+        LogTransferMode("hixl_cs", local_engine);
         return std::make_unique<HixlEngine>(AscendString(local_engine.c_str()));
       }
       HIXL_LOGI("[EngineFactory] local_comm_res version is not 1.3, using CommEngine");
@@ -53,11 +61,14 @@ std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string local_engi
       HIXL_LOGE(PARAM_INVALID, "Invalid json, exception:%s", e.what());
       return nullptr;
     }
+    LogTransferMode("adxl", local_engine);
     return std::make_unique<CommEngine>(AscendString(local_engine.c_str()));
   }
   if (UseProtocolDesc(parsed_options)) {
+    LogTransferMode("hixl_cs", local_engine);
     return std::make_unique<HixlEngine>(AscendString(local_engine.c_str()));
   }
+  LogTransferMode("adxl", local_engine);
   return std::make_unique<CommEngine>(AscendString(local_engine.c_str()));
 }
 }  // namespace hixl
