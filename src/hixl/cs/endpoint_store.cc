@@ -74,7 +74,7 @@ EndpointPtr EndpointStore::MatchEndpoint(const EndpointDesc &endpoint, EndpointH
       return it.second;
     }
   }
-  HIXL_LOGE(PARAM_INVALID, "Failed to match endpoint");
+  HIXL_LOGE(PARAM_INVALID, "Failed to match endpoint, %s", EndpointToString(endpoint).c_str());
   return nullptr;
 }
 

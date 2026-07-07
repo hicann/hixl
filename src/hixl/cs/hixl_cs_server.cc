@@ -150,7 +150,8 @@ Status HixlCSServer::Initialize(const EndpointDesc *endpoint_list, uint32_t list
   HIXL_CHK_BOOL_RET_STATUS(list_num > 0, PARAM_INVALID, "endpoint list num:%u is invalid, must > 0", list_num);
   for (uint32_t i = 0U; i < list_num; ++i) {
     EndpointHandle handle = nullptr;
-    HIXL_CHK_STATUS_RET(endpoint_store_.CreateEndpoint(endpoint_list[i], handle), "Failed to create endpoint.");
+    HIXL_CHK_STATUS_RET(endpoint_store_.CreateEndpoint(endpoint_list[i], handle),
+                        "Failed to create endpoint, index:%u, %s", i, EndpointToString(endpoint_list[i]).c_str());
   }
   msg_handler_.RegisterMsgProcessor(CtrlMsgType::kMatchEndpointReq,
                                     [this](int32_t fd, const char *msg, uint64_t msg_len) -> Status {
@@ -470,7 +471,8 @@ Status HixlCSServer::ExportMem(int32_t fd, const char *msg, uint64_t msg_len) {
 Status HixlCSServer::Listen(uint32_t backlog) {
   auto ctx_guard = GetContextGuard();
   (void)ctx_guard;
-  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Listen(ip_, port_, backlog, listen_fd_), "Failed to server listen");
+  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Listen(ip_, port_, backlog, listen_fd_), "Failed to server listen, ip:%s, port:%u",
+                      ip_.c_str(), port_);
   HIXL_CHK_STATUS_RET(CtrlMsgPlugin::AddFdToEpoll(epoll_fd_, listen_fd_), "Failed to add listen fd to epoll");
   HIXL_EVENT("[HixlServer] start to listen on %s:%u", ip_.c_str(), port_);
   listener_running_ = true;
