@@ -64,7 +64,7 @@ graph LR
 | -------------------------------- |----------------------------------------------------------------------------------------------------------------------|
 | HDK | [25.5 or later](https://support.huawei.com/enterprise/en/ascend-computing/ascend-hdk-pid-252764743/software) |
 | LingQu Computing Network | [1.5.0 or later](https://support.huawei.com/enterprise/en/ascend-computing/lingqu-computing-network-pid-258003841/software) |
-| CANN | **9.0 or later** |
+| CANN | [9.0 or later](https://www.hiascend.com/cann/download) |
 
 Note: HDK 25.5 does not support the `aclrtMemRetainAllocationHandle` API. You must use ADXL-provided `MallocMem` and `FreeMem` APIs to manage host memory. HDK 26.0 or later allows direct calls to ACL APIs for host memory management.
 - **Enabling method**: During engine initialization, configure `OPTION_ENABLE_USE_FABRIC_MEM` in `options`. The value `"1"` enables FabricMem while `"0"` disables it. See [HIXL Interface · options](../zh/api/cpp/HIXL-interface.md).

@@ -64,7 +64,7 @@ graph LR
 | -------------------------------- |----------------------------------------------------------------------------------------------------------------------|
 | HDK                              | [25.5以上](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743/software)                |
 | LingQu Computing Network（灵衢计算网络） | [1.5.0以上](https://support.huawei.com/enterprise/zh/ascend-computing/lingqu-computing-network-pid-258003841/software) |
-| CANN                             | **9.0以上**                                                                                                            |
+| CANN                             | [9.0以上](https://www.hiascend.com/cann/download) |
 
 特殊说明：25.5 HDK下不支持aclrtMemRetainAllocationHandle接口，必须使用adxl提供的MallocMem接口和FreeMem接口来管理HOST内存，26.0以上HDK可以直接调用acl接口管理HOST内存。
 - **启用方式**：初始化引擎时在 `options` 中配置 `OPTION_ENABLE_USE_FABRIC_MEM`，取值为 `"1"` 表示开启（取值为 `"0"` 表示关闭）。详见 [HIXL 接口 · options](api/cpp/HIXL-interface.md)。

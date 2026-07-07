@@ -239,6 +239,12 @@ bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
   bash tests/run_test.sh -h
   ```
 
+- 预期结果与失败排查：
+    - 测试通过：构建阶段会打印`build success!`；执行过程不出现红色提示`!!! ... TEST FAILED, PLEASE CHECK YOUR CHANGES !!!`；脚本正常结束。
+    - C++用例失败：输出红色`!!! CPP TEST FAILED, PLEASE CHECK YOUR CHANGES !!!`，并给出失败用例命令与日志路径（形如`log: <日志文件>`），可用`cat <日志文件>`查看详情。定位后用`bash tests/run_test.sh -t cpp -s <suite>`单独复跑，`<suite>`可选：`llm_datadist`、`adxl`、`channel_pool`、`hixl`、`fabric_mem`。
+    - Python用例失败：输出红色`!!! PY TEST FAILED, PLEASE CHECK YOUR CHANGES !!!`，unittest会直接打印失败堆栈，据此定位用例。定位后用`bash tests/run_test.sh -t py`仅复跑Python测试。
+    - 构建失败：提示`build failed.`，请根据报错检查CANN环境变量是否加载、第三方依赖是否齐全。
+
 ## 安装
 
 将[源码编译](#源码编译)环节生成的run包进行安装。

@@ -240,6 +240,12 @@ Use the test cases in the `tests` directory for local verification.
   bash tests/run_test.sh -h
   ```
 
+- Expected Results and Troubleshooting:
+    - Test pass: `build success!` is printed during the build phase; no red message `!!! ... TEST FAILED, PLEASE CHECK YOUR CHANGES !!!` appears during execution; the script exits normally.
+    - C++ test failure: A red message `!!! CPP TEST FAILED, PLEASE CHECK YOUR CHANGES !!!` is printed, along with the failed command and log path (for example, `log: <log_file>`). Run `cat <log_file>` to view details. To rerun a specific suite, run `bash tests/run_test.sh -t cpp -s <suite>`. `<suite>` can be: `llm_datadist`, `adxl`, `channel_pool`, `hixl`, `fabric_mem`.
+    - Python test failure: A red message `!!! PY TEST FAILED, PLEASE CHECK YOUR CHANGES !!!` is printed, and unittest prints the failure stack trace for locating the issue. To rerun only Python tests, run `bash tests/run_test.sh -t py`.
+    - Build failure: `build failed.` is printed. Check whether CANN environment variables are loaded and third-party dependencies are complete based on the error message.
+
 ## Installation
 
 Install the `.run` file generated during [Compile Source Code](#source-code-compilation).

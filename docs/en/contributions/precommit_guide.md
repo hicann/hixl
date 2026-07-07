@@ -75,8 +75,8 @@ After this setup, code formatting and OAT check are automatically triggered befo
 
 #### 3.2.1 Check Items
 
-**File type check** - Blocks binary files such as .so, .dll, and .exe.
-**License header check** - Verifies that source code files contain compliant license statements.
+- **File type check** - Blocks binary files such as .so, .dll, and .exe.
+- **License header check** - Verifies that source code files contain compliant license statements.
 
 #### 3.2.2 Core Features
 
