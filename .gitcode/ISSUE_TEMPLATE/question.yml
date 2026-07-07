@@ -12,6 +12,13 @@ body:
           required: true
         - label: 我已经阅读过[常见问题定位手册](https://gitcode.com/cann/hixl/wiki/HIXL常见问题定位手册.md)，仍无法解决当前问题
           required: true
+  - type: markdown
+    attributes:
+      value: |
+        ### 问题定位请提供通信两端报错日志！
+        > CANN日志默认路径：`$HOME/ascend/log/`，若配置了`ASCEND_PROCESS_LOG_PATH`或`ASCEND_WORK_PATH`环境变量，则日志会落盘到指定路径下；
+        >
+        > 更多日志操作介绍请参考[《日志简介》](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/910beta3/maintenref/logreference/logreference_0001.html)。
   - type: textarea
     attributes:
       label: 问题描述

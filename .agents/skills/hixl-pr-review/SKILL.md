@@ -79,11 +79,11 @@ curl -H "Authorization: Bearer $GITCODE_API_TOKEN" \
 
 **所有的 C++ 文件必须经过以下三个 C++ 规范检查。如果修改不包含 C++ 文件，则跳过下面文件加载和 C++ 检视流程。**
 
-C++ 通用编码规范检查（参考文件 [cpp-general.md](../../../docs/guidelines/coding_standards/cpp-general.md)）
+C++ 通用编码规范检查（参考文件 [cpp-general.md](../../../docs/zh/contributions/coding_standards/cpp-general.md)）
 
-C++ 安全编码规范检查（参考文件 [cpp-secure.md](../../../docs/guidelines/coding_standards/cpp-secure.md)）
+C++ 安全编码规范检查（参考文件 [cpp-secure.md](../../../docs/zh/contributions/coding_standards/cpp-secure.md)）
 
-C++ 代码风格规范检查（参考文件 [cpp-style.md](../../../docs/guidelines/coding_standards/cpp-style.md)）
+C++ 代码风格规范检查（参考文件 [cpp-style.md](../../../docs/zh/contributions/coding_standards/cpp-style.md)）
 
 ---
 
@@ -91,7 +91,7 @@ C++ 代码风格规范检查（参考文件 [cpp-style.md](../../../docs/guideli
 
 **所有的 Python 文件必须经过 Python 安全编码规范检查。如果修改不包含 Python 文件，则跳过下面文件加载和 Python 检视流程。**
 
-Python 安全编码规范检查（参考文件 [python-secure.md](../../../docs/guidelines/coding_standards/python-secure.md)）
+Python 安全编码规范检查（参考文件 [python-secure.md](../../../docs/zh/contributions/coding_standards/python-secure.md)）
 
 ---
 
@@ -180,7 +180,7 @@ Python 安全编码规范检查（参考文件 [python-secure.md](../../../docs/
 
 #### 2. C++ 通用编码规范检查 <✅/⚠️/❌>
 
-> 依据 [cpp-general.md](../../../docs/guidelines/coding_standards/cpp-general.md) 中的“规范列表”
+> 依据 [cpp-general.md](../../../docs/zh/contributions/coding_standards/cpp-general.md) 中的“规范列表”
 
 | 规范编号 | 规范名称 | 结果 | 说明 |
 |------|----------|------|------|
@@ -189,7 +189,7 @@ Python 安全编码规范检查（参考文件 [python-secure.md](../../../docs/
 
 #### 3. C++ 安全编码规范检查 <✅/⚠️/❌>
 
-> 依据 [cpp-secure.md](../../../docs/guidelines/coding_standards/cpp-secure.md) 中的“规范列表”
+> 依据 [cpp-secure.md](../../../docs/zh/contributions/coding_standards/cpp-secure.md) 中的“规范列表”
 
 | 规范编号 | 规范名称 | 结果 | 说明 |
 |------|----------|------|------|
@@ -198,7 +198,7 @@ Python 安全编码规范检查（参考文件 [python-secure.md](../../../docs/
 
 #### 4. C++ 代码风格规范检查 <✅/⚠️/❌>
 
-> 依据 [cpp-style.md](../../../docs/guidelines/coding_standards/cpp-style.md) 中的“规范列表”
+> 依据 [cpp-style.md](../../../docs/zh/contributions/coding_standards/cpp-style.md) 中的“规范列表”
 
 | 规范编号 | 规范名称 | 结果 | 说明 |
 |------|----------|------|------|
@@ -207,7 +207,7 @@ Python 安全编码规范检查（参考文件 [python-secure.md](../../../docs/
 
 #### 5. Python 安全编码规范检查 <✅/⚠️/❌>
 
-> 依据 [python-secure.md](../../../docs/guidelines/coding_standards/python-secure.md) 中的“规范列表”
+> 依据 [python-secure.md](../../../docs/zh/contributions/coding_standards/python-secure.md) 中的“规范列表”
 
 | 规范编号 | 规范名称 | 结果 | 说明 |
 |------|----------|------|------|
