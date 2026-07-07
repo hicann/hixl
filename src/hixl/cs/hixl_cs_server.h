@@ -59,7 +59,7 @@ class HixlCSServer {
   void ProClientMsg(int32_t fd, std::shared_ptr<MsgReceiver> receiver);
   Status InitTransFinishedFlag();
   Status RegisterHostTransFinishedFlag();
-  Status RegisterDeviceTransFinishedFlag();
+  Status RegisterDeviceTransFinishedFlag(bool resolve_notify_addr);
   static Status SendCreateChannelResp(int32_t fd, const CreateChannelResp &resp);
   static Status SendMatchEndpointResp(int32_t fd, const MatchEndpointResp &resp);
   static Status SendRemoteMemResp(int32_t fd, const GetRemoteMemResp &resp);

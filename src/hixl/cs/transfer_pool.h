@@ -51,6 +51,7 @@ class TransferPool {
   void Release(const SlotHandle &handle);
   void Abort(const SlotHandle &handle);
   Status GetAllSlots(std::vector<SlotHandle> &out) const;
+  Status ResolveNotifyAddr();
   aclrtContext GetContext() const;
   aclrtFuncHandle GetDeviceKernelFunc(bool is_get) const;
 

@@ -58,23 +58,29 @@ std::unique_ptr<hixl::TemporaryRtContext> HixlCSServer::GetContextGuard() const 
 Status HixlCSServer::InitTransFinishedFlag() {
   bool has_host_ep = false;
   bool has_device_ep = false;
+  bool has_non_hccs_device_ep = false;
   for (auto handle : endpoint_store_.GetAllEndpointHandles()) {
     auto endpoint = endpoint_store_.GetEndpoint(handle);
     if (endpoint == nullptr) {
       continue;
     }
-    const int32_t loc = endpoint->GetEndpoint().loc.locType;
+    const auto &desc = endpoint->GetEndpoint();
+    const int32_t loc = desc.loc.locType;
     if (loc == ENDPOINT_LOC_TYPE_HOST) {
       has_host_ep = true;
     } else if (loc == ENDPOINT_LOC_TYPE_DEVICE) {
       has_device_ep = true;
+      if (desc.protocol != COMM_PROTOCOL_HCCS) {
+        has_non_hccs_device_ep = true;
+      }
     }
   }
   if (has_host_ep) {
     HIXL_CHK_STATUS_RET(RegisterHostTransFinishedFlag(), "Failed to reg HOST trans finished flag");
   }
   if (has_device_ep) {
-    HIXL_CHK_STATUS_RET(RegisterDeviceTransFinishedFlag(), "Failed to reg DEVICE trans finished flag");
+    HIXL_CHK_STATUS_RET(RegisterDeviceTransFinishedFlag(has_non_hccs_device_ep),
+                        "Failed to reg DEVICE trans finished flag");
   }
   return SUCCESS;
 }
@@ -101,7 +107,7 @@ Status HixlCSServer::RegisterHostTransFinishedFlag() {
   return SUCCESS;
 }
 
-Status HixlCSServer::RegisterDeviceTransFinishedFlag() {
+Status HixlCSServer::RegisterDeviceTransFinishedFlag(bool resolve_notify_addr) {
   int32_t dev_id = 0;
   HIXL_CHK_ACL_RET(aclrtGetDevice(&dev_id), "Failed to aclrtGetDevice for CS server TransferPool");
   hixl::TemporaryRtContext with_context(nullptr);  // 创建context会切换当前context, 因此需要在析构时恢复原用户context
@@ -115,6 +121,9 @@ Status HixlCSServer::RegisterDeviceTransFinishedFlag() {
                              p->Finalize();
                            }
                          }));
+  if (resolve_notify_addr) {
+    HIXL_CHK_STATUS_RET(pool->ResolveNotifyAddr(), "Failed to resolve TransferPool notify address for CS server");
+  }
   void *dev_flag = nullptr;
   HIXL_CHK_ACL_RET(
       aclrtMalloc(&dev_flag, sizeof(int64_t),

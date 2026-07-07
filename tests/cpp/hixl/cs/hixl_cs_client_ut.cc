@@ -50,6 +50,7 @@ static constexpr uint32_t kConnectTime1 = 50U;
 static constexpr uint32_t kConnectTime2 = 200U;
 static constexpr uint32_t kTimeOutOne = 1000U;
 static constexpr uint64_t kMatchChannelIndex = 7UL;
+static constexpr uint64_t kRuntimeNotifyAddr = 0x88888888ULL;
 static constexpr char kGetRemoteMemStr0[] = "_hixl_builtin_dev_trans_flag";
 static constexpr char kGetRemoteMemStr1[] = "a";
 static constexpr char kGetRemoteMemStr2[] = "b";
@@ -664,6 +665,46 @@ TEST_F(HixlCSClientUT, CreateSuccess) {
   desc.local_endpoint = &src_;
   desc.remote_endpoint = &dst_;
   EXPECT_EQ(client_.Create(&desc, &config), SUCCESS);
+}
+
+TEST_F(HixlCSClientUT, CreateNonHccsDeviceEndpointResolvesNotifyAddress) {
+  port_ = kPort;
+  HixlClientConfig config{};
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  ASSERT_EQ(client_.Create(&desc, &config), SUCCESS);
+
+  auto *pool = TransferPool::GetInstance(0);
+  ASSERT_NE(pool, nullptr);
+  std::vector<TransferPool::SlotHandle> slots;
+  ASSERT_EQ(pool->GetAllSlots(slots), SUCCESS);
+  ASSERT_FALSE(slots.empty());
+  EXPECT_EQ(slots[0].notify_addr, kRuntimeNotifyAddr);
+  EXPECT_EQ(slots[0].notify_len, sizeof(kRuntimeNotifyAddr));
+}
+
+TEST_F(HixlCSClientUT, CreateHccsDeviceEndpointSkipsNotifyAddressResolve) {
+  port_ = kPort;
+  HixlClientConfig config{};
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  srcEx_ = MakeIdEpEx(kSrcEpId, COMM_PROTOCOL_HCCS);
+  dstEx_ = MakeIdEpEx(kDstEpId, COMM_PROTOCOL_HCCS);
+  desc.local_endpoint = &srcEx_;
+  desc.remote_endpoint = &dstEx_;
+  ASSERT_EQ(client_.Create(&desc, &config), SUCCESS);
+
+  auto *pool = TransferPool::GetInstance(0);
+  ASSERT_NE(pool, nullptr);
+  std::vector<TransferPool::SlotHandle> slots;
+  ASSERT_EQ(pool->GetAllSlots(slots), SUCCESS);
+  ASSERT_FALSE(slots.empty());
+  EXPECT_EQ(slots[0].notify_addr, 0U);
+  EXPECT_EQ(slots[0].notify_len, 0U);
 }
 
 TEST_F(HixlCSClientUT, CreateFailNullServerIp) {

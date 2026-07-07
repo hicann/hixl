@@ -236,6 +236,23 @@ Status TransferPool::GetAllSlots(std::vector<SlotHandle> &out) const {
   return SUCCESS;
 }
 
+Status TransferPool::ResolveNotifyAddr() {
+  HIXL_LOGI("[TransferPool] ResolveNotifyAddr start. device_id=%d", device_id_);
+  std::lock_guard<std::mutex> lock(mu_);
+  if (!inited_) {
+    HIXL_LOGE(FAILED, "[TransferPool] ResolveNotifyAddr failed: not initialized (device_id=%d)", device_id_);
+    return FAILED;
+  }
+  for (Slot &slot : slots_) {
+    if (slot.notify_addr != 0U && slot.notify_len != 0U) {
+      continue;
+    }
+    HIXL_CHK_STATUS_RET(ResolveNotifyAddressLocked(slot), "[TransferPool] ResolveNotifyAddressLocked failed");
+  }
+  HIXL_LOGI("[TransferPool] ResolveNotifyAddr success. device_id=%d slot_count=%zu", device_id_, slots_.size());
+  return SUCCESS;
+}
+
 void TransferPool::FillHandleFromSlot(int32_t device_id, uint32_t index, const Slot &slot, SlotHandle *handle) {
   handle->device_id = device_id;
   handle->slot_index = index;
@@ -391,7 +408,6 @@ Status TransferPool::EnsureNotifyLocked(Slot &slot) const {
     ResetNotifyResourcesLocked(slot);
     HIXL_CHK_STATUS_RET(CreateNotifyLocked(slot), "[TransferPool] CreateNotifyLocked failed");
   }
-  HIXL_CHK_STATUS_RET(ResolveNotifyAddressLocked(slot), "[TransferPool] ResolveNotifyAddressLocked failed");
   return SUCCESS;
 }
 
