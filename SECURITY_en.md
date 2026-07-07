@@ -24,10 +24,7 @@ The public network addresses contained in the code of this project are as follow
 
 |      Type     |                                           Open-Source Code Address                                          |                            File                            |             Public IP Address/Public URL/Domain Name/Email Address/Compressed File Address            |                   Description                   |
 | :------------: |:------------------------------------------------------------------------------------------:|:----------------------------------------------------------| :---------------------------------------------------------- |:-----------------------------------------|
-|  Dependency | N/A | cmake/third_party/makeself-fetch.cmake | https://gitcode.com/cann-src-third-party/makeself/releases/download/release-2.5.0-patch1.0/makeself-release-2.5.0-patch1.tar.gz | Download the `makeself` source code from GitCode as the compilation dependency.|
-|  Dependency | N/A | cmake/third_party/json.cmake | https://gitcode.com/cann-src-third-party/json/releases/download/v3.11.3/include.zip | Download the `json` source code from GitCode as the compilation dependency.|
-|  Dependency | N/A | cmake/third_party/gtest.cmake | https://gitcode.com/cann-src-third-party/googletest/releases/download/v1.14.0/googletest-1.14.0.tar.gz | Download the `googletest` source code from GitCode as the compilation dependency.|
-|  Dependency | N/A | cmake/third_party/pybind11.cmake | https://gitcode.com/cann-src-third-party/pybind11/releases/download/v2.13.6/pybind11-2.13.6.tar.gz | Download the `pybind11` source code from GitCode as the compilation dependency.  |
+|  Dependency | N/A | cmake/fetch_cann_cmake.cmake | https://gitcode.com/cann/cmake.git | Fetch the cann-cmake public build scripts from GitCode as the compilation dependency.|
 ---
 
 ## Vulnerability Handling Mechanism
