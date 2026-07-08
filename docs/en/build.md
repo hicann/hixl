@@ -5,10 +5,10 @@ This project supports build from source code. Before compiling the source code, 
 
 Select an installation method based on the following description:
 
-| Installation Mode | Description | Scenario |
-| :--- | :--- | :--- |
-| Deployment using Docker | Docker images provide an efficient CANN deployment method. Currently, it applies only to Atlas A2 products with Ubuntu OS. | This method is suitable for developers who have Ascend devices and need to quickly set up the environment. |
-| Manual installation | - | This method is suitable for developers who have Ascend devices and want to manually install the CANN package or experience the latest master branch capabilities. |
+| Installation Mode | Description                                                                                                                       | Scenario |
+| :--- |:----------------------------------------------------------------------------------------------------------------------------------| :--- |
+| Deployment using Docker | Docker images provide an efficient CANN deployment method. Currently, it applies to Atlas A2, A3, and A5 products with Ubuntu OS. | This method is suitable for developers who have Ascend devices and need to quickly set up the environment. |
+| Manual installation | -                                                                                                                                 | This method is suitable for developers who have Ascend devices and want to manually install the CANN package or experience the latest master branch capabilities. |
 
 ### Scenario I: Deployment Using Docker
 
