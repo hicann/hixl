@@ -10,6 +10,7 @@
 
 #include <memory>
 #include <vector>
+#include <cstdint>
 #include <cstdlib>
 #include <thread>
 #include <chrono>
@@ -1291,6 +1292,19 @@ TEST_F(HixlClientUTest, UbHandlerClassifyH2H) {
   std::map<CommType, std::vector<TransferOpDesc>> table;
   EXPECT_EQ(handler.ClassifyTransfers({op}, table), SUCCESS);
   VerifyClassifyResult(table, CommType::COMM_TYPE_UB_H2H, 0x5100U);
+
+  handler.local_segments_.clear();
+  handler.remote_segments_.clear();
+  handler.handles_.clear();
+}
+
+TEST_F(HixlClientUTest, UbHandlerClassifyLocalAddrOverflow) {
+  UbClientHandler handler({});
+  SetupUbHandlerWithSegments(handler);
+
+  TransferOpDesc op{static_cast<uintptr_t>(UINTPTR_MAX) - 10U, 0x3100, 20U};
+  std::map<CommType, std::vector<TransferOpDesc>> table;
+  EXPECT_EQ(handler.ClassifyTransfers({op}, table), PARAM_INVALID);
 
   handler.local_segments_.clear();
   handler.remote_segments_.clear();

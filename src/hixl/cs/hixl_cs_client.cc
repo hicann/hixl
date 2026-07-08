@@ -230,18 +230,19 @@ Status HixlCSClient::InitFlagQueue() noexcept {
     HIXL_LOGE(FAILED, "flag_addr malloc failed.");
     return FAILED;
   }
-  flag_queue_ = static_cast<uint64_t *>(tmp);
+  auto *flag_queue = static_cast<uint64_t *>(tmp);
   for (size_t i = 0; i < kFlagQueueSize; ++i) {
-    flag_queue_[i] = 0;
+    flag_queue[i] = 0;
   }
-  top_index_ = kFlagQueueSize;  // 初始化成功后可用
   CommMem mem{};
   mem.type = COMM_MEM_TYPE_HOST;
-  mem.addr = flag_queue_;
+  mem.addr = flag_queue;
   mem.size = kFlagQueueSize * sizeof(uint64_t);
   MemHandle flag_handle = nullptr;
   HIXL_CHK_STATUS_RET(RegMemLocked(kTransFlagNameHost, &mem, &flag_handle),
                       "Failed to reg HOST trans finished flag, mem.addr: %p, mem.size: %lu.", mem.addr, mem.size);
+  flag_queue_ = flag_queue;
+  top_index_ = kFlagQueueSize;  // 初始化成功后可用
   HIXL_DISMISS_GUARD(free_flag_mem);
   return SUCCESS;
 }
@@ -1012,10 +1013,11 @@ Status HixlCSClient::CheckStatusHost(CompleteHandleInfo &query_handle, HixlCompl
     return PARAM_INVALID;
   }
   // 通过读取query_handle中地址的值，来判断任务的完成状态
-  uint64_t *atomic_flag = query_handle.flag_address;
-  HIXL_CHECK_NOTNULL(atomic_flag);
+  HIXL_CHECK_NOTNULL(query_handle.flag_address);
+  volatile uint64_t *flag_ptr = query_handle.flag_address;
+  const uint64_t flag_val = *flag_ptr;
   // 查到flag变成1之后，就把其重置为0，之后告知用户读写任务已经完成。
-  if (*atomic_flag == kFlagDoneValue) {
+  if (flag_val == kFlagDoneValue) {
     status = HixlCompleteStatus::HIXL_COMPLETE_STATUS_COMPLETED;
     HIXL_LOGI("The current transmission task has been completed.");
     return ReleaseCompleteHandle(&query_handle);  // 释放内存并回收索引

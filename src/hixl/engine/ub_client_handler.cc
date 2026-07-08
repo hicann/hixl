@@ -10,6 +10,7 @@
 
 #include "engine/ub_client_handler.h"
 #include "cs/hixl_cs_client.h"
+#include "utils/extern_math_util.h"
 #include <algorithm>
 #include <chrono>
 #include <thread>
@@ -467,12 +468,18 @@ Status UbClientHandler::Finalize() {
 Status UbClientHandler::ClassifyTransfers(const std::vector<TransferOpDesc> &op_descs,
                                           std::map<CommType, std::vector<TransferOpDesc>> &table) {
   for (const auto &op : op_descs) {
+    uint64_t local_end = 0U;
+    uint64_t remote_end = 0U;
+    HIXL_CHK_BOOL_RET_STATUS(!ge::AddOverflow(op.local_addr, op.len, local_end), PARAM_INVALID,
+                             "Local memory range overflow: start:0x%lx, len:0x%lx", op.local_addr, op.len);
+    HIXL_CHK_BOOL_RET_STATUS(!ge::AddOverflow(op.remote_addr, op.len, remote_end), PARAM_INVALID,
+                             "Remote memory range overflow: start:0x%lx, len:0x%lx", op.remote_addr, op.len);
     MemType local_mem_type;
     {
       std::lock_guard<std::mutex> lock(local_seg_mutex_);
       if (GetMemType(local_segments_, op.local_addr, op.len, local_mem_type) != SUCCESS) {
         HIXL_LOGE(PARAM_INVALID, "Local memory range does not register before connection: start:0x%lx, end:0x%lx",
-                  op.local_addr, op.local_addr + op.len);
+                  op.local_addr, local_end);
         return PARAM_INVALID;
       }
     }
@@ -481,7 +488,7 @@ Status UbClientHandler::ClassifyTransfers(const std::vector<TransferOpDesc> &op_
       std::lock_guard<std::mutex> lock(remote_seg_mutex_);
       if (GetMemType(remote_segments_, op.remote_addr, op.len, remote_mem_type) != SUCCESS) {
         HIXL_LOGE(PARAM_INVALID, "Remote memory range does not register before connection: start:0x%lx, end:0x%lx",
-                  op.remote_addr, op.remote_addr + op.len);
+                  op.remote_addr, remote_end);
         return PARAM_INVALID;
       }
     }

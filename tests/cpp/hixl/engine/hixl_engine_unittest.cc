@@ -1127,6 +1127,32 @@ static void RegisterMockTransferReq(HixlEngine &engine, const ClientPtr &client,
   engine.client_manager_.RegisterTransferReq(req, client, user_data);
 }
 
+struct DisconnectedBatchStatusContext {
+  ClientPtr client;
+  TransferReq req1;
+  TransferReq req2;
+  const void *user_data1;
+  const void *user_data2;
+};
+
+static void SetupDisconnectedEngineWithFailedTransferReqs(
+    HixlEngine &engine, DisconnectedBatchStatusContext &ctx,
+    const void *user_data1 = reinterpret_cast<const void *>(0x3000),
+    const void *user_data2 = reinterpret_cast<const void *>(0x4000)) {
+  engine.is_initialized_ = true;
+  engine.auto_connect_ = true;
+  ASSERT_EQ(engine.client_manager_.Initialize(true), SUCCESS);
+  auto handler = std::make_unique<MockClientHandler>();
+  handler->default_ret = FAILED;
+  ctx.client = CreateMockClient(std::move(handler));
+  ctx.req1 = reinterpret_cast<TransferReq>(0x1000);
+  ctx.req2 = reinterpret_cast<TransferReq>(0x2000);
+  ctx.user_data1 = user_data1;
+  ctx.user_data2 = user_data2;
+  RegisterMockTransferReq(engine, ctx.client, ctx.req1, ctx.user_data1);
+  RegisterMockTransferReq(engine, ctx.client, ctx.req2, ctx.user_data2);
+}
+
 static bool AttachClosedCtrlSocket(const ClientPtr &client) {
   int32_t fds[2] = {-1, -1};
   if (socketpair(AF_UNIX, SOCK_STREAM, 0, fds) != 0) {
@@ -1164,6 +1190,27 @@ TEST(ClientManagerTest, GetOrCreateClientReturnsExistingClient) {
   EXPECT_EQ(manager.GetOrCreateClient(config, {}, kTimeOut, returned_client), ALREADY_CONNECTED);
   EXPECT_EQ(returned_client, client);
   EXPECT_EQ(manager.Finalize(), SUCCESS);
+}
+
+TEST(HixlEngineLifecycleTest, CheckInitializedRejectsConnectAndRegisterMem) {
+  HixlEngine engine("127.0.0.1:26200");
+  engine.is_initialized_ = false;
+
+  MemHandle handle = nullptr;
+  MemDesc mem{};
+  mem.addr = 0x1000U;
+  mem.len = 4096U;
+  EXPECT_EQ(engine.RegisterMem(mem, MEM_HOST, handle), FAILED);
+  EXPECT_EQ(engine.Connect(AscendString("127.0.0.1:26300"), kTimeOut), FAILED);
+}
+
+TEST(HixlEngineLifecycleTest, AutoConnectRejectsWhenNotInitialized) {
+  HixlEngine engine("127.0.0.1:26200");
+  engine.is_initialized_ = false;
+  engine.auto_connect_ = true;
+  ClientPtr client_ptr = nullptr;
+  EXPECT_EQ(engine.AutoConnect(AscendString("127.0.0.1:26300"), kTimeOut, client_ptr), FAILED);
+  EXPECT_EQ(client_ptr, nullptr);
 }
 
 TEST(ClientManagerTest, HeartbeatDestroysUnhealthyClient) {
@@ -1322,6 +1369,60 @@ TEST(HixlEngineBatchStatusTest, SkipWaitingAndMaxQueryCountFilterResults) {
   EXPECT_EQ(engine.client_manager_.GetClientByReq(completed_req2), client);
   EXPECT_EQ(engine.client_manager_.Finalize(), SUCCESS);
 }
+
+TEST(HixlEngineBatchStatusTest, FailedRetAutoDisconnectDedupForSameEngine) {
+  HixlEngine engine("127.0.0.1:26200");
+  DisconnectedBatchStatusContext ctx{};
+  SetupDisconnectedEngineWithFailedTransferReqs(engine, ctx, nullptr, nullptr);
+
+  GetTransferStatusArgs args{};
+  std::vector<TransferResult> results;
+  EXPECT_EQ(engine.GetTransferStatus(args, results), SUCCESS);
+  EXPECT_EQ(engine.client_manager_.GetClientByReq(ctx.req1), nullptr);
+  EXPECT_EQ(engine.client_manager_.GetClientByReq(ctx.req2), nullptr);
+  EXPECT_EQ(engine.client_manager_.Finalize(), SUCCESS);
+}
+
+TEST(HixlEngineBatchStatusTest, DisconnectedEngineStopsAtMaxQueryCount) {
+  HixlEngine engine("127.0.0.1:26200");
+  DisconnectedBatchStatusContext ctx{};
+  SetupDisconnectedEngineWithFailedTransferReqs(engine, ctx);
+
+  GetTransferStatusArgs args{};
+  args.max_query_count = 2;
+  std::vector<TransferResult> results;
+  EXPECT_EQ(engine.GetTransferStatus(args, results), SUCCESS);
+
+  ASSERT_EQ(results.size(), 2U);
+  EXPECT_EQ(results[0].req, ctx.req1);
+  EXPECT_EQ(results[0].status, TransferStatus::FAILED);
+  EXPECT_EQ(results[1].req, ctx.req2);
+  EXPECT_EQ(results[1].status, TransferStatus::FAILED);
+  EXPECT_EQ(engine.client_manager_.GetClientByReq(ctx.req1), nullptr);
+  EXPECT_EQ(engine.client_manager_.GetClientByReq(ctx.req2), nullptr);
+  EXPECT_EQ(engine.client_manager_.Finalize(), SUCCESS);
+}
+
+TEST(HixlEngineBatchStatusTest, SkipWaitingStillReturnsFailedAfterEngineDisconnect) {
+  HixlEngine engine("127.0.0.1:26200");
+  DisconnectedBatchStatusContext ctx{};
+  SetupDisconnectedEngineWithFailedTransferReqs(engine, ctx);
+
+  GetTransferStatusArgs args{};
+  args.skip_waiting = true;
+  std::vector<TransferResult> results;
+  EXPECT_EQ(engine.GetTransferStatus(args, results), SUCCESS);
+
+  ASSERT_EQ(results.size(), 2U);
+  EXPECT_EQ(results[0].req, ctx.req1);
+  EXPECT_EQ(results[0].user_data, ctx.user_data1);
+  EXPECT_EQ(results[0].status, TransferStatus::FAILED);
+  EXPECT_EQ(results[1].req, ctx.req2);
+  EXPECT_EQ(results[1].user_data, ctx.user_data2);
+  EXPECT_EQ(results[1].status, TransferStatus::FAILED);
+  EXPECT_EQ(engine.client_manager_.Finalize(), SUCCESS);
+}
+
 // auto_connect=1，显式 Connect 后再 transfer — 验证用户主动建链后传输正常
 TEST_F(HixlEngineTest, TestAutoConnectExplicitConnectBeforeTransfer) {
   HixlEngine engine1("127.0.0.1");

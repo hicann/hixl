@@ -156,10 +156,14 @@ class HixlEngine : public hixl::Engine {
  private:
   static const std::unordered_set<std::string> kSupportedOptions;
   Status InitServer(std::optional<uint32_t> listen_port, std::optional<uint32_t> max_active_channels);
-  Status AutoConnect(const AscendString &remote_engine, int32_t timeout_in_millis);
+  Status CheckInitialized() const;
   Status AutoDisconnect(const AscendString &remote_engine, int32_t timeout_in_millis);
   void BuildClientConfig(const AscendString &remote_engine, ClientConfig &config,
                          std::vector<MemHandleInfo> &mem_info_list, int32_t timeout_in_millis);
+  void FillClientConfigFields(const AscendString &remote_engine, ClientConfig &config, int32_t timeout_in_millis,
+                              bool is_lazy) const;
+  void CopyMemInfoListLocked(std::vector<MemHandleInfo> &mem_info_list) const;
+  Status AutoConnect(const AscendString &remote_engine, int32_t timeout_in_millis, ClientPtr &client_ptr);
   std::mutex mutex_;
 
   std::atomic<bool> is_initialized_;

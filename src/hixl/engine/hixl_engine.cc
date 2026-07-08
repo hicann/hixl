@@ -9,6 +9,7 @@
  */
 
 #include <string>
+#include <unordered_set>
 
 #include "hixl_engine.h"
 #include "hixl_options.h"
@@ -97,14 +98,15 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
 }
 
 Status HixlEngine::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
+  HIXL_CHK_STATUS_RET(CheckInitialized(), "[HixlEngine] Failed to register mem, engine is not initialized");
   HIXL_LOGI("[HixlEngine] Registration started, type:%s, addr:%p, size:%lu", MemTypeToString(type).c_str(),
             reinterpret_cast<void *>(mem.addr), mem.len);
   auto with_context = aclrt_context_.GetContextGuard();
+  std::lock_guard<std::mutex> lock(mutex_);
   HIXL_CHK_STATUS_RET(server_.RegisterMem(mem, type, mem_handle),
                       "[HixlEngine] Failed to register mem, type:%s, addr:%p, size:%lu", MemTypeToString(type).c_str(),
                       reinterpret_cast<void *>(mem.addr), mem.len);
   MemHandleInfo mem_info = {mem_handle, mem, type};
-  std::lock_guard<std::mutex> lock(mutex_);
   mem_map_.emplace(mem_handle, mem_info);
   HIXL_LOGI("[HixlEngine] Registration succeeded, type:%s, addr:%p, size:%lu", MemTypeToString(type).c_str(),
             reinterpret_cast<void *>(mem.addr), mem.len);
@@ -134,6 +136,7 @@ Status HixlEngine::DeregisterMem(MemHandle mem_handle) {
 }
 
 Status HixlEngine::Connect(const AscendString &remote_engine, int32_t timeout_in_millis) {
+  HIXL_CHK_STATUS_RET(CheckInitialized(), "[HixlEngine] Failed to connect, engine is not initialized");
   HIXL_CHK_BOOL_RET_STATUS(strcmp(local_engine_.c_str(), remote_engine.GetString()) != 0, PARAM_INVALID,
                            "[HixlEngine] Do not support connection with self, please check remote engine. "
                            "local_engine:%s, remote_engine:%s",
@@ -184,14 +187,11 @@ Status HixlEngine::TransferSync(const AscendString &remote_engine, TransferOp op
                                 const std::vector<TransferOpDesc> &op_descs, int32_t timeout_in_millis) {
   HIXL_LOGI("[HixlEngine] Synchronous transmission started, local_engine:%s, remote_engine:%s, timeout:%d ms",
             local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
-  HIXL_CHK_STATUS_RET(AutoConnect(remote_engine, timeout_in_millis),
+  auto with_context = aclrt_context_.GetContextGuard();
+  ClientPtr client_ptr;
+  HIXL_CHK_STATUS_RET(AutoConnect(remote_engine, timeout_in_millis, client_ptr),
                       "[HixlEngine] Failed to auto connect before TransferSync, local_engine:%s, remote_engine:%s",
                       local_engine_.c_str(), remote_engine.GetString());
-  ClientPtr client_ptr = client_manager_.GetClient(remote_engine.GetString());
-  HIXL_CHK_BOOL_RET_STATUS(client_ptr != nullptr, NOT_CONNECTED,
-                           "[HixlEngine] Failed to get client through remote engine, please check connection. "
-                           "local_engine:%s, remote_engine:%s",
-                           local_engine_.c_str(), remote_engine.GetString());
   HixlProfType type = (operation == READ ? HixlProfType::HixlOpBatchRead : HixlProfType::HixlOpBatchWrite);
   HIXL_API_PROFILING(type);
   Status ret = client_ptr->TransferSync(op_descs, operation, timeout_in_millis);
@@ -212,14 +212,11 @@ Status HixlEngine::TransferAsync(const AscendString &remote_engine, TransferOp o
                                  TransferReq &req) {
   HIXL_LOGI("[HixlEngine] Asynchronous transmission started, local_engine:%s, remote_engine:%s", local_engine_.c_str(),
             remote_engine.GetString());
-  HIXL_CHK_STATUS_RET(AutoConnect(remote_engine, kAutoConnectTimeout),
+  auto with_context = aclrt_context_.GetContextGuard();
+  ClientPtr client_ptr;
+  HIXL_CHK_STATUS_RET(AutoConnect(remote_engine, kAutoConnectTimeout, client_ptr),
                       "[HixlEngine] Failed to auto connect before TransferAsync, local_engine:%s, remote_engine:%s",
                       local_engine_.c_str(), remote_engine.GetString());
-  ClientPtr client_ptr = client_manager_.GetClient(remote_engine.GetString());
-  HIXL_CHK_BOOL_RET_STATUS(
-      client_ptr != nullptr, NOT_CONNECTED,
-      "[HixlEngine] Failed to get client through remote engine, please check connection. remote_engine:%s",
-      remote_engine.GetString());
   Status trans_status = client_ptr->TransferAsync(op_descs, operation, optional_args, req);
   if (trans_status != SUCCESS) {
     HIXL_LOGE(trans_status, "[HixlEngine] Failed to TransferAsync, local_engine:%s, remote_engine:%s",
@@ -264,11 +261,21 @@ Status HixlEngine::GetTransferStatus(const GetTransferStatusArgs &args, std::vec
   }
   auto reqs = client_manager_.GetOrderedReqs(0);
   results.reserve(reqs.size());
+  std::unordered_set<std::string> disconnected_engines;
   for (const auto &it : reqs) {
     TransferReq req = it.req;
     ClientPtr client = it.client;
     if (client == nullptr) {
       client_manager_.EraseTransferReq(req);
+      continue;
+    }
+    const std::string remote_engine = client->GetRemoteEngine();
+    if (disconnected_engines.count(remote_engine) != 0U) {
+      client_manager_.EraseTransferReq(req);
+      results.emplace_back(TransferResult{req, it.user_data, TransferStatus::FAILED});
+      if (results.size() >= static_cast<size_t>(args.max_query_count)) {
+        break;
+      }
       continue;
     }
     TransferStatus status = TransferStatus::FAILED;
@@ -277,7 +284,9 @@ Status HixlEngine::GetTransferStatus(const GetTransferStatusArgs &args, std::vec
     if (ret != SUCCESS) {
       HIXL_LOGE(ret, "[HixlEngine] Failed to get status through client, local_engine:%s, req:%p, status:%d",
                 local_engine_.c_str(), req, static_cast<int32_t>(status));
-      (void)AutoDisconnect(AscendString(client->GetRemoteEngine().c_str()), kAutoConnectTimeout);
+      if (disconnected_engines.insert(remote_engine).second) {
+        (void)AutoDisconnect(AscendString(remote_engine.c_str()), kAutoConnectTimeout);
+      }
     }
     if (status != TransferStatus::WAITING) {
       client_manager_.EraseTransferReq(req);
@@ -296,6 +305,7 @@ Status HixlEngine::GetTransferStatus(const GetTransferStatusArgs &args, std::vec
 void HixlEngine::Finalize() {
   HIXL_LOGI("[HixlEngine] Finalization started");
   std::lock_guard<std::mutex> lock(mutex_);
+  is_initialized_ = false;
   {
     auto with_context = aclrt_context_.GetContextGuard();
     server_.Finalize();
@@ -303,7 +313,6 @@ void HixlEngine::Finalize() {
     mem_map_.clear();
   }
   aclrt_context_.DestroyContext();
-  is_initialized_ = false;
   HIXL_LOGI("[HixlEngine] Finalization succeeded");
 }
 
@@ -340,27 +349,53 @@ Status HixlEngine::RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor
   return SUCCESS;
 }
 
-Status HixlEngine::AutoConnect(const AscendString &remote_engine, int32_t timeout_in_millis) {
+Status HixlEngine::CheckInitialized() const {
+  HIXL_CHK_BOOL_RET_STATUS(is_initialized_.load(std::memory_order_acquire), FAILED,
+                           "[HixlEngine] engine is not initialized, local_engine:%s", local_engine_.c_str());
+  return SUCCESS;
+}
+
+void HixlEngine::FillClientConfigFields(const AscendString &remote_engine, ClientConfig &config,
+                                        int32_t timeout_in_millis, bool is_lazy) const {
+  config.endpoint_list = endpoint_list_;
+  config.remote_engine = remote_engine.GetString();
+  config.rdma_tc = rdma_traffic_class_;
+  config.rdma_sl = rdma_service_level_;
+  config.timeout_ms = static_cast<uint32_t>(timeout_in_millis);
+  config.qos = qos_;
+  config.max_active_channels = max_active_channels_;
+  config.is_lazy = is_lazy;
+}
+
+void HixlEngine::CopyMemInfoListLocked(std::vector<MemHandleInfo> &mem_info_list) const {
+  for (const auto &pair : mem_map_) {
+    mem_info_list.push_back(pair.second);
+  }
+}
+
+Status HixlEngine::AutoConnect(const AscendString &remote_engine, int32_t timeout_in_millis, ClientPtr &client_ptr) {
+  HIXL_CHK_STATUS_RET(CheckInitialized(), "[HixlEngine] Failed to auto connect, engine is not initialized");
   if (!auto_connect_) {
+    client_ptr = client_manager_.GetClient(remote_engine.GetString());
+    HIXL_CHK_BOOL_RET_STATUS(client_ptr != nullptr, NOT_CONNECTED,
+                             "[HixlEngine] Failed to get client through remote engine, please check connection. "
+                             "local_engine:%s, remote_engine:%s",
+                             local_engine_.c_str(), remote_engine.GetString());
     return SUCCESS;
   }
   HIXL_CHK_BOOL_RET_STATUS(strcmp(local_engine_.c_str(), remote_engine.GetString()) != 0, PARAM_INVALID,
                            "[HixlEngine] Do not support connection with self, please check remote engine. "
                            "local_engine:%s, remote_engine:%s",
                            local_engine_.c_str(), remote_engine.GetString());
-  // 快速路径：无锁检查（client_manager_.GetClient 内部有锁）
-  ClientPtr client_ptr = client_manager_.GetClient(remote_engine.GetString());
+  client_ptr = client_manager_.GetClient(remote_engine.GetString());
   if (client_ptr != nullptr) {
     return SUCCESS;
   }
-
   ClientConfig config{};
   std::vector<MemHandleInfo> mem_info_list;
   BuildClientConfig(remote_engine, config, mem_info_list, timeout_in_millis);
-
   HIXL_LOGI("[HixlEngine] Auto connect started, local_engine:%s, remote_engine:%s, timeout:%d ms.",
             local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
-  auto with_context = aclrt_context_.GetContextGuard();
   Status ret = client_manager_.GetOrCreateClient(config, mem_info_list, timeout_in_millis, client_ptr);
   if (ret == ALREADY_CONNECTED) {
     return SUCCESS;
@@ -372,20 +407,9 @@ Status HixlEngine::AutoConnect(const AscendString &remote_engine, int32_t timeou
 
 void HixlEngine::BuildClientConfig(const AscendString &remote_engine, ClientConfig &config,
                                    std::vector<MemHandleInfo> &mem_info_list, int32_t timeout_in_millis) {
-  config.endpoint_list = endpoint_list_;
-  config.remote_engine = remote_engine.GetString();
-  config.rdma_tc = rdma_traffic_class_;
-  config.rdma_sl = rdma_service_level_;
-  config.timeout_ms = static_cast<uint32_t>(timeout_in_millis);
-  config.qos = qos_;
-  config.max_active_channels = max_active_channels_;
-  config.is_lazy = auto_connect_;
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    for (const auto &pair : mem_map_) {
-      mem_info_list.push_back(pair.second);
-    }
-  }
+  FillClientConfigFields(remote_engine, config, timeout_in_millis, auto_connect_);
+  std::lock_guard<std::mutex> lock(mutex_);
+  CopyMemInfoListLocked(mem_info_list);
 }
 
 Status HixlEngine::AutoDisconnect(const AscendString &remote_engine, int32_t timeout_in_millis) {
