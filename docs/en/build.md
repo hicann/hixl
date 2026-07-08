@@ -47,6 +47,7 @@ Select an installation method based on the following description:
 
    > [!NOTE] Note
    > - `--cap-add SYS_PTRACE`: Adds the `SYS_PTRACE` permission when creating a Docker to support memory leak detection during [local verification (Tests)](#local-verification-tests).
+   > - The container starts as the `jenkins` user. Do not use `--user root`. The image already includes cmake, gcc, git, and other build tools.
    > - For more Docker options, run the `docker --help` command.
 
    The installation path of the CANN package for the build image is `/home/jenkins/Ascend`. If you need to use a different CANN version outside the image, manually install the CANN package in Docker by referring to the following sections.
@@ -110,7 +111,10 @@ After installing the CANN packages, verify that the environment and driver are n
 
 Run the appropriate command to make the environment variables take effect.
 ```bash
-# Default installation path (using the root user as an example; for a non-root user, replace /usr/local with ${HOME})
+# Docker build image (jenkins user; see [Scenario I: Deployment Using Docker](#scenario-i-deployment-using-docker))
+source /home/jenkins/Ascend/cann/set_env.sh
+
+# Manual installation: default path (using the root user as an example; for a non-root user, replace /usr/local with ${HOME})
 source /usr/local/Ascend/cann/set_env.sh
 # Custom installation path
 # source ${install_path}/cann/set_env.sh

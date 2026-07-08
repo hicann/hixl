@@ -47,6 +47,7 @@
 
   > [!NOTE]说明
   > - `--cap-add SYS_PTRACE`：创建Docker容器时添加`SYS_PTRACE`权限，以支持[本地验证](#本地验证tests)时的内存泄漏检测功能。
+  > - 容器默认以 `jenkins` 用户进入，请勿使用 `--user root`；镜像内已预装 cmake、gcc、git 等构建工具。
   > - 更多 docker 选项介绍请通过 `docker --help` 查询。
 
   配套构建镜像的CANN包安装路径为`/home/jenkins/Ascend`。如需要使用镜像之外的其他CANN版本，请参考如下章节在docker内手工安装CANN包。
@@ -110,7 +111,10 @@
 
 按需选择合适的命令使环境变量生效。
 ```bash
-# 默认路径安装，以root用户为例（非root用户，将/usr/local替换为${HOME}）
+# Docker 配套构建镜像（jenkins 用户，见[场景一：使用Docker部署](#场景一使用docker部署)）
+source /home/jenkins/Ascend/cann/set_env.sh
+
+# 手动安装：默认路径，以 root 用户为例（非 root 用户，将 /usr/local 替换为 ${HOME}）
 source /usr/local/Ascend/cann/set_env.sh
 # 指定路径安装
 # source ${install_path}/cann/set_env.sh
