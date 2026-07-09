@@ -1,6 +1,7 @@
 # 源码构建
 
 ## 环境准备
+
 本项目支持源码编译，在源码编译前，需要确保已经安装Toolkit开发套件包。执行所有样例前，需要确保已经安装驱动和固件；执行python样例前，还需要确保已经安装ops包。
 
 软件安装方式请根据如下描述进行选择：
@@ -15,6 +16,7 @@
 **1.安装固件和驱动**：请参考[CANN软件安装指南](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)。
 
 **2.安装依赖、CANN Toolkit开发套件包以及CANN ops算子包**，操作步骤如下。
+
  - **配套 X86 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu24.04_x86:lv6_v1.1039`
  - **配套 ARM 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu24.04_arm:lv6_v1.1039`
 
@@ -54,7 +56,6 @@
 
   更多版本镜像，和镜像的使用方法，可根据需要在[Ascend-CANN镜像](https://www.hiascend.com/developer/ascendhub/detail/17da20d1c2b6493cb38765adeba85884)自行选择。
 
-
 ### 场景二：手动安装CANN包
 
 **场景1：体验master版本能力或基于master版本进行开发**
@@ -80,6 +81,7 @@
     # 安装命令
     ./Ascend-cann-${soc_name}-ops_${cann_version}_linux-${arch}.run --install --install-path=${install_path}
     ```
+
     - \$\{cann\_version\}：表示CANN包版本号。
     - \$\{arch\}：表示CPU架构，如aarch64、x86_64。
     - \$\{soc\_name\}：表示NPU型号名称。
@@ -89,17 +91,19 @@
 
 如果您想体验**官网正式发布的CANN包**能力，请访问[CANN官网下载中心](https://www.hiascend.com/cann/download)，选择对应版本CANN软件包（仅支持CANN 8.5.0及后续版本）进行安装。
 
-
 ## 环境验证
 
 安装完CANN包后，需验证环境和驱动是否正常。
 
--   **检查NPU设备**：
+- **检查NPU设备**：
+
     ```bash
     # 运行npu-smi，若能正常显示设备信息，则驱动正常
     npu-smi info
     ```
--   **检查CANN安装**：
+
+- **检查CANN安装**：
+
     ```bash
     # 查看CANN Toolkit的version字段提供的版本信息（默认路径安装），<arch>表示CPU架构（aarch64或x86_64）。
     cat /usr/local/Ascend/cann/<arch>-linux/ascend_toolkit_install.info
@@ -110,6 +114,7 @@
 ## 环境变量配置
 
 按需选择合适的命令使环境变量生效。
+
 ```bash
 # Docker 配套构建镜像（jenkins 用户，见[场景一：使用Docker部署](#场景一使用docker部署)）
 source /home/jenkins/Ascend/cann/set_env.sh
@@ -119,6 +124,7 @@ source /usr/local/Ascend/cann/set_env.sh
 # 指定路径安装
 # source ${install_path}/cann/set_env.sh
 ```
+
 ## 源码编译
 
 ### 安装第三方开源依赖
@@ -129,6 +135,7 @@ source /usr/local/Ascend/cann/set_env.sh
   # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
   sudo apt-get install cmake bash ccache
   ```
+
 - GCC 7.3.x - 14.2.x
 - Python 3.9.x - 3.14.x
 - CMake >= 3.16.0
@@ -152,6 +159,7 @@ HIXL在编译时，依赖的第三方开源软件列表如下：
 ### 源码下载
 
 开发者可通过如下命令下载本仓源码：
+
 ```bash
 git clone https://gitcode.com/cann/hixl.git
 ```
@@ -160,40 +168,43 @@ git clone https://gitcode.com/cann/hixl.git
 > gitcode平台在使用HTTPS协议的时候要配置并使用个人访问令牌代替登录密码进行克隆，推送等操作。
 
 若您的编译环境无法访问网络，由于无法通过`git`指令下载代码，须在联网环境中下载源码后，手动上传至目标环境。
+
 - 在联网环境中，进入[本项目主页](https://gitcode.com/cann/hixl), 通过`下载ZIP`或`clone`按钮，根据指导，完成源码下载。
 - 连接至离线环境中，上传源码至您指定的目录下。若下载的为源码压缩包，还需进行解压。
 
-
 ### 源码编译
 
-若您的编译环境可以访问网络，编译过程中将自动下载上述开源第三方软件，可以使用如下命令进行编译：
+- 若您的编译环境可以访问网络，编译过程中将自动下载上述开源第三方软件，可以使用如下命令进行编译：
 
-```bash
-# 默认路径安装，root用户默认路径是/usr/local/Ascend，普通用户默认路径是${HOME}/Ascend
-bash build.sh
+  ```bash
+  # 默认路径安装，root用户默认路径是/usr/local/Ascend，普通用户默认路径是${HOME}/Ascend
+  bash build.sh
 
-# 若需要同时编译C++样例或基准测试benchmarks，需要额外指定"--examples"参数
-bash build.sh --examples
-```
+  # 若需要同时编译C++样例或基准测试benchmarks，需要额外指定"--examples"参数
+  bash build.sh --examples
+  ```
 
-若您的编译环境无法访问网络，您需要在联网环境中下载上述开源软件压缩包，并手动上传至您的编译环境中。
+- 若您的编译环境无法访问网络，您需要在联网环境中下载上述开源软件压缩包，并手动上传至您的编译环境中。
 
-您需要在编译环境中新建一个`{your_3rd_party_path}`目录来存放这些第三方开源软件。
+  您需要在编译环境中新建一个`{your_3rd_party_path}`目录来存放这些第三方开源软件。
 
-```bash
-mkdir -p {your_3rd_party_path}
-```
+  ```bash
+  mkdir -p {your_3rd_party_path}
+  ```
 
-创建好目录后，将下载好的第三方开源软件压缩包上传至目录`{your_3rd_party_path}`后，可以使用如下命令进行编译：
-```bash
-bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
-```
+  创建好目录后，将下载好的第三方开源软件压缩包上传至目录`{your_3rd_party_path}`后，可以使用如下命令进行编译：
+
+  ```bash
+  bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
+  ```
 
 成功编译后会在build_out目录下生成`cann-hixl_${cann_version}_linux-${arch}.run`。
+
 - ${cann_version}表示cann版本号。
 - ${arch}表示CPU架构，如aarch64、x86_64。
 - 更多执行选项可以用-h查看，或查询下表。
-  ```
+
+  ```bash
   bash build.sh -h
   ```
 
@@ -217,10 +228,12 @@ bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
 利用tests路径下的测试用例进行本地验证:
 
 - 安装依赖
+
     ```bash
     # 安装根目录下requirements.txt依赖
     pip3 install -r requirements.txt
     ```
+
   如果需要本地查看tests覆盖率则需要额外安装coverage，并将Python3的bin路径添加到PATH环境变量中，命令示例如下：
 
      ```shell
@@ -239,7 +252,8 @@ bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
     ```
 
 - 更多执行选项可以用 -h 查看：
-  ```
+
+  ```bash
   bash tests/run_test.sh -h
   ```
 
@@ -252,11 +266,14 @@ bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
 ## 安装
 
 将[源码编译](#源码编译)环节生成的run包进行安装。
-- 说明，此处的安装路径（无论默认还是指定）需与前面安装toolkit包时的路径保持一致。
+
+- 此处的安装路径（无论默认还是指定）需与前面安装toolkit包时的路径保持一致。
+
 ```bash
 # 如果需要指定安装路径则加上--install-path=${cann_install_path}
 ./cann-hixl_${cann_version}_linux-${arch}.run --full --quiet --pylocal
 ```
+
 - --full 全量模式安装。
 - --quiet 静默安装，跳过人机交互环节。
 - --pylocal 安装HIXL软件包时，是否将.whl安装到HIXL安装路径。
@@ -265,15 +282,18 @@ bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
 - 更多安装选项请用--help选项查看。
 
 ### 关于签名的补充说明
+
 - 编译产生`cann-hixl_<version>_linux-<arch>.run`软件包中含有`cann-hixl-compat.tar.gz`(hixl兼容升级包)。
 - `cann-hixl-compat.tar.gz`会在业务启动时加载至Device，加载过程中默认会由驱动进行安全验签，确保包可信。
 - 开发者下载本仓源码自行编译产生`cann-hixl-compat.tar.gz`并不含签名头，为此需要关闭驱动安全验签的机制。
 - 关闭验签方式：
   - 关闭验签功能依赖Ascend NPU驱动软件包（Ascend HDK 25.5.T2.B001或以上版本），可以通过该Ascend HDK配套的npu-smi工具查询版本和关闭验签，详见[查询基本信息](https://support.huawei.com/enterprise/zh/doc/EDOC1100540362/4a8adb57?idPath=23710424|251366513|254884019|261408772|252764743)，[设置自定义验签能力使能状态](https://support.huawei.com/enterprise/zh/doc/EDOC1100540362/3152813c?idPath=23710424|251366513|254884019|261408772|252764743)，[设置验签模式](https://support.huawei.com/enterprise/zh/doc/EDOC1100540362/a484ba7b?idPath=23710424|251366513|254884019|261408772|252764743)命令文档，需要以root用户在物理机上执行。
   - 以device 0为例（其中 -i 后面的参数是device id）：
-    ```
+
+    ```sh
     npu-smi info     # 查询基本信息，包含驱动版本
     npu-smi set -t custom-op-secverify-enable -i 0 -d 1     # 使能自定义验签
     npu-smi set -t custom-op-secverify-mode -i 0 -d 0      # 设置成"关闭验签"模式
     ```
+
 **安装完成后可参考[样例运行](../../examples/README.md)尝试运行样例，也可参考[基准测试Benchmarks](../../benchmarks/README.md)尝试运行基准测试**。

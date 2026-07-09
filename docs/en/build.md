@@ -1,6 +1,7 @@
 # Build from Source Code
 
 ## Environment Setup
+
 This project supports build from source code. Before compiling the source code, ensure that the CANN Toolkit has been installed. Before running all samples, ensure that the driver and firmware have been installed. Before running Python samples, ensure that the OPS package has been installed.
 
 Select an installation method based on the following description:
@@ -15,6 +16,7 @@ Select an installation method based on the following description:
 **1. Install the firmware and driver.** See [CANN Software Installation](https://www.hiascend.com/document/redirect/CannCommunityInstWizard).
 
 **2. Install the dependencies, CANN Toolkit, and CANN ops package.**
+
  - **x86 build image address**: `swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu24.04_x86:lv6_v1.1039`
  - **Arm build image address**: `swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu24.04_arm:lv6_v1.1039`
 
@@ -54,7 +56,6 @@ Select an installation method based on the following description:
 
    For more image versions and how to use them, see [Ascend-CANN Images](https://www.hiascend.com/developer/ascendhub/detail/17da20d1c2b6493cb38765adeba85884).
 
-
 ### Scenario II: Manual Installation
 
 **Scenario 1: Experience the master branch or perform development based on the master branch.**
@@ -80,6 +81,7 @@ If you want to experience the latest capabilities of the master branch, download
     # Installation command
     ./Ascend-cann-${soc_name}-ops_${cann_version}_linux-${arch}.run --install --install-path=${install_path}
     ```
+
     - `${cann_version}`: CANN package version.
     - `${arch}`: CPU architecture, such as `aarch64` and `x86_64`.
     - `${soc_name}`: NPU model name.
@@ -89,17 +91,19 @@ If you want to experience the latest capabilities of the master branch, download
 
 To experience the capabilities of the **officially released CANN package**, visit [the CANN download center](https://www.hiascend.com/cann/download) and select the CANN package (CANN 8.5.0 or later).
 
-
 ## Environment Verification
 
 After installing the CANN packages, verify that the environment and driver are normal.
 
--   **Check NPUs.**
+- **Check NPUs.**
+
     ```bash
     # Run the npu-smi command. If the device information is displayed properly, the driver is normal.
     npu-smi info
     ```
--   **Check CANN installation.**
+
+- **Check CANN installation.**
+
     ```bash
     # Check the version field of CANN Toolkit (default installation path). <arch> indicates the CPU architecture (AArch64 or x86_64).
     cat /usr/local/Ascend/cann/<arch>-linux/ascend_toolkit_install.info
@@ -110,6 +114,7 @@ After installing the CANN packages, verify that the environment and driver are n
 ## Environment Variable Configuration
 
 Run the appropriate command to make the environment variables take effect.
+
 ```bash
 # Docker build image (jenkins user; see [Scenario I: Deployment Using Docker](#scenario-i-deployment-using-docker))
 source /home/jenkins/Ascend/cann/set_env.sh
@@ -130,6 +135,7 @@ The following lists the dependencies required for source code compilation. Check
   # Run the following commands for Ubuntu/Debian. Use proper commands for other OS.
   sudo apt-get install cmake bash ccache
   ```
+
 - GCC 7.3.x - 14.2.x
 - Python 3.9.x - 3.14.x
 - CMake >= 3.16.0
@@ -161,40 +167,43 @@ git clone https://gitcode.com/cann/hixl.git
 > When using HTTPS on GitCode, configure and use a personal access token instead of the login password for operations such as cloning and pushing.
 
 If your build environment cannot access the Internet, you cannot download code via `git`. In this case, you need to download the source code in an environment with Internet access and manually upload it to the target environment.
+
 - In an environment with Internet access, go to [the project homepage](https://gitcode.com/cann/hixl), and download the source code via `ZIP download` or `clone`.
 - Connect to the offline environment and upload the source code to the specified directory. If you download a compressed package, decompress it.
 
-
 ### Compile Source Code
 
-If your build environment can access the Internet, the compilation process will automatically download the required third-party open-source software listed above. Run the following command to perform the compilation:
+- If your build environment can access the Internet, the compilation process will automatically download the required third-party open-source software listed above. Run the following command to perform the compilation:
 
-```bash
-# Default installation path (root user: /usr/local/Ascend; non-root user: ${HOME}/Ascend)
-bash build.sh
+  ```bash
+  # Default installation path (root user: /usr/local/Ascend; non-root user: ${HOME}/Ascend)
+  bash build.sh
 
-# If you need to compile C++ samples or benchmark tests, specify the "--examples" parameter
-bash build.sh --examples
-```
+  # If you need to compile C++ samples or benchmark tests, specify the "--examples" parameter
+  bash build.sh --examples
+  ```
 
-If your build environment cannot access the Internet, download the required open-source packages in an environment with Internet access and manually upload them to your build environment.
+- If your build environment cannot access the Internet, download the required open-source packages in an environment with Internet access and manually upload them to your build environment.
 
-Create a `{your_3rd_party_path}` directory in the build environment to store the third-party open-source software.
+  Create a `{your_3rd_party_path}` directory in the build environment to store the third-party open-source software.
 
-```bash
-mkdir -p {your_3rd_party_path}
-```
+  ```bash
+  mkdir -p {your_3rd_party_path}
+  ```
 
-After uploading the third-party open-source software packages to `{your_3rd_party_path}`, run the following command to perform the build:
-```bash
-bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
-```
+  After uploading the third-party open-source software packages to `{your_3rd_party_path}`, run the following command to perform the build:
+
+  ```bash
+  bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
+  ```
 
 After the build is successful, the `cann-hixl_${cann_version}_linux-${arch}.run` file is generated in the `build_out` directory.
+
 - `${cann_version}`: CANN version.
 - `${arch}`: CPU architecture, such as `aarch64` and `x86_64`.
 - For more execution options, run `-h` or refer to the following table.
-  ```
+
+  ```bash
   bash build.sh -h
   ```
 
@@ -218,10 +227,12 @@ After the build is successful, the `cann-hixl_${cann_version}_linux-${arch}.run`
 Use the test cases in the `tests` directory for local verification.
 
 - Install Dependencies
+
     ```bash
     # Install the dependencies in the requirements.txt file under the root directory
     pip3 install -r requirements.txt
     ```
+
   To view the test coverage locally, install `coverage` and add the Python 3 binary path to the `PATH` environment variable.
 
      ```shell
@@ -240,7 +251,8 @@ Use the test cases in the `tests` directory for local verification.
     ```
 
 - For more execution options, run `-h`.
-  ```
+
+  ```bash
   bash tests/run_test.sh -h
   ```
 
@@ -253,11 +265,14 @@ Use the test cases in the `tests` directory for local verification.
 ## Installation
 
 Install the `.run` file generated during [Compile Source Code](#source-code-compilation).
+
 - Note that the installation path (default or specified) must be the same as the path where the Toolkit package is installed.
+
 ```bash
 # To specify an installation path, add --install-path=${cann_install_path}
 ./cann-hixl_${cann_version}_linux-${arch}.run --full --quiet --pylocal
 ```
+
 - --`full`: full installation mode
 - --`quiet`: silent installation, skipping human-machine interaction.
 - --`pylocal`: whether to install the `.whl` package to the HIXL installation path.
@@ -266,15 +281,18 @@ Install the `.run` file generated during [Compile Source Code](#source-code-comp
 - For more installation options, run `--help`.
 
 ### Supplementary Notes on Signature
+
 - The compiled `cann-hixl_<version>_linux-<arch>.run` package contains `cann-hixl-compat.tar.gz` (HIXL-compatible upgrade package).
 - The `cann-hixl-compat.tar.gz` package is loaded to the device during service startup and is verified by the driver for security purpose.
 - Source-built `cann-hixl-compat.tar.gz` does not contain a signature header. Therefore, you must disable the driver's signature verification mechanism.
 - Disable signature verification as follows:
   - Disabling signature verification depends on the Ascend NPU driver software package (Ascend HDK 25.5.T2.B001 or later). Use the `npu-smi` tool matching Ascend HDK to query the version and disable signature verification. For details, see [Query Basic Information](https://support.huawei.com/enterprise/en/doc/EDOC1100540362/4a8adb57?idPath=23710424|251366513|254884019|261408772|252764743), [Set Custom Signature Verification Capability Status](https://support.huawei.com/enterprise/en/doc/EDOC1100540362/3152813c?idPath=23710424|251366513|254884019|261408772|252764743), and [Set Signature Verification Mode](https://support.huawei.com/enterprise/en/doc/EDOC1100540362/a484ba7b?idPath=23710424|251366513|254884019|261408772|252764743). Run the commands on a physical machine as the `root` user.
   - The following commands use device 0 as an example (where `-i` specifies the device ID):
-    ```
+
+    ```shell
     npu-smi info # Query basic information, including the driver version
     npu-smi set -t custom-op-secverify-enable -i 0 -d 1 # Enable custom signature verification
     npu-smi set -t custom-op-secverify-mode -i 0 -d 0 # Disable signature verification
     ```
+
 **After the installation is complete, you can run the sample test by referring to [Sample Running](../../examples/README.md) or run the benchmark test by referring to [Benchmarks](../../benchmarks/README.md).**
