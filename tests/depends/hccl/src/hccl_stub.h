@@ -23,6 +23,9 @@ void SetListenPortResult(int32_t ret);
 void SetChannelGetStatusPendingCount(uint32_t count);
 uint32_t GetChannelGetStatusCallCount();
 void ResetTransferCounter();
+void ResetMemRegRecord();
+uint32_t GetMemRegRecordCount();
+int32_t GetMemRegRecordType(uint32_t index);
 
 #ifdef __cplusplus
 }

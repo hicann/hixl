@@ -39,6 +39,23 @@ constexpr const char *kTransFlagNameHost = "_hixl_builtin_host_trans_flag";   //
 constexpr const char *kTransFlagNameDevice = "_hixl_builtin_dev_trans_flag";  // client用于感知收发完成的标识
 // server端进程级channel索引计数器，用于两端构建一致的channelName
 std::atomic<uint64_t> g_next_server_channel_index{0UL};
+
+bool IsUbEndpoint(CommProtocol protocol) {
+  return protocol == COMM_PROTOCOL_UBC_TP || protocol == COMM_PROTOCOL_UBC_CTP;
+}
+
+bool ShouldRegisterEndpointForMem(const EndpointDesc &endpoint, CommMemType mem_type) {
+  if (!IsUbEndpoint(endpoint.protocol)) {
+    return true;
+  }
+  if (mem_type == COMM_MEM_TYPE_HOST) {
+    return endpoint.loc.locType == ENDPOINT_LOC_TYPE_HOST;
+  }
+  if (mem_type == COMM_MEM_TYPE_DEVICE) {
+    return endpoint.loc.locType == ENDPOINT_LOC_TYPE_DEVICE;
+  }
+  return false;
+}
 }  // namespace
 
 std::unique_ptr<hixl::TemporaryRtContext> HixlCSServer::GetContextGuard() const {
@@ -261,6 +278,10 @@ Status HixlCSServer::RegisterMem(const char *mem_tag, const CommMem *mem, MemHan
   for (auto handle : all_handles) {
     auto endpoint = endpoint_store_.GetEndpoint(handle);
     HIXL_CHECK_NOTNULL(endpoint);
+    const auto &endpoint_desc = endpoint->GetEndpoint();
+    if (!ShouldRegisterEndpointForMem(endpoint_desc, mem->type)) {
+      continue;
+    }
     MemHandle ep_mem_handle = nullptr;
     HIXL_CHK_STATUS_RET(endpoint->RegisterMem(mem_tag, *mem, ep_mem_handle), "Failed to register mem.");
     EndpointMemInfo ep_mem_info{};
@@ -268,6 +289,8 @@ Status HixlCSServer::RegisterMem(const char *mem_tag, const CommMem *mem, MemHan
     ep_mem_info.mem_handle = ep_mem_handle;
     ep_mem_infos.emplace_back(ep_mem_info);
   }
+  HIXL_CHK_BOOL_RET_STATUS(!ep_mem_infos.empty(), PARAM_INVALID, "no endpoint matches mem type:%d for register mem",
+                           static_cast<int32_t>(mem->type));
   *mem_handle = ep_mem_infos[0].mem_handle;
   HIXL_EVENT("[HixlServer] register mem success, addr:%p, size:%lu, type:%d, handle:%p", mem->addr, mem->size,
              static_cast<int32_t>(mem->type), *mem_handle);

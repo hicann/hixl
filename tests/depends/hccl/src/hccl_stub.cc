@@ -36,6 +36,7 @@ static int32_t g_next_fence_failure_ret = 0;  // 下一次Fence的返回值
 static int32_t g_listen_port_ret = 0;  // HcommEndpointGetListenPort的返回值, 0表示使用默认行为(返回HCCL_SUCCESS)
 static std::atomic<uint32_t> g_channel_status_pending_count{0U};
 static std::atomic<uint32_t> g_channel_get_status_call_count{0U};
+static std::vector<int32_t> g_mem_reg_types;
 
 static bool ConsumeChannelStatusPending() {
   uint32_t pending = g_channel_status_pending_count.load(std::memory_order_relaxed);
@@ -69,7 +70,9 @@ HcommResult HcommMemReg(EndpointHandle endPointHandle, const char *memTag, const
   static int32_t mem_num_stub = 1;
   (void)endPointHandle;
   (void)memTag;
-  (void)mem;
+  if (mem != nullptr) {
+    g_mem_reg_types.push_back(static_cast<int32_t>(mem->type));
+  }
   *memHandle = reinterpret_cast<void *>(static_cast<uintptr_t>(mem_num_stub++));
   return static_cast<HcommResult>(HCCL_SUCCESS);
 }
@@ -283,6 +286,21 @@ uint32_t GetChannelGetStatusCallCount() {
 // 重置传输计数器
 void ResetTransferCounter() {
   g_transfer_retry_counter = 0;
+}
+
+void ResetMemRegRecord() {
+  g_mem_reg_types.clear();
+}
+
+uint32_t GetMemRegRecordCount() {
+  return static_cast<uint32_t>(g_mem_reg_types.size());
+}
+
+int32_t GetMemRegRecordType(uint32_t index) {
+  if (index >= g_mem_reg_types.size()) {
+    return -1;
+  }
+  return g_mem_reg_types[index];
 }
 
 uint32_t GetThreadAllocCallCount() {

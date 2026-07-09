@@ -226,6 +226,7 @@ TEST_F(HixlCSTest, TestHixlCSServer) {
   ret = HixlCSServerRegMem(server_handle, nullptr, &mem, &mem_handle);
   EXPECT_EQ(ret, SUCCESS);
   CommMem mem2{};
+  mem2.type = COMM_MEM_TYPE_HOST;
   mem2.size = sizeof(int32_t);
   mem2.addr = &kHostMems[0];
   MemHandle mem_handle2 = nullptr;
@@ -239,6 +240,108 @@ TEST_F(HixlCSTest, TestHixlCSServer) {
   EXPECT_EQ(ret, SUCCESS);
   ret = HixlCSServerDestroy(server_handle);
   EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(HixlCSTest, RegisterDeviceMemForUbEndpointsSkipsHostEndpoint) {
+  EndpointDesc host_ep{};
+  host_ep.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+  host_ep.protocol = COMM_PROTOCOL_UBC_CTP;
+  host_ep.commAddr.type = COMM_ADDR_TYPE_EID;
+  host_ep.commAddr.eid[0] = 1U;
+  EndpointDesc device_ep{};
+  device_ep.loc.locType = ENDPOINT_LOC_TYPE_DEVICE;
+  device_ep.protocol = COMM_PROTOCOL_UBC_TP;
+  device_ep.commAddr.type = COMM_ADDR_TYPE_EID;
+  device_ep.commAddr.eid[0] = 2U;
+  std::vector<EndpointDesc> endpoints = {host_ep, device_ep};
+
+  HixlServerConfig config{};
+  HixlServerHandle server_handle = nullptr;
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = kPort;
+  desc.endpoint_list = endpoints.data();
+  desc.endpoint_list_num = endpoints.size();
+  ASSERT_EQ(HixlCSServerCreate(&desc, &config, &server_handle), SUCCESS);
+  ResetMemRegRecord();
+
+  CommMem mem{};
+  mem.type = COMM_MEM_TYPE_DEVICE;
+  mem.size = sizeof(int32_t);
+  mem.addr = &kDeviceMems[0];
+  MemHandle mem_handle = nullptr;
+  EXPECT_EQ(HixlCSServerRegMem(server_handle, nullptr, &mem, &mem_handle), SUCCESS);
+
+  ASSERT_EQ(GetMemRegRecordCount(), 1U);
+  EXPECT_EQ(GetMemRegRecordType(0U), static_cast<int32_t>(COMM_MEM_TYPE_DEVICE));
+
+  EXPECT_EQ(HixlCSServerUnregMem(server_handle, mem_handle), SUCCESS);
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+}
+
+TEST_F(HixlCSTest, RegisterHostMemForUbEndpointsSkipsDeviceEndpoint) {
+  EndpointDesc host_ep{};
+  host_ep.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+  host_ep.protocol = COMM_PROTOCOL_UBC_CTP;
+  host_ep.commAddr.type = COMM_ADDR_TYPE_EID;
+  host_ep.commAddr.eid[0] = 1U;
+  EndpointDesc device_ep{};
+  device_ep.loc.locType = ENDPOINT_LOC_TYPE_DEVICE;
+  device_ep.protocol = COMM_PROTOCOL_UBC_TP;
+  device_ep.commAddr.type = COMM_ADDR_TYPE_EID;
+  device_ep.commAddr.eid[0] = 2U;
+  std::vector<EndpointDesc> endpoints = {host_ep, device_ep};
+
+  HixlServerConfig config{};
+  HixlServerHandle server_handle = nullptr;
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = kPort;
+  desc.endpoint_list = endpoints.data();
+  desc.endpoint_list_num = endpoints.size();
+  ASSERT_EQ(HixlCSServerCreate(&desc, &config, &server_handle), SUCCESS);
+  ResetMemRegRecord();
+
+  CommMem mem{};
+  mem.type = COMM_MEM_TYPE_HOST;
+  mem.size = sizeof(int32_t);
+  mem.addr = &kHostMems[0];
+  MemHandle mem_handle = nullptr;
+  EXPECT_EQ(HixlCSServerRegMem(server_handle, nullptr, &mem, &mem_handle), SUCCESS);
+
+  ASSERT_EQ(GetMemRegRecordCount(), 1U);
+  EXPECT_EQ(GetMemRegRecordType(0U), static_cast<int32_t>(COMM_MEM_TYPE_HOST));
+
+  EXPECT_EQ(HixlCSServerUnregMem(server_handle, mem_handle), SUCCESS);
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+}
+
+TEST_F(HixlCSTest, RegisterHostMemForDeviceOnlyUbEndpointReturnsInvalid) {
+  EndpointDesc device_ep{};
+  device_ep.loc.locType = ENDPOINT_LOC_TYPE_DEVICE;
+  device_ep.protocol = COMM_PROTOCOL_UBC_TP;
+  device_ep.commAddr.type = COMM_ADDR_TYPE_EID;
+  device_ep.commAddr.eid[0] = 1U;
+
+  HixlServerConfig config{};
+  HixlServerHandle server_handle = nullptr;
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = kPort;
+  desc.endpoint_list = &device_ep;
+  desc.endpoint_list_num = 1U;
+  ASSERT_EQ(HixlCSServerCreate(&desc, &config, &server_handle), SUCCESS);
+  ResetMemRegRecord();
+
+  CommMem mem{};
+  mem.type = COMM_MEM_TYPE_HOST;
+  mem.size = sizeof(int32_t);
+  mem.addr = &kHostMems[0];
+  MemHandle mem_handle = nullptr;
+  EXPECT_EQ(HixlCSServerRegMem(server_handle, nullptr, &mem, &mem_handle), PARAM_INVALID);
+  EXPECT_EQ(GetMemRegRecordCount(), 0U);
+
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
 }
 
 TEST_F(HixlCSTest, CreateServerWithNonHccsDeviceEndpointResolvesNotifyAddress) {
