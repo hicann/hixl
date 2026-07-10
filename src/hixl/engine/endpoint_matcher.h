@@ -79,6 +79,14 @@ class EndpointMatcher {
   static Status TryMatchGroup(const std::vector<EndpointConfig> &local, const std::vector<EndpointConfig> &remote,
                               std::vector<HandlerCreateArgs::EndpointPair> &pairs);
 
+  static Status TryMatchH2rHLoopback(const EndpointConfig &local, const std::vector<EndpointConfig> &remote,
+                                     std::map<CommType, bool> &expected, uint32_t &count,
+                                     std::vector<HandlerCreateArgs::EndpointPair> &pairs);
+
+  static Status TryMatchH2rHLoopbackGroup(const std::vector<EndpointConfig> &local,
+                                          const std::vector<EndpointConfig> &remote,
+                                          std::vector<HandlerCreateArgs::EndpointPair> &pairs);
+
   static Status TryMatchByPriority(const std::vector<EndpointConfig> &local, const std::vector<EndpointConfig> &remote,
                                    bool cross_instance, std::vector<HandlerCreateArgs::EndpointPair> &pairs,
                                    HandlerCreateArgs::HandlerType &handler_type);

@@ -735,6 +735,12 @@ class HixlClientUTest : public ::testing::Test {
     return ep;
   }
 
+  static EndpointConfig MakeUbHostEpWithServerId(const std::string &comm_id, const std::string &server_id) {
+    EndpointConfig ep = MakeUbEp(comm_id, "", kPlacementHost, "plane-a");
+    ep.server_id = server_id;
+    return ep;
+  }
+
   static EndpointConfig MakeDirectEp(const std::string &protocol, const std::string &net_instance_id) {
     EndpointConfig ep{};
     ep.protocol = protocol;
@@ -1349,6 +1355,63 @@ TEST_F(HixlClientUTest, EndpointMatcherAllDstEidNonEmptyTest) {
   std::vector<EndpointConfig> local = {MakeUbEp("l1_eid", "remote_1", "device"),
                                        MakeUbEp("l2_eid", "remote_2", "host")};
   MatchAndVerify(local, remote, 2U, HandlerCreateArgs::HandlerType::UB);
+}
+
+TEST_F(HixlClientUTest, EndpointMatcherSameServerHostUbCreatesLoopbackH2H) {
+  std::vector<EndpointConfig> local = {MakeUbHostEpWithServerId("local_host_eid", "server-0")};
+  std::vector<EndpointConfig> remote = {MakeUbHostEpWithServerId("remote_host_eid", "server-0")};
+
+  std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
+  HandlerCreateArgs::HandlerType handler_type;
+  EXPECT_EQ(EndpointMatcher::MatchEndpoints(local, remote, matched_pairs, handler_type), SUCCESS);
+  EXPECT_EQ(handler_type, HandlerCreateArgs::HandlerType::UB);
+  ASSERT_EQ(matched_pairs.size(), 1U);
+  EXPECT_EQ(matched_pairs[0].type, CommType::COMM_TYPE_UB_H2H);
+  EXPECT_EQ(matched_pairs[0].local.comm_id, "remote_host_eid");
+  EXPECT_EQ(matched_pairs[0].remote.comm_id, "remote_host_eid");
+}
+
+TEST_F(HixlClientUTest, EndpointMatcherDifferentServerHostUbKeepsNormalMatching) {
+  std::vector<EndpointConfig> local = {MakeUbHostEpWithServerId("local_host_eid", "server-0")};
+  std::vector<EndpointConfig> remote = {MakeUbHostEpWithServerId("remote_host_eid", "server-1")};
+
+  std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
+  HandlerCreateArgs::HandlerType handler_type;
+  EXPECT_EQ(EndpointMatcher::MatchEndpoints(local, remote, matched_pairs, handler_type), SUCCESS);
+  EXPECT_EQ(handler_type, HandlerCreateArgs::HandlerType::UB);
+  ASSERT_EQ(matched_pairs.size(), 1U);
+  EXPECT_EQ(matched_pairs[0].type, CommType::COMM_TYPE_UB_H2H);
+  EXPECT_EQ(matched_pairs[0].local.comm_id, "local_host_eid");
+  EXPECT_EQ(matched_pairs[0].remote.comm_id, "remote_host_eid");
+}
+
+TEST_F(HixlClientUTest, EndpointMatcherEmptyServerIdHostUbKeepsNormalMatching) {
+  std::vector<EndpointConfig> local = {MakeUbHostEpWithServerId("local_host_eid", "server-0")};
+  std::vector<EndpointConfig> remote = {MakeUbHostEpWithServerId("remote_host_eid", "")};
+
+  std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
+  HandlerCreateArgs::HandlerType handler_type;
+  EXPECT_EQ(EndpointMatcher::MatchEndpoints(local, remote, matched_pairs, handler_type), SUCCESS);
+  EXPECT_EQ(handler_type, HandlerCreateArgs::HandlerType::UB);
+  ASSERT_EQ(matched_pairs.size(), 1U);
+  EXPECT_EQ(matched_pairs[0].type, CommType::COMM_TYPE_UB_H2H);
+  EXPECT_EQ(matched_pairs[0].local.comm_id, "local_host_eid");
+  EXPECT_EQ(matched_pairs[0].remote.comm_id, "remote_host_eid");
+}
+
+TEST_F(HixlClientUTest, EndpointMatcherSameServerHostUbLoopbackIgnoresNetInstanceDifference) {
+  std::vector<EndpointConfig> local = {MakeUbHostEpWithServerId("local_host_eid", "server-0")};
+  std::vector<EndpointConfig> remote = {MakeUbHostEpWithServerId("remote_host_eid", "server-0")};
+  remote[0].net_instance_id = "superpod2-1";
+
+  std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
+  HandlerCreateArgs::HandlerType handler_type;
+  EXPECT_EQ(EndpointMatcher::MatchEndpoints(local, remote, matched_pairs, handler_type), SUCCESS);
+  EXPECT_EQ(handler_type, HandlerCreateArgs::HandlerType::UB);
+  ASSERT_EQ(matched_pairs.size(), 1U);
+  EXPECT_EQ(matched_pairs[0].type, CommType::COMM_TYPE_UB_H2H);
+  EXPECT_EQ(matched_pairs[0].local.comm_id, "remote_host_eid");
+  EXPECT_EQ(matched_pairs[0].remote.comm_id, "remote_host_eid");
 }
 
 TEST_F(HixlClientUTest, EndpointMatcherCrossInstancePrefersUboe) {

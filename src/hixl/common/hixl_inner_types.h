@@ -104,6 +104,7 @@ struct EndpointConfig {
   std::string plane;
   std::string dst_eid;
   std::string net_instance_id;
+  std::string server_id;
   DeviceInfoConfig device_info{};
 
   std::string ToString() const {
@@ -115,6 +116,7 @@ struct EndpointConfig {
     oss << "plane: " << plane << ", ";
     oss << "dst_eid: " << dst_eid << ", ";
     oss << "net_instance_id: " << net_instance_id << ", ";
+    oss << "server_id: " << server_id << ", ";
     oss << "device_info: " << device_info.ToString();
     oss << "}";
     return oss.str();

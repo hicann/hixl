@@ -146,6 +146,30 @@ Status EndpointMatcher::TryMatchUb(const EndpointConfig &local, const std::map<M
   return SUCCESS;
 }
 
+Status EndpointMatcher::TryMatchH2rHLoopback(const EndpointConfig &local, const std::vector<EndpointConfig> &remote,
+                                             std::map<CommType, bool> &expected, uint32_t &count,
+                                             std::vector<HandlerCreateArgs::EndpointPair> &pairs) {
+  if (!IsUbProtocol(local.protocol) || local.placement != kPlacementHost || local.server_id.empty() ||
+      expected[CommType::COMM_TYPE_UB_H2H]) {
+    return SUCCESS;
+  }
+  auto is_loopback_peer = [&local](const EndpointConfig &peer) {
+    return IsUbProtocol(peer.protocol) && peer.protocol == local.protocol && peer.placement == kPlacementHost &&
+           peer.plane == local.plane && peer.server_id == local.server_id;
+  };
+  auto remote_it = std::find_if(remote.begin(), remote.end(), is_loopback_peer);
+  if (remote_it == remote.end()) {
+    return SUCCESS;
+  }
+
+  EndpointConfig loopback_local = local;
+  loopback_local.comm_id = remote_it->comm_id;
+  pairs.push_back({loopback_local, *remote_it, CommType::COMM_TYPE_UB_H2H});
+  expected[CommType::COMM_TYPE_UB_H2H] = true;
+  count++;
+  return SUCCESS;
+}
+
 Status EndpointMatcher::TryMatchGroup(const std::vector<EndpointConfig> &local,
                                       const std::vector<EndpointConfig> &remote,
                                       std::vector<HandlerCreateArgs::EndpointPair> &pairs) {
@@ -160,6 +184,10 @@ Status EndpointMatcher::TryMatchGroup(const std::vector<EndpointConfig> &local,
   std::sort(sorted_local.begin(), sorted_local.end(),
             [](const EndpointConfig &a, const EndpointConfig &b) { return !a.dst_eid.empty() && b.dst_eid.empty(); });
   for (const auto &ep : sorted_local) {
+    HIXL_CHK_STATUS_RET(TryMatchH2rHLoopback(ep, remote, expected, count, pairs));
+    if (count == kMaxUbCsClientNum) {
+      return SUCCESS;
+    }
     HIXL_CHK_STATUS_RET(TryMatchUb(ep, peers, expected, count, pairs));
     if (count == kMaxUbCsClientNum) {
       return SUCCESS;
@@ -168,10 +196,29 @@ Status EndpointMatcher::TryMatchGroup(const std::vector<EndpointConfig> &local,
   return count > 0 ? SUCCESS : FAILED;
 }
 
+Status EndpointMatcher::TryMatchH2rHLoopbackGroup(const std::vector<EndpointConfig> &local,
+                                                  const std::vector<EndpointConfig> &remote,
+                                                  std::vector<HandlerCreateArgs::EndpointPair> &pairs) {
+  std::map<CommType, bool> expected = {{CommType::COMM_TYPE_UB_H2H, false}};
+  uint32_t count = 0;
+  for (const auto &ep : local) {
+    HIXL_CHK_STATUS_RET(TryMatchH2rHLoopback(ep, remote, expected, count, pairs));
+    if (count > 0) {
+      return SUCCESS;
+    }
+  }
+  return FAILED;
+}
+
 Status EndpointMatcher::TryMatchByPriority(const std::vector<EndpointConfig> &local,
                                            const std::vector<EndpointConfig> &remote, bool cross_instance,
                                            std::vector<HandlerCreateArgs::EndpointPair> &pairs,
                                            HandlerCreateArgs::HandlerType &handler_type) {
+  if (cross_instance && TryMatchH2rHLoopbackGroup(local, remote, pairs) == SUCCESS) {
+    handler_type = HandlerCreateArgs::HandlerType::UB;
+    LogMatchedEndpoints(pairs, handler_type);
+    return SUCCESS;
+  }
   const MatchRule *rules = cross_instance ? kCrossInstanceRules : kSameInstanceRules;
   const size_t rule_count = cross_instance ? sizeof(kCrossInstanceRules) / sizeof(kCrossInstanceRules[0])
                                            : sizeof(kSameInstanceRules) / sizeof(kSameInstanceRules[0]);

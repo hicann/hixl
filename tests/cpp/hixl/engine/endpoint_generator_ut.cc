@@ -1588,6 +1588,7 @@ TEST_F(EndpointGeneratorUTest, ConvertToEndpointDescDeviceUbRejectsEmptyEidTest)
 
 TEST_F(EndpointGeneratorUTest, SerializeAndDeserializeEndpointConfigListSuccess) {
   EndpointConfig ep = endpoint_test::BuildSampleDeviceRoceEndpoint();
+  ep.server_id = "server-0";
 
   std::string msg_str;
   EXPECT_EQ(EndpointGenerator::SerializeEndpointConfigList(std::vector<EndpointConfig>{ep}, msg_str), SUCCESS);
@@ -1601,6 +1602,7 @@ TEST_F(EndpointGeneratorUTest, SerializeAndDeserializeEndpointConfigListSuccess)
   EXPECT_EQ(output_list[0].plane, "plane-a");
   EXPECT_EQ(output_list[0].dst_eid, "00010002000300040005000600070008");
   EXPECT_EQ(output_list[0].net_instance_id, "superpod_1");
+  EXPECT_EQ(output_list[0].server_id, "server-0");
   EXPECT_EQ(output_list[0].device_info.phy_device_id, 3);
   EXPECT_EQ(output_list[0].device_info.super_device_id, 7);
   EXPECT_EQ(output_list[0].device_info.super_pod_id, 9);
@@ -1612,9 +1614,32 @@ TEST_F(EndpointGeneratorUTest, DeserializeOldFormatWithoutDeviceInfoSuccess) {
   std::vector<EndpointConfig> endpoint_list;
   EXPECT_EQ(EndpointGenerator::DeserializeEndpointConfigList(json_str, endpoint_list), SUCCESS);
   ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_TRUE(endpoint_list[0].server_id.empty());
   EXPECT_EQ(endpoint_list[0].device_info.phy_device_id, -1);
   EXPECT_EQ(endpoint_list[0].device_info.super_device_id, -1);
   EXPECT_EQ(endpoint_list[0].device_info.super_pod_id, -1);
+}
+
+TEST_F(EndpointGeneratorUTest, ParseLocalCommResWithEndpointServerIdSuccess) {
+  std::string local_comm_res =
+      R"({"version":"1.3","net_instance_id":"same_superpod","endpoint_list":[)"
+      R"({"protocol":"ub_ctp","comm_id":"00010002000300040005000600070008","placement":"host",)"
+      R"("server_id":"server-0"}]})";
+
+  std::vector<EndpointConfig> endpoint_list;
+  EXPECT_EQ(BuildEndpointListFromLocalCommRes(local_comm_res, endpoint_list), SUCCESS);
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_EQ(endpoint_list[0].server_id, "server-0");
+}
+
+TEST_F(EndpointGeneratorUTest, ParseLocalCommResWithoutEndpointServerIdKeepsEmptySuccess) {
+  std::string local_comm_res = BuildSingleEndpointLocalCommRes("same_superpod", kProtocolUbCtp,
+                                                               "00010002000300040005000600070008", kPlacementHost);
+
+  std::vector<EndpointConfig> endpoint_list;
+  EXPECT_EQ(BuildEndpointListFromLocalCommRes(local_comm_res, endpoint_list), SUCCESS);
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_TRUE(endpoint_list[0].server_id.empty());
 }
 
 TEST_F(EndpointGeneratorUTest, GetDeviceIpFromHccnToolSuccess) {

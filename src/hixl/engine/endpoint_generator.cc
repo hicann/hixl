@@ -668,6 +668,7 @@ Status EndpointGenerator::SerializeEndpointConfigList(const std::vector<Endpoint
       item["plane"] = ep.plane;
       item["dst_eid"] = ep.dst_eid;
       item["net_instance_id"] = ep.net_instance_id;
+      item["server_id"] = ep.server_id;
 
       nlohmann::json device_info;
       device_info["phy_device_id"] = ep.device_info.phy_device_id;
@@ -709,6 +710,7 @@ Status EndpointGenerator::DeserializeEndpointConfigList(const std::string &json_
     HIXL_CHK_STATUS_RET(ParseJsonField(item, "placement", endpoint.placement), "Failed to parse placement");
     HIXL_CHK_STATUS_RET(ParseJsonField(item, "plane", endpoint.plane), "Failed to parse plane");
     HIXL_CHK_STATUS_RET(ParseJsonField(item, "dst_eid", endpoint.dst_eid), "Failed to parse dst_eid");
+    HIXL_CHK_STATUS_RET(ParseJsonField(item, "server_id", endpoint.server_id, false), "Failed to parse server_id");
     ParseDeviceInfo(item, endpoint);
     endpoint_list.emplace_back(std::move(endpoint));
   }
@@ -822,6 +824,7 @@ Status EndpointGenerator::ParseLocalCommRes(const nlohmann::json &config, std::v
     }
     HIXL_CHK_STATUS_RET(ParseJsonField(item, "plane", endpoint.plane, false), "Failed to parse plane");
     HIXL_CHK_STATUS_RET(ParseJsonField(item, "dst_eid", endpoint.dst_eid, false), "Failed to parse dst_eid");
+    HIXL_CHK_STATUS_RET(ParseJsonField(item, "server_id", endpoint.server_id, false), "Failed to parse server_id");
     endpoint.net_instance_id = net_instance_id;
     ParseDeviceInfo(item, endpoint);
     endpoint_list.emplace_back(std::move(endpoint));

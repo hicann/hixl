@@ -285,6 +285,7 @@ UBG
 | endpoint_list[].placement | 字符串 | 必选 | 通信设备位置 | "host"/"device" |
 | endpoint_list[].plane | 字符串 | 可选 | 通信设备平面 | protocol为ub_ctp/ub_tp时，设备区分平面则填写，每个平面唯一（如"plane-a"/"plane-b"） |
 | endpoint_list[].dst_eid | 字符串 | 可选 | 与当前通信设备连接的对端通信设备的\${eid} | protocol为ub_ctp时，存在full-mesh直连对端则填写对端\${eid} |
+| endpoint_list[].server_id | 字符串 | 可选 | endpoint所属服务器标识 | 仅用于protocol为ub_ctp/ub_tp且placement为host的同OS H2rH loopback判断。为空或两端不一致时不启用该判断。 |
 
 <a id="全局资源配置字段说明"></a>**全局资源配置字段说明**
 
