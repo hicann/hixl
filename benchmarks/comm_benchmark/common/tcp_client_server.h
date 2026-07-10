@@ -93,7 +93,13 @@ class TcpServerSession {
   TcpServerSession &operator=(const TcpServerSession &) = delete;
 
   /// Starts internal thread: listen, accept until `expected_peer_count` is reached or `max_wall_sec_` elapses.
-  /// Joins thread before return. On failure cleans up listen/clients.
+  /// Joins thread before return, then closes the listen socket but keeps accepted peer sockets.
+  bool WaitForPeers();
+
+  /// Sends target memory address and an OK status to all accepted peers.
+  bool SendAddrToPeers(uint64_t mem_addr);
+
+  /// Compatibility wrapper: wait for peers, then send address/status.
   bool WaitAndSendAddr(uint64_t mem_addr);
 
   /// Waits for one task-status message per connected peer (same protocol as `TCPClient::SendTaskStatus`).
@@ -107,7 +113,7 @@ class TcpServerSession {
  private:
   void ShutdownClientsAndListen();
 
-  bool RunConnectPhaseInThread(uint64_t mem_addr, uint32_t wall_sec);
+  bool RunConnectPhaseInThread(uint32_t wall_sec);
 
   uint16_t port_;
   uint32_t max_wall_sec_;

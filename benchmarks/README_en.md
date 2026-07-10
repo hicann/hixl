@@ -65,7 +65,7 @@ If `hccn_tool is busy, please try again` appears, avoid concurrent use of the co
 
 ### Constraint Notes
 
-- **HCCS**: On **A2 (Ascend910B-class)** only **D2D** (`--type=D2rD` / `rD2D`); on **A3 (Ascend910-class)** also supports **H2rD** / **rD2H**.
+- **HCCS**: On **A2 (Ascend910B-class)** only **D2D** (`--direction=D2rD` / `rD2D`); on **A3 (Ascend910-class)** also supports **H2rD** / **rD2H**.
 
 ## Quick Start
 
@@ -151,25 +151,25 @@ Direction name format is `source → remote target`, where **D**=Device, **H**=H
 
 ```bash
 # Quick test for one direction
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py --type=D2rD --transport=hccs
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py --direction=D2rD --transport=hccs
 
-# Specify devices and ports
+# Specify devices and block-size range
 python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --type=D2rH --transport=rdma --device_ids=0,1
+  --direction=D2rH --transport=roce --device_ids=0,1 --block_sizes=16K:2M
 
 # One-to-many pattern
 python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
   --pattern=one_to_many --device_ids=0,1,2,3,4 \
-  --type=D2rD --transport=hccs
+  --direction=D2rD --transport=hccs
 
 # Many-to-one pattern
 python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
   --pattern=many_to_one --device_ids=0,1,2,3,4 \
-  --type=D2rD --transport=hccs
+  --direction=D2rD --transport=hccs
 
 # Pass HIXL Initialize options (same as hixl_comm_bench's -H=KEY=VALUE, can use -H multiple times)
 python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --type=D2rD --transport=hccs \
+  --direction=D2rD --transport=hccs \
   -H 'LocalCommRes={"version":"1.3"}'
 ```
 
@@ -179,7 +179,7 @@ python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
 
 ```bash
 python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --role=target --transport=rdma
+  --role=target --transport=roce
 # initiator: copy the command printed by target
 ```
 
@@ -187,7 +187,7 @@ python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
 
 ```bash
 python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --role=target --transport=rdma --pattern=one_to_many --device_ids=0,1,2
+  --role=target --transport=roce --pattern=one_to_many --device_ids=0,1,2
 # initiator: copy the command printed by target
 ```
 
@@ -195,32 +195,59 @@ python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
 
 ```bash
 python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --role=target --transport=rdma --pattern=many_to_one --num_initiators=3
+  --role=target --transport=roce --pattern=many_to_one --num_initiators=3
 # initiator: copy the command printed by target
+```
+
+### Direct `hixl_comm_bench` Run
+
+Start target first. The peer TCP coordination port is automatically derived from the `local_engine` port (+10000 or -10000):
+
+```bash
+build/benchmarks/comm_benchmark/hixl_comm_bench \
+  --role=target --device_id=1 \
+  --local_engine=127.0.0.1:16001 \
+  --memory=device --peer_count=1 --peer_wait_s=30 \
+  --transport=hccs
+```
+
+The initiator connects to the port embedded in `remote_engine` and declares local memory, remote memory, and operation:
+
+```bash
+build/benchmarks/comm_benchmark/hixl_comm_bench \
+  --role=initiator --device_id=0 \
+  --local_engine=127.0.0.1:16000 \
+  --remote_engine=127.0.0.1:16001 \
+  --memory=device --remote_memory=device --op=read \
+  --transport=hccs --transfer_size=128M --block_sizes=16K:2M
 ```
 
 ### Key Parameters
 
 | Parameter | Description | Options | Default |
 |---|---|---|---|
-| `--type` | Transmission direction | `D2rD`, `rD2D`, `D2rH`, `rH2D`, `H2rH`, `rH2H`, `H2rD`, `rD2H` | `D2rD` |
-| `--transport` | Transmission path | `hccs` / `rdma` / `fabric_mem` / `uboe` / `ubg` / `ub` | `hccs` |
+| `--direction` | Transmission direction | `D2rD`, `rD2D`, `D2rH`, `rH2D`, `H2rH`, `rH2H`, `H2rD`, `rD2H`, `all` | `D2rD` |
+| `--transport` | Transmission path | `hccs` / `roce` / `fabric_mem` / `uboe` / `ubg` / `ub` / `all` | `hccs` |
 | `--pattern` | Communication topology | `pairwise` / `one_to_many` / `many_to_one` | `pairwise` |
-| `--start_block_size` | Starting block size (bytes) | Integer | 16384 (16K) |
-| `--max_block_size` | Maximum block size, doubles incrementally | Integer | 2097152 (2M) |
+| `--block_sizes` | Block size list or power-of-two range with units | `16K:2M`, `4K,64K,1M` | `16K:2M` |
+| `--transfer_size` | Total bytes per block-size step, supports units | `128M`, `1G` | `hixl_comm_bench` default |
+| `--buffer_size` | Allocated and registered local/remote buffer size; must be >= `transfer_size` | `1G`, `512M` | `hixl_comm_bench` default |
 | `--loops` | Number of repeated runs | Positive integer | 5 |
 | `--device_ids` | Device ID list to use | Comma-separated | `0,1` |
+| `--host_roce_ip` | A5 RoCE host NIC IP forwarded to HIXL `LocalCommRes` data-plane endpoint | IP, comma-separated | (None) |
+| `--peer_wait_s` | Max seconds for target to wait for initiator peer connections | Positive integer | 30 for single run, 300 for multi-run |
+| `--connect_timeout_ms` | Initiator TCP/HIXL connect timeout in milliseconds | Positive integer | 60000 |
 | `--plot` | Generate PNG charts for new or updated CSV in this run | Switch | Enabled |
 | `--skip_plot` | Skip PNG chart generation | Switch | Disabled |
-| `--soc_variant` | SOC passed to `hixl_comm_bench`: `auto` / `a2` / `a3` / `a5` | `auto`, `a2`, `a3`, `a5` | Auto-detected by default |
 | `-H` / `--hixl_option` | Initialization options passed to `hixl_comm_bench` | `KEY=VALUE`, repeatable | (None) |
 
 ### Support Matrix
 
-| Platform | HCCS | ROCE (RDMA) | FabricMem |
+| Platform | HCCS | RoCE | FabricMem |
 |---|---|---|---|
 | **A2** | D2rD, rD2D | All 8 directions | Not supported |
 | **A3** | D2rD, rD2D, H2rD, rD2H | All 8 directions | All 8 directions |
+| **A5** | Not supported | All 8 directions | All 8 directions |
 
 ---
 

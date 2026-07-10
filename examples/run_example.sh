@@ -129,11 +129,12 @@ run_comm_bench_pair() {
     local server_device="$7"
     local ip_address="$8"
     local hixl_port="$9"
-    local tcp_port="${10}"
-    local common_args="--transport=${transport} --initiator_memory=${initiator_memory} --target_memory=${target_memory} --op_type=${op_type}"
+    local common_args="--transport=${transport}"
+    local initiator_args="${common_args} --memory=${initiator_memory} --remote_memory=${target_memory} --op=${op_type}"
+    local target_args="${common_args} --memory=${target_memory} --peer_count=1"
 
-    run_pair "${bench_bin} --role=client --device_id=${client_device} --local_engine=${ip_address} --remote_engine=${ip_address}:${hixl_port} --tcp_port=${tcp_port} ${common_args}" \
-    "${bench_bin} --role=server --device_id=${server_device} --local_engine=${ip_address}:${hixl_port} --remote_engine=${ip_address} --tcp_port=${tcp_port} ${common_args}"
+    run_pair "${bench_bin} --role=target --device_id=${server_device} --local_engine=${ip_address}:${hixl_port} --remote_engine=${ip_address} ${target_args}" \
+    "${bench_bin} --role=initiator --device_id=${client_device} --local_engine=${ip_address}:$((hixl_port + 1)) --remote_engine=${ip_address}:${hixl_port} ${initiator_args}"
 }
 
 all_samples() {
@@ -204,20 +205,20 @@ all_samples() {
 
     cd "${BASEPATH}/../build/benchmarks"
     BENCH_BIN="./comm_benchmark/hixl_comm_bench"
-    # benchmarks (key=value CLI; server --remote_engine is TCP peer IP only)
+    # benchmarks (key=value CLI; peer TCP coordination port is derived from target HIXL port +10000 or -10000)
     # HCCS: D2D smoke cases.
-    run_comm_bench_pair "${BENCH_BIN}" "hccs" "device" "device" "write" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
-    run_comm_bench_pair "${BENCH_BIN}" "hccs" "device" "device" "read" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
+    run_comm_bench_pair "${BENCH_BIN}" "hccs" "device" "device" "write" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000"
+    run_comm_bench_pair "${BENCH_BIN}" "hccs" "device" "device" "read" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000"
 
-    # RDMA: all memory direction smoke cases.
-    run_comm_bench_pair "${BENCH_BIN}" "rdma" "device" "device" "write" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
-    run_comm_bench_pair "${BENCH_BIN}" "rdma" "host" "device" "write" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
-    run_comm_bench_pair "${BENCH_BIN}" "rdma" "device" "host" "write" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
-    run_comm_bench_pair "${BENCH_BIN}" "rdma" "host" "host" "write" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
-    run_comm_bench_pair "${BENCH_BIN}" "rdma" "device" "device" "read" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
-    run_comm_bench_pair "${BENCH_BIN}" "rdma" "host" "device" "read" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
-    run_comm_bench_pair "${BENCH_BIN}" "rdma" "device" "host" "read" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
-    run_comm_bench_pair "${BENCH_BIN}" "rdma" "host" "host" "read" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000" "20000"
+    # RoCE: all memory direction smoke cases.
+    run_comm_bench_pair "${BENCH_BIN}" "roce" "device" "device" "write" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000"
+    run_comm_bench_pair "${BENCH_BIN}" "roce" "host" "device" "write" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000"
+    run_comm_bench_pair "${BENCH_BIN}" "roce" "device" "host" "write" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000"
+    run_comm_bench_pair "${BENCH_BIN}" "roce" "host" "host" "write" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000"
+    run_comm_bench_pair "${BENCH_BIN}" "roce" "device" "device" "read" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000"
+    run_comm_bench_pair "${BENCH_BIN}" "roce" "host" "device" "read" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000"
+    run_comm_bench_pair "${BENCH_BIN}" "roce" "device" "host" "read" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000"
+    run_comm_bench_pair "${BENCH_BIN}" "roce" "host" "host" "read" "${device_id_1}" "${device_id_2}" "${IP_ADDRESS}" "16000"
 
     if [ "$flag" -eq "0" ]; then
         echo "execute samples success"

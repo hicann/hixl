@@ -43,7 +43,6 @@ int32_t InitializeHixl(const std::string &local_engine, const hixl_benchmark::Be
     std::printf("[ERROR] Initialize failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
     return -1;
   }
-  std::printf("[INFO] Initialize success local_engine=%s\n", local_engine.c_str());
   return 0;
 }
 
@@ -55,8 +54,6 @@ void DeregisterMemHandles(Hixl &hixl_engine, const std::vector<hixl::MemHandle> 
     const auto ret = hixl_engine.DeregisterMem(handle);
     if (ret != 0) {
       std::printf("[ERROR] DeregisterMem failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
-    } else {
-      std::printf("[INFO] DeregisterMem success\n");
     }
   }
 }
@@ -230,35 +227,47 @@ bool ServerRunner::InitHixlAndRegisterMem() {
     return false;
   }
   mem_registered_ = true;
-  std::printf("[INFO] RegisterMem success, addr:%p\n", buffer_);
   return true;
 }
 
 int ServerRunner::CompleteTcpHandshake(std::uintptr_t addr) {
-  tcp_session_.emplace(cfg_.tcp_port, cfg_.tcp_accept_wait_sec, cfg_.tcp_client_count);
-  if (!tcp_session_->WaitAndSendAddr(addr)) {
+  if (!tcp_session_.has_value()) {
+    std::printf("[ERROR] TCP peers are not ready\n");
+    return -1;
+  }
+  if (!tcp_session_->SendAddrToPeers(addr)) {
     tcp_session_.reset();
     return -1;
   }
 
-  std::printf("[INFO] Wait transfer begin (N=%zu)\n", tcp_session_->ConnectedPeerCount());
+  std::printf("[INFO] target ready, waiting for transfer completion (peers=%zu)\n", tcp_session_->ConnectedPeerCount());
   if (!tcp_session_->WaitAllNotify()) {
     tcp_session_.reset();
     return -1;
   }
-  std::printf("[INFO] Wait transfer end\n");
 
   tcp_session_.reset();
   return 0;
 }
 
 int ServerRunner::Run() {
-  std::printf("[INFO] server start\n");
-
   if (!AllocServerBufferForRun()) {
     return -1;
   }
+  std::string host;
+  uint16_t port = 0;
+  if (!ExtractEndpointHostAndPort(cfg_.expanded_local_engines[0], host, port)) {
+    std::printf("[ERROR] target local_engine must be host:port\n");
+    return -1;
+  }
+  const uint16_t peer_coord_port = DerivePeerCoordPort(port);
+  tcp_session_.emplace(peer_coord_port, cfg_.peer_wait_sec, cfg_.peer_count);
+  if (!tcp_session_->WaitForPeers()) {
+    tcp_session_.reset();
+    return -1;
+  }
   if (!InitHixlAndRegisterMem()) {
+    tcp_session_.reset();
     return -1;
   }
 
@@ -267,7 +276,7 @@ int ServerRunner::Run() {
     return -1;
   }
 
-  std::printf("[INFO] Server Sample end\n");
+  std::printf("[INFO] target done\n");
   return 0;
 }
 

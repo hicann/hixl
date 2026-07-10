@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cerrno>
+#include <limits>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -32,6 +33,9 @@ using hixl::OPTION_GLOBAL_RESOURCE_CONFIG;
 using hixl::OPTION_LOCAL_COMM_RES;
 
 namespace hixl_benchmark {
+
+constexpr int32_t kPortMaxValue = 65535;
+constexpr uint16_t kPeerCoordPortOffset = 10000U;
 
 std::vector<std::string> SplitCommaList(const std::string &value) {
   std::vector<std::string> parts;
@@ -64,9 +68,55 @@ std::vector<std::string> SplitCommaList(const std::string &value) {
   return parts;
 }
 
-namespace {
+bool ExtractEndpointHostAndPort(const std::string &endpoint, std::string &host, uint16_t &port) {
+  if (endpoint.empty()) {
+    return false;
+  }
+  std::string host_part;
+  std::string port_part;
+  if (endpoint.front() == '[') {
+    const auto close = endpoint.find(']');
+    if (close == std::string::npos || close + 1U >= endpoint.size() || endpoint[close + 1U] != ':') {
+      return false;
+    }
+    host_part = endpoint.substr(1, close - 1U);
+    port_part = endpoint.substr(close + 2U);
+  } else {
+    const auto sep = endpoint.rfind(':');
+    if (sep == std::string::npos || sep == 0U || sep + 1U >= endpoint.size()) {
+      return false;
+    }
+    host_part = endpoint.substr(0, sep);
+    port_part = endpoint.substr(sep + 1U);
+  }
+  uint64_t parsed_port = 0;
+  try {
+    std::size_t pos = 0;
+    parsed_port = std::stoull(port_part, &pos, 10);
+    if (pos != port_part.size()) {
+      return false;
+    }
+  } catch (const std::invalid_argument &) {
+    return false;
+  } catch (const std::out_of_range &) {
+    return false;
+  }
+  if (parsed_port == 0 || parsed_port > static_cast<uint64_t>(kPortMaxValue)) {
+    return false;
+  }
+  host = host_part;
+  port = static_cast<uint16_t>(parsed_port);
+  return true;
+}
 
-constexpr int32_t kPortMaxValue = 65535;
+uint16_t DerivePeerCoordPort(uint16_t engine_port) {
+  if (engine_port <= static_cast<uint16_t>(kPortMaxValue - kPeerCoordPortOffset)) {
+    return static_cast<uint16_t>(engine_port + kPeerCoordPortOffset);
+  }
+  return static_cast<uint16_t>(engine_port - kPeerCoordPortOffset);
+}
+
+namespace {
 
 void EnsureEndpointLists(BenchmarkConfig *cfg) {
   if (cfg->device_id_list.empty()) {
@@ -181,46 +231,39 @@ void ApplyRoleDefaults(BenchmarkConfig *cfg) {
 }
 
 void ApplyCommonDefaults(BenchmarkConfig *cfg) {
-  cfg->tcp_port = kDefaultTcpPort;
-  cfg->tcp_accept_wait_sec = kDefaultAcceptWaitSec;
-  cfg->tcp_client_count = 1U;
-  cfg->transfer_op = "read";
+  cfg->peer_wait_sec = kDefaultAcceptWaitSec;
+  cfg->peer_count = 1U;
+  cfg->op = "read";
   cfg->transport = "hccs";
+  cfg->soc_variant = "auto";
   cfg->initiator_memory_type = "device";
   cfg->target_memory_type = "device";
-  cfg->check_consistency = false;
-  cfg->total_size = kDefaultTotalSize;
+  cfg->transfer_size = kDefaultTotalSize;
   cfg->buffer_size = kDefaultBufferSize;
-  cfg->block_size = kDefaultTotalSize;
-  cfg->start_block_size = kDefaultTotalSize;
-  cfg->max_block_size = kDefaultTotalSize;
-  cfg->start_batch_size = 1U;
-  cfg->max_batch_size = 1U;
-  cfg->start_threads = 1U;
-  cfg->max_threads = 1U;
-  cfg->seed = 0U;
-  cfg->block_steps = kDefaultBlockSteps;
+  cfg->block_sizes.clear();
   cfg->loops = kDefaultLoops;
   cfg->use_async = false;
   cfg->async_batch_num = 1U;
   cfg->connect_timeout_ms = kDefaultConnectTimeoutMs;
-  cfg->warmup_duration_sec = kDefaultWarmupDurationSec;
+  cfg->memory_explicit = false;
+  cfg->remote_memory_explicit = false;
+  cfg->op_explicit = false;
 }
 
 using KvApplyFn = bool (*)(const std::string &val, BenchmarkConfig *cfg);
 
 bool ApplyRoleKv(const std::string &val, BenchmarkConfig *cfg) {
-  if (val == "client" || val == "initiator") {
+  if (val == "initiator") {
     cfg->role = BenchmarkRole::kClient;
     cfg->role_name = val;
     return true;
   }
-  if (val == "server" || val == "target") {
+  if (val == "target") {
     cfg->role = BenchmarkRole::kServer;
     cfg->role_name = val;
     return true;
   }
-  fprintf(stderr, "[ERROR] Invalid --role=%s (expect target|initiator|client|server)\n", val.c_str());
+  fprintf(stderr, "[ERROR] Invalid --role=%s (expect target|initiator)\n", val.c_str());
   return false;
 }
 
@@ -229,29 +272,8 @@ bool ApplyBenchmarkGroupKv(const std::string &val, BenchmarkConfig *cfg) {
   return true;
 }
 
-bool ApplySocVariantKv(const std::string &val, BenchmarkConfig *cfg) {
-  std::string v = val;
-  std::transform(v.begin(), v.end(), v.begin(),
-                 [](unsigned char ch) { return static_cast<char>(std::tolower(static_cast<unsigned char>(ch))); });
-  if (v != "auto" && v != "a2" && v != "a3" && v != "a5") {
-    fprintf(stderr, "[ERROR] Invalid --soc_variant=%s (expect auto|a2|a3|a5)\n", val.c_str());
-    return false;
-  }
-  cfg->soc_variant = v;
-  return true;
-}
-
 bool ApplyOutputDirKv(const std::string &val, BenchmarkConfig *cfg) {
   cfg->output_dir = val;
-  return true;
-}
-
-bool ApplyTargetIdKv(const std::string &val, BenchmarkConfig *cfg) {
-  cfg->target_id = val;
-  if (!val.empty()) {
-    cfg->remote_engine = val;
-    cfg->remote_engine_list = SplitCommaList(val);
-  }
   return true;
 }
 
@@ -293,65 +315,62 @@ bool ApplyRemoteEngineKv(const std::string &val, BenchmarkConfig *cfg) {
   return true;
 }
 
-bool ApplyTcpPortKv(const std::string &val, BenchmarkConfig *cfg) {
-  cfg->tcp_port_list.clear();
-  for (const std::string &part : SplitCommaList(val)) {
-    int32_t port = 0;
-    if (!ParseI32(part, &port) || port < 0 || port > kPortMaxValue) {
-      fprintf(stderr, "[ERROR] Invalid --tcp_port segment \"%s\" in %s\n", part.c_str(), val.c_str());
-      return false;
-    }
-    cfg->tcp_port_list.push_back(static_cast<uint16_t>(port));
-  }
-  if (cfg->tcp_port_list.empty()) {
-    fprintf(stderr, "[ERROR] Invalid --tcp_port=%s\n", val.c_str());
+bool ApplyMemoryKv(const std::string &val, BenchmarkConfig *cfg) {
+  if (val != "host" && val != "device") {
+    fprintf(stderr, "[ERROR] Invalid --memory=%s (expect host|device)\n", val.c_str());
     return false;
   }
-  cfg->tcp_port = cfg->tcp_port_list[0];
+  if (cfg->role == BenchmarkRole::kServer) {
+    cfg->target_memory_type = val;
+  } else {
+    cfg->initiator_memory_type = val;
+  }
+  cfg->memory_explicit = true;
   return true;
 }
 
-bool ApplyTcpAcceptWaitSecKv(const std::string &val, BenchmarkConfig *cfg) {
+bool ApplyRemoteMemoryKv(const std::string &val, BenchmarkConfig *cfg) {
+  if (val != "host" && val != "device") {
+    fprintf(stderr, "[ERROR] Invalid --remote_memory=%s (expect host|device)\n", val.c_str());
+    return false;
+  }
+  cfg->target_memory_type = val;
+  cfg->remote_memory_explicit = true;
+  return true;
+}
+
+bool ApplyOpKv(const std::string &val, BenchmarkConfig *cfg) {
+  cfg->op = val;
+  cfg->op_explicit = true;
+  return true;
+}
+
+bool ApplyPeerWaitSecKv(const std::string &val, BenchmarkConfig *cfg) {
   uint32_t sec = 0;
   if (!ParseU32(val, &sec) || sec == 0U) {
-    fprintf(stderr, "[ERROR] Invalid --tcp_accept_wait_s=%s (expect positive integer)\n", val.c_str());
+    fprintf(stderr, "[ERROR] Invalid --peer_wait_s=%s (expect positive integer)\n", val.c_str());
     return false;
   }
   if (sec > kMaxAcceptWaitSec) {
-    fprintf(stderr, "[ERROR] --tcp_accept_wait_s too large (max %u)\n", kMaxAcceptWaitSec);
+    fprintf(stderr, "[ERROR] --peer_wait_s too large (max %u)\n", kMaxAcceptWaitSec);
     return false;
   }
-  cfg->tcp_accept_wait_sec = sec;
+  cfg->peer_wait_sec = sec;
   return true;
 }
 
-bool ApplyTcpClientCountKv(const std::string &val, BenchmarkConfig *cfg) {
+bool ApplyPeerCountKv(const std::string &val, BenchmarkConfig *cfg) {
   uint32_t n = 0;
   if (!ParseU32(val, &n) || n == 0U) {
-    fprintf(stderr, "[ERROR] Invalid --tcp_client_count=%s (expect integer 1..%" PRIu32 ")\n", val.c_str(),
+    fprintf(stderr, "[ERROR] Invalid --peer_count=%s (expect integer 1..%" PRIu32 ")\n", val.c_str(),
             kTcpClientCountMax);
     return false;
   }
   if (n > kTcpClientCountMax) {
-    fprintf(stderr, "[ERROR] --tcp_client_count too large (max %" PRIu32 ")\n", kTcpClientCountMax);
+    fprintf(stderr, "[ERROR] --peer_count too large (max %" PRIu32 ")\n", kTcpClientCountMax);
     return false;
   }
-  cfg->tcp_client_count = n;
-  return true;
-}
-
-bool ApplyInitiatorMemoryKv(const std::string &val, BenchmarkConfig *cfg) {
-  cfg->initiator_memory_type = val;
-  return true;
-}
-
-bool ApplyTargetMemoryKv(const std::string &val, BenchmarkConfig *cfg) {
-  cfg->target_memory_type = val;
-  return true;
-}
-
-bool ApplyTransferOpKv(const std::string &val, BenchmarkConfig *cfg) {
-  cfg->transfer_op = val;
+  cfg->peer_count = n;
   return true;
 }
 
@@ -360,50 +379,140 @@ bool ApplyTransportKv(const std::string &val, BenchmarkConfig *cfg) {
   return true;
 }
 
-bool ApplyRoceIpKv(const std::string &val, BenchmarkConfig *cfg) {
-  cfg->roce_ip = val;
-  cfg->roce_ip_list = SplitCommaList(val);
-  if (cfg->roce_ip_list.empty()) {
-    fprintf(stderr, "[ERROR] roce_ip is empty\n");
+bool ApplyHostRoceIpKv(const std::string &val, BenchmarkConfig *cfg) {
+  cfg->host_roce_ip = val;
+  cfg->host_roce_ip_list = SplitCommaList(val);
+  if (cfg->host_roce_ip_list.empty()) {
+    fprintf(stderr, "[ERROR] host_roce_ip is empty\n");
     return false;
   }
   return true;
 }
 
-bool ApplyOpTypeKv(const std::string &val, BenchmarkConfig *cfg) {
-  cfg->transfer_op = val;
+bool LookupSizeSuffixFactor(const std::string &suffix, uint64_t &factor) {
+  struct SuffixEntry {
+    const char *name;
+    uint64_t value;
+  };
+  constexpr SuffixEntry kTable[] = {
+      {"", 1U},
+      {"k", kBytesPerKiB},
+      {"kb", kBytesPerKiB},
+      {"kib", kBytesPerKiB},
+      {"m", kBytesPerMiB},
+      {"mb", kBytesPerMiB},
+      {"mib", kBytesPerMiB},
+      {"g", kBytesPerGiB},
+      {"gb", kBytesPerGiB},
+      {"gib", kBytesPerGiB},
+      {"t", kBytesPerTiB},
+      {"tb", kBytesPerTiB},
+      {"tib", kBytesPerTiB},
+  };
+  for (const auto &entry : kTable) {
+    if (suffix == entry.name) {
+      factor = entry.value;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool ParseByteSize(const std::string &val, uint64_t &out) {
+  if (val.empty()) {
+    return false;
+  }
+  size_t digits = 0;
+  while (digits < val.size() && std::isdigit(static_cast<unsigned char>(val[digits])) != 0) {
+    ++digits;
+  }
+  if (digits == 0U) {
+    return false;
+  }
+  uint64_t base = 0;
+  if (!ParseU64(val.substr(0, digits), &base)) {
+    return false;
+  }
+  std::string suffix = val.substr(digits);
+  std::transform(suffix.begin(), suffix.end(), suffix.begin(),
+                 [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+  uint64_t factor = 1U;
+  if (!LookupSizeSuffixFactor(suffix, factor)) {
+    return false;
+  }
+  if (base == 0U || base > std::numeric_limits<uint64_t>::max() / factor) {
+    return false;
+  }
+  out = base * factor;
   return true;
 }
 
-bool ApplyTotalSizeKv(const std::string &val, BenchmarkConfig *cfg) {
-  if (!ParseU64(val, &cfg->total_size) || cfg->total_size == 0) {
-    fprintf(stderr, "[ERROR] Invalid --total_size=%s\n", val.c_str());
+bool ApplyTransferSizeKv(const std::string &val, BenchmarkConfig *cfg) {
+  if (!ParseByteSize(val, cfg->transfer_size)) {
+    fprintf(stderr, "[ERROR] Invalid --transfer_size=%s\n", val.c_str());
     return false;
   }
   return true;
 }
 
 bool ApplyBufferSizeKv(const std::string &val, BenchmarkConfig *cfg) {
-  if (!ParseU64(val, &cfg->buffer_size) || cfg->buffer_size == 0) {
+  if (!ParseByteSize(val, cfg->buffer_size)) {
     fprintf(stderr, "[ERROR] Invalid --buffer_size=%s\n", val.c_str());
     return false;
   }
   return true;
 }
 
-bool ApplyBlockSizeKv(const std::string &val, BenchmarkConfig *cfg) {
-  if (!ParseU64(val, &cfg->block_size) || cfg->block_size == 0) {
-    fprintf(stderr, "[ERROR] Invalid --block_size=%s\n", val.c_str());
+bool BuildPowerOfTwoBlockRange(uint64_t start, uint64_t end, std::vector<uint64_t> &out) {
+  if (start == 0U || end == 0U || start > end) {
     return false;
   }
-  cfg->block_size_explicit = true;
+  uint64_t cur = start;
+  while (cur <= end) {
+    out.push_back(cur);
+    if (cur == end) {
+      return true;
+    }
+    if (cur > std::numeric_limits<uint64_t>::max() / 2U) {
+      return false;
+    }
+    cur *= 2U;
+    if (cur > end) {
+      return false;
+    }
+  }
   return true;
 }
 
-bool ApplyBlockStepsKv(const std::string &val, BenchmarkConfig *cfg) {
-  if (!ParseU32(val, &cfg->block_steps) || cfg->block_steps == 0) {
-    fprintf(stderr, "[ERROR] Invalid --block_steps=%s\n", val.c_str());
+bool ApplyBlockSizesKv(const std::string &val, BenchmarkConfig *cfg) {
+  cfg->block_sizes.clear();
+  const std::vector<std::string> entries = SplitCommaList(val);
+  if (entries.empty()) {
+    fprintf(stderr, "[ERROR] Invalid --block_sizes=%s\n", val.c_str());
     return false;
+  }
+  for (const std::string &entry : entries) {
+    const auto sep = entry.find(':');
+    if (sep == std::string::npos) {
+      uint64_t block = 0;
+      if (!ParseByteSize(entry, block)) {
+        fprintf(stderr, "[ERROR] Invalid --block_sizes segment \"%s\"\n", entry.c_str());
+        return false;
+      }
+      cfg->block_sizes.push_back(block);
+      continue;
+    }
+    if (entry.find(':', sep + 1U) != std::string::npos) {
+      fprintf(stderr, "[ERROR] Invalid --block_sizes range \"%s\"\n", entry.c_str());
+      return false;
+    }
+    uint64_t start = 0;
+    uint64_t end = 0;
+    if (!ParseByteSize(entry.substr(0, sep), start) || !ParseByteSize(entry.substr(sep + 1U), end) ||
+        !BuildPowerOfTwoBlockRange(start, end, cfg->block_sizes)) {
+      fprintf(stderr, "[ERROR] Invalid --block_sizes range \"%s\"\n", entry.c_str());
+      return false;
+    }
   }
   return true;
 }
@@ -440,136 +549,44 @@ bool ApplyConnectTimeoutKv(const std::string &val, BenchmarkConfig *cfg) {
   return true;
 }
 
-bool ApplyWarmupDurationKv(const std::string &val, BenchmarkConfig *cfg) {
-  if (!ParseU32(val, &cfg->warmup_duration_sec)) {
-    fprintf(stderr, "[ERROR] Invalid --warmup_duration=%s\n", val.c_str());
-    return false;
-  }
-  return true;
-}
-
-bool ApplyCheckConsistencyKv(const std::string &val, BenchmarkConfig *cfg) {
-  if (!ParseBool(val, &cfg->check_consistency)) {
-    fprintf(stderr, "[ERROR] Invalid --check_consistency=%s (expect true|false|0|1)\n", val.c_str());
-    return false;
-  }
-  return true;
-}
-
-bool ApplySeedKv(const std::string &val, BenchmarkConfig *cfg) {
-  if (!ParseU64(val, &cfg->seed)) {
-    fprintf(stderr, "[ERROR] Invalid --seed=%s\n", val.c_str());
-    return false;
-  }
-  return true;
-}
-
-bool ApplyStartBlockSizeKv(const std::string &val, BenchmarkConfig *cfg) {
-  if (!ParseU64(val, &cfg->start_block_size) || cfg->start_block_size == 0) {
-    fprintf(stderr, "[ERROR] Invalid --start_block_size=%s\n", val.c_str());
-    return false;
-  }
-  cfg->block_size = cfg->start_block_size;
-  cfg->block_size_explicit = true;
-  return true;
-}
-
-bool ApplyMaxBlockSizeKv(const std::string &val, BenchmarkConfig *cfg) {
-  if (!ParseU64(val, &cfg->max_block_size) || cfg->max_block_size == 0) {
-    fprintf(stderr, "[ERROR] Invalid --max_block_size=%s\n", val.c_str());
-    return false;
-  }
-  return true;
-}
-
-bool ApplyStartBatchSizeKv(const std::string &val, BenchmarkConfig *cfg) {
-  if (!ParseU32(val, &cfg->start_batch_size) || cfg->start_batch_size == 0U) {
-    fprintf(stderr, "[ERROR] Invalid --start_batch_size=%s\n", val.c_str());
-    return false;
-  }
-  cfg->async_batch_num = cfg->start_batch_size;
-  return true;
-}
-
-bool ApplyMaxBatchSizeKv(const std::string &val, BenchmarkConfig *cfg) {
-  if (!ParseU32(val, &cfg->max_batch_size) || cfg->max_batch_size == 0U) {
-    fprintf(stderr, "[ERROR] Invalid --max_batch_size=%s\n", val.c_str());
-    return false;
-  }
-  return true;
-}
-
-bool ApplyStartThreadsKv(const std::string &val, BenchmarkConfig *cfg) {
-  if (!ParseU32(val, &cfg->start_threads) || cfg->start_threads == 0U) {
-    fprintf(stderr, "[ERROR] Invalid --start_threads=%s\n", val.c_str());
-    return false;
-  }
-  return true;
-}
-
-bool ApplyMaxThreadsKv(const std::string &val, BenchmarkConfig *cfg) {
-  if (!ParseU32(val, &cfg->max_threads) || cfg->max_threads == 0U) {
-    fprintf(stderr, "[ERROR] Invalid --max_threads=%s\n", val.c_str());
-    return false;
-  }
-  return true;
-}
-
 void PopulateCoreKvHandlers(std::map<std::string, KvApplyFn> *table) {
   auto &t = *table;
   t["--role"] = ApplyRoleKv;
   t["-r"] = ApplyRoleKv;
-  t["--benchmark_group"] = ApplyBenchmarkGroupKv;
-  t["--soc_variant"] = ApplySocVariantKv;
+  t["--group"] = ApplyBenchmarkGroupKv;
   t["--output_dir"] = ApplyOutputDirKv;
-  t["--target_id"] = ApplyTargetIdKv;
   t["--device_id"] = ApplyDeviceIdKv;
   t["-d"] = ApplyDeviceIdKv;
   t["--local_engine"] = ApplyLocalEngineKv;
   t["-l"] = ApplyLocalEngineKv;
   t["--remote_engine"] = ApplyRemoteEngineKv;
   t["-e"] = ApplyRemoteEngineKv;
-  t["--tcp_port"] = ApplyTcpPortKv;
-  t["-p"] = ApplyTcpPortKv;
-  t["--tcp_accept_wait_s"] = ApplyTcpAcceptWaitSecKv;
-  t["-a"] = ApplyTcpAcceptWaitSecKv;
-  t["--tcp_client_count"] = ApplyTcpClientCountKv;
-  t["-c"] = ApplyTcpClientCountKv;
-  t["--initiator_memory"] = ApplyInitiatorMemoryKv;
-  t["--target_memory"] = ApplyTargetMemoryKv;
-  t["--transfer_op"] = ApplyTransferOpKv;
-  t["-o"] = ApplyTransferOpKv;
-  t["--op_type"] = ApplyOpTypeKv;
+  t["--peer_wait_s"] = ApplyPeerWaitSecKv;
+  t["-w"] = ApplyPeerWaitSecKv;
+  t["--peer_count"] = ApplyPeerCountKv;
+  t["-c"] = ApplyPeerCountKv;
+  t["--memory"] = ApplyMemoryKv;
+  t["--remote_memory"] = ApplyRemoteMemoryKv;
+  t["--op"] = ApplyOpKv;
+  t["-o"] = ApplyOpKv;
   t["--transport"] = ApplyTransportKv;
-  t["--roce_ip"] = ApplyRoceIpKv;
+  t["--host_roce_ip"] = ApplyHostRoceIpKv;
 }
 
 void PopulateBenchKvHandlers(std::map<std::string, KvApplyFn> *table) {
   auto &t = *table;
-  t["--total_size"] = ApplyTotalSizeKv;
-  t["-t"] = ApplyTotalSizeKv;
+  t["--transfer_size"] = ApplyTransferSizeKv;
+  t["-t"] = ApplyTransferSizeKv;
   t["--buffer_size"] = ApplyBufferSizeKv;
-  t["--block_size"] = ApplyBlockSizeKv;
-  t["-k"] = ApplyBlockSizeKv;
-  t["--block_steps"] = ApplyBlockStepsKv;
-  t["-s"] = ApplyBlockStepsKv;
+  t["--block_sizes"] = ApplyBlockSizesKv;
   t["--loops"] = ApplyLoopsKv;
   t["-n"] = ApplyLoopsKv;
   t["--use_async"] = ApplyUseAsyncKv;
   t["-x"] = ApplyUseAsyncKv;
   t["--async_batch_num"] = ApplyAsyncBatchNumKv;
   t["-y"] = ApplyAsyncBatchNumKv;
-  t["--connect_timeout"] = ApplyConnectTimeoutKv;
+  t["--connect_timeout_ms"] = ApplyConnectTimeoutKv;
   t["-C"] = ApplyConnectTimeoutKv;
-  t["--warmup_duration"] = ApplyWarmupDurationKv;
-  t["--check_consistency"] = ApplyCheckConsistencyKv;
-  t["--seed"] = ApplySeedKv;
-  t["--start_block_size"] = ApplyStartBlockSizeKv;
-  t["--max_block_size"] = ApplyMaxBlockSizeKv;
-  t["--start_batch_size"] = ApplyStartBatchSizeKv;
-  t["--max_batch_size"] = ApplyMaxBatchSizeKv;
-  t["--start_threads"] = ApplyStartThreadsKv;
-  t["--max_threads"] = ApplyMaxThreadsKv;
 }
 
 const std::map<std::string, KvApplyFn> &KvHandlerTable() {
@@ -616,6 +633,10 @@ bool ParseHixlOptionPayloads(const std::vector<std::string> &payloads, Benchmark
 
 std::string BenchmarkConfig::ComputeDirection(const std::string &initiator_mem, const std::string &target_mem,
                                               const std::string &op_type) {
+  if (op_type == "mix") {
+    return "mix:" + ComputeDirection(initiator_mem, target_mem, "write") + "/" +
+           ComputeDirection(initiator_mem, target_mem, "read");
+  }
   const bool wr = (op_type == "write");
   if (initiator_mem == "device" && target_mem == "device") return wr ? "D2rD" : "rD2D";
   if (initiator_mem == "device" && target_mem == "host") return wr ? "D2rH" : "rH2D";
@@ -628,58 +649,58 @@ void BenchmarkConfigParser::PrintUsage(FILE *out) {
   fprintf(
       out,
       "Usage: hixl_comm_bench key=value ...\n"
-      "Required: --role=target|initiator (legacy: client|server) or -r=client|server\n"
-      "Keys (all lowercase, value is decimal bytes where noted):\n"
-      "  --role|-r            target|initiator|client|server\n"
-      "  --benchmark_group    result grouping name (default default)\n"
-      "  --soc_variant        auto|a2|a3|a5 — HCCS rules & SOC class (default auto: ACL SOC probe; a5 forbids HCCS)\n"
+      "Required: --role=target|initiator\n"
+      "Role-specific required keys:\n"
+      "  target:    --memory=host|device\n"
+      "  initiator: --memory=host|device --remote_memory=host|device --op=read|write|mix\n"
+      "Keys:\n"
+      "  --role|-r            target|initiator\n"
+      "  --group              result grouping name (default default)\n"
       "  --transport          hccs|roce|fabric_mem|uboe|ubg|ub "
       "(hccs: D2D everywhere; extra H2rD|rD2H on A3-class SOC only; fabric_mem adds EnableUseFabricMem=1; "
-      "uboe/ubg add GlobalResourceConfig with uboe:device/ubg:device, only on A5; "
+      "hccs/roce/uboe/ubg add GlobalResourceConfig protocol_desc by default unless LocalCommRes is set; "
       "ub adds LocalCommRes with version:1.3, only on A5; "
       "roce: RDMA over Converged Ethernet, supported on A2, A3 and A5; on A5 uses HixlCS LocalCommRes with "
-      "protocol:roce placement:host and requires --roce_ip)\n"
-      "  --roce_ip            RoCE NIC IP address for LocalCommRes endpoint (data plane; required for transport=roce\n"
+      "protocol:roce placement:host and requires --host_roce_ip)\n"
+      "  --host_roce_ip       Host RoCE NIC IP address for LocalCommRes endpoint (data plane; required for "
+      "transport=roce\n"
       " on A5 unless -H LocalCommRes is used; ignored on A2/A3). Note: this is separate from host IP used by\n"
-      " --remote_engine/--target_id for TCP coordination (control plane).\n"
-      "  --initiator_memory   host|device (default device) — initiator-side buffer\n"
-      "  --target_memory      host|device (default device) — target-side buffer\n"
-      "  --op_type            read|write|mix (alias of --transfer_op)\n"
-      "  --start_block_size   first block size in bytes (alias of --block_size)\n"
-      "  --max_block_size     max block size in bytes; block size doubles until this value\n"
+      " --local_engine/--remote_engine for HIXL engine/control-plane coordination.\n"
+      "  --memory             local buffer memory type: host|device\n"
+      "  --remote_memory      initiator only: target buffer memory type host|device\n"
+      "  --op|-o              initiator only: read|write|mix\n"
       "  --output_dir         CSV/JSONL result output directory (default output)\n"
       "  --device_id|-d       device id (int), or comma list e.g. 0,1 (broadcast if single value)\n"
       "  --local_engine|-l    local HIXL endpoint(s), comma-separated; IPv6 use [ip]:port\n"
-      "  --remote_engine|-e   client: one or more host:port (comma-separated); TCP uses each host + tcp coord port\n"
-      "                        server: optional (TCP binds --tcp_port only; default kept); multi-value not supported\n"
-      "  --tcp_port|-p        TCP coordination port(s): one value, or comma list matching multi-endpoint count\n"
-      "                        (e.g. two servers on one host need distinct ports: -p=20000,20001)\n"
-      "  --tcp_accept_wait_s|-a  server only: max wall time for TCP connect phase in seconds (default 30)\n"
-      "  --tcp_client_count|-c  server only: TCP clients to wait for before proceed (default 1, max %" PRIu32
+      "  --remote_engine|-e   initiator: one or more target host:port (comma-separated); HIXL uses this endpoint\n"
+      "                        directly, peer TCP coordination uses an internally derived port\n"
+      "                        target: optional remote hint; multi-value not supported\n"
+      "  --peer_wait_s|-w     target only: max wall time for peer connect phase in seconds (default 30)\n"
+      "  --peer_count|-c      target only: initiator peers to wait for before proceed (default 1, max %" PRIu32
       ")\n"
-      "  --transfer_op|-o     read|write\n"
-      "  --total_size|-t      bytes transferred per block-size step (default %" PRIu64
+      "  --transfer_size|-t   bytes transferred per block-size step (default %" PRIu64
       ")\n"
-      "  --buffer_size        allocation/register size in bytes (default %" PRIu64
+      "  --buffer_size        allocation/register size (default %" PRIu64
       ")\n"
-      "  --block_size|-k      first block size in bytes (default: same as total_size)\n"
-      "  --block_steps|-s     block count: sizes are block_size<<i, i in [0,steps-1] (default %u)\n"
+      "  --block_sizes        block size list/range, e.g. 4K,64K,1M or 4K:1M; default equals transfer_size\n"
+      "                        size units: K/M/G/T, KB/MB/GB/TB, KiB/MiB/GiB/TiB (binary 1024)\n"
       "  --loops|-n           repeat full step ladder (default %u)\n"
       "  --use_async|-x       true|false (default false), enable async transfer mode\n"
-      "  --async_batch_num|-y async requests per batch (default 1), requires: total_size %% async_batch_num == 0\n"
-      "  --connect_timeout|-C connect timeout in ms (default 60000)\n"
+      "  --async_batch_num|-y async requests per batch (default 1), requires: transfer_size %% async_batch_num == 0\n"
+      "  --connect_timeout_ms|-C connect timeout in ms (default 60000)\n"
       "  --hixl_option|-H     HIXL Initialize() option, form KEY=VALUE (repeatable); "
       "KEY e.g. LocalCommRes, BufferPool, RdmaTrafficClass, RdmaServiceLevel, adxl.*\n"
       "                       If neither BufferPool nor adxl.BufferPool is set, BufferPool=0:0 is added (benchmark "
       "default).\n"
-      "Multi-endpoint: lengths must match max(n_d,n_l,n_r) after broadcasting single values; server allows only one.\n"
-      "Client: one local + many remotes uses one Hixl and concurrent TCP/HIXL per remote; many locals use one thread "
+      "Peer TCP coordination port is derived from the engine port internally (+10000 or -10000); no separate "
+      "--tcp_port is required.\n"
+      "Multi-endpoint: lengths must match max(n_d,n_l,n_r) after broadcasting single values; target allows only one.\n"
+      "Initiator: one local + many remotes uses one HIXL and concurrent TCP/HIXL per remote; many locals use one "
+      "thread "
       "per lane.\n"
-      "Defaults: client device_id=0 local_engine=127.0.0.1:16000 remote_engine=127.0.0.1:16001\n"
-      "          server device_id=1 local_engine=127.0.0.1:16001 remote_engine=127.0.0.1\n"
-      "          initiator_memory=device target_memory=device transfer_op=read tcp_port=20000 tcp_accept_wait_s=30 "
-      "tcp_client_count=1\n",
-      kTcpClientCountMax, kDefaultTotalSize, kDefaultBufferSize, kDefaultBlockSteps, kDefaultLoops);
+      "Defaults: initiator device_id=0 local_engine=127.0.0.1:16000 remote_engine=127.0.0.1:16001\n"
+      "          target device_id=1 local_engine=127.0.0.1:16001 remote_engine=127.0.0.1\n",
+      kTcpClientCountMax, kDefaultTotalSize, kDefaultBufferSize, kDefaultLoops);
 }
 
 namespace {
@@ -708,30 +729,22 @@ BenchSocKind ProbeSocKindViaAcl(int32_t device_id) {
     // CANN returns ACL_ERROR_REPEAT_INITIALIZE when ACL was already initialized (often by peer tooling).
     constexpr aclError kAclRepeatInitialize = static_cast<aclError>(100002);
     if (er != kAclRepeatInitialize) {
-      fprintf(stderr,
-              "[WARN] aclInit failed for --soc_variant=auto probe (ret=%d); assuming A2-class HCCS rules "
-              "(override with --soc_variant=a3|a5 on Ascend910 / Ascend950 silicon)\n",
-              static_cast<int>(er));
+      fprintf(stderr, "[WARN] ACL SOC probe failed (ret=%d); assuming A2-class HCCS rules\n", static_cast<int>(er));
       return BenchSocKind::kA2;
     }
   }
   er = aclrtSetDevice(device_id);
   if (er != ACL_ERROR_NONE) {
-    fprintf(stderr,
-            "[WARN] aclrtSetDevice(%d) failed for SOC probe (ret=%d); assuming A2-class HCCS rules "
-            "(override with --soc_variant=a3|a5)\n",
+    fprintf(stderr, "[WARN] aclrtSetDevice(%d) failed for SOC probe (ret=%d); assuming A2-class HCCS rules\n",
             static_cast<int>(device_id), static_cast<int>(er));
     return BenchSocKind::kA2;
   }
   const char *soc_cstr = aclrtGetSocName();
   if (soc_cstr == nullptr || soc_cstr[0] == '\0') {
-    fprintf(stderr,
-            "[WARN] aclrtGetSocName() empty; assuming A2-class HCCS rules "
-            "(override with --soc_variant=a3|a5)\n");
+    fprintf(stderr, "[WARN] aclrtGetSocName() empty; assuming A2-class HCCS rules\n");
     return BenchSocKind::kA2;
   }
   const std::string soc(soc_cstr);
-  fprintf(stdout, "[INFO] SOC probe for HCCS rules: aclrtGetSocName()=%s\n", soc_cstr);
   return ClassifySocNameForBenchRules(soc);
 }
 
@@ -753,6 +766,39 @@ BenchSocKind ResolveSocKindForHccs(const BenchmarkConfig *cfg) {
   return ProbeSocKindViaAcl(dev_id);
 }
 
+bool HasInitOption(const std::map<std::string, std::string> &options, const std::string &key) {
+  return options.find(key) != options.cend();
+}
+
+bool HasExplicitLocalCommRes(const BenchmarkConfig &cfg) {
+  constexpr const char kAdxlLocalCommResKey[] = "adxl.LocalCommRes";
+  return HasInitOption(cfg.hixl_init_options, OPTION_LOCAL_COMM_RES) ||
+         HasInitOption(cfg.hixl_init_options, kAdxlLocalCommResKey);
+}
+
+AscendString BuildProtocolDescConfig(const std::string &protocol_desc) {
+  return AscendString(("{\"comm_resource_config.protocol_desc\":[\"" + protocol_desc + "\"]}").c_str());
+}
+
+void AddDefaultProtocolDesc(const BenchmarkConfig &cfg, std::map<AscendString, AscendString> *options) {
+  if (HasExplicitLocalCommRes(cfg) || HasInitOption(cfg.hixl_init_options, OPTION_GLOBAL_RESOURCE_CONFIG)) {
+    return;
+  }
+  std::string protocol_desc;
+  if (cfg.transport == "hccs") {
+    protocol_desc = "hccs:device";
+  } else if (cfg.transport == "roce") {
+    protocol_desc = "roce:" + cfg.roce_endpoint_placement;
+  } else if (cfg.transport == "uboe") {
+    protocol_desc = "uboe:device";
+  } else if (cfg.transport == "ubg") {
+    protocol_desc = "ubg:device";
+  } else {
+    return;
+  }
+  (*options)[AscendString(OPTION_GLOBAL_RESOURCE_CONFIG)] = BuildProtocolDescConfig(protocol_desc);
+}
+
 }  // namespace
 
 std::map<AscendString, AscendString> BenchmarkConfigParser::BuildInitializeOptions(const BenchmarkConfig &cfg,
@@ -771,25 +817,16 @@ std::map<AscendString, AscendString> BenchmarkConfigParser::BuildInitializeOptio
       cfg.hixl_init_options.find(OPTION_ENABLE_USE_FABRIC_MEM) == cfg.hixl_init_options.cend()) {
     options[AscendString(OPTION_ENABLE_USE_FABRIC_MEM)] = AscendString("1");
   }
-  if (cfg.transport == "uboe" &&
-      cfg.hixl_init_options.find(OPTION_GLOBAL_RESOURCE_CONFIG) == cfg.hixl_init_options.cend()) {
-    options[AscendString(OPTION_GLOBAL_RESOURCE_CONFIG)] =
-        AscendString("{\"comm_resource_config.protocol_desc\":[\"uboe:device\"]}");
-  }
-  if (cfg.transport == "ubg" &&
-      cfg.hixl_init_options.find(OPTION_GLOBAL_RESOURCE_CONFIG) == cfg.hixl_init_options.cend()) {
-    options[AscendString(OPTION_GLOBAL_RESOURCE_CONFIG)] =
-        AscendString("{\"comm_resource_config.protocol_desc\":[\"ubg:device\"]}");
-  }
-  if (cfg.transport == "ub" && cfg.hixl_init_options.find(OPTION_LOCAL_COMM_RES) == cfg.hixl_init_options.cend()) {
+  AddDefaultProtocolDesc(cfg, &options);
+  if (cfg.transport == "ub" && !HasExplicitLocalCommRes(cfg)) {
     options[AscendString(OPTION_LOCAL_COMM_RES)] = AscendString("{\"version\":\"1.3\"}");
   }
   if (cfg.transport == "roce") {
     const BenchSocKind soc_kind = ResolveSocKindForHccs(&cfg);
     if (soc_kind == BenchSocKind::kA5) {
       const std::string &lane_roce_ip =
-          (lane_index < cfg.expanded_roce_ips.size()) ? cfg.expanded_roce_ips[lane_index] : cfg.roce_ip;
-      if (cfg.hixl_init_options.find(OPTION_LOCAL_COMM_RES) == cfg.hixl_init_options.cend()) {
+          (lane_index < cfg.expanded_host_roce_ips.size()) ? cfg.expanded_host_roce_ips[lane_index] : cfg.host_roce_ip;
+      if (!HasExplicitLocalCommRes(cfg)) {
         std::string local_comm_res =
             "{\"version\":\"1.3\",\"net_instance_id\":\"default\",\"endpoint_list\":["
             "{\"protocol\":\"roce\",\"comm_id\":\"" +
@@ -813,20 +850,6 @@ bool BenchmarkConfigParser::ApplyTransportEnvironment(const BenchmarkConfig &cfg
   return true;
 }
 
-namespace {
-
-uint32_t ComputeBlockSteps(uint64_t start, uint64_t max) {
-  uint32_t steps = 1U;
-  uint64_t cur = start;
-  while (cur < max && cur <= (UINT64_MAX >> 1U)) {
-    cur <<= 1U;
-    ++steps;
-  }
-  return steps;
-}
-
-}  // namespace
-
 bool BenchmarkConfigParser::BuildFromArgv(int argc, char **argv, BenchmarkConfig *cfg) {
   std::map<std::string, std::string> kv;
   std::vector<std::string> hixl_option_payloads;
@@ -838,17 +861,17 @@ bool BenchmarkConfigParser::BuildFromArgv(int argc, char **argv, BenchmarkConfig
     it_role = kv.find("-r");
   }
   if (it_role == kv.end()) {
-    fprintf(stderr, "[ERROR] Missing required --role=client|server\n");
+    fprintf(stderr, "[ERROR] Missing required --role=target|initiator\n");
     BenchmarkConfigParser::PrintUsage(stderr);
     return false;
   }
   const std::string &rv = it_role->second;
-  if (rv == "client" || rv == "initiator") {
+  if (rv == "initiator") {
     cfg->role = BenchmarkRole::kClient;
-  } else if (rv == "server" || rv == "target") {
+  } else if (rv == "target") {
     cfg->role = BenchmarkRole::kServer;
   } else {
-    fprintf(stderr, "[ERROR] Invalid --role=%s\n", rv.c_str());
+    fprintf(stderr, "[ERROR] Invalid --role=%s (expect target|initiator)\n", rv.c_str());
     return false;
   }
   ApplyCommonDefaults(cfg);
@@ -859,15 +882,8 @@ bool BenchmarkConfigParser::BuildFromArgv(int argc, char **argv, BenchmarkConfig
   if (!ParseHixlOptionPayloads(hixl_option_payloads, cfg)) {
     return false;
   }
-  if (!cfg->block_size_explicit) {
-    cfg->block_size = cfg->total_size;
-    cfg->start_block_size = cfg->block_size;
-  }
-  if (cfg->max_block_size < cfg->block_size) {
-    cfg->max_block_size = cfg->block_size;
-  }
-  if (cfg->max_block_size != cfg->block_size) {
-    cfg->block_steps = ComputeBlockSteps(cfg->block_size, cfg->max_block_size);
+  if (cfg->block_sizes.empty()) {
+    cfg->block_sizes.push_back(cfg->transfer_size);
   }
   EnsureEndpointLists(cfg);
   return true;
@@ -887,18 +903,11 @@ bool ValidateEnginesNotEmpty(const BenchmarkConfig *cfg) {
   return true;
 }
 
-bool ValidateListLengths(size_t nd, size_t nl, size_t nr, size_t nt, size_t n_max) {
+bool ValidateListLengths(size_t nd, size_t nl, size_t nr, size_t n_max) {
   auto invalid_len = [](size_t n, size_t cap) { return n != 1U && n != cap; };
   if (invalid_len(nd, n_max) || invalid_len(nl, n_max) || invalid_len(nr, n_max)) {
     fprintf(stderr, "[ERROR] device_id/local_engine/remote_engine list lengths (%zu,%zu,%zu) must each be 1 or %zu\n",
             nd, nl, nr, n_max);
-    return false;
-  }
-  if (invalid_len(nt, n_max)) {
-    fprintf(stderr,
-            "[ERROR] --tcp_port comma-list length (%zu) must be 1 or %zu (same rule as multi local_engine / "
-            "remote_engine)\n",
-            nt, n_max);
     return false;
   }
   return true;
@@ -912,44 +921,41 @@ bool ValidateMultiDeviceRequirement(size_t n_max, size_t nl, size_t nr) {
   return true;
 }
 
-void ExpandConfigLists(BenchmarkConfig *cfg, size_t n_max, size_t nd, size_t nl, size_t nr, size_t nt) {
+void ExpandConfigLists(BenchmarkConfig *cfg, size_t n_max, size_t nd, size_t nl, size_t nr) {
   cfg->expanded_device_ids.clear();
   cfg->expanded_local_engines.clear();
   cfg->expanded_remote_engines.clear();
-  cfg->expanded_tcp_ports.clear();
   cfg->expanded_device_ids.reserve(n_max);
   cfg->expanded_local_engines.reserve(n_max);
   cfg->expanded_remote_engines.reserve(n_max);
-  cfg->expanded_tcp_ports.reserve(n_max);
   for (size_t i = 0; i < n_max; ++i) {
     cfg->expanded_device_ids.push_back(cfg->device_id_list[nd == 1U ? 0 : i]);
     cfg->expanded_local_engines.push_back(cfg->local_engine_list[nl == 1U ? 0 : i]);
     cfg->expanded_remote_engines.push_back(cfg->remote_engine_list[nr == 1U ? 0 : i]);
-    cfg->expanded_tcp_ports.push_back(cfg->tcp_port_list[nt == 1U ? 0 : i]);
   }
   cfg->device_id = cfg->expanded_device_ids[0];
-  cfg->tcp_port = cfg->expanded_tcp_ports[0];
-  // Expand roce_ip_list with same broadcast rule as other lists.
-  if (!cfg->roce_ip_list.empty()) {
-    const size_t nr_ip = cfg->roce_ip_list.size();
-    cfg->expanded_roce_ips.clear();
-    cfg->expanded_roce_ips.reserve(n_max);
+  if (!cfg->host_roce_ip_list.empty()) {
+    const size_t nr_ip = cfg->host_roce_ip_list.size();
+    cfg->expanded_host_roce_ips.clear();
+    cfg->expanded_host_roce_ips.reserve(n_max);
     for (size_t i = 0; i < n_max; ++i) {
-      cfg->expanded_roce_ips.push_back(cfg->roce_ip_list[nr_ip == 1U ? 0 : i]);
+      cfg->expanded_host_roce_ips.push_back(cfg->host_roce_ip_list[nr_ip == 1U ? 0 : i]);
     }
-    cfg->roce_ip = cfg->expanded_roce_ips[0];
-  } else if (!cfg->roce_ip.empty()) {
-    cfg->expanded_roce_ips.clear();
-    cfg->expanded_roce_ips.push_back(cfg->roce_ip);
-    cfg->roce_ip_list.push_back(cfg->roce_ip);
+    cfg->host_roce_ip = cfg->expanded_host_roce_ips[0];
+  } else if (!cfg->host_roce_ip.empty()) {
+    cfg->expanded_host_roce_ips.clear();
+    cfg->expanded_host_roce_ips.push_back(cfg->host_roce_ip);
+    cfg->host_roce_ip_list.push_back(cfg->host_roce_ip);
   }
 }
 
 bool ValidateClientRemoteEngines(const BenchmarkConfig *cfg) {
   for (size_t i = 0; i < cfg->expanded_remote_engines.size(); ++i) {
     const std::string &re = cfg->expanded_remote_engines[i];
-    if (re.find(':') == std::string::npos) {
-      fprintf(stderr, "[ERROR] client remote_engine[%zu] must be host:port (e.g. 127.0.0.1:16001), got \"%s\"\n", i,
+    std::string host;
+    uint16_t port = 0;
+    if (!ExtractEndpointHostAndPort(re, host, port)) {
+      fprintf(stderr, "[ERROR] initiator remote_engine[%zu] must be host:port (e.g. 127.0.0.1:16001), got \"%s\"\n", i,
               re.c_str());
       return false;
     }
@@ -959,15 +965,21 @@ bool ValidateClientRemoteEngines(const BenchmarkConfig *cfg) {
 
 bool ValidateServerConfig(const BenchmarkConfig *cfg, size_t n_max) {
   if (n_max > 1U) {
-    fprintf(stderr, "[ERROR] server does not support multiple device_id/local_engine/remote_engine; use one each\n");
+    fprintf(stderr, "[ERROR] target does not support multiple device_id/local_engine/remote_engine; use one each\n");
     return false;
   }
-  if (cfg->tcp_accept_wait_sec == 0U || cfg->tcp_accept_wait_sec > 86400U) {
-    fprintf(stderr, "[ERROR] server tcp_accept_wait_s out of range\n");
+  std::string host;
+  uint16_t port = 0;
+  if (!ExtractEndpointHostAndPort(cfg->expanded_local_engines[0], host, port)) {
+    fprintf(stderr, "[ERROR] target local_engine must be host:port\n");
     return false;
   }
-  if (cfg->tcp_client_count == 0U || cfg->tcp_client_count > kTcpClientCountMax) {
-    fprintf(stderr, "[ERROR] server tcp_client_count out of range\n");
+  if (cfg->peer_wait_sec == 0U || cfg->peer_wait_sec > kMaxAcceptWaitSec) {
+    fprintf(stderr, "[ERROR] target peer_wait_s out of range\n");
+    return false;
+  }
+  if (cfg->peer_count == 0U || cfg->peer_count > kTcpClientCountMax) {
+    fprintf(stderr, "[ERROR] target peer_count out of range\n");
     return false;
   }
   return true;
@@ -983,7 +995,7 @@ bool ValidateMemoryTypeValue(const std::string &mem) {
 
 bool ValidateTransferOp(const std::string &op) {
   if (op != "write" && op != "read" && op != "mix") {
-    fprintf(stderr, "[ERROR] Invalid transfer_op/op_type: %s\n", op.c_str());
+    fprintf(stderr, "[ERROR] Invalid op: %s\n", op.c_str());
     return false;
   }
   return true;
@@ -1012,21 +1024,20 @@ bool ValidateHccsMemoryCombination(const BenchmarkConfig *cfg) {
   if (im == "device" && tm == "device") {
     return true;
   }
-  if (cfg->transfer_op == "mix") {
+  if (cfg->op == "mix") {
     fprintf(stderr,
-            "[ERROR] HCCS transport does not support transfer_op=mix unless initiator_memory=device and "
+            "[ERROR] HCCS transport does not support op=mix unless initiator_memory=device and "
             "target_memory=device\n");
     return false;
   }
   if (im == "host" && tm == "device") {
-    if (kind == BenchSocKind::kA3 && (cfg->transfer_op == "read" || cfg->transfer_op == "write")) {
+    if (kind == BenchSocKind::kA3 && (cfg->op == "read" || cfg->op == "write")) {
       return true;
     }
     fprintf(stderr,
             "[ERROR] HCCS host→device directions (H2rD/rD2H) require Ascend910-class SOC "
-            "(override mis-detection with --soc_variant=a3); "
-            "got initiator_memory=%s target_memory=%s transfer_op=%s\n",
-            im.c_str(), tm.c_str(), cfg->transfer_op.c_str());
+            "got initiator_memory=%s target_memory=%s op=%s\n",
+            im.c_str(), tm.c_str(), cfg->op.c_str());
     return false;
   }
   fprintf(stderr,
@@ -1037,33 +1048,33 @@ bool ValidateHccsMemoryCombination(const BenchmarkConfig *cfg) {
 }
 
 bool ValidateBufferSize(const BenchmarkConfig *cfg) {
-  if (cfg->buffer_size < cfg->total_size) {
-    fprintf(stderr, "[ERROR] buffer_size (%" PRIu64 ") must be >= total_size (%" PRIu64 ")\n", cfg->buffer_size,
-            cfg->total_size);
+  if (cfg->buffer_size < cfg->transfer_size) {
+    fprintf(stderr, "[ERROR] buffer_size (%" PRIu64 ") must be >= transfer_size (%" PRIu64 ")\n", cfg->buffer_size,
+            cfg->transfer_size);
     return false;
   }
   return true;
 }
 
-bool ValidateBlockSteps(const BenchmarkConfig *cfg) {
-  for (uint32_t i = 0; i < cfg->block_steps; ++i) {
-    if (cfg->block_size > (UINT64_MAX >> i)) {
-      fprintf(stderr, "[ERROR] block_size<<%u overflows\n", i);
-      return false;
-    }
-    const uint64_t block = cfg->block_size << i;
-    if (block == 0) {
+bool ValidateBlockSizes(const BenchmarkConfig *cfg) {
+  if (cfg->block_sizes.empty()) {
+    fprintf(stderr, "[ERROR] block_sizes is empty\n");
+    return false;
+  }
+  for (size_t i = 0; i < cfg->block_sizes.size(); ++i) {
+    const uint64_t block = cfg->block_sizes[i];
+    if (block == 0U) {
       fprintf(stderr, "[ERROR] computed block size is 0\n");
       return false;
     }
-    if (block > cfg->total_size) {
-      fprintf(stderr, "[ERROR] block size (%" PRIu64 ") at step %u must be <= total_size (%" PRIu64 ")\n", block, i,
-              cfg->total_size);
+    if (block > cfg->transfer_size) {
+      fprintf(stderr, "[ERROR] block size (%" PRIu64 ") at step %zu must be <= transfer_size (%" PRIu64 ")\n", block, i,
+              cfg->transfer_size);
       return false;
     }
-    if (cfg->total_size % block != 0) {
-      fprintf(stderr, "[ERROR] total_size (%" PRIu64 ") must be divisible by block size (%" PRIu64 ") at step %u\n",
-              cfg->total_size, block, i);
+    if (cfg->transfer_size % block != 0) {
+      fprintf(stderr, "[ERROR] transfer_size (%" PRIu64 ") must be divisible by block size (%" PRIu64 ") at step %zu\n",
+              cfg->transfer_size, block, i);
       return false;
     }
   }
@@ -1074,22 +1085,22 @@ bool ValidateAsyncConfig(const BenchmarkConfig *cfg) {
   if (!cfg->use_async) {
     return true;
   }
-  if (cfg->total_size % cfg->async_batch_num != 0) {
+  if (cfg->transfer_size % cfg->async_batch_num != 0) {
     fprintf(stderr,
-            "[ERROR] total_size (%" PRIu64 ") must be divisible by async_batch_num (%" PRIu32
+            "[ERROR] transfer_size (%" PRIu64 ") must be divisible by async_batch_num (%" PRIu32
             ") "
             "when use_async=true\n",
-            cfg->total_size, cfg->async_batch_num);
+            cfg->transfer_size, cfg->async_batch_num);
     return false;
   }
-  const uint64_t per_req_size = cfg->total_size / cfg->async_batch_num;
-  for (uint32_t i = 0; i < cfg->block_steps; ++i) {
-    const uint64_t block = cfg->block_size << i;
+  const uint64_t per_req_size = cfg->transfer_size / cfg->async_batch_num;
+  for (size_t i = 0; i < cfg->block_sizes.size(); ++i) {
+    const uint64_t block = cfg->block_sizes[i];
     if (per_req_size % block != 0) {
       fprintf(stderr,
               "[ERROR] per-request size (%" PRIu64 ") must be divisible by block size (%" PRIu64
               ") "
-              "at step %u when use_async=true\n",
+              "at step %zu when use_async=true\n",
               per_req_size, block, i);
       return false;
     }
@@ -1105,29 +1116,58 @@ bool ValidateBenchmarkTopology(BenchmarkConfig *cfg) {
   const size_t nl = cfg->local_engine_list.size();
   const size_t nr = cfg->remote_engine_list.size();
   const size_t n_max = std::max(nd, std::max(nl, nr));
-  if (cfg->tcp_port_list.empty()) {
-    cfg->tcp_port_list.push_back(cfg->tcp_port);
-  }
-  const size_t nt = cfg->tcp_port_list.size();
-  if (!ValidateListLengths(nd, nl, nr, nt, n_max)) {
+  if (!ValidateListLengths(nd, nl, nr, n_max)) {
     return false;
   }
   if (!ValidateMultiDeviceRequirement(n_max, nl, nr)) {
     return false;
   }
-  // Validate roce_ip_list length before expanding (same rule as tcp_port).
-  if (cfg->roce_ip_list.size() > 1U && cfg->roce_ip_list.size() != n_max) {
+  if (cfg->host_roce_ip_list.size() > 1U && cfg->host_roce_ip_list.size() != n_max) {
     fprintf(stderr,
-            "[ERROR] --roce_ip comma-list length (%zu) must be 1 or %zu (same rule as multi local_engine / "
+            "[ERROR] --host_roce_ip comma-list length (%zu) must be 1 or %zu (same rule as multi local_engine / "
             "remote_engine)\n",
-            cfg->roce_ip_list.size(), n_max);
+            cfg->host_roce_ip_list.size(), n_max);
     return false;
   }
-  ExpandConfigLists(cfg, n_max, nd, nl, nr, nt);
+  ExpandConfigLists(cfg, n_max, nd, nl, nr);
   if (cfg->role == BenchmarkRole::kClient && !ValidateClientRemoteEngines(cfg)) {
     return false;
   }
   if (cfg->role == BenchmarkRole::kServer && !ValidateServerConfig(cfg, n_max)) {
+    return false;
+  }
+  return true;
+}
+
+bool ValidateRoleRequiredOptions(const BenchmarkConfig *cfg) {
+  if (!cfg->memory_explicit) {
+    fprintf(stderr, "[ERROR] --memory=host|device is required\n");
+    return false;
+  }
+  if (cfg->role == BenchmarkRole::kServer) {
+    if (cfg->remote_memory_explicit || cfg->op_explicit) {
+      fprintf(stderr, "[ERROR] target role only accepts --memory; --remote_memory/--op are initiator-only\n");
+      return false;
+    }
+    return true;
+  }
+  if (!cfg->remote_memory_explicit || !cfg->op_explicit) {
+    fprintf(stderr, "[ERROR] initiator requires --memory, --remote_memory and --op\n");
+    return false;
+  }
+  return true;
+}
+
+bool ValidateRoceConfig(BenchmarkConfig *cfg) {
+  const BenchSocKind soc_kind = ResolveSocKindForHccs(cfg);
+  cfg->roce_endpoint_placement = (soc_kind == BenchSocKind::kA5) ? "host" : "device";
+  if (soc_kind == BenchSocKind::kA5) {
+    if (cfg->hixl_init_options.find("LocalCommRes") == cfg->hixl_init_options.cend() && cfg->host_roce_ip.empty()) {
+      fprintf(stderr, "[ERROR] transport=roce on A5 requires --host_roce_ip=<ROCE_NIC_IP> or -H LocalCommRes=...\n");
+      return false;
+    }
+  } else if (soc_kind != BenchSocKind::kA3 && soc_kind != BenchSocKind::kA2) {
+    fprintf(stderr, "[ERROR] transport=roce is only supported on A2, A3 and A5 platforms\n");
     return false;
   }
   return true;
@@ -1148,7 +1188,7 @@ bool ValidateBenchmarkWorkload(BenchmarkConfig *cfg) {
         break;
     }
   }
-  if (!ValidateTransferOp(cfg->transfer_op)) {
+  if (!ValidateRoleRequiredOptions(cfg) || !ValidateTransferOp(cfg->op)) {
     return false;
   }
   if (!ValidateTransport(cfg->transport) || !ValidateMemoryTypeValue(cfg->initiator_memory_type) ||
@@ -1158,23 +1198,13 @@ bool ValidateBenchmarkWorkload(BenchmarkConfig *cfg) {
   if (!ValidateHccsMemoryCombination(cfg)) {
     return false;
   }
-  if (cfg->transport == "roce") {
-    const BenchSocKind soc_kind = ResolveSocKindForHccs(cfg);
-    cfg->roce_endpoint_placement = (soc_kind == BenchSocKind::kA5) ? "host" : "device";
-    if (soc_kind == BenchSocKind::kA5) {
-      if (cfg->hixl_init_options.find("LocalCommRes") == cfg->hixl_init_options.cend() && cfg->roce_ip.empty()) {
-        fprintf(stderr, "[ERROR] transport=roce on A5 requires --roce_ip=<ROCE_NIC_IP> or -H LocalCommRes=...\n");
-        return false;
-      }
-    } else if (soc_kind != BenchSocKind::kA3 && soc_kind != BenchSocKind::kA2) {
-      fprintf(stderr, "[ERROR] transport=roce is only supported on A2, A3 and A5 platforms\n");
-      return false;
-    }
+  if (cfg->transport == "roce" && !ValidateRoceConfig(cfg)) {
+    return false;
   }
   if (!ValidateBufferSize(cfg)) {
     return false;
   }
-  if (!ValidateBlockSteps(cfg)) {
+  if (!ValidateBlockSizes(cfg)) {
     return false;
   }
   if (!ValidateAsyncConfig(cfg)) {
@@ -1191,19 +1221,26 @@ bool BenchmarkConfigParser::Validate(BenchmarkConfig *cfg) {
 
 void BenchmarkConfigParser::LogExpandedEndpoints(FILE *out, const BenchmarkConfig &cfg) {
   const size_t n = cfg.expanded_device_ids.size();
-  fprintf(out, "[INFO] endpoint_pairs=%zu\n", n);
   for (size_t i = 0; i < n; ++i) {
-    const unsigned tcp_p = (i < cfg.expanded_tcp_ports.size()) ? static_cast<unsigned>(cfg.expanded_tcp_ports[i]) : 0U;
-    const char *roce_ip_str = (i < cfg.expanded_roce_ips.size()) ? cfg.expanded_roce_ips[i].c_str() : "";
+    const char *roce_ip_str = (i < cfg.expanded_host_roce_ips.size()) ? cfg.expanded_host_roce_ips[i].c_str() : "";
+    std::string peer_host;
+    uint16_t peer_engine_port = 0;
+    const std::string &peer_engine =
+        (cfg.role == BenchmarkRole::kServer) ? cfg.expanded_local_engines[i] : cfg.expanded_remote_engines[i];
+    const bool has_peer_coord_port = ExtractEndpointHostAndPort(peer_engine, peer_host, peer_engine_port);
     if (cfg.transport == "roce" && roce_ip_str[0] != '\0') {
-      fprintf(out, "[INFO]   [%zu] device_id=%d local_engine=%s remote_engine=%s tcp_coord_port=%u roce_ip=%s\n", i,
+      fprintf(out, "[INFO]   [%zu] device_id=%d local_engine=%s remote_engine=%s host_roce_ip=%s", i,
               static_cast<int>(cfg.expanded_device_ids[i]), cfg.expanded_local_engines[i].c_str(),
-              cfg.expanded_remote_engines[i].c_str(), tcp_p, roce_ip_str);
+              cfg.expanded_remote_engines[i].c_str(), roce_ip_str);
     } else {
-      fprintf(out, "[INFO]   [%zu] device_id=%d local_engine=%s remote_engine=%s tcp_coord_port=%u\n", i,
+      fprintf(out, "[INFO]   [%zu] device_id=%d local_engine=%s remote_engine=%s", i,
               static_cast<int>(cfg.expanded_device_ids[i]), cfg.expanded_local_engines[i].c_str(),
-              cfg.expanded_remote_engines[i].c_str(), tcp_p);
+              cfg.expanded_remote_engines[i].c_str());
     }
+    if (has_peer_coord_port) {
+      fprintf(out, " peer_coord_port=%u", static_cast<unsigned>(DerivePeerCoordPort(peer_engine_port)));
+    }
+    fprintf(out, "\n");
   }
 }
 

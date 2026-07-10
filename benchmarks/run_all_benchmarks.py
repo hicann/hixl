@@ -51,16 +51,7 @@ OP_TYPES = ['write', 'read']
 TRANSPORTS_A2 = ['hccs', 'roce']
 TRANSPORTS_A3 = ['hccs', 'roce', 'fabric_mem']
 TRANSPORTS_A5 = ['roce', 'fabric_mem', 'uboe', 'ubg', 'ub']
-BLOCK_SIZES = [
-    16 * 1024,
-    32 * 1024,
-    64 * 1024,
-    128 * 1024,
-    256 * 1024,
-    512 * 1024,
-    1 * 1024 * 1024,
-    2 * 1024 * 1024,
-]
+BLOCK_SIZES = '16K:2M'
 KV_MODELS = ['deepseek-r1', 'glm5', 'deepseek-v4']
 
 
@@ -75,7 +66,6 @@ class CommRunSpec:
     loops: int
     output_dir: Path
     hixl_port: int
-    tcp_port: int
     device_id: int
     platform_id: str
     target_host: str = '127.0.0.1'
@@ -92,7 +82,6 @@ class CommComboSpec:
     loops: int
     output_dir: Path
     hixl_port: int
-    tcp_port: int
     device_id0: int
     device_id1: int
     platform_id: str
@@ -120,20 +109,18 @@ def find_binary(name: str, *rel_paths: str) -> str:
 
 def _make_cmd(spec: CommRunSpec) -> list[str]:
     """Build command line for target or initiator."""
-    start_bs = BLOCK_SIZES[0]
-    max_bs = BLOCK_SIZES[-1]
-    base_args = [
+    target_args = [
         f'--transport={spec.transport}',
-        f'--initiator_memory={spec.initiator_mem}',
-        f'--target_memory={spec.target_mem}',
-        f'--op_type={spec.op_type}',
-        f'--start_block_size={start_bs}',
-        f'--max_block_size={max_bs}',
-        '--start_threads=1',
-        '--max_threads=1',
+        f'--memory={spec.target_mem}',
+    ]
+    initiator_args = [
+        f'--transport={spec.transport}',
+        f'--memory={spec.initiator_mem}',
+        f'--block_sizes={BLOCK_SIZES}',
         f'--loops={spec.loops}',
         f'--output_dir={spec.output_dir}',
-        f'--soc_variant={spec.platform_id}',
+        f'--remote_memory={spec.target_mem}',
+        f'--op={spec.op_type}',
     ]
     opt_args: list[str] = []
     if spec.hixl_init_options:
@@ -145,8 +132,8 @@ def _make_cmd(spec: CommRunSpec) -> list[str]:
             '--role=target',
             f'--device_id={spec.device_id}',
             f'--local_engine={spec.target_host}:{spec.hixl_port}',
-            f'--tcp_port={spec.tcp_port}',
-            *base_args,
+            '--peer_count=1',
+            *target_args,
             *opt_args,
         ]
     remote = spec.target_host if spec.target_host else '127.0.0.1'
@@ -156,8 +143,7 @@ def _make_cmd(spec: CommRunSpec) -> list[str]:
         f'--device_id={spec.device_id}',
         f'--local_engine=127.0.0.1:{spec.hixl_port + 1}',
         f'--remote_engine={remote}:{spec.hixl_port}',
-        f'--tcp_port={spec.tcp_port}',
-        *base_args,
+        *initiator_args,
         *opt_args,
     ]
 
@@ -187,7 +173,6 @@ def run_combo(spec: CommComboSpec) -> bool:
         loops=spec.loops,
         output_dir=spec.output_dir,
         hixl_port=spec.hixl_port,
-        tcp_port=spec.tcp_port,
         platform_id=spec.platform_id,
         target_host=spec.target_host,
         hixl_init_options=spec.hixl_init_options,
@@ -302,7 +287,6 @@ def parse_all_benchmark_args() -> argparse.Namespace:
         help='Skip npu-smi detection and use this platform.',
     )
     parser.add_argument('--base_hixl_port', type=int, default=17000)
-    parser.add_argument('--base_tcp_port', type=int, default=21000)
     parser.add_argument(
         '--target_host',
         type=str,
@@ -357,7 +341,6 @@ def _run_one_comm_combo(args, platform_id: str, devs: list[int], comm_bin: str, 
             args.loops,
             comm_output,
             args.base_hixl_port + port_offset * 2,
-            args.base_tcp_port + port_offset,
             devs[0],
             devs[1],
             platform_id,

@@ -66,7 +66,7 @@ for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
 
 ### 约束说明
 
-- **HCCS**：在 **A2（Ascend910B-class）** 上仅 **D2D**（`--type=D2rD` / `rD2D`）；在 **A3（Ascend910-class）** 上还支持 **H2rD** / **rD2H**。
+- **HCCS**：在 **A2（Ascend910B-class）** 上仅 **D2D**（`--direction=D2rD` / `rD2D`）；在 **A3（Ascend910-class）** 上还支持 **H2rD** / **rD2H**。
 
 ## 快速开始
 
@@ -152,25 +152,25 @@ bash benchmarks/run_all_bench.sh --hixl-option 'LocalCommRes={"version":"1.3"}'
 
 ```bash
 # 快速测试一个方向
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py --type=D2rD --transport=hccs
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py --direction=D2rD --transport=hccs
 
-# 指定设备和端口
+# 指定设备和 block size 范围
 python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --type=D2rH --transport=rdma --device_ids=0,1
+  --direction=D2rH --transport=roce --device_ids=0,1 --block_sizes=16K:2M
 
 # 一对多模式
 python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
   --pattern=one_to_many --device_ids=0,1,2,3,4 \
-  --type=D2rD --transport=hccs
+  --direction=D2rD --transport=hccs
 
 # 多对一模式
 python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
   --pattern=many_to_one --device_ids=0,1,2,3,4 \
-  --type=D2rD --transport=hccs
+  --direction=D2rD --transport=hccs
 
 # 传入 HIXL Initialize 选项（与 hixl_comm_bench 的 -H=KEY=VALUE 相同，可多次 -H）
 python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --type=D2rD --transport=hccs \
+  --direction=D2rD --transport=hccs \
   -H 'LocalCommRes={"version":"1.3"}'
 ```
 
@@ -180,7 +180,7 @@ python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
 
 ```bash
 python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --role=target --transport=rdma
+  --role=target --transport=roce
 # initiator：复制 target 打印的命令
 ```
 
@@ -188,7 +188,7 @@ python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
 
 ```bash
 python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --role=target --transport=rdma --pattern=one_to_many --device_ids=0,1,2
+  --role=target --transport=roce --pattern=one_to_many --device_ids=0,1,2
 # initiator：复制 target 打印的命令
 ```
 
@@ -196,32 +196,59 @@ python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
 
 ```bash
 python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --role=target --transport=rdma --pattern=many_to_one --num_initiators=3
+  --role=target --transport=roce --pattern=many_to_one --num_initiators=3
 # initiator：复制 target 打印的命令
+```
+
+### 直接运行 `hixl_comm_bench`
+
+target 进程先启动，peer TCP 协调端口由 `local_engine` 端口自动派生（+10000 或 -10000）：
+
+```bash
+build/benchmarks/comm_benchmark/hixl_comm_bench \
+  --role=target --device_id=1 \
+  --local_engine=127.0.0.1:16001 \
+  --memory=device --peer_count=1 --peer_wait_s=30 \
+  --transport=hccs
+```
+
+initiator 使用 `remote_engine` 里的端口连接 target，并显式声明本地/远端内存类型和操作：
+
+```bash
+build/benchmarks/comm_benchmark/hixl_comm_bench \
+  --role=initiator --device_id=0 \
+  --local_engine=127.0.0.1:16000 \
+  --remote_engine=127.0.0.1:16001 \
+  --memory=device --remote_memory=device --op=read \
+  --transport=hccs --transfer_size=128M --block_sizes=16K:2M
 ```
 
 ### 关键参数
 
 | 参数 | 说明                                                                                  | 可选值 | 默认值          |
 |---|-------------------------------------------------------------------------------------|---|--------------|
-| `--type` | 传输方向                                                                                | `D2rD`, `rD2D`, `D2rH`, `rH2D`, `H2rH`, `rH2H`, `H2rD`, `rD2H` | `D2rD`       |
-| `--transport` | 传输路径                                                                                | `hccs` / `rdma` / `fabric_mem` / `uboe` / `ubg` / `ub` | `hccs`       |
+| `--direction` | 传输方向                                                                                | `D2rD`, `rD2D`, `D2rH`, `rH2D`, `H2rH`, `rH2H`, `H2rD`, `rD2H`, `all` | `D2rD`       |
+| `--transport` | 传输路径                                                                                | `hccs` / `roce` / `fabric_mem` / `uboe` / `ubg` / `ub` / `all` | `hccs`       |
 | `--pattern` | 通信拓扑                                                                                | `pairwise` / `one_to_many` / `many_to_one` | `pairwise`   |
-| `--start_block_size` | 起始 block 大小（字节）                                                                     | 整数 | 16384 (16K)  |
-| `--max_block_size` | 最大 block 大小，2 倍递增                                                                   | 整数 | 2097152 (2M) |
+| `--block_sizes` | block size 列表或 2 倍递增范围，支持单位                                                       | `16K:2M`, `4K,64K,1M` | `16K:2M` |
+| `--transfer_size` | 每个 block-size 档位的总传输量，支持单位                                                       | `128M`, `1G` | 由 `hixl_comm_bench` 默认 |
+| `--buffer_size` | 本地/远端分配并注册的 buffer 大小，支持单位，需大于等于 `transfer_size`                         | `1G`, `512M` | 由 `hixl_comm_bench` 默认 |
 | `--loops` | 重复运行的次数                                                                             | 正整数 | 5            |
 | `--device_ids` | 使用的设备 ID 列表                                                                         | 逗号分隔 | `0,1`        |
+| `--host_roce_ip` | A5 RoCE host NIC IP，传给 HIXL `LocalCommRes` 数据面 endpoint                         | IP，逗号分隔 | （无） |
+| `--peer_wait_s` | target 等待 initiator peer 连接的最大秒数                                                 | 正整数 | 单次 30，多轮 300 |
+| `--connect_timeout_ms` | initiator 连接 target TCP/HIXL 的超时时间                                           | 正整数 | 60000 |
 | `--plot` | 为本次运行新增或更新的 CSV 生成 PNG 图                                                            | 开关 | 开启           |
 | `--skip_plot` | 跳过 PNG 图生成                                                                          | 开关 | 关闭           |
-| `--soc_variant` | 传给 `hixl_comm_bench` 的SOC：`auto`／`a2`／`a3`／`a5` | `auto`、`a2`、`a3`、`a5` | 默认自动推断 |
 | `-H` / `--hixl_option` | 传给 `hixl_comm_bench` 的初始化选项                                                         | `KEY=VALUE`，可重复 | （无）          |
 
 ### 支持情况
 
-| 平台 | HCCS                   | ROCE (RDMA) | FabricMem |
+| 平台 | HCCS                   | RoCE | FabricMem |
 |---|------------------------|---|-----------|
 | **A2** | D2rD, rD2D             | 全部 8 个方向 | 不支持       |
 | **A3** | D2rD, rD2D, H2rD, rD2H | 全部 8 个方向 | 全部 8 个方向  |
+| **A5** | 不支持                    | 全部 8 个方向 | 全部 8 个方向  |
 
 ---
 

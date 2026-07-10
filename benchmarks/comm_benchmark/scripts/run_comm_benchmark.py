@@ -12,14 +12,14 @@
 """Launch HIXL communication benchmark processes.
 
 Examples (single machine — default):
-  python3 run_comm_benchmark.py --type=D2rD --transport=hccs
+  python3 run_comm_benchmark.py --direction=D2rD --transport=hccs
   python3 run_comm_benchmark.py --transport=roce --device_ids=0,1   # all roce directions
-  python3 run_comm_benchmark.py --type=D2rH --transport=roce --device_ids=0,1
-  python3 run_comm_benchmark.py --pattern=one_to_many --device_ids=0,1,2,3,4 --type=D2rD
-  python3 run_comm_benchmark.py --pattern=many_to_one --device_ids=0,1,2,3,4 --type=D2rD
-  python3 run_comm_benchmark.py --pattern=pairwise --device_ids=0,1,2,3 --type=D2rD
-  python3 run_comm_benchmark.py --type=D2rD -H 'LocalCommRes={"version":"1.3"}'
-  python3 run_comm_benchmark.py --type=D2rD --transport=hccs --skip_plot
+  python3 run_comm_benchmark.py --direction=D2rH --transport=roce --device_ids=0,1
+  python3 run_comm_benchmark.py --pattern=one_to_many --device_ids=0,1,2,3,4 --direction=D2rD
+  python3 run_comm_benchmark.py --pattern=many_to_one --device_ids=0,1,2,3,4 --direction=D2rD
+  python3 run_comm_benchmark.py --pattern=pairwise --device_ids=0,1,2,3 --direction=D2rD
+  python3 run_comm_benchmark.py --direction=D2rD -H 'LocalCommRes={"version":"1.3"}'
+  python3 run_comm_benchmark.py --direction=D2rD --transport=hccs --skip_plot
 
 Examples (dual machine):
   # 1:1 (default): runs all transports × directions
@@ -68,8 +68,7 @@ ALL_TYPES = list(TYPE_MAP.keys())
 TRANSPORTS_A2 = ['hccs', 'roce']
 TRANSPORTS_A3 = ['hccs', 'roce', 'fabric_mem']
 TRANSPORTS_A5 = ['roce', 'fabric_mem', 'uboe', 'ubg', 'ub']
-DEFAULT_START_BLOCK = 16384
-DEFAULT_MAX_BLOCK = 2097152
+DEFAULT_BLOCK_SIZES = '16K:2M'
 BLOCK_SORT_ORDER = ['16K', '32K', '64K', '128K', '256K', '512K', '1M', '2M', '4M', '8M']
 DEFAULT_TCP_ACCEPT_WAIT_SINGLE = 30
 DEFAULT_TCP_ACCEPT_WAIT_ALL = 300
@@ -89,16 +88,6 @@ def detect_platform_noninteractive():
         return detect_platform_from_npu_smi()
     except Exception:
         return None
-
-
-def bench_soc_variant_for_bin(args) -> str:
-    """Value forwarded as --soc_variant to hixl_comm_bench."""
-    if args.soc_variant is not None:
-        return args.soc_variant
-    detected = detect_platform_noninteractive()
-    if detected is not None:
-        return detected
-    return 'auto'
 
 
 def effective_soc_for_hccs_gate(args) -> str | None:
@@ -219,7 +208,7 @@ def is_all_transports_mode(args) -> bool:
 
 
 def resolve_bench_types(args, gate_soc: str | None, transport: str | None = None) -> list[str]:
-    """Resolve --type into an ordered list of direction names to run."""
+    """Resolve --direction into an ordered list of direction names to run."""
     active_transport = transport if transport is not None else args.transport
     if is_all_directions_mode(args):
         return supported_types_for_transport(active_transport, gate_soc)
@@ -257,7 +246,6 @@ class PeerLauncherSpec:
     args: argparse.Namespace
     local_ip: str
     base_hixl_port: int
-    base_tcp_port: int
     device_ids: str
     pattern: str
     transport_flag: str | None
@@ -271,7 +259,7 @@ class TargetCommandSpec:
     args: argparse.Namespace
     bench_type: str
     lane: dict
-    tcp_accept_wait_s: int
+    peer_wait_s: int
 
 
 @dataclass
@@ -291,8 +279,7 @@ class DualTargetContext:
     topology: DualTopology
     local_ip: str
     base_hixl_port: int
-    base_tcp_port: int
-    tcp_accept_wait_s: int
+    peer_wait_s: int
 
 
 @dataclass
@@ -301,7 +288,6 @@ class DualInitiatorContext:
     bench_bin: str
     topology: DualTopology
     base_hixl_port: int
-    base_tcp_port: int
 
 
 @dataclass
@@ -311,7 +297,6 @@ class SingleTargetCommandSpec:
     bench_type: str
     device_id: int
     target: str
-    tcp_port: int
     lane_index: int = 0
 
 
@@ -323,7 +308,6 @@ class SingleInitiatorCommandSpec:
     device_id: int
     local_port: int
     remotes: str
-    ports: str
     lane_index: int = 0
 
 
@@ -523,7 +507,6 @@ def _add_topology_args(parser) -> None:
         help='Target host IP. Required when --role=initiator in dual-machine mode.',
     )
     parser.add_argument('--base_hixl_port', type=int, default=16000)
-    parser.add_argument('--base_tcp_port', type=int, default=20000)
     parser.add_argument(
         '--device_ids',
         default=None,
@@ -533,7 +516,8 @@ def _add_topology_args(parser) -> None:
 
 def _add_transfer_args(parser) -> None:
     parser.add_argument(
-        '--type',
+        '--direction',
+        dest='type',
         choices=[*ALL_TYPES, 'all'],
         default=None,
         help='Transfer direction. Dual-machine default: all supported directions for --transport.',
@@ -545,48 +529,30 @@ def _add_transfer_args(parser) -> None:
         help='Transport path. Dual-machine default: all platform-supported transports.',
     )
     parser.add_argument(
-        '--soc_variant',
-        choices=['auto', 'a2', 'a3', 'a5'],
-        default=None,
-        help='SOC class forwarded to hixl_comm_bench. Default: npu-smi hint or ACL probe.',
-    )
-    parser.add_argument(
-        '--roce_ip',
+        '--host_roce_ip',
         type=str,
         default=None,
-        help='RoCE NIC IP address for LocalCommRes endpoint (data plane; required for transport=roce unless -H '
-        'LocalCommRes is used). Note: this is separate from host IP (--target-host) used for TCP coordination '
-        '(control plane).',
+        help='Host RoCE NIC IP address for LocalCommRes endpoint (data plane; required for transport=roce unless -H '
+        'LocalCommRes is used). Note: this is separate from the HIXL/control-plane host IP (--target-host).',
     )
 
 
 def _add_size_args(parser) -> None:
     parser.add_argument(
-        '--start_block_size',
-        type=int,
-        default=DEFAULT_START_BLOCK,
-        help=f'First block size in bytes (default {DEFAULT_START_BLOCK})',
+        '--block_sizes',
+        default=DEFAULT_BLOCK_SIZES,
+        help='Block size list/range forwarded to hixl_comm_bench, e.g. 16K:2M or 4K,64K,1M.',
     )
     parser.add_argument(
-        '--max_block_size',
-        type=int,
-        default=DEFAULT_MAX_BLOCK,
-        help=f'Max block size in bytes, doubles each step (default {DEFAULT_MAX_BLOCK})',
-    )
-    parser.add_argument(
-        '--total_size',
-        type=int,
+        '--transfer_size',
         default=None,
-        help='Bytes transferred per block-size step (default from hixl_comm_bench)',
+        help='Bytes transferred per block-size step, supports units such as 128M.',
     )
     parser.add_argument(
         '--buffer_size',
-        type=int,
         default=None,
-        help='Allocation/register size in bytes (default from hixl_comm_bench)',
+        help='Allocation/register size, supports units such as 1G (default from hixl_comm_bench)',
     )
-    parser.add_argument('--batch_size', type=int, default=1)
-    parser.add_argument('--threads', type=int, default=1)
     parser.add_argument(
         '--loops',
         type=int,
@@ -632,10 +598,10 @@ def _add_runtime_args(parser) -> None:
         help='Forwarded to hixl_comm_bench as -H=KEY=VALUE (repeatable).',
     )
     parser.add_argument(
-        '--tcp_accept_wait_s',
+        '--peer_wait_s',
         type=int,
         default=None,
-        help='Target TCP accept timeout per direction.',
+        help='Target peer connect timeout per direction.',
     )
     parser.add_argument(
         '--inter_run_delay_s',
@@ -644,7 +610,7 @@ def _add_runtime_args(parser) -> None:
         help=f'Seconds to wait between dual-machine runs (default {DEFAULT_INTER_RUN_DELAY_SEC}).',
     )
     parser.add_argument(
-        '--connect_timeout',
+        '--connect_timeout_ms',
         type=int,
         default=DEFAULT_CONNECT_TIMEOUT_MS,
         help='Initiator TCP/HIXL connect timeout in ms.',
@@ -658,7 +624,9 @@ def parse_args():
     _add_size_args(parser)
     _add_report_args(parser)
     _add_runtime_args(parser)
-    return parser.parse_args()
+    args = parser.parse_args()
+    args.soc_variant = None
+    return args
 
 
 def hixl_init_extra_args(args) -> list[str]:
@@ -681,10 +649,10 @@ def benchmark_group_for_run(args) -> str:
     return 'single'
 
 
-def _get_roce_ip_for_lane(roce_ip: str | None, lane_index: int) -> str | None:
-    if not roce_ip:
+def _get_host_roce_ip_for_lane(host_roce_ip: str | None, lane_index: int) -> str | None:
+    if not host_roce_ip:
         return None
-    ips = [ip.strip() for ip in roce_ip.split(',') if ip.strip()]
+    ips = [ip.strip() for ip in host_roce_ip.split(',') if ip.strip()]
     if not ips:
         return None
     if lane_index < len(ips):
@@ -692,38 +660,44 @@ def _get_roce_ip_for_lane(roce_ip: str | None, lane_index: int) -> str | None:
     return ips[0] if len(ips) == 1 else None
 
 
-def base_options(args, bench_type: str, lane_index: int = 0):
-    (im, tm, op) = TYPE_MAP[bench_type]
+def _common_role_options(args, memory: str, lane_index: int = 0) -> list[str]:
     options = [
-        f'--benchmark_group={benchmark_group_for_run(args)}',
-        f'--output_dir={args.output_dir}',
-        f'--soc_variant={bench_soc_variant_for_bin(args)}',
-        f'--initiator_memory={im}',
-        f'--target_memory={tm}',
-        f'--op_type={op}',
-        f'--start_block_size={args.start_block_size}',
-        f'--max_block_size={args.max_block_size}',
-        f'--start_batch_size={args.batch_size}',
-        f'--max_batch_size={args.batch_size}',
-        f'--start_threads={args.threads}',
-        f'--max_threads={args.threads}',
-        f'--loops={args.loops}',
+        f'--group={benchmark_group_for_run(args)}',
+        f'--memory={memory}',
         f'--transport={args.transport}',
-        f'--connect_timeout={args.connect_timeout}',
     ]
-    if args.total_size is not None:
-        options.append(f'--total_size={args.total_size}')
     if args.buffer_size is not None:
         options.append(f'--buffer_size={args.buffer_size}')
-    lane_roce_ip = _get_roce_ip_for_lane(args.roce_ip, lane_index)
+    lane_roce_ip = _get_host_roce_ip_for_lane(args.host_roce_ip, lane_index)
     if lane_roce_ip:
-        options.append(f'--roce_ip={lane_roce_ip}')
+        options.append(f'--host_roce_ip={lane_roce_ip}')
     return options
 
 
-def tcp_accept_wait_for_run(args, run_count: int) -> int:
-    if args.tcp_accept_wait_s is not None:
-        return args.tcp_accept_wait_s
+def target_options(args, bench_type: str, lane_index: int = 0) -> list[str]:
+    (_, target_memory, _) = TYPE_MAP[bench_type]
+    return _common_role_options(args, target_memory, lane_index)
+
+
+def initiator_options(args, bench_type: str, lane_index: int = 0) -> list[str]:
+    (im, tm, op) = TYPE_MAP[bench_type]
+    options = [
+        *_common_role_options(args, im, lane_index),
+        f'--output_dir={args.output_dir}',
+        f'--block_sizes={args.block_sizes}',
+        f'--loops={args.loops}',
+        f'--connect_timeout_ms={args.connect_timeout_ms}',
+        f'--remote_memory={tm}',
+        f'--op={op}',
+    ]
+    if args.transfer_size is not None:
+        options.append(f'--transfer_size={args.transfer_size}')
+    return options
+
+
+def peer_wait_for_run(args, run_count: int) -> int:
+    if args.peer_wait_s is not None:
+        return args.peer_wait_s
     if run_count > 1:
         return DEFAULT_TCP_ACCEPT_WAIT_ALL
     return DEFAULT_TCP_ACCEPT_WAIT_SINGLE
@@ -738,10 +712,9 @@ def build_target_cmd(spec: TargetCommandSpec) -> list[str]:
         '--role=target',
         f"--device_id={lane['device_id']}",
         f"--local_engine={endpoint(lane['local_ip'], lane['hixl_port'])}",
-        f"--tcp_port={lane['tcp_port']}",
-        f"--tcp_client_count={lane['tcp_client_count']}",
-        f'--tcp_accept_wait_s={spec.tcp_accept_wait_s}',
-        *base_options(args, spec.bench_type, lane_index),
+        f"--peer_count={lane['peer_count']}",
+        f'--peer_wait_s={spec.peer_wait_s}',
+        *target_options(args, spec.bench_type, lane_index),
         *hixl_init_extra_args(args),
     ]
 
@@ -759,8 +732,7 @@ def build_initiator_cmd(spec: InitiatorCommandSpec) -> list[str]:
         f"--device_id={lane['device_id']}",
         f'--local_engine={endpoint(local_ip, local_port)}',
         f'--remote_engine={remote}',
-        f"--tcp_port={lane['tcp_port']}",
-        *base_options(args, spec.bench_type, lane_index),
+        *initiator_options(args, spec.bench_type, lane_index),
         *hixl_init_extra_args(args),
     ]
 
@@ -773,34 +745,29 @@ def _peer_launcher_common_args(spec: PeerLauncherSpec) -> list[str]:
     cmd = [
         'python3',
         initiator_script,
-        f'--type={type_flag}',
+        f'--direction={type_flag}',
         f'--transport={transport}',
         f'--pattern={spec.pattern}',
         '--role=initiator',
         f'--target-host={spec.local_ip}',
         f'--base_hixl_port={spec.base_hixl_port}',
-        f'--base_tcp_port={spec.base_tcp_port}',
         f'--device_ids={spec.device_ids}',
-        f'--start_block_size={args.start_block_size}',
-        f'--max_block_size={args.max_block_size}',
-        f'--batch_size={args.batch_size}',
-        f'--threads={args.threads}',
+        f'--block_sizes={args.block_sizes}',
         f'--loops={args.loops}',
         f'--output_dir={args.output_dir}',
-        f'--soc_variant={bench_soc_variant_for_bin(args)}',
     ]
     if spec.num_targets is not None:
         cmd.append(f'--num_targets={spec.num_targets}')
     if spec.num_initiators is not None:
         cmd.append(f'--num_initiators={spec.num_initiators}')
-    if args.total_size is not None:
-        cmd.append(f'--total_size={args.total_size}')
+    if args.transfer_size is not None:
+        cmd.append(f'--transfer_size={args.transfer_size}')
     if args.buffer_size is not None:
         cmd.append(f'--buffer_size={args.buffer_size}')
-    if args.tcp_accept_wait_s is not None:
-        cmd.append(f'--tcp_accept_wait_s={args.tcp_accept_wait_s}')
-    if args.connect_timeout != DEFAULT_CONNECT_TIMEOUT_MS:
-        cmd.append(f'--connect_timeout={args.connect_timeout}')
+    if args.peer_wait_s is not None:
+        cmd.append(f'--peer_wait_s={args.peer_wait_s}')
+    if args.connect_timeout_ms != DEFAULT_CONNECT_TIMEOUT_MS:
+        cmd.append(f'--connect_timeout_ms={args.connect_timeout_ms}')
     if args.inter_run_delay_s != DEFAULT_INTER_RUN_DELAY_SEC:
         cmd.append(f'--inter_run_delay_s={args.inter_run_delay_s}')
     if not args.plot:
@@ -810,8 +777,8 @@ def _peer_launcher_common_args(spec: PeerLauncherSpec) -> list[str]:
     if args.report_path is not None:
         cmd.append(f'--report_path={args.report_path}')
     cmd.extend(peer_launcher_hixl_flags(args))
-    if args.roce_ip:
-        cmd.append(f'--roce_ip={args.roce_ip}')
+    if args.host_roce_ip:
+        cmd.append(f'--host_roce_ip={args.host_roce_ip}')
     return cmd
 
 
@@ -819,7 +786,6 @@ def build_peer_initiator_launcher_cmd(
     args,
     local_ip: str,
     base_hixl_port: int,
-    base_tcp_port: int,
     transport_flag: str | None = None,
 ) -> list[str]:
     """Printed command for dual-machine initiator (mirror target-side args)."""
@@ -829,7 +795,6 @@ def build_peer_initiator_launcher_cmd(
             args=args,
             local_ip=local_ip,
             base_hixl_port=base_hixl_port,
-            base_tcp_port=base_tcp_port,
             device_ids=device_ids,
             pattern=args.pattern,
             transport_flag=transport_flag,
@@ -986,7 +951,7 @@ def _dual_target_peer_count(topology: DualTopology) -> int:
     return topology.initiator_count if topology.pattern == 'many_to_one' else 1
 
 
-def _dual_target_lanes(topology: DualTopology, local_ip: str, base_hixl_port: int, base_tcp_port: int):
+def _dual_target_lanes(topology: DualTopology, local_ip: str, base_hixl_port: int):
     if topology.pattern == 'one_to_many':
         lanes = []
         for (idx, device_id) in enumerate(topology.target_device_ids):
@@ -995,8 +960,7 @@ def _dual_target_lanes(topology: DualTopology, local_ip: str, base_hixl_port: in
                     'device_id': device_id,
                     'local_ip': local_ip,
                     'hixl_port': base_hixl_port + idx,
-                    'tcp_port': base_tcp_port + idx,
-                    'tcp_client_count': 1,
+                    'peer_count': 1,
                     'lane_index': idx,
                 }
             )
@@ -1006,21 +970,18 @@ def _dual_target_lanes(topology: DualTopology, local_ip: str, base_hixl_port: in
             'device_id': topology.target_device_ids[0],
             'local_ip': local_ip,
             'hixl_port': base_hixl_port,
-            'tcp_port': base_tcp_port,
-            'tcp_client_count': _dual_target_peer_count(topology),
+            'peer_count': _dual_target_peer_count(topology),
         }
     ]
 
 
-def _dual_initiator_lanes(topology: DualTopology, target_host: str, base_hixl_port: int, base_tcp_port: int):
+def _dual_initiator_lanes(topology: DualTopology, target_host: str, base_hixl_port: int):
     if topology.pattern == 'one_to_many':
         remotes = ','.join((endpoint(target_host, base_hixl_port + i) for i in range(topology.target_count)))
-        ports = ','.join((str(base_tcp_port + i) for i in range(topology.target_count)))
         return [
             {
                 'device_id': topology.initiator_device_ids[0],
                 'remote_engines': remotes,
-                'tcp_port': ports,
                 'local_hixl_port': base_hixl_port + topology.target_count,
             }
         ]
@@ -1032,7 +993,6 @@ def _dual_initiator_lanes(topology: DualTopology, target_host: str, base_hixl_po
                 {
                     'device_id': device_id,
                     'remote_engines': remote,
-                    'tcp_port': str(base_tcp_port),
                     'local_hixl_port': base_hixl_port + 1 + idx,
                     'lane_index': idx,
                 }
@@ -1042,7 +1002,6 @@ def _dual_initiator_lanes(topology: DualTopology, target_host: str, base_hixl_po
         {
             'device_id': topology.initiator_device_ids[0],
             'remote_engines': endpoint(target_host, base_hixl_port),
-            'tcp_port': str(base_tcp_port),
             'local_hixl_port': base_hixl_port + 1,
         }
     ]
@@ -1056,7 +1015,6 @@ def _print_peer_initiator_hint(ctx: DualTargetContext, run_plan: list[tuple[str,
         args,
         ctx.local_ip,
         ctx.base_hixl_port,
-        ctx.base_tcp_port,
         transport_flag=transport_flag,
     )
     total_runs = sum((len(bench_types) for (_, bench_types) in run_plan))
@@ -1069,7 +1027,8 @@ def _print_peer_initiator_hint(ctx: DualTargetContext, run_plan: list[tuple[str,
         f'  Initiator lanes: {topology.initiator_count} '
         f'(devices={format_device_ids(topology.initiator_device_ids)})'
     )
-    log.info(f'  HIXL base port: {ctx.base_hixl_port},  TCP base port: {ctx.base_tcp_port}')
+    log.info(f'  HIXL base port: {ctx.base_hixl_port}')
+    log.info('  Peer TCP coordination port: derived from each target HIXL port (+10000 or -10000)')
     if is_all_transports_mode(args):
         log.info(f"  Transports: {', '.join((t for (t, _) in run_plan))}")
     else:
@@ -1098,14 +1057,14 @@ def _run_dual_target_step(ctx: DualTargetContext, transport: str, bench_type: st
     args.transport = transport
     procs = []
     try:
-        for lane in _dual_target_lanes(ctx.topology, ctx.local_ip, ctx.base_hixl_port, ctx.base_tcp_port):
+        for lane in _dual_target_lanes(ctx.topology, ctx.local_ip, ctx.base_hixl_port):
             target_cmd = build_target_cmd(
                 TargetCommandSpec(
                     bench_bin=ctx.bench_bin,
                     args=args,
                     bench_type=bench_type,
                     lane=lane,
-                    tcp_accept_wait_s=ctx.tcp_accept_wait_s,
+                    peer_wait_s=ctx.peer_wait_s,
                 )
             )
             procs.append(start_process(target_cmd))
@@ -1166,10 +1125,9 @@ def _launch_target(args, bench_bin: str, topology: DualTopology, run_plan: list[
     if args.host != '127.0.0.1':
         local_ip = args.host
     base_hixl_port = args.base_hixl_port
-    base_tcp_port = args.base_tcp_port
     total_runs = sum((len(bench_types) for (_, bench_types) in run_plan))
-    tcp_accept_wait_s = tcp_accept_wait_for_run(args, total_runs)
-    ctx = DualTargetContext(args, bench_bin, topology, local_ip, base_hixl_port, base_tcp_port, tcp_accept_wait_s)
+    peer_wait_s = peer_wait_for_run(args, total_runs)
+    ctx = DualTargetContext(args, bench_bin, topology, local_ip, base_hixl_port, peer_wait_s)
     log.info(f'\n[DUAL] Starting target on {local_ip}, pattern={topology.pattern}, lanes={topology.target_count}')
     if total_runs > 1:
         log.info(f'[DUAL] Plan: {total_runs} run(s) — {_format_run_plan_summary(run_plan)}')
@@ -1194,7 +1152,7 @@ def _run_dual_initiator_step(ctx: DualInitiatorContext, transport: str, bench_ty
     args.transport = transport
     procs = []
     try:
-        for lane in _dual_initiator_lanes(ctx.topology, args.target_host, ctx.base_hixl_port, ctx.base_tcp_port):
+        for lane in _dual_initiator_lanes(ctx.topology, args.target_host, ctx.base_hixl_port):
             initiator_cmd = build_initiator_cmd(
                 InitiatorCommandSpec(
                     bench_bin=ctx.bench_bin,
@@ -1230,8 +1188,7 @@ def _launch_initiator(args, bench_bin: str, topology: DualTopology, run_plan: li
         log.error('[ERROR] No transport/direction combinations to run on initiator')
         return -1
     base_hixl_port = args.base_hixl_port
-    base_tcp_port = args.base_tcp_port
-    ctx = DualInitiatorContext(args, bench_bin, topology, base_hixl_port, base_tcp_port)
+    ctx = DualInitiatorContext(args, bench_bin, topology, base_hixl_port)
     total_runs = sum((len(bench_types) for (_, bench_types) in run_plan))
     if total_runs > 1:
         log.info(
@@ -1311,12 +1268,12 @@ def target_peer_count(pattern: str, initiator_count: int) -> int:
     return initiator_count if pattern == 'many_to_one' else 1
 
 
-def initiator_peer_args(pattern: str, idx: int, target_endpoints: list[str], tcp_ports: list[int]):
+def initiator_peer_args(pattern: str, idx: int, target_endpoints: list[str]):
     if pattern == 'one_to_many':
-        return (','.join(target_endpoints), ','.join((str(p) for p in tcp_ports)))
+        return ','.join(target_endpoints)
     if pattern == 'many_to_one':
-        return (target_endpoints[0], str(tcp_ports[0]))
-    return (target_endpoints[idx], str(tcp_ports[idx]))
+        return target_endpoints[0]
+    return target_endpoints[idx]
 
 
 def _single_target_cmd(spec: SingleTargetCommandSpec) -> list[str]:
@@ -1326,10 +1283,9 @@ def _single_target_cmd(spec: SingleTargetCommandSpec) -> list[str]:
         '--role=target',
         f'--device_id={spec.device_id}',
         f'--local_engine={spec.target}',
-        f'--tcp_port={spec.tcp_port}',
-        f'--tcp_client_count={target_peer_count(args.pattern, args.initiator_count)}',
-        f'--tcp_accept_wait_s={args.tcp_accept_wait_s}',
-        *base_options(args, spec.bench_type, spec.lane_index),
+        f'--peer_count={target_peer_count(args.pattern, args.initiator_count)}',
+        f'--peer_wait_s={args.peer_wait_s}',
+        *target_options(args, spec.bench_type, spec.lane_index),
         *hixl_init_extra_args(args),
     ]
 
@@ -1342,34 +1298,31 @@ def _single_initiator_cmd(spec: SingleInitiatorCommandSpec) -> list[str]:
         f'--device_id={spec.device_id}',
         f'--local_engine={endpoint(args.host, spec.local_port)}',
         f'--remote_engine={spec.remotes}',
-        f'--tcp_port={spec.ports}',
-        *base_options(args, spec.bench_type, spec.lane_index),
+        *initiator_options(args, spec.bench_type, spec.lane_index),
         *hixl_init_extra_args(args),
     ]
 
 
-def _run_single_direction(args, bench_bin: str, devices: list[int], bench_type: str, tcp_accept_wait_s: int) -> int:
+def _run_single_direction(args, bench_bin: str, devices: list[int], bench_type: str, peer_wait_s: int) -> int:
     counts = infer_single_mode_counts(args.pattern, devices, args.num_targets, args.num_initiators)
     if counts is None:
         return -1
     (target_count, initiator_count) = counts
     args.initiator_count = initiator_count
-    args.tcp_accept_wait_s = tcp_accept_wait_s
+    args.peer_wait_s = peer_wait_s
     target_endpoints = [endpoint(args.host, args.base_hixl_port + i) for i in range(target_count)]
-    tcp_ports = [args.base_tcp_port + i for i in range(target_count)]
     procs = []
     for (idx, target) in enumerate(target_endpoints):
         procs.append(
             start_process(
                 _single_target_cmd(
-                    SingleTargetCommandSpec(args, bench_bin, bench_type, devices[idx], target, tcp_ports[idx],
-                                            lane_index=idx)
+                    SingleTargetCommandSpec(args, bench_bin, bench_type, devices[idx], target, lane_index=idx)
                 )
             )
         )
     time.sleep(2)
     for idx in range(initiator_count):
-        (remotes, ports) = initiator_peer_args(args.pattern, idx, target_endpoints, tcp_ports)
+        remotes = initiator_peer_args(args.pattern, idx, target_endpoints)
         local_port = args.base_hixl_port + target_count + idx
         procs.append(
             start_process(
@@ -1381,7 +1334,6 @@ def _run_single_direction(args, bench_bin: str, devices: list[int], bench_type: 
                         devices[target_count + idx],
                         local_port,
                         remotes,
-                        ports,
                         lane_index=idx,
                     )
                 )
@@ -1396,7 +1348,7 @@ def _launch_single(args, bench_bin: str, devices: list[int], bench_types: list[s
         log.error('[ERROR] No supported directions to run in single-machine mode')
         return -1
     before_csvs = snapshot_result_csvs(args.output_dir)
-    tcp_accept_wait_s = tcp_accept_wait_for_run(args, len(bench_types))
+    peer_wait_s = peer_wait_for_run(args, len(bench_types))
     run_counter = [0]
     last_ret = 0
     if len(bench_types) > 1:
@@ -1409,7 +1361,7 @@ def _launch_single(args, bench_bin: str, devices: list[int], bench_types: list[s
         _dual_inter_run_delay(args, run_counter[0])
         if len(bench_types) > 1:
             log.info(f'[SINGLE] [{idx}/{len(bench_types)}] direction={bench_type} — starting ...')
-        last_ret = _run_single_direction(args, bench_bin, devices, bench_type, tcp_accept_wait_s)
+        last_ret = _run_single_direction(args, bench_bin, devices, bench_type, peer_wait_s)
         if last_ret != 0:
             log.info(f'[ERROR] Single-machine run failed for direction={bench_type} with code {last_ret}')
             return last_ret
@@ -1441,7 +1393,7 @@ def _validate_launch_plan(args, gate_soc, run_plan, single_bench_types) -> int |
         if not run_plan:
             log.info(
                 f'[ERROR] No supported transport/direction combinations on this platform '
-                f'(transport={args.transport}, type={args.type}).'
+                f'(transport={args.transport}, direction={args.type}).'
             )
             return -1
         return None
