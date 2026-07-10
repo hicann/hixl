@@ -88,13 +88,13 @@ ifconfig
         ./decoder_pull_cache_and_blocks 2 10.170.10.1 10.170.10.1
         ```
 
-    - 若在A5环境执行还需要增加参数local_comm_res，如：
+    - A5环境中执行用例需要指定local_comm_res，配置为`{"version":"1.3"}`即可使用自动生成，也可以手动配置local_comm_res参数，如：
         ```
         # prompt主机
-        HCCL_INTRA_ROCE_ENABLE=1 ./prompt_pull_cache_and_blocks 0 10.10.170.0 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
+        HCCL_INTRA_ROCE_ENABLE=1 ./prompt_pull_cache_and_blocks 0 10.10.170.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
 
         # decoder主机
-        HCCL_INTRA_ROCE_ENABLE=1 ./decoder_pull_cache_and_blocks 0 10.170.10.1 10.170.10.0 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
+        HCCL_INTRA_ROCE_ENABLE=1 ./decoder_pull_cache_and_blocks 2 10.170.10.1 10.170.10.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
         ```
 
     (2) 执行push_cache_and_blocks
@@ -111,13 +111,13 @@ ifconfig
         ./decoder_push_cache_and_blocks 4 10.10.10.1
         ```
 
-    - 若在A5环境执行还需要增加参数local_comm_res，如：
+    - A5环境中执行用例需要指定local_comm_res，配置为`{"version":"1.3"}`即可使用自动生成，也可以手动配置local_comm_res参数，如：
         ```
         # prompt主机
-        HCCL_INTRA_ROCE_ENABLE=1 ./prompt_push_cache_and_blocks 0 10.10.10.0 10.10.10.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
+        HCCL_INTRA_ROCE_ENABLE=1 ./prompt_push_cache_and_blocks 0 10.10.10.1 10.10.10.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
 
         # decoder主机
-        HCCL_INTRA_ROCE_ENABLE=1 ./decoder_push_cache_and_blocks 0 10.10.10.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
+        HCCL_INTRA_ROCE_ENABLE=1 ./decoder_push_cache_and_blocks 4 10.10.10.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
         ```
 
     (3) 执行switch_roles

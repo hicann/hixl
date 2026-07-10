@@ -92,14 +92,14 @@ ifconfig
         ./decoder_pull_cache_and_blocks 2 10.170.10.1 10.170.10.1
         ```
 
-    - If running in an A5 environment, add the local_comm_res parameter. For example:
+    - In the A5 environment, you need to specify local_comm_res to run examples. Configure it as `{"version":"1.3"}` to use auto-generation, or manually configure the local_comm_res parameter. For example:
 
         ```cpp
         # Prompt host
-        HCCL_INTRA_ROCE_ENABLE=1 ./prompt_pull_cache_and_blocks 0 10.10.170.0 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
+        HCCL_INTRA_ROCE_ENABLE=1 ./prompt_pull_cache_and_blocks 0 10.10.170.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
 
         # Decoder host
-        HCCL_INTRA_ROCE_ENABLE=1 ./decoder_pull_cache_and_blocks 0 10.170.10.1 10.170.10.0 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
+        HCCL_INTRA_ROCE_ENABLE=1 ./decoder_pull_cache_and_blocks 2 10.170.10.1 10.170.10.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
         ```
 
     (2) Run push_cache_and_blocks
@@ -118,14 +118,14 @@ ifconfig
         ./decoder_push_cache_and_blocks 4 10.10.10.1
         ```
 
-    - If running in an A5 environment, add the local_comm_res parameter. For example:
+    - In the A5 environment, you need to specify local_comm_res to run examples. Configure it as `{"version":"1.3"}` to use auto-generation, or manually configure the local_comm_res parameter. For example:
 
         ```cpp
         # Prompt host
-        HCCL_INTRA_ROCE_ENABLE=1 ./prompt_push_cache_and_blocks 0 10.10.10.0 10.10.10.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
+        HCCL_INTRA_ROCE_ENABLE=1 ./prompt_push_cache_and_blocks 0 10.10.10.1 10.10.10.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
 
         # Decoder host
-        HCCL_INTRA_ROCE_ENABLE=1 ./decoder_push_cache_and_blocks 0 10.10.10.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
+        HCCL_INTRA_ROCE_ENABLE=1 ./decoder_push_cache_and_blocks 4 10.10.10.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
         ```
 
     (3) Run switch_roles
