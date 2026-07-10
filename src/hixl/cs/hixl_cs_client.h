@@ -136,7 +136,7 @@ class HixlCSClient {
   Status AllocateDeviceDescBuf(DeviceCompleteHandle &handle, uint32_t total_list_num,
                                const HixlOneSideOpDesc *desc_list) const;
   Status BuildDeviceChunkParam(DeviceCompleteHandle &handle, uint32_t chunk_offset, uint32_t chunk_list_num,
-                               bool is_last_chunk, HixlOneSideOpParam &param);
+                               bool need_notify_wait, HixlOneSideOpParam &param);
   Status LaunchDeviceChunkedKernels(bool is_get, DeviceCompleteHandle &handle, uint32_t list_num);
 
   // 获取 context 切换 guard，用于对外接口的 context 管理

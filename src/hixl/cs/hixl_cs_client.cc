@@ -46,6 +46,7 @@ constexpr uint64_t kFlagDoneValue = 1ULL;
 constexpr uint64_t kFlagResetValue = 0ULL;
 constexpr uint32_t kCustomTimeoutMs = 1800;
 constexpr uint32_t kMaxKernelBatchSize = 128U;
+constexpr uint32_t kNotifyWaitTaskInterval = 2048U;
 // notifywait默认1836ms等待时长，通过异步接口提供给用户使用，由用户感知超时主动退出，不使用notify的超时时间
 constexpr uint16_t kNotifyDefaultWaitTimeMs = 27 * 68;
 void FreeExportDesc(std::vector<hixl::HixlMemDesc> &desc_list) {
@@ -701,11 +702,12 @@ Status HixlCSClient::LaunchDeviceChunkedKernels(bool is_get, DeviceCompleteHandl
   for (uint32_t chunk_idx = 0U; chunk_idx < num_chunks; ++chunk_idx) {
     uint32_t chunk_offset = chunk_idx * kMaxKernelBatchSize;
     uint32_t chunk_list_num = std::min(kMaxKernelBatchSize, list_num - chunk_offset);
-    bool is_last_chunk = (chunk_idx == num_chunks - 1U);
+    uint32_t chunk_end = chunk_offset + chunk_list_num;
+    bool need_notify_wait = (chunk_end % kNotifyWaitTaskInterval == 0U) || (chunk_end == list_num);
     HixlOneSideOpParam param{};
-    HIXL_CHK_STATUS_RET(BuildDeviceChunkParam(handle, chunk_offset, chunk_list_num, is_last_chunk, param),
+    HIXL_CHK_STATUS_RET(BuildDeviceChunkParam(handle, chunk_offset, chunk_list_num, need_notify_wait, param),
                         "BuildDeviceChunkParam failed for chunk %u/%u", chunk_idx, num_chunks);
-    HIXL_CHK_STATUS_RET(LaunchDeviceKernel(is_get, handle, param, is_last_chunk),
+    HIXL_CHK_STATUS_RET(LaunchDeviceKernel(is_get, handle, param, need_notify_wait),
                         "LaunchDeviceKernel failed for chunk %u/%u", chunk_idx, num_chunks);
   }
   return SUCCESS;
@@ -723,13 +725,13 @@ Status HixlCSClient::AllocateDeviceDescBuf(DeviceCompleteHandle &handle, uint32_
 }
 
 Status HixlCSClient::BuildDeviceChunkParam(DeviceCompleteHandle &handle, uint32_t chunk_offset, uint32_t chunk_list_num,
-                                           bool is_last_chunk, HixlOneSideOpParam &param) {
+                                           bool need_notify_wait, HixlOneSideOpParam &param) {
   param.thread = handle.shared_slot->thread;
   param.channel = static_cast<uint64_t>(client_channel_handle_);
   param.list_num = chunk_list_num;
   auto *chunk_base = static_cast<uint8_t *>(handle.dev_op_desc_buf) + chunk_offset * sizeof(HixlOneSideOpDesc);
   param.op_desc_list_addr = PtrToValue(chunk_base);
-  if (is_last_chunk) {
+  if (need_notify_wait) {
     void *remote_flag = nullptr;
     HIXL_CHK_STATUS_RET(PrepareDeviceRemoteFlagAndKernel(remote_flag), "PrepareDeviceRemoteFlagAndKernel failed");
     param.remote_flag_addr = PtrToValue(remote_flag);

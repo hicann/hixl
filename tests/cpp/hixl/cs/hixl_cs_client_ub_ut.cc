@@ -47,6 +47,8 @@ constexpr uint32_t kDummyPort = 12345U;
 
 constexpr uint32_t kListNum1 = 1U;
 constexpr uint64_t kLen8 = 8ULL;
+constexpr uint64_t kDeviceFlagDoneValueForTest = 1ULL;
+constexpr uint32_t kNotifyWaitTaskInterval = 2048U;
 
 constexpr const char *kTransFlagNameDevice = "_hixl_builtin_dev_trans_flag";
 
@@ -138,6 +140,39 @@ class HixlCSClientDeviceFixture : public ::testing::Test {
     desc.local_buf = local_buf_.data();
     desc.len = kLen8;
     return desc;
+  }
+
+  std::vector<HixlOneSideOpDesc> SetupBatchTransferList(uint32_t list_num, bool is_get = false) {
+    HixlOneSideOpDesc desc = SetupBatchTransfer(is_get);
+    return std::vector<HixlOneSideOpDesc>(list_num, desc);
+  }
+
+  void ExpectAsyncNotifyWaitCount(uint32_t list_num, uint32_t wait_count) {
+    setenv("HIXL_UT_DEVICE_FLAG_HACK", "1", 1);
+    std::vector<HixlOneSideOpDesc> descs = SetupBatchTransferList(list_num);
+
+    MockAclRuntimeStub mock_acl;
+    llm::AclRuntimeStub::Install(&mock_acl);
+    EXPECT_CALL(mock_acl, aclrtWaitAndResetNotify(testing::_, testing::_, testing::_))
+        .Times(wait_count)
+        .WillRepeatedly(testing::Return(ACL_SUCCESS));
+    EXPECT_CALL(mock_acl, aclrtMemcpyAsync(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+        .WillRepeatedly(testing::Return(ACL_SUCCESS));
+
+    void *qh = nullptr;
+    const Status ret = cli_.BatchTransferAsync(false, list_num, descs.data(), &qh);
+    llm::AclRuntimeStub::UnInstall(&mock_acl);
+
+    ASSERT_EQ(ret, SUCCESS);
+    ASSERT_NE(qh, nullptr);
+
+    DeviceCompleteHandle *handle = static_cast<DeviceCompleteHandle *>(qh);
+    ASSERT_NE(handle->host_flag, nullptr);
+    *(static_cast<uint64_t *>(handle->host_flag)) = kDeviceFlagDoneValueForTest;
+
+    HixlCompleteStatus st = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
+    EXPECT_EQ(cli_.CheckStatus(qh, &st), SUCCESS);
+    EXPECT_EQ(st, HixlCompleteStatus::HIXL_COMPLETE_STATUS_COMPLETED);
   }
 
   HixlCSClient cli_{};
@@ -249,6 +284,22 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutUbDeviceNotifyWaitFail) {
 
   EXPECT_EQ(ret, FAILED);
   EXPECT_TRUE(cli_.pending_device_handles_.empty());
+}
+
+TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceNotifyWaitSingleTask) {
+  ExpectAsyncNotifyWaitCount(kListNum1, 1U);
+}
+
+TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceNotifyWaitExactInterval) {
+  ExpectAsyncNotifyWaitCount(kNotifyWaitTaskInterval, 1U);
+}
+
+TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceNotifyWaitTailAfterInterval) {
+  ExpectAsyncNotifyWaitCount(kNotifyWaitTaskInterval + 1U, 2U);
+}
+
+TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceNotifyWaitMultipleIntervals) {
+  ExpectAsyncNotifyWaitCount(kNotifyWaitTaskInterval * 2U, 2U);
 }
 
 TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSlotReuse) {
