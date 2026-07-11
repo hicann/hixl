@@ -69,8 +69,22 @@ Status HixlClient::Initialize(const std::vector<EndpointConfig> &local_endpoint_
   HIXL_CHK_STATUS_RET(
       EndpointMatcher::MatchEndpoints(local_endpoint_list, remote_endpoint_list, matched_pairs, handler_type),
       "EndpointMatcher::MatchEndpoints failed");
-  HandlerCreateArgs args{server_ip_, server_port_,         rdma_tc_, rdma_sl_,   handler_type, std::move(matched_pairs),
-                         qos_,       max_active_channels_, is_lazy,  timeout_ms, ctrl_socket_};
+  link_pairs_ = matched_pairs;
+  HIXL_EVENT("[HixlClient] link selected, local_engine:%s, remote_engine:%s, handler:%s, pair_count:%zu",
+             local_engine_.c_str(), remote_engine_.c_str(), EndpointMatcher::HandlerTypeToString(handler_type),
+             matched_pairs.size());
+  for (size_t i = 0; i < matched_pairs.size(); ++i) {
+    const auto &pair = matched_pairs[i];
+    HIXL_EVENT(
+        "[HixlClient] link pair[%zu], local_engine:%s, remote_engine:%s, comm_type:%s, "
+        "local_endpoint:{%s}, remote_endpoint:{%s}",
+        i, local_engine_.c_str(), remote_engine_.c_str(), CommTypeToString(pair.type), pair.local.ToString().c_str(),
+        pair.remote.ToString().c_str());
+  }
+  HandlerCreateArgs args{
+      server_ip_,    server_port_,         rdma_tc_, rdma_sl_,   handler_type, std::move(matched_pairs),
+      qos_,          max_active_channels_, is_lazy,  timeout_ms, ctrl_socket_, local_engine_,
+      remote_engine_};
   client_handler_ = ClientHandlerFactory::Create(args);
   HIXL_CHECK_NOTNULL(client_handler_, "ClientHandlerFactory create handler failed");
   HIXL_DISMISS_GUARD(close_ctrl_socket);
@@ -138,8 +152,20 @@ Status HixlClient::Connect(uint32_t timeout_ms) {
     HIXL_LOGE(FAILED, "HixlClient is not initialized");
     return FAILED;
   }
-  HIXL_CHK_STATUS_RET(client_handler_->Connect(timeout_ms), "HixlClient Connect failed");
+  HIXL_EVENT("[HixlClient] connect link start, local_engine:%s, remote_engine:%s, timeout_ms:%u", local_engine_.c_str(),
+             remote_engine_.c_str(), timeout_ms);
+  LogLinkPairs("connect link start");
+  HIXL_DISMISSABLE_GUARD(dump_guard, [this]() { client_handler_->Dump("connect failed", DumpLogLevel::ERROR); });
+  Status ret = client_handler_->Connect(timeout_ms);
+  if (ret == ALREADY_CONNECTED) {
+    HIXL_DISMISS_GUARD(dump_guard);
+  }
+  HIXL_CHK_STATUS_RET(ret, "HixlClient Connect failed");
+  HIXL_DISMISS_GUARD(dump_guard);
   is_connected_ = true;
+  HIXL_EVENT("[HixlClient] connect link success, local_engine:%s, remote_engine:%s, timeout_ms:%u",
+             local_engine_.c_str(), remote_engine_.c_str(), timeout_ms);
+  LogLinkPairs("connect link success");
   return SUCCESS;
 }
 
@@ -162,7 +188,12 @@ Status HixlClient::TransferSync(const std::vector<TransferOpDesc> &op_descs, Tra
     HIXL_LOGE(FAILED, "HixlClient TransferSync rejected, client is finalized");
     return FAILED;
   }
-  return client_handler_->TransferSync(op_descs, operation, timeout_ms);
+  HIXL_DISMISSABLE_GUARD(dump_guard, [this]() { client_handler_->Dump("transfer sync failed", DumpLogLevel::ERROR); });
+  Status ret = client_handler_->TransferSync(op_descs, operation, timeout_ms);
+  if (ret == SUCCESS) {
+    HIXL_DISMISS_GUARD(dump_guard);
+  }
+  return ret;
 }
 
 Status HixlClient::TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation,
@@ -180,7 +211,10 @@ Status HixlClient::TransferAsync(const std::vector<TransferOpDesc> &op_descs, Tr
     HIXL_LOGE(FAILED, "HixlClient is not initialized");
     return FAILED;
   }
-  HIXL_CHK_STATUS_RET(client_handler_->TransferAsync(op_descs, operation, req));
+  HIXL_DISMISSABLE_GUARD(dump_guard, [this]() { client_handler_->Dump("transfer async failed", DumpLogLevel::ERROR); });
+  Status ret = client_handler_->TransferAsync(op_descs, operation, req);
+  HIXL_CHK_STATUS_RET(ret, "HixlClient TransferAsync failed");
+  HIXL_DISMISS_GUARD(dump_guard);
   TransferInfo transfer_info = {HixlProfilingReporter::GetSysCycleTime(), operation, AscendString()};
   req_map_[req] = transfer_info;
   return SUCCESS;
@@ -202,6 +236,8 @@ Status HixlClient::GetTransferStatus(const TransferReq &req, TransferStatus &sta
   }
   transfer_info = it->second;
 
+  HIXL_DISMISSABLE_GUARD(dump_guard,
+                         [this]() { client_handler_->Dump("get transfer status failed", DumpLogLevel::ERROR); });
   Status ret = client_handler_->GetTransferStatus(req, status);
   if (ret != SUCCESS) {
     RemoveTransferReq(req);
@@ -214,7 +250,9 @@ Status HixlClient::GetTransferStatus(const TransferReq &req, TransferStatus &sta
     RemoveTransferReq(req);
   } else if (status == TransferStatus::FAILED) {
     RemoveTransferReq(req);
+    return SUCCESS;
   }
+  HIXL_DISMISS_GUARD(dump_guard);
   return SUCCESS;
 }
 
@@ -250,10 +288,35 @@ Status HixlClient::Finalize() {
   }
   is_finalized_ = true;
   ClearTransferReqs();
+  HIXL_EVENT("[HixlClient] disconnect link start, local_engine:%s, remote_engine:%s", local_engine_.c_str(),
+             remote_engine_.c_str());
+  LogLinkPairs("disconnect link start");
+  HIXL_DISMISSABLE_GUARD(dump_guard, [this]() {
+    if (client_handler_ != nullptr) {
+      client_handler_->Dump("disconnect failed", DumpLogLevel::ERROR);
+    }
+  });
   CloseCtrlSocket();
   Status ret = (client_handler_ != nullptr) ? client_handler_->Finalize() : SUCCESS;
+  if (ret == SUCCESS) {
+    HIXL_DISMISS_GUARD(dump_guard);
+    HIXL_EVENT("[HixlClient] disconnect link success, local_engine:%s, remote_engine:%s", local_engine_.c_str(),
+               remote_engine_.c_str());
+    LogLinkPairs("disconnect link success");
+  }
   is_connected_ = false;
   return ret;
+}
+
+void HixlClient::LogLinkPairs(const char *phase) const {
+  for (size_t i = 0; i < link_pairs_.size(); ++i) {
+    const auto &pair = link_pairs_[i];
+    HIXL_EVENT(
+        "[HixlClient] %s pair[%zu], local_engine:%s, remote_engine:%s, comm_type:%s, "
+        "local_endpoint:{%s}, remote_endpoint:{%s}",
+        phase, i, local_engine_.c_str(), remote_engine_.c_str(), CommTypeToString(pair.type),
+        pair.local.ToString().c_str(), pair.remote.ToString().c_str());
+  }
 }
 
 Status HixlClient::RecvNotifyAck(int32_t fd, int32_t timeout_ms) const {

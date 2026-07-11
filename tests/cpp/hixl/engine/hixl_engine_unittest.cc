@@ -1096,6 +1096,7 @@ class MockClientHandler : public IClientHandler {
   Status Finalize() override {
     return SUCCESS;
   }
+  void Dump(const char *, DumpLogLevel = DumpLogLevel::EVENT) const override {}
 
   std::map<TransferReq, TransferStatus> status_by_req;
   TransferStatus default_status = TransferStatus::WAITING;

@@ -29,31 +29,33 @@ struct MatchRule {
   const char *protocol;
   const char *placement;
   CommType type;
+  const char *reason;
 };
 
 constexpr MatchRule kCrossInstanceRules[] = {
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolUboe, kPlacementDevice,
-     CommType::COMM_TYPE_UBOE},
+     CommType::COMM_TYPE_UBOE, "cross-instance prefers device uboe"},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolUbg, kPlacementDevice,
-     CommType::COMM_TYPE_UBG},
+     CommType::COMM_TYPE_UBG, "cross-instance falls back to device ubg"},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolRoce, kPlacementDevice,
-     CommType::COMM_TYPE_ROCE},
+     CommType::COMM_TYPE_ROCE, "cross-instance falls back to device roce"},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolRoce, kPlacementHost,
-     CommType::COMM_TYPE_ROCE},
+     CommType::COMM_TYPE_ROCE, "cross-instance falls back to host roce"},
 };
 
 constexpr MatchRule kSameInstanceRules[] = {
-    {MatchRuleType::GROUP, HandlerCreateArgs::HandlerType::UB, nullptr, nullptr, CommType::COMM_TYPE_UB_D2D},
+    {MatchRuleType::GROUP, HandlerCreateArgs::HandlerType::UB, nullptr, nullptr, CommType::COMM_TYPE_UB_D2D,
+     "same-instance prefers ub group"},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolHccs, kPlacementDevice,
-     CommType::COMM_TYPE_HCCS},
+     CommType::COMM_TYPE_HCCS, "same-instance falls back to device hccs"},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolUboe, kPlacementDevice,
-     CommType::COMM_TYPE_UBOE},
+     CommType::COMM_TYPE_UBOE, "same-instance falls back to device uboe"},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolUbg, kPlacementDevice,
-     CommType::COMM_TYPE_UBG},
+     CommType::COMM_TYPE_UBG, "same-instance falls back to device ubg"},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolRoce, kPlacementDevice,
-     CommType::COMM_TYPE_ROCE},
+     CommType::COMM_TYPE_ROCE, "same-instance falls back to device roce"},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolRoce, kPlacementHost,
-     CommType::COMM_TYPE_ROCE},
+     CommType::COMM_TYPE_ROCE, "same-instance falls back to host roce"},
 };
 }  // namespace
 
@@ -216,6 +218,9 @@ Status EndpointMatcher::TryMatchByPriority(const std::vector<EndpointConfig> &lo
                                            HandlerCreateArgs::HandlerType &handler_type) {
   if (cross_instance && TryMatchH2rHLoopbackGroup(local, remote, pairs) == SUCCESS) {
     handler_type = HandlerCreateArgs::HandlerType::UB;
+    HIXL_EVENT("EndpointMatcher selected link, handler:%s, reason:%s, protocol:%s, placement:%s, comm_type:%s",
+               HandlerTypeToString(handler_type), "cross-instance same server host ub loopback", "ub", kPlacementHost,
+               CommTypeToString(CommType::COMM_TYPE_UB_H2H));
     LogMatchedEndpoints(pairs, handler_type);
     return SUCCESS;
   }
@@ -237,6 +242,11 @@ Status EndpointMatcher::TryMatchByPriority(const std::vector<EndpointConfig> &lo
     }
     if (status == SUCCESS) {
       handler_type = rule.handler_type;
+      const char *selected_protocol = (rule.protocol == nullptr) ? "ub_group" : rule.protocol;
+      const char *selected_placement = (rule.placement == nullptr) ? "mixed" : rule.placement;
+      HIXL_EVENT("EndpointMatcher selected link, handler:%s, reason:%s, protocol:%s, placement:%s, comm_type:%s",
+                 HandlerTypeToString(rule.handler_type), rule.reason, selected_protocol, selected_placement,
+                 CommTypeToString(rule.type));
       LogMatchedEndpoints(pairs, handler_type);
       return SUCCESS;
     }
@@ -250,8 +260,8 @@ void EndpointMatcher::LogMatchedEndpoints(const std::vector<HandlerCreateArgs::E
   HIXL_EVENT("EndpointMatcher selected handler:%s, matched pairs:%zu", HandlerTypeToString(handler_type), pairs.size());
   for (size_t i = 0; i < pairs.size(); ++i) {
     const auto &pair = pairs[i];
-    HIXL_EVENT("EndpointMatcher pair[%zu], protocol:%s, placement:%s, comm_type:%s", i, pair.local.protocol.c_str(),
-               pair.local.placement.c_str(), CommTypeToString(pair.type));
+    HIXL_EVENT("EndpointMatcher pair[%zu], comm_type:%s, local_endpoint:{%s}, remote_endpoint:{%s}", i,
+               CommTypeToString(pair.type), pair.local.ToString().c_str(), pair.remote.ToString().c_str());
   }
 }
 
@@ -259,7 +269,10 @@ Status EndpointMatcher::MatchEndpoints(const std::vector<EndpointConfig> &local,
                                        const std::vector<EndpointConfig> &remote,
                                        std::vector<HandlerCreateArgs::EndpointPair> &matched_pairs,
                                        HandlerCreateArgs::HandlerType &handler_type) {
-  return TryMatchByPriority(local, remote, IsCrossInstance(local, remote), matched_pairs, handler_type);
+  const bool cross_instance = IsCrossInstance(local, remote);
+  HIXL_EVENT("EndpointMatcher select start, cross_instance:%d, local_net_instance:%s, remote_net_instance:%s",
+             static_cast<int32_t>(cross_instance), local[0].net_instance_id.c_str(), remote[0].net_instance_id.c_str());
+  return TryMatchByPriority(local, remote, cross_instance, matched_pairs, handler_type);
 }
 
 }  // namespace hixl

@@ -33,6 +33,8 @@ enum class CommType : uint32_t {
   COMM_TYPE_UBG = 7U
 };
 
+enum class DumpLogLevel : uint32_t { EVENT = 0U, ERROR = 1U };
+
 inline const char *CommTypeToString(CommType type) {
   switch (type) {
     case CommType::COMM_TYPE_UB_D2D:
@@ -67,6 +69,7 @@ class IClientHandler {
                               uint32_t timeout_ms) = 0;
   virtual Status GetTransferStatus(const TransferReq &req, TransferStatus &status) = 0;
   virtual Status Finalize() = 0;
+  virtual void Dump(const char *reason, DumpLogLevel level = DumpLogLevel::EVENT) const = 0;
 };
 
 }  // namespace hixl

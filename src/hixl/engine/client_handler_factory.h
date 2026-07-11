@@ -42,6 +42,8 @@ struct HandlerCreateArgs {
   bool is_lazy = false;
   uint32_t timeout_ms = 0;
   int32_t ctrl_socket = -1;
+  std::string local_engine;
+  std::string remote_engine;
 };
 
 class ClientHandlerFactory {

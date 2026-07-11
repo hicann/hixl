@@ -16,7 +16,9 @@
 #include "engine/endpoint_generator.h"
 
 namespace hixl {
-DirectClientHandler::DirectClientHandler(HixlClientHandle handle) : handle_(handle) {}
+DirectClientHandler::DirectClientHandler(HixlClientHandle handle, const std::string &local_engine,
+                                         const std::string &remote_engine, const HandlerCreateArgs::EndpointPair &pair)
+    : handle_(handle), local_engine_(local_engine), remote_engine_(remote_engine), pair_(pair) {}
 
 Status DirectClientHandler::Create(const HandlerCreateArgs &args, std::unique_ptr<DirectClientHandler> &out) {
   const auto &pair = args.matched_pairs[0];
@@ -39,7 +41,7 @@ Status DirectClientHandler::Create(const HandlerCreateArgs &args, std::unique_pt
   }
   HIXL_CHK_STATUS_RET(HixlCSClientCreate(&desc, &config, &handle), "HixlCSClientCreate failed for type %s",
                       CommTypeToString(pair.type));
-  out = MakeUnique<DirectClientHandler>(handle);
+  out = MakeUnique<DirectClientHandler>(handle, args.local_engine, args.remote_engine, pair);
   HIXL_CHECK_NOTNULL(out, "DirectClientHandler create failed");
   return SUCCESS;
 }
@@ -159,6 +161,27 @@ Status DirectClientHandler::Finalize() {
   }
   is_connected_ = false;
   return SUCCESS;
+}
+
+void DirectClientHandler::Dump(const char *reason, DumpLogLevel level) const {
+  std::scoped_lock lock(mutex_, complete_handles_mutex_);
+  if (level == DumpLogLevel::ERROR) {
+    HIXL_LOGE(FAILED,
+              "[DirectClientHandler] dump, reason:%s, local_engine:%s, remote_engine:%s, handle:%p, "
+              "is_connected:%d, mem_handle_count:%zu, complete_handle_count:%zu, comm_type:%s, "
+              "local_endpoint:{%s}, remote_endpoint:{%s}",
+              reason, local_engine_.c_str(), remote_engine_.c_str(), handle_, static_cast<int32_t>(is_connected_),
+              mem_handles_.size(), complete_handles_.size(), CommTypeToString(pair_.type),
+              pair_.local.ToString().c_str(), pair_.remote.ToString().c_str());
+    return;
+  }
+  HIXL_EVENT(
+      "[DirectClientHandler] dump, reason:%s, local_engine:%s, remote_engine:%s, handle:%p, "
+      "is_connected:%d, mem_handle_count:%zu, complete_handle_count:%zu, comm_type:%s, "
+      "local_endpoint:{%s}, remote_endpoint:{%s}",
+      reason, local_engine_.c_str(), remote_engine_.c_str(), handle_, static_cast<int32_t>(is_connected_),
+      mem_handles_.size(), complete_handles_.size(), CommTypeToString(pair_.type), pair_.local.ToString().c_str(),
+      pair_.remote.ToString().c_str());
 }
 
 }  // namespace hixl

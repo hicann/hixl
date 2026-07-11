@@ -21,11 +21,13 @@
 #include "common/hixl_inner_types.h"
 #include "common/ctrl_msg.h"
 #include "engine/client_handler.h"
+#include "engine/client_handler_factory.h"
 
 namespace hixl {
 
 struct ClientConfig {
   std::vector<EndpointConfig> endpoint_list;
+  std::string local_engine;
   std::string remote_engine;
   uint8_t rdma_tc;
   uint8_t rdma_sl;
@@ -45,6 +47,7 @@ class HixlClient {
   HixlClient(const std::string &server_ip, uint32_t server_port, const ClientConfig &config)
       : server_ip_(server_ip),
         server_port_(server_port),
+        local_engine_(config.local_engine),
         remote_engine_(config.remote_engine),
         rdma_tc_(config.rdma_tc),
         rdma_sl_(config.rdma_sl),
@@ -122,9 +125,11 @@ class HixlClient {
   bool HasTransferReq(const TransferReq &req);
   void ClearTransferReqs();
   void RemoveTransferReq(const TransferReq &req);
+  void LogLinkPairs(const char *phase) const;
 
   std::string server_ip_;
   uint32_t server_port_;
+  std::string local_engine_;
   std::string remote_engine_;
   uint8_t rdma_tc_{kRdmaTrafficClass};
   uint8_t rdma_sl_{kRdmaServiceLevel};
@@ -132,6 +137,7 @@ class HixlClient {
   bool is_finalized_{false};
   int32_t ctrl_socket_{-1};
   std::unique_ptr<IClientHandler> client_handler_;
+  std::vector<HandlerCreateArgs::EndpointPair> link_pairs_;
   std::mutex mutex_;  // 所有方法串行执行，不支持并发调用
   std::map<TransferReq, TransferInfo> req_map_;
   std::optional<uint8_t> qos_;

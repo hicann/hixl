@@ -30,17 +30,23 @@ class DirectClientHandler : public IClientHandler {
   Status TransferSync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation, uint32_t timeout_ms) override;
   Status GetTransferStatus(const TransferReq &req, TransferStatus &status) override;
   Status Finalize() override;
+  void Dump(const char *reason, DumpLogLevel level = DumpLogLevel::EVENT) const override;
 
  public:
-  explicit DirectClientHandler(HixlClientHandle handle);
+  explicit DirectClientHandler(HixlClientHandle handle, const std::string &local_engine = "",
+                               const std::string &remote_engine = "",
+                               const HandlerCreateArgs::EndpointPair &pair = HandlerCreateArgs::EndpointPair{});
 
  private:
   HixlClientHandle handle_;
+  std::string local_engine_;
+  std::string remote_engine_;
+  HandlerCreateArgs::EndpointPair pair_{};
   bool is_connected_{false};
   std::vector<MemHandle> mem_handles_;
   std::map<TransferReq, CompleteHandle> complete_handles_;
-  std::mutex mutex_;
-  std::mutex complete_handles_mutex_;
+  mutable std::mutex mutex_;
+  mutable std::mutex complete_handles_mutex_;
 };
 
 }  // namespace hixl

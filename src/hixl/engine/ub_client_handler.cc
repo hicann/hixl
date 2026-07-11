@@ -33,6 +33,45 @@ namespace hixl {
 namespace {
 constexpr uint64_t kMaxRecvMemInfoBodySize = static_cast<uint64_t>(4ULL * 1024ULL * 1024ULL);  // 4MB
 
+void LogUbDumpSummary(DumpLogLevel level, const char *reason, const std::string &local_engine,
+                      const std::string &remote_engine, size_t handle_count, size_t connected_type_count,
+                      bool lazy_mode, size_t complete_req_count, size_t local_segment_count,
+                      size_t remote_segment_count) {
+  if (level == DumpLogLevel::ERROR) {
+    HIXL_LOGE(FAILED,
+              "[UbClientHandler] dump, reason:%s, local_engine:%s, remote_engine:%s, handle_count:%zu, "
+              "connected_type_count:%zu, lazy_mode:%d, complete_req_count:%zu, local_segment_count:%zu, "
+              "remote_segment_count:%zu",
+              reason, local_engine.c_str(), remote_engine.c_str(), handle_count, connected_type_count,
+              static_cast<int32_t>(lazy_mode), complete_req_count, local_segment_count, remote_segment_count);
+    return;
+  }
+  HIXL_EVENT(
+      "[UbClientHandler] dump, reason:%s, local_engine:%s, remote_engine:%s, handle_count:%zu, "
+      "connected_type_count:%zu, lazy_mode:%d, complete_req_count:%zu, local_segment_count:%zu, "
+      "remote_segment_count:%zu",
+      reason, local_engine.c_str(), remote_engine.c_str(), handle_count, connected_type_count,
+      static_cast<int32_t>(lazy_mode), complete_req_count, local_segment_count, remote_segment_count);
+}
+
+void LogUbDumpLink(DumpLogLevel level, const char *reason, const std::string &local_engine,
+                   const std::string &remote_engine, CommType type, HixlClientHandle handle, bool connected,
+                   const std::string &local_endpoint, const std::string &remote_endpoint) {
+  if (level == DumpLogLevel::ERROR) {
+    HIXL_LOGE(FAILED,
+              "[UbClientHandler] dump link, reason:%s, local_engine:%s, remote_engine:%s, comm_type:%s, "
+              "handle:%p, connected:%d, local_endpoint:{%s}, remote_endpoint:{%s}",
+              reason, local_engine.c_str(), remote_engine.c_str(), CommTypeToString(type), handle,
+              static_cast<int32_t>(connected), local_endpoint.c_str(), remote_endpoint.c_str());
+    return;
+  }
+  HIXL_EVENT(
+      "[UbClientHandler] dump link, reason:%s, local_engine:%s, remote_engine:%s, comm_type:%s, "
+      "handle:%p, connected:%d, local_endpoint:{%s}, remote_endpoint:{%s}",
+      reason, local_engine.c_str(), remote_engine.c_str(), CommTypeToString(type), handle,
+      static_cast<int32_t>(connected), local_endpoint.c_str(), remote_endpoint.c_str());
+}
+
 Status DeserializeMemInfoList(const std::string &json_str, std::vector<MemInfo> &mem_info_list) {
   nlohmann::json j;
   try {
@@ -105,10 +144,17 @@ Status ComputeRemainingMs(const std::chrono::steady_clock::time_point &start, ui
 
 }  // namespace
 
-UbClientHandler::UbClientHandler(std::map<CommType, HixlClientHandle> handles) : handles_(std::move(handles)) {}
+UbClientHandler::UbClientHandler(std::map<CommType, HixlClientHandle> handles, const std::string &local_engine,
+                                 const std::string &remote_engine,
+                                 std::map<CommType, HandlerCreateArgs::EndpointPair> link_pairs)
+    : handles_(std::move(handles)),
+      local_engine_(local_engine),
+      remote_engine_(remote_engine),
+      link_pairs_(std::move(link_pairs)) {}
 
 Status UbClientHandler::Create(const HandlerCreateArgs &args, std::unique_ptr<UbClientHandler> &out) {
   std::map<CommType, HixlClientHandle> handles;
+  std::map<CommType, HandlerCreateArgs::EndpointPair> link_pairs;
   const std::string global_resource_config = ClientHandlerConfigHelper::BuildGlobalResourceConfig(args);
   for (const auto &pair : args.matched_pairs) {
     EndpointDesc le{};
@@ -130,8 +176,9 @@ Status UbClientHandler::Create(const HandlerCreateArgs &args, std::unique_ptr<Ub
     HIXL_CHK_STATUS_RET(HixlCSClientCreate(&desc, &config, &handle), "HixlCSClientCreate failed for type %s",
                         CommTypeToString(pair.type));
     handles[pair.type] = handle;
+    link_pairs[pair.type] = pair;
   }
-  out = MakeUnique<UbClientHandler>(std::move(handles));
+  out = MakeUnique<UbClientHandler>(std::move(handles), args.local_engine, args.remote_engine, std::move(link_pairs));
   HIXL_CHECK_NOTNULL(out, "UbClientHandler create failed");
 
   // 若后续步骤失败，确保已创建的 handles 通过 Finalize 释放，避免资源泄漏
@@ -463,6 +510,49 @@ Status UbClientHandler::Finalize() {
     remote_segments_.clear();
   }
   return SUCCESS;
+}
+
+void UbClientHandler::Dump(const char *reason, DumpLogLevel level) const {
+  struct DumpLink {
+    CommType type;
+    HixlClientHandle handle;
+    bool connected;
+  };
+  std::vector<DumpLink> links;
+  size_t handle_count = 0;
+  size_t connected_type_count = 0;
+  size_t complete_req_count = 0;
+  size_t local_segment_count = 0;
+  size_t remote_segment_count = 0;
+  {
+    std::lock_guard<std::mutex> lock(handle_mutex_);
+    handle_count = handles_.size();
+    connected_type_count = connected_types_.size();
+    for (const auto &[type, handle] : handles_) {
+      links.push_back({type, handle, connected_types_.count(type) != 0U});
+    }
+  }
+  {
+    std::lock_guard<std::mutex> lock(complete_handles_mutex_);
+    complete_req_count = complete_handles_.size();
+  }
+  {
+    std::lock_guard<std::mutex> lock(local_seg_mutex_);
+    local_segment_count = local_segments_.size();
+  }
+  {
+    std::lock_guard<std::mutex> lock(remote_seg_mutex_);
+    remote_segment_count = remote_segments_.size();
+  }
+  LogUbDumpSummary(level, reason, local_engine_, remote_engine_, handle_count, connected_type_count, lazy_mode_,
+                   complete_req_count, local_segment_count, remote_segment_count);
+  for (const auto &link : links) {
+    auto pair_it = link_pairs_.find(link.type);
+    const std::string local_endpoint = (pair_it == link_pairs_.end()) ? "" : pair_it->second.local.ToString();
+    const std::string remote_endpoint = (pair_it == link_pairs_.end()) ? "" : pair_it->second.remote.ToString();
+    LogUbDumpLink(level, reason, local_engine_, remote_engine_, link.type, link.handle, link.connected, local_endpoint,
+                  remote_endpoint);
+  }
 }
 
 Status UbClientHandler::ClassifyTransfers(const std::vector<TransferOpDesc> &op_descs,

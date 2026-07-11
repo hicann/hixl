@@ -14,6 +14,7 @@
 #include <map>
 #include <mutex>
 #include <set>
+#include <string>
 #include <vector>
 #include "engine/client_handler.h"
 #include "engine/client_handler_factory.h"
@@ -22,7 +23,9 @@ namespace hixl {
 class UbClientHandler : public IClientHandler {
  public:
   static Status Create(const HandlerCreateArgs &args, std::unique_ptr<UbClientHandler> &out);
-  explicit UbClientHandler(std::map<CommType, HixlClientHandle> handles);
+  explicit UbClientHandler(std::map<CommType, HixlClientHandle> handles, const std::string &local_engine = "",
+                           const std::string &remote_engine = "",
+                           std::map<CommType, HandlerCreateArgs::EndpointPair> link_pairs = {});
   ~UbClientHandler() override = default;
 
   Status Connect(uint32_t timeout_ms) override;
@@ -31,6 +34,7 @@ class UbClientHandler : public IClientHandler {
   Status TransferSync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation, uint32_t timeout_ms) override;
   Status GetTransferStatus(const TransferReq &req, TransferStatus &status) override;
   Status Finalize() override;
+  void Dump(const char *reason, DumpLogLevel level = DumpLogLevel::EVENT) const override;
 
  private:
   Status ClassifyTransfers(const std::vector<TransferOpDesc> &op_descs,
@@ -59,15 +63,18 @@ class UbClientHandler : public IClientHandler {
   };
 
   std::map<CommType, HixlClientHandle> handles_;
+  std::string local_engine_;
+  std::string remote_engine_;
+  std::map<CommType, HandlerCreateArgs::EndpointPair> link_pairs_;
   std::map<CommType, std::vector<MemHandle>> mem_handles_;
   std::vector<SegmentPtr> local_segments_;
   std::vector<SegmentPtr> remote_segments_;
   std::map<TransferReq, std::vector<BatchHandle>> complete_handles_;
-  std::mutex handle_mutex_;
-  std::mutex mem_handle_mutex_;
-  std::mutex local_seg_mutex_;
-  std::mutex remote_seg_mutex_;
-  std::mutex complete_handles_mutex_;
+  mutable std::mutex handle_mutex_;
+  mutable std::mutex mem_handle_mutex_;
+  mutable std::mutex local_seg_mutex_;
+  mutable std::mutex remote_seg_mutex_;
+  mutable std::mutex complete_handles_mutex_;
 
   bool lazy_mode_ = false;
   bool connect_triggered_ = false;

@@ -54,7 +54,7 @@ Status HixlEngine::InitServer(std::optional<uint32_t> listen_port, std::optional
 }
 
 Status HixlEngine::Initialize(const HixlOptions &options) {
-  HIXL_LOGI("[HixlEngine] Initialization started, local_engine:%s", local_engine_.c_str());
+  HIXL_EVENT("[HixlEngine] initialize start, local_engine:%s", local_engine_.c_str());
   std::lock_guard<std::mutex> lock(mutex_);
   HIXL_CHK_STATUS_RET(options.CheckSupportedOptions(kSupportedOptions), "[HixlEngine] Unsupported option");
   const auto &raw = options.RawOptions();
@@ -93,14 +93,15 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
   HIXL_CHK_STATUS_RET(client_manager_.Initialize(auto_connect_), "[HixlEngine] Failed to initialize client manager");
   HIXL_DISMISS_GUARD(ctx_fail_guard);
   is_initialized_ = true;
-  HIXL_LOGI("[HixlEngine] Initialization succeeded, local_engine:%s", local_engine_.c_str());
+  HIXL_EVENT("[HixlEngine] initialize success, local_engine:%s, endpoint_count:%zu, auto_connect:%d",
+             local_engine_.c_str(), endpoint_list_.size(), static_cast<int32_t>(auto_connect_.load()));
   return SUCCESS;
 }
 
 Status HixlEngine::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
   HIXL_CHK_STATUS_RET(CheckInitialized(), "[HixlEngine] Failed to register mem, engine is not initialized");
-  HIXL_LOGI("[HixlEngine] Registration started, type:%s, addr:%p, size:%lu", MemTypeToString(type).c_str(),
-            reinterpret_cast<void *>(mem.addr), mem.len);
+  HIXL_EVENT("[HixlEngine] register mem start, local_engine:%s, type:%s, addr:%p, len:%zu", local_engine_.c_str(),
+             MemTypeToString(type).c_str(), reinterpret_cast<void *>(mem.addr), mem.len);
   auto with_context = aclrt_context_.GetContextGuard();
   std::lock_guard<std::mutex> lock(mutex_);
   HIXL_CHK_STATUS_RET(server_.RegisterMem(mem, type, mem_handle),
@@ -108,13 +109,14 @@ Status HixlEngine::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_
                       reinterpret_cast<void *>(mem.addr), mem.len);
   MemHandleInfo mem_info = {mem_handle, mem, type};
   mem_map_.emplace(mem_handle, mem_info);
-  HIXL_LOGI("[HixlEngine] Registration succeeded, type:%s, addr:%p, size:%lu", MemTypeToString(type).c_str(),
-            reinterpret_cast<void *>(mem.addr), mem.len);
+  HIXL_EVENT("[HixlEngine] register mem success, local_engine:%s, type:%s, addr:%p, len:%zu, handle:%p",
+             local_engine_.c_str(), MemTypeToString(type).c_str(), reinterpret_cast<void *>(mem.addr), mem.len,
+             mem_handle);
   return SUCCESS;
 }
 
 Status HixlEngine::DeregisterMem(MemHandle mem_handle) {
-  HIXL_LOGI("[HixlEngine] Deregistration started, mem_handle: %p", mem_handle);
+  HIXL_EVENT("[HixlEngine] deregister mem start, local_engine:%s, handle:%p", local_engine_.c_str(), mem_handle);
   auto with_context = aclrt_context_.GetContextGuard();
   std::lock_guard<std::mutex> lock(mutex_);
   const auto &it = mem_map_.find(mem_handle);
@@ -127,11 +129,14 @@ Status HixlEngine::DeregisterMem(MemHandle mem_handle) {
       "[HixlEngine] Failed to deregister mem. All clients must be disconnected before deregistration, "
       "mem_handle: %p, local_engine: %s",
       mem_handle, local_engine_.c_str());
+  const MemHandleInfo mem_info = it->second;
   HIXL_CHK_STATUS_RET(server_.DeregisterMem(mem_handle),
                       "[HixlEngine] Failed to deregister mem, mem_handle: %p, local_engine: %s", mem_handle,
                       local_engine_.c_str());
   mem_map_.erase(it);
-  HIXL_LOGI("[HixlEngine] Deregistration succeeded, mem_handle: %p", mem_handle);
+  HIXL_EVENT("[HixlEngine] deregister mem success, local_engine:%s, type:%s, addr:%p, len:%zu, handle:%p",
+             local_engine_.c_str(), MemTypeToString(mem_info.type).c_str(), reinterpret_cast<void *>(mem_info.mem.addr),
+             mem_info.mem.len, mem_handle);
   return SUCCESS;
 }
 
@@ -141,8 +146,8 @@ Status HixlEngine::Connect(const AscendString &remote_engine, int32_t timeout_in
                            "[HixlEngine] Do not support connection with self, please check remote engine. "
                            "local_engine:%s, remote_engine:%s",
                            local_engine_.c_str(), remote_engine.GetString());
-  HIXL_LOGI("[HixlEngine] Connection started, local_engine:%s, remote_engine:%s", local_engine_.c_str(),
-            remote_engine.GetString());
+  HIXL_EVENT("[HixlEngine] connect start, local_engine:%s, remote_engine:%s, timeout_ms:%d", local_engine_.c_str(),
+             remote_engine.GetString(), timeout_in_millis);
   auto with_context = aclrt_context_.GetContextGuard();
   ClientConfig config{};
   std::vector<MemHandleInfo> mem_info_list;
@@ -155,31 +160,31 @@ Status HixlEngine::Connect(const AscendString &remote_engine, int32_t timeout_in
                                    remote_engine.GetString(), local_engine_.c_str());
   HIXL_CHK_STATUS_RET(ret, "[HixlEngine] Failed to connect client, local_engine:%s, remote_engine:%s, timeout:%d ms",
                       local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
-  HIXL_LOGI("[HixlEngine] Connection succeeded, local_engine:%s, remote_engine:%s", local_engine_.c_str(),
-            remote_engine.GetString());
+  HIXL_EVENT("[HixlEngine] connect success, local_engine:%s, remote_engine:%s, timeout_ms:%d", local_engine_.c_str(),
+             remote_engine.GetString(), timeout_in_millis);
   return SUCCESS;
 }
 
 Status HixlEngine::Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis) {
-  HIXL_LOGI("[HixlEngine] Disconnection started, local_engine:%s, remote_engine:%s, timeout:%d ms",
-            local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
+  HIXL_EVENT("[HixlEngine] disconnect start, local_engine:%s, remote_engine:%s, timeout_ms:%d", local_engine_.c_str(),
+             remote_engine.GetString(), timeout_in_millis);
   auto with_context = aclrt_context_.GetContextGuard();
   Status ret = client_manager_.DestroyClient(remote_engine.GetString());
   HIXL_CHK_STATUS_RET(ret, "[HixlEngine] Failed to disconnect, local_engine:%s, remote_engine:%s, timeout:%d ms",
                       local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
-  HIXL_LOGI("[HixlEngine] Disconnection succeeded, local_engine:%s, remote_engine:%s, timeout:%d ms",
-            local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
+  HIXL_EVENT("[HixlEngine] disconnect success, local_engine:%s, remote_engine:%s, timeout_ms:%d", local_engine_.c_str(),
+             remote_engine.GetString(), timeout_in_millis);
   return SUCCESS;
 }
 
 void HixlEngine::Disconnect() {
-  HIXL_LOGI("[HixlEngine] Disconnection with all clients started, local_engine:%s", local_engine_.c_str());
+  HIXL_EVENT("[HixlEngine] disconnect all start, local_engine:%s", local_engine_.c_str());
   auto with_context = aclrt_context_.GetContextGuard();
   Status ret = client_manager_.Finalize();
   if (ret != SUCCESS) {
     HIXL_LOGE(FAILED, "[HixlEngine] Failed to disconnect with all clients, local_engine:%s", local_engine_.c_str());
   } else {
-    HIXL_LOGI("[HixlEngine] Disconnection with all clients succeeded, local_engine:%s", local_engine_.c_str());
+    HIXL_EVENT("[HixlEngine] disconnect all success, local_engine:%s", local_engine_.c_str());
   }
 }
 
@@ -303,7 +308,7 @@ Status HixlEngine::GetTransferStatus(const GetTransferStatusArgs &args, std::vec
 }
 
 void HixlEngine::Finalize() {
-  HIXL_LOGI("[HixlEngine] Finalization started");
+  HIXL_EVENT("[HixlEngine] finalize start, local_engine:%s", local_engine_.c_str());
   std::lock_guard<std::mutex> lock(mutex_);
   is_initialized_ = false;
   {
@@ -313,7 +318,7 @@ void HixlEngine::Finalize() {
     mem_map_.clear();
   }
   aclrt_context_.DestroyContext();
-  HIXL_LOGI("[HixlEngine] Finalization succeeded");
+  HIXL_EVENT("[HixlEngine] finalize success, local_engine:%s", local_engine_.c_str());
 }
 
 Status HixlEngine::SendNotify(const AscendString &remote_engine, const NotifyDesc &notify, int32_t timeout_in_millis) {
@@ -358,6 +363,7 @@ Status HixlEngine::CheckInitialized() const {
 void HixlEngine::FillClientConfigFields(const AscendString &remote_engine, ClientConfig &config,
                                         int32_t timeout_in_millis, bool is_lazy) const {
   config.endpoint_list = endpoint_list_;
+  config.local_engine = local_engine_;
   config.remote_engine = remote_engine.GetString();
   config.rdma_tc = rdma_traffic_class_;
   config.rdma_sl = rdma_service_level_;
