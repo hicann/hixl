@@ -22,7 +22,6 @@ set -euo pipefail
 owner="${1:-cann}"
 repo="${2:-hixl}"
 issue_no="${3:-}"
-out_root="${HOME}/hixl-troubleshooting/issues"
 cache_dir="${HOME}/.hixl-troubleshoot"
 jwt_file="${cache_dir}/gitcode_access_token"
 api_base="${GITCODE_API_BASE:-https://api.gitcode.com}/api/v5"
@@ -33,7 +32,7 @@ usage() {
 Usage: $0 [owner] [repo] <issue_number>
 
 Download issue attachment zips (issue body + comments) to:
-  ${out_root}/<owner>-<repo>-<issue_number>/extracted
+  \${HOME}/hixl-troubleshooting/issues/<owner>-<repo>-<issue_number>/extracted
 
 Env:
   GITCODE_API_TOKEN    required; v5 API for issue + comments
@@ -87,7 +86,8 @@ if [ -z "${GITCODE_API_TOKEN:-}" ]; then
 fi
 
 web_url="https://gitcode.com/${owner}/${repo}/issues/${issue_no}"
-out_dir="${out_root}/${owner}-${repo}-${issue_no}"
+out_dir="${HOME}/hixl-troubleshooting/issues/${owner}-${repo}-${issue_no}"
+extracted="${out_dir}/extracted"
 mkdir -p "${out_dir}"
 
 api_token="${GITCODE_API_TOKEN}"
@@ -140,7 +140,6 @@ mkdir -p "${cache_dir}"
 printf '%s' "${web_jwt}" > "${jwt_file}"
 chmod 600 "${jwt_file}"
 
-extracted="${out_dir}/extracted"
 mkdir -p "${extracted}"
 rc=0
 while IFS= read -r url; do

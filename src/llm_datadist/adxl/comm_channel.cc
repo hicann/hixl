@@ -273,7 +273,7 @@ void CommChannel::AbortSharedSlot() {
   active_slot_.reset();
 }
 
-void CommChannel::ReleaseHostFlag(const std::shared_ptr<SlotHandle> &slot, void *host_flag) {
+void CommChannel::ReleaseHostFlag(const std::shared_ptr<SlotHandle> &slot, void *host_flag) const {
   if (host_flag == nullptr) {
     return;
   }

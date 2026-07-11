@@ -156,7 +156,7 @@ class CommChannel {
   // pool, then unbind it from the channel.
   void AbortSharedSlot();
   // Return a per-request host-pinned completion flag to its slot free-list (or free it if the pool is gone).
-  void ReleaseHostFlag(const std::shared_ptr<SlotHandle> &slot, void *host_flag);
+  void ReleaseHostFlag(const std::shared_ptr<SlotHandle> &slot, void *host_flag) const;
 
   // --- Async record recycling: req_2_async_record_ owns one host_flag + one slot reference per request ---
   // Remove one record and recycle its host_flag + slot reference (completion or per-request drop).

@@ -9,7 +9,7 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-set -uo pipefail
+set -euo pipefail
 
 base_dir="${HOME}/hixl-troubleshooting"
 max_age_days=7
