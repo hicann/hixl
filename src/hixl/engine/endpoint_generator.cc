@@ -136,8 +136,7 @@ Status GetUbgEidFromDcmi(uint32_t logic_id, std::string &eid) {
       }
     }
   }
-  HIXL_LOGE(FAILED, "Failed to find UBG EID (byte[7]&0xC0==0x80) from DCMI, logic_id=%u, dev_cnt=%u", logic_id,
-            dev_cnt);
+  HIXL_EVENT("[EndpointGenerator] UBG EID not found, logic_id=%u, dev_cnt=%u", logic_id, dev_cnt);
   return FAILED;
 }
 
@@ -159,7 +158,9 @@ Status GetUboeIp(std::string &ip) {
 
 Status GenDefaultUboeEndpointConfig(int32_t logic_dev_id, EndpointConfig &endpoint_config) {
   std::string uboe_ip;
-  HIXL_CHK_STATUS_RET(GetUboeIp(uboe_ip), "get uboe ip failed");
+  if (GetUboeIp(uboe_ip) != SUCCESS) {
+    return FAILED;
+  }
   endpoint_config.protocol = kProtocolUboe;
   endpoint_config.comm_id = uboe_ip;
   endpoint_config.placement = kPlacementDevice;
@@ -173,7 +174,9 @@ Status GenDefaultUboeEndpointConfig(int32_t logic_dev_id, EndpointConfig &endpoi
 Status GenDefaultUbgEndpointConfig(int32_t logic_dev_id, EndpointConfig &endpoint_config) {
   uint32_t logic_id = static_cast<uint32_t>(logic_dev_id);
   std::string eid;
-  HIXL_CHK_STATUS_RET(GetUbgEidFromDcmi(logic_id, eid), "get ubg eid failed");
+  if (GetUbgEidFromDcmi(logic_id, eid) != SUCCESS) {
+    return FAILED;
+  }
   endpoint_config.protocol = kProtocolUbg;
   endpoint_config.comm_id = eid;
   endpoint_config.placement = kPlacementDevice;
@@ -224,14 +227,19 @@ Status GenerateScaleOutEndpointByInterconType(int32_t logic_dev_id, int32_t phy_
              phy_dev_id);
   if (IsUbgInterconType(intercon_type)) {
     EndpointConfig ubg_endpoint{};
-    HIXL_CHK_STATUS_RET(GenDefaultUbgEndpointConfig(logic_dev_id, ubg_endpoint), "GenDefaultUbgEndpointConfig failed");
+    if (GenDefaultUbgEndpointConfig(logic_dev_id, ubg_endpoint) != SUCCESS) {
+      HIXL_EVENT("[EndpointGenerator] UBG endpoint generation failed, skip ScaleOut, fallback to UB");
+      return SUCCESS;
+    }
     endpoint_list.emplace_back(std::move(ubg_endpoint));
     return SUCCESS;
   }
   if (IsUboeInterconType(intercon_type)) {
     EndpointConfig uboe_endpoint{};
-    HIXL_CHK_STATUS_RET(GenDefaultUboeEndpointConfig(logic_dev_id, uboe_endpoint),
-                        "GenDefaultUboeEndpointConfig failed");
+    if (GenDefaultUboeEndpointConfig(logic_dev_id, uboe_endpoint) != SUCCESS) {
+      HIXL_EVENT("[EndpointGenerator] UBoE endpoint generation failed, skip ScaleOut, fallback to UB");
+      return SUCCESS;
+    }
     endpoint_list.emplace_back(std::move(uboe_endpoint));
     return SUCCESS;
   }

@@ -1528,6 +1528,44 @@ TEST_F(EndpointGeneratorUTest, AutoGenNoScaleOutWhenRoceInterconTypeOnA5) {
   EXPECT_TRUE(endpoint_list.empty());
 }
 
+TEST_F(EndpointGeneratorUTest, AutoGenA5UboeBondIpFailFallsBackToUb) {
+  acl_stub_->soc_name_ = "Ascend950A";
+  acl_stub_->device_id_ = 0;
+  acl_stub_->phy_device_id_ = 3;
+  DsmiStubSetInterconType(2U);  // UBoE, but hccn_tool not found → bond IP fails
+
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_LOCAL_COMM_RES] = AscendString(R"({"version":"1.3"})");
+
+  std::string local_comm_res;
+  std::vector<EndpointConfig> endpoint_list;
+  HixlOptions parsed;
+  ASSERT_EQ(HixlOptions::Parse(options, parsed), SUCCESS);
+  // UBoE bond IP not found → skip ScaleOut → UB also fails (no topo) → returns error
+  EXPECT_NE(EndpointGenerator::BuildEndpointList(parsed, "127.0.0.1:26000", local_comm_res, endpoint_list), SUCCESS);
+  EXPECT_TRUE(endpoint_list.empty());
+}
+
+TEST_F(EndpointGeneratorUTest, AutoGenA5UbgEidNotFoundFallsBackToUb) {
+  acl_stub_->soc_name_ = "Ascend950A";
+  acl_stub_->device_id_ = 0;
+  acl_stub_->phy_device_id_ = 3;
+  DsmiStubSetInterconType(4U);  // UBG
+  SetupA5UbgDcmiDefaults();
+  DcmiStubSetEnableUbgEid(false);  // DCMI 返回 EID 但没有 UBG 标记
+
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_LOCAL_COMM_RES] = AscendString(R"({"version":"1.3"})");
+
+  std::string local_comm_res;
+  std::vector<EndpointConfig> endpoint_list;
+  HixlOptions parsed;
+  ASSERT_EQ(HixlOptions::Parse(options, parsed), SUCCESS);
+  // UBG EID not found → skip ScaleOut → UB also fails (no topo) → returns error
+  EXPECT_NE(EndpointGenerator::BuildEndpointList(parsed, "127.0.0.1:26000", local_comm_res, endpoint_list), SUCCESS);
+  EXPECT_TRUE(endpoint_list.empty());
+}
+
 TEST_F(EndpointGeneratorUTest, ConvertToEndpointDescDeviceUbParsesMixedCaseEidTest) {
   EndpointConfig ep;
   ep.protocol = kProtocolUbTp;

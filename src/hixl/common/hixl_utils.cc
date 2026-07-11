@@ -153,17 +153,23 @@ Status GetBondIpAddress(int32_t dev_logic_id, uint32_t slot_id, std::string &ip)
   // query command is 'hccn_tool -g -ip -i 0 -d bond0'
   const std::string bond_name = "bond" + std::to_string(slot_id);
   auto hccn_tool_path = GetHccnToolPath();
-  HIXL_CHK_BOOL_RET_STATUS(!hccn_tool_path.empty(), FAILED, "querying bond ip failed as hccn_tool not found.");
+  if (hccn_tool_path.empty()) {
+    HIXL_EVENT("querying bond ip failed as hccn_tool not found.");
+    return FAILED;
+  }
 
   const std::string command = hccn_tool_path + " -g -ip -i " + std::to_string(dev_logic_id) + " -d " + bond_name;
   std::string output;
-  HIXL_CHK_STATUS_RET(GetHccnOutput(command, output), "Getting hccn output for bond ip failed, command=%s.",
-                      command.c_str());
+  if (GetHccnOutput(command, output) != SUCCESS) {
+    HIXL_EVENT("Getting hccn output for bond ip failed, command=%s.", command.c_str());
+    return FAILED;
+  }
   ExtractIpAddress(output, ip);
-  HIXL_CHK_BOOL_RET_STATUS(
-      !ip.empty(), FAILED,
-      "query device=%d bond ip is empty, please make sure bond ip is set correctly, query command=%s.", dev_logic_id,
-      command.c_str());
+  if (ip.empty()) {
+    HIXL_EVENT("query device=%d bond ip is empty, please make sure bond ip is set correctly, query command=%s.",
+               dev_logic_id, command.c_str());
+    return FAILED;
+  }
   HIXL_LOGI("get bond ip from device[%d]=%s", dev_logic_id, ip.c_str());
   return SUCCESS;
 }
