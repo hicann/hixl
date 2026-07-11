@@ -16,6 +16,7 @@
 #include "acl/acl.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
+#include "common/hixl_utils.h"
 #include "fabric_mem/acl_compat.h"
 
 namespace hixl {
@@ -29,15 +30,10 @@ constexpr size_t kBytesPerTB = 1024UL * 1024UL * 1024UL * 1024UL;
 constexpr size_t kMinGlobalStartAddrTB = 40UL;
 constexpr size_t kMaxGlobalStartAddrTB = 220UL;
 
-const std::set<std::string> kSocV3 = {"Ascend910_9391", "Ascend910_9381", "Ascend910_9392",
-                                      "Ascend910_9382", "Ascend910_9372", "Ascend910_9362"};
-
 bool IsA3Soc() {
-  const char *soc_name_cstr = aclrtGetSocName();
-  if (soc_name_cstr == nullptr) {
-    return false;
-  }
-  return kSocV3.find(soc_name_cstr) != kSocV3.end();
+  SocType soc_type = SocType::kOther;
+  (void)GetSocType(soc_type);
+  return soc_type == SocType::kV3;
 }
 }  // namespace
 

@@ -70,11 +70,6 @@ constexpr uint8_t kUbgEidMarkerMask = 0xC0U;
 constexpr uint8_t kUbgEidMarkerValue = 0x80U;
 constexpr size_t kEidHexStrLen = COMM_ADDR_EID_LEN * 2U;
 
-const std::set<std::string> kSocV2 = {"Ascend910B1", "Ascend910B2",  "Ascend910B3",
-                                      "Ascend910B4", "Ascend910B2C", "Ascend910B4-1"};
-const std::set<std::string> kSocV3 = {"Ascend910_9391", "Ascend910_9381", "Ascend910_9392",
-                                      "Ascend910_9382", "Ascend910_9372", "Ascend910_9362"};
-
 bool IsRoceInterconType(uint32_t intercon_type) {
   return intercon_type == kInterconTypeRoceOverNpu || intercon_type == kInterconTypeRoceOverCpu;
 }
@@ -753,37 +748,6 @@ void EndpointGenerator::ConvertLocCommResInfoToEndpointList(const EndpointGenera
     ep.net_instance_id = loc_comm_res_info.net_instance_id;
     endpoint_list.emplace_back(ep);
   }
-}
-
-Status EndpointGenerator::GetSocName(std::string &soc_name) {
-  const char *soc_name_cstr = aclrtGetSocName();
-  HIXL_CHK_BOOL_RET_STATUS(soc_name_cstr != nullptr, FAILED, "aclrtGetSocName returned nullptr");
-  soc_name = soc_name_cstr;
-  HIXL_CHK_BOOL_RET_STATUS(!soc_name.empty(), FAILED, "soc_name is empty");
-  return SUCCESS;
-}
-
-EndpointGenerator::SocType EndpointGenerator::GetSocTypeByName(const std::string &soc_name) {
-  if (kSocV2.find(soc_name) != kSocV2.end()) {
-    return SocType::kV2;
-  }
-
-  if (kSocV3.find(soc_name) != kSocV3.end()) {
-    return SocType::kV3;
-  }
-
-  if (soc_name.find("Ascend950") != std::string::npos) {
-    return SocType::kV5;
-  }
-
-  return SocType::kOther;
-}
-
-Status EndpointGenerator::GetSocType(EndpointGenerator::SocType &soc_type) {
-  std::string soc_name;
-  HIXL_CHK_STATUS_RET(GetSocName(soc_name), "GetSocName failed");
-  soc_type = GetSocTypeByName(soc_name);
-  return SUCCESS;
 }
 
 Status EndpointGenerator::BuildNetInstanceId(int32_t device_id, const std::string &local_engine,

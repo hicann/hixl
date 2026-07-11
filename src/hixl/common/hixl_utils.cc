@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <set>
 #include "securec.h"
 #include "acl/acl.h"
 #include "mmpa/mmpa_api.h"
@@ -30,6 +31,11 @@ namespace {
 constexpr uint32_t kBufferMaxSize = 128U;
 constexpr const char kHccnConfPath[] = "/etc/hccn.conf";
 constexpr const char kHccnToolPath[] = "/usr/local/Ascend/driver/tools/hccn_tool";
+
+const std::set<std::string> kSocV2 = {"Ascend910B1", "Ascend910B2",  "Ascend910B3",
+                                      "Ascend910B4", "Ascend910B2C", "Ascend910B4-1"};
+const std::set<std::string> kSocV3 = {"Ascend910_9391", "Ascend910_9381", "Ascend910_9392",
+                                      "Ascend910_9382", "Ascend910_9372", "Ascend910_9362"};
 
 std::string GetHccnToolPath() {
   if (mmAccess(kHccnToolPath) == EN_OK) {
@@ -355,6 +361,37 @@ const char *IntraRoceEnableStatusStr() {
 
 bool IsHostRegisterMappedProtocol(CommProtocol protocol) {
   return protocol == COMM_PROTOCOL_UBOE || protocol == COMM_PROTOCOL_UBG;
+}
+
+Status GetSocName(std::string &soc_name) {
+  const char *soc_name_cstr = aclrtGetSocName();
+  HIXL_CHK_BOOL_RET_STATUS(soc_name_cstr != nullptr, FAILED, "aclrtGetSocName returned nullptr");
+  soc_name = soc_name_cstr;
+  HIXL_CHK_BOOL_RET_STATUS(!soc_name.empty(), FAILED, "soc_name is empty");
+  return SUCCESS;
+}
+
+SocType GetSocTypeByName(const std::string &soc_name) {
+  if (kSocV2.find(soc_name) != kSocV2.end()) {
+    return SocType::kV2;
+  }
+
+  if (kSocV3.find(soc_name) != kSocV3.end()) {
+    return SocType::kV3;
+  }
+
+  if (soc_name.find("Ascend950") != std::string::npos) {
+    return SocType::kV5;
+  }
+
+  return SocType::kOther;
+}
+
+Status GetSocType(SocType &soc_type) {
+  std::string soc_name;
+  HIXL_CHK_STATUS_RET(GetSocName(soc_name), "GetSocName failed");
+  soc_type = GetSocTypeByName(soc_name);
+  return SUCCESS;
 }
 
 }  // namespace hixl

@@ -23,6 +23,7 @@ namespace fs = std::experimental::filesystem;
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "graph/ascend_string.h"
 #include "hixl/hixl_types.h"
+#include "ascendcl_stub.h"
 
 using namespace ::testing;
 
@@ -58,6 +59,19 @@ class DeviceIpMmpaStub : public llm::MmpaStubApiGe {
   std::string conf_path_;
   bool conf_exists_;
 };
+
+class SocNameAclStub : public llm::AclRuntimeStub {
+ public:
+  std::string soc_name_;
+  bool return_null_ = false;
+
+  const char *aclrtGetSocName() override {
+    if (return_null_) {
+      return nullptr;
+    }
+    return soc_name_.c_str();
+  }
+};
 }  // namespace
 
 class HixlUtilsUTest : public ::testing::Test {
@@ -78,6 +92,7 @@ class HixlUtilsUTest : public ::testing::Test {
       setenv("PATH", old_path_.c_str(), 1);
     }
     llm::MmpaStub::GetInstance().Reset();
+    llm::AclRuntimeStub::Reset();
     fs::remove_all(temp_dir_);
   }
 
@@ -301,6 +316,65 @@ TEST_F(HixlUtilsUTest, EndpointToStringReservedLocNoLocInfoTest) {
   EXPECT_THAT(text, HasSubstr("addr=ID:0x5"));
   EXPECT_THAT(text, Not(HasSubstr("devPhyId")));
   EXPECT_THAT(text, Not(HasSubstr("hostId")));
+}
+
+TEST_F(HixlUtilsUTest, GetSocTypeByNameRecognizesAllA2SocNames) {
+  EXPECT_EQ(GetSocTypeByName("Ascend910B1"), SocType::kV2);
+  EXPECT_EQ(GetSocTypeByName("Ascend910B2"), SocType::kV2);
+  EXPECT_EQ(GetSocTypeByName("Ascend910B3"), SocType::kV2);
+  EXPECT_EQ(GetSocTypeByName("Ascend910B4"), SocType::kV2);
+  EXPECT_EQ(GetSocTypeByName("Ascend910B2C"), SocType::kV2);
+  EXPECT_EQ(GetSocTypeByName("Ascend910B4-1"), SocType::kV2);
+}
+
+TEST_F(HixlUtilsUTest, GetSocTypeByNameRecognizesAllA3SocNames) {
+  EXPECT_EQ(GetSocTypeByName("Ascend910_9391"), SocType::kV3);
+  EXPECT_EQ(GetSocTypeByName("Ascend910_9381"), SocType::kV3);
+  EXPECT_EQ(GetSocTypeByName("Ascend910_9392"), SocType::kV3);
+  EXPECT_EQ(GetSocTypeByName("Ascend910_9382"), SocType::kV3);
+  EXPECT_EQ(GetSocTypeByName("Ascend910_9372"), SocType::kV3);
+  EXPECT_EQ(GetSocTypeByName("Ascend910_9362"), SocType::kV3);
+}
+
+TEST_F(HixlUtilsUTest, GetSocTypeByNameRecognizesA5SocNames) {
+  EXPECT_EQ(GetSocTypeByName("Ascend950"), SocType::kV5);
+  EXPECT_EQ(GetSocTypeByName("Ascend950B"), SocType::kV5);
+  EXPECT_EQ(GetSocTypeByName("Ascend950_1234"), SocType::kV5);
+}
+
+TEST_F(HixlUtilsUTest, GetSocTypeByNameReturnsOtherForUnknown) {
+  EXPECT_EQ(GetSocTypeByName("UnknownChip"), SocType::kOther);
+  EXPECT_EQ(GetSocTypeByName("Ascend910"), SocType::kOther);
+  EXPECT_EQ(GetSocTypeByName(""), SocType::kOther);
+}
+
+TEST_F(HixlUtilsUTest, GetSocNameSuccess) {
+  auto stub = std::make_shared<SocNameAclStub>();
+  stub->soc_name_ = "Ascend910B1";
+  llm::AclRuntimeStub::SetInstance(stub);
+
+  std::string soc_name;
+  EXPECT_EQ(GetSocName(soc_name), SUCCESS);
+  EXPECT_EQ(soc_name, "Ascend910B1");
+}
+
+TEST_F(HixlUtilsUTest, GetSocNameReturnsNull) {
+  auto stub = std::make_shared<SocNameAclStub>();
+  stub->return_null_ = true;
+  llm::AclRuntimeStub::SetInstance(stub);
+
+  std::string soc_name;
+  EXPECT_EQ(GetSocName(soc_name), FAILED);
+}
+
+TEST_F(HixlUtilsUTest, GetSocTypeSuccess) {
+  auto stub = std::make_shared<SocNameAclStub>();
+  stub->soc_name_ = "Ascend910_9391";
+  llm::AclRuntimeStub::SetInstance(stub);
+
+  SocType soc_type = SocType::kOther;
+  EXPECT_EQ(GetSocType(soc_type), SUCCESS);
+  EXPECT_EQ(soc_type, SocType::kV3);
 }
 
 TEST_F(HixlUtilsUTest, ProtocolToStringMapsKnownProtocolsTest) {

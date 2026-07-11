@@ -231,15 +231,6 @@ TEST_F(EndpointGeneratorUTest, BuildHccsEndpointSuccess) {
   EXPECT_EQ(endpoint.placement, "device");
 }
 
-TEST_F(EndpointGeneratorUTest, GetSocTypeByNameRecognizesAllA2SocNames) {
-  EXPECT_EQ(EndpointGenerator::GetSocTypeByName("Ascend910B1"), EndpointGenerator::SocType::kV2);
-  EXPECT_EQ(EndpointGenerator::GetSocTypeByName("Ascend910B2"), EndpointGenerator::SocType::kV2);
-  EXPECT_EQ(EndpointGenerator::GetSocTypeByName("Ascend910B3"), EndpointGenerator::SocType::kV2);
-  EXPECT_EQ(EndpointGenerator::GetSocTypeByName("Ascend910B4"), EndpointGenerator::SocType::kV2);
-  EXPECT_EQ(EndpointGenerator::GetSocTypeByName("Ascend910B2C"), EndpointGenerator::SocType::kV2);
-  EXPECT_EQ(EndpointGenerator::GetSocTypeByName("Ascend910B4-1"), EndpointGenerator::SocType::kV2);
-}
-
 TEST_F(EndpointGeneratorUTest, BuildNetInstanceIdForV3Success) {
   acl_stub_->soc_name_ = "Ascend910_9391";
   acl_stub_->super_pod_id_ = 12345;

@@ -56,7 +56,6 @@ std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string local_engi
         LogSelectedEngine("hixl_cs", "LocalCommRes version is 1.3", local_engine);
         return std::make_unique<HixlEngine>(AscendString(local_engine.c_str()));
       }
-      HIXL_LOGI("[EngineFactory] local_comm_res version is not 1.3, using CommEngine");
     } catch (const nlohmann::json::exception &e) {
       HIXL_LOGE(PARAM_INVALID, "Invalid json, exception:%s", e.what());
       return nullptr;
@@ -66,6 +65,11 @@ std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string local_engi
   }
   if (UseProtocolDesc(parsed_options)) {
     LogSelectedEngine("hixl_cs", "protocol_desc is configured", local_engine);
+    return std::make_unique<HixlEngine>(AscendString(local_engine.c_str()));
+  }
+  SocType soc_type = SocType::kOther;
+  if (GetSocType(soc_type) == SUCCESS && soc_type == SocType::kV5) {
+    LogSelectedEngine("hixl_cs", "SoC type matched hixl_cs", local_engine);
     return std::make_unique<HixlEngine>(AscendString(local_engine.c_str()));
   }
   LogSelectedEngine("comm", "no hixl_cs selector matched", local_engine);

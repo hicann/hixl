@@ -20,12 +20,11 @@
 #include "hixl/hixl_types.h"
 #include "hixl_options.h"
 #include "common/hixl_inner_types.h"
+#include "common/hixl_utils.h"
 
 namespace hixl {
 class EndpointGenerator {
  public:
-  enum class SocType { kV2, kV3, kV5, kOther };
-
   static Status BuildEndpointList(const HixlOptions &options, const std::string &local_engine,
                                   std::string &local_comm_res, std::vector<EndpointConfig> &endpoint_list);
   static Status ConvertToEndpointDesc(const EndpointConfig &endpoint_config, EndpointDesc &endpoint);
@@ -47,9 +46,6 @@ class EndpointGenerator {
 
   static Status GenerateInfo(int32_t device_id, const std::string &local_engine, LocCommResInfo &loc_comm_res_info);
   static Status GetDeviceIp(int32_t phy_device_id, std::string &device_ip);
-  static Status GetSocName(std::string &soc_name);
-  static SocType GetSocTypeByName(const std::string &soc_name);
-  static Status GetSocType(SocType &soc_type);
   static void ConvertLocCommResInfoToEndpointList(const LocCommResInfo &loc_comm_res_info,
                                                   std::vector<EndpointConfig> &endpoint_list);
   static Status BuildNetInstanceId(int32_t device_id, const std::string &local_engine, std::string &net_instance_id);
