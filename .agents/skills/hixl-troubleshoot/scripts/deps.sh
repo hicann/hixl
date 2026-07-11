@@ -17,6 +17,7 @@ max_age_days=7
 usage() {
   echo "Usage: $0"
   echo "  Clone/update CANN dependency repos under ${base_dir}"
+  echo "  Keeps complete commit history and tags for version-aligned code verification."
   echo "  Reuses existing clones; pulls if last update is older than ${max_age_days} days."
 }
 
@@ -46,12 +47,33 @@ needs_update() {
   [ "${age}" -ge "${max_age_days}" ]
 }
 
+ensure_full_history() {
+  local repo="$1"
+  local dst="$2"
+  local shallow attempt
+  shallow="$(git -C "${dst}" rev-parse --is-shallow-repository 2>/dev/null || echo true)"
+  [ "${shallow}" = "true" ] || return 0
+  for attempt in 1 2 3; do
+    echo "Fetching complete history for ${repo} at ${dst}"
+    if git -C "${dst}" fetch --unshallow --tags; then
+      return 0
+    fi
+    echo "History fetch for ${repo} failed (attempt ${attempt}/3), retrying..." >&2
+    sleep "$((attempt * 2))"
+  done
+  return 1
+}
+
 clone_or_update_gitcode() {
   local repo="$1"
   local dst="${base_dir}/${repo}"
   local url="https://gitcode.com/cann/${repo}.git"
 
   if [ -d "${dst}/.git" ]; then
+    if ! ensure_full_history "${repo}" "${dst}"; then
+      echo "WARN: complete history fetch failed for ${repo}; code verification cannot align history." >&2
+      return 1
+    fi
     if needs_update "${dst}"; then
       echo "Updating ${repo} at ${dst}"
       if git -C "${dst}" pull --ff-only; then
@@ -70,7 +92,7 @@ clone_or_update_gitcode() {
   rm -rf "${dst}"
   local attempt
   for attempt in 1 2 3; do
-    if git clone --depth 1 --single-branch "${url}" "${dst}"; then
+    if git clone "${url}" "${dst}"; then
       touch "${dst}/.last_update"
       return 0
     fi
@@ -83,7 +105,7 @@ clone_or_update_gitcode() {
 }
 
 rc=0
-for repo in runtime hcomm driver hixl.wiki; do
+for repo in runtime hcomm driver hixl hixl.wiki; do
   clone_or_update_gitcode "${repo}" || { rc=1; echo "WARN: ${repo} unavailable (code verification incomplete for this repo)." >&2; }
 done
 

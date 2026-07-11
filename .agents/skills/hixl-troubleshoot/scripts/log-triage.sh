@@ -11,50 +11,81 @@
 
 set -euo pipefail
 
-log_dir="${1:-${HOME}/ascend/log}"
-context_lines=3
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 deps_dir="${HOME}/hixl-troubleshooting"
 
-if [ ! -d "${log_dir}" ]; then
-  echo "Log directory not found: ${log_dir}" >&2
-  exit 1
+usage() {
+  cat <<EOF
+Usage: $0 [--source NAME=LOG_DIR]... [--top N] [--context N] [LOG_DIR...]
+
+Merge HIXL-related errors from one or more plog roots by log timestamp.
+
+Examples:
+  $0 /root/ascend/log
+  $0 --source P=/logs/p/ascend/log --source D=/logs/d/ascend/log
+EOF
+}
+
+timeline_args=()
+source_dirs=()
+plain_dirs=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --source)
+      [ $# -ge 2 ] || { echo "--source requires NAME=LOG_DIR" >&2; exit 2; }
+      spec="$2"
+      label="${spec%%=*}"
+      directory="${spec#*=}"
+      if [ "${label}" = "${spec}" ] || [ -z "${label}" ] || [ -z "${directory}" ]; then
+        echo "Invalid --source '${spec}'; expected NAME=LOG_DIR." >&2
+        exit 2
+      fi
+      timeline_args+=(--source "${spec}")
+      source_dirs+=("${directory}")
+      shift 2
+      ;;
+    --top|--context)
+      [ $# -ge 2 ] || { echo "$1 requires a value" >&2; exit 2; }
+      timeline_args+=("$1" "$2")
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --*)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+    *)
+      plain_dirs+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [ "${#source_dirs[@]}" -eq 0 ] && [ "${#plain_dirs[@]}" -eq 0 ]; then
+  plain_dirs=("${HOME}/ascend/log")
 fi
 
-echo "=== HIXL log triage: ${log_dir} ==="
+log_dirs=("${source_dirs[@]}" "${plain_dirs[@]}")
+for log_dir in "${log_dirs[@]}"; do
+  if [ ! -d "${log_dir}" ]; then
+    echo "Log directory not found: ${log_dir}" >&2
+    exit 1
+  fi
+done
+
+echo "=== HIXL log triage ==="
+echo
+python3 "${script_dir}/log_timeline.py" "${timeline_args[@]}" "${plain_dirs[@]}"
 echo
 
 matches_file="$(mktemp)"
 trap 'rm -f "${matches_file}"' EXIT
 grep -rniE 'HCCL|HCCP|DRV|RUNTIME|ADXL|\[HIXL\]|HIXL CS|HixlClient|HixlServer|HixlCS|AscendDirect|HcclCommPrepare|LINK_ERROR_INFO|CheckMemCpyAttr|remoteBuffer|FabricMem|\[FabricMemEngine\]|Fabric mem transfer|Connect statistic|Direct transfer statistic|local_comm_res|halMemImport|suspect remote|cpu stuck' \
-  "${log_dir}" 2>/dev/null > "${matches_file}" || true
-
-first_error="$(grep -rniE "\[ERROR\]" "${log_dir}" 2>/dev/null \
-  | grep -vi mooncake \
-  | sort -t: -k1,1 -k2,2n | head -1 || true)"
-
-if [ -z "${first_error}" ]; then
-  first_error="$(grep -rni "\[ERROR\]" "${log_dir}" 2>/dev/null | sort -t: -k1,1 -k2,2n | head -1 || true)"
-fi
-
-if [ -z "${first_error}" ]; then
-  echo "No [ERROR] lines found under ${log_dir}"
-  exit 0
-fi
-
-echo "--- First [ERROR] (HIXL/plog preferred) ---"
-echo "${first_error}"
-echo
-
-error_file="${first_error%%:*}"
-error_line="${first_error#*:}"
-error_line="${error_line%%:*}"
-start=$((error_line - context_lines))
-[ "${start}" -lt 1 ] && start=1
-end=$((error_line + context_lines))
-
-echo "--- Context (lines ${start}-${end} of ${error_file}) ---"
-sed -n "${start},${end}p" "${error_file}" 2>/dev/null || true
-echo
+  "${log_dirs[@]}" 2>/dev/null > "${matches_file}" || true
 
 present() { grep -qiE "$1" "${matches_file}" 2>/dev/null && printf '  %s\n' "$2" || true; }
 
@@ -67,11 +98,6 @@ present 'ADXL' ADXL
 present '\[HIXL\]' HIXL
 present 'HIXL CS|HixlCS|HixlClient|HixlServer' 'HIXL CS'
 present 'AscendDirect' AscendDirect
-echo
-
-echo "--- Mooncake timeline (reference only, not code source) ---"
-grep -rniE "transfer_task\.cpp|TransferExecutor register mem|Failed to complete transfers|Sync batch data transfer timeout" "${log_dir}" 2>/dev/null \
-  | head -10 || echo "(no Mooncake timeline lines)"
 echo
 
 echo "--- Suggested Wiki pages ---"
@@ -95,3 +121,5 @@ echo
 
 echo "--- Suggested deps.sh ---"
 echo "  bash .agents/skills/hixl-troubleshoot/scripts/deps.sh"
+echo "--- Suggested source alignment ---"
+echo "  bash .agents/skills/hixl-troubleshoot/scripts/source-align.sh --before <YYYY-MM-DD>"
