@@ -122,6 +122,7 @@ target_link_libraries(hixl_test
         ascendcl_stub
         runtime_stub
         msprof_headers
+        ascend_hal_headers
         dcmi_stub
         drvdsmi_host_stub
         GTest::gtest GTest::gtest_main

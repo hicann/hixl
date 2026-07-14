@@ -10,6 +10,7 @@
 
 include(cmake/function.cmake)
 find_package_if_target_not_exists(securec MODULE REQUIRED)
+find_package_if_target_not_exists(ascend_hal MODULE REQUIRED)
 
 if (NOT ENABLE_TEST)
     find_package_if_target_not_exists(slog MODULE REQUIRED)
@@ -19,7 +20,6 @@ if (NOT ENABLE_TEST)
     find_package_if_target_not_exists(acl_rt MODULE REQUIRED)
     find_package_if_target_not_exists(runtime MODULE REQUIRED)
     find_package_if_target_not_exists(metadef MODULE REQUIRED)
-    find_package_if_target_not_exists(ascend_hal MODULE REQUIRED)
     find_package_if_target_not_exists(error_manager MODULE REQUIRED)
 else ()
     add_library(hccl_headers INTERFACE)
@@ -85,17 +85,4 @@ else ()
         ${ASCEND_INSTALL_PATH}/include/acl
     )
 
-    add_library(ascend_hal_headers INTERFACE)
-    if (NOT EXISTS "${ASCEND_INSTALL_PATH}/include/experiment/ascend_hal/driver/ascend_hal.h")
-        target_include_directories(ascend_hal_headers INTERFACE
-            ${ASCEND_INSTALL_PATH}/include/
-            ${ASCEND_INSTALL_PATH}/include/driver
-        )
-    else ()
-        target_include_directories(ascend_hal_headers INTERFACE
-            ${ASCEND_INSTALL_PATH}/include/experiment
-            ${ASCEND_INSTALL_PATH}/include/experiment/ascend_hal
-            ${ASCEND_INSTALL_PATH}/include/experiment/ascend_hal/driver
-        )
-    endif ()
 endif()
