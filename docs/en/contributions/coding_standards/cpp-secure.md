@@ -49,9 +49,10 @@
 | 10.11 | Append struct fields at the end | Standard Library | Medium |
 | 10.12 | Consider compatibility for interface changes | Standard Library | Medium |
 | 11.1 | LOG API must not be passed null pointers | LOG API Safety | High |
-| 11.2 | LOG API parameter count must match format placeholders | LOG API Safety | High |
+| 11.2 | LOG API parameter count and order must match format placeholders | LOG API Safety | High |
 | 11.3 | LOG API parameter types must match format specifiers | LOG API Safety | High |
 | 11.4 | LOG API must not be passed pointers to released memory | LOG API Safety | High |
+| 11.5 | LOG message English should be grammatically correct and clear | LOG API Specification | Low |
 
 ---
 
@@ -105,30 +106,39 @@ Signed integer overflow is undefined behavior. For security reasons, when signed
 
 When performing operations on integer types with lower precision than int, integer promotion must be considered. Programmers must also master integer conversion rules, including implicit conversion rules, to design safe arithmetic operations.
 
-**Addition example:**
+**Multiplication example (int32_t multiplication overflow):**
 
 ```cpp
-int num_a = ... // from external data
-int num_b = ... // from external data
-int sum = 0;
-if (((num_a > 0) && (num_b > (INT_MAX - num_a))) ||
-    ((num_a < 0) && (num_b < (INT_MIN - num_a)))) {
-    ... // error handling
-}
-sum = num_a + num_b;
+// Incorrect — two int32_t values multiplied, result may exceed int32_t range
+int32_t calcHeightAlign = GetAlignedSize(...);  // aligned height, can reach 65536
+int32_t calcWidth = GetWidth(...);              // width, can reach 65536
+int32_t size = calcHeightAlign * calcWidth;     // 65536 × 65536 = 4,294,967,296 overflow!
+
+// Correct — promote to int64_t before multiplication
+int64_t size = static_cast<int64_t>(calcHeightAlign) * calcWidth;
 ```
 
-**Division example:**
+**Negation example (INT64_MIN negation overflow, red-line issue):**
 
 ```cpp
-int num_a = ... // from external data
-int num_b = ... // from external data
-int result = 0;
-// Check for divide-by-zero and division overflow errors
-if ((num_b == 0) || ((num_a == INT_MIN) && (num_b == -1))) {
-    ... // error handling
-}
-result = num_a / num_b;
+// Incorrect — when delta is INT64_MIN, -delta overflows
+int64_t delta = input2 - input1;       // may be INT64_MIN = -9223372036854775808
+int64_t absDelta = -delta;             // -(-9223372036854775808) = 9223372036854775808 > INT64_MAX!
+// Signed integer overflow is undefined behavior (C++ red-line)
+
+// Correct — convert to unsigned type before computing absolute value
+uint64_t absDelta = (delta < 0) ? -static_cast<uint64_t>(delta) : static_cast<uint64_t>(delta);
+```
+
+**Multi-dimension multiplication example (multi-dim shape consecutive multiplication overflow):**
+
+```cpp
+// Incorrect — multi-dim shape multiplied as int32_t, easily overflows
+int32_t totalSize = dim0 * dim1 * dim2 * dim3 * dim4;
+// dim0=1024, dim1=1024, dim2=128, dim3=64 → product ≈ 8.6 × 10^9 > INT32_MAX
+
+// Correct — use int64_t and promote early
+int64_t totalSize = static_cast<int64_t>(dim0) * dim1 * dim2 * dim3 * dim4;
 ```
 
 #### 2.2 Ensure unsigned integer operations do not wrap around
@@ -136,24 +146,109 @@ result = num_a / num_b;
 **[Description]**
 Computations involving unsigned operands never overflow, because a result that is outside the representable range of the unsigned integer type is reduced modulo (the maximum value representable by the result type + 1). This behavior is more informally called unsigned integer wraparound.
 
-**Multiplication example:**
+**Multiplication example (uint32_t multiplication wraparound then cast to uint64_t — value already wrong):**
 
 ```cpp
-size_t width = ... // from external data
-size_t height = ... // from external data
-if (width == 0 || height == 0) {
-    ... // error handling
-}
-if (width > SIZE_MAX / height) {
-    ... // error handling
-}
-unsigned char *buf = (unsigned char *)malloc(width * height);
+// Incorrect — multiplication done in uint32_t, wraparound occurs before cast to uint64_t, cannot recover
+uint32_t blockSize = 65536;    // from external config
+uint32_t strideKV = 65536;     // from external config
+uint64_t result = blockSize * strideKV;
+// blockSize * strideKV computed in uint32_t space: 65536 × 65536 = 4,294,967,296 > UINT32_MAX
+// Actual result: (65536 × 65536) mod 2^32 = 0 → wrapped 0 then cast to uint64_t = 0
+
+// Correct — promote at least one operand to uint64_t before multiplication
+uint64_t result = static_cast<uint64_t>(blockSize) * strideKV;
+```
+
+**Subtraction example (uint32_t subtraction wraparound — result used as array index):**
+
+```cpp
+// Incorrect — aivIdx * singleCoreSize may exceed totalOutputSize, subtraction wraps around
+uint32_t tailSize = totalOutputSize - aivIdx * singleCoreSize;
+// totalOutputSize=100, aivIdx=47, singleCoreSize=3:
+//   47 × 3 = 141, 100 - 141 computed as uint32_t = 4294967255 (wraparound)
+//   tailSize mistaken as valid size, subsequent copy of 4GB data → out-of-bounds crash
+
+// Correct — check magnitude first, or use int64_t intermediate result
+int64_t tailSizeSigned = static_cast<int64_t>(totalOutputSize) -
+                         static_cast<int64_t>(aivIdx) * singleCoreSize;
+uint32_t tailSize = (tailSizeSigned > 0) ? static_cast<uint32_t>(tailSizeSigned) : 0;
+```
+
+**Mixed-type example (size_t and int64_t mixed arithmetic — negative wraps to huge value):**
+
+```cpp
+// Incorrect — N_ALIGN is size_t constant (unsigned), numIters is int64_t
+// Per C++ integer promotion rules int64_t → size_t, negative becomes huge positive
+constexpr size_t N_ALIGN = 128;
+int64_t normSize = N_ALIGN * DOUBLE_SIZE * numIters * T * n0;
+// If numIters is negative, promoted to size_t wraps to ~2^64-127 level huge value
+// All subsequent calculations are wrong
+
+// Correct — unify to signed type
+constexpr int64_t N_ALIGN = 128;
+int64_t normSize = N_ALIGN * DOUBLE_SIZE * numIters * T * n0;
 ```
 
 #### 2.3 Ensure division and remainder operations do not cause divide-by-zero errors
 
 **[Description]**
 When the second operand of an integer division or remainder operation is 0, the program produces undefined behavior. Therefore, ensure that integer division and remainder operations do not cause divide-by-zero errors.
+
+**[Review Strategy]**
+
+**Step 1 — Identify division/remainder operations**
+
+Scan all `/` and `%` operators (including `CeilDiv`/`CeilDivide` utility function calls) in the code and extract the divisor expression.
+
+**Step 2 — Classify divisor source**
+
+| Divisor Source | Identification | Trust Level |
+|---------|---------|---------|
+| Compile-time constant | `constexpr` declaration, literal | Non-zero → auto PASS |
+| External input | Config parameter, interface argument, external data | Strict: must have guard |
+| Runtime computed value | Internal multi-step computed intermediate value | Strict: must have guard |
+
+**Step 3 — Judge by source**
+
+- **Compile-time constant**: Non-zero → PASS. Zero → FAIL.
+- **External input**: Must have one of the valid guard patterns → no guard → FAIL.
+- **Runtime computed value**: Must have a valid guard, or be traceable to a non-zero compile-time constant → otherwise FAIL.
+
+**[Valid Guard Patterns]**
+
+The following 4 patterns are considered valid zero-value guards (any one present → PASS):
+
+| Pattern | Name | Code Form |
+|------|------|---------|
+| A | if-guard+return | `if (div == 0) return;` |
+| B | std::max floor | `safeDiv = std::max(div, 1U)` |
+| C | Ternary operator | `safe = (div > 0) ? div : 1` |
+| D | zero-flag+skip | `if (div==0) flag=true; if(!flag) { a/b }` |
+
+> `CeilDiv(a, b)` / `CeilDivide(a, b)` and similar utility functions with standard implementation `(a + b - 1) / b` **do not provide zero-value protection themselves**; their divisor parameter must still be classified and judged per the above sources.
+
+**[Validation Examples]**
+
+```cpp
+// ✅ Compile-time constant divisor — auto PASS
+constexpr uint32_t BLOCK = 32;
+uint32_t blocks = totalSize / BLOCK;  // no guard needed
+
+// ✅ External input divisor — has zero-value guard
+if (tileSize == 0) {
+    HIXL_LOGE(INVALID_PARAM, "tileSize is 0");
+    return FAILED;
+}
+uint32_t loops = totalSize / tileSize;
+
+// ✅ Runtime computed value divisor — std::max floor
+uint32_t safeDivisor = std::max(computedDivisor, 1U);
+uint32_t result = totalSize / safeDivisor;
+
+// ❌ External input divisor — no guard
+uint32_t loops = totalSize / tileSize;  // tileSize from external input, no zero check
+```
 
 ---
 
@@ -202,6 +297,23 @@ EXIT:
 ```
 
 #### 3.3 When external data is used as an array index, ensure it is within the array size range
+
+**[Scenarios Requiring Validation]**
+
+| Validation Condition | Parameter Source | Code Pattern |
+|---------|---------|----------|
+| External input as index | Config parameter, interface argument | `if (index >= size) { return; }` |
+| Dynamically computed offset | Runtime computed value | Boundary check logic |
+| Accumulated diff boundary | `seqLen[bIdx] - seqLen[bIdx-1]` | `if (bIdx > 0) { ... } else { ... }` |
+
+**[Trusted Scenarios]**
+
+The following cases do not require additional validation:
+
+| Scenario | Code Pattern | Trust Reason |
+|------|---------|---------|
+| Index within loop bounds | `arr[i]` inside `for (i = 0; i < bound; i++)` | Loop condition guarantees index is in range |
+| Compile-time constant index | `constexpr` or literal | Fixed range at compile time |
 
 **[Description]**
 When external data is used as an array index to access memory, the data size must be strictly validated to ensure the array index is within the valid range; otherwise, serious errors will occur.
@@ -268,15 +380,37 @@ Copying data into a buffer that is too small to hold it causes a buffer overflow
 
 #### 4.1 External input data must be validated for legitimacy
 
-**[Description]**
+**[Validation Key Points]**
 
-- External input data must be validated for legitimacy, and the validation range must be correct
+- External pointer arguments must be null-checked before use
+- External input data must be validated for legitimacy with correct validation range
 - Boundary interfaces must validate the legitimacy of passed-in addresses to prevent arbitrary address read/write
 - Parameters must be validated for legitimacy to prevent array out-of-bounds access
 - Address offsets must be validated to prevent arbitrary address read/write
-- External pointers must be null-checked before use
 - External parameters involved in loop and recursion condition computations must be strictly validated for boundaries and termination conditions
 - When file paths come from external data, they must be validated for legitimacy
+
+**[Validation Examples]**
+
+```cpp
+// Validate pointer is non-null
+if (context == nullptr) {
+    HIXL_LOGE(INVALID_PARAM, "context is null");
+    return FAILED;
+}
+
+// Validate parameter range
+if (headDim == 0) {
+    HIXL_LOGE(INVALID_PARAM, "headDim is 0");
+    return FAILED;
+}
+
+// Validate parameter combination existence
+if (pointer == nullptr) {
+    HIXL_LOGE(INVALID_PARAM, "%s should not be null", name.c_str());
+    return FAILED;
+}
+```
 
 #### 4.2 When external input is used as the copy length for memory operation functions, its legitimacy must be validated
 
@@ -465,7 +599,7 @@ Changes to external interfaces, interface parameters, return values, data struct
 
 ### 11. LOG API Safe Usage
 
-When using formatting LOG macros such as `HIXL_LOGE` / `HIXL_LOGI` / `HIXL_LOGD` / `HIXL_LOGW`, improper parameter usage can cause garbled output at best, or segmentation faults (SIGSEGV) at worst. The following 4 rules are mandatory.
+When using formatting LOG macros such as `HIXL_LOGE` / `HIXL_LOGI` / `HIXL_LOGD` / `HIXL_LOGW`, improper parameter usage can cause garbled output at best, or segmentation faults (SIGSEGV) at worst. The following 4 rules are mandatory, and 1 is a quality recommendation.
 
 LOG macro signature (standard call form in business code):
 
@@ -505,13 +639,18 @@ HIXL_LOGI("transfer_count: %d", channel->GetTransferCount());
 
 ---
 
-#### 11.2 LOG API parameter count must match the number of format placeholders
+#### 11.2 LOG API parameter count and order must match format placeholders
 
 **[Problem Description]**
 
-When the number of parameters is less than the number of placeholders, the LOG macro reads garbage values from the stack to fill the missing parameters. If the garbage values are interpreted as invalid pointers (`%s`/`%p`), illegal memory access is triggered.
+The format placeholders of LOG macros and the actual parameters must satisfy consistency in two dimensions:
 
-**Incorrect example**
+1. **Count consistency**: When the number of parameters is less than the number of placeholders, the LOG macro reads garbage values from the stack to fill the missing parameters. If the garbage values are interpreted as invalid pointers (`%s`/`%p`), illegal memory access is triggered
+2. **Order correspondence**: When parameter order does not correspond to format specifier positions (e.g., `%s` position receives an integer), the integer is treated as an address to read a string → **segmentation fault (SIGSEGV)**
+
+> **⚠️ Do not analyze LOG calls by grep alone.** LOG statements often span multiple lines and may be nested inside outer macros. After a grep hit, you **must Read at least 10 lines before and after** to obtain the complete format string and all parameters; otherwise the analysis is based on a truncated incomplete call and the conclusion is invalid. Multi-line string concatenation (`"a" "b"`) must be merged before parsing.
+
+**Count mismatch example**
 
 ```cpp
 // Refer to the multi-parameter log scenario in hixl_engine.cc
@@ -520,11 +659,24 @@ HIXL_LOGI("[HixlEngine] Disconnection started, local_engine:%s, remote_engine:%s
            local_engine_.c_str(), remote_engine.GetString());  // Missing timeout_in_millis; stack data is incorrectly read
 ```
 
-**Correct example**
-
 ```cpp
+// ✅
 HIXL_LOGI("[HixlEngine] Disconnection started, local_engine:%s, remote_engine:%s, timeout:%d ms",
            local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
+```
+
+**Order mismatch example**
+
+```cpp
+// ❌ Count=5, format specifiers=5, but parameters at positions 1 and 3 are swapped
+//   Format specifiers: %u(1) %u(2) %s(3) %u(4) %u(5)
+//   Parameters:        inputName.c_str()(1) ... d0Size/NUM8(3) ...
+//   → Position 1: %u receives const char*, Position 3: %s receives uint → segmentation fault
+HIXL_LOGE(FAILED, "...kvCache(%u)...%s(%u)...",
+    inputName.c_str(), tempD0/NUM8, d0Size/NUM8, tempD0, d0Size);
+// ✅ Parameter order corresponds to format specifiers position by position
+HIXL_LOGE(FAILED, "...kvCache(%u)...%s(%u)...",
+    tempD0/NUM8, d0Size/NUM8, inputName.c_str(), tempD0, d0Size);
 ```
 
 ---
@@ -551,13 +703,15 @@ HIXL_LOGE(FAILED, "Failed to transfer data1[size = %lu], data2[size = %lu]", siz
 
 **HIXL Common Type and Specifier Mapping**
 
-| Type | Correct Specifier | Common Error |
-|------|---------|---------|
-| `int64_t` | `%ld` | `%d` |
-| `uint64_t` | `%lu` | `%d`, `%u` |
-| `uint32_t` | `%u` | `%d` |
-| `bool` | `%s` + ternary expression | `%d` |
-| `const char*` | `%s` | `%d` |
+| Type | Correct Specifier | Common Error | Consequence |
+|------|---------|---------|------|
+| `int64_t` | `%ld` | `%d` | Truncated to 32-bit, subsequent parameters misaligned |
+| `uint64_t` | `%lu` | `%d`, `%u` | Truncated to 32-bit, subsequent parameters misaligned |
+| `uint32_t` | `%u` | `%d` | Large values displayed as negative |
+| `size_t` | `%zu` | `%d`, `%u` | Truncated on 64-bit systems |
+| `bool` | `%s` + ternary expression | `%d` | Portability issues |
+| `const char*` | `%s` | `%d`, `%x` | Undefined behavior |
+| `void*` | `%p` | `%x` | Non-portable |
 
 ```cpp
 // Correct way to log a bool
@@ -590,3 +744,35 @@ HIXL_LOGE(FAILED, "error: %s", errMsg);   // Log first
 delete[] errMsg;
 errMsg = nullptr;
 ```
+
+---
+
+#### Recommendation 11.5 LOG message English should be grammatically correct and clear
+
+**[Problem Description]**
+
+LOG messages are the first-hand clue for troubleshooting. Grammatical errors or ambiguous logs significantly increase the time cost of issue localization.
+
+**Review Key Points**:
+- Subject-verb agreement, consistent tense (LOG messages conventionally use simple present or past tense)
+- Avoid mixing Chinese and English (except for variable names)
+- Avoid meaningless placeholders (e.g., "error error", "fail to fail")
+- Key values should be included in the message, not relying solely on format specifiers
+
+**Reminder Examples**
+
+```cpp
+// "is not support" → "is not supported" (high-frequency error pattern in the repo)
+HIXL_LOGE(op_name, "scale shape is not support");          // → is not supported
+
+// "do not support" → "does not support" (subject-verb disagreement)
+HIXL_LOGE(opName_, "key layout do not support PA_BSND.");  // → does not support
+
+// Spelling error
+HIXL_LOGE(opName_, "cu_seqlens_q's dtype msut be DT_INT32."); // msut → must
+
+// Missing subject
+HIXL_LOGD("Not support BN2S2.");                           // → BN2S2 is not supported
+```
+
+> **Review Level**: Mark as SUSPICIOUS only, do not mark as FAIL.

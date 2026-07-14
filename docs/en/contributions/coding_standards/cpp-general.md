@@ -8,13 +8,13 @@
 |---------|---------|------|
 | 1.1 | Validate external data legitimacy | Code Design |
 | 1.2 | Prefer return values for function results | Code Design |
-| 1.3 | Remove invalid and redundant code | Code Design |
+| 1.3 | Clean up invalid and redundant code (Recommendation) | Code Design |
 | 2.1 | Use new standard C++ headers | Headers |
 | 2.2 | Circular header dependency is prohibited | Headers |
-| 2.3 | Do not include unused headers | Headers |
+| 2.3 | Avoid including unused headers (Recommendation) | Headers |
 | 2.4 | Do not reference external interfaces via extern declarations | Headers |
 | 2.5 | Do not include headers within extern "C" | Headers |
-| 2.6 | Do not use using to import namespaces in headers | Headers |
+| 2.6 | Avoid using using to import namespaces in headers (Recommendation) | Headers |
 | 3.1 | Avoid abusing typedef/#define type aliases | Data Types |
 | 3.2 | Use using instead of typedef to define aliases | Data Types |
 | 4.1 | Do not use macros to represent constants | Constants |
@@ -46,8 +46,8 @@
 | 14.2 | Non-local lambdas should avoid capture by reference | Function Design |
 | 14.3 | Virtual functions must not use default parameter values | Function Design |
 | 14.4 | Use strongly-typed parameters; avoid void* | Function Design |
-| 15.1 | Input parameters first, output parameters last | Function Usage |
-| 15.2 | Use const T& for input, T* for output | Function Usage |
+| 15.1 | Keep parameter order consistent within the same file | Function Usage |
+| 15.2 | Use const T& for input, T& or T* for output | Function Usage |
 | 15.3 | Use T* or const T& when ownership is not involved | Function Usage |
 | 15.4 | Use shared_ptr + move to transfer ownership | Function Usage |
 | 15.5 | Single-argument constructors must use explicit | Function Usage |
@@ -66,9 +66,16 @@
 FooBar *Func(const std::string &in);
 ```
 
-##### Rule 1.3 Remove invalid, redundant, or never-executed code
+##### Recommendation 1.3 Clean up invalid, redundant, or never-executed code
 
 Although most modern compilers can warn about invalid or never-executed code in many cases, you should respond to warnings by identifying and clearing them; you should proactively identify invalid statements or expressions and remove them from the code.
+
+> **Note**: Business code often pre-defines reserved parameters for specific scenarios (e.g., reserved function parameters, reserved struct fields). These parameters may currently be unreferenced but are reasonable engineering reservations and should not be marked as FAIL during review.
+>
+> The following cases may be marked as SUSPICIOUS for developer reference:
+> - Obvious dead code (e.g., code blocks permanently excluded by conditional compilation)
+> - Large blocks of commented-out code (git should be used to manage history)
+> - Variables or expressions that are clearly invalid and have no reserved intent
 
 ##### Rule 1.4 Supplementary specifications for the C++ exception mechanism
 
@@ -106,13 +113,39 @@ try {
 
 Circular header dependency means that a.h includes b.h, b.h includes c.h, and c.h includes a.h, which causes any modification to any one header file to trigger recompilation of all code that includes a.h/b.h/c.h. Circular header dependency directly reflects unreasonable architectural design and can be avoided by optimizing the architecture.
 
-##### Rule 2.3 Do not include headers that are not used
+##### Recommendation 2.3 Avoid including headers that are not used
+
+> **Note**: Unused headers increase compilation dependencies and compilation time. However, some headers may be reserved for future feature expansion or used to provide forward declarations. During review, these should only be noted as reminders, not forced to FAIL.
 
 ##### Rule 2.4 Do not reference external function interfaces or variables through extern declarations
 
 ##### Rule 2.5 Do not include headers within extern "C"
 
-##### Rule 2.6 Do not use using to import namespaces in header files or before #include
+##### Recommendation 2.6 Avoid using `using` to import namespaces in header files
+
+The propagation scope of `using namespace` in a header file depends on its scope:
+- **file-scope** (outside any namespace): propagates to all translation units that include the header
+- **namespace-scoped** (inside `namespace X {}`): only propagates to code that reopens the same namespace
+
+> **Project-internal namespace exemption**: Importing project-internal namespaces (controlled by the project, low collision risk) is not flagged.
+
+**FAIL conditions** (any one triggers FAIL, but harm analysis must be done first before grading):
+
+1. **file-scope `using namespace` appears before subsequent `#include` in the same file** — subsequent includes are compiled in that namespace context
+2. **Shared header paths** (e.g., `include/` and other public directories) import large namespaces (`std`, etc.) at file-scope
+
+> **Before grading, the propagation chain must be traced to assess actual harm; structural violation ≠ substantive harm:**
+>
+> 1. **Confirm using scope**: If inside a `namespace X {}` block, it is only visible to X and does not leak to the includer's file-scope — **not file-scope pollution**
+> 2. **Trace include chain**: If the include guard of the polluted header was already activated by an earlier header before the using, then **pollution did not actually occur**
+> 3. **Check sub-header autonomy**: If the sub-header has its own identical `using namespace`, the external pollution is **redundant** with no added risk
+> 4. **Grade**: Real new pollution → FAIL; structural violation without substantive harm → SUSPICIOUS, note the reason
+
+**SUSPICIOUS conditions** (flag as reminder, do not force FAIL):
+
+- Non-shared headers importing large namespaces (`std`, etc.) at file-scope
+- Public API headers (`include/` directory) importing non-project namespaces (included by external callers)
+- Shared headers importing large namespaces **inside** a namespace (not file-scope)
 
 ---
 
@@ -332,16 +365,38 @@ class FinalDerived : public Derived {
 
 ### 15. Function Usage
 
-##### Rule 15.1 When passing function parameters, input parameters must come first, output parameters last
+##### Recommendation 15.1 Keep function parameter order consistent within the same file (or module)
+
+> **Note**: "Input parameters first, output parameters last" is not enforced. As long as the parameter order style is uniform within the same file, it is acceptable (e.g., consistently using input-first, or consistently using output-first). During review, use the style of the majority of functions in the file as the baseline and only flag clearly inconsistent cases.
 
 ```cpp
-bool Func(const std::string &in, FooBar *out1, FooBar *out2);
+// ✅ Consistent style: all input-first
+bool FuncA(const std::string &in, FooBar *out1, FooBar *out2);
+bool FuncB(int val, Result *out);
+
+// ✅ Consistent style: all output-first
+bool FuncC(FooBar *out1, FooBar *out2, const std::string &in);
+bool FuncD(Result *out, int val);
+
+// ❌ Inconsistent: mixed within the same file
+bool FuncE(const std::string &in, FooBar *out);   // input-first
+bool FuncF(Result *out, int val);           // output-first → style inconsistency
 ```
 
-##### Rule 15.2 When passing function parameters, use `const T &` for input and `T *` for output
+##### Recommendation 15.2 When passing function parameters, use `const T &` for input and `T &` or `T *` for output
+
+> **Note**: Output parameters may use references (`T &`) or pointers (`T *`). In practice, `T &` is the more common output parameter style (especially for scalar outputs and structs), while `T *` is more common when nullable semantics are needed. Reviews should not require output parameters to be pointers, but the style should be consistent within the same file.
 
 ```cpp
+// ✅ Output via reference (common style)
+bool Func(const std::string &in, FooBar &out1, FooBar &out2);
+
+// ✅ Output via pointer (nullable semantics style)
 bool Func(const std::string &in, FooBar *out1, FooBar *out2);
+
+// ❌ Mixed within the same file (style inconsistency)
+void FuncA(const Input &in, Output &out);       // output via reference
+void FuncB(const Input &in, Output *out);       // output via pointer → style inconsistency within the same file
 ```
 
 ##### Rule 15.3 When passing function parameters in scenarios that do not involve ownership, use T * or const T & as parameters instead of smart pointers
