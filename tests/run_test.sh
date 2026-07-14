@@ -321,10 +321,16 @@ build() {
 
   if [ $? -ne 0 ]
   then
-    echo "execute command: make ${VERBOSE} -j${THREAD_NUM} && make install failed."
+    echo "execute command: make ${VERBOSE} -j${THREAD_NUM} failed."
     return 1
   fi
-  make install
+  # ENABLE_TEST skips add_cann_device_project and host install rules live under src/,
+  # so there may be no install target. Test binaries run from build_test/.
+  if make -n install >/dev/null 2>&1; then
+    make install
+  else
+    echo "skip make install (no install target in ENABLE_TEST build)"
+  fi
   echo "build success!"
 }
 
@@ -394,7 +400,12 @@ run() {
           ${run_cmd} > "${log_file}" 2>&1 &
           local test_pid="$!"
           (
-              sleep "${CPP_TEST_TIMEOUT_SECONDS}"
+              # Trap so killing the monitor also reaps sleep; otherwise an orphan
+              # sleep keeps the run_test pipeline open after tests already finished.
+              sleep "${CPP_TEST_TIMEOUT_SECONDS}" &
+              local sleep_pid="$!"
+              trap 'kill "${sleep_pid}" 2>/dev/null || true' EXIT
+              wait "${sleep_pid}" || true
               if kill -0 "${test_pid}" 2>/dev/null; then
                   echo "CPP test timeout after ${CPP_TEST_TIMEOUT_SECONDS}s: ${run_cmd}" > "${timeout_file}"
                   cat "${timeout_file}"

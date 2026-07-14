@@ -48,9 +48,13 @@ else ()
     endif()
 endif()
 
-message(STATUS "start build device")
-if(NOT EXISTS "${ASCEND_INSTALL_PATH}/toolkit/toolchain/hcc")
-    message(FATAL_ERROR "CANN toolchain path does not exist: ${ASCEND_INSTALL_PATH}/toolkit/toolchain/hcc")
+# UT links kernel sources + stubs in host test binaries; skip device pack.
+if (NOT ENABLE_TEST)
+    message(STATUS "start build device")
+    if(NOT EXISTS "${ASCEND_INSTALL_PATH}/toolkit/toolchain/hcc")
+        message(FATAL_ERROR "CANN toolchain path does not exist: ${ASCEND_INSTALL_PATH}/toolkit/toolchain/hcc")
+    endif()
+    add_cann_device_project(hixl)
+else()
+    message(STATUS "skip device project for ENABLE_TEST build")
 endif()
-
-add_cann_device_project(hixl)

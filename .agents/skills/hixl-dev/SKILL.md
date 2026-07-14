@@ -115,13 +115,24 @@ git diff --check "$BASE_COMMIT"
 失败时先保留失败命令和日志，定位后复跑受影响 suite。不得把偶现或环境问题直接归因于
 本次代码；无法复现时记录证据和风险。
 
-### macOS（Lima）
+### 构建与测试怎么跑（硬性）
 
-macOS 上在 Lima 实例中构建和测试，不直接使用宿主机工具链。仓库路径由当前 worktree
-动态取得，避免写死个人目录。
+`build.sh` / `run_test.sh` 日志很长，**不要灌进主 Agent 上下文**。
+
+- 用 Task **`shell` subagent** 执行构建和 UT；主 Agent 只看 subagent 结束摘要（通过/失败/
+  关键信息）。排错时再让 subagent 回传失败片段，或读 `build_out/report/*.log`。
+- **禁止** `tee`、`tee | tail`，以及用 `tail`/`head` 截断管道“看进度”。
+- **禁止** 主 Agent 用 `sleep` 空等或轮询“是不是还在编”。
+- 没有 subagent 摘要作证据时，禁止声称“还在编译”或“已通过”。
+
+环境：macOS 在 Lima（`limactl shell hixl`）里跑，不在宿主机编；Linux 本机跑。
+通过 `ASCEND_HOME_PATH`（未设置时默认 `/usr/local/Ascend/cann`）加载 CANN；找不到环境脚本则报错退出，不要假装测过。本机私有安装路径请写在本机环境变量里，不要写进仓库 skill。
+
+subagent 内命令（按改动表选 `-s`）：
 
 ```bash
 REPO_ROOT="$(git rev-parse --show-toplevel)"
+# macOS / Lima
 limactl shell hixl -- env REPO_ROOT="$REPO_ROOT" bash -lc '
   CANN_ROOT="${ASCEND_HOME_PATH:-/usr/local/Ascend/cann}"
   if [ -f "${CANN_ROOT}/set_env.sh" ]; then
@@ -135,23 +146,8 @@ limactl shell hixl -- env REPO_ROOT="$REPO_ROOT" bash -lc '
   cd "$REPO_ROOT"
   bash tests/run_test.sh -t cpp
 '
-```
-
-若 Lima 实例、挂载路径或 CANN 环境不可用，说明阻塞项，不要声称测试已经执行。
-
-### Linux
-
-```bash
-CANN_ROOT="${ASCEND_HOME_PATH:-/usr/local/Ascend/cann}"
-if [ -f "${CANN_ROOT}/set_env.sh" ]; then
-  source "${CANN_ROOT}/set_env.sh"
-elif [ -f "${CANN_ROOT}/bin/setenv.bash" ]; then
-  source "${CANN_ROOT}/bin/setenv.bash"
-else
-  echo "找不到 CANN 环境脚本：${CANN_ROOT}" >&2
-  exit 1
-fi
-bash tests/run_test.sh -t cpp
+# Linux：同样 source CANN 后直接 bash tests/run_test.sh ...
+# 范围按上表用 -s <suite> 收窄，不要写死某个 suite。
 ```
 
 ## 4. C++ 增量覆盖率
