@@ -344,6 +344,41 @@ TEST_F(HixlCSTest, RegisterHostMemForDeviceOnlyUbEndpointReturnsInvalid) {
   EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
 }
 
+// 验证 builtin trans-finished flag 只注册到对应位置类型的 endpoint：
+// 1 个 HOST endpoint (UBC_CTP) + 1 个 DEVICE endpoint (UBOE)。
+// 修复前 HOST flag 会额外注册到 UBOE DEVICE endpoint（触发 hostRegister），共 3 次 MemReg；
+// 修复后 HOST flag 只注册到 HOST endpoint，DEVICE flag 只注册到 DEVICE endpoint，共 2 次 MemReg。
+TEST_F(HixlCSTest, BuiltinFlagRegisteredOnlyOnMatchingEndpointType) {
+  EndpointDesc host_ep{};
+  host_ep.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+  host_ep.protocol = COMM_PROTOCOL_UBC_CTP;
+  host_ep.commAddr.type = COMM_ADDR_TYPE_EID;
+  host_ep.commAddr.eid[0] = 1U;
+  EndpointDesc device_ep{};
+  device_ep.loc.locType = ENDPOINT_LOC_TYPE_DEVICE;
+  device_ep.protocol = COMM_PROTOCOL_UBOE;
+  device_ep.commAddr.type = COMM_ADDR_TYPE_EID;
+  device_ep.commAddr.eid[0] = 2U;
+  std::vector<EndpointDesc> endpoints = {host_ep, device_ep};
+
+  HixlServerConfig config{};
+  HixlServerHandle server_handle = nullptr;
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = kPort;
+  desc.endpoint_list = endpoints.data();
+  desc.endpoint_list_num = endpoints.size();
+  ResetMemRegRecord();
+  ASSERT_EQ(HixlCSServerCreate(&desc, &config, &server_handle), SUCCESS);
+
+  // 期望只有 2 次 MemReg：1 次 HOST（host flag → host ep）、1 次 DEVICE（device flag → device ep）
+  ASSERT_EQ(GetMemRegRecordCount(), 2U);
+  EXPECT_EQ(GetMemRegRecordType(0U), static_cast<int32_t>(COMM_MEM_TYPE_HOST));
+  EXPECT_EQ(GetMemRegRecordType(1U), static_cast<int32_t>(COMM_MEM_TYPE_DEVICE));
+
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+}
+
 TEST_F(HixlCSTest, CreateServerWithNonHccsDeviceEndpointResolvesNotifyAddress) {
   EndpointDesc ep{};
   ep.loc.locType = ENDPOINT_LOC_TYPE_DEVICE;

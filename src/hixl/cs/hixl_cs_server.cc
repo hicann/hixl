@@ -73,8 +73,8 @@ std::unique_ptr<hixl::TemporaryRtContext> HixlCSServer::GetContextGuard() const 
 }
 
 Status HixlCSServer::InitTransFinishedFlag() {
-  bool has_host_ep = false;
-  bool has_device_ep = false;
+  std::vector<EndpointPtr> host_endpoints;
+  std::vector<EndpointPtr> device_endpoints;
   bool has_non_hccs_device_ep = false;
   for (auto handle : endpoint_store_.GetAllEndpointHandles()) {
     auto endpoint = endpoint_store_.GetEndpoint(handle);
@@ -82,27 +82,26 @@ Status HixlCSServer::InitTransFinishedFlag() {
       continue;
     }
     const auto &desc = endpoint->GetEndpoint();
-    const int32_t loc = desc.loc.locType;
-    if (loc == ENDPOINT_LOC_TYPE_HOST) {
-      has_host_ep = true;
-    } else if (loc == ENDPOINT_LOC_TYPE_DEVICE) {
-      has_device_ep = true;
+    if (desc.loc.locType == ENDPOINT_LOC_TYPE_HOST) {
+      host_endpoints.emplace_back(std::move(endpoint));
+    } else if (desc.loc.locType == ENDPOINT_LOC_TYPE_DEVICE) {
       if (desc.protocol != COMM_PROTOCOL_HCCS) {
         has_non_hccs_device_ep = true;
       }
+      device_endpoints.emplace_back(std::move(endpoint));
     }
   }
-  if (has_host_ep) {
-    HIXL_CHK_STATUS_RET(RegisterHostTransFinishedFlag(), "Failed to reg HOST trans finished flag");
+  if (!host_endpoints.empty()) {
+    HIXL_CHK_STATUS_RET(RegisterHostTransFinishedFlag(host_endpoints), "Failed to reg HOST trans finished flag");
   }
-  if (has_device_ep) {
-    HIXL_CHK_STATUS_RET(RegisterDeviceTransFinishedFlag(has_non_hccs_device_ep),
+  if (!device_endpoints.empty()) {
+    HIXL_CHK_STATUS_RET(RegisterDeviceTransFinishedFlag(device_endpoints, has_non_hccs_device_ep),
                         "Failed to reg DEVICE trans finished flag");
   }
   return SUCCESS;
 }
 
-Status HixlCSServer::RegisterHostTransFinishedFlag() {
+Status HixlCSServer::RegisterHostTransFinishedFlag(const std::vector<EndpointPtr> &host_endpoints) {
   void *host_flag = nullptr;
   size_t page_size = mmGetPageSize();
   // Register host mem addr need aligned by page size.
@@ -116,15 +115,18 @@ Status HixlCSServer::RegisterHostTransFinishedFlag() {
   mem.type = COMM_MEM_TYPE_HOST;
   mem.addr = host_flag;
   mem.size = sizeof(int64_t);
-  MemHandle handle = nullptr;
-  HIXL_CHK_STATUS_RET(RegisterMem(kTransFlagNameHost, &mem, &handle), "Failed to reg HOST trans finished flag");
+  for (const auto &endpoint : host_endpoints) {
+    MemHandle ep_mem_handle = nullptr;
+    HIXL_CHK_STATUS_RET(endpoint->RegisterMem(kTransFlagNameHost, mem, ep_mem_handle),
+                        "Failed to reg HOST trans finished flag");
+  }
   host_trans_flag_ = host_flag;
-  host_trans_flag_handle_ = handle;
   HIXL_DISMISS_GUARD(host_flag_guard);
   return SUCCESS;
 }
 
-Status HixlCSServer::RegisterDeviceTransFinishedFlag(bool resolve_notify_addr) {
+Status HixlCSServer::RegisterDeviceTransFinishedFlag(const std::vector<EndpointPtr> &device_endpoints,
+                                                     bool resolve_notify_addr) {
   int32_t dev_id = 0;
   HIXL_CHK_ACL_RET(aclrtGetDevice(&dev_id), "Failed to aclrtGetDevice for CS server TransferPool");
   hixl::TemporaryRtContext with_context(nullptr);  // 创建context会切换当前context, 因此需要在析构时恢复原用户context
@@ -152,10 +154,12 @@ Status HixlCSServer::RegisterDeviceTransFinishedFlag(bool resolve_notify_addr) {
   mem.type = COMM_MEM_TYPE_DEVICE;
   mem.addr = dev_flag;
   mem.size = sizeof(int64_t);
-  MemHandle handle = nullptr;
-  HIXL_CHK_STATUS_RET(RegisterMem(kTransFlagNameDevice, &mem, &handle), "Failed to reg DEVICE trans finished flag");
+  for (const auto &endpoint : device_endpoints) {
+    MemHandle ep_mem_handle = nullptr;
+    HIXL_CHK_STATUS_RET(endpoint->RegisterMem(kTransFlagNameDevice, mem, ep_mem_handle),
+                        "Failed to reg DEVICE trans finished flag");
+  }
   dev_trans_flag_ = dev_flag;
-  dev_trans_flag_handle_ = handle;
   HIXL_DISMISS_GUARD(dev_flag_guard);
   HIXL_DISMISS_GUARD(pool_rollback);
   device_id_ = dev_id;
@@ -238,7 +242,6 @@ Status HixlCSServer::Finalize() {
     msg_handler_.Finalize();
     ret = endpoint_store_.Finalize();
     HIXL_CHK_STATUS(ret, "Failed to finalize endpoint store.");
-    FreeDeviceMem(trans_flag_);
     if (host_trans_flag_ != nullptr) {
       free(host_trans_flag_);
       host_trans_flag_ = nullptr;
