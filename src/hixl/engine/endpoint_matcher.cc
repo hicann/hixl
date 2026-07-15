@@ -198,32 +198,10 @@ Status EndpointMatcher::TryMatchGroup(const std::vector<EndpointConfig> &local,
   return count > 0 ? SUCCESS : FAILED;
 }
 
-Status EndpointMatcher::TryMatchH2rHLoopbackGroup(const std::vector<EndpointConfig> &local,
-                                                  const std::vector<EndpointConfig> &remote,
-                                                  std::vector<HandlerCreateArgs::EndpointPair> &pairs) {
-  std::map<CommType, bool> expected = {{CommType::COMM_TYPE_UB_H2H, false}};
-  uint32_t count = 0;
-  for (const auto &ep : local) {
-    HIXL_CHK_STATUS_RET(TryMatchH2rHLoopback(ep, remote, expected, count, pairs));
-    if (count > 0) {
-      return SUCCESS;
-    }
-  }
-  return FAILED;
-}
-
 Status EndpointMatcher::TryMatchByPriority(const std::vector<EndpointConfig> &local,
                                            const std::vector<EndpointConfig> &remote, bool cross_instance,
                                            std::vector<HandlerCreateArgs::EndpointPair> &pairs,
                                            HandlerCreateArgs::HandlerType &handler_type) {
-  if (cross_instance && TryMatchH2rHLoopbackGroup(local, remote, pairs) == SUCCESS) {
-    handler_type = HandlerCreateArgs::HandlerType::UB;
-    HIXL_EVENT("EndpointMatcher selected link, handler:%s, reason:%s, protocol:%s, placement:%s, comm_type:%s",
-               HandlerTypeToString(handler_type), "cross-instance same server host ub loopback", "ub", kPlacementHost,
-               CommTypeToString(CommType::COMM_TYPE_UB_H2H));
-    LogMatchedEndpoints(pairs, handler_type);
-    return SUCCESS;
-  }
   const MatchRule *rules = cross_instance ? kCrossInstanceRules : kSameInstanceRules;
   const size_t rule_count = cross_instance ? sizeof(kCrossInstanceRules) / sizeof(kCrossInstanceRules[0])
                                            : sizeof(kSameInstanceRules) / sizeof(kSameInstanceRules[0]);

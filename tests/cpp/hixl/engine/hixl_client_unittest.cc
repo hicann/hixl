@@ -1399,21 +1399,6 @@ TEST_F(HixlClientUTest, EndpointMatcherEmptyServerIdHostUbKeepsNormalMatching) {
   EXPECT_EQ(matched_pairs[0].remote.comm_id, "remote_host_eid");
 }
 
-TEST_F(HixlClientUTest, EndpointMatcherSameServerHostUbLoopbackIgnoresNetInstanceDifference) {
-  std::vector<EndpointConfig> local = {MakeUbHostEpWithServerId("local_host_eid", "server-0")};
-  std::vector<EndpointConfig> remote = {MakeUbHostEpWithServerId("remote_host_eid", "server-0")};
-  remote[0].net_instance_id = "superpod2-1";
-
-  std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
-  HandlerCreateArgs::HandlerType handler_type;
-  EXPECT_EQ(EndpointMatcher::MatchEndpoints(local, remote, matched_pairs, handler_type), SUCCESS);
-  EXPECT_EQ(handler_type, HandlerCreateArgs::HandlerType::UB);
-  ASSERT_EQ(matched_pairs.size(), 1U);
-  EXPECT_EQ(matched_pairs[0].type, CommType::COMM_TYPE_UB_H2H);
-  EXPECT_EQ(matched_pairs[0].local.comm_id, "remote_host_eid");
-  EXPECT_EQ(matched_pairs[0].remote.comm_id, "remote_host_eid");
-}
-
 TEST_F(HixlClientUTest, EndpointMatcherCrossInstancePrefersUboe) {
   std::vector<EndpointConfig> local = {MakeDirectEp(kProtocolUboe, "superpod2-2"),
                                        MakeDirectEp(kProtocolUbg, "superpod2-2"),
