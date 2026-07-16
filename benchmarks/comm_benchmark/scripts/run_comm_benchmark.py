@@ -1334,7 +1334,7 @@ def _run_single_direction(args, bench_bin: str, devices: list[int], bench_type: 
                         devices[target_count + idx],
                         local_port,
                         remotes,
-                        lane_index=idx,
+                        lane_index=target_count + idx,
                     )
                 )
             )

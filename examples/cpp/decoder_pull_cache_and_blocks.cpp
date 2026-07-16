@@ -95,7 +95,7 @@ int Link(LlmDataDist &llm_datadist, const char *local_ip, const char *remote_ip)
   remote_ip_info.port = kPromptListenPort;
   cluster_info.remote_ip_infos.emplace_back(std::move(remote_ip_info));
   clusters.emplace_back(std::move(cluster_info));
-  auto ret = llm_datadist.LinkLlmClusters(clusters, rets);
+  auto ret = llm_datadist.LinkLlmClusters(clusters, rets, 5000);
   if (ret != LLM_SUCCESS) {
     printf("[ERROR] LinkLlmClusters failed, ret = %u, errmsg: %s\n", ret, GetRecentErrMsg());
     return -1;
@@ -114,7 +114,7 @@ int Unlink(LlmDataDist &llm_datadist, const char *remote_ip) {
   remote_ip_info.port = kPromptListenPort;
   cluster_info.remote_ip_infos.emplace_back(std::move(remote_ip_info));
   clusters.emplace_back(std::move(cluster_info));
-  auto ret = llm_datadist.UnlinkLlmClusters(clusters, rets);
+  auto ret = llm_datadist.UnlinkLlmClusters(clusters, rets, 5000);
   if (ret != LLM_SUCCESS) {
     printf("[ERROR] UnlinkLlmClusters failed, ret = %u, errmsg: %s\n", ret, GetRecentErrMsg());
     return -1;

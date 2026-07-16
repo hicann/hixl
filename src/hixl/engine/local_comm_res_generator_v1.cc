@@ -911,7 +911,8 @@ int32_t ParseTopoFile(const std::string &topo_path, TopoData &topo_data) {
 int32_t ParseRouteFile(const std::string &route_path, RouteData &route_data) {
   route_data.entries.clear();
   if (mmAccess(route_path.c_str()) != EN_OK) {
-    HIXL_LOGE(PARAM_INVALID, "Route file access failed: %s, errno=%d(%s)", route_path.c_str(), errno, strerror(errno));
+    HIXL_LOGW("Route file %s does not exist, will auto-generate route data via procfs fallback, errno=%d(%s)",
+              route_path.c_str(), errno, strerror(errno));
     return PARAM_INVALID;
   }
   std::ifstream file(route_path);
