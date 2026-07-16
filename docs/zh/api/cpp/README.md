@@ -1,5 +1,6 @@
 # 接口参考（C++）
 
+- [头文件和库文件说明](header_files_and_library_files.md)
 - [简介](brife.md)
 - [LLM-DataDist接口](LLM-DataDist-interface.md)
 - [LLM-DataDist数据结构](LLM-DataDist-data-structure.md)

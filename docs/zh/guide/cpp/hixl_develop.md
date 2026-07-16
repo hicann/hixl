@@ -54,15 +54,13 @@ HIXL（Huawei Xfer Library）即昇腾单边通信库，面向集群场景提供
 
 使用hccn\_tool查询Device IP，并且进行卡间网络检测，要求各个集群上的卡间有RDMA链路连接，否则无法使能HIXL能力。hccn\_tool详细介绍请参考《[HCCN Tool 接口参考](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743?category=developer-documents&subcategory=interface-reference)》。
 
-使用LLM-DataDist过程中，还涉及到如下环境变量，具体请参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。
+使用本文档过程中，还涉及到如下环境变量，具体请参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。
 
 |名称|使用场景|
 |--|--|
 |HCCL_RDMA_TC、HCCL_RDMA_SL|当客户对参数面网络做了自己的规划时，对各种业务流量规定了类型，优先级。通过这两个环境变量设置参数面集合通信流量在网络上的流量类型和优先级，以适配客户网络流量规划的要求。|
 |HCCL_RDMA_RETRY_CNT、HCCL_RDMA_TIMEOUT|分别对应RDMA网卡的重试次数和重传超时时间的系数timeout。设置太大导致对网络异常反应不敏感，不能感知到网络故障。设置太小则容易造成网络闪断直接造成业务中断，不能被网卡硬件屏蔽。用户可根据自身网络情况，来设置合适的值。例如，可以根据大部分闪断的时间范围进行配置。推荐按照如下公式进行配置，以减少网络抖动带来的影响。HCCL_RDMA_TIMEOUT=log2(pull kv超时时间 * 10^6 / (HCCL_RDMA_RETRY_CNT + 1) / 4.096)，向上取整。当pull kv超时时间和HCCL_RDMA_RETRY_CNT都等于默认值时，HCCL_RDMA_TIMEOUT建议配置成15。|
-|HCCL_INTRA_ROCE_ENABLE|用于配置Server内是否使用RoCE环路进行多卡间的通信。|
-|HCCL_INTRA_PCIE_ENABLE|用于配置Server内是否使用PCIe环路进行多卡间的通信。|
-|HCCL_INTER_HCCS_DISABLE|用于配置超节点模式组网中超节点内的通信链路类型。|
+|HCCL_INTRA_ROCE_ENABLE|用于配置Server内是否使用RoCE环路进行多卡间的通信。使用RoCE时（即HCCL_INTRA_ROCE_ENABLE=1时，需要同时设置HCCL_INTRA_PCIE_ENABLE=0。） |
 
 ### 完整样例参考
 
@@ -184,7 +182,7 @@ if (ret != SUCCESS) {
         }
         engine.Finalize();
     }
-    
+
     MemDesc desc{};
     desc.addr = reinterpret_cast<uintptr_t>(addr);
     desc.len = len;

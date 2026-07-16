@@ -45,7 +45,7 @@
 |hccn_tool [-i %d] -ip -g|获取IP地址和子网掩码。-i指定Device。样例：`hccn_tool -i 0 -ip -g`|
 |hccn_tool [-i %d] -ping -g [address %s ]|获取指定设备到目的地址的ping结果。-i指定当前server的某个Device， address指定ping的目的地址。样例：`hccn_tool -i 0 -ping -g address 192.168.2.1`|
 
-使用LLM-DataDist过程中，还涉及到如下环境变量，具体请参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。
+使用本文档过程中，还涉及到如下环境变量，具体请参见[《环境变量参考》](https://hiascend.com/document/redirect/CannCommunityEnvRef)。
 
 |名称|使用场景|
 |--|--|
