@@ -967,7 +967,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 | 参数名称 | 输入/输出 | 取值说明 |
 | --- | --- | --- |
-| notifies | 输入 | 存放notify信息的vector。 |
+| notifies | 输出 | 存放notify信息的vector。 |
 
 **调用示例**
 

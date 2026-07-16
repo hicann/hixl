@@ -17,7 +17,7 @@
 
 接口返回码类型与常量。
 
-```sh
+```cpp
 typedef uint32_t HixlStatus;
 static const uint32_t HIXL_SUCCESS = 0U;
 static const uint32_t HIXL_PARAM_INVALID = 103900U;
@@ -103,7 +103,7 @@ Client侧`global_resource_config`当前支持的配置项如下。
 
 Server配置示例：
 
-```sh
+```json
 {
   "comm_resource_config.listen_port": 26666
 }
@@ -111,7 +111,7 @@ Server配置示例：
 
 Client配置示例：
 
-```sh
+```json
 {
   "comm_resource_config.qos": 7
 }
@@ -121,7 +121,7 @@ Client配置示例：
 
 Client描述信息。
 
-```sh
+```cpp
 struct HixlClientDesc {
   const EndpointDesc *local_endpoint;
   const EndpointDesc *remote_endpoint;
@@ -149,7 +149,7 @@ struct HixlClientDesc {
 
 Server 描述信息。
 
-```sh
+```cpp
 struct HixlServerDesc {
   const EndpointDesc *endpoint_list;
   const char *server_ip;
@@ -198,7 +198,7 @@ Put 与 Get 对 `HixlOneSideOpDesc` 的语义：
 
 异步任务完成状态定义：
 
-```sh
+```cpp
 enum HixlCompleteStatus {
   HIXL_COMPLETE_STATUS_WAITING,
   HIXL_COMPLETE_STATUS_COMPLETED,

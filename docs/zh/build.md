@@ -217,6 +217,7 @@ git clone https://gitcode.com/cann/hixl.git
 | `--cann_3rd_lib_path=<PATH>`<br>`--cann-3rd-lib-path=<PATH>` | 设置第三方依赖包安装路径 | `./third_party` |
 | `--output_path=<PATH>`<br>`--output-path=<PATH>` | 设置编译输出路径 | `./build_out` |
 | `--pkg` | 构建run包（保留参数） | - |
+| `--pkg-type=<TYPE>` | 指定软件包类型（`run`、`rpm`、`deb`或`all`） | `run` |
 | `--examples` | 编译样例和基准测试 | OFF |
 | `--asan` | 启用地址消毒，用于内存泄漏检测 | OFF |
 | `--cov` | 启用代码覆盖率 | OFF |

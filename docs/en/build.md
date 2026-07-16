@@ -216,6 +216,7 @@ After the build is successful, the `cann-hixl_${cann_version}_linux-${arch}.run`
 | `--cann_3rd_lib_path=<PATH>`<br>`--cann-3rd-lib-path=<PATH>` | Sets the installation path of the third-party dependency packages. | `./third_party` |
 | `--output_path=<PATH>`<br>`--output-path=<PATH>` | Sets the build output path. | `./build_out` |
 | `--pkg` | Builds a `.run` file (reserved). | - |
+| `--pkg-type=<TYPE>` | Specifies the package type (`run`, `rpm`, `deb`, or `all`). | `run` |
 | `--examples` | Builds the sample and benchmark test. | OFF |
 | `--asan` | Enables address sanitization for memory leak detection. | OFF |
 | `--cov` | Enables code coverage. | OFF |

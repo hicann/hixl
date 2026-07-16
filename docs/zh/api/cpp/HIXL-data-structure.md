@@ -76,7 +76,7 @@ struct TransferOpDesc {
 
 ```cpp
 struct TransferArgs {
-  void *user_data = nullptr;  // 用户自定义信息，需配合获取全部异步传输请求状态接口使用
+  const void *user_data = nullptr;  // 用户自定义信息，需配合获取全部异步传输请求状态接口使用
   uint8_t reserved[120] = {};  // 预留参数
 };
 ```
@@ -121,7 +121,7 @@ struct GetTransferStatusArgs {
 ```cpp
 struct TransferResult {
   TransferReq req = nullptr;  // 传输请求的Handle
-  void *user_data = nullptr;  // 用户自定义信息
+  const void *user_data = nullptr;  // 用户自定义信息
   TransferStatus status = TransferStatus::WAITING;  // 传输请求状态
   uint8_t reserved[108] = {};  // 预留参数
 };

@@ -37,8 +37,8 @@ bash build.sh --examples                   # 同时编译示例和 benchmark
 
 # 测试
 bash tests/run_test.sh                     # 并行执行全部 C++ suite，成功后再跑 Python
-bash tests/run_test.sh -t cpp              # 仅并行执行 C++（llm_datadist + adxl + hixl + fabric_mem）
-bash tests/run_test.sh -s hixl             # 仅执行指定 C++ suite（llm_datadist / adxl / hixl / fabric_mem）
+bash tests/run_test.sh -t cpp              # 仅并行执行 C++（llm_datadist + adxl + channel_pool + hixl + fabric_mem）
+bash tests/run_test.sh -s hixl             # 仅执行指定 C++ suite（llm_datadist / adxl / channel_pool / hixl / fabric_mem）
 bash tests/run_test.sh -t py               # 仅执行 Python 测试
 bash tests/run_test.sh --cov               # 按覆盖率模式构建并运行测试
 
