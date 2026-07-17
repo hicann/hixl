@@ -7,15 +7,16 @@
 | 规范编号 | 规范名称 | 类别 | 严重级别 |
 |---------|---------|------|---------|
 | 1.1 | 失败必须打印错误描述与关键信息 | 日志 | 高 |
-| 1.2 | 调用外部组件失败须打印api名/错误码/参数 | 日志 | 中 |
-| 1.3 | 日志内容全部使用英文 | 日志 | 高 |
-| 1.4 | 内容无语法拼写错误、完整准确、避免自创缩写 | 日志 | 中 |
-| 1.5 | 度量信息须添加度量单位 | 日志 | 中 |
-| 1.6 | 不得以明文记录敏感信息 | 日志 | 高 |
-| 1.7 | 日志不得携带个人信息 | 日志 | 高 |
-| 1.8 | 性能敏感流程不得记录run日志、生产环境不持续输出DEBUG | 日志 | 中 |
-| 1.9 | 避免高频循环体内打印重复错误日志 | 日志 | 中 |
-| 1.10 | 单行日志长度不超过1024字符 | 日志 | 中 |
+| 1.2 | 调用非本组件接口失败须打印api名/错误码/参数 | 日志 | 中 |
+| 1.3 | 外部参数校验和非本组件接口失败必须使用HIXL CHECK宏 | 日志 | 高 |
+| 1.4 | 日志内容全部使用英文 | 日志 | 高 |
+| 1.5 | 内容无语法拼写错误、完整准确、避免自创缩写 | 日志 | 中 |
+| 1.6 | 度量信息须添加度量单位 | 日志 | 中 |
+| 1.7 | 不得以明文记录敏感信息 | 日志 | 高 |
+| 1.8 | 日志不得携带个人信息 | 日志 | 高 |
+| 1.9 | 性能敏感流程不得记录run日志、生产环境不持续输出DEBUG | 日志 | 中 |
+| 1.10 | 避免高频循环体内打印重复错误日志 | 日志 | 中 |
+| 1.11 | 单行日志长度不超过1024字符 | 日志 | 中 |
 | 2.1 | 文档表格与列表项须逐项完整 | 文档写作 | 中 |
 
 ## 说明
@@ -55,9 +56,9 @@ if (ret != SUCCESS) {
 }
 ```
 
-#### 规则 1.2 调用外部组件失败须打印api名/错误码/参数
+#### 规则 1.2 调用非本组件接口失败须打印api名/错误码/参数
 
-调用外部组件接口失败时，需要将调用的api名字、失败错误码以及参数打印出来，以便问题定位，参考格式`Call api:xxx failed, ret:xxx, param:xxx.`。
+调用非本组件接口失败时，需要将调用的api名字、失败错误码以及参数打印出来，以便问题定位。非本组件接口包括HCCL、ACL、DSMI、DCMI、HCOMM、securec、JSON库、动态库加载接口，以及socket、poll、read、write、open等系统接口。参考格式`Call api:xxx failed, ret:xxx, param:xxx.`。
 
 [反例]：未打印函数名及入参
 
@@ -79,35 +80,83 @@ if (ret != ACL_ERROR_NONE) {
 }
 ```
 
-#### 规则 1.3 日志内容全部使用英文
+#### 规则 1.3 外部参数校验和非本组件接口失败必须使用HIXL CHECK宏
+
+外部参数校验失败、调用非本组件接口失败（包含系统接口失败）时，必须优先使用HIXL CHECK宏统一处理返回、上报error msg并打印错误日志。错误信息必须包含可能导致当前错误的关键信息，例如参数名、参数值、合法范围、API名称、返回码、`errno`、`strerror(errno)`、设备ID、端口、fd、超时时间等。
+
+常用宏包括`HIXL_CHECK_NOTNULL`、`HIXL_CHK_BOOL_RET_STATUS`、`HIXL_CHK_STATUS_RET`、`HIXL_CHK_ACL_RET`、`HIXL_CHK_HCCL_RET`等。不得只返回错误码，也不得只使用`HIXL_LOGE`而遗漏error msg上报。
+
+[反例]：外部参数校验失败时只打印日志，未上报error msg
+
+```cpp
+if (client_desc == nullptr) {
+  HIXL_LOGE(PARAM_INVALID, "client_desc is nullptr");
+  return PARAM_INVALID;
+}
+```
+
+[正例]：
+
+```cpp
+HIXL_CHECK_NOTNULL(client_desc);
+HIXL_CHK_BOOL_RET_STATUS(port >= kMinPort && port <= kMaxPort, PARAM_INVALID,
+                         "Invalid listen_port:%u, valid range is [%u, %u]", port, kMinPort, kMaxPort);
+```
+
+[反例]：系统接口失败时未使用HIXL CHECK宏，且缺少error msg上报
+
+```cpp
+int32_t ret = setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+if (ret != 0) {
+  HIXL_LOGE(FAILED, "setsockopt failed");
+  return FAILED;
+}
+```
+
+[正例]：
+
+```cpp
+int32_t ret = setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED,
+                         "Call api:setsockopt failed, ret:%d, fd:%d, option:SO_RCVTIMEO, error msg:%s, errno:%d",
+                         ret, fd, strerror(errno), errno);
+```
+
+[正例]：ACL/HCCL等已有专用宏时直接使用专用宏
+
+```cpp
+HIXL_CHK_ACL_RET(aclrtSetDevice(device_id), "device_id:%u", device_id);
+```
+
+#### 规则 1.4 日志内容全部使用英文
 
 日志内容全部使用英文描述，不得使用拼音、中文和中文符号。
 
-#### 规则 1.4 内容无语法拼写错误、完整准确、避免自创缩写
+#### 规则 1.5 内容无语法拼写错误、完整准确、避免自创缩写
 
 日志内容不能存在语法、拼写错误，表达应完整准确、言简意赅，避免自创缩写。
 
-#### 规则 1.5 度量信息须添加度量单位
+#### 规则 1.6 度量信息须添加度量单位
 
 日志中涉及度量信息（如耗时、数据量、带宽）需要添加度量单位。
 
-#### 规则 1.6 不得以明文记录敏感信息
+#### 规则 1.7 不得以明文记录敏感信息
 
 不能以明文的形式记录敏感信息，比如密码、秘钥、token等。
 
-#### 规则 1.7 日志不得携带个人信息
+#### 规则 1.8 日志不得携带个人信息
 
 日志内容中不得携带个人信息。
 
-#### 规则 1.8 性能敏感流程不得记录run日志、生产环境不持续输出DEBUG
+#### 规则 1.9 性能敏感流程不得记录run日志、生产环境不持续输出DEBUG
 
 性能敏感流程中不能记录run日志（INFO级），例如KV传输流程中HIXL的数据面接口；生产环境不应出现DEBUG级别的持续输出。
 
-#### 规则 1.9 避免高频循环体内打印重复错误日志
+#### 规则 1.10 避免高频循环体内打印重复错误日志
 
 避免高频循环体内打印重复错误日志，否则将导致有用的错误信息被掩盖。
 
-#### 规则 1.10 单行日志长度不超过1024字符
+#### 规则 1.11 单行日志长度不超过1024字符
 
 单行日志输出长度不得超过1024个字符。
 

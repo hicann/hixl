@@ -59,6 +59,7 @@ pre-commit run --files <changed-files>     # 只检查受影响文件
 - **C++**：遵循 `.clang-format`（基于 Google 风格），2 空格缩进、120 列限制、附着式大括号、`SortIncludes: false`。类型用 `PascalCase`，函数用 `camelCase`。
 - **C++ 复杂度**：单函数不超过 50 行；嵌套深度（if/for/while/switch/try 及宏展开块）不超过 4，超出时提取 helper 或 early return。
 - **Python**：使用 `ruff-check` 和 `ruff-format`，模块和测试文件用 `snake_case`。
+- **日志打印**：新增或修改日志必须遵守[HIXL日志与文档规范](docs/zh/contributions/coding_standards/docs_specification.md)和 [cpp-secure.md](docs/zh/contributions/coding_standards/cpp-secure.md) 中的 LOG API 安全使用规则。优先使用仓库现有日志宏；失败路径日志需包含错误描述、关键上下文、外部 API 名称、返回码和必要参数；日志内容使用英文，避免语法/拼写错误并为耗时、大小、带宽等度量信息标明单位；禁止记录密码、密钥、token、个人信息等敏感数据；性能敏感数据面和高频循环内不得持续打印 INFO/DEBUG 或重复错误日志；格式化占位符的数量、顺序和类型必须与参数一致。
 
 ## 测试要求
 
