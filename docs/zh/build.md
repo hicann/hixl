@@ -84,7 +84,14 @@
 
     - \$\{cann\_version\}：表示CANN包版本号。
     - \$\{arch\}：表示CPU架构，如aarch64、x86_64。
-    - \$\{soc\_name\}：表示NPU型号名称。
+    - \$\{soc\_name\}：表示ops包中的NPU型号标识，需按芯片型号选择，对应关系如下：
+
+      | 芯片型号 | \$\{soc\_name\} | ops包示例 |
+      | :--- | :--- | :--- |
+      | Ascend910 | `A3` | `Ascend-cann-A3-ops_${cann_version}_linux-${arch}.run` |
+      | Ascend910B | `910b` | `Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run` |
+      | Ascend950 | `950` | `Ascend-cann-950-ops_${cann_version}_linux-${arch}.run` |
+
     - \$\{install\_path\}：表示指定安装路径，需要与toolkit包安装在相同路径，root用户默认安装在`/usr/local/Ascend`目录。
 
 **场景2：体验已发布版本能力或基于已发布版本进行开发**

@@ -84,7 +84,14 @@ If you want to experience the latest capabilities of the master branch, download
 
     - `${cann_version}`: CANN package version.
     - `${arch}`: CPU architecture, such as `aarch64` and `x86_64`.
-    - `${soc_name}`: NPU model name.
+    - `${soc_name}`: NPU model identifier used in the ops package name. Select it based on the chip model as follows:
+
+      | Chip model | `${soc_name}` | Example ops package |
+      | :--- | :--- | :--- |
+      | Ascend910 | `A3` | `Ascend-cann-A3-ops_${cann_version}_linux-${arch}.run` |
+      | Ascend910B | `910b` | `Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run` |
+      | Ascend950 | `950` | `Ascend-cann-950-ops_${cann_version}_linux-${arch}.run` |
+
     - `${install_path}`: installation path. The CANN package and Toolkit package must be in the same path. For the `root` user, the default path is `/usr/local/Ascend`.
 
 **Scenario 2: Experience a released version or perform development based on a released version.**
