@@ -16,7 +16,7 @@
 #include "nlohmann/json.hpp"
 #include "common/ctrl_msg_plugin.h"
 
-#include <securec.h>
+#include "securec.h"
 
 namespace {
 constexpr uint64_t kMaxGetRemoteMemBodySize = static_cast<uint64_t>(4ULL * 1024ULL * 1024ULL);  // 4MB 示例上限

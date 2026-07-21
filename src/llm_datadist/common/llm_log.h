@@ -20,6 +20,12 @@
 #include <mutex>
 #include <cstring>
 #include <cstdlib>
+#ifdef __GNUC__
+#include <unistd.h>
+#include <sys/syscall.h>
+#else
+#include "mmpa/mmpa_api.h"
+#endif
 
 // LLM_ERROR_CODES has been defined in metadef, that will cause can't find the info in llm_error_codes.h
 #include "llm_datadist/llm_error_codes.h"
@@ -27,13 +33,6 @@
 #include "base/err_msg.h"
 #include "acl/acl.h"
 #include "hixl/hixl_types.h"
-#ifdef __GNUC__
-#include <unistd.h>
-#include <sys/syscall.h>
-#else
-#include "mmpa/mmpa_api.h"
-#endif
-#include "base/err_msg.h"
 
 #ifdef __cplusplus
 extern "C" {

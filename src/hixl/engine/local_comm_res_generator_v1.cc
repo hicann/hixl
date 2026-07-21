@@ -36,7 +36,7 @@
 #include <unistd.h>
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
-#include <nlohmann/json.hpp>
+#include "nlohmann/json.hpp"
 #include "mmpa/mmpa_api.h"
 
 namespace hixl {
