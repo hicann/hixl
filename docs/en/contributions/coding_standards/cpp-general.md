@@ -42,6 +42,8 @@
 | 13.1 | Use delete/delete[] in matching pairs | Classes & Objects |
 | 13.2 | Do not use std::move on const objects | Classes & Objects |
 | 13.3 | Strictly use virtual/override/final | Classes & Objects |
+| 13.4 | Use const for member functions that do not modify members | Classes & Objects |
+| 13.5 | Do not throw exceptions from destructors | Classes & Objects |
 | 14.1 | Use RAII to track dynamic allocations | Function Design |
 | 14.2 | Non-local lambdas should avoid capture by reference | Function Design |
 | 14.3 | Virtual functions must not use default parameter values | Function Design |
@@ -53,6 +55,7 @@
 | 15.5 | Single-argument constructors must use explicit | Function Usage |
 | 15.6 | Copy constructor and assignment operator must appear in pairs | Function Usage |
 | 15.7 | Do not store or delete pointer parameters | Function Usage |
+| 15.8 | Parameter names must be consistent between declaration and definition | Function Usage |
 
 ---
 
@@ -333,6 +336,64 @@ class FinalDerived : public Derived {
 };
 ```
 
+##### Rule 13.4 Member functions that do not modify member variables must be declared const
+
+> **Note**: A const member function promises the caller that it will not modify the object state, which helps the compiler perform correctness checks and is the foundation of const-correctness. During review, mark as SUSPICIOUS to remind developers to add const.
+
+```cpp
+class Config {
+public:
+    // ✅ getters do not modify members, declared as const
+    const std::string &GetName() const { return name_; }
+    int GetSize() const { return size_; }
+
+    // ❌ getter without const; callers cannot invoke it on const objects
+    const std::string &GetName() { return name_; }
+
+    void SetName(const std::string &name) { name_ = name; }  // modifies a member, not const
+
+private:
+    std::string name_;
+    int size_ = 0;
+};
+```
+
+##### Recommendation 13.5 Do not throw exceptions from destructors
+
+> **Note**: Since C++11, destructors are implicitly `noexcept`. If a destructor throws an exception, `std::terminate` will be triggered and the program will crash; if a destructor throws during stack unwinding (while another exception is still being processed), `std::terminate` will also be triggered. Destructors must guarantee not to throw exceptions. When a cleanup operation may fail, the exception should be caught inside the destructor and logged. During review, mark as SUSPICIOUS to remind developers to fix it.
+
+```cpp
+class FileWriter {
+public:
+    // ❌ destructor throws an exception, triggering std::terminate and crashing the program
+    ~FileWriter() {
+        if (!Flush()) {
+            throw std::runtime_error("flush failed");
+        }
+    }
+
+private:
+    bool Flush();
+};
+
+class SafeFileWriter {
+public:
+    // ✅ destructor catches exceptions and logs them, does not propagate upward
+    ~SafeFileWriter() noexcept {
+        try {
+            if (!Flush()) {
+                // log error
+            }
+        } catch (const std::exception &e) {
+            // log error and swallow the exception
+        }
+    }
+
+private:
+    bool Flush();
+};
+```
+
 ---
 
 ### 14. Function Design
@@ -441,6 +502,31 @@ class Foo {
 ```
 
 ##### Rule 15.7 Do not store or delete pointer parameters
+
+##### Recommendation 15.8 All declarations of a function must have parameter names consistent with its definition
+
+> **Note**: The C++ standard does not require parameter names to be consistent between a declaration and its definition, but inconsistent parameter names reduce readability and increase review and maintenance costs. During review, mark as SUSPICIOUS to remind developers to keep them consistent.
+
+> **Scope**: Applies to all C++ functions, including functions declared in headers, class member functions, and forward declarations within the same file. If parameter names are omitted in a declaration (only types present), it is not considered inconsistent.
+
+```cpp
+// foo.h
+bool ParseConfig(const std::string &config_path, int max_retry, bool enable_log);
+
+// foo.cpp
+// ✅ parameter names consistent between declaration and definition
+bool ParseConfig(const std::string &config_path, int max_retry, bool enable_log) {
+    ...
+}
+
+// ❌ parameter names inconsistent between declaration and definition
+bool ParseConfig(const std::string &path, int retry_count, bool log) {
+    ...
+}
+
+// ✅ parameter names omitted in the declaration; not considered inconsistent
+bool ParseConfig(const std::string &, int, bool);
+```
 
 ---
 

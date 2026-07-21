@@ -42,6 +42,8 @@
 | 13.1 | delete/delete[] 配对使用 | 类和对象 |
 | 13.2 | 禁止 std::move 操作 const 对象 | 类和对象 |
 | 13.3 | 严格使用 virtual/override/final | 类和对象 |
+| 13.4 | 不修改成员的成员函数用 const 修饰 | 类和对象 |
+| 13.5 | 禁止析构函数抛出异常 | 类和对象 |
 | 14.1 | 使用 RAII 追踪动态分配 | 函数设计 |
 | 14.2 | 非局部 lambda 避免按引用捕获 | 函数设计 |
 | 14.3 | 禁止虚函数使用缺省参数值 | 函数设计 |
@@ -53,6 +55,7 @@
 | 15.5 | 单参数构造函数用 explicit | 函数使用 |
 | 15.6 | 拷贝构造和赋值操作符成对出现 | 函数使用 |
 | 15.7 | 禁止保存、delete 指针参数 | 函数使用 |
+| 15.8 | 函数声明与定义参数名一致 | 函数使用 |
 
 ---
 
@@ -335,6 +338,64 @@ class FinalDerived : public Derived {
 };
 ```
 
+##### 规则 13.4 不会修改成员变量的成员函数必须使用 const 修饰
+
+> **说明**：const 成员函数向调用者承诺不修改对象状态，有助于编译器做正确性检查，也是 const-correctness 的基础。检视时标记为 SUSPICIOUS，提醒开发者补充 const。
+
+```cpp
+class Config {
+public:
+    // ✅ getter 不修改成员，声明为 const
+    const std::string &GetName() const { return name_; }
+    int GetSize() const { return size_; }
+
+    // ❌ getter 未加 const，调用者无法在 const 对象上调用
+    const std::string &GetName() { return name_; }
+
+    void SetName(const std::string &name) { name_ = name; }  // 修改成员，不加 const
+
+private:
+    std::string name_;
+    int size_ = 0;
+};
+```
+
+##### 建议 13.5 禁止从析构函数中抛出异常
+
+> **说明**：C++11 起析构函数默认为 `noexcept`，若析构函数抛出异常将触发 `std::terminate` 导致程序崩溃；若在栈展开（另一个异常尚未处理）过程中析构函数抛出异常，同样会触发 `std::terminate`。析构函数应保证不抛出异常，清理操作可能失败时应在析构函数内部捕获并记录日志。检视时标记为 SUSPICIOUS，提醒开发者修复。
+
+```cpp
+class FileWriter {
+public:
+    // ❌ 析构函数抛异常，触发 std::terminate 导致程序崩溃
+    ~FileWriter() {
+        if (!Flush()) {
+            throw std::runtime_error("flush failed");
+        }
+    }
+
+private:
+    bool Flush();
+};
+
+class SafeFileWriter {
+public:
+    // ✅ 析构函数中捕获异常并记录日志，不向上抛出
+    ~SafeFileWriter() noexcept {
+        try {
+            if (!Flush()) {
+                // 记录错误日志
+            }
+        } catch (const std::exception &e) {
+            // 记录错误日志，吞掉异常
+        }
+    }
+
+private:
+    bool Flush();
+};
+```
+
 ---
 
 ### 14. 函数设计
@@ -443,6 +504,31 @@ class Foo {
 ```
 
 ##### 规则 15.7 禁止保存、delete指针参数
+
+##### 建议 15.8 函数的所有声明必须与定义具有一致的参数名
+
+> **说明**：C++ 标准不要求声明与定义的参数名一致，但参数名不一致会降低可读性，增加检视和维护成本。检视时标记为 SUSPICIOUS，提醒开发者保持一致。
+
+> **适用范围**：适用于所有 C++ 函数，包括头文件中声明的函数、类成员函数、以及同一文件内的前置声明。若声明中省略了参数名（仅有类型），不视为不一致。
+
+```cpp
+// foo.h
+bool ParseConfig(const std::string &config_path, int max_retry, bool enable_log);
+
+// foo.cpp
+// ✅ 声明与定义参数名一致
+bool ParseConfig(const std::string &config_path, int max_retry, bool enable_log) {
+    ...
+}
+
+// ❌ 声明与定义参数名不一致
+bool ParseConfig(const std::string &path, int retry_count, bool log) {
+    ...
+}
+
+// ✅ 声明中省略参数名，不视为不一致
+bool ParseConfig(const std::string &, int, bool);
+```
 
 ---
 
