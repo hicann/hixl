@@ -5,6 +5,7 @@
 | Skill                                         | 功能 | 触发场景 |
 |-----------------------------------------------|------|---------|
 | [api-doc-generator](skills/api-doc-generator) | API 文档生成 | 用户说生成接口文档、生成接口说明、增加接口说明、增加接口文档 |
+| [cann-toolkit-installer](skills/cann-toolkit-installer) | CANN Toolkit/ops 自动安装 | 安装/更新/重装 CANN Toolkit 或 ops、更新 toolkit、更新 run 包、安装 CANN 基础环境 |
 | [gitcode-issue](skills/gitcode-issue)         | GitCode Issue 读取 | 查看/读取 issue、GitCode issue URL、直接说编号（issue 123、#123）、查看 issue 评论 |
 | [gitcode-pipeline](skills/gitcode-pipeline)   | GitCode PR 流水线管理 | 触发流水线、查看流水线状态、等待流水线结果、流水线失败、盯 CI、看一下 PR 的 CI |
 | [gitcode-pr](skills/gitcode-pr)               | GitCode PR 创建与管理 | 创建 PR、推送代码到远程、合并请求、PR 模板/描述、关联 issue 创建 PR、获取 PR 改动、获取/查看/删除 PR 评论、查看 PR 讨论 |
