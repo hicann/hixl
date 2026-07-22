@@ -24,7 +24,7 @@ usage() {
   echo "              [--build_type=<Release|Debug> | --build-type=<Release|Debug]"
   echo "              [--cann_3rd_lib_path=<PATH> | --cann-3rd-lib-path=<PATH>]"
   echo "              [--output_path=<PATH> | --output-path=<PATH>]"
-  echo "              [--asan] [--cov]"
+  echo "              [--host] [--asan] [--cov]"
   echo ""
   echo "Options:"
   echo "    -h, --help        Print usage"
@@ -39,6 +39,7 @@ usage() {
   echo "                      Set output path, default ./build_out"
   echo "    --pkg             Build run package, reserved parameter"
   echo "    --examples        Build with examples and benchmarks, default is OFF"
+  echo "    --host            Build host package only and reuse device package from center repository"
   echo "    --asan            Enable AddressSanitizer, default is OFF"
   echo "    --cov             Enable Coverage, default is OFF"
   echo "    --sign-script=<PATH> | --sign_script=<PATH>"
@@ -82,11 +83,12 @@ checkopts() {
   ENABLE_BENCHMARKS=OFF
   ENABLE_ASAN=OFF
   ENABLE_GCOV=OFF
+  HIXL_BUILD_HOST_ONLY=OFF
   ENABLE_SIGN=OFF
   CUSTOM_SIGN_SCRIPT="${BASEPATH}/scripts/sign/community_sign_build.py"
 
   # Process the options
-  parsed_args=$(getopt -a -o j:hv -l help,verbose,pkg,pkg-type:,examples,cann_3rd_lib_path:,cann-3rd-lib-path:,output_path:,output-path:,build_type:,build-type:,sign-script:,sign_script:,asan,cov,enable_sign,enable-sign -- "$@") || {
+  parsed_args=$(getopt -a -o j:hv -l help,verbose,pkg,pkg-type:,examples,cann_3rd_lib_path:,cann-3rd-lib-path:,output_path:,output-path:,build_type:,build-type:,sign-script:,sign_script:,host,asan,cov,enable_sign,enable-sign -- "$@") || {
     usage
     exit 1
   }
@@ -133,6 +135,10 @@ checkopts() {
         ENABLE_EXAMPLES=ON
         ENABLE_BENCHMARKS=ON
         ENABLE_LCRGEN_TOOL=ON
+        ;;
+      --host)
+        HIXL_BUILD_HOST_ONLY=ON
+        shift
         ;;
       --enable-sign | --enable_sign)
         ENABLE_SIGN=ON
@@ -202,6 +208,22 @@ move_pkg() {
   esac
 }
 
+copy_device_pkg() {
+  local device_pkg="${BUILD_PATH}/device_build/device-hixl.tar.gz"
+  local hixl_version
+  hixl_version=$(sed -nE 's/^set_cann_package\(hixl VERSION "([^"]+)"\).*/\1/p' "${BASEPATH}/version.cmake")
+  if [ -z "${hixl_version}" ]; then
+    echo "hixl version not found in ${BASEPATH}/version.cmake"
+    return 1
+  fi
+  local output_pkg="${OUTPUT_PATH}/cann-hixl_${hixl_version}_device.tar.gz"
+  if [ ! -f "${device_pkg}" ]; then
+    return 0
+  fi
+  cp -f "${device_pkg}" "${output_pkg}"
+  echo "device hixl package output: ${output_pkg}"
+}
+
 build() {
   echo "create build directory and build hixl";
   mk_dir "${BUILD_PATH}"
@@ -214,6 +236,7 @@ build() {
         -D ENABLE_LCRGEN_TOOL=${ENABLE_LCRGEN_TOOL} \
         -D ENABLE_ASAN=${ENABLE_ASAN} \
         -D ENABLE_GCOV=${ENABLE_GCOV} \
+        -D HIXL_BUILD_HOST_ONLY=${HIXL_BUILD_HOST_ONLY} \
         -D ENABLE_SIGN=${ENABLE_SIGN} \
         -D CUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT} \
         ${CANN_3RD_LIB_PATH:+-D CANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}} \
@@ -226,6 +249,7 @@ build() {
     return 1
   fi
   echo "Build success!"
+  copy_device_pkg || true
 
   case "${PACKAGE_TYPE}" in
     all)

@@ -186,6 +186,9 @@ If your build environment cannot access the Internet, you cannot download code v
   # Default installation path (root user: /usr/local/Ascend; non-root user: ${HOME}/Ascend)
   bash build.sh
 
+  # If you do not modify the source code or your changes do not involve code under `src/ops`, add the "--host" option
+  bash build.sh --host
+
   # If you need to compile C++ samples or benchmark tests, specify the "--examples" parameter
   bash build.sh --examples
   ```
@@ -225,10 +228,17 @@ After the build is successful, the `cann-hixl_${cann_version}_linux-${arch}.run`
 | `--pkg` | Builds a `.run` file (reserved). | - |
 | `--pkg-type=<TYPE>` | Specifies the package type (`run`, `rpm`, `deb`, or `all`). | `run` |
 | `--examples` | Builds the sample and benchmark test. | OFF |
+| `--host` | Builds the host package only and reuses `cann-hixl_<version>_device.tar.gz` from the local cache or center repository. | OFF |
 | `--asan` | Enables address sanitization for memory leak detection. | OFF |
 | `--cov` | Enables code coverage. | OFF |
 | `--sign-script=<PATH>`<br>`--sign_script=<PATH>` | Sets the path for the signature script. | - |
 | `--enable-sign` | Enables the signature function. | - |
+
+By default, the build compiles both host and device artifacts and outputs `cann-hixl_<version>_device.tar.gz` to `build_out`. The tar package has `opp/` as the top-level directory and contains `opp/built-in/op_impl/aicpu/kernel/cann-hixl-compat.tar.gz` and `opp/built-in/op_impl/aicpu/config/libcann_hixl_kernel.json`. The final `cann-hixl_*.run` package does not keep the device tar itself. It contains the extracted `opp/` files.
+
+When `--host` is specified, the device subproject under `src/ops` is not built, and the device package is not searched from `ASCEND_HOME_PATH`. The script first reuses `third_party/cann-hixl_<version>_device.tar.gz` or `third_party/pkg/device/cann-hixl_<version>_device.tar.gz`; otherwise, it downloads the latest signed device package from the center repository. If device contents are updated, update the center repository package and the download URL in this repository.
+
+For source builds, if you do not modify the source code or your changes do not involve code under `src/ops`, it is recommended to add `--host` for the build.
 
 ## Local Verification (Tests)
 
