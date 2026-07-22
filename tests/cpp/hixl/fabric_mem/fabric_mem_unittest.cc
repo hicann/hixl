@@ -180,6 +180,16 @@ class FabricMemRuntimeStub : public llm::AclRuntimeStub {
     return llm::AclRuntimeStub::aclrtFreePhysical(handle);
   }
 
+  aclError aclrtMemSetAccess(void *virPtr, size_t size, aclrtMemAccessDesc *desc, size_t count) override {
+    ++mem_set_access_count_;
+    last_mem_set_access_size_ = size;
+    last_mem_set_access_count_ = count;
+    if (desc != nullptr && count > 0U) {
+      last_mem_access_desc_ = desc[0];
+    }
+    return llm::AclRuntimeStub::aclrtMemSetAccess(virPtr, size, desc, count);
+  }
+
   bool pointer_is_host_{false};
   bool get_context_returns_null_{false};
   aclError pointer_attr_error_{ACL_ERROR_NONE};
@@ -201,6 +211,10 @@ class FabricMemRuntimeStub : public llm::AclRuntimeStub {
   std::set<aclrtStream> streams_not_complete_;
   size_t malloc_physical_count_{0U};
   size_t free_physical_count_{0U};
+  size_t mem_set_access_count_{0U};
+  size_t last_mem_set_access_size_{0U};
+  size_t last_mem_set_access_count_{0U};
+  aclrtMemAccessDesc last_mem_access_desc_{};
   size_t set_current_context_count_{0U};
   aclrtContext last_set_context_{nullptr};
   aclrtPhysicalMemProp last_physical_mem_prop_{};
@@ -1261,6 +1275,8 @@ TEST_F(FabricMemTransferServiceUTest, MallocMemSupportsDeviceMemory) {
   EXPECT_EQ(runtime_->last_physical_mem_prop_.location.type, ACL_MEM_LOCATION_TYPE_DEVICE);
   EXPECT_EQ(runtime_->last_physical_mem_prop_.location.id, 0U);
   EXPECT_EQ(runtime_->last_physical_mem_prop_.memAttr, ACL_HBM_MEM_HUGE);
+  // Device Map already grants local device access; MemSetAccess is only needed for host VMM.
+  EXPECT_EQ(runtime_->mem_set_access_count_, 0U);
 
   EXPECT_EQ(FabricMemTransferService::FreeMem(device_ptr), SUCCESS);
   VirtualMemoryManager::GetInstance().Finalize();
@@ -1276,6 +1292,11 @@ TEST_F(FabricMemTransferServiceUTest, MallocMemAndFreeMemHost) {
   auto *value = static_cast<int32_t *>(host_ptr);
   *value = 123;
   EXPECT_EQ(*value, 123);
+  EXPECT_EQ(runtime_->mem_set_access_count_, 1U);
+  EXPECT_EQ(runtime_->last_mem_set_access_size_, sizeof(int32_t));
+  EXPECT_EQ(runtime_->last_mem_set_access_count_, 1U);
+  EXPECT_EQ(runtime_->last_mem_access_desc_.flags, ACL_RT_MEM_ACCESS_FLAGS_READWRITE);
+  EXPECT_EQ(runtime_->last_mem_access_desc_.location.type, ACL_MEM_LOCATION_TYPE_DEVICE);
   EXPECT_EQ(FabricMemTransferService::FreeMem(host_ptr), SUCCESS);
   VirtualMemoryManager::GetInstance().Finalize();
 }
@@ -1315,6 +1336,25 @@ TEST_F(FabricMemTransferServiceUTest, MallocMemRollsBackWhenMapFails) {
   // The reserved virtual block must have been released, so a subsequent malloc still succeeds.
   void *ptr2 = nullptr;
   ASSERT_EQ(FabricMemTransferService::MallocMem(MEM_DEVICE, kLen, &ptr2), SUCCESS);
+  ASSERT_NE(ptr2, nullptr);
+  EXPECT_EQ(FabricMemTransferService::FreeMem(ptr2), SUCCESS);
+  VirtualMemoryManager::GetInstance().Finalize();
+}
+
+TEST_F(FabricMemTransferServiceUTest, MallocMemRollsBackWhenHostMemSetAccessFails) {
+  VirtualMemoryManager::GetInstance().Finalize();
+  ASSERT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
+
+  llm::GetAclStubMock() = "aclrtMemSetAccess";
+  void *ptr = nullptr;
+  EXPECT_NE(FabricMemTransferService::MallocMem(MEM_HOST, kLen, &ptr), SUCCESS);
+  EXPECT_EQ(ptr, nullptr);
+  EXPECT_EQ(runtime_->malloc_physical_count_, 1U);
+  EXPECT_EQ(runtime_->free_physical_count_, 1U);
+  llm::GetAclStubMock().clear();
+
+  void *ptr2 = nullptr;
+  ASSERT_EQ(FabricMemTransferService::MallocMem(MEM_HOST, kLen, &ptr2), SUCCESS);
   ASSERT_NE(ptr2, nullptr);
   EXPECT_EQ(FabricMemTransferService::FreeMem(ptr2), SUCCESS);
   VirtualMemoryManager::GetInstance().Finalize();

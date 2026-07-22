@@ -547,6 +547,17 @@ aclError AclRuntimeStub::aclrtUnmapMem(void *devPtr) {
   return ACL_ERROR_NONE;
 }
 
+aclError AclRuntimeStub::aclrtMemSetAccess(void *virPtr, size_t size, aclrtMemAccessDesc *desc, size_t count) {
+  (void)virPtr;
+  (void)size;
+  (void)desc;
+  (void)count;
+  if (__FUNCTION__ == g_acl_stub_mock) {
+    return ACL_ERROR_RT_INTERNAL_ERROR;
+  }
+  return ACL_ERROR_NONE;
+}
+
 aclError AclRuntimeStub::aclrtMemRetainAllocationHandle(void *devPtr, aclrtDrvMemHandle *handle) {
   (void)devPtr;
   if (__FUNCTION__ == g_acl_stub_mock) {
@@ -921,6 +932,10 @@ aclError aclrtMapMem(void *devPtr, size_t size, size_t offset, aclrtDrvMemHandle
 
 aclError aclrtUnmapMem(void *devPtr) {
   return llm::AclRuntimeStub::GetInstance()->aclrtUnmapMem(devPtr);
+}
+
+aclError aclrtMemSetAccess(void *virPtr, size_t size, aclrtMemAccessDesc *desc, size_t count) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtMemSetAccess(virPtr, size, desc, count);
 }
 
 aclError aclrtMemRetainAllocationHandle(void *devPtr, aclrtDrvMemHandle *handle) {

@@ -22,6 +22,8 @@ namespace hixl {
 namespace {
 constexpr int32_t kDevicesPerChip = 4;
 constexpr int32_t kNumaNodeStep = 2;
+// aclrtMemSetAccess count: number of aclrtMemAccessDesc entries.
+constexpr size_t kMemAccessDescCount = 1U;
 
 std::mutex g_va_to_pa_mutex;
 std::unordered_map<uintptr_t, aclrtDrvMemHandle> g_va_to_pa_handle_map;
@@ -33,6 +35,18 @@ aclrtPhysicalMemProp BuildDefaultPhysicalMemProp() {
   prop.reserve = 0;
   return prop;
 }
+
+// Host VMM Map only binds the VA for the host; grant DEVICE READWRITE so NPU/AIV can access it,
+// matching memfabric's HalMemSetAccess after host Map.
+Status SetDeviceAccessForHostMappedVa(void *va_ptr, size_t size, int32_t logic_device_id) {
+  aclrtMemAccessDesc desc{};
+  desc.flags = ACL_RT_MEM_ACCESS_FLAGS_READWRITE;
+  desc.location.type = ACL_MEM_LOCATION_TYPE_DEVICE;
+  desc.location.id = static_cast<uint32_t>(logic_device_id);
+  HIXL_CHK_ACL_RET(aclrtMemSetAccess(va_ptr, size, &desc, kMemAccessDescCount),
+                   "Set fabric memory device access failed.");
+  return SUCCESS;
+}
 }  // namespace
 
 Status FabricMemAllocator::MallocMem(MemType type, size_t size, void **ptr) {
@@ -41,22 +55,31 @@ Status FabricMemAllocator::MallocMem(MemType type, size_t size, void **ptr) {
   HIXL_CHK_BOOL_RET_STATUS(size > 0, PARAM_INVALID, "Fabric memory size should be greater than zero.");
   HIXL_CHECK_NOTNULL(ptr);
 
+  int32_t logic_device_id = 0;
+  HIXL_CHK_ACL_RET(aclrtGetDevice(&logic_device_id), "Get current device failed.");
+
   aclrtDrvMemHandle pa_handle = nullptr;
   uintptr_t virtual_addr = 0;
-  HIXL_CHK_STATUS_RET(AllocatePhysicalMemory(type, size, pa_handle), "Failed to allocate physical memory.");
-  HIXL_DISMISSABLE_GUARD(free_pa_guard, ([&pa_handle]() {
-                           HIXL_CHK_ACL(aclrtFreePhysical(pa_handle), "Free physical memory failed.");
-                         }));
+  HIXL_CHK_STATUS_RET(AllocatePhysicalMemory(type, size, logic_device_id, pa_handle),
+                      "Failed to allocate physical memory.");
+  HIXL_DISMISSABLE_GUARD(
+      free_pa_guard, ([&pa_handle]() { HIXL_CHK_ACL(aclrtFreePhysical(pa_handle), "Free physical memory failed."); }));
   HIXL_CHK_STATUS_RET(VirtualMemoryManager::GetInstance().ReserveMemory(size, virtual_addr),
                       "Failed to reserve virtual memory.");
-  HIXL_DISMISSABLE_GUARD(release_va_guard, ([&virtual_addr]() {
-                           (void)VirtualMemoryManager::GetInstance().ReleaseMemory(virtual_addr);
-                         }));
+  HIXL_DISMISSABLE_GUARD(
+      release_va_guard, ([&virtual_addr]() { (void)VirtualMemoryManager::GetInstance().ReleaseMemory(virtual_addr); }));
   const auto va_ptr = reinterpret_cast<void *>(virtual_addr);
   HIXL_CHK_ACL_RET(aclrtMapMem(va_ptr, size, 0, pa_handle, 0), "Map fabric memory failed.");
+  HIXL_DISMISSABLE_GUARD(unmap_guard,
+                         ([va_ptr]() { HIXL_CHK_ACL(aclrtUnmapMem(va_ptr), "Unmap fabric memory failed."); }));
+  if (type == MemType::MEM_HOST) {
+    HIXL_CHK_STATUS_RET(SetDeviceAccessForHostMappedVa(va_ptr, size, logic_device_id),
+                        "Failed to set device access for host fabric memory.");
+  }
 
   AddVaToPaMapping(virtual_addr, pa_handle);
   *ptr = va_ptr;
+  HIXL_DISMISS_GUARD(unmap_guard);
   HIXL_DISMISS_GUARD(release_va_guard);
   HIXL_DISMISS_GUARD(free_pa_guard);
   HIXL_LOGI("MallocFabricMemory success, va:%lu, size:%zu.", virtual_addr, size);
@@ -77,11 +100,10 @@ Status FabricMemAllocator::FreeMem(void *ptr) {
   return SUCCESS;
 }
 
-Status FabricMemAllocator::AllocatePhysicalMemory(MemType type, size_t total_size, aclrtDrvMemHandle &handle) {
+Status FabricMemAllocator::AllocatePhysicalMemory(MemType type, size_t total_size, int32_t logic_device_id,
+                                                  aclrtDrvMemHandle &handle) {
   HIXL_CHK_BOOL_RET_STATUS(type == MemType::MEM_HOST || type == MemType::MEM_DEVICE, PARAM_INVALID,
                            "Invalid fabric memory type:%d.", static_cast<int32_t>(type));
-  int32_t logic_device_id = 0;
-  HIXL_CHK_ACL_RET(aclrtGetDevice(&logic_device_id), "Get current device failed.");
   aclrtPhysicalMemProp prop = BuildDefaultPhysicalMemProp();
   if (type == MemType::MEM_DEVICE) {
     prop.memAttr = ACL_HBM_MEM_HUGE;
@@ -94,7 +116,6 @@ Status FabricMemAllocator::AllocatePhysicalMemory(MemType type, size_t total_siz
   int32_t physical_device_id = 0;
   HIXL_CHK_ACL_RET(aclrtGetPhyDevIdByLogicDevId(logic_device_id, &physical_device_id),
                    "Get physical device id failed.");
-
   prop.memAttr = ACL_MEM_P2P_HUGE1G;
   prop.location.type = ACL_MEM_LOCATION_TYPE_HOST_NUMA;
   prop.location.id = (physical_device_id / kDevicesPerChip) * kNumaNodeStep;
