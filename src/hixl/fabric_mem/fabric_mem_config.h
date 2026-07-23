@@ -16,6 +16,9 @@
 #include "hixl/hixl_types.h"
 
 namespace hixl {
+constexpr size_t kMinFabricMemStartAddrTB = 0UL;
+constexpr size_t kMaxFabricMemStartAddrTB = 1024UL;
+
 struct FabricMemConfig {
   bool enabled = false;
   bool auto_connect = false;

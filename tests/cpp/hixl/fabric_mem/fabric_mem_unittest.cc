@@ -2181,7 +2181,7 @@ TEST_F(FabricMemEngineInitUTest, FabricMemEnabledOptionInitializesEngine) {
 }
 
 TEST_F(FabricMemEngineInitUTest, StartAddressConfig) {
-  for (size_t start_address_tb : {40UL, 220UL}) {
+  for (size_t start_address_tb : {0UL, 1024UL}) {
     VirtualMemoryManager::GetInstance().Finalize();
     const std::string json_config =
         R"({"fabric_memory": {"start_address": )" + std::to_string(start_address_tb) + R"(}})";
@@ -2204,7 +2204,7 @@ TEST_F(FabricMemEngineInitUTest, StartAddressInvalidConfig) {
 
   FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
   auto options = BuildFabricMemOptions();
-  options[OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(R"({"fabric_memory": {"start_address": 221}})");
+  options[OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(R"({"fabric_memory": {"start_address": 1025}})");
   EXPECT_EQ(InitEngineWithOptions(engine, options), PARAM_INVALID);
 }
 

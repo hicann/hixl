@@ -140,32 +140,32 @@ TEST_F(FabricMemConfigParserUTest, CapacityNonNumericRejected) {
   EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
-TEST_F(FabricMemConfigParserUTest, StartAddressBelowMinRejected) {
-  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"start_address": 39}})");
+TEST_F(FabricMemConfigParserUTest, StartAddressNegativeRejected) {
+  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"start_address": -1}})");
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
 TEST_F(FabricMemConfigParserUTest, StartAddressBoundaryMinAccepted) {
-  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"start_address": 40}})");
+  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"start_address": 0}})");
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
   auto grc = result.GlobalResourceCfg();
   ASSERT_TRUE(grc.has_value());
-  EXPECT_EQ(grc->fabric_memory.start_address.value(), 40UL);
+  EXPECT_EQ(grc->fabric_memory.start_address.value(), 0UL);
 }
 
 TEST_F(FabricMemConfigParserUTest, StartAddressBoundaryMaxAccepted) {
-  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"start_address": 220}})");
+  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"start_address": 1024}})");
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
   auto grc = result.GlobalResourceCfg();
   ASSERT_TRUE(grc.has_value());
-  EXPECT_EQ(grc->fabric_memory.start_address.value(), 220UL);
+  EXPECT_EQ(grc->fabric_memory.start_address.value(), 1024UL);
 }
 
 TEST_F(FabricMemConfigParserUTest, StartAddressAboveMaxRejected) {
-  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"start_address": 221}})");
+  auto options = MakeOptionsWithJson(R"({"fabric_memory": {"start_address": 1025}})");
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }

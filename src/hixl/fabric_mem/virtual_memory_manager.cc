@@ -18,6 +18,7 @@
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
 #include "fabric_mem/acl_compat.h"
+#include "fabric_mem/fabric_mem_config.h"
 
 namespace hixl {
 namespace {
@@ -27,8 +28,6 @@ constexpr size_t kDefaultGlobalVirtualMemorySize = kBlockSize * kDefaultNumBlock
 constexpr size_t kGlobalVirtualMemoryStartAddr = kBlockSize * 1024UL * 40UL;
 constexpr uint64_t kReserveFlagHugePage = 1UL;
 constexpr size_t kBytesPerTB = 1024UL * 1024UL * 1024UL * 1024UL;
-constexpr size_t kMinGlobalStartAddrTB = 40UL;
-constexpr size_t kMaxGlobalStartAddrTB = 220UL;
 
 bool IsA3Soc() {
   SocType soc_type = SocType::kOther;
@@ -62,22 +61,22 @@ Status VirtualMemoryManager::SetVirtualMemoryCapacity(size_t capacity_in_tb) {
 
 Status VirtualMemoryManager::SetGlobalStartAddress(size_t start_addr_in_tb) {
   std::lock_guard<std::mutex> lock(global_virtual_memory_mutex_);
-  HIXL_CHK_BOOL_RET_STATUS(start_addr_in_tb >= kMinGlobalStartAddrTB && start_addr_in_tb <= kMaxGlobalStartAddrTB,
-                           PARAM_INVALID, "global start address must be in [%zu, %zu] TB, got %zu.",
-                           kMinGlobalStartAddrTB, kMaxGlobalStartAddrTB, start_addr_in_tb);
+  HIXL_CHK_BOOL_RET_STATUS(start_addr_in_tb <= kMaxFabricMemStartAddrTB, PARAM_INVALID,
+                           "global start address must be in [%zu, %zu] TB, got %zu.", kMinFabricMemStartAddrTB,
+                           kMaxFabricMemStartAddrTB, start_addr_in_tb);
   const uintptr_t requested = start_addr_in_tb * kBytesPerTB;
   if (initialized_) {
-    HIXL_CHK_BOOL_RET_STATUS(global_start_va_ == requested, PARAM_INVALID,
+    HIXL_CHK_BOOL_RET_STATUS(global_start_va_.value_or(kGlobalVirtualMemoryStartAddr) == requested, PARAM_INVALID,
                              "VirtualMemoryManager already initialized, cannot set global start address.");
     return SUCCESS;
   }
   global_start_va_ = requested;
-  HIXL_LOGI("Set global virtual memory start address to %zu TB, bytes:%lu.", start_addr_in_tb, global_start_va_);
+  HIXL_LOGI("Set global virtual memory start address to %zu TB, bytes:%lu.", start_addr_in_tb, requested);
   return SUCCESS;
 }
 
 Status VirtualMemoryManager::ReserveMemAddress(void *&virtual_address, size_t size) const {
-  const uintptr_t start_va = (global_start_va_ != 0) ? global_start_va_ : kGlobalVirtualMemoryStartAddr;
+  const uintptr_t start_va = global_start_va_.value_or(kGlobalVirtualMemoryStartAddr);
   void *global_start_va = reinterpret_cast<void *>(start_va);
   if (IsA3Soc() && &aclrtReserveMemAddressNoUCMemory != nullptr) {
     auto ret = aclrtReserveMemAddressNoUCMemory(&virtual_address, size, 0, global_start_va, kReserveFlagHugePage);
