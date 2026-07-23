@@ -61,13 +61,15 @@ Status ConnectPoolExecutor::Initialize(const HixlOptions &options) {
 
 void ConnectPoolExecutor::Shutdown() {
   HIXL_LOGI("ConnectPoolExecutor shutdown start");
-  if (!is_initialized_.load(std::memory_order::memory_order_relaxed)) {
-    HIXL_LOGW("ConnectPoolExecutor is already shutdown");
-    return;
+  {
+    std::lock_guard<std::mutex> lock(task_queue_mutex_);
+    if (!IsInitialized()) {
+      HIXL_LOGW("ConnectPoolExecutor is already shutdown");
+      return;
+    }
+    is_initialized_.store(false, std::memory_order::memory_order_relaxed);
+    task_queue_cv_.notify_all();
   }
-
-  is_initialized_.store(false, std::memory_order::memory_order_relaxed);
-  task_queue_cv_.notify_all();
   HIXL_LOGI("ConnectPoolExecutor wait worker exit");
   for (auto &worker : workers_) {
     if (worker.joinable()) {
@@ -81,6 +83,10 @@ void ConnectPoolExecutor::Shutdown() {
 Status ConnectPoolExecutor::Submit(const std::function<void()> &task, const AscendString &remote_engine,
                                    const bool is_connect) {
   std::unique_lock<std::mutex> lock(task_queue_mutex_);
+  if (!IsInitialized()) {
+    HIXL_LOGW("ConnectPoolExecutor is not accepting task");
+    return FAILED;
+  }
   if (task_list_.size() >= static_cast<std::size_t>(task_queue_capacity_)) {
     HIXL_LOGW("task_queue is full, task_queue_capacity:%d", task_queue_capacity_);
     return RESOURCE_EXHAUSTED;
@@ -141,7 +147,7 @@ void ConnectPoolExecutor::WorkerHandler(const int32_t worker_id) {
   HIXL_LOGI("ConnectPoolExecutor worker %d start", worker_id);
   HIXL_CHK_STATUS(ctx_.SetCurrentContext(), "Failed to set acl context");
   auto cv_wait_func = [this]() {
-    if (!is_initialized_.load(std::memory_order::memory_order_relaxed)) {
+    if (!IsInitialized()) {
       return true;
     }
     // 有可执行的任务才醒
@@ -159,7 +165,7 @@ void ConnectPoolExecutor::WorkerHandler(const int32_t worker_id) {
       std::unique_lock<std::mutex> lock(task_queue_mutex_);
       task_queue_cv_.wait(lock, cv_wait_func);
 
-      if (!is_initialized_.load(std::memory_order::memory_order_relaxed)) {
+      if (!IsInitialized()) {
         HIXL_LOGW("ConnectPoolExecutor is shutdown, %llu task remain", task_list_.size());
         break;
       }

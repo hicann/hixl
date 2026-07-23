@@ -292,6 +292,20 @@ TEST_F(HixlUTest, TestHixlInitFailed) {
   EXPECT_EQ(engine.Initialize("ad.0.0.1:26200", options), PARAM_INVALID);
 }
 
+TEST_F(HixlUTest, TestInitializeRollsBackEngineWhenConnectPoolInitializationFails) {
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  Hixl engine;
+  std::map<AscendString, AscendString> options = {
+      {OPTION_GLOBAL_RESOURCE_CONFIG, R"({"connect_pool.thread_num":"0"})"}};
+
+  EXPECT_EQ(engine.Initialize("127.0.0.1:26200", options), PARAM_INVALID);
+
+  options.clear();
+  EXPECT_EQ(engine.Initialize("127.0.0.1:26200", options), SUCCESS);
+  EXPECT_EQ(engine.ConnectAsync("127.0.0.1:26201", 1), SUCCESS);
+  engine.Finalize();
+}
+
 TEST_F(HixlUTest, TestConnectNotListenFailed) {
   Hixl engine;
   std::map<AscendString, AscendString> options;

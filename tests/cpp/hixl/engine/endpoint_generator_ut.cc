@@ -846,6 +846,18 @@ TEST_F(EndpointGeneratorUTest, ConnectPoolExecutorCapturesAndSetsContextWhenDevi
   EXPECT_GT(acl_stub_->set_current_context_calls_, 0);
 }
 
+TEST_F(EndpointGeneratorUTest, ConnectPoolExecutorRepeatedShutdownThenSubmitFails) {
+  acl_stub_->device_count_ = 0;
+
+  HixlOptions options;
+  ConnectPoolExecutor executor;
+  ASSERT_EQ(executor.Initialize(options), SUCCESS);
+  executor.Shutdown();
+  executor.Shutdown();
+
+  EXPECT_EQ(executor.Submit([]() {}, AscendString("127.0.0.1:26000"), true), FAILED);
+}
+
 TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsFiltersManualLocalCommResByProtocolDesc) {
   const std::string local_comm_res = R"(
   {

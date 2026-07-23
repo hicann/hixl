@@ -589,7 +589,7 @@ Status ConnectAsync(const AscendString &remote_engine, int32_t timeout_in_millis
 - 线程池线程数量和任务队列长度通过Hixl的Initialize接口进行配置。
 <br>- "GlobalResourceConfig": "{"connect_pool.thread_num":"2","connect_pool.task_queue_capacity":"256"}"
 - ConnectAsync/DisconnectAsync接口不与Connect/Disconnect接口混用。
-- 依次执行用户下发的任务。若对同一remote_engine下发多个任务，则该remote_engine顺序执行这些任务，获取的任务状态为最新下发任务的状态。
+- 对同一remote_engine下发多个任务时，按下发顺序执行；不同remote_engine的任务允许并发执行。获取的任务状态为最新下发任务的状态。
 
 ## DisconnectAsync
 
@@ -626,7 +626,7 @@ Status DisconnectAsync(const AscendString &remote_engine, int32_t timeout_in_mil
 - 线程池线程数量和任务队列长度通过Hixl的Initialize接口进行配置。
 <br>- "GlobalResourceConfig": "{"connect_pool.thread_num":"2","connect_pool.task_queue_capacity":"256"}"
 - ConnectAsync/DisconnectAsync接口不与Connect/Disconnect接口混用。
-- 依次执行用户下发的任务。若对同一remote_engine下发多个任务，则该remote_engine顺序执行这些任务，获取的任务状态为最新下发任务的状态。
+- 对同一remote_engine下发多个任务时，按下发顺序执行；不同remote_engine的任务允许并发执行。获取的任务状态为最新下发任务的状态。
 
 ## GetAsyncConnectStatus
 

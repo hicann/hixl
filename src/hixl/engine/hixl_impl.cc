@@ -89,7 +89,13 @@ Status Hixl::HixlImpl::Initialize(const std::map<AscendString, AscendString> &op
   HIXL_CHECK_NOTNULL(engine_, "[HixlEngine] Created engine is null, please check your parameters! local_engine:%s",
                      local_engine_.c_str());
   HIXL_CHK_STATUS_RET(engine_->Initialize(parsed_options), "Failed to initialize Hixl.");
-  HIXL_CHK_STATUS_RET(connect_pool_executor_.Initialize(parsed_options), "Failed to initialize ConnectPoolExecutor.");
+  Status ret = connect_pool_executor_.Initialize(parsed_options);
+  if (ret != SUCCESS) {
+    engine_->Finalize();
+    engine_.reset();
+    HIXL_LOGE(ret, "Failed to initialize ConnectPoolExecutor.");
+    return ret;
+  }
   return SUCCESS;
 }
 
