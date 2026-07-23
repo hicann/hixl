@@ -43,17 +43,18 @@ generate_cann_stub_library(ccl_kernel)
 
 add_subdirectory(${HIXL_DIR}/src/hixl/proxy ${CMAKE_BINARY_DIR}/src/hixl/proxy)
 add_subdirectory(${HIXL_DIR}/src/ops ${CMAKE_BINARY_DIR}/src/ops)
-pack_targets_and_files(
+cann_pack_targets_and_files(
     OUTPUT_TARGET "pack_aicpu_hixl"
     OUTPUT cann-hixl-compat.tar.gz
-    FILES ""
     TARGETS cann_hixl_kernel
+    TAR_ROOT_DIR aicpu_kernels_device
 )
 
-sign_file(
+add_cann_sign_file(
     INPUT "cann-hixl-compat.tar.gz"
     CONFIG "${HIXL_DIR}/scripts/sign/hixl_check_cfg.xml"
     RESULT_VAR "aicpu_hixl_sign_file"
+    VERSION "${CANN_VERSION_hixl_VERSION}"
     DEPENDS pack_aicpu_hixl
 )
 

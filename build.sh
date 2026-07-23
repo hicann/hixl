@@ -85,7 +85,7 @@ checkopts() {
   ENABLE_GCOV=OFF
   HIXL_BUILD_HOST_ONLY=OFF
   ENABLE_SIGN=OFF
-  CUSTOM_SIGN_SCRIPT="${BASEPATH}/scripts/sign/community_sign_build.py"
+  CUSTOM_SIGN_SCRIPT=""
 
   # Process the options
   parsed_args=$(getopt -a -o j:hv -l help,verbose,pkg,pkg-type:,examples,cann_3rd_lib_path:,cann-3rd-lib-path:,output_path:,output-path:,build_type:,build-type:,sign-script:,sign_script:,host,asan,cov,enable_sign,enable-sign -- "$@") || {
@@ -238,7 +238,7 @@ build() {
         -D ENABLE_GCOV=${ENABLE_GCOV} \
         -D HIXL_BUILD_HOST_ONLY=${HIXL_BUILD_HOST_ONLY} \
         -D ENABLE_SIGN=${ENABLE_SIGN} \
-        -D CUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT} \
+        ${CUSTOM_SIGN_SCRIPT:+-D CUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT}} \
         ${CANN_3RD_LIB_PATH:+-D CANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}} \
         ..
 
