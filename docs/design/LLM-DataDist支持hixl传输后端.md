@@ -45,7 +45,7 @@ std::string local_comm_res = R"(
       "dst_eid": "eid1-2",
     },
     {
-      "protocol": "ub_tp",
+      "protocol": "ub_ctp",
       "comm_id": "eid0-3",
       "placement": "device",
       "plane": "plane-a",
@@ -70,10 +70,10 @@ config.tranfer_backend = "hixl"
 | version | 字符串 | 必选 | 版本号 | "1.3" |
 | net_instance_id | 字符串 | 必选 | 当前超节点的唯一标识 | 每个超节点唯一即可 |
 | endpoint_list | 数组 | 必选 | 可以使用的通信设备列表 | - |
-| endpoint_list[].protocol | 字符串 | 必选 | 通信协议 | "roce"/"ub_ctp"/"ub_tp" |
-| endpoint_list[].comm_id | 字符串 | 必选 | 通信标识 | protocol为ub_ctp/ub_tp时填${eid}；protocol为roce时填ipv4/ipv6网卡地址 |
+| endpoint_list[].protocol | 字符串 | 必选 | 通信协议 | "roce"/"ub_ctp" |
+| endpoint_list[].comm_id | 字符串 | 必选 | 通信标识 | protocol为ub_ctp时填${eid}；protocol为roce时填ipv4/ipv6网卡地址 |
 | endpoint_list[].placement | 字符串 | 必选 | 通信设备位置 | "host"/"device" |
-| endpoint_list[].plane | 字符串 | 可选 | 通信设备平面 | protocol为ub_ctp/ub_tp时，设备区分平面则填写，每个平面唯一（如"plane-a"/"plane-b"） |
+| endpoint_list[].plane | 字符串 | 可选 | 通信设备平面 | protocol为ub_ctp时，设备区分平面则填写，每个平面唯一（如"plane-a"/"plane-b"） |
 | endpoint_list[].dst_eid | 字符串 | 可选 | 与当前通信设备连接的对端通信设备的${eid} | protocol为ub_ctp时，存在full-mesh直连对端则填写对端${eid} |
 
 
