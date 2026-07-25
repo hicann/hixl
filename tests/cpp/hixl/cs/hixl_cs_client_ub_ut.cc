@@ -268,6 +268,32 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSyncStreamSyncTimeoutAbortsSlot)
   EXPECT_TRUE(cli_.pending_device_handles_.empty());
 }
 
+TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSyncFailureLatchesClient) {
+  HixlOneSideOpDesc desc = SetupBatchTransfer(false);
+  MockAclRuntimeStub mock_acl;
+  llm::AclRuntimeStub::Install(&mock_acl);
+  uint32_t sync_call_count = 0U;
+  EXPECT_CALL(mock_acl, aclrtSynchronizeStreamWithTimeout(testing::_, testing::_))
+      .WillRepeatedly(testing::Invoke([&sync_call_count](aclrtStream, int32_t) {
+        ++sync_call_count;
+        return ACL_ERROR_RT_STREAM_SYNC_TIMEOUT;
+      }));
+  EXPECT_CALL(mock_acl, aclrtNotifyBatchReset(testing::NotNull(), testing::Eq(static_cast<size_t>(1U))))
+      .WillRepeatedly(testing::Return(ACL_SUCCESS));
+
+  const Status first_ret = cli_.BatchTransferSync(false, 1, &desc, 100U);
+  EXPECT_EQ(first_ret, TIMEOUT);
+  EXPECT_GT(sync_call_count, 0U);
+  const uint32_t sync_call_count_after_first = sync_call_count;
+
+  const Status second_ret = cli_.BatchTransferSync(false, 1, &desc, 100U);
+  EXPECT_EQ(second_ret, FAILED);
+  EXPECT_EQ(sync_call_count, sync_call_count_after_first);
+
+  llm::AclRuntimeStub::UnInstall(&mock_acl);
+  EXPECT_TRUE(cli_.pending_device_handles_.empty());
+}
+
 TEST_F(HixlCSClientDeviceFixture, BatchPutUbDeviceNotifyWaitFail) {
   HixlOneSideOpDesc desc = SetupBatchTransfer(false);
   void *qh = nullptr;

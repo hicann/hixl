@@ -138,6 +138,9 @@ class HixlCSClient {
   Status BuildDeviceChunkParam(DeviceCompleteHandle &handle, uint32_t chunk_offset, uint32_t chunk_list_num,
                                bool need_notify_wait, HixlOneSideOpParam &param);
   Status LaunchDeviceChunkedKernels(bool is_get, DeviceCompleteHandle &handle, uint32_t list_num);
+  bool ShouldLatchTransferFailure(Status ret) const;
+  Status LatchTransferFailureIfNeeded(Status ret);
+  void LatchTransferFailure(Status ret);
 
   // 获取 context 切换 guard，用于对外接口的 context 管理
   std::unique_ptr<hixl::TemporaryRtContext> GetContextGuard() const;
@@ -177,6 +180,8 @@ class HixlCSClient {
   std::unordered_set<DeviceCompleteHandle *> pending_device_handles_{};
   // Active slot shared by concurrent transfers - reference counted
   std::shared_ptr<TransferPool::SlotHandle> active_slot_;
+  bool transfer_failure_latched_{false};
+  Status transfer_failure_status_{SUCCESS};
 };
 }  // namespace hixl
 

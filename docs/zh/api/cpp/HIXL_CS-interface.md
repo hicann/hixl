@@ -573,7 +573,8 @@ HixlStatus HixlCSClientBatchPutAsync(HixlClientHandle client_handle,
 
 **约束说明**
 
-最大支持4K个数据并发传输，下发任务后需及时调用HixlCSClientQueryCompleteStatus接口查询任务状态。
+- 最大支持4K个数据并发传输，下发任务后需及时调用HixlCSClientQueryCompleteStatus接口查询任务状态。
+- 如果任一次批量传输返回 `HIXL_FAILED` 或 `HIXL_TIMEOUT`，当前 client 会进入失败态，后续批量传输接口会直接返回 `HIXL_FAILED`；如需继续使用，请重新创建 client。
 
 ### HixlCSClientBatchGetAsync
 
@@ -607,7 +608,8 @@ HixlStatus HixlCSClientBatchGetAsync(HixlClientHandle client_handle,
 
 **约束说明**
 
-最大支持4K个数据并发传输，下发任务后需及时调用HixlCSClientQueryCompleteStatus接口查询任务状态。
+- 最大支持4K个数据并发传输，下发任务后需及时调用HixlCSClientQueryCompleteStatus接口查询任务状态。
+- 如果任一次批量传输返回 `HIXL_FAILED` 或 `HIXL_TIMEOUT`，当前 client 会进入失败态，后续批量传输接口会直接返回 `HIXL_FAILED`；如需继续使用，请重新创建 client。
 
 ### HixlCSClientBatchPutSync
 

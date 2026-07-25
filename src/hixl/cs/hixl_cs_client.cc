@@ -311,6 +311,8 @@ Status HixlCSClient::InitNotifyResources(const EndpointDesc &ep) {
 
 Status HixlCSClient::Create(const HixlClientDesc *client_desc, const HixlClientConfig *config) {
   std::lock_guard<std::mutex> lock(mutex_);
+  transfer_failure_latched_ = false;
+  transfer_failure_status_ = SUCCESS;
   HIXL_CHECK_NOTNULL(client_desc->server_ip);
   HIXL_CHECK_NOTNULL(client_desc->local_endpoint);
   HIXL_CHECK_NOTNULL(client_desc->remote_endpoint);
@@ -714,6 +716,26 @@ Status HixlCSClient::LaunchDeviceChunkedKernels(bool is_get, DeviceCompleteHandl
   return SUCCESS;
 }
 
+bool HixlCSClient::ShouldLatchTransferFailure(Status ret) const {
+  return ret == FAILED || ret == TIMEOUT;
+}
+
+void HixlCSClient::LatchTransferFailure(Status ret) {
+  if (transfer_failure_latched_) {
+    return;
+  }
+  transfer_failure_latched_ = true;
+  transfer_failure_status_ = ret;
+  HIXL_LOGE(ret, "[HixlClient] Transfer failure latched, status=%u", static_cast<uint32_t>(ret));
+}
+
+Status HixlCSClient::LatchTransferFailureIfNeeded(Status ret) {
+  if (ret != SUCCESS && ShouldLatchTransferFailure(ret)) {
+    LatchTransferFailure(ret);
+  }
+  return ret;
+}
+
 Status HixlCSClient::AllocateDeviceDescBuf(DeviceCompleteHandle &handle, uint32_t total_list_num,
                                            const HixlOneSideOpDesc *desc_list) const {
   size_t desc_buf_size = total_list_num * sizeof(HixlOneSideOpDesc);
@@ -935,6 +957,10 @@ Status HixlCSClient::BatchTransferHostSync(bool is_get, uint32_t list_num, const
 Status HixlCSClient::BatchTransferSync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list,
                                        uint32_t timeout_ms) {
   std::lock_guard<std::mutex> lock(mutex_);
+  HIXL_CHK_BOOL_RET_STATUS(!transfer_failure_latched_, FAILED,
+                           "[HixlClient] BatchTransferSync rejected after prior transfer failure. last_status=%u, "
+                           "is_get=%d, list_num=%u",
+                           static_cast<uint32_t>(transfer_failure_status_), static_cast<int32_t>(is_get), list_num);
   auto ctx_guard = GetContextGuard();
   (void)ctx_guard;
   HIXL_CHK_STATUS_RET(ValidateAddress(list_num, desc_list), "[HixlClient] ValidateAddress failed.");
@@ -956,14 +982,12 @@ Status HixlCSClient::BatchTransferSync(bool is_get, uint32_t list_num, const Hix
     HIXL_LOGE(PARAM_INVALID, "[HixlClient] Invalid endpoint location: %d", endpoint.loc.locType);
     return PARAM_INVALID;
   }
-  if (ret != SUCCESS) {
-    HIXL_LOGE(ret, "[HixlClient] BatchTransferSync failed, is_get=%d, list_num=%u, local=[%s], remote=[%s]",
-              static_cast<int32_t>(is_get), list_num, EndpointToString(endpoint).c_str(),
-              EndpointToString(remote_endpoint_).c_str());
-  } else {
-    HIXL_LOGI("[HixlClient] BatchTransferSync success, is_get=%d, list_num=%u", static_cast<int32_t>(is_get), list_num);
-  }
-  return ret;
+  HIXL_CHK_STATUS_RET(LatchTransferFailureIfNeeded(ret),
+                      "[HixlClient] BatchTransferSync failed, is_get=%d, list_num=%u, local=[%s], remote=[%s]",
+                      static_cast<int32_t>(is_get), list_num, EndpointToString(endpoint).c_str(),
+                      EndpointToString(remote_endpoint_).c_str());
+  HIXL_LOGI("[HixlClient] BatchTransferSync success, is_get=%d, list_num=%u", static_cast<int32_t>(is_get), list_num);
+  return SUCCESS;
 }
 
 Status HixlCSClient::ConvertHostMappedDescs(uint32_t list_num, HixlOneSideOpDesc *desc_list) {
@@ -973,6 +997,10 @@ Status HixlCSClient::ConvertHostMappedDescs(uint32_t list_num, HixlOneSideOpDesc
 Status HixlCSClient::BatchTransferAsync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list,
                                         void **query_handle) {
   std::lock_guard<std::mutex> lock(mutex_);
+  HIXL_CHK_BOOL_RET_STATUS(!transfer_failure_latched_, FAILED,
+                           "[HixlClient] BatchTransferAsync rejected after prior transfer failure. last_status=%u, "
+                           "is_get=%d, list_num=%u",
+                           static_cast<uint32_t>(transfer_failure_status_), static_cast<int32_t>(is_get), list_num);
   auto ctx_guard = GetContextGuard();
   (void)ctx_guard;
   HIXL_CHK_STATUS_RET(ValidateAddress(list_num, desc_list), "[HixlClient] ValidateAddress failed.");
@@ -994,15 +1022,12 @@ Status HixlCSClient::BatchTransferAsync(bool is_get, uint32_t list_num, const Hi
     HIXL_LOGE(PARAM_INVALID, "[HixlClient] Invalid endpoint location: %d", ep.loc.locType);
     return PARAM_INVALID;
   }
-  if (ret != SUCCESS) {
-    HIXL_LOGE(ret, "[HixlClient] BatchTransferAsync failed, is_get=%d, list_num=%u, local=[%s], remote=[%s]",
-              static_cast<int32_t>(is_get), list_num, EndpointToString(ep).c_str(),
-              EndpointToString(remote_endpoint_).c_str());
-  } else {
-    HIXL_LOGI("[HixlClient] BatchTransferAsync success, is_get=%d, list_num=%u", static_cast<int32_t>(is_get),
-              list_num);
-  }
-  return ret;
+  HIXL_CHK_STATUS_RET(LatchTransferFailureIfNeeded(ret),
+                      "[HixlClient] BatchTransferAsync failed, is_get=%d, list_num=%u, local=[%s], remote=[%s]",
+                      static_cast<int32_t>(is_get), list_num, EndpointToString(ep).c_str(),
+                      EndpointToString(remote_endpoint_).c_str());
+  HIXL_LOGI("[HixlClient] BatchTransferAsync success, is_get=%d, list_num=%u", static_cast<int32_t>(is_get), list_num);
+  return SUCCESS;
 }
 
 Status HixlCSClient::CheckStatusHost(CompleteHandleInfo &query_handle, HixlCompleteStatus &status) {
