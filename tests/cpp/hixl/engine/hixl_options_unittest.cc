@@ -389,7 +389,7 @@ TEST_F(HixlOptionsUTest, ParseFabricMemCapacityOutOfRange) {
 
 TEST_F(HixlOptionsUTest, ParseFabricMemStartAddressOutOfRange) {
   std::map<AscendString, AscendString> options;
-  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"fabric_memory":{"start_address":"250"}})";
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"fabric_memory":{"start_address":"1025"}})";
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }

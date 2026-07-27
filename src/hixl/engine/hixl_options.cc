@@ -19,12 +19,11 @@
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
 #include "common/json_utils.h"
+#include "fabric_mem/fabric_mem_config.h"
 
 namespace hixl {
 namespace {
 constexpr size_t kMaxCapacityTB = 1024UL;
-constexpr size_t kMinStartAddressTB = 40UL;
-constexpr size_t kMaxStartAddressTB = 220UL;
 constexpr size_t kMinTaskStreamNum = 1U;
 constexpr size_t kMaxTaskStreamNum = 8U;
 constexpr uint32_t kMinListenPort = 1U;
@@ -250,9 +249,9 @@ Status HixlOptions::ParseGlobalResourceConfig(const std::string &config_str) {
     }
     if (cfg.fabric_memory.start_address.has_value()) {
       size_t val = *cfg.fabric_memory.start_address;
-      HIXL_CHK_BOOL_RET_STATUS(val >= kMinStartAddressTB && val <= kMaxStartAddressTB, PARAM_INVALID,
-                               "fabric_memory.start_address must be in [%zu, %zu] TB, got %zu", kMinStartAddressTB,
-                               kMaxStartAddressTB, val);
+      HIXL_CHK_BOOL_RET_STATUS(val <= kMaxFabricMemStartAddrTB, PARAM_INVALID,
+                               "fabric_memory.start_address must be in [%zu, %zu] TB, got %zu",
+                               kMinFabricMemStartAddrTB, kMaxFabricMemStartAddrTB, val);
     }
     if (cfg.fabric_memory.task_stream_num.has_value()) {
       size_t val = *cfg.fabric_memory.task_stream_num;

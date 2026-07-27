@@ -277,6 +277,25 @@ TEST_F(VirtualMemoryManagerTest, SetGlobalStartAddress_Success) {
   EXPECT_EQ(manager.ReleaseMemory(addr), SUCCESS);
 }
 
+TEST_F(VirtualMemoryManagerTest, SetGlobalStartAddress_ExplicitZeroPassedToRuntime) {
+  auto mock = std::make_shared<MockVmAclRuntimeStub>();
+  mock->soc_name_ = "Ascend910_9391";
+  InstallRuntimeMock(mock);
+
+  VirtualMemoryManager &manager = VirtualMemoryManager::GetInstance();
+  EXPECT_EQ(manager.SetGlobalStartAddress(0UL), SUCCESS);
+
+  void *addr = nullptr;
+  EXPECT_EQ(manager.ReserveMemAddress(addr, kTestSize500MB), SUCCESS);
+  ASSERT_NE(addr, nullptr);
+  EXPECT_EQ(mock->last_expect_ptr_, nullptr);
+  EXPECT_EQ(aclrtReleaseMemAddress(addr), ACL_ERROR_NONE);
+}
+
+TEST_F(VirtualMemoryManagerTest, SetGlobalStartAddress_BoundaryMaxAccepted) {
+  EXPECT_EQ(VirtualMemoryManager::GetInstance().SetGlobalStartAddress(1024UL), SUCCESS);
+}
+
 TEST_F(VirtualMemoryManagerTest, SetGlobalStartAddress_AfterInitialized_Fails) {
   VirtualMemoryManager &manager = VirtualMemoryManager::GetInstance();
   EXPECT_EQ(manager.Initialize(), SUCCESS);
@@ -286,8 +305,7 @@ TEST_F(VirtualMemoryManagerTest, SetGlobalStartAddress_AfterInitialized_Fails) {
 
 TEST_F(VirtualMemoryManagerTest, SetGlobalStartAddress_OutOfRange_Fails) {
   VirtualMemoryManager &manager = VirtualMemoryManager::GetInstance();
-  EXPECT_EQ(manager.SetGlobalStartAddress(39UL), PARAM_INVALID);
-  EXPECT_EQ(manager.SetGlobalStartAddress(221UL), PARAM_INVALID);
+  EXPECT_EQ(manager.SetGlobalStartAddress(1025UL), PARAM_INVALID);
 }
 
 }  // namespace hixl

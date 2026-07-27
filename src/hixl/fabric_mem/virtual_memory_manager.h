@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -49,7 +50,7 @@ class VirtualMemoryManager {
   uintptr_t global_virtual_memory_addr_ = 0;
   size_t vm_size_ = 0;
   size_t num_blocks_ = 0;
-  uintptr_t global_start_va_ = 0;
+  std::optional<uintptr_t> global_start_va_;
 };
 }  // namespace hixl
 
