@@ -47,7 +47,6 @@ struct TransferContext {
 
   std::atomic_flag spin_lock = ATOMIC_FLAG_INIT;
   std::atomic<HixlTransferThreadState> state{TRANSFER_THREAD_STATE_INITIALIZED};
-  uint32_t user_stream_id{0};
   uint32_t notify_id{0};
   uint64_t err_flag_dev_va{0};
 };
@@ -57,8 +56,7 @@ class TransferContextManager {
   static TransferContextManager &Instance();
 
   std::shared_ptr<TransferContext> Get(ThreadHandle thread);
-  HixlTransferThreadState Add(ThreadHandle thread, uint32_t user_stream_id = 0U, uint32_t notify_id = 0U,
-                              uint64_t err_flag_dev_va = 0U);
+  HixlTransferThreadState Add(ThreadHandle thread, uint32_t notify_id = 0U, uint64_t err_flag_dev_va = 0U);
   HixlTransferThreadState Delete(ThreadHandle thread);
 
  private:

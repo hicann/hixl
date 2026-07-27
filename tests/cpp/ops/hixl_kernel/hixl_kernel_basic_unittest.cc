@@ -535,7 +535,6 @@ TEST_F(HixlSyncTransferContextTest, MultipleEntriesBatch) {
 
   entries[0].thread = 910200ULL;
   entries[0].op = TRANSFER_CONTEXT_OP_ADD;
-  entries[0].user_stream_id = 1U;
   entries[0].notify_id = 2U;
   entries[0].err_flag_dev_va = 0x1000ULL;
 
@@ -558,14 +557,12 @@ TEST_F(HixlSyncTransferContextTest, MultipleEntriesBatch) {
 
 TEST_F(HixlSyncTransferContextTest, ExtendedFieldsStoredAfterAdd) {
   constexpr ThreadHandle kThread = 910300ULL;
-  constexpr uint32_t kUserStreamId = 42U;
   constexpr uint32_t kNotifyId = 7U;
   constexpr uint64_t kErrFlagDevVa = 0xDEADBEEFULL;
 
   HixlTransferContextSyncEntry entry{};
   entry.thread = kThread;
   entry.op = TRANSFER_CONTEXT_OP_ADD;
-  entry.user_stream_id = kUserStreamId;
   entry.notify_id = kNotifyId;
   entry.err_flag_dev_va = kErrFlagDevVa;
 
@@ -580,7 +577,6 @@ TEST_F(HixlSyncTransferContextTest, ExtendedFieldsStoredAfterAdd) {
 
   auto ctx = TransferContextManager::Instance().Get(kThread);
   ASSERT_NE(ctx, nullptr);
-  EXPECT_EQ(ctx->user_stream_id, kUserStreamId);
   EXPECT_EQ(ctx->notify_id, kNotifyId);
   EXPECT_EQ(ctx->err_flag_dev_va, kErrFlagDevVa);
 }

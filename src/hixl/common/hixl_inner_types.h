@@ -43,10 +43,9 @@ enum HixlTransferContextOp : uint32_t {
 struct HixlTransferContextSyncEntry {
   ThreadHandle thread;
   uint32_t op;
-  uint32_t user_stream_id;
   uint32_t notify_id;
-  uint32_t reserved;
   uint64_t err_flag_dev_va;
+  uint64_t reserved;
 };
 
 struct HixlTransferContextSyncParam {

@@ -27,17 +27,18 @@ std::shared_ptr<TransferContext> TransferContextManager::Get(ThreadHandle thread
   return it->second;
 }
 
-HixlTransferThreadState TransferContextManager::Add(ThreadHandle thread, uint32_t user_stream_id, uint32_t notify_id,
-                                                    uint64_t err_flag_dev_va) {
+HixlTransferThreadState TransferContextManager::Add(ThreadHandle thread, uint32_t notify_id, uint64_t err_flag_dev_va) {
   std::lock_guard<std::mutex> lock(mutex_);
   auto &ctx = contexts_[thread];
   if (ctx == nullptr) {
     ctx = std::make_shared<TransferContext>();
   }
   ctx->SetState(TRANSFER_THREAD_STATE_INITIALIZED);
-  ctx->user_stream_id = user_stream_id;
   ctx->notify_id = notify_id;
   ctx->err_flag_dev_va = err_flag_dev_va;
+
+  HIXL_LOGI("[TransferContextManager] add transfer context success. thread=%lu notify_id=%u err_flag_dev_va=0x%lx",
+            static_cast<uint64_t>(thread), notify_id, static_cast<uint64_t>(err_flag_dev_va));
   return TRANSFER_THREAD_STATE_INITIALIZED;
 }
 
@@ -56,6 +57,8 @@ HixlTransferThreadState TransferContextManager::Delete(ThreadHandle thread) {
   ctx->SetState(TRANSFER_THREAD_STATE_DELETED);
   contexts_.erase(it);
   ctx->unlock();
+
+  HIXL_LOGI("[TransferContextManager] delete transfer context success. thread=%lu", static_cast<uint64_t>(thread));
   return TRANSFER_THREAD_STATE_DELETED;
 }
 

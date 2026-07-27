@@ -44,8 +44,8 @@ uint32_t DoSyncTransferContext(HixlTransferContextSyncParam *param) {
   HixlTransferThreadState state = TRANSFER_THREAD_STATE_DELETED;
   for (uint32_t i = 0U; i < param->entry_num; ++i) {
     if (entries[i].op == TRANSFER_CONTEXT_OP_ADD) {
-      state = TransferContextManager::Instance().Add(entries[i].thread, entries[i].user_stream_id, entries[i].notify_id,
-                                                     entries[i].err_flag_dev_va);
+      state =
+          TransferContextManager::Instance().Add(entries[i].thread, entries[i].notify_id, entries[i].err_flag_dev_va);
     } else if (entries[i].op == TRANSFER_CONTEXT_OP_DELETE) {
       state = TransferContextManager::Instance().Delete(entries[i].thread);
     } else {

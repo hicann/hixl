@@ -354,8 +354,7 @@ void TransferPool::ResetAbortSlotNotifyLocked(Slot &slot) {
 void TransferPool::DeleteSlotThreadContextForAbortLocked(Slot &slot, uint32_t slot_index) const {
   if (slot.thread != 0U) {
     const ThreadHandle thread = slot.thread;
-    Status sync_ret =
-        SyncOneTransferContextLocked(slot.thread, TRANSFER_CONTEXT_OP_DELETE, TRANSFER_THREAD_STATE_DELETED);
+    Status sync_ret = SyncOneTransferContextLocked(slot, TRANSFER_CONTEXT_OP_DELETE, TRANSFER_THREAD_STATE_DELETED);
     HIXL_CHK_STATUS(sync_ret,
                     "[TransferPool] delete transfer context failed in AbortSlotByIndexLocked, slot=%u device_id=%d",
                     slot_index, device_id_);
@@ -390,7 +389,7 @@ Status TransferPool::ReinitSlotAfterAbortLocked(Slot &slot, uint32_t slot_index)
     CleanupSlotAfterAbortReinitFailureLocked(slot, slot_index);
     return ret;
   }
-  ret = SyncOneTransferContextLocked(slot.thread, TRANSFER_CONTEXT_OP_ADD, TRANSFER_THREAD_STATE_INITIALIZED);
+  ret = SyncOneTransferContextLocked(slot, TRANSFER_CONTEXT_OP_ADD, TRANSFER_THREAD_STATE_INITIALIZED);
   if (ret != SUCCESS) {
     HIXL_LOGE(ret, "[TransferPool] AbortSlotByIndexLocked add context failed slot=%u device_id=%d", slot_index,
               device_id_);
@@ -433,9 +432,9 @@ Status TransferPool::CreateNotifyLocked(Slot &slot) {
 }
 
 void TransferPool::DeinitAllSlotsLocked() {
-  const std::vector<ThreadHandle> threads = CollectLiveThreads(slots_);
-  if (!threads.empty()) {
-    HIXL_CHK_STATUS(DeleteTransferContextsLocked(threads),
+  std::vector<HixlTransferContextSyncEntry> entries = BuildSyncEntriesFromSlots(slots_, TRANSFER_CONTEXT_OP_DELETE);
+  if (!entries.empty()) {
+    HIXL_CHK_STATUS(DeleteTransferContextsLocked(entries),
                     "[TransferPool] delete transfer contexts failed in DeinitAllSlotsLocked, device_id=%d", device_id_);
   }
   if (dev_const_one_ != nullptr) {
@@ -582,27 +581,14 @@ Status TransferPool::LaunchSyncContextKernelLocked(const std::vector<HixlTransfe
   return SUCCESS;
 }
 
-Status TransferPool::SyncContextsLocked(const std::vector<ThreadHandle> &threads, uint32_t op,
+Status TransferPool::SyncContextsLocked(const std::vector<HixlTransferContextSyncEntry> &entries, uint32_t op,
                                         uint32_t expect_state) const {
-  if (threads.empty()) {
+  if (entries.empty()) {
     return SUCCESS;
   }
   HIXL_CHK_BOOL_RET_STATUS(device_func_handles_.sync_transfer_context != nullptr, FAILED,
                            "[TransferPool] sync context func is null");
-  std::vector<HixlTransferContextSyncEntry> pending;
-  pending.reserve(threads.size());
-  for (ThreadHandle thread : threads) {
-    if (thread == 0U) {
-      continue;
-    }
-    HixlTransferContextSyncEntry entry{};
-    entry.thread = thread;
-    entry.op = op;
-    pending.push_back(entry);
-  }
-  if (pending.empty()) {
-    return SUCCESS;
-  }
+  std::vector<HixlTransferContextSyncEntry> pending = entries;
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kSyncContextRetryTimeoutMs);
   std::vector<uint32_t> pending_states;
   while (!pending.empty()) {
@@ -655,6 +641,7 @@ Status TransferPool::CollectRetrySyncEntries(const std::vector<HixlTransferConte
     HixlTransferContextSyncEntry entry{};
     entry.thread = entries[i].thread;
     entry.op = op;
+    entry.notify_id = entries[i].notify_id;
     retry_entries.push_back(entry);
     retry_states.push_back(state);
   }
@@ -678,31 +665,41 @@ Status TransferPool::HandleSyncContextTimeout(const std::vector<HixlTransferCont
 }
 
 Status TransferPool::AddTransferContextsLocked() const {
-  std::vector<ThreadHandle> threads = CollectLiveThreads(slots_);
-  return SyncContextsLocked(threads, TRANSFER_CONTEXT_OP_ADD, TRANSFER_THREAD_STATE_INITIALIZED);
+  std::vector<HixlTransferContextSyncEntry> entries = BuildSyncEntriesFromSlots(slots_, TRANSFER_CONTEXT_OP_ADD);
+  return SyncContextsLocked(entries, TRANSFER_CONTEXT_OP_ADD, TRANSFER_THREAD_STATE_INITIALIZED);
 }
 
-Status TransferPool::DeleteTransferContextsLocked(const std::vector<ThreadHandle> &threads) const {
-  return SyncContextsLocked(threads, TRANSFER_CONTEXT_OP_DELETE, TRANSFER_THREAD_STATE_DELETED);
+Status TransferPool::DeleteTransferContextsLocked(const std::vector<HixlTransferContextSyncEntry> &entries) const {
+  return SyncContextsLocked(entries, TRANSFER_CONTEXT_OP_DELETE, TRANSFER_THREAD_STATE_DELETED);
 }
 
-Status TransferPool::SyncOneTransferContextLocked(ThreadHandle thread, uint32_t op, uint32_t expect_state) const {
-  if (thread == 0U) {
+Status TransferPool::SyncOneTransferContextLocked(const Slot &slot, uint32_t op, uint32_t expect_state) const {
+  if (slot.thread == 0U) {
     return SUCCESS;
   }
-  std::vector<ThreadHandle> threads{thread};
-  return SyncContextsLocked(threads, op, expect_state);
+  HixlTransferContextSyncEntry entry{};
+  entry.thread = slot.thread;
+  entry.op = op;
+  entry.notify_id = slot.notify_id;
+  std::vector<HixlTransferContextSyncEntry> entries{entry};
+  return SyncContextsLocked(entries, op, expect_state);
 }
 
-std::vector<ThreadHandle> TransferPool::CollectLiveThreads(const std::vector<Slot> &slots) {
-  std::vector<ThreadHandle> threads;
-  threads.reserve(slots.size());
+std::vector<HixlTransferContextSyncEntry> TransferPool::BuildSyncEntriesFromSlots(const std::vector<Slot> &slots,
+                                                                                  uint32_t op) {
+  std::vector<HixlTransferContextSyncEntry> entries;
+  entries.reserve(slots.size());
   for (const auto &slot : slots) {
-    if (slot.thread != 0U) {
-      threads.push_back(slot.thread);
+    if (slot.thread == 0U) {
+      continue;
     }
+    HixlTransferContextSyncEntry entry{};
+    entry.thread = slot.thread;
+    entry.op = op;
+    entry.notify_id = slot.notify_id;
+    entries.push_back(entry);
   }
-  return threads;
+  return entries;
 }
 
 Status TransferPool::DestroySlotLocked(Slot &slot, bool sync_context) const {
@@ -718,7 +715,7 @@ Status TransferPool::DestroySlotLocked(Slot &slot, bool sync_context) const {
   }
   if (slot.thread != 0U) {
     if (sync_context) {
-      Status ret = SyncOneTransferContextLocked(slot.thread, TRANSFER_CONTEXT_OP_DELETE, TRANSFER_THREAD_STATE_DELETED);
+      Status ret = SyncOneTransferContextLocked(slot, TRANSFER_CONTEXT_OP_DELETE, TRANSFER_THREAD_STATE_DELETED);
       HIXL_CHK_STATUS(ret, "[TransferPool] delete transfer context failed before ThreadFree");
     }
     const ThreadHandle thread = slot.thread;
