@@ -353,6 +353,7 @@ void TransferPool::ResetAbortSlotNotifyLocked(Slot &slot) {
 
 void TransferPool::DeleteSlotThreadContextForAbortLocked(Slot &slot, uint32_t slot_index) const {
   if (slot.thread != 0U) {
+    const ThreadHandle thread = slot.thread;
     Status sync_ret =
         SyncOneTransferContextLocked(slot.thread, TRANSFER_CONTEXT_OP_DELETE, TRANSFER_THREAD_STATE_DELETED);
     HIXL_CHK_STATUS(sync_ret,
@@ -360,6 +361,8 @@ void TransferPool::DeleteSlotThreadContextForAbortLocked(Slot &slot, uint32_t sl
                     slot_index, device_id_);
     const hixl::TemporaryRtContext rts_guard(rts_context_);
     HIXL_CHK_ACL(HcommProxy::ThreadFree(&slot.thread, 1U), "HcommThreadFree failed");
+    HIXL_EVENT("[TransferPool] Hcomm thread free success, device_id=%d, thread=%lu, scene=abort", device_id_,
+               static_cast<uint64_t>(thread));
     slot.thread = 0U;
   }
 }
@@ -493,6 +496,8 @@ Status TransferPool::EnsureThreadLocked(Slot &slot) const {
   }
   uint32_t notify_num = kDefaultNotifyNumPerThread;
   HIXL_CHK_HCCL_RET(HcommProxy::ThreadAlloc(kDefaultEngine, kDefaultThreadNum, &notify_num, &slot.thread));
+  HIXL_EVENT("[TransferPool] Hcomm thread alloc success, device_id=%d, thread=%lu", device_id_,
+             static_cast<uint64_t>(slot.thread));
   return SUCCESS;
 }
 
@@ -716,8 +721,11 @@ Status TransferPool::DestroySlotLocked(Slot &slot, bool sync_context) const {
       Status ret = SyncOneTransferContextLocked(slot.thread, TRANSFER_CONTEXT_OP_DELETE, TRANSFER_THREAD_STATE_DELETED);
       HIXL_CHK_STATUS(ret, "[TransferPool] delete transfer context failed before ThreadFree");
     }
+    const ThreadHandle thread = slot.thread;
     const hixl::TemporaryRtContext rts_guard(rts_context_);
     HIXL_CHK_ACL(HcommProxy::ThreadFree(&slot.thread, 1U), "HcommThreadFree failed");
+    HIXL_EVENT("[TransferPool] Hcomm thread free success, device_id=%d, thread=%lu, scene=deinit", device_id_,
+               static_cast<uint64_t>(thread));
     slot.thread = 0U;
   }
   if (slot.ctx != nullptr) {

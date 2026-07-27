@@ -9,6 +9,8 @@
  */
 #include "transfer_context_manager.h"
 
+#include "common/hixl_log.h"
+
 namespace hixl {
 
 TransferContextManager &TransferContextManager::Instance() {
@@ -36,7 +38,6 @@ HixlTransferThreadState TransferContextManager::Add(ThreadHandle thread, uint32_
   ctx->user_stream_id = user_stream_id;
   ctx->notify_id = notify_id;
   ctx->err_flag_dev_va = err_flag_dev_va;
-
   return TRANSFER_THREAD_STATE_INITIALIZED;
 }
 
@@ -55,7 +56,6 @@ HixlTransferThreadState TransferContextManager::Delete(ThreadHandle thread) {
   ctx->SetState(TRANSFER_THREAD_STATE_DELETED);
   contexts_.erase(it);
   ctx->unlock();
-
   return TRANSFER_THREAD_STATE_DELETED;
 }
 

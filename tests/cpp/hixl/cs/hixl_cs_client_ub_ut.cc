@@ -48,7 +48,7 @@ constexpr uint32_t kDummyPort = 12345U;
 constexpr uint32_t kListNum1 = 1U;
 constexpr uint64_t kLen8 = 8ULL;
 constexpr uint64_t kDeviceFlagDoneValueForTest = 1ULL;
-constexpr uint32_t kNotifyWaitTaskInterval = 2048U;
+constexpr uint32_t kNotifyWaitTaskInterval = 1920U;
 
 constexpr const char *kTransFlagNameDevice = "_hixl_builtin_dev_trans_flag";
 
