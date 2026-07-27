@@ -78,7 +78,6 @@ class FabricMemStatistic {
 
  private:
   static void UpdateCost(uint64_t cost, FabricMemCostStatisticInfo &cost_info);
-  static uint64_t GetAvgCost(const FabricMemCostStatisticInfo &cost_info);
   static FabricMemCostStatisticSnapshot ToSnapshot(const FabricMemCostStatisticInfo &cost_info);
   std::shared_ptr<FabricMemTransferStatisticInfo> GetStatisticInfo(const std::string &channel_id) const;
 

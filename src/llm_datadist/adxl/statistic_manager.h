@@ -147,12 +147,10 @@ class StatisticManager {
   static void UpdateCost(uint64_t cost, std::atomic<uint64_t> &total_times, std::atomic<uint64_t> &max_cost,
                          std::atomic<uint64_t> &total_cost);
   void RemoveStatisticInfo(const std::string &channel_id);
-  static uint64_t GetAvgCost(const CostStatisticInfo &cost_info);
-  static uint64_t GetOtherTotalCost(const ConnectStatisticInfo &cost_info);
   static CostStatisticSnapshot ToSnapshot(const CostStatisticInfo &cost_info);
   void DumpBufferTransferStatisticInfo();
-  void DumpConnectStatisticInfo();
   void DumpDirectTransferStatisticInfo();
+  void DumpTransferStatisticSummary(bool is_direct);
   std::shared_ptr<StatisticInfo> GetOrCreateStatisticInfo(const std::string &channel_id);
   std::shared_ptr<StatisticInfo> GetStatisticInfo(const std::string &channel_id) const;
 
