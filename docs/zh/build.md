@@ -17,17 +17,15 @@
 
 **2.安装依赖、CANN Toolkit开发套件包以及CANN ops算子包**，操作步骤如下。
 
- - **配套 X86 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu24.04_x86:lv6_v1.1039`
- - **配套 ARM 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu24.04_arm:lv6_v1.1039`
+ - **下载 X86 构建镜像**：`docker pull --platform=amd64 swr.cn-south-1.myhuaweicloud.com/ascendhub/cann:9.0.1-a3-ubuntu22.04-py3.12-devel`
+ - **下载 ARM 构建镜像**：`docker pull --platform=arm64 swr.cn-south-1.myhuaweicloud.com/ascendhub/cann:9.0.1-a3-ubuntu22.04-py3.12-devel`
 
-  以下是推荐的使用方式，可供参考:
+上面提供了在A3环境上镜像的下载方式，更多版本镜像和镜像的使用方法，可根据需要在[Ascend-CANN镜像](https://www.hiascend.com/developer/ascendhub/detail/17da20d1c2b6493cb38765adeba85884)自行选择。以下是推荐的使用方式，可供参考:
 
   ```bash
-  image=${根据本地机器架构类型从上面选择配套的构建镜像地址}
+  image=swr.cn-south-1.myhuaweicloud.com/ascendhub/cann:9.0.1-a3-ubuntu22.04-py3.12-devel
 
-  # 1. 拉取配套构建镜像
-  docker pull ${image}
-  # 2. 创建并进入容器
+  # 创建并进入容器
   # 假设您需要使用的NPU设备安装在/dev/davinci0和/dev/davinci1上，并且您的NPU驱动程序安装在/usr/local/Ascend上：
   docker run \
     --name env_for_hixl_build \
@@ -49,12 +47,10 @@
 
   > [!NOTE]说明
   > - `--cap-add SYS_PTRACE`：创建Docker容器时添加`SYS_PTRACE`权限，以支持[本地验证](#本地验证tests)时的内存泄漏检测功能。
-  > - 容器默认以 `jenkins` 用户进入，请勿使用 `--user root`；镜像内已预装 cmake、gcc、git 等构建工具。
+  > - AscendHub CANN devel 镜像默认以 `root` 用户进入；镜像内已预装 cmake、gcc、git 等构建工具。
   > - 更多 docker 选项介绍请通过 `docker --help` 查询。
 
-  配套构建镜像的CANN包安装路径为`/home/jenkins/Ascend`。如需要使用镜像之外的其他CANN版本，请参考如下章节在docker内手工安装CANN包。
-
-  更多版本镜像，和镜像的使用方法，可根据需要在[Ascend-CANN镜像](https://www.hiascend.com/developer/ascendhub/detail/17da20d1c2b6493cb38765adeba85884)自行选择。
+  配套构建镜像的 CANN 包安装路径为 `/usr/local/Ascend`（环境变量脚本为 `/usr/local/Ascend/ascend-toolkit/set_env.sh`）。如需要使用镜像之外的其他 CANN 版本，请参考如下章节在 docker 内手工安装 CANN 包。
 
 ### 场景二：手动安装CANN包
 
@@ -123,8 +119,8 @@
 按需选择合适的命令使环境变量生效。
 
 ```bash
-# Docker 配套构建镜像（jenkins 用户，见[场景一：使用Docker部署](#场景一使用docker部署)）
-source /home/jenkins/Ascend/cann/set_env.sh
+# Docker 配套构建镜像（AscendHub CANN 镜像，见[场景一：使用Docker部署](#场景一使用docker部署)）
+source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 # 手动安装：默认路径，以 root 用户为例（非 root 用户，将 /usr/local 替换为 ${HOME}）
 source /usr/local/Ascend/cann/set_env.sh

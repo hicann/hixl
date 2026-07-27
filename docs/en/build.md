@@ -17,17 +17,15 @@ Select an installation method based on the following description:
 
 **2. Install the dependencies, CANN Toolkit, and CANN ops package.**
 
- - **x86 build image address**: `swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu24.04_x86:lv6_v1.1039`
- - **Arm build image address**: `swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu24.04_arm:lv6_v1.1039`
+ - **Pull the x86 build image**: `docker pull --platform=amd64 swr.cn-south-1.myhuaweicloud.com/ascendhub/cann:9.0.1-a3-ubuntu22.04-py3.12-devel`
+ - **Pull the Arm build image**: `docker pull --platform=arm64 swr.cn-south-1.myhuaweicloud.com/ascendhub/cann:9.0.1-a3-ubuntu22.04-py3.12-devel`
 
-   Recommended usage:
+   The commands above show how to download images for the A3 environment. For more image versions and usage instructions, see [Ascend-CANN Images](https://www.hiascend.com/developer/ascendhub/detail/17da20d1c2b6493cb38765adeba85884). Recommended usage:
 
    ```bash
-   image=${Select a matching image based on the local machine architecture}
+   image=swr.cn-south-1.myhuaweicloud.com/ascendhub/cann:9.0.1-a3-ubuntu22.04-py3.12-devel
 
-   # 1. Pull the matching build image
-   docker pull ${image}
-   # 2. Create and access the container
+   # Create and access the container
    # Assume that your NPU devices are installed in /dev/davinci0 and /dev/davinci1, and the NPU driver is installed in /usr/local/Ascend.
    docker run \
      --name env_for_hixl_build \
@@ -49,12 +47,10 @@ Select an installation method based on the following description:
 
    > [!NOTE] Note
    > - `--cap-add SYS_PTRACE`: Adds the `SYS_PTRACE` permission when creating a Docker to support memory leak detection during [local verification (Tests)](#local-verification-tests).
-   > - The container starts as the `jenkins` user. Do not use `--user root`. The image already includes cmake, gcc, git, and other build tools.
+   > - The AscendHub CANN devel image starts as the `root` user by default. The image already includes cmake, gcc, git, and other build tools.
    > - For more Docker options, run the `docker --help` command.
 
-   The installation path of the CANN package for the build image is `/home/jenkins/Ascend`. If you need to use a different CANN version outside the image, manually install the CANN package in Docker by referring to the following sections.
-
-   For more image versions and how to use them, see [Ascend-CANN Images](https://www.hiascend.com/developer/ascendhub/detail/17da20d1c2b6493cb38765adeba85884).
+   The installation path of the CANN package for the build image is `/usr/local/Ascend` (environment script: `/usr/local/Ascend/ascend-toolkit/set_env.sh`). If you need to use a different CANN version outside the image, manually install the CANN package in Docker by referring to the following sections.
 
 ### Scenario II: Manual Installation
 
@@ -123,8 +119,8 @@ After installing the CANN packages, verify that the environment and driver are n
 Run the appropriate command to make the environment variables take effect.
 
 ```bash
-# Docker build image (jenkins user; see [Scenario I: Deployment Using Docker](#scenario-i-deployment-using-docker))
-source /home/jenkins/Ascend/cann/set_env.sh
+# Docker build image (AscendHub CANN image; see [Scenario I: Deployment Using Docker](#scenario-i-deployment-using-docker))
+source /usr/local/Ascend/ascend-toolkit/set_env.sh
 
 # Manual installation: default path (using the root user as an example; for a non-root user, replace /usr/local with ${HOME})
 source /usr/local/Ascend/cann/set_env.sh
