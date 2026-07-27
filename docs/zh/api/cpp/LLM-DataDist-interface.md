@@ -123,7 +123,7 @@ OPTION_LOCAL_COMM_RES参数补充说明如下：
   <!-- end id5 -->
 - 配置version为"1.3"（推荐使用，需要HDK版本大于等于25.5.0且toolkit包版本大于等于9.1.0）：使用HixlCS能力进行建链，没有链路上限限制。配置格式参考[通信资源配置字段说明](./HIXL-interface.md#通信资源配置字段说明)。
  <!-- npu="950" id4 -->
- - Ascend 950PR/Ascend 950DT场景下，配置格式参考[通信资源配置字段说明](./HIXL-interface.md#通信资源配置字段说明)。，同时需要使能OPTION_TRANSFER_BACKEND为hixl传输后端。该option必选，配置为空不会自动生成相关信息。
+ - Ascend 950PR/Ascend 950DT场景下，配置格式参考[通信资源配置字段说明](./HIXL-interface.md#通信资源配置字段说明)。同时需要使能OPTION_TRANSFER_BACKEND为hixl传输后端。该option必选，配置为空不会自动生成相关信息。
  <!-- end id4 -->
 
 如上表格中ranktable具体信息请参见[《HCCL集合通信库用户指南》](https://www.hiascend.com/document/redirect/CannCommunityHcclUg)。<br>OPTION_LOCAL_COMM_RES配置version为"1.3"时，通信资源配置字段说明请参考[HIXL接口文档](./HIXL-interface.md#通信资源配置字段说明)。

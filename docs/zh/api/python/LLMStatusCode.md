@@ -24,7 +24,7 @@ LLMException中status\_code对应的枚举类，枚举值及解决方法如下�
 | LLM_LINK_BUSY | 链路繁忙 | 是 | 检查同时调用的接口是否有冲突，例如：同时调用如下接口时，会报该错误码。<br>同时调用unlink和pull_cache。<br>使用相同链路同时调用pull_cache和transfer_cache_async。 |
 | LLM_OUT_OF_MEMORY | 内存不足 | 是 | 检查内存池是否足够容纳申请的KV大小。<br>检查申请的内存是否没有释放。 |
 | LLM_DEVICE_MEM_ERROR | 出现内存UCE（incorrect error，指系统硬件不能直接处理恢复内存错误）的错误虚拟地址 | 是 | 获取并修复内存UCE的错误虚拟地址。如果是KV Cache内存，需要再调用cache manager的remap_registered_memory接口修复注册给网卡的KV Cache内存。<br> 说明： 本错误码为预留，暂不支持。 |
-| LLM_SUSPECT_REMOTE_ERROR | 疑似是UCE内存故障 | 否 | 上层框架需要结合其它故障进行综合判断是UCE内存故障还是他故障。 |
+| LLM_SUSPECT_REMOTE_ERROR | 疑似UCE内存故障 | 否 | 上层框架需要结合其它故障进行综合判断是UCE内存故障还是其他故障。 |
 | LLM_UNKNOWN_ERROR | 未知错误 | 否 | 保留现场，获取Host/Device日志，并备份。 |
 
 请参考[PyTorch](https://www.hiascend.com/developer/software/ai-frameworks/pytorch)的torch\_npu.npu.restart\_device接口的说明获取并修复内存UCE的错误虚拟地址。

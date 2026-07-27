@@ -213,7 +213,7 @@ unlink_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], ti
 
 **返回值**
 
-正常情况下返回两个值的元组，第一个值是接口的返回值，类型是LLMStatusCode，第二个是每个集群建链结果的列表，类型是LLMStatusCode。
+正常情况下返回两个值的元组，第一个值是接口的返回值，类型是LLMStatusCode，第二个是每个集群断链结果的列表，类型是LLMStatusCode。
 
 参数错误可能抛出TypeError或ValueError。
 
@@ -392,7 +392,7 @@ query_register_mem_status(comm_id: int) -> RegisterMemStatus
 
 **返回值**
 
-正常场景下无返回值。
+正常场景下返回RegisterMemStatus。
 
 异常场景会抛出LLMException异常。
 

@@ -1,6 +1,6 @@
 # 接口参考（Python）
 
-- [简介](brife.md)
+- [简介](brief.md)
 - [LLMDataDist](LLMDataDist.md)
 - [LLMConfig](LLMConfig.md)
 - [CacheManager](CacheManager.md)
@@ -10,7 +10,7 @@
 - [RegisterMemStatus](RegisterMemStatus.md)
 - [Placement](Placement.md)
 - [CacheDesc](CacheDesc.md)
-- [Memtype](MemType.md)
+- [MemType](MemType.md)
 - [MemInfo](MemInfo.md)
 - [CacheKey](CacheKey.md)
 - [CacheKeyByIdAndIndex](CacheKeyByIdAndIndex.md)
