@@ -63,14 +63,6 @@ void FabricMemStatistic::UpdateCost(uint64_t cost, FabricMemCostStatisticInfo &c
   }
 }
 
-uint64_t FabricMemStatistic::GetAvgCost(const FabricMemCostStatisticInfo &cost_info) {
-  const auto times = cost_info.times.load(std::memory_order_relaxed);
-  if (times == 0U) {
-    return 0U;
-  }
-  return cost_info.total_cost.load(std::memory_order_relaxed) / times;
-}
-
 FabricMemCostStatisticSnapshot FabricMemStatistic::ToSnapshot(const FabricMemCostStatisticInfo &cost_info) {
   return {cost_info.times.load(std::memory_order_relaxed), cost_info.max_cost.load(std::memory_order_relaxed),
           cost_info.total_cost.load(std::memory_order_relaxed)};
@@ -132,26 +124,26 @@ FabricMemTransferStatisticSnapshot FabricMemStatistic::GetSnapshot(const std::st
 }
 
 void FabricMemStatistic::Dump() const {
-  std::shared_lock<std::shared_mutex> lock(map_mutex_);
-  for (const auto &item : transfer_statistic_info_) {
-    const auto &stat_info = *item.second;
-    const auto transfer_times = stat_info.transfer.times.load(std::memory_order_relaxed);
-    if (transfer_times == 0U) {
-      continue;
+  statistic::TransferSummary summary;
+  {
+    std::shared_lock<std::shared_mutex> lock(map_mutex_);
+    for (const auto &item : transfer_statistic_info_) {
+      const auto &stat_info = *item.second;
+      summary.Accumulate(item.first, stat_info.transfer.times.load(std::memory_order_relaxed),
+                         stat_info.total_bytes.load(std::memory_order_relaxed),
+                         stat_info.total_op_desc_count.load(std::memory_order_relaxed),
+                         stat_info.transfer.total_cost.load(std::memory_order_relaxed));
     }
-    const auto total_bytes = stat_info.total_bytes.load(std::memory_order_relaxed);
-    const auto total_op_desc_count = stat_info.total_op_desc_count.load(std::memory_order_relaxed);
-    HIXL_EVENT(
-        "Fabric mem transfer statistic info[channel:%s, transfer times:%lu, total size:%lu kBytes, "
-        "avg size:%lu kBytes, avg bandwidth:%.4f GiB/s, max cost:%lu us, avg cost:%lu us, real copy times:%lu, "
-        "max cost:%lu us, avg cost:%lu us].",
-        item.first.c_str(), transfer_times, statistic::ToKBytes(total_bytes),
-        statistic::ToKBytes(statistic::GetAvgBytesPerOpDesc(total_bytes, total_op_desc_count)),
-        statistic::GetBandwidthGbps(total_bytes, stat_info.transfer.total_cost.load(std::memory_order_relaxed)),
-        stat_info.transfer.max_cost.load(std::memory_order_relaxed), GetAvgCost(stat_info.transfer),
-        stat_info.real_copy.times.load(std::memory_order_relaxed),
-        stat_info.real_copy.max_cost.load(std::memory_order_relaxed), GetAvgCost(stat_info.real_copy));
   }
+  if (summary.active_channels == 0UL) {
+    return;
+  }
+  HIXL_EVENT(
+      "Fabric mem transfer statistic summary[transfer times:%lu, avg size:%lu kBytes, max bandwidth:%.4f GiB/s, "
+      "min bandwidth:%.4f GiB/s, avg bandwidth:%.4f GiB/s, min bandwidth channel:%s].",
+      summary.transfer_times,
+      statistic::ToKBytes(statistic::GetAvgBytesPerOpDesc(summary.total_bytes, summary.total_op_desc_count)),
+      summary.max_bandwidth, summary.min_bandwidth, summary.AvgBandwidth(), summary.min_bandwidth_channel.c_str());
 }
 
 Status FabricMemStatistic::StartPeriodicDump() {

@@ -14,10 +14,6 @@
 #include "statistic_manager.h"
 
 namespace adxl {
-namespace {
-constexpr uint64_t kZeroCost = 0UL;
-}  // namespace
-
 StatisticManager &StatisticManager::GetInstance() {
   (void)llm::LlmDatadistTimer::Instance();
   static StatisticManager instance;
@@ -77,24 +73,6 @@ void StatisticManager::UpdateCost(const uint64_t cost, std::atomic<uint64_t> &to
   while (current_max < cost &&
          !max_cost.compare_exchange_weak(current_max, cost, std::memory_order_relaxed, std::memory_order_relaxed)) {
   }
-}
-
-uint64_t StatisticManager::GetAvgCost(const CostStatisticInfo &cost_info) {
-  const auto total_times = cost_info.times.load(std::memory_order_relaxed);
-  if (total_times == 0U) {
-    return 0U;
-  }
-  return cost_info.total_cost.load(std::memory_order_relaxed) / total_times;
-}
-
-uint64_t StatisticManager::GetOtherTotalCost(const ConnectStatisticInfo &cost_info) {
-  const auto total_cost = cost_info.connect_total.total_cost.load(std::memory_order_relaxed);
-  const auto tcp_cost = cost_info.tcp_connect.total_cost.load(std::memory_order_relaxed);
-  const auto hccl_cost = cost_info.hccl_total.total_cost.load(std::memory_order_relaxed);
-  if (total_cost <= tcp_cost + hccl_cost) {
-    return kZeroCost;
-  }
-  return total_cost - tcp_cost - hccl_cost;
 }
 
 CostStatisticSnapshot StatisticManager::ToSnapshot(const CostStatisticInfo &cost_info) {
@@ -245,84 +223,44 @@ StatisticInfoSnapshot StatisticManager::GetStatisticInfoSnapshot(const std::stri
 }
 
 void StatisticManager::Dump() {
-  DumpConnectStatisticInfo();
   DumpBufferTransferStatisticInfo();
   DumpDirectTransferStatisticInfo();
 }
 
-void StatisticManager::DumpConnectStatisticInfo() {
-  std::shared_lock<std::shared_mutex> lock(map_mutex_);
-  for (const auto &item : transfer_statistic_info_) {
-    const auto &connect_info = item.second->connect_statistic_info;
-    const auto connect_times = connect_info.connect_total.times.load(std::memory_order_relaxed);
-    const auto other_total_cost = GetOtherTotalCost(connect_info);
-    const auto other_avg_cost = connect_times == 0U ? 0U : other_total_cost / connect_times;
-    LLMEVENT(
-        "Connect statistic info[channel:%s, total times:%lu, max cost:%lu us, avg cost:%lu us, tcp times:%lu, "
-        "max cost:%lu us, avg cost:%lu us, hccl times:%lu, max cost:%lu us, avg cost:%lu us, other avg cost:%lu us].",
-        item.first.c_str(), connect_times, connect_info.connect_total.max_cost.load(std::memory_order_relaxed),
-        GetAvgCost(connect_info.connect_total), connect_info.tcp_connect.times.load(std::memory_order_relaxed),
-        connect_info.tcp_connect.max_cost.load(std::memory_order_relaxed), GetAvgCost(connect_info.tcp_connect),
-        connect_info.hccl_total.times.load(std::memory_order_relaxed),
-        connect_info.hccl_total.max_cost.load(std::memory_order_relaxed), GetAvgCost(connect_info.hccl_total),
-        other_avg_cost);
-    LLMEVENT(
-        "Connect hccl detail[channel:%s, init times:%lu, max cost:%lu us, avg cost:%lu us, bind times:%lu, "
-        "max cost:%lu us, avg cost:%lu us, prepare times:%lu, max cost:%lu us, avg cost:%lu us].",
-        item.first.c_str(), connect_info.hccl_comm_init.times.load(std::memory_order_relaxed),
-        connect_info.hccl_comm_init.max_cost.load(std::memory_order_relaxed), GetAvgCost(connect_info.hccl_comm_init),
-        connect_info.hccl_comm_bind_mem.times.load(std::memory_order_relaxed),
-        connect_info.hccl_comm_bind_mem.max_cost.load(std::memory_order_relaxed),
-        GetAvgCost(connect_info.hccl_comm_bind_mem),
-        connect_info.hccl_comm_prepare.times.load(std::memory_order_relaxed),
-        connect_info.hccl_comm_prepare.max_cost.load(std::memory_order_relaxed),
-        GetAvgCost(connect_info.hccl_comm_prepare));
-  }
-}
-
 void StatisticManager::DumpBufferTransferStatisticInfo() {
-  std::shared_lock<std::shared_mutex> lock(map_mutex_);
-  for (const auto &item : transfer_statistic_info_) {
-    const auto &stat_info = item.second->buffer_transfer_statistic_info;
-    const auto transfer_times = stat_info.transfer.times.load(std::memory_order_relaxed);
-    const auto total_bytes = stat_info.total_bytes.load(std::memory_order_relaxed);
-    const auto total_op_desc_count = stat_info.total_op_desc_count.load(std::memory_order_relaxed);
-    LLMEVENT(
-        "Buffer transfer statistic info[channel:%s, transfer times:%lu, total size:%lu kBytes, avg size:%lu kBytes, "
-        "avg bandwidth:%.4f GB/s, max cost:%lu us, avg cost:%lu us, client copy times:%lu, max cost:%lu us, "
-        "avg cost:%lu us, server comm times:%lu, max cost:%lu us, avg cost:%lu us, server copy times:%lu, "
-        "max cost:%lu us, avg cost:%lu us].",
-        item.first.c_str(), transfer_times, hixl::statistic::ToKBytes(total_bytes),
-        hixl::statistic::ToKBytes(hixl::statistic::GetAvgBytesPerOpDesc(total_bytes, total_op_desc_count)),
-        hixl::statistic::GetBandwidthGbps(total_bytes, stat_info.transfer.total_cost.load(std::memory_order_relaxed)),
-        stat_info.transfer.max_cost.load(std::memory_order_relaxed), GetAvgCost(stat_info.transfer),
-        stat_info.client_copy.times.load(std::memory_order_relaxed),
-        stat_info.client_copy.max_cost.load(std::memory_order_relaxed), GetAvgCost(stat_info.client_copy),
-        stat_info.server_d2d.times.load(std::memory_order_relaxed),
-        stat_info.server_d2d.max_cost.load(std::memory_order_relaxed), GetAvgCost(stat_info.server_d2d),
-        stat_info.server_copy.times.load(std::memory_order_relaxed),
-        stat_info.server_copy.max_cost.load(std::memory_order_relaxed), GetAvgCost(stat_info.server_copy));
-  }
+  DumpTransferStatisticSummary(false);
 }
 
 void StatisticManager::DumpDirectTransferStatisticInfo() {
-  std::shared_lock<std::shared_mutex> lock(map_mutex_);
-  for (const auto &item : transfer_statistic_info_) {
-    const auto &stat_info = item.second->direct_transfer_statistic_info;
-    const auto transfer_times = stat_info.transfer.times.load(std::memory_order_relaxed);
-    if (transfer_times == 0U) {
-      continue;
+  DumpTransferStatisticSummary(true);
+}
+
+void StatisticManager::DumpTransferStatisticSummary(bool is_direct) {
+  hixl::statistic::TransferSummary summary;
+  {
+    std::shared_lock<std::shared_mutex> lock(map_mutex_);
+    for (const auto &item : transfer_statistic_info_) {
+      const auto &transfer = is_direct ? item.second->direct_transfer_statistic_info.transfer
+                                       : item.second->buffer_transfer_statistic_info.transfer;
+      const auto &total_bytes_ref = is_direct ? item.second->direct_transfer_statistic_info.total_bytes
+                                              : item.second->buffer_transfer_statistic_info.total_bytes;
+      const auto &total_op_desc_count_ref = is_direct ? item.second->direct_transfer_statistic_info.total_op_desc_count
+                                                      : item.second->buffer_transfer_statistic_info.total_op_desc_count;
+      summary.Accumulate(
+          item.first, transfer.times.load(std::memory_order_relaxed), total_bytes_ref.load(std::memory_order_relaxed),
+          total_op_desc_count_ref.load(std::memory_order_relaxed), transfer.total_cost.load(std::memory_order_relaxed));
     }
-    const auto total_bytes = stat_info.total_bytes.load(std::memory_order_relaxed);
-    const auto total_op_desc_count = stat_info.total_op_desc_count.load(std::memory_order_relaxed);
-    LLMEVENT(
-        "Direct transfer statistic info[channel:%s, transfer times:%lu, total size:%lu kBytes, avg size:%lu kBytes, "
-        "avg bandwidth:%.4f GB/s, max cost:%lu us, avg cost:%lu us].",
-        item.first.c_str(), transfer_times, hixl::statistic::ToKBytes(total_bytes),
-        hixl::statistic::ToKBytes(hixl::statistic::GetAvgBytesPerOpDesc(total_bytes, total_op_desc_count)),
-        hixl::statistic::GetBandwidthGbps(total_bytes, stat_info.transfer.total_cost.load(std::memory_order_relaxed)),
-        stat_info.transfer.max_cost.load(std::memory_order_relaxed), GetAvgCost(stat_info.transfer));
   }
+  if (summary.active_channels == 0UL) {
+    return;
+  }
+  LLMEVENT(
+      "%s transfer statistic summary[transfer times:%lu, avg size:%lu kBytes, max bandwidth:%.4f GB/s, "
+      "min bandwidth:%.4f GB/s, avg bandwidth:%.4f GB/s, min bandwidth channel:%s].",
+      is_direct ? "Direct" : "Buffer", summary.transfer_times,
+      hixl::statistic::ToKBytes(
+          hixl::statistic::GetAvgBytesPerOpDesc(summary.total_bytes, summary.total_op_desc_count)),
+      summary.max_bandwidth, summary.min_bandwidth, summary.AvgBandwidth(), summary.min_bandwidth_channel.c_str());
 }
 
 }  // namespace adxl
