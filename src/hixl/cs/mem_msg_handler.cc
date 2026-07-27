@@ -20,7 +20,10 @@
 
 namespace {
 constexpr uint64_t kMaxGetRemoteMemBodySize = static_cast<uint64_t>(4ULL * 1024ULL * 1024ULL);  // 4MB 示例上限
-constexpr uint32_t kMaxGetRemoteMemNum = 4096U;  // 最多 4096 段远端内存
+// 用户可注册内存段上限；Export 还会额外带上 1 个 builtin finished flag
+constexpr uint32_t kMaxUserRemoteMemNum = 4096U;
+constexpr uint32_t kBuiltinRemoteMemReserve = 1U;  // _hixl_builtin_*_trans_flag
+constexpr uint32_t kMaxGetRemoteMemNum = kMaxUserRemoteMemNum + kBuiltinRemoteMemReserve;
 
 hixl::Status ExtractTypeAndJsonPtr(const std::vector<uint8_t> &body, hixl::CtrlMsgType &msg_type, const char *&json_ptr,
                                    size_t &json_len) {
@@ -201,7 +204,7 @@ hixl::Status ParseMemDescsArray(const nlohmann::json &arr, std::vector<hixl::Hix
   HIXL_LOGD("[HixlClient] Parsing mem_descs array, size: %u", mem_num);
   HIXL_CHK_BOOL_RET_STATUS(mem_num <= kMaxGetRemoteMemNum, hixl::PARAM_INVALID,
                            "[HixlClient] mem_num too large in GetRemoteMemResp, mem_num=%u, max=%u", mem_num,
-                           kMaxGetRemoteMemNum);
+                           kMaxUserRemoteMemNum);
 
   mem_descs.clear();
   mem_descs.reserve(mem_num);
