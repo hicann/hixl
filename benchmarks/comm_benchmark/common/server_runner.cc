@@ -10,6 +10,7 @@
 
 #include "server_runner.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <map>
 #include <vector>
@@ -25,6 +26,9 @@ using hixl::MemType;
 using hixl::SUCCESS;
 
 namespace {
+
+// Read verification fill pattern: server fills 'S'.
+constexpr uint8_t kServerFillPattern = static_cast<uint8_t>('S');
 
 const char *RecentErrMsg() {
   const char *errmsg = aclGetRecentErrMsg();
@@ -99,6 +103,20 @@ void ReleaseHixlResources(Hixl &hixl_engine, bool need_register, bool is_host,
   const FreeBuffersFn free_buffers = is_host ? FreeHostBuffers : FreeDeviceBuffers;
   free_buffers(buffers, transport, roce_endpoint_placement);
   hixl_engine.Finalize();
+}
+
+bool FillBufferPattern(void *ptr, size_t size, uint8_t value, bool is_host) {
+  if (is_host) {
+    std::fill(static_cast<uint8_t *>(ptr), static_cast<uint8_t *>(ptr) + size, value);
+    return true;
+  }
+  const auto ret = aclrtMemset(ptr, size, static_cast<int32_t>(value), size);
+  if (ret != ACL_ERROR_NONE) {
+    std::printf("[ERROR] aclrtMemset failed ret=%d value=0x%02x size=%zu\n", static_cast<int>(ret),
+                static_cast<unsigned>(value), size);
+    return false;
+  }
+  return true;
 }
 
 }  // namespace
@@ -253,6 +271,10 @@ int ServerRunner::CompleteTcpHandshake(std::uintptr_t addr) {
 int ServerRunner::Run() {
   if (!AllocServerBufferForRun()) {
     return -1;
+  }
+  if (!FillBufferPattern(buffer_, static_cast<size_t>(cfg_.buffer_size), kServerFillPattern, is_host_)) {
+    std::printf("[WARN] target fill buffer with '%c' failed, read verification may report false mismatches\n",
+                static_cast<int32_t>(kServerFillPattern));
   }
   std::string host;
   uint16_t port = 0;

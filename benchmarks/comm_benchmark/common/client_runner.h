@@ -15,6 +15,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -42,6 +43,7 @@ struct TransferBenchRecord {
   std::int64_t submit_time_us = 0;
   std::int64_t wait_time_us = 0;
   double throughput_gbps = 0;
+  std::string consistency = "not_checked";
 };
 
 /// Per-lane client state (multi local engine). Owned by `ClientRunner` until `Shutdown` / post-join cleanup.

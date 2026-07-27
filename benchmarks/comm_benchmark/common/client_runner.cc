@@ -10,6 +10,7 @@
 
 #include "client_runner.h"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -58,6 +59,9 @@ constexpr double kMicrosecondsPerSecond = 1000.0 * 1000.0;
 constexpr int32_t kMsPerSecond = 1000;
 constexpr int32_t kWaitTransTimeSec = 60;
 constexpr int32_t kTransferSyncTimeoutMs = kMsPerSecond * kWaitTransTimeSec;
+// Read verification fill patterns: server fills 'S', client fills 'C'.
+constexpr uint8_t kServerFillPattern = static_cast<uint8_t>('S');
+constexpr uint8_t kClientFillPattern = static_cast<uint8_t>('C');
 // Binary IEC units for human-readable block sizes in logs only.
 constexpr uint64_t kDisplayBytesPerGiB = 1024ULL * 1024ULL * 1024ULL;
 constexpr uint64_t kDisplayBytesPerMiB = 1024ULL * 1024ULL;
@@ -301,7 +305,7 @@ void AppendCommResult(const BenchmarkConfig &cfg, const TransferBenchRecord &rec
       << cfg.transport << ','
       << BenchmarkConfig::ComputeDirection(cfg.initiator_memory_type, cfg.target_memory_type, cfg.op) << ','
       << cfg.initiator_memory_type << ',' << cfg.target_memory_type << ',' << record.throughput_gbps << ',' << ops
-      << ',' << avg_us << ',' << avg_us << ",0,not_checked\n";
+      << ',' << avg_us << ',' << avg_us << ",0," << record.consistency << '\n';
 
   std::ofstream json(CommResultBasePath(cfg) + ".jsonl", std::ios::app);
   if (json.good()) {
@@ -311,7 +315,7 @@ void AppendCommResult(const BenchmarkConfig &cfg, const TransferBenchRecord &rec
          << BenchmarkConfig::ComputeDirection(cfg.initiator_memory_type, cfg.target_memory_type, cfg.op)
          << "\",\"initiator_memory\":\"" << cfg.initiator_memory_type << "\",\"target_memory\":\""
          << cfg.target_memory_type << "\",\"bandwidth_gbps\":" << record.throughput_gbps << ",\"p99_us\":" << avg_us
-         << "}\n";
+         << ",\"consistency\":\"" << record.consistency << "\"}\n";
   }
 }
 
@@ -328,6 +332,10 @@ struct TransferBlockStepCtx {
   BenchWorkerTag bench_worker_tag = BenchWorkerTag::kSingle;
   std::size_t bench_worker_index = 0;
   int32_t connect_timeout_ms = 60000;
+  bool verify_read = false;
+  bool is_host = false;
+  void *verify_buffer = nullptr;
+  std::vector<uint8_t> *verify_scratch = nullptr;
 };
 
 void ApplyBenchWorkerIdentity(const TransferBlockStepCtx &ctx, TransferBenchRecord *rec) {
@@ -347,6 +355,62 @@ void FillCommonStepFields(const TransferBlockStepCtx &ctx, uint32_t block_size, 
   rec->trans_num = trans_num;
   rec->time_us = time_us;
   rec->throughput_gbps = throughput;
+}
+
+bool FillBufferPattern(void *ptr, size_t size, uint8_t value, bool is_host) {
+  if (is_host) {
+    std::fill(static_cast<uint8_t *>(ptr), static_cast<uint8_t *>(ptr) + size, value);
+    return true;
+  }
+  const auto ret = aclrtMemset(ptr, size, static_cast<int32_t>(value), size);
+  if (ret != ACL_ERROR_NONE) {
+    std::printf("[ERROR] aclrtMemset failed ret=%d value=0x%02x size=%zu\n", static_cast<int>(ret),
+                static_cast<unsigned>(value), size);
+    return false;
+  }
+  return true;
+}
+
+bool ValidateReadBuffer(const TransferBlockStepCtx &ctx, void *ptr, size_t size, bool is_host,
+                        std::vector<uint8_t> &scratch) {
+  const uint8_t *scan = nullptr;
+  if (is_host) {
+    scan = static_cast<const uint8_t *>(ptr);
+  } else {
+    if (scratch.size() < size) {
+      scratch.resize(size);
+    }
+    const auto ret = aclrtMemcpy(scratch.data(), size, ptr, size, ACL_MEMCPY_DEVICE_TO_HOST);
+    if (ret != ACL_ERROR_NONE) {
+      std::printf("[WARN] read verify aclrtMemcpy(D2H) failed ret=%d at loop %u/%u step %u\n", static_cast<int>(ret),
+                  ctx.loop + 1U, ctx.cfg->loops, ctx.step_index);
+      return false;
+    }
+    scan = scratch.data();
+  }
+  for (size_t i = 0; i < size; ++i) {
+    if (scan[i] != kServerFillPattern) {
+      std::printf(
+          "[WARN] read verify mismatch at loop %u/%u step %u block_size %lu offset %zu: "
+          "expected '%c'(0x%02x) got 0x%02x\n",
+          ctx.loop + 1U, ctx.cfg->loops, ctx.step_index, static_cast<uint64_t>(ctx.block_size_u), i,
+          static_cast<int32_t>(kServerFillPattern), static_cast<uint32_t>(kServerFillPattern),
+          static_cast<uint32_t>(scan[i]));
+      return false;
+    }
+  }
+  return true;
+}
+
+void VerifyAndSetConsistency(const TransferBlockStepCtx &ctx, TransferBenchRecord *rec) {
+  if (!ctx.verify_read || ctx.verify_buffer == nullptr || ctx.verify_scratch == nullptr) {
+    return;
+  }
+  const bool ok = ValidateReadBuffer(ctx, ctx.verify_buffer, static_cast<size_t>(ctx.cfg->transfer_size), ctx.is_host,
+                                     *ctx.verify_scratch);
+  rec->consistency = ok ? "pass" : "fail";
+  (void)FillBufferPattern(ctx.verify_buffer, static_cast<size_t>(ctx.cfg->transfer_size), kClientFillPattern,
+                          ctx.is_host);
 }
 
 TransferBenchRecord MakeSyncTransferRecord(const TransferBlockStepCtx &ctx, uint32_t block_size, uint32_t trans_num,
@@ -409,6 +473,7 @@ std::vector<TransferOpDesc> BuildSyncTransferDescriptors(const TransferBlockStep
 void FinishSyncBenchStep(const TransferBlockStepCtx &ctx, uint32_t block_size, uint32_t trans_num, int64_t time_us,
                          double throughput) {
   TransferBenchRecord rec = MakeSyncTransferRecord(ctx, block_size, trans_num, time_us, throughput);
+  VerifyAndSetConsistency(ctx, &rec);
   PublishBenchRecord(ctx, rec);
   if (ctx.bench_records == nullptr) {
     LogSyncTransferSuccess(ctx, block_size, trans_num, time_us, throughput);
@@ -523,6 +588,7 @@ void RecordAsyncBenchResult(const TransferBlockStepCtx &ctx, uint32_t block_size
   const auto total_trans_num = static_cast<uint32_t>(ctx.cfg->transfer_size / ctx.block_size_u);
   TransferBenchRecord rec =
       MakeAsyncTransferRecord(ctx, block_size, total_trans_num, total_us, submit_us, wait_us, throughput);
+  VerifyAndSetConsistency(ctx, &rec);
   PublishBenchRecord(ctx, rec);
   if (ctx.bench_records == nullptr) {
     LogAsyncTransferSuccess(ctx, block_size, total_trans_num, total_us, submit_us, wait_us, throughput);
@@ -543,7 +609,7 @@ int32_t TransferOneBlockStepAsync(Hixl &hixl_engine, const TransferBlockStepCtx 
     return -1;
   }
   if (WaitAsyncRequests(hixl_engine, async_ctx) != 0) {
-    std::printf("[ERROR] Async transfer timeout at step %u\n", ctx.step_index);
+    std::printf("[ERROR] Async transfer failed at step %u\n", ctx.step_index);
     return -1;
   }
   RecordAsyncBenchResult(ctx, block_size, async_ctx);
@@ -554,6 +620,15 @@ int32_t RunTransfer(Hixl &hixl_engine, void *src_base, const char *remote_engine
                     const BenchmarkConfig &cfg, std::vector<TransferBenchRecord> *bench_records = nullptr,
                     BenchWorkerTag bench_worker_tag = BenchWorkerTag::kSingle, std::size_t bench_worker_index = 0) {
   const uintptr_t base = reinterpret_cast<uintptr_t>(src_base);
+  const bool verify_read = (cfg.op == "read");
+  const bool is_host = (cfg.initiator_memory_type == "host");
+  std::vector<uint8_t> verify_scratch;
+  if (verify_read) {
+    if (!FillBufferPattern(src_base, static_cast<size_t>(cfg.transfer_size), kClientFillPattern, is_host)) {
+      std::printf("[WARN] initiator fill buffer with '%c' failed, read verification may report false mismatches\n",
+                  static_cast<int32_t>(kClientFillPattern));
+    }
+  }
   TransferBlockStepCtx step_ctx{};
   step_ctx.base = base;
   step_ctx.remote_engine = remote_engine;
@@ -563,6 +638,10 @@ int32_t RunTransfer(Hixl &hixl_engine, void *src_base, const char *remote_engine
   step_ctx.bench_worker_tag = bench_worker_tag;
   step_ctx.bench_worker_index = bench_worker_index;
   step_ctx.connect_timeout_ms = static_cast<int32_t>(cfg.connect_timeout_ms);
+  step_ctx.verify_read = verify_read;
+  step_ctx.is_host = is_host;
+  step_ctx.verify_buffer = src_base;
+  step_ctx.verify_scratch = &verify_scratch;
   for (uint32_t loop = 0; loop < cfg.loops; ++loop) {
     step_ctx.loop = loop;
     for (size_t i = 0; i < cfg.block_sizes.size(); ++i) {
