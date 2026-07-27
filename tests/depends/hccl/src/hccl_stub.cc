@@ -36,6 +36,8 @@ static int32_t g_next_fence_failure_ret = 0;  // 下一次Fence的返回值
 static int32_t g_listen_port_ret = 0;  // HcommEndpointGetListenPort的返回值, 0表示使用默认行为(返回HCCL_SUCCESS)
 static std::atomic<uint32_t> g_channel_status_pending_count{0U};
 static std::atomic<uint32_t> g_channel_get_status_call_count{0U};
+static std::atomic<uint32_t> g_nbi_call_count{0U};
+static std::atomic<uint32_t> g_fence_call_count{0U};
 static std::vector<int32_t> g_mem_reg_types;
 
 static bool ConsumeChannelStatusPending() {
@@ -170,6 +172,7 @@ HcommResult HcommChannelGetStatus(const ChannelHandle *channelList, uint32_t lis
 
 // NBI传输公共辅助函数（处理失败注入）
 static int32_t DoNbiTransferWithFailureInjection(void *dst, const void *src, uint64_t len) {
+  g_nbi_call_count.fetch_add(1U, std::memory_order_relaxed);
   if (g_next_nbi_failure_ret != 0) {
     int32_t ret = g_next_nbi_failure_ret;
     g_next_nbi_failure_ret = 0;
@@ -248,6 +251,7 @@ int32_t HcommWriteOnThread(ThreadHandle thread, ChannelHandle channel, void *dst
 int32_t HcommChannelFenceOnThread(ThreadHandle thread, ChannelHandle channel) {
   (void)thread;
   (void)channel;
+  g_fence_call_count.fetch_add(1U, std::memory_order_relaxed);
   // 检查是否设置了Fence失败模式
   if (g_next_fence_failure_ret != 0) {
     int32_t ret = g_next_fence_failure_ret;
@@ -283,9 +287,19 @@ uint32_t GetChannelGetStatusCallCount() {
   return g_channel_get_status_call_count.load(std::memory_order_relaxed);
 }
 
+uint32_t GetNbiCallCount() {
+  return g_nbi_call_count.load(std::memory_order_relaxed);
+}
+
+uint32_t GetFenceCallCount() {
+  return g_fence_call_count.load(std::memory_order_relaxed);
+}
+
 // 重置传输计数器
 void ResetTransferCounter() {
   g_transfer_retry_counter = 0;
+  g_nbi_call_count.store(0U, std::memory_order_relaxed);
+  g_fence_call_count.store(0U, std::memory_order_relaxed);
 }
 
 void ResetMemRegRecord() {

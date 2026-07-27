@@ -22,6 +22,8 @@ void SetNextFenceFailure(int32_t ret);
 void SetListenPortResult(int32_t ret);
 void SetChannelGetStatusPendingCount(uint32_t count);
 uint32_t GetChannelGetStatusCallCount();
+uint32_t GetNbiCallCount();
+uint32_t GetFenceCallCount();
 void ResetTransferCounter();
 void ResetMemRegRecord();
 uint32_t GetMemRegRecordCount();

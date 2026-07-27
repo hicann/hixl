@@ -119,6 +119,8 @@ class HixlCSClientFixture : public ::testing::Test {
   hixl::HixlCSClient cli;
   void SetUp() override {
     ResetTransferCounter();
+    SetNextNbiFailure(0);
+    SetNextFenceFailure(0);
   }
   void TearDown() override {
     (void)cli.Destroy();
@@ -449,5 +451,40 @@ TEST_F(HixlCSClientFixture, BatchTransferReadNbiFailure) {
 
   // 批量传输应该失败，因为 ReadNbi 执行失败
   EXPECT_EQ(cli.BatchTransferAsync(true, 2, descs, &query_handle), FAILED);
+}
+
+TEST_F(HixlCSClientFixture, BatchTransferRuntimeFailureLatchesClient) {
+  const char *client_ip = "127.0.0.1";
+  uint32_t port = 22343;
+  PrepareConnectionAndImport(cli, client_ip, port);
+  RecordLocalMem(cli);
+
+  HixlOneSideOpDesc descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
+  void *query_handle = nullptr;
+
+  SetNextNbiFailure(HCCL_E_PARA);
+  EXPECT_EQ(cli.BatchTransferAsync(false, 1, descs, &query_handle), FAILED);
+  EXPECT_EQ(query_handle, nullptr);
+  EXPECT_EQ(GetNbiCallCount(), 1U);
+
+  SetNextNbiFailure(HCCL_E_PARA);
+  EXPECT_EQ(cli.BatchTransferSync(false, 1, descs, 1000U), FAILED);
+  EXPECT_EQ(GetNbiCallCount(), 1U);
+}
+
+TEST_F(HixlCSClientFixture, BatchTransferParamInvalidDoesNotLatchClient) {
+  const char *client_ip = "127.0.0.1";
+  uint32_t port = 22344;
+  PrepareConnectionAndImport(cli, client_ip, port);
+
+  void *query_handle = nullptr;
+  HixlOneSideOpDesc invalid_descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 0}};
+  EXPECT_EQ(cli.BatchTransferAsync(false, 1, invalid_descs, &query_handle), PARAM_INVALID);
+  EXPECT_EQ(query_handle, nullptr);
+
+  RecordLocalMem(cli);
+  HixlOneSideOpDesc descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
+  EXPECT_EQ(cli.BatchTransferAsync(false, 1, descs, &query_handle), SUCCESS);
+  EXPECT_NE(query_handle, nullptr);
 }
 }  // namespace hixl

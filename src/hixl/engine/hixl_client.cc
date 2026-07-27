@@ -298,7 +298,8 @@ Status HixlClient::RecvNotifyAck(int32_t fd, int32_t timeout_ms) const {
 Status HixlClient::CheckAlive() {
   std::lock_guard<std::mutex> lock(mutex_);
   if (ctrl_socket_ < 0) {
-    HIXL_LOGE(FAILED, "HixlClient CheckAlive failed, ctrl socket is invalid, fd=%d", ctrl_socket_);
+    HIXL_LOGE(FAILED, "HixlClient CheckAlive failed, peer_ip:%s, peer_port:%u, ctrl socket is invalid, fd=%d",
+              server_ip_.c_str(), server_port_, ctrl_socket_);
     return FAILED;
   }
   CtrlMsgHeader header{};
@@ -306,7 +307,8 @@ Status HixlClient::CheckAlive() {
   header.body_size = sizeof(CtrlMsgType);
   int32_t err_no = 0;
   Status ret = CtrlMsgPlugin::Send(ctrl_socket_, &header, sizeof(header), err_no);
-  HIXL_CHK_STATUS(ret, "HixlClient CheckAlive send header failed, fd=%d", ctrl_socket_);
+  HIXL_CHK_STATUS(ret, "HixlClient CheckAlive send header failed, peer_ip:%s, peer_port:%u, fd=%d", server_ip_.c_str(),
+                  server_port_, ctrl_socket_);
   if (ret != SUCCESS && (err_no == EPIPE || err_no == EBADF)) {
     CloseCtrlSocket();
     return FAILED;
@@ -315,7 +317,8 @@ Status HixlClient::CheckAlive() {
   CtrlMsgType msg_type = CtrlMsgType::kHeartBeat;
   err_no = 0;
   ret = CtrlMsgPlugin::Send(ctrl_socket_, &msg_type, sizeof(msg_type), err_no);
-  HIXL_CHK_STATUS(ret, "HixlClient CheckAlive send msg_type failed, fd=%d", ctrl_socket_);
+  HIXL_CHK_STATUS(ret, "HixlClient CheckAlive send msg_type failed, peer_ip:%s, peer_port:%u, fd=%d",
+                  server_ip_.c_str(), server_port_, ctrl_socket_);
   if (ret != SUCCESS && (err_no == EPIPE || err_no == EBADF)) {
     CloseCtrlSocket();
     return FAILED;

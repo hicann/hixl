@@ -400,6 +400,9 @@ void HixlEngine::BuildClientConfig(const AscendString &remote_engine, ClientConf
 
 Status HixlEngine::AutoDisconnect(const AscendString &remote_engine, int32_t timeout_in_millis) {
   if (auto_connect_) {
+    if (client_manager_.GetClient(remote_engine.GetString()) == nullptr) {
+      return SUCCESS;
+    }
     HIXL_CHK_STATUS_RET(Disconnect(remote_engine, timeout_in_millis),
                         "[HixlEngine] Failed to disconnect on error, remote_engine:%s, timeout:%d ms",
                         remote_engine.GetString(), timeout_in_millis);

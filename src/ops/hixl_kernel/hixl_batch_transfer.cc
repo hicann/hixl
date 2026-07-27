@@ -61,7 +61,8 @@ int32_t TransferWithBatch(bool is_read, HixlOneSideOpParam *param) {
       HIXL_LOGI("[HixlBatchTransfer] HcommBatchTransferOnThread not supported.");
       return HCCL_E_NOT_SUPPORT;
     }
-    HIXL_LOGE(FAILED, "[HixlBatchTransfer] BatchTransferOnThread failed, list_num %u, ret=%d", param->list_num, ret);
+    HIXL_LOGE(FAILED, "[HixlBatchTransfer] BatchTransferOnThread failed, thread=%lu, list_num=%u, ret=%d",
+              static_cast<uint64_t>(param->thread), param->list_num, ret);
     return ret;
   }
   return ret;
@@ -114,7 +115,8 @@ uint32_t HixlBatchTransferTask(bool is_read, HixlOneSideOpParam *param) {
     return TransferWithSingle(is_read, param);
   }
   if (batch_ret != 0) {
-    HIXL_LOGE(FAILED, "HcommBatchTransferOnThread failed, ret=%d", batch_ret);
+    HIXL_LOGE(FAILED, "HcommBatchTransferOnThread failed, thread=%lu, ret=%d", static_cast<uint64_t>(param->thread),
+              batch_ret);
     return FAILED;
   }
   HIXL_LOGI("[HixlBatchTransfer] HcommBatchTransferOnThread success");
@@ -198,18 +200,20 @@ uint32_t HixlBatchTransfer(bool is_read, HixlOneSideOpParam *param) {
 }  // namespace hixl
 extern "C" {
 uint32_t HixlBatchPut(HixlOneSideOpParam *param) {
+  const uint64_t thread = (param == nullptr) ? 0ULL : static_cast<uint64_t>(param->thread);
   uint32_t ret = hixl::HixlBatchTransfer(false, param);
   if (ret != 0) {
-    HIXL_LOGE(hixl::FAILED, "[HixlBatchPut] HixlBatchPut failed, ret is %u", ret);
+    HIXL_LOGE(hixl::FAILED, "[HixlBatchPut] HixlBatchPut failed, thread=%lu, ret is %u", thread, ret);
     return hixl::FAILED;
   }
   return ret;
 }
 
 uint32_t HixlBatchGet(HixlOneSideOpParam *param) {
+  const uint64_t thread = (param == nullptr) ? 0ULL : static_cast<uint64_t>(param->thread);
   uint32_t ret = hixl::HixlBatchTransfer(true, param);
   if (ret != 0) {
-    HIXL_LOGE(hixl::FAILED, "[HixlBatchGet] HixlBatchGet failed, ret is %u", ret);
+    HIXL_LOGE(hixl::FAILED, "[HixlBatchGet] HixlBatchGet failed, thread=%lu, ret is %u", thread, ret);
     return hixl::FAILED;
   }
   return ret;
