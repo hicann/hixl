@@ -26,6 +26,7 @@ set(targets_list
     "fabric_mem_d2d"
     "hixl_example_d2rh"
     "hixl_example_d2rd"
+    "hixl_example_quickstart"
 )
 
 foreach(target_name IN LISTS targets_list)
@@ -47,7 +48,7 @@ foreach(target_name IN LISTS targets_list)
             -Werror
             -Wextra
         )
-        if(${target_name} MATCHES "hixl_example_d2rd_multiproc|fabric_mem_d2d|hixl_example_d2rh|hixl_example_d2rd")
+        if(${target_name} MATCHES "hixl_example_d2rd_multiproc|fabric_mem_d2d|hixl_example_d2rh|hixl_example_d2rd|hixl_example_quickstart")
             target_link_libraries(${target_name} PRIVATE
                 cann_hixl
                 acl_rt_headers

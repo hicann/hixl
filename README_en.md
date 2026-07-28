@@ -92,6 +92,7 @@ Key directories of this project are described as follows:
 If you want to quickly experience the component build and sample execution, please visit the following documents for simple tutorials.
 
 - [Build](docs/en/build.md): Introduces component compilation and installation, including local verification using tests after successful compilation.
+- [Quick Start](docs/en/quick_start.md): Introduces how to quickly run a HIXL C++ sample.
 - [Sample Execution](examples/README_en.md): Introduces how to execute sample code end-to-end, including C++ and Python samples.
 
 ## 📖 Learning Tutorials

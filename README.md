@@ -92,6 +92,7 @@ HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，
 若您希望快速体验该组件的构建和样例执行，请访问如下文档获取简易教程。
 
 - [构建](docs/zh/build.md)：介绍组件的编译和安装，包括编译成功后利用tests进行本地验证。
+- [快速开始](docs/zh/quick_start.md)：介绍如何快速执行一个HIXL C++样例代码。
 - [样例执行](examples/README.md)：介绍如何端到端执行样例代码，包括C++和Python样例。
 
 ## 📖学习教程
