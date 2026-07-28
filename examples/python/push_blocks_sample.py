@@ -59,10 +59,13 @@ def init_llm_datadist(role: LLMRole, cluster_id, args) -> LLMDataDist:
     llm_config = LLMConfig()
     llm_config.device_id = args.device_id
     llm_config.local_comm_res = ""
+    if args.transfer_backend == "hixl":
+        llm_config.transfer_backend = "hixl"
+    elif args.transfer_backend:
+        raise RuntimeError(f"unsupported transfer_backend: {args.transfer_backend}")
     if role == LLMRole.PROMPT:
         llm_config.listen_ip_info = f"{args.local_host_ip}:26000"
     if args.local_comm_res:
-        llm_config.transfer_backend = "hixl"
         if role == LLMRole.DECODER:
             llm_config.listen_ip_info = f"{args.local_host_ip}:26001"
         llm_config.local_comm_res = args.local_comm_res
@@ -168,6 +171,12 @@ if __name__ == "__main__":
     parser.add_argument("--remote_host_ip", type=str, help="remote host ip")
     parser.add_argument(
         "--local_comm_res", type=str, help="set local comm res if you need"
+    )
+    parser.add_argument(
+        "--transfer_backend",
+        type=str,
+        default="",
+        help="transfer backend, set hixl to use hixl, default is adxl",
     )
     args = parser.parse_args()
     if args.role not in ["p", "d"]:

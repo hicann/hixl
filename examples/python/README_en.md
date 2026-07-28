@@ -60,7 +60,7 @@ Replace `${HOME}/Ascend` with the actual software installation path.
   - Change `DECODER_HOST_IP` to the host IP address of the Decoder host.
   - Ensure that the scripts are identical on both hosts.
 
-- Some samples support RDMA links in A5 environments and must be executed on dual hosts. These samples will be noted explicitly in the corresponding sample descriptions. Before execution, configure `local_comm_res`. The configuration format reference is available at: [Communication Device Configuration](https://gitcode.com/cann/hixl/issues/37). You can use the [LocalCommRes Generator Tool](../../scripts/tools/lcrgen/README.md) to automatically generate `local_comm_res` information based on the local npu_id, then modify it as needed. You can obtain the host NIC IP information using the following commands:
+- Some samples support RDMA links in A5 environments and must be executed on dual hosts. In A5 environments, if `local_comm_res` is not manually configured, the UB protocol is used by default; to use RDMA links, you need to manually configure `local_comm_res`. For configuration details, refer to [**Table 2** options (Ascend 950PR/Ascend 950DT)](../../docs/zh/api/cpp/HIXL-interface.md#initialize). You can obtain the host NIC IP information using the following commands:
 
   ```sh
   # Query the mapping between RoCE devices and network ports, and identify the ports in Up state
@@ -112,7 +112,7 @@ Replace `${HOME}/Ascend` with the actual software installation path.
     ```
 
 - Run the `push_blocks` sample. This sample uses a single-side connection method to allocate memory, register blocks, and have the decoder initiate the connection to push blocks.
-  Run the sample program on both the Prompt and Decoder hosts. `device_id` specifies the device ID to use, `role` specifies the cluster role, `local_host_ip` specifies the IP address of the local host, and `remote_host_ip` specifies the IP address of the peer host:
+  Run the sample program on both the Prompt and Decoder hosts. `device_id` specifies the device ID to use, `role` specifies the cluster role, `local_host_ip` specifies the IP address of the local host, and `remote_host_ip` specifies the IP address of the peer host. The default transfer backend is HCCL; pass `--transfer_backend hixl` to use the hixl backend:
 
     ```sh
     # Prompt host:
@@ -121,17 +121,17 @@ Replace `${HOME}/Ascend` with the actual software installation path.
     GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_blocks_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0
     ```
 
-  If running in an A5 environment, add the `local_comm_res` parameter. For example:
+  If running in an A5 environment, pass `--transfer_backend hixl`. Without a manual `local_comm_res`, the UB link is used by default; you can also manually configure `local_comm_res` to use RDMA links. For example:
 
     ```sh
     # Prompt host:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_blocks_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1 --local_comm_res '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
+    python push_blocks_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1 --transfer_backend hixl
     # Decoder host:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_blocks_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --local_comm_res '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
+    python push_blocks_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --transfer_backend hixl
     ```
 
 - Run the `push_cache` sample. This sample uses a single-side connection method to allocate memory, register cache, and have the decoder initiate the connection to push cache.
-  Run the sample program on both the Prompt and Decoder hosts. `device_id` specifies the device ID to use, `role` specifies the cluster role, `local_host_ip` specifies the IP address of the local host, and `remote_host_ip` specifies the IP address of the peer host:
+  Run the sample program on both the Prompt and Decoder hosts. `device_id` specifies the device ID to use, `role` specifies the cluster role, `local_host_ip` specifies the IP address of the local host, and `remote_host_ip` specifies the IP address of the peer host. The default transfer backend is HCCL; pass `--transfer_backend hixl` to use the hixl backend:
 
     ```sh
     # Prompt host:
@@ -140,13 +140,13 @@ Replace `${HOME}/Ascend` with the actual software installation path.
     GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_cache_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0
     ```
 
-  If running in an A5 environment, add the `local_comm_res` parameter. For example:
+  If running in an A5 environment, pass `--transfer_backend hixl`. Without a manual `local_comm_res`, the UB link is used by default; you can also manually configure `local_comm_res` to use RDMA links. For example:
 
     ```sh
     # Prompt host:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_cache_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1 --local_comm_res '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
+    python push_cache_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1 --transfer_backend hixl
     # Decoder host:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_cache_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --local_comm_res '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
+    python push_cache_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --transfer_backend hixl
     ```
 
 - Run the `switch_role` sample. This sample uses a single-side connection method. First, Torch allocates memory and registers blocks. The decoder initiates the connection to pull blocks. Then both sides switch roles, with the prompt initiating the connection and the decoder pushing blocks.
@@ -186,7 +186,7 @@ Replace `${HOME}/Ascend` with the actual software installation path.
 
 - Run the `transfer_cache_async` sample. This sample uses a single-side connection method to allocate memory, register cache, and have the prompt side initiate the connection to asynchronously transfer cache layer by layer.
 
-  Run the sample program on both the Prompt and Decoder hosts. `device_id` specifies the device ID to use, `role` specifies the cluster role, `local_host_ip` specifies the IP address of the local host, and `remote_host_ip` specifies the IP address of the peer host:
+  Run the sample program on both the Prompt and Decoder hosts. `device_id` specifies the device ID to use, `role` specifies the cluster role, `local_host_ip` specifies the IP address of the local host, and `remote_host_ip` specifies the IP address of the peer host. The default transfer backend is HCCL; pass `--transfer_backend hixl` to use the hixl backend:
 
     ```sh
     # Prompt host:
@@ -195,13 +195,13 @@ Replace `${HOME}/Ascend` with the actual software installation path.
     GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python transfer_cache_async_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0
     ```
 
-  If running in an A5 environment, add the `local_comm_res` parameter. For example:
+  If running in an A5 environment, pass `--transfer_backend hixl`. Without a manual `local_comm_res`, the UB link is used by default; you can also manually configure `local_comm_res` to use RDMA links. For example:
 
     ```sh
     # Prompt host:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python transfer_cache_async_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1 --local_comm_res '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
+    python transfer_cache_async_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1 --transfer_backend hixl
     # Decoder host:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python transfer_cache_async_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --local_comm_res '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
+    python transfer_cache_async_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --transfer_backend hixl
     ```
 
 - Run the `hixl_transfer_backend` sample. This sample uses HIXL as the transport backend for LLM-DataDist, performing memory registration, connection establishment, and data transfer. The sample allocates memory and registers blocks. The decoder initiates a connection and pushes blocks. The prompt initiates a connection and pulls blocks.

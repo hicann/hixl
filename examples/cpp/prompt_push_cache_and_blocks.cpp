@@ -29,11 +29,12 @@ constexpr uint32_t kNumTensors = 4U;
 constexpr size_t kTensorSize = 8 * 16 * sizeof(int32_t);
 const std::vector<int64_t> kTensorShape = {8, 16};
 constexpr int32_t kWaitTime = 5;
-constexpr int32_t kExpectedArgCnt = 5;
-constexpr uint32_t kArgIndexDeviceId = 1;
-constexpr uint32_t kArgIndexLocalIp = 2;
-constexpr uint32_t kArgIndexRemoteIp = 3;
-constexpr uint32_t kArgIndexLocalCommRes = 4;
+constexpr int32_t kExpectedArgCnt = 6;
+constexpr int32_t kArgIndexDeviceId = 1;
+constexpr int32_t kArgIndexLocalIp = 2;
+constexpr int32_t kArgIndexRemoteIp = 3;
+constexpr int32_t kArgIndexTransferBackend = 4;
+constexpr int32_t kArgIndexLocalCommRes = 5;
 constexpr int32_t kNotifyRetryTimes = 600;
 constexpr useconds_t kNotifyRetryIntervalUs = 100000U;
 constexpr char kUnlinkDoneMessage = '1';
@@ -64,12 +65,18 @@ void CloseSocket(int32_t fd) {
 }  // namespace
 
 int Initialize(LlmDataDist &llm_datadist, const std::string &device_id, const std::string &local_ip,
-               const std::string &local_comm_res) {
+               const std::string &transfer_backend, const std::string &local_comm_res) {
   std::map<AscendString, AscendString> options;
   options[OPTION_DEVICE_ID] = device_id.c_str();
-  if (!local_comm_res.empty()) {
+  options[OPTION_LISTEN_IP_INFO] = (local_ip + ":" + std::to_string(kPromptListenPort)).c_str();
+  if (!transfer_backend.empty()) {
+    if (transfer_backend != "hixl") {
+      printf("[ERROR] unsupported transfer_backend: %s\n", transfer_backend.c_str());
+      return -1;
+    }
     options[OPTION_TRANSFER_BACKEND] = "hixl";
-    options[OPTION_LISTEN_IP_INFO] = (local_ip + ":" + std::to_string(kPromptListenPort)).c_str();
+  }
+  if (!local_comm_res.empty()) {
     options[OPTION_LOCAL_COMM_RES] = local_comm_res.c_str();
   }
   auto ret = llm_datadist.Initialize(options);
@@ -221,11 +228,11 @@ void Finalize(LlmDataDist &llm_datadist, int64_t cache_id, bool linked, const ch
 }
 
 int32_t RunPromptSample(const char *device_id, const char *local_ip, const char *remote_ip,
-                        const std::string local_comm_res) {
+                        const std::string &transfer_backend, const std::string local_comm_res) {
   printf("[INFO] Prompt Sample start\n");
   // 1. 初始化
   LlmDataDist llm_datadist(kPromptClusterId, LlmRole::kPrompt);
-  if (Initialize(llm_datadist, device_id, local_ip, local_comm_res) != 0) {
+  if (Initialize(llm_datadist, device_id, local_ip, transfer_backend, local_comm_res) != 0) {
     printf("[ERROR] Initialize LlmDataDist failed\n");
     return -1;
   }
@@ -295,20 +302,27 @@ int32_t RunPromptSample(const char *device_id, const char *local_ip, const char 
 }
 
 int main(int32_t argc, char **argv) {
-  if (argc < kExpectedArgCnt - 1 || argc > kExpectedArgCnt) {
-    printf("[ERROR] expect at least 3 args(device_id, localHostIp, remoteHostIp, [local_comm_res]), but got %d\n",
-           argc - 1);
+  if (argc < kExpectedArgCnt - 2 || argc > kExpectedArgCnt) {
+    printf(
+        "[ERROR] expect args(device_id, localHostIp, remoteHostIp, [transfer_backend], [local_comm_res]), "
+        "but got %d\n",
+        argc - 1);
     return -1;
   }
   const auto device_id = argv[kArgIndexDeviceId];
   const auto local_ip = argv[kArgIndexLocalIp];
   const auto remote_ip = argv[kArgIndexRemoteIp];
   printf("[INFO] device_id = %s, local_ip = %s, remote_ip = %s\n", device_id, local_ip, remote_ip);
+  std::string transfer_backend;
   std::string local_comm_res;
-  if (argc == kExpectedArgCnt) {
+  if (argc > kArgIndexTransferBackend) {
+    transfer_backend = argv[kArgIndexTransferBackend];
+    printf("[INFO] transfer_backend = %s\n", transfer_backend.c_str());
+  }
+  if (argc > kArgIndexLocalCommRes) {
     local_comm_res = argv[kArgIndexLocalCommRes];
     printf("[INFO] local_comm_res = %s\n", local_comm_res.c_str());
   }
-  auto ret = RunPromptSample(device_id, local_ip, remote_ip, local_comm_res);
+  auto ret = RunPromptSample(device_id, local_ip, remote_ip, transfer_backend, local_comm_res);
   return ret;
 }

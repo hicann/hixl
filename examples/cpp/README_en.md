@@ -32,15 +32,14 @@ Function: Implements KV Cache transmission functionality in disaggregated deploy
 
 ## Sample Configuration
 
-Some samples support execution over RDMA links in the A5 environment and must run on two machines. These cases are explicitly noted in the corresponding sample descriptions. Before execution, configure `local_comm_res`. The configuration format reference is available at: [Communication Device Configuration](https://gitcode.com/cann/hixl/issues/37). You can use the [LocalCommRes Generator Tool](../../scripts/tools/lcrgen/README.md) to automatically generate `local_comm_res` information based on the local npu_id, then modify it as needed. You can obtain the host NIC IP information using the following commands:
+- Some samples support RDMA links in A5 environments and must be executed on dual hosts. These samples will be noted explicitly in the corresponding sample descriptions. In A5 environments, if `local_comm_res` is not manually configured, the UB protocol is used by default; to use RDMA links, you need to manually configure `local_comm_res`. For configuration details, refer to [**Table 2** options (Ascend 950PR/Ascend 950DT)](../../docs/zh/api/cpp/HIXL-interface.md#initialize). You can obtain the host NIC IP information using the following commands:
+  ```shell
+  # Query the mapping between RoCE devices and network ports, and identify the ports in Up state
+  ibdev2netdev
 
-```shell
-# Query the mapping between RoCE devices and network ports, and identify the ports in Up state
-ibdev2netdev
-
-# Find the corresponding IP addresses using the network ports
-ifconfig
-```
+  # Find the corresponding IP addresses using the network ports
+  ifconfig
+  ```
 
 ## Program Build
 
@@ -78,54 +77,34 @@ ifconfig
 
     (1) Run pull_cache_and_blocks
 
-    This sample demonstrates the workflow where the decoder pulls cache and blocks from the prompt. The direction of link setup and pull operations is independent of role assignment and can be modified as needed.
+    This sample demonstrates the workflow where the decoder pulls cache and blocks from the prompt. The direction of link setup and pull operations is independent of role assignment and can be modified as needed. The default transfer backend is ADXL; pass optional `transfer_backend` as `hixl` to switch to the hixl cs backend. A5 environments only support the hixl cs backend, which uses the UB protocol by default; you can manually configure `local_comm_res` to use RDMA links.
 
-    - Run prompt_pull_cache_and_blocks with parameters device_id and local_ip, where device_id is the device ID used by the prompt, and local_ip is the IP address of the host where the prompt runs. For example:
+    - Run prompt_pull_cache_and_blocks with parameters device_id, local_ip, and optional transfer_backend and local_comm_res, where device_id is the device ID used by the prompt, and local_ip is the IP address of the host where the prompt runs. For example:
 
         ```cpp
-        ./prompt_pull_cache_and_blocks 0 10.10.170.1
+        ./prompt_pull_cache_and_blocks 0 10.10.170.1 hixl
         ```
 
-    - Run decoder_pull_cache_and_blocks with parameters device_id, local_ip and remote_ip, where device_id is the device ID used by the decoder, local_ip is the IP address of the host where the decoder runs, and remote_ip is the IP address of the host where the prompt runs. For example:
+    - Run decoder_pull_cache_and_blocks with parameters device_id, local_ip, remote_ip, and optional transfer_backend and local_comm_res, where device_id is the device ID used by the decoder, local_ip is the IP address of the host where the decoder runs, and remote_ip is the IP address of the host where the prompt runs. For example:
 
         ```cpp
-        ./decoder_pull_cache_and_blocks 2 10.170.10.1 10.170.10.1
-        ```
-
-    - In the A5 environment, you need to specify local_comm_res to run examples. Configure it as `{"version":"1.3"}` to use auto-generation, or manually configure the local_comm_res parameter. For example:
-
-        ```cpp
-        # Prompt host
-        HCCL_INTRA_ROCE_ENABLE=1 ./prompt_pull_cache_and_blocks 0 10.10.170.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
-
-        # Decoder host
-        HCCL_INTRA_ROCE_ENABLE=1 ./decoder_pull_cache_and_blocks 2 10.170.10.1 10.170.10.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
+        ./decoder_pull_cache_and_blocks 2 10.170.10.1 10.170.10.1 hixl
         ```
 
     (2) Run push_cache_and_blocks
 
-    This sample demonstrates the workflow where the prompt pushes cache and blocks to the decoder. The direction of link setup and push operations is independent of role assignment and can be modified as needed.
+    This sample demonstrates the workflow where the prompt pushes cache and blocks to the decoder. The direction of link setup and push operations is independent of role assignment and can be modified as needed. The default transfer backend is HCCL; pass optional `transfer_backend` as `hixl` to use the hixl backend. In A5 environments with hixl, the UB protocol is used by default; you can manually configure `local_comm_res` to use RDMA links.
 
-    - Run prompt_push_cache_and_blocks with parameters device_id, local_ip and remote_ip, where device_id is the device ID used by the prompt, local_ip is the IP address of the host where the prompt runs, and remote_ip is the IP address of the host running the decoder. For example:
+    - Run prompt_push_cache_and_blocks with parameters device_id, local_ip, remote_ip, and optional transfer_backend and local_comm_res, where device_id is the device ID used by the prompt, local_ip is the IP address of the host where the prompt runs, and remote_ip is the IP address of the host running the decoder. For example:
 
         ```cpp
-        ./prompt_push_cache_and_blocks 0 10.10.10.1 10.10.10.1
+        ./prompt_push_cache_and_blocks 0 10.10.10.1 10.10.10.1 hixl
         ```
 
-    - Run decoder_push_cache_and_blocks with parameters device_id and local_ip, where device_id is the device ID used by the decoder, and local_ip is the IP address of the host where the decoder runs. For example:
+    - Run decoder_push_cache_and_blocks with parameters device_id, local_ip, and optional transfer_backend and local_comm_res, where device_id is the device ID used by the decoder, and local_ip is the IP address of the host where the decoder runs. For example:
 
         ```cpp
-        ./decoder_push_cache_and_blocks 4 10.10.10.1
-        ```
-
-    - In the A5 environment, you need to specify local_comm_res to run examples. Configure it as `{"version":"1.3"}` to use auto-generation, or manually configure the local_comm_res parameter. For example:
-
-        ```cpp
-        # Prompt host
-        HCCL_INTRA_ROCE_ENABLE=1 ./prompt_push_cache_and_blocks 0 10.10.10.1 10.10.10.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
-
-        # Decoder host
-        HCCL_INTRA_ROCE_ENABLE=1 ./decoder_push_cache_and_blocks 4 10.10.10.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
+        ./decoder_push_cache_and_blocks 4 10.10.10.1 hixl
         ```
 
     (3) Run switch_roles

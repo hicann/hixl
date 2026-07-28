@@ -32,14 +32,14 @@
 
 ## 样例配置说明
 
-部分用例支持在A5环境使用RDMA链路执行，且需要在双机上执行，会在对应用例中进行特别说明。在执行前需要配置local_comm_res，配置格式参考：[通信设备配置](https://gitcode.com/cann/hixl/issues/37)。可使用 [LocalCommRes 自动生成工具](../../scripts/tools/lcrgen/README.md) 根据本机 npu_id 自动生成 local_comm_res 信息后再按需修改。可通过以下操作获取 host 网卡的 ip 信息：
-```shell
-# 查询RoCE设备和网口的对应关系，查看状态为Up的网口名
-ibdev2netdev
+- 下面个别用例支持在A5环境使用RDMA链路执行，并且需要在双机上执行，会在对应用例中进行特别说明。在A5环境中未手动配置local_comm_res时默认使用UB协议；如果需要使用RDMA链路，需要手动配置local_comm_res，配置方法参考[**表 2** options（Ascend 950PR/Ascend 950DT）](../../docs/zh/api/cpp/HIXL-interface.md#initialize)。可通过以下操作获取 host 网卡的 ip 信息：
+  ```shell
+  # 查询RoCE设备和网口的对应关系，查看状态为Up的网口名
+  ibdev2netdev
 
-# 根据网口名找出对应的ip信息
-ifconfig
-```
+  # 根据网口名找出对应的ip信息
+  ifconfig
+  ```
 
 ## 程序编译
 
@@ -76,48 +76,30 @@ ifconfig
 
     (1) 执行pull_cache_and_blocks
 
-    此样例介绍了decoder向prompt进行pull cache和pull blocks流程，其中link和pull的方向与角色无关，可以根据需求更改
+    此样例介绍了decoder向prompt进行pull cache和pull blocks流程，其中link和pull的方向与角色无关，可以根据需求更改。默认走adxl传输后端；可选参数transfer_backend传`hixl`可切换为hixl cs后端。A5环境上只支持使用hixl cs后端，默认走UB协议，可手动配置local_comm_res走RDMA链路。
 
-    - 执行prompt_pull_cache_and_blocks, 参数为device_id和local_ip, 其中device_id为prompt要使用的device_id, local_ip为prompt所在host的ip, 如:
+    - 执行prompt_pull_cache_and_blocks, 参数为device_id、local_ip、可选transfer_backend与local_comm_res, 其中device_id为prompt要使用的device_id, local_ip为prompt所在host的ip, 如:
         ```
-        ./prompt_pull_cache_and_blocks 0 10.10.170.1
-        ```
-
-    - 执行decoder_pull_cache_and_blocks, 参数为device_id、local_ip和remote_ip, 其中device_id为decoder要使用的device_id, local_ip为decoder所在host的ip，remote_ip为prompt所在host的ip，如:
-        ```
-        ./decoder_pull_cache_and_blocks 2 10.170.10.1 10.170.10.1
+        ./prompt_pull_cache_and_blocks 0 10.10.170.1 hixl
         ```
 
-    - A5环境中执行用例需要指定local_comm_res，配置为`{"version":"1.3"}`即可使用自动生成，也可以手动配置local_comm_res参数，如：
+    - 执行decoder_pull_cache_and_blocks, 参数为device_id、local_ip、remote_ip、可选transfer_backend与local_comm_res, 其中device_id为decoder要使用的device_id, local_ip为decoder所在host的ip，remote_ip为prompt所在host的ip，如:
         ```
-        # prompt主机
-        HCCL_INTRA_ROCE_ENABLE=1 ./prompt_pull_cache_and_blocks 0 10.10.170.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
-
-        # decoder主机
-        HCCL_INTRA_ROCE_ENABLE=1 ./decoder_pull_cache_and_blocks 2 10.170.10.1 10.170.10.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
+        ./decoder_pull_cache_and_blocks 2 10.170.10.1 10.170.10.1 hixl
         ```
 
     (2) 执行push_cache_and_blocks
 
-    此样例介绍了prompt向decoder进行push cache和push blocks流程，其中link和push的方向与角色无关，可以根据需求更改
+    此样例介绍了prompt向decoder进行push cache和push blocks流程，其中link和push的方向与角色无关，可以根据需求更改。默认走HCCL传输后端；可选参数transfer_backend传`hixl`可切换为hixl后端。在A5环境上使用hixl时默认走UB协议，可手动配置local_comm_res走RDMA链路。
 
-    - 执行prompt_push_cache_and_blocks, 参数为device_id, local_ip与remote_ip 其中device_id为prompt要使用的device_id, local_ip为prompt所在host的ip，remote_ip为prompt所在host的ip, 如:
+    - 执行prompt_push_cache_and_blocks, 参数为device_id、local_ip、remote_ip、可选transfer_backend与local_comm_res, 其中device_id为prompt要使用的device_id, local_ip为prompt所在host的ip，remote_ip为decoder所在host的ip, 如:
         ```
-        ./prompt_push_cache_and_blocks 0 10.10.10.1 10.10.10.1
-        ```
-
-    - 执行decoder_push_cache_and_blocks, 参数为device_id与local_ip, 其中device_id为decoder要使用的device_id, local_ip为decoder所在host的ip, 如:
-        ```
-        ./decoder_push_cache_and_blocks 4 10.10.10.1
+        ./prompt_push_cache_and_blocks 0 10.10.10.1 10.10.10.1 hixl
         ```
 
-    - A5环境中执行用例需要指定local_comm_res，配置为`{"version":"1.3"}`即可使用自动生成，也可以手动配置local_comm_res参数，如：
+    - 执行decoder_push_cache_and_blocks, 参数为device_id、local_ip、可选transfer_backend与local_comm_res, 其中device_id为decoder要使用的device_id, local_ip为decoder所在host的ip, 如:
         ```
-        # prompt主机
-        HCCL_INTRA_ROCE_ENABLE=1 ./prompt_push_cache_and_blocks 0 10.10.10.1 10.10.10.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.1","placement":"host"}],"version":"1.3"}'
-
-        # decoder主机
-        HCCL_INTRA_ROCE_ENABLE=1 ./decoder_push_cache_and_blocks 4 10.10.10.1 '{"net_instance_id":"superpod1_1","endpoint_list":[{"protocol":"roce","comm_id":"1.0.0.2","placement":"host"}],"version":"1.3"}'
+        ./decoder_push_cache_and_blocks 4 10.10.10.1 hixl
         ```
 
     (3) 执行switch_roles
