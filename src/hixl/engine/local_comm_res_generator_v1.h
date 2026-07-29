@@ -34,6 +34,11 @@
 
 namespace hixl {
 
+enum class LocalCommResGenerateMode {
+  kDeviceOnly,
+  kDeviceAndHost,
+};
+
 // ============ 端点配置结构 ============
 // EndpointConfig 已通过 hixl_inner_types.h 引入
 
@@ -102,6 +107,8 @@ struct RouteGenResult {
  */
 int32_t GenerateLocalCommRes(int32_t phy_dev_id, LocalCommRes &local_comm_res);
 
+int32_t GenerateLocalCommRes(int32_t phy_dev_id, LocalCommResGenerateMode mode, LocalCommRes &local_comm_res);
+
 /**
  * @brief 生成 LocalCommRes 结构体（测试用重载，允许注入 topo 路径）
  * @param [in] phy_dev_id 物理设备 ID
@@ -112,6 +119,9 @@ int32_t GenerateLocalCommRes(int32_t phy_dev_id, LocalCommRes &local_comm_res);
  * route_data 通过 DSMI + urma_admin 自动生成，不再读取 route.conf。
  */
 int32_t GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, LocalCommRes &local_comm_res);
+
+int32_t GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, LocalCommResGenerateMode mode,
+                             LocalCommRes &local_comm_res);
 
 /**
  * @brief 内部 helper：按 mainboard_id 解析默认 topo 路径

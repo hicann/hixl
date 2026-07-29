@@ -344,6 +344,112 @@ TEST_F(HixlCSTest, RegisterHostMemForDeviceOnlyUbEndpointReturnsInvalid) {
   EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
 }
 
+TEST_F(HixlCSTest, RegisterHostMemWhenUbCtpEndpointsAllDeviceUsesMappedDeviceMem) {
+  EndpointDesc device_ep{};
+  device_ep.loc.locType = ENDPOINT_LOC_TYPE_DEVICE;
+  device_ep.loc.device.devPhyId = 0U;
+  device_ep.protocol = COMM_PROTOCOL_UBC_CTP;
+  device_ep.commAddr.type = COMM_ADDR_TYPE_EID;
+  device_ep.commAddr.eid[0] = 1U;
+  EndpointDesc device_ub_tp_ep{};
+  device_ub_tp_ep.loc.locType = ENDPOINT_LOC_TYPE_DEVICE;
+  device_ub_tp_ep.loc.device.devPhyId = 0U;
+  device_ub_tp_ep.protocol = COMM_PROTOCOL_UBC_TP;
+  device_ub_tp_ep.commAddr.type = COMM_ADDR_TYPE_EID;
+  device_ub_tp_ep.commAddr.eid[0] = 2U;
+  std::vector<EndpointDesc> endpoints = {device_ep, device_ub_tp_ep};
+
+  HixlServerConfig config{};
+  HixlServerHandle server_handle = nullptr;
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = kPort;
+  desc.endpoint_list = endpoints.data();
+  desc.endpoint_list_num = endpoints.size();
+  ASSERT_EQ(HixlCSServerCreate(&desc, &config, &server_handle), SUCCESS);
+  ResetMemRegRecord();
+
+  CommMem mem{};
+  mem.type = COMM_MEM_TYPE_HOST;
+  mem.size = sizeof(int32_t);
+  mem.addr = &kHostMems[0];
+  MemHandle mem_handle = nullptr;
+  EXPECT_EQ(HixlCSServerRegMem(server_handle, nullptr, &mem, &mem_handle), SUCCESS);
+  ASSERT_EQ(GetMemRegRecordCount(), 1U);
+  EXPECT_EQ(GetMemRegRecordType(0U), static_cast<int32_t>(COMM_MEM_TYPE_DEVICE));
+
+  EXPECT_EQ(HixlCSServerUnregMem(server_handle, mem_handle), SUCCESS);
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+}
+
+TEST_F(HixlCSTest, RegisterHostMemForDeviceUbgUsesMappedDeviceMem) {
+  EndpointDesc device_ep{};
+  device_ep.loc.locType = ENDPOINT_LOC_TYPE_DEVICE;
+  device_ep.loc.device.devPhyId = 0U;
+  device_ep.protocol = COMM_PROTOCOL_UBG;
+  device_ep.commAddr.type = COMM_ADDR_TYPE_EID;
+  device_ep.commAddr.eid[0] = 1U;
+
+  HixlServerConfig config{};
+  HixlServerHandle server_handle = nullptr;
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = kPort;
+  desc.endpoint_list = &device_ep;
+  desc.endpoint_list_num = 1U;
+  ASSERT_EQ(HixlCSServerCreate(&desc, &config, &server_handle), SUCCESS);
+  ResetMemRegRecord();
+
+  CommMem mem{};
+  mem.type = COMM_MEM_TYPE_HOST;
+  mem.size = sizeof(int32_t);
+  mem.addr = &kHostMems[0];
+  MemHandle mem_handle = nullptr;
+  EXPECT_EQ(HixlCSServerRegMem(server_handle, nullptr, &mem, &mem_handle), SUCCESS);
+  ASSERT_EQ(GetMemRegRecordCount(), 1U);
+  EXPECT_EQ(GetMemRegRecordType(0U), static_cast<int32_t>(COMM_MEM_TYPE_DEVICE));
+
+  EXPECT_EQ(HixlCSServerUnregMem(server_handle, mem_handle), SUCCESS);
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+}
+
+TEST_F(HixlCSTest, RegisterHostMemForDeviceAndHostUbCtpUsesHostEndpoint) {
+  EndpointDesc device_ep{};
+  device_ep.loc.locType = ENDPOINT_LOC_TYPE_DEVICE;
+  device_ep.loc.device.devPhyId = 0U;
+  device_ep.protocol = COMM_PROTOCOL_UBC_CTP;
+  device_ep.commAddr.type = COMM_ADDR_TYPE_EID;
+  device_ep.commAddr.eid[0] = 1U;
+  EndpointDesc host_ep{};
+  host_ep.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+  host_ep.protocol = COMM_PROTOCOL_UBC_CTP;
+  host_ep.commAddr.type = COMM_ADDR_TYPE_EID;
+  host_ep.commAddr.eid[0] = 2U;
+  std::vector<EndpointDesc> endpoints = {device_ep, host_ep};
+
+  HixlServerConfig config{};
+  HixlServerHandle server_handle = nullptr;
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = kPort;
+  desc.endpoint_list = endpoints.data();
+  desc.endpoint_list_num = endpoints.size();
+  ASSERT_EQ(HixlCSServerCreate(&desc, &config, &server_handle), SUCCESS);
+  ResetMemRegRecord();
+
+  CommMem mem{};
+  mem.type = COMM_MEM_TYPE_HOST;
+  mem.size = sizeof(int32_t);
+  mem.addr = &kHostMems[0];
+  MemHandle mem_handle = nullptr;
+  EXPECT_EQ(HixlCSServerRegMem(server_handle, nullptr, &mem, &mem_handle), SUCCESS);
+  ASSERT_EQ(GetMemRegRecordCount(), 1U);
+  EXPECT_EQ(GetMemRegRecordType(0U), static_cast<int32_t>(COMM_MEM_TYPE_HOST));
+
+  EXPECT_EQ(HixlCSServerUnregMem(server_handle, mem_handle), SUCCESS);
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+}
+
 // 验证 builtin trans-finished flag 只注册到对应位置类型的 endpoint：
 // 1 个 HOST endpoint (UBC_CTP) + 1 个 DEVICE endpoint (UBOE)。
 // 修复前 HOST flag 会额外注册到 UBOE DEVICE endpoint（触发 hostRegister），共 3 次 MemReg；

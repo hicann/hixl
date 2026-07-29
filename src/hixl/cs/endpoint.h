@@ -24,7 +24,8 @@
 namespace hixl {
 class Endpoint {
  public:
-  explicit Endpoint(const EndpointDesc &endpoint) : endpoint_(endpoint) {};
+  explicit Endpoint(const EndpointDesc &endpoint);
+  Endpoint(const EndpointDesc &endpoint, bool need_host_va_mapping);
   ~Endpoint() = default;
 
   Status Initialize();
@@ -32,6 +33,7 @@ class Endpoint {
 
   EndpointHandle GetHandle() const;
   const EndpointDesc &GetEndpoint() const;
+  bool NeedHostVaMapping() const;
 
   Status RegisterMem(const char *mem_tag, const CommMem &mem, MemHandle &mem_handle);
   Status DeregisterMem(MemHandle mem_handle);
@@ -50,6 +52,7 @@ class Endpoint {
   std::map<MemHandle, HixlMemDesc> reg_mems_;
   std::map<ChannelHandle, ChannelPtr> channels_;
   uint32_t port_ = 0;
+  bool need_host_va_mapping_{false};
 };
 
 using EndpointPtr = std::shared_ptr<Endpoint>;

@@ -359,10 +359,6 @@ const char *IntraRoceEnableStatusStr() {
   return IsIntraRoceEnabled() ? "HCCL_INTRA_ROCE_ENABLE is set" : "HCCL_INTRA_ROCE_ENABLE is not set";
 }
 
-bool IsHostRegisterMappedProtocol(CommProtocol protocol) {
-  return protocol == COMM_PROTOCOL_UBOE || protocol == COMM_PROTOCOL_UBG;
-}
-
 Status GetSocName(std::string &soc_name) {
   const char *soc_name_cstr = aclrtGetSocName();
   HIXL_CHK_BOOL_RET_STATUS(soc_name_cstr != nullptr, FAILED, "aclrtGetSocName returned nullptr");

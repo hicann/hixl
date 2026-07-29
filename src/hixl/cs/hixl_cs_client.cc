@@ -375,7 +375,7 @@ Status HixlCSClient::RegMemLocked(const char *mem_tag, const CommMem *mem, MemHa
   bool is_host_mem = mem->type == COMM_MEM_TYPE_HOST;
   void *register_dev_addr = nullptr;
   const auto &local_endpoint_desc = local_endpoint_->GetEndpoint();
-  if (is_host_mem && IsHostRegisterMappedProtocol(local_endpoint_desc.protocol)) {
+  if (is_host_mem && local_endpoint_->NeedHostVaMapping()) {
     HIXL_CHK_STATUS_RET(HostRegisterProxy::GetRegisteredDeviceAddrByDev(local_endpoint_desc.loc.device.devPhyId,
                                                                         mem->addr, register_dev_addr),
                         "Failed to get registered device addr, devPhyId=%d, addr=%p",
@@ -983,7 +983,7 @@ Status HixlCSClient::BatchTransferSync(bool is_get, uint32_t list_num, const Hix
   const EndpointDesc endpoint = local_endpoint_->GetEndpoint();
   Status ret = FAILED;
   if (IsDeviceEndpoint(endpoint)) {
-    if (IsHostRegisterMappedProtocol(endpoint.protocol)) {
+    if (local_endpoint_->NeedHostVaMapping()) {
       std::vector<HixlOneSideOpDesc> mutable_descs(desc_list, desc_list + list_num);
       HIXL_CHK_STATUS_RET(ConvertHostMappedDescs(list_num, mutable_descs.data()),
                           "[HixlClient] convert host mapped descs failed.");
@@ -1023,7 +1023,7 @@ Status HixlCSClient::BatchTransferAsync(bool is_get, uint32_t list_num, const Hi
   const EndpointDesc ep = local_endpoint_->GetEndpoint();
   Status ret = FAILED;
   if (IsDeviceEndpoint(ep)) {
-    if (IsHostRegisterMappedProtocol(ep.protocol)) {
+    if (local_endpoint_->NeedHostVaMapping()) {
       std::vector<HixlOneSideOpDesc> mutable_descs(desc_list, desc_list + list_num);
       HIXL_CHK_STATUS_RET(ConvertHostMappedDescs(list_num, mutable_descs.data()),
                           "[HixlClient] convert host mapped descs failed.");

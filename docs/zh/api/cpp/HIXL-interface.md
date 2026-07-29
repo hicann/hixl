@@ -291,7 +291,7 @@ UBG
 
 | 字段名 | 数据类型 | 必选/可选 | 说明 | 支持值/填写规则 |
 | ---- | ---- | ---- | ---- | ---- |
-| comm_resource_config.protocol_desc | 字符串或字符串数组 | 可选 | 配置可使用的通信协议以及通信设备位置范围，格式为`${protocol}:${placement}` | 支持"roce:device"/"hccs:device"/"ub_ctp:device"/"ub_tp:device"/"uboe:device"/"ubg:device"/"roce:host"/"ub_ctp:host"/"ub_tp:host"。配置后会对OPTION_LOCAL_COMM_RES中显式配置的endpoint_list和自动生成的endpoint_list按该范围进行过滤。 |
+| comm_resource_config.protocol_desc | 字符串或字符串数组 | 可选 | 配置可使用的通信协议以及通信设备位置范围，格式为`${protocol}:${placement}` | 支持"roce:device"/"hccs:device"/"ub_ctp:device"/"ub_tp:device"/"uboe:device"/"ubg:device"/"roce:host"/"ub_ctp:host"/"ub_tp:host"。配置后会对OPTION_LOCAL_COMM_RES中显式配置的endpoint_list和自动生成的endpoint_list按该范围进行过滤。A5上未配置该字段或仅配置"ub_ctp:device"时，自动生成Device UB资源，Host内存通过UBMEM映射到Device地址后使用Device UB链路传输；同时配置"ub_ctp:device"和"ub_ctp:host"时，自动生成Device+Host UB资源并使用原有纯URMA路径。显式配置的OPTION_LOCAL_COMM_RES在未配置本字段时不进行额外过滤。 |
 | comm_resource_config.qos | 数字 | 可选 | 配置通信协议qos | 当前仅支持[0-7]，当未配置的时候，默认为0。|
 | comm_resource_config.max_active_channels | 数字 | 可选 | CS场景下配置设备侧同时活跃传输通道数量 | 取值为正整数，未配置时默认值为128。每个active channel消耗2个Stream资源，配置值需结合当前卡形态的Stream资源上限及业务中已创建的Stream数量预留余量；不同卡形态的Stream资源上限参见CANN Runtime API [aclrtCreateStream](https://www.hiascend.com/document/detail/zh/canncommercial/latest/API/runtimeapi/aclcppdevg_03_0066.html)资料。|
 

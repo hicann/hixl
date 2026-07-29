@@ -103,8 +103,6 @@ bool IsIntraRoceEnabled();
 
 const char *IntraRoceEnableStatusStr();
 
-bool IsHostRegisterMappedProtocol(CommProtocol protocol);
-
 enum class SocType { kV2, kV3, kV5, kOther };
 
 Status GetSocName(std::string &soc_name);

@@ -24,6 +24,12 @@ namespace hixl {
 namespace {
 constexpr uint32_t kRoceQueueNum = 1U;  // ROCE QP数量默认值
 
+bool IsDefaultHostVaMappingEnabled(const EndpointDesc &endpoint) {
+  return endpoint.loc.locType == ENDPOINT_LOC_TYPE_DEVICE &&
+         (endpoint.protocol == COMM_PROTOCOL_UBOE || endpoint.protocol == COMM_PROTOCOL_UBG ||
+          endpoint.protocol == COMM_PROTOCOL_UBC_CTP);
+}
+
 Status BuildChannelName(const EndpointDesc &endpoint, const ChannelDesc &channel_desc, uint32_t port,
                         std::string &channel_name) {
   // channelName作为两端channel业务匹配标识，两端需一致：
@@ -64,6 +70,12 @@ Status InitChannelDesc(const EndpointDesc &endpoint, const ChannelDesc &channel_
   return SUCCESS;
 }
 }  // namespace
+
+Endpoint::Endpoint(const EndpointDesc &endpoint)
+    : endpoint_(endpoint), need_host_va_mapping_(IsDefaultHostVaMappingEnabled(endpoint)) {}
+
+Endpoint::Endpoint(const EndpointDesc &endpoint, bool need_host_va_mapping)
+    : endpoint_(endpoint), need_host_va_mapping_(need_host_va_mapping) {}
 
 Status Endpoint::Initialize() {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -114,6 +126,10 @@ const EndpointDesc &Endpoint::GetEndpoint() const {
   return endpoint_;
 }
 
+bool Endpoint::NeedHostVaMapping() const {
+  return need_host_va_mapping_;
+}
+
 Status Endpoint::RegisterMem(const char *mem_tag, const CommMem &mem, MemHandle &mem_handle) {
   std::lock_guard<std::mutex> lock(mutex_);
   Status ret = SUCCESS;
@@ -124,7 +140,7 @@ Status Endpoint::RegisterMem(const char *mem_tag, const CommMem &mem, MemHandle 
       (void)HostRegisterProxy::UnregisterByDev(endpoint_.loc.device.devPhyId, mem.addr);
     }
   });
-  if (mem.type == COMM_MEM_TYPE_HOST && IsHostRegisterMappedProtocol(endpoint_.protocol)) {
+  if (mem.type == COMM_MEM_TYPE_HOST && NeedHostVaMapping()) {
     HIXL_CHK_STATUS_RET(
         HostRegisterProxy::RegisterByDev(endpoint_.loc.device.devPhyId, mem.addr, mem.size, registered_dev_mem),
         "Register mem failed, as host mem register failed, host addr=%p, size=%lu, devPhyId=%d.", mem.addr, mem.size,

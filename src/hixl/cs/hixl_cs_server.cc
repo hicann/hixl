@@ -44,15 +44,54 @@ bool IsUbEndpoint(CommProtocol protocol) {
   return protocol == COMM_PROTOCOL_UBC_TP || protocol == COMM_PROTOCOL_UBC_CTP;
 }
 
-bool ShouldRegisterEndpointForMem(const EndpointDesc &endpoint, CommMemType mem_type) {
-  if (!IsUbEndpoint(endpoint.protocol)) {
+bool IsValidMemType(CommMemType type) {
+  return type == COMM_MEM_TYPE_HOST || type == COMM_MEM_TYPE_DEVICE;
+}
+
+bool IsDeviceEndpointDesc(const EndpointDesc &endpoint) {
+  return endpoint.loc.locType == ENDPOINT_LOC_TYPE_DEVICE;
+}
+
+bool IsUbCtpEndpoint(const EndpointDesc &endpoint) {
+  return endpoint.protocol == COMM_PROTOCOL_UBC_CTP;
+}
+
+bool IsDeviceUbCtpEndpoint(const EndpointDesc &endpoint) {
+  return IsDeviceEndpointDesc(endpoint) && IsUbCtpEndpoint(endpoint);
+}
+
+bool IsDeviceUboeEndpoint(const EndpointDesc &endpoint) {
+  return IsDeviceEndpointDesc(endpoint) && endpoint.protocol == COMM_PROTOCOL_UBOE;
+}
+
+bool IsDeviceUbgEndpoint(const EndpointDesc &endpoint) {
+  return IsDeviceEndpointDesc(endpoint) && endpoint.protocol == COMM_PROTOCOL_UBG;
+}
+
+bool AreUbCtpEndpointsAllDevice(const EndpointDesc *endpoint_list, uint32_t list_num) {
+  for (uint32_t i = 0U; i < list_num; ++i) {
+    if (IsUbCtpEndpoint(endpoint_list[i]) && !IsDeviceEndpointDesc(endpoint_list[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool NeedServerHostVaMapping(const EndpointDesc &endpoint, bool ub_ctp_endpoints_all_device) {
+  return IsDeviceUboeEndpoint(endpoint) || IsDeviceUbgEndpoint(endpoint) ||
+         (ub_ctp_endpoints_all_device && IsDeviceUbCtpEndpoint(endpoint));
+}
+
+bool ShouldRegisterEndpointForMem(const EndpointPtr &endpoint, CommMemType mem_type) {
+  const auto &endpoint_desc = endpoint->GetEndpoint();
+  if (!IsUbEndpoint(endpoint_desc.protocol)) {
     return true;
   }
   if (mem_type == COMM_MEM_TYPE_HOST) {
-    return endpoint.loc.locType == ENDPOINT_LOC_TYPE_HOST;
+    return endpoint_desc.loc.locType == ENDPOINT_LOC_TYPE_HOST || endpoint->NeedHostVaMapping();
   }
   if (mem_type == COMM_MEM_TYPE_DEVICE) {
-    return endpoint.loc.locType == ENDPOINT_LOC_TYPE_DEVICE;
+    return endpoint_desc.loc.locType == ENDPOINT_LOC_TYPE_DEVICE;
   }
   return false;
 }
@@ -169,10 +208,13 @@ Status HixlCSServer::RegisterDeviceTransFinishedFlag(const std::vector<EndpointP
 Status HixlCSServer::Initialize(const EndpointDesc *endpoint_list, uint32_t list_num) {
   HIXL_CHECK_NOTNULL(endpoint_list);
   HIXL_CHK_BOOL_RET_STATUS(list_num > 0, PARAM_INVALID, "endpoint list num:%u is invalid, must > 0", list_num);
+  const bool ub_ctp_endpoints_all_device = AreUbCtpEndpointsAllDevice(endpoint_list, list_num);
   for (uint32_t i = 0U; i < list_num; ++i) {
     EndpointHandle handle = nullptr;
-    HIXL_CHK_STATUS_RET(endpoint_store_.CreateEndpoint(endpoint_list[i], handle),
-                        "Failed to create endpoint, index:%u, %s", i, EndpointToString(endpoint_list[i]).c_str());
+    HIXL_CHK_STATUS_RET(
+        endpoint_store_.CreateEndpoint(endpoint_list[i], handle,
+                                       NeedServerHostVaMapping(endpoint_list[i], ub_ctp_endpoints_all_device)),
+        "Failed to create endpoint, index:%u, %s", i, EndpointToString(endpoint_list[i]).c_str());
   }
   msg_handler_.RegisterMsgProcessor(CtrlMsgType::kMatchEndpointReq,
                                     [this](int32_t fd, const char *msg, uint64_t msg_len) -> Status {
@@ -277,12 +319,20 @@ Status HixlCSServer::RegisterMem(const char *mem_tag, const CommMem *mem, MemHan
              static_cast<int32_t>(mem->type));
   auto all_handles = endpoint_store_.GetAllEndpointHandles();
   HIXL_CHK_BOOL_RET_STATUS(all_handles.size() > 0, PARAM_INVALID, "no endpoint is available");
+  bool has_ub_endpoint = false;
+  for (auto handle : all_handles) {
+    auto endpoint = endpoint_store_.GetEndpoint(handle);
+    HIXL_CHECK_NOTNULL(endpoint);
+    has_ub_endpoint = has_ub_endpoint || IsUbEndpoint(endpoint->GetEndpoint().protocol);
+  }
+  HIXL_CHK_BOOL_RET_STATUS(!has_ub_endpoint || IsValidMemType(mem->type), PARAM_INVALID, "invalid mem type:%d",
+                           static_cast<int32_t>(mem->type));
+
   std::vector<EndpointMemInfo> ep_mem_infos;
   for (auto handle : all_handles) {
     auto endpoint = endpoint_store_.GetEndpoint(handle);
     HIXL_CHECK_NOTNULL(endpoint);
-    const auto &endpoint_desc = endpoint->GetEndpoint();
-    if (!ShouldRegisterEndpointForMem(endpoint_desc, mem->type)) {
+    if (!ShouldRegisterEndpointForMem(endpoint, mem->type)) {
       continue;
     }
     MemHandle ep_mem_handle = nullptr;

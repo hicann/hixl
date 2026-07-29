@@ -517,6 +517,8 @@ void UbClientHandler::Dump(const char *reason, DumpLogLevel level) const {
     CommType type;
     HixlClientHandle handle;
     bool connected;
+    std::string local_endpoint;
+    std::string remote_endpoint;
   };
   std::vector<DumpLink> links;
   size_t handle_count = 0;
@@ -529,7 +531,10 @@ void UbClientHandler::Dump(const char *reason, DumpLogLevel level) const {
     handle_count = handles_.size();
     connected_type_count = connected_types_.size();
     for (const auto &[type, handle] : handles_) {
-      links.push_back({type, handle, connected_types_.count(type) != 0U});
+      auto pair_it = link_pairs_.find(type);
+      links.push_back({type, handle, connected_types_.count(type) != 0U,
+                       pair_it == link_pairs_.end() ? "" : pair_it->second.local.ToString(),
+                       pair_it == link_pairs_.end() ? "" : pair_it->second.remote.ToString()});
     }
   }
   {
@@ -547,11 +552,8 @@ void UbClientHandler::Dump(const char *reason, DumpLogLevel level) const {
   LogUbDumpSummary(level, reason, local_engine_, remote_engine_, handle_count, connected_type_count, lazy_mode_,
                    complete_req_count, local_segment_count, remote_segment_count);
   for (const auto &link : links) {
-    auto pair_it = link_pairs_.find(link.type);
-    const std::string local_endpoint = (pair_it == link_pairs_.end()) ? "" : pair_it->second.local.ToString();
-    const std::string remote_endpoint = (pair_it == link_pairs_.end()) ? "" : pair_it->second.remote.ToString();
-    LogUbDumpLink(level, reason, local_engine_, remote_engine_, link.type, link.handle, link.connected, local_endpoint,
-                  remote_endpoint);
+    LogUbDumpLink(level, reason, local_engine_, remote_engine_, link.type, link.handle, link.connected,
+                  link.local_endpoint, link.remote_endpoint);
   }
 }
 

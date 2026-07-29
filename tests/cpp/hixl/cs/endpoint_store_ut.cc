@@ -192,4 +192,31 @@ TEST(EndpointStoreUt, MatchEndpointFailsForRoceWhenAddrTypeInvalid) {
   EXPECT_EQ(store.Finalize(), SUCCESS);
 }
 
+TEST(EndpointStoreUt, EndpointDefaultHostVaMappingEnabledForDeviceUboeUbgAndUbCtp) {
+  EndpointDesc uboe = MakeUbEndpoint(COMM_PROTOCOL_UBOE, {});
+  EndpointDesc ubg = MakeUbEndpoint(COMM_PROTOCOL_UBG, {});
+  EndpointDesc ub_ctp = MakeUbEndpoint(COMM_PROTOCOL_UBC_CTP, {});
+  EndpointDesc ub_tp = MakeUbEndpoint(COMM_PROTOCOL_UBC_TP, {});
+  EndpointDesc host_ub_ctp = MakeUbEndpoint(COMM_PROTOCOL_UBC_CTP, {});
+  EndpointDesc host_ubg = MakeUbEndpoint(COMM_PROTOCOL_UBG, {});
+  host_ub_ctp.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+  host_ubg.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+
+  EXPECT_TRUE(Endpoint(uboe).NeedHostVaMapping());
+  EXPECT_TRUE(Endpoint(ubg).NeedHostVaMapping());
+  EXPECT_TRUE(Endpoint(ub_ctp).NeedHostVaMapping());
+  EXPECT_FALSE(Endpoint(ub_tp).NeedHostVaMapping());
+  EXPECT_FALSE(Endpoint(host_ub_ctp).NeedHostVaMapping());
+  EXPECT_FALSE(Endpoint(host_ubg).NeedHostVaMapping());
+}
+
+TEST(EndpointStoreUt, EndpointConfiguredHostVaMappingOverridesDefault) {
+  EndpointDesc ub_ctp = MakeUbEndpoint(COMM_PROTOCOL_UBC_CTP, {});
+  EndpointDesc host_ub_ctp = MakeUbEndpoint(COMM_PROTOCOL_UBC_CTP, {});
+  host_ub_ctp.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+
+  EXPECT_FALSE(Endpoint(ub_ctp, false).NeedHostVaMapping());
+  EXPECT_TRUE(Endpoint(host_ub_ctp, true).NeedHostVaMapping());
+}
+
 }  // namespace hixl

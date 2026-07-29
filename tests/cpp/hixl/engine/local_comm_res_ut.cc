@@ -19,6 +19,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -637,10 +638,36 @@ TEST_F(LocalCommResGenerateTest, GenerateSuccess) {
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(res.version, "1.3");
   EXPECT_FALSE(res.endpoint_list.empty());
-  // 所有 endpoint 应有 net_instance_id
+  // 默认仅生成 Device UB endpoint，且所有 endpoint 应有 net_instance_id
   for (const auto &ep : res.endpoint_list) {
+    EXPECT_EQ(ep.placement, kPlacementDevice);
     EXPECT_FALSE(ep.net_instance_id.empty());
   }
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlySkipsDynamicRoute) {
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+  CleanupTempDir(temp_dir_);
+
+  LocalCommRes res;
+  int32_t ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
+
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_TRUE(std::all_of(res.endpoint_list.begin(), res.endpoint_list.end(),
+                          [](const EndpointConfig &ep) { return ep.placement == kPlacementDevice; }));
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostSuccess) {
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+
+  LocalCommRes res;
+  int32_t ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceAndHost, res);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_FALSE(res.endpoint_list.empty());
+  EXPECT_TRUE(std::any_of(res.endpoint_list.begin(), res.endpoint_list.end(),
+                          [](const EndpointConfig &ep) { return ep.placement == kPlacementDevice; }));
+  EXPECT_TRUE(std::any_of(res.endpoint_list.begin(), res.endpoint_list.end(),
+                          [](const EndpointConfig &ep) { return ep.placement == kPlacementHost; }));
 }
 
 TEST_F(LocalCommResGenerateTest, GenerateTopoNotFound) {
