@@ -7,7 +7,7 @@
 该工具通过用户输入的npu逻辑id，自动生成以下信息：
 - 版本号（version）
 - 网络实例 ID（net_instance_id）
-- 端点列表（endpoint_list），包含所有通信边的配置信息
+- 端点列表（endpoint_list），默认仅包含Device UB通信边
 
 
 ## 编译
@@ -63,13 +63,13 @@ bash build.sh --examples
     {
       "protocol": "ub_ctp",
       "comm_id": "000000000000004000100000dfdf1672",
-      "placement": "host",
+      "placement": "device",
       "plane": "plane_pg_0"
     },
     {
       "protocol": "ub_ctp",
-      "comm_id": "000000000000004000100000dfdf1672",
-      "placement": "host",
+      "comm_id": "000000000000008000100000dfdf1b01",
+      "placement": "device",
       "dst_eid": "0x000000000000008000100000dfdf1b01"
     }
   ]
@@ -85,7 +85,7 @@ bash build.sh --examples
 | endpoint_list | array | 端点列表 |
 | protocol | string | 通信协议，如 "ub_ctp" |
 | comm_id | string | 通信标识符 |
-| placement | string | 位置信息："host" 或 "device" |
+| placement | string | 位置信息；当前工具默认输出"device" |
 | plane | string | 平面标识（如 plane_pg_0, plane_pg_1），可选 |
 | dst_eid | string | 目标 EID，可选 |
 

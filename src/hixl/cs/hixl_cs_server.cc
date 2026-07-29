@@ -48,15 +48,45 @@ bool IsValidMemType(CommMemType type) {
   return type == COMM_MEM_TYPE_HOST || type == COMM_MEM_TYPE_DEVICE;
 }
 
-bool ShouldRegisterEndpointForMem(const EndpointDesc &endpoint, CommMemType mem_type) {
-  if (!IsUbEndpoint(endpoint.protocol)) {
+bool IsDeviceEndpointDesc(const EndpointDesc &endpoint) {
+  return endpoint.loc.locType == ENDPOINT_LOC_TYPE_DEVICE;
+}
+
+bool IsUbCtpEndpoint(const EndpointDesc &endpoint) {
+  return endpoint.protocol == COMM_PROTOCOL_UBC_CTP;
+}
+
+bool IsDeviceUbCtpEndpoint(const EndpointDesc &endpoint) {
+  return IsDeviceEndpointDesc(endpoint) && IsUbCtpEndpoint(endpoint);
+}
+
+bool IsDeviceUboeEndpoint(const EndpointDesc &endpoint) {
+  return IsDeviceEndpointDesc(endpoint) && endpoint.protocol == COMM_PROTOCOL_UBOE;
+}
+
+bool AreUbCtpEndpointsAllDevice(const EndpointDesc *endpoint_list, uint32_t list_num) {
+  for (uint32_t i = 0U; i < list_num; ++i) {
+    if (IsUbCtpEndpoint(endpoint_list[i]) && !IsDeviceEndpointDesc(endpoint_list[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool NeedServerHostVaMapping(const EndpointDesc &endpoint, bool ub_ctp_endpoints_all_device) {
+  return IsDeviceUboeEndpoint(endpoint) || (ub_ctp_endpoints_all_device && IsDeviceUbCtpEndpoint(endpoint));
+}
+
+bool ShouldRegisterEndpointForMem(const EndpointPtr &endpoint, CommMemType mem_type) {
+  const auto &endpoint_desc = endpoint->GetEndpoint();
+  if (!IsUbEndpoint(endpoint_desc.protocol)) {
     return true;
   }
   if (mem_type == COMM_MEM_TYPE_HOST) {
-    return endpoint.loc.locType == ENDPOINT_LOC_TYPE_HOST;
+    return endpoint_desc.loc.locType == ENDPOINT_LOC_TYPE_HOST || endpoint->NeedHostVaMapping();
   }
   if (mem_type == COMM_MEM_TYPE_DEVICE) {
-    return endpoint.loc.locType == ENDPOINT_LOC_TYPE_DEVICE;
+    return endpoint_desc.loc.locType == ENDPOINT_LOC_TYPE_DEVICE;
   }
   return false;
 }
@@ -169,9 +199,13 @@ Status HixlCSServer::RegisterDeviceTransFinishedFlag(bool resolve_notify_addr) {
 Status HixlCSServer::Initialize(const EndpointDesc *endpoint_list, uint32_t list_num) {
   HIXL_CHECK_NOTNULL(endpoint_list);
   HIXL_CHK_BOOL_RET_STATUS(list_num > 0, PARAM_INVALID, "endpoint list num:%u is invalid, must > 0", list_num);
+  const bool ub_ctp_endpoints_all_device = AreUbCtpEndpointsAllDevice(endpoint_list, list_num);
   for (uint32_t i = 0U; i < list_num; ++i) {
     EndpointHandle handle = nullptr;
-    HIXL_CHK_STATUS_RET(endpoint_store_.CreateEndpoint(endpoint_list[i], handle), "Failed to create endpoint.");
+    HIXL_CHK_STATUS_RET(
+        endpoint_store_.CreateEndpoint(endpoint_list[i], handle,
+                                       NeedServerHostVaMapping(endpoint_list[i], ub_ctp_endpoints_all_device)),
+        "Failed to create endpoint.");
   }
   msg_handler_.RegisterMsgProcessor(CtrlMsgType::kMatchEndpointReq,
                                     [this](int32_t fd, const char *msg, uint64_t msg_len) -> Status {
@@ -290,8 +324,7 @@ Status HixlCSServer::RegisterMem(const char *mem_tag, const CommMem *mem, MemHan
   for (auto handle : all_handles) {
     auto endpoint = endpoint_store_.GetEndpoint(handle);
     HIXL_CHECK_NOTNULL(endpoint);
-    const auto &endpoint_desc = endpoint->GetEndpoint();
-    if (!ShouldRegisterEndpointForMem(endpoint_desc, mem->type)) {
+    if (!ShouldRegisterEndpointForMem(endpoint, mem->type)) {
       continue;
     }
     MemHandle ep_mem_handle = nullptr;
@@ -301,8 +334,8 @@ Status HixlCSServer::RegisterMem(const char *mem_tag, const CommMem *mem, MemHan
     ep_mem_info.mem_handle = ep_mem_handle;
     ep_mem_infos.emplace_back(ep_mem_info);
   }
-  HIXL_CHK_BOOL_RET_STATUS(!ep_mem_infos.empty(), PARAM_INVALID,
-                           "no endpoint matches mem type:%d for register mem", static_cast<int32_t>(mem->type));
+  HIXL_CHK_BOOL_RET_STATUS(!ep_mem_infos.empty(), PARAM_INVALID, "no endpoint matches mem type:%d for register mem",
+                           static_cast<int32_t>(mem->type));
   *mem_handle = ep_mem_infos[0].mem_handle;
   HIXL_EVENT("[HixlServer] register mem success, addr:%p, size:%lu, type:%d, handle:%p", mem->addr, mem->size,
              static_cast<int32_t>(mem->type), *mem_handle);

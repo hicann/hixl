@@ -16,10 +16,21 @@ namespace hixl {
 Status EndpointStore::CreateEndpoint(const EndpointDesc &endpoint, EndpointHandle &endpoint_handle) {
   auto ep = MakeShared<Endpoint>(endpoint);
   HIXL_CHECK_NOTNULL(ep);
-  HIXL_CHK_STATUS_RET(ep->Initialize(), "Failed to Initialize endpoint.");
-  endpoint_handle = ep->GetHandle();
+  return StoreEndpoint(ep, endpoint_handle);
+}
+
+Status EndpointStore::CreateEndpoint(const EndpointDesc &endpoint, EndpointHandle &endpoint_handle,
+                                     bool need_host_va_mapping) {
+  auto ep = MakeShared<Endpoint>(endpoint, need_host_va_mapping);
+  HIXL_CHECK_NOTNULL(ep);
+  return StoreEndpoint(ep, endpoint_handle);
+}
+
+Status EndpointStore::StoreEndpoint(const EndpointPtr &endpoint, EndpointHandle &endpoint_handle) {
+  HIXL_CHK_STATUS_RET(endpoint->Initialize(), "Failed to Initialize endpoint.");
+  endpoint_handle = endpoint->GetHandle();
   std::lock_guard<std::mutex> lock(mutex_);
-  endpoints_[endpoint_handle] = ep;
+  endpoints_[endpoint_handle] = endpoint;
   return SUCCESS;
 }
 

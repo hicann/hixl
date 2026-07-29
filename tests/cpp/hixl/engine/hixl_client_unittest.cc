@@ -1295,7 +1295,8 @@ TEST_F(HixlClientUTest, EndpointMatcherDstEidPriorityTest) {
                                         MakeUbEp("remote_2", "", "device", "default")};
   // 通配(L2)在前, 精确(L1)在后, 验证sort将其纠正为精确endpoint优先
   std::vector<EndpointConfig> local = {MakeUbEp("wildcard", "", "device", "default"),
-                                       MakeUbEp("eid_x", "remote_1", "device")};
+                                       MakeUbEp("eid_x", "remote_1", "device"),
+                                       MakeUbEp("host_local", "", "host", "host_plane")};
 
   std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
   HandlerCreateArgs::HandlerType handler_type;
@@ -1309,6 +1310,34 @@ TEST_F(HixlClientUTest, EndpointMatcherDstEidPriorityTest) {
   EXPECT_EQ(matched_pairs[0].remote.comm_id, "remote_1");
   EXPECT_EQ(matched_pairs[0].remote.dst_eid, "eid_x");
   EXPECT_EQ(matched_pairs[0].type, CommType::COMM_TYPE_UB_D2D);
+}
+
+TEST_F(HixlClientUTest, EndpointMatcherUsesPgPlaneWhenDirectEidsDoNotMatch) {
+  std::vector<EndpointConfig> local = {MakeUbEp("local_direct", "other_remote", "device"),
+                                       MakeUbEp("local_pg", "", "device", "plane_pg_0"),
+                                       MakeUbEp("host_local", "", "host", "host_plane")};
+  std::vector<EndpointConfig> remote = {MakeUbEp("remote_direct", "other_local", "device"),
+                                        MakeUbEp("remote_pg", "", "device", "plane_pg_0")};
+
+  std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
+  HandlerCreateArgs::HandlerType handler_type;
+  ASSERT_EQ(EndpointMatcher::MatchEndpoints(local, remote, matched_pairs, handler_type), SUCCESS);
+  ASSERT_EQ(matched_pairs.size(), 1U);
+  EXPECT_EQ(matched_pairs[0].local.comm_id, "local_pg");
+  EXPECT_EQ(matched_pairs[0].remote.comm_id, "remote_pg");
+  EXPECT_EQ(matched_pairs[0].local.plane, "plane_pg_0");
+  EXPECT_EQ(matched_pairs[0].type, CommType::COMM_TYPE_UB_D2D);
+}
+
+TEST_F(HixlClientUTest, EndpointMatcherDoesNotUseUbCtpAcrossSuperPods) {
+  std::vector<EndpointConfig> local = {MakeUbEp("local_pg", "", "device", "plane_pg_0")};
+  std::vector<EndpointConfig> remote = {MakeUbEp("remote_pg", "", "device", "plane_pg_0")};
+  remote[0].net_instance_id = "superpod2-2";
+
+  std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
+  HandlerCreateArgs::HandlerType handler_type;
+  EXPECT_EQ(EndpointMatcher::MatchEndpoints(local, remote, matched_pairs, handler_type), PARAM_INVALID);
+  EXPECT_TRUE(matched_pairs.empty());
 }
 
 // 所有local dst_eid为空时排序是no-op，匹配不受影响
@@ -1431,6 +1460,47 @@ TEST_F(HixlClientUTest, EndpointMatcherDirectMatchRequiresSamePlacement) {
   EXPECT_TRUE(matched_pairs.empty());
 }
 
+TEST_F(HixlClientUTest, EndpointMatcherPureDeviceUbCtpUsesDirectHandler) {
+  std::vector<EndpointConfig> local = {MakeUbEp("local_1", "remote_1", "device")};
+  std::vector<EndpointConfig> remote = {MakeUbEp("remote_1", "local_1", "device")};
+
+  auto matched_pair = MatchSingleDirectAndVerify(local, remote, CommType::COMM_TYPE_UB_D2D);
+  EXPECT_EQ(matched_pair.local.protocol, kProtocolUbCtp);
+  EXPECT_EQ(matched_pair.remote.protocol, kProtocolUbCtp);
+}
+
+TEST_F(HixlClientUTest, EndpointMatcherDeviceUbCtpDirectUsesGroupMatchResult) {
+  std::vector<EndpointConfig> local = {MakeUbEp("local_direct", "other_remote", "device"),
+                                       MakeUbEp("local_pg", "", "device", "plane_pg_0")};
+  std::vector<EndpointConfig> remote = {MakeUbEp("remote_direct", "other_local", "device"),
+                                        MakeUbEp("remote_pg", "", "device", "plane_pg_0")};
+
+  auto matched_pair = MatchSingleDirectAndVerify(local, remote, CommType::COMM_TYPE_UB_D2D);
+  EXPECT_EQ(matched_pair.local.comm_id, "local_pg");
+  EXPECT_EQ(matched_pair.remote.comm_id, "remote_pg");
+  EXPECT_EQ(matched_pair.local.plane, "plane_pg_0");
+}
+
+TEST_F(HixlClientUTest, EndpointMatcherUbCtpAllDeviceUsesDirectWithOtherEndpoint) {
+  std::vector<EndpointConfig> local = {MakeUbEp("local_1", "remote_1", "device"),
+                                       MakeDirectEp(kProtocolUboe, kPlacementDevice)};
+  std::vector<EndpointConfig> remote = {MakeUbEp("remote_1", "local_1", "device"),
+                                        MakeDirectEp(kProtocolUboe, kPlacementDevice)};
+
+  auto matched_pair = MatchSingleDirectAndVerify(local, remote, CommType::COMM_TYPE_UB_D2D);
+  EXPECT_EQ(matched_pair.local.protocol, kProtocolUbCtp);
+  EXPECT_EQ(matched_pair.remote.protocol, kProtocolUbCtp);
+}
+
+TEST_F(HixlClientUTest, EndpointMatcherDeviceAndHostUbCtpKeepsUbHandler) {
+  std::vector<EndpointConfig> local = {MakeUbEp("local_1", "", "device", "default"),
+                                       MakeUbEp("local_2", "", "host", "default")};
+  std::vector<EndpointConfig> remote = {MakeUbEp("remote_1", "", "device", "default"),
+                                        MakeUbEp("remote_2", "", "host", "default")};
+
+  MatchAndVerify(local, remote, 4U, HandlerCreateArgs::HandlerType::UB);
+}
+
 TEST_F(HixlClientUTest, EndpointMatcherIgnoresIntraRoceEnv) {
   std::vector<EndpointConfig> local = {MakeUbEp("local_1", "", "device", "default"),
                                        MakeDirectEp(kProtocolRoce, kPlacementDevice)};
@@ -1442,9 +1512,11 @@ TEST_F(HixlClientUTest, EndpointMatcherIgnoresIntraRoceEnv) {
   HandlerCreateArgs::HandlerType handler_type;
   Status st = EndpointMatcher::MatchEndpoints(local, remote, matched_pairs, handler_type);
   EXPECT_EQ(st, SUCCESS);
-  EXPECT_EQ(handler_type, HandlerCreateArgs::HandlerType::UB);
+  EXPECT_EQ(handler_type, HandlerCreateArgs::HandlerType::DIRECT);
   ASSERT_EQ(matched_pairs.size(), 1U);
   EXPECT_EQ(matched_pairs[0].type, CommType::COMM_TYPE_UB_D2D);
+  EXPECT_EQ(matched_pairs[0].local.protocol, kProtocolUbCtp);
+  EXPECT_EQ(matched_pairs[0].remote.protocol, kProtocolUbCtp);
 }
 
 TEST_F(HixlClientUTest, CheckAliveWritesControlSocket) {

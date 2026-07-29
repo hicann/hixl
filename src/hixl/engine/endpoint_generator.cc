@@ -284,6 +284,20 @@ Status IsA5UbAutoGenNeeded(const HixlOptions &options, bool &needed) {
   return SUCCESS;
 }
 
+Status GetA5UbGenerateMode(const HixlOptions &options, LocalCommResGenerateMode &mode) {
+  mode = LocalCommResGenerateMode::kDeviceOnly;
+  if (options.GetProtocolDesc().empty()) {
+    return SUCCESS;
+  }
+  bool host_ub_needed = false;
+  HIXL_CHK_STATUS_RET(IsProtocolDescMatched(options, kProtocolUbCtp, kPlacementHost, host_ub_needed),
+                      "IsProtocolDescMatched failed");
+  if (host_ub_needed) {
+    mode = LocalCommResGenerateMode::kDeviceAndHost;
+  }
+  return SUCCESS;
+}
+
 void LogEndpointList(const char *source, const std::vector<EndpointConfig> &endpoint_list) {
   HIXL_LOGI("[EndpointGenerator] %s, count:%zu", source, endpoint_list.size());
   for (size_t i = 0; i < endpoint_list.size(); ++i) {
@@ -403,7 +417,9 @@ Status EndpointGenerator::AutoGenEndpointList(const HixlOptions &options, const 
     if (ub_auto_gen_needed) {
       HIXL_LOGI("[AutoGenEndpointList] A5 UB auto-generate: logic_id=%d, phy_id=%d", device_id, phy_id);
       hixl::LocalCommRes local_comm_res;
-      HIXL_CHK_STATUS_RET(hixl::GenerateLocalCommRes(phy_id, local_comm_res),
+      LocalCommResGenerateMode mode = LocalCommResGenerateMode::kDeviceOnly;
+      HIXL_CHK_STATUS_RET(GetA5UbGenerateMode(options, mode), "GetA5UbGenerateMode failed");
+      HIXL_CHK_STATUS_RET(hixl::GenerateLocalCommRes(phy_id, mode, local_comm_res),
                           "[AutoGenEndpointList] GenerateLocalCommRes failed");
       endpoint_list = std::move(local_comm_res.endpoint_list);
     }

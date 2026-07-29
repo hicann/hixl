@@ -51,6 +51,9 @@ constexpr MatchRule kSameInstanceRules[] = {
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolRoce, kPlacementHost,
      CommType::COMM_TYPE_ROCE},
 };
+
+constexpr MatchRule kSameInstanceUbCtpDeviceOnlyRule = {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT,
+                                                        kProtocolUbCtp, kPlacementDevice, CommType::COMM_TYPE_UB_D2D};
 }  // namespace
 
 CommType EndpointMatcher::ParseCommType(const std::string &local, const std::string &remote) {
@@ -68,6 +71,16 @@ CommType EndpointMatcher::ParseCommType(const std::string &local, const std::str
 
 bool EndpointMatcher::IsUbProtocol(const std::string &protocol) {
   return protocol == kProtocolUbCtp || protocol == kProtocolUbTp;
+}
+
+static bool IsUbCtpEndpoint(const EndpointConfig &endpoint) {
+  return endpoint.protocol == kProtocolUbCtp;
+}
+
+static bool AreUbCtpEndpointsAllDevice(const std::vector<EndpointConfig> &endpoints) {
+  return std::all_of(endpoints.begin(), endpoints.end(), [](const EndpointConfig &endpoint) {
+    return !IsUbCtpEndpoint(endpoint) || endpoint.placement == kPlacementDevice;
+  });
 }
 
 bool EndpointMatcher::IsDirectProtocol(const std::string &protocol) {
@@ -175,22 +188,37 @@ Status EndpointMatcher::TryMatchGroup(const std::vector<EndpointConfig> &local,
   return count > 0 ? SUCCESS : FAILED;
 }
 
+Status EndpointMatcher::TryMatchUbCtpD2DOnlyByGroup(const std::vector<EndpointConfig> &local,
+                                                    const std::vector<EndpointConfig> &remote,
+                                                    std::vector<HandlerCreateArgs::EndpointPair> &pairs) {
+  std::vector<HandlerCreateArgs::EndpointPair> group_pairs;
+  if (TryMatchGroup(local, remote, group_pairs) != SUCCESS) {
+    return FAILED;
+  }
+  if (group_pairs.size() != 1U || group_pairs[0].type != CommType::COMM_TYPE_UB_D2D ||
+      !IsUbCtpEndpoint(group_pairs[0].local) || !IsUbCtpEndpoint(group_pairs[0].remote)) {
+    return FAILED;
+  }
+  pairs = std::move(group_pairs);
+  return SUCCESS;
+}
+
 Status EndpointMatcher::TryMatchByPriority(const std::vector<EndpointConfig> &local,
                                            const std::vector<EndpointConfig> &remote, bool cross_instance,
                                            std::vector<HandlerCreateArgs::EndpointPair> &pairs,
                                            HandlerCreateArgs::HandlerType &handler_type) {
-  const MatchRule *rules = cross_instance ? kCrossInstanceRules : kSameInstanceRules;
-  const size_t rule_count = cross_instance ? sizeof(kCrossInstanceRules) / sizeof(kCrossInstanceRules[0])
-                                           : sizeof(kSameInstanceRules) / sizeof(kSameInstanceRules[0]);
-  for (size_t i = 0; i < rule_count; ++i) {
-    const auto &rule = rules[i];
+  auto try_match_rule = [&local, &remote, &pairs, &handler_type](const MatchRule &rule) -> Status {
     Status status = FAILED;
     switch (rule.rule_type) {
       case MatchRuleType::GROUP:
         status = TryMatchGroup(local, remote, pairs);
         break;
       case MatchRuleType::SINGLE:
-        status = TryMatchSingle(local, remote, rule.protocol, rule.placement, rule.type, pairs);
+        if (rule.protocol == kProtocolUbCtp && rule.type == CommType::COMM_TYPE_UB_D2D) {
+          status = TryMatchUbCtpD2DOnlyByGroup(local, remote, pairs);
+        } else {
+          status = TryMatchSingle(local, remote, rule.protocol, rule.placement, rule.type, pairs);
+        }
         break;
       default:
         break;
@@ -198,6 +226,22 @@ Status EndpointMatcher::TryMatchByPriority(const std::vector<EndpointConfig> &lo
     if (status == SUCCESS) {
       handler_type = rule.handler_type;
       LogMatchedEndpoints(pairs, handler_type);
+      return SUCCESS;
+    }
+    return FAILED;
+  };
+
+  if (!cross_instance && AreUbCtpEndpointsAllDevice(local) && AreUbCtpEndpointsAllDevice(remote)) {
+    if (try_match_rule(kSameInstanceUbCtpDeviceOnlyRule) == SUCCESS) {
+      return SUCCESS;
+    }
+  }
+
+  const MatchRule *rules = cross_instance ? kCrossInstanceRules : kSameInstanceRules;
+  const size_t rule_count = cross_instance ? sizeof(kCrossInstanceRules) / sizeof(kCrossInstanceRules[0])
+                                           : sizeof(kSameInstanceRules) / sizeof(kSameInstanceRules[0]);
+  for (size_t i = 0; i < rule_count; ++i) {
+    if (try_match_rule(rules[i]) == SUCCESS) {
       return SUCCESS;
     }
   }

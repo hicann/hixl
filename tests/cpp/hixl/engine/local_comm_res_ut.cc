@@ -19,6 +19,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -626,17 +627,47 @@ class LocalCommResGenerateTest : public LocalCommResTestBase {};
 
 TEST_F(LocalCommResGenerateTest, GenerateSuccess) {
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
+  std::string route_path = "/nonexistent/route.conf";
 
   LocalCommRes res;
   int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(res.version, "1.3");
   EXPECT_FALSE(res.endpoint_list.empty());
-  // 所有 endpoint 应有 net_instance_id
+  // 默认仅生成 Device UB endpoint，且所有 endpoint 应有 net_instance_id
   for (const auto &ep : res.endpoint_list) {
+    EXPECT_EQ(ep.placement, kPlacementDevice);
     EXPECT_FALSE(ep.net_instance_id.empty());
   }
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlyIgnoresMalformedRoute) {
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+  std::string route_path = CreateTempFileWithContent("/tmp/route_ut_XXXXXX", "invalid_content=no_pair_device_num\n");
+  ASSERT_FALSE(route_path.empty());
+
+  LocalCommRes res;
+  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  EXPECT_EQ(ret, SUCCESS);
+  ASSERT_FALSE(res.endpoint_list.empty());
+  EXPECT_TRUE(std::all_of(res.endpoint_list.begin(), res.endpoint_list.end(),
+                          [](const EndpointConfig &ep) { return ep.placement == kPlacementDevice; }));
+
+  unlink(route_path.c_str());
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostSuccess) {
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+  std::string route_path = data_dir_ + "route.conf";
+
+  LocalCommRes res;
+  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, LocalCommResGenerateMode::kDeviceAndHost, res);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_FALSE(res.endpoint_list.empty());
+  EXPECT_TRUE(std::any_of(res.endpoint_list.begin(), res.endpoint_list.end(),
+                          [](const EndpointConfig &ep) { return ep.placement == kPlacementDevice; }));
+  EXPECT_TRUE(std::any_of(res.endpoint_list.begin(), res.endpoint_list.end(),
+                          [](const EndpointConfig &ep) { return ep.placement == kPlacementHost; }));
 }
 
 TEST_F(LocalCommResGenerateTest, GenerateTopoNotFound) {
@@ -653,7 +684,7 @@ TEST_F(LocalCommResGenerateTest, GenerateRouteNotFound) {
   std::string route_path = "/nonexistent/route.conf";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, LocalCommResGenerateMode::kDeviceAndHost, res);
   // route.conf 不存在时会尝试 procfs fallback，procfs 也不存在则返回 FAILED
   EXPECT_NE(ret, SUCCESS);
 }
@@ -861,7 +892,7 @@ TEST_F(LocalCommResGenerateTest, GenerateRouteEidStrips0xPrefix) {
   ASSERT_FALSE(tmp_route.empty());
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, tmp_topo, tmp_route, res);
+  int32_t ret = GenerateLocalCommRes(0, tmp_topo, tmp_route, LocalCommResGenerateMode::kDeviceAndHost, res);
   EXPECT_EQ(ret, SUCCESS);
 
   // 验证 H2D/D2H 边中的 EID 不含 0x 前缀
@@ -1010,7 +1041,7 @@ TEST_F(LocalCommResProcfsFallbackTest, RouteNotFoundProcfsNotAvailable) {
   std::string route_path = "/nonexistent/route.conf";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, LocalCommResGenerateMode::kDeviceAndHost, res);
   EXPECT_NE(ret, SUCCESS);
 }
 
@@ -1020,7 +1051,7 @@ TEST_F(LocalCommResProcfsFallbackTest, RouteExistsNoFallback) {
   std::string route_path = data_dir_ + "route.conf";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, LocalCommResGenerateMode::kDeviceAndHost, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 }
@@ -1033,7 +1064,7 @@ TEST_F(LocalCommResProcfsFallbackTest, RouteMalformedProcfsNotAvailable) {
   ASSERT_FALSE(tmp_route.empty());
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, tmp_route, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, tmp_route, LocalCommResGenerateMode::kDeviceAndHost, res);
   EXPECT_NE(ret, SUCCESS);
 
   unlink(tmp_route.c_str());

@@ -134,6 +134,7 @@ struct EdgeCollectInput {
   int32_t phy_dev_id;
   const std::string &plane_pg_0_eid;
   const std::string &plane_pg_1_eid;
+  LocalCommResGenerateMode mode;
 };
 
 // TopoFileFinder 类相关函数已移至 namespace hixl 作用域
@@ -1207,15 +1208,17 @@ int32_t CollectAllEdges(const EdgeCollectInput &input, std::vector<EndpointConfi
     std::vector<EndpointConfig> edges;
     GenerateD2UEdges(input.plane_pg_0_eid, input.plane_pg_1_eid, edges);
     all_edges.insert(all_edges.end(), edges.begin(), edges.end());
-    edges.clear();
-    int32_t ret =
-        GenerateH2UEdges(input.phy_dev_id, input.route_data, input.plane_pg_0_eid, input.plane_pg_1_eid, edges);
-    if (ret != SUCCESS) {
-      return ret;
+    if (input.mode == LocalCommResGenerateMode::kDeviceAndHost) {
+      edges.clear();
+      int32_t ret =
+          GenerateH2UEdges(input.phy_dev_id, input.route_data, input.plane_pg_0_eid, input.plane_pg_1_eid, edges);
+      if (ret != SUCCESS) {
+        return ret;
+      }
+      all_edges.insert(all_edges.end(), edges.begin(), edges.end());
     }
-    all_edges.insert(all_edges.end(), edges.begin(), edges.end());
   }
-  if (!input.route_data.entries.empty()) {
+  if (input.mode == LocalCommResGenerateMode::kDeviceAndHost && !input.route_data.entries.empty()) {
     std::vector<EndpointConfig> edges;
     GenerateH2DEdges(input.route_data, edges);
     all_edges.insert(all_edges.end(), edges.begin(), edges.end());
@@ -1229,7 +1232,7 @@ int32_t CollectAllEdges(const EdgeCollectInput &input, std::vector<EndpointConfi
 // 组装 LocalCommRes 结果的内部函数
 int32_t BuildLocalCommResResult(int32_t phy_dev_id, bool is_server, const TopoData &topo_data,
                                 const RouteData &route_data, const std::set<int32_t> &related_npu_ids,
-                                LocalCommRes &local_comm_res) {
+                                LocalCommResGenerateMode mode, LocalCommRes &local_comm_res) {
   // 构建 NpuRootInfo
   std::map<int32_t, NpuRootInfo> npu_rootinfos;
   int32_t ret = BuildNpuRootinfos(related_npu_ids, is_server, npu_rootinfos);
@@ -1244,7 +1247,8 @@ int32_t BuildLocalCommResResult(int32_t phy_dev_id, bool is_server, const TopoDa
 
   // 生成所有边
   std::vector<EndpointConfig> all_edges;
-  ret = CollectAllEdges({topo_data, route_data, npu_rootinfos, phy_dev_id, plane_pg_0_eid, plane_pg_1_eid}, all_edges);
+  ret = CollectAllEdges({topo_data, route_data, npu_rootinfos, phy_dev_id, plane_pg_0_eid, plane_pg_1_eid, mode},
+                        all_edges);
   if (ret != SUCCESS) {
     return ret;
   }
@@ -1276,9 +1280,8 @@ int32_t BuildLocalCommResResult(int32_t phy_dev_id, bool is_server, const TopoDa
 }
 
 // 解析 route 文件，失败时回退到 procfs
-int32_t ParseRouteWithProcfsFallback(int32_t phy_dev_id, const std::string &route_path, RouteData &route_data,
-                                     std::set<int32_t> &related_npu_ids) {
-  related_npu_ids = CollectRelatedNpuIds(phy_dev_id);
+int32_t ParseRouteWithProcfsFallback(const std::string &route_path, RouteData &route_data,
+                                     const std::set<int32_t> &related_npu_ids) {
   int32_t ret = ParseRouteFile(route_path, route_data);
   if (ret != SUCCESS) {
     HIXL_LOGW("ParseRouteFile failed (path=%s), trying procfs fallback", route_path.c_str());
@@ -1294,12 +1297,18 @@ int32_t ParseRouteWithProcfsFallback(int32_t phy_dev_id, const std::string &rout
 
 // 解析 topo 和 route 文件，公共逻辑提取
 int32_t ParseTopoAndRouteFiles(int32_t phy_dev_id, const std::string &topo_path, const std::string &route_path,
-                               TopoData &topo_data, RouteData &route_data, std::set<int32_t> &related_npu_ids) {
+                               LocalCommResGenerateMode mode, TopoData &topo_data, RouteData &route_data,
+                               std::set<int32_t> &related_npu_ids) {
   int32_t ret = ParseTopoFile(topo_path, topo_data);
   if (ret != SUCCESS) {
     return ret;
   }
-  ret = ParseRouteWithProcfsFallback(phy_dev_id, route_path, route_data, related_npu_ids);
+  related_npu_ids = CollectRelatedNpuIds(phy_dev_id);
+  if (mode == LocalCommResGenerateMode::kDeviceOnly) {
+    HIXL_LOGI("Skip route.conf and procfs parsing in device-only mode");
+    return SUCCESS;
+  }
+  ret = ParseRouteWithProcfsFallback(route_path, route_data, related_npu_ids);
   if (ret != SUCCESS) {
     return ret;
   }
@@ -1323,17 +1332,26 @@ int32_t ResolveDefaultLocalCommResPaths(int32_t phy_dev_id, std::string &topo_pa
 }
 
 int32_t GenerateLocalCommRes(int32_t phy_dev_id, LocalCommRes &local_comm_res) {
+  return GenerateLocalCommRes(phy_dev_id, LocalCommResGenerateMode::kDeviceOnly, local_comm_res);
+}
+
+int32_t GenerateLocalCommRes(int32_t phy_dev_id, LocalCommResGenerateMode mode, LocalCommRes &local_comm_res) {
   std::string topo_path;
   std::string route_path;
   int32_t ret = ResolveDefaultLocalCommResPaths(phy_dev_id, topo_path, route_path);
   if (ret != SUCCESS) {
     return ret;
   }
-  return GenerateLocalCommRes(phy_dev_id, topo_path, route_path, local_comm_res);
+  return GenerateLocalCommRes(phy_dev_id, topo_path, route_path, mode, local_comm_res);
 }
 
 int32_t GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, const std::string &route_path,
                              LocalCommRes &local_comm_res) {
+  return GenerateLocalCommRes(phy_dev_id, topo_path, route_path, LocalCommResGenerateMode::kDeviceOnly, local_comm_res);
+}
+
+int32_t GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, const std::string &route_path,
+                             LocalCommResGenerateMode mode, LocalCommRes &local_comm_res) {
   // 1. 获取产品信息
   uint32_t mainboard_id = 0;
   int32_t ret = GetMainboardId(phy_dev_id, mainboard_id);
@@ -1347,13 +1365,13 @@ int32_t GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, c
   TopoData topo_data;
   RouteData route_data;
   std::set<int32_t> related_npu_ids;
-  ret = ParseTopoAndRouteFiles(phy_dev_id, topo_path, route_path, topo_data, route_data, related_npu_ids);
+  ret = ParseTopoAndRouteFiles(phy_dev_id, topo_path, route_path, mode, topo_data, route_data, related_npu_ids);
   if (ret != SUCCESS) {
     return ret;
   }
 
   // 3. 组装结果
-  return BuildLocalCommResResult(phy_dev_id, is_server, topo_data, route_data, related_npu_ids, local_comm_res);
+  return BuildLocalCommResResult(phy_dev_id, is_server, topo_data, route_data, related_npu_ids, mode, local_comm_res);
 }
 
 int32_t TransLocalCommRes(int32_t phy_dev_id, AscendString &result) {
