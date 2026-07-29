@@ -20,7 +20,7 @@ namespace {
 constexpr uint32_t kChannelListNum = 1U;
 constexpr int32_t kChannelConnectedStatus = 0;
 constexpr int32_t kChannelUnknownStatus = -1;
-constexpr auto kChannelStatusPollInterval = std::chrono::milliseconds(1);
+constexpr auto kChannelStatusPollInterval = std::chrono::microseconds(1);
 
 Status WaitChannelConnected(ChannelHandle channel_handle, uint32_t timeout_ms) {
   const ChannelHandle ch_list[kChannelListNum] = {channel_handle};
