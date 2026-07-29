@@ -109,8 +109,69 @@ static void BuildDefaultEid(unsigned char *eid, unsigned char byte5) {
   eid[13] = 0xdf;
 }
 
+// 必须与 dcmi_proxy.h 中的 dcmi_urma_eid_info_t 布局一致
+typedef union {
+  unsigned char raw[16];
+  struct {
+    unsigned long subnet_prefix;
+    unsigned long interface_id;
+  } in6;
+} dcmi_urma_eid_t;
+
+struct EidInfoRaw {
+  dcmi_urma_eid_t eid;
+  unsigned int eid_index;
+};
+
+// Fill UDMA 0: mesh port + CLOS PG (for BuildNpuRootInfo)
+static int FillUdma0Eids(EidInfoRaw *infos, int eid_cnt_max, int mesh_die_id) {
+  int count = 0;
+  if (g_eid_count >= 1 && eid_cnt_max >= 1) {
+    unsigned char byte5 = (mesh_die_id == 0) ? 0x02 : 0x52;
+    BuildDefaultEid(infos[0].eid.raw, byte5);
+    if (g_enable_ubg_eid) {
+      infos[0].eid.raw[7] = 0x80;
+    }
+    infos[0].eid_index = 0;
+    count++;
+  }
+  if (g_eid_count >= 2 && eid_cnt_max >= 2) {
+    unsigned char byte5 = (mesh_die_id == 0) ? 0x72 : 0x32;
+    BuildDefaultEid(infos[1].eid.raw, byte5);
+    infos[1].eid_index = 1;
+    count++;
+  }
+  return count;
+}
+
+// Fill UDMA 1 for Server: 1 standalone non-PG EID on non-mesh die
+static int FillUdma1ServerEids(EidInfoRaw *infos, int eid_cnt_max, int non_mesh_die) {
+  if (eid_cnt_max < 1) {
+    return 0;
+  }
+  unsigned char byte5 = (non_mesh_die == 0) ? 0x02 : 0x52;
+  BuildDefaultEid(infos[0].eid.raw, byte5);
+  infos[0].eid_index = 0;
+  return 1;
+}
+
+// Fill UDMA 1 for PoD: 2+1 group (2 non-PG + 1 PG) on non-mesh die
+static int FillUdma1PodEids(EidInfoRaw *infos, int eid_cnt_max, int non_mesh_die) {
+  if (eid_cnt_max < 3) {
+    return 0;
+  }
+  unsigned char phys_byte = (non_mesh_die == 0) ? 0x02 : 0x52;
+  unsigned char pg_byte = (non_mesh_die == 0) ? 0x32 : 0x72;
+  BuildDefaultEid(infos[0].eid.raw, phys_byte);
+  infos[0].eid_index = 0;
+  BuildDefaultEid(infos[1].eid.raw, static_cast<unsigned char>(phys_byte + 1));
+  infos[1].eid_index = 1;
+  BuildDefaultEid(infos[2].eid.raw, pg_byte);
+  infos[2].eid_index = 2;
+  return 3;
+}
+
 int dcmiv2_get_eid_list_by_urma_dev_index(int npu_id, int urma_dev_index, void *eid_list, int *eid_cnt) {
-  (void)urma_dev_index;
   if (eid_list == nullptr || eid_cnt == nullptr) {
     return -1;
   }
@@ -118,39 +179,16 @@ int dcmiv2_get_eid_list_by_urma_dev_index(int npu_id, int urma_dev_index, void *
   bool is_server = ((g_mainboard_id >= 0x21 && g_mainboard_id <= 0x2B && (g_mainboard_id % 2 == 1)) ||
                     (g_mainboard_id >= 0x40 && g_mainboard_id <= 0x46 && (g_mainboard_id % 2 == 0)));
   int mesh_die_id = is_server ? 1 : ((npu_id % 8) < 4 ? 0 : 1);
+  int non_mesh_die = 1 - mesh_die_id;
 
-  // 必须与 dcmi_proxy.h 中的 dcmi_urma_eid_info_t 布局一致
-  // union 含 unsigned long，对齐为 8，总大小 24 字节（16 + 4 + 4padding）
-  typedef union {
-    unsigned char raw[16];
-    struct {
-      unsigned long subnet_prefix;
-      unsigned long interface_id;
-    } in6;
-  } dcmi_urma_eid_t;
-
-  struct EidInfoRaw {
-    dcmi_urma_eid_t eid;
-    unsigned int eid_index;
-  };
   auto *infos = static_cast<EidInfoRaw *>(eid_list);
   int count = 0;
-  if (g_eid_count >= 1 && *eid_cnt >= 1) {
-    // 非 PG EID，die_id 匹配 mesh_die_id
-    unsigned char byte5 = (mesh_die_id == 0) ? 0x02 : 0x52;
-    BuildDefaultEid(infos[0].eid.raw, byte5);
-    if (g_enable_ubg_eid) {
-      infos[0].eid.raw[7] = 0x80;  // high two bits 10 means UBG for issue302 UBG EID filtering.
-    }
-    infos[0].eid_index = 0;
-    count++;
-  }
-  if (g_eid_count >= 2 && *eid_cnt >= 2) {
-    // PG EID，die_id 与 mesh_die_id 不同（作为 CLOS PG）
-    unsigned char byte5 = (mesh_die_id == 0) ? 0x72 : 0x32;
-    BuildDefaultEid(infos[1].eid.raw, byte5);
-    infos[1].eid_index = 1;
-    count++;
+
+  if (urma_dev_index == 0) {
+    count = FillUdma0Eids(infos, *eid_cnt, mesh_die_id);
+  } else if (urma_dev_index == 1) {
+    count = is_server ? FillUdma1ServerEids(infos, *eid_cnt, non_mesh_die)
+                      : FillUdma1PodEids(infos, *eid_cnt, non_mesh_die);
   }
   *eid_cnt = count;
   return 0;

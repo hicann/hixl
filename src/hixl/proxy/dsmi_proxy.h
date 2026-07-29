@@ -63,6 +63,15 @@ class DsmiProxy {
    * @return true if the underlying DSMI symbol is present; false when the driver does not provide it yet.
    */
   static bool IsInterconTypeSupported();
+
+  /**
+   * @brief Get CPU-side UB device name for a given NPU.
+   *        Calls dsmi_get_device_info with DSMI_MAIN_CMD_UB / URMA_DEV_NAME sub_cmd.
+   * @param device_id Logical device ID.
+   * @param ub_dev_name Output UB device name, e.g. "udmac1d1e2".
+   * @return SUCCESS or FAILED.
+   */
+  static Status GetUbDevName(int32_t device_id, std::string &ub_dev_name);
 };
 
 }  // namespace hixl

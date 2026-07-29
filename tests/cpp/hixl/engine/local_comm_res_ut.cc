@@ -29,6 +29,7 @@
 
 #include "local_comm_res_generator_v1.h"
 #include "test_mmpa_utils.h"
+#include "depends/dsmi/src/dsmi_stub.h"
 
 // DCMI 桩函数控制接口（定义在 tests/depends/dcmi/src/dcmi_stub.cc）
 extern "C" {
@@ -70,36 +71,40 @@ class LocalCommResMmpaStub : public hixl::test::KernelJsonMmpaStub {
   }
 };
 
-// urma_admin show mock 输出数据
+// urma_admin show mock 输出数据 (from real hardware)
+// udmac0d1e6: 9 EIDs (8-port PG group, CPU0 die1), eid1 is PG (byte6=0x3f → high=0x3 → is_pg=true)
+// udmac1d1e6: 9 EIDs (8-port PG group, CPU1 die1), eid1 is PG (byte6=0x7f → high=0x7 → is_pg=true)
+// udmac0d1e2: 1 EID, byte6=0x3f → is_pg=true (dsmi returns this name for NPU connected to CPU0)
+// udmac1d1e2: 1 EID, byte6=0x7f → is_pg=true (dsmi returns this name for NPU connected to CPU1)
 constexpr const char *kUrmaAdminMockOutput =
     "num  ubep_dev            tp_type     eid                                             link\n"
     "---  ----------------    --------    --------------------------------------------    --------\n"
-    "0    udma10              UB          eid0 0000:0000:007f:0400:0010:0000:df00:9001    ACTIVE  \n"
-    "1    udma11              UB          eid0 0000:0000:007f:0300:0010:0000:df00:9001    ACTIVE  \n"
-    "2    udma2               UB          eid0 0000:0000:003f:0200:0010:0000:df00:1001    ACTIVE  \n"
-    "3    udma3               UB          eid0 0000:0000:0000:0600:0010:0000:df00:1d01    ACTIVE  \n"
-    "4    udma3               UB          eid1 0000:0000:003f:0600:0010:0000:df00:1001    ACTIVE  \n"
-    "5    udma3               UB          eid2 0000:0000:0007:0600:0010:0000:df00:fd01    ACTIVE  \n"
-    "6    udma3               UB          eid3 0000:0000:0006:0600:0010:0000:df00:dd01    ACTIVE  \n"
-    "7    udma3               UB          eid4 0000:0000:0005:0600:0010:0000:df00:bd01    ACTIVE  \n"
-    "8    udma3               UB          eid5 0000:0000:0004:0600:0010:0000:df00:9d01    ACTIVE  \n"
-    "9    udma3               UB          eid6 0000:0000:0003:0600:0010:0000:df00:7d01    ACTIVE  \n"
-    "10   udma3               UB          eid7 0000:0000:0002:0600:0010:0000:df00:5d01    ACTIVE  \n"
-    "11   udma3               UB          eid8 0000:0000:0001:0600:0010:0000:df00:3d01    ACTIVE  \n"
-    "12   udma4               UB          eid0 0000:0000:003f:0500:0010:0000:df00:1001    ACTIVE  \n"
-    "13   udma5               UB          eid0 0000:0000:003f:0400:0010:0000:df00:1001    ACTIVE  \n"
-    "14   udma6               UB          eid0 0000:0000:003f:0300:0010:0000:df00:1001    ACTIVE  \n"
-    "15   udma7               UB          eid0 0000:0000:007f:0200:0010:0000:df00:9001    ACTIVE  \n"
-    "16   udma8               UB          eid0 0000:0000:0040:0600:0010:0000:df00:1e01    ACTIVE  \n"
-    "17   udma8               UB          eid1 0000:0000:007f:0600:0010:0000:df00:9001    ACTIVE  \n"
-    "18   udma8               UB          eid2 0000:0000:0047:0600:0010:0000:df00:fe01    ACTIVE  \n"
-    "19   udma8               UB          eid3 0000:0000:0046:0600:0010:0000:df00:de01    ACTIVE  \n"
-    "20   udma8               UB          eid4 0000:0000:0045:0600:0010:0000:df00:be01    ACTIVE  \n"
-    "21   udma8               UB          eid5 0000:0000:0044:0600:0010:0000:df00:9e01    ACTIVE  \n"
-    "22   udma8               UB          eid6 0000:0000:0043:0600:0010:0000:df00:7e01    ACTIVE  \n"
-    "23   udma8               UB          eid7 0000:0000:0042:0600:0010:0000:df00:5e01    ACTIVE  \n"
-    "24   udma8               UB          eid8 0000:0000:0041:0600:0010:0000:df00:3e01    ACTIVE  \n"
-    "25   udma9               UB          eid0 0000:0000:007f:0500:0010:0000:df00:9001    ACTIVE  \n";
+    "0    udmac0d1e2          UB          eid0 0000:0000:003f:0200:0010:0000:df08:0b00    ACTIVE  \n"
+    "1    udmac0d1e3          UB          eid0 0000:0000:003f:0300:0010:0000:df08:0b00    ACTIVE  \n"
+    "2    udmac0d1e4          UB          eid0 0000:0000:003f:0400:0010:0000:df08:0b00    ACTIVE  \n"
+    "3    udmac0d1e5          UB          eid0 0000:0000:003f:0500:0010:0000:df08:0b00    ACTIVE  \n"
+    "4    udmac0d1e6          UB          eid0 0000:0000:0000:0600:0010:0000:df08:0100    ACTIVE  \n"
+    "5    udmac0d1e6          UB          eid1 0000:0000:003f:0600:0010:0000:df08:0b00    ACTIVE  \n"
+    "6    udmac0d1e6          UB          eid2 0000:0000:0007:0600:0010:0000:df08:0800    ACTIVE  \n"
+    "7    udmac0d1e6          UB          eid3 0000:0000:0006:0600:0010:0000:df08:0700    ACTIVE  \n"
+    "8    udmac0d1e6          UB          eid4 0000:0000:0005:0600:0010:0000:df08:0600    ACTIVE  \n"
+    "9    udmac0d1e6          UB          eid5 0000:0000:0004:0600:0010:0000:df08:0500    ACTIVE  \n"
+    "10   udmac0d1e6          UB          eid6 0000:0000:0003:0600:0010:0000:df08:0400    ACTIVE  \n"
+    "11   udmac0d1e6          UB          eid7 0000:0000:0002:0600:0010:0000:df08:0300    ACTIVE  \n"
+    "12   udmac0d1e6          UB          eid8 0000:0000:0001:0600:0010:0000:df08:0200    ACTIVE  \n"
+    "13   udmac1d1e2          UB          eid0 0000:0000:007f:0200:0010:0000:df0a:0b00    ACTIVE  \n"
+    "14   udmac1d1e3          UB          eid0 0000:0000:007f:0300:0010:0000:df0a:0b00    ACTIVE  \n"
+    "15   udmac1d1e4          UB          eid0 0000:0000:007f:0400:0010:0000:df0a:0b00    ACTIVE  \n"
+    "16   udmac1d1e5          UB          eid0 0000:0000:007f:0500:0010:0000:df0a:0b00    ACTIVE  \n"
+    "17   udmac1d1e6          UB          eid0 0000:0000:0040:0600:0010:0000:df0a:0100    ACTIVE  \n"
+    "18   udmac1d1e6          UB          eid1 0000:0000:007f:0600:0010:0000:df0a:0b00    ACTIVE  \n"
+    "19   udmac1d1e6          UB          eid2 0000:0000:0047:0600:0010:0000:df0a:0800    ACTIVE  \n"
+    "20   udmac1d1e6          UB          eid3 0000:0000:0046:0600:0010:0000:df0a:0700    ACTIVE  \n"
+    "21   udmac1d1e6          UB          eid4 0000:0000:0045:0600:0010:0000:df0a:0600    ACTIVE  \n"
+    "22   udmac1d1e6          UB          eid5 0000:0000:0044:0600:0010:0000:df0a:0500    ACTIVE  \n"
+    "23   udmac1d1e6          UB          eid6 0000:0000:0043:0600:0010:0000:df0a:0400    ACTIVE  \n"
+    "24   udmac1d1e6          UB          eid7 0000:0000:0042:0600:0010:0000:df0a:0300    ACTIVE  \n"
+    "25   udmac1d1e6          UB          eid8 0000:0000:0041:0600:0010:0000:df0a:0200    ACTIVE  \n";
 
 // 创建 fake urma_admin 脚本到指定目录
 void CreateFakeUrmaAdmin(const std::string &dir) {
@@ -153,9 +158,11 @@ void ResetDcmiStub() {
   DcmiStubSetInitRet(0);
   DcmiStubSetMainboardId(0x3, 0);  // Pod1
   DcmiStubSetLogicId(0, 0);
-  DcmiStubSetUrmaDeviceCnt(1, 0);
+  DcmiStubSetUrmaDeviceCnt(2, 0);  // 2 UDMA devices: mesh + route-specific
   DcmiStubSetSuperPodId(0, 0);
-  DcmiStubSetEidCount(2);  // 默认返回 2 个 EID
+  DcmiStubSetEidCount(2);  // UDMA 0 returns 2 EIDs
+  DsmiStubSetUbDevName("udmac1d1e2");
+  DsmiStubSetDeviceInfoRet(0);
 }
 
 // 字符串常量（与 local_comm_res_tool.cc 匿名命名空间中的定义保持一致）
@@ -435,15 +442,15 @@ TEST_F(LocalCommResEdgeTest, GenerateD2HEdgesNoMatch) {
 }
 
 TEST_F(LocalCommResEdgeTest, GenerateD2HEdgesPhyIdGreaterThan7) {
-  // phy_dev_id=8 → 8%8=0，应匹配 device_id=0 的条目
+  // phy_dev_id=8 → should match device_id=8 (direct physical ID match)
   RouteData route_data;
   RouteEntry e1;
-  e1.device_id = 0;
+  e1.device_id = 8;
   e1.local_eid = "aa";
   e1.remote_eid = "bb";
   route_data.entries.push_back(e1);
   RouteEntry e2;
-  e2.device_id = 1;
+  e2.device_id = 9;
   e2.local_eid = "cc";
   e2.remote_eid = "dd";
   route_data.entries.push_back(e2);
@@ -486,15 +493,13 @@ TEST_F(LocalCommResEdgeTest, GenerateD2UEdgesEmpty) {
   EXPECT_TRUE(edges.empty());
 }
 
-// --- GenerateH2UEdges (Change #3: Host PG EID 作为 comm_id) ---
-// 注意：GenerateH2UEdges 内部调用 GetHostPgEid（依赖 popen urma_admin show），
-// 在 UT 环境中 popen 会失败，因此返回 FAILED。
+// --- GenerateH2UEdges (Change #3: Host PG EID passed as parameter) ---
+// GenerateH2UEdges receives host_pg_eid (8-port PG) as a parameter
 
 TEST_F(LocalCommResEdgeTest, GenerateH2UEdgesSuccess) {
-  // urma_admin show 桩函数返回有效输出，GetHostPgEid 应成功
-  RouteData route_data = MakeTwoEntryRouteData();
+  // host_pg_eid passed directly; both planes generated
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateH2UEdges(0, route_data, "pg0_eid", "pg1_eid", edges);
+  int32_t ret = GenerateH2UEdges("host_pg_eid", "pg0_eid", "pg1_eid", edges);
   EXPECT_EQ(ret, SUCCESS);
   ASSERT_EQ(edges.size(), 2U);
   EXPECT_EQ(edges[0].plane, "plane_pg_0");
@@ -626,10 +631,9 @@ class LocalCommResGenerateTest : public LocalCommResTestBase {};
 
 TEST_F(LocalCommResGenerateTest, GenerateSuccess) {
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(res.version, "1.3");
   EXPECT_FALSE(res.endpoint_list.empty());
@@ -641,31 +645,29 @@ TEST_F(LocalCommResGenerateTest, GenerateSuccess) {
 
 TEST_F(LocalCommResGenerateTest, GenerateTopoNotFound) {
   std::string topo_path = "/nonexistent/topo.json";
-  std::string route_path = data_dir_ + "route.conf";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
   EXPECT_EQ(ret, PARAM_INVALID);
 }
 
-TEST_F(LocalCommResGenerateTest, GenerateRouteNotFound) {
+TEST_F(LocalCommResGenerateTest, GenerateRoutePathIgnored) {
+  // route_path is now ignored; route data is generated via DSMI
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = "/nonexistent/route.conf";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
-  // route.conf 不存在时会尝试 procfs fallback，procfs 也不存在则返回 FAILED
-  EXPECT_NE(ret, SUCCESS);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_FALSE(res.endpoint_list.empty());
 }
 
 TEST_F(LocalCommResGenerateTest, GenerateGetMainboardIdFailed) {
   DcmiStubSetMainboardId(0, -1);  // 模拟失败
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
   EXPECT_NE(ret, SUCCESS);
 }
 
@@ -673,10 +675,9 @@ TEST_F(LocalCommResGenerateTest, GenerateGetClosNetInstanceIdFailed) {
   DcmiStubSetSuperPodId(0, -1);  // 模拟 SPOD 查询失败
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
   EXPECT_NE(ret, SUCCESS);
 }
 
@@ -684,10 +685,9 @@ TEST_F(LocalCommResGenerateTest, GeneratePodMainboardId) {
   DcmiStubSetMainboardId(0x3, 0);  // Pod1
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 }
@@ -696,10 +696,9 @@ TEST_F(LocalCommResGenerateTest, GenerateServerMainboardId) {
   DcmiStubSetMainboardId(0x21, 0);  // Server
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
   EXPECT_EQ(ret, SUCCESS);
 }
 
@@ -708,32 +707,27 @@ TEST_F(LocalCommResGenerateTest, GenerateBuildNpuRootinfosFailed) {
   DcmiStubSetUrmaDeviceCnt(0, 0);
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
   EXPECT_EQ(ret, FAILED);
 }
 
 TEST_F(LocalCommResGenerateTest, GenerateEmptyAllEdges) {
-  // DCMI 仅返回非 PG EID（无 PG EID → clos_pg_eids 为空）
-  // BuildNpuRootInfo 因 clos_pg_eids 为空返回 FAILED
-  DcmiStubSetEidCount(1);  // 仅返回非 PG EID，plane_pg EID 为空
+  // UDMA 0 only returns non-PG EID (no PG) → BuildNpuRootInfo fails (clos_pg_eids empty)
+  DcmiStubSetUrmaDeviceCnt(1, 0);  // Only 1 UDMA device, no route-specific device
+  DcmiStubSetEidCount(1);          // Only non-PG EID, no PG EID
 
   std::string topo_json =
       R"({"version":"2.0","edge_list":[{"net_layer":1,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1}]})";
   std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", topo_json);
   ASSERT_FALSE(tmp_topo.empty());
 
-  std::string tmp_route = CreateTempFileWithContent("/tmp/route_ut_XXXXXX", "pair_device_num=0\n");
-  ASSERT_FALSE(tmp_route.empty());
-
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, tmp_topo, tmp_route, res);
+  int32_t ret = GenerateLocalCommRes(0, tmp_topo, res);
   EXPECT_EQ(ret, FAILED);
 
   unlink(tmp_topo.c_str());
-  unlink(tmp_route.c_str());
 }
 
 // --- 产品形态覆盖（IsProductServer / IsProductPod / GetMeshDieId） ---
@@ -743,9 +737,8 @@ TEST_F(LocalCommResGenerateTest, GenerateServerOddMainboardId) {
   DcmiStubSetMainboardId(0x23, 0);
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 }
@@ -755,9 +748,8 @@ TEST_F(LocalCommResGenerateTest, GenerateServerEvenMainboardIdInRange2) {
   DcmiStubSetMainboardId(0x42, 0);
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 }
@@ -767,9 +759,8 @@ TEST_F(LocalCommResGenerateTest, GenerateNotServerEvenInRange1) {
   DcmiStubSetMainboardId(0x22, 0);
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
   EXPECT_EQ(ret, SUCCESS);
 }
 
@@ -778,9 +769,8 @@ TEST_F(LocalCommResGenerateTest, GenerateNotServerOddInRange2) {
   DcmiStubSetMainboardId(0x41, 0);
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
   EXPECT_EQ(ret, SUCCESS);
 }
 
@@ -789,9 +779,8 @@ TEST_F(LocalCommResGenerateTest, GenerateNotServerBelowRange) {
   DcmiStubSetMainboardId(0x20, 0);
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
   EXPECT_EQ(ret, SUCCESS);
 }
 
@@ -800,9 +789,8 @@ TEST_F(LocalCommResGenerateTest, GenerateNotServerAboveRange) {
   DcmiStubSetMainboardId(0x47, 0);
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
   EXPECT_EQ(ret, SUCCESS);
 }
 
@@ -811,9 +799,8 @@ TEST_F(LocalCommResGenerateTest, GeneratePod2MainboardId) {
   DcmiStubSetMainboardId(0x5, 0);
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 }
@@ -823,9 +810,8 @@ TEST_F(LocalCommResGenerateTest, GeneratePod3MainboardId) {
   DcmiStubSetMainboardId(0x7, 0);
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 }
@@ -835,43 +821,32 @@ TEST_F(LocalCommResGenerateTest, GenerateServerMeshDieId) {
   DcmiStubSetMainboardId(0x21, 0);  // Server
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 }
 
-// --- 0x 前缀剥离测试 ---
+// --- route_path 被忽略后 EID 格式验证 ---
 
-TEST_F(LocalCommResGenerateTest, GenerateRouteEidStrips0xPrefix) {
-  // route.conf 中的 EID 带 0x 前缀 → 最终 endpoint 中应无 0x
+TEST_F(LocalCommResGenerateTest, GenerateEidsNo0xPrefix) {
+  // route data 通过 DSMI + urma_admin 生成，EID 不应含 0x 前缀
   std::string topo_json =
       R"({"version":"2.0","edge_list":[{"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,"local_a_ports":["1/0"],"local_b_ports":["1/1"]}]})";
   std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", topo_json);
   ASSERT_FALSE(tmp_topo.empty());
 
-  std::string route_content =
-      "pair_device_num=1\n"
-      "pair0_dev_id=0\n"
-      "pair0_chan_num=1\n"
-      "pair0_chan0_local_eid=0x0000000000f2008000100000dfdf0091\n"
-      "pair0_chan0_remote_eid=0x000000000072008000100000dfdf0091\n";
-  std::string tmp_route = CreateTempFileWithContent("/tmp/route_ut_XXXXXX", route_content);
-  ASSERT_FALSE(tmp_route.empty());
-
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, tmp_topo, tmp_route, res);
+  int32_t ret = GenerateLocalCommRes(0, tmp_topo, res);
   EXPECT_EQ(ret, SUCCESS);
 
-  // 验证 H2D/D2H 边中的 EID 不含 0x 前缀
+  // 验证所有 endpoint 中的 EID 不含 0x 前缀
   for (const auto &ep : res.endpoint_list) {
     EXPECT_EQ(ep.comm_id.find("0x"), std::string::npos) << "comm_id has 0x prefix: " << ep.comm_id;
     EXPECT_EQ(ep.dst_eid.find("0x"), std::string::npos) << "dst_eid has 0x prefix: " << ep.dst_eid;
   }
 
   unlink(tmp_topo.c_str());
-  unlink(tmp_route.c_str());
 }
 
 // --- GetMainboardId / GetClosNetInstanceId 接口覆盖 ---
@@ -999,44 +974,29 @@ TEST_F(LocalCommResTopoPathTest, DefaultOverloadGetMainboardIdFailed) {
 }
 
 // ============================================================================
-// Change #2 测试：route.conf 不存在时的 procfs fallback
+// Change #2 测试：route.conf 不再被读取，route data 通过 DSMI 生成
 // ============================================================================
 
 class LocalCommResProcfsFallbackTest : public LocalCommResTestBase {};
 
-TEST_F(LocalCommResProcfsFallbackTest, RouteNotFoundProcfsNotAvailable) {
-  // route.conf 不存在 + procfs 不可用 → 返回 FAILED
+TEST_F(LocalCommResProcfsFallbackTest, RoutePathIgnoredSucceedsViaDsmi) {
+  // route_path 不存在也能成功，因为 route data 通过 DSMI 生成
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = "/nonexistent/route.conf";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
-  EXPECT_NE(ret, SUCCESS);
-}
-
-TEST_F(LocalCommResProcfsFallbackTest, RouteExistsNoFallback) {
-  // route.conf 存在 → 不触发 procfs fallback → 正常流程
-  std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
-
-  LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 }
 
-TEST_F(LocalCommResProcfsFallbackTest, RouteMalformedProcfsNotAvailable) {
-  // route.conf 内容格式错误（缺少 pair_device_num）→ ParseRouteFile 返回 FAILED
-  // → 触发 procfs fallback → procfs 不可用 → 返回 FAILED
+TEST_F(LocalCommResProcfsFallbackTest, RoutePathIgnoredWithValidTopo) {
+  // route_path 存在但被忽略，使用 DSMI 生成 route data
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string tmp_route = CreateTempFileWithContent("/tmp/route_ut_XXXXXX", "invalid_content=no_pair_device_num\n");
-  ASSERT_FALSE(tmp_route.empty());
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, tmp_route, res);
-  EXPECT_NE(ret, SUCCESS);
-
-  unlink(tmp_route.c_str());
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_FALSE(res.endpoint_list.empty());
 }
 
 // ============================================================================
@@ -1047,28 +1007,19 @@ TEST_F(LocalCommResProcfsFallbackTest, RouteMalformedProcfsNotAvailable) {
 class LocalCommResH2UTest : public LocalCommResMmpaTestBase {};
 
 TEST_F(LocalCommResH2UTest, H2UEdgesSuccess) {
-  // urma_admin show 桩函数返回有效输出，GetHostPgEid 应成功
-  RouteData route_data;
-  RouteEntry e;
-  e.device_id = 0;
-  e.local_eid = "00000000003200000000000000df0091";
-  e.remote_eid = "0000000000f200000000000000df0001";
-  route_data.entries.push_back(e);
-
+  // host_pg_eid passed directly → both planes generated
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateH2UEdges(0, route_data, "pg0_eid", "pg1_eid", edges);
-  // 桩函数返回有效数据 → 成功生成 H2U 边
+  int32_t ret = GenerateH2UEdges("host_pg_eid", "pg0_eid", "pg1_eid", edges);
   EXPECT_EQ(ret, SUCCESS);
   ASSERT_EQ(edges.size(), 2U);
   EXPECT_EQ(edges[0].plane, "plane_pg_0");
   EXPECT_EQ(edges[1].plane, "plane_pg_1");
 }
 
-TEST_F(LocalCommResH2UTest, H2UEdgesEmptyRouteData) {
-  // 空 route_data → GetHostPgEid 中找不到匹配的 device_id → FAILED
-  RouteData route_data;
+TEST_F(LocalCommResH2UTest, H2UEdgesEmptyHostPgEid) {
+  // 空 host_pg_eid → FAILED
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateH2UEdges(0, route_data, "pg0_eid", "pg1_eid", edges);
+  int32_t ret = GenerateH2UEdges("", "pg0_eid", "pg1_eid", edges);
   EXPECT_EQ(ret, FAILED);
   EXPECT_TRUE(edges.empty());
 }
@@ -1101,24 +1052,24 @@ TEST_F(LocalCommResH2UTest, D2UEdgesNoPlanes) {
 
 // ============================================================================
 // 集成测试：H2U 边失败时的错误传播
-// 验证 CollectAllEdges 在 GetHostPgEid 失败时正确传播错误
+// 验证 CollectAllEdges 在 route_data.local_eid 缺失时正确传播错误
 // ============================================================================
 
 TEST_F(LocalCommResH2UTest, IntegrationH2USuccess) {
-  // urma_admin show 桩函数返回有效数据 → H2U 边生成成功 → 整体成功
+  // DSMI + urma_admin mock → route data generated → H2U 边生成成功 → 整体成功
   DcmiStubSetInitRet(0);
   DcmiStubSetMainboardId(0x3, 0);
   DcmiStubSetLogicId(0, 0);
-  DcmiStubSetUrmaDeviceCnt(1, 0);
+  DcmiStubSetUrmaDeviceCnt(2, 0);  // 2 UDMA devices for route data generation
   DcmiStubSetSuperPodId(0, 0);
   DcmiStubSetEidCount(2);
+  DsmiStubSetUbDevName("udmac1d1e2");
 
   std::string data_dir = GetTestDataDir();
   std::string topo_path = data_dir + "server_8p_noroce.json";
-  std::string route_path = data_dir + "route.conf";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, route_path, res);
+  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 
@@ -1506,10 +1457,9 @@ TEST_F(TopoFileFinderTest, FindTopoFileServerOddMainboardId) {
 
 TEST_F(LocalCommResGenerateTest, TransLocalCommResSuccess) {
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
-  std::string route_path = data_dir_ + "route.conf";
 
   hixl::AscendString result;
-  int32_t ret = TransLocalCommRes(0, topo_path, route_path, result);
+  int32_t ret = TransLocalCommRes(0, topo_path, result);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_GT(result.GetLength(), 0u);
 
@@ -1526,12 +1476,9 @@ TEST_F(LocalCommResTopoPathTest, ResolveDefaultPathsPropagatesGetMainboardIdFail
   DcmiStubSetMainboardId(0, -1);
 
   std::string topo_path;
-  std::string route_path;
-  int32_t ret = ResolveDefaultLocalCommResPaths(0, topo_path, route_path);
+  int32_t ret = ResolveDefaultLocalCommResPaths(0, topo_path);
   EXPECT_NE(ret, SUCCESS);
-  // 失败时 topo_path / route_path 不应被填充
   EXPECT_TRUE(topo_path.empty());
-  EXPECT_TRUE(route_path.empty());
 }
 
 TEST_F(LocalCommResTopoPathTest, ResolveDefaultPathsUnknownMainboardIdReturnsInvalid) {
@@ -1539,11 +1486,9 @@ TEST_F(LocalCommResTopoPathTest, ResolveDefaultPathsUnknownMainboardIdReturnsInv
   DcmiStubSetMainboardId(0x99, 0);
 
   std::string topo_path;
-  std::string route_path;
-  int32_t ret = ResolveDefaultLocalCommResPaths(0, topo_path, route_path);
+  int32_t ret = ResolveDefaultLocalCommResPaths(0, topo_path);
   EXPECT_EQ(ret, PARAM_INVALID);
   EXPECT_TRUE(topo_path.empty());
-  EXPECT_TRUE(route_path.empty());
 }
 
 TEST_F(LocalCommResTopoPathTest, TransLocalCommResDefaultOverloadTopoMissing) {

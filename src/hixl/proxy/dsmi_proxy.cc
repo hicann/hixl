@@ -22,6 +22,14 @@ constexpr const char *kLibDrvdsmiHostSo = "libdrvdsmi_host.so";
 constexpr uint32_t kDsmiMainCmdChipInf = 12U;
 constexpr uint32_t kDsmiChipInfSubCmdSpodInfo = 1U;
 
+// DSMI_MAIN_CMD_UB and DSMI_UB_INFO_SUB_CMD_URMA_DEV_NAME are not available in
+// CANN 9.1.0 headers. Values confirmed by probing on real hardware.
+constexpr uint32_t kDsmiMainCmdUb = 62U;
+constexpr uint32_t kDsmiUbInfoSubCmdUrmaDevName = 3U;
+
+// Max length for UB device name (e.g. "udmac1d1e2" is 10 chars + NUL)
+constexpr size_t kUbDevNameMaxLen = 32U;
+
 using DsmiGetBoardInfoFn = int (*)(int device_id, struct DsmiBoardInfoStru *pboard_info);
 using DsmiGetDeviceInfoFn = int (*)(uint32_t device_id, uint32_t main_cmd, uint32_t sub_cmd, void *buf,
                                     uint32_t *buf_size);
@@ -89,10 +97,8 @@ Status DsmiProxy::GetDevSlotId(int32_t device_id, uint32_t &slot_id) {
 
   struct DsmiBoardInfoStru board_info = {};
   const int ret = ldr.dsmi_get_board_info(device_id, &board_info);
-  if (ret != 0) {
-    HIXL_LOGE(FAILED, "[DsmiProxy] dsmi_get_board_info failed, ret=%d, device_id=%d", ret, device_id);
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED, "[DsmiProxy] Call api:dsmi_get_board_info failed, ret=%d, device_id=%d",
+                           ret, device_id);
 
   slot_id = board_info.slot_id;
   HIXL_LOGI("[DsmiProxy] GetDevSlotId success, device_id=%d, slot_id=%u", device_id, slot_id);
@@ -104,21 +110,15 @@ Status DsmiProxy::GetInterconType(int32_t device_id, uint32_t &intercon_type) {
 
   LibDrvdsmiHostLoader &ldr = LibDrvdsmiHost();
   std::lock_guard<std::mutex> lock(ldr.mu);
-  if (ldr.dsmi_get_device_info == nullptr) {
-    HIXL_LOGW("[DsmiProxy] dsmi_get_device_info symbol not available, cannot query InterconType");
-    intercon_type = 0U;
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(ldr.dsmi_get_device_info != nullptr, FAILED,
+                           "[DsmiProxy] dsmi_get_device_info symbol not available, cannot query InterconType");
 
   DsmiSpodInfo spod_info{};
   uint32_t buf_size = static_cast<uint32_t>(sizeof(spod_info));
   const int ret = ldr.dsmi_get_device_info(static_cast<uint32_t>(device_id), kDsmiMainCmdChipInf,
                                            kDsmiChipInfSubCmdSpodInfo, &spod_info, &buf_size);
-  if (ret != 0) {
-    HIXL_LOGE(FAILED, "[DsmiProxy] dsmi_get_device_info failed, ret=%d, device_id=%d", ret, device_id);
-    intercon_type = 0U;
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED, "[DsmiProxy] Call api:dsmi_get_device_info failed, ret=%d, device_id=%d",
+                           ret, device_id);
   intercon_type = spod_info.super_pod_intercon_type;
   HIXL_LOGI("[DsmiProxy] GetInterconType success, device_id=%d, intercon_type=%u", device_id, intercon_type);
   return SUCCESS;
@@ -131,6 +131,30 @@ bool DsmiProxy::IsInterconTypeSupported() {
   LibDrvdsmiHostLoader &ldr = LibDrvdsmiHost();
   std::lock_guard<std::mutex> lock(ldr.mu);
   return ldr.dsmi_get_device_info != nullptr;
+}
+
+Status DsmiProxy::GetUbDevName(int32_t device_id, std::string &ub_dev_name) {
+  HIXL_CHK_STATUS_RET(EnsureLibDrvdsmiHostLoaded(), "[DsmiProxy] EnsureLibDrvdsmiHostLoaded failed");
+
+  LibDrvdsmiHostLoader &ldr = LibDrvdsmiHost();
+  std::lock_guard<std::mutex> lock(ldr.mu);
+  HIXL_CHK_BOOL_RET_STATUS(ldr.dsmi_get_device_info != nullptr, FAILED,
+                           "[DsmiProxy] dsmi_get_device_info symbol not available, cannot query UB dev name");
+
+  ub_dev_name.resize(kUbDevNameMaxLen);
+  uint32_t buf_size = static_cast<uint32_t>(kUbDevNameMaxLen);
+  int ret = ldr.dsmi_get_device_info(static_cast<uint32_t>(device_id), kDsmiMainCmdUb, kDsmiUbInfoSubCmdUrmaDevName,
+                                     &ub_dev_name[0], &buf_size);
+  HIXL_LOGI("[DsmiProxy] dsmi_get_device_info(UB, URMA_DEV_NAME) ret=%d, device_id=%d, buf_size=%u", ret, device_id,
+            buf_size);
+  HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED,
+                           "[DsmiProxy] Call api:dsmi_get_device_info(UB, URMA_DEV_NAME) failed, ret=%d, device_id=%d",
+                           ret, device_id);
+
+  // buf_size includes the NUL terminator from the API; resize to actual string length
+  ub_dev_name.resize(strlen(ub_dev_name.c_str()));
+  HIXL_LOGI("[DsmiProxy] GetUbDevName success, device_id=%d, ub_dev_name=%s", device_id, ub_dev_name.c_str());
+  return SUCCESS;
 }
 
 }  // namespace hixl

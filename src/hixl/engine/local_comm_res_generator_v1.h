@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 
 // 引入 rootinfo_builder 的数据结构
 #include "rootinfo_builder_generator_v1.h"
@@ -81,6 +82,16 @@ struct RouteData {
   std::vector<RouteEntry> entries;
 };
 
+/**
+ * @brief route 数据生成结果
+ * 包含 route_data 和同一次生成的 host_pg_eid（8口PG EID，供 H2U 消费）
+ */
+struct RouteGenResult {
+  RouteData route_data;
+  std::set<int32_t> related_npu_ids;
+  std::string host_pg_eid;  // 8-port PG EID for H2U
+};
+
 // ============ 核心接口 ============
 
 /**
@@ -92,28 +103,27 @@ struct RouteData {
 int32_t GenerateLocalCommRes(int32_t phy_dev_id, LocalCommRes &local_comm_res);
 
 /**
- * @brief 生成 LocalCommRes 结构体（测试用重载，允许注入路径）
+ * @brief 生成 LocalCommRes 结构体（测试用重载，允许注入 topo 路径）
  * @param [in] phy_dev_id 物理设备 ID
  * @param [in] topo_path topology 文件路径
- * @param [in] route_path route.conf 文件路径
  * @param [out] local_comm_res 输出的 LocalCommRes 结构体
  * @return 成功: SUCCESS, 失败: 其它错误码
+ *
+ * route_data 通过 DSMI + urma_admin 自动生成，不再读取 route.conf。
  */
-int32_t GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, const std::string &route_path,
-                             LocalCommRes &local_comm_res);
+int32_t GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, LocalCommRes &local_comm_res);
 
 /**
- * @brief 内部 helper：按 mainboard_id 解析默认 topo / route 路径
+ * @brief 内部 helper：按 mainboard_id 解析默认 topo 路径
  *
  * 供 2 参 GenerateLocalCommRes 和 2 参 TransLocalCommRes 共用，避免重复实现。
  * **仅供内部使用**，调用方应保证 phy_dev_id 合法。
  *
  * @param [in]  phy_dev_id 物理设备 ID
  * @param [out] topo_path  默认 topo 目录中匹配到的 topo 文件全路径
- * @param [out] route_path 默认 route.conf 路径
  * @return 成功: SUCCESS；失败: GetMainboardId 错误码或 PARAM_INVALID
  */
-int32_t ResolveDefaultLocalCommResPaths(int32_t phy_dev_id, std::string &topo_path, std::string &route_path);
+int32_t ResolveDefaultLocalCommResPaths(int32_t phy_dev_id, std::string &topo_path);
 
 /**
  * @brief 生成 LocalCommRes 的 JSON 字符串（lcrgen 工具使用）
@@ -130,16 +140,14 @@ int32_t ResolveDefaultLocalCommResPaths(int32_t phy_dev_id, std::string &topo_pa
 int32_t TransLocalCommRes(int32_t phy_dev_id, AscendString &result);
 
 /**
- * @brief 生成 LocalCommRes 的 JSON 字符串（测试用重载，允许注入 topo / route 路径）
+ * @brief 生成 LocalCommRes 的 JSON 字符串（测试用重载，允许注入 topo 路径）
  *
  * @param [in] phy_dev_id 物理设备 ID
  * @param [in] topo_path topology 文件路径
- * @param [in] route_path route.conf 文件路径
  * @param [out] result 成功时填入 JSON 字符串；失败时状态未定义
  * @return 成功: SUCCESS, 失败: 其它错误码
  */
-int32_t TransLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, const std::string &route_path,
-                          AscendString &result);
+int32_t TransLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, AscendString &result);
 
 // ============ DCMI 接口封装 ============
 
@@ -218,14 +226,13 @@ int32_t GenerateD2HEdges(const RouteData &route_data, int32_t phy_dev_id, std::v
 
 /**
  * @brief 生成 H2U 非直连边（Host to UB Gateway）
- * @param [in] phy_dev_id 当前 NPU 物理 ID
- * @param [in] route_data route 数据
+ * @param [in] host_pg_eid Host 8-port PG EID（由 GenerateRouteDataViaDsmi 计算）
  * @param [in] plane_pg_0_eid plane_pg_0 的 EID
  * @param [in] plane_pg_1_eid plane_pg_1 的 EID
  * @param [out] h2u_edges 生成的边列表
  * @return 成功: SUCCESS, 失败: 其它错误码
  */
-int32_t GenerateH2UEdges(int32_t phy_dev_id, const RouteData &route_data, const std::string &plane_pg_0_eid,
+int32_t GenerateH2UEdges(const std::string &host_pg_eid, const std::string &plane_pg_0_eid,
                          const std::string &plane_pg_1_eid, std::vector<EndpointConfig> &h2u_edges);
 
 /**

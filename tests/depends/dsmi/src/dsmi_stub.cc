@@ -10,6 +10,7 @@
 
 #include "dsmi_stub.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 
@@ -23,12 +24,19 @@ struct dsmi_board_info_stru {
 static const uint32_t kDsmiMainCmdChipInf = 12U;
 static const uint32_t kDsmiChipInfSubCmdSpodInfo = 1U;
 
+// Must match dsmi_proxy.cc constants
+static const uint32_t kDsmiMainCmdUb = 62U;
+static const uint32_t kDsmiUbInfoSubCmdUrmaDevName = 3U;
+
 static uint32_t g_slot_id = 0U;
 static int g_board_info_ret = 0;
 
 static uint32_t g_intercon_type = 4U;
 static uint32_t g_super_pod_id = 0U;
 static int g_device_info_ret = 0;
+
+static char g_ub_dev_name[64] = "udmac1d1e2";
+static int g_ub_dev_name_ret = 0;
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,24 +62,38 @@ int dsmi_get_device_info(uint32_t device_id, uint32_t main_cmd, uint32_t sub_cmd
   if (buf == nullptr || buf_size == nullptr) {
     return -1;
   }
-  if (g_device_info_ret != 0) {
-    return g_device_info_ret;
+  // Handle SPOD info query
+  if (main_cmd == kDsmiMainCmdChipInf && sub_cmd == kDsmiChipInfSubCmdSpodInfo) {
+    if (g_device_info_ret != 0) {
+      return g_device_info_ret;
+    }
+    static const uint32_t kSpodInfoFields = 12U;
+    if (*buf_size < kSpodInfoFields * sizeof(uint32_t)) {
+      return -1;
+    }
+    auto *fields = static_cast<uint32_t *>(buf);
+    for (uint32_t i = 0; i < kSpodInfoFields; ++i) {
+      fields[i] = 0;
+    }
+    fields[2] = g_super_pod_id;
+    fields[6] = g_intercon_type;
+    *buf_size = kSpodInfoFields * sizeof(uint32_t);
+    return 0;
   }
-  if (main_cmd != kDsmiMainCmdChipInf || sub_cmd != kDsmiChipInfSubCmdSpodInfo) {
-    return -1;
+  // Handle UB dev name query
+  if (main_cmd == kDsmiMainCmdUb && sub_cmd == kDsmiUbInfoSubCmdUrmaDevName) {
+    if (g_ub_dev_name_ret != 0) {
+      return g_ub_dev_name_ret;
+    }
+    uint32_t name_len = static_cast<uint32_t>(strlen(g_ub_dev_name) + 1);
+    if (*buf_size < name_len) {
+      return -1;
+    }
+    std::copy_n(g_ub_dev_name, name_len, static_cast<char *>(buf));
+    *buf_size = name_len;
+    return 0;
   }
-  static const uint32_t kSpodInfoFields = 12U;
-  if (*buf_size < kSpodInfoFields * sizeof(uint32_t)) {
-    return -1;
-  }
-  auto *fields = static_cast<uint32_t *>(buf);
-  for (uint32_t i = 0; i < kSpodInfoFields; ++i) {
-    fields[i] = 0;
-  }
-  fields[2] = g_super_pod_id;
-  fields[6] = g_intercon_type;
-  *buf_size = kSpodInfoFields * sizeof(uint32_t);
-  return 0;
+  return -1;
 }
 
 void DsmiStubSetInterconType(uint32_t type) {
@@ -89,6 +111,19 @@ void DsmiStubSetSlotId(uint32_t slot_id, int ret) {
 
 void DsmiStubSetDeviceInfoRet(int ret) {
   g_device_info_ret = ret;
+}
+
+void DsmiStubSetUbDevName(const char *name) {
+  if (name == nullptr) {
+    g_ub_dev_name[0] = '\0';
+    return;
+  }
+  size_t name_len = strlen(name);
+  if (name_len >= sizeof(g_ub_dev_name)) {
+    name_len = sizeof(g_ub_dev_name) - 1;
+  }
+  std::copy_n(name, name_len, g_ub_dev_name);
+  g_ub_dev_name[name_len] = '\0';
 }
 
 #ifdef __cplusplus

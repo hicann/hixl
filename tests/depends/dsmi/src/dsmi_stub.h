@@ -21,6 +21,7 @@ void DsmiStubSetInterconType(uint32_t type);
 void DsmiStubSetSuperPodId(uint32_t id);
 void DsmiStubSetSlotId(uint32_t slot_id, int ret);
 void DsmiStubSetDeviceInfoRet(int ret);
+void DsmiStubSetUbDevName(const char *name);
 
 #ifdef __cplusplus
 }
