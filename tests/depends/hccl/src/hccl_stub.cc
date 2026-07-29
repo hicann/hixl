@@ -15,6 +15,7 @@
 #include <vector>
 #include "hccl/hccl_types.h"
 #include "hcomm/hcomm_res_defs.h"
+#include "hcomm/hcomm_exception_notify.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -330,6 +331,45 @@ void ResetThreadLifecycleStats() {
   g_thread_alloc_call_count = 0U;
   g_thread_free_call_count = 0U;
   g_thread_lifecycle_events.clear();
+}
+
+// ---- Exception callback stub ----
+static ExceptionCallback g_registered_exception_callback = nullptr;
+static void *g_registered_exception_user_data = nullptr;
+static int32_t g_register_exception_ret = 0;
+
+int32_t HcommRegisterExceptionCallback(ExceptionCallback cb, void *user_data) {
+  if (cb != nullptr && g_register_exception_ret == 0) {
+    g_registered_exception_callback = cb;
+    g_registered_exception_user_data = user_data;
+  }
+  return g_register_exception_ret;
+}
+
+int32_t HcommUnregisterExceptionCallback(ExceptionCallback cb) {
+  if (g_registered_exception_callback == cb) {
+    g_registered_exception_callback = nullptr;
+    g_registered_exception_user_data = nullptr;
+  }
+  return 0;
+}
+
+void SetRegisterExceptionResult(int32_t ret) {
+  g_register_exception_ret = ret;
+}
+
+ExceptionCallback GetRegisteredExceptionCallback() {
+  return g_registered_exception_callback;
+}
+
+void *GetRegisteredExceptionUserData() {
+  return g_registered_exception_user_data;
+}
+
+void ResetExceptionCallbackStub() {
+  g_registered_exception_callback = nullptr;
+  g_registered_exception_user_data = nullptr;
+  g_register_exception_ret = 0;
 }
 
 #ifdef __cplusplus

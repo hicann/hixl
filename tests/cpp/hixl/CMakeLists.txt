@@ -98,9 +98,11 @@ target_include_directories(hixl_test PRIVATE
         ${HIXL_CODE_DIR}/src/hixl/engine
         ${HIXL_CODE_DIR}/src/hixl/profiling
         ${HIXL_CODE_DIR}/src/ops
+        ${HIXL_CODE_DIR}/src/ops/hixl_kernel/extern_include
         ${HIXL_CODE_DIR}/tests
         ${HIXL_CODE_DIR}/tests/depends/ascendcl/src
         ${HIXL_CODE_DIR}/tests/depends/hccl/src
+        ${HIXL_CODE_DIR}/tests/depends/aicpu/src
         ${HIXL_CODE_DIR}/tests/depends/slog/src
         )
 
@@ -131,6 +133,7 @@ target_link_libraries(hixl_test
         -Wl,--no-as-needed
         hccl_stub
         error_manager_stub
+        aicpu_stub
         -Wl,--as-needed)
 
 # 让 dlopen("libdcmi.so") 和 dlopen("libdrvdsmi_host.so") 能找到测试桩

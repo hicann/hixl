@@ -45,6 +45,8 @@ struct TransferContext {
     spin_lock.clear(std::memory_order_release);
   }
 
+  void WriteErrorFlag() const;
+
   std::atomic_flag spin_lock = ATOMIC_FLAG_INIT;
   std::atomic<HixlTransferThreadState> state{TRANSFER_THREAD_STATE_INITIALIZED};
   uint32_t notify_id{0};
@@ -55,14 +57,14 @@ class TransferContextManager {
  public:
   static TransferContextManager &Instance();
 
-  std::shared_ptr<TransferContext> Get(ThreadHandle thread);
+  std::shared_ptr<TransferContext> Get(ThreadHandle thread) const;
   HixlTransferThreadState Add(ThreadHandle thread, uint32_t notify_id = 0U, uint64_t err_flag_dev_va = 0U);
   HixlTransferThreadState Delete(ThreadHandle thread);
 
  private:
   TransferContextManager() = default;
 
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   std::unordered_map<ThreadHandle, std::shared_ptr<TransferContext>> contexts_;
 };
 

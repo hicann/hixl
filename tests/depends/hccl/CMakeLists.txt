@@ -13,6 +13,7 @@ add_library(hccl_stub SHARED ${SRC_FILES})
 target_include_directories(hccl_stub PRIVATE
         ${HIXL_CODE_DIR}/src/hixl
         ${HIXL_CODE_DIR}/src/hixl/proxy
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
         )
 target_link_libraries(hccl_stub PRIVATE intf_pub c_sec slog_headers
                                 PUBLIC hccl_headers

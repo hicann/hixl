@@ -1,5 +1,5 @@
 # ----------------------------------------------------------------------------
-# Copyright (c) 2025 Huawei Technologies Co., Ltd.
+# Copyright (c) 2026 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of
 # CANN Open Software License Agreement Version 2.0 (the "License").
 # Please refer to the License for details. You may not use this file except in compliance with the License.
@@ -8,18 +8,15 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
-set(DT_COMMON_COMPILE_OPTION ${DT_COMMON_COMPILE_OPTION} -fno-access-control)
+add_library(aicpu_stub SHARED src/aicpu_stub.cc)
+target_compile_options(aicpu_stub PRIVATE -g)
+target_include_directories(aicpu_stub PRIVATE
+        ${CMAKE_CURRENT_LIST_DIR}/src
+        ${HIXL_CODE_DIR}/src/ops/hixl_kernel/extern_include
+)
+target_link_libraries(aicpu_stub
+    PRIVATE
+        runtime_headers
+)
 
-add_subdirectory(depends/slog)
-add_subdirectory(depends/mmpa)
-add_subdirectory(depends/hccl)
-add_subdirectory(depends/error_manager)
-add_subdirectory(depends/llm_datadist)
-add_subdirectory(depends/python)
-add_subdirectory(depends/ascendcl)
-add_subdirectory(depends/runtime)
-add_subdirectory(depends/msprof)
-add_subdirectory(depends/dcmi)
-add_subdirectory(depends/dsmi)
-add_subdirectory(depends/aicpu)
-add_subdirectory(cpp)
+stub_module(aicpu aicpu_stub)

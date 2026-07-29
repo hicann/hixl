@@ -65,6 +65,9 @@ __attribute__((weak)) int32_t HcommBatchTransferOnThread(ThreadHandle thread, Ch
                                                          uint32_t transfer_desc_num);
 
 __attribute__((weak)) int32_t HcommAclrtNotifyRecordOnThread(ThreadHandle thread, uint64_t dstNotifyId);
+
+__attribute__((weak)) int32_t HcommRegisterExceptionCallback(ExceptionCallback cb, void *user_data);
+__attribute__((weak)) int32_t HcommUnregisterExceptionCallback(ExceptionCallback cb);
 }
 
 namespace hixl {
@@ -211,6 +214,22 @@ int32_t HcommProxy::aclrtNotifyRecordOnThread(ThreadHandle thread, int32_t notif
   HIXL_CHK_BOOL_RET_STATUS(HcommAclrtNotifyRecordOnThread != nullptr, HCCL_E_NOT_SUPPORT,
                            "function HcommAclrtNotifyRecordOnThread is null, maybe unsupported.");
   return HcommAclrtNotifyRecordOnThread(thread, notify_id);
+}
+
+int32_t HcommProxy::RegisterExceptionCallback(ExceptionCallback cb, void *user_data) {
+  if (HcommRegisterExceptionCallback == nullptr) {
+    HIXL_LOGI("function HcommRegisterExceptionCallback is null, maybe unsupported.");
+    return HCCL_E_NOT_SUPPORT;
+  }
+  return HcommRegisterExceptionCallback(cb, user_data);
+}
+
+int32_t HcommProxy::UnregisterExceptionCallback(ExceptionCallback cb) {
+  if (HcommUnregisterExceptionCallback == nullptr) {
+    HIXL_LOGI("function HcommUnregisterExceptionCallback is null, maybe unsupported.");
+    return HCCL_E_NOT_SUPPORT;
+  }
+  return HcommUnregisterExceptionCallback(cb);
 }
 
 }  // namespace hixl

@@ -10,15 +10,24 @@
 #include "transfer_context_manager.h"
 
 #include "common/hixl_log.h"
+#include "task_exception_handler.h"
 
 namespace hixl {
+
+void TransferContext::WriteErrorFlag() const {
+  if (err_flag_dev_va != 0U) {
+    volatile uint8_t *err_flag_ptr = reinterpret_cast<volatile uint8_t *>(static_cast<uintptr_t>(err_flag_dev_va));
+    *err_flag_ptr = 1U;
+    HIXL_LOGI("[TransferContext] Written err_flag=1 to va=0x%lx", err_flag_dev_va);
+  }
+}
 
 TransferContextManager &TransferContextManager::Instance() {
   static TransferContextManager manager;
   return manager;
 }
 
-std::shared_ptr<TransferContext> TransferContextManager::Get(ThreadHandle thread) {
+std::shared_ptr<TransferContext> TransferContextManager::Get(ThreadHandle thread) const {
   std::lock_guard<std::mutex> lock(mutex_);
   auto it = contexts_.find(thread);
   if (it == contexts_.end()) {
@@ -28,7 +37,7 @@ std::shared_ptr<TransferContext> TransferContextManager::Get(ThreadHandle thread
 }
 
 HixlTransferThreadState TransferContextManager::Add(ThreadHandle thread, uint32_t notify_id, uint64_t err_flag_dev_va) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::unique_lock<std::mutex> lock(mutex_);
   auto &ctx = contexts_[thread];
   if (ctx == nullptr) {
     ctx = std::make_shared<TransferContext>();
@@ -39,11 +48,17 @@ HixlTransferThreadState TransferContextManager::Add(ThreadHandle thread, uint32_
 
   HIXL_LOGI("[TransferContextManager] add transfer context success. thread=%lu notify_id=%u err_flag_dev_va=0x%lx",
             static_cast<uint64_t>(thread), notify_id, static_cast<uint64_t>(err_flag_dev_va));
+  lock.unlock();
+
+  // 防止hcomm接口内回调hixl触发Get导致死锁，所以这里放到锁外面
+  TaskExceptionHandler::Instance().EnableExceptionCallback();
+
   return TRANSFER_THREAD_STATE_INITIALIZED;
 }
 
 HixlTransferThreadState TransferContextManager::Delete(ThreadHandle thread) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  bool need_disable = false;
+  std::unique_lock<std::mutex> lock(mutex_);
   auto it = contexts_.find(thread);
   if (it == contexts_.end() || it->second == nullptr) {
     return TRANSFER_THREAD_STATE_DELETED;
@@ -59,6 +74,14 @@ HixlTransferThreadState TransferContextManager::Delete(ThreadHandle thread) {
   ctx->unlock();
 
   HIXL_LOGI("[TransferContextManager] delete transfer context success. thread=%lu", static_cast<uint64_t>(thread));
+  need_disable = contexts_.empty();
+  lock.unlock();
+
+  if (need_disable) {
+    // 防止hcomm接口内回调hixl触发Get导致死锁，所以这里放到锁外面
+    TaskExceptionHandler::Instance().DisableExceptionCallback();
+  }
+
   return TRANSFER_THREAD_STATE_DELETED;
 }
 

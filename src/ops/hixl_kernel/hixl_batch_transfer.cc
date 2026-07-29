@@ -172,6 +172,8 @@ uint32_t HixlBatchTransfer(bool is_read, HixlOneSideOpParam *param) {
     return FAILED;
   }
 
+  HIXL_DISMISSABLE_GUARD(err_flag_guard, ([&ctx]() { ctx->WriteErrorFlag(); }));
+
   constexpr const char *kBatchTag = "HixlKernel";
   int32_t ret = HcommProxy::BatchModeStart(kBatchTag);
   HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED, "[HixlBatchPutAndGet] HcommBatchModeStart failed, ret is %d", ret);
@@ -194,6 +196,7 @@ uint32_t HixlBatchTransfer(bool is_read, HixlOneSideOpParam *param) {
   HIXL_DISMISS_GUARD(batch_mode);
   HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED, "[HixlBatchPutAndGet] HcommBatchModeEnd failed, ret is %d", ret);
 
+  HIXL_DISMISS_GUARD(err_flag_guard);
   return SUCCESS;
 }
 }  // namespace
