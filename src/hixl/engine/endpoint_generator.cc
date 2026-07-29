@@ -109,6 +109,7 @@ bool IsUbgEid(const DcmiUrmaEidInfo &eid_info) {
 }
 
 Status GetUbgEidFromDcmi(uint32_t logic_id, std::string &eid) {
+  HIXL_LOGI("[GetUbgEidFromDcmi] start, logic_id=%u", logic_id);
   uint32_t dev_cnt = 0;
   HIXL_CHK_BOOL_RET_STATUS(DcmiProxy::GetUrmaDeviceCnt(logic_id, &dev_cnt) == 0, FAILED,
                            "GetUrmaDeviceCnt failed, logic_id=%u", logic_id);
@@ -127,6 +128,7 @@ Status GetUbgEidFromDcmi(uint32_t logic_id, std::string &eid) {
       }
       if (IsUbgEid(eid_list[eid_index])) {
         eid = ConvertEidToString(eid_list[eid_index].eid.raw, sizeof(eid_list[eid_index].eid.raw));
+        HIXL_LOGI("[GetUbgEidFromDcmi] found UBG EID, logic_id=%u, eid=%s", logic_id, eid.c_str());
         return SUCCESS;
       }
     }
@@ -183,8 +185,11 @@ Status GenDefaultUbgEndpointConfig(int32_t logic_dev_id, EndpointConfig &endpoin
 }
 
 Status GenScaleOutEndpoint(ProtocolDescMode mode, std::vector<EndpointConfig> &endpoint_list) {
+  int32_t user_dev_id = 0;
+  HIXL_CHK_ACL_RET(aclrtGetDevice(&user_dev_id));
   int32_t logic_dev_id = 0;
-  HIXL_CHK_ACL_RET(aclrtGetDevice(&logic_dev_id));
+  HIXL_CHK_ACL_RET(aclrtGetLogicDevIdByUserDevId(user_dev_id, &logic_dev_id));
+  HIXL_LOGI("[GenScaleOutEndpoint] user_dev_id=%d, logic_dev_id=%d", user_dev_id, logic_dev_id);
   const char *desc = (mode == ProtocolDescMode::kUbg) ? kUbgProtocolDesc : kUboeProtocolDesc;
   if (DsmiProxy::IsInterconTypeSupported()) {
     uint32_t intercon_type = 0U;
@@ -206,20 +211,21 @@ Status GenScaleOutEndpoint(ProtocolDescMode mode, std::vector<EndpointConfig> &e
   return SUCCESS;
 }
 
-Status GenerateScaleOutEndpointByInterconType(int32_t logic_dev_id, int32_t phy_dev_id,
-                                              std::vector<EndpointConfig> &endpoint_list) {
+Status GenerateScaleOutEndpointByInterconType(int32_t user_dev_id, std::vector<EndpointConfig> &endpoint_list) {
+  int32_t logic_dev_id = 0;
+  HIXL_CHK_ACL_RET(aclrtGetLogicDevIdByUserDevId(user_dev_id, &logic_dev_id));
   // DSMI InterconType 未就绪时回退到 UB 自动生成，endpoint_list 为空由上层兜底
   if (!DsmiProxy::IsInterconTypeSupported()) {
     HIXL_LOGW(
         "[EndpointGenerator] DSMI InterconType not supported yet, fallback to existing UB generation, "
-        "logic_dev_id=%d, phy_dev_id=%d",
-        logic_dev_id, phy_dev_id);
+        "user_dev_id=%d, logic_dev_id=%d",
+        user_dev_id, logic_dev_id);
     return SUCCESS;
   }
   uint32_t intercon_type = 0U;
   HIXL_CHK_STATUS_RET(DsmiProxy::GetInterconType(logic_dev_id, intercon_type), "GetInterconType failed");
-  HIXL_EVENT("[EndpointGenerator] DSMI InterconType=%u for logic_dev_id=%d, phy_dev_id=%d", intercon_type, logic_dev_id,
-             phy_dev_id);
+  HIXL_EVENT("[EndpointGenerator] DSMI InterconType=%u for user_dev_id=%d, logic_dev_id=%d", intercon_type, user_dev_id,
+             logic_dev_id);
   if (IsUbgInterconType(intercon_type)) {
     EndpointConfig ubg_endpoint{};
     if (GenDefaultUbgEndpointConfig(logic_dev_id, ubg_endpoint) != SUCCESS) {
@@ -601,7 +607,7 @@ Status EndpointGenerator::AutoGenA5EndpointList(const HixlOptions &options,
   }
 
   if (options.GetProtocolDesc().empty()) {
-    HIXL_CHK_STATUS_RET(GenerateScaleOutEndpointByInterconType(device_id, phy_id, endpoint_list),
+    HIXL_CHK_STATUS_RET(GenerateScaleOutEndpointByInterconType(device_id, endpoint_list),
                         "[AutoGenEndpointList] GenerateScaleOutEndpointByInterconType failed");
   } else {
     HIXL_CHK_STATUS_RET(GenEndpointFromProtocolDesc(options, endpoint_list),
