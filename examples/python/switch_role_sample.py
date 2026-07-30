@@ -94,8 +94,8 @@ def run_prompt_sample(datadist, local_host_ip, remote_host_ip):
 
     # 3. 切换角色
     datadist.switch_role(LLMRole.DECODER)
-    dist.barrier()  # prompt switch role end, close lisen
-    dist.barrier()  # decoder switch role end, lisen
+    dist.barrier()  # prompt switch role end, close listen
+    dist.barrier()  # decoder switch role end, listen
 
     # 4. 向decoder发起建链
     cluster = LLMClusterInfo()
@@ -172,7 +172,7 @@ def run_decoder_sample(datadist, local_host_ip, remote_host_ip):
         raise Exception("unlink failed")
 
     dist.barrier()  # decoder unlink
-    dist.barrier()  # prompt switch role end, close lisen
+    dist.barrier()  # prompt switch role end, close listen
     llm_config = LLMConfig()
     llm_config.listen_ip_info = f"{local_host_ip}:26000"
     llm_options = llm_config.generate_options()
@@ -180,7 +180,7 @@ def run_decoder_sample(datadist, local_host_ip, remote_host_ip):
     logging.info("decoder link, pull, unlink, switch role success, wait prompt link...")
 
     # 5. 等待prompt发起建链
-    dist.barrier()  # decoder switch role end, lisen
+    dist.barrier()  # decoder switch role end, listen
     dist.barrier()  # prompt link end
 
     # 6. 向prompt push blocks

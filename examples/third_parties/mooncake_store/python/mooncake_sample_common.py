@@ -27,7 +27,7 @@ def create_parser(description):
         "--schema",
         type=str,
         default="d2d",
-        help="transport schema, should in ['h2h', 'h2d', 'd2h', 'd2d']",
+        help="transport schema, should be in ['h2h', 'h2d', 'd2h', 'd2d']",
     )
     parser.add_argument("--config", type=str, help="Path to config file")
     parser.add_argument(

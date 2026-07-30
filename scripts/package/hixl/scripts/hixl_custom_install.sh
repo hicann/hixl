@@ -209,7 +209,7 @@ get_newname() {
             if [ "$newname" = "$matched" ]; then
                 return
             else
-                log "INFO" "\033[32mfile name '$newname' is invalid, a valid file name can only includes a-zA-Z0-9_-.\033[0m"
+                log "INFO" "\033[32mfile name '$newname' is invalid, a valid file name can only include a-zA-Z0-9_-.\033[0m"
             fi
         fi
     done

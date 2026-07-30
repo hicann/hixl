@@ -1,19 +1,19 @@
   --run                             Install run mode
     --docker-root=<docker root fs directory>    Specify the path of docker root
     --install-path=<path>           Install product to specific dir path
-    --install-for-all               Install for all user
+    --install-for-all               Install for all users
     --pylocal                       Install python packages to install dir path
     --setenv                        Setting the Environment Variables Required at Run Time
   --devel                           Install devel mode
     --docker-root=<docker root fs directory>    Specify the path of docker root
     --install-path=<path>           Install product to specific dir path
-    --install-for-all               Install for all user
+    --install-for-all               Install for all users
     --pylocal                       Install python packages to install dir path
     --setenv                        Setting the Environment Variables Required at Run Time
   --full                            Install full mode
     --docker-root=<docker root fs directory>    Specify the path of docker root
     --install-path=<path>           Install product to specific dir path
-    --install-for-all               Install for all user
+    --install-for-all               Install for all users
     --pylocal                       Install python packages to install dir path
     --setenv                        Setting the Environment Variables Required at Run Time
   --uninstall                       Uninstall product
@@ -22,9 +22,8 @@
   --upgrade                         Upgrade product immediately
     --docker-root=<docker root fs directory>    Specify the path of docker root
     --install-path=<path>           Install product to specific dir path
-    --install-for-all               Install for all user
+    --install-for-all               Install for all users
     --pylocal                       Install python packages to install dir path
     --setenv                        Setting the Environment Variables Required at Run Time
   --version                         Query the package version
   --pre-check                       Package installation/running pre-dependency check
- 

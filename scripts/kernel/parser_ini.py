@@ -26,7 +26,6 @@ logging.basicConfig(
 COLOR_BOLD = "\033[1m"
 COLOR_CYAN = "\033[96m"
 COLOR_END = "\033[0m"
-COLOR_GREEN = "\033[91m"
 COLOR_RED = "\033[91m"
 CUSTOM_PREF = "custom"
 
@@ -46,7 +45,7 @@ class IniParser(object):
         self.custom_flag = False
         self.warn_print = False
         self.warning_ops = defaultdict(list)
-        
+
     @staticmethod
     def _is_io_section(op_sec):
         """Check if op_sec is an input/output section name."""
@@ -56,7 +55,7 @@ class IniParser(object):
             or (op_sec.startswith("dynamic_input") and op_sec[13:].isdigit())
             or (op_sec.startswith("dynamic_output") and op_sec[14:].isdigit())
         )
-        
+
     def load_ini_info(self, ini_files):
         """
         Load config info from ini files, store in class struct: self.aicpu_ops_info
@@ -241,7 +240,7 @@ class IniParser(object):
         ret = self.check_op_input_output(sec_info)
         if not ret:
             logging.error(
-                "## %s: %s should has format type or name as the key, but getting %s",
+                "## %s: %s should have format type or name as the key, but getting %s",
                 op_name,
                 op_sec,
                 sec_info,
@@ -295,8 +294,8 @@ class IniParser(object):
         if not self.custom_flag:
             for op_name in self.custom_ops_info:
                 del self.aicpu_ops_info[op_name]
-                
-                
+
+
 def main():
     """A Parser function for ini file."""
     parser = argparse.ArgumentParser(

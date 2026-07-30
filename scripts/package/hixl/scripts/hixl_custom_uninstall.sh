@@ -130,7 +130,7 @@ whl_uninstall_package() {
     if [ ! -d "${_module_path}/${_hixl_whl}" ]; then
         pip3 show "${_hixl_whl}" > /dev/null 2>&1
         if [ $? -ne 0 ]; then
-            log "WARNING" "${_module} is not exist."
+            log "WARNING" "${_module} does not exist."
         else
             pip3 uninstall -y "${_hixl_whl}" > /dev/null 2>&1
             ret=$?

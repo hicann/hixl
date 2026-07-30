@@ -33,12 +33,12 @@ log() {
 
 main() {
     if [ ! -f "$version_info_file" ]; then
-        log "[WARNING]: file $version_info_file not exists!"
+        log "[WARNING]: file $version_info_file does not exist!"
         return 0
     fi
 
     if [ ! -f "$DEP_PKG_VER_FILE" ]; then
-        log "[WARNING]: file $DEP_PKG_VER_FILE not exists!"
+        log "[WARNING]: file $DEP_PKG_VER_FILE does not exist!"
         return 0
     fi
 
