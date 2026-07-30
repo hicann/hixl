@@ -80,7 +80,7 @@
     const HcclResult _ret = (expr);                                                           \
     if (_ret != HCCL_SUCCESS) {                                                               \
       HIXL_REPORT_ERR_MSG("E19999", "Call " #expr " fail. " __VA_ARGS__);                     \
-      const auto _hixl_ret = hixl::HcclError2Status(_ret);                                    \
+      const auto _hixl_ret = hixl::ConvertHcclErrorToStatus(_ret);                            \
       HIXL_LOGE(static_cast<uint32_t>(_ret), "Call hccl api:" #expr " failed. " __VA_ARGS__); \
       return _hixl_ret;                                                                       \
     }                                                                                         \

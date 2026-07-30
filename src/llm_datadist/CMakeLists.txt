@@ -16,7 +16,7 @@ set(INC_DIR
         "${CMAKE_CURRENT_LIST_DIR}"
         "${CMAKE_CURRENT_LIST_DIR}/link_mgr"
         "${CMAKE_CURRENT_LIST_DIR}/cache_mgr"
-        "${CMAKE_CURRENT_LIST_DIR}/hccl"
+        "${CMAKE_CURRENT_LIST_DIR}/adapter_hccl"
         "${CMAKE_CURRENT_LIST_DIR}/common"
         "${CMAKE_CURRENT_LIST_DIR}/fsm"
         "${HIXL_CODE_DIR}/src/hixl"
@@ -87,7 +87,7 @@ install(TARGETS llm_datadist
 set(ADXL_INC_DIR
         "${HIXL_CODE_DIR}/include"
         "${CMAKE_CURRENT_LIST_DIR}"
-        "${CMAKE_CURRENT_LIST_DIR}/hccl"
+        "${CMAKE_CURRENT_LIST_DIR}/adapter_hccl"
         "${CMAKE_CURRENT_LIST_DIR}/common"
         "${HIXL_CODE_DIR}/src/hixl"
         )
@@ -98,7 +98,7 @@ file(GLOB ADXL_SRC_LIST
         "${CMAKE_CURRENT_LIST_DIR}/llm_datadist_timer.cc"
         "${CMAKE_CURRENT_LIST_DIR}/comm_statistic_manager.cc"
         "${CMAKE_CURRENT_LIST_DIR}/common/*.cc"
-        "${CMAKE_CURRENT_LIST_DIR}/hccl/*.cc"
+        "${CMAKE_CURRENT_LIST_DIR}/adapter_hccl/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/memory/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/memory/allocator/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/memory/config/*.cc"

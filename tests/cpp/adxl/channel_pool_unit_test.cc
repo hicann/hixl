@@ -61,7 +61,7 @@ class ChannelPoolUnitTest : public ::testing::Test {
   void SetUp() override {
     llm::MockMmpaForHcclApi::Install();
     llm::AutoCommResRuntimeMock::Install();
-    llm::HcclAdapter::GetInstance().Initialize();
+    llm::LlmHcclAdapter::GetInstance().Initialize();
     llm::AutoCommResRuntimeMock::SetDevice(0);
 
     channel_manager_ = std::make_unique<ChannelManager>();
@@ -89,7 +89,7 @@ class ChannelPoolUnitTest : public ::testing::Test {
       buffer_transfer_service_->Finalize();
     }
 
-    llm::HcclAdapter::GetInstance().Finalize();
+    llm::LlmHcclAdapter::GetInstance().Finalize();
     llm::MockMmpaForHcclApi::Reset();
     llm::AutoCommResRuntimeMock::Reset();
   }

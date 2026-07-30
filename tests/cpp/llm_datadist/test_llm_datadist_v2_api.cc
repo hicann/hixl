@@ -42,7 +42,7 @@ class LlmDataDistSTest : public ::testing::Test {
     llm::AutoCommResRuntimeMock::Install();
   }
   void TearDown() override {
-    llm::HcclAdapter::GetInstance().Finalize();
+    llm::LlmHcclAdapter::GetInstance().Finalize();
     llm::AutoCommResRuntimeMock::Reset();
     llm::MockMmpaForHcclApi::Reset();
   }

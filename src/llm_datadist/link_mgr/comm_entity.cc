@@ -36,7 +36,7 @@ constexpr size_t kMaxOpDescNum = 64U;
 constexpr size_t kMinRemoteMemSize = 3U;
 constexpr int32_t kRetryCountMin = 1;
 constexpr int32_t kRetryCountMax = 100;
-// hccl HcclCommInitClusterInfoMemConfig not support parallel call, so use mutex to protect it
+// hccl DlHcclCommInitClusterInfoMemConfig not support parallel call, so use mutex to protect it
 std::mutex g_mutex_;
 }  // namespace
 
@@ -174,26 +174,26 @@ ge::Status EntityCommInfo::Initialize() {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!comm_inited_) {
     std::lock_guard<std::mutex> g_lock(g_mutex_);
-    HcclResult ret = HcclAdapter::GetInstance().HcclCommInitClusterInfoMemConfig(
+    HcclResult ret = LlmHcclAdapter::GetInstance().DlHcclCommInitClusterInfoMemConfig(
         params_.rank_table.c_str(), params_.rank_id, &params_.comm_config, &comm_);
     LLM_CHK_BOOL_RET_STATUS(ret == HcclResult::HCCL_SUCCESS, ge::LLM_LINK_FAILED,
-                            "Call HcclCommInitClusterInfoMemConfig failed, ret:%d.", ret);
+                            "Call DlHcclCommInitClusterInfoMemConfig failed, ret:%d.", ret);
     comm_inited_ = true;
   }
 
   LLM_DISMISSABLE_GUARD(fail_guard, ([this]() {
                           for (auto bind_handle : bind_handles_) {
-                            (void)HcclAdapter::GetInstance().HcclCommUnbindMem(comm_, bind_handle);
+                            (void)LlmHcclAdapter::GetInstance().DlHcclCommUnbindMem(comm_, bind_handle);
                           }
                           bind_handles_.clear();
-                          (void)HcclAdapter::GetInstance().HcclCommDestroy(comm_);
+                          (void)LlmHcclAdapter::GetInstance().DlHcclCommDestroy(comm_);
                           comm_inited_ = false;
                         }));
 
   for (auto reg_handle : params_.mem_handles) {
-    HcclResult bind_ret = HcclAdapter::GetInstance().HcclCommBindMem(comm_, reg_handle);
+    HcclResult bind_ret = LlmHcclAdapter::GetInstance().DlHcclCommBindMem(comm_, reg_handle);
     LLM_CHK_BOOL_RET_STATUS(bind_ret == HcclResult::HCCL_SUCCESS, ge::LLM_LINK_FAILED,
-                            "Call HcclCommBindMem failed, ret:%d.", bind_ret);
+                            "Call DlHcclCommBindMem failed, ret:%d.", bind_ret);
     bind_handles_.emplace_back(reg_handle);
   }
 
@@ -213,12 +213,12 @@ ge::Status EntityCommInfo::PrepareHcclComm() const {
   int32_t avg_timeout = params_.timeout / params_.link_retry_count;
   HcclResult prepare_ret = HcclResult::HCCL_SUCCESS;
   for (int32_t i = 0; i < params_.link_retry_count; i++) {
-    prepare_ret = HcclAdapter::GetInstance().HcclCommPrepare(comm_, &prepareConfig, avg_timeout);
+    prepare_ret = LlmHcclAdapter::GetInstance().DlHcclCommPrepare(comm_, &prepareConfig, avg_timeout);
     if (prepare_ret != HcclResult::HCCL_SUCCESS && (!stop_flag_)) {
       LLMEVENT(
           "Retrying, there will be a total of %d retries, this time is %d, returned value this time:%d; "
-          "the hccl logs during the calling of HcclCommPrepare from current thread could be ignored "
-          "if HcclCommPrepare finally succeeds.",
+          "the hccl logs during the calling of DlHcclCommPrepare from current thread could be ignored "
+          "if DlHcclCommPrepare finally succeeds.",
           params_.link_retry_count, i + 1, prepare_ret);
     } else {
       break;
@@ -226,9 +226,9 @@ ge::Status EntityCommInfo::PrepareHcclComm() const {
   }
   auto cost = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
   LLM_CHK_BOOL_RET_STATUS(prepare_ret == HcclResult::HCCL_SUCCESS,
-                          HcclUtils::ConvertHcclErrorCode(prepare_ret, ge::LLM_LINK_FAILED),
-                          "Call HcclCommPrepare failed, ret:%d, cost:%ld ms.", prepare_ret, cost);
-  LLMLOGI("HcclCommPrepare success, cost=%ld ms.", cost);
+                          LlmHcclUtils::ConvertHcclErrorToStatus(prepare_ret, ge::LLM_LINK_FAILED),
+                          "Call DlHcclCommPrepare failed, ret:%d, cost:%ld ms.", prepare_ret, cost);
+  LLMLOGI("DlHcclCommPrepare success, cost=%ld ms.", cost);
   return ge::SUCCESS;
 }
 
@@ -241,11 +241,11 @@ ge::Status EntityCommInfo::Finalize() {
   }
   auto ret = ge::SUCCESS;
   for (auto bind_handle : bind_handles_) {
-    auto hccl_ret = HcclAdapter::GetInstance().HcclCommUnbindMem(comm_, bind_handle);
+    auto hccl_ret = LlmHcclAdapter::GetInstance().DlHcclCommUnbindMem(comm_, bind_handle);
     ret = hccl_ret != HcclResult::HCCL_SUCCESS ? ge::LLM_UNLINK_FAILED : ret;
   }
   bind_handles_.clear();
-  auto hccl_ret = HcclAdapter::GetInstance().HcclCommDestroy(comm_);
+  auto hccl_ret = LlmHcclAdapter::GetInstance().DlHcclCommDestroy(comm_);
   comm_inited_ = false;
   ret = hccl_ret != HcclResult::HCCL_SUCCESS ? ge::LLM_UNLINK_FAILED : ret;
   return ret;
@@ -404,12 +404,12 @@ ge::Status CommEntity::SetRemoteAddresses() {
   LLM_CHK_BOOL_RET_STATUS((remote_mems_[kIndexRemoteReq].type == CommMemType::COMM_MEM_TYPE_HOST) &&
                               (remote_mems_[kIndexRemoteReq].size == kDefaultReqBufferSize),
                           ge::LLM_LINK_FAILED, "Remote mem type:%s, size:%lu is not valid.",
-                          HcclUtils::HcclMemTypeToString(remote_mems_[kIndexRemoteReq].type).c_str(),
+                          LlmHcclUtils::ConvertCommMemTypeToString(remote_mems_[kIndexRemoteReq].type).c_str(),
                           remote_mems_[kIndexRemoteReq].size);
   LLM_CHK_BOOL_RET_STATUS((remote_mems_[kIndexRemoteResp].type == CommMemType::COMM_MEM_TYPE_HOST) &&
                               (remote_mems_[kIndexRemoteResp].size == kDefaultRespBufferSize),
                           ge::LLM_LINK_FAILED, "Remote mem type:%s, size:%lu is not valid.",
-                          HcclUtils::HcclMemTypeToString(remote_mems_[kIndexRemoteResp].type).c_str(),
+                          LlmHcclUtils::ConvertCommMemTypeToString(remote_mems_[kIndexRemoteResp].type).c_str(),
                           remote_mems_[kIndexRemoteResp].size);
 
   // only need remote receive area
@@ -489,13 +489,13 @@ void CommEntity::SetEntityCommInfo(EntityCommInfoPtr comm_info) {
 ge::Status CommEntity::BatchPutAsync(std::vector<HcclOneSideOpDesc> &op_descs, aclrtStream stream) {
   auto stream_to_use = stream != nullptr ? stream : stream_;
   const auto start = std::chrono::steady_clock::now();
-  auto ret =
-      HcclAdapter::GetInstance().HcclBatchPut(GetComm(), rank_id_, op_descs.data(), op_descs.size(), stream_to_use);
-  LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke HcclBatchPut, ret = %d",
+  auto ret = LlmHcclAdapter::GetInstance().DlHcclBatchPut(GetComm(), rank_id_, op_descs.data(), op_descs.size(),
+                                                          stream_to_use);
+  LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke DlHcclBatchPut, ret = %d",
                           static_cast<int32_t>(ret));
   const auto end = std::chrono::steady_clock::now();
   const auto cost = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-  LLMLOGI("HcclBatchPut success, num = %zu, cost = %ld us.", op_descs.size(), cost);
+  LLMLOGI("DlHcclBatchPut success, num = %zu, cost = %ld us.", op_descs.size(), cost);
   auto &send_statistic_info = GetSendStatisticInfo(stream_to_use);
   CommStatisticManager::GetInstance().UpdateCost(
       cost, send_statistic_info.batch_put_times, send_statistic_info.batch_put_min_cost,
@@ -519,13 +519,13 @@ SendStatisticInfo &CommEntity::GetSendStatisticInfo(aclrtStream stream) {
 ge::Status CommEntity::BatchGetAsync(std::vector<HcclOneSideOpDesc> &op_descs, aclrtStream stream) {
   auto stream_to_use = stream != nullptr ? stream : stream_;
   const auto start = std::chrono::steady_clock::now();
-  auto ret =
-      HcclAdapter::GetInstance().HcclBatchGet(GetComm(), rank_id_, op_descs.data(), op_descs.size(), stream_to_use);
-  LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, HcclUtils::ConvertHcclErrorCode(ret),
-                          "Failed to invoke HcclBatchGet, hccl_result = %d", static_cast<int32_t>(ret));
+  auto ret = LlmHcclAdapter::GetInstance().DlHcclBatchGet(GetComm(), rank_id_, op_descs.data(), op_descs.size(),
+                                                          stream_to_use);
+  LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, LlmHcclUtils::ConvertHcclErrorToStatus(ret),
+                          "Failed to invoke DlHcclBatchGet, hccl_result = %d", static_cast<int32_t>(ret));
   const auto end = std::chrono::steady_clock::now();
   const auto cost = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-  LLMLOGI("HcclBatchGet success, num = %zu, cost = %ld us.", op_descs.size(), cost);
+  LLMLOGI("DlHcclBatchGet success, num = %zu, cost = %ld us.", op_descs.size(), cost);
   ;
   CommStatisticManager::UpdateCost(cost, recv_statistic_info_.batch_get_times, recv_statistic_info_.batch_get_min_cost,
                                    recv_statistic_info_.batch_get_max_cost, recv_statistic_info_.batch_get_total_cost);
@@ -612,7 +612,7 @@ void CommEntity::Dump() const {
                                      : recv_statistic_info_.pull_total_cost / recv_statistic_info_.pull_times;
   LLMEVENT(
       "Comm entity info:desc[%s] Recv statistic info:req_info get time:%lu, sync_flag get time:%lu, "
-      "HcclBatchGet [times:%lu, max:%lu us, min:%lu us, avg_cost:%lu us], "
+      "DlHcclBatchGet [times:%lu, max:%lu us, min:%lu us, avg_cost:%lu us], "
       "get info [total num:%lu, get times:%lu, max:%lu us, min:%lu us, avg_cost:%lu us]",
       desc_.c_str(), recv_statistic_info_.req_info_get_times, recv_statistic_info_.sync_flag_get_times,
       recv_statistic_info_.batch_get_times, recv_statistic_info_.batch_get_max_cost,
@@ -750,11 +750,11 @@ ge::Status BufferedSender::Flush() {
   if (!op_descs_.empty()) {
     if (put_or_get_) {
       auto ret = comm_entity_->BatchPutAsync(op_descs_, stream_);
-      LLM_CHK_STATUS_RET(ret, "Failed to invoke HcclBatchPut");
+      LLM_CHK_STATUS_RET(ret, "Failed to invoke DlHcclBatchPut");
       LLMLOGI("BatchPut success, buffer_num = %zu", op_descs_.size());
     } else {
       auto ret = comm_entity_->BatchGetAsync(op_descs_, stream_);
-      LLM_CHK_STATUS_RET(ret, "Failed to invoke HcclBatchGet");
+      LLM_CHK_STATUS_RET(ret, "Failed to invoke DlHcclBatchGet");
       LLMLOGI("BatchGet success, buffer_num = %zu", op_descs_.size());
     }
     op_descs_.clear();

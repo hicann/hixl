@@ -22,7 +22,7 @@
 #include "common/llm_inner_types.h"
 #include "common/common.h"
 #include "cache_mgr/cache_manager.h"
-#include "hccl/hccl_adapter.h"
+#include "adapter_hccl/llm_hccl_adapter.h"
 #include "common/llm_mem_pool.h"
 #include "comm_statistic_manager.h"
 #include "utils/cache_access_table.h"

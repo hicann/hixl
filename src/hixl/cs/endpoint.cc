@@ -100,7 +100,7 @@ Status Endpoint::Finalize() {
     auto mem_handle = it.first;
     auto hccl_ret = HcommProxy::MemUnreg(handle_, mem_handle);
     if (hccl_ret != HCCL_SUCCESS) {
-      ret = hixl::HcclError2Status(hccl_ret);
+      ret = hixl::ConvertHcclErrorToStatus(hccl_ret);
       HIXL_LOGE(ret, "HcommMemUnreg failed, ret: %d", hccl_ret);
     }
 
@@ -111,7 +111,7 @@ Status Endpoint::Finalize() {
   reg_mems_.clear();
   auto hccl_ret = HcommProxy::EndpointDestroy(handle_);
   if (hccl_ret != HCCL_SUCCESS) {
-    ret = hixl::HcclError2Status(hccl_ret);
+    ret = hixl::ConvertHcclErrorToStatus(hccl_ret);
     HIXL_LOGE(ret, "HcommEndpointDestroy failed, ret: %d", hccl_ret);
   }
   handle_ = nullptr;
@@ -157,7 +157,7 @@ Status Endpoint::RegisterMem(const char *mem_tag, const CommMem &mem, MemHandle 
     hccl_ret = HcommProxy::MemReg(handle_, mem_tag, &mem, &mem_handle);
   }
   if (hccl_ret != HCCL_SUCCESS && hccl_ret != HCCL_E_AGAIN) {
-    ret = hixl::HcclError2Status(hccl_ret);
+    ret = hixl::ConvertHcclErrorToStatus(hccl_ret);
     HIXL_LOGE(ret, "HcommMemReg failed, hccl_ret %d", hccl_ret);
     return ret;
   }

@@ -11,7 +11,7 @@
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/ascendcl/src/ascendcl_stub.h"
 #include "depends/llm_datadist/src/hccn_conf_helper.h"
-#include "hccl/hccl_mem_comm.h"
+#include "adapter_hccl/llm_hccl_mem_comm.h"
 #include "acl/acl.h"
 #include "hccl_stub.h"
 #include "depends/llm_datadist/src/hccl_test_helper.h"

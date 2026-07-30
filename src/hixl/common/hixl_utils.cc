@@ -92,7 +92,7 @@ Status GetIpAddressFromHccnTool(uint32_t phy_device_id, std::string &ip) {
 }
 
 }  // namespace
-Status HcclError2Status(HcclResult ret) {
+Status ConvertHcclErrorToStatus(HcclResult ret) {
   static const std::map<HcclResult, Status> result2status = {
       {HCCL_SUCCESS, SUCCESS},
       {HCCL_E_PARA, PARAM_INVALID},

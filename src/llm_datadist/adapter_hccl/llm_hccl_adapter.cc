@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "hccl/hccl_adapter.h"
+#include "llm_hccl_adapter.h"
 #include <map>
 #include "mmpa/mmpa_api.h"
 #include "common/common.h"
@@ -32,18 +32,18 @@ constexpr const char *kHcclCommUnbindMemName = "HcclCommUnbindMem";
 constexpr const char *kHcclCommPrepareName = "HcclCommPrepare";
 }  // namespace
 
-ge::Status HcclAdapter::Initialize() {
+ge::Status LlmHcclAdapter::Initialize() {
   return LoadSo();
 }
-void HcclAdapter::Finalize() {
+void LlmHcclAdapter::Finalize() {
   (void)UnloadSo();
 }
 
-HcclAdapter::~HcclAdapter() {
+LlmHcclAdapter::~LlmHcclAdapter() {
   Finalize();
 }
 
-ge::Status HcclAdapter::LoadSo() {
+ge::Status LlmHcclAdapter::LoadSo() {
   std::lock_guard<std::mutex> lock(mutex_);
   if (so_handle_ != nullptr) {
     return ge::SUCCESS;
@@ -55,57 +55,59 @@ ge::Status HcclAdapter::LoadSo() {
 
   LLMLOGI("Start to load funcs");
 
-  hccl_exchange_mem_desc_func_ =
-      llm::FunctionLoader<HcclExchangeMemDescFunc>::load(so_handle_, kHcclExchangeMemDescName);
-  LLM_CHECK_NOTNULL(hccl_exchange_mem_desc_func_, ",failed to get function:%s.", kHcclExchangeMemDescName);
+  dl_hccl_exchange_mem_desc_func_ =
+      llm::FunctionLoader<DlHcclExchangeMemDescFunc>::load(so_handle_, kHcclExchangeMemDescName);
+  LLM_CHECK_NOTNULL(dl_hccl_exchange_mem_desc_func_, ",failed to get function:%s.", kHcclExchangeMemDescName);
 
-  hccl_batch_put_func_ = llm::FunctionLoader<HcclBatchPutFunc>::load(so_handle_, kHcclBatchPutName);
-  LLM_CHECK_NOTNULL(hccl_batch_put_func_, ",failed to get function:%s.", kHcclBatchPutName);
+  dl_hccl_batch_put_func_ = llm::FunctionLoader<DlHcclBatchPutFunc>::load(so_handle_, kHcclBatchPutName);
+  LLM_CHECK_NOTNULL(dl_hccl_batch_put_func_, ",failed to get function:%s.", kHcclBatchPutName);
 
-  hccl_batch_get_func_ = llm::FunctionLoader<HcclBatchGetFunc>::load(so_handle_, kHcclBatchGetName);
-  LLM_CHECK_NOTNULL(hccl_batch_get_func_, ",failed to get function:%s.", kHcclBatchGetName);
+  dl_hccl_batch_get_func_ = llm::FunctionLoader<DlHcclBatchGetFunc>::load(so_handle_, kHcclBatchGetName);
+  LLM_CHECK_NOTNULL(dl_hccl_batch_get_func_, ",failed to get function:%s.", kHcclBatchGetName);
 
-  hccl_remap_registered_memory_func_ =
-      llm::FunctionLoader<HcclRemapRegisteredMemoryFunc>::load(so_handle_, kHcclRemapRegisteredMemoryName);
-  LLM_CHECK_NOTNULL(hccl_remap_registered_memory_func_, ",failed to get function:%s.", kHcclRemapRegisteredMemoryName);
+  dl_hccl_remap_registered_memory_func_ =
+      llm::FunctionLoader<DlHcclRemapRegisteredMemoryFunc>::load(so_handle_, kHcclRemapRegisteredMemoryName);
+  LLM_CHECK_NOTNULL(dl_hccl_remap_registered_memory_func_, ",failed to get function:%s.",
+                    kHcclRemapRegisteredMemoryName);
 
-  hccl_comm_prepare_func_ = llm::FunctionLoader<HcclCommPrepareFunc>::load(so_handle_, kHcclCommPrepareName);
+  dl_hccl_comm_prepare_func_ = llm::FunctionLoader<DlHcclCommPrepareFunc>::load(so_handle_, kHcclCommPrepareName);
 
-  hccl_register_global_mem_func_ =
-      llm::FunctionLoader<HcclRegisterGlobalMemFunc>::load(so_handle_, kHcclRegisterGlobalMemName);
-  LLM_CHECK_NOTNULL(hccl_register_global_mem_func_, ",failed to get function:%s.", kHcclRegisterGlobalMemName);
+  dl_hccl_register_global_mem_func_ =
+      llm::FunctionLoader<DlHcclRegisterGlobalMemFunc>::load(so_handle_, kHcclRegisterGlobalMemName);
+  LLM_CHECK_NOTNULL(dl_hccl_register_global_mem_func_, ",failed to get function:%s.", kHcclRegisterGlobalMemName);
 
-  hccl_deregister_global_mem_func_ =
-      llm::FunctionLoader<HcclDeregisterGlobalMemFunc>::load(so_handle_, kHcclDeregisterGlobalMemName);
-  LLM_CHECK_NOTNULL(hccl_deregister_global_mem_func_, ",failed to get function:%s.", kHcclDeregisterGlobalMemName);
+  dl_hccl_deregister_global_mem_func_ =
+      llm::FunctionLoader<DlHcclDeregisterGlobalMemFunc>::load(so_handle_, kHcclDeregisterGlobalMemName);
+  LLM_CHECK_NOTNULL(dl_hccl_deregister_global_mem_func_, ",failed to get function:%s.", kHcclDeregisterGlobalMemName);
 
-  hccl_comm_bind_mem_func_ = llm::FunctionLoader<HcclCommBindMemFunc>::load(so_handle_, kHcclCommBindMemName);
-  LLM_CHECK_NOTNULL(hccl_comm_bind_mem_func_, ",failed to get function:%s.", kHcclCommBindMemName);
+  dl_hccl_comm_bind_mem_func_ = llm::FunctionLoader<DlHcclCommBindMemFunc>::load(so_handle_, kHcclCommBindMemName);
+  LLM_CHECK_NOTNULL(dl_hccl_comm_bind_mem_func_, ",failed to get function:%s.", kHcclCommBindMemName);
 
-  hccl_comm_unbind_mem_func_ = llm::FunctionLoader<HcclCommUnbindMemFunc>::load(so_handle_, kHcclCommUnbindMemName);
-  LLM_CHECK_NOTNULL(hccl_comm_unbind_mem_func_, ",failed to get function:%s.", kHcclCommUnbindMemName);
+  dl_hccl_comm_unbind_mem_func_ =
+      llm::FunctionLoader<DlHcclCommUnbindMemFunc>::load(so_handle_, kHcclCommUnbindMemName);
+  LLM_CHECK_NOTNULL(dl_hccl_comm_unbind_mem_func_, ",failed to get function:%s.", kHcclCommUnbindMemName);
 
-  hccl_comm_init_cluster_info_mem_func_ =
-      llm::FunctionLoader<HcclCommInitClusterInfoMemConfigFunc>::load(so_handle_, kHcclCommInitClusterInfoMemName);
-  LLM_CHECK_NOTNULL(hccl_comm_init_cluster_info_mem_func_, ",failed to get function:%s.",
+  dl_hccl_comm_init_cluster_info_mem_func_ =
+      llm::FunctionLoader<DlHcclCommInitClusterInfoMemConfigFunc>::load(so_handle_, kHcclCommInitClusterInfoMemName);
+  LLM_CHECK_NOTNULL(dl_hccl_comm_init_cluster_info_mem_func_, ",failed to get function:%s.",
                     kHcclCommInitClusterInfoMemName);
 
-  hccl_comm_destroy_func_ = llm::FunctionLoader<HcclCommDestroyFunc>::load(so_handle_, kHcclCommDestroyName);
-  LLM_CHECK_NOTNULL(hccl_comm_destroy_func_, ",failed to get function:%s.", kHcclCommDestroyName);
+  dl_hccl_comm_destroy_func_ = llm::FunctionLoader<DlHcclCommDestroyFunc>::load(so_handle_, kHcclCommDestroyName);
+  LLM_CHECK_NOTNULL(dl_hccl_comm_destroy_func_, ",failed to get function:%s.", kHcclCommDestroyName);
 
   LLMLOGI("Success to load so:%s", kHcclSoName);
   return ret;
 }
 
-ge::Status HcclAdapter::UnloadSo() {
+ge::Status LlmHcclAdapter::UnloadSo() {
   std::lock_guard<std::mutex> lock(mutex_);
-  hccl_exchange_mem_desc_func_ = nullptr;
-  hccl_comm_init_cluster_info_mem_func_ = nullptr;
-  hccl_comm_destroy_func_ = nullptr;
-  hccl_batch_put_func_ = nullptr;
-  hccl_remap_registered_memory_func_ = nullptr;
-  hccl_register_global_mem_func_ = nullptr;
-  hccl_deregister_global_mem_func_ = nullptr;
+  dl_hccl_exchange_mem_desc_func_ = nullptr;
+  dl_hccl_comm_init_cluster_info_mem_func_ = nullptr;
+  dl_hccl_comm_destroy_func_ = nullptr;
+  dl_hccl_batch_put_func_ = nullptr;
+  dl_hccl_remap_registered_memory_func_ = nullptr;
+  dl_hccl_register_global_mem_func_ = nullptr;
+  dl_hccl_deregister_global_mem_func_ = nullptr;
   if (so_handle_ != nullptr) {
     auto ret = mmDlclose(so_handle_);
     LLM_CHK_BOOL_RET_STATUS(ret == 0, ge::FAILED, "close hccl so failed.");
@@ -114,32 +116,32 @@ ge::Status HcclAdapter::UnloadSo() {
   return ge::SUCCESS;
 }
 
-HcclAdapter &HcclAdapter::GetInstance() {
-  static HcclAdapter manager;
+LlmHcclAdapter &LlmHcclAdapter::GetInstance() {
+  static LlmHcclAdapter manager;
   return manager;
 }
 
-HcclResult HcclAdapter::HcclExchangeMemDesc(HcclComm comm, uint32_t remote_rank, HcclMemDescs *local, int timeout,
-                                            HcclMemDescs *remote, uint32_t *actual_num) {
+HcclResult LlmHcclAdapter::DlHcclExchangeMemDesc(HcclComm comm, uint32_t remote_rank, HcclMemDescs *local, int timeout,
+                                                 HcclMemDescs *remote, uint32_t *actual_num) {
   const auto start = std::chrono::steady_clock::now();
-  auto ret = hccl_exchange_mem_desc_func_(comm, remote_rank, local, timeout, remote, actual_num);
+  auto ret = dl_hccl_exchange_mem_desc_func_(comm, remote_rank, local, timeout, remote, actual_num);
   const auto end = std::chrono::steady_clock::now();
   CommStatisticManager::GetInstance().AddExchangeMemCost(
       std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
   return ret;
 }
 
-HcclResult HcclAdapter::HcclCommInitClusterInfoMemConfig(const char *cluster, uint32_t rank, HcclCommConfig *config,
-                                                         HcclComm *comm) {
+HcclResult LlmHcclAdapter::DlHcclCommInitClusterInfoMemConfig(const char *cluster, uint32_t rank,
+                                                              HcclCommConfig *config, HcclComm *comm) {
   const auto start = std::chrono::steady_clock::now();
-  auto ret = hccl_comm_init_cluster_info_mem_func_(cluster, rank, config, comm);
+  auto ret = dl_hccl_comm_init_cluster_info_mem_func_(cluster, rank, config, comm);
   const auto end = std::chrono::steady_clock::now();
   CommStatisticManager::GetInstance().AddCommInitCost(
       std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
   return ret;
 }
 
-void HcclAdapter::HcclCommConfigInit(HcclCommConfig *config) {
+void LlmHcclAdapter::DlHcclCommConfigInit(HcclCommConfig *config) {
   const uint32_t HCCL_COMM_CONFIG_MAGIC_WORD = 0xf0f0f0f0;
   const uint32_t HCCL_COMM_CONFIG_VERSION = 5U;
   const uint32_t HCCL_COMM_DEFAULT_BUFFSIZE = 200U;
@@ -169,78 +171,78 @@ void HcclAdapter::HcclCommConfigInit(HcclCommConfig *config) {
   config->hcclRdmaServiceLevel = HCCL_COMM_SERVICE_LEVEL_CONFIG_NOT_SET;
 }
 
-HcclResult HcclAdapter::HcclCommDestroy(HcclComm comm) {
+HcclResult LlmHcclAdapter::DlHcclCommDestroy(HcclComm comm) {
   const auto start = std::chrono::steady_clock::now();
-  auto ret = hccl_comm_destroy_func_(comm);
+  auto ret = dl_hccl_comm_destroy_func_(comm);
   const auto end = std::chrono::steady_clock::now();
   CommStatisticManager::GetInstance().AddCommDestroyCost(
       std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
   return ret;
 }
 
-HcclResult HcclAdapter::HcclBatchPut(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t desc_num,
-                                     aclrtStream stream) {
+HcclResult LlmHcclAdapter::DlHcclBatchPut(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc,
+                                          uint32_t desc_num, aclrtStream stream) {
   const auto start = std::chrono::steady_clock::now();
-  auto ret = hccl_batch_put_func_(comm, remote_rank, desc, desc_num, stream);
+  auto ret = dl_hccl_batch_put_func_(comm, remote_rank, desc, desc_num, stream);
   const auto end = std::chrono::steady_clock::now();
   CommStatisticManager::GetInstance().AddBatchPutCost(
       std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
   return ret;
 }
 
-HcclResult HcclAdapter::HcclBatchGet(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t desc_num,
-                                     aclrtStream stream) const {
-  auto ret = hccl_batch_get_func_(comm, remote_rank, desc, desc_num, stream);
+HcclResult LlmHcclAdapter::DlHcclBatchGet(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc,
+                                          uint32_t desc_num, aclrtStream stream) const {
+  auto ret = dl_hccl_batch_get_func_(comm, remote_rank, desc, desc_num, stream);
   return ret;
 }
 
-HcclResult HcclAdapter::HcclRemapRegisteredMemory(HcclComm *comm, CommMem *mem_info_array, uint64_t comm_size,
-                                                  uint64_t arraySize) const {
-  auto ret = hccl_remap_registered_memory_func_(comm, mem_info_array, comm_size, arraySize);
+HcclResult LlmHcclAdapter::DlHcclRemapRegisteredMemory(HcclComm *comm, CommMem *mem_info_array, uint64_t comm_size,
+                                                       uint64_t arraySize) const {
+  auto ret = dl_hccl_remap_registered_memory_func_(comm, mem_info_array, comm_size, arraySize);
   return ret;
 }
 
-HcclResult HcclAdapter::HcclRegisterGlobalMem(CommMem *mem, void **mem_handle) const {
+HcclResult LlmHcclAdapter::DlHcclRegisterGlobalMem(CommMem *mem, void **mem_handle) const {
   auto ret = HCCL_E_NOT_SUPPORT;
-  if (hccl_register_global_mem_func_ != nullptr) {
-    ret = hccl_register_global_mem_func_(mem, mem_handle);
+  if (dl_hccl_register_global_mem_func_ != nullptr) {
+    ret = dl_hccl_register_global_mem_func_(mem, mem_handle);
     CommStatisticManager::GetInstance().AddRegisterGlobalMemTimes();
   }
   return ret;
 }
 
-HcclResult HcclAdapter::HcclDeregisterGlobalMem(void *mem_handle) const {
+HcclResult LlmHcclAdapter::DlHcclDeregisterGlobalMem(void *mem_handle) const {
   auto ret = HCCL_E_NOT_SUPPORT;
-  if (hccl_deregister_global_mem_func_ != nullptr) {
-    ret = hccl_deregister_global_mem_func_(mem_handle);
+  if (dl_hccl_deregister_global_mem_func_ != nullptr) {
+    ret = dl_hccl_deregister_global_mem_func_(mem_handle);
     CommStatisticManager::GetInstance().AddDeregisterGlobalMemTimes();
   }
   return ret;
 }
 
-HcclResult HcclAdapter::HcclCommBindMem(HcclComm comm, void *mem_handle) const {
+HcclResult LlmHcclAdapter::DlHcclCommBindMem(HcclComm comm, void *mem_handle) const {
   auto ret = HCCL_E_NOT_SUPPORT;
-  if (hccl_comm_bind_mem_func_ != nullptr) {
-    ret = hccl_comm_bind_mem_func_(comm, mem_handle);
+  if (dl_hccl_comm_bind_mem_func_ != nullptr) {
+    ret = dl_hccl_comm_bind_mem_func_(comm, mem_handle);
     CommStatisticManager::GetInstance().AddCommBindMemTimes();
   }
   return ret;
 }
 
-HcclResult HcclAdapter::HcclCommUnbindMem(HcclComm comm, void *mem_handle) const {
+HcclResult LlmHcclAdapter::DlHcclCommUnbindMem(HcclComm comm, void *mem_handle) const {
   auto ret = HCCL_E_NOT_SUPPORT;
-  if (hccl_comm_unbind_mem_func_ != nullptr) {
-    ret = hccl_comm_unbind_mem_func_(comm, mem_handle);
+  if (dl_hccl_comm_unbind_mem_func_ != nullptr) {
+    ret = dl_hccl_comm_unbind_mem_func_(comm, mem_handle);
     CommStatisticManager::GetInstance().AddCommUnbindMemTimes();
   }
   return ret;
 }
 
-HcclResult HcclAdapter::HcclCommPrepare(HcclComm comm, HcclPrepareConfig *prepare_config, int32_t timeout) const {
+HcclResult LlmHcclAdapter::DlHcclCommPrepare(HcclComm comm, HcclPrepareConfig *prepare_config, int32_t timeout) const {
   auto ret = HCCL_E_NOT_SUPPORT;
-  if (hccl_comm_prepare_func_ != nullptr) {
+  if (dl_hccl_comm_prepare_func_ != nullptr) {
     const auto start = std::chrono::steady_clock::now();
-    ret = hccl_comm_prepare_func_(comm, prepare_config, timeout);
+    ret = dl_hccl_comm_prepare_func_(comm, prepare_config, timeout);
     const auto end = std::chrono::steady_clock::now();
     CommStatisticManager::GetInstance().AddCommPrepareCost(
         std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
@@ -248,7 +250,7 @@ HcclResult HcclAdapter::HcclCommPrepare(HcclComm comm, HcclPrepareConfig *prepar
   return ret;
 }
 
-ge::Status HcclUtils::ConvertHcclErrorCode(HcclResult hccl_result, ge::Status default_status) {
+ge::Status LlmHcclUtils::ConvertHcclErrorToStatus(HcclResult hccl_result, ge::Status default_status) {
   const static std::map<HcclResult, ge::Status> hccl_to_ge_status = {
       {HCCL_E_PARA, ge::LLM_PARAM_INVALID},
       {HCCL_E_TIMEOUT, ge::LLM_TIMEOUT},
@@ -261,7 +263,7 @@ ge::Status HcclUtils::ConvertHcclErrorCode(HcclResult hccl_result, ge::Status de
   return default_status;
 }
 
-const std::string HcclUtils::HcclMemTypeToString(CommMemType type) {
+const std::string LlmHcclUtils::ConvertCommMemTypeToString(CommMemType type) {
   switch (type) {
     case COMM_MEM_TYPE_DEVICE:
       return "device";

@@ -33,11 +33,11 @@ class LlmDataDistUTest : public ::testing::Test {
   void SetUp() override {
     llm::MockMmpaForHcclApi::Install();
     llm::AutoCommResRuntimeMock::Install();
-    llm::HcclAdapter::GetInstance().Initialize();
+    llm::LlmHcclAdapter::GetInstance().Initialize();
   }
   // 在测试类中进行清理工作，如果需要的话
   void TearDown() override {
-    llm::HcclAdapter::GetInstance().Finalize();
+    llm::LlmHcclAdapter::GetInstance().Finalize();
     llm::MockMmpaForHcclApi::Reset();
     llm::AutoCommResRuntimeMock::Reset();
   }

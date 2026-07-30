@@ -10,7 +10,7 @@
 
 #include "comm_mem_manager.h"
 #include "common/def_types.h"
-#include "hccl/hccl_adapter.h"
+#include "adapter_hccl/llm_hccl_adapter.h"
 
 namespace llm {
 GlobalMemManager &GlobalMemManager::GetInstance() {
@@ -27,7 +27,7 @@ ge::Status GlobalMemManager::Initialize(TransferEngine *transfer_engine) {
 ge::Status GlobalMemManager::RegisterMem(void *addr, uint64_t size, CommMemType type, void *&handle) {
   LLM_CHK_STATUS_RET(transfer_engine_->RegisterMem(addr, size, type, handle), "Failed to register mem");
   LLMLOGI("Register global mem success, addr:%p, size:%lu, type:%s, handle:%p", addr, size,
-          HcclUtils::HcclMemTypeToString(type).c_str(), handle);
+          LlmHcclUtils::ConvertCommMemTypeToString(type).c_str(), handle);
 
   std::lock_guard<std::mutex> lock(mutex_);
   handles_.emplace(handle);

@@ -53,7 +53,7 @@ std::string local_comm_res = R"(
     {
       "protocol": "roce",
       "comm_id": "ipv4/ipv6地址",
-      "placement": "host" 
+      "placement": "host"
     }
   ]
 }
@@ -146,23 +146,23 @@ direction TB
     LLMDataDistV2 --> CommMemManager
     LLMDataDistV2 --> CommEntityManager
     CommEntityManager --> CommEntity
-    
+
     LLMDataDistV2 ..> DataCacheEngine : Reg Mem(1)
     DataCacheEngine ..> CommMemManager : Reg Mem(1)
     LLMDataDistV2 ..> LLMLinkManager : Link(2)
     LLMLinkManager ..> CommEntityManager : CreateEntity(2)
     LLMDataDistV2 ..> DataCacheEngine : Pull(3)
     DataCacheEngine ..> CommEntity : Pull(3)
-    CommMemManager ..> HcclAdapter : Reg Mem(1)
-    CommEntity ..> HcclAdapter : Link(2)
-    CommEntity ..> HcclAdapter : Pull(3)
+    CommMemManager ..> LlmHcclAdapter : Reg Mem(1)
+    CommEntity ..> LlmHcclAdapter : Link(2)
+    CommEntity ..> LlmHcclAdapter : Pull(3)
 ```
 - LLMDataDistV2为主体入口，对外提供建链断链，内存注册注销，以及数据传输能力
 - DataCacheEngine提供内存注册、注销以及传输能力
 - LLMLinkManager提供建链、断链能力
 - CommMemManager提供内存注册、注销能力
 - CommEntityManager提供链路管理能力，每个CommEntity代表一条点对点传输链路
-- HcclAdapter提供底层建链断链、内存注册注销和数据传输
+- LlmHcclAdapter提供底层建链断链、内存注册注销和数据传输
 
 
 **LLM-DataDist对接HCCL单边通信库类图主体关系**：
@@ -177,67 +177,67 @@ config:
 ---
 classDiagram
 direction TB
-    LLMDataDistV2 --> TranferEngine
+    LLMDataDistV2 --> TransferEngine
     LLMDataDistV2 --> DataCacheEngine
     LLMDataDistV2 --> CommEntityManager
     CommEntityManager --> CommEntity
     CommEntityManager --> HixlEntity
     LLMDataDistV2 --> CommMemManager
-    CommMemManager --> TranferEngine
-    TranferEngineFactory ..> TranferEngine
-    TranferEngine --|> HcclTranferEngine
-    TranferEngine --|> HixlTranferEngine
-    HcclTranferEngine --> LLMLinkManager
-    HixlTranferEngine --> HixlEngine
+    CommMemManager --> TransferEngine
+    TransferEngineFactory ..> TransferEngine
+    TransferEngine --|> LlmHcclTransferEngine
+    TransferEngine --|> HixlTransferEngine
+    LlmHcclTransferEngine --> LLMLinkManager
+    HixlTransferEngine --> HixlEngine
     CommEntity --|> HixlEntity
     LLMDataDistV2 ..> DataCacheEngine : Reg Mem
     DataCacheEngine ..> CommMemManager : Reg Mem
-    CommMemManager ..> TranferEngine : Reg Mem
-    LLMDataDistV2 ..> TranferEngine : Link
-    HixlTranferEngine ..> CommEntityManager : AddEntity
+    CommMemManager ..> TransferEngine : Reg Mem
+    LLMDataDistV2 ..> TransferEngine : Link
+    HixlTransferEngine ..> CommEntityManager : AddEntity
     LLMLinkManager ..> CommEntityManager : AddEntity
     LLMDataDistV2 ..> DataCacheEngine : Pull
     DataCacheEngine ..> CommEntity : Pull
-    CommEntity ..> HcclTranferEngine : Pull
-    HixlEntity ..> HixlTranferEngine : Pull
+    CommEntity ..> LlmHcclTransferEngine : Pull
+    HixlEntity ..> HixlTransferEngine : Pull
 
 	class HixlEntity:::Rose
-	class TranferEngine:::Rose
-	class HcclTranferEngine:::Rose
-	class TranferEngineFactory:::Rose
-	class HixlTranferEngine:::Rose
+	class TransferEngine:::Rose
+	class LlmHcclTransferEngine:::Rose
+	class TransferEngineFactory:::Rose
+	class HixlTransferEngine:::Rose
 	class HixlEngine:::Rose
 
 
 	classDef Rose :,stroke-width:1px,stroke-dasharray:none,stroke:#FF5978,fill:#FFDFE5,color:#8E2236,stroke-width:1px,stroke-dasharray:none,stroke:#FF5978,fill:#FFDFE5,color:#8E2236,stroke-width:1px,stroke-dasharray:none,stroke:#FF5978,fill:#FFDFE5,color:#8E2236,stroke-width:1px,stroke-dasharray:none,stroke:#FF5978,fill:#FFDFE5,color:#8E2236,stroke-width:1px,stroke-dasharray:none,stroke:#FF5978,fill:#FFDFE5,color:#8E2236,stroke-width:1px,stroke-dasharray:none,stroke:#FF5978,fill:#FFDFE5,color:#8E2236,stroke-width:1px,stroke-dasharray:none,stroke:#FF5978,fill:#FFDFE5,color:#8E2236,stroke-width:1px,stroke-dasharray:none,stroke:#FF5978,fill:#FFDFE5,color:#8E2236
 	classDef Aqua :,stroke-width:1px,stroke-dasharray:none,stroke:#46EDC8,fill:#DEFFF8,color:#378E7A
 ```
-- 对链路的建链、断链相关流程和内存注册、注销、传输相关流程进行抽象为TranferEngine，提供工厂类支持根据传入的OPTION_TRANSFER_BACKEND不同，创建不同的实例，如果指定的格式version为1.3则创建Hixl相关实例；否则生成原来版本的实例，兼容之前的逻辑
-- HixlTranferEngine提供hixl engine的建链、断链、注册注销和传输能力。
-- HcclTranferEngine兼容原生逻辑，使用hccl相关的接口提供建链、断链、注册注销和传输能力。
+- 对链路的建链、断链相关流程和内存注册、注销、传输相关流程进行抽象为TransferEngine，提供工厂类支持根据传入的OPTION_TRANSFER_BACKEND不同，创建不同的实例，如果指定的格式version为1.3则创建Hixl相关实例；否则生成原来版本的实例，兼容之前的逻辑
+- HixlTransferEngine提供hixl engine的建链、断链、注册注销和传输能力。
+- LlmHcclTransferEngine兼容原生逻辑，使用hccl相关的接口提供建链、断链、注册注销和传输能力。
 
 **初始化流程时序图**：
 ```mermaid
 sequenceDiagram
   用户 ->> LlmDataDist: 构造并初始化
   LlmDataDist ->> LLMDataDistV2: 初始化，传入option
-  LLMDataDistV2 ->> TranferEngineFactory: 初始化，传入option，<br>创建tranfer engine
+  LLMDataDistV2 ->> TransferEngineFactory: 初始化，传入option，<br>创建transfer engine
   alt backend为hixl
-    TranferEngineFactory ->> HixlTranferEngine: 构造并初始化
-    HixlTranferEngine ->> HixlEngine: 构造并初始化，<br>走hixl传输后端
+    TransferEngineFactory ->> HixlTransferEngine: 构造并初始化
+    HixlTransferEngine ->> HixlEngine: 构造并初始化，<br>走hixl传输后端
   else 未设置backend
-    TranferEngineFactory ->> HcclTranferEngine: 构造并初始化
-    HcclTranferEngine ->> LLMLinkManager: 构造并初始化
+    TransferEngineFactory ->> LlmHcclTransferEngine: 构造并初始化
+    LlmHcclTransferEngine ->> LLMLinkManager: 构造并初始化
   end
-  TranferEngineFactory -->> LLMDataDistV2: 返回transfer engine实例
+  TransferEngineFactory -->> LLMDataDistV2: 返回transfer engine实例
   LLMDataDistV2 ->> LLMDataDistV2: 将transfer engine实例设置到<br>comm_mem_manager中用于注册
   LLMDataDistV2 ->> LLMDataDistV2: data_cache_engine等流程初始化
-  LLMDataDistV2 -->> LlmDataDist: 
+  LLMDataDistV2 -->> LlmDataDist:
   LlmDataDist -->> 用户: 返回
 ```
 - 通过传输后端option值是否为hixl确定是否走新流程，否则兼容老版本逻辑
-- 新流程中通过HixlTranferEngine保存的hixl engine进行内存注册注销，建链以及传输，初始化需要listen ip info信息
-- 兼容流程通过HcclTranferEngine提供能力，与原初始化流程基本相同，不再赘述
+- 新流程中通过HixlTransferEngine保存的hixl engine进行内存注册注销，建链以及传输，初始化需要listen ip info信息
+- 兼容流程通过LlmHcclTransferEngine提供能力，与原初始化流程基本相同，不再赘述
 
 **内存注册、注销流程时序图**：
 ```mermaid
@@ -246,11 +246,11 @@ sequenceDiagram
   LlmDataDist ->> LLMDataDistV2: RegisterCache，<br>kv内存注册
   LLMDataDistV2 ->> DataCacheEngine: Register
   DataCacheEngine ->> CommMemManager: RegisterCacheMem
-  CommMemManager ->> TranferEngine: 不同的传输后端提供内存注册能力，<br>hixl后端由HixlTranferEngine提供。<br>否则HcclTransferEngine提供。
-  TranferEngine -->> CommMemManager: 
-  CommMemManager -->> DataCacheEngine: 
-  DataCacheEngine -->> LLMDataDistV2: 
-  LLMDataDistV2 -->> LlmDataDist: 
+  CommMemManager ->> TransferEngine: 不同的传输后端提供内存注册能力，<br>hixl后端由HixlTransferEngine提供。<br>否则LlmHcclTransferEngine提供。
+  TransferEngine -->> CommMemManager:
+  CommMemManager -->> DataCacheEngine:
+  DataCacheEngine -->> LLMDataDistV2:
+  LLMDataDistV2 -->> LlmDataDist:
   LlmDataDist -->> 用户: 返回
 ```
 - 注销与注册流程基本相同，不再赘述
@@ -260,7 +260,7 @@ sequenceDiagram
 sequenceDiagram
   用户 ->> LlmDataDist: LinkLlmClusters
   LlmDataDist ->> LLMDataDistV2: LinkClusters
-  LLMDataDistV2 ->> TranferEngine: LinkClusters
+  LLMDataDistV2 ->> TransferEngine: LinkClusters
   alt backend为hixl
     HixlTransferEngine ->> HixlTransferEngine: 创建线程池
     HixlTransferEngine ->> HixlEngine: Connect接口建链
@@ -272,8 +272,8 @@ sequenceDiagram
     LLMLinkManager ->> LLMLinkManager: 调用hccl通信域点对点建链，<br>交换对端cache table地址，<br>生成comm_entity
     LLMLinkManager ->> CommEntityManager: AddEntity
   end
-  TranferEngine -->> LLMDataDistV2: 
-  LLMDataDistV2 -->> LlmDataDist: 
+  TransferEngine -->> LLMDataDistV2:
+  LLMDataDistV2 -->> LlmDataDist:
   LlmDataDist -->> 用户: 返回
 ```
 - HixlTransferEngine通过HixlEngine的Connect接口完成建链，需创建socket获取对端cache table地址，用于后续数据面通信
@@ -297,11 +297,11 @@ sequenceDiagram
     HixlTransferEngine ->> HixlEngine: Transfer，批量传输
   else
     CommEntityManager ->> CommEntity: 获取entity
-    CommEntity ->> HcclTransferEngine: BatchTransfer，批量传输
-    HcclTransferEngine ->> HcclAdaptor: BatchGet/BatchPut，批量传输
+    CommEntity ->> LlmHcclTransferEngine: BatchTransfer，批量传输
+    LlmHcclTransferEngine ->> LlmHcclAdapter: BatchGet/BatchPut，批量传输
   end
-  DataCacheEngine -->> LLMDataDistV2: 
-  LLMDataDistV2 -->> LlmDataDist: 
+  DataCacheEngine -->> LLMDataDistV2:
+  LLMDataDistV2 -->> LlmDataDist:
   LlmDataDist -->> 用户: 返回
 ```
 - 建链一条链路，双侧均可进行数据收发不支持。

@@ -30,11 +30,11 @@ class AdxlHcclRuntimeTestBase : public ::testing::Test {
   void SetUp() override {
     llm::MockMmpaForHcclApi::Install();
     llm::AutoCommResRuntimeMock::Install();
-    llm::HcclAdapter::GetInstance().Initialize();
+    llm::LlmHcclAdapter::GetInstance().Initialize();
   }
 
   void TearDown() override {
-    llm::HcclAdapter::GetInstance().Finalize();
+    llm::LlmHcclAdapter::GetInstance().Finalize();
     llm::AutoCommResRuntimeMock::Reset();
     llm::MockMmpaForHcclApi::Reset();
   }

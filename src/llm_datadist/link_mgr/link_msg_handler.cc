@@ -118,7 +118,7 @@ ge::Status LinkMsgHandler::Initialize(const std::map<ge::AscendString, ge::Ascen
     LLM_CHK_STATUS_RET(LocalCommResGenerator::Generate(local_ip_, device_id_, local_comm_res_),
                        "Failed to generate local comm res, local_ip:%s, device_id:%d", local_ip_.c_str(), device_id_);
   }
-  HcclAdapter::GetInstance().HcclCommConfigInit(&comm_config_);
+  LlmHcclAdapter::GetInstance().DlHcclCommConfigInit(&comm_config_);
   const auto &traffic_it = options.find(kOptionRdmaTrafficClass);
   if (traffic_it != options.cend()) {
     uint32_t traffic_class = 0U;

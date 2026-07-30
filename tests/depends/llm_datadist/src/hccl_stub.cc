@@ -14,7 +14,7 @@
 HcclResult HcclExchangeMemDesc(HcclComm comm, uint32_t remoteRank, HcclMemDescs *local, int timeout,
                                HcclMemDescs *remote, uint32_t *actualNum) {
   for (uint32_t i = 0U; i < local->arrayLength; ++i) {
-    strcpy(remote->array[i].desc, local->array[i].desc);
+    strcpy_s(remote->array[i].desc, sizeof(remote->array[i].desc), local->array[i].desc);
   }
   *actualNum = local->arrayLength;
   remote->arrayLength = local->arrayLength;

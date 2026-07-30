@@ -14,7 +14,7 @@
 #include <list>
 #include <queue>
 #include "common/common.h"
-#include "hccl/hccl_adapter.h"
+#include "adapter_hccl/llm_hccl_adapter.h"
 #include "link_mgr/comm_entity.h"
 #include "data_transfer/data_transfer_job.h"
 

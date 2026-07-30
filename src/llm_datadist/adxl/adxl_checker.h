@@ -89,7 +89,7 @@
     const HcclResult _ret = (expr);                                                                  \
     if (_ret != HCCL_SUCCESS) {                                                                      \
       REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret)); \
-      const auto _adxl_ret = adxl::HcclError2AdxlStatus(_ret);                                       \
+      const auto _adxl_ret = adxl::ConvertHcclErrorToAdxlStatus(_ret);                               \
       LLMLOGE(_adxl_ret, "Call hccl api failed, ret: 0x%X", static_cast<uint32_t>(_ret));            \
       return _adxl_ret;                                                                              \
     }                                                                                                \

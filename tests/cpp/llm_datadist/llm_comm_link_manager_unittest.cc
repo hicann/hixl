@@ -98,7 +98,7 @@ class LLMCommLinkManagerUTest : public ::testing::Test {
   void SetUp() override {}
 
   void TearDown() override {
-    HcclAdapter::GetInstance().Finalize();
+    LlmHcclAdapter::GetInstance().Finalize();
   }
 
   // 初始化 LLMDataDistV2（Decoder 角色），支持可选的额外选项

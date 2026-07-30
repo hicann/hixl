@@ -16,7 +16,7 @@
 #include <map>
 #include <set>
 #include "common/llm_inner_types.h"
-#include "hccl/hccl_adapter.h"
+#include "adapter_hccl/llm_hccl_adapter.h"
 #include "transfer_engine/transfer_engine.h"
 
 namespace llm {

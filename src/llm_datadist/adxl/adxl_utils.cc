@@ -22,7 +22,7 @@ std::string JsonValueToString(const nlohmann::json &j) {
   return j.dump();
 }
 
-Status HcclError2AdxlStatus(HcclResult ret) {
+Status ConvertHcclErrorToAdxlStatus(HcclResult ret) {
   static const std::map<HcclResult, Status> hccl2adxl = {
       {HCCL_SUCCESS, SUCCESS},
       {HCCL_E_PARA, PARAM_INVALID},

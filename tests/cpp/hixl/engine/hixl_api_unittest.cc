@@ -110,7 +110,7 @@ class HixlUTest : public ::testing::Test {
   void SetUp() override {
     llm::MockMmpaForHcclApi::Install();
     llm::AutoCommResRuntimeMock::Install();
-    llm::HcclAdapter::GetInstance().Initialize();
+    llm::LlmHcclAdapter::GetInstance().Initialize();
   }
   // 在测试类中进行清理工作，如果需要的话
   void TearDown() override {
@@ -118,7 +118,7 @@ class HixlUTest : public ::testing::Test {
     // 不恢复会导致后续 16MB 大块传输用例因心跳超时被断开（Connection reset by peer），
     // 进而触发逐字节 EXPECT_EQ 刷千万行日志。这里统一恢复默认值。
     llm::test::ResetHeartbeatConfig();
-    llm::HcclAdapter::GetInstance().Finalize();
+    llm::LlmHcclAdapter::GetInstance().Finalize();
     llm::MockMmpaForHcclApi::Reset();
     llm::AutoCommResRuntimeMock::Reset();
   }

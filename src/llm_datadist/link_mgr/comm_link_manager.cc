@@ -73,13 +73,13 @@ ge::Status CommLinkManager::ExchangeMem(const EntityPtr &entity, uint32_t local_
   HcclMemDescs local_descs{&local_desc, 1U};
   HcclMemDescs remote_descs{&remote_desc, 1U};
   uint32_t remote_mem_num = 0U;
-  LLMLOGI("start call HcclExchangeMemDesc, remote_rank:%u", remote_rank);
+  LLMLOGI("start call DlHcclExchangeMemDesc, remote_rank:%u", remote_rank);
   int32_t timeout = link_total_time_ > 0 ? link_total_time_ : 30;
-  HcclResult ret = HcclAdapter::GetInstance().HcclExchangeMemDesc(entity->GetComm(), remote_rank, &local_descs, timeout,
-                                                                  &remote_descs, &remote_mem_num);
+  HcclResult ret = LlmHcclAdapter::GetInstance().DlHcclExchangeMemDesc(entity->GetComm(), remote_rank, &local_descs,
+                                                                       timeout, &remote_descs, &remote_mem_num);
   LLM_CHK_BOOL_RET_STATUS(ret == HcclResult::HCCL_SUCCESS, ge::LLM_LINK_FAILED,
-                          "Call HcclExchangeMemDesc failed, ret:%d", ret);
-  LLMLOGI("HcclExchangeMemDesc suc, remote num:%u", remote_mem_num);
+                          "Call DlHcclExchangeMemDesc failed, ret:%d", ret);
+  LLMLOGI("DlHcclExchangeMemDesc suc, remote num:%u", remote_mem_num);
   ExchangeMemInfo remote_mem_info{};
   try {
     auto desc_len = strnlen(remote_desc.desc, HCCL_MEM_DESC_LENGTH);
@@ -281,7 +281,7 @@ void CommLinkManager::Finalize() {
   LLMLOGI("Deregister global mem start");
   std::lock_guard<std::mutex> lock(handles_mutex_);
   for (auto handle : handles_) {
-    (void)HcclAdapter::GetInstance().HcclDeregisterGlobalMem(handle);
+    (void)LlmHcclAdapter::GetInstance().DlHcclDeregisterGlobalMem(handle);
   }
   handles_.clear();
   LLMLOGI("Deregister global mem end");
@@ -336,7 +336,7 @@ ge::Status CommLinkManager::Link(std::string &cluster_name, const std::map<uint6
   LLM_CHK_BOOL_RET_STATUS(aclrtSetCurrentContext(aclrt_context_) == ACL_ERROR_NONE, ge::LLM_UNLINK_FAILED,
                           "Set aclrt context failed.");
   HcclCommConfig config{};
-  HcclAdapter::GetInstance().HcclCommConfigInit(&config);
+  LlmHcclAdapter::GetInstance().DlHcclCommConfigInit(&config);
   LLM_ASSERT_EOK(strcpy_s(config.hcclCommName, COMM_NAME_MAX_LENGTH, cluster_name.data()));
   if (hasTrafficClass_) {
     LLMLOGI("Set rdma traffic class to %u.", rdmaTrafficClass_);
@@ -347,13 +347,13 @@ ge::Status CommLinkManager::Link(std::string &cluster_name, const std::map<uint6
     config.hcclRdmaServiceLevel = rdmaServiceLevel_;
   }
 
-  LLMLOGI("HcclCommInitClusterInfoMemConfig begin, comm_name=%s, local rank_id=%u, rank_table=%s", config.hcclCommName,
-          local_rank, rank_table.c_str());
+  LLMLOGI("DlHcclCommInitClusterInfoMemConfig begin, comm_name=%s, local rank_id=%u, rank_table=%s",
+          config.hcclCommName, local_rank, rank_table.c_str());
   HcclComm comm{};
   HcclResult ret =
-      HcclAdapter::GetInstance().HcclCommInitClusterInfoMemConfig(rank_table.c_str(), local_rank, &config, &comm);
+      LlmHcclAdapter::GetInstance().DlHcclCommInitClusterInfoMemConfig(rank_table.c_str(), local_rank, &config, &comm);
   LLM_CHK_BOOL_RET_STATUS(ret == HcclResult::HCCL_SUCCESS, ge::LLM_LINK_FAILED,
-                          "Call HcclCommInitClusterInfoMemConfig failed, ret:%d.", ret);
+                          "Call DlHcclCommInitClusterInfoMemConfig failed, ret:%d.", ret);
 
   comm_id = GenerateCommId();
   {
@@ -440,8 +440,8 @@ void CommLinkManager::SetCacheManager(CacheManager *cache_manager) {
 }
 
 ge::Status CommLinkManager::RegisterMem(CommMem *mem, void **mem_handle) {
-  auto ret = HcclAdapter::GetInstance().HcclRegisterGlobalMem(mem, mem_handle);
-  LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke HcclRegisterGlobalMem, ret = %d",
+  auto ret = LlmHcclAdapter::GetInstance().DlHcclRegisterGlobalMem(mem, mem_handle);
+  LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke DlHcclRegisterGlobalMem, ret = %d",
                           static_cast<int32_t>(ret));
   LLMLOGI("Register global mem success, addr:%p, size:%lu, type:%d, handle:%p", mem->addr, mem->size,
           static_cast<int32_t>(mem->type), *mem_handle);
@@ -458,8 +458,8 @@ ge::Status CommLinkManager::DeregisterGlobalMem(void *mem_handle) {
     LLMLOGW("Mem handle:%p is not registered.", mem_handle);
     return ge::SUCCESS;
   }
-  auto ret = HcclAdapter::GetInstance().HcclDeregisterGlobalMem(mem_handle);
-  LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke HcclDeregisterGlobalMem, ret = %d",
+  auto ret = LlmHcclAdapter::GetInstance().DlHcclDeregisterGlobalMem(mem_handle);
+  LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke DlHcclDeregisterGlobalMem, ret = %d",
                           static_cast<int32_t>(ret));
   handles_.erase(it);
   return ge::SUCCESS;

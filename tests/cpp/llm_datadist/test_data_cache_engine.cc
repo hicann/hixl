@@ -33,7 +33,7 @@
 #include "cache_mgr/data_cache_engine.h"
 #include "link_mgr/comm_entity_manager.h"
 #include "fsm/send_state.h"
-#include "hccl/hccl_adapter.h"
+#include "adapter_hccl/llm_hccl_adapter.h"
 #include "depends/llm_datadist/src/hccl_stub.h"
 #include "depends/llm_datadist/src/hccl_test_helper.h"
 
@@ -272,7 +272,7 @@ class DataCacheEngineSTest : public ::testing::Test {
   }
   // 在测试类中进行清理工作，如果需要的话
   void TearDown() override {
-    llm::HcclAdapter::GetInstance().Finalize();
+    llm::LlmHcclAdapter::GetInstance().Finalize();
     llm::MockMmpaForHcclApi::Reset();
     comm_entity_manager_.Finalize();
     comm_mem_manager_.Finalize();
@@ -286,7 +286,7 @@ class DataCacheEngineSTest : public ::testing::Test {
   CommMemManager comm_mem_manager_;
   DataCacheEngine cache_engine_;
   CacheManager cache_manager_;
-  llm::HcclTransferEngine hccl_transfer_engine_;
+  llm::LlmHcclTransferEngine hccl_transfer_engine_;
 };
 
 TEST_F(DataCacheEngineSTest, UnlinkWhenPrepareNotFinished) {
@@ -480,7 +480,7 @@ TEST_F(DataCacheEngineSTest, PullCache_D2H_B2B_BigBlock) {
 
   llm::MockMmpaForHcclApi::Install();
   llm::AclRuntimeStub::SetInstance(std::make_shared<llm::DataCacheEngineRuntimeMock>());
-  llm::HcclAdapter::GetInstance().Initialize();
+  llm::LlmHcclAdapter::GetInstance().Initialize();
   llm::DataCacheEngineTestRunner test_runner(100 * 1024 * 1024);
   test_runner.Initialize(src_cache_desc, dst_cache_desc, pull_cache_param);
   EXPECT_EQ(test_runner.Run(pull_cache_param), ge::SUCCESS);
@@ -839,7 +839,7 @@ TEST_F(DataCacheEngineSTest, CopyCache_B2B) {
 }
 
 TEST_F(DataCacheEngineSTest, AllocateOutOfMemory) {
-  llm::HcclAdapter::GetInstance().Finalize();
+  llm::LlmHcclAdapter::GetInstance().Finalize();
   llm::LLMDataDistV2 llm_data_dist(1);
   std::map<ge::AscendString, ge::AscendString> default_options{
       {llm::LLM_OPTION_ROLE, llm::kDecoder},

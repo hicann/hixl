@@ -12,7 +12,7 @@
 #include "utils/extern_math_util.h"
 #include "acl/acl.h"
 #include "common/llm_checker.h"
-#include "hccl/hccl_adapter.h"
+#include "adapter_hccl/llm_hccl_adapter.h"
 #include "cache_mgr/comm_mem_manager.h"
 #include "common/llm_scope_guard.h"
 

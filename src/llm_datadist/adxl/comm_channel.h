@@ -22,7 +22,7 @@
 #include "nlohmann/json.hpp"
 #include "acl/acl.h"
 #include "adxl/adxl_types.h"
-#include "hccl/hccl_adapter.h"
+#include "adapter_hccl/llm_hccl_adapter.h"
 #include "control_msg_handler.h"
 #include "adxl/transfer_slot_pool.h"
 
@@ -144,7 +144,7 @@ class CommChannel {
   Status TeardownHcclComm();
   void ResetAsyncStateOnDisconnect();
   void ClearNotifyMessages();
-  // Enqueue HcclBatchGet/Put on the given stream (batched via BufferedTransfer).
+  // Enqueue DlHcclBatchGet/Put on the given stream (batched via BufferedTransfer).
   Status IssueHcclBatch(TransferOp operation, const std::vector<TransferOpDesc> &op_descs, aclrtStream stream);
 
   // --- Shared slot lifecycle: one slot per channel, ref-counted across its in-flight batch ---

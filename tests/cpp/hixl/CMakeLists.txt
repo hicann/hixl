@@ -54,7 +54,7 @@ file(GLOB ADXL_SRC_LIST
         "${HIXL_CODE_DIR}/src/llm_datadist/llm_datadist_timer.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/adxl/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/common/*.cc"
-        "${HIXL_CODE_DIR}/src/llm_datadist/hccl/*.cc"
+        "${HIXL_CODE_DIR}/src/llm_datadist/adapter_hccl/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/memory/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/memory/allocator/*.cc"
         "${HIXL_CODE_DIR}/src/llm_datadist/memory/config/*.cc"
