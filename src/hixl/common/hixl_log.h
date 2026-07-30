@@ -46,10 +46,7 @@ inline bool HixlLogPrintStdout() {
   static int32_t stdout_flag = -1;
   if (stdout_flag == -1) {
     const char *env_ret = getenv("ASCEND_SLOG_PRINT_TO_STDOUT");
-    if (env_ret != nullptr) {
-      std::string env_str = env_ret;
-      stdout_flag = env_str == "1" ? 1 : 0;
-    }
+    stdout_flag = (env_ret != nullptr && std::string(env_ret) == "1") ? 1 : 0;
   }
   return (stdout_flag == 1);
 }
