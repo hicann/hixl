@@ -37,6 +37,7 @@ target_link_libraries(cann_hixl_kernel PRIVATE
         $<BUILD_INTERFACE:error_manager_headers>
         $<BUILD_INTERFACE:metadef_headers>
         $<BUILD_INTERFACE:runtime_headers>
+        $<BUILD_INTERFACE:ascend_hal_headers>
         ascend_hal
         aicpu_sharder
         -Wl,--no-as-needed
