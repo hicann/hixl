@@ -854,8 +854,9 @@ TEST_F(HixlUTest, TestGetCapabilityWithoutInitialize) {
 }
 
 TEST_F(HixlUTest, TestGetCapabilityUnknownFeature) {
-  int32_t value = 0;
-  EXPECT_EQ(Hixl::GetCapability(static_cast<FeatureType>(999), value), UNSUPPORTED);
+  int32_t value = FEATURE_SUPPORTED;
+  EXPECT_EQ(Hixl::GetCapability(static_cast<FeatureType>(999), value), SUCCESS);
+  EXPECT_EQ(value, FEATURE_NOT_SUPPORTED);
 }
 
 TEST_F(HixlUTest, TestGetCapabilityInvalidFeature) {

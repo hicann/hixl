@@ -434,7 +434,8 @@ Status Hixl::GetCapability(FeatureType feature_type, int32_t &value) {
       value = FEATURE_SUPPORTED;
       return SUCCESS;
     default:
-      return UNSUPPORTED;
+      value = FEATURE_NOT_SUPPORTED;
+      return SUCCESS;
   }
 }
 }  // namespace hixl

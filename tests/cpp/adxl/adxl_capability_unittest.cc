@@ -21,8 +21,9 @@ TEST(AdxlGetCapabilityTest, WithoutInitialize) {
 }
 
 TEST(AdxlGetCapabilityTest, UnknownFeature) {
-  int32_t value = 0;
-  EXPECT_EQ(AdxlEngine::GetCapability(static_cast<FeatureType>(999), value), UNSUPPORTED);
+  int32_t value = FEATURE_SUPPORTED;
+  EXPECT_EQ(AdxlEngine::GetCapability(static_cast<FeatureType>(999), value), SUCCESS);
+  EXPECT_EQ(value, FEATURE_NOT_SUPPORTED);
 }
 
 TEST(AdxlGetCapabilityTest, InvalidFeature) {

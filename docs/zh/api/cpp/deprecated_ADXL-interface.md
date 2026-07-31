@@ -624,8 +624,7 @@ static Status GetCapability(FeatureType feature_type, int32_t &value)
 
 **返回值**
 
-- SUCCESS：成功
-- UNSUPPORTED：未知或不支持的特性类型
+- SUCCESS：成功。未知或不支持的特性类型时，`value` 为 `FEATURE_NOT_SUPPORTED`
 - PARAM_INVALID：参数非法（feature_type为负数）
 
 **约束说明**
