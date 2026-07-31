@@ -139,7 +139,8 @@ OPTION_GLOBAL_RESOURCE_CONFIG的配置示例和使用约束如下：
 {
     "fabric_memory.max_capacity": "128", //虚拟内存池的大小。取值范围：(0, 1024]之间的整数，默认值：32，单位TB，实际可用范围由底层决定
     "fabric_memory.start_address": "40", //虚拟内存池起始地址。取值范围：[0, 1024]之间的整数，默认值：40，单位TB
-    "fabric_memory.task_stream_num": "1", //配置Fabric Mem模式下单个任务使用的流数量。取值范围：[1, 8]之间的整数，默认值：4
+    "fabric_memory.task_stream_num": "1", //单个任务使用的流数量，取值范围：[1, 8]，默认值：1；enable_aicpu_unfold为true时仅支持1
+    "fabric_memory.enable_aicpu_unfold": true //是否由AICPU展开FabricMem，布尔类型，默认true
 }
 ```
 <!-- end id6 -->

@@ -20,6 +20,8 @@
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
 #include "common/scope_guard.h"
+#include "fabric_mem/fabric_mem_aicpu_transfer_service.h"
+#include "fabric_mem/fabric_mem_host_transfer_service.h"
 #include "fabric_mem/virtual_memory_manager.h"
 #include "profiling/prof_api_reg.h"
 
@@ -67,7 +69,6 @@ Status FabricMemEngine::StartControlServer() {
 }
 
 Status FabricMemEngine::InitTransferService() {
-  fabric_mem_transfer_service_ = std::make_shared<FabricMemTransferService>();
   FabricMemTransferServiceInitParam param;
   param.device_id = device_id_;
   param.max_stream_num = fabric_mem_config_.max_stream_num;
@@ -78,6 +79,12 @@ Status FabricMemEngine::InitTransferService() {
   param.local_memory = &local_memory_;
   param.control_server = fabric_mem_control_server_.get();
   param.aclrt_context = aclrt_context_;
+  param.enable_aicpu_unfold = fabric_mem_config_.enable_aicpu_unfold;
+  if (fabric_mem_config_.enable_aicpu_unfold) {
+    fabric_mem_transfer_service_ = std::make_shared<FabricMemAicpuTransferService>();
+  } else {
+    fabric_mem_transfer_service_ = std::make_shared<FabricMemHostTransferService>();
+  }
   HIXL_CHK_STATUS_RET(fabric_mem_transfer_service_->Initialize(param),
                       "[FabricMemEngine] Failed to initialize fabric mem transfer service.");
   return SUCCESS;
@@ -122,19 +129,7 @@ Status FabricMemEngine::InitializeLocked(const HixlOptions &options, bool &start
                          }));
   TemporaryRtContext engine_context(aclrt_context_);
 
-  fabric_mem_config_.enabled = true;
-  auto grc = options.GlobalResourceCfg();
-  if (grc.has_value()) {
-    if (grc->fabric_memory.max_capacity.has_value()) {
-      fabric_mem_config_.capacity_tb = *grc->fabric_memory.max_capacity;
-      fabric_mem_config_.has_capacity_tb = true;
-    }
-    if (grc->fabric_memory.start_address.has_value()) {
-      fabric_mem_config_.start_address_tb = *grc->fabric_memory.start_address;
-      fabric_mem_config_.has_start_address_tb = true;
-    }
-    fabric_mem_config_.task_stream_num = grc->fabric_memory.task_stream_num.value_or(4U);
-  }
+  HIXL_CHK_STATUS_RET(ApplyFabricMemoryOptions(options), "[FabricMemEngine] Failed to apply fabric memory options.");
   auto_connect_ = options.AutoConnect().value_or(false);
 
   HIXL_CHK_STATUS_RET(InitFabricMem(), "[FabricMemEngine] Failed to initialize.");
@@ -144,6 +139,38 @@ Status FabricMemEngine::InitializeLocked(const HixlOptions &options, bool &start
   (void)ParseListenInfo(local_engine_, listen_ip, listen_port);
   start_keepalive_monitor = auto_connect_ || listen_port > 0;
   HIXL_DISMISS_GUARD(fail_guard);
+  return SUCCESS;
+}
+
+Status FabricMemEngine::ApplyFabricMemoryOptions(const HixlOptions &options) {
+  fabric_mem_config_.enabled = true;
+  fabric_mem_config_.enable_aicpu_unfold = true;
+  fabric_mem_config_.task_stream_num = 1U;
+  auto grc = options.GlobalResourceCfg();
+  if (!grc.has_value()) {
+    return SUCCESS;
+  }
+  if (grc->fabric_memory.max_capacity.has_value()) {
+    fabric_mem_config_.capacity_tb = *grc->fabric_memory.max_capacity;
+    fabric_mem_config_.has_capacity_tb = true;
+  }
+  if (grc->fabric_memory.start_address.has_value()) {
+    fabric_mem_config_.start_address_tb = *grc->fabric_memory.start_address;
+    fabric_mem_config_.has_start_address_tb = true;
+  }
+  fabric_mem_config_.enable_aicpu_unfold = grc->fabric_memory.enable_aicpu_unfold.value_or(true);
+  if (fabric_mem_config_.enable_aicpu_unfold) {
+    // AICPU unfold only supports task_stream_num=1.
+    if (grc->fabric_memory.task_stream_num.has_value()) {
+      HIXL_CHK_BOOL_RET_STATUS(*grc->fabric_memory.task_stream_num == 1U, PARAM_INVALID,
+                               "[FabricMemEngine] enable_aicpu_unfold requires fabric_memory.task_stream_num=1, got "
+                               "%zu.",
+                               *grc->fabric_memory.task_stream_num);
+    }
+    fabric_mem_config_.task_stream_num = 1U;
+  } else {
+    fabric_mem_config_.task_stream_num = grc->fabric_memory.task_stream_num.value_or(1U);
+  }
   return SUCCESS;
 }
 
@@ -269,13 +296,15 @@ Status FabricMemEngine::TransferAsync(const AscendString &remote_engine, Transfe
 }
 
 Status FabricMemEngine::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
-  // Lock: transfer service per-channel records lock (poll).
+  // Lock: transfer service per-channel submit gate and records lock (poll).
   HIXL_CHK_STATUS_RET(CheckInitialized(), "[FabricMemEngine] Engine is not initialized.");
   AsyncTransferPollInfo poll_info;
   Status ret = fabric_mem_transfer_service_->GetTransferStatus(req, status, &poll_info);
   if (ret != SUCCESS) {
     HIXL_LOGE(ret, "[FabricMemEngine] GetTransferStatus failed, req:%p, ret:%u.", req, static_cast<uint32_t>(ret));
-    fabric_mem_transfer_service_->CleanupAsyncTransfer(req);
+    if (ret != NOT_CONNECTED) {
+      fabric_mem_transfer_service_->CleanupAsyncTransfer(req);
+    }
     return ret;
   }
   if (status != TransferStatus::WAITING) {

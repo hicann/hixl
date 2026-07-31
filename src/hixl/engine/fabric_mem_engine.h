@@ -69,6 +69,7 @@ class FabricMemEngine : public hixl::Engine {
   Status StartControlServer();
   Status InitFabricMem();
   Status InitializeLocked(const HixlOptions &options, bool &start_keepalive_monitor);
+  Status ApplyFabricMemoryOptions(const HixlOptions &options);
   void CleanupFabricMemLocked();
   Status EnsureAutoConnected(const AscendString &remote_engine);
   void DisconnectOnTransferError(const AscendString &remote_engine);

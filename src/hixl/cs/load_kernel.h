@@ -11,6 +11,8 @@
 #ifndef CANN_HIXL_SRC_HIXL_CS_LOAD_KERNEL_H_
 #define CANN_HIXL_SRC_HIXL_CS_LOAD_KERNEL_H_
 
+#include <vector>
+
 #include "acl/acl.h"
 #include "hixl/hixl_types.h"
 
@@ -21,6 +23,9 @@ struct DeviceFuncHandles {
   aclrtFuncHandle batch_put;
   aclrtFuncHandle sync_transfer_context;
 };
+
+Status LoadDeviceKernelFunctions(const std::vector<const char *> &func_names, aclrtBinHandle &bin_handle,
+                                 std::vector<aclrtFuncHandle> &func_handles);
 
 Status LoadDeviceKernelAndGetHandles(const char *func_get, const char *func_put, aclrtBinHandle &bin_handle,
                                      DeviceFuncHandles &func_handles, const char *func_sync_context = nullptr);

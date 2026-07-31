@@ -112,6 +112,7 @@ target_link_libraries(hixl_test
         ${COMMON_LINK_OPTION}
         c_sec
         mmpa_headers
+        ascend_hal_headers
         hccl_headers
         runtime_headers
         metadef_headers
@@ -124,7 +125,6 @@ target_link_libraries(hixl_test
         ascendcl_stub
         runtime_stub
         msprof_headers
-        ascend_hal_headers
         dcmi_stub
         drvdsmi_host_stub
         GTest::gtest GTest::gtest_main

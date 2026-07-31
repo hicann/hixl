@@ -67,6 +67,7 @@ class AclRuntimeStub {
   virtual aclError aclrtCreateStreamWithConfig(aclrtStream *stream, uint32_t priority, uint32_t flag);
   virtual aclError aclrtDestroyStream(aclrtStream stream);
   virtual aclError aclrtStreamAbort(aclrtStream stream);
+  virtual aclError aclrtStreamStop(aclrtStream stream);
   virtual aclError aclrtStreamWaitEvent(aclrtStream stream, aclrtEvent event);
   virtual aclError aclrtStreamQuery(aclrtStream stream, aclrtStreamStatus *status);
   virtual aclError aclrtSetStreamFailureMode(aclrtStream stream, uint64_t mode);
@@ -123,6 +124,8 @@ class AclRuntimeStub {
   virtual aclError aclrtLaunchKernelWithConfig(aclrtFuncHandle funcHandle, uint32_t blockDim, aclrtStream stream,
                                                aclrtLaunchKernelCfg *config, aclrtArgsHandle argsHandle,
                                                void *reserved);
+  virtual aclError aclrtLaunchKernelV2(aclrtFuncHandle funcHandle, uint32_t numBlocks, const void *argsData,
+                                       size_t argsSize, aclrtLaunchKernelCfg *cfg, aclrtStream stream);
   virtual aclError aclrtBinaryUnLoad(aclrtBinHandle binHandle);
 
  private:

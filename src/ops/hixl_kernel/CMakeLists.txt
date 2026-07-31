@@ -19,12 +19,15 @@ add_library(cann_hixl_kernel SHARED
         hixl_batch_transfer.cc
         hixl_sync_transfer_context.cc
         transfer_context_manager.cc
+        fabric_mem_aicpu_kernel.cc
+        fabric_mem_stars_sdma.cc
         task_exception_handler.cc
 )
 
 target_include_directories(cann_hixl_kernel PRIVATE
         ${INCLUDE_LIST}
         ${HIXL_CODE_DIR}/src/hixl/proxy
+        ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/extern_include
 )
 

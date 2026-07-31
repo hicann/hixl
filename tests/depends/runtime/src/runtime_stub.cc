@@ -108,6 +108,33 @@ rtError_t rtGetDevResAddress(rtDevResInfo *resInfo, rtDevResAddrInfo *addrInfo) 
 rtError_t rtNotifyGetAddrOffset(rtNotify_t notify, uint64_t *devAddrOffset) {
   return llm::RuntimeStub::GetInstance()->rtNotifyGetAddrOffset(notify, devAddrOffset);
 }
+
+namespace {
+uint32_t g_rt_stream_sq_id = 1U;
+}
+
+void SetStubRtStreamSqId(uint32_t sq_id) {
+  g_rt_stream_sq_id = sq_id;
+}
+
+rtError_t rtStreamGetSqid(const rtStream_t stm, uint32_t *sqId) {
+  (void)stm;
+  if (sqId == nullptr) {
+    return static_cast<rtError_t>(1);
+  }
+  *sqId = g_rt_stream_sq_id;
+  return RT_ERROR_NONE;
+}
+
+rtError_t rtStreamGetCqid(const rtStream_t stm, uint32_t *cqId, uint32_t *logicCqId) {
+  (void)stm;
+  if (cqId == nullptr || logicCqId == nullptr) {
+    return static_cast<rtError_t>(1);
+  }
+  *cqId = g_rt_stream_sq_id;
+  *logicCqId = g_rt_stream_sq_id + 1U;
+  return RT_ERROR_NONE;
+}
 #ifdef __cplusplus
 }
 #endif

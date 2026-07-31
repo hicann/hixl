@@ -26,8 +26,9 @@ struct FabricMemConfig {
   bool has_start_address_tb = false;
   size_t capacity_tb = 0;
   size_t start_address_tb = 0;
-  size_t task_stream_num = 4U;
+  size_t task_stream_num = 1U;
   size_t max_stream_num = 512U;
+  bool enable_aicpu_unfold = true;
 };
 }  // namespace hixl
 

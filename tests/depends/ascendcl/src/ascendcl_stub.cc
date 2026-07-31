@@ -229,6 +229,11 @@ aclError AclRuntimeStub::aclrtStreamAbort(aclrtStream stream) {
   return ACL_ERROR_NONE;
 }
 
+aclError AclRuntimeStub::aclrtStreamStop(aclrtStream stream) {
+  (void)stream;
+  return ACL_ERROR_NONE;
+}
+
 aclError AclRuntimeStub::aclrtStreamWaitEvent(aclrtStream stream, aclrtEvent event) {
   (void)stream;
   (void)event;
@@ -713,6 +718,36 @@ aclError AclRuntimeStub::aclrtLaunchKernelWithConfig(aclrtFuncHandle funcHandle,
   return ACL_SUCCESS;
 }
 
+aclError AclRuntimeStub::aclrtLaunchKernelV2(aclrtFuncHandle funcHandle, uint32_t numBlocks, const void *argsData,
+                                             size_t argsSize, aclrtLaunchKernelCfg *cfg, aclrtStream stream) {
+  (void)numBlocks;
+  (void)cfg;
+  (void)stream;
+  if (argsData == nullptr) {
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  std::string func_name;
+  {
+    std::lock_guard<std::mutex> lock(g_kernel_args_mu);
+    auto name_it = g_stub_func_names.find(funcHandle);
+    if (name_it != g_stub_func_names.end()) {
+      func_name = name_it->second;
+    }
+  }
+  if (func_name == "HixlSyncTransferContext") {
+    if (HixlSyncTransferContext == nullptr) {
+      return ACL_ERROR_RT_INTERNAL_ERROR;
+    }
+    if (argsSize != sizeof(HixlTransferContextSyncParam)) {
+      return ACL_ERROR_INVALID_PARAM;
+    }
+    auto *param = reinterpret_cast<HixlTransferContextSyncParam *>(const_cast<void *>(argsData));
+    uint32_t ret = HixlSyncTransferContext(param);
+    return (ret == hixl::SUCCESS) ? ACL_SUCCESS : ACL_ERROR_RT_INTERNAL_ERROR;
+  }
+  return ACL_SUCCESS;
+}
+
 // 4. Kernel 卸载
 aclError AclRuntimeStub::aclrtBinaryUnLoad(aclrtBinHandle binHandle) {
   (void)binHandle;
@@ -819,6 +854,10 @@ aclError aclrtDestroyStream(aclrtStream stream) {
 
 aclError aclrtStreamAbort(aclrtStream stream) {
   return llm::AclRuntimeStub::GetInstance()->aclrtStreamAbort(stream);
+}
+
+aclError aclrtStreamStop(aclrtStream stream) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtStreamStop(stream);
 }
 
 aclError aclrtStreamWaitEvent(aclrtStream stream, aclrtEvent event) {
@@ -1008,6 +1047,12 @@ aclError aclrtLaunchKernelWithConfig(aclrtFuncHandle funcHandle, uint32_t blockD
                                      aclrtLaunchKernelCfg *config, aclrtArgsHandle argsHandle, void *reserved) {
   return llm::AclRuntimeStub::GetInstance()->aclrtLaunchKernelWithConfig(funcHandle, blockDim, stream, config,
                                                                          argsHandle, reserved);
+}
+
+aclError aclrtLaunchKernelV2(aclrtFuncHandle funcHandle, uint32_t numBlocks, const void *argsData, size_t argsSize,
+                             aclrtLaunchKernelCfg *cfg, aclrtStream stream) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtLaunchKernelV2(funcHandle, numBlocks, argsData, argsSize, cfg,
+                                                                 stream);
 }
 
 aclError aclrtBinaryUnLoad(aclrtBinHandle binHandle) {

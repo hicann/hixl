@@ -83,6 +83,7 @@ target_link_libraries(llm_datadist_test
         ${DT_COMMON_LINK_OPTION}
         c_sec
         mmpa_headers
+        ascend_hal_headers
         hccl_headers
         acl_rt_headers
         runtime_headers

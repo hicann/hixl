@@ -45,6 +45,9 @@ void from_json(const nlohmann::json &j, FabricMemoryConfig &cfg) {
   if (j.contains("task_stream_num")) {
     cfg.task_stream_num = JsonToNumber<size_t>(j.at("task_stream_num"));
   }
+  if (j.contains("enable_aicpu_unfold")) {
+    cfg.enable_aicpu_unfold = j.at("enable_aicpu_unfold").get<bool>();
+  }
 }
 
 void from_json(const nlohmann::json &j, ConnectPoolConfig &cfg) {
@@ -98,8 +101,54 @@ void from_json(const nlohmann::json &j, GlobalResourceConfig &cfg) {
   if (j.contains("fabric_memory.task_stream_num")) {
     cfg.fabric_memory.task_stream_num = JsonToNumber<size_t>(j.at("fabric_memory.task_stream_num"));
   }
+  if (j.contains("fabric_memory.enable_aicpu_unfold")) {
+    cfg.fabric_memory.enable_aicpu_unfold = j.at("fabric_memory.enable_aicpu_unfold").get<bool>();
+  }
   from_json(j, cfg.connect_pool);
   from_json(j, cfg.comm_resource_config);
+}
+
+Status ValidateGlobalResourceConfig(const GlobalResourceConfig &cfg) {
+  if (cfg.fabric_memory.max_capacity.has_value()) {
+    size_t val = *cfg.fabric_memory.max_capacity;
+    HIXL_CHK_BOOL_RET_STATUS(val > 0 && val <= kMaxCapacityTB, PARAM_INVALID,
+                             "fabric_memory.max_capacity must be in (0, %zu] TB, got %zu", kMaxCapacityTB, val);
+  }
+  if (cfg.fabric_memory.start_address.has_value()) {
+    size_t val = *cfg.fabric_memory.start_address;
+    HIXL_CHK_BOOL_RET_STATUS(val <= kMaxFabricMemStartAddrTB, PARAM_INVALID,
+                             "fabric_memory.start_address must be in [%zu, %zu] TB, got %zu", kMinFabricMemStartAddrTB,
+                             kMaxFabricMemStartAddrTB, val);
+  }
+  if (cfg.fabric_memory.task_stream_num.has_value()) {
+    size_t val = *cfg.fabric_memory.task_stream_num;
+    HIXL_CHK_BOOL_RET_STATUS(val >= kMinTaskStreamNum && val <= kMaxTaskStreamNum, PARAM_INVALID,
+                             "fabric_memory.task_stream_num must be between %zu and %zu, got %zu", kMinTaskStreamNum,
+                             kMaxTaskStreamNum, val);
+  }
+  // enable_aicpu_unfold defaults to true; aicpu_unfold mode only supports task_stream_num=1.
+  if (cfg.fabric_memory.enable_aicpu_unfold.value_or(true) && cfg.fabric_memory.task_stream_num.has_value()) {
+    HIXL_CHK_BOOL_RET_STATUS(*cfg.fabric_memory.task_stream_num == 1U, PARAM_INVALID,
+                             "aicpu_unfold mode only supports fabric_memory.task_stream_num=1, got %zu",
+                             *cfg.fabric_memory.task_stream_num);
+  }
+  if (cfg.comm_resource_config.listen_port.has_value()) {
+    uint32_t val = *cfg.comm_resource_config.listen_port;
+    HIXL_CHK_BOOL_RET_STATUS(val >= kMinListenPort && val <= kMaxListenPort, PARAM_INVALID,
+                             "comm_resource_config.listen_port must be in [%u, %u], got %u", kMinListenPort,
+                             kMaxListenPort, val);
+  }
+  if (cfg.comm_resource_config.qos.has_value()) {
+    uint8_t val = cfg.comm_resource_config.qos.value();
+    HIXL_CHK_BOOL_RET_STATUS(val <= kQosMax, PARAM_INVALID, "comm_resource_config.qos must be in [%u, %u], got %u",
+                             kQosMin, kQosMax, val);
+  }
+  if (cfg.comm_resource_config.max_active_channels.has_value()) {
+    uint32_t val = *cfg.comm_resource_config.max_active_channels;
+    HIXL_CHK_BOOL_RET_STATUS(val >= kMinActiveChannels, PARAM_INVALID,
+                             "comm_resource_config.max_active_channels must be >= %u, got %u", kMinActiveChannels, val);
+  }
+  return SUCCESS;
 }
 }  // namespace
 
@@ -241,41 +290,7 @@ Status HixlOptions::ParseGlobalResourceConfig(const std::string &config_str) {
     }
     GlobalResourceConfig cfg{};
     from_json(json, cfg);
-
-    if (cfg.fabric_memory.max_capacity.has_value()) {
-      size_t val = *cfg.fabric_memory.max_capacity;
-      HIXL_CHK_BOOL_RET_STATUS(val > 0 && val <= kMaxCapacityTB, PARAM_INVALID,
-                               "fabric_memory.max_capacity must be in (0, %zu] TB, got %zu", kMaxCapacityTB, val);
-    }
-    if (cfg.fabric_memory.start_address.has_value()) {
-      size_t val = *cfg.fabric_memory.start_address;
-      HIXL_CHK_BOOL_RET_STATUS(val <= kMaxFabricMemStartAddrTB, PARAM_INVALID,
-                               "fabric_memory.start_address must be in [%zu, %zu] TB, got %zu",
-                               kMinFabricMemStartAddrTB, kMaxFabricMemStartAddrTB, val);
-    }
-    if (cfg.fabric_memory.task_stream_num.has_value()) {
-      size_t val = *cfg.fabric_memory.task_stream_num;
-      HIXL_CHK_BOOL_RET_STATUS(val >= kMinTaskStreamNum && val <= kMaxTaskStreamNum, PARAM_INVALID,
-                               "fabric_memory.task_stream_num must be between %zu and %zu, got %zu", kMinTaskStreamNum,
-                               kMaxTaskStreamNum, val);
-    }
-    if (cfg.comm_resource_config.listen_port.has_value()) {
-      uint32_t val = *cfg.comm_resource_config.listen_port;
-      HIXL_CHK_BOOL_RET_STATUS(val >= kMinListenPort && val <= kMaxListenPort, PARAM_INVALID,
-                               "comm_resource_config.listen_port must be in [%u, %u], got %u", kMinListenPort,
-                               kMaxListenPort, val);
-    }
-    if (cfg.comm_resource_config.qos.has_value()) {
-      uint8_t val = cfg.comm_resource_config.qos.value();
-      HIXL_CHK_BOOL_RET_STATUS(val <= kQosMax, PARAM_INVALID, "comm_resource_config.qos must be in [%u, %u], got %u",
-                               kQosMin, kQosMax, val);
-    }
-    if (cfg.comm_resource_config.max_active_channels.has_value()) {
-      uint32_t val = *cfg.comm_resource_config.max_active_channels;
-      HIXL_CHK_BOOL_RET_STATUS(val >= kMinActiveChannels, PARAM_INVALID,
-                               "comm_resource_config.max_active_channels must be >= %u, got %u", kMinActiveChannels,
-                               val);
-    }
+    HIXL_CHK_STATUS_RET(ValidateGlobalResourceConfig(cfg), "Validate GlobalResourceConfig failed.");
     global_resource_config_ = std::move(cfg);
     return SUCCESS;
   } catch (const nlohmann::json::exception &e) {

@@ -32,6 +32,7 @@ namespace hixl {
 struct FabricMemTransferServiceInitParam {
   int32_t device_id{-1};
   size_t max_stream_num{0U};
+  // Must be 1 when enable_aicpu_unfold is true.
   size_t task_stream_num{0U};
   std::string local_engine;
   bool auto_connect{false};
@@ -39,23 +40,23 @@ struct FabricMemTransferServiceInitParam {
   FabricMemLocalMemory *local_memory{nullptr};
   FabricMemControlServer *control_server{nullptr};
   aclrtContext aclrt_context{nullptr};
+  // Selects FabricMemAicpuTransferService when true; FabricMemHostTransferService otherwise.
+  bool enable_aicpu_unfold{false};
 };
 
-// Facade for the fabric_mem subsystem. Owns the channel manager (connection lifecycle, keepalive,
-// disconnect) and the slot pool (reusable transfer streams), and orchestrates sync/async transfers.
-// Local memory registration/export is handled by FabricMemLocalMemory (owned by the engine) and is
-// referenced here only to translate local host addresses during a transfer.
+// Base for fabric_mem transfer services. Owns the channel manager and slot pool; concrete
+// Host/AICPU subclasses implement distinct concurrency models and copy submission paths.
 class FabricMemTransferService {
  public:
   FabricMemTransferService() = default;
-  ~FabricMemTransferService();
+  virtual ~FabricMemTransferService();
   FabricMemTransferService(const FabricMemTransferService &) = delete;
   FabricMemTransferService &operator=(const FabricMemTransferService &) = delete;
   FabricMemTransferService(FabricMemTransferService &&) = delete;
   FabricMemTransferService &operator=(FabricMemTransferService &&) = delete;
 
-  Status Initialize(const FabricMemTransferServiceInitParam &param);
-  void Finalize();
+  virtual Status Initialize(const FabricMemTransferServiceInitParam &param) = 0;
+  virtual void Finalize();
 
   Status Connect(const AscendString &remote_engine, int32_t timeout_in_millis);
   Status EnsureConnected(const AscendString &remote_engine, int32_t timeout_in_millis);
@@ -66,64 +67,55 @@ class FabricMemTransferService {
   Status StartKeepaliveMonitor();
   void StopKeepaliveMonitor();
 
-  Status TransferSync(const std::string &remote_engine, TransferOp operation,
-                      const std::vector<TransferOpDesc> &op_descs, int32_t timeout_in_millis);
-  Status TransferAsync(const std::string &remote_engine, TransferOp operation,
-                       const std::vector<TransferOpDesc> &op_descs, TransferReq &req);
-  Status GetTransferStatus(const TransferReq &req, TransferStatus &status, AsyncTransferPollInfo *info = nullptr);
-  void CleanupAsyncTransfer(const TransferReq &req);
+  virtual Status TransferSync(const std::string &remote_engine, TransferOp operation,
+                              const std::vector<TransferOpDesc> &op_descs, int32_t timeout_in_millis) = 0;
+  virtual Status TransferAsync(const std::string &remote_engine, TransferOp operation,
+                               const std::vector<TransferOpDesc> &op_descs, TransferReq &req) = 0;
+  virtual Status GetTransferStatus(const TransferReq &req, TransferStatus &status,
+                                   AsyncTransferPollInfo *info = nullptr) = 0;
+  virtual void CleanupAsyncTransfer(const TransferReq &req) = 0;
 
   static void SetKeepaliveCheckIntervalMs(int64_t interval_ms);
   static Status MallocMem(MemType type, size_t size, void **ptr);
   static Status FreeMem(void *ptr);
 
- private:
+ protected:
   enum class AsyncStreamQueryResult { kWaiting, kFailed, kComplete };
 
-  // Per-transfer invocation metadata shared by the sync/async copy issue paths. real_copy_start is an
-  // out field updated when the copy is actually issued (after address translation); the async path also
-  // uses req_id/prof_start_time/transfer_start to build the AsyncRecord.
   struct TransferInvocation {
     TransferOp operation{READ};
     uint64_t req_id{0U};
     uint64_t prof_start_time{0U};
+    uint32_t rtsq_timeout_ms{0U};
+    uint64_t transfer_bytes{0U};
+    uint64_t op_desc_count{0U};
     std::chrono::steady_clock::time_point transfer_start;
     std::chrono::steady_clock::time_point real_copy_start;
   };
 
+  Status InitCommon(const FabricMemTransferServiceInitParam &param, bool enable_aicpu_unfold);
   Status InitDevConstOne();
   void FreeDevConstOne();
 
   Status PrepareChannelTransfer(const std::string &remote_engine, std::shared_ptr<FabricMemChannel> &channel,
                                 FabricMemTransferContext &context) const;
-  Status IssueSyncCopy(const std::shared_ptr<FabricMemChannel> &channel, const AsyncSlot &slot,
-                       const FabricMemTransferContext &context, std::vector<TransferOpDesc> &op_descs,
-                       TransferInvocation &invocation) const;
-  Status WaitSyncStreams(const AsyncSlot &slot, const std::chrono::steady_clock::time_point &start,
-                         uint64_t timeout_us) const;
-  static void UnregisterSyncSlot(const std::shared_ptr<FabricMemChannel> &channel, const AsyncSlot &slot);
-  Status IssueAsyncCopyAndRegister(const std::shared_ptr<FabricMemChannel> &channel, AsyncSlot &slot,
-                                   const FabricMemTransferContext &context, std::vector<TransferOpDesc> &op_descs,
-                                   TransferInvocation &invocation);
-
+  Status WaitControlStreamsWithTimeout(const AsyncSlot &slot, const std::chrono::steady_clock::time_point &start,
+                                       uint64_t timeout_us) const;
   Status AppendHostFlagCopies(const AsyncSlot &slot) const;
   static bool AllHostFlagsDone(const AsyncSlot &slot);
   static AsyncStreamQueryResult QueryAsyncSlotStreams(const AsyncSlot &slot);
-  static Status SynchronizeAsyncSlotStreams(const AsyncSlot &slot);
-  Status HandleAsyncStreamQueryFailure(uint64_t req_id, AsyncRecord &async_record, TransferStatus &status);
-  Status CompleteAsyncTransferAndUpdateStats(uint64_t req_id, AsyncRecord &async_record, TransferStatus &status);
   static void FillPollInfo(const AsyncRecord &record, AsyncTransferPollInfo *info);
 
   Status ResolveTransferAddrs(std::vector<TransferOpDesc> &op_descs, const FabricMemTransferContext &context) const;
   static Status TransOpAddr(uintptr_t old_addr, size_t len,
                             const std::unordered_map<uintptr_t, VaInfo> &new_va_to_old_va, uintptr_t &new_addr);
-  static Status ProcessCopyWithAsync(const AsyncSlot &slot, TransferOp operation,
-                                     const std::vector<TransferOpDesc> &op_descs);
   Status NeedTransLocalAddr(const std::vector<TransferOpDesc> &op_descs, bool &need_trans_local_addr) const;
-  void UpdateStats(const FabricMemTransferContext &context, uint64_t transfer_cost, uint64_t real_copy_cost,
-                   uint64_t transfer_bytes, uint64_t op_desc_count) const;
-  void UpdateStats(const AsyncRecord &record, uint64_t transfer_cost, uint64_t real_copy_cost, uint64_t transfer_bytes,
-                   uint64_t op_desc_count) const;
+  void UpdateStats(const std::string &channel_id, const std::string &statistic_channel_id,
+                   const std::shared_ptr<FabricMemTransferStatisticInfo> &stat_info, uint64_t transfer_cost,
+                   uint64_t real_copy_cost, uint64_t transfer_bytes, uint64_t op_desc_count) const;
+  static uint64_t GetTransferBytes(const std::vector<TransferOpDesc> &op_descs);
+  static uint64_t GetDurationUs(const std::chrono::steady_clock::time_point &start,
+                                const std::chrono::steady_clock::time_point &end);
 
   int32_t device_id_{-1};
   size_t max_stream_num_{0};
@@ -138,6 +130,7 @@ class FabricMemTransferService {
   FabricMemSlotPool slot_pool_;
   FabricMemChannelManager channel_manager_;
 };
+
 }  // namespace hixl
 
 #endif  // CANN_HIXL_SRC_HIXL_FABRIC_MEM_FABRIC_MEM_TRANSFER_SERVICE_H_

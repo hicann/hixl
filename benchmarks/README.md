@@ -119,7 +119,7 @@ bash benchmarks/run_all_bench.sh --hixl-option 'LocalCommRes={"version":"1.3"}'
 ### 4. 性能数据汇总
 
 - **`perf.md`**：由 `run_all_bench.sh` 在单平台（A2 / A3 / A5）上自动生成，包含当前平台的性能表格和折线图。
-- **`performance.md`**：多平台汇总文档（按 A2 / A3 / A5 等章节区分），由开发者手动维护，内容来源于各平台跑出来的 `perf.md`。
+- **`performance.md`**：多平台汇总文档，由开发者手动维护，内容来源于各平台跑出来的 `perf.md`。
 
 ---
 

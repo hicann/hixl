@@ -11,20 +11,39 @@
 #include "fabric_mem/fabric_mem_slot_pool.h"
 
 #include <chrono>
+#include <utility>
 
+#include "acl/acl_rt.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
 #include "common/scope_guard.h"
+#include "fabric_mem/fabric_mem_aicpu_dispatcher.h"
 
 namespace hixl {
 namespace {
 constexpr uint64_t kHostFlagInitValue = 0ULL;
 constexpr size_t kHostFlagSize = sizeof(uint64_t);
+constexpr uint32_t kA3NotifyIdLimit = 1U << 13U;
 
 uint64_t GetDurationUs(const std::chrono::steady_clock::time_point &start,
                        const std::chrono::steady_clock::time_point &end) {
   return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+}
+
+// Every request in `requests` is a view onto the same pooled entry as `slot`, so any of them can drive
+// the abort. Falling back to a request keeps the "stop the kernel before freeing its buffers" rule even
+// if a caller hands over an already-cleared slot.
+const AsyncSlot *PickAbortSlot(const AsyncSlot &slot, const std::vector<FabricMemAicpuPendingRequest> &requests) {
+  if (slot.ctx != nullptr) {
+    return &slot;
+  }
+  for (const auto &request : requests) {
+    if ((request.slot != nullptr) && (request.slot->ctx != nullptr)) {
+      return request.slot;
+    }
+  }
+  return nullptr;
 }
 }  // namespace
 
@@ -56,18 +75,41 @@ Status FabricMemSlotPool::CreateSlotStream(aclrtStream &stream) {
   return SUCCESS;
 }
 
-void FabricMemSlotPool::DestroySlotStreams(std::vector<aclrtStream> &streams, bool abort_streams) {
+Status FabricMemSlotPool::CreateAicpuRtsqStream(aclrtStream &stream) {
+  stream = nullptr;
+  // DEVICE_USE_ONLY rejects aclrtSetStreamFailureMode (ACL_ERROR_RT_FEATURE_NOT_SUPPORT / 207000).
+  HIXL_CHK_ACL_RET(aclrtCreateStreamWithConfig(&stream, 0U, ACL_STREAM_DEVICE_USE_ONLY),
+                   "Create FabricMem AICPU RTSQ worker stream failed.");
+  return SUCCESS;
+}
+
+void FabricMemSlotPool::DestroySlotStreams(std::vector<aclrtStream> &streams, bool abort_streams, bool device_only) {
   for (auto &stream : streams) {
     if (stream == nullptr) {
       continue;
     }
     if (abort_streams) {
-      HIXL_CHK_ACL(aclrtStreamAbort(stream), "Abort fabric mem stream failed.");
+      if (device_only) {
+        HIXL_CHK_ACL(aclrtStreamStop(stream), "Stop FabricMem AICPU RTSQ worker stream failed.");
+      } else {
+        HIXL_CHK_ACL(aclrtStreamAbort(stream), "Abort fabric mem stream failed.");
+      }
     }
     HIXL_CHK_ACL(aclrtDestroyStream(stream), "Destroy fabric mem stream failed.");
     stream = nullptr;
   }
   streams.clear();
+}
+
+void FabricMemSlotPool::DestroySlotNotifies(std::vector<aclrtNotify> &notifies, std::vector<uint32_t> &notify_ids) {
+  for (auto &notify : notifies) {
+    if (notify != nullptr) {
+      HIXL_CHK_ACL(aclrtDestroyNotify(notify), "Destroy FabricMem AICPU notify failed.");
+      notify = nullptr;
+    }
+  }
+  notifies.clear();
+  notify_ids.clear();
 }
 
 void FabricMemSlotPool::DestroySlotHostFlags(std::vector<void *> &host_flags) {
@@ -92,7 +134,9 @@ void FabricMemSlotPool::DestroyCreatedSlotEntry(AsyncSlot &entry) {
     return;
   }
   TemporaryRtContext with_context(entry.ctx);
+  DestroySlotStreams(entry.sdma_streams, false, true);
   DestroySlotStreams(entry.streams, false);
+  DestroySlotNotifies(entry.notifies, entry.notify_ids);
   DestroySlotHostFlags(entry.host_flags);
   HIXL_CHK_ACL(aclrtDestroyContext(entry.ctx), "Destroy fabric mem transfer context failed.");
   entry.ctx = nullptr;
@@ -105,6 +149,35 @@ Status FabricMemSlotPool::PopulateSlotStreams(AsyncSlot &entry) const {
     aclrtStream stream = nullptr;
     HIXL_CHK_STATUS_RET(CreateSlotStream(stream), "Create fabric mem stream failed.");
     entry.streams.emplace_back(stream);
+  }
+  return SUCCESS;
+}
+
+Status FabricMemSlotPool::PopulateAicpuRtsqStreams(AsyncSlot &entry) const {
+  entry.sdma_streams.clear();
+  entry.sdma_streams.reserve(task_stream_num_);
+  for (size_t i = 0U; i < task_stream_num_; ++i) {
+    aclrtStream stream = nullptr;
+    HIXL_CHK_STATUS_RET(CreateAicpuRtsqStream(stream), "Create FabricMem AICPU RTSQ worker stream failed.");
+    entry.sdma_streams.emplace_back(stream);
+  }
+  return SUCCESS;
+}
+
+Status FabricMemSlotPool::PopulateAicpuNotifies(AsyncSlot &entry) const {
+  entry.notifies.clear();
+  entry.notify_ids.clear();
+  entry.notifies.reserve(task_stream_num_);
+  entry.notify_ids.reserve(task_stream_num_);
+  for (size_t i = 0U; i < task_stream_num_; ++i) {
+    aclrtNotify notify = nullptr;
+    HIXL_CHK_ACL_RET(aclrtCreateNotify(&notify, ACL_NOTIFY_DEVICE_USE_ONLY), "Create FabricMem AICPU notify failed.");
+    entry.notifies.emplace_back(notify);
+    uint32_t notify_id = 0U;
+    HIXL_CHK_ACL_RET(aclrtGetNotifyId(notify, &notify_id), "Get FabricMem AICPU notify id failed.");
+    HIXL_CHK_BOOL_RET_STATUS(notify_id < kA3NotifyIdLimit, UNSUPPORTED,
+                             "FabricMem AICPU notify id:%u exceeds the A3 13-bit ABI.", notify_id);
+    entry.notify_ids.emplace_back(notify_id);
   }
   return SUCCESS;
 }
@@ -141,6 +214,8 @@ void FabricMemSlotPool::DestroySlotEntryLocked(AsyncSlot &entry, bool abort_stre
   {
     TemporaryRtContext with_context(ctx);
     DestroySlotStreams(entry.streams, abort_streams);
+    DestroySlotStreams(entry.sdma_streams, abort_streams, true);
+    DestroySlotNotifies(entry.notifies, entry.notify_ids);
     DestroySlotHostFlags(entry.host_flags);
   }
   HIXL_CHK_ACL(aclrtDestroyContext(ctx), "Destroy fabric mem transfer context failed.");
@@ -158,7 +233,11 @@ Status FabricMemSlotPool::TryAcquireSlotLocked(AsyncSlot &slot) {
     ResetSlotHostFlags(entry.host_flags);
     slot.ctx = entry.ctx;
     slot.streams = entry.streams;
+    slot.sdma_streams = entry.sdma_streams;
+    slot.notifies = entry.notifies;
+    slot.notify_ids = entry.notify_ids;
     slot.host_flags = entry.host_flags;
+    slot.has_aicpu_unfold = false;
     return SUCCESS;
   }
   if (slot_pool_.size() >= max_async_slot_num_) {
@@ -172,7 +251,11 @@ Status FabricMemSlotPool::TryAcquireSlotLocked(AsyncSlot &slot) {
   entry.available = false;
   slot.ctx = entry.ctx;
   slot.streams = entry.streams;
+  slot.sdma_streams = entry.sdma_streams;
+  slot.notifies = entry.notifies;
+  slot.notify_ids = entry.notify_ids;
   slot.host_flags = entry.host_flags;
+  slot.has_aicpu_unfold = false;
   slot_pool_.emplace_back(std::move(entry));
   return SUCCESS;
 }
@@ -181,7 +264,11 @@ Status FabricMemSlotPool::AcquireAsync(AsyncSlot &slot) {
   std::lock_guard<std::mutex> lock(pool_mutex_);
   slot.ctx = nullptr;
   slot.streams.clear();
+  slot.sdma_streams.clear();
+  slot.notifies.clear();
+  slot.notify_ids.clear();
   slot.host_flags.clear();
+  slot.has_aicpu_unfold = false;
   HIXL_CHK_STATUS_RET(TryAcquireSlotLocked(slot), "Failed to acquire fabric mem async transfer slot.");
   return SUCCESS;
 }
@@ -214,11 +301,50 @@ Status FabricMemSlotPool::AcquireWithTimeout(AsyncSlot &slot, uint64_t timeout_u
   }
 }
 
+Status FabricMemSlotPool::EnsureAicpuRtsqStreams(AsyncSlot &slot) {
+  HIXL_CHK_BOOL_RET_STATUS(slot.ctx != nullptr, PARAM_INVALID, "FabricMem AICPU slot context is null.");
+  std::lock_guard<std::mutex> lock(pool_mutex_);
+  for (auto &entry : slot_pool_) {
+    if (entry.ctx != slot.ctx) {
+      continue;
+    }
+    HIXL_CHK_BOOL_RET_STATUS(!entry.available, FAILED, "FabricMem AICPU slot is not acquired.");
+    if (entry.sdma_streams.empty() || entry.notifies.empty()) {
+      TemporaryRtContext with_context(entry.ctx);
+      HIXL_DISMISSABLE_GUARD(resource_guard, ([&entry]() {
+                               DestroySlotStreams(entry.sdma_streams, false, true);
+                               DestroySlotNotifies(entry.notifies, entry.notify_ids);
+                             }));
+      if (entry.sdma_streams.empty()) {
+        HIXL_CHK_STATUS_RET(PopulateAicpuRtsqStreams(entry), "Create FabricMem AICPU RTSQ worker streams failed.");
+      }
+      if (entry.notifies.empty()) {
+        HIXL_CHK_STATUS_RET(PopulateAicpuNotifies(entry), "Create FabricMem AICPU notifies failed.");
+      }
+      HIXL_DISMISS_GUARD(resource_guard);
+    }
+    HIXL_CHK_BOOL_RET_STATUS(entry.sdma_streams.size() == entry.streams.size(), FAILED,
+                             "FabricMem AICPU worker/control stream count mismatch.");
+    HIXL_CHK_BOOL_RET_STATUS(
+        entry.notifies.size() == entry.streams.size() && entry.notify_ids.size() == entry.streams.size(), FAILED,
+        "FabricMem AICPU notify/control stream count mismatch.");
+    slot.sdma_streams = entry.sdma_streams;
+    slot.notifies = entry.notifies;
+    slot.notify_ids = entry.notify_ids;
+    return SUCCESS;
+  }
+  HIXL_LOGE(FAILED, "FabricMem AICPU slot is not managed by this pool.");
+  return FAILED;
+}
+
 void FabricMemSlotPool::ClearReleasedSlot(AsyncSlot &slot) {
-  // slot only holds views of the pooled entry's ctx/streams/host_flags, so just
-  // drop the references here; the entry itself owns and reuses those resources.
+  // slot only holds views of the pooled entry's resources, so just drop the
+  // references here; the entry itself owns and reuses them.
   slot.ctx = nullptr;
   slot.streams.clear();
+  slot.sdma_streams.clear();
+  slot.notifies.clear();
+  slot.notify_ids.clear();
   slot.host_flags.clear();
 }
 
@@ -267,16 +393,112 @@ void FabricMemSlotPool::Release(AsyncSlot &slot, bool destroy_slot) {
   }
 }
 
-void FabricMemSlotPool::AbortSlotStreams(const AsyncSlot &slot) {
+Status FabricMemSlotPool::AbortSlotStreams(const AsyncSlot &slot) {
   if (slot.ctx == nullptr) {
-    return;
+    return SUCCESS;
   }
   TemporaryRtContext with_context(slot.ctx);
   for (const auto &stream : slot.streams) {
     if (stream != nullptr) {
-      HIXL_CHK_ACL(aclrtStreamAbort(stream), "Abort fabric mem stream failed.");
+      HIXL_CHK_ACL_RET(aclrtStreamAbort(stream), "Abort FabricMem control stream failed.");
     }
   }
+  // Worker RTSQ streams are ACL_STREAM_DEVICE_USE_ONLY: use StreamStop, not StreamAbort.
+  for (const auto &stream : slot.sdma_streams) {
+    if (stream != nullptr) {
+      HIXL_CHK_ACL_RET(aclrtStreamStop(stream), "Stop FabricMem AICPU RTSQ worker stream failed.");
+    }
+  }
+  return SUCCESS;
+}
+
+void FabricMemSlotPool::SetAicpuDispatcher(FabricMemAicpuDispatcher *dispatcher) {
+  std::lock_guard<std::mutex> lock(pool_mutex_);
+  aicpu_dispatcher_ = dispatcher;
+}
+
+FabricMemAicpuDispatcher *FabricMemSlotPool::GetAicpuDispatcher() {
+  std::lock_guard<std::mutex> lock(pool_mutex_);
+  return aicpu_dispatcher_;
+}
+
+bool FabricMemSlotPool::DetachSlotEntry(const AsyncSlot &slot, AsyncSlot &entry) {
+  if (slot.ctx == nullptr) {
+    return false;
+  }
+  std::lock_guard<std::mutex> lock(pool_mutex_);
+  for (size_t i = 0U; i < slot_pool_.size(); ++i) {
+    if (slot_pool_[i].ctx != slot.ctx) {
+      continue;
+    }
+    entry = std::move(slot_pool_[i]);
+    (void)slot_pool_.erase(slot_pool_.begin() + static_cast<ptrdiff_t>(i));
+    RebuildFreeSlotIndicesLocked();
+    // The pool has room again; a waiter can grow it while this entry is still being torn down.
+    pool_cv_.notify_one();
+    return true;
+  }
+  return false;
+}
+
+void FabricMemSlotPool::DestroySlotEntryResources(AsyncSlot &entry) {
+  TemporaryRtContext with_context(entry.ctx);
+  // AbortSlot has already aborted / stopped these streams.
+  DestroySlotStreams(entry.streams, false);
+  DestroySlotStreams(entry.sdma_streams, false, true);
+  DestroySlotNotifies(entry.notifies, entry.notify_ids);
+  DestroySlotHostFlags(entry.host_flags);
+}
+
+void FabricMemSlotPool::ReleaseRequestResources(const std::vector<FabricMemAicpuPendingRequest> &requests) {
+  for (const auto &request : requests) {
+    TemporaryRtContext with_context(request.slot != nullptr ? request.slot->ctx : nullptr);
+    if (request.resource != nullptr) {
+      FabricMemAicpuDispatcher::ReleaseRequestResource(*request.resource);
+    }
+    if (request.slot != nullptr) {
+      DestroyOwnedHostFlags(*request.slot);
+    }
+  }
+}
+
+void FabricMemSlotPool::AbortSlot(AsyncSlot &slot, const std::vector<FabricMemAicpuPendingRequest> &requests) {
+  const AsyncSlot *const abort_slot = PickAbortSlot(slot, requests);
+  AsyncSlot entry;
+  bool detached = false;
+  if (abort_slot != nullptr) {
+    detached = DetachSlotEntry(*abort_slot, entry);
+    HIXL_CHK_STATUS(AbortSlotStreams(*abort_slot), "Abort fabric mem slot streams failed.");
+    FabricMemAicpuDispatcher *const dispatcher = GetAicpuDispatcher();
+    if (dispatcher != nullptr) {
+      // Waits out a kernel that still holds the TransferContext, so it can no longer read the
+      // descriptor buffers freed below.
+      HIXL_CHK_STATUS(dispatcher->DeleteTransferContext(*abort_slot),
+                      "FabricMem AICPU delete transfer context failed during slot abort.");
+    }
+  }
+  if (detached) {
+    DestroySlotEntryResources(entry);
+  }
+  ReleaseRequestResources(requests);
+  if (detached && entry.ctx != nullptr) {
+    HIXL_CHK_ACL(aclrtDestroyContext(entry.ctx), "Destroy fabric mem transfer context failed.");
+    entry.ctx = nullptr;
+  }
+  slot = AsyncSlot{};
+}
+
+void FabricMemSlotPool::DestroyOwnedHostFlags(AsyncSlot &slot) {
+  if (!slot.owns_host_flags) {
+    return;
+  }
+  for (void *host_flag : slot.host_flags) {
+    if (host_flag != nullptr) {
+      HIXL_CHK_ACL(aclrtFreeHost(host_flag), "Free fabric mem transfer host flag failed.");
+    }
+  }
+  slot.host_flags.clear();
+  slot.owns_host_flags = false;
 }
 
 void FabricMemSlotPool::AbortAndDestroyAll() {

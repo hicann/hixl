@@ -9,8 +9,11 @@
 # ----------------------------------------------------------------------------
 
 set(FABRIC_MEM_TEST_FILES
+        fabric_mem_runtime_stub.cc
         fabric_mem_unittest.cc
+        fabric_mem_aicpu_unfold_unittest.cc
         fabric_mem_config_parser_unittest.cc
+        fabric_mem_aicpu_kernel_unittest.cc
         virtual_memory_manager_unittest.cc
         fabric_mem_st.cc
 )
@@ -20,10 +23,19 @@ file(GLOB FABRIC_MEM_SRC_LIST
         "${HIXL_CODE_DIR}/src/hixl/fabric_mem/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/profiling/*.cc"
 )
+list(APPEND FABRIC_MEM_SRC_LIST
+        "${HIXL_CODE_DIR}/src/ops/hixl_kernel/fabric_mem_aicpu_kernel.cc"
+        "${HIXL_CODE_DIR}/src/ops/hixl_kernel/fabric_mem_stars_sdma.cc"
+        "${HIXL_CODE_DIR}/src/ops/hixl_kernel/transfer_context_manager.cc"
+        "${HIXL_CODE_DIR}/src/ops/hixl_kernel/hixl_sync_transfer_context.cc"
+        "${HIXL_CODE_DIR}/src/ops/hixl_kernel/task_exception_handler.cc"
+        "${HIXL_CODE_DIR}/src/hixl/proxy/hcomm_proxy.cc"
+)
 
 set(FABRIC_MEM_ENGINE_SRC
         "${HIXL_CODE_DIR}/src/hixl/engine/fabric_mem_engine.cc"
         "${HIXL_CODE_DIR}/src/hixl/engine/hixl_options.cc"
+        "${HIXL_CODE_DIR}/src/hixl/cs/load_kernel.cc"
 )
 
 set(FABRIC_MEM_STUB_SRC_FILES
@@ -56,9 +68,13 @@ target_include_directories(fabric_mem_test PRIVATE
         ${HIXL_CODE_DIR}/src/hixl/engine
         ${HIXL_CODE_DIR}/src/hixl/profiling
         ${HIXL_CODE_DIR}/src/hixl/proxy
+        ${HIXL_CODE_DIR}/src/ops/hixl_kernel
+        ${HIXL_CODE_DIR}/src/ops/hixl_kernel/extern_include
         ${HIXL_CODE_DIR}/src/llm_datadist
         ${HIXL_CODE_DIR}/tests
         ${HIXL_CODE_DIR}/tests/depends/ascendcl/src
+        ${HIXL_CODE_DIR}/tests/depends/hccl/src
+        ${HIXL_CODE_DIR}/tests/depends/aicpu/src
 )
 
 set_target_properties(fabric_mem_test PROPERTIES CXX_STANDARD 17)
@@ -67,6 +83,7 @@ target_link_libraries(fabric_mem_test
         ${COMMON_LINK_OPTION}
         c_sec
         mmpa_headers
+        ascend_hal_headers
         runtime_headers
         metadef_headers
         intf_pub
@@ -82,7 +99,9 @@ target_link_libraries(fabric_mem_test
         GTest::gmock
         stdc++fs
         -Wl,--no-as-needed
+        hccl_stub
         error_manager_stub
+        aicpu_stub
         -Wl,--as-needed)
 
 include(CTest)

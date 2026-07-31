@@ -57,6 +57,7 @@ target_include_directories(llm_datadist_base PRIVATE
 
 target_link_libraries(llm_datadist_base PRIVATE
         $<BUILD_INTERFACE:mmpa_headers>
+        $<BUILD_INTERFACE:ascend_hal_headers>
         $<BUILD_INTERFACE:hccl_headers>
         $<BUILD_INTERFACE:acl_rt_headers>
         $<BUILD_INTERFACE:runtime_headers>

@@ -14,6 +14,7 @@
 #include <cstring>
 #include <limits.h>
 #include <unistd.h>
+#include <vector>
 #include "mmpa/mmpa_api.h"
 #include "common/hixl_log.h"
 #include "common/scope_guard.h"
@@ -92,6 +93,26 @@ Status GetFuncHandle(aclrtBinHandle bin_handle, const char *func_name, aclrtFunc
 }
 
 }  // namespace
+
+Status LoadDeviceKernelFunctions(const std::vector<const char *> &func_names, aclrtBinHandle &bin_handle,
+                                 std::vector<aclrtFuncHandle> &func_handles) {
+  func_handles.clear();
+  HIXL_CHK_BOOL_RET_STATUS(!func_names.empty(), PARAM_INVALID, "[LoadKernel] No functions requested.");
+  std::string json_path;
+  HIXL_CHK_STATUS_RET(GetKernelFilePath(json_path), "[LoadKernel] GetKernelFilePath failed");
+  if (bin_handle == nullptr) {
+    HIXL_CHK_STATUS_RET(LoadBinaryFromJson(json_path.c_str(), bin_handle),
+                        "[LoadKernel] LoadBinaryFromJson failed. path=%s", json_path.c_str());
+  }
+  func_handles.reserve(func_names.size());
+  for (const char *func_name : func_names) {
+    aclrtFuncHandle func_handle = nullptr;
+    HIXL_CHK_STATUS_RET(GetFuncHandle(bin_handle, func_name, func_handle), "[LoadKernel] GetFuncHandle failed. func=%s",
+                        func_name == nullptr ? "" : func_name);
+    func_handles.emplace_back(func_handle);
+  }
+  return SUCCESS;
+}
 
 Status LoadDeviceKernelAndGetHandles(const char *func_get, const char *func_put, aclrtBinHandle &bin_handle,
                                      DeviceFuncHandles &func_handles, const char *func_sync_context) {

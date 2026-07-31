@@ -21,9 +21,12 @@
 #include <vector>
 
 #include "acl/acl.h"
+#include "fabric_mem/fabric_mem_aicpu_types.h"
 #include "hixl/hixl_types.h"
 
 namespace hixl {
+constexpr uint64_t kMillisToMicros = 1000UL;
+
 struct FabricMemTransferStatisticInfo;
 struct VaInfo {
   uintptr_t va_addr = 0;
@@ -42,13 +45,28 @@ struct ShareHandleInfo {
 
 struct AsyncSlot {
   aclrtContext ctx = nullptr;
+  // Control streams. With AICPU unfold there is exactly one control stream;
+  // AICPU writes SDMA SQEs to the paired worker RTSQ.
   std::vector<aclrtStream> streams;
+  std::vector<aclrtStream> sdma_streams;
+  // One device-only notify per control/worker pair bridges completion from
+  // the worker RTSQ back to its control stream (size 1 for AICPU unfold).
+  std::vector<aclrtNotify> notifies;
+  std::vector<uint32_t> notify_ids;
   std::vector<void *> host_flags;
+  // Synthetic key for AICPU TransferContextManager (no Hcomm thread). Set from notifies[0]
+  // when the bound slot is registered; used by Sync ADD/DELETE and kernel Submit locking.
+  uint64_t transfer_ctx_key = 0U;
+  // When true, host_flags are owned by this transfer (AICPU async multiplexing) and must be freed
+  // by the transfer path; pool entry host_flags stay untouched.
+  bool owns_host_flags = false;
   bool available = true;
+  bool has_aicpu_unfold = false;
 };
 
 struct AsyncRecord {
   AsyncSlot slot;
+  FabricMemAicpuRequestResource aicpu_resource;
   std::chrono::steady_clock::time_point transfer_start;
   std::chrono::steady_clock::time_point real_copy_start;
   uint64_t transfer_bytes = 0UL;
@@ -58,6 +76,13 @@ struct AsyncRecord {
   std::shared_ptr<FabricMemTransferStatisticInfo> stat_info;
   TransferOp op_type = READ;
   uint64_t prof_start_time{0U};
+};
+
+// One in-flight request bound to a slot that is being aborted. Its descriptor / status buffers may
+// still be read by a running AICPU kernel, so the abort flow frees them only after the kernel exits.
+struct FabricMemAicpuPendingRequest {
+  AsyncSlot *slot = nullptr;
+  FabricMemAicpuRequestResource *resource = nullptr;
 };
 
 struct AsyncTransferPollInfo {

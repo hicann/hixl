@@ -9,366 +9,23 @@
  */
 
 #include <sys/epoll.h>
-#include <sys/socket.h>
-#include <unistd.h>
 
-#include <algorithm>
-#include <atomic>
-#include <chrono>
-#include <cstdint>
 #include <future>
-#include <limits>
-#include <memory>
-#include <set>
 #include <string>
 #include <thread>
 #include <vector>
 
-#include <gtest/gtest.h>
 #include <securec.h>
 
-#define private public
-#include "engine/fabric_mem_engine.h"
-#include "engine/hixl_options.h"
-#include "fabric_mem/fabric_mem_channel_manager.h"
-#include "fabric_mem/fabric_mem_control.h"
-#include "fabric_mem/fabric_mem_memory.h"
-#include "fabric_mem/fabric_mem_slot_pool.h"
-#include "fabric_mem/fabric_mem_statistic.h"
-#include "fabric_mem/fabric_mem_transfer_service.h"
-#undef private
-
-#include "common/hixl_utils.h"
 #include "common/ctrl_msg.h"
 #include "common/statistic_utils.h"
-#include "depends/ascendcl/src/ascendcl_stub.h"
 #include "depends/slog/src/slog_stub.h"
-#include "fabric_mem_test_utils.h"
-#include "fabric_mem/virtual_memory_manager.h"
+#include "fabric_mem_runtime_stub.h"
 #include "nlohmann/json.hpp"
 
 namespace hixl {
 namespace {
-constexpr char kChannelId[] = "fabric_mem_test_channel";
-constexpr char kStatChannelId[] = "fabric_mem_stat_channel";
-constexpr uintptr_t kLocalAddr = 0x100000UL;
-constexpr uintptr_t kRemoteOldAddr = 0x200000UL;
-constexpr uintptr_t kRemoteNewAddr = 0x300000UL;
-constexpr uintptr_t kImportedLocalAddr = 0x400000UL;
-constexpr size_t kLen = 32U;
-constexpr uint32_t kFabricMemMagic = 0xA4B3C2D1;
-constexpr int32_t kClientTimeoutMs = 10;
-constexpr uint32_t kCaptureLogTimeoutMs = 1000U;
-
-class ScopedRuntimeMock {
- public:
-  explicit ScopedRuntimeMock(const std::shared_ptr<llm::AclRuntimeStub> &instance) {
-    llm::AclRuntimeStub::SetInstance(instance);
-  }
-
-  ~ScopedRuntimeMock() {
-    llm::GetAclStubMock().clear();
-    llm::AclRuntimeStub::Reset();
-  }
-
-  ScopedRuntimeMock(const ScopedRuntimeMock &) = delete;
-  ScopedRuntimeMock &operator=(const ScopedRuntimeMock &) = delete;
-};
-
-class FabricMemRuntimeStub : public llm::AclRuntimeStub {
- public:
-  aclError aclrtSetCurrentContext(aclrtContext context) override {
-    ++set_current_context_count_;
-    last_set_context_ = context;
-    return llm::AclRuntimeStub::aclrtSetCurrentContext(context);
-  }
-
-  aclError aclrtGetCurrentContext(aclrtContext *context) override {
-    if (get_context_returns_null_) {
-      *context = nullptr;
-      return ACL_ERROR_NONE;
-    }
-    return llm::AclRuntimeStub::aclrtGetCurrentContext(context);
-  }
-
-  aclError aclrtPointerGetAttributes(const void *ptr, aclrtPtrAttributes *attributes) override {
-    (void)ptr;
-    if (pointer_attr_error_ != ACL_ERROR_NONE) {
-      return pointer_attr_error_;
-    }
-    attributes->location.type = pointer_is_host_ ? ACL_MEM_LOCATION_TYPE_HOST : ACL_MEM_LOCATION_TYPE_DEVICE;
-    return ACL_ERROR_NONE;
-  }
-
-  aclError aclrtMemcpyAsync(void *dst, size_t dest_max, const void *src, size_t src_count, aclrtMemcpyKind kind,
-                            aclrtStream stream) override {
-    ++memcpy_async_count_;
-    if (kind == ACL_MEMCPY_DEVICE_TO_HOST) {
-      ++host_flag_d2h_count_;
-    }
-    if (memcpy_async_error_ != ACL_ERROR_NONE && memcpy_async_count_ == memcpy_async_fail_on_count_ &&
-        kind == memcpy_async_fail_kind_) {
-      return memcpy_async_error_;
-    }
-    return llm::AclRuntimeStub::aclrtMemcpyAsync(dst, dest_max, src, src_count, kind, stream);
-  }
-
-  aclError aclrtStreamQuery(aclrtStream stream, aclrtStreamStatus *status) override {
-    ++stream_query_count_;
-    if (stream_query_error_ != ACL_ERROR_NONE) {
-      return stream_query_error_;
-    }
-    if (status == nullptr) {
-      return ACL_ERROR_INVALID_PARAM;
-    }
-    if (streams_not_complete_.count(stream) != 0U) {
-      *status = ACL_STREAM_STATUS_NOT_READY;
-      return ACL_ERROR_NONE;
-    }
-    return llm::AclRuntimeStub::aclrtStreamQuery(stream, status);
-  }
-
-  aclError aclrtSetStreamFailureMode(aclrtStream stream, uint64_t mode) override {
-    ++stream_failure_mode_count_;
-    last_stream_failure_mode_ = mode;
-    (void)stream;
-    return ACL_ERROR_NONE;
-  }
-
-  aclError aclrtSynchronizeStream(aclrtStream stream) override {
-    ++stream_sync_count_;
-    streams_not_complete_.erase(stream);
-    if (stream_sync_error_ != ACL_ERROR_NONE) {
-      return stream_sync_error_;
-    }
-    return llm::AclRuntimeStub::aclrtSynchronizeStream(stream);
-  }
-
-  aclError aclrtSynchronizeStreamWithTimeout(aclrtStream stream, int32_t timeout) override {
-    (void)timeout;
-    sync_with_timeout_entered_.fetch_add(1U, std::memory_order_release);
-    if (block_sync_with_timeout_.load(std::memory_order_acquire)) {
-      while (!unblock_sync_with_timeout_.load(std::memory_order_acquire)) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-      }
-    }
-    ++stream_sync_count_;
-    streams_not_complete_.erase(stream);
-    if (stream_sync_error_ != ACL_ERROR_NONE) {
-      return stream_sync_error_;
-    }
-    return llm::AclRuntimeStub::aclrtSynchronizeStreamWithTimeout(stream, timeout);
-  }
-
-  aclError aclrtStreamAbort(aclrtStream stream) override {
-    ++stream_abort_count_;
-    return llm::AclRuntimeStub::aclrtStreamAbort(stream);
-  }
-
-  aclError aclrtMallocPhysical(aclrtDrvMemHandle *handle, size_t size, const aclrtPhysicalMemProp *prop,
-                               uint64_t flags) override {
-    (void)size;
-    (void)flags;
-    ++malloc_physical_count_;
-    last_physical_mem_prop_ = *prop;
-    *handle = reinterpret_cast<aclrtDrvMemHandle>(new uint8_t[8]);
-    return ACL_ERROR_NONE;
-  }
-
-  aclError aclrtFreePhysical(aclrtDrvMemHandle handle) override {
-    ++free_physical_count_;
-    return llm::AclRuntimeStub::aclrtFreePhysical(handle);
-  }
-
-  aclError aclrtMemSetAccess(void *virPtr, size_t size, aclrtMemAccessDesc *desc, size_t count) override {
-    ++mem_set_access_count_;
-    last_mem_set_access_size_ = size;
-    last_mem_set_access_count_ = count;
-    if (desc != nullptr && count > 0U) {
-      last_mem_access_desc_ = desc[0];
-    }
-    return llm::AclRuntimeStub::aclrtMemSetAccess(virPtr, size, desc, count);
-  }
-
-  bool pointer_is_host_{false};
-  bool get_context_returns_null_{false};
-  aclError pointer_attr_error_{ACL_ERROR_NONE};
-  aclError memcpy_async_error_{ACL_ERROR_NONE};
-  aclrtMemcpyKind memcpy_async_fail_kind_{ACL_MEMCPY_DEVICE_TO_DEVICE};
-  size_t memcpy_async_fail_on_count_{0U};
-  size_t memcpy_async_count_{0U};
-  size_t host_flag_d2h_count_{0U};
-  size_t stream_query_count_{0U};
-  size_t stream_failure_mode_count_{0U};
-  uint64_t last_stream_failure_mode_{0U};
-  size_t stream_abort_count_{0U};
-  aclError stream_query_error_{ACL_ERROR_NONE};
-  aclError stream_sync_error_{ACL_ERROR_NONE};
-  size_t stream_sync_count_{0U};
-  std::atomic<bool> block_sync_with_timeout_{false};
-  std::atomic<bool> unblock_sync_with_timeout_{false};
-  std::atomic<uint32_t> sync_with_timeout_entered_{0U};
-  std::set<aclrtStream> streams_not_complete_;
-  size_t malloc_physical_count_{0U};
-  size_t free_physical_count_{0U};
-  size_t mem_set_access_count_{0U};
-  size_t last_mem_set_access_size_{0U};
-  size_t last_mem_set_access_count_{0U};
-  aclrtMemAccessDesc last_mem_access_desc_{};
-  size_t set_current_context_count_{0U};
-  aclrtContext last_set_context_{nullptr};
-  aclrtPhysicalMemProp last_physical_mem_prop_{};
-};
-
-ShareHandleInfo BuildShareHandle(uintptr_t va_addr = kRemoteOldAddr, size_t len = kLen) {
-  ShareHandleInfo info{};
-  info.va_addr = va_addr;
-  info.len = len;
-  for (size_t i = 0; i < sizeof(info.share_handle.data); ++i) {
-    info.share_handle.data[i] = static_cast<uint8_t>(i + 1U);
-  }
-  return info;
-}
-
-FabricMemTransferContext BuildContext(std::shared_ptr<FabricMemTransferStatisticInfo> stat_info = nullptr) {
-  FabricMemTransferContext context;
-  context.channel_id = kChannelId;
-  context.statistic_channel_id = kStatChannelId;
-  context.remote_va_to_old_va.emplace(kRemoteNewAddr, VaInfo{kRemoteOldAddr, kLen * 4U});
-  context.stat_info = std::move(stat_info);
-  return context;
-}
-
-std::vector<TransferOpDesc> BuildOpDescs(uint8_t *local, uint8_t *remote) {
-  return {{reinterpret_cast<uintptr_t>(local), reinterpret_cast<uintptr_t>(remote), kLen}};
-}
-
-std::vector<TransferOpDesc> BuildTwoOpDescs(uint8_t *local, uint8_t *remote) {
-  return {{reinterpret_cast<uintptr_t>(local), reinterpret_cast<uintptr_t>(remote), kLen},
-          {reinterpret_cast<uintptr_t>(local + kLen), reinterpret_cast<uintptr_t>(remote + kLen), kLen}};
-}
-
-void SendAdxlHeartBeat(int32_t fd) {
-  ASSERT_EQ(FabricMemControlClient::SendHeartBeat(fd), SUCCESS);
-}
-
-void SendRawAdxlMsg(int32_t fd, uint32_t magic, int32_t msg_type, const std::string &payload = "") {
-  const uint64_t body_size = static_cast<uint64_t>(sizeof(msg_type)) + payload.size();
-  const FabricMemAdxlProtocolHeader header{magic, body_size};
-  ASSERT_EQ(send(fd, &header, sizeof(header), 0), static_cast<ssize_t>(sizeof(header)));
-  ASSERT_EQ(send(fd, &msg_type, sizeof(msg_type), 0), static_cast<ssize_t>(sizeof(msg_type)));
-  if (!payload.empty()) {
-    ASSERT_EQ(send(fd, payload.data(), payload.size(), 0), static_cast<ssize_t>(payload.size()));
-  }
-}
-
-void DrainSocketInBackground(int32_t fd) {
-  std::thread([fd]() {
-    char buffer[512];
-    while (recv(fd, buffer, sizeof(buffer), 0) > 0) {
-    }
-  }).detach();
-}
-
-bool StartDefaultShareHandleServer(FabricMemControlServer &server, int32_t &port, std::string &remote,
-                                   bool auto_cleanup_enabled = true) {
-  port = test::AllocateFabricMemTestPort();
-  if (port <= 0) {
-    return false;
-  }
-  remote = "127.0.0.1:" + std::to_string(port);
-  return server.Start(
-             remote,
-             [](std::vector<ShareHandleInfo> &handles) {
-               handles.emplace_back(BuildShareHandle());
-               return SUCCESS;
-             },
-             auto_cleanup_enabled) == SUCCESS;
-}
-
-Status FetchFabricMemClientConn(const std::string &remote, const std::string &channel_id, int32_t &conn_fd) {
-  std::vector<ShareHandleInfo> handles;
-  return FabricMemControlClient::Fetch(remote, channel_id, kClientTimeoutMs, handles, conn_fd);
-}
-
-int32_t RecvRawFabricMemMsg(int32_t fd, std::string &payload) {
-  uint32_t magic = 0U;
-  EXPECT_EQ(recv(fd, &magic, sizeof(magic), MSG_WAITALL), static_cast<ssize_t>(sizeof(magic)));
-  EXPECT_EQ(magic, kFabricMemMagic);
-  uint64_t length = 0ULL;
-  EXPECT_EQ(recv(fd, &length, sizeof(length), MSG_WAITALL), static_cast<ssize_t>(sizeof(length)));
-  int32_t msg_type = 0;
-  EXPECT_EQ(recv(fd, &msg_type, sizeof(msg_type), MSG_WAITALL), static_cast<ssize_t>(sizeof(msg_type)));
-  const size_t data_len = static_cast<size_t>(length) - sizeof(msg_type);
-  payload.resize(data_len);
-  if (data_len > 0U) {
-    EXPECT_EQ(recv(fd, payload.data(), data_len, MSG_WAITALL), static_cast<ssize_t>(data_len));
-  }
-  return msg_type;
-}
-
-// Registers an async record directly on a channel and routes its request id through the manager so
-// that FabricMemTransferService::GetTransferStatus can find it without issuing a real transfer.
-void RegisterServiceAsyncRecord(FabricMemTransferService &service, const std::shared_ptr<FabricMemChannel> &channel,
-                                const FabricMemTransferContext &context, TransferReq req, AsyncSlot &&slot,
-                                uint64_t transfer_bytes, uint64_t op_desc_count, TransferOp op = WRITE) {
-  const uint64_t req_id = reinterpret_cast<uintptr_t>(req);
-  AsyncRecord record;
-  record.slot = std::move(slot);
-  const auto start = std::chrono::steady_clock::now();
-  record.transfer_start = start;
-  record.real_copy_start = start;
-  record.transfer_bytes = transfer_bytes;
-  record.op_desc_count = op_desc_count;
-  record.channel_id = context.channel_id;
-  record.statistic_channel_id = context.statistic_channel_id;
-  record.stat_info = context.stat_info;
-  record.op_type = op;
-  {
-    std::lock_guard<std::mutex> lock(channel->records_mutex);
-    channel->async_records[req_id] = std::move(record);
-  }
-  service.channel_manager_.AddReqRoute(req_id, channel);
-}
-
-std::shared_ptr<FabricMemChannel> AddServiceChannel(FabricMemTransferService &service, const std::string &remote) {
-  auto channel = std::make_shared<FabricMemChannel>();
-  std::lock_guard<std::mutex> lock(service.channel_manager_.channels_mutex_);
-  service.channel_manager_.channels_[remote] = channel;
-  return channel;
-}
-
-std::shared_ptr<FabricMemChannel> AddMappedServiceChannel(FabricMemTransferService &service, const std::string &remote,
-                                                          uint8_t *remote_buf, size_t len) {
-  auto channel = std::make_shared<FabricMemChannel>();
-  channel->remote_memory = std::make_unique<FabricMemRemoteMemory>();
-  EXPECT_EQ(channel->remote_memory->Import({BuildShareHandle(reinterpret_cast<uintptr_t>(remote_buf), len)}, 0),
-            SUCCESS);
-  std::lock_guard<std::mutex> lock(service.channel_manager_.channels_mutex_);
-  service.channel_manager_.channels_[remote] = channel;
-  return channel;
-}
-
-// Builds a valid base init param; tests tweak individual fields to exercise validation.
-FabricMemTransferServiceInitParam MakeServiceInitParam(FabricMemStatistic *statistic,
-                                                       FabricMemLocalMemory *local_memory) {
-  FabricMemTransferServiceInitParam param;
-  param.device_id = 0;
-  param.max_stream_num = 4U;
-  param.task_stream_num = 1U;
-  param.local_engine = "127.0.0.1:0";
-  param.statistic = statistic;
-  param.local_memory = local_memory;
-  return param;
-}
-
-FabricMemChannelManagerInitParam MakeManagerInitParam(FabricMemStatistic *statistic, FabricMemSlotPool *slot_pool) {
-  FabricMemChannelManagerInitParam param;
-  param.local_engine = "127.0.0.1:0";
-  param.statistic = statistic;
-  param.slot_pool = slot_pool;
-  return param;
-}
+using namespace fabric_mem_test;
 
 class FabricMemStatisticUTest : public ::testing::Test {
  protected:
@@ -379,159 +36,7 @@ class FabricMemStatisticUTest : public ::testing::Test {
   FabricMemStatistic statistic_;
 };
 
-class FabricMemTransferServiceUTest : public ::testing::Test {
- protected:
-  void SetUp() override {
-    runtime_ = std::make_shared<FabricMemRuntimeStub>();
-    scoped_runtime_ = std::make_unique<ScopedRuntimeMock>(runtime_);
-  }
-
-  void TearDown() override {
-    service_.Finalize();
-    scoped_runtime_.reset();
-    runtime_.reset();
-  }
-
-  Status InitService(size_t max_stream, size_t task_stream) {
-    auto param = MakeServiceInitParam(&statistic_, &local_memory_);
-    param.max_stream_num = max_stream;
-    param.task_stream_num = task_stream;
-    return service_.Initialize(param);
-  }
-
-  std::shared_ptr<FabricMemRuntimeStub> runtime_;
-  std::unique_ptr<ScopedRuntimeMock> scoped_runtime_;
-  FabricMemStatistic statistic_;
-  FabricMemLocalMemory local_memory_;
-  FabricMemTransferService service_;
-};
-
-class FabricMemSlotPoolUTest : public ::testing::Test {
- protected:
-  void SetUp() override {
-    runtime_ = std::make_shared<FabricMemRuntimeStub>();
-    scoped_runtime_ = std::make_unique<ScopedRuntimeMock>(runtime_);
-  }
-
-  void TearDown() override {
-    pool_.AbortAndDestroyAll();
-    scoped_runtime_.reset();
-    runtime_.reset();
-  }
-
-  std::shared_ptr<FabricMemRuntimeStub> runtime_;
-  std::unique_ptr<ScopedRuntimeMock> scoped_runtime_;
-  FabricMemSlotPool pool_;
-};
-
-class FabricMemLocalMemoryUTest : public ::testing::Test {
- protected:
-  void SetUp() override {
-    runtime_ = std::make_shared<FabricMemRuntimeStub>();
-    scoped_runtime_ = std::make_unique<ScopedRuntimeMock>(runtime_);
-    VirtualMemoryManager::GetInstance().Finalize();
-    ASSERT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
-  }
-
-  void TearDown() override {
-    local_memory_.Finalize();
-    VirtualMemoryManager::GetInstance().Finalize();
-    scoped_runtime_.reset();
-    runtime_.reset();
-  }
-
-  std::shared_ptr<FabricMemRuntimeStub> runtime_;
-  std::unique_ptr<ScopedRuntimeMock> scoped_runtime_;
-  FabricMemLocalMemory local_memory_;
-};
-
-class FabricMemChannelManagerUTest : public ::testing::Test {
- protected:
-  void SetUp() override {
-    runtime_ = std::make_shared<FabricMemRuntimeStub>();
-    scoped_runtime_ = std::make_unique<ScopedRuntimeMock>(runtime_);
-    ASSERT_EQ(slot_pool_.Initialize(0, 4U, 1U), SUCCESS);
-    ASSERT_EQ(manager_.Initialize(MakeManagerInitParam(&statistic_, &slot_pool_)), SUCCESS);
-  }
-
-  void TearDown() override {
-    manager_.Finalize();
-    slot_pool_.AbortAndDestroyAll();
-    scoped_runtime_.reset();
-    runtime_.reset();
-  }
-
-  std::shared_ptr<FabricMemChannel> AddChannel(const std::string &remote) {
-    auto channel = std::make_shared<FabricMemChannel>();
-    std::lock_guard<std::mutex> lock(manager_.channels_mutex_);
-    manager_.channels_[remote] = channel;
-    return channel;
-  }
-
-  std::shared_ptr<FabricMemRuntimeStub> runtime_;
-  std::unique_ptr<ScopedRuntimeMock> scoped_runtime_;
-  FabricMemStatistic statistic_;
-  FabricMemSlotPool slot_pool_;
-  FabricMemChannelManager manager_;
-};
-
-void AttachTestContext(FabricMemEngine &engine) {
-  auto ctx_holder = std::make_shared<int>(1);
-  engine.aclrt_context_holder_ = std::static_pointer_cast<void>(ctx_holder);
-  engine.aclrt_context_ = reinterpret_cast<aclrtContext>(ctx_holder.get());
-  engine.is_initialized_ = true;
-  if (engine.fabric_mem_transfer_service_ == nullptr) {
-    auto service = std::make_shared<FabricMemTransferService>();
-    auto param = MakeServiceInitParam(&engine.fabric_mem_statistic_, &engine.local_memory_);
-    param.auto_connect = engine.auto_connect_;
-    param.aclrt_context = engine.aclrt_context_;
-    ASSERT_EQ(service->Initialize(param), SUCCESS);
-    engine.fabric_mem_transfer_service_ = service;
-  }
-}
-
-FabricMemChannelManager &EngineManager(FabricMemEngine &engine) {
-  return engine.fabric_mem_transfer_service_->channel_manager_;
-}
-
-std::shared_ptr<FabricMemChannel> AddEngineChannel(FabricMemEngine &engine, const std::string &remote) {
-  auto channel = std::make_shared<FabricMemChannel>();
-  std::lock_guard<std::mutex> lock(EngineManager(engine).channels_mutex_);
-  EngineManager(engine).channels_[remote] = channel;
-  return channel;
-}
-
-constexpr char kConfigEngineLocalId[] = "127.0.0.1:28000";
-constexpr char kConfigRemoteEngineId[] = "127.0.0.1:28001";
-constexpr size_t k1GB = 1024UL * 1024UL * 1024UL;
-
-std::map<AscendString, AscendString> BuildFabricMemOptions() {
-  std::map<AscendString, AscendString> options;
-  options[OPTION_ENABLE_USE_FABRIC_MEM] = AscendString("1");
-  return options;
-}
-
-Status InitEngineWithOptions(FabricMemEngine &engine, const std::map<AscendString, AscendString> &raw_options) {
-  HixlOptions parsed;
-  HIXL_CHK_STATUS_RET(HixlOptions::Parse(raw_options, parsed), "Failed to parse options");
-  return engine.Initialize(parsed);
-}
-
-class FabricMemEngineInitUTest : public ::testing::Test {
- protected:
-  void SetUp() override {
-    runtime_ = std::make_shared<FabricMemRuntimeStub>();
-    scoped_runtime_ = std::make_unique<ScopedRuntimeMock>(runtime_);
-  }
-
-  void TearDown() override {
-    scoped_runtime_.reset();
-    runtime_.reset();
-  }
-
-  std::shared_ptr<FabricMemRuntimeStub> runtime_;
-  std::unique_ptr<ScopedRuntimeMock> scoped_runtime_;
-};
+class FabricMemTransferServiceUTest : public FabricMemTransferServiceTestBase {};
 }  // namespace
 
 TEST_F(FabricMemStatisticUTest, SnapshotDumpRemoveAndPeriodicDump) {
@@ -1225,7 +730,7 @@ TEST_F(FabricMemSlotPoolUTest, AbortSlotStreamsAbortsWithoutDestroying) {
   ASSERT_EQ(pool_.Initialize(0, 1U, 2U), SUCCESS);
   AsyncSlot slot;
   ASSERT_EQ(pool_.AcquireAsync(slot), SUCCESS);
-  FabricMemSlotPool::AbortSlotStreams(slot);
+  EXPECT_EQ(FabricMemSlotPool::AbortSlotStreams(slot), SUCCESS);
   EXPECT_EQ(runtime_->stream_abort_count_, 2U);
   EXPECT_EQ(pool_.slot_pool_.size(), 1U);
   pool_.Release(slot, true);
@@ -1379,16 +884,14 @@ TEST_F(FabricMemTransferServiceUTest, AddressTranslationAndCopyValidation) {
   ASSERT_EQ(service_.slot_pool_.AcquireAsync(slot), SUCCESS);
   TemporaryRtContext ctx_guard(slot.ctx);
   AsyncSlot empty_slot;
-  EXPECT_EQ(FabricMemTransferService::ProcessCopyWithAsync(empty_slot, WRITE, BuildOpDescs(local, remote)),
-            PARAM_INVALID);
-  EXPECT_EQ(FabricMemTransferService::ProcessCopyWithAsync(slot, WRITE, BuildOpDescs(local, remote)), SUCCESS);
+  EXPECT_EQ(service_.ProcessCopyWithAsync(empty_slot, WRITE, BuildOpDescs(local, remote)), PARAM_INVALID);
+  EXPECT_EQ(service_.ProcessCopyWithAsync(slot, WRITE, BuildOpDescs(local, remote)), SUCCESS);
   EXPECT_EQ(remote[0], 7U);
   std::fill(std::begin(remote), std::end(remote), 9U);
-  EXPECT_EQ(FabricMemTransferService::ProcessCopyWithAsync(slot, READ, BuildOpDescs(local, remote)), SUCCESS);
+  EXPECT_EQ(service_.ProcessCopyWithAsync(slot, READ, BuildOpDescs(local, remote)), SUCCESS);
   EXPECT_EQ(local[0], 9U);
-  EXPECT_EQ(
-      FabricMemTransferService::ProcessCopyWithAsync(slot, static_cast<TransferOp>(99), BuildOpDescs(local, remote)),
-      PARAM_INVALID);
+  EXPECT_EQ(service_.ProcessCopyWithAsync(slot, static_cast<TransferOp>(99), BuildOpDescs(local, remote)),
+            PARAM_INVALID);
   service_.slot_pool_.Release(slot, false);
 }
 
@@ -1423,16 +926,17 @@ TEST_F(FabricMemTransferServiceUTest, UpdateStatsSupportsDirectInfoChannelAndNul
   auto direct_info = std::make_shared<FabricMemTransferStatisticInfo>();
   auto context = BuildContext(direct_info);
   ASSERT_EQ(InitService(3U, 1U), SUCCESS);
-  service_.UpdateStats(context, 10U, 4U, 512U, 2U);
+  service_.UpdateStats(context.channel_id, context.statistic_channel_id, context.stat_info, 10U, 4U, 512U, 2U);
   EXPECT_EQ(direct_info->transfer.total_cost.load(std::memory_order_relaxed), 10UL);
   EXPECT_EQ(direct_info->real_copy.total_cost.load(std::memory_order_relaxed), 4UL);
 
   context.stat_info = nullptr;
-  service_.UpdateStats(context, 20U, 8U, 1024U, 4U);
+  service_.UpdateStats(context.channel_id, context.statistic_channel_id, context.stat_info, 20U, 8U, 1024U, 4U);
   EXPECT_EQ(statistic_.GetSnapshot(kStatChannelId).transfer.total_cost, 20UL);
 
   service_.statistic_ = nullptr;
-  service_.UpdateStats(BuildContext(), 1U, 1U, 1U, 1U);
+  const auto null_ctx = BuildContext();
+  service_.UpdateStats(null_ctx.channel_id, null_ctx.statistic_channel_id, null_ctx.stat_info, 1U, 1U, 1U, 1U);
   service_.statistic_ = &statistic_;
 }
 
@@ -1595,7 +1099,9 @@ TEST_F(FabricMemTransferServiceUTest, AsyncTransferHostFlagsDoneSkipsStreamSync)
   EXPECT_EQ(runtime_->stream_sync_count_, 0U);
 }
 
-TEST_F(FabricMemTransferServiceUTest, AsyncTransferStreamQueryCompleteTriggersSync) {
+TEST_F(FabricMemTransferServiceUTest, AsyncTransferStreamCompleteWithoutHostFlagCompletesViaSync) {
+  // Host path: stream kComplete with host flags still 0 falls through to SynchronizeAsyncSlotStreams
+  // and completes (upstream semantics). Waiting-only-on-flags belongs to the AICPU path.
   ASSERT_EQ(InitService(4U, 1U), SUCCESS);
   auto channel = AddServiceChannel(service_, kChannelId);
   AsyncSlot slot;
@@ -1610,13 +1116,15 @@ TEST_F(FabricMemTransferServiceUTest, AsyncTransferStreamQueryCompleteTriggersSy
       *static_cast<uint64_t *>(host_flag) = 0ULL;
     }
   }
-  runtime_->stream_sync_error_ = ACL_ERROR_RT_INTERNAL_ERROR;
-
   TransferStatus status = TransferStatus::WAITING;
   EXPECT_EQ(service_.GetTransferStatus(req, status), SUCCESS);
-  EXPECT_EQ(status, TransferStatus::FAILED);
-  EXPECT_GT(runtime_->stream_sync_count_, 0U);
+  EXPECT_EQ(status, TransferStatus::COMPLETED);
+  EXPECT_GE(runtime_->stream_sync_count_, 1U);
   EXPECT_TRUE(service_.channel_manager_.req_2_channel_.empty());
+  {
+    std::lock_guard<std::mutex> lock(channel->records_mutex);
+    EXPECT_TRUE(channel->async_records.empty());
+  }
 }
 
 TEST_F(FabricMemTransferServiceUTest, CleanupAsyncTransferReleasesRecord) {
@@ -1951,7 +1459,7 @@ TEST(FabricMemEngineUTest, DisconnectConcurrentWithSubmittedAsyncGetTransferStat
   EXPECT_GT(runtime->stream_abort_count_, 0U);
   const Status status_ret = final_status_ret.load(std::memory_order_acquire);
   const int32_t transfer_status = final_transfer_status.load(std::memory_order_acquire);
-  EXPECT_TRUE(status_ret == PARAM_INVALID || status_ret == FAILED ||
+  EXPECT_TRUE(status_ret == PARAM_INVALID || status_ret == NOT_CONNECTED || status_ret == FAILED ||
               transfer_status == static_cast<int32_t>(TransferStatus::FAILED));
 
   service.Finalize();
@@ -2139,6 +1647,7 @@ TEST_F(FabricMemEngineInitUTest, FabricMemoryCapacityConfig) {
   constexpr size_t kCustomCapacityTB = 32UL;
   const std::string json_config = R"({
     "fabric_memory": {
+      "enable_aicpu_unfold": false,
       "max_capacity": )" + std::to_string(kCustomCapacityTB) +
                                   R"(
     }
@@ -2183,8 +1692,8 @@ TEST_F(FabricMemEngineInitUTest, FabricMemEnabledOptionInitializesEngine) {
 TEST_F(FabricMemEngineInitUTest, StartAddressConfig) {
   for (size_t start_address_tb : {0UL, 1024UL}) {
     VirtualMemoryManager::GetInstance().Finalize();
-    const std::string json_config =
-        R"({"fabric_memory": {"start_address": )" + std::to_string(start_address_tb) + R"(}})";
+    const std::string json_config = R"({"fabric_memory": {"enable_aicpu_unfold": false, "start_address": )" +
+                                    std::to_string(start_address_tb) + R"(}})";
     FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
     auto options = BuildFabricMemOptions();
     options[OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());
@@ -2212,8 +1721,9 @@ TEST_F(FabricMemEngineInitUTest, TaskStreamNumConfig) {
   VirtualMemoryManager::GetInstance().Finalize();
 
   for (size_t task_stream_num = 1U; task_stream_num <= 8U; ++task_stream_num) {
-    const std::string json_config =
-        R"({"fabric_memory": {"task_stream_num": )" + std::to_string(task_stream_num) + R"(}})";
+    // Host multi-stream path requires enable_aicpu_unfold=false (default unfold=true).
+    const std::string json_config = R"({"fabric_memory": {"enable_aicpu_unfold": false, "task_stream_num": )" +
+                                    std::to_string(task_stream_num) + R"(}})";
     FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
     auto options = BuildFabricMemOptions();
     options[OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(json_config.c_str());

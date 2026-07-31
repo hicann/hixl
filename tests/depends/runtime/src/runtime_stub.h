@@ -25,6 +25,7 @@ extern "C" {
 // is_mock_new_way is 1 means new way, 0 old way(default);
 // for some old ge testcases
 void SetMockRtGetDeviceWay(int32_t is_mock_new_way);
+void SetStubRtStreamSqId(uint32_t sq_id);
 #ifdef __cplusplus
 }
 #endif

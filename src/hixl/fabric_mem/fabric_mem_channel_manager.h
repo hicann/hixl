@@ -12,7 +12,6 @@
 #define CANN_HIXL_SRC_HIXL_FABRIC_MEM_FABRIC_MEM_CHANNEL_MANAGER_H_
 
 #include <atomic>
-#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
@@ -36,20 +35,24 @@ struct FabricMemChannel {
   std::unique_ptr<FabricMemRemoteMemory> remote_memory;
   int32_t keepalive_fd{-1};
 
-  // submit_gate gates copy submission against disconnect. A transfer holds it SHARED while submitting
-  // copies to its own (private) slot streams, so concurrent transfers on the same channel run in
-  // parallel instead of serializing. Disconnect (AbortAndClearChannelRecords) holds it EXCLUSIVE: it
-  // waits for all in-flight submits to finish (by then their slots/records are already registered),
-  // aborts those streams, and only afterwards is the channel memory unmapped -- preserving
-  // abort-before-unmap safety.
+  // Host path: submit_gate gates copy submission against disconnect. A transfer holds it SHARED while
+  // submitting copies to its own (private) slot streams, so concurrent transfers on the same channel
+  // run in parallel. Disconnect holds it EXCLUSIVE for abort-before-unmap.
   std::shared_mutex submit_gate{};
   // records_mutex protects the bookkeeping containers below (brief mutations only). disconnecting is
-  // atomic so the transfer fast path can reject a disconnecting channel before doing any work; it is
-  // re-checked under submit_gate to close the race with a concurrent disconnect.
+  // atomic so the transfer fast path can reject a disconnecting channel before doing any work.
   std::mutex records_mutex{};
   std::atomic<bool> disconnecting{false};
   std::unordered_map<uint64_t, AsyncRecord> async_records;
   std::vector<AsyncSlot> active_sync_slots;
+
+  // AICPU path (aligned with hixl_cs): one bound_slot per channel, shared by pipelined submits.
+  // transfer_mu serializes Acquire/Issue/Complete/Disconnect; TransferAsync returns after submit
+  // so the next TransferAsync can reuse bound_slot without waiting for GetTransferStatus. It is the
+  // only serialization the AICPU dispatch path needs: one channel at a time, channels in parallel.
+  std::mutex transfer_mu{};
+  AsyncSlot bound_slot{};
+  uint32_t bound_slot_refs{0U};
 };
 
 struct FabricMemChannelManagerInitParam {
@@ -60,6 +63,8 @@ struct FabricMemChannelManagerInitParam {
   FabricMemSlotPool *slot_pool{nullptr};
   FabricMemControlServer *control_server{nullptr};
   aclrtContext aclrt_context{nullptr};
+  // When true, AbortAndClearChannelRecords uses transfer_mu + bound_slot instead of submit_gate.
+  bool enable_aicpu_unfold{false};
 };
 
 class FabricMemChannelManager {
@@ -85,6 +90,12 @@ class FabricMemChannelManager {
   Status StartKeepaliveMonitor();
   void StopKeepaliveMonitor();
   static void SetKeepaliveCheckIntervalMs(int64_t interval_ms);
+  // AICPU path only: the abort shared by disconnect and by every transfer failure. Drains the
+  // channel's in-flight requests and runs the slot pool's abort flow on its bound slot; a transfer
+  // that failed before registering an AsyncRecord passes its own slot / resource as `pending_*`.
+  // Caller must hold channel->transfer_mu.
+  void AbortAicpuChannelLocked(const std::shared_ptr<FabricMemChannel> &channel, AsyncSlot *pending_slot,
+                               FabricMemAicpuRequestResource *pending_resource);
 
   // Async request routing: maps a request id to the channel that owns its AsyncRecord.
   void AddReqRoute(uint64_t req_id, const std::shared_ptr<FabricMemChannel> &channel);
@@ -96,6 +107,8 @@ class FabricMemChannelManager {
   Status CreateAndRegisterRemoteMemory(const std::vector<ShareHandleInfo> &share_handles, const std::string &remote);
   Status DisconnectRemote(const AscendString &remote_engine, int32_t timeout_in_millis, bool from_auto_cleanup = false);
   void AbortAndClearChannelRecords(const std::shared_ptr<FabricMemChannel> &channel);
+  void AbortAndClearHostChannelRecords(const std::shared_ptr<FabricMemChannel> &channel);
+  void AbortAndClearAicpuChannelRecords(const std::shared_ptr<FabricMemChannel> &channel);
   void RemoveChannelEntryLocked(const std::string &remote);
   void CleanupChannelsLocked();
   void CheckKeepaliveFds();
@@ -110,10 +123,10 @@ class FabricMemChannelManager {
   mutable std::mutex channels_mutex_;
   std::unordered_map<std::string, std::shared_ptr<FabricMemChannel>> channels_;
 
-  // req_route_mutex_: protects req_2_channel_. It is a leaf lock: when held together with a channel's
-  // submit_gate the fixed order is submit_gate -> req_route_mutex_ (e.g. IssueAsyncCopyAndRegister calls
-  // AddReqRoute while holding submit_gate shared); the reverse order is forbidden. The per-channel lock
-  // order is always submit_gate -> records_mutex.
+  // req_route_mutex_: protects req_2_channel_. It is a leaf lock.
+  // Host path lock order: submit_gate -> req_route_mutex_ / records_mutex.
+  // AICPU path lock order: transfer_mu -> records_mutex / req_route_mutex_ / pool_mutex_.
+  // Never take submit_gate and transfer_mu together; reverse of any listed order is forbidden.
   mutable std::mutex req_route_mutex_;
   std::unordered_map<uint64_t, std::shared_ptr<FabricMemChannel>> req_2_channel_;
 
@@ -121,6 +134,7 @@ class FabricMemChannelManager {
   int32_t device_id_{-1};
   bool auto_connect_{false};
   bool initialized_{false};
+  bool enable_aicpu_unfold_{false};
   FabricMemStatistic *statistic_{nullptr};
   FabricMemSlotPool *slot_pool_{nullptr};
   FabricMemControlServer *control_server_{nullptr};

@@ -36,8 +36,8 @@ from benchmark_log import configure_logging  # noqa: E402
 configure_logging()
 log = logging.getLogger(__name__)
 
-DIRECTION_ORDER = ['D2rD', 'D2rH', 'H2rH', 'H2rD', 'rD2D', 'rH2D', 'rH2H', 'rD2H']
-TRANSPORT_ORDER = ['hccs', 'roce', 'fabric_mem', 'uboe', 'ubg', 'ub']
+DIRECTION_ORDER = ['D2rD', 'rD2D', 'D2rH', 'rH2D', 'H2rH', 'rH2H', 'H2rD', 'rD2H']
+TRANSPORT_ORDER = ['fabric_mem', 'roce', 'hccs', 'uboe', 'ubg', 'ub']
 HCCS_DIRECTIONS_A2 = frozenset({'D2rD', 'rD2D'})
 HCCS_DIRECTIONS_A3 = frozenset({'D2rD', 'rD2D', 'H2rD', 'rD2H'})
 UBOE_DIRECTIONS = frozenset(DIRECTION_ORDER)
@@ -181,10 +181,10 @@ def transports_for_platform(platform: str, deployment: str) -> list[str]:
     if pid == 'a2':
         if deployment == 'dual':
             return ['roce']
-        return ['hccs', 'roce']
+        return ['roce', 'hccs']
     if pid == 'a3':
-        return ['hccs', 'roce', 'fabric_mem']
-    return ['roce', 'fabric_mem', 'uboe', 'ubg', 'ub']
+        return ['fabric_mem', 'roce', 'hccs']
+    return ['fabric_mem', 'roce', 'uboe', 'ubg', 'ub']
 
 
 def collect_columns_for_platform(platform: str, deployment: str = 'single') -> list[tuple[str, str]]:

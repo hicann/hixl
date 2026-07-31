@@ -15,7 +15,6 @@
 #include <utility>
 #include <vector>
 
-#include "acl/acl_rt.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 #include "common/scope_guard.h"
@@ -23,6 +22,22 @@
 namespace hixl {
 namespace {
 constexpr int64_t kDefaultKeepaliveCheckIntervalMs = 10000;
+
+std::vector<FabricMemAicpuPendingRequest> CollectPendingRequests(std::vector<AsyncRecord> &records) {
+  std::vector<FabricMemAicpuPendingRequest> requests;
+  requests.reserve(records.size());
+  for (auto &record : records) {
+    requests.push_back({&record.slot, &record.aicpu_resource});
+  }
+  return requests;
+}
+
+void ReleaseAsyncRecords(std::vector<AsyncRecord> &records, FabricMemSlotPool *slot_pool) {
+  FabricMemSlotPool::ReleaseRequestResources(CollectPendingRequests(records));
+  for (auto &record : records) {
+    slot_pool->Release(record.slot, true);
+  }
+}
 }  // namespace
 
 int64_t FabricMemChannelManager::keepalive_check_interval_ms_ = kDefaultKeepaliveCheckIntervalMs;
@@ -49,6 +64,7 @@ Status FabricMemChannelManager::Initialize(const FabricMemChannelManagerInitPara
   slot_pool_ = param.slot_pool;
   control_server_ = param.control_server;
   aclrt_context_ = param.aclrt_context;
+  enable_aicpu_unfold_ = param.enable_aicpu_unfold;
   initialized_ = true;
   return SUCCESS;
 }
@@ -171,32 +187,82 @@ void FabricMemChannelManager::RemoveReqRoute(uint64_t req_id) {
 }
 
 void FabricMemChannelManager::AbortAndClearChannelRecords(const std::shared_ptr<FabricMemChannel> &channel) {
-  // Abort all in-flight transfers on this channel without waiting. Async record slots are aborted and
-  // destroyed here; sync slots are only aborted so the owning transfer thread can release them.
-  std::vector<AsyncSlot> async_slots;
+  channel->disconnecting.store(true, std::memory_order_release);
+  if (enable_aicpu_unfold_) {
+    AbortAndClearAicpuChannelRecords(channel);
+  } else {
+    AbortAndClearHostChannelRecords(channel);
+  }
+}
+
+void FabricMemChannelManager::AbortAndClearHostChannelRecords(const std::shared_ptr<FabricMemChannel> &channel) {
+  // Abort in-flight transfers without waiting. Async records are aborted and
+  // destroyed here; sync slots are only aborted so the owning transfer thread
+  // can release them on its failure path.
+  std::vector<AsyncRecord> async_records;
   std::vector<uint64_t> req_ids;
   // Mark disconnecting first so new transfers fail fast, then take submit_gate EXCLUSIVE to drain all
   // in-flight submits: once acquired, no transfer is mid-submission and every transfer that did submit
   // has already registered its slot/record below, so the abort here covers all outstanding streams
   // before the caller unmaps the channel memory (abort-before-unmap).
-  channel->disconnecting.store(true, std::memory_order_release);
   {
     std::unique_lock<std::shared_mutex> drain(channel->submit_gate);
     std::lock_guard<std::mutex> lock(channel->records_mutex);
     req_ids.reserve(channel->async_records.size());
-    async_slots.reserve(channel->async_records.size());
+    async_records.reserve(channel->async_records.size());
     for (auto &record : channel->async_records) {
       req_ids.emplace_back(record.first);
-      async_slots.emplace_back(std::move(record.second.slot));
+      async_records.emplace_back(std::move(record.second));
     }
     channel->async_records.clear();
     for (const auto &slot : channel->active_sync_slots) {
-      FabricMemSlotPool::AbortSlotStreams(slot);
+      (void)FabricMemSlotPool::AbortSlotStreams(slot);
     }
     channel->active_sync_slots.clear();
   }
-  for (auto &slot : async_slots) {
-    slot_pool_->Release(slot, true);
+  ReleaseAsyncRecords(async_records, slot_pool_);
+  for (const auto req_id : req_ids) {
+    RemoveReqRoute(req_id);
+  }
+}
+
+void FabricMemChannelManager::AbortAndClearAicpuChannelRecords(const std::shared_ptr<FabricMemChannel> &channel) {
+  // transfer_mu waits out any sync that still holds the lock through its stream wait; from there on
+  // disconnect runs exactly the abort the transfer failure paths run.
+  std::lock_guard<std::mutex> transfer_lock(channel->transfer_mu);
+  AbortAicpuChannelLocked(channel, nullptr, nullptr);
+}
+
+void FabricMemChannelManager::AbortAicpuChannelLocked(const std::shared_ptr<FabricMemChannel> &channel,
+                                                      AsyncSlot *pending_slot,
+                                                      FabricMemAicpuRequestResource *pending_resource) {
+  // Every pipelined request on this channel shares one bound_slot, and the control stream stops on
+  // the first failure, so a single failed request cannot be cleaned up in isolation: drain them all,
+  // then hand the slot and their buffers to the pool's abort flow.
+  std::vector<AsyncRecord> async_records;
+  std::vector<uint64_t> req_ids;
+  AsyncSlot bound_slot;
+  {
+    std::lock_guard<std::mutex> lock(channel->records_mutex);
+    req_ids.reserve(channel->async_records.size());
+    async_records.reserve(channel->async_records.size());
+    for (auto &record : channel->async_records) {
+      req_ids.emplace_back(record.first);
+      async_records.emplace_back(std::move(record.second));
+    }
+    channel->async_records.clear();
+    bound_slot = channel->bound_slot;
+    channel->bound_slot = AsyncSlot{};
+    channel->bound_slot_refs = 0U;
+  }
+  std::vector<FabricMemAicpuPendingRequest> requests = CollectPendingRequests(async_records);
+  if (pending_slot != nullptr || pending_resource != nullptr) {
+    // A transfer that failed before (or instead of) being registered as an AsyncRecord.
+    requests.push_back({pending_slot, pending_resource});
+  }
+  slot_pool_->AbortSlot(bound_slot, requests);
+  if (pending_slot != nullptr) {
+    *pending_slot = AsyncSlot{};
   }
   for (const auto req_id : req_ids) {
     RemoveReqRoute(req_id);
@@ -316,20 +382,15 @@ bool FabricMemChannelManager::IsConnected(const std::string &remote_engine) cons
 }
 
 void FabricMemChannelManager::CleanupChannelsLocked() {
-  for (auto &item : channels_) {
-    if (item.second == nullptr) {
-      continue;
+  while (!channels_.empty()) {
+    const auto it = channels_.begin();
+    const std::string remote = it->first;
+    auto channel = it->second;
+    if (channel != nullptr) {
+      AbortAndClearChannelRecords(channel);
     }
-    AbortAndClearChannelRecords(item.second);
-    if (item.second->remote_memory != nullptr) {
-      item.second->remote_memory->Finalize();
-    }
-    if (item.second->keepalive_fd >= 0) {
-      (void)close(item.second->keepalive_fd);
-      item.second->keepalive_fd = -1;
-    }
+    RemoveChannelEntryLocked(remote);
   }
-  channels_.clear();
 }
 
 Status FabricMemChannelManager::StartKeepaliveMonitor() {

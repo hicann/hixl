@@ -204,7 +204,7 @@ TEST_F(HixlOptionsUTest, ParseAutoConnectEmpty) {
 TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigFabricMemory) {
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
-      R"({"fabric_memory":{"max_capacity":"10","start_address":"50","task_stream_num":"4"}})";
+      R"({"fabric_memory":{"max_capacity":"10","start_address":"50","task_stream_num":"4","enable_aicpu_unfold":false}})";
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
   ASSERT_TRUE(result.GlobalResourceCfg().has_value());
@@ -215,6 +215,51 @@ TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigFabricMemory) {
   EXPECT_EQ(*grc.fabric_memory.start_address, 50U);
   ASSERT_TRUE(grc.fabric_memory.task_stream_num.has_value());
   EXPECT_EQ(*grc.fabric_memory.task_stream_num, 4U);
+  ASSERT_TRUE(grc.fabric_memory.enable_aicpu_unfold.has_value());
+  EXPECT_FALSE(*grc.fabric_memory.enable_aicpu_unfold);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigDefaultAicpuUnfoldRejectsNonOneTaskStreamNum) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"fabric_memory":{"task_stream_num":"4"}})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigFabricMemoryAicpuUnfold) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"fabric_memory":{"enable_aicpu_unfold":true}})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.GlobalResourceCfg().has_value());
+  ASSERT_TRUE(result.GlobalResourceCfg()->fabric_memory.enable_aicpu_unfold.has_value());
+  EXPECT_TRUE(*result.GlobalResourceCfg()->fabric_memory.enable_aicpu_unfold);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigFabricMemoryAicpuUnfoldRejectsNonBoolean) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"fabric_memory.enable_aicpu_unfold":"true"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigAicpuUnfoldRejectsNonOneTaskStreamNum) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
+      R"({"fabric_memory":{"enable_aicpu_unfold":true,"task_stream_num":"4"}})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigAicpuUnfoldAcceptsTaskStreamNumOne) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
+      R"({"fabric_memory":{"enable_aicpu_unfold":true,"task_stream_num":"1"}})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.GlobalResourceCfg().has_value());
+  EXPECT_TRUE(*result.GlobalResourceCfg()->fabric_memory.enable_aicpu_unfold);
+  EXPECT_EQ(*result.GlobalResourceCfg()->fabric_memory.task_stream_num, 1U);
 }
 
 TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigConnectPool) {

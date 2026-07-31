@@ -28,6 +28,7 @@ struct FabricMemoryConfig {
   std::optional<size_t> max_capacity;
   std::optional<size_t> start_address;
   std::optional<size_t> task_stream_num;
+  std::optional<bool> enable_aicpu_unfold;
 };
 
 struct ConnectPoolConfig {

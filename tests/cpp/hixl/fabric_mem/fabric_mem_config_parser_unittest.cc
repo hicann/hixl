@@ -75,7 +75,8 @@ TEST_F(FabricMemConfigParserUTest, AllFieldsParsedCorrectly) {
     "fabric_memory": {
       "max_capacity": 64,
       "start_address": 100,
-      "task_stream_num": 4
+      "task_stream_num": 1,
+      "enable_aicpu_unfold": true
     }
   })";
   auto options = MakeOptionsWithJson(json);
@@ -89,7 +90,8 @@ TEST_F(FabricMemConfigParserUTest, AllFieldsParsedCorrectly) {
   ASSERT_TRUE(grc.has_value());
   EXPECT_EQ(grc->fabric_memory.max_capacity.value(), 64UL);
   EXPECT_EQ(grc->fabric_memory.start_address.value(), 100UL);
-  EXPECT_EQ(grc->fabric_memory.task_stream_num.value(), 4U);
+  EXPECT_EQ(grc->fabric_memory.task_stream_num.value(), 1U);
+  EXPECT_TRUE(grc->fabric_memory.enable_aicpu_unfold.value());
 }
 
 TEST_F(FabricMemConfigParserUTest, InvalidJsonReturnsError) {
@@ -182,7 +184,8 @@ TEST_F(FabricMemConfigParserUTest, TaskStreamNumBoundaryMinMaxAccepted) {
   EXPECT_EQ(HixlOptions::Parse(options_min, result_min), SUCCESS);
   EXPECT_EQ(result_min.GlobalResourceCfg()->fabric_memory.task_stream_num.value(), 1U);
 
-  auto options_max = MakeOptionsWithJson(R"({"fabric_memory": {"task_stream_num": 8}})");
+  // Multi-stream is only valid when AICPU unfold is disabled (default unfold=true).
+  auto options_max = MakeOptionsWithJson(R"({"fabric_memory": {"enable_aicpu_unfold": false, "task_stream_num": 8}})");
   HixlOptions result_max;
   EXPECT_EQ(HixlOptions::Parse(options_max, result_max), SUCCESS);
   EXPECT_EQ(result_max.GlobalResourceCfg()->fabric_memory.task_stream_num.value(), 8U);
@@ -204,6 +207,7 @@ TEST_F(FabricMemConfigParserUTest, MissingSubFieldsKeepDefaults) {
   EXPECT_FALSE(grc->fabric_memory.max_capacity.has_value());
   EXPECT_FALSE(grc->fabric_memory.start_address.has_value());
   EXPECT_FALSE(grc->fabric_memory.task_stream_num.has_value());
+  EXPECT_FALSE(grc->fabric_memory.enable_aicpu_unfold.has_value());
 }
 
 TEST_F(FabricMemConfigParserUTest, NonFabricMemoryJsonKeysPassThrough) {
@@ -215,6 +219,7 @@ TEST_F(FabricMemConfigParserUTest, NonFabricMemoryJsonKeysPassThrough) {
   EXPECT_FALSE(grc->fabric_memory.max_capacity.has_value());
   EXPECT_FALSE(grc->fabric_memory.start_address.has_value());
   EXPECT_FALSE(grc->fabric_memory.task_stream_num.has_value());
+  EXPECT_FALSE(grc->fabric_memory.enable_aicpu_unfold.has_value());
 }
 
 TEST_F(FabricMemConfigParserUTest, AutoConnectEmptyValueRejected) {

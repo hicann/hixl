@@ -89,6 +89,8 @@ std::string BuildRemoteEngineId(int32_t port) {
 std::map<AscendString, AscendString> BuildEngineOptions(bool auto_connect) {
   std::map<AscendString, AscendString> options;
   options[OPTION_ENABLE_USE_FABRIC_MEM] = kEnableFabricMem;
+  // ST covers the host transfer path; AICPU unfold is covered by dedicated UTs.
+  options[OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(R"({"fabric_memory":{"enable_aicpu_unfold":false}})");
   if (auto_connect) {
     options[OPTION_AUTO_CONNECT] = kEnableFabricMem;
   }
