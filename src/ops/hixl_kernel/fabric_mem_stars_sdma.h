@@ -31,8 +31,8 @@ struct FabricMemDrvResIdKey {
 
 struct FabricMemRtsqState {
   uint32_t device_id = 0U;
-  uint16_t sq_id = 0U;
-  uint16_t stream_id = 0U;
+  uint32_t sq_id = 0U;
+  uint32_t stream_id = 0U;
   uint32_t logic_cq_id = 0U;
   uint32_t next_task_id = 0U;
   uint64_t base_addr = 0U;

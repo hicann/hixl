@@ -121,7 +121,7 @@ bool FabricMemStarsSdma::AppendAndPublishSdmaTasks(const FabricMemAicpuTransferD
   // polls logic CQ for abnormal CQEs once before emitting NotifyRecord.
   if (!PublishRtsqBatch(state, batch, deadline)) {
     HIXL_LOGE(FAILED, "[FabricMem][AICPU] publish SDMA RTSQ batch failed. sq=%u stream=%u", state.sq_id,
-              static_cast<uint32_t>(state.stream_id));
+              state.stream_id);
     return false;
   }
   return true;
@@ -134,7 +134,7 @@ bool FabricMemStarsSdma::EmitNotifyRecord(uint32_t notify_id, FabricMemRtsqState
     HIXL_LOGE(FAILED,
               "[FabricMem][AICPU] logic CQ poll failed before NotifyRecord; still emitting notify. "
               "sq=%u stream=%u logic_cq=%u notify_id=%u",
-              state.sq_id, static_cast<uint32_t>(state.stream_id), state.logic_cq_id, notify_id);
+              state.sq_id, state.stream_id, state.logic_cq_id, notify_id);
   }
   if (!AppendNotifyTask(notify_id, state, batch, deadline)) {
     HIXL_LOGE(FAILED, "[FabricMem][AICPU] append NotifyRecord failed. notify_id=%u", notify_id);
@@ -142,7 +142,7 @@ bool FabricMemStarsSdma::EmitNotifyRecord(uint32_t notify_id, FabricMemRtsqState
   }
   if (!PublishRtsqBatch(state, batch, deadline)) {
     HIXL_LOGE(FAILED, "[FabricMem][AICPU] publish NotifyRecord failed. sq=%u stream=%u notify_id=%u", state.sq_id,
-              static_cast<uint32_t>(state.stream_id), notify_id);
+              state.stream_id, notify_id);
     return false;
   }
   return cq_ok;
@@ -179,7 +179,7 @@ bool FabricMemStarsSdma::RestoreRtsqStream(const FabricMemRtsqState &state) {
   const drvError_t ret = halResourceIdRestore(&resource);
   if (ret != DRV_ERROR_NONE) {
     HIXL_LOGE(FAILED, "[FabricMem][AICPU] halResourceIdRestore failed. ret=%d device=%u stream=%u",
-              static_cast<int32_t>(ret), state.device_id, static_cast<uint32_t>(state.stream_id));
+              static_cast<int32_t>(ret), state.device_id, state.stream_id);
     return false;
   }
   return true;
@@ -223,18 +223,17 @@ void FabricMemStarsSdma::LogLogicCqe(const FabricMemRtsqState &state, const Fabr
     HIXL_LOGE(FAILED,
               "[FabricMem][CQ] %s logic CQE. device=%u stream=%u sq=%u logic_cq=%u idx=%u/%u "
               "total=%u cqe{stream=%u task=%u err_code=%u err_type=%u sqe_type=%u sq=%u head=%u}",
-              tag, state.device_id, static_cast<uint32_t>(state.stream_id), state.sq_id, state.logic_cq_id, idx,
-              report_count, total_reports, static_cast<uint32_t>(report.stream_id),
-              static_cast<uint32_t>(report.task_id), report.error_code, static_cast<uint32_t>(report.error_type),
-              static_cast<uint32_t>(report.sqe_type), static_cast<uint32_t>(report.sq_id),
-              static_cast<uint32_t>(report.sq_head));
+              tag, state.device_id, state.stream_id, state.sq_id, state.logic_cq_id, idx, report_count, total_reports,
+              static_cast<uint32_t>(report.stream_id), static_cast<uint32_t>(report.task_id), report.error_code,
+              static_cast<uint32_t>(report.error_type), static_cast<uint32_t>(report.sqe_type),
+              static_cast<uint32_t>(report.sq_id), static_cast<uint32_t>(report.sq_head));
     return;
   }
   HIXL_LOGD(
       "[FabricMem][CQ] %s logic CQE. device=%u stream=%u sq=%u logic_cq=%u idx=%u/%u total=%u "
       "cqe{stream=%u task=%u err_code=%u err_type=%u sqe_type=%u sq=%u head=%u}",
-      tag, state.device_id, static_cast<uint32_t>(state.stream_id), state.sq_id, state.logic_cq_id, idx, report_count,
-      total_reports, static_cast<uint32_t>(report.stream_id), static_cast<uint32_t>(report.task_id), report.error_code,
+      tag, state.device_id, state.stream_id, state.sq_id, state.logic_cq_id, idx, report_count, total_reports,
+      static_cast<uint32_t>(report.stream_id), static_cast<uint32_t>(report.task_id), report.error_code,
       static_cast<uint32_t>(report.error_type), static_cast<uint32_t>(report.sqe_type),
       static_cast<uint32_t>(report.sq_id), static_cast<uint32_t>(report.sq_head));
 }
@@ -274,16 +273,15 @@ FabricMemLogicCqRecvResult FabricMemStarsSdma::RecvLogicCqBatch(const FabricMemR
   }
   if (ret != DRV_ERROR_NONE) {
     HIXL_LOGE(FAILED, "[FabricMem][CQ] halCqReportRecv failed, ret=%d device=%u stream=%u sq=%u logic_cq=%u",
-              static_cast<int32_t>(ret), state.device_id, static_cast<uint32_t>(state.stream_id), state.sq_id,
-              state.logic_cq_id);
+              static_cast<int32_t>(ret), state.device_id, state.stream_id, state.sq_id, state.logic_cq_id);
     return FabricMemLogicCqRecvResult::kError;
   }
   if (recv_info.report_cqe_num > kLogicCqReportCount) {
     HIXL_LOGE(FAILED,
               "[FabricMem][CQ] halCqReportRecv returned more CQEs than buffer capacity. device=%u stream=%u "
               "sq=%u logic_cq=%u report=%u capacity=%u",
-              state.device_id, static_cast<uint32_t>(state.stream_id), state.sq_id, state.logic_cq_id,
-              recv_info.report_cqe_num, kLogicCqReportCount);
+              state.device_id, state.stream_id, state.sq_id, state.logic_cq_id, recv_info.report_cqe_num,
+              kLogicCqReportCount);
     return FabricMemLogicCqRecvResult::kError;
   }
   report_count = recv_info.report_cqe_num;
@@ -295,7 +293,7 @@ bool FabricMemStarsSdma::PollLogicCqUntilEmpty(const FabricMemRtsqState &state, 
     HIXL_LOGW(
         "[FabricMem][CQ] halCqReportRecv unavailable, skip logic CQ poll. "
         "device=%u stream=%u sq=%u logic_cq=%u",
-        state.device_id, static_cast<uint32_t>(state.stream_id), state.sq_id, state.logic_cq_id);
+        state.device_id, state.stream_id, state.sq_id, state.logic_cq_id);
     return true;
   }
 
@@ -306,7 +304,7 @@ bool FabricMemStarsSdma::PollLogicCqUntilEmpty(const FabricMemRtsqState &state, 
       HIXL_LOGE(FAILED,
                 "[FabricMem][CQ] logic CQ poll hit submit deadline before empty. device=%u stream=%u sq=%u "
                 "logic_cq=%u total=%u",
-                state.device_id, static_cast<uint32_t>(state.stream_id), state.sq_id, state.logic_cq_id, total_reports);
+                state.device_id, state.stream_id, state.sq_id, state.logic_cq_id, total_reports);
       return false;
     }
     uint32_t report_count = 0U;
@@ -354,18 +352,21 @@ bool FabricMemStarsSdma::LoadRtsqQueueState(FabricMemRtsqState &state) {
     return false;
   }
   HIXL_LOGD("[FabricMem][AICPU] RTSQ ready. device=%u sq=%u stream=%u logic_cq=%u sq_depth=%u head=%u tail=%u",
-            state.device_id, state.sq_id, static_cast<uint32_t>(state.stream_id), state.logic_cq_id, state.depth,
-            state.head, state.tail);
+            state.device_id, state.sq_id, state.stream_id, state.logic_cq_id, state.depth, state.head, state.tail);
   return true;
 }
 
 bool FabricMemStarsSdma::InitializeRtsq(const FabricMemAicpuKernelParam &param, FabricMemRtsqState &state) {
+  // sq_id must fit the u16 sq_id field of the A3 logic CQE ABI; stream_id must fit the
+  // u16 rt_stream_id field of the A3 SQE header ABI. The driver query/config interfaces
+  // themselves are u32, so out-of-range values are rejected here rather than truncated.
   if (param.rtsq_id > std::numeric_limits<uint16_t>::max()) {
-    HIXL_LOGE(PARAM_INVALID, "[FabricMem][AICPU] rtsq_id overflow. sq=%u", param.rtsq_id);
+    HIXL_LOGE(PARAM_INVALID, "[FabricMem][AICPU] rtsq_id out of A3 CQE u16 ABI range. sq=%u", param.rtsq_id);
     return false;
   }
   if (param.rtsq_stream_id > std::numeric_limits<uint16_t>::max()) {
-    HIXL_LOGE(PARAM_INVALID, "[FabricMem][AICPU] rtsq_stream_id overflow. stream=%u", param.rtsq_stream_id);
+    HIXL_LOGE(PARAM_INVALID, "[FabricMem][AICPU] rtsq_stream_id out of A3 SQE u16 ABI range. stream=%u",
+              param.rtsq_stream_id);
     return false;
   }
   if (halSqCqQuery == nullptr || halSqCqConfig == nullptr) {
@@ -377,8 +378,8 @@ bool FabricMemStarsSdma::InitializeRtsq(const FabricMemAicpuKernelParam &param, 
   if (!ResolveLocalDeviceId(param.device_id, state.device_id)) {
     return false;
   }
-  state.sq_id = static_cast<uint16_t>(param.rtsq_id);
-  state.stream_id = static_cast<uint16_t>(param.rtsq_stream_id);
+  state.sq_id = param.rtsq_id;
+  state.stream_id = param.rtsq_stream_id;
   state.logic_cq_id = param.rtsq_logic_cq_id;
   state.next_task_id = param.rtsq_task_id;
   return RestoreRtsqStream(state) && LoadRtsqQueueState(state);
@@ -406,16 +407,14 @@ bool FabricMemStarsSdma::EnsureRtsqCapacity(FabricMemRtsqState &state, uint32_t 
     HIXL_LOGE(FAILED,
               "[FabricMem][AICPU] logic CQ poll failed while refreshing RTSQ capacity. device=%u sq=%u stream=%u "
               "depth=%u need=%u head=%u tail=%u",
-              state.device_id, state.sq_id, static_cast<uint32_t>(state.stream_id), state.depth, count, state.head,
-              state.tail);
+              state.device_id, state.sq_id, state.stream_id, state.depth, count, state.head, state.tail);
     return false;
   }
   if (!QueryRtsqValue(state.device_id, state.sq_id, DRV_SQCQ_PROP_SQ_HEAD, state.head)) {
     HIXL_LOGE(FAILED,
               "[FabricMem][AICPU] query SQ_HEAD failed while refreshing RTSQ capacity. device=%u sq=%u stream=%u "
               "depth=%u need=%u head=%u tail=%u",
-              state.device_id, state.sq_id, static_cast<uint32_t>(state.stream_id), state.depth, count, state.head,
-              state.tail);
+              state.device_id, state.sq_id, state.stream_id, state.depth, count, state.head, state.tail);
     return false;
   }
   if (HasRtsqCapacity(state, count)) {
@@ -432,7 +431,7 @@ bool FabricMemStarsSdma::EnsureRtsqCapacity(FabricMemRtsqState &state, uint32_t 
             "between NotifyRecord waits, needing depth >= %u. device=%u sq=%u stream=%u depth=%u need=%u head=%u "
             "tail=%u used=%u",
             reason, kFabricMemMaxInFlightRtsqTasks, kFabricMemMinRtsqDepth, state.device_id, state.sq_id,
-            static_cast<uint32_t>(state.stream_id), state.depth, count, state.head, state.tail, used);
+            state.stream_id, state.depth, count, state.head, state.tail, used);
   return false;
 }
 
@@ -444,7 +443,7 @@ bool FabricMemStarsSdma::BuildSdmaSqe(uint64_t source, uint64_t destination, uin
   }
   sqe.header.type = kFabricMemA3SdmaSqeType;
   sqe.header.wr_cqe = 0U;
-  sqe.header.rt_stream_id = state.stream_id;
+  sqe.header.rt_stream_id = static_cast<uint16_t>(state.stream_id);
   sqe.header.task_id = static_cast<uint16_t>(task_id);
   sqe.kernel_credit = kFabricMemA3SdmaKernelCredit;
   sqe.sssv = 1U;
@@ -469,7 +468,7 @@ bool FabricMemStarsSdma::BuildNotifySqe(uint32_t notify_id, uint32_t task_id, co
   }
   sqe.header.type = kFabricMemA3NotifyRecordSqeType;
   sqe.header.wr_cqe = 0U;
-  sqe.header.rt_stream_id = state.stream_id;
+  sqe.header.rt_stream_id = static_cast<uint16_t>(state.stream_id);
   sqe.header.task_id = static_cast<uint16_t>(task_id);
   sqe.notify_id = notify_id;
   sqe.kernel_credit = kFabricMemA3NotifyKernelCredit;
@@ -515,8 +514,8 @@ bool FabricMemStarsSdma::CommitRtsqTail(FabricMemRtsqState &state, uint32_t new_
     HIXL_LOGE(FAILED,
               "[FabricMem][AICPU] halSqCqConfig SQ_TAIL failed. ret=%d device=%u sq=%u stream=%u old_tail=%u "
               "new_tail=%u batch_count=%u",
-              static_cast<int32_t>(ret), state.device_id, state.sq_id, static_cast<uint32_t>(state.stream_id),
-              state.tail, new_tail, batch_count);
+              static_cast<int32_t>(ret), state.device_id, state.sq_id, state.stream_id, state.tail, new_tail,
+              batch_count);
     return false;
   }
   state.tail = new_tail;
@@ -529,7 +528,7 @@ bool FabricMemStarsSdma::PublishRtsqBatch(FabricMemRtsqState &state, FabricMemRt
   }
   if (!EnsureRtsqCapacity(state, batch.count, deadline)) {
     HIXL_LOGE(FAILED, "[FabricMem][AICPU] publish has no RTSQ capacity. device=%u sq=%u stream=%u batch_count=%u",
-              state.device_id, state.sq_id, static_cast<uint32_t>(state.stream_id), batch.count);
+              state.device_id, state.sq_id, state.stream_id, batch.count);
     return false;
   }
   const uint32_t new_tail = (state.tail + batch.count) % state.depth;
@@ -572,7 +571,7 @@ bool FabricMemStarsSdma::AppendNotifyTask(uint32_t notify_id, FabricMemRtsqState
     HIXL_LOGE(FAILED,
               "[FabricMem][AICPU] flush full batch before NotifyRecord failed. device=%u sq=%u stream=%u "
               "notify_id=%u batch_count=%u",
-              state.device_id, state.sq_id, static_cast<uint32_t>(state.stream_id), notify_id, batch.count);
+              state.device_id, state.sq_id, state.stream_id, notify_id, batch.count);
     return false;
   }
   if (!BuildNotifySqe(notify_id, state.next_task_id++, state, batch.entries[batch.count].notify)) {

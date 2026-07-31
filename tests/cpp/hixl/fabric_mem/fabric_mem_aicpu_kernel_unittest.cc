@@ -513,6 +513,32 @@ TEST_F(FabricMemAicpuKernelUTest, BatchWriteFailsWhenHostToLocalDeviceIdFails) {
   EXPECT_EQ(g_query_count, 0U);
 }
 
+TEST_F(FabricMemAicpuKernelUTest, BatchWriteRejectsRtsqIdBeyondCqeAbiRange) {
+  FabricMemAicpuTransferDesc desc{0x1000U, 0x2000U, 16U};
+  auto param = MakeParam(&desc, 1U, FabricMemAicpuTransferDirection::kWrite);
+  // A3 logic CQE carries sq_id in u16; the kernel must reject, never truncate.
+  param.rtsq_id = static_cast<uint32_t>(std::numeric_limits<uint16_t>::max()) + 1U;
+
+  EXPECT_EQ(HixlFabricMemBatchWrite(&param), 1U);
+  EXPECT_TRUE(g_sdma_tasks.empty());
+  EXPECT_TRUE(g_notify_tasks.empty());
+  EXPECT_EQ(g_query_count, 0U);
+  EXPECT_EQ(g_config_count, 0U);
+}
+
+TEST_F(FabricMemAicpuKernelUTest, BatchWriteRejectsRtsqStreamIdBeyondSqeAbiRange) {
+  FabricMemAicpuTransferDesc desc{0x1000U, 0x2000U, 16U};
+  auto param = MakeParam(&desc, 1U, FabricMemAicpuTransferDirection::kWrite);
+  // A3 SQE header carries rt_stream_id in u16; the kernel must reject, never truncate.
+  param.rtsq_stream_id = static_cast<uint32_t>(std::numeric_limits<uint16_t>::max()) + 1U;
+
+  EXPECT_EQ(HixlFabricMemBatchWrite(&param), 1U);
+  EXPECT_TRUE(g_sdma_tasks.empty());
+  EXPECT_TRUE(g_notify_tasks.empty());
+  EXPECT_EQ(g_query_count, 0U);
+  EXPECT_EQ(g_config_count, 0U);
+}
+
 TEST_F(FabricMemAicpuKernelUTest, BatchReadSplitsTransfersLargerThanOneSdmaTask) {
   constexpr uint64_t kMaxSdmaLength = std::numeric_limits<uint32_t>::max();
   std::vector<FabricMemAicpuTransferDesc> descs = {
