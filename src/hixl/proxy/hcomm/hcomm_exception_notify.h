@@ -35,7 +35,7 @@ typedef enum tagHcommExceptionExpandType {
  */
 typedef struct tagStarsExDetailInfo {
   uint32_t starsErrcode;
-  uint8_t seqType;
+  uint8_t sqeType;
   uint8_t statusMerged;
   uint8_t rsvd[122];  // 结构体对齐128
 } StarsExDetailInfo;

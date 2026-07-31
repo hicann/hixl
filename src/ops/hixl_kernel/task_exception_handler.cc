@@ -97,7 +97,7 @@ std::string HcommExceptionInfoToString(const HcommExceptionInfo *info) {
       << ", retCode=" << info->retCode << ", expandType=" << ExpandTypeToString(info->expandInfo.type);
   if (info->expandInfo.type == HCOMM_EXCEPTION_STARS) {
     const auto &s = info->expandInfo.detail.starsInfo;
-    oss << ", seqType=" << static_cast<uint32_t>(s.seqType)
+    oss << ", sqeType=" << static_cast<uint32_t>(s.sqeType)
         << ", statusMerged=" << static_cast<uint32_t>(s.statusMerged) << ", starsErrcode=" << s.starsErrcode;
   }
   oss << "}";

@@ -842,7 +842,7 @@ class ExceptionCallbackTest : public ::testing::Test {
     info.retCode = ret_code;
     info.expandInfo.type = HCOMM_EXCEPTION_STARS;
     info.expandInfo.detail.starsInfo.starsErrcode = stars_errcode;
-    info.expandInfo.detail.starsInfo.seqType = seq_type;
+    info.expandInfo.detail.starsInfo.sqeType = seq_type;
     info.expandInfo.detail.starsInfo.statusMerged = status_merged;
     cb(&info, GetRegisteredExceptionUserData());
   }
