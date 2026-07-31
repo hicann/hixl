@@ -91,7 +91,7 @@ Status Initialize(const AscendString &local_engine, const std::map<AscendString,
 | 参数名 | 可选/必选 | 描述 |
 | --- | --- | --- |
 | OPTION_ENABLE_USE_FABRIC_MEM | 可选 | 字符串取值"EnableUseFabricMem"。 <br>- 0：不开启Fabric Mem模式 <br>- 1：开启Fabric Mem模式 <br><br>此option适用于需要使用HCCS进行D2RH、RH2D传输的场景。 <br><br>说明：集群场景下，该参数在所有节点需要配置为相同的值。不支持该参数与"OPTION_BUFFER_POOL"同时配置。仅支持Atlas A3 训练系列产品/Atlas A3 推理系列产品。 |
-| OPTION_BUFFER_POOL | 可选 | 字符串取值"BufferPool"。<br>在需要使用中转buffer进行传输的场景下:<br>- RDMA注册Host内存大小受限时。<br>- 多个小块内存传输(例如128K)需要使用中转传输提升性能时。<br>可使用此option配置中转内存池的大小，取值格式为"\$BUFFER_NUM:\$BUFFER_SIZE"，系统默认会配置为"4:8(单位MB)"，可以通过配置为"0:0"来关闭中转内存池，在有并发的场景下建议增大\$BUFFER_NUM个数, 另外，所有使用的地方需要配置相同的值。不支持该参数与"OPTION_ENABLE_USE_FABRIC_MEM"同时配置。 <br>说明：不配置该参数时，存在如下约束。<br><br>Atlas A2 训练系列产品/Atlas A2 推理系列产品：仅支持Atlas 800I A2 推理服务器、A200I A2 Box 异构组件。该场景下Server采用HCCS传输协议时，仅支持D2D。 |
+| OPTION_BUFFER_POOL | 可选 | 字符串取值"BufferPool"。<br>在需要使用中转buffer进行传输的场景下:<br>- RDMA注册Host内存大小受限时。<br>- 多个小块内存传输(例如128K)需要使用中转传输提升性能时。<br>可使用此option配置中转内存池的大小，取值格式为"${BUFFER_NUM}:${BUFFER_SIZE}"，系统默认会配置为"4:8(单位MB)"，可以通过配置为"0:0"来关闭中转内存池，在有并发的场景下建议增大${BUFFER_NUM}个数, 另外，所有使用的地方需要配置相同的值。不支持该参数与"OPTION_ENABLE_USE_FABRIC_MEM"同时配置。 <br>说明：不配置该参数时，存在如下约束。<br><br>Atlas A2 训练系列产品/Atlas A2 推理系列产品：仅支持Atlas 800I A2 推理服务器、A200I A2 Box 异构组件。该场景下Server采用HCCS传输协议时，仅支持D2D。 |
 | OPTION_RDMA_TRAFFIC_CLASS | 可选 | 字符串取值"RdmaTrafficClass"。<br>用于配置RDMA网卡的traffic class。和环境变量HCCL_RDMA_TC功能相同，如同时配置，当前option优先级更高；未同时配置，以配置的一方为准。<br>取值范围为[0,255]，且需要配置为4的整数倍，默认值为132。 |
 | OPTION_RDMA_SERVICE_LEVEL | 可选 | 字符串取值"RdmaServiceLevel"。<br>用于配置RDMA网卡的service level。和环境变量HCCL_RDMA_SL功能相同，如同时配置，当前option优先级更高；未同时配置，以配置的一方为准。<br>取值范围为[0, 7]，默认值为4。 |
 | OPTION_GLOBAL_RESOURCE_CONFIG | 可选 | 字符串取值"GlobalResourceConfig"。用于开启并配置全局资源配置。该参数配置示例和使用约束请参考表格下方 |
@@ -282,10 +282,10 @@ UBG
 | net_instance_id | 字符串 | 必选 | 当前超节点的唯一标识 | 每个超节点唯一即可。 |
 | endpoint_list | 数组 | 必选 | 可以使用的通信设备列表 | - |
 | endpoint_list[].protocol | 字符串 | 必选 | 通信协议 | "roce"/"ub_ctp"/"ub_tp"/"uboe"/"ubg" |
-| endpoint_list[].comm_id | 字符串 | 必选 | 通信标识 | protocol为ub_ctp/ub_tp/ubg时填\${eid}；protocol为roce时填ipv4/ipv6网卡地址；protocol为uboe时填device uboe网卡ip地址 |
+| endpoint_list[].comm_id | 字符串 | 必选 | 通信标识 | protocol为ub_ctp/ub_tp/ubg时填${eid}；protocol为roce时填ipv4/ipv6网卡地址；protocol为uboe时填device uboe网卡ip地址 |
 | endpoint_list[].placement | 字符串 | 必选 | 通信设备位置 | "host"/"device" |
 | endpoint_list[].plane | 字符串 | 可选 | 通信设备平面 | protocol为ub_ctp/ub_tp时，设备区分平面则填写，每个平面唯一（如"plane-a"/"plane-b"） |
-| endpoint_list[].dst_eid | 字符串 | 可选 | 与当前通信设备连接的对端通信设备的\${eid} | protocol为ub_ctp时，存在full-mesh直连对端则填写对端\${eid} |
+| endpoint_list[].dst_eid | 字符串 | 可选 | 与当前通信设备连接的对端通信设备的${eid} | protocol为ub_ctp时，存在full-mesh直连对端则填写对端${eid} |
 | endpoint_list[].server_id | 字符串 | 可选 | endpoint所属服务器标识 | 仅用于protocol为ub_ctp/ub_tp且placement为host的同OS H2rH loopback判断。为空或两端不一致时不启用该判断。 |
 
 <a id="全局资源配置字段说明"></a>**全局资源配置字段说明**
