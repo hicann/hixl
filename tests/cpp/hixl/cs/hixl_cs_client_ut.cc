@@ -667,6 +667,20 @@ TEST_F(HixlCSClientUT, CreateSuccess) {
   EXPECT_EQ(client_.Create(&desc, &config), SUCCESS);
 }
 
+TEST_F(HixlCSClientUT, CreateDisablesHostVaMappingForDeviceToHostUbCtp) {
+  port_ = kPort;
+  dst_.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+  HixlClientConfig config{};
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+
+  ASSERT_EQ(client_.Create(&desc, &config), SUCCESS);
+  EXPECT_FALSE(client_.local_endpoint_->NeedHostVaMapping());
+}
+
 TEST_F(HixlCSClientUT, CreateNonHccsDeviceEndpointResolvesNotifyAddress) {
   port_ = kPort;
   HixlClientConfig config{};

@@ -51,6 +51,7 @@ constexpr uint64_t kDeviceFlagDoneValueForTest = 1ULL;
 constexpr uint32_t kNotifyWaitTaskInterval = 1920U;
 
 constexpr const char *kTransFlagNameDevice = "_hixl_builtin_dev_trans_flag";
+constexpr const char *kTransFlagNameHost = "_hixl_builtin_host_trans_flag";
 
 EndpointDesc MakeDeviceEp(CommProtocol protocol, uint32_t dev_id) {
   EndpointDesc ep{};
@@ -99,6 +100,14 @@ using MockMmpaStub = hixl::test::TestMmpaStub;
 
 class HixlCSClientDeviceFixture : public ::testing::Test {
  protected:
+  virtual EndpointDesc MakeLocalEndpoint() const {
+    return MakeDeviceEp(COMM_PROTOCOL_UBC_TP, kDeviceDevId);
+  }
+
+  virtual EndpointDesc MakeRemoteEndpoint() const {
+    return MakeDeviceEp(COMM_PROTOCOL_UBC_TP, kDeviceDevId);
+  }
+
   void SetUp() override {
     // TransferPool initialization loads device kernels, so MmpaStub must be ready before Create.
     auto kernel_stub = std::make_shared<MockMmpaStub>();
@@ -106,8 +115,8 @@ class HixlCSClientDeviceFixture : public ::testing::Test {
     kernel_stub->access_ok_ = true;
     llm::MmpaStub::GetInstance().SetImpl(kernel_stub);
 
-    const EndpointDesc src = MakeDeviceEp(COMM_PROTOCOL_UBC_TP, kDeviceDevId);
-    const EndpointDesc dst = MakeDeviceEp(COMM_PROTOCOL_UBC_TP, kDeviceDevId);
+    const EndpointDesc src = MakeLocalEndpoint();
+    const EndpointDesc dst = MakeRemoteEndpoint();
 
     HixlClientConfig config{};
     HixlClientDesc desc{};
@@ -120,7 +129,8 @@ class HixlCSClientDeviceFixture : public ::testing::Test {
     cli_.client_channel_handle_ = static_cast<ChannelHandle>(1ULL);
     cli_.device_remote_flag_inited_ = false;
     remote_flag_dev_ = 0ULL;
-    FillTagMem(cli_, kTransFlagNameDevice, static_cast<void *>(&remote_flag_dev_), sizeof(uint64_t));
+    const char *flag_name = (dst.loc.locType == ENDPOINT_LOC_TYPE_HOST) ? kTransFlagNameHost : kTransFlagNameDevice;
+    FillTagMem(cli_, flag_name, static_cast<void *>(&remote_flag_dev_), sizeof(uint64_t));
 
     // 手动初始化 remote flag，模拟 GetRemoteMemImpl 的行为
     ASSERT_EQ(cli_.EnsureDeviceRemoteFlagInited(), SUCCESS);
@@ -181,6 +191,64 @@ class HixlCSClientDeviceFixture : public ::testing::Test {
   std::array<uint8_t, 8> local_buf_{};
   std::array<uint8_t, 8> remote_buf_{};
 };
+
+class HixlCSClientDeviceToHostFixture : public HixlCSClientDeviceFixture {
+ protected:
+  EndpointDesc MakeLocalEndpoint() const override {
+    return MakeDeviceEp(COMM_PROTOCOL_UBC_CTP, kDeviceDevId);
+  }
+
+  EndpointDesc MakeRemoteEndpoint() const override {
+    EndpointDesc endpoint = MakeDeviceEp(COMM_PROTOCOL_UBC_CTP, kDeviceDevId);
+    endpoint.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+    return endpoint;
+  }
+
+  HixlOneSideOpDesc SetupDeviceToHostTransfer() {
+    (void)cli_.mem_store_.RecordMemory(true, remote_buf_.data(), remote_buf_.size(), true, nullptr);
+    (void)cli_.mem_store_.RecordMemory(false, local_buf_.data(), local_buf_.size());
+    HixlOneSideOpDesc desc{};
+    desc.remote_buf = remote_buf_.data();
+    desc.local_buf = local_buf_.data();
+    desc.len = kLen8;
+    return desc;
+  }
+};
+
+TEST_F(HixlCSClientDeviceToHostFixture, BatchTransferSyncUsesRemoteHostVa) {
+  ASSERT_FALSE(cli_.local_endpoint_->NeedHostVaMapping());
+  HixlOneSideOpDesc desc = SetupDeviceToHostTransfer();
+
+  MockAclRuntimeStub mock_acl;
+  llm::AclRuntimeStub::Install(&mock_acl);
+  EXPECT_CALL(mock_acl, aclrtSynchronizeStreamWithTimeout(testing::_, testing::_))
+      .WillOnce(testing::Return(ACL_ERROR_NONE));
+  const Status ret = cli_.BatchTransferSync(false, 1, &desc, 100U);
+  llm::AclRuntimeStub::UnInstall(&mock_acl);
+
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(HixlCSClientDeviceToHostFixture, BatchTransferAsyncUsesRemoteHostVa) {
+  ASSERT_FALSE(cli_.local_endpoint_->NeedHostVaMapping());
+  setenv("HIXL_UT_DEVICE_FLAG_HACK", "1", 1);
+  HixlOneSideOpDesc desc = SetupDeviceToHostTransfer();
+
+  MockAclRuntimeStub mock_acl;
+  llm::AclRuntimeStub::Install(&mock_acl);
+  EXPECT_CALL(mock_acl, aclrtWaitAndResetNotify(testing::_, testing::_, testing::_))
+      .WillRepeatedly(testing::Return(ACL_SUCCESS));
+  EXPECT_CALL(mock_acl, aclrtMemcpyAsync(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(testing::Return(ACL_SUCCESS));
+  void *query_handle = nullptr;
+  const Status ret = cli_.BatchTransferAsync(false, 1, &desc, &query_handle);
+  llm::AclRuntimeStub::UnInstall(&mock_acl);
+
+  ASSERT_EQ(ret, SUCCESS);
+  ASSERT_NE(query_handle, nullptr);
+  HixlCompleteStatus status = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
+  EXPECT_EQ(PollUntilCompleted(cli_, query_handle, &status), SUCCESS);
+}
 
 TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSuccessUseMemcpyHackFlag) {
   setenv("HIXL_UT_DEVICE_FLAG_HACK", "1", 1);
