@@ -326,7 +326,7 @@ WHL_INSTALL_DIR_PATH="${common_parse_dir}/python/site-packages"
 PYTHON_HIXL_WHL="${sourcedir}/lib/llm_datadist-0.0.1-py3-none-any.whl"
 
 custom_install() {
-    if [ -z "$common_parse_dir/hixl" ]; then
+    if [ ! -d "$common_parse_dir/hixl" ]; then
         log "ERROR" "ERR_NO:0x0001;ERR_DES:hixl directory is empty"
         exit 1
     fi
@@ -363,11 +363,11 @@ custom_install() {
  	    rm -rf "$common_parse_dir/hixl"
  	fi
 
-    if [ -d "$common_parse_dir/include/llm_datadist/llm_engine_types.h" ]; then
+    if [ -f "$common_parse_dir/include/llm_datadist/llm_engine_types.h" ]; then
  	    rm -rf "$common_parse_dir/include/llm_datadist/llm_engine_types.h"
  	fi
 
-    if [ -d "$common_parse_dir/include/llm_datadist/llm_error_codes.h" ]; then
+    if [ -f "$common_parse_dir/include/llm_datadist/llm_error_codes.h" ]; then
  	    rm -rf "$common_parse_dir/include/llm_datadist/llm_error_codes.h"
  	fi
     return 0

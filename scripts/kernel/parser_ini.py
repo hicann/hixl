@@ -151,6 +151,7 @@ class IniParser(object):
                     op_info_flag = True
                 elif self._is_io_section(op_sec):
                     self._validate_io_section(op_name, op_sec, sec_info)
+                    op_io_flag = True
                 else:
                     self._validate_unknown_section(op_name, op_sec)
 

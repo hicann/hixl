@@ -401,7 +401,7 @@ is_valid_path() {
             if [ $(id -u) -ne 0 ]; then
                 log "DEBUG" "$install_path"
             else
-                sh -c 'cd "$install_path" >> /dev/null 2>&1'
+                ( cd "$install_path" >> /dev/null 2>&1 )
             fi
             if [ $? != 0 ]; then
                 log "ERROR" "ERR_NO:0x0093;ERR_DES:The $username do not have the permission to access $install_path, please reset the directory to a right permission."
@@ -1116,7 +1116,7 @@ do
     -*)
         log "ERROR" "ERR_NO:0x0004;ERR_DES: Unsupported parameters : $1"
         param_usage
-        exit 0
+        exit 1
         ;;
     *)
         break

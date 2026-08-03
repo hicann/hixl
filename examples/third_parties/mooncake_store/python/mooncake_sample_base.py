@@ -121,7 +121,7 @@ class MooncakeSampleBase:
                 tensor_ptr = self.store.alloc_from_mem_pool(alloc_size)
                 # Create torch tensors from the allocated pointers
                 self.target_tensor = torch.frombuffer(
-                    (ctypes.c_uint8 * tensor_size).from_address(tensor_ptr),
+                    (ctypes.c_uint8 * target_tensor_size).from_address(tensor_ptr),
                     dtype=torch.int8,
                 ).reshape(33, 61, 144 * 1024)
                 self.target_tensor.fill_(0)

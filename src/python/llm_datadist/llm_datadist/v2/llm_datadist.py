@@ -107,7 +107,7 @@ class LLMDataDist(object):
                 "[LLMDataDist.init]",
                 f"Failed to initialize llm datadist, options = {options}",
             )
-            self._cache_manager = CacheManager(self._llm_datadist, options)
+            self._cache_manager = CacheManager(self._llm_datadist, self._engine_options)
         else:
             from llm_datadist_v1 import llm_wrapper
             from llm_datadist_v1.kv_cache_manager import KvCacheManager
@@ -417,7 +417,7 @@ class LLMDataDist(object):
         return self._cluster_id
 
     def _setup_engine_option(self, options: Dict[str, str]) -> None:
-        self._engine_options = options
+        self._engine_options = options.copy()
         self._engine_options["llm.Role"] = self._role_to_str(self._role)
         self._enable_local_comm_res = "llm.LocalCommRes" in options
         self._enable_transfer_backend = "llm.TransferBackend" in options

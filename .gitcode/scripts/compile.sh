@@ -46,7 +46,7 @@ bash build.sh --pkg --examples --cann_3rd_lib_path="/home/jenkins/opensource"
 
 ret=$?
 
-DP_ASSERT_EQUAL "$?" "0" "build hixl ${task_name}"
+DP_ASSERT_EQUAL "$ret" "0" "build hixl ${task_name}"
 
 cd build
 tar -zcf examples.tar.gz examples

@@ -267,7 +267,7 @@ uninstall_run() {
             save_user_files_to_log "$(dirname $install_path_param)/atc"
             save_user_files_to_log "$(dirname $install_path_param)/fwkacllib"
         else
-            log "WARNING" "${operation}" "failed"
+            log "WARNING" "${operation} failed"
             log_operation "${operation}" "failed"
             exit_log 1
         fi

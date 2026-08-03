@@ -150,7 +150,7 @@ new_upgrade() {
         $setenv_option $in_install_for_all --docker-root="$docker_root" --chip="$chip_type" --feature="$feature_type" \
         $custom_options "$common_parse_type" "$input_install_dir" "$curpath/filelist.csv"
     if [ $? -ne 0 ]; then
-        log "ERROR" "ERR_NO:0x0085;ERR_DES:failed to install package."
+        log "ERROR" "ERR_NO:0x0085;ERR_DES:failed to upgrade package."
         return 1
     fi
 
