@@ -29,36 +29,26 @@ log() {
 
 log "init test case, please wait ..."
 
-# ==============================
-# 确定要测试的 ops 列表
-# ==============================
-declare -a ops
-ops=("is_finite")
 
-# ==============================
-# 运行测试主循环
-# ==============================
+source /usr/local/Ascend/cann/set_env.sh
+wget -nv https://ascend-ci.obs.cn-north-4.myhuaweicloud.com/${obs_path}/cann-hixl_linux-aarch64_ubuntu24.run
+wget -nv https://ascend-ci.obs.cn-north-4.myhuaweicloud.com/${obs_path}/examples_arm_ubuntu24.tar.gz
+mkdir -p build
+tar -zxf examples_arm_ubuntu24.tar.gz -C build
+cd build
+ls -l
+cd examples
+ls -l
+pwd
+cd ${WORKSPACE}
+cp /usr/local/Ascend/cann/opp/built-in/op_impl/aicpu/kernel/cann-hixl-compat.tar.gz  /usr/local/
+chmod +x ./*.run
+bash ./*.run --install-path=/usr/local/Ascend --full --quiet --pylocal 2>&1 | tee -a ./run_test.log
+rm -rf /usr/local/Ascend/cann/opp/built-in/op_impl/aicpu/kernel/cann-hixl-compat.tar.gz
+mv /usr/local/cann-hixl-compat.tar.gz /usr/local/Ascend/cann/opp/built-in/op_impl/aicpu/kernel/
+export PATH=$PATH:/usr/local/Ascend/driver/tools
+source /usr/local/Ascend/cann/set_env.sh && cd ./examples && bash run_example.sh 0 1  2>&1 | tee -a ./run_test.log
 
-for op in "${ops[@]}"; do
-  echo "Processing: $op"
-  mode="eager"
-  [ "$op" = "crop_and_resize" ] && mode="graph"
-  source /usr/local/Ascend/cann/set_env.sh
-  wget -nv https://ascend-ci.obs.cn-north-4.myhuaweicloud.com/${obs_path}/cann-hixl_linux-aarch64_ubuntu24.run
-  wget -nv https://ascend-ci.obs.cn-north-4.myhuaweicloud.com/${obs_path}/examples_arm_ubuntu24.tar.gz
-  mkdir -p build
-  tar -zxf examples_arm_ubuntu24.tar.gz -C build
-  cd build
-  ls -l
-  cd examples
-  ls -l
-  pwd
-  cd ${WORKSPACE}
-  chmod +x ./*.run
-  bash ./*.run --install-path=/usr/local/Ascend --full --quiet --pylocal 2>&1 | tee -a ./run_test.log
-  export PATH=$PATH:/usr/local/Ascend/driver/tools
-  source /usr/local/Ascend/cann/set_env.sh && cd ./examples && bash run_example.sh 0 1  2>&1 | tee -a ./run_test.log
-done
 
 # ==============================
 # 打包log

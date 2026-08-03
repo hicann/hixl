@@ -8,7 +8,7 @@
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
-set -x
+set -ex
 echo $(grep -E "^VERSION_ID=" /etc/os-release | cut -d'"' -f2)
 sudo update-alternatives --set gcc /usr/bin/gcc-14
 gcc --version

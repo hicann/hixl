@@ -45,10 +45,6 @@ stages:
             name: show_output
             run: |
               echo "image: ${{ steps.revise_image.outputs.Compile_Ascend_X86 }}"
-          -
-            name: debug_vars
-            run: |
-              echo ${{ vars.CI_PATH }}
         if: "${{ default() }}"
         runs-on: [dedicate-hosted, x64, small]
         container:
