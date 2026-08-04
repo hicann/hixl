@@ -48,7 +48,8 @@ uint64_t FabricMemTransferService::GetDurationUs(const std::chrono::steady_clock
 }
 
 FabricMemTransferService::~FabricMemTransferService() {
-  Finalize();
+  // Qualify to avoid virtual dispatch: derived parts are already destroyed here.
+  FabricMemTransferService::Finalize();
 }
 
 void FabricMemTransferService::SetKeepaliveCheckIntervalMs(int64_t interval_ms) {

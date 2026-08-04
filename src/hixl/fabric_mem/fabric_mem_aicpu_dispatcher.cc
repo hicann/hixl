@@ -368,18 +368,18 @@ Status FabricMemAicpuDispatcher::SyncTransferContext(ThreadHandle key, uint32_t 
   return SUCCESS;
 }
 
-Status FabricMemAicpuDispatcher::AddTransferContext(AsyncSlot &slot) {
+Status FabricMemAicpuDispatcher::AddTransferContext(AsyncSlot &slot) const {
   HIXL_CHK_BOOL_RET_STATUS(!slot.notifies.empty() && slot.notifies[0U] != nullptr, PARAM_INVALID,
                            "FabricMem AICPU slot notify is required for transfer context.");
   HIXL_CHK_BOOL_RET_STATUS(slot.ctx != nullptr, PARAM_INVALID, "FabricMem AICPU slot context is null.");
-  slot.transfer_ctx_key = reinterpret_cast<uint64_t>(slot.notifies[0U]);
+  slot.transfer_ctx_key = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(slot.notifies[0U]));
   HIXL_CHK_BOOL_RET_STATUS(IsInitialized(), FAILED, "FabricMem AICPU dispatcher is not initialized.");
   TemporaryRtContext ctx_guard(slot.ctx);
   return SyncTransferContext(static_cast<ThreadHandle>(slot.transfer_ctx_key), TRANSFER_CONTEXT_OP_ADD,
                              TRANSFER_THREAD_STATE_INITIALIZED);
 }
 
-Status FabricMemAicpuDispatcher::DeleteTransferContext(const AsyncSlot &slot) {
+Status FabricMemAicpuDispatcher::DeleteTransferContext(const AsyncSlot &slot) const {
   if (slot.transfer_ctx_key == 0U || slot.ctx == nullptr) {
     return SUCCESS;
   }

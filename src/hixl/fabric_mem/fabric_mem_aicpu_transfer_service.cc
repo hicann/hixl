@@ -25,7 +25,9 @@ constexpr size_t kHostFlagSize = sizeof(uint64_t);
 }  // namespace
 
 FabricMemAicpuTransferService::~FabricMemAicpuTransferService() {
-  Finalize();
+  // Qualify to avoid virtual dispatch from the destructor. Must run before the base
+  // destructor: base Finalize still needs the AICPU dispatcher for channel/slot abort.
+  FabricMemAicpuTransferService::Finalize();
 }
 
 Status FabricMemAicpuTransferService::Initialize(const FabricMemTransferServiceInitParam &param) {

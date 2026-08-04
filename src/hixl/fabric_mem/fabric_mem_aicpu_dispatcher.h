@@ -52,8 +52,9 @@ class FabricMemAicpuDispatcher {
 
   // Register / try-free TransferContext for a bound AICPU slot (aligns with hixl_cs SyncTransferContext).
   // AddTransferContext sets slot.transfer_ctx_key from notifies[0] and launches OP_ADD.
-  Status AddTransferContext(AsyncSlot &slot);
-  Status DeleteTransferContext(const AsyncSlot &slot);
+  // Both are const on the dispatcher: they only sync device-side context state and mutate the slot.
+  Status AddTransferContext(AsyncSlot &slot) const;
+  Status DeleteTransferContext(const AsyncSlot &slot) const;
 
  private:
   Status InitializeRtsqDevice();
