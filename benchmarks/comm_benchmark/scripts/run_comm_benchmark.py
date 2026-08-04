@@ -67,7 +67,7 @@ TYPE_MAP = {
 ALL_TYPES = list(TYPE_MAP.keys())
 TRANSPORTS_A2 = ['hccs', 'roce']
 TRANSPORTS_A3 = ['hccs', 'roce', 'fabric_mem']
-TRANSPORTS_A5 = ['roce', 'fabric_mem', 'uboe', 'ubg', 'ub']
+TRANSPORTS_A5 = ['roce', 'fabric_mem', 'uboe', 'ub_rtp', 'ub']
 DEFAULT_BLOCK_SIZES = '16K:2M'
 BLOCK_SORT_ORDER = ['16K', '32K', '64K', '128K', '256K', '512K', '1M', '2M', '4M', '8M']
 DEFAULT_TCP_ACCEPT_WAIT_SINGLE = 30
@@ -524,7 +524,7 @@ def _add_transfer_args(parser) -> None:
     )
     parser.add_argument(
         '--transport',
-        choices=['hccs', 'roce', 'fabric_mem', 'uboe', 'ubg', 'ub', 'all'],
+        choices=['hccs', 'roce', 'fabric_mem', 'uboe', 'ub_rtp', 'ub', 'all'],
         default=None,
         help='Transport path. Dual-machine default: all platform-supported transports.',
     )

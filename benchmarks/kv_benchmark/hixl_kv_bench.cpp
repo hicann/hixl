@@ -69,7 +69,7 @@ constexpr const char *kTransportRoce = "roce";
 constexpr const char *kTransportFabricMem = "fabric_mem";
 constexpr const char *kTransportHccs = "hccs";
 constexpr const char *kTransportUboe = "uboe";
-constexpr const char *kTransportUbg = "ubg";
+constexpr const char *kTransportUbRtp = "ub_rtp";
 constexpr const char *kTransportUb = "ub";
 constexpr const char *kPoolMemoryHost = "host";
 constexpr const char *kDefaultModel = "deepseek-r1";
@@ -333,7 +333,7 @@ KvBenchConfig ParseConfig(const std::vector<std::string> &argv) {
 bool ValidateConfig(const KvBenchConfig &cfg) {
   // KV workload uses host-side pool memory; HCCS comm path is restricted to D2D-only in benchmarks.
   const bool transport_ok = cfg.transport == kTransportRoce || cfg.transport == kTransportFabricMem ||
-                            cfg.transport == kTransportUboe || cfg.transport == kTransportUbg ||
+                            cfg.transport == kTransportUboe || cfg.transport == kTransportUbRtp ||
                             cfg.transport == kTransportUb;
   const bool workload_ok = !cfg.key_counts.empty();
   return cfg.num_processes > 0U && cfg.rank < cfg.num_processes && cfg.transfer_threads > 0U && cfg.repeat > 0U &&
@@ -359,9 +359,9 @@ std::map<AscendString, AscendString> BuildInitializeOptions(const KvBenchConfig 
     options[AscendString(hixl::OPTION_GLOBAL_RESOURCE_CONFIG)] =
         AscendString("{\"comm_resource_config.protocol_desc\":[\"uboe:device\"]}");
   }
-  if (cfg.transport == kTransportUbg) {
+  if (cfg.transport == kTransportUbRtp) {
     options[AscendString(hixl::OPTION_GLOBAL_RESOURCE_CONFIG)] =
-        AscendString("{\"comm_resource_config.protocol_desc\":[\"ubg:device\"]}");
+        AscendString("{\"comm_resource_config.protocol_desc\":[\"ub_rtp:device\"]}");
   }
   if (cfg.transport == kTransportUb) {
     options[AscendString(hixl::OPTION_LOCAL_COMM_RES)] = AscendString("{\"version\":\"1.3\"}");
@@ -1118,7 +1118,7 @@ std::vector<KvBenchResult> ExecuteKvBenchmark(const KvBenchConfig &cfg, KvRuntim
 int RunKvBenchParsed(KvBenchConfig &cfg, KvRuntime *runtime, std::vector<RankMeta> *metas) {
   if (cfg.transport == kTransportHccs) {
     std::cerr << "[ERROR] KV benchmark does not support transport=hccs (HCCS is D2D-only; use roce, fabric_mem, "
-                 "uboe, ubg, or ub)\n";
+                 "uboe, ub_rtp, or ub)\n";
     return 1;
   }
   if (!ValidateConfig(cfg)) {

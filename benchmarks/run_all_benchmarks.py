@@ -50,7 +50,7 @@ MEM_TYPES = ['device', 'host']
 OP_TYPES = ['write', 'read']
 TRANSPORTS_A2 = ['hccs', 'roce']
 TRANSPORTS_A3 = ['hccs', 'roce', 'fabric_mem']
-TRANSPORTS_A5 = ['roce', 'fabric_mem', 'uboe', 'ubg', 'ub']
+TRANSPORTS_A5 = ['roce', 'fabric_mem', 'uboe', 'ub_rtp', 'ub']
 BLOCK_SIZES = '16K:2M'
 KV_MODELS = ['deepseek-r1', 'glm5', 'deepseek-v4']
 

@@ -206,7 +206,7 @@ class MockHixlServer {
   static const std::string kUbCtpHostEndpointJson;
   static const std::string kUbCtpDeviceEndpointJson;
   static const std::string kUbCtpPlaneAEndpointJson;
-  static const std::string kUbTpPlaneBEndpointJson;
+  static const std::string kUbCtpPlaneBEndpointJson;
   static const std::string k2UbJson;
   static const std::string k4UbJson;
   static const std::string kNotArrayJson;
@@ -327,8 +327,8 @@ const std::string MockHixlServer::kUbCtpPlaneAEndpointJson = R"({
       }
     })";
 
-const std::string MockHixlServer::kUbTpPlaneBEndpointJson = R"({
-      "protocol": "ub_tp",
+const std::string MockHixlServer::kUbCtpPlaneBEndpointJson = R"({
+      "protocol": "ub_ctp",
       "comm_id": "000000000000000000000000c0a80163",
       "dst_eid": "",
       "plane" : "plane-b",
@@ -342,7 +342,7 @@ const std::string MockHixlServer::k2UbJson =
 
 const std::string MockHixlServer::k4UbJson = R"([)" + kRoceEndpointJson + R"(,)" + kUbCtpHostEndpointJson + R"(,)" +
                                              kUbCtpDeviceEndpointJson + R"(,)" + kUbCtpPlaneAEndpointJson + R"(,)" +
-                                             kUbTpPlaneBEndpointJson + R"(])";
+                                             kUbCtpPlaneBEndpointJson + R"(])";
 const std::string MockHixlServer::kNotArrayJson = R"(
     {
       "protocol": "roce",
@@ -486,7 +486,7 @@ class HixlClientUTest : public ::testing::Test {
 
   EndpointConfig MakeUbDeviceLocalEp4() {
     EndpointConfig ep{};
-    ep.protocol = "ub_tp";
+    ep.protocol = "ub_ctp";
     ep.comm_id = "000000000000000000000000c0a80263";
     ep.plane = "plane-b";
     ep.placement = "device";
@@ -497,7 +497,7 @@ class HixlClientUTest : public ::testing::Test {
 
   EndpointConfig MakeUbHostRemoteEp4() {
     EndpointConfig ep{};
-    ep.protocol = "ub_tp";
+    ep.protocol = "ub_ctp";
     ep.comm_id = "000000000000000000000000c0a80163";
     ep.plane = "plane-b";
     ep.placement = "host";
@@ -745,7 +745,7 @@ class HixlClientUTest : public ::testing::Test {
   static EndpointConfig MakeDirectEp(const std::string &protocol, const std::string &net_instance_id) {
     EndpointConfig ep{};
     ep.protocol = protocol;
-    ep.comm_id = (protocol == kProtocolUbg) ? "0000000000ff0ac0000000000a140200" : "127.0.0.1";
+    ep.comm_id = (protocol == kProtocolUbRtp) ? "0000000000ff0ac0000000000a140200" : "127.0.0.1";
     ep.placement = kPlacementDevice;
     ep.net_instance_id = net_instance_id;
     return ep;
@@ -1477,18 +1477,18 @@ TEST_F(HixlClientUTest, EndpointMatcherEmptyServerIdHostUbKeepsNormalMatching) {
 
 TEST_F(HixlClientUTest, EndpointMatcherCrossInstancePrefersUboe) {
   std::vector<EndpointConfig> local = {MakeDirectEp(kProtocolUboe, "superpod2-2"),
-                                       MakeDirectEp(kProtocolUbg, "superpod2-2"),
+                                       MakeDirectEp(kProtocolUbRtp, "superpod2-2"),
                                        MakeDirectEp(kProtocolRoce, "superpod2-2")};
   std::vector<EndpointConfig> remote = {MakeDirectEp(kProtocolUboe, "superpod1-1"),
-                                        MakeDirectEp(kProtocolUbg, "superpod1-1"),
+                                        MakeDirectEp(kProtocolUbRtp, "superpod1-1"),
                                         MakeDirectEp(kProtocolRoce, "superpod1-1")};
   MatchAndVerifyCommType(local, remote, CommType::COMM_TYPE_UBOE);
 }
 
 TEST_F(HixlClientUTest, EndpointMatcherCrossInstancePrefersUbgWhenNoUboe) {
-  std::vector<EndpointConfig> local = {MakeDirectEp(kProtocolUbg, "superpod2-2"),
+  std::vector<EndpointConfig> local = {MakeDirectEp(kProtocolUbRtp, "superpod2-2"),
                                        MakeDirectEp(kProtocolRoce, "superpod2-2")};
-  std::vector<EndpointConfig> remote = {MakeDirectEp(kProtocolUbg, "superpod1-1"),
+  std::vector<EndpointConfig> remote = {MakeDirectEp(kProtocolUbRtp, "superpod1-1"),
                                         MakeDirectEp(kProtocolRoce, "superpod1-1")};
   MatchAndVerifyCommType(local, remote, CommType::COMM_TYPE_UBG);
 }
@@ -1518,21 +1518,21 @@ TEST_F(HixlClientUTest, EndpointMatcherSameInstanceUbPreemptsDirectPriority) {
 TEST_F(HixlClientUTest, EndpointMatcherSameInstancePrefersHccs) {
   std::vector<EndpointConfig> local = {
       MakeDirectEp(kProtocolHccs, "superpod1-1"), MakeDirectEp(kProtocolUboe, "superpod1-1"),
-      MakeDirectEp(kProtocolUbg, "superpod1-1"), MakeDirectEp(kProtocolRoce, "superpod1-1")};
+      MakeDirectEp(kProtocolUbRtp, "superpod1-1"), MakeDirectEp(kProtocolRoce, "superpod1-1")};
   std::vector<EndpointConfig> remote = local;
   MatchAndVerifyCommType(local, remote, CommType::COMM_TYPE_HCCS);
 }
 
 TEST_F(HixlClientUTest, EndpointMatcherSameInstanceFallsBackToUboe) {
   std::vector<EndpointConfig> local = {MakeDirectEp(kProtocolUboe, "superpod1-1"),
-                                       MakeDirectEp(kProtocolUbg, "superpod1-1"),
+                                       MakeDirectEp(kProtocolUbRtp, "superpod1-1"),
                                        MakeDirectEp(kProtocolRoce, "superpod1-1")};
   std::vector<EndpointConfig> remote = local;
   MatchAndVerifyCommType(local, remote, CommType::COMM_TYPE_UBOE);
 }
 
 TEST_F(HixlClientUTest, EndpointMatcherSameInstanceFallsBackToUbg) {
-  std::vector<EndpointConfig> local = {MakeDirectEp(kProtocolUbg, "superpod1-1"),
+  std::vector<EndpointConfig> local = {MakeDirectEp(kProtocolUbRtp, "superpod1-1"),
                                        MakeDirectEp(kProtocolRoce, "superpod1-1")};
   std::vector<EndpointConfig> remote = local;
   MatchAndVerifyCommType(local, remote, CommType::COMM_TYPE_UBG);
@@ -1547,10 +1547,10 @@ TEST_F(HixlClientUTest, EndpointMatcherSameInstanceFallsBackToDeviceRoce) {
 TEST_F(HixlClientUTest, EndpointMatcherSameInstancePrefersUbBeforeScaleOut) {
   std::vector<EndpointConfig> local = {
       MakeUbEp("local_1", "remote_1", "device"), MakeUbEp("local_2", "remote_2", "host"),
-      MakeDirectEp(kProtocolUbg, "superpod1-1"), MakeDirectEp(kProtocolRoce, "superpod1-1")};
+      MakeDirectEp(kProtocolUbRtp, "superpod1-1"), MakeDirectEp(kProtocolRoce, "superpod1-1")};
   std::vector<EndpointConfig> remote = {
       MakeUbEp("remote_1", "local_1", "device"), MakeUbEp("remote_2", "local_2", "host"),
-      MakeDirectEp(kProtocolUbg, "superpod1-1"), MakeDirectEp(kProtocolRoce, "superpod1-1")};
+      MakeDirectEp(kProtocolUbRtp, "superpod1-1"), MakeDirectEp(kProtocolRoce, "superpod1-1")};
   MatchAndVerify(local, remote, 2U, HandlerCreateArgs::HandlerType::UB);
 }
 

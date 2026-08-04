@@ -45,7 +45,7 @@ std::string local_comm_res = R"(
       "dst_eid": "eid1-2",
     },
     {
-      "protocol": "ub_tp",
+      "protocol": "ub_ctp",
       "comm_id": "eid0-3",
       "placement": "device",
       "plane": "plane-a",
@@ -70,10 +70,10 @@ config.tranfer_backend = "hixl"
 | version | String | Required | Version number | 1.3 |
 | net_instance_id | String | Required | Unique identifier of the current supernode | It only needs to be unique for each supernode |
 | endpoint_list | Array | Required | List of available communication devices | - |
-| endpoint_list[].protocol | String | Required | Communication protocol | roce/ub_ctp/ub_tp |
-| endpoint_list[].comm_id | String | Required | Communication identifier | When protocol is ub_ctp/ub_tp, fill in ${eid}; when protocol is roce, fill in the ipv4/ipv6 NIC address |
+| endpoint_list[].protocol | String | Required | Communication protocol | roce/ub_ctp |
+| endpoint_list[].comm_id | String | Required | Communication identifier | When protocol is ub_ctp, fill in ${eid}; when protocol is roce, fill in the ipv4/ipv6 NIC address |
 | endpoint_list[].placement | String | Required | Communication device location | host/device |
-| endpoint_list[].plane | String | Optional | Communication device plane | When protocol is ub_ctp/ub_tp, fill this field if the device distinguishes planes. Each plane must be unique, such as plane-a/plane-b |
+| endpoint_list[].plane | String | Optional | Communication device plane | When protocol is ub_ctp, fill this field if the device distinguishes planes. Each plane must be unique, such as plane-a/plane-b |
 | endpoint_list[].dst_eid | String | Optional | ${eid} of the peer communication device connected to the current communication device | When protocol is ub_ctp, fill in the peer ${eid} if a full-mesh direct peer exists |
 
 

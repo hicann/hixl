@@ -103,7 +103,7 @@ static void BuildDefaultEid(unsigned char *eid, unsigned char byte5) {
     eid[i] = 0x00;
   }
   eid[5] = byte5;
-  eid[7] = 0xc0;  // high two bits 11 means UBoE; tests enable UBG explicitly when needed.
+  eid[7] = 0xc0;  // high two bits 11 means UBoE; tests enable UB_RTP explicitly when needed.
   eid[9] = 0x10;
   eid[12] = 0xdf;
   eid[13] = 0xdf;
@@ -130,7 +130,7 @@ static int FillUdma0Eids(EidInfoRaw *infos, int eid_cnt_max, int mesh_die_id) {
     unsigned char byte5 = (mesh_die_id == 0) ? 0x02 : 0x52;
     BuildDefaultEid(infos[0].eid.raw, byte5);
     if (g_enable_ubg_eid) {
-      infos[0].eid.raw[7] = 0x80;
+      infos[0].eid.raw[7] = 0x80;  // high two bits 10 means UB_RTP for issue302 UB_RTP EID filtering.
     }
     infos[0].eid_index = 0;
     count++;

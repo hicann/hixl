@@ -53,7 +53,7 @@ class DsmiProxy {
    * @brief Get ScaleOut interconnection type.
    * @param device_id Logical device ID.
    * @param intercon_type Output interconnection type. 0=UBoE over Switch, 1=RoCE over NPU,
-   *                      2=UBoE over NPU, 3=RoCE over CPU, 4=UBG over NPU.
+   *                      2=UBoE over NPU, 3=RoCE over CPU, 4=UB_RTP over NPU.
    * @return SUCCESS or FAILED.
    */
   static Status GetInterconType(int32_t device_id, uint32_t &intercon_type);

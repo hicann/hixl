@@ -235,9 +235,9 @@ TEST_F(HixlUtilsUTest, EndpointToStringHccsIdDeviceTest) {
   EXPECT_THAT(text, HasSubstr("devPhyId=1"));
 }
 
-TEST_F(HixlUtilsUTest, EndpointToStringUbTpEidDeviceTest) {
+TEST_F(HixlUtilsUTest, EndpointToStringUbCtpEidDeviceTest) {
   EndpointDesc ep{};
-  ep.protocol = COMM_PROTOCOL_UBC_TP;
+  ep.protocol = COMM_PROTOCOL_UBC_CTP;
   ep.commAddr.type = COMM_ADDR_TYPE_EID;
   const uint8_t eid_bytes[COMM_ADDR_EID_LEN] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
                                                 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
@@ -246,7 +246,7 @@ TEST_F(HixlUtilsUTest, EndpointToStringUbTpEidDeviceTest) {
   ep.loc.device.devPhyId = 2;
 
   const std::string text = EndpointToString(ep);
-  EXPECT_THAT(text, HasSubstr("protocol=ub_tp"));
+  EXPECT_THAT(text, HasSubstr("protocol=ub_ctp"));
   EXPECT_THAT(text, HasSubstr("addr=EID[0001020304050607:08090a0b0c0d0e0f]"));
   EXPECT_THAT(text, HasSubstr("devPhyId=2"));
 }
@@ -271,12 +271,12 @@ TEST_F(HixlUtilsUTest, EndpointToStringUbgEidDeviceTest) {
   ep.protocol = COMM_PROTOCOL_UBG;
   ep.commAddr.type = COMM_ADDR_TYPE_EID;
   ep.commAddr.eid[0] = 0x00;
-  ep.commAddr.eid[7] = 0x80;  // UBG marker
+  ep.commAddr.eid[7] = 0x80;  // UB_RTP marker
   ep.loc.locType = ENDPOINT_LOC_TYPE_DEVICE;
   ep.loc.device.devPhyId = 3;
 
   const std::string text = EndpointToString(ep);
-  EXPECT_THAT(text, HasSubstr("protocol=ubg"));
+  EXPECT_THAT(text, HasSubstr("protocol=ub_rtp"));
   EXPECT_THAT(text, HasSubstr("addr=EID"));
   EXPECT_THAT(text, HasSubstr("devPhyId=3"));
 }
@@ -381,9 +381,9 @@ TEST_F(HixlUtilsUTest, ProtocolToStringMapsKnownProtocolsTest) {
   EXPECT_EQ(ProtocolToString(COMM_PROTOCOL_HCCS), std::string("hccs"));
   EXPECT_EQ(ProtocolToString(COMM_PROTOCOL_ROCE), std::string("roce"));
   EXPECT_EQ(ProtocolToString(COMM_PROTOCOL_UBC_CTP), std::string("ub_ctp"));
-  EXPECT_EQ(ProtocolToString(COMM_PROTOCOL_UBC_TP), std::string("ub_tp"));
+  EXPECT_EQ(ProtocolToString(COMM_PROTOCOL_UBC_TP), std::string("UNKNOWN(5)"));
   EXPECT_EQ(ProtocolToString(COMM_PROTOCOL_UBOE), std::string("uboe"));
-  EXPECT_EQ(ProtocolToString(COMM_PROTOCOL_UBG), std::string("ubg"));
+  EXPECT_EQ(ProtocolToString(COMM_PROTOCOL_UBG), std::string("ub_rtp"));
 }
 
 TEST_F(HixlUtilsUTest, ProtocolToStringUnknownProtocolTest) {

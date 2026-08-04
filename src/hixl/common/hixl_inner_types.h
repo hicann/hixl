@@ -58,12 +58,11 @@ struct HixlTransferContextSyncParam {
 namespace hixl {
 constexpr const char *kProtocolRoce = "roce";
 constexpr const char *kProtocolUbCtp = "ub_ctp";
-constexpr const char *kProtocolUbTp = "ub_tp";
 constexpr const char *kProtocolHccs = "hccs";
 constexpr const char *kProtocolUboe = "uboe";
-constexpr const char *kProtocolUbg = "ubg";
+constexpr const char *kProtocolUbRtp = "ub_rtp";
 constexpr const char *kUboeProtocolDesc = "uboe:device";
-constexpr const char *kUbgProtocolDesc = "ubg:device";
+constexpr const char *kUbRtpProtocolDesc = "ub_rtp:device";
 constexpr const char *kPlacementDevice = "device";
 constexpr const char *kPlacementHost = "host";
 constexpr uint8_t kRdmaTrafficClass = 132;  // RDMA网卡的traffic class 默认值

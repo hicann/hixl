@@ -82,7 +82,7 @@ void SetUboeProtocolDescOption(std::map<AscendString, AscendString> &options) {
 void SetUbgProtocolDescOption(std::map<AscendString, AscendString> &options) {
   options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"(
     {
-      "comm_resource_config.protocol_desc": ["ubg:device"]
+      "comm_resource_config.protocol_desc": ["ub_rtp:device"]
     }
   )";
 }
@@ -1026,7 +1026,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListGeneratesUbgWhenConfiguredOnA5) 
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
 
-  DsmiStubSetInterconType(4U);  // UBG 校验需要 InterconType=4
+  DsmiStubSetInterconType(4U);  // UB_RTP 校验需要 InterconType=4
   SetupA5UbgDcmiDefaults();
 
   std::map<AscendString, AscendString> options;
@@ -1037,7 +1037,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListGeneratesUbgWhenConfiguredOnA5) 
   CallBuildEndpointList(options, "127.0.0.1:26000", local_comm_res, endpoint_list);
   EXPECT_TRUE(local_comm_res.empty());
   ASSERT_EQ(endpoint_list.size(), 1U);
-  EXPECT_EQ(endpoint_list[0].protocol, kProtocolUbg);
+  EXPECT_EQ(endpoint_list[0].protocol, kProtocolUbRtp);
   EXPECT_EQ(endpoint_list[0].placement, kPlacementDevice);
   EXPECT_EQ(endpoint_list[0].comm_id.size(), 32U);
   EXPECT_EQ(endpoint_list[0].comm_id.substr(14, 2), "80");
@@ -1144,8 +1144,44 @@ TEST_F(EndpointGeneratorUTest, RejectsScaleOutProtocolWithHostPlacement) {
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_LOCAL_COMM_RES] = R"(
     {"net_instance_id":"test","version":"1.3","endpoint_list":[
-      {"protocol":"ubg","comm_id":"0000000000ff0a80000000000a140200","placement":"host"}
+      {"protocol":"ub_rtp","comm_id":"0000000000ff0a80000000000a140200","placement":"host"}
     ]})";
+
+  std::string local_comm_res;
+  std::vector<EndpointConfig> endpoint_list;
+  HixlOptions parsed;
+  ASSERT_EQ(HixlOptions::Parse(options, parsed), SUCCESS);
+  EXPECT_EQ(EndpointGenerator::BuildEndpointList(parsed, "127.0.0.1:26000", local_comm_res, endpoint_list),
+            PARAM_INVALID);
+}
+
+TEST_F(EndpointGeneratorUTest, RejectsRemovedUbTpProtocolInLocalCommRes) {
+  constexpr const char kRemovedUbTpProtocol[] =
+      "ub"
+      "_tp";
+  std::map<AscendString, AscendString> options;
+  const std::string option = R"({"net_instance_id":"test","version":"1.3","endpoint_list":[{"protocol":")" +
+                             std::string(kRemovedUbTpProtocol) +
+                             R"(","comm_id":"00010002000300040005000600070008","placement":"device"}]})";
+  options[hixl::OPTION_LOCAL_COMM_RES] = option.c_str();
+
+  std::string local_comm_res;
+  std::vector<EndpointConfig> endpoint_list;
+  HixlOptions parsed;
+  ASSERT_EQ(HixlOptions::Parse(options, parsed), SUCCESS);
+  EXPECT_EQ(EndpointGenerator::BuildEndpointList(parsed, "127.0.0.1:26000", local_comm_res, endpoint_list),
+            PARAM_INVALID);
+}
+
+TEST_F(EndpointGeneratorUTest, RejectsRemovedUbTpProtocolDesc) {
+  acl_stub_->soc_name_ = "Ascend950A";
+  constexpr const char kRemovedUbTpProtocolDesc[] =
+      "ub"
+      "_tp:device";
+  std::map<AscendString, AscendString> options;
+  const std::string option =
+      R"({"comm_resource_config.protocol_desc": [")" + std::string(kRemovedUbTpProtocolDesc) + R"("]})";
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = option.c_str();
 
   std::string local_comm_res;
   std::vector<EndpointConfig> endpoint_list;
@@ -1159,7 +1195,7 @@ TEST_F(EndpointGeneratorUTest, RejectsUbgAndUboeCoexistenceInLocalCommRes) {
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_LOCAL_COMM_RES] = R"(
     {"net_instance_id":"test","version":"1.3","endpoint_list":[
-      {"protocol":"ubg","comm_id":"0000000000ff0a80000000000a140200","placement":"device"},
+      {"protocol":"ub_rtp","comm_id":"0000000000ff0a80000000000a140200","placement":"device"},
       {"protocol":"uboe","comm_id":"192.168.1.1","placement":"device"}
     ]})";
 
@@ -1178,7 +1214,7 @@ TEST_F(EndpointGeneratorUTest, RejectsProtocolDescWithBothUbgAndUboe) {
 
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"(
-    {"comm_resource_config.protocol_desc": ["uboe:device", "ubg:device"]})";
+    {"comm_resource_config.protocol_desc": ["uboe:device", "ub_rtp:device"]})";
 
   std::string local_comm_res;
   std::vector<EndpointConfig> endpoint_list;
@@ -1353,7 +1389,7 @@ TEST_F(EndpointGeneratorUTest, ConvertToEndpointDescDeviceUbParsesEidTest) {
 
 TEST_F(EndpointGeneratorUTest, ConvertToEndpointDescDeviceUbgParsesEidTest) {
   EndpointConfig ep{};
-  ep.protocol = kProtocolUbg;
+  ep.protocol = kProtocolUbRtp;
   ep.comm_id = "0000000000ff0ac0000000000a140200";
   ep.placement = kPlacementDevice;
   ep.device_info.phy_device_id = 13;
@@ -1372,7 +1408,7 @@ TEST_F(EndpointGeneratorUTest, ConvertToEndpointDescDeviceUbgParsesEidTest) {
 
 TEST_F(EndpointGeneratorUTest, ConvertToEndpointDescDeviceUbgRejectsInvalidEidTest) {
   EndpointConfig ep{};
-  ep.protocol = kProtocolUbg;
+  ep.protocol = kProtocolUbRtp;
   ep.comm_id = "not-an-eid";
   ep.placement = kPlacementDevice;
 
@@ -1398,7 +1434,7 @@ TEST_F(EndpointGeneratorUTest, AutoGenUbgByInterconTypeWhenNoProtocolDescOnA5) {
   // 但 GenerateScaleOutEndpointByInterconType 在此之前已执行并添加了 ScaleOut 端点
   EXPECT_NE(EndpointGenerator::BuildEndpointList(parsed, "127.0.0.1:26000", local_comm_res, endpoint_list), SUCCESS);
   ASSERT_GE(endpoint_list.size(), 1U);
-  EXPECT_EQ(endpoint_list[0].protocol, kProtocolUbg);
+  EXPECT_EQ(endpoint_list[0].protocol, kProtocolUbRtp);
   EXPECT_EQ(endpoint_list[0].comm_id.substr(14, 2), "80");
 }
 
@@ -1434,7 +1470,7 @@ TEST_F(EndpointGeneratorUTest, RejectsUbgHostPlacementInProtocolDesc) {
 
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"(
-    {"comm_resource_config.protocol_desc": ["ubg:host"]})";
+    {"comm_resource_config.protocol_desc": ["ub_rtp:host"]})";
 
   std::string local_comm_res;
   std::vector<EndpointConfig> endpoint_list;
@@ -1448,7 +1484,7 @@ TEST_F(EndpointGeneratorUTest, RejectsUbgProtocolDescWhenInterconTypeIsUboe) {
   acl_stub_->soc_name_ = "Ascend950A";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
-  DsmiStubSetInterconType(2U);  // UBoE，但配的是 ubg
+  DsmiStubSetInterconType(2U);  // UBoE，但配的是 ub_rtp
 
   std::map<AscendString, AscendString> options;
   SetUbgProtocolDescOption(options);
@@ -1484,7 +1520,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFiltersExplicitEndpointsToRoceWh
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_LOCAL_COMM_RES] = AscendString(R"(
     {"net_instance_id":"test","version":"1.3","endpoint_list":[
-      {"protocol":"ubg","comm_id":"0000000000ff0a80000000000a140200","placement":"device"},
+      {"protocol":"ub_rtp","comm_id":"0000000000ff0a80000000000a140200","placement":"device"},
       {"protocol":"roce","comm_id":"192.168.1.1","placement":"device"}
     ]})");
 
@@ -1553,9 +1589,9 @@ TEST_F(EndpointGeneratorUTest, AutoGenA5UbgEidNotFoundFallsBackToUb) {
   acl_stub_->soc_name_ = "Ascend950A";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
-  DsmiStubSetInterconType(4U);  // UBG
+  DsmiStubSetInterconType(4U);  // UB_RTP
   SetupA5UbgDcmiDefaults();
-  DcmiStubSetEnableUbgEid(false);  // DCMI 返回 EID 但没有 UBG 标记
+  DcmiStubSetEnableUbgEid(false);  // DCMI 返回 EID 但没有 UB_RTP 标记
 
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_LOCAL_COMM_RES] = AscendString(R"({"version":"1.3"})");
@@ -1564,14 +1600,14 @@ TEST_F(EndpointGeneratorUTest, AutoGenA5UbgEidNotFoundFallsBackToUb) {
   std::vector<EndpointConfig> endpoint_list;
   HixlOptions parsed;
   ASSERT_EQ(HixlOptions::Parse(options, parsed), SUCCESS);
-  // UBG EID not found → skip ScaleOut → UB also fails (no topo) → returns error
+  // UB_RTP EID not found → skip ScaleOut → UB also fails (no topo) → returns error
   EXPECT_NE(EndpointGenerator::BuildEndpointList(parsed, "127.0.0.1:26000", local_comm_res, endpoint_list), SUCCESS);
   EXPECT_TRUE(endpoint_list.empty());
 }
 
-TEST_F(EndpointGeneratorUTest, ConvertToEndpointDescDeviceUbParsesMixedCaseEidTest) {
+TEST_F(EndpointGeneratorUTest, ConvertToEndpointDescDeviceUbCtpParsesMixedCaseEidTest) {
   EndpointConfig ep;
-  ep.protocol = kProtocolUbTp;
+  ep.protocol = kProtocolUbCtp;
   ep.comm_id = "aBcD1234567890EfAbCdEf1234567890";
   ep.placement = kPlacementDevice;
   ep.device_info.phy_device_id = 9;
@@ -1579,7 +1615,7 @@ TEST_F(EndpointGeneratorUTest, ConvertToEndpointDescDeviceUbParsesMixedCaseEidTe
   EndpointDesc endpoint{};
   Status st = EndpointGenerator::ConvertToEndpointDesc(ep, endpoint);
   EXPECT_EQ(st, SUCCESS);
-  EXPECT_EQ(endpoint.protocol, COMM_PROTOCOL_UBC_TP);
+  EXPECT_EQ(endpoint.protocol, COMM_PROTOCOL_UBC_CTP);
   EXPECT_EQ(endpoint.commAddr.type, COMM_ADDR_TYPE_EID);
   EXPECT_EQ(endpoint.commAddr.eid[0], 0xAB);
   EXPECT_EQ(endpoint.commAddr.eid[1], 0xCD);

@@ -35,8 +35,8 @@ struct MatchRule {
 constexpr MatchRule kCrossInstanceRules[] = {
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolUboe, kPlacementDevice,
      CommType::COMM_TYPE_UBOE, "cross-instance prefers device uboe"},
-    {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolUbg, kPlacementDevice,
-     CommType::COMM_TYPE_UBG, "cross-instance falls back to device ubg"},
+    {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolUbRtp, kPlacementDevice,
+     CommType::COMM_TYPE_UBG, "cross-instance falls back to device ub_rtp"},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolRoce, kPlacementDevice,
      CommType::COMM_TYPE_ROCE, "cross-instance falls back to device roce"},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolRoce, kPlacementHost,
@@ -50,8 +50,8 @@ constexpr MatchRule kSameInstanceRules[] = {
      CommType::COMM_TYPE_HCCS, "same-instance falls back to device hccs"},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolUboe, kPlacementDevice,
      CommType::COMM_TYPE_UBOE, "same-instance falls back to device uboe"},
-    {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolUbg, kPlacementDevice,
-     CommType::COMM_TYPE_UBG, "same-instance falls back to device ubg"},
+    {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolUbRtp, kPlacementDevice,
+     CommType::COMM_TYPE_UBG, "same-instance falls back to device ub_rtp"},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolRoce, kPlacementDevice,
      CommType::COMM_TYPE_ROCE, "same-instance falls back to device roce"},
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolRoce, kPlacementHost,
@@ -77,7 +77,7 @@ CommType EndpointMatcher::ParseCommType(const std::string &local, const std::str
 }
 
 bool EndpointMatcher::IsUbProtocol(const std::string &protocol) {
-  return protocol == kProtocolUbCtp || protocol == kProtocolUbTp;
+  return protocol == kProtocolUbCtp;
 }
 
 static bool IsUbCtpEndpoint(const EndpointConfig &endpoint) {

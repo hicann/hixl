@@ -656,9 +656,9 @@ void BenchmarkConfigParser::PrintUsage(FILE *out) {
       "Keys:\n"
       "  --role|-r            target|initiator\n"
       "  --group              result grouping name (default default)\n"
-      "  --transport          hccs|roce|fabric_mem|uboe|ubg|ub "
+      "  --transport          hccs|roce|fabric_mem|uboe|ub_rtp|ub "
       "(hccs: D2D everywhere; extra H2rD|rD2H on A3-class SOC only; fabric_mem adds EnableUseFabricMem=1; "
-      "hccs/roce/uboe/ubg add GlobalResourceConfig protocol_desc by default unless LocalCommRes is set; "
+      "hccs/roce/uboe/ub_rtp add GlobalResourceConfig protocol_desc by default unless LocalCommRes is set; "
       "ub adds LocalCommRes with version:1.3, only on A5; "
       "roce: RDMA over Converged Ethernet, supported on A2, A3 and A5; on A5 uses HixlCS LocalCommRes with "
       "protocol:roce placement:host and requires --host_roce_ip)\n"
@@ -791,8 +791,8 @@ void AddDefaultProtocolDesc(const BenchmarkConfig &cfg, std::map<AscendString, A
     protocol_desc = "roce:" + cfg.roce_endpoint_placement;
   } else if (cfg.transport == "uboe") {
     protocol_desc = "uboe:device";
-  } else if (cfg.transport == "ubg") {
-    protocol_desc = "ubg:device";
+  } else if (cfg.transport == "ub_rtp") {
+    protocol_desc = "ub_rtp:device";
   } else {
     return;
   }
@@ -846,7 +846,8 @@ bool BenchmarkConfigParser::ApplyTransportEnvironment(const BenchmarkConfig &cfg
     }
     return true;
   }
-  // hccs / fabric_mem / uboe / ubg / ub: do not modify HCCL environment variables (fabric_mem uses init options only)
+  // hccs / fabric_mem / uboe / ub_rtp / ub: do not modify HCCL environment variables (fabric_mem uses init options
+  // only)
   return true;
 }
 
@@ -1003,8 +1004,8 @@ bool ValidateTransferOp(const std::string &op) {
 
 bool ValidateTransport(const std::string &transport) {
   if (transport != "hccs" && transport != "roce" && transport != "fabric_mem" && transport != "uboe" &&
-      transport != "ubg" && transport != "ub") {
-    fprintf(stderr, "[ERROR] Invalid transport: %s (expect hccs|roce|fabric_mem|uboe|ubg|ub)\n", transport.c_str());
+      transport != "ub_rtp" && transport != "ub") {
+    fprintf(stderr, "[ERROR] Invalid transport: %s (expect hccs|roce|fabric_mem|uboe|ub_rtp|ub)\n", transport.c_str());
     return false;
   }
   return true;

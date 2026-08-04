@@ -85,7 +85,7 @@ typedef enum {
   COMM_PROTOCOL_UB_MEM = 6,     ///< UB_MEM
   COMM_PROTOCOL_UBOE = 7,       ///< UBOE
   COMM_PROTOCOL_HCCS_ONLY = 8,  ///< 一卡双DIE使用HCCS（本仓未使用，为保持与 hcomm 枚举对齐）
-  COMM_PROTOCOL_UBG = 9,        ///< UBG
+  COMM_PROTOCOL_UBG = 9,        ///< UB_RTP
 } CommProtocol;
 
 /**

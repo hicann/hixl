@@ -32,9 +32,8 @@ constexpr uint8_t kFillA = 0xAA;
 constexpr uint8_t kFillB = 0xBB;
 constexpr int32_t kConnTimeout = 5000;
 constexpr int32_t kMaxPollCount = 100000;
-static const std::vector<std::string> kSupportedProtocols = {"roce:device", "roce:host",     "uboe:device",
-                                                             "ubg:device",  "ub_ctp:device", "ub_tp:device",
-                                                             "ub_ctp:host", "ub_tp:host"};
+static const std::vector<std::string> kSupportedProtocols = {"roce:device",   "roce:host",     "uboe:device",
+                                                             "ub_rtp:device", "ub_ctp:device", "ub_ctp:host"};
 
 #define CHECK_ACL(x)                                                                       \
   do {                                                                                     \

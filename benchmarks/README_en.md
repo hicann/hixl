@@ -227,7 +227,7 @@ build/benchmarks/comm_benchmark/hixl_comm_bench \
 | Parameter | Description | Options | Default |
 |---|---|---|---|
 | `--direction` | Transmission direction | `D2rD`, `rD2D`, `D2rH`, `rH2D`, `H2rH`, `rH2H`, `H2rD`, `rD2H`, `all` | `D2rD` |
-| `--transport` | Transmission path | `hccs` / `roce` / `fabric_mem` / `uboe` / `ubg` / `ub` / `all` | `hccs` |
+| `--transport` | Transmission path | `hccs` / `roce` / `fabric_mem` / `uboe` / `ub_rtp` / `ub` / `all` | `hccs` |
 | `--pattern` | Communication topology | `pairwise` / `one_to_many` / `many_to_one` | `pairwise` |
 | `--block_sizes` | Block size list or power-of-two range with units | `16K:2M`, `4K,64K,1M` | `16K:2M` |
 | `--transfer_size` | Total bytes per block-size step, supports units | `128M`, `1G` | `hixl_comm_bench` default |

@@ -72,7 +72,7 @@ class HixlEngineUboeTest : public ::testing::Test {
     llm::AclRuntimeStub::SetInstance(acl_stub_);
     // TransferPool initialization loads device kernels, so MmpaStub must be ready before Create.
     llm::MmpaStub::GetInstance().SetImpl(std::make_shared<UboeMmpaStub>());
-    DsmiStubSetInterconType(2U);  // DSMI stub 默认 UBG(4)，UBoE 测试需要设为 UBoE(2)
+    DsmiStubSetInterconType(2U);  // DSMI stub 默认 UB_RTP(4)，UBoE 测试需要设为 UBoE(2)
     temp_dir_ = fs::path("/tmp/hixl_engine_uboe_unittest");
     fs::remove_all(temp_dir_);
     fs::create_directories(temp_dir_);

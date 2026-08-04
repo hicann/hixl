@@ -46,7 +46,7 @@ ProtocolDescMode ParseProtocolDescMode(const std::vector<std::string> &protocol_
     return ProtocolDescMode::kNone;
   }
   const bool has_uboe = std::find(protocol_desc.begin(), protocol_desc.end(), kUboeProtocolDesc) != protocol_desc.end();
-  const bool has_ubg = std::find(protocol_desc.begin(), protocol_desc.end(), kUbgProtocolDesc) != protocol_desc.end();
+  const bool has_ubg = std::find(protocol_desc.begin(), protocol_desc.end(), kUbRtpProtocolDesc) != protocol_desc.end();
   if (has_uboe && has_ubg) {
     return ProtocolDescMode::kConflict;
   }
@@ -60,11 +60,11 @@ ProtocolDescMode ParseProtocolDescMode(const std::vector<std::string> &protocol_
 }
 
 constexpr const char kConfigVersion[] = "1.3";
-constexpr uint32_t kInterconTypeUboeOverSwitch = 0U;  // SWITCH David -> UBG -> 5808 UBoE superplane.
+constexpr uint32_t kInterconTypeUboeOverSwitch = 0U;  // SWITCH David -> UB_RTP -> 5808 UBoE superplane.
 constexpr uint32_t kInterconTypeRoceOverNpu = 1U;     // NPU 1825 RoCE, also the driver default.
 constexpr uint32_t kInterconTypeUboeOverNpu = 2U;     // NPU David UBoE.
 constexpr uint32_t kInterconTypeRoceOverCpu = 3U;     // CPU Host NIC RoCE.
-constexpr uint32_t kInterconTypeUbgOverNpu = 4U;      // NPU David UBG.
+constexpr uint32_t kInterconTypeUbgOverNpu = 4U;      // NPU David UB_RTP.
 constexpr size_t kUbgEidMarkerByteIndex = 7U;
 constexpr uint8_t kUbgEidMarkerMask = 0xC0U;
 constexpr uint8_t kUbgEidMarkerValue = 0x80U;
@@ -104,7 +104,7 @@ std::string ConvertEidToString(const unsigned char *raw, size_t len) {
 }
 
 bool IsUbgEid(const DcmiUrmaEidInfo &eid_info) {
-  // Example: ...0a80... has marker byte 0x80. High two bits 10 means UBG, 11 means UBoE.
+  // Example: ...0a80... has marker byte 0x80. High two bits 10 means UB_RTP, 11 means UBoE.
   return (eid_info.eid.raw[kUbgEidMarkerByteIndex] & kUbgEidMarkerMask) == kUbgEidMarkerValue;
 }
 
@@ -128,12 +128,12 @@ Status GetUbgEidFromDcmi(uint32_t logic_id, std::string &eid) {
       }
       if (IsUbgEid(eid_list[eid_index])) {
         eid = ConvertEidToString(eid_list[eid_index].eid.raw, sizeof(eid_list[eid_index].eid.raw));
-        HIXL_LOGI("[GetUbgEidFromDcmi] found UBG EID, logic_id=%u, eid=%s", logic_id, eid.c_str());
+        HIXL_LOGI("[GetUbgEidFromDcmi] found UB_RTP EID, logic_id=%u, eid=%s", logic_id, eid.c_str());
         return SUCCESS;
       }
     }
   }
-  HIXL_EVENT("[EndpointGenerator] UBG EID not found, logic_id=%u, dev_cnt=%u", logic_id, dev_cnt);
+  HIXL_EVENT("[EndpointGenerator] UB_RTP EID not found, logic_id=%u, dev_cnt=%u", logic_id, dev_cnt);
   return FAILED;
 }
 
@@ -174,12 +174,12 @@ Status GenDefaultUbgEndpointConfig(int32_t logic_dev_id, EndpointConfig &endpoin
   if (GetUbgEidFromDcmi(logic_id, eid) != SUCCESS) {
     return FAILED;
   }
-  endpoint_config.protocol = kProtocolUbg;
+  endpoint_config.protocol = kProtocolUbRtp;
   endpoint_config.comm_id = eid;
   endpoint_config.placement = kPlacementDevice;
   HIXL_CHK_STATUS_RET(GetScaleOutNetInstanceId(logic_dev_id, endpoint_config.net_instance_id),
                       "GetScaleOutNetInstanceId failed");
-  HIXL_EVENT("[EndpointGenerator] GenDefaultUbgEndpointConfig, eid=%s, net_instance_id=%s", eid.c_str(),
+  HIXL_EVENT("[EndpointGenerator] GenDefaultUbRtpEndpointConfig, eid=%s, net_instance_id=%s", eid.c_str(),
              endpoint_config.net_instance_id.c_str());
   return SUCCESS;
 }
@@ -190,7 +190,7 @@ Status GenScaleOutEndpoint(ProtocolDescMode mode, std::vector<EndpointConfig> &e
   int32_t logic_dev_id = 0;
   HIXL_CHK_ACL_RET(aclrtGetLogicDevIdByUserDevId(user_dev_id, &logic_dev_id));
   HIXL_LOGI("[GenScaleOutEndpoint] user_dev_id=%d, logic_dev_id=%d", user_dev_id, logic_dev_id);
-  const char *desc = (mode == ProtocolDescMode::kUbg) ? kUbgProtocolDesc : kUboeProtocolDesc;
+  const char *desc = (mode == ProtocolDescMode::kUbg) ? kUbRtpProtocolDesc : kUboeProtocolDesc;
   if (DsmiProxy::IsInterconTypeSupported()) {
     uint32_t intercon_type = 0U;
     HIXL_CHK_STATUS_RET(DsmiProxy::GetInterconType(logic_dev_id, intercon_type), "GetInterconType failed");
@@ -202,7 +202,7 @@ Status GenScaleOutEndpoint(ProtocolDescMode mode, std::vector<EndpointConfig> &e
   }
   EndpointConfig endpoint{};
   if (mode == ProtocolDescMode::kUbg) {
-    HIXL_CHK_STATUS_RET(GenDefaultUbgEndpointConfig(logic_dev_id, endpoint), "GenDefaultUbgEndpointConfig failed");
+    HIXL_CHK_STATUS_RET(GenDefaultUbgEndpointConfig(logic_dev_id, endpoint), "GenDefaultUbRtpEndpointConfig failed");
   } else {
     HIXL_CHK_STATUS_RET(GenDefaultUboeEndpointConfig(logic_dev_id, endpoint), "GenDefaultUboeEndpointConfig failed");
   }
@@ -229,7 +229,7 @@ Status GenerateScaleOutEndpointByInterconType(int32_t user_dev_id, std::vector<E
   if (IsUbgInterconType(intercon_type)) {
     EndpointConfig ubg_endpoint{};
     if (GenDefaultUbgEndpointConfig(logic_dev_id, ubg_endpoint) != SUCCESS) {
-      HIXL_EVENT("[EndpointGenerator] UBG endpoint generation failed, skip ScaleOut, fallback to UB");
+      HIXL_EVENT("[EndpointGenerator] UB_RTP endpoint generation failed, skip ScaleOut, fallback to UB");
       return SUCCESS;
     }
     endpoint_list.emplace_back(std::move(ubg_endpoint));
@@ -385,10 +385,11 @@ Status ParseEndpointPlacement(const EndpointConfig &endpoint_config, EndpointDes
 }
 
 Status ParseEndpointProtocol(const EndpointConfig &endpoint_config, EndpointDesc &endpoint) {
-  static const std::map<std::string, CommProtocol> kProtocolMap = {
-      {kProtocolRoce, COMM_PROTOCOL_ROCE},   {kProtocolUbCtp, COMM_PROTOCOL_UBC_CTP},
-      {kProtocolUbTp, COMM_PROTOCOL_UBC_TP}, {kProtocolUboe, COMM_PROTOCOL_UBOE},
-      {kProtocolUbg, COMM_PROTOCOL_UBG},     {kProtocolHccs, COMM_PROTOCOL_HCCS}};
+  static const std::map<std::string, CommProtocol> kProtocolMap = {{kProtocolRoce, COMM_PROTOCOL_ROCE},
+                                                                   {kProtocolUbCtp, COMM_PROTOCOL_UBC_CTP},
+                                                                   {kProtocolUboe, COMM_PROTOCOL_UBOE},
+                                                                   {kProtocolUbRtp, COMM_PROTOCOL_UBG},
+                                                                   {kProtocolHccs, COMM_PROTOCOL_HCCS}};
 
   const auto protocol_it = kProtocolMap.find(endpoint_config.protocol);
   if (protocol_it == kProtocolMap.end()) {
@@ -404,14 +405,14 @@ std::string BuildProtocolDescKey(const std::string &protocol, const std::string 
 }
 
 bool IsSupportedProtocolDesc(const std::string &protocol, const std::string &placement) {
-  static const std::set<std::string> kSupportedProtocols = {kProtocolRoce, kProtocolHccs, kProtocolUbCtp,
-                                                            kProtocolUbTp, kProtocolUboe, kProtocolUbg};
+  static const std::set<std::string> kSupportedProtocols = {kProtocolRoce, kProtocolHccs, kProtocolUbCtp, kProtocolUboe,
+                                                            kProtocolUbRtp};
   static const std::set<std::string> kSupportedPlacements = {kPlacementHost, kPlacementDevice};
   if (kSupportedProtocols.find(protocol) == kSupportedProtocols.end() ||
       kSupportedPlacements.find(placement) == kSupportedPlacements.end()) {
     return false;
   }
-  if ((protocol == kProtocolUboe || protocol == kProtocolUbg) && placement != kPlacementDevice) {
+  if ((protocol == kProtocolUboe || protocol == kProtocolUbRtp) && placement != kPlacementDevice) {
     return false;
   }
   return true;
@@ -527,7 +528,7 @@ Status EndpointGenerator::GenEndpointFromProtocolDesc(const HixlOptions &options
     case ProtocolDescMode::kNone:
       return SUCCESS;
     case ProtocolDescMode::kConflict:
-      HIXL_LOGE(PARAM_INVALID, "protocol_desc cannot contain both %s and %s", kUbgProtocolDesc, kUboeProtocolDesc);
+      HIXL_LOGE(PARAM_INVALID, "protocol_desc cannot contain both %s and %s", kUbRtpProtocolDesc, kUboeProtocolDesc);
       return PARAM_INVALID;
     case ProtocolDescMode::kUboe:
     case ProtocolDescMode::kUbg:
@@ -675,8 +676,7 @@ Status EndpointGenerator::ConvertToEndpointDesc(const EndpointConfig &endpoint_c
     return SUCCESS;
   }
 
-  if (endpoint_config.protocol == kProtocolUbCtp || endpoint_config.protocol == kProtocolUbTp ||
-      endpoint_config.protocol == kProtocolUbg) {
+  if (endpoint_config.protocol == kProtocolUbCtp || endpoint_config.protocol == kProtocolUbRtp) {
     HIXL_CHK_STATUS_RET(ParseEidAddress(endpoint_config.comm_id, endpoint.commAddr), "ParseEidAddress failed");
   }
   return SUCCESS;
@@ -807,11 +807,10 @@ Status EndpointGenerator::ParseLocalCommRes(const nlohmann::json &config, std::v
     HIXL_CHK_STATUS_RET(ParseJsonField(item, "protocol", endpoint.protocol), "Failed to parse protocol");
     HIXL_CHK_STATUS_RET(ParseJsonField(item, "comm_id", endpoint.comm_id), "Failed to parse comm_id");
     HIXL_CHK_STATUS_RET(ParseJsonField(item, "placement", endpoint.placement), "Failed to parse placement");
-    HIXL_CHK_BOOL_RET_STATUS(!((endpoint.protocol == kProtocolUboe || endpoint.protocol == kProtocolUbg) &&
-                               endpoint.placement != kPlacementDevice),
-                             PARAM_INVALID, "ScaleOut protocol %s only supports device placement",
-                             endpoint.protocol.c_str());
-    if (endpoint.protocol == kProtocolUbg) {
+    HIXL_CHK_BOOL_RET_STATUS(IsSupportedProtocolDesc(endpoint.protocol, endpoint.placement), PARAM_INVALID,
+                             "Unsupported endpoint protocol or placement: %s:%s", endpoint.protocol.c_str(),
+                             endpoint.placement.c_str());
+    if (endpoint.protocol == kProtocolUbRtp) {
       has_ubg = true;
     } else if (endpoint.protocol == kProtocolUboe) {
       has_uboe = true;
@@ -824,7 +823,7 @@ Status EndpointGenerator::ParseLocalCommRes(const nlohmann::json &config, std::v
     endpoint_list.emplace_back(std::move(endpoint));
   }
   HIXL_CHK_BOOL_RET_STATUS(!(has_ubg && has_uboe), PARAM_INVALID,
-                           "endpoint_list cannot contain both ubg and uboe protocols");
+                           "endpoint_list cannot contain both ub_rtp and uboe protocols");
   HIXL_CHK_BOOL_RET_STATUS(!endpoint_list.empty(), PARAM_INVALID,
                            "[HixlEngine] endpoint_list is empty, please check local_comm_res");
   return SUCCESS;

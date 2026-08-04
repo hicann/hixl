@@ -30,8 +30,8 @@ constexpr uint8_t kFillA = 0xAA;
 constexpr uint8_t kFillB = 0xBB;
 constexpr int32_t kConnTimeout = 5000;
 constexpr int32_t kXferTimeout = 30000;
-static const std::vector<std::string> kValidProtos = {"roce:device", "roce:host",     "uboe:device",
-                                                      "ubg:device",  "ub_ctp:device", "ub_tp:device"};
+static const std::vector<std::string> kValidProtos = {"roce:device", "roce:host", "uboe:device", "ub_rtp:device",
+                                                      "ub_ctp:device"};
 
 #define CHECK_ACL(x)                                                                      \
   do {                                                                                    \

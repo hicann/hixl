@@ -29,7 +29,7 @@ constexpr int32_t kTimeOut = 500;
 constexpr size_t kElemCount = 100;
 constexpr uintptr_t kMockServerDeviceAddr = 0x10000000;
 constexpr uintptr_t kMockClientDeviceAddr = 0x20000000;
-// 32 位无冒号十六进制 ScaleOut EID，byte7 高两 bit 为 10 表示 UBG
+// 32 位无冒号十六进制 ScaleOut EID，byte7 高两 bit 为 10 表示 UB_RTP
 constexpr const char kUbgEid[] = "0000000000ff0a80000000000a140200";
 
 using MockEngineAclRuntimeStub = endpoint_test::MockAclRuntimeStub;
@@ -40,7 +40,7 @@ std::string BuildUbgLocalCommRes() {
       "net_instance_id": "ubg_test_1",
       "endpoint_list": [
           {
-              "protocol": "ubg",
+              "protocol": "ub_rtp",
               "comm_id": ")";
   res += kUbgEid;
   res += R"(",
@@ -54,17 +54,17 @@ std::string BuildUbgLocalCommRes() {
 }
 }  // namespace
 
-// UBG 端到端联调用例：初始化 -> 内存注册 -> 连接 -> Transfer（READ + WRITE）
+// UB_RTP 端到端联调用例：初始化 -> 内存注册 -> 连接 -> Transfer（READ + WRITE）
 // 覆盖 4 种内存方向、8 个子方向：
 //   H2H: READ=RH2H, WRITE=H2RH    H2D: READ=RH2D, WRITE=D2RH
 //   D2H: READ=RD2H, WRITE=H2RD    D2D: READ=RD2D, WRITE=D2RD
-// 两端使用显式 UBG endpoint_list（同 net_instance_id，超节点内表可匹配 UBG），不依赖 DSMI/DCMI 自动生成。
+// 两端使用显式 UB_RTP endpoint_list（同 net_instance_id，超节点内表可匹配 UB_RTP），不依赖 DSMI/DCMI 自动生成。
 class HixlEngineUbgTest : public ::testing::Test {
  protected:
   void SetUp() override {
     acl_stub_ = endpoint_test::CreateAclRuntimeStub("Ascend910_9391", 0, 0, 9, 8);
     llm::AclRuntimeStub::SetInstance(acl_stub_);
-    // EnsureDeviceKernelLoadedLocked 在初始化阶段调用，需要提前设置 MmpaStub；UBG 不依赖 hccn_tool/bond IP
+    // EnsureDeviceKernelLoadedLocked 在初始化阶段调用，需要提前设置 MmpaStub；UB_RTP 不依赖 hccn_tool/bond IP
     llm::MmpaStub::GetInstance().SetImpl(std::make_shared<hixl::test::KernelJsonMmpaStub>());
     DsmiStubSetInterconType(4U);
     options_ubg_[hixl::OPTION_LOCAL_COMM_RES] = AscendString(BuildUbgLocalCommRes().c_str());

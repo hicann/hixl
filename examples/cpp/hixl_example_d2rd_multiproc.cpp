@@ -36,8 +36,8 @@ constexpr int32_t kSocketBacklog = 1;
 constexpr int32_t kSocketRetryCount = 10;
 constexpr int32_t kSocketRetryIntervalUs = 500000;
 constexpr uint8_t kFillValue = 0xAA;
-static const std::vector<std::string> protocolList = {"hccs:device", "roce:device",   "roce:host",   "uboe:device",
-                                                      "ubg:device",  "ub_ctp:device", "ub_tp:device"};
+static const std::vector<std::string> protocolList = {"hccs:device", "roce:device",   "roce:host",
+                                                      "uboe:device", "ub_rtp:device", "ub_ctp:device"};
 
 #define CHECK_ACL(x)                                                                     \
   do {                                                                                   \

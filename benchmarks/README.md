@@ -228,7 +228,7 @@ build/benchmarks/comm_benchmark/hixl_comm_bench \
 | 参数 | 说明                                                                                  | 可选值 | 默认值          |
 |---|-------------------------------------------------------------------------------------|---|--------------|
 | `--direction` | 传输方向                                                                                | `D2rD`, `rD2D`, `D2rH`, `rH2D`, `H2rH`, `rH2H`, `H2rD`, `rD2H`, `all` | `D2rD`       |
-| `--transport` | 传输路径                                                                                | `hccs` / `roce` / `fabric_mem` / `uboe` / `ubg` / `ub` / `all` | `hccs`       |
+| `--transport` | 传输路径                                                                                | `hccs` / `roce` / `fabric_mem` / `uboe` / `ub_rtp` / `ub` / `all` | `hccs`       |
 | `--pattern` | 通信拓扑                                                                                | `pairwise` / `one_to_many` / `many_to_one` | `pairwise`   |
 | `--block_sizes` | block size 列表或 2 倍递增范围，支持单位                                                       | `16K:2M`, `4K,64K,1M` | `16K:2M` |
 | `--transfer_size` | 每个 block-size 档位的总传输量，支持单位                                                       | `128M`, `1G` | 由 `hixl_comm_bench` 默认 |

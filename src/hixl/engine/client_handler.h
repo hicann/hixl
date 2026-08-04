@@ -52,7 +52,7 @@ inline const char *CommTypeToString(CommType type) {
     case CommType::COMM_TYPE_UBOE:
       return "UBOE";
     case CommType::COMM_TYPE_UBG:
-      return "UBG";
+      return "UB_RTP";
     default:
       return "UNKNOWN";
   }
