@@ -334,6 +334,23 @@ TEST_F(EndpointGeneratorUTest, BuildRoceEndpointSuccess) {
   (void)remove(file_path.c_str());
 }
 
+TEST_F(EndpointGeneratorUTest, BuildRoceEndpointWithIpv6Success) {
+  const std::string file_path =
+      test::CreateTempFileWithContent("/tmp/loc_comm_res_ut_XXXXXX", "IPv6address_3=121::101\n");
+
+  mmpa_stub_->real_path_ok_ = true;
+  mmpa_stub_->access_ok_ = true;
+  mmpa_stub_->fake_real_path_ = file_path;
+
+  EndpointGenerator::EndpointInfo endpoint{};
+  EXPECT_EQ(EndpointGenerator::BuildRoceEndpoint(3, endpoint), SUCCESS);
+  EXPECT_EQ(endpoint.protocol, "roce");
+  EXPECT_EQ(endpoint.comm_id, "121::101");
+  EXPECT_EQ(endpoint.placement, "device");
+
+  (void)remove(file_path.c_str());
+}
+
 TEST_F(EndpointGeneratorUTest, BuildRoceEndpointEmptyIpFailed) {
   mmpa_stub_->real_path_ok_ = false;
   mmpa_stub_->access_ok_ = false;
@@ -1237,6 +1254,27 @@ TEST_F(EndpointGeneratorUTest, ConvertToEndpointDescDeviceRoceUseDeviceInfoTest)
   Status st = EndpointGenerator::ConvertToEndpointDesc(ep, endpoint);
   EXPECT_EQ(st, SUCCESS);
   EXPECT_EQ(endpoint.protocol, COMM_PROTOCOL_ROCE);
+  EXPECT_EQ(endpoint.loc.locType, ENDPOINT_LOC_TYPE_DEVICE);
+  EXPECT_EQ(endpoint.loc.device.devPhyId, 3U);
+  EXPECT_EQ(endpoint.loc.device.superDevId, 7U);
+  EXPECT_EQ(endpoint.loc.device.superPodIdx, 9U);
+  EXPECT_EQ(endpoint.loc.device.serverIdx, 0U);
+}
+
+TEST_F(EndpointGeneratorUTest, ConvertToEndpointDescDeviceRoceIpv6UseDeviceInfoTest) {
+  EndpointConfig ep;
+  ep.protocol = kProtocolRoce;
+  ep.comm_id = "121::101";
+  ep.placement = kPlacementDevice;
+  ep.device_info.phy_device_id = 3;
+  ep.device_info.super_device_id = 7;
+  ep.device_info.super_pod_id = 9;
+
+  EndpointDesc endpoint{};
+  Status st = EndpointGenerator::ConvertToEndpointDesc(ep, endpoint);
+  EXPECT_EQ(st, SUCCESS);
+  EXPECT_EQ(endpoint.protocol, COMM_PROTOCOL_ROCE);
+  EXPECT_EQ(endpoint.commAddr.type, COMM_ADDR_TYPE_IP_V6);
   EXPECT_EQ(endpoint.loc.locType, ENDPOINT_LOC_TYPE_DEVICE);
   EXPECT_EQ(endpoint.loc.device.devPhyId, 3U);
   EXPECT_EQ(endpoint.loc.device.superDevId, 7U);

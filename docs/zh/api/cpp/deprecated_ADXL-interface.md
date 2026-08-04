@@ -282,6 +282,10 @@ Status Connect(const AscendString &remote_engine, int32_t timeout_in_millis = 10
     export PATH=$PATH:${hccn_tool_install_path}
     ```
 
+- 对于使用Device RoCE场景，同一通信集群内Device RoCE地址配置需保持一致，不支持IPv6-only节点与IPv4/IPv6双栈节点混合接入。该约束支持的型号如下：
+  - Atlas A2 训练系列产品/Atlas A2 推理系列产品
+  - Atlas A3 训练系列产品/Atlas A3 推理系列产品
+
 - 该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
 
 ## Disconnect

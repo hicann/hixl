@@ -107,11 +107,14 @@ class HixlUtilsUTest : public ::testing::Test {
   }
 
   void CreateHccnTool(const std::string &tool_output) const {
+    CreateHccnToolScript("#!/bin/sh\necho \"" + tool_output + "\"\n");
+  }
+
+  void CreateHccnToolScript(const std::string &script_content) const {
     const auto tool_path = temp_dir_ / "hccn_tool";
     std::ofstream file(tool_path);
     ASSERT_TRUE(file.is_open());
-    file << "#!/bin/sh\n";
-    file << "echo \"" << tool_output << "\"\n";
+    file << script_content;
     file.close();
     ASSERT_EQ(chmod(tool_path.c_str(), 0755), 0);
     const auto new_path = temp_dir_.string() + ":" + old_path_;
@@ -155,8 +158,34 @@ TEST_F(HixlUtilsUTest, GetDeviceIpFromHccnConfSuccessTest) {
   EXPECT_EQ(device_ip, "192.168.1.11");
 }
 
+TEST_F(HixlUtilsUTest, GetDeviceIpFromHccnConfIpv6SuccessTest) {
+  WriteHccnConf("IPv6address_0=121::101\nIPv6netmask_0=112\n");
+  InstallConfStub(true);
+
+  std::string device_ip;
+  EXPECT_EQ(GetDeviceIp(0, device_ip), SUCCESS);
+  EXPECT_EQ(device_ip, "121::101");
+}
+
+TEST_F(HixlUtilsUTest, GetDeviceIpFromHccnConfPrefersIpv4Test) {
+  WriteHccnConf("address_0=192.168.1.10\nIPv6address_0=121::101\n");
+  InstallConfStub(true);
+
+  std::string device_ip;
+  EXPECT_EQ(GetDeviceIp(0, device_ip), SUCCESS);
+  EXPECT_EQ(device_ip, "192.168.1.10");
+}
+
 TEST_F(HixlUtilsUTest, GetDeviceIpInvalidIpInHccnConfTest) {
   WriteHccnConf("address_0=invalid_ip\n");
+  InstallConfStub(true);
+
+  std::string device_ip;
+  EXPECT_EQ(GetDeviceIp(0, device_ip), PARAM_INVALID);
+}
+
+TEST_F(HixlUtilsUTest, GetDeviceIpInvalidIpv6InHccnConfTest) {
+  WriteHccnConf("IPv6address_0=not_an_ipv6\n");
   InstallConfStub(true);
 
   std::string device_ip;
@@ -180,6 +209,23 @@ TEST_F(HixlUtilsUTest, GetDeviceIpFallbackToHccnToolWhenConfMissingTest) {
   std::string device_ip;
   EXPECT_EQ(GetDeviceIp(0, device_ip), SUCCESS);
   EXPECT_EQ(device_ip, "10.10.10.10");
+}
+
+TEST_F(HixlUtilsUTest, GetDeviceIpFallbackToIpv6HccnToolWhenIpv4EmptyTest) {
+  InstallConfStub(false);
+  CreateHccnToolScript(
+      "#!/bin/sh\n"
+      "for arg in \"$@\"; do\n"
+      "  if [ \"$arg\" = \"-inet6\" ]; then\n"
+      "    echo \"ipaddr:121::101\"\n"
+      "    exit 0\n"
+      "  fi\n"
+      "done\n"
+      "echo \"no_ip_here\"\n");
+
+  std::string device_ip;
+  EXPECT_EQ(GetDeviceIp(0, device_ip), SUCCESS);
+  EXPECT_EQ(device_ip, "121::101");
 }
 
 TEST_F(HixlUtilsUTest, GetBondIpAddress) {

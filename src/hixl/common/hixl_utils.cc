@@ -31,6 +31,11 @@ namespace {
 constexpr uint32_t kBufferMaxSize = 128U;
 constexpr const char kHccnConfPath[] = "/etc/hccn.conf";
 constexpr const char kHccnToolPath[] = "/usr/local/Ascend/driver/tools/hccn_tool";
+constexpr const char kHccnConfIpv4KeyPrefix[] = "address_";
+constexpr const char kHccnConfIpv6KeyPrefix[] = "IPv6address_";
+constexpr const char kHccnToolIpv4Query[] = "-ip -g";
+constexpr const char kHccnToolIpv6Query[] = "-ip -inet6 -g";
+constexpr size_t kValidHccnConfItemNum = 2U;
 
 const std::set<std::string> kSocV2 = {"Ascend910B1", "Ascend910B2",  "Ascend910B3",
                                       "Ascend910B4", "Ascend910B2C", "Ascend910B4-1"};
@@ -75,18 +80,49 @@ Status GetHccnOutput(const std::string &command, std::string &result) {
   return SUCCESS;
 }
 
+Status QueryIpAddressFromHccnTool(const std::string &hccn_tool_path, uint32_t phy_device_id,
+                                  const std::string &query_option, std::string &ip) {
+  ip.clear();
+  const std::string command = hccn_tool_path + " -i " + std::to_string(phy_device_id) + " " + query_option;
+  std::string output;
+  HIXL_CHK_STATUS_RET(GetHccnOutput(command, output), "Getting hccn output failed.");
+  ExtractIpAddress(output, ip);
+  return SUCCESS;
+}
+
 Status GetIpAddressFromHccnTool(uint32_t phy_device_id, std::string &ip) {
   auto hccn_tool_path = GetHccnToolPath();
   if (hccn_tool_path.empty()) {
     HIXL_EVENT("hccn_tool is not found in default path or PATH, skip querying device ip by tool.");
     return SUCCESS;
   }
-  std::string command = hccn_tool_path + " -i " + std::to_string(phy_device_id) + " -ip -g";
-  std::string output;
-  HIXL_CHK_STATUS_RET(GetHccnOutput(command, output), "Getting hccn output failed.");
-  ExtractIpAddress(output, ip);
+  HIXL_CHK_STATUS_RET(QueryIpAddressFromHccnTool(hccn_tool_path, phy_device_id, kHccnToolIpv4Query, ip),
+                      "Getting IPv4 address from hccn_tool failed.");
+  if (ip.empty()) {
+    HIXL_CHK_STATUS_RET(QueryIpAddressFromHccnTool(hccn_tool_path, phy_device_id, kHccnToolIpv6Query, ip),
+                        "Getting IPv6 address from hccn_tool failed.");
+  }
   if (ip.empty()) {
     HIXL_LOGW("Please make sure device ip is set correctly.");
+  }
+  return SUCCESS;
+}
+
+Status ReadDeviceIpFromHccnConf(std::ifstream &file, const std::string &target_key, std::string &device_ip) {
+  file.clear();
+  file.seekg(0, std::ios::beg);
+  std::string line;
+  while (std::getline(file, line)) {
+    if (line.find(target_key) != 0) {
+      continue;
+    }
+
+    const auto address_val = Split(line, '=');
+    HIXL_CHK_BOOL_RET_STATUS(address_val.size() == kValidHccnConfItemNum, FAILED,
+                             "address format is invalid: %s, expect %s${device_ip}", line.c_str(), target_key.c_str());
+    device_ip = address_val.back();
+    HIXL_CHK_STATUS_RET(CheckIp(device_ip), "device ip:%s is invalid.", device_ip.c_str());
+    return SUCCESS;
   }
   return SUCCESS;
 }
@@ -116,6 +152,7 @@ Status CheckIp(const std::string &ip) {
 }
 
 Status GetDeviceIp(int32_t phy_device_id, std::string &device_ip) {
+  device_ip.clear();
   char resolved_path[MMPA_MAX_PATH] = {};
   auto mm_ret = mmRealPath(kHccnConfPath, resolved_path, MMPA_MAX_PATH);
   if (mm_ret == EN_OK) {
@@ -125,22 +162,14 @@ Status GetDeviceIp(int32_t phy_device_id, std::string &device_ip) {
     std::ifstream file(resolved_path);
     HIXL_CHK_BOOL_RET_STATUS(file.is_open(), FAILED, "Failed to open file:%s", kHccnConfPath);
 
-    std::string line;
-    std::string target_key = "address_" + std::to_string(phy_device_id) + "=";
-    constexpr size_t kValidItemNum = 2U;
-    while (std::getline(file, line)) {
-      if (line.find(target_key) != 0) {
-        continue;
-      }
-
-      const auto address_val = Split(line, '=');
-      HIXL_CHK_BOOL_RET_STATUS(address_val.size() == kValidItemNum, FAILED,
-                               "address format is invalid: %s, expect address_${phy_device_id}=${device_ip}",
-                               line.c_str());
-      device_ip = address_val.back();
-      HIXL_CHK_STATUS_RET(CheckIp(device_ip), "device ip:%s is invalid.", device_ip.c_str());
+    const std::string ipv4_key = kHccnConfIpv4KeyPrefix + std::to_string(phy_device_id) + "=";
+    HIXL_CHK_STATUS_RET(ReadDeviceIpFromHccnConf(file, ipv4_key, device_ip), "Getting IPv4 address failed.");
+    if (!device_ip.empty()) {
       return SUCCESS;
     }
+
+    const std::string ipv6_key = kHccnConfIpv6KeyPrefix + std::to_string(phy_device_id) + "=";
+    HIXL_CHK_STATUS_RET(ReadDeviceIpFromHccnConf(file, ipv6_key, device_ip), "Getting IPv6 address failed.");
   } else {
     HIXL_LOGI("%s does not exist, trying to use hccn_tool to get device_ip.", kHccnConfPath);
     std::string ip;

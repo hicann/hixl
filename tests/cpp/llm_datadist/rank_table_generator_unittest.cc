@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <fstream>
 #include <memory>
 #include <set>
 #include <string>
@@ -43,6 +44,12 @@ std::set<std::string> CollectDevicePorts(const nlohmann::json &rank_table_json) 
   return device_ports;
 }
 
+void WriteHccnConf(const std::string &content) {
+  std::ofstream file("/tmp/hccn.conf");
+  ASSERT_TRUE(file.is_open());
+  file << content;
+}
+
 class AutoCommResV1RuntimeMock : public AutoCommResRuntimeMock {
  public:
   const char *aclrtGetSocName() override {
@@ -73,6 +80,16 @@ TEST_F(RankTableGeneratorUnitTest, GenerateV2LocalCommResWritesConfiguredDeviceP
   EXPECT_EQ(device.at("device_port").get<std::string>(), std::to_string(kDevicePort));
 }
 
+TEST_F(RankTableGeneratorUnitTest, GenerateV2LocalCommResWritesIpv6DeviceIp) {
+  WriteHccnConf("IPv6address_0=121::101\n");
+
+  std::string local_comm_res;
+  ASSERT_EQ(LocalCommResGenerator::Generate(kServerId, kDeviceId, local_comm_res), ge::SUCCESS);
+
+  const auto device = GetOnlyDevice(local_comm_res);
+  EXPECT_EQ(device.at("device_ip").get<std::string>(), "121::101");
+}
+
 TEST_F(RankTableGeneratorUnitTest, GenerateV1LocalCommResWritesConfiguredDevicePort) {
   AclRuntimeStub::SetInstance(std::make_shared<AutoCommResV1RuntimeMock>());
 
@@ -81,6 +98,17 @@ TEST_F(RankTableGeneratorUnitTest, GenerateV1LocalCommResWritesConfiguredDeviceP
 
   const auto device = GetOnlyDevice(local_comm_res);
   EXPECT_EQ(device.at("device_port").get<std::string>(), std::to_string(kDevicePort));
+}
+
+TEST_F(RankTableGeneratorUnitTest, GenerateV1LocalCommResWritesIpv6DeviceIp) {
+  AclRuntimeStub::SetInstance(std::make_shared<AutoCommResV1RuntimeMock>());
+  WriteHccnConf("IPv6address_0=121::101\n");
+
+  std::string local_comm_res;
+  ASSERT_EQ(LocalCommResGenerator::Generate(kServerId, kDeviceId, local_comm_res), ge::SUCCESS);
+
+  const auto device = GetOnlyDevice(local_comm_res);
+  EXPECT_EQ(device.at("device_ip").get<std::string>(), "121::101");
 }
 
 TEST_F(RankTableGeneratorUnitTest, GenerateLocalCommResOmitsDevicePortWhenUnset) {
