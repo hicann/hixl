@@ -8,11 +8,11 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-set_cann_package(hixl VERSION "9.1.0")
+set_cann_package(hixl VERSION "9.2.0")
 
-set_cann_build_dependencies(runtime ">=9.0.0")
-set_cann_build_dependencies(metadef ">=9.0.0")
-set_cann_build_dependencies(hcomm ">=9.0.0")
+set_cann_build_dependencies(runtime ">=9.1.0")
+set_cann_build_dependencies(metadef ">=9.1.0")
+set_cann_build_dependencies(hcomm ">=9.1.0")
 
 set_cann_run_dependencies(runtime ">=8.5")
 set_cann_run_dependencies(metadef ">=8.5")

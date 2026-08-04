@@ -29,6 +29,50 @@ validate_device_ids() {
     done
 }
 
+# Detect smoke env type from npu-smi NPU Name into ENV_TYPE.
+# 910B* -> A2; Ascend910* (and not 910B) -> A3. Extensible for future types.
+detect_npu_env_type() {
+    ENV_TYPE=""
+    if ! command -v npu-smi >/dev/null 2>&1; then
+        echo "ERROR: npu-smi command not found."
+        exit 1
+    fi
+
+    local npu_info
+    if ! npu_info=$(npu-smi info 2>&1); then
+        echo "ERROR: failed to run npu-smi info."
+        echo "${npu_info}"
+        exit 1
+    fi
+    echo "${npu_info}"
+
+    local npu_name
+    npu_name=$(echo "${npu_info}" | awk -F'|' '
+        $0 ~ /NPU[[:space:]]+Name/ { in_table=1; next }
+        in_table && $2 ~ /^[[:space:]]*[0-9]+[[:space:]]+/ {
+            split($2, fields, " ")
+            print fields[2]
+            exit
+        }
+    ')
+    if [ -z "${npu_name}" ]; then
+        echo "ERROR: failed to parse NPU Name from npu-smi info."
+        exit 1
+    fi
+    echo "NPU Name: ${npu_name}"
+
+    # Check 910B before Ascend910: names like 910B3 must map to A2.
+    if [[ "${npu_name}" == *910B* ]]; then
+        ENV_TYPE="A2"
+    elif [[ "${npu_name}" == *Ascend910* ]]; then
+        ENV_TYPE="A3"
+    else
+        echo "ERROR: unsupported NPU Name '${npu_name}'. Supported: *910B* (A2), *Ascend910* (A3)."
+        exit 1
+    fi
+    echo "Detected environment type: ${ENV_TYPE}"
+}
+
 run_pair() {
     local -a cmds=("$@")
     local num_cmds=${#cmds[@]}
@@ -137,7 +181,32 @@ run_comm_bench_pair() {
     "${bench_bin} --role=initiator --device_id=${client_device} --local_engine=${ip_address}:$((hixl_port + 1)) --remote_engine=${ip_address}:${hixl_port} ${initiator_args}"
 }
 
+run_hixl_cpp_examples() {
+    local device_id_1="$1"
+    local device_id_2="$2"
+    local env_type="$3"
+    local ip_address="${4:-127.0.0.1}"
+
+    # version=0: A2 and A3
+    run_pair "./hixl_example_d2rd --protocol=roce:device --device=${device_id_1},${device_id_2} --version=0"
+    run_pair "./hixl_example_d2rh --protocol=roce:device --device=${device_id_1},${device_id_2} --version=0"
+    run_pair "./hixl_example_d2rd_multiproc --role=server --protocol=roce:device --device=${device_id_2} --version=0" \
+    "./hixl_example_d2rd_multiproc --role=client --protocol=roce:device --device=${device_id_1} --version=0"
+
+    # version=1: A2 and A3
+    run_pair "./hixl_example_d2rd --protocol=roce:device --device=${device_id_1},${device_id_2} --version=1"
+    run_pair "./hixl_example_d2rh --protocol=roce:device --device=${device_id_1},${device_id_2} --version=1"
+    run_pair "./hixl_example_d2rd_multiproc --role=server --protocol=hccs:device --device=${device_id_2} --version=1" \
+    "./hixl_example_d2rd_multiproc --role=client --protocol=hccs:device --device=${device_id_1} --version=1"
+    run_pair "./hixl_example_d2rd_multiproc --role=server --protocol=roce:device --device=${device_id_2} --version=1" \
+    "./hixl_example_d2rd_multiproc --role=client --protocol=roce:device --device=${device_id_1} --version=1"
+
+}
+
 all_samples() {
+    detect_npu_env_type
+    local env_type="${ENV_TYPE}"
+
     # 若设置了 SOCKET_IFNAME 环境变量则使用环境变量中的网络接口名，否则默认使用 eth 或 enp 开头的网络接口名
     if [ -n "$SOCKET_IFNAME" ]; then
         NETWORK_INTERFACE_NAME="$SOCKET_IFNAME"
@@ -173,12 +242,7 @@ all_samples() {
     run_pair "./prompt_pull_cache_and_blocks ${device_id_1} ${IP_ADDRESS}" "./decoder_pull_cache_and_blocks ${device_id_2} ${IP_ADDRESS} ${IP_ADDRESS}"
     run_pair "./prompt_push_cache_and_blocks ${device_id_1} ${IP_ADDRESS} ${IP_ADDRESS}" "./decoder_push_cache_and_blocks ${device_id_2} ${IP_ADDRESS}"
     run_pair "./prompt_switch_roles ${device_id_1} ${IP_ADDRESS} ${IP_ADDRESS}" "./decoder_switch_roles ${device_id_2} ${IP_ADDRESS} ${IP_ADDRESS}"
-    run_pair "./hixl_example_d2rd --protocol=roce:device --device=${device_id_1},${device_id_2} --version=0"
-    run_pair "./hixl_example_d2rh --protocol=roce:device --device=${device_id_1},${device_id_2} --version=0"
-    run_pair "./hixl_example_d2rd_multiproc --role=server --protocol=hccs:device --device=${device_id_2}" \
-    "./hixl_example_d2rd_multiproc --role=client --protocol=hccs:device --device=${device_id_1}"
-    run_pair "./hixl_example_d2rd_multiproc --role=server --protocol=roce:device --device=${device_id_2} --version=0" \
-    "./hixl_example_d2rd_multiproc --role=client --protocol=roce:device --device=${device_id_1} --version=0"
+    run_hixl_cpp_examples "${device_id_1}" "${device_id_2}" "${env_type}" "${IP_ADDRESS}"
 
     cd "${BASEPATH}/python"
     # examples/python 单机用例
@@ -227,6 +291,9 @@ all_samples() {
 }
 
 smoke_test_samples() {
+    detect_npu_env_type
+    local env_type="${ENV_TYPE}"
+
     if [ $# -lt 2 ]; then
         echo "ERROR: At least 2 device IDs are required."
         exit 1
@@ -240,10 +307,7 @@ smoke_test_samples() {
     run_pair "./prompt_pull_cache_and_blocks ${device_id_1} 127.0.0.1" "./decoder_pull_cache_and_blocks ${device_id_2} 127.0.0.1 127.0.0.1"
     run_pair "./prompt_push_cache_and_blocks ${device_id_1} 127.0.0.1 127.0.0.1" "./decoder_push_cache_and_blocks ${device_id_2} 127.0.0.1"
     run_pair "./prompt_switch_roles ${device_id_1} 127.0.0.1 127.0.0.1" "./decoder_switch_roles ${device_id_2} 127.0.0.1 127.0.0.1"
-    run_pair "./hixl_example_d2rd --protocol=roce:device --device=${device_id_1},${device_id_2} --version=0"
-    run_pair "./hixl_example_d2rh --protocol=roce:device --device=${device_id_1},${device_id_2} --version=0"
-    run_pair "./hixl_example_d2rd_multiproc --role=server --protocol=roce:device --device=${device_id_2} --version=0" \
-    "./hixl_example_d2rd_multiproc --role=client --protocol=roce:device --device=${device_id_1} --version=0"
+    run_hixl_cpp_examples "${device_id_1}" "${device_id_2}" "${env_type}" "127.0.0.1"
 
     # Python examples
     cd "${BASEPATH}/python"
