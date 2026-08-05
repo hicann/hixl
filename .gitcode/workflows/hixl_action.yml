@@ -26,11 +26,29 @@ env:
   obs_path: "${{ vars.OBS_PATH }}/${{ env.MERGE_ID }}"
   obs_smoke_path_A2: "${{ env.obs_path }}/presmoke/2"
   obs_smoke_path_A3: "${{ env.obs_path }}/presmoke/3"
+  online: ${{ vars.APPLY_LABEL }}
 
 stages:
   stage1:
     name: PreBuild
     jobs:
+      JOB_pre:
+        name: Test_pre_pipeline
+        steps:
+          - name: pre_pipeline
+            uses: cann/.gitcode/actions/pre-pipeline@master
+            with:
+              owner: ${{ env.org_name }}
+              repo: ${{ env.repo_name }}
+              pr_number: ${{ atomgit.event.pull_request.number }}
+              token: ${{ secrets.GIT_TOKEN }}
+              apply_label: ${{ vars.APPLY_LABEL }}
+          - name: associate-pr-comment
+            uses: associate-pr-comment
+            if: env.online == 'true'
+        runs-on: [dedicate-hosted, x64, small]
+        container:
+          image: swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu20.04.05_x86:k8s_v1.1006
       JOB_image:
         name: Test_image
         steps:
@@ -83,6 +101,7 @@ stages:
                 ${{ steps.process_checkout.outputs.path }}/pr_filelist_mod.txt
                 ${{ steps.process_checkout.outputs.path }}/pr_filelist_precommit.txt
                 ${{ steps.process_checkout.outputs.path }}/update_file_detail.txt
+                ${{ steps.process_checkout.outputs.path }}/gitdiff.txt
               object-prefix: ${{ env.obs_path }}/
         runs-on:
         - default
@@ -154,35 +173,11 @@ stages:
           image_version: ${{ jobs.JOB_image.outputs.Compile_Ascend_ARM_ubuntu24 }}
           arch: 'arm64'
           package_name: 'cann-hixl_linux-aarch64_ubuntu24.run'
-      JOB_staticcheck_markdown:
-        name: CodeCheck_staticcheck_markdown
+      JOB_staticcheck_md_check:
+        name: CodeCheck_staticcheck_md_check
         uses: .gitcode/workflows/staticcheck_action.yml
         with:
-          check_type: 'markdown'
-          image_version: ${{ jobs.JOB_image.outputs.staticcheck }}
-      JOB_staticcheck_codespell_check:
-        name: CodeCheck_staticcheck_codespell_check
-        uses: .gitcode/workflows/staticcheck_action.yml
-        with:
-          check_type: 'codespell_check'
-          image_version: ${{ jobs.JOB_image.outputs.staticcheck }}
-      JOB_staticcheck_tag_closed_check:
-        name: CodeCheck_staticcheck_tag_closed_check
-        uses: .gitcode/workflows/staticcheck_action.yml
-        with:
-          check_type: 'tag_closed_check'
-          image_version: ${{ jobs.JOB_image.outputs.staticcheck }}
-      JOB_staticcheck_resource_existence_check:
-        name: CodeCheck_staticcheck_resource_existence_check
-        uses: .gitcode/workflows/staticcheck_action.yml
-        with:
-          check_type: 'resource_existence_check'
-          image_version: ${{ jobs.JOB_image.outputs.staticcheck }}
-      JOB_staticcheck_link_validity_check:
-        name: CodeCheck_staticcheck_link_validity_check
-        uses: .gitcode/workflows/staticcheck_action.yml
-        with:
-          check_type: 'link_validity_check'
+          check_type: 'md_check'
           image_version: ${{ jobs.JOB_image.outputs.staticcheck }}
     pre:
     - type: auto
