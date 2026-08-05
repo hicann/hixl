@@ -8,7 +8,7 @@
 enum MemType {
   MEM_DEVICE,
   MEM_HOST
-}
+};
 ```
 
 **TransferOp**
@@ -19,7 +19,7 @@ enum MemType {
 enum TransferOp {
   READ,
   WRITE
-}
+};
 ```
 
 **MemDesc**
@@ -31,7 +31,7 @@ struct MemDesc {
   uintptr_t addr;
   size_t len;
   uint8_t reserved[128] = {};
-}
+};
 ```
 
 **TransferOpDesc**
@@ -43,7 +43,7 @@ struct TransferOpDesc {
   uintptr_t local_addr;
   uintptr_t remote_addr;
   size_t len;
-}
+};
 ```
 
 **MemHandle**
@@ -62,7 +62,7 @@ Notify的描述信息。
 struct NotifyDesc {
   AscendString name;
   AscendString notify_msg;
-}
+};
 ```
 
 **FeatureType**
@@ -73,7 +73,7 @@ struct NotifyDesc {
 enum FeatureType : int32_t {
   AUTO_CONNECT = 0,
   CLIENT_SERVER_COMM = 1,
-}
+};
 ```
 
 |枚举值|描述|

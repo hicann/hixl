@@ -417,7 +417,7 @@ local_comm_res = '''{
 <!-- end id7 -->
 
 <!-- npu="910b" id8 -->
-Atlas A2 训练系列产品/Atlas A2 推理系列产品场景下，配置version为"1.0"时，仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见[《HCCL集合通信库用户指南》](https://www.hiascend.com/document/redirect/CannCommunityHcclUg)。配置示例如下。
+Atlas A2 训练系列产品/Atlas A2 推理系列产品场景下，配置version为"1.0"时，仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见[《HCCL集合通信库用户指南》](https://gitcode.com/cann/hccl/blob/9.2.0-beta.1/docs/zh/user_guide/README.md)。配置示例如下。
 
 ```sh
 {
@@ -445,7 +445,7 @@ local_comm_res = ""
 ```
 
 <!-- npu="A3" id9 -->
-Atlas A3 训练系列产品/Atlas A3 推理系列产品场景下，配置version为"1.2"时，仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见[《HCCL集合通信库用户指南》](https://www.hiascend.com/document/redirect/CannCommunityHcclUg)。配置示例如下。
+Atlas A3 训练系列产品/Atlas A3 推理系列产品场景下，配置version为"1.2"时，仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见[《HCCL集合通信库用户指南》](https://gitcode.com/cann/hccl/blob/9.2.0-beta.1/docs/zh/user_guide/README.md)。配置示例如下。
 
 ```sh
 {

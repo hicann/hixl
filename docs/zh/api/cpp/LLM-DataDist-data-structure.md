@@ -10,7 +10,7 @@ enum class LlmRole : int32_t {
   kDecoder = 2,     // 角色为Decoder
   kMix = 3,         // 角色为Mix
   kEnd              // 无效值
-}
+};
 ```
 
 ## CachePlacement
@@ -21,7 +21,7 @@ Cache的内存类型
 enum class CachePlacement : uint32_t {
   kHost = 0U,             // Cache为Host内存
   kDevice = 1U,           // Cache为Device内存
-}
+};
 ```
 
 ## CacheDesc
@@ -35,7 +35,7 @@ struct CacheDesc {
   DataType data_type = DT_UNDEFINED;                     // Cache中tensor的数据类型
   std::vector<int64_t> shape;                            // Cache中tensor的shape
   uint8_t reserved[128];                                 // 预留
-}
+};
 ```
 
 ## CacheIndex
@@ -48,7 +48,7 @@ struct CacheIndex {
   int64_t cache_id;           // cache的ID
   uint32_t batch_index;       // PullKvCache时用于指定batch的下标
   uint8_t reserved[128];      // 预留
-}
+};
 ```
 
 ## Cache
@@ -61,7 +61,7 @@ struct Cache {
   std::vector<uintptr_t> tensor_addrs;       // Cache中各tensor的地址, 在单进程多卡场景中，多卡的地址依次排列。
   CacheDesc cache_desc;                      // Cache描述
   uint8_t reserved[128];                     // 预留
-}
+};
 ```
 
 ## ClusterInfo和IpInfo
@@ -75,13 +75,13 @@ struct ClusterInfo {
   std::vector<IpInfo> local_ip_infos;  // 本地LLM-DataDist的IP信息，详见如下结构体IpInfo
   std::vector<IpInfo> remote_ip_infos; // 对端LLM-DataDist的IP信息，详见如下结构体IpInfo
   uint8_t reserved[128];               // 预留
-}
+};
 
 struct IpInfo {
   AscendString ip;         // IP地址
   uint16_t port = 0U;      // 端口号
   uint8_t reserved[128];   // 预留
-}
+};
 ```
 
 ## KvCacheExtParam
@@ -94,7 +94,7 @@ struct KvCacheExtParam {
   std::pair<int32_t, int32_t> dst_layer_range{-1, -1};  // KV传输时目的端的层数范围
   uint8_t tensor_num_per_layer = 2U;                       // KV传输时一层的tensor数量
   uint8_t reserved[127];                                   // 预留字段
-}
+};
 ```
 
 ## RegisterCfg
@@ -104,5 +104,5 @@ struct KvCacheExtParam {
 ```cpp
 struct RegisterCfg {
   uint8_t reserved[128] = {0};  // 预留字段
-}
+};
 ```
