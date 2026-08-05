@@ -194,6 +194,15 @@ TEST_F(HixlOptionsUTest, ParseAutoConnectTrue) {
   EXPECT_TRUE(*result.AutoConnect());
 }
 
+TEST_F(HixlOptionsUTest, ParseAutoConnectFalse) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_AUTO_CONNECT] = "0";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.AutoConnect().has_value());
+  EXPECT_FALSE(*result.AutoConnect());
+}
+
 TEST_F(HixlOptionsUTest, ParseAutoConnectEmpty) {
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_AUTO_CONNECT] = "";

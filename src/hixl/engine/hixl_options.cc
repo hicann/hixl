@@ -277,7 +277,7 @@ Status HixlOptions::ParseAutoConnectOptions(const std::map<AscendString, AscendS
   HIXL_CHK_BOOL_RET_STATUS(auto_connect == 0U || auto_connect == 1U, PARAM_INVALID,
                            "%s is invalid, should be zero or one.", hixl::OPTION_AUTO_CONNECT);
   auto_connect_ = (auto_connect == 1U);
-  HIXL_EVENT("ParseAutoConnectOptions success: auto_connect=%d", auto_connect_);
+  HIXL_EVENT("ParseAutoConnectOptions success: auto_connect=%d", auto_connect_.value());
   return SUCCESS;
 }
 
