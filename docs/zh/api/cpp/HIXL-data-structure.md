@@ -9,7 +9,7 @@ struct MemDesc {
   uintptr_t addr;
   size_t len;
   uint8_t reserved[128] = {};
-}
+};
 ```
 
 ## MemHandle
@@ -28,7 +28,7 @@ using MemHandle = void *;
 enum MemType {
   MEM_DEVICE,
   MEM_HOST
-}
+};
 ```
 
 ## AsyncConnectStatus
@@ -55,7 +55,7 @@ enum class AsyncConnectStatus {
 enum TransferOp {
   READ,
   WRITE
-}
+};
 ```
 
 ## TransferOpDesc
@@ -67,7 +67,7 @@ struct TransferOpDesc {
   uintptr_t local_addr;
   uintptr_t remote_addr;
   size_t len;
-}
+};
 ```
 
 ## TransferArgs
@@ -99,7 +99,7 @@ enum class TransferStatus {
   COMPLETED,
   TIMEOUT, //暂不支持
   FAILED
-}
+};
 ```
 
 ## GetTransferStatusArgs
@@ -146,7 +146,7 @@ struct NotifyDesc {
 enum FeatureType : int32_t {
   AUTO_CONNECT = 0,
   CLIENT_SERVER_COMM = 1,
-}
+};
 ```
 
 | 枚举值 | 描述 |
