@@ -63,13 +63,13 @@ class ChannelPoolSystemTest : public ::testing::Test {
   void SetUp() override {
     llm::MockMmpaForHcclApi::Install();
     llm::AutoCommResRuntimeMock::Install();
-    llm::LlmHcclAdapter::GetInstance().Initialize();
+    llm::CommAdapter::GetInstance().Initialize();
     options_["GlobalResourceConfig"] =
         R"({"channel_pool.max_channel":"10","channel_pool.high_waterline":"0.3","channel_pool.low_waterline":"0.1"})";
   }
 
   void TearDown() override {
-    llm::LlmHcclAdapter::GetInstance().Finalize();
+    llm::CommAdapter::GetInstance().Finalize();
     llm::MockMmpaForHcclApi::Reset();
     llm::AutoCommResRuntimeMock::Reset();
   }

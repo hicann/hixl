@@ -63,7 +63,7 @@ class HixlSTest : public ::testing::Test {
   void TearDown() override {
     // 恢复全局心跳默认值，避免 TestHeartbeat 的 10ms/50ms 污染同进程后续用例。
     llm::test::ResetHeartbeatConfig();
-    llm::LlmHcclAdapter::GetInstance().Finalize();
+    llm::CommAdapter::GetInstance().Finalize();
     llm::AutoCommResRuntimeMock::Reset();
     llm::MockMmpaForHcclApi::Reset();
   }

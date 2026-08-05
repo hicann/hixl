@@ -16,7 +16,7 @@
 #include "link_mgr/comm_entity.h"
 #include "utils/task_batcher.h"
 #include "common/llm_thread_pool.h"
-#include "adapter_hccl/llm_hccl_adapter.h"
+#include "comm_adapter/comm_adapter.h"
 
 namespace llm {
 struct BufferContext {

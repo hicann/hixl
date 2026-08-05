@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "llm_hccl_adapter.h"
+#include "comm_adapter.h"
 #include <map>
 #include "mmpa/mmpa_api.h"
 #include "common/common.h"
@@ -32,18 +32,18 @@ constexpr const char *kHcclCommUnbindMemName = "HcclCommUnbindMem";
 constexpr const char *kHcclCommPrepareName = "HcclCommPrepare";
 }  // namespace
 
-ge::Status LlmHcclAdapter::Initialize() {
+ge::Status CommAdapter::Initialize() {
   return LoadSo();
 }
-void LlmHcclAdapter::Finalize() {
+void CommAdapter::Finalize() {
   (void)UnloadSo();
 }
 
-LlmHcclAdapter::~LlmHcclAdapter() {
+CommAdapter::~CommAdapter() {
   Finalize();
 }
 
-ge::Status LlmHcclAdapter::LoadSo() {
+ge::Status CommAdapter::LoadSo() {
   std::lock_guard<std::mutex> lock(mutex_);
   if (so_handle_ != nullptr) {
     return ge::SUCCESS;
@@ -99,7 +99,7 @@ ge::Status LlmHcclAdapter::LoadSo() {
   return ret;
 }
 
-ge::Status LlmHcclAdapter::UnloadSo() {
+ge::Status CommAdapter::UnloadSo() {
   std::lock_guard<std::mutex> lock(mutex_);
   dl_hccl_exchange_mem_desc_func_ = nullptr;
   dl_hccl_comm_init_cluster_info_mem_func_ = nullptr;
@@ -116,13 +116,13 @@ ge::Status LlmHcclAdapter::UnloadSo() {
   return ge::SUCCESS;
 }
 
-LlmHcclAdapter &LlmHcclAdapter::GetInstance() {
-  static LlmHcclAdapter manager;
+CommAdapter &CommAdapter::GetInstance() {
+  static CommAdapter manager;
   return manager;
 }
 
-HcclResult LlmHcclAdapter::DlHcclExchangeMemDesc(HcclComm comm, uint32_t remote_rank, HcclMemDescs *local, int timeout,
-                                                 HcclMemDescs *remote, uint32_t *actual_num) {
+HcclResult CommAdapter::DlHcclExchangeMemDesc(HcclComm comm, uint32_t remote_rank, HcclMemDescs *local, int timeout,
+                                                  HcclMemDescs *remote, uint32_t *actual_num) const {
   const auto start = std::chrono::steady_clock::now();
   auto ret = dl_hccl_exchange_mem_desc_func_(comm, remote_rank, local, timeout, remote, actual_num);
   const auto end = std::chrono::steady_clock::now();
@@ -131,8 +131,8 @@ HcclResult LlmHcclAdapter::DlHcclExchangeMemDesc(HcclComm comm, uint32_t remote_
   return ret;
 }
 
-HcclResult LlmHcclAdapter::DlHcclCommInitClusterInfoMemConfig(const char *cluster, uint32_t rank,
-                                                              HcclCommConfig *config, HcclComm *comm) {
+HcclResult CommAdapter::DlHcclCommInitClusterInfoMemConfig(const char *cluster, uint32_t rank,
+                                                               HcclCommConfig *config, HcclComm *comm) const {
   const auto start = std::chrono::steady_clock::now();
   auto ret = dl_hccl_comm_init_cluster_info_mem_func_(cluster, rank, config, comm);
   const auto end = std::chrono::steady_clock::now();
@@ -141,7 +141,7 @@ HcclResult LlmHcclAdapter::DlHcclCommInitClusterInfoMemConfig(const char *cluste
   return ret;
 }
 
-void LlmHcclAdapter::DlHcclCommConfigInit(HcclCommConfig *config) {
+void CommAdapter::DlHcclCommConfigInit(HcclCommConfig *config) const {
   const uint32_t HCCL_COMM_CONFIG_MAGIC_WORD = 0xf0f0f0f0;
   const uint32_t HCCL_COMM_CONFIG_VERSION = 5U;
   const uint32_t HCCL_COMM_DEFAULT_BUFFSIZE = 200U;
@@ -150,12 +150,12 @@ void LlmHcclAdapter::DlHcclCommConfigInit(HcclCommConfig *config) {
   // 0xffffffff表示用户未配置TC或SL
   const uint32_t HCCL_COMM_TRAFFIC_CLASS_CONFIG_NOT_SET = 0xffffffff;
   const uint32_t HCCL_COMM_SERVICE_LEVEL_CONFIG_NOT_SET = 0xffffffff;
-  typedef struct {
+  struct HcclConfigInfo {
     size_t configSize;
     uint32_t hcclMagicWord;
     uint32_t hcclVersion;
     uint64_t reserved;
-  } HcclConfigInfo;
+  };
   auto *info = reinterpret_cast<HcclConfigInfo *>(config);
   info->configSize = sizeof(HcclCommConfig);
   info->hcclMagicWord = HCCL_COMM_CONFIG_MAGIC_WORD;
@@ -171,7 +171,7 @@ void LlmHcclAdapter::DlHcclCommConfigInit(HcclCommConfig *config) {
   config->hcclRdmaServiceLevel = HCCL_COMM_SERVICE_LEVEL_CONFIG_NOT_SET;
 }
 
-HcclResult LlmHcclAdapter::DlHcclCommDestroy(HcclComm comm) {
+HcclResult CommAdapter::DlHcclCommDestroy(HcclComm comm) const {
   const auto start = std::chrono::steady_clock::now();
   auto ret = dl_hccl_comm_destroy_func_(comm);
   const auto end = std::chrono::steady_clock::now();
@@ -180,8 +180,8 @@ HcclResult LlmHcclAdapter::DlHcclCommDestroy(HcclComm comm) {
   return ret;
 }
 
-HcclResult LlmHcclAdapter::DlHcclBatchPut(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc,
-                                          uint32_t desc_num, aclrtStream stream) {
+HcclResult CommAdapter::DlHcclBatchPut(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc,
+                                           uint32_t desc_num, aclrtStream stream) const {
   const auto start = std::chrono::steady_clock::now();
   auto ret = dl_hccl_batch_put_func_(comm, remote_rank, desc, desc_num, stream);
   const auto end = std::chrono::steady_clock::now();
@@ -190,19 +190,19 @@ HcclResult LlmHcclAdapter::DlHcclBatchPut(HcclComm comm, uint32_t remote_rank, H
   return ret;
 }
 
-HcclResult LlmHcclAdapter::DlHcclBatchGet(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc,
-                                          uint32_t desc_num, aclrtStream stream) const {
+HcclResult CommAdapter::DlHcclBatchGet(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc,
+                                           uint32_t desc_num, aclrtStream stream) const {
   auto ret = dl_hccl_batch_get_func_(comm, remote_rank, desc, desc_num, stream);
   return ret;
 }
 
-HcclResult LlmHcclAdapter::DlHcclRemapRegisteredMemory(HcclComm *comm, CommMem *mem_info_array, uint64_t comm_size,
-                                                       uint64_t arraySize) const {
+HcclResult CommAdapter::DlHcclRemapRegisteredMemory(HcclComm *comm, CommMem *mem_info_array, uint64_t comm_size,
+                                                        uint64_t arraySize) const {
   auto ret = dl_hccl_remap_registered_memory_func_(comm, mem_info_array, comm_size, arraySize);
   return ret;
 }
 
-HcclResult LlmHcclAdapter::DlHcclRegisterGlobalMem(CommMem *mem, void **mem_handle) const {
+HcclResult CommAdapter::DlHcclRegisterGlobalMem(CommMem *mem, void **mem_handle) const {
   auto ret = HCCL_E_NOT_SUPPORT;
   if (dl_hccl_register_global_mem_func_ != nullptr) {
     ret = dl_hccl_register_global_mem_func_(mem, mem_handle);
@@ -211,7 +211,7 @@ HcclResult LlmHcclAdapter::DlHcclRegisterGlobalMem(CommMem *mem, void **mem_hand
   return ret;
 }
 
-HcclResult LlmHcclAdapter::DlHcclDeregisterGlobalMem(void *mem_handle) const {
+HcclResult CommAdapter::DlHcclDeregisterGlobalMem(void *mem_handle) const {
   auto ret = HCCL_E_NOT_SUPPORT;
   if (dl_hccl_deregister_global_mem_func_ != nullptr) {
     ret = dl_hccl_deregister_global_mem_func_(mem_handle);
@@ -220,7 +220,7 @@ HcclResult LlmHcclAdapter::DlHcclDeregisterGlobalMem(void *mem_handle) const {
   return ret;
 }
 
-HcclResult LlmHcclAdapter::DlHcclCommBindMem(HcclComm comm, void *mem_handle) const {
+HcclResult CommAdapter::DlHcclCommBindMem(HcclComm comm, void *mem_handle) const {
   auto ret = HCCL_E_NOT_SUPPORT;
   if (dl_hccl_comm_bind_mem_func_ != nullptr) {
     ret = dl_hccl_comm_bind_mem_func_(comm, mem_handle);
@@ -229,7 +229,7 @@ HcclResult LlmHcclAdapter::DlHcclCommBindMem(HcclComm comm, void *mem_handle) co
   return ret;
 }
 
-HcclResult LlmHcclAdapter::DlHcclCommUnbindMem(HcclComm comm, void *mem_handle) const {
+HcclResult CommAdapter::DlHcclCommUnbindMem(HcclComm comm, void *mem_handle) const {
   auto ret = HCCL_E_NOT_SUPPORT;
   if (dl_hccl_comm_unbind_mem_func_ != nullptr) {
     ret = dl_hccl_comm_unbind_mem_func_(comm, mem_handle);
@@ -238,7 +238,7 @@ HcclResult LlmHcclAdapter::DlHcclCommUnbindMem(HcclComm comm, void *mem_handle) 
   return ret;
 }
 
-HcclResult LlmHcclAdapter::DlHcclCommPrepare(HcclComm comm, HcclPrepareConfig *prepare_config, int32_t timeout) const {
+HcclResult CommAdapter::DlHcclCommPrepare(HcclComm comm, HcclPrepareConfig *prepare_config, int32_t timeout) const {
   auto ret = HCCL_E_NOT_SUPPORT;
   if (dl_hccl_comm_prepare_func_ != nullptr) {
     const auto start = std::chrono::steady_clock::now();
@@ -250,7 +250,7 @@ HcclResult LlmHcclAdapter::DlHcclCommPrepare(HcclComm comm, HcclPrepareConfig *p
   return ret;
 }
 
-ge::Status LlmHcclUtils::ConvertHcclErrorToStatus(HcclResult hccl_result, ge::Status default_status) {
+ge::Status CommUtils::ConvertCommErrorToStatus(HcclResult hccl_result, ge::Status default_status) {
   const static std::map<HcclResult, ge::Status> hccl_to_ge_status = {
       {HCCL_E_PARA, ge::LLM_PARAM_INVALID},
       {HCCL_E_TIMEOUT, ge::LLM_TIMEOUT},
@@ -263,7 +263,7 @@ ge::Status LlmHcclUtils::ConvertHcclErrorToStatus(HcclResult hccl_result, ge::St
   return default_status;
 }
 
-const std::string LlmHcclUtils::ConvertCommMemTypeToString(CommMemType type) {
+const std::string CommUtils::ConvertCommMemTypeToString(CommMemType type) {
   switch (type) {
     case COMM_MEM_TYPE_DEVICE:
       return "device";

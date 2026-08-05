@@ -128,7 +128,7 @@ Status ReadDeviceIpFromHccnConf(std::ifstream &file, const std::string &target_k
 }
 
 }  // namespace
-Status ConvertHcclErrorToStatus(HcclResult ret) {
+Status ConvertHcommErrorToStatus(HcclResult ret) {
   static const std::map<HcclResult, Status> result2status = {
       {HCCL_SUCCESS, SUCCESS},
       {HCCL_E_PARA, PARAM_INVALID},

@@ -51,11 +51,11 @@ void DataCacheEngineTestContext::Initialize(size_t pool_size, bool use_host_pool
       options[llm::kLlmOptionEnableRemoteCacheAccessible] = "1";
     }
 
-    hccl_transfer_engine_.SetCommEntityManager(&comm_entity_manager_);
-    hccl_transfer_engine_.SetCacheManager(&cache_manager_);
-    comm_mem_manager_.Initialize(&hccl_transfer_engine_);
-    GlobalMemManager::GetInstance().Initialize(&hccl_transfer_engine_);
-    hccl_transfer_engine_.Initialize(options);
+    comm_transfer_engine_.SetCommEntityManager(&comm_entity_manager_);
+    comm_transfer_engine_.SetCacheManager(&cache_manager_);
+    comm_mem_manager_.Initialize(&comm_transfer_engine_);
+    GlobalMemManager::GetInstance().Initialize(&comm_transfer_engine_);
+    comm_transfer_engine_.Initialize(options);
     comm_entity_manager_.Initialize(!use_batch_get);
     comm_entity_ = std::make_shared<CommEntity>(0, 0, 0, 0, 0);
     comm_entity_->Initialize(use_batch_get);

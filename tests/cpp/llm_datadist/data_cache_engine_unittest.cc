@@ -32,7 +32,7 @@ class DataCacheEngineTest : public ::testing::Test {
   void SetUp() override {
     llm::MockMmpaForHcclApi::Install();
     llm::AclRuntimeStub::SetInstance(std::make_shared<DataCacheEngineRuntimeMock>());
-    llm::LlmHcclAdapter::GetInstance().Initialize();
+    llm::CommAdapter::GetInstance().Initialize();
 
     cache_engine_.SetCommEntityManager(&comm_entity_manager_);
     cache_engine_.SetCommMemManager(&comm_mem_manager_);
@@ -47,7 +47,7 @@ class DataCacheEngineTest : public ::testing::Test {
 
   void TearDown() override {
     llm::AclRuntimeStub::Reset();
-    llm::LlmHcclAdapter::GetInstance().Finalize();
+    llm::CommAdapter::GetInstance().Finalize();
     llm::MockMmpaForHcclApi::Reset();
 
     comm_entity_manager_.Finalize();
@@ -62,7 +62,7 @@ class DataCacheEngineTest : public ::testing::Test {
   CommMemManager comm_mem_manager_;
   DataCacheEngine cache_engine_;
   CacheManager cache_manager_;
-  llm::LlmHcclTransferEngine transfer_engine_;
+  llm::CommTransferEngine transfer_engine_;
 };
 
 namespace {
@@ -107,7 +107,7 @@ llm::CacheDesc DefaultSwapTestCacheDesc() {
 }
 
 void InitSwapTestDataDist(llm::LLMDataDistV2 &llm_data_dist) {
-  llm::LlmHcclAdapter::GetInstance().Finalize();
+  llm::CommAdapter::GetInstance().Finalize();
   EXPECT_EQ(llm_data_dist.LLMDataDistInitialize(DefaultSwapTestOptions()), ge::SUCCESS);
 }
 }  // namespace
@@ -374,12 +374,12 @@ TEST_F(DataCacheEngineTest, InitializeMemoryPool_Failed) {
   std::map<ge::AscendString, ge::AscendString> options;
   llm::CommEntityManager comm_entity_manager;
   llm::CommMemManager comm_mem_manager;
-  llm::LlmHcclTransferEngine hccl_transfer_engine(0);
-  hccl_transfer_engine.SetCommEntityManager(&comm_entity_manager);
-  hccl_transfer_engine.SetCacheManager(&cache_manager);
-  comm_mem_manager.Initialize(&hccl_transfer_engine);
-  GlobalMemManager::GetInstance().Initialize(&hccl_transfer_engine);
-  hccl_transfer_engine.Initialize(options);
+  llm::CommTransferEngine comm_transfer_engine(0);
+  comm_transfer_engine.SetCommEntityManager(&comm_entity_manager);
+  comm_transfer_engine.SetCacheManager(&cache_manager);
+  comm_mem_manager.Initialize(&comm_transfer_engine);
+  GlobalMemManager::GetInstance().Initialize(&comm_transfer_engine);
+  comm_transfer_engine.Initialize(options);
   options[llm::LLM_OPTION_MEM_POOL_CONFIG] = "{}";
   EXPECT_EQ(cache_engine.Initialize(options), ge::LLM_PARAM_INVALID);
   options[llm::LLM_OPTION_MEM_POOL_CONFIG] = "{memory_size}";
@@ -1522,7 +1522,7 @@ TEST_F(DataCacheEngineTest, PullCache_D2D_C2C_ByKey) {
 }
 
 TEST_F(DataCacheEngineTest, LlmDataDistV2ApiTest) {
-  llm::LlmHcclAdapter::GetInstance().Finalize();
+  llm::CommAdapter::GetInstance().Finalize();
   llm::LLMDataDistV2 llm_data_dist(2);
   std::map<ge::AscendString, ge::AscendString> default_options{
       {llm::LLM_OPTION_ROLE, llm::kDecoder},
@@ -1651,7 +1651,7 @@ TEST_F(DataCacheEngineTest, SwapBlocksWithAddressOnlyCacheId) {
 }
 
 TEST_F(DataCacheEngineTest, SwapBlocksInvalidMapping) {
-  llm::LlmHcclAdapter::GetInstance().Finalize();
+  llm::CommAdapter::GetInstance().Finalize();
   llm::LLMDataDistV2 llm_data_dist(1);
   std::map<ge::AscendString, ge::AscendString> default_options{
       {llm::LLM_OPTION_ROLE, llm::kDecoder},
@@ -1807,10 +1807,10 @@ TEST_F(DataCacheEngineTest, TransferCache_D2D_B2B_invalid_dst_layer_index) {
   ASSERT_EQ(test_runner.RunTransfer(transfer_cache_config, transfer_block_config), ge::LLM_PARAM_INVALID);
 }
 
-TEST_F(DataCacheEngineTest, ConvertHcclErrorToStatus) {
-  ASSERT_EQ(LlmHcclUtils::ConvertHcclErrorToStatus(HCCL_E_PARA), ge::LLM_PARAM_INVALID);
-  ASSERT_EQ(LlmHcclUtils::ConvertHcclErrorToStatus(HCCL_E_TIMEOUT), ge::LLM_TIMEOUT);
-  ASSERT_EQ(LlmHcclUtils::ConvertHcclErrorToStatus(HCCL_E_INTERNAL, ge::LLM_PARAM_INVALID), ge::LLM_PARAM_INVALID);
+TEST_F(DataCacheEngineTest, ConvertCommErrorToStatus) {
+  ASSERT_EQ(CommUtils::ConvertCommErrorToStatus(HCCL_E_PARA), ge::LLM_PARAM_INVALID);
+  ASSERT_EQ(CommUtils::ConvertCommErrorToStatus(HCCL_E_TIMEOUT), ge::LLM_TIMEOUT);
+  ASSERT_EQ(CommUtils::ConvertCommErrorToStatus(HCCL_E_INTERNAL, ge::LLM_PARAM_INVALID), ge::LLM_PARAM_INVALID);
 }
 
 namespace {

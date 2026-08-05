@@ -14,7 +14,7 @@
 #include "adxl/adxl_types.h"
 #include "common/rank_table_generator.h"
 #include "common/msg_handler_plugin.h"
-#include "adapter_hccl/llm_hccl_adapter.h"
+#include "comm_adapter/comm_adapter.h"
 #include "common/llm_utils.h"
 #include "comm_channel.h"
 #include "common/llm_checker.h"
@@ -182,7 +182,7 @@ Status ChannelMsgHandler::Initialize(const std::map<AscendString, AscendString> 
   HIXL_CHK_STATUS_RET(hixl::ParseListenInfo(listen_info_, local_ip_, listen_port_), "Failed to parse listen info");
   ADXL_CHK_LLM_RET(llm::LocalCommResGenerator::Generate(local_ip_, device_id_, local_comm_res_, device_port_),
                    "Failed to generate local comm res, local_ip:%s, device_id:%d", local_ip_.c_str(), device_id_);
-  llm::LlmHcclAdapter::GetInstance().DlHcclCommConfigInit(&comm_config_);
+  llm::CommAdapter::GetInstance().DlHcclCommConfigInit(&comm_config_);
   ADXL_CHK_STATUS_RET(ParseTrafficClass(options), "Failed to parse traffic class");
   ADXL_CHK_STATUS_RET(ParseServiceLevel(options), "Failed to parse service level");
   handler_plugin_.Initialize();
@@ -209,7 +209,7 @@ void ChannelMsgHandler::Finalize() {
   std::lock_guard<std::mutex> lock(mutex_);
   for (const auto &it : handle_to_addr_) {
     auto handle = it.first;
-    (void)llm::LlmHcclAdapter::GetInstance().DlHcclDeregisterGlobalMem(handle);
+    (void)llm::CommAdapter::GetInstance().DlHcclDeregisterGlobalMem(handle);
   }
   handle_to_addr_.clear();
   if (segment_table_ != nullptr) {
@@ -227,7 +227,7 @@ Status ChannelMsgHandler::RegisterMem(const MemDesc &mem, MemType type, MemHandl
   hccl_mem.type = type == MEM_DEVICE ? COMM_MEM_TYPE_DEVICE : COMM_MEM_TYPE_HOST;
   hccl_mem.addr = reinterpret_cast<void *>(mem.addr);
   hccl_mem.size = mem.len;
-  ADXL_CHK_HCCL_RET(llm::LlmHcclAdapter::GetInstance().DlHcclRegisterGlobalMem(&hccl_mem, &mem_handle));
+  ADXL_CHK_HCCL_RET(llm::CommAdapter::GetInstance().DlHcclRegisterGlobalMem(&hccl_mem, &mem_handle));
   LLMLOGI("Add local mem range start:%lu, end:%lu, type:%s, channel:%s.", mem.addr, mem_end,
           hixl::MemTypeToString(static_cast<hixl::MemType>(type)).c_str(), listen_info_.c_str());
   // keep same lock order with DeregisterMem
@@ -249,7 +249,7 @@ Status ChannelMsgHandler::DeregisterMem(MemHandle mem_handle) {
   auto &addr_info = it->second;
   ADXL_CHK_BOOL_RET_STATUS(segment_table_ != nullptr, FAILED, "Segment table is null.");
   segment_table_->RemoveRange(listen_info_, addr_info.start_addr, addr_info.end_addr, addr_info.mem_type);
-  ADXL_CHK_HCCL_RET(llm::LlmHcclAdapter::GetInstance().DlHcclDeregisterGlobalMem(mem_handle));
+  ADXL_CHK_HCCL_RET(llm::CommAdapter::GetInstance().DlHcclDeregisterGlobalMem(mem_handle));
   handle_to_addr_.erase(it);
   LLMLOGI("DeregisterMem success: handle=%p, total registered handles=%zu.", mem_handle, handle_to_addr_.size());
   return SUCCESS;

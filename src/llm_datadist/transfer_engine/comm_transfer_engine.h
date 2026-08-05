@@ -8,17 +8,17 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef HIXL_SRC_LLM_DATADIST_TRANSFER_ENGINE_LLM_HCCL_TRANSFER_ENGINE_H_
-#define HIXL_SRC_LLM_DATADIST_TRANSFER_ENGINE_LLM_HCCL_TRANSFER_ENGINE_H_
+#ifndef HIXL_SRC_LLM_DATADIST_TRANSFER_ENGINE_COMM_TRANSFER_ENGINE_H_
+#define HIXL_SRC_LLM_DATADIST_TRANSFER_ENGINE_COMM_TRANSFER_ENGINE_H_
 
 #include "transfer_engine.h"
 #include "link_mgr/llm_link_manager.h"
 
 namespace llm {
-class LlmHcclTransferEngine : public TransferEngine {
+class CommTransferEngine : public TransferEngine {
  public:
-  LlmHcclTransferEngine(uint64_t cluster_id) : TransferEngine(cluster_id) {};
-  ~LlmHcclTransferEngine() override;
+  CommTransferEngine(uint64_t cluster_id) : TransferEngine(cluster_id) {};
+  ~CommTransferEngine() override;
   ge::Status Initialize(const std::map<ge::AscendString, ge::AscendString> &options) override;
   void Finalize() override;
 
@@ -42,4 +42,4 @@ class LlmHcclTransferEngine : public TransferEngine {
   std::unique_ptr<LLMLinkManager> llm_link_mgr_ = nullptr;
 };
 }  // namespace llm
-#endif  // HIXL_SRC_LLM_DATADIST_TRANSFER_ENGINE_LLM_HCCL_TRANSFER_ENGINE_H_
+#endif  // HIXL_SRC_LLM_DATADIST_TRANSFER_ENGINE_COMM_TRANSFER_ENGINE_H_

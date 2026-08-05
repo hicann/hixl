@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef HCCL_MEM_COMM_H
-#define HCCL_MEM_COMM_H
+#ifndef HIXL_SRC_LLM_DATADIST_COMM_ADAPTER_COMM_TYPES_H_
+#define HIXL_SRC_LLM_DATADIST_COMM_ADAPTER_COMM_TYPES_H_
 #include "hccl/hccl_types.h"
 #include "hccl/base.h"
 #include "hcomm/hcomm_res_defs.h"

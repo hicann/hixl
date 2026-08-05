@@ -11,7 +11,7 @@
 #include "transfer_engine.h"
 #include "llm_datadist/llm_datadist.h"
 #include "common/llm_log.h"
-#include "llm_hccl_transfer_engine.h"
+#include "comm_transfer_engine.h"
 #include "hixl_transfer_engine.h"
 
 namespace llm {
@@ -31,7 +31,7 @@ std::unique_ptr<TransferEngine> TransferEngineFactory::Create(
     const std::map<ge::AscendString, ge::AscendString> &options, uint64_t cluster_id) {
   const auto iter = options.find(llm_datadist::OPTION_TRANSFER_BACKEND);
   if (iter == options.cend()) {
-    return MakeUnique<LlmHcclTransferEngine>(cluster_id);
+    return MakeUnique<CommTransferEngine>(cluster_id);
   }
   const std::string &backend = iter->second.GetString();
   if (backend != kOptionHixlTransferBackend) {

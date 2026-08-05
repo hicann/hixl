@@ -192,8 +192,8 @@ ge::Status CommEntityManager::RemapRegisteredMemory(const std::vector<LLMMemInfo
     hccl_mems.emplace_back(hccl_mem);
   }
   const auto start = std::chrono::steady_clock::now();
-  auto ret = LlmHcclAdapter::GetInstance().DlHcclRemapRegisteredMemory(&comms[0], &hccl_mems[0], comms.size(),
-                                                                       hccl_mems.size());
+  auto ret =
+      CommAdapter::GetInstance().DlHcclRemapRegisteredMemory(&comms[0], &hccl_mems[0], comms.size(), hccl_mems.size());
   LLM_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ge::FAILED, "Failed to invoke DlHcclRemapRegisteredMemory, ret = %d",
                           static_cast<int32_t>(ret));
   const auto end = std::chrono::steady_clock::now();

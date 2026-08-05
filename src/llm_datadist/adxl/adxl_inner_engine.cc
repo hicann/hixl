@@ -10,7 +10,7 @@
 
 #include "adxl_inner_engine.h"
 #include "acl/acl.h"
-#include "adapter_hccl/llm_hccl_adapter.h"
+#include "comm_adapter/comm_adapter.h"
 #include "common/llm_utils.h"
 #include "common/llm_scope_guard.h"
 #include "common/llm_checker.h"
@@ -168,7 +168,7 @@ Status AdxlInnerEngine::Initialize(const std::map<AscendString, AscendString> &o
   std::lock_guard<std::mutex> lk(mutex_);
 
   ADXL_CHK_STATUS_RET(LoadGlobalResourceConfig(options), "Failed to load global resource config.");
-  ADXL_CHK_LLM_RET(llm::LlmHcclAdapter::GetInstance().Initialize(), "LlmHcclAdapter initialize failed.");
+  ADXL_CHK_LLM_RET(llm::CommAdapter::GetInstance().Initialize(), "CommAdapter initialize failed.");
   int32_t device_id = -1;
   ADXL_CHK_ACL_RET(aclrtGetDevice(&device_id));
   hixl::TemporaryRtContext with_context(nullptr);

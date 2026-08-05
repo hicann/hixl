@@ -16,7 +16,7 @@
 #include <fstream>
 #include <cstdio>  // for std::remove
 #include "cache_mgr/data_cache_engine.h"
-#include "transfer_engine/llm_hccl_transfer_engine.h"
+#include "transfer_engine/comm_transfer_engine.h"
 #include "common/llm_utils.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/ascendcl/src/ascendcl_stub.h"
@@ -291,7 +291,7 @@ class AutoCommResRuntimeMock : public llm::AclRuntimeStub {
 
 class DataCacheEngineTestContext {
  public:
-  DataCacheEngineTestContext() : hccl_transfer_engine_(0) {}
+  DataCacheEngineTestContext() : comm_transfer_engine_(0) {}
   void Finalize();
 
   void Initialize(size_t pool_size = 102428800, bool use_host_pool = false, bool use_batch_get = false);
@@ -306,7 +306,7 @@ class DataCacheEngineTestContext {
                            llm::CommEntityManager &dst_comm_entity_manager, bool remote_cache_accessible = false);
 
  private:
-  llm::LlmHcclTransferEngine hccl_transfer_engine_;
+  llm::CommTransferEngine comm_transfer_engine_;
   llm::DataCacheEngine cache_engine_;
   std::shared_ptr<llm::CommEntity> comm_entity_;
   llm::CacheManager cache_manager_;

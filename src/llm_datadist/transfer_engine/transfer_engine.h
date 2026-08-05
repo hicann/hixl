@@ -16,7 +16,7 @@
 #include <vector>
 #include "llm_datadist/llm_error_codes.h"
 #include "common/llm_inner_types.h"
-#include "adapter_hccl/llm_hccl_mem_comm.h"
+#include "comm_adapter/comm_types.h"
 #include "link_mgr/comm_entity_manager.h"
 #include "cache_mgr/cache_manager.h"
 

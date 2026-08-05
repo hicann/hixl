@@ -26,7 +26,8 @@
 
 namespace adxl {
 namespace {
-// hccl DlHcclCommInitClusterInfoMemConfig not support parallel call, so use mutex to protect it
+// the underlying hccl library does not support parallel HcclCommInitClusterInfoMemConfig calls, so use mutex to protect
+// it
 std::mutex g_mutex_;
 constexpr uint32_t kMaxOpDescNum = 256U;
 constexpr int64_t kHeartbeatTimeoutInMillis = 120000;
@@ -52,10 +53,9 @@ Status CommChannel::Initialize() {
   std::vector<void *> bind_handles;
   LLM_DISMISSABLE_GUARD(fail_guard, ([this, &bind_handles]() {
                           for (auto bind_handle : bind_handles) {
-                            (void)llm::LlmHcclAdapter::GetInstance().DlHcclCommUnbindMem(channel_info_.comm,
-                                                                                         bind_handle);
+                            (void)llm::CommAdapter::GetInstance().DlHcclCommUnbindMem(channel_info_.comm, bind_handle);
                           }
-                          (void)llm::LlmHcclAdapter::GetInstance().DlHcclCommDestroy(channel_info_.comm);
+                          (void)llm::CommAdapter::GetInstance().DlHcclCommDestroy(channel_info_.comm);
                         }));
   ADXL_CHK_STATUS_RET(BindRegisteredMemory(bind_handles), "Failed to bind registered memory");
   ADXL_CHK_STATUS_RET(PrepareHcclComm(hccl_start), "Failed to prepare hccl comm");
@@ -77,7 +77,7 @@ Status CommChannel::InitializeHcclComm() {
           channel_info_.comm_config.hcclCommName, channel_info_.local_rank_id, channel_info_.rank_table.c_str());
   std::lock_guard<std::mutex> lock(g_mutex_);
   const auto start = std::chrono::steady_clock::now();
-  ADXL_CHK_HCCL_RET(llm::LlmHcclAdapter::GetInstance().DlHcclCommInitClusterInfoMemConfig(
+  ADXL_CHK_HCCL_RET(llm::CommAdapter::GetInstance().DlHcclCommInitClusterInfoMemConfig(
       channel_info_.rank_table.c_str(), channel_info_.local_rank_id, &channel_info_.comm_config, &channel_info_.comm));
   const auto cost = GetDurationUs(start, std::chrono::steady_clock::now());
   StatisticManager::GetInstance().UpdateHcclCommInitCost(GetStatisticChannelId(), cost);
@@ -90,7 +90,7 @@ Status CommChannel::BindRegisteredMemory(std::vector<void *> &bind_handles) {
   const auto start = std::chrono::steady_clock::now();
   for (const auto &reg_handle_it : channel_info_.registered_mems) {
     auto reg_handle = reg_handle_it.first;
-    ADXL_CHK_HCCL_RET(llm::LlmHcclAdapter::GetInstance().DlHcclCommBindMem(channel_info_.comm, reg_handle));
+    ADXL_CHK_HCCL_RET(llm::CommAdapter::GetInstance().DlHcclCommBindMem(channel_info_.comm, reg_handle));
     bind_handles.emplace_back(reg_handle);
   }
   const auto cost = GetDurationUs(start, std::chrono::steady_clock::now());
@@ -102,8 +102,8 @@ Status CommChannel::BindRegisteredMemory(std::vector<void *> &bind_handles) {
 Status CommChannel::PrepareHcclComm(const std::chrono::steady_clock::time_point &hccl_start) {
   const auto start = std::chrono::steady_clock::now();
   HcclPrepareConfig prepareConfig{};
-  ADXL_CHK_HCCL_RET(llm::LlmHcclAdapter::GetInstance().DlHcclCommPrepare(channel_info_.comm, &prepareConfig,
-                                                                         channel_info_.timeout_sec));
+  ADXL_CHK_HCCL_RET(
+      llm::CommAdapter::GetInstance().DlHcclCommPrepare(channel_info_.comm, &prepareConfig, channel_info_.timeout_sec));
   const auto end = std::chrono::steady_clock::now();
   const auto prepare_cost = GetDurationUs(start, end);
   StatisticManager::GetInstance().UpdateHcclCommPrepareCost(GetStatisticChannelId(), prepare_cost);
@@ -187,11 +187,11 @@ Status CommChannel::TeardownHcclComm() {
   auto ret = SUCCESS;
   for (const auto &reg_handle_it : channel_info_.registered_mems) {
     auto reg_handle = reg_handle_it.first;
-    auto hccl_ret = llm::LlmHcclAdapter::GetInstance().DlHcclCommUnbindMem(channel_info_.comm, reg_handle);
+    auto hccl_ret = llm::CommAdapter::GetInstance().DlHcclCommUnbindMem(channel_info_.comm, reg_handle);
     ret = hccl_ret != HcclResult::HCCL_SUCCESS ? FAILED : ret;
   }
   if (channel_info_.comm != nullptr) {
-    auto hccl_ret = llm::LlmHcclAdapter::GetInstance().DlHcclCommDestroy(channel_info_.comm);
+    auto hccl_ret = llm::CommAdapter::GetInstance().DlHcclCommDestroy(channel_info_.comm);
     channel_info_.comm = nullptr;
     ret = hccl_ret != HcclResult::HCCL_SUCCESS ? FAILED : ret;
   }
@@ -458,13 +458,13 @@ Status CommChannel::IssueHcclBatch(TransferOp operation, const std::vector<Trans
   auto trans_func = [this, operation, &stream](HcclOneSideOpDesc *descs, uint32_t desc_num) -> Status {
     HcclResult ret = HCCL_SUCCESS;
     if (operation == READ) {
-      ret = llm::LlmHcclAdapter::GetInstance().DlHcclBatchGet(channel_info_.comm, channel_info_.peer_rank_id, descs,
-                                                              desc_num, stream);
+      ret = llm::CommAdapter::GetInstance().DlHcclBatchGet(channel_info_.comm, channel_info_.peer_rank_id, descs,
+                                                           desc_num, stream);
     } else {
-      ret = llm::LlmHcclAdapter::GetInstance().DlHcclBatchPut(channel_info_.comm, channel_info_.peer_rank_id, descs,
-                                                              desc_num, stream);
+      ret = llm::CommAdapter::GetInstance().DlHcclBatchPut(channel_info_.comm, channel_info_.peer_rank_id, descs,
+                                                           desc_num, stream);
     }
-    ADXL_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ConvertHcclErrorToAdxlStatus(ret),
+    ADXL_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ConvertCommErrorToAdxlStatus(ret),
                              "Failed to invoke %s, hccl_result = %d",
                              operation == READ ? "DlHcclBatchGet" : "DlHcclBatchPut", static_cast<int32_t>(ret));
     return SUCCESS;
@@ -496,13 +496,13 @@ Status CommChannel::TransferAsyncWithTimeout(TransferOp operation, const std::ve
       ADXL_CHK_BOOL_RET_STATUS(cost < timeout, TIMEOUT, "Transfer timeout.");
       HcclResult ret = HCCL_SUCCESS;
       if (operation == READ) {
-        ret = llm::LlmHcclAdapter::GetInstance().DlHcclBatchGet(channel_info_.comm, channel_info_.peer_rank_id,
-                                                                hccl_op_descs.data(), hccl_op_descs.size(), stream);
+        ret = llm::CommAdapter::GetInstance().DlHcclBatchGet(channel_info_.comm, channel_info_.peer_rank_id,
+                                                             hccl_op_descs.data(), hccl_op_descs.size(), stream);
       } else {
-        ret = llm::LlmHcclAdapter::GetInstance().DlHcclBatchPut(channel_info_.comm, channel_info_.peer_rank_id,
-                                                                hccl_op_descs.data(), hccl_op_descs.size(), stream);
+        ret = llm::CommAdapter::GetInstance().DlHcclBatchPut(channel_info_.comm, channel_info_.peer_rank_id,
+                                                             hccl_op_descs.data(), hccl_op_descs.size(), stream);
       }
-      ADXL_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ConvertHcclErrorToAdxlStatus(ret),
+      ADXL_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS, ConvertCommErrorToAdxlStatus(ret),
                                "Failed to invoke %s, hccl_result = %d",
                                operation == READ ? "DlHcclBatchGet" : "DlHcclBatchPut", static_cast<int32_t>(ret));
       hccl_op_descs.clear();

@@ -8,15 +8,15 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_LLM_HCCL_ADAPTER_H_
-#define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_LLM_HCCL_ADAPTER_H_
+#ifndef HIXL_SRC_LLM_DATADIST_COMM_ADAPTER_COMM_ADAPTER_H_
+#define HIXL_SRC_LLM_DATADIST_COMM_ADAPTER_COMM_ADAPTER_H_
 
 #include <mutex>
 #include "acl/acl.h"
 #include "mmpa/mmpa_api.h"
 
 #include "llm_datadist/llm_error_codes.h"
-#include "llm_hccl_mem_comm.h"
+#include "comm_types.h"
 
 namespace llm {
 using DlHcclExchangeMemDescFunc = HcclResult (*)(HcclComm comm, uint32_t remote_rank, HcclMemDescs *local, int timeout,
@@ -38,20 +38,20 @@ using DlHcclCommBindMemFunc = HcclResult (*)(HcclComm comm, void *mem_handle);
 using DlHcclCommUnbindMemFunc = HcclResult (*)(HcclComm comm, void *mem_handle);
 using DlHcclCommPrepareFunc = HcclResult (*)(HcclComm comm, HcclPrepareConfig *prepare_config, int32_t timeout);
 
-class LlmHcclAdapter {
+class CommAdapter {
  public:
-  static LlmHcclAdapter &GetInstance();
-  ~LlmHcclAdapter();
+  static CommAdapter &GetInstance();
+  ~CommAdapter();
   ge::Status Initialize();
   void Finalize();
   HcclResult DlHcclExchangeMemDesc(HcclComm comm, uint32_t remote_rank, HcclMemDescs *local, int timeout,
-                                   HcclMemDescs *remote, uint32_t *actual_num);
-  void DlHcclCommConfigInit(HcclCommConfig *config);
+                                   HcclMemDescs *remote, uint32_t *actual_num) const;
+  void DlHcclCommConfigInit(HcclCommConfig *config) const;
   HcclResult DlHcclCommInitClusterInfoMemConfig(const char *cluster, uint32_t rank, HcclCommConfig *config,
-                                                HcclComm *comm);
-  HcclResult DlHcclCommDestroy(HcclComm comm);
+                                                HcclComm *comm) const;
+  HcclResult DlHcclCommDestroy(HcclComm comm) const;
   HcclResult DlHcclBatchPut(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t desc_num,
-                            aclrtStream stream);
+                            aclrtStream stream) const;
   HcclResult DlHcclBatchGet(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t desc_num,
                             aclrtStream stream) const;
   HcclResult DlHcclRemapRegisteredMemory(HcclComm *comm, CommMem *mem_info_array, uint64_t comm_size,
@@ -61,15 +61,15 @@ class LlmHcclAdapter {
   HcclResult DlHcclCommBindMem(HcclComm comm, void *mem_handle) const;
   HcclResult DlHcclCommUnbindMem(HcclComm comm, void *mem_handle) const;
   HcclResult DlHcclCommPrepare(HcclComm comm, HcclPrepareConfig *prepare_config, int32_t timeout) const;
-  LlmHcclAdapter(const LlmHcclAdapter &) = delete;
-  LlmHcclAdapter(const LlmHcclAdapter &&) = delete;
-  LlmHcclAdapter &operator=(const LlmHcclAdapter &) = delete;
-  LlmHcclAdapter &operator=(const LlmHcclAdapter &&) = delete;
+  CommAdapter(const CommAdapter &) = delete;
+  CommAdapter(const CommAdapter &&) = delete;
+  CommAdapter &operator=(const CommAdapter &) = delete;
+  CommAdapter &operator=(const CommAdapter &&) = delete;
 
  private:
   ge::Status LoadSo();
   ge::Status UnloadSo();
-  LlmHcclAdapter() = default;
+  CommAdapter() = default;
 
   std::mutex mutex_;
   void *so_handle_ = nullptr;
@@ -86,9 +86,9 @@ class LlmHcclAdapter {
   DlHcclCommPrepareFunc dl_hccl_comm_prepare_func_{};
 };
 
-class LlmHcclUtils {
+class CommUtils {
  public:
-  static ge::Status ConvertHcclErrorToStatus(HcclResult hccl_result, ge::Status default_status = ge::FAILED);
+  static ge::Status ConvertCommErrorToStatus(HcclResult hccl_result, ge::Status default_status = ge::FAILED);
   static const std::string ConvertCommMemTypeToString(CommMemType type);
 };
 
@@ -114,4 +114,4 @@ class FunctionLoader {
 };
 }  // namespace llm
 
-#endif  // CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_LLM_HCCL_ADAPTER_H_
+#endif  // HIXL_SRC_LLM_DATADIST_COMM_ADAPTER_COMM_ADAPTER_H_

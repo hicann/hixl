@@ -13,7 +13,7 @@
 
 #include "common/llm_inner_types.h"
 #include "cache_mgr/data_cache_engine.h"
-#include "adapter_hccl/llm_hccl_adapter.h"
+#include "comm_adapter/comm_adapter.h"
 #include "link_mgr/comm_entity_manager.h"
 #include "cache_mgr/cache_manager.h"
 

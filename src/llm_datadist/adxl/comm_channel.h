@@ -22,7 +22,7 @@
 #include "nlohmann/json.hpp"
 #include "acl/acl.h"
 #include "adxl/adxl_types.h"
-#include "adapter_hccl/llm_hccl_adapter.h"
+#include "comm_adapter/comm_adapter.h"
 #include "control_msg_handler.h"
 #include "adxl/transfer_slot_pool.h"
 

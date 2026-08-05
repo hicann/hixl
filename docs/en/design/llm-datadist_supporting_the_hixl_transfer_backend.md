@@ -153,16 +153,16 @@ direction TB
     LLMLinkManager ..> CommEntityManager : CreateEntity(2)
     LLMDataDistV2 ..> DataCacheEngine : Pull(3)
     DataCacheEngine ..> CommEntity : Pull(3)
-    CommMemManager ..> LlmHcclAdapter : Reg Mem(1)
-    CommEntity ..> LlmHcclAdapter : Link(2)
-    CommEntity ..> LlmHcclAdapter : Pull(3)
+    CommMemManager ..> CommAdapter : Reg Mem(1)
+    CommEntity ..> CommAdapter : Link(2)
+    CommEntity ..> CommAdapter : Pull(3)
 ```
 - LLMDataDistV2 is the main entry point and exposes link establishment, unlink, memory registration, deregistration, and data transfer capabilities.
 - DataCacheEngine provides memory registration, deregistration, and transfer capabilities.
 - LLMLinkManager provides link establishment and unlink capabilities.
 - CommMemManager provides memory registration and deregistration capabilities.
 - CommEntityManager provides link management capabilities. Each CommEntity represents a point-to-point transfer link.
-- LlmHcclAdapter provides underlying link establishment, unlink, memory registration, deregistration, and data transfer.
+- CommAdapter provides underlying link establishment, unlink, memory registration, deregistration, and data transfer.
 
 
 **Main Relationship of the Class Diagram for LLM-DataDist Integration With the HCCL One-Sided Communication Library**:
@@ -185,9 +185,9 @@ direction TB
     LLMDataDistV2 --> CommMemManager
     CommMemManager --> TransferEngine
     TransferEngineFactory ..> TransferEngine
-    TransferEngine --|> LlmHcclTransferEngine
+    TransferEngine --|> CommTransferEngine
     TransferEngine --|> HixlTransferEngine
-    LlmHcclTransferEngine --> LLMLinkManager
+    CommTransferEngine --> LLMLinkManager
     HixlTransferEngine --> HixlEngine
     CommEntity --|> HixlEntity
     LLMDataDistV2 ..> DataCacheEngine : Reg Mem
@@ -198,12 +198,12 @@ direction TB
     LLMLinkManager ..> CommEntityManager : AddEntity
     LLMDataDistV2 ..> DataCacheEngine : Pull
     DataCacheEngine ..> CommEntity : Pull
-    CommEntity ..> LlmHcclTransferEngine : Pull
+    CommEntity ..> CommTransferEngine : Pull
     HixlEntity ..> HixlTransferEngine : Pull
 
 	class HixlEntity:::Rose
 	class TransferEngine:::Rose
-	class LlmHcclTransferEngine:::Rose
+	class CommTransferEngine:::Rose
 	class TransferEngineFactory:::Rose
 	class HixlTransferEngine:::Rose
 	class HixlEngine:::Rose
@@ -214,7 +214,7 @@ direction TB
 ```
 - The link establishment, unlink, memory registration, deregistration, and transfer processes are abstracted as TransferEngine. A factory class is provided to create different instances based on the passed OPTION_TRANSFER_BACKEND. If the specified format version is 1.3, Hixl-related instances are created. Otherwise, instances of the original version are generated to remain compatible with the previous logic.
 - HixlTransferEngine provides link establishment, unlink, registration, deregistration, and transfer capabilities of the hixl engine.
-- LlmHcclTransferEngine is compatible with the native logic and uses hccl-related APIs to provide link establishment, unlink, registration, deregistration, and transfer capabilities.
+- CommTransferEngine is compatible with the native logic and uses hccl-related APIs to provide link establishment, unlink, registration, deregistration, and transfer capabilities.
 
 **Initialization Process Sequence Diagram**:
 ```mermaid
@@ -226,8 +226,8 @@ sequenceDiagram
     TransferEngineFactory ->> HixlTransferEngine: Construct and initialize
     HixlTransferEngine ->> HixlEngine: Construct and initialize,<br>and use the hixl transfer backend
   else backend is not set
-    TransferEngineFactory ->> LlmHcclTransferEngine: Construct and initialize
-    LlmHcclTransferEngine ->> LLMLinkManager: Construct and initialize
+    TransferEngineFactory ->> CommTransferEngine: Construct and initialize
+    CommTransferEngine ->> LLMLinkManager: Construct and initialize
   end
   TransferEngineFactory -->> LLMDataDistV2: Return the transfer engine instance
   LLMDataDistV2 ->> LLMDataDistV2: Set the transfer engine instance to<br>comm_mem_manager for registration
@@ -237,7 +237,7 @@ sequenceDiagram
 ```
 - Whether the transfer backend option value is hixl determines whether the new flow is used. Otherwise, the old-version logic remains compatible.
 - In the new flow, the hixl engine stored by HixlTransferEngine is used for memory registration, deregistration, link establishment, and transfer. Initialization requires listen ip info.
-- The compatible flow provides capabilities through LlmHcclTransferEngine and is basically the same as the original initialization flow, so details are not repeated.
+- The compatible flow provides capabilities through CommTransferEngine and is basically the same as the original initialization flow, so details are not repeated.
 
 **Memory Registration and Deregistration Process Sequence Diagram**:
 ```mermaid
@@ -246,7 +246,7 @@ sequenceDiagram
   LlmDataDist ->> LLMDataDistV2: RegisterCache,<br>KV memory registration
   LLMDataDistV2 ->> DataCacheEngine: Register
   DataCacheEngine ->> CommMemManager: RegisterCacheMem
-  CommMemManager ->> TransferEngine: Different transfer backends provide memory registration capabilities.<br>The hixl backend is provided by HixlTransferEngine.<br>Otherwise, LlmHcclTransferEngine provides them.
+  CommMemManager ->> TransferEngine: Different transfer backends provide memory registration capabilities.<br>The hixl backend is provided by HixlTransferEngine.<br>Otherwise, CommTransferEngine provides them.
   TransferEngine -->> CommMemManager:
   CommMemManager -->> DataCacheEngine:
   DataCacheEngine -->> LLMDataDistV2:
@@ -297,8 +297,8 @@ sequenceDiagram
     HixlTransferEngine ->> HixlEngine: Transfer, batch transfer
   else
     CommEntityManager ->> CommEntity: Get entity
-    CommEntity ->> LlmHcclTransferEngine: BatchTransfer, batch transfer
-    LlmHcclTransferEngine ->> LlmHcclAdapter: BatchGet/BatchPut, batch transfer
+    CommEntity ->> CommTransferEngine: BatchTransfer, batch transfer
+    CommTransferEngine ->> CommAdapter: BatchGet/BatchPut, batch transfer
   end
   DataCacheEngine -->> LLMDataDistV2:
   LLMDataDistV2 -->> LlmDataDist:
