@@ -40,6 +40,8 @@ class TransferPool {
     uint32_t notify_id;
     uint64_t notify_addr;
     uint32_t notify_len;
+    uint8_t *err_flag_host_addr;
+    uint64_t err_flag_dev_addr;
   };
 
   TransferPool(const TransferPool &) = delete;
@@ -68,6 +70,8 @@ class TransferPool {
     uint32_t notify_id;
     uint64_t notify_addr;
     uint32_t notify_len;
+    uint8_t *err_flag_host_addr;
+    uint64_t err_flag_dev_addr;
   };
 
   void InitFreeListLocked();
@@ -84,6 +88,13 @@ class TransferPool {
   Status EnsureDefaultStreamLocked(Slot &slot) const;
   Status EnsureThreadLocked(Slot &slot) const;
   Status DestroySlotLocked(Slot &slot, bool sync_context = true) const;
+
+  Status EnsureErrFlagMemLocked();
+  Status AllocErrFlagHostMappedLocked(uint64_t total_size, uint32_t logic_dev_id);
+  Status AllocErrFlagDeviceMappedLocked(uint64_t total_size, uint32_t logic_dev_id);
+  void FreeErrFlagMemLocked();
+  void AssignSlotErrFlagLocked(Slot &slot, uint32_t slot_index) const;
+  void ResetSlotErrFlagLocked(uint32_t slot_index) const;
 
   void AbortInUseStreamsLocked() const;
   static void AbortInUseStreamLocked(const Slot &slot);
@@ -126,6 +137,9 @@ class TransferPool {
   std::deque<uint32_t> free_list_;
   std::vector<Slot> slots_;
   void *dev_const_one_{nullptr};
+  void *err_flag_host_base_{nullptr};
+  void *err_flag_device_base_{nullptr};
+  bool err_flag_from_device_{false};
   aclrtContext rts_context_{nullptr};
   aclrtBinHandle kernel_bin_handle_{nullptr};
   DeviceFuncHandles device_func_handles_{};

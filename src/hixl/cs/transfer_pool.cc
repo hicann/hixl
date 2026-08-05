@@ -23,6 +23,7 @@
 #include "common/scope_guard.h"
 #include "load_kernel.h"
 #include "notify_addr_resolver.h"
+#include "proxy/ascend_hal_proxy.h"
 #include "proxy/hcomm_proxy.h"
 
 namespace {
@@ -120,6 +121,10 @@ Status TransferPool::InitializeResourcesLocked() {
   if (ret != SUCCESS) {
     return ret;
   }
+  ret = EnsureErrFlagMemLocked();
+  if (ret != SUCCESS) {
+    return ret;
+  }
   ret = InitAllSlotsLocked();
   if (ret != SUCCESS) {
     return ret;
@@ -194,6 +199,7 @@ void TransferPool::Release(const SlotHandle &handle) {
     HIXL_LOGW("[TransferPool] Release slot %u not in use (device_id=%d)", handle.slot_index, device_id_);
     return;
   }
+  ResetSlotErrFlagLocked(handle.slot_index);
   slot.in_use = false;
   free_list_.push_back(handle.slot_index);
   HIXL_LOGI("[TransferPool] Release success. device_id=%d slot=%u", device_id_, handle.slot_index);
@@ -264,6 +270,8 @@ void TransferPool::FillHandleFromSlot(int32_t device_id, uint32_t index, const S
   handle->notify_id = slot.notify_id;
   handle->notify_addr = slot.notify_addr;
   handle->notify_len = slot.notify_len;
+  handle->err_flag_host_addr = slot.err_flag_host_addr;
+  handle->err_flag_dev_addr = slot.err_flag_dev_addr;
 }
 
 Status TransferPool::InitAllSlotsLocked() {
@@ -278,11 +286,11 @@ Status TransferPool::InitAllSlotsLocked() {
 }
 
 Status TransferPool::InitOneSlotLocked(Slot &slot, uint32_t slot_index) const {
-  (void)slot_index;
   HIXL_CHK_STATUS_RET(EnsureContextLocked(slot), "[TransferPool] EnsureContextLocked failed");
   HIXL_CHK_STATUS_RET(EnsureDefaultStreamLocked(slot), "[TransferPool] EnsureDefaultStreamLocked failed");
   HIXL_CHK_STATUS_RET(EnsureThreadLocked(slot), "[TransferPool] EnsureThreadLocked failed");
   HIXL_CHK_STATUS_RET(EnsureNotifyLocked(slot), "[TransferPool] EnsureNotifyLocked failed");
+  AssignSlotErrFlagLocked(slot, slot_index);
   return SUCCESS;
 }
 
@@ -400,6 +408,7 @@ Status TransferPool::ReinitSlotAfterAbortLocked(Slot &slot, uint32_t slot_index)
 }
 
 void TransferPool::ReturnSlotToFreeListLocked(uint32_t slot_index) {
+  ResetSlotErrFlagLocked(slot_index);
   Slot &slot = slots_[slot_index];
   slot.in_use = false;
   free_list_.push_back(slot_index);
@@ -447,6 +456,10 @@ void TransferPool::DeinitAllSlotsLocked() {
                     "[TransferPool] DeinitAllSlotsLocked destroy slot failed, idx=%u", i);
     slots_[i] = Slot{};
     slots_[i].in_use = false;
+  }
+  if ((err_flag_host_base_ != nullptr) || (err_flag_device_base_ != nullptr)) {
+    const hixl::TemporaryRtContext rts_guard(rts_context_);
+    FreeErrFlagMemLocked();
   }
   if (kernel_bin_handle_ != nullptr) {
     const hixl::TemporaryRtContext rts_guard(rts_context_);
@@ -512,6 +525,144 @@ Status TransferPool::EnsureDevConstOneLocked() {
       "[TransferPool] aclrtMemcpy dev_const_one_ failed");
   HIXL_LOGI("[TransferPool] dev_const_one initialized at %p on device %d", dev_const_one_, device_id_);
   return SUCCESS;
+}
+
+Status TransferPool::AllocErrFlagHostMappedLocked(uint64_t total_size, uint32_t logic_dev_id) {
+  err_flag_from_device_ = false;
+  void *host_va = nullptr;
+  HIXL_CHK_ACL_RET(aclrtMallocHost(&host_va, total_size), "[TransferPool] aclrtMallocHost err_flag failed");
+  HIXL_DISMISSABLE_GUARD(err_flag_guard, ([this, &host_va]() {
+                           if (host_va != nullptr) {
+                             HIXL_CHK_ACL(aclrtFreeHost(host_va));
+                             host_va = nullptr;
+                           }
+                           err_flag_host_base_ = nullptr;
+                           err_flag_device_base_ = nullptr;
+                         }));
+  HIXL_CHK_ACL_RET(aclrtMemset(host_va, total_size, 0, total_size), "[TransferPool] aclrtMemset err_flag failed");
+
+  void *device_va = nullptr;
+  const Status reg_ret =
+      AscendHalProxy::HostRegister(host_va, total_size, kHostMemMapDevPcieTh, logic_dev_id, &device_va);
+  if (reg_ret != SUCCESS) {
+    HIXL_LOGW("[TransferPool] halHostRegister HOST_MEM_MAP_DEV_PCIE_TH failed, continue without device mapping");
+    return SUCCESS;
+  }
+
+  err_flag_host_base_ = host_va;
+  err_flag_device_base_ = device_va;
+  HIXL_DISMISS_GUARD(err_flag_guard);
+  return SUCCESS;
+}
+
+Status TransferPool::AllocErrFlagDeviceMappedLocked(uint64_t total_size, uint32_t logic_dev_id) {
+  err_flag_from_device_ = true;
+  void *device_va = nullptr;
+  HIXL_DISMISSABLE_GUARD(err_flag_guard, ([this, &device_va]() {
+                           if (device_va != nullptr) {
+                             HIXL_CHK_ACL(aclrtFree(device_va));
+                             device_va = nullptr;
+                           }
+                           err_flag_host_base_ = nullptr;
+                           err_flag_device_base_ = nullptr;
+                           err_flag_from_device_ = false;
+                         }));
+  HIXL_CHK_ACL_RET(aclrtMalloc(&device_va, total_size, static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH)),
+                   "[TransferPool] aclrtMalloc err_flag device failed");
+  HIXL_CHK_ACL_RET(aclrtMemset(device_va, total_size, 0, total_size), "[TransferPool] aclrtMemset err_flag failed");
+
+  void *host_va = nullptr;
+  const Status reg_ret = AscendHalProxy::HostRegister(device_va, total_size, kDevSvmMapHost, logic_dev_id, &host_va);
+  if (reg_ret != SUCCESS) {
+    HIXL_LOGW("[TransferPool] halHostRegister DEV_SVM_MAP_HOST failed, continue without host mapping");
+    return SUCCESS;
+  }
+
+  err_flag_device_base_ = device_va;
+  err_flag_host_base_ = host_va;
+  HIXL_DISMISS_GUARD(err_flag_guard);
+  return SUCCESS;
+}
+
+Status TransferPool::EnsureErrFlagMemLocked() {
+  if ((err_flag_host_base_ != nullptr) || (err_flag_device_base_ != nullptr)) {
+    return SUCCESS;
+  }
+  const uint64_t total_size = static_cast<uint64_t>(pool_size_) * sizeof(uint8_t);
+  int32_t logic_dev_id = 0;
+  HIXL_CHK_ACL_RET(aclrtGetLogicDevIdByUserDevId(device_id_, &logic_dev_id),
+                   "[TransferPool] aclrtGetLogicDevIdByUserDevId failed. device_id=%d logic_dev_id=%d", device_id_,
+                   logic_dev_id);
+  SocType soc_type = SocType::kOther;
+  const Status soc_ret = GetSocType(soc_type);
+  if (soc_ret != SUCCESS) {
+    HIXL_LOGW("[TransferPool] GetSocType failed, skip err_flag allocation. ret=%d device_id=%d logic_dev_id=%d",
+              static_cast<int32_t>(soc_ret), device_id_, logic_dev_id);
+    return SUCCESS;
+  }
+  if ((soc_type == SocType::kV2) || (soc_type == SocType::kV3)) {
+    HIXL_CHK_STATUS_RET(AllocErrFlagDeviceMappedLocked(total_size, static_cast<uint32_t>(logic_dev_id)),
+                        "[TransferPool] AllocErrFlagDeviceMappedLocked failed");
+  } else if (soc_type == SocType::kV5) {
+    HIXL_CHK_STATUS_RET(AllocErrFlagHostMappedLocked(total_size, static_cast<uint32_t>(logic_dev_id)),
+                        "[TransferPool] AllocErrFlagHostMappedLocked failed");
+  } else {
+    HIXL_LOGW(
+        "[TransferPool] Skip err_flag allocation for unsupported SoC type. soc_type=%d device_id=%d "
+        "logic_dev_id=%d",
+        static_cast<int32_t>(soc_type), device_id_, logic_dev_id);
+    return SUCCESS;
+  }
+  HIXL_LOGI("[TransferPool] err_flag block initialized. host=%p device_base=%p size=%lu device_id=%d from_device=%d",
+            err_flag_host_base_, err_flag_device_base_, total_size, device_id_,
+            static_cast<int32_t>(err_flag_from_device_));
+  return SUCCESS;
+}
+
+void TransferPool::FreeErrFlagMemLocked() {
+  void *reg_src = err_flag_from_device_ ? err_flag_device_base_ : err_flag_host_base_;
+  const bool mapped = (err_flag_host_base_ != nullptr) && (err_flag_device_base_ != nullptr);
+  if (mapped && (reg_src != nullptr)) {
+    int32_t logic_dev_id = 0;
+    const aclError logic_ret = aclrtGetLogicDevIdByUserDevId(device_id_, &logic_dev_id);
+    if (logic_ret == ACL_SUCCESS) {
+      HIXL_CHK_STATUS(AscendHalProxy::HostUnregister(reg_src, static_cast<uint32_t>(logic_dev_id)),
+                      "[TransferPool] HostUnregister failed. device_id=%d logic_dev_id=%d", device_id_, logic_dev_id);
+    } else {
+      HIXL_LOGW(
+          "[TransferPool] aclrtGetLogicDevIdByUserDevId failed on free, skip HostUnregister. ret=%d "
+          "device_id=%d logic_dev_id=%d",
+          static_cast<int32_t>(logic_ret), device_id_, logic_dev_id);
+    }
+  }
+  if (err_flag_from_device_) {
+    if (err_flag_device_base_ != nullptr) {
+      HIXL_CHK_ACL(aclrtFree(err_flag_device_base_));
+    }
+  } else if (err_flag_host_base_ != nullptr) {
+    HIXL_CHK_ACL(aclrtFreeHost(err_flag_host_base_));
+  }
+  err_flag_host_base_ = nullptr;
+  err_flag_device_base_ = nullptr;
+  err_flag_from_device_ = false;
+}
+
+void TransferPool::AssignSlotErrFlagLocked(Slot &slot, uint32_t slot_index) const {
+  if ((err_flag_host_base_ == nullptr) || (err_flag_device_base_ == nullptr)) {
+    return;
+  }
+  uint8_t *host_base = static_cast<uint8_t *>(err_flag_host_base_);
+  uint8_t *device_base = static_cast<uint8_t *>(err_flag_device_base_);
+  slot.err_flag_host_addr = host_base + slot_index;
+  slot.err_flag_dev_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(device_base + slot_index));
+}
+
+void TransferPool::ResetSlotErrFlagLocked(uint32_t slot_index) const {
+  if (err_flag_host_base_ == nullptr) {
+    return;
+  }
+  uint8_t *host_base = static_cast<uint8_t *>(err_flag_host_base_);
+  host_base[slot_index] = 0U;
 }
 
 Status TransferPool::EnsureDeviceKernelsLocked() {
@@ -642,6 +793,7 @@ Status TransferPool::CollectRetrySyncEntries(const std::vector<HixlTransferConte
     entry.thread = entries[i].thread;
     entry.op = op;
     entry.notify_id = entries[i].notify_id;
+    entry.err_flag_dev_va = entries[i].err_flag_dev_va;
     retry_entries.push_back(entry);
     retry_states.push_back(state);
   }
@@ -681,6 +833,7 @@ Status TransferPool::SyncOneTransferContextLocked(const Slot &slot, uint32_t op,
   entry.thread = slot.thread;
   entry.op = op;
   entry.notify_id = slot.notify_id;
+  entry.err_flag_dev_va = slot.err_flag_dev_addr;
   std::vector<HixlTransferContextSyncEntry> entries{entry};
   return SyncContextsLocked(entries, op, expect_state);
 }
@@ -697,6 +850,7 @@ std::vector<HixlTransferContextSyncEntry> TransferPool::BuildSyncEntriesFromSlot
     entry.thread = slot.thread;
     entry.op = op;
     entry.notify_id = slot.notify_id;
+    entry.err_flag_dev_va = slot.err_flag_dev_addr;
     entries.push_back(entry);
   }
   return entries;

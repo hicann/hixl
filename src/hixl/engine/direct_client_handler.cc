@@ -135,14 +135,17 @@ Status DirectClientHandler::GetTransferStatus(const TransferReq &req, TransferSt
     complete_handles_.erase(req);
     return ret;
   }
-  if (cs == HIXL_COMPLETE_STATUS_WAITING) {
-    HIXL_LOGI("DirectClientHandler GetTransferStatus waiting, req:%p", req);
-    status = TransferStatus::WAITING;
-  } else {
-    HIXL_LOGI("DirectClientHandler GetTransferStatus completed, req:%p", req);
-    status = TransferStatus::COMPLETED;
-    complete_handles_.erase(req);
+  status = ToTransferStatus(cs);
+  if (status == TransferStatus::WAITING) {
+    HIXL_LOGD("DirectClientHandler GetTransferStatus waiting, req:%p", req);
+    return SUCCESS;
   }
+  if (status == TransferStatus::COMPLETED) {
+    HIXL_LOGI("DirectClientHandler GetTransferStatus completed, req:%p", req);
+  } else {
+    HIXL_LOGE(FAILED, "DirectClientHandler GetTransferStatus failed, cs=%d, req:%p", static_cast<int32_t>(cs), req);
+  }
+  complete_handles_.erase(req);
   return SUCCESS;
 }
 

@@ -8,11 +8,15 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include <securec.h>
+
 #include "ascendcl_stub.h"
+#include "depends/ascend_hal/src/ascend_hal_stub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/runtime/src/runtime_stub.h"
 #include "engine/test_mmpa_utils.h"
@@ -96,6 +100,37 @@ class CountingRuntimeStub : public llm::RuntimeStub {
   uint32_t get_dev_res_address_count_{0U};
 };
 
+class SocNameAclRuntimeStub : public llm::AclRuntimeStub {
+ public:
+  explicit SocNameAclRuntimeStub(std::string soc_name) : soc_name_(std::move(soc_name)) {}
+
+  const char *aclrtGetSocName() override {
+    return soc_name_.c_str();
+  }
+
+ private:
+  std::string soc_name_;
+};
+
+class SyncEntryCaptureAclRuntimeStub : public llm::AclRuntimeStub {
+ public:
+  aclError aclrtMemcpy(void *dst, size_t dest_max, const void *src, size_t count, aclrtMemcpyKind kind) override {
+    if ((count == sizeof(HixlTransferContextSyncEntry)) && (kind == ACL_MEMCPY_HOST_TO_DEVICE) && (src != nullptr)) {
+      HixlTransferContextSyncEntry entry{};
+      (void)memcpy_s(&entry, sizeof(entry), src, sizeof(entry));
+      captured_entries_.push_back(entry);
+    }
+    return llm::AclRuntimeStub::aclrtMemcpy(dst, dest_max, src, count, kind);
+  }
+
+  std::vector<HixlTransferContextSyncEntry> captured_entries_{};
+};
+
+constexpr int32_t kTransferPoolA2DevId = 910250;
+constexpr int32_t kTransferPoolA5DevId = 910251;
+constexpr int32_t kTransferPoolSyncEntryDevId = 910252;
+constexpr int32_t kTransferPoolHostRegFailDevId = 910253;
+
 class TransferPoolTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -121,6 +156,23 @@ class TransferPoolTest : public ::testing::Test {
     if (reinit_fail_pool != nullptr) {
       reinit_fail_pool->Finalize();
     }
+    auto *a2_pool = TransferPool::GetInstance(kTransferPoolA2DevId);
+    if (a2_pool != nullptr) {
+      a2_pool->Finalize();
+    }
+    auto *a5_pool = TransferPool::GetInstance(kTransferPoolA5DevId);
+    if (a5_pool != nullptr) {
+      a5_pool->Finalize();
+    }
+    auto *sync_entry_pool = TransferPool::GetInstance(kTransferPoolSyncEntryDevId);
+    if (sync_entry_pool != nullptr) {
+      sync_entry_pool->Finalize();
+    }
+    auto *host_reg_fail_pool = TransferPool::GetInstance(kTransferPoolHostRegFailDevId);
+    if (host_reg_fail_pool != nullptr) {
+      host_reg_fail_pool->Finalize();
+    }
+    AscendHalStubReset();
     llm::AclRuntimeStub::Reset();
     llm::RuntimeStub::Reset();
     llm::MmpaStub::GetInstance().Reset();
@@ -401,6 +453,143 @@ TEST_F(TransferPoolTest, FinalizeDestroysAllThreadContextsBeforeFree) {
   pool->Finalize();
   EXPECT_EQ(GetThreadFreeCallCount(), 3U);
   EXPECT_EQ(pool->GetAllSlots(slots), FAILED);
+}
+
+TEST_F(TransferPoolTest, ErrFlagAllocatedDuringInitialize) {
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(3U), SUCCESS);
+  std::vector<TransferPool::SlotHandle> slots;
+  ASSERT_EQ(pool->GetAllSlots(slots), SUCCESS);
+  ASSERT_EQ(slots.size(), 3U);
+  for (const auto &slot : slots) {
+    EXPECT_NE(slot.err_flag_host_addr, nullptr);
+    EXPECT_NE(slot.err_flag_dev_addr, 0U);
+  }
+  pool->Finalize();
+}
+
+TEST_F(TransferPoolTest, ErrFlagSlotAddressesAreContiguous) {
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(3U), SUCCESS);
+  std::vector<TransferPool::SlotHandle> slots;
+  ASSERT_EQ(pool->GetAllSlots(slots), SUCCESS);
+  ASSERT_EQ(slots.size(), 3U);
+  uint8_t *host_base0 = slots[0].err_flag_host_addr;
+  uint8_t *access_base0 = reinterpret_cast<uint8_t *>(static_cast<uintptr_t>(slots[0].err_flag_dev_addr));
+  for (uint32_t i = 1U; i < 3U; ++i) {
+    EXPECT_EQ(slots[i].err_flag_host_addr, host_base0 + i);
+    EXPECT_EQ(reinterpret_cast<uint8_t *>(static_cast<uintptr_t>(slots[i].err_flag_dev_addr)), access_base0 + i);
+  }
+  pool->Finalize();
+}
+
+TEST_F(TransferPoolTest, ErrFlagResetOnRelease) {
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(2U), SUCCESS);
+  TransferPool::SlotHandle h{};
+  ASSERT_EQ(pool->Acquire(&h), SUCCESS);
+  ASSERT_NE(h.err_flag_host_addr, nullptr);
+  *h.err_flag_host_addr = 1U;
+  pool->Release(h);
+
+  TransferPool::SlotHandle h2{};
+  ASSERT_EQ(pool->Acquire(&h2), SUCCESS);
+  EXPECT_EQ(*h2.err_flag_host_addr, 0U);
+  pool->Release(h2);
+  pool->Finalize();
+}
+
+TEST_F(TransferPoolTest, ErrFlagClearedAcrossAbort) {
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  TransferPool::SlotHandle h{};
+  ASSERT_EQ(pool->Acquire(&h), SUCCESS);
+  ASSERT_NE(h.err_flag_host_addr, nullptr);
+  ASSERT_NE(h.err_flag_dev_addr, 0U);
+  *h.err_flag_host_addr = 1U;
+  pool->Abort(h);
+
+  TransferPool::SlotHandle h2{};
+  ASSERT_EQ(pool->Acquire(&h2), SUCCESS);
+  EXPECT_NE(h2.err_flag_host_addr, nullptr);
+  EXPECT_NE(h2.err_flag_dev_addr, 0U);
+  EXPECT_EQ(*h2.err_flag_host_addr, 0U);
+  pool->Release(h2);
+  pool->Finalize();
+}
+
+TEST_F(TransferPoolTest, ErrFlagOnA5UsesHostMappedPath) {
+  llm::AclRuntimeStub::SetInstance(std::make_shared<SocNameAclRuntimeStub>("Ascend950A"));
+  auto *pool = TransferPool::GetInstance(kTransferPoolA5DevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(2U), SUCCESS);
+  std::vector<TransferPool::SlotHandle> slots;
+  ASSERT_EQ(pool->GetAllSlots(slots), SUCCESS);
+  ASSERT_EQ(slots.size(), 2U);
+  for (const auto &slot : slots) {
+    EXPECT_NE(slot.err_flag_host_addr, nullptr);
+    EXPECT_NE(slot.err_flag_dev_addr, 0U);
+  }
+  pool->Finalize();
+}
+
+TEST_F(TransferPoolTest, ErrFlagOnA2UsesDeviceMappedPath) {
+  llm::AclRuntimeStub::SetInstance(std::make_shared<SocNameAclRuntimeStub>("Ascend910B1"));
+  auto *pool = TransferPool::GetInstance(kTransferPoolA2DevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(2U), SUCCESS);
+  std::vector<TransferPool::SlotHandle> slots;
+  ASSERT_EQ(pool->GetAllSlots(slots), SUCCESS);
+  ASSERT_EQ(slots.size(), 2U);
+  for (const auto &slot : slots) {
+    EXPECT_NE(slot.err_flag_host_addr, nullptr);
+    EXPECT_NE(slot.err_flag_dev_addr, 0U);
+  }
+  // Host VA comes from DEV_SVM_MAP_HOST mapping; writable from host side.
+  *slots[0].err_flag_host_addr = 1U;
+  EXPECT_EQ(*slots[0].err_flag_host_addr, 1U);
+  pool->Finalize();
+}
+
+TEST_F(TransferPoolTest, SyncEntryAddContainsErrFlagAndNotifyId) {
+  auto acl_stub = std::make_shared<SyncEntryCaptureAclRuntimeStub>();
+  llm::AclRuntimeStub::SetInstance(acl_stub);
+  auto *pool = TransferPool::GetInstance(kTransferPoolSyncEntryDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  ASSERT_FALSE(acl_stub->captured_entries_.empty());
+
+  const HixlTransferContextSyncEntry &entry = acl_stub->captured_entries_.front();
+  EXPECT_EQ(entry.op, TRANSFER_CONTEXT_OP_ADD);
+  EXPECT_NE(entry.err_flag_dev_va, 0U);
+  EXPECT_NE(entry.notify_id, 0U);
+  pool->Finalize();
+}
+
+TEST_F(TransferPoolTest, ErrFlagHostRegisterFailStillInitializes) {
+  llm::AclRuntimeStub::SetInstance(std::make_shared<SocNameAclRuntimeStub>("Ascend950A"));
+  AscendHalStubSetHostRegisterRet(-1);
+  auto *pool = TransferPool::GetInstance(kTransferPoolHostRegFailDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(2U), SUCCESS);
+
+  std::vector<TransferPool::SlotHandle> slots;
+  ASSERT_EQ(pool->GetAllSlots(slots), SUCCESS);
+  ASSERT_EQ(slots.size(), 2U);
+  for (const auto &slot : slots) {
+    EXPECT_EQ(slot.err_flag_host_addr, nullptr);
+    EXPECT_EQ(slot.err_flag_dev_addr, 0U);
+  }
+
+  TransferPool::SlotHandle handle{};
+  ASSERT_EQ(pool->Acquire(&handle), SUCCESS);
+  pool->Release(handle);
+  AscendHalStubReset();
+  pool->Finalize();
 }
 
 }  // namespace

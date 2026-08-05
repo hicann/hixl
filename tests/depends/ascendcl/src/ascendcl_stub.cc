@@ -20,7 +20,7 @@
 extern "C" __attribute__((weak)) uint32_t HixlSyncTransferContext(HixlTransferContextSyncParam *param);
 
 static std::string g_acl_stub_mock = "";
-static char g_soc_version[50] = {0};
+static char g_soc_version[50] = "Ascend950A";
 
 static int32_t g_free_stream_num = 2048;
 static int32_t g_free_event_num = 2048;

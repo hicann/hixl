@@ -458,6 +458,13 @@ Status UbClientHandler::GetTransferStatus(const TransferReq &req, TransferStatus
     }
     if (cs == HIXL_COMPLETE_STATUS_WAITING) {
       all_complete = false;
+      continue;
+    }
+    if (cs != HIXL_COMPLETE_STATUS_COMPLETED) {
+      status = ToTransferStatus(cs);
+      HIXL_LOGE(FAILED, "UbClientHandler GetTransferStatus failed, cs=%d, req:%p", static_cast<int32_t>(cs), req);
+      complete_handles_.erase(req);
+      return SUCCESS;
     }
   }
 

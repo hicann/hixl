@@ -31,7 +31,8 @@ class MmpaStubApiGe {
   virtual ~MmpaStubApiGe() = default;
 
   virtual void *DlOpen(const char *file_name, int32_t mode) {
-    if (file_name != nullptr && std::strcmp(file_name, "libdrvdsmi_host.so") == 0) {
+    if (file_name != nullptr &&
+        ((std::strcmp(file_name, "libdrvdsmi_host.so") == 0) || (std::strcmp(file_name, "libascend_hal.so") == 0))) {
       return dlopen(nullptr, mode);
     }
     return dlopen(file_name, mode);

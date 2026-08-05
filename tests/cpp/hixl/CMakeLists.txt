@@ -9,6 +9,7 @@
 # ----------------------------------------------------------------------------
 
 set(HIXL_TEST_FILES
+        proxy/ascend_hal_proxy_ut.cc
         common/thread_pool_ut.cc
         proxy/hccp_proxy_ut.cc
         proxy/dcmi_proxy_ut.cc
@@ -83,6 +84,7 @@ target_compile_options(hixl_test PRIVATE
 
 target_compile_definitions(hixl_test PRIVATE
         HIXL_TEST_SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+        HIXL_ENABLE_TEST_HOOKS
         HIXL_SKIP_DATA_CACHE_ENGINE_TEST_CONTEXT
         HCCN_TEST_CONF_PATH="${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/hccn_test.conf"
         )
@@ -127,6 +129,7 @@ target_link_libraries(hixl_test
         msprof_headers
         dcmi_stub
         drvdsmi_host_stub
+        hixl_ascend_hal_stub
         GTest::gtest GTest::gtest_main
         GTest::gmock
         stdc++fs
@@ -136,11 +139,11 @@ target_link_libraries(hixl_test
         aicpu_stub
         -Wl,--as-needed)
 
-# 让 dlopen("libdcmi.so") 和 dlopen("libdrvdsmi_host.so") 能找到测试桩
+# 让 dlopen("libdcmi.so") / dlopen("libdrvdsmi_host.so") / dlopen("libascend_hal.so") 能找到测试桩
 # --disable-new-dtags 强制使用 DT_RPATH（优先于 LD_LIBRARY_PATH），
 # 确保测试桩优先于系统 CANN 安装的同名库被加载
 set_target_properties(hixl_test PROPERTIES
-        BUILD_RPATH "${CMAKE_BINARY_DIR}/tests/depends/dcmi;${CMAKE_BINARY_DIR}/tests/depends/dsmi"
+        BUILD_RPATH "${CMAKE_BINARY_DIR}/tests/depends/dcmi;${CMAKE_BINARY_DIR}/tests/depends/dsmi;${CMAKE_BINARY_DIR}/tests/depends/ascend_hal"
         LINK_FLAGS "-Wl,--disable-new-dtags"
 )
 

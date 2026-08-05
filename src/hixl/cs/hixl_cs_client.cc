@@ -656,12 +656,21 @@ void HixlCSClient::ReleaseSharedSlotRef(std::shared_ptr<TransferPool::SlotHandle
             active_slot_.use_count());
 
   if (active_slot_.use_count() == 1) {
-    auto *rel_pool = TransferPool::GetInstance(active_slot_->device_id);
-    if (rel_pool != nullptr) {
-      rel_pool->Release(*active_slot_);
+    // Reset err flag only when the shared slot has no pending transfer references.
+    if (active_slot_->err_flag_host_addr != nullptr) {
+      *(active_slot_->err_flag_host_addr) = 0U;
+    }
+    auto *pool = TransferPool::GetInstance(active_slot_->device_id);
+    if (pool != nullptr) {
+      if (transfer_failure_latched_) {
+        pool->Abort(*active_slot_);
+        HIXL_LOGI("[HixlClient] Aborted slot on last ref after latched failure. slot_index=%u", slot_index);
+      } else {
+        pool->Release(*active_slot_);
+        HIXL_LOGI("[HixlClient] Released slot to pool. slot_index=%u", slot_index);
+      }
     }
     active_slot_.reset();
-    HIXL_LOGI("[HixlClient] Released slot to pool. slot_index=%u", slot_index);
   }
 }
 
@@ -1077,14 +1086,29 @@ Status HixlCSClient::CheckStatusDevice(DeviceCompleteHandle &query_handle, HixlC
   HIXL_CHECK_NOTNULL(query_handle.shared_slot.get(), "[HixlClient] CheckStatusDevice shared_slot is null");
   HIXL_CHECK_NOTNULL(query_handle.host_flag, "[HixlClient] CheckStatusDevice host_flag is null");
 
-  void *host_flag = query_handle.host_flag;
-  volatile uint64_t *flag_ptr = static_cast<uint64_t *>(host_flag);
+  volatile uint64_t *flag_ptr = static_cast<uint64_t *>(query_handle.host_flag);
   const uint64_t flag_val = *flag_ptr;
   HIXL_LOGI("[HixlCSClient] CheckStatusDevice flag_val=%lu", flag_val);
   if (flag_val == kDeviceFlagDoneValue) {
     status = HixlCompleteStatus::HIXL_COMPLETE_STATUS_COMPLETED;
-
     HIXL_LOGI("[HixlClient] Batch completed. slot=%u", query_handle.shared_slot->slot_index);
+    return ReleaseDevCompleteHandle(&query_handle);
+  }
+
+  if (transfer_failure_latched_) {
+    status = HixlCompleteStatus::HIXL_COMPLETE_STATUS_FAILED;
+    HIXL_LOGE(transfer_failure_status_,
+              "[HixlClient] CheckStatusDevice failed due to latched transfer failure. status=%u slot=%u",
+              static_cast<uint32_t>(transfer_failure_status_), query_handle.shared_slot->slot_index);
+    return ReleaseDevCompleteHandle(&query_handle);
+  }
+
+  if (query_handle.shared_slot->err_flag_host_addr != nullptr && *query_handle.shared_slot->err_flag_host_addr != 0U) {
+    LatchTransferFailure(FAILED);
+    status = HixlCompleteStatus::HIXL_COMPLETE_STATUS_FAILED;
+    HIXL_LOGE(FAILED, "[HixlClient] err_flag set. slot=%u thread=%" PRIu64 " channel=%" PRIu64,
+              query_handle.shared_slot->slot_index, static_cast<uint64_t>(query_handle.shared_slot->thread),
+              static_cast<uint64_t>(client_channel_handle_));
     return ReleaseDevCompleteHandle(&query_handle);
   }
 

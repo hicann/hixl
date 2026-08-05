@@ -723,4 +723,106 @@ TEST_F(HixlCSClientDeviceFixture, ConvertHostMappedDescsFailsIfLocalRegisteredIn
   EXPECT_EQ(ret, FAILED);  // local_buf 在错误的 regions，ConvertHostMappedDescs 会失败
 }
 
+TEST_F(HixlCSClientSlotReuseFixture, CheckStatusDeviceReturnsFailedWhenErrFlagSet) {
+  void *host_flag = new uint8_t[8]();
+  uint8_t *err_flag_ptr = new uint8_t(0U);
+
+  TransferPool::SlotHandle fake_slot{};
+  fake_slot.device_id = cli_.device_id_;
+  fake_slot.slot_index = 0U;
+  fake_slot.err_flag_host_addr = err_flag_ptr;
+  fake_slot.err_flag_dev_addr = 0U;
+
+  auto *handle = new DeviceCompleteHandle();
+  handle->magic = 0x55425548U;
+  handle->shared_slot = std::make_shared<TransferPool::SlotHandle>(fake_slot);
+  handle->host_flag = host_flag;
+  handle->dev_op_desc_buf = nullptr;
+
+  cli_.active_slot_ = handle->shared_slot;
+  *err_flag_ptr = 1U;
+  HixlCompleteStatus st = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
+  EXPECT_EQ(cli_.CheckStatusDevice(*handle, st), SUCCESS);
+  EXPECT_EQ(st, HixlCompleteStatus::HIXL_COMPLETE_STATUS_FAILED);
+  EXPECT_TRUE(cli_.transfer_failure_latched_);
+  EXPECT_EQ(cli_.transfer_failure_status_, FAILED);
+  EXPECT_EQ(*err_flag_ptr, 0U);
+  delete err_flag_ptr;
+}
+
+TEST_F(HixlCSClientSlotReuseFixture, CheckStatusDeviceReturnsWaitingWhenErrFlagZero) {
+  uint64_t host_flag_mem = 0ULL;
+  uint8_t err_flag_mem = 0U;
+
+  TransferPool::SlotHandle fake_slot{};
+  fake_slot.device_id = cli_.device_id_;
+  fake_slot.slot_index = 0U;
+  fake_slot.err_flag_host_addr = &err_flag_mem;
+  fake_slot.err_flag_dev_addr = 0U;
+
+  auto *handle = new DeviceCompleteHandle();
+  handle->magic = 0x55425548U;
+  handle->shared_slot = std::make_shared<TransferPool::SlotHandle>(fake_slot);
+  handle->host_flag = &host_flag_mem;
+  handle->dev_op_desc_buf = nullptr;
+
+  HixlCompleteStatus st = HixlCompleteStatus::HIXL_COMPLETE_STATUS_COMPLETED;
+  EXPECT_EQ(cli_.CheckStatusDevice(*handle, st), SUCCESS);
+  EXPECT_EQ(st, HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING);
+  EXPECT_FALSE(cli_.transfer_failure_latched_);
+
+  delete handle;
+}
+
+TEST_F(HixlCSClientSlotReuseFixture, CheckStatusDeviceReturnsFailedWhenTransferFailureLatched) {
+  uint8_t err_flag_mem = 0U;
+  TransferPool::SlotHandle fake_slot{};
+  fake_slot.device_id = cli_.device_id_;
+  fake_slot.slot_index = 0U;
+  fake_slot.err_flag_host_addr = &err_flag_mem;
+  fake_slot.err_flag_dev_addr = 0U;
+
+  auto *first = new DeviceCompleteHandle();
+  first->magic = 0x55425548U;
+  first->shared_slot = std::make_shared<TransferPool::SlotHandle>(fake_slot);
+  first->host_flag = new uint8_t[8]();
+  first->dev_op_desc_buf = nullptr;
+  cli_.active_slot_ = first->shared_slot;
+  err_flag_mem = 1U;
+  HixlCompleteStatus st1 = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
+  EXPECT_EQ(cli_.CheckStatusDevice(*first, st1), SUCCESS);
+  EXPECT_EQ(st1, HixlCompleteStatus::HIXL_COMPLETE_STATUS_FAILED);
+  EXPECT_TRUE(cli_.transfer_failure_latched_);
+  EXPECT_EQ(err_flag_mem, 0U);
+
+  auto *second = new DeviceCompleteHandle();
+  second->magic = 0x55425548U;
+  second->shared_slot = std::make_shared<TransferPool::SlotHandle>(fake_slot);
+  second->host_flag = new uint8_t[8]();
+  second->dev_op_desc_buf = nullptr;
+  HixlCompleteStatus st2 = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
+  EXPECT_EQ(cli_.CheckStatusDevice(*second, st2), SUCCESS);
+  EXPECT_EQ(st2, HixlCompleteStatus::HIXL_COMPLETE_STATUS_FAILED);
+}
+
+TEST_F(HixlCSClientSlotReuseFixture, ReleaseDevCompleteHandleResetsErrFlag) {
+  uint8_t err_flag_mem = 1U;
+
+  TransferPool::SlotHandle fake_slot{};
+  fake_slot.device_id = cli_.device_id_;
+  fake_slot.slot_index = 0U;
+  fake_slot.err_flag_host_addr = &err_flag_mem;
+  fake_slot.err_flag_dev_addr = 0U;
+
+  auto *handle = new DeviceCompleteHandle();
+  handle->magic = 0x55425548U;
+  handle->shared_slot = std::make_shared<TransferPool::SlotHandle>(fake_slot);
+  handle->host_flag = nullptr;
+  handle->dev_op_desc_buf = nullptr;
+
+  cli_.active_slot_ = handle->shared_slot;
+  EXPECT_EQ(cli_.ReleaseDevCompleteHandle(handle), SUCCESS);
+  EXPECT_EQ(err_flag_mem, 0U);
+}
+
 }  // namespace hixl

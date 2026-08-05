@@ -35,6 +35,19 @@ enum class CommType : uint32_t {
 
 enum class DumpLogLevel : uint32_t { EVENT = 0U, ERROR = 1U };
 
+inline TransferStatus ToTransferStatus(HixlCompleteStatus cs) {
+  switch (cs) {
+    case HIXL_COMPLETE_STATUS_WAITING:
+      return TransferStatus::WAITING;
+    case HIXL_COMPLETE_STATUS_COMPLETED:
+      return TransferStatus::COMPLETED;
+    case HIXL_COMPLETE_STATUS_TIMEOUT:
+      return TransferStatus::TIMEOUT;
+    default:
+      return TransferStatus::FAILED;
+  }
+}
+
 inline const char *CommTypeToString(CommType type) {
   switch (type) {
     case CommType::COMM_TYPE_UB_D2D:
