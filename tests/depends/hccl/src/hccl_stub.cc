@@ -15,7 +15,7 @@
 #include <vector>
 #include "hccl/hccl_types.h"
 #include "hcomm/hcomm_res_defs.h"
-#include "hcomm/hcomm_exception_notify.h"
+#include "hcomm/hcomm_exception.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -334,11 +334,12 @@ void ResetThreadLifecycleStats() {
 }
 
 // ---- Exception callback stub ----
-static ExceptionCallback g_registered_exception_callback = nullptr;
+static HcommExceptionCallback g_registered_exception_callback = nullptr;
 static void *g_registered_exception_user_data = nullptr;
 static int32_t g_register_exception_ret = 0;
+static int32_t g_unregister_exception_ret = 0;
 
-int32_t HcommRegisterExceptionCallback(ExceptionCallback cb, void *user_data) {
+int32_t HcommExceptionRegisterCallback(HcommExceptionCallback cb, void *user_data) {
   if (cb != nullptr && g_register_exception_ret == 0) {
     g_registered_exception_callback = cb;
     g_registered_exception_user_data = user_data;
@@ -346,19 +347,23 @@ int32_t HcommRegisterExceptionCallback(ExceptionCallback cb, void *user_data) {
   return g_register_exception_ret;
 }
 
-int32_t HcommUnregisterExceptionCallback(ExceptionCallback cb) {
-  if (g_registered_exception_callback == cb) {
+int32_t HcommExceptionUnregisterCallback(HcommExceptionCallback cb) {
+  if (g_unregister_exception_ret == 0 && g_registered_exception_callback == cb) {
     g_registered_exception_callback = nullptr;
     g_registered_exception_user_data = nullptr;
   }
-  return 0;
+  return g_unregister_exception_ret;
 }
 
 void SetRegisterExceptionResult(int32_t ret) {
   g_register_exception_ret = ret;
 }
 
-ExceptionCallback GetRegisteredExceptionCallback() {
+void SetUnregisterExceptionResult(int32_t ret) {
+  g_unregister_exception_ret = ret;
+}
+
+HcommExceptionCallback GetRegisteredExceptionCallback() {
   return g_registered_exception_callback;
 }
 
@@ -370,6 +375,7 @@ void ResetExceptionCallbackStub() {
   g_registered_exception_callback = nullptr;
   g_registered_exception_user_data = nullptr;
   g_register_exception_ret = 0;
+  g_unregister_exception_ret = 0;
 }
 
 #ifdef __cplusplus

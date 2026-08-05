@@ -20,7 +20,7 @@
 #include "hixl_kernel/transfer_context_manager.h"
 #include "hixl_kernel/task_exception_handler.h"
 #include "proxy/hcomm/hcomm_res_defs.h"
-#include "proxy/hcomm/hcomm_exception_notify.h"
+#include "proxy/hcomm/hcomm_exception.h"
 #include "hccl/hccl_types.h"
 #include "hccl_stub.h"
 #include "aicpu_stub.h"
@@ -680,7 +680,7 @@ TEST_F(TaskExceptionHandlerTest, EnableRegistersCallback) {
 
 TEST_F(TaskExceptionHandlerTest, EnableTwiceRegistersOnce) {
   TaskExceptionHandler::Instance().EnableExceptionCallback();
-  ExceptionCallback first_cb = GetRegisteredExceptionCallback();
+  HcommExceptionCallback first_cb = GetRegisteredExceptionCallback();
   TaskExceptionHandler::Instance().EnableExceptionCallback();
   EXPECT_EQ(GetRegisteredExceptionCallback(), first_cb);
 }
@@ -825,7 +825,7 @@ class ExceptionCallbackTest : public ::testing::Test {
   }
 
   void TriggerCallback(uint64_t thread, uint32_t ret_code) {
-    ExceptionCallback cb = GetRegisteredExceptionCallback();
+    HcommExceptionCallback cb = GetRegisteredExceptionCallback();
     ASSERT_NE(cb, nullptr);
     HcommExceptionInfo info{};
     info.thread = thread;
@@ -835,7 +835,7 @@ class ExceptionCallbackTest : public ::testing::Test {
 
   void TriggerCallbackStars(uint64_t thread, uint32_t ret_code, uint32_t stars_errcode, uint8_t seq_type,
                             uint8_t status_merged) {
-    ExceptionCallback cb = GetRegisteredExceptionCallback();
+    HcommExceptionCallback cb = GetRegisteredExceptionCallback();
     ASSERT_NE(cb, nullptr);
     HcommExceptionInfo info{};
     info.thread = thread;
@@ -865,7 +865,7 @@ TEST_F(ExceptionCallbackTest, CallbackSkipsNonHixlThread) {
 TEST_F(ExceptionCallbackTest, CallbackHandlesNullExceptionInfo) {
   AddContextWithErrFlag();
   TaskExceptionHandler::Instance().EnableExceptionCallback();
-  ExceptionCallback cb = GetRegisteredExceptionCallback();
+  HcommExceptionCallback cb = GetRegisteredExceptionCallback();
   ASSERT_NE(cb, nullptr);
   cb(nullptr, GetRegisteredExceptionUserData());
   EXPECT_EQ(err_flag_, 0U);
@@ -934,4 +934,78 @@ TEST_F(ExceptionCallbackTest, CallbackWithStarsExceptionNonHixlThreadSkips) {
   TriggerCallbackStars(999999ULL, HCCL_E_ROCE_TRANSFER, 0x5678, 3, 4);
   EXPECT_EQ(err_flag_, 0U);
   EXPECT_EQ(g_hal_esched_submit_call_count, 0U);
+}
+
+TEST_F(ExceptionCallbackTest, CallbackWithRoceExpandType) {
+  AddContextWithErrFlag();
+  TaskExceptionHandler::Instance().EnableExceptionCallback();
+  ResetHalEschedStub();
+
+  HcommExceptionCallback cb = GetRegisteredExceptionCallback();
+  ASSERT_NE(cb, nullptr);
+  HcommExceptionInfo info{};
+  info.thread = kExceptionThread;
+  info.retCode = HCCL_E_ROCE_TRANSFER;
+  info.expandInfo.type = HCOMM_EXCEPTION_ROCE;
+  cb(&info, GetRegisteredExceptionUserData());
+  EXPECT_EQ(err_flag_, 1U);
+  EXPECT_EQ(g_hal_esched_submit_call_count, 1U);
+}
+
+TEST_F(ExceptionCallbackTest, CallbackWithUrmaExpandType) {
+  AddContextWithErrFlag();
+  TaskExceptionHandler::Instance().EnableExceptionCallback();
+  ResetHalEschedStub();
+
+  HcommExceptionCallback cb = GetRegisteredExceptionCallback();
+  ASSERT_NE(cb, nullptr);
+  HcommExceptionInfo info{};
+  info.thread = kExceptionThread;
+  info.retCode = HCCL_E_ROCE_TRANSFER;
+  info.expandInfo.type = HCOMM_EXCEPTION_URMA;
+  cb(&info, GetRegisteredExceptionUserData());
+  EXPECT_EQ(err_flag_, 1U);
+  EXPECT_EQ(g_hal_esched_submit_call_count, 1U);
+}
+
+TEST_F(ExceptionCallbackTest, CallbackWithInvalidExpandType) {
+  AddContextWithErrFlag();
+  TaskExceptionHandler::Instance().EnableExceptionCallback();
+  ResetHalEschedStub();
+
+  HcommExceptionCallback cb = GetRegisteredExceptionCallback();
+  ASSERT_NE(cb, nullptr);
+  HcommExceptionInfo info{};
+  info.thread = kExceptionThread;
+  info.retCode = HCCL_E_ROCE_TRANSFER;
+  info.expandInfo.type = HCOMM_EXCEPTION_INVALID;
+  cb(&info, GetRegisteredExceptionUserData());
+  EXPECT_EQ(err_flag_, 1U);
+  EXPECT_EQ(g_hal_esched_submit_call_count, 1U);
+}
+
+TEST_F(TaskExceptionHandlerTest, EnableUnsupportedReturnsNotSupport) {
+  SetRegisterExceptionResult(HCCL_E_NOT_SUPPORT);
+  TaskExceptionHandler::Instance().EnableExceptionCallback();
+  EXPECT_EQ(GetRegisteredExceptionCallback(), nullptr);
+  SetRegisterExceptionResult(0);
+}
+
+TEST_F(TaskExceptionHandlerTest, DisableUnsupportedDoesNotCrash) {
+  TaskExceptionHandler::Instance().EnableExceptionCallback();
+  EXPECT_NE(GetRegisteredExceptionCallback(), nullptr);
+  SetUnregisterExceptionResult(HCCL_E_NOT_SUPPORT);
+  TaskExceptionHandler::Instance().DisableExceptionCallback();
+  SetUnregisterExceptionResult(0);
+}
+
+TEST_F(TaskExceptionHandlerTest, DisableFailureRollsBackRegistered) {
+  TaskExceptionHandler::Instance().EnableExceptionCallback();
+  EXPECT_NE(GetRegisteredExceptionCallback(), nullptr);
+  SetUnregisterExceptionResult(HCCL_E_INTERNAL);
+  TaskExceptionHandler::Instance().DisableExceptionCallback();
+  EXPECT_NE(GetRegisteredExceptionCallback(), nullptr);
+  SetUnregisterExceptionResult(0);
+  TaskExceptionHandler::Instance().DisableExceptionCallback();
+  EXPECT_EQ(GetRegisteredExceptionCallback(), nullptr);
 }

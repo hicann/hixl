@@ -78,14 +78,10 @@ const char *ExpandTypeToString(HcommExceptionExpandType type) {
   switch (type) {
     case HCOMM_EXCEPTION_STARS:
       return "STARS";
-    case HCOMM_EXCEPTION_ROCE_HOST:
-      return "ROCE_HOST";
-    case HCOMM_EXCEPTION_ROCE_DEVICE:
-      return "ROCE_DEVICE";
-    case HCOMM_EXCEPTION_UB_HOST:
-      return "UB_HOST";
-    case HCOMM_EXCEPTION_UB_DEVICE:
-      return "UB_DEVICE";
+    case HCOMM_EXCEPTION_ROCE:
+      return "ROCE";
+    case HCOMM_EXCEPTION_URMA:
+      return "URMA";
     default:
       return "INVALID";
   }
@@ -164,9 +160,9 @@ void TaskExceptionHandler::EnableExceptionCallback() {
     return;
   }
   if (ret == static_cast<int32_t>(HCCL_E_NOT_SUPPORT)) {
-    HIXL_LOGI("[TaskExceptionHandler] HcommRegisterExceptionCallback unsupported, ret=%d", ret);
+    HIXL_LOGI("[TaskExceptionHandler] HcommExceptionRegisterCallback unsupported, ret=%d", ret);
   } else {
-    HIXL_LOGE(FAILED, "[TaskExceptionHandler] HcommRegisterExceptionCallback failed, ret=%d", ret);
+    HIXL_LOGE(FAILED, "[TaskExceptionHandler] HcommExceptionRegisterCallback failed, ret=%d", ret);
   }
 }
 
@@ -182,9 +178,9 @@ void TaskExceptionHandler::DisableExceptionCallback() {
     return;
   }
   if (ret == static_cast<int32_t>(HCCL_E_NOT_SUPPORT)) {
-    HIXL_LOGI("[TaskExceptionHandler] HcommUnregisterExceptionCallback unsupported, ret=%d", ret);
+    HIXL_LOGI("[TaskExceptionHandler] HcommExceptionUnregisterCallback unsupported, ret=%d", ret);
   } else {
-    HIXL_LOGE(FAILED, "[TaskExceptionHandler] HcommUnregisterExceptionCallback failed, ret=%d", ret);
+    HIXL_LOGE(FAILED, "[TaskExceptionHandler] HcommExceptionUnregisterCallback failed, ret=%d", ret);
   }
 }
 

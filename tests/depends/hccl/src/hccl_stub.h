@@ -12,7 +12,7 @@
 #define AIR_TESTS_DEPENDS_HCCL_SRC_HCCL_STUB_H_
 
 #include <cstdint>
-#include "hcomm/hcomm_exception_notify.h"
+#include "hcomm/hcomm_exception.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,7 +31,8 @@ uint32_t GetMemRegRecordCount();
 int32_t GetMemRegRecordType(uint32_t index);
 
 void SetRegisterExceptionResult(int32_t ret);
-ExceptionCallback GetRegisteredExceptionCallback();
+void SetUnregisterExceptionResult(int32_t ret);
+HcommExceptionCallback GetRegisteredExceptionCallback();
 void *GetRegisteredExceptionUserData();
 void ResetExceptionCallbackStub();
 

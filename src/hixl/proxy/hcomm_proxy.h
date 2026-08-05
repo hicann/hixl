@@ -12,7 +12,7 @@
 #define CANN_HIXL_SRC_PROXY_HCOMM_PROXY_H_
 
 #include "hcomm/hcomm_res_defs.h"
-#include "hcomm/hcomm_exception_notify.h"
+#include "hcomm/hcomm_exception.h"
 #include "hccl/hccl_types.h"
 
 namespace hixl {
@@ -48,8 +48,8 @@ class HcommProxy {
   static int32_t BatchTransferOnThread(ThreadHandle thread, ChannelHandle channel,
                                        const HcommBatchTransferDesc *transfer_descs, uint32_t transfer_desc_num);
   static int32_t aclrtNotifyRecordOnThread(ThreadHandle thread, int32_t notify_id);
-  static int32_t RegisterExceptionCallback(ExceptionCallback cb, void *user_data);
-  static int32_t UnregisterExceptionCallback(ExceptionCallback cb);
+  static int32_t RegisterExceptionCallback(HcommExceptionCallback cb, void *user_data);
+  static int32_t UnregisterExceptionCallback(HcommExceptionCallback cb);
 };
 
 }  // namespace hixl
