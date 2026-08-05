@@ -67,11 +67,11 @@ def init_llm_datadist(role: LLMRole, cluster_id, args) -> LLMDataDist:
         raise RuntimeError(f"unsupported transfer_backend: {args.transfer_backend}")
     if role == LLMRole.DECODER:
         llm_config.listen_ip_info = f"{args.local_host_ip}:26000"
+    else:
+        llm_config.listen_ip_info = f"{args.local_host_ip}:26001"
     llm_config.enable_cache_manager = True
     llm_config.enable_remote_cache_accessible = True  # 开启远端Cache可直接访问功能
     if args.local_comm_res:
-        if role == LLMRole.PROMPT:
-            llm_config.listen_ip_info = f"{args.local_host_ip}:26001"
         llm_config.local_comm_res = args.local_comm_res
         logging.info(f"local_comm_res={llm_config.local_comm_res}")
     llm_options = llm_config.generate_options()

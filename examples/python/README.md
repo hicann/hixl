@@ -101,7 +101,7 @@ source ${HOME}/Ascend/cann/set_env.sh
     HCCL_INTRA_ROCE_ENABLE=1 python pull_from_cache_to_blocks.py --device_id 0 --cluster_id 2
     ```
 - 执行push_blocks样例程序，此样例程序使用单侧建链方式，申请内存并注册blocks,  decoder发起建链并push blocks
-  分别在Prompt主机与Decoder主机，执行样例程序，其中device_id为要使用的device_id，role为集群角色，local_host_ip为本地host的ip，remote_host_ip为对端host的ip。默认走HCCL传输后端，可通过`--transfer_backend hixl`切换为hixl后端：
+  分别在Prompt主机与Decoder主机，执行样例程序，其中device_id为要使用的device_id，role为集群角色，local_host_ip为本地host的ip，remote_host_ip为对端host的ip。默认走通信域传输后端，可通过`--transfer_backend hixl`切换为hixl cs后端：
     ```
     # Prompt主机:
     GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_blocks_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1
@@ -116,7 +116,7 @@ source ${HOME}/Ascend/cann/set_env.sh
     python push_blocks_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --transfer_backend hixl
     ```
 - 执行push_cache样例程序：此样例程序使用单侧建链方式，申请内存并注册cache,  decoder发起建链并push cache
-  分别在Prompt主机与Decoder主机，执行样例程序，其中device_id为要使用的device_id，role为集群角色，local_host_ip为本地host的ip，remote_host_ip为对端host的ip。默认走HCCL传输后端，可通过`--transfer_backend hixl`切换为hixl后端：
+  分别在Prompt主机与Decoder主机，执行样例程序，其中device_id为要使用的device_id，role为集群角色，local_host_ip为本地host的ip，remote_host_ip为对端host的ip。默认走通信域传输后端，可通过`--transfer_backend hixl`切换为hixl cs后端：
     ```
     # Prompt主机:
     GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_cache_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1
@@ -162,7 +162,7 @@ source ${HOME}/Ascend/cann/set_env.sh
   ```
 - 执行transfer_cache_async_sample样例程序：此样例程序使用单侧建链方式，申请内存并注册cache，prompt侧发起建链并异步分层传输cache。
 
-  分别在Prompt主机与Decoder主机，执行样例程序，其中device_id为要使用的device_id，role为集群角色，local_host_ip为本地host的ip，remote_host_ip为对端host的ip。默认走HCCL传输后端，可通过`--transfer_backend hixl`切换为hixl后端：
+  分别在Prompt主机与Decoder主机，执行样例程序，其中device_id为要使用的device_id，role为集群角色，local_host_ip为本地host的ip，remote_host_ip为对端host的ip。默认走通信域传输后端，可通过`--transfer_backend hixl`切换为hixl cs后端：
     ```
     # Prompt主机:
     GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python transfer_cache_async_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1

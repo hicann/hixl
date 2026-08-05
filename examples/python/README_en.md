@@ -112,7 +112,7 @@ Replace `${HOME}/Ascend` with the actual software installation path.
     ```
 
 - Run the `push_blocks` sample. This sample uses a single-side connection method to allocate memory, register blocks, and have the decoder initiate the connection to push blocks.
-  Run the sample program on both the Prompt and Decoder hosts. `device_id` specifies the device ID to use, `role` specifies the cluster role, `local_host_ip` specifies the IP address of the local host, and `remote_host_ip` specifies the IP address of the peer host. The default transfer backend is HCCL; pass `--transfer_backend hixl` to use the hixl backend:
+  Run the sample program on both the Prompt and Decoder hosts. `device_id` specifies the device ID to use, `role` specifies the cluster role, `local_host_ip` specifies the IP address of the local host, and `remote_host_ip` specifies the IP address of the peer host. The default transfer backend is the communication domain backend; pass `--transfer_backend hixl` to use the HIXL CS backend:
 
     ```sh
     # Prompt host:
@@ -131,7 +131,7 @@ Replace `${HOME}/Ascend` with the actual software installation path.
     ```
 
 - Run the `push_cache` sample. This sample uses a single-side connection method to allocate memory, register cache, and have the decoder initiate the connection to push cache.
-  Run the sample program on both the Prompt and Decoder hosts. `device_id` specifies the device ID to use, `role` specifies the cluster role, `local_host_ip` specifies the IP address of the local host, and `remote_host_ip` specifies the IP address of the peer host. The default transfer backend is HCCL; pass `--transfer_backend hixl` to use the hixl backend:
+  Run the sample program on both the Prompt and Decoder hosts. `device_id` specifies the device ID to use, `role` specifies the cluster role, `local_host_ip` specifies the IP address of the local host, and `remote_host_ip` specifies the IP address of the peer host. The default transfer backend is the communication domain backend; pass `--transfer_backend hixl` to use the HIXL CS backend:
 
     ```sh
     # Prompt host:
@@ -186,7 +186,7 @@ Replace `${HOME}/Ascend` with the actual software installation path.
 
 - Run the `transfer_cache_async` sample. This sample uses a single-side connection method to allocate memory, register cache, and have the prompt side initiate the connection to asynchronously transfer cache layer by layer.
 
-  Run the sample program on both the Prompt and Decoder hosts. `device_id` specifies the device ID to use, `role` specifies the cluster role, `local_host_ip` specifies the IP address of the local host, and `remote_host_ip` specifies the IP address of the peer host. The default transfer backend is HCCL; pass `--transfer_backend hixl` to use the hixl backend:
+  Run the sample program on both the Prompt and Decoder hosts. `device_id` specifies the device ID to use, `role` specifies the cluster role, `local_host_ip` specifies the IP address of the local host, and `remote_host_ip` specifies the IP address of the peer host. The default transfer backend is the communication domain backend; pass `--transfer_backend hixl` to use the HIXL CS backend:
 
     ```sh
     # Prompt host:
