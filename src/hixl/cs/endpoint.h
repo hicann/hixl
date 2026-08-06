@@ -25,6 +25,7 @@ namespace hixl {
 class Endpoint {
  public:
   explicit Endpoint(const EndpointDesc &endpoint);
+  Endpoint(const EndpointDesc &local_endpoint, const EndpointDesc &remote_endpoint);
   Endpoint(const EndpointDesc &endpoint, bool need_host_va_mapping);
   ~Endpoint() = default;
 

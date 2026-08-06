@@ -178,4 +178,23 @@ TEST(EndpointStoreUt, EndpointConfiguredHostVaMappingOverridesDefault) {
   EXPECT_TRUE(Endpoint(host_ub_ctp, true).NeedHostVaMapping());
 }
 
+TEST(EndpointStoreUt, EndpointPairDisablesHostVaMappingForDeviceToHostUbCtp) {
+  EndpointDesc device_ub_ctp = MakeUbEndpoint(COMM_PROTOCOL_UBC_CTP, {});
+  EndpointDesc host_ub_ctp = MakeUbEndpoint(COMM_PROTOCOL_UBC_CTP, {});
+  host_ub_ctp.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+
+  EXPECT_TRUE(Endpoint(device_ub_ctp, device_ub_ctp).NeedHostVaMapping());
+  EXPECT_FALSE(Endpoint(device_ub_ctp, host_ub_ctp).NeedHostVaMapping());
+  EXPECT_FALSE(Endpoint(host_ub_ctp, device_ub_ctp).NeedHostVaMapping());
+  EXPECT_FALSE(Endpoint(host_ub_ctp, host_ub_ctp).NeedHostVaMapping());
+}
+
+TEST(EndpointStoreUt, EndpointPairKeepsHostVaMappingForDeviceUboe) {
+  EndpointDesc device_uboe = MakeUbEndpoint(COMM_PROTOCOL_UBOE, {});
+  EndpointDesc host_uboe = MakeUbEndpoint(COMM_PROTOCOL_UBOE, {});
+  host_uboe.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+
+  EXPECT_TRUE(Endpoint(device_uboe, host_uboe).NeedHostVaMapping());
+}
+
 }  // namespace hixl

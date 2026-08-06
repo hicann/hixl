@@ -29,6 +29,13 @@ bool IsDefaultHostVaMappingEnabled(const EndpointDesc &endpoint) {
          (endpoint.protocol == COMM_PROTOCOL_UBOE || endpoint.protocol == COMM_PROTOCOL_UBC_CTP);
 }
 
+bool IsHostVaMappingEnabledForPair(const EndpointDesc &local_endpoint, const EndpointDesc &remote_endpoint) {
+  if (!IsDefaultHostVaMappingEnabled(local_endpoint)) {
+    return false;
+  }
+  return local_endpoint.protocol != COMM_PROTOCOL_UBC_CTP || remote_endpoint.loc.locType == ENDPOINT_LOC_TYPE_DEVICE;
+}
+
 Status BuildChannelName(const EndpointDesc &endpoint, const ChannelDesc &channel_desc, uint32_t port,
                         std::string &channel_name) {
   // channelName作为两端channel业务匹配标识，两端需一致：
@@ -72,6 +79,10 @@ Status InitChannelDesc(const EndpointDesc &endpoint, const ChannelDesc &channel_
 
 Endpoint::Endpoint(const EndpointDesc &endpoint)
     : endpoint_(endpoint), need_host_va_mapping_(IsDefaultHostVaMappingEnabled(endpoint)) {}
+
+Endpoint::Endpoint(const EndpointDesc &local_endpoint, const EndpointDesc &remote_endpoint)
+    : endpoint_(local_endpoint),
+      need_host_va_mapping_(IsHostVaMappingEnabledForPair(local_endpoint, remote_endpoint)) {}
 
 Endpoint::Endpoint(const EndpointDesc &endpoint, bool need_host_va_mapping)
     : endpoint_(endpoint), need_host_va_mapping_(need_host_va_mapping) {}

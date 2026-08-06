@@ -328,7 +328,7 @@ Status HixlCSClient::Create(const HixlClientDesc *client_desc, const HixlClientC
       client_desc->local_endpoint->commAddr.id, client_desc->remote_endpoint->loc.locType,
       client_desc->remote_endpoint->protocol, client_desc->remote_endpoint->commAddr.type,
       client_desc->remote_endpoint->commAddr.id);
-  local_endpoint_ = MakeShared<Endpoint>(*(client_desc->local_endpoint));
+  local_endpoint_ = MakeShared<Endpoint>(*(client_desc->local_endpoint), *(client_desc->remote_endpoint));
   HIXL_CHECK_NOTNULL(local_endpoint_);
   HIXL_CHK_STATUS_RET(InitDeviceResource(*(client_desc->local_endpoint)), "[HixlClient] InitDeviceResource failed");
   HIXL_DISMISSABLE_GUARD(pool_rollback, ([this]() {
