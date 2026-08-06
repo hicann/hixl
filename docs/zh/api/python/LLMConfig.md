@@ -330,7 +330,7 @@ rdma_traffic_class(self, rdma_traffic_class: int)
 | --- | --- | --- |
 | rdma_traffic_class | int | 用于配置RDMA网卡的traffic class。和环境变量HCCL_RDMA_TC功能，如同时配置，当前option优先级更高；未同时配置，以配置的一方为准。<br>取值范围为[0,255]，且需要配置为4的整数倍，默认值为132。 |
 
-如上表格中的环境变量请参考[《环境变量参考》](https://www.hiascend.com/document/redirect/CannCommunityEnvRef)。
+如上表格中的环境变量请参考[《环境变量参考》](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/920beta1/maintenref/envvar/envref_07_0001.html)。
 
 **调用示例**
 
@@ -368,7 +368,7 @@ rdma_service_level(self, rdma_service_level: int)
 | --- | --- | --- |
 | rdma_service_level | int | 用于配置RDMA网卡的service level。和环境变量HCCL_RDMA_SL功能相同，如同时配置，当前option优先级更高；未同时配置，以配置的一方为准。<br>取值范围为[0, 7]，默认值为4。 |
 
-如上表格中的环境变量请参考[《环境变量参考》](https://www.hiascend.com/document/redirect/CannCommunityEnvRef)。
+如上表格中的环境变量请参考[《环境变量参考》](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/920beta1/maintenref/envvar/envref_07_0001.html)。
 
 **调用示例**
 
