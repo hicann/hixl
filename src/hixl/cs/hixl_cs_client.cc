@@ -364,7 +364,7 @@ Status HixlCSClient::RegMemLocked(const char *mem_tag, const CommMem *mem, MemHa
   if (check_result) {
     HIXL_LOGE(PARAM_INVALID,
               "[HixlClient] Memory registration failed. This memory may overlap with the already recorded memory. "
-              "Please check Mem, mem_addr: %p, mem_size: %u.",
+              "Please check Mem, mem_addr: %p, mem_size: %lu.",
               mem->addr, mem->size);
     return PARAM_INVALID;
   }
@@ -384,7 +384,7 @@ Status HixlCSClient::RegMemLocked(const char *mem_tag, const CommMem *mem, MemHa
   // 记录client侧给endpoint分配的内存信息
   Status ret = mem_store_.RecordMemory(false, mem->addr, mem->size, is_host_mem, register_dev_addr);
   if (ret != SUCCESS) {
-    HIXL_LOGE(FAILED, "[HixlClient] Client record memory failed. mem_addr = %p, mem_size = %u", mem->addr, mem->size);
+    HIXL_LOGE(FAILED, "[HixlClient] Client record memory failed. mem_addr = %p, mem_size = %lu", mem->addr, mem->size);
     return FAILED;
   }
   HIXL_LOGI("[HixlClient] Memory register success. ");

@@ -73,24 +73,25 @@ uint32_t TransferWithSingle(bool is_read, HixlOneSideOpParam *param) {
   if (is_read) {
     for (uint32_t i = 0; i < param->list_num; i++) {
       HIXL_LOGI(
-          "[HixlBatchPutAndGet] HcommReadOnThread start, list_num=%u, i=%u, thread=%u, channel=%u, "
+          "[HixlBatchPutAndGet] HcommReadOnThread start, list_num=%u, i=%u, thread=%lu, channel=%lu, "
           "dst_buf_list[%u]=%p, src_buf_list[%u]=%p, len_list[%u]=%lu",
           param->list_num, i, param->thread, param->channel, i, op_list[i].local_buf, i, op_list[i].remote_buf, i,
           op_list[i].len);
       int32_t ret = HcommProxy::ReadOnThread(param->thread, param->channel, op_list[i].local_buf, op_list[i].remote_buf,
                                              op_list[i].len);
       if (ret != 0) {
-        HIXL_LOGE(FAILED,
-                  "HcommReadOnThread failed. The address information is as follows:dst_buf:%p, scr_buf:%p, buf_len:%u, "
-                  "ret is %d.",
-                  op_list[i].local_buf, op_list[i].remote_buf, op_list[i].len, ret);
+        HIXL_LOGE(
+            FAILED,
+            "HcommReadOnThread failed. The address information is as follows:dst_buf:%p, scr_buf:%p, buf_len:%lu, "
+            "ret is %d.",
+            op_list[i].local_buf, op_list[i].remote_buf, op_list[i].len, ret);
         return FAILED;
       }
     }
   } else {
     for (uint32_t i = 0; i < param->list_num; i++) {
       HIXL_LOGI(
-          "[HixlBatchPutAndGet] HcommWriteOnThread start, list_num=%u, i=%u, thread=%u, channel=%u, "
+          "[HixlBatchPutAndGet] HcommWriteOnThread start, list_num=%u, i=%u, thread=%lu, channel=%lu, "
           "dst_buf_list[%u]=%p, src_buf_list[%u]=%p, len_list[%u]=%lu",
           param->list_num, i, param->thread, param->channel, i, op_list[i].remote_buf, i, op_list[i].local_buf, i,
           op_list[i].len);
@@ -99,7 +100,7 @@ uint32_t TransferWithSingle(bool is_read, HixlOneSideOpParam *param) {
       if (ret != 0) {
         HIXL_LOGE(FAILED,
                   "HcommWriteOnThread failed. The address information is as follows:dst_buf:%p, scr_buf:%p, "
-                  "buf_len:%u, ret is %d.",
+                  "buf_len:%lu, ret is %d.",
                   op_list[i].remote_buf, op_list[i].local_buf, op_list[i].len, ret);
         return FAILED;
       }

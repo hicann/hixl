@@ -265,7 +265,7 @@ Status Hixl::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle
   const auto ret = impl_->RegisterMem(mem, type, mem_handle);
   HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
                            "Failed to register mem, "
-                           "type:%d, addr:%p, size:%lu",
+                           "type:%d, addr:%p, size:%zu",
                            static_cast<int32_t>(type), reinterpret_cast<void *>(mem.addr), mem.len);
   HIXL_LOGI("RegisterMem success, type:%d, addr:%p, size:%zu, handle:%p", static_cast<int32_t>(type),
             reinterpret_cast<void *>(mem.addr), mem.len, mem_handle);
@@ -349,7 +349,7 @@ Status Hixl::GetAsyncConnectStatus(std::map<AscendString, AsyncConnectStatus> &s
   HIXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check Hixl init");
   const auto ret = impl_->GetAsyncConnectStatus(statuses);
   HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Failed to get async connect status");
-  HIXL_LOGI("GetConnectAsyncStatus success, statuses.size:%llu", statuses.size());
+  HIXL_LOGI("GetConnectAsyncStatus success, statuses.size:%zu", statuses.size());
   return SUCCESS;
 }
 
@@ -385,8 +385,7 @@ Status Hixl::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
   HIXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "Impl is nullptr, check Hixl init.");
   HIXL_CHK_BOOL_RET_STATUS(req != nullptr, FAILED, "Req is nullptr, check req.");
   const auto ret = impl_->GetTransferStatus(req, status);
-  HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Failed to get transfer status, req:%llu.",
-                           static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(req)));
+  HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Failed to get transfer status, req:%p.", req);
   return SUCCESS;
 }
 

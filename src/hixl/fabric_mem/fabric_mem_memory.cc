@@ -25,7 +25,7 @@ namespace {
 Status BuildRegisteredAddrInfo(uintptr_t addr, size_t len, MemType type, AddrInfo &addr_info) {
   HIXL_CHK_BOOL_RET_STATUS(len > 0, PARAM_INVALID, "Invalid fabric mem registration range.");
   const auto max_addr = std::numeric_limits<uintptr_t>::max();
-  HIXL_CHK_BOOL_RET_STATUS(addr <= max_addr - len, PARAM_INVALID, "Fabric mem range overflow, addr:%p, size:%lu.",
+  HIXL_CHK_BOOL_RET_STATUS(addr <= max_addr - len, PARAM_INVALID, "Fabric mem range overflow, addr:%p, size:%zu.",
                            reinterpret_cast<void *>(addr), len);
   addr_info = AddrInfo{addr, addr + len, type};
   return SUCCESS;

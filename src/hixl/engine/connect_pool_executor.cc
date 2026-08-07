@@ -166,7 +166,7 @@ void ConnectPoolExecutor::WorkerHandler(const int32_t worker_id) {
       task_queue_cv_.wait(lock, cv_wait_func);
 
       if (!IsInitialized()) {
-        HIXL_LOGW("ConnectPoolExecutor is shutdown, %llu task remain", task_list_.size());
+        HIXL_LOGW("ConnectPoolExecutor is shutdown, %zu task remain", task_list_.size());
         break;
       }
 
