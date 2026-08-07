@@ -18,7 +18,7 @@ on:
     comments: [ '^(?:\/)?compile*' ]
 
 env:
-  org_name: "cann"
+  org_name: ${{ vars.ORG_NAME }}
   repo_name: "hixl"
   MERGE_ID: ${{atomgit.event.pull_request.number}}
   TARGET_BRANCH: ${{atomgit.base_ref}}
@@ -407,3 +407,9 @@ stages:
     pre:
     - type: auto
     fail-fast: true
+
+post:
+  jobs:
+    job_post:
+      name: Test_post
+      uses: cann/.gitcode/.gitcode/workflows/post_action.yml@master
