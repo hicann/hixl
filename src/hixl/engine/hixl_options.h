@@ -47,6 +47,7 @@ struct GlobalResourceConfig {
   FabricMemoryConfig fabric_memory;
   ConnectPoolConfig connect_pool;
   CommResourceConfigDesc comm_resource_config;
+  std::optional<std::string> local_comm_res_path;  // local_comm_res JSON file path
 };
 
 class HixlOptions {
@@ -96,6 +97,7 @@ class HixlOptions {
   Status ParseAutoConnectOptions(const std::map<AscendString, AscendString> &options);
   Status ParseGlobalResourceConfig(const std::map<AscendString, AscendString> &options);
   Status ParseGlobalResourceConfig(const std::string &config_str);
+  Status ResolveLocalCommResFromFile();
 };
 
 }  // namespace hixl

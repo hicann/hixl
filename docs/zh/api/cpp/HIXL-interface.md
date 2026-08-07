@@ -96,7 +96,7 @@ Status Initialize(const AscendString &local_engine, const std::map<AscendString,
 | OPTION_RDMA_SERVICE_LEVEL | 可选 | 字符串取值"RdmaServiceLevel"。<br>用于配置RDMA网卡的service level。和环境变量HCCL_RDMA_SL功能相同，如同时配置，当前option优先级更高；未同时配置，以配置的一方为准。<br>取值范围为[0, 7]，默认值为4。 |
 | OPTION_GLOBAL_RESOURCE_CONFIG | 可选 | 字符串取值"GlobalResourceConfig"。用于开启并配置全局资源配置。该参数配置示例和使用约束请参考表格下方 |
 | OPTION_AUTO_CONNECT | 可选 | 字符串取值"AutoConnect"。 <br>- 0：不开启Auto Connect模式 <br>- 1：开启Auto Connect模式  <br><br>说明：<br>- 开启该选项后，可跳过建链，直接进行传输。<br>- 开启该选项后，传输发生异常或对端销毁后自动清理异常链路（对端销毁需要心跳机制来检测，心跳间隔默认10s）。 |
-| OPTION_LOCAL_COMM_RES | 可选 | 配置本地通信资源信息，格式是json格式的字符串。<br>- 不配置或配置为空串：将自动生成相关信息，使用集合通信的通信域方式进行建链。由于Device侧Stream资源有限，且建链会占用内存，建议单卡建链数量不超过512。<br>- 配置version为"1.0"或"1.2"的ranktable格式：使用集合通信的通信域方式进行建链。由于Device侧Stream资源有限，且建链会占用内存，建议单卡建链数量不超过512。仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段，ranktable具体信息请参见《HCCL集合通信库用户指南》。<br>- 配置version为"1.3"（推荐使用，需要HDK版本大于等于25.5.0且toolkit包版本大于等于9.1.0）：使用HixlCS能力进行建链，没有链路上限限制。配置格式参考[通信资源配置字段说明](#通信资源配置字段说明)，仅配置version字段即可，其他字段将自动生成。 |
+| OPTION_LOCAL_COMM_RES | 可选 | 配置本地通信资源信息，格式是json格式的字符串。<br>- 不配置或配置为空串：将自动生成相关信息，使用集合通信的通信域方式进行建链。由于Device侧Stream资源有限，且建链会占用内存，建议单卡建链数量不超过512。也可通过OPTION_GLOBAL_RESOURCE_CONFIG中的local_comm_res_path指定本地通信资源JSON文件路径，由HIXL读取文件内容作为本地通信资源；两者同时配置且本option非空时，以本option为准。<br>- 配置version为"1.0"或"1.2"的ranktable格式：使用集合通信的通信域方式进行建链。由于Device侧Stream资源有限，且建链会占用内存，建议单卡建链数量不超过512。仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段，ranktable具体信息请参见《HCCL集合通信库用户指南》。<br>- 配置version为"1.3"（推荐使用，需要HDK版本大于等于25.5.0且toolkit包版本大于等于9.1.0）：使用HixlCS能力进行建链，没有链路上限限制。配置格式参考[通信资源配置字段说明](#通信资源配置字段说明)，仅配置version字段即可，其他字段将自动生成。 |
 
 如上表格中的环境变量请参考[《环境变量参考》](https://www.hiascend.com/document/redirect/CannCommunityEnvRef)，ranktable请参考[《HCCL集合通信库用户指南》](https://www.hiascend.com/document/redirect/CannCommunityHcclUg)。
 
@@ -163,6 +163,16 @@ device侧网卡默认监听端口为16666，如果在多个进程使用同一个
 }
 ```
 
+通过文件路径配置本地通信资源时，可以做如下配置：
+
+```json
+{
+    "local_comm_res_path": "/path/to/local_comm_res.json"
+}
+```
+
+`local_comm_res_path`支持绝对路径和相对路径，相对路径基于进程当前工作目录解析。目标文件必须是大小在[1字节, 1MiB]范围内的普通文件，文件内容格式与OPTION_LOCAL_COMM_RES相同。与OPTION_LOCAL_COMM_RES同时配置且option非空时，以OPTION_LOCAL_COMM_RES为准。
+
 对于链路池机制，该参数配置示例如下：
 
 ```sh
@@ -194,7 +204,7 @@ device侧网卡默认监听端口为16666，如果在多个进程使用同一个
 
 | 参数名 | 可选/必选 | 描述                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | --- | --- |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| OPTION_LOCAL_COMM_RES | 必选 | 配置本地通信资源信息，格式是 json 格式的字符串。配置格式参考[通信资源配置字段说明](#通信资源配置字段说明)，配置为空不会自动生成相关信息。配置样例见下方[配置样例](#配置样例)<br/>**注意：<br/>1、以上配置样例中的具体值仅为格式参考示例，实际使用时必须从当前环境上查询真实的通信资源配置信息进行替换，直接拷贝样例值将导致通信失败。<br/>2、自动生成localcommres能力需要用户使用root权限调用hixl接口，且要求LCNE版本不低LCNE: UBM_2.0.0.B011，可前往1213前台执行dis startup查看LCNE版本信息；HDK版本不低于25.1.RC1.B108，可通过npu-smi info来查看HDK版本信息。<br/>3、目前仅UB场景支持自动生成net_instance_id与endpoint_list，如果用户想要自行配置localcommres信息，可以使用工具来辅助生成指定npu的localcommres信息，具体使用方法详见[scripts/tools/lcrgen/README.md](../../../../scripts/tools/lcrgen/README.md)。<br/>4、UB场景下，如果endpoint_list仅配置placement为device的UB endpoint，则仅支持Device地址的注册和传输；如果endpoint_list仅配置placement为host的UB endpoint，则仅支持Host地址的注册和传输。需要同时使用Device和Host地址时，需同时配置对应placement的UB endpoint。** |
+| OPTION_LOCAL_COMM_RES | 可选 | 配置本地通信资源信息，格式是 json 格式的字符串。配置格式参考[通信资源配置字段说明](#通信资源配置字段说明)，配置为空不会自动生成相关信息。也可通过OPTION_GLOBAL_RESOURCE_CONFIG中的local_comm_res_path指定本地通信资源JSON文件路径，由HIXL读取文件内容作为本地通信资源。OPTION_LOCAL_COMM_RES配置为非空字符串或OPTION_GLOBAL_RESOURCE_CONFIG中的local_comm_res_path配置为有效文件路径，两者至少配置一项。两者同时配置且本option非空时，以本option为准。配置样例见下方[配置样例](#配置样例)<br/>**注意：<br/>1、以上配置样例中的具体值仅为格式参考示例，实际使用时必须从当前环境上查询真实的通信资源配置信息进行替换，直接拷贝样例值将导致通信失败。<br/>2、自动生成localcommres能力需要用户使用root权限调用hixl接口，且要求LCNE版本不低LCNE: UBM_2.0.0.B011，可前往1213前台执行dis startup查看LCNE版本信息；HDK版本不低于25.1.RC1.B108，可通过npu-smi info来查看HDK版本信息。<br/>3、目前仅UB场景支持自动生成net_instance_id与endpoint_list，如果用户想要自行配置localcommres信息，可以使用工具来辅助生成指定npu的localcommres信息，具体使用方法详见[scripts/tools/lcrgen/README.md](../../../../scripts/tools/lcrgen/README.md)。<br/>4、UB场景下，如果endpoint_list仅配置placement为device的UB endpoint，则仅支持Device地址的注册和传输；如果endpoint_list仅配置placement为host的UB endpoint，则仅支持Host地址的注册和传输。需要同时使用Device和Host地址时，需同时配置对应placement的UB endpoint。** |
 | OPTION_GLOBAL_RESOURCE_CONFIG | 可选 | 字符串取值 "GlobalResourceConfig"。用于开启并配置全局资源，格式为 json 格式的字符串，字段说明参考[全局资源配置字段说明](#全局资源配置字段说明)。                                                                                                                                                                                                                                                                                                                                                                                                     |
 | OPTION_AUTO_CONNECT | 可选 | 字符串取值 "AutoConnect"。取值：0 — 不开启 Auto Connect 模式；1 — 开启 Auto Connect 模式。说明：开启该选项后，可跳过建链，直接进行传输；开启该选项后，传输发生异常或对端销毁后自动清理异常链路（对端销毁需要心跳机制来检测，心跳间隔默认 10s）。                                                                                                                                                                                                                                                                                                                                           |
 <!-- end id4 -->
@@ -295,6 +305,7 @@ UB_RTP
 | comm_resource_config.protocol_desc | 字符串或字符串数组 | 可选 | 配置可使用的通信协议以及通信设备位置范围，格式为`${protocol}:${placement}` | 支持"roce:device"/"hccs:device"/"ub_ctp:device"/"uboe:device"/"ub_rtp:device"/"roce:host"/"ub_ctp:host"。配置后会对OPTION_LOCAL_COMM_RES中显式配置的endpoint_list和自动生成的endpoint_list按该范围进行过滤。A5上未配置该字段或仅配置"ub_ctp:device"时，自动生成Device UB资源，Host内存通过UBMEM映射到Device地址后使用Device UB链路传输；同时配置"ub_ctp:device"和"ub_ctp:host"时，自动生成Device+Host UB资源并使用原有纯URMA路径。显式配置的OPTION_LOCAL_COMM_RES在未配置本字段时不进行额外过滤。 |
 | comm_resource_config.qos | 数字 | 可选 | 配置通信协议qos | 当前仅支持[0-7]，当未配置的时候，默认为0。|
 | comm_resource_config.max_active_channels | 数字 | 可选 | CS场景下配置设备侧同时活跃传输通道数量 | 取值为正整数，未配置时默认值为128。每个active channel消耗2个Stream资源，配置值需结合当前卡形态的Stream资源上限及业务中已创建的Stream数量预留余量；不同卡形态的Stream资源上限参见CANN Runtime API [aclrtCreateStream](https://www.hiascend.com/document/detail/zh/canncommercial/latest/API/runtimeapi/aclcppdevg_03_0066.html)资料。|
+| local_comm_res_path | 字符串 | 可选 | 本地通信资源 JSON 文件路径；文件内容格式与 OPTION_LOCAL_COMM_RES 相同 | 配置文件的绝对或相对路径，相对路径基于进程当前工作目录解析。目标文件必须是大小在[1字节, 1MiB]范围内的普通文件。与 OPTION_LOCAL_COMM_RES 同时配置且 option 非空时，以 OPTION_LOCAL_COMM_RES 为准。 |
 
 **调用示例**
 

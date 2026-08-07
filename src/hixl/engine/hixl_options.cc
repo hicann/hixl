@@ -10,13 +10,20 @@
 
 #include "hixl_options.h"
 
+#include <cerrno>
 #include <cstdlib>
+#include <cstring>
+#include <fcntl.h>
 #include <limits>
 #include <string>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "nlohmann/json.hpp"
+#include "mmpa/mmpa_api.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
+#include "common/scope_guard.h"
 #include "common/hixl_utils.h"
 #include "common/json_utils.h"
 #include "fabric_mem/fabric_mem_config.h"
@@ -34,6 +41,51 @@ constexpr int32_t kMaxRdmaTrafficClass = 255;
 constexpr int32_t kRdmaTrafficClassAlign = 4;
 constexpr int32_t kMinRdmaServiceLevel = 0;
 constexpr int32_t kMaxRdmaServiceLevel = 7;
+constexpr size_t kMaxLocalCommResFileSizeBytes = 1024U * 1024U;
+
+Status ReadLocalCommResFile(const char *resolved_path, std::string &content) {
+  constexpr int kOpenFlags = O_RDONLY | O_CLOEXEC | O_NONBLOCK | O_NOFOLLOW;
+  int fd = open(resolved_path, kOpenFlags);
+  HIXL_CHK_BOOL_RET_STATUS(fd >= 0, PARAM_INVALID,
+                           "Call api:open failed, path:%s, flags:%d, ret:%d, errno:%d, error:%s", resolved_path,
+                           kOpenFlags, fd, errno, strerror(errno));
+  HIXL_MAKE_GUARD(close_fd, ([fd]() { (void)close(fd); }));
+
+  struct stat file_stat {};
+  int stat_ret = fstat(fd, &file_stat);
+  HIXL_CHK_BOOL_RET_STATUS(stat_ret == 0, PARAM_INVALID, "Call api:fstat failed, path:%s, ret:%d, errno:%d, error:%s",
+                           resolved_path, stat_ret, errno, strerror(errno));
+  HIXL_CHK_BOOL_RET_STATUS(S_ISREG(file_stat.st_mode), PARAM_INVALID,
+                           "local_comm_res_path must reference a regular file, path:%s, mode:%o", resolved_path,
+                           static_cast<unsigned int>(file_stat.st_mode));
+  HIXL_CHK_BOOL_RET_STATUS(
+      file_stat.st_size > 0 && static_cast<uint64_t>(file_stat.st_size) <= kMaxLocalCommResFileSizeBytes, PARAM_INVALID,
+      "local_comm_res_path file size is invalid, path:%s, size:%lld bytes, valid range:[1, %zu] bytes", resolved_path,
+      static_cast<long long>(file_stat.st_size), kMaxLocalCommResFileSizeBytes);
+
+  const size_t file_size = static_cast<size_t>(file_stat.st_size);
+  content.resize(file_size);
+  size_t read_size = 0U;
+  while (read_size < file_size) {
+    ssize_t read_ret = read(fd, content.data() + read_size, file_size - read_size);
+    if (read_ret < 0) {
+      int read_errno = errno;
+      if (read_errno == EINTR) {
+        continue;
+      }
+      HIXL_CHK_BOOL_RET_STATUS(false, PARAM_INVALID,
+                               "Call api:read failed, path:%s, ret:%zd, read_size:%zu bytes, "
+                               "expected_size:%zu bytes, errno:%d, error:%s",
+                               resolved_path, read_ret, read_size, file_size, read_errno, strerror(read_errno));
+    }
+    HIXL_CHK_BOOL_RET_STATUS(read_ret != 0, PARAM_INVALID,
+                             "Call api:read reached unexpected EOF, path:%s, ret:%zd, read_size:%zu bytes, "
+                             "expected_size:%zu bytes",
+                             resolved_path, read_ret, read_size, file_size);
+    read_size += static_cast<size_t>(read_ret);
+  }
+  return SUCCESS;
+}
 
 void from_json(const nlohmann::json &j, FabricMemoryConfig &cfg) {
   if (j.contains("max_capacity")) {
@@ -106,6 +158,13 @@ void from_json(const nlohmann::json &j, GlobalResourceConfig &cfg) {
   }
   from_json(j, cfg.connect_pool);
   from_json(j, cfg.comm_resource_config);
+  if (j.contains("local_comm_res_path")) {
+    const auto &path_json = j.at("local_comm_res_path");
+    if (!path_json.is_string()) {
+      throw nlohmann::json::type_error::create(0, "local_comm_res_path must be a string", nullptr);
+    }
+    cfg.local_comm_res_path = path_json.get<std::string>();
+  }
 }
 
 Status ValidateGlobalResourceConfig(const GlobalResourceConfig &cfg) {
@@ -148,6 +207,10 @@ Status ValidateGlobalResourceConfig(const GlobalResourceConfig &cfg) {
     HIXL_CHK_BOOL_RET_STATUS(val >= kMinActiveChannels, PARAM_INVALID,
                              "comm_resource_config.max_active_channels must be >= %u, got %u", kMinActiveChannels, val);
   }
+  if (cfg.local_comm_res_path.has_value()) {
+    HIXL_CHK_BOOL_RET_STATUS(!cfg.local_comm_res_path->empty(), PARAM_INVALID,
+                             "local_comm_res_path must be a non-empty file path");
+  }
   return SUCCESS;
 }
 }  // namespace
@@ -166,6 +229,7 @@ Status HixlOptions::Parse(const std::map<AscendString, AscendString> &options, H
   HIXL_CHK_STATUS_RET(result.ParseFabricMemOptions(options), "Failed to parse FabricMem options.");
   HIXL_CHK_STATUS_RET(result.ParseAutoConnectOptions(options), "Failed to parse AutoConnect options.");
   HIXL_CHK_STATUS_RET(result.ParseGlobalResourceConfig(options), "Failed to parse GlobalResourceConfig.");
+  HIXL_CHK_STATUS_RET(result.ResolveLocalCommResFromFile(), "Failed to resolve LocalCommRes from file.");
   return SUCCESS;
 }
 
@@ -309,6 +373,31 @@ Status HixlOptions::ParseGlobalResourceConfig(const std::map<AscendString, Ascen
     return SUCCESS;
   }
   return ParseGlobalResourceConfig(config_str);
+}
+
+Status HixlOptions::ResolveLocalCommResFromFile() {
+  if (!global_resource_config_.has_value() || !global_resource_config_->local_comm_res_path.has_value()) {
+    return SUCCESS;
+  }
+  if (local_comm_res_.has_value() && !local_comm_res_->empty()) {
+    HIXL_EVENT("OPTION_LOCAL_COMM_RES is set, ignore local_comm_res_path file path: %s",
+               global_resource_config_->local_comm_res_path->c_str());
+    return SUCCESS;
+  }
+
+  const std::string &path = *global_resource_config_->local_comm_res_path;
+  char resolved_path[MMPA_MAX_PATH] = {};
+  auto mm_ret = mmRealPath(path.c_str(), resolved_path, MMPA_MAX_PATH);
+  HIXL_CHK_BOOL_RET_STATUS(mm_ret == EN_OK, PARAM_INVALID, "Call api:mmRealPath failed, path:%s, ret:%d", path.c_str(),
+                           mm_ret);
+
+  std::string content;
+  HIXL_CHK_STATUS_RET(ReadLocalCommResFile(resolved_path, content), "Failed to read local_comm_res_path file, path:%s",
+                      resolved_path);
+  local_comm_res_ = std::move(content);
+  HIXL_EVENT("Resolved local_comm_res from file successfully, path:%s, content_size:%zu bytes", resolved_path,
+             local_comm_res_->size());
+  return SUCCESS;
 }
 
 }  // namespace hixl

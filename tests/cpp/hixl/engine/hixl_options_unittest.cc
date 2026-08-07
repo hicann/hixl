@@ -9,11 +9,15 @@
  */
 
 #include <cstdlib>
+#include <string>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <gtest/gtest.h>
 #include "engine/hixl_options.h"
 #include "hixl/hixl_types.h"
 #include "adxl/adxl_types.h"
 #include "slog_stub.h"
+#include "test_mmpa_utils.h"
 
 namespace hixl {
 
@@ -566,5 +570,129 @@ TEST_F(HixlOptionsUTest, ParseConfigQosInValidAllString) {
 
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseLocalCommResFromFilePath) {
+  const std::string content = R"({"version":"1.3","net_instance_id":"from_file"})";
+  const std::string file_path = test::CreateTempFileWithContent("/tmp/hixl_lcr_XXXXXX", content);
+  ASSERT_FALSE(file_path.empty());
+
+  const std::string grc = std::string(R"({"local_comm_res_path":")") + file_path + "\"}";
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(grc.c_str());
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.LocalCommRes().has_value());
+  EXPECT_EQ(*result.LocalCommRes(), content);
+  ASSERT_TRUE(result.GlobalResourceCfg().has_value());
+  ASSERT_TRUE(result.GlobalResourceCfg()->local_comm_res_path.has_value());
+  EXPECT_EQ(*result.GlobalResourceCfg()->local_comm_res_path, file_path);
+  unlink(file_path.c_str());
+}
+
+TEST_F(HixlOptionsUTest, ParseLocalCommResOptionTakesPrecedenceOverFilePath) {
+  const std::string option_content = R"({"version":"1.3","net_instance_id":"from_option"})";
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_LOCAL_COMM_RES] = AscendString(option_content.c_str());
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"local_comm_res_path":"/tmp/hixl_lcr_ignored.json"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.LocalCommRes().has_value());
+  EXPECT_EQ(*result.LocalCommRes(), option_content);
+}
+
+TEST_F(HixlOptionsUTest, ParseEmptyLocalCommResOptionFromFilePath) {
+  const std::string content = R"({"version":"1.3","net_instance_id":"from_file"})";
+  const std::string file_path = test::CreateTempFileWithContent("/tmp/hixl_lcr_XXXXXX", content);
+  ASSERT_FALSE(file_path.empty());
+
+  const std::string grc = std::string(R"({"local_comm_res_path":")") + file_path + "\"}";
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_LOCAL_COMM_RES] = "";
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(grc.c_str());
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.LocalCommRes().has_value());
+  EXPECT_EQ(*result.LocalCommRes(), content);
+  unlink(file_path.c_str());
+}
+
+TEST_F(HixlOptionsUTest, ParseAdxlLocalCommResOptionTakesPrecedenceOverFilePath) {
+  const std::string option_content = R"({"version":"1.3","net_instance_id":"from_adxl_option"})";
+  std::map<AscendString, AscendString> options;
+  options[adxl::OPTION_LOCAL_COMM_RES] = AscendString(option_content.c_str());
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"local_comm_res_path":"/tmp/hixl_lcr_ignored.json"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.LocalCommRes().has_value());
+  EXPECT_EQ(*result.LocalCommRes(), option_content);
+}
+
+TEST_F(HixlOptionsUTest, ParseLocalCommResFilePathNotExistInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"local_comm_res_path":"/tmp/hixl_lcr_not_exist_12345.json"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseLocalCommResFilePathEmptyInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"local_comm_res_path":""})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseLocalCommResFilePathTypeInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"local_comm_res_path":123})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseLocalCommResDirectoryPathInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"local_comm_res_path":"/tmp"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseLocalCommResFifoPathInvalid) {
+  const std::string fifo_path = test::CreateTempFileWithContent("/tmp/hixl_lcr_fifo_XXXXXX", "");
+  ASSERT_FALSE(fifo_path.empty());
+  ASSERT_EQ(unlink(fifo_path.c_str()), 0);
+  ASSERT_EQ(mkfifo(fifo_path.c_str(), S_IRUSR | S_IWUSR), 0);
+
+  const std::string grc = std::string(R"({"local_comm_res_path":")") + fifo_path + "\"}";
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(grc.c_str());
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+  unlink(fifo_path.c_str());
+}
+
+TEST_F(HixlOptionsUTest, ParseLocalCommResEmptyFileInvalid) {
+  const std::string file_path = test::CreateTempFileWithContent("/tmp/hixl_lcr_empty_XXXXXX", "");
+  ASSERT_FALSE(file_path.empty());
+
+  const std::string grc = std::string(R"({"local_comm_res_path":")") + file_path + "\"}";
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(grc.c_str());
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+  unlink(file_path.c_str());
+}
+
+TEST_F(HixlOptionsUTest, ParseLocalCommResOversizedFileInvalid) {
+  constexpr off_t kOversizedFileSize = 1024U * 1024U + 1U;
+  const std::string file_path = test::CreateTempFileWithContent("/tmp/hixl_lcr_large_XXXXXX", "");
+  ASSERT_FALSE(file_path.empty());
+  ASSERT_EQ(truncate(file_path.c_str(), kOversizedFileSize), 0);
+
+  const std::string grc = std::string(R"({"local_comm_res_path":")") + file_path + "\"}";
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(grc.c_str());
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+  unlink(file_path.c_str());
 }
 }  // namespace hixl
