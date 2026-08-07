@@ -64,10 +64,10 @@ class TransferSlotPool {
     std::vector<void *> host_flag_free_list;
   };
   Status InitSlotLocked(Slot &slot) const;
-  void DestroySlotLocked(Slot &slot);
+  static void DestroySlotLocked(Slot &slot);
   Status EnsureDevConstOneLocked();
   void FillHandleLocked(uint32_t index, const Slot &slot, SlotHandle *handle) const;
-  void DestroySlotHostFlagsLocked(Slot &slot);
+  static void DestroySlotHostFlagsLocked(Slot &slot);
 
   std::mutex mu_;
   int32_t device_id_;

@@ -59,18 +59,18 @@ class HixlMemStore {
    * @param client_addr 发起请求的Client端内存地址
    * @return 验证结果
    */
-  Status ValidateMemoryAccess(const void *server_addr, size_t mem_size, const void *client_addr);
-  bool CheckMemoryForRegister(bool is_server, const void *check_addr, size_t check_size);
-  Status BatchValidateMemoryAccess(uint32_t list_num, const HixlOneSideOpDesc *desc_list);
+  Status ValidateMemoryAccess(const void *server_addr, size_t mem_size, const void *client_addr) const;
+  bool CheckMemoryForRegister(bool is_server, const void *check_addr, size_t check_size) const;
+  Status BatchValidateMemoryAccess(uint32_t list_num, const HixlOneSideOpDesc *desc_list) const;
   // 本函数默认已经经过了BatchValidateMemoryAccess校验，所以不做地址长度校验。
   Status BatchConvertHostAddr(uint32_t list_num, HixlOneSideOpDesc *desc_list) const;
 
  private:
-  bool CheckMemoryForAccess(bool is_server, const void *check_addr, size_t check_size);
+  bool CheckMemoryForAccess(bool is_server, const void *check_addr, size_t check_size) const;
   Status FindMemoryRegion(bool is_server, const void *addr, MemoryRegion &region) const;
   Status ConvertHostAddr(HixlOneSideOpDesc &desc, uint32_t &local_host_cnt, uint32_t &remote_host_cnt) const;
-  bool CheckMergedRegionsAccess(const std::map<const void *, MemoryRegion> &regions, uintptr_t s, uintptr_t e,
-                                typename std::map<const void *, MemoryRegion>::const_iterator it);
+  static bool CheckMergedRegionsAccess(const std::map<const void *, MemoryRegion> &regions, uintptr_t s, uintptr_t e,
+                                       typename std::map<const void *, MemoryRegion>::const_iterator it);
   // 内存区域信息结构体
   std::map<const void *, MemoryRegion> server_regions_;
   std::map<const void *, MemoryRegion> client_regions_;

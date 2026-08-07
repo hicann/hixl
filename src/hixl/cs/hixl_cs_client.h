@@ -115,7 +115,7 @@ class HixlCSClient {
   Status RegMemLocked(const char *mem_tag, const CommMem *mem, MemHandle *mem_handle);
   Status ImportRemoteMem(std::vector<HixlMemDesc> &desc_list, CommMem **remote_mem_list, char ***mem_tag_list,
                          uint32_t *list_num);
-  Status ValidateAddress(uint32_t list_num, const HixlOneSideOpDesc *desc_list);
+  Status ValidateAddress(uint32_t list_num, const HixlOneSideOpDesc *desc_list) const;
   Status TransferWithRetry(bool is_get, uint64_t channel_handle, void *dst_buf, const void *src_buf,
                            uint64_t len) const;
   Status BatchTransferTask(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list) const;
@@ -124,8 +124,8 @@ class HixlCSClient {
   Status ValidateDeviceInputs(uint32_t list_num, const HixlOneSideOpDesc *desc_list, void *&query_handle) const;
   Status PrepareDeviceRemoteFlagAndKernel(void *&remote_flag) const;
   Status RegisterNotifyMemForAllSlots(const std::vector<TransferPool::SlotHandle> &slots);
-  Status LaunchDeviceKernel(bool is_get, DeviceCompleteHandle &handle, const HixlOneSideOpParam &param,
-                            bool wait_notify = true);
+  static Status LaunchDeviceKernel(bool is_get, DeviceCompleteHandle &handle, const HixlOneSideOpParam &param,
+                                   bool wait_notify = true);
   void ReleaseLegacyHandles();
   void AbortAllPendingDeviceHandles();
   void ReleaseDeviceResources();
@@ -136,8 +136,8 @@ class HixlCSClient {
   Status AllocateDeviceDescBuf(DeviceCompleteHandle &handle, uint32_t total_list_num,
                                const HixlOneSideOpDesc *desc_list) const;
   Status BuildDeviceChunkParam(DeviceCompleteHandle &handle, uint32_t chunk_offset, uint32_t chunk_list_num,
-                               bool need_notify_wait, HixlOneSideOpParam &param);
-  Status LaunchDeviceChunkedKernels(bool is_get, DeviceCompleteHandle &handle, uint32_t list_num);
+                               bool need_notify_wait, HixlOneSideOpParam &param) const;
+  Status LaunchDeviceChunkedKernels(bool is_get, DeviceCompleteHandle &handle, uint32_t list_num) const;
   bool ShouldLatchTransferFailure(Status ret) const;
   Status LatchTransferFailureIfNeeded(Status ret);
   void LatchTransferFailure(Status ret);

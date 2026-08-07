@@ -94,7 +94,7 @@ Status HixlMemStore::UnrecordMemory(bool is_server, const void *addr) {
   return SUCCESS;
 }
 
-bool HixlMemStore::CheckMemoryForRegister(bool is_server, const void *check_addr, size_t check_size) {
+bool HixlMemStore::CheckMemoryForRegister(bool is_server, const void *check_addr, size_t check_size) const {
   std::lock_guard<std::mutex> lock(mutex_);
   const auto &regions = is_server ? server_regions_ : client_regions_;
   HIXL_CHECK_NOTNULL(check_addr);
@@ -144,7 +144,7 @@ bool HixlMemStore::CheckMemoryForRegister(bool is_server, const void *check_addr
   return false;  // 与相邻区域都不重叠，或者内存与已注册内存完全一致，允许注册
 }
 
-bool HixlMemStore::CheckMemoryForAccess(bool is_server, const void *check_addr, size_t check_size) {
+bool HixlMemStore::CheckMemoryForAccess(bool is_server, const void *check_addr, size_t check_size) const {
   const auto &regions = is_server ? server_regions_ : client_regions_;
   HIXL_CHECK_NOTNULL(check_addr);
   if (check_size == size_t{0}) {
@@ -225,7 +225,7 @@ bool HixlMemStore::CheckMergedRegionsAccess(const std::map<const void *, MemoryR
   return false;
 }
 
-Status HixlMemStore::ValidateMemoryAccess(const void *server_addr, size_t mem_size, const void *client_addr) {
+Status HixlMemStore::ValidateMemoryAccess(const void *server_addr, size_t mem_size, const void *client_addr) const {
   std::lock_guard<std::mutex> lock(mutex_);
   if (server_addr == nullptr || client_addr == nullptr || mem_size == size_t{0}) {
     return PARAM_INVALID;
@@ -271,7 +271,7 @@ Status HixlMemStore::FindMemoryRegion(bool is_server, const void *addr, MemoryRe
   return FAILED;
 }
 
-Status HixlMemStore::BatchValidateMemoryAccess(uint32_t list_num, const HixlOneSideOpDesc *desc_list) {
+Status HixlMemStore::BatchValidateMemoryAccess(uint32_t list_num, const HixlOneSideOpDesc *desc_list) const {
   std::lock_guard<std::mutex> lock(mutex_);
   for (uint32_t i = 0; i < list_num; ++i) {
     const void *server_addr = desc_list[i].remote_buf;

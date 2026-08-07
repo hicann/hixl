@@ -419,7 +419,7 @@ Status HixlCSClient::ReleaseCompleteHandle(CompleteHandleInfo *query_handle) {
   return SUCCESS;
 }
 
-Status HixlCSClient::ValidateAddress(uint32_t list_num, const HixlOneSideOpDesc *desc_list) {
+Status HixlCSClient::ValidateAddress(uint32_t list_num, const HixlOneSideOpDesc *desc_list) const {
   HIXL_CHK_STATUS_RET(mem_store_.BatchValidateMemoryAccess(list_num, desc_list), "Validate address failed, list_num=%u",
                       list_num);
   return SUCCESS;
@@ -709,7 +709,7 @@ Status HixlCSClient::AllocateHostFlag(void *&host_flag) const {
   return SUCCESS;
 }
 
-Status HixlCSClient::LaunchDeviceChunkedKernels(bool is_get, DeviceCompleteHandle &handle, uint32_t list_num) {
+Status HixlCSClient::LaunchDeviceChunkedKernels(bool is_get, DeviceCompleteHandle &handle, uint32_t list_num) const {
   uint32_t num_chunks = (list_num + kMaxKernelBatchSize - 1U) / kMaxKernelBatchSize;
   for (uint32_t chunk_idx = 0U; chunk_idx < num_chunks; ++chunk_idx) {
     uint32_t chunk_offset = chunk_idx * kMaxKernelBatchSize;
@@ -757,7 +757,7 @@ Status HixlCSClient::AllocateDeviceDescBuf(DeviceCompleteHandle &handle, uint32_
 }
 
 Status HixlCSClient::BuildDeviceChunkParam(DeviceCompleteHandle &handle, uint32_t chunk_offset, uint32_t chunk_list_num,
-                                           bool need_notify_wait, HixlOneSideOpParam &param) {
+                                           bool need_notify_wait, HixlOneSideOpParam &param) const {
   param.thread = handle.shared_slot->thread;
   param.channel = static_cast<uint64_t>(client_channel_handle_);
   param.list_num = chunk_list_num;
