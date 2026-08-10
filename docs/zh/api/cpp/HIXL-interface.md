@@ -12,7 +12,7 @@
 - Atlas A2 推理系列产品/Atlas A2 训练系列产品：支持
 <!-- end id3 -->
 
-说明：针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，仅支持Atlas 800I A2 推理服务器、A200I A2 Box 异构组件。针对Ascend 950PR/Ascend 950DT，不支持SendNotify和GetNotifies。
+说明：针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，仅支持Atlas 800I A2 推理服务器、A200I A2 Box 异构组件。
 
 ## HIXL构造函数
 
@@ -207,6 +207,8 @@ device侧网卡默认监听端口为16666，如果在多个进程使用同一个
 | OPTION_LOCAL_COMM_RES | 可选 | 配置本地通信资源信息，格式是 json 格式的字符串。配置格式参考[通信资源配置字段说明](#通信资源配置字段说明)，配置为空不会自动生成相关信息。也可通过OPTION_GLOBAL_RESOURCE_CONFIG中的local_comm_res_path指定本地通信资源JSON文件路径，由HIXL读取文件内容作为本地通信资源。OPTION_LOCAL_COMM_RES配置为非空字符串或OPTION_GLOBAL_RESOURCE_CONFIG中的local_comm_res_path配置为有效文件路径，两者至少配置一项。两者同时配置且本option非空时，以本option为准。配置样例见下方[配置样例](#配置样例)<br/>**注意：<br/>1、以上配置样例中的具体值仅为格式参考示例，实际使用时必须从当前环境上查询真实的通信资源配置信息进行替换，直接拷贝样例值将导致通信失败。<br/>2、自动生成localcommres能力需要用户使用root权限调用hixl接口，且要求LCNE版本不低LCNE: UBM_2.0.0.B011，可前往1213前台执行dis startup查看LCNE版本信息；HDK版本不低于25.1.RC1.B108，可通过npu-smi info来查看HDK版本信息。<br/>3、目前仅UB场景支持自动生成net_instance_id与endpoint_list，如果用户想要自行配置localcommres信息，可以使用工具来辅助生成指定npu的localcommres信息，具体使用方法详见[scripts/tools/lcrgen/README.md](../../../../scripts/tools/lcrgen/README.md)。<br/>4、UB场景下，如果endpoint_list仅配置placement为device的UB endpoint，则仅支持Device地址的注册和传输；如果endpoint_list仅配置placement为host的UB endpoint，则仅支持Host地址的注册和传输。需要同时使用Device和Host地址时，需同时配置对应placement的UB endpoint。** |
 | OPTION_GLOBAL_RESOURCE_CONFIG | 可选 | 字符串取值 "GlobalResourceConfig"。用于开启并配置全局资源，格式为 json 格式的字符串，字段说明参考[全局资源配置字段说明](#全局资源配置字段说明)。                                                                                                                                                                                                                                                                                                                                                                                                     |
 | OPTION_AUTO_CONNECT | 可选 | 字符串取值 "AutoConnect"。取值：0 — 不开启 Auto Connect 模式；1 — 开启 Auto Connect 模式。说明：开启该选项后，可跳过建链，直接进行传输；开启该选项后，传输发生异常或对端销毁后自动清理异常链路（对端销毁需要心跳机制来检测，心跳间隔默认 10s）。                                                                                                                                                                                                                                                                                                                                           |
+| OPTION_RDMA_TRAFFIC_CLASS | 可选 | 字符串取值"RdmaTrafficClass"。<br>用于配置RDMA网卡的traffic class。和环境变量HCCL_RDMA_TC功能相同，如同时配置，当前option优先级更高；未同时配置，以配置的一方为准。<br>取值范围为[0,255]，且需要配置为4的整数倍，默认值为132。<br>说明：适用于Ascend 950PR/Ascend 950DT的RoCE场景。 |
+| OPTION_RDMA_SERVICE_LEVEL | 可选 | 字符串取值"RdmaServiceLevel"。<br>用于配置RDMA网卡的service level。和环境变量HCCL_RDMA_SL功能相同，如同时配置，当前option优先级更高；未同时配置，以配置的一方为准。<br>取值范围为[0, 7]，默认值为4。<br>说明：适用于Ascend 950PR/Ascend 950DT的RoCE场景。 |
 <!-- end id4 -->
 
 <a id="配置样例"></a>**配置样例**

@@ -4,7 +4,7 @@
 
 - [环境要求](#环境要求)
 - [快速开始](#快速开始)
-- [通信 Benchmark](#通信-benchmark)
+- [通信 Benchmark](#通信-benchmark-hixl_comm_bench)
 - [KV Benchmark](#kv-benchmark-hixl_kv_bench)
 - [目录结构](#目录结构)
 - [性能数据](performance.md)
@@ -146,7 +146,7 @@ bash benchmarks/run_all_bench.sh --hixl-option 'LocalCommRes={"version":"1.3"}'
 
 ---
 
-## 通信 Benchmark
+## 通信 Benchmark (`hixl_comm_bench`)
 
 测量 HIXL 在不同方向、不同传输类型下的 block 传输带宽。
 

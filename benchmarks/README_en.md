@@ -4,7 +4,7 @@ This directory contains benchmarks for communication and KV Cache scenarios, mea
 
 - [Environment Requirements](#environment-requirements)
 - [Quick Start](#quick-start)
-- [Communication Benchmark](#communication-benchmark)
+- [Communication Benchmark](#communication-benchmark-hixl_comm_bench)
 - [KV Benchmark](#kv-benchmark-hixl_kv_bench)
 - [Directory Structure](#directory-structure)
 - [Performance Data](performance_en.md)
@@ -146,7 +146,7 @@ bash benchmarks/run_all_bench.sh --hixl-option 'LocalCommRes={"version":"1.3"}'
 
 ---
 
-## Communication Benchmark
+## Communication Benchmark (`hixl_comm_bench`)
 
 Measures HIXL block transmission bandwidth under different directions and transports.
 
