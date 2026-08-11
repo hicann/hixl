@@ -74,9 +74,9 @@ Replace `${HOME}/Ascend` with the actual software installation path.
 
 - Run the `pull_cache` sample. This sample demonstrates how to allocate cache memory, establish bidirectional connections, and pull cache from a remote node in a configured memory pool scenario.
   - Note:
-    This example requires two hosts. See [Sample Configuration](#sample-configuration).
+    This example supports both dual-host and single-host execution. For dual-host execution, see [Sample Configuration](#sample-configuration) to configure the device information for both hosts.
 
-  Run the sample program on both the Prompt and Decoder hosts. `device_id` specifies the device ID to use, and `cluster_id` specifies the cluster ID which must be unique across all nodes involved in connection establishment:
+  For dual-host execution, run the sample program on the Prompt and Decoder hosts respectively. `device_id` specifies the device ID to use, and `cluster_id` specifies the cluster ID which must be unique across all nodes involved in connection establishment:
 
     ```sh
     # Prompt host:
@@ -85,11 +85,20 @@ Replace `${HOME}/Ascend` with the actual software installation path.
     HCCL_INTRA_ROCE_ENABLE=1 python pull_cache_sample.py --device_id 0 --cluster_id 2
     ```
 
+  For single-host execution, run the Prompt and Decoder processes concurrently on the same host. `host_ip` specifies the IP address of the local host:
+
+    ```sh
+    # Prompt process:
+    HCCL_INTRA_ROCE_ENABLE=1 python pull_cache_sample.py --device_id 0 --cluster_id 1 --is_single true --host_ip 10.10.10.1
+    # Decoder process:
+    HCCL_INTRA_ROCE_ENABLE=1 python pull_cache_sample.py --device_id 1 --cluster_id 2 --is_single true --host_ip 10.10.10.1
+    ```
+
 - Run the `pull_blocks` sample. This sample uses Torch to allocate memory, establishes bidirectional connections, and pulls cache from a remote node.
   - Note:
-    This example requires two hosts. See [Sample Configuration](#sample-configuration).
+    This example supports both dual-host and single-host execution. For dual-host execution, see [Sample Configuration](#sample-configuration).
 
-  Run the sample program on both the Prompt and Decoder hosts. `device_id` specifies the device ID to use, and `cluster_id` specifies the cluster ID which must be unique across all nodes involved in connection establishment:
+  For dual-host execution, run the sample program on the Prompt and Decoder hosts respectively. `device_id` specifies the device ID to use, and `cluster_id` specifies the cluster ID which must be unique across all nodes involved in connection establishment:
 
     ```sh
     # Prompt host:
@@ -98,17 +107,35 @@ Replace `${HOME}/Ascend` with the actual software installation path.
     HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_sample.py --device_id 0 --cluster_id 2
     ```
 
+  For single-host execution, run the Prompt and Decoder processes concurrently on the same host. `host_ip` specifies the IP address of the local host:
+
+    ```sh
+    # Prompt process:
+    HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_sample.py --device_id 0 --cluster_id 1 --is_single true --host_ip 10.10.10.1
+    # Decoder process:
+    HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_sample.py --device_id 1 --cluster_id 2 --is_single true --host_ip 10.10.10.1
+    ```
+
 - Run the `pull_from_cache_to_blocks` sample:
   - Note:
-    This example requires two hosts. See [Sample Configuration](#sample-configuration).
+    This example supports both dual-host and single-host execution. For dual-host execution, see [Sample Configuration](#sample-configuration).
 
-  Run the sample program on both the Prompt and Decoder hosts. `device_id` specifies the device ID to use, and `cluster_id` specifies the cluster ID which must be unique across all nodes involved in connection establishment:
+  For dual-host execution, run the sample program on the Prompt and Decoder hosts respectively. `device_id` specifies the device ID to use, and `cluster_id` specifies the cluster ID which must be unique across all nodes involved in connection establishment:
 
     ```sh
     # Prompt host:
     HCCL_INTRA_ROCE_ENABLE=1 python pull_from_cache_to_blocks.py --device_id 0 --cluster_id 1
     # Decoder host:
     HCCL_INTRA_ROCE_ENABLE=1 python pull_from_cache_to_blocks.py --device_id 0 --cluster_id 2
+    ```
+
+  For single-host execution, run the Prompt and Decoder processes concurrently on the same host. `host_ip` specifies the IP address of the local host:
+
+    ```sh
+    # Prompt process:
+    HCCL_INTRA_ROCE_ENABLE=1 python pull_from_cache_to_blocks.py --device_id 0 --cluster_id 1 --is_single true --host_ip 10.10.10.1
+    # Decoder process:
+    HCCL_INTRA_ROCE_ENABLE=1 python pull_from_cache_to_blocks.py --device_id 1 --cluster_id 2 --is_single true --host_ip 10.10.10.1
     ```
 
 - Run the `push_blocks` sample. This sample uses a single-side connection method to allocate memory, register blocks, and have the decoder initiate the connection to push blocks.

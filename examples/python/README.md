@@ -69,36 +69,60 @@ source ${HOME}/Ascend/cann/set_env.sh
 ## 样例运行
 - 执行pull cache样例程序，此样例程序展示了配置内存池场景下，使用allocate_cache，双向建链，并从远端pull_cache
   - 说明：
-    本示例必须使用双机，参考[样例配置说明](#样例配置说明)
+    本示例支持双机和单机执行。双机执行时，参考[样例配置说明](#样例配置说明)配置两台主机的device信息。
 
-  分别在Prompt主机与Decoder主机，执行样例程序，其中device_id为要使用的device_id，cluster_id为集群ID且在所有参与建链的范围内需要确保唯一：
+  双机执行时，分别在Prompt主机与Decoder主机执行样例程序，其中device_id为要使用的device_id，cluster_id为集群ID且在所有参与建链的范围内需要确保唯一：
     ```
     # Prompt主机:
     HCCL_INTRA_ROCE_ENABLE=1 python pull_cache_sample.py --device_id 0 --cluster_id 1
     # Decoder主机:
     HCCL_INTRA_ROCE_ENABLE=1 python pull_cache_sample.py --device_id 0 --cluster_id 2
     ```
+
+  单机执行时，需要在同一台主机上同时执行Prompt与Decoder进程。其中host_ip为本机host_ip：
+    ```
+    # Prompt进程:
+    HCCL_INTRA_ROCE_ENABLE=1 python pull_cache_sample.py --device_id 0 --cluster_id 1 --is_single true --host_ip 10.10.10.1
+    # Decoder进程:
+    HCCL_INTRA_ROCE_ENABLE=1 python pull_cache_sample.py --device_id 1 --cluster_id 2 --is_single true --host_ip 10.10.10.1
+    ```
 - 执行pull blocks样例程序，此样例程序使用torch自行申请内存，双向建链，并从远端pull_cache
   - 说明：
-    本示例必须使用双机，参考[样例配置说明](#样例配置说明)
+    本示例支持双机和单机执行。双机执行时，参考[样例配置说明](#样例配置说明)。
 
-  分别在Prompt主机与Decoder主机，执行样例程序，其中device_id为要使用的device_id，cluster_id为集群ID且在所有参与建链的范围内需要确保唯一：
+  双机执行时，分别在Prompt主机与Decoder主机执行样例程序，其中device_id为要使用的device_id，cluster_id为集群ID且在所有参与建链的范围内需要确保唯一：
     ```
     # Prompt主机:
     HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_sample.py --device_id 0 --cluster_id 1
     # Decoder主机:
     HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_sample.py --device_id 0 --cluster_id 2
     ```
+
+  单机执行时，需要在同一台主机上同时执行Prompt与Decoder进程。其中host_ip为本机host_ip：
+    ```
+    # Prompt进程:
+    HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_sample.py --device_id 0 --cluster_id 1 --is_single true --host_ip 10.10.10.1
+    # Decoder进程:
+    HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_sample.py --device_id 1 --cluster_id 2 --is_single true --host_ip 10.10.10.1
+    ```
 - 执行pull_from_cache_to_blocks样例程序：
   - 说明：
-    本示例必须使用双机，参考[样例配置说明](#样例配置说明)
+    本示例支持双机和单机执行。双机执行时，参考[样例配置说明](#样例配置说明)。
 
-  分别在Prompt主机与Decoder主机，执行样例程序，其中device_id为要使用的device_id，cluster_id为集群ID且在所有参与建链的范围内需要确保唯一：
+  双机执行时，分别在Prompt主机与Decoder主机执行样例程序，其中device_id为要使用的device_id，cluster_id为集群ID且在所有参与建链的范围内需要确保唯一：
     ```
     # Prompt主机:
     HCCL_INTRA_ROCE_ENABLE=1 python pull_from_cache_to_blocks.py --device_id 0 --cluster_id 1
     # Decoder主机:
     HCCL_INTRA_ROCE_ENABLE=1 python pull_from_cache_to_blocks.py --device_id 0 --cluster_id 2
+    ```
+
+  单机执行时，需要在同一台主机上同时执行Prompt与Decoder进程。其中host_ip为本机host_ip：
+    ```
+    # Prompt进程:
+    HCCL_INTRA_ROCE_ENABLE=1 python pull_from_cache_to_blocks.py --device_id 0 --cluster_id 1 --is_single true --host_ip 10.10.10.1
+    # Decoder进程:
+    HCCL_INTRA_ROCE_ENABLE=1 python pull_from_cache_to_blocks.py --device_id 1 --cluster_id 2 --is_single true --host_ip 10.10.10.1
     ```
 - 执行push_blocks样例程序，此样例程序使用单侧建链方式，申请内存并注册blocks,  decoder发起建链并push blocks
   分别在Prompt主机与Decoder主机，执行样例程序，其中device_id为要使用的device_id，role为集群角色，local_host_ip为本地host的ip，remote_host_ip为对端host的ip。默认走通信域传输后端，可通过`--transfer_backend hixl`切换为hixl cs后端：
