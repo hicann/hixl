@@ -182,7 +182,7 @@ PageSpan *ScalableAllocator::AllocImp(ge::Allocator &allocator, const MemSize si
 
 PageSpan *ScalableAllocator::Alloc(ge::Allocator &allocator, const MemSize size) {
   if (size > config_.page_mem_size_total_threshold) {
-    LLMLOGE(ge::FAILED, "%s [ScalableAllocator]: size:%lu > mem_size_total_thresold:%lu", GetId().c_str(), size,
+    LLMLOGE(ge::FAILED, "%s [ScalableAllocator]: size:%lu > mem_size_total_threshold:%lu", GetId().c_str(), size,
             config_.page_mem_size_total_threshold);
     return nullptr;
   }

@@ -317,11 +317,13 @@ void AdxlInnerEngine::Finalize() {
       if (mem != nullptr) {
         auto ret = aclrtFree(mem);
         LLMLOGI("Call aclrtFree ret:%d.", ret);
+        mem = nullptr;
       }
     }
   }
   if (aclrt_context_ != nullptr) {
     (void)aclrtDestroyContext(aclrt_context_);
+    aclrt_context_ = nullptr;
   }
 }
 

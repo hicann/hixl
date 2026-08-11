@@ -94,7 +94,7 @@ ge::Status RunOrderedBlockMemcpy(uintptr_t src_addr, uintptr_t dst_addr, uint64_
 
 ge::Status WaitSwapFutures(std::vector<std::future<ge::Status>> &rets) {
   for (size_t i = 0U; i < rets.size(); ++i) {
-    LLM_CHK_BOOL_RET_STATUS(rets[i].get() == ge::SUCCESS, ge::FAILED, "the %zuth blocks mem copy failed", i);
+    LLM_CHK_BOOL_RET_STATUS(rets[i].get() == ge::SUCCESS, ge::FAILED, "the %zuth block mem copy failed", i);
   }
   return ge::SUCCESS;
 }
@@ -157,7 +157,7 @@ ge::Status SwapImpl::CheckParam(const Cache &src, const Cache &dst) {
   const auto &src_addrs = src.per_device_tensor_addrs;
   const auto &dst_addrs = dst.per_device_tensor_addrs;
   LLM_CHK_BOOL_RET_STATUS(((src_addrs.size() == 1) && (src_addrs.size() == dst_addrs.size())), ge::LLM_PARAM_INVALID,
-                          "currently support kv cache in one device");
+                          "currently only supports kv cache on one device");
   LLM_CHK_BOOL_RET_STATUS((src_addrs.front().size() == dst_addrs.front().size()), ge::LLM_PARAM_INVALID,
                           "src address size:%zu is not equal to dst address size:%zu", src_addrs.front().size(),
                           dst_addrs.front().size());

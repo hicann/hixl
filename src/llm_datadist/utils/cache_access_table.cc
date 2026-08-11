@@ -85,7 +85,10 @@ void *SharedDevBuffer::GetOrCreateBuffer(size_t size) {
   if (buffer_ == nullptr) {
     LLM_ASSERT_RT_OK(aclrtMalloc(
         &buffer_, size, static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_ONLY)));
-    LLM_DISMISSABLE_GUARD(fail_guard, ([this]() { LLM_CHK_ACL(aclrtFree(buffer_)); }));
+    LLM_DISMISSABLE_GUARD(fail_guard, ([this]() {
+                            LLM_CHK_ACL(aclrtFree(buffer_));
+                            buffer_ = nullptr;
+                          }));
     auto ret = GlobalMemManager::GetInstance().RegisterMem(buffer_, size, CommMemType::COMM_MEM_TYPE_DEVICE,
                                                            mem_register_handle_);
     if (ret != ge::SUCCESS) {
