@@ -368,7 +368,7 @@ void Finalize()
 
 **函数功能**
 
-注册内存地址。用于TransferSync调用指定本地内存地址和远端内存地址，TransferSync指定的地址可以为注册的地址子集，其中本地内存地址需在当前HIXL进行注册，远端内存地址需要在远端HIXL进行注册。
+注册内存地址。用于TransferSync调用指定本地内存地址和远端内存地址，TransferSync指定的地址可以为注册的地址子集，其中本地内存地址需在当前HIXL进行注册，远端内存地址需要在远端HIXL进行注册。对同一内存区域（相同addr和相同len）重复调用RegisterMem，将返回SUCCESS并返回与首次注册相同的mem_handle，不会创建新的底层资源。
 
 **函数原型**
 
@@ -430,7 +430,7 @@ Status RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle)
 
 **函数功能**
 
-解注册内存。
+解注册内存。对同一mem_handle重复调用DeregisterMem，第一次会正确释放资源，后续调用返回SUCCESS但不执行实际操作。传入未通过RegisterMem获取的handle（非null）时返回SUCCESS但不执行实际操作；传入nullptr时返回PARAM_INVALID。
 
 **函数原型**
 
