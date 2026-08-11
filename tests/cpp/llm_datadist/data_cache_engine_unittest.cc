@@ -110,6 +110,14 @@ void InitSwapTestDataDist(llm::LLMDataDistV2 &llm_data_dist) {
   llm::CommAdapter::GetInstance().Finalize();
   EXPECT_EQ(llm_data_dist.LLMDataDistInitialize(DefaultSwapTestOptions()), ge::SUCCESS);
 }
+
+CacheKey MakeCacheKey(int64_t req_id, int64_t model_id, uint64_t prefix_id) {
+  CacheKey key{};
+  key.req_id = req_id;
+  key.model_id = model_id;
+  key.prefix_id = prefix_id;
+  return key;
+}
 }  // namespace
 
 TEST_F(DataCacheEngineTest, CacheOps) {
@@ -126,15 +134,12 @@ TEST_F(DataCacheEngineTest, CacheOps) {
   Cache cache_2{};
   std::vector<CacheKey> cache_keys;
   for (int32_t i = 0; i < 3; ++i) {
-    CacheKey cache_key{};
-    cache_key.req_id = 1000 + i;
-    cache_key.model_id = 1;
-    cache_key.prefix_id = UINT64_MAX;
-    cache_keys.emplace_back(cache_key);
+    cache_keys.emplace_back(MakeCacheKey(1000 + i, 1, UINT64_MAX));
   }
   cache_keys[1].req_id = UINT64_MAX;
   EXPECT_EQ(cache_engine_.CheckCapacity(262144), ge::SUCCESS);
   EXPECT_EQ(cache_engine_.Allocate(cache_desc, cache_keys, cache), ge::SUCCESS);
+  cache_keys.emplace_back(MakeCacheKey(1003, 1, UINT64_MAX));
   EXPECT_EQ(cache_engine_.CheckCapacity(1), ge::LLM_OUT_OF_MEMORY);
   EXPECT_EQ(cache_engine_.Allocate(cache_desc, {}, cache_2), ge::LLM_OUT_OF_MEMORY);
 
@@ -196,11 +201,7 @@ TEST_F(DataCacheEngineTest, RemoveCacheIndices_PrefixKey) {
 
   std::vector<CacheKey> cache_keys;
   // Create a prefix cache key: prefix_id != UINT64_MAX
-  CacheKey prefix_key{};
-  prefix_key.prefix_id = 100;
-  prefix_key.model_id = 1;
-  prefix_key.req_id = UINT64_MAX;  // not used for prefix keys
-  cache_keys.emplace_back(prefix_key);
+  cache_keys.emplace_back(MakeCacheKey(UINT64_MAX, 1, 100));
 
   // Register cache entry with prefix key
   // This should populate:
@@ -211,15 +212,15 @@ TEST_F(DataCacheEngineTest, RemoveCacheIndices_PrefixKey) {
 
   // Verify prefix key lookup works
   CacheEntry cache_entry;
-  DataCacheKey data_cache_key = std::make_pair(prefix_key.prefix_id, prefix_key.model_id);
+  DataCacheKey data_cache_key = std::make_pair(static_cast<uint64_t>(100), static_cast<int64_t>(1));
   EXPECT_TRUE(cache_manager_.GetCacheEntry(data_cache_key, true, cache_entry));
   EXPECT_EQ(cache_entry.cache_addrs.size(), cache_desc.num_tensors);
 
   // Verify batch index lookup works
   DataCacheKey retrieved_key;
   EXPECT_TRUE(cache_manager_.GetCacheKey(std::make_pair(cache.cache_id, 0UL), retrieved_key));
-  EXPECT_EQ(retrieved_key.first, prefix_key.prefix_id);
-  EXPECT_EQ(retrieved_key.second, prefix_key.model_id);
+  EXPECT_EQ(retrieved_key.first, static_cast<uint64_t>(100));
+  EXPECT_EQ(retrieved_key.second, static_cast<int64_t>(1));
 
   // Unregister cache entry - this calls RemoveCacheIndices
   // which should clean up prefix_key_to_id_, cache_id_and_batch_id_to_cache_key_,
@@ -567,11 +568,7 @@ TEST_F(DataCacheEngineTest, PullCache_D2H_C2C_ByKey) {
   DataCacheEngineTestRunner test_runner;
   std::vector<CacheKey> src_cache_keys;
   for (int32_t i = 0; i < 4; ++i) {
-    CacheKey cache_key{};
-    cache_key.req_id = 1000 + i;
-    cache_key.model_id = 1;
-    cache_key.prefix_id = UINT64_MAX;
-    src_cache_keys.emplace_back(cache_key);
+    src_cache_keys.emplace_back(MakeCacheKey(1000 + i, 1, UINT64_MAX));
   }
   test_runner.Initialize(src_cache_desc, dst_cache_desc, pull_cache_param, &src_cache_keys);
   ASSERT_EQ(test_runner.Run(pull_cache_param, &src_cache_keys[1]), ge::SUCCESS);
@@ -1498,11 +1495,7 @@ TEST_F(DataCacheEngineTest, PullCache_D2D_C2C_ByKey) {
   DataCacheEngineTestRunner test_runner;
   std::vector<CacheKey> src_cache_keys;
   for (int32_t i = 0; i < 4; ++i) {
-    CacheKey cache_key{};
-    cache_key.req_id = 1000 + i;
-    cache_key.model_id = 1;
-    cache_key.prefix_id = UINT64_MAX;
-    src_cache_keys.emplace_back(cache_key);
+    src_cache_keys.emplace_back(MakeCacheKey(1000 + i, 1, UINT64_MAX));
   }
   test_runner.Initialize(src_cache_desc, dst_cache_desc, pull_cache_param, &src_cache_keys);
   ASSERT_EQ(test_runner.Run(pull_cache_param, &src_cache_keys[1]), ge::SUCCESS);

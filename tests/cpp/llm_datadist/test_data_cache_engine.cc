@@ -687,7 +687,7 @@ TEST_F(DataCacheEngineSTest, PullCache_D2D_B2B_BatchGet_DynamicRequestBuffer) {
   data_cache_engine_runner.PullDataCache(pull_cache_param, pull_result);
   data_cache_engine_runner.ReleaseResource();
 
-  std::vector<int32_t> actual(&pull_result[4], &pull_result[8]);
+  std::vector<int32_t> actual(pull_result.data() + 4, pull_result.data() + 8);
   EXPECT_EQ(actual, (std::vector<int32_t>{1, 2, 3, 4}));
 }
 
