@@ -14,7 +14,6 @@ find_package_if_target_not_exists(ascend_hal MODULE REQUIRED)
 
 if (NOT ENABLE_TEST)
     find_package_if_target_not_exists(slog MODULE REQUIRED)
-    find_package_if_target_not_exists(mmpa MODULE REQUIRED)
     find_package_if_target_not_exists(msprof MODULE REQUIRED)
     find_package_if_target_not_exists(hccl MODULE REQUIRED)
     find_package_if_target_not_exists(acl_rt MODULE REQUIRED)

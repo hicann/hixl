@@ -98,11 +98,18 @@ target_link_libraries(llm_datadist_test
         hccl_stub
         msprof_stub
         msprof_headers
+        sys_api_wrap
         GTest::gtest GTest::gtest_main
         GTest::gmock
         -Wl,--no-as-need
         hccl_stub
         error_manager_stub
+)
+
+# Intercept dlopen/dlsym/dlclose/dlerror/access/realpath so HCCL adapter dynamic
+# loading and file-access paths can be exercised/stubbed without production code.
+set_target_properties(llm_datadist_test PROPERTIES
+        LINK_FLAGS "-Wl,--wrap=dlopen -Wl,--wrap=dlsym -Wl,--wrap=dlclose -Wl,--wrap=dlerror -Wl,--wrap=access -Wl,--wrap=realpath"
 )
 
 include(CTest)

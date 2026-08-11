@@ -9,6 +9,7 @@
  */
 
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/sys_api/src/sys_api_wrap.h"
 #include "depends/ascendcl/src/ascendcl_stub.h"
 #include "depends/llm_datadist/src/hccn_conf_helper.h"
 #include "comm_adapter/comm_types.h"
@@ -47,7 +48,7 @@ HcclResult HcclBatchGet1(HcclComm comm, uint32_t remoteRank, HcclOneSideOpDesc *
 }
 
 }  // namespace
-class MockMmpa : public MmpaStubApiGe {
+class MockMmpa : public hixl_test::SysApiHooks {
  public:
   void *DlOpen(const char *file_name, int32_t mode) override {
     return reinterpret_cast<void *>(mock_handle);
@@ -62,6 +63,15 @@ class MockMmpa : public MmpaStubApiGe {
 
   int32_t DlClose(void *handle) override {
     return 0;
+  }
+
+  int32_t Access(const char *path_name) override {
+    // TransferPool/load_kernel reads the device-kernel json which is absent in
+    // the test environment; report it as accessible and pass through the rest.
+    if (path_name != nullptr && std::string(path_name).find("libcann_hixl_kernel.json") != std::string::npos) {
+      return 0;
+    }
+    return hixl_test::kSysApiPassThrough;
   }
 
   int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
@@ -96,7 +106,7 @@ class RuntimeMock : public llm::AclRuntimeStub {
 class StartMock {
  public:
   StartMock() {
-    MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+    hixl_test::InstallSysApiHooks(std::make_shared<MockMmpa>());
     llm::AclRuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
     WriteHccnConfFile();
   }

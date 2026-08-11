@@ -18,6 +18,7 @@
 #include "ascendcl_stub.h"
 #include "depends/ascend_hal/src/ascend_hal_stub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/sys_api/src/sys_api_wrap.h"
 #include "depends/runtime/src/runtime_stub.h"
 #include "engine/test_mmpa_utils.h"
 #include "gtest/gtest.h"
@@ -135,7 +136,7 @@ class TransferPoolTest : public ::testing::Test {
  protected:
   void SetUp() override {
     auto kernel_stub = std::make_shared<test::KernelJsonMmpaStub>();
-    llm::MmpaStub::GetInstance().SetImpl(kernel_stub);
+    hixl_test::InstallSysApiHooks(kernel_stub);
     ResetThreadLifecycleStats();
   }
 
@@ -175,7 +176,7 @@ class TransferPoolTest : public ::testing::Test {
     AscendHalStubReset();
     llm::AclRuntimeStub::Reset();
     llm::RuntimeStub::Reset();
-    llm::MmpaStub::GetInstance().Reset();
+    hixl_test::ResetSysApiHooks();
   }
 };
 

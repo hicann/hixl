@@ -34,6 +34,7 @@
 #include "hixl/hixl.h"
 #include "slog_stub.h"
 #include "test_mmpa_utils.h"
+#include "depends/sys_api/src/sys_api_wrap.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "hixl_test_helpers.h"
 
@@ -133,7 +134,7 @@ class HixlEngineTest : public ::testing::Test {
     // TransferPool initialization loads device kernels, so MmpaStub must be ready before Create.
     mmpa_stub_->real_path_ok_ = true;
     mmpa_stub_->access_ok_ = true;
-    llm::MmpaStub::GetInstance().SetImpl(mmpa_stub_);
+    hixl_test::InstallSysApiHooks(mmpa_stub_);
     const char *old_intra_roce_enable = std::getenv("HCCL_INTRA_ROCE_ENABLE");
     old_intra_roce_enable_ = (old_intra_roce_enable == nullptr) ? "" : old_intra_roce_enable;
     unsetenv("HCCL_INTRA_ROCE_ENABLE");
@@ -187,7 +188,7 @@ class HixlEngineTest : public ::testing::Test {
 
   void TearDown() override {
     llm::AclRuntimeStub::Reset();
-    llm::MmpaStub::GetInstance().Reset();
+    hixl_test::ResetSysApiHooks();
     for (const auto &path : temp_files_) {
       (void)remove(path.c_str());
     }

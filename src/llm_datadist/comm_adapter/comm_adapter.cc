@@ -10,7 +10,7 @@
 
 #include "comm_adapter.h"
 #include <map>
-#include "mmpa/mmpa_api.h"
+#include <dlfcn.h>
 #include "common/common.h"
 #include "comm_statistic_manager.h"
 #include "common/llm_checker.h"
@@ -49,8 +49,8 @@ ge::Status CommAdapter::LoadSo() {
     return ge::SUCCESS;
   }
   auto ret = ge::SUCCESS;
-  so_handle_ = mmDlopen(kHcclSoName, static_cast<int32_t>(static_cast<uint32_t>(MMPA_RTLD_NOW) |
-                                                          static_cast<uint32_t>(MMPA_RTLD_GLOBAL)));
+  so_handle_ =
+      dlopen(kHcclSoName, static_cast<int32_t>(static_cast<uint32_t>(RTLD_NOW) | static_cast<uint32_t>(RTLD_GLOBAL)));
   LLM_CHECK_NOTNULL(so_handle_, ",open hccl so:%s failed.", kHcclSoName);
 
   LLMLOGI("Start to load funcs");
@@ -109,7 +109,7 @@ ge::Status CommAdapter::UnloadSo() {
   dl_hccl_register_global_mem_func_ = nullptr;
   dl_hccl_deregister_global_mem_func_ = nullptr;
   if (so_handle_ != nullptr) {
-    auto ret = mmDlclose(so_handle_);
+    auto ret = dlclose(so_handle_);
     LLM_CHK_BOOL_RET_STATUS(ret == 0, ge::FAILED, "close hccl so failed.");
     so_handle_ = nullptr;
   }
@@ -122,7 +122,7 @@ CommAdapter &CommAdapter::GetInstance() {
 }
 
 HcclResult CommAdapter::DlHcclExchangeMemDesc(HcclComm comm, uint32_t remote_rank, HcclMemDescs *local, int timeout,
-                                                  HcclMemDescs *remote, uint32_t *actual_num) const {
+                                              HcclMemDescs *remote, uint32_t *actual_num) const {
   const auto start = std::chrono::steady_clock::now();
   auto ret = dl_hccl_exchange_mem_desc_func_(comm, remote_rank, local, timeout, remote, actual_num);
   const auto end = std::chrono::steady_clock::now();
@@ -131,8 +131,8 @@ HcclResult CommAdapter::DlHcclExchangeMemDesc(HcclComm comm, uint32_t remote_ran
   return ret;
 }
 
-HcclResult CommAdapter::DlHcclCommInitClusterInfoMemConfig(const char *cluster, uint32_t rank,
-                                                               HcclCommConfig *config, HcclComm *comm) const {
+HcclResult CommAdapter::DlHcclCommInitClusterInfoMemConfig(const char *cluster, uint32_t rank, HcclCommConfig *config,
+                                                           HcclComm *comm) const {
   const auto start = std::chrono::steady_clock::now();
   auto ret = dl_hccl_comm_init_cluster_info_mem_func_(cluster, rank, config, comm);
   const auto end = std::chrono::steady_clock::now();
@@ -180,8 +180,8 @@ HcclResult CommAdapter::DlHcclCommDestroy(HcclComm comm) const {
   return ret;
 }
 
-HcclResult CommAdapter::DlHcclBatchPut(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc,
-                                           uint32_t desc_num, aclrtStream stream) const {
+HcclResult CommAdapter::DlHcclBatchPut(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t desc_num,
+                                       aclrtStream stream) const {
   const auto start = std::chrono::steady_clock::now();
   auto ret = dl_hccl_batch_put_func_(comm, remote_rank, desc, desc_num, stream);
   const auto end = std::chrono::steady_clock::now();
@@ -190,14 +190,14 @@ HcclResult CommAdapter::DlHcclBatchPut(HcclComm comm, uint32_t remote_rank, Hccl
   return ret;
 }
 
-HcclResult CommAdapter::DlHcclBatchGet(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc,
-                                           uint32_t desc_num, aclrtStream stream) const {
+HcclResult CommAdapter::DlHcclBatchGet(HcclComm comm, uint32_t remote_rank, HcclOneSideOpDesc *desc, uint32_t desc_num,
+                                       aclrtStream stream) const {
   auto ret = dl_hccl_batch_get_func_(comm, remote_rank, desc, desc_num, stream);
   return ret;
 }
 
 HcclResult CommAdapter::DlHcclRemapRegisteredMemory(HcclComm *comm, CommMem *mem_info_array, uint64_t comm_size,
-                                                        uint64_t arraySize) const {
+                                                    uint64_t arraySize) const {
   auto ret = dl_hccl_remap_registered_memory_func_(comm, mem_info_array, comm_size, arraySize);
   return ret;
 }

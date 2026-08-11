@@ -13,8 +13,8 @@
 #include <cstdint>
 #include <mutex>
 #include <thread>
+#include <dlfcn.h>
 #include "acl/acl.h"
-#include "mmpa/mmpa_api.h"
 #include "rt_external_event.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
@@ -39,8 +39,8 @@ struct LibRaLoader {
   ~LibRaLoader() {
     std::lock_guard<std::mutex> lock(mu);
     if (handle != nullptr) {
-      HIXL_LOGI("[HccpProxy] LibRaLoader destruct, mmDlclose %s", kLibRaSo);
-      (void)mmDlclose(handle);
+      HIXL_LOGI("[HccpProxy] LibRaLoader destruct, dlclose %s", kLibRaSo);
+      (void)dlclose(handle);
       handle = nullptr;
       ra_rdev_get_handle = nullptr;
       ra_get_notify_base_addr = nullptr;
@@ -59,18 +59,20 @@ Status EnsureLibRaLoaded() {
   if (lr.handle != nullptr) {
     return SUCCESS;
   }
-  const int32_t dl_mode =
-      static_cast<int32_t>(static_cast<uint32_t>(MMPA_RTLD_NOW) | static_cast<uint32_t>(MMPA_RTLD_GLOBAL));
-  void *h = mmDlopen(kLibRaSo, dl_mode);
+  const int32_t dl_mode = static_cast<int32_t>(static_cast<uint32_t>(RTLD_NOW) | static_cast<uint32_t>(RTLD_GLOBAL));
+  void *h = dlopen(kLibRaSo, dl_mode);
   if (h == nullptr) {
-    HIXL_LOGE(FAILED, "[HccpProxy] mmDlopen %s failed: %s", kLibRaSo, mmDlerror());
+    const char *err = dlerror();
+    HIXL_LOGE(FAILED, "[HccpProxy] dlopen %s failed: %s", kLibRaSo, err != nullptr ? err : "unknown error");
     return FAILED;
   }
-  auto *get_handle = reinterpret_cast<RaRdevGetHandleFn>(mmDlsym(h, "RaRdevGetHandle"));
-  auto *get_ba = reinterpret_cast<RaGetNotifyBaseAddrFn>(mmDlsym(h, "RaGetNotifyBaseAddr"));
+  auto *get_handle = reinterpret_cast<RaRdevGetHandleFn>(dlsym(h, "RaRdevGetHandle"));
+  auto *get_ba = reinterpret_cast<RaGetNotifyBaseAddrFn>(dlsym(h, "RaGetNotifyBaseAddr"));
   if (get_handle == nullptr || get_ba == nullptr) {
-    HIXL_LOGE(FAILED, "[HccpProxy] mmDlsym RaRdevGetHandle/RaGetNotifyBaseAddr failed: %s", mmDlerror());
-    (void)mmDlclose(h);
+    const char *err = dlerror();
+    HIXL_LOGE(FAILED, "[HccpProxy] dlsym RaRdevGetHandle/RaGetNotifyBaseAddr failed: %s",
+              err != nullptr ? err : "unknown error");
+    (void)dlclose(h);
     return FAILED;
   }
   lr.handle = h;

@@ -95,6 +95,7 @@ target_link_libraries(fabric_mem_test
         ascendcl_stub
         runtime_stub
         msprof_headers
+        sys_api_wrap
         GTest::gtest GTest::gtest_main
         GTest::gmock
         stdc++fs
@@ -103,6 +104,12 @@ target_link_libraries(fabric_mem_test
         error_manager_stub
         aicpu_stub
         -Wl,--as-needed)
+
+# Intercept realpath/access so the device-kernel json path resolves in unit tests
+# (the file is not installed in the test environment).
+set_target_properties(fabric_mem_test PROPERTIES
+        LINK_FLAGS "-Wl,--wrap=dlopen -Wl,--wrap=dlsym -Wl,--wrap=dlclose -Wl,--wrap=dlerror -Wl,--wrap=access -Wl,--wrap=realpath"
+)
 
 include(CTest)
 enable_testing()

@@ -12,7 +12,6 @@
 #include <iostream>
 #include <regex>
 #include <chrono>
-#include "mmpa/mmpa_api.h"
 #include "hixl/hixl_types.h"
 #include "llm_datadist/llm_engine_types.h"
 #include "common/llm_inner_types.h"

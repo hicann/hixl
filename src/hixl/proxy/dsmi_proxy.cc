@@ -10,7 +10,7 @@
 
 #include "dsmi_proxy.h"
 #include <mutex>
-#include "mmpa/mmpa_api.h"
+#include <dlfcn.h>
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 
@@ -43,8 +43,8 @@ struct LibDrvdsmiHostLoader {
   ~LibDrvdsmiHostLoader() {
     std::lock_guard<std::mutex> lock(mu);
     if (handle != nullptr) {
-      HIXL_LOGI("[DsmiProxy] LibDrvdsmiHostLoader destruct, mmDlclose %s", kLibDrvdsmiHostSo);
-      (void)mmDlclose(handle);
+      HIXL_LOGI("[DsmiProxy] LibDrvdsmiHostLoader destruct, dlclose %s", kLibDrvdsmiHostSo);
+      (void)dlclose(handle);
       handle = nullptr;
       dsmi_get_board_info = nullptr;
       dsmi_get_device_info = nullptr;
@@ -64,25 +64,29 @@ Status EnsureLibDrvdsmiHostLoaded() {
     return SUCCESS;
   }
 
-  const int32_t dl_mode = MMPA_RTLD_NOW;
-  void *dsmi_handle = mmDlopen(kLibDrvdsmiHostSo, dl_mode);
+  const int32_t dl_mode = RTLD_NOW;
+  void *dsmi_handle = dlopen(kLibDrvdsmiHostSo, dl_mode);
   if (dsmi_handle == nullptr) {
-    HIXL_LOGE(FAILED, "[DsmiProxy] mmDlopen %s failed: %s", kLibDrvdsmiHostSo, mmDlerror());
+    const char *err = dlerror();
+    HIXL_LOGE(FAILED, "[DsmiProxy] dlopen %s failed: %s", kLibDrvdsmiHostSo, err != nullptr ? err : "unknown error");
     return FAILED;
   }
 
-  auto *get_board_info_fn = reinterpret_cast<DsmiGetBoardInfoFn>(mmDlsym(dsmi_handle, "dsmi_get_board_info"));
+  auto *get_board_info_fn = reinterpret_cast<DsmiGetBoardInfoFn>(dlsym(dsmi_handle, "dsmi_get_board_info"));
   if (get_board_info_fn == nullptr) {
-    HIXL_LOGE(FAILED, "[DsmiProxy] mmDlsym dsmi_get_board_info failed: %s", mmDlerror());
-    (void)mmDlclose(dsmi_handle);
+    const char *err = dlerror();
+    HIXL_LOGE(FAILED, "[DsmiProxy] dlsym dsmi_get_board_info failed: %s", err != nullptr ? err : "unknown error");
+    (void)dlclose(dsmi_handle);
     return FAILED;
   }
 
   ldr.handle = dsmi_handle;
   ldr.dsmi_get_board_info = get_board_info_fn;
-  ldr.dsmi_get_device_info = reinterpret_cast<DsmiGetDeviceInfoFn>(mmDlsym(dsmi_handle, "dsmi_get_device_info"));
+  ldr.dsmi_get_device_info = reinterpret_cast<DsmiGetDeviceInfoFn>(dlsym(dsmi_handle, "dsmi_get_device_info"));
   if (ldr.dsmi_get_device_info == nullptr) {
-    HIXL_LOGW("[DsmiProxy] mmDlsym dsmi_get_device_info failed, InterconType unavailable: %s", mmDlerror());
+    const char *err = dlerror();
+    HIXL_LOGW("[DsmiProxy] dlsym dsmi_get_device_info failed, InterconType unavailable: %s",
+              err != nullptr ? err : "unknown error");
   }
   return SUCCESS;
 }

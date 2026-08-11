@@ -12,6 +12,7 @@
 #include <memory>
 #include "gtest/gtest.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/sys_api/src/sys_api_wrap.h"
 #include "depends/dsmi/src/dsmi_stub.h"
 #include "proxy/dsmi_proxy.h"
 
@@ -19,19 +20,7 @@ namespace hixl {
 
 namespace {
 
-class ScopedMmpaStub {
- public:
-  explicit ScopedMmpaStub(const std::shared_ptr<llm::MmpaStubApiGe> &impl) {
-    llm::MmpaStub::GetInstance().SetImpl(impl);
-  }
-  ~ScopedMmpaStub() {
-    llm::MmpaStub::GetInstance().Reset();
-  }
-  ScopedMmpaStub(const ScopedMmpaStub &) = delete;
-  ScopedMmpaStub &operator=(const ScopedMmpaStub &) = delete;
-};
-
-class DlOpenFailStub : public llm::MmpaStubApiGe {
+class DlOpenFailStub : public hixl_test::SysApiHooks {
  public:
   void *DlOpen(const char *file_name, int32_t mode) override {
     (void)file_name;
@@ -40,7 +29,7 @@ class DlOpenFailStub : public llm::MmpaStubApiGe {
   }
 };
 
-class DlSymFailStub : public llm::MmpaStubApiGe {
+class DlSymFailStub : public hixl_test::SysApiHooks {
  public:
   void *DlSym(void *handle, const char *func_name) override {
     (void)handle;
@@ -59,19 +48,19 @@ TEST(DsmiProxyUt, LoadFailureThenSuccess) {
   // Scenario 1: dlopen fail — no caching
   {
     auto stub = std::make_shared<DlOpenFailStub>();
-    ScopedMmpaStub guard(stub);
+    hixl_test::ScopedSysApiMock guard(stub);
     EXPECT_EQ(DsmiProxy::GetDevSlotId(device_id, slot_id), FAILED);
   }
 
   // Scenario 2: dlsym fail — no caching
   {
     auto stub = std::make_shared<DlSymFailStub>();
-    ScopedMmpaStub guard(stub);
+    hixl_test::ScopedSysApiMock guard(stub);
     EXPECT_EQ(DsmiProxy::GetDevSlotId(device_id, slot_id), FAILED);
   }
 
   // Scenario 3: success via DSMI stub — caches stub function pointers
-  // Default MmpaStubApiGe::DlOpen returns dlopen(nullptr) for libdrvdsmi_host.so,
+  // Default hixl_test::SysApiHooks::DlOpen returns dlopen(nullptr) for libdrvdsmi_host.so,
   // dlsym finds the stub's symbols in global scope (loaded via DT_NEEDED).
   {
     DsmiStubSetSlotId(3, 0);

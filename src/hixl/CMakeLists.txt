@@ -48,12 +48,10 @@ target_link_libraries(cann_hixl PRIVATE
         $<BUILD_INTERFACE:intf_pub>
         $<BUILD_INTERFACE:hccl_headers>
         $<BUILD_INTERFACE:slog_headers>
-        $<BUILD_INTERFACE:mmpa_headers>
         $<BUILD_INTERFACE:acl_rt_headers>
         $<BUILD_INTERFACE:runtime_headers>
         $<BUILD_INTERFACE:msprof_headers>
         PUBLIC c_sec
-        static_mmpa
         adxl_static
         hcomm_proxy_static
         hccp_proxy_static

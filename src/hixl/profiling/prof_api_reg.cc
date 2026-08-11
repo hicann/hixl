@@ -11,7 +11,8 @@
 #include <mutex>
 #include <unordered_set>
 #include <map>
-#include "mmpa/mmpa_api.h"
+#include <unistd.h>
+#include <sys/syscall.h>
 #include "acl/acl_prof.h"
 #include "prof_api_reg.h"
 #include "common/hixl_checker.h"
@@ -190,7 +191,7 @@ HixlProfilingReporter::~HixlProfilingReporter() noexcept {
     MsprofApi api{};
     api.beginTime = start_time_;
     api.endTime = end_time;
-    api.threadId = static_cast<uint32_t>(mmGetTid());
+    api.threadId = static_cast<uint32_t>(syscall(SYS_gettid));
     api.level = MSPROF_REPORT_ACL_LEVEL;
     api.type = static_cast<uint32_t>(hixl_api_);
     (void)MsprofReportApi(true, &api);

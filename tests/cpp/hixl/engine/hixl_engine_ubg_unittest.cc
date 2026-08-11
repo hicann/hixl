@@ -20,6 +20,7 @@
 #include "slog_stub.h"
 #include "depends/dsmi/src/dsmi_stub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/sys_api/src/sys_api_wrap.h"
 #include "engine/test_mmpa_utils.h"
 
 namespace hixl {
@@ -65,14 +66,14 @@ class HixlEngineUbgTest : public ::testing::Test {
     acl_stub_ = endpoint_test::CreateAclRuntimeStub("Ascend910_9391", 0, 0, 9, 8);
     llm::AclRuntimeStub::SetInstance(acl_stub_);
     // EnsureDeviceKernelLoadedLocked 在初始化阶段调用，需要提前设置 MmpaStub；UB_RTP 不依赖 hccn_tool/bond IP
-    llm::MmpaStub::GetInstance().SetImpl(std::make_shared<hixl::test::KernelJsonMmpaStub>());
+    hixl_test::InstallSysApiHooks(std::make_shared<hixl::test::KernelJsonMmpaStub>());
     DsmiStubSetInterconType(4U);
     options_ubg_[hixl::OPTION_LOCAL_COMM_RES] = AscendString(BuildUbgLocalCommRes().c_str());
   }
 
   void TearDown() override {
     llm::AclRuntimeStub::Reset();
-    llm::MmpaStub::GetInstance().Reset();
+    hixl_test::ResetSysApiHooks();
   }
 
   struct EnginePair {

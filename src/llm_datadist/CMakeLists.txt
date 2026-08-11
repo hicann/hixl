@@ -61,13 +61,11 @@ target_link_libraries(llm_datadist PRIVATE
         $<BUILD_INTERFACE:intf_pub>
         $<BUILD_INTERFACE:hccl_headers>
         $<BUILD_INTERFACE:slog_headers>
-        $<BUILD_INTERFACE:mmpa_headers>
         $<BUILD_INTERFACE:acl_rt_headers>
         $<BUILD_INTERFACE:runtime_headers>
         $<BUILD_INTERFACE:msprof_headers>
         $<BUILD_INTERFACE:error_manager_headers>
         PUBLIC c_sec
-        static_mmpa
         cann_hixl
         alog
         error_manager
@@ -126,13 +124,11 @@ target_link_libraries(adxl_static PRIVATE
         $<BUILD_INTERFACE:intf_pub>
         $<BUILD_INTERFACE:hccl_headers>
         $<BUILD_INTERFACE:slog_headers>
-        $<BUILD_INTERFACE:mmpa_headers>
         $<BUILD_INTERFACE:runtime_headers>
         $<BUILD_INTERFACE:acl_rt_headers>
         $<BUILD_INTERFACE:msprof_headers>
         $<BUILD_INTERFACE:error_manager_headers>
         PUBLIC c_sec
-        static_mmpa
         alog
         error_manager
         metadef # for ascend string

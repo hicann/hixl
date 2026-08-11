@@ -26,6 +26,7 @@ namespace fs = std::experimental::filesystem;
 #include "hixl/hixl.h"
 #include "slog_stub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/sys_api/src/sys_api_wrap.h"
 #include "depends/dsmi/src/dsmi_stub.h"
 #include "engine/test_mmpa_utils.h"
 
@@ -71,7 +72,7 @@ class HixlEngineUboeTest : public ::testing::Test {
     acl_stub_ = endpoint_test::CreateAclRuntimeStub("Ascend910_9391", 0, 0, 9, 8);
     llm::AclRuntimeStub::SetInstance(acl_stub_);
     // TransferPool initialization loads device kernels, so MmpaStub must be ready before Create.
-    llm::MmpaStub::GetInstance().SetImpl(std::make_shared<UboeMmpaStub>());
+    hixl_test::InstallSysApiHooks(std::make_shared<UboeMmpaStub>());
     DsmiStubSetInterconType(2U);  // DSMI stub 默认 UB_RTP(4)，UBoE 测试需要设为 UBoE(2)
     temp_dir_ = fs::path("/tmp/hixl_engine_uboe_unittest");
     fs::remove_all(temp_dir_);
@@ -125,7 +126,7 @@ class HixlEngineUboeTest : public ::testing::Test {
 
   void TearDown() override {
     llm::AclRuntimeStub::Reset();
-    llm::MmpaStub::GetInstance().Reset();
+    hixl_test::ResetSysApiHooks();
     if (old_path_.empty()) {
       unsetenv("PATH");
     } else {
@@ -185,7 +186,7 @@ TEST_F(HixlEngineUboeTest, InitializeWithMixedProtocols) {
 TEST_F(HixlEngineUboeTest, InitializeWithEmptyEndpointList) {
   fs::create_directories(kEmptyPathDir);
   test::ScopedPathGuard path_guard(kEmptyPathDir);
-  llm::MmpaStub::GetInstance().SetImpl(std::make_shared<NoHccnConfMmpaStub>());
+  hixl_test::InstallSysApiHooks(std::make_shared<NoHccnConfMmpaStub>());
 
   Hixl engine;
   Status ret = engine.Initialize("127.0.0.1", options_default);

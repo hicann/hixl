@@ -20,12 +20,8 @@
 #include <mutex>
 #include <cstring>
 #include <cstdlib>
-#ifdef __GNUC__
 #include <unistd.h>
 #include <sys/syscall.h>
-#else
-#include "mmpa/mmpa_api.h"
-#endif
 
 // LLM_ERROR_CODES has been defined in metadef, that will cause can't find the info in llm_error_codes.h
 #include "llm_datadist/llm_error_codes.h"
@@ -43,11 +39,7 @@ extern "C" {
 class GE_FUNC_VISIBILITY LlmLog {
  public:
   static uint64_t GetTid() {
-#ifdef __GNUC__
     const uint64_t tid = static_cast<uint64_t>(syscall(__NR_gettid));
-#else
-    const uint64_t tid = static_cast<uint64_t>(GetCurrentThreadId());
-#endif
     return tid;
   }
 };

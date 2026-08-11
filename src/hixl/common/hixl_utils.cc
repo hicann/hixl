@@ -19,9 +19,10 @@
 #include <cstring>
 #include <fstream>
 #include <set>
+#include <unistd.h>
+#include <limits.h>
 #include "securec.h"
 #include "acl/acl.h"
-#include "mmpa/mmpa_api.h"
 #include "hixl_log.h"
 #include "hixl_checker.h"
 #include "hixl_inner_types.h"
@@ -43,7 +44,7 @@ const std::set<std::string> kSocV3 = {"Ascend910_9391", "Ascend910_9381", "Ascen
                                       "Ascend910_9382", "Ascend910_9372", "Ascend910_9362"};
 
 std::string GetHccnToolPath() {
-  if (mmAccess(kHccnToolPath) == EN_OK) {
+  if (access(kHccnToolPath, F_OK) == 0) {
     return kHccnToolPath;
   }
   std::string check_cmd = "command -v hccn_tool > /dev/null 2>&1";
@@ -153,10 +154,9 @@ Status CheckIp(const std::string &ip) {
 
 Status GetDeviceIp(int32_t phy_device_id, std::string &device_ip) {
   device_ip.clear();
-  char resolved_path[MMPA_MAX_PATH] = {};
-  auto mm_ret = mmRealPath(kHccnConfPath, resolved_path, MMPA_MAX_PATH);
-  if (mm_ret == EN_OK) {
-    HIXL_CHK_BOOL_RET_STATUS(mmAccess(resolved_path) == EN_OK, FAILED, "Can not access file:%s, reason:%s",
+  char resolved_path[PATH_MAX] = {};
+  if (realpath(kHccnConfPath, resolved_path) != nullptr) {
+    HIXL_CHK_BOOL_RET_STATUS(access(resolved_path, F_OK) == 0, FAILED, "Cannot access file:%s, reason:%s",
                              resolved_path, strerror(errno));
 
     std::ifstream file(resolved_path);

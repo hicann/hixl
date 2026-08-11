@@ -16,12 +16,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
-#ifdef __GNUC__
 #include <unistd.h>
 #include <sys/syscall.h>
-#else
-#include "mmpa/mmpa_api.h"
-#endif
 #include "dlog_pub.h"
 #include "base/err_msg.h"
 
@@ -33,12 +29,7 @@ extern "C" {
 class HixlLog {
  public:
   static uint64_t GetTid() {
-#ifdef __GNUC__
-    auto tid = static_cast<uint64_t>(syscall(__NR_gettid));
-#else
-    auto tid = static_cast<uint64_t>(GetCurrentThreadId());
-#endif
-    return tid;
+    return static_cast<uint64_t>(syscall(__NR_gettid));
   }
 };
 

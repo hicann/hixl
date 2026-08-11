@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 #include "ascendcl_stub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/sys_api/src/sys_api_wrap.h"
 #include "engine/test_mmpa_utils.h"
 #include "load_kernel.h"
 #define private public
@@ -113,7 +114,7 @@ class HixlCSClientDeviceFixture : public ::testing::Test {
     auto kernel_stub = std::make_shared<MockMmpaStub>();
     kernel_stub->real_path_ok_ = true;
     kernel_stub->access_ok_ = true;
-    llm::MmpaStub::GetInstance().SetImpl(kernel_stub);
+    hixl_test::InstallSysApiHooks(kernel_stub);
 
     const EndpointDesc src = MakeLocalEndpoint();
     const EndpointDesc dst = MakeRemoteEndpoint();
@@ -139,7 +140,7 @@ class HixlCSClientDeviceFixture : public ::testing::Test {
   void TearDown() override {
     (void)cli_.Destroy();
     unsetenv("HIXL_UT_DEVICE_FLAG_HACK");
-    llm::MmpaStub::GetInstance().Reset();
+    hixl_test::ResetSysApiHooks();
   }
 
   HixlOneSideOpDesc SetupBatchTransfer(bool is_get) {
@@ -475,7 +476,7 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceIndependentHostFlags) {
 class LoadKernelFixture : public ::testing::Test {
  protected:
   void SetUp() override {
-    llm::MmpaStub::GetInstance().Reset();
+    hixl_test::ResetSysApiHooks();
     const char *env = std::getenv("ASCEND_HOME_PATH");
     if (env != nullptr) {
       original_env_ = env;
@@ -490,7 +491,7 @@ class LoadKernelFixture : public ::testing::Test {
       unsetenv("ASCEND_HOME_PATH");
     }
     system("rm -rf ./test_opp");
-    llm::MmpaStub::GetInstance().Reset();
+    hixl_test::ResetSysApiHooks();
   }
   void CreateDummyJson(const std::string &path, bool readable) {
     std::string cmd = "echo '{}' > " + path;
@@ -508,7 +509,7 @@ TEST_F(LoadKernelFixture, NoEnvAndFileNotFound) {
   auto mock_mmpa = std::make_shared<MockMmpaStub>();
   mock_mmpa->real_path_ok_ = false;
   mock_mmpa->access_ok_ = false;
-  llm::MmpaStub::GetInstance().SetImpl(mock_mmpa);
+  hixl_test::InstallSysApiHooks(mock_mmpa);
   unsetenv("ASCEND_HOME_PATH");
   aclrtBinHandle bin_handle = nullptr;
   DeviceFuncHandles func_handles{};

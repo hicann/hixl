@@ -12,8 +12,8 @@
 #define HIXL_SRC_LLM_DATADIST_COMM_ADAPTER_COMM_ADAPTER_H_
 
 #include <mutex>
+#include <dlfcn.h>
 #include "acl/acl.h"
-#include "mmpa/mmpa_api.h"
 
 #include "llm_datadist/llm_error_codes.h"
 #include "comm_types.h"
@@ -102,7 +102,7 @@ class FunctionLoader {
 
  public:
   static T load(void *so_handle, const char *func_name) {
-    void *symbol = mmDlsym(so_handle, func_name);
+    void *symbol = dlsym(so_handle, func_name);
     if (!symbol) {
       return nullptr;
     }

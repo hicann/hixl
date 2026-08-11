@@ -13,25 +13,14 @@
 
 #include "depends/ascend_hal/src/ascend_hal_stub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/sys_api/src/sys_api_wrap.h"
 #include "gtest/gtest.h"
 #include "proxy/ascend_hal_proxy.h"
 
 namespace hixl {
 namespace {
 
-class ScopedMmpaStub {
- public:
-  explicit ScopedMmpaStub(const std::shared_ptr<llm::MmpaStubApiGe> &impl) {
-    llm::MmpaStub::GetInstance().SetImpl(impl);
-  }
-  ~ScopedMmpaStub() {
-    llm::MmpaStub::GetInstance().Reset();
-  }
-  ScopedMmpaStub(const ScopedMmpaStub &) = delete;
-  ScopedMmpaStub &operator=(const ScopedMmpaStub &) = delete;
-};
-
-class DlOpenFailStub : public llm::MmpaStubApiGe {
+class DlOpenFailStub : public hixl_test::SysApiHooks {
  public:
   void *DlOpen(const char *file_name, int32_t mode) override {
     (void)file_name;
@@ -43,7 +32,7 @@ class DlOpenFailStub : public llm::MmpaStubApiGe {
   uint32_t dl_open_calls = 0U;
 };
 
-class DlSymFailStub : public llm::MmpaStubApiGe {
+class DlSymFailStub : public hixl_test::SysApiHooks {
  public:
   void *DlSym(void *handle, const char *func_name) override {
     (void)handle;
@@ -67,7 +56,7 @@ class AscendHalProxyUt : public ::testing::Test {
   void TearDown() override {
     AscendHalProxy::ResetForTest();
     AscendHalStubReset();
-    llm::MmpaStub::GetInstance().Reset();
+    hixl_test::ResetSysApiHooks();
   }
 };
 
@@ -75,7 +64,7 @@ TEST_F(AscendHalProxyUt, DlopenFailureIsNotCached) {
   uint8_t src = 0U;
   void *dst = nullptr;
   auto stub = std::make_shared<DlOpenFailStub>();
-  ScopedMmpaStub guard(stub);
+  hixl_test::ScopedSysApiMock guard(stub);
   EXPECT_EQ(AscendHalProxy::HostRegister(&src, sizeof(src), kHostMemMapDevPcieTh, 0U, &dst), FAILED);
   EXPECT_EQ(stub->dl_open_calls, 1U);
 }
@@ -88,7 +77,7 @@ TEST_F(AscendHalProxyUt, DlsymFailureAfterSuccessfulLoad) {
   AscendHalProxy::ResetForTest();
 
   auto stub = std::make_shared<DlSymFailStub>();
-  ScopedMmpaStub guard(stub);
+  hixl_test::ScopedSysApiMock guard(stub);
   EXPECT_EQ(AscendHalProxy::HostRegister(&src, sizeof(src), kHostMemMapDevPcieTh, 0U, &dst), FAILED);
   EXPECT_EQ(stub->dl_sym_calls, 2U);
 }
@@ -102,7 +91,7 @@ TEST_F(AscendHalProxyUt, SuccessfulLoadCanBeResetAndRetried) {
 
   AscendHalProxy::ResetForTest();
   auto stub = std::make_shared<DlOpenFailStub>();
-  ScopedMmpaStub guard(stub);
+  hixl_test::ScopedSysApiMock guard(stub);
   EXPECT_EQ(AscendHalProxy::HostRegister(&src, sizeof(src), kHostMemMapDevPcieTh, 0U, &dst), FAILED);
   EXPECT_EQ(stub->dl_open_calls, 1U);
 }

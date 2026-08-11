@@ -13,6 +13,7 @@
 
 #include "llm_datadist_v2.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/sys_api/src/sys_api_wrap.h"
 #include "depends/llm_datadist/src/hccl_stub.h"
 #include "depends/llm_datadist/src/hccl_test_helper.h"
 
@@ -46,7 +47,7 @@ std::map<std::string, void *> GetBaseFuncMap() {
 
 // MockMmpa 基类：提供 DlOpen / DlSym / DlClose 的公共实现。
 // 子类只需重写 GetFuncMap() 替换需要注入失败桩的函数指针。
-class MockMmpaBase : public MmpaStubApiGe {
+class MockMmpaBase : public hixl_test::SysApiHooks {
  public:
   void *DlOpen(const char *file_name, int32_t mode) override {
     return reinterpret_cast<void *>(mock_handle);
@@ -99,6 +100,9 @@ class LLMCommLinkManagerUTest : public ::testing::Test {
 
   void TearDown() override {
     CommAdapter::GetInstance().Finalize();
+    // Each test installs a mock hook in its body; restore the default so no mock
+    // (with fake dlopen handles) leaks to later tests.
+    hixl_test::ResetSysApiHooks();
   }
 
   // 初始化 LLMDataDistV2（Decoder 角色），支持可选的额外选项
@@ -143,7 +147,7 @@ class LLMCommLinkManagerUTest : public ::testing::Test {
 };
 
 TEST_F(LLMCommLinkManagerUTest, LINK_REGISTER_FAILED_AND_NOUNLINK) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaCommBindMemFail>());
+  hixl_test::InstallSysApiHooks(std::make_shared<MockMmpaCommBindMemFail>());
   LLMDataDistV2 llm_datadist(1U);
   InitDecoder(llm_datadist, {{"llm.LinkTotalTime", "30"}, {"llm.LinkRetryCount", "2"}});
   RegisterTestCache(llm_datadist);
@@ -157,7 +161,7 @@ TEST_F(LLMCommLinkManagerUTest, LINK_REGISTER_FAILED_AND_NOUNLINK) {
 }
 
 TEST_F(LLMCommLinkManagerUTest, LinkCommPrepareFailed) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaCommPrepareFail>());
+  hixl_test::InstallSysApiHooks(std::make_shared<MockMmpaCommPrepareFail>());
   LLMDataDistV2 llm_datadist(1U);
   InitDecoder(llm_datadist, {{"llm.LinkTotalTime", "10"}, {"llm.LinkRetryCount", "2"}});
   RegisterTestCache(llm_datadist);
@@ -171,7 +175,7 @@ TEST_F(LLMCommLinkManagerUTest, LinkCommPrepareFailed) {
 }
 
 TEST_F(LLMCommLinkManagerUTest, LinkAndUnlinkSuc) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+  hixl_test::InstallSysApiHooks(std::make_shared<MockMmpa>());
   LLMDataDistV2 llm_datadist(1U);
   InitDecoder(llm_datadist);
   RegisterTestCache(llm_datadist);
@@ -186,7 +190,7 @@ TEST_F(LLMCommLinkManagerUTest, LinkAndUnlinkSuc) {
 }
 
 TEST_F(LLMCommLinkManagerUTest, UnlinkWhenLinkNotFinished) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaLongTimeRegister>());
+  hixl_test::InstallSysApiHooks(std::make_shared<MockMmpaLongTimeRegister>());
   LLMDataDistV2 llm_datadist(1U);
   InitDecoder(llm_datadist);
   RegisterTestCache(llm_datadist);
@@ -198,7 +202,7 @@ TEST_F(LLMCommLinkManagerUTest, UnlinkWhenLinkNotFinished) {
 }
 
 TEST_F(LLMCommLinkManagerUTest, FinalizeWhenLinkNotFinished) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaLongTimeRegister>());
+  hixl_test::InstallSysApiHooks(std::make_shared<MockMmpaLongTimeRegister>());
   LLMDataDistV2 llm_datadist(1U);
   InitDecoder(llm_datadist);
   RegisterTestCache(llm_datadist);
@@ -209,7 +213,7 @@ TEST_F(LLMCommLinkManagerUTest, FinalizeWhenLinkNotFinished) {
 }
 
 TEST_F(LLMCommLinkManagerUTest, LinkMultipleComm) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+  hixl_test::InstallSysApiHooks(std::make_shared<MockMmpa>());
   LLMDataDistV2 llm_datadist(1U);
   InitDecoder(llm_datadist);
   RegisterTestCache(llm_datadist, 16);
@@ -230,7 +234,7 @@ TEST_F(LLMCommLinkManagerUTest, LinkMultipleComm) {
 }
 
 TEST_F(LLMCommLinkManagerUTest, RemapRegisteredMemorySuc) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+  hixl_test::InstallSysApiHooks(std::make_shared<MockMmpa>());
   LLMDataDistV2 llm_datadist(1U);
   InitDecoder(llm_datadist);
 
@@ -246,7 +250,7 @@ TEST_F(LLMCommLinkManagerUTest, RemapRegisteredMemorySuc) {
 }
 
 TEST_F(LLMCommLinkManagerUTest, RemapRegisteredMemoryRejectsEmptyInput) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+  hixl_test::InstallSysApiHooks(std::make_shared<MockMmpa>());
   LLMDataDistV2 llm_datadist(1U);
   InitDecoder(llm_datadist);
 

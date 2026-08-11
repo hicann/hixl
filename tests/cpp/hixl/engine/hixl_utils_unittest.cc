@@ -21,6 +21,7 @@ namespace fs = std::experimental::filesystem;
 #include <sys/stat.h>
 #include "common/hixl_utils.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/sys_api/src/sys_api_wrap.h"
 #include "graph/ascend_string.h"
 #include "hixl/hixl_types.h"
 #include "ascendcl_stub.h"
@@ -31,7 +32,7 @@ namespace hixl {
 namespace {
 constexpr const char kHccnConfPath[] = "/etc/hccn.conf";
 
-class DeviceIpMmpaStub : public llm::MmpaStubApiGe {
+class DeviceIpMmpaStub : public hixl_test::SysApiHooks {
  public:
   DeviceIpMmpaStub(std::string conf_path, bool conf_exists)
       : conf_path_(std::move(conf_path)), conf_exists_(conf_exists) {}
@@ -82,7 +83,7 @@ class HixlUtilsUTest : public ::testing::Test {
     fs::create_directories(temp_dir_);
     conf_path_ = temp_dir_ / "hccn.conf";
     old_path_ = getenv("PATH") == nullptr ? "" : getenv("PATH");
-    llm::MmpaStub::GetInstance().Reset();
+    hixl_test::ResetSysApiHooks();
   }
 
   void TearDown() override {
@@ -91,7 +92,7 @@ class HixlUtilsUTest : public ::testing::Test {
     } else {
       setenv("PATH", old_path_.c_str(), 1);
     }
-    llm::MmpaStub::GetInstance().Reset();
+    hixl_test::ResetSysApiHooks();
     llm::AclRuntimeStub::Reset();
     fs::remove_all(temp_dir_);
   }
@@ -103,7 +104,7 @@ class HixlUtilsUTest : public ::testing::Test {
   }
 
   void InstallConfStub(bool conf_exists) const {
-    llm::MmpaStub::GetInstance().SetImpl(std::make_shared<DeviceIpMmpaStub>(conf_path_.string(), conf_exists));
+    hixl_test::InstallSysApiHooks(std::make_shared<DeviceIpMmpaStub>(conf_path_.string(), conf_exists));
   }
 
   void CreateHccnTool(const std::string &tool_output) const {

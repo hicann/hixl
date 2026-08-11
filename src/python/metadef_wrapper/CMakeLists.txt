@@ -24,7 +24,6 @@ if (NOT ENABLE_TEST)
     target_link_libraries(metadef_wrapper PRIVATE
             $<BUILD_INTERFACE:intf_pub>
             $<BUILD_INTERFACE:slog_headers>
-            $<BUILD_INTERFACE:mmpa_headers>
             $<BUILD_INTERFACE:metadef_headers>
             alog
     )

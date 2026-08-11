@@ -30,6 +30,7 @@
 #include "common/ctrl_msg.h"
 #include "depends/hccl/src/hccl_stub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/sys_api/src/sys_api_wrap.h"
 #include "engine/test_mmpa_utils.h"
 
 #include <securec.h>
@@ -597,7 +598,7 @@ class HixlCSClientUT : public ::testing::Test {
     dst_ = MakeIdEp(kDstEpId);
     SetChannelGetStatusPendingCount(0U);
     // TransferPool initialization loads device kernels, so MmpaStub must be ready before Create.
-    llm::MmpaStub::GetInstance().SetImpl(std::make_shared<CsClientMmpaStub>());
+    hixl_test::InstallSysApiHooks(std::make_shared<CsClientMmpaStub>());
   }
 
   void TearDown() override {
@@ -605,7 +606,7 @@ class HixlCSClientUT : public ::testing::Test {
     server_.Stop();
     port_ = kZero;
     SetChannelGetStatusPendingCount(0U);
-    llm::MmpaStub::GetInstance().Reset();
+    hixl_test::ResetSysApiHooks();
   }
 
   void StartServer(MiniSrvMode c, MiniSrvMode m) {

@@ -26,7 +26,6 @@ if (NOT ENABLE_TEST)
             $<BUILD_INTERFACE:intf_pub>
             $<BUILD_INTERFACE:hccl_headers>
             $<BUILD_INTERFACE:slog_headers>
-            $<BUILD_INTERFACE:mmpa_headers>
             $<BUILD_INTERFACE:metadef_headers>
             $<BUILD_INTERFACE:msprof_headers>
             alog

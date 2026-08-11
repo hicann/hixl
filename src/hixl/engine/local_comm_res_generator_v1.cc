@@ -39,7 +39,6 @@
 #include "common/hixl_utils.h"
 #include "dsmi_proxy.h"
 #include "nlohmann/json.hpp"
-#include "mmpa/mmpa_api.h"
 
 namespace hixl {
 
@@ -162,7 +161,7 @@ struct UrmaEidEntry {
 // 获取 urma_admin 工具路径（与 hccn_tool 相同的查找逻辑）
 std::string GetUrmaAdminPath() {
   // 先检查绝对路径是否存在
-  if (mmAccess(kUrmaAdminPath) == EN_OK) {
+  if (access(kUrmaAdminPath, F_OK) == 0) {
     return kUrmaAdminPath;
   }
   // 绝对路径不存在，用 command -v 在 PATH 中查找
@@ -559,7 +558,7 @@ std::string ProcfsRouteHandler::FindProcBasePath() const {
 }
 
 bool ProcfsRouteHandler::ReadFileToString(const std::string &path, std::string &content) {
-  if (mmAccess(path.c_str()) != EN_OK) {
+  if (access(path.c_str(), F_OK) != 0) {
     HIXL_LOGW("[ReadFileToString] File access check failed: %s, errno=%d(%s)", path.c_str(), errno, strerror(errno));
     return false;
   }
@@ -954,7 +953,7 @@ static int32_t ParseSingleLink(const nlohmann::json &edge, TopoLink &link) {
 }
 
 static int32_t ParseTopoJson(const std::string &topo_path, nlohmann::json &j) {
-  if (mmAccess(topo_path.c_str()) != EN_OK) {
+  if (access(topo_path.c_str(), F_OK) != 0) {
     HIXL_LOGE(PARAM_INVALID, "Topo file access failed: %s, errno=%d(%s)", topo_path.c_str(), errno, strerror(errno));
     return PARAM_INVALID;
   }
@@ -1005,7 +1004,7 @@ int32_t ParseTopoFile(const std::string &topo_path, TopoData &topo_data) {
 
 int32_t ParseRouteFile(const std::string &route_path, RouteData &route_data) {
   route_data.entries.clear();
-  if (mmAccess(route_path.c_str()) != EN_OK) {
+  if (access(route_path.c_str(), F_OK) != 0) {
     HIXL_LOGW("Route file %s does not exist, will auto-generate route data via procfs fallback, errno=%d(%s)",
               route_path.c_str(), errno, strerror(errno));
     return PARAM_INVALID;

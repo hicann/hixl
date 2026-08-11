@@ -117,6 +117,7 @@ function(add_adxl_family_test target_name test_files)
           msprof_stub
           msprof_headers
           dcmi_stub
+          sys_api_wrap
           GTest::gtest GTest::gtest_main
           GTest::gmock
           stdc++fs
@@ -127,6 +128,7 @@ function(add_adxl_family_test target_name test_files)
 
   set_target_properties(${target_name} PROPERTIES
           BUILD_RPATH "${CMAKE_BINARY_DIR}/tests/depends/dcmi"
+          LINK_FLAGS "-Wl,--wrap=dlopen -Wl,--wrap=dlsym -Wl,--wrap=dlclose -Wl,--wrap=dlerror -Wl,--wrap=access -Wl,--wrap=realpath"
   )
 endfunction()
 

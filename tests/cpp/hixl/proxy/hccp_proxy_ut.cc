@@ -14,6 +14,7 @@
 #include "gtest/gtest.h"
 #include "ascendcl_stub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/sys_api/src/sys_api_wrap.h"
 #include "hccp_proxy.h"
 
 namespace hixl {
@@ -63,19 +64,6 @@ class ScopedAclStubInstall {
   llm::AclRuntimeStub *stub_;
 };
 
-class ScopedMmpaRaMock {
- public:
-  explicit ScopedMmpaRaMock(const std::shared_ptr<llm::MmpaStubApiGe> &impl) {
-    llm::MmpaStub::GetInstance().SetImpl(impl);
-  }
-  ~ScopedMmpaRaMock() {
-    llm::MmpaStub::GetInstance().Reset();
-  }
-
-  ScopedMmpaRaMock(const ScopedMmpaRaMock &) = delete;
-  ScopedMmpaRaMock &operator=(const ScopedMmpaRaMock &) = delete;
-};
-
 class NegativePhyDevAclStub : public llm::AclRuntimeStub {
  public:
   aclError aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, int32_t *const phyDevId) override {
@@ -94,12 +82,12 @@ class OkPhyDevAclStub : public llm::AclRuntimeStub {
   }
 };
 
-class MockMmpaRaOk : public llm::MmpaStubApiGe {
+class MockMmpaRaOk : public hixl_test::SysApiHooks {
  public:
   void *DlOpen(const char *file_name, int32_t mode) override {
     if (file_name != nullptr && std::strcmp(file_name, "libra.so") == 0) {
-      // Return a real dlopen handle so ~LibRaLoader's mmDlclose remains valid after MmpaStub::Reset() at test exit.
-      return llm::MmpaStubApiGe::DlOpen("libdl.so.2", mode);
+      // Return a real dlopen handle so ~LibRaLoader's dlclose remains valid after ResetSysApiHooks at test exit.
+      return hixl_test::RealDlOpen("libdl.so.2", mode);
     }
     return nullptr;
   }
@@ -124,7 +112,7 @@ class MockMmpaRaOk : public llm::MmpaStubApiGe {
 };
 
 // Shared DlSym/DlClose for failure-path mocks (dlopen fail vs dlsym fail).
-class MockMmpaRaDlSymAlwaysFailBase : public llm::MmpaStubApiGe {
+class MockMmpaRaDlSymAlwaysFailBase : public hixl_test::SysApiHooks {
  public:
   void *DlSym(void *handle, const char *func_name) override {
     (void)handle;
@@ -185,17 +173,17 @@ TEST(HccpProxyUt, MmpaMmDlopenAndDlsymStubScenarios) {
 
   {
     auto mock_mmpa = std::make_shared<MockMmpaRaDlOpenFail>();
-    ScopedMmpaRaMock mmpa_guard(mock_mmpa);
+    hixl_test::ScopedSysApiMock mmpa_guard(mock_mmpa);
     EXPECT_EQ(HccpProxy::RaGetNotifyAddrLen(0, notify, notify_addr, notify_len), FAILED);
   }
   {
     auto mock_mmpa = std::make_shared<MockMmpaRaDlSymFail>();
-    ScopedMmpaRaMock mmpa_guard(mock_mmpa);
+    hixl_test::ScopedSysApiMock mmpa_guard(mock_mmpa);
     EXPECT_EQ(HccpProxy::RaGetNotifyAddrLen(0, notify, notify_addr, notify_len), FAILED);
   }
   {
     auto mock_mmpa = std::make_shared<MockMmpaRaOk>();
-    ScopedMmpaRaMock mmpa_guard(mock_mmpa);
+    hixl_test::ScopedSysApiMock mmpa_guard(mock_mmpa);
     EXPECT_EQ(HccpProxy::RaGetNotifyAddrLen(0, notify, notify_addr, notify_len), SUCCESS);
     EXPECT_EQ(notify_len, 4U);
     EXPECT_EQ(notify_addr, kUtMockNotifyBaseVa);

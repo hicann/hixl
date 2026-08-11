@@ -29,6 +29,7 @@
 #include "common/optional_aclrt_context.h"
 #include "engine/endpoint_test_utils.h"
 #include "test_mmpa_utils.h"
+#include "depends/sys_api/src/sys_api_wrap.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/dcmi/src/dcmi_stub.h"
 #include "depends/dsmi/src/dsmi_stub.h"
@@ -139,7 +140,7 @@ std::pair<std::string, std::string> SetUboeRoceMixedEnv(const std::string &uboe_
   uboe_mmpa_stub->real_path_ok_ = true;
   uboe_mmpa_stub->access_ok_ = true;
   uboe_mmpa_stub->fake_real_path_ = file_path;
-  llm::MmpaStub::GetInstance().SetImpl(uboe_mmpa_stub);
+  hixl_test::InstallSysApiHooks(uboe_mmpa_stub);
   return {file_path, script_path};
 }
 
@@ -152,7 +153,7 @@ class EndpointGeneratorUTest : public ::testing::Test {
     llm::AclRuntimeStub::SetInstance(acl_stub_);
 
     mmpa_stub_ = std::make_shared<MockLocCommResMmpaStub>();
-    llm::MmpaStub::GetInstance().SetImpl(mmpa_stub_);
+    hixl_test::InstallSysApiHooks(mmpa_stub_);
 
     const char *old_path = std::getenv("PATH");
     old_path_ = (old_path == nullptr) ? "" : old_path;
@@ -162,7 +163,7 @@ class EndpointGeneratorUTest : public ::testing::Test {
 
   void TearDown() override {
     llm::AclRuntimeStub::Reset();
-    llm::MmpaStub::GetInstance().Reset();
+    hixl_test::ResetSysApiHooks();
     DcmiStubSetEnableUbgEid(false);
 
     if (!old_path_.empty()) {
@@ -1001,7 +1002,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsRejectsUboeProtocolDe
   const std::string file_path =
       test::CreateTempFileWithContent("/tmp/loc_comm_res_ut_XXXXXX", "address_3=10.10.10.3\n");
   uboe_mmpa_stub->fake_real_path_ = file_path;
-  llm::MmpaStub::GetInstance().SetImpl(uboe_mmpa_stub);
+  hixl_test::InstallSysApiHooks(uboe_mmpa_stub);
 
   std::map<AscendString, AscendString> options;
   SetUboeProtocolDescOption(options);
@@ -1020,7 +1021,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsGeneratesUboeWhenConf
   acl_stub_->soc_name_ = "Ascend950A";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
-  llm::MmpaStub::GetInstance().SetImpl(std::make_shared<UboeMmpaStub>());
+  hixl_test::InstallSysApiHooks(std::make_shared<UboeMmpaStub>());
   DsmiStubSetInterconType(2U);  // UBoE 校验需要 InterconType=2
   DcmiStubSetSuperPodId(8, 0);  // DCMI super_pod_id for net_instance_id
   const std::string script_path = CreateExecutableScript("hccn_tool", "#!/bin/sh\necho \"ipaddr:192.168.100.205\"\n");
@@ -1062,7 +1063,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListGeneratesUbgWhenConfiguredOnA5) 
 }
 
 TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsRejectsManualLocalCommResWhenUboeOnly) {
-  llm::MmpaStub::GetInstance().SetImpl(std::make_shared<UboeMmpaStub>());
+  hixl_test::InstallSysApiHooks(std::make_shared<UboeMmpaStub>());
   const std::string script_path = CreateExecutableScript("hccn_tool", "#!/bin/sh\necho \"ipaddr:192.168.100.203\"\n");
   setenv("PATH", "/tmp", 1);
 
@@ -1081,7 +1082,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsRejectsManualLocalCom
 }
 
 TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsRejectsUboeOnA2WhenLocalCommResEndpointListIsEmpty) {
-  llm::MmpaStub::GetInstance().SetImpl(std::make_shared<UboeMmpaStub>());
+  hixl_test::InstallSysApiHooks(std::make_shared<UboeMmpaStub>());
   acl_stub_->soc_name_ = "Ascend910B4-1";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
@@ -1483,7 +1484,7 @@ TEST_F(EndpointGeneratorUTest, AutoGenUboeByInterconTypeWhenNoProtocolDescOnA5) 
   DsmiStubSetInterconType(2U);
   DcmiStubSetSuperPodId(8, 0);
 
-  llm::MmpaStub::GetInstance().SetImpl(std::make_shared<UboeMmpaStub>());
+  hixl_test::InstallSysApiHooks(std::make_shared<UboeMmpaStub>());
   const std::string script_path = CreateExecutableScript("hccn_tool", "#!/bin/sh\necho \"ipaddr:192.168.100.205\"\n");
   setenv("PATH", "/tmp", 1);
 

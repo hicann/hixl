@@ -130,6 +130,7 @@ target_link_libraries(hixl_test
         dcmi_stub
         drvdsmi_host_stub
         hixl_ascend_hal_stub
+        sys_api_wrap
         GTest::gtest GTest::gtest_main
         GTest::gmock
         stdc++fs
@@ -144,7 +145,7 @@ target_link_libraries(hixl_test
 # 确保测试桩优先于系统 CANN 安装的同名库被加载
 set_target_properties(hixl_test PROPERTIES
         BUILD_RPATH "${CMAKE_BINARY_DIR}/tests/depends/dcmi;${CMAKE_BINARY_DIR}/tests/depends/dsmi;${CMAKE_BINARY_DIR}/tests/depends/ascend_hal"
-        LINK_FLAGS "-Wl,--disable-new-dtags"
+        LINK_FLAGS "-Wl,--disable-new-dtags -Wl,--wrap=dlopen -Wl,--wrap=dlsym -Wl,--wrap=dlclose -Wl,--wrap=dlerror -Wl,--wrap=access -Wl,--wrap=realpath"
 )
 
 add_subdirectory(fabric_mem)

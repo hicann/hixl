@@ -24,6 +24,7 @@
 
 #include "dlog_pub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/sys_api/src/sys_api_wrap.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
 #include "common/llm_mem_pool.h"
 #include "common/llm_scope_guard.h"
@@ -225,7 +226,7 @@ llm::PullCacheParam BuildB2BSparsePullCacheParam() {
   return param;
 }
 
-class MockMmpaLongTimeRegister : public MmpaStubApiGe {
+class MockMmpaLongTimeRegister : public hixl_test::SysApiHooks {
  public:
   void *DlOpen(const char *file_name, int32_t mode) override {
     static int64_t addr = 0;
@@ -290,7 +291,7 @@ class DataCacheEngineSTest : public ::testing::Test {
 };
 
 TEST_F(DataCacheEngineSTest, UnlinkWhenPrepareNotFinished) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaLongTimeRegister>());
+  hixl_test::InstallSysApiHooks(std::make_shared<MockMmpaLongTimeRegister>());
   llm::LLMDataDistV2 llm_datadist(1U);
   std::map<ge::AscendString, ge::AscendString> options{};
   options["llm.Role"] = "Decoder";

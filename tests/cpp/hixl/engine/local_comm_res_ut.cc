@@ -30,6 +30,7 @@
 
 #include "local_comm_res_generator_v1.h"
 #include "test_mmpa_utils.h"
+#include "depends/sys_api/src/sys_api_wrap.h"
 #include "depends/dsmi/src/dsmi_stub.h"
 
 // DCMI 桩函数控制接口（定义在 tests/depends/dcmi/src/dcmi_stub.cc）
@@ -303,7 +304,7 @@ class LocalCommResMmpaTestBase : public ::testing::Test {
  protected:
   void SetUp() override {
     // 设置 MmpaStub 使 urma_admin 绝对路径检查失败，回退到 PATH 查找
-    llm::MmpaStub::GetInstance().SetImpl(std::make_shared<LocalCommResMmpaStub>());
+    hixl_test::InstallSysApiHooks(std::make_shared<LocalCommResMmpaStub>());
     temp_dir_ = CreateTempDirForUrmaAdmin();
     if (!temp_dir_.empty()) {
       old_path_ = SetUrmaAdminPath(temp_dir_);
@@ -315,7 +316,7 @@ class LocalCommResMmpaTestBase : public ::testing::Test {
       CleanupTempDir(temp_dir_);
     }
     // 恢复默认 MmpaStub（使用 Reset 而非 SetImpl(nullptr)，避免后续 mmAccess 调用崩溃）
-    llm::MmpaStub::GetInstance().Reset();
+    hixl_test::ResetSysApiHooks();
   }
   std::string temp_dir_;
   std::string old_path_;

@@ -12,10 +12,10 @@
 
 #include <cstdint>
 #include <cstring>
+#include <cstdlib>
 #include <limits.h>
 #include <unistd.h>
 #include <vector>
-#include "mmpa/mmpa_api.h"
 #include "common/hixl_log.h"
 #include "common/scope_guard.h"
 #include "common/hixl_checker.h"
@@ -32,7 +32,6 @@ constexpr const char *kDefaultAscendPath = "/usr/local/Ascend/cann";
 Status GetKernelFilePath(std::string &json_path) {
   std::string libPath;
   const char *getPath = std::getenv("ASCEND_HOME_PATH");
-  MM_SYS_GET_ENV(MM_ENV_ASCEND_HOME_PATH, getPath);
   if (getPath != nullptr) {
     libPath = getPath;
   } else {
@@ -49,14 +48,15 @@ Status LoadBinaryFromJson(const char *json_path, aclrtBinHandle &bin_handle) {
   if (json_path == nullptr) {
     return PARAM_INVALID;
   }
-  char resolved_path[MMPA_MAX_PATH] = {0};
-  auto mm_ret = mmRealPath(json_path, resolved_path, MMPA_MAX_PATH);
-  if (mm_ret != EN_OK) {
-    HIXL_LOGE(PARAM_INVALID, "[LoadKernel] mmRealPath failed. path=%s, ret=%d", json_path, mm_ret);
+  char resolved_path[PATH_MAX] = {0};
+  if (realpath(json_path, resolved_path) == nullptr) {
+    HIXL_LOGE(PARAM_INVALID, "[LoadKernel] realpath failed. path=%s, errno=%d, errmsg=%s", json_path, errno,
+              strerror(errno));
     return PARAM_INVALID;
   }
-  if (mmAccess(resolved_path) != EN_OK) {
-    HIXL_LOGE(FAILED, "[LoadKernel] Can not access file: %s", resolved_path);
+  if (access(resolved_path, F_OK) != 0) {
+    HIXL_LOGE(FAILED, "[LoadKernel] Cannot access file: %s, errno=%d, errmsg=%s", resolved_path, errno,
+              strerror(errno));
     return FAILED;
   }
   aclrtBinaryLoadOptions load_options{};

@@ -19,6 +19,7 @@
 #include "transfer_engine/comm_transfer_engine.h"
 #include "common/llm_utils.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/sys_api/src/sys_api_wrap.h"
 #include "depends/ascendcl/src/ascendcl_stub.h"
 #include "depends/llm_datadist/src/hccn_conf_helper.h"
 
@@ -57,11 +58,11 @@ class HcclApiStub {
   static std::unique_ptr<HcclApiStub> instance_;
 };
 
-class MockMmpaNoRealDl : public llm::MmpaStubApiGe {
+class MockMmpaNoRealDl : public hixl_test::SysApiHooks {
  public:
   static void ResetStubImpl() {
     HcclApiStub::ResetStub();
-    llm::MmpaStub::GetInstance().Reset();
+    hixl_test::ResetSysApiHooks();
   }
 
   void *DlOpen(const char *file_name, int32_t mode) override {
@@ -85,7 +86,7 @@ class MockMmpaNoRealDl : public llm::MmpaStubApiGe {
 class MockHccnTool : public MockMmpaNoRealDl {
  public:
   static void Install() {
-    llm::MmpaStub::GetInstance().SetImpl(std::make_shared<MockHccnTool>());
+    hixl_test::InstallSysApiHooks(std::make_shared<MockHccnTool>());
   }
 
   static void Reset() {
@@ -101,7 +102,7 @@ class MockHccnTool : public MockMmpaNoRealDl {
 class MockGetHccnResult : public MockMmpaNoRealDl {
  public:
   static void Install() {
-    llm::MmpaStub::GetInstance().SetImpl(std::make_shared<MockGetHccnResult>());
+    hixl_test::InstallSysApiHooks(std::make_shared<MockGetHccnResult>());
   }
 
   static void Reset() {
@@ -121,14 +122,14 @@ class MockGetHccnResult : public MockMmpaNoRealDl {
   }
 };
 
-class MockMmpaForHcclApi : public llm::MmpaStubApiGe {
+class MockMmpaForHcclApi : public hixl_test::SysApiHooks {
  public:
   static void Install() {
-    llm::MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHcclApi>());
+    hixl_test::InstallSysApiHooks(std::make_shared<MockMmpaForHcclApi>());
   }
   static void Reset() {
     HcclApiStub::ResetStub();
-    llm::MmpaStub::GetInstance().Reset();
+    hixl_test::ResetSysApiHooks();
   }
 
   void *DlOpen(const char *file_name, int32_t mode) override;

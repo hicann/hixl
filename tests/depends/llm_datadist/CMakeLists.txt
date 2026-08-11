@@ -70,11 +70,20 @@ target_link_libraries(llm_datadist_base PRIVATE
         msprof_headers
         msprof_stub
         mmpa_stub
+        sys_api_wrap
         json
+        -ldl
         -Wl,--no-as-needed
         error_manager_stub
         -Wl,--as-needed
         ${DT_COMMON_LINK_OPTION}
+)
+
+# Intercept dlopen/dlsym/dlclose/dlerror/access/realpath so the Python UT
+# (llm_datadist_base + start_mock) can stub HCCL dynamic loading and kernel-json
+# access without a real NPU/driver, matching the legacy MmpaStub-based mock.
+set_target_properties(llm_datadist_base PROPERTIES
+        LINK_FLAGS "-Wl,--wrap=dlopen -Wl,--wrap=dlsym -Wl,--wrap=dlclose -Wl,--wrap=dlerror -Wl,--wrap=access -Wl,--wrap=realpath"
 )
 
 target_compile_definitions(llm_datadist_base PRIVATE

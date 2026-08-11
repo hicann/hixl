@@ -10,11 +10,11 @@
 
 #include "ascend_hal_proxy.h"
 
+#include <dlfcn.h>
 #include <mutex>
 
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
-#include "mmpa/mmpa_api.h"
 
 namespace hixl {
 namespace {
@@ -34,8 +34,8 @@ struct LibAscendHalLoader {
   void Reset() {
     std::lock_guard<std::mutex> lock(mu);
     if (handle != nullptr) {
-      HIXL_LOGI("[AscendHalProxy] LibAscendHalLoader reset, mmDlclose %s", kLibAscendHalSo);
-      (void)mmDlclose(handle);
+      HIXL_LOGI("[AscendHalProxy] LibAscendHalLoader reset, dlclose %s", kLibAscendHalSo);
+      (void)dlclose(handle);
     }
     handle = nullptr;
     host_register = nullptr;
@@ -59,18 +59,21 @@ Status EnsureLibAscendHalLoaded() {
     return SUCCESS;
   }
 
-  const int32_t dl_mode = MMPA_RTLD_NOW;
-  void *hal_handle = mmDlopen(kLibAscendHalSo, dl_mode);
+  const int32_t dl_mode = RTLD_NOW;
+  void *hal_handle = dlopen(kLibAscendHalSo, dl_mode);
   if (hal_handle == nullptr) {
-    HIXL_LOGE(FAILED, "[AscendHalProxy] mmDlopen %s failed: %s", kLibAscendHalSo, mmDlerror());
+    const char *err = dlerror();
+    HIXL_LOGE(FAILED, "[AscendHalProxy] dlopen %s failed: %s", kLibAscendHalSo, err != nullptr ? err : "unknown error");
     return FAILED;
   }
 
-  auto *register_fn = reinterpret_cast<HalHostRegisterFn>(mmDlsym(hal_handle, "halHostRegister"));
-  auto *unregister_fn = reinterpret_cast<HalHostUnregisterFn>(mmDlsym(hal_handle, "halHostUnregister"));
+  auto *register_fn = reinterpret_cast<HalHostRegisterFn>(dlsym(hal_handle, "halHostRegister"));
+  auto *unregister_fn = reinterpret_cast<HalHostUnregisterFn>(dlsym(hal_handle, "halHostUnregister"));
   if ((register_fn == nullptr) || (unregister_fn == nullptr)) {
-    HIXL_LOGE(FAILED, "[AscendHalProxy] mmDlsym halHostRegister/halHostUnregister failed: %s", mmDlerror());
-    (void)mmDlclose(hal_handle);
+    const char *err = dlerror();
+    HIXL_LOGE(FAILED, "[AscendHalProxy] dlsym halHostRegister/halHostUnregister failed: %s",
+              err != nullptr ? err : "unknown error");
+    (void)dlclose(hal_handle);
     return FAILED;
   }
 

@@ -19,6 +19,7 @@
 
 #include "securec.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/sys_api/src/sys_api_wrap.h"
 
 namespace hixl {
 namespace test {
@@ -52,7 +53,7 @@ class ScopedPathGuard {
  * Common MmpaStub mock for kernel json file path handling in unit tests.
  * Used by multiple test files to avoid code duplication.
  */
-class TestMmpaStub : public llm::MmpaStubApiGe {
+class TestMmpaStub : public hixl_test::SysApiHooks {
  public:
   std::string fake_real_path_;
   bool real_path_ok_ = false;
@@ -87,14 +88,14 @@ class TestMmpaStub : public llm::MmpaStubApiGe {
  * Simplified MmpaStub mock that only handles kernel json file path.
  * Returns EN_OK for kernel json paths, delegates to base class for others.
  */
-class KernelJsonMmpaStub : public llm::MmpaStubApiGe {
+class KernelJsonMmpaStub : public hixl_test::SysApiHooks {
  public:
   INT32 Access(const CHAR *path_name) override {
     std::string path_str(path_name);
     if (path_str.find("libcann_hixl_kernel.json") != std::string::npos) {
       return EN_OK;
     }
-    return llm::MmpaStubApiGe::Access(path_name);
+    return hixl_test::SysApiHooks::Access(path_name);
   }
 
   int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
@@ -103,7 +104,7 @@ class KernelJsonMmpaStub : public llm::MmpaStubApiGe {
       strncpy_s(realPath, realPathLen, path, strlen(path));
       return EN_OK;
     }
-    return llm::MmpaStubApiGe::RealPath(path, realPath, realPathLen);
+    return hixl_test::SysApiHooks::RealPath(path, realPath, realPathLen);
   }
 };
 

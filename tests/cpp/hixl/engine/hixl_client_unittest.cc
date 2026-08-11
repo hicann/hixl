@@ -32,6 +32,7 @@
 #include "engine/endpoint_matcher.h"
 #include "common/hixl_inner_types.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/sys_api/src/sys_api_wrap.h"
 #include "depends/runtime/src/runtime_stub.h"
 #include "depends/slog/src/slog_stub.h"
 #include "engine/test_mmpa_utils.h"
@@ -370,7 +371,7 @@ class HixlClientUTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // TransferPool initialization loads device kernels, so MmpaStub must be ready before Create.
-    llm::MmpaStub::GetInstance().SetImpl(std::make_shared<ClientMmpaStub>());
+    hixl_test::InstallSysApiHooks(std::make_shared<ClientMmpaStub>());
     ClientConfig config{};
     config.rdma_tc = kDefaultRdmaTc;
     config.rdma_sl = kDefaultRdmaSl;
@@ -381,7 +382,7 @@ class HixlClientUTest : public ::testing::Test {
   void TearDown() override {
     client_->Finalize();
     server_->DestroyServerAndUnreg();
-    llm::MmpaStub::GetInstance().Reset();
+    hixl_test::ResetSysApiHooks();
   }
 
   void StartServer(MockHixlServerMode mode) {

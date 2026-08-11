@@ -13,6 +13,7 @@
 #include <cinttypes>
 #include <memory>
 #include <sys/epoll.h>
+#include <unistd.h>
 #include "nlohmann/json.hpp"
 #include "common/hixl_checker.h"
 #include "common/ctrl_msg.h"
@@ -20,7 +21,6 @@
 #include "common/ctrl_msg_plugin.h"
 #include "proxy/hcomm_proxy.h"
 #include "transfer_pool.h"
-#include "mmpa/mmpa_api.h"
 #include "common/hixl_inner_types.h"
 
 static inline void to_json(nlohmann::json &j, const CommMem &m) {
@@ -142,12 +142,15 @@ Status HixlCSServer::InitTransFinishedFlag() {
 
 Status HixlCSServer::RegisterHostTransFinishedFlag(const std::vector<EndpointPtr> &host_endpoints) {
   void *host_flag = nullptr;
-  size_t page_size = mmGetPageSize();
+  int64_t page_size = sysconf(_SC_PAGESIZE);
+  HIXL_CHK_BOOL_RET_STATUS(page_size > 0, FAILED, "sysconf(_SC_PAGESIZE) failed, errno=%d, errmsg=%s", errno,
+                           strerror(errno));
+  size_t align_size = static_cast<size_t>(page_size);
   // Register host mem addr need aligned by page size.
-  int ret = posix_memalign(&host_flag, page_size, sizeof(int64_t));
+  int ret = posix_memalign(&host_flag, align_size, sizeof(int64_t));
   HIXL_CHK_BOOL_RET_STATUS(ret == 0 && host_flag != nullptr, FAILED,
                            "HOST trans finished flag posix_memalign failed, ret:%d, page_size=%zu, alloc size=%zu.",
-                           ret, page_size, sizeof(int64_t));
+                           ret, align_size, sizeof(int64_t));
   HIXL_DISMISSABLE_GUARD(host_flag_guard, ([host_flag]() { free(host_flag); }));
   *static_cast<int64_t *>(host_flag) = 1;
   CommMem mem{};
