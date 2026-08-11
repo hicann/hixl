@@ -424,10 +424,10 @@ Status HixlCSServer::MatchEndpointMsg(int32_t fd, const char *msg, uint64_t msg_
       ep->SetPort(listen_port);
     } else if (ret == HCCL_E_NOT_SUPPORT) {
       HIXL_LOGW("HcommEndpointGetListenPort is not supported.");
-    } else {
-      HIXL_LOGE(FAILED, "HcommEndpointGetListenPort failed, ret: 0x%X.", static_cast<uint32_t>(ret));
-      return FAILED;
     }
+    HIXL_CHK_BOOL_RET_STATUS(ret == HCCL_SUCCESS || ret == HCCL_E_NOT_SUPPORT, FAILED,
+                             "Call api:HcommEndpointGetListenPort failed, ret:0x%X, ep_handle:%p",
+                             static_cast<uint32_t>(ret), handle);
   }
   resp.result = SUCCESS;
   resp.dst_ep_handle = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(handle));

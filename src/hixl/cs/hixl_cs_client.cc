@@ -79,8 +79,8 @@ hixl::Status AppendTagStorage(std::vector<std::vector<char>> &storage, const std
     errno_t rc = memcpy_s(buf.data(), buf.size(), tag.data(), tag.size());
     HIXL_CHK_BOOL_RET_STATUS(
         rc == EOK, hixl::FAILED,
-        "[HixlClient] AppendTagStorage failed! memcpy_s error.tag: '%s', tag_len: %zu, dest_buf_size: %zu, rc: %d",
-        tag.c_str(), tag.size(), buf.size(), static_cast<int32_t>(rc));
+        "[HixlClient] Call api:memcpy_s failed, ret:%d, tag:%s, src_size:%zu bytes, dst_size:%zu bytes",
+        static_cast<int32_t>(rc), tag.c_str(), tag.size(), buf.size());
   }
   storage.emplace_back(std::move(buf));
   HIXL_LOGD("[HixlClient] AppendTagStorage success. tag: '%s', current_storage_size: %zu", tag.c_str(), storage.size());
@@ -105,8 +105,12 @@ void CloseImportedBufs(EndpointHandle ep_handle, std::vector<hixl::HixlMemDesc> 
     }
     const HcclResult ret = HcommProxy::MemUnimport(ep_handle, b.export_desc, b.export_len);
     if (ret != HCCL_SUCCESS) {
-      HIXL_LOGW("[HixlClient] HcommMemUnimport failed. addr=%p size=%" PRIu64 " ret=0x%X", b.mem.addr, b.mem.size,
-                static_cast<uint32_t>(ret));
+      HIXL_REPORT_ERR_MSG("E19999",
+                          "Call api:HcommMemUnimport failed, ret:0x%X, ep_handle:%p, addr:%p, size:%" PRIu64 " bytes",
+                          static_cast<uint32_t>(ret), ep_handle, b.mem.addr, b.mem.size);
+      HIXL_LOGW("[HixlClient] Call api:HcommMemUnimport failed, ret:0x%X, ep_handle:%p, addr:%p, size:%" PRIu64
+                " bytes",
+                static_cast<uint32_t>(ret), ep_handle, b.mem.addr, b.mem.size);
     }
   }
 }
@@ -227,10 +231,8 @@ Status HixlCSClient::InitFlagQueue() noexcept {
       tmp = nullptr;
     }
   });
-  if (tmp == nullptr) {
-    HIXL_LOGE(FAILED, "flag_addr malloc failed.");
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(tmp != nullptr, FAILED, "Call api:malloc failed, size:%zu bytes",
+                           kFlagQueueSize * sizeof(uint64_t));
   auto *flag_queue = static_cast<uint64_t *>(tmp);
   for (size_t i = 0; i < kFlagQueueSize; ++i) {
     flag_queue[i] = 0;
@@ -259,15 +261,13 @@ Status HixlCSClient::InitBaseClient(const HixlClientDesc *client_desc) {
   HIXL_LOGD("[HixlClient] CtrlMsgPlugin initialized");
   auto ctx_guard = GetContextGuard();
   (void)ctx_guard;
-  Status ret = local_endpoint_->Initialize();
-  HIXL_CHK_STATUS_RET(ret,
+  HIXL_CHK_STATUS_RET(local_endpoint_->Initialize(),
                       "[HixlClient] Failed to initialize src endpoint. "
                       "Check Config: [Loc:%d, protocol:%s, AddrVal:0x%x]",
                       local_ep.loc.locType, ProtocolToString(local_ep.protocol).c_str(), local_ep.commAddr.id);
   HIXL_LOGI("[HixlClient] local_endpoint initialized. ep_handle=%p", local_endpoint_->GetHandle());
   if (local_ep.loc.locType == ENDPOINT_LOC_TYPE_HOST) {
-    Status init_ret = InitFlagQueue();
-    HIXL_CHK_STATUS_RET(init_ret, "[HixlClient] Failed to initialize flag queue.");
+    HIXL_CHK_STATUS_RET(InitFlagQueue(), "[HixlClient] Failed to initialize flag queue.");
   }
   return SUCCESS;
 }
@@ -364,7 +364,7 @@ Status HixlCSClient::RegMemLocked(const char *mem_tag, const CommMem *mem, MemHa
   if (check_result) {
     HIXL_LOGE(PARAM_INVALID,
               "[HixlClient] Memory registration failed. This memory may overlap with the already recorded memory. "
-              "Please check Mem, mem_addr: %p, mem_size: %lu.",
+              "Please check Mem, mem_addr:%p, mem_size:%lu bytes.",
               mem->addr, mem->size);
     return PARAM_INVALID;
   }
@@ -382,11 +382,9 @@ Status HixlCSClient::RegMemLocked(const char *mem_tag, const CommMem *mem, MemHa
                         local_endpoint_desc.loc.device.devPhyId, mem->addr);
   }
   // 记录client侧给endpoint分配的内存信息
-  Status ret = mem_store_.RecordMemory(false, mem->addr, mem->size, is_host_mem, register_dev_addr);
-  if (ret != SUCCESS) {
-    HIXL_LOGE(FAILED, "[HixlClient] Client record memory failed. mem_addr = %p, mem_size = %lu", mem->addr, mem->size);
-    return FAILED;
-  }
+  HIXL_CHK_STATUS_RET(mem_store_.RecordMemory(false, mem->addr, mem->size, is_host_mem, register_dev_addr),
+                      "[HixlClient] Client record memory failed, mem_addr:%p, mem_size:%lu bytes", mem->addr,
+                      mem->size);
   HIXL_LOGI("[HixlClient] Memory register success. ");
   return SUCCESS;
 }
@@ -444,34 +442,27 @@ Status HixlCSClient::TransferWithRetry(bool is_get, uint64_t channel_handle, voi
     }
 
     if (hccl_ret != HCCL_E_AGAIN) {
-      HIXL_LOGE(FAILED,
-                "[HixlClient] Transfer failed, is_get=%d, channel_handle=%lu, dst_addr=%p, src_addr=%p, "
-                "mem_len=%lu, hccl_ret=%d.",
-                is_get, channel_handle, dst_buf, src_buf, len, hccl_ret);
-      return FAILED;
+      HIXL_CHK_HCCL_RET(static_cast<HcclResult>(hccl_ret),
+                        "[HixlClient] Transfer failed, is_get:%d, channel_handle:%lu, dst_addr:%p, src_addr:%p, "
+                        "mem_len:%lu bytes",
+                        static_cast<int32_t>(is_get), channel_handle, dst_buf, src_buf, len);
     }
 
     // 检查超时
     auto current_time = std::chrono::steady_clock::now();
     auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - start_time).count();
-    if (elapsed_ms >= kRetryTimeoutMs) {
-      HIXL_LOGE(FAILED,
-                "[HixlClient] Transfer timeout after %ld ms, is_get=%d, channel_handle=%lu, dst_addr=%p, "
-                "src_addr=%p, mem_len=%lu, hccl_ret=%d.",
-                elapsed_ms, is_get, channel_handle, dst_buf, src_buf, len, hccl_ret);
-      return FAILED;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(elapsed_ms < kRetryTimeoutMs, TIMEOUT,
+                             "[HixlClient] Transfer timed out, elapsed:%ld ms, is_get:%d, channel_handle:%lu, "
+                             "dst_addr:%p, src_addr:%p, mem_len:%lu bytes, hccl_ret:%d",
+                             elapsed_ms, is_get, channel_handle, dst_buf, src_buf, len, hccl_ret);
 
     HIXL_LOGW("[HixlClient] Transfer ret=%d, retrying. elapsed_ms=%ld, dst_addr=%p, src_addr=%p, len=%lu, is_get=%d.",
               hccl_ret, elapsed_ms, dst_buf, src_buf, len, is_get);
 
     // 执行 Fence 后重试，执行Fence后通常极少会出现再次重试的问题
-    hccl_ret = HcommProxy::ChannelFenceOnThread(static_cast<ThreadHandle>(0), channel_handle);
-    if (hccl_ret != HCCL_SUCCESS) {
-      HIXL_LOGE(FAILED, "[HixlClient] HcommChannelFenceOnThread failed, channel_handle=%lu, hccl_ret=%d.",
-                channel_handle, hccl_ret);
-      return FAILED;
-    }
+    HIXL_CHK_HCCL_RET(
+        static_cast<HcclResult>(HcommProxy::ChannelFenceOnThread(static_cast<ThreadHandle>(0), channel_handle)),
+        "[HixlClient] channel_handle:%lu", channel_handle);
   }
 }
 
@@ -479,17 +470,13 @@ Status HixlCSClient::BatchTransferTask(bool is_get, uint32_t list_num, const Hix
   for (uint32_t i = 0; i < list_num; i++) {
     void *dst = is_get ? desc_list[i].local_buf : desc_list[i].remote_buf;
     const void *src = is_get ? desc_list[i].remote_buf : desc_list[i].local_buf;
-    auto ret = TransferWithRetry(is_get, client_channel_handle_, dst, src, desc_list[i].len);
-    if (ret != SUCCESS) {
-      return FAILED;
-    }
+    HIXL_CHK_STATUS_RET(TransferWithRetry(is_get, client_channel_handle_, dst, src, desc_list[i].len),
+                        "[HixlClient] TransferWithRetry failed, is_get:%d, channel_handle:%lu, size:%lu bytes",
+                        static_cast<int32_t>(is_get), client_channel_handle_, desc_list[i].len);
   }
-  int32_t hccl_ret = HcommProxy::ChannelFenceOnThread(static_cast<ThreadHandle>(0), client_channel_handle_);
-  if (hccl_ret != SUCCESS) {
-    HIXL_LOGE(FAILED, "[HixlClient] HcommChannelFenceOnThread failed, client_channel_handle_ is %lu, hccl_ret is %d.",
-              client_channel_handle_, hccl_ret);
-    return FAILED;
-  }
+  HIXL_CHK_HCCL_RET(
+      static_cast<HcclResult>(HcommProxy::ChannelFenceOnThread(static_cast<ThreadHandle>(0), client_channel_handle_)),
+      "[HixlClient] channel_handle:%lu", client_channel_handle_);
   return SUCCESS;
 }
 Status HixlCSClient::BatchTransferHostAsync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list,
@@ -518,16 +505,11 @@ Status HixlCSClient::BatchTransferHostAsync(bool is_get, uint32_t list_num, cons
   } else {
     kTransFlagName = kTransFlagNameDevice;
   }
-  int32_t hccl_ret = HcommProxy::ReadNbiOnThread(static_cast<ThreadHandle>(0), client_channel_handle_, flag_addr,
-                                                 tag_mem_descs_[kTransFlagName].addr, kFlagSizeBytes);
-  if (hccl_ret != 0) {  // ret值为0时表示执行成功
-    HIXL_LOGE(
-        FAILED,
-        "[HixlClient] HcommReadNbiOnThread failed, client_channel_handle_ is %lu, dst_addr is %p, src_addr is %p, "
-        "mem_len is %lu, hccl_ret is %d.",
-        client_channel_handle_, flag_addr, tag_mem_descs_[kTransFlagName].addr, kFlagSizeBytes, hccl_ret);
-    return FAILED;
-  }
+  HIXL_CHK_HCCL_RET(static_cast<HcclResult>(
+                        HcommProxy::ReadNbiOnThread(static_cast<ThreadHandle>(0), client_channel_handle_, flag_addr,
+                                                    tag_mem_descs_[kTransFlagName].addr, kFlagSizeBytes)),
+                    "[HixlClient] channel_handle:%lu, dst_addr:%p, src_addr:%p, size:%u bytes", client_channel_handle_,
+                    flag_addr, tag_mem_descs_[kTransFlagName].addr, kFlagSizeBytes);
   auto *query_mem_handle = new (std::nothrow) CompleteHandleInfo();
   if (query_mem_handle == nullptr) {
     HIXL_LOGE(FAILED, "Memory allocate failed; unable to generate query handle.");
@@ -848,6 +830,7 @@ Status HixlCSClient::BatchTransferDeviceAsync(bool is_get, uint32_t list_num, co
 
   std::shared_ptr<TransferPool::SlotHandle> slot;
   HIXL_CHK_STATUS_RET(AcquireSharedSlot(slot), "[HixlClient] AcquireSharedSlot failed");
+  HIXL_DISMISSABLE_GUARD(slot_guard, ([this, &slot]() { ReleaseSharedSlotRef(slot); }));
 
   HIXL_CHECK_NOTNULL(slot->notify, "[HixlClient] slot->notify is null");
 
@@ -860,15 +843,12 @@ Status HixlCSClient::BatchTransferDeviceAsync(bool is_get, uint32_t list_num, co
   });
 
   auto *handle = new (std::nothrow) DeviceCompleteHandle();
-  if (handle == nullptr) {
-    HIXL_LOGE(FAILED, "[HixlClient] new DeviceCompleteHandle failed");
-    ReleaseSharedSlotRef(slot);
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(handle != nullptr, FAILED, "[HixlClient] Allocate DeviceCompleteHandle failed");
   HIXL_DISMISSABLE_GUARD(handle_guard, ([this, handle]() { (void)ReleaseDevCompleteHandle(handle); }));
   handle->magic = kDeviceCompleteMagic;
   handle->reserved = 0U;
   handle->shared_slot = std::move(slot);
+  HIXL_DISMISS_GUARD(slot_guard);
   handle->host_flag = host_flag;
   handle->dev_op_desc_buf = nullptr;
   HIXL_DISMISS_GUARD(flag_guard);
@@ -906,18 +886,16 @@ Status HixlCSClient::BatchTransferDeviceSync(bool is_get, uint32_t list_num, con
 
   std::shared_ptr<TransferPool::SlotHandle> slot;
   HIXL_CHK_STATUS_RET(AcquireSharedSlot(slot), "[HixlClient] AcquireSharedSlot failed");
+  HIXL_DISMISSABLE_GUARD(slot_guard, ([this, &slot]() { ReleaseSharedSlotRef(slot); }));
   HIXL_CHECK_NOTNULL(slot->notify, "[HixlClient] slot->notify is null");
 
   auto *handle = new (std::nothrow) DeviceCompleteHandle();
-  if (handle == nullptr) {
-    HIXL_LOGE(FAILED, "[HixlClient] new DeviceCompleteHandle failed");
-    ReleaseSharedSlotRef(slot);
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(handle != nullptr, FAILED, "[HixlClient] Allocate DeviceCompleteHandle failed");
   HIXL_MAKE_GUARD(handle_guard, ([this, handle]() { (void)ReleaseDevCompleteHandle(handle); }));
   handle->magic = kDeviceCompleteMagic;
   handle->reserved = 0U;
   handle->shared_slot = std::move(slot);
+  HIXL_DISMISS_GUARD(slot_guard);
   handle->host_flag = nullptr;
   handle->dev_op_desc_buf = nullptr;
 
@@ -1059,7 +1037,7 @@ Status HixlCSClient::CheckStatusHost(CompleteHandleInfo &query_handle, HixlCompl
   if (query_handle.flag_index < 0 || query_handle.flag_index >= static_cast<int32_t>(kFlagQueueSize)) {
     HIXL_LOGE(PARAM_INVALID,
               "The value of query_handle->flag_index is outside the valid verification range; please check the "
-              "query_handle. query_handle->flag_index：%d",
+              "query_handle. query_handle->flag_index:%d",
               query_handle.flag_index);
     return PARAM_INVALID;
   }
@@ -1130,10 +1108,10 @@ Status HixlCSClient::CheckStatusLocked(void *query_handle, HixlCompleteStatus *s
 
   uint32_t head = 0U;
   errno_t rc = memcpy_s(&head, sizeof(head), query_handle, sizeof(head));
-  if (rc != EOK) {
-    HIXL_LOGE(FAILED, "[HixlClient] CheckStatus memcpy_s failed, rc=%d", static_cast<int32_t>(rc));
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(rc == EOK, FAILED,
+                           "[HixlClient] Call api:memcpy_s failed, ret:%d, src:%p, src_size:%zu bytes, "
+                           "dst_size:%zu bytes",
+                           static_cast<int32_t>(rc), query_handle, sizeof(head), sizeof(head));
 
   if (head == kDeviceCompleteMagic) {
     DeviceCompleteHandle *device_handle = static_cast<DeviceCompleteHandle *>(query_handle);
@@ -1162,11 +1140,9 @@ Status HixlCSClient::UnRegMem(MemHandle mem_handle) {
   }
   Status result = local_endpoint_->DeregisterMem(mem_handle);
   if (result == SUCCESS) {
-    Status ret = mem_store_.UnrecordMemory(false, desc.mem.addr);  // 删掉记录中client侧给endpoint分配的内存信息
-    if (ret != SUCCESS) {
-      HIXL_LOGE(FAILED, "[HixlClient] Client record memory failed. mem_addr = %p", desc.mem.addr);
-      return FAILED;
-    }
+    // 删掉记录中client侧给endpoint分配的内存信息
+    HIXL_CHK_STATUS_RET(mem_store_.UnrecordMemory(false, desc.mem.addr),
+                        "[HixlClient] Client unrecord memory failed, mem_addr:%p", desc.mem.addr);
     return SUCCESS;
   }
   return PARAM_INVALID;
@@ -1199,20 +1175,20 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannel(uint32_t timeout_ms) {
       socket_, timeout_ms, ProtocolToString(src_ep.protocol).c_str(), src_ep.commAddr.type, src_ep.commAddr.id,
       ProtocolToString(remote_endpoint_.protocol).c_str(), remote_endpoint_.commAddr.type,
       remote_endpoint_.commAddr.id);
-  Status ret = ConnMsgHandler::SendMatchEndpointRequest(socket_, remote_endpoint_);
-  HIXL_CHK_STATUS_RET(ret, "[HixlClient] SendMatchEndpointRequest failed. fd=%d", socket_);
+  HIXL_CHK_STATUS_RET(ConnMsgHandler::SendMatchEndpointRequest(socket_, remote_endpoint_),
+                      "[HixlClient] SendMatchEndpointRequest failed. fd=%d", socket_);
   uint32_t remote_listen_port = 0;
   uint64_t channel_index = 0UL;
-  ret = ConnMsgHandler::RecvMatchEndpointResponse(socket_, remote_endpoint_handle_, remote_listen_port, channel_index,
-                                                  timeout_ms);
-  HIXL_CHK_STATUS_RET(ret, "[HixlClient] RecvMatchEndpointResponse failed. fd=%d, timeout=%u ms", socket_, timeout_ms);
+  HIXL_CHK_STATUS_RET(ConnMsgHandler::RecvMatchEndpointResponse(socket_, remote_endpoint_handle_, remote_listen_port,
+                                                                channel_index, timeout_ms),
+                      "[HixlClient] RecvMatchEndpointResponse failed. fd=%d, timeout=%u ms", socket_, timeout_ms);
   local_endpoint_->SetPort(remote_listen_port);
   CommMem *prefetch_mems = nullptr;
   char **prefetch_tags = nullptr;
   uint32_t prefetch_num = 0U;
   HIXL_LOGI("[HixlClient] Connect: prefetch remote mem before CreateChannel");
-  ret = GetRemoteMemImpl(timeout_ms, &prefetch_mems, &prefetch_tags, &prefetch_num);
-  HIXL_CHK_STATUS_RET(ret, "[HixlClient] Connect prefetch GetRemoteMem/Import failed. fd=%d, timeout=%u ms", socket_,
+  HIXL_CHK_STATUS_RET(GetRemoteMemImpl(timeout_ms, &prefetch_mems, &prefetch_tags, &prefetch_num),
+                      "[HixlClient] Connect prefetch GetRemoteMem/Import failed. fd=%d, timeout=%u ms", socket_,
                       timeout_ms);
   CreateChannelReq create_body{};
   create_body.src = src_ep;
@@ -1222,8 +1198,8 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannel(uint32_t timeout_ms) {
   create_body.channel_index = channel_index;
   create_body.qos = global_config_.Qos().value_or(kQosDefault);
   create_body.timeout_ms = timeout_ms;
-  ret = ConnMsgHandler::SendCreateChannelRequest(socket_, create_body);
-  HIXL_CHK_STATUS_RET(ret, "[HixlClient] SendCreateChannelRequest failed. fd=%d", socket_);
+  HIXL_CHK_STATUS_RET(ConnMsgHandler::SendCreateChannelRequest(socket_, create_body),
+                      "[HixlClient] SendCreateChannelRequest failed. fd=%d", socket_);
   ChannelHandle channel_handle = 0UL;
   ChannelDesc channel_desc{};
   channel_desc.remote_endpoint = remote_endpoint_;
@@ -1232,10 +1208,10 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannel(uint32_t timeout_ms) {
   channel_desc.channel_type = ChannelType::kClient;
   channel_desc.channel_index = channel_index;
   channel_desc.qos = global_config_.Qos().value_or(kQosDefault);
-  ret = local_endpoint_->CreateChannel(channel_desc, channel_handle, timeout_ms);
-  HIXL_CHK_STATUS_RET(ret, "[HixlClient] Endpoint CreateChannel failed. Dst[id:0x%x]", remote_endpoint_.commAddr.id);
-  ret = ConnMsgHandler::RecvCreateChannelResponse(socket_, timeout_ms);
-  HIXL_CHK_STATUS_RET(ret, "[HixlClient] RecvCreateChannelResponse failed. fd=%d, timeout=%u ms", socket_, timeout_ms);
+  HIXL_CHK_STATUS_RET(local_endpoint_->CreateChannel(channel_desc, channel_handle, timeout_ms),
+                      "[HixlClient] Endpoint CreateChannel failed. Dst[id:0x%x]", remote_endpoint_.commAddr.id);
+  HIXL_CHK_STATUS_RET(ConnMsgHandler::RecvCreateChannelResponse(socket_, timeout_ms),
+                      "[HixlClient] RecvCreateChannelResponse failed. fd=%d, timeout=%u ms", socket_, timeout_ms);
   HIXL_LOGI("[HixlClient] Connect: remote endpoint handle = %" PRIu64, remote_endpoint_handle_);
   client_channel_handle_ = channel_handle;
   HIXL_LOGI("[HixlClient] Channel Ready. client_channel_handle_=%p", client_channel_handle_);
@@ -1245,15 +1221,15 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannel(uint32_t timeout_ms) {
 Status HixlCSClient::GetRemoteMemImpl(uint32_t timeout_ms, CommMem **remote_mem_list, char ***mem_tag_list,
                                       uint32_t *list_num) {
   HIXL_CHECK_NOTNULL(local_endpoint_);
-  Status ret = MemMsgHandler::SendGetRemoteMemRequest(socket_, remote_endpoint_handle_, timeout_ms);
-  HIXL_CHK_STATUS_RET(ret, "[HixlClient] SendGetRemoteMemRequest failed. fd=%d, remote_ep_handle=%" PRIu64, socket_,
+  HIXL_CHK_STATUS_RET(MemMsgHandler::SendGetRemoteMemRequest(socket_, remote_endpoint_handle_, timeout_ms),
+                      "[HixlClient] SendGetRemoteMemRequest failed. fd=%d, remote_ep_handle=%" PRIu64, socket_,
                       remote_endpoint_handle_);
   std::vector<HixlMemDesc> mem_descs;
-  ret = MemMsgHandler::RecvGetRemoteMemResponse(socket_, mem_descs, timeout_ms);
-  HIXL_CHK_STATUS_RET(ret, "[HixlClient] RecvGetRemoteMemResponse failed. fd=%d, timeout=%u ms", socket_, timeout_ms);
+  HIXL_CHK_STATUS_RET(MemMsgHandler::RecvGetRemoteMemResponse(socket_, mem_descs, timeout_ms),
+                      "[HixlClient] RecvGetRemoteMemResponse failed. fd=%d, timeout=%u ms", socket_, timeout_ms);
   HIXL_LOGD("[HixlClient] Recv remote mem descs success. Count=%zu", mem_descs.size());
-  ret = ImportRemoteMem(mem_descs, remote_mem_list, mem_tag_list, list_num);
-  HIXL_CHK_STATUS_RET(ret, "[HixlClient] ImportRemoteMem failed. desc_count=%zu", mem_descs.size());
+  HIXL_CHK_STATUS_RET(ImportRemoteMem(mem_descs, remote_mem_list, mem_tag_list, list_num),
+                      "[HixlClient] ImportRemoteMem failed. desc_count=%zu", mem_descs.size());
 
   // 提前初始化 remote flag，避免传输时引入耗时
   if (device_id_ >= 0) {
@@ -1275,8 +1251,8 @@ Status HixlCSClient::GetRemoteMem(CommMem **remote_mem_list, char ***mem_tag_lis
   *remote_mem_list = nullptr;
   *mem_tag_list = nullptr;
   HIXL_CHECK_NOTNULL(local_endpoint_);
-  Status ret = GetRemoteMemImpl(timeout_ms, remote_mem_list, mem_tag_list, list_num);
-  HIXL_CHK_STATUS_RET(ret, "[HixlClient] GetRemoteMemImpl failed");
+  HIXL_CHK_STATUS_RET(GetRemoteMemImpl(timeout_ms, remote_mem_list, mem_tag_list, list_num),
+                      "[HixlClient] GetRemoteMemImpl failed");
   HIXL_EVENT("[HixlClient] GetRemoteMem success. fd=%d, remote_ep_handle=%" PRIu64 ", imported=%u", socket_,
              remote_endpoint_handle_, *list_num);
   return SUCCESS;
@@ -1301,14 +1277,12 @@ Status HixlCSClient::ImportRemoteMem(std::vector<HixlMemDesc> &desc_list, CommMe
                                      char ***mem_tag_list, uint32_t *list_num) {
   HIXL_DISMISSABLE_GUARD(free_export_desc, [&desc_list]() { FreeExportDesc(desc_list); });
   *list_num = static_cast<uint32_t>(desc_list.size());
-  Status ret = ClearRemoteMemInfo();
-  HIXL_CHK_STATUS_RET(ret, "[HixlClient] ClearRemoteMemInfo before ImportRemoteMem failed");
+  HIXL_CHK_STATUS_RET(ClearRemoteMemInfo(), "[HixlClient] ClearRemoteMemInfo before ImportRemoteMem failed");
   if (*list_num == 0U) {
     HIXL_LOGI("[HixlClient] Remote mem list is empty, nothing to import.");
     return SUCCESS;
   }
-  ret = ValidateExportDescList(desc_list);
-  HIXL_CHK_STATUS_RET(ret, "[HixlClient] ValidateExportDescList failed");
+  HIXL_CHK_STATUS_RET(ValidateExportDescList(desc_list), "[HixlClient] ValidateExportDescList failed");
   HIXL_CHECK_NOTNULL(local_endpoint_);
   EndpointHandle ep_handle = local_endpoint_->GetHandle();
   HIXL_CHECK_NOTNULL(ep_handle, "[HixlClient] ImportRemoteMem: endpoint handle is null");
@@ -1321,7 +1295,7 @@ Status HixlCSClient::ImportRemoteMem(std::vector<HixlMemDesc> &desc_list, CommMe
   ctx.recorded_addrs.reserve(ctx.num);
   ctx.mems.reserve(ctx.num);
   ctx.tag_storage.reserve(ctx.num);
-  ret = ImportAllDescs(ctx, desc_list);
+  Status ret = ImportAllDescs(ctx, desc_list);
   if (ret != SUCCESS) {
     HIXL_LOGW("[HixlClient] RollbackImport triggered. Cleaning up %zu imported bufs.", desc_list.size());
     CloseImportedBufs(ctx.ep_handle, desc_list);

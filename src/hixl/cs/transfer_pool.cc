@@ -42,13 +42,13 @@ constexpr const char *kDeviceFuncSyncContext = "HixlSyncTransferContext";
 namespace hixl {
 
 TransferPool *TransferPool::GetInstance(int32_t device_id) {
-  HIXL_LOGI("[TransferPool] GetInstance start. device_id=%d", device_id);
+  HIXL_LOGD("[TransferPool] GetInstance start. device_id=%d", device_id);
   static std::mutex registry_mu;
   static std::unordered_map<int32_t, std::unique_ptr<TransferPool>> pools;
   std::lock_guard<std::mutex> reg_lock(registry_mu);
   auto it = pools.find(device_id);
   if (it != pools.end()) {
-    HIXL_LOGI("[TransferPool] GetInstance success. device_id=%d pool=%p existing=1", device_id, it->second.get());
+    HIXL_LOGD("[TransferPool] GetInstance success. device_id=%d pool=%p existing=1", device_id, it->second.get());
     return it->second.get();
   }
   auto pool_ptr = MakeUnique<TransferPool>(device_id);
@@ -57,7 +57,7 @@ TransferPool *TransferPool::GetInstance(int32_t device_id) {
     return nullptr;
   }
   const auto &inserted = pools.emplace(device_id, std::move(pool_ptr));
-  HIXL_LOGI("[TransferPool] GetInstance success. device_id=%d pool=%p existing=0", device_id,
+  HIXL_LOGD("[TransferPool] GetInstance success. device_id=%d pool=%p existing=0", device_id,
             inserted.first->second.get());
   return inserted.first->second.get();
 }
@@ -160,13 +160,10 @@ void TransferPool::Finalize() {
 }
 
 Status TransferPool::Acquire(SlotHandle *handle) {
-  HIXL_LOGI("[TransferPool] Acquire start. device_id=%d", device_id_);
+  HIXL_LOGD("[TransferPool] Acquire start. device_id=%d", device_id_);
   HIXL_CHECK_NOTNULL(handle);
   std::lock_guard<std::mutex> lock(mu_);
-  if (!inited_) {
-    HIXL_LOGE(FAILED, "[TransferPool] Acquire failed: not initialized (device_id=%d)", device_id_);
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(inited_, FAILED, "[TransferPool] Acquire failed: not initialized, device_id:%d", device_id_);
   if (free_list_.empty()) {
     HIXL_LOGE(RESOURCE_EXHAUSTED, "[TransferPool] Acquire failed: no free slots (device_id=%d, pool_size=%u)",
               device_id_, pool_size_);
@@ -178,12 +175,12 @@ Status TransferPool::Acquire(SlotHandle *handle) {
   slot.in_use = true;
   FillHandleFromSlot(device_id_, idx, slot, handle);
   handle->dev_const_one = dev_const_one_;
-  HIXL_LOGI("[TransferPool] Acquire slot success. device_id=%d index=%u", device_id_, idx);
+  HIXL_LOGD("[TransferPool] Acquire slot success. device_id=%d index=%u", device_id_, idx);
   return SUCCESS;
 }
 
 void TransferPool::Release(const SlotHandle &handle) {
-  HIXL_LOGI("[TransferPool] Release start. device_id=%d slot=%u", handle.device_id, handle.slot_index);
+  HIXL_LOGD("[TransferPool] Release start. device_id=%d slot=%u", handle.device_id, handle.slot_index);
   if (handle.device_id != device_id_) {
     HIXL_LOGW("[TransferPool] Release device_id mismatch. pool=%d handle=%d slot=%u", device_id_, handle.device_id,
               handle.slot_index);
@@ -202,14 +199,14 @@ void TransferPool::Release(const SlotHandle &handle) {
   ResetSlotErrFlagLocked(handle.slot_index);
   slot.in_use = false;
   free_list_.push_back(handle.slot_index);
-  HIXL_LOGI("[TransferPool] Release success. device_id=%d slot=%u", device_id_, handle.slot_index);
+  HIXL_LOGD("[TransferPool] Release success. device_id=%d slot=%u", device_id_, handle.slot_index);
 }
 
 void TransferPool::Abort(const SlotHandle &handle) {
-  HIXL_LOGI("[TransferPool] Abort start. device_id=%d slot=%u", handle.device_id, handle.slot_index);
+  HIXL_LOGD("[TransferPool] Abort start. device_id=%d slot=%u", handle.device_id, handle.slot_index);
   std::lock_guard<std::mutex> lock(mu_);
   if (!inited_) {
-    HIXL_LOGI("[TransferPool] Abort success. device_id=%d slot=%u inited=0", handle.device_id, handle.slot_index);
+    HIXL_LOGD("[TransferPool] Abort success. device_id=%d slot=%u inited=0", handle.device_id, handle.slot_index);
     return;
   }
   if (handle.device_id != device_id_) {
@@ -221,11 +218,11 @@ void TransferPool::Abort(const SlotHandle &handle) {
     return;
   }
   AbortSlotByIndexLocked(handle.slot_index);
-  HIXL_LOGI("[TransferPool] Abort success. device_id=%d slot=%u", device_id_, handle.slot_index);
+  HIXL_LOGD("[TransferPool] Abort success. device_id=%d slot=%u", device_id_, handle.slot_index);
 }
 
 Status TransferPool::GetAllSlots(std::vector<SlotHandle> &out) const {
-  HIXL_LOGI("[TransferPool] GetAllSlots start. device_id=%d", device_id_);
+  HIXL_LOGD("[TransferPool] GetAllSlots start. device_id=%d", device_id_);
   std::lock_guard<std::mutex> lock(mu_);
   if (!inited_) {
     return FAILED;
@@ -238,24 +235,22 @@ Status TransferPool::GetAllSlots(std::vector<SlotHandle> &out) const {
     FillHandleFromSlot(device_id_, i, slot, &h);
     out.push_back(h);
   }
-  HIXL_LOGI("[TransferPool] GetAllSlots success. device_id=%d slot_count=%zu", device_id_, out.size());
+  HIXL_LOGD("[TransferPool] GetAllSlots success. device_id=%d slot_count=%zu", device_id_, out.size());
   return SUCCESS;
 }
 
 Status TransferPool::ResolveNotifyAddr() {
-  HIXL_LOGI("[TransferPool] ResolveNotifyAddr start. device_id=%d", device_id_);
+  HIXL_LOGD("[TransferPool] ResolveNotifyAddr start. device_id=%d", device_id_);
   std::lock_guard<std::mutex> lock(mu_);
-  if (!inited_) {
-    HIXL_LOGE(FAILED, "[TransferPool] ResolveNotifyAddr failed: not initialized (device_id=%d)", device_id_);
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(inited_, FAILED, "[TransferPool] ResolveNotifyAddr failed: not initialized, device_id:%d",
+                           device_id_);
   for (Slot &slot : slots_) {
     if (slot.notify_addr != 0U && slot.notify_len != 0U) {
       continue;
     }
     HIXL_CHK_STATUS_RET(ResolveNotifyAddressLocked(slot), "[TransferPool] ResolveNotifyAddressLocked failed");
   }
-  HIXL_LOGI("[TransferPool] ResolveNotifyAddr success. device_id=%d slot_count=%zu", device_id_, slots_.size());
+  HIXL_LOGD("[TransferPool] ResolveNotifyAddr success. device_id=%d slot_count=%zu", device_id_, slots_.size());
   return SUCCESS;
 }
 
@@ -719,7 +714,7 @@ Status TransferPool::LaunchSyncContextKernelLocked(const std::vector<HixlTransfe
   HIXL_CHK_ACL_RET(aclrtCtxGetCurrentDefaultStream(&stream),
                    "[TransferPool] aclrtCtxGetCurrentDefaultStream for HixlSyncTransferContext failed");
   constexpr uint32_t kBlockDim = 1U;
-  HIXL_LOGI("[TransferPool] Launch HixlSyncTransferContext start. entries=%zu stream=%p device_id=%d", entries.size(),
+  HIXL_LOGD("[TransferPool] Launch HixlSyncTransferContext start. entries=%zu stream=%p device_id=%d", entries.size(),
             stream, device_id_);
   HIXL_CHK_ACL_RET(aclrtLaunchKernelWithConfig(device_func_handles_.sync_transfer_context, kBlockDim, stream, nullptr,
                                                args_handle, nullptr),
@@ -728,7 +723,7 @@ Status TransferPool::LaunchSyncContextKernelLocked(const std::vector<HixlTransfe
                    "[TransferPool] aclrtSynchronizeStreamWithTimeout HixlSyncTransferContext failed");
   HIXL_CHK_ACL_RET(aclrtMemcpy(states.data(), state_bytes, dev_states, state_bytes, ACL_MEMCPY_DEVICE_TO_HOST),
                    "[TransferPool] aclrtMemcpy sync context states D2H failed");
-  HIXL_LOGI("[TransferPool] Launch HixlSyncTransferContext end. entries=%zu device_id=%d", entries.size(), device_id_);
+  HIXL_LOGD("[TransferPool] Launch HixlSyncTransferContext end. entries=%zu device_id=%d", entries.size(), device_id_);
   return SUCCESS;
 }
 
@@ -784,11 +779,9 @@ Status TransferPool::CollectRetrySyncEntries(const std::vector<HixlTransferConte
     if (state == expect_state) {
       continue;
     }
-    if (state != TRANSFER_THREAD_STATE_DELETING) {
-      HIXL_LOGE(FAILED, "[TransferPool] unexpected transfer context state=%u thread=%lu op=%u expect=%u", state,
-                static_cast<uint64_t>(entries[i].thread), op, expect_state);
-      return FAILED;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(state == TRANSFER_THREAD_STATE_DELETING, FAILED,
+                             "[TransferPool] unexpected transfer context state:%u, thread:%lu, op:%u, expect:%u", state,
+                             static_cast<uint64_t>(entries[i].thread), op, expect_state);
     HixlTransferContextSyncEntry entry{};
     entry.thread = entries[i].thread;
     entry.op = op;
@@ -802,11 +795,9 @@ Status TransferPool::CollectRetrySyncEntries(const std::vector<HixlTransferConte
 
 Status TransferPool::HandleSyncContextTimeout(const std::vector<HixlTransferContextSyncEntry> &pending,
                                               const std::vector<uint32_t> &states, uint32_t op) const {
-  if (op != TRANSFER_CONTEXT_OP_DELETE) {
-    HIXL_LOGE(TIMEOUT, "[TransferPool] sync transfer context timeout, pending=%zu op=%u device_id=%d", pending.size(),
-              op, device_id_);
-    return TIMEOUT;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(op == TRANSFER_CONTEXT_OP_DELETE, TIMEOUT,
+                           "[TransferPool] sync transfer context timeout, pending:%zu, op:%u, device_id:%d",
+                           pending.size(), op, device_id_);
   for (size_t i = 0U; i < pending.size(); ++i) {
     const uint32_t state = (i < states.size()) ? states[i] : TRANSFER_THREAD_STATE_DELETING;
     HIXL_EVENT(
@@ -893,10 +884,10 @@ aclrtContext TransferPool::GetContext() const {
 }
 
 aclrtFuncHandle TransferPool::GetDeviceKernelFunc(bool is_get) const {
-  HIXL_LOGI("[TransferPool] GetDeviceKernelFunc start. device_id=%d is_get=%d", device_id_, static_cast<int>(is_get));
+  HIXL_LOGD("[TransferPool] GetDeviceKernelFunc start. device_id=%d is_get=%d", device_id_, static_cast<int>(is_get));
   std::lock_guard<std::mutex> lock(mu_);
   aclrtFuncHandle func = is_get ? device_func_handles_.batch_get : device_func_handles_.batch_put;
-  HIXL_LOGI("[TransferPool] GetDeviceKernelFunc success. device_id=%d is_get=%d func=%p", device_id_,
+  HIXL_LOGD("[TransferPool] GetDeviceKernelFunc success. device_id=%d is_get=%d func=%p", device_id_,
             static_cast<int>(is_get), func);
   return func;
 }

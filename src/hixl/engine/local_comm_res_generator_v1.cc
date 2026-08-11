@@ -206,10 +206,7 @@ int32_t DefaultUrmaAdminExec(const std::string &cmd, std::string &output) {
 // 解析 urma_admin show 输出，提取所有 EID 条目
 int32_t ParseUrmaAdminOutput(const std::string &cmd_output, std::vector<UrmaEidEntry> &all_entries) {
   HIXL_LOGI("[ParseUrmaAdminOutput] urma_admin output length: %zu bytes", cmd_output.length());
-  if (cmd_output.empty()) {
-    HIXL_LOGE(FAILED, "[ParseUrmaAdminOutput] urma_admin output is empty");
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(!cmd_output.empty(), FAILED, "[ParseUrmaAdminOutput] urma_admin output is empty");
   // 打印前 500 字符用于调试
   std::string output_preview = cmd_output.length() > 500 ? cmd_output.substr(0, 500) + "..." : cmd_output;
   HIXL_LOGI("[ParseUrmaAdminOutput] urma_admin output preview:\n%s", output_preview.c_str());
@@ -248,10 +245,8 @@ int32_t ParseUrmaAdminOutput(const std::string &cmd_output, std::vector<UrmaEidE
     all_entries.push_back(entry);
   }
 
-  if (all_entries.empty()) {
-    HIXL_LOGE(FAILED, "[ParseUrmaAdminOutput] No entries parsed from urma_admin show output");
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(!all_entries.empty(), FAILED,
+                           "[ParseUrmaAdminOutput] No entries parsed from urma_admin show output");
   HIXL_LOGI("[ParseUrmaAdminOutput] Successfully parsed %zu entries", all_entries.size());
   return SUCCESS;
 }
@@ -299,10 +294,8 @@ int32_t BuildCpuDieToHostPgEidMap(const std::vector<UrmaEidEntry> &all_entries,
     }
   }
 
-  if (cpu_die_to_pg_eid.empty()) {
-    HIXL_LOGE(FAILED, "[BuildCpuDieToHostPgEidMap] No Host PG EID found (no UDMA group with eid_count >= 8)");
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(!cpu_die_to_pg_eid.empty(), FAILED,
+                           "[BuildCpuDieToHostPgEidMap] No Host PG EID found (no UDMA group with eid_count >= 8)");
   return SUCCESS;
 }
 
@@ -386,10 +379,7 @@ int32_t BuildUbDevNameToEidMap(const std::vector<UrmaEidEntry> &all_entries,
     ub_name_to_eid[name] = pg_eid;
   }
 
-  if (ub_name_to_eid.empty()) {
-    HIXL_LOGE(FAILED, "[BuildUbDevNameToEidMap] No UDMA group with PG EID found");
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(!ub_name_to_eid.empty(), FAILED, "[BuildUbDevNameToEidMap] No UDMA group with PG EID found");
   return SUCCESS;
 }
 
@@ -401,10 +391,10 @@ int32_t GenerateRouteEntryForNpu(int32_t npu_id, bool is_server,
                                  const std::map<std::string, std::string> &ub_name_to_eid, RouteEntry &entry) {
   // Convert phy_dev_id to logic_id for DSMI call
   uint32_t logic_id = 0;
-  if (DcmiProxy::GetLogicIdFromPhyId(static_cast<uint32_t>(npu_id), &logic_id) != 0) {
-    HIXL_LOGE(FAILED, "[GenerateRouteEntryForNpu] Failed to get logic id from phy id: %d", npu_id);
-    return FAILED;
-  }
+  const int32_t logic_ret = DcmiProxy::GetLogicIdFromPhyId(static_cast<uint32_t>(npu_id), &logic_id);
+  HIXL_CHK_BOOL_RET_STATUS(logic_ret == 0, FAILED,
+                           "[GenerateRouteEntryForNpu] Call api:GetLogicIdFromPhyId failed, ret:%d, npu_id:%d",
+                           logic_ret, npu_id);
 
   // Get UB dev name from DSMI
   std::string ub_dev_name;
@@ -454,10 +444,10 @@ int32_t GenerateRouteEntryForNpu(int32_t npu_id, bool is_server,
 int32_t ComputeHostPgEid(int32_t phy_dev_id, const std::map<std::string, std::string> &cpu_die_to_pg_eid,
                          std::string &host_pg_eid) {
   uint32_t logic_id = 0;
-  if (DcmiProxy::GetLogicIdFromPhyId(static_cast<uint32_t>(phy_dev_id), &logic_id) != 0) {
-    HIXL_LOGE(FAILED, "[ComputeHostPgEid] Failed to get logic id from phy id: %d", phy_dev_id);
-    return FAILED;
-  }
+  const int32_t logic_ret = DcmiProxy::GetLogicIdFromPhyId(static_cast<uint32_t>(phy_dev_id), &logic_id);
+  HIXL_CHK_BOOL_RET_STATUS(logic_ret == 0, FAILED,
+                           "[ComputeHostPgEid] Call api:GetLogicIdFromPhyId failed, ret:%d, phy_dev_id:%d", logic_ret,
+                           phy_dev_id);
 
   std::string ub_dev_name;
   int32_t ret = DsmiProxy::GetUbDevName(static_cast<int32_t>(logic_id), ub_dev_name);
@@ -466,16 +456,12 @@ int32_t ComputeHostPgEid(int32_t phy_dev_id, const std::map<std::string, std::st
   }
 
   std::string cpu_die_key = ExtractCpuDieKey(ub_dev_name);
-  if (cpu_die_key.empty()) {
-    HIXL_LOGE(FAILED, "[ComputeHostPgEid] Failed to extract cpu_die_key from '%s'", ub_dev_name.c_str());
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(!cpu_die_key.empty(), FAILED,
+                           "[ComputeHostPgEid] Failed to extract cpu_die_key from ub_dev_name:%s", ub_dev_name.c_str());
 
   auto it = cpu_die_to_pg_eid.find(cpu_die_key);
-  if (it == cpu_die_to_pg_eid.end()) {
-    HIXL_LOGE(FAILED, "[ComputeHostPgEid] No 8-port PG EID for cpu_die_key='%s'", cpu_die_key.c_str());
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(it != cpu_die_to_pg_eid.end(), FAILED,
+                           "[ComputeHostPgEid] No 8-port PG EID for cpu_die_key:%s", cpu_die_key.c_str());
 
   host_pg_eid = it->second;
   HIXL_LOGI("[ComputeHostPgEid] host_pg_eid=%s (cpu_die_key=%s)", host_pg_eid.c_str(), cpu_die_key.c_str());
@@ -744,10 +730,7 @@ int32_t ProcfsRouteHandler::GenerateRouteData(const std::set<int32_t> &related_n
   route_data.entries.clear();
 
   std::string proc_base = FindProcBasePath();
-  if (proc_base.empty()) {
-    HIXL_LOGE(FAILED, "Neither /proc/ascend_ub nor /proc/asdrv_ub found");
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(!proc_base.empty(), FAILED, "Neither /proc/ascend_ub nor /proc/asdrv_ub found");
   HIXL_LOGI("Using procfs base path: %s", proc_base.c_str());
 
   std::string dev_id_path = proc_base + "/" + kProcDevIdFile;
@@ -763,10 +746,7 @@ int32_t ProcfsRouteHandler::GenerateRouteData(const std::set<int32_t> &related_n
     }
   }
 
-  if (route_data.entries.empty()) {
-    HIXL_LOGE(FAILED, "No route entries generated from procfs");
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(!route_data.entries.empty(), FAILED, "No route entries generated from procfs");
 
   HIXL_LOGI("[Procfs] Generated %zu route entries from procfs:", route_data.entries.size());
   for (size_t i = 0; i < route_data.entries.size(); ++i) {
@@ -848,10 +828,7 @@ void AddRouteEntriesForDevice(const std::map<std::string, std::string> &kv_map, 
 
 int32_t BuildRouteEntries(const std::map<std::string, std::string> &kv_map, RouteData &route_data) {
   auto it = kv_map.find("pair_device_num");
-  if (it == kv_map.end()) {
-    HIXL_LOGE(FAILED, "Missing pair_device_num");
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(it != kv_map.end(), FAILED, "Missing pair_device_num");
 
   int32_t pair_device_num = 0;
   try {
@@ -971,10 +948,8 @@ static int32_t ParseTopoJson(const std::string &topo_path, nlohmann::json &j) {
   }
   file.close();
 
-  if (!j.contains("edge_list") || !j["edge_list"].is_array() || j["edge_list"].empty()) {
-    HIXL_LOGE(FAILED, "No or empty edge_list found in: %s", topo_path.c_str());
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(j.contains("edge_list") && j["edge_list"].is_array() && !j["edge_list"].empty(), FAILED,
+                           "No or empty edge_list found in path:%s", topo_path.c_str());
   return SUCCESS;
 }
 
@@ -1379,10 +1354,8 @@ int32_t GenerateRouteDataViaDsmi(int32_t phy_dev_id, bool is_server, RouteGenRes
   std::string cmd_output;
   int32_t ret = DefaultUrmaAdminExec("show", cmd_output);
   HIXL_LOGD("[GenerateRouteDataViaDsmi] urma_admin show output: %s", cmd_output.c_str());
-  if (ret != SUCCESS) {
-    HIXL_LOGE(FAILED, "[GenerateRouteDataViaDsmi] Failed to execute urma_admin show");
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED,
+                           "[GenerateRouteDataViaDsmi] Call api:DefaultUrmaAdminExec failed, ret:%d", ret);
 
   std::vector<UrmaEidEntry> all_entries;
   ret = ParseUrmaAdminOutput(cmd_output, all_entries);
@@ -1413,8 +1386,8 @@ int32_t GenerateRouteDataViaDsmi(int32_t phy_dev_id, bool is_server, RouteGenRes
   // Generate route entry for each NPU
   for (int32_t npu_id : result.related_npu_ids) {
     RouteEntry entry;
-    int32_t entry_ret = GenerateRouteEntryForNpu(npu_id, is_server, ub_name_to_eid, entry);
-    HIXL_CHK_STATUS_RET(entry_ret, "[GenerateRouteDataViaDsmi] Failed to generate route entry for npu_id=%d", npu_id);
+    HIXL_CHK_STATUS_RET(GenerateRouteEntryForNpu(npu_id, is_server, ub_name_to_eid, entry),
+                        "[GenerateRouteDataViaDsmi] Failed to generate route entry for npu_id=%d", npu_id);
     result.route_data.entries.push_back(entry);
   }
 
@@ -1501,16 +1474,16 @@ int32_t GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, L
 
 int32_t TransLocalCommRes(int32_t phy_dev_id, AscendString &result) {
   std::string topo_path;
-  int32_t ret = ResolveDefaultLocalCommResPaths(phy_dev_id, topo_path);
-  HIXL_CHK_STATUS_RET(ret, "[TransLocalCommRes] ResolveDefaultLocalCommResPaths failed, ret=%d", ret);
+  HIXL_CHK_STATUS_RET(ResolveDefaultLocalCommResPaths(phy_dev_id, topo_path),
+                      "[TransLocalCommRes] ResolveDefaultLocalCommResPaths failed");
   return TransLocalCommRes(phy_dev_id, topo_path, result);
 }
 
 int32_t TransLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, AscendString &result) {
   // 1. 调用 GenerateLocalCommRes 组装 LocalCommRes 结构体
   LocalCommRes local_comm_res;
-  int32_t ret = GenerateLocalCommRes(phy_dev_id, topo_path, local_comm_res);
-  HIXL_CHK_STATUS_RET(ret, "[TransLocalCommRes] GenerateLocalCommRes failed, ret=%d", ret);
+  HIXL_CHK_STATUS_RET(GenerateLocalCommRes(phy_dev_id, topo_path, local_comm_res),
+                      "[TransLocalCommRes] GenerateLocalCommRes failed");
 
   // 2. 序列化为带 2 空格缩进的 JSON 字符串
   nlohmann::json j;

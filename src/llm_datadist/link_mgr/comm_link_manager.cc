@@ -27,6 +27,17 @@ constexpr const char LLM_OPTION_RDMA_TRAFFIC_CLASS[] = "llm.RdmaTrafficClass";
 constexpr const char LLM_OPTION_RDMA_SERVICE_LEVEL[] = "llm.RdmaServiceLevel";
 constexpr const char LLM_OPTION_LINK_TOTAL_TIME[] = "llm.LinkTotalTime";
 constexpr const char LLM_OPTION_LINK_RETRY_COUNT[] = "llm.LinkRetryCount";
+
+void LogPrepareMemTargets(const PrepareMemArg &req) {
+  std::vector<uint64_t> cluster_ids;
+  std::vector<uint32_t> rank_ids;
+  for (const auto &iter : req.cluster2rank) {
+    (void)cluster_ids.emplace_back(iter.first);
+    (void)rank_ids.emplace_back(iter.second);
+  }
+  LLMEVENT("Begin to prepare memory for clusters[%s], ranks[%s].", hixl::ToString(cluster_ids).c_str(),
+           hixl::ToString(rank_ids).c_str());
+}
 }  // namespace
 
 static void from_json(const nlohmann::json &j, ExchangeMemInfo &e) {
@@ -199,12 +210,14 @@ ge::Status CommLinkManager::PrepareMem(PrepareMemArg &req) {
   {
     std::lock_guard<std::mutex> lock(map_mutex_);
     // already unlinked.
-    LLM_CHK_BOOL_RET_STATUS_NOLOG(comm_to_status_.find(req.comm_id) != comm_to_status_.end(), ge::FAILED);
+    LLM_CHK_BOOL_RET_STATUS(comm_to_status_.find(req.comm_id) != comm_to_status_.end(), ge::FAILED,
+                            "Failed to prepare memory because comm_id:%lu does not exist", req.comm_id);
     comm_to_status_[req.comm_id].prepare_mem_flag.store(true);
   }
   bool check_unlink_flag = false;
   CheckUnlink(req, check_unlink_flag);
-  LLM_CHK_BOOL_RET_STATUS_NOLOG(!check_unlink_flag, ge::FAILED);
+  LLM_CHK_BOOL_RET_STATUS(!check_unlink_flag, ge::FAILED,
+                          "Failed to prepare memory because comm_id:%lu is being unlinked", req.comm_id);
   LLM_MAKE_GUARD(free_flag, ([this, &req]() { FreeFlagGuard(req); }));
   LLM_ASSERT_RT_OK(aclrtSetCurrentContext(aclrt_context_));
   std::map<uint64_t, EntityPtr> cluster2entity;
@@ -218,14 +231,7 @@ ge::Status CommLinkManager::PrepareMem(PrepareMemArg &req) {
   FreeFlagGuard(req);
   LLM_CHK_STATUS_RET(PrepareComm(req, comm_info_ptr), "Failed to prepare comm info");
   FlagGuard(req);
-  std::vector<uint64_t> cluster_ids;
-  std::vector<uint32_t> rank_ids;
-  for (auto &iter : req.cluster2rank) {
-    (void)cluster_ids.emplace_back(iter.first);
-    (void)rank_ids.emplace_back(iter.second);
-  }
-  LLMEVENT("Begin to prepare memory for clusters[%s], ranks[%s].", hixl::ToString(cluster_ids).c_str(),
-           hixl::ToString(rank_ids).c_str());
+  LogPrepareMemTargets(req);
   std::vector<EntityPtr> new_entities;
   auto local_rank_id = req.cluster2rank[cluster_id_];
   for (auto &iter : req.cluster2rank) {

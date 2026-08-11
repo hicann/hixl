@@ -80,10 +80,7 @@ Status DeserializeMemInfoList(const std::string &json_str, std::vector<MemInfo> 
     HIXL_LOGE(PARAM_INVALID, "Failed to parse mem info json, exception:%s", e.what());
     return PARAM_INVALID;
   }
-  if (!j.is_array()) {
-    HIXL_LOGE(PARAM_INVALID, "Invalid mem info json format, expect array");
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(j.is_array(), PARAM_INVALID, "Invalid mem info json format, expect array");
 
   mem_info_list.clear();
   for (const auto &item : j) {
@@ -234,10 +231,8 @@ Status UbClientHandler::EnsureLinksConnected(const std::vector<CommType> &types,
       continue;
     }
     auto it = handles_.find(type);
-    if (it == handles_.end()) {
-      HIXL_LOGE(FAILED, "[UbClientHandler] No handle for type:%s", CommTypeToString(type));
-      return FAILED;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(it != handles_.end(), FAILED, "[UbClientHandler] No handle for type:%s",
+                             CommTypeToString(type));
     pending.emplace(type, it->second);
   }
   if (pending.empty()) {
@@ -264,8 +259,8 @@ Status UbClientHandler::ConnectHandles(const std::map<CommType, HixlClientHandle
     }));
   }
   for (size_t i = 0; i < futures.size(); ++i) {
-    Status s = futures[i].get();
-    HIXL_CHK_STATUS_RET(s, "[UbClientHandler] ConnectHandles failed for type:%s", CommTypeToString(type_order[i]));
+    HIXL_CHK_STATUS_RET(futures[i].get(), "[UbClientHandler] ConnectHandles failed for type:%s",
+                        CommTypeToString(type_order[i]));
     connected_types_.insert(type_order[i]);
   }
 
@@ -576,20 +571,17 @@ Status UbClientHandler::ClassifyTransfers(const std::vector<TransferOpDesc> &op_
     MemType local_mem_type;
     {
       std::lock_guard<std::mutex> lock(local_seg_mutex_);
-      if (GetMemType(local_segments_, op.local_addr, op.len, local_mem_type) != SUCCESS) {
-        HIXL_LOGE(PARAM_INVALID, "Local memory range does not register before connection: start:0x%lx, end:0x%lx",
-                  op.local_addr, local_end);
-        return PARAM_INVALID;
-      }
+      HIXL_CHK_BOOL_RET_STATUS(
+          GetMemType(local_segments_, op.local_addr, op.len, local_mem_type) == SUCCESS, PARAM_INVALID,
+          "Local memory range is not registered before connection, start:0x%lx, end:0x%lx", op.local_addr, local_end);
     }
     MemType remote_mem_type;
     {
       std::lock_guard<std::mutex> lock(remote_seg_mutex_);
-      if (GetMemType(remote_segments_, op.remote_addr, op.len, remote_mem_type) != SUCCESS) {
-        HIXL_LOGE(PARAM_INVALID, "Remote memory range does not register before connection: start:0x%lx, end:0x%lx",
-                  op.remote_addr, remote_end);
-        return PARAM_INVALID;
-      }
+      HIXL_CHK_BOOL_RET_STATUS(GetMemType(remote_segments_, op.remote_addr, op.len, remote_mem_type) == SUCCESS,
+                               PARAM_INVALID,
+                               "Remote memory range is not registered before connection, start:0x%lx, end:0x%lx",
+                               op.remote_addr, remote_end);
     }
     CommType ct = (local_mem_type == MEM_DEVICE)
                       ? ((remote_mem_type == MEM_DEVICE) ? CommType::COMM_TYPE_UB_D2D : CommType::COMM_TYPE_UB_D2H)

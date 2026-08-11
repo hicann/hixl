@@ -78,8 +78,6 @@ inline void *ValueToPtr(const uint64_t value) {
   return reinterpret_cast<void *>(static_cast<uintptr_t>(value));
 }
 
-Status ConvertHcommErrorToStatus(HcclResult ret);
-
 Status CheckIp(const std::string &ip);
 
 Status GetDeviceIp(int32_t phy_device_id, std::string &device_ip);

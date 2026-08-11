@@ -15,6 +15,7 @@
 
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
+#include "common/scope_guard.h"
 
 namespace hixl {
 namespace {
@@ -61,25 +62,23 @@ Status EnsureLibAscendHalLoaded() {
 
   const int32_t dl_mode = RTLD_NOW;
   void *hal_handle = dlopen(kLibAscendHalSo, dl_mode);
-  if (hal_handle == nullptr) {
-    const char *err = dlerror();
-    HIXL_LOGE(FAILED, "[AscendHalProxy] dlopen %s failed: %s", kLibAscendHalSo, err != nullptr ? err : "unknown error");
-    return FAILED;
-  }
+  const char *open_error = (hal_handle == nullptr) ? dlerror() : "";
+  HIXL_CHK_BOOL_RET_STATUS(hal_handle != nullptr, FAILED, "[AscendHalProxy] Call api:dlopen failed, lib:%s, msg:%s",
+                           kLibAscendHalSo, open_error == nullptr ? "unknown error" : open_error);
+  HIXL_DISMISSABLE_GUARD(handle_guard, ([hal_handle]() { (void)dlclose(hal_handle); }));
 
   auto *register_fn = reinterpret_cast<HalHostRegisterFn>(dlsym(hal_handle, "halHostRegister"));
   auto *unregister_fn = reinterpret_cast<HalHostUnregisterFn>(dlsym(hal_handle, "halHostUnregister"));
-  if ((register_fn == nullptr) || (unregister_fn == nullptr)) {
-    const char *err = dlerror();
-    HIXL_LOGE(FAILED, "[AscendHalProxy] dlsym halHostRegister/halHostUnregister failed: %s",
-              err != nullptr ? err : "unknown error");
-    (void)dlclose(hal_handle);
-    return FAILED;
-  }
+  const bool symbols_loaded = register_fn != nullptr && unregister_fn != nullptr;
+  const char *symbol_error = symbols_loaded ? "" : dlerror();
+  HIXL_CHK_BOOL_RET_STATUS(symbols_loaded, FAILED,
+                           "[AscendHalProxy] Call api:dlsym failed, symbols:halHostRegister/halHostUnregister, msg:%s",
+                           symbol_error == nullptr ? "unknown error" : symbol_error);
 
   ldr.handle = hal_handle;
   ldr.host_register = register_fn;
   ldr.host_unregister = unregister_fn;
+  HIXL_DISMISS_GUARD(handle_guard);
   return SUCCESS;
 }
 

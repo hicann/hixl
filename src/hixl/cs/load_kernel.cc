@@ -10,6 +10,7 @@
 
 #include "load_kernel.h"
 
+#include <cerrno>
 #include <cstdint>
 #include <cstring>
 #include <cstdlib>
@@ -45,49 +46,35 @@ Status GetKernelFilePath(std::string &json_path) {
 }
 
 Status LoadBinaryFromJson(const char *json_path, aclrtBinHandle &bin_handle) {
-  if (json_path == nullptr) {
-    return PARAM_INVALID;
-  }
+  HIXL_CHECK_NOTNULL(json_path);
   char resolved_path[PATH_MAX] = {0};
-  if (realpath(json_path, resolved_path) == nullptr) {
-    HIXL_LOGE(PARAM_INVALID, "[LoadKernel] realpath failed. path=%s, errno=%d, errmsg=%s", json_path, errno,
-              strerror(errno));
-    return PARAM_INVALID;
-  }
-  if (access(resolved_path, F_OK) != 0) {
-    HIXL_LOGE(FAILED, "[LoadKernel] Cannot access file: %s, errno=%d, errmsg=%s", resolved_path, errno,
-              strerror(errno));
-    return FAILED;
-  }
+  char *realpath_ret = realpath(json_path, resolved_path);
+  const int32_t realpath_errno = errno;
+  HIXL_CHK_BOOL_RET_STATUS(realpath_ret != nullptr, PARAM_INVALID,
+                           "[LoadKernel] Call api:realpath failed, path:%s, errno:%d, error_msg:%s", json_path,
+                           realpath_errno, strerror(realpath_errno));
+  const int32_t access_ret = access(resolved_path, F_OK);
+  const int32_t access_errno = errno;
+  HIXL_CHK_BOOL_RET_STATUS(access_ret == 0, FAILED,
+                           "[LoadKernel] Call api:access failed, ret:%d, path:%s, errno:%d, error_msg:%s", access_ret,
+                           resolved_path, access_errno, strerror(access_errno));
   aclrtBinaryLoadOptions load_options{};
   aclrtBinaryLoadOption option{};
   option.type = ACL_RT_BINARY_LOAD_OPT_CPU_KERNEL_MODE;
   option.value.cpuKernelMode = kCpuKernelMode;
   load_options.numOpt = 1U;
   load_options.options = &option;
-  aclError aerr = aclrtBinaryLoadFromFile(resolved_path, &load_options, &bin_handle);
-  if (aerr != ACL_SUCCESS) {
-    HIXL_LOGE(FAILED, "[LoadKernel] aclrtBinaryLoadFromFile failed. path=%s ret=%d", resolved_path,
-              static_cast<int32_t>(aerr));
-    return FAILED;
-  }
+  HIXL_CHK_ACL_RET(aclrtBinaryLoadFromFile(resolved_path, &load_options, &bin_handle), "[LoadKernel] path:%s",
+                   resolved_path);
   HIXL_LOGI("[LoadKernel] aclrtBinaryLoadFromFile success. path=%s handle=%p", resolved_path, bin_handle);
   return SUCCESS;
 }
 
 Status GetFuncHandle(aclrtBinHandle bin_handle, const char *func_name, aclrtFuncHandle &func_handle) {
-  if (bin_handle == nullptr) {
-    return PARAM_INVALID;
-  }
-  if (func_name == nullptr) {
-    return PARAM_INVALID;
-  }
-  aclError aerr = aclrtBinaryGetFunction(bin_handle, func_name, &func_handle);
-  if (aerr != ACL_SUCCESS) {
-    HIXL_LOGE(FAILED, "[LoadKernel] aclrtBinaryGetFunction failed. func=%s ret=%d", func_name,
-              static_cast<int32_t>(aerr));
-    return FAILED;
-  }
+  HIXL_CHECK_NOTNULL(bin_handle);
+  HIXL_CHECK_NOTNULL(func_name);
+  HIXL_CHK_ACL_RET(aclrtBinaryGetFunction(bin_handle, func_name, &func_handle),
+                   "[LoadKernel] bin_handle:%p, func_name:%s", bin_handle, func_name);
   HIXL_LOGI("[LoadKernel] resolve stub success. func=%s stub=%p", func_name, func_handle);
   return SUCCESS;
 }

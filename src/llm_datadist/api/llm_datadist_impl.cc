@@ -42,7 +42,8 @@ Status ConvertIpInfos(const std::vector<IpInfo> &ip_infos, std::vector<llm::IpIn
   for (const auto &ip_info : ip_infos) {
     llm::IpInfo llm_ip_info;
     LLM_CHK_BOOL_RET_STATUS(ip_info.ip.GetLength() > 0, LLM_PARAM_INVALID, "ip not set");
-    LLM_CHK_STATUS_RET_NOLOG(llm::LLMUtils::IpToInt(ip_info.ip.GetString(), llm_ip_info.ip));
+    LLM_CHK_STATUS_RET(llm::LLMUtils::IpToInt(ip_info.ip.GetString(), llm_ip_info.ip),
+                       "Failed to convert ip:%s to an integer", ip_info.ip.GetString());
     llm_ip_info.port = ip_info.port;
     ret.emplace_back(llm_ip_info);
   }

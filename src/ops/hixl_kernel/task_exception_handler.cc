@@ -9,6 +9,7 @@
  */
 #include "task_exception_handler.h"
 
+#include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 #include "hixl/hixl_types.h"
 #include "hcomm_proxy.h"
@@ -29,20 +30,14 @@ char g_hixl_ex_cb_user_data[] = "HIXL";
 constexpr uint8_t kAicpuMsgNotifyRecord = 2U;
 
 Status NotifyTsfwTaskException(uint32_t notify_id, uint32_t error_code) {
-  if (halEschedSubmitEvent == nullptr) {
-    HIXL_LOGE(FAILED, "[TaskExceptionHandler] halEschedSubmitEvent is null, API unavailable");
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(halEschedSubmitEvent != nullptr, FAILED,
+                           "[TaskExceptionHandler] halEschedSubmitEvent is null, API unavailable");
   aicpu::aicpuContext_t ctx = {};
-  if (aicpu::aicpuGetContext == nullptr) {
-    HIXL_LOGE(FAILED, "[TaskExceptionHandler] aicpuGetContext is null, API unavailable");
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(aicpu::aicpuGetContext != nullptr, FAILED,
+                           "[TaskExceptionHandler] aicpuGetContext is null, API unavailable");
   aicpu::status_t ctx_ret = aicpu::aicpuGetContext(&ctx);
-  if (ctx_ret != aicpu::AICPU_ERROR_NONE) {
-    HIXL_LOGE(FAILED, "[TaskExceptionHandler] aicpuGetContext failed, ret=%d", ctx_ret);
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(ctx_ret == aicpu::AICPU_ERROR_NONE, FAILED,
+                           "[TaskExceptionHandler] Call api:aicpuGetContext failed, ret:%d", ctx_ret);
   // 透传 HComm 错误码会导致 runtime 打印错误码描述混乱，暂时统一上报 TS_ERROR_HCCL_OTHER_ERROR
   constexpr uint16_t report_err_code = static_cast<uint16_t>(TS_ERROR_HCCL_OTHER_ERROR);
   ts_aicpu_msg_info_t aicpu_msg = {};
@@ -65,10 +60,9 @@ Status NotifyTsfwTaskException(uint32_t notify_id, uint32_t error_code) {
   event.msg = reinterpret_cast<char *>(&aicpu_msg);
 
   drvError_t ret = halEschedSubmitEvent(ctx.deviceId, &event);
-  if (ret != DRV_ERROR_NONE) {
-    HIXL_LOGE(FAILED, "[TaskExceptionHandler] halEschedSubmitEvent failed, ret=%d, notifyId=%u", ret, notify_id);
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(ret == DRV_ERROR_NONE, FAILED,
+                           "[TaskExceptionHandler] Call api:halEschedSubmitEvent failed, ret:%d, notify_id:%u", ret,
+                           notify_id);
   HIXL_LOGI("[TaskExceptionHandler] Submit to TSFW success. deviceId=%u, notifyId=%u, errCode=%u, reportErrCode=%u",
             ctx.deviceId, notify_id, error_code, report_err_code);
   return SUCCESS;

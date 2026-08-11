@@ -70,11 +70,13 @@ Status PollForAdxlWriteReady(int32_t fd, int64_t remaining_us) {
     return TIMEOUT;
   }
   if (poll_ret < 0) {
-    if (errno == EINTR) {
+    const int32_t saved_errno = errno;
+    if (saved_errno == EINTR) {
       return SUCCESS;
     }
-    HIXL_LOGE(FAILED, "Socket poll failed, errno:%d, msg:%s.", errno, strerror(errno));
-    return FAILED;
+    HIXL_CHK_BOOL_RET_STATUS(false, FAILED,
+                             "Call api:poll failed, ret:%d, fd:%d, timeout_ms:%d, errno:%d, error_msg:%s", poll_ret, fd,
+                             poll_timeout_ms, saved_errno, strerror(saved_errno));
   }
   return SUCCESS;
 }
@@ -86,15 +88,18 @@ Status WriteAdxlWithTimeout(int32_t fd, const void *buf, size_t len, uint64_t ti
   while (written < len) {
     const ssize_t ret = send(fd, data + written, len - written, MSG_NOSIGNAL);
     if (ret < 0) {
-      if (errno == EINTR) {
+      const int32_t saved_errno = errno;
+      if (saved_errno == EINTR) {
         continue;
       }
-      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      if (saved_errno == EAGAIN || saved_errno == EWOULDBLOCK) {
         HIXL_CHK_STATUS_RET(PollForAdxlWriteReady(fd, RemainingAdxlMicros(start, timeout_us)), "Socket poll failed.");
         continue;
       }
-      HIXL_LOGE(FAILED, "Socket send failed, errno:%d, msg:%s.", errno, strerror(errno));
-      return FAILED;
+      HIXL_CHK_BOOL_RET_STATUS(false, FAILED,
+                               "Call api:send failed, ret:%ld, fd:%d, size:%zu bytes, offset:%zu bytes, errno:%d, "
+                               "error_msg:%s",
+                               ret, fd, len, written, saved_errno, strerror(saved_errno));
     }
     written += static_cast<size_t>(ret);
   }
@@ -253,27 +258,22 @@ std::string ParseClientIdFromConnectPayload(const std::string &payload) {
 }
 
 Status ValidateNotifyContent(const std::string &name, const std::string &notify_msg) {
-  if (name.size() > kMaxNotifyNameLen) {
-    HIXL_LOGE(PARAM_INVALID, "Notify name length invalid, size:%zu, max:%zu.", name.size(), kMaxNotifyNameLen);
-    return PARAM_INVALID;
-  }
-  if (notify_msg.size() > kMaxNotifyMsgLen) {
-    HIXL_LOGE(PARAM_INVALID, "Notify message too long, size:%zu, max:%zu.", notify_msg.size(), kMaxNotifyMsgLen);
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(name.size() <= kMaxNotifyNameLen, PARAM_INVALID,
+                           "Notify name length invalid, size:%zu, max:%zu", name.size(), kMaxNotifyNameLen);
+  HIXL_CHK_BOOL_RET_STATUS(notify_msg.size() <= kMaxNotifyMsgLen, PARAM_INVALID,
+                           "Notify message too long, size:%zu, max:%zu", notify_msg.size(), kMaxNotifyMsgLen);
   return SUCCESS;
 }
 
 Status SetNonBlocking(int32_t fd) {
   const int flags = fcntl(fd, F_GETFL, 0);
-  if (flags < 0) {
-    HIXL_LOGE(FAILED, "fcntl F_GETFL failed, fd:%d, errno:%d.", fd, errno);
-    return FAILED;
-  }
-  if (fcntl(fd, F_SETFL, static_cast<uint32_t>(flags) | static_cast<uint32_t>(O_NONBLOCK)) < 0) {
-    HIXL_LOGE(FAILED, "fcntl F_SETFL failed, fd:%d, errno:%d.", fd, errno);
-    return FAILED;
-  }
+  const int32_t getfl_errno = errno;
+  HIXL_CHK_BOOL_RET_STATUS(flags >= 0, FAILED, "Call api:fcntl F_GETFL failed, ret:%d, fd:%d, errno:%d", flags, fd,
+                           getfl_errno);
+  const int32_t ret = fcntl(fd, F_SETFL, static_cast<uint32_t>(flags) | static_cast<uint32_t>(O_NONBLOCK));
+  const int32_t setfl_errno = errno;
+  HIXL_CHK_BOOL_RET_STATUS(ret >= 0, FAILED, "Call api:fcntl F_SETFL failed, ret:%d, fd:%d, errno:%d", ret, fd,
+                           setfl_errno);
   return SUCCESS;
 }
 
@@ -328,7 +328,9 @@ void FabricMemControlServer::ShiftRecvBuffer(std::vector<char> &recv_buffer, siz
   if (remaining > 0U) {
     const errno_t rc = memmove_s(recv_buffer.data(), recv_buffer.size(), recv_buffer.data() + consumed, remaining);
     if (rc != EOK) {
-      HIXL_LOGE(FAILED, "FabricMemControlServer memmove_s recv buffer failed, rc:%d, max:%zu, count:%zu.",
+      HIXL_REPORT_ERR_MSG("E19999", "Call api:memmove_s failed, ret:%d, dst_size:%zu bytes, count:%zu bytes",
+                          static_cast<int32_t>(rc), recv_buffer.size(), remaining);
+      HIXL_LOGE(FAILED, "Call api:memmove_s failed, ret:%d, dst_size:%zu bytes, count:%zu bytes",
                 static_cast<int32_t>(rc), recv_buffer.size(), remaining);
       bytes_received = 0U;
       return;
@@ -531,11 +533,13 @@ Status FabricMemControlServer::AppendSessionRecv(ClientSession &session, int32_t
     return FAILED;
   }
   if (n < 0) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+    const int32_t saved_errno = errno;
+    if (saved_errno == EAGAIN || saved_errno == EWOULDBLOCK || saved_errno == EINTR) {
       return SUCCESS;
     }
-    HIXL_LOGE(FAILED, "FabricMemControlServer recv failed, fd:%d, errno:%d.", fd, errno);
-    return FAILED;
+    HIXL_CHK_BOOL_RET_STATUS(
+        false, FAILED, "Call api:recv failed, ret:%ld, fd:%d, remaining_size:%zu bytes, errno:%d, error_msg:%s", n, fd,
+        session.recv_buffer.size() - session.bytes_received, saved_errno, strerror(saved_errno));
   }
   session.bytes_received += static_cast<size_t>(n);
   return SUCCESS;
@@ -552,11 +556,13 @@ Status FabricMemControlServer::AppendPendingRecv(PendingConnection &pending, int
     return FAILED;
   }
   if (n < 0) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+    const int32_t saved_errno = errno;
+    if (saved_errno == EAGAIN || saved_errno == EWOULDBLOCK || saved_errno == EINTR) {
       return SUCCESS;
     }
-    HIXL_LOGE(FAILED, "FabricMemControlServer pending recv failed, fd:%d, errno:%d.", fd, errno);
-    return FAILED;
+    HIXL_CHK_BOOL_RET_STATUS(
+        false, FAILED, "Call api:recv failed, ret:%ld, fd:%d, remaining_size:%zu bytes, errno:%d, error_msg:%s", n, fd,
+        pending.recv_buffer.size() - pending.bytes_received, saved_errno, strerror(saved_errno));
   }
   pending.bytes_received += static_cast<size_t>(n);
   return SUCCESS;
@@ -570,7 +576,9 @@ bool FabricMemControlServer::ProcessWaitingHeader(const std::shared_ptr<State> &
   FabricMemAdxlProtocolHeader header{};
   const errno_t rc = memcpy_s(&header, sizeof(header), session.recv_buffer.data(), sizeof(header));
   if (rc != EOK) {
-    HIXL_LOGE(FAILED, "FabricMemControlServer memcpy_s adxl header failed, rc:%d.", static_cast<int32_t>(rc));
+    HIXL_REPORT_ERR_MSG("E19999", "Call api:memcpy_s failed, ret:%d, fd:%d, field:adxl_header",
+                        static_cast<int32_t>(rc), fd);
+    HIXL_LOGE(FAILED, "Call api:memcpy_s failed, ret:%d, fd:%d, field:adxl_header", static_cast<int32_t>(rc), fd);
     CloseClientConnection(state, epoll_fd, fd);
     return false;
   }
@@ -596,7 +604,10 @@ bool FabricMemControlServer::ProcessWaitingBody(ClientSession &session) {
   int32_t msg_type = 0;
   const errno_t rc = memcpy_s(&msg_type, sizeof(msg_type), session.recv_buffer.data(), sizeof(msg_type));
   if (rc != EOK) {
-    HIXL_LOGE(FAILED, "FabricMemControlServer memcpy_s adxl msg type failed, rc:%d.", static_cast<int32_t>(rc));
+    HIXL_REPORT_ERR_MSG("E19999", "Call api:memcpy_s failed, ret:%d, fd:%d, field:adxl_msg_type",
+                        static_cast<int32_t>(rc), session.fd);
+    HIXL_LOGE(FAILED, "Call api:memcpy_s failed, ret:%d, fd:%d, field:adxl_msg_type", static_cast<int32_t>(rc),
+              session.fd);
     return false;
   }
   if (msg_type == kHeartBeatMsgType) {
@@ -626,8 +637,10 @@ bool FabricMemControlServer::ProcessPendingWaitingHeader(const std::shared_ptr<S
   const errno_t size_rc =
       memcpy_s(&body_size, sizeof(body_size), pending.recv_buffer.data() + sizeof(magic), sizeof(body_size));
   if (magic_rc != EOK || size_rc != EOK) {
-    HIXL_LOGE(FAILED, "FabricMemControlServer memcpy_s request header failed, magic_rc:%d, size_rc:%d.",
-              static_cast<int32_t>(magic_rc), static_cast<int32_t>(size_rc));
+    HIXL_REPORT_ERR_MSG("E19999", "Call api:memcpy_s failed, magic_ret:%d, size_ret:%d, fd:%d, field:request_header",
+                        static_cast<int32_t>(magic_rc), static_cast<int32_t>(size_rc), fd);
+    HIXL_LOGE(FAILED, "Call api:memcpy_s failed, magic_ret:%d, size_ret:%d, fd:%d, field:request_header",
+              static_cast<int32_t>(magic_rc), static_cast<int32_t>(size_rc), fd);
     ClosePendingConnection(state, epoll_fd, fd);
     return false;
   }
@@ -654,7 +667,9 @@ bool FabricMemControlServer::ProcessPendingWaitingBody(const std::shared_ptr<Sta
   int32_t msg_type = 0;
   const errno_t rc = memcpy_s(&msg_type, sizeof(msg_type), pending.recv_buffer.data(), sizeof(msg_type));
   if (rc != EOK) {
-    HIXL_LOGE(FAILED, "FabricMemControlServer memcpy_s request msg type failed, rc:%d.", static_cast<int32_t>(rc));
+    HIXL_REPORT_ERR_MSG("E19999", "Call api:memcpy_s failed, ret:%d, fd:%d, field:request_msg_type",
+                        static_cast<int32_t>(rc), fd);
+    HIXL_LOGE(FAILED, "Call api:memcpy_s failed, ret:%d, fd:%d, field:request_msg_type", static_cast<int32_t>(rc), fd);
     ClosePendingConnection(state, epoll_fd, fd);
     return false;
   }

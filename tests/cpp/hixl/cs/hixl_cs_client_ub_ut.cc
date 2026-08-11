@@ -526,10 +526,10 @@ TEST_F(LoadKernelFixture, AclLoadBinaryFailed) {
   MockAclRuntimeStub mock_acl;
   llm::AclRuntimeStub::Install(&mock_acl);
   EXPECT_CALL(mock_acl, aclrtBinaryLoadFromFile(testing::_, testing::_, testing::_))
-      .WillOnce(testing::Return(static_cast<aclError>(FAILED)));
+      .WillOnce(testing::Return(ACL_ERROR_RT_STREAM_SYNC_TIMEOUT));
   Status ret = LoadDeviceKernelAndGetHandles("GetFunc", "PutFunc", bin_handle, func_handles);
   llm::AclRuntimeStub::UnInstall(&mock_acl);
-  EXPECT_EQ(ret, FAILED);
+  EXPECT_EQ(ret, TIMEOUT);
 }
 
 TEST_F(LoadKernelFixture, GetFuncHandleInvalidParams) {
@@ -549,10 +549,10 @@ TEST_F(LoadKernelFixture, GetFuncHandleAclGetFuncFailed) {
   MockAclRuntimeStub mock_acl;
   llm::AclRuntimeStub::Install(&mock_acl);
   EXPECT_CALL(mock_acl, aclrtBinaryGetFunction(testing::_, testing::_, testing::_))
-      .WillOnce(testing::Return(static_cast<aclError>(FAILED)));
+      .WillOnce(testing::Return(ACL_ERROR_RT_INTERNAL_ERROR));
   Status ret = LoadDeviceKernelAndGetHandles("GetFunc", "PutFunc", dummy_bin_handle, func_handles);
   llm::AclRuntimeStub::UnInstall(&mock_acl);
-  EXPECT_EQ(ret, FAILED);
+  EXPECT_EQ(ret, static_cast<Status>(ACL_ERROR_RT_INTERNAL_ERROR));
 }
 
 TEST_F(LoadKernelFixture, LoadSyncTransferContextHandleWhenRequested) {

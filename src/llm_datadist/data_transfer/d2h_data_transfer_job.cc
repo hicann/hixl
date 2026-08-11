@@ -9,6 +9,7 @@
  */
 
 #include "data_transfer/d2h_data_transfer_job.h"
+#include <cinttypes>
 #include <numeric>
 #include "common/llm_checker.h"
 #include "common/llm_thread_pool.h"
@@ -164,12 +165,12 @@ ge::Status D2HDataTransferJob::Initialize(const CacheEntry &cache_entry, CommEnt
         }
       });
   LLM_CHK_STATUS_RET(ret, "Failed to send response");
-  LLMLOGI("Initialize successfully, send response, size = %zu", resp_len);
+  LLMLOGD("Initialize successfully, send response, size = %zu", resp_len);
   return ge::SUCCESS;
 }
 
 ge::Status D2HDataTransferJob::Process(bool &is_done) {
-  LLMLOGI("Process In, current_task_index = %zu, total = %zu", current_index_, tasks_.size());
+  LLMLOGD("Process In, current_task_index = %zu, total = %zu", current_index_, tasks_.size());
   // 查询是否发送完成
   auto task_index = current_index_;
   for (; task_index < tasks_.size(); ++task_index) {
@@ -180,20 +181,20 @@ ge::Status D2HDataTransferJob::Process(bool &is_done) {
         // need schedule next time.
         return ge::SUCCESS;
       }
-      LLMLOGI("Buffer[%u] wait sync flag success", task.buffer_index);
+      LLMLOGD("Buffer[%u] wait sync flag success", task.buffer_index);
     } else if (task.task_type == kTaskTypeTransferBlock) {
       auto buffer_index = task.buffer_index;
       auto src_addr = data_addresses_[task.block_span.tensor_index] + task.block_span.tensor_offset;
       auto dst_addr = dst_buffers_[buffer_index] + task.block_span.buffer_block_start * block_size_;
       LLM_CHK_STATUS_RET(buffered_sender_.Put(src_addr, dst_addr, task.block_span.size));
-      LLMLOGI("Buffer[%u] [Transfer] tensor_index:%u, src_offset = %lu, dst_offset = %lu, size = %u", task.buffer_index,
+      LLMLOGD("Buffer[%u] [Transfer] tensor_index:%u, src_offset = %lu, dst_offset = %lu, size = %u", task.buffer_index,
               task.block_span.tensor_index, task.block_span.tensor_offset,
               task.block_span.buffer_block_start * block_size_, task.block_span.size);
     } else if (task.task_type == kTaskTypeEndBlock) {
       LLM_CHK_STATUS_RET(buffered_sender_.Flush(), "Failed to transfer data");
       LLM_CHK_STATUS_RET(
           buffered_sender_.Put(send_sync_flag_, dst_receive_flag_addresses_[task.buffer_index], 1, true));
-      LLMLOGI("Buffer[%u] put async done", task.buffer_index);  // in transfer_stream
+      LLMLOGD("Buffer[%u] put async done", task.buffer_index);  // in transfer_stream
     } else {
       // no op
     }
@@ -210,11 +211,11 @@ ge::Status D2HDataTransferJob::Process(bool &is_done) {
   LLM_CHK_ACL_RET(aclrtQueryEventStatus(event_, &event_status));
   if (event_status != ACL_EVENT_RECORDED_STATUS_COMPLETE) {
     // 没有wait到，等待下一次
-    LLMLOGI("event not recorded");
+    LLMLOGD("event not recorded");
     return ge::SUCCESS;
   }
   // all task done
-  LLMLOGI("pull cache done");
+  LLMLOGD("pull cache done");
   is_done = true;
   return ge::SUCCESS;
 }
@@ -236,7 +237,7 @@ ge::Status D2HDataTransferJob::GenerateTasks(const TransferCacheReq &req, const 
     tasks_ =
         task_generator.GenerateTasks(block_size_, static_cast<uint32_t>(block_indices.size()), block_indices.data());
   }
-  if (LlmIsLogEnable(LLM_MODULE_NAME, DLOG_INFO)) {
+  if (LlmIsLogEnable(LLM_MODULE_NAME, DLOG_DEBUG)) {
     PrintTasks(tasks_);
   }
   return ge::SUCCESS;
@@ -245,14 +246,14 @@ ge::Status D2HDataTransferJob::GenerateTasks(const TransferCacheReq &req, const 
 void D2HDataTransferJob::PrintTasks(const std::vector<TransferBlocksTask> &tasks) {
   for (const auto &task : tasks) {
     if (task.task_type == kTaskTypeTransferBlock) {
-      std::stringstream ss;
-      LLMLOGI("Buffer[%u] transfer, tensor_index = %u, buffer_block_start = %u, tensor_offset = %u, size = %u",
+      LLMLOGD("Buffer[%u] transfer, tensor_index = %u, buffer_block_start = %" PRIu64 ", tensor_offset = %" PRIu64
+              ", size = %u",
               task.buffer_index, task.block_span.tensor_index, task.block_span.buffer_block_start,
               task.block_span.tensor_offset, task.block_span.size);
     } else if (task.task_type == kTaskTypeStartBlock) {
-      LLMLOGI("Buffer[%u] Start", task.buffer_index);
+      LLMLOGD("Buffer[%u] Start", task.buffer_index);
     } else if (task.task_type == kTaskTypeEndBlock) {
-      LLMLOGI("Buffer[%u] End", task.buffer_index);
+      LLMLOGD("Buffer[%u] End", task.buffer_index);
     } else {
       // do nothing
     }
@@ -281,7 +282,7 @@ ge::Status D2HDataTransferJob::ResolveBlockSize(const TransferCacheReq &request,
     // cont. to cont.
     block_size_ = kBlockSizeForContMem;
   }
-  LLMLOGI("tensor_size = %ld, block_size = %u", tensor_size_, block_size_);
+  LLMLOGD("tensor_size = %ld, block_size = %u", tensor_size_, block_size_);
   return ge::SUCCESS;
 }
 
@@ -399,7 +400,7 @@ std::vector<TransferBlocksTask> DataTransferTaskGenerator::GenerateTasks(uint32_
                                                                          uint32_t num_block_indices,
                                                                          const uint64_t *block_indices,
                                                                          const uint64_t *remote_block_indices) {
-  LLMLOGI("GenerateTasks block_size:%u, buffer_size:%u", block_size, buffer_size_);
+  LLMLOGD("GenerateTasks block_size:%u, buffer_size:%u", block_size, buffer_size_);
   if (block_size > buffer_size_) {
     return DoGenerateForLargeBlock(block_size, num_block_indices, block_indices);
   } else if (remote_block_indices == nullptr) {
@@ -465,12 +466,12 @@ ge::Status D2HDataTransferClient::Prepare(const CacheEntry &cache_entry, const C
 
   LLM_CHK_STATUS_RET(SendRequest(cache_entry, cache_key, pull_cache_param), "Failed to send request");
   // PUT req & flag
-  LLMLOGI("request sent");
+  LLMLOGD("request sent");
   const ResponseInfo *response_info = nullptr;
   LLM_CHK_STATUS_RET(comm_entity_->GetResponse(response_info, &timeout_tp_), "Failed to get response");
   const auto &response = *response_info;
   LLM_CHK_STATUS_RET(response.ret_code, "Failed to pull cache, server returned: %u", response.ret_code);
-  LLMLOGI("response received, block_size = %u", response.block_size);
+  LLMLOGD("response received, block_size = %u", response.block_size);
   for (uint32_t i = 0U; i < num_buffers_; ++i) {
     auto remote_flag_addr = ValueToPtr(response.sync_flag_addresses[i]);
     remote_receive_flag_addresses_.emplace_back(static_cast<uint8_t *>(remote_flag_addr));
@@ -587,9 +588,10 @@ ge::Status D2HDataTransferClient::RunTasks() {
   std::chrono::steady_clock::time_point copy_start;
   for (const auto &task : tasks_) {
     if (task.task_type == kTaskTypeStartBlock) {
-      LLM_CHK_BOOL_RET_STATUS_NOLOG(recv_flags_[task.buffer_index].Wait(&timeout_tp_) != 0, ge::LLM_TIMEOUT,
-                                    "Wait flag timeout");
-      LLMLOGI("wait flag success");
+      LLM_CHK_BOOL_RET_STATUS(recv_flags_[task.buffer_index].Wait(&timeout_tp_) != 0, ge::LLM_TIMEOUT,
+                              "Wait flag timed out, buffer_index:%u, timeout_ms:%ld", task.buffer_index,
+                              timeout_in_ms_);
+      LLMLOGD("wait flag success");
       copy_start = std::chrono::steady_clock::now();
     } else if (task.task_type == kTaskTypeTransferBlock) {
       auto fut = thread_pool.commit([this, &task]() -> ge::Status { return CopyAsync(task); });
@@ -601,11 +603,11 @@ ge::Status D2HDataTransferClient::RunTasks() {
       auto copy_end = std::chrono::steady_clock::now();
       auto cost = std::chrono::duration_cast<std::chrono::microseconds>(copy_end - copy_start).count();
       futures.clear();
-      LLMLOGI("Buffer[%u] copy end, cost = %ld us", task.buffer_index, cost);
+      LLMLOGD("Buffer[%u] copy end, cost = %ld us", task.buffer_index, cost);
       // D2H flag
       LLM_CHK_STATUS_RET(buffered_sender_.Put(send_dev_flag_, remote_receive_flag_addresses_[task.buffer_index],
                                               sizeof(int32_t), true));
-      LLMLOGI("Buffer[%u] flag sent", task.buffer_index);
+      LLMLOGD("Buffer[%u] flag sent", task.buffer_index);
     } else {
       // do nothing
     }
@@ -617,7 +619,7 @@ ge::Status D2HDataTransferClient::CopyAsync(const TransferBlocksTask &task) {
   auto src_addr = buffers_[task.buffer_index] + task.block_span.buffer_block_start * block_size_;
   auto dst_addr = tensor_addresses_[task.block_span.tensor_index] + task.block_span.tensor_offset;
   const auto size = task.block_span.size;
-  LLMLOGI("Buffer[%u] copy, tensor_index:%u, src_offset = %lu, dst_offset = %lu, size = %u", task.buffer_index,
+  LLMLOGD("Buffer[%u] copy, tensor_index:%u, src_offset = %lu, dst_offset = %lu, size = %u", task.buffer_index,
           task.block_span.tensor_index, task.block_span.buffer_block_start * block_size_, task.block_span.tensor_offset,
           size);
   LLM_CHK_ACL_RET(aclrtMemcpy(dst_addr, size, src_addr, size, ACL_MEMCPY_DEVICE_TO_HOST));

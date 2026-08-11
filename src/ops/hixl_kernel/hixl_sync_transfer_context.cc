@@ -17,22 +17,12 @@ namespace hixl {
 namespace {
 
 Status ValidateSyncTransferContextParam(const HixlTransferContextSyncParam *param) {
-  if (param == nullptr) {
-    HIXL_LOGE(PARAM_INVALID, "[HixlSyncTransferContext] param is nullptr");
-    return PARAM_INVALID;
-  }
-  if (param->entry_num == 0U) {
-    HIXL_LOGE(PARAM_INVALID, "[HixlSyncTransferContext] entry_num is 0");
-    return PARAM_INVALID;
-  }
-  if (param->entry_list_addr == 0U) {
-    HIXL_LOGE(PARAM_INVALID, "[HixlSyncTransferContext] entry_list_addr is 0");
-    return PARAM_INVALID;
-  }
-  if (param->state_list_addr == 0U) {
-    HIXL_LOGE(PARAM_INVALID, "[HixlSyncTransferContext] state_list_addr is 0");
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(param != nullptr, PARAM_INVALID, "[HixlSyncTransferContext] param is nullptr");
+  HIXL_CHK_BOOL_RET_STATUS(param->entry_num > 0U, PARAM_INVALID, "[HixlSyncTransferContext] entry_num is 0");
+  HIXL_CHK_BOOL_RET_STATUS(param->entry_list_addr != 0U, PARAM_INVALID,
+                           "[HixlSyncTransferContext] entry_list_addr is 0");
+  HIXL_CHK_BOOL_RET_STATUS(param->state_list_addr != 0U, PARAM_INVALID,
+                           "[HixlSyncTransferContext] state_list_addr is 0");
   return SUCCESS;
 }
 
@@ -49,8 +39,8 @@ uint32_t DoSyncTransferContext(HixlTransferContextSyncParam *param) {
     } else if (entries[i].op == TRANSFER_CONTEXT_OP_DELETE) {
       state = TransferContextManager::Instance().Delete(entries[i].thread);
     } else {
-      HIXL_LOGE(PARAM_INVALID, "[HixlSyncTransferContext] invalid op=%u, index=%u", entries[i].op, i);
-      return PARAM_INVALID;
+      HIXL_CHK_BOOL_RET_STATUS(entries[i].op == TRANSFER_CONTEXT_OP_ADD || entries[i].op == TRANSFER_CONTEXT_OP_DELETE,
+                               PARAM_INVALID, "[HixlSyncTransferContext] invalid op:%u, index:%u", entries[i].op, i);
     }
     states[i] = static_cast<uint32_t>(state);
   }
@@ -65,10 +55,7 @@ uint32_t DoSyncTransferContext(HixlTransferContextSyncParam *param) {
 extern "C" {
 uint32_t HixlSyncTransferContext(HixlTransferContextSyncParam *param) {
   uint32_t ret = hixl::DoSyncTransferContext(param);
-  if (ret != 0U) {
-    HIXL_LOGE(hixl::FAILED, "[HixlSyncTransferContext] failed, ret is %u", ret);
-    return hixl::FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(ret == 0U, hixl::FAILED, "[HixlSyncTransferContext] failed, ret:%u", ret);
   return ret;
 }
 }  // extern "C"

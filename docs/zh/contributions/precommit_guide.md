@@ -69,6 +69,26 @@ git commit --allow-empty -m "test pre-commit"
 
 后续在提交代码前会自动进行代码格式化处理及触发OAT检查。
 
+#### 3.1.1 日志规范检查
+
+pre-commit会对本次修改的C/C++文件执行日志规范检查，检查日志宏的格式化参数数量、非法占位符、
+非英文字符或符号，以及向`*_NOLOG`宏传入无效日志参数等确定性问题。检查失败时会输出文件名和行号，
+修复后重新执行提交即可。
+
+```bash
+# 检查指定文件
+python3 scripts/check_log_spec.py src/hixl/cs/endpoint.cc
+
+# 扫描src和include目录
+python3 scripts/check_log_spec.py
+
+# 只执行pre-commit中的日志规范检查
+pre-commit run log-spec-check --all-files
+```
+
+外部API失败日志的上下文完整性、日志级别和性能敏感路径的打印频率仍需按照
+`docs/zh/contributions/coding_standards/docs_specification.md`进行人工检视。
+
 ### 3.2 OAT使用指导
 
 **OAT（Open Source Audit Tool）** 是一个开源合规性检查工具，自动集成到 Git 提交流程中。

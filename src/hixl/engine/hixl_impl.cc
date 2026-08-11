@@ -212,8 +212,7 @@ Status Hixl::HixlImpl::GetTransferStatus(const TransferReq &req, TransferStatus 
 
 Status Hixl::HixlImpl::GetTransferStatus(const GetTransferStatusArgs &args, std::vector<TransferResult> &results) {
   HIXL_CHK_BOOL_RET_STATUS(engine_ != nullptr, FAILED, "engine is nullptr, check engine init");
-  auto ret = engine_->GetTransferStatus(args, results);
-  HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Failed to get transfer status");
+  HIXL_CHK_STATUS_RET(engine_->GetTransferStatus(args, results), "Failed to get transfer status");
   return SUCCESS;
 }
 
@@ -262,11 +261,10 @@ Status Hixl::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle
   HIXL_LOGI("RegisterMem start, type:%d, addr:%p, size:%zu", static_cast<int32_t>(type),
             reinterpret_cast<void *>(mem.addr), mem.len);
   HIXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check Hixl init");
-  const auto ret = impl_->RegisterMem(mem, type, mem_handle);
-  HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
-                           "Failed to register mem, "
-                           "type:%d, addr:%p, size:%zu",
-                           static_cast<int32_t>(type), reinterpret_cast<void *>(mem.addr), mem.len);
+  HIXL_CHK_STATUS_RET(impl_->RegisterMem(mem, type, mem_handle),
+                      "Failed to register mem, "
+                      "type:%d, addr:%p, size:%zu",
+                      static_cast<int32_t>(type), reinterpret_cast<void *>(mem.addr), mem.len);
   HIXL_LOGI("RegisterMem success, type:%d, addr:%p, size:%zu, handle:%p", static_cast<int32_t>(type),
             reinterpret_cast<void *>(mem.addr), mem.len, mem_handle);
   return SUCCESS;
@@ -275,8 +273,7 @@ Status Hixl::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle
 Status Hixl::DeregisterMem(MemHandle mem_handle) {
   HIXL_LOGI("DeregisterMem start, mem_handle:%p", mem_handle);
   HIXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check Hixl init");
-  const auto ret = impl_->DeregisterMem(mem_handle);
-  HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Failed to deregister mem, mem_handle:%p", mem_handle);
+  HIXL_CHK_STATUS_RET(impl_->DeregisterMem(mem_handle), "Failed to deregister mem, mem_handle:%p", mem_handle);
   HIXL_LOGI("DeregisterMem success, mem_handle:%p", mem_handle);
   return SUCCESS;
 }
@@ -285,9 +282,9 @@ Status Hixl::Connect(const AscendString &remote_engine, int32_t timeout_in_milli
   HIXL_LOGI("Connect start, remote engine:%s, timeout:%d ms", remote_engine.GetString(), timeout_in_millis);
   HIXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check Hixl init");
   HIXL_CHK_BOOL_RET_STATUS(timeout_in_millis > 0, PARAM_INVALID, "timeout_in_millis:%d must > 0", timeout_in_millis);
-  const auto ret = impl_->Connect(remote_engine, timeout_in_millis);
-  HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Failed to connect, remote engine:%s, timeout:%d ms",
-                           remote_engine.GetString(), timeout_in_millis);
+  HIXL_CHK_STATUS_RET(impl_->Connect(remote_engine, timeout_in_millis),
+                      "Failed to connect, remote engine:%s, timeout:%d ms", remote_engine.GetString(),
+                      timeout_in_millis);
   HIXL_LOGI("Connect success, remote engine:%s, timeout:%d ms", remote_engine.GetString(), timeout_in_millis);
   return SUCCESS;
 }
@@ -296,9 +293,9 @@ Status Hixl::Disconnect(const AscendString &remote_engine, int32_t timeout_in_mi
   HIXL_LOGI("Disconnect start, remote engine:%s, timeout:%d ms", remote_engine.GetString(), timeout_in_millis);
   HIXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check Hixl init");
   HIXL_CHK_BOOL_RET_STATUS(timeout_in_millis > 0, PARAM_INVALID, "timeout_in_millis:%d must > 0", timeout_in_millis);
-  const auto ret = impl_->Disconnect(remote_engine, timeout_in_millis);
-  HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Failed to disconnect, remote engine:%s, timeout:%d ms",
-                           remote_engine.GetString(), timeout_in_millis);
+  HIXL_CHK_STATUS_RET(impl_->Disconnect(remote_engine, timeout_in_millis),
+                      "Failed to disconnect, remote engine:%s, timeout:%d ms", remote_engine.GetString(),
+                      timeout_in_millis);
   HIXL_LOGI("Disconnect success, remote engine:%s, timeout:%d ms", remote_engine.GetString(), timeout_in_millis);
   return SUCCESS;
 }
@@ -337,9 +334,8 @@ Status Hixl::DisconnectAsync(const AscendString &remote_engine, int32_t timeout_
 Status Hixl::GetAsyncConnectStatus(const AscendString &remote_engine, AsyncConnectStatus &status) {
   HIXL_LOGI("GetConnectAsyncStatus start, remote engine:%s", remote_engine.GetString());
   HIXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check Hixl init");
-  const auto ret = impl_->GetAsyncConnectStatus(remote_engine, status);
-  HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Failed to get async connect status, remote engine:%s",
-                           remote_engine.GetString());
+  HIXL_CHK_STATUS_RET(impl_->GetAsyncConnectStatus(remote_engine, status),
+                      "Failed to get async connect status, remote engine:%s", remote_engine.GetString());
   HIXL_LOGI("GetConnectAsyncStatus success, remote engine:%s status:%d", remote_engine.GetString(), status);
   return SUCCESS;
 }
@@ -347,8 +343,7 @@ Status Hixl::GetAsyncConnectStatus(const AscendString &remote_engine, AsyncConne
 Status Hixl::GetAsyncConnectStatus(std::map<AscendString, AsyncConnectStatus> &statuses) {
   HIXL_LOGI("GetConnectAsyncStatus start");
   HIXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check Hixl init");
-  const auto ret = impl_->GetAsyncConnectStatus(statuses);
-  HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Failed to get async connect status");
+  HIXL_CHK_STATUS_RET(impl_->GetAsyncConnectStatus(statuses), "Failed to get async connect status");
   HIXL_LOGI("GetConnectAsyncStatus success, statuses.size:%zu", statuses.size());
   return SUCCESS;
 }
@@ -359,10 +354,10 @@ Status Hixl::TransferSync(const AscendString &remote_engine, TransferOp operatio
             remote_engine.GetString(), TransferOpToString(operation).c_str(), op_descs.size(), timeout_in_millis);
   HIXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check Hixl init");
   HIXL_CHK_BOOL_RET_STATUS(timeout_in_millis > 0, PARAM_INVALID, "timeout_in_millis:%d must > 0", timeout_in_millis);
-  const auto ret = impl_->TransferSync(remote_engine, operation, op_descs, timeout_in_millis);
-  HIXL_CHK_BOOL_RET_STATUS(
-      ret == SUCCESS, ret, "Failed to TransferSync, remote_engine:%s, operation:%s, op_descs size:%zu, timeout:%d ms",
-      remote_engine.GetString(), TransferOpToString(operation).c_str(), op_descs.size(), timeout_in_millis);
+  HIXL_CHK_STATUS_RET(impl_->TransferSync(remote_engine, operation, op_descs, timeout_in_millis),
+                      "Failed to TransferSync, remote_engine:%s, operation:%s, op_descs size:%zu, timeout:%d ms",
+                      remote_engine.GetString(), TransferOpToString(operation).c_str(), op_descs.size(),
+                      timeout_in_millis);
   HIXL_LOGI("TransferSync success, remote_engine:%s, operation:%s, op_descs size:%zu, timeout:%d ms",
             remote_engine.GetString(), TransferOpToString(operation).c_str(), op_descs.size(), timeout_in_millis);
   return SUCCESS;
@@ -372,10 +367,9 @@ Status Hixl::TransferAsync(const AscendString &remote_engine, TransferOp operati
                            const std::vector<TransferOpDesc> &op_descs, const TransferArgs &optional_args,
                            TransferReq &req) {
   HIXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "HixlImpl is nullptr, check Hixl init.");
-  const auto ret = impl_->TransferAsync(remote_engine, operation, op_descs, optional_args, req);
-  HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
-                           "Failed to transfer async, remote_engine:%s, operation:%s, op_descs size:%zu.",
-                           remote_engine.GetString(), TransferOpToString(operation).c_str(), op_descs.size());
+  HIXL_CHK_STATUS_RET(impl_->TransferAsync(remote_engine, operation, op_descs, optional_args, req),
+                      "Failed to transfer async, remote_engine:%s, operation:%s, op_descs size:%zu.",
+                      remote_engine.GetString(), TransferOpToString(operation).c_str(), op_descs.size());
   HIXL_LOGI("Transfer async success, remote_engine:%s, operation:%s, op_descs size:%zu.", remote_engine.GetString(),
             TransferOpToString(operation).c_str(), op_descs.size());
   return SUCCESS;
@@ -384,15 +378,13 @@ Status Hixl::TransferAsync(const AscendString &remote_engine, TransferOp operati
 Status Hixl::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
   HIXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "Impl is nullptr, check Hixl init.");
   HIXL_CHK_BOOL_RET_STATUS(req != nullptr, FAILED, "Req is nullptr, check req.");
-  const auto ret = impl_->GetTransferStatus(req, status);
-  HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Failed to get transfer status, req:%p.", req);
+  HIXL_CHK_STATUS_RET(impl_->GetTransferStatus(req, status), "Failed to get transfer status, req:%p.", req);
   return SUCCESS;
 }
 
 Status Hixl::GetTransferStatus(const GetTransferStatusArgs &args, std::vector<TransferResult> &results) {
   HIXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "Impl is nullptr, check Hixl init.");
-  const auto ret = impl_->GetTransferStatus(args, results);
-  HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Failed to get transfer status");
+  HIXL_CHK_STATUS_RET(impl_->GetTransferStatus(args, results), "Failed to get transfer status");
   return SUCCESS;
 }
 
@@ -407,9 +399,9 @@ Status Hixl::SendNotify(const AscendString &remote_engine, const NotifyDesc &not
   HIXL_CHK_BOOL_RET_STATUS(notify.notify_msg.GetLength() <= kMaxNotifyLength, PARAM_INVALID,
                            "notify.notify_msg length exceed max limit: %u, current: %zu", kMaxNotifyLength,
                            notify.notify_msg.GetLength());
-  const auto ret = impl_->SendNotify(remote_engine, notify, timeout_in_millis);
-  HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Failed to send notify, remote engine:%s, notify name:%s",
-                           remote_engine.GetString(), notify.name.GetString());
+  HIXL_CHK_STATUS_RET(impl_->SendNotify(remote_engine, notify, timeout_in_millis),
+                      "Failed to send notify, remote engine:%s, notify name:%s", remote_engine.GetString(),
+                      notify.name.GetString());
   HIXL_LOGI("SendNotify success, remote engine:%s, notify name:%s", remote_engine.GetString(), notify.name.GetString());
   return SUCCESS;
 }
@@ -417,8 +409,7 @@ Status Hixl::SendNotify(const AscendString &remote_engine, const NotifyDesc &not
 Status Hixl::GetNotifies(std::vector<NotifyDesc> &notifies) {
   HIXL_LOGI("GetNotifies start");
   HIXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check Hixl init");
-  const auto ret = impl_->GetNotifies(notifies);
-  HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Failed to get notifies");
+  HIXL_CHK_STATUS_RET(impl_->GetNotifies(notifies), "Failed to get notifies");
   HIXL_LOGI("GetNotifies success, got %zu notifies", notifies.size());
   return SUCCESS;
 }

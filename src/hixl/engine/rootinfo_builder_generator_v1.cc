@@ -19,6 +19,7 @@
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
+#include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 
 namespace hixl {
@@ -77,23 +78,17 @@ std::string ConvertEidToString(const unsigned char *raw, size_t len) {
 }
 
 int32_t LoadUrmaDevicesFromDcmi(int32_t npu_id, std::vector<UrmaDevice> &urma_devices) {
-  if (DcmiProxy::LoadDcmi() != 0) {
-    HIXL_LOGE(FAILED, "DCMI not loaded");
-    return FAILED;
-  }
+  const int32_t load_ret = DcmiProxy::LoadDcmi();
+  HIXL_CHK_BOOL_RET_STATUS(load_ret == 0, FAILED, "Call api:LoadDcmi failed, ret:%d", load_ret);
 
   uint32_t logic_id = 0;
-  if (DcmiProxy::GetLogicIdFromPhyId(npu_id, &logic_id) != 0) {
-    HIXL_LOGE(FAILED, "Failed to get logic id from npu id: %d", npu_id);
-    return FAILED;
-  }
+  const int32_t logic_ret = DcmiProxy::GetLogicIdFromPhyId(npu_id, &logic_id);
+  HIXL_CHK_BOOL_RET_STATUS(logic_ret == 0, FAILED, "Call api:GetLogicIdFromPhyId failed, ret:%d, npu_id:%d", logic_ret,
+                           npu_id);
 
   uint32_t dev_cnt = 0;
   int32_t ret = DcmiProxy::GetUrmaDeviceCnt(logic_id, &dev_cnt);
-  if (ret != 0) {
-    HIXL_LOGE(FAILED, "Failed to get urma device count, ret=%d", ret);
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED, "Call api:GetUrmaDeviceCnt failed, ret:%d, logic_id:%u", ret, logic_id);
 
   for (size_t i = 0; i < dev_cnt; ++i) {
     UrmaDevice urma_dev;
@@ -260,10 +255,7 @@ int32_t BuildNpuRootInfo(int32_t npu_id, bool is_server, NpuRootInfo &root_info)
     return ret;
   }
 
-  if (urma_devices.empty()) {
-    HIXL_LOGE(FAILED, "No urma devices for npu_id=%d", npu_id);
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(!urma_devices.empty(), FAILED, "No urma devices for npu_id:%d", npu_id);
 
   HIXL_LOGI("Got %zu urma device(s)", urma_devices.size());
   for (size_t i = 0; i < urma_devices.size(); ++i) {
@@ -283,11 +275,9 @@ int32_t BuildNpuRootInfo(int32_t npu_id, bool is_server, NpuRootInfo &root_info)
   CollectClosPgEids(urma_devices, mesh_die_id, root_info);
   PrintRootInfo(root_info);
 
-  if (root_info.port_to_eid.empty() || root_info.clos_pg_eids.empty()) {
-    HIXL_LOGE(FAILED, "Incomplete root_info for npu_id=%d, ports=%zu, clos_pg=%zu", npu_id,
-              root_info.port_to_eid.size(), root_info.clos_pg_eids.size());
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(!root_info.port_to_eid.empty() && !root_info.clos_pg_eids.empty(), FAILED,
+                           "Incomplete root_info for npu_id:%d, ports:%zu, clos_pg:%zu", npu_id,
+                           root_info.port_to_eid.size(), root_info.clos_pg_eids.size());
 
   return SUCCESS;
 }

@@ -621,11 +621,9 @@ Status ChannelMsgHandler::ValidateDisconnectResponse(int32_t conn_fd, Status sen
 
 Status ChannelMsgHandler::CheckPrepareDisconnectResult(Status prepare_ret, const std::string &remote_engine,
                                                        int32_t timeout_in_millis) const {
-  if (prepare_ret == NOT_CONNECTED) {
-    LLMLOGE(NOT_CONNECTED, "Disconnect failed, client channel not found, local:%s, remote:%s.", listen_info_.c_str(),
-            remote_engine.c_str());
-    return NOT_CONNECTED;
-  }
+  ADXL_CHK_BOOL_RET_STATUS(prepare_ret != NOT_CONNECTED, NOT_CONNECTED,
+                           "Disconnect failed, client channel not found, local:%s, remote:%s", listen_info_.c_str(),
+                           remote_engine.c_str());
   if (prepare_ret != SUCCESS) {
     LLMLOGE(prepare_ret, "Disconnect failed at prepare, local:%s, remote:%s, timeout:%d ms.", listen_info_.c_str(),
             remote_engine.c_str(), timeout_in_millis);

@@ -307,11 +307,9 @@ Status FabricMemAicpuDispatcher::CollectRetrySyncEntries(
     if (state == expect_state) {
       continue;
     }
-    if (state != TRANSFER_THREAD_STATE_DELETING) {
-      HIXL_LOGE(FAILED, "FabricMem AICPU unexpected transfer context state=%u key=%lu op=%u expect=%u", state,
-                static_cast<uint64_t>(entries[i].thread), op, expect_state);
-      return FAILED;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(state == TRANSFER_THREAD_STATE_DELETING, FAILED,
+                             "FabricMem AICPU unexpected transfer context state:%u, key:%lu, op:%u, expect:%u", state,
+                             static_cast<uint64_t>(entries[i].thread), op, expect_state);
     HIXL_LOGD("FabricMem AICPU delete transfer context busy (try_lock failed), will retry. key=%lu op=%u",
               static_cast<uint64_t>(entries[i].thread), op);
     HixlTransferContextSyncEntry entry{};
@@ -324,11 +322,9 @@ Status FabricMemAicpuDispatcher::CollectRetrySyncEntries(
 
 Status FabricMemAicpuDispatcher::HandleSyncContextTimeout(const std::vector<HixlTransferContextSyncEntry> &pending,
                                                           const std::vector<uint32_t> &states, uint32_t op) const {
-  if (op != TRANSFER_CONTEXT_OP_DELETE) {
-    HIXL_LOGE(TIMEOUT, "FabricMem AICPU sync transfer context timeout, pending=%zu op=%u device_id=%d", pending.size(),
-              op, device_id_);
-    return TIMEOUT;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(op == TRANSFER_CONTEXT_OP_DELETE, TIMEOUT,
+                           "FabricMem AICPU sync transfer context timeout, pending:%zu, op:%u, device_id:%d",
+                           pending.size(), op, device_id_);
   for (size_t i = 0U; i < pending.size(); ++i) {
     const uint32_t state = (i < states.size()) ? states[i] : TRANSFER_THREAD_STATE_DELETING;
     HIXL_EVENT(

@@ -47,10 +47,7 @@ Status ParseNotifyAckResult(const std::string &json_str) {
 Status HixlClient::Initialize(const std::vector<EndpointConfig> &local_endpoint_list, uint32_t timeout_ms,
                               bool is_lazy) {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (local_endpoint_list.empty()) {
-    HIXL_LOGE(PARAM_INVALID, "The input local_endpoint_list is empty");
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(!local_endpoint_list.empty(), PARAM_INVALID, "The input local_endpoint_list is empty");
   std::vector<EndpointConfig> remote_endpoint_list;
   CtrlMsgPlugin::Initialize();
   HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Connect(server_ip_, server_port_, ctrl_socket_, timeout_ms),
@@ -60,10 +57,7 @@ Status HixlClient::Initialize(const std::vector<EndpointConfig> &local_endpoint_
                       "HixlClient send GetEndpointInfoReq failed, socket:%d", ctrl_socket_);
   HIXL_CHK_STATUS_RET(RecvEndpointInfoResp(ctrl_socket_, remote_endpoint_list, timeout_ms),
                       "HixlClient receive GetEndpointInfoResp failed, socket:%d", ctrl_socket_);
-  if (remote_endpoint_list.empty()) {
-    HIXL_LOGE(FAILED, "HixlClient received empty remote_endpoint_list");
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(!remote_endpoint_list.empty(), FAILED, "HixlClient received empty remote_endpoint_list");
   std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
   HandlerCreateArgs::HandlerType handler_type;
   HIXL_CHK_STATUS_RET(
@@ -148,10 +142,7 @@ Status HixlClient::SetLocalMemInfo(const std::vector<MemHandleInfo> &mem_info_li
 
 Status HixlClient::Connect(uint32_t timeout_ms) {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (client_handler_ == nullptr) {
-    HIXL_LOGE(FAILED, "HixlClient is not initialized");
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(client_handler_ != nullptr, FAILED, "HixlClient is not initialized");
   HIXL_EVENT("[HixlClient] connect link start, local_engine:%s, remote_engine:%s, timeout_ms:%u", local_engine_.c_str(),
              remote_engine_.c_str(), timeout_ms);
   LogLinkPairs("connect link start");
@@ -172,22 +163,10 @@ Status HixlClient::Connect(uint32_t timeout_ms) {
 Status HixlClient::TransferSync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation,
                                 uint32_t timeout_ms) {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (op_descs.empty()) {
-    HIXL_LOGE(PARAM_INVALID, "HixlClient TransferSync failed, op_descs is empty");
-    return PARAM_INVALID;
-  }
-  if (client_handler_ == nullptr) {
-    HIXL_LOGE(FAILED, "HixlClient is not initialized");
-    return FAILED;
-  }
-  if (!is_connected_) {
-    HIXL_LOGE(NOT_CONNECTED, "HixlClient is not connected");
-    return NOT_CONNECTED;
-  }
-  if (is_finalized_) {
-    HIXL_LOGE(FAILED, "HixlClient TransferSync rejected, client is finalized");
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(!op_descs.empty(), PARAM_INVALID, "HixlClient TransferSync failed, op_descs is empty");
+  HIXL_CHK_BOOL_RET_STATUS(client_handler_ != nullptr, FAILED, "HixlClient is not initialized");
+  HIXL_CHK_BOOL_RET_STATUS(is_connected_, NOT_CONNECTED, "HixlClient is not connected");
+  HIXL_CHK_BOOL_RET_STATUS(!is_finalized_, FAILED, "HixlClient TransferSync rejected, client is finalized");
   HIXL_DISMISSABLE_GUARD(dump_guard, [this]() { client_handler_->Dump("transfer sync failed", DumpLogLevel::ERROR); });
   Status ret = client_handler_->TransferSync(op_descs, operation, timeout_ms);
   if (ret == SUCCESS) {
@@ -199,21 +178,11 @@ Status HixlClient::TransferSync(const std::vector<TransferOpDesc> &op_descs, Tra
 Status HixlClient::TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation,
                                  const TransferArgs &, TransferReq &req) {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (op_descs.empty()) {
-    HIXL_LOGE(PARAM_INVALID, "HixlClient TransferAsync failed, op_descs is empty");
-    return PARAM_INVALID;
-  }
-  if (!is_connected_) {
-    HIXL_LOGE(NOT_CONNECTED, "HixlClient is not connected");
-    return NOT_CONNECTED;
-  }
-  if (client_handler_ == nullptr) {
-    HIXL_LOGE(FAILED, "HixlClient is not initialized");
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(!op_descs.empty(), PARAM_INVALID, "HixlClient TransferAsync failed, op_descs is empty");
+  HIXL_CHK_BOOL_RET_STATUS(is_connected_, NOT_CONNECTED, "HixlClient is not connected");
+  HIXL_CHK_BOOL_RET_STATUS(client_handler_ != nullptr, FAILED, "HixlClient is not initialized");
   HIXL_DISMISSABLE_GUARD(dump_guard, [this]() { client_handler_->Dump("transfer async failed", DumpLogLevel::ERROR); });
-  Status ret = client_handler_->TransferAsync(op_descs, operation, req);
-  HIXL_CHK_STATUS_RET(ret, "HixlClient TransferAsync failed");
+  HIXL_CHK_STATUS_RET(client_handler_->TransferAsync(op_descs, operation, req), "HixlClient TransferAsync failed");
   HIXL_DISMISS_GUARD(dump_guard);
   TransferInfo transfer_info = {HixlProfilingReporter::GetSysCycleTime(), operation, AscendString()};
   req_map_[req] = transfer_info;
@@ -360,11 +329,9 @@ Status HixlClient::RecvNotifyAck(int32_t fd, int32_t timeout_ms) const {
 
 Status HixlClient::CheckAlive() {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (ctrl_socket_ < 0) {
-    HIXL_LOGE(FAILED, "HixlClient CheckAlive failed, peer_ip:%s, peer_port:%u, ctrl socket is invalid, fd=%d",
-              server_ip_.c_str(), server_port_, ctrl_socket_);
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(ctrl_socket_ >= 0, FAILED,
+                           "HixlClient CheckAlive failed, peer_ip:%s, peer_port:%u, ctrl socket is invalid, fd:%d",
+                           server_ip_.c_str(), server_port_, ctrl_socket_);
   CtrlMsgHeader header{};
   header.magic = kMagicNumber;
   header.body_size = sizeof(CtrlMsgType);
@@ -393,16 +360,11 @@ Status HixlClient::SendNotify(const NotifyDesc &notify, int32_t timeout_ms) {
   std::lock_guard<std::mutex> lock(mutex_);
   NotifyMsg notify_msg{notify.name.GetString(), notify.notify_msg.GetString()};
 
-  if (notify_msg.name.size() > kMaxNotifyNameLen) {
-    HIXL_LOGE(PARAM_INVALID, "Notify name length invalid, size:%zu, max:%zu", notify_msg.name.size(),
-              kMaxNotifyNameLen);
-    return PARAM_INVALID;
-  }
-  if (notify_msg.notify_msg.size() > kMaxNotifyMsgLen) {
-    HIXL_LOGE(PARAM_INVALID, "Notify message too long, size:%zu, max:%zu", notify_msg.notify_msg.size(),
-              kMaxNotifyMsgLen);
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(notify_msg.name.size() <= kMaxNotifyNameLen, PARAM_INVALID,
+                           "Notify name length invalid, size:%zu, max:%zu", notify_msg.name.size(), kMaxNotifyNameLen);
+  HIXL_CHK_BOOL_RET_STATUS(notify_msg.notify_msg.size() <= kMaxNotifyMsgLen, PARAM_INVALID,
+                           "Notify message too long, size:%zu, max:%zu", notify_msg.notify_msg.size(),
+                           kMaxNotifyMsgLen);
 
   std::string msg_str;
   try {
@@ -417,10 +379,8 @@ Status HixlClient::SendNotify(const NotifyDesc &notify, int32_t timeout_ms) {
   header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + msg_str.size());
   CtrlMsgType msg_type = CtrlMsgType::kNotify;
 
-  if (ctrl_socket_ < 0) {
-    HIXL_LOGE(FAILED, "HixlClient SendNotify failed, ctrl socket is invalid, fd=%d", ctrl_socket_);
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(ctrl_socket_ >= 0, FAILED, "HixlClient SendNotify failed, ctrl socket is invalid, fd:%d",
+                           ctrl_socket_);
 
   HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(ctrl_socket_, &header, static_cast<uint64_t>(sizeof(header))),
                       "HixlClient send NotifyMsg header failed, socket:%d", ctrl_socket_);

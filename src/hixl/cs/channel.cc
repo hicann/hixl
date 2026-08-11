@@ -31,11 +31,9 @@ Status WaitChannelConnected(ChannelHandle channel_handle, uint32_t timeout_ms) {
     if (status == kChannelConnectedStatus) {
       return SUCCESS;
     }
-    if (std::chrono::steady_clock::now() >= deadline) {
-      HIXL_LOGE(TIMEOUT, "Wait channel connected timeout, handle=%lu, status=%d, timeout=%u ms", channel_handle, status,
-                timeout_ms);
-      return TIMEOUT;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(std::chrono::steady_clock::now() < deadline, TIMEOUT,
+                             "Wait channel connected timed out, handle:%lu, status:%d, timeout:%u ms", channel_handle,
+                             status, timeout_ms);
     std::this_thread::sleep_for(kChannelStatusPollInterval);
   }
 }

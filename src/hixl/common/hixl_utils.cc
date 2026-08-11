@@ -69,11 +69,11 @@ void ExtractIpAddress(const std::string &output_str, std::string &ip) {
 Status GetHccnOutput(const std::string &command, std::string &result) {
   std::string command_with_stderr = command + " 2>&1";
   std::array<char, kBufferMaxSize> buffer{};
-  std::unique_ptr<FILE, int (*)(FILE *)> pipe(popen(command_with_stderr.c_str(), "r"), pclose);
-  if (!pipe) {
-    HIXL_LOGE(FAILED, "calling command %s failed, cannot create subprocess.", command_with_stderr.c_str());
-    return FAILED;
-  }
+  FILE *raw_pipe = popen(command_with_stderr.c_str(), "r");
+  const int32_t saved_errno = errno;
+  HIXL_CHK_BOOL_RET_STATUS(raw_pipe != nullptr, FAILED, "Call api:popen failed, command:%s, errno:%d, error_msg:%s",
+                           command_with_stderr.c_str(), saved_errno, strerror(saved_errno));
+  std::unique_ptr<FILE, int (*)(FILE *)> pipe(raw_pipe, pclose);
 
   while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
     result += buffer.data();
@@ -129,20 +129,6 @@ Status ReadDeviceIpFromHccnConf(std::ifstream &file, const std::string &target_k
 }
 
 }  // namespace
-Status ConvertHcommErrorToStatus(HcclResult ret) {
-  static const std::map<HcclResult, Status> result2status = {
-      {HCCL_SUCCESS, SUCCESS},
-      {HCCL_E_PARA, PARAM_INVALID},
-      {HCCL_E_TIMEOUT, TIMEOUT},
-      {HCCL_E_NOT_SUPPORT, UNSUPPORTED},
-  };
-  const auto &it = result2status.find(ret);
-  if (it != result2status.cend()) {
-    return it->second;
-  }
-  return FAILED;
-}
-
 Status CheckIp(const std::string &ip) {
   struct in_addr addr;
   struct sockaddr_in6 ipv6_addr;

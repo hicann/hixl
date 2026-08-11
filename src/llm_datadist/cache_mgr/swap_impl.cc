@@ -159,7 +159,7 @@ ge::Status SwapImpl::CheckParam(const Cache &src, const Cache &dst) {
   LLM_CHK_BOOL_RET_STATUS(((src_addrs.size() == 1) && (src_addrs.size() == dst_addrs.size())), ge::LLM_PARAM_INVALID,
                           "currently support kv cache in one device");
   LLM_CHK_BOOL_RET_STATUS((src_addrs.front().size() == dst_addrs.front().size()), ge::LLM_PARAM_INVALID,
-                          "src adrrs size:%zu not equal dst addrs size:%zu", src_addrs.front().size(),
+                          "src address size:%zu is not equal to dst address size:%zu", src_addrs.front().size(),
                           dst_addrs.front().size());
   return ge::SUCCESS;
 }

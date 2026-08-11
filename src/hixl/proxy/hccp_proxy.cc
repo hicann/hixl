@@ -18,6 +18,7 @@
 #include "rt_external_event.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
+#include "common/scope_guard.h"
 
 namespace hixl {
 namespace {
@@ -61,23 +62,21 @@ Status EnsureLibRaLoaded() {
   }
   const int32_t dl_mode = static_cast<int32_t>(static_cast<uint32_t>(RTLD_NOW) | static_cast<uint32_t>(RTLD_GLOBAL));
   void *h = dlopen(kLibRaSo, dl_mode);
-  if (h == nullptr) {
-    const char *err = dlerror();
-    HIXL_LOGE(FAILED, "[HccpProxy] dlopen %s failed: %s", kLibRaSo, err != nullptr ? err : "unknown error");
-    return FAILED;
-  }
+  const char *open_error = (h == nullptr) ? dlerror() : "";
+  HIXL_CHK_BOOL_RET_STATUS(h != nullptr, FAILED, "[HccpProxy] Call api:dlopen failed, lib:%s, msg:%s", kLibRaSo,
+                           open_error == nullptr ? "unknown error" : open_error);
+  HIXL_DISMISSABLE_GUARD(handle_guard, ([h]() { (void)dlclose(h); }));
   auto *get_handle = reinterpret_cast<RaRdevGetHandleFn>(dlsym(h, "RaRdevGetHandle"));
   auto *get_ba = reinterpret_cast<RaGetNotifyBaseAddrFn>(dlsym(h, "RaGetNotifyBaseAddr"));
-  if (get_handle == nullptr || get_ba == nullptr) {
-    const char *err = dlerror();
-    HIXL_LOGE(FAILED, "[HccpProxy] dlsym RaRdevGetHandle/RaGetNotifyBaseAddr failed: %s",
-              err != nullptr ? err : "unknown error");
-    (void)dlclose(h);
-    return FAILED;
-  }
+  const bool symbols_loaded = get_handle != nullptr && get_ba != nullptr;
+  const char *symbol_error = symbols_loaded ? "" : dlerror();
+  HIXL_CHK_BOOL_RET_STATUS(symbols_loaded, FAILED,
+                           "[HccpProxy] Call api:dlsym failed, symbols:RaRdevGetHandle/RaGetNotifyBaseAddr, msg:%s",
+                           symbol_error == nullptr ? "unknown error" : symbol_error);
   lr.handle = h;
   lr.ra_rdev_get_handle = get_handle;
   lr.ra_get_notify_base_addr = get_ba;
+  HIXL_DISMISS_GUARD(handle_guard);
   return SUCCESS;
 }
 
@@ -94,32 +93,23 @@ Status RaGetNotifyBaseAddrWithRetry(RaGetNotifyBaseAddrFn fn, RdmaHandle rdma_ha
                 static_cast<long long>(elapsed_us));
       return SUCCESS;
     }
-    if (ret != kRoceEagain) {
-      HIXL_LOGE(FAILED, "[HccpProxy] RaGetNotifyBaseAddr failed, ret=%d, elapsed_us=%lld", ret,
-                static_cast<long long>(elapsed_us));
-      return FAILED;
-    }
-    if (t_now >= deadline) {
-      HIXL_LOGE(FAILED, "[HccpProxy] RaGetNotifyBaseAddr timed out, elapsed_us=%lld",
-                static_cast<long long>(elapsed_us));
-      return FAILED;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(ret == kRoceEagain, FAILED,
+                             "[HccpProxy] Call api:RaGetNotifyBaseAddr failed, ret:%d, elapsed:%lld us", ret,
+                             static_cast<long long>(elapsed_us));
+    HIXL_CHK_BOOL_RET_STATUS(t_now < deadline, FAILED,
+                             "[HccpProxy] Call api:RaGetNotifyBaseAddr timed out, elapsed:%lld us",
+                             static_cast<long long>(elapsed_us));
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 }
 
 Status ResolveRaNotifyPhyId(int32_t device_id, unsigned int &phy_id) {
-  if (device_id < 0) {
-    HIXL_LOGE(PARAM_INVALID, "[HccpProxy] Ra path requires valid device_id, got %d", device_id);
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(device_id >= 0, PARAM_INVALID, "[HccpProxy] Ra path requires valid device_id, device_id:%d",
+                           device_id);
   int32_t phy_device_id = 0;
   HIXL_CHK_ACL_RET(aclrtGetPhyDevIdByLogicDevId(device_id, &phy_device_id),
                    "[HccpProxy] aclrtGetPhyDevIdByLogicDevId failed");
-  if (phy_device_id < 0) {
-    HIXL_LOGE(PARAM_INVALID, "[HccpProxy] invalid phy_device_id=%d", phy_device_id);
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(phy_device_id >= 0, PARAM_INVALID, "[HccpProxy] invalid phy_device_id:%d", phy_device_id);
   phy_id = static_cast<unsigned int>(phy_device_id);
   return SUCCESS;
 }
@@ -133,10 +123,8 @@ void LibRaCopyFnPtrs(RaRdevGetHandleFn *get_handle_fn, RaGetNotifyBaseAddrFn *ge
 
 Status RaOpenRdev(unsigned int phy_id, RaRdevGetHandleFn get_handle_fn, RdmaHandle *rdma_handle) {
   const int gh_ret = get_handle_fn(phy_id, rdma_handle);
-  if (gh_ret != 0 || *rdma_handle == nullptr) {
-    HIXL_LOGE(FAILED, "[HccpProxy] RaRdevGetHandle failed, ret=%d phy_id=%u", gh_ret, phy_id);
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(gh_ret == 0 && *rdma_handle != nullptr, FAILED,
+                           "[HccpProxy] Call api:RaRdevGetHandle failed, ret:%d, phy_id:%u", gh_ret, phy_id);
   return SUCCESS;
 }
 
@@ -144,16 +132,12 @@ Status CombineNotifyDeviceVa(unsigned int phy_id, unsigned long long base_va, ac
                              uint64_t &notify_addr) {
   uint64_t offset = 0ULL;
   const rtError_t rt_ret = rtNotifyGetAddrOffset(reinterpret_cast<rtNotify_t>(notify), &offset);
-  if (rt_ret != RT_ERROR_NONE) {
-    REPORT_INNER_ERR_MSG("E19999", "Call rtNotifyGetAddrOffset fail, ret: 0x%X", static_cast<uint32_t>(rt_ret));
-    HIXL_LOGE(FAILED, "[HccpProxy] rtNotifyGetAddrOffset failed, ret: 0x%X", static_cast<uint32_t>(rt_ret));
-    return FAILED;
-  }
-  if (base_va > (UINT64_MAX - offset)) {
-    HIXL_LOGE(FAILED, "[HccpProxy] notify VA overflow base=0x%llx offset=0x%llx",
-              static_cast<unsigned long long>(base_va), static_cast<unsigned long long>(offset));
-    return FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(rt_ret == RT_ERROR_NONE, FAILED,
+                           "[HccpProxy] Call api:rtNotifyGetAddrOffset failed, ret:0x%X",
+                           static_cast<uint32_t>(rt_ret));
+  HIXL_CHK_BOOL_RET_STATUS(base_va <= (UINT64_MAX - offset), FAILED,
+                           "[HccpProxy] notify VA overflow, base:0x%llx, offset:0x%llx",
+                           static_cast<unsigned long long>(base_va), static_cast<unsigned long long>(offset));
   notify_addr = static_cast<uint64_t>(base_va) + offset;
   HIXL_LOGI("[HccpProxy] Ra notify: phy_id=%u base=0x%llx offset=0x%llx va=0x%llx len=%u", phy_id,
             static_cast<unsigned long long>(base_va), static_cast<unsigned long long>(offset),

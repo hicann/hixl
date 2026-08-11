@@ -84,10 +84,8 @@ Status VirtualMemoryManager::ReserveMemAddress(void *&virtual_address, size_t si
       HIXL_LOGI("Reserve virtual memory without UC memory on A3, size:%zu.", size);
       return SUCCESS;
     }
-    if (ret != ACL_ERROR_RT_FEATURE_NOT_SUPPORT) {
-      HIXL_LOGE(FAILED, "aclrtReserveMemAddressNoUCMemory failed, ret:%d.", ret);
-      return FAILED;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(ret == ACL_ERROR_RT_FEATURE_NOT_SUPPORT, FAILED,
+                             "Call api:aclrtReserveMemAddressNoUCMemory failed, ret:%d, size:%zu bytes", ret, size);
   }
   HIXL_CHK_ACL_RET(aclrtReserveMemAddress(&virtual_address, size, 0, nullptr, kReserveFlagHugePage),
                    "Reserve virtual memory failed.");

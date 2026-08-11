@@ -13,6 +13,7 @@
 #include <dlfcn.h>
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
+#include "common/scope_guard.h"
 
 namespace hixl {
 namespace {
@@ -66,19 +67,16 @@ Status EnsureLibDrvdsmiHostLoaded() {
 
   const int32_t dl_mode = RTLD_NOW;
   void *dsmi_handle = dlopen(kLibDrvdsmiHostSo, dl_mode);
-  if (dsmi_handle == nullptr) {
-    const char *err = dlerror();
-    HIXL_LOGE(FAILED, "[DsmiProxy] dlopen %s failed: %s", kLibDrvdsmiHostSo, err != nullptr ? err : "unknown error");
-    return FAILED;
-  }
+  const char *open_error = (dsmi_handle == nullptr) ? dlerror() : "";
+  HIXL_CHK_BOOL_RET_STATUS(dsmi_handle != nullptr, FAILED, "[DsmiProxy] Call api:dlopen failed, lib:%s, msg:%s",
+                           kLibDrvdsmiHostSo, open_error == nullptr ? "unknown error" : open_error);
+  HIXL_DISMISSABLE_GUARD(handle_guard, ([dsmi_handle]() { (void)dlclose(dsmi_handle); }));
 
   auto *get_board_info_fn = reinterpret_cast<DsmiGetBoardInfoFn>(dlsym(dsmi_handle, "dsmi_get_board_info"));
-  if (get_board_info_fn == nullptr) {
-    const char *err = dlerror();
-    HIXL_LOGE(FAILED, "[DsmiProxy] dlsym dsmi_get_board_info failed: %s", err != nullptr ? err : "unknown error");
-    (void)dlclose(dsmi_handle);
-    return FAILED;
-  }
+  const char *symbol_error = (get_board_info_fn == nullptr) ? dlerror() : "";
+  HIXL_CHK_BOOL_RET_STATUS(get_board_info_fn != nullptr, FAILED,
+                           "[DsmiProxy] Call api:dlsym failed, symbol:dsmi_get_board_info, msg:%s",
+                           symbol_error == nullptr ? "unknown error" : symbol_error);
 
   ldr.handle = dsmi_handle;
   ldr.dsmi_get_board_info = get_board_info_fn;
@@ -88,6 +86,7 @@ Status EnsureLibDrvdsmiHostLoaded() {
     HIXL_LOGW("[DsmiProxy] dlsym dsmi_get_device_info failed, InterconType unavailable: %s",
               err != nullptr ? err : "unknown error");
   }
+  HIXL_DISMISS_GUARD(handle_guard);
   return SUCCESS;
 }
 

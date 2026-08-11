@@ -69,6 +69,27 @@ git commit --allow-empty -m "test pre-commit"
 
 After this setup, code formatting and OAT check are automatically triggered before you commit code.
 
+#### 3.1.1 Log Specification Check
+
+pre-commit checks the modified C/C++ files for deterministic logging issues, including mismatched formatting argument
+counts, invalid conversion specifiers, non-ASCII text or punctuation, and invalid arguments passed to `*_NOLOG`
+macros. If the check fails, it reports the file name and line number. Fix the issue and commit the changes again.
+
+```bash
+# Check a specified file
+python3 scripts/check_log_spec.py src/hixl/cs/endpoint.cc
+
+# Scan the src and include directories
+python3 scripts/check_log_spec.py
+
+# Run only the log specification check configured in pre-commit
+pre-commit run log-spec-check --all-files
+```
+
+The completeness of external API failure context, log levels, and logging frequency on performance-sensitive paths
+must still be reviewed manually according to
+`docs/en/contributions/coding_standards/docs_specification.md`.
+
 ### 3.2 OAT User Guide
 
 **Open Source Audit Tool (OAT)** is an open-source compliance check tool. It is automatically integrated into the Git commit workflow.

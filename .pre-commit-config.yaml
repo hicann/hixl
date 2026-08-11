@@ -56,6 +56,12 @@ repos:
   # OAT 合规性检查 (Open Source Audit Tool)
   - repo: local
     hooks:
+      - id: log-spec-check
+        name: HIXL Log Specification Check
+        entry: python3 scripts/check_log_spec.py
+        language: system
+        pass_filenames: true
+        types_or: [ c++, c ]
       - id: oat-check
         name: OAT Compliance Check
         entry: bash scripts/oat_check.sh

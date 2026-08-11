@@ -92,7 +92,7 @@ void CommStatisticManager::Dump() const {
 }
 
 void CommStatisticManager::DumpMemoryProfilingTrack() const {
-  LLMEVENT("Memory statistic info:alloc mem:%lu, free mem:%lu, alloc times:%lu, free times%:lu",
+  LLMEVENT("Memory statistic info:alloc mem:%lu, free mem:%lu, alloc times:%lu, free times:%lu",
            memory_statistic_info_.alloc_mem, memory_statistic_info_.free_mem, memory_statistic_info_.alloc_times,
            memory_statistic_info_.free_times);
 }
@@ -160,7 +160,7 @@ void CommStatisticManager::DumpLinkProfilingTrack() const {
       "Link statistic info:"
       "init comm info[times:%lu, max_cost:%lu us, min_cost:%lu us, avg_cost:%lu us], "
       "prepare comm info[times:%lu, max_cost:%lu us, min_cost:%lu us, avg_cost:%lu us], "
-      "register global mem info[times:%lu], comm bind mem info[times:%lu], ",
+      "register global mem info[times:%lu], comm bind mem info[times:%lu], "
       "exchange mem info[times:%lu, max_cost:%lu us, min_cost:%lu us, avg_cost:%lu us]",
       link_statistic_info_.comm_init_times, link_statistic_info_.comm_init_max_cost,
       link_statistic_info_.comm_init_min_cost, comm_init_avg_cost, link_statistic_info_.comm_prepare_times,

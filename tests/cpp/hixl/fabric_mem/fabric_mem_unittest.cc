@@ -228,6 +228,32 @@ TEST(FabricMemControlUTest, ClientRejectsMissingPort) {
   EXPECT_EQ(FabricMemControlClient::SendNotify("127.0.0.1", notify, kClientTimeoutMs), PARAM_INVALID);
 }
 
+TEST(FabricMemControlUTest, RecvFailureReturnsFailed) {
+  FabricMemControlServer server;
+  FabricMemControlServer::ClientSession session;
+  FabricMemControlServer::PendingConnection pending;
+  EXPECT_EQ(server.AppendSessionRecv(session, -1), FAILED);
+  EXPECT_EQ(server.AppendPendingRecv(pending, -1), FAILED);
+}
+
+TEST(FabricMemControlUTest, InvalidReceiveBuffersAreRejected) {
+  FabricMemControlServer server;
+  FabricMemControlServer::ClientSession session;
+  session.bytes_received = sizeof(int32_t);
+  session.expected_body_size = sizeof(int32_t);
+  EXPECT_FALSE(server.ProcessWaitingBody(session));
+
+  FabricMemControlServer::PendingConnection pending;
+  pending.bytes_received = sizeof(int32_t);
+  pending.expected_body_size = sizeof(int32_t);
+  EXPECT_FALSE(server.ProcessPendingWaitingBody(server.state_, -1, -1, pending));
+
+  std::vector<char> recv_buffer(1U);
+  size_t bytes_received = 3U;
+  server.ShiftRecvBuffer(recv_buffer, bytes_received, 1U, 2U);
+  EXPECT_EQ(bytes_received, 0U);
+}
+
 TEST(FabricMemControlUTest, FetchRejectsFailedConnectStatus) {
   const int32_t port = test::AllocateFabricMemTestPort();
   ASSERT_GT(port, 0);

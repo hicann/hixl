@@ -35,10 +35,8 @@ constexpr size_t kMaxNotifyStorageSize = 4096;
 Status kNoNeedRetry = 1U;
 
 Status ValidateProtocolHeader(const ProtocolHeader &header, const std::string &channel_id) {
-  if (header.magic != kMagicNumber) {
-    LLMLOGE(FAILED, "Invalid magic number received on channel:%s.", channel_id.c_str());
-    return FAILED;
-  }
+  ADXL_CHK_BOOL_RET_STATUS(header.magic == kMagicNumber, FAILED, "Invalid magic number received on channel:%s.",
+                           channel_id.c_str());
   ADXL_CHK_BOOL_RET_STATUS(header.body_size <= kMaxControlMsgBodySizeInBytes, FAILED,
                            "Invalid body size:%lu received on channel:%s, must <= %zu.", header.body_size,
                            channel_id.c_str(), kMaxControlMsgBodySizeInBytes);
@@ -74,10 +72,9 @@ Status ChannelManager::Initialize(BufferTransferService *buffer_transfer_service
   ADXL_CHK_ACL_RET(aclrtGetCurrentContext(&aclrt_context_));
   buffer_transfer_service_ = buffer_transfer_service;
   epoll_fd_ = epoll_create1(0);
-  if (epoll_fd_ == -1) {
-    LLMLOGE(FAILED, "Failed to create epoll fd.");
-    return FAILED;
-  }
+  const int32_t create_errno = errno;
+  ADXL_CHK_BOOL_RET_STATUS(epoll_fd_ != -1, FAILED, "Call api:epoll_create1 failed, errno:%d, error_msg:%s",
+                           create_errno, strerror(create_errno));
   // send heartbeat periodically
   heartbeat_sender_ = std::thread([this]() {
     aclrtSetCurrentContext(aclrt_context_);
@@ -104,10 +101,10 @@ Status ChannelManager::AddSocketToEpoll(int32_t fd, ChannelPtr channel) {
   epoll_event event{};
   event.events = EPOLLIN;
   event.data.fd = fd;
-  if (epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &event) == -1) {
-    LLMLOGE(FAILED, "Failed to add fd %d to epoll: %s", fd, strerror(errno));
-    return FAILED;
-  }
+  const int32_t ret = epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &event);
+  const int32_t ctl_errno = errno;
+  ADXL_CHK_BOOL_RET_STATUS(ret != -1, FAILED, "Call api:epoll_ctl failed, ret:%d, fd:%d, errno:%d, error_msg:%s", ret,
+                           fd, ctl_errno, strerror(ctl_errno));
 
   std::lock_guard<std::mutex> lock(fd_mutex_);
   fd_to_channel_map_[fd] = std::move(channel);
@@ -119,9 +116,10 @@ Status ChannelManager::HandleEpoolEvents() {
   struct epoll_event events[kMaxEvents];
   int nfds = epoll_wait(epoll_fd_, events, kMaxEvents, kEpollWaitTimeInMillis);
   if (nfds == -1) {
-    ADXL_CHK_BOOL_RET_SPECIAL_STATUS(errno == EINTR, SUCCESS, "Get EINTR signal.");
-    LLMLOGE(FAILED, "epoll_wait error: %s", strerror(errno));
-    return FAILED;
+    const int32_t wait_errno = errno;
+    ADXL_CHK_BOOL_RET_SPECIAL_STATUS(wait_errno == EINTR, SUCCESS, "Get EINTR signal.");
+    ADXL_CHK_BOOL_RET_STATUS(nfds != -1, FAILED, "Call api:epoll_wait failed, ret:%d, errno:%d, error_msg:%s", nfds,
+                             wait_errno, strerror(wait_errno));
   }
   if (nfds == 0) {
     return SUCCESS;
@@ -329,13 +327,10 @@ Status ChannelManager::HandleNotifyMessage(const ChannelPtr &channel, const std:
   ADXL_CHK_STATUS_RET(ControlMsgHandler::Deserialize(msg_str.c_str(), notify_msg), "Failed to deserialize notify msg");
   {
     std::lock_guard<std::mutex> lock(channel->notify_message_mutex_);
-    if (channel->notify_messages_.size() >= kMaxNotifyStorageSize) {
-      LLMLOGE(FAILED,
-              "Notify storage limit exceeded for channel:%s. Current count: %zu, limit: %zu. "
-              "Please call get notify to consume pending notify messages.",
-              channel->GetChannelId().c_str(), channel->notify_messages_.size(), kMaxNotifyStorageSize);
-      return FAILED;
-    }
+    ADXL_CHK_BOOL_RET_STATUS(channel->notify_messages_.size() < kMaxNotifyStorageSize, FAILED,
+                             "Notify storage limit exceeded for channel:%s. Current count:%zu, limit:%zu. "
+                             "Please call get notify to consume pending notify messages.",
+                             channel->GetChannelId().c_str(), channel->notify_messages_.size(), kMaxNotifyStorageSize);
     channel->notify_messages_.push_back(std::move(notify_msg));
   }
 

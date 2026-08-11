@@ -291,10 +291,9 @@ Status FabricMemSlotPool::AcquireWithTimeout(AsyncSlot &slot, uint64_t timeout_u
     }
     // Pool is full with nothing free: wait for a release (or timeout).
     const auto cost = GetDurationUs(start, std::chrono::steady_clock::now());
-    if (cost >= timeout_us) {
-      HIXL_LOGE(TIMEOUT, "Get fabric mem transfer slot timeout.");
-      return TIMEOUT;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(cost < timeout_us, TIMEOUT,
+                             "Get fabric mem transfer slot timed out, elapsed:%lu us, timeout:%lu us", cost,
+                             timeout_us);
     const auto remaining = std::chrono::microseconds(timeout_us - cost);
     pool_cv_.wait_for(lock, remaining,
                       [this]() { return !free_slot_indices_.empty() || slot_pool_.size() < max_async_slot_num_; });

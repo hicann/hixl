@@ -73,21 +73,13 @@ Status HixlMemStore::UnrecordMemory(bool is_server, const void *addr) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (is_server) {
     auto it = server_regions_.find(addr);
-    if (it == server_regions_.end()) {
-      HIXL_LOGE(PARAM_INVALID,
-                "The memory has not been registered and therefore cannot be deleted. Memory information: buf_addr:%p",
-                addr);
-      return PARAM_INVALID;  // 内存尚未注册，无法注销
-    }
+    HIXL_CHK_BOOL_RET_STATUS(it != server_regions_.end(), PARAM_INVALID,
+                             "The memory has not been registered and cannot be deleted, buf_addr:%p", addr);
     server_regions_.erase(addr);
   } else {
     auto it = client_regions_.find(addr);
-    if (it == client_regions_.end()) {
-      HIXL_LOGE(PARAM_INVALID,
-                "The memory has not been registered and therefore cannot be deleted. Memory information: buf_addr:%p",
-                addr);
-      return PARAM_INVALID;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(it != client_regions_.end(), PARAM_INVALID,
+                             "The memory has not been registered and cannot be deleted, buf_addr:%p", addr);
     client_regions_.erase(addr);
   }
   HIXL_LOGI("This mem has been deleted, addr:%p.", addr);
@@ -227,27 +219,21 @@ bool HixlMemStore::CheckMergedRegionsAccess(const std::map<const void *, MemoryR
 
 Status HixlMemStore::ValidateMemoryAccess(const void *server_addr, size_t mem_size, const void *client_addr) const {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (server_addr == nullptr || client_addr == nullptr || mem_size == size_t{0}) {
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(server_addr != nullptr && client_addr != nullptr && mem_size != size_t{0}, PARAM_INVALID,
+                           "Memory access validation failed, server_addr:%p, client_addr:%p, buf_len:%zu bytes",
+                           server_addr, client_addr, mem_size);
   bool server_valid = CheckMemoryForAccess(true, server_addr, mem_size);
   // 验证Server端内存访问t
-  if (!server_valid) {
-    HIXL_LOGE(PARAM_INVALID,
-              "Server memory verification failed; the memory has not been registered yet. memory information: "
-              "server_addr:%p, buf_len:%zu",
-              server_addr, mem_size);
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(server_valid, PARAM_INVALID,
+                           "Server memory verification failed, memory is not registered, server_addr:%p, "
+                           "buf_len:%zu bytes",
+                           server_addr, mem_size);
   // 验证Client端内存访问
   bool client_valid = CheckMemoryForAccess(false, client_addr, mem_size);
-  if (!client_valid) {
-    HIXL_LOGE(PARAM_INVALID,
-              "Client memory verification failed; the memory has not been registered yet. memory information: "
-              "client_addr:%p, buf_len:%zu",
-              client_addr, mem_size);
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(client_valid, PARAM_INVALID,
+                           "Client memory verification failed, memory is not registered, client_addr:%p, "
+                           "buf_len:%zu bytes",
+                           client_addr, mem_size);
   return SUCCESS;
 }
 
@@ -277,28 +263,19 @@ Status HixlMemStore::BatchValidateMemoryAccess(uint32_t list_num, const HixlOneS
     const void *server_addr = desc_list[i].remote_buf;
     const void *client_addr = desc_list[i].local_buf;
     size_t mem_size = static_cast<size_t>(desc_list[i].len);
-    if (server_addr == nullptr || client_addr == nullptr || mem_size == size_t{0}) {
-      HIXL_LOGE(PARAM_INVALID,
-                "Batch validate failed at idx=%u: null addr or zero size. server_addr=%p, client_addr=%p, buf_len=%zu",
-                i, server_addr, client_addr, mem_size);
-      return PARAM_INVALID;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(server_addr != nullptr && client_addr != nullptr && mem_size != size_t{0}, PARAM_INVALID,
+                             "Batch validation failed, idx:%u, server_addr:%p, client_addr:%p, buf_len:%zu bytes", i,
+                             server_addr, client_addr, mem_size);
     bool server_valid = CheckMemoryForAccess(true, server_addr, mem_size);
-    if (!server_valid) {
-      HIXL_LOGE(PARAM_INVALID,
-                "Server memory verification failed at idx=%u; the memory has not been registered yet. "
-                "server_addr=%p, buf_len=%zu",
-                i, server_addr, mem_size);
-      return PARAM_INVALID;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(server_valid, PARAM_INVALID,
+                             "Server memory verification failed, memory is not registered, idx:%u, server_addr:%p, "
+                             "buf_len:%zu bytes",
+                             i, server_addr, mem_size);
     bool client_valid = CheckMemoryForAccess(false, client_addr, mem_size);
-    if (!client_valid) {
-      HIXL_LOGE(PARAM_INVALID,
-                "Client memory verification failed at idx=%u; the memory has not been registered yet. "
-                "client_addr=%p, buf_len=%zu",
-                i, client_addr, mem_size);
-      return PARAM_INVALID;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(client_valid, PARAM_INVALID,
+                             "Client memory verification failed, memory is not registered, idx:%u, client_addr:%p, "
+                             "buf_len:%zu bytes",
+                             i, client_addr, mem_size);
   }
   return SUCCESS;
 }

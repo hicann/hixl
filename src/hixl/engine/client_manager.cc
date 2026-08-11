@@ -51,10 +51,7 @@ Status ClientManager::CreateClient(const ClientConfig &config, ClientPtr &client
                       config.remote_engine.c_str());
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (finalized_) {
-      HIXL_LOGE(FAILED, "ClientManager already finalized, cannot create new client");
-      return FAILED;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(!finalized_, FAILED, "ClientManager already finalized, cannot create new client");
   }
   client_ptr = MakeShared<HixlClient>(ip, static_cast<uint32_t>(port), config);
   HIXL_CHECK_NOTNULL(client_ptr, "Failed to create HixlClient, ip:%s, port:%u", ip.c_str(), port);

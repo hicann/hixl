@@ -11,9 +11,11 @@
 #ifndef CANN_HIXL_SRC_HIXL_COMMON_HIXL_CHECKER_H_
 #define CANN_HIXL_SRC_HIXL_COMMON_HIXL_CHECKER_H_
 
+#include <map>
 #include "hixl/hixl_types.h"
 #include "base/err_msg.h"
 #include "acl/acl.h"
+#include "hccl/hccl_types.h"
 #include "hixl_log.h"
 
 #ifdef PRODUCT_SIDE_DEVICE
@@ -21,6 +23,22 @@
 #else
 #define HIXL_REPORT_ERR_MSG(...) REPORT_INNER_ERR_MSG(__VA_ARGS__)
 #endif
+
+namespace hixl {
+inline Status ConvertHcommErrorToStatus(HcclResult ret) {
+  static const std::map<HcclResult, Status> result2status = {
+      {HCCL_SUCCESS, SUCCESS},
+      {HCCL_E_PARA, PARAM_INVALID},
+      {HCCL_E_TIMEOUT, TIMEOUT},
+      {HCCL_E_NOT_SUPPORT, UNSUPPORTED},
+  };
+  const auto &it = result2status.find(ret);
+  if (it != result2status.cend()) {
+    return it->second;
+  }
+  return FAILED;
+}
+}  // namespace hixl
 
 // If expr is not SUCCESS, print the log and return the same value
 #define HIXL_CHK_STATUS_RET(expr, ...)                                    \

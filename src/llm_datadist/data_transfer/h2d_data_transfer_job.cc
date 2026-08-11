@@ -127,7 +127,7 @@ ge::Status H2DDataTransferJob::Process(bool &is_done) {
     if (buffer_context.buffer == nullptr) {
       auto mem_pool = comm_entity_->GetCacheManager()->GetNpuMemPool();
       buffer_context.buffer = mem_pool->AllocShared(buffer_size_);
-      LLMLOGI("Alloc npu buffer end.");
+      LLMLOGD("Alloc npu buffer end.");
       if (buffer_context.buffer == nullptr) {
         LLMLOGW("Failed to allocate buffer memory, size = %zu, try next time", buffer_size_);
         continue;
@@ -147,7 +147,7 @@ ge::Status H2DDataTransferJob::Process(bool &is_done) {
   is_done = (done_count == buffers_.size());
   if (is_done) {
     LLM_CHK_STATUS_RET(comm_entity_->SendResponse(ge::SUCCESS), "Failed to send response");
-    LLMLOGI("Process done, send end flag");
+    LLMLOGD("Process done, send end flag");
   }
   return ge::SUCCESS;
 }
@@ -155,17 +155,17 @@ ge::Status H2DDataTransferJob::Process(bool &is_done) {
 ge::Status BufferStateIdle::UpdateState(BufferContext &context) const {
   context.dst_buffer_slices = context.dst_task_batcher->NextBatch();
   if (context.dst_buffer_slices.empty()) {
-    LLMLOGI("Buffer[%zu] changed to END state", context.buffer_index);
+    LLMLOGD("Buffer[%zu] changed to END state", context.buffer_index);
     context.state = BufferStateEnd::kStateId;
   } else {
     auto dst_transfer_info_num = context.dst_task_batcher->GetTransferInfoNum();
     context.buffer_slices = context.src_task_batcher->NextBatch(dst_transfer_info_num);
-    LLMLOGI("Buffer[%zu] Next batch generated, num_tasks = %zu", context.buffer_index, context.buffer_slices.size());
+    LLMLOGD("Buffer[%zu] Next batch generated, num_tasks = %zu", context.buffer_index, context.buffer_slices.size());
     for (auto &task : context.buffer_slices) {
-      LLMLOGI("buffer offset = %zu, data_index = %u, data_offset = %lu, data_size = %u", task.buffer_offset,
+      LLMLOGD("buffer offset = %zu, data_index = %u, data_offset = %lu, data_size = %u", task.buffer_offset,
               task.data_index, task.data_offset, task.data_size);
     }
-    LLMLOGI("Buffer[%zu] changed to COPY state", context.buffer_index);
+    LLMLOGD("Buffer[%zu] changed to COPY state", context.buffer_index);
     context.state = BufferStateCopy::kStateId;
   }
   return ge::SUCCESS;
@@ -197,7 +197,7 @@ ge::Status BufferStateCopy::UpdateState(BufferContext &context) const {
       auto tp_end = std::chrono::steady_clock::now();
       auto cost = std::chrono::duration_cast<std::chrono::microseconds>(tp_end - context.batch_copy_start).count();
       context.state = BufferStateTransfer::kStateId;
-      LLMLOGI("Buffer[%zu] changed to TRANSFER state, copy_num = %zu, copy_size = %u, cost = %ld us.",
+      LLMLOGD("Buffer[%zu] changed to TRANSFER state, copy_num = %zu, copy_size = %u, cost = %ld us.",
               context.buffer_index, context.buffer_slices.size(), context.buffer_slices.front().data_size, cost);
       context.copy_futures.clear();
     }
@@ -213,7 +213,7 @@ ge::Status BufferStateCopy::CopyAsync(BufferContext &context, size_t slice_index
       PtrToPtr<void, uint8_t>(context.data_addresses[task.data_index].get()) + task.data_offset + context.offset;
   auto dst_addr = PtrToPtr<void, uint8_t>(context.buffer.get()) + task.buffer_offset;
   LLM_CHK_ACL_RET(aclrtMemcpy(dst_addr, task.data_size, src_addr, task.data_size, ACL_MEMCPY_HOST_TO_DEVICE));
-  LLMLOGI("Buffer[%zu] copy success, src_offset = %lu, dst_offset = %lu, size = %u", context.buffer_index,
+  LLMLOGD("Buffer[%zu] copy success, src_offset = %lu, dst_offset = %lu, size = %u", context.buffer_index,
           task.data_offset + context.offset, task.buffer_offset, task.data_size);
   return ge::SUCCESS;
 }
@@ -229,12 +229,12 @@ ge::Status BufferStateTransfer::UpdateState(BufferContext &context) const {
     aclrtQueryEventStatus(context.event, &event_status);
     if (event_status != ACL_EVENT_RECORDED_STATUS_COMPLETE) {
       // 没有wait到，等待下一次, 不更新task index
-      LLMLOGI("Buffer[%zu] transfer not ended", context.buffer_index);
+      LLMLOGD("Buffer[%zu] transfer not ended", context.buffer_index);
     } else {
       aclrtDestroyEvent(context.event);
       context.event = nullptr;
       context.state = BufferStateIdle::kStateId;
-      LLMLOGI("Buffer[%zu] changed to IDLE state", context.buffer_index);
+      LLMLOGD("Buffer[%zu] changed to IDLE state", context.buffer_index);
     }
   }
   return ge::SUCCESS;
@@ -249,11 +249,11 @@ ge::Status BufferStateTransfer::BatchPutAsync(BufferContext &context) {
     const auto dst_addr =
         PtrToPtr<void, uint8_t>(context.request->transfer_infos[task.data_index].dst_addr) + task.data_offset;
     op_desc_batch.emplace_back(HcclOneSideOpDesc{src_addr, dst_addr, task.data_size, HCCL_DATA_TYPE_UINT8});
-    LLMLOGI("Buffer[%zu] [BatchPut] task added, src_offset = %u, dst_offset = %lu, size = %u", context.buffer_index,
+    LLMLOGD("Buffer[%zu] [BatchPut] task added, src_offset = %u, dst_offset = %lu, size = %u", context.buffer_index,
             task.buffer_offset, task.data_offset, task.data_size);
   }
   LLM_CHK_STATUS_RET(context.comm_entity->BatchPutAsync(op_desc_batch), "Failed to batch put data");
-  LLMLOGI("Buffer[%zu] BatchPutAsync success", context.buffer_index);
+  LLMLOGD("Buffer[%zu] BatchPutAsync success", context.buffer_index);
   return ge::SUCCESS;
 }
 }  // namespace llm

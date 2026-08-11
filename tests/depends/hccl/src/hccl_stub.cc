@@ -32,8 +32,11 @@ static std::vector<std::string> g_thread_lifecycle_events;
 
 // 控制失败模式的全局变量
 // 设置后下一次调用会返回指定的错误码（既不是成功也不是重试所需）
-static int32_t g_next_nbi_failure_ret = 0;    // 下一次NBI传输的返回值
-static int32_t g_next_fence_failure_ret = 0;  // 下一次Fence的返回值
+static int32_t g_next_nbi_failure_ret = 0;               // 下一次NBI传输的返回值
+static int32_t g_next_fence_failure_ret = 0;             // 下一次Fence的返回值
+static int32_t g_next_endpoint_destroy_failure_ret = 0;  // 下一次EndpointDestroy的返回值
+static int32_t g_next_batch_mode_start_failure_ret = 0;
+static int32_t g_next_batch_mode_end_failure_ret = 0;
 static int32_t g_listen_port_ret = 0;  // HcommEndpointGetListenPort的返回值, 0表示使用默认行为(返回HCCL_SUCCESS)
 static std::atomic<uint32_t> g_channel_status_pending_count{0U};
 static std::atomic<uint32_t> g_channel_get_status_call_count{0U};
@@ -105,6 +108,11 @@ HcommResult HcommEndpointCreate(const EndpointDesc *endPoint, EndpointHandle *en
 
 HcommResult HcommEndpointDestroy(EndpointHandle endPointHandle) {
   (void)endPointHandle;
+  if (g_next_endpoint_destroy_failure_ret != 0) {
+    const int32_t ret = g_next_endpoint_destroy_failure_ret;
+    g_next_endpoint_destroy_failure_ret = 0;
+    return static_cast<HcommResult>(ret);
+  }
   return static_cast<HcommResult>(HCCL_SUCCESS);
 }
 
@@ -219,11 +227,21 @@ HcommResult HcommThreadFree(const ThreadHandle *threads, uint32_t threadNum) {
 
 int32_t HcommBatchModeStart(const char *batchTag) {
   (void)batchTag;
+  if (g_next_batch_mode_start_failure_ret != 0) {
+    const int32_t ret = g_next_batch_mode_start_failure_ret;
+    g_next_batch_mode_start_failure_ret = 0;
+    return ret;
+  }
   return HCCL_SUCCESS;
 }
 
 int32_t HcommBatchModeEnd(const char *batchTag) {
   (void)batchTag;
+  if (g_next_batch_mode_end_failure_ret != 0) {
+    const int32_t ret = g_next_batch_mode_end_failure_ret;
+    g_next_batch_mode_end_failure_ret = 0;
+    return ret;
+  }
   return HCCL_SUCCESS;
 }
 
@@ -272,6 +290,18 @@ void SetNextNbiFailure(int32_t ret) {
 // 设置下一次Fence返回指定错误码
 void SetNextFenceFailure(int32_t ret) {
   g_next_fence_failure_ret = ret;
+}
+
+void SetNextEndpointDestroyFailure(int32_t ret) {
+  g_next_endpoint_destroy_failure_ret = ret;
+}
+
+void SetNextBatchModeStartFailure(int32_t ret) {
+  g_next_batch_mode_start_failure_ret = ret;
+}
+
+void SetNextBatchModeEndFailure(int32_t ret) {
+  g_next_batch_mode_end_failure_ret = ret;
 }
 
 // 设置 HcommEndpointGetListenPort 的返回值

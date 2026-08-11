@@ -66,8 +66,8 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
                              "Invalid option fields, OPTION_BUFFER_POOL for hixl engine only supports 0:0");
   }
   std::string local_comm_res;
-  Status ret = EndpointGenerator::BuildEndpointList(options, local_engine_, local_comm_res, endpoint_list_);
-  HIXL_CHK_STATUS_RET(ret, "[HixlEngine] Failed to build endpoint list from options");
+  HIXL_CHK_STATUS_RET(EndpointGenerator::BuildEndpointList(options, local_engine_, local_comm_res, endpoint_list_),
+                      "[HixlEngine] Failed to build endpoint list from options");
   auto global_resource_config = options.GlobalResourceCfg();
   std::optional<uint32_t> listen_port;
   if (global_resource_config.has_value()) {
@@ -169,8 +169,8 @@ Status HixlEngine::Disconnect(const AscendString &remote_engine, int32_t timeout
   HIXL_EVENT("[HixlEngine] disconnect start, local_engine:%s, remote_engine:%s, timeout_ms:%d", local_engine_.c_str(),
              remote_engine.GetString(), timeout_in_millis);
   auto with_context = aclrt_context_.GetContextGuard();
-  Status ret = client_manager_.DestroyClient(remote_engine.GetString());
-  HIXL_CHK_STATUS_RET(ret, "[HixlEngine] Failed to disconnect, local_engine:%s, remote_engine:%s, timeout:%d ms",
+  HIXL_CHK_STATUS_RET(client_manager_.DestroyClient(remote_engine.GetString()),
+                      "[HixlEngine] Failed to disconnect, local_engine:%s, remote_engine:%s, timeout:%d ms",
                       local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
   HIXL_EVENT("[HixlEngine] disconnect success, local_engine:%s, remote_engine:%s, timeout_ms:%d", local_engine_.c_str(),
              remote_engine.GetString(), timeout_in_millis);
@@ -240,10 +240,9 @@ Status HixlEngine::GetTransferStatus(const TransferReq &req, TransferStatus &sta
   ClientPtr client = client_manager_.GetClientByReq(req);
   if (client == nullptr) {
     status = TransferStatus::FAILED;
-    HIXL_LOGE(PARAM_INVALID, "[HixlEngine] Request not found, request has been completed or does not exist, req: %p",
-              req);
-    return PARAM_INVALID;
   }
+  HIXL_CHK_BOOL_RET_STATUS(client != nullptr, PARAM_INVALID,
+                           "[HixlEngine] Request not found, request has been completed or does not exist, req:%p", req);
   Status ret = client->GetTransferStatus(req, status);
   if (ret != SUCCESS) {
     HIXL_LOGE(ret, "[HixlEngine] Failed to get status through client, local_engine:%s, req:%p, status:%d",

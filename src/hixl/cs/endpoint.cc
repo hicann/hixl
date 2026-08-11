@@ -112,7 +112,10 @@ Status Endpoint::Finalize() {
     auto hccl_ret = HcommProxy::MemUnreg(handle_, mem_handle);
     if (hccl_ret != HCCL_SUCCESS) {
       ret = hixl::ConvertHcommErrorToStatus(hccl_ret);
-      HIXL_LOGE(ret, "HcommMemUnreg failed, ret: %d", hccl_ret);
+      HIXL_REPORT_ERR_MSG("E19999", "Call api:HcommMemUnreg failed, ret:%d, ep_handle:%p, mem_handle:%p", hccl_ret,
+                          handle_, mem_handle);
+      HIXL_LOGE(ret, "Call api:HcommMemUnreg failed, ret:%d, ep_handle:%p, mem_handle:%p", hccl_ret, handle_,
+                mem_handle);
     }
 
     if (it.second.registered_dev_mem != nullptr) {
@@ -123,7 +126,8 @@ Status Endpoint::Finalize() {
   auto hccl_ret = HcommProxy::EndpointDestroy(handle_);
   if (hccl_ret != HCCL_SUCCESS) {
     ret = hixl::ConvertHcommErrorToStatus(hccl_ret);
-    HIXL_LOGE(ret, "HcommEndpointDestroy failed, ret: %d", hccl_ret);
+    HIXL_REPORT_ERR_MSG("E19999", "Call api:HcommEndpointDestroy failed, ret:%d, ep_handle:%p", hccl_ret, handle_);
+    HIXL_LOGE(ret, "Call api:HcommEndpointDestroy failed, ret:%d, ep_handle:%p", hccl_ret, handle_);
   }
   handle_ = nullptr;
   return ret;
@@ -143,7 +147,6 @@ bool Endpoint::NeedHostVaMapping() const {
 
 Status Endpoint::RegisterMem(const char *mem_tag, const CommMem &mem, MemHandle &mem_handle) {
   std::lock_guard<std::mutex> lock(mutex_);
-  Status ret = SUCCESS;
   HcclResult hccl_ret = HCCL_SUCCESS;
   void *registered_dev_mem = nullptr;
   ScopeGuard reg_guard([this, &mem, &registered_dev_mem]() {
@@ -167,11 +170,10 @@ Status Endpoint::RegisterMem(const char *mem_tag, const CommMem &mem, MemHandle 
   } else {
     hccl_ret = HcommProxy::MemReg(handle_, mem_tag, &mem, &mem_handle);
   }
-  if (hccl_ret != HCCL_SUCCESS && hccl_ret != HCCL_E_AGAIN) {
-    ret = hixl::ConvertHcommErrorToStatus(hccl_ret);
-    HIXL_LOGE(ret, "HcommMemReg failed, hccl_ret %d", hccl_ret);
-    return ret;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(hccl_ret == HCCL_SUCCESS || hccl_ret == HCCL_E_AGAIN,
+                           hixl::ConvertHcommErrorToStatus(hccl_ret),
+                           "Call api:HcommMemReg failed, ret:%d, ep_handle:%p, addr:%p, size:%lu bytes", hccl_ret,
+                           handle_, mem.addr, mem.size);
   reg_guard.Dismiss();
   HixlMemDesc desc{};
   if (mem_tag != nullptr) {
@@ -182,7 +184,7 @@ Status Endpoint::RegisterMem(const char *mem_tag, const CommMem &mem, MemHandle 
   reg_mems_[mem_handle] = desc;
   HIXL_LOGI("HcommMemReg success, ep_handle=%p, mem_handle=%p, addr=%p, size=%lu", handle_, mem_handle, mem.addr,
             mem.size);
-  return ret;
+  return SUCCESS;
 }
 
 Status Endpoint::DeregisterMem(MemHandle mem_handle) {
@@ -233,8 +235,8 @@ Status Endpoint::CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &c
   ChannelPtr channel = MakeShared<Channel>();
   HIXL_CHECK_NOTNULL(channel);
 
-  Status ret = channel->Create(handle_, ch_desc, engine, timeout_ms);
-  HIXL_CHK_STATUS_RET(ret, "[Channel] Create failed, local=[%s], remote=[%s], type=%d, index=%" PRIu64,
+  HIXL_CHK_STATUS_RET(channel->Create(handle_, ch_desc, engine, timeout_ms),
+                      "[Channel] Create failed, local=[%s], remote=[%s], type=%d, index=%" PRIu64,
                       EndpointToString(endpoint_).c_str(), EndpointToString(channel_desc.remote_endpoint).c_str(),
                       static_cast<int32_t>(channel_desc.channel_type), channel_desc.channel_index);
   ChannelHandle h = channel->GetChannelHandle();
@@ -255,8 +257,7 @@ Status Endpoint::DestroyChannel(ChannelHandle channel_handle) {
   HIXL_CHK_BOOL_RET_STATUS(it != channels_.end(), PARAM_INVALID, "DestroyChannel failed, channel not found, handle=%lu",
                            channel_handle);
 
-  Status ret = it->second->Destroy();
-  HIXL_CHK_STATUS_RET(ret, "Channel::Destroy failed, handle=%lu", channel_handle);
+  HIXL_CHK_STATUS_RET(it->second->Destroy(), "Channel::Destroy failed, handle=%lu", channel_handle);
 
   channels_.erase(it);
   HIXL_LOGI("Endpoint::DestroyChannel success, handle=%lu", channel_handle);

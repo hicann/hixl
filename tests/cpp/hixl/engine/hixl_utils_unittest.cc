@@ -437,4 +437,12 @@ TEST_F(HixlUtilsUTest, ProtocolToStringUnknownProtocolTest) {
   EXPECT_EQ(ProtocolToString(static_cast<CommProtocol>(99)), std::string("UNKNOWN(99)"));
 }
 
+TEST_F(HixlUtilsUTest, ConvertHcommErrorToStatus) {
+  EXPECT_EQ(ConvertHcommErrorToStatus(HCCL_SUCCESS), SUCCESS);
+  EXPECT_EQ(ConvertHcommErrorToStatus(HCCL_E_PARA), PARAM_INVALID);
+  EXPECT_EQ(ConvertHcommErrorToStatus(HCCL_E_TIMEOUT), TIMEOUT);
+  EXPECT_EQ(ConvertHcommErrorToStatus(HCCL_E_NOT_SUPPORT), UNSUPPORTED);
+  EXPECT_EQ(ConvertHcommErrorToStatus(HCCL_E_INTERNAL), FAILED);
+}
+
 }  // namespace hixl

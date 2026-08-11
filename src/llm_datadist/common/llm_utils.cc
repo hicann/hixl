@@ -290,7 +290,7 @@ bool LLMUtils::GetDataTypeLength(const ge::DataType data_type, uint32_t &length)
     length = static_cast<uint32_t>(size);
     return true;
   }
-  LLMLOGE(ge::LLM_PARAM_INVALID, "[Check][Param] data_type not support [%d]", static_cast<int32_t>(data_type));
+  LLMLOGE(ge::LLM_PARAM_INVALID, "[Check][Param] data_type is not supported [%d]", static_cast<int32_t>(data_type));
   return false;
 }
 
@@ -299,7 +299,7 @@ ge::Status LLMUtils::GetSizeInBytes(int64_t element_count, ge::DataType data_typ
                           "GetSizeInBytes failed, element_count:%" PRId64 " less than 0.", element_count);
   uint32_t type_size = 0U;
   LLM_CHK_BOOL_RET_STATUS(GetDataTypeLength(data_type, type_size), ge::LLM_PARAM_INVALID,
-                          "Failed to get type length, data_type:%d not support.", data_type);
+                          "Failed to get type length, data_type:%d is not supported.", data_type);
   if (type_size > ge::kDataTypeSizeBitOffset) {
     const auto bit_size = type_size - ge::kDataTypeSizeBitOffset;
     LLM_CHK_BOOL_RET_STATUS(!CheckMultiplyOverflowInt64(element_count, static_cast<int64_t>(bit_size)),

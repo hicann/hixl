@@ -292,49 +292,37 @@ Status ParseIpAddress(const std::string &ip_str, CommAddr &addr) {
 
 Status ParseHccsCommId(const std::string &comm_id_str, uint32_t &device_id) {
   constexpr size_t kMaxHccsCommIdLen = 10U;
-  if (comm_id_str.empty() || comm_id_str.length() > kMaxHccsCommIdLen) {
-    HIXL_LOGE(PARAM_INVALID, "Invalid hccs comm_id length: %zu, max allowed: %zu", comm_id_str.length(),
-              kMaxHccsCommIdLen);
-    return PARAM_INVALID;
-  }
-  if (!std::all_of(comm_id_str.begin(), comm_id_str.end(), [](unsigned char c) { return std::isdigit(c); })) {
-    HIXL_LOGE(PARAM_INVALID, "Invalid hccs comm_id: %s", comm_id_str.c_str());
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(!comm_id_str.empty() && comm_id_str.length() <= kMaxHccsCommIdLen, PARAM_INVALID,
+                           "Invalid hccs comm_id length:%zu, max:%zu", comm_id_str.length(), kMaxHccsCommIdLen);
+  HIXL_CHK_BOOL_RET_STATUS(
+      std::all_of(comm_id_str.begin(), comm_id_str.end(), [](unsigned char c) { return std::isdigit(c); }),
+      PARAM_INVALID, "Invalid hccs comm_id:%s", comm_id_str.c_str());
 
   uint64_t parsed = 0;
   for (const unsigned char c : comm_id_str) {
     parsed = parsed * 10U + static_cast<uint64_t>(c - '0');
-    if (parsed > static_cast<uint64_t>(std::numeric_limits<uint32_t>::max())) {
-      HIXL_LOGE(PARAM_INVALID, "hccs comm_id out of range: %s", comm_id_str.c_str());
-      return PARAM_INVALID;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(parsed <= static_cast<uint64_t>(std::numeric_limits<uint32_t>::max()), PARAM_INVALID,
+                             "hccs comm_id out of range:%s", comm_id_str.c_str());
   }
   device_id = static_cast<uint32_t>(parsed);
   return SUCCESS;
 }
 
 Status ParseEidAddress(const std::string &eid_str, CommAddr &addr) {
-  if (eid_str.length() != kEidHexStrLen) {
-    HIXL_LOGE(PARAM_INVALID, "Invalid EID format: %s. Expected %zu hexadecimal characters without colons.",
-              eid_str.c_str(), kEidHexStrLen);
-    return PARAM_INVALID;
-  }
-
-  if (!std::all_of(eid_str.begin(), eid_str.end(), [](unsigned char c) { return std::isxdigit(c); })) {
-    HIXL_LOGE(PARAM_INVALID, "Invalid EID: %s. Only hexadecimal characters are allowed.", eid_str.c_str());
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(eid_str.length() == kEidHexStrLen, PARAM_INVALID,
+                           "Invalid EID format:%s, expected %zu hexadecimal characters without colons", eid_str.c_str(),
+                           kEidHexStrLen);
+  HIXL_CHK_BOOL_RET_STATUS(
+      std::all_of(eid_str.begin(), eid_str.end(), [](unsigned char c) { return std::isxdigit(c); }), PARAM_INVALID,
+      "Invalid EID:%s, only hexadecimal characters are allowed", eid_str.c_str());
 
   (void)memset_s(addr.eid, COMM_ADDR_EID_LEN, 0, COMM_ADDR_EID_LEN);
   for (size_t i = 0; i < COMM_ADDR_EID_LEN; ++i) {
     const std::string segment = eid_str.substr(i * 2, 2);
     try {
       const unsigned long value = std::stoul(segment, nullptr, 16);
-      if (value > UINT8_MAX) {
-        HIXL_LOGE(PARAM_INVALID, "Invalid segment %zu in EID: %s. Maximum value is 0xFF.", i, segment.c_str());
-        return PARAM_INVALID;
-      }
+      HIXL_CHK_BOOL_RET_STATUS(value <= UINT8_MAX, PARAM_INVALID,
+                               "Invalid segment:%zu in EID:%s, maximum value is 0xFF", i, segment.c_str());
       addr.eid[i] = static_cast<uint8_t>(value);
     } catch (const std::invalid_argument &) {
       HIXL_LOGE(PARAM_INVALID, "Failed to convert segment %zu of EID: %s to integer.", i, segment.c_str());
@@ -376,10 +364,8 @@ Status ParseEndpointPlacement(const EndpointConfig &endpoint_config, EndpointDes
                                                                        {kPlacementDevice, ENDPOINT_LOC_TYPE_DEVICE}};
 
   const auto placement_it = kPlacementMap.find(endpoint_config.placement);
-  if (placement_it == kPlacementMap.end()) {
-    HIXL_LOGE(PARAM_INVALID, "Unsupported placement: %s", endpoint_config.placement.c_str());
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(placement_it != kPlacementMap.end(), PARAM_INVALID, "Unsupported placement:%s",
+                           endpoint_config.placement.c_str());
   endpoint.loc.locType = placement_it->second;
   return SUCCESS;
 }
@@ -392,10 +378,8 @@ Status ParseEndpointProtocol(const EndpointConfig &endpoint_config, EndpointDesc
                                                                    {kProtocolHccs, COMM_PROTOCOL_HCCS}};
 
   const auto protocol_it = kProtocolMap.find(endpoint_config.protocol);
-  if (protocol_it == kProtocolMap.end()) {
-    HIXL_LOGE(PARAM_INVALID, "Unsupported protocol: %s", endpoint_config.protocol.c_str());
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(protocol_it != kProtocolMap.end(), PARAM_INVALID, "Unsupported protocol:%s",
+                           endpoint_config.protocol.c_str());
   endpoint.protocol = protocol_it->second;
   return SUCCESS;
 }
@@ -422,17 +406,14 @@ Status ParseProtocolDesc(const std::vector<std::string> &protocol_desc, std::set
   desc_set.clear();
   for (const auto &desc : protocol_desc) {
     const auto split_pos = desc.find(':');
-    if (split_pos == std::string::npos || split_pos == 0U || split_pos + 1U >= desc.size() ||
-        desc.find(':', split_pos + 1U) != std::string::npos) {
-      HIXL_LOGE(PARAM_INVALID, "Invalid protocol_desc: %s, expected format protocol:placement", desc.c_str());
-      return PARAM_INVALID;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(split_pos != std::string::npos && split_pos > 0U && split_pos + 1U < desc.size() &&
+                                 desc.find(':', split_pos + 1U) == std::string::npos,
+                             PARAM_INVALID, "Invalid protocol_desc:%s, expected format protocol:placement",
+                             desc.c_str());
     const std::string protocol = desc.substr(0, split_pos);
     const std::string placement = desc.substr(split_pos + 1U);
-    if (!IsSupportedProtocolDesc(protocol, placement)) {
-      HIXL_LOGE(PARAM_INVALID, "Unsupported protocol_desc: %s", desc.c_str());
-      return PARAM_INVALID;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(IsSupportedProtocolDesc(protocol, placement), PARAM_INVALID,
+                             "Unsupported protocol_desc:%s", desc.c_str());
     desc_set.insert(BuildProtocolDescKey(protocol, placement));
   }
   return SUCCESS;

@@ -29,11 +29,12 @@ Status PollForWriteReady(int32_t fd, int64_t remaining_us) {
     return TIMEOUT;
   }
   if (poll_ret < 0) {
-    if (errno == EINTR) {
+    const int32_t poll_errno = errno;
+    if (poll_errno == EINTR) {
       return SUCCESS;
     }
-    LLMLOGE(FAILED, "Socket poll failed, error msg:%s, errno:%d", strerror(errno), errno);
-    return FAILED;
+    ADXL_CHK_BOOL_RET_STATUS(poll_ret >= 0, FAILED, "Call api:poll failed, ret:%d, fd:%d, errno:%d, error_msg:%s",
+                             poll_ret, fd, poll_errno, strerror(poll_errno));
   }
   return SUCCESS;
 }

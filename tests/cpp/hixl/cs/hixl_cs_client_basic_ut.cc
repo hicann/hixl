@@ -227,7 +227,7 @@ TEST_F(HixlCSClientFixture, BatchPutFailsWhenDeviceEndpointImportsOnlyHostFlag) 
 
   void *query_handle = nullptr;
   HixlOneSideOpDesc op_descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
-  EXPECT_EQ(cli.BatchTransferAsync(false, 1, op_descs, &query_handle), FAILED);
+  EXPECT_EQ(cli.BatchTransferAsync(false, 1, op_descs, &query_handle), PARAM_INVALID);
   EXPECT_EQ(query_handle, nullptr);
 }
 
@@ -410,7 +410,7 @@ TEST_F(HixlCSClientFixture, BatchTransferWithRetryLogic) {
 
 // 测试传输任务在 ChannelFenceOnThread 执行失败时的错误处理
 // 场景：传输过程中触发重试，在重试时设置 Fence 返回 HCCL_E_PARA（非0非20）
-// 验证 BatchTransfer 返回 FAILED
+// 验证 BatchTransfer 返回 PARAM_INVALID
 TEST_F(HixlCSClientFixture, BatchTransferChannelFenceFailure) {
   const char *client_ip = "127.0.0.1";
   uint32_t port = 22341;
@@ -427,12 +427,12 @@ TEST_F(HixlCSClientFixture, BatchTransferChannelFenceFailure) {
   // 设置在重试时 Fence 返回 HCCL_E_PARA
   SetNextFenceFailure(HCCL_E_PARA);
 
-  // 批量传输应该失败，因为 Fence 执行失败
-  EXPECT_EQ(cli.BatchTransferAsync(false, 2, descs, &query_handle), FAILED);
+  // 批量传输返回 Fence 的转换错误码
+  EXPECT_EQ(cli.BatchTransferAsync(false, 2, descs, &query_handle), PARAM_INVALID);
 }
 
 // 测试传输任务在 ReadNbiOnThread 执行失败时的错误处理
-// 场景：设置 ReadNbi 返回 HCCL_E_PARA（非0非20），验证 BatchTransfer 返回 FAILED
+// 场景：设置 ReadNbi 返回 HCCL_E_PARA（非0非20），验证 BatchTransfer 返回 PARAM_INVALID
 TEST_F(HixlCSClientFixture, BatchTransferReadNbiFailure) {
   const char *client_ip = "127.0.0.1";
   uint32_t port = 22342;
@@ -449,11 +449,11 @@ TEST_F(HixlCSClientFixture, BatchTransferReadNbiFailure) {
   // 设置 ReadNbi 返回 HCCL_E_PARA
   SetNextNbiFailure(HCCL_E_PARA);
 
-  // 批量传输应该失败，因为 ReadNbi 执行失败
-  EXPECT_EQ(cli.BatchTransferAsync(true, 2, descs, &query_handle), FAILED);
+  // 批量传输返回 ReadNbi 的转换错误码
+  EXPECT_EQ(cli.BatchTransferAsync(true, 2, descs, &query_handle), PARAM_INVALID);
 }
 
-TEST_F(HixlCSClientFixture, BatchTransferRuntimeFailureLatchesClient) {
+TEST_F(HixlCSClientFixture, BatchTransferParamErrorDoesNotLatchClient) {
   const char *client_ip = "127.0.0.1";
   uint32_t port = 22343;
   PrepareConnectionAndImport(cli, client_ip, port);
@@ -463,13 +463,13 @@ TEST_F(HixlCSClientFixture, BatchTransferRuntimeFailureLatchesClient) {
   void *query_handle = nullptr;
 
   SetNextNbiFailure(HCCL_E_PARA);
-  EXPECT_EQ(cli.BatchTransferAsync(false, 1, descs, &query_handle), FAILED);
+  EXPECT_EQ(cli.BatchTransferAsync(false, 1, descs, &query_handle), PARAM_INVALID);
   EXPECT_EQ(query_handle, nullptr);
   EXPECT_EQ(GetNbiCallCount(), 1U);
 
   SetNextNbiFailure(HCCL_E_PARA);
-  EXPECT_EQ(cli.BatchTransferSync(false, 1, descs, 1000U), FAILED);
-  EXPECT_EQ(GetNbiCallCount(), 1U);
+  EXPECT_EQ(cli.BatchTransferSync(false, 1, descs, 1000U), PARAM_INVALID);
+  EXPECT_EQ(GetNbiCallCount(), 2U);
 }
 
 TEST_F(HixlCSClientFixture, BatchTransferParamInvalidDoesNotLatchClient) {

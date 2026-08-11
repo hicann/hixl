@@ -15,6 +15,7 @@
 #include <algorithm>
 #include "nlohmann/json.hpp"
 #include "common/ctrl_msg_plugin.h"
+#include "common/scope_guard.h"
 
 #include "securec.h"
 
@@ -150,27 +151,21 @@ hixl::Status FillExportDescFromJsonField(const nlohmann::json &j_export, hixl::H
     return hixl::SUCCESS;
   }
   void *buf = std::malloc(n);
-  if (buf == nullptr) {
-    HIXL_LOGE(hixl::FAILED, "[HixlClient] malloc export_desc buffer failed, len=%zu", n);
-    return hixl::FAILED;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(buf != nullptr, hixl::FAILED,
+                           "[HixlClient] Call api:malloc export_desc buffer failed, len:%zu bytes", n);
+  HIXL_DISMISSABLE_GUARD(buf_guard, ([buf]() { std::free(buf); }));
   uint8_t *dst = static_cast<uint8_t *>(buf);
   for (size_t i = 0; i < n; ++i) {
-    if (!j_export[i].is_number_integer()) {
-      HIXL_LOGE(hixl::PARAM_INVALID, "[HixlClient] export_desc[%zu] is not integer", i);
-      std::free(buf);
-      return hixl::PARAM_INVALID;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(j_export[i].is_number_integer(), hixl::PARAM_INVALID,
+                             "[HixlClient] export_desc[%zu] is not integer", i);
     const int v = j_export[i].get<int>();
-    if (v < 0 || v > UINT8_MAX) {
-      HIXL_LOGE(hixl::PARAM_INVALID, "[HixlClient] export_desc[%zu]=%d out of range [0,255]", i, v);
-      std::free(buf);
-      return hixl::PARAM_INVALID;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(v >= 0 && v <= UINT8_MAX, hixl::PARAM_INVALID,
+                             "[HixlClient] export_desc[%zu]:%d out of range [0,255]", i, v);
     dst[i] = static_cast<uint8_t>(v);
   }
   desc.export_desc = buf;
   desc.export_len = static_cast<uint32_t>(n);
+  HIXL_DISMISS_GUARD(buf_guard);
   return hixl::SUCCESS;
 }
 
@@ -182,8 +177,7 @@ hixl::Status ParseOneMemDesc(const nlohmann::json &item, uint32_t idx, hixl::Hix
       return hixl::PARAM_INVALID;
     }
     CommMem mem{};
-    hixl::Status ret = ParseMemObject(item["mem"], mem);
-    HIXL_CHK_STATUS_RET(ret);
+    HIXL_CHK_STATUS_RET(ParseMemObject(item["mem"], mem));
     out.mem = mem;
     out.tag = item["tag"].get<std::string>();
     if (item.contains("registered_dev_mem")) {
@@ -239,8 +233,7 @@ hixl::Status ParseGetRemoteMemJson(const char *json_ptr, size_t json_len, std::v
   }
 
   const nlohmann::json *arr = nullptr;
-  hixl::Status ret = ParseResultAndGetArray(j, arr);
-  HIXL_CHK_STATUS_RET(ret);
+  HIXL_CHK_STATUS_RET(ParseResultAndGetArray(j, arr));
 
   return ParseMemDescsArray(*arr, mem_descs);
 }

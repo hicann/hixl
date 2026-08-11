@@ -14,6 +14,8 @@
 #include <cstdint>
 #include <cstring>
 #include "endpoint_store.h"
+#include "depends/hccl/src/hccl_stub.h"
+#include "hccl/hccl_types.h"
 
 namespace hixl {
 namespace {
@@ -240,6 +242,16 @@ TEST(EndpointStoreUt, EndpointPairKeepsHostVaMappingForDeviceUboe) {
 
   EXPECT_TRUE(Endpoint(device_uboe, host_uboe).NeedHostVaMapping());
   EXPECT_TRUE(Endpoint(device_ubg, host_ubg).NeedHostVaMapping());
+}
+
+TEST(EndpointStoreUt, FinalizePropagatesEndpointDestroyFailure) {
+  EndpointStore store;
+  EndpointHandle created_handle = nullptr;
+  ASSERT_EQ(store.CreateEndpoint(MakeRoceIpv4Endpoint("127.0.0.1"), created_handle), SUCCESS);
+  ASSERT_NE(created_handle, nullptr);
+
+  SetNextEndpointDestroyFailure(static_cast<int32_t>(HcclResult::HCCL_E_INTERNAL));
+  EXPECT_NE(store.Finalize(), SUCCESS);
 }
 
 }  // namespace hixl

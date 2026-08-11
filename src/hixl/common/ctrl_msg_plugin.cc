@@ -235,8 +235,10 @@ Status CtrlMsgPlugin::Send(int32_t fd, const void *buf, size_t len, int32_t &err
       continue;
     } else if (rc <= 0) {
       err_no = errno;
-      HIXL_LOGE(FAILED, "Socket write failed, error msg:%s, errno:%d", strerror(errno), errno);
-      return FAILED;
+      HIXL_CHK_BOOL_RET_STATUS(false, FAILED,
+                               "Call api:write failed, ret:%ld, fd:%d, remaining_size:%ld bytes, errno:%d, "
+                               "error_msg:%s",
+                               rc, fd, nbytes, err_no, strerror(err_no));
     }
     pos += rc;
     nbytes -= rc;
@@ -255,32 +257,39 @@ Status CtrlMsgPlugin::Recv(int32_t fd, void *buf, size_t len, uint32_t timeout_m
     auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
     int64_t remaining_ms = static_cast<int64_t>(timeout_ms) - elapsed_ms;
     if (remaining_ms <= 0) {
-      HIXL_LOGE(TIMEOUT, "Socket read timeout! Target: %zu bytes, Left: %zd bytes, Elapsed: %ld ms", len, nbytes,
-                elapsed_ms);
-      return TIMEOUT;
+      HIXL_CHK_BOOL_RET_STATUS(false, TIMEOUT,
+                               "Call api:read timed out, fd:%d, size:%zu bytes, remaining_size:%ld bytes, "
+                               "elapsed:%ld ms, timeout:%u ms",
+                               fd, len, nbytes, elapsed_ms, timeout_ms);
     }
     struct pollfd pfd = {};
     pfd.fd = fd;
     pfd.events = POLLIN;
     int ret = poll(&pfd, 1, static_cast<int>(remaining_ms));
     if (ret == 0) {
-      HIXL_LOGE(TIMEOUT, "Socket read poll timeout! Waited %ld ms", remaining_ms);
-      return TIMEOUT;
+      HIXL_CHK_BOOL_RET_STATUS(false, TIMEOUT, "Call api:poll timed out, ret:%d, fd:%d, remaining_timeout:%ld ms", ret,
+                               fd, remaining_ms);
     } else if (ret < 0) {
-      if (errno == EINTR) {
+      const int32_t saved_errno = errno;
+      if (saved_errno == EINTR) {
         continue;
       }
-      HIXL_LOGE(FAILED, "Socket poll failed, errno:%d, msg:%s", errno, strerror(errno));
-      return FAILED;
+      HIXL_CHK_BOOL_RET_STATUS(false, FAILED,
+                               "Call api:poll failed, ret:%d, fd:%d, remaining_timeout:%ld ms, errno:%d, "
+                               "error_msg:%s",
+                               ret, fd, remaining_ms, saved_errno, strerror(saved_errno));
     }
 
     auto rc = read(fd, pos, static_cast<size_t>(nbytes));
-    if (rc < 0 && (errno == EAGAIN || errno == EINTR)) {
+    const int32_t saved_errno = errno;
+    if (rc < 0 && (saved_errno == EAGAIN || saved_errno == EINTR)) {
       HIXL_LOGI("Socket read need to eagain");
       continue;
     } else if (rc <= 0) {
-      HIXL_LOGE(FAILED, "Socket read failed, error msg:%s, errno:%d", strerror(errno), errno);
-      return FAILED;
+      HIXL_CHK_BOOL_RET_STATUS(false, FAILED,
+                               "Call api:read failed, ret:%ld, fd:%d, remaining_size:%ld bytes, errno:%d, "
+                               "error_msg:%s",
+                               rc, fd, nbytes, saved_errno, strerror(saved_errno));
     }
     pos += rc;
     nbytes -= rc;
