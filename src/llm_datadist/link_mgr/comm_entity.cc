@@ -426,11 +426,11 @@ bool CommEntity::CheckEntityInfo() const {
   return is_exchanged_mem_;
 }
 
-void *CommEntity::GetReq() {
+void *CommEntity::GetReq() const {
   return mem_info_ptr_->req_;
 }
 
-void *CommEntity::GetResp() {
+void *CommEntity::GetResp() const {
   return mem_info_ptr_->resp_;
 }
 
@@ -702,7 +702,7 @@ const std::chrono::steady_clock::time_point &CommEntity::GetTimeoutPoint() const
   return timeout_point_;
 }
 
-void CommEntity::ClearResponseFlags() {
+void CommEntity::ClearResponseFlags() const {
   *PtrToPtr<void, int32_t>(info_.local_resp_flag_ptr) = 0;
 }
 

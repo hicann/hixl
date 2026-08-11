@@ -41,13 +41,13 @@ class Endpoint {
   Status ExportMem(std::vector<HixlMemDesc> &mem_descs);
   Status CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &channel_handle, uint32_t timeout_ms);
   Status DestroyChannel(ChannelHandle channel_handle);
-  Status GetMemDesc(MemHandle mem_handle, HixlMemDesc &desc);
-  Status MemImport(const void *mem_desc, uint32_t desc_len, CommMem &out_buf);
+  Status GetMemDesc(MemHandle mem_handle, HixlMemDesc &desc) const;
+  Status MemImport(const void *mem_desc, uint32_t desc_len, CommMem &out_buf) const;
   void SetPort(uint32_t port);
   uint32_t GetPort() const;
 
  private:
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   EndpointDesc endpoint_{};
   EndpointHandle handle_ = nullptr;
   std::map<MemHandle, HixlMemDesc> reg_mems_;

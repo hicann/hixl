@@ -42,7 +42,7 @@
 | 13.1 | delete/delete[] 配对使用 | 类和对象 |
 | 13.2 | 禁止 std::move 操作 const 对象 | 类和对象 |
 | 13.3 | 严格使用 virtual/override/final | 类和对象 |
-| 13.4 | 不修改成员的成员函数用 const 修饰 | 类和对象 |
+| 13.4 | 不会修改成员变量的成员函数必须使用 const 修饰 | 类和对象 |
 | 13.5 | 禁止析构函数抛出异常 | 类和对象 |
 | 14.1 | 使用 RAII 追踪动态分配 | 函数设计 |
 | 14.2 | 非局部 lambda 避免按引用捕获 | 函数设计 |
@@ -340,7 +340,7 @@ class FinalDerived : public Derived {
 
 ##### 规则 13.4 不会修改成员变量的成员函数必须使用 const 修饰
 
-> **说明**：const 成员函数向调用者承诺不修改对象状态，有助于编译器做正确性检查，也是 const-correctness 的基础。检视时标记为 SUSPICIOUS，提醒开发者补充 const。
+> **说明**：const 成员函数向调用者承诺不修改对象的成员变量，有助于编译器做正确性检查，也是 const-correctness 的基础。此处"修改成员变量"以 C++ 语法为准：指在函数体内直接写入 this 的非 mutable 成员，或通过 this 的非 const 成员访问器（如 operator[] 非 const 重载）取得可写引用。通过引用或指针参数修改参数指向的对象（即使该对象是 this 容器的元素）不受 const 约束，不构成违规。若成员函数未访问任何成员变量或成员函数（即不依赖 this），应优先使用 static 修饰而非 const，以明确表达函数与对象实例无关。检视时标记为 SUSPICIOUS，提醒开发者补充 const 或改为 static。
 
 ```cpp
 class Config {

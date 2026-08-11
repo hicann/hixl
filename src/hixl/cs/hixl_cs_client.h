@@ -110,7 +110,7 @@ class HixlCSClient {
                                   void **query_handle);
   Status BatchTransferDeviceSync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list,
                                  uint32_t timeout_ms);
-  Status ConvertHostMappedDescs(uint32_t list_num, HixlOneSideOpDesc *desc_list);
+  Status ConvertHostMappedDescs(uint32_t list_num, HixlOneSideOpDesc *desc_list) const;
   Status EnsureDeviceRemoteFlagInited();
   Status RegMemLocked(const char *mem_tag, const CommMem *mem, MemHandle *mem_handle);
   Status ImportRemoteMem(std::vector<HixlMemDesc> &desc_list, CommMem **remote_mem_list, char ***mem_tag_list,

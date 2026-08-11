@@ -395,7 +395,7 @@ Status HixlCSServer::SendMatchEndpointResp(int32_t fd, const MatchEndpointResp &
   return SUCCESS;
 }
 
-Status HixlCSServer::MatchEndpointMsg(int32_t fd, const char *msg, uint64_t msg_len) {
+Status HixlCSServer::MatchEndpointMsg(int32_t fd, const char *msg, uint64_t msg_len) const {
   HIXL_DISMISSABLE_GUARD(failed, ([fd, this]() {
                            MatchEndpointResp resp{};
                            resp.result = FAILED;
@@ -525,7 +525,7 @@ Status HixlCSServer::SendRemoteMemResp(int32_t fd, const GetRemoteMemResp &resp)
   return SUCCESS;
 }
 
-Status HixlCSServer::ExportMem(int32_t fd, const char *msg, uint64_t msg_len) {
+Status HixlCSServer::ExportMem(int32_t fd, const char *msg, uint64_t msg_len) const {
   HIXL_DISMISSABLE_GUARD(failed, ([fd, this]() {
                            GetRemoteMemResp resp{};
                            resp.result = FAILED;

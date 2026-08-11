@@ -80,8 +80,8 @@ class ThreadPool {
 
  private:
   void AddTemporaryThread();
-  void SetThreadName(const std::string &thread_type, uint32_t thread_idx);
-  void LogTempThreadExit(const char *reason, uint32_t thread_idx);
+  void SetThreadName(const std::string &thread_type, uint32_t thread_idx) const;
+  void LogTempThreadExit(const char *reason, uint32_t thread_idx) const;
   bool PopTask(std::function<void()> &task);
   void CleanupFinishedTempThreads();
 

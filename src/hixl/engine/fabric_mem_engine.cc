@@ -44,7 +44,7 @@ Status FabricMemEngine::CheckInitialized() const {
   return SUCCESS;
 }
 
-Status FabricMemEngine::ApplyVirtualMemoryConfig() {
+Status FabricMemEngine::ApplyVirtualMemoryConfig() const {
   if (fabric_mem_config_.has_capacity_tb) {
     HIXL_CHK_STATUS_RET(VirtualMemoryManager::GetInstance().SetVirtualMemoryCapacity(fabric_mem_config_.capacity_tb),
                         "[FabricMemEngine] Failed to set fabric memory capacity.");

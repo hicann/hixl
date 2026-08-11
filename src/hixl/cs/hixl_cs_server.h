@@ -51,10 +51,10 @@ class HixlCSServer {
  private:
   template <typename T>
   static Status Serialize(const T &msg, std::string &msg_str);
-  Status MatchEndpointMsg(int32_t fd, const char *msg, uint64_t msg_len);
+  Status MatchEndpointMsg(int32_t fd, const char *msg, uint64_t msg_len) const;
   Status CreateChannel(int32_t fd, const char *msg, uint64_t msg_len);
   Status DestroyChannel(int32_t fd, const char *msg, uint64_t msg_len);
-  Status ExportMem(int32_t fd, const char *msg, uint64_t msg_len);
+  Status ExportMem(int32_t fd, const char *msg, uint64_t msg_len) const;
   Status DoWait();
   void ProClientMsg(int32_t fd, std::shared_ptr<MsgReceiver> receiver);
   Status InitTransFinishedFlag();

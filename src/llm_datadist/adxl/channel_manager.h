@@ -33,7 +33,7 @@ class ChannelManager {
   Status Initialize(BufferTransferService *buffer_transfer_service);
   Status Finalize();
   Status CreateChannel(const ChannelInfo &channel_info, ChannelPtr &channel_ptr);
-  ChannelPtr GetChannel(ChannelType channel_type, const std::string &channel_id);
+  ChannelPtr GetChannel(ChannelType channel_type, const std::string &channel_id) const;
   Status DestroyChannel(ChannelType channel_type, const std::string &channel_id);
   void DestroyChannels();
   static void SetHeartbeatWaitTime(int32_t time_in_millis);
@@ -47,8 +47,8 @@ class ChannelManager {
 
   Status AddSocketToEpoll(int32_t fd, ChannelPtr channel);
 
-  std::vector<ChannelPtr> GetAllClientChannel();
-  std::vector<ChannelPtr> GetAllServerChannel();
+  std::vector<ChannelPtr> GetAllClientChannel() const;
+  std::vector<ChannelPtr> GetAllServerChannel() const;
 
   void SetDisconnectCallback(std::function<Status(const std::string &, int32_t)> callback) {
     disconnect_callback_ = callback;
@@ -102,7 +102,7 @@ class ChannelManager {
   std::condition_variable cv_;
 
   // mutex for map channels_
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   std::map<std::pair<ChannelType, std::string>, ChannelPtr> channels_;
 
   int epoll_fd_ = -1;

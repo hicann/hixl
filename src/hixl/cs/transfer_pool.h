@@ -103,7 +103,7 @@ class TransferPool {
   void DeleteSlotThreadContextForAbortLocked(Slot &slot, uint32_t slot_index) const;
   static void DestroySlotContextForAbortLocked(Slot &slot);
   void CleanupSlotAfterAbortReinitFailureLocked(Slot &slot, uint32_t slot_index) const;
-  Status ReinitSlotAfterAbortLocked(Slot &slot, uint32_t slot_index);
+  Status ReinitSlotAfterAbortLocked(Slot &slot, uint32_t slot_index) const;
   void ReturnSlotToFreeListLocked(uint32_t slot_index);
   void AbortSlotByIndexLocked(uint32_t slot_index);
 

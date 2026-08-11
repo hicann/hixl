@@ -27,16 +27,16 @@ class EndpointStore {
   Status CreateEndpoint(const EndpointDesc &endpoint, EndpointHandle &endpoint_handle);
   Status CreateEndpoint(const EndpointDesc &endpoint, EndpointHandle &endpoint_handle, bool need_host_va_mapping);
 
-  EndpointPtr GetEndpoint(EndpointHandle endpoint_handle);
+  EndpointPtr GetEndpoint(EndpointHandle endpoint_handle) const;
 
-  std::vector<EndpointHandle> GetAllEndpointHandles();
+  std::vector<EndpointHandle> GetAllEndpointHandles() const;
 
-  EndpointPtr MatchEndpoint(const EndpointDesc &endpoint, EndpointHandle &endpoint_handle);
+  EndpointPtr MatchEndpoint(const EndpointDesc &endpoint, EndpointHandle &endpoint_handle) const;
 
   Status Finalize();
 
  private:
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   std::map<EndpointHandle, EndpointPtr> endpoints_;
 
   Status StoreEndpoint(const EndpointPtr &endpoint, EndpointHandle &endpoint_handle);

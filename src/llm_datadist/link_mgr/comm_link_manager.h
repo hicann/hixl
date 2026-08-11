@@ -76,10 +76,10 @@ class CommLinkManager {
 
   ge::Status RegisterMem(CommMem *mem, void **mem_handle);
   ge::Status DeregisterGlobalMem(void *mem_handle);
-  std::vector<void *> GetAllRegisterMemHandles();
+  std::vector<void *> GetAllRegisterMemHandles() const;
 
  protected:
-  std::mutex handles_mutex_;
+  mutable std::mutex handles_mutex_;
   std::set<void *> handles_;
 
  private:

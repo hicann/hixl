@@ -92,7 +92,7 @@ Status ClientManager::GetOrCreateClient(const ClientConfig &config, const std::v
   return SUCCESS;
 }
 
-ClientPtr ClientManager::GetClient(const std::string &remote_engine) {
+ClientPtr ClientManager::GetClient(const std::string &remote_engine) const {
   std::lock_guard<std::mutex> lock(mutex_);
   const auto &it = clients_.find(remote_engine);
   if (it != clients_.cend()) {
@@ -224,7 +224,7 @@ void ClientManager::DestroyClientMutex(const std::string &remote_engine) {
   }
 }
 
-bool ClientManager::IsEmpty() {
+bool ClientManager::IsEmpty() const {
   std::lock_guard<std::mutex> lock(mutex_);
   return clients_.empty();
 }

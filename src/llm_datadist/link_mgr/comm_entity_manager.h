@@ -29,10 +29,10 @@ class CommEntityManager {
   ge::Status AddEntity(uint64_t peer_cluster_id, EntityPtr entity_ptr);
   ge::Status DestroyEntity(uint64_t peer_cluster_id);
   EntityPtr GetEntityByRemoteClusterId(const uint64_t remote_cluster_id);
-  std::vector<EntityPtr> QueryEntityByCommId(uint64_t comm_id);
-  void Dump();
+  std::vector<EntityPtr> QueryEntityByCommId(uint64_t comm_id) const;
+  void Dump() const;
   void DeleteEntities();
-  size_t GetEntitySize();
+  size_t GetEntitySize() const;
   ge::Status RemapRegisteredMemory(const std::vector<LLMMemInfo> &mem_infos);
   RegBufferPool *GetHostRegPool();
   RegBufferPool *GetDeviceRegPool();
@@ -47,7 +47,7 @@ class CommEntityManager {
   aclrtContext aclrt_context_{};
   std::atomic_uint64_t entity_id_gen_{1LU};
   std::atomic_bool mgr_high_priority_flag_{false};
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   std::unordered_map<uint64_t, EntityPtr> entity_map_{};
   std::map<uint64_t, uint64_t> cluster_id_to_entity_id_{};
   bool start_service_{false};

@@ -76,7 +76,7 @@ class HixlServer {
    * @brief 获取已注册内存信息列表，用于通过控制面Socket交换给对端
    * @return 已注册内存信息列表
    */
-  std::vector<MemInfo> GetRegisteredMemInfo();
+  std::vector<MemInfo> GetRegisteredMemInfo() const;
 
  private:
   Status RegisterNotifyHandlers();
@@ -85,7 +85,7 @@ class HixlServer {
 
   void *server_handle_ = nullptr;
   std::vector<EndpointConfig> data_endpoint_config_list_;
-  std::mutex mtx_;
+  mutable std::mutex mtx_;
   std::map<MemHandle, AddrInfo> handle_to_addr_;
   std::vector<NotifyDesc> notify_messages_;
   std::mutex notify_mutex_;

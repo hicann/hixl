@@ -62,11 +62,11 @@ class PageSpan : public ge::MemBlock, public LinkNode<PageSpan> {
     return page_len_;
   }
 
-  PageSpan *GetPrevBuddy() {
+  PageSpan *GetPrevBuddy() const {
     return buddy_link_.GetPrev();
   }
 
-  PageSpan *GetNextBuddy() {
+  PageSpan *GetNextBuddy() const {
     return buddy_link_.GetNext();
   }
 

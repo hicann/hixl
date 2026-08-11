@@ -42,7 +42,7 @@
 | 13.1 | Use delete/delete[] in matching pairs | Classes & Objects |
 | 13.2 | Do not use std::move on const objects | Classes & Objects |
 | 13.3 | Strictly use virtual/override/final | Classes & Objects |
-| 13.4 | Use const for member functions that do not modify members | Classes & Objects |
+| 13.4 | Member functions that do not modify member variables must be declared const | Classes & Objects |
 | 13.5 | Do not throw exceptions from destructors | Classes & Objects |
 | 14.1 | Use RAII to track dynamic allocations | Function Design |
 | 14.2 | Non-local lambdas should avoid capture by reference | Function Design |
@@ -338,7 +338,7 @@ class FinalDerived : public Derived {
 
 ##### Rule 13.4 Member functions that do not modify member variables must be declared const
 
-> **Note**: A const member function promises the caller that it will not modify the object state, which helps the compiler perform correctness checks and is the foundation of const-correctness. During review, mark as SUSPICIOUS to remind developers to add const.
+> **Note**: A const member function promises the caller that it will not modify the object's member variables, which helps the compiler perform correctness checks and is the foundation of const-correctness. "Modify member variables" here is defined by C++ syntax: writing directly to a non-mutable member of this, or obtaining a writable reference through a non-const member accessor (e.g., the non-const overload of operator[]). Modifying objects pointed to by reference or pointer parameters (even if those objects are elements of this's containers) is not constrained by const and does not constitute a violation. If a member function does not access any member variables or member functions (i.e., does not depend on this), prefer the static modifier over const to explicitly express that the function is independent of the object instance. During review, mark as SUSPICIOUS to remind developers to add const or change to static.
 
 ```cpp
 class Config {

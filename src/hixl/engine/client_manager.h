@@ -39,13 +39,13 @@ class ClientManager {
   Status Finalize();
   Status GetOrCreateClient(const ClientConfig &config, const std::vector<MemHandleInfo> &mem_info_list,
                            int32_t timeout_in_millis, ClientPtr &client_ptr);
-  ClientPtr GetClient(const std::string &remote_engine);
+  ClientPtr GetClient(const std::string &remote_engine) const;
   ClientPtr GetClientByReq(const TransferReq &req);
   Status DestroyClient(const std::string &remote_engine);
   void RegisterTransferReq(const TransferReq &req, const ClientPtr &client, const void *user_data);
   void EraseTransferReq(const TransferReq &req);
   std::vector<TransferReqInfo> GetOrderedReqs(size_t max_count);
-  bool IsEmpty();
+  bool IsEmpty() const;
 
  private:
   struct ReqOwner {
@@ -62,7 +62,7 @@ class ClientManager {
   void EraseTransferReqLocked(const TransferReq &req);
   void EraseReqIndexByClient(const ClientPtr &client);
 
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   std::map<std::string, ClientPtr> clients_;
   bool finalized_ = false;
   std::mutex client_mutexes_mutex_;

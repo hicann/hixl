@@ -385,7 +385,7 @@ void TransferPool::CleanupSlotAfterAbortReinitFailureLocked(Slot &slot, uint32_t
   slot.in_use = false;
 }
 
-Status TransferPool::ReinitSlotAfterAbortLocked(Slot &slot, uint32_t slot_index) {
+Status TransferPool::ReinitSlotAfterAbortLocked(Slot &slot, uint32_t slot_index) const {
   Status ret = InitOneSlotLocked(slot, slot_index);
   if (ret != SUCCESS) {
     HIXL_LOGE(ret, "[TransferPool] AbortSlotByIndexLocked re-init failed slot=%u device_id=%d", slot_index, device_id_);

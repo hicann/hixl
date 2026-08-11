@@ -113,7 +113,7 @@ class ChannelMsgHandler {
   Status StopDaemon();
   Status CreateChannel(const ChannelInfo &channel_info, bool is_client, const ChannelConnectInfo &peer_channel_info);
   Status ParseRankTable(const ChannelConnectInfo &peer_channel_info, std::string &rank_table, int32_t &local_rank_id,
-                        int32_t &peer_rank_id);
+                        int32_t &peer_rank_id) const;
   Status ConnectInfoProcess(const ChannelConnectInfo &peer_channel_info, int32_t timeout, bool is_client);
   Status ProcessConnectRequest(int32_t fd, const char *msg, uint64_t msg_len, bool &keep_fd);
   Status DisconnectInfoProcess(ChannelType channel_type, const ChannelDisconnectInfo &peer_disconnect_info);
@@ -130,7 +130,7 @@ class ChannelMsgHandler {
   Status ParseTrafficClass(const std::map<AscendString, AscendString> &options);
   Status ParseServiceLevel(const std::map<AscendString, AscendString> &options);
   Status DoConnect(const std::string &remote_engine, int32_t timeout_in_millis);
-  Status FillLocalConnectInfo(ChannelConnectInfo &channel_connect_info);
+  Status FillLocalConnectInfo(ChannelConnectInfo &channel_connect_info) const;
   Status StartChannelHeartbeat(const std::string &channel_id, ChannelType channel_type, int32_t fd, bool &keep_fd);
   Status ConnectToPeer(const std::string &remote_engine, int32_t timeout_in_millis, int32_t &conn_fd);
   Status ExchangeConnectInfo(int32_t conn_fd, int32_t timeout_in_millis, ChannelConnectInfo &peer_connect_info);
@@ -179,7 +179,7 @@ class ChannelMsgHandler {
 
   bool user_config_channel_pool_{false};
   aclrtContext aclrt_context_{nullptr};
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   std::map<MemHandle, AddrInfo> handle_to_addr_;
 
   std::string local_comm_name_;

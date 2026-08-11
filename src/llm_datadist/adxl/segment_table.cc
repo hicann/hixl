@@ -59,7 +59,7 @@ void SegmentTable::RemoveRange(const std::string &channel_id, uint64_t start, ui
   }
 }
 
-SegmentPtr SegmentTable::FindSegment(const std::string &channel_id, uint64_t start, uint64_t end) {
+SegmentPtr SegmentTable::FindSegment(const std::string &channel_id, uint64_t start, uint64_t end) const {
   std::lock_guard<std::mutex> lock(map_mutex_);
   auto channel_it = channel_2_segment_.find(channel_id);
   if (channel_it == channel_2_segment_.end()) {

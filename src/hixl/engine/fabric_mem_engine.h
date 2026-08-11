@@ -64,7 +64,7 @@ class FabricMemEngine : public hixl::Engine {
  private:
   Status CheckInitialized() const;
   static const std::unordered_set<std::string> kSupportedOptions;
-  Status ApplyVirtualMemoryConfig();
+  Status ApplyVirtualMemoryConfig() const;
   Status InitTransferService();
   Status StartControlServer();
   Status InitFabricMem();

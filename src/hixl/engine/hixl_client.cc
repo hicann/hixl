@@ -225,7 +225,7 @@ Status HixlClient::GetTransferStatus(const TransferReq &req, TransferStatus &sta
   return SUCCESS;
 }
 
-bool HixlClient::HasTransferReq(const TransferReq &req) {
+bool HixlClient::HasTransferReq(const TransferReq &req) const {
   return req_map_.find(req) != req_map_.end();
 }
 
@@ -356,7 +356,7 @@ Status HixlClient::CheckAlive() {
   return SUCCESS;
 }
 
-Status HixlClient::SendNotify(const NotifyDesc &notify, int32_t timeout_ms) {
+Status HixlClient::SendNotify(const NotifyDesc &notify, int32_t timeout_ms) const {
   std::lock_guard<std::mutex> lock(mutex_);
   NotifyMsg notify_msg{notify.name.GetString(), notify.notify_msg.GetString()};
 

@@ -560,7 +560,7 @@ void UbClientHandler::Dump(const char *reason, DumpLogLevel level) const {
 }
 
 Status UbClientHandler::ClassifyTransfers(const std::vector<TransferOpDesc> &op_descs,
-                                          std::map<CommType, std::vector<TransferOpDesc>> &table) {
+                                          std::map<CommType, std::vector<TransferOpDesc>> &table) const {
   for (const auto &op : op_descs) {
     uint64_t local_end = 0U;
     uint64_t remote_end = 0U;

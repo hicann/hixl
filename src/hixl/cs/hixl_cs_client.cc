@@ -992,7 +992,7 @@ Status HixlCSClient::BatchTransferSync(bool is_get, uint32_t list_num, const Hix
   return SUCCESS;
 }
 
-Status HixlCSClient::ConvertHostMappedDescs(uint32_t list_num, HixlOneSideOpDesc *desc_list) {
+Status HixlCSClient::ConvertHostMappedDescs(uint32_t list_num, HixlOneSideOpDesc *desc_list) const {
   return mem_store_.BatchConvertHostAddr(list_num, desc_list);
 }
 

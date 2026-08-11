@@ -416,7 +416,7 @@ void FabricMemSlotPool::SetAicpuDispatcher(FabricMemAicpuDispatcher *dispatcher)
   aicpu_dispatcher_ = dispatcher;
 }
 
-FabricMemAicpuDispatcher *FabricMemSlotPool::GetAicpuDispatcher() {
+FabricMemAicpuDispatcher *FabricMemSlotPool::GetAicpuDispatcher() const {
   std::lock_guard<std::mutex> lock(pool_mutex_);
   return aicpu_dispatcher_;
 }

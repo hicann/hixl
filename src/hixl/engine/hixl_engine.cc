@@ -411,7 +411,7 @@ Status HixlEngine::AutoConnect(const AscendString &remote_engine, int32_t timeou
 }
 
 void HixlEngine::BuildClientConfig(const AscendString &remote_engine, ClientConfig &config,
-                                   std::vector<MemHandleInfo> &mem_info_list, int32_t timeout_in_millis) {
+                                   std::vector<MemHandleInfo> &mem_info_list, int32_t timeout_in_millis) const {
   FillClientConfigFields(remote_engine, config, timeout_in_millis, auto_connect_);
   std::lock_guard<std::mutex> lock(mutex_);
   CopyMemInfoListLocked(mem_info_list);

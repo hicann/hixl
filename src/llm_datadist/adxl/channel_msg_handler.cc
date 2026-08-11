@@ -323,7 +323,7 @@ Status ChannelMsgHandler::CreateChannel(const ChannelInfo &channel_info, bool is
 }
 
 Status ChannelMsgHandler::ParseRankTable(const ChannelConnectInfo &peer_channel_info, std::string &rank_table,
-                                         int32_t &local_rank_id, int32_t &peer_rank_id) {
+                                         int32_t &local_rank_id, int32_t &peer_rank_id) const {
   auto rank_table_generator = llm::RankTableGeneratorFactory::Create(local_comm_res_, peer_channel_info.comm_res);
   ADXL_CHK_BOOL_RET_STATUS(rank_table_generator != nullptr, PARAM_INVALID, "Failed to create rank table generator.");
   ADXL_CHK_STATUS_RET(rank_table_generator->Generate(device_id_, rank_table), "Failed to generate rank table");
@@ -380,7 +380,7 @@ Status ChannelMsgHandler::ConnectInfoProcess(const ChannelConnectInfo &peer_chan
   return SUCCESS;
 }
 
-Status ChannelMsgHandler::FillLocalConnectInfo(ChannelConnectInfo &channel_connect_info) {
+Status ChannelMsgHandler::FillLocalConnectInfo(ChannelConnectInfo &channel_connect_info) const {
   channel_connect_info.channel_id = listen_info_;
   channel_connect_info.comm_res = local_comm_res_;
   {

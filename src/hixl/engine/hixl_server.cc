@@ -238,7 +238,7 @@ Status HixlServer::ProcessNotifyMsg(int32_t fd, const char *msg, uint64_t msg_le
   return result;
 }
 
-std::vector<MemInfo> HixlServer::GetRegisteredMemInfo() {
+std::vector<MemInfo> HixlServer::GetRegisteredMemInfo() const {
   std::lock_guard<std::mutex> lk(mtx_);
   std::vector<MemInfo> result;
   for (const auto &kv : handle_to_addr_) {

@@ -86,7 +86,7 @@ void ThreadPool::AddTemporaryThread() {
             thread_idx, idle_thrd_num_.load(), busy_thrd_num_.load(), total_thrd_num_.load(), max_thrd_num_);
 }
 
-void ThreadPool::SetThreadName(const std::string &thread_type, uint32_t thread_idx) {
+void ThreadPool::SetThreadName(const std::string &thread_type, uint32_t thread_idx) const {
   if (thread_name_prefix_.empty()) {
     return;
   }
@@ -94,7 +94,7 @@ void ThreadPool::SetThreadName(const std::string &thread_type, uint32_t thread_i
   HIXL_LOGD("set thread name to [%s], ret=%d", name.c_str(), pthread_setname_np(pthread_self(), name.c_str()));
 }
 
-void ThreadPool::LogTempThreadExit(const char *reason, uint32_t thread_idx) {
+void ThreadPool::LogTempThreadExit(const char *reason, uint32_t thread_idx) const {
   HIXL_LOGI("[ThreadPool:%s] temp thread %s, idx:%u, idle:%u, busy:%u, total:%u", thread_name_prefix_.c_str(), reason,
             thread_idx, idle_thrd_num_.load(), busy_thrd_num_.load(), total_thrd_num_.load());
 }

@@ -400,7 +400,7 @@ void ChannelManager::SetHeartbeatWaitTime(int32_t time_in_millis) {
   wait_time_in_millis_ = time_in_millis;
 }
 
-std::vector<ChannelPtr> ChannelManager::GetAllClientChannel() {
+std::vector<ChannelPtr> ChannelManager::GetAllClientChannel() const {
   std::lock_guard<std::mutex> lock(mutex_);
   std::vector<ChannelPtr> channels;
   for (const auto &it : channels_) {
@@ -411,7 +411,7 @@ std::vector<ChannelPtr> ChannelManager::GetAllClientChannel() {
   return channels;
 }
 
-std::vector<ChannelPtr> ChannelManager::GetAllServerChannel() {
+std::vector<ChannelPtr> ChannelManager::GetAllServerChannel() const {
   std::lock_guard<std::mutex> lock(mutex_);
   std::vector<ChannelPtr> channels;
   for (const auto &it : channels_) {
@@ -483,7 +483,7 @@ void ChannelManager::CheckHeartbeatTimeouts() {
   }
 }
 
-ChannelPtr ChannelManager::GetChannel(ChannelType channel_type, const std::string &channel_id) {
+ChannelPtr ChannelManager::GetChannel(ChannelType channel_type, const std::string &channel_id) const {
   std::lock_guard<std::mutex> lock(mutex_);
   const auto &it = channels_.find(std::make_pair(channel_type, channel_id));
   if (it != channels_.cend()) {

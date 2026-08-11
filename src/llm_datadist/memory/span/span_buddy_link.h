@@ -21,11 +21,11 @@ class SpanBuddyLink {
     Clear();
   }
 
-  PageSpan *GetPrev() {
+  PageSpan *GetPrev() const {
     return prev_;
   }
 
-  PageSpan *GetNext() {
+  PageSpan *GetNext() const {
     return next_;
   }
 

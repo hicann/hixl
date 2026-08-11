@@ -264,7 +264,7 @@ Status Endpoint::DestroyChannel(ChannelHandle channel_handle) {
   return SUCCESS;
 }
 
-Status Endpoint::MemImport(const void *mem_desc, uint32_t desc_len, CommMem &out_buf) {
+Status Endpoint::MemImport(const void *mem_desc, uint32_t desc_len, CommMem &out_buf) const {
   std::lock_guard<std::mutex> lock(mutex_);
   HIXL_CHECK_NOTNULL(handle_);
   HIXL_CHECK_NOTNULL(mem_desc);
@@ -273,7 +273,7 @@ Status Endpoint::MemImport(const void *mem_desc, uint32_t desc_len, CommMem &out
   return SUCCESS;
 }
 
-Status Endpoint::GetMemDesc(MemHandle mem_handle, HixlMemDesc &desc) {
+Status Endpoint::GetMemDesc(MemHandle mem_handle, HixlMemDesc &desc) const {
   std::lock_guard<std::mutex> lock(mutex_);
   auto it = reg_mems_.find(mem_handle);
   if (it != reg_mems_.end()) {

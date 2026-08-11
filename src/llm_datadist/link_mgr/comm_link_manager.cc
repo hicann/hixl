@@ -471,7 +471,7 @@ ge::Status CommLinkManager::DeregisterGlobalMem(void *mem_handle) {
   return ge::SUCCESS;
 }
 
-std::vector<void *> CommLinkManager::GetAllRegisterMemHandles() {
+std::vector<void *> CommLinkManager::GetAllRegisterMemHandles() const {
   std::lock_guard<std::mutex> lock(handles_mutex_);
   return std::vector<void *>(handles_.begin(), handles_.end());
 }

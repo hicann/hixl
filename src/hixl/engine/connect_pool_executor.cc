@@ -125,14 +125,14 @@ void ConnectPoolExecutor::SetStatus(const AscendString &remote_engine, const Asy
   }
 }
 
-Status ConnectPoolExecutor::GetStatus(const AscendString &remote_engine, AsyncConnectStatus &status) {
+Status ConnectPoolExecutor::GetStatus(const AscendString &remote_engine, AsyncConnectStatus &status) const {
   std::unique_lock<std::mutex> lock(task_result_mutex_);
   const auto &it = task_result_.find(remote_engine);
   status = (it == task_result_.end()) ? AsyncConnectStatus::NOT_CONNECT : it->second;
   return SUCCESS;
 }
 
-Status ConnectPoolExecutor::GetStatus(std::map<AscendString, AsyncConnectStatus> &statuses) {
+Status ConnectPoolExecutor::GetStatus(std::map<AscendString, AsyncConnectStatus> &statuses) const {
   statuses.clear();
   std::unique_lock<std::mutex> lock(task_result_mutex_);
   std::copy(task_result_.begin(), task_result_.end(), std::inserter(statuses, statuses.begin()));

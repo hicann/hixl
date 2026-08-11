@@ -111,7 +111,7 @@ class HixlClient {
    */
   Status GetTransferStatus(const TransferReq &req, TransferStatus &status);
 
-  Status SendNotify(const NotifyDesc &notify, int32_t timeout_ms);
+  Status SendNotify(const NotifyDesc &notify, int32_t timeout_ms) const;
 
   Status CheckAlive();
 
@@ -122,7 +122,7 @@ class HixlClient {
   Status RecvEndpointInfoResp(int32_t fd, std::vector<EndpointConfig> &remote_endpoint_list, uint32_t timeout_ms) const;
   Status RecvNotifyAck(int32_t fd, int32_t timeout_ms) const;
   void CloseCtrlSocket();
-  bool HasTransferReq(const TransferReq &req);
+  bool HasTransferReq(const TransferReq &req) const;
   void ClearTransferReqs();
   void RemoveTransferReq(const TransferReq &req);
   void LogLinkPairs(const char *phase) const;
@@ -138,7 +138,7 @@ class HixlClient {
   int32_t ctrl_socket_{-1};
   std::unique_ptr<IClientHandler> client_handler_;
   std::vector<HandlerCreateArgs::EndpointPair> link_pairs_;
-  std::mutex mutex_;  // 所有方法串行执行，不支持并发调用
+  mutable std::mutex mutex_;  // 所有方法串行执行，不支持并发调用
   std::map<TransferReq, TransferInfo> req_map_;
   std::optional<uint8_t> qos_;
   std::optional<uint32_t> max_active_channels_;

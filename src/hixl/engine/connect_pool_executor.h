@@ -45,9 +45,9 @@ class ConnectPoolExecutor {
 
   void SetStatus(const AscendString &remote_engine, const AsyncConnectStatus status);
 
-  Status GetStatus(const AscendString &remote_engine, AsyncConnectStatus &status);
+  Status GetStatus(const AscendString &remote_engine, AsyncConnectStatus &status) const;
 
-  Status GetStatus(std::map<AscendString, AsyncConnectStatus> &statuses);
+  Status GetStatus(std::map<AscendString, AsyncConnectStatus> &statuses) const;
 
  private:
   bool IsInitialized() const;
@@ -64,7 +64,7 @@ class ConnectPoolExecutor {
   std::list<ConnectPoolExecutorTask> task_list_;
   std::set<AscendString> task_doing_set_;
 
-  std::mutex task_result_mutex_;
+  mutable std::mutex task_result_mutex_;
   std::map<AscendString, AsyncConnectStatus> task_result_;
 
   OptionalAclrtContext ctx_;

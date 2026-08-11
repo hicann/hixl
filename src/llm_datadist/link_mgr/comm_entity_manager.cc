@@ -69,7 +69,7 @@ EntityPtr CommEntityManager::GetEntityByRemoteClusterId(const uint64_t remote_cl
   return entity;
 }
 
-std::vector<EntityPtr> CommEntityManager::QueryEntityByCommId(uint64_t comm_id) {
+std::vector<EntityPtr> CommEntityManager::QueryEntityByCommId(uint64_t comm_id) const {
   std::vector<EntityPtr> entities;
   std::lock_guard<std::mutex> lock(mutex_);
   for (auto &entity_pair : entity_map_) {
@@ -93,7 +93,7 @@ void CommEntityManager::DeleteEntities() {
   }
 }
 
-size_t CommEntityManager::GetEntitySize() {
+size_t CommEntityManager::GetEntitySize() const {
   std::lock_guard<std::mutex> lock(mutex_);
   size_t num = 0U;
   for (auto &entity_pair : entity_map_) {
@@ -166,7 +166,7 @@ void CommEntityManager::Finalize() {
   LLMLOGI("CommEntityManager finalize end");
 }
 
-void CommEntityManager::Dump() {
+void CommEntityManager::Dump() const {
   std::lock_guard<std::mutex> lock(mutex_);
   for (auto &entity_pair : entity_map_) {
     entity_pair.second->Dump();

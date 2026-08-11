@@ -34,7 +34,7 @@ Status EndpointStore::StoreEndpoint(const EndpointPtr &endpoint, EndpointHandle 
   return SUCCESS;
 }
 
-EndpointPtr EndpointStore::GetEndpoint(EndpointHandle endpoint_handle) {
+EndpointPtr EndpointStore::GetEndpoint(EndpointHandle endpoint_handle) const {
   std::lock_guard<std::mutex> lock(mutex_);
   auto it = endpoints_.find(endpoint_handle);
   if (it == endpoints_.end()) {
@@ -43,7 +43,7 @@ EndpointPtr EndpointStore::GetEndpoint(EndpointHandle endpoint_handle) {
   return it->second;
 }
 
-std::vector<EndpointHandle> EndpointStore::GetAllEndpointHandles() {
+std::vector<EndpointHandle> EndpointStore::GetAllEndpointHandles() const {
   std::lock_guard<std::mutex> lock(mutex_);
   std::vector<EndpointHandle> handles;
   for (auto &it : endpoints_) {
@@ -76,7 +76,7 @@ inline bool operator==(const EndpointDesc &lhs, const EndpointDesc &rhs) {
   return false;
 }
 
-EndpointPtr EndpointStore::MatchEndpoint(const EndpointDesc &endpoint, EndpointHandle &endpoint_handle) {
+EndpointPtr EndpointStore::MatchEndpoint(const EndpointDesc &endpoint, EndpointHandle &endpoint_handle) const {
   std::lock_guard<std::mutex> lock(mutex_);
   for (const auto &it : endpoints_) {
     if (it.second->GetEndpoint() == endpoint) {

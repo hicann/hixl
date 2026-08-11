@@ -276,7 +276,7 @@ ge::Status LinkMsgHandler::SetEntityMemInfo(const LLMExchangeInfo &peer_exchange
 }
 
 ge::Status LinkMsgHandler::GenerateRankInfo(const std::string &peer_comm_res, std::string &rank_table,
-                                            int32_t &local_rank_id, int32_t &peer_rank_id) {
+                                            int32_t &local_rank_id, int32_t &peer_rank_id) const {
   auto rank_table_generator = RankTableGeneratorFactory::Create(local_comm_res_, peer_comm_res);
   LLM_CHK_BOOL_RET_STATUS(rank_table_generator != nullptr, ge::LLM_PARAM_INVALID,
                           "Failed to create rank table generator.");

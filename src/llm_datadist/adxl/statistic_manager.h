@@ -122,7 +122,7 @@ class StatisticManager {
   StatisticManager &operator=(const StatisticManager &) = delete;
   StatisticManager &operator=(const StatisticManager &&) = delete;
 
-  void Dump();
+  void Dump() const;
   void RegisterChannel(const std::string &channel_id);
   void UpdateBufferTransferCost(const std::string &channel_id, uint64_t cost, uint64_t total_bytes,
                                 uint64_t op_desc_count);
@@ -148,9 +148,9 @@ class StatisticManager {
                          std::atomic<uint64_t> &total_cost);
   void RemoveStatisticInfo(const std::string &channel_id);
   static CostStatisticSnapshot ToSnapshot(const CostStatisticInfo &cost_info);
-  void DumpBufferTransferStatisticInfo();
-  void DumpDirectTransferStatisticInfo();
-  void DumpTransferStatisticSummary(bool is_direct);
+  void DumpBufferTransferStatisticInfo() const;
+  void DumpDirectTransferStatisticInfo() const;
+  void DumpTransferStatisticSummary(bool is_direct) const;
   std::shared_ptr<StatisticInfo> GetOrCreateStatisticInfo(const std::string &channel_id);
   std::shared_ptr<StatisticInfo> GetStatisticInfo(const std::string &channel_id) const;
 

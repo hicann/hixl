@@ -149,8 +149,8 @@ class CommEntity {
   ge::Status ChangeState(FsmState next_state);
   int8_t *GetCacheInfoFlag() const;
 
-  void *GetReq();
-  void *GetResp();
+  void *GetReq() const;
+  void *GetResp() const;
   aclrtStream GetStream() const;
   aclrtContext GetCurrentContext() const;
   void SetContext(aclrtContext context);
@@ -184,7 +184,7 @@ class CommEntity {
   void SetDataTransferJob(std::unique_ptr<DataTransferJob> &&data_transfer_job);
   void SetTimeoutPoint(const std::chrono::steady_clock::time_point &timeout_point);
   const std::chrono::steady_clock::time_point &GetTimeoutPoint() const;
-  void ClearResponseFlags();
+  void ClearResponseFlags() const;
   const std::pair<uint64_t, uint64_t> &GetCacheKeyToRemove() const;
   void SetCacheKeyToRemove(const std::pair<uint64_t, uint64_t> &cache_key_to_remove);
   std::mutex &GetPullMutex();

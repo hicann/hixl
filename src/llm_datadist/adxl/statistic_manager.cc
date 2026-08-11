@@ -222,20 +222,20 @@ StatisticInfoSnapshot StatisticManager::GetStatisticInfoSnapshot(const std::stri
   return snapshot;
 }
 
-void StatisticManager::Dump() {
+void StatisticManager::Dump() const {
   DumpBufferTransferStatisticInfo();
   DumpDirectTransferStatisticInfo();
 }
 
-void StatisticManager::DumpBufferTransferStatisticInfo() {
+void StatisticManager::DumpBufferTransferStatisticInfo() const {
   DumpTransferStatisticSummary(false);
 }
 
-void StatisticManager::DumpDirectTransferStatisticInfo() {
+void StatisticManager::DumpDirectTransferStatisticInfo() const {
   DumpTransferStatisticSummary(true);
 }
 
-void StatisticManager::DumpTransferStatisticSummary(bool is_direct) {
+void StatisticManager::DumpTransferStatisticSummary(bool is_direct) const {
   hixl::statistic::TransferSummary summary;
   {
     std::shared_lock<std::shared_mutex> lock(map_mutex_);

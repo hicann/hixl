@@ -38,7 +38,7 @@ class UbClientHandler : public IClientHandler {
 
  private:
   Status ClassifyTransfers(const std::vector<TransferOpDesc> &op_descs,
-                           std::map<CommType, std::vector<TransferOpDesc>> &table);
+                           std::map<CommType, std::vector<TransferOpDesc>> &table) const;
   Status GetMemType(const std::vector<SegmentPtr> &segments, uintptr_t addr, size_t len, MemType &mem_type) const;
 
   /**

@@ -86,11 +86,11 @@ class FabricMemSlotPool {
   static void ClearReleasedSlot(AsyncSlot &slot);
   // Removes the pooled entry backing `slot` so nobody can acquire it while it is being aborted.
   bool DetachSlotEntry(const AsyncSlot &slot, AsyncSlot &entry);
-  FabricMemAicpuDispatcher *GetAicpuDispatcher();
+  FabricMemAicpuDispatcher *GetAicpuDispatcher() const;
   // Destroys the entry's streams / notifies / pooled host flags but keeps its context alive.
   static void DestroySlotEntryResources(AsyncSlot &entry);
 
-  std::mutex pool_mutex_;
+  mutable std::mutex pool_mutex_;
   std::condition_variable pool_cv_;
   std::vector<AsyncSlot> slot_pool_;
   std::queue<size_t> free_slot_indices_;

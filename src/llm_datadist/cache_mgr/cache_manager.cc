@@ -237,7 +237,7 @@ CacheEntry CacheManager::CreateCacheEntry(const CacheDesc &cache_desc, std::vect
   return cache_entry;
 }
 
-ge::Status CacheManager::CheckCacheKeys(const CacheDesc &cache_desc, const std::vector<CacheKey> &cache_keys) {
+ge::Status CacheManager::CheckCacheKeys(const CacheDesc &cache_desc, const std::vector<CacheKey> &cache_keys) const {
   LLM_CHK_BOOL_RET_STATUS(cache_keys.size() <= static_cast<size_t>(cache_desc.shape.front()), ge::LLM_PARAM_INVALID,
                           "Number of cache_keys(%zu) > batch_size (%ld)", cache_keys.size(), cache_desc.shape.front());
   std::set<DataCacheKey> data_cache_keys;

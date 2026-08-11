@@ -159,12 +159,12 @@ class HixlEngine : public hixl::Engine {
   Status CheckInitialized() const;
   Status AutoDisconnect(const AscendString &remote_engine, int32_t timeout_in_millis);
   void BuildClientConfig(const AscendString &remote_engine, ClientConfig &config,
-                         std::vector<MemHandleInfo> &mem_info_list, int32_t timeout_in_millis);
+                         std::vector<MemHandleInfo> &mem_info_list, int32_t timeout_in_millis) const;
   void FillClientConfigFields(const AscendString &remote_engine, ClientConfig &config, int32_t timeout_in_millis,
                               bool is_lazy) const;
   void CopyMemInfoListLocked(std::vector<MemHandleInfo> &mem_info_list) const;
   Status AutoConnect(const AscendString &remote_engine, int32_t timeout_in_millis, ClientPtr &client_ptr);
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
 
   std::atomic<bool> is_initialized_;
   ClientManager client_manager_;
