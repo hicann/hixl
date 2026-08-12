@@ -43,6 +43,28 @@ constexpr int32_t kMinRdmaServiceLevel = 0;
 constexpr int32_t kMaxRdmaServiceLevel = 7;
 constexpr size_t kMaxLocalCommResFileSizeBytes = 1024U * 1024U;
 
+struct IntegerFieldRange {
+  const char *name;
+  int64_t min_value;
+  int64_t max_value;
+  const char *unit;
+};
+
+template <typename T>
+Status ParseIntegerFieldInRange(const nlohmann::json &json, const IntegerFieldRange &range, std::optional<T> &target) {
+  if (!json.contains(range.name)) {
+    return SUCCESS;
+  }
+
+  int64_t val = JsonToNumber<int64_t>(json.at(range.name));
+  HIXL_CHK_BOOL_RET_STATUS(val >= range.min_value && val <= range.max_value, PARAM_INVALID,
+                           "%s must be in [%lld, %lld]%s, got %lld", range.name,
+                           static_cast<long long>(range.min_value), static_cast<long long>(range.max_value), range.unit,
+                           static_cast<long long>(val));
+  target = static_cast<T>(val);
+  return SUCCESS;
+}
+
 Status ReadLocalCommResFile(const char *resolved_path, std::string &content) {
   constexpr int kOpenFlags = O_RDONLY | O_CLOEXEC | O_NONBLOCK | O_NOFOLLOW;
   int fd = open(resolved_path, kOpenFlags);
@@ -87,130 +109,96 @@ Status ReadLocalCommResFile(const char *resolved_path, std::string &content) {
   return SUCCESS;
 }
 
-void from_json(const nlohmann::json &j, FabricMemoryConfig &cfg) {
-  if (j.contains("max_capacity")) {
-    cfg.max_capacity = JsonToNumber<size_t>(j.at("max_capacity"));
+Status ParseFabricMemoryFields(const nlohmann::json &json, FabricMemoryConfig &cfg) {
+  IntegerFieldRange capacity_range = {"max_capacity", 1, static_cast<int64_t>(kMaxCapacityTB), " TB"};
+  HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, capacity_range, cfg.max_capacity),
+                      "Failed to parse fabric_memory.max_capacity");
+  IntegerFieldRange start_addr_range = {"start_address", static_cast<int64_t>(kMinFabricMemStartAddrTB),
+                                        static_cast<int64_t>(kMaxFabricMemStartAddrTB), " TB"};
+  HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, start_addr_range, cfg.start_address),
+                      "Failed to parse fabric_memory.start_address");
+  IntegerFieldRange stream_num_range = {"task_stream_num", static_cast<int64_t>(kMinTaskStreamNum),
+                                        static_cast<int64_t>(kMaxTaskStreamNum), ""};
+  HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, stream_num_range, cfg.task_stream_num),
+                      "Failed to parse fabric_memory.task_stream_num");
+  if (json.contains("enable_aicpu_unfold")) {
+    cfg.enable_aicpu_unfold = json.at("enable_aicpu_unfold").get<bool>();
   }
-  if (j.contains("start_address")) {
-    cfg.start_address = JsonToNumber<size_t>(j.at("start_address"));
-  }
-  if (j.contains("task_stream_num")) {
-    cfg.task_stream_num = JsonToNumber<size_t>(j.at("task_stream_num"));
-  }
-  if (j.contains("enable_aicpu_unfold")) {
-    cfg.enable_aicpu_unfold = j.at("enable_aicpu_unfold").get<bool>();
-  }
+  return SUCCESS;
 }
 
-void from_json(const nlohmann::json &j, ConnectPoolConfig &cfg) {
-  if (j.contains("connect_pool.thread_num")) {
-    cfg.thread_num = JsonToNumber<int32_t>(j.at("connect_pool.thread_num"));
+Status ParseFabricMemoryConfig(const nlohmann::json &json, FabricMemoryConfig &cfg) {
+  if (json.contains("fabric_memory") && json.at("fabric_memory").is_object()) {
+    HIXL_CHK_STATUS_RET(ParseFabricMemoryFields(json.at("fabric_memory"), cfg),
+                        "Failed to parse nested FabricMemoryConfig");
   }
-  if (j.contains("connect_pool.task_queue_capacity")) {
-    cfg.task_queue_capacity = JsonToNumber<int32_t>(j.at("connect_pool.task_queue_capacity"));
+  IntegerFieldRange capacity_range = {"fabric_memory.max_capacity", 1, static_cast<int64_t>(kMaxCapacityTB), " TB"};
+  HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, capacity_range, cfg.max_capacity),
+                      "Failed to parse fabric_memory.max_capacity");
+  IntegerFieldRange start_addr_range = {"fabric_memory.start_address", static_cast<int64_t>(kMinFabricMemStartAddrTB),
+                                        static_cast<int64_t>(kMaxFabricMemStartAddrTB), " TB"};
+  HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, start_addr_range, cfg.start_address),
+                      "Failed to parse fabric_memory.start_address");
+  IntegerFieldRange stream_num_range = {"fabric_memory.task_stream_num", static_cast<int64_t>(kMinTaskStreamNum),
+                                        static_cast<int64_t>(kMaxTaskStreamNum), ""};
+  HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, stream_num_range, cfg.task_stream_num),
+                      "Failed to parse fabric_memory.task_stream_num");
+  if (json.contains("fabric_memory.enable_aicpu_unfold")) {
+    cfg.enable_aicpu_unfold = json.at("fabric_memory.enable_aicpu_unfold").get<bool>();
   }
-}
-
-void from_json(const nlohmann::json &j, CommResourceConfigDesc &cfg) {
-  if (j.contains("comm_resource_config.protocol_desc")) {
-    const auto &protocol_desc = j.at("comm_resource_config.protocol_desc");
-    if (protocol_desc.is_string()) {
-      cfg.protocol_desc = std::vector<std::string>{protocol_desc.get<std::string>()};
-    } else {
-      cfg.protocol_desc = protocol_desc.get<std::vector<std::string>>();
-    }
-  }
-  if (j.contains("comm_resource_config.listen_port")) {
-    cfg.listen_port = JsonToNumber<uint32_t>(j.at("comm_resource_config.listen_port"));
-  }
-  if (j.contains(kQosName)) {
-    const auto val = JsonToNumber<int64_t>(j.at(kQosName));
-    if (val < static_cast<int64_t>(kQosMin) || val > static_cast<int64_t>(kQosMax)) {
-      throw nlohmann::json::out_of_range::create(0, "comm_resource_config.qos out of range", nullptr);
-    }
-    cfg.qos = static_cast<uint8_t>(val);
-  }
-  if (j.contains("comm_resource_config.max_active_channels")) {
-    const auto val = JsonToNumber<int64_t>(j.at("comm_resource_config.max_active_channels"));
-    if (val < 0 || val > std::numeric_limits<uint32_t>::max()) {
-      throw nlohmann::json::out_of_range::create(0, "comm_resource_config.max_active_channels out of range", nullptr);
-    }
-    cfg.max_active_channels = static_cast<uint32_t>(val);
-  }
-}
-
-void from_json(const nlohmann::json &j, GlobalResourceConfig &cfg) {
-  if (j.contains("fabric_memory") && j.at("fabric_memory").is_object()) {
-    from_json(j.at("fabric_memory"), cfg.fabric_memory);
-  }
-  // Also support flat key format: "fabric_memory.start_address", etc.
-  if (j.contains("fabric_memory.max_capacity")) {
-    cfg.fabric_memory.max_capacity = JsonToNumber<size_t>(j.at("fabric_memory.max_capacity"));
-  }
-  if (j.contains("fabric_memory.start_address")) {
-    cfg.fabric_memory.start_address = JsonToNumber<size_t>(j.at("fabric_memory.start_address"));
-  }
-  if (j.contains("fabric_memory.task_stream_num")) {
-    cfg.fabric_memory.task_stream_num = JsonToNumber<size_t>(j.at("fabric_memory.task_stream_num"));
-  }
-  if (j.contains("fabric_memory.enable_aicpu_unfold")) {
-    cfg.fabric_memory.enable_aicpu_unfold = j.at("fabric_memory.enable_aicpu_unfold").get<bool>();
-  }
-  from_json(j, cfg.connect_pool);
-  from_json(j, cfg.comm_resource_config);
-  if (j.contains("local_comm_res_path")) {
-    const auto &path_json = j.at("local_comm_res_path");
-    if (!path_json.is_string()) {
-      throw nlohmann::json::type_error::create(0, "local_comm_res_path must be a string", nullptr);
-    }
-    cfg.local_comm_res_path = path_json.get<std::string>();
-  }
-}
-
-Status ValidateGlobalResourceConfig(const GlobalResourceConfig &cfg) {
-  if (cfg.fabric_memory.max_capacity.has_value()) {
-    size_t val = *cfg.fabric_memory.max_capacity;
-    HIXL_CHK_BOOL_RET_STATUS(val > 0 && val <= kMaxCapacityTB, PARAM_INVALID,
-                             "fabric_memory.max_capacity must be in (0, %zu] TB, got %zu", kMaxCapacityTB, val);
-  }
-  if (cfg.fabric_memory.start_address.has_value()) {
-    size_t val = *cfg.fabric_memory.start_address;
-    HIXL_CHK_BOOL_RET_STATUS(val <= kMaxFabricMemStartAddrTB, PARAM_INVALID,
-                             "fabric_memory.start_address must be in [%zu, %zu] TB, got %zu", kMinFabricMemStartAddrTB,
-                             kMaxFabricMemStartAddrTB, val);
-  }
-  if (cfg.fabric_memory.task_stream_num.has_value()) {
-    size_t val = *cfg.fabric_memory.task_stream_num;
-    HIXL_CHK_BOOL_RET_STATUS(val >= kMinTaskStreamNum && val <= kMaxTaskStreamNum, PARAM_INVALID,
-                             "fabric_memory.task_stream_num must be between %zu and %zu, got %zu", kMinTaskStreamNum,
-                             kMaxTaskStreamNum, val);
-  }
-  // enable_aicpu_unfold defaults to true; aicpu_unfold mode only supports task_stream_num=1.
-  if (cfg.fabric_memory.enable_aicpu_unfold.value_or(true) && cfg.fabric_memory.task_stream_num.has_value()) {
-    HIXL_CHK_BOOL_RET_STATUS(*cfg.fabric_memory.task_stream_num == 1U, PARAM_INVALID,
+  if (cfg.enable_aicpu_unfold.value_or(true) && cfg.task_stream_num.has_value()) {
+    HIXL_CHK_BOOL_RET_STATUS(*cfg.task_stream_num == 1U, PARAM_INVALID,
                              "aicpu_unfold mode only supports fabric_memory.task_stream_num=1, got %zu",
-                             *cfg.fabric_memory.task_stream_num);
+                             *cfg.task_stream_num);
   }
-  if (cfg.comm_resource_config.listen_port.has_value()) {
-    uint32_t val = *cfg.comm_resource_config.listen_port;
-    HIXL_CHK_BOOL_RET_STATUS(val >= kMinListenPort && val <= kMaxListenPort, PARAM_INVALID,
-                             "comm_resource_config.listen_port must be in [%u, %u], got %u", kMinListenPort,
-                             kMaxListenPort, val);
+  return SUCCESS;
+}
+
+Status ParseConnectPoolConfig(const nlohmann::json &json, ConnectPoolConfig &cfg) {
+  if (json.contains("connect_pool.thread_num")) {
+    cfg.thread_num = JsonToNumber<int32_t>(json.at("connect_pool.thread_num"));
   }
-  if (cfg.comm_resource_config.qos.has_value()) {
-    uint8_t val = cfg.comm_resource_config.qos.value();
-    HIXL_CHK_BOOL_RET_STATUS(val <= kQosMax, PARAM_INVALID, "comm_resource_config.qos must be in [%u, %u], got %u",
-                             kQosMin, kQosMax, val);
+  if (json.contains("connect_pool.task_queue_capacity")) {
+    cfg.task_queue_capacity = JsonToNumber<int32_t>(json.at("connect_pool.task_queue_capacity"));
   }
-  if (cfg.comm_resource_config.max_active_channels.has_value()) {
-    uint32_t val = *cfg.comm_resource_config.max_active_channels;
-    HIXL_CHK_BOOL_RET_STATUS(val >= kMinActiveChannels, PARAM_INVALID,
-                             "comm_resource_config.max_active_channels must be >= %u, got %u", kMinActiveChannels, val);
+  return SUCCESS;
+}
+
+Status ParseCommResourceConfig(const nlohmann::json &json, CommResourceConfigDesc &cfg) {
+  if (json.contains("comm_resource_config.protocol_desc")) {
+    const auto &protocol_desc = json.at("comm_resource_config.protocol_desc");
+    cfg.protocol_desc = protocol_desc.is_string() ? std::vector<std::string>{protocol_desc.get<std::string>()}
+                                                  : protocol_desc.get<std::vector<std::string>>();
   }
-  if (cfg.local_comm_res_path.has_value()) {
-    HIXL_CHK_BOOL_RET_STATUS(!cfg.local_comm_res_path->empty(), PARAM_INVALID,
-                             "local_comm_res_path must be a non-empty file path");
+  IntegerFieldRange listen_port_range = {"comm_resource_config.listen_port", kMinListenPort, kMaxListenPort, ""};
+  HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, listen_port_range, cfg.listen_port),
+                      "Failed to parse comm_resource_config.listen_port");
+  IntegerFieldRange qos_range = {kQosName, kQosMin, kQosMax, ""};
+  HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, qos_range, cfg.qos), "Failed to parse comm_resource_config.qos");
+  IntegerFieldRange max_active_channels_range = {"comm_resource_config.max_active_channels", kMinActiveChannels,
+                                                 std::numeric_limits<uint32_t>::max(), ""};
+  HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, max_active_channels_range, cfg.max_active_channels),
+                      "Failed to parse comm_resource_config.max_active_channels");
+  return SUCCESS;
+}
+
+Status ParseLocalCommResPath(const nlohmann::json &json, GlobalResourceConfig &cfg) {
+  if (!json.contains("local_comm_res_path")) {
+    return SUCCESS;
   }
+  const auto &path_json = json.at("local_comm_res_path");
+  HIXL_CHK_BOOL_RET_STATUS(path_json.is_string(), PARAM_INVALID, "local_comm_res_path must be a string");
+  cfg.local_comm_res_path = path_json.get<std::string>();
+  HIXL_CHK_BOOL_RET_STATUS(!cfg.local_comm_res_path->empty(), PARAM_INVALID,
+                           "local_comm_res_path must be a non-empty file path");
+  return SUCCESS;
+}
+
+Status ParseGlobalResourceConfigJson(const nlohmann::json &json, GlobalResourceConfig &cfg) {
+  HIXL_CHK_STATUS_RET(ParseFabricMemoryConfig(json, cfg.fabric_memory), "Failed to parse FabricMemoryConfig");
+  HIXL_CHK_STATUS_RET(ParseConnectPoolConfig(json, cfg.connect_pool), "Failed to parse ConnectPoolConfig");
+  HIXL_CHK_STATUS_RET(ParseCommResourceConfig(json, cfg.comm_resource_config), "Failed to parse CommResourceConfig");
+  HIXL_CHK_STATUS_RET(ParseLocalCommResPath(json, cfg), "Failed to parse local_comm_res_path");
   return SUCCESS;
 }
 }  // namespace
@@ -353,8 +341,7 @@ Status HixlOptions::ParseGlobalResourceConfig(const std::string &config_str) {
       return PARAM_INVALID;
     }
     GlobalResourceConfig cfg{};
-    from_json(json, cfg);
-    HIXL_CHK_STATUS_RET(ValidateGlobalResourceConfig(cfg), "Validate GlobalResourceConfig failed.");
+    HIXL_CHK_STATUS_RET(ParseGlobalResourceConfigJson(json, cfg), "Parse GlobalResourceConfig failed.");
     global_resource_config_ = std::move(cfg);
     return SUCCESS;
   } catch (const nlohmann::json::exception &e) {
