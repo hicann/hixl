@@ -203,7 +203,7 @@ ge::Status EntityCommInfo::Initialize() {
                           "timeout should be greater than or equal 0, given value is %d", params_.timeout);
   LLM_CHK_BOOL_RET_STATUS(
       params_.link_retry_count >= kRetryCountMin && params_.link_retry_count <= kRetryCountMax, ge::LLM_PARAM_INVALID,
-      "link_retry_count should be an integer between [1, 10], given value is %d", params_.link_retry_count);
+      "link_retry_count should be an integer between [1, 100], given value is %d", params_.link_retry_count);
   LLM_DISMISS_GUARD(fail_guard);
   return ge::SUCCESS;
 }
@@ -284,7 +284,7 @@ ge::Status CommEntity::Finalize(bool force) {
   auto ret = ge::SUCCESS;
   if (GetStream() != nullptr) {
     auto aclrt_ret = aclrtStreamAbort(GetStream());
-    LLMLOGI("Call aclrtStreamAbort ret:%d.", ret);
+    LLMLOGI("Call aclrtStreamAbort ret:%d.", aclrt_ret);
     ret = aclrt_ret != ACL_ERROR_NONE ? ge::LLM_UNLINK_FAILED : ret;
   }
 
@@ -295,7 +295,7 @@ ge::Status CommEntity::Finalize(bool force) {
 
   if (GetStream() != nullptr) {
     auto aclrt_ret = aclrtDestroyStream(GetStream());
-    LLMLOGI("Call aclrtDestroyStream ret:%d.", ret);
+    LLMLOGI("Call aclrtDestroyStream ret:%d.", aclrt_ret);
     ret = aclrt_ret != ACL_ERROR_NONE ? ge::LLM_UNLINK_FAILED : ret;
   }
   stream_ = nullptr;

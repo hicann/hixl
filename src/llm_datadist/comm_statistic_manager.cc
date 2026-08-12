@@ -37,54 +37,71 @@ void CommStatisticManager::UpdateCost(const uint64_t cost, std::atomic<uint64_t>
 }
 
 void CommStatisticManager::AddExchangeMemCost(const uint64_t cost) {
+  std::lock_guard<std::mutex> lock(statistic_mutex_);
   UpdateCost(cost, link_statistic_info_.exchange_mem_times, link_statistic_info_.exchange_mem_min_cost,
              link_statistic_info_.exchange_mem_max_cost, link_statistic_info_.exchange_mem_total_cost);
 }
 
 void CommStatisticManager::AddCommInitCost(const uint64_t cost) {
+  std::lock_guard<std::mutex> lock(statistic_mutex_);
   UpdateCost(cost, link_statistic_info_.comm_init_times, link_statistic_info_.comm_init_min_cost,
              link_statistic_info_.comm_init_max_cost, link_statistic_info_.comm_init_total_cost);
 }
 
 void CommStatisticManager::AddCommDestroyCost(const uint64_t cost) {
+  std::lock_guard<std::mutex> lock(statistic_mutex_);
   UpdateCost(cost, link_statistic_info_.comm_destroy_times, link_statistic_info_.comm_destroy_min_cost,
              link_statistic_info_.comm_destroy_max_cost, link_statistic_info_.comm_destroy_total_cost);
 }
 
 void CommStatisticManager::AddRegisterGlobalMemTimes() {
+  std::lock_guard<std::mutex> lock(statistic_mutex_);
   link_statistic_info_.register_global_mem_times++;
 }
 
 void CommStatisticManager::AddDeregisterGlobalMemTimes() {
+  std::lock_guard<std::mutex> lock(statistic_mutex_);
   link_statistic_info_.deregister_global_mem_times++;
 }
 
 void CommStatisticManager::AddCommBindMemTimes() {
+  std::lock_guard<std::mutex> lock(statistic_mutex_);
   link_statistic_info_.comm_bind_mem_times++;
 }
 
 void CommStatisticManager::AddCommUnbindMemTimes() {
+  std::lock_guard<std::mutex> lock(statistic_mutex_);
   link_statistic_info_.comm_unbind_mem_times++;
 }
 
 void CommStatisticManager::AddCommPrepareCost(const uint64_t cost) {
+  std::lock_guard<std::mutex> lock(statistic_mutex_);
   UpdateCost(cost, link_statistic_info_.comm_prepare_times, link_statistic_info_.comm_prepare_min_cost,
              link_statistic_info_.comm_prepare_max_cost, link_statistic_info_.comm_prepare_total_cost);
 }
 
 void CommStatisticManager::AddBatchPutCost(const uint64_t cost) {
+  std::lock_guard<std::mutex> lock(statistic_mutex_);
   send_statistic_info_.batch_put_times++;
   send_statistic_info_.batch_put_total_cost += cost;
 }
 
-MemoryStatisticInfo &CommStatisticManager::GetMemoryStatisticInfo() {
-  return memory_statistic_info_;
+void CommStatisticManager::AddAllocTimes() {
+  std::lock_guard<std::mutex> lock(statistic_mutex_);
+  memory_statistic_info_.alloc_times++;
 }
+
+void CommStatisticManager::AddFreeTimes() {
+  std::lock_guard<std::mutex> lock(statistic_mutex_);
+  memory_statistic_info_.free_times++;
+}
+
 FuncStatisticInfo &CommStatisticManager::GetFuncStatisticInfo() {
   return func_statistic_info_;
 }
 
 void CommStatisticManager::Dump() const {
+  std::lock_guard<std::mutex> lock(statistic_mutex_);
   DumpMemoryProfilingTrack();
   DumpFuncProfilingTrack();
   DumpLinkProfilingTrack();
@@ -185,6 +202,7 @@ void CommStatisticManager::DumpUnLinkProfilingTrack() const {
 }
 
 void CommStatisticManager::Reset() {
+  std::lock_guard<std::mutex> lock(statistic_mutex_);
   link_statistic_info_.Reset();
   send_statistic_info_.Reset();
   recv_statistic_info_.Reset();

@@ -183,6 +183,7 @@ class ASCEND_FUNC_VISIBILITY LlmDataDist {
 
   /**
    * @brief 设置角色
+   * @param role 目标角色
    * @param options 设置角色时传入的选项，设置成Prompt时需要包含OPTION_LISTEN_IP_INFO
    * @return 成功:LLM_SUCCESS, 失败:其它
    */

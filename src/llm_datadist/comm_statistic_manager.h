@@ -11,6 +11,7 @@
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_ENGINE_V2_STATISTIC_MANAGER_H_
 
 #include <atomic>
+#include <mutex>
 
 namespace llm {
 struct LinkStatisticInfo {
@@ -53,6 +54,7 @@ struct LinkStatisticInfo {
     comm_destroy_min_cost = UINT64_MAX;
     comm_destroy_total_cost = 0UL;
 
+    exchange_mem_times = 0UL;
     exchange_mem_max_cost = 0UL;
     exchange_mem_min_cost = UINT64_MAX;
     exchange_mem_total_cost = 0UL;
@@ -99,7 +101,7 @@ struct SendStatisticInfo {
     send_max_cost = 0UL;
     send_min_cost = UINT64_MAX;
     event_record_times = 0UL;
-    event_record_times = 0UL;
+    event_record_total_cost = 0UL;
     sync_flag_put_times = 0UL;
     req_info_put_times = 0UL;
   }
@@ -126,6 +128,11 @@ struct RecvStatisticInfo {
     batch_get_max_cost = 0UL;
     batch_get_min_cost = UINT64_MAX;
     batch_get_total_cost = 0UL;
+    get_total_num = 0UL;
+    pull_times = 0UL;
+    pull_total_cost = 0UL;
+    pull_max_cost = 0UL;
+    pull_min_cost = UINT64_MAX;
   }
 };
 
@@ -239,7 +246,8 @@ class CommStatisticManager {
   void AddCommBindMemTimes();
   void AddCommUnbindMemTimes();
   void AddCommPrepareCost(const uint64_t cost);
-  MemoryStatisticInfo &GetMemoryStatisticInfo();
+  void AddAllocTimes();
+  void AddFreeTimes();
   FuncStatisticInfo &GetFuncStatisticInfo();
 
  private:
@@ -248,6 +256,7 @@ class CommStatisticManager {
   void DumpFuncProfilingTrack() const;
   void DumpLinkProfilingTrack() const;
   void DumpUnLinkProfilingTrack() const;
+  mutable std::mutex statistic_mutex_;
   LinkStatisticInfo link_statistic_info_;
   SendStatisticInfo send_statistic_info_;
   RecvStatisticInfo recv_statistic_info_;

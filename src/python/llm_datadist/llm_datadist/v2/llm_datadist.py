@@ -370,10 +370,10 @@ class LLMDataDist(object):
             options = switch_options.copy() if switch_options is not None else {}
             if role == LLMRole.PROMPT:
                 raise_if_false(
-                    "llm.listenIpInfo" in switch_options,
-                    'Failed to switch to Prompt, option "llm.listenIpInfo" was specified',
+                    "llm.listenIpInfo" in options,
+                    'Failed to switch to Prompt, option "llm.listenIpInfo" must be specified',
                 )
-                listen_ip_info = switch_options["llm.listenIpInfo"]
+                listen_ip_info = options["llm.listenIpInfo"]
                 ip, port = EngineConfig.parse_listen_ip_info(listen_ip_info)
                 options["llm.ListenIp"] = str(ip)
                 options["llm.ListenPort"] = str(port)

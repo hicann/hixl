@@ -203,8 +203,7 @@ ge::Status LLMDataDistV2::AllocateCache(const CacheDesc &cache_desc, Cache &cach
   LLM_CHK_BOOL_RET_STATUS(is_initialized_.load(std::memory_order::memory_order_relaxed), ge::FAILED,
                           "Llm datadist of cluster:%lu is not initialized.", cluster_id_);
   hixl::TemporaryRtContext with_context(aclrt_context_);
-  auto &mem_statistic_info = CommStatisticManager::GetInstance().GetMemoryStatisticInfo();
-  mem_statistic_info.alloc_times++;
+  CommStatisticManager::GetInstance().AddAllocTimes();
   return data_cache_engine_->Allocate(cache_desc, cache_keys, cache);
 }
 
@@ -212,8 +211,7 @@ ge::Status LLMDataDistV2::DeallocateCache(int64_t cache_id) {
   LLM_CHK_BOOL_RET_STATUS(is_initialized_.load(std::memory_order::memory_order_relaxed), ge::FAILED,
                           "Llm datadist of cluster:%lu is not initialized.", cluster_id_);
   hixl::TemporaryRtContext with_context(aclrt_context_);
-  auto &mem_statistic_info = CommStatisticManager::GetInstance().GetMemoryStatisticInfo();
-  mem_statistic_info.free_times++;
+  CommStatisticManager::GetInstance().AddFreeTimes();
   return data_cache_engine_->Deallocate(cache_id);
 }
 

@@ -226,7 +226,7 @@ ge::Status BufferStateTransfer::UpdateState(BufferContext &context) const {
     LLM_CHK_ACL_RET(aclrtRecordEvent(context.event, context.stream));
   } else {
     aclrtEventRecordedStatus event_status{};
-    aclrtQueryEventStatus(context.event, &event_status);
+    LLM_CHK_ACL_RET(aclrtQueryEventStatus(context.event, &event_status));
     if (event_status != ACL_EVENT_RECORDED_STATUS_COMPLETE) {
       // 没有wait到，等待下一次, 不更新task index
       LLMLOGD("Buffer[%zu] transfer not ended", context.buffer_index);

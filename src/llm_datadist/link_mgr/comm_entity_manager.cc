@@ -20,6 +20,7 @@
 
 namespace llm {
 ge::Status CommEntityManager::AddEntity(uint64_t peer_cluster_id, EntityPtr entity_ptr) {
+  LLM_CHECK_NOTNULL(entity_ptr, "Entity is null, peer cluster id = %lu", peer_cluster_id);
   auto entity_id = entity_id_gen_.fetch_add(1UL, std::memory_order::memory_order_relaxed);
   mgr_high_priority_flag_.store(true);
   std::lock_guard<std::mutex> lock(mutex_);
@@ -36,7 +37,14 @@ ge::Status CommEntityManager::DestroyEntity(uint64_t peer_cluster_id) {
   const auto &it = cluster_id_to_entity_id_.find(peer_cluster_id);
   if (it != cluster_id_to_entity_id_.cend()) {
     auto entity_id = it->second;
-    auto entity = entity_map_[entity_id];
+    const auto entity_iter = entity_map_.find(entity_id);
+    if (entity_iter == entity_map_.cend()) {
+      cluster_id_to_entity_id_.erase(it);
+      LLMLOGW("Entity map not found, peer cluster id = %lu, entity id = %lu", peer_cluster_id, entity_id);
+      return ret;
+    }
+    auto entity = entity_iter->second;
+    LLM_CHECK_NOTNULL(entity, "Entity is null, peer cluster id = %lu, entity id = %lu", peer_cluster_id, entity_id);
     std::lock_guard<std::mutex> pull_lock(entity->GetPullMutex());
     auto entity_ret = entity->Finalize();
     ret = entity_ret != ge::SUCCESS ? entity_ret : ret;
@@ -61,7 +69,16 @@ EntityPtr CommEntityManager::GetEntityByRemoteClusterId(const uint64_t remote_cl
     return nullptr;
   }
   auto entity_id = it->second;
-  auto entity = entity_map_[entity_id];
+  const auto entity_iter = entity_map_.find(entity_id);
+  if (entity_iter == entity_map_.cend()) {
+    LLMLOGW("Entity map not found, remote cluster id = %lu, entity id = %lu", remote_cluster_id, entity_id);
+    return nullptr;
+  }
+  auto entity = entity_iter->second;
+  if (entity == nullptr) {
+    LLMLOGW("Entity is null, remote cluster id = %lu, entity id = %lu", remote_cluster_id, entity_id);
+    return nullptr;
+  }
   // destroy or memory not prepared
   if (entity->GetCurState() == FsmState::FSM_DESTROYED_STATE || entity->GetCurState() == FsmState::FSM_INIT_STATE) {
     return nullptr;

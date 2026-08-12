@@ -251,7 +251,7 @@ ge::Status SendState::CheckParam(const CacheEntry &cache_entry, const TransferCa
         auto padded_size = (cache_entry.stride + request.block_size - 1U) / request.block_size * request.block_size;
         LLM_CHK_BOOL_RET_STATUS(request.pull_size <= padded_size, ge::LLM_PARAM_INVALID,
                                 "pull_size(%lu) > padded_cache_stride(%lu), block_size = %lu, cache_stride = %lu",
-                                request.pull_size, cache_entry.stride, request.block_size, request.block_size);
+                                request.pull_size, padded_size, request.block_size, cache_entry.stride);
       }
     } else {
       LLM_CHK_BOOL_RET_STATUS(request.pull_size <= cache_entry.stride, ge::LLM_PARAM_INVALID,

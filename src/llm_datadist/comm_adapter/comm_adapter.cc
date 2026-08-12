@@ -71,6 +71,7 @@ ge::Status CommAdapter::LoadSo() {
                     kHcclRemapRegisteredMemoryName);
 
   dl_hccl_comm_prepare_func_ = llm::FunctionLoader<DlHcclCommPrepareFunc>::load(so_handle_, kHcclCommPrepareName);
+  LLM_CHECK_NOTNULL(dl_hccl_comm_prepare_func_, ",failed to get function:%s.", kHcclCommPrepareName);
 
   dl_hccl_register_global_mem_func_ =
       llm::FunctionLoader<DlHcclRegisterGlobalMemFunc>::load(so_handle_, kHcclRegisterGlobalMemName);
@@ -105,9 +106,13 @@ ge::Status CommAdapter::UnloadSo() {
   dl_hccl_comm_init_cluster_info_mem_func_ = nullptr;
   dl_hccl_comm_destroy_func_ = nullptr;
   dl_hccl_batch_put_func_ = nullptr;
+  dl_hccl_batch_get_func_ = nullptr;
   dl_hccl_remap_registered_memory_func_ = nullptr;
   dl_hccl_register_global_mem_func_ = nullptr;
   dl_hccl_deregister_global_mem_func_ = nullptr;
+  dl_hccl_comm_bind_mem_func_ = nullptr;
+  dl_hccl_comm_unbind_mem_func_ = nullptr;
+  dl_hccl_comm_prepare_func_ = nullptr;
   if (so_handle_ != nullptr) {
     auto ret = dlclose(so_handle_);
     LLM_CHK_BOOL_RET_STATUS(ret == 0, ge::FAILED, "close hccl so failed.");

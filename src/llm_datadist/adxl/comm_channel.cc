@@ -633,8 +633,8 @@ Status BufferedTransfer::Put(const std::vector<TransferOpDesc> &op_descs) {
     hccl_op_desc.count = desc.len;
     hccl_op_desc.dataType = HCCL_DATA_TYPE_UINT8;
     op_descs_.emplace_back(hccl_op_desc);
-    LLMLOGI("Batch transfer sync, index:%zu, local addr:%p, remote addr:%p, len:%zu.", index, desc.local_addr,
-            desc.remote_addr, desc.len);
+    LLMLOGI("Batch transfer sync, index:%zu, local addr:%p, remote addr:%p, len:%zu.", index,
+            llm::ValueToPtr(desc.local_addr), llm::ValueToPtr(desc.remote_addr), desc.len);
     if (op_descs_.size() == op_descs_.capacity()) {
       ADXL_CHK_STATUS_RET(Flush(), "Failed to batch transfer.");
     }

@@ -164,7 +164,7 @@ class ASCEND_FUNC_VISIBILITY Hixl {
 
   /**
    * @brief 获取当前Hixl内所有Server收到的Notify信息，并清空已收到信息
-   * @param [in] notifies 存放notify信息的vector
+   * @param [out] notifies 存放notify信息的vector
    * @return 成功:SUCCESS, 失败:其它.
    */
   Status GetNotifies(std::vector<NotifyDesc> &notifies);
