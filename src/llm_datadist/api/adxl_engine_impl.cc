@@ -168,6 +168,7 @@ Status AdxlEngine::AdxlEngineImpl::TransferAsync(const AscendString &remote_engi
 }
 
 Status AdxlEngine::AdxlEngineImpl::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
+  ADXL_CHK_BOOL_RET_STATUS(engine_ != nullptr && engine_->IsInitialized(), FAILED, "AdxlEngine is not initialized.");
   hixl::TransferStatus transfer_status = hixl::TransferStatus::WAITING;
   auto ret = engine_->GetTransferStatus(req, transfer_status);
   if (ret != SUCCESS) {
@@ -301,6 +302,7 @@ Status AdxlEngine::TransferAsync(const AscendString &remote_engine, TransferOp o
 }
 
 Status AdxlEngine::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
+  ADXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check AdxlEngine init.");
   ADXL_CHK_BOOL_RET_STATUS(req != nullptr, FAILED, "Req is nullptr, check req.");
   ADXL_CHK_STATUS_RET(impl_->GetTransferStatus(req, status), "Failed to get transfer status, req:%llu.",
                       static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(req)));

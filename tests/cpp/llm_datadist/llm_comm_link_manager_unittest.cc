@@ -174,6 +174,20 @@ TEST_F(LLMCommLinkManagerUTest, LinkCommPrepareFailed) {
   llm_datadist.LLMDataDistFinalize();
 }
 
+TEST_F(LLMCommLinkManagerUTest, InitializeRejectsInvalidLinkRetryCount) {
+  LLMDataDistV2 llm_datadist_zero(1U);
+  std::map<ge::AscendString, ge::AscendString> opts_zero;
+  opts_zero["llm.Role"] = "Decoder";
+  opts_zero["llm.LinkRetryCount"] = "0";
+  EXPECT_EQ(llm_datadist_zero.LLMDataDistInitialize(opts_zero), ge::LLM_PARAM_INVALID);
+
+  LLMDataDistV2 llm_datadist_over_max(1U);
+  std::map<ge::AscendString, ge::AscendString> opts_over_max;
+  opts_over_max["llm.Role"] = "Decoder";
+  opts_over_max["llm.LinkRetryCount"] = "101";
+  EXPECT_EQ(llm_datadist_over_max.LLMDataDistInitialize(opts_over_max), ge::LLM_PARAM_INVALID);
+}
+
 TEST_F(LLMCommLinkManagerUTest, LinkAndUnlinkSuc) {
   hixl_test::InstallSysApiHooks(std::make_shared<MockMmpa>());
   LLMDataDistV2 llm_datadist(1U);

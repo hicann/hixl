@@ -15,6 +15,7 @@
 
 namespace adxl {
 void SegmentTable::Clear() {
+  std::lock_guard<std::mutex> lock(map_mutex_);
   channel_2_segment_.clear();
 }
 

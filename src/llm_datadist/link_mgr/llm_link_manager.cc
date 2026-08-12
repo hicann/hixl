@@ -22,7 +22,7 @@ void LLMLinkManager::Finalize() {
 
 ge::Status LLMLinkManager::Initialize(const std::map<ge::AscendString, ge::AscendString> &options) {
   LLM_ASSERT_RT_OK(aclrtGetCurrentContext(&aclrt_context_));
-  CommLinkManager::Initialize(options);
+  LLM_CHK_STATUS_RET(CommLinkManager::Initialize(options), "Failed to initialize CommLinkManager");
   msg_handler_.SetMemHandlesCallback([this]() -> std::vector<void *> { return this->GetAllRegisterMemHandles(); });
   LLM_CHK_STATUS_RET(msg_handler_.Initialize(options), "Failed to init msg handler");
   const auto &iter = options.find(kLlmOptionListenPort);

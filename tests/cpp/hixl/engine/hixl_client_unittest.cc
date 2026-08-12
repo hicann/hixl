@@ -17,6 +17,7 @@
 #include <fstream>
 #include <cstdio>
 #include <sys/socket.h>
+#include <sys/timerfd.h>
 #include <unistd.h>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
@@ -1671,6 +1672,21 @@ TEST_F(HixlClientUTest, CheckAliveBrokenPipeReturnsFailed) {
   Status ret = client.CheckAlive();
   EXPECT_EQ(ret, FAILED);
   EXPECT_EQ(client.ctrl_socket_, -1);
+}
+
+TEST_F(HixlClientUTest, CheckAliveNonDisconnectedSendFailureKeepsClient) {
+  ClientConfig config{};
+  config.remote_engine = "127.0.0.1:16001";
+  HixlClient client("127.0.0.1", kServerPort, config);
+  int32_t timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
+  ASSERT_GE(timer_fd, 0);
+  client.ctrl_socket_ = timer_fd;
+
+  Status ret = client.CheckAlive();
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(client.ctrl_socket_, timer_fd);
+
+  EXPECT_EQ(client.Finalize(), SUCCESS);
 }
 
 TEST_F(HixlClientUTest, CheckAliveInvalidControlSocketFails) {

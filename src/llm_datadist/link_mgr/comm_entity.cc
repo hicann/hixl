@@ -198,12 +198,12 @@ ge::Status EntityCommInfo::Initialize() {
     bind_handles_.emplace_back(reg_handle);
   }
 
-  LLM_CHK_STATUS_RET(PrepareHcclComm(), "Failed to prepare hccl comm");
   LLM_CHK_BOOL_RET_STATUS(params_.timeout >= 0, ge::LLM_PARAM_INVALID,
                           "timeout should be greater than or equal 0, given value is %d", params_.timeout);
   LLM_CHK_BOOL_RET_STATUS(
       params_.link_retry_count >= kRetryCountMin && params_.link_retry_count <= kRetryCountMax, ge::LLM_PARAM_INVALID,
       "link_retry_count should be an integer between [1, 100], given value is %d", params_.link_retry_count);
+  LLM_CHK_STATUS_RET(PrepareHcclComm(), "Failed to prepare hccl comm");
   LLM_DISMISS_GUARD(fail_guard);
   return ge::SUCCESS;
 }

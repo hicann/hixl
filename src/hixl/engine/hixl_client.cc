@@ -9,6 +9,7 @@
  */
 
 #include "hixl_client.h"
+#include <array>
 #include <cerrno>
 #include <cstring>
 #include <unistd.h>
@@ -41,6 +42,11 @@ Status ParseNotifyAckResult(const std::string &json_str) {
     j.at("result").get_to(result);
   }
   return result;
+}
+
+bool IsSocketDisconnectedErrno(int32_t err_no) {
+  return err_no == EPIPE || err_no == EBADF || err_no == ECONNRESET || err_no == ENOTCONN || err_no == ESHUTDOWN ||
+         err_no == ETIMEDOUT;
 }
 }  // namespace
 
@@ -335,23 +341,26 @@ Status HixlClient::CheckAlive() {
   CtrlMsgHeader header{};
   header.magic = kMagicNumber;
   header.body_size = sizeof(CtrlMsgType);
-  int32_t err_no = 0;
-  Status ret = CtrlMsgPlugin::Send(ctrl_socket_, &header, sizeof(header), err_no);
-  HIXL_CHK_STATUS(ret, "HixlClient CheckAlive send header failed, peer_ip:%s, peer_port:%u, fd=%d", server_ip_.c_str(),
-                  server_port_, ctrl_socket_);
-  if (ret != SUCCESS && (err_no == EPIPE || err_no == EBADF)) {
-    CloseCtrlSocket();
-    return FAILED;
-  }
-
   CtrlMsgType msg_type = CtrlMsgType::kHeartBeat;
-  err_no = 0;
-  ret = CtrlMsgPlugin::Send(ctrl_socket_, &msg_type, sizeof(msg_type), err_no);
-  HIXL_CHK_STATUS(ret, "HixlClient CheckAlive send msg_type failed, peer_ip:%s, peer_port:%u, fd=%d",
-                  server_ip_.c_str(), server_port_, ctrl_socket_);
-  if (ret != SUCCESS && (err_no == EPIPE || err_no == EBADF)) {
-    CloseCtrlSocket();
-    return FAILED;
+  std::array<uint8_t, sizeof(CtrlMsgHeader) + sizeof(CtrlMsgType)> heartbeat_msg{};
+  errno_t rc = memcpy_s(heartbeat_msg.data(), heartbeat_msg.size(), &header, sizeof(header));
+  HIXL_CHK_BOOL_RET_STATUS(rc == EOK, FAILED, "memcpy_s heartbeat header failed, rc=%d", static_cast<int32_t>(rc));
+  rc = memcpy_s(heartbeat_msg.data() + sizeof(header), heartbeat_msg.size() - sizeof(header), &msg_type,
+                sizeof(msg_type));
+  HIXL_CHK_BOOL_RET_STATUS(rc == EOK, FAILED, "memcpy_s heartbeat msg_type failed, rc=%d", static_cast<int32_t>(rc));
+
+  int32_t err_no = 0;
+  Status ret = CtrlMsgPlugin::Send(ctrl_socket_, heartbeat_msg.data(), heartbeat_msg.size(), err_no);
+  if (ret != SUCCESS) {
+    if (IsSocketDisconnectedErrno(err_no)) {
+      HIXL_LOGE(FAILED, "HixlClient CheckAlive send heartbeat failed, peer_ip:%s, peer_port:%u, fd=%d, errno=%d",
+                server_ip_.c_str(), server_port_, ctrl_socket_, err_no);
+      CloseCtrlSocket();
+      return FAILED;
+    }
+    HIXL_LOGW("HixlClient CheckAlive send heartbeat failed, peer_ip:%s, peer_port:%u, fd=%d, errno=%d",
+              server_ip_.c_str(), server_port_, ctrl_socket_, err_no);
+    return SUCCESS;
   }
   return SUCCESS;
 }

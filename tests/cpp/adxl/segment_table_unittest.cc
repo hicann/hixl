@@ -79,4 +79,14 @@ TEST_F(SegmentTableUTest, TestAddInvalidRangeIgnored) {
   auto channel = table.FindSegment(kChannelId, kSegmentStart1, kSegmentEnd3);
   ASSERT_EQ(channel, nullptr);
 }
+
+TEST_F(SegmentTableUTest, TestClearRemovesAllRanges) {
+  SegmentTable table;
+  table.AddRange(kChannelId, kSegmentStart1, kSegmentEnd3, MemType::MEM_DEVICE);
+  ASSERT_NE(table.FindSegment(kChannelId, kSegmentStart1, kSegmentEnd3), nullptr);
+
+  table.Clear();
+
+  EXPECT_EQ(table.FindSegment(kChannelId, kSegmentStart1, kSegmentEnd3), nullptr);
+}
 }  // namespace adxl

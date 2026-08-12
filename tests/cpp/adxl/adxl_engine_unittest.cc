@@ -629,6 +629,26 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineGetTransferStatusFalied) {
   engine2.Finalize();
 }
 
+TEST_F(AdxlEngineUTest, GetTransferStatusBeforeInitializeReturnsFailed) {
+  AdxlEngine engine;
+  TransferStatus status = TransferStatus::WAITING;
+  TransferReq req = reinterpret_cast<TransferReq>(0x1);
+
+  EXPECT_EQ(engine.GetTransferStatus(req, status), FAILED);
+}
+
+TEST_F(AdxlEngineUTest, GetTransferStatusAfterFinalizeReturnsFailed) {
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  AdxlEngine engine;
+  std::map<AscendString, AscendString> options;
+  ASSERT_EQ(engine.Initialize("127.0.0.1", options), SUCCESS);
+  engine.Finalize();
+  TransferStatus status = TransferStatus::WAITING;
+  TransferReq req = reinterpret_cast<TransferReq>(0x1);
+
+  EXPECT_EQ(engine.GetTransferStatus(req, status), FAILED);
+}
+
 TEST_F(AdxlEngineUTest, TestAdxlGetTransferStatusWithInterrupt) {
   AdxlEngine engine1;
   AdxlEngine engine2;

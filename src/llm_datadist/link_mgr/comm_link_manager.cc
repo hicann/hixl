@@ -23,6 +23,8 @@ constexpr uint64_t kDefaultReqBufferSize = 112U * 1024U;
 constexpr uint64_t kDefaultRespBufferSize = 16U * 1024U;
 constexpr int64_t kDefaultSleepTime = 1;
 constexpr uint32_t kMaxLinkNum = 512;
+constexpr int32_t kLinkRetryCountMin = 1;
+constexpr int32_t kLinkRetryCountMax = 100;
 constexpr const char LLM_OPTION_RDMA_TRAFFIC_CLASS[] = "llm.RdmaTrafficClass";
 constexpr const char LLM_OPTION_RDMA_SERVICE_LEVEL[] = "llm.RdmaServiceLevel";
 constexpr const char LLM_OPTION_LINK_TOTAL_TIME[] = "llm.LinkTotalTime";
@@ -316,6 +318,9 @@ ge::Status CommLinkManager::Initialize(const std::map<ge::AscendString, ge::Asce
   if (retry_count != options.end()) {
     LLM_CHK_STATUS_RET(LLMUtils::ToNumber(retry_count->second.GetString(), link_retry_count_),
                        "llm.linkRetryCount is invalid, value = %s", retry_count->second.GetString());
+    LLM_CHK_BOOL_RET_STATUS(
+        link_retry_count_ >= kLinkRetryCountMin && link_retry_count_ <= kLinkRetryCountMax, ge::LLM_PARAM_INVALID,
+        "llm.linkRetryCount should be an integer between [1, 100], given value is %d", link_retry_count_);
   }
   return ge::SUCCESS;
 }
