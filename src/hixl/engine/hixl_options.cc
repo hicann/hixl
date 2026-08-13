@@ -11,6 +11,7 @@
 #include "hixl_options.h"
 
 #include <cerrno>
+#include <climits>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
@@ -20,7 +21,6 @@
 #include <unistd.h>
 
 #include "nlohmann/json.hpp"
-#include "mmpa/mmpa_api.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 #include "common/scope_guard.h"
@@ -373,10 +373,10 @@ Status HixlOptions::ResolveLocalCommResFromFile() {
   }
 
   const std::string &path = *global_resource_config_->local_comm_res_path;
-  char resolved_path[MMPA_MAX_PATH] = {};
-  auto mm_ret = mmRealPath(path.c_str(), resolved_path, MMPA_MAX_PATH);
-  HIXL_CHK_BOOL_RET_STATUS(mm_ret == EN_OK, PARAM_INVALID, "Call api:mmRealPath failed, path:%s, ret:%d", path.c_str(),
-                           mm_ret);
+  char resolved_path[PATH_MAX] = {};
+  HIXL_CHK_BOOL_RET_STATUS(realpath(path.c_str(), resolved_path) != nullptr, PARAM_INVALID,
+                           "Call api:realpath failed, path:%s, errno=%d, errmsg=%s", path.c_str(), errno,
+                           strerror(errno));
 
   std::string content;
   HIXL_CHK_STATUS_RET(ReadLocalCommResFile(resolved_path, content), "Failed to read local_comm_res_path file, path:%s",
