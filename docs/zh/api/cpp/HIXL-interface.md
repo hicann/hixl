@@ -51,7 +51,7 @@ HIXL对象析构函数。
 **函数原型**
 
 ```cpp
-~Hixl
+~Hixl();
 ```
 
 **参数说明**
@@ -305,6 +305,7 @@ UB_RTP
 | 字段名 | 数据类型 | 必选/可选 | 说明 | 支持值/填写规则 |
 | ---- | ---- | ---- | ---- | ---- |
 | comm_resource_config.protocol_desc | 字符串或字符串数组 | 可选 | 配置可使用的通信协议以及通信设备位置范围，格式为`${protocol}:${placement}` | 支持"roce:device"/"hccs:device"/"ub_ctp:device"/"uboe:device"/"ub_rtp:device"/"roce:host"/"ub_ctp:host"。配置后会对OPTION_LOCAL_COMM_RES中显式配置的endpoint_list和自动生成的endpoint_list按该范围进行过滤。A5上未配置该字段或仅配置"ub_ctp:device"时，自动生成Device UB资源，Host内存通过UBMEM映射到Device地址后使用Device UB链路传输；同时配置"ub_ctp:device"和"ub_ctp:host"时，自动生成Device+Host UB资源并使用原有纯URMA路径。显式配置的OPTION_LOCAL_COMM_RES在未配置本字段时不进行额外过滤。 |
+| comm_resource_config.listen_port | JSON数字或纯数字字符串 | 可选 | 配置device侧网卡监听端口 | 取值范围为[1, 65535]。Atlas A2 训练系列产品/Atlas A2 推理系列产品、Atlas A3 训练系列产品/Atlas A3 推理系列产品上未配置时，固定使用`16666`端口；Ascend 950PR/Ascend 950DT场景未配置时，由底层通信组件自动选择可用端口，HIXL自动查询实际监听端口。 |
 | comm_resource_config.qos | 数字 | 可选 | 配置通信协议qos | 当前仅支持[0-7]，当未配置的时候，默认为0。|
 | comm_resource_config.max_active_channels | 数字 | 可选 | CS场景下配置设备侧同时活跃传输通道数量 | 取值为正整数，未配置时默认值为128。每个active channel消耗2个Stream资源，配置值需结合当前卡形态的Stream资源上限及业务中已创建的Stream数量预留余量；不同卡形态的Stream资源上限参见CANN Runtime API [aclrtCreateStream](https://www.hiascend.com/document/detail/zh/canncommercial/latest/API/runtimeapi/aclcppdevg_03_0066.html)资料。|
 | local_comm_res_path | 字符串 | 可选 | 本地通信资源 JSON 文件路径；文件内容格式与 OPTION_LOCAL_COMM_RES 相同 | 配置文件的绝对或相对路径，相对路径基于进程当前工作目录解析。目标文件必须是大小在[1字节, 1MiB]范围内的普通文件。与 OPTION_LOCAL_COMM_RES 同时配置且 option 非空时，以 OPTION_LOCAL_COMM_RES 为准。 |
@@ -403,7 +404,7 @@ Status RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle)
 - 在调用Connect与对端建链之前需要完成所有local内存的注册。
 - 建议单个Hixl实例注册的内存个数不超过4K个。注册数量过多可能存在device OOM风险；同时注册个数越多，建链耗时越长，过多易出现建链超时问题；需用户根据业务场景自行管控内存注册数量和大小。
 <!-- npu="A3,910b" id8 -->
-- 当HDK版本低于25.5.0时，最大注册20GB的Host内存。当HDK版本大于等于25.5.0时，最大注册1TB的host内存。注册内存越大，占用的OS内存越多。该约束支持的型号如下：
+- 最大注册50GB的Device内存。当HDK版本低于25.5时，最大注册20GB的Host内存；当HDK版本大于等于25.5时，最大注册1TB的Host内存。注册内存越大，占用的OS内存越多。该约束支持的型号如下：
   <!-- npu="910b" id9 -->
   - Atlas A2 训练系列产品/Atlas A2 推理系列产品
   <!-- end id9 -->
@@ -419,7 +420,13 @@ Status RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle)
   <!-- npu="A3" id13 -->
   - Atlas A3 训练系列产品/Atlas A3 推理系列产品
   <!-- end id13 -->
-  <!-- end id11 -->
+<!-- end id11 -->
+<!-- npu="A3" id35 -->
+- FabricMem场景的Host内存存在以下约束：HDK 25.5不支持`aclrtMemRetainAllocationHandle`，必须使用ADXL的`AdxlEngine::MallocMem`申请，并使用`AdxlEngine::FreeMem`释放；HDK 26.0及以上版本可以直接使用ACL接口管理。该约束支持的型号如下：
+  <!-- npu="A3" id36 -->
+  - Atlas A3 训练系列产品/Atlas A3 推理系列产品
+  <!-- end id36 -->
+<!-- end id35 -->
 - 注册Device内存使用“aclrtMalloc”进行申请，如通过HCCS传输，则内存分配规则需配置为ACL\_MEM\_MALLOC\_HUGE\_ONLY。
 - 该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
 <!-- npu="950" id14 -->
@@ -688,7 +695,7 @@ Status GetAsyncConnectStatus(const AscendString &remote_engine, AsyncConnectStat
 **函数原型**
 
 ```cpp
-Status GetAsyncConnectStatus(std::map<AscendString, AsyncConnectStatus> &statuses)
+Status GetAsyncConnectStatus(std::map<AscendString, AsyncConnectStatus> &status)
 ```
 
 **参数说明**
@@ -950,13 +957,22 @@ Status TransferSync(const AscendString &remote_engine,
 
 | 参数名称 | 输入/输出 | 取值说明 |
 | --- | --- | --- |
-| remote_engine | 输入 | 远端Hixl的唯一标识 |
-| timeout_in_millis | 输入 | 发送超时时间，单位ms。 |
+| remote_engine | 输入 | 远端Hixl的唯一标识。 |
 | notify | 输入 | 要发送的Notify内容。内容中的notify_msg和name长度上限均为1024字符。 |
+| timeout_in_millis | 输入 | 发送超时时间，单位：ms，默认值：1000。 |
 
 **调用示例**
 
-无
+```cpp
+// client_engine已完成初始化，并已与remote_engine建链。
+NotifyDesc notify;
+notify.name = AscendString("cache_ready");
+notify.notify_msg = AscendString("block_0");
+Status ret = client_engine.SendNotify(remote_engine, notify, 1000);
+if (ret != SUCCESS) {
+  // 处理发送失败。
+}
+```
 
 **返回值**
 
@@ -989,7 +1005,13 @@ Status TransferSync(const AscendString &remote_engine,
 
 **调用示例**
 
-无
+```cpp
+std::vector<NotifyDesc> notifies;
+Status ret = server_engine.GetNotifies(notifies);
+if (ret != SUCCESS) {
+  // 处理获取失败。
+}
+```
 
 **返回值**
 
@@ -1021,7 +1043,14 @@ static Status GetCapability(FeatureType feature_type, int32_t &value)
 
 **调用示例**
 
-无
+```cpp
+int32_t value = FEATURE_NOT_SUPPORTED;
+Status ret = Hixl::GetCapability(AUTO_CONNECT, value);
+if (ret != SUCCESS) {
+  // 处理查询失败。
+}
+bool supports_auto_connect = (value == FEATURE_SUPPORTED);
+```
 
 **返回值**
 

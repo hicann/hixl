@@ -220,7 +220,12 @@ Function: Implements KV Cache transmission functionality in disaggregated deploy
 
     (4) Run fabric_mem_d2d, fabric mem mode D2D scenario
 
-    **Note**: To use fabric mem mode, HDK must be upgraded to version 26.0 or later.
+    **Note**:
+
+    - FabricMem only supports Atlas A3 training series products / Atlas A3 inference series products, with a minimum HDK version of 25.5.
+    - HDK 25.5 does not support `aclrtMemRetainAllocationHandle`. On this version, Host memory in FabricMem scenarios must be allocated and freed using the ADXL-provided `MallocMem`/`FreeMem`.
+    - HDK 26.0 and above can directly use ACL interfaces to manage Host memory in FabricMem scenarios.
+    - The current `fabric_mem_d2d` example directly uses ACL VMM interfaces `aclrtReserveMemAddress`, `aclrtMallocPhysical`, and `aclrtMapMem` in `AllocateBuffer` to allocate memory, then registers it as `MEM_DEVICE`, rather than allocating through ADXL's `AdxlEngine::MallocMem`. This registration path requires `aclrtMemRetainAllocationHandle`, so the example requires HDK 26.0 or later and is not compatible with HDK 25.5. The `aclrtMallocHost`/`aclrtFreeHost` in the example are only used for initialization and buffer verification, not for FabricMem Host memory registration.
 
       - Run server1 fabric_mem_d2d with parameters device_id, local engine and remote engine, where device_id is the device ID used by the current engine. For example:
 

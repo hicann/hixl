@@ -208,7 +208,12 @@
 
     (4) 执行fabric_mem_d2d, fabric mem模式下，d2d场景
 
-    **注意**：要使用fabric mem模式，HDK需升级至26.0以上版本
+    **注意**：
+
+    - FabricMem仅支持Atlas A3 训练系列产品/Atlas A3 推理系列产品，最低支持HDK 25.5。
+    - HDK 25.5不支持`aclrtMemRetainAllocationHandle`。在该版本上，FabricMem场景的Host内存必须使用ADXL提供的`MallocMem`/`FreeMem`进行申请和释放。
+    - HDK 26.0及以上版本可以直接使用ACL接口管理FabricMem场景的Host内存。
+    - 当前`fabric_mem_d2d`样例在`AllocateBuffer`中直接使用ACL VMM接口`aclrtReserveMemAddress`、`aclrtMallocPhysical`和`aclrtMapMem`分配内存，随后以`MEM_DEVICE`注册，未通过ADXL的`AdxlEngine::MallocMem`分配。该注册路径需要`aclrtMemRetainAllocationHandle`，因此样例要求HDK 26.0及以上版本，不兼容HDK 25.5。样例中的`aclrtMallocHost`/`aclrtFreeHost`仅用于初始化和校验buffer，并非FabricMem Host内存注册。
 
       - 执行server1 fabric_mem_d2d, 参数为device_id、local engine和remote engine, 其中device_id为当前engine要使用的device_id，如:
           ```

@@ -349,13 +349,13 @@ build/benchmarks/comm_benchmark/hixl_comm_bench \
 |---|------------------------|---|-----------|---|
 | **A2** | D2rD, rD2D | 全部 8 个方向 | 不支持 | 不支持 |
 | **A3** | D2rD, rD2D, H2rD, rD2H | 全部 8 个方向 | 全部 8 个方向 | 不支持 |
-| **A5** | 不支持 | 全部 8 个方向（需 `--host_roce_ip`） | 全部 8 个方向 | 全部 8 个方向 |
+| **A5** | 不支持 | 全部 8 个方向（需 `--host_roce_ip`） | 不支持 | 全部 8 个方向 |
 
 双机 `--transport=all` 时各平台实际 transport 列表：
 
 - A2：`roce`
 - A3：`hccs`, `roce`, `fabric_mem`
-- A5：`roce`, `fabric_mem`, `uboe`, `ub_rtp`, `ub`
+- A5：`roce`, `uboe`, `ub_rtp`, `ub`
 
 ---
 

@@ -289,6 +289,116 @@ TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigConnectPool) {
   EXPECT_EQ(*grc.connect_pool.task_queue_capacity, 256);
 }
 
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigConnectPoolThreadNumMinBoundary) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"connect_pool.thread_num":"1"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.GlobalResourceCfg().has_value());
+  EXPECT_EQ(*result.GlobalResourceCfg()->connect_pool.thread_num, 1);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigConnectPoolThreadNumMaxBoundary) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"connect_pool.thread_num":"64"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.GlobalResourceCfg().has_value());
+  EXPECT_EQ(*result.GlobalResourceCfg()->connect_pool.thread_num, 64);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigConnectPoolThreadNumZeroInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"connect_pool.thread_num":"0"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigConnectPoolThreadNumAboveMaxInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"connect_pool.thread_num":"65"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigConnectPoolThreadNumNegativeInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"connect_pool.thread_num":"-1"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigConnectPoolTaskQueueCapacityMinBoundary) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"connect_pool.task_queue_capacity":"1"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.GlobalResourceCfg().has_value());
+  EXPECT_EQ(*result.GlobalResourceCfg()->connect_pool.task_queue_capacity, 1);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigConnectPoolTaskQueueCapacityMaxBoundary) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"connect_pool.task_queue_capacity":"65535"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.GlobalResourceCfg().has_value());
+  EXPECT_EQ(*result.GlobalResourceCfg()->connect_pool.task_queue_capacity, 65535);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigConnectPoolTaskQueueCapacityZeroInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"connect_pool.task_queue_capacity":"0"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigConnectPoolTaskQueueCapacityAboveMaxInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"connect_pool.task_queue_capacity":"65536"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigConnectPoolTaskQueueCapacityNegativeInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"connect_pool.task_queue_capacity":"-1"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigConnectPoolThreadNumNumericType) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"connect_pool.thread_num":4})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.GlobalResourceCfg().has_value());
+  EXPECT_EQ(*result.GlobalResourceCfg()->connect_pool.thread_num, 4);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigConnectPoolThreadNumTypeInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"connect_pool.thread_num":"invalid"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigConnectPoolTaskQueueCapacityNumericType) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"connect_pool.task_queue_capacity":256})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.GlobalResourceCfg().has_value());
+  EXPECT_EQ(*result.GlobalResourceCfg()->connect_pool.task_queue_capacity, 256);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigConnectPoolTaskQueueCapacityTypeInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"connect_pool.task_queue_capacity":"invalid"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
 TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigProtocolDesc) {
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.protocol_desc":["uboe:device"]})";

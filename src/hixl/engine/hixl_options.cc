@@ -36,6 +36,10 @@ constexpr size_t kMaxTaskStreamNum = 8U;
 constexpr uint32_t kMinListenPort = 1U;
 constexpr uint32_t kMaxListenPort = 65535U;
 constexpr uint32_t kMinActiveChannels = 1U;
+constexpr int32_t kMinConnectPoolThreadNum = 1;
+constexpr int32_t kMaxConnectPoolThreadNum = 64;
+constexpr int32_t kMinConnectPoolTaskQueueCapacity = 1;
+constexpr int32_t kMaxConnectPoolTaskQueueCapacity = 65535;
 constexpr int32_t kMinRdmaTrafficClass = 0;
 constexpr int32_t kMaxRdmaTrafficClass = 255;
 constexpr int32_t kRdmaTrafficClassAlign = 4;
@@ -155,12 +159,14 @@ Status ParseFabricMemoryConfig(const nlohmann::json &json, FabricMemoryConfig &c
 }
 
 Status ParseConnectPoolConfig(const nlohmann::json &json, ConnectPoolConfig &cfg) {
-  if (json.contains("connect_pool.thread_num")) {
-    cfg.thread_num = JsonToNumber<int32_t>(json.at("connect_pool.thread_num"));
-  }
-  if (json.contains("connect_pool.task_queue_capacity")) {
-    cfg.task_queue_capacity = JsonToNumber<int32_t>(json.at("connect_pool.task_queue_capacity"));
-  }
+  IntegerFieldRange thread_num_range = {"connect_pool.thread_num", kMinConnectPoolThreadNum, kMaxConnectPoolThreadNum,
+                                        ""};
+  HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, thread_num_range, cfg.thread_num),
+                      "Failed to parse connect_pool.thread_num");
+  IntegerFieldRange task_queue_capacity_range = {"connect_pool.task_queue_capacity", kMinConnectPoolTaskQueueCapacity,
+                                                 kMaxConnectPoolTaskQueueCapacity, ""};
+  HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, task_queue_capacity_range, cfg.task_queue_capacity),
+                      "Failed to parse connect_pool.task_queue_capacity");
   return SUCCESS;
 }
 

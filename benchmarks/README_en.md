@@ -349,13 +349,14 @@ Full list: run `build/benchmarks/comm_benchmark/hixl_comm_bench` with no args to
 |---|---|---|---|---|
 | **A2** | D2rD, rD2D | All 8 directions | Not supported | Not supported |
 | **A3** | D2rD, rD2D, H2rD, rD2H | All 8 directions | All 8 directions | Not supported |
-| **A5** | Not supported | All 8 directions (needs `--host_roce_ip`) | All 8 directions | All 8 directions |
+
+| **A5** | Not supported | All 8 directions (needs `--host_roce_ip`) | Not supported | All 8 directions |
 
 Transports expanded by dual-machine `--transport=all`:
 
 - A2: `roce`
 - A3: `hccs`, `roce`, `fabric_mem`
-- A5: `roce`, `fabric_mem`, `uboe`, `ub_rtp`, `ub`
+- A5: `roce`, `uboe`, `ub_rtp`, `ub`
 
 ---
 
