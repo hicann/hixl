@@ -361,7 +361,8 @@ std::vector<TransferBlocksTask> DataTransferTaskGenerator::DoGenerateForClientBl
   return ret;
 }
 
-void DataTransferTaskGenerator::GetNextBufBlockNum(uint32_t buffer_task_index, uint32_t &remote_buffer_block_num) {
+void DataTransferTaskGenerator::GetNextBufBlockNum(uint32_t buffer_task_index,
+                                                   uint32_t &remote_buffer_block_num) const {
   if (buffer_task_index < buffer_block_nums_.size()) {
     remote_buffer_block_num = buffer_block_nums_[buffer_task_index];
   }
@@ -614,7 +615,7 @@ ge::Status D2HDataTransferClient::RunTasks() {
   }
   return ge::SUCCESS;
 }
-ge::Status D2HDataTransferClient::CopyAsync(const TransferBlocksTask &task) {
+ge::Status D2HDataTransferClient::CopyAsync(const TransferBlocksTask &task) const {
   LLM_CHK_ACL_RET(aclrtSetCurrentContext(comm_entity_->GetCurrentContext()));
   auto src_addr = buffers_[task.buffer_index] + task.block_span.buffer_block_start * block_size_;
   auto dst_addr = tensor_addresses_[task.block_span.tensor_index] + task.block_span.tensor_offset;

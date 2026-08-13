@@ -33,7 +33,7 @@ class CommEntityManager {
   void Dump() const;
   void DeleteEntities();
   size_t GetEntitySize() const;
-  ge::Status RemapRegisteredMemory(const std::vector<LLMMemInfo> &mem_infos);
+  ge::Status RemapRegisteredMemory(const std::vector<LLMMemInfo> &mem_infos) const;
   RegBufferPool *GetHostRegPool();
   RegBufferPool *GetDeviceRegPool();
 

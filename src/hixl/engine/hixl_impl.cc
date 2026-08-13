@@ -53,9 +53,9 @@ class Hixl::HixlImpl {
 
   Status DisconnectAsync(const AscendString &remote_engine, int32_t timeout_in_millis = 1000);
 
-  Status GetAsyncConnectStatus(const AscendString &remote_engine, AsyncConnectStatus &status);
+  Status GetAsyncConnectStatus(const AscendString &remote_engine, AsyncConnectStatus &status) const;
 
-  Status GetAsyncConnectStatus(std::map<AscendString, AsyncConnectStatus> &statuses);
+  Status GetAsyncConnectStatus(std::map<AscendString, AsyncConnectStatus> &statuses) const;
 
   Status TransferSync(const AscendString &remote_engine, TransferOp operation,
                       const std::vector<TransferOpDesc> &op_descs, int32_t timeout_in_millis = 1000);
@@ -165,13 +165,13 @@ Status Hixl::HixlImpl::DisconnectAsync(const AscendString &remote_engine, int32_
   return connect_pool_executor_.Submit(task, remote_engine, false);
 }
 
-Status Hixl::HixlImpl::GetAsyncConnectStatus(const AscendString &remote_engine, AsyncConnectStatus &status) {
+Status Hixl::HixlImpl::GetAsyncConnectStatus(const AscendString &remote_engine, AsyncConnectStatus &status) const {
   HIXL_CHK_STATUS_RET(connect_pool_executor_.GetStatus(remote_engine, status),
                       "Failed to get async connect status, remote_engine:%s", remote_engine.GetString());
   return SUCCESS;
 }
 
-Status Hixl::HixlImpl::GetAsyncConnectStatus(std::map<AscendString, AsyncConnectStatus> &statuses) {
+Status Hixl::HixlImpl::GetAsyncConnectStatus(std::map<AscendString, AsyncConnectStatus> &statuses) const {
   HIXL_CHK_STATUS_RET(connect_pool_executor_.GetStatus(statuses), "Failed to get async connect status");
   return SUCCESS;
 }

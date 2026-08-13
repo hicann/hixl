@@ -29,45 +29,47 @@ class LLMDataDistV2 {
   void LLMDataDistFinalize();
 
   ge::Status Link(std::string &cluster_name, const std::map<uint64_t, uint32_t> &cluster2rank, std::string &rank_table,
-                  uint64_t &comm_id);
+                  uint64_t &comm_id) const;
 
-  ge::Status Unlink(uint64_t comm_id);
+  ge::Status Unlink(uint64_t comm_id) const;
 
-  ge::Status QueryRegisterMemStatus(uint64_t comm_id, RegisterMemoryStatus &status);
+  ge::Status QueryRegisterMemStatus(uint64_t comm_id, RegisterMemoryStatus &status) const;
 
-  ge::Status RegisterCache(const CacheDesc &cache_desc, Cache &cache, const std::vector<CacheKey> &cache_keys = {});
+  ge::Status RegisterCache(const CacheDesc &cache_desc, Cache &cache,
+                           const std::vector<CacheKey> &cache_keys = {}) const;
 
-  ge::Status AllocateCache(const CacheDesc &cache_desc, Cache &cache, const std::vector<CacheKey> &cache_keys = {});
+  ge::Status AllocateCache(const CacheDesc &cache_desc, Cache &cache,
+                           const std::vector<CacheKey> &cache_keys = {}) const;
 
-  ge::Status DeallocateCache(int64_t cache_id);
+  ge::Status DeallocateCache(int64_t cache_id) const;
 
-  ge::Status RemoveCacheKey(const CacheKey &cache_key);
+  ge::Status RemoveCacheKey(const CacheKey &cache_key) const;
 
-  ge::Status RemapRegisteredMemory(const std::vector<LLMMemInfo> &mem_infos);
+  ge::Status RemapRegisteredMemory(const std::vector<LLMMemInfo> &mem_infos) const;
 
-  ge::Status PullCache(int64_t cache_id, const CacheKey &cache_key, const PullCacheParam &pull_cache_param = {});
+  ge::Status PullCache(int64_t cache_id, const CacheKey &cache_key, const PullCacheParam &pull_cache_param = {}) const;
 
-  ge::Status PullBlocks(int64_t cache_id, const CacheKey &cache_key, const PullCacheParam &pull_cache_param = {});
+  ge::Status PullBlocks(int64_t cache_id, const CacheKey &cache_key, const PullCacheParam &pull_cache_param = {}) const;
 
-  ge::Status CopyCache(const CopyCacheParam &copy_cache_param);
+  ge::Status CopyCache(const CopyCacheParam &copy_cache_param) const;
 
   ge::Status SwapBlocks(const Cache &src, const Cache &dst, const uint64_t block_size, const uint32_t type,
-                        const std::vector<std::pair<int64_t, int64_t>> &block_mapping);
+                        const std::vector<std::pair<int64_t, int64_t>> &block_mapping) const;
 
-  ge::Status CheckCapacity(const size_t seq_len);
+  ge::Status CheckCapacity(const size_t seq_len) const;
 
   ge::Status TransferCache(const uint64_t task_id, const TransferCacheConfig &transfer_cache_config,
                            const TransferBlockConfig &transfer_block_config);
 
   ge::Status LinkClusters(const std::vector<ClusterInfo> &clusters, std::vector<ge::Status> &rets,
-                          const int32_t timeout);
+                          const int32_t timeout) const;
 
   ge::Status UnlinkClusters(const std::vector<ClusterInfo> &clusters, std::vector<ge::Status> &rets,
-                            const int32_t timeout, bool force_flag = false);
+                            const int32_t timeout, bool force_flag = false) const;
 
-  ge::Status UnregisterCache(int64_t cache_id);
+  ge::Status UnregisterCache(int64_t cache_id) const;
 
-  ge::Status SwitchRole(const std::string &role, const std::map<std::string, std::string> &options);
+  ge::Status SwitchRole(const std::string &role, const std::map<std::string, std::string> &options) const;
 
   bool IsInitialized() const;
 

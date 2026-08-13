@@ -190,7 +190,7 @@ ge::Status RankTableGeneratorV2::Generate(int32_t local_device_id, std::string &
   return ge::SUCCESS;
 }
 
-int32_t RankTableGeneratorV2::GetLocalRankId() {
+int32_t RankTableGeneratorV2::GetLocalRankId() const {
   for (const auto &server : merged_rank_table_.server_list) {
     for (const auto &device : server.device_list) {
       if (device.is_local) {
@@ -201,7 +201,7 @@ int32_t RankTableGeneratorV2::GetLocalRankId() {
   return -1;
 }
 
-int32_t RankTableGeneratorV2::GetPeerRankId() {
+int32_t RankTableGeneratorV2::GetPeerRankId() const {
   for (const auto &server : merged_rank_table_.server_list) {
     for (const auto &device : server.device_list) {
       if (!device.is_local) {

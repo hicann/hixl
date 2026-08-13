@@ -52,8 +52,8 @@ class RankTableGeneratorV1 : public RankTableGenerator {
       : local_comm_res_(local_comm_res), peer_comm_res_(peer_comm_res), merged_rank_table_{} {};
   ~RankTableGeneratorV1() override = default;
   ge::Status Generate(int32_t local_device_id, std::string &rank_table) override;
-  int32_t GetLocalRankId() override;
-  int32_t GetPeerRankId() override;
+  int32_t GetLocalRankId() const override;
+  int32_t GetPeerRankId() const override;
   static ge::Status GenerateLocalCommRes(const std::string &server_id, int32_t device_id, std::string &local_comm_res,
                                          std::optional<uint32_t> device_port = std::nullopt);
 

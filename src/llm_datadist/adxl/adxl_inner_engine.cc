@@ -623,7 +623,7 @@ Status AdxlInnerEngine::SendNotify(const AscendString &remote_engine, const Noti
   return result_status;
 }
 
-Status AdxlInnerEngine::GetNotifies(std::vector<NotifyDesc> &notifies) {
+Status AdxlInnerEngine::GetNotifies(std::vector<NotifyDesc> &notifies) const {
   // no need for RtContext
   auto server_channels = channel_manager_.GetAllServerChannel();
   for (const auto &channel : server_channels) {

@@ -80,9 +80,9 @@ class CommChannel {
   Status GetTransferStatus(const TransferReq &req, TransferStatus &status);
   Status SetSocketNonBlocking(int32_t fd);
   void StopHeartbeat();
-  Status SendControlMsg(const std::function<Status(int32_t fd)> &func);
-  Status CommWithFd(const std::function<Status(int32_t)> &func);
-  Status SendHeartBeat(const std::function<Status(int32_t)> &func);
+  Status SendControlMsg(const std::function<Status(int32_t fd)> &func) const;
+  Status CommWithFd(const std::function<Status(int32_t)> &func) const;
+  Status SendHeartBeat(const std::function<Status(int32_t)> &func) const;
   static void SetHeartbeatTimeout(int64_t timeout_in_millis);
   int32_t GetFd() const {
     return fd_;
@@ -131,21 +131,21 @@ class CommChannel {
     disconnect_flag_.store(value, std::memory_order_release);
   }
   Status TransferAsyncWithTimeout(TransferOp operation, const std::vector<TransferOpDesc> &op_descs, aclrtStream stream,
-                                  uint64_t timeout);
+                                  uint64_t timeout) const;
   std::string GetStatisticChannelId() const;
 
  private:
   Status InitializeHcclComm();
-  Status BindRegisteredMemory(std::vector<void *> &bind_handles);
-  Status PrepareHcclComm(const std::chrono::steady_clock::time_point &hccl_start);
+  Status BindRegisteredMemory(std::vector<void *> &bind_handles) const;
+  Status PrepareHcclComm(const std::chrono::steady_clock::time_point &hccl_start) const;
   Status ClearResources();
-  bool HasInFlightWorkForDisconnect();
-  void AbortActiveSlotStreamForDisconnect();
+  bool HasInFlightWorkForDisconnect() const;
+  void AbortActiveSlotStreamForDisconnect() const;
   Status TeardownHcclComm();
   void ResetAsyncStateOnDisconnect();
   void ClearNotifyMessages();
   // Enqueue DlHcclBatchGet/Put on the given stream (batched via BufferedTransfer).
-  Status IssueHcclBatch(TransferOp operation, const std::vector<TransferOpDesc> &op_descs, aclrtStream stream);
+  Status IssueHcclBatch(TransferOp operation, const std::vector<TransferOpDesc> &op_descs, aclrtStream stream) const;
 
   // --- Shared slot lifecycle: one slot per channel, ref-counted across its in-flight batch ---
   // Borrow (or reuse) the single shared slot bound to this channel; increments the shared_ptr ref-count.
@@ -172,17 +172,17 @@ class CommChannel {
                        uint64_t transfer_bytes, uint64_t op_desc_count);
 
   Status IssueAsyncBatchWithHostFlag(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
-                                     const std::shared_ptr<SlotHandle> &slot, void *host_flag);
+                                     const std::shared_ptr<SlotHandle> &slot, void *host_flag) const;
   Status LookupPendingAsyncTransfer(uint64_t id, std::shared_ptr<SlotHandle> &slot, void *&host_flag,
                                     std::chrono::steady_clock::time_point &transfer_start, uint64_t &transfer_bytes,
-                                    uint64_t &op_desc_count);
+                                    uint64_t &op_desc_count) const;
   static bool IsHostFlagDone(void *host_flag);
   void MarkUnavailableOnError(Status ret);
   // Fail-fast gate: only rejects when fail_fast_ is on and the link was marked unavailable by a prior fatal error.
   Status CheckAvailableLocked() const;
   ChannelInfo channel_info_;
   // mutex for fd
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   std::atomic<bool> with_heartbeat_{false};
   std::chrono::steady_clock::time_point last_heartbeat_time_;
   static int64_t timeout_in_millis_;
@@ -209,10 +209,10 @@ class CommChannel {
   // concurrent threads never share or abort the one channel stream mid-issue.
   std::mutex device_launch_mu_;
   // Guards active_slot_ (the one shared slot bound to this channel) and its ref-count transitions.
-  std::mutex active_slot_mu_;
+  mutable std::mutex active_slot_mu_;
   std::shared_ptr<SlotHandle> active_slot_;
 
-  std::mutex transfer_reqs_mutex_;
+  mutable std::mutex transfer_reqs_mutex_;
   std::unordered_map<uint64_t, AsyncRecord> req_2_async_record_;
   TransferSlotPool *slot_pool_ = nullptr;
 };

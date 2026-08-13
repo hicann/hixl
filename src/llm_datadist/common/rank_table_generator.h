@@ -23,8 +23,8 @@ class RankTableGenerator {
   RankTableGenerator() = default;
   virtual ~RankTableGenerator() = default;
   virtual ge::Status Generate(int32_t local_device_id, std::string &rank_table) = 0;
-  virtual int32_t GetLocalRankId() = 0;
-  virtual int32_t GetPeerRankId() = 0;
+  virtual int32_t GetLocalRankId() const = 0;
+  virtual int32_t GetPeerRankId() const = 0;
 };
 
 class LocalCommResGenerator {

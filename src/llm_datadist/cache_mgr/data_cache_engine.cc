@@ -130,7 +130,7 @@ ge::Status DataCacheEngine::Unregister(int64_t cache_id) {
 }
 
 ge::Status DataCacheEngine::PullCache(int64_t cache_id, const CacheKey &cache_key,
-                                      const PullCacheParam &pull_cache_param) {
+                                      const PullCacheParam &pull_cache_param) const {
   const auto start = std::chrono::steady_clock::now();
   // cache_id is local, find local addr by cache_id
   CacheEntry cache_entry;
@@ -369,7 +369,7 @@ ge::Status DataCacheEngine::CopyCache(const CopyCacheParam &copy_cache_param) co
   return cache_manager_->CopyCache(copy_cache_param);
 }
 
-ge::Status DataCacheEngine::CheckCapacity(size_t size) {
+ge::Status DataCacheEngine::CheckCapacity(size_t size) const {
   LLM_CHK_BOOL_RET_STATUS(npu_mem_pool_ != nullptr, ge::LLM_FEATURE_NOT_ENABLED, "memory pool is not enabled");
   auto ret = (npu_mem_pool_->AllocShared(size) != nullptr) ? ge::SUCCESS : ge::LLM_OUT_OF_MEMORY;
   LLMLOGI("check size = %zu, check result = %u", size, ret);

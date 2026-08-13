@@ -63,7 +63,7 @@ class MockMmpaBase : public hixl_test::SysApiHooks {
   }
 
  protected:
-  virtual std::map<std::string, void *> GetFuncMap() {
+  virtual std::map<std::string, void *> GetFuncMap() const {
     return GetBaseFuncMap();
   }
 };
@@ -74,7 +74,7 @@ class MockMmpa : public MockMmpaBase {};
 // 注入 HcclCommBindMemFail 的 Mock
 class MockMmpaCommBindMemFail : public MockMmpaBase {
  protected:
-  std::map<std::string, void *> GetFuncMap() override {
+  std::map<std::string, void *> GetFuncMap() const override {
     auto m = GetBaseFuncMap();
     m["HcclCommBindMem"] = reinterpret_cast<void *>(&HcclCommBindMemFail);
     return m;
@@ -84,7 +84,7 @@ class MockMmpaCommBindMemFail : public MockMmpaBase {
 // 注入 HcclCommPrepareFail 的 Mock
 class MockMmpaCommPrepareFail : public MockMmpaBase {
  protected:
-  std::map<std::string, void *> GetFuncMap() override {
+  std::map<std::string, void *> GetFuncMap() const override {
     auto m = GetBaseFuncMap();
     m["HcclCommPrepare"] = reinterpret_cast<void *>(&HcclCommPrepareFail);
     return m;

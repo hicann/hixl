@@ -48,7 +48,7 @@ class SpanLayerLut {
     return span_layer_ids_.end();
   }
 
-  size_t size() {
+  size_t size() const {
     return span_layer_ids_.size();
   }
 

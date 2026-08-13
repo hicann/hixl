@@ -289,7 +289,7 @@ ge::Status LinkMsgHandler::GenerateRankInfo(const std::string &peer_comm_res, st
 }
 
 ge::Status LinkMsgHandler::ExchangeInfoProcess(const LLMExchangeInfo &peer_exchange_info, int32_t timeout,
-                                               bool force_link, EntityMemInfoPtr &mem_info_ptr) {
+                                               bool force_link, EntityMemInfoPtr &mem_info_ptr) const {
   LLM_CHK_BOOL_RET_STATUS(peer_exchange_info.cache_table_size <= kCacheAccessTableBufferSize, ge::LLM_PARAM_INVALID,
                           "Remote cache_table_size %lu exceeds max %lu.", peer_exchange_info.cache_table_size,
                           kCacheAccessTableBufferSize);
@@ -352,7 +352,7 @@ ge::Status LinkMsgHandler::DisconnectInfoProcess(const LLMDisconnectInfo &peer_d
   return comm_entity_manager_->DestroyEntity(peer_disconnect_info.cluster_id);
 }
 
-ge::Status LinkMsgHandler::CreateEntityMemInfo(EntityMemInfoPtr &mem_info_ptr) {
+ge::Status LinkMsgHandler::CreateEntityMemInfo(EntityMemInfoPtr &mem_info_ptr) const {
   mem_info_ptr = MakeUnique<EntityMemInfo>(remote_cache_accessible_, comm_entity_manager_->GetHostRegPool(),
                                            comm_entity_manager_->GetDeviceRegPool());
   LLM_CHECK_NOTNULL(mem_info_ptr);

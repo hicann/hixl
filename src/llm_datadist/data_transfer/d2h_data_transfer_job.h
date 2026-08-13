@@ -49,7 +49,7 @@ class DataTransferTaskGenerator {
                                                             const uint64_t *remote_block_indices);
   std::vector<TransferBlocksTask> DoGenerateForLargeBlock(uint32_t block_size, uint32_t num_block_indices,
                                                           const uint64_t *block_indices) const;
-  void GetNextBufBlockNum(uint32_t buffer_task_index, uint32_t &remote_buffer_block_num);
+  void GetNextBufBlockNum(uint32_t buffer_task_index, uint32_t &remote_buffer_block_num) const;
 
   uint32_t num_tensors_;
   uint32_t num_buffers_;
@@ -102,7 +102,7 @@ class D2HDataTransferClient {
   ge::Status RunTasks();
   void FillRequest(const CacheEntry &cache_entry, const CacheKey &cache_key, const PullCacheParam &pull_cache_param,
                    TransferCacheReq &request, uint64_t &size) const;
-  ge::Status CopyAsync(const TransferBlocksTask &task);
+  ge::Status CopyAsync(const TransferBlocksTask &task) const;
 
   CommEntity *comm_entity_ = nullptr;
   aclrtStream stream_;

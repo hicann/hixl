@@ -115,7 +115,7 @@ std::shared_ptr<void> LlmMemPool::AllocShared(size_t size, int32_t timeout_in_ms
   return MakeShared(Alloc(size, timeout_in_ms));
 }
 
-void LlmMemPool::LogPoolState() {
+void LlmMemPool::LogPoolState() const {
   scalable_allocator_.PrintDetails(DLOG_ERROR);
 }
 }  // namespace llm

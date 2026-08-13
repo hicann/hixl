@@ -504,7 +504,8 @@ Status ChannelMsgHandler::Connect(const std::string &remote_engine, int32_t time
   return SUCCESS;
 }
 
-Status ChannelMsgHandler::ConnectToPeer(const std::string &remote_engine, int32_t timeout_in_millis, int32_t &conn_fd) {
+Status ChannelMsgHandler::ConnectToPeer(const std::string &remote_engine, int32_t timeout_in_millis,
+                                        int32_t &conn_fd) const {
   std::string remote_ip;
   int32_t remote_port = -1;
   HIXL_CHK_STATUS_RET(hixl::ParseListenInfo(remote_engine, remote_ip, remote_port), "Failed to parse listen info");
@@ -521,7 +522,7 @@ Status ChannelMsgHandler::ConnectToPeer(const std::string &remote_engine, int32_
 }
 
 Status ChannelMsgHandler::ExchangeConnectInfo(int32_t conn_fd, int32_t timeout_in_millis,
-                                              ChannelConnectInfo &peer_connect_info) {
+                                              ChannelConnectInfo &peer_connect_info) const {
   ChannelConnectInfo connect_info = {};
   connect_info.channel_id = listen_info_;
   connect_info.comm_res = local_comm_res_;
@@ -586,7 +587,7 @@ Status ChannelMsgHandler::PrepareDisconnect(const std::string &remote_engine, in
   return SUCCESS;
 }
 
-void ChannelMsgHandler::SendDisconnectRequest(int32_t conn_fd, Status &send_status) {
+void ChannelMsgHandler::SendDisconnectRequest(int32_t conn_fd, Status &send_status) const {
   if (conn_fd > 0) {
     ChannelDisconnectInfo disconnect_info = {};
     disconnect_info.channel_id = listen_info_;

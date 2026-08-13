@@ -659,7 +659,7 @@ bool ProcfsRouteHandler::CollectEidsFromPairInfo(const std::string &pair_info_co
 }
 
 bool ProcfsRouteHandler::ParsePairInfoForDevice(const std::string &pair_info_content, int32_t npu_id, int32_t &slot_id,
-                                                std::string &local_eid, std::string &remote_eid) {
+                                                std::string &local_eid, std::string &remote_eid) const {
   std::string found_slot_id;
   std::vector<std::string> local_eids;
   std::vector<std::string> remote_eids;
@@ -687,7 +687,7 @@ bool ProcfsRouteHandler::ParsePairInfoForDevice(const std::string &pair_info_con
 }
 
 int32_t ProcfsRouteHandler::ProcessNpuProcfsRoute(int32_t npu_id, const std::string &dev_id_path,
-                                                  const std::string &pair_info_path, RouteEntry &entry) {
+                                                  const std::string &pair_info_path, RouteEntry &entry) const {
   HIXL_LOGI("[Procfs] Processing npu_id=%d", npu_id);
   // 写入phyid选择设备
   std::ostringstream dev_id_ss;
@@ -726,7 +726,7 @@ int32_t ProcfsRouteHandler::ProcessNpuProcfsRoute(int32_t npu_id, const std::str
   return SUCCESS;
 }
 
-int32_t ProcfsRouteHandler::GenerateRouteData(const std::set<int32_t> &related_npu_ids, RouteData &route_data) {
+int32_t ProcfsRouteHandler::GenerateRouteData(const std::set<int32_t> &related_npu_ids, RouteData &route_data) const {
   route_data.entries.clear();
 
   std::string proc_base = FindProcBasePath();

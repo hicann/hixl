@@ -146,7 +146,7 @@ Status ChannelManager::HandleSocketEvent(int32_t fd) {
   return ret;
 }
 
-Status ChannelManager::HandleReadEvent(const ChannelPtr &channel) {
+Status ChannelManager::HandleReadEvent(const ChannelPtr &channel) const {
   int fd = channel->GetFd();
   if (channel->recv_buffer_.size() < channel->bytes_received_ + kRecvChunkSize) {
     channel->recv_buffer_.resize(channel->bytes_received_ + kRecvChunkSize);

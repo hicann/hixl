@@ -25,7 +25,7 @@ class MemoryPool {
 
   virtual const std::string &GetId() const = 0;
 
-  virtual void PrintDetails(const int32_t level) = 0;
+  virtual void PrintDetails(const int32_t level) const = 0;
 };
 }  // namespace llm
 

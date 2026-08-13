@@ -44,7 +44,7 @@ Status ClientManager::StartHeartbeat() {
   return SUCCESS;
 }
 
-Status ClientManager::CreateClient(const ClientConfig &config, ClientPtr &client_ptr) {
+Status ClientManager::CreateClient(const ClientConfig &config, ClientPtr &client_ptr) const {
   std::string ip;
   int32_t port = 0;
   HIXL_CHK_STATUS_RET(ParseListenInfo(config.remote_engine, ip, port), "Failed to parse ip, remote_engine:%s",

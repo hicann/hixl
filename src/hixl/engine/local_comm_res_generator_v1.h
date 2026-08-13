@@ -271,7 +271,7 @@ class ProcfsRouteHandler {
   ~ProcfsRouteHandler();
 
   // 通过 procfs 生成路由数据
-  int32_t GenerateRouteData(const std::set<int32_t> &related_npu_ids, RouteData &route_data);
+  int32_t GenerateRouteData(const std::set<int32_t> &related_npu_ids, RouteData &route_data) const;
 
  private:
   // 私有辅助方法
@@ -286,9 +286,9 @@ class ProcfsRouteHandler {
   static bool CollectEidsFromPairInfo(const std::string &pair_info_content, std::string &found_slot_id,
                                       std::vector<std::string> &local_eids, std::vector<std::string> &remote_eids);
   bool ParsePairInfoForDevice(const std::string &pair_info_content, int32_t npu_id, int32_t &slot_id,
-                              std::string &local_eid, std::string &remote_eid);
+                              std::string &local_eid, std::string &remote_eid) const;
   int32_t ProcessNpuProcfsRoute(int32_t npu_id, const std::string &dev_id_path, const std::string &pair_info_path,
-                                RouteEntry &entry);
+                                RouteEntry &entry) const;
 
   // 显式注入的 proc 根目录；空字符串表示走默认 ascend_ub / asdrv_ub 自动发现
   std::string injected_proc_base_path_;

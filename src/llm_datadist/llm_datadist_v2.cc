@@ -151,7 +151,7 @@ LLMDataDistV2::~LLMDataDistV2() {
 }
 
 ge::Status LLMDataDistV2::Link(std::string &cluster_name, const std::map<uint64_t, uint32_t> &cluster2rank,
-                               std::string &rank_table, uint64_t &comm_id) {
+                               std::string &rank_table, uint64_t &comm_id) const {
   const auto start = std::chrono::steady_clock::now();
   LLM_CHK_BOOL_RET_STATUS(is_initialized_.load(), ge::FAILED, "Llm datadist of cluster:%lu is not initialized.",
                           cluster_id_);
@@ -165,7 +165,7 @@ ge::Status LLMDataDistV2::Link(std::string &cluster_name, const std::map<uint64_
   return ge::SUCCESS;
 }
 
-ge::Status LLMDataDistV2::Unlink(uint64_t comm_id) {
+ge::Status LLMDataDistV2::Unlink(uint64_t comm_id) const {
   const auto start = std::chrono::steady_clock::now();
   LLM_CHK_BOOL_RET_STATUS(is_initialized_.load(std::memory_order::memory_order_relaxed), ge::FAILED,
                           "Llm datadist of cluster:%lu is not initialized.", cluster_id_);
@@ -180,7 +180,7 @@ ge::Status LLMDataDistV2::Unlink(uint64_t comm_id) {
   return ge::SUCCESS;
 }
 
-ge::Status LLMDataDistV2::QueryRegisterMemStatus(uint64_t comm_id, RegisterMemoryStatus &status) {
+ge::Status LLMDataDistV2::QueryRegisterMemStatus(uint64_t comm_id, RegisterMemoryStatus &status) const {
   LLM_CHK_BOOL_RET_STATUS(is_initialized_.load(std::memory_order::memory_order_relaxed), ge::FAILED,
                           "Llm datadist of cluster:%lu is not initialized.", cluster_id_);
   hixl::TemporaryRtContext with_context(aclrt_context_);
@@ -189,7 +189,7 @@ ge::Status LLMDataDistV2::QueryRegisterMemStatus(uint64_t comm_id, RegisterMemor
 }
 
 ge::Status LLMDataDistV2::RegisterCache(const CacheDesc &cache_desc, Cache &cache,
-                                        const std::vector<CacheKey> &cache_keys) {
+                                        const std::vector<CacheKey> &cache_keys) const {
   LLM_CHK_BOOL_RET_STATUS(is_initialized_.load(std::memory_order::memory_order_relaxed), ge::FAILED,
                           "Llm datadist of cluster:%lu is not initialized.", cluster_id_);
   hixl::TemporaryRtContext with_context(aclrt_context_);
@@ -199,7 +199,7 @@ ge::Status LLMDataDistV2::RegisterCache(const CacheDesc &cache_desc, Cache &cach
 }
 
 ge::Status LLMDataDistV2::AllocateCache(const CacheDesc &cache_desc, Cache &cache,
-                                        const std::vector<CacheKey> &cache_keys) {
+                                        const std::vector<CacheKey> &cache_keys) const {
   LLM_CHK_BOOL_RET_STATUS(is_initialized_.load(std::memory_order::memory_order_relaxed), ge::FAILED,
                           "Llm datadist of cluster:%lu is not initialized.", cluster_id_);
   hixl::TemporaryRtContext with_context(aclrt_context_);
@@ -207,7 +207,7 @@ ge::Status LLMDataDistV2::AllocateCache(const CacheDesc &cache_desc, Cache &cach
   return data_cache_engine_->Allocate(cache_desc, cache_keys, cache);
 }
 
-ge::Status LLMDataDistV2::DeallocateCache(int64_t cache_id) {
+ge::Status LLMDataDistV2::DeallocateCache(int64_t cache_id) const {
   LLM_CHK_BOOL_RET_STATUS(is_initialized_.load(std::memory_order::memory_order_relaxed), ge::FAILED,
                           "Llm datadist of cluster:%lu is not initialized.", cluster_id_);
   hixl::TemporaryRtContext with_context(aclrt_context_);
@@ -216,7 +216,7 @@ ge::Status LLMDataDistV2::DeallocateCache(int64_t cache_id) {
 }
 
 ge::Status LLMDataDistV2::PullCache(int64_t cache_id, const CacheKey &cache_key,
-                                    const PullCacheParam &pull_cache_param) {
+                                    const PullCacheParam &pull_cache_param) const {
   const auto start = std::chrono::steady_clock::now();
   LLM_CHK_BOOL_RET_STATUS(is_initialized_.load(std::memory_order::memory_order_relaxed), ge::FAILED,
                           "Llm datadist of cluster:%lu is not initialized.", cluster_id_);
@@ -235,7 +235,7 @@ ge::Status LLMDataDistV2::PullCache(int64_t cache_id, const CacheKey &cache_key,
 }
 
 ge::Status LLMDataDistV2::PullBlocks(int64_t cache_id, const CacheKey &cache_key,
-                                     const PullCacheParam &pull_cache_param) {
+                                     const PullCacheParam &pull_cache_param) const {
   LLM_CHK_BOOL_RET_STATUS((!pull_cache_param.prompt_blocks.empty()), ge::LLM_PARAM_INVALID,
                           "src_blocks is empty, pull from non-block cache is not supported yet");
   LLM_CHK_BOOL_RET_STATUS(pull_cache_param.prompt_blocks.size() == pull_cache_param.decoder_blocks.size(),
@@ -247,7 +247,7 @@ ge::Status LLMDataDistV2::PullBlocks(int64_t cache_id, const CacheKey &cache_key
   return PullCache(cache_id, cache_key, pull_cache_param);
 }
 
-ge::Status LLMDataDistV2::CopyCache(const CopyCacheParam &copy_cache_param) {
+ge::Status LLMDataDistV2::CopyCache(const CopyCacheParam &copy_cache_param) const {
   const auto start = std::chrono::steady_clock::now();
   LLM_CHK_BOOL_RET_STATUS(is_initialized_.load(std::memory_order::memory_order_relaxed), ge::FAILED,
                           "Llm datadist of cluster:%lu is not initialized.", cluster_id_);
@@ -261,14 +261,14 @@ ge::Status LLMDataDistV2::CopyCache(const CopyCacheParam &copy_cache_param) {
   return ge::SUCCESS;
 }
 
-ge::Status LLMDataDistV2::RemoveCacheKey(const CacheKey &cache_key) {
+ge::Status LLMDataDistV2::RemoveCacheKey(const CacheKey &cache_key) const {
   LLM_CHK_BOOL_RET_STATUS(is_initialized_.load(std::memory_order::memory_order_relaxed), ge::FAILED,
                           "Llm datadist of cluster:%lu is not initialized.", cluster_id_);
   hixl::TemporaryRtContext with_context(aclrt_context_);
   return data_cache_engine_->RemoveCacheKey(cache_key);
 }
 
-ge::Status LLMDataDistV2::RemapRegisteredMemory(const std::vector<LLMMemInfo> &mem_infos) {
+ge::Status LLMDataDistV2::RemapRegisteredMemory(const std::vector<LLMMemInfo> &mem_infos) const {
   LLM_CHK_BOOL_RET_STATUS(is_initialized_.load(std::memory_order::memory_order_relaxed), ge::FAILED,
                           "Llm datadist of cluster:%lu is not initialized.", cluster_id_);
   hixl::TemporaryRtContext with_context(aclrt_context_);
@@ -277,7 +277,7 @@ ge::Status LLMDataDistV2::RemapRegisteredMemory(const std::vector<LLMMemInfo> &m
 }
 
 ge::Status LLMDataDistV2::SwapBlocks(const Cache &src, const Cache &dst, const uint64_t block_size, const uint32_t type,
-                                     const std::vector<std::pair<int64_t, int64_t>> &block_mapping) {
+                                     const std::vector<std::pair<int64_t, int64_t>> &block_mapping) const {
   const auto start = std::chrono::steady_clock::now();
   LLM_CHK_BOOL_RET_STATUS(is_initialized_.load(std::memory_order::memory_order_relaxed), ge::FAILED,
                           "Llm datadist of cluster:%lu is not initialized.", cluster_id_);
@@ -291,7 +291,7 @@ ge::Status LLMDataDistV2::SwapBlocks(const Cache &src, const Cache &dst, const u
   return ge::SUCCESS;
 }
 
-ge::Status LLMDataDistV2::CheckCapacity(const size_t seq_len) {
+ge::Status LLMDataDistV2::CheckCapacity(const size_t seq_len) const {
   LLM_CHK_BOOL_RET_STATUS(is_initialized_.load(std::memory_order::memory_order_relaxed), ge::FAILED,
                           "Llm datadist of cluster:%lu is not initialized.", cluster_id_);
   hixl::TemporaryRtContext with_context(aclrt_context_);
@@ -322,7 +322,7 @@ ge::Status LLMDataDistV2::TransferCache(const uint64_t task_id, const TransferCa
   return ge::SUCCESS;
 }
 
-ge::Status LLMDataDistV2::UnregisterCache(int64_t cache_id) {
+ge::Status LLMDataDistV2::UnregisterCache(int64_t cache_id) const {
   LLM_CHK_BOOL_RET_STATUS(is_initialized_.load(std::memory_order::memory_order_relaxed), ge::FAILED,
                           "Llm datadist of cluster:%lu is not initialized.", cluster_id_);
   hixl::TemporaryRtContext with_context(aclrt_context_);
@@ -332,7 +332,7 @@ ge::Status LLMDataDistV2::UnregisterCache(int64_t cache_id) {
 }
 
 ge::Status LLMDataDistV2::LinkClusters(const std::vector<ClusterInfo> &clusters, std::vector<ge::Status> &rets,
-                                       const int32_t timeout) {
+                                       const int32_t timeout) const {
   const auto start = std::chrono::steady_clock::now();
   LLM_CHK_BOOL_RET_STATUS(is_initialized_.load(), ge::FAILED, "Llm datadist of cluster:%lu is not initialized.",
                           cluster_id_);
@@ -347,7 +347,7 @@ ge::Status LLMDataDistV2::LinkClusters(const std::vector<ClusterInfo> &clusters,
 }
 
 ge::Status LLMDataDistV2::UnlinkClusters(const std::vector<ClusterInfo> &clusters, std::vector<ge::Status> &rets,
-                                         const int32_t timeout, bool force_flag) {
+                                         const int32_t timeout, bool force_flag) const {
   const auto start = std::chrono::steady_clock::now();
   LLM_CHK_BOOL_RET_STATUS(is_initialized_.load(std::memory_order::memory_order_relaxed), ge::FAILED,
                           "Llm datadist of cluster:%lu is not initialized.", cluster_id_);
@@ -363,7 +363,7 @@ ge::Status LLMDataDistV2::UnlinkClusters(const std::vector<ClusterInfo> &cluster
   return ge::SUCCESS;
 }
 
-ge::Status LLMDataDistV2::SwitchRole(const std::string &role, const std::map<std::string, std::string> &options) {
+ge::Status LLMDataDistV2::SwitchRole(const std::string &role, const std::map<std::string, std::string> &options) const {
   LLM_CHK_BOOL_RET_STATUS(is_initialized_.load(std::memory_order::memory_order_relaxed), ge::FAILED,
                           "Llm datadist of cluster:%lu is not initialized.", cluster_id_);
   hixl::TemporaryRtContext with_context(aclrt_context_);

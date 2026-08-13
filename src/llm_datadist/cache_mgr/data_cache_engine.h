@@ -33,11 +33,11 @@ class DataCacheEngine {
   ge::Status Allocate(const CacheDesc &cache_desc, const std::vector<CacheKey> &cache_keys, Cache &cache);
   ge::Status Deallocate(int64_t cache_id) const;
   ge::Status RemoveCacheKey(const CacheKey &cache_key) const;
-  ge::Status PullCache(int64_t cache_id, const CacheKey &cache_key, const PullCacheParam &pull_cache_param);
+  ge::Status PullCache(int64_t cache_id, const CacheKey &cache_key, const PullCacheParam &pull_cache_param) const;
   ge::Status CopyCache(const CopyCacheParam &copy_cache_param) const;
   ge::Status SwapBlocks(const Cache &src, const Cache &dst, const uint64_t block_size, const uint32_t type,
                         const std::vector<std::pair<int64_t, int64_t>> &block_mapping) const;
-  ge::Status CheckCapacity(size_t size);
+  ge::Status CheckCapacity(size_t size) const;
   ge::Status TransferCache(const uint64_t task_id, const TransferCacheConfig &transfer_cache_config,
                            const TransferBlockConfig &transfer_block_config);
   void SetCommEntityManager(CommEntityManager *comm_entity_manager);

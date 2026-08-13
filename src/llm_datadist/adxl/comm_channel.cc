@@ -86,7 +86,7 @@ Status CommChannel::InitializeHcclComm() {
   return SUCCESS;
 }
 
-Status CommChannel::BindRegisteredMemory(std::vector<void *> &bind_handles) {
+Status CommChannel::BindRegisteredMemory(std::vector<void *> &bind_handles) const {
   const auto start = std::chrono::steady_clock::now();
   for (const auto &reg_handle_it : channel_info_.registered_mems) {
     auto reg_handle = reg_handle_it.first;
@@ -99,7 +99,7 @@ Status CommChannel::BindRegisteredMemory(std::vector<void *> &bind_handles) {
   return SUCCESS;
 }
 
-Status CommChannel::PrepareHcclComm(const std::chrono::steady_clock::time_point &hccl_start) {
+Status CommChannel::PrepareHcclComm(const std::chrono::steady_clock::time_point &hccl_start) const {
   const auto start = std::chrono::steady_clock::now();
   HcclPrepareConfig prepareConfig{};
   ADXL_CHK_HCCL_RET(
@@ -154,7 +154,7 @@ Status CommChannel::ClearResources() {
   return ret;
 }
 
-bool CommChannel::HasInFlightWorkForDisconnect() {
+bool CommChannel::HasInFlightWorkForDisconnect() const {
   // unavailable_ means a fatal error (e.g. sync timeout) already hit the stream; even when async records
   // and active_slot_ are cleared by FailChannel, aicpu may still be unfolding — keep the sleep guard.
   bool in_flight = IsUnavailable();
@@ -171,7 +171,7 @@ bool CommChannel::HasInFlightWorkForDisconnect() {
   return in_flight;
 }
 
-void CommChannel::AbortActiveSlotStreamForDisconnect() {
+void CommChannel::AbortActiveSlotStreamForDisconnect() const {
   std::lock_guard<std::mutex> slot_lock(active_slot_mu_);
   if ((active_slot_ == nullptr) || (active_slot_->stream == nullptr)) {
     return;
@@ -333,7 +333,7 @@ void CommChannel::CompleteRequest(uint64_t id, const std::chrono::steady_clock::
 }
 
 Status CommChannel::IssueAsyncBatchWithHostFlag(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
-                                                const std::shared_ptr<SlotHandle> &slot, void *host_flag) {
+                                                const std::shared_ptr<SlotHandle> &slot, void *host_flag) const {
   hixl::TemporaryRtContext ctx_guard(slot->ctx);
   ADXL_CHK_STATUS_RET(IssueHcclBatch(operation, op_descs, slot->stream), "Channel Hccl batch issue failed.");
   ADXL_CHK_ACL_RET(aclrtMemcpyAsync(host_flag, sizeof(uint64_t), slot->dev_const_one, sizeof(uint64_t),
@@ -392,7 +392,7 @@ Status CommChannel::TransferAsync(TransferOp operation, const std::vector<Transf
 
 Status CommChannel::LookupPendingAsyncTransfer(uint64_t id, std::shared_ptr<SlotHandle> &slot, void *&host_flag,
                                                std::chrono::steady_clock::time_point &transfer_start,
-                                               uint64_t &transfer_bytes, uint64_t &op_desc_count) {
+                                               uint64_t &transfer_bytes, uint64_t &op_desc_count) const {
   std::lock_guard<std::mutex> reqs_lock(transfer_reqs_mutex_);
   auto it = req_2_async_record_.find(id);
   ADXL_CHK_BOOL_RET_STATUS(it != req_2_async_record_.end(), FAILED, "Request not found, req:%lu.", id);
@@ -451,7 +451,7 @@ Status CommChannel::GetTransferStatus(const TransferReq &req, TransferStatus &st
 }
 
 Status CommChannel::IssueHcclBatch(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
-                                   aclrtStream stream) {
+                                   aclrtStream stream) const {
   ADXL_CHK_BOOL_RET_STATUS(channel_info_.comm != nullptr, FAILED,
                            "Channel comm is null, channel may have been finalized, channel_id:%s.",
                            channel_info_.channel_id.c_str());
@@ -475,7 +475,7 @@ Status CommChannel::IssueHcclBatch(TransferOp operation, const std::vector<Trans
 }
 
 Status CommChannel::TransferAsyncWithTimeout(TransferOp operation, const std::vector<TransferOpDesc> &op_descs,
-                                             aclrtStream stream, uint64_t timeout) {
+                                             aclrtStream stream, uint64_t timeout) const {
   ADXL_CHK_BOOL_RET_STATUS(channel_info_.comm != nullptr, FAILED,
                            "Channel comm is null, channel may have been finalized, channel_id:%s.",
                            channel_info_.channel_id.c_str());
@@ -569,7 +569,7 @@ void CommChannel::StopHeartbeat() {
   disconnect_flag_.store(true, std::memory_order_release);
 }
 
-Status CommChannel::CommWithFd(const std::function<Status(int32_t)> &func) {
+Status CommChannel::CommWithFd(const std::function<Status(int32_t)> &func) const {
   std::lock_guard<std::mutex> lock(mutex_);
   if (fd_ < 0) {
     return FAILED;
@@ -577,11 +577,11 @@ Status CommChannel::CommWithFd(const std::function<Status(int32_t)> &func) {
   return func(fd_);
 }
 
-Status CommChannel::SendControlMsg(const std::function<Status(int32_t)> &func) {
+Status CommChannel::SendControlMsg(const std::function<Status(int32_t)> &func) const {
   return CommWithFd(func);
 }
 
-Status CommChannel::SendHeartBeat(const std::function<Status(int32_t)> &func) {
+Status CommChannel::SendHeartBeat(const std::function<Status(int32_t)> &func) const {
   if (with_heartbeat_.load(std::memory_order_acquire)) {
     return CommWithFd(func);
   }

@@ -30,7 +30,7 @@ class LlmMemPool {
   std::shared_ptr<void> AllocShared(size_t size);
   std::shared_ptr<void> AllocShared(size_t size, int32_t timeout_in_ms);
   std::shared_ptr<void> MakeShared(void *addr);
-  void LogPoolState();
+  void LogPoolState() const;
 
  private:
   class LlmMemAllocator : public ge::Allocator {

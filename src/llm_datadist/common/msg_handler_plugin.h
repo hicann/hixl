@@ -45,7 +45,7 @@ class MsgHandlerPlugin {
                               ge::Status default_err);
   static ge::Status GetAiFamily(const std::string &ip, int32_t &ai_family);
   ge::Status SockAddrInit(const std::string &ip, uint32_t listen_port, int32_t ai_family,
-                          struct sockaddr_storage &server_addr, socklen_t &addr_len);
+                          struct sockaddr_storage &server_addr, socklen_t &addr_len) const;
 
   int32_t listen_fd_ = -1;
   std::atomic<bool> listener_running_{false};

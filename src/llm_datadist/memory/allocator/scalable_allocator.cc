@@ -293,7 +293,7 @@ void ScalableAllocator::FreeSpan(PageSpan &span) {
   }
 }
 
-void ScalableAllocator::PrintDetails(const int32_t level) {
+void ScalableAllocator::PrintDetails(const int32_t level) const {
   if (((level != DLOG_EVENT) && (!LlmIsLogEnable(LLM_MODULE_NAME, level)))) {
     return;
   }

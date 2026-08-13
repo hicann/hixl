@@ -235,7 +235,7 @@ ge::Status MsgHandlerPlugin::DoAccept() {
 }
 
 ge::Status MsgHandlerPlugin::SockAddrInit(const std::string &ip, uint32_t listen_port, int32_t ai_family,
-                                          struct sockaddr_storage &server_addr, socklen_t &addr_len) {
+                                          struct sockaddr_storage &server_addr, socklen_t &addr_len) const {
   if (ai_family == AF_INET) {
     struct sockaddr_in *ipv4_addr = reinterpret_cast<struct sockaddr_in *>(&server_addr);
     (void)memset_s(ipv4_addr, sizeof(*ipv4_addr), 0, sizeof(*ipv4_addr));

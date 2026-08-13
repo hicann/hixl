@@ -42,7 +42,7 @@ class ScalableAllocator : public MemoryPool {
 
   PageSpan *Alloc(ge::Allocator &allocator, const MemSize size) override;
   void Free(ge::MemBlock *block) override;
-  void PrintDetails(const int32_t level = DLOG_ERROR) override;
+  void PrintDetails(const int32_t level = DLOG_ERROR) const override;
   ge::Status InitFixSizedAllocator(ge::Allocator &allocator, void *base_addr, size_t size);
 
   const ScalableConfig &GetScalableConfig() const {
