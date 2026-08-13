@@ -1405,4 +1405,28 @@ TEST_F(HixlCSClientUT, ParseConfigMaxActiveChannelsInvalid) {
     EXPECT_EQ(handle, nullptr) << "config_str=" << config_str;
   }
 }
+
+TEST_F(HixlCSClientUT, CreateFailServerPortZero) {
+  HixlClientConfig config{};
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = 0U;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientHandle handle = nullptr;
+  EXPECT_EQ(HixlCSClientCreate(&desc, &config, &handle), HIXL_PARAM_INVALID);
+  EXPECT_EQ(handle, nullptr);
+}
+
+TEST_F(HixlCSClientUT, CreateFailServerPortOutOfRange) {
+  HixlClientConfig config{};
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = 65536U;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientHandle handle = nullptr;
+  EXPECT_EQ(HixlCSClientCreate(&desc, &config, &handle), HIXL_PARAM_INVALID);
+  EXPECT_EQ(handle, nullptr);
+}
 }  // namespace hixl

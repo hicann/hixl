@@ -17,6 +17,9 @@
 #include "hixl_cs_server.h"
 #include "hixl_cs_client.h"
 
+constexpr uint32_t kMinClientPort = 1U;
+constexpr uint32_t kMaxPort = 65535U;
+
 HixlStatus HixlCSServerCreate(const HixlServerDesc *server_desc, const HixlServerConfig *config,
                               HixlServerHandle *server_handle) {
   HIXL_CHECK_NOTNULL(server_handle);
@@ -24,6 +27,9 @@ HixlStatus HixlCSServerCreate(const HixlServerDesc *server_desc, const HixlServe
   HIXL_CHECK_NOTNULL(server_desc);
   HIXL_CHECK_NOTNULL(server_desc->server_ip);
   HIXL_CHECK_NOTNULL(config);
+  HIXL_CHK_BOOL_RET_STATUS(server_desc->server_port <= kMaxPort, HIXL_PARAM_INVALID,
+                           "[HixlCSServerCreate] server_port out of range: %u, must be in [0, %u]",
+                           server_desc->server_port, kMaxPort);
   hixl::GlobalConfig global_config;
   HIXL_CHK_STATUS_RET(hixl::GlobalConfig::Parse(config->global_resource_config, global_config,
                                                 hixl::GlobalConfig::ParseTarget::kServer),
@@ -82,6 +88,9 @@ HixlStatus HixlCSClientCreate(const HixlClientDesc *client_desc, const HixlClien
   HIXL_CHECK_NOTNULL(client_desc->local_endpoint);
   HIXL_CHECK_NOTNULL(client_desc->remote_endpoint);
   HIXL_CHECK_NOTNULL(config);
+  HIXL_CHK_BOOL_RET_STATUS(client_desc->server_port >= kMinClientPort && client_desc->server_port <= kMaxPort,
+                           HIXL_PARAM_INVALID, "[HixlCSClientCreate] server_port out of range: %u, must be in [%u, %u]",
+                           client_desc->server_port, kMinClientPort, kMaxPort);
   auto *client = new (std::nothrow) hixl::HixlCSClient();
   HIXL_CHECK_NOTNULL(client);
   HIXL_DISMISSABLE_GUARD(rollback, ([client]() { delete client; }));

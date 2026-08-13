@@ -140,7 +140,7 @@ struct HixlClientDesc {
 | local_endpoint | const EndpointDesc* | 本端Endpoint描述（定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h> ）。|
 | remote_endpoint | const EndpointDesc* | 远端Endpoint描述（定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h> ）。|
 | server_ip | const char* | 目标 server Host IP。|
-| server_port | uint32_t | 目标 server Host 端口。|
+| server_port | uint32_t | 目标 server Host 端口。取值范围[1, 65535]。|
 | tc | uint8_t | RDMA网卡的traffic class。|
 | sl | uint8_t | RDMA网卡的service level。|
 | reserved | uint8_t[98] | HixlClientDesc配置保留字段，用于未来扩展，结构体总大小保持为128字节。|
@@ -164,7 +164,7 @@ struct HixlServerDesc {
 | 字段 | 类型 | 描述 |
 |---|---|---|
 | server_ip | const char* | 侦听 IP。|
-| server_port | uint32_t | 侦听端口。|
+| server_port | uint32_t | 侦听端口。取值范围[0, 65535]，0表示不启动侦听。|
 | endpoint_list | const EndpointDesc* | Endpoint描述数组指针。Endpoint描述定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h>|
 | endpoint_list_num | uint32_t | Endpoint数量。|
 | reserved | uint8_t[104] | HixlServerDesc配置保留字段，用于未来扩展，结构体总大小保持为128字节。|
@@ -209,7 +209,7 @@ enum HixlCompleteStatus {
 ```
 
 说明：
-其中HIXL_COMPLETE_STATUS_TIMEOUT和HIXL_COMPLETE_STATUS_FAILED当前为预留字段。
+其中HIXL_COMPLETE_STATUS_TIMEOUT当前为预留字段。HIXL_COMPLETE_STATUS_FAILED在传输任务失败时返回，查询到该状态时相关资源将被自动释放，不支持使用相同的complete_handle再次查询。
 
 ## 接口说明
 
@@ -437,7 +437,7 @@ HixlStatus HixlCSClientConnect(HixlClientHandle client_handle, uint32_t timeout_
 
 - 调用当前接口与server建链前，需要完成所有本地内存的注册。
 - 调用当前接口与server建链前，需要确保server已经处于侦听状态。
-- 调用当前接口建链后，需要调用HixlCSClientGetRemoteMem接口，确保远端内存描述信息交换至本地。
+- 调用当前接口建链时，内部会自动预取远端内存描述信息。如需重新获取或刷新远端内存信息，可调用HixlCSClientGetRemoteMem接口。
 
 ### HixlCSClientGetRemoteMem
 
@@ -474,7 +474,7 @@ HixlStatus HixlCSClientGetRemoteMem(HixlClientHandle client_handle,
 **约束说明**
 
 - 输出参数内存生命周期由接口内部管理。重复调用该接口，将释放上一次申请的内存，如有需要按需拷贝至本地内存。
-- 调用HixlCSClientConnect接口后，需要调用当前接口，确保远端内存描述信息交换至本地。
+- 调用HixlCSClientConnect接口时已自动预取远端内存描述信息。如需重新获取或刷新远端内存信息，可调用当前接口。
 
 ### HixlCSClientRegMem
 
@@ -569,11 +569,12 @@ HixlStatus HixlCSClientBatchPutAsync(HixlClientHandle client_handle,
 
 - HIXL_SUCCESS：任务提交成功（不代表完成）
 - HIXL_PARAM_INVALID：参数错误
+- HIXL_RESOURCE_EXHAUSTED：并发任务资源耗尽，需调用HixlCSClientQueryCompleteStatus释放已完成任务后重试
 - 其他：提交失败
 
 **约束说明**
 
-- 最大支持4K个数据并发传输，下发任务后需及时调用HixlCSClientQueryCompleteStatus接口查询任务状态。
+- 最大支持4K个并发未查询完成的传输任务（非单次下发的list_num上限），下发任务后需及时调用HixlCSClientQueryCompleteStatus接口查询任务状态以释放资源。
 - 如果任一次批量传输返回 `HIXL_FAILED` 或 `HIXL_TIMEOUT`，当前 client 会进入失败态，后续批量传输接口会直接返回 `HIXL_FAILED`；如需继续使用，请重新创建 client。
 
 ### HixlCSClientBatchGetAsync
@@ -604,11 +605,12 @@ HixlStatus HixlCSClientBatchGetAsync(HixlClientHandle client_handle,
 
 - HIXL_SUCCESS：任务提交成功（不代表完成）
 - HIXL_PARAM_INVALID：参数错误
+- HIXL_RESOURCE_EXHAUSTED：并发任务资源耗尽，需调用HixlCSClientQueryCompleteStatus释放已完成任务后重试
 - 其他：提交失败
 
 **约束说明**
 
-- 最大支持4K个数据并发传输，下发任务后需及时调用HixlCSClientQueryCompleteStatus接口查询任务状态。
+- 最大支持4K个并发未查询完成的传输任务（非单次下发的list_num上限），下发任务后需及时调用HixlCSClientQueryCompleteStatus接口查询任务状态以释放资源。
 - 如果任一次批量传输返回 `HIXL_FAILED` 或 `HIXL_TIMEOUT`，当前 client 会进入失败态，后续批量传输接口会直接返回 `HIXL_FAILED`；如需继续使用，请重新创建 client。
 
 ### HixlCSClientBatchPutSync
@@ -713,9 +715,9 @@ HixlStatus HixlCSClientQueryCompleteStatus(HixlClientHandle client_handle,
 
 **约束说明**
 
-- 最大支持4K个数据并发传输，下发任务后需及时调用HixlCSClientQueryCompleteStatus接口查询任务状态。
-- 查询传输任务状态为HIXL_COMPLETE_STATUS_COMPLETED后，相关资源将自动释放，不支持使用相同的complete_handle再次查询。
-- 查询传输任务状态为HIXL_COMPLETE_STATUS_WAITING，需用户自行判断当前传输任务是否已经发生超时，如果超时可重建传输传输链路进行重试，并销毁当前异常链路。
+- 最大支持4K个并发未查询完成的传输任务（非单次下发的list_num上限），下发任务后需及时调用HixlCSClientQueryCompleteStatus接口查询任务状态以释放资源。
+- 查询传输任务状态为HIXL_COMPLETE_STATUS_COMPLETED或HIXL_COMPLETE_STATUS_FAILED后，相关资源将自动释放，不支持使用相同的complete_handle再次查询。
+- 查询传输任务状态为HIXL_COMPLETE_STATUS_WAITING，需用户自行判断当前传输任务是否已经发生超时，如果超时可重建传输链路进行重试，并销毁当前异常链路。
 
 ### HixlCSClientDestroy
 

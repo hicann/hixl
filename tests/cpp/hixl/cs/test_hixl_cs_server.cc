@@ -836,4 +836,32 @@ TEST_F(HixlCSTest, CtrlMsgPluginSendEpipe) {
 
   close(fds[0]);
 }
+
+TEST_F(HixlCSTest, TestCreateServerAcceptsPortZero) {
+  HixlServerHandle server_handle = nullptr;
+  HixlServerConfig config{};
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = 0U;
+  desc.endpoint_list = &default_eps[0];
+  desc.endpoint_list_num = default_eps.size();
+  auto ret = HixlCSServerCreate(&desc, &config, &server_handle);
+  EXPECT_EQ(ret, HIXL_SUCCESS);
+  if (server_handle != nullptr) {
+    HixlCSServerDestroy(server_handle);
+  }
+}
+
+TEST_F(HixlCSTest, TestCreateServerRejectsPortOutOfRange) {
+  HixlServerHandle server_handle = nullptr;
+  HixlServerConfig config{};
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = 65536U;
+  desc.endpoint_list = &default_eps[0];
+  desc.endpoint_list_num = default_eps.size();
+  auto ret = HixlCSServerCreate(&desc, &config, &server_handle);
+  EXPECT_EQ(ret, HIXL_PARAM_INVALID);
+  EXPECT_EQ(server_handle, nullptr);
+}
 }  // namespace hixl

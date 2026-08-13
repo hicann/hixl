@@ -36,7 +36,7 @@ Function: Implements KV Cache management functionality in disaggregated deployme
 
 - Install **pytorch** and **torch_npu** packages
 
-  According to the Python version you use, refer to [Version Compatibility Guide](https://gitcode.com/Ascend/pytorch) to download and install the corresponding versions of `pytorch` and `torch_npu`. For installation methods, please refer to [Software Installation Guide](https://gitcode.com/Ascend/pytorch/blob/v2.7.1/docs/zh/installation_guide/menu_installation_guide.md). Below are the compatible versions and installation commands for Python 3.13. For other versions, refer to the version compatibility guide and installation instructions.
+  According to the Python version you use, refer to [Version Compatibility Guide](https://gitcode.com/Ascend/pytorch) to download and install the corresponding versions of `pytorch` and `torch_npu`. For installation methods, please refer to [Software Installation Guide](https://gitcode.com/Ascend/pytorch/blob/master/docs/zh/installation_guide/_menu_installation_guide.md). Below are the compatible versions and installation commands for Python 3.13. For other versions, refer to the version compatibility guide and installation instructions.
 
   | PyTorch Version | torch_npu Plugin Version | Python Version | System Architecture | CANN Version | Installation Method | Installation Command |
   | --------------- | ------------------------ | -------------- | ------------------- | ------------ | ------------------- | -------------------- |
