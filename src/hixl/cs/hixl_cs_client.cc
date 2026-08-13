@@ -1171,10 +1171,10 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannel(uint32_t timeout_ms) {
   const EndpointDesc &src_ep = local_endpoint_->GetEndpoint();
   HIXL_LOGD(
       "[HixlClient] MatchEndpoint then CreateChannel. socket: %d, timeout: %u ms, "
-      "Src[protocol:%s, type:%u, id:%u], Dst[protocol:%s, type:%u, id:%u]",
-      socket_, timeout_ms, ProtocolToString(src_ep.protocol).c_str(), src_ep.commAddr.type, src_ep.commAddr.id,
-      ProtocolToString(remote_endpoint_.protocol).c_str(), remote_endpoint_.commAddr.type,
-      remote_endpoint_.commAddr.id);
+      "Src[protocol:%s, type:%d, id:%u], Dst[protocol:%s, type:%d, id:%u]",
+      socket_, timeout_ms, ProtocolToString(src_ep.protocol).c_str(), static_cast<int32_t>(src_ep.commAddr.type),
+      src_ep.commAddr.id, ProtocolToString(remote_endpoint_.protocol).c_str(),
+      static_cast<int32_t>(remote_endpoint_.commAddr.type), remote_endpoint_.commAddr.id);
   HIXL_CHK_STATUS_RET(ConnMsgHandler::SendMatchEndpointRequest(socket_, remote_endpoint_),
                       "[HixlClient] SendMatchEndpointRequest failed. fd=%d", socket_);
   uint32_t remote_listen_port = 0;

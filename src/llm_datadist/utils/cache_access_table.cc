@@ -189,7 +189,7 @@ ge::Status CacheAccessTableUpdater::ToBuffer(uint64_t version_num,
     FillCacheSummary(cache_id_and_entry.first, cache_id_and_entry.second, cache_summary);
     buffer_offset += cache_id_to_summary_size[cache_id_and_entry.first];  // move to the next cache summary
     LLMLOGI(
-        "Serialize cache success, cache_id = %lu, num_blocks = %lu, batch_size = %u, "
+        "Serialize cache success, cache_id = %lu, num_blocks = %lu, batch_size = %lu, "
         "tensor_size = %lu, stride = %lu, placement = %lu, num_tensors = %zu",
         cache_summary.cache_id, cache_summary.num_blocks, cache_summary.batch_size, cache_summary.tensor_size,
         cache_summary.stride, cache_summary.placement, cache_summary.num_tensors);
@@ -253,9 +253,9 @@ ge::Status CacheAccessTable::LoadFromBuffer(const uint8_t *buffer, size_t buffer
     CacheEntry cache_entry = ToCacheEntry(cache_summary);
     LLMLOGI(
         "Cache entry loaded, cache_id = %lu, num_blocks = %lu, batch_size = %u, "
-        "tensor_size = %lu, stride = %lu, placement = %lu, num_tensors = %zu",
+        "tensor_size = %lu, stride = %lu, placement = %u, num_tensors = %zu",
         cache_summary.cache_id, cache_entry.num_blocks, cache_entry.batch_size, cache_entry.tensor_size,
-        cache_entry.stride, cache_entry.placement, cache_entry.cache_addrs.size());
+        cache_entry.stride, static_cast<uint32_t>(cache_entry.placement), cache_entry.cache_addrs.size());
     LLM_CHK_BOOL_RET_STATUS(cache_id_to_entry_.emplace(cache_summary.cache_id, std::move(cache_entry)).second,
                             ge::LLM_PARAM_INVALID, "duplicate cache_id: %ld", cache_summary.cache_id);
   }

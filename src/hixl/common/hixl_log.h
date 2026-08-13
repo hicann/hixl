@@ -34,11 +34,10 @@ class HixlLog {
 };
 
 inline bool HixlLogPrintStdout() {
-  static int32_t stdout_flag = -1;
-  if (stdout_flag == -1) {
+  static const int32_t stdout_flag = []() {
     const char *env_ret = getenv("ASCEND_SLOG_PRINT_TO_STDOUT");
-    stdout_flag = (env_ret != nullptr && std::string(env_ret) == "1") ? 1 : 0;
-  }
+    return (env_ret != nullptr && std::string(env_ret) == "1") ? 1 : 0;
+  }();
   return (stdout_flag == 1);
 }
 

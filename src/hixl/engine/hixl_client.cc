@@ -140,6 +140,7 @@ Status HixlClient::RecvEndpointInfoResp(int32_t fd, std::vector<EndpointConfig> 
 
 Status HixlClient::SetLocalMemInfo(const std::vector<MemHandleInfo> &mem_info_list) {
   std::lock_guard<std::mutex> lock(mutex_);
+  HIXL_CHK_BOOL_RET_STATUS(client_handler_ != nullptr, FAILED, "HixlClient is not initialized");
   for (const auto &mi : mem_info_list) {
     HIXL_CHK_STATUS_RET(client_handler_->RegisterMem(mi));
   }

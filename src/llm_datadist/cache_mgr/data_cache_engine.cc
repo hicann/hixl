@@ -402,9 +402,9 @@ ge::Status DataCacheEngine::CheckParam(const CacheEntry &cache_entry, const Pull
                             "check failed, src_block_index.size() = %zu, dst_block_index.size() = %zu",
                             pull_cache_param.prompt_blocks.size(), pull_cache_param.decoder_blocks.size());
   }
-  LLM_CHK_STATUS_RET(CheckTensorIndices(cache_entry, pull_cache_param), "tensor_indices is invalid");
   LLM_CHK_BOOL_RET_STATUS(pull_cache_param.tensor_num_per_layer >= 1, ge::LLM_PARAM_INVALID,
                           "check failed, tensor_num_per_layer expect [1, %lu]", cache_entry.cache_addrs.size());
+  LLM_CHK_STATUS_RET(CheckTensorIndices(cache_entry, pull_cache_param), "tensor_indices is invalid");
   return ge::SUCCESS;
 }
 

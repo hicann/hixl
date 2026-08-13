@@ -140,7 +140,7 @@ Status AdxlInnerEngine::ParseAutoConnectConfig(const std::map<AscendString, Asce
                        hixl::OPTION_AUTO_CONNECT, auto_connect_str.c_str());
       ADXL_CHK_BOOL_RET_STATUS(auto_connect == 1U || auto_connect == 0U, PARAM_INVALID,
                                "%s is invalid, should be zero or one.", hixl::OPTION_AUTO_CONNECT);
-      LLMLOGI("set %s to %d.", hixl::OPTION_AUTO_CONNECT, auto_connect);
+      LLMLOGI("set %s to %u.", hixl::OPTION_AUTO_CONNECT, auto_connect);
       auto_connect_ = (auto_connect == 1U);
     } else {
       LLMLOGE(PARAM_INVALID, "%s value is empty, should be zero or one.", hixl::OPTION_AUTO_CONNECT);

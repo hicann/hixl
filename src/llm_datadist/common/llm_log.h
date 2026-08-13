@@ -51,12 +51,11 @@ inline bool LlmIsLogEnable(const int32_t module_name, const int32_t log_level) {
 }
 
 inline bool LlmLogPrintStdout() {
-  static int32_t stdout_flag = -1;
-  if (stdout_flag == -1) {
+  static const int32_t stdout_flag = []() {
     const char *env_ret = getenv("ASCEND_SLOG_PRINT_TO_STDOUT");
     const bool print_stdout = ((env_ret != nullptr) && (strcmp(env_ret, "1") == 0));
-    stdout_flag = print_stdout ? 1 : 0;
-  }
+    return print_stdout ? 1 : 0;
+  }();
   return (stdout_flag == 1) ? true : false;
 }
 
