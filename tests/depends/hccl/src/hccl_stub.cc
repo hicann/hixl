@@ -40,6 +40,7 @@ static int32_t g_next_batch_mode_end_failure_ret = 0;
 static int32_t g_listen_port_ret = 0;  // HcommEndpointGetListenPort的返回值, 0表示使用默认行为(返回HCCL_SUCCESS)
 static std::atomic<uint32_t> g_channel_status_pending_count{0U};
 static std::atomic<uint32_t> g_channel_get_status_call_count{0U};
+static std::atomic<int32_t> g_channel_status_fail_value{-1};
 static std::atomic<uint32_t> g_nbi_call_count{0U};
 static std::atomic<uint32_t> g_fence_call_count{0U};
 static std::vector<int32_t> g_mem_reg_types;
@@ -172,9 +173,10 @@ HcommResult HcommChannelGetStatus(const ChannelHandle *channelList, uint32_t lis
     return static_cast<HcommResult>(HCCL_E_PARA);
   }
   g_channel_get_status_call_count.fetch_add(1U, std::memory_order_relaxed);
-  const bool is_pending = ConsumeChannelStatusPending();
+  const int32_t fail_value = g_channel_status_fail_value.load(std::memory_order_relaxed);
+  const int32_t value = (fail_value >= 0) ? fail_value : (ConsumeChannelStatusPending() ? 1 : 0);
   for (uint32_t i = 0; i < listNum; ++i) {
-    statusList[i] = is_pending ? 1 : 0;
+    statusList[i] = value;
   }
   return static_cast<HcommResult>(HCCL_SUCCESS);
 }
@@ -316,6 +318,10 @@ void SetChannelGetStatusPendingCount(uint32_t count) {
 
 uint32_t GetChannelGetStatusCallCount() {
   return g_channel_get_status_call_count.load(std::memory_order_relaxed);
+}
+
+void SetChannelGetStatusFailValue(int32_t status) {
+  g_channel_status_fail_value.store(status, std::memory_order_relaxed);
 }
 
 uint32_t GetNbiCallCount() {

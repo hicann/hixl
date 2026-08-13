@@ -18,7 +18,10 @@
 namespace hixl {
 namespace {
 constexpr uint32_t kChannelListNum = 1U;
+// HcommChannelGetStatus 返回的通道建链状态码：0=建链完成，1=建链进行中，
+// 2=建链失败，3=建链超时。2/3 为终态失败，检测到时应立即返回不再等待。
 constexpr int32_t kChannelConnectedStatus = 0;
+constexpr int32_t kChannelConnectingStatus = 1;
 constexpr int32_t kChannelUnknownStatus = -1;
 constexpr auto kChannelStatusPollInterval = std::chrono::microseconds(1);
 
@@ -31,6 +34,8 @@ Status WaitChannelConnected(ChannelHandle channel_handle, uint32_t timeout_ms) {
     if (status == kChannelConnectedStatus) {
       return SUCCESS;
     }
+    HIXL_CHK_BOOL_RET_STATUS(status == kChannelConnectingStatus, FAILED,
+                             "Wait channel connected failed, handle:%lu, status:%d", channel_handle, status);
     HIXL_CHK_BOOL_RET_STATUS(std::chrono::steady_clock::now() < deadline, TIMEOUT,
                              "Wait channel connected timed out, handle:%lu, status:%d, timeout:%u ms", channel_handle,
                              status, timeout_ms);

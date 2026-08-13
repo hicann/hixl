@@ -597,6 +597,7 @@ class HixlCSClientUT : public ::testing::Test {
     src_ = MakeIdEp(kSrcEpId);
     dst_ = MakeIdEp(kDstEpId);
     SetChannelGetStatusPendingCount(0U);
+    SetChannelGetStatusFailValue(-1);
     // TransferPool initialization loads device kernels, so MmpaStub must be ready before Create.
     hixl_test::InstallSysApiHooks(std::make_shared<CsClientMmpaStub>());
   }
@@ -606,6 +607,7 @@ class HixlCSClientUT : public ::testing::Test {
     server_.Stop();
     port_ = kZero;
     SetChannelGetStatusPendingCount(0U);
+    SetChannelGetStatusFailValue(-1);
     hixl_test::ResetSysApiHooks();
   }
 
@@ -876,6 +878,20 @@ TEST_F(HixlCSClientUT, ConnectFailChannelStatusTimeout) {
   CreateClient();
   SetChannelGetStatusPendingCount(1000U);
   EXPECT_EQ(client_.Connect(kConnectTime1), TIMEOUT);
+}
+
+TEST_F(HixlCSClientUT, ConnectFailChannelStatusBuildFailed) {
+  StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
+  CreateClient();
+  SetChannelGetStatusFailValue(2);
+  EXPECT_EQ(client_.Connect(kDefaultConnectTimeoutMs), FAILED);
+}
+
+TEST_F(HixlCSClientUT, ConnectFailChannelStatusBuildTimeout) {
+  StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
+  CreateClient();
+  SetChannelGetStatusFailValue(3);
+  EXPECT_EQ(client_.Connect(kDefaultConnectTimeoutMs), FAILED);
 }
 
 // -- CreateChannelResp 异常：magic/body_size/msg_type/result --

@@ -26,6 +26,7 @@ void SetNextBatchModeEndFailure(int32_t ret);
 void SetListenPortResult(int32_t ret);
 void SetChannelGetStatusPendingCount(uint32_t count);
 uint32_t GetChannelGetStatusCallCount();
+void SetChannelGetStatusFailValue(int32_t status);
 uint32_t GetNbiCallCount();
 uint32_t GetFenceCallCount();
 void ResetTransferCounter();
