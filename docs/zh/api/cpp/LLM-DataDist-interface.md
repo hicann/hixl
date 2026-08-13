@@ -101,7 +101,8 @@ Status Initialize(const std::map<AscendString, AscendString> &options)
 | OPTION_DEVICE_ID | 必选 | 设置当前进程的Device ID，如"0"，不支持单进程多卡场景。 |
 | OPTION_SYNC_CACHE_WAIT_TIME | 可选 | kv相关操作的超时时间，单位：ms。不配置默认为1000ms。相关接口如下。<br><br>  - PullKvCache<br>  - PullKvBlocks<br>  - PushKvCache<br>  - PushKvBlocks |
 | OPTION_LOCAL_COMM_RES | 可选 | 配置本地通信资源信息，格式是json格式的字符串。 |
-| OPTION_TRANSFER_BACKEND | 可选 | 配置LLM-DataDist使用的传输后端引擎，当前支持配置的后端为“hixl”。hixl传输后端使用方法如下：<br><br>- 初始化option需指定OPTION_LISTEN_IP_INFO：当配置使用hixl传输后端时，每个传输端既可作为client也可以作为server。<br><br>- 与对端发起传输前需要调用LinkLlmClusters发起建链。 |
+| OPTION_TRANSFER_BACKEND | 可选 | 配置LLM-DataDist使用的传输后端引擎，当前支持配置的后端为"hixl"。hixl传输后端使用方法如下：<br><br>- 初始化option需指定OPTION_LISTEN_IP_INFO：当配置使用hixl传输后端时，每个传输端既可作为client也可以作为server。<br><br>- 与对端发起传输前需要调用LinkLlmClusters发起建链。 |
+| OPTION_GLOBAL_RESOURCE_CONFIG | 可选 | 配置HIXL全局通信资源信息，格式为json格式的字符串。仅当OPTION_TRANSFER_BACKEND配置为"hixl"时生效，LLM-DataDist仅将配置透传至HIXL，不新增校验或改变HIXL引擎选择逻辑；字段是否生效取决于HIXL所选引擎。字段说明和约束请参考[HIXL接口文档的Initialize章节](./HIXL-interface.md#initialize)。不配置时保持默认行为。<br>配置示例：'{"comm_resource_config.listen_port": 26666, "comm_resource_config.max_active_channels": 128}'。<br>非法JSON、字段类型错误或非法取值由HIXL解析校验并返回初始化失败。 |
 
 OPTION_LOCAL_COMM_RES参数补充说明如下：
 

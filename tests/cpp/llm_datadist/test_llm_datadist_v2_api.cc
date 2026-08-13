@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * Copyright (c) 2025-2026 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
@@ -482,6 +482,46 @@ TEST_F(LlmDataDistSTest, TestUseHixlBackendA5) {
   TestPullKv(llm_datadist_p, llm_datadist_d);
   llm_datadist_p.Finalize();
   llm_datadist_d.Finalize();
+}
+
+TEST_F(LlmDataDistSTest, TestUseHixlBackendWithGlobalResourceConfig) {
+  LlmDataDist llm_datadist_p(1U, LlmRole::kPrompt);
+  std::map<AscendString, AscendString> options_p;
+  options_p[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26000";
+  options_p[llm_datadist::OPTION_DEVICE_ID] = "0";
+  options_p[llm_datadist::OPTION_TRANSFER_BACKEND] = "hixl";
+  options_p[llm_datadist::OPTION_GLOBAL_RESOURCE_CONFIG] =
+      R"({"comm_resource_config.listen_port": 26666, "comm_resource_config.max_active_channels": 128})";
+
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  EXPECT_EQ(llm_datadist_p.Initialize(options_p), SUCCESS);
+
+  LlmDataDist llm_datadist_d(2U, LlmRole::kDecoder);
+  std::map<AscendString, AscendString> options_d;
+  options_d[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26001";
+  options_d[llm_datadist::OPTION_DEVICE_ID] = "1";
+  options_d[llm_datadist::OPTION_TRANSFER_BACKEND] = "hixl";
+  options_d[llm_datadist::OPTION_GLOBAL_RESOURCE_CONFIG] =
+      R"({"comm_resource_config.listen_port": 26667, "comm_resource_config.max_active_channels": 128})";
+
+  llm::AutoCommResRuntimeMock::SetDevice(1);
+  EXPECT_EQ(llm_datadist_d.Initialize(options_d), SUCCESS);
+
+  llm_datadist_p.Finalize();
+  llm_datadist_d.Finalize();
+}
+
+TEST_F(LlmDataDistSTest, TestUseHixlBackendWithInvalidGlobalResourceConfigJson) {
+  LlmDataDist llm_datadist_p(1U, LlmRole::kPrompt);
+  std::map<AscendString, AscendString> options_p;
+  options_p[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26000";
+  options_p[llm_datadist::OPTION_DEVICE_ID] = "0";
+  options_p[llm_datadist::OPTION_TRANSFER_BACKEND] = "hixl";
+  options_p[llm_datadist::OPTION_GLOBAL_RESOURCE_CONFIG] = "not_json";
+
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  EXPECT_NE(llm_datadist_p.Initialize(options_p), SUCCESS);
+  llm_datadist_p.Finalize();
 }
 
 TEST_F(LlmDataDistSTest, TestUseHixlBackendA3RepeatedInit) {

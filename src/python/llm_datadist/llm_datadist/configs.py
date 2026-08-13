@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # ----------------------------------------------------------------------------
-# Copyright (c) 2025 Huawei Technologies Co., Ltd.
+# Copyright (c) 2025-2026 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of
 # CANN Open Software License Agreement Version 2.0 (the "License").
 # Please refer to the License for details. You may not use this file except in compliance with the License.
@@ -132,6 +132,7 @@ class LlmConfig(object):
         self._rdma_service_level = None
         self._local_comm_res = None
         self._transfer_backend = None
+        self._global_resource_config = None
 
     def generate_options(self):
         """
@@ -401,6 +402,17 @@ class LlmConfig(object):
         check_isinstance("transfer_backend", transfer_backend, str)
         self._transfer_backend = transfer_backend
 
+    @property
+    def global_resource_config(self):
+        return (
+            "" if self._global_resource_config is None else self._global_resource_config
+        )
+
+    @global_resource_config.setter
+    def global_resource_config(self, global_resource_config):
+        check_isinstance("global_resource_config", global_resource_config, str)
+        self._global_resource_config = global_resource_config
+
     def _add_memory_options(self):
         if self.buf_pool_cfg:
             self._options["llm.BufPoolCfg"] = str(self.buf_pool_cfg)
@@ -432,3 +444,5 @@ class LlmConfig(object):
             self._options["llm.LocalCommRes"] = str(self.local_comm_res)
         if self._transfer_backend is not None:
             self._options["llm.TransferBackend"] = str(self.transfer_backend)
+        if self._global_resource_config is not None:
+            self._options["llm.GlobalResourceConfig"] = str(self.global_resource_config)

@@ -33,6 +33,7 @@ void HixlTransferEngine::LLMDataDist2HixlOptions(
       {LLM_OPTION_RDMA_TRAFFIC_CLASS, hixl::OPTION_RDMA_TRAFFIC_CLASS},
       {LLM_OPTION_RDMA_SERVICE_LEVEL, hixl::OPTION_RDMA_SERVICE_LEVEL},
       {llm_datadist::OPTION_LOCAL_COMM_RES, ADXL_OPTION_LOCAL_COMM_RES},
+      {llm_datadist::OPTION_GLOBAL_RESOURCE_CONFIG, hixl::OPTION_GLOBAL_RESOURCE_CONFIG},
   };
   for (const auto &option : llm_datdsist_options) {
     const auto &iter = llm_to_hixl_options.find(option.first);

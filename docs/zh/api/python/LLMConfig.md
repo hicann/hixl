@@ -620,3 +620,42 @@ llm_config.transfer_backend = "hixl"
 
 - 初始化option需指定listen_ip_info，当配置使用hixl传输后端时，每个传输端既可作为Client也可以作为Server。
 - 与对端发起传输前需要调用link_clusters发起建链。
+
+## global\_resource\_config
+
+**函数功能**
+
+用于配置HIXL全局通信资源信息。仅当transfer_backend配置为"hixl"时生效，配置内容透传至HIXL引擎由HIXL解析校验。
+
+**函数原型**
+
+```python
+global_resource_config(global_resource_config)
+```
+
+**参数说明**
+
+| 参数名称 | 数据类型 | 取值说明 |
+| --- | --- | --- |
+| global_resource_config | str | json格式的字符串。字段说明和约束请参考[HIXL接口文档的Initialize章节](../cpp/HIXL-interface.md#initialize)。LLM-DataDist仅透传该配置，不新增校验或改变HIXL引擎选择逻辑；字段是否生效取决于HIXL所选引擎。 |
+
+**调用示例**
+
+```python
+from llm_datadist import LLMConfig
+llm_config = LLMConfig()
+llm_config.transfer_backend = "hixl"
+llm_config.global_resource_config = '{"comm_resource_config.listen_port": 26666, "comm_resource_config.max_active_channels": 128}'
+```
+
+**返回值**
+
+正常情况下无返回值。
+
+参数错误可能抛出TypeError或ValueError。
+
+**约束说明**
+
+- 仅当transfer_backend配置为"hixl"时生效，非hixl后端时该配置被忽略。
+- 不配置时保持默认行为，不影响既有初始化流程。
+- 非法JSON、字段类型错误或非法取值由HIXL解析校验并返回初始化失败。

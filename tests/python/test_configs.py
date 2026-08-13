@@ -48,6 +48,37 @@ class TestLlmConfig(unittest.TestCase):
         with self.assertRaises(LLMException):
             self.config.mem_utilization = -0.1
 
+    def test_global_resource_config_setter_valid_str(self):
+        json_str = '{"comm_resource_config.listen_port": 26666}'
+        self.config.global_resource_config = json_str
+        self.assertEqual(self.config.global_resource_config, json_str)
+
+    def test_global_resource_config_setter_non_str_raises(self):
+        with self.assertRaises(TypeError):
+            self.config.global_resource_config = 123
+        with self.assertRaises(TypeError):
+            self.config.global_resource_config = {"key": "value"}
+        with self.assertRaises(TypeError):
+            self.config.global_resource_config = [1, 2]
+
+    def test_global_resource_config_not_set_excluded_from_options(self):
+        self.config.device_id = 0
+        options = self.config.gen_options()
+        self.assertNotIn("llm.GlobalResourceConfig", options)
+
+    def test_global_resource_config_empty_str_in_options(self):
+        self.config.device_id = 0
+        self.config.global_resource_config = ""
+        options = self.config.gen_options()
+        self.assertEqual(options["llm.GlobalResourceConfig"], "")
+
+    def test_global_resource_config_in_options(self):
+        self.config.device_id = 0
+        json_str = '{"comm_resource_config.listen_port": 26666, "comm_resource_config.max_active_channels": 128}'
+        self.config.global_resource_config = json_str
+        options = self.config.gen_options()
+        self.assertEqual(options["llm.GlobalResourceConfig"], json_str)
+
 
 if __name__ == "__main__":
     unittest.main()
