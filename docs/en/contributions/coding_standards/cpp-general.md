@@ -15,6 +15,7 @@
 | 2.4 | Do not reference external interfaces via extern declarations | Headers |
 | 2.5 | Do not include headers within extern "C" | Headers |
 | 2.6 | Avoid using using to import namespaces in headers (Recommendation) | Headers |
+| 2.7 | Include headers in a reasonable order | Headers |
 | 3.1 | Avoid abusing typedef/#define type aliases | Data Types |
 | 3.2 | Use using instead of typedef to define aliases | Data Types |
 | 4.1 | Do not use macros to represent constants | Constants |
@@ -149,6 +150,31 @@ The propagation scope of `using namespace` in a header file depends on its scope
 - Non-shared headers importing large namespaces (`std`, etc.) at file-scope
 - Public API headers (`include/` directory) importing non-project namespaces (included by external callers)
 - Shared headers importing large namespaces **inside** a namespace (not file-scope)
+
+##### Rule 2.7 Include headers in a reasonable order
+
+In `.cpp`/`.cc` source files, `#include` directives should be arranged in the following order:
+
+1. The header file corresponding to this file (e.g., `foo.h` for `foo.cc`)
+2. C/C++ standard library headers (e.g., `<string>`, `<vector>`, `<cstring>`)
+3. System library headers (e.g., `<unistd.h>`, `<arpa/inet.h>`)
+4. Other third-party library headers (e.g., `securec.h`, `nlohmann/json.hpp`)
+5. Other headers within this project (e.g., `common/hixl_log.h`, `engine/client_handler.h`)
+
+Placing the corresponding header first surfaces any implicit dependency of the header itself at the earliest opportunity when compiling this translation unit. Arranging the remaining includes from "stable/generic" to "project-specific" clarifies dependency sources and facilitates troubleshooting and trimming.
+
+```cpp
+// foo.cc
+#include "foo.h"              // 1. The corresponding header
+#include <cstring>            // 2. C/C++ standard library
+#include <vector>
+#include <unistd.h>           // 3. System library
+#include "securec.h"          // 4. Other third-party library
+#include "common/hixl_log.h"  // 5. Other headers within this project
+#include "engine/bar.h"
+```
+
+> **Note**: During review, mark obviously disordered include sequences (e.g., the corresponding header placed after standard library headers, or project headers interleaved among standard library headers) as SUSPICIOUS to remind developers to adjust.
 
 ---
 

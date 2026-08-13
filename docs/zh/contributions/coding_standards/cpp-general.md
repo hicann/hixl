@@ -15,6 +15,7 @@
 | 2.4 | 禁止 extern 声明引用外部接口 | 头文件 |
 | 2.5 | 禁止在 extern "C" 中包含头文件 | 头文件 |
 | 2.6 | 避免在头文件中使用 using 导入命名空间（建议） | 头文件 |
+| 2.7 | 按合理顺序包含头文件 | 头文件 |
 | 3.1 | 避免滥用 typedef/#define 类型别名 | 数据类型 |
 | 3.2 | 使用 using 而非 typedef 定义别名 | 数据类型 |
 | 4.1 | 禁止使用宏表示常量 | 常量 |
@@ -151,6 +152,31 @@ try {
 - 非共享头文件在 file-scope 导入 `std` 等大型命名空间
 - 公开 API 头文件（`include/` 目录）导入非项目命名空间（被外部调用者 include）
 - 共享头文件在命名空间**内部**（非 file-scope）导入大型命名空间
+
+##### 规则 2.7 按合理顺序包含头文件
+
+`.cpp`/`.cc` 源文件中，`#include` 应按以下顺序排列：
+
+1. 本文件对应的头文件（如 `foo.cc` 对应 `foo.h`）
+2. C/C++ 标准库头文件（如 `<string>`、`<vector>`、`<cstring>`）
+3. 系统库头文件（如 `<unistd.h>`、`<arpa/inet.h>`）
+4. 其他第三方库头文件（如 `securec.h`、`nlohmann/json.hpp`）
+5. 本项目内其他头文件（如 `common/hixl_log.h`、`engine/client_handler.h`）
+
+将本文件对应的头文件置于首位，可在编译该翻译单元时第一时间暴露自身头文件的隐式依赖问题；按从"稳定/通用"到"项目专用"的顺序排列，可清晰区分依赖来源，便于排查与裁剪。
+
+```cpp
+// foo.cc
+#include "foo.h"              // 1. 本文件对应头文件
+#include <cstring>            // 2. C/C++ 标准库
+#include <vector>
+#include <unistd.h>           // 3. 系统库
+#include "securec.h"          // 4. 其他第三方库
+#include "common/hixl_log.h"  // 5. 本项目内其他头文件
+#include "engine/bar.h"
+```
+
+> **说明**：检视时，顺序明显混乱（如自身对应头文件置于标准库之后，或项目内头文件穿插到标准库中）标记为 SUSPICIOUS，提醒开发者调整。
 
 ---
 
