@@ -17,6 +17,8 @@ export PIP_BREAK_SYSTEM_PACKAGES=1
 pip3 uninstall -y "llm_datadist" >/dev/null 2>&1 || true
 
 rm -fr "${WHL_INSTALL_DIR_PATH}/llm_datadist" "${WHL_INSTALL_DIR_PATH}/llm_datadist-"*.dist-info 2>/dev/null
+rm -f "${WHL_INSTALL_DIR_PATH}/hixl.so" 2>/dev/null
+rm -fr "${WHL_INSTALL_DIR_PATH}/hixl" 2>/dev/null
 
 remove_empty_dir() {
     local dir="$1"
@@ -28,4 +30,3 @@ remove_empty_dir() {
 
 remove_empty_dir "${WHL_INSTALL_DIR_PATH}"
 remove_empty_dir "${sourcedir}/python"
-

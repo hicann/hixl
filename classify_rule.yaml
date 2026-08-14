@@ -19,6 +19,7 @@ hixl:
       - src/python/llm_wrapper/llm_datadist_v2_wrapper.cc
       - src/python/metadef_wrapper/metadef_wrapper.cc
       - src/llm_datadist/llm_error_codes.cc
+      - src/python/hixl_py/hixl_py.cc
   llt:
     ut_check: true
     st_check: false

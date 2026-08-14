@@ -37,6 +37,10 @@ HcclResult HcclRemapRegistedMemory(HcclComm *comm, CommMem *memInfoArray, uint64
 }
 
 HcclResult HcclRegisterGlobalMem(CommMem *mem, void **memHandle) {
+  static int64_t mock_handle = 1;
+  if (memHandle != nullptr) {
+    *memHandle = reinterpret_cast<void *>(&mock_handle);
+  }
   return HcclResult::HCCL_SUCCESS;
 }
 

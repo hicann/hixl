@@ -108,6 +108,8 @@ python_dir_chmod_reset "$WHL_SOFTLINK_INSTALL_DIR_PATH"
 
 create_softlink_if_exists "${WHL_INSTALL_DIR_PATH}" "$WHL_SOFTLINK_INSTALL_DIR_PATH" "llm_datadist"
 create_softlink_if_exists "${WHL_INSTALL_DIR_PATH}" "$WHL_SOFTLINK_INSTALL_DIR_PATH" "llm_datadist-*.dist-info"
+create_softlink_if_exists "${WHL_INSTALL_DIR_PATH}" "$WHL_SOFTLINK_INSTALL_DIR_PATH" "hixl.so"
+create_softlink_if_exists "${WHL_INSTALL_DIR_PATH}" "$WHL_SOFTLINK_INSTALL_DIR_PATH" "hixl"
 
 python_dir_chmod_set "$WHL_SOFTLINK_INSTALL_DIR_PATH"
 python_dir_chmod_set "$(dirname $WHL_SOFTLINK_INSTALL_DIR_PATH)"

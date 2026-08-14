@@ -15,6 +15,7 @@ unset PYTHONPATH
 export PIP_BREAK_SYSTEM_PACKAGES=1
 
 WHL_LLM_DATADIST="${sourcedir}/hixl/lib/llm_datadist-0.0.1-py3-none-any.whl"
+PYTHON_HIXL_SO="${sourcedir}/hixl/lib/hixl.so"
 
 run_pip() { python3 -m pip "$@" || pip3 "$@"; }
 
@@ -48,12 +49,30 @@ set_file_chmod() {
 
 [ -f "${WHL_LLM_DATADIST}" ] && echo "[hixl] installing ${WHL_LLM_DATADIST}" && run_pip install --disable-pip-version-check --upgrade --no-deps --force-reinstall -t "${WHL_INSTALL_DIR_PATH}" "${WHL_LLM_DATADIST}" || true
 
+if [ -f "${PYTHON_HIXL_SO}" ]; then
+    mkdir -p "${WHL_INSTALL_DIR_PATH}"
+    echo "[hixl] installing ${PYTHON_HIXL_SO}"
+    cp -f "${PYTHON_HIXL_SO}" "${WHL_INSTALL_DIR_PATH}/"
+    if [ $? -ne 0 ]; then
+        echo "[hixl][ERROR] copy hixl.so to ${WHL_INSTALL_DIR_PATH}/ failed"
+        exit 1
+    fi
+    mkdir -p "${WHL_INSTALL_DIR_PATH}/hixl"
+    ln -sf ../hixl.so "${WHL_INSTALL_DIR_PATH}/hixl/hixl.so"
+    if [ $? -ne 0 ]; then
+        echo "[hixl][ERROR] create softlink hixl.so under ${WHL_INSTALL_DIR_PATH}/hixl/ failed"
+        exit 1
+    fi
+fi
+
 if [ -d "${WHL_INSTALL_DIR_PATH}" ]; then
     chmod_recur "${sourcedir}/python" 750 dir
     chmod_recur "${WHL_INSTALL_DIR_PATH}/llm_datadist" 550 dir
     chmod_recur "${WHL_INSTALL_DIR_PATH}/llm_datadist" 550 file
     chmod_recur "${WHL_INSTALL_DIR_PATH}"/llm_datadist-*.dist-info 550 dir
     chmod_recur "${WHL_INSTALL_DIR_PATH}"/llm_datadist-*.dist-info 550 file
+    chmod_recur "${WHL_INSTALL_DIR_PATH}/hixl" 550 dir
+    chmod_recur "${WHL_INSTALL_DIR_PATH}/hixl" 550 file
     chmod_recur "${WHL_INSTALL_DIR_PATH}/LICENSE" 440 file
 fi
 

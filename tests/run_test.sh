@@ -458,9 +458,12 @@ run() {
       unset LD_PRELOAD
       cp ${BUILD_PATH}/tests/depends/python/llm_datadist_wrapper.so ${BASEPATH}/src/python/llm_datadist/llm_datadist/
       cp ${BUILD_PATH}/tests/depends/python/metadef_wrapper.so ${BASEPATH}/src/python/llm_datadist/llm_datadist/
+      cp ${BUILD_PATH}/tests/depends/python/hixl.so ${BASEPATH}/src/python/hixl_py/
       cp -r ${BASEPATH}/tests/python ./
       PYTHON_ORIGINAL_PATH=$PYTHONPATH
-      export PYTHONPATH=${BASEPATH}/src/python/llm_datadist/
+      export PYTHONPATH=${BASEPATH}/src/python/llm_datadist/:${BASEPATH}/src/python/hixl_py/
+      LD_LIBRARY_PATH_ORIGINAL=$LD_LIBRARY_PATH
+      export LD_LIBRARY_PATH=${BUILD_PATH}/tests/depends/hixl/:${BUILD_PATH}/tests/depends/llm_datadist/:${BUILD_PATH}/tests/depends/slog/:${BUILD_PATH}/tests/depends/mmpa/:${BUILD_PATH}/tests/depends/hccl/:${BUILD_PATH}/tests/depends/ascendcl/:${BUILD_PATH}/tests/depends/runtime/:${BUILD_PATH}/tests/depends/msprof/:${BUILD_PATH}/tests/depends/dcmi/:${BUILD_PATH}/tests/depends/dsmi/:${BUILD_PATH}/tests/depends/error_manager/
 
       echo "----------st start----------"
       if [[ "X$ENABLE_ASAN" = "XON" ]]; then
@@ -472,14 +475,17 @@ run() {
       if [[ "$?" -ne 0 ]]; then
           echo "!!! PY TEST FAILED, PLEASE CHECK YOUR CHANGES !!!"
           rm -f ${BASEPATH}/src/python/llm_datadist/llm_datadist/*.so
+          rm -f ${BASEPATH}/src/python/hixl_py/*.so
           exit 1;
       fi
       rm -f ${BASEPATH}/src/python/llm_datadist/llm_datadist/*.so
+      rm -f ${BASEPATH}/src/python/hixl_py/*.so
 
       if [[ "X$ENABLE_ASAN" = "XON" ]]; then
         unset LD_PRELOAD
       fi
       export PYTHONPATH=${PYTHON_ORIGINAL_PATH}
+      export LD_LIBRARY_PATH=${LD_LIBRARY_PATH_ORIGINAL}
   fi
 
   if [[ "X$ENABLE_GCOV" = "XON" ]]; then

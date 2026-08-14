@@ -93,6 +93,8 @@ python_dir_chmod_set "$WHL_SOFTLINK_INSTALL_DIR_PATH"
 
 remove_softlink "llm_datadist"
 remove_softlink "llm_datadist-*.dist-info"
+remove_softlink "hixl.so"
+remove_softlink "hixl"
 
 remove_empty_dir "$WHL_SOFTLINK_INSTALL_DIR_PATH"
 remove_empty_dir "$install_path/$latest_dir/python"

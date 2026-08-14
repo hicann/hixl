@@ -221,6 +221,10 @@ custom_uninstall() {
         log "INFO" "uninstall hixl tool begin..."
         whl_uninstall_package "${HIXL_NAME}" "${WHL_INSTALL_DIR_PATH}"
         log "INFO" "hixl tool uninstalled successfully!"
+
+        rm -f "${WHL_INSTALL_DIR_PATH}/hixl.so" 2> /dev/null
+        rm -rf "${WHL_INSTALL_DIR_PATH}/hixl" 2> /dev/null
+        log "INFO" "hixl module uninstalled successfully!"
     fi
 
     remove_empty_dir "${common_parse_dir}/hixl/python"

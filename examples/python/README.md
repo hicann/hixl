@@ -24,6 +24,7 @@
 |   ├── switch_role_sample.py
 |   ├── transfer_cache_async_sample.py
 |   ├── hixl_transfer_backend_sample.py
+|   ├── hixl_d2rd_multiproc_sample.py
 ```
 
 ## 环境准备
