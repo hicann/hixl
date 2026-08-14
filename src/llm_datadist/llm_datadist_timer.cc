@@ -42,14 +42,14 @@ void LlmDatadistTimer::Init() {
   if (is_init_) {
     return;
   }
-  running_ = true;
+  running_.store(true);
   time_thread_ = std::thread(&LlmDatadistTimer::TimerThreadLoop, this);
   is_init_ = true;
 }
 
 void LlmDatadistTimer::Finalize() {
   std::lock_guard<std::mutex> lk(lifecycle_mutex_);
-  running_ = false;
+  running_.store(false);
   if (time_thread_.joinable()) {
     time_thread_.join();
   }
@@ -59,14 +59,14 @@ void LlmDatadistTimer::Finalize() {
 void *LlmDatadistTimer::CreateTimer(const TimerCallback &callback) {
   static uint32_t timer_cnt = 0U;
   LLM_ASSERT_NOTNULL(callback, "timer callback is nullptr");
+  std::shared_ptr<TimerInfo> timer = MakeShared<TimerInfo>();
+  LLM_ASSERT_NOTNULL(timer, "failed to create timer");
+  std::unique_lock<std::mutex> lk(mutex_);
   if (timer_cnt == UINT32_MAX) {
     LLMLOGE(ge::LLM_PARAM_INVALID, "create timer reaches num limit[%u]", UINT32_MAX);
   }
-  std::shared_ptr<TimerInfo> timer = MakeShared<TimerInfo>();
-  LLM_ASSERT_NOTNULL(timer, "failed to create timer");
   timer->timer_id = timer_cnt;
   timer->timer_callback = callback;
-  std::unique_lock<std::mutex> lk(mutex_);
   timer_infos_[timer_cnt] = timer;
   ++timer_cnt;
 
@@ -137,7 +137,7 @@ void LlmDatadistTimer::ProcessTimerInContext() {
 
 void LlmDatadistTimer::TimerThreadLoop() {
   (void)pthread_setname_np(pthread_self(), "ge_llm_stats");
-  while (running_) {
+  while (running_.load()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(kTimerWaitInterval));
     ProcessTimerInContext();
   }

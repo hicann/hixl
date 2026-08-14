@@ -63,6 +63,7 @@ Status MsgHandler::HandleMsg(int32_t fd, CtrlMsgPtr msg, MsgProcessor proc) {
 }
 
 Status MsgHandler::RegisterMsgProcessor(CtrlMsgType msg_type, MsgProcessor msg_processor) {
+  std::lock_guard<std::mutex> lock(processors_mutex_);
   const auto it = processors_.find(msg_type);
   HIXL_CHK_BOOL_RET_STATUS(it == processors_.cend(), PARAM_INVALID, "msg_type:%d, has been registered.",
                            static_cast<int32_t>(msg_type));
@@ -82,12 +83,16 @@ void MsgHandler::HandleMsg() {
       req = std::move(req_queue_.front());
       req_queue_.pop();
     }
-    const auto it = processors_.find(req.second->msg_type);
-    if (it == processors_.cend()) {
-      HIXL_EVENT("[HixlServer] msg type:%d, not registered", static_cast<int32_t>(req.second->msg_type));
-      continue;
+    MsgProcessor proc;
+    {
+      std::lock_guard<std::mutex> lock(processors_mutex_);
+      const auto it = processors_.find(req.second->msg_type);
+      if (it == processors_.cend()) {
+        HIXL_EVENT("[HixlServer] msg type:%d, not registered", static_cast<int32_t>(req.second->msg_type));
+        continue;
+      }
+      proc = it->second;
     }
-    auto proc = it->second;
     (void)thread_pool_->commit([this, req, proc]() -> void {
       HIXL_CHK_STATUS(ctx_.SetCurrentContext(), "SetCurrentContext failed");
       (void)HandleMsg(req.first, req.second, proc);

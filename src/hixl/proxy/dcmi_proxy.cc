@@ -16,6 +16,7 @@
 #include "dcmi_proxy.h"
 #include <dlfcn.h>
 #include <unistd.h>
+#include <mutex>
 #include "common/hixl_log.h"
 #include "hixl/hixl_types.h"
 
@@ -44,6 +45,7 @@ DcmiGetDeviceInfoFunc g_dcmi_get_device_info = nullptr;
 void *g_dcmi_handle = nullptr;
 volatile bool g_dcmi_loaded = false;
 volatile int32_t g_dcmi_init_status = -1;
+std::mutex g_dcmi_mu;
 
 int32_t TryLoadDcmiSymbols() {
   g_dcmi_handle = dlopen("libdcmi.so", RTLD_LAZY);
@@ -100,9 +102,7 @@ int32_t InitDcmiWithRetry() {
   return 0;
 }
 
-}  // anonymous namespace
-
-int32_t DcmiProxy::LoadDcmi() {
+int32_t LoadDcmiUnlocked() {
   if (g_dcmi_loaded) {
     return g_dcmi_init_status;
   }
@@ -123,7 +123,15 @@ int32_t DcmiProxy::LoadDcmi() {
   return g_dcmi_init_status;
 }
 
+}  // anonymous namespace
+
+int32_t DcmiProxy::LoadDcmi() {
+  std::lock_guard<std::mutex> lock(g_dcmi_mu);
+  return LoadDcmiUnlocked();
+}
+
 void DcmiProxy::UnloadDcmi() {
+  std::lock_guard<std::mutex> lock(g_dcmi_mu);
   if (!g_dcmi_loaded) {
     return;
   }
@@ -142,35 +150,40 @@ void DcmiProxy::UnloadDcmi() {
 }
 
 int32_t DcmiProxy::GetLogicIdFromPhyId(uint32_t phy_id, uint32_t *logic_id) {
-  if (LoadDcmi() != 0) {
+  std::lock_guard<std::mutex> lock(g_dcmi_mu);
+  if (LoadDcmiUnlocked() != 0 || g_dcmi_get_logicid_from_phyid == nullptr) {
     return -1;
   }
   return g_dcmi_get_logicid_from_phyid(phy_id, logic_id);
 }
 
 int32_t DcmiProxy::GetUrmaDeviceCnt(uint32_t logic_id, uint32_t *dev_cnt) {
-  if (LoadDcmi() != 0) {
+  std::lock_guard<std::mutex> lock(g_dcmi_mu);
+  if (LoadDcmiUnlocked() != 0 || g_dcmi_get_urma_device_cnt == nullptr) {
     return -1;
   }
   return g_dcmi_get_urma_device_cnt(static_cast<int32_t>(logic_id), dev_cnt);
 }
 
 int32_t DcmiProxy::GetEidList(uint32_t logic_id, int32_t urma_dev_index, DcmiUrmaEidInfo *eid_list, int32_t *eid_cnt) {
-  if (LoadDcmi() != 0) {
+  std::lock_guard<std::mutex> lock(g_dcmi_mu);
+  if (LoadDcmiUnlocked() != 0 || g_dcmi_get_eid_list == nullptr) {
     return -1;
   }
   return g_dcmi_get_eid_list(static_cast<int32_t>(logic_id), urma_dev_index, eid_list, eid_cnt);
 }
 
 int32_t DcmiProxy::GetMainboardId(uint32_t logic_id, uint32_t *mainboard_id) {
-  if (LoadDcmi() != 0) {
+  std::lock_guard<std::mutex> lock(g_dcmi_mu);
+  if (LoadDcmiUnlocked() != 0 || g_dcmi_get_mainboard_id == nullptr) {
     return -1;
   }
   return g_dcmi_get_mainboard_id(static_cast<int32_t>(logic_id), mainboard_id);
 }
 
 int32_t DcmiProxy::GetDeviceInfo(uint32_t logic_id, int32_t main_cmd, uint32_t sub_cmd, void *buf, uint32_t *size) {
-  if (LoadDcmi() != 0) {
+  std::lock_guard<std::mutex> lock(g_dcmi_mu);
+  if (LoadDcmiUnlocked() != 0 || g_dcmi_get_device_info == nullptr) {
     return -1;
   }
   return g_dcmi_get_device_info(static_cast<int32_t>(logic_id), main_cmd, sub_cmd, buf, size);

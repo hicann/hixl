@@ -13,6 +13,7 @@
 
 #include <queue>
 #include <mutex>
+#include <map>
 #include <condition_variable>
 #include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
@@ -36,6 +37,7 @@ class MsgHandler {
   std::mutex req_mutex_;
   std::queue<std::pair<int32_t, CtrlMsgPtr>> req_queue_;
   std::condition_variable req_cv_;
+  std::mutex processors_mutex_;
   std::map<CtrlMsgType, MsgProcessor> processors_;
 
   std::unique_ptr<ThreadPool> thread_pool_ = nullptr;

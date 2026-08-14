@@ -27,6 +27,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <atomic>
+#include <thread>
+#include <chrono>
 #include "gtest/gtest.h"
 #include "proxy/dcmi_proxy.h"
 #include "depends/dcmi/src/dcmi_stub.h"
@@ -224,6 +227,27 @@ TEST_F(DcmiProxyLoadFailTest, GetMainboardIdReturnsErrorWhenDcmiFuncFails) {
 // UnloadDcmi 在未加载时直接返回
 TEST_F(DcmiProxyLoadFailTest, UnloadDcmiWhenNotLoaded) {
   DcmiProxy::UnloadDcmi();  // 不应崩溃
+}
+
+TEST_F(DcmiProxyLoadFailTest, ConcurrentLoadUnloadAndGetDoesNotCrash) {
+  std::atomic<bool> stop{false};
+  std::thread loader([&stop]() {
+    while (!stop.load()) {
+      (void)DcmiProxy::LoadDcmi();
+      unsigned int mainboard_id = 0;
+      (void)DcmiProxy::GetMainboardId(0U, &mainboard_id);
+    }
+  });
+  std::thread unloader([&stop]() {
+    while (!stop.load()) {
+      DcmiProxy::UnloadDcmi();
+    }
+  });
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  stop.store(true);
+  loader.join();
+  unloader.join();
+  DcmiProxy::UnloadDcmi();
 }
 
 }  // namespace hixl

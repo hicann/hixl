@@ -14,6 +14,8 @@
 #include <thread>
 #include <chrono>
 #include <cstdint>
+#include <atomic>
+#include <memory>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -863,5 +865,43 @@ TEST_F(HixlCSTest, TestCreateServerRejectsPortOutOfRange) {
   auto ret = HixlCSServerCreate(&desc, &config, &server_handle);
   EXPECT_EQ(ret, HIXL_PARAM_INVALID);
   EXPECT_EQ(server_handle, nullptr);
+}
+
+TEST_F(HixlCSTest, MsgHandlerConcurrentRegisterAndSubmit) {
+  HixlServerConfig config{};
+  HixlServerHandle server_handle = nullptr;
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = 0U;
+  desc.endpoint_list = &default_eps[0];
+  desc.endpoint_list_num = default_eps.size();
+  ASSERT_EQ(HixlCSServerCreate(&desc, &config, &server_handle), SUCCESS);
+  auto *server = static_cast<HixlCSServer *>(server_handle);
+  std::atomic<int32_t> hits{0};
+  auto proc = [&hits](int32_t fd, const char *msg, uint64_t msg_len) -> Status {
+    (void)fd;
+    (void)msg;
+    (void)msg_len;
+    hits.fetch_add(1);
+    return SUCCESS;
+  };
+  constexpr int32_t kExtraTypes = 8;
+  std::thread registrar([server, &proc]() {
+    for (int32_t i = 0; i < kExtraTypes; ++i) {
+      (void)server->msg_handler_.RegisterMsgProcessor(static_cast<CtrlMsgType>(kCtrlMsgType + i), proc);
+    }
+  });
+  std::thread submitter([server]() {
+    for (int32_t i = 0; i < 32; ++i) {
+      auto msg = std::make_shared<CtrlMsg>();
+      msg->msg_type = static_cast<CtrlMsgType>(kCtrlMsgType + (i % kExtraTypes));
+      server->msg_handler_.SubmitMsg(0, msg);
+    }
+  });
+  registrar.join();
+  submitter.join();
+  std::this_thread::sleep_for(std::chrono::milliseconds(kTimeSleepMs));
+  EXPECT_EQ(server->msg_handler_.RegisterMsgProcessor(static_cast<CtrlMsgType>(kCtrlMsgType), proc), PARAM_INVALID);
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
 }
 }  // namespace hixl

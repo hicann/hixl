@@ -13,6 +13,7 @@
 #include <map>
 #include <thread>
 #include <mutex>
+#include <atomic>
 #include <functional>
 #include "ge_common/ge_api_error_codes.h"
 
@@ -46,7 +47,7 @@ class LlmDatadistTimer {
   std::mutex lifecycle_mutex_;
   std::mutex mutex_;
   std::thread time_thread_;
-  bool running_{false};
+  std::atomic<bool> running_{false};
   bool is_init_{false};
   std::map<uint32_t, std::shared_ptr<TimerInfo>> timer_infos_;
 };
