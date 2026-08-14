@@ -18,8 +18,6 @@ set(HIXL_INC_DIR
         "${HIXL_CODE_DIR}/src/llm_datadist"
         "${CMAKE_CURRENT_LIST_DIR}"
         )
-add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
-
 file(GLOB HIXL_SRC_LIST
         "${CMAKE_CURRENT_LIST_DIR}/engine/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/engine/endpoint_generator/*.cc"

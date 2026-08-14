@@ -13,8 +13,6 @@ set(HIXL_INC_DIR
         "${HIXL_CODE_DIR}/include"
         "${HIXL_CODE_DIR}/src/hixl"
 )
-add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
-
 add_library(hcomm_proxy_static STATIC "${CMAKE_CURRENT_LIST_DIR}/hcomm_proxy.cc")
 if(PRODUCT_SIDE STREQUAL "device")
         set(_HIXL_PROXY_TARGETS hcomm_proxy_static)

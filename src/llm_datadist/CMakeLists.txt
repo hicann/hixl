@@ -21,8 +21,6 @@ set(INC_DIR
         "${CMAKE_CURRENT_LIST_DIR}/fsm"
         "${HIXL_CODE_DIR}/src/hixl"
         )
-add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
-
 file(GLOB LLM_SRC_LIST
         "${CMAKE_CURRENT_LIST_DIR}/api/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/*.cc"
@@ -89,8 +87,6 @@ set(ADXL_INC_DIR
         "${CMAKE_CURRENT_LIST_DIR}/common"
         "${HIXL_CODE_DIR}/src/hixl"
         )
-add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
-
 file(GLOB ADXL_SRC_LIST
         "${CMAKE_CURRENT_LIST_DIR}/adxl/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/llm_datadist_timer.cc"
