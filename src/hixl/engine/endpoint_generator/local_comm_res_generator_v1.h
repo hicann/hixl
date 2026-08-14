@@ -100,8 +100,20 @@ struct RouteGenResult {
 // ============ 核心接口 ============
 
 /**
+ * @brief 通过 DSMI + urma_admin + DCMI 生成 route_data 与 host_pg_eid
+ *
+ * 供 hixl_tool host_route 等离线工具复用；运行时 GenerateLocalCommRes 内部也会调用。
+ *
+ * @param [in] phy_dev_id 物理设备 ID
+ * @param [in] is_server 是否为 Server 产品形态
+ * @param [out] result route_data + related_npu_ids + host_pg_eid
+ * @return 成功: SUCCESS, 失败: 其它错误码
+ */
+int32_t GenerateRouteDataViaDsmi(int32_t phy_dev_id, bool is_server, RouteGenResult &result);
+
+/**
  * @brief 生成 LocalCommRes 结构体（生产接口，使用默认路径）
- * @param [in] phy_dev_id 物理设备 ID，通过 aclrtGetPhyDevIdByLogicDevId 获取
+ * @param [in] phy_dev_id 物理设备 ID，通过 aclrtGetPhyDevIdByUserDevId 获取
  * @param [out] local_comm_res 输出的 LocalCommRes 结构体
  * @return 成功: SUCCESS, 失败: 其它错误码
  */
@@ -158,6 +170,17 @@ int32_t TransLocalCommRes(int32_t phy_dev_id, AscendString &result);
  * @return 成功: SUCCESS, 失败: 其它错误码
  */
 int32_t TransLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, AscendString &result);
+
+/**
+ * @brief 将 LocalCommRes 序列化为 JSON 字符串（带 2 空格缩进）
+ *
+ * 供 hixl_tool 等外部工具与内部序列化共用，避免重复实现。
+ *
+ * @param [in] local_comm_res 待序列化的 LocalCommRes
+ * @param [out] json_str 序列化后的 JSON 字符串
+ * @return 成功: SUCCESS, 失败: 其它错误码
+ */
+int32_t SerializeLocalCommResJson(const LocalCommRes &local_comm_res, std::string &json_str);
 
 // ============ DCMI 接口封装 ============
 
@@ -313,8 +336,12 @@ class TopoFileFinder {
    */
   static std::string FindTopoFile(const std::string &topo_dir, uint32_t mainboard_id);
 
- private:
+  /**
+   * @brief 判断 mainboard_id 是否为 Server 产品形态
+   */
   static bool IsProductServer(uint32_t mainboard_id);
+
+ private:
   static bool MatchProductForm(uint32_t mainboard_id, std::string &topo_file_name);
 };
 

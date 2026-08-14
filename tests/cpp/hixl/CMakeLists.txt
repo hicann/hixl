@@ -37,6 +37,7 @@ set(HIXL_TEST_FILES
         engine/hixl_engine_uboe_unittest.cc
         engine/hixl_engine_ubg_unittest.cc
         engine/local_comm_res_ut.cc
+        engine/route_conf_generator_ut.cc
         ../ops/hixl_kernel/hixl_kernel_basic_unittest.cc
 )
 
@@ -44,6 +45,7 @@ file(GLOB HIXL_SRC_LIST
         "${HIXL_CODE_DIR}/src/hixl/common/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/fabric_mem/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/engine/*.cc"
+        "${HIXL_CODE_DIR}/src/hixl/engine/endpoint_generator/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/profiling/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/proxy/*.cc"
@@ -99,6 +101,7 @@ target_include_directories(hixl_test PRIVATE
         ${HIXL_CODE_DIR}/src/llm_datadist
         ${HIXL_CODE_DIR}/src/hixl/cs
         ${HIXL_CODE_DIR}/src/hixl/engine
+        ${HIXL_CODE_DIR}/src/hixl/engine/endpoint_generator
         ${HIXL_CODE_DIR}/src/hixl/profiling
         ${HIXL_CODE_DIR}/src/ops
         ${HIXL_CODE_DIR}/src/ops/hixl_kernel/extern_include

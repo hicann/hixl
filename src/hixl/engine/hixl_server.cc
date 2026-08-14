@@ -18,7 +18,7 @@
 #include "common/hixl_checker.h"
 #include "common/ctrl_msg.h"
 #include "common/ctrl_msg_plugin.h"
-#include "engine/endpoint_generator.h"
+#include "engine/endpoint_generator/endpoint_generator.h"
 #include "common/hixl_inner_types.h"
 #include "common/hixl_utils.h"
 

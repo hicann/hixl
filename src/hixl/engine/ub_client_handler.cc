@@ -27,7 +27,7 @@
 #include "common/scope_guard.h"
 #include "common/thread_pool.h"
 #include "engine/client_handler_config_helper.h"
-#include "engine/endpoint_generator.h"
+#include "engine/endpoint_generator/endpoint_generator.h"
 
 namespace hixl {
 namespace {

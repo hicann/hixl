@@ -1479,13 +1479,7 @@ int32_t TransLocalCommRes(int32_t phy_dev_id, AscendString &result) {
   return TransLocalCommRes(phy_dev_id, topo_path, result);
 }
 
-int32_t TransLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, AscendString &result) {
-  // 1. 调用 GenerateLocalCommRes 组装 LocalCommRes 结构体
-  LocalCommRes local_comm_res;
-  HIXL_CHK_STATUS_RET(GenerateLocalCommRes(phy_dev_id, topo_path, local_comm_res),
-                      "[TransLocalCommRes] GenerateLocalCommRes failed");
-
-  // 2. 序列化为带 2 空格缩进的 JSON 字符串
+int32_t SerializeLocalCommResJson(const LocalCommRes &local_comm_res, std::string &json_str) {
   nlohmann::json j;
   j["version"] = local_comm_res.version;
   j["net_instance_id"] = local_comm_res.net_instance_id;
@@ -1501,13 +1495,30 @@ int32_t TransLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, Asce
     if (!ep.dst_eid.empty()) {
       ep_json["dst_eid"] = ep.dst_eid;
     }
+    if (!ep.net_instance_id.empty()) {
+      ep_json["net_instance_id"] = ep.net_instance_id;
+    }
     j["endpoint_list"].push_back(std::move(ep_json));
   }
 
-  // 3. 通过 AscendString 返回（内部封装 shared_ptr<std::string>，跨 .so 边界 ABI 安全）
-  // JSON 输出使用 2 空格缩进
   constexpr int32_t kJsonIndent = 2;
-  result = AscendString(j.dump(kJsonIndent).c_str());
+  json_str = j.dump(kJsonIndent);
+  return SUCCESS;
+}
+
+int32_t TransLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, AscendString &result) {
+  // 1. 调用 GenerateLocalCommRes 组装 LocalCommRes 结构体
+  LocalCommRes local_comm_res;
+  int32_t ret = GenerateLocalCommRes(phy_dev_id, topo_path, local_comm_res);
+  HIXL_CHK_STATUS_RET(ret, "[TransLocalCommRes] GenerateLocalCommRes failed, ret=%d", ret);
+
+  // 2. 序列化为带 2 空格缩进的 JSON 字符串
+  std::string json_str;
+  HIXL_CHK_STATUS_RET(SerializeLocalCommResJson(local_comm_res, json_str),
+                      "[TransLocalCommRes] SerializeLocalCommResJson failed");
+
+  // 3. 通过 AscendString 返回（内部封装 shared_ptr<std::string>，跨 .so 边界 ABI 安全）
+  result = AscendString(json_str.c_str());
   return SUCCESS;
 }
 

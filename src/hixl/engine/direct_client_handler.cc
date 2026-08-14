@@ -13,7 +13,7 @@
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
 #include "engine/client_handler_config_helper.h"
-#include "engine/endpoint_generator.h"
+#include "engine/endpoint_generator/endpoint_generator.h"
 
 namespace hixl {
 DirectClientHandler::DirectClientHandler(HixlClientHandle handle, const std::string &local_engine,

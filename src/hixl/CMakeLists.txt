@@ -22,6 +22,7 @@ add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
 
 file(GLOB HIXL_SRC_LIST
         "${CMAKE_CURRENT_LIST_DIR}/engine/*.cc"
+        "${CMAKE_CURRENT_LIST_DIR}/engine/endpoint_generator/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/common/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/fabric_mem/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/cs/*.cc"

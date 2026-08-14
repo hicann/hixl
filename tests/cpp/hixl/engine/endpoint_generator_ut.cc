@@ -35,7 +35,7 @@
 #include "depends/dsmi/src/dsmi_stub.h"
 
 #define private public
-#include "engine/endpoint_generator.h"
+#include "engine/endpoint_generator/endpoint_generator.h"
 #undef private
 #include "engine/connect_pool_executor.h"
 #include "engine/hixl_options.h"

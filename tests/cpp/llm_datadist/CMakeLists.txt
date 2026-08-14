@@ -27,6 +27,7 @@ set(LLM_DATADIST_STUB_SRC_FILES
 
 file(GLOB LLM_V2_SRC_LIST
         "${HIXL_CODE_DIR}/src/hixl/engine/*.cc"
+        "${HIXL_CODE_DIR}/src/hixl/engine/endpoint_generator/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/common/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/fabric_mem/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/*.cc"

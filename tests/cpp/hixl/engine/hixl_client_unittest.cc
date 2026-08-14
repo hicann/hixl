@@ -29,7 +29,7 @@
 #include "engine/direct_client_handler.h"
 #include "engine/ub_client_handler.h"
 #undef private
-#include "engine/endpoint_generator.h"
+#include "engine/endpoint_generator/endpoint_generator.h"
 #include "engine/endpoint_matcher.h"
 #include "common/hixl_inner_types.h"
 #include "depends/mmpa/src/mmpa_stub.h"

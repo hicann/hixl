@@ -54,6 +54,7 @@ file(GLOB HIXL_SRC_LIST
         "${HIXL_CODE_DIR}/src/hixl/common/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/fabric_mem/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/engine/*.cc"
+        "${HIXL_CODE_DIR}/src/hixl/engine/endpoint_generator/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/profiling/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/proxy/*.cc"
@@ -87,6 +88,7 @@ function(add_adxl_family_test target_name test_files)
           ${HIXL_CODE_DIR}/src/hixl/common
           ${HIXL_CODE_DIR}/src/hixl/cs
           ${HIXL_CODE_DIR}/src/hixl/engine
+          ${HIXL_CODE_DIR}/src/hixl/engine/endpoint_generator
           ${HIXL_CODE_DIR}/src/hixl/profiling
           ${HIXL_CODE_DIR}/src/hixl/proxy
           ${HIXL_CODE_DIR}/tests

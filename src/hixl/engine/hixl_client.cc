@@ -21,7 +21,7 @@
 #include "common/ctrl_msg_plugin.h"
 #include "common/scope_guard.h"
 #include "engine/client_handler_factory.h"
-#include "engine/endpoint_generator.h"
+#include "engine/endpoint_generator/endpoint_generator.h"
 #include "engine/endpoint_matcher.h"
 #include "profiling/prof_api_reg.h"
 #include "nlohmann/json.hpp"
