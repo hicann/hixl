@@ -29,6 +29,8 @@ struct ChannelDesc {
   EndpointDesc remote_endpoint;
   uint8_t tc;
   uint8_t sl;
+  uint32_t retry_cnt{0U};
+  uint32_t retry_interval{0U};
   ChannelType channel_type{ChannelType::kClient};
   uint64_t channel_index{0UL};
   uint8_t qos{0U};

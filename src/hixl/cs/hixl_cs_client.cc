@@ -10,9 +10,11 @@
 
 #include "hixl_cs_client.h"
 #include <algorithm>
+#include <cerrno>
 #include <chrono>
 #include <cstdint>
 #include <cstring>
+#include <cstdlib>
 #include <limits>
 #include <securec.h>
 #include <thread>
@@ -49,6 +51,29 @@ constexpr uint32_t kMaxKernelBatchSize = 128U;
 constexpr uint32_t kNotifyWaitTaskInterval = 1920U;
 // ACL_RT_LAUNCH_KERNEL_ATTR_TIMEOUT uses seconds. Async callers observe timeout by CheckStatus.
 constexpr uint16_t kNotifyDefaultWaitTimeS = 27 * 68;
+constexpr uint32_t kMinRdmaRetryCnt = 1U;
+constexpr uint32_t kMaxRdmaRetryCnt = 7U;
+constexpr uint32_t kMinRdmaRetryInterval = 5U;
+constexpr uint32_t kMaxRdmaRetryInterval = 20U;
+
+Status ParseEnvUint32(const char *name, uint32_t &out, bool &present) {
+  present = false;
+  const char *value = std::getenv(name);
+  if (value == nullptr || *value == '\0') {
+    return SUCCESS;
+  }
+  present = true;
+  char *end = nullptr;
+  errno = 0;
+  unsigned long parsed = std::strtoul(value, &end, 10);
+  if (errno != 0 || end == value || *end != '\0' || parsed > std::numeric_limits<uint32_t>::max()) {
+    HIXL_LOGE(PARAM_INVALID, "[HixlClient] %s is invalid, value=%s", name, value);
+    return PARAM_INVALID;
+  }
+  out = static_cast<uint32_t>(parsed);
+  return SUCCESS;
+}
+
 void FreeExportDesc(std::vector<hixl::HixlMemDesc> &desc_list) {
   for (auto &d : desc_list) {
     if (d.export_desc != nullptr && d.export_len > 0U) {
@@ -342,6 +367,7 @@ Status HixlCSClient::Create(const HixlClientDesc *client_desc, const HixlClientC
                            }
                          }));
   HIXL_CHK_STATUS_RET(InitBaseClient(client_desc), "[HixlClient] InitBaseClient failed");
+  HIXL_CHK_STATUS_RET(InitRdmaRetryConfig(), "[HixlClient] InitRdmaRetryConfig failed");
   HIXL_CHK_STATUS_RET(InitNotifyResources(*(client_desc->local_endpoint)), "[HixlClient] InitNotifyResources failed");
   HIXL_DISMISS_GUARD(pool_rollback);
   EndpointHandle endpoint_handle = local_endpoint_->GetHandle();
@@ -1190,24 +1216,21 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannel(uint32_t timeout_ms) {
   HIXL_CHK_STATUS_RET(GetRemoteMemImpl(timeout_ms, &prefetch_mems, &prefetch_tags, &prefetch_num),
                       "[HixlClient] Connect prefetch GetRemoteMem/Import failed. fd=%d, timeout=%u ms", socket_,
                       timeout_ms);
-  CreateChannelReq create_body{};
-  create_body.src = src_ep;
-  create_body.dst_ep_handle = remote_endpoint_handle_;
-  create_body.tc = tc_;
-  create_body.sl = sl_;
-  create_body.channel_index = channel_index;
-  create_body.qos = global_config_.Qos().value_or(kQosDefault);
-  create_body.timeout_ms = timeout_ms;
+  CreateChannelReq create_body{
+      src_ep,     remote_endpoint_handle_, tc_,           sl_,
+      retry_cnt_, retry_interval_,         channel_index, global_config_.Qos().value_or(kQosDefault),
+      timeout_ms};
   HIXL_CHK_STATUS_RET(ConnMsgHandler::SendCreateChannelRequest(socket_, create_body),
                       "[HixlClient] SendCreateChannelRequest failed. fd=%d", socket_);
   ChannelHandle channel_handle = 0UL;
-  ChannelDesc channel_desc{};
-  channel_desc.remote_endpoint = remote_endpoint_;
-  channel_desc.tc = tc_;
-  channel_desc.sl = sl_;
-  channel_desc.channel_type = ChannelType::kClient;
-  channel_desc.channel_index = channel_index;
-  channel_desc.qos = global_config_.Qos().value_or(kQosDefault);
+  ChannelDesc channel_desc{remote_endpoint_,
+                           tc_,
+                           sl_,
+                           retry_cnt_,
+                           retry_interval_,
+                           ChannelType::kClient,
+                           channel_index,
+                           global_config_.Qos().value_or(kQosDefault)};
   HIXL_CHK_STATUS_RET(local_endpoint_->CreateChannel(channel_desc, channel_handle, timeout_ms),
                       "[HixlClient] Endpoint CreateChannel failed. Dst[id:0x%x]", remote_endpoint_.commAddr.id);
   HIXL_CHK_STATUS_RET(ConnMsgHandler::RecvCreateChannelResponse(socket_, timeout_ms),
@@ -1215,6 +1238,40 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannel(uint32_t timeout_ms) {
   HIXL_LOGI("[HixlClient] Connect: remote endpoint handle = %" PRIu64, remote_endpoint_handle_);
   client_channel_handle_ = channel_handle;
   HIXL_LOGI("[HixlClient] Channel Ready. client_channel_handle_=%p", client_channel_handle_);
+  return SUCCESS;
+}
+
+Status HixlCSClient::InitRdmaRetryConfig() {
+  retry_cnt_ = kRdmaRetryCntDefault;
+  retry_interval_ = kRdmaRetryIntervalDefault;
+
+  uint32_t env_retry_cnt = UINT32_MAX;
+  bool has_env_retry_cnt = false;
+  HIXL_CHK_STATUS_RET(ParseEnvUint32("HCCL_RDMA_RETRY_CNT", env_retry_cnt, has_env_retry_cnt),
+                      "[HixlClient] Parse HCCL_RDMA_RETRY_CNT failed");
+  if (has_env_retry_cnt) {
+    HIXL_CHK_BOOL_RET_STATUS(env_retry_cnt >= kMinRdmaRetryCnt && env_retry_cnt <= kMaxRdmaRetryCnt, PARAM_INVALID,
+                             "[HixlClient] HCCL_RDMA_RETRY_CNT=%u is invalid, valid range=[%u, %u]", env_retry_cnt,
+                             kMinRdmaRetryCnt, kMaxRdmaRetryCnt);
+    retry_cnt_ = env_retry_cnt;
+    HIXL_LOGI("[HixlClient] use HCCL_RDMA_RETRY_CNT=%u", retry_cnt_);
+  } else {
+    HIXL_LOGI("[HixlClient] use default rdma retry cnt=%u", retry_cnt_);
+  }
+
+  uint32_t env_retry_interval = UINT32_MAX;
+  bool has_env_retry_interval = false;
+  HIXL_CHK_STATUS_RET(ParseEnvUint32("HCCL_RDMA_TIMEOUT", env_retry_interval, has_env_retry_interval),
+                      "[HixlClient] Parse HCCL_RDMA_TIMEOUT failed");
+  if (has_env_retry_interval) {
+    HIXL_CHK_BOOL_RET_STATUS(env_retry_interval >= kMinRdmaRetryInterval && env_retry_interval <= kMaxRdmaRetryInterval,
+                             PARAM_INVALID, "[HixlClient] HCCL_RDMA_TIMEOUT=%u is invalid, valid range=[%u, %u]",
+                             env_retry_interval, kMinRdmaRetryInterval, kMaxRdmaRetryInterval);
+    retry_interval_ = env_retry_interval;
+    HIXL_LOGI("[HixlClient] use HCCL_RDMA_TIMEOUT=%u", retry_interval_);
+  } else {
+    HIXL_LOGI("[HixlClient] use default rdma retry interval=%u", retry_interval_);
+  }
   return SUCCESS;
 }
 

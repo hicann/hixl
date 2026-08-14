@@ -63,8 +63,11 @@ Status InitChannelDesc(const EndpointDesc &endpoint, const ChannelDesc &channel_
   if (endpoint.protocol == CommProtocol::COMM_PROTOCOL_ROCE) {
     ch_desc.roceAttr.tc = static_cast<uint32_t>(channel_desc.tc);
     ch_desc.roceAttr.sl = static_cast<uint32_t>(channel_desc.sl);
+    ch_desc.roceAttr.retryCnt = channel_desc.retry_cnt;
+    ch_desc.roceAttr.retryInterval = channel_desc.retry_interval;
     ch_desc.roceAttr.queueNum = kRoceQueueNum;
-    HIXL_LOGI("[channel] ROCE attributes set, tc=%u, sl=%u, queueNum=%u", ch_desc.roceAttr.tc, ch_desc.roceAttr.sl,
+    HIXL_LOGI("[channel] ROCE attributes set, tc=%u, sl=%u, retryCnt=%u, retryInterval=%u, queueNum=%u",
+              ch_desc.roceAttr.tc, ch_desc.roceAttr.sl, ch_desc.roceAttr.retryCnt, ch_desc.roceAttr.retryInterval,
               ch_desc.roceAttr.queueNum);
   }
   ch_desc.port = port;

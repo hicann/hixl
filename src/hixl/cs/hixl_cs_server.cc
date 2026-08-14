@@ -460,6 +460,8 @@ Status HixlCSServer::CreateChannel(int32_t fd, const char *msg, uint64_t msg_len
   channel_desc.remote_endpoint = req.src;
   channel_desc.tc = req.tc;
   channel_desc.sl = req.sl;
+  channel_desc.retry_cnt = req.retry_cnt;
+  channel_desc.retry_interval = req.retry_interval;
   channel_desc.channel_type = ChannelType::kServer;
   channel_desc.channel_index = req.channel_index;
   channel_desc.qos = req.qos;

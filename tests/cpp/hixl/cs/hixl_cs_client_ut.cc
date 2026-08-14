@@ -26,7 +26,6 @@
 #include <unistd.h>
 
 #include "hixl/hixl_types.h"
-#include "hixl_cs_client.h"
 #include "common/ctrl_msg.h"
 #include "depends/hccl/src/hccl_stub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
@@ -34,6 +33,12 @@
 #include "engine/test_mmpa_utils.h"
 
 #include <securec.h>
+
+#define private public
+#define protected public
+#include "hixl_cs_client.h"
+#undef protected
+#undef private
 
 namespace hixl {
 static constexpr uint32_t kPort = 26370;
@@ -52,6 +57,10 @@ static constexpr uint32_t kConnectTime2 = 200U;
 static constexpr uint32_t kTimeOutOne = 1000U;
 static constexpr uint64_t kMatchChannelIndex = 7UL;
 static constexpr uint64_t kRuntimeNotifyAddr = 0x88888888ULL;
+static constexpr uint32_t kDefaultRdmaRetryCnt = 7U;
+static constexpr uint32_t kDefaultRdmaRetryInterval = 20U;
+static constexpr uint32_t kEnvRdmaRetryCnt = 3U;
+static constexpr uint32_t kEnvRdmaRetryInterval = 9U;
 static constexpr char kGetRemoteMemStr0[] = "_hixl_builtin_dev_trans_flag";
 static constexpr char kGetRemoteMemStr1[] = "a";
 static constexpr char kGetRemoteMemStr2[] = "b";
@@ -106,6 +115,13 @@ class MiniServer {
   void SetGetRemoteMemMode(MiniSrvMode m) {
     mem_mode_ = m;
   }
+  bool GetLastCreateChannelReq(CreateChannelReq &req) const {
+    if (!has_last_create_channel_req_) {
+      return false;
+    }
+    req = last_create_channel_req_;
+    return true;
+  }
 
   uint16_t Start() {
     Stop();
@@ -113,6 +129,8 @@ class MiniServer {
     stop_.store(false);
     port_ = kPort;
     get_mem_req_cnt_ = 0;
+    has_last_create_channel_req_ = false;
+    last_create_channel_req_ = {};
 
     worker_ = std::thread([this]() { ThreadMain(); });
     std::this_thread::sleep_for(std::chrono::milliseconds(kMilliSeconds10));
@@ -356,6 +374,8 @@ class MiniServer {
       errno_t rc = memcpy_s(&req, sizeof(req), src, sizeof(req));
       EXPECT_EQ(rc, EOK);
       EXPECT_EQ(req.channel_index, kMatchChannelIndex);
+      last_create_channel_req_ = req;
+      has_last_create_channel_req_ = true;
     }
 
     CtrlMsgHeader resp_hdr{};
@@ -570,6 +590,8 @@ class MiniServer {
 
   int get_mem_req_cnt_{0};
   bool mem_resp_use_alt_{false};
+  bool has_last_create_channel_req_{false};
+  CreateChannelReq last_create_channel_req_{};
 
   MiniSrvMode connect_mode_{MiniSrvMode::kNormal};
   MiniSrvMode mem_mode_{MiniSrvMode::kNormal};
@@ -596,7 +618,9 @@ class HixlCSClientUT : public ::testing::Test {
   void SetUp() override {
     src_ = MakeIdEp(kSrcEpId);
     dst_ = MakeIdEp(kDstEpId);
+    ClearRdmaRetryEnv();
     SetChannelGetStatusPendingCount(0U);
+    ResetChannelCreateRecord();
     SetChannelGetStatusFailValue(-1);
     // TransferPool initialization loads device kernels, so MmpaStub must be ready before Create.
     hixl_test::InstallSysApiHooks(std::make_shared<CsClientMmpaStub>());
@@ -606,9 +630,21 @@ class HixlCSClientUT : public ::testing::Test {
     (void)client_.Destroy();
     server_.Stop();
     port_ = kZero;
+    ClearRdmaRetryEnv();
     SetChannelGetStatusPendingCount(0U);
+    ResetChannelCreateRecord();
     SetChannelGetStatusFailValue(-1);
     hixl_test::ResetSysApiHooks();
+  }
+
+  static void ClearRdmaRetryEnv() {
+    (void)unsetenv("HCCL_RDMA_RETRY_CNT");
+    (void)unsetenv("HCCL_RDMA_TIMEOUT");
+  }
+
+  void SetRdmaRetryEnv(const char *retry_cnt, const char *retry_interval) {
+    ASSERT_EQ(setenv("HCCL_RDMA_RETRY_CNT", retry_cnt, 1), 0);
+    ASSERT_EQ(setenv("HCCL_RDMA_TIMEOUT", retry_interval, 1), 0);
   }
 
   void StartServer(MiniSrvMode c, MiniSrvMode m) {
@@ -643,8 +679,56 @@ class HixlCSClientUT : public ::testing::Test {
     ASSERT_EQ(client_.Create(&desc, &config), SUCCESS);
   }
 
+  void CreateRoceHostClient(HixlCSClient &client) {
+    ASSERT_NE(port_, 0);
+    HixlClientConfig config{};
+    HixlClientDesc desc{};
+    desc.server_ip = "127.0.0.1";
+    desc.server_port = port_;
+    srcEx_ = MakeIdEpEx(kSrcEpId, COMM_PROTOCOL_ROCE);
+    dstEx_ = MakeIdEpEx(kDstEpId, COMM_PROTOCOL_ROCE);
+    srcEx_.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+    dstEx_.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+    desc.local_endpoint = &srcEx_;
+    desc.remote_endpoint = &dstEx_;
+    ASSERT_EQ(client.Create(&desc, &config), SUCCESS);
+  }
+
+  void VerifyRdmaRetryConfig(bool use_env, const char *retry_cnt, const char *retry_interval, uint32_t expected_cnt,
+                             uint32_t expected_interval) {
+    if (use_env) {
+      SetRdmaRetryEnv(retry_cnt, retry_interval);
+    } else {
+      ClearRdmaRetryEnv();
+    }
+
+    StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
+    HixlCSClient client;
+    CreateRoceHostClient(client);
+    EXPECT_EQ(client.retry_cnt_, expected_cnt);
+    EXPECT_EQ(client.retry_interval_, expected_interval);
+    ASSERT_EQ(client.Connect(kDefaultConnectTimeoutMs), SUCCESS);
+    ExpectCreateChannelReqRetry(expected_cnt, expected_interval);
+    ExpectLastHcommChannelRetry(expected_cnt, expected_interval);
+    ASSERT_EQ(client.Destroy(), SUCCESS);
+  }
+
   void ConnectClient(uint64_t timeout_us = kDefaultConnectTimeoutMs) {
     ASSERT_EQ(client_.Connect(timeout_us), SUCCESS);
+  }
+
+  void ExpectCreateChannelReqRetry(uint32_t retry_cnt, uint32_t retry_interval) {
+    CreateChannelReq req{};
+    ASSERT_TRUE(server_.GetLastCreateChannelReq(req));
+    EXPECT_EQ(req.retry_cnt, retry_cnt);
+    EXPECT_EQ(req.retry_interval, retry_interval);
+  }
+
+  void ExpectLastHcommChannelRetry(uint32_t retry_cnt, uint32_t retry_interval) {
+    HcommChannelDesc desc{};
+    ASSERT_TRUE(GetLastChannelCreateDesc(&desc));
+    EXPECT_EQ(desc.roceAttr.retryCnt, retry_cnt);
+    EXPECT_EQ(desc.roceAttr.retryInterval, retry_interval);
   }
 
  protected:
@@ -770,6 +854,37 @@ TEST_F(HixlCSClientUT, CreateFailInvalidJsonConfig) {
   EXPECT_NE(HixlCSClientCreate(&desc, &config, &handle), HIXL_SUCCESS);
 }
 
+TEST_F(HixlCSClientUT, CreateRdmaRetryUsesDefaultWhenEnvMissing) {
+  port_ = kPort;
+  ClearRdmaRetryEnv();
+  CreateClientEx(COMM_PROTOCOL_ROCE);
+  EXPECT_EQ(client_.retry_cnt_, 7U);
+  EXPECT_EQ(client_.retry_interval_, 20U);
+}
+
+TEST_F(HixlCSClientUT, CreateRdmaRetryUsesEnvWhenValid) {
+  port_ = kPort;
+  SetRdmaRetryEnv("3", "9");
+  CreateClientEx(COMM_PROTOCOL_ROCE);
+  EXPECT_EQ(client_.retry_cnt_, 3U);
+  EXPECT_EQ(client_.retry_interval_, 9U);
+}
+
+TEST_F(HixlCSClientUT, CreateRdmaRetryFailsForInvalidEnv) {
+  port_ = kPort;
+  SetRdmaRetryEnv("0", "21");
+  HixlClientConfig config{};
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  srcEx_ = MakeIdEpEx(kSrcEpId, COMM_PROTOCOL_ROCE);
+  dstEx_ = MakeIdEpEx(kDstEpId, COMM_PROTOCOL_ROCE);
+  desc.local_endpoint = &srcEx_;
+  desc.remote_endpoint = &dstEx_;
+
+  EXPECT_EQ(client_.Create(&desc, &config), PARAM_INVALID);
+}
+
 TEST_F(HixlCSClientUT, CreateIgnoresListenPortZero) {
   port_ = kPort;
   HixlClientConfig config{};
@@ -863,6 +978,14 @@ TEST_F(HixlCSClientUT, ConnectSuccessNormal) {
   StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
   CreateClient();
   EXPECT_EQ(client_.Connect(kDefaultConnectTimeoutMs), SUCCESS);
+}
+
+TEST_F(HixlCSClientUT, ConnectUsesDefaultRdmaRetryConfig) {
+  VerifyRdmaRetryConfig(false, nullptr, nullptr, kDefaultRdmaRetryCnt, kDefaultRdmaRetryInterval);
+}
+
+TEST_F(HixlCSClientUT, ConnectUsesRdmaRetryEnvWhenInRange) {
+  VerifyRdmaRetryConfig(true, "3", "9", kEnvRdmaRetryCnt, kEnvRdmaRetryInterval);
 }
 
 TEST_F(HixlCSClientUT, ConnectWaitsChannelStatusUntilSuccess) {

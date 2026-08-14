@@ -67,6 +67,8 @@ constexpr const char *kPlacementDevice = "device";
 constexpr const char *kPlacementHost = "host";
 constexpr uint8_t kRdmaTrafficClass = 132;  // RDMA网卡的traffic class 默认值
 constexpr uint8_t kRdmaServiceLevel = 4;    // RDMA网卡的service level 默认值
+constexpr uint32_t kRdmaRetryCntDefault = 7U;
+constexpr uint32_t kRdmaRetryIntervalDefault = 20U;
 
 constexpr const char *kQosName = "comm_resource_config.qos";
 constexpr uint8_t kQosDefault = 0U;

@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include "hcomm/hcomm_exception.h"
+#include "hcomm/hcomm_res_defs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,6 +34,8 @@ void ResetTransferCounter();
 void ResetMemRegRecord();
 uint32_t GetMemRegRecordCount();
 int32_t GetMemRegRecordType(uint32_t index);
+void ResetChannelCreateRecord();
+bool GetLastChannelCreateDesc(HcommChannelDesc *desc);
 
 void SetRegisterExceptionResult(int32_t ret);
 void SetUnregisterExceptionResult(int32_t ret);
