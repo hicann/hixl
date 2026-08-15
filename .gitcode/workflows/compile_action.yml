@@ -98,6 +98,9 @@ jobs:
           artifact-path: "${{ steps.process_checkout.outputs.path }}/build_out/*"
           object-prefix: ${{ env.obs_path }}/
     if: "${{ default() }}"
-    runs-on: ['self-hosted', 'arch=${{ inputs.arch }}', 'spec=xlarge']
+    runs-on:
+        - dedicate-hosted
+        - ${{ inputs.arch }}
+        - xlarge
     container:
       image: swr.cn-north-4.myhuaweicloud.com/ci_cann/${{ inputs.image_version }}
