@@ -10,6 +10,9 @@
 
 #include "hixl_py.h"
 
+#include <mutex>
+#include <shared_mutex>
+
 #include "Python.h"
 
 #include "pybind11/pybind11.h"
@@ -29,14 +32,12 @@ HixlPy::HixlPy() : hixl_engine_(nullptr), initialized_(false) {}
 HixlPy::~HixlPy() {
   if (initialized_ && hixl_engine_ != nullptr) {
     py::gil_scoped_release release;
-    hixl_engine_->Finalize();
-    hixl_engine_.reset();
-    initialized_ = false;
+    Finalize();
   }
 }
 
 hixl::Status HixlPy::Initialize(const std::string &local_engine, const std::map<std::string, std::string> &options) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::unique_lock<std::shared_mutex> lock(mutex_);
   if (initialized_) {
     HIXL_LOGI("Initialize: already initialized, ignoring repeated call");
     return hixl::SUCCESS;
@@ -58,18 +59,21 @@ hixl::Status HixlPy::Initialize(const std::string &local_engine, const std::map<
 }
 
 void HixlPy::Finalize() {
-  std::lock_guard<std::mutex> lock(mutex_);
-  if (!initialized_ || hixl_engine_ == nullptr) {
-    return;
+  std::unique_ptr<hixl::Hixl> engine;
+  {
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+    if (!initialized_ || hixl_engine_ == nullptr) {
+      return;
+    }
+    initialized_ = false;
+    engine = std::move(hixl_engine_);
   }
-  hixl_engine_->Finalize();
-  hixl_engine_.reset();
-  initialized_ = false;
+  engine->Finalize();
 }
 
 std::pair<hixl::Status, uintptr_t> HixlPy::RegisterMem(const hixl::MemDesc &mem_desc, hixl::MemType mem_type) {
   hixl::MemHandle handle = nullptr;
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   if (!initialized_ || hixl_engine_ == nullptr) {
     return {hixl::FAILED, reinterpret_cast<uintptr_t>(handle)};
   }
@@ -78,7 +82,7 @@ std::pair<hixl::Status, uintptr_t> HixlPy::RegisterMem(const hixl::MemDesc &mem_
 }
 
 hixl::Status HixlPy::DeregisterMem(uintptr_t mem_handle) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   if (!initialized_ || hixl_engine_ == nullptr) {
     return hixl::FAILED;
   }
@@ -87,7 +91,7 @@ hixl::Status HixlPy::DeregisterMem(uintptr_t mem_handle) {
 }
 
 hixl::Status HixlPy::Connect(const std::string &remote_engine, int32_t timeout_ms) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   if (!initialized_ || hixl_engine_ == nullptr) {
     return hixl::FAILED;
   }
@@ -96,7 +100,7 @@ hixl::Status HixlPy::Connect(const std::string &remote_engine, int32_t timeout_m
 }
 
 hixl::Status HixlPy::Disconnect(const std::string &remote_engine, int32_t timeout_ms) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   if (!initialized_ || hixl_engine_ == nullptr) {
     return hixl::FAILED;
   }
@@ -105,7 +109,7 @@ hixl::Status HixlPy::Disconnect(const std::string &remote_engine, int32_t timeou
 }
 
 hixl::Status HixlPy::ConnectAsync(const std::string &remote_engine, int32_t timeout_ms) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   if (!initialized_ || hixl_engine_ == nullptr) {
     return hixl::FAILED;
   }
@@ -114,7 +118,7 @@ hixl::Status HixlPy::ConnectAsync(const std::string &remote_engine, int32_t time
 }
 
 hixl::Status HixlPy::DisconnectAsync(const std::string &remote_engine, int32_t timeout_ms) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   if (!initialized_ || hixl_engine_ == nullptr) {
     return hixl::FAILED;
   }
@@ -124,7 +128,7 @@ hixl::Status HixlPy::DisconnectAsync(const std::string &remote_engine, int32_t t
 
 std::pair<hixl::Status, hixl::AsyncConnectStatus> HixlPy::GetAsyncConnectStatus(const std::string &remote_engine) {
   hixl::AsyncConnectStatus status = hixl::AsyncConnectStatus::NOT_CONNECT;
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   if (!initialized_ || hixl_engine_ == nullptr) {
     return {hixl::FAILED, status};
   }
@@ -135,7 +139,7 @@ std::pair<hixl::Status, hixl::AsyncConnectStatus> HixlPy::GetAsyncConnectStatus(
 
 std::pair<hixl::Status, std::map<std::string, hixl::AsyncConnectStatus>> HixlPy::GetAllAsyncConnectStatus() {
   std::map<hixl::AscendString, hixl::AsyncConnectStatus> statuses;
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   if (!initialized_ || hixl_engine_ == nullptr) {
     return {hixl::FAILED, {}};
   }
@@ -149,7 +153,7 @@ std::pair<hixl::Status, std::map<std::string, hixl::AsyncConnectStatus>> HixlPy:
 
 hixl::Status HixlPy::TransferSync(const std::string &remote_engine, hixl::TransferOp operation,
                                   const std::vector<hixl::TransferOpDesc> &op_descs, int32_t timeout_ms) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   if (!initialized_ || hixl_engine_ == nullptr) {
     return hixl::FAILED;
   }
@@ -161,7 +165,7 @@ std::pair<hixl::Status, uintptr_t> HixlPy::TransferAsync(const std::string &remo
                                                          const std::vector<hixl::TransferOpDesc> &op_descs,
                                                          hixl::TransferArgs args) {
   hixl::TransferReq req = nullptr;
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   if (!initialized_ || hixl_engine_ == nullptr) {
     return {hixl::FAILED, reinterpret_cast<uintptr_t>(req)};
   }
@@ -172,7 +176,7 @@ std::pair<hixl::Status, uintptr_t> HixlPy::TransferAsync(const std::string &remo
 
 std::pair<hixl::Status, hixl::TransferStatus> HixlPy::GetTransferStatus(uintptr_t req_id) {
   hixl::TransferStatus status = hixl::TransferStatus::FAILED;
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   if (!initialized_ || hixl_engine_ == nullptr) {
     return {hixl::FAILED, status};
   }
@@ -184,7 +188,7 @@ std::pair<hixl::Status, hixl::TransferStatus> HixlPy::GetTransferStatus(uintptr_
 std::pair<hixl::Status, std::vector<hixl::TransferResult>> HixlPy::GetAllTransferStatus(
     hixl::GetTransferStatusArgs args) {
   std::vector<hixl::TransferResult> results;
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   if (!initialized_ || hixl_engine_ == nullptr) {
     return {hixl::FAILED, {}};
   }
@@ -193,7 +197,7 @@ std::pair<hixl::Status, std::vector<hixl::TransferResult>> HixlPy::GetAllTransfe
 }
 
 hixl::Status HixlPy::SendNotify(const std::string &remote_engine, const hixl::NotifyDesc &notify, int32_t timeout_ms) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   if (!initialized_ || hixl_engine_ == nullptr) {
     return hixl::FAILED;
   }
@@ -203,7 +207,7 @@ hixl::Status HixlPy::SendNotify(const std::string &remote_engine, const hixl::No
 
 std::pair<hixl::Status, std::vector<hixl::NotifyDesc>> HixlPy::GetNotifies() {
   std::vector<hixl::NotifyDesc> notifies;
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_lock<std::shared_mutex> lock(mutex_);
   if (!initialized_ || hixl_engine_ == nullptr) {
     return {hixl::FAILED, {}};
   }
