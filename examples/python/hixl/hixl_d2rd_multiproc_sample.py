@@ -11,6 +11,7 @@
 # ----------------------------------------------------------------------------
 
 import argparse
+import json
 import logging
 import socket
 import struct
@@ -66,9 +67,13 @@ def parse_engine_addr(engine_addr: str) -> tuple[str, int]:
     return host, port
 
 
-def build_default_options() -> dict:
+def build_options(protocols: list[str]) -> dict:
+    resource_config = {
+        "comm_resource_config.protocol_desc": protocols,
+    }
     options = {
         hixl.OPTION_AUTO_CONNECT: "1",
+        hixl.OPTION_GLOBAL_RESOURCE_CONFIG: json.dumps(resource_config),
     }
     return options
 
@@ -162,7 +167,7 @@ def client_get_remote_addr(remote_engine: str):
 def run_server(args):
     torch.npu.set_device(args.device)
 
-    options = build_default_options()
+    options = build_options(args.protocol)
     engine = hixl.Hixl()
     handle = None
 
@@ -243,7 +248,7 @@ def _cleanup_client(engine, handle, sock, connected, remote_engine: str) -> None
 def run_client(args):
     torch.npu.set_device(args.device)
 
-    options = build_default_options()
+    options = build_options(args.protocol)
     engine = hixl.Hixl()
     handle = None
     sock = None
@@ -297,6 +302,12 @@ def parse_args():
     parser.add_argument("--device", type=int, default=None)
     parser.add_argument("--local-engine", type=str, default=None)
     parser.add_argument("--remote-engine", type=str, default=None)
+    parser.add_argument(
+        "--protocol",
+        type=str,
+        default="roce:device",
+        help="Transport protocol, e.g. roce:device, hccs:device (default: roce:device)",
+    )
     args = parser.parse_args()
 
     is_client = args.role == "client"
@@ -311,6 +322,8 @@ def parse_args():
             DEFAULT_SERVER_ENGINE if is_client else DEFAULT_CLIENT_ENGINE
         )
 
+    args.protocol = [args.protocol]
+
     if is_client:
         parse_engine_addr(args.remote_engine)
     else:
@@ -318,6 +331,8 @@ def parse_args():
 
     logging.info(f"role={args.role}, device={args.device}")
     logging.info(f"  local={args.local_engine}, remote={args.remote_engine}")
+    for p in args.protocol:
+        logging.info(f"  protocol: {p}")
     return args
 
 

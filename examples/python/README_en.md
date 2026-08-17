@@ -9,22 +9,24 @@
 
 ## Sample Introduction
 
-Function: Implements KV Cache management functionality in disaggregated deployment scenarios through the LLM-DataDist API.
+Function: Implements KV Cache management functionality in disaggregated deployment scenarios through the LLM-DataDist API, and D2D transfer through the HIXL API.
 
 ## Directory Structure
 
 ```sh
 ├── python
-|   ├── pull_blocks_sample.py
-|   ├── pull_blocks_xpyd_sample.py
-|   ├── pull_cache_sample.py
-|   ├── pull_from_cache_to_blocks.py
-|   ├── push_blocks_sample.py
-|   ├── push_cache_sample.py
-|   ├── switch_role_sample.py
-|   ├── transfer_cache_async_sample.py
-|   ├── hixl_transfer_backend_sample.py
-|   ├── hixl_d2rd_multiproc_sample.py
+|   ├── llm_datadist
+|   |   ├── pull_blocks_sample.py
+|   |   ├── pull_blocks_xpyd_sample.py
+|   |   ├── pull_cache_sample.py
+|   |   ├── pull_from_cache_to_blocks.py
+|   |   ├── push_blocks_sample.py
+|   |   ├── push_cache_sample.py
+|   |   ├── switch_role_sample.py
+|   |   ├── transfer_cache_async_sample.py
+|   |   ├── hixl_transfer_backend_sample.py
+|   ├── hixl
+|   |   ├── hixl_d2rd_multiproc_sample.py
 ```
 
 ## Environment Setup
@@ -81,18 +83,18 @@ Replace `${HOME}/Ascend` with the actual software installation path.
 
     ```sh
     # Prompt host:
-    HCCL_INTRA_ROCE_ENABLE=1 python pull_cache_sample.py --device_id 0 --cluster_id 1
+    HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_cache_sample.py --device_id 0 --cluster_id 1
     # Decoder host:
-    HCCL_INTRA_ROCE_ENABLE=1 python pull_cache_sample.py --device_id 0 --cluster_id 2
+    HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_cache_sample.py --device_id 0 --cluster_id 2
     ```
 
   For single-host execution, run the Prompt and Decoder processes concurrently on the same host. `host_ip` specifies the IP address of the local host:
 
     ```sh
     # Prompt process:
-    HCCL_INTRA_ROCE_ENABLE=1 python pull_cache_sample.py --device_id 0 --cluster_id 1 --is_single true --host_ip 10.10.10.1
+    HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_cache_sample.py --device_id 0 --cluster_id 1 --is_single true --host_ip 10.10.10.1
     # Decoder process:
-    HCCL_INTRA_ROCE_ENABLE=1 python pull_cache_sample.py --device_id 1 --cluster_id 2 --is_single true --host_ip 10.10.10.1
+    HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_cache_sample.py --device_id 1 --cluster_id 2 --is_single true --host_ip 10.10.10.1
     ```
 
 - Run the `pull_blocks` sample. This sample uses Torch to allocate memory, establishes bidirectional connections, and pulls cache from a remote node.
@@ -103,18 +105,18 @@ Replace `${HOME}/Ascend` with the actual software installation path.
 
     ```sh
     # Prompt host:
-    HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_sample.py --device_id 0 --cluster_id 1
+    HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_blocks_sample.py --device_id 0 --cluster_id 1
     # Decoder host:
-    HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_sample.py --device_id 0 --cluster_id 2
+    HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_blocks_sample.py --device_id 0 --cluster_id 2
     ```
 
   For single-host execution, run the Prompt and Decoder processes concurrently on the same host. `host_ip` specifies the IP address of the local host:
 
     ```sh
     # Prompt process:
-    HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_sample.py --device_id 0 --cluster_id 1 --is_single true --host_ip 10.10.10.1
+    HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_blocks_sample.py --device_id 0 --cluster_id 1 --is_single true --host_ip 10.10.10.1
     # Decoder process:
-    HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_sample.py --device_id 1 --cluster_id 2 --is_single true --host_ip 10.10.10.1
+    HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_blocks_sample.py --device_id 1 --cluster_id 2 --is_single true --host_ip 10.10.10.1
     ```
 
 - Run the `pull_from_cache_to_blocks` sample:
@@ -125,18 +127,18 @@ Replace `${HOME}/Ascend` with the actual software installation path.
 
     ```sh
     # Prompt host:
-    HCCL_INTRA_ROCE_ENABLE=1 python pull_from_cache_to_blocks.py --device_id 0 --cluster_id 1
+    HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_from_cache_to_blocks.py --device_id 0 --cluster_id 1
     # Decoder host:
-    HCCL_INTRA_ROCE_ENABLE=1 python pull_from_cache_to_blocks.py --device_id 0 --cluster_id 2
+    HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_from_cache_to_blocks.py --device_id 0 --cluster_id 2
     ```
 
   For single-host execution, run the Prompt and Decoder processes concurrently on the same host. `host_ip` specifies the IP address of the local host:
 
     ```sh
     # Prompt process:
-    HCCL_INTRA_ROCE_ENABLE=1 python pull_from_cache_to_blocks.py --device_id 0 --cluster_id 1 --is_single true --host_ip 10.10.10.1
+    HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_from_cache_to_blocks.py --device_id 0 --cluster_id 1 --is_single true --host_ip 10.10.10.1
     # Decoder process:
-    HCCL_INTRA_ROCE_ENABLE=1 python pull_from_cache_to_blocks.py --device_id 1 --cluster_id 2 --is_single true --host_ip 10.10.10.1
+    HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_from_cache_to_blocks.py --device_id 1 --cluster_id 2 --is_single true --host_ip 10.10.10.1
     ```
 
 - Run the `push_blocks` sample. This sample uses a single-side connection method to allocate memory, register blocks, and have the decoder initiate the connection to push blocks.
@@ -144,18 +146,18 @@ Replace `${HOME}/Ascend` with the actual software installation path.
 
     ```sh
     # Prompt host:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_blocks_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1
+    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/push_blocks_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1
     # Decoder host:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_blocks_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0
+    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/push_blocks_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0
     ```
 
   If running in an A5 environment, pass `--transfer_backend hixl`. Without a manual `local_comm_res`, the UB link is used by default; you can also manually configure `local_comm_res` to use RDMA links. For example:
 
     ```sh
     # Prompt host:
-    python push_blocks_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1 --transfer_backend hixl
+    python llm_datadist/push_blocks_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1 --transfer_backend hixl
     # Decoder host:
-    python push_blocks_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --transfer_backend hixl
+    python llm_datadist/push_blocks_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --transfer_backend hixl
     ```
 
 - Run the `push_cache` sample. This sample uses a single-side connection method to allocate memory, register cache, and have the decoder initiate the connection to push cache.
@@ -163,18 +165,18 @@ Replace `${HOME}/Ascend` with the actual software installation path.
 
     ```sh
     # Prompt host:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_cache_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1
+    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/push_cache_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1
     # Decoder host:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python push_cache_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0
+    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/push_cache_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0
     ```
 
   If running in an A5 environment, pass `--transfer_backend hixl`. Without a manual `local_comm_res`, the UB link is used by default; you can also manually configure `local_comm_res` to use RDMA links. For example:
 
     ```sh
     # Prompt host:
-    python push_cache_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1 --transfer_backend hixl
+    python llm_datadist/push_cache_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1 --transfer_backend hixl
     # Decoder host:
-    python push_cache_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --transfer_backend hixl
+    python llm_datadist/push_cache_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --transfer_backend hixl
     ```
 
 - Run the `switch_role` sample. This sample uses a single-side connection method. First, Torch allocates memory and registers blocks. The decoder initiates the connection to pull blocks. Then both sides switch roles, with the prompt initiating the connection and the decoder pushing blocks.
@@ -182,9 +184,9 @@ Replace `${HOME}/Ascend` with the actual software installation path.
 
     ```sh
     # Prompt host:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python switch_role_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1
+    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/switch_role_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1
     # Decoder host:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python switch_role_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0
+    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/switch_role_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0
     ```
 
 - Run the `pull_blocks_xpyd` sample. This sample supports xPyD test scenarios and uses a single-side connection method. Each process allocates memory and registers blocks. Each decoder initiates connections to all prompts and pulls blocks locally. `local_ip_port` specifies the local host IP and port.
@@ -193,23 +195,23 @@ Replace `${HOME}/Ascend` with the actual software installation path.
 
   ```sh
   # Prompt side:
-  GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_xpyd_sample.py --device_id 0 --role p --local_ip_port ${local_ip_0:port_0}
-  GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_xpyd_sample.py --device_id 1 --role p --local_ip_port ${local_ip_1:port_1}
-  GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_xpyd_sample.py --device_id n --role p --local_ip_port ${local_ip_n:port_n}
+  GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_blocks_xpyd_sample.py --device_id 0 --role p --local_ip_port ${local_ip_0:port_0}
+  GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_blocks_xpyd_sample.py --device_id 1 --role p --local_ip_port ${local_ip_1:port_1}
+  GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_blocks_xpyd_sample.py --device_id n --role p --local_ip_port ${local_ip_n:port_n}
   # Decoder side:
-  GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_xpyd_sample.py --device_id n + 1 --role d --local_ip_port ${local_ip_n+1:port_n+1} --remote_ip_port ${prompt_ip_list}
-  GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_xpyd_sample.py --device_id n + 2 --role d --local_ip_port ${local_ip_n+2:port_n+2} --remote_ip_port ${prompt_ip_list}
+  GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_blocks_xpyd_sample.py --device_id n + 1 --role d --local_ip_port ${local_ip_n+1:port_n+1} --remote_ip_port ${prompt_ip_list}
+  GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_blocks_xpyd_sample.py --device_id n + 2 --role d --local_ip_port ${local_ip_n+2:port_n+2} --remote_ip_port ${prompt_ip_list}
   ```
 
   Where `${prompt_ip_list}` consists of **all `${local_ip:port}` entries from the Prompt side**, separated by **;**. Run the sample program on both the Prompt and Decoder hosts. `device_id` specifies the device ID to use, `role` specifies the cluster role, `local_ip_port` specifies the local host IP and port, and `remote_ip_port` specifies the peer host IP and port:
 
   ```sh
   # Any number of Prompt hosts:
-  GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_xpyd_sample.py --device_id 0 --role p --local_ip_port 10.10.10.0:26000
-  GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_xpyd_sample.py --device_id 1 --role p --local_ip_port 10.10.10.0:26001
+  GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_blocks_xpyd_sample.py --device_id 0 --role p --local_ip_port 10.10.10.0:26000
+  GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_blocks_xpyd_sample.py --device_id 1 --role p --local_ip_port 10.10.10.0:26001
   # Any number of Decoder hosts:
-  GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_xpyd_sample.py --device_id 2 --role d --local_ip_port 10.10.10.0:26002 --remote_ip_port '10.10.10.0:26000;10.10.10.0:26001'
-  GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python pull_blocks_xpyd_sample.py --device_id 3 --role d --local_ip_port 10.10.10.0:26003 --remote_ip_port '10.10.10.0:26000;10.10.10.0:26001'
+  GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_blocks_xpyd_sample.py --device_id 2 --role d --local_ip_port 10.10.10.0:26002 --remote_ip_port '10.10.10.0:26000;10.10.10.0:26001'
+  GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/pull_blocks_xpyd_sample.py --device_id 3 --role d --local_ip_port 10.10.10.0:26003 --remote_ip_port '10.10.10.0:26000;10.10.10.0:26001'
   ```
 
 - Run the `transfer_cache_async` sample. This sample uses a single-side connection method to allocate memory, register cache, and have the prompt side initiate the connection to asynchronously transfer cache layer by layer.
@@ -218,18 +220,18 @@ Replace `${HOME}/Ascend` with the actual software installation path.
 
     ```sh
     # Prompt host:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python transfer_cache_async_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1
+    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/transfer_cache_async_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1
     # Decoder host:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python transfer_cache_async_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0
+    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/transfer_cache_async_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0
     ```
 
   If running in an A5 environment, pass `--transfer_backend hixl`. Without a manual `local_comm_res`, the UB link is used by default; you can also manually configure `local_comm_res` to use RDMA links. For example:
 
     ```sh
     # Prompt host:
-    python transfer_cache_async_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1 --transfer_backend hixl
+    python llm_datadist/transfer_cache_async_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1 --transfer_backend hixl
     # Decoder host:
-    python transfer_cache_async_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --transfer_backend hixl
+    python llm_datadist/transfer_cache_async_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0 --transfer_backend hixl
     ```
 
 - Run the `hixl_transfer_backend` sample. This sample uses HIXL as the transport backend for LLM-DataDist, performing memory registration, connection establishment, and data transfer. The sample allocates memory and registers blocks. The decoder initiates a connection and pushes blocks. The prompt initiates a connection and pulls blocks.
@@ -237,9 +239,18 @@ Replace `${HOME}/Ascend` with the actual software installation path.
 
     ```sh
     # Prompt host:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python hixl_transfer_backend_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1
+    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/hixl_transfer_backend_sample.py --device_id 0 --role p --local_host_ip 10.10.10.0 --remote_host_ip 10.10.10.1
     # Decoder host:
-    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python hixl_transfer_backend_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0
+    GLOO_SOCKET_IFNAME=enp67s0f5 HCCL_INTRA_ROCE_ENABLE=1 python llm_datadist/hixl_transfer_backend_sample.py --device_id 1 --role d --local_host_ip 10.10.10.1 --remote_host_ip 10.10.10.0
+    ```
+
+- Run the `hixl_d2rd_multiproc_sample`. This sample uses the HIXL API for D2D multi-process transfer.
+  Run the sample program on the Server and Client hosts respectively. `device` specifies the device ID, `protocol` specifies the transport protocol (e.g. roce:device, hccs:device):
+    ```sh
+    # Server:
+    python hixl/hixl_d2rd_multiproc_sample.py --role server --device 2 --local-engine 10.10.10.1:16101 --protocol roce:device
+    # Client:
+    python hixl/hixl_d2rd_multiproc_sample.py --role client --device 0 --local-engine 10.10.10.0:16100 --remote-engine 10.10.10.1:16101 --protocol roce:device
     ```
 
 **Note**: **GLOO_SOCKET_IFNAME** is the local NIC name, which can be queried via ifconfig; **HCCL_INTRA_ROCE_ENABLE=1** indicates using RoCE for communication.

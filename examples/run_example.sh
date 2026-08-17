@@ -244,8 +244,8 @@ all_samples() {
     run_pair "./prompt_switch_roles ${device_id_1} ${IP_ADDRESS} ${IP_ADDRESS}" "./decoder_switch_roles ${device_id_2} ${IP_ADDRESS} ${IP_ADDRESS}"
     run_hixl_cpp_examples "${device_id_1}" "${device_id_2}" "${env_type}" "${IP_ADDRESS}"
 
-    cd "${BASEPATH}/python"
-    # examples/python 单机用例
+    cd "${BASEPATH}/python/llm_datadist"
+    # examples/python/llm_datadist
     run_pair "GLOO_SOCKET_IFNAME=${NETWORK_INTERFACE_NAME} HCCL_INTRA_ROCE_ENABLE=1 python3 push_blocks_sample.py \
     --device_id ${device_id_1} --role p --local_host_ip ${IP_ADDRESS} --remote_host_ip ${IP_ADDRESS}" \
     "GLOO_SOCKET_IFNAME=${NETWORK_INTERFACE_NAME} HCCL_INTRA_ROCE_ENABLE=1 python3 push_blocks_sample.py \
@@ -266,6 +266,21 @@ all_samples() {
     --device_id ${device_id_1} --role p --local_ip_port ${IP_ADDRESS}:16000" \
     "GLOO_SOCKET_IFNAME=${NETWORK_INTERFACE_NAME} HCCL_INTRA_ROCE_ENABLE=1 python3 pull_blocks_xpyd_sample.py \
     --device_id ${device_id_2} --role d --local_ip_port ${IP_ADDRESS}:16001 --remote_ip_port '${IP_ADDRESS}:16000'"
+    run_pair "GLOO_SOCKET_IFNAME=${NETWORK_INTERFACE_NAME} HCCL_INTRA_ROCE_ENABLE=1 python3 hixl_transfer_backend_sample.py \
+    --device_id ${device_id_1} --role p --local_host_ip ${IP_ADDRESS} --remote_host_ip ${IP_ADDRESS}" \
+    "GLOO_SOCKET_IFNAME=${NETWORK_INTERFACE_NAME} HCCL_INTRA_ROCE_ENABLE=1 python3 hixl_transfer_backend_sample.py \
+    --device_id ${device_id_2} --role d --local_host_ip ${IP_ADDRESS} --remote_host_ip ${IP_ADDRESS}"
+    run_pair "HCCL_INTRA_ROCE_ENABLE=1 python3 pull_cache_sample.py --device_id ${device_id_1} --cluster_id 1 --is_single true --host_ip ${IP_ADDRESS}" \
+    "HCCL_INTRA_ROCE_ENABLE=1 python3 pull_cache_sample.py --device_id ${device_id_2} --cluster_id 2 --is_single true --host_ip ${IP_ADDRESS}"
+    run_pair "HCCL_INTRA_ROCE_ENABLE=1 python3 pull_blocks_sample.py --device_id ${device_id_1} --cluster_id 1 --is_single true --host_ip ${IP_ADDRESS}" \
+    "HCCL_INTRA_ROCE_ENABLE=1 python3 pull_blocks_sample.py --device_id ${device_id_2} --cluster_id 2 --is_single true --host_ip ${IP_ADDRESS}"
+    run_pair "HCCL_INTRA_ROCE_ENABLE=1 python3 pull_from_cache_to_blocks.py --device_id ${device_id_1} --cluster_id 1 --is_single true --host_ip ${IP_ADDRESS}" \
+    "HCCL_INTRA_ROCE_ENABLE=1 python3 pull_from_cache_to_blocks.py --device_id ${device_id_2} --cluster_id 2 --is_single true --host_ip ${IP_ADDRESS}"
+
+    cd "${BASEPATH}/python/hixl"
+    # examples/python/hixl
+    run_pair "python3 hixl_d2rd_multiproc_sample.py --role server --device ${device_id_2} --local-engine ${IP_ADDRESS}:16101 --protocol roce:device" \
+    "python3 hixl_d2rd_multiproc_sample.py --role client --device ${device_id_1} --local-engine ${IP_ADDRESS}:16100 --remote-engine ${IP_ADDRESS}:16101 --protocol roce:device"
 
     cd "${BASEPATH}/../build/benchmarks"
     BENCH_BIN="./comm_benchmark/hixl_comm_bench"
@@ -309,8 +324,8 @@ smoke_test_samples() {
     run_pair "./prompt_switch_roles ${device_id_1} 127.0.0.1 127.0.0.1" "./decoder_switch_roles ${device_id_2} 127.0.0.1 127.0.0.1"
     run_hixl_cpp_examples "${device_id_1}" "${device_id_2}" "${env_type}" "127.0.0.1"
 
-    # Python examples
-    cd "${BASEPATH}/python"
+    # Python llm_datadist examples
+    cd "${BASEPATH}/python/llm_datadist"
     run_pair "HCCL_INTRA_ROCE_ENABLE=1 python3 push_blocks_sample.py --device_id ${device_id_1} --role p --local_host_ip 127.0.0.1 --remote_host_ip 127.0.0.1" "HCCL_INTRA_ROCE_ENABLE=1 python3 push_blocks_sample.py --device_id ${device_id_2} --role d --local_host_ip 127.0.0.1 --remote_host_ip 127.0.0.1"
     run_pair "HCCL_INTRA_ROCE_ENABLE=1 python3 hixl_transfer_backend_sample.py --device_id ${device_id_1} --role p --local_host_ip 127.0.0.1 --remote_host_ip 127.0.0.1" "HCCL_INTRA_ROCE_ENABLE=1 python3 hixl_transfer_backend_sample.py --device_id ${device_id_2} --role d --local_host_ip 127.0.0.1 --remote_host_ip 127.0.0.1"
     run_pair "HCCL_INTRA_ROCE_ENABLE=1 python3 push_cache_sample.py --device_id ${device_id_1} --role p --local_host_ip 127.0.0.1 --remote_host_ip 127.0.0.1" "HCCL_INTRA_ROCE_ENABLE=1 python3 push_cache_sample.py --device_id ${device_id_2} --role d --local_host_ip 127.0.0.1 --remote_host_ip 127.0.0.1"
@@ -321,7 +336,10 @@ smoke_test_samples() {
     run_pair "HCCL_INTRA_ROCE_ENABLE=1 python3 pull_blocks_sample.py --device_id ${device_id_1} --cluster_id 1 --is_single true --host_ip 127.0.0.1" "HCCL_INTRA_ROCE_ENABLE=1 python3 pull_blocks_sample.py --device_id ${device_id_2} --cluster_id 2 --is_single true --host_ip 127.0.0.1"
     run_pair "HCCL_INTRA_ROCE_ENABLE=1 python3 pull_from_cache_to_blocks.py --device_id ${device_id_1} --cluster_id 1 --is_single true --host_ip 127.0.0.1" "HCCL_INTRA_ROCE_ENABLE=1 python3 pull_from_cache_to_blocks.py --device_id ${device_id_2} --cluster_id 2 --is_single true --host_ip 127.0.0.1"
 
-
+    # Python hixl examples
+    cd "${BASEPATH}/python/hixl"
+    run_pair "python3 hixl_d2rd_multiproc_sample.py --role server --device ${device_id_2} --local-engine 127.0.0.1:16101 --protocol roce:device" \
+    "python3 hixl_d2rd_multiproc_sample.py --role client --device ${device_id_1} --local-engine 127.0.0.1:16100 --remote-engine 127.0.0.1:16101 --protocol roce:device"
 
 
     if [ "$flag" -eq "0" ]; then
