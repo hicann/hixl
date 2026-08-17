@@ -124,15 +124,15 @@ remove_whl_residuals() {
 whl_uninstall_package() {
     local _module="$1"
     local _module_path="$2"
-    local _hixl_whl="llm_datadist"
+    local _whl_name="$3"
     local ret=0
 
-    if [ ! -d "${_module_path}/${_hixl_whl}" ]; then
-        pip3 show "${_hixl_whl}" > /dev/null 2>&1
+    if [ ! -d "${_module_path}/${_whl_name}" ]; then
+        pip3 show "${_whl_name}" > /dev/null 2>&1
         if [ $? -ne 0 ]; then
             log "WARNING" "${_module} does not exist."
         else
-            pip3 uninstall -y "${_hixl_whl}" > /dev/null 2>&1
+            pip3 uninstall -y "${_whl_name}" > /dev/null 2>&1
             ret=$?
             if [ $ret -ne 0 ]; then
                 log "WARNING" "pip uninstall ${_module} failed, error code: $ret."
@@ -140,20 +140,20 @@ whl_uninstall_package() {
                 log "INFO" "${_module} uninstalled by pip successfully!"
             fi
         fi
-        remove_whl_residuals "${_module_path}" "${_hixl_whl}"
+        remove_whl_residuals "${_module_path}" "${_whl_name}"
     else
         export PYTHONPATH="${_module_path}"
-        pip3 uninstall -y "${_hixl_whl}" > /dev/null 2>&1
+        pip3 uninstall -y "${_whl_name}" > /dev/null 2>&1
         ret=$?
         if [ $ret -ne 0 ]; then
             log "WARNING" "pip uninstall ${_module} failed, error code: $ret, clean install path residuals instead."
         else
             log "INFO" "${_module} uninstalled by pip successfully!"
         fi
-        remove_whl_residuals "${_module_path}" "${_hixl_whl}"
+        remove_whl_residuals "${_module_path}" "${_whl_name}"
     fi
 
-    if [ -d "${_module_path}/${_hixl_whl}" ] || ls "${_module_path}/${_hixl_whl}-"*.dist-info > /dev/null 2>&1; then
+    if [ -d "${_module_path}/${_whl_name}" ] || ls "${_module_path}/${_whl_name}-"*.dist-info > /dev/null 2>&1; then
         log "ERROR" "remove ${_module} residual files failed."
         exit 1
     fi
@@ -217,14 +217,16 @@ custom_uninstall() {
         chmod +w -R "$curpath" 2> /dev/null
         chmod +w -R "${WHL_INSTALL_DIR_PATH}/llm_datadist" 2> /dev/null
         chmod +w -R "${WHL_INSTALL_DIR_PATH}/llm_datadist-0.0.1.dist-info" 2> /dev/null
+        chmod +w -R "${WHL_INSTALL_DIR_PATH}/hixl" 2> /dev/null
+        chmod +w -R "${WHL_INSTALL_DIR_PATH}/hixl-"*.dist-info 2> /dev/null
 
-        log "INFO" "uninstall hixl tool begin..."
-        whl_uninstall_package "${HIXL_NAME}" "${WHL_INSTALL_DIR_PATH}"
-        log "INFO" "hixl tool uninstalled successfully!"
+        log "INFO" "uninstall llm_datadist begin..."
+        whl_uninstall_package "llm_datadist" "${WHL_INSTALL_DIR_PATH}" "llm_datadist"
+        log "INFO" "llm_datadist uninstalled successfully!"
 
-        rm -f "${WHL_INSTALL_DIR_PATH}/hixl.so" 2> /dev/null
-        rm -rf "${WHL_INSTALL_DIR_PATH}/hixl" 2> /dev/null
-        log "INFO" "hixl module uninstalled successfully!"
+        log "INFO" "uninstall hixl begin..."
+        whl_uninstall_package "${HIXL_NAME}" "${WHL_INSTALL_DIR_PATH}" "hixl"
+        log "INFO" "hixl extension module uninstalled successfully!"
     fi
 
     remove_empty_dir "${common_parse_dir}/hixl/python"

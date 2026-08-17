@@ -4,12 +4,13 @@
 # CANN Open Software License Agreement Version 2.0 (the "License").
 # Please refer to the License for details. You may not use this file except in compliance with the License.
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
-# INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+# INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
 if (NOT ENABLE_TEST)
     set(CMAKE_SKIP_RPATH TRUE)
+
     add_library(hixl MODULE
             hixl_py.cc)
 
@@ -48,7 +49,22 @@ if (NOT ENABLE_TEST)
             -s
     )
 
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/hixl.so
+add_custom_target(hixl_python ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/hixl-0.0.1-py3-none-any.whl)
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/hixl-0.0.1-py3-none-any.whl
+    COMMAND ${CMAKE_COMMAND} -E echo "package hixl whl start"
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/wheel_hixl
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/setup.py ${CMAKE_CURRENT_BINARY_DIR}/wheel_hixl/setup.py
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/MANIFEST.in ${CMAKE_CURRENT_BINARY_DIR}/wheel_hixl/
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/hixl ${CMAKE_CURRENT_BINARY_DIR}/wheel_hixl/hixl
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/hixl.so ${CMAKE_CURRENT_BINARY_DIR}/wheel_hixl/hixl/
+    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_BINARY_DIR}/wheel_hixl ${HI_PYTHON} setup.py bdist_wheel
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/wheel_hixl/dist/hixl-0.0.1-py3-none-any.whl ${CMAKE_CURRENT_BINARY_DIR}/
+    COMMAND ${CMAKE_COMMAND} -E echo "package hixl whl end"
+    DEPENDS version_hixl_info hixl
+)
+
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/hixl-0.0.1-py3-none-any.whl
             DESTINATION ${INSTALL_LIBRARY_DIR}
             COMPONENT hixl
     )

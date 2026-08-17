@@ -15,7 +15,7 @@ unset PYTHONPATH
 export PIP_BREAK_SYSTEM_PACKAGES=1
 
 WHL_LLM_DATADIST="${sourcedir}/hixl/lib/llm_datadist-0.0.1-py3-none-any.whl"
-PYTHON_HIXL_SO="${sourcedir}/hixl/lib/hixl.so"
+PYTHON_HIXL_WHL=$(find "${sourcedir}/hixl/lib" -name "hixl-*.whl" -type f 2>/dev/null | head -1)
 
 run_pip() { python3 -m pip "$@" || pip3 "$@"; }
 
@@ -49,20 +49,9 @@ set_file_chmod() {
 
 [ -f "${WHL_LLM_DATADIST}" ] && echo "[hixl] installing ${WHL_LLM_DATADIST}" && run_pip install --disable-pip-version-check --upgrade --no-deps --force-reinstall -t "${WHL_INSTALL_DIR_PATH}" "${WHL_LLM_DATADIST}" || true
 
-if [ -f "${PYTHON_HIXL_SO}" ]; then
-    mkdir -p "${WHL_INSTALL_DIR_PATH}"
-    echo "[hixl] installing ${PYTHON_HIXL_SO}"
-    cp -f "${PYTHON_HIXL_SO}" "${WHL_INSTALL_DIR_PATH}/"
-    if [ $? -ne 0 ]; then
-        echo "[hixl][ERROR] copy hixl.so to ${WHL_INSTALL_DIR_PATH}/ failed"
-        exit 1
-    fi
-    mkdir -p "${WHL_INSTALL_DIR_PATH}/hixl"
-    ln -sf ../hixl.so "${WHL_INSTALL_DIR_PATH}/hixl/hixl.so"
-    if [ $? -ne 0 ]; then
-        echo "[hixl][ERROR] create softlink hixl.so under ${WHL_INSTALL_DIR_PATH}/hixl/ failed"
-        exit 1
-    fi
+if [ -n "${PYTHON_HIXL_WHL}" ] && [ -f "${PYTHON_HIXL_WHL}" ]; then
+    echo "[hixl] installing ${PYTHON_HIXL_WHL}"
+    run_pip install --disable-pip-version-check --upgrade --no-deps --force-reinstall -t "${WHL_INSTALL_DIR_PATH}" "${PYTHON_HIXL_WHL}"
 fi
 
 if [ -d "${WHL_INSTALL_DIR_PATH}" ]; then

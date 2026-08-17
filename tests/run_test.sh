@@ -458,7 +458,7 @@ run() {
       unset LD_PRELOAD
       cp ${BUILD_PATH}/tests/depends/python/llm_datadist_wrapper.so ${BASEPATH}/src/python/llm_datadist/llm_datadist/
       cp ${BUILD_PATH}/tests/depends/python/metadef_wrapper.so ${BASEPATH}/src/python/llm_datadist/llm_datadist/
-      cp ${BUILD_PATH}/tests/depends/python/hixl.so ${BASEPATH}/src/python/hixl_py/
+      cp ${BUILD_PATH}/tests/depends/python/hixl*.so ${BASEPATH}/src/python/hixl_py/hixl/
       cp -r ${BASEPATH}/tests/python ./
       PYTHON_ORIGINAL_PATH=$PYTHONPATH
       export PYTHONPATH=${BASEPATH}/src/python/llm_datadist/:${BASEPATH}/src/python/hixl_py/
@@ -475,11 +475,11 @@ run() {
       if [[ "$?" -ne 0 ]]; then
           echo "!!! PY TEST FAILED, PLEASE CHECK YOUR CHANGES !!!"
           rm -f ${BASEPATH}/src/python/llm_datadist/llm_datadist/*.so
-          rm -f ${BASEPATH}/src/python/hixl_py/*.so
+          rm -f ${BASEPATH}/src/python/hixl_py/hixl/*.so
           exit 1;
       fi
       rm -f ${BASEPATH}/src/python/llm_datadist/llm_datadist/*.so
-      rm -f ${BASEPATH}/src/python/hixl_py/*.so
+      rm -f ${BASEPATH}/src/python/hixl_py/hixl/*.so
 
       if [[ "X$ENABLE_ASAN" = "XON" ]]; then
         unset LD_PRELOAD
