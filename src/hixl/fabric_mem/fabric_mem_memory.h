@@ -12,6 +12,7 @@
 #define CANN_HIXL_SRC_HIXL_FABRIC_MEM_FABRIC_MEM_MEMORY_H_
 
 #include <atomic>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
@@ -41,14 +42,38 @@ class FabricMemLocalMemory {
   void Finalize();
 
  private:
+  struct LocalMemSegment {
+    aclrtDrvMemHandle pa_handle = nullptr;
+    // Foreign segments describe the full underlying allocation because aclrtMapMem imports a full PA block.
+    ShareHandleInfo info{};
+  };
+
+  struct LocalMemRegistration {
+    uintptr_t va_addr = 0;
+    size_t len = 0;
+    MemType mem_type = MEM_DEVICE;
+    std::vector<LocalMemSegment> segments;
+  };
+
   static Status ImportHostMemoryForRegister(const MemDesc &mem, aclrtMemFabricHandle &share_handle,
                                             aclrtDrvMemHandle &imported_pa_handle, uintptr_t &imported_va);
+  static Status ExportSegment(const MemDesc &mem, MemType type, aclrtDrvMemHandle pa_handle, bool is_retained,
+                              LocalMemSegment &segment);
+  static void ReleaseSegment(LocalMemSegment &segment);
+  static void ReleaseRegistration(LocalMemRegistration &registration);
   Status FindExistingHandleForOverlap(const MemDesc &mem, MemType type, MemHandle &mem_handle,
                                       bool &is_duplicate) const;
-  bool FindLocalHostRegisteredAddrLocked(uintptr_t old_addr, size_t len, uintptr_t &new_addr) const;
+  Status FindExistingHandleForOverlapLocked(const MemDesc &mem, MemType type, MemHandle &mem_handle,
+                                            bool &is_duplicate) const;
+  bool FindLocalHostRegisteredAddrLocked(uintptr_t old_addr, uintptr_t &new_addr, size_t &available_len) const;
+  Status RegisterOwnMem(const MemDesc &mem, MemType type, aclrtDrvMemHandle pa_handle, MemHandle &mem_handle);
+  Status RegisterForeignMem(const MemDesc &mem, MemType type, MemHandle &mem_handle);
+  Status BuildForeignSegments(const MemDesc &mem, MemType type, LocalMemRegistration &registration);
+  Status CommitRegistration(std::unique_ptr<LocalMemRegistration> &registration, MemHandle candidate_handle,
+                            MemHandle &mem_handle, bool &committed);
 
   mutable std::mutex share_handle_mutex_;
-  std::unordered_map<aclrtDrvMemHandle, ShareHandleInfo> share_handles_;
+  std::unordered_map<MemHandle, std::unique_ptr<LocalMemRegistration>> registrations_;
   std::atomic<bool> has_host_memory_{false};
 };
 

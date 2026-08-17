@@ -12,6 +12,8 @@
 #define CANN_HIXL_INCLUDE_ADXL_ADXL_TYPES_H_
 
 #include <cstdint>
+
+#include "acl/acl_rt.h"
 #include "external/ge_common/ge_api_error_codes.h"
 
 #ifdef FUNC_VISIBILITY
@@ -53,6 +55,7 @@ constexpr int32_t FEATURE_SUPPORTED = 1;
 constexpr int32_t FEATURE_NOT_SUPPORTED = 0;
 
 using MemHandle = void *;
+using ShareableHandle = aclrtMemFabricHandle;
 
 enum MemType { MEM_DEVICE, MEM_HOST };
 

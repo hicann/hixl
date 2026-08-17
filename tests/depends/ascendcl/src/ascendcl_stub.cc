@@ -572,6 +572,18 @@ aclError AclRuntimeStub::aclrtMemRetainAllocationHandle(void *devPtr, aclrtDrvMe
   return ACL_ERROR_NONE;
 }
 
+aclError AclRuntimeStub::aclrtMemGetAddressRange(void *ptr, void **pbase, size_t *psize) {
+  if (ptr == nullptr || pbase == nullptr || psize == nullptr) {
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  if (__FUNCTION__ == g_acl_stub_mock) {
+    return ACL_ERROR_RT_INTERNAL_ERROR;
+  }
+  *pbase = ptr;
+  *psize = 32UL;
+  return ACL_ERROR_NONE;
+}
+
 aclError AclRuntimeStub::aclrtPointerGetAttributes(const void *ptr, aclrtPtrAttributes *attributes) {
   attributes->location.type = ACL_MEM_LOCATION_TYPE_DEVICE;
   return ACL_ERROR_NONE;
@@ -579,6 +591,15 @@ aclError AclRuntimeStub::aclrtPointerGetAttributes(const void *ptr, aclrtPtrAttr
 
 aclError AclRuntimeStub::aclrtMemExportToShareableHandleV2(aclrtDrvMemHandle handle, uint64_t flags,
                                                            aclrtMemSharedHandleType type, void *shareableHandle) {
+  if (__FUNCTION__ == g_acl_stub_mock) {
+    return ACL_ERROR_RT_INTERNAL_ERROR;
+  }
+  // Echo the physical handle so tests can tell exported handles of different allocations apart.
+  if (shareableHandle != nullptr) {
+    auto *exported = static_cast<aclrtMemFabricHandle *>(shareableHandle);
+    const auto token = reinterpret_cast<uintptr_t>(handle);
+    (void)memcpy_s(exported->data, sizeof(exported->data), &token, sizeof(token));
+  }
   return ACL_ERROR_NONE;
 }
 
@@ -979,6 +1000,10 @@ aclError aclrtMemSetAccess(void *virPtr, size_t size, aclrtMemAccessDesc *desc, 
 
 aclError aclrtMemRetainAllocationHandle(void *devPtr, aclrtDrvMemHandle *handle) {
   return llm::AclRuntimeStub::GetInstance()->aclrtMemRetainAllocationHandle(devPtr, handle);
+}
+
+aclError aclrtMemGetAddressRange(void *ptr, void **pbase, size_t *psize) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtMemGetAddressRange(ptr, pbase, psize);
 }
 
 aclError aclrtPointerGetAttributes(const void *ptr, aclrtPtrAttributes *attributes) {

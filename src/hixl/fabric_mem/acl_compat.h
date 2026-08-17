@@ -20,6 +20,9 @@ extern "C" {
 __attribute__((weak)) aclError aclrtReserveMemAddressNoUCMemory(void **virPtr, size_t size, size_t alignment,
                                                                 void *expectPtr, uint64_t flags);
 
+// Resolve the mapped/malloc block containing ptr. Weak so older packs still link.
+__attribute__((weak)) aclError aclrtMemGetAddressRange(void *ptr, void **pbase, size_t *psize);
+
 #ifdef __cplusplus
 }
 #endif

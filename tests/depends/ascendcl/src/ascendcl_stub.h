@@ -100,6 +100,7 @@ class AclRuntimeStub {
   virtual aclError aclrtUnmapMem(void *devPtr);
   virtual aclError aclrtMemSetAccess(void *virPtr, size_t size, aclrtMemAccessDesc *desc, size_t count);
   virtual aclError aclrtMemRetainAllocationHandle(void *devPtr, aclrtDrvMemHandle *handle);
+  virtual aclError aclrtMemGetAddressRange(void *ptr, void **pbase, size_t *psize);
   virtual aclError aclrtPointerGetAttributes(const void *ptr, aclrtPtrAttributes *attributes);
   virtual aclError aclrtMemExportToShareableHandleV2(aclrtDrvMemHandle handle, uint64_t flags,
                                                      aclrtMemSharedHandleType type, void *shareableHandle);

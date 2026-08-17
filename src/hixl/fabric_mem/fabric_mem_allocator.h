@@ -20,11 +20,13 @@
 namespace hixl {
 class FabricMemAllocator {
  public:
+  // Allocates VMM memory without exporting. ExportToShareableHandle performs ACL export at most
+  // once per allocation and caches the handle for later callers (including RegisterMem).
   static Status MallocMem(MemType type, size_t size, void **ptr);
   static Status FreeMem(void *ptr);
+  // First call exports; later calls return the cached handle (ACL export is once per allocation).
+  static Status ExportToShareableHandle(uintptr_t va_addr, aclrtMemFabricHandle &share_handle);
   static Status GetPaHandleFromVa(uintptr_t va_addr, aclrtDrvMemHandle &pa_handle);
-  static void AddVaToPaMapping(uintptr_t va_addr, aclrtDrvMemHandle pa_handle);
-  static void RemoveVaToPaMapping(uintptr_t va_addr);
   static Status AllocatePhysicalMemory(MemType type, size_t total_size, int32_t logic_device_id,
                                        aclrtDrvMemHandle &handle);
 };

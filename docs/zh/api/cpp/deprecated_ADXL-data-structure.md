@@ -54,6 +54,14 @@ struct TransferOpDesc {
 using MemHandle = void *;
 ```
 
+**ShareableHandle**
+
+Fabric共享句柄类型，用于跨进程共享同一份物理内存。
+
+```cpp
+using ShareableHandle = aclrtMemFabricHandle;
+```
+
 **NotifyDesc**
 
 Notify的描述信息。

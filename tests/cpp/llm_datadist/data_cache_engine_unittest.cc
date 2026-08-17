@@ -342,13 +342,13 @@ TEST_F(DataCacheEngineTest, CopyCache_B2B) {
 
   Cache src_cache;
   Cache dst_cache;
-  CacheKey src_cache_key;
+  CacheKey src_cache_key{};
   src_cache_key.is_allocate_blocks = true;
   CacheKey dst_cache_key = src_cache_key;
   dst_cache_key.req_id = 1;
 
-  EXPECT_EQ(cache_engine_.Allocate(src_cache_desc, {src_cache_key}, src_cache), ge::SUCCESS);
-  EXPECT_EQ(cache_engine_.Allocate(dst_cache_desc, {dst_cache_key}, dst_cache), ge::SUCCESS);
+  ASSERT_EQ(cache_engine_.Allocate(src_cache_desc, {src_cache_key}, src_cache), ge::SUCCESS);
+  ASSERT_EQ(cache_engine_.Allocate(dst_cache_desc, {dst_cache_key}, dst_cache), ge::SUCCESS);
 
   CopyCacheParam cache_param{};
   cache_param.src_cache_id = src_cache.cache_id;

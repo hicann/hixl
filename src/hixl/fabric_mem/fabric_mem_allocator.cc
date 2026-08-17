@@ -25,8 +25,27 @@ constexpr int32_t kNumaNodeStep = 2;
 // aclrtMemSetAccess count: number of aclrtMemAccessDesc entries.
 constexpr size_t kMemAccessDescCount = 1U;
 
-std::mutex g_va_to_pa_mutex;
-std::unordered_map<uintptr_t, aclrtDrvMemHandle> g_va_to_pa_handle_map;
+// ACL fabric export may be performed only once per physical allocation. MallocMem records va→pa
+// without exporting; the first ExportToShareableHandle (from the caller or from RegisterMem) does
+// the ACL export and caches the handle for later reuse.
+struct AllocationRecord {
+  aclrtDrvMemHandle pa_handle = nullptr;
+  aclrtMemFabricHandle share_handle{};
+  bool exported = false;
+};
+
+std::mutex g_allocation_mutex;
+std::unordered_map<uintptr_t, AllocationRecord> g_allocations;
+
+void AddAllocation(uintptr_t va_addr, aclrtDrvMemHandle pa_handle) {
+  std::lock_guard<std::mutex> lock(g_allocation_mutex);
+  g_allocations[va_addr] = AllocationRecord{pa_handle, {}, false};
+}
+
+void RemoveAllocation(uintptr_t va_addr) {
+  std::lock_guard<std::mutex> lock(g_allocation_mutex);
+  g_allocations.erase(va_addr);
+}
 
 aclrtPhysicalMemProp BuildDefaultPhysicalMemProp() {
   aclrtPhysicalMemProp prop = {};
@@ -77,7 +96,7 @@ Status FabricMemAllocator::MallocMem(MemType type, size_t size, void **ptr) {
                         "Failed to set device access for host fabric memory.");
   }
 
-  AddVaToPaMapping(virtual_addr, pa_handle);
+  AddAllocation(virtual_addr, pa_handle);
   *ptr = va_ptr;
   HIXL_DISMISS_GUARD(unmap_guard);
   HIXL_DISMISS_GUARD(release_va_guard);
@@ -92,7 +111,7 @@ Status FabricMemAllocator::FreeMem(void *ptr) {
   aclrtDrvMemHandle pa_handle = nullptr;
   HIXL_CHK_STATUS_RET(GetPaHandleFromVa(va_addr, pa_handle), "Failed to get physical memory handle.");
 
-  RemoveVaToPaMapping(va_addr);
+  RemoveAllocation(va_addr);
   HIXL_CHK_ACL(aclrtUnmapMem(ptr), "Unmap fabric memory failed.");
   (void)VirtualMemoryManager::GetInstance().ReleaseMemory(va_addr);
   HIXL_CHK_ACL(aclrtFreePhysical(pa_handle), "Free physical memory failed.");
@@ -138,22 +157,30 @@ Status FabricMemAllocator::AllocatePhysicalMemory(MemType type, size_t total_siz
 }
 
 Status FabricMemAllocator::GetPaHandleFromVa(uintptr_t va_addr, aclrtDrvMemHandle &pa_handle) {
-  std::lock_guard<std::mutex> lock(g_va_to_pa_mutex);
-  const auto it = g_va_to_pa_handle_map.find(va_addr);
-  if (it == g_va_to_pa_handle_map.end()) {
+  std::lock_guard<std::mutex> lock(g_allocation_mutex);
+  const auto it = g_allocations.find(va_addr);
+  if (it == g_allocations.end()) {
     return FAILED;
   }
-  pa_handle = it->second;
+  pa_handle = it->second.pa_handle;
   return SUCCESS;
 }
 
-void FabricMemAllocator::AddVaToPaMapping(uintptr_t va_addr, aclrtDrvMemHandle pa_handle) {
-  std::lock_guard<std::mutex> lock(g_va_to_pa_mutex);
-  g_va_to_pa_handle_map[va_addr] = pa_handle;
-}
-
-void FabricMemAllocator::RemoveVaToPaMapping(uintptr_t va_addr) {
-  std::lock_guard<std::mutex> lock(g_va_to_pa_mutex);
-  g_va_to_pa_handle_map.erase(va_addr);
+Status FabricMemAllocator::ExportToShareableHandle(uintptr_t va_addr, aclrtMemFabricHandle &share_handle) {
+  std::lock_guard<std::mutex> lock(g_allocation_mutex);
+  const auto it = g_allocations.find(va_addr);
+  HIXL_CHK_BOOL_RET_STATUS(it != g_allocations.end(), PARAM_INVALID,
+                           "Address:%lu was not allocated by fabric MallocMem or is already freed.", va_addr);
+  if (it->second.exported) {
+    share_handle = it->second.share_handle;
+    return SUCCESS;
+  }
+  HIXL_CHK_ACL_RET(
+      aclrtMemExportToShareableHandleV2(it->second.pa_handle, ACL_RT_VMM_EXPORT_FLAG_DISABLE_PID_VALIDATION,
+                                        ACL_MEM_SHARE_HANDLE_TYPE_FABRIC, &share_handle),
+      "Export fabric share handle failed.");
+  it->second.share_handle = share_handle;
+  it->second.exported = true;
+  return SUCCESS;
 }
 }  // namespace hixl

@@ -575,6 +575,41 @@ static Status MallocMem(MemType type, size_t size, void **ptr);
 
 只支持申请Host内存。
 
+## ExportToShareableHandle
+
+**函数功能**
+
+将MallocMem申请的内存导出为Fabric共享句柄，调用方可将该句柄传递给其他进程，用于导入并共享同一份物理内存。对同一块内存首次调用时执行导出并缓存句柄，后续调用返回已缓存的句柄。
+
+**函数原型**
+
+```cpp
+static Status ExportToShareableHandle(void *addr, ShareableHandle &handle);
+```
+
+**参数说明**
+
+|**参数名称**|输入/输出|**取值说明**|
+|--|--|--|
+|addr|输入|MallocMem返回的内存地址。|
+|handle|输出|导出的Fabric共享句柄，类型为ShareableHandle。|
+
+**调用示例**
+
+无
+
+**返回值**
+
+- SUCCESS：成功
+- PARAM_INVALID：addr为空、不是MallocMem返回的地址或对应内存已释放
+- 其他：失败
+
+**约束说明**
+
+- addr必须为MallocMem返回的起始地址，不支持传入内存子地址。
+- 必须在调用FreeMem释放对应内存前调用该接口。
+- 同一块内存仅在首次调用时执行导出，重复调用返回相同的共享句柄。
+
 ## FreeMem
 
 **函数功能**

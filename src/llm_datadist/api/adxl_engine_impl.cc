@@ -343,6 +343,12 @@ Status AdxlEngine::MallocMem(MemType type, size_t size, void **ptr) {
   return hixl::FabricMemTransferService::MallocMem(static_cast<hixl::MemType>(type), size, ptr);
 }
 
+Status AdxlEngine::ExportToShareableHandle(void *addr, ShareableHandle &handle) {
+  const auto ret = hixl::FabricMemTransferService::ExportToShareableHandle(addr, handle);
+  ADXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Failed to export shareable handle of addr:%p", addr);
+  return SUCCESS;
+}
+
 Status AdxlEngine::FreeMem(void *ptr) {
   return hixl::FabricMemTransferService::FreeMem(ptr);
 }

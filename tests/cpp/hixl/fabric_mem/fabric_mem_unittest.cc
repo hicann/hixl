@@ -20,6 +20,7 @@
 #include "common/ctrl_msg.h"
 #include "common/statistic_utils.h"
 #include "depends/slog/src/slog_stub.h"
+#include "fabric_mem/fabric_mem_allocator.h"
 #include "fabric_mem_runtime_stub.h"
 #include "nlohmann/json.hpp"
 
@@ -37,6 +38,24 @@ class FabricMemStatisticUTest : public ::testing::Test {
 };
 
 class FabricMemTransferServiceUTest : public FabricMemTransferServiceTestBase {};
+
+// Shared by several MallocMem rollback tests: force an ACL call to fail after physical alloc,
+// check the physical handle is released, then confirm a subsequent malloc still works.
+void ExpectMallocRollsBackOnAclFailure(MemType type, const char *acl_api,
+                                       const std::shared_ptr<FabricMemRuntimeStub> &runtime) {
+  llm::GetAclStubMock() = acl_api;
+  void *ptr = nullptr;
+  EXPECT_NE(FabricMemTransferService::MallocMem(type, kLen, &ptr), SUCCESS);
+  EXPECT_EQ(ptr, nullptr);
+  EXPECT_EQ(runtime->malloc_physical_count_, 1U);
+  EXPECT_EQ(runtime->free_physical_count_, 1U);
+  llm::GetAclStubMock().clear();
+
+  void *ptr2 = nullptr;
+  ASSERT_EQ(FabricMemTransferService::MallocMem(type, kLen, &ptr2), SUCCESS);
+  ASSERT_NE(ptr2, nullptr);
+  EXPECT_EQ(FabricMemTransferService::FreeMem(ptr2), SUCCESS);
+}
 }  // namespace
 
 TEST_F(FabricMemStatisticUTest, SnapshotDumpRemoveAndPeriodicDump) {
@@ -629,6 +648,201 @@ TEST_F(FabricMemLocalMemoryUTest, DeregisterUnknownHandleIsNoOp) {
   EXPECT_EQ(local_memory_.DeregisterMem(reinterpret_cast<MemHandle>(0xDEAD)), SUCCESS);
 }
 
+TEST_F(FabricMemLocalMemoryUTest, RegisterOwnMemoryExportsOnceBeforePublicExport) {
+  void *ptr = nullptr;
+  ASSERT_EQ(FabricMemTransferService::MallocMem(MEM_DEVICE, kLen, &ptr), SUCCESS);
+  aclrtDrvMemHandle pa_handle = nullptr;
+  ASSERT_EQ(FabricMemAllocator::GetPaHandleFromVa(reinterpret_cast<uintptr_t>(ptr), pa_handle), SUCCESS);
+
+  MemHandle handle = nullptr;
+  ASSERT_EQ(local_memory_.RegisterMem({reinterpret_cast<uintptr_t>(ptr), kLen}, MEM_DEVICE, handle), SUCCESS);
+  EXPECT_EQ(handle, pa_handle);
+  EXPECT_EQ(runtime_->get_address_range_count_, 0U);
+  EXPECT_EQ(runtime_->retain_count_, 0U);
+  EXPECT_EQ(runtime_->mem_export_count_, 1U);
+  const auto registered_handles = local_memory_.GetShareHandles();
+  ASSERT_EQ(registered_handles.size(), 1U);
+
+  aclrtMemFabricHandle public_handle{};
+  ASSERT_EQ(FabricMemTransferService::ExportToShareableHandle(ptr, public_handle), SUCCESS);
+  EXPECT_EQ(runtime_->mem_export_count_, 1U);
+  EXPECT_EQ(memcmp(registered_handles[0].share_handle.data, public_handle.data, sizeof(public_handle.data)), 0);
+
+  EXPECT_EQ(local_memory_.DeregisterMem(handle), SUCCESS);
+  EXPECT_EQ(FabricMemTransferService::FreeMem(ptr), SUCCESS);
+}
+
+TEST_F(FabricMemLocalMemoryUTest, RegisterOwnMemoryReusesPreviouslyExportedHandle) {
+  void *ptr = nullptr;
+  ASSERT_EQ(FabricMemTransferService::MallocMem(MEM_DEVICE, kLen, &ptr), SUCCESS);
+  aclrtMemFabricHandle public_handle{};
+  ASSERT_EQ(FabricMemTransferService::ExportToShareableHandle(ptr, public_handle), SUCCESS);
+  ASSERT_EQ(runtime_->mem_export_count_, 1U);
+
+  MemHandle handle = nullptr;
+  ASSERT_EQ(local_memory_.RegisterMem({reinterpret_cast<uintptr_t>(ptr), kLen}, MEM_DEVICE, handle), SUCCESS);
+  EXPECT_EQ(runtime_->get_address_range_count_, 0U);
+  EXPECT_EQ(runtime_->retain_count_, 0U);
+  EXPECT_EQ(runtime_->mem_export_count_, 1U);
+  const auto registered_handles = local_memory_.GetShareHandles();
+  ASSERT_EQ(registered_handles.size(), 1U);
+  EXPECT_EQ(memcmp(registered_handles[0].share_handle.data, public_handle.data, sizeof(public_handle.data)), 0);
+
+  EXPECT_EQ(local_memory_.DeregisterMem(handle), SUCCESS);
+  EXPECT_EQ(FabricMemTransferService::FreeMem(ptr), SUCCESS);
+}
+
+TEST_F(FabricMemLocalMemoryUTest, RegisterDeviceForeignSplitsMultiplePaBlocks) {
+  constexpr uintptr_t kBase0 = 0x1000000UL;
+  constexpr size_t kBlock = 0x1000U;
+  constexpr uintptr_t kBase1 = kBase0 + kBlock;
+  runtime_->SetAddressRanges({{kBase0, kBlock}, {kBase1, kBlock}});
+
+  MemHandle handle = nullptr;
+  ASSERT_EQ(local_memory_.RegisterMem({kBase0, kBlock * 2U}, MEM_DEVICE, handle), SUCCESS);
+  ASSERT_NE(handle, nullptr);
+  const auto handles = local_memory_.GetShareHandles();
+  ASSERT_EQ(handles.size(), 2U);
+  EXPECT_EQ(handles[0].va_addr, kBase0);
+  EXPECT_EQ(handles[0].len, kBlock);
+  EXPECT_EQ(handles[1].va_addr, kBase1);
+  EXPECT_EQ(handles[1].len, kBlock);
+  EXPECT_EQ(handles[0].imported_va, 0UL);
+  EXPECT_EQ(runtime_->get_address_range_count_, 2U);
+  EXPECT_EQ(runtime_->retain_count_, 2U);
+  EXPECT_EQ(runtime_->mem_export_count_, 2U);
+  EXPECT_EQ(runtime_->retained_addresses_, (std::vector<uintptr_t>{kBase0, kBase1}));
+
+  EXPECT_EQ(local_memory_.DeregisterMem(handle), SUCCESS);
+  EXPECT_EQ(runtime_->free_physical_count_, 2U);
+  EXPECT_TRUE(local_memory_.GetShareHandles().empty());
+}
+
+TEST_F(FabricMemLocalMemoryUTest, DeviceForeignImportsEveryBlockAndSplitsD2dAcrossBlocks) {
+  constexpr uintptr_t kBase0 = 0x1000000UL;
+  constexpr size_t kBlock = 0x1000U;
+  constexpr uintptr_t kBase1 = kBase0 + kBlock;
+  runtime_->SetAddressRanges({{kBase0, kBlock}, {kBase1, kBlock}});
+
+  MemHandle handle = nullptr;
+  ASSERT_EQ(local_memory_.RegisterMem({kBase0, kBlock * 2U}, MEM_DEVICE, handle), SUCCESS);
+  FabricMemRemoteMemory remote_memory;
+  ASSERT_EQ(remote_memory.Import(local_memory_.GetShareHandles(), 0), SUCCESS);
+  EXPECT_EQ(runtime_->mem_import_count_, 2U);
+  const auto remote_mappings = remote_memory.GetNewVaToOldVa();
+  ASSERT_EQ(remote_mappings.size(), 2U);
+
+  uintptr_t expected_remote0 = 0;
+  uintptr_t expected_remote1 = 0;
+  ASSERT_EQ(FabricMemTransferService::TransOpAddr(kBase1 - 8U, 8U, remote_mappings, expected_remote0), SUCCESS);
+  ASSERT_EQ(FabricMemTransferService::TransOpAddr(kBase1, 8U, remote_mappings, expected_remote1), SUCCESS);
+  FabricMemTransferContext context;
+  context.remote_va_to_old_va = remote_mappings;
+  FabricMemHostTransferService service;
+  service.local_memory_ = &local_memory_;
+  std::vector<TransferOpDesc> op_descs = {{kLocalAddr, kBase1 - 8U, 16U}};
+  ASSERT_EQ(service.ResolveTransferAddrs(op_descs, context), SUCCESS);
+  ASSERT_EQ(op_descs.size(), 2U);
+  EXPECT_EQ(op_descs[0].local_addr, kLocalAddr);
+  EXPECT_EQ(op_descs[0].remote_addr, expected_remote0);
+  EXPECT_EQ(op_descs[0].len, 8U);
+  EXPECT_EQ(op_descs[1].local_addr, kLocalAddr + 8U);
+  EXPECT_EQ(op_descs[1].remote_addr, expected_remote1);
+  EXPECT_EQ(op_descs[1].len, 8U);
+
+  remote_memory.Finalize();
+  EXPECT_EQ(local_memory_.DeregisterMem(handle), SUCCESS);
+}
+
+TEST_F(FabricMemLocalMemoryUTest, RegisterForeignOffsetAdvertisesFullBlock) {
+  constexpr uintptr_t kBase = 0x1000000UL;
+  constexpr size_t kBlock = 0x1000U;
+  constexpr size_t kOffset = 0x100U;
+  runtime_->SetAddressRanges({{kBase, kBlock}});
+
+  MemHandle handle = nullptr;
+  ASSERT_EQ(local_memory_.RegisterMem({kBase + kOffset, kBlock - kOffset}, MEM_DEVICE, handle), SUCCESS);
+  const auto handles = local_memory_.GetShareHandles();
+  ASSERT_EQ(handles.size(), 1U);
+  EXPECT_EQ(handles[0].va_addr, kBase);
+  EXPECT_EQ(handles[0].len, kBlock);
+  EXPECT_EQ(runtime_->retained_addresses_, (std::vector<uintptr_t>{kBase}));
+  EXPECT_EQ(local_memory_.DeregisterMem(handle), SUCCESS);
+}
+
+TEST_F(FabricMemLocalMemoryUTest, RegisterForeignRejectsAdjacentRangesOnSamePaBlock) {
+  constexpr uintptr_t kBase = 0x1000000UL;
+  constexpr size_t kBlock = 0x1000U;
+  constexpr size_t kHalf = kBlock / 2U;
+  runtime_->SetAddressRanges({{kBase, kBlock}});
+
+  MemHandle first = nullptr;
+  ASSERT_EQ(local_memory_.RegisterMem({kBase, kHalf}, MEM_DEVICE, first), SUCCESS);
+  ASSERT_NE(first, nullptr);
+  EXPECT_EQ(runtime_->mem_export_count_, 1U);
+  EXPECT_EQ(runtime_->retain_count_, 1U);
+
+  MemHandle second = nullptr;
+  EXPECT_EQ(local_memory_.RegisterMem({kBase + kHalf, kHalf}, MEM_DEVICE, second), PARAM_INVALID);
+  EXPECT_EQ(second, nullptr);
+  EXPECT_EQ(runtime_->mem_export_count_, 1U);
+  EXPECT_EQ(runtime_->retain_count_, 1U);
+  EXPECT_EQ(local_memory_.GetShareHandles().size(), 1U);
+
+  EXPECT_EQ(local_memory_.DeregisterMem(first), SUCCESS);
+}
+
+TEST_F(FabricMemLocalMemoryUTest, RegisterForeignRollsBackEarlierSegmentsWhenRetainFails) {
+  constexpr uintptr_t kBase0 = 0x1000000UL;
+  constexpr size_t kBlock = 0x1000U;
+  constexpr uintptr_t kBase1 = kBase0 + kBlock;
+  runtime_->SetAddressRanges({{kBase0, kBlock}, {kBase1, kBlock}});
+  runtime_->retain_fail_on_count_ = 2U;
+
+  MemHandle handle = nullptr;
+  EXPECT_NE(local_memory_.RegisterMem({kBase0, kBlock * 2U}, MEM_DEVICE, handle), SUCCESS);
+  EXPECT_EQ(handle, nullptr);
+  EXPECT_EQ(runtime_->retain_count_, 2U);
+  EXPECT_EQ(runtime_->mem_export_count_, 1U);
+  EXPECT_EQ(runtime_->free_physical_count_, 1U);
+  EXPECT_TRUE(local_memory_.GetShareHandles().empty());
+}
+
+TEST_F(FabricMemLocalMemoryUTest, RegisterHostForeignMultiBlockTranslate) {
+  constexpr uintptr_t kBase0 = 0x1000000UL;
+  constexpr size_t kBlock = 0x1000U;
+  constexpr uintptr_t kBase1 = kBase0 + kBlock;
+  runtime_->SetAddressRanges({{kBase0, kBlock}, {kBase1, kBlock}});
+
+  MemHandle handle = nullptr;
+  ASSERT_EQ(local_memory_.RegisterMem({kBase0, kBlock * 2U}, MEM_HOST, handle), SUCCESS);
+  EXPECT_TRUE(local_memory_.HasHostMemory());
+  const auto handles = local_memory_.GetShareHandles();
+  ASSERT_EQ(handles.size(), 2U);
+  ASSERT_NE(handles[0].imported_va, 0UL);
+  ASSERT_NE(handles[1].imported_va, 0UL);
+
+  std::vector<TransferOpDesc> op0 = {{kBase0 + 8U, kRemoteOldAddr, 8U}};
+  EXPECT_EQ(local_memory_.TranslateLocalHostOpAddrs(op0), SUCCESS);
+  EXPECT_EQ(op0[0].local_addr, handles[0].imported_va + 8U);
+
+  std::vector<TransferOpDesc> op1 = {{kBase1 + 8U, kRemoteOldAddr, 8U}};
+  EXPECT_EQ(local_memory_.TranslateLocalHostOpAddrs(op1), SUCCESS);
+  EXPECT_EQ(op1[0].local_addr, handles[1].imported_va + 8U);
+
+  std::vector<TransferOpDesc> cross_block = {{kBase1 - 8U, kRemoteOldAddr, 16U}};
+  ASSERT_EQ(local_memory_.TranslateLocalHostOpAddrs(cross_block), SUCCESS);
+  ASSERT_EQ(cross_block.size(), 2U);
+  EXPECT_EQ(cross_block[0].local_addr, handles[0].imported_va + kBlock - 8U);
+  EXPECT_EQ(cross_block[0].remote_addr, kRemoteOldAddr);
+  EXPECT_EQ(cross_block[0].len, 8U);
+  EXPECT_EQ(cross_block[1].local_addr, handles[1].imported_va);
+  EXPECT_EQ(cross_block[1].remote_addr, kRemoteOldAddr + 8U);
+  EXPECT_EQ(cross_block[1].len, 8U);
+
+  EXPECT_EQ(local_memory_.DeregisterMem(handle), SUCCESS);
+}
+
 TEST(FabricMemRemoteMemoryUTest, ImportFinalizeRoundTrip) {
   auto runtime = std::make_shared<FabricMemRuntimeStub>();
   ScopedRuntimeMock scoped_runtime(runtime);
@@ -836,6 +1050,66 @@ TEST_F(FabricMemTransferServiceUTest, MallocMemRejectsNullPtr) {
   EXPECT_EQ(FabricMemTransferService::MallocMem(MEM_HOST, sizeof(int32_t), nullptr), PARAM_INVALID);
 }
 
+TEST_F(FabricMemTransferServiceUTest, ExportToShareableHandleReturnsPerAllocationHandle) {
+  VirtualMemoryManager::GetInstance().Finalize();
+  ASSERT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
+
+  void *first = nullptr;
+  void *second = nullptr;
+  ASSERT_EQ(FabricMemTransferService::MallocMem(MEM_HOST, kLen, &first), SUCCESS);
+  ASSERT_EQ(FabricMemTransferService::MallocMem(MEM_DEVICE, kLen, &second), SUCCESS);
+
+  aclrtMemFabricHandle first_handle{};
+  aclrtMemFabricHandle second_handle{};
+  ASSERT_EQ(FabricMemTransferService::ExportToShareableHandle(first, first_handle), SUCCESS);
+  ASSERT_EQ(FabricMemTransferService::ExportToShareableHandle(second, second_handle), SUCCESS);
+  EXPECT_NE(memcmp(first_handle.data, second_handle.data, sizeof(first_handle.data)), 0);
+
+  // Repeated calls return the cached handle; ACL export runs only once per allocation.
+  aclrtMemFabricHandle again{};
+  ASSERT_EQ(FabricMemTransferService::ExportToShareableHandle(first, again), SUCCESS);
+  EXPECT_EQ(memcmp(first_handle.data, again.data, sizeof(again.data)), 0);
+
+  EXPECT_EQ(FabricMemTransferService::FreeMem(first), SUCCESS);
+  EXPECT_EQ(FabricMemTransferService::FreeMem(second), SUCCESS);
+  VirtualMemoryManager::GetInstance().Finalize();
+}
+
+TEST_F(FabricMemTransferServiceUTest, ExportToShareableHandleRejectsUnknownAddress) {
+  VirtualMemoryManager::GetInstance().Finalize();
+  ASSERT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
+
+  aclrtMemFabricHandle handle{};
+  EXPECT_EQ(FabricMemTransferService::ExportToShareableHandle(nullptr, handle), PARAM_INVALID);
+  uint8_t not_fabric_mem[kLen] = {};
+  EXPECT_EQ(FabricMemTransferService::ExportToShareableHandle(not_fabric_mem, handle), PARAM_INVALID);
+
+  void *ptr = nullptr;
+  ASSERT_EQ(FabricMemTransferService::MallocMem(MEM_HOST, kLen, &ptr), SUCCESS);
+  ASSERT_EQ(FabricMemTransferService::FreeMem(ptr), SUCCESS);
+  EXPECT_EQ(FabricMemTransferService::ExportToShareableHandle(ptr, handle), PARAM_INVALID);
+  VirtualMemoryManager::GetInstance().Finalize();
+}
+
+TEST_F(FabricMemTransferServiceUTest, ExportToShareableHandleFailsWhenExportAclFails) {
+  VirtualMemoryManager::GetInstance().Finalize();
+  ASSERT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
+
+  void *ptr = nullptr;
+  ASSERT_EQ(FabricMemTransferService::MallocMem(MEM_HOST, kLen, &ptr), SUCCESS);
+  ASSERT_NE(ptr, nullptr);
+
+  llm::GetAclStubMock() = "aclrtMemExportToShareableHandleV2";
+  aclrtMemFabricHandle handle{};
+  EXPECT_NE(FabricMemTransferService::ExportToShareableHandle(ptr, handle), SUCCESS);
+  llm::GetAclStubMock().clear();
+
+  // Allocation survives a failed export; a later export must still succeed.
+  ASSERT_EQ(FabricMemTransferService::ExportToShareableHandle(ptr, handle), SUCCESS);
+  EXPECT_EQ(FabricMemTransferService::FreeMem(ptr), SUCCESS);
+  VirtualMemoryManager::GetInstance().Finalize();
+}
+
 TEST_F(FabricMemTransferServiceUTest, MallocMemFreesPhysicalWhenReserveFails) {
   VirtualMemoryManager::GetInstance().Finalize();
 
@@ -853,41 +1127,15 @@ TEST_F(FabricMemTransferServiceUTest, MallocMemFreesPhysicalWhenReserveFails) {
 TEST_F(FabricMemTransferServiceUTest, MallocMemRollsBackWhenMapFails) {
   VirtualMemoryManager::GetInstance().Finalize();
   ASSERT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
-
-  // aclrtMapMem fails after the physical memory is allocated and the virtual block is reserved; both
-  // the physical handle and the reserved virtual block must be released.
-  llm::GetAclStubMock() = "aclrtMapMem";
-  void *ptr = nullptr;
-  EXPECT_NE(FabricMemTransferService::MallocMem(MEM_DEVICE, kLen, &ptr), SUCCESS);
-  EXPECT_EQ(ptr, nullptr);
-  EXPECT_EQ(runtime_->malloc_physical_count_, 1U);
-  EXPECT_EQ(runtime_->free_physical_count_, 1U);
-  llm::GetAclStubMock().clear();
-
-  // The reserved virtual block must have been released, so a subsequent malloc still succeeds.
-  void *ptr2 = nullptr;
-  ASSERT_EQ(FabricMemTransferService::MallocMem(MEM_DEVICE, kLen, &ptr2), SUCCESS);
-  ASSERT_NE(ptr2, nullptr);
-  EXPECT_EQ(FabricMemTransferService::FreeMem(ptr2), SUCCESS);
+  // aclrtMapMem fails after physical alloc + VA reserve; both must be released.
+  ExpectMallocRollsBackOnAclFailure(MEM_DEVICE, "aclrtMapMem", runtime_);
   VirtualMemoryManager::GetInstance().Finalize();
 }
 
 TEST_F(FabricMemTransferServiceUTest, MallocMemRollsBackWhenHostMemSetAccessFails) {
   VirtualMemoryManager::GetInstance().Finalize();
   ASSERT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
-
-  llm::GetAclStubMock() = "aclrtMemSetAccess";
-  void *ptr = nullptr;
-  EXPECT_NE(FabricMemTransferService::MallocMem(MEM_HOST, kLen, &ptr), SUCCESS);
-  EXPECT_EQ(ptr, nullptr);
-  EXPECT_EQ(runtime_->malloc_physical_count_, 1U);
-  EXPECT_EQ(runtime_->free_physical_count_, 1U);
-  llm::GetAclStubMock().clear();
-
-  void *ptr2 = nullptr;
-  ASSERT_EQ(FabricMemTransferService::MallocMem(MEM_HOST, kLen, &ptr2), SUCCESS);
-  ASSERT_NE(ptr2, nullptr);
-  EXPECT_EQ(FabricMemTransferService::FreeMem(ptr2), SUCCESS);
+  ExpectMallocRollsBackOnAclFailure(MEM_HOST, "aclrtMemSetAccess", runtime_);
   VirtualMemoryManager::GetInstance().Finalize();
 }
 

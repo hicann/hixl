@@ -78,6 +78,7 @@ class FabricMemTransferService {
   static void SetKeepaliveCheckIntervalMs(int64_t interval_ms);
   static Status MallocMem(MemType type, size_t size, void **ptr);
   static Status FreeMem(void *ptr);
+  static Status ExportToShareableHandle(void *addr, aclrtMemFabricHandle &share_handle);
 
  protected:
   enum class AsyncStreamQueryResult { kWaiting, kFailed, kComplete };

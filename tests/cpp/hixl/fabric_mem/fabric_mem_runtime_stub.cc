@@ -283,6 +283,53 @@ aclError FabricMemRuntimeStub::aclrtFreePhysical(aclrtDrvMemHandle handle) {
   return llm::AclRuntimeStub::aclrtFreePhysical(handle);
 }
 
+aclError FabricMemRuntimeStub::aclrtMemGetAddressRange(void *ptr, void **pbase, size_t *psize) {
+  ++get_address_range_count_;
+  if (get_address_range_error_ != ACL_ERROR_NONE) {
+    return get_address_range_error_;
+  }
+  if (ptr == nullptr || pbase == nullptr || psize == nullptr) {
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  const auto addr = reinterpret_cast<uintptr_t>(ptr);
+  for (const auto &range : address_ranges_) {
+    if (addr >= range.first && addr - range.first < range.second) {
+      *pbase = reinterpret_cast<void *>(range.first);
+      *psize = range.second;
+      return ACL_ERROR_NONE;
+    }
+  }
+  if (!address_ranges_.empty()) {
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  return llm::AclRuntimeStub::aclrtMemGetAddressRange(ptr, pbase, psize);
+}
+
+aclError FabricMemRuntimeStub::aclrtMemRetainAllocationHandle(void *devPtr, aclrtDrvMemHandle *handle) {
+  ++retain_count_;
+  retained_addresses_.emplace_back(reinterpret_cast<uintptr_t>(devPtr));
+  if (retain_fail_on_count_ == retain_count_) {
+    return ACL_ERROR_RT_INTERNAL_ERROR;
+  }
+  return llm::AclRuntimeStub::aclrtMemRetainAllocationHandle(devPtr, handle);
+}
+
+aclError FabricMemRuntimeStub::aclrtMemExportToShareableHandleV2(aclrtDrvMemHandle handle, uint64_t flags,
+                                                                 aclrtMemSharedHandleType type, void *shareableHandle) {
+  ++mem_export_count_;
+  return llm::AclRuntimeStub::aclrtMemExportToShareableHandleV2(handle, flags, type, shareableHandle);
+}
+
+aclError FabricMemRuntimeStub::aclrtMemImportFromShareableHandleV2(void *shareableHandle, aclrtMemSharedHandleType type,
+                                                                   uint64_t flags, aclrtDrvMemHandle *handle) {
+  ++mem_import_count_;
+  return llm::AclRuntimeStub::aclrtMemImportFromShareableHandleV2(shareableHandle, type, flags, handle);
+}
+
+void FabricMemRuntimeStub::SetAddressRanges(std::vector<std::pair<uintptr_t, size_t>> ranges) {
+  address_ranges_ = std::move(ranges);
+}
+
 aclError FabricMemRuntimeStub::aclrtMemSetAccess(void *virPtr, size_t size, aclrtMemAccessDesc *desc, size_t count) {
   ++mem_set_access_count_;
   last_mem_set_access_size_ = size;

@@ -140,6 +140,15 @@ class ASCEND_FUNC_VISIBILITY AdxlEngine {
   static Status MallocMem(MemType type, size_t size, void **ptr);
 
   /**
+   * @brief 将MallocMem申请的内存导出为fabric share handle, 用于跨进程共享同一份物理内存.
+   * ACL export 每个分配最多执行一次：首次导出并缓存，之后返回已缓存的 handle.
+   * @param [in] addr MallocMem返回的虚拟内存ptr
+   * @param [out] handle 导出的fabric share handle
+   * @return 成功:SUCCESS, 地址非MallocMem申请或已释放:PARAM_INVALID, 失败:其它.
+   */
+  static Status ExportToShareableHandle(void *addr, ShareableHandle &handle);
+
+  /**
    * @brief 释放MallocMem申请的内存
    * @param [in] ptr 释放的虚拟内存ptr
    * @return 成功:SUCCESS, 失败:其它.

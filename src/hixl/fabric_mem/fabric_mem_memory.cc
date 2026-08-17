@@ -10,6 +10,7 @@
 
 #include "fabric_mem/fabric_mem_memory.h"
 
+#include <algorithm>
 #include <limits>
 #include <map>
 
@@ -17,6 +18,7 @@
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
 #include "common/scope_guard.h"
+#include "fabric_mem/acl_compat.h"
 #include "fabric_mem/fabric_mem_allocator.h"
 #include "fabric_mem/virtual_memory_manager.h"
 
@@ -39,19 +41,24 @@ bool IsRangeContained(uintptr_t old_addr, size_t len, uintptr_t base, size_t siz
   return (offset <= size) && (len <= size - offset);
 }
 
-void CleanupRegisterMemFailure(aclrtDrvMemHandle pa_handle, bool is_retained, uintptr_t imported_va,
-                               aclrtDrvMemHandle imported_pa_handle) {
-  if (is_retained && pa_handle != nullptr) {
-    HIXL_CHK_ACL(aclrtFreePhysical(pa_handle), "Free retained handle after register failure failed.");
+Status GetAddressRangeForPtr(uintptr_t addr, MemDesc &range) {
+  if (aclrtMemGetAddressRange == nullptr) {
+    return UNSUPPORTED;
   }
-  if (imported_va != 0) {
-    HIXL_CHK_ACL(aclrtUnmapMem(reinterpret_cast<void *>(imported_va)),
-                 "Unmap local import after register failure failed.");
-    (void)VirtualMemoryManager::GetInstance().ReleaseMemory(imported_va);
-  }
-  if (imported_pa_handle != nullptr) {
-    HIXL_CHK_ACL(aclrtFreePhysical(imported_pa_handle), "Free imported handle after register failure failed.");
-  }
+  void *base = nullptr;
+  size_t size = 0;
+  HIXL_CHK_ACL_RET(aclrtMemGetAddressRange(reinterpret_cast<void *>(addr), &base, &size),
+                   "Get address range failed for ptr:%p.", reinterpret_cast<void *>(addr));
+  const auto base_addr = reinterpret_cast<uintptr_t>(base);
+  const auto max_addr = std::numeric_limits<uintptr_t>::max();
+  HIXL_CHK_BOOL_RET_STATUS(base != nullptr && size > 0 && base_addr <= max_addr - size, FAILED,
+                           "Invalid address range returned for ptr:%p, base:%p, size:%zu.",
+                           reinterpret_cast<void *>(addr), base, size);
+  HIXL_CHK_BOOL_RET_STATUS(IsRangeContained(addr, 1U, base_addr, size), FAILED,
+                           "Address range does not contain ptr:%p, base:%p, size:%zu.", reinterpret_cast<void *>(addr),
+                           base, size);
+  range = {base_addr, size};
+  return SUCCESS;
 }
 }  // namespace
 
@@ -72,17 +79,63 @@ Status FabricMemLocalMemory::ImportHostMemoryForRegister(const MemDesc &mem, acl
   return SUCCESS;
 }
 
-Status FabricMemLocalMemory::FindExistingHandleForOverlap(const MemDesc &mem, MemType type, MemHandle &mem_handle,
-                                                          bool &is_duplicate) const {
+void FabricMemLocalMemory::ReleaseSegment(LocalMemSegment &segment) {
+  auto &info = segment.info;
+  if (info.imported_va != 0) {
+    HIXL_CHK_ACL(aclrtUnmapMem(reinterpret_cast<void *>(info.imported_va)), "Unmap local host mapping failed.");
+    (void)VirtualMemoryManager::GetInstance().ReleaseMemory(info.imported_va);
+    info.imported_va = 0;
+  }
+  if (info.imported_handle != nullptr) {
+    HIXL_CHK_ACL(aclrtFreePhysical(info.imported_handle), "Free imported local handle failed.");
+    info.imported_handle = nullptr;
+  }
+  if (info.is_retained && segment.pa_handle != nullptr) {
+    HIXL_CHK_ACL(aclrtFreePhysical(segment.pa_handle), "Free retained handle failed.");
+    segment.pa_handle = nullptr;
+  }
+}
+
+void FabricMemLocalMemory::ReleaseRegistration(LocalMemRegistration &registration) {
+  for (auto &segment : registration.segments) {
+    ReleaseSegment(segment);
+  }
+  registration.segments.clear();
+}
+
+Status FabricMemLocalMemory::ExportSegment(const MemDesc &mem, MemType type, aclrtDrvMemHandle pa_handle,
+                                           bool is_retained, LocalMemSegment &segment) {
+  segment.pa_handle = pa_handle;
+  segment.info = {mem.addr, mem.len, {}, nullptr, 0, is_retained, type};
+  HIXL_DISMISSABLE_GUARD(fail_guard, ([&segment]() { ReleaseSegment(segment); }));
+  if (is_retained) {
+    HIXL_CHK_ACL_RET(aclrtMemExportToShareableHandleV2(pa_handle, ACL_RT_VMM_EXPORT_FLAG_DISABLE_PID_VALIDATION,
+                                                       ACL_MEM_SHARE_HANDLE_TYPE_FABRIC, &segment.info.share_handle),
+                     "Export foreign fabric share handle failed.");
+  } else {
+    HIXL_CHK_STATUS_RET(FabricMemAllocator::ExportToShareableHandle(mem.addr, segment.info.share_handle),
+                        "Export own fabric share handle failed.");
+  }
+  if (type == MEM_HOST) {
+    HIXL_CHK_STATUS_RET(ImportHostMemoryForRegister(mem, segment.info.share_handle, segment.info.imported_handle,
+                                                    segment.info.imported_va),
+                        "Import host memory for register failed.");
+  }
+  HIXL_DISMISS_GUARD(fail_guard);
+  return SUCCESS;
+}
+
+Status FabricMemLocalMemory::FindExistingHandleForOverlapLocked(const MemDesc &mem, MemType type, MemHandle &mem_handle,
+                                                                bool &is_duplicate) const {
   AddrInfo cur_info{};
   HIXL_CHK_STATUS_RET(BuildRegisteredAddrInfo(mem.addr, mem.len, type, cur_info),
                       "Invalid fabric mem registration range.");
-  std::lock_guard<std::mutex> lock(share_handle_mutex_);
   std::map<MemHandle, AddrInfo> addr_map;
-  for (const auto &item : share_handles_) {
+  for (const auto &item : registrations_) {
+    const auto &registration = *item.second;
     AddrInfo registered_info{};
     HIXL_CHK_STATUS_RET(
-        BuildRegisteredAddrInfo(item.second.va_addr, item.second.len, item.second.mem_type, registered_info),
+        BuildRegisteredAddrInfo(registration.va_addr, registration.len, registration.mem_type, registered_info),
         "Registered fabric mem range is invalid.");
     addr_map[item.first] = registered_info;
   }
@@ -91,7 +144,140 @@ Status FabricMemLocalMemory::FindExistingHandleForOverlap(const MemDesc &mem, Me
                       "Failed to check fabric mem address overlap.");
   if (is_duplicate) {
     mem_handle = existing_handle;
+    return SUCCESS;
   }
+  // Foreign registrations advertise the full VMM physical page. A later request that does not
+  // overlap the user range can still sit inside that page; reject it before a second ACL export.
+  for (const auto &item : registrations_) {
+    const auto &registration = *item.second;
+    if (registration.mem_type != type) {
+      continue;
+    }
+    for (const auto &segment : registration.segments) {
+      AddrInfo advertised_info{};
+      HIXL_CHK_STATUS_RET(
+          BuildRegisteredAddrInfo(segment.info.va_addr, segment.info.len, registration.mem_type, advertised_info),
+          "Registered fabric mem advertised range is invalid.");
+      if ((cur_info.end_addr <= advertised_info.start_addr) || (cur_info.start_addr >= advertised_info.end_addr)) {
+        continue;
+      }
+      HIXL_LOGE(PARAM_INVALID,
+                "Mem addr range overlap with existing registered mem, "
+                "new mem range:[0x%lx, 0x%lx), existing mem range:[0x%lx, 0x%lx).",
+                cur_info.start_addr, cur_info.end_addr, advertised_info.start_addr, advertised_info.end_addr);
+      return PARAM_INVALID;
+    }
+  }
+  return SUCCESS;
+}
+
+Status FabricMemLocalMemory::FindExistingHandleForOverlap(const MemDesc &mem, MemType type, MemHandle &mem_handle,
+                                                          bool &is_duplicate) const {
+  std::lock_guard<std::mutex> lock(share_handle_mutex_);
+  return FindExistingHandleForOverlapLocked(mem, type, mem_handle, is_duplicate);
+}
+
+Status FabricMemLocalMemory::BuildForeignSegments(const MemDesc &mem, MemType type,
+                                                  LocalMemRegistration &registration) {
+  const uintptr_t end = mem.addr + mem.len;
+  uintptr_t cursor = mem.addr;
+  while (cursor < end) {
+    MemDesc block{};
+    HIXL_CHK_STATUS_RET(GetAddressRangeForPtr(cursor, block),
+                        "Failed to resolve address range while registering foreign fabric mem.");
+    aclrtDrvMemHandle pa_handle = nullptr;
+    HIXL_DISMISSABLE_GUARD(retain_guard, ([&pa_handle]() {
+                             if (pa_handle != nullptr) {
+                               HIXL_CHK_ACL(aclrtFreePhysical(pa_handle), "Free retained handle failed.");
+                             }
+                           }));
+    HIXL_CHK_ACL_RET(aclrtMemRetainAllocationHandle(reinterpret_cast<void *>(block.addr), &pa_handle),
+                     "Retain allocation handle failed for block base:%p.", reinterpret_cast<void *>(block.addr));
+    HIXL_DISMISS_GUARD(retain_guard);
+    LocalMemSegment segment{};
+    HIXL_CHK_STATUS_RET(ExportSegment(block, type, pa_handle, true, segment),
+                        "Export foreign fabric mem block failed.");
+    registration.segments.emplace_back(std::move(segment));
+    cursor = block.addr + block.len;
+  }
+  HIXL_CHK_BOOL_RET_STATUS(!registration.segments.empty(), FAILED,
+                           "Foreign fabric mem registration produced no segments.");
+  return SUCCESS;
+}
+
+Status FabricMemLocalMemory::CommitRegistration(std::unique_ptr<LocalMemRegistration> &registration,
+                                                MemHandle candidate_handle, MemHandle &mem_handle, bool &committed) {
+  const MemDesc mem{registration->va_addr, registration->len};
+  bool is_duplicate = false;
+  std::lock_guard<std::mutex> lock(share_handle_mutex_);
+  HIXL_CHK_STATUS_RET(FindExistingHandleForOverlapLocked(mem, registration->mem_type, mem_handle, is_duplicate),
+                      "Failed to recheck fabric mem address overlap.");
+  if (is_duplicate) {
+    return SUCCESS;
+  }
+  HIXL_CHK_BOOL_RET_STATUS(registrations_.find(candidate_handle) == registrations_.end(), FAILED,
+                           "Fabric mem handle collision, handle:%p.", candidate_handle);
+  registrations_.emplace(candidate_handle, std::move(registration));
+  mem_handle = candidate_handle;
+  committed = true;
+  return SUCCESS;
+}
+
+Status FabricMemLocalMemory::RegisterOwnMem(const MemDesc &mem, MemType type, aclrtDrvMemHandle pa_handle,
+                                            MemHandle &mem_handle) {
+  auto registration = std::make_unique<LocalMemRegistration>();
+  registration->va_addr = mem.addr;
+  registration->len = mem.len;
+  registration->mem_type = type;
+  HIXL_DISMISSABLE_GUARD(fail_guard, ([&registration]() {
+                           if (registration != nullptr) {
+                             ReleaseRegistration(*registration);
+                           }
+                         }));
+  LocalMemSegment segment{};
+  HIXL_CHK_STATUS_RET(ExportSegment(mem, type, pa_handle, false, segment), "Export own fabric mem segment failed.");
+  registration->segments.emplace_back(std::move(segment));
+  bool committed = false;
+  HIXL_CHK_STATUS_RET(CommitRegistration(registration, pa_handle, mem_handle, committed),
+                      "Commit own fabric mem registration failed.");
+  if (!committed) {
+    return SUCCESS;
+  }
+  if (type == MEM_HOST) {
+    has_host_memory_.store(true);
+  }
+  HIXL_DISMISS_GUARD(fail_guard);
+  HIXL_LOGI("Register fabric mem success, type:%s, addr:%lu, len:%zu, retained:0, handle:%p.",
+            MemTypeToString(type).c_str(), mem.addr, mem.len, mem_handle);
+  return SUCCESS;
+}
+
+Status FabricMemLocalMemory::RegisterForeignMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
+  auto registration = std::make_unique<LocalMemRegistration>();
+  registration->va_addr = mem.addr;
+  registration->len = mem.len;
+  registration->mem_type = type;
+  HIXL_DISMISSABLE_GUARD(fail_guard, ([&registration]() {
+                           if (registration != nullptr) {
+                             ReleaseRegistration(*registration);
+                           }
+                         }));
+  HIXL_CHK_STATUS_RET(BuildForeignSegments(mem, type, *registration), "Build foreign fabric mem segments failed.");
+  const size_t segment_count = registration->segments.size();
+  // A foreign registration can own multiple PA handles, so use the registration object's stable identity.
+  const MemHandle candidate_handle = registration.get();
+  bool committed = false;
+  HIXL_CHK_STATUS_RET(CommitRegistration(registration, candidate_handle, mem_handle, committed),
+                      "Commit foreign fabric mem registration failed.");
+  if (!committed) {
+    return SUCCESS;
+  }
+  if (type == MEM_HOST) {
+    has_host_memory_.store(true);
+  }
+  HIXL_DISMISS_GUARD(fail_guard);
+  HIXL_LOGI("Register foreign fabric mem success, type:%s, addr:%lu, len:%zu, segments:%zu, handle:%p.",
+            MemTypeToString(type).c_str(), mem.addr, mem.len, segment_count, mem_handle);
   return SUCCESS;
 }
 
@@ -104,60 +290,26 @@ Status FabricMemLocalMemory::RegisterMem(const MemDesc &mem, MemType type, MemHa
     return SUCCESS;
   }
   aclrtDrvMemHandle pa_handle = nullptr;
-  bool is_retained = false;
-  if (FabricMemAllocator::GetPaHandleFromVa(mem.addr, pa_handle) != SUCCESS) {
-    HIXL_CHK_ACL_RET(aclrtMemRetainAllocationHandle(reinterpret_cast<void *>(mem.addr), &pa_handle),
-                     "Retain allocation handle failed.");
-    is_retained = true;
+  if (FabricMemAllocator::GetPaHandleFromVa(mem.addr, pa_handle) == SUCCESS) {
+    return RegisterOwnMem(mem, type, pa_handle, mem_handle);
   }
-  aclrtDrvMemHandle imported_pa_handle = nullptr;
-  uintptr_t imported_va = 0;
-  HIXL_DISMISSABLE_GUARD(fail_guard, ([&pa_handle, &is_retained, &imported_va, &imported_pa_handle]() {
-                           CleanupRegisterMemFailure(pa_handle, is_retained, imported_va, imported_pa_handle);
-                         }));
-
-  aclrtMemFabricHandle share_handle = {};
-  HIXL_CHK_ACL_RET(aclrtMemExportToShareableHandleV2(pa_handle, ACL_RT_VMM_EXPORT_FLAG_DISABLE_PID_VALIDATION,
-                                                     ACL_MEM_SHARE_HANDLE_TYPE_FABRIC, &share_handle),
-                   "Export fabric share handle failed.");
-  if (type == MEM_HOST) {
-    HIXL_CHK_STATUS_RET(ImportHostMemoryForRegister(mem, share_handle, imported_pa_handle, imported_va),
-                        "Import host memory for register failed.");
-  }
-
-  {
-    std::lock_guard<std::mutex> lock(share_handle_mutex_);
-    share_handles_[pa_handle] = {mem.addr, mem.len, share_handle, imported_pa_handle, imported_va, is_retained, type};
-  }
-  if (type == MEM_HOST) {
-    has_host_memory_.store(true);
-  }
-  mem_handle = pa_handle;
-  HIXL_LOGI("Register fabric mem success, type:%s, addr:%lu, len:%zu, retained:%d, handle:%p.",
-            MemTypeToString(type).c_str(), mem.addr, mem.len, static_cast<int32_t>(is_retained), mem_handle);
-  HIXL_DISMISS_GUARD(fail_guard);
+  HIXL_CHK_STATUS_RET(RegisterForeignMem(mem, type, mem_handle), "Register foreign fabric mem failed.");
   return SUCCESS;
 }
 
 Status FabricMemLocalMemory::DeregisterMem(MemHandle mem_handle) {
-  std::lock_guard<std::mutex> lock(share_handle_mutex_);
-  const auto it = share_handles_.find(static_cast<aclrtDrvMemHandle>(mem_handle));
-  if (it == share_handles_.end()) {
-    HIXL_LOGW("Fabric mem handle:%p is not registered.", mem_handle);
-    return SUCCESS;
+  std::unique_ptr<LocalMemRegistration> registration;
+  {
+    std::lock_guard<std::mutex> lock(share_handle_mutex_);
+    const auto it = registrations_.find(mem_handle);
+    if (it == registrations_.end()) {
+      HIXL_LOGW("Fabric mem handle:%p is not registered.", mem_handle);
+      return SUCCESS;
+    }
+    registration = std::move(it->second);
+    registrations_.erase(it);
   }
-  const auto info = it->second;
-  if (info.imported_va != 0) {
-    HIXL_CHK_ACL(aclrtUnmapMem(reinterpret_cast<void *>(info.imported_va)), "Unmap local host mapping failed.");
-    (void)VirtualMemoryManager::GetInstance().ReleaseMemory(info.imported_va);
-  }
-  if (info.imported_handle != nullptr) {
-    HIXL_CHK_ACL(aclrtFreePhysical(info.imported_handle), "Free imported local handle failed.");
-  }
-  if (info.is_retained) {
-    HIXL_CHK_ACL(aclrtFreePhysical(static_cast<aclrtDrvMemHandle>(mem_handle)), "Free retained handle failed.");
-  }
-  share_handles_.erase(it);
+  ReleaseRegistration(*registration);
   HIXL_LOGI("Deregister fabric mem success, handle:%p.", mem_handle);
   return SUCCESS;
 }
@@ -165,9 +317,10 @@ Status FabricMemLocalMemory::DeregisterMem(MemHandle mem_handle) {
 std::vector<ShareHandleInfo> FabricMemLocalMemory::GetShareHandles() const {
   std::lock_guard<std::mutex> lock(share_handle_mutex_);
   std::vector<ShareHandleInfo> share_handles;
-  share_handles.reserve(share_handles_.size());
-  for (const auto &share_handle : share_handles_) {
-    share_handles.emplace_back(share_handle.second);
+  for (const auto &item : registrations_) {
+    for (const auto &segment : item.second->segments) {
+      share_handles.emplace_back(segment.info);
+    }
   }
   return share_handles;
 }
@@ -176,47 +329,62 @@ bool FabricMemLocalMemory::HasHostMemory() const {
   return has_host_memory_.load();
 }
 
-bool FabricMemLocalMemory::FindLocalHostRegisteredAddrLocked(uintptr_t old_addr, size_t len,
-                                                             uintptr_t &new_addr) const {
-  for (const auto &item : share_handles_) {
-    const auto &info = item.second;
-    if (info.imported_va == 0) {
-      continue;
+bool FabricMemLocalMemory::FindLocalHostRegisteredAddrLocked(uintptr_t old_addr, uintptr_t &new_addr,
+                                                             size_t &available_len) const {
+  for (const auto &item : registrations_) {
+    for (const auto &segment : item.second->segments) {
+      const auto &info = segment.info;
+      if (info.imported_va == 0 || old_addr < info.va_addr) {
+        continue;
+      }
+      const uintptr_t offset = old_addr - info.va_addr;
+      if (offset >= info.len || info.imported_va > std::numeric_limits<uintptr_t>::max() - offset) {
+        continue;
+      }
+      new_addr = info.imported_va + offset;
+      available_len = info.len - offset;
+      return true;
     }
-    if (!IsRangeContained(old_addr, len, info.va_addr, info.len)) {
-      continue;
-    }
-    new_addr = info.imported_va + (old_addr - info.va_addr);
-    return true;
   }
   return false;
 }
 
 Status FabricMemLocalMemory::TranslateLocalHostOpAddrs(std::vector<TransferOpDesc> &op_descs) const {
   std::lock_guard<std::mutex> lock(share_handle_mutex_);
-  for (auto &op : op_descs) {
-    HIXL_CHK_BOOL_RET_STATUS(FindLocalHostRegisteredAddrLocked(op.local_addr, op.len, op.local_addr), PARAM_INVALID,
-                             "Local host fabric mem address:%lu, len:%zu is not registered.", op.local_addr, op.len);
+  std::vector<TransferOpDesc> translated;
+  translated.reserve(op_descs.size());
+  for (const auto &op : op_descs) {
+    HIXL_CHK_BOOL_RET_STATUS(op.len > 0, PARAM_INVALID, "Local host fabric mem transfer size must be non-zero.");
+    const auto max_addr = std::numeric_limits<uintptr_t>::max();
+    HIXL_CHK_BOOL_RET_STATUS(op.local_addr <= max_addr - op.len && op.remote_addr <= max_addr - op.len, PARAM_INVALID,
+                             "Fabric mem transfer address overflow.");
+    size_t offset = 0;
+    while (offset < op.len) {
+      const uintptr_t old_local_addr = op.local_addr + offset;
+      uintptr_t new_local_addr = 0;
+      size_t available_len = 0;
+      HIXL_CHK_BOOL_RET_STATUS(FindLocalHostRegisteredAddrLocked(old_local_addr, new_local_addr, available_len),
+                               PARAM_INVALID, "Local host fabric mem address:%lu, remaining len:%zu is not registered.",
+                               old_local_addr, op.len - offset);
+      const size_t chunk_len = std::min(op.len - offset, available_len);
+      translated.emplace_back(TransferOpDesc{new_local_addr, op.remote_addr + offset, chunk_len});
+      offset += chunk_len;
+    }
   }
+  op_descs.swap(translated);
   return SUCCESS;
 }
 
 void FabricMemLocalMemory::Finalize() {
-  std::lock_guard<std::mutex> lock(share_handle_mutex_);
-  for (auto &share_handle : share_handles_) {
-    const auto &info = share_handle.second;
-    if (info.imported_va != 0) {
-      HIXL_CHK_ACL(aclrtUnmapMem(reinterpret_cast<void *>(info.imported_va)), "Unmap local host mapping failed.");
-      (void)VirtualMemoryManager::GetInstance().ReleaseMemory(info.imported_va);
-    }
-    if (info.imported_handle != nullptr) {
-      HIXL_CHK_ACL(aclrtFreePhysical(info.imported_handle), "Free imported local handle failed.");
-    }
-    if (info.is_retained) {
-      HIXL_CHK_ACL(aclrtFreePhysical(share_handle.first), "Free retained handle failed.");
-    }
+  std::unordered_map<MemHandle, std::unique_ptr<LocalMemRegistration>> registrations;
+  {
+    std::lock_guard<std::mutex> lock(share_handle_mutex_);
+    registrations.swap(registrations_);
   }
-  share_handles_.clear();
+  for (auto &item : registrations) {
+    ReleaseRegistration(*item.second);
+  }
+  has_host_memory_.store(false);
 }
 
 FabricMemRemoteMemory::~FabricMemRemoteMemory() {

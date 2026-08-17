@@ -10,7 +10,9 @@
 
 #include "fabric_mem/fabric_mem_transfer_service.h"
 
+#include <algorithm>
 #include <atomic>
+#include <limits>
 #include <utility>
 
 #include "common/hixl_checker.h"
@@ -25,12 +27,43 @@ constexpr uint64_t kHostFlagDoneValue = 1ULL;
 constexpr uint64_t kDevConstOneValue = 1ULL;
 constexpr size_t kHostFlagSize = sizeof(uint64_t);
 
-bool IsRangeContained(uintptr_t old_addr, size_t len, uintptr_t base, size_t size) {
-  if (old_addr < base) {
-    return false;
+bool FindMappedAddrPrefix(uintptr_t old_addr, const std::unordered_map<uintptr_t, VaInfo> &new_va_to_old_va,
+                          uintptr_t &new_addr, size_t &available_len) {
+  for (const auto &item : new_va_to_old_va) {
+    const auto &info = item.second;
+    if (old_addr < info.va_addr) {
+      continue;
+    }
+    const uintptr_t offset = old_addr - info.va_addr;
+    if (offset >= info.len || item.first > std::numeric_limits<uintptr_t>::max() - offset) {
+      continue;
+    }
+    new_addr = item.first + offset;
+    available_len = info.len - offset;
+    return true;
   }
-  const uintptr_t offset = old_addr - base;
-  return (offset <= size) && (len <= size - offset);
+  return false;
+}
+
+Status AppendRemoteTranslatedOps(const TransferOpDesc &op,
+                                 const std::unordered_map<uintptr_t, VaInfo> &new_va_to_old_va,
+                                 std::vector<TransferOpDesc> &translated) {
+  HIXL_CHK_BOOL_RET_STATUS(op.len > 0, PARAM_INVALID, "Fabric mem transfer size must be non-zero.");
+  const auto max_addr = std::numeric_limits<uintptr_t>::max();
+  HIXL_CHK_BOOL_RET_STATUS(op.local_addr <= max_addr - op.len && op.remote_addr <= max_addr - op.len, PARAM_INVALID,
+                           "Fabric mem transfer address overflow.");
+  size_t offset = 0;
+  while (offset < op.len) {
+    const uintptr_t old_remote_addr = op.remote_addr + offset;
+    uintptr_t new_remote_addr = 0;
+    size_t available_len = 0;
+    HIXL_CHK_BOOL_RET_STATUS(FindMappedAddrPrefix(old_remote_addr, new_va_to_old_va, new_remote_addr, available_len),
+                             PARAM_INVALID, "Remote fabric mem address:%lu is not registered.", old_remote_addr);
+    const size_t chunk_len = std::min(op.len - offset, available_len);
+    translated.emplace_back(TransferOpDesc{op.local_addr + offset, new_remote_addr, chunk_len});
+    offset += chunk_len;
+  }
+  return SUCCESS;
 }
 }  // namespace
 
@@ -62,6 +95,11 @@ Status FabricMemTransferService::MallocMem(MemType type, size_t size, void **ptr
 
 Status FabricMemTransferService::FreeMem(void *ptr) {
   return FabricMemAllocator::FreeMem(ptr);
+}
+
+Status FabricMemTransferService::ExportToShareableHandle(void *addr, aclrtMemFabricHandle &share_handle) {
+  HIXL_CHK_BOOL_RET_STATUS(addr != nullptr, PARAM_INVALID, "Fabric memory address cannot be nullptr.");
+  return FabricMemAllocator::ExportToShareableHandle(reinterpret_cast<uintptr_t>(addr), share_handle);
 }
 
 Status FabricMemTransferService::InitDevConstOne() {
@@ -257,12 +295,13 @@ Status FabricMemTransferService::ResolveTransferAddrs(std::vector<TransferOpDesc
   bool need_trans_local_addr = false;
   HIXL_CHK_STATUS_RET(NeedTransLocalAddr(op_descs, need_trans_local_addr),
                       "Check local fabric mem address type failed.");
-  for (auto &op : op_descs) {
-    uintptr_t new_remote_addr = 0;
-    HIXL_CHK_STATUS_RET(TransOpAddr(op.remote_addr, op.len, context.remote_va_to_old_va, new_remote_addr),
-                        "Remote fabric mem address is not registered.");
-    op.remote_addr = new_remote_addr;
+  std::vector<TransferOpDesc> translated;
+  translated.reserve(op_descs.size());
+  for (const auto &op : op_descs) {
+    HIXL_CHK_STATUS_RET(AppendRemoteTranslatedOps(op, context.remote_va_to_old_va, translated),
+                        "Translate remote fabric mem address failed.");
   }
+  op_descs.swap(translated);
   if (need_trans_local_addr) {
     HIXL_CHK_BOOL_RET_STATUS(local_memory_ != nullptr, FAILED, "Fabric mem local memory is not available.");
     HIXL_CHK_STATUS_RET(local_memory_->TranslateLocalHostOpAddrs(op_descs),
@@ -274,15 +313,13 @@ Status FabricMemTransferService::ResolveTransferAddrs(std::vector<TransferOpDesc
 Status FabricMemTransferService::TransOpAddr(uintptr_t old_addr, size_t len,
                                              const std::unordered_map<uintptr_t, VaInfo> &new_va_to_old_va,
                                              uintptr_t &new_addr) {
-  for (const auto &item : new_va_to_old_va) {
-    const auto &info = item.second;
-    if (IsRangeContained(old_addr, len, info.va_addr, info.len)) {
-      new_addr = item.first + (old_addr - info.va_addr);
-      return SUCCESS;
-    }
-  }
-  HIXL_LOGE(PARAM_INVALID, "Fabric mem address:%lu, len:%zu not found in registered segments.", old_addr, len);
-  return PARAM_INVALID;
+  uintptr_t translated_addr = 0;
+  size_t available_len = 0;
+  HIXL_CHK_BOOL_RET_STATUS(
+      FindMappedAddrPrefix(old_addr, new_va_to_old_va, translated_addr, available_len) && len <= available_len,
+      PARAM_INVALID, "Fabric mem address:%lu, len:%zu not found in registered segments.", old_addr, len);
+  new_addr = translated_addr;
+  return SUCCESS;
 }
 
 void FabricMemTransferService::UpdateStats(const std::string &channel_id, const std::string &statistic_channel_id,

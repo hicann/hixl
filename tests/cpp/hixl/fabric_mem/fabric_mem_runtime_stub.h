@@ -24,6 +24,7 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -119,8 +120,15 @@ class FabricMemRuntimeStub : public llm::AclRuntimeStub {
   aclError aclrtMallocPhysical(aclrtDrvMemHandle *handle, size_t size, const aclrtPhysicalMemProp *prop,
                                uint64_t flags) override;
   aclError aclrtFreePhysical(aclrtDrvMemHandle handle) override;
+  aclError aclrtMemGetAddressRange(void *ptr, void **pbase, size_t *psize) override;
+  aclError aclrtMemRetainAllocationHandle(void *devPtr, aclrtDrvMemHandle *handle) override;
+  aclError aclrtMemExportToShareableHandleV2(aclrtDrvMemHandle handle, uint64_t flags, aclrtMemSharedHandleType type,
+                                             void *shareableHandle) override;
+  aclError aclrtMemImportFromShareableHandleV2(void *shareableHandle, aclrtMemSharedHandleType type, uint64_t flags,
+                                               aclrtDrvMemHandle *handle) override;
   aclError aclrtMemSetAccess(void *virPtr, size_t size, aclrtMemAccessDesc *desc, size_t count) override;
   bool IsDeviceOnlyStream(aclrtStream stream) const;
+  void SetAddressRanges(std::vector<std::pair<uintptr_t, size_t>> ranges);
 
   bool pointer_is_host_{false};
   bool get_context_returns_null_{false};
@@ -177,6 +185,14 @@ class FabricMemRuntimeStub : public llm::AclRuntimeStub {
   std::vector<StreamLifecycleEvent> stream_lifecycle_events_;
   size_t malloc_physical_count_{0U};
   size_t free_physical_count_{0U};
+  size_t get_address_range_count_{0U};
+  size_t retain_count_{0U};
+  size_t retain_fail_on_count_{0U};
+  size_t mem_export_count_{0U};
+  size_t mem_import_count_{0U};
+  aclError get_address_range_error_{ACL_ERROR_NONE};
+  std::vector<uintptr_t> retained_addresses_;
+  std::vector<std::pair<uintptr_t, size_t>> address_ranges_;
   size_t mem_set_access_count_{0U};
   size_t last_mem_set_access_size_{0U};
   size_t last_mem_set_access_count_{0U};
@@ -432,6 +448,7 @@ class FabricMemLocalMemoryUTest : public ::testing::Test {
  protected:
   void SetUp() override {
     runtime_ = std::make_shared<FabricMemRuntimeStub>();
+    runtime_->SetAddressRanges({{kLocalAddr, kLen}});
     scoped_runtime_ = std::make_unique<ScopedRuntimeMock>(runtime_);
     VirtualMemoryManager::GetInstance().Finalize();
     ASSERT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);

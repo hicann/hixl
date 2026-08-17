@@ -65,6 +65,15 @@ class FabricMemRuntimeMock : public llm::AclRuntimeStub {
     return "Ascend910_9391";
   }
 
+  aclError aclrtMemGetAddressRange(void *ptr, void **base, size_t *size) override {
+    if (ptr == nullptr || base == nullptr || size == nullptr) {
+      return ACL_ERROR_INVALID_PARAM;
+    }
+    *base = ptr;
+    *size = kTransferSize;
+    return ACL_ERROR_NONE;
+  }
+
  private:
   static inline int32_t device_id_{0};
 };
