@@ -554,6 +554,20 @@ In principle, if secure functions are used, their return values must be checked.
 }
 ```
 
+**【Exception Rules】**
+
+The following scenarios may skip the return value check if secure functions are used and destMax does not exceed the maximum limit:
+
+| No. | Scenario | Description |
+|-----|----------|-------------|
+| 1 | Initializing a fixed-length array or a fixed-length struct | e.g., `memset_s(&addr, sizeof(addr), 0, sizeof(addr))`, destMax == count == sizeof(struct/array) |
+| 2 | Initializing memory when the function has a pointer parameter and its corresponding size parameter | The caller is responsible for ensuring pointer validity and size matching |
+| 3 | Setting initial values after allocating memory from the heap | e.g., `ptr = malloc(n); memset_s(ptr, n, 0, n);` |
+| 4 | Copying memory of equal size based on the source memory size | e.g., `memcpy_s(&dst, sizeof(dst), src, sizeof(dst))`, destMax == count == sizeof(destination) |
+| 5 | The source buffer consists entirely of static character/string constants and the destination buffer can fully accommodate the source data and the null terminator | e.g., `snprintf_s(buf, sizeof(buf), sizeof(buf) - 1, "ID:0x%x", val);`, format string is a literal and maximum output can be statically proven not to exceed destMax |
+
+**Exception 2: If secure functions are called again within the error handling code of another secure function's return value check, the return value check may be omitted.**
+
 ---
 
 ### 9. Class and Object Safety
