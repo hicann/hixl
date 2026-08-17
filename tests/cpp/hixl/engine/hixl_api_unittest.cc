@@ -845,6 +845,35 @@ TEST_F(HixlUTest, TestCommEngineGetTransferStatusUnsupported) {
   EXPECT_EQ(engine.GetTransferStatus(args, results), UNSUPPORTED);
 }
 
+TEST_F(HixlUTest, TestCommEngineRejectsUnsupportedOption) {
+  std::map<AscendString, AscendString> valid_options;
+  Hixl engine;
+  ASSERT_EQ(engine.Initialize("127.0.0.1:26200", valid_options), SUCCESS);
+
+  std::map<AscendString, AscendString> options;
+  options[AscendString("InvalidOption")] = AscendString("invalid_value");
+  EXPECT_EQ(engine.Initialize("127.0.0.1:26200", options), PARAM_INVALID);
+  engine.Finalize();
+}
+
+TEST_F(HixlUTest, TestCommEngineAcceptsSupportedOptions) {
+  std::map<AscendString, AscendString> options;
+  options[OPTION_RDMA_TRAFFIC_CLASS] = "4";
+  options[OPTION_RDMA_SERVICE_LEVEL] = "1";
+  options[OPTION_BUFFER_POOL] = "4:8";
+  Hixl engine;
+  EXPECT_EQ(engine.Initialize("127.0.0.1:26200", options), SUCCESS);
+  engine.Finalize();
+}
+
+TEST_F(HixlUTest, TestCommEngineAcceptsDisabledFabricMemOption) {
+  std::map<AscendString, AscendString> options;
+  options[OPTION_ENABLE_USE_FABRIC_MEM] = "0";
+  Hixl engine;
+  EXPECT_EQ(engine.Initialize("127.0.0.1:26200", options), SUCCESS);
+  engine.Finalize();
+}
+
 TEST_F(HixlUTest, TestGetCapabilityWithoutInitialize) {
   int32_t value = 0;
   EXPECT_EQ(Hixl::GetCapability(AUTO_CONNECT, value), SUCCESS);

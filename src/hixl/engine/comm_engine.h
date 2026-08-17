@@ -11,6 +11,9 @@
 #ifndef HIXL_SRC_HIXL_ENGINE_ADXL_ENGINE_H_
 #define HIXL_SRC_HIXL_ENGINE_ADXL_ENGINE_H_
 
+#include <string>
+#include <unordered_set>
+
 #include "engine.h"
 #include "hixl_options.h"
 #include "adxl/adxl_types.h"
@@ -59,6 +62,7 @@ class CommEngine : public Engine {
   Status RegisterCallbackProcessor(int32_t msg_type, CallbackProcessor processor) override;
 
  private:
+  static const std::unordered_set<std::string> kSupportedOptions;
   adxl::AdxlInnerEngine adxl_inner_engine_;
 };
 }  // namespace hixl

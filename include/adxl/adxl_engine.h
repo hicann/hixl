@@ -68,7 +68,8 @@ class ASCEND_FUNC_VISIBILITY AdxlEngine {
 
   /**
    * @brief 与远端AdxlEngine进行建链
-   * @param [in] remote_engine 远端AdxlEngine的唯一标识
+   * @param [in] remote_engine 远端AdxlEngine的唯一标识，格式需与远端AdxlEngine初始化时设置的local_engine一致，
+   * ipv4格式为host_ip:host_port或host_ip，ipv6格式为[host_ip]:host_port或[host_ip]
    * @param [in] timeout_in_millis 建链的超时时间，单位ms
    * @return 成功:SUCCESS, 失败:其它.
    */
@@ -76,7 +77,8 @@ class ASCEND_FUNC_VISIBILITY AdxlEngine {
 
   /**
    * @brief 与远端AdxlEngine进行断链
-   * @param [in] remote_engine 远端AdxlEngine的唯一标识
+   * @param [in] remote_engine 远端AdxlEngine的唯一标识，格式需与远端AdxlEngine初始化时设置的local_engine一致，
+   * ipv4格式为host_ip:host_port或host_ip，ipv6格式为[host_ip]:host_port或[host_ip]
    * @param [in] timeout_in_millis 断链的超时时间，单位ms
    * @return 成功:SUCCESS, 失败:其它.
    */
@@ -84,7 +86,8 @@ class ASCEND_FUNC_VISIBILITY AdxlEngine {
 
   /**
    * @brief 与远端AdxlEngine进行内存传输
-   * @param [in] remote_engine 远端AdxlEngine的唯一标识
+   * @param [in] remote_engine 远端AdxlEngine的唯一标识，格式需与远端AdxlEngine初始化时设置的local_engine一致，
+   * ipv4格式为host_ip:host_port或host_ip，ipv6格式为[host_ip]:host_port或[host_ip]
    * @param [in] operation 将远端内存读到本地或者将本地内存写到远端
    * @param [in] op_descs 批量操作的本地以及远端地址
    * @param [in] timeout_in_millis 传输的超时时间，单位ms
@@ -95,7 +98,8 @@ class ASCEND_FUNC_VISIBILITY AdxlEngine {
 
   /**
    * @brief 批量异步传输，下发传输请求
-   * @param [in] remote_engine 远端AdxlEngine的唯一标识
+   * @param [in] remote_engine 远端AdxlEngine的唯一标识，格式需与远端AdxlEngine初始化时设置的local_engine一致，
+   * ipv4格式为host_ip:host_port或host_ip，ipv6格式为[host_ip]:host_port或[host_ip]
    * @param [in] operation 将远端内存读到本地或者将本地内存写到远端
    * @param [in] op_descs 批量操作的本地以及远端地址
    * @param [in] optional_args 可选参数，预留
@@ -116,7 +120,8 @@ class ASCEND_FUNC_VISIBILITY AdxlEngine {
 
   /**
    * @brief Client向Server发送Notify信息
-   * @param [in] remote_engine 远端AdxlEngine的唯一标识
+   * @param [in] remote_engine 远端AdxlEngine的唯一标识，格式需与远端AdxlEngine初始化时设置的local_engine一致，
+   * ipv4格式为host_ip:host_port或host_ip，ipv6格式为[host_ip]:host_port或[host_ip]
    * @param [in] notify 要发送的Notify内容
    * @param [in] timeout_in_millis 发送超时时间，单位ms
    * @return 成功:SUCCESS, 失败:其它.

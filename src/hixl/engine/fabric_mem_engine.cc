@@ -104,11 +104,7 @@ Status FabricMemEngine::InitFabricMem() {
 }
 
 Status FabricMemEngine::InitializeLocked(const HixlOptions &options, bool &start_keepalive_monitor) {
-  for (const auto &key : options.RawOptions()) {
-    if (kSupportedOptions.find(key.first.GetString()) == kSupportedOptions.end()) {
-      HIXL_LOGW("[FabricMemEngine] Unsupported option '%s' will be ignored", key.first.GetString());
-    }
-  }
+  HIXL_CHK_STATUS_RET(options.CheckSupportedOptions(kSupportedOptions), "[FabricMemEngine] Unsupported option");
   HIXL_CHK_BOOL_RET_STATUS(options.EnableFabricMem().value_or(false), PARAM_INVALID,
                            "[FabricMemEngine] EnableUseFabricMem must be 1.");
   HIXL_CHK_ACL_RET(aclrtGetDevice(&device_id_), "[FabricMemEngine] Failed to get device id.");

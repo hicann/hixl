@@ -2069,4 +2069,13 @@ TEST_F(FabricMemEngineInitUTest, FabricMemTransferAsyncFailureClearsReq) {
   engine.Finalize();
 }
 
+TEST_F(FabricMemEngineInitUTest, RejectsUnsupportedOption) {
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
+  auto options = BuildFabricMemOptions();
+  options[AscendString("InvalidOption")] = AscendString("invalid_value");
+  EXPECT_EQ(InitEngineWithOptions(engine, options), PARAM_INVALID);
+}
+
 }  // namespace hixl

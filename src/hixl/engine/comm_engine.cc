@@ -12,7 +12,16 @@
 #include "common/hixl_checker.h"
 
 namespace hixl {
+const std::unordered_set<std::string> CommEngine::kSupportedOptions = {
+    OPTION_ENABLE_USE_FABRIC_MEM,    OPTION_RDMA_TRAFFIC_CLASS,
+    adxl::OPTION_RDMA_TRAFFIC_CLASS, OPTION_RDMA_SERVICE_LEVEL,
+    adxl::OPTION_RDMA_SERVICE_LEVEL, OPTION_LOCAL_COMM_RES,
+    adxl::OPTION_LOCAL_COMM_RES,     OPTION_BUFFER_POOL,
+    adxl::OPTION_BUFFER_POOL,        OPTION_AUTO_CONNECT,
+    adxl::OPTION_AUTO_CONNECT,       OPTION_GLOBAL_RESOURCE_CONFIG};
+
 Status CommEngine::Initialize(const HixlOptions &options) {
+  HIXL_CHK_STATUS_RET(options.CheckSupportedOptions(kSupportedOptions), "[CommEngine] Unsupported option");
   return adxl_inner_engine_.Initialize(options.RawOptions());
 }
 
