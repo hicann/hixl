@@ -1009,6 +1009,7 @@ TEST_F(HixlClientUTest, TransferAsyncSuccessWithUbTest) {
   SetupTransferTest(true);
   auto op_descs = CreateTransferOps(4, &kLocalMems[0], &kRemoteMems[0]);
   CreateAsyncTransfer(op_descs, WRITE);
+  CreateAsyncTransfer(op_descs, READ);
 }
 
 // TransferSync 接口测试：异常场景 - 未建链

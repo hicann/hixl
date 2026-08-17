@@ -154,7 +154,7 @@ Status HixlServer::Finalize() {
   for (const auto &handle : handle_to_addr_) {
     Status ret = HixlCSServerUnregMem(server_handle_, handle.first);
     if (ret != SUCCESS) {
-      HIXL_LOGE(ret, "Failed to deregister mem, handle:%p.", handle);
+      HIXL_LOGE(ret, "Failed to deregister mem, handle:%p.", handle.first);
     }
   }
   handle_to_addr_.clear();

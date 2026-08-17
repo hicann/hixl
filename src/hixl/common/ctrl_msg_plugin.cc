@@ -213,6 +213,7 @@ Status CtrlMsgPlugin::Accept(int32_t listen_fd, int32_t &conn_fd) {
   if (conn_fd < 0) {
     HIXL_CHK_BOOL_RET_STATUS(errno == EWOULDBLOCK || errno == EINTR || errno == ECONNABORTED, FAILED,
                              "Failed to accept, error msg=%s, errno=%d", strerror(errno), errno);
+    return SUCCESS;
   }
   HIXL_EVENT("accept success, listen_fd:%d, conn_fd:%d", listen_fd, conn_fd);
   return SUCCESS;

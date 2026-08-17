@@ -616,6 +616,9 @@ Status HixlCSServer::DoWait() {
     if (fd == listen_fd_) {
       int32_t connect_fd = -1;
       HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Accept(listen_fd_, connect_fd), "Failed to accept fd");
+      if (connect_fd < 0) {
+        continue;
+      }
       HIXL_CHK_STATUS_RET(CtrlMsgPlugin::SetTcpNoDelay(connect_fd), "Failed to set tcp nodelay, fd:%d", connect_fd);
       HIXL_CHK_STATUS_RET(CtrlMsgPlugin::SetTcpKeepAlive(connect_fd), "Failed to set tcp keep alive, fd:%d",
                           connect_fd);

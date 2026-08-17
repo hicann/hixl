@@ -347,28 +347,30 @@ Status UbClientHandler::TransferAsync(const std::vector<TransferOpDesc> &op_desc
   }
 
   std::vector<BatchHandle> batch_handles;
-  std::lock_guard<std::mutex> lock(handle_mutex_);
-  for (const auto &[type, descs] : table) {
-    auto it = handles_.find(type);
-    if (it == handles_.end()) {
-      return FAILED;
-    }
-    auto handle = it->second;
+  {
+    std::lock_guard<std::mutex> lock(handle_mutex_);
+    for (const auto &[type, descs] : table) {
+      auto it = handles_.find(type);
+      if (it == handles_.end()) {
+        return FAILED;
+      }
+      auto handle = it->second;
 
-    uint32_t list_num = static_cast<uint32_t>(descs.size());
-    std::vector<HixlOneSideOpDesc> hixl_descs(list_num);
-    for (size_t i = 0; i < list_num; i++) {
-      hixl_descs[i].remote_buf = reinterpret_cast<void *>(descs[i].remote_addr);
-      hixl_descs[i].local_buf = reinterpret_cast<void *>(descs[i].local_addr);
-      hixl_descs[i].len = descs[i].len;
+      uint32_t list_num = static_cast<uint32_t>(descs.size());
+      std::vector<HixlOneSideOpDesc> hixl_descs(list_num);
+      for (size_t i = 0; i < list_num; i++) {
+        hixl_descs[i].remote_buf = reinterpret_cast<void *>(descs[i].remote_addr);
+        hixl_descs[i].local_buf = reinterpret_cast<void *>(descs[i].local_addr);
+        hixl_descs[i].len = descs[i].len;
+      }
+      CompleteHandle complete_handle = nullptr;
+      if (operation == WRITE) {
+        HIXL_CHK_STATUS_RET(HixlCSClientBatchPutAsync(handle, list_num, hixl_descs.data(), &complete_handle));
+      } else {
+        HIXL_CHK_STATUS_RET(HixlCSClientBatchGetAsync(handle, list_num, hixl_descs.data(), &complete_handle));
+      }
+      batch_handles.push_back({type, complete_handle});
     }
-    CompleteHandle complete_handle = nullptr;
-    if (operation == WRITE) {
-      HIXL_CHK_STATUS_RET(HixlCSClientBatchPutAsync(handle, list_num, hixl_descs.data(), &complete_handle));
-    } else {
-      HIXL_CHK_STATUS_RET(HixlCSClientBatchGetAsync(handle, list_num, hixl_descs.data(), &complete_handle));
-    }
-    batch_handles.push_back({type, complete_handle});
   }
   req = static_cast<TransferReq>(batch_handles[0].handle);
   std::lock_guard<std::mutex> ch_lock(complete_handles_mutex_);
