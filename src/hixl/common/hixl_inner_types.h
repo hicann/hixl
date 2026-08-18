@@ -27,6 +27,7 @@ struct HixlOneSideOpParam {
   uint64_t local_flag_addr;
   uint32_t notify_id;
   uint32_t use_notify_record;
+  uint32_t reserved[18] = {};
 };
 
 enum HixlTransferThreadState : uint32_t {
@@ -45,14 +46,17 @@ struct HixlTransferContextSyncEntry {
   uint32_t op;
   uint32_t notify_id;
   uint64_t err_flag_dev_va;
-  uint64_t reserved;
+  uint64_t reserved[13] = {};
 };
+
+constexpr uint32_t kHixlSyncParamVersion = 1U;
 
 struct HixlTransferContextSyncParam {
   uint64_t entry_list_addr;
   uint64_t state_list_addr;
   uint32_t entry_num;
-  uint32_t reserved;
+  uint32_t version;
+  uint32_t reserved[25] = {};
 };
 
 namespace hixl {

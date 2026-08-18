@@ -18,6 +18,10 @@ namespace {
 
 Status ValidateSyncTransferContextParam(const HixlTransferContextSyncParam *param) {
   HIXL_CHK_BOOL_RET_STATUS(param != nullptr, PARAM_INVALID, "[HixlSyncTransferContext] param is nullptr");
+  HIXL_CHK_BOOL_RET_STATUS(param->version == kHixlSyncParamVersion, PARAM_INVALID,
+                           "[HixlSyncTransferContext] kernel args version mismatch, expected:%u, got:%u. "
+                           "Host and device tar packages may be from different versions.",
+                           kHixlSyncParamVersion, param->version);
   HIXL_CHK_BOOL_RET_STATUS(param->entry_num > 0U, PARAM_INVALID, "[HixlSyncTransferContext] entry_num is 0");
   HIXL_CHK_BOOL_RET_STATUS(param->entry_list_addr != 0U, PARAM_INVALID,
                            "[HixlSyncTransferContext] entry_list_addr is 0");

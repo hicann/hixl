@@ -104,6 +104,7 @@ uint32_t SyncContext(ThreadHandle thread, uint32_t op, uint32_t *state) {
   param.entry_list_addr = reinterpret_cast<uint64_t>(&entry);
   param.state_list_addr = reinterpret_cast<uint64_t>(&result_state);
   param.entry_num = 1U;
+  param.version = kHixlSyncParamVersion;
   uint32_t ret = HixlSyncTransferContext(&param);
   if (state != nullptr) {
     *state = result_state;
@@ -545,6 +546,7 @@ TEST_F(HixlSyncTransferContextTest, NullParamReturnsFailed) {
 TEST_F(HixlSyncTransferContextTest, ZeroEntryNumReturnsFailed) {
   HixlTransferContextSyncParam param{};
   param.entry_num = 0U;
+  param.version = kHixlSyncParamVersion;
   EXPECT_EQ(HixlSyncTransferContext(&param), FAILED);
 }
 
@@ -552,6 +554,7 @@ TEST_F(HixlSyncTransferContextTest, ZeroEntryListAddrReturnsFailed) {
   HixlTransferContextSyncParam param{};
   param.entry_num = 1U;
   param.entry_list_addr = 0U;
+  param.version = kHixlSyncParamVersion;
   EXPECT_EQ(HixlSyncTransferContext(&param), FAILED);
 }
 
@@ -563,6 +566,7 @@ TEST_F(HixlSyncTransferContextTest, ZeroStateListAddrReturnsFailed) {
   param.entry_num = 1U;
   param.entry_list_addr = reinterpret_cast<uint64_t>(&entry);
   param.state_list_addr = 0U;
+  param.version = kHixlSyncParamVersion;
   EXPECT_EQ(HixlSyncTransferContext(&param), FAILED);
 }
 
@@ -575,6 +579,7 @@ TEST_F(HixlSyncTransferContextTest, InvalidOpReturnsFailed) {
   param.entry_num = 1U;
   param.entry_list_addr = reinterpret_cast<uint64_t>(&entry);
   param.state_list_addr = reinterpret_cast<uint64_t>(&state);
+  param.version = kHixlSyncParamVersion;
   EXPECT_EQ(HixlSyncTransferContext(&param), FAILED);
 }
 
@@ -598,6 +603,7 @@ TEST_F(HixlSyncTransferContextTest, MultipleEntriesBatch) {
   param.entry_list_addr = reinterpret_cast<uint64_t>(entries);
   param.state_list_addr = reinterpret_cast<uint64_t>(states);
   param.entry_num = kEntryCount;
+  param.version = kHixlSyncParamVersion;
 
   EXPECT_EQ(HixlSyncTransferContext(&param), SUCCESS);
   EXPECT_EQ(states[0], TRANSFER_THREAD_STATE_INITIALIZED);
@@ -621,6 +627,7 @@ TEST_F(HixlSyncTransferContextTest, ExtendedFieldsStoredAfterAdd) {
   param.entry_list_addr = reinterpret_cast<uint64_t>(&entry);
   param.state_list_addr = reinterpret_cast<uint64_t>(&state);
   param.entry_num = 1U;
+  param.version = kHixlSyncParamVersion;
 
   EXPECT_EQ(HixlSyncTransferContext(&param), SUCCESS);
   EXPECT_EQ(state, TRANSFER_THREAD_STATE_INITIALIZED);
@@ -629,6 +636,19 @@ TEST_F(HixlSyncTransferContextTest, ExtendedFieldsStoredAfterAdd) {
   ASSERT_NE(ctx, nullptr);
   EXPECT_EQ(ctx->notify_id, kNotifyId);
   EXPECT_EQ(ctx->err_flag_dev_va, kErrFlagDevVa);
+}
+
+TEST_F(HixlSyncTransferContextTest, VersionMismatchReturnsFailed) {
+  HixlTransferContextSyncEntry entry{};
+  entry.thread = kKernelTestThread;
+  entry.op = TRANSFER_CONTEXT_OP_ADD;
+  uint32_t state = 0U;
+  HixlTransferContextSyncParam param{};
+  param.entry_list_addr = reinterpret_cast<uint64_t>(&entry);
+  param.state_list_addr = reinterpret_cast<uint64_t>(&state);
+  param.entry_num = 1U;
+  param.version = kHixlSyncParamVersion + 1U;
+  EXPECT_EQ(HixlSyncTransferContext(&param), FAILED);
 }
 
 // ==================== TransferContext::WriteErrorFlag tests ====================
@@ -667,6 +687,7 @@ TEST_F(WriteErrorFlagTest, WritesOneWhenErrFlagDevVaNonZero) {
   param.entry_list_addr = reinterpret_cast<uint64_t>(&entry);
   param.state_list_addr = reinterpret_cast<uint64_t>(&state);
   param.entry_num = 1U;
+  param.version = kHixlSyncParamVersion;
   ASSERT_EQ(HixlSyncTransferContext(&param), SUCCESS);
 
   auto ctx = TransferContextManager::Instance().Get(kKernelTestThread);
@@ -760,6 +781,7 @@ class BatchTransferErrFlagTest : public ::testing::Test {
     param.entry_list_addr = reinterpret_cast<uint64_t>(&entry);
     param.state_list_addr = reinterpret_cast<uint64_t>(&state);
     param.entry_num = 1U;
+    param.version = kHixlSyncParamVersion;
     ASSERT_EQ(HixlSyncTransferContext(&param), SUCCESS);
   }
 
@@ -850,6 +872,7 @@ class ExceptionCallbackTest : public ::testing::Test {
     param.entry_list_addr = reinterpret_cast<uint64_t>(&entry);
     param.state_list_addr = reinterpret_cast<uint64_t>(&state);
     param.entry_num = 1U;
+    param.version = kHixlSyncParamVersion;
     ASSERT_EQ(HixlSyncTransferContext(&param), SUCCESS);
   }
 

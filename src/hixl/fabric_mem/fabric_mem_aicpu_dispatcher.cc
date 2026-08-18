@@ -276,6 +276,7 @@ Status FabricMemAicpuDispatcher::LaunchSyncContextKernel(const std::vector<HixlT
   param.entry_list_addr = PtrToValue(dev_entries);
   param.state_list_addr = PtrToValue(dev_states);
   param.entry_num = static_cast<uint32_t>(entries.size());
+  param.version = kHixlSyncParamVersion;
   void *dev_args = nullptr;
   HIXL_CHK_ACL_RET(aclrtMalloc(&dev_args, sizeof(param), ACL_MEM_MALLOC_NORMAL_ONLY),
                    "Allocate HixlSyncTransferContext args failed.");
@@ -398,7 +399,7 @@ Status FabricMemAicpuDispatcher::LaunchOneDescriptorBatch(const AsyncSlot &slot,
   const size_t next_task_count = tasks_since_notify + count;
   const bool transfer_tail = begin + count == total_descs;
   const bool emit_notify = next_task_count >= kFabricMemMaxInFlightRtsqTasks || transfer_tail;
-  FabricMemAicpuKernelParam param;
+  FabricMemAicpuKernelParam param{};
   param.desc_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(descriptor_buffer) +
                                           begin * sizeof(FabricMemAicpuTransferDesc));
   param.desc_count = static_cast<uint32_t>(count);
@@ -407,6 +408,7 @@ Status FabricMemAicpuDispatcher::LaunchOneDescriptorBatch(const AsyncSlot &slot,
   param.notify_id = slot.notify_ids[0U];
   param.emit_notify_record = emit_notify ? 1U : 0U;
   param.transfer_ctx_key = slot.transfer_ctx_key;
+  param.version = kFabricMemKernelParamVersion;
   if (status_buffer != nullptr) {
     param.status_addr =
         static_cast<uint64_t>(reinterpret_cast<uintptr_t>(status_buffer) + status_idx * sizeof(uint32_t));

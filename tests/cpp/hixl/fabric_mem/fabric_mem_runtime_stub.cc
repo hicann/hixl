@@ -166,7 +166,8 @@ aclError FabricMemRuntimeStub::aclrtLaunchKernelV2(aclrtFuncHandle function, uin
                                                    size_t args_size, aclrtLaunchKernelCfg *cfg, aclrtStream stream) {
   ++kernel_launch_count_;
   submission_events_.emplace_back(SubmissionEvent::kKernelLaunch);
-  if (args_data != nullptr && args_size == sizeof(FabricMemAicpuKernelParam)) {
+  if (args_data != nullptr && args_size == sizeof(FabricMemAicpuKernelParam) &&
+      static_cast<const FabricMemAicpuKernelParam *>(args_data)->version == kFabricMemKernelParamVersion) {
     kernel_params_.emplace_back(*static_cast<const FabricMemAicpuKernelParam *>(args_data));
   }
   if (kernel_launch_error_ != ACL_ERROR_NONE &&
@@ -178,7 +179,8 @@ aclError FabricMemRuntimeStub::aclrtLaunchKernelV2(aclrtFuncHandle function, uin
 
 aclError FabricMemRuntimeStub::aclrtKernelArgsAppend(aclrtArgsHandle args_handle, void *data, size_t size,
                                                      aclrtParamHandle *param_handle) {
-  if (data != nullptr && size == sizeof(FabricMemAicpuKernelParam)) {
+  if (data != nullptr && size == sizeof(FabricMemAicpuKernelParam) &&
+      static_cast<const FabricMemAicpuKernelParam *>(data)->version == kFabricMemKernelParamVersion) {
     kernel_params_.emplace_back(*static_cast<FabricMemAicpuKernelParam *>(data));
   }
   return llm::AclRuntimeStub::aclrtKernelArgsAppend(args_handle, data, size, param_handle);

@@ -40,6 +40,14 @@ uint32_t ExecuteBatch(FabricMemAicpuKernelParam *param, FabricMemAicpuTransferDi
     write_status(param, kFailed);
     return kFailed;
   }
+  if (param->version != kFabricMemKernelParamVersion) {
+    HIXL_LOGE(PARAM_INVALID,
+              "[FabricMem][AICPU] kernel args version mismatch, expected:%u, got:%u. "
+              "Host and device tar packages may be from different versions.",
+              kFabricMemKernelParamVersion, param->version);
+    write_status(param, kFailed);
+    return kFailed;
+  }
   auto ctx = TransferContextManager::Instance().Get(static_cast<ThreadHandle>(param->transfer_ctx_key));
   if (ctx == nullptr || ctx->GetState() != TRANSFER_THREAD_STATE_INITIALIZED) {
     HIXL_LOGE(FAILED, "[FabricMem][AICPU] transfer context unavailable, key=%llu",

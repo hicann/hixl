@@ -181,6 +181,7 @@ FabricMemAicpuKernelParam MakeParam(const void *descs, uint32_t desc_count, Fabr
   param.rtsq_logic_cq_id = kLogicCqId;
   param.direction = static_cast<uint32_t>(direction);
   param.transfer_ctx_key = static_cast<uint64_t>(kTransferCtxKey);
+  param.version = kFabricMemKernelParamVersion;
   return param;
 }
 
@@ -688,6 +689,15 @@ TEST_F(FabricMemAicpuKernelUTest, BatchEntryRejectsMismatchedDirection) {
 
   EXPECT_EQ(HixlFabricMemBatchRead(&param), 1U);
   EXPECT_EQ(g_query_count, 0U);
+  EXPECT_TRUE(g_sdma_tasks.empty());
+}
+
+TEST_F(FabricMemAicpuKernelUTest, BatchReadRejectsVersionMismatch) {
+  FabricMemAicpuTransferDesc desc{0x1000U, 0x2000U, 16U};
+  auto param = MakeParam(&desc, 1U, FabricMemAicpuTransferDirection::kRead);
+  param.version = kFabricMemKernelParamVersion + 1U;
+
+  EXPECT_EQ(HixlFabricMemBatchRead(&param), 1U);
   EXPECT_TRUE(g_sdma_tasks.empty());
 }
 }  // namespace

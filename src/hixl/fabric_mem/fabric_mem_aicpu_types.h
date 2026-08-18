@@ -38,7 +38,10 @@ struct FabricMemAicpuTransferDesc {
   uint64_t src_addr = 0U;
   uint64_t dst_addr = 0U;
   uint64_t length = 0U;
+  uint64_t reserved[13] = {};
 };
+
+constexpr uint32_t kFabricMemKernelParamVersion = 1U;
 
 struct FabricMemAicpuKernelParam {
   uint64_t desc_addr = 0U;
@@ -71,6 +74,8 @@ struct FabricMemAicpuKernelParam {
   // Synthetic TransferContextManager key (host sets from slot notify). Kernel locks
   // this context for the duration of Submit so disconnect Sync DELETE can try_lock.
   uint64_t transfer_ctx_key = 0U;
+  uint32_t version = 0U;
+  uint32_t reserved[15] = {};
 };
 
 // Device buffers allocated on the host side must remain alive until the stream

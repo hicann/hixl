@@ -703,6 +703,7 @@ Status TransferPool::LaunchSyncContextKernelLocked(const std::vector<HixlTransfe
   param.entry_list_addr = PtrToValue(dev_entries);
   param.state_list_addr = PtrToValue(dev_states);
   param.entry_num = static_cast<uint32_t>(entries.size());
+  param.version = kHixlSyncParamVersion;
   aclrtArgsHandle args_handle = nullptr;
   HIXL_CHK_ACL_RET(aclrtKernelArgsInit(device_func_handles_.sync_transfer_context, &args_handle),
                    "[TransferPool] aclrtKernelArgsInit HixlSyncTransferContext failed");
