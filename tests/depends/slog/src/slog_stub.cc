@@ -224,9 +224,44 @@ bool LogCaptureStub::WaitForAllPatternsCaptured(int timeout_ms) {
 }
 }  // namespace llm
 
+namespace {
+constexpr int32_t kAclLogModuleIdMax = 0xffff;
+llm::LogCallStats g_log_call_stats;
+std::mutex g_log_call_stats_mutex;
+
+void SaveLogCall(int32_t module_id, int32_t level, bool is_acl) {
+  std::lock_guard<std::mutex> lock(g_log_call_stats_mutex);
+  if (is_acl) {
+    ++g_log_call_stats.acl_record_count;
+  } else {
+    ++g_log_call_stats.slog_record_count;
+  }
+  g_log_call_stats.last_module_id = module_id;
+  g_log_call_stats.last_level = level;
+}
+
+void SaveRunLogCheck() {
+  std::lock_guard<std::mutex> lock(g_log_call_stats_mutex);
+  ++g_log_call_stats.run_check_count;
+}
+}  // namespace
+
+namespace llm {
+void ResetLogCallStats() {
+  std::lock_guard<std::mutex> lock(g_log_call_stats_mutex);
+  g_log_call_stats = {};
+}
+
+LogCallStats GetLogCallStats() {
+  std::lock_guard<std::mutex> lock(g_log_call_stats_mutex);
+  return g_log_call_stats;
+}
+}  // namespace llm
+
 void dav_log(int module_id, const char *fmt, ...) {}
 
 void DlogRecord(int moduleId, int level, const char *fmt, ...) {
+  SaveLogCall(moduleId, level, false);
   va_list valist;
   va_start(valist, fmt);
   if (moduleId & RUN_LOG_MASK) {
@@ -237,7 +272,36 @@ void DlogRecord(int moduleId, int level, const char *fmt, ...) {
   va_end(valist);
 }
 
+void acllogRecord(int32_t module_id, int32_t level, const char *fmt, ...) {
+  const bool is_run_log = (static_cast<uint32_t>(module_id) & static_cast<uint32_t>(RUN_LOG_MASK)) != 0U;
+  if ((module_id < 0) || ((!is_run_log) && (module_id > kAclLogModuleIdMax))) {
+    return;
+  }
+  SaveLogCall(module_id, level, true);
+  va_list valist;
+  va_start(valist, fmt);
+  if (module_id & RUN_LOG_MASK) {
+    llm::SlogStub::GetInstance()->Log(module_id & (~RUN_LOG_MASK), DLOG_INFO, fmt, valist);
+  } else {
+    llm::SlogStub::GetInstance()->Log(module_id, level, fmt, valist);
+  }
+  va_end(valist);
+}
+
+int32_t aclsysGetVersionNum(char *pkg_name, int32_t *version_num) {
+  if ((pkg_name == nullptr) || (version_num == nullptr) || (strcmp(pkg_name, "runtime") != 0)) {
+    return -1;
+  }
+  *version_num = 90300001;
+  return 0;
+}
+
+int32_t acllogCheckDebugLevel(int32_t module_id, int32_t log_level) {
+  return CheckLogLevel(module_id, log_level);
+}
+
 void DlogErrorInner(int module_id, const char *fmt, ...) {
+  SaveLogCall(module_id, DLOG_ERROR, false);
   va_list valist;
   va_start(valist, fmt);
   llm::SlogStub::GetInstance()->Log(module_id, DLOG_ERROR, fmt, valist);
@@ -245,6 +309,7 @@ void DlogErrorInner(int module_id, const char *fmt, ...) {
 }
 
 void DlogWarnInner(int module_id, const char *fmt, ...) {
+  SaveLogCall(module_id, DLOG_WARN, false);
   va_list valist;
   va_start(valist, fmt);
   llm::SlogStub::GetInstance()->Log(module_id, DLOG_WARN, fmt, valist);
@@ -252,6 +317,7 @@ void DlogWarnInner(int module_id, const char *fmt, ...) {
 }
 
 void DlogInfoInner(int module_id, const char *fmt, ...) {
+  SaveLogCall(module_id, DLOG_INFO, false);
   va_list valist;
   va_start(valist, fmt);
   if (module_id & RUN_LOG_MASK) {
@@ -263,6 +329,7 @@ void DlogInfoInner(int module_id, const char *fmt, ...) {
 }
 
 void DlogDebugInner(int module_id, const char *fmt, ...) {
+  SaveLogCall(module_id, DLOG_DEBUG, false);
   va_list valist;
   va_start(valist, fmt);
   llm::SlogStub::GetInstance()->Log(module_id, DLOG_DEBUG, fmt, valist);
@@ -299,7 +366,8 @@ int dlog_getlevel(int module_id, int *enable_event) {
 
 int CheckLogLevel(int moduleId, int log_level_check) {
   if (moduleId & RUN_LOG_MASK) {
-    return 1;
+    SaveRunLogCheck();
+    return llm::SlogStub::GetInstance()->GetEventLevel();
   }
   if (moduleId == GE) {
     return log_level_check >= llm::ge_log_level;

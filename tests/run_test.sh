@@ -374,6 +374,9 @@ run() {
             hixl)
               echo "${BUILD_PATH}/tests/cpp/hixl/hixl_test"
               ;;
+            log_fallback)
+              echo "${BUILD_PATH}/tests/cpp/hixl/log_fallback_test"
+              ;;
             fabric_mem)
               echo "${BUILD_PATH}/tests/cpp/hixl/fabric_mem/fabric_mem_test"
               ;;
@@ -551,6 +554,9 @@ run() {
 
       for suite in "${CPP_TEST_SUITES[@]}"; do
           run_cpp_test_parallel "${suite}"
+          if [[ "${suite}" == "hixl" ]]; then
+              run_cpp_test_parallel "log_fallback"
+          fi
       done
 
       HIXL_PARALLEL_FAILED=0

@@ -20,18 +20,22 @@
 
 #define DLOG_EVENT 0x10
 
-#define LOG_BY_TYPE(type, fmt, ...)                                                                                 \
-  do {                                                                                                              \
-    if (type == DLOG_INFO) {                                                                                        \
-      dlog_info(LLM_MODULE_NAME, "[HIXL] %lu %s %s:" fmt, LlmLog::GetTid(), GetId().c_str(), __FUNCTION__,          \
-                ##__VA_ARGS__);                                                                                     \
-    } else if (type == DLOG_ERROR) {                                                                                \
-      LLMLOGE(ge::FAILED, fmt, ##__VA_ARGS__);                                                                      \
-    } else if (type == DLOG_EVENT) {                                                                                \
-      dlog_info(static_cast<int32_t>(static_cast<uint32_t>(RUN_LOG_MASK) | static_cast<uint32_t>(LLM_MODULE_NAME)), \
-                "[HIXL] %lu %s %s:" fmt, LlmLog::GetTid(), GetId().c_str(), __FUNCTION__, ##__VA_ARGS__);           \
-    } else {                                                                                                        \
-    }                                                                                                               \
+#define LOG_BY_TYPE(type, fmt, ...)                                                                            \
+  do {                                                                                                         \
+    if (type == DLOG_INFO) {                                                                                   \
+      if (LlmIsLogEnable(LLM_MODULE_NAME, DLOG_INFO)) {                                                        \
+        LLM_RECORD(LLM_MODULE_NAME, DLOG_INFO, "[HIXL] %lu %s %s:" fmt, LlmLog::GetTid(), GetId().c_str(),     \
+                   __FUNCTION__, ##__VA_ARGS__);                                                               \
+      }                                                                                                        \
+    } else if (type == DLOG_ERROR) {                                                                           \
+      LLMLOGE(ge::FAILED, fmt, ##__VA_ARGS__);                                                                 \
+    } else if (type == DLOG_EVENT) {                                                                           \
+      const int32_t event_module =                                                                             \
+          static_cast<int32_t>(static_cast<uint32_t>(RUN_LOG_MASK) | static_cast<uint32_t>(LLM_MODULE_NAME));  \
+      HixlGetRunLogRecord()(event_module, DLOG_INFO, "[%s:%d][HIXL] %lu %s %s:" fmt, DLOG_FILE_NAME, __LINE__, \
+                            LlmLog::GetTid(), GetId().c_str(), __FUNCTION__, ##__VA_ARGS__);                   \
+    } else {                                                                                                   \
+    }                                                                                                          \
   } while (false)
 
 namespace llm {

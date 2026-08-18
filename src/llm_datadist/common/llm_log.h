@@ -11,83 +11,39 @@
 #ifndef CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_LLM_LOG_H
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_LLM_LOG_H
 
-#include <cinttypes>
 #include <cstdint>
 #include <map>
 #include <set>
 #include <string>
 #include <vector>
 #include <mutex>
-#include <cstring>
-#include <cstdlib>
-#include <unistd.h>
-#include <sys/syscall.h>
 
 // LLM_ERROR_CODES has been defined in metadef, that will cause can't find the info in llm_error_codes.h
 #include "llm_datadist/llm_error_codes.h"
-#include "dlog_pub.h"
 #include "base/err_msg.h"
 #include "acl/acl.h"
 #include "hixl/hixl_types.h"
+#include "dlog_pub.h"
+#include "../../hixl/common/hixl_log.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#define LLM_MODULE_NAME static_cast<int32_t>(GE)
+#define LLM_MODULE_NAME HIXL_MODULE_NAME
 #define LLM_MODULE_NAME_U16 static_cast<int32_t>(GE)
 
-class GE_FUNC_VISIBILITY LlmLog {
- public:
-  static uint64_t GetTid() {
-    const uint64_t tid = static_cast<uint64_t>(syscall(__NR_gettid));
-    return tid;
-  }
-};
+using LlmLog = HixlLog;
 
 inline bool LlmIsLogEnable(const int32_t module_name, const int32_t log_level) {
-  const int32_t enable = CheckLogLevel(module_name, log_level);
-  // 1:enable, 0:disable
-  return (enable == 1);
+  return HixlCheckLogLevel(module_name, log_level);
 }
 
-inline bool LlmLogPrintStdout() {
-  static const int32_t stdout_flag = []() {
-    const char *env_ret = getenv("ASCEND_SLOG_PRINT_TO_STDOUT");
-    const bool print_stdout = ((env_ret != nullptr) && (strcmp(env_ret, "1") == 0));
-    return print_stdout ? 1 : 0;
-  }();
-  return (stdout_flag == 1) ? true : false;
-}
-
-#define LLMLOGE(ERROR_CODE, fmt, ...)                                                                     \
-  do {                                                                                                    \
-    dlog_error(LLM_MODULE_NAME, "[HIXL] %" PRIu64 " %s: ErrorNo: %" PRIuLEAST8 " " fmt, LlmLog::GetTid(), \
-               &__FUNCTION__[0U], (ERROR_CODE), ##__VA_ARGS__);                                           \
-  } while (false)
-
-#define LLMLOGW(fmt, ...)                                                                                         \
-  do {                                                                                                            \
-    dlog_warn(LLM_MODULE_NAME, "[HIXL] %" PRIu64 " %s:" fmt, LlmLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__); \
-  } while (false)
-
-#define LLMLOGI(fmt, ...)                                                                                         \
-  do {                                                                                                            \
-    dlog_info(LLM_MODULE_NAME, "[HIXL] %" PRIu64 " %s:" fmt, LlmLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__); \
-  } while (false)
-
-#define LLMLOGD(fmt, ...)                                                                                          \
-  do {                                                                                                             \
-    dlog_debug(LLM_MODULE_NAME, "[HIXL] %" PRIu64 " %s:" fmt, LlmLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__); \
-  } while (false)
-
-#define LLMEVENT(fmt, ...)                                                                                          \
-  do {                                                                                                              \
-    dlog_info(static_cast<int32_t>(static_cast<uint32_t>(RUN_LOG_MASK) | static_cast<uint32_t>(LLM_MODULE_NAME)),   \
-              "[HIXL] %" PRIu64 " %s:" fmt, LlmLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__);                    \
-    if (!LlmLogPrintStdout()) {                                                                                     \
-      dlog_info(LLM_MODULE_NAME, "[HIXL] %" PRIu64 " %s:" fmt, LlmLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__); \
-    }                                                                                                               \
-  } while (false)
+#define LLM_RECORD(MODULE, LEVEL, fmt, ...) HIXL_RECORD((MODULE), (LEVEL), fmt, ##__VA_ARGS__)
+#define LLMLOGE(ERROR_CODE, fmt, ...) HIXL_LOGE((ERROR_CODE), fmt, ##__VA_ARGS__)
+#define LLMLOGW(fmt, ...) HIXL_LOGW(fmt, ##__VA_ARGS__)
+#define LLMLOGI(fmt, ...) HIXL_LOGI(fmt, ##__VA_ARGS__)
+#define LLMLOGD(fmt, ...) HIXL_LOGD(fmt, ##__VA_ARGS__)
+#define LLMEVENT(fmt, ...) HIXL_EVENT(fmt, ##__VA_ARGS__)
 
 #define LLM_LOGE_IF(condition, ...)     \
   if ((condition)) {                    \

@@ -19,6 +19,17 @@
 #include <condition_variable>
 #include "dlog_pub.h"
 namespace llm {
+struct LogCallStats {
+  int32_t acl_record_count = 0;
+  int32_t slog_record_count = 0;
+  int32_t run_check_count = 0;
+  int32_t last_module_id = -1;
+  int32_t last_level = -1;
+};
+
+void ResetLogCallStats();
+LogCallStats GetLogCallStats();
+
 class SlogStub {
  public:
   SlogStub() {
@@ -147,4 +158,11 @@ class LogCaptureStub : public SlogStub {
   std::condition_variable log_cv_;
 };
 }  // namespace llm
+
+extern "C" {
+int32_t acllogCheckDebugLevel(int32_t module_id, int32_t log_level);
+void acllogRecord(int32_t module_id, int32_t level, const char *fmt, ...);
+int32_t aclsysGetVersionNum(char *pkg_name, int32_t *version_num);
+}
+
 #endif  // AIR_CXX_TESTS_DEPENDS_SLOG_SRC_SLOG_STUB_H_

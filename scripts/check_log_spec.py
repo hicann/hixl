@@ -18,6 +18,7 @@ import sys
 
 
 FORMAT_INDEX = {
+    "HIXL_RECORD": 2,
     "HIXL_LOGE": 1,
     "HIXL_LOGW": 0,
     "HIXL_LOGI": 0,
@@ -25,6 +26,7 @@ FORMAT_INDEX = {
     "HIXL_EVENT": 0,
     "HIXL_REPORT_ERR_MSG": 1,
     "REPORT_INNER_ERR_MSG": 1,
+    "LLM_RECORD": 2,
     "LLMLOGE": 1,
     "LLMLOGW": 0,
     "LLMLOGI": 0,

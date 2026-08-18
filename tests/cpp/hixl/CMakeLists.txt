@@ -15,6 +15,7 @@ set(HIXL_TEST_FILES
         proxy/dcmi_proxy_ut.cc
         llm_datadist_timer_ut.cc
         proxy/dsmi_proxy_ut.cc
+        common/log_macro_ut.cc
         cs/endpoint_store_ut.cc
         cs/test_hixl_cs_server.cc
         cs/hixl_cs_client_ut.cc
@@ -78,6 +79,27 @@ add_executable(hixl_test
         ${ADXL_SRC_LIST}
         ${HIXL_SRC_LIST}
         )
+
+add_executable(log_fallback_test common/log_fallback_ut.cc)
+target_compile_options(log_fallback_test PRIVATE ${DT_COMMON_COMPILE_OPTION} -Wall -Wfloat-equal)
+target_compile_definitions(log_fallback_test PRIVATE _GLIBCXX_USE_CXX11_ABI=0)
+target_include_directories(log_fallback_test PRIVATE
+        ${HIXL_CODE_DIR}/include
+        ${HIXL_CODE_DIR}/src/hixl
+        ${HIXL_CODE_DIR}/src/hixl/common
+        ${HIXL_CODE_DIR}/src/llm_datadist
+)
+target_link_libraries(log_fallback_test PRIVATE
+        ${ASAN_LINK_OPTION}
+        ${GCOV_LINK_OPTION}
+        c_sec
+        runtime_headers
+        metadef_headers
+        slog_headers
+        GTest::gtest
+        GTest::gtest_main
+)
+set_target_properties(log_fallback_test PROPERTIES CXX_STANDARD 17)
 
 target_compile_options(hixl_test PRIVATE
         ${DT_COMMON_COMPILE_OPTION}

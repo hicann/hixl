@@ -88,6 +88,13 @@ class LogSpecCheckerTest(unittest.TestCase):
     def test_rejects_non_ascii_log_text(self):
         self.assert_invalid('HIXL_LOGI("value：%d", value);', "non-ASCII")
 
+    def test_checks_record_macro_format_arguments(self):
+        self.assert_valid('HIXL_RECORD(module, level, "value:%d", value);')
+        self.assert_invalid(
+            'LLM_RECORD(module, level, "value:%d");',
+            "expects 1 format argument(s), got 0",
+        )
+
     def test_rejects_ignored_nolog_message(self):
         self.assert_invalid(
             'LLM_CHK_BOOL_RET_STATUS_NOLOG(ready, ge::FAILED, "not ready");',
