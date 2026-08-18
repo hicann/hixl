@@ -32,7 +32,7 @@
     } else if (type == DLOG_EVENT) {                                                                           \
       const int32_t event_module =                                                                             \
           static_cast<int32_t>(static_cast<uint32_t>(RUN_LOG_MASK) | static_cast<uint32_t>(LLM_MODULE_NAME));  \
-      HixlGetRunLogRecord()(event_module, DLOG_INFO, "[%s:%d][HIXL] %lu %s %s:" fmt, DLOG_FILE_NAME, __LINE__, \
+      HixlGetRunLogRecord()(event_module, DLOG_INFO, "[%s:%d][HIXL] %lu %s %s:" fmt, HIXL_FILE_NAME, __LINE__, \
                             LlmLog::GetTid(), GetId().c_str(), __FUNCTION__, ##__VA_ARGS__);                   \
     } else {                                                                                                   \
     }                                                                                                          \

@@ -104,9 +104,24 @@ inline bool HixlCheckLogLevel(const int32_t module_name, const int32_t log_level
   return HixlGetLogCheckLevel()(module_name, log_level) == 1;
 }
 
+inline const char *HixlGetFileName(const char *file_path) {
+  if (file_path == nullptr) {
+    return "";
+  }
+  const char *file_name = file_path;
+  for (const char *pos = file_path; *pos != '\0'; ++pos) {
+    if ((*pos == '/') || (*pos == '\\')) {
+      file_name = pos + 1;
+    }
+  }
+  return file_name;
+}
+
+#define HIXL_FILE_NAME (HixlGetFileName(__FILE__))
+
 #define HIXL_RECORD(MODULE, LEVEL, fmt, ...)                                                       \
   do {                                                                                             \
-    HixlGetLogRecord()((MODULE), (LEVEL), "[%s:%d]" fmt, DLOG_FILE_NAME, __LINE__, ##__VA_ARGS__); \
+    HixlGetLogRecord()((MODULE), (LEVEL), "[%s:%d]" fmt, HIXL_FILE_NAME, __LINE__, ##__VA_ARGS__); \
   } while (false)
 
 #define HIXL_LOGE(ERROR_CODE, fmt, ...)                                                               \
@@ -143,7 +158,7 @@ inline bool HixlCheckLogLevel(const int32_t module_name, const int32_t log_level
   do {                                                                                                             \
     const int32_t event_module =                                                                                   \
         static_cast<int32_t>(static_cast<uint32_t>(RUN_LOG_MASK) | static_cast<uint32_t>(HIXL_MODULE_NAME));       \
-    HixlGetRunLogRecord()(event_module, DLOG_INFO, "[%s:%d][HIXL] %" PRIu64 " %s:" fmt, DLOG_FILE_NAME, __LINE__,  \
+    HixlGetRunLogRecord()(event_module, DLOG_INFO, "[%s:%d][HIXL] %" PRIu64 " %s:" fmt, HIXL_FILE_NAME, __LINE__,  \
                           HixlLog::GetTid(), &__FUNCTION__[0U], ##__VA_ARGS__);                                    \
     if (!HixlLogPrintStdout() && HixlCheckLogLevel(HIXL_MODULE_NAME, DLOG_INFO)) {                                 \
       HIXL_RECORD(HIXL_MODULE_NAME, DLOG_INFO, "[HIXL] %" PRIu64 " %s:" fmt, HixlLog::GetTid(), &__FUNCTION__[0U], \

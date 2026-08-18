@@ -71,6 +71,13 @@ extern "C" int32_t aclsysGetVersionNum(char *pkg_name, int32_t *version_num) {
 }
 
 namespace {
+TEST(HixlGetFileNameUt, ExtractsFileNameFromSupportedPaths) {
+  EXPECT_STREQ(HixlGetFileName("hixl_log.h"), "hixl_log.h");
+  EXPECT_STREQ(HixlGetFileName("src/hixl/common/hixl_log.h"), "hixl_log.h");
+  EXPECT_STREQ(HixlGetFileName("src\\hixl\\common\\hixl_log.h"), "hixl_log.h");
+  EXPECT_STREQ(HixlGetFileName(nullptr), "");
+}
+
 TEST_F(LogFallbackUt, AclSymbolsAreAbsent) {
   EXPECT_EQ(HixlGetAclLogCheckLevel(), nullptr);
   EXPECT_EQ(HixlGetAclLogRecord(), nullptr);
