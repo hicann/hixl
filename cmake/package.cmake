@@ -115,6 +115,7 @@ install(FILES ${hixl_include}/llm_datadist/llm_engine_types.h
     DESTINATION ${ARCH_LINUX_PATH}/include/ge
     COMPONENT hixl
 )
+
 install(TARGETS llm_datadist
         LIBRARY DESTINATION ${ARCH_LINUX_PATH}/lib64
         COMPONENT hixl
@@ -127,5 +128,9 @@ install(TARGETS cann_hixl
 
 # ============= CPack =============
 if (NOT ENABLE_COV AND NOT ENABLE_UT)
-    set_cann_cpack_config(hixl ENABLE_DEVICE TRUE SHARE_INFO_NAME hixl PACKAGE_TYPE ${PACKAGE_TYPE})
+    if (HIXL_BUILD_HOST_ONLY)
+        set_cann_cpack_config(hixl ENABLE_DEVICE FALSE SHARE_INFO_NAME hixl PACKAGE_TYPE ${PACKAGE_TYPE})
+    else ()
+        set_cann_cpack_config(hixl ENABLE_DEVICE TRUE SHARE_INFO_NAME hixl PACKAGE_TYPE ${PACKAGE_TYPE})
+    endif()
 endif()

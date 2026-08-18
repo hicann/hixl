@@ -20,7 +20,7 @@ option(ENABLE_BENCHMARKS "Enable benchmarks" OFF)
 option(ENABLE_HIXL_TOOL "Enable hixl_tool" OFF)
 option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
 option(ENABLE_GCOV "Enable Coverage" OFF)
-option(HIXL_BUILD_HOST_ONLY "Build host package only and reuse HIXL device package" OFF)
+option(HIXL_BUILD_HOST_ONLY "Build host package only" OFF)
 
 set(HIXL_CODE_DIR ${PROJECT_SOURCE_DIR})
 
@@ -52,8 +52,7 @@ endif()
 # UT links kernel sources + stubs in host test binaries; skip device pack.
 if (NOT ENABLE_TEST)
     if (HIXL_BUILD_HOST_ONLY)
-        message(STATUS "reuse HIXL device package for host-only build")
-        include(cmake/fetch_hixl_device_package.cmake)
+        message(STATUS "skip HIXL device build and packaging for host-only build")
     else ()
         message(STATUS "start build device")
         if (NOT EXISTS "${ASCEND_INSTALL_PATH}/toolkit/toolchain/hcc")

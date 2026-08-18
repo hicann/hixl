@@ -225,15 +225,17 @@ git clone https://gitcode.com/cann/hixl.git
 | `--pkg` | 构建run包（保留参数） | - |
 | `--pkg-type=<TYPE>` | 指定软件包类型（`run`、`rpm`、`deb`或`all`） | `run` |
 | `--examples` | 编译样例和基准测试 | OFF |
-| `--host` | 仅编译host发布件，并从本地缓存或中心仓复用`cann-hixl_<version>_device.tar.gz` | OFF |
+| `--host` | 仅编译host发布件，跳过device编译和打包 | OFF |
 | `--asan` | 启用地址消毒，用于内存泄漏检测 | OFF |
 | `--cov` | 启用代码覆盖率 | OFF |
 | `--sign-script=<PATH>`<br>`--sign_script=<PATH>` | 设置签名脚本的指定路径 | - |
 | `--enable-sign` | 启用签名功能 | - |
 
-默认编译会同时构建host和device发布件，并在`build_out`目录下输出`cann-hixl_<version>_device.tar.gz`。该tar包内顶层目录为`opp/`，包含`opp/built-in/op_impl/aicpu/kernel/cann-hixl-compat.tar.gz`和`opp/built-in/op_impl/aicpu/config/libcann_hixl_kernel.json`。最终`cann-hixl_*.run`包不保留该device tar本身，而是包含解压后的上述`opp/`文件。
+默认编译会同时构建host和device发布件，最终只在`build_out`目录下输出`cann-hixl_*.run`包。
 
-指定`--host`时，不编译`src/ops`下的device子工程，不从`ASCEND_HOME_PATH`查找device发布件；脚本优先复用`third_party/cann-hixl_<version>_device.tar.gz`或`third_party/pkg/device/cann-hixl_<version>_device.tar.gz`，否则从中心仓下载最新签名device发布件。若device内容更新，需同步更新中心仓发布件并更新仓内下载地址。
+指定`--host`时，不编译`src/ops`下的device子工程，也不会将device发布件打包进`build_out`；安装该run包时会保留已存在的device部分，仅覆盖host部分，卸载时才会一并删除。
+
+如果使用`--host`进行源码编译并部署运行时，需要运行环境提前安装ops整包或者带有签名的hixl子包，并保证源码和run包周版本一致；`--host`编译的run包与运行环境整包无法保证跨版本执行兼容。
 
 源码编译时，如果未修改源码或者修改不涉及`src/ops`下的代码，建议添加`--host`进行编译。
 

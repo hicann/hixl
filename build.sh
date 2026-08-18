@@ -39,7 +39,7 @@ usage() {
   echo "                      Set output path, default ./build_out"
   echo "    --pkg             Build run package, reserved parameter"
   echo "    --examples        Build with examples and benchmarks, default is OFF"
-  echo "    --host            Build host package only and reuse device package from center repository"
+  echo "    --host            Build host package only and skip device build/packaging"
   echo "    --asan            Enable AddressSanitizer, default is OFF"
   echo "    --cov             Enable Coverage, default is OFF"
   echo "    --sign-script=<PATH> | --sign_script=<PATH>"
@@ -208,22 +208,6 @@ move_pkg() {
   esac
 }
 
-copy_device_pkg() {
-  local device_pkg="${BUILD_PATH}/device_build/device-hixl.tar.gz"
-  local hixl_version
-  hixl_version=$(sed -nE 's/^set_cann_package\(hixl VERSION "([^"]+)"\).*/\1/p' "${BASEPATH}/version.cmake")
-  if [ -z "${hixl_version}" ]; then
-    echo "hixl version not found in ${BASEPATH}/version.cmake"
-    return 1
-  fi
-  local output_pkg="${OUTPUT_PATH}/cann-hixl_${hixl_version}_device.tar.gz"
-  if [ ! -f "${device_pkg}" ]; then
-    return 0
-  fi
-  cp -f "${device_pkg}" "${output_pkg}"
-  echo "device hixl package output: ${output_pkg}"
-}
-
 build() {
   echo "create build directory and build hixl";
   mk_dir "${BUILD_PATH}"
@@ -249,7 +233,6 @@ build() {
     return 1
   fi
   echo "Build success!"
-  copy_device_pkg || true
 
   case "${PACKAGE_TYPE}" in
     all)

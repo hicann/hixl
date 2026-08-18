@@ -526,7 +526,10 @@ create_default_dir() {
 get_version_installed() {
     local installed_version="none"
     if [ -f "$default_dir/version.info" ]; then
-        installed_version="$(grep -iw ^version "$default_dir/version.info" | cut -d"=" -f2-)"
+        get_version installed_version "$default_dir/version.info"
+    fi
+    if [ -z "$installed_version" ]; then
+        installed_version="none"
     fi
     echo "$installed_version"
 }
@@ -535,9 +538,43 @@ get_version_installed() {
 get_version_in_runpkg() {
     local version_in_runpkg="none"
     if [ -f "$pkg_version_path" ]; then
-        version_in_runpkg="$(grep -iw ^version $pkg_version_path | cut -d"=" -f2-)"
+        get_version version_in_runpkg "$pkg_version_path"
+    fi
+    if [ -z "$version_in_runpkg" ]; then
+        version_in_runpkg="none"
     fi
     echo "$version_in_runpkg"
+}
+
+is_host_only_package() {
+    # The device release tar exists only in full packages.
+    if [ ! -f "${curpath}/../../../../opp/built-in/op_impl/aicpu/kernel/cann-hixl-compat.tar.gz" ]; then
+        return 0
+    fi
+    return 1
+}
+
+get_installed_device_tar_path() {
+    local install_root="${pkg_install_path}"
+    if [ "$pkg_is_multi_version" = "true" ] && [ "$hetero_arch" != "y" ]; then
+        install_root="${install_root}/${pkg_version_dir}"
+    fi
+    echo "${install_root}/opp/built-in/op_impl/aicpu/kernel/cann-hixl-compat.tar.gz"
+}
+
+check_host_only_install_env() {
+    local device_tar_path="$(get_installed_device_tar_path)"
+    if [ ! -f "$device_tar_path" ]; then
+        log "ERROR" "ERR_NO:0x0080;ERR_DES:Host-only package requires the ops package or hixl subpackage to be installed in advance, and the preinstalled package version must match the host package version."
+        exit_install_log 1
+    fi
+
+    local version_in_runpkg="$(get_version_in_runpkg)"
+    local version_installed="$(get_version_installed)"
+    if [ "$version_in_runpkg" != "$version_installed" ]; then
+        log "ERROR" "ERR_NO:0x0080;ERR_DES:Host-only package version ${version_in_runpkg} does not match installed version ${version_installed}, installation failed."
+        exit_install_log 1
+    fi
 }
 
 # 更新基础版本号
@@ -694,7 +731,7 @@ concat_docker_install_path() {
 #######################################################
 # 安装调用子脚本
 install_run() {
-    local operation="Install"
+    local operation="${2:-Install}"
     local hixl_install_path_param=""
     update_install_path
     update_install_info
@@ -706,15 +743,21 @@ install_run() {
         hixl_install_path_param="${hixl_input_install_path}"
     fi
     if [ "$1" = "install" ]; then
+        local success_action="installed"
+        local action_name="install"
+        if [ "${operation}" = "Upgrade" ]; then
+            success_action="upgraded"
+            action_name="upgrade"
+        fi
         unchattr_files
         chmod_start
-        new_echo "INFO" "install ${hixl_install_path_param} ${hixl_install_type}"
-        log "INFO" "install ${hixl_install_path_param} ${hixl_install_type}"
+        new_echo "INFO" "${action_name} ${hixl_install_path_param} ${hixl_install_type}"
+        log "INFO" "${action_name} ${hixl_install_path_param} ${hixl_install_type}"
         bash "${curpath}/run_hixl_install.sh" "install" "${hixl_input_install_path}" "${hixl_install_type}" \
             "${is_quiet}" "${pylocal}" "${input_setenv}" "${docker_root}" "${in_install_for_all}" "$pkg_version_dir"
         if [ $? -eq 0 ]; then
             update_version_info_version
-            log "INFO" "hixl package installed successfully! The new version takes effect immediately."
+            log "INFO" "hixl package ${success_action} successfully! The new version takes effect immediately."
             log_operation "${operation}" "succeeded"
             chmod_end
             prompt_set_env "${install_path_param}"
@@ -1289,6 +1332,9 @@ if [ "$check" = "y" ]; then
     fi
 elif [ "$full_install" = "y" ] || [ "$run_install" = "y" ] || [ "$devel_install" = "y" ] || [ "$upgrade" = "y" ]; then
     ver_check
+    if is_host_only_package; then
+        check_host_only_install_env
+    fi
     preinstall_process --install-path="$pkg_install_path/$pkg_version_dir" --script-dir="$curpath" --package="hixl" --logfile="$logfile" --docker-root="$docker_root"
     if [ $? -ne 0 ]; then
         exit_install_log 1
@@ -1349,12 +1395,18 @@ if [ "x$version_installed" != "x" -a "$version_installed" != "none" ] || [ -f "$
         exit_uninstall_log 0
     # 升级场景
     elif [ "$upgrade" = "y" ]; then
-        unchattr_files
-        uninstall_run "uninstall" "n" "n"
-        save_user_files_to_log "$default_dir"
-        save_user_files_to_log "$(dirname $default_dir)/atc"
-        save_user_files_to_log "$(dirname $default_dir)/fwkacllib"
-        upgrade_run "upgrade"
+        if is_host_only_package; then
+            log "INFO" "host-only package detected, keep existing device files and reinstall host files in place."
+            installmode="full"
+            install_run "install" "Upgrade"
+        else
+            unchattr_files
+            uninstall_run "uninstall" "n" "n"
+            save_user_files_to_log "$default_dir"
+            save_user_files_to_log "$(dirname $default_dir)/atc"
+            save_user_files_to_log "$(dirname $default_dir)/fwkacllib"
+            upgrade_run "upgrade"
+        fi
         exit_install_log 0
     # 安装场景
     elif [ "$run_install" = "y" ] || [ "$full_install" = "y" ] || [ "$devel_install" = "y" ]; then
@@ -1374,12 +1426,17 @@ if [ "x$version_installed" != "x" -a "$version_installed" != "none" ] || [ -f "$
                 fi
             done
         fi
-        unchattr_files
-        uninstall_run "uninstall" "n" "n"
-        save_user_files_to_log "$default_dir"
-        save_user_files_to_log "$(dirname $default_dir)/atc"
-        save_user_files_to_log "$(dirname $default_dir)/fwkacllib"
-        install_run "install"
+        if is_host_only_package; then
+            log "INFO" "host-only package detected, keep existing device files and reinstall host files in place."
+            install_run "install"
+        else
+            unchattr_files
+            uninstall_run "uninstall" "n" "n"
+            save_user_files_to_log "$default_dir"
+            save_user_files_to_log "$(dirname $default_dir)/atc"
+            save_user_files_to_log "$(dirname $default_dir)/fwkacllib"
+            install_run "install"
+        fi
         exit_install_log 0
     fi
 else
