@@ -40,7 +40,7 @@ usage() {
   echo "    --asan         Enable AddressSanitizer, default is OFF. when cov is set, asan is set too."
   echo "    -f, --changed-files-file <FILE>"
   echo "                   Path to file containing changed file list (one per line),"
-  echo "                   used to skip tests when only doc files are changed."
+  echo "                   used to skip tests when only markdown or other doc files are changed."
   echo ""
 }
 
@@ -230,7 +230,7 @@ checkopts() {
   apply_test_selection
 }
 
-# check if changed files only include docs/, examples/ or README.md
+# check if changed files only include markdown or docs/examples/agent dirs
 # usage: check_changed_files "file1 file2 file3"
 check_changed_files() {
   local changed_files="$1"
@@ -289,13 +289,18 @@ check_changed_files() {
       continue
     fi
 
+    # any markdown file is treated as documentation
+    if echo "$file" | grep -qi '\.md$'; then
+      continue
+    fi
+
     # if any file doesn't match the above patterns, don't skip build
     skip_build=false
     break
   done <<< "$changed_files"
 
   if [ "$skip_build" = true ]; then
-    echo "[INFO] Changed files only contain docs/, examples/, .claude/, .opencode/, .agents/, README.md, CONTRIBUTING.md or AGENTS.md, skipping test."
+    echo "[INFO] Changed files only contain markdown or docs/, examples/, .claude/, .opencode/, .agents/, skipping test."
     echo "[INFO] Changed files: $changed_files"
     return 0
   fi

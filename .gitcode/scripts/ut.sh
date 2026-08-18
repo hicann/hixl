@@ -27,13 +27,24 @@ DP_ASSERT_EQUAL()
     fi
 }
 
+changed_files_args=()
+if [ -f pr_filelist_mod.txt ]; then
+    echo "[INFO] Use PR file list: pr_filelist_mod.txt"
+    changed_files_args=(-f pr_filelist_mod.txt)
+elif [ -f pr_filelist.txt ]; then
+    echo "[INFO] Use PR file list: pr_filelist.txt"
+    changed_files_args=(-f pr_filelist.txt)
+else
+    echo "[INFO] No PR file list found, run full UT"
+fi
+
 case "${ut_type}" in
     ut_test)
-        bash tests/run_test.sh -t=cpp -c --cann_3rd_lib_path=/home/jenkins/opensource
+        bash tests/run_test.sh -t=cpp -c --cann_3rd_lib_path=/home/jenkins/opensource "${changed_files_args[@]}"
         ret=$?
         ;;
     ut_test_python)
-        bash tests/run_test.sh -t=py -c --cann_3rd_lib_path=/home/jenkins/opensource
+        bash tests/run_test.sh -t=py -c --cann_3rd_lib_path=/home/jenkins/opensource "${changed_files_args[@]}"
         ret=$?
         ;;
     *)
@@ -42,6 +53,12 @@ case "${ut_type}" in
         ;;
 esac
 
+# run_test.sh exits 200 when the PR only changes documentation.
+if [ "${ret}" = "200" ]; then
+    echo "[INFO] Doc-only PR change detected, skip UT and coverage."
+    echo "ut_process=skip" >> "${ATOMGIT_OUTPUT}"
+    exit 0
+fi
 
 DP_ASSERT_EQUAL "$ret" "0" "Run UT TESTCASE"
 
