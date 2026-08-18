@@ -382,10 +382,134 @@ run() {
 
       HIXL_PARALLEL_TEST_PIDS=()
       HIXL_PARALLEL_TEST_MONITOR_PIDS=()
+      HIXL_PARALLEL_TEST_SUITES=()
       HIXL_PARALLEL_TEST_CMDS=()
       HIXL_PARALLEL_TEST_LOGS=()
       HIXL_PARALLEL_TEST_TIMEOUT_FILES=()
+      HIXL_PARALLEL_TEST_STATUS=()
+      HIXL_PARALLEL_TEST_EXIT_CODES=()
       CPP_TEST_TIMEOUT_SECONDS=600
+      CPP_TEST_FAILURE_LOG_LINES=120
+
+      print_cpp_failed_cases() {
+          local log_file="$1"
+          local failed_cases
+          if [[ ! -f "${log_file}" ]]; then
+              echo "Failed test log not found: ${log_file}"
+              return
+          fi
+
+          failed_cases=$(awk '
+              /^\[[[:space:]]*FAILED[[:space:]]*\][[:space:]]+[0-9]+ tests?, listed below:/ {
+                  in_failed_list = 1
+                  next
+              }
+              in_failed_list && /^\[[[:space:]]*FAILED[[:space:]]*\]/ {
+                  print
+                  next
+              }
+              in_failed_list && /^[[:space:]]*[0-9]+ FAILED TESTS?$/ {
+                  in_failed_list = 0
+              }
+          ' "${log_file}")
+
+          if [[ -n "${failed_cases}" ]]; then
+              printf '%s\n' "${failed_cases}"
+          else
+              failed_cases=$(awk '/^\[[[:space:]]*FAILED[[:space:]]*\]/ { print }' "${log_file}")
+              if [[ -n "${failed_cases}" ]]; then
+                  printf '%s\n' "${failed_cases}"
+              else
+                  echo "No GTest failed case list found. Check failure log excerpt below."
+              fi
+          fi
+      }
+
+      print_cpp_failed_test_logs() {
+          local log_file="$1"
+          if [[ ! -f "${log_file}" ]]; then
+              echo "Failed test log not found: ${log_file}"
+              return
+          fi
+
+          awk '
+              /^\[[[:space:]]*RUN[[:space:]]*\]/ {
+                  in_test = 1
+                  line_count = 0
+                  block[++line_count] = $0
+                  next
+              }
+
+              in_test {
+                  block[++line_count] = $0
+                  if ($0 ~ /^\[[[:space:]]*FAILED[[:space:]]*\][[:space:]]+.*\([0-9]+ ms\)$/) {
+                      printed = 1
+                      for (idx = 1; idx <= line_count; idx++) {
+                          print block[idx]
+                      }
+                      print ""
+                      in_test = 0
+                      line_count = 0
+                  } else if ($0 ~ /^\[[[:space:]]*OK[[:space:]]*\]/ ||
+                      $0 ~ /^\[[[:space:]]*SKIPPED[[:space:]]*\]/) {
+                      in_test = 0
+                      line_count = 0
+                  }
+              }
+
+              END {
+                  if (!printed && in_test && line_count > 0) {
+                      print "Unfinished test block:"
+                      for (idx = 1; idx <= line_count; idx++) {
+                          print block[idx]
+                      }
+                      printed = 1
+                  }
+                  if (!printed) {
+                      exit 1
+                  }
+              }
+          ' "${log_file}" || tail -n "${CPP_TEST_FAILURE_LOG_LINES}" "${log_file}"
+      }
+
+      print_cpp_test_summary() {
+          local failed_count=0
+          echo "===== CPP Test Summary ====="
+          for idx in "${!HIXL_PARALLEL_TEST_SUITES[@]}"; do
+              local status="${HIXL_PARALLEL_TEST_STATUS[$idx]}"
+              local exit_code="${HIXL_PARALLEL_TEST_EXIT_CODES[$idx]}"
+              if [[ "${status}" == "PASSED" ]]; then
+                  printf '[PASSED] %s (log: %s)\n' \
+                      "${HIXL_PARALLEL_TEST_SUITES[$idx]}" "${HIXL_PARALLEL_TEST_LOGS[$idx]}"
+              else
+                  failed_count=$((failed_count + 1))
+                  printf '[%s] %s exit_code=%s (log: %s)\n' \
+                      "${status}" "${HIXL_PARALLEL_TEST_SUITES[$idx]}" "${exit_code}" \
+                      "${HIXL_PARALLEL_TEST_LOGS[$idx]}"
+              fi
+          done
+
+          if [[ "${failed_count}" -ne 0 ]]; then
+              echo "Failed C++ test binaries:"
+              for idx in "${!HIXL_PARALLEL_TEST_SUITES[@]}"; do
+                  if [[ "${HIXL_PARALLEL_TEST_STATUS[$idx]}" != "PASSED" ]]; then
+                      printf '\033[31m%s (log: %s)\033[0m\n' \
+                          "${HIXL_PARALLEL_TEST_CMDS[$idx]}" "${HIXL_PARALLEL_TEST_LOGS[$idx]}"
+                      echo "Failed test cases (${HIXL_PARALLEL_TEST_SUITES[$idx]}):"
+                      print_cpp_failed_cases "${HIXL_PARALLEL_TEST_LOGS[$idx]}"
+                      echo "Failed test logs (${HIXL_PARALLEL_TEST_SUITES[$idx]}):"
+                      if [[ -f "${HIXL_PARALLEL_TEST_TIMEOUT_FILES[$idx]}" ]]; then
+                          cat "${HIXL_PARALLEL_TEST_TIMEOUT_FILES[$idx]}"
+                          tail -n "${CPP_TEST_FAILURE_LOG_LINES}" "${HIXL_PARALLEL_TEST_LOGS[$idx]}"
+                      else
+                          print_cpp_failed_test_logs "${HIXL_PARALLEL_TEST_LOGS[$idx]}"
+                      fi
+                  fi
+              done
+          else
+              echo "All selected C++ test binaries passed."
+          fi
+      }
 
       run_cpp_test_parallel() {
           local suite="$1"
@@ -419,6 +543,7 @@ run() {
           local monitor_pid="$!"
           HIXL_PARALLEL_TEST_PIDS+=("${test_pid}")
           HIXL_PARALLEL_TEST_MONITOR_PIDS+=("${monitor_pid}")
+          HIXL_PARALLEL_TEST_SUITES+=("${suite}")
           HIXL_PARALLEL_TEST_CMDS+=("${run_cmd}")
           HIXL_PARALLEL_TEST_LOGS+=("${log_file}")
           HIXL_PARALLEL_TEST_TIMEOUT_FILES+=("${timeout_file}")
@@ -430,12 +555,26 @@ run() {
 
       HIXL_PARALLEL_FAILED=0
       for idx in "${!HIXL_PARALLEL_TEST_PIDS[@]}"; do
-          wait "${HIXL_PARALLEL_TEST_PIDS[$idx]}" && wait_ret=0 || wait_ret=1
+          if wait "${HIXL_PARALLEL_TEST_PIDS[$idx]}"; then
+              wait_ret=0
+          else
+              wait_ret=$?
+          fi
           if [[ -f "${HIXL_PARALLEL_TEST_TIMEOUT_FILES[$idx]}" ]]; then
               wait "${HIXL_PARALLEL_TEST_MONITOR_PIDS[$idx]}" 2>/dev/null || true
           else
               kill "${HIXL_PARALLEL_TEST_MONITOR_PIDS[$idx]}" 2>/dev/null || true
               wait "${HIXL_PARALLEL_TEST_MONITOR_PIDS[$idx]}" 2>/dev/null || true
+          fi
+          HIXL_PARALLEL_TEST_EXIT_CODES+=("${wait_ret}")
+          if [[ -f "${HIXL_PARALLEL_TEST_TIMEOUT_FILES[$idx]}" ]]; then
+              HIXL_PARALLEL_TEST_STATUS+=("TIMEOUT")
+              HIXL_PARALLEL_FAILED=1
+          elif [[ "${wait_ret}" -ne 0 ]]; then
+              HIXL_PARALLEL_TEST_STATUS+=("FAILED")
+              HIXL_PARALLEL_FAILED=1
+          else
+              HIXL_PARALLEL_TEST_STATUS+=("PASSED")
           fi
           echo "===== Output: ${HIXL_PARALLEL_TEST_CMDS[$idx]} ====="
           if [[ -f "${HIXL_PARALLEL_TEST_TIMEOUT_FILES[$idx]}" ]]; then
@@ -444,11 +583,12 @@ run() {
               cat "${HIXL_PARALLEL_TEST_LOGS[$idx]}"
           fi
           if [[ "${wait_ret}" -ne 0 ]]; then
-              HIXL_PARALLEL_FAILED=1
               echo "!!! CPP TEST FAILED, PLEASE CHECK YOUR CHANGES !!!"
-              echo -e "\033[31m${HIXL_PARALLEL_TEST_CMDS[$idx]} (log: ${HIXL_PARALLEL_TEST_LOGS[$idx]})\033[0m"
+              printf '\033[31m%s (log: %s)\033[0m\n' \
+                  "${HIXL_PARALLEL_TEST_CMDS[$idx]}" "${HIXL_PARALLEL_TEST_LOGS[$idx]}"
           fi
       done
+      print_cpp_test_summary
       if [[ "${HIXL_PARALLEL_FAILED}" -ne 0 ]]; then
           exit 1;
       fi
