@@ -14,6 +14,8 @@
 #include <vector>
 #include <securec.h>
 #include "common/ctrl_msg_plugin.h"
+#include "common/hixl_checker.h"
+#include "common/hixl_log.h"
 
 namespace {
 hixl::Status SendHeaderTypeBody(int32_t socket, const hixl::CtrlMsgHeader &header, hixl::CtrlMsgType msg_type,

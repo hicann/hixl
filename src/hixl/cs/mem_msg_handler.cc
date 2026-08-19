@@ -14,7 +14,10 @@
 #include <cinttypes>
 #include <algorithm>
 #include "nlohmann/json.hpp"
+#include "common/ctrl_msg.h"
 #include "common/ctrl_msg_plugin.h"
+#include "common/hixl_checker.h"
+#include "common/hixl_log.h"
 #include "common/scope_guard.h"
 
 #include "securec.h"

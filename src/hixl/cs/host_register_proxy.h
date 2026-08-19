@@ -15,7 +15,6 @@
 #include <memory>
 #include <mutex>
 #include <map>
-#include "acl/acl_rt.h"
 #include "hixl/hixl_types.h"
 
 namespace hixl {

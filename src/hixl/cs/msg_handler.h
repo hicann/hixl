@@ -15,7 +15,6 @@
 #include <mutex>
 #include <map>
 #include <condition_variable>
-#include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
 #include "common/thread_pool.h"
 #include "common/ctrl_msg.h"

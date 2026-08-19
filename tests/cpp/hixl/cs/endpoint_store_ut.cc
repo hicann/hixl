@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <cstring>
 #include "endpoint_store.h"
+#include "common/hixl_log.h"
 #include "depends/hccl/src/hccl_stub.h"
 #include "hccl/hccl_types.h"
 

@@ -15,7 +15,6 @@
 #include <vector>
 #include <mutex>
 #include <memory>
-#include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
 #include "common/hixl_utils.h"
 #include "endpoint_store.h"

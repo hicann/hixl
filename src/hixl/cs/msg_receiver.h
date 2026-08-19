@@ -12,7 +12,6 @@
 #define CANN_HIXL_SRC_HIXL_CS_MSG_RECEIVER_H_
 
 #include <vector>
-#include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
 #include "common/ctrl_msg.h"
 

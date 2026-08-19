@@ -14,8 +14,6 @@
 #include <memory>
 #include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
-#include "common/hixl_checker.h"
-#include "common/hixl_log.h"
 
 namespace hixl {
 

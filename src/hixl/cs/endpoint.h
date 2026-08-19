@@ -14,7 +14,6 @@
 #include <map>
 #include <memory>
 #include <mutex>
-#include <string>
 
 #include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"

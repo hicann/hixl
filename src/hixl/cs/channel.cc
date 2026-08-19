@@ -12,6 +12,8 @@
 #include <chrono>
 #include <thread>
 
+#include "common/hixl_checker.h"
+#include "common/hixl_log.h"
 #include "common/hixl_utils.h"
 #include "proxy/hcomm_proxy.h"
 

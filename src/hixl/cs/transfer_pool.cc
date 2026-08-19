@@ -17,6 +17,7 @@
 #include <unordered_map>
 
 #include "acl/acl.h"
+#include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
 #include "common/llm_utils.h"

@@ -15,7 +15,6 @@
 #include <mutex>
 #include <vector>
 #include "acl/acl.h"
-#include "common/hixl_checker.h"
 #include "cs/hixl_cs.h"
 #include "hcomm/hcomm_res_defs.h"
 #include "common/hixl_utils.h"
