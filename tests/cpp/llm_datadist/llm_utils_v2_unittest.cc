@@ -9,6 +9,9 @@
  */
 
 #include <gtest/gtest.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
 #include "common/llm_utils.h"
 #include "common/msg_handler_plugin.h"
 #include "common/llm_checker.h"
@@ -105,6 +108,23 @@ TEST_F(LLMUtilsTest, TestMsgHandlerPlugin) {
 
   s = MsgHandlerPlugin::Write(fd, data, len);
   EXPECT_TRUE(s < 0);
+}
+
+TEST_F(LLMUtilsTest, ConnectFailureLeavesInvalidFd) {
+  const int32_t bound_fd = socket(AF_INET, SOCK_STREAM, 0);
+  ASSERT_GE(bound_fd, 0);
+  sockaddr_in addr{};
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  addr.sin_port = 0;
+  ASSERT_EQ(bind(bound_fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)), 0);
+  socklen_t addr_len = sizeof(addr);
+  ASSERT_EQ(getsockname(bound_fd, reinterpret_cast<sockaddr *>(&addr), &addr_len), 0);
+
+  int32_t conn_fd = bound_fd;
+  EXPECT_EQ(MsgHandlerPlugin::Connect("127.0.0.1", ntohs(addr.sin_port), conn_fd, 1000, ge::SUCCESS), ge::SUCCESS);
+  EXPECT_EQ(conn_fd, -1);
+  close(bound_fd);
 }
 
 static ge::Status TestLogTooLong() {

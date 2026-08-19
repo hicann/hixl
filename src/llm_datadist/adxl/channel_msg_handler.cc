@@ -588,7 +588,7 @@ Status ChannelMsgHandler::PrepareDisconnect(const std::string &remote_engine, in
 }
 
 void ChannelMsgHandler::SendDisconnectRequest(int32_t conn_fd, Status &send_status) const {
-  if (conn_fd > 0) {
+  if (conn_fd >= 0) {
     ChannelDisconnectInfo disconnect_info = {};
     disconnect_info.channel_id = listen_info_;
     send_status = SendMsg(conn_fd, ChannelMsgType::kDisconnect, disconnect_info);
@@ -638,7 +638,7 @@ Status ChannelMsgHandler::Disconnect(const std::string &remote_engine, int32_t t
            remote_engine.c_str(), timeout_in_millis);
   int32_t conn_fd = -1;
   LLM_MAKE_GUARD(close_fd, ([&conn_fd]() {
-                   if (conn_fd != -1) {
+                   if (conn_fd >= 0) {
                      llm::MsgHandlerPlugin::Disconnect(conn_fd);
                    }
                  }));
@@ -649,7 +649,7 @@ Status ChannelMsgHandler::Disconnect(const std::string &remote_engine, int32_t t
   }
   Status send_status = FAILED;
   SendDisconnectRequest(conn_fd, send_status);
-  if (send_status != SUCCESS) {
+  if (conn_fd >= 0 && send_status != SUCCESS) {
     LLMLOGE(send_status,
             "Disconnect failed at send_disconnect_msg, peer may be down, continue local cleanup, local:%s, "
             "remote:%s, conn_fd:%d.",

@@ -45,6 +45,7 @@ ge::Status MsgHandlerPlugin::GetAiFamily(const std::string &ip, int32_t &ai_fami
 
 ge::Status MsgHandlerPlugin::Connect(const std::string &ip, uint32_t port, int32_t &conn_fd, int32_t timeout,
                                      ge::Status default_err) {
+  conn_fd = -1;
   auto start = std::chrono::high_resolution_clock::now();
   struct ::addrinfo hints;
   struct ::addrinfo *result = nullptr;
@@ -82,12 +83,12 @@ ge::Status MsgHandlerPlugin::DoConnect(struct ::addrinfo *addr, int32_t &conn_fd
   LLMLOGI("Attempting to create socket with family:%d, type:%d, protocol:%d", addr->ai_family, addr->ai_socktype,
           addr->ai_protocol);
   LLM_DISMISSABLE_GUARD(record_err, ([&err_no]() { err_no = errno; }));
-  conn_fd = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
-  LLM_CHK_BOOL_RET_SPECIAL_STATUS(conn_fd == -1, default_err, "Try to create socket, error msg:%s, errno:%d",
+  const int32_t socket_fd = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
+  LLM_CHK_BOOL_RET_SPECIAL_STATUS(socket_fd == -1, default_err, "Try to create socket, error msg:%s, errno:%d",
                                   strerror(errno), errno);
 
-  LLM_DISMISSABLE_GUARD(close_fd, ([conn_fd]() { close(conn_fd); }));
-  auto socket_ret = setsockopt(conn_fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+  LLM_DISMISSABLE_GUARD(close_fd, ([socket_fd]() { close(socket_fd); }));
+  auto socket_ret = setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
   LLM_CHK_BOOL_RET_SPECIAL_STATUS(socket_ret != 0, default_err,
                                   "Try to setsockopt(SO_REUSEADDR), socket_ret:%d, error msg:%s, errno:%d", socket_ret,
                                   strerror(errno), errno);
@@ -95,23 +96,24 @@ ge::Status MsgHandlerPlugin::DoConnect(struct ::addrinfo *addr, int32_t &conn_fd
   struct timeval socket_timeout;
   socket_timeout.tv_sec = timeout / kTimeInSec;
   socket_timeout.tv_usec = (timeout % kTimeInSec) * kTimeInSec;
-  socket_ret = setsockopt(conn_fd, SOL_SOCKET, SO_RCVTIMEO, &socket_timeout, sizeof(socket_timeout));
+  socket_ret = setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &socket_timeout, sizeof(socket_timeout));
   LLM_CHK_BOOL_RET_SPECIAL_STATUS(socket_ret != 0, default_err,
                                   "Try to setsockopt(SO_RCVTIMEO), socket_ret:%d, error msg:%s, errno:%d", socket_ret,
                                   strerror(errno), errno);
   int32_t flag = 1;
-  socket_ret = setsockopt(conn_fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
+  socket_ret = setsockopt(socket_fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
   LLM_CHK_BOOL_RET_SPECIAL_STATUS(socket_ret != 0, default_err,
                                   "Try to setsockopt(TCP_NODELAY), socket_ret:%d, error msg:%s, errno:%d", socket_ret,
                                   strerror(errno), errno);
-  socket_ret = setsockopt(conn_fd, SOL_SOCKET, SO_SNDTIMEO, &socket_timeout, sizeof(socket_timeout));
+  socket_ret = setsockopt(socket_fd, SOL_SOCKET, SO_SNDTIMEO, &socket_timeout, sizeof(socket_timeout));
   LLM_CHK_BOOL_RET_SPECIAL_STATUS(socket_ret != 0, default_err,
                                   "Try to setsockopt(SO_SNDTIMEO), socket_ret:%d, error msg:%s, errno:%d", socket_ret,
                                   strerror(errno), errno);
-  socket_ret = connect(conn_fd, addr->ai_addr, addr->ai_addrlen);
+  socket_ret = connect(socket_fd, addr->ai_addr, addr->ai_addrlen);
   LLM_CHK_BOOL_RET_SPECIAL_STATUS(socket_ret != 0, default_err,
                                   "Try to socket connect, socket_ret:%d, error msg:%s, errno:%d", socket_ret,
                                   strerror(errno), errno);
+  conn_fd = socket_fd;
   LLM_DISMISS_GUARD(close_fd);
   LLM_DISMISS_GUARD(record_err);
   return ge::SUCCESS;
