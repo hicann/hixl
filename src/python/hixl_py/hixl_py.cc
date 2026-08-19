@@ -27,6 +27,8 @@
 namespace hixl_py {
 namespace py = pybind11;
 
+constexpr int32_t kDefaultTimeoutMs = 1000;  // 1s
+
 HixlPy::HixlPy() : hixl_engine_(nullptr), initialized_(false) {}
 
 HixlPy::~HixlPy() {
@@ -331,25 +333,25 @@ static void RegisterHixlEngine(py::module_ &m) {
       .def("finalize", &HixlPy::Finalize, py::call_guard<py::gil_scoped_release>())
       .def("register_mem", &HixlPy::RegisterMem, py::call_guard<py::gil_scoped_release>())
       .def("deregister_mem", &HixlPy::DeregisterMem, py::call_guard<py::gil_scoped_release>())
-      .def("connect", &HixlPy::Connect, py::arg("remote_engine"), py::arg("timeout_in_millis") = 1000,
+      .def("connect", &HixlPy::Connect, py::arg("remote_engine"), py::arg("timeout_in_millis") = kDefaultTimeoutMs,
            py::call_guard<py::gil_scoped_release>())
-      .def("disconnect", &HixlPy::Disconnect, py::arg("remote_engine"), py::arg("timeout_in_millis") = 1000,
-           py::call_guard<py::gil_scoped_release>())
-      .def("connect_async", &HixlPy::ConnectAsync, py::arg("remote_engine"), py::arg("timeout_in_millis") = 1000,
-           py::call_guard<py::gil_scoped_release>())
-      .def("disconnect_async", &HixlPy::DisconnectAsync, py::arg("remote_engine"), py::arg("timeout_in_millis") = 1000,
-           py::call_guard<py::gil_scoped_release>())
+      .def("disconnect", &HixlPy::Disconnect, py::arg("remote_engine"),
+           py::arg("timeout_in_millis") = kDefaultTimeoutMs, py::call_guard<py::gil_scoped_release>())
+      .def("connect_async", &HixlPy::ConnectAsync, py::arg("remote_engine"),
+           py::arg("timeout_in_millis") = kDefaultTimeoutMs, py::call_guard<py::gil_scoped_release>())
+      .def("disconnect_async", &HixlPy::DisconnectAsync, py::arg("remote_engine"),
+           py::arg("timeout_in_millis") = kDefaultTimeoutMs, py::call_guard<py::gil_scoped_release>())
       .def("get_async_connect_status", &HixlPy::GetAsyncConnectStatus, py::call_guard<py::gil_scoped_release>())
       .def("get_all_async_connect_status", &HixlPy::GetAllAsyncConnectStatus, py::call_guard<py::gil_scoped_release>())
       .def("transfer_sync", &HixlPy::TransferSync, py::arg("remote_engine"), py::arg("op"), py::arg("op_descs"),
-           py::arg("timeout_in_millis") = 1000, py::call_guard<py::gil_scoped_release>())
+           py::arg("timeout_in_millis") = kDefaultTimeoutMs, py::call_guard<py::gil_scoped_release>())
       .def("transfer_async", &HixlPy::TransferAsync, py::arg("remote_engine"), py::arg("op"), py::arg("op_descs"),
            py::arg("args") = hixl::TransferArgs{}, py::call_guard<py::gil_scoped_release>())
       .def("get_transfer_status", &HixlPy::GetTransferStatus, py::call_guard<py::gil_scoped_release>())
       .def("get_all_transfer_status", &HixlPy::GetAllTransferStatus, py::arg("args") = hixl::GetTransferStatusArgs{},
            py::call_guard<py::gil_scoped_release>())
       .def("send_notify", &HixlPy::SendNotify, py::arg("remote_engine"), py::arg("notify"),
-           py::arg("timeout_in_millis") = 1000, py::call_guard<py::gil_scoped_release>())
+           py::arg("timeout_in_millis") = kDefaultTimeoutMs, py::call_guard<py::gil_scoped_release>())
       .def("get_notifies", &HixlPy::GetNotifies, py::call_guard<py::gil_scoped_release>());
 
   m.def("get_capability", &HixlPy::GetCapability, py::call_guard<py::gil_scoped_release>());
