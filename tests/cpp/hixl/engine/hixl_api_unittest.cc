@@ -23,6 +23,7 @@
 #include "common/rank_table_generator.h"
 #include "dlog_pub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "depends/slog/src/slog_stub.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
 #include "hixl_test_helpers.h"
 
@@ -314,7 +315,7 @@ TEST_F(HixlUTest, TestConnectNotListenFailed) {
   EXPECT_EQ(engine.Connect("127.0.0.1:26201"), FAILED);
 }
 
-TEST_F(HixlUTest, TestAlreadyConnectedFailed) {
+TEST_F(HixlUTest, TestAlreadyConnectedWarningLog) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   Hixl engine1;
   std::map<AscendString, AscendString> options1;
@@ -325,7 +326,23 @@ TEST_F(HixlUTest, TestAlreadyConnectedFailed) {
   std::map<AscendString, AscendString> options2;
   EXPECT_EQ(engine2.Initialize("127.0.0.1:26201", options2), SUCCESS);
   EXPECT_EQ(engine1.Connect("127.0.0.1:26201"), SUCCESS);
+
+  auto log_capture = std::make_shared<llm::LogCaptureStub>();
+  const std::string warning_log = "Connection to remote engine:127.0.0.1:26201 is already established.";
+  log_capture->AddCapturePattern("hixl_impl.cc");
+  log_capture->SetLevelInfo();
+  llm::SlogStub::SetInstance(log_capture);
   EXPECT_EQ(engine1.Connect("127.0.0.1:26201"), ALREADY_CONNECTED);
+
+  bool warning_captured = false;
+  bool error_captured = false;
+  for (const auto &log : log_capture->GetCapturedLogs()) {
+    warning_captured |= log.find("[WARNING]") != std::string::npos && log.find(warning_log) != std::string::npos;
+    error_captured |= log.find("[ERROR]") != std::string::npos && log.find("hixl_impl.cc") != std::string::npos;
+  }
+  EXPECT_TRUE(warning_captured);
+  EXPECT_FALSE(error_captured);
+  llm::SlogStub::SetInstance(nullptr);
   engine1.Finalize();
   engine2.Finalize();
 }

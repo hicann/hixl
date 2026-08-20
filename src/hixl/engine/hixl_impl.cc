@@ -128,7 +128,12 @@ Status Hixl::HixlImpl::DeregisterMem(MemHandle mem_handle) {
 Status Hixl::HixlImpl::Connect(const AscendString &remote_engine, int32_t timeout_in_millis) {
   HIXL_CHK_BOOL_RET_STATUS(engine_ != nullptr, FAILED, "engine is nullptr, check engine init");
   HIXL_CHK_BOOL_RET_STATUS(engine_->IsInitialized(), FAILED, "Hixl is not initialized");
-  HIXL_CHK_STATUS_RET(engine_->Connect(remote_engine, timeout_in_millis), "Failed to connect");
+  const Status ret = engine_->Connect(remote_engine, timeout_in_millis);
+  if (ret == ALREADY_CONNECTED) {
+    HIXL_LOGW("Connection to remote engine:%s is already established.", remote_engine.GetString());
+    return ret;
+  }
+  HIXL_CHK_STATUS_RET(ret, "Failed to connect");
   return SUCCESS;
 }
 
@@ -282,8 +287,11 @@ Status Hixl::Connect(const AscendString &remote_engine, int32_t timeout_in_milli
   HIXL_LOGI("Connect start, remote engine:%s, timeout:%d ms", remote_engine.GetString(), timeout_in_millis);
   HIXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check Hixl init");
   HIXL_CHK_BOOL_RET_STATUS(timeout_in_millis > 0, PARAM_INVALID, "timeout_in_millis:%d must > 0", timeout_in_millis);
-  HIXL_CHK_STATUS_RET(impl_->Connect(remote_engine, timeout_in_millis),
-                      "Failed to connect, remote engine:%s, timeout:%d ms", remote_engine.GetString(),
+  const Status ret = impl_->Connect(remote_engine, timeout_in_millis);
+  if (ret == ALREADY_CONNECTED) {
+    return ret;
+  }
+  HIXL_CHK_STATUS_RET(ret, "Failed to connect, remote engine:%s, timeout:%d ms", remote_engine.GetString(),
                       timeout_in_millis);
   HIXL_LOGI("Connect success, remote engine:%s, timeout:%d ms", remote_engine.GetString(), timeout_in_millis);
   return SUCCESS;
