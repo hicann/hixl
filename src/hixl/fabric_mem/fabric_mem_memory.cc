@@ -13,6 +13,8 @@
 #include <algorithm>
 #include <limits>
 #include <map>
+#include <memory>
+#include <unordered_set>
 
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
@@ -60,6 +62,20 @@ Status GetAddressRangeForPtr(uintptr_t addr, MemDesc &range) {
   range = {base_addr, size};
   return SUCCESS;
 }
+
+bool ResolveImportedHostAddr(const ShareHandleInfo &info, uintptr_t old_addr, uintptr_t &new_addr,
+                             size_t &available_len) {
+  if (info.imported_va == 0 || old_addr < info.va_addr) {
+    return false;
+  }
+  const uintptr_t offset = old_addr - info.va_addr;
+  if (offset >= info.len || info.imported_va > std::numeric_limits<uintptr_t>::max() - offset) {
+    return false;
+  }
+  new_addr = info.imported_va + offset;
+  available_len = info.len - offset;
+  return true;
+}
 }  // namespace
 
 FabricMemLocalMemory::~FabricMemLocalMemory() {
@@ -97,10 +113,31 @@ void FabricMemLocalMemory::ReleaseSegment(LocalMemSegment &segment) {
 }
 
 void FabricMemLocalMemory::ReleaseRegistration(LocalMemRegistration &registration) {
+  std::vector<LocalMemSegment> shared_to_release;
+  {
+    std::lock_guard<std::mutex> lock(share_handle_mutex_);
+    for (const uintptr_t page_addr : registration.foreign_pa_pages) {
+      const auto it = exported_pas_.find(page_addr);
+      if (it == exported_pas_.end() || it->second == nullptr) {
+        continue;
+      }
+      if (it->second->refcount > 0U) {
+        --it->second->refcount;
+      }
+      if (it->second->refcount == 0U) {
+        shared_to_release.emplace_back(std::move(it->second->segment));
+        exported_pas_.erase(it);
+      }
+    }
+    registration.foreign_pa_pages.clear();
+  }
   for (auto &segment : registration.segments) {
     ReleaseSegment(segment);
   }
   registration.segments.clear();
+  for (auto &segment : shared_to_release) {
+    ReleaseSegment(segment);
+  }
 }
 
 Status FabricMemLocalMemory::ExportSegment(const MemDesc &mem, MemType type, aclrtDrvMemHandle pa_handle,
@@ -144,29 +181,6 @@ Status FabricMemLocalMemory::FindExistingHandleForOverlapLocked(const MemDesc &m
                       "Failed to check fabric mem address overlap.");
   if (is_duplicate) {
     mem_handle = existing_handle;
-    return SUCCESS;
-  }
-  // Foreign registrations advertise the full VMM physical page. A later request that does not
-  // overlap the user range can still sit inside that page; reject it before a second ACL export.
-  for (const auto &item : registrations_) {
-    const auto &registration = *item.second;
-    if (registration.mem_type != type) {
-      continue;
-    }
-    for (const auto &segment : registration.segments) {
-      AddrInfo advertised_info{};
-      HIXL_CHK_STATUS_RET(
-          BuildRegisteredAddrInfo(segment.info.va_addr, segment.info.len, registration.mem_type, advertised_info),
-          "Registered fabric mem advertised range is invalid.");
-      if ((cur_info.end_addr <= advertised_info.start_addr) || (cur_info.start_addr >= advertised_info.end_addr)) {
-        continue;
-      }
-      HIXL_LOGE(PARAM_INVALID,
-                "Mem addr range overlap with existing registered mem, "
-                "new mem range:[0x%lx, 0x%lx), existing mem range:[0x%lx, 0x%lx).",
-                cur_info.start_addr, cur_info.end_addr, advertised_info.start_addr, advertised_info.end_addr);
-      return PARAM_INVALID;
-    }
   }
   return SUCCESS;
 }
@@ -177,6 +191,38 @@ Status FabricMemLocalMemory::FindExistingHandleForOverlap(const MemDesc &mem, Me
   return FindExistingHandleForOverlapLocked(mem, type, mem_handle, is_duplicate);
 }
 
+Status FabricMemLocalMemory::AttachForeignPaPage(uintptr_t page_addr, size_t page_len, MemType type,
+                                                 LocalMemSegment *owned_segment, LocalMemRegistration &registration) {
+  LocalMemSegment extra;
+  bool release_extra = false;
+  {
+    std::lock_guard<std::mutex> lock(share_handle_mutex_);
+    const auto it = exported_pas_.find(page_addr);
+    const bool reusable = it != exported_pas_.end() && it->second != nullptr &&
+                          it->second->segment.info.mem_type == type && it->second->segment.info.len == page_len;
+    if (reusable) {
+      ++it->second->refcount;
+      registration.foreign_pa_pages.push_back(page_addr);
+      if (owned_segment != nullptr) {
+        extra = std::move(*owned_segment);
+        release_extra = true;
+      }
+    } else {
+      HIXL_CHK_BOOL_RET_STATUS(owned_segment != nullptr, FAILED, "Foreign fabric mem PA page:0x%lx is not exported.",
+                               page_addr);
+      auto exported = std::make_unique<ExportedPa>();
+      exported->segment = std::move(*owned_segment);
+      exported->refcount = 1U;
+      exported_pas_[page_addr] = std::move(exported);
+      registration.foreign_pa_pages.push_back(page_addr);
+    }
+  }
+  if (release_extra) {
+    ReleaseSegment(extra);
+  }
+  return SUCCESS;
+}
+
 Status FabricMemLocalMemory::BuildForeignSegments(const MemDesc &mem, MemType type,
                                                   LocalMemRegistration &registration) {
   const uintptr_t end = mem.addr + mem.len;
@@ -185,6 +231,21 @@ Status FabricMemLocalMemory::BuildForeignSegments(const MemDesc &mem, MemType ty
     MemDesc block{};
     HIXL_CHK_STATUS_RET(GetAddressRangeForPtr(cursor, block),
                         "Failed to resolve address range while registering foreign fabric mem.");
+    bool reused = false;
+    {
+      std::lock_guard<std::mutex> lock(share_handle_mutex_);
+      const auto it = exported_pas_.find(block.addr);
+      if (it != exported_pas_.end() && it->second != nullptr && it->second->segment.info.mem_type == type &&
+          it->second->segment.info.len == block.len) {
+        ++it->second->refcount;
+        registration.foreign_pa_pages.push_back(block.addr);
+        reused = true;
+      }
+    }
+    if (reused) {
+      cursor = block.addr + block.len;
+      continue;
+    }
     aclrtDrvMemHandle pa_handle = nullptr;
     HIXL_DISMISSABLE_GUARD(retain_guard, ([&pa_handle]() {
                              if (pa_handle != nullptr) {
@@ -197,10 +258,11 @@ Status FabricMemLocalMemory::BuildForeignSegments(const MemDesc &mem, MemType ty
     LocalMemSegment segment{};
     HIXL_CHK_STATUS_RET(ExportSegment(block, type, pa_handle, true, segment),
                         "Export foreign fabric mem block failed.");
-    registration.segments.emplace_back(std::move(segment));
+    HIXL_CHK_STATUS_RET(AttachForeignPaPage(block.addr, block.len, type, &segment, registration),
+                        "Attach foreign fabric mem PA page failed.");
     cursor = block.addr + block.len;
   }
-  HIXL_CHK_BOOL_RET_STATUS(!registration.segments.empty(), FAILED,
+  HIXL_CHK_BOOL_RET_STATUS(!registration.foreign_pa_pages.empty(), FAILED,
                            "Foreign fabric mem registration produced no segments.");
   return SUCCESS;
 }
@@ -229,7 +291,7 @@ Status FabricMemLocalMemory::RegisterOwnMem(const MemDesc &mem, MemType type, ac
   registration->va_addr = mem.addr;
   registration->len = mem.len;
   registration->mem_type = type;
-  HIXL_DISMISSABLE_GUARD(fail_guard, ([&registration]() {
+  HIXL_DISMISSABLE_GUARD(fail_guard, ([this, &registration]() {
                            if (registration != nullptr) {
                              ReleaseRegistration(*registration);
                            }
@@ -257,13 +319,13 @@ Status FabricMemLocalMemory::RegisterForeignMem(const MemDesc &mem, MemType type
   registration->va_addr = mem.addr;
   registration->len = mem.len;
   registration->mem_type = type;
-  HIXL_DISMISSABLE_GUARD(fail_guard, ([&registration]() {
+  HIXL_DISMISSABLE_GUARD(fail_guard, ([this, &registration]() {
                            if (registration != nullptr) {
                              ReleaseRegistration(*registration);
                            }
                          }));
   HIXL_CHK_STATUS_RET(BuildForeignSegments(mem, type, *registration), "Build foreign fabric mem segments failed.");
-  const size_t segment_count = registration->segments.size();
+  const size_t segment_count = registration->foreign_pa_pages.size();
   // A foreign registration can own multiple PA handles, so use the registration object's stable identity.
   const MemHandle candidate_handle = registration.get();
   bool committed = false;
@@ -317,9 +379,19 @@ Status FabricMemLocalMemory::DeregisterMem(MemHandle mem_handle) {
 std::vector<ShareHandleInfo> FabricMemLocalMemory::GetShareHandles() const {
   std::lock_guard<std::mutex> lock(share_handle_mutex_);
   std::vector<ShareHandleInfo> share_handles;
+  std::unordered_set<uintptr_t> emitted_pages;
   for (const auto &item : registrations_) {
     for (const auto &segment : item.second->segments) {
       share_handles.emplace_back(segment.info);
+    }
+    for (const uintptr_t page_addr : item.second->foreign_pa_pages) {
+      if (!emitted_pages.insert(page_addr).second) {
+        continue;
+      }
+      const auto pa_it = exported_pas_.find(page_addr);
+      if (pa_it != exported_pas_.end() && pa_it->second != nullptr) {
+        share_handles.emplace_back(pa_it->second->segment.info);
+      }
     }
   }
   return share_handles;
@@ -333,16 +405,14 @@ bool FabricMemLocalMemory::FindLocalHostRegisteredAddrLocked(uintptr_t old_addr,
                                                              size_t &available_len) const {
   for (const auto &item : registrations_) {
     for (const auto &segment : item.second->segments) {
-      const auto &info = segment.info;
-      if (info.imported_va == 0 || old_addr < info.va_addr) {
-        continue;
+      if (ResolveImportedHostAddr(segment.info, old_addr, new_addr, available_len)) {
+        return true;
       }
-      const uintptr_t offset = old_addr - info.va_addr;
-      if (offset >= info.len || info.imported_va > std::numeric_limits<uintptr_t>::max() - offset) {
-        continue;
-      }
-      new_addr = info.imported_va + offset;
-      available_len = info.len - offset;
+    }
+  }
+  for (const auto &item : exported_pas_) {
+    if (item.second != nullptr &&
+        ResolveImportedHostAddr(item.second->segment.info, old_addr, new_addr, available_len)) {
       return true;
     }
   }

@@ -53,6 +53,13 @@ class FabricMemLocalMemory {
     size_t len = 0;
     MemType mem_type = MEM_DEVICE;
     std::vector<LocalMemSegment> segments;
+    // Keys into exported_pas_. Adjacent user ranges may share one retained PA.
+    std::vector<uintptr_t> foreign_pa_pages;
+  };
+
+  struct ExportedPa {
+    LocalMemSegment segment;
+    uint32_t refcount = 0;
   };
 
   static Status ImportHostMemoryForRegister(const MemDesc &mem, aclrtMemFabricHandle &share_handle,
@@ -60,7 +67,7 @@ class FabricMemLocalMemory {
   static Status ExportSegment(const MemDesc &mem, MemType type, aclrtDrvMemHandle pa_handle, bool is_retained,
                               LocalMemSegment &segment);
   static void ReleaseSegment(LocalMemSegment &segment);
-  static void ReleaseRegistration(LocalMemRegistration &registration);
+  void ReleaseRegistration(LocalMemRegistration &registration);
   Status FindExistingHandleForOverlap(const MemDesc &mem, MemType type, MemHandle &mem_handle,
                                       bool &is_duplicate) const;
   Status FindExistingHandleForOverlapLocked(const MemDesc &mem, MemType type, MemHandle &mem_handle,
@@ -71,9 +78,12 @@ class FabricMemLocalMemory {
   Status BuildForeignSegments(const MemDesc &mem, MemType type, LocalMemRegistration &registration);
   Status CommitRegistration(std::unique_ptr<LocalMemRegistration> &registration, MemHandle candidate_handle,
                             MemHandle &mem_handle, bool &committed);
+  Status AttachForeignPaPage(uintptr_t page_addr, size_t page_len, MemType type, LocalMemSegment *owned_segment,
+                             LocalMemRegistration &registration);
 
   mutable std::mutex share_handle_mutex_;
   std::unordered_map<MemHandle, std::unique_ptr<LocalMemRegistration>> registrations_;
+  std::unordered_map<uintptr_t, std::unique_ptr<ExportedPa>> exported_pas_;
   std::atomic<bool> has_host_memory_{false};
 };
 

@@ -229,8 +229,8 @@ Status HixlOptions::Parse(const std::map<AscendString, AscendString> &options, H
 
 Status HixlOptions::CheckSupportedOptions(const std::unordered_set<std::string> &supported_keys) const {
   for (const auto &key : parsed_keys_) {
-    HIXL_CHK_BOOL_RET_SPECIAL_STATUS(supported_keys.count(key) == 0, PARAM_INVALID,
-                                     "Unsupported option '%s' for this engine", key.c_str());
+    HIXL_CHK_BOOL_RET_STATUS(supported_keys.count(key) != 0, PARAM_INVALID, "Unsupported option '%s' for this engine",
+                             key.c_str());
   }
   return SUCCESS;
 }

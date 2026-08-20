@@ -56,12 +56,18 @@ aclrtPhysicalMemProp BuildDefaultPhysicalMemProp() {
 }
 
 // Host VMM Map only binds the VA for the host; grant DEVICE READWRITE so NPU/AIV can access it,
-// matching memfabric's HalMemSetAccess after host Map.
-Status SetDeviceAccessForHostMappedVa(void *va_ptr, size_t size, int32_t logic_device_id) {
+// matching memfabric's HalMemSetAccess after host Map. location.id is a driver logical id;
+// aclrtGetDevice returns a user id (ASCEND_RT_VISIBLE_DEVICES), so convert before SetAccess.
+Status SetDeviceAccessForHostMappedVa(void *va_ptr, size_t size) {
+  int32_t user_id = -1;
+  int32_t driver_id = -1;
+  HIXL_CHK_ACL_RET(aclrtGetDevice(&user_id), "Get current user device id failed.");
+  HIXL_CHK_ACL_RET(aclrtGetLogicDevIdByUserDevId(user_id, &driver_id),
+                   "Convert user device id to driver logical id failed.");
   aclrtMemAccessDesc desc{};
   desc.flags = ACL_RT_MEM_ACCESS_FLAGS_READWRITE;
   desc.location.type = ACL_MEM_LOCATION_TYPE_DEVICE;
-  desc.location.id = static_cast<uint32_t>(logic_device_id);
+  desc.location.id = static_cast<uint32_t>(driver_id);
   HIXL_CHK_ACL_RET(aclrtMemSetAccess(va_ptr, size, &desc, kMemAccessDescCount),
                    "Set fabric memory device access failed.");
   return SUCCESS;
@@ -92,7 +98,7 @@ Status FabricMemAllocator::MallocMem(MemType type, size_t size, void **ptr) {
   HIXL_DISMISSABLE_GUARD(unmap_guard,
                          ([va_ptr]() { HIXL_CHK_ACL(aclrtUnmapMem(va_ptr), "Unmap fabric memory failed."); }));
   if (type == MemType::MEM_HOST) {
-    HIXL_CHK_STATUS_RET(SetDeviceAccessForHostMappedVa(va_ptr, size, logic_device_id),
+    HIXL_CHK_STATUS_RET(SetDeviceAccessForHostMappedVa(va_ptr, size),
                         "Failed to set device access for host fabric memory.");
   }
 

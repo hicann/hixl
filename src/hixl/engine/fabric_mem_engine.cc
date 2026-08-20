@@ -15,6 +15,7 @@
 #include <utility>
 
 #include "acl/acl_rt.h"
+#include "adxl/adxl_types.h"
 #include "common/ctrl_msg.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
@@ -26,9 +27,31 @@
 #include "profiling/prof_api_reg.h"
 
 namespace hixl {
+namespace {
+constexpr const char BUFFER_POOL_DISABLED[] = "0:0";
+
+Status CheckBufferPoolDisabled(const HixlOptions &options) {
+  const auto &raw = options.RawOptions();
+  const auto &hixl_bp_it = raw.find(hixl::OPTION_BUFFER_POOL);
+  const auto &adxl_bp_it = raw.find(adxl::OPTION_BUFFER_POOL);
+  auto bp_it = (hixl_bp_it != raw.cend()) ? hixl_bp_it : adxl_bp_it;
+  if (bp_it == raw.cend()) {
+    return SUCCESS;
+  }
+  HIXL_CHK_BOOL_RET_STATUS(std::string(bp_it->second.GetString()) == BUFFER_POOL_DISABLED, PARAM_INVALID,
+                           "[FabricMemEngine] OPTION_BUFFER_POOL only supports %s when EnableUseFabricMem is 1",
+                           BUFFER_POOL_DISABLED);
+  return SUCCESS;
+}
+}  // namespace
 
 const std::unordered_set<std::string> FabricMemEngine::kSupportedOptions = {
-    OPTION_ENABLE_USE_FABRIC_MEM, OPTION_AUTO_CONNECT, OPTION_GLOBAL_RESOURCE_CONFIG};
+    OPTION_ENABLE_USE_FABRIC_MEM,    OPTION_RDMA_TRAFFIC_CLASS,
+    adxl::OPTION_RDMA_TRAFFIC_CLASS, OPTION_RDMA_SERVICE_LEVEL,
+    adxl::OPTION_RDMA_SERVICE_LEVEL, OPTION_LOCAL_COMM_RES,
+    adxl::OPTION_LOCAL_COMM_RES,     OPTION_BUFFER_POOL,
+    adxl::OPTION_BUFFER_POOL,        OPTION_AUTO_CONNECT,
+    adxl::OPTION_AUTO_CONNECT,       OPTION_GLOBAL_RESOURCE_CONFIG};
 
 void FabricMemEngine::SetKeepaliveCheckIntervalMs(int64_t interval_ms) {
   FabricMemTransferService::SetKeepaliveCheckIntervalMs(interval_ms);
@@ -105,6 +128,7 @@ Status FabricMemEngine::InitFabricMem() {
 
 Status FabricMemEngine::InitializeLocked(const HixlOptions &options, bool &start_keepalive_monitor) {
   HIXL_CHK_STATUS_RET(options.CheckSupportedOptions(kSupportedOptions), "[FabricMemEngine] Unsupported option");
+  HIXL_CHK_STATUS_RET(CheckBufferPoolDisabled(options), "[FabricMemEngine] Invalid BufferPool option");
   HIXL_CHK_BOOL_RET_STATUS(options.EnableFabricMem().value_or(false), PARAM_INVALID,
                            "[FabricMemEngine] EnableUseFabricMem must be 1.");
   HIXL_CHK_ACL_RET(aclrtGetDevice(&device_id_), "[FabricMemEngine] Failed to get device id.");

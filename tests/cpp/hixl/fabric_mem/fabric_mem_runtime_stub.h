@@ -59,6 +59,8 @@ constexpr uintptr_t kRemoteOldAddr = 0x200000UL;
 constexpr uintptr_t kRemoteNewAddr = 0x300000UL;
 constexpr uintptr_t kImportedLocalAddr = 0x400000UL;
 constexpr size_t kLen = 32U;
+// VISIBLE_DEVICES-style remap so tests can tell user id 0 from driver logical id.
+constexpr int32_t kUserToDriverLogicIdOffset = 4;
 constexpr uint32_t kFabricMemMagic = 0xA4B3C2D1;
 constexpr int32_t kClientTimeoutMs = 10;
 constexpr uint32_t kCaptureLogTimeoutMs = 1000U;
@@ -127,6 +129,7 @@ class FabricMemRuntimeStub : public llm::AclRuntimeStub {
   aclError aclrtMemImportFromShareableHandleV2(void *shareableHandle, aclrtMemSharedHandleType type, uint64_t flags,
                                                aclrtDrvMemHandle *handle) override;
   aclError aclrtMemSetAccess(void *virPtr, size_t size, aclrtMemAccessDesc *desc, size_t count) override;
+  aclError aclrtGetLogicDevIdByUserDevId(const int32_t userDevid, int32_t *const logicDevId) override;
   bool IsDeviceOnlyStream(aclrtStream stream) const;
   void SetAddressRanges(std::vector<std::pair<uintptr_t, size_t>> ranges);
 

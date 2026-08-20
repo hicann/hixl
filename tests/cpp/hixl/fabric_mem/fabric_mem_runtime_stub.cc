@@ -342,6 +342,15 @@ aclError FabricMemRuntimeStub::aclrtMemSetAccess(void *virPtr, size_t size, aclr
   return llm::AclRuntimeStub::aclrtMemSetAccess(virPtr, size, desc, count);
 }
 
+aclError FabricMemRuntimeStub::aclrtGetLogicDevIdByUserDevId(const int32_t userDevid, int32_t *const logicDevId) {
+  const aclError ret = llm::AclRuntimeStub::aclrtGetLogicDevIdByUserDevId(userDevid, logicDevId);
+  if (ret != ACL_ERROR_NONE) {
+    return ret;
+  }
+  *logicDevId = userDevid + kUserToDriverLogicIdOffset;
+  return ACL_ERROR_NONE;
+}
+
 bool FabricMemRuntimeStub::IsDeviceOnlyStream(aclrtStream stream) const {
   const auto it = stream_flags_.find(stream);
   return it != stream_flags_.end() && it->second == ACL_STREAM_DEVICE_USE_ONLY;

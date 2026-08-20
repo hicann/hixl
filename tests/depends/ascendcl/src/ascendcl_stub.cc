@@ -481,6 +481,17 @@ aclError AclRuntimeStub::aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, 
   return ACL_ERROR_NONE;
 }
 
+aclError AclRuntimeStub::aclrtGetLogicDevIdByUserDevId(const int32_t userDevid, int32_t *const logicDevId) {
+  if (__FUNCTION__ == g_acl_stub_mock) {
+    return ACL_ERROR_RT_INTERNAL_ERROR;
+  }
+  if (logicDevId == nullptr) {
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  *logicDevId = userDevid;
+  return ACL_ERROR_NONE;
+}
+
 aclError AclRuntimeStub::aclrtGetLogicDevIdByPhyDevId(const int32_t phyDevId, int32_t *const logicDevId) {
   *logicDevId = phyDevId;
   return ACL_SUCCESS;
@@ -952,8 +963,7 @@ aclError aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, int32_t *const p
 }
 
 aclError aclrtGetLogicDevIdByUserDevId(const int32_t userDevid, int32_t *const logicDevId) {
-  *logicDevId = userDevid;
-  return ACL_ERROR_NONE;
+  return llm::AclRuntimeStub::GetInstance()->aclrtGetLogicDevIdByUserDevId(userDevid, logicDevId);
 }
 
 aclError aclrtGetLogicDevIdByPhyDevId(const int32_t phyDevId, int32_t *const logicDevId) {

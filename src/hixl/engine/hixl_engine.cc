@@ -25,7 +25,8 @@
 namespace hixl {
 namespace {
 constexpr int32_t kAutoConnectTimeout = 3000;
-}
+constexpr const char BUFFER_POOL_DISABLED[] = "0:0";
+}  // namespace
 
 const std::unordered_set<std::string> HixlEngine::kSupportedOptions = {
     OPTION_RDMA_TRAFFIC_CLASS,    adxl::OPTION_RDMA_TRAFFIC_CLASS,
@@ -62,8 +63,9 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
   const auto &adxl_bp_it = raw.find(adxl::OPTION_BUFFER_POOL);
   auto bp_it = (hixl_bp_it != raw.cend()) ? hixl_bp_it : adxl_bp_it;
   if (bp_it != raw.cend()) {
-    HIXL_CHK_BOOL_RET_STATUS(std::string(bp_it->second.GetString()) == "0:0", PARAM_INVALID,
-                             "Invalid option fields, OPTION_BUFFER_POOL for hixl engine only supports 0:0");
+    HIXL_CHK_BOOL_RET_STATUS(std::string(bp_it->second.GetString()) == BUFFER_POOL_DISABLED, PARAM_INVALID,
+                             "Invalid option fields, OPTION_BUFFER_POOL for hixl engine only supports %s",
+                             BUFFER_POOL_DISABLED);
   }
   std::string local_comm_res;
   HIXL_CHK_STATUS_RET(EndpointGenerator::BuildEndpointList(options, local_engine_, local_comm_res, endpoint_list_),

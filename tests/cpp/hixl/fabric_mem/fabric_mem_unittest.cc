@@ -26,6 +26,7 @@
 
 namespace hixl {
 namespace {
+constexpr const char BUFFER_POOL_DISABLED[] = "0:0";
 using namespace fabric_mem_test;
 
 class FabricMemStatisticUTest : public ::testing::Test {
@@ -770,7 +771,7 @@ TEST_F(FabricMemLocalMemoryUTest, RegisterForeignOffsetAdvertisesFullBlock) {
   EXPECT_EQ(local_memory_.DeregisterMem(handle), SUCCESS);
 }
 
-TEST_F(FabricMemLocalMemoryUTest, RegisterForeignRejectsAdjacentRangesOnSamePaBlock) {
+TEST_F(FabricMemLocalMemoryUTest, RegisterForeignReusesAdjacentRangesOnSamePaBlock) {
   constexpr uintptr_t kBase = 0x1000000UL;
   constexpr size_t kBlock = 0x1000U;
   constexpr size_t kHalf = kBlock / 2U;
@@ -783,12 +784,58 @@ TEST_F(FabricMemLocalMemoryUTest, RegisterForeignRejectsAdjacentRangesOnSamePaBl
   EXPECT_EQ(runtime_->retain_count_, 1U);
 
   MemHandle second = nullptr;
-  EXPECT_EQ(local_memory_.RegisterMem({kBase + kHalf, kHalf}, MEM_DEVICE, second), PARAM_INVALID);
-  EXPECT_EQ(second, nullptr);
+  ASSERT_EQ(local_memory_.RegisterMem({kBase + kHalf, kHalf}, MEM_DEVICE, second), SUCCESS);
+  ASSERT_NE(second, nullptr);
+  EXPECT_NE(second, first);
   EXPECT_EQ(runtime_->mem_export_count_, 1U);
   EXPECT_EQ(runtime_->retain_count_, 1U);
   EXPECT_EQ(local_memory_.GetShareHandles().size(), 1U);
 
+  EXPECT_EQ(local_memory_.DeregisterMem(first), SUCCESS);
+  EXPECT_EQ(runtime_->free_physical_count_, 0U);
+  EXPECT_EQ(local_memory_.GetShareHandles().size(), 1U);
+
+  EXPECT_EQ(local_memory_.DeregisterMem(second), SUCCESS);
+  EXPECT_EQ(runtime_->free_physical_count_, 1U);
+  EXPECT_TRUE(local_memory_.GetShareHandles().empty());
+}
+
+TEST_F(FabricMemLocalMemoryUTest, RegisterForeignReusesSharedPaThenExportsNewPage) {
+  constexpr uintptr_t kBase0 = 0x1000000UL;
+  constexpr size_t kBlock = 0x1000U;
+  constexpr size_t kHalf = kBlock / 2U;
+  constexpr uintptr_t kBase1 = kBase0 + kBlock;
+  runtime_->SetAddressRanges({{kBase0, kBlock}, {kBase1, kBlock}});
+
+  MemHandle first = nullptr;
+  ASSERT_EQ(local_memory_.RegisterMem({kBase0, kHalf}, MEM_DEVICE, first), SUCCESS);
+  MemHandle second = nullptr;
+  ASSERT_EQ(local_memory_.RegisterMem({kBase0 + kHalf, kHalf + kBlock}, MEM_DEVICE, second), SUCCESS);
+  EXPECT_EQ(runtime_->retain_count_, 2U);
+  EXPECT_EQ(runtime_->mem_export_count_, 2U);
+  EXPECT_EQ(local_memory_.GetShareHandles().size(), 2U);
+
+  EXPECT_EQ(local_memory_.DeregisterMem(first), SUCCESS);
+  EXPECT_EQ(runtime_->free_physical_count_, 0U);
+  EXPECT_EQ(local_memory_.GetShareHandles().size(), 2U);
+
+  EXPECT_EQ(local_memory_.DeregisterMem(second), SUCCESS);
+  EXPECT_EQ(runtime_->free_physical_count_, 2U);
+  EXPECT_TRUE(local_memory_.GetShareHandles().empty());
+}
+
+TEST_F(FabricMemLocalMemoryUTest, RegisterForeignRejectsOverlappingUserRanges) {
+  constexpr uintptr_t kBase = 0x1000000UL;
+  constexpr size_t kBlock = 0x1000U;
+  constexpr size_t kHalf = kBlock / 2U;
+  runtime_->SetAddressRanges({{kBase, kBlock}});
+
+  MemHandle first = nullptr;
+  ASSERT_EQ(local_memory_.RegisterMem({kBase, kBlock}, MEM_DEVICE, first), SUCCESS);
+  MemHandle second = nullptr;
+  EXPECT_EQ(local_memory_.RegisterMem({kBase + kHalf, kHalf}, MEM_DEVICE, second), PARAM_INVALID);
+  EXPECT_EQ(second, nullptr);
+  EXPECT_EQ(runtime_->mem_export_count_, 1U);
   EXPECT_EQ(local_memory_.DeregisterMem(first), SUCCESS);
 }
 
@@ -1042,6 +1089,7 @@ TEST_F(FabricMemTransferServiceUTest, MallocMemAndFreeMemHost) {
   EXPECT_EQ(runtime_->last_mem_set_access_count_, 1U);
   EXPECT_EQ(runtime_->last_mem_access_desc_.flags, ACL_RT_MEM_ACCESS_FLAGS_READWRITE);
   EXPECT_EQ(runtime_->last_mem_access_desc_.location.type, ACL_MEM_LOCATION_TYPE_DEVICE);
+  EXPECT_EQ(runtime_->last_mem_access_desc_.location.id, static_cast<uint32_t>(kUserToDriverLogicIdOffset));
   EXPECT_EQ(FabricMemTransferService::FreeMem(host_ptr), SUCCESS);
   VirtualMemoryManager::GetInstance().Finalize();
 }
@@ -1136,6 +1184,13 @@ TEST_F(FabricMemTransferServiceUTest, MallocMemRollsBackWhenHostMemSetAccessFail
   VirtualMemoryManager::GetInstance().Finalize();
   ASSERT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
   ExpectMallocRollsBackOnAclFailure(MEM_HOST, "aclrtMemSetAccess", runtime_);
+  VirtualMemoryManager::GetInstance().Finalize();
+}
+
+TEST_F(FabricMemTransferServiceUTest, MallocMemRollsBackWhenUserToDriverIdFails) {
+  VirtualMemoryManager::GetInstance().Finalize();
+  ASSERT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
+  ExpectMallocRollsBackOnAclFailure(MEM_HOST, "aclrtGetLogicDevIdByUserDevId", runtime_);
   VirtualMemoryManager::GetInstance().Finalize();
 }
 
@@ -1938,6 +1993,43 @@ TEST_F(FabricMemEngineInitUTest, FabricMemoryCapacityConfig) {
   EXPECT_EQ(VirtualMemoryManager::GetInstance().ReleaseMemory(addr), SUCCESS);
 
   engine.Finalize();
+}
+
+TEST_F(FabricMemEngineInitUTest, AcceptsMooncakeDefaultOptions) {
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
+  auto options = BuildFabricMemOptions();
+  options[OPTION_AUTO_CONNECT] = AscendString("1");
+  options[adxl::OPTION_BUFFER_POOL] = AscendString(BUFFER_POOL_DISABLED);
+  options[adxl::OPTION_LOCAL_COMM_RES] = AscendString(R"({"version":"1.3"})");
+  options[adxl::OPTION_RDMA_TRAFFIC_CLASS] = AscendString("132");
+  options[adxl::OPTION_RDMA_SERVICE_LEVEL] = AscendString("4");
+  options[OPTION_GLOBAL_RESOURCE_CONFIG] =
+      AscendString(R"({"fabric_memory.max_capacity":32,"fabric_memory.enable_aicpu_unfold":false})");
+  EXPECT_EQ(InitEngineWithOptions(engine, options), SUCCESS);
+  engine.Finalize();
+}
+
+TEST_F(FabricMemEngineInitUTest, AcceptsDisabledBufferPoolWithDottedFabricMemoryCapacity) {
+  VirtualMemoryManager::GetInstance().Finalize();
+
+  FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
+  auto options = BuildFabricMemOptions();
+  options[adxl::OPTION_BUFFER_POOL] = AscendString(BUFFER_POOL_DISABLED);
+  options[OPTION_GLOBAL_RESOURCE_CONFIG] =
+      AscendString(R"({"fabric_memory.max_capacity":32,"fabric_memory.enable_aicpu_unfold":false})");
+  EXPECT_EQ(InitEngineWithOptions(engine, options), SUCCESS);
+  EXPECT_TRUE(engine.fabric_mem_config_.has_capacity_tb);
+  EXPECT_EQ(engine.fabric_mem_config_.capacity_tb, 32UL);
+  engine.Finalize();
+}
+
+TEST_F(FabricMemEngineInitUTest, RejectsEnabledBufferPoolWithFabricMem) {
+  FabricMemEngine engine{AscendString(kConfigEngineLocalId)};
+  auto options = BuildFabricMemOptions();
+  options[adxl::OPTION_BUFFER_POOL] = AscendString("4:8");
+  EXPECT_EQ(InitEngineWithOptions(engine, options), PARAM_INVALID);
 }
 
 TEST_F(FabricMemEngineInitUTest, FabricMemoryInitFailureRollback) {
