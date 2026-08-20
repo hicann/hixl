@@ -11,7 +11,7 @@
 #ifndef AIR_RUNTIME_LLM_ENGINE_INC_EXTERNAL_LLM_ERROR_CODES_H_
 #define AIR_RUNTIME_LLM_ENGINE_INC_EXTERNAL_LLM_ERROR_CODES_H_
 
-#include "external/ge_common/ge_api_error_codes.h"
+#include "external/ge_common/api_error_codes.h"
 
 #ifndef LLM_ERROR_CODES
 #define LLM_ERROR_CODES

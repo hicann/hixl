@@ -17,7 +17,7 @@
 #include "hccl/hccl_types.h"
 #include "acl/acl.h"
 #include "adxl/adxl_types.h"
-#include "ge_common/ge_api_error_codes.h"
+#include "ge_common/api_error_codes.h"
 #include "nlohmann/json.hpp"
 
 namespace adxl {

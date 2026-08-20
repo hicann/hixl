@@ -12,7 +12,7 @@
 #define CANN_HIXL_INCLUDE_HIXL_HIXL_TYPES_H_
 
 #include <cstdint>
-#include "external/ge_common/ge_api_error_codes.h"
+#include "external/ge_common/api_error_codes.h"
 
 #ifdef FUNC_VISIBILITY
 #define ASCEND_FUNC_VISIBILITY __attribute__((visibility("default")))
