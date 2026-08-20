@@ -24,7 +24,6 @@
 #include <future>
 #include <memory>
 #include <queue>
-#include <stdexcept>
 #include <thread>
 #include <vector>
 

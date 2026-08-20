@@ -12,6 +12,7 @@
 #include <cinttypes>
 #include <numeric>
 #include "common/llm_checker.h"
+#include "common/def_types.h"
 #include "common/llm_thread_pool.h"
 #include "common/transfer_message_limits.h"
 

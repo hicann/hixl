@@ -18,12 +18,9 @@
 #include <list>
 #include <memory>
 #include <queue>
-#include <stdexcept>
 #include <thread>
 #include <vector>
 
-#include "hixl/hixl_types.h"
-#include "cs/hixl_cs.h"
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
 

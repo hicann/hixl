@@ -13,7 +13,7 @@
 #include "nlohmann/json.hpp"
 #include "fabric_mem_engine.h"
 #include "hixl_engine.h"
-#include "adxl/adxl_inner_engine.h"
+#include "comm_engine.h"
 #include "hixl/hixl_types.h"
 #include "adxl/adxl_types.h"
 #include "common/hixl_log.h"

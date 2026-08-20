@@ -11,7 +11,6 @@
 #ifndef H8C7822C4_3060_4C00_BD99_9E8DF5C8D2A6
 #define H8C7822C4_3060_4C00_BD99_9E8DF5C8D2A6
 
-#include <set>
 #include "memory/util/link.h"
 #include "memory/span/span_layer_id.h"
 #include "memory/span/span_allocator.h"

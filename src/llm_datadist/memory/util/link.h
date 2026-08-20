@@ -13,7 +13,7 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <new>
+#include <utility>
 #include "memory/util/link_node.h"
 
 namespace llm {

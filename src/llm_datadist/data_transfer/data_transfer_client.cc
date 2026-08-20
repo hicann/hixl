@@ -10,6 +10,7 @@
 
 #include "data_transfer/data_transfer_client.h"
 #include "data_transfer/d2d_data_transfer_job.h"
+#include "common/def_types.h"
 #include "common/llm_utils.h"
 #include "common/transfer_message_limits.h"
 

@@ -18,12 +18,10 @@
 #include <atomic>
 #include <condition_variable>
 #include <optional>
-#include <chrono>
 #include "channel_manager.h"
 #include "common/msg_handler_plugin.h"
 #include "segment_table.h"
 #include "adxl_utils.h"
-#include "common/hixl_utils.h"
 
 namespace adxl {
 

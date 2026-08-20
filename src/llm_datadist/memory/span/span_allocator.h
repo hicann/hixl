@@ -14,7 +14,6 @@
 #include "memory/allocator/scalable_config.h"
 #include "memory/util/object_allocator.h"
 #include "memory/span/page_span.h"
-#include "common/llm_log.h"
 
 namespace llm {
 class SpanAllocator {

@@ -12,7 +12,6 @@
 #include "common/llm_thread_pool.h"
 #include "common/llm_log.h"
 #include "common/llm_checker.h"
-#include "common/llm_scope_guard.h"
 #include "utils/extern_math_util.h"
 
 namespace llm {

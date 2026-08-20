@@ -14,7 +14,6 @@
 #include <arpa/inet.h>
 #include <cctype>
 #include <cstdint>
-#include <cstdlib>
 #include <iomanip>
 #include <limits>
 #include <map>

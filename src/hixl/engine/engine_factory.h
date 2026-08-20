@@ -12,10 +12,10 @@
 #define HIXL_SRC_HIXL_ENGINE_ENGINE_FACTORY_H_
 
 #include <map>
+#include <memory>
+#include <string>
 #include "engine.h"
-#include "hixl_engine.h"
 #include "hixl_options.h"
-#include "comm_engine.h"
 
 namespace hixl {
 class EngineFactory {

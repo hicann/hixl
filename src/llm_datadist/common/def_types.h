@@ -18,8 +18,6 @@
 #ifndef CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_DEF_TYPES_H_
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_DEF_TYPES_H_
 
-#include <atomic>
-#include <memory>
 #include <vector>
 namespace llm {
 inline uint64_t PtrToValue(const void *const ptr) {

@@ -12,7 +12,6 @@
 #include "acl/acl_rt.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
-#include "common/hixl_utils.h"
 
 namespace hixl {
 

@@ -13,7 +13,6 @@
 #undef PyCFunction_NewEx
 #endif
 
-#include <vector>
 #include "pybind11/pybind11.h"
 #include "graph/types.h"
 
@@ -24,7 +23,6 @@ namespace llm {
 namespace {
 namespace py = pybind11;
 }  // namespace
-
 
 PYBIND11_MODULE(metadef_wrapper, m) {
   m.attr("DT_FLOAT") = py::int_(static_cast<int32_t>(ge::DataType::DT_FLOAT));

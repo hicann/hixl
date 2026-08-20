@@ -11,8 +11,6 @@
 #ifndef CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_SEND_STATE_H_
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_SEND_STATE_H_
 
-#include <vector>
-#include <list>
 #include "llm_datadist/llm_error_codes.h"
 #include "ge_common/api_error_codes.h"
 #include "common/llm_inner_types.h"

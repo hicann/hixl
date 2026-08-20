@@ -17,6 +17,7 @@
 
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
+#include "common/hixl_utils.h"
 #include "common/scope_guard.h"
 
 namespace hixl {

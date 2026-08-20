@@ -12,7 +12,6 @@
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_LINK_MANAGER_H_
 
 #include <vector>
-#include <thread>
 #include "llm_datadist/llm_error_codes.h"
 #include "common/llm_inner_types.h"
 #include "common/llm_thread_pool.h"

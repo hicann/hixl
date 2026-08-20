@@ -21,7 +21,6 @@
 #include <vector>
 
 #include "acl/acl_rt.h"
-#include "common/hixl_utils.h"
 #include "fabric_mem/fabric_mem_control.h"
 #include "fabric_mem/fabric_mem_memory.h"
 #include "fabric_mem/fabric_mem_slot_pool.h"

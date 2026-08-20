@@ -9,8 +9,6 @@
  */
 
 #include "llm_utils.h"
-#include <iostream>
-#include <regex>
 #include <chrono>
 #include "hixl/hixl_types.h"
 #include "llm_datadist/llm_engine_types.h"

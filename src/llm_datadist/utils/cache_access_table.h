@@ -11,8 +11,9 @@
 #ifndef CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_UTILS_CACHE_ACCESS_TABLE_H_
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_UTILS_CACHE_ACCESS_TABLE_H_
 
+#include <mutex>
+
 #include "common/common.h"
-#include "common/def_types.h"
 
 namespace llm {
 constexpr uint64_t kCacheAccessTableBufferSize = 1024U * 1024U;

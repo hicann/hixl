@@ -10,9 +10,6 @@
 
 #include "fabric_mem/virtual_memory_manager.h"
 
-#include <set>
-#include <string>
-
 #include "acl/acl.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"

@@ -16,7 +16,6 @@
 #include <chrono>
 #include <sys/poll.h>
 #include "securec.h"
-#include "hixl_utils.h"
 #include "hixl_checker.h"
 #include "scope_guard.h"
 

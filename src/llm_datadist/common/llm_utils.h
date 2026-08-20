@@ -10,8 +10,12 @@
 
 #ifndef CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_LLM_UTILS_H
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_LLM_UTILS_H
-#include <unordered_map>
-#include <memory>
+#include <chrono>
+#include <map>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 #include "llm_datadist/llm_error_codes.h"
 #include "utils/extern_math_util.h"
 #include "nlohmann/json.hpp"

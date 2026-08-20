@@ -11,6 +11,7 @@
 #include "utils/cache_access_table.h"
 #include "utils/extern_math_util.h"
 #include "acl/acl.h"
+#include "common/def_types.h"
 #include "common/llm_checker.h"
 #include "comm_adapter/comm_adapter.h"
 #include "cache_mgr/comm_mem_manager.h"

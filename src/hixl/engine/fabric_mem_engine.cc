@@ -12,7 +12,6 @@
 
 #include <string>
 #include <unordered_set>
-#include <utility>
 
 #include "acl/acl_rt.h"
 #include "adxl/adxl_types.h"

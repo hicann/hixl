@@ -18,7 +18,6 @@
 #include <unistd.h>
 #include <vector>
 #include "common/hixl_log.h"
-#include "common/scope_guard.h"
 #include "common/hixl_checker.h"
 
 #ifndef PATH_MAX

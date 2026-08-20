@@ -8,7 +8,6 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include <cstring>
 #include <cstdint>
 #include "utils/extern_math_util.h"
 #include "hixl/hixl_types.h"

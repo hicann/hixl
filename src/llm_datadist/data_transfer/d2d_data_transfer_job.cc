@@ -17,7 +17,6 @@
 #include "comm_statistic_manager.h"
 #include "data_transfer/data_transfer_utils.h"
 #include "acl/acl.h"
-#include "common/llm_scope_guard.h"
 
 namespace llm {
 namespace {

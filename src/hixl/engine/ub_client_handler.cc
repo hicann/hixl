@@ -13,7 +13,6 @@
 #include "utils/extern_math_util.h"
 #include <algorithm>
 #include <chrono>
-#include <thread>
 #include <unistd.h>
 #include "securec.h"
 #include "common/ctrl_msg.h"

@@ -13,7 +13,6 @@
 #include <algorithm>
 #include <atomic>
 #include <limits>
-#include <utility>
 
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"

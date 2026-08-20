@@ -10,8 +10,11 @@
 
 #include "hixl_transfer_engine.h"
 #include "llm_datadist/llm_datadist.h"
+#include "common/def_types.h"
 #include "common/llm_log.h"
 #include "common/llm_utils.h"
+#include "common/hixl_utils.h"
+#include "common/llm_thread_pool.h"
 #include "engine/engine_factory.h"
 #include "engine/hixl_options.h"
 #include "common/ctrl_msg.h"

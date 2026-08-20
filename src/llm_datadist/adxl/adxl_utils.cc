@@ -9,7 +9,6 @@
  */
 
 #include "adxl_utils.h"
-#include <fstream>
 #include "acl/acl.h"
 #include "llm_datadist/llm_datadist.h"
 #include "common/llm_log.h"  // Correct include path

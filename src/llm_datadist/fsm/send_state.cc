@@ -11,13 +11,11 @@
 #include "send_state.h"
 
 #include "common/llm_log.h"
-#include "common/llm_utils.h"
 #include "common/mem_utils.h"
 #include "data_transfer/d2h_data_transfer_job.h"
 #include "data_transfer/h2d_data_transfer_job.h"
 #include "data_transfer/d2d_data_transfer_job.h"
 #include "common/llm_checker.h"
-#include "common/llm_scope_guard.h"
 #include "common/transfer_message_limits.h"
 
 namespace llm {

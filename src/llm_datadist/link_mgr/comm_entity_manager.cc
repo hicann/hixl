@@ -16,7 +16,6 @@
 #include "data_transfer/data_transfer_job.h"
 #include "cache_mgr/comm_mem_manager.h"
 #include "fsm/state_manager.h"
-#include "common/llm_scope_guard.h"
 
 namespace llm {
 ge::Status CommEntityManager::AddEntity(uint64_t peer_cluster_id, EntityPtr entity_ptr) {

@@ -10,8 +10,10 @@
 
 #include "channel_msg_handler.h"
 #include <algorithm>
+#include <chrono>
 #include "nlohmann/json.hpp"
 #include "adxl/adxl_types.h"
+#include "common/hixl_utils.h"
 #include "common/rank_table_generator.h"
 #include "common/msg_handler_plugin.h"
 #include "comm_adapter/comm_adapter.h"

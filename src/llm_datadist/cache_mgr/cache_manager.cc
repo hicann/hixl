@@ -13,7 +13,7 @@
 #include "acl/acl.h"
 #include "common/llm_utils.h"
 #include "common/llm_thread_pool.h"
-#include "common/llm_scope_guard.h"
+#include "common/def_types.h"
 #include "common/hixl_utils.h"
 
 namespace llm {

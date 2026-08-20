@@ -10,8 +10,8 @@
 #include "hixl_batch_transfer.h"
 #include <cinttypes>
 #include <mutex>
-#include <string>
 #include <vector>
+#include "cs/hixl_cs.h"
 #include "common/hixl_log.h"
 #include "common/hixl_checker.h"
 #include "common/scope_guard.h"

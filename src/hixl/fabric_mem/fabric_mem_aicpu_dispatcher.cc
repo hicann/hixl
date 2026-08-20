@@ -15,7 +15,6 @@
 #include <cstdint>
 #include <limits>
 #include <thread>
-#include <utility>
 
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"

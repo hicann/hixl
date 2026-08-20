@@ -9,7 +9,6 @@
  */
 
 #include "memory/span/page_span.h"
-#include <cmath>
 #include "memory/allocator/scalable_allocator.h"
 
 namespace llm {

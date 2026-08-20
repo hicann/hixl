@@ -12,9 +12,7 @@
 #include <chrono>
 #include <cstdint>
 #include <thread>
-#include <map>
 #include <mutex>
-#include <atomic>
 #include "adxl/adxl_checker.h"
 #include "adxl/adxl_types.h"
 #include "common/def_types.h"

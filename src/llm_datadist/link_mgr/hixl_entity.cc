@@ -9,6 +9,7 @@
  */
 
 #include "hixl_entity.h"
+#include "common/def_types.h"
 #include "common/llm_scope_guard.h"
 #include "common/ctrl_msg.h"
 #include "common/ctrl_msg_plugin.h"

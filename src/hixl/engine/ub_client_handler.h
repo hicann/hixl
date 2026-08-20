@@ -18,6 +18,7 @@
 #include <vector>
 #include "engine/client_handler.h"
 #include "engine/client_handler_factory.h"
+#include "common/segment.h"
 
 namespace hixl {
 class UbClientHandler : public IClientHandler {

@@ -12,7 +12,6 @@
 
 #include <cstring>
 #include <cinttypes>
-#include <algorithm>
 #include "nlohmann/json.hpp"
 #include "common/ctrl_msg.h"
 #include "common/ctrl_msg_plugin.h"

@@ -9,7 +9,6 @@
  */
 
 #include "rank_table_generator.h"
-#include <atomic>
 #include <set>
 #include "nlohmann/json.hpp"
 #include "acl/acl.h"

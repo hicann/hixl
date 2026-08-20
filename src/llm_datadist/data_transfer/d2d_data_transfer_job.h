@@ -12,7 +12,6 @@
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_ENGINE_DATA_TRANSFER_D2D_DATA_TRANSFER_JOB_H_
 
 #include <list>
-#include <queue>
 #include "common/common.h"
 #include "comm_adapter/comm_adapter.h"
 #include "link_mgr/comm_entity.h"

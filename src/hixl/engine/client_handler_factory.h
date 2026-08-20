@@ -11,11 +11,9 @@
 #ifndef CANN_HIXL_SRC_HIXL_ENGINE_CLIENT_HANDLER_FACTORY_H_
 #define CANN_HIXL_SRC_HIXL_ENGINE_CLIENT_HANDLER_FACTORY_H_
 
-#include <map>
 #include <memory>
 #include <optional>
 #include <string>
-#include <sstream>
 #include <vector>
 #include "common/hixl_inner_types.h"
 #include "engine/client_handler.h"

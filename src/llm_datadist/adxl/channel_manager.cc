@@ -14,8 +14,6 @@
 #include <cstring>
 #include <utility>
 #include <thread>
-#include <queue>
-#include <functional>
 #include "common/mem_utils.h"
 #include "common/llm_scope_guard.h"
 #include "common/def_types.h"

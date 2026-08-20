@@ -9,7 +9,7 @@
  */
 
 #include "data_transfer/h2d_data_transfer_job.h"
-#include <numeric>
+#include "common/def_types.h"
 
 namespace llm {
 namespace {

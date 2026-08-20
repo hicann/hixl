@@ -18,6 +18,7 @@
 #include "engine/engine_factory.h"
 #include "engine/engine.h"
 #include "engine/hixl_options.h"
+#include "common/hixl_utils.h"
 #include "fabric_mem/fabric_mem_transfer_service.h"
 #include "hixl/hixl.h"
 #include "hixl/hixl_types.h"

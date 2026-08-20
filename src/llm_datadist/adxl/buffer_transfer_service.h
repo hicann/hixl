@@ -11,7 +11,6 @@
 #ifndef CANN_GRAPH_ENGINE_BUFFER_TRANSFER_SERVICE_H
 #define CANN_GRAPH_ENGINE_BUFFER_TRANSFER_SERVICE_H
 
-#include <future>
 #include <utility>
 #include "adxl/adxl_types.h"
 #include "common/llm_mem_pool.h"

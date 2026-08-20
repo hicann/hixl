@@ -14,7 +14,6 @@
 #include <cinttypes>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
 #include <string>
 #include <unistd.h>
 #include <sys/syscall.h>

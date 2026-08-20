@@ -10,7 +10,6 @@
 #ifndef CANN_HIXL_SRC_HIXL_OPS_HIXL_KERNEL_HIXL_BATCH_TRANSFER_H_
 #define CANN_HIXL_SRC_HIXL_OPS_HIXL_KERNEL_HIXL_BATCH_TRANSFER_H_
 
-#include "cs/hixl_cs.h"
 #include "common/hixl_inner_types.h"
 
 #ifdef __cplusplus

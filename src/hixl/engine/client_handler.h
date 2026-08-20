@@ -12,14 +12,9 @@
 #define CANN_HIXL_SRC_HIXL_ENGINE_CLIENT_HANDLER_H_
 
 #include <cstdint>
-#include <map>
-#include <memory>
-#include <mutex>
-#include <string>
 #include <vector>
 #include "cs/hixl_cs.h"
 #include "common/hixl_inner_types.h"
-#include "common/segment.h"
 
 namespace hixl {
 enum class CommType : uint32_t {

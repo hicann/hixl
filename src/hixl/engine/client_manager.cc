@@ -10,7 +10,6 @@
 
 #include <cstdint>
 
-#include "hixl_engine.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 #include "common/scope_guard.h"

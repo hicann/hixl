@@ -11,7 +11,6 @@
 #ifndef CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_DATA_TRANSFER_DATA_TRANSFER_CLIENT_H_
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_DATA_TRANSFER_DATA_TRANSFER_CLIENT_H_
 
-#include <vector>
 #include "llm_datadist/llm_error_codes.h"
 #include "ge_common/api_error_codes.h"
 #include "common/llm_inner_types.h"

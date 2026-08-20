@@ -11,8 +11,6 @@
 #ifndef CANN_HIXL_SRC_HIXL_FABRIC_MEM_FABRIC_MEM_AICPU_TRANSFER_SERVICE_H_
 #define CANN_HIXL_SRC_HIXL_FABRIC_MEM_FABRIC_MEM_AICPU_TRANSFER_SERVICE_H_
 
-#include <mutex>
-
 #include "fabric_mem/fabric_mem_aicpu_dispatcher.h"
 #include "fabric_mem/fabric_mem_transfer_service.h"
 

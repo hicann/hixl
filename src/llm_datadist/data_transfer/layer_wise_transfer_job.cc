@@ -9,6 +9,7 @@
  */
 
 #include "llm_datadist/llm_error_codes.h"
+#include "common/def_types.h"
 #include "common/llm_utils.h"
 #include "data_transfer/data_transfer_utils.h"
 #include "data_transfer/layer_wise_transfer_job.h"

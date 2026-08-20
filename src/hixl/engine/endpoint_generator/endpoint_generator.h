@@ -11,7 +11,6 @@
 #ifndef CANN_HIXL_SRC_HIXL_ENGINE_ENDPOINT_GENERATOR_H_
 #define CANN_HIXL_SRC_HIXL_ENGINE_ENDPOINT_GENERATOR_H_
 
-#include <map>
 #include <string>
 #include <vector>
 
