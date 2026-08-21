@@ -330,7 +330,7 @@ rdma_traffic_class(self, rdma_traffic_class: int)
 | --- | --- | --- |
 | rdma_traffic_class | int | 用于配置RDMA网卡的traffic class。和环境变量HCCL_RDMA_TC功能相同，如同时配置，当前option优先级更高；未同时配置，以配置的一方为准。<br>取值范围为[0,255]，且需要配置为4的整数倍，默认值为132。 |
 
-如上表格中的环境变量请参考[《环境变量参考》](https://www.hiascend.com/document/redirect/CannCommunityEnvRef)。
+如上表格中的环境变量请参考《[环境变量参考](https://gitcode.com/cann/docs/blob/9.2.0-beta.2/docs/zh/env-vars/README.md)》。
 
 **调用示例**
 
@@ -368,7 +368,7 @@ rdma_service_level(self, rdma_service_level: int)
 | --- | --- | --- |
 | rdma_service_level | int | 用于配置RDMA网卡的service level。和环境变量HCCL_RDMA_SL功能相同，如同时配置，当前option优先级更高；未同时配置，以配置的一方为准。<br>取值范围为[0, 7]，默认值为4。 |
 
-如上表格中的环境变量请参考[《环境变量参考》](https://www.hiascend.com/document/redirect/CannCommunityEnvRef)。
+如上表格中的环境变量请参考《[环境变量参考](https://gitcode.com/cann/docs/blob/9.2.0-beta.2/docs/zh/env-vars/README.md)》。
 
 **调用示例**
 
@@ -422,7 +422,7 @@ local_comm_res = '''{
 <!-- end id7 -->
 
 <!-- npu="910b" id8 -->
-Atlas A2 训练系列产品/Atlas A2 推理系列产品场景下，配置version为"1.0"时，仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见[《HCCL集合通信库用户指南》](https://www.hiascend.com/document/redirect/CannCommunityHcclUg)。配置示例如下。
+Atlas A2 训练系列产品/Atlas A2 推理系列产品场景下，配置version为"1.0"时，仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/9.2.0-beta.2/docs/zh/user_guide/README.md)》。配置示例如下。
 
 ```sh
 {
@@ -450,7 +450,7 @@ local_comm_res = ""
 ```
 
 <!-- npu="A3" id9 -->
-Atlas A3 训练系列产品/Atlas A3 推理系列产品场景下，配置version为"1.2"时，仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见[《HCCL集合通信库用户指南》](https://www.hiascend.com/document/redirect/CannCommunityHcclUg)。配置示例如下。
+Atlas A3 训练系列产品/Atlas A3 推理系列产品场景下，配置version为"1.2"时，仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/9.2.0-beta.2/docs/zh/user_guide/README.md)》。配置示例如下。
 
 ```sh
 {
