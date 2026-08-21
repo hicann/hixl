@@ -96,8 +96,9 @@ target_link_libraries(hixl_py_stub PRIVATE
         hccl_headers
         metadef_headers
         cann_hixl_base
+        -Wl,--no-as-needed
         error_manager_stub
-        -Wl,-as-needed
+        -Wl,--as-needed
         ${DT_COMMON_LINK_OPTION}
 )
 

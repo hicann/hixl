@@ -77,11 +77,11 @@ target_link_libraries(cann_hixl_base PRIVATE
         hccl_stub
         dcmi_stub
         drvdsmi_host_stub
-        error_manager_stub
         json
         -ldl
         -Wl,--no-as-needed
         hccl_stub
+        error_manager_stub
         -Wl,--as-needed
         ${DT_COMMON_LINK_OPTION}
 )

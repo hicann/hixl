@@ -78,7 +78,7 @@ int64_t CalcTensorSize(const std::vector<int64_t> &shape, int32_t data_type) {
 
 void BuildDataDistV2Funcs(py::module &m) {
   (void)m.def("calc_tensor_size", &CalcTensorSize);
-  (void)m.def("dict_to_vector", &PyDictToVector, py::call_guard<py::gil_scoped_release>());
+  (void)m.def("dict_to_vector", &PyDictToVector);
   (void)m.def("initialize_v2", &LLMDataDistV2Wrapper::Init, py::call_guard<py::gil_scoped_release>());
   (void)m.def("finalize_v2", &LLMDataDistV2Wrapper::Finalize, py::call_guard<py::gil_scoped_release>());
   (void)m.def("link", &LLMDataDistV2Wrapper::Link, py::call_guard<py::gil_scoped_release>());
