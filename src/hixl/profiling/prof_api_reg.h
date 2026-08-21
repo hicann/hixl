@@ -12,10 +12,7 @@
 #define CANN_HIXL_SRC_HIXL_COMMON_PROF_API_REG_H_
 
 #include <cstdint>
-#include "acl/acl_base.h"
 #include "aprof_pub.h"
-#include "hixl/hixl_types.h"
-#include "common/hixl_inner_types.h"
 
 namespace hixl {
 constexpr uint32_t kHixlProfTypeStartOffset = 0x009000U;

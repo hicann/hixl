@@ -18,7 +18,6 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include "graph/types.h"
 #include "graph/error_codes.h"
 #include "common/llm_inner_types.h"
 

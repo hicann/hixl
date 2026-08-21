@@ -9,6 +9,7 @@
  */
 
 #include <gtest/gtest.h>
+#include "acl/acl_base.h"
 #include "hixl/hixl_types.h"
 #include "profiling/prof_api_reg.h"
 #include "depends/msprof/src/msprof_stub.h"

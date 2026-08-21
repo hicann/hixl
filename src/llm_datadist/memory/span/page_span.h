@@ -12,7 +12,6 @@
 #define H3A8A51B9_C45F_4713_89E4_03F02FA1F99F
 
 #include "memory/type/mem_addr.h"
-#include "memory/type/ref_count.h"
 #include "memory/util/link_node.h"
 #include "memory/span/span_layer_id.h"
 #include "memory/span/span_buddy_link.h"

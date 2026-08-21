@@ -13,6 +13,7 @@
 
 #include "acl/acl.h"
 #include "comm_adapter/comm_types.h"
+#include "hcomm/hcomm_res_defs.h"
 
 HcclResult HcclExchangeMemDesc(HcclComm comm, uint32_t remoteRank, HcclMemDescs *local, int timeout,
                                HcclMemDescs *remote, uint32_t *actualNum);

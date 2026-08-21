@@ -14,7 +14,6 @@
 #include <string>
 #include <sstream>
 #include "hixl/hixl_types.h"
-#include "adxl/adxl_types.h"
 #include "hcomm/hcomm_res_defs.h"
 
 struct HixlOneSideOpParam {

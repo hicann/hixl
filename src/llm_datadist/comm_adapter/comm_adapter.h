@@ -16,6 +16,7 @@
 #include "acl/acl.h"
 
 #include "llm_datadist/llm_error_codes.h"
+#include "hcomm/hcomm_res_defs.h"
 #include "comm_types.h"
 
 namespace llm {

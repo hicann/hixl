@@ -19,7 +19,6 @@
 #include <atomic>
 #include <functional>
 #include "comm_channel.h"
-#include "common/llm_mem_pool.h"
 #include "buffer_transfer_service.h"
 
 namespace adxl {

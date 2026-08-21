@@ -14,8 +14,6 @@
 #include <memory>
 #include <optional>
 #include "llm_datadist/llm_error_codes.h"
-#include "common/llm_inner_types.h"
-#include "common/common.h"
 
 namespace llm {
 class RankTableGenerator {

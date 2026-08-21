@@ -10,9 +10,7 @@
 
 #ifndef HIXL_SRC_LLM_DATADIST_COMM_ADAPTER_COMM_TYPES_H_
 #define HIXL_SRC_LLM_DATADIST_COMM_ADAPTER_COMM_TYPES_H_
-#include "hccl/hccl_types.h"
 #include "hccl/base.h"
-#include "hcomm/hcomm_res_defs.h"
 #ifdef __cplusplus
 extern "C" {
 #endif  // __cplusplus

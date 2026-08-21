@@ -10,6 +10,7 @@
 
 #include "hccl_stub.h"
 #include <cstring>
+#include "securec.h"
 
 HcclResult HcclExchangeMemDesc(HcclComm comm, uint32_t remoteRank, HcclMemDescs *local, int timeout,
                                HcclMemDescs *remote, uint32_t *actualNum) {
