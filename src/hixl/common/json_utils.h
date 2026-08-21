@@ -27,6 +27,9 @@ T JsonToNumber(const nlohmann::json &val) {
     }
     return result;
   }
+  if (!val.is_number_integer()) {
+    throw nlohmann::json::type_error::create(0, "Expected integer value, got: " + val.dump(), nullptr);
+  }
   return val.get<T>();
 }
 

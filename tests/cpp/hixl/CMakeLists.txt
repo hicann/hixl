@@ -11,6 +11,7 @@
 set(HIXL_TEST_FILES
         proxy/ascend_hal_proxy_ut.cc
         common/thread_pool_ut.cc
+        common/json_utils_ut.cc
         proxy/hccp_proxy_ut.cc
         proxy/dcmi_proxy_ut.cc
         llm_datadist_timer_ut.cc
