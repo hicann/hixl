@@ -70,7 +70,7 @@ for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
   - **A2（Ascend910B-class）**：仅 D2D（`D2rD` / `rD2D`）
   - **A3（Ascend910-class）**：D2D + `H2rD` / `rD2H`
   - **A5（Ascend950）**：不支持 HCCS
-- **FabricMem**：A2 不支持；A3 / A5 支持全部 8 个方向
+- **FabricMem**：A2 不支持；A3 支持全部 8 个方向，A5 暂不支持
 - **RoCE（A5）**：数据面走 Host NIC，通常需要 `--host_roce_ip`（与控制面 `--target-host` / `--local_engine` 不是同一地址）
 - **UBOE / UB_RTP / UB**：仅 A5
 

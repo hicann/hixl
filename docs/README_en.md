@@ -12,7 +12,7 @@
 - [KV Cache Pooling and High-Performance Transport Co-Practice Based on HIXL+Mooncake+vLLM](https://mp.weixin.qq.com/s/LU_bwZomHaVeaol90EPCAA)
 - [PD Separation D2D Deployment Practice of SGLang+Mooncake+CANN HIXL](https://mp.weixin.qq.com/s/oBjtKTpeNuEzptvMUaIe_A)
 - [Ascend CANN HIXL Helps Solve the Long-Tail Problem of RL Inference](https://mp.weixin.qq.com/s/rQc_9fyH4uidk0z8Px6pjg)
-- [FabricMem Mode Introduction](https://gitcode.com/cann/hixl/wiki/FabricMem-Mode.md)
+- [FabricMem Mode Introduction](https://mp.weixin.qq.com/s/zndkfaMpIzrg5Edo6BJtDQ)
 - [Quickly Adapting HIXL to the NIXL Ascend Backend](https://mp.weixin.qq.com/s/XW1rVtDEzyeJtdeeowiNMA)
 - [Mooncake Store Dummy-Real Client Introduction](https://gitcode.com/cann/hixl/wiki/Mooncake%20Store%20Dummy-Real%20Client%20%E4%BB%8B%E7%BB%8D.md)
 
@@ -37,4 +37,3 @@
   - [LLM-DataDist C++ API](./zh/api/cpp/LLM-DataDist-interface.md)
 - Python API
   - [LLM-DataDist Python API](./zh/api/python/README.md)
-  

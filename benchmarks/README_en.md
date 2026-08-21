@@ -70,7 +70,7 @@ If `hccn_tool is busy, please try again` appears, avoid concurrent use of the co
   - **A2 (Ascend910B-class)**: D2D only (`D2rD` / `rD2D`)
   - **A3 (Ascend910-class)**: D2D + `H2rD` / `rD2H`
   - **A5 (Ascend950)**: HCCS not supported
-- **FabricMem**: not supported on A2; all 8 directions on A3 / A5
+- **FabricMem**: not supported on A2; all 8 directions on A3; not yet supported on A5
 - **RoCE (A5)**: data plane uses the host NIC; usually requires `--host_roce_ip` (not the same as control-plane `--target-host` / `--local_engine`)
 - **UBOE / UB_RTP / UB**: A5 only
 
