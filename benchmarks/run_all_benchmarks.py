@@ -148,17 +148,30 @@ def _make_cmd(spec: CommRunSpec) -> list[str]:
     ]
 
 
+def _kill_if_running(proc: subprocess.Popen | None) -> None:
+    """Kill a process only when it is still running to avoid signaling a recycled PID."""
+    if proc is None or proc.poll() is not None:
+        return
+    try:
+        proc.kill()
+        proc.wait()
+    except ProcessLookupError:
+        return
+
+
 def _wait_for_combo_processes(server: subprocess.Popen, client_cmd: list[str]) -> tuple[int, int] | None:
+    client: subprocess.Popen | None = None
     try:
         client = subprocess.Popen(client_cmd)
         client_rc = client.wait(timeout=300)
         server_rc = server.wait(timeout=10)
         return server_rc, client_rc
     except subprocess.TimeoutExpired:
-        log.error('[FAIL] Timeout — killing processes')
-        server.kill()
-        server.wait()
+        log.error('[FAIL] Timeout — killing leftover server/client processes')
         return None
+    finally:
+        _kill_if_running(client)
+        _kill_if_running(server)
 
 
 def run_combo(spec: CommComboSpec) -> bool:
