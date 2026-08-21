@@ -13,6 +13,8 @@
 
 #include <cstdint>
 #include <map>
+#include <memory>
+#include <utility>
 #include <vector>
 #include "external/ge_common/api_error_codes.h"
 

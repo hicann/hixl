@@ -12,7 +12,6 @@
 #define CANN_HIXL_INCLUDE_CS_HIXL_CS_H_
 
 #include <cstdint>
-#include <string>
 #include "hcomm/hcomm_res_defs.h"
 
 #ifdef __cplusplus
