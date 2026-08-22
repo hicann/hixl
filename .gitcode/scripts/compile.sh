@@ -41,8 +41,8 @@ gcc --version
 source /home/jenkins/Ascend/cann/bin/setenv.bash
 set +e
 
-echo "exec cmd: [bash build.sh --pkg --examples --cann_3rd_lib_path="/home/jenkins/opensource"]"
-bash build.sh --pkg --examples --cann_3rd_lib_path="/home/jenkins/opensource"
+echo "exec cmd: [bash build.sh --examples --cann_3rd_lib_path="/home/jenkins/opensource"]"
+bash build.sh --examples --cann_3rd_lib_path="/home/jenkins/opensource"
 
 ret=$?
 
