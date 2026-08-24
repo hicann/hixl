@@ -694,6 +694,7 @@ TEST_F(HixlCSTest, TestConfiguredMaxActiveChannelsInServerConfig) {
 TEST_F(HixlCSTest, TestCreateServerRejectsInvalidMaxActiveChannelsConfig) {
   for (const char *config_str :
        {R"({"comm_resource_config.max_active_channels":0})", R"({"comm_resource_config.max_active_channels":-1})",
+        R"({"comm_resource_config.max_active_channels":8193})",
         R"({"comm_resource_config.max_active_channels":"invalid"})"}) {
     HixlServerConfig config{};
     config.global_resource_config = config_str;

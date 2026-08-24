@@ -131,6 +131,23 @@ constexpr int32_t kTransferPoolA2DevId = 910250;
 constexpr int32_t kTransferPoolA5DevId = 910251;
 constexpr int32_t kTransferPoolSyncEntryDevId = 910252;
 constexpr int32_t kTransferPoolHostRegFailDevId = 910253;
+constexpr int32_t kTransferPoolInitFailDevId = 910254;
+
+class InitNotifyIdFailureAclRuntimeStub : public llm::AclRuntimeStub {
+ public:
+  aclError aclrtGetNotifyId(aclrtNotify notify, uint32_t *notify_id) override {
+    (void)notify;
+    (void)notify_id;
+    return ACL_ERROR_FAILURE;
+  }
+
+  aclError aclrtDestroyNotify(aclrtNotify notify) override {
+    ++destroy_notify_count_;
+    return llm::AclRuntimeStub::aclrtDestroyNotify(notify);
+  }
+
+  uint32_t destroy_notify_count_{0U};
+};
 
 class TransferPoolTest : public ::testing::Test {
  protected:
@@ -173,12 +190,35 @@ class TransferPoolTest : public ::testing::Test {
     if (host_reg_fail_pool != nullptr) {
       host_reg_fail_pool->Finalize();
     }
+    auto *init_fail_pool = TransferPool::GetInstance(kTransferPoolInitFailDevId);
+    if (init_fail_pool != nullptr) {
+      init_fail_pool->Finalize();
+    }
     AscendHalStubReset();
     llm::AclRuntimeStub::Reset();
     llm::RuntimeStub::Reset();
     hixl_test::ResetSysApiHooks();
   }
 };
+
+TEST_F(TransferPoolTest, InitializeRejectsZeroAndOverMaxPoolSize) {
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  EXPECT_EQ(pool->Initialize(0U), PARAM_INVALID);
+  EXPECT_EQ(pool->Initialize(TransferPool::kMaxPoolSize + 1U), PARAM_INVALID);
+}
+
+TEST_F(TransferPoolTest, InitializeFailureCleansPartiallyInitializedSlot) {
+  auto acl_stub = std::make_shared<InitNotifyIdFailureAclRuntimeStub>();
+  llm::AclRuntimeStub::SetInstance(acl_stub);
+  auto *pool = TransferPool::GetInstance(kTransferPoolInitFailDevId);
+  ASSERT_NE(pool, nullptr);
+
+  EXPECT_NE(pool->Initialize(1U), SUCCESS);
+  EXPECT_EQ(GetThreadAllocCallCount(), 1U);
+  EXPECT_EQ(GetThreadFreeCallCount(), 1U);
+  EXPECT_EQ(acl_stub->destroy_notify_count_, 1U);
+}
 
 TEST_F(TransferPoolTest, AbortWhenNotInitializedIsNoOp) {
   TransferPool::SlotHandle h{};

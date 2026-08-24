@@ -15,7 +15,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
-#include <limits>
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -36,6 +35,7 @@ constexpr size_t kMaxTaskStreamNum = 8U;
 constexpr uint32_t kMinListenPort = 1U;
 constexpr uint32_t kMaxListenPort = 65535U;
 constexpr uint32_t kMinActiveChannels = 1U;
+constexpr uint32_t kMaxActiveChannels = 8192U;
 constexpr int32_t kMinConnectPoolThreadNum = 1;
 constexpr int32_t kMaxConnectPoolThreadNum = 64;
 constexpr int32_t kMinConnectPoolTaskQueueCapacity = 1;
@@ -182,7 +182,7 @@ Status ParseCommResourceConfig(const nlohmann::json &json, CommResourceConfigDes
   IntegerFieldRange qos_range = {kQosName, kQosMin, kQosMax, ""};
   HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, qos_range, cfg.qos), "Failed to parse comm_resource_config.qos");
   IntegerFieldRange max_active_channels_range = {"comm_resource_config.max_active_channels", kMinActiveChannels,
-                                                 std::numeric_limits<uint32_t>::max(), ""};
+                                                 kMaxActiveChannels, ""};
   HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, max_active_channels_range, cfg.max_active_channels),
                       "Failed to parse comm_resource_config.max_active_channels");
   return SUCCESS;

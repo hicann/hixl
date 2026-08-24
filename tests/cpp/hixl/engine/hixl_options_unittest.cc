@@ -534,6 +534,13 @@ TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigMaxActiveChannelsNegativeInval
   EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigMaxActiveChannelsOverMaxInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.max_active_channels":8193})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
 TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigMaxActiveChannelsOutOfUint32RangeInvalid) {
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.max_active_channels":4294967296})";

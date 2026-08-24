@@ -159,7 +159,7 @@ device侧网卡默认监听端口为16666，如果在多个进程使用同一个
 ```sh
 {
     "comm_resource_config.listen_port": "26666", //可选，取值范围：[1, 65535]之间的整数。不配置时，自动生成ranktable不携带device_port字段
-    "comm_resource_config.max_active_channels": "128" //可选，CS场景下配置设备侧同时活跃传输通道数量。取值为正整数，默认值：128，每个active channel消耗2个Stream资源
+    "comm_resource_config.max_active_channels": "128" //可选，CS场景下配置设备侧同时活跃传输通道数量。取值范围：[1, 8192]，默认值：128，每个active channel消耗2个Stream资源
 }
 ```
 
@@ -307,7 +307,7 @@ UB_RTP
 | comm_resource_config.protocol_desc | 字符串或字符串数组 | 可选 | 配置可使用的通信协议以及通信设备位置范围，格式为`${protocol}:${placement}` | 支持"roce:device"/"hccs:device"/"ub_ctp:device"/"uboe:device"/"ub_rtp:device"/"roce:host"/"ub_ctp:host"。配置后会对OPTION_LOCAL_COMM_RES中显式配置的endpoint_list和自动生成的endpoint_list按该范围进行过滤。A5上未配置该字段或仅配置"ub_ctp:device"时，自动生成Device UB资源，Host内存通过UBMEM映射到Device地址后使用Device UB链路传输；同时配置"ub_ctp:device"和"ub_ctp:host"时，自动生成Device+Host UB资源并使用原有纯URMA路径。显式配置的OPTION_LOCAL_COMM_RES在未配置本字段时不进行额外过滤。 |
 | comm_resource_config.listen_port | JSON数字或纯数字字符串 | 可选 | 配置device侧网卡监听端口 | 取值范围为[1, 65535]。Atlas A2 训练系列产品/Atlas A2 推理系列产品、Atlas A3 训练系列产品/Atlas A3 推理系列产品上未配置时，固定使用`16666`端口；Ascend 950PR/Ascend 950DT场景未配置时，由底层通信组件自动选择可用端口，HIXL自动查询实际监听端口。 |
 | comm_resource_config.qos | 数字 | 可选 | 配置通信协议qos | 当前仅支持[0-7]，当未配置的时候，默认为0。|
-| comm_resource_config.max_active_channels | 数字 | 可选 | CS场景下配置设备侧同时活跃传输通道数量 | 取值为正整数，未配置时默认值为128。每个active channel消耗2个Stream资源，配置值需结合当前卡形态的Stream资源上限及业务中已创建的Stream数量预留余量；不同卡形态的Stream资源上限参见CANN Runtime API [aclrtCreateStream](https://www.hiascend.com/document/detail/zh/canncommercial/latest/API/runtimeapi/aclcppdevg_03_0066.html)资料。|
+| comm_resource_config.max_active_channels | 数字 | 可选 | CS场景下配置设备侧同时活跃传输通道数量 | 取值范围为[1, 8192]，未配置时默认值为128。每个active channel消耗2个Stream资源，配置值需结合当前卡形态的Stream资源上限及业务中已创建的Stream数量预留余量；不同卡形态的Stream资源上限参见CANN Runtime API [aclrtCreateStream](https://www.hiascend.com/document/detail/zh/canncommercial/latest/API/runtimeapi/aclcppdevg_03_0066.html)资料。超出[1, 8192]时Initialize返回参数错误。|
 | local_comm_res_path | 字符串 | 可选 | 本地通信资源 JSON 文件路径；文件内容格式与 OPTION_LOCAL_COMM_RES 相同 | 配置文件的绝对或相对路径，相对路径基于进程当前工作目录解析。目标文件必须是大小在[1字节, 1MiB]范围内的普通文件。与 OPTION_LOCAL_COMM_RES 同时配置且 option 非空时，以 OPTION_LOCAL_COMM_RES 为准。 |
 
 **调用示例**

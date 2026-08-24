@@ -25,7 +25,7 @@ namespace hixl {
 
 class TransferPool {
  public:
-  static constexpr uint32_t kMaxPoolSize = 4096U;
+  static constexpr uint32_t kMaxPoolSize = 8192U;
   static TransferPool *GetInstance(int32_t device_id);
 
   struct SlotHandle {

@@ -1536,6 +1536,7 @@ TEST_F(HixlCSClientUT, ParseConfigMaxActiveChannelsInvalid) {
   desc.remote_endpoint = &dst_;
   for (const char *config_str :
        {R"({"comm_resource_config.max_active_channels":0})", R"({"comm_resource_config.max_active_channels":-1})",
+        R"({"comm_resource_config.max_active_channels":8193})",
         R"({"comm_resource_config.max_active_channels":"invalid"})"}) {
     HixlClientConfig config{};
     config.global_resource_config = config_str;

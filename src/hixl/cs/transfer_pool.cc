@@ -80,8 +80,9 @@ void TransferPool::InitFreeListLocked() {
 
 Status TransferPool::Initialize(uint32_t pool_size) {
   HIXL_LOGI("[TransferPool] Initialize start. device_id=%d pool_size=%u", device_id_, pool_size);
-  if (pool_size == 0U) {
-    HIXL_LOGE(PARAM_INVALID, "[TransferPool] Initialize invalid pool_size=%u (device_id=%d)", pool_size, device_id_);
+  if ((pool_size == 0U) || (pool_size > kMaxPoolSize)) {
+    HIXL_LOGE(PARAM_INVALID, "[TransferPool] Initialize invalid pool_size=%u (device_id=%d, max=%u)", pool_size,
+              device_id_, kMaxPoolSize);
     return PARAM_INVALID;
   }
   std::lock_guard<std::mutex> lock(mu_);
@@ -448,8 +449,11 @@ void TransferPool::DeinitAllSlotsLocked() {
     HIXL_LOGI("[TransferPool] released dev_const_one_ on device %d", device_id_);
   }
   for (uint32_t i = 0U; i < pool_size_; ++i) {
-    HIXL_CHK_STATUS(DestroySlotLocked(slots_[i], false),
-                    "[TransferPool] DeinitAllSlotsLocked destroy slot failed, idx=%u", i);
+    if ((slots_[i].ctx != nullptr) || (slots_[i].stream != nullptr) || (slots_[i].thread != 0U) ||
+        (slots_[i].notify != nullptr)) {
+      HIXL_CHK_STATUS(DestroySlotLocked(slots_[i], false),
+                      "[TransferPool] DeinitAllSlotsLocked destroy slot failed, idx=%u", i);
+    }
     slots_[i] = Slot{};
     slots_[i].in_use = false;
   }

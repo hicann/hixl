@@ -10,8 +10,6 @@
 
 #include "global_config.h"
 
-#include <limits>
-
 #include "nlohmann/json.hpp"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
@@ -21,10 +19,11 @@
 namespace hixl {
 namespace {
 constexpr const char *kListenPort = "comm_resource_config.listen_port";
-constexpr const char *kMaxActiveChannels = "comm_resource_config.max_active_channels";
+constexpr const char *kMaxActiveChannelsName = "comm_resource_config.max_active_channels";
 constexpr int64_t kMinListenPort = 1;
 constexpr int64_t kMaxListenPort = 65535;
 constexpr int64_t kMinActiveChannels = 1;
+constexpr int64_t kMaxActiveChannels = 8192;
 
 Status ParseListenPort(const nlohmann::json &json, CommResourceConfig &config) {
   const auto it = json.find(kListenPort);
@@ -62,15 +61,15 @@ Status ParseQos(const nlohmann::json &json, CommResourceConfig &config) {
 }
 
 Status ParseMaxActiveChannels(const nlohmann::json &json, CommResourceConfig &config) {
-  const auto it = json.find(kMaxActiveChannels);
+  const auto it = json.find(kMaxActiveChannelsName);
   if (it == json.end()) {
     return SUCCESS;
   }
 
   const auto val = JsonToNumber<int64_t>(*it);
-  if (val < kMinActiveChannels || val > std::numeric_limits<uint32_t>::max()) {
-    HIXL_LOGE(PARAM_INVALID, "[GlobalConfig] max_active_channels out of range: %ld, must be >= %ld", val,
-              kMinActiveChannels);
+  if (val < kMinActiveChannels || val > kMaxActiveChannels) {
+    HIXL_LOGE(PARAM_INVALID, "[GlobalConfig] max_active_channels out of range: %ld, must be in [%ld, %ld]", val,
+              kMinActiveChannels, kMaxActiveChannels);
     return PARAM_INVALID;
   }
 
