@@ -318,7 +318,7 @@ Status HixlCSServer::Finalize() {
 Status HixlCSServer::RegisterMem(const char *mem_tag, const CommMem *mem, MemHandle *mem_handle) {
   auto ctx_guard = GetContextGuard();
   (void)ctx_guard;
-  HIXL_EVENT("[HixlServer] register mem start, addr:%p, size:%lu, type:%d", mem->addr, mem->size,
+  HIXL_EVENT("[HixlServer] register mem start, addr:%p, size:%lu bytes, type:%d", mem->addr, mem->size,
              static_cast<int32_t>(mem->type));
   auto all_handles = endpoint_store_.GetAllEndpointHandles();
   HIXL_CHK_BOOL_RET_STATUS(all_handles.size() > 0, PARAM_INVALID, "no endpoint is available");
@@ -348,7 +348,7 @@ Status HixlCSServer::RegisterMem(const char *mem_tag, const CommMem *mem, MemHan
   HIXL_CHK_BOOL_RET_STATUS(!ep_mem_infos.empty(), PARAM_INVALID, "no endpoint matches mem type:%d for register mem",
                            static_cast<int32_t>(mem->type));
   *mem_handle = ep_mem_infos[0].mem_handle;
-  HIXL_EVENT("[HixlServer] register mem success, addr:%p, size:%lu, type:%d, handle:%p", mem->addr, mem->size,
+  HIXL_EVENT("[HixlServer] register mem success, addr:%p, size:%lu bytes, type:%d, handle:%p", mem->addr, mem->size,
              static_cast<int32_t>(mem->type), *mem_handle);
   std::lock_guard<std::mutex> lock(reg_mutex_);
   reg_mems_[ep_mem_infos[0].mem_handle] = std::move(ep_mem_infos);

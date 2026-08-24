@@ -200,7 +200,7 @@ Status CtrlMsgPlugin::AddFdToEpoll(int32_t &epoll_fd, int32_t fd, uint32_t event
   HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED, "Add fd to epoll failed, fd:%d, ret:%d, errno:%d, msg:%s", fd, ret, errno,
                            strerror(errno));
 
-  HIXL_LOGI("Add fd:%d to epoll success, events:0x%x\n", fd, events);
+  HIXL_LOGI("added fd:%d to epoll successfully, events:0x%x", fd, events);
   return SUCCESS;
 }
 

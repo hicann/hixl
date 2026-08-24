@@ -127,6 +127,21 @@ TEST_F(LLMUtilsTest, ConnectFailureLeavesInvalidFd) {
   close(bound_fd);
 }
 
+TEST_F(LLMUtilsTest, TestMsgHandlerPluginReadEOF) {
+  int fds[2];
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+
+  char write_data[2] = {'a', 'b'};
+  ASSERT_EQ(write(fds[0], write_data, sizeof(write_data)), static_cast<ssize_t>(sizeof(write_data)));
+  close(fds[0]);
+
+  char read_buf[10];
+  ssize_t ret = MsgHandlerPlugin::Read(fds[1], read_buf, sizeof(read_buf));
+  EXPECT_EQ(ret, static_cast<ssize_t>(sizeof(write_data)));
+
+  close(fds[1]);
+}
+
 static ge::Status TestLogTooLong() {
   std::string testlog(MSG_LENGTH * 2, 'c');
   LLM_ASSERT_TRUE(false, "TestLogTooLong:%s", testlog.c_str());

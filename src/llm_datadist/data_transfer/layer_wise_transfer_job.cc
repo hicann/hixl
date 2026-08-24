@@ -255,7 +255,7 @@ ge::Status LayerWiseTransferJob::TransferCache(const CacheEntry &cache_entry,
   if (access_remote_cache) {
     LLM_CHK_STATUS_RET(comm_entity_->BatchTransfer(layer_transfer_tasks_, true, false, timeout_in_ms),
                        "Failed to batch put, task size:%zu.", layer_transfer_tasks_.size());
-    LLMLOGI("comm_entity:%s send all task of request finished", comm_entity_->GetDesc().c_str());
+    LLMLOGI("comm_entity:%s layer-wise sent all tasks for request", comm_entity_->GetDesc().c_str());
   } else {
     LLM_CHK_STATUS_RET(SynchronizeTransferCacheWithRecord(timeout_in_ms), "transfer cache with record failed");
   }

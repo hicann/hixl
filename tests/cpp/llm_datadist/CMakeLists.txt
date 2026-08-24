@@ -91,7 +91,6 @@ target_link_libraries(llm_datadist_test
         metadef_headers
         intf_pub
         json
-        -ldl
         slog_stub
         mmpa_stub
         ascendcl_stub
@@ -100,6 +99,7 @@ target_link_libraries(llm_datadist_test
         msprof_stub
         msprof_headers
         sys_api_wrap
+        -ldl
         GTest::gtest GTest::gtest_main
         GTest::gmock
         -Wl,--no-as-need

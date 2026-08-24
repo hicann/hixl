@@ -57,6 +57,20 @@ TEST(HixlProfilingTest, StopProfilingOK) {
   EXPECT_EQ(ret, ACL_SUCCESS);
 }
 
+// 测试4：RegisterProfType 失败 → 返回 ACL_ERROR_PROFILING_FAILURE
+TEST(HixlProfilingTest, StartProfilingRegisterTypeFails) {
+  SetMsprofRegTypeInfoRet(1);
+  ProfCommandHandle cb = GetHixlProfCallback();
+  MsprofCommandHandle cfg{};
+  cfg.profSwitch = kAclProfHixlApi;
+  cfg.type = kStartProfiling;
+  cfg.devIdList[0] = 0;
+  cfg.devNums = 1;
+  int32_t ret = cb(PROF_CTRL_SWITCH, &cfg, sizeof(cfg));
+  EXPECT_EQ(ret, ACL_ERROR_PROFILING_FAILURE);
+  SetMsprofRegTypeInfoRet(0);
+}
+
 // 测试6：数据指针为空 → 返回-1
 TEST(HixlProfilingTest, DataNullReturnErr) {
   ProfCommandHandle cb = GetHixlProfCallback();

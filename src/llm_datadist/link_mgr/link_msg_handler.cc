@@ -326,7 +326,7 @@ ge::Status LinkMsgHandler::ExchangeInfoProcess(const LLMExchangeInfo &peer_excha
   entity->SetEntityCommInfo(comm_info_ptr);
   entity->SetContext(aclrt_context_);
   entity->SetCacheManager(cache_manager_);
-  LLM_CHK_STATUS_RET(SetEntityMemInfo(peer_exchange_info, entity, mem_info_ptr), "Failed ti set entity mem info");
+  LLM_CHK_STATUS_RET(SetEntityMemInfo(peer_exchange_info, entity, mem_info_ptr), "Failed to set entity mem info");
   LLMLOGI("Success to create comm entity:%s", entity->GetDesc().c_str());
   LLM_CHK_STATUS_RET(comm_entity_manager_->AddEntity(peer_exchange_info.cluster_id, entity), "Failed to add entity");
   entity_guard.Dismiss();

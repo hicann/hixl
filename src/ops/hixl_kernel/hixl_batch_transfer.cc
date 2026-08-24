@@ -117,8 +117,9 @@ Status ReadRemoteFlag(HixlOneSideOpParam *param) {
 }
 
 Status RecordRemoteNotify(HixlOneSideOpParam *param) {
-  HIXL_LOGD("[HixlBatchPutAndGet] aclrtNotifyRecordOnThread start to read remote flag, thread[%lu], notify_id[%u]",
-            param->thread, param->notify_id);
+  HIXL_LOGD(
+      "[HixlBatchPutAndGet] aclrtNotifyRecordOnThread starting to record remote notify, thread[%lu], notify_id[%u]",
+      param->thread, param->notify_id);
   HIXL_CHK_HCCL_RET(static_cast<HcclResult>(HcommProxy::aclrtNotifyRecordOnThread(param->thread, param->notify_id)),
                     "thread:%" PRIu64 ", notify_id:%u", param->thread, param->notify_id);
   return SUCCESS;

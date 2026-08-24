@@ -36,8 +36,8 @@ aclError RegisterProfType() {
     uint32_t type_id = static_cast<uint32_t>(iter.first);
     const auto ret = MsprofRegTypeInfo(MSPROF_REPORT_ACL_LEVEL, type_id, iter.second.c_str());
     if (ret != MSPROF_ERROR_NONE) {
-      HIXL_LOGE(ACL_ERROR_PROFILING_FAILURE, "[Hixl Profiling] Profiling registered api type [%u] failed = %d", type_id,
-                ret);
+      HIXL_LOGE(ACL_ERROR_PROFILING_FAILURE, "[Hixl Profiling] Profiling registered api type [%u] failed, ret=%d",
+                type_id, ret);
       return ACL_ERROR_PROFILING_FAILURE;
     }
   }
@@ -141,7 +141,7 @@ aclError HixlProfCtrlHandle(uint32_t data_type, void *data, uint32_t data_len) {
   if (data_type == PROF_CTRL_SWITCH) {
     const aclError ret = ProcessProfData(data, data_len);
     if (ret != ACL_SUCCESS) {
-      HIXL_LOGE(ret, "[Hixl Profiling] [Process][ProfSwitch]failed to call ProcessProfData, result is %u", ret);
+      HIXL_LOGE(ret, "[Hixl Profiling] [Process][ProfSwitch] failed to call ProcessProfData, result is %u", ret);
       return ret;
     }
     return ACL_SUCCESS;
@@ -155,7 +155,7 @@ class HixlRegProfCallback {
   HixlRegProfCallback() {
     const auto prof_ret = MsprofRegisterCallback(kHixlModuleId, &HixlProfCtrlHandle);
     if (prof_ret != 0) {
-      HIXL_LOGE(ACL_ERROR_PROFILING_FAILURE, "[Hixl Profiling] Can not register Callback, prof result = %d", prof_ret);
+      HIXL_LOGE(ACL_ERROR_PROFILING_FAILURE, "[Hixl Profiling] Cannot register Callback, prof result = %d", prof_ret);
     }
   }
   ~HixlRegProfCallback() {}

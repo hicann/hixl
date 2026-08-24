@@ -348,7 +348,8 @@ Status ChannelMsgHandler::ConnectInfoProcess(const ChannelConnectInfo &peer_chan
           std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count();
       if (elapsed >= timeout) {
         LLMLOGE(RESOURCE_EXHAUSTED,
-                "Failed to Connect %s after %d ms, channel resource exhausted, adjust channel pool config to avoid",
+                "Failed to Connect %s after %d ms, channel resource exhausted, adjust channel pool config to avoid "
+                "resource exhaustion",
                 peer_channel_info.channel_id.c_str(), timeout);
         return RESOURCE_EXHAUSTED;
       }

@@ -685,7 +685,7 @@ Status BufferTransferService::HandleBufferResp(const ChannelPtr &channel, Buffer
   std::lock_guard<std::mutex> req_id_lock(req_id_mutex_);
   auto req_it = req_id_buffers_.find(buffer_resp.req_id);
   if (req_it == req_id_buffers_.end()) {
-    LLMLOGI("Recv resp, req id:%lu.", buffer_resp.req_id);
+    LLMLOGI("Recv resp with unknown req id:%lu.", buffer_resp.req_id);
     return SUCCESS;
   }
 

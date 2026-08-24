@@ -113,7 +113,7 @@ ge::Status SendState::Prepare(CommEntity &entity) {
 ge::Status SendState::Process(CommEntity &entity) {
   if (std::chrono::steady_clock::now() > entity.GetTimeoutPoint()) {
     entity.SendResponse(ge::LLM_TIMEOUT);
-    LLMLOGE(ge::FAILED, "handle request timeout");
+    LLMLOGE(ge::FAILED, "Request handling timed out");
     return Postprocess(entity);
   }
   bool is_done = false;

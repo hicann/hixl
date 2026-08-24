@@ -187,6 +187,14 @@ TEST_F(BufferTransferServiceUTest, BuildBufferSliceAddrsRejectsCountExceedingLen
   EXPECT_EQ(service_->BuildBufferSliceAddrs(0x1000U, buffer_lens, 2U, 1024U, addrs), PARAM_INVALID);
 }
 
+TEST_F(BufferTransferServiceUTest, HandleBufferRespUnknownReqIdReturnsSuccess) {
+  auto channel = CreateChannel();
+  BufferResp resp{};
+  resp.req_id = 99999U;
+  resp.transfer_type = TransferType::kWriteH2RH;
+  EXPECT_EQ(service_->HandleBufferResp(channel, resp), SUCCESS);
+}
+
 TEST_F(BufferTransferServiceUTest, HandleBufferRespRejectsExceedingBufferSize) {
   // Inject a tracked buffer so req_id / buffer_addr lookup succeeds.
   void *fake_buf = reinterpret_cast<void *>(0x2000);

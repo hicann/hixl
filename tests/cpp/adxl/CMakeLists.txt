@@ -112,7 +112,6 @@ function(add_adxl_family_test target_name test_files)
           metadef_headers
           intf_pub
           json
-          -ldl
           slog_stub
           mmpa_stub
           ascendcl_stub
@@ -121,6 +120,7 @@ function(add_adxl_family_test target_name test_files)
           msprof_headers
           dcmi_stub
           sys_api_wrap
+          -ldl
           GTest::gtest GTest::gtest_main
           GTest::gmock
           stdc++fs

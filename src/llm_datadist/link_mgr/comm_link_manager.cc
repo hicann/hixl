@@ -92,7 +92,7 @@ ge::Status CommLinkManager::ExchangeMem(const EntityPtr &entity, uint32_t local_
                                                                     timeout, &remote_descs, &remote_mem_num);
   LLM_CHK_BOOL_RET_STATUS(ret == HcclResult::HCCL_SUCCESS, ge::LLM_LINK_FAILED,
                           "Call DlHcclExchangeMemDesc failed, ret:%d", ret);
-  LLMLOGI("DlHcclExchangeMemDesc suc, remote num:%u", remote_mem_num);
+  LLMLOGI("DlHcclExchangeMemDesc succeeded, remote num:%u", remote_mem_num);
   ExchangeMemInfo remote_mem_info{};
   try {
     auto desc_len = strnlen(remote_desc.desc, HCCL_MEM_DESC_LENGTH);

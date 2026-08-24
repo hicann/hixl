@@ -25,7 +25,7 @@ ge::Status DataTransferUtils::SendBatchCache(const aclrtStream stream, const std
     LLM_CHK_STATUS_RET(comm_entity.BatchPutAsync(batch, stream),
                        "put cache data to remote cluster[%lu] failed, data num:%zu", comm_entity.GetClusterId(),
                        batch.size());
-    LLMLOGI("comm entity:%s success batch cache, cache size:%zu", comm_entity.GetDesc().c_str(), batch.size());
+    LLMLOGI("comm entity:%s successfully batched cache, cache size:%zu", comm_entity.GetDesc().c_str(), batch.size());
     start = end;
   }
   return ge::SUCCESS;
@@ -50,8 +50,8 @@ ge::Status DataTransferUtils::SendCache(const aclrtStream stream, CommEntity &co
                      comm_entity.GetDesc().c_str(), comm_entity.GetClusterId(), desces.size());
 
   if ((transfer_tasks.empty() || desces.size() == kMaxTaskNum) && event == nullptr) {
-    LLMLOGI("transfer tasks[%zu] is empty or task num[%zu] reach 1024, create event and record", transfer_tasks.size(),
-            desces.size());
+    LLMLOGI("transfer tasks[%zu] are empty or task num[%zu] reached %zu, create event and record",
+            transfer_tasks.size(), desces.size(), static_cast<size_t>(kMaxTaskNum));
     const auto start = std::chrono::steady_clock::now();
     LLM_CHK_ACL_RET(aclrtCreateEvent(&event));
     LLM_ASSERT_RT_OK(aclrtRecordEvent(event, stream));

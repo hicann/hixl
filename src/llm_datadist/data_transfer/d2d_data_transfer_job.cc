@@ -86,7 +86,7 @@ ge::Status D2DDataTransferJob::Process(bool &is_done) {
   while (status != ACL_EVENT_RECORDED_STATUS_COMPLETE) {
     if (std::chrono::steady_clock::now() > comm_entity_->GetTimeoutPoint()) {
       LLM_CHK_STATUS_RET(comm_entity_->SendResponse(ge::LLM_TIMEOUT));
-      LLMLOGE(ge::LLM_TIMEOUT, "handle request timeout");
+      LLMLOGE(ge::LLM_TIMEOUT, "Request handling timed out");
       return ge::LLM_TIMEOUT;
     }
     LLM_CHK_STATUS_RET(DataTransferUtils::QueryEventStatus(event_, status), "comm_entity:%s query event status failed",
@@ -107,7 +107,7 @@ ge::Status D2DDataTransferJob::Process(bool &is_done) {
     CommStatisticManager::GetInstance().UpdateCost(cost, send_statistic_info.send_times,
                                                    send_statistic_info.send_min_cost, send_statistic_info.send_max_cost,
                                                    send_statistic_info.send_total_cost);
-    LLMLOGI("comm_entity:%s send all task of request finished", comm_entity_->GetDesc().c_str());
+    LLMLOGI("comm_entity:%s D2D sent all tasks for request", comm_entity_->GetDesc().c_str());
     return ge::SUCCESS;
   }
   LLM_CHK_STATUS_RET(DataTransferUtils::SendCache(comm_entity_->GetStream(), *comm_entity_, send_tasks_, event_),

@@ -63,8 +63,10 @@ Status NotifyTsfwTaskException(uint32_t notify_id, uint32_t error_code) {
   HIXL_CHK_BOOL_RET_STATUS(ret == DRV_ERROR_NONE, FAILED,
                            "[TaskExceptionHandler] Call api:halEschedSubmitEvent failed, ret:%d, notify_id:%u", ret,
                            notify_id);
-  HIXL_LOGI("[TaskExceptionHandler] Submit to TSFW success. deviceId=%u, notifyId=%u, errCode=%u, reportErrCode=%u",
-            ctx.deviceId, notify_id, error_code, report_err_code);
+  HIXL_LOGI(
+      "[TaskExceptionHandler] Submit to TaskScheduler succeeded. deviceId=%u, notifyId=%u, errCode=%u, "
+      "reportErrCode=%u",
+      ctx.deviceId, notify_id, error_code, report_err_code);
   return SUCCESS;
 }
 
@@ -150,7 +152,7 @@ void TaskExceptionHandler::EnableExceptionCallback() {
   const int32_t ret = HcommProxy::RegisterExceptionCallback(HixlTaskExceptionCallback, g_hixl_ex_cb_user_data);
   if (ret == 0) {
     callback_registered_.store(true);
-    HIXL_LOGI("[TaskExceptionHandler] Register callback success");
+    HIXL_LOGI("[TaskExceptionHandler] Register callback succeeded");
     return;
   }
   if (ret == static_cast<int32_t>(HCCL_E_NOT_SUPPORT)) {
@@ -168,7 +170,7 @@ void TaskExceptionHandler::DisableExceptionCallback() {
   int32_t ret = HcommProxy::UnregisterExceptionCallback(HixlTaskExceptionCallback);
   if (ret == 0) {
     callback_registered_.store(false);
-    HIXL_LOGI("[TaskExceptionHandler] Unregister callback success");
+    HIXL_LOGI("[TaskExceptionHandler] Unregister callback succeeded");
     return;
   }
   if (ret == static_cast<int32_t>(HCCL_E_NOT_SUPPORT)) {

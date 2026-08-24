@@ -88,7 +88,6 @@ target_link_libraries(fabric_mem_test
         metadef_headers
         intf_pub
         json
-        -ldl
         slog_stub
         mmpa_stub
         msprof_stub
@@ -96,6 +95,7 @@ target_link_libraries(fabric_mem_test
         runtime_stub
         msprof_headers
         sys_api_wrap
+        -ldl
         GTest::gtest GTest::gtest_main
         GTest::gmock
         stdc++fs

@@ -147,7 +147,6 @@ target_link_libraries(hixl_test
         metadef_headers
         intf_pub
         json
-        -ldl
         slog_stub
         mmpa_stub
         msprof_stub
@@ -158,6 +157,7 @@ target_link_libraries(hixl_test
         drvdsmi_host_stub
         hixl_ascend_hal_stub
         sys_api_wrap
+        -ldl
         GTest::gtest GTest::gtest_main
         GTest::gmock
         stdc++fs

@@ -438,7 +438,8 @@ bool FabricMemStarsSdma::EnsureRtsqCapacity(FabricMemRtsqState &state, uint32_t 
 bool FabricMemStarsSdma::BuildSdmaSqe(uint64_t source, uint64_t destination, uint64_t size, uint32_t task_id,
                                       const FabricMemRtsqState &state, FabricMemA3SdmaSqe &sqe) {
   if (memset_s(&sqe, sizeof(sqe), 0, sizeof(sqe)) != EOK) {
-    HIXL_LOGE(FAILED, "[FabricMem][AICPU] memset SDMA SQE failed.");
+    HIXL_LOGE(FAILED, "[FabricMem][AICPU] memset SDMA SQE failed, device_id=%u, sq=%u, stream=%u", state.device_id,
+              state.sq_id, state.stream_id);
     return false;
   }
   sqe.header.type = kFabricMemA3SdmaSqeType;
@@ -463,7 +464,8 @@ bool FabricMemStarsSdma::BuildSdmaSqe(uint64_t source, uint64_t destination, uin
 bool FabricMemStarsSdma::BuildNotifySqe(uint32_t notify_id, uint32_t task_id, const FabricMemRtsqState &state,
                                         FabricMemA3NotifySqe &sqe) {
   if (memset_s(&sqe, sizeof(sqe), 0, sizeof(sqe)) != EOK) {
-    HIXL_LOGE(FAILED, "[FabricMem][AICPU] memset NotifyRecord SQE failed.");
+    HIXL_LOGE(FAILED, "[FabricMem][AICPU] memset NotifyRecord SQE failed, device_id=%u, sq=%u, stream=%u",
+              state.device_id, state.sq_id, state.stream_id);
     return false;
   }
   sqe.header.type = kFabricMemA3NotifyRecordSqeType;

@@ -46,8 +46,9 @@ HixlTransferThreadState TransferContextManager::Add(ThreadHandle thread, uint32_
   ctx->notify_id = notify_id;
   ctx->err_flag_dev_va = err_flag_dev_va;
 
-  HIXL_LOGI("[TransferContextManager] add transfer context success. thread=%lu notify_id=%u err_flag_dev_va=0x%lx",
-            static_cast<uint64_t>(thread), notify_id, static_cast<uint64_t>(err_flag_dev_va));
+  HIXL_LOGI(
+      "[TransferContextManager] added transfer context successfully. thread=%lu notify_id=%u err_flag_dev_va=0x%lx",
+      static_cast<uint64_t>(thread), notify_id, static_cast<uint64_t>(err_flag_dev_va));
   lock.unlock();
 
   // 防止hcomm接口内回调hixl触发Get导致死锁，所以这里放到锁外面
@@ -73,7 +74,8 @@ HixlTransferThreadState TransferContextManager::Delete(ThreadHandle thread) {
   contexts_.erase(it);
   ctx->unlock();
 
-  HIXL_LOGI("[TransferContextManager] delete transfer context success. thread=%lu", static_cast<uint64_t>(thread));
+  HIXL_LOGI("[TransferContextManager] deleted transfer context successfully. thread=%lu",
+            static_cast<uint64_t>(thread));
   need_disable = contexts_.empty();
   lock.unlock();
 

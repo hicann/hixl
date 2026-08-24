@@ -148,12 +148,13 @@ Status Hixl::HixlImpl::ConnectAsync(const AscendString &remote_engine, int32_t t
   HIXL_CHK_BOOL_RET_STATUS(engine_ != nullptr, FAILED, "engine is nullptr, check engine init");
   HIXL_CHK_BOOL_RET_STATUS(engine_->IsInitialized(), FAILED, "Hixl is not initialized");
   auto task = [this, remote_engine, timeout_in_millis]() {
-    HIXL_LOGI("connect async to %s %d start", remote_engine.GetString(), timeout_in_millis);
+    HIXL_LOGI("starting async connect to %s, timeout:%d ms", remote_engine.GetString(), timeout_in_millis);
     Status ret = engine_->Connect(remote_engine, timeout_in_millis);
     const auto status = (ret == SUCCESS || ret == ALREADY_CONNECTED) ? AsyncConnectStatus::CONNECTED
                                                                      : AsyncConnectStatus::CONNECT_FAILED;
     connect_pool_executor_.SetStatus(remote_engine, status);
-    HIXL_LOGI("connect async to %s %d ret %d status %d", remote_engine.GetString(), timeout_in_millis, ret, status);
+    HIXL_LOGI("async connect to %s completed, timeout:%d ms, ret:%d, status:%d", remote_engine.GetString(),
+              timeout_in_millis, ret, status);
   };
   return connect_pool_executor_.Submit(task, remote_engine, true);
 }
@@ -162,10 +163,11 @@ Status Hixl::HixlImpl::DisconnectAsync(const AscendString &remote_engine, int32_
   HIXL_CHK_BOOL_RET_STATUS(engine_ != nullptr, FAILED, "engine is nullptr, check engine init");
   HIXL_CHK_BOOL_RET_STATUS(engine_->IsInitialized(), FAILED, "Hixl is not initialized");
   auto task = [this, remote_engine, timeout_in_millis]() {
-    HIXL_LOGI("disconnect async to %s %d start", remote_engine.GetString(), timeout_in_millis);
+    HIXL_LOGI("starting async disconnect to %s, timeout:%d ms", remote_engine.GetString(), timeout_in_millis);
     Status ret = engine_->Disconnect(remote_engine, timeout_in_millis);
     connect_pool_executor_.SetStatus(remote_engine, AsyncConnectStatus::NOT_CONNECT);
-    HIXL_LOGI("disconnect async to %s %d ret %d", remote_engine.GetString(), timeout_in_millis, ret);
+    HIXL_LOGI("async disconnect to %s completed, timeout:%d ms, ret:%d", remote_engine.GetString(), timeout_in_millis,
+              ret);
   };
   return connect_pool_executor_.Submit(task, remote_engine, false);
 }
@@ -208,7 +210,7 @@ Status Hixl::HixlImpl::GetTransferStatus(const TransferReq &req, TransferStatus 
   auto ret = engine_->GetTransferStatus(req, transfer_status);
   if (ret != SUCCESS) {
     status = TransferStatus::FAILED;
-    HIXL_LOGE(ret, "Failed to get transfer status.");
+    HIXL_LOGE(ret, "Failed to get transfer status, req:%p", &req);
     return ret;
   }
   status = transfer_status;
@@ -263,14 +265,14 @@ void Hixl::Finalize() {
 }
 
 Status Hixl::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
-  HIXL_LOGI("RegisterMem start, type:%d, addr:%p, size:%zu", static_cast<int32_t>(type),
+  HIXL_LOGI("RegisterMem start, type:%d, addr:%p, size:%zu bytes", static_cast<int32_t>(type),
             reinterpret_cast<void *>(mem.addr), mem.len);
   HIXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check Hixl init");
   HIXL_CHK_STATUS_RET(impl_->RegisterMem(mem, type, mem_handle),
                       "Failed to register mem, "
                       "type:%d, addr:%p, size:%zu",
                       static_cast<int32_t>(type), reinterpret_cast<void *>(mem.addr), mem.len);
-  HIXL_LOGI("RegisterMem success, type:%d, addr:%p, size:%zu, handle:%p", static_cast<int32_t>(type),
+  HIXL_LOGI("RegisterMem success, type:%d, addr:%p, size:%zu bytes, handle:%p", static_cast<int32_t>(type),
             reinterpret_cast<void *>(mem.addr), mem.len, mem_handle);
   return SUCCESS;
 }

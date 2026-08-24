@@ -51,19 +51,19 @@ Status HixlMemStore::RecordMemory(bool is_server, const void *addr, size_t size,
   if (is_server) {  // server侧内存注册
     auto it = server_regions_.find(addr);
     if (it != server_regions_.end()) {
-      HIXL_LOGI("This server mem is already registered, addr:%p, size:%zu.", addr, size);
+      HIXL_LOGI("This server mem is already registered, addr:%p, size:%zu bytes.", addr, size);
       return SUCCESS;  // 内存已注册，此时不做处理，直接返回。
     }
     server_regions_[addr] = new_region;
-    HIXL_LOGI("Server mem registered successfully, addr:%p, size:%zu.", addr, size);
+    HIXL_LOGI("Server mem registered successfully, addr:%p, size:%zu bytes.", addr, size);
   } else {  // client侧内存注册
     auto it = client_regions_.find(addr);
     if (it != client_regions_.end()) {
-      HIXL_LOGI("This client mem is already registered, addr:%p, size:%zu.", addr, size);
+      HIXL_LOGI("This client mem is already registered, addr:%p, size:%zu bytes.", addr, size);
       return PARAM_INVALID;  // 内存已注册
     }
     client_regions_[addr] = new_region;
-    HIXL_LOGI("Client mem registered successfully, addr:%p, size:%zu.", addr, size);
+    HIXL_LOGI("Client mem registered successfully, addr:%p, size:%zu bytes.", addr, size);
   }
   return SUCCESS;
 }

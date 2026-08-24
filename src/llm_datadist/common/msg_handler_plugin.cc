@@ -142,7 +142,7 @@ ssize_t MsgHandlerPlugin::Write(int32_t fd, const void *buf, size_t len) {
       LLMLOGE(ge::FAILED, "Socket write failed, error msg:%s, errno:%d", strerror(errno), errno);
       return rc;
     } else if (rc == 0) {
-      LLMLOGW("Socket write incompleted: expected %zu bytes, actual %zu bytes", len, len - nbytes);
+      LLMLOGW("Socket write incomplete: expected %zu bytes, actual %zu bytes", len, len - nbytes);
       return static_cast<ssize_t>(len - nbytes);
     }
     pos += rc;
@@ -163,7 +163,7 @@ ssize_t MsgHandlerPlugin::Read(int32_t fd, void *buf, size_t len) {
       LLMLOGE(ge::FAILED, "Socket read failed, error msg:%s, errno:%d", strerror(errno), errno);
       return rc;
     } else if (rc == 0) {
-      LLMLOGW("Socket read incompleted: expected %zu bytes, actual %zu bytes", len, len - nbytes);
+      LLMLOGW("Socket read incomplete: expected %zu bytes, actual %zu bytes", len, len - nbytes);
       return static_cast<ssize_t>(len - nbytes);
     }
     pos += rc;

@@ -826,4 +826,14 @@ TEST_F(HixlCSClientSlotReuseFixture, ReleaseDevCompleteHandleResetsErrFlag) {
   EXPECT_EQ(err_flag_mem, 0U);
 }
 
+TEST_F(HixlCSClientDeviceFixture, CheckStatusDeviceBadMagicReturnsInvalid) {
+  DeviceCompleteHandle bad_handle{};
+  bad_handle.magic = 0xDEADBEEFU;
+  bad_handle.shared_slot = nullptr;
+  bad_handle.host_flag = nullptr;
+  bad_handle.dev_op_desc_buf = nullptr;
+  HixlCompleteStatus status = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
+  EXPECT_EQ(cli_.CheckStatusDevice(bad_handle, status), PARAM_INVALID);
+}
+
 }  // namespace hixl

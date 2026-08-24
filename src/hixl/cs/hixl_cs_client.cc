@@ -89,7 +89,7 @@ hixl::Status ValidateExportDescList(const std::vector<hixl::HixlMemDesc> &desc_l
   for (const auto &d : desc_list) {
     if (d.export_desc == nullptr || d.export_len == 0U) {
       HIXL_LOGE(hixl::PARAM_INVALID,
-                "[HixlClient] ValidateExportDescList failed! Invalid export_desc at"
+                "[HixlClient] ValidateExportDescList failed! Invalid export_desc at "
                 "ptr=%p, len=%u, total_count=%zu",
                 d.export_desc, d.export_len, desc_list.size());
       return hixl::PARAM_INVALID;
@@ -518,7 +518,7 @@ Status HixlCSClient::BatchTransferHostAsync(bool is_get, uint32_t list_num, cons
   if (flag_index == -1) {
     HIXL_LOGE(RESOURCE_EXHAUSTED,
               "There are a large number of transfer tasks with no query results, making it impossible to create new "
-              "transfer tasks.Please first call HixlCSClientQueryCompleteStatus to check whether the transfer tasks "
+              "transfer tasks. Please first call HixlCSClientQueryCompleteStatus to check whether the transfer tasks "
               "that have been created are completed, and then create new transfer tasks.");
     return RESOURCE_EXHAUSTED;
   }
@@ -1083,10 +1083,8 @@ Status HixlCSClient::CheckStatusHost(CompleteHandleInfo &query_handle, HixlCompl
 }
 
 Status HixlCSClient::CheckStatusDevice(DeviceCompleteHandle &query_handle, HixlCompleteStatus &status) {
-  if (query_handle.magic != kDeviceCompleteMagic) {
-    HIXL_LOGE(PARAM_INVALID, "[HixlClient] CheckStatusUb bad magic=0x%X", query_handle.magic);
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(query_handle.magic == kDeviceCompleteMagic, PARAM_INVALID,
+                           "[HixlClient] CheckStatusDevice bad magic=0x%X", query_handle.magic);
   HIXL_CHECK_NOTNULL(query_handle.shared_slot.get(), "[HixlClient] CheckStatusDevice shared_slot is null");
   HIXL_CHECK_NOTNULL(query_handle.host_flag, "[HixlClient] CheckStatusDevice host_flag is null");
 

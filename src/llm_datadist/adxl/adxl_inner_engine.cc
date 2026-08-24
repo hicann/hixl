@@ -425,7 +425,7 @@ Status AdxlInnerEngine::ConnectWhenTransfer(const AscendString &remote_engine, i
     auto elapsed =
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time).count();
     if (elapsed >= timeout_in_millis) {
-      LLMEVENT("Channel is still disconnecting after timeout, remote_engine: %s, timeout: %d",
+      LLMEVENT("Channel is still disconnecting after timeout, remote_engine: %s, timeout: %d ms",
                remote_engine.GetString(), timeout_in_millis);
       return FAILED;
     }
@@ -564,7 +564,7 @@ Status AdxlInnerEngine::GetTransferStatus(const TransferReq &req, TransferStatus
   auto channel = channel_manager_.GetChannel(ChannelType::kClient, remote_engine.GetString());
   if (channel == nullptr) {
     LLMLOGE(NOT_CONNECTED,
-            "Failed to get channel, channel may have encountered problems and has been destroyed,remote_engine:%s",
+            "Failed to get channel, channel may have encountered problems and has been destroyed, remote_engine:%s",
             remote_engine.GetString());
     req_map_.erase(it);
     status = TransferStatus::FAILED;

@@ -214,7 +214,7 @@ ge::Status DataCacheEngine::Initialize(const std::map<ge::AscendString, ge::Asce
                                                   CommMemType::COMM_MEM_TYPE_DEVICE, cache_table_handle_),
       "Failed to register cache table addr");
   DecoderWaitTimeInfo wait_time_info{};
-  LLM_CHK_STATUS_RET(LLMUtils::ParserWaitTimeInfo(options, wait_time_info), "parser wait time info failed");
+  LLM_CHK_STATUS_RET(LLMUtils::ParserWaitTimeInfo(options, wait_time_info), "failed to parse wait time info");
   sync_cache_timeout_ = wait_time_info.sync_kv_wait_time;
   LLM_CHK_STATUS_RET(InitializeMemoryPool(options), "Failed to initialize memory pool");
   // create stream

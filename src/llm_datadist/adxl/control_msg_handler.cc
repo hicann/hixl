@@ -106,7 +106,7 @@ Status ControlMsgHandler::Write(int32_t fd, const void *buf, size_t len, uint64_
       return ret;
     }
     if (rc == 0) {
-      LLMLOGW("Socket write incompleted: expected %zu bytes, actual %zu bytes", len, len - nbytes);
+      LLMLOGW("Socket write incomplete: expected %zu bytes, actual %zu bytes", len, len - nbytes);
       return FAILED;
     }
     pos += rc;
