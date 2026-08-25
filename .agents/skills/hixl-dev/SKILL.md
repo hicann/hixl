@@ -207,7 +207,7 @@ Base: <BASE_COMMIT>
 1. 复查 `git diff --check "$BASE_COMMIT"` 与 `git status`；
 2. 对受影响文件执行适用的 `pre-commit run --files ...`（环境可用时）；
 3. 确认测试结果、覆盖率结论和未验证风险均与实际一致；
-4. 代码改动准备 PR 时，按 [`hixl-pr-review`](../hixl-pr-review/SKILL.md) 的适用范围进行检视；
+4. 代码改动准备 PR 时，按 [`hixl-review`](../hixl-review/SKILL.md) 的适用范围进行检视；
    远程评论或 `/lgtm` 属于外部写操作，须在用户要求后执行；
 5. 通过后用 [`gitcode-pr`](../gitcode-pr/SKILL.md) 创建或更新 PR（不修改该 skill）。
 

@@ -11,7 +11,7 @@
 | [gitcode-pr](skills/gitcode-pr)               | GitCode PR 创建与管理 | 创建 PR、推送代码到远程、合并请求、PR 模板/描述、关联 issue 创建 PR、获取 PR 改动、获取/查看/删除 PR 评论、查看 PR 讨论 |
 | [hixl-dev](skills/hixl-dev)                   | HIXL 本地开发与验证 | 修改 HIXL 代码/测试、本地 UT、增量覆盖率；开 PR 后配合 gitcode-pipeline 跟进 CI 并修低级错误 |
 | [hixl-troubleshoot](skills/hixl-troubleshoot) | HIXL/ADXL 运行时问题定位 | 用户明确要求诊断 HIXL，或日志中出现 HIXL、ADXL、Ascend direct transport 相关报错或调用栈 |
-| [hixl-pr-review](skills/hixl-pr-review)       | HIXL代码检视/审查       | 用户明确要求检视PR或审查PR |
+| [hixl-review](skills/hixl-review)             | HIXL代码检视/审查       | 用户明确要求检视PR、审查PR、检查本地代码、检查指定目录/文件、检查指定 commit |
 | [hixl-ut-generator](skills/hixl-ut-generator) | HIXL UT 生成        | 用户要求基于当前改动生成测试、补充 UT、或根据 git diff 编写测试用例 |
 | [hixl-srs-doc-generator](skills/hixl-srs-doc-generator) | HIXL 设计文档生成 | 用户要求生成设计文档、需求文档、设计方案，或描述新功能需求时                 |
 
@@ -31,8 +31,8 @@
 
 Skill 有两种触发方式：
 
-1. **场景匹配**：当用户的任务描述命中 Skill 的触发场景时，Agent 自动识别并调用对应 Skill。例如用户说“帮我分析这段 HIXL 建链失败日志”或“帮我检视一下这个PR：<PR链接>”，Agent 会匹配到对应的 Skill。
-2. **指定调用**：用户直接指定使用某个 Skill，例如 `/hixl-troubleshoot 分析一下建链失败日志`、`/hixl-pr-review 检视一下PR：<PR链接>`。
+1. **场景匹配**：当用户的任务描述命中 Skill 的触发场景时，Agent 自动识别并调用对应 Skill。例如用户说“帮我分析这段 HIXL 建链失败日志”或“帮我检视一下这个PR：<PR链接>”或“检查 include/ 目录的代码规范”，Agent 会匹配到对应的 Skill。
+2. **指定调用**：用户直接指定使用某个 Skill，例如 `/hixl-troubleshoot 分析一下建链失败日志`、`/hixl-review 检视一下PR：<PR链接>`、`/hixl-review 检查 src/hixl/ 目录`。
 
 `SKILL.md` frontmatter 中的 `description` 定义了主要触发边界，也可参考 [Skills 列表](#skills-列表) 中的"触发场景"列。
 
