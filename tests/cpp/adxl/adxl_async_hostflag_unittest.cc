@@ -40,9 +40,11 @@ ConnectedInt32Pair MakeConnectedInt32Pair() {
   options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
   options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
   options1[OPTION_BUFFER_POOL] = "0:0";
+  test_helpers::UseLegacyLocalCommRes(options1);
   EXPECT_EQ(pair.engine1->Initialize("127.0.0.1", options1), SUCCESS);
   llm::AutoCommResRuntimeMock::SetDevice(1);
   std::map<AscendString, AscendString> options2;
+  test_helpers::UseLegacyLocalCommRes(options2);
   EXPECT_EQ(pair.engine2->Initialize(kPeerEngine, options2), SUCCESS);
 
   MemDesc src_desc{reinterpret_cast<uintptr_t>(&pair.src), sizeof(int32_t)};

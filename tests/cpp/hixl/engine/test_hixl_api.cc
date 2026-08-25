@@ -323,12 +323,22 @@ TEST_F(HixlSTest, TestHixlDisableBufferPoolD2D) {
   options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
   options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
   options1["BufferPool"] = "0:0";
+  options1[OPTION_LOCAL_COMM_RES] = R"(
+  {
+      "version": "1.2"
+  }
+  )";
   EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
 
   llm::AutoCommResRuntimeMock::SetDevice(1);
   Hixl engine2;
   std::map<AscendString, AscendString> options2;
   options2["BufferPool"] = "0:0";
+  options2[OPTION_LOCAL_COMM_RES] = R"(
+  {
+      "version": "1.2"
+  }
+  )";
   EXPECT_EQ(engine2.Initialize("127.0.0.1:26201", options2), SUCCESS);
 
   size_t size = 16 * 1024 * 1024;

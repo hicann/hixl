@@ -170,6 +170,7 @@ TEST_F(AdxlEngineSTest, TestGlobalResourceConfigCommResourceListenPortValidation
   std::map<AscendString, AscendString> options;
   options[OPTION_BUFFER_POOL] = "0:0";
   options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.listen_port":"65535"})";
+  test_helpers::UseLegacyLocalCommRes(options);
   EXPECT_EQ(engine.Initialize("127.0.0.1", options), SUCCESS);
   engine.Finalize();
 }
@@ -186,6 +187,7 @@ TEST_F(AdxlEngineSTest, TestGlobalResourceConfigCommResourceListenPortInRankTabl
   std::map<AscendString, AscendString> options1;
   options1[OPTION_BUFFER_POOL] = "0:0";
   options1[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.listen_port":"23456"})";
+  test_helpers::UseLegacyLocalCommRes(options1);
   ASSERT_EQ(engine1.Initialize("127.0.0.1:28100", options1), SUCCESS);
 
   llm::AutoCommResRuntimeMock::SetDevice(1);
@@ -193,6 +195,7 @@ TEST_F(AdxlEngineSTest, TestGlobalResourceConfigCommResourceListenPortInRankTabl
   std::map<AscendString, AscendString> options2;
   options2[OPTION_BUFFER_POOL] = "0:0";
   options2[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.listen_port":"23457"})";
+  test_helpers::UseLegacyLocalCommRes(options2);
   ASSERT_EQ(engine2.Initialize("127.0.0.1:28101", options2), SUCCESS);
 
   EXPECT_EQ(engine1.Connect("127.0.0.1:28101"), SUCCESS);
@@ -356,12 +359,14 @@ TEST_F(AdxlEngineSTest, TestAdxlDisableBufferPoolD2D) {
   options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
   options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
   options1["adxl.BufferPool"] = "0:0";
+  test_helpers::UseLegacyLocalCommRes(options1);
   EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
 
   llm::AutoCommResRuntimeMock::SetDevice(1);
   AdxlEngine engine2;
   std::map<AscendString, AscendString> options2;
   options2["adxl.BufferPool"] = "0:0";
+  test_helpers::UseLegacyLocalCommRes(options2);
   EXPECT_EQ(engine2.Initialize("127.0.0.1:28101", options2), SUCCESS);
 
   size_t size = 16 * 1024 * 1024;

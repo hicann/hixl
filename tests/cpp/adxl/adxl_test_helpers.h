@@ -12,6 +12,7 @@
 #define HIXL_TESTS_CPP_ADXL_ADXL_TEST_HELPERS_H
 
 #include <cstdint>
+#include <map>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -45,6 +46,14 @@ inline void RegisterDeviceBufferMem(AdxlEngine &engine, const std::vector<int8_t
   mem.addr = reinterpret_cast<uintptr_t>(buffer.data());
   mem.len = buffer.size();
   EXPECT_EQ(engine.RegisterMem(mem, MEM_DEVICE, handle), SUCCESS);
+}
+
+inline void UseLegacyLocalCommRes(std::map<AscendString, AscendString> &options) {
+  options[OPTION_LOCAL_COMM_RES] = R"(
+  {
+      "version": "1.2"
+  }
+  )";
 }
 
 inline void WaitForAllAsyncTransfers(AdxlEngine &engine, TransferReq *req_list, int req_count,

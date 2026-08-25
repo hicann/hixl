@@ -54,9 +54,11 @@ void SetupPlainEngines(AdxlEngine &engine1, AdxlEngine &engine2) {
   options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
   options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
   options1[OPTION_BUFFER_POOL] = "0:0";
+  test_helpers::UseLegacyLocalCommRes(options1);
   EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
   llm::AutoCommResRuntimeMock::SetDevice(1);
   std::map<AscendString, AscendString> options2;
+  test_helpers::UseLegacyLocalCommRes(options2);
   EXPECT_EQ(engine2.Initialize(kPeerEngine, options2), SUCCESS);
 }
 
@@ -73,9 +75,11 @@ Int32MemPair SetupAutoConnectEngines(AdxlEngine &engine1, AdxlEngine &engine2) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   std::map<AscendString, AscendString> options1;
   options1[OPTION_AUTO_CONNECT] = "1";
+  test_helpers::UseLegacyLocalCommRes(options1);
   EXPECT_EQ(engine1.Initialize("127.0.0.1:28100", options1), SUCCESS);
   llm::AutoCommResRuntimeMock::SetDevice(1);
   std::map<AscendString, AscendString> options2;
+  test_helpers::UseLegacyLocalCommRes(options2);
   EXPECT_EQ(engine2.Initialize(kPeerEngine, options2), SUCCESS);
   Int32MemPair mem;
   RegisterInt32Mem(engine1, &mem.src, mem.handle1);

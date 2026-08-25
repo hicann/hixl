@@ -107,7 +107,7 @@ Status Initialize(const std::map<AscendString, AscendString> &options)
 OPTION_LOCAL_COMM_RES参数补充说明如下：
 
   <!-- npu="A3,910b" id5 -->
-- 不配置或配置为空串：将自动生成相关信息，使用集合通信的通信域方式进行建链，链路上限存在单卡512限制。该方法适用于如下型号：
+- 不配置或配置为空串：将自动生成相关信息，使用集合通信的通信域方式进行建链，链路上限存在单卡512限制。说明：当OPTION_BUFFER_POOL（或adxl.BufferPool）配置为"0:0"（关闭中转内存池）且hcomm/toolkit版本大于等于9.1.0时，将使用HixlCS能力进行建链，没有链路上限限制。该方法适用于如下型号：
   <!-- npu="910b" id6 -->
   - Atlas A2 训练系列产品/Atlas A2 推理系列产品
   <!-- end id6 -->
@@ -264,7 +264,7 @@ Status LinkLlmClusters(const std::vector<ClusterInfo> &clusters, std::vector<Sta
 
 - 调用该接口前，需要先在Client和Server调用Initialize接口完成初始化。
   <!-- npu="A3,910b" id10 -->
-- 当OPTION_LOCAL_COMM_RES配置为空、version为"1.0"或"1.2"时，使用集合通信的通信域方式进行建链，允许创建的最大通信数量=512，建链数量过多存在内存OOM及KV Cache传输的性能风险。该约束支持的型号如下：
+- 当OPTION_LOCAL_COMM_RES配置为空、version为"1.0"或"1.2"时，使用集合通信的通信域方式进行建链，允许创建的最大通信数量=512，建链数量过多存在内存OOM及KV Cache传输的性能风险。说明：当OPTION_LOCAL_COMM_RES配置为空且OPTION_BUFFER_POOL（或adxl.BufferPool）配置为"0:0"（关闭中转内存池）且hcomm/toolkit版本大于等于9.1.0时，将使用HixlCS能力进行建链，没有链路上限限制。该约束支持的型号如下：
   <!-- npu="910b" id11 -->
   - Atlas A2 训练系列产品/Atlas A2 推理系列产品
   <!-- end id11 -->

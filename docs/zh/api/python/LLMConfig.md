@@ -404,7 +404,7 @@ local_comm_res(local_comm_res)
 
 | 参数名称 | 数据类型 | 取值说明 |
 | --- | --- | --- |
-| local_comm_res | str | 配置本地通信资源信息，格式是json的字符串。<br>- 不配置或配置为空串：将自动生成相关信息，使用集合通信的通信域方式进行建链，链路上限存在单卡512限制。<br>- 配置version为"1.0"或"1.2"的ranktable格式：使用集合通信的通信域方式进行建链，链路上限存在单卡512限制。仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。<br>- 配置version为"1.3"（推荐使用，需要HDK版本大于等于25.5.0且toolkit包版本大于等于9.1.0）：使用HixlCS能力进行建链，没有链路上限限制。通信资源配置字段说明请参考[HIXL接口文档](../cpp/HIXL-interface.md#通信资源配置字段说明)。<br><br>若未配置enable_cache_manager和enable_remote_cache_accessible参数，在配置了当前option后，这两个参数默认为True。
+| local_comm_res | str | 配置本地通信资源信息，格式是json的字符串。<br>- 不配置或配置为空串：将自动生成相关信息，使用集合通信的通信域方式进行建链，链路上限存在单卡512限制。说明：当buffer_pool（或adxl.BufferPool）配置为"0:0"（关闭中转内存池）且hcomm/toolkit版本大于等于9.1.0时，将使用HixlCS能力进行建链，没有链路上限限制。<br>- 配置version为"1.0"或"1.2"的ranktable格式：使用集合通信的通信域方式进行建链，链路上限存在单卡512限制。仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。<br>- 配置version为"1.3"（推荐使用，需要HDK版本大于等于25.5.0且toolkit包版本大于等于9.1.0）：使用HixlCS能力进行建链，没有链路上限限制。通信资源配置字段说明请参考[HIXL接口文档](../cpp/HIXL-interface.md#通信资源配置字段说明)。<br><br>若未配置enable_cache_manager和enable_remote_cache_accessible参数，在配置了当前option后，这两个参数默认为True。
 
 对于使用Device RoCE场景，同一通信集群内Device RoCE地址配置需保持一致，不支持IPv6-only节点与IPv4/IPv6双栈节点混合接入。该约束支持的型号如下：
 

@@ -289,11 +289,18 @@ void acllogRecord(int32_t module_id, int32_t level, const char *fmt, ...) {
 }
 
 int32_t aclsysGetVersionNum(char *pkg_name, int32_t *version_num) {
-  if ((pkg_name == nullptr) || (version_num == nullptr) || (strcmp(pkg_name, "runtime") != 0)) {
+  if ((pkg_name == nullptr) || (version_num == nullptr)) {
     return -1;
   }
-  *version_num = 90300001;
-  return 0;
+  if (strcmp(pkg_name, "runtime") == 0) {
+    *version_num = 90300001;
+    return 0;
+  }
+  if (strcmp(pkg_name, "hcomm") == 0) {
+    *version_num = 90100000;
+    return 0;
+  }
+  return -1;
 }
 
 int32_t acllogCheckDebugLevel(int32_t module_id, int32_t log_level) {

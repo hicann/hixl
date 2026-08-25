@@ -161,6 +161,7 @@ target_link_libraries(hixl_test
         GTest::gtest GTest::gtest_main
         GTest::gmock
         stdc++fs
+        -ldl
         -Wl,--no-as-needed
         hccl_stub
         error_manager_stub

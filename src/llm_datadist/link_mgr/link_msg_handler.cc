@@ -25,6 +25,23 @@ constexpr const char kOptionRdmaTrafficClass[] = "llm.RdmaTrafficClass";
 constexpr const char kOptionRdmaServiceLevel[] = "llm.RdmaServiceLevel";
 constexpr uint64_t kDefaultReqBufferSize = 112U * 1024U;
 constexpr uint64_t kDefaultRespBufferSize = 16U * 1024U;
+
+bool IsVersionOnlyCommRes(const std::string &comm_res) {
+  if (comm_res.empty()) {
+    return false;
+  }
+  try {
+    auto json = nlohmann::json::parse(comm_res);
+    if (!json.contains("version") || json.size() != 1) {
+      return false;
+    }
+    const auto &ver = json["version"];
+    return ver == "1.0" || ver == "1.2";
+  } catch (const nlohmann::json::exception &e) {
+    LLMLOGW("Failed to parse LocalCommRes as json: %s", e.what());
+    return false;
+  }
+}
 }  // namespace
 
 static void from_json(const nlohmann::json &j, LLMExchangeInfo &l) {
@@ -112,6 +129,10 @@ ge::Status LinkMsgHandler::Initialize(const std::map<ge::AscendString, ge::Ascen
   const auto &it = options.find(llm_datadist::OPTION_LOCAL_COMM_RES);
   if (it != options.cend()) {
     local_comm_res_ = it->second.GetString();
+  }
+  if (IsVersionOnlyCommRes(local_comm_res_)) {
+    LLMEVENT("LocalCommRes only contains version, will auto-generate.");
+    local_comm_res_.clear();
   }
   if (local_comm_res_.empty() && (!local_ip_.empty())) {
     LLM_CHK_STATUS_RET(LocalCommResGenerator::Generate(local_ip_, device_id_, local_comm_res_),

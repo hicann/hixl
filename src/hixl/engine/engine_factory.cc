@@ -21,6 +21,9 @@
 
 namespace hixl {
 namespace {
+constexpr const char kDisabledBufferPool[] = "0:0";
+constexpr int32_t HIXL_HCOMM_VERSION_THRESHOLD = 90100000;
+
 bool UseProtocolDesc(const HixlOptions &options) {
   auto grc = options.GlobalResourceCfg();
   if (!grc.has_value()) {
@@ -28,6 +31,27 @@ bool UseProtocolDesc(const HixlOptions &options) {
   }
   auto desc = grc->comm_resource_config.protocol_desc;
   return desc.has_value() && !desc->empty();
+}
+
+bool IsHixlEngineSupported(const HixlOptions &options) {
+  const auto &raw = options.RawOptions();
+  const auto &hixl_bp_it = raw.find(hixl::OPTION_BUFFER_POOL);
+  const auto &adxl_bp_it = raw.find(adxl::OPTION_BUFFER_POOL);
+  const auto &bp_it = (hixl_bp_it != raw.cend()) ? hixl_bp_it : adxl_bp_it;
+  if (bp_it == raw.cend() || std::string(bp_it->second.GetString()) != kDisabledBufferPool) {
+    return false;
+  }
+  if (aclsysGetVersionNum == nullptr) {
+    HIXL_LOGW("[EngineFactory] aclsysGetVersionNum is null, skip HixlCS selection");
+    return false;
+  }
+  char pkg_name[] = "hcomm";
+  int32_t version_num = 0;
+  if (aclsysGetVersionNum(pkg_name, &version_num) != 0) {
+    HIXL_LOGW("[EngineFactory] aclsysGetVersionNum(hcomm) failed, skip HixlCS selection");
+    return false;
+  }
+  return version_num >= HIXL_HCOMM_VERSION_THRESHOLD;
 }
 
 void LogSelectedEngine(const char *engine, const char *reason, const std::string &local_engine) {
@@ -65,6 +89,10 @@ std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string local_engi
   }
   if (UseProtocolDesc(parsed_options)) {
     LogSelectedEngine("hixl_cs", "protocol_desc is configured", local_engine);
+    return std::make_unique<HixlEngine>(AscendString(local_engine.c_str()));
+  }
+  if (IsHixlEngineSupported(parsed_options)) {
+    LogSelectedEngine("hixl_cs", "BufferPool is disabled and hcomm >= 9.1.0", local_engine);
     return std::make_unique<HixlEngine>(AscendString(local_engine.c_str()));
   }
   SocType soc_type = SocType::kOther;

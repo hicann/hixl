@@ -492,6 +492,15 @@ TEST_F(HixlEngineTest, TestHixl) {
   engine2.Finalize();
 }
 
+TEST_F(HixlEngineTest, EngineFactoryUsesHixlEngineWhenBufferPoolDisabled) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_BUFFER_POOL] = "0:0";
+  HixlOptions parsed;
+  auto engine = EngineFactory::CreateEngine("127.0.0.1:26000", options, parsed);
+  ASSERT_NE(engine, nullptr);
+  EXPECT_NE(dynamic_cast<HixlEngine *>(engine.get()), nullptr);
+}
+
 TEST_F(HixlEngineTest, TestHixlEngineIPv4) {
   SetSocStub("Ascend910B1", 0, 12, 99, 88);
   TransferSyncTest("127.0.0.1", "127.0.0.1:26300", "127.0.0.1:26300");

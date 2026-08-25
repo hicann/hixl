@@ -103,10 +103,20 @@ class AdxlEngineUTest : public ::testing::Test {
     options1[OPTION_RDMA_TRAFFIC_CLASS] = "4";
     options1[OPTION_RDMA_SERVICE_LEVEL] = "1";
     options1[OPTION_BUFFER_POOL] = "0:0";
+    options1[OPTION_LOCAL_COMM_RES] = R"(
+    {
+        "version": "1.2"
+    }
+    )";
     EXPECT_EQ(engine1.Initialize("127.0.0.1", options1), SUCCESS);
 
     llm::AutoCommResRuntimeMock::SetDevice(1);
     std::map<AscendString, AscendString> options2;
+    options2[OPTION_LOCAL_COMM_RES] = R"(
+    {
+        "version": "1.2"
+    }
+    )";
     EXPECT_EQ(engine2.Initialize("127.0.0.1:28101", options2), SUCCESS);
   }
   // 注册 int32 类型的内存

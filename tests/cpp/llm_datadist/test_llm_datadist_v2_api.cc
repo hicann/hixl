@@ -418,6 +418,11 @@ TEST_F(LlmDataDistSTest, TestUseHixlBackendA3) {
   options_p[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26000";
   options_p[llm_datadist::OPTION_DEVICE_ID] = "0";
   options_p[llm_datadist::OPTION_TRANSFER_BACKEND] = "hixl";
+  options_p[llm_datadist::OPTION_LOCAL_COMM_RES] = R"(
+  {
+      "version": "1.2"
+  }
+  )";
 
   llm::AutoCommResRuntimeMock::SetDevice(0);
   EXPECT_EQ(llm_datadist_p.Initialize(options_p), SUCCESS);
@@ -427,7 +432,11 @@ TEST_F(LlmDataDistSTest, TestUseHixlBackendA3) {
   options_d[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26001";
   options_d[llm_datadist::OPTION_DEVICE_ID] = "1";
   options_d[llm_datadist::OPTION_TRANSFER_BACKEND] = "hixl";
-
+  options_d[llm_datadist::OPTION_LOCAL_COMM_RES] = R"(
+  {
+      "version": "1.2"
+  }
+  )";
   llm::AutoCommResRuntimeMock::SetDevice(1);
   EXPECT_EQ(llm_datadist_d.Initialize(options_d), SUCCESS);
 
@@ -490,6 +499,11 @@ TEST_F(LlmDataDistSTest, TestUseHixlBackendWithGlobalResourceConfig) {
   options_p[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26000";
   options_p[llm_datadist::OPTION_DEVICE_ID] = "0";
   options_p[llm_datadist::OPTION_TRANSFER_BACKEND] = "hixl";
+  options_p[llm_datadist::OPTION_LOCAL_COMM_RES] = R"(
+  {
+      "version": "1.2"
+  }
+  )";
   options_p[llm_datadist::OPTION_GLOBAL_RESOURCE_CONFIG] =
       R"({"comm_resource_config.listen_port": 26666, "comm_resource_config.max_active_channels": 128})";
 
@@ -501,6 +515,11 @@ TEST_F(LlmDataDistSTest, TestUseHixlBackendWithGlobalResourceConfig) {
   options_d[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26001";
   options_d[llm_datadist::OPTION_DEVICE_ID] = "1";
   options_d[llm_datadist::OPTION_TRANSFER_BACKEND] = "hixl";
+  options_d[llm_datadist::OPTION_LOCAL_COMM_RES] = R"(
+  {
+      "version": "1.2"
+  }
+  )";
   options_d[llm_datadist::OPTION_GLOBAL_RESOURCE_CONFIG] =
       R"({"comm_resource_config.listen_port": 26667, "comm_resource_config.max_active_channels": 128})";
 
@@ -530,6 +549,11 @@ TEST_F(LlmDataDistSTest, TestUseHixlBackendA3RepeatedInit) {
   options_p[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26000";
   options_p[llm_datadist::OPTION_DEVICE_ID] = "0";
   options_p[llm_datadist::OPTION_TRANSFER_BACKEND] = "hixl";
+  options_p[llm_datadist::OPTION_LOCAL_COMM_RES] = R"(
+  {
+      "version": "1.2"
+  }
+  )";
 
   llm::AutoCommResRuntimeMock::SetDevice(0);
   EXPECT_EQ(llm_datadist_p.Initialize(options_p), SUCCESS);
@@ -539,6 +563,11 @@ TEST_F(LlmDataDistSTest, TestUseHixlBackendA3RepeatedInit) {
   options_d[llm_datadist::OPTION_LISTEN_IP_INFO] = "127.0.0.1:26001";
   options_d[llm_datadist::OPTION_DEVICE_ID] = "1";
   options_d[llm_datadist::OPTION_TRANSFER_BACKEND] = "hixl";
+  options_d[llm_datadist::OPTION_LOCAL_COMM_RES] = R"(
+  {
+      "version": "1.2"
+  }
+  )";
 
   llm::AutoCommResRuntimeMock::SetDevice(1);
   EXPECT_EQ(llm_datadist_d.Initialize(options_d), SUCCESS);

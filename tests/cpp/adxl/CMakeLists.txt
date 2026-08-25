@@ -124,6 +124,7 @@ function(add_adxl_family_test target_name test_files)
           GTest::gtest GTest::gtest_main
           GTest::gmock
           stdc++fs
+          -ldl
           -Wl,--no-as-needed
           hccl_stub
           error_manager_stub
