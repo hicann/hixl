@@ -12,7 +12,7 @@
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_DATA_TRANSFER_DATA_TRANSFER_CLIENT_H_
 
 #include "llm_datadist/llm_error_codes.h"
-#include "ge_common/api_error_codes.h"
+#include "ge_common/ge_api_error_codes.h"
 #include "common/llm_inner_types.h"
 #include "common/llm_mem_pool.h"
 #include "link_mgr/comm_entity_manager.h"

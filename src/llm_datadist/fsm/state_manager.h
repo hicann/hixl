@@ -11,7 +11,7 @@
 #ifndef CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_STATE_MGR_H_
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_STATE_MGR_H_
 
-#include "ge_common/api_error_codes.h"
+#include "ge_common/ge_api_error_codes.h"
 #include "common/common.h"
 #include "fsm/base_state.h"
 

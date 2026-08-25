@@ -11,7 +11,7 @@
 #ifndef CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_RECEIVE_STATE_H_
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_RECEIVE_STATE_H_
 
-#include "ge_common/api_error_codes.h"
+#include "ge_common/ge_api_error_codes.h"
 #include "fsm/base_state.h"
 
 namespace llm {

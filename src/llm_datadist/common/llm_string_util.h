@@ -18,7 +18,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include "graph/error_codes.h"
+#include "external/ge_common/ge_error_codes.h"
 #include "common/llm_inner_types.h"
 
 namespace llm {
