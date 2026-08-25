@@ -51,6 +51,7 @@ constexpr uint8_t kUbgEidMarkerMask = 0xC0U;
 constexpr uint8_t kUbgEidMarkerValue = 0x80U;
 
 constexpr size_t kEidHexStrLen = COMM_ADDR_EID_LEN * 2U;
+constexpr int32_t kSetwWidth = 2;
 
 bool IsRoceInterconType(uint32_t intercon_type) {
   return intercon_type == kInterconTypeRoceOverNpu || intercon_type == kInterconTypeRoceOverCpu;
@@ -80,7 +81,7 @@ std::string ConvertEidToString(const unsigned char *raw, size_t len) {
   std::ostringstream oss;
   oss << std::hex << std::setfill('0');
   for (size_t i = 0; i < len; ++i) {
-    oss << std::setw(2) << static_cast<uint32_t>(raw[i]);
+    oss << std::setw(kSetwWidth) << static_cast<uint32_t>(raw[i]);
   }
   return oss.str();
 }
@@ -274,6 +275,7 @@ Status ParseIpAddress(const std::string &ip_str, CommAddr &addr) {
 
 Status ParseHccsCommId(const std::string &comm_id_str, uint32_t &device_id) {
   constexpr size_t kMaxHccsCommIdLen = 10U;
+  constexpr uint32_t kAsciiDigitZero = 48U;  // ASCII code of character '0'
   HIXL_CHK_BOOL_RET_STATUS(!comm_id_str.empty() && comm_id_str.length() <= kMaxHccsCommIdLen, PARAM_INVALID,
                            "Invalid hccs comm_id length:%zu, max:%zu", comm_id_str.length(), kMaxHccsCommIdLen);
   HIXL_CHK_BOOL_RET_STATUS(
@@ -282,7 +284,7 @@ Status ParseHccsCommId(const std::string &comm_id_str, uint32_t &device_id) {
 
   uint64_t parsed = 0;
   for (const unsigned char c : comm_id_str) {
-    parsed = parsed * 10U + static_cast<uint64_t>(c - '0');
+    parsed = parsed * 10U + static_cast<uint64_t>(c - kAsciiDigitZero);
     HIXL_CHK_BOOL_RET_STATUS(parsed <= static_cast<uint64_t>(std::numeric_limits<uint32_t>::max()), PARAM_INVALID,
                              "hccs comm_id out of range:%s", comm_id_str.c_str());
   }
@@ -570,13 +572,12 @@ Status EndpointGenerator::ParseEndpointListFromLocalCommRes(const HixlOptions &o
   endpoint_list.clear();
 
   auto lcr = options.LocalCommRes();
-  const char *local_comm_res_cstr = lcr.has_value() ? lcr->c_str() : nullptr;
-  if (local_comm_res_cstr == nullptr || local_comm_res_cstr[0] == '\0') {
+  if (!lcr.has_value() || lcr->empty()) {
     local_comm_res.clear();
     return SUCCESS;
   }
 
-  local_comm_res = local_comm_res_cstr;
+  local_comm_res = lcr.value();
   try {
     nlohmann::json config = nlohmann::json::parse(local_comm_res);
     bool has_valid_endpoint_list = config.contains("net_instance_id") && config["net_instance_id"].is_string() &&
