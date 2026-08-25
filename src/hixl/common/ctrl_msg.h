@@ -67,6 +67,8 @@ struct CreateChannelReq {
   uint64_t dst_ep_handle = 0UL;
   uint8_t tc;
   uint8_t sl;
+  uint32_t retry_cnt = 0U;
+  uint32_t retry_interval = 0U;
   uint64_t channel_index = 0UL;
   uint8_t qos = 0U;
   uint32_t timeout_ms = 0U;

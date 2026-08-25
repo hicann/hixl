@@ -96,6 +96,7 @@ class HixlCSClient {
   Status InitNotifyResources(const EndpointDesc &ep);
   Status ExchangeEndpointAndCreateChannel(uint32_t timeout_ms);
   Status GetRemoteMemImpl(uint32_t timeout_ms, CommMem **remote_mem_list, char ***mem_tag_list, uint32_t *list_num);
+  Status InitRdmaRetryConfig();
   Status InitFlagQueue() noexcept;
   int32_t AcquireFlagIndex();
   Status ReleaseCompleteHandle(CompleteHandleInfo *query_handle);
@@ -155,6 +156,8 @@ class HixlCSClient {
   EndpointDesc remote_endpoint_{};
   uint8_t tc_{kRdmaTrafficClass};
   uint8_t sl_{kRdmaServiceLevel};
+  uint32_t retry_cnt_{kRdmaRetryCntDefault};
+  uint32_t retry_interval_{kRdmaRetryIntervalDefault};
   GlobalConfig global_config_;
   Channel client_channel_;
   ChannelHandle client_channel_handle_ = 0UL;

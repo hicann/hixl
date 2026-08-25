@@ -12,6 +12,7 @@
 #define AIR_TESTS_DEPENDS_HCCL_SRC_HCCL_STUB_H_
 
 #include <cstdint>
+#include "hcomm/hcomm_res_defs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,6 +29,8 @@ void ResetTransferCounter();
 void ResetMemRegRecord();
 uint32_t GetMemRegRecordCount();
 int32_t GetMemRegRecordType(uint32_t index);
+void ResetChannelCreateRecord();
+bool GetLastChannelCreateDesc(HcommChannelDesc *desc);
 
 #ifdef __cplusplus
 }

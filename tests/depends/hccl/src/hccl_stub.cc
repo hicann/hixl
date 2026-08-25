@@ -39,6 +39,8 @@ static std::atomic<uint32_t> g_channel_get_status_call_count{0U};
 static std::atomic<uint32_t> g_nbi_call_count{0U};
 static std::atomic<uint32_t> g_fence_call_count{0U};
 static std::vector<int32_t> g_mem_reg_types;
+static HcommChannelDesc g_last_channel_desc{};
+static bool g_has_last_channel_desc = false;
 
 static bool ConsumeChannelStatusPending() {
   uint32_t pending = g_channel_status_pending_count.load(std::memory_order_relaxed);
@@ -144,8 +146,10 @@ HcommResult HcommChannelCreate(EndpointHandle endPointHandle, CommEngine engine,
                                uint32_t channelNum, ChannelHandle *channels) {
   (void)endPointHandle;
   (void)engine;
-  (void)channelDescs;
-  (void)channelNum;
+  if (channelDescs != nullptr && channelNum > 0U) {
+    g_last_channel_desc = channelDescs[0];
+    g_has_last_channel_desc = true;
+  }
   static int32_t chn_num_stub = 1;
   *channels = static_cast<ChannelHandle>(chn_num_stub++);
   return static_cast<HcommResult>(HCCL_SUCCESS);
@@ -315,6 +319,19 @@ int32_t GetMemRegRecordType(uint32_t index) {
     return -1;
   }
   return g_mem_reg_types[index];
+}
+
+void ResetChannelCreateRecord() {
+  g_last_channel_desc = {};
+  g_has_last_channel_desc = false;
+}
+
+bool GetLastChannelCreateDesc(HcommChannelDesc *desc) {
+  if (!g_has_last_channel_desc || desc == nullptr) {
+    return false;
+  }
+  *desc = g_last_channel_desc;
+  return true;
 }
 
 uint32_t GetThreadAllocCallCount() {
