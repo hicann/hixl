@@ -13,9 +13,12 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
+#include <vector>
+#include "endpoint.h"
 #include "endpoint_store.h"
 #include "common/hixl_log.h"
 #include "depends/hccl/src/hccl_stub.h"
+#include "depends/slog/src/slog_stub.h"
 #include "hccl/hccl_types.h"
 
 namespace hixl {
@@ -23,6 +26,7 @@ namespace {
 
 constexpr uintptr_t kTestHandleSeed = 7U;
 constexpr uint32_t kInvalidAddrType = 0xFFU;
+constexpr uint32_t kCaptureLogTimeoutMs = 1000U;
 
 EndpointDesc MakeUbEndpoint(CommProtocol protocol, const std::array<uint8_t, COMM_ADDR_EID_LEN> &eid) {
   EndpointDesc ep{};
@@ -72,6 +76,34 @@ TEST(EndpointStoreUt, MatchEndpointSucceedsForUbTpByEid) {
   EXPECT_EQ(matched_handle, created_handle);
 
   EXPECT_EQ(store.Finalize(), SUCCESS);
+}
+
+TEST(EndpointStoreUt, EndpointInitializeFailureLogsEndpointDetailsAndAddressHint) {
+  auto log_capture = std::make_shared<llm::LogCaptureStub>();
+  const std::vector<std::string> patterns = {"HcommEndpointCreate failed", "devPhyId=3",
+                                             "EID[0011223344556677:8899aabbccddeeff]",
+                                             "Please check whether the endpoint address is valid and available"};
+  for (const auto &pattern : patterns) {
+    log_capture->AddCapturePattern(pattern);
+  }
+  log_capture->SetLevelInfo();
+  llm::SlogStub::SetInstance(log_capture);
+
+  const std::array<uint8_t, COMM_ADDR_EID_LEN> eid = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+                                                      0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+  EndpointDesc endpoint_desc = MakeUbEndpoint(COMM_PROTOCOL_UBG, eid);
+  endpoint_desc.loc.device.devPhyId = 3;
+  Endpoint endpoint(endpoint_desc);
+  SetEndpointCreateResult(1);
+
+  Status st = endpoint.Initialize();
+
+  EXPECT_NE(st, SUCCESS);
+  EXPECT_TRUE(log_capture->WaitForAllPatternsCaptured(kCaptureLogTimeoutMs));
+  for (const auto &pattern : patterns) {
+    EXPECT_TRUE(log_capture->IsPatternCaptured(pattern)) << "Log pattern capture failed: " << pattern;
+  }
+  llm::SlogStub::SetInstance(nullptr);
 }
 
 TEST(EndpointStoreUt, MatchEndpointFailsForUbCtpWhenEidDiffers) {

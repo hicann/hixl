@@ -34,6 +34,7 @@ static std::vector<std::string> g_thread_lifecycle_events;
 // 设置后下一次调用会返回指定的错误码（既不是成功也不是重试所需）
 static int32_t g_next_nbi_failure_ret = 0;               // 下一次NBI传输的返回值
 static int32_t g_next_fence_failure_ret = 0;             // 下一次Fence的返回值
+static int32_t g_endpoint_create_ret = 0;                // HcommEndpointCreate的返回值, 0表示使用默认行为
 static int32_t g_next_endpoint_destroy_failure_ret = 0;  // 下一次EndpointDestroy的返回值
 static int32_t g_next_batch_mode_start_failure_ret = 0;
 static int32_t g_next_batch_mode_end_failure_ret = 0;
@@ -104,6 +105,11 @@ HcommResult HcommMemExport(EndpointHandle endPointHandle, HcommMemHandle memHand
 
 HcommResult HcommEndpointCreate(const EndpointDesc *endPoint, EndpointHandle *endPointHandle) {
   (void)endPoint;
+  if (g_endpoint_create_ret != 0) {
+    int32_t ret = g_endpoint_create_ret;
+    g_endpoint_create_ret = 0;
+    return static_cast<HcommResult>(ret);
+  }
   static int32_t ep_num_stub = 1;
   *endPointHandle = reinterpret_cast<void *>(ep_num_stub++);
   return static_cast<HcommResult>(HCCL_SUCCESS);
@@ -296,6 +302,11 @@ void SetNextNbiFailure(int32_t ret) {
 // 设置下一次Fence返回指定错误码
 void SetNextFenceFailure(int32_t ret) {
   g_next_fence_failure_ret = ret;
+}
+
+// 设置 HcommEndpointCreate 的返回值
+void SetEndpointCreateResult(int32_t ret) {
+  g_endpoint_create_ret = ret;
 }
 
 void SetNextEndpointDestroyFailure(int32_t ret) {

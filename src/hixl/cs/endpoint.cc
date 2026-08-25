@@ -94,7 +94,10 @@ Endpoint::Endpoint(const EndpointDesc &endpoint, bool need_host_va_mapping)
 Status Endpoint::Initialize() {
   std::lock_guard<std::mutex> lock(mutex_);
   HIXL_LOGI("HcommEndpointCreate start, %s", EndpointToString(endpoint_).c_str());
-  HIXL_CHK_HCCL_RET(HcommProxy::EndpointCreate(&endpoint_, &handle_));
+  HIXL_CHK_HCCL_RET(HcommProxy::EndpointCreate(&endpoint_, &handle_),
+                    "HcommEndpointCreate failed, endpoint=[%s]. "
+                    "Please check whether the endpoint address is valid and available in the current environment.",
+                    EndpointToString(endpoint_).c_str());
   HIXL_LOGI("HcommEndpointCreate success, handle_:%p", handle_);
   return SUCCESS;
 }

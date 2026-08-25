@@ -51,6 +51,7 @@ static constexpr uint32_t kShortMs = 1;
 static constexpr uint32_t kMilliSeconds1 = 1;
 static constexpr uint32_t kSleepMs = 10;
 static constexpr uint32_t kSleepLongTimeMs = 30000;
+static constexpr uint32_t kCaptureLogTimeoutMs = 1000U;
 static constexpr uint32_t kMemNum = 100U;
 static constexpr uint32_t kNum1 = 1;
 static constexpr uint32_t kNum2 = 2;
@@ -1635,6 +1636,39 @@ TEST_F(HixlClientUTest, EndpointMatcherIgnoresIntraRoceEnv) {
   EXPECT_EQ(matched_pairs[0].type, CommType::COMM_TYPE_UB_D2D);
   EXPECT_EQ(matched_pairs[0].local.protocol, kProtocolUbCtp);
   EXPECT_EQ(matched_pairs[0].remote.protocol, kProtocolUbCtp);
+}
+
+TEST_F(HixlClientUTest, EndpointMatcherCrossInstanceFailureLogsEndpointDetails) {
+  auto log_capture = std::make_shared<llm::LogCaptureStub>();
+  const std::vector<std::string> patterns = {"EndpointMatcher failed, cross_instance:1",
+                                             "local endpoint[0]:{EndpointConfig{protocol: hccs",
+                                             "net_instance_id: superpod-local",
+                                             "remote endpoint[0]:{EndpointConfig{protocol: roce",
+                                             "net_instance_id: superpod-remote",
+                                             "placement: host",
+                                             "device_info: DeviceInfoConfig"};
+  for (const auto &pattern : patterns) {
+    log_capture->AddCapturePattern(pattern);
+  }
+  log_capture->SetLevelInfo();
+  llm::SlogStub::SetInstance(log_capture);
+
+  EndpointConfig local = MakeDirectEp(kProtocolHccs, "superpod-local");
+  EndpointConfig remote = MakeDirectEp(kProtocolRoce, "superpod-remote");
+  remote.placement = kPlacementHost;
+  std::vector<EndpointConfig> local_eps = {local};
+  std::vector<EndpointConfig> remote_eps = {remote};
+  std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
+  HandlerCreateArgs::HandlerType handler_type;
+
+  Status st = EndpointMatcher::MatchEndpoints(local_eps, remote_eps, matched_pairs, handler_type);
+
+  EXPECT_EQ(st, PARAM_INVALID);
+  EXPECT_TRUE(log_capture->WaitForAllPatternsCaptured(kCaptureLogTimeoutMs));
+  for (const auto &pattern : patterns) {
+    EXPECT_TRUE(log_capture->IsPatternCaptured(pattern)) << "Log pattern capture failed: " << pattern;
+  }
+  llm::SlogStub::SetInstance(nullptr);
 }
 
 TEST_F(HixlClientUTest, CheckAliveWritesControlSocket) {

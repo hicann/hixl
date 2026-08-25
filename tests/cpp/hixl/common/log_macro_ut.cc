@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 
 #include "securec.h"
+#include "common/hixl_checker.h"
 #include "hixl_log.h"
 #include "common/llm_log.h"
 #include "slog_stub.h"
@@ -67,6 +68,31 @@ class LogMacroUt : public testing::Test {
 
   std::shared_ptr<CapturingSlogStub> slog_;
 };
+
+hixl::Status CheckHcommFailureWithoutContext(HcclResult ret) {
+  HIXL_CHK_HCCL_RET(ret);
+  return hixl::SUCCESS;
+}
+
+hixl::Status CheckHcommFailureWithContext(HcclResult ret) {
+  HIXL_CHK_HCCL_RET(ret, "additional context:%d", 7);
+  return hixl::SUCCESS;
+}
+
+TEST_F(LogMacroUt, HcommCheckWithoutContextLogsBaseFailure) {
+  EXPECT_EQ(CheckHcommFailureWithoutContext(HCCL_E_INTERNAL), hixl::FAILED);
+
+  ASSERT_EQ(slog_->logs.size(), 1U);
+  EXPECT_NE(slog_->logs[0].message.find("Call hccl api:ret failed."), std::string::npos);
+}
+
+TEST_F(LogMacroUt, HcommCheckWithContextAppendsLog) {
+  EXPECT_EQ(CheckHcommFailureWithContext(HCCL_E_PARA), hixl::PARAM_INVALID);
+
+  ASSERT_EQ(slog_->logs.size(), 1U);
+  EXPECT_NE(slog_->logs[0].message.find("Call hccl api:ret failed."), std::string::npos);
+  EXPECT_NE(slog_->logs[0].message.find("additional context:7"), std::string::npos);
+}
 
 TEST_F(LogMacroUt, HixlAclRecordPreservesContext) {
   slog_->SetLevel(DLOG_INFO);

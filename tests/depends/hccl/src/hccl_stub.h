@@ -21,6 +21,7 @@ extern "C" {
 
 void SetNextNbiFailure(int32_t ret);
 void SetNextFenceFailure(int32_t ret);
+void SetEndpointCreateResult(int32_t ret);
 void SetNextEndpointDestroyFailure(int32_t ret);
 void SetNextBatchModeStartFailure(int32_t ret);
 void SetNextBatchModeEndFailure(int32_t ret);

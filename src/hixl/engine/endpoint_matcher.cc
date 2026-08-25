@@ -58,6 +58,18 @@ constexpr MatchRule kSameInstanceRules[] = {
      CommType::COMM_TYPE_ROCE, "same-instance falls back to host roce"},
 };
 
+void LogEndpointMatchFailure(const std::vector<EndpointConfig> &local, const std::vector<EndpointConfig> &remote,
+                             bool cross_instance) {
+  HIXL_LOGE(PARAM_INVALID, "EndpointMatcher failed, cross_instance:%d, local_count:%zu, remote_count:%zu",
+            static_cast<int32_t>(cross_instance), local.size(), remote.size());
+  for (size_t i = 0; i < local.size(); ++i) {
+    HIXL_LOGE(PARAM_INVALID, "local endpoint[%zu]:{%s}", i, local[i].ToString().c_str());
+  }
+  for (size_t i = 0; i < remote.size(); ++i) {
+    HIXL_LOGE(PARAM_INVALID, "remote endpoint[%zu]:{%s}", i, remote[i].ToString().c_str());
+  }
+}
+
 constexpr MatchRule kSameInstanceUbCtpDeviceOnlyRule = {
     MatchRuleType::SINGLE,      HandlerCreateArgs::HandlerType::DIRECT, kProtocolUbCtp, kPlacementDevice,
     CommType::COMM_TYPE_UB_D2D, "same-instance device-only ub ctp"};
@@ -274,6 +286,7 @@ Status EndpointMatcher::TryMatchByPriority(const std::vector<EndpointConfig> &lo
       return SUCCESS;
     }
   }
+  LogEndpointMatchFailure(local, remote, cross_instance);
   HIXL_LOGE(PARAM_INVALID, "Failed to find matched endpoints");
   return PARAM_INVALID;
 }
