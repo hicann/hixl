@@ -25,7 +25,11 @@ Before running samples, use the [hccn_tool](https://support.huawei.com/enterpris
 - Step 1: Query the IP information of required devices, using an 8-card setup as an example:
 
 ```shell
+# Query the RDMA NIC IP address (RoCE) of each device
 for i in {0..7}; do hccn_tool -i $i -ip -g; done
+
+# Query the vNIC IP address (HCCS) of each device
+for i in {0..7}; do hccn_tool -i $i -vnic -g; done
 ```
 
 - Step 2: Check connectivity between two devices, using devices a and b as an example:
@@ -70,7 +74,7 @@ If `hccn_tool is busy, please try again` appears, avoid concurrent use of the co
   - **A2 (Ascend910B-class)**: D2D only (`D2rD` / `rD2D`)
   - **A3 (Ascend910-class)**: D2D + `H2rD` / `rD2H`
   - **A5 (Ascend950)**: HCCS not supported
-- **FabricMem**: not supported on A2; all 8 directions on A3; not yet supported on A5
+- **FabricMem**: not supported on A2; all 8 directions on A3; not yet supported on A5; HDK must be newer than 25.5. See the [FabricMem mode documentation](../docs/en/FabricMem.md#installation-and-runtime-dependencies) for detailed constraints.
 - **RoCE (A5)**: data plane uses the host NIC; usually requires `--host_roce_ip` (not the same as control-plane `--target-host` / `--local_engine`)
 - **UBOE / UB_RTP / UB**: A5 only
 

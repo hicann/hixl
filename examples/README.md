@@ -37,10 +37,14 @@
 - step1：查询所需device的ip信息，以8卡为例：
 
 ```shell
+# 查询所有device的RDMA网卡IP(RoCE)
 for i in {0..7}; do hccn_tool -i $i -ip -g; done
+
+# 查询所有device的vnic IP信息(HCCS)
+for i in {0..7}; do hccn_tool -i $i -vnic -g; done
 ```
 
-- step2：检查两个device之间的连通性，以设备a和b连通性检查为例：
+- step2：检查两个device之间的RoCE链路连通性，以设备a和b连通性检查为例：
 
 ```shell
 # 检查设备a是否能ping通设备b

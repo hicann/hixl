@@ -1,6 +1,6 @@
 ## Introduction
 
-This project provides C++ and Python usage examples. Developers can refer to the corresponding implementations according to their specific requirements.  
+This project provides C++ and Python usage examples. Developers can refer to the corresponding implementations according to their specific requirements.
 
 ## Directory Structure
 
@@ -37,10 +37,14 @@ Before running the samples, use the [hccn_tool](https://support.huawei.com/enter
 - Step 1: Query the IP addresses of the required devices. The following uses an 8-device setup as an example:
 
 ```shell
+# Query the RDMA NIC IP address (RoCE) of each device
 for i in {0..7}; do hccn_tool -i $i -ip -g; done
+
+# Query the vNIC IP address (HCCS) of each device
+for i in {0..7}; do hccn_tool -i $i -vnic -g; done
 ```
 
-- Step 2: Check the connectivity between two devices (such as device A and device B).
+- Step 2: Check the RoCE link connectivity between two devices (such as device A and device B).
 
 ```shell
 # Check whether device A can ping device B
@@ -49,7 +53,7 @@ hccn_tool -i ${device_id_a} -ping -g address ${ip_address_b}
 hccn_tool -i ${device_id_b} -ping -g address ${ip_address_a}
 ```
 
-Here, `device_id` can be queried via `npu-smi info`, and `ip_address` is the the device IP address obtained in the previous step. For example:
+Here, `device_id` can be queried via `npu-smi info`, and `ip_address` is the device IP address obtained in the previous step. For example:
 
 ```shell
 hccn_tool -i 0 -ping -g address 10.10.10.1
@@ -60,7 +64,7 @@ If the output contains `recv time out seq`, the two devices are not connected. T
 
 > **Note**: The A3 environment uses a single-device dual-die architecture, where both dies share one OS. For example, `dev-os-0` contains `device-0` and `device-1`.
 >
-> Devices within the same single‑device dual‑die configuration are not interconnected. For instance, `device‑0` and `device‑1` cannot communicate, nor can `device‑2` and `device‑3`, and so on. When running samples in an A3 environment, ensure that the provided device IDs meet the connectivity requirements. 
+> Devices within the same single‑device dual‑die configuration are not interconnected. For instance, `device‑0` and `device‑1` cannot communicate, nor can `device‑2` and `device‑3`, and so on. When running samples in an A3 environment, ensure that the provided device IDs meet the connectivity requirements.
 
 - Step 3: Check the consistency of TLS certificate configurations across devices.
 

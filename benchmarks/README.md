@@ -25,7 +25,11 @@
 - Step1：查询所需 device 的 IP 信息，以 8 卡为例：
 
 ```shell
+# 查询所有device的RDMA网卡IP(RoCE)
 for i in {0..7}; do hccn_tool -i $i -ip -g; done
+
+# 查询所有device的vnic IP信息(HCCS)
+for i in {0..7}; do hccn_tool -i $i -vnic -g; done
 ```
 
 - Step2：检查两个 device 之间的连通性，以设备 a 和 b 为例：
@@ -70,7 +74,7 @@ for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
   - **A2（Ascend910B-class）**：仅 D2D（`D2rD` / `rD2D`）
   - **A3（Ascend910-class）**：D2D + `H2rD` / `rD2H`
   - **A5（Ascend950）**：不支持 HCCS
-- **FabricMem**：A2 不支持；A3 支持全部 8 个方向，A5 暂不支持
+- **FabricMem**：A2 不支持；A3 支持全部 8 个方向，A5 暂不支持；HDK要求大于25.5，详细约束参考[FabricMem模式说明文档](../docs/zh/FabricMem.md#安装与运行依赖)
 - **RoCE（A5）**：数据面走 Host NIC，通常需要 `--host_roce_ip`（与控制面 `--target-host` / `--local_engine` 不是同一地址）
 - **UBOE / UB_RTP / UB**：仅 A5
 
