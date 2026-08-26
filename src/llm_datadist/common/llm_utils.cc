@@ -253,8 +253,8 @@ bool LLMUtils::CheckMultiplyOverflowInt64(int64_t a, int64_t b) {
   return false;
 }
 
-int32_t LLMUtils::CeilDiv(int32_t a, int32_t b) {
-  int32_t res = a / b;
+int64_t LLMUtils::CeilDiv(int64_t a, int64_t b) {
+  int64_t res = a / b;
   return (res * b == a) ? res : (res + 1);
 }
 

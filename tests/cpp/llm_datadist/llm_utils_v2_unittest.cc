@@ -42,6 +42,15 @@ TEST_F(LLMUtilsTest, CalcTensorMemSize) {
   EXPECT_EQ(LLMUtils::CalcTensorMemSize({3}, ge::DT_UNDEFINED, mem_size), ge::LLM_PARAM_INVALID);
 }
 
+TEST_F(LLMUtilsTest, GetSizeInBytes_BitPackedCountBeyondInt32) {
+  const int64_t element_count = static_cast<int64_t>(std::numeric_limits<int32_t>::max() / 4) + 1;
+  const int64_t expected_size = (element_count * 4 + ge::kBitNumOfOneByte - 1) / ge::kBitNumOfOneByte;
+  int64_t mem_size = -1;
+
+  EXPECT_EQ(LLMUtils::GetSizeInBytes(element_count, ge::DT_INT4, mem_size), ge::SUCCESS);
+  EXPECT_EQ(mem_size, expected_size);
+}
+
 TEST_F(LLMUtilsTest, SplitSuccess) {
   auto ret = hixl::Split("", ',');
   EXPECT_EQ(ret.size(), 1);

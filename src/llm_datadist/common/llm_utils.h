@@ -67,7 +67,7 @@ class LLMUtils {
 
   static bool CheckMultiplyOverflowInt64(int64_t a, int64_t b);
 
-  static int32_t CeilDiv(int32_t a, int32_t b);
+  static int64_t CeilDiv(int64_t a, int64_t b);
 
   static ge::Status CalcElementCntByDims(const std::vector<int64_t> &dims, int64_t &element_cnt);
 
