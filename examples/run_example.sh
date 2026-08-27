@@ -12,6 +12,78 @@
 set -e
 
 BASEPATH=$(cd "$(dirname $0)"; pwd)
+REPO_ROOT=$(cd "${BASEPATH}/.." && pwd)
+
+# Documentation / agent files can skip smoke. examples/ source must still run.
+is_skippable_path() {
+    local file="$1"
+    file=$(echo "$file" | sed 's/\r$//;s/^[[:space:]]*//;s/[[:space:]]*$//;s/^"//;s/"$//;s|^\./||')
+    [ -z "$file" ] && return 0
+    case "$file" in
+        docs/*|.claude/*|.opencode/*|.agents/*)
+            return 0
+            ;;
+    esac
+    echo "$file" | grep -qi '\.md$'
+}
+
+# usage: check_changed_files "file1\nfile2"
+check_changed_files() {
+    local changed_files="$1"
+    local skip_smoke=true
+    local file
+
+    if [ -z "$changed_files" ]; then
+        return 1
+    fi
+
+    while IFS= read -r file; do
+        [ -z "$file" ] && continue
+        if ! is_skippable_path "$file"; then
+            skip_smoke=false
+            break
+        fi
+    done <<< "$changed_files"
+
+    if [ "$skip_smoke" = true ]; then
+        echo "[INFO] Changed files only contain documentation, skipping smoke test."
+        echo "[INFO] Changed files: $changed_files"
+        return 0
+    fi
+    return 1
+}
+
+find_changed_files_list() {
+    local explicit="$1"
+    local candidates=()
+    local f
+
+    if [ -n "$explicit" ]; then
+        echo "$explicit"
+        return 0
+    fi
+    [ -n "${WORKSPACE:-}" ] && candidates+=("${WORKSPACE}/pr_filelist_mod.txt" "${WORKSPACE}/pr_filelist.txt")
+    candidates+=("${REPO_ROOT}/pr_filelist_mod.txt" "${REPO_ROOT}/pr_filelist.txt")
+    for f in "${candidates[@]}"; do
+        if [ -f "$f" ]; then
+            echo "$f"
+            return 0
+        fi
+    done
+    return 0
+}
+
+load_changed_files() {
+    local list_file="$1"
+    CHANGED_FILES=""
+    [ -z "$list_file" ] && return 0
+    if [ ! -f "$list_file" ]; then
+        echo "Error: File $list_file not found"
+        exit 1
+    fi
+    echo "[INFO] Use PR file list: $list_file"
+    CHANGED_FILES=$(tr -d '\r' < "$list_file")
+}
 
 validate_device_ids() {
     local args=("$@")
@@ -348,6 +420,36 @@ smoke_test_samples() {
 }
 
 main() {
+    local changed_files_file=""
+    local list_file=""
+    local -a rest=()
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -f|--changed-files-file)
+                if [ -z "${2:-}" ]; then
+                    echo "Error: $1 requires a file path"
+                    exit 1
+                fi
+                changed_files_file="$2"
+                shift 2
+                ;;
+            *)
+                rest+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    list_file=$(find_changed_files_list "$changed_files_file")
+    load_changed_files "$list_file"
+    if check_changed_files "${CHANGED_FILES:-}"; then
+        # pre_smoke.sh greps this exact string as the job success marker.
+        echo "execute samples success"
+        exit 0
+    fi
+
+    set -- "${rest[@]}"
     case "$1" in
         -a | --all)
             shift
