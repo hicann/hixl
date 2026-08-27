@@ -67,6 +67,7 @@ struct CacheDesc {
   uint32_t num_tensors;
   ge::DataType data_type;
   int32_t seq_len_dim_index = -1;
+  int32_t batch_dim_index = 0;
   std::vector<int64_t> shape;
   uint32_t placement = 1U;
   CacheMemType cache_mem_type = CacheMemType::CACHE;

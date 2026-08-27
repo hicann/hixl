@@ -93,6 +93,10 @@ ge::Status DataCacheEngine::Register(const llm::CacheDesc &cache_desc, const std
   LLM_CHK_BOOL_RET_STATUS(!cache_desc.shape.empty() && (cache_desc.shape.size() < kMaxDimNum), ge::LLM_PARAM_INVALID,
                           "Invalid shape: %s, dim_num (%zu) must be in range [1, 33)",
                           hixl::ToString(cache_desc.shape).c_str(), cache_desc.shape.size());
+  LLM_CHK_BOOL_RET_STATUS(
+      cache_desc.batch_dim_index >= 0 && static_cast<size_t>(cache_desc.batch_dim_index) < cache_desc.shape.size(),
+      ge::LLM_PARAM_INVALID, "Invalid batch_dim_index:%d for shape dim_num:%zu", cache_desc.batch_dim_index,
+      cache_desc.shape.size());
   LLM_CHECK_GE(cache.per_device_tensor_addrs.size(), 1);
   LLM_CHK_BOOL_RET_STATUS(cache_desc.num_tensors == static_cast<uint32_t>(cache.per_device_tensor_addrs[0].size()),
                           ge::LLM_PARAM_INVALID, "cache addrs size[%zu] is not equal to num_tensors[%u] of cache_desc",
@@ -344,6 +348,10 @@ ge::Status DataCacheEngine::Allocate(const CacheDesc &cache_desc, const std::vec
   LLM_CHK_BOOL_RET_STATUS(!cache_desc.shape.empty() && (cache_desc.shape.size() < kMaxDimNum), ge::LLM_PARAM_INVALID,
                           "Invalid shape: %s, dim_num (%zu) must be in range [1, 33)",
                           hixl::ToString(cache_desc.shape).c_str(), cache_desc.shape.size());
+  LLM_CHK_BOOL_RET_STATUS(
+      cache_desc.batch_dim_index >= 0 && static_cast<size_t>(cache_desc.batch_dim_index) < cache_desc.shape.size(),
+      ge::LLM_PARAM_INVALID, "Invalid batch_dim_index:%d for shape dim_num:%zu", cache_desc.batch_dim_index,
+      cache_desc.shape.size());
   const auto cache_id = cache_id_gen_.fetch_add(1, std::memory_order::memory_order_relaxed);
   LLM_CHECK_GE(cache_id, 1);
   LLM_CHK_STATUS_RET(cache_manager_->Allocate(cache_id, cache_desc, cache_keys, cache));

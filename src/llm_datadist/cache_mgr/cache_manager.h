@@ -56,7 +56,8 @@ class CacheManager {
 
  private:
   const CacheEntry *DoGetCacheEntry(int64_t cache_id) const;
-  static CacheEntry CreateCacheEntry(const CacheDesc &cache_desc, std::vector<uintptr_t> &addrs, int64_t tensor_size);
+  static ge::Status CreateCacheEntry(const CacheDesc &cache_desc, std::vector<uintptr_t> &addrs, int64_t tensor_size,
+                                     CacheEntry &cache_entry);
   static void NoDelete(void *) {}
   void AddCacheIndices(CacheEntry &cache_entry, int64_t cache_id, const std::vector<CacheKey> &cache_keys);
   void RemoveCacheIndices(int64_t cache_id);

@@ -9,6 +9,7 @@
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
+# fmt: off
 from dataclasses import dataclass
 from threading import Thread
 from typing import Dict, List, Optional, Union, Tuple
@@ -107,9 +108,9 @@ class CacheDescParser(object):
         log.info(f'parse cache_desc from option, value = {cache_desc}')
         return cache_desc
 
-def pack_cache_desc(cache_desc: CacheDesc) -> Tuple[int, int, int, List[int], int, int]:
-    return (cache_desc.num_tensors, cache_desc.data_type.value, cache_desc.seq_len_dim_index, cache_desc.shape,
-            cache_desc.placement.value, cache_desc._is_blocks)
+def pack_cache_desc(cache_desc: CacheDesc) -> Tuple[int, int, int, int, List[int], int, int]:
+    return (cache_desc.num_tensors, cache_desc.data_type.value, cache_desc.seq_len_dim_index, cache_desc.batch_dim,
+            cache_desc.shape, cache_desc.placement.value, cache_desc._is_blocks)
 
 
 def pack_cache_key(cache_key: CacheKey) -> Tuple[int, int, int, int, int, int, bool]:

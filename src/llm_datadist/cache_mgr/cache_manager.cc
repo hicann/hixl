@@ -20,6 +20,19 @@ namespace llm {
 namespace {
 constexpr uint64_t kMaxBlockSize = 4UL * 1024 * 1024 * 1024;  // 4GB
 
+ge::Status GetCacheBatchSize(const CacheDesc &cache_desc, uint32_t &batch_size) {
+  if (cache_desc.shape.empty()) {
+    batch_size = 1U;
+    return ge::SUCCESS;
+  }
+  LLM_CHK_BOOL_RET_STATUS(
+      cache_desc.batch_dim_index >= 0 && static_cast<size_t>(cache_desc.batch_dim_index) < cache_desc.shape.size(),
+      ge::LLM_PARAM_INVALID, "Invalid batch_dim_index:%d for shape dim_num:%zu", cache_desc.batch_dim_index,
+      cache_desc.shape.size());
+  batch_size = static_cast<uint32_t>(cache_desc.shape[cache_desc.batch_dim_index]);
+  return ge::SUCCESS;
+}
+
 class CopyJob {
  public:
   explicit CopyJob(aclrtStream stream, uint64_t max_block_size = kMaxBlockSize)
@@ -138,7 +151,8 @@ bool CacheManager::GetCacheEntry(const DataCacheKey &cache_key, bool is_prefix, 
 ge::Status CacheManager::RegisterCacheEntry(int64_t cache_id, const std::vector<CacheKey> &cache_keys,
                                             const CacheDesc &cache_desc, std::vector<uintptr_t> &addrs,
                                             int64_t tensor_size) {
-  CacheEntry cache_entry = CreateCacheEntry(cache_desc, addrs, tensor_size);
+  CacheEntry cache_entry;
+  LLM_CHK_STATUS_RET(CreateCacheEntry(cache_desc, addrs, tensor_size, cache_entry));
   {
     std::lock_guard<std::mutex> lk(mu_);
     AddCacheIndices(cache_entry, cache_id, cache_keys);
@@ -190,7 +204,8 @@ ge::Status CacheManager::Allocate(int64_t cache_id, const CacheDesc &cache_desc,
     (void)cache_tensors.emplace_back(tensor_addr);
     (void)tensor_addresses.emplace_back(reinterpret_cast<uintptr_t>(tensor_addr.get()));
   }
-  auto cache_entry = CreateCacheEntry(cache_desc, tensor_addresses, tensor_size);
+  CacheEntry cache_entry;
+  LLM_CHK_STATUS_RET(CreateCacheEntry(cache_desc, tensor_addresses, tensor_size, cache_entry));
   cache_entry.is_owned = true;  // allocated by llm datadist
   cache_entry.ext_ref_count = 1;
   cache_entry.cache_addrs = cache_tensors;
@@ -210,23 +225,25 @@ ge::Status CacheManager::Allocate(int64_t cache_id, const CacheDesc &cache_desc,
   return ge::SUCCESS;
 }
 
-CacheEntry CacheManager::CreateCacheEntry(const CacheDesc &cache_desc, std::vector<uintptr_t> &addrs,
-                                          int64_t tensor_size) {
-  CacheEntry cache_entry{};
+ge::Status CacheManager::CreateCacheEntry(const CacheDesc &cache_desc, std::vector<uintptr_t> &addrs,
+                                          int64_t tensor_size, CacheEntry &cache_entry) {
+  cache_entry = {};
   cache_entry.cache_addrs.reserve(addrs.size());
   for (const auto addr : addrs) {
     cache_entry.cache_addrs.emplace_back(std::shared_ptr<void>(ValueToPtr(addr), &NoDelete));
   }
   cache_entry.tensor_size = static_cast<uint64_t>(tensor_size);
   if (cache_desc.cache_mem_type == CacheMemType::BLOCKS) {
+    LLM_CHK_BOOL_RET_STATUS(!cache_desc.shape.empty(), ge::LLM_PARAM_INVALID,
+                            "shape must not be empty for block cache");
     cache_entry.batch_size = 1U;
     cache_entry.num_blocks = static_cast<uint64_t>(cache_desc.shape.front());
     cache_entry.stride = (cache_entry.tensor_size / cache_entry.num_blocks);
   } else if (cache_desc.cache_mem_type == CacheMemType::CACHE) {
-    cache_entry.batch_size = cache_desc.shape.empty() ? 1U : static_cast<uint32_t>(cache_desc.shape.front());
+    LLM_CHK_STATUS_RET(GetCacheBatchSize(cache_desc, cache_entry.batch_size));
     cache_entry.stride = (cache_entry.tensor_size / cache_entry.batch_size);
   } else {
-    cache_entry.batch_size = cache_desc.shape.empty() ? 1U : static_cast<uint32_t>(cache_desc.shape.front());
+    LLM_CHK_STATUS_RET(GetCacheBatchSize(cache_desc, cache_entry.batch_size));
     cache_entry.num_blocks = cache_entry.batch_size;
     cache_entry.stride = (cache_entry.tensor_size / cache_entry.batch_size);
   }
@@ -234,12 +251,14 @@ CacheEntry CacheManager::CreateCacheEntry(const CacheDesc &cache_desc, std::vect
   cache_entry.seq_len_dim_index = cache_desc.seq_len_dim_index;
   cache_entry.placement = static_cast<CachePlacement>(cache_desc.placement);
   cache_entry.remote_accessible = cache_desc.remote_accessible;
-  return cache_entry;
+  return ge::SUCCESS;
 }
 
 ge::Status CacheManager::CheckCacheKeys(const CacheDesc &cache_desc, const std::vector<CacheKey> &cache_keys) const {
-  LLM_CHK_BOOL_RET_STATUS(cache_keys.size() <= static_cast<size_t>(cache_desc.shape.front()), ge::LLM_PARAM_INVALID,
-                          "Number of cache_keys(%zu) > batch_size (%ld)", cache_keys.size(), cache_desc.shape.front());
+  uint32_t batch_size = 1U;
+  LLM_CHK_STATUS_RET(GetCacheBatchSize(cache_desc, batch_size));
+  LLM_CHK_BOOL_RET_STATUS(cache_keys.size() <= static_cast<size_t>(batch_size), ge::LLM_PARAM_INVALID,
+                          "Number of cache_keys(%zu) > batch_size (%u)", cache_keys.size(), batch_size);
   std::set<DataCacheKey> data_cache_keys;
   for (const auto &cache_key : cache_keys) {
     bool is_prefix = false;

@@ -239,6 +239,35 @@ TEST_F(DataCacheEngineTest, RemoveCacheIndices_PrefixKey) {
   cache_engine_.Finalize();
 }
 
+TEST_F(DataCacheEngineTest, CacheOps_UsesBatchDimIndex) {
+  std::map<ge::AscendString, ge::AscendString> options;
+  options[llm::LLM_OPTION_MEM_POOL_CONFIG] = "{\"memory_size\": 262144}";
+  EXPECT_EQ(cache_engine_.Initialize(options), ge::SUCCESS);
+
+  CacheDesc cache_desc{};
+  cache_desc.num_tensors = 1;
+  cache_desc.placement = 1;
+  cache_desc.shape = {2, 3};
+  cache_desc.data_type = ge::DT_INT8;
+  cache_desc.batch_dim_index = 1;
+  std::vector<CacheKey> cache_keys;
+  for (int32_t i = 0; i < 3; ++i) {
+    cache_keys.emplace_back(MakeCacheKey(1000 + i, 1, UINT64_MAX));
+  }
+
+  Cache cache{};
+  ASSERT_EQ(cache_engine_.Allocate(cache_desc, cache_keys, cache), ge::SUCCESS);
+
+  CacheEntry cache_entry;
+  ASSERT_TRUE(cache_manager_.GetCacheEntry(cache.cache_id, cache_entry));
+  EXPECT_EQ(cache_entry.batch_size, 3U);
+  EXPECT_EQ(cache_entry.stride, 2U);
+  EXPECT_EQ(cache_entry.id_to_batch_index_and_size.size(), 3U);
+
+  EXPECT_EQ(cache_engine_.Deallocate(cache.cache_id), ge::SUCCESS);
+  cache_engine_.Finalize();
+}
+
 TEST_F(DataCacheEngineTest, CopyCache_C2C) {
   std::map<ge::AscendString, ge::AscendString> options;
   // 4 * 64K

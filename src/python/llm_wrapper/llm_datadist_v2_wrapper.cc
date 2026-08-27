@@ -241,17 +241,19 @@ CopyCacheParam LLMDataDistV2Wrapper::UnpackCopyCacheParam(CopyCacheParamTuple ca
 CacheDesc LLMDataDistV2Wrapper::UnpackCacheDesc(const CacheDescTuple &cache_desc_tuple) {
   constexpr size_t kIndexNumTensors = 0;
   constexpr size_t kIndexDataType = 1;
-  constexpr size_t kIndexDimIndex = 2;
-  constexpr size_t kIndexShape = 3;
-  constexpr size_t kPlacement = 4;
-  constexpr size_t kIsBlocks = 5;
+  constexpr size_t kIndexSeqLenDimIndex = 2;
+  constexpr size_t kIndexBatchDimIndex = 3;
+  constexpr size_t kIndexShape = 4;
+  constexpr size_t kIndexPlacement = 5;
+  constexpr size_t kIndexIsBlocks = 6;
   CacheDesc cache_desc{};
   cache_desc.num_tensors = std::get<kIndexNumTensors>(cache_desc_tuple);
   cache_desc.data_type = static_cast<ge::DataType>(std::get<kIndexDataType>(cache_desc_tuple));
-  cache_desc.seq_len_dim_index = std::get<kIndexDimIndex>(cache_desc_tuple);
+  cache_desc.seq_len_dim_index = std::get<kIndexSeqLenDimIndex>(cache_desc_tuple);
+  cache_desc.batch_dim_index = std::get<kIndexBatchDimIndex>(cache_desc_tuple);
   cache_desc.shape = std::get<kIndexShape>(cache_desc_tuple);
-  cache_desc.placement = std::get<kPlacement>(cache_desc_tuple);
-  auto is_blocks = std::get<kIsBlocks>(cache_desc_tuple);
+  cache_desc.placement = std::get<kIndexPlacement>(cache_desc_tuple);
+  auto is_blocks = std::get<kIndexIsBlocks>(cache_desc_tuple);
   cache_desc.cache_mem_type = is_blocks == 0 ? CacheMemType::CACHE : CacheMemType::BLOCKS;
   return cache_desc;
 }

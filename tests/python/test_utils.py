@@ -9,14 +9,15 @@
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
+# fmt: off
 
 # content of test_sample.py
-import os.path
-import time
 import unittest
 import ctypes
 from llm_datadist.utils.utils import (check_uint64, check_int64,check_int32,
                                       check_uint32, check_list_int32, check_uint16, check_uint8)
+from llm_datadist.v2.llm_types import CacheDesc, DataType, Placement
+from llm_datadist.v2.llm_utils import pack_cache_desc
 
 
 class TensorUt(unittest.TestCase):
@@ -42,3 +43,8 @@ class TensorUt(unittest.TestCase):
             _ = check_uint16("cluster", -1)
         with self.assertRaises(ValueError):
             _ = check_uint8("cluster", -1)
+
+    def test_pack_cache_desc_preserves_batch_dim_index(self):
+        cache_desc = CacheDesc(1, [2, 3], DataType.DT_INT8, Placement.DEVICE, batch_dim_index=1)
+        self.assertEqual(pack_cache_desc(cache_desc), (1, DataType.DT_INT8.value, -1, 1, [2, 3],
+                                                        Placement.DEVICE.value, False))
