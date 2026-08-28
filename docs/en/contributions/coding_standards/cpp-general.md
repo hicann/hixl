@@ -16,6 +16,7 @@
 | 2.5 | Do not include headers within extern "C" | Headers |
 | 2.6 | Avoid using using to import namespaces in headers (Recommendation) | Headers |
 | 2.7 | Include headers in a reasonable order | Headers |
+| 2.8 | Headers must be self-contained | Headers |
 | 3.1 | Avoid abusing typedef/#define type aliases | Data Types |
 | 3.2 | Use using instead of typedef to define aliases | Data Types |
 | 4.1 | Do not use macros to represent constants | Constants |
@@ -175,6 +176,23 @@ Placing the corresponding header first surfaces any implicit dependency of the h
 ```
 
 > **Note**: During review, mark obviously disordered include sequences (e.g., the corresponding header placed after standard library headers, or project headers interleaved among standard library headers) as SUSPICIOUS to remind developers to adjust.
+
+##### Rule 2.8 Headers must be self-contained
+
+A header must directly include the headers for all symbols it directly uses, so that compiling a translation unit consisting only of `#include "the header"` succeeds, without relying on other headers being included first by an external translation unit.
+
+```cpp
+// Incorrect (not self-contained): uint64_t/uintptr_t come from <cstdint>, which is not included
+#include <vector>
+inline uint64_t PtrToValue(const void *ptr);
+// Correct: add #include <cstdint> (and <cstddef> for size_t)
+```
+
+**Verification**: Write a `.cc` that includes only the header under test and compile it with `g++ -fsyntax-only` using the project's real include paths; it must pass.
+
+**Grading**:
+- **FAIL**: Compiling a translation unit that includes only this header fails (missing the include for a symbol it directly uses)
+- **SUSPICIOUS**: Compilation passes but the actually-used headers are not directly included and rely on transitive dependencies (remind to add them per IWYU; not a forced FAIL)
 
 ---
 

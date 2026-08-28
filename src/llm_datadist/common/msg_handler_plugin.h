@@ -11,9 +11,16 @@
 #ifndef CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_MSG_HANDLER_PLUGIN_H_
 #define CANN_GRAPH_ENGINE_RUNTIME_LLM_DATADIST_V2_MSG_HANDLER_PLUGIN_H_
 
+#include <atomic>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <string>
+#include <thread>
+#include <vector>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <arpa/inet.h>
 #include <netdb.h>
 #include "acl/acl.h"
 #include "llm_datadist/llm_error_codes.h"
