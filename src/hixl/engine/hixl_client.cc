@@ -183,7 +183,8 @@ Status HixlClient::TransferSync(const std::vector<TransferOpDesc> &op_descs, Tra
 }
 
 Status HixlClient::TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation,
-                                 const TransferArgs &, TransferReq &req) {
+                                 const TransferArgs &optional_args, TransferReq &req) {
+  (void)optional_args;
   std::lock_guard<std::mutex> lock(mutex_);
   HIXL_CHK_BOOL_RET_STATUS(!op_descs.empty(), PARAM_INVALID, "HixlClient TransferAsync failed, op_descs is empty");
   HIXL_CHK_BOOL_RET_STATUS(is_connected_, NOT_CONNECTED, "HixlClient is not connected");

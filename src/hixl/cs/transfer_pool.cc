@@ -68,7 +68,13 @@ TransferPool::TransferPool(int32_t device_id)
 
 TransferPool::~TransferPool() {
   std::lock_guard<std::mutex> lock(mu_);
-  DeinitAllSlotsLocked();
+  try {
+    DeinitAllSlotsLocked();
+  } catch (const std::exception &e) {
+    HIXL_LOGE(FAILED, "[TransferPool] DeinitAllSlotsLocked caught exception: %s, device_id=%d", e.what(), device_id_);
+  } catch (...) {
+    HIXL_LOGE(FAILED, "[TransferPool] DeinitAllSlotsLocked caught unknown exception, device_id=%d", device_id_);
+  }
 }
 
 void TransferPool::InitFreeListLocked() {

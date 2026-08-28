@@ -102,18 +102,17 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
 
 Status HixlEngine::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
   HIXL_CHK_STATUS_RET(CheckInitialized(), "[HixlEngine] Failed to register mem, engine is not initialized");
-  HIXL_EVENT("[HixlEngine] register mem start, local_engine:%s, type:%s, addr:%p, len:%zu", local_engine_.c_str(),
-             MemTypeToString(type).c_str(), reinterpret_cast<void *>(mem.addr), mem.len);
+  HIXL_EVENT("[HixlEngine] register mem start, local_engine:%s, type:%s, addr:0x%lx, len:%zu", local_engine_.c_str(),
+             MemTypeToString(type).c_str(), mem.addr, mem.len);
   auto with_context = aclrt_context_.GetContextGuard();
   std::lock_guard<std::mutex> lock(mutex_);
   HIXL_CHK_STATUS_RET(server_.RegisterMem(mem, type, mem_handle),
-                      "[HixlEngine] Failed to register mem, type:%s, addr:%p, size:%lu", MemTypeToString(type).c_str(),
-                      reinterpret_cast<void *>(mem.addr), mem.len);
+                      "[HixlEngine] Failed to register mem, type:%s, addr:0x%lx, size:%lu",
+                      MemTypeToString(type).c_str(), mem.addr, mem.len);
   MemHandleInfo mem_info = {mem_handle, mem, type};
   mem_map_.emplace(mem_handle, mem_info);
-  HIXL_EVENT("[HixlEngine] register mem success, local_engine:%s, type:%s, addr:%p, len:%zu, handle:%p",
-             local_engine_.c_str(), MemTypeToString(type).c_str(), reinterpret_cast<void *>(mem.addr), mem.len,
-             mem_handle);
+  HIXL_EVENT("[HixlEngine] register mem success, local_engine:%s, type:%s, addr:0x%lx, len:%zu, handle:%p",
+             local_engine_.c_str(), MemTypeToString(type).c_str(), mem.addr, mem.len, mem_handle);
   return SUCCESS;
 }
 
@@ -136,9 +135,9 @@ Status HixlEngine::DeregisterMem(MemHandle mem_handle) {
                       "[HixlEngine] Failed to deregister mem, mem_handle: %p, local_engine: %s", mem_handle,
                       local_engine_.c_str());
   mem_map_.erase(it);
-  HIXL_EVENT("[HixlEngine] deregister mem success, local_engine:%s, type:%s, addr:%p, len:%zu, handle:%p",
-             local_engine_.c_str(), MemTypeToString(mem_info.type).c_str(), reinterpret_cast<void *>(mem_info.mem.addr),
-             mem_info.mem.len, mem_handle);
+  HIXL_EVENT("[HixlEngine] deregister mem success, local_engine:%s, type:%s, addr:0x%lx, len:%zu, handle:%p",
+             local_engine_.c_str(), MemTypeToString(mem_info.type).c_str(), mem_info.mem.addr, mem_info.mem.len,
+             mem_handle);
   return SUCCESS;
 }
 

@@ -92,7 +92,7 @@ bool ExtractEndpointHostAndPort(const std::string &endpoint, std::string &host, 
   uint64_t parsed_port = 0;
   try {
     std::size_t pos = 0;
-    parsed_port = std::stoull(port_part, &pos, 10);
+    parsed_port = std::stoull(port_part, &pos);
     if (pos != port_part.size()) {
       return false;
     }
