@@ -54,6 +54,11 @@ source /usr/local/Ascend/cann/set_env.sh && cd ./examples && bash run_example.sh
 # ==============================
 mkdir -p /root/ascend
 slog_name="slog.tar.gz"
+
+if [ ! -d /root/ascend/log ]; then
+    echo "No slog found under /root/ascend/log, creating empty archive."
+    mkdir -p /root/ascend/log
+fi
 tar -zcf "${slog_name}" -C /root/ascend log
 mv "${slog_name}" ${WORKSPACE}/
 
