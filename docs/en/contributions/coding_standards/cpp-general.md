@@ -50,6 +50,7 @@
 | 14.2 | Non-local lambdas should avoid capture by reference | Function Design |
 | 14.3 | Virtual functions must not use default parameter values | Function Design |
 | 14.4 | Use strongly-typed parameters; avoid void* | Function Design |
+| 14.5 | Functions should have a single responsibility (Recommendation) | Function Design |
 | 15.1 | Keep parameter order consistent within the same file | Function Usage |
 | 15.2 | Use const T& for input, T& or T* for output | Function Usage |
 | 15.3 | Use T* or const T& when ownership is not involved | Function Usage |
@@ -465,6 +466,18 @@ private:
 ##### Rule 14.3 Virtual functions must not use default parameter values
 
 ##### Recommendation 14.4 Use strongly-typed parameters\member variables; avoid using void*
+
+##### Recommendation 14.5 Functions should have a single responsibility
+
+Functions with a single responsibility are easier to understand and maintain. Functions that are not single-responsibility should be further split or layered.
+
+The following dimensions can be used to indirectly measure whether a function has a single responsibility:
+
+- **Number of lines**: no more than 50 lines (excluding blank lines and comments) recommended
+- **Number of parameters**: no more than 5 recommended
+- **Maximum block nesting depth**: no more than 4 levels recommended (if/for/while/switch/try and macro expansion blocks)
+
+> **Note**: When nesting depth exceeds 4 levels, extract helper functions or use early return to simplify control flow; when a function is too long, split it into multiple smaller functions by responsibility; when there are too many parameters, consider encapsulating strongly-related parameters into a struct. During review, mark as SUSPICIOUS to remind developers to optimize.
 
 ---
 
