@@ -32,6 +32,16 @@ namespace hixl {
 namespace {
 constexpr uint64_t kMaxRecvMemInfoBodySize = static_cast<uint64_t>(4ULL * 1024ULL * 1024ULL);  // 4MB
 
+std::string BuildAvailableCommTypes(const std::map<CommType, HixlClientHandle> &handles) {
+  std::string available_types;
+  for (const auto &[type, handle] : handles) {
+    (void)handle;
+    available_types += available_types.empty() ? "" : ",";
+    available_types += CommTypeToString(type);
+  }
+  return available_types.empty() ? "none" : available_types;
+}
+
 void LogUbDumpSummary(DumpLogLevel level, const char *reason, const std::string &local_engine,
                       const std::string &remote_engine, size_t handle_count, size_t connected_type_count,
                       bool lazy_mode, size_t complete_req_count, size_t local_segment_count,
@@ -230,8 +240,12 @@ Status UbClientHandler::EnsureLinksConnected(const std::vector<CommType> &types,
       continue;
     }
     auto it = handles_.find(type);
-    HIXL_CHK_BOOL_RET_STATUS(it != handles_.end(), FAILED, "[UbClientHandler] No handle for type:%s",
-                             CommTypeToString(type));
+    HIXL_CHK_BOOL_RET_STATUS(
+        it != handles_.end(), FAILED,
+        "[UbClientHandler] Requested communication type:%s is unavailable, available communication types:%s, "
+        "local_engine:%s, remote_engine:%s",
+        CommTypeToString(type), BuildAvailableCommTypes(handles_).c_str(), local_engine_.c_str(),
+        remote_engine_.c_str());
     pending.emplace(type, it->second);
   }
   if (pending.empty()) {
@@ -350,9 +364,12 @@ Status UbClientHandler::TransferAsync(const std::vector<TransferOpDesc> &op_desc
     std::lock_guard<std::mutex> lock(handle_mutex_);
     for (const auto &[type, descs] : table) {
       auto it = handles_.find(type);
-      if (it == handles_.end()) {
-        return FAILED;
-      }
+      HIXL_CHK_BOOL_RET_STATUS(
+          it != handles_.end(), FAILED,
+          "[UbClientHandler] Requested communication type:%s is unavailable, available communication types:%s, "
+          "local_engine:%s, remote_engine:%s",
+          CommTypeToString(type), BuildAvailableCommTypes(handles_).c_str(), local_engine_.c_str(),
+          remote_engine_.c_str());
       auto handle = it->second;
 
       uint32_t list_num = static_cast<uint32_t>(descs.size());
@@ -402,9 +419,12 @@ Status UbClientHandler::TransferSync(const std::vector<TransferOpDesc> &op_descs
     {
       std::lock_guard<std::mutex> lock(handle_mutex_);
       auto it = handles_.find(type);
-      if (it == handles_.end()) {
-        return FAILED;
-      }
+      HIXL_CHK_BOOL_RET_STATUS(
+          it != handles_.end(), FAILED,
+          "[UbClientHandler] Requested communication type:%s is unavailable, available communication types:%s, "
+          "local_engine:%s, remote_engine:%s",
+          CommTypeToString(type), BuildAvailableCommTypes(handles_).c_str(), local_engine_.c_str(),
+          remote_engine_.c_str());
       handle = it->second;
     }
 

@@ -147,7 +147,7 @@ hixl_tool local_comm_res [options]
 |--------|-------------|---------|
 | `--topo_file_path <path>` | Hardware topology JSON path (optional) | Default topology when omitted |
 | `--device_id <id1,id2,...>` | Target user device IDs, comma-separated | Auto-detect all devices |
-| `--protocol_desc <desc>` | Protocol description in `protocol:placement` form, comma-separated | ScaleOut selected by InterconType + `ub_ctp:device` |
+| `--protocol_desc <desc>` | Protocol description in `ub_ctp` or `protocol:placement` form, comma-separated | ScaleOut selected by InterconType + `ub_ctp:device` |
 | `--output <dir>` | Output directory | `/etc/` |
 | `--file_name_prefix <prefix>` | Output file-name prefix | `local_comm_res` |
 
@@ -198,10 +198,11 @@ Field description:
 
 ### 4.4 `--protocol_desc` values
 
-The format is `protocol:placement`. Separate multiple entries with a comma `,`:
+The format is `ub_ctp` or `protocol:placement`. Separate multiple entries with a comma `,`:
 
 | Value | Meaning |
 |-------|---------|
+| `ub_ctp` | Generate device-side and host-side ub_ctp endpoints for the pure URMA path |
 | `ub_ctp:device` | Generate device-side ub_ctp endpoints |
 | `ub_ctp:host` | Generate host-side ub_ctp endpoints |
 | `uboe:device` | Generate UBoE ScaleOut endpoints |
@@ -212,7 +213,9 @@ Constraints:
 - `uboe` and `ub_rtp` are **mutually exclusive**
 - `uboe` / `ub_rtp` support only the `device` placement
 - When `--protocol_desc` is omitted: ScaleOut is selected by `InterconType`, and `ub_ctp:device` is generated
-- Host-side ub_ctp edges require an explicit `ub_ctp:host` entry
+- `ub_ctp:device,ub_ctp:host` is equivalent to `ub_ctp`; both generate Device+Host resources for pure URMA
+- When only `ub_ctp:host` is configured, only host-side ub_ctp endpoints are retained
+- When `ub_ctp` and another ub_ctp placement are configured together, union semantics apply and `ub_ctp` still includes Device+Host resources
 
 ### 4.5 Execution flow
 
@@ -226,7 +229,7 @@ Constraints:
 # All devices, auto mode (ScaleOut by InterconType + ub_ctp:device)
 ./hixl_tool local_comm_res --output /home/hixl
 
-# Selected devices + explicit protocols: ub_rtp ScaleOut + device/host ub_ctp
+# Selected devices + explicit protocols: ub_rtp ScaleOut + pure URMA device/host ub_ctp (`ub_ctp` is shorthand)
 ./hixl_tool local_comm_res \
   --output /home/hixl \
   --device_id 0,1 \

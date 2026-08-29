@@ -147,7 +147,7 @@ hixl_tool local_comm_res [options]
 |------|------|--------|
 | `--topo_file_path <path>` | 硬件拓扑 JSON 文件路径（可选） | 缺省走默认 topo |
 | `--device_id <id1,id2,...>` | 目标用户设备 ID，逗号分隔 | 自动识别全部设备 |
-| `--protocol_desc <desc>` | 协议描述，`protocol:placement` 格式，逗号分隔 | ScaleOut 按 InterconType 自动选择 + `ub_ctp:device` |
+| `--protocol_desc <desc>` | 协议描述，`ub_ctp`或`protocol:placement`格式，逗号分隔 | ScaleOut 按 InterconType 自动选择 + `ub_ctp:device` |
 | `--output <dir>` | 输出目录 | `/etc/` |
 | `--file_name_prefix <prefix>` | 输出文件名前缀 | `local_comm_res` |
 
@@ -198,10 +198,11 @@ hixl_tool local_comm_res [options]
 
 ### 4.4 `--protocol_desc` 可取值
 
-格式为 `protocol:placement`，多个用英文逗号 `,` 分隔：
+格式为 `ub_ctp` 或 `protocol:placement`，多个用英文逗号 `,` 分隔：
 
 | 取值 | 含义 |
 |------|------|
+| `ub_ctp` | 生成device和host侧ub_ctp端点，使用纯URMA流程 |
 | `ub_ctp:device` | 生成 device 侧 ub_ctp 端点 |
 | `ub_ctp:host` | 生成 host 侧 ub_ctp 端点 |
 | `uboe:device` | 生成 UBoE ScaleOut 端点 |
@@ -212,7 +213,9 @@ hixl_tool local_comm_res [options]
 - `uboe` 与 `ub_rtp` **互斥**，不能同时出现
 - `uboe` / `ub_rtp` 仅支持 `device` placement
 - 不传 `--protocol_desc` 时：ScaleOut 按 `InterconType` 自动选择 + 生成 `ub_ctp:device`
-- 需要 host 侧 ub_ctp 边时，必须显式配置 `ub_ctp:host`
+- `ub_ctp:device,ub_ctp:host`与`ub_ctp`等价，均生成Device+Host资源并使用纯URMA流程
+- 单独配置`ub_ctp:host`时，仅保留Host侧ub_ctp端点
+- 同时配置`ub_ctp`和其他ub_ctp placement时按集合处理，`ub_ctp`仍包含Device+Host资源
 
 ### 4.5 执行流程
 
@@ -226,7 +229,7 @@ hixl_tool local_comm_res [options]
 # 全部设备，auto 模式（ScaleOut 按 InterconType + ub_ctp:device）
 ./hixl_tool local_comm_res --output /home/hixl
 
-# 指定设备 + 显式协议：ub_rtp ScaleOut + device/host 侧 ub_ctp
+# 指定设备 + 显式协议：ub_rtp ScaleOut + device/host侧ub_ctp纯URMA（也可用ub_ctp简写）
 ./hixl_tool local_comm_res \
   --output /home/hixl \
   --device_id 0,1 \

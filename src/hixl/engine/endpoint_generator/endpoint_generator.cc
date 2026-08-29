@@ -396,10 +396,15 @@ bool IsSupportedProtocolDesc(const std::string &protocol, const std::string &pla
 Status ParseProtocolDesc(const std::vector<std::string> &protocol_desc, std::set<std::string> &desc_set) {
   desc_set.clear();
   for (const auto &desc : protocol_desc) {
+    if (desc == kProtocolUbCtp) {
+      desc_set.insert(BuildProtocolDescKey(kProtocolUbCtp, kPlacementDevice));
+      desc_set.insert(BuildProtocolDescKey(kProtocolUbCtp, kPlacementHost));
+      continue;
+    }
     const auto split_pos = desc.find(':');
     HIXL_CHK_BOOL_RET_STATUS(split_pos != std::string::npos && split_pos > 0U && split_pos + 1U < desc.size() &&
                                  desc.find(':', split_pos + 1U) == std::string::npos,
-                             PARAM_INVALID, "Invalid protocol_desc:%s, expected format protocol:placement",
+                             PARAM_INVALID, "Invalid protocol_desc:%s, expected ub_ctp or protocol:placement",
                              desc.c_str());
     const std::string protocol = desc.substr(0, split_pos);
     const std::string placement = desc.substr(split_pos + 1U);
@@ -407,6 +412,25 @@ Status ParseProtocolDesc(const std::vector<std::string> &protocol_desc, std::set
                              "Unsupported protocol_desc:%s", desc.c_str());
     desc_set.insert(BuildProtocolDescKey(protocol, placement));
   }
+  return SUCCESS;
+}
+
+Status ValidateFullUbCtpEndpoints(const std::vector<std::string> &protocol_desc,
+                                  const std::vector<EndpointConfig> &endpoint_list) {
+  if (std::find(protocol_desc.begin(), protocol_desc.end(), kProtocolUbCtp) == protocol_desc.end()) {
+    return SUCCESS;
+  }
+  bool has_device = false;
+  bool has_host = false;
+  for (const auto &endpoint : endpoint_list) {
+    if (endpoint.protocol != kProtocolUbCtp) {
+      continue;
+    }
+    has_device = has_device || endpoint.placement == kPlacementDevice;
+    has_host = has_host || endpoint.placement == kPlacementHost;
+  }
+  HIXL_CHK_BOOL_RET_STATUS(has_device && has_host, PARAM_INVALID,
+                           "protocol_desc=ub_ctp requires both Device and Host UB CTP endpoints");
   return SUCCESS;
 }
 
@@ -466,6 +490,7 @@ Status FilterEndpointsByProtocolDescList(const std::vector<std::string> &protoco
   endpoint_list = std::move(filtered);
   HIXL_CHK_BOOL_RET_STATUS(!endpoint_list.empty(), PARAM_INVALID,
                            "endpoint_list is empty after filtering by protocol_desc");
+  HIXL_CHK_STATUS_RET(ValidateFullUbCtpEndpoints(protocol_desc, endpoint_list), "ValidateFullUbCtpEndpoints failed");
   return SUCCESS;
 }
 

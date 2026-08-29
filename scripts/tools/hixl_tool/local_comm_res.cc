@@ -44,14 +44,14 @@ void PrintLocalCommResUsage() {
   std::printf("  --topo_file_path <path>       Hardware topology JSON file path\n");
   std::printf("                                (optional; default: use auto-detected topo)\n");
   std::printf("  --device_id <id1,id2,...>     Target user device IDs (default: auto-detect all)\n");
-  std::printf("  --protocol_desc <desc>        Protocol descriptor, e.g. \"ub_rtp:device,ub_ctp:device\"\n");
+  std::printf("  --protocol_desc <desc>        Protocol descriptor, e.g. \"ub_rtp:device,ub_ctp\"\n");
   std::printf("                                Multiple values separated by comma.\n");
   std::printf("                                (default: ScaleOut by InterconType + ub_ctp:device)\n");
   std::printf("  --output <dir>                Output directory (default: %s)\n", kDefaultOutputDir);
   std::printf("  --file_name_prefix <prefix>   Output file name prefix (default: %s)\n", kDefaultFileNamePrefix);
   std::printf("\nOutput: {output}/{prefix}_{device_id}_{phy_id}.json (one per device)\n");
   std::printf("\nNote: generation uses EndpointGenerator::AutoGenEndpointList (SoC-dispatch entry).\n");
-  std::printf("      host_route.json is not required; ub_ctp host edges need ub_ctp:host in protocol_desc.\n");
+  std::printf("      host_route.json is not required; use ub_ctp or ub_ctp:host for Host URMA resources.\n");
 }
 
 struct LocalCommResArgs {

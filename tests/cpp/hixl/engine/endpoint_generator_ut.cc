@@ -50,6 +50,47 @@ constexpr const char kHixlLocalCommResJson[] = R"({"version":"1.3","net_instance
                                                R"({"protocol":"roce","comm_id":"127.0.0.1","placement":"host"}]})";
 constexpr const char kAdxlLocalCommResJson[] = R"({"version":"1.3","net_instance_id":"adxl_sp","endpoint_list":[)"
                                                R"({"protocol":"roce","comm_id":"127.0.0.2","placement":"host"}]})";
+constexpr const char kUbCtpDeviceAndHostLocalCommResJson[] = R"(
+  {
+    "version": "1.3",
+    "net_instance_id": "ub_ctp_full",
+    "endpoint_list": [
+      {
+        "protocol": "ub_ctp",
+        "comm_id": "00010002000300040005000600070008",
+        "placement": "device"
+      },
+      {
+        "protocol": "ub_ctp",
+        "comm_id": "10011002100310041005100610071008",
+        "placement": "host"
+      }
+    ]
+  })";
+constexpr const char kUbCtpDeviceLocalCommResJson[] = R"(
+  {
+    "version": "1.3",
+    "net_instance_id": "ub_ctp_device",
+    "endpoint_list": [
+      {
+        "protocol": "ub_ctp",
+        "comm_id": "00010002000300040005000600070008",
+        "placement": "device"
+      }
+    ]
+  })";
+constexpr const char kUbCtpHostLocalCommResJson[] = R"(
+  {
+    "version": "1.3",
+    "net_instance_id": "ub_ctp_host",
+    "endpoint_list": [
+      {
+        "protocol": "ub_ctp",
+        "comm_id": "10011002100310041005100610071008",
+        "placement": "host"
+      }
+    ]
+  })";
 
 class UboeMmpaStub : public test::TestMmpaStub {
  public:
@@ -906,6 +947,110 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsFiltersManualLocalCom
   ASSERT_EQ(endpoint_list.size(), 1U);
   EXPECT_EQ(endpoint_list[0].protocol, kProtocolRoce);
   EXPECT_EQ(endpoint_list[0].placement, kPlacementDevice);
+}
+
+TEST_F(EndpointGeneratorUTest, BuildEndpointListAcceptsBareUbCtpForDeviceAndHostUrmaResources) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_LOCAL_COMM_RES] = AscendString(kUbCtpDeviceAndHostLocalCommResJson);
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.protocol_desc":"ub_ctp"})";
+
+  std::string local_comm_res;
+  std::vector<EndpointConfig> endpoint_list;
+  CallBuildEndpointList(options, "127.0.0.1:26000", local_comm_res, endpoint_list);
+
+  ASSERT_EQ(endpoint_list.size(), 2U);
+  EXPECT_EQ(endpoint_list[0].placement, kPlacementDevice);
+  EXPECT_EQ(endpoint_list[1].placement, kPlacementHost);
+}
+
+TEST_F(EndpointGeneratorUTest, BuildEndpointListBareUbCtpTakesPriorityOverDeviceSelector) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_LOCAL_COMM_RES] = AscendString(kUbCtpDeviceAndHostLocalCommResJson);
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.protocol_desc":["ub_ctp:device","ub_ctp"]})";
+
+  std::string local_comm_res;
+  std::vector<EndpointConfig> endpoint_list;
+  CallBuildEndpointList(options, "127.0.0.1:26000", local_comm_res, endpoint_list);
+
+  ASSERT_EQ(endpoint_list.size(), 2U);
+  EXPECT_TRUE(std::any_of(endpoint_list.begin(), endpoint_list.end(),
+                          [](const EndpointConfig &ep) { return ep.placement == kPlacementDevice; }));
+  EXPECT_TRUE(std::any_of(endpoint_list.begin(), endpoint_list.end(),
+                          [](const EndpointConfig &ep) { return ep.placement == kPlacementHost; }));
+}
+
+TEST_F(EndpointGeneratorUTest, BuildEndpointListDeviceUbCtpKeepsOnlyDeviceResource) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_LOCAL_COMM_RES] = AscendString(kUbCtpDeviceAndHostLocalCommResJson);
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.protocol_desc":"ub_ctp:device"})";
+
+  std::string local_comm_res;
+  std::vector<EndpointConfig> endpoint_list;
+  CallBuildEndpointList(options, "127.0.0.1:26000", local_comm_res, endpoint_list);
+
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_EQ(endpoint_list[0].protocol, kProtocolUbCtp);
+  EXPECT_EQ(endpoint_list[0].placement, kPlacementDevice);
+}
+
+TEST_F(EndpointGeneratorUTest, BuildEndpointListRejectsIncompleteLocalCommResForBareUbCtp) {
+  const std::vector<const char *> incomplete_configs = {kUbCtpDeviceLocalCommResJson, kUbCtpHostLocalCommResJson};
+  for (const char *config : incomplete_configs) {
+    std::map<AscendString, AscendString> options;
+    options[hixl::OPTION_LOCAL_COMM_RES] = AscendString(config);
+    options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.protocol_desc":"ub_ctp"})";
+
+    HixlOptions parsed;
+    ASSERT_EQ(HixlOptions::Parse(options, parsed), SUCCESS);
+    std::string local_comm_res;
+    std::vector<EndpointConfig> endpoint_list;
+    EXPECT_EQ(EndpointGenerator::BuildEndpointList(parsed, "127.0.0.1:26000", local_comm_res, endpoint_list),
+              PARAM_INVALID);
+  }
+}
+
+TEST_F(EndpointGeneratorUTest, BuildEndpointListAcceptsUbCtpHostSelector) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_LOCAL_COMM_RES] = AscendString(kUbCtpDeviceAndHostLocalCommResJson);
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.protocol_desc":"ub_ctp:host"})";
+
+  std::string local_comm_res;
+  std::vector<EndpointConfig> endpoint_list;
+  CallBuildEndpointList(options, "127.0.0.1:26000", local_comm_res, endpoint_list);
+
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_EQ(endpoint_list[0].protocol, kProtocolUbCtp);
+  EXPECT_EQ(endpoint_list[0].placement, kPlacementHost);
+}
+
+TEST_F(EndpointGeneratorUTest, BuildEndpointListAcceptsUbCtpDeviceAndHostSelectors) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_LOCAL_COMM_RES] = AscendString(kUbCtpDeviceAndHostLocalCommResJson);
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
+      R"({"comm_resource_config.protocol_desc":["ub_ctp:device","ub_ctp:host"]})";
+
+  std::string local_comm_res;
+  std::vector<EndpointConfig> endpoint_list;
+  CallBuildEndpointList(options, "127.0.0.1:26000", local_comm_res, endpoint_list);
+
+  ASSERT_EQ(endpoint_list.size(), 2U);
+  EXPECT_TRUE(std::any_of(endpoint_list.begin(), endpoint_list.end(),
+                          [](const EndpointConfig &ep) { return ep.placement == kPlacementDevice; }));
+  EXPECT_TRUE(std::any_of(endpoint_list.begin(), endpoint_list.end(),
+                          [](const EndpointConfig &ep) { return ep.placement == kPlacementHost; }));
+}
+
+TEST_F(EndpointGeneratorUTest, BuildEndpointListRejectsBareNonUbCtpProtocolDesc) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_LOCAL_COMM_RES] = AscendString(kHixlLocalCommResJson);
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.protocol_desc":"roce"})";
+
+  HixlOptions parsed;
+  ASSERT_EQ(HixlOptions::Parse(options, parsed), SUCCESS);
+  std::string local_comm_res;
+  std::vector<EndpointConfig> endpoint_list;
+  EXPECT_EQ(EndpointGenerator::BuildEndpointList(parsed, "127.0.0.1:26000", local_comm_res, endpoint_list),
+            PARAM_INVALID);
 }
 
 TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsRejectsManualLocalCommResFilteredEmpty) {

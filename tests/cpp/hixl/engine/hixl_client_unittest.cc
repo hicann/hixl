@@ -1255,6 +1255,62 @@ TEST_F(HixlClientUTest, UbClientHandlerDumpHandlesMissingEndpointPair) {
   llm::SlogStub::SetInstance(nullptr);
 }
 
+TEST_F(HixlClientUTest, UbClientHandlerLazyTransferSyncLogsUnavailableType) {
+  UbClientHandler handler({}, "local_engine", "remote_engine");
+  SetupUbHandlerWithSegments(handler);
+  handler.handles_.erase(CommType::COMM_TYPE_UB_H2D);
+  handler.handles_.erase(CommType::COMM_TYPE_UB_H2H);
+  handler.lazy_mode_ = true;
+  auto log_capture = std::make_shared<llm::LogCaptureStub>();
+  const std::string pattern =
+      "Requested communication type:UB_H2H is unavailable, available communication types:UB_D2D,UB_D2H";
+  log_capture->AddCapturePattern(pattern);
+  log_capture->SetLevelInfo();
+  llm::SlogStub::SetInstance(log_capture);
+
+  TransferOpDesc op{0x5100U, 0x7100U, 0x100U};
+  EXPECT_EQ(handler.TransferSync({op}, WRITE, kDefaultTimeoutMs), FAILED);
+
+  EXPECT_TRUE(log_capture->IsPatternCaptured(pattern));
+  llm::SlogStub::SetInstance(nullptr);
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerTransferAsyncLogsUnavailableType) {
+  UbClientHandler handler({}, "local_engine", "remote_engine");
+  SetupUbHandlerWithSegments(handler);
+  handler.handles_.erase(CommType::COMM_TYPE_UB_H2H);
+  auto log_capture = std::make_shared<llm::LogCaptureStub>();
+  const std::string pattern = "Requested communication type:UB_H2H is unavailable";
+  log_capture->AddCapturePattern(pattern);
+  log_capture->SetLevelInfo();
+  llm::SlogStub::SetInstance(log_capture);
+
+  TransferReq req = nullptr;
+  TransferOpDesc op{0x5100U, 0x7100U, 0x100U};
+  EXPECT_EQ(handler.TransferAsync({op}, WRITE, req), FAILED);
+  EXPECT_EQ(req, nullptr);
+
+  EXPECT_TRUE(log_capture->IsPatternCaptured(pattern));
+  llm::SlogStub::SetInstance(nullptr);
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerTransferLogsNoAvailableTypes) {
+  UbClientHandler handler({}, "local_engine", "remote_engine");
+  SetupUbHandlerWithSegments(handler);
+  handler.handles_.clear();
+  auto log_capture = std::make_shared<llm::LogCaptureStub>();
+  const std::string pattern = "Requested communication type:UB_H2H is unavailable, available communication types:none";
+  log_capture->AddCapturePattern(pattern);
+  log_capture->SetLevelInfo();
+  llm::SlogStub::SetInstance(log_capture);
+
+  TransferOpDesc op{0x5100U, 0x7100U, 0x100U};
+  EXPECT_EQ(handler.TransferSync({op}, WRITE, kDefaultTimeoutMs), FAILED);
+
+  EXPECT_TRUE(log_capture->IsPatternCaptured(pattern));
+  llm::SlogStub::SetInstance(nullptr);
+}
+
 TEST_F(HixlClientUTest, UbClientHandlerGetTransferStatusInvalidReq) {
   UbClientHandler handler({});
   handler.complete_handles_[reinterpret_cast<TransferReq>(0x1234)] = {};
