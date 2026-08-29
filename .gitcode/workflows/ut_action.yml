@@ -53,6 +53,7 @@ jobs:
           cd ${{ steps.process_checkout.outputs.path }}
           export ut_type=${{ inputs.ut_type }}
           export PATH=/opt/buildtools/python-3.10.2/bin:$PATH
+          export target_branch=${{ env.TARGET_BRANCH }}
           bash ut.sh ${ut_type}
       -
         name: ut_cov
