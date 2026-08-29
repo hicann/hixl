@@ -364,6 +364,43 @@ class LlmDatadistV1ModeMockSt(unittest.TestCase):
             self.llm.link_clusters([cluster], 5000)
         self.assertIn("local_ip_info_list is empty", str(ex.exception))
 
+    def test_link_clusters_skip_check_with_listen_ip(self):
+        self.llm._enable_cache_mgr = True
+        self.llm._engine_options["llm.ListenIp"] = "127.0.0.1"
+        self.llm._llm_datadist.link_clusters_v2.return_value = (
+            int(llm_datadist_wrapper.kSuccess),
+            [int(llm_datadist_wrapper.kSuccess)],
+        )
+        cluster = LLMClusterInfo()
+        cluster.remote_cluster_id = 1
+        ret, rets = self.llm.link_clusters([cluster], 5000)
+        self.assertEqual(ret, LLMStatusCode.LLM_SUCCESS)
+
+    def test_link_clusters_skip_check_with_transfer_backend(self):
+        self.llm._enable_cache_mgr = True
+        self.llm._enable_transfer_backend = True
+        self.llm._llm_datadist.link_clusters_v2.return_value = (
+            int(llm_datadist_wrapper.kSuccess),
+            [int(llm_datadist_wrapper.kSuccess)],
+        )
+        cluster = LLMClusterInfo()
+        cluster.remote_cluster_id = 1
+        ret, rets = self.llm.link_clusters([cluster], 5000)
+        self.assertEqual(ret, LLMStatusCode.LLM_SUCCESS)
+
+    def test_link_clusters_skip_check_with_local_comm_res(self):
+        self.llm._enable_cache_mgr = True
+        self.llm._enable_local_comm_res = True
+        self.llm._engine_options["llm.LocalCommRes"] = '{"version":"1.3"}'
+        self.llm._llm_datadist.link_clusters_v2.return_value = (
+            int(llm_datadist_wrapper.kSuccess),
+            [int(llm_datadist_wrapper.kSuccess)],
+        )
+        cluster = LLMClusterInfo()
+        cluster.remote_cluster_id = 1
+        ret, rets = self.llm.link_clusters([cluster], 5000)
+        self.assertEqual(ret, LLMStatusCode.LLM_SUCCESS)
+
     @patch("llm_datadist.v2.llm_datadist.EngineConfig")
     def test_cluster_config(self, mock_engine_config_cls):
         mock_config = MagicMock()

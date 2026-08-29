@@ -63,6 +63,7 @@ class LLMDataDist(object):
         self._engine_options: Dict[str, str] = {}
         self._enable_cache_mgr = False
         self._enable_local_comm_res = False
+        self._enable_transfer_backend = False
 
     def _check_flow_graph_max_size(self, options: Dict[str, str]) -> None:
         value = options.get("ge.flowGraphMemMaxSize", None)
@@ -266,14 +267,18 @@ class LLMDataDist(object):
         if self._enable_cache_mgr:
             cluster_list = []
             for cluster in clusters:
-                if (
-                    not self._enable_local_comm_res
-                    or not self._engine_options["llm.LocalCommRes"]
+                if not (
+                    self._enable_transfer_backend
+                    or (
+                        self._enable_local_comm_res
+                        and self._engine_options["llm.LocalCommRes"]
+                    )
+                    or self._engine_options.get("llm.ListenIp")
                 ):
                     raise_if_false(
                         cluster.local_ip_info_list,
                         "local_ip_info_list is empty. Call append_local_ip_info to add local_ip_info "
-                        "when local_comm_res option is unspecified or empty.",
+                        "when both local_comm_res and listen_ip_info options are unspecified or empty.",
                     )
                 check_uint64("remote_cluster_id", cluster.remote_cluster_id)
                 cluster_list.append(
