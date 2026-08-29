@@ -59,9 +59,9 @@ std::string local_comm_res = R"(
 }
 )";
 
-New option: tranfer_backend. It is used to support setting the transfer backend. Because the hixl engine needs to support integration with the hixl cs API capabilities and llm-datadist can reuse hixl capabilities, the llm-datadist transfer layer is abstracted as a transfer backend. It supports using hixl as the llm-datadist transfer backend to reuse the basic capabilities of hixl.
+New option: transfer_backend. It is used to support setting the transfer backend. Because the hixl engine needs to support integration with the hixl cs API capabilities and llm-datadist can reuse hixl capabilities, the llm-datadist transfer layer is abstracted as a transfer backend. It supports using hixl as the llm-datadist transfer backend to reuse the basic capabilities of hixl.
 The configuration method is as follows:
-config.tranfer_backend = "hixl"
+config.transfer_backend = "hixl"
 ```
 
 # Communication Device Configuration Field Description
@@ -311,7 +311,7 @@ sequenceDiagram
 
 Python usage reference:
 ```
-examples/python/hixl_tranfer_backend_sample.py
+examples/python/llm_datadist/hixl_transfer_backend_sample.py
 ```
 
 ## Notes

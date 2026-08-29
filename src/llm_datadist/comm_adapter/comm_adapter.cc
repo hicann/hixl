@@ -14,7 +14,6 @@
 #include "common/common.h"
 #include "comm_statistic_manager.h"
 #include "common/llm_checker.h"
-#include "common/llm_scope_guard.h"
 
 namespace llm {
 namespace {

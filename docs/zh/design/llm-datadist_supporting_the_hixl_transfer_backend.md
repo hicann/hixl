@@ -59,9 +59,9 @@ std::string local_comm_res = R"(
 }
 )";
 
-新增option:tranfer_backend，用于支持设置使用的传输后端，由于hixl engine需要支持对接hixl cs的接口能力，llm-datadist可以复用hixl能力，因此对llm-datadist传输层抽象为传输后端，支持使用hixl作为llm-datadist传输后端，以复用hixl的基础能力。
+新增option:transfer_backend，用于支持设置使用的传输后端，由于hixl engine需要支持对接hixl cs的接口能力，llm-datadist可以复用hixl能力，因此对llm-datadist传输层抽象为传输后端，支持使用hixl作为llm-datadist传输后端，以复用hixl的基础能力。
 配置方式如下：
-config.tranfer_backend = "hixl"
+config.transfer_backend = "hixl"
 ```
 
 # 通信设备配置字段说明
@@ -280,7 +280,7 @@ sequenceDiagram
 - 不支持非远端cache索引模式，即access_remote_cache为false场景
 - 不支持双向建链，调用Link相关接口报错，返回不支持
 - 强制建链（client退出后，重新发起建链可以建链成功，该能力HCCL开源开放单边通信支持）
-- SetRole能力，在hixl后端场景，需要两侧均制定ip port，均作为server并可以与对端发起建链并完成数据面通信，因此与角色无关，直接返回成功。
+- SetRole能力，在hixl后端场景，需要两侧均指定ip port，均作为server并可以与对端发起建链并完成数据面通信，因此与角色无关，直接返回成功。
 
 **传输流程时序图**：
 ```mermaid
@@ -311,7 +311,7 @@ sequenceDiagram
 
 python使用参考
 ```
-examples/python/hixl_transfer_backend_sample.py
+examples/python/llm_datadist/hixl_transfer_backend_sample.py
 ```
 
 ## 备注

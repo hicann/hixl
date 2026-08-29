@@ -93,7 +93,7 @@ ge::Status LayerWiseTransferJob::GenerateBlocksToBlocksTask(const CacheEntry &ca
                                                             transfer_block_config.dst_blocks, contiguous_blocks_pair));
   if (transfer_block_config.block_mem_size > 0U) {
     LLM_CHK_BOOL_RET_STATUS(cache_entry.stride == transfer_block_config.block_mem_size, ge::LLM_PARAM_INVALID,
-                            "block_mem_size[%lu] is not match cache stride:%lu", transfer_block_config.block_mem_size,
+                            "block_mem_size[%lu] does not match cache stride:%lu", transfer_block_config.block_mem_size,
                             cache_entry.stride);
   }
   for (size_t i = 0UL; i < src_layer_addrs.size(); ++i) {
@@ -136,7 +136,7 @@ ge::Status LayerWiseTransferJob::Prepare(const CacheEntry &cache_entry,
       src_cache_addrs.begin() + layer_index * transfer_cache_config.tensor_num_per_layer +
           transfer_cache_config.tensor_num_per_layer);
   LLM_CHK_BOOL_RET_STATUS(src_layer_addrs.size() == transfer_cache_config.dst_addrs.size(), ge::LLM_PARAM_INVALID,
-                          "src_layer_addrs size[%zu] is not match dst_addrs size[%zu]", src_layer_addrs.size(),
+                          "src_layer_addrs size[%zu] does not match dst_addrs size[%zu]", src_layer_addrs.size(),
                           transfer_cache_config.dst_addrs.size());
   if (transfer_block_config.dst_blocks.empty()) {
     LLM_CHK_STATUS_RET(GenerateCacheToCacheTask(cache_entry, src_layer_addrs, transfer_cache_config));

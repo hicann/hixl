@@ -444,12 +444,12 @@ ge::Status DataCacheEngine::CheckTensorIndices(const CacheEntry &cache_entry, co
   if ((!pull_cache_param.src_tensor_indices.empty()) && (!pull_cache_param.dst_tensor_indices.empty())) {
     LLM_CHK_BOOL_RET_STATUS(pull_cache_param.src_tensor_indices.size() == pull_cache_param.dst_tensor_indices.size(),
                             ge::LLM_PARAM_INVALID,
-                            "src_tensor_indices size[%zu] is not match dst_tensor_indices size[%zu]",
+                            "src_tensor_indices size[%zu] does not match dst_tensor_indices size[%zu]",
                             pull_cache_param.src_tensor_indices.size(), pull_cache_param.dst_tensor_indices.size());
   } else if (!pull_cache_param.src_tensor_indices.empty()) {
     LLM_CHK_BOOL_RET_STATUS(pull_cache_param.src_tensor_indices.size() == cache_entry.cache_addrs.size(),
                             ge::LLM_PARAM_INVALID,
-                            "src_tensor_indices size[%zu] is not match dst_num_tensors size[%zu]",
+                            "src_tensor_indices size[%zu] does not match dst_num_tensors size[%zu]",
                             pull_cache_param.src_tensor_indices.size(), cache_entry.cache_addrs.size());
   } else {
     // default
