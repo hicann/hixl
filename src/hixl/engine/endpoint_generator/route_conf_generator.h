@@ -10,9 +10,9 @@
 
 /**
  * @file route_conf_generator.h
- * @brief host_route.json 序列化与文件写入模块
+ * @brief host_route.json serialization and file-write module
  *
- * JSON 格式（替代原 route.conf 的 key=value 格式）：
+ * JSON format (replaces the old route.conf key=value format):
  * {
  *   "device_num": 8,
  *   "devices": [
@@ -28,41 +28,43 @@
 #include <string>
 #include <vector>
 
+#include "hixl/hixl_types.h"
+
 namespace hixl {
 
 /**
- * @brief host_route.json 中的单条设备记录（JSON 原始语义）
+ * @brief Single device record in host_route.json (raw JSON semantics)
  */
 struct HostRouteEntry {
   int32_t device_id = 0;
-  std::string local_eid;   // Host/CPU 侧 EID（2 口 PG）
-  std::string remote_eid;  // NPU 侧 EID
+  std::string local_eid;   // Host/CPU-side EID (2-port PG)
+  std::string remote_eid;  // NPU-side EID
 };
 
 /**
- * @brief host_route.json 完整数据
+ * @brief Full host_route.json data
  */
 struct HostRouteData {
   std::vector<HostRouteEntry> devices;
 };
 
 /**
- * @brief host_route.json 序列化器
+ * @brief host_route.json serializer
  *
- * 提供 host_route.json 的序列化和文件写入能力。
- * 外部通过静态方法调用，无需创建实例。
+ * Serializes host_route.json and writes it to file.
+ * Callers use static methods; no instance is needed.
  */
 class RouteConfGenerator {
  public:
   RouteConfGenerator() = delete;
 
   /**
-   * @brief 将 HostRouteData 序列化为 JSON 字符串
-   * @param [in] data host_route 数据
-   * @param [out] json_str 输出的 JSON 字符串（2 空格缩进）
-   * @return 成功: SUCCESS, 失败: 其它错误码
+   * @brief Serialize HostRouteData to a JSON string
+   * @param [in] data host_route data
+   * @param [out] json_str Output JSON string (2-space indent)
+   * @return SUCCESS on success, other error codes on failure
    */
-  static int32_t SerializeHostRouteJson(const HostRouteData &data, std::string &json_str);
+  static Status SerializeHostRouteJson(const HostRouteData &data, std::string &json_str);
 };
 
 }  // namespace hixl

@@ -17,6 +17,7 @@
 #include <dlfcn.h>
 #include <unistd.h>
 #include <mutex>
+#include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 #include "hixl/hixl_types.h"
 
@@ -123,11 +124,16 @@ int32_t LoadDcmiUnlocked() {
   return g_dcmi_init_status;
 }
 
+Status EnsureDcmiReady() {
+  HIXL_CHK_BOOL_RET_STATUS(LoadDcmiUnlocked() == 0, FAILED, "[DcmiProxy] DCMI not initialized");
+  return SUCCESS;
+}
+
 }  // anonymous namespace
 
-int32_t DcmiProxy::LoadDcmi() {
+Status DcmiProxy::LoadDcmi() {
   std::lock_guard<std::mutex> lock(g_dcmi_mu);
-  return LoadDcmiUnlocked();
+  return EnsureDcmiReady();
 }
 
 void DcmiProxy::UnloadDcmi() {
@@ -149,44 +155,60 @@ void DcmiProxy::UnloadDcmi() {
   g_dcmi_init_status = -1;
 }
 
-int32_t DcmiProxy::GetLogicIdFromPhyId(uint32_t phy_id, uint32_t *logic_id) {
+Status DcmiProxy::GetLogicIdFromPhyId(uint32_t phy_id, uint32_t *logic_id) {
   std::lock_guard<std::mutex> lock(g_dcmi_mu);
-  if (LoadDcmiUnlocked() != 0 || g_dcmi_get_logicid_from_phyid == nullptr) {
-    return -1;
-  }
-  return g_dcmi_get_logicid_from_phyid(phy_id, logic_id);
+  HIXL_CHK_STATUS_RET(EnsureDcmiReady(), "[DcmiProxy] EnsureDcmiReady failed");
+  HIXL_CHK_BOOL_RET_STATUS(g_dcmi_get_logicid_from_phyid != nullptr, FAILED,
+                           "[DcmiProxy] GetLogicIdFromPhyId symbol is null");
+  const int32_t ret = g_dcmi_get_logicid_from_phyid(phy_id, logic_id);
+  HIXL_CHK_BOOL_RET_STATUS(
+      ret == 0, FAILED, "[DcmiProxy] Call api:dcmiv2_get_dev_id_by_chip_phy_id failed, ret=%d, phy_id=%u", ret, phy_id);
+  return SUCCESS;
 }
 
-int32_t DcmiProxy::GetUrmaDeviceCnt(uint32_t logic_id, uint32_t *dev_cnt) {
+Status DcmiProxy::GetUrmaDeviceCnt(uint32_t logic_id, uint32_t *dev_cnt) {
   std::lock_guard<std::mutex> lock(g_dcmi_mu);
-  if (LoadDcmiUnlocked() != 0 || g_dcmi_get_urma_device_cnt == nullptr) {
-    return -1;
-  }
-  return g_dcmi_get_urma_device_cnt(static_cast<int32_t>(logic_id), dev_cnt);
+  HIXL_CHK_STATUS_RET(EnsureDcmiReady(), "[DcmiProxy] EnsureDcmiReady failed");
+  HIXL_CHK_BOOL_RET_STATUS(g_dcmi_get_urma_device_cnt != nullptr, FAILED,
+                           "[DcmiProxy] GetUrmaDeviceCnt symbol is null");
+  const int32_t ret = g_dcmi_get_urma_device_cnt(static_cast<int32_t>(logic_id), dev_cnt);
+  HIXL_CHK_BOOL_RET_STATUS(
+      ret == 0, FAILED, "[DcmiProxy] Call api:dcmiv2_get_urma_device_cnt failed, ret=%d, logic_id=%u", ret, logic_id);
+  return SUCCESS;
 }
 
-int32_t DcmiProxy::GetEidList(uint32_t logic_id, int32_t urma_dev_index, DcmiUrmaEidInfo *eid_list, int32_t *eid_cnt) {
+Status DcmiProxy::GetEidList(uint32_t logic_id, int32_t urma_dev_index, DcmiUrmaEidInfo *eid_list, int32_t *eid_cnt) {
   std::lock_guard<std::mutex> lock(g_dcmi_mu);
-  if (LoadDcmiUnlocked() != 0 || g_dcmi_get_eid_list == nullptr) {
-    return -1;
-  }
-  return g_dcmi_get_eid_list(static_cast<int32_t>(logic_id), urma_dev_index, eid_list, eid_cnt);
+  HIXL_CHK_STATUS_RET(EnsureDcmiReady(), "[DcmiProxy] EnsureDcmiReady failed");
+  HIXL_CHK_BOOL_RET_STATUS(g_dcmi_get_eid_list != nullptr, FAILED, "[DcmiProxy] GetEidList symbol is null");
+  const int32_t ret = g_dcmi_get_eid_list(static_cast<int32_t>(logic_id), urma_dev_index, eid_list, eid_cnt);
+  HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED,
+                           "[DcmiProxy] Call api:dcmiv2_get_eid_list_by_urma_dev_index failed, ret=%d, logic_id=%u, "
+                           "urma_dev_index=%d",
+                           ret, logic_id, urma_dev_index);
+  return SUCCESS;
 }
 
-int32_t DcmiProxy::GetMainboardId(uint32_t logic_id, uint32_t *mainboard_id) {
+Status DcmiProxy::GetMainboardId(uint32_t logic_id, uint32_t *mainboard_id) {
   std::lock_guard<std::mutex> lock(g_dcmi_mu);
-  if (LoadDcmiUnlocked() != 0 || g_dcmi_get_mainboard_id == nullptr) {
-    return -1;
-  }
-  return g_dcmi_get_mainboard_id(static_cast<int32_t>(logic_id), mainboard_id);
+  HIXL_CHK_STATUS_RET(EnsureDcmiReady(), "[DcmiProxy] EnsureDcmiReady failed");
+  HIXL_CHK_BOOL_RET_STATUS(g_dcmi_get_mainboard_id != nullptr, FAILED, "[DcmiProxy] GetMainboardId symbol is null");
+  const int32_t ret = g_dcmi_get_mainboard_id(static_cast<int32_t>(logic_id), mainboard_id);
+  HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED, "[DcmiProxy] Call api:dcmiv2_get_mainboard_id failed, ret=%d, logic_id=%u",
+                           ret, logic_id);
+  return SUCCESS;
 }
 
-int32_t DcmiProxy::GetDeviceInfo(uint32_t logic_id, int32_t main_cmd, uint32_t sub_cmd, void *buf, uint32_t *size) {
+Status DcmiProxy::GetDeviceInfo(uint32_t logic_id, int32_t main_cmd, uint32_t sub_cmd, void *buf, uint32_t *size) {
   std::lock_guard<std::mutex> lock(g_dcmi_mu);
-  if (LoadDcmiUnlocked() != 0 || g_dcmi_get_device_info == nullptr) {
-    return -1;
-  }
-  return g_dcmi_get_device_info(static_cast<int32_t>(logic_id), main_cmd, sub_cmd, buf, size);
+  HIXL_CHK_STATUS_RET(EnsureDcmiReady(), "[DcmiProxy] EnsureDcmiReady failed");
+  HIXL_CHK_BOOL_RET_STATUS(g_dcmi_get_device_info != nullptr, FAILED, "[DcmiProxy] GetDeviceInfo symbol is null");
+  const int32_t ret = g_dcmi_get_device_info(static_cast<int32_t>(logic_id), main_cmd, sub_cmd, buf, size);
+  HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED,
+                           "[DcmiProxy] Call api:dcmiv2_get_device_info failed, ret=%d, logic_id=%u, main_cmd=%d, "
+                           "sub_cmd=%u",
+                           ret, logic_id, main_cmd, sub_cmd);
+  return SUCCESS;
 }
 
 }  // namespace hixl

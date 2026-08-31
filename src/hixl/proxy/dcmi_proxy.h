@@ -19,6 +19,7 @@
 #define CANN_HIXL_SRC_HIXL_PROXY_DCMI_PROXY_H
 
 #include <cstdint>
+#include "hixl/hixl_types.h"
 
 namespace hixl {
 
@@ -79,25 +80,25 @@ class DcmiProxy {
 
   /**
    * @brief 加载 DCMI 动态库并初始化
-   * @return 成功: 0, 失败: -1
+   * @return SUCCESS on success, FAILED on failure
    */
-  static int LoadDcmi();
+  static Status LoadDcmi();
 
   /**
    * @brief 根据物理 ID 获取逻辑 ID
    * @param phy_id 物理设备 ID
    * @param logic_id 逻辑设备 ID（输出）
-   * @return 成功: 0, 失败: -1
+   * @return SUCCESS on success, FAILED on failure
    */
-  static int32_t GetLogicIdFromPhyId(unsigned int phy_id, unsigned int *logic_id);
+  static Status GetLogicIdFromPhyId(unsigned int phy_id, unsigned int *logic_id);
 
   /**
    * @brief 获取 URMA 设备数量
    * @param logic_id 逻辑设备 ID
    * @param dev_cnt 设备数量（输出）
-   * @return 成功: 0, 失败: -1
+   * @return SUCCESS on success, FAILED on failure
    */
-  static int32_t GetUrmaDeviceCnt(unsigned int logic_id, unsigned int *dev_cnt);
+  static Status GetUrmaDeviceCnt(unsigned int logic_id, unsigned int *dev_cnt);
 
   /**
    * @brief 获取 EID 列表
@@ -105,17 +106,17 @@ class DcmiProxy {
    * @param urma_dev_index URMA 设备索引
    * @param eid_list EID 列表（输出）
    * @param eid_cnt EID 数量（输入/输出）
-   * @return 成功: 0, 失败: -1
+   * @return SUCCESS on success, FAILED on failure
    */
-  static int32_t GetEidList(unsigned int logic_id, int urma_dev_index, DcmiUrmaEidInfo *eid_list, int *eid_cnt);
+  static Status GetEidList(unsigned int logic_id, int32_t urma_dev_index, DcmiUrmaEidInfo *eid_list, int32_t *eid_cnt);
 
   /**
    * @brief 获取主板 ID
    * @param logic_id 逻辑设备 ID
    * @param mainboard_id 主板 ID（输出）
-   * @return 成功: 0, 失败: -1
+   * @return SUCCESS on success, FAILED on failure
    */
-  static int32_t GetMainboardId(unsigned int logic_id, unsigned int *mainboard_id);
+  static Status GetMainboardId(unsigned int logic_id, unsigned int *mainboard_id);
 
   /**
    * @brief 获取设备信息
@@ -124,10 +125,9 @@ class DcmiProxy {
    * @param sub_cmd 子命令
    * @param buf 缓冲区（输出）
    * @param size 缓冲区大小（输入/输出）
-   * @return 成功: 0, 失败: -1
+   * @return SUCCESS on success, FAILED on failure
    */
-  static int32_t GetDeviceInfo(unsigned int logic_id, int main_cmd, unsigned int sub_cmd, void *buf,
-                               unsigned int *size);
+  static Status GetDeviceInfo(unsigned int logic_id, int32_t main_cmd, uint32_t sub_cmd, void *buf, unsigned int *size);
   static void UnloadDcmi();
 };
 

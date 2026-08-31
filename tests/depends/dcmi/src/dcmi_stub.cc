@@ -50,6 +50,9 @@ static int g_device_info_ret = 0;
 static int g_eid_count = 2;
 static bool g_enable_ubg_eid = false;
 
+// mesh die 覆盖：>=0 使用该值生成 EID die 布局（与 topo 解析一致），-1 按产品形态推断
+static int g_mesh_die_id_override = -1;
+
 int dcmiv2_init(void) {
   return g_dcmi_init_ret;
 }
@@ -123,22 +126,35 @@ struct EidInfoRaw {
   unsigned int eid_index;
 };
 
-// Fill UDMA 0: mesh port + CLOS PG (for BuildNpuRootInfo)
+// Fill UDMA 0: mesh serial ports 0-8 + CLOS PG (for BuildNpuRootInfo / D2D port match)
 static int FillUdma0Eids(EidInfoRaw *infos, int eid_cnt_max, int mesh_die_id) {
   int count = 0;
-  if (g_eid_count >= 1 && eid_cnt_max >= 1) {
+  if (g_eid_count < 1 || eid_cnt_max < 1) {
+    return 0;
+  }
+  if (g_eid_count == 1) {
     unsigned char byte5 = (mesh_die_id == 0) ? 0x02 : 0x52;
     BuildDefaultEid(infos[0].eid.raw, byte5);
     if (g_enable_ubg_eid) {
       infos[0].eid.raw[7] = 0x80;  // high two bits 10 means UB_RTP for issue302 UB_RTP EID filtering.
     }
     infos[0].eid_index = 0;
+    return 1;
+  }
+  constexpr int32_t kMeshPortMax = 8;
+  const unsigned char mesh_base = (mesh_die_id == 0) ? 0x00 : 0x50;
+  const unsigned char clos_pg = (mesh_die_id == 0) ? 0x72 : 0x32;
+  for (int32_t port = 0; port <= kMeshPortMax && count < eid_cnt_max; ++port) {
+    BuildDefaultEid(infos[count].eid.raw, static_cast<unsigned char>(mesh_base + port));
+    if (g_enable_ubg_eid && count == 0) {
+      infos[0].eid.raw[7] = 0x80;
+    }
+    infos[count].eid_index = static_cast<unsigned int>(count);
     count++;
   }
-  if (g_eid_count >= 2 && eid_cnt_max >= 2) {
-    unsigned char byte5 = (mesh_die_id == 0) ? 0x72 : 0x32;
-    BuildDefaultEid(infos[1].eid.raw, byte5);
-    infos[1].eid_index = 1;
+  if (count < eid_cnt_max) {
+    BuildDefaultEid(infos[count].eid.raw, clos_pg);
+    infos[count].eid_index = static_cast<unsigned int>(count);
     count++;
   }
   return count;
@@ -175,10 +191,11 @@ int dcmiv2_get_eid_list_by_urma_dev_index(int npu_id, int urma_dev_index, void *
   if (eid_list == nullptr || eid_cnt == nullptr) {
     return -1;
   }
-  // 根据产品形态计算 mesh_die_id，使 EID die_id 与之匹配
+  // 优先使用显式覆盖的 mesh die；否则按产品形态推断，使 EID die_id 与之匹配
   bool is_server = ((g_mainboard_id >= 0x21 && g_mainboard_id <= 0x2B && (g_mainboard_id % 2 == 1)) ||
                     (g_mainboard_id >= 0x40 && g_mainboard_id <= 0x46 && (g_mainboard_id % 2 == 0)));
-  int mesh_die_id = is_server ? 1 : ((npu_id % 8) < 4 ? 0 : 1);
+  int mesh_die_id =
+      (g_mesh_die_id_override >= 0) ? g_mesh_die_id_override : (is_server ? 1 : ((npu_id % 8) < 4 ? 0 : 1));
   int non_mesh_die = 1 - mesh_die_id;
 
   auto *infos = static_cast<EidInfoRaw *>(eid_list);
@@ -248,6 +265,10 @@ void DcmiStubSetEidCount(int count) {
 
 void DcmiStubSetEnableUbgEid(bool enable) {
   g_enable_ubg_eid = enable;
+}
+
+void DcmiStubSetMeshDieId(int die) {
+  g_mesh_die_id_override = die;
 }
 
 #ifdef __cplusplus

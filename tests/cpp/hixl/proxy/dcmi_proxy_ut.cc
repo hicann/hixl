@@ -31,6 +31,7 @@
 #include <thread>
 #include <chrono>
 #include "gtest/gtest.h"
+#include "hixl/hixl_types.h"
 #include "proxy/dcmi_proxy.h"
 #include "depends/dcmi/src/dcmi_stub.h"
 
@@ -69,8 +70,8 @@ class DcmiProxySuccessTest : public ::testing::Test {
 TEST_F(DcmiProxySuccessTest, GetLogicIdFromPhyIdSuccess) {
   unsigned int phy_id = 5;
   unsigned int logic_id = 0;
-  int32_t ret = DcmiProxy::GetLogicIdFromPhyId(phy_id, &logic_id);
-  EXPECT_EQ(ret, 0);
+  Status ret = DcmiProxy::GetLogicIdFromPhyId(phy_id, &logic_id);
+  EXPECT_EQ(ret, SUCCESS);
   // stub 返回 phy_id 作为 logic_id
   EXPECT_EQ(logic_id, phy_id);
 }
@@ -79,19 +80,19 @@ TEST_F(DcmiProxySuccessTest, GetLogicIdFromPhyIdSuccess) {
 TEST_F(DcmiProxySuccessTest, GetUrmaDeviceCntSuccess) {
   unsigned int logic_id = 0;
   unsigned int dev_cnt = 0;
-  int32_t ret = DcmiProxy::GetUrmaDeviceCnt(logic_id, &dev_cnt);
-  EXPECT_EQ(ret, 0);
+  Status ret = DcmiProxy::GetUrmaDeviceCnt(logic_id, &dev_cnt);
+  EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(dev_cnt, 1U);
 }
 
 // DcmiProxy::GetEidList 成功路径
 TEST_F(DcmiProxySuccessTest, GetEidListSuccess) {
   unsigned int logic_id = 0;
-  int urma_dev_index = 0;
+  int32_t urma_dev_index = 0;
   DcmiUrmaEidInfo eid_list[2];
-  int eid_cnt = 2;
-  int32_t ret = DcmiProxy::GetEidList(logic_id, urma_dev_index, eid_list, &eid_cnt);
-  EXPECT_EQ(ret, 0);
+  int32_t eid_cnt = 2;
+  Status ret = DcmiProxy::GetEidList(logic_id, urma_dev_index, eid_list, &eid_cnt);
+  EXPECT_EQ(ret, SUCCESS);
   EXPECT_GT(eid_cnt, 0);
 }
 
@@ -99,8 +100,8 @@ TEST_F(DcmiProxySuccessTest, GetEidListSuccess) {
 TEST_F(DcmiProxySuccessTest, GetMainboardIdSuccess) {
   unsigned int logic_id = 0;
   unsigned int mainboard_id = 0;
-  int32_t ret = DcmiProxy::GetMainboardId(logic_id, &mainboard_id);
-  EXPECT_EQ(ret, 0);
+  Status ret = DcmiProxy::GetMainboardId(logic_id, &mainboard_id);
+  EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(mainboard_id, 0x3U);  // Pod1
 }
 
@@ -111,8 +112,8 @@ TEST_F(DcmiProxySuccessTest, GetDeviceInfoSuccess) {
   unsigned int sub_cmd = 0;
   unsigned char buf[128];
   unsigned int size = sizeof(buf);
-  int32_t ret = DcmiProxy::GetDeviceInfo(logic_id, main_cmd, sub_cmd, buf, &size);
-  EXPECT_EQ(ret, 0);
+  Status ret = DcmiProxy::GetDeviceInfo(logic_id, main_cmd, sub_cmd, buf, &size);
+  EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(size, sizeof(buf));
 }
 
@@ -136,14 +137,14 @@ TEST_F(DcmiProxyCachedLoadTest, LoadDcmiCachedPath) {
   // 第一次调用（应成功，因为 dcmi_stub.cc 提供所有符号）
   unsigned int logic_id1 = 0;
   unsigned int mainboard_id1 = 0;
-  int32_t ret1 = DcmiProxy::GetMainboardId(logic_id1, &mainboard_id1);
-  EXPECT_EQ(ret1, 0);
+  Status ret1 = DcmiProxy::GetMainboardId(logic_id1, &mainboard_id1);
+  EXPECT_EQ(ret1, SUCCESS);
 
   // 第二次调用（应直接返回缓存的 g_dcmi_init_status，不重新加载）
   unsigned int logic_id2 = 0;
   unsigned int mainboard_id2 = 0;
-  int32_t ret2 = DcmiProxy::GetMainboardId(logic_id2, &mainboard_id2);
-  EXPECT_EQ(ret2, 0);
+  Status ret2 = DcmiProxy::GetMainboardId(logic_id2, &mainboard_id2);
+  EXPECT_EQ(ret2, SUCCESS);
   EXPECT_EQ(mainboard_id2, mainboard_id1);
 }
 
@@ -169,9 +170,9 @@ TEST_F(DcmiProxyBoundaryTest, GetEidListZeroCount) {
   unsigned int logic_id = 0;
   int urma_dev_index = 0;
   DcmiUrmaEidInfo eid_list[2];
-  int eid_cnt = 2;
-  int32_t ret = DcmiProxy::GetEidList(logic_id, urma_dev_index, eid_list, &eid_cnt);
-  EXPECT_EQ(ret, 0);
+  int32_t eid_cnt = 2;
+  Status ret = DcmiProxy::GetEidList(logic_id, urma_dev_index, eid_list, &eid_cnt);
+  EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(eid_cnt, 0);  // stub 返回 0 个 EID
 }
 
@@ -181,8 +182,8 @@ TEST_F(DcmiProxyBoundaryTest, GetMainboardIdPod2) {
 
   unsigned int logic_id = 0;
   unsigned int mainboard_id = 0;
-  int32_t ret = DcmiProxy::GetMainboardId(logic_id, &mainboard_id);
-  EXPECT_EQ(ret, 0);
+  Status ret = DcmiProxy::GetMainboardId(logic_id, &mainboard_id);
+  EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(mainboard_id, 0x5U);
 }
 
@@ -191,8 +192,8 @@ TEST_F(DcmiProxyBoundaryTest, GetMainboardIdServer) {
 
   unsigned int logic_id = 0;
   unsigned int mainboard_id = 0;
-  int32_t ret = DcmiProxy::GetMainboardId(logic_id, &mainboard_id);
-  EXPECT_EQ(ret, 0);
+  Status ret = DcmiProxy::GetMainboardId(logic_id, &mainboard_id);
+  EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(mainboard_id, 0x21U);
 }
 
@@ -220,8 +221,8 @@ TEST_F(DcmiProxyLoadFailTest, GetMainboardIdReturnsErrorWhenDcmiFuncFails) {
 
   unsigned int logic_id = 0;
   unsigned int mainboard_id = 0;
-  int32_t ret = DcmiProxy::GetMainboardId(logic_id, &mainboard_id);
-  EXPECT_EQ(ret, -1);
+  Status ret = DcmiProxy::GetMainboardId(logic_id, &mainboard_id);
+  EXPECT_EQ(ret, FAILED);
 }
 
 // UnloadDcmi 在未加载时直接返回

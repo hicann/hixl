@@ -24,6 +24,8 @@ void DcmiStubSetUrmaDeviceCnt(uint32_t cnt, int ret);
 void DcmiStubSetSuperPodId(uint32_t id, int ret);
 void DcmiStubSetEidCount(int count);
 void DcmiStubSetEnableUbgEid(bool enable);
+// 覆盖 mesh die（-1 表示按产品形态推断）；用于让 stub EID die 布局与被测 topo 一致
+void DcmiStubSetMeshDieId(int die);
 
 #ifdef __cplusplus
 }

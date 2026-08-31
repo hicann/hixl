@@ -10,15 +10,15 @@
 
 /**
  * @file host_route.cc
- * @brief hixl_tool host_route 子命令实现
+ * @brief hixl_tool host_route subcommand
  *
- * 新方案流程（不再依赖 procfs）：
- * 1. 枚举本机全部 NPU（aclrtGetDeviceCount + aclrtGetPhyDevIdByUserDevId）
- * 2. 取首个 NPU 的 mainboard_id 判断 Server/PoD
- * 3. GenerateRouteDataViaDsmi（DSMI UB 名 + urma_admin + DCMI）
- * 4. 写 host_route.json（与 RouteEntry 一致：local_eid=Host/CPU, remote_eid=NPU）
+ * New flow (no procfs):
+ * 1. Enumerate all local NPUs (aclrtGetDeviceCount + aclrtGetPhyDevIdByUserDevId)
+ * 2. Get product form (is_server) and call GenerateRouteDataViaDsmi
+ *    (topo_path may be empty; empty means default topo is resolved inside the API)
+ * 3. Write host_route.json (same as RouteEntry: local_eid=Host/CPU, remote_eid=NPU)
  *
- * 说明：local_comm_res 已不再依赖本产物；本子命令仅作可选离线 EID 清单导出。
+ * Note: local_comm_res no longer depends on this artifact; this subcommand is an optional offline EID inventory export.
  */
 
 #include "host_route.h"
@@ -43,16 +43,18 @@ constexpr const char *kDefaultOutputDir = "/etc/";
 constexpr const char *kDefaultFileName = "host_route.json";
 
 void PrintHostRouteUsage() {
-  std::printf("Usage: hixl_tool host_route [--output <dir>]\n\n");
+  std::printf("Usage: hixl_tool host_route [--output <dir>] [--topo_file_path <path>]\n\n");
   std::printf("Options:\n");
-  std::printf("  --output <dir>   Output directory (default: %s)\n", kDefaultOutputDir);
+  std::printf("  --output <dir>        Output directory (default: %s)\n", kDefaultOutputDir);
+  std::printf("  --topo_file_path      Topology JSON file path (default: resolved by mainboard_id)\n");
   std::printf("\nOutput: {output}/%s\n", kDefaultFileName);
-  std::printf("\nNote: route_data is generated via DSMI + urma_admin + DCMI (no procfs).\n");
-  std::printf("      local_comm_res no longer requires this file as input.\n");
+  std::printf("\nNote: route_data is generated via DSMI + urma_admin + DCMI (no procfs);\n");
+  std::printf("      die is parsed from the topo file.\n");
 }
 
 struct HostRouteArgs {
   std::string output_dir = kDefaultOutputDir;
+  std::string topo_file_path;
 };
 
 bool ParseHostRouteArgs(int argc, char *argv[], HostRouteArgs &args) {
@@ -64,6 +66,8 @@ bool ParseHostRouteArgs(int argc, char *argv[], HostRouteArgs &args) {
     }
     if (arg == "--output" && i + 1 < argc) {
       args.output_dir = argv[++i];
+    } else if (arg == "--topo_file_path" && i + 1 < argc) {
+      args.topo_file_path = argv[++i];
     } else {
       std::fprintf(stderr, "[ERROR] Unknown or incomplete option: %s\n", arg.c_str());
       PrintHostRouteUsage();
@@ -74,7 +78,7 @@ bool ParseHostRouteArgs(int argc, char *argv[], HostRouteArgs &args) {
 }
 
 int32_t EnumerateAllNpuIds(std::vector<int32_t> &npu_ids) {
-  // 仅做 ID 枚举/映射查询，无需 aclInit
+  // ID enumeration/mapping only; aclInit is not required.
   uint32_t device_count = 0;
   aclError acl_ret = aclrtGetDeviceCount(&device_count);
   if (acl_ret != ACL_SUCCESS || device_count == 0) {
@@ -99,8 +103,8 @@ int32_t EnumerateAllNpuIds(std::vector<int32_t> &npu_ids) {
   return npu_ids.empty() ? -1 : 0;
 }
 
-// 按组生成 route_data，合并到 host_route_data；失败返回非 0
-int32_t GenerateHostRouteData(const std::vector<int32_t> &npu_ids, bool is_server,
+// Generate route_data per group and merge into host_route_data; non-zero on failure.
+int32_t GenerateHostRouteData(const std::vector<int32_t> &npu_ids, const std::string &topo_path, bool is_server,
                               hixl::HostRouteData &host_route_data) {
   std::set<int32_t> covered_npu_ids;
   for (int32_t phy_id : npu_ids) {
@@ -108,7 +112,7 @@ int32_t GenerateHostRouteData(const std::vector<int32_t> &npu_ids, bool is_serve
       continue;
     }
     hixl::RouteGenResult route_gen;
-    if (hixl::GenerateRouteDataViaDsmi(phy_id, is_server, route_gen) != hixl::SUCCESS) {
+    if (hixl::GenerateRouteDataViaDsmi(phy_id, topo_path, is_server, route_gen) != hixl::SUCCESS) {
       std::fprintf(stderr, "[ERROR] GenerateRouteDataViaDsmi failed for phy_id=%d\n", phy_id);
       return 1;
     }
@@ -118,7 +122,7 @@ int32_t GenerateHostRouteData(const std::vector<int32_t> &npu_ids, bool is_serve
     for (const auto &entry : route_gen.route_data.entries) {
       hixl::HostRouteEntry hr_entry;
       hr_entry.device_id = entry.device_id;
-      // 与 RouteEntry / 自动生成 localcommres 一致：local=Host(CPU 2口PG), remote=NPU
+      // Same as RouteEntry / auto-generated localcommres: local=Host (CPU 2-port PG), remote=NPU.
       hr_entry.local_eid = entry.local_eid;
       hr_entry.remote_eid = entry.remote_eid;
       host_route_data.devices.push_back(hr_entry);
@@ -129,7 +133,7 @@ int32_t GenerateHostRouteData(const std::vector<int32_t> &npu_ids, bool is_serve
   return host_route_data.devices.empty() ? 1 : 0;
 }
 
-// 写 host_route.json（权限 0600）；失败返回非 0
+// Write host_route.json (mode 0600); non-zero on failure.
 int32_t WriteHostRouteOutput(const HostRouteArgs &args, const hixl::HostRouteData &host_route_data) {
   std::string json_str;
   if (hixl::RouteConfGenerator::SerializeHostRouteJson(host_route_data, json_str) != hixl::SUCCESS) {
@@ -172,13 +176,13 @@ int RunHostRoute(int argc, char *argv[]) {
     return 1;
   }
 
-  // 1. 枚举全部 NPU
+  // 1. Enumerate all NPUs.
   std::vector<int32_t> npu_ids;
   if (EnumerateAllNpuIds(npu_ids) != 0) {
     return 1;
   }
 
-  // 2. 取首个 NPU 判断产品形态
+  // 2. Use the first NPU for product form; pass topo path (may be empty) to GenerateRouteDataViaDsmi.
   const int32_t seed_phy_id = npu_ids.front();
   uint32_t mainboard_id = 0;
   if (hixl::GetMainboardId(seed_phy_id, mainboard_id) != hixl::SUCCESS) {
@@ -187,15 +191,17 @@ int RunHostRoute(int argc, char *argv[]) {
   }
   const bool is_server = hixl::TopoFileFinder::IsProductServer(mainboard_id);
   std::printf("[INFO] mainboard_id=0x%x, is_server=%d\n", mainboard_id, static_cast<int>(is_server));
+  if (!args.topo_file_path.empty()) {
+    std::printf("[INFO] Using user-provided topo: %s\n", args.topo_file_path.c_str());
+  }
 
-  // 3. DSMI + urma_admin + DCMI 生成 route_data / host_pg_eid
   hixl::HostRouteData host_route_data;
-  if (GenerateHostRouteData(npu_ids, is_server, host_route_data) != 0) {
+  if (GenerateHostRouteData(npu_ids, args.topo_file_path, is_server, host_route_data) != 0) {
     std::fprintf(stderr, "[ERROR] No valid host_route entries generated\n");
     return 1;
   }
 
-  // 4. 写 host_route.json
+  // 3. Write host_route.json.
   return WriteHostRouteOutput(args, host_route_data);
 }
 

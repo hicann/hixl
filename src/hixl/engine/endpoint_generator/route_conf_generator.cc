@@ -10,18 +10,19 @@
 
 /**
  * @file route_conf_generator.cc
- * @brief host_route.json 序列化实现
+ * @brief host_route.json serialization implementation
  */
 
 #include "route_conf_generator.h"
 #include <string>
 #include <nlohmann/json.hpp>
+#include "common/hixl_checker.h"
 #include "common/hixl_inner_types.h"
 #include "common/hixl_log.h"
 
 namespace hixl {
 
-int32_t RouteConfGenerator::SerializeHostRouteJson(const HostRouteData &data, std::string &json_str) {
+Status RouteConfGenerator::SerializeHostRouteJson(const HostRouteData &data, std::string &json_str) {
   nlohmann::json j;
   j["device_num"] = data.devices.size();
   nlohmann::json devices = nlohmann::json::array();
@@ -37,8 +38,7 @@ int32_t RouteConfGenerator::SerializeHostRouteJson(const HostRouteData &data, st
   try {
     json_str = j.dump(2);
   } catch (const nlohmann::json::exception &e) {
-    HIXL_LOGE(FAILED, "[SerializeHostRouteJson] Failed to dump JSON: %s", e.what());
-    return FAILED;
+    HIXL_CHK_BOOL_RET_STATUS(false, FAILED, "[SerializeHostRouteJson] Failed to dump JSON: %s", e.what());
   }
   return SUCCESS;
 }

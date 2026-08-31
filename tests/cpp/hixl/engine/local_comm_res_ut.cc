@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 #include <map>
@@ -41,6 +42,7 @@ void DcmiStubSetLogicId(unsigned int id, int ret);
 void DcmiStubSetUrmaDeviceCnt(unsigned int cnt, int ret);
 void DcmiStubSetSuperPodId(unsigned int id, int ret);
 void DcmiStubSetEidCount(int count);
+void DcmiStubSetMeshDieId(int die);
 }
 
 namespace hixl {
@@ -118,6 +120,16 @@ void CreateFakeUrmaAdmin(const std::string &dir) {
   chmod(script_path.c_str(), 0755);
 }
 
+// 创建输出为空的 fake urma_admin 脚本（模拟 route_data 采集失败：ParseUrmaAdminOutput 无输出）
+void CreateEmptyUrmaAdmin(const std::string &dir) {
+  std::string script_path = dir + "/urma_admin";
+  std::ofstream script(script_path.c_str());
+  script << "#!/bin/bash\n";
+  script << "exit 0\n";
+  script.close();
+  chmod(script_path.c_str(), 0755);
+}
+
 // 创建临时目录用于 fake urma_admin
 std::string CreateTempDirForUrmaAdmin() {
   std::string temp_dir = "/tmp/hixl_ut_urma_XXXXXX";
@@ -126,6 +138,17 @@ std::string CreateTempDirForUrmaAdmin() {
     return "";
   }
   CreateFakeUrmaAdmin(temp_dir);
+  return temp_dir;
+}
+
+// 创建临时目录，内含输出为空的 fake urma_admin（模拟 route_data 采集失败）
+std::string CreateEmptyTempDirForUrmaAdmin() {
+  std::string temp_dir = "/tmp/hixl_ut_urma_empty_XXXXXX";
+  char *result = mkdtemp(&temp_dir[0]);
+  if (result == nullptr) {
+    return "";
+  }
+  CreateEmptyUrmaAdmin(temp_dir);
   return temp_dir;
 }
 
@@ -162,7 +185,8 @@ void ResetDcmiStub() {
   DcmiStubSetLogicId(0, 0);
   DcmiStubSetUrmaDeviceCnt(2, 0);  // 2 UDMA devices: mesh + route-specific
   DcmiStubSetSuperPodId(0, 0);
-  DcmiStubSetEidCount(2);  // UDMA 0 returns 2 EIDs
+  DcmiStubSetEidCount(2);    // UDMA 0 returns 2 EIDs
+  DcmiStubSetMeshDieId(-1);  // mesh die 按产品形态推断
   DsmiStubSetUbDevName("udmac1d1e2");
   DsmiStubSetDeviceInfoRet(0);
 }
@@ -172,6 +196,38 @@ constexpr const char *kLinkTypePeer2Peer = "PEER2PEER";
 constexpr const char *kLinkTypePeer2Net = "PEER2NET";
 constexpr const char *kTopoType1DMesh = "1DMESH";
 constexpr const char *kTopoTypeClos = "CLOS";
+
+// 8 卡一组：fullmesh 口均为 mesh_port，每个 NPU 一条 CLOS，端口列表为 clos_ports_json（JSON 数组）
+std::string MakeEightNpuDieTopoJson(const std::string &mesh_port, const std::string &clos_ports_json) {
+  std::ostringstream oss;
+  oss << "{\"edge_list\":[";
+  for (int32_t i = 0; i < 8; i += 2) {
+    if (i > 0) {
+      oss << ",";
+    }
+    oss << "{\"net_layer\":0,\"link_type\":\"PEER2PEER\",\"topo_type\":\"1DMESH\","
+        << "\"local_a\":" << i << ",\"local_b\":" << (i + 1) << ","
+        << "\"local_a_ports\":[\"" << mesh_port << "\"],"
+        << "\"local_b_ports\":[\"" << mesh_port << "\"]}";
+  }
+  for (int32_t npu = 0; npu < 8; ++npu) {
+    oss << ",{\"net_layer\":1,\"link_type\":\"PEER2NET\",\"topo_type\":\"CLOS\","
+        << "\"local_a\":" << npu << ",\"local_a_ports\":" << clos_ports_json << "}";
+  }
+  oss << "]}";
+  return oss.str();
+}
+
+int32_t GenerateDeviceOnlyFromTopoJson(const std::string &topo_json) {
+  std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", topo_json);
+  if (tmp_topo.empty()) {
+    return FAILED;
+  }
+  LocalCommRes res;
+  int32_t ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
+  unlink(tmp_topo.c_str());
+  return ret;
+}
 
 }  // anonymous namespace
 
@@ -472,7 +528,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2HEdgesPhyIdGreaterThan7) {
 
 TEST_F(LocalCommResEdgeTest, GenerateD2UEdgesBothPlanes) {
   std::vector<EndpointConfig> edges;
-  GenerateD2UEdges("pg0_eid", "pg1_eid", edges);
+  EXPECT_EQ(GenerateD2UEdges("pg0_eid", "pg1_eid", edges), SUCCESS);
   ASSERT_EQ(edges.size(), 2U);
   EXPECT_EQ(edges[0].comm_id, "pg0_eid");
   EXPECT_EQ(edges[0].placement, kPlacementDevice);
@@ -483,7 +539,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2UEdgesBothPlanes) {
 
 TEST_F(LocalCommResEdgeTest, GenerateD2UEdgesOnlyPlane0) {
   std::vector<EndpointConfig> edges;
-  GenerateD2UEdges("pg0_eid", "", edges);
+  EXPECT_EQ(GenerateD2UEdges("pg0_eid", "", edges), SUCCESS);
   ASSERT_EQ(edges.size(), 1U);
   EXPECT_EQ(edges[0].comm_id, "pg0_eid");
   EXPECT_EQ(edges[0].plane, "plane_pg_0");
@@ -491,7 +547,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2UEdgesOnlyPlane0) {
 
 TEST_F(LocalCommResEdgeTest, GenerateD2UEdgesEmpty) {
   std::vector<EndpointConfig> edges;
-  GenerateD2UEdges("", "", edges);
+  EXPECT_EQ(GenerateD2UEdges("", "", edges), SUCCESS);
   EXPECT_TRUE(edges.empty());
 }
 
@@ -520,12 +576,12 @@ TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesEmptyTopo) {
 }
 
 TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesNoRootinfoForSelf) {
-  // npu_rootinfos 中没有 phy_id=0 的条目 → 返回空
+  // npu_rootinfos 中没有 phy_id=0 的条目，且 topo 非空 → FAILED
   TopoData topo_data = MakeSingleLinkTopoData(MakeStandardTopoLink(0, kLinkTypePeer2Peer, kTopoType1DMesh));
   std::map<int32_t, NpuRootInfo> npu_rootinfos;
   std::vector<EndpointConfig> edges;
   int32_t ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
-  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(ret, FAILED);
   EXPECT_TRUE(edges.empty());
 }
 
@@ -577,7 +633,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesSkipPhyIdNotInLink) {
 }
 
 TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesSkipEmptyPorts) {
-  // local_a_ports 为空 → 跳过
+  // local_a_ports 为空 → D2D 信息不完整，FAILED
   TopoLink link = MakeStandardTopoLink(0, kLinkTypePeer2Peer, kTopoType1DMesh);
   link.local_a_ports = {};
   TopoData topo_data = MakeSingleLinkTopoData(link);
@@ -585,7 +641,26 @@ TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesSkipEmptyPorts) {
   auto npu_rootinfos = MakeNpuRootinfos(0, info, 1, info);
   std::vector<EndpointConfig> edges;
   int32_t ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
-  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(ret, FAILED);
+  EXPECT_TRUE(edges.empty());
+}
+
+TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesNoEidForLocalPort) {
+  TopoData topo_data = MakeSingleLinkTopoData(MakeStandardTopoLink(0, kLinkTypePeer2Peer, kTopoType1DMesh));
+  auto npu_rootinfos = MakeNpuRootinfos(0, MakeRootInfo("9/9", "eid_aaa"), 1, MakeRootInfo("0/2", "eid_bbb"));
+  std::vector<EndpointConfig> edges;
+  int32_t ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
+  EXPECT_EQ(ret, FAILED);
+  EXPECT_TRUE(edges.empty());
+}
+
+TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesNoRootinfoForPeer) {
+  TopoData topo_data = MakeSingleLinkTopoData(MakeStandardTopoLink(0, kLinkTypePeer2Peer, kTopoType1DMesh));
+  std::map<int32_t, NpuRootInfo> npu_rootinfos;
+  npu_rootinfos[0] = MakeRootInfo("0/1", "eid_aaa");
+  std::vector<EndpointConfig> edges;
+  int32_t ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
+  EXPECT_EQ(ret, FAILED);
   EXPECT_TRUE(edges.empty());
 }
 
@@ -616,6 +691,8 @@ class LocalCommResTestBase : public LocalCommResMmpaTestBase {
     LocalCommResMmpaTestBase::SetUp();
     // 添加 TestBase 特有的初始化
     ResetDcmiStub();
+    // server_8p_noroce.json mesh ports are die1 (e.g. "1/7"); keep stub EID layout aligned.
+    DcmiStubSetMeshDieId(1);
     data_dir_ = GetTestDataDir();
   }
 
@@ -659,6 +736,11 @@ TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlySkipsDynamicRoute) {
 }
 
 TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostSuccess) {
+  // server_8p_noroce.json 为 Atlas 850 Server topo（fullmesh 在 die1）；
+  // 使用 Server 形态使 mainboard 与 topo 语义一致（否则 die 从 topo 解析出 die1，
+  // 与 Pod stub 的 die0 布局冲突）
+  DcmiStubSetMainboardId(0x21, 0);  // Server
+
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
 
   LocalCommRes res;
@@ -669,6 +751,134 @@ TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostSuccess) {
                           [](const EndpointConfig &ep) { return ep.placement == kPlacementDevice; }));
   EXPECT_TRUE(std::any_of(res.endpoint_list.begin(), res.endpoint_list.end(),
                           [](const EndpointConfig &ep) { return ep.placement == kPlacementHost; }));
+}
+
+// --- 生成顺序与 route_data 解耦：kDeviceOnly 不影响，kDeviceAndHost 失败即报错 ---
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostRouteFailed) {
+  // kDeviceAndHost 下 host 边依赖 route_data；route_data 采集失败（urma_admin 无输出）
+  // 应直接报错，不返回部分结果；server_8p_noroce.json 为 Server topo（fullmesh die1），
+  // 显式用 Server 形态使 die/topo 语义一致，确保失败确实源于 route 采集而非 die 不匹配
+  DcmiStubSetMainboardId(0x21, 0);  // Server 形态
+  std::string empty_dir = CreateEmptyTempDirForUrmaAdmin();
+  ASSERT_FALSE(empty_dir.empty());
+  std::string base_path = SetUrmaAdminPath(empty_dir);
+
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+  LocalCommRes res;
+  int32_t ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceAndHost, res);
+  EXPECT_EQ(ret, FAILED);
+
+  RestorePath(base_path);
+  CleanupTempDir(empty_dir);
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlyIgnoresRouteFailure) {
+  // kDeviceOnly 不生成 route_data，即使 route_data 采集失败也不影响 D2D/D2U 生成；
+  // 同样显式使用 Server 形态匹配 server_8p_noroce.json 的 die 布局
+  DcmiStubSetMainboardId(0x21, 0);  // Server 形态
+  std::string empty_dir = CreateEmptyTempDirForUrmaAdmin();
+  ASSERT_FALSE(empty_dir.empty());
+  std::string base_path = SetUrmaAdminPath(empty_dir);
+
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+  LocalCommRes res;
+  int32_t ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_FALSE(res.endpoint_list.empty());
+  EXPECT_TRUE(std::all_of(res.endpoint_list.begin(), res.endpoint_list.end(),
+                          [](const EndpointConfig &ep) { return ep.placement == kPlacementDevice; }));
+
+  RestorePath(base_path);
+  CleanupTempDir(empty_dir);
+}
+
+// --- mesh/CLOS die 由 topo 文件解析（不依赖产品形态假设） ---
+
+TEST_F(LocalCommResGenerateTest, MeshDieResolvedFromTopo) {
+  // 新机型示例：fullmesh(net_layer=0) 在 die0，CLOS(net_layer=1) 在 die1；
+  // 尽管 is_server=true（若走 GetMeshDieId 会得到 die1），生产代码应从 topo 解析出 die0
+  DcmiStubSetMainboardId(0x21, 0);  // Server 形态
+  DcmiStubSetMeshDieId(0);          // stub EID 按 die0 布局生成（与 topo 一致）
+
+  std::string topo_json = MakeEightNpuDieTopoJson("0/2", R"(["1/1","1/2","1/3","1/4","1/5","1/6","1/7","1/8"])");
+  std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", topo_json);
+  ASSERT_FALSE(tmp_topo.empty());
+
+  LocalCommRes res;
+  int32_t ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
+  unlink(tmp_topo.c_str());
+
+  // 若 die 仍按产品形态推断（server→die1）而 stub 按 die0 布局生成，
+  // port_to_eid 会使用 die1 的端口（stub 中无 CLOS PG 组）导致 FAILED / 无 D2D 边；
+  // 因此下方断言证明 mesh_die_id 确实来自 topo 解析
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_FALSE(res.endpoint_list.empty());
+  // D2D 直连边（fullmesh die0 端口 "0/2" 命中 port_to_eid）应存在
+  EXPECT_NE(std::find_if(res.endpoint_list.begin(), res.endpoint_list.end(),
+                         [](const EndpointConfig &ep) {
+                           return ep.placement == kPlacementDevice && !ep.dst_eid.empty() && ep.plane.empty();
+                         }),
+            res.endpoint_list.end());
+}
+
+TEST_F(LocalCommResGenerateTest, ClosDieMajorityFromMixedSixPlusTwo) {
+  // 6+2：同一条 CLOS 边上前 2 口在 die0、后 6 口在 die1；应取口数更多的 die1，
+  // 而不是 ResolveDieIdFromPorts 的第一条端口 die0。
+  // stub mesh=die0 时，若误取 clos_die=0 则无 CLOS PG 组，Generate 失败。
+  DcmiStubSetMainboardId(0x21, 0);  // Server 形态
+  DcmiStubSetMeshDieId(0);
+
+  std::string topo_json = MakeEightNpuDieTopoJson("0/2", R"(["0/1","0/2","1/0","1/1","1/2","1/3","1/5","1/6"])");
+  std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", topo_json);
+  ASSERT_FALSE(tmp_topo.empty());
+
+  LocalCommRes res;
+  int32_t ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
+  unlink(tmp_topo.c_str());
+
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_FALSE(res.endpoint_list.empty());
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateFailsOnInvalidMeshPortFormat) {
+  // mesh 端口无 '/' → ParseDiePort FAILED
+  std::string topo_json = R"({"edge_list":[
+    {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,
+     "local_a_ports":["bad"],"local_b_ports":["0/2"]}
+  ]})";
+  EXPECT_EQ(GenerateDeviceOnlyFromTopoJson(topo_json), FAILED);
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateFailsOnEmptyMeshPortList) {
+  // mesh 端口列表为空 → ResolveDieIdFromPorts FAILED
+  std::string topo_json = R"({"edge_list":[
+    {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,
+     "local_a_ports":[],"local_b_ports":["0/2"]}
+  ]})";
+  EXPECT_EQ(GenerateDeviceOnlyFromTopoJson(topo_json), FAILED);
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateFailsOnInvalidClosPortFormat) {
+  // mesh 合法，CLOS 端口未整串消费 → ParseDiePort FAILED
+  std::string topo_json = R"({"edge_list":[
+    {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,
+     "local_a_ports":["0/2"],"local_b_ports":["0/2"]},
+    {"net_layer":1,"link_type":"PEER2NET","topo_type":"CLOS","local_a":0,
+     "local_a_ports":["1/7abc"]}
+  ]})";
+  EXPECT_EQ(GenerateDeviceOnlyFromTopoJson(topo_json), FAILED);
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateFailsOnClosDieOutOfRange) {
+  // CLOS die_id=2 超出双 die 范围 → ParseDiePort FAILED
+  std::string topo_json = R"({"edge_list":[
+    {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,
+     "local_a_ports":["0/2"],"local_b_ports":["0/2"]},
+    {"net_layer":1,"link_type":"PEER2NET","topo_type":"CLOS","local_a":0,
+     "local_a_ports":["2/1"]}
+  ]})";
+  EXPECT_EQ(GenerateDeviceOnlyFromTopoJson(topo_json), FAILED);
 }
 
 TEST_F(LocalCommResGenerateTest, GenerateTopoNotFound) {
@@ -858,9 +1068,11 @@ TEST_F(LocalCommResGenerateTest, GenerateServerMeshDieId) {
 // --- route_path 被忽略后 EID 格式验证 ---
 
 TEST_F(LocalCommResGenerateTest, GenerateEidsNo0xPrefix) {
-  // route data 通过 DSMI + urma_admin 生成，EID 不应含 0x 前缀
-  std::string topo_json =
-      R"({"version":"2.0","edge_list":[{"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,"local_a_ports":["1/0"],"local_b_ports":["1/1"]}]})";
+  // route data 通过 DSMI + urma_admin 生成，EID 不应含 0x 前缀；
+  // 使用 Server 形态（stub EID die1 布局）配 fullmesh=die1 的完整 topo，
+  // 保证所有 NPU 都能从 topo 解析 mesh/CLOS die
+  DcmiStubSetMainboardId(0x21, 0);  // Server 形态
+  std::string topo_json = MakeEightNpuDieTopoJson("1/2", R"(["0/1","0/2","0/3","0/4","0/5","0/6","0/7","0/8"])");
   std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", topo_json);
   ASSERT_FALSE(tmp_topo.empty());
 
@@ -1055,7 +1267,7 @@ TEST_F(LocalCommResH2UTest, H2UEdgesEmptyHostPgEid) {
 TEST_F(LocalCommResH2UTest, D2UEdgesSuccessWithBothPlanes) {
   // GenerateD2UEdges 不依赖外部命令，可正常测试
   std::vector<EndpointConfig> edges;
-  GenerateD2UEdges("plane_pg_0_eid", "plane_pg_1_eid", edges);
+  EXPECT_EQ(GenerateD2UEdges("plane_pg_0_eid", "plane_pg_1_eid", edges), SUCCESS);
   ASSERT_EQ(edges.size(), 2U);
   EXPECT_EQ(edges[0].comm_id, "plane_pg_0_eid");
   EXPECT_EQ(edges[0].placement, kPlacementDevice);
@@ -1066,7 +1278,7 @@ TEST_F(LocalCommResH2UTest, D2UEdgesSuccessWithBothPlanes) {
 
 TEST_F(LocalCommResH2UTest, D2UEdgesOnlyPlanePg0) {
   std::vector<EndpointConfig> edges;
-  GenerateD2UEdges("pg0_eid", "", edges);
+  EXPECT_EQ(GenerateD2UEdges("pg0_eid", "", edges), SUCCESS);
   ASSERT_EQ(edges.size(), 1U);
   EXPECT_EQ(edges[0].comm_id, "pg0_eid");
   EXPECT_EQ(edges[0].plane, "plane_pg_0");
@@ -1074,7 +1286,7 @@ TEST_F(LocalCommResH2UTest, D2UEdgesOnlyPlanePg0) {
 
 TEST_F(LocalCommResH2UTest, D2UEdgesNoPlanes) {
   std::vector<EndpointConfig> edges;
-  GenerateD2UEdges("", "", edges);
+  EXPECT_EQ(GenerateD2UEdges("", "", edges), SUCCESS);
   EXPECT_TRUE(edges.empty());
 }
 
@@ -1091,6 +1303,7 @@ TEST_F(LocalCommResH2UTest, IntegrationH2USuccess) {
   DcmiStubSetUrmaDeviceCnt(2, 0);  // 2 UDMA devices for route data generation
   DcmiStubSetSuperPodId(0, 0);
   DcmiStubSetEidCount(2);
+  DcmiStubSetMeshDieId(1);
   DsmiStubSetUbDevName("udmac1d1e2");
 
   std::string data_dir = GetTestDataDir();

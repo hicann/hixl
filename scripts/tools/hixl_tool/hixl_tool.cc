@@ -10,13 +10,13 @@
 
 /**
  * @file hixl_tool.cc
- * @brief hixl_tool 子命令分发入口
+ * @brief hixl_tool subcommand dispatcher
  *
- * 用法：
+ * Usage:
  *   hixl_tool host_route [--output <dir>]
  *   hixl_tool local_comm_res --topo_file_path <path> [options...]
  *
- * route_data 由 DSMI + urma_admin + DCMI 自动生成，local_comm_res 不再依赖 host_route.json。
+ * route_data is generated via DSMI + urma_admin + DCMI; local_comm_res no longer depends on host_route.json.
  */
 
 #include <cstdio>

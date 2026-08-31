@@ -10,12 +10,12 @@
 
 /**
  * @file local_comm_res_tool.h
- * @brief LocalCommRes 生成工具头文件
+ * @brief LocalCommRes generator header
  *
- * 本工具用于在 HIXL 初始化阶段自动生成本地通信资源信息。
- * 支持 Mesh 层和 CLOS 层 EID 和 Port 的获取。
+ * Generates local communication resource info during HIXL initialization.
+ * Supports Mesh and CLOS layer EID/port collection.
  *
- * DCMI 接口通过 dlopen 方式动态加载 libdcmi.so，避免直接依赖 hal.h
+ * DCMI APIs are loaded from libdcmi.so via dlopen to avoid a direct dependency on hal.h.
  */
 
 #ifndef CANN_HIXL_SRC_HIXL_ENGINE_HIXL_LOCAL_COMM_RES_TOOL_H
@@ -26,11 +26,11 @@
 #include <map>
 #include <set>
 
-// 引入 rootinfo_builder 的数据结构
+// Data structures from rootinfo_builder
 #include "rootinfo_builder_generator_v1.h"
-// 引入 EndpointConfig 定义
+// EndpointConfig definition
 #include "common/hixl_inner_types.h"
-// AscendString 通过 hixl_inner_types.h 间接包含的 hixl_types.h 提供别名（hixl::AscendString）
+// AscendString is aliased via hixl_types.h, included indirectly through hixl_inner_types.h (hixl::AscendString)
 
 namespace hixl {
 
@@ -39,48 +39,48 @@ enum class LocalCommResGenerateMode {
   kDeviceAndHost,
 };
 
-// ============ 端点配置结构 ============
-// EndpointConfig 已通过 hixl_inner_types.h 引入
+// ============ Endpoint config ============
+// EndpointConfig is provided by hixl_inner_types.h
 
 /**
- * @brief LocalCommRes 结构体（替代 JSON 输出）
+ * @brief LocalCommRes structure (replaces JSON output)
  */
 struct LocalCommRes {
-  std::string version;                        // 版本号，默认 "1.3"
-  std::string net_instance_id;                // 网络实例 ID
-  std::vector<EndpointConfig> endpoint_list;  // 端点列表
+  std::string version;                        // Version string, default "1.3"
+  std::string net_instance_id;                // Network instance ID
+  std::vector<EndpointConfig> endpoint_list;  // Endpoint list
 };
 
-// ============ Topology 数据结构 ============
+// ============ Topology data ============
 
 /**
- * @brief Topology 链路结构
+ * @brief Topology link
  */
 struct TopoLink {
-  int32_t net_layer = 0;                   // 网络层级 (0: Mesh, 1: CLOS)
-  std::string link_type;                   // 连接类型: PEER2PEER, PEER2NET
-  std::string topo_type;                   // 拓扑类型: 1DMESH, CLOS
-  int32_t local_a = 0;                     // 本地节点 A
-  int32_t local_b = 0;                     // 本地节点 B
-  int32_t remote_a = -1;                   // 远端节点 A
-  int32_t remote_b = -1;                   // 远端节点 B
-  std::vector<std::string> local_a_ports;  // 本地 A 端口列表（串口标识，如 "die_id/port"）
-  std::vector<std::string> local_b_ports;  // 本地 B 端口列表
+  int32_t net_layer = 0;                   // Network layer (0: Mesh, 1: CLOS)
+  std::string link_type;                   // Link type: PEER2PEER, PEER2NET
+  std::string topo_type;                   // Topology type: 1DMESH, CLOS
+  int32_t local_a = 0;                     // Local node A
+  int32_t local_b = 0;                     // Local node B
+  int32_t remote_a = -1;                   // Remote node A
+  int32_t remote_b = -1;                   // Remote node B
+  std::vector<std::string> local_a_ports;  // Local A ports (serial-port ids such as "die_id/port")
+  std::vector<std::string> local_b_ports;  // Local B ports
 };
 
 struct TopoData {
   std::vector<TopoLink> links;
 };
 
-// ============ Route 数据结构 ============
+// ============ Route data ============
 
 /**
- * @brief Route 条目结构
+ * @brief Route entry
  */
 struct RouteEntry {
-  int32_t device_id = 0;   // 设备 ID
-  std::string local_eid;   // 本地 EID
-  std::string remote_eid;  // 远端 EID
+  int32_t device_id = 0;   // Device ID
+  std::string local_eid;   // Local EID
+  std::string remote_eid;  // Remote EID
 };
 
 struct RouteData {
@@ -88,8 +88,8 @@ struct RouteData {
 };
 
 /**
- * @brief route 数据生成结果
- * 包含 route_data 和同一次生成的 host_pg_eid（8口PG EID，供 H2U 消费）
+ * @brief Result of route data generation
+ * Holds route_data and the host_pg_eid produced in the same pass (8-port PG EID for H2U).
  */
 struct RouteGenResult {
   RouteData route_data;
@@ -97,207 +97,212 @@ struct RouteGenResult {
   std::string host_pg_eid;  // 8-port PG EID for H2U
 };
 
-// ============ 核心接口 ============
+// ============ Core APIs ============
 
 /**
- * @brief 通过 DSMI + urma_admin + DCMI 生成 route_data 与 host_pg_eid
+ * @brief Generate route_data and host_pg_eid via DSMI + urma_admin + DCMI
  *
- * 供 hixl_tool host_route 等离线工具复用；运行时 GenerateLocalCommRes 内部也会调用。
+ * Parses the topo file internally. Mesh die of each NPU is taken from fullmesh ports;
+ * is_server only selects the host EID search strategy.
+ * When topo_path is empty, the default topo path is resolved from phy_dev_id first.
  *
- * @param [in] phy_dev_id 物理设备 ID
- * @param [in] is_server 是否为 Server 产品形态
+ * @param [in] phy_dev_id Physical device ID
+ * @param [in] topo_path Topology JSON path; empty string means use the default topo
+ * @param [in] is_server Whether the product form is Server (host EID search strategy)
  * @param [out] result route_data + related_npu_ids + host_pg_eid
- * @return 成功: SUCCESS, 失败: 其它错误码
+ * @return SUCCESS on success, other error codes on failure
  */
-int32_t GenerateRouteDataViaDsmi(int32_t phy_dev_id, bool is_server, RouteGenResult &result);
+Status GenerateRouteDataViaDsmi(int32_t phy_dev_id, const std::string &topo_path, bool is_server,
+                                RouteGenResult &result);
 
 /**
- * @brief 生成 LocalCommRes 结构体（生产接口，使用默认路径）
- * @param [in] phy_dev_id 物理设备 ID，通过 aclrtGetPhyDevIdByUserDevId 获取
- * @param [out] local_comm_res 输出的 LocalCommRes 结构体
- * @return 成功: SUCCESS, 失败: 其它错误码
+ * @brief Generate LocalCommRes (production API, default paths)
+ * @param [in] phy_dev_id Physical device ID from aclrtGetPhyDevIdByUserDevId
+ * @param [out] local_comm_res Output LocalCommRes
+ * @return SUCCESS on success, other error codes on failure
  */
-int32_t GenerateLocalCommRes(int32_t phy_dev_id, LocalCommRes &local_comm_res);
+Status GenerateLocalCommRes(int32_t phy_dev_id, LocalCommRes &local_comm_res);
 
-int32_t GenerateLocalCommRes(int32_t phy_dev_id, LocalCommResGenerateMode mode, LocalCommRes &local_comm_res);
+Status GenerateLocalCommRes(int32_t phy_dev_id, LocalCommResGenerateMode mode, LocalCommRes &local_comm_res);
 
 /**
- * @brief 生成 LocalCommRes 结构体（测试用重载，允许注入 topo 路径）
- * @param [in] phy_dev_id 物理设备 ID
- * @param [in] topo_path topology 文件路径
- * @param [out] local_comm_res 输出的 LocalCommRes 结构体
- * @return 成功: SUCCESS, 失败: 其它错误码
+ * @brief Generate LocalCommRes (test overload that injects a topo path)
+ * @param [in] phy_dev_id Physical device ID
+ * @param [in] topo_path Topology file path
+ * @param [out] local_comm_res Output LocalCommRes
+ * @return SUCCESS on success, other error codes on failure
  *
- * route_data 通过 DSMI + urma_admin 自动生成，不再读取 route.conf。
+ * route_data is generated via DSMI + urma_admin; route.conf is no longer read.
  */
-int32_t GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, LocalCommRes &local_comm_res);
+Status GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, LocalCommRes &local_comm_res);
 
-int32_t GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, LocalCommResGenerateMode mode,
-                             LocalCommRes &local_comm_res);
+Status GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, LocalCommResGenerateMode mode,
+                            LocalCommRes &local_comm_res);
 
 /**
- * @brief 内部 helper：按 mainboard_id 解析默认 topo 路径
+ * @brief Internal helper: resolve the default topo path from mainboard_id
  *
- * 供 2 参 GenerateLocalCommRes 和 2 参 TransLocalCommRes 共用，避免重复实现。
- * **仅供内部使用**，调用方应保证 phy_dev_id 合法。
+ * Shared by the 2-arg GenerateLocalCommRes and 2-arg TransLocalCommRes.
+ * **Internal use only**; callers must pass a valid phy_dev_id.
  *
- * @param [in]  phy_dev_id 物理设备 ID
- * @param [out] topo_path  默认 topo 目录中匹配到的 topo 文件全路径
- * @return 成功: SUCCESS；失败: GetMainboardId 错误码或 PARAM_INVALID
+ * @param [in]  phy_dev_id Physical device ID
+ * @param [out] topo_path  Full path of the matched topo file in the default topo directory
+ * @return SUCCESS on success; GetMainboardId error or PARAM_INVALID on failure
  */
-int32_t ResolveDefaultLocalCommResPaths(int32_t phy_dev_id, std::string &topo_path);
+Status ResolveDefaultLocalCommResPaths(int32_t phy_dev_id, std::string &topo_path);
 
 /**
- * @brief 生成 LocalCommRes 的 JSON 字符串（lcrgen 工具使用）
+ * @brief Generate LocalCommRes as a JSON string (used by the lcrgen tool)
  *
- * 内部完成 GenerateLocalCommRes（无参版本），把 LocalCommRes 直接序列化为
- * 带 2 空格缩进的 JSON 字符串，再通过 AscendString 返回。**所有 std::string
- * 处理都在 libcann_hixl.so 内部完成**，外层只持有 AscendString
- * （内部封装 shared_ptr<std::string>），跨 .so 边界 ABI 安全。
+ * Runs GenerateLocalCommRes (default-path overload), serializes LocalCommRes as
+ * 2-space-indented JSON, and returns it via AscendString. **All std::string
+ * handling stays inside libcann_hixl.so**; the caller only holds AscendString
+ * (which wraps shared_ptr<std::string>), so the .so boundary stays ABI-safe.
  *
- * @param [in] phy_dev_id 物理设备 ID
- * @param [out] result 成功时填入 JSON 字符串；失败时状态未定义
- * @return 成功: SUCCESS, 失败: 其它错误码
+ * @param [in] phy_dev_id Physical device ID
+ * @param [out] result JSON string on success; undefined on failure
+ * @return SUCCESS on success, other error codes on failure
  */
-int32_t TransLocalCommRes(int32_t phy_dev_id, AscendString &result);
+Status TransLocalCommRes(int32_t phy_dev_id, AscendString &result);
 
 /**
- * @brief 生成 LocalCommRes 的 JSON 字符串（测试用重载，允许注入 topo 路径）
+ * @brief Generate LocalCommRes as a JSON string (test overload that injects a topo path)
  *
- * @param [in] phy_dev_id 物理设备 ID
- * @param [in] topo_path topology 文件路径
- * @param [out] result 成功时填入 JSON 字符串；失败时状态未定义
- * @return 成功: SUCCESS, 失败: 其它错误码
+ * @param [in] phy_dev_id Physical device ID
+ * @param [in] topo_path Topology file path
+ * @param [out] result JSON string on success; undefined on failure
+ * @return SUCCESS on success, other error codes on failure
  */
-int32_t TransLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, AscendString &result);
+Status TransLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, AscendString &result);
 
 /**
- * @brief 将 LocalCommRes 序列化为 JSON 字符串（带 2 空格缩进）
+ * @brief Serialize LocalCommRes to a 2-space-indented JSON string
  *
- * 供 hixl_tool 等外部工具与内部序列化共用，避免重复实现。
+ * Shared by external tools such as hixl_tool and internal serialization.
  *
- * @param [in] local_comm_res 待序列化的 LocalCommRes
- * @param [out] json_str 序列化后的 JSON 字符串
- * @return 成功: SUCCESS, 失败: 其它错误码
+ * @param [in] local_comm_res LocalCommRes to serialize
+ * @param [out] json_str Serialized JSON string
+ * @return SUCCESS on success, other error codes on failure
  */
-int32_t SerializeLocalCommResJson(const LocalCommRes &local_comm_res, std::string &json_str);
+Status SerializeLocalCommResJson(const LocalCommRes &local_comm_res, std::string &json_str);
 
-// ============ DCMI 接口封装 ============
+// ============ DCMI wrappers ============
 
 /**
- * @brief 获取主板 ID
- * @param [in] phy_dev_id 物理设备 ID
- * @param [out] mainboard_id 主板 ID
- * @return 成功: SUCCESS, 失败: 其它错误码
+ * @brief Get mainboard ID
+ * @param [in] phy_dev_id Physical device ID
+ * @param [out] mainboard_id Mainboard ID
+ * @return SUCCESS on success, other error codes on failure
  */
-int32_t GetMainboardId(int32_t phy_dev_id, uint32_t &mainboard_id);
+Status GetMainboardId(int32_t phy_dev_id, uint32_t &mainboard_id);
 
 /**
- * @brief 获取 CLOS 层 net_instance_id
- * @param [in] phy_dev_id 物理设备 ID
- * @param [out] net_instance_id 输出的 net_instance_id，格式为 "superpod_{super_pod_id}"
- * @return 成功: SUCCESS, 失败: 其它错误码
+ * @brief Get CLOS-layer net_instance_id
+ * @param [in] phy_dev_id Physical device ID
+ * @param [out] net_instance_id Output net_instance_id, format "superpod_{super_pod_id}"
+ * @return SUCCESS on success, other error codes on failure
  */
-int32_t GetClosNetInstanceId(int32_t phy_dev_id, std::string &net_instance_id);
+Status GetClosNetInstanceId(int32_t phy_dev_id, std::string &net_instance_id);
 
-// ============ 文件解析接口 ============
+// ============ File parsing ============
 
 /**
- * @brief 解析 topology 文件
- * @param [in] topo_path topology 文件路径
- * @param [out] topo_data 解析后的 topology 数据
- * @return 成功: SUCCESS, 失败: 其它错误码
+ * @brief Parse a topology file
+ * @param [in] topo_path Topology file path
+ * @param [out] topo_data Parsed topology data
+ * @return SUCCESS on success, other error codes on failure
  */
-int32_t ParseTopoFile(const std::string &topo_path, TopoData &topo_data);
+Status ParseTopoFile(const std::string &topo_path, TopoData &topo_data);
 
 /**
- * @brief 解析 route.conf 文件
- * @param [in] route_path route.conf 文件路径
- * @param [out] route_data 解析后的 route 数据
- * @return 成功: SUCCESS, 失败: 其它错误码
+ * @brief Parse a route.conf file
+ * @param [in] route_path route.conf file path
+ * @param [out] route_data Parsed route data
+ * @return SUCCESS on success, other error codes on failure
  */
-int32_t ParseRouteFile(const std::string &route_path, RouteData &route_data);
+Status ParseRouteFile(const std::string &route_path, RouteData &route_data);
 
-// ============ 边生成接口 ============
+// ============ Edge generation ============
 
 /**
- * @brief 生成 D2D 直连边（Device to Device）
- * @param [in] topo_data topology 数据
- * @param [in] npu_rootinfos 所有相关 NPU 的 rootinfo 映射
- * @param [in] phy_id 当前 NPU 物理 ID
- * @param [out] edges 生成的边列表
- * @return 成功: SUCCESS, 失败: 其它错误码
+ * @brief Generate D2D direct edges (Device to Device)
+ * @param [in] topo_data Topology data
+ * @param [in] npu_rootinfos Rootinfo map of related NPUs
+ * @param [in] phy_id Current NPU physical ID
+ * @param [out] edges Generated edges
+ * @return SUCCESS on success, other error codes on failure
  */
-int32_t GenerateD2DEdges(const TopoData &topo_data, const std::map<int32_t, NpuRootInfo> &npu_rootinfos, int32_t phy_id,
-                         std::vector<EndpointConfig> &edges);
+Status GenerateD2DEdges(const TopoData &topo_data, const std::map<int32_t, NpuRootInfo> &npu_rootinfos, int32_t phy_id,
+                        std::vector<EndpointConfig> &edges);
 
 /**
- * @brief 生成 D2U 非直连边（Device to UB Gateway）
- * @param [in] plane_pg_0_eid plane_pg_0 的 EID
- * @param [in] plane_pg_1_eid plane_pg_1 的 EID
- * @param [out] d2u_edges 生成的边列表
+ * @brief Generate D2U indirect edges (Device to UB Gateway)
+ * @param [in] plane_pg_0_eid plane_pg_0 EID
+ * @param [in] plane_pg_1_eid plane_pg_1 EID
+ * @param [out] d2u_edges Generated edges
+ * @return SUCCESS on success, other error codes on failure
  */
-void GenerateD2UEdges(const std::string &plane_pg_0_eid, const std::string &plane_pg_1_eid,
-                      std::vector<EndpointConfig> &d2u_edges);
+Status GenerateD2UEdges(const std::string &plane_pg_0_eid, const std::string &plane_pg_1_eid,
+                        std::vector<EndpointConfig> &d2u_edges);
 
 /**
- * @brief 生成 H2D 直连边（Host to Device）
- * @param [in] route_data route 数据
- * @param [out] edges 生成的边列表
- * @return 成功: SUCCESS, 失败: 其它错误码
+ * @brief Generate H2D direct edges (Host to Device)
+ * @param [in] route_data Route data
+ * @param [out] edges Generated edges
+ * @return SUCCESS on success, other error codes on failure
  */
-int32_t GenerateH2DEdges(const RouteData &route_data, std::vector<EndpointConfig> &edges);
+Status GenerateH2DEdges(const RouteData &route_data, std::vector<EndpointConfig> &edges);
 
 /**
- * @brief 生成 D2H 直连边（Device to Host）
- * @param [in] route_data route 数据
- * @param [in] phy_dev_id 当前 NPU 物理 ID，只取 device_id 匹配的条目
- * @param [out] edges 生成的边列表
- * @return 成功: SUCCESS, 失败: 其它错误码
+ * @brief Generate D2H direct edges (Device to Host)
+ * @param [in] route_data Route data
+ * @param [in] phy_dev_id Current NPU physical ID; only matching device_id entries are used
+ * @param [out] edges Generated edges
+ * @return SUCCESS on success, other error codes on failure
  */
-int32_t GenerateD2HEdges(const RouteData &route_data, int32_t phy_dev_id, std::vector<EndpointConfig> &edges);
+Status GenerateD2HEdges(const RouteData &route_data, int32_t phy_dev_id, std::vector<EndpointConfig> &edges);
 
 /**
- * @brief 生成 H2U 非直连边（Host to UB Gateway）
- * @param [in] host_pg_eid Host 8-port PG EID（由 GenerateRouteDataViaDsmi 计算）
- * @param [in] plane_pg_0_eid plane_pg_0 的 EID
- * @param [in] plane_pg_1_eid plane_pg_1 的 EID
- * @param [out] h2u_edges 生成的边列表
- * @return 成功: SUCCESS, 失败: 其它错误码
+ * @brief Generate H2U indirect edges (Host to UB Gateway)
+ * @param [in] host_pg_eid Host 8-port PG EID (from GenerateRouteDataViaDsmi)
+ * @param [in] plane_pg_0_eid plane_pg_0 EID
+ * @param [in] plane_pg_1_eid plane_pg_1 EID
+ * @param [out] h2u_edges Generated edges
+ * @return SUCCESS on success, other error codes on failure
  */
-int32_t GenerateH2UEdges(const std::string &host_pg_eid, const std::string &plane_pg_0_eid,
-                         const std::string &plane_pg_1_eid, std::vector<EndpointConfig> &h2u_edges);
+Status GenerateH2UEdges(const std::string &host_pg_eid, const std::string &plane_pg_0_eid,
+                        const std::string &plane_pg_1_eid, std::vector<EndpointConfig> &h2u_edges);
 
 /**
- * @brief 根据 topo 数据获取某个 NPU 的 CLOS PG EID 对应的 port 数量
- * @param [in] topo_data topology 数据
- * @param [in] phy_id NPU 物理 ID
+ * @brief Get CLOS PG EID port count for an NPU from topo data
+ * @param [in] topo_data Topology data
+ * @param [in] phy_id NPU physical ID
  * @param [in] clos_pg_eid CLOS PG EID
- * @return port 数量，失败返回 -1
+ * @return Port count, or -1 on failure
  */
 int32_t GetClosPgPortCount(const TopoData &topo_data, int32_t phy_id, const std::string &clos_pg_eid);
 
-// ============ ProcfsRouteHandler 类 ============
+// ============ ProcfsRouteHandler ============
 
 /**
- * @brief Procfs 路由处理器（用于 route.conf 不存在时的 fallback）
- * 通过读写 /proc/ascend_ub 或 /proc/asdrv_ub 获取路由信息
+ * @brief Procfs route handler (fallback when route.conf is missing)
+ * Reads/writes /proc/ascend_ub or /proc/asdrv_ub to obtain route info
  */
 class ProcfsRouteHandler {
  public:
   ProcfsRouteHandler();
   /**
-   * @brief 构造时显式指定 proc 根目录
-   * @param [in] proc_base_path 注入的 proc 根目录；空字符串表示走默认双路径自动发现
+   * @brief Construct with an explicit proc root directory
+   * @param [in] proc_base_path Injected proc root; empty string means default dual-path auto-discovery
    */
   explicit ProcfsRouteHandler(std::string proc_base_path);
   ~ProcfsRouteHandler();
 
-  // 通过 procfs 生成路由数据
-  int32_t GenerateRouteData(const std::set<int32_t> &related_npu_ids, RouteData &route_data) const;
+  // Generate route data via procfs
+  Status GenerateRouteData(const std::set<int32_t> &related_npu_ids, RouteData &route_data) const;
 
  private:
-  // 私有辅助方法
+  // Private helpers
   std::string FindProcBasePath() const;
   static bool ReadFileToString(const std::string &path, std::string &content);
   static bool WriteStringToFile(const std::string &path, const std::string &content);
@@ -310,18 +315,18 @@ class ProcfsRouteHandler {
                                       std::vector<std::string> &local_eids, std::vector<std::string> &remote_eids);
   bool ParsePairInfoForDevice(const std::string &pair_info_content, int32_t npu_id, int32_t &slot_id,
                               std::string &local_eid, std::string &remote_eid) const;
-  int32_t ProcessNpuProcfsRoute(int32_t npu_id, const std::string &dev_id_path, const std::string &pair_info_path,
-                                RouteEntry &entry) const;
+  Status ProcessNpuProcfsRoute(int32_t npu_id, const std::string &dev_id_path, const std::string &pair_info_path,
+                               RouteEntry &entry) const;
 
-  // 显式注入的 proc 根目录；空字符串表示走默认 ascend_ub / asdrv_ub 自动发现
+  // Explicitly injected proc root; empty string means default ascend_ub / asdrv_ub auto-discovery
   std::string injected_proc_base_path_;
 };
 
-// ============ TopoFileFinder 类 ============
+// ============ TopoFileFinder ============
 
 /**
- * @brief Topo 文件查找器
- * 根据产品形态（mainboard_id）在指定目录下查找匹配的 topo 文件
+ * @brief Topology file finder
+ * Finds a matching topo file in a directory based on product form (mainboard_id)
  */
 class TopoFileFinder {
  public:
@@ -329,15 +334,15 @@ class TopoFileFinder {
   ~TopoFileFinder();
 
   /**
-   * @brief 根据 mainboard_id 查找匹配的 topo 文件
-   * @param [in] topo_dir topo 文件目录
-   * @param [in] mainboard_id 主板 ID
-   * @return 匹配的 topo 文件路径，失败返回空字符串
+   * @brief Find a matching topo file by mainboard_id
+   * @param [in] topo_dir Topology file directory
+   * @param [in] mainboard_id Mainboard ID
+   * @return Matched topo file path, or empty string on failure
    */
   static std::string FindTopoFile(const std::string &topo_dir, uint32_t mainboard_id);
 
   /**
-   * @brief 判断 mainboard_id 是否为 Server 产品形态
+   * @brief Whether mainboard_id is a Server product form
    */
   static bool IsProductServer(uint32_t mainboard_id);
 

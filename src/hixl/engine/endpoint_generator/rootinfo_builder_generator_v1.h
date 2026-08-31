@@ -10,11 +10,11 @@
 
 /**
  * @file root_info_builder.h
- * @brief RootInfo 构建模块
+ * @brief RootInfo builder module
  *
- * 提供根据 NPU ID 构建 RootInfo 的功能，包括：
- * - 调用 DCMI 接口获取 URMA 设备信息
- * - 根据产品形态构建 port 到 EID 的映射
+ * Builds RootInfo from an NPU ID, including:
+ * - Calling DCMI to obtain URMA device info
+ * - Building port-to-EID maps from product form
  */
 
 #ifndef CANN_HIXL_SRC_HIXL_ENGINE_HIXL_ROOTINFO_BUILDER_H
@@ -29,96 +29,86 @@
 
 namespace hixl {
 
-// ============ 错误码定义 ============
-// 使用 hixl_types.h 中定义的全局状态码：
-//   SUCCESS              — 成功
-//   PARAM_INVALID        — 参数无效（文件未找到、JSON 解析失败等）
-//   FAILED               — 内部失败（DCMI 接口失败、无 EID 等）
+// ============ Error codes ============
+// Global status codes from hixl_types.h:
+//   SUCCESS              — success
+//   PARAM_INVALID        — invalid argument (file not found, JSON parse failure, etc.)
+//   FAILED               — internal failure (DCMI API failure, no EID, etc.)
 
-// ============ URMA Device 数据结构 ============
+// ============ URMA Device data ============
 
 /**
- * @brief URMA Device 结构
- * 每个 URMA Device 包含多个 EID，die_id 从第一个 EID 获取
+ * @brief URMA Device
+ * Each URMA Device contains multiple EIDs; die_id is taken from the first EID
  */
 struct UrmaDevice {
-  std::string name;                   // 设备名称，如 "udma0"
-  std::vector<std::string> eid_list;  // 该设备下的所有 EID 列表
+  std::string name;                   // Device name, e.g. "udma0"
+  std::vector<std::string> eid_list;  // All EIDs on this device
 };
 
-// ============ RootInfo 数据结构 ============
+// ============ RootInfo data ============
 
 /**
- * @brief CLOS PG EID 信息
+ * @brief CLOS PG EID info
  */
 struct ClosPgEidInfo {
   std::string eid;  // CLOS PG EID
-  int32_t die_id;   // 该 PG EID 对应的 die_id
+  int32_t die_id;   // die_id of this PG EID
 };
 
 /**
- * @brief NPU 串口到 EID 的映射信息
- * key: 串口标识 "die_id/port"
- * value: 对应的 EID 字符串
+ * @brief NPU serial-port to EID mapping
+ * key: serial-port id "die_id/port"
+ * value: corresponding EID string
  */
 struct NpuRootInfo {
-  std::map<std::string, std::string> port_to_eid;  // Mesh 层串口到 EID 映射
-  std::vector<ClosPgEidInfo> clos_pg_eids;         // CLOS 层 PG EID 列表（可能有多个）
+  std::map<std::string, std::string> port_to_eid;  // Mesh-layer serial-port to EID map
+  std::vector<ClosPgEidInfo> clos_pg_eids;         // CLOS-layer PG EID list (may have more than one)
 };
 
 /**
- * @brief EID 第6字节解析结果
+ * @brief Parsed EID byte-6 fields
  */
 struct EidByte6Info {
-  uint8_t byte6;        // 原始第6字节值
-  uint8_t high_nibble;  // 高4位
-  uint8_t low_nibble;   // 低4位
-  uint8_t die_id;       // die_id (0 或 1)
-  bool is_pg_eid;       // 是否为 PG EID (串口组)
-  int32_t port;         // port 值 (0-15)
+  uint8_t byte6;        // Raw byte-6 value
+  uint8_t high_nibble;  // High 4 bits
+  uint8_t low_nibble;   // Low 4 bits
+  uint8_t die_id;       // die_id (0 or 1)
+  bool is_pg_eid;       // Whether this is a PG EID (port group)
+  int32_t port;         // port value (0-15)
 };
 
-// ============ EID 解析辅助函数 ============
+// ============ EID parse helpers ============
 
 /**
- * @brief 解析 EID 的第6字节
- * @param [in] eid 字符串格式 EID
- * @return EidByte6Info 解析结果
+ * @brief Parse byte 6 of an EID
+ * @param [in] eid EID string
+ * @return Parsed EidByte6Info
  */
 EidByte6Info ParseEidByte6(const std::string &eid);
 
-// ============ RootInfo 构建接口 ============
+// ============ RootInfo build APIs ============
 
 /**
- * @brief 根据 NPU ID 构建 RootInfo
+ * @brief Build RootInfo from an NPU ID
  * @param [in] npu_id NPU ID
- * @param [in] is_server 是否为 Server 产品形态
- * @param [out] root_info 输出的 RootInfo 结构
- * @return 成功: SUCCESS, 失败: 其它错误码
+ * @param [in] mesh_die_id Mesh-layer die_id (from topo, not product-form assumptions)
+ * @param [in] clos_die_id CLOS-layer die_id (from topo, marks plane_pg_0 source)
+ * @param [out] root_info Output RootInfo
+ * @return SUCCESS on success, other error codes on failure
  *
- * 该函数内部调用 DCMI 接口获取 URMA 设备信息，
- * 并根据产品形态构建 port 到 EID 的映射。
+ * Internally calls DCMI to obtain URMA devices, then builds the port-to-EID map
+ * using mesh_die_id / clos_die_id.
  */
-int32_t BuildNpuRootInfo(int32_t npu_id, bool is_server, NpuRootInfo &root_info);
+Status BuildNpuRootInfo(int32_t npu_id, int32_t mesh_die_id, int32_t clos_die_id, NpuRootInfo &root_info);
 
 /**
- * @brief 获取 URMA Device 列表
+ * @brief Get URMA Device list
  * @param [in] npu_id NPU ID
- * @param [out] urma_devices URMA Device 列表
- * @return 成功: SUCCESS, 失败: 其它错误码
+ * @param [out] urma_devices URMA Device list
+ * @return SUCCESS on success, other error codes on failure
  */
-int32_t GetUrmaDeviceList(int32_t npu_id, std::vector<UrmaDevice> &urma_devices);
-
-/**
- * @brief 确定 Mesh 层的 die_id
- * @param npu_id NPU ID
- * @param is_server 是否为 Server 产品形态
- * @return Mesh 层所在的 die_id
- *
- * Server: Mesh 在 1die
- * Pod: 根据 npu_id % 8 判断，0-3 在 0die，4-7 在 1die
- */
-int32_t GetMeshDieId(int32_t npu_id, bool is_server);
+Status GetUrmaDeviceList(int32_t npu_id, std::vector<UrmaDevice> &urma_devices);
 
 }  // namespace hixl
 

@@ -10,10 +10,10 @@
 
 /**
  * @file local_comm_res.cc
- * @brief hixl_tool local_comm_res 子命令实现
+ * @brief hixl_tool local_comm_res subcommand
  *
- * 生成逻辑统一走 EndpointGenerator::AutoGenEndpointList（按 SoC 类型分发，A5 缺省 topo 逻辑在内）。
- * 本文件仅负责 CLI 解析、批量 device、生成 LocalCommRes、写 JSON 与日志。
+ * Generation goes through EndpointGenerator::AutoGenEndpointList (SoC dispatch; A5 default topo is inside).
+ * This file only handles CLI parsing, batch devices, LocalCommRes generation, JSON write, and logs.
  */
 
 #include "local_comm_res.h"
@@ -91,7 +91,7 @@ std::vector<std::string> SplitProtocolDesc(const std::string &protocol_desc) {
   return tokens;
 }
 
-// 解析 --device_id 的逗号分隔数字列表；失败返回 false
+// Parse a comma-separated --device_id list; return false on failure.
 bool ParseDeviceIdArg(const std::string &id_str, LocalCommResArgs &args) {
   args.device_id_specified = true;
   std::istringstream iss(id_str);
@@ -199,15 +199,16 @@ bool WriteLocalCommResJson(const std::string &output_path, const hixl::LocalComm
   return true;
 }
 
-// 为指定 device 生成 LocalCommRes：构造 HixlOptions（protocol_desc）并走 AutoGenEndpointList
-// 目标 device 依赖调用方已 aclrtSetDevice；device_id/phyid 由引擎内部经 aclrtGetDevice 获取
+// Generate LocalCommRes for a device: build HixlOptions (protocol_desc) and call AutoGenEndpointList.
+// Caller must have set the device with aclrtSetDevice; device_id/phyid are obtained via aclrtGetDevice inside the
+// engine.
 bool GenerateLocalCommResForDevice(int32_t device_id, const std::string &topo_path,
                                    const std::vector<std::string> &protocol_tokens,
                                    hixl::LocalCommRes &local_comm_res) {
   local_comm_res = hixl::LocalCommRes{};
   local_comm_res.version = "1.3";
 
-  // 把 protocol_desc 拼进 GlobalResourceConfig 构造 HixlOptions（扁平 key 形式，见 HixlOptions::from_json）
+  // Put protocol_desc into GlobalResourceConfig to build HixlOptions (flat keys; see HixlOptions::from_json).
   nlohmann::json config = nlohmann::json::object();
   if (!protocol_tokens.empty()) {
     config["comm_resource_config.protocol_desc"] = nlohmann::json::array();
@@ -224,7 +225,7 @@ bool GenerateLocalCommResForDevice(int32_t device_id, const std::string &topo_pa
   }
 
   std::vector<hixl::EndpointConfig> endpoint_list;
-  // local_engine 传空占位（工具当前仅 A5 自动生成）
+  // local_engine is an empty placeholder (the tool currently auto-generates A5 only).
   const hixl::Status ret = hixl::EndpointGenerator::AutoGenEndpointList(options, "", endpoint_list, topo_path);
   if (ret != hixl::SUCCESS) {
     std::fprintf(stderr, "[ERROR] AutoGenEndpointList failed for device_id=%d, ret=%u\n", device_id,
@@ -236,7 +237,7 @@ bool GenerateLocalCommResForDevice(int32_t device_id, const std::string &topo_pa
     return false;
   }
 
-  // net_instance_id 从已生成端点回填
+  // Backfill net_instance_id from generated endpoints.
   for (const auto &ep : endpoint_list) {
     if (!ep.net_instance_id.empty()) {
       local_comm_res.net_instance_id = ep.net_instance_id;
@@ -247,7 +248,7 @@ bool GenerateLocalCommResForDevice(int32_t device_id, const std::string &topo_pa
   return true;
 }
 
-// 为单个 device 生成 LocalCommRes 并写文件；失败返回 false
+// Generate LocalCommRes for one device and write the file; return false on failure.
 bool ProcessOneDevice(int32_t device_id, const LocalCommResArgs &args,
                       const std::vector<std::string> &protocol_tokens) {
   aclError acl_ret = aclrtSetDevice(device_id);

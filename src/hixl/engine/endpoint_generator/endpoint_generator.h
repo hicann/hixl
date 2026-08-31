@@ -33,15 +33,15 @@ class EndpointGenerator {
   static Status DeserializeEndpointConfigList(const std::string &json_str, std::vector<EndpointConfig> &endpoint_list);
 
   /**
-   * @brief 按 SoC 类型分发生成默认 endpoint 列表（A5: ub_rtp/uboe + ub_ctp；V2/V3: roce/hccs）
+   * @brief Dispatch default endpoint generation by SoC type (A5: ub_rtp/uboe + ub_ctp; V2/V3: roce/hccs)
    *
-   * 调用前需通过 aclrtSetDevice 设置目标 device（内部经 aclrtGetDevice 获取 device_id）。
+   * Caller must set the target device with aclrtSetDevice first (device_id is read via aclrtGetDevice).
    *
-   * @param [in] options 已解析的 HixlOptions（含 protocol_desc）
-   * @param [in] local_engine 本地监听地址（V2/V3 生成 net_instance_id 用；A5 传空即可）
-   * @param [out] endpoint_list 生成的端点列表
-   * @param [in] topo_path 拓扑文件路径；空表示使用默认 topo 查找
-   * @return 成功: SUCCESS, 失败: 其它错误码
+   * @param [in] options Parsed HixlOptions (includes protocol_desc)
+   * @param [in] local_engine Local listen address (used for V2/V3 net_instance_id; A5 may pass empty)
+   * @param [out] endpoint_list Generated endpoint list
+   * @param [in] topo_path Topology file path; empty means default topo lookup
+   * @return SUCCESS on success, other error codes on failure
    */
   static Status AutoGenEndpointList(const HixlOptions &options, const std::string &local_engine,
                                     std::vector<EndpointConfig> &endpoint_list, const std::string &topo_path = "");

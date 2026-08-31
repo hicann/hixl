@@ -68,11 +68,9 @@ bool IsUbgInterconType(uint32_t intercon_type) {
 Status GetScaleOutNetInstanceId(int32_t logic_dev_id, std::string &net_instance_id) {
   DcmiSpodInfo spod_info = {};
   uint32_t buf_size = sizeof(DcmiSpodInfo);
-  int32_t ret = DcmiProxy::GetDeviceInfo(static_cast<uint32_t>(logic_dev_id), kDcmiMainCmdChipInf, kDcmiSubCmdSpodInfo,
-                                         &spod_info, &buf_size);
-  HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED,
-                           "Failed to get spod info for ScaleOut net_instance_id, logic_dev_id=%d, ret=%d",
-                           logic_dev_id, ret);
+  HIXL_CHK_STATUS_RET(DcmiProxy::GetDeviceInfo(static_cast<uint32_t>(logic_dev_id), kDcmiMainCmdChipInf,
+                                               kDcmiSubCmdSpodInfo, &spod_info, &buf_size),
+                      "Failed to get spod info for ScaleOut net_instance_id, logic_dev_id=%d", logic_dev_id);
   net_instance_id = std::string(kSuperPodNetInstancePrefix) + std::to_string(spod_info.super_pod_id);
   return SUCCESS;
 }
@@ -94,13 +92,13 @@ bool IsUbgEid(const DcmiUrmaEidInfo &eid_info) {
 Status GetUbgEidFromDcmi(uint32_t logic_id, std::string &eid) {
   HIXL_LOGI("[GetUbgEidFromDcmi] start, logic_id=%u", logic_id);
   uint32_t dev_cnt = 0;
-  HIXL_CHK_BOOL_RET_STATUS(DcmiProxy::GetUrmaDeviceCnt(logic_id, &dev_cnt) == 0, FAILED,
-                           "GetUrmaDeviceCnt failed, logic_id=%u", logic_id);
+  HIXL_CHK_STATUS_RET(DcmiProxy::GetUrmaDeviceCnt(logic_id, &dev_cnt), "GetUrmaDeviceCnt failed, logic_id=%u",
+                      logic_id);
   for (uint32_t dev_index = 0; dev_index < dev_cnt; ++dev_index) {
     DcmiUrmaEidInfo eid_list[kMaxEidPerUe];
     int32_t eid_cnt = kMaxEidPerUe;
-    HIXL_CHK_BOOL_RET_STATUS(DcmiProxy::GetEidList(logic_id, static_cast<int32_t>(dev_index), eid_list, &eid_cnt) == 0,
-                             FAILED, "GetEidList failed, logic_id=%u, urma_dev_index=%u", logic_id, dev_index);
+    HIXL_CHK_STATUS_RET(DcmiProxy::GetEidList(logic_id, static_cast<int32_t>(dev_index), eid_list, &eid_cnt),
+                        "GetEidList failed, logic_id=%u, urma_dev_index=%u", logic_id, dev_index);
     HIXL_CHK_BOOL_RET_STATUS(eid_cnt >= 0 && eid_cnt <= kMaxEidPerUe, FAILED,
                              "GetEidList returned invalid eid_cnt=%d, logic_id=%u, urma_dev_index=%u", eid_cnt,
                              logic_id, dev_index);
@@ -197,7 +195,7 @@ Status GenScaleOutEndpoint(ProtocolDescMode mode, std::vector<EndpointConfig> &e
 Status GenerateScaleOutEndpointByInterconType(int32_t user_dev_id, std::vector<EndpointConfig> &endpoint_list) {
   int32_t logic_dev_id = 0;
   HIXL_CHK_ACL_RET(aclrtGetLogicDevIdByUserDevId(user_dev_id, &logic_dev_id));
-  // DSMI InterconType 未就绪时回退到 UB 自动生成，endpoint_list 为空由上层兜底
+  // When DSMI InterconType is not ready, fall back to UB auto-gen; empty endpoint_list is handled by the caller.
   if (!DsmiProxy::IsInterconTypeSupported()) {
     HIXL_LOGW(
         "[EndpointGenerator] DSMI InterconType not supported yet, fallback to existing UB generation, "
@@ -453,7 +451,7 @@ ProtocolDescMode ParseProtocolDescMode(const std::vector<std::string> &protocol_
   return ProtocolDescMode::kNone;
 }
 
-// 与 IsA5UbAutoGenNeeded / GetA5UbGenerateMode 等价，入参为已拆分 protocol_desc
+// Equivalent to IsA5UbAutoGenNeeded / GetA5UbGenerateMode; takes a split protocol_desc.
 Status ResolveUbCtpNeedAndMode(const std::vector<std::string> &protocol_desc, bool &ub_needed,
                                LocalCommResGenerateMode &mode) {
   ub_needed = false;
@@ -494,7 +492,7 @@ Status FilterEndpointsByProtocolDescList(const std::vector<std::string> &protoco
   return SUCCESS;
 }
 
-// protocol_desc 非空时按显式模式生成 ScaleOut（ub_rtp/uboe）端点
+// When protocol_desc is non-empty, generate ScaleOut (ub_rtp/uboe) endpoints in the explicit mode.
 Status GenScaleOutByProtocolDesc(int32_t device_id, const std::vector<std::string> &protocol_desc,
                                  std::vector<EndpointConfig> &endpoint_list) {
   const ProtocolDescMode mode = ParseProtocolDescMode(protocol_desc);
@@ -523,7 +521,7 @@ Status GenScaleOutByProtocolDesc(int32_t device_id, const std::vector<std::strin
   return SUCCESS;
 }
 
-// 按 protocol_desc 生成 ScaleOut 端点（空时按 InterconType 自动选择）
+// Generate ScaleOut endpoints from protocol_desc (auto-select by InterconType when empty).
 Status GenAutoScaleOutEndpoints(int32_t device_id, const std::vector<std::string> &protocol_desc,
                                 std::vector<EndpointConfig> &endpoint_list) {
   if (protocol_desc.empty()) {
@@ -532,7 +530,7 @@ Status GenAutoScaleOutEndpoints(int32_t device_id, const std::vector<std::string
   return GenScaleOutByProtocolDesc(device_id, protocol_desc, endpoint_list);
 }
 
-// 按需生成 ub_ctp 端点并合并进 endpoint_list
+// Generate ub_ctp endpoints on demand and merge them into endpoint_list.
 Status AppendUbCtpEndpoints(int32_t phy_dev_id, const std::string &topo_path,
                             const std::vector<std::string> &protocol_desc, std::vector<EndpointConfig> &endpoint_list,
                             std::string &net_instance_id) {
@@ -557,7 +555,7 @@ Status AppendUbCtpEndpoints(int32_t phy_dev_id, const std::string &topo_path,
   return SUCCESS;
 }
 
-// net_instance_id 为空时从已生成端点中回填
+// Fill net_instance_id from generated endpoints when it is still empty.
 void FillNetInstanceIdIfEmpty(std::vector<EndpointConfig> &endpoint_list, std::string &net_instance_id) {
   if (!net_instance_id.empty()) {
     return;
@@ -570,7 +568,7 @@ void FillNetInstanceIdIfEmpty(std::vector<EndpointConfig> &endpoint_list, std::s
   }
 }
 
-// AutoGenA5 公共核：显式 device/phy/topo/protocol_desc
+// Shared AutoGenA5 core: explicit device/phy/topo/protocol_desc.
 Status AutoGenA5Core(int32_t device_id, int32_t phy_dev_id, const std::string &topo_path,
                      const std::vector<std::string> &protocol_desc, std::vector<EndpointConfig> &endpoint_list,
                      std::string &net_instance_id) {
@@ -700,7 +698,7 @@ Status EndpointGenerator::AutoGenA5EndpointList(const HixlOptions &options, std:
 
   HIXL_LOGI("[AutoGenEndpointList] A5 auto-generate: device_id=%d, phy_id=%d", device_id, phy_id);
   std::string net_instance_id;
-  // topo_path 为空：使用默认 topo；protocol_desc 来自 options
+  // Empty topo_path uses the default topo; protocol_desc comes from options.
   HIXL_CHK_STATUS_RET(
       AutoGenA5Core(device_id, phy_id, topo_path, options.GetProtocolDesc(), endpoint_list, net_instance_id),
       "[AutoGenEndpointList] AutoGenA5Core failed");
@@ -715,7 +713,7 @@ Status EndpointGenerator::AutoGenEndpointList(const HixlOptions &options, const 
   endpoint_list.clear();
 
   if (soc_type == SocType::kV5) {
-    // AutoGenA5Core 内部已按 protocol_desc 过滤，此处不再重复 Filter
+    // AutoGenA5Core already filters by protocol_desc; do not filter again here.
     HIXL_CHK_STATUS_RET(AutoGenA5EndpointList(options, endpoint_list, topo_path), "AutoGenA5EndpointList failed");
     HIXL_EVENT("[AutoGenEndpointList] ScaleOut generated %zu endpoints", endpoint_list.size());
     return SUCCESS;

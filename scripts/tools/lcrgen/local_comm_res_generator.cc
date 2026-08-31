@@ -134,7 +134,7 @@ int main(int argc, char *argv[]) {
   // lcrgen 工具仅做打印，避免持有 std::string 变量。
   std::cout << "\nCalling TransLocalCommRes(phy_id=" << phy_id << ")...\n";
   hixl::AscendString result;
-  int32_t ret = hixl::TransLocalCommRes(phy_id, result);
+  hixl::Status ret = hixl::TransLocalCommRes(phy_id, result);
   if (ret != hixl::SUCCESS) {
     std::cerr << "TransLocalCommRes failed, ret=" << ret << std::endl;
     aclrtResetDevice(npu_id);

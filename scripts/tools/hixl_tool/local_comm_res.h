@@ -14,10 +14,10 @@
 namespace hixl_tool {
 
 /**
- * @brief local_comm_res 子命令入口
- * @param [in] argc 参数数（不含子命令名）
- * @param [in] argv 参数数组（argv[0] 为子命令名）
- * @return 0 成功，非 0 失败
+ * @brief local_comm_res subcommand entry
+ * @param [in] argc Argument count (excluding the subcommand name)
+ * @param [in] argv Argument vector (argv[0] is the subcommand name)
+ * @return 0 on success, non-zero on failure
  */
 int RunLocalCommRes(int argc, char *argv[]);
 
