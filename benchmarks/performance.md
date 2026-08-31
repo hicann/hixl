@@ -2,6 +2,8 @@
 
 本文档汇总 HIXL 在不同昇腾平台上的通信性能数据，按平台分章节。
 
+> **说明**：NPU 访问 Host 内存时，若该内存与 NPU 不在同一 Host 芯片/NUMA 节点，需经片间互联转发，引入额外时延，带宽随之下降。若 NPU 拓扑存在亲和性差异且测试场景涉及 Host 内存，应设置 CPU 亲和性，使 Host 内存分配在 NPU 亲和的本地 NUMA 节点，以避免该损失。如需测出极致性能，请参考 [Host亲和性设置说明](https://gitcode.com/cann/hixl/wiki/Host%E4%BA%B2%E5%92%8C%E6%80%A7%E8%AE%BE%E7%BD%AE%E8%AF%B4%E6%98%8E.md)。
+
 ---
 
 ## HIXL在昇腾A3芯片上部分场景实测性能数据

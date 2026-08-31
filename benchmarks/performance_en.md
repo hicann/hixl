@@ -2,6 +2,8 @@
 
 This document summarizes HIXL communication performance data across different Ascend platforms, organized by platform chapters.
 
+> **Note**: When an NPU accesses host memory that is not on the same host chip/NUMA node as the NPU, the data must be forwarded over the inter-chip interconnect, which introduces extra latency and reduces bandwidth. If the NPU topology has affinity differences and the test scenario involves host memory, CPU affinity should be set so that host memory is allocated on the NUMA node local to the NPU to avoid this loss. To measure peak performance, refer to [Host Affinity Configuration Guide](https://gitcode.com/cann/hixl/wiki/Host%E4%BA%B2%E5%92%8C%E6%80%A7%E8%AE%BE%E7%BD%AE%E8%AF%B4%E6%98%8E.md).
+
 ---
 
 ## HIXL Measured Performance Data on Ascend A3 Chip in Selected Scenarios
