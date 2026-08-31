@@ -24,7 +24,7 @@ usage() {
   echo "              [--build_type=<Release|Debug> | --build-type=<Release|Debug]"
   echo "              [--cann_3rd_lib_path=<PATH> | --cann-3rd-lib-path=<PATH>]"
   echo "              [--output_path=<PATH> | --output-path=<PATH>]"
-  echo "              [--host] [--asan] [--cov]"
+  echo "              [--host] [--experimental] [--asan] [--cov]"
   echo ""
   echo "Options:"
   echo "    -h, --help        Print usage"
@@ -40,6 +40,7 @@ usage() {
   echo "    --pkg             Build run package, reserved parameter"
   echo "    --examples        Build with examples and benchmarks, default is OFF"
   echo "    --host            Build host package only and skip device build/packaging"
+  echo "    --experimental    Enable experimental features, default is OFF"
   echo "    --asan            Enable AddressSanitizer, default is OFF"
   echo "    --cov             Enable Coverage, default is OFF"
   echo "    --sign-script=<PATH> | --sign_script=<PATH>"
@@ -84,11 +85,12 @@ checkopts() {
   ENABLE_ASAN=OFF
   ENABLE_GCOV=OFF
   HIXL_BUILD_HOST_ONLY=OFF
+  ENABLE_EXPERIMENTAL=OFF
   ENABLE_SIGN=OFF
   CUSTOM_SIGN_SCRIPT=""
 
   # Process the options
-  parsed_args=$(getopt -a -o j:hv -l help,verbose,pkg,pkg-type:,examples,cann_3rd_lib_path:,cann-3rd-lib-path:,output_path:,output-path:,build_type:,build-type:,sign-script:,sign_script:,host,asan,cov,enable_sign,enable-sign -- "$@") || {
+  parsed_args=$(getopt -a -o j:hv -l help,verbose,pkg,pkg-type:,examples,cann_3rd_lib_path:,cann-3rd-lib-path:,output_path:,output-path:,build_type:,build-type:,sign-script:,sign_script:,host,experimental,asan,cov,enable_sign,enable-sign -- "$@") || {
     usage
     exit 1
   }
@@ -138,6 +140,10 @@ checkopts() {
         ;;
       --host)
         HIXL_BUILD_HOST_ONLY=ON
+        shift
+        ;;
+      --experimental)
+        ENABLE_EXPERIMENTAL=ON
         shift
         ;;
       --enable-sign | --enable_sign)
@@ -221,6 +227,7 @@ build() {
         -D ENABLE_ASAN=${ENABLE_ASAN} \
         -D ENABLE_GCOV=${ENABLE_GCOV} \
         -D HIXL_BUILD_HOST_ONLY=${HIXL_BUILD_HOST_ONLY} \
+        -D ENABLE_EXPERIMENTAL=${ENABLE_EXPERIMENTAL} \
         -D ENABLE_SIGN=${ENABLE_SIGN} \
         ${CUSTOM_SIGN_SCRIPT:+-D CUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT}} \
         ${CANN_3RD_LIB_PATH:+-D CANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}} \

@@ -225,6 +225,7 @@ After the build is successful, the `cann-hixl_${cann_version}_linux-${arch}.run`
 | `--pkg-type=<TYPE>` | Specifies the package type (`run`, `rpm`, `deb`, or `all`). | `run` |
 | `--examples` | Builds the sample and benchmark test. | OFF |
 | `--host` | Builds the host package only and skips device build/packaging. | OFF |
+| `--experimental` | Enables experimental features. Code under `src/experimental/` is compiled and packaged when enabled. | OFF |
 | `--asan` | Enables address sanitization for memory leak detection. | OFF |
 | `--cov` | Enables code coverage. | OFF |
 | `--sign-script=<PATH>`<br>`--sign_script=<PATH>` | Sets the path for the signature script. | - |
@@ -237,6 +238,8 @@ When `--host` is specified, the device subproject under `src/ops` is not built, 
 If you use `--host` for source build and runtime deployment, the runtime environment must have the ops full package or a signed hixl subpackage installed in advance, and the source version must match the run package version. A `--host` build does not guarantee cross-version execution compatibility with the runtime environment full package.
 
 For source builds, if you do not modify the source code or your changes do not involve code under `src/ops`, it is recommended to add `--host` for the build.
+
+When `--experimental` is specified, C++ sources under `src/experimental/` are compiled into `libcann_hixl.so`, and Python modules under `src/experimental/python/` are injected into the `hixl` wheel. Disabled by default with no impact on existing functionality.
 
 ## Local Verification (Tests)
 

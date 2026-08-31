@@ -226,6 +226,7 @@ git clone https://gitcode.com/cann/hixl.git
 | `--pkg-type=<TYPE>` | 指定软件包类型（`run`、`rpm`、`deb`或`all`） | `run` |
 | `--examples` | 编译样例和基准测试 | OFF |
 | `--host` | 仅编译host发布件，跳过device编译和打包 | OFF |
+| `--experimental` | 启用实验特性，开启后 `src/experimental/` 下的代码参与编译和打包 | OFF |
 | `--asan` | 启用地址消毒，用于内存泄漏检测 | OFF |
 | `--cov` | 启用代码覆盖率 | OFF |
 | `--sign-script=<PATH>`<br>`--sign_script=<PATH>` | 设置签名脚本的指定路径 | - |
@@ -238,6 +239,8 @@ git clone https://gitcode.com/cann/hixl.git
 如果使用`--host`进行源码编译并部署运行时，需要运行环境提前安装ops整包或者带有签名的hixl子包，并保证源码和run包周版本一致；`--host`编译的run包与运行环境整包无法保证跨版本执行兼容。
 
 源码编译时，如果未修改源码或者修改不涉及`src/ops`下的代码，建议添加`--host`进行编译。
+
+指定`--experimental`时，`src/experimental/`目录下的C++源文件会编入`libcann_hixl.so`，`src/experimental/python/`下的Python模块会注入到`hixl` wheel中。默认关闭，不影响现有功能。
 
 ## 本地验证(tests)
 

@@ -21,6 +21,7 @@ option(ENABLE_HIXL_TOOL "Enable hixl_tool" OFF)
 option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
 option(ENABLE_GCOV "Enable Coverage" OFF)
 option(HIXL_BUILD_HOST_ONLY "Build host package only" OFF)
+option(ENABLE_EXPERIMENTAL "Enable experimental features" OFF)
 
 set(HIXL_CODE_DIR ${PROJECT_SOURCE_DIR})
 

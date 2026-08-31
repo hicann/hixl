@@ -50,18 +50,30 @@ if (NOT ENABLE_TEST)
     )
 
 add_custom_target(hixl_python ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/hixl-0.0.1-py3-none-any.whl)
+
+if (ENABLE_EXPERIMENTAL AND EXISTS "${HIXL_CODE_DIR}/src/experimental/python")
+    set(EXPERIMENTAL_COPY_CMD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${HIXL_CODE_DIR}/src/experimental/python
+            ${CMAKE_CURRENT_BINARY_DIR}/wheel_hixl
+    )
+    set(EXPERIMENTAL_PYTHON_DEPS ${HIXL_CODE_DIR}/src/experimental/python)
+endif()
+
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/hixl-0.0.1-py3-none-any.whl
     COMMAND ${CMAKE_COMMAND} -E echo "package hixl whl start"
+    COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_CURRENT_BINARY_DIR}/wheel_hixl
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/wheel_hixl
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/setup.py ${CMAKE_CURRENT_BINARY_DIR}/wheel_hixl/setup.py
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/MANIFEST.in ${CMAKE_CURRENT_BINARY_DIR}/wheel_hixl/
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/hixl ${CMAKE_CURRENT_BINARY_DIR}/wheel_hixl/hixl
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/hixl.so ${CMAKE_CURRENT_BINARY_DIR}/wheel_hixl/hixl/
+    ${EXPERIMENTAL_COPY_CMD}
     COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_BINARY_DIR}/wheel_hixl ${HI_PYTHON} setup.py bdist_wheel
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/wheel_hixl/dist/hixl-0.0.1-py3-none-any.whl ${CMAKE_CURRENT_BINARY_DIR}/
     COMMAND ${CMAKE_COMMAND} -E echo "package hixl whl end"
-    DEPENDS version_hixl_info hixl
+    DEPENDS version_hixl_info hixl ${EXPERIMENTAL_PYTHON_DEPS}
 )
 
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/hixl-0.0.1-py3-none-any.whl
