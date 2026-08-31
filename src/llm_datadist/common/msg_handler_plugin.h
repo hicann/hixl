@@ -22,6 +22,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <unistd.h>
 #include "acl/acl.h"
 #include "llm_datadist/llm_error_codes.h"
 #include "common/llm_thread_pool.h"

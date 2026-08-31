@@ -11,6 +11,7 @@
 #include "msg_handler_plugin.h"
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
+#include <unistd.h>
 #include <csignal>
 #include "common/llm_utils.h"
 #include "common/llm_checker.h"
