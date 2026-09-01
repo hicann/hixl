@@ -183,7 +183,7 @@ Status GenScaleOutEndpoint(ProtocolDescMode mode, std::vector<EndpointConfig> &e
   }
   EndpointConfig endpoint{};
   if (mode == ProtocolDescMode::kUbg) {
-    HIXL_CHK_STATUS_RET(GenDefaultUbgEndpointConfig(logic_dev_id, endpoint), "GenDefaultUbRtpEndpointConfig failed");
+    HIXL_CHK_STATUS_RET(GenDefaultUbgEndpointConfig(logic_dev_id, endpoint), "GenDefaultUbgEndpointConfig failed");
   } else {
     HIXL_CHK_STATUS_RET(GenDefaultUboeEndpointConfig(logic_dev_id, endpoint), "GenDefaultUboeEndpointConfig failed");
   }
@@ -284,7 +284,8 @@ Status ParseHccsCommId(const std::string &comm_id_str, uint32_t &device_id) {
   for (const unsigned char c : comm_id_str) {
     parsed = parsed * 10U + static_cast<uint64_t>(c - kAsciiDigitZero);
     HIXL_CHK_BOOL_RET_STATUS(parsed <= static_cast<uint64_t>(std::numeric_limits<uint32_t>::max()), PARAM_INVALID,
-                             "hccs comm_id out of range:%s", comm_id_str.c_str());
+                             "hccs comm_id out of range:%s, max:%u", comm_id_str.c_str(),
+                             static_cast<unsigned int>(std::numeric_limits<uint32_t>::max()));
   }
   device_id = static_cast<uint32_t>(parsed);
   return SUCCESS;
@@ -513,7 +514,7 @@ Status GenScaleOutByProtocolDesc(int32_t device_id, const std::vector<std::strin
   }
   EndpointConfig endpoint{};
   if (mode == ProtocolDescMode::kUbg) {
-    HIXL_CHK_STATUS_RET(GenDefaultUbgEndpointConfig(logic_dev_id, endpoint), "GenDefaultUbRtpEndpointConfig failed");
+    HIXL_CHK_STATUS_RET(GenDefaultUbgEndpointConfig(logic_dev_id, endpoint), "GenDefaultUbgEndpointConfig failed");
   } else {
     HIXL_CHK_STATUS_RET(GenDefaultUboeEndpointConfig(logic_dev_id, endpoint), "GenDefaultUboeEndpointConfig failed");
   }

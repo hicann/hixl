@@ -54,7 +54,7 @@ ge::Status HixlEntity::Initialize(int32_t timeout_ms) {
 ge::Status HixlEntity::RecvCacheTableResp(int32_t fd, CacheTableInfo &cache_table_info, int32_t timeout_ms) {
   hixl::CtrlMsgHeader header{};
   LLM_CHK_HIXL_RET(hixl::CtrlMsgPlugin::Recv(fd, &header, static_cast<uint32_t>(sizeof(header)), timeout_ms),
-                   "Failed to recv cache table header, timeout:%d", timeout_ms);
+                   "Failed to recv cache table header, timeout:%d ms", timeout_ms);
   LLM_CHK_BOOL_RET_STATUS(header.magic == hixl::kMagicNumber, ge::LLM_PARAM_INVALID,
                           "Invalid magic:0x%X for cache table resp", header.magic);
   LLM_CHK_BOOL_RET_STATUS(header.body_size == sizeof(hixl::CtrlMsgType) + sizeof(CacheTableInfo), ge::LLM_PARAM_INVALID,

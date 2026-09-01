@@ -1031,7 +1031,7 @@ Status FabricMemControlClient::Disconnect(const std::string &remote_engine, cons
   const Status connect_ret = ConnectToEngine(remote_engine, timeout_ms, conn_fd);
   if (connect_ret != SUCCESS) {
     HIXL_REPORT_ERR_MSG("E19999",
-                        "Call ConnectToEngine(remote_engine, timeout_ms, conn_fd) fail. "
+                        "Call ConnectToEngine(remote_engine, timeout_ms, conn_fd) failed. "
                         "%sconnect remote fabric mem engine failed:%s.",
                         scene_prefix, remote_engine.c_str());
     HIXL_LOGE(connect_ret, "%sconnect remote fabric mem engine failed:%s.", scene_prefix, remote_engine.c_str());

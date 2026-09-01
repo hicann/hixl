@@ -44,10 +44,10 @@ Status ConnectPoolExecutor::Initialize(const HixlOptions &options) {
     task_queue_capacity_ = grc->connect_pool.task_queue_capacity.value_or(kOptionConnectPoolTaskQueueCapacity);
   }
   HIXL_CHK_BOOL_RET_STATUS(thread_num_ >= kLimitThreadNumMin && thread_num_ <= kLimitThreadNumMax, PARAM_INVALID,
-                           "thread_num:%d must in [%d, %d]", thread_num_, kLimitThreadNumMin, kLimitThreadNumMax);
+                           "thread_num:%d must be in [%d, %d]", thread_num_, kLimitThreadNumMin, kLimitThreadNumMax);
   HIXL_CHK_BOOL_RET_STATUS(
       task_queue_capacity_ >= kLimitTaskQueueCapacityMin && task_queue_capacity_ <= kLimitTaskQueueCapacityMax,
-      PARAM_INVALID, "task_queue_capacity:%d must in [%d, %d]", task_queue_capacity_, kLimitTaskQueueCapacityMin,
+      PARAM_INVALID, "task_queue_capacity:%d must be in [%d, %d]", task_queue_capacity_, kLimitTaskQueueCapacityMin,
       kLimitTaskQueueCapacityMax);
 
   HIXL_CHK_STATUS_RET(ctx_.GetCurrentContext(), "Failed to capture acl context");

@@ -17,6 +17,7 @@
 #include "client_runner.h"
 #include "hixl/hixl.h"
 #include "server_runner.h"
+#include "benchmark_log.h"
 
 using hixl_benchmark::BenchmarkConfig;
 using hixl_benchmark::BenchmarkConfigParser;
@@ -66,8 +67,8 @@ std::string FormatPeerCoordPort(const std::string &engine) {
 
 void LogTargetConfig(const BenchmarkConfig &cfg) {
   const std::string peer_coord_port = FormatPeerCoordPort(cfg.local_engine);
-  std::printf(
-      "[INFO] role=target group=%s transport=%s target_memory=%s device_id=%d local_engine=%s "
+  BENCH_LOGI(
+      "role=target group=%s transport=%s target_memory=%s device_id=%d local_engine=%s "
       "peer_tcp_port=%s peer_wait_s=%" PRIu32 " peer_count=%" PRIu32 " buffer_size=%s\n",
       cfg.benchmark_group.c_str(), cfg.transport.c_str(), cfg.target_memory_type.c_str(),
       static_cast<int>(cfg.device_id), cfg.local_engine.c_str(), peer_coord_port.c_str(), cfg.peer_wait_sec,
@@ -79,8 +80,8 @@ void LogInitiatorConfig(const BenchmarkConfig &cfg) {
   const std::string transfer_size = FormatSize(cfg.transfer_size);
   const std::string buffer_size = FormatSize(cfg.buffer_size);
   const std::string peer_coord_port = FormatPeerCoordPort(cfg.remote_engine);
-  std::printf(
-      "[INFO] role=initiator group=%s transport=%s memory=%s remote_memory=%s op=%s direction=%s device_id=%d "
+  BENCH_LOGI(
+      "role=initiator group=%s transport=%s memory=%s remote_memory=%s op=%s direction=%s device_id=%d "
       "local_engine=%s remote_engine=%s peer_tcp_port=%s "
       "transfer_size=%s buffer_size=%s block_sizes=%s loops=%u\n",
       cfg.benchmark_group.c_str(), cfg.transport.c_str(), cfg.initiator_memory_type.c_str(),
@@ -100,15 +101,15 @@ void LogCommBenchConfig(const BenchmarkConfig &cfg) {
     BenchmarkConfigParser::LogExpandedEndpoints(stdout, cfg);
   }
   if (cfg.role == BenchmarkRole::kClient && cfg.loops == 1U) {
-    std::printf(
-        "[INFO] loops=1: the first transfer is often warm-up; for steady throughput use the second repeat's "
+    BENCH_LOGI(
+        "loops=1: the first transfer is often warm-up; for steady throughput use the second repeat's "
         "metrics or set loops>1 (--loops|-n).\n");
   }
 }
 
 int32_t RunCommBench(const BenchmarkConfig &cfg) {
   if (cfg.expanded_device_ids.empty()) {
-    std::fprintf(stderr, "[ERROR] expanded endpoints empty\n");
+    BENCH_LOGE("expanded endpoints empty\n");
     return -1;
   }
   if (cfg.role == BenchmarkRole::kServer) {

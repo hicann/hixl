@@ -384,10 +384,10 @@ Status FabricMemEngine::SendNotify(const AscendString &remote_engine, const Noti
   HIXL_CHK_STATUS_RET(CheckInitialized(), "[FabricMemEngine] Engine is not initialized.");
   TemporaryRtContext with_context(aclrt_context_);
   HIXL_CHK_BOOL_RET_STATUS(notify.name.GetLength() <= kMaxNotifyNameLen, PARAM_INVALID,
-                           "[FabricMemEngine] notify.name length exceed max limit:%zu, current:%zu.", kMaxNotifyNameLen,
-                           notify.name.GetLength());
+                           "[FabricMemEngine] notify.name length exceeds max limit:%zu, current:%zu.",
+                           kMaxNotifyNameLen, notify.name.GetLength());
   HIXL_CHK_BOOL_RET_STATUS(notify.notify_msg.GetLength() <= kMaxNotifyMsgLen, PARAM_INVALID,
-                           "[FabricMemEngine] notify.notify_msg length exceed max limit:%zu, current:%zu.",
+                           "[FabricMemEngine] notify.notify_msg length exceeds max limit:%zu, current:%zu.",
                            kMaxNotifyMsgLen, notify.notify_msg.GetLength());
   HIXL_LOGI("[FabricMemEngine] Sending notify to remote:%s, name:%s", remote_engine.GetString(),
             notify.name.GetString());

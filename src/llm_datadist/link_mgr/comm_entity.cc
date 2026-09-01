@@ -199,7 +199,7 @@ ge::Status EntityCommInfo::Initialize() {
   }
 
   LLM_CHK_BOOL_RET_STATUS(params_.timeout >= 0, ge::LLM_PARAM_INVALID,
-                          "timeout should be greater than or equal 0, given value is %d", params_.timeout);
+                          "timeout should be greater than or equal to 0, given value is %d", params_.timeout);
   LLM_CHK_BOOL_RET_STATUS(
       params_.link_retry_count >= kRetryCountMin && params_.link_retry_count <= kRetryCountMax, ge::LLM_PARAM_INVALID,
       "link_retry_count should be an integer between [1, 100], given value is %d", params_.link_retry_count);
@@ -404,14 +404,16 @@ ge::Status CommEntity::SetRemoteAddresses() {
                           "remote mem num:%zu, expected min:%zu.", remote_mems_.size(), kMinRemoteMemSize);
   LLM_CHK_BOOL_RET_STATUS((remote_mems_[kIndexRemoteReq].type == CommMemType::COMM_MEM_TYPE_HOST) &&
                               (remote_mems_[kIndexRemoteReq].size == kDefaultReqBufferSize),
-                          ge::LLM_LINK_FAILED, "Remote mem type:%s, size:%lu is not valid.",
+                          ge::LLM_LINK_FAILED,
+                          "Remote mem type:%s, size:%lu is not valid, expected type:HOST, expected size:%lu.",
                           CommUtils::ConvertCommMemTypeToString(remote_mems_[kIndexRemoteReq].type).c_str(),
-                          remote_mems_[kIndexRemoteReq].size);
+                          remote_mems_[kIndexRemoteReq].size, kDefaultReqBufferSize);
   LLM_CHK_BOOL_RET_STATUS((remote_mems_[kIndexRemoteResp].type == CommMemType::COMM_MEM_TYPE_HOST) &&
                               (remote_mems_[kIndexRemoteResp].size == kDefaultRespBufferSize),
-                          ge::LLM_LINK_FAILED, "Remote mem type:%s, size:%lu is not valid.",
+                          ge::LLM_LINK_FAILED,
+                          "Remote mem type:%s, size:%lu is not valid, expected type:HOST, expected size:%lu.",
                           CommUtils::ConvertCommMemTypeToString(remote_mems_[kIndexRemoteResp].type).c_str(),
-                          remote_mems_[kIndexRemoteResp].size);
+                          remote_mems_[kIndexRemoteResp].size, kDefaultRespBufferSize);
 
   // only need remote receive area
   // no need check index here.

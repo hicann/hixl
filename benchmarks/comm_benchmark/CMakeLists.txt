@@ -20,6 +20,7 @@ target_compile_features(hixl_comm_bench PRIVATE cxx_std_17)
 target_include_directories(hixl_comm_bench PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/common
+    ${HIXL_CODE_DIR}/benchmarks
     ${HIXL_INC_DIR}
     ${ASCEND_INSTALL_PATH}/include
     ${HIXL_CODE_DIR}/src/llm_datadist

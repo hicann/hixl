@@ -426,7 +426,7 @@ ge::Status LinkMsgHandler::LinkCluster(const ClusterInfo &cluster, int32_t timeo
   LLM_CHK_STATUS_RET(RecvMsg(conn_fd, LinkMsgType::kStatus, status), "Failed to recv status msg");
   LLM_CHK_STATUS_RET(status.error_code, "Failed to check peer process ret status, error code[%u], err msg[%s]",
                      status.error_code, status.error_message.c_str());
-  LLM_CHK_STATUS_RET(ret, "Failed to process peer exchange info, timeout:%d", timeout);
+  LLM_CHK_STATUS_RET(ret, "Failed to process peer exchange info, timeout:%d ms", timeout);
   LLMLOGI("Link cluster success, local cluster_id:%lu, remote cluster_id:%lu, remote ip:%s, remote port:%u",
           cluster_id_, peer_exchange_info.cluster_id, remote_ip_str.c_str(), remote_port);
   return ge::SUCCESS;

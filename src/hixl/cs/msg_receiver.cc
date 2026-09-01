@@ -47,7 +47,7 @@ Status MsgReceiver::RecvHeader() {
 bool MsgReceiver::CheckRecv(ssize_t recv_size) const {
   if (recv_size < 0) {
     if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
-      HIXL_LOGE(FAILED, "Failed to recv message, fd:%d, errno:%s", fd_, strerror(errno));
+      HIXL_LOGE(FAILED, "Failed to recv message, fd:%d, errno:%d, errmsg:%s", fd_, errno, strerror(errno));
     }
     return false;
   }

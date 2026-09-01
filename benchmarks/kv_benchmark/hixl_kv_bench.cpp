@@ -20,7 +20,6 @@ namespace fs = std::experimental::filesystem;
 #include <functional>
 #include <fstream>
 #include <iomanip>
-#include <iostream>
 #include <sstream>
 #include <limits>
 #include <map>
@@ -30,6 +29,8 @@ namespace fs = std::experimental::filesystem;
 #include <thread>
 #include <utility>
 #include <vector>
+
+#include "benchmark_log.h"
 
 #include "acl/acl.h"
 #include "fabric_mem/fabric_mem_transfer_service.h"
@@ -580,7 +581,7 @@ void Barrier(const KvBenchConfig &cfg, const std::string &name) {
   dir.append(name);
   const auto path = dir / ("rank" + std::to_string(cfg.rank));
   if (IsTraceRank(cfg)) {
-    std::cout << "[TRACE] rank=" << cfg.rank << " barrier_enter name=" << name << std::endl;
+    BENCH_LOGT("rank=%u barrier_enter name=%s\n", cfg.rank, name.c_str());
   }
   WriteTextFileAtomically(path, "ready\n");
 
@@ -590,7 +591,7 @@ void Barrier(const KvBenchConfig &cfg, const std::string &name) {
   }
   WaitForFiles(paths, cfg.sync_timeout_sec);
   if (IsTraceRank(cfg)) {
-    std::cout << "[TRACE] rank=" << cfg.rank << " barrier_exit name=" << name << std::endl;
+    BENCH_LOGT("rank=%u barrier_exit name=%s\n", cfg.rank, name.c_str());
   }
 }
 
@@ -708,8 +709,7 @@ void ConnectPeers(const KvBenchConfig &cfg, KvRuntime *runtime, const std::vecto
       continue;
     }
     if (IsTraceRank(cfg)) {
-      std::cout << "[TRACE] rank=" << cfg.rank << " connect_begin peer_rank=" << meta.rank
-                << " endpoint=" << meta.endpoint << std::endl;
+      BENCH_LOGT("rank=%u connect_begin peer_rank=%u endpoint=%s\n", cfg.rank, meta.rank, meta.endpoint.c_str());
     }
     const auto ret = runtime->hixl.Connect(AscendString(meta.endpoint.c_str()), kDefaultConnectTimeoutMs);
     if (ret != SUCCESS && ret != hixl::ALREADY_CONNECTED) {
@@ -717,8 +717,8 @@ void ConnectPeers(const KvBenchConfig &cfg, KvRuntime *runtime, const std::vecto
                                ", errmsg: " + RecentErrMsg());
     }
     if (IsTraceRank(cfg)) {
-      std::cout << "[TRACE] rank=" << cfg.rank << " connect_end peer_rank=" << meta.rank
-                << " endpoint=" << meta.endpoint << " ret=" << ret << std::endl;
+      BENCH_LOGT("rank=%u connect_end peer_rank=%u endpoint=%s ret=%u\n", cfg.rank, meta.rank, meta.endpoint.c_str(),
+                 ret);
     }
   }
 }
@@ -753,12 +753,12 @@ void PrintTransferPlanSummary(const KvBenchConfig &cfg, const std::vector<KeyTra
   if (!IsTraceRank(cfg)) {
     return;
   }
-  std::cout << "[TRACE] rank=" << cfg.rank << " transfer_plan op=" << TransferOpName(op) << " model=" << cfg.model
-            << " key_count=" << workload.key_count << " tasks=" << tasks.size() << std::endl;
+  BENCH_LOGT("rank=%u transfer_plan op=%s model=%s key_count=%lu tasks=%zu\n", cfg.rank, TransferOpName(op),
+             cfg.model.c_str(), workload.key_count, tasks.size());
   for (const auto &task : tasks) {
-    std::cout << "[TRACE] rank=" << cfg.rank << " transfer_key op=" << TransferOpName(op) << " key=" << task.key_index
-              << " segment=" << task.segment_id << " self=" << task.is_self << " descs=" << task.descs.size()
-              << " bytes=" << SumTransferBytes(task.descs) << std::endl;
+    BENCH_LOGT("rank=%u transfer_key op=%s key=%lu segment=%u self=%d descs=%zu bytes=%lu\n", cfg.rank,
+               TransferOpName(op), task.key_index, task.segment_id, static_cast<int32_t>(task.is_self),
+               task.descs.size(), SumTransferBytes(task.descs));
   }
 }
 
@@ -767,9 +767,8 @@ void PrintStageTiming(const KvBenchConfig &cfg, TransferOp op, const KvWorkload 
   if (!IsTraceRank(cfg)) {
     return;
   }
-  std::cout << "[TRACE] rank=" << cfg.rank << " transfer_stage op=" << TransferOpName(op) << " model=" << cfg.model
-            << " key_count=" << workload.key_count << " plan_us=" << plan_us << " transfer_us=" << transfer_us
-            << " total_us=" << (plan_us + transfer_us) << std::endl;
+  BENCH_LOGT("rank=%u transfer_stage op=%s model=%s key_count=%lu plan_us=%lu transfer_us=%lu total_us=%lu\n", cfg.rank,
+             TransferOpName(op), cfg.model.c_str(), workload.key_count, plan_us, transfer_us, plan_us + transfer_us);
 }
 
 void GeneratePlacements(const std::vector<std::uint64_t> &rank_pool_sizes, WorkloadTransferState *state) {
@@ -1048,10 +1047,10 @@ void WriteJson(const KvBenchConfig &cfg, const std::vector<KvBenchResult> &resul
 
 void PrintWorkloadTransferPlan(const std::string &model_name, const std::vector<KvWorkload> &workloads) {
   for (const auto &workload : workloads) {
-    std::cout << "[INFO] model=" << model_name << " key_count=" << workload.key_count
-              << " token_length=" << workload.token_length << " total_transfer=" << FormatBytesKiB(workload.total_bytes)
-              << " slice_count=" << workload.slice_count << " max_slice=" << FormatBytesKiB(workload.max_slice_bytes)
-              << std::endl;
+    BENCH_LOGI("model=%s key_count=%lu token_length=%lu total_transfer=%s slice_count=%lu max_slice=%s\n",
+               model_name.c_str(), workload.key_count, workload.token_length,
+               FormatBytesKiB(workload.total_bytes).c_str(), workload.slice_count,
+               FormatBytesKiB(workload.max_slice_bytes).c_str());
   }
 }
 
@@ -1068,13 +1067,14 @@ std::string FormatKeyDistribution(const std::vector<std::uint64_t> &distribution
 
 void PrintSummary(const KvBenchConfig &cfg, const std::vector<KvBenchResult> &results) {
   for (const auto &result : results) {
-    std::cout << "[INFO] rank=" << cfg.rank << " model=" << result.model << " key_count=" << result.key_count
-              << " total_transfer=" << FormatBytesKiB(result.total_bytes) << " slice_count=" << result.slice_count
-              << " max_slice=" << FormatBytesKiB(result.max_slice_bytes) << " token_length=" << result.token_length
-              << " put=d2rh get=rh2d"
-              << " put_avg_us=" << result.put_avg_us << " get_avg_us=" << result.get_avg_us
-              << " put_p99_us=" << result.put_p99_us << " get_p99_us=" << result.get_p99_us
-              << " segment_key_distribution=" << FormatKeyDistribution(result.key_distribution) << std::endl;
+    BENCH_LOGI(
+        "rank=%u model=%s key_count=%lu total_transfer=%s slice_count=%lu max_slice=%s token_length=%lu "
+        "put=d2rh get=rh2d put_avg_us=%.2f get_avg_us=%.2f put_p99_us=%.2f get_p99_us=%.2f "
+        "segment_key_distribution=%s\n",
+        cfg.rank, result.model.c_str(), result.key_count, FormatBytesKiB(result.total_bytes).c_str(),
+        result.slice_count, FormatBytesKiB(result.max_slice_bytes).c_str(), result.token_length, result.put_avg_us,
+        result.get_avg_us, result.put_p99_us, result.get_p99_us,
+        FormatKeyDistribution(result.key_distribution).c_str());
   }
 }
 
@@ -1099,9 +1099,8 @@ std::vector<std::uint64_t> BuildAlignedRankPoolSizes(const KvBenchConfig &cfg,
 }
 
 void PrintKvBufferPlan(const KvBenchConfig &cfg, std::uint64_t local_size, std::uint64_t pool_size) {
-  std::cout << "[INFO] rank=" << cfg.rank << " device_id=" << cfg.device_id
-            << " local_engine=" << LocalListenEndpoint(cfg) << " local_buffer_size=" << FormatBytesKiB(local_size)
-            << " pool_size=" << FormatBytesKiB(pool_size) << std::endl;
+  BENCH_LOGI("rank=%u device_id=%d local_engine=%s local_buffer_size=%s pool_size=%s\n", cfg.rank, cfg.device_id,
+             LocalListenEndpoint(cfg).c_str(), FormatBytesKiB(local_size).c_str(), FormatBytesKiB(pool_size).c_str());
 }
 
 std::vector<KvBenchResult> ExecuteKvBenchmark(const KvBenchConfig &cfg, KvRuntime *runtime,
@@ -1117,12 +1116,13 @@ std::vector<KvBenchResult> ExecuteKvBenchmark(const KvBenchConfig &cfg, KvRuntim
 
 int RunKvBenchParsed(KvBenchConfig &cfg, KvRuntime *runtime, std::vector<RankMeta> *metas) {
   if (cfg.transport == kTransportHccs) {
-    std::cerr << "[ERROR] KV benchmark does not support transport=hccs (HCCS is D2D-only; use roce, fabric_mem, "
-                 "uboe, ub_rtp, or ub)\n";
+    BENCH_LOGE(
+        "KV benchmark does not support transport=hccs (HCCS is D2D-only; use roce, fabric_mem, "
+        "uboe, ub_rtp, or ub)\n");
     return 1;
   }
   if (!ValidateConfig(cfg)) {
-    std::cerr << "[ERROR] invalid kv benchmark config\n";
+    BENCH_LOGE("invalid kv benchmark config\n");
     return 1;
   }
   ApplyTransportEnvironment(cfg);
@@ -1130,8 +1130,8 @@ int RunKvBenchParsed(KvBenchConfig &cfg, KvRuntime *runtime, std::vector<RankMet
   const auto models = LoadModelSpecsFromJson(cfg.model_config);
   const ModelSpec *model = FindModelSpec(models, cfg.model);
   if (model == nullptr) {
-    std::cerr << "[ERROR] unsupported model: " << cfg.model << " (supported: " << JoinNames(SupportedModelNames(models))
-              << ")" << std::endl;
+    BENCH_LOGE("unsupported model: %s (supported: %s)\n", cfg.model.c_str(),
+               JoinNames(SupportedModelNames(models)).c_str());
     return 1;
   }
   const auto workloads = BuildWorkloads(cfg, *model);
@@ -1180,7 +1180,7 @@ int main(int argc, char **argv) {
     cfg = ParseConfig(args);
     return RunKvBenchParsed(cfg, &runtime, &metas);
   } catch (const std::exception &e) {
-    std::cerr << "[ERROR] " << e.what() << std::endl;
+    BENCH_LOGE("%s\n", e.what());
     CleanupRuntime(cfg, &runtime, metas);
     return 1;
   }

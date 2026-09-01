@@ -26,7 +26,7 @@ ge::Status GlobalMemManager::Initialize(TransferEngine *transfer_engine) {
 
 ge::Status GlobalMemManager::RegisterMem(void *addr, uint64_t size, CommMemType type, void *&handle) {
   LLM_CHK_STATUS_RET(transfer_engine_->RegisterMem(addr, size, type, handle), "Failed to register mem");
-  LLMLOGI("Register global mem success, addr:%p, size:%lu, type:%s, handle:%p", addr, size,
+  LLMLOGI("Register global mem success, addr:%p, size:%lu B, type:%s, handle:%p", addr, size,
           CommUtils::ConvertCommMemTypeToString(type).c_str(), handle);
 
   std::lock_guard<std::mutex> lock(mutex_);
@@ -96,7 +96,7 @@ ge::Status CommMemManager::RegisterCacheMem(int64_t cache_id, const CacheDesc &c
     mems.mem_handles.emplace_back(mem_handle);
     mems.mem_addrs.emplace_back(key);
     registered_cache_mem_.emplace(key);
-    LLMLOGI("Register global mem[%p] success, size:%ld, placement:%u, handle:%p, cache_id:%ld", mem_ptr, tensor_size,
+    LLMLOGI("Register global mem[%p] success, size:%ld B, placement:%u, handle:%p, cache_id:%ld", mem_ptr, tensor_size,
             cache_desc.placement, mem_handle, cache_id);
   }
   cache_id_to_mems_[cache_id] = std::move(mems);

@@ -226,15 +226,15 @@ void AdxlEngine::Finalize() {
 }
 
 Status AdxlEngine::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
-  LLMLOGI("RegisterMem start, type:%d, addr:%p, size:%zu", static_cast<int32_t>(type),
+  LLMLOGI("RegisterMem start, type:%d, addr:%p, size:%zu B", static_cast<int32_t>(type),
           reinterpret_cast<void *>(mem.addr), mem.len);
   ADXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check AdxlEngine init");
   const auto ret = impl_->RegisterMem(mem, type, mem_handle);
   ADXL_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
                            "Failed to register mem, "
-                           "type:%d, addr:%p, size:%lu",
+                           "type:%d, addr:%p, size:%lu B",
                            static_cast<int32_t>(type), reinterpret_cast<void *>(mem.addr), mem.len);
-  LLMLOGI("RegisterMem success, type:%d, addr:%p, size:%zu, handle:%p", static_cast<int32_t>(type),
+  LLMLOGI("RegisterMem success, type:%d, addr:%p, size:%zu B, handle:%p", static_cast<int32_t>(type),
           reinterpret_cast<void *>(mem.addr), mem.len, mem_handle);
   return SUCCESS;
 }
@@ -315,10 +315,10 @@ Status AdxlEngine::SendNotify(const AscendString &remote_engine, const NotifyDes
   ADXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check AdxlEngine init");
   constexpr uint32_t kMaxNotifyLength = 1024U;
   ADXL_CHK_BOOL_RET_STATUS(notify.name.GetLength() <= kMaxNotifyLength, PARAM_INVALID,
-                           "notify.name length exceed max limit: %u, current: %zu", kMaxNotifyLength,
+                           "notify.name length exceeds max limit: %u, current: %zu", kMaxNotifyLength,
                            notify.name.GetLength());
   ADXL_CHK_BOOL_RET_STATUS(notify.notify_msg.GetLength() <= kMaxNotifyLength, PARAM_INVALID,
-                           "notify.notify_msg length exceed max limit: %u, current: %zu", kMaxNotifyLength,
+                           "notify.notify_msg length exceeds max limit: %u, current: %zu", kMaxNotifyLength,
                            notify.notify_msg.GetLength());
   ADXL_CHK_BOOL_RET_STATUS(timeout_in_millis > 0, PARAM_INVALID, "timeout_in_millis:%d must > 0", timeout_in_millis);
   const auto ret = impl_->SendNotify(remote_engine, notify, timeout_in_millis);

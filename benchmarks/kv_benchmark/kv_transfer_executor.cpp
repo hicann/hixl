@@ -12,13 +12,14 @@
 
 #include <chrono>
 #include <exception>
-#include <iostream>
 #include <mutex>
 #include <stdexcept>
 #include <thread>
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <utility>
+
+#include "benchmark_log.h"
 
 namespace hixl_kv_benchmark {
 namespace {
@@ -50,13 +51,15 @@ void TraceKeyTransfer(const char *stage, std::uint32_t local_rank, std::uint32_t
     return;
   }
   std::lock_guard<std::mutex> guard(*trace_mu);
-  std::cout << "[TRACE] xfer " << stage << " rank=" << local_rank << " worker=" << worker_id
-            << " tid=" << CurrentThreadId() << " op=" << OpName(op) << " key=" << task.key_index
-            << " seg=" << task.segment_id << " peer=" << task.endpoint << " bytes=" << SumBytes(task.descs);
   if (elapsed_us != 0U) {
-    std::cout << " elapsed=" << elapsed_us;
+    BENCH_LOGT("xfer %s rank=%u worker=%u tid=%lu op=%s key=%lu seg=%u peer=%s bytes=%lu elapsed=%lu\n", stage,
+               local_rank, worker_id, CurrentThreadId(), OpName(op), task.key_index, task.segment_id,
+               task.endpoint.c_str(), SumBytes(task.descs), elapsed_us);
+  } else {
+    BENCH_LOGT("xfer %s rank=%u worker=%u tid=%lu op=%s key=%lu seg=%u peer=%s bytes=%lu\n", stage, local_rank,
+               worker_id, CurrentThreadId(), OpName(op), task.key_index, task.segment_id, task.endpoint.c_str(),
+               SumBytes(task.descs));
   }
-  std::cout << std::endl;
 }
 
 void TraceLocalCopy(const char *stage, std::uint32_t local_rank, std::uint32_t worker_id, const KeyTransferTask &task,
@@ -65,13 +68,14 @@ void TraceLocalCopy(const char *stage, std::uint32_t local_rank, std::uint32_t w
     return;
   }
   std::lock_guard<std::mutex> guard(*trace_mu);
-  std::cout << "[TRACE] copy " << stage << " rank=" << local_rank << " worker=" << worker_id
-            << " tid=" << CurrentThreadId() << " op=" << OpName(op) << " key=" << task.key_index
-            << " seg=" << task.segment_id << " bytes=" << SumBytes(task.descs);
   if (elapsed_us != 0U) {
-    std::cout << " elapsed=" << elapsed_us;
+    BENCH_LOGT("copy %s rank=%u worker=%u tid=%lu op=%s key=%lu seg=%u bytes=%lu elapsed=%lu\n", stage, local_rank,
+               worker_id, CurrentThreadId(), OpName(op), task.key_index, task.segment_id, SumBytes(task.descs),
+               elapsed_us);
+  } else {
+    BENCH_LOGT("copy %s rank=%u worker=%u tid=%lu op=%s key=%lu seg=%u bytes=%lu\n", stage, local_rank, worker_id,
+               CurrentThreadId(), OpName(op), task.key_index, task.segment_id, SumBytes(task.descs));
   }
-  std::cout << std::endl;
 }
 
 void SetWorkerContext(aclrtContext device_context) {

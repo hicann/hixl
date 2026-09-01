@@ -351,7 +351,7 @@ def _resolve_one_to_many_target(args, devices: list[int]) -> DualTopology | None
     target_ids = devices
     if args.num_targets is not None:
         if args.num_targets <= 0 or args.num_targets > len(devices):
-            log.info(f'[ERROR] --num_targets must be in 1..{len(devices)} for one_to_many target')
+            log.error(f'[ERROR] --num_targets must be in 1..{len(devices)} for one_to_many target')
             return None
         target_ids = devices[:args.num_targets]
     return DualTopology(args.pattern, target_ids, [0])
@@ -396,7 +396,7 @@ def _many_to_one_initiator_ids(args, devices: list[int]) -> list[int] | None:
         return list(range(args.num_initiators))
     if args.num_initiators <= len(devices):
         return devices[:args.num_initiators]
-    log.info(f'[ERROR] --num_initiators={args.num_initiators} exceeds --device_ids count ({len(devices)})')
+    log.error(f'[ERROR] --num_initiators={args.num_initiators} exceeds --device_ids count ({len(devices)})')
     return None
 
 
@@ -1092,7 +1092,7 @@ def _run_dual_directions(ctx, run_spec: DualDirectionsRunSpec) -> int:
             )
         ret = run_spec.step_fn(ctx, run_spec.transport, bench_type)
         if ret != 0:
-            log.info(
+            log.error(
                 f'[ERROR] {run_spec.role_label.capitalize()} failed for '
                 f'transport={run_spec.transport} direction={bench_type} with code {ret}'
             )
@@ -1256,7 +1256,7 @@ def infer_single_mode_counts(pattern: str, devices: list[int], num_targets, num_
 
 def validate_single_mode_counts(target_count: int, initiator_count: int, device_count: int):
     if target_count + initiator_count > device_count:
-        log.info(
+        log.error(
             f'[ERROR] device_ids has {device_count} device(s), '
             f'but topology needs {target_count + initiator_count}'
         )
@@ -1363,7 +1363,7 @@ def _launch_single(args, bench_bin: str, devices: list[int], bench_types: list[s
             log.info(f'[SINGLE] [{idx}/{len(bench_types)}] direction={bench_type} — starting ...')
         last_ret = _run_single_direction(args, bench_bin, devices, bench_type, peer_wait_s)
         if last_ret != 0:
-            log.info(f'[ERROR] Single-machine run failed for direction={bench_type} with code {last_ret}')
+            log.error(f'[ERROR] Single-machine run failed for direction={bench_type} with code {last_ret}')
             return last_ret
         if len(bench_types) > 1:
             log.info(f'[SINGLE] [{idx}/{len(bench_types)}] direction={bench_type} — done')
@@ -1391,7 +1391,7 @@ def _normalize_launch_args(args) -> bool:
 def _validate_launch_plan(args, gate_soc, run_plan, single_bench_types) -> int | None:
     if args.role in ('target', 'initiator'):
         if not run_plan:
-            log.info(
+            log.error(
                 f'[ERROR] No supported transport/direction combinations on this platform '
                 f'(transport={args.transport}, direction={args.type}).'
             )
@@ -1399,7 +1399,7 @@ def _validate_launch_plan(args, gate_soc, run_plan, single_bench_types) -> int |
         return None
     if is_all_directions_mode(args):
         if not single_bench_types:
-            log.info(f'[ERROR] No supported directions for transport={args.transport} on this platform.')
+            log.error(f'[ERROR] No supported directions for transport={args.transport} on this platform.')
             return -1
         return None
     if not hccs_combo_allowed(args.transport, args.type, gate_soc):

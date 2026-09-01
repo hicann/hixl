@@ -109,7 +109,7 @@ void CommStatisticManager::Dump() const {
 }
 
 void CommStatisticManager::DumpMemoryProfilingTrack() const {
-  LLMEVENT("Memory statistic info:alloc mem:%lu, free mem:%lu, alloc times:%lu, free times:%lu",
+  LLMEVENT("Memory statistic info:alloc mem:%lu B, free mem:%lu B, alloc times:%lu, free times:%lu",
            memory_statistic_info_.alloc_mem, memory_statistic_info_.free_mem, memory_statistic_info_.alloc_times,
            memory_statistic_info_.free_times);
 }

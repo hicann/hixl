@@ -403,11 +403,11 @@ Status Hixl::SendNotify(const AscendString &remote_engine, const NotifyDesc &not
   HIXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check Hixl init");
   constexpr uint32_t kMaxNotifyLength = 1024U;
   HIXL_CHK_BOOL_RET_STATUS(notify.name.GetLength() <= kMaxNotifyLength, PARAM_INVALID,
-                           "notify.name length exceed max limit: %u, current: %zu", kMaxNotifyLength,
+                           "notify.name length exceeds max limit: %u, current: %zu", kMaxNotifyLength,
                            notify.name.GetLength());
   HIXL_CHK_BOOL_RET_STATUS(timeout_in_millis > 0, PARAM_INVALID, "timeout_in_millis:%d must > 0", timeout_in_millis);
   HIXL_CHK_BOOL_RET_STATUS(notify.notify_msg.GetLength() <= kMaxNotifyLength, PARAM_INVALID,
-                           "notify.notify_msg length exceed max limit: %u, current: %zu", kMaxNotifyLength,
+                           "notify.notify_msg length exceeds max limit: %u, current: %zu", kMaxNotifyLength,
                            notify.notify_msg.GetLength());
   HIXL_CHK_STATUS_RET(impl_->SendNotify(remote_engine, notify, timeout_in_millis),
                       "Failed to send notify, remote engine:%s, notify name:%s", remote_engine.GetString(),

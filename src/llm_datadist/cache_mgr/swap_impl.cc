@@ -79,7 +79,7 @@ ge::Status RunOrderedBlockMemcpy(uintptr_t src_addr, uintptr_t dst_addr, uint64_
     const uint64_t copy_size = block_size * ordered_block.size();
     auto src = src_addr + src_index * block_size;
     auto dst = dst_addr + dst_index * block_size;
-    LLMLOGI("Begin mem copy, src index:%ld, dst index:%ld, copy size:%lu, contiguous block num:%lu", src_index,
+    LLMLOGI("Begin mem copy, src index:%ld, dst index:%ld, copy size:%lu B, contiguous block num:%lu", src_index,
             dst_index, copy_size, ordered_block.size());
     const auto copy_start = std::chrono::steady_clock::now();
     LLM_CHK_ACL_RET(aclrtMemcpy(reinterpret_cast<void *>(dst), copy_size, reinterpret_cast<void *>(src), copy_size,

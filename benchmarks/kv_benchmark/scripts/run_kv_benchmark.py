@@ -164,7 +164,7 @@ def generate_plots(args):
     log.info('[INFO] %s', ' '.join(cmd))
     ret = subprocess.run(cmd, check=False)
     if ret.returncode != 0:
-        log.info(f'[WARN] plot generation failed for {csv_path}; keep benchmark result')
+        log.warning(f'[WARN] plot generation failed for {csv_path}; keep benchmark result')
 
 
 def detect_platform_for_kv(platform_override: str | None) -> str:

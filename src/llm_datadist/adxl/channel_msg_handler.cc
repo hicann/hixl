@@ -360,7 +360,7 @@ Status ChannelMsgHandler::ConnectInfoProcess(const ChannelConnectInfo &peer_chan
   int32_t local_rank_id = 0;
   int32_t peer_rank_id = 0;
   ADXL_CHK_STATUS_RET(ParseRankTable(peer_channel_info, rank_table, local_rank_id, peer_rank_id),
-                      "Failed to prase rank table.");
+                      "Failed to parse rank table.");
   ChannelInfo channel_info{};
   channel_info.channel_type = is_client ? ChannelType::kClient : ChannelType::kServer;
   channel_info.channel_id = peer_channel_info.channel_id;

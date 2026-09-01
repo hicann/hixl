@@ -477,7 +477,7 @@ def _shutdown_handler():
             LLMDataDist.llm_engine_instance.finalize()
         except LLMException as e:
             log.warn(
-                f"error occurred while finalize llm datadist: {e} "
+                f"error occurred while finalizing llm datadist: {e} "
                 f"may be caused by already finalized by another framework"
             )
 

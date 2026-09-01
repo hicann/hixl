@@ -99,7 +99,7 @@ class CacheDescParser(object):
             log.info(f'seq_len_dim_index inferred by shape, value = {seq_len_dim_index}')
         else:
             seq_len_dim_index = -1
-            log.info(f'llm.RefInputSeqLenDimIndex not set and can not infer by shape,'
+            log.info(f'llm.RefInputSeqLenDimIndex not set and can not infer by shape, '
                      f'seq_len_dim_index = {seq_len_dim_index}')
         kv_tensor_format = options.get("llm.kvTensorFormat", None)
         kv_data_type = to_data_type(kv_data_types[0])

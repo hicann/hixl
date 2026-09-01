@@ -80,7 +80,7 @@ ge::Status LlmDatadistTimer::DeleteTimer(const void *handle) {
   std::unique_lock<std::mutex> lk(mutex_);
   const auto &iter = timer_infos_.find(timer->timer_id);
   LLM_CHK_BOOL_RET_STATUS(iter != timer_infos_.cend(), ge::LLM_PARAM_INVALID,
-                          "not find timer info, delete timer[%u] failed", timer->timer_id);
+                          "timer info not found, delete timer[%u] failed", timer->timer_id);
   LLMLOGI("DeleteTimer success, timer_id:%u", timer->timer_id);
   (void)timer_infos_.erase(iter);
   return ge::SUCCESS;
@@ -93,7 +93,7 @@ ge::Status LlmDatadistTimer::StartTimer(void *handle, uint32_t period, bool one_
   std::unique_lock<std::mutex> lk(mutex_);
   const auto &iter = timer_infos_.find(timer->timer_id);
   LLM_CHK_BOOL_RET_STATUS(iter != timer_infos_.cend(), ge::LLM_PARAM_INVALID,
-                          "not find timer info, start timer[%u] failed", timer->timer_id);
+                          "timer info not found, start timer[%u] failed", timer->timer_id);
   timer->period = period;
   timer->one_shot_flag = one_shot;
   timer->is_start = true;
@@ -107,7 +107,7 @@ ge::Status LlmDatadistTimer::StopTimer(void *handle) {
   std::unique_lock<std::mutex> lk(mutex_);
   const auto &iter = timer_infos_.find(timer->timer_id);
   LLM_CHK_BOOL_RET_STATUS(iter != timer_infos_.cend(), ge::LLM_PARAM_INVALID,
-                          "not find timer info, stop timer[%u] failed", timer->timer_id);
+                          "timer info not found, stop timer[%u] failed", timer->timer_id);
   timer->is_start = false;
   return ge::SUCCESS;
 }

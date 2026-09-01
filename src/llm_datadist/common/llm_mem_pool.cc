@@ -15,7 +15,7 @@
 
 namespace llm {
 ge::MemBlock *LlmMemPool::LlmMemAllocator::Malloc(size_t size) {
-  LLMLOGI("Try malloc size:%zu.", size);
+  LLMLOGI("Try malloc size:%zu B.", size);
   return scalable_allocator_->Alloc(*this, size);
 }
 
@@ -57,7 +57,7 @@ void *LlmMemPool::Alloc(size_t size) {
   if (span != nullptr) {
     memory = span->GetAddr();
     addr_to_mem_block_[memory] = span;
-    LLMLOGI("alloc memory success, size = %zu", size);
+    LLMLOGI("alloc memory success, size = %zu B", size);
   }
   return memory;
 }
@@ -66,7 +66,7 @@ void LlmMemPool::Free(void *addr) {
   std::lock_guard<std::mutex> lk(mu_);
   const auto it = addr_to_mem_block_.find(addr);
   if (it != addr_to_mem_block_.cend()) {
-    LLMLOGI("free memory, size = %zu", it->second->GetSize());
+    LLMLOGI("free memory, size = %zu B", it->second->GetSize());
     it->second->Free();
     addr_to_mem_block_.erase(it);
     cv_.notify_all();

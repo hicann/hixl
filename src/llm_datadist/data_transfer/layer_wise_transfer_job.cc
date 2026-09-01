@@ -87,7 +87,7 @@ ge::Status LayerWiseTransferJob::GenerateBlocksToBlocksTask(const CacheEntry &ca
                                                             const TransferCacheConfig &transfer_cache_config,
                                                             const TransferBlockConfig &transfer_block_config) {
   LLM_CHK_BOOL_RET_STATUS(cache_entry.num_blocks > 0, ge::LLM_PARAM_INVALID,
-                          "check failed, request expect local cache is blocks");
+                          "check failed, request expects the local cache to be in block layout");
   std::vector<std::vector<std::pair<int64_t, int64_t>>> contiguous_blocks_pair;
   LLM_CHK_STATUS_RET(LLMUtils::FindContiguousBlockIndexPair(transfer_block_config.src_blocks,
                                                             transfer_block_config.dst_blocks, contiguous_blocks_pair));

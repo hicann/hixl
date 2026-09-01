@@ -177,7 +177,7 @@ ge::Status CacheAccessTableUpdater::ToBuffer(uint64_t version_num,
     total_size += size;
   }
   LLM_CHK_BOOL_RET_STATUS(total_size <= kCacheAccessTableBufferSize, ge::LLM_PARAM_INVALID,
-                          "Serialize cache access table failed, sized needed (%zu) exceeds 1MB", total_size);
+                          "Serialize cache access table failed, size needed (%zu) exceeds 1MB", total_size);
   buffer.resize(total_size);
   auto &header = *PtrToPtr<uint8_t, CacheTableHeader>(buffer.data());
   header.version_num = version_num;

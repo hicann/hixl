@@ -15,6 +15,7 @@
 #include <chrono>
 #include <cstdio>
 #include <experimental/filesystem>
+
 namespace fs = std::experimental::filesystem;
 #include <fstream>
 #include <map>
@@ -26,6 +27,7 @@ namespace fs = std::experimental::filesystem;
 #include <unistd.h>
 
 #include "fabric_mem/fabric_mem_transfer_service.h"
+#include "benchmark_log.h"
 
 using hixl::AscendString;
 using hixl::FabricMemTransferService;
@@ -86,7 +88,7 @@ int32_t InitializeHixl(const std::string &local_engine, const BenchmarkConfig &c
       BenchmarkConfigParser::BuildInitializeOptions(cfg, lane_index);
   const auto ret = hixl->Initialize(AscendString(local_engine.c_str()), init_options);
   if (ret != SUCCESS) {
-    std::printf("[ERROR] Initialize failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
+    BENCH_LOGE("Initialize failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
     return -1;
   }
   return 0;
@@ -99,7 +101,7 @@ void DeregisterMemHandles(Hixl &hixl_engine, const std::vector<MemHandle> &handl
     }
     const auto ret = hixl_engine.DeregisterMem(element);
     if (ret != 0) {
-      std::printf("[ERROR] DeregisterMem failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
+      BENCH_LOGE("DeregisterMem failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
     }
   }
 }
@@ -154,25 +156,25 @@ int32_t AllocLocalBuffer(const BenchmarkConfig &cfg, bool *is_host, void **out_s
   if (*is_host && cfg.transport == "fabric_mem") {
     auto status = FabricMemTransferService::MallocMem(MemType::MEM_HOST, alloc_size, &tmp);
     if (status != SUCCESS) {
-      std::fprintf(stderr, "[ERROR] client fabric_mem host alloc failed status=%d\n", static_cast<int>(status));
+      BENCH_LOGE("client fabric_mem host alloc failed status=%d\n", static_cast<int>(status));
       return -1;
     }
   } else if (*is_host && cfg.transport == "roce" && cfg.roce_endpoint_placement == "host") {
     tmp = std::malloc(alloc_size);
     if (tmp == nullptr) {
-      std::fprintf(stderr, "[ERROR] client alloc host failed: malloc returned null\n");
+      BENCH_LOGE("client alloc host failed: malloc returned null\n");
       return -1;
     }
   } else if (*is_host) {
     aclError er = aclrtMallocHost(&tmp, alloc_size);
     if (er != ACL_ERROR_NONE) {
-      std::fprintf(stderr, "[ERROR] client alloc host failed aclError=%d\n", static_cast<int>(er));
+      BENCH_LOGE("client alloc host failed aclError=%d\n", static_cast<int>(er));
       return -1;
     }
   } else {
     aclError er = aclrtMalloc(&tmp, alloc_size, ACL_MEM_MALLOC_HUGE_ONLY);
     if (er != ACL_ERROR_NONE) {
-      std::fprintf(stderr, "[ERROR] client alloc device failed aclError=%d\n", static_cast<int>(er));
+      BENCH_LOGE("client alloc device failed aclError=%d\n", static_cast<int>(er));
       return -1;
     }
   }
@@ -190,7 +192,7 @@ int32_t RegisterLocalMem(Hixl &hixl_engine, const BenchmarkConfig &cfg, void *sr
   desc.len = register_len;
   const auto ret = hixl_engine.RegisterMem(desc, is_host ? MemType::MEM_HOST : MemType::MEM_DEVICE, *handle);
   if (ret != SUCCESS) {
-    std::printf("[ERROR] RegisterMem failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
+    BENCH_LOGE("RegisterMem failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
     return -1;
   }
   return 0;
@@ -224,7 +226,7 @@ void DisconnectAllRemoteEngines(Hixl &hixl, const std::vector<std::string> &remo
   for (const auto &re : remotes) {
     const auto ret = hixl.Disconnect(AscendString(re.c_str()));
     if (ret != SUCCESS) {
-      std::printf("[ERROR] Disconnect failed for %s, ret = %u, errmsg: %s\n", re.c_str(), ret, RecentErrMsg());
+      BENCH_LOGE("Disconnect failed for %s, ret = %u, errmsg: %s\n", re.c_str(), ret, RecentErrMsg());
       continue;
     }
   }
@@ -364,8 +366,8 @@ bool FillBufferPattern(void *ptr, size_t size, uint8_t value, bool is_host) {
   }
   const auto ret = aclrtMemset(ptr, size, static_cast<int32_t>(value), size);
   if (ret != ACL_ERROR_NONE) {
-    std::printf("[ERROR] aclrtMemset failed ret=%d value=0x%02x size=%zu\n", static_cast<int>(ret),
-                static_cast<unsigned>(value), size);
+    BENCH_LOGE("aclrtMemset failed ret=%d value=0x%02x size=%zu\n", static_cast<int>(ret), static_cast<unsigned>(value),
+               size);
     return false;
   }
   return true;
@@ -382,16 +384,16 @@ bool ValidateReadBuffer(const TransferBlockStepCtx &ctx, void *ptr, size_t size,
     }
     const auto ret = aclrtMemcpy(scratch.data(), size, ptr, size, ACL_MEMCPY_DEVICE_TO_HOST);
     if (ret != ACL_ERROR_NONE) {
-      std::printf("[WARN] read verify aclrtMemcpy(D2H) failed ret=%d at loop %u/%u step %u\n", static_cast<int>(ret),
-                  ctx.loop + 1U, ctx.cfg->loops, ctx.step_index);
+      BENCH_LOGW("read verify aclrtMemcpy(D2H) failed ret=%d at loop %u/%u step %u\n", static_cast<int>(ret),
+                 ctx.loop + 1U, ctx.cfg->loops, ctx.step_index);
       return false;
     }
     scan = scratch.data();
   }
   for (size_t i = 0; i < size; ++i) {
     if (scan[i] != kServerFillPattern) {
-      std::printf(
-          "[WARN] read verify mismatch at loop %u/%u step %u block_size %lu offset %zu: "
+      BENCH_LOGW(
+          "read verify mismatch at loop %u/%u step %u block_size %lu offset %zu: "
           "expected '%c'(0x%02x) got 0x%02x\n",
           ctx.loop + 1U, ctx.cfg->loops, ctx.step_index, static_cast<uint64_t>(ctx.block_size_u), i,
           static_cast<int32_t>(kServerFillPattern), static_cast<uint32_t>(kServerFillPattern),
@@ -440,8 +442,8 @@ void PublishBenchRecord(const TransferBlockStepCtx &ctx, const TransferBenchReco
 void LogSyncTransferSuccess(const TransferBlockStepCtx &ctx, uint32_t block_size, uint32_t trans_num, int64_t time_us,
                             double throughput) {
   const std::string bs_log = FormatBlockSizeHuman(static_cast<uint64_t>(block_size));
-  std::printf(
-      "[INFO] Transfer success, loop %u/%u, step %u, block size: %s, transfer num: %u, time cost: %ld us, "
+  BENCH_LOGI(
+      "Transfer success, loop %u/%u, step %u, block size: %s, transfer num: %u, time cost: %ld us, "
       "throughput: %.3lf GB/s\n",
       ctx.loop + 1U, ctx.cfg->loops, ctx.step_index, bs_log.c_str(), trans_num, static_cast<long>(time_us), throughput);
 }
@@ -449,8 +451,8 @@ void LogSyncTransferSuccess(const TransferBlockStepCtx &ctx, uint32_t block_size
 void LogAsyncTransferSuccess(const TransferBlockStepCtx &ctx, uint32_t block_size, uint32_t trans_num, int64_t total_us,
                              int64_t submit_us, int64_t wait_us, double throughput) {
   const std::string bs_log = FormatBlockSizeHuman(static_cast<uint64_t>(block_size));
-  std::printf(
-      "[INFO] Async transfer success, loop %u/%u, step %u, block size: %s, trans_num: %u, batch_num: %u, "
+  BENCH_LOGI(
+      "Async transfer success, loop %u/%u, step %u, block size: %s, trans_num: %u, batch_num: %u, "
       "total: %ld us (submit: %ld, wait: %ld), %.3lf GB/s\n",
       ctx.loop + 1U, ctx.cfg->loops, ctx.step_index, bs_log.c_str(), trans_num, ctx.cfg->async_batch_num,
       static_cast<long>(total_us), static_cast<long>(submit_us), static_cast<long>(wait_us), throughput);
@@ -483,7 +485,7 @@ void FinishSyncBenchStep(const TransferBlockStepCtx &ctx, uint32_t block_size, u
 int32_t TransferOneBlockStep(Hixl &hixl_engine, const TransferBlockStepCtx &ctx) {
   const auto block_size = static_cast<uint32_t>(ctx.block_size_u);
   if (static_cast<uint64_t>(block_size) != ctx.block_size_u) {
-    std::printf("[ERROR] block size too large at step %u\n", ctx.step_index);
+    BENCH_LOGE("block size too large at step %u\n", ctx.step_index);
     return -1;
   }
   const auto trans_num = static_cast<uint32_t>(ctx.cfg->transfer_size / ctx.block_size_u);
@@ -492,7 +494,7 @@ int32_t TransferOneBlockStep(Hixl &hixl_engine, const TransferBlockStepCtx &ctx)
   const auto ret =
       hixl_engine.TransferSync(AscendString(ctx.remote_engine), ctx.transfer_op, descs, kTransferSyncTimeoutMs);
   if (ret != SUCCESS) {
-    std::printf("[ERROR] TransferSync failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
+    BENCH_LOGE("TransferSync failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
     return -1;
   }
   const auto time_cost =
@@ -527,7 +529,7 @@ int32_t SubmitAsyncRequests(Hixl &hixl_engine, const TransferBlockStepCtx &ctx, 
     TransferReq req = nullptr;
     if (hixl_engine.TransferAsync(AscendString(ctx.remote_engine), ctx.transfer_op, descs, optional_args, req) !=
         SUCCESS) {
-      std::printf("[ERROR] TransferAsync failed at batch %u\n", batch_idx);
+      BENCH_LOGE("TransferAsync failed at batch %u\n", batch_idx);
       return -1;
     }
     async_ctx.reqs.emplace_back(req);
@@ -541,14 +543,14 @@ int32_t CheckTransferStatus(Hixl &hixl_engine, const TransferReq &req, TransferS
     return 0;
   }
   if (hixl_engine.GetTransferStatus(req, status) != SUCCESS) {
-    std::printf("[ERROR] GetTransferStatus failed at req %zu\n", idx);
+    BENCH_LOGE("GetTransferStatus failed at req %zu\n", idx);
     return -1;
   }
   if (status == TransferStatus::WAITING) {
     return 1;
   }
   if (status != TransferStatus::COMPLETED) {
-    std::printf("[ERROR] Transfer failed at req %zu, status=%d\n", idx, static_cast<int>(status));
+    BENCH_LOGE("Transfer failed at req %zu, status=%d\n", idx, static_cast<int>(status));
     return -1;
   }
   return 0;
@@ -598,7 +600,7 @@ void RecordAsyncBenchResult(const TransferBlockStepCtx &ctx, uint32_t block_size
 int32_t TransferOneBlockStepAsync(Hixl &hixl_engine, const TransferBlockStepCtx &ctx) {
   const auto block_size = static_cast<uint32_t>(ctx.block_size_u);
   if (static_cast<uint64_t>(block_size) != ctx.block_size_u) {
-    std::printf("[ERROR] block size too large at step %u\n", ctx.step_index);
+    BENCH_LOGE("block size too large at step %u\n", ctx.step_index);
     return -1;
   }
   const uint64_t per_req_size = ctx.cfg->transfer_size / ctx.cfg->async_batch_num;
@@ -609,7 +611,7 @@ int32_t TransferOneBlockStepAsync(Hixl &hixl_engine, const TransferBlockStepCtx 
     return -1;
   }
   if (WaitAsyncRequests(hixl_engine, async_ctx) != 0) {
-    std::printf("[ERROR] Async transfer failed at step %u\n", ctx.step_index);
+    BENCH_LOGE("Async transfer failed at step %u\n", ctx.step_index);
     return -1;
   }
   RecordAsyncBenchResult(ctx, block_size, async_ctx);
@@ -625,8 +627,8 @@ int32_t RunTransfer(Hixl &hixl_engine, void *src_base, const char *remote_engine
   std::vector<uint8_t> verify_scratch;
   if (verify_read) {
     if (!FillBufferPattern(src_base, static_cast<size_t>(cfg.transfer_size), kClientFillPattern, is_host)) {
-      std::printf("[WARN] initiator fill buffer with '%c' failed, read verification may report false mismatches\n",
-                  static_cast<int32_t>(kClientFillPattern));
+      BENCH_LOGW("initiator fill buffer with '%c' failed, read verification may report false mismatches\n",
+                 static_cast<int32_t>(kClientFillPattern));
     }
   }
   TransferBlockStepCtx step_ctx{};
@@ -672,7 +674,7 @@ bool SharedRemoteConnectTransferAndCleanup(Hixl *hixl, size_t idx, void *slice_b
                                            std::vector<TransferBenchRecord> *bench_records, std::mutex *remote_mu) {
   const auto connect_ret = hixl->Connect(AscendString(remote.c_str()), static_cast<int32_t>(cfg.connect_timeout_ms));
   if (connect_ret != SUCCESS) {
-    std::printf("[ERROR] [remote %zu] Connect failed ret=%u %s\n", idx, connect_ret, RecentErrMsg());
+    BENCH_LOGE("[remote %zu] Connect failed ret=%u %s\n", idx, connect_ret, RecentErrMsg());
     (void)SendNotify(tcp_client);
     MarkFirstFail(first_fail, fail_mu);
     return false;
@@ -692,11 +694,11 @@ void SharedRemoteWorker(size_t idx, int32_t device_id, Hixl *hixl, const Benchma
                         std::atomic<int> *first_fail, std::mutex *fail_mu,
                         std::vector<TransferBenchRecord> *bench_records, std::mutex *remote_mu) {
   const std::string &remote = cfg.expanded_remote_engines[idx];
-  std::printf("[INFO] [remote %zu] worker start -> %s\n", idx, remote.c_str());
+  BENCH_LOGI("[remote %zu] worker start -> %s\n", idx, remote.c_str());
 
   aclError ar = aclrtSetDevice(device_id);
   if (ar != ACL_ERROR_NONE) {
-    std::printf("[ERROR] [remote %zu] aclrtSetDevice failed %d\n", idx, static_cast<int>(ar));
+    BENCH_LOGE("[remote %zu] aclrtSetDevice failed %d\n", idx, static_cast<int>(ar));
     MarkFirstFail(first_fail, fail_mu);
     return;
   }
@@ -709,7 +711,7 @@ void SharedRemoteWorker(size_t idx, int32_t device_id, Hixl *hixl, const Benchma
     return;
   }
   if (remote_addr != 0U) {
-    std::printf("[INFO] [remote %zu] peer ready\n", idx);
+    BENCH_LOGI("[remote %zu] peer ready\n", idx);
   }
 
   if (!SharedRemoteConnectTransferAndCleanup(hixl, idx, slice_base, remote, remote_addr, cfg, &tcp_client, first_fail,
@@ -720,7 +722,7 @@ void SharedRemoteWorker(size_t idx, int32_t device_id, Hixl *hixl, const Benchma
 
   const auto disconnect_ret = hixl->Disconnect(AscendString(remote.c_str()));
   if (disconnect_ret != SUCCESS) {
-    std::printf("[ERROR] [remote %zu] Disconnect failed ret=%u\n", idx, disconnect_ret);
+    BENCH_LOGE("[remote %zu] Disconnect failed ret=%u\n", idx, disconnect_ret);
   }
   if (!SendNotify(&tcp_client)) {
     MarkFirstFail(first_fail, fail_mu);
@@ -736,7 +738,7 @@ void FinalizeLaneState(LaneState *p, const std::string &remote_engine) {
   if (p->hixl_connected) {
     const auto ret = p->hixl.Disconnect(AscendString(remote_engine.c_str()));
     if (ret != SUCCESS) {
-      std::printf("[ERROR] Disconnect failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
+      BENCH_LOGE("Disconnect failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
     }
     p->hixl_connected = false;
   }
@@ -757,7 +759,7 @@ void FinalizeLaneState(LaneState *p, const std::string &remote_engine) {
 bool LaneWorkerSetDevice(size_t idx, int32_t dev, std::atomic<int> *first_fail, std::mutex *fail_mu) {
   aclError ar = aclrtSetDevice(dev);
   if (ar != ACL_ERROR_NONE) {
-    std::printf("[ERROR] [lane %zu] aclrtSetDevice failed %d\n", idx, static_cast<int>(ar));
+    BENCH_LOGE("[lane %zu] aclrtSetDevice failed %d\n", idx, static_cast<int>(ar));
     MarkFirstFail(first_fail, fail_mu);
     return false;
   }
@@ -798,12 +800,12 @@ bool LaneWorkerRemoteTransferPhase(LaneState *p, const BenchmarkConfig &cfg, siz
     return false;
   }
   if (remote_addr != 0U) {
-    std::printf("[INFO] peer ready\n");
+    BENCH_LOGI("peer ready\n");
   }
 
   const auto connect_ret = p->hixl.Connect(AscendString(remote.c_str()), static_cast<int32_t>(cfg.connect_timeout_ms));
   if (connect_ret != SUCCESS) {
-    std::printf("[ERROR] Connect failed, ret = %u, errmsg: %s\n", connect_ret, RecentErrMsg());
+    BENCH_LOGE("Connect failed, ret = %u, errmsg: %s\n", connect_ret, RecentErrMsg());
     MarkFirstFail(first_fail, fail_mu);
     return false;
   }
@@ -826,7 +828,7 @@ void LaneWorkerEntry(size_t idx, LaneState *p, const BenchmarkConfig &cfg, std::
   const std::string &remote = cfg.expanded_remote_engines[idx];
   p->transport = cfg.transport;
   p->roce_endpoint_placement = cfg.roce_endpoint_placement;
-  std::printf("[INFO] [lane %zu] start device=%d\n", idx, static_cast<int>(dev));
+  BENCH_LOGI("[lane %zu] start device=%d\n", idx, static_cast<int>(dev));
 
   if (!LaneWorkerSetDevice(idx, dev, first_fail, fail_mu)) {
     (void)aclrtResetDevice(dev);
@@ -850,7 +852,7 @@ void LaneWorkerEntry(size_t idx, LaneState *p, const BenchmarkConfig &cfg, std::
 
   const auto disconnect_ret = p->hixl.Disconnect(AscendString(remote.c_str()));
   if (disconnect_ret != SUCCESS) {
-    std::printf("[ERROR] Disconnect failed, ret = %u, errmsg: %s\n", disconnect_ret, RecentErrMsg());
+    BENCH_LOGE("Disconnect failed, ret = %u, errmsg: %s\n", disconnect_ret, RecentErrMsg());
   }
   p->hixl_connected = false;
   (void)SendNotify(&p->tcp_client);
@@ -939,7 +941,7 @@ bool ClientRunner::Init() {
   }
   device_id_ = cfg_.expanded_device_ids[0];
   if (aclrtSetDevice(device_id_) != ACL_ERROR_NONE) {
-    std::printf("[ERROR] ClientRunner aclrtSetDevice(%d) failed\n", static_cast<int>(device_id_));
+    BENCH_LOGE("ClientRunner aclrtSetDevice(%d) failed\n", static_cast<int>(device_id_));
     return false;
   }
   device_bound_ = true;
@@ -956,7 +958,7 @@ void ClientRunner::Shutdown() {
 }
 
 int ClientRunner::RunOnePair(const std::string &remote, void *src_slice, size_t register_len) {
-  std::printf("[INFO] initiator connecting remote=%s\n", remote.c_str());
+  BENCH_LOGI("initiator connecting remote=%s\n", remote.c_str());
 
   lane_need_register_ = true;
   if (RegisterLocalMem(lane_hixl_, cfg_, src_slice, lane_is_host_, lane_need_register_, register_len,
@@ -970,16 +972,16 @@ int ClientRunner::RunOnePair(const std::string &remote, void *src_slice, size_t 
   }
   lane_tcp_handshake_ok_ = true;
   if (remote_addr != 0U) {
-    std::printf("[INFO] peer ready\n");
+    BENCH_LOGI("peer ready\n");
   }
 
   const auto connect_ret =
       lane_hixl_.Connect(AscendString(remote.c_str()), static_cast<int32_t>(cfg_.connect_timeout_ms));
   if (connect_ret != SUCCESS) {
-    std::printf("[ERROR] Connect failed, ret = %u, errmsg: %s\n", connect_ret, RecentErrMsg());
+    BENCH_LOGE("Connect failed, ret = %u, errmsg: %s\n", connect_ret, RecentErrMsg());
     return -1;
   }
-  std::printf("[INFO] HIXL connect success\n");
+  BENCH_LOGI("HIXL connect success\n");
   lane_hixl_connected_ = true;
 
   std::vector<detail::TransferBenchRecord> records;

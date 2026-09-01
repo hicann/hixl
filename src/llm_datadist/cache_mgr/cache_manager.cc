@@ -198,7 +198,7 @@ ge::Status CacheManager::Allocate(int64_t cache_id, const CacheDesc &cache_desc,
     auto tensor_addr = mem_pool->AllocShared(static_cast<size_t>(tensor_size));
     if (tensor_addr == nullptr) {
       mem_pool->LogPoolState();
-      LLMLOGE(ge::LLM_OUT_OF_MEMORY, "Failed to allocate memory, size = %ld, index = %u", tensor_size, i);
+      LLMLOGE(ge::LLM_OUT_OF_MEMORY, "Failed to allocate memory, size = %ld B, index = %u", tensor_size, i);
       return ge::LLM_OUT_OF_MEMORY;
     }
     (void)cache_tensors.emplace_back(tensor_addr);
@@ -269,7 +269,7 @@ ge::Status CacheManager::CheckCacheKeys(const CacheDesc &cache_desc, const std::
                             "cache_key (%lu, %lu) already bound to cache_id(%ld), is_prefix = %d", data_cache_key.first,
                             data_cache_key.second, it->second, static_cast<int32_t>(is_prefix));
     LLM_CHK_BOOL_RET_STATUS(data_cache_keys.emplace(data_cache_key).second, ge::LLM_PARAM_INVALID,
-                            "multiply identical cache_keys (%lu, %lu) occurred in the request", data_cache_key.first,
+                            "multiple identical cache_keys (%lu, %lu) occurred in the request", data_cache_key.first,
                             data_cache_key.second);
   }
   return ge::SUCCESS;

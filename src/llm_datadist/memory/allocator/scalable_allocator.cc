@@ -251,7 +251,7 @@ void ScalableAllocator::Free(ge::MemBlock *block) {
     real_theory_size_ -= span->GetRealSize();
     theory_size_ -= span->GetSize();
   }
-  LOG_BY_TYPE(DLOG_INFO, "Free block theory_size_:%zu theory_min_size_:%zu allock_size:%zu mem_addr:%p.", theory_size_,
+  LOG_BY_TYPE(DLOG_INFO, "Free block theory_size_:%zu theory_min_size_:%zu alloc_size:%zu mem_addr:%p.", theory_size_,
               theory_min_size_, span->GetSize(), span->GetAddr());
 
   occupied_spans_.remove(*span);

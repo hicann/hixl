@@ -11,12 +11,12 @@
 #include "server_runner.h"
 
 #include <algorithm>
-#include <cstdio>
 #include <map>
 #include <vector>
 
 #include "acl/acl.h"
 #include "fabric_mem/fabric_mem_transfer_service.h"
+#include "benchmark_log.h"
 
 using hixl::AscendString;
 using hixl::FabricMemTransferService;
@@ -44,7 +44,7 @@ int32_t InitializeHixl(const std::string &local_engine, const hixl_benchmark::Be
       hixl_benchmark::BenchmarkConfigParser::BuildInitializeOptions(cfg, lane_index);
   const auto ret = hixl->Initialize(AscendString(local_engine.c_str()), init_options);
   if (ret != SUCCESS) {
-    std::printf("[ERROR] Initialize failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
+    BENCH_LOGE("Initialize failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
     return -1;
   }
   return 0;
@@ -57,7 +57,7 @@ void DeregisterMemHandles(Hixl &hixl_engine, const std::vector<hixl::MemHandle> 
     }
     const auto ret = hixl_engine.DeregisterMem(handle);
     if (ret != 0) {
-      std::printf("[ERROR] DeregisterMem failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
+      BENCH_LOGE("DeregisterMem failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
     }
   }
 }
@@ -112,8 +112,8 @@ bool FillBufferPattern(void *ptr, size_t size, uint8_t value, bool is_host) {
   }
   const auto ret = aclrtMemset(ptr, size, static_cast<int32_t>(value), size);
   if (ret != ACL_ERROR_NONE) {
-    std::printf("[ERROR] aclrtMemset failed ret=%d value=0x%02x size=%zu\n", static_cast<int>(ret),
-                static_cast<unsigned>(value), size);
+    BENCH_LOGE("aclrtMemset failed ret=%d value=0x%02x size=%zu\n", static_cast<int>(ret), static_cast<unsigned>(value),
+               size);
     return false;
   }
   return true;
@@ -194,31 +194,31 @@ bool ServerRunner::AllocServerBufferForRun() {
   if (is_host_ && cfg_.transport == "fabric_mem") {
     auto status = FabricMemTransferService::MallocMem(MemType::MEM_HOST, alloc_size, &buffer_);
     if (status != SUCCESS) {
-      std::printf("[ERROR] server fabric_mem alloc failed status=%d\n", static_cast<int>(status));
+      BENCH_LOGE("server fabric_mem alloc failed status=%d\n", static_cast<int>(status));
       return false;
     }
   } else if (is_host_ && cfg_.transport == "roce" && cfg_.roce_endpoint_placement == "host") {
     buffer_ = std::malloc(alloc_size);
     if (buffer_ == nullptr) {
-      std::printf("[ERROR] server alloc host failed: malloc returned null\n");
+      BENCH_LOGE("server alloc host failed: malloc returned null\n");
       return false;
     }
   } else if (is_host_) {
     aclError ar_alloc = aclrtMallocHost(&buffer_, alloc_size);
     if (ar_alloc != ACL_ERROR_NONE) {
-      std::printf("[ERROR] server alloc host failed acl=%d\n", static_cast<int>(ar_alloc));
+      BENCH_LOGE("server alloc host failed acl=%d\n", static_cast<int>(ar_alloc));
       return false;
     }
   } else if (cfg_.transport == "fabric_mem") {
     auto status = FabricMemTransferService::MallocMem(MemType::MEM_DEVICE, alloc_size, &buffer_);
     if (status != SUCCESS) {
-      std::printf("[ERROR] server fabric_mem device alloc failed status=%d\n", static_cast<int>(status));
+      BENCH_LOGE("server fabric_mem device alloc failed status=%d\n", static_cast<int>(status));
       return false;
     }
   } else {
     aclError ar_alloc = aclrtMalloc(&buffer_, alloc_size, ACL_MEM_MALLOC_HUGE_ONLY);
     if (ar_alloc != ACL_ERROR_NONE) {
-      std::printf("[ERROR] server alloc device failed acl=%d\n", static_cast<int>(ar_alloc));
+      BENCH_LOGE("server alloc device failed acl=%d\n", static_cast<int>(ar_alloc));
       return false;
     }
   }
@@ -241,7 +241,7 @@ bool ServerRunner::InitHixlAndRegisterMem() {
   desc.len = static_cast<size_t>(cfg_.buffer_size);
   const auto ret = hixl_.RegisterMem(desc, mem_type, mem_handle_);
   if (ret != SUCCESS) {
-    std::printf("[ERROR] RegisterMem failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
+    BENCH_LOGE("RegisterMem failed, ret = %u, errmsg: %s\n", ret, RecentErrMsg());
     return false;
   }
   mem_registered_ = true;
@@ -250,7 +250,7 @@ bool ServerRunner::InitHixlAndRegisterMem() {
 
 int ServerRunner::CompleteTcpHandshake(std::uintptr_t addr) {
   if (!tcp_session_.has_value()) {
-    std::printf("[ERROR] TCP peers are not ready\n");
+    BENCH_LOGE("TCP peers are not ready\n");
     return -1;
   }
   if (!tcp_session_->SendAddrToPeers(addr)) {
@@ -258,7 +258,7 @@ int ServerRunner::CompleteTcpHandshake(std::uintptr_t addr) {
     return -1;
   }
 
-  std::printf("[INFO] target ready, waiting for transfer completion (peers=%zu)\n", tcp_session_->ConnectedPeerCount());
+  BENCH_LOGI("target ready, waiting for transfer completion (peers=%zu)\n", tcp_session_->ConnectedPeerCount());
   if (!tcp_session_->WaitAllNotify()) {
     tcp_session_.reset();
     return -1;
@@ -273,13 +273,13 @@ int ServerRunner::Run() {
     return -1;
   }
   if (!FillBufferPattern(buffer_, static_cast<size_t>(cfg_.buffer_size), kServerFillPattern, is_host_)) {
-    std::printf("[WARN] target fill buffer with '%c' failed, read verification may report false mismatches\n",
-                static_cast<int32_t>(kServerFillPattern));
+    BENCH_LOGW("target fill buffer with '%c' failed, read verification may report false mismatches\n",
+               static_cast<int32_t>(kServerFillPattern));
   }
   std::string host;
   uint16_t port = 0;
   if (!ExtractEndpointHostAndPort(cfg_.expanded_local_engines[0], host, port)) {
-    std::printf("[ERROR] target local_engine must be host:port\n");
+    BENCH_LOGE("target local_engine must be host:port\n");
     return -1;
   }
   const uint16_t peer_coord_port = DerivePeerCoordPort(port);
@@ -298,7 +298,7 @@ int ServerRunner::Run() {
     return -1;
   }
 
-  std::printf("[INFO] target done\n");
+  BENCH_LOGI("target done\n");
   return 0;
 }
 

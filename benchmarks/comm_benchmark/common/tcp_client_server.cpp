@@ -9,9 +9,7 @@
  */
 
 #include <cinttypes>
-#include <cstdio>
 #include <chrono>
-#include <iostream>
 #include <thread>
 #include <vector>
 #include <arpa/inet.h>
@@ -24,6 +22,7 @@
 #include <cstring>
 #include <endian.h>
 #include "tcp_client_server.h"
+#include "benchmark_log.h"
 
 namespace {
 
@@ -60,7 +59,7 @@ int AcceptOnePeerInConnectPhase(TCPServer *srv, const std::chrono::steady_clock:
   bool timed_out = false;
   if (!srv->AcceptIntoClientFd(&cfd, poll_ms, &timed_out)) {
     if (!timed_out) {
-      std::printf("[ERROR] AcceptIntoClientFd failed.\n");
+      BENCH_LOGE("AcceptIntoClientFd failed.\n");
       CloseClientFds(out_client_fds);
       return -1;
     }
@@ -79,11 +78,11 @@ bool RunConnectPhaseFill(TCPServer *srv, uint16_t port, uint32_t max_connect_pha
   }
   out_client_fds.clear();
   if (!srv->StartServer(port)) {
-    std::printf("[ERROR] Failed to start TCP server.\n");
+    BENCH_LOGE("Failed to start TCP server.\n");
     return false;
   }
-  std::printf("[INFO] waiting for %" PRIu32 " peer(s) on TCP port %u, timeout=%" PRIu32 "s\n", expected_peer_count,
-              port, max_connect_phase_sec);
+  BENCH_LOGI("waiting for %" PRIu32 " peer(s) on TCP port %u, timeout=%" PRIu32 "s\n", expected_peer_count, port,
+             max_connect_phase_sec);
   const auto deadline =
       std::chrono::steady_clock::now() + std::chrono::seconds(static_cast<int>(max_connect_phase_sec));
 
@@ -99,15 +98,15 @@ bool RunConnectPhaseFill(TCPServer *srv, uint16_t port, uint32_t max_connect_pha
   if (out_client_fds.size() < expected_peer_count) {
     const size_t got = out_client_fds.size();
     if (got == 0U) {
-      std::printf("[ERROR] TCP connect phase: no client within %" PRIu32 " s.\n", max_connect_phase_sec);
+      BENCH_LOGE("TCP connect phase: no client within %" PRIu32 " s.\n", max_connect_phase_sec);
     } else {
-      std::printf("[ERROR] TCP connect phase: timeout after %" PRIu32 " s (expected %" PRIu32 " peers, got %zu).\n",
-                  max_connect_phase_sec, expected_peer_count, got);
+      BENCH_LOGE("TCP connect phase: timeout after %" PRIu32 " s (expected %" PRIu32 " peers, got %zu).\n",
+                 max_connect_phase_sec, expected_peer_count, got);
     }
     CloseClientFds(out_client_fds);
     return false;
   }
-  std::printf("[INFO] peer connection ready, count=%zu\n", out_client_fds.size());
+  BENCH_LOGI("peer connection ready, count=%zu\n", out_client_fds.size());
   srv->StopServer();
   return true;
 }
@@ -118,12 +117,12 @@ bool SendAddrToAllPeers(uint64_t mem_addr, std::vector<int> &client_fds) {
   }
   for (int fd : client_fds) {
     if (!TcpSendUint64(fd, mem_addr)) {
-      std::printf("[ERROR] TcpSendUint64 failed.\n");
+      BENCH_LOGE("TcpSendUint64 failed.\n");
       CloseClientFds(client_fds);
       return false;
     }
     if (!TcpSendTaskStatus(fd)) {
-      std::printf("[ERROR] TcpSendTaskStatus failed.\n");
+      BENCH_LOGE("TcpSendTaskStatus failed.\n");
       CloseClientFds(client_fds);
       return false;
     }
@@ -134,11 +133,11 @@ bool SendAddrToAllPeers(uint64_t mem_addr, std::vector<int> &client_fds) {
 bool PollFds(std::vector<struct pollfd> *pf) {
   const int pr = poll(pf->data(), static_cast<nfds_t>(pf->size()), kRecvNotifyPollTimeoutMs);
   if (pr < 0) {
-    std::printf("[ERROR] RecvNotifyAll poll failed\n");
+    BENCH_LOGE("RecvNotifyAll poll failed\n");
     return false;
   }
   if (pr == 0) {
-    std::printf("[ERROR] RecvNotifyAll poll timeout\n");
+    BENCH_LOGE("RecvNotifyAll poll timeout\n");
     return false;
   }
   return true;
@@ -147,7 +146,7 @@ bool PollFds(std::vector<struct pollfd> *pf) {
 bool ProcessPollEvent(const struct pollfd &pfd, const std::vector<int> &client_fds, std::vector<char> *done,
                       size_t *ndone) {
   if ((pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
-    std::printf("[ERROR] RecvNotifyAll socket error\n");
+    BENCH_LOGE("RecvNotifyAll socket error\n");
     return false;
   }
   if ((pfd.revents & POLLIN) == 0) {
@@ -210,7 +209,7 @@ bool RecvNotifyAllOnFds(const std::vector<int> &client_fds) {
 bool TcpSendUint64(int fd, uint64_t data) {
   const uint64_t network_data = htobe64(data);
   if (send(fd, &network_data, sizeof(network_data), 0) < 0) {
-    std::cerr << "[ERROR] Send uint64 to tcp peer failed" << std::endl;
+    BENCH_LOGE("Send uint64 to tcp peer failed\n");
     return false;
   }
   return true;
@@ -219,7 +218,7 @@ bool TcpSendUint64(int fd, uint64_t data) {
 bool TcpSendTaskStatus(int fd) {
   const bool status = true;
   if (send(fd, &status, sizeof(status), 0) < 0) {
-    std::cerr << "[ERROR] Send status to tcp client failed" << std::endl;
+    BENCH_LOGE("Send status to tcp client failed\n");
     return false;
   }
   return true;
@@ -229,17 +228,17 @@ bool TcpRecvTaskStatusOk(int fd) {
   bool received = false;
   const ssize_t bytes_received = recv(fd, &received, sizeof(received), 0);
   if (bytes_received < 0) {
-    std::cerr << "[ERROR] Received status failed" << std::endl;
+    BENCH_LOGE("Received status failed\n");
     return false;
   }
   if (bytes_received == 0) {
-    std::cerr << "[ERROR] Client connection break" << std::endl;
+    BENCH_LOGE("Client connection break\n");
     return false;
   }
   if (received) {
     return true;
   }
-  std::cout << "[ERROR] Tcp server received status failed" << std::endl;
+  BENCH_LOGE("Tcp server received status failed\n");
   return false;
 }
 
@@ -275,7 +274,7 @@ bool TcpServerSession::WaitForPeers() {
     return false;
   }
   if (client_fds_.empty()) {
-    std::printf("[ERROR] TCP connect phase: no client connections.\n");
+    BENCH_LOGE("TCP connect phase: no client connections.\n");
     ShutdownClientsAndListen();
     return false;
   }
@@ -307,7 +306,7 @@ TCPClient::TCPClient() = default;
 bool TCPClient::ConnectToServer(const std::string &host, uint16_t port, uint32_t timeout_ms) {
   sock_ = socket(AF_INET, SOCK_STREAM, 0);
   if (sock_ == -1) {
-    std::cerr << "[ERROR] Create socket failed" << std::endl;
+    BENCH_LOGE("Create socket failed\n");
     return false;
   }
 
@@ -315,7 +314,7 @@ bool TCPClient::ConnectToServer(const std::string &host, uint16_t port, uint32_t
   server_.sin_port = htons(port);
 
   if (inet_addr(host.c_str()) == INADDR_NONE) {
-    std::cerr << "[ERROR] Invalid server ip: " << host << std::endl;
+    BENCH_LOGE("Invalid server ip: %s\n", host.c_str());
   } else {
     server_.sin_addr.s_addr = inet_addr(host.c_str());
   }
@@ -337,8 +336,7 @@ bool TCPClient::ConnectToServer(const std::string &host, uint16_t port, uint32_t
     const auto wait_ms = std::min<int64_t>(sleep_ms, std::max<int64_t>(remain_ms, 1LL));
     std::this_thread::sleep_for(std::chrono::milliseconds(wait_ms));
   }
-  std::cerr << "[ERROR] Connect to tcp server failed after " << attempt << " attempt(s), timeout_ms=" << timeout_ms
-            << std::endl;
+  BENCH_LOGE("Connect to tcp server failed after %u attempt(s), timeout_ms=%u\n", attempt, timeout_ms);
   return false;
 }
 
@@ -346,7 +344,7 @@ bool TCPClient::SendUint64(uint64_t data) const {
   // Convert host byte order to network byte order.
   uint64_t network_data = htobe64(data);
   if (send(sock_, &network_data, sizeof(uint64_t), 0) < 0) {
-    std::cerr << "[ERROR] Send uint64 to tcp peer failed" << std::endl;
+    BENCH_LOGE("Send uint64 to tcp peer failed\n");
     return false;
   }
   return true;
@@ -356,16 +354,15 @@ bool TCPClient::ReceiveUint64(uint64_t *out) const {
   uint64_t received_data = 0;
   ssize_t bytes_received = recv(sock_, &received_data, sizeof(uint64_t), 0);
   if (bytes_received < 0) {
-    std::cerr << "[ERROR] Received uint64 data failed" << std::endl;
+    BENCH_LOGE("Received uint64 data failed\n");
     return false;
   }
   if (bytes_received == 0) {
-    std::cerr << "[ERROR] Tcp peer connection break" << std::endl;
+    BENCH_LOGE("Tcp peer connection break\n");
     return false;
   }
   if (bytes_received != static_cast<ssize_t>(sizeof(uint64_t))) {
-    std::cerr << "[ERROR] Invalid uint64 size, expect: " << sizeof(uint64_t) << " actual: " << bytes_received
-              << std::endl;
+    BENCH_LOGE("Invalid uint64 size, expect: %zu actual: %zd\n", sizeof(uint64_t), bytes_received);
     return false;
   }
   if (out != nullptr) {
@@ -377,7 +374,7 @@ bool TCPClient::ReceiveUint64(uint64_t *out) const {
 bool TCPClient::SendTaskStatus() const {
   bool status = true;
   if (send(sock_, &status, sizeof(status), 0) < 0) {
-    std::cerr << "[ERROR] Send status to tcp server failed" << std::endl;
+    BENCH_LOGE("Send status to tcp server failed\n");
     return false;
   }
   return true;
@@ -388,17 +385,17 @@ bool TCPClient::ReceiveTaskStatus() const {
   // Receive the task status flag.
   ssize_t bytes_received = recv(sock_, &received, sizeof(received), 0);
   if (bytes_received < 0) {
-    std::cerr << "[ERROR] Received status failed" << std::endl;
+    BENCH_LOGE("Received status failed\n");
     return false;
   } else if (bytes_received == 0) {
-    std::cerr << "[ERROR] Server connection break" << std::endl;
+    BENCH_LOGE("Server connection break\n");
     return false;
   }
 
   if (received) {
     return true;
   } else {
-    std::cout << "[ERROR] Tcp client received status failed" << std::endl;
+    BENCH_LOGE("Tcp client received status failed\n");
     return false;
   }
 }
@@ -419,13 +416,13 @@ TCPServer::TCPServer() = default;
 bool TCPServer::StartServer(uint16_t port, int listen_backlog) {
   server_fd_ = socket(AF_INET, SOCK_STREAM, 0);
   if (server_fd_ < 0) {
-    std::cerr << "[ERROR] Create socket failed" << std::endl;
+    BENCH_LOGE("Create socket failed\n");
     return false;
   }
 
   // Configure socket reuse options before bind.
   if (setsockopt(server_fd_, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt_, sizeof(opt_))) {
-    std::cerr << "[ERROR] Set socket option failed" << std::endl;
+    BENCH_LOGE("Set socket option failed\n");
     return false;
   }
 
@@ -435,7 +432,7 @@ bool TCPServer::StartServer(uint16_t port, int listen_backlog) {
 
   // Bind the socket to the requested port.
   if (bind(server_fd_, reinterpret_cast<sockaddr *>(&address_), sizeof(address_)) < 0) {
-    std::cerr << "[ERROR] Bind port failed" << std::endl;
+    BENCH_LOGE("Bind port failed\n");
     return false;
   }
 
@@ -446,7 +443,7 @@ bool TCPServer::StartServer(uint16_t port, int listen_backlog) {
 #endif
   const int backlog = std::max(1, std::min(listen_backlog, kSysMax));
   if (listen(server_fd_, backlog) < 0) {
-    std::cerr << "[ERROR] Listen port failed" << std::endl;
+    BENCH_LOGE("Listen port failed\n");
     return false;
   }
 
@@ -466,7 +463,7 @@ bool TCPServer::AcceptIntoClientFd(int *out_fd, int poll_timeout_ms, bool *timed
 
   const auto ret = poll(&pfd, static_cast<nfds_t>(1), poll_timeout_ms);
   if (ret < 0) {
-    std::cerr << "[ERROR] Poll error" << std::endl;
+    BENCH_LOGE("Poll error\n");
     return false;
   }
   if (ret == 0) {
@@ -480,7 +477,7 @@ bool TCPServer::AcceptIntoClientFd(int *out_fd, int poll_timeout_ms, bool *timed
   socklen_t peer_len = sizeof(peer);
   const int cfd = accept(server_fd_, reinterpret_cast<sockaddr *>(&peer), &peer_len);
   if (cfd < 0) {
-    std::cerr << "[ERROR] Accept connection failed" << std::endl;
+    BENCH_LOGE("Accept connection failed\n");
     return false;
   }
 
@@ -492,8 +489,7 @@ bool TCPServer::AcceptConnection() {
   bool timed_out = false;
   if (!AcceptIntoClientFd(&client_socket_, kAcceptConnTimeoutMs, &timed_out)) {
     if (timed_out) {
-      std::cerr << "[ERROR] Accept connection timeout (no new connection in " << kAcceptConnTimeoutMs << " ms)"
-                << std::endl;
+      BENCH_LOGE("Accept connection timeout (no new connection in %d ms)\n", kAcceptConnTimeoutMs);
     }
     return false;
   }
@@ -506,14 +502,13 @@ uint64_t TCPServer::ReceiveUint64() const {
   // Receive one uint64_t payload from the connected client.
   ssize_t bytes_received = recv(client_socket_, &received_data, sizeof(uint64_t), 0);
   if (bytes_received < 0) {
-    std::cerr << "[ERROR] Received data failed" << std::endl;
+    BENCH_LOGE("Received data failed\n");
     return 0;
   } else if (bytes_received == 0) {
-    std::cerr << "[ERROR] Client connection break" << std::endl;
+    BENCH_LOGE("Client connection break\n");
     return 0;
   } else if (bytes_received != sizeof(uint64_t)) {
-    std::cerr << "[ERROR] Invalid data size, expect: " << sizeof(uint64_t)
-              << "Bytes, actual received: " << bytes_received << "Bytes" << std::endl;
+    BENCH_LOGE("Invalid data size, expect: %zu Bytes, actual received: %zd Bytes\n", sizeof(uint64_t), bytes_received);
     return 0;
   }
 
@@ -525,7 +520,7 @@ uint64_t TCPServer::ReceiveUint64() const {
 bool TCPServer::SendUint64(uint64_t data) const {
   uint64_t network_data = htobe64(data);
   if (send(client_socket_, &network_data, sizeof(uint64_t), 0) < 0) {
-    std::cerr << "[ERROR] Send uint64 to tcp peer failed" << std::endl;
+    BENCH_LOGE("Send uint64 to tcp peer failed\n");
     return false;
   }
   return true;
@@ -534,7 +529,7 @@ bool TCPServer::SendUint64(uint64_t data) const {
 bool TCPServer::SendTaskStatus() const {
   bool status = true;
   if (send(client_socket_, &status, sizeof(status), 0) < 0) {
-    std::cerr << "[ERROR] Send status to tcp client failed" << std::endl;
+    BENCH_LOGE("Send status to tcp client failed\n");
     return false;
   }
   return true;
@@ -545,17 +540,17 @@ bool TCPServer::ReceiveTaskStatus() const {
   // Receive the task status flag.
   ssize_t bytes_received = recv(client_socket_, &received, sizeof(received), 0);
   if (bytes_received < 0) {
-    std::cerr << "[ERROR] Received status failed" << std::endl;
+    BENCH_LOGE("Received status failed\n");
     return false;
   } else if (bytes_received == 0) {
-    std::cerr << "[ERROR] Client connection break" << std::endl;
+    BENCH_LOGE("Client connection break\n");
     return false;
   }
 
   if (received) {
     return true;
   } else {
-    std::cout << "[ERROR] Tcp server received status failed" << std::endl;
+    BENCH_LOGE("Tcp server received status failed\n");
     return false;
   }
 }

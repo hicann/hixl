@@ -231,7 +231,7 @@ Status CtrlMsgPlugin::Send(int32_t fd, const void *buf, size_t len, int32_t &err
   while (nbytes > 0) {
     auto rc = write(fd, pos, static_cast<size_t>(nbytes));
     if (rc < 0 && (errno == EAGAIN || errno == EINTR)) {
-      HIXL_LOGI("Socket write need to eagain");
+      HIXL_LOGI("Socket write returned EAGAIN, need to retry");
       continue;
     } else if (rc <= 0) {
       err_no = errno;
@@ -283,7 +283,7 @@ Status CtrlMsgPlugin::Recv(int32_t fd, void *buf, size_t len, uint32_t timeout_m
     auto rc = read(fd, pos, static_cast<size_t>(nbytes));
     const int32_t saved_errno = errno;
     if (rc < 0 && (saved_errno == EAGAIN || saved_errno == EINTR)) {
-      HIXL_LOGI("Socket read need to eagain");
+      HIXL_LOGI("Socket read returned EAGAIN, need to retry");
       continue;
     } else if (rc <= 0) {
       HIXL_CHK_BOOL_RET_STATUS(false, FAILED,

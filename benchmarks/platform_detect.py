@@ -77,7 +77,7 @@ def detect_platform_from_npu_smi() -> str | None:
 def prompt_platform(reason: str | None = None) -> str:
     """Ask the operator to choose A2/A3/A5 when npu-smi detection is unavailable."""
     if reason:
-        log.info(reason)
+        log.warning(reason)
     if not sys.stdin.isatty():
         raise RuntimeError('Cannot detect platform and stdin is not interactive. Pass --platform=a2|a3|a5.')
     while True:

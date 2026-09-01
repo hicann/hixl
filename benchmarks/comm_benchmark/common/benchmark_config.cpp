@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "acl/acl.h"
+#include "benchmark_log.h"
 
 using hixl::AscendString;
 using hixl::OPTION_BUFFER_POOL;
@@ -202,7 +203,7 @@ bool CollectArgs(int argc, char **argv, std::map<std::string, std::string> *kv,
     }
     auto pos = arg.find('=');
     if (pos == std::string::npos) {
-      fprintf(stderr, "[ERROR] Expected key=value, got: %s\n", arg.c_str());
+      BENCH_LOGE("Expected key=value, got: %s\n", arg.c_str());
       return false;
     }
     std::string key = arg.substr(0, pos);
@@ -263,7 +264,7 @@ bool ApplyRoleKv(const std::string &val, BenchmarkConfig *cfg) {
     cfg->role_name = val;
     return true;
   }
-  fprintf(stderr, "[ERROR] Invalid --role=%s (expect target|initiator)\n", val.c_str());
+  BENCH_LOGE("Invalid --role=%s (expect target|initiator)\n", val.c_str());
   return false;
 }
 
@@ -282,13 +283,13 @@ bool ApplyDeviceIdKv(const std::string &val, BenchmarkConfig *cfg) {
   for (const std::string &part : SplitCommaList(val)) {
     int32_t id = 0;
     if (!ParseI32(part, &id)) {
-      fprintf(stderr, "[ERROR] Invalid --device_id segment \"%s\" in %s\n", part.c_str(), val.c_str());
+      BENCH_LOGE("Invalid --device_id segment \"%s\" in %s\n", part.c_str(), val.c_str());
       return false;
     }
     cfg->device_id_list.push_back(id);
   }
   if (cfg->device_id_list.empty()) {
-    fprintf(stderr, "[ERROR] Invalid --device_id=%s\n", val.c_str());
+    BENCH_LOGE("Invalid --device_id=%s\n", val.c_str());
     return false;
   }
   cfg->device_id = cfg->device_id_list[0];
@@ -299,7 +300,7 @@ bool ApplyLocalEngineKv(const std::string &val, BenchmarkConfig *cfg) {
   cfg->local_engine = val;
   cfg->local_engine_list = SplitCommaList(val);
   if (cfg->local_engine_list.empty()) {
-    fprintf(stderr, "[ERROR] local_engine is empty\n");
+    BENCH_LOGE("local_engine is empty\n");
     return false;
   }
   return true;
@@ -309,7 +310,7 @@ bool ApplyRemoteEngineKv(const std::string &val, BenchmarkConfig *cfg) {
   cfg->remote_engine = val;
   cfg->remote_engine_list = SplitCommaList(val);
   if (cfg->remote_engine_list.empty()) {
-    fprintf(stderr, "[ERROR] remote_engine is empty\n");
+    BENCH_LOGE("remote_engine is empty\n");
     return false;
   }
   return true;
@@ -317,7 +318,7 @@ bool ApplyRemoteEngineKv(const std::string &val, BenchmarkConfig *cfg) {
 
 bool ApplyMemoryKv(const std::string &val, BenchmarkConfig *cfg) {
   if (val != "host" && val != "device") {
-    fprintf(stderr, "[ERROR] Invalid --memory=%s (expect host|device)\n", val.c_str());
+    BENCH_LOGE("Invalid --memory=%s (expect host|device)\n", val.c_str());
     return false;
   }
   if (cfg->role == BenchmarkRole::kServer) {
@@ -331,7 +332,7 @@ bool ApplyMemoryKv(const std::string &val, BenchmarkConfig *cfg) {
 
 bool ApplyRemoteMemoryKv(const std::string &val, BenchmarkConfig *cfg) {
   if (val != "host" && val != "device") {
-    fprintf(stderr, "[ERROR] Invalid --remote_memory=%s (expect host|device)\n", val.c_str());
+    BENCH_LOGE("Invalid --remote_memory=%s (expect host|device)\n", val.c_str());
     return false;
   }
   cfg->target_memory_type = val;
@@ -348,11 +349,11 @@ bool ApplyOpKv(const std::string &val, BenchmarkConfig *cfg) {
 bool ApplyPeerWaitSecKv(const std::string &val, BenchmarkConfig *cfg) {
   uint32_t sec = 0;
   if (!ParseU32(val, &sec) || sec == 0U) {
-    fprintf(stderr, "[ERROR] Invalid --peer_wait_s=%s (expect positive integer)\n", val.c_str());
+    BENCH_LOGE("Invalid --peer_wait_s=%s (expect positive integer)\n", val.c_str());
     return false;
   }
   if (sec > kMaxAcceptWaitSec) {
-    fprintf(stderr, "[ERROR] --peer_wait_s too large (max %u)\n", kMaxAcceptWaitSec);
+    BENCH_LOGE("--peer_wait_s too large (max %u)\n", kMaxAcceptWaitSec);
     return false;
   }
   cfg->peer_wait_sec = sec;
@@ -362,12 +363,11 @@ bool ApplyPeerWaitSecKv(const std::string &val, BenchmarkConfig *cfg) {
 bool ApplyPeerCountKv(const std::string &val, BenchmarkConfig *cfg) {
   uint32_t n = 0;
   if (!ParseU32(val, &n) || n == 0U) {
-    fprintf(stderr, "[ERROR] Invalid --peer_count=%s (expect integer 1..%" PRIu32 ")\n", val.c_str(),
-            kTcpClientCountMax);
+    BENCH_LOGE("Invalid --peer_count=%s (expect integer 1..%" PRIu32 ")\n", val.c_str(), kTcpClientCountMax);
     return false;
   }
   if (n > kTcpClientCountMax) {
-    fprintf(stderr, "[ERROR] --peer_count too large (max %" PRIu32 ")\n", kTcpClientCountMax);
+    BENCH_LOGE("--peer_count too large (max %" PRIu32 ")\n", kTcpClientCountMax);
     return false;
   }
   cfg->peer_count = n;
@@ -383,7 +383,7 @@ bool ApplyHostRoceIpKv(const std::string &val, BenchmarkConfig *cfg) {
   cfg->host_roce_ip = val;
   cfg->host_roce_ip_list = SplitCommaList(val);
   if (cfg->host_roce_ip_list.empty()) {
-    fprintf(stderr, "[ERROR] host_roce_ip is empty\n");
+    BENCH_LOGE("host_roce_ip is empty\n");
     return false;
   }
   return true;
@@ -449,7 +449,7 @@ bool ParseByteSize(const std::string &val, uint64_t &out) {
 
 bool ApplyTransferSizeKv(const std::string &val, BenchmarkConfig *cfg) {
   if (!ParseByteSize(val, cfg->transfer_size)) {
-    fprintf(stderr, "[ERROR] Invalid --transfer_size=%s\n", val.c_str());
+    BENCH_LOGE("Invalid --transfer_size=%s\n", val.c_str());
     return false;
   }
   return true;
@@ -457,7 +457,7 @@ bool ApplyTransferSizeKv(const std::string &val, BenchmarkConfig *cfg) {
 
 bool ApplyBufferSizeKv(const std::string &val, BenchmarkConfig *cfg) {
   if (!ParseByteSize(val, cfg->buffer_size)) {
-    fprintf(stderr, "[ERROR] Invalid --buffer_size=%s\n", val.c_str());
+    BENCH_LOGE("Invalid --buffer_size=%s\n", val.c_str());
     return false;
   }
   return true;
@@ -488,7 +488,7 @@ bool ApplyBlockSizesKv(const std::string &val, BenchmarkConfig *cfg) {
   cfg->block_sizes.clear();
   const std::vector<std::string> entries = SplitCommaList(val);
   if (entries.empty()) {
-    fprintf(stderr, "[ERROR] Invalid --block_sizes=%s\n", val.c_str());
+    BENCH_LOGE("Invalid --block_sizes=%s\n", val.c_str());
     return false;
   }
   for (const std::string &entry : entries) {
@@ -496,21 +496,21 @@ bool ApplyBlockSizesKv(const std::string &val, BenchmarkConfig *cfg) {
     if (sep == std::string::npos) {
       uint64_t block = 0;
       if (!ParseByteSize(entry, block)) {
-        fprintf(stderr, "[ERROR] Invalid --block_sizes segment \"%s\"\n", entry.c_str());
+        BENCH_LOGE("Invalid --block_sizes segment \"%s\"\n", entry.c_str());
         return false;
       }
       cfg->block_sizes.push_back(block);
       continue;
     }
     if (entry.find(':', sep + 1U) != std::string::npos) {
-      fprintf(stderr, "[ERROR] Invalid --block_sizes range \"%s\"\n", entry.c_str());
+      BENCH_LOGE("Invalid --block_sizes range \"%s\"\n", entry.c_str());
       return false;
     }
     uint64_t start = 0;
     uint64_t end = 0;
     if (!ParseByteSize(entry.substr(0, sep), start) || !ParseByteSize(entry.substr(sep + 1U), end) ||
         !BuildPowerOfTwoBlockRange(start, end, cfg->block_sizes)) {
-      fprintf(stderr, "[ERROR] Invalid --block_sizes range \"%s\"\n", entry.c_str());
+      BENCH_LOGE("Invalid --block_sizes range \"%s\"\n", entry.c_str());
       return false;
     }
   }
@@ -519,7 +519,7 @@ bool ApplyBlockSizesKv(const std::string &val, BenchmarkConfig *cfg) {
 
 bool ApplyLoopsKv(const std::string &val, BenchmarkConfig *cfg) {
   if (!ParseU32(val, &cfg->loops) || cfg->loops == 0) {
-    fprintf(stderr, "[ERROR] Invalid --loops=%s\n", val.c_str());
+    BENCH_LOGE("Invalid --loops=%s\n", val.c_str());
     return false;
   }
   return true;
@@ -527,7 +527,7 @@ bool ApplyLoopsKv(const std::string &val, BenchmarkConfig *cfg) {
 
 bool ApplyUseAsyncKv(const std::string &val, BenchmarkConfig *cfg) {
   if (!ParseBool(val, &cfg->use_async)) {
-    fprintf(stderr, "[ERROR] Invalid --use_async=%s (expect true|false|0|1)\n", val.c_str());
+    BENCH_LOGE("Invalid --use_async=%s (expect true|false|0|1)\n", val.c_str());
     return false;
   }
   return true;
@@ -535,7 +535,7 @@ bool ApplyUseAsyncKv(const std::string &val, BenchmarkConfig *cfg) {
 
 bool ApplyAsyncBatchNumKv(const std::string &val, BenchmarkConfig *cfg) {
   if (!ParseU32(val, &cfg->async_batch_num) || cfg->async_batch_num == 0) {
-    fprintf(stderr, "[ERROR] Invalid --async_batch_num=%s (expect positive integer)\n", val.c_str());
+    BENCH_LOGE("Invalid --async_batch_num=%s (expect positive integer)\n", val.c_str());
     return false;
   }
   return true;
@@ -543,7 +543,7 @@ bool ApplyAsyncBatchNumKv(const std::string &val, BenchmarkConfig *cfg) {
 
 bool ApplyConnectTimeoutKv(const std::string &val, BenchmarkConfig *cfg) {
   if (!ParseU32(val, &cfg->connect_timeout_ms) || cfg->connect_timeout_ms == 0) {
-    fprintf(stderr, "[ERROR] Invalid --connect_timeout=%s (expect positive integer ms)\n", val.c_str());
+    BENCH_LOGE("Invalid --connect_timeout=%s (expect positive integer ms)\n", val.c_str());
     return false;
   }
   return true;
@@ -604,7 +604,7 @@ bool ApplyKvOverrides(const std::map<std::string, std::string> &kv, BenchmarkCon
   for (const auto &entry : kv) {
     const auto it = table.find(entry.first);
     if (it == table.end()) {
-      fprintf(stderr, "[ERROR] Unknown option: %s\n", entry.first.c_str());
+      BENCH_LOGE("Unknown option: %s\n", entry.first.c_str());
       return false;
     }
     if (!it->second(entry.second, cfg)) {
@@ -618,8 +618,7 @@ bool ParseHixlOptionPayloads(const std::vector<std::string> &payloads, Benchmark
   for (const std::string &payload : payloads) {
     const auto inner_eq = payload.find('=');
     if (inner_eq == std::string::npos || inner_eq == 0U) {
-      fprintf(stderr, "[ERROR] Invalid --hixl_option value %s (expect KEY=VALUE with KEY non-empty)\n",
-              payload.c_str());
+      BENCH_LOGE("Invalid --hixl_option value %s (expect KEY=VALUE with KEY non-empty)\n", payload.c_str());
       return false;
     }
     const std::string opt_key = payload.substr(0, inner_eq);
@@ -729,19 +728,19 @@ BenchSocKind ProbeSocKindViaAcl(int32_t device_id) {
     // CANN returns ACL_ERROR_REPEAT_INITIALIZE when ACL was already initialized (often by peer tooling).
     constexpr aclError kAclRepeatInitialize = static_cast<aclError>(100002);
     if (er != kAclRepeatInitialize) {
-      fprintf(stderr, "[WARN] ACL SOC probe failed (ret=%d); assuming A2-class HCCS rules\n", static_cast<int>(er));
+      BENCH_LOGW("ACL SOC probe failed (ret=%d); assuming A2-class HCCS rules\n", static_cast<int>(er));
       return BenchSocKind::kA2;
     }
   }
   er = aclrtSetDevice(device_id);
   if (er != ACL_ERROR_NONE) {
-    fprintf(stderr, "[WARN] aclrtSetDevice(%d) failed for SOC probe (ret=%d); assuming A2-class HCCS rules\n",
-            static_cast<int>(device_id), static_cast<int>(er));
+    BENCH_LOGW("aclrtSetDevice(%d) failed for SOC probe (ret=%d); assuming A2-class HCCS rules\n",
+               static_cast<int>(device_id), static_cast<int>(er));
     return BenchSocKind::kA2;
   }
   const char *soc_cstr = aclrtGetSocName();
   if (soc_cstr == nullptr || soc_cstr[0] == '\0') {
-    fprintf(stderr, "[WARN] aclrtGetSocName() empty; assuming A2-class HCCS rules\n");
+    BENCH_LOGW("aclrtGetSocName() empty; assuming A2-class HCCS rules\n");
     return BenchSocKind::kA2;
   }
   const std::string soc(soc_cstr);
@@ -841,7 +840,7 @@ std::map<AscendString, AscendString> BenchmarkConfigParser::BuildInitializeOptio
 bool BenchmarkConfigParser::ApplyTransportEnvironment(const BenchmarkConfig &cfg) {
   if (cfg.transport == "roce") {
     if (setenv("HCCL_INTRA_ROCE_ENABLE", "1", 1) != 0) {
-      std::fprintf(stderr, "[ERROR] setenv HCCL_INTRA_ROCE_ENABLE=1 failed: %s\n", std::strerror(errno));
+      BENCH_LOGE("setenv HCCL_INTRA_ROCE_ENABLE=1 failed: %s\n", std::strerror(errno));
       return false;
     }
     return true;
@@ -862,7 +861,7 @@ bool BenchmarkConfigParser::BuildFromArgv(int argc, char **argv, BenchmarkConfig
     it_role = kv.find("-r");
   }
   if (it_role == kv.end()) {
-    fprintf(stderr, "[ERROR] Missing required --role=target|initiator\n");
+    BENCH_LOGE("Missing required --role=target|initiator\n");
     BenchmarkConfigParser::PrintUsage(stderr);
     return false;
   }
@@ -872,7 +871,7 @@ bool BenchmarkConfigParser::BuildFromArgv(int argc, char **argv, BenchmarkConfig
   } else if (rv == "target") {
     cfg->role = BenchmarkRole::kServer;
   } else {
-    fprintf(stderr, "[ERROR] Invalid --role=%s (expect target|initiator)\n", rv.c_str());
+    BENCH_LOGE("Invalid --role=%s (expect target|initiator)\n", rv.c_str());
     return false;
   }
   ApplyCommonDefaults(cfg);
@@ -894,11 +893,11 @@ namespace {
 
 bool ValidateEnginesNotEmpty(const BenchmarkConfig *cfg) {
   if (cfg->local_engine.empty()) {
-    fprintf(stderr, "[ERROR] local_engine is empty\n");
+    BENCH_LOGE("local_engine is empty\n");
     return false;
   }
   if (cfg->remote_engine.empty()) {
-    fprintf(stderr, "[ERROR] remote_engine is empty\n");
+    BENCH_LOGE("remote_engine is empty\n");
     return false;
   }
   return true;
@@ -907,8 +906,8 @@ bool ValidateEnginesNotEmpty(const BenchmarkConfig *cfg) {
 bool ValidateListLengths(size_t nd, size_t nl, size_t nr, size_t n_max) {
   auto invalid_len = [](size_t n, size_t cap) { return n != 1U && n != cap; };
   if (invalid_len(nd, n_max) || invalid_len(nl, n_max) || invalid_len(nr, n_max)) {
-    fprintf(stderr, "[ERROR] device_id/local_engine/remote_engine list lengths (%zu,%zu,%zu) must each be 1 or %zu\n",
-            nd, nl, nr, n_max);
+    BENCH_LOGE("device_id/local_engine/remote_engine list lengths (%zu,%zu,%zu) must each be 1 or %zu\n", nd, nl, nr,
+               n_max);
     return false;
   }
   return true;
@@ -916,7 +915,7 @@ bool ValidateListLengths(size_t nd, size_t nl, size_t nr, size_t n_max) {
 
 bool ValidateMultiDeviceRequirement(size_t n_max, size_t nl, size_t nr) {
   if (n_max > 1U && nl == 1U && nr == 1U) {
-    fprintf(stderr, "[ERROR] multiple device_id values require multiple local_engine or remote_engine entries\n");
+    BENCH_LOGE("multiple device_id values require multiple local_engine or remote_engine entries\n");
     return false;
   }
   return true;
@@ -956,8 +955,7 @@ bool ValidateClientRemoteEngines(const BenchmarkConfig *cfg) {
     std::string host;
     uint16_t port = 0;
     if (!ExtractEndpointHostAndPort(re, host, port)) {
-      fprintf(stderr, "[ERROR] initiator remote_engine[%zu] must be host:port (e.g. 127.0.0.1:16001), got \"%s\"\n", i,
-              re.c_str());
+      BENCH_LOGE("initiator remote_engine[%zu] must be host:port (e.g. 127.0.0.1:16001), got \"%s\"\n", i, re.c_str());
       return false;
     }
   }
@@ -966,21 +964,21 @@ bool ValidateClientRemoteEngines(const BenchmarkConfig *cfg) {
 
 bool ValidateServerConfig(const BenchmarkConfig *cfg, size_t n_max) {
   if (n_max > 1U) {
-    fprintf(stderr, "[ERROR] target does not support multiple device_id/local_engine/remote_engine; use one each\n");
+    BENCH_LOGE("target does not support multiple device_id/local_engine/remote_engine; use one each\n");
     return false;
   }
   std::string host;
   uint16_t port = 0;
   if (!ExtractEndpointHostAndPort(cfg->expanded_local_engines[0], host, port)) {
-    fprintf(stderr, "[ERROR] target local_engine must be host:port\n");
+    BENCH_LOGE("target local_engine must be host:port\n");
     return false;
   }
   if (cfg->peer_wait_sec == 0U || cfg->peer_wait_sec > kMaxAcceptWaitSec) {
-    fprintf(stderr, "[ERROR] target peer_wait_s out of range\n");
+    BENCH_LOGE("target peer_wait_s out of range\n");
     return false;
   }
   if (cfg->peer_count == 0U || cfg->peer_count > kTcpClientCountMax) {
-    fprintf(stderr, "[ERROR] target peer_count out of range\n");
+    BENCH_LOGE("target peer_count out of range\n");
     return false;
   }
   return true;
@@ -988,7 +986,7 @@ bool ValidateServerConfig(const BenchmarkConfig *cfg, size_t n_max) {
 
 bool ValidateMemoryTypeValue(const std::string &mem) {
   if (mem != "host" && mem != "device") {
-    fprintf(stderr, "[ERROR] Invalid memory type: %s\n", mem.c_str());
+    BENCH_LOGE("Invalid memory type: %s\n", mem.c_str());
     return false;
   }
   return true;
@@ -996,7 +994,7 @@ bool ValidateMemoryTypeValue(const std::string &mem) {
 
 bool ValidateTransferOp(const std::string &op) {
   if (op != "write" && op != "read" && op != "mix") {
-    fprintf(stderr, "[ERROR] Invalid op: %s\n", op.c_str());
+    BENCH_LOGE("Invalid op: %s\n", op.c_str());
     return false;
   }
   return true;
@@ -1005,7 +1003,7 @@ bool ValidateTransferOp(const std::string &op) {
 bool ValidateTransport(const std::string &transport) {
   if (transport != "hccs" && transport != "roce" && transport != "fabric_mem" && transport != "uboe" &&
       transport != "ub_rtp" && transport != "ub") {
-    fprintf(stderr, "[ERROR] Invalid transport: %s (expect hccs|roce|fabric_mem|uboe|ub_rtp|ub)\n", transport.c_str());
+    BENCH_LOGE("Invalid transport: %s (expect hccs|roce|fabric_mem|uboe|ub_rtp|ub)\n", transport.c_str());
     return false;
   }
   return true;
@@ -1017,7 +1015,7 @@ bool ValidateHccsMemoryCombination(const BenchmarkConfig *cfg) {
   }
   const BenchSocKind kind = ResolveSocKindForHccs(cfg);
   if (kind == BenchSocKind::kA5) {
-    fprintf(stderr, "[ERROR] transport=hccs is not supported on Ascend950-class (A5) SOC; use roce or fabric_mem\n");
+    BENCH_LOGE("transport=hccs is not supported on Ascend950-class (A5) SOC; use roce or fabric_mem\n");
     return false;
   }
   const std::string &im = cfg->initiator_memory_type;
@@ -1026,32 +1024,32 @@ bool ValidateHccsMemoryCombination(const BenchmarkConfig *cfg) {
     return true;
   }
   if (cfg->op == "mix") {
-    fprintf(stderr,
-            "[ERROR] HCCS transport does not support op=mix unless initiator_memory=device and "
-            "target_memory=device\n");
+    BENCH_LOGE(
+        "HCCS transport does not support op=mix unless initiator_memory=device and "
+        "target_memory=device\n");
     return false;
   }
   if (im == "host" && tm == "device") {
     if (kind == BenchSocKind::kA3 && (cfg->op == "read" || cfg->op == "write")) {
       return true;
     }
-    fprintf(stderr,
-            "[ERROR] HCCS host→device directions (H2rD/rD2H) require Ascend910-class SOC "
-            "got initiator_memory=%s target_memory=%s op=%s\n",
-            im.c_str(), tm.c_str(), cfg->op.c_str());
+    BENCH_LOGE(
+        "HCCS host→device directions (H2rD/rD2H) require Ascend910-class SOC "
+        "got initiator_memory=%s target_memory=%s op=%s\n",
+        im.c_str(), tm.c_str(), cfg->op.c_str());
     return false;
   }
-  fprintf(stderr,
-          "[ERROR] HCCS: A2 allows D2D only; A3 adds H2rD|rD2H on host→device; "
-          "got initiator_memory=%s target_memory=%s (use roce or fabric_mem for other directions)\n",
-          im.c_str(), tm.c_str());
+  BENCH_LOGE(
+      "HCCS: A2 allows D2D only; A3 adds H2rD|rD2H on host→device; "
+      "got initiator_memory=%s target_memory=%s (use roce or fabric_mem for other directions)\n",
+      im.c_str(), tm.c_str());
   return false;
 }
 
 bool ValidateBufferSize(const BenchmarkConfig *cfg) {
   if (cfg->buffer_size < cfg->transfer_size) {
-    fprintf(stderr, "[ERROR] buffer_size (%" PRIu64 ") must be >= transfer_size (%" PRIu64 ")\n", cfg->buffer_size,
-            cfg->transfer_size);
+    BENCH_LOGE("buffer_size (%" PRIu64 ") must be >= transfer_size (%" PRIu64 ")\n", cfg->buffer_size,
+               cfg->transfer_size);
     return false;
   }
   return true;
@@ -1059,23 +1057,23 @@ bool ValidateBufferSize(const BenchmarkConfig *cfg) {
 
 bool ValidateBlockSizes(const BenchmarkConfig *cfg) {
   if (cfg->block_sizes.empty()) {
-    fprintf(stderr, "[ERROR] block_sizes is empty\n");
+    BENCH_LOGE("block_sizes is empty\n");
     return false;
   }
   for (size_t i = 0; i < cfg->block_sizes.size(); ++i) {
     const uint64_t block = cfg->block_sizes[i];
     if (block == 0U) {
-      fprintf(stderr, "[ERROR] computed block size is 0\n");
+      BENCH_LOGE("computed block size is 0\n");
       return false;
     }
     if (block > cfg->transfer_size) {
-      fprintf(stderr, "[ERROR] block size (%" PRIu64 ") at step %zu must be <= transfer_size (%" PRIu64 ")\n", block, i,
-              cfg->transfer_size);
+      BENCH_LOGE("block size (%" PRIu64 ") at step %zu must be <= transfer_size (%" PRIu64 ")\n", block, i,
+                 cfg->transfer_size);
       return false;
     }
     if (cfg->transfer_size % block != 0) {
-      fprintf(stderr, "[ERROR] transfer_size (%" PRIu64 ") must be divisible by block size (%" PRIu64 ") at step %zu\n",
-              cfg->transfer_size, block, i);
+      BENCH_LOGE("transfer_size (%" PRIu64 ") must be divisible by block size (%" PRIu64 ") at step %zu\n",
+                 cfg->transfer_size, block, i);
       return false;
     }
   }
@@ -1087,22 +1085,20 @@ bool ValidateAsyncConfig(const BenchmarkConfig *cfg) {
     return true;
   }
   if (cfg->transfer_size % cfg->async_batch_num != 0) {
-    fprintf(stderr,
-            "[ERROR] transfer_size (%" PRIu64 ") must be divisible by async_batch_num (%" PRIu32
-            ") "
-            "when use_async=true\n",
-            cfg->transfer_size, cfg->async_batch_num);
+    BENCH_LOGE("transfer_size (%" PRIu64 ") must be divisible by async_batch_num (%" PRIu32
+               ") "
+               "when use_async=true\n",
+               cfg->transfer_size, cfg->async_batch_num);
     return false;
   }
   const uint64_t per_req_size = cfg->transfer_size / cfg->async_batch_num;
   for (size_t i = 0; i < cfg->block_sizes.size(); ++i) {
     const uint64_t block = cfg->block_sizes[i];
     if (per_req_size % block != 0) {
-      fprintf(stderr,
-              "[ERROR] per-request size (%" PRIu64 ") must be divisible by block size (%" PRIu64
-              ") "
-              "at step %zu when use_async=true\n",
-              per_req_size, block, i);
+      BENCH_LOGE("per-request size (%" PRIu64 ") must be divisible by block size (%" PRIu64
+                 ") "
+                 "at step %zu when use_async=true\n",
+                 per_req_size, block, i);
       return false;
     }
   }
@@ -1124,10 +1120,10 @@ bool ValidateBenchmarkTopology(BenchmarkConfig *cfg) {
     return false;
   }
   if (cfg->host_roce_ip_list.size() > 1U && cfg->host_roce_ip_list.size() != n_max) {
-    fprintf(stderr,
-            "[ERROR] --host_roce_ip comma-list length (%zu) must be 1 or %zu (same rule as multi local_engine / "
-            "remote_engine)\n",
-            cfg->host_roce_ip_list.size(), n_max);
+    BENCH_LOGE(
+        "--host_roce_ip comma-list length (%zu) must be 1 or %zu (same rule as multi local_engine / "
+        "remote_engine)\n",
+        cfg->host_roce_ip_list.size(), n_max);
     return false;
   }
   ExpandConfigLists(cfg, n_max, nd, nl, nr);
@@ -1142,18 +1138,18 @@ bool ValidateBenchmarkTopology(BenchmarkConfig *cfg) {
 
 bool ValidateRoleRequiredOptions(const BenchmarkConfig *cfg) {
   if (!cfg->memory_explicit) {
-    fprintf(stderr, "[ERROR] --memory=host|device is required\n");
+    BENCH_LOGE("--memory=host|device is required\n");
     return false;
   }
   if (cfg->role == BenchmarkRole::kServer) {
     if (cfg->remote_memory_explicit || cfg->op_explicit) {
-      fprintf(stderr, "[ERROR] target role only accepts --memory; --remote_memory/--op are initiator-only\n");
+      BENCH_LOGE("target role only accepts --memory; --remote_memory/--op are initiator-only\n");
       return false;
     }
     return true;
   }
   if (!cfg->remote_memory_explicit || !cfg->op_explicit) {
-    fprintf(stderr, "[ERROR] initiator requires --memory, --remote_memory and --op\n");
+    BENCH_LOGE("initiator requires --memory, --remote_memory and --op\n");
     return false;
   }
   return true;
@@ -1164,11 +1160,11 @@ bool ValidateRoceConfig(BenchmarkConfig *cfg) {
   cfg->roce_endpoint_placement = (soc_kind == BenchSocKind::kA5) ? "host" : "device";
   if (soc_kind == BenchSocKind::kA5) {
     if (cfg->hixl_init_options.find("LocalCommRes") == cfg->hixl_init_options.cend() && cfg->host_roce_ip.empty()) {
-      fprintf(stderr, "[ERROR] transport=roce on A5 requires --host_roce_ip=<ROCE_NIC_IP> or -H LocalCommRes=...\n");
+      BENCH_LOGE("transport=roce on A5 requires --host_roce_ip=<ROCE_NIC_IP> or -H LocalCommRes=...\n");
       return false;
     }
   } else if (soc_kind != BenchSocKind::kA3 && soc_kind != BenchSocKind::kA2) {
-    fprintf(stderr, "[ERROR] transport=roce is only supported on A2, A3 and A5 platforms\n");
+    BENCH_LOGE("transport=roce is only supported on A2, A3 and A5 platforms\n");
     return false;
   }
   return true;
