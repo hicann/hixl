@@ -71,7 +71,8 @@ class EndpointGenerator {
                                                  std::vector<EndpointConfig> &endpoint_list);
   static Status AutoGenA5EndpointList(const HixlOptions &options, std::vector<EndpointConfig> &endpoint_list,
                                       const std::string &topo_path = "");
-  static Status ParseLocalCommRes(const nlohmann::json &config, std::vector<EndpointConfig> &endpoint_list);
+  static Status ParseLocalCommRes(const nlohmann::json &config, const std::string &server_id,
+                                  std::vector<EndpointConfig> &endpoint_list);
   static bool HasDeviceEndpoint(const std::vector<EndpointConfig> &endpoint_list);
   static Status PopulateLocalDeviceInfo(std::vector<EndpointConfig> &endpoint_list);
   static Status BuildDefaultDeviceEndpointInfoList(int32_t phy_device_id, std::vector<EndpointInfo> &endpoint_list);

@@ -551,6 +551,7 @@ Status AppendUbCtpEndpoints(int32_t phy_dev_id, const std::string &topo_path,
     net_instance_id = ub_res.net_instance_id;
   }
   for (auto &ep : ub_res.endpoint_list) {
+    ep.server_id = ub_res.server_id;
     endpoint_list.emplace_back(std::move(ep));
   }
   return SUCCESS;
@@ -604,13 +605,15 @@ Status EndpointGenerator::ParseEndpointListFromLocalCommRes(const HixlOptions &o
   local_comm_res = lcr.value();
   try {
     nlohmann::json config = nlohmann::json::parse(local_comm_res);
+    std::string server_id;
+    HIXL_CHK_STATUS_RET(ParseJsonField(config, "server_id", server_id, false), "Failed to parse server_id");
     bool has_valid_endpoint_list = config.contains("net_instance_id") && config["net_instance_id"].is_string() &&
                                    config.contains("endpoint_list") && config["endpoint_list"].is_array() &&
                                    !config["endpoint_list"].empty();
     if (!has_valid_endpoint_list) {
       return SUCCESS;
     }
-    HIXL_CHK_STATUS_RET(ParseLocalCommRes(config, endpoint_list), "ParseLocalCommRes failed");
+    HIXL_CHK_STATUS_RET(ParseLocalCommRes(config, server_id, endpoint_list), "ParseLocalCommRes failed");
     HIXL_CHK_STATUS_RET(FilterEndpointListByProtocolDesc(options, endpoint_list),
                         "FilterEndpointListByProtocolDesc failed");
   } catch (const nlohmann::json::exception &e) {
@@ -871,7 +874,8 @@ Status EndpointGenerator::BuildNetInstanceId(int32_t device_id, const std::strin
   return GetHostIpFromLocalEngine(local_engine, net_instance_id);
 }
 
-Status EndpointGenerator::ParseLocalCommRes(const nlohmann::json &config, std::vector<EndpointConfig> &endpoint_list) {
+Status EndpointGenerator::ParseLocalCommRes(const nlohmann::json &config, const std::string &server_id,
+                                            std::vector<EndpointConfig> &endpoint_list) {
   HIXL_CHK_BOOL_RET_STATUS(config.contains("net_instance_id") && config["net_instance_id"].is_string(), PARAM_INVALID,
                            "local_comm_res missing net_instance_id");
   HIXL_CHK_BOOL_RET_STATUS(config.contains("endpoint_list") && config["endpoint_list"].is_array(), PARAM_INVALID,
@@ -896,8 +900,8 @@ Status EndpointGenerator::ParseLocalCommRes(const nlohmann::json &config, std::v
     }
     HIXL_CHK_STATUS_RET(ParseJsonField(item, "plane", endpoint.plane, false), "Failed to parse plane");
     HIXL_CHK_STATUS_RET(ParseJsonField(item, "dst_eid", endpoint.dst_eid, false), "Failed to parse dst_eid");
-    HIXL_CHK_STATUS_RET(ParseJsonField(item, "server_id", endpoint.server_id, false), "Failed to parse server_id");
     endpoint.net_instance_id = net_instance_id;
+    endpoint.server_id = server_id;
     ParseDeviceInfo(item, endpoint);
     endpoint_list.emplace_back(std::move(endpoint));
   }

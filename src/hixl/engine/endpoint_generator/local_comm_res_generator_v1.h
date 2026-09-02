@@ -48,6 +48,7 @@ enum class LocalCommResGenerateMode {
 struct LocalCommRes {
   std::string version;                        // Version string, default "1.3"
   std::string net_instance_id;                // Network instance ID
+  std::string server_id;                      // Server ID
   std::vector<EndpointConfig> endpoint_list;  // Endpoint list
 };
 

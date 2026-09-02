@@ -1881,19 +1881,20 @@ TEST_F(EndpointGeneratorUTest, DeserializeOldFormatWithoutDeviceInfoSuccess) {
   EXPECT_EQ(endpoint_list[0].device_info.super_pod_id, -1);
 }
 
-TEST_F(EndpointGeneratorUTest, ParseLocalCommResWithEndpointServerIdSuccess) {
+TEST_F(EndpointGeneratorUTest, ParseLocalCommResWithTopLevelServerIdCopiesToEndpoints) {
   std::string local_comm_res =
-      R"({"version":"1.3","net_instance_id":"same_superpod","endpoint_list":[)"
-      R"({"protocol":"ub_ctp","comm_id":"00010002000300040005000600070008","placement":"host",)"
-      R"("server_id":"server-0"}]})";
+      R"({"version":"1.3","net_instance_id":"same_superpod","server_id":"server-0","endpoint_list":[)"
+      R"({"protocol":"ub_ctp","comm_id":"00010002000300040005000600070008","placement":"host"},)"
+      R"({"protocol":"ub_ctp","comm_id":"00010002000300040005000600070009","placement":"host"}]})";
 
   std::vector<EndpointConfig> endpoint_list;
   EXPECT_EQ(BuildEndpointListFromLocalCommRes(local_comm_res, endpoint_list), SUCCESS);
-  ASSERT_EQ(endpoint_list.size(), 1U);
+  ASSERT_EQ(endpoint_list.size(), 2U);
   EXPECT_EQ(endpoint_list[0].server_id, "server-0");
+  EXPECT_EQ(endpoint_list[1].server_id, "server-0");
 }
 
-TEST_F(EndpointGeneratorUTest, ParseLocalCommResWithoutEndpointServerIdKeepsEmptySuccess) {
+TEST_F(EndpointGeneratorUTest, ParseLocalCommResWithoutTopLevelServerIdKeepsEmptySuccess) {
   std::string local_comm_res = BuildSingleEndpointLocalCommRes("same_superpod", kProtocolUbCtp,
                                                                "00010002000300040005000600070008", kPlacementHost);
 
@@ -1901,6 +1902,38 @@ TEST_F(EndpointGeneratorUTest, ParseLocalCommResWithoutEndpointServerIdKeepsEmpt
   EXPECT_EQ(BuildEndpointListFromLocalCommRes(local_comm_res, endpoint_list), SUCCESS);
   ASSERT_EQ(endpoint_list.size(), 1U);
   EXPECT_TRUE(endpoint_list[0].server_id.empty());
+}
+
+TEST_F(EndpointGeneratorUTest, ParseLocalCommResWithEmptyTopLevelServerIdKeepsEmptySuccess) {
+  std::string local_comm_res =
+      R"({"version":"1.3","net_instance_id":"same_superpod","server_id":"","endpoint_list":[)"
+      R"({"protocol":"ub_ctp","comm_id":"00010002000300040005000600070008","placement":"host"}]})";
+
+  std::vector<EndpointConfig> endpoint_list;
+  EXPECT_EQ(BuildEndpointListFromLocalCommRes(local_comm_res, endpoint_list), SUCCESS);
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_TRUE(endpoint_list[0].server_id.empty());
+}
+
+TEST_F(EndpointGeneratorUTest, ParseLocalCommResIgnoresEndpointServerId) {
+  std::string local_comm_res =
+      R"({"version":"1.3","net_instance_id":"same_superpod","endpoint_list":[)"
+      R"({"protocol":"ub_ctp","comm_id":"00010002000300040005000600070008","placement":"host",)"
+      R"("server_id":"legacy-server"}]})";
+
+  std::vector<EndpointConfig> endpoint_list;
+  EXPECT_EQ(BuildEndpointListFromLocalCommRes(local_comm_res, endpoint_list), SUCCESS);
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_TRUE(endpoint_list[0].server_id.empty());
+}
+
+TEST_F(EndpointGeneratorUTest, ParseLocalCommResRejectsInvalidTopLevelServerId) {
+  std::string local_comm_res =
+      R"({"version":"1.3","net_instance_id":"same_superpod","server_id":1,"endpoint_list":[)"
+      R"({"protocol":"ub_ctp","comm_id":"00010002000300040005000600070008","placement":"host"}]})";
+
+  std::vector<EndpointConfig> endpoint_list;
+  EXPECT_EQ(BuildEndpointListFromLocalCommRes(local_comm_res, endpoint_list), PARAM_INVALID);
 }
 
 TEST_F(EndpointGeneratorUTest, GetDeviceIpFromHccnToolSuccess) {
