@@ -50,7 +50,7 @@ struct ExchangeMemInfo {
 class CommLinkManager {
  public:
   explicit CommLinkManager(uint64_t cluster_id, bool remote_cache_accessible = false)
-      : cluster_id_(cluster_id), remote_cache_accessible_(remote_cache_accessible) {};
+      : cluster_id_(cluster_id), remote_cache_accessible_(remote_cache_accessible) {}
 
   virtual ~CommLinkManager() = default;
 

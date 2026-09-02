@@ -125,7 +125,7 @@ EntityMemInfo::EntityMemInfo(bool remote_cache_accessible, RegBufferPool *host_r
       transfer_req_(nullptr),
       transfer_resp_(nullptr),
       host_reg_pool_(host_reg_pool),
-      device_reg_pool_(device_reg_pool) {};
+      device_reg_pool_(device_reg_pool) {}
 
 ge::Status EntityMemInfo::Initialize() {
   req_buffer_size_ = kDefaultReqBufferSize;
@@ -165,11 +165,11 @@ EntityMemInfo::~EntityMemInfo() {
   }
 }
 
-EntityCommInfo::EntityCommInfo(const CommParams &comm_params) : params_(comm_params), comm_{}, comm_inited_(false) {};
+EntityCommInfo::EntityCommInfo(const CommParams &comm_params) : params_(comm_params), comm_{}, comm_inited_(false) {}
 
 EntityCommInfo::EntityCommInfo(const HcclComm &comm, std::vector<void *> mem_handles, int32_t link_total_time,
                                int32_t link_retry_count)
-    : params_({0, {}, "", mem_handles, link_total_time, link_retry_count}), comm_(comm), comm_inited_(true) {};
+    : params_({0, {}, "", mem_handles, link_total_time, link_retry_count}), comm_(comm), comm_inited_(true) {}
 
 ge::Status EntityCommInfo::Initialize() {
   std::lock_guard<std::mutex> lock(mutex_);

@@ -304,7 +304,8 @@ Status HixlCSClient::InitDeviceResource(const EndpointDesc &ep) {
   }
   HIXL_CHK_ACL_RET(aclrtGetDevice(&device_id_), "[HixlClient] aclrtGetDevice failed");
   HIXL_LOGI("[HixlClient] device_id=%d", device_id_);
-  hixl::TemporaryRtContext with_context(nullptr);  // 创建context会切换当前context, 因此需要在析构时恢复原用户context
+  // 创建context会切换当前context，因此需要在析构时恢复原用户context
+  hixl::TemporaryRtContext with_context(nullptr);
   auto *pool = TransferPool::GetInstance(device_id_);
   HIXL_CHECK_NOTNULL(pool);
   HIXL_CHK_STATUS_RET(pool->Initialize(global_config_.MaxActiveChannels().value_or(kDefaultTransferPoolSize)),
@@ -376,7 +377,8 @@ Status HixlCSClient::Create(const HixlClientDesc *client_desc, const HixlClientC
   return SUCCESS;
 }
 
-// 注册client的endpoint的内存信息到内存注册表中。mem是一个结构体，其中记录了内存类型、地址和大小。
+// 注册client的endpoint的内存信息到内存注册表中。
+// mem是一个结构体，其中记录了内存类型、地址和大小。
 Status HixlCSClient::RegMem(const char *mem_tag, const CommMem *mem, MemHandle *mem_handle) {
   std::lock_guard<std::mutex> lock(mutex_);
   return RegMemLocked(mem_tag, mem, mem_handle);

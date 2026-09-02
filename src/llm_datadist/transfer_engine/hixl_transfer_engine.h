@@ -17,7 +17,7 @@
 namespace llm {
 class HixlTransferEngine : public TransferEngine {
  public:
-  HixlTransferEngine(uint64_t cluster_id) : TransferEngine(cluster_id) {};
+  HixlTransferEngine(uint64_t cluster_id) : TransferEngine(cluster_id) {}
   ~HixlTransferEngine() override = default;
   ge::Status Initialize(const std::map<ge::AscendString, ge::AscendString> &options) override;
   void Finalize() override;

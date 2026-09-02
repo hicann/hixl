@@ -20,7 +20,7 @@
 namespace llm {
 class LLMDataDistV2 {
  public:
-  explicit LLMDataDistV2(uint64_t cluster_id) : cluster_id_(cluster_id) {};
+  explicit LLMDataDistV2(uint64_t cluster_id) : cluster_id_(cluster_id) {}
 
   virtual ~LLMDataDistV2();
 

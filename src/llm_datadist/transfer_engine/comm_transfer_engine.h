@@ -17,7 +17,7 @@
 namespace llm {
 class CommTransferEngine : public TransferEngine {
  public:
-  CommTransferEngine(uint64_t cluster_id) : TransferEngine(cluster_id) {};
+  CommTransferEngine(uint64_t cluster_id) : TransferEngine(cluster_id) {}
   ~CommTransferEngine() override;
   ge::Status Initialize(const std::map<ge::AscendString, ge::AscendString> &options) override;
   void Finalize() override;

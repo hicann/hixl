@@ -26,7 +26,7 @@ class LLMLinkManager : public CommLinkManager {
         cluster_id_(cluster_id),
         aclrt_context_(nullptr),
         msg_handler_(cluster_id, device_id, comm_entity_manager, cache_manager),
-        comm_entity_manager_(comm_entity_manager) {};
+        comm_entity_manager_(comm_entity_manager) {}
   ~LLMLinkManager() override = default;
   ge::Status Initialize(const std::map<ge::AscendString, ge::AscendString> &options) override;
   void Finalize() override;

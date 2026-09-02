@@ -31,7 +31,8 @@ ScalableAllocator::ScalableAllocator(SpanAllocator &span_allocator, const Scalab
       span_allocator_{span_allocator},
       layer_allocator_{cfg.span_layer_prepared_count} {
   span_layers_.resize(span_layer_capacity_);
-  // 不加nothrow，理由：由于构造函数无法返回失败，且这是关键资源申请，如果申请失败允许进程退出。
+  // 不加nothrow，理由：由于构造函数无法返回失败，且这是关键资源申请，
+  // 如果申请失败允许进程退出。
   auto layer_lut = static_cast<SpanLayerLut *>(new SpanLayerQuickLut{span_layers_});
   if (layer_lut != nullptr) {
     span_layer_lut_.reset(layer_lut);

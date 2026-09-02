@@ -400,8 +400,9 @@ Status BufferTransferService::HandleBufferD2D(const ChannelPtr &channel, BufferR
 
 Status BufferTransferService::D2DTransfer(const ChannelPtr &channel, TransferOp transfer_op,
                                           const std::vector<TransferOpDesc> &op_descs, uint64_t timeout) {
-  // `timeout` is the remaining budget (μs) handed down by the caller; RunSyncOnSlot expects milliseconds. The HcclBatch
-  // issue runs inside RunSyncOnSlot's lambda, so nothing is spent here before the sync — convert the full budget.
+  // `timeout` is the remaining budget (μs) handed down by the caller; RunSyncOnSlot expects milliseconds.
+  // The HcclBatch issue runs inside RunSyncOnSlot's lambda, so nothing is spent here before the sync —
+  // convert the full budget.
   auto timeout_in_millis = timeout / kMillisToMicros;
   ADXL_CHK_BOOL_RET_STATUS(timeout_in_millis > 0, TIMEOUT, "Transfer timeout.");
   auto issue_fn = [&channel, transfer_op, &op_descs, timeout](aclrtStream stream) -> Status {

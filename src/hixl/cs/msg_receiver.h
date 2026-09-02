@@ -20,7 +20,7 @@ enum class RecvState : int32_t { WAITING_FOR_HEADER, WAITING_FOR_BODY };
 
 class MsgReceiver {
  public:
-  explicit MsgReceiver(int32_t fd) : fd_(fd) {};
+  explicit MsgReceiver(int32_t fd) : fd_(fd) {}
   Status IRecv(std::vector<CtrlMsgPtr> &msgs);
 
  private:

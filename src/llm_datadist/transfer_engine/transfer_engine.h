@@ -22,7 +22,7 @@
 namespace llm {
 class TransferEngine {
  public:
-  TransferEngine(uint64_t cluster_id) : cluster_id_(cluster_id) {};
+  TransferEngine(uint64_t cluster_id) : cluster_id_(cluster_id) {}
   virtual ~TransferEngine() = default;
   virtual ge::Status Initialize(const std::map<ge::AscendString, ge::AscendString> &options) = 0;
   virtual void Finalize() = 0;

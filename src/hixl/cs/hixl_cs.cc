@@ -17,8 +17,10 @@
 #include "hixl_cs_server.h"
 #include "hixl_cs_client.h"
 
+namespace {
 constexpr uint32_t kMinClientPort = 1U;
 constexpr uint32_t kMaxPort = 65535U;
+}  // namespace
 
 HixlStatus HixlCSServerCreate(const HixlServerDesc *server_desc, const HixlServerConfig *config,
                               HixlServerHandle *server_handle) {
@@ -140,7 +142,7 @@ HixlStatus HixlCSClientBatchPutAsync(HixlClientHandle client_handle, uint32_t li
   const auto ret = client->BatchTransferAsync(false, list_num, desc_list, &raw_handle);
   if (raw_handle != nullptr) {
     *complete_handle = raw_handle;
-    HIXL_LOGI("HixlCSClientBatchPutAsync complete_handle create, complete_handle is %p.", complete_handle);
+    HIXL_LOGI("HixlCSClientBatchPutAsync complete_handle create, complete_handle is %p.", raw_handle);
   }
   HIXL_CHK_STATUS_RET(ret, "HixlCSClientBatchPutAsync failed, client_handle is %p, list_num:%u", client_handle,
                       list_num);
@@ -164,7 +166,7 @@ HixlStatus HixlCSClientBatchGetAsync(HixlClientHandle client_handle, uint32_t li
   const auto ret = client->BatchTransferAsync(true, list_num, desc_list, &raw_handle);
   if (raw_handle != nullptr) {
     *complete_handle = raw_handle;
-    HIXL_LOGI("HixlCSClientBatchGetAsync complete_handle create, complete_handle is %p.", complete_handle);
+    HIXL_LOGI("HixlCSClientBatchGetAsync complete_handle create, complete_handle is %p.", raw_handle);
   }
   HIXL_CHK_STATUS_RET(ret, "HixlCSClientBatchGetAsync failed, client_handle is %p, list_num:%u", client_handle,
                       list_num);

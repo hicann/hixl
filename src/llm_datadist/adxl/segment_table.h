@@ -19,7 +19,7 @@
 namespace adxl {
 class Segment {
  public:
-  explicit Segment(MemType type) : mem_type_(type) {};
+  explicit Segment(MemType type) : mem_type_(type) {}
   void AddRange(uint64_t start, uint64_t end);
   void RemoveRange(uint64_t start, uint64_t end);
   bool Contains(uint64_t start, uint64_t end) const;

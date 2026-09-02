@@ -58,7 +58,7 @@ class LinkMsgHandler {
         comm_entity_manager_(comm_entity_manager),
         cache_manager_(cache_manager),
         comm_config_{},
-        aclrt_context_(nullptr) {};
+        aclrt_context_(nullptr) {}
   ~LinkMsgHandler() = default;
   ge::Status Initialize(const std::map<ge::AscendString, ge::AscendString> &options);
   void Finalize();

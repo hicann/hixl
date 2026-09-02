@@ -110,7 +110,8 @@ bool HixlMemStore::CheckMemoryForRegister(bool is_server, const void *check_addr
       return true;
     }
     bool is_overlap = (s < re) && (rs < e);  // 内存重叠，返回true
-    bool is_same = (s == rs) && (e == re);  // 当内存块与已注册内存块完全一致时，此时允许重新注册，返回false
+    // 当内存块与已注册内存块完全一致时，此时允许重新注册，返回false
+    bool is_same = (s == rs) && (e == re);
     return is_overlap && !is_same;
   };
 

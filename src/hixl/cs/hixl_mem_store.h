@@ -30,7 +30,9 @@ struct MemoryRegion {
 /**
  * @brief 内存存储管理类
  *
- * 负责管理Server和Client端注册的内存区域，提供内存访问验证功能，与client绑定，作为client的成员变量，一个Client有一个memstore对象，用于记录client侧的endpoint分配的内存地址和sever侧分配的内存地址。channel销毁后，销毁memstore
+ * 负责管理Server和Client端注册的内存区域，提供内存访问验证功能，与client绑定，
+ * 作为client的成员变量，一个Client有一个memstore对象，用于记录client侧的endpoint
+ * 分配的内存地址和sever侧分配的内存地址。channel销毁后，销毁memstore
  */
 class HixlMemStore {
  public:

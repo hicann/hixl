@@ -19,7 +19,7 @@ using CallbackProcessor = std::function<Status(int32_t fd, const char *msg, uint
 
 class Engine {
  public:
-  explicit Engine(const AscendString &local_engine) : local_engine_(local_engine.GetString()) {};
+  explicit Engine(const AscendString &local_engine) : local_engine_(local_engine.GetString()) {}
 
   virtual ~Engine() = default;
 

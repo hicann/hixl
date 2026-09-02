@@ -111,6 +111,7 @@ constexpr const char *kProcPathAsdrvUb = "/proc/asdrv_ub";
 constexpr const char *kUrmaAdminPath = "/usr/local/sbin/urma_admin";
 constexpr const char *kProcDevIdFile = "dev_id";
 constexpr const char *kProcPairInfoFile = "pair_info";
+constexpr size_t kPipeBufferSize = 512;  // popen 输出单次读取缓冲区大小（字节）
 
 // Procfs delay (microseconds)
 constexpr useconds_t kProcfsWriteDelayUs = 100000;  // 100ms
@@ -186,7 +187,7 @@ Status DefaultUrmaAdminExec(const std::string &cmd, std::string &output) {
   };
   std::unique_ptr<FILE, decltype(pipe_deleter)> pipe(raw_pipe, pipe_deleter);
 
-  char buf[512];
+  char buf[kPipeBufferSize];
   while (fgets(buf, sizeof(buf), pipe.get()) != nullptr) {
     output += buf;
   }

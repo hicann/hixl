@@ -86,7 +86,8 @@ class HixlClient {
 
   /**
    * @brief 同步传输
-   * @param [in] op_descs         批量操作的本地以及远端地址以及读取内存大小，批量操作的个数
+   * @param [in] op_descs         批量操作的本地以及远端地址以及读取内存大小，
+   * 批量操作的个数
    * @param [in] operation        读操作/写操作
    * @param [in] timeout_ms       超时时间
    * @return 操作结果状态码
@@ -95,7 +96,8 @@ class HixlClient {
 
   /**
    * @brief 异步传输
-   * @param [in] op_descs         批量操作的本地以及远端地址以及写入内存大小，批量操作的个数
+   * @param [in] op_descs         批量操作的本地以及远端地址以及写入内存大小，
+   * 批量操作的个数
    * @param [in] operation        读操作/写操作
    * @param [out] req             请求的handle，用于查询请求状态
    * @return 操作结果状态码

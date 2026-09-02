@@ -17,7 +17,7 @@
 namespace hixl {
 class Segment {
  public:
-  explicit Segment(MemType type) : mem_type_(type) {};
+  explicit Segment(MemType type) : mem_type_(type) {}
   Status AddRange(uint64_t start, uint64_t len);
   void RemoveRange(uint64_t start, uint64_t end);
   bool Contains(uint64_t start, uint64_t end) const;

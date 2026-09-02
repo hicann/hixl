@@ -52,14 +52,14 @@ ge::Status CommTransferEngine::UnregisterMem(void *handle) {
 }
 
 ge::Status CommTransferEngine::LinkClusters(const std::vector<ClusterInfo> &clusters, std::vector<ge::Status> &rets,
-                                                int32_t timeout) {
+                                            int32_t timeout) {
   LLM_CHK_STATUS_RET(llm_link_mgr_->LinkClusters(clusters, rets, timeout),
                      "Failed to link clusters, clusters size:%zu, timeout:%d", clusters.size(), timeout);
   return ge::SUCCESS;
 }
 
-ge::Status CommTransferEngine::UnlinkClusters(const std::vector<ClusterInfo> &clusters,
-                                                  std::vector<ge::Status> &rets, int32_t timeout, bool force_flag) {
+ge::Status CommTransferEngine::UnlinkClusters(const std::vector<ClusterInfo> &clusters, std::vector<ge::Status> &rets,
+                                              int32_t timeout, bool force_flag) {
   LLM_CHK_STATUS_RET(llm_link_mgr_->UnlinkClusters(clusters, rets, timeout, force_flag),
                      "Failed to unlink clusters, clusters size:%zu, timeout:%d, force_flag:%d", clusters.size(),
                      timeout, static_cast<int32_t>(force_flag));
@@ -67,7 +67,7 @@ ge::Status CommTransferEngine::UnlinkClusters(const std::vector<ClusterInfo> &cl
 }
 
 ge::Status CommTransferEngine::Link(std::string &cluster_name, const std::map<uint64_t, uint32_t> &cluster2rank,
-                                        std::string &rank_table, uint64_t &comm_id) {
+                                    std::string &rank_table, uint64_t &comm_id) {
   LLM_CHK_STATUS_RET(llm_link_mgr_->Link(cluster_name, cluster2rank, rank_table, comm_id),
                      "Failed to link, cluster name:%s, rank_table:%s", cluster_name.c_str(), rank_table.c_str());
   return ge::SUCCESS;
@@ -89,8 +89,7 @@ ge::Status CommTransferEngine::QueryRegisterMemStatus(uint64_t comm_id, Register
   return ge::SUCCESS;
 }
 
-ge::Status CommTransferEngine::SwitchRole(const std::string &role,
-                                              const std::map<std::string, std::string> &options) {
+ge::Status CommTransferEngine::SwitchRole(const std::string &role, const std::map<std::string, std::string> &options) {
   LLM_CHK_STATUS_RET(llm_link_mgr_->SwitchRole(role, options), "Failed to switch role, role:%s", role.c_str());
   return ge::SUCCESS;
 }

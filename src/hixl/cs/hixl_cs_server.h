@@ -36,7 +36,7 @@ struct EndpointChannelInfo {
 class HixlCSServer {
  public:
   HixlCSServer(const char *ip, uint32_t port, const GlobalConfig &global_config)
-      : ip_(ip), port_(port), global_config_(global_config) {};
+      : ip_(ip), port_(port), global_config_(global_config) {}
 
   ~HixlCSServer() = default;
 

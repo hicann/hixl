@@ -171,7 +171,8 @@ Status HixlCSServer::RegisterDeviceTransFinishedFlag(const std::vector<EndpointP
                                                      bool resolve_notify_addr) {
   int32_t dev_id = 0;
   HIXL_CHK_ACL_RET(aclrtGetDevice(&dev_id), "Failed to aclrtGetDevice for CS server TransferPool");
-  hixl::TemporaryRtContext with_context(nullptr);  // 创建context会切换当前context, 因此需要在析构时恢复原用户context
+  // 创建context会切换当前context，因此需要在析构时恢复原用户context
+  hixl::TemporaryRtContext with_context(nullptr);
   auto *pool = TransferPool::GetInstance(dev_id);
   HIXL_CHECK_NOTNULL(pool);
   HIXL_CHK_STATUS_RET(pool->Initialize(global_config_.MaxActiveChannels().value_or(kDefaultTransferPoolSize)),

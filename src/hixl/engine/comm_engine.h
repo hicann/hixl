@@ -23,7 +23,7 @@
 namespace hixl {
 class CommEngine : public Engine {
  public:
-  explicit CommEngine(const AscendString &local_engine) : Engine(local_engine), adxl_inner_engine_(local_engine) {};
+  explicit CommEngine(const AscendString &local_engine) : Engine(local_engine), adxl_inner_engine_(local_engine) {}
 
   ~CommEngine() override = default;
 
