@@ -28,6 +28,7 @@
 #include <fcntl.h>
 #include <set>
 #include <string>
+#include <string_view>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
@@ -39,35 +40,36 @@ namespace hixl_tool {
 
 namespace {
 
-constexpr const char *kDefaultOutputDir = "/etc/";
-constexpr const char *kDefaultFileName = "host_route.json";
+// Literal-backed string_views: data() is null-terminated, safe for printf("%s").
+constexpr std::string_view kDefaultOutputDir = "/etc/";
+constexpr std::string_view kDefaultFileName = "host_route.json";
 
 void PrintHostRouteUsage() {
   std::printf("Usage: hixl_tool host_route [--output <dir>] [--topo_file_path <path>]\n\n");
   std::printf("Options:\n");
-  std::printf("  --output <dir>        Output directory (default: %s)\n", kDefaultOutputDir);
+  std::printf("  --output <dir>        Output directory (default: %s)\n", kDefaultOutputDir.data());
   std::printf("  --topo_file_path      Topology JSON file path (default: resolved by mainboard_id)\n");
-  std::printf("\nOutput: {output}/%s\n", kDefaultFileName);
+  std::printf("\nOutput: {output}/%s\n", kDefaultFileName.data());
   std::printf("\nNote: route_data is generated via DSMI + urma_admin + DCMI (no procfs);\n");
   std::printf("      die is parsed from the topo file.\n");
 }
 
 struct HostRouteArgs {
-  std::string output_dir = kDefaultOutputDir;
+  std::string output_dir{kDefaultOutputDir};
   std::string topo_file_path;
 };
 
-bool ParseHostRouteArgs(int argc, char *argv[], HostRouteArgs &args) {
-  for (int i = 1; i < argc; ++i) {
-    std::string arg = argv[i];
+bool ParseHostRouteArgs(const std::vector<std::string> &args, HostRouteArgs &out_args) {
+  for (size_t i = 1; i < args.size(); ++i) {
+    const std::string &arg = args[i];
     if (arg == "--help" || arg == "-h") {
       PrintHostRouteUsage();
       return false;
     }
-    if (arg == "--output" && i + 1 < argc) {
-      args.output_dir = argv[++i];
-    } else if (arg == "--topo_file_path" && i + 1 < argc) {
-      args.topo_file_path = argv[++i];
+    if (arg == "--output" && i + 1 < args.size()) {
+      out_args.output_dir = args[++i];
+    } else if (arg == "--topo_file_path" && i + 1 < args.size()) {
+      out_args.topo_file_path = args[++i];
     } else {
       std::fprintf(stderr, "[ERROR] Unknown or incomplete option: %s\n", arg.c_str());
       PrintHostRouteUsage();
@@ -150,7 +152,8 @@ int32_t WriteHostRouteOutput(const HostRouteArgs &args, const hixl::HostRouteDat
   constexpr mode_t kFileMode = S_IRUSR | S_IWUSR;  // 0600
   int fd = open(output_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, kFileMode);
   if (fd < 0) {
-    std::fprintf(stderr, "[ERROR] Failed to open %s, errno=%d(%s)\n", output_path.c_str(), errno, strerror(errno));
+    const std::string err_msg = strerror(errno);
+    std::fprintf(stderr, "[ERROR] Failed to open %s, errno=%d(%s)\n", output_path.c_str(), errno, err_msg.c_str());
     return 1;
   }
   ssize_t written = write(fd, json_str.c_str(), json_str.size());
@@ -170,9 +173,9 @@ int32_t WriteHostRouteOutput(const HostRouteArgs &args, const hixl::HostRouteDat
 
 }  // namespace
 
-int RunHostRoute(int argc, char *argv[]) {
-  HostRouteArgs args;
-  if (!ParseHostRouteArgs(argc, argv, args)) {
+int RunHostRoute(const std::vector<std::string> &args) {
+  HostRouteArgs route_args;
+  if (!ParseHostRouteArgs(args, route_args)) {
     return 1;
   }
 
@@ -191,18 +194,18 @@ int RunHostRoute(int argc, char *argv[]) {
   }
   const bool is_server = hixl::TopoFileFinder::IsProductServer(mainboard_id);
   std::printf("[INFO] mainboard_id=0x%x, is_server=%d\n", mainboard_id, static_cast<int>(is_server));
-  if (!args.topo_file_path.empty()) {
-    std::printf("[INFO] Using user-provided topo: %s\n", args.topo_file_path.c_str());
+  if (!route_args.topo_file_path.empty()) {
+    std::printf("[INFO] Using user-provided topo: %s\n", route_args.topo_file_path.c_str());
   }
 
   hixl::HostRouteData host_route_data;
-  if (GenerateHostRouteData(npu_ids, args.topo_file_path, is_server, host_route_data) != 0) {
+  if (GenerateHostRouteData(npu_ids, route_args.topo_file_path, is_server, host_route_data) != 0) {
     std::fprintf(stderr, "[ERROR] No valid host_route entries generated\n");
     return 1;
   }
 
   // 3. Write host_route.json.
-  return WriteHostRouteOutput(args, host_route_data);
+  return WriteHostRouteOutput(route_args, host_route_data);
 }
 
 }  // namespace hixl_tool

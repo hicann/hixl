@@ -11,15 +11,17 @@
 #ifndef HIXL_TOOL_LOCAL_COMM_RES_H_
 #define HIXL_TOOL_LOCAL_COMM_RES_H_
 
+#include <string>
+#include <vector>
+
 namespace hixl_tool {
 
 /**
  * @brief local_comm_res subcommand entry
- * @param [in] argc Argument count (excluding the subcommand name)
- * @param [in] argv Argument vector (argv[0] is the subcommand name)
+ * @param [in] args Argument list (args[0] is the subcommand name)
  * @return 0 on success, non-zero on failure
  */
-int RunLocalCommRes(int argc, char *argv[]);
+int RunLocalCommRes(const std::vector<std::string> &args);
 
 }  // namespace hixl_tool
 

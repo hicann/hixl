@@ -22,6 +22,7 @@
 #include <map>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 #include <nlohmann/json.hpp>
@@ -34,8 +35,9 @@ namespace hixl_tool {
 
 namespace {
 
-constexpr const char *kDefaultOutputDir = "/etc/";
-constexpr const char *kDefaultFileNamePrefix = "local_comm_res";
+// Literal-backed string_views: data() is null-terminated, safe for printf("%s").
+constexpr std::string_view kDefaultOutputDir = "/etc/";
+constexpr std::string_view kDefaultFileNamePrefix = "local_comm_res";
 constexpr char kProtocolDescSep = ',';
 
 void PrintLocalCommResUsage() {
@@ -47,8 +49,8 @@ void PrintLocalCommResUsage() {
   std::printf("  --protocol_desc <desc>        Protocol descriptor, e.g. \"ub_rtp:device,ub_ctp\"\n");
   std::printf("                                Multiple values separated by comma.\n");
   std::printf("                                (default: ScaleOut by InterconType + ub_ctp:device)\n");
-  std::printf("  --output <dir>                Output directory (default: %s)\n", kDefaultOutputDir);
-  std::printf("  --file_name_prefix <prefix>   Output file name prefix (default: %s)\n", kDefaultFileNamePrefix);
+  std::printf("  --output <dir>                Output directory (default: %s)\n", kDefaultOutputDir.data());
+  std::printf("  --file_name_prefix <prefix>   Output file name prefix (default: %s)\n", kDefaultFileNamePrefix.data());
   std::printf("\nOutput: {output}/{prefix}_{device_id}_{phy_id}.json (one per device)\n");
   std::printf("\nNote: generation uses EndpointGenerator::AutoGenEndpointList (SoC-dispatch entry).\n");
   std::printf("      host_route.json is not required; use ub_ctp or ub_ctp:host for Host URMA resources.\n");
@@ -56,8 +58,8 @@ void PrintLocalCommResUsage() {
 
 struct LocalCommResArgs {
   std::string topo_file_path;
-  std::string output_dir = kDefaultOutputDir;
-  std::string file_name_prefix = kDefaultFileNamePrefix;
+  std::string output_dir{kDefaultOutputDir};
+  std::string file_name_prefix{kDefaultFileNamePrefix};
   std::string protocol_desc;
   std::vector<int32_t> device_ids;
   bool device_id_specified = false;
@@ -118,32 +120,32 @@ bool ParseDeviceIdArg(const std::string &id_str, LocalCommResArgs &args) {
   return true;
 }
 
-bool ParseLocalCommResArgs(int argc, char *argv[], LocalCommResArgs &args) {
-  for (int i = 1; i < argc; ++i) {
-    std::string arg = argv[i];
+bool ParseLocalCommResArgs(const std::vector<std::string> &args, LocalCommResArgs &out_args) {
+  for (size_t i = 1; i < args.size(); ++i) {
+    const std::string &arg = args[i];
     if (arg == "--help" || arg == "-h") {
       PrintLocalCommResUsage();
       return false;
     }
-    if (i + 1 >= argc) {
+    if (i + 1 >= args.size()) {
       std::fprintf(stderr, "[ERROR] Missing value for option: %s\n", arg.c_str());
       return false;
     }
     if (arg == "--topo_file_path") {
-      args.topo_file_path = argv[++i];
+      out_args.topo_file_path = args[++i];
     } else if (arg == "--device_id") {
-      if (!ParseDeviceIdArg(argv[++i], args)) {
+      if (!ParseDeviceIdArg(args[++i], out_args)) {
         return false;
       }
     } else if (arg == "--protocol_desc") {
-      args.protocol_desc = argv[++i];
+      out_args.protocol_desc = args[++i];
     } else if (arg == "--host_route_file_path") {
       ++i;
       std::fprintf(stderr, "[WARN] --host_route_file_path is obsolete; route_data is auto-generated inside engine\n");
     } else if (arg == "--output") {
-      args.output_dir = argv[++i];
+      out_args.output_dir = args[++i];
     } else if (arg == "--file_name_prefix") {
-      args.file_name_prefix = argv[++i];
+      out_args.file_name_prefix = args[++i];
     } else {
       std::fprintf(stderr, "[ERROR] Unknown option: %s\n", arg.c_str());
       PrintLocalCommResUsage();
@@ -292,27 +294,27 @@ bool ProcessOneDevice(int32_t device_id, const LocalCommResArgs &args,
 
 }  // namespace
 
-int RunLocalCommRes(int argc, char *argv[]) {
-  LocalCommResArgs args;
-  if (!ParseLocalCommResArgs(argc, argv, args)) {
+int RunLocalCommRes(const std::vector<std::string> &args) {
+  LocalCommResArgs res_args;
+  if (!ParseLocalCommResArgs(args, res_args)) {
     return 1;
   }
 
-  const std::vector<std::string> protocol_tokens = SplitProtocolDesc(args.protocol_desc);
-  if (args.protocol_desc.empty()) {
+  const std::vector<std::string> protocol_tokens = SplitProtocolDesc(res_args.protocol_desc);
+  if (res_args.protocol_desc.empty()) {
     std::printf("[INFO] protocol_desc not set: auto mode (ScaleOut by InterconType + ub_ctp:device)\n");
   } else {
-    std::printf("[INFO] protocol_desc=%s (%zu token(s))\n", args.protocol_desc.c_str(), protocol_tokens.size());
+    std::printf("[INFO] protocol_desc=%s (%zu token(s))\n", res_args.protocol_desc.c_str(), protocol_tokens.size());
   }
-  if (args.topo_file_path.empty()) {
+  if (res_args.topo_file_path.empty()) {
     std::printf("[INFO] topo path not set, use default topo (auto-detected)\n");
   } else {
-    std::printf("[INFO] topo=%s\n", args.topo_file_path.c_str());
+    std::printf("[INFO] topo=%s\n", res_args.topo_file_path.c_str());
   }
 
   std::vector<int32_t> device_ids;
-  if (args.device_id_specified) {
-    device_ids = args.device_ids;
+  if (res_args.device_id_specified) {
+    device_ids = res_args.device_ids;
   } else {
     if (EnumerateDeviceIds(device_ids) != 0) {
       return 1;
@@ -322,12 +324,12 @@ int RunLocalCommRes(int argc, char *argv[]) {
 
   bool has_error = false;
   for (int32_t device_id : device_ids) {
-    if (!ProcessOneDevice(device_id, args, protocol_tokens)) {
+    if (!ProcessOneDevice(device_id, res_args, protocol_tokens)) {
       has_error = true;
     }
   }
 
-  PrintUsageHints(args.output_dir, args.file_name_prefix);
+  PrintUsageHints(res_args.output_dir, res_args.file_name_prefix);
   return has_error ? 1 : 0;
 }
 

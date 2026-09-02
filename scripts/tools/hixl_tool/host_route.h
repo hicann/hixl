@@ -11,15 +11,17 @@
 #ifndef HIXL_TOOL_HOST_ROUTE_H_
 #define HIXL_TOOL_HOST_ROUTE_H_
 
+#include <string>
+#include <vector>
+
 namespace hixl_tool {
 
 /**
  * @brief host_route subcommand entry
- * @param [in] argc Argument count (excluding the subcommand name)
- * @param [in] argv Argument vector (argv[0] is the subcommand name)
+ * @param [in] args Argument list (args[0] is the subcommand name)
  * @return 0 on success, non-zero on failure
  */
-int RunHostRoute(int argc, char *argv[]);
+int RunHostRoute(const std::vector<std::string> &args);
 
 }  // namespace hixl_tool
 

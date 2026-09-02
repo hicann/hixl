@@ -22,6 +22,9 @@ SharedDevBuffer CacheAccessTable::shared_dev_buffer_;
 std::mutex CacheAccessTable::shared_mu_;
 namespace {
 constexpr int32_t kDefaultTimeout = 5000;
+// Combined aclrtMalloc policy: high-bandwidth memory + huge-page only. Cast each flag to uint32_t before OR.
+constexpr aclrtMemMallocPolicy kMallocPolicyHbwHugeOnly = static_cast<aclrtMemMallocPolicy>(
+    static_cast<uint32_t>(ACL_MEM_TYPE_HIGH_BAND_WIDTH) | static_cast<uint32_t>(ACL_MEM_MALLOC_HUGE_ONLY));
 void NoDelete(void *) {}
 
 struct CacheIndex {
@@ -84,8 +87,7 @@ CacheEntry ToCacheEntry(const CacheSummary &cache_summary) {
 void *SharedDevBuffer::GetOrCreateBuffer(size_t size) {
   std::lock_guard<std::mutex> lk(mu_);
   if (buffer_ == nullptr) {
-    LLM_ASSERT_RT_OK(aclrtMalloc(
-        &buffer_, size, static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_ONLY)));
+    LLM_ASSERT_RT_OK(aclrtMalloc(&buffer_, size, kMallocPolicyHbwHugeOnly));
     LLM_DISMISSABLE_GUARD(fail_guard, ([this]() {
                             LLM_CHK_ACL(aclrtFree(buffer_));
                             buffer_ = nullptr;
@@ -124,14 +126,10 @@ ge::Status CacheAccessTableUpdater::Initialize(bool enable) {
   LLM_CHK_BOOL_RET_SPECIAL_STATUS(dev_buffer_ != nullptr, ge::SUCCESS, "Already initialized");
   if (enable) {
     buffer_size_ = kCacheAccessTableBufferSize;
-    LLM_CHK_ACL_RET(
-        aclrtMalloc(&dev_buffer_, buffer_size_,
-                    static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_ONLY)));
+    LLM_CHK_ACL_RET(aclrtMalloc(&dev_buffer_, buffer_size_, kMallocPolicyHbwHugeOnly));
   } else {
     buffer_size_ = sizeof(CacheTableHeader);
-    LLM_CHK_ACL_RET(
-        aclrtMalloc(&dev_buffer_, buffer_size_,
-                    static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_ONLY)));
+    LLM_CHK_ACL_RET(aclrtMalloc(&dev_buffer_, buffer_size_, kMallocPolicyHbwHugeOnly));
     CacheTableHeader header{};
     header.version_num = UINT64_MAX;
     LLM_CHK_ACL_RET(aclrtMemcpy(dev_buffer_, buffer_size_, &header, sizeof(header), ACL_MEMCPY_HOST_TO_DEVICE));

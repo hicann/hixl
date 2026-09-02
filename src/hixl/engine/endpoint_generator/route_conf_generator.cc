@@ -35,8 +35,9 @@ Status RouteConfGenerator::SerializeHostRouteJson(const HostRouteData &data, std
   }
   j["devices"] = devices;
 
+  constexpr int32_t kJsonIndent = 2;  // Indent width (in spaces) for pretty-printed JSON output
   try {
-    json_str = j.dump(2);
+    json_str = j.dump(kJsonIndent);
   } catch (const nlohmann::json::exception &e) {
     HIXL_CHK_BOOL_RET_STATUS(false, FAILED, "[SerializeHostRouteJson] Failed to dump JSON: %s", e.what());
   }

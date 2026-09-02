@@ -20,10 +20,6 @@
 #include "common/hixl_log.h"
 #include "common/hixl_checker.h"
 
-#ifndef PATH_MAX
-#define PATH_MAX 4096
-#endif
-
 namespace hixl {
 namespace {
 constexpr uint32_t kCpuKernelMode = 0U;

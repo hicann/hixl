@@ -20,12 +20,15 @@
  */
 
 #include <cstdio>
-#include <cstring>
 #include <string>
+#include <vector>
 #include "host_route.h"
 #include "local_comm_res.h"
 
 namespace {
+
+// Minimum argument count: program name + subcommand name
+constexpr int kMinArgCount = 2;
 
 void PrintUsage() {
   std::printf("Usage: hixl_tool <subcommand> [options]\n\n");
@@ -38,21 +41,20 @@ void PrintUsage() {
 }  // namespace
 
 int main(int argc, char *argv[]) {
-  if (argc < 2) {
+  if (argc < kMinArgCount) {
     PrintUsage();
     return 1;
   }
 
   std::string subcommand = argv[1];
-  // Shift argv to skip subcommand name, so subcommand handlers see their own options as argv[1]
-  int sub_argc = argc - 1;
-  char **sub_argv = argv + 1;
+  // Shift argv to skip subcommand name, so subcommand handlers see their own options as args[1]
+  std::vector<std::string> sub_args(argv + 1, argv + argc);
 
   if (subcommand == "host_route") {
-    return hixl_tool::RunHostRoute(sub_argc, sub_argv);
+    return hixl_tool::RunHostRoute(sub_args);
   }
   if (subcommand == "local_comm_res") {
-    return hixl_tool::RunLocalCommRes(sub_argc, sub_argv);
+    return hixl_tool::RunLocalCommRes(sub_args);
   }
 
   std::fprintf(stderr, "[ERROR] Unknown subcommand: %s\n", subcommand.c_str());

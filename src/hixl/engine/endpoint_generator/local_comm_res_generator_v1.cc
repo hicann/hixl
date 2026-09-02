@@ -30,8 +30,10 @@
 #include <cstring>
 #include <cerrno>
 #include <cstdio>
+#include <cstdlib>
 #include <set>
 #include <fcntl.h>
+#include <limits.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include "common/hixl_checker.h"
@@ -90,6 +92,7 @@ constexpr size_t kSecondElementSize = 2;   // Size check for a second element
 constexpr uint32_t kOddParity = 1;         // Odd parity
 constexpr uint32_t kEvenParity = 0;        // Even parity
 constexpr uint32_t kParityModuloBase = 2;  // Parity modulo base
+constexpr size_t kCpuDieSegLen = 2;        // Length of a "cX"/"dY" segment: marker char + one digit
 
 // Product-form helper
 inline bool IsProductServer(uint32_t mainboard_id) {
@@ -252,8 +255,7 @@ std::string ExtractCpuDieKey(const std::string &ub_dev_name) {
     return "";
   }
   // c segment: "cX", d segment: "dY" → "cXdY"
-  return ub_dev_name.substr(c_pos, 2) +
-         ub_dev_name.substr(d_pos, 2);  // CPU and die information each occupy 2 characters.
+  return ub_dev_name.substr(c_pos, kCpuDieSegLen) + ub_dev_name.substr(d_pos, kCpuDieSegLen);
 }
 
 // Build CPU+die key → Host PG EID map from urma_admin entries.
@@ -988,12 +990,17 @@ static int32_t ParseSingleLink(const nlohmann::json &edge, TopoLink &link) {
 }
 
 static Status ParseTopoJson(const std::string &topo_path, nlohmann::json &j) {
-  HIXL_CHK_BOOL_RET_STATUS(access(topo_path.c_str(), F_OK) == 0, PARAM_INVALID,
-                           "Call api:access failed, topo_path:%s, errno=%d(%s)", topo_path.c_str(), errno,
-                           strerror(errno));
-  std::ifstream file(topo_path);
-  HIXL_CHK_BOOL_RET_STATUS(file.is_open(), PARAM_INVALID, "Failed to open topo file: %s, errno=%d(%s)",
-                           topo_path.c_str(), errno, strerror(errno));
+  // Normalize the path (resolve "..", ".", symlinks) before validating and opening it.
+  // realpath fails with ENOENT if any path component does not exist, so success already proves existence.
+  char resolved_path[PATH_MAX] = {0};
+  char *realpath_ret = realpath(topo_path.c_str(), resolved_path);
+  const int32_t realpath_errno = errno;
+  HIXL_CHK_BOOL_RET_STATUS(realpath_ret != nullptr, PARAM_INVALID,
+                           "Call api:realpath failed, topo_path:%s, errno=%d(%s)", topo_path.c_str(), realpath_errno,
+                           strerror(realpath_errno));
+  std::ifstream file(resolved_path);
+  HIXL_CHK_BOOL_RET_STATUS(file.is_open(), PARAM_INVALID, "Failed to open topo file: %s, errno=%d(%s)", resolved_path,
+                           errno, strerror(errno));
 
   try {
     file >> j;
@@ -1030,12 +1037,16 @@ Status ParseTopoFile(const std::string &topo_path, TopoData &topo_data) {
 
 Status ParseRouteFile(const std::string &route_path, RouteData &route_data) {
   route_data.entries.clear();
-  HIXL_CHK_BOOL_RET_STATUS(access(route_path.c_str(), F_OK) == 0, PARAM_INVALID,
-                           "Call api:access failed, route_path:%s, errno=%d(%s)", route_path.c_str(), errno,
-                           strerror(errno));
-  std::ifstream file(route_path);
-  HIXL_CHK_BOOL_RET_STATUS(file.is_open(), PARAM_INVALID, "Failed to open route file: %s, errno=%d(%s)",
-                           route_path.c_str(), errno, strerror(errno));
+  // Normalize the path (resolve "..", ".", symlinks) before validating and opening it.
+  char resolved_path[PATH_MAX] = {0};
+  char *realpath_ret = realpath(route_path.c_str(), resolved_path);
+  const int32_t realpath_errno = errno;
+  HIXL_CHK_BOOL_RET_STATUS(realpath_ret != nullptr, PARAM_INVALID,
+                           "Call api:realpath failed, route_path:%s, errno=%d(%s)", route_path.c_str(), realpath_errno,
+                           strerror(realpath_errno));
+  std::ifstream file(resolved_path);
+  HIXL_CHK_BOOL_RET_STATUS(file.is_open(), PARAM_INVALID, "Failed to open route file: %s, errno=%d(%s)", resolved_path,
+                           errno, strerror(errno));
 
   std::map<std::string, std::string> kv_map;
   HIXL_CHK_BOOL_RET_STATUS(LoadRouteKvMap(file, kv_map), FAILED, "Failed to load route kv map");
