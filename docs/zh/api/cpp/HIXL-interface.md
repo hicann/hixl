@@ -539,6 +539,14 @@ Status Connect(const AscendString &remote_engine, int32_t timeout_in_millis = 10
   - Atlas A2 训练系列产品/Atlas A2 推理系列产品
   - Atlas A3 训练系列产品/Atlas A3 推理系列产品
 
+- 对于使用Device RoCE场景，HIXL在获取RoCE设备IP地址时遵循以下原则：
+  - **IPv4优先**：同时存在IPv4和IPv6地址时，优先使用IPv4地址。
+  - **IPv6兜底**：当设备无IPv4地址但存在IPv6地址时，自动使用IPv6地址。
+  - **无需额外配置**：用户无需新增配置项或显式指定地址族，HIXL自动从hccn.conf或hccn_tool获取设备IP地址。
+  该约束支持的型号如下：
+  - Atlas A2 训练系列产品/Atlas A2 推理系列产品
+  - Atlas A3 训练系列产品/Atlas A3 推理系列产品
+
 - 该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
 
 ## Disconnect
