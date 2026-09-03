@@ -885,6 +885,16 @@ TEST_F(HixlCSClientUT, CreateRdmaRetryFailsForInvalidEnv) {
   EXPECT_EQ(client_.Create(&desc, &config), PARAM_INVALID);
 }
 
+TEST_F(HixlCSClientUT, CreateRdmaRetrySkipsTimeoutRangeCheckForHostRoce) {
+  port_ = kPort;
+  SetRdmaRetryEnv("3", "100");
+  HixlCSClient client;
+  CreateRoceHostClient(client);
+  EXPECT_EQ(client.retry_cnt_, 3U);
+  EXPECT_EQ(client.retry_interval_, 100U);
+  ASSERT_EQ(client.Destroy(), SUCCESS);
+}
+
 TEST_F(HixlCSClientUT, CreateIgnoresListenPortZero) {
   port_ = kPort;
   HixlClientConfig config{};

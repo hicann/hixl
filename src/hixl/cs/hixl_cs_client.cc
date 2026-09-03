@@ -1264,9 +1264,12 @@ Status HixlCSClient::InitRdmaRetryConfig() {
   HIXL_CHK_STATUS_RET(ParseEnvUint32("HCCL_RDMA_TIMEOUT", env_retry_interval, has_env_retry_interval),
                       "[HixlClient] Parse HCCL_RDMA_TIMEOUT failed");
   if (has_env_retry_interval) {
-    HIXL_CHK_BOOL_RET_STATUS(env_retry_interval >= kMinRdmaRetryInterval && env_retry_interval <= kMaxRdmaRetryInterval,
-                             PARAM_INVALID, "[HixlClient] HCCL_RDMA_TIMEOUT=%u is invalid, valid range=[%u, %u]",
-                             env_retry_interval, kMinRdmaRetryInterval, kMaxRdmaRetryInterval);
+    const auto &ep = local_endpoint_->GetEndpoint();
+    bool is_host_roce = (ep.loc.locType == ENDPOINT_LOC_TYPE_HOST && ep.protocol == COMM_PROTOCOL_ROCE);
+    HIXL_CHK_BOOL_RET_STATUS(
+        is_host_roce || (env_retry_interval >= kMinRdmaRetryInterval && env_retry_interval <= kMaxRdmaRetryInterval),
+        PARAM_INVALID, "[HixlClient] HCCL_RDMA_TIMEOUT=%u is invalid, valid range=[%u, %u]", env_retry_interval,
+        kMinRdmaRetryInterval, kMaxRdmaRetryInterval);
     retry_interval_ = env_retry_interval;
     HIXL_LOGI("[HixlClient] use HCCL_RDMA_TIMEOUT=%u", retry_interval_);
   } else {
