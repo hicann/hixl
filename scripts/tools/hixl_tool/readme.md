@@ -159,6 +159,7 @@ hixl_tool local_comm_res [options]
 {
   "version": "1.3",
   "net_instance_id": "superpod_1",
+  "server_id": "8",
   "endpoint_list": [
     {
       "protocol": "uboe",
@@ -189,6 +190,7 @@ hixl_tool local_comm_res [options]
 
 - `version`：产物格式版本号（`1.3`）
 - `net_instance_id`：网络实例 ID
+- `server_id`：本机服务器标识（仅 `--protocol_desc` 含 `ub_ctp:host` 时生成；device-only 不输出该字段）
 - `endpoint_list`：端点列表
   - `protocol`：协议类型（`ub_ctp` / `uboe` / `ub_rtp`）
   - `comm_id`：通信标识（EID 或 IP）

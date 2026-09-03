@@ -48,7 +48,7 @@ enum class LocalCommResGenerateMode {
 struct LocalCommRes {
   std::string version;                        // Version string, default "1.3"
   std::string net_instance_id;                // Network instance ID
-  std::string server_id;                      // Server ID
+  std::string server_id;                      // Server ID (host UB only; empty when unused)
   std::vector<EndpointConfig> endpoint_list;  // Endpoint list
 };
 
@@ -95,7 +95,8 @@ struct RouteData {
 struct RouteGenResult {
   RouteData route_data;
   std::set<int32_t> related_npu_ids;
-  std::string host_pg_eid;  // 8-port PG EID for H2U
+  std::string host_pg_eid;                               // 8-port PG EID for H2U
+  std::map<std::string, std::string> cpu_die_to_pg_eid;  // Host 8-port PG map (cpu_die_key -> PG EID)
 };
 
 // ============ Core APIs ============
@@ -119,31 +120,39 @@ Status GenerateRouteDataViaDsmi(int32_t phy_dev_id, const std::string &topo_path
 /**
  * @brief Generate LocalCommRes (production API, default paths)
  * @param [in] phy_dev_id Physical device ID from aclrtGetPhyDevIdByUserDevId
+ * @param [in] mode Device-only or device+host generation
  * @param [out] local_comm_res Output LocalCommRes
  * @return SUCCESS on success, other error codes on failure
  */
-Status GenerateLocalCommRes(int32_t phy_dev_id, LocalCommRes &local_comm_res);
-
 Status GenerateLocalCommRes(int32_t phy_dev_id, LocalCommResGenerateMode mode, LocalCommRes &local_comm_res);
 
 /**
  * @brief Generate LocalCommRes (test overload that injects a topo path)
  * @param [in] phy_dev_id Physical device ID
  * @param [in] topo_path Topology file path
+ * @param [in] mode Device-only or device+host generation
  * @param [out] local_comm_res Output LocalCommRes
  * @return SUCCESS on success, other error codes on failure
  *
- * route_data is generated via DSMI + urma_admin; route.conf is no longer read.
+ * route_data is generated via DSMI + urma_admin + DCMI when mode is kDeviceAndHost.
  */
-Status GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, LocalCommRes &local_comm_res);
-
 Status GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, LocalCommResGenerateMode mode,
                             LocalCommRes &local_comm_res);
+
+Status GenerateLocalCommRes(int32_t phy_dev_id, LocalCommResGenerateMode mode, const std::string &user_local_comm_res,
+                            LocalCommRes &local_comm_res);
+
+/**
+ * @brief Generate LocalCommRes and honor a user-provided top-level server_id when present
+ * @param [in] user_local_comm_res User OPTION_LOCAL_COMM_RES JSON; empty means not provided
+ */
+Status GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, LocalCommResGenerateMode mode,
+                            const std::string &user_local_comm_res, LocalCommRes &local_comm_res);
 
 /**
  * @brief Internal helper: resolve the default topo path from mainboard_id
  *
- * Shared by the 2-arg GenerateLocalCommRes and 2-arg TransLocalCommRes.
+ * Shared by GenerateLocalCommRes default-path overloads and 2-arg TransLocalCommRes.
  * **Internal use only**; callers must pass a valid phy_dev_id.
  *
  * @param [in]  phy_dev_id Physical device ID
@@ -215,14 +224,6 @@ Status GetClosNetInstanceId(int32_t phy_dev_id, std::string &net_instance_id);
  */
 Status ParseTopoFile(const std::string &topo_path, TopoData &topo_data);
 
-/**
- * @brief Parse a route.conf file
- * @param [in] route_path route.conf file path
- * @param [out] route_data Parsed route data
- * @return SUCCESS on success, other error codes on failure
- */
-Status ParseRouteFile(const std::string &route_path, RouteData &route_data);
-
 // ============ Edge generation ============
 
 /**
@@ -282,46 +283,6 @@ Status GenerateH2UEdges(const std::string &host_pg_eid, const std::string &plane
  * @return Port count, or -1 on failure
  */
 int32_t GetClosPgPortCount(const TopoData &topo_data, int32_t phy_id, const std::string &clos_pg_eid);
-
-// ============ ProcfsRouteHandler ============
-
-/**
- * @brief Procfs route handler (fallback when route.conf is missing)
- * Reads/writes /proc/ascend_ub or /proc/asdrv_ub to obtain route info
- */
-class ProcfsRouteHandler {
- public:
-  ProcfsRouteHandler();
-  /**
-   * @brief Construct with an explicit proc root directory
-   * @param [in] proc_base_path Injected proc root; empty string means default dual-path auto-discovery
-   */
-  explicit ProcfsRouteHandler(std::string proc_base_path);
-  ~ProcfsRouteHandler();
-
-  // Generate route data via procfs
-  Status GenerateRouteData(const std::set<int32_t> &related_npu_ids, RouteData &route_data) const;
-
- private:
-  // Private helpers
-  std::string FindProcBasePath() const;
-  static bool ReadFileToString(const std::string &path, std::string &content);
-  static bool WriteStringToFile(const std::string &path, const std::string &content);
-  static std::string TrimString(const std::string &s);
-  static bool ParseSlotIdFromLine(const std::string &line, std::string &slot_id);
-  static bool ParseEidFromLine(const std::string &line, const std::string &prefix, std::string &eid);
-  static std::string FormatEidValue(const std::string &eid);
-  static size_t SelectEidIndexByNpuId(int32_t npu_id, size_t local_count, size_t remote_count);
-  static bool CollectEidsFromPairInfo(const std::string &pair_info_content, std::string &found_slot_id,
-                                      std::vector<std::string> &local_eids, std::vector<std::string> &remote_eids);
-  bool ParsePairInfoForDevice(const std::string &pair_info_content, int32_t npu_id, int32_t &slot_id,
-                              std::string &local_eid, std::string &remote_eid) const;
-  Status ProcessNpuProcfsRoute(int32_t npu_id, const std::string &dev_id_path, const std::string &pair_info_path,
-                               RouteEntry &entry) const;
-
-  // Explicitly injected proc root; empty string means default ascend_ub / asdrv_ub auto-discovery
-  std::string injected_proc_base_path_;
-};
 
 // ============ TopoFileFinder ============
 

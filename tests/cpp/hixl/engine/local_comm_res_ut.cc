@@ -13,7 +13,7 @@
  * @brief LocalCommRes 模块单元测试
  *
  * 测试覆盖：
- * - ParseTopoFile / ParseRouteFile 纯文件解析
+ * - ParseTopoFile 纯文件解析
  * - GenerateH2DEdges / GenerateD2HEdges / GenerateD2DEdges 边生成
  * - GenerateLocalCommRes 集成路径（通过 DCMI 桩函数）
  */
@@ -30,6 +30,7 @@
 #include <unistd.h>
 
 #include "local_comm_res_generator_v1.h"
+#include "endpoint_test_utils.h"
 #include "test_mmpa_utils.h"
 #include "depends/sys_api/src/sys_api_wrap.h"
 #include "depends/dsmi/src/dsmi_stub.h"
@@ -110,6 +111,25 @@ constexpr const char *kUrmaAdminMockOutput =
     "24   udmac1d1e6          UB          eid7 0000:0000:0042:0600:0010:0000:df0a:0300    ACTIVE  \n"
     "25   udmac1d1e6          UB          eid8 0000:0000:0041:0600:0010:0000:df0a:0200    ACTIVE  \n";
 
+// One Host 8-port PG group (cpu_die_key c1d1) so ConcatHostEightPortServerId sees count != 2.
+// Keep udmac1d1e2 so ComputeHostPgEid still matches DsmiStubSetUbDevName("udmac1d1e2").
+constexpr const char *kUrmaAdminSingleHostPgMockOutput =
+    "num  ubep_dev            tp_type     eid                                             link\n"
+    "---  ----------------    --------    --------------------------------------------    --------\n"
+    "0    udmac1d1e2          UB          eid0 0000:0000:007f:0200:0010:0000:df0a:0b00    ACTIVE  \n"
+    "1    udmac1d1e3          UB          eid0 0000:0000:007f:0300:0010:0000:df0a:0b00    ACTIVE  \n"
+    "2    udmac1d1e4          UB          eid0 0000:0000:007f:0400:0010:0000:df0a:0b00    ACTIVE  \n"
+    "3    udmac1d1e5          UB          eid0 0000:0000:007f:0500:0010:0000:df0a:0b00    ACTIVE  \n"
+    "4    udmac1d1e6          UB          eid0 0000:0000:0040:0600:0010:0000:df0a:0100    ACTIVE  \n"
+    "5    udmac1d1e6          UB          eid1 0000:0000:007f:0600:0010:0000:df0a:0b00    ACTIVE  \n"
+    "6    udmac1d1e6          UB          eid2 0000:0000:0047:0600:0010:0000:df0a:0800    ACTIVE  \n"
+    "7    udmac1d1e6          UB          eid3 0000:0000:0046:0600:0010:0000:df0a:0700    ACTIVE  \n"
+    "8    udmac1d1e6          UB          eid4 0000:0000:0045:0600:0010:0000:df0a:0600    ACTIVE  \n"
+    "9    udmac1d1e6          UB          eid5 0000:0000:0044:0600:0010:0000:df0a:0500    ACTIVE  \n"
+    "10   udmac1d1e6          UB          eid6 0000:0000:0043:0600:0010:0000:df0a:0400    ACTIVE  \n"
+    "11   udmac1d1e6          UB          eid7 0000:0000:0042:0600:0010:0000:df0a:0300    ACTIVE  \n"
+    "12   udmac1d1e6          UB          eid8 0000:0000:0041:0600:0010:0000:df0a:0200    ACTIVE  \n";
+
 // 创建 fake urma_admin 脚本到指定目录
 void CreateFakeUrmaAdmin(const std::string &dir) {
   std::string script_path = dir + "/urma_admin";
@@ -149,6 +169,25 @@ std::string CreateEmptyTempDirForUrmaAdmin() {
     return "";
   }
   CreateEmptyUrmaAdmin(temp_dir);
+  return temp_dir;
+}
+
+void CreateSingleHostPgUrmaAdmin(const std::string &dir) {
+  std::string script_path = dir + "/urma_admin";
+  std::ofstream script(script_path.c_str());
+  script << "#!/bin/bash\n";
+  script << "echo '" << kUrmaAdminSingleHostPgMockOutput << "'\n";
+  script.close();
+  chmod(script_path.c_str(), 0755);
+}
+
+std::string CreateSingleHostPgTempDirForUrmaAdmin() {
+  std::string temp_dir = "/tmp/hixl_ut_urma_onepg_XXXXXX";
+  char *result = mkdtemp(&temp_dir[0]);
+  if (result == nullptr) {
+    return "";
+  }
+  CreateSingleHostPgUrmaAdmin(temp_dir);
   return temp_dir;
 }
 
@@ -218,13 +257,13 @@ std::string MakeEightNpuDieTopoJson(const std::string &mesh_port, const std::str
   return oss.str();
 }
 
-int32_t GenerateDeviceOnlyFromTopoJson(const std::string &topo_json) {
+Status GenerateDeviceOnlyFromTopoJson(const std::string &topo_json) {
   std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", topo_json);
   if (tmp_topo.empty()) {
     return FAILED;
   }
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
+  Status ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
   unlink(tmp_topo.c_str());
   return ret;
 }
@@ -248,7 +287,7 @@ class LocalCommResParseTest : public ::testing::Test {
 TEST_F(LocalCommResParseTest, ParseTopoFileSuccess) {
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
   TopoData topo_data;
-  int32_t ret = ParseTopoFile(topo_path, topo_data);
+  Status ret = ParseTopoFile(topo_path, topo_data);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(topo_data.links.size(), 52U);
   // 验证第一条 link
@@ -261,7 +300,7 @@ TEST_F(LocalCommResParseTest, ParseTopoFileSuccess) {
 
 TEST_F(LocalCommResParseTest, ParseTopoFileNotFound) {
   TopoData topo_data;
-  int32_t ret = ParseTopoFile("/nonexistent/path/topo.json", topo_data);
+  Status ret = ParseTopoFile("/nonexistent/path/topo.json", topo_data);
   EXPECT_EQ(ret, PARAM_INVALID);
 }
 
@@ -269,7 +308,7 @@ TEST_F(LocalCommResParseTest, ParseTopoFileInvalidJson) {
   std::string tmp = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", "not valid json {{{");
   ASSERT_FALSE(tmp.empty());
   TopoData topo_data;
-  int32_t ret = ParseTopoFile(tmp, topo_data);
+  Status ret = ParseTopoFile(tmp, topo_data);
   EXPECT_NE(ret, SUCCESS);
   unlink(tmp.c_str());
 }
@@ -279,7 +318,7 @@ TEST_F(LocalCommResParseTest, ParseTopoFileEmptyEdgeList) {
   std::string tmp = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", json);
   ASSERT_FALSE(tmp.empty());
   TopoData topo_data;
-  int32_t ret = ParseTopoFile(tmp, topo_data);
+  Status ret = ParseTopoFile(tmp, topo_data);
   // ParseTopoFile 将空 edge_list 视为解析失败
   EXPECT_EQ(ret, FAILED);
   unlink(tmp.c_str());
@@ -290,7 +329,7 @@ TEST_F(LocalCommResParseTest, ParseTopoFileEmptyContent) {
   std::string tmp = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", "");
   ASSERT_FALSE(tmp.empty());
   TopoData topo_data;
-  int32_t ret = ParseTopoFile(tmp, topo_data);
+  Status ret = ParseTopoFile(tmp, topo_data);
   EXPECT_EQ(ret, FAILED);
   unlink(tmp.c_str());
 }
@@ -302,52 +341,9 @@ TEST_F(LocalCommResParseTest, ParseTopoFileMissingNetLayer) {
   std::string tmp = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", json);
   ASSERT_FALSE(tmp.empty());
   TopoData topo_data;
-  int32_t ret = ParseTopoFile(tmp, topo_data);
+  Status ret = ParseTopoFile(tmp, topo_data);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_TRUE(topo_data.links.empty());
-  unlink(tmp.c_str());
-}
-
-// --- ParseRouteFile ---
-
-TEST_F(LocalCommResParseTest, ParseRouteFileSuccess) {
-  std::string route_path = data_dir_ + "route.conf";
-  RouteData route_data;
-  int32_t ret = ParseRouteFile(route_path, route_data);
-  EXPECT_EQ(ret, SUCCESS);
-  EXPECT_EQ(route_data.entries.size(), 8U);
-  // 验证第一条 entry
-  EXPECT_EQ(route_data.entries[0].device_id, 0);
-  EXPECT_FALSE(route_data.entries[0].local_eid.empty());
-  EXPECT_FALSE(route_data.entries[0].remote_eid.empty());
-}
-
-TEST_F(LocalCommResParseTest, ParseRouteFileNotFound) {
-  RouteData route_data;
-  int32_t ret = ParseRouteFile("/nonexistent/path/route.conf", route_data);
-  EXPECT_EQ(ret, PARAM_INVALID);
-}
-
-TEST_F(LocalCommResParseTest, ParseRouteFileMalformed) {
-  std::string content = "pair_device_num=1\npair0_dev_id=0\n";  // 缺少 chan 信息
-  std::string tmp = CreateTempFileWithContent("/tmp/route_ut_XXXXXX", content);
-  ASSERT_FALSE(tmp.empty());
-  RouteData route_data;
-  int32_t ret = ParseRouteFile(tmp, route_data);
-  // pair_device_num 存在但 chan 信息不全，解析应成功但 entries 可能为空
-  EXPECT_EQ(ret, SUCCESS);
-  EXPECT_TRUE(route_data.entries.empty());
-  unlink(tmp.c_str());
-}
-
-TEST_F(LocalCommResParseTest, ParseRouteFileMissingPairDeviceNum) {
-  // 缺少 pair_device_num → BuildRouteEntries 返回 FAILED
-  std::string content = "pair0_dev_id=0\npair0_chan0_local_eid=0xaa\n";
-  std::string tmp = CreateTempFileWithContent("/tmp/route_ut_XXXXXX", content);
-  ASSERT_FALSE(tmp.empty());
-  RouteData route_data;
-  int32_t ret = ParseRouteFile(tmp, route_data);
-  EXPECT_EQ(ret, FAILED);
   unlink(tmp.c_str());
 }
 
@@ -437,7 +433,7 @@ TEST_F(LocalCommResEdgeTest, GenerateH2DEdgesSuccess) {
   RouteData route_data = MakeTwoEntryRouteData();
 
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateH2DEdges(route_data, edges);
+  Status ret = GenerateH2DEdges(route_data, edges);
   EXPECT_EQ(ret, SUCCESS);
   ASSERT_EQ(edges.size(), 2U);
   EXPECT_EQ(edges[0].protocol, kProtocolUbCtp);
@@ -451,7 +447,7 @@ TEST_F(LocalCommResEdgeTest, GenerateH2DEdgesSuccess) {
 TEST_F(LocalCommResEdgeTest, GenerateH2DEdgesEmptyRoute) {
   RouteData route_data;
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateH2DEdges(route_data, edges);
+  Status ret = GenerateH2DEdges(route_data, edges);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_TRUE(edges.empty());
 }
@@ -462,7 +458,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2HEdgesSuccess) {
   RouteData route_data = MakeTwoEntryRouteData();
 
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateD2HEdges(route_data, 0, edges);
+  Status ret = GenerateD2HEdges(route_data, 0, edges);
   EXPECT_EQ(ret, SUCCESS);
   ASSERT_EQ(edges.size(), 1U);  // 只取 device_id=0 的条目
   EXPECT_EQ(edges[0].protocol, kProtocolUbCtp);
@@ -474,7 +470,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2HEdgesSuccess) {
 TEST_F(LocalCommResEdgeTest, GenerateD2HEdgesEmptyRoute) {
   RouteData route_data;
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateD2HEdges(route_data, 0, edges);
+  Status ret = GenerateD2HEdges(route_data, 0, edges);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_TRUE(edges.empty());
 }
@@ -494,7 +490,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2HEdgesNoMatch) {
   route_data.entries.push_back(e2);
 
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateD2HEdges(route_data, 0, edges);
+  Status ret = GenerateD2HEdges(route_data, 0, edges);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_TRUE(edges.empty());
 }
@@ -514,7 +510,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2HEdgesPhyIdGreaterThan7) {
   route_data.entries.push_back(e2);
 
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateD2HEdges(route_data, 8, edges);
+  Status ret = GenerateD2HEdges(route_data, 8, edges);
   EXPECT_EQ(ret, SUCCESS);
   ASSERT_EQ(edges.size(), 1U);
   EXPECT_EQ(edges[0].comm_id, "bb");
@@ -557,7 +553,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2UEdgesEmpty) {
 TEST_F(LocalCommResEdgeTest, GenerateH2UEdgesSuccess) {
   // host_pg_eid passed directly; both planes generated
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateH2UEdges("host_pg_eid", "pg0_eid", "pg1_eid", edges);
+  Status ret = GenerateH2UEdges("host_pg_eid", "pg0_eid", "pg1_eid", edges);
   EXPECT_EQ(ret, SUCCESS);
   ASSERT_EQ(edges.size(), 2U);
   EXPECT_EQ(edges[0].plane, "plane_pg_0");
@@ -570,7 +566,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesEmptyTopo) {
   TopoData topo_data;
   std::map<int32_t, NpuRootInfo> npu_rootinfos;
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
+  Status ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_TRUE(edges.empty());
 }
@@ -580,7 +576,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesNoRootinfoForSelf) {
   TopoData topo_data = MakeSingleLinkTopoData(MakeStandardTopoLink(0, kLinkTypePeer2Peer, kTopoType1DMesh));
   std::map<int32_t, NpuRootInfo> npu_rootinfos;
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
+  Status ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
   EXPECT_EQ(ret, FAILED);
   EXPECT_TRUE(edges.empty());
 }
@@ -590,7 +586,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesSkipNetLayer1) {
   TopoData topo_data = MakeSingleLinkTopoData(MakeStandardTopoLink(1, kLinkTypePeer2Peer, kTopoType1DMesh));
   auto npu_rootinfos = MakeNpuRootinfos(0, MakeRootInfo("0/1", "eid_self"), 1, MakeRootInfo("0/2", "eid_peer"));
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
+  Status ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_TRUE(edges.empty());
 }
@@ -601,7 +597,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesSkipNonPeer2Peer) {
   NpuRootInfo info = MakeRootInfo("0/1", "eid_self");
   auto npu_rootinfos = MakeNpuRootinfos(0, info, 1, info);
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
+  Status ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_TRUE(edges.empty());
 }
@@ -612,7 +608,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesSkipNon1DMESH) {
   NpuRootInfo info = MakeRootInfo("0/1", "eid_self");
   auto npu_rootinfos = MakeNpuRootinfos(0, info, 1, info);
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
+  Status ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_TRUE(edges.empty());
 }
@@ -627,7 +623,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesSkipPhyIdNotInLink) {
   npu_rootinfos[2] = info;
 
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateD2DEdges(topo_data, npu_rootinfos, 2, edges);
+  Status ret = GenerateD2DEdges(topo_data, npu_rootinfos, 2, edges);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_TRUE(edges.empty());
 }
@@ -640,7 +636,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesSkipEmptyPorts) {
   NpuRootInfo info = MakeRootInfo("0/1", "eid");
   auto npu_rootinfos = MakeNpuRootinfos(0, info, 1, info);
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
+  Status ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
   EXPECT_EQ(ret, FAILED);
   EXPECT_TRUE(edges.empty());
 }
@@ -649,7 +645,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesNoEidForLocalPort) {
   TopoData topo_data = MakeSingleLinkTopoData(MakeStandardTopoLink(0, kLinkTypePeer2Peer, kTopoType1DMesh));
   auto npu_rootinfos = MakeNpuRootinfos(0, MakeRootInfo("9/9", "eid_aaa"), 1, MakeRootInfo("0/2", "eid_bbb"));
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
+  Status ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
   EXPECT_EQ(ret, FAILED);
   EXPECT_TRUE(edges.empty());
 }
@@ -659,7 +655,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesNoRootinfoForPeer) {
   std::map<int32_t, NpuRootInfo> npu_rootinfos;
   npu_rootinfos[0] = MakeRootInfo("0/1", "eid_aaa");
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
+  Status ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
   EXPECT_EQ(ret, FAILED);
   EXPECT_TRUE(edges.empty());
 }
@@ -670,7 +666,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesMatchSuccess) {
   auto npu_rootinfos = MakeNpuRootinfos(0, MakeRootInfo("0/1", "eid_aaa"), 1, MakeRootInfo("0/2", "eid_bbb"));
 
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
+  Status ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
   EXPECT_EQ(ret, SUCCESS);
   ASSERT_EQ(edges.size(), 1U);
   EXPECT_EQ(edges[0].protocol, kProtocolUbCtp);
@@ -712,9 +708,10 @@ TEST_F(LocalCommResGenerateTest, GenerateSuccess) {
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(res.version, "1.3");
+  EXPECT_TRUE(res.server_id.empty());
   EXPECT_FALSE(res.endpoint_list.empty());
   // 默认仅生成 Device UB endpoint，且所有 endpoint 应有 net_instance_id
   for (const auto &ep : res.endpoint_list) {
@@ -728,7 +725,7 @@ TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlySkipsDynamicRoute) {
   CleanupTempDir(temp_dir_);
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
 
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_TRUE(std::all_of(res.endpoint_list.begin(), res.endpoint_list.end(),
@@ -744,13 +741,104 @@ TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostSuccess) {
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceAndHost, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceAndHost, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
   EXPECT_TRUE(std::any_of(res.endpoint_list.begin(), res.endpoint_list.end(),
                           [](const EndpointConfig &ep) { return ep.placement == kPlacementDevice; }));
   EXPECT_TRUE(std::any_of(res.endpoint_list.begin(), res.endpoint_list.end(),
                           [](const EndpointConfig &ep) { return ep.placement == kPlacementHost; }));
+  EXPECT_EQ(res.server_id, "8");
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostUsesUserServerId) {
+  DcmiStubSetMainboardId(0x21, 0);
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+  const std::string user_lcr =
+      R"({"version":"1.3","server_id":"user-server-1","net_instance_id":"superpod_1","endpoint_list":[]})";
+
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceAndHost, user_lcr, res);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(res.server_id, "user-server-1");
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostEmptyUserServerIdGenerates) {
+  DcmiStubSetMainboardId(0x21, 0);
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+  const std::string user_lcr = R"({"version":"1.3","server_id":"","endpoint_list":[]})";
+
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceAndHost, user_lcr, res);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(res.server_id, "8");
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostConcatHostPgWhenAclInvalid) {
+  DcmiStubSetMainboardId(0x21, 0);
+  endpoint_test::MockAclRuntimeStub acl_stub;
+  acl_stub.super_pod_server_id_ = 65535;
+  llm::AclRuntimeStub::Install(&acl_stub);
+
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceAndHost, res);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(res.server_id, "00000000003f060000100000df080b00_00000000007f060000100000df0a0b00");
+
+  llm::AclRuntimeStub::UnInstall(&acl_stub);
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateRejectsNonStringUserServerId) {
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+  const std::string user_lcr = R"({"version":"1.3","server_id":1,"endpoint_list":[]})";
+
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, user_lcr, res);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlyKeepsUserServerId) {
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+  const std::string user_lcr =
+      R"({"version":"1.3","server_id":"user-server-1","net_instance_id":"superpod_1","endpoint_list":[]})";
+
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, user_lcr, res);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(res.server_id, "user-server-1");
+  EXPECT_TRUE(std::all_of(res.endpoint_list.begin(), res.endpoint_list.end(),
+                          [](const EndpointConfig &ep) { return ep.placement == kPlacementDevice; }));
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostFailsWhenHostPgEidCountNotTwo) {
+  DcmiStubSetMainboardId(0x21, 0);
+  endpoint_test::MockAclRuntimeStub acl_stub;
+  acl_stub.super_pod_server_id_ = 65535;
+  llm::AclRuntimeStub::Install(&acl_stub);
+
+  std::string one_pg_dir = CreateSingleHostPgTempDirForUrmaAdmin();
+  ASSERT_FALSE(one_pg_dir.empty());
+  std::string base_path = SetUrmaAdminPath(one_pg_dir);
+
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceAndHost, res);
+  EXPECT_EQ(ret, FAILED);
+
+  RestorePath(base_path);
+  CleanupTempDir(one_pg_dir);
+  llm::AclRuntimeStub::UnInstall(&acl_stub);
+}
+
+TEST_F(LocalCommResGenerateTest, SerializeLocalCommResJsonWritesTopLevelServerId) {
+  LocalCommRes res;
+  res.version = "1.3";
+  res.net_instance_id = "superpod_1";
+  res.server_id = "user-server-1";
+  std::string json_str;
+  EXPECT_EQ(SerializeLocalCommResJson(res, json_str), SUCCESS);
+  EXPECT_NE(json_str.find("\"server_id\": \"user-server-1\""), std::string::npos);
 }
 
 // --- 生成顺序与 route_data 解耦：kDeviceOnly 不影响，kDeviceAndHost 失败即报错 ---
@@ -766,7 +854,7 @@ TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostRouteFailed) {
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceAndHost, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceAndHost, res);
   EXPECT_EQ(ret, FAILED);
 
   RestorePath(base_path);
@@ -783,7 +871,7 @@ TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlyIgnoresRouteFailure) {
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
   EXPECT_TRUE(std::all_of(res.endpoint_list.begin(), res.endpoint_list.end(),
@@ -806,7 +894,7 @@ TEST_F(LocalCommResGenerateTest, MeshDieResolvedFromTopo) {
   ASSERT_FALSE(tmp_topo.empty());
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
+  Status ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
   unlink(tmp_topo.c_str());
 
   // 若 die 仍按产品形态推断（server→die1）而 stub 按 die0 布局生成，
@@ -834,7 +922,7 @@ TEST_F(LocalCommResGenerateTest, ClosDieMajorityFromMixedSixPlusTwo) {
   ASSERT_FALSE(tmp_topo.empty());
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
+  Status ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
   unlink(tmp_topo.c_str());
 
   EXPECT_EQ(ret, SUCCESS);
@@ -885,7 +973,7 @@ TEST_F(LocalCommResGenerateTest, GenerateTopoNotFound) {
   std::string topo_path = "/nonexistent/topo.json";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, PARAM_INVALID);
 }
 
@@ -894,7 +982,7 @@ TEST_F(LocalCommResGenerateTest, GenerateRoutePathIgnored) {
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 }
@@ -905,7 +993,7 @@ TEST_F(LocalCommResGenerateTest, GenerateGetMainboardIdFailed) {
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_NE(ret, SUCCESS);
 }
 
@@ -915,7 +1003,7 @@ TEST_F(LocalCommResGenerateTest, GenerateGetClosNetInstanceIdFailed) {
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_NE(ret, SUCCESS);
 }
 
@@ -925,7 +1013,7 @@ TEST_F(LocalCommResGenerateTest, GeneratePodMainboardId) {
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 }
@@ -936,7 +1024,7 @@ TEST_F(LocalCommResGenerateTest, GenerateServerMainboardId) {
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, SUCCESS);
 }
 
@@ -947,7 +1035,7 @@ TEST_F(LocalCommResGenerateTest, GenerateBuildNpuRootinfosFailed) {
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, FAILED);
 }
 
@@ -962,7 +1050,7 @@ TEST_F(LocalCommResGenerateTest, GenerateEmptyAllEdges) {
   ASSERT_FALSE(tmp_topo.empty());
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, tmp_topo, res);
+  Status ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, FAILED);
 
   unlink(tmp_topo.c_str());
@@ -976,7 +1064,7 @@ TEST_F(LocalCommResGenerateTest, GenerateServerOddMainboardId) {
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 }
@@ -987,7 +1075,7 @@ TEST_F(LocalCommResGenerateTest, GenerateServerEvenMainboardIdInRange2) {
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 }
@@ -998,7 +1086,7 @@ TEST_F(LocalCommResGenerateTest, GenerateNotServerEvenInRange1) {
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, SUCCESS);
 }
 
@@ -1008,7 +1096,7 @@ TEST_F(LocalCommResGenerateTest, GenerateNotServerOddInRange2) {
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, SUCCESS);
 }
 
@@ -1018,7 +1106,7 @@ TEST_F(LocalCommResGenerateTest, GenerateNotServerBelowRange) {
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, SUCCESS);
 }
 
@@ -1028,7 +1116,7 @@ TEST_F(LocalCommResGenerateTest, GenerateNotServerAboveRange) {
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, SUCCESS);
 }
 
@@ -1038,7 +1126,7 @@ TEST_F(LocalCommResGenerateTest, GeneratePod2MainboardId) {
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 }
@@ -1049,7 +1137,7 @@ TEST_F(LocalCommResGenerateTest, GeneratePod3MainboardId) {
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 }
@@ -1060,7 +1148,7 @@ TEST_F(LocalCommResGenerateTest, GenerateServerMeshDieId) {
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 }
@@ -1077,7 +1165,7 @@ TEST_F(LocalCommResGenerateTest, GenerateEidsNo0xPrefix) {
   ASSERT_FALSE(tmp_topo.empty());
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, tmp_topo, res);
+  Status ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, SUCCESS);
 
   // 验证所有 endpoint 中的 EID 不含 0x 前缀
@@ -1094,7 +1182,7 @@ TEST_F(LocalCommResGenerateTest, GenerateEidsNo0xPrefix) {
 TEST_F(LocalCommResGenerateTest, GetMainboardIdSuccess) {
   DcmiStubSetMainboardId(0x42, 0);
   unsigned int mainboard_id = 0;
-  int32_t ret = GetMainboardId(0, mainboard_id);
+  Status ret = GetMainboardId(0, mainboard_id);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(mainboard_id, 0x42U);
 }
@@ -1102,7 +1190,7 @@ TEST_F(LocalCommResGenerateTest, GetMainboardIdSuccess) {
 TEST_F(LocalCommResGenerateTest, GetClosNetInstanceIdSuccess) {
   DcmiStubSetSuperPodId(5, 0);
   std::string net_instance_id;
-  int32_t ret = GetClosNetInstanceId(0, net_instance_id);
+  Status ret = GetClosNetInstanceId(0, net_instance_id);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(net_instance_id, "superpod_5");
 }
@@ -1184,7 +1272,7 @@ TEST_F(LocalCommResTopoPathTest, DefaultOverloadPodMainboardId) {
   // 在 UT 环境中 /usr/local/Ascend/driver/topo/950/ 不存在，应返回 PARAM_INVALID
   DcmiStubSetMainboardId(0x3, 0);
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, res);
+  Status ret = GenerateLocalCommRes(0, LocalCommResGenerateMode::kDeviceOnly, res);
   // topo 目录不存在 → FindTopoFileByMainboardId 返回空 → PARAM_INVALID
   EXPECT_EQ(ret, PARAM_INVALID);
 }
@@ -1193,7 +1281,7 @@ TEST_F(LocalCommResTopoPathTest, DefaultOverloadServerMainboardId) {
   // Server 产品形态（0x21）→ MatchProductForm 匹配 atlas_850_* 前缀
   DcmiStubSetMainboardId(0x21, 0);
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, res);
+  Status ret = GenerateLocalCommRes(0, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, PARAM_INVALID);
 }
 
@@ -1201,7 +1289,7 @@ TEST_F(LocalCommResTopoPathTest, DefaultOverloadUnknownMainboardId) {
   // 未知 mainboard_id（0x99）→ MatchProductForm 返回 false → PARAM_INVALID
   DcmiStubSetMainboardId(0x99, 0);
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, res);
+  Status ret = GenerateLocalCommRes(0, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, PARAM_INVALID);
 }
 
@@ -1209,32 +1297,32 @@ TEST_F(LocalCommResTopoPathTest, DefaultOverloadGetMainboardIdFailed) {
   // GetMainboardId 失败 → 直接返回错误
   DcmiStubSetMainboardId(0, -1);
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, res);
+  Status ret = GenerateLocalCommRes(0, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_NE(ret, SUCCESS);
 }
 
 // ============================================================================
-// Change #2 测试：route.conf 不再被读取，route data 通过 DSMI 生成
+// Change #2 测试：route data 通过 DSMI 生成
 // ============================================================================
 
-class LocalCommResProcfsFallbackTest : public LocalCommResTestBase {};
+class LocalCommResDsmiRouteTest : public LocalCommResTestBase {};
 
-TEST_F(LocalCommResProcfsFallbackTest, RoutePathIgnoredSucceedsViaDsmi) {
+TEST_F(LocalCommResDsmiRouteTest, GenerateSucceedsViaDsmi) {
   // route_path 不存在也能成功，因为 route data 通过 DSMI 生成
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 }
 
-TEST_F(LocalCommResProcfsFallbackTest, RoutePathIgnoredWithValidTopo) {
+TEST_F(LocalCommResDsmiRouteTest, GenerateWithValidTopo) {
   // route_path 存在但被忽略，使用 DSMI 生成 route data
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 }
@@ -1249,7 +1337,7 @@ class LocalCommResH2UTest : public LocalCommResMmpaTestBase {};
 TEST_F(LocalCommResH2UTest, H2UEdgesSuccess) {
   // host_pg_eid passed directly → both planes generated
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateH2UEdges("host_pg_eid", "pg0_eid", "pg1_eid", edges);
+  Status ret = GenerateH2UEdges("host_pg_eid", "pg0_eid", "pg1_eid", edges);
   EXPECT_EQ(ret, SUCCESS);
   ASSERT_EQ(edges.size(), 2U);
   EXPECT_EQ(edges[0].plane, "plane_pg_0");
@@ -1259,7 +1347,7 @@ TEST_F(LocalCommResH2UTest, H2UEdgesSuccess) {
 TEST_F(LocalCommResH2UTest, H2UEdgesEmptyHostPgEid) {
   // 空 host_pg_eid → FAILED
   std::vector<EndpointConfig> edges;
-  int32_t ret = GenerateH2UEdges("", "pg0_eid", "pg1_eid", edges);
+  Status ret = GenerateH2UEdges("", "pg0_eid", "pg1_eid", edges);
   EXPECT_EQ(ret, FAILED);
   EXPECT_TRUE(edges.empty());
 }
@@ -1310,227 +1398,11 @@ TEST_F(LocalCommResH2UTest, IntegrationH2USuccess) {
   std::string topo_path = data_dir + "server_8p_noroce.json";
 
   LocalCommRes res;
-  int32_t ret = GenerateLocalCommRes(0, topo_path, res);
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 
   ResetDcmiStub();
-}
-
-// ============================================================================
-// ProcfsRouteHandler UT
-// 真实文件系统版本：通过构造时注入临时目录，移除所有 mock 抽象
-// ============================================================================
-
-// Helper to create valid pair_info content
-std::string MakePairInfoContent(const std::string &slot_id, const std::vector<std::string> &local_eids,
-                                const std::vector<std::string> &remote_eids) {
-  std::ostringstream oss;
-  for (size_t i = 0; i < local_eids.size() && i < remote_eids.size(); ++i) {
-    oss << "dev_id=0 slot_id=" << slot_id << "\n";
-    oss << "local_eid: " << local_eids[i] << "\n";
-    oss << "remote_eid: " << remote_eids[i] << "\n";
-  }
-  return oss.str();
-}
-
-class ProcfsRouteHandlerTest : public ::testing::Test {
- protected:
-  void SetUp() override {
-    std::string temp_dir = "/tmp/hixl_procfs_ut_XXXXXX";
-    char *result = mkdtemp(&temp_dir[0]);
-    ASSERT_NE(result, nullptr);
-    proc_base_ = temp_dir;
-  }
-
-  void TearDown() override {
-    if (!proc_base_.empty()) {
-      std::string cmd = "rm -rf " + proc_base_;
-      (void)system(cmd.c_str());
-      proc_base_.clear();
-    }
-  }
-
-  // 在临时目录下写入指定文件的内容；name 相对于 proc_base_
-  void WriteProcFile(const std::string &name, const std::string &content) {
-    std::string path = proc_base_ + "/" + name;
-    std::ofstream of(path.c_str());
-    ASSERT_TRUE(of.is_open());
-    of << content;
-    of.close();
-  }
-
-  // 显式注入的 proc 根目录
-  std::string proc_base_;
-};
-
-TEST_F(ProcfsRouteHandlerTest, GenerateRouteDataProcPathNotFound) {
-  // 注入的目录存在但 dev_id 不存在 → FindProcBasePath 返回空 → 失败
-  hixl::ProcfsRouteHandler handler(proc_base_);
-
-  std::set<int32_t> related_npu_ids = {0, 1};
-  hixl::RouteData route_data;
-  int32_t ret = handler.GenerateRouteData(related_npu_ids, route_data);
-
-  EXPECT_EQ(ret, hixl::FAILED);
-  EXPECT_TRUE(route_data.entries.empty());
-}
-
-TEST_F(ProcfsRouteHandlerTest, GenerateRouteDataAscendUbFound) {
-  WriteProcFile("dev_id", "");
-  WriteProcFile("pair_info", MakePairInfoContent("0", {"0x0000000000f2008000100000dfdf0091"},
-                                                 {"0x000000000072008000100000dfdf0001"}));
-
-  hixl::ProcfsRouteHandler handler(proc_base_);
-  std::set<int32_t> related_npu_ids = {0};
-  hixl::RouteData route_data;
-  int32_t ret = handler.GenerateRouteData(related_npu_ids, route_data);
-
-  EXPECT_EQ(ret, hixl::SUCCESS);
-  ASSERT_EQ(route_data.entries.size(), 1U);
-  EXPECT_EQ(route_data.entries[0].device_id, 0);  // 0 % 8 = 0
-  EXPECT_EQ(route_data.entries[0].local_eid, "0000000000f2008000100000dfdf0091");
-  EXPECT_EQ(route_data.entries[0].remote_eid, "000000000072008000100000dfdf0001");
-}
-
-TEST_F(ProcfsRouteHandlerTest, GenerateRouteDataAsdrvUbFound) {
-  // 复用同一注入路径，行为与 ascend_ub 一致（注入路径优先）
-  WriteProcFile("dev_id", "");
-  WriteProcFile("pair_info", MakePairInfoContent("1", {"0x0000000000f2008000100000dfdf0091"},
-                                                 {"0x000000000072008000100000dfdf0001"}));
-
-  hixl::ProcfsRouteHandler handler(proc_base_);
-  std::set<int32_t> related_npu_ids = {1};
-  hixl::RouteData route_data;
-  int32_t ret = handler.GenerateRouteData(related_npu_ids, route_data);
-
-  EXPECT_EQ(ret, hixl::SUCCESS);
-  ASSERT_EQ(route_data.entries.size(), 1U);
-  EXPECT_EQ(route_data.entries[0].device_id, 1);  // 1 % 8 = 1
-}
-
-TEST_F(ProcfsRouteHandlerTest, GenerateRouteDataWriteFails) {
-  // dev_id 不存在 → open() 失败 → WriteStringToFile 失败 → ProcessNpuProcfsRoute 返回 FAILED
-  WriteProcFile("pair_info", MakePairInfoContent("0", {"0x0000000000f2008000100000dfdf0091"},
-                                                 {"0x000000000072008000100000dfdf0001"}));
-
-  hixl::ProcfsRouteHandler handler(proc_base_);
-  std::set<int32_t> related_npu_ids = {0};
-  hixl::RouteData route_data;
-  int32_t ret = handler.GenerateRouteData(related_npu_ids, route_data);
-
-  EXPECT_EQ(ret, hixl::FAILED);
-  EXPECT_TRUE(route_data.entries.empty());
-}
-
-TEST_F(ProcfsRouteHandlerTest, GenerateRouteDataReadPairInfoFails) {
-  // dev_id 存在，pair_info 缺失 → 读取失败
-  WriteProcFile("dev_id", "");
-
-  hixl::ProcfsRouteHandler handler(proc_base_);
-  std::set<int32_t> related_npu_ids = {0};
-  hixl::RouteData route_data;
-  int32_t ret = handler.GenerateRouteData(related_npu_ids, route_data);
-
-  EXPECT_EQ(ret, hixl::FAILED);
-  EXPECT_TRUE(route_data.entries.empty());
-}
-
-TEST_F(ProcfsRouteHandlerTest, GenerateRouteDataMalformedPairInfo) {
-  WriteProcFile("dev_id", "");
-  WriteProcFile("pair_info", "not valid pair info content\n");
-
-  hixl::ProcfsRouteHandler handler(proc_base_);
-  std::set<int32_t> related_npu_ids = {0};
-  hixl::RouteData route_data;
-  int32_t ret = handler.GenerateRouteData(related_npu_ids, route_data);
-
-  EXPECT_EQ(ret, hixl::FAILED);
-  EXPECT_TRUE(route_data.entries.empty());
-}
-
-TEST_F(ProcfsRouteHandlerTest, GenerateRouteDataMultipleNpus) {
-  WriteProcFile("dev_id", "");
-  WriteProcFile("pair_info",
-                MakePairInfoContent("2", {"0x0000000000f2008000100000dfdf0091", "0x0000000000f2008000100000dfdf0092"},
-                                    {"0x000000000072008000100000dfdf0001", "0x000000000072008000100000dfdf0002"}));
-
-  hixl::ProcfsRouteHandler handler(proc_base_);
-  std::set<int32_t> related_npu_ids = {0, 1, 2, 3};
-  hixl::RouteData route_data;
-  int32_t ret = handler.GenerateRouteData(related_npu_ids, route_data);
-
-  EXPECT_EQ(ret, hixl::SUCCESS);
-  // device_id = npu_id % 8, so 0,1,2,3 should all generate entries
-  ASSERT_EQ(route_data.entries.size(), 4U);
-}
-
-TEST_F(ProcfsRouteHandlerTest, GenerateRouteDataEmptyNpuIds) {
-  WriteProcFile("dev_id", "");
-  WriteProcFile("pair_info", "");
-
-  hixl::ProcfsRouteHandler handler(proc_base_);
-  std::set<int32_t> related_npu_ids;  // empty
-  hixl::RouteData route_data;
-  int32_t ret = handler.GenerateRouteData(related_npu_ids, route_data);
-
-  // No NPUs to process, no entries generated → returns FAILED
-  EXPECT_EQ(ret, hixl::FAILED);
-  EXPECT_TRUE(route_data.entries.empty());
-}
-
-TEST_F(ProcfsRouteHandlerTest, GenerateRouteDataNpuIdGreaterThan7) {
-  WriteProcFile("dev_id", "");
-  WriteProcFile("pair_info", MakePairInfoContent("0", {"0x0000000000f2008000100000dfdf0091"},
-                                                 {"0x000000000072008000100000dfdf0001"}));
-
-  // npu_id = 10, device_id = 10 采用物理id
-  hixl::ProcfsRouteHandler handler(proc_base_);
-  std::set<int32_t> related_npu_ids = {10};
-  hixl::RouteData route_data;
-  int32_t ret = handler.GenerateRouteData(related_npu_ids, route_data);
-
-  EXPECT_EQ(ret, hixl::SUCCESS);
-  ASSERT_EQ(route_data.entries.size(), 1U);
-  EXPECT_EQ(route_data.entries[0].device_id, 10);  // 采用物理id
-}
-
-TEST_F(ProcfsRouteHandlerTest, GenerateRouteDataEid0xPrefixStripped) {
-  WriteProcFile("dev_id", "");
-  WriteProcFile("pair_info", MakePairInfoContent("0", {"0xaa", "0xbb"}, {"0xcc", "0xdd"}));
-
-  // npu_id=0 → group_offset=0 → eid_idx=0; npu_id=4 → group_offset=4 → eid_idx=1
-  hixl::ProcfsRouteHandler handler(proc_base_);
-  std::set<int32_t> related_npu_ids = {0, 4};
-  hixl::RouteData route_data;
-  int32_t ret = handler.GenerateRouteData(related_npu_ids, route_data);
-
-  EXPECT_EQ(ret, hixl::SUCCESS);
-  ASSERT_EQ(route_data.entries.size(), 2U);
-  // Verify 0x prefix is stripped
-  EXPECT_EQ(route_data.entries[0].local_eid, "aa");
-  EXPECT_EQ(route_data.entries[0].remote_eid, "cc");
-  EXPECT_EQ(route_data.entries[1].local_eid, "bb");
-  EXPECT_EQ(route_data.entries[1].remote_eid, "dd");
-}
-
-TEST_F(ProcfsRouteHandlerTest, GenerateRouteDataEidColonStripped) {
-  WriteProcFile("dev_id", "");
-  WriteProcFile("pair_info", MakePairInfoContent("0", {"0xaa:bb:cc", "dd:ee:ff"}, {"11:22:33", "44:55:66"}));
-
-  // npu_id=0 → group_offset=0 → eid_idx=0; npu_id=4 → group_offset=4 → eid_idx=1
-  hixl::ProcfsRouteHandler handler(proc_base_);
-  std::set<int32_t> related_npu_ids = {0, 4};
-  hixl::RouteData route_data;
-  int32_t ret = handler.GenerateRouteData(related_npu_ids, route_data);
-
-  EXPECT_EQ(ret, hixl::SUCCESS);
-  ASSERT_EQ(route_data.entries.size(), 2U);
-  // Verify colons are stripped
-  EXPECT_EQ(route_data.entries[0].local_eid, "aabbcc");
-  EXPECT_EQ(route_data.entries[0].remote_eid, "112233");
-  EXPECT_EQ(route_data.entries[1].local_eid, "ddeeff");
-  EXPECT_EQ(route_data.entries[1].remote_eid, "445566");
 }
 
 // ============================================================================
@@ -1700,7 +1572,7 @@ TEST_F(LocalCommResGenerateTest, TransLocalCommResSuccess) {
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
 
   hixl::AscendString result;
-  int32_t ret = TransLocalCommRes(0, topo_path, result);
+  Status ret = TransLocalCommRes(0, topo_path, result);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_GT(result.GetLength(), 0u);
 
@@ -1717,7 +1589,7 @@ TEST_F(LocalCommResTopoPathTest, ResolveDefaultPathsPropagatesGetMainboardIdFail
   DcmiStubSetMainboardId(0, -1);
 
   std::string topo_path;
-  int32_t ret = ResolveDefaultLocalCommResPaths(0, topo_path);
+  Status ret = ResolveDefaultLocalCommResPaths(0, topo_path);
   EXPECT_NE(ret, SUCCESS);
   EXPECT_TRUE(topo_path.empty());
 }
@@ -1727,7 +1599,7 @@ TEST_F(LocalCommResTopoPathTest, ResolveDefaultPathsUnknownMainboardIdReturnsInv
   DcmiStubSetMainboardId(0x99, 0);
 
   std::string topo_path;
-  int32_t ret = ResolveDefaultLocalCommResPaths(0, topo_path);
+  Status ret = ResolveDefaultLocalCommResPaths(0, topo_path);
   EXPECT_EQ(ret, PARAM_INVALID);
   EXPECT_TRUE(topo_path.empty());
 }
@@ -1738,7 +1610,7 @@ TEST_F(LocalCommResTopoPathTest, TransLocalCommResDefaultOverloadTopoMissing) {
   DcmiStubSetMainboardId(0x3, 0);  // Pod1
 
   hixl::AscendString result;
-  int32_t ret = TransLocalCommRes(0, result);
+  Status ret = TransLocalCommRes(0, result);
   EXPECT_EQ(ret, PARAM_INVALID);
 }
 
@@ -1747,7 +1619,7 @@ TEST_F(LocalCommResTopoPathTest, TransLocalCommResDefaultOverloadGetMainboardIdF
   DcmiStubSetMainboardId(0, -1);
 
   hixl::AscendString result;
-  int32_t ret = TransLocalCommRes(0, result);
+  Status ret = TransLocalCommRes(0, result);
   EXPECT_NE(ret, SUCCESS);
 }
 

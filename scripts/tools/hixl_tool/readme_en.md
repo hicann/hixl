@@ -159,6 +159,7 @@ One file per device: `{output}/{prefix}_{device_id}_{phy_id}.json`
 {
   "version": "1.3",
   "net_instance_id": "superpod_1",
+  "server_id": "8",
   "endpoint_list": [
     {
       "protocol": "uboe",
@@ -189,6 +190,7 @@ Field description:
 
 - `version`: artifact format version (`1.3`)
 - `net_instance_id`: network instance ID
+- `server_id`: local server identifier (generated only when `--protocol_desc` includes `ub_ctp:host`; omitted for device-only)
 - `endpoint_list`: endpoint list
   - `protocol`: protocol type (`ub_ctp` / `uboe` / `ub_rtp`)
   - `comm_id`: communication identifier (EID or IP)

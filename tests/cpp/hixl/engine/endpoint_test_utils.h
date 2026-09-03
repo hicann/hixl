@@ -16,6 +16,7 @@
 #include <string>
 
 #include "ascendcl_stub.h"
+#include "acl/acl_rt.h"
 #include "common/hixl_inner_types.h"
 
 namespace hixl {
@@ -27,6 +28,7 @@ class MockAclRuntimeStub : public llm::AclRuntimeStub {
   int32_t phy_device_id_ = 0;
   int64_t super_device_id_ = 9;
   int64_t super_pod_id_ = 8;
+  int64_t super_pod_server_id_ = 8;
   uint32_t device_count_ = 1;
   bool return_null_soc_name_ = false;
   bool device_count_failed_ = false;
@@ -114,6 +116,10 @@ class MockAclRuntimeStub : public llm::AclRuntimeStub {
     }
     if (attr == ACL_DEV_ATTR_SUPER_POD_DEVIDE_ID) {
       *value = super_device_id_;
+      return ACL_SUCCESS;
+    }
+    if (attr == ACL_DEV_ATTR_SUPER_POD_SERVER_ID) {
+      *value = super_pod_server_id_;
       return ACL_SUCCESS;
     }
     *value = 0;

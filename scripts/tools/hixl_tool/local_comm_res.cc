@@ -239,11 +239,13 @@ bool GenerateLocalCommResForDevice(int32_t device_id, const std::string &topo_pa
     return false;
   }
 
-  // Backfill net_instance_id from generated endpoints.
+  // Backfill net_instance_id / server_id from generated endpoints (JSON keeps them at top level).
   for (const auto &ep : endpoint_list) {
-    if (!ep.net_instance_id.empty()) {
+    if (local_comm_res.net_instance_id.empty() && !ep.net_instance_id.empty()) {
       local_comm_res.net_instance_id = ep.net_instance_id;
-      break;
+    }
+    if (local_comm_res.server_id.empty() && !ep.server_id.empty()) {
+      local_comm_res.server_id = ep.server_id;
     }
   }
   local_comm_res.endpoint_list = std::move(endpoint_list);

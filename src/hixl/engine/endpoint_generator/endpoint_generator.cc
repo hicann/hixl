@@ -531,21 +531,31 @@ Status GenAutoScaleOutEndpoints(int32_t device_id, const std::vector<std::string
   return GenScaleOutByProtocolDesc(device_id, protocol_desc, endpoint_list);
 }
 
+struct UbCtpAppendInput {
+  int32_t phy_dev_id;
+  const std::string &topo_path;
+  const std::vector<std::string> &protocol_desc;
+  const std::string &user_local_comm_res;
+};
+
 // Generate ub_ctp endpoints on demand and merge them into endpoint_list.
-Status AppendUbCtpEndpoints(int32_t phy_dev_id, const std::string &topo_path,
-                            const std::vector<std::string> &protocol_desc, std::vector<EndpointConfig> &endpoint_list,
+Status AppendUbCtpEndpoints(const UbCtpAppendInput &input, std::vector<EndpointConfig> &endpoint_list,
                             std::string &net_instance_id) {
   bool ub_needed = false;
   LocalCommResGenerateMode ub_mode = LocalCommResGenerateMode::kDeviceOnly;
-  HIXL_CHK_STATUS_RET(ResolveUbCtpNeedAndMode(protocol_desc, ub_needed, ub_mode), "ResolveUbCtpNeedAndMode failed");
+  HIXL_CHK_STATUS_RET(ResolveUbCtpNeedAndMode(input.protocol_desc, ub_needed, ub_mode),
+                      "ResolveUbCtpNeedAndMode failed");
   if (!ub_needed) {
     return SUCCESS;
   }
   LocalCommRes ub_res;
-  if (topo_path.empty()) {
-    HIXL_CHK_STATUS_RET(GenerateLocalCommRes(phy_dev_id, ub_mode, ub_res), "GenerateLocalCommRes failed");
+  if (input.topo_path.empty()) {
+    HIXL_CHK_STATUS_RET(GenerateLocalCommRes(input.phy_dev_id, ub_mode, input.user_local_comm_res, ub_res),
+                        "GenerateLocalCommRes failed");
   } else {
-    HIXL_CHK_STATUS_RET(GenerateLocalCommRes(phy_dev_id, topo_path, ub_mode, ub_res), "GenerateLocalCommRes failed");
+    HIXL_CHK_STATUS_RET(
+        GenerateLocalCommRes(input.phy_dev_id, input.topo_path, ub_mode, input.user_local_comm_res, ub_res),
+        "GenerateLocalCommRes failed");
   }
   if (net_instance_id.empty()) {
     net_instance_id = ub_res.net_instance_id;
@@ -570,20 +580,27 @@ void FillNetInstanceIdIfEmpty(std::vector<EndpointConfig> &endpoint_list, std::s
   }
 }
 
+struct AutoGenA5Input {
+  int32_t device_id;
+  int32_t phy_dev_id;
+  const std::string &topo_path;
+  const std::vector<std::string> &protocol_desc;
+  const std::string &user_local_comm_res;
+};
+
 // Shared AutoGenA5 core: explicit device/phy/topo/protocol_desc.
-Status AutoGenA5Core(int32_t device_id, int32_t phy_dev_id, const std::string &topo_path,
-                     const std::vector<std::string> &protocol_desc, std::vector<EndpointConfig> &endpoint_list,
+Status AutoGenA5Core(const AutoGenA5Input &input, std::vector<EndpointConfig> &endpoint_list,
                      std::string &net_instance_id) {
   endpoint_list.clear();
   net_instance_id.clear();
 
-  HIXL_CHK_STATUS_RET(GenAutoScaleOutEndpoints(device_id, protocol_desc, endpoint_list),
+  HIXL_CHK_STATUS_RET(GenAutoScaleOutEndpoints(input.device_id, input.protocol_desc, endpoint_list),
                       "GenAutoScaleOutEndpoints failed");
 
-  HIXL_CHK_STATUS_RET(AppendUbCtpEndpoints(phy_dev_id, topo_path, protocol_desc, endpoint_list, net_instance_id),
-                      "AppendUbCtpEndpoints failed");
+  UbCtpAppendInput ub_input{input.phy_dev_id, input.topo_path, input.protocol_desc, input.user_local_comm_res};
+  HIXL_CHK_STATUS_RET(AppendUbCtpEndpoints(ub_input, endpoint_list, net_instance_id), "AppendUbCtpEndpoints failed");
 
-  HIXL_CHK_STATUS_RET(FilterEndpointsByProtocolDescList(protocol_desc, endpoint_list),
+  HIXL_CHK_STATUS_RET(FilterEndpointsByProtocolDescList(input.protocol_desc, endpoint_list),
                       "FilterEndpointsByProtocolDescList failed");
 
   FillNetInstanceIdIfEmpty(endpoint_list, net_instance_id);
@@ -702,10 +719,12 @@ Status EndpointGenerator::AutoGenA5EndpointList(const HixlOptions &options, std:
 
   HIXL_LOGI("[AutoGenEndpointList] A5 auto-generate: device_id=%d, phy_id=%d", device_id, phy_id);
   std::string net_instance_id;
+  const std::vector<std::string> protocol_desc = options.GetProtocolDesc();
+  const std::string user_local_comm_res = options.LocalCommRes().value_or("");
+  AutoGenA5Input input{device_id, phy_id, topo_path, protocol_desc, user_local_comm_res};
   // Empty topo_path uses the default topo; protocol_desc comes from options.
-  HIXL_CHK_STATUS_RET(
-      AutoGenA5Core(device_id, phy_id, topo_path, options.GetProtocolDesc(), endpoint_list, net_instance_id),
-      "[AutoGenEndpointList] AutoGenA5Core failed");
+  HIXL_CHK_STATUS_RET(AutoGenA5Core(input, endpoint_list, net_instance_id),
+                      "[AutoGenEndpointList] AutoGenA5Core failed");
   return SUCCESS;
 }
 

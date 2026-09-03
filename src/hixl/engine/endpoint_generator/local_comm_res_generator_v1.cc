@@ -14,7 +14,7 @@
  *
  * This file covers:
  * - DCMI wrappers (GetUBEntityList, GetMainboardId)
- * - File parsing (ParseTopoFile, ParseRouteFile)
+ * - File parsing (ParseTopoFile)
  * - Edge generation (GenerateD2DEdges, GenerateH2DEdges, GenerateD2HEdges)
  * - Core flow (GenerateLocalCommRes)
  *
@@ -31,9 +31,8 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
-#include <set>
-#include <fcntl.h>
 #include <limits.h>
+#include <set>
 #include <sys/stat.h>
 #include <unistd.h>
 #include "common/hixl_checker.h"
@@ -42,6 +41,7 @@
 #include "common/scope_guard.h"
 #include "dsmi_proxy.h"
 #include "nlohmann/json.hpp"
+#include "acl/acl_rt.h"
 
 namespace hixl {
 
@@ -76,7 +76,6 @@ constexpr const char *kNetInstancePrefix = "superpod_";
 
 // Default paths
 constexpr const char *kDefaultTopoDir = "/usr/local/Ascend/driver/topo/950/";
-constexpr const char *kDefaultRoutePath = "/lib/route.conf";
 
 // File-existence helper
 inline bool IsFileExists(const std::string &path) {
@@ -85,7 +84,6 @@ inline bool IsFileExists(const std::string &path) {
 }
 
 // Magic-number constants
-constexpr size_t kHexPrefixLength = 2;     // Length of the "0x" prefix
 constexpr size_t kNpuGroupSize = 8;        // NPU group size
 constexpr size_t kPgEidSecondIndex = 1;    // Second PG EID index
 constexpr size_t kSecondElementSize = 2;   // Size check for a second element
@@ -106,18 +104,9 @@ inline bool IsProductServer(uint32_t mainboard_id) {
 constexpr const char *kTopoFileAtlas950 = "atlas_950_1.json";
 constexpr const char *kTopoFileAtlas850 = "atlas_850_1.json";
 
-// Procfs paths
-constexpr const char *kProcPathAscendUb = "/proc/ascend_ub";
-constexpr const char *kProcPathAsdrvUb = "/proc/asdrv_ub";
-
 // urma_admin command path
 constexpr const char *kUrmaAdminPath = "/usr/local/sbin/urma_admin";
-constexpr const char *kProcDevIdFile = "dev_id";
-constexpr const char *kProcPairInfoFile = "pair_info";
-constexpr size_t kPipeBufferSize = 512;  // popen 输出单次读取缓冲区大小（字节）
-
-// Procfs delay (microseconds)
-constexpr useconds_t kProcfsWriteDelayUs = 100000;  // 100ms
+constexpr size_t kPipeBufferSize = 512;  // popen output read buffer size in bytes
 
 // DCMI main and sub commands
 enum class DcmiMainCmd {
@@ -582,347 +571,6 @@ std::string TopoFileFinder::FindTopoFile(const std::string &topo_dir, uint32_t m
   return full_path;
 }
 
-// ============================================================================
-// ProcfsRouteHandler
-// ============================================================================
-
-ProcfsRouteHandler::ProcfsRouteHandler() : injected_proc_base_path_() {}
-
-ProcfsRouteHandler::ProcfsRouteHandler(std::string proc_base_path)
-    : injected_proc_base_path_(std::move(proc_base_path)) {}
-
-ProcfsRouteHandler::~ProcfsRouteHandler() {}
-
-std::string ProcfsRouteHandler::FindProcBasePath() const {
-  // Injected path takes priority; empty string means default ascend_ub / asdrv_ub auto-discovery.
-  if (!injected_proc_base_path_.empty()) {
-    if (IsFileExists(injected_proc_base_path_ + "/" + kProcDevIdFile)) {
-      return injected_proc_base_path_;
-    }
-    return "";
-  }
-  std::string dev_id_file = kProcDevIdFile;
-  if (IsFileExists(std::string(kProcPathAscendUb) + "/" + dev_id_file)) {
-    return kProcPathAscendUb;
-  }
-  if (IsFileExists(std::string(kProcPathAsdrvUb) + "/" + dev_id_file)) {
-    return kProcPathAsdrvUb;
-  }
-  return "";
-}
-
-bool ProcfsRouteHandler::ReadFileToString(const std::string &path, std::string &content) {
-  if (access(path.c_str(), F_OK) != 0) {
-    HIXL_LOGW("[ReadFileToString] File access check failed: %s, errno=%d(%s)", path.c_str(), errno, strerror(errno));
-    return false;
-  }
-  std::ifstream file(path);
-  if (!file.is_open()) {
-    HIXL_LOGW("[ReadFileToString] Failed to open file: %s, errno=%d(%s)", path.c_str(), errno, strerror(errno));
-    return false;
-  }
-  std::ostringstream oss;
-  oss << file.rdbuf();
-  content = oss.str();
-  return true;
-}
-
-bool ProcfsRouteHandler::WriteStringToFile(const std::string &path, const std::string &content) {
-  int fd = open(path.c_str(), O_WRONLY);
-  if (fd < 0) {
-    HIXL_LOGW("[WriteStringToFile] Failed to open %s: errno=%d(%s)", path.c_str(), errno, strerror(errno));
-    return false;
-  }
-  ssize_t written = write(fd, content.c_str(), content.size());
-  if (written < 0) {
-    HIXL_LOGW("[WriteStringToFile] write() failed for %s: errno=%d(%s)", path.c_str(), errno, strerror(errno));
-  }
-  close(fd);
-  fd = -1;
-  if (written != static_cast<ssize_t>(content.size())) {
-    HIXL_LOGW("[WriteStringToFile] Incomplete write to %s: written=%zd, expected=%zu", path.c_str(), written,
-              content.size());
-    return false;
-  }
-  return true;
-}
-
-std::string ProcfsRouteHandler::TrimString(const std::string &s) {
-  size_t start = s.find_first_not_of(" \t\r\n");
-  if (start == std::string::npos) {
-    return "";
-  }
-  size_t end = s.find_last_not_of(" \t\r\n");
-  return s.substr(start, end - start + 1);
-}
-
-bool ProcfsRouteHandler::ParseSlotIdFromLine(const std::string &line, std::string &slot_id) {
-  if (line.find("dev_id=") == std::string::npos) {
-    return false;
-  }
-  size_t pos = line.find("slot_id=");
-  if (pos == std::string::npos) {
-    return false;
-  }
-  slot_id = TrimString(line.substr(pos + std::strlen("slot_id=")));
-  return true;
-}
-
-bool ProcfsRouteHandler::ParseEidFromLine(const std::string &line, const std::string &prefix, std::string &eid) {
-  if (line.find(prefix) == std::string::npos) {
-    return false;
-  }
-  size_t pos = line.find(':');
-  if (pos == std::string::npos) {
-    return false;
-  }
-  eid = TrimString(line.substr(pos + 1));
-  return !eid.empty();
-}
-
-std::string ProcfsRouteHandler::FormatEidValue(const std::string &eid) {
-  std::string result = eid;
-  if (result.size() >= kHexPrefixLength && result[0] == '0' && (result[1] == 'x' || result[1] == 'X')) {
-    result = result.substr(kHexPrefixLength);
-  }
-  // Strip all colons.
-  result.erase(std::remove(result.begin(), result.end(), ':'), result.end());
-  return result;
-}
-
-size_t ProcfsRouteHandler::SelectEidIndexByNpuId(int32_t npu_id, size_t local_count, size_t remote_count) {
-  int32_t group_offset = npu_id % 8;
-  size_t eid_idx = (group_offset < 4) ? 0 : 1;  // First 4 NPUs use group 0, last 4 use group 1.
-  if (eid_idx >= local_count || eid_idx >= remote_count) {
-    HIXL_LOGW("[ParsePairInfo] npu_id=%d: eid_idx=%zu out of range (local=%zu, remote=%zu), fallback to index 0",
-              npu_id, eid_idx, local_count, remote_count);
-    eid_idx = 0;
-  }
-  return eid_idx;
-}
-
-bool ProcfsRouteHandler::CollectEidsFromPairInfo(const std::string &pair_info_content, std::string &found_slot_id,
-                                                 std::vector<std::string> &local_eids,
-                                                 std::vector<std::string> &remote_eids) {
-  std::istringstream iss(pair_info_content);
-  std::string line;
-  while (std::getline(iss, line)) {
-    line = TrimString(line);
-    if (line.empty()) {
-      continue;
-    }
-    std::string slot;
-    if (ParseSlotIdFromLine(line, slot)) {
-      found_slot_id = slot;
-    }
-    std::string eid_val;
-    if (ParseEidFromLine(line, "local_eid", eid_val)) {
-      local_eids.push_back(eid_val);
-    }
-    if (ParseEidFromLine(line, "remote_eid", eid_val)) {
-      remote_eids.push_back(eid_val);
-    }
-  }
-  return (!found_slot_id.empty() && !local_eids.empty() && !remote_eids.empty());
-}
-
-bool ProcfsRouteHandler::ParsePairInfoForDevice(const std::string &pair_info_content, int32_t npu_id, int32_t &slot_id,
-                                                std::string &local_eid, std::string &remote_eid) const {
-  std::string found_slot_id;
-  std::vector<std::string> local_eids;
-  std::vector<std::string> remote_eids;
-
-  if (!CollectEidsFromPairInfo(pair_info_content, found_slot_id, local_eids, remote_eids)) {
-    HIXL_LOGW("[ParsePairInfo] npu_id=%d: failed to collect slot_id or eids", npu_id);
-    return false;
-  }
-
-  HIXL_LOGD("[ParsePairInfo] npu_id=%d, slot_id=[%s], local_eids_count=%zu, remote_eids_count=%zu", npu_id,
-            found_slot_id.c_str(), local_eids.size(), remote_eids.size());
-
-  size_t eid_idx = SelectEidIndexByNpuId(npu_id, local_eids.size(), remote_eids.size());
-
-  try {
-    slot_id = std::stoi(found_slot_id);
-  } catch (const std::exception &) {
-    slot_id = npu_id;
-  }
-
-  local_eid = FormatEidValue(local_eids[eid_idx]);
-  remote_eid = FormatEidValue(remote_eids[eid_idx]);
-
-  return (!local_eid.empty() || !remote_eid.empty());
-}
-
-Status ProcfsRouteHandler::ProcessNpuProcfsRoute(int32_t npu_id, const std::string &dev_id_path,
-                                                 const std::string &pair_info_path, RouteEntry &entry) const {
-  HIXL_LOGI("[Procfs] Processing npu_id=%d", npu_id);
-  // Write phyid to select the device
-  std::ostringstream dev_id_ss;
-  dev_id_ss << npu_id << "\n";
-  HIXL_CHK_BOOL_RET_STATUS(WriteStringToFile(dev_id_path, dev_id_ss.str()), FAILED,
-                           "[Procfs] Failed to write npu_id=%d to %s", npu_id, dev_id_path.c_str());
-
-  // Short delay so the kernel can refresh
-  usleep(kProcfsWriteDelayUs);
-
-  // Read pair_info
-  std::string pair_info_content;
-  HIXL_CHK_BOOL_RET_STATUS(ReadFileToString(pair_info_path, pair_info_content), FAILED,
-                           "[Procfs] Failed to read pair_info for npu_id=%d", npu_id);
-
-  // Parse pair_info
-  int32_t slot_id = npu_id;
-  std::string local_eid;
-  std::string remote_eid;
-  HIXL_CHK_BOOL_RET_STATUS(ParsePairInfoForDevice(pair_info_content, npu_id, slot_id, local_eid, remote_eid), FAILED,
-                           "[Procfs] Failed to parse pair_info for npu_id=%d", npu_id);
-
-  HIXL_LOGI("[Procfs] Parsed: npu_id=%d, slot_id=%d, local_eid=[%s], remote_eid=[%s]", npu_id, slot_id,
-            local_eid.c_str(), remote_eid.c_str());
-
-  // Only generate the H2D RouteEntry
-  entry.device_id = npu_id;
-  entry.local_eid = local_eid;
-  entry.remote_eid = remote_eid;
-  return SUCCESS;
-}
-
-Status ProcfsRouteHandler::GenerateRouteData(const std::set<int32_t> &related_npu_ids, RouteData &route_data) const {
-  route_data.entries.clear();
-
-  std::string proc_base = FindProcBasePath();
-  HIXL_CHK_BOOL_RET_STATUS(!proc_base.empty(), FAILED, "Neither /proc/ascend_ub nor /proc/asdrv_ub found");
-  HIXL_LOGI("Using procfs base path: %s", proc_base.c_str());
-
-  std::string dev_id_path = proc_base + "/" + kProcDevIdFile;
-  std::string pair_info_path = proc_base + "/" + kProcPairInfoFile;
-
-  for (int32_t npu_id : related_npu_ids) {
-    RouteEntry entry;
-    HIXL_CHK_STATUS_RET(ProcessNpuProcfsRoute(npu_id, dev_id_path, pair_info_path, entry),
-                        "[Procfs] ProcessNpuProcfsRoute failed, npu_id=%d", npu_id);
-    route_data.entries.push_back(entry);
-    HIXL_LOGI("[Procfs] RouteEntry H2D: npu_id=%d, device_id=%d, local_eid=[%s], remote_eid=[%s]", npu_id,
-              entry.device_id, entry.local_eid.c_str(), entry.remote_eid.c_str());
-  }
-
-  HIXL_CHK_BOOL_RET_STATUS(!route_data.entries.empty(), FAILED, "No route entries generated from procfs");
-
-  HIXL_LOGI("[Procfs] Generated %zu route entries from procfs:", route_data.entries.size());
-  for (size_t i = 0; i < route_data.entries.size(); ++i) {
-    const auto &entry = route_data.entries[i];
-    HIXL_LOGI("[Procfs]   [%zu] device_id=%d, local_eid=[%s], remote_eid=[%s]", i, entry.device_id,
-              entry.local_eid.c_str(), entry.remote_eid.c_str());
-  }
-
-  return SUCCESS;
-}
-
-// ============================================================================
-// End of ProcfsRouteHandler
-// ============================================================================
-
-// ============ File-parse helpers ============
-
-bool LoadRouteKvMap(std::ifstream &file, std::map<std::string, std::string> &kv_map) {
-  std::string line;
-  while (std::getline(file, line)) {
-    size_t eq_pos = line.find('=');
-    if (eq_pos == std::string::npos) {
-      continue;
-    }
-
-    std::string key = line.substr(0, eq_pos);
-    std::string value = line.substr(eq_pos + 1);
-
-    size_t key_end = key.find_last_not_of(" \t\r\n");
-    if (key_end != std::string::npos) {
-      key = key.substr(0, key_end + 1);
-    }
-
-    size_t val_start = value.find_first_not_of(" \t\r\n");
-    size_t val_end = value.find_last_not_of(" \t\r\n");
-    if (val_start != std::string::npos && val_end != std::string::npos) {
-      value = value.substr(val_start, val_end - val_start + 1);
-    }
-    kv_map[key] = value;
-  }
-  return true;
-}
-
-void AddRouteEntriesForDevice(const std::map<std::string, std::string> &kv_map, int32_t device_idx, int32_t device_id,
-                              RouteData &route_data) {
-  std::string chan_num_key = "pair" + std::to_string(device_idx) + "_chan_num";
-  int32_t chan_num = 1;
-  auto chan_num_it = kv_map.find(chan_num_key);
-  if (chan_num_it != kv_map.end()) {
-    try {
-      chan_num = std::stoi(chan_num_it->second);
-    } catch (const std::exception &) {
-      chan_num = 1;
-    }
-  }
-
-  for (int32_t j = 0; j < chan_num; ++j) {
-    std::string local_key = "pair" + std::to_string(device_idx) + "_chan" + std::to_string(j) + "_local_eid";
-    std::string remote_key = "pair" + std::to_string(device_idx) + "_chan" + std::to_string(j) + "_remote_eid";
-
-    auto local_it = kv_map.find(local_key);
-    auto remote_it = kv_map.find(remote_key);
-    if (local_it != kv_map.end() && remote_it != kv_map.end()) {
-      RouteEntry entry;
-      entry.device_id = device_id;
-      entry.local_eid = local_it->second;
-      entry.remote_eid = remote_it->second;
-      // Strip the "0x" prefix.
-      if (entry.local_eid.size() >= kHexPrefixLength && entry.local_eid[0] == '0' && entry.local_eid[1] == 'x') {
-        entry.local_eid = entry.local_eid.substr(kHexPrefixLength);
-      }
-      if (entry.remote_eid.size() >= kHexPrefixLength && entry.remote_eid[0] == '0' && entry.remote_eid[1] == 'x') {
-        entry.remote_eid = entry.remote_eid.substr(kHexPrefixLength);
-      }
-      route_data.entries.push_back(entry);
-    }
-  }
-}
-
-Status BuildRouteEntries(const std::map<std::string, std::string> &kv_map, RouteData &route_data) {
-  auto it = kv_map.find("pair_device_num");
-  HIXL_CHK_BOOL_RET_STATUS(it != kv_map.end(), FAILED, "Missing pair_device_num");
-
-  int32_t pair_device_num = 0;
-  try {
-    pair_device_num = std::stoi(it->second);
-  } catch (const std::exception &) {
-    HIXL_CHK_BOOL_RET_STATUS(false, FAILED, "Invalid pair_device_num value: %s", it->second.c_str());
-  }
-  for (int32_t i = 0; i < pair_device_num; ++i) {
-    std::string dev_id_key = "pair" + std::to_string(i) + "_dev_id";
-    auto dev_it = kv_map.find(dev_id_key);
-    if (dev_it == kv_map.end()) {
-      continue;
-    }
-
-    int32_t device_id = 0;
-    try {
-      device_id = std::stoi(dev_it->second);
-    } catch (const std::exception &) {
-      HIXL_LOGW("Invalid dev_id value: %s", dev_it->second.c_str());
-      continue;
-    }
-    AddRouteEntriesForDevice(kv_map, i, device_id, route_data);
-  }
-
-  HIXL_LOGI("Parsed %zu route entries", route_data.entries.size());
-  for (size_t i = 0; i < route_data.entries.size(); ++i) {
-    const auto &entry = route_data.entries[i];
-    HIXL_LOGI("  route_entry[%zu]: device_id=%d, local_eid=[%s], remote_eid=[%s]", i, entry.device_id,
-              entry.local_eid.c_str(), entry.remote_eid.c_str());
-  }
-  return SUCCESS;
-}
-
 // ============ DCMI wrappers ============
 
 Status GetMainboardId(int32_t phy_dev_id, unsigned int &mainboard_id) {
@@ -1032,28 +680,6 @@ Status ParseTopoFile(const std::string &topo_path, TopoData &topo_data) {
   }
 
   HIXL_LOGI("Parsed %zu links from %s", topo_data.links.size(), topo_path.c_str());
-  return SUCCESS;
-}
-
-Status ParseRouteFile(const std::string &route_path, RouteData &route_data) {
-  route_data.entries.clear();
-  // Normalize the path (resolve "..", ".", symlinks) before validating and opening it.
-  char resolved_path[PATH_MAX] = {0};
-  char *realpath_ret = realpath(route_path.c_str(), resolved_path);
-  const int32_t realpath_errno = errno;
-  HIXL_CHK_BOOL_RET_STATUS(realpath_ret != nullptr, PARAM_INVALID,
-                           "Call api:realpath failed, route_path:%s, errno=%d(%s)", route_path.c_str(), realpath_errno,
-                           strerror(realpath_errno));
-  std::ifstream file(resolved_path);
-  HIXL_CHK_BOOL_RET_STATUS(file.is_open(), PARAM_INVALID, "Failed to open route file: %s, errno=%d(%s)", resolved_path,
-                           errno, strerror(errno));
-
-  std::map<std::string, std::string> kv_map;
-  HIXL_CHK_BOOL_RET_STATUS(LoadRouteKvMap(file, kv_map), FAILED, "Failed to load route kv map");
-  file.close();
-
-  HIXL_CHK_STATUS_RET(BuildRouteEntries(kv_map, route_data), "BuildRouteEntries failed, route_path=%s",
-                      route_path.c_str());
   return SUCCESS;
 }
 
@@ -1384,7 +1010,83 @@ struct LocalCommResBuildCtx {
   const std::string &topo_path;
   RouteGenResult &route_gen_result;
   LocalCommResGenerateMode mode;
+  const std::string &user_local_comm_res;
 };
+
+constexpr int64_t kInvalidSuperPodServerId = 65535;  // ACL SUPER_POD_SERVER_ID sentinel: driver has no valid id
+constexpr size_t kRequiredHostPgEidCount = 2;        // Same-OS server_id joins two host 8-port PG EIDs
+constexpr char kHostPgEidServerIdSep = '_';          // Separator between the two host 8-port PG EIDs
+
+Status ParseUserProvidedServerId(const std::string &user_local_comm_res, std::string &server_id) {
+  server_id.clear();
+  if (user_local_comm_res.empty()) {
+    return SUCCESS;
+  }
+  nlohmann::json config;
+  try {
+    config = nlohmann::json::parse(user_local_comm_res);
+  } catch (const nlohmann::json::exception &e) {
+    HIXL_CHK_BOOL_RET_STATUS(false, PARAM_INVALID, "[ParseUserProvidedServerId] Invalid user local_comm_res JSON: %s",
+                             e.what());
+  }
+  if (!config.contains("server_id")) {
+    return SUCCESS;
+  }
+  HIXL_CHK_BOOL_RET_STATUS(config["server_id"].is_string(), PARAM_INVALID,
+                           "[ParseUserProvidedServerId] server_id must be a string");
+  server_id = config["server_id"].get<std::string>();
+  return SUCCESS;
+}
+
+Status ConcatHostEightPortServerId(const std::map<std::string, std::string> &cpu_die_to_pg_eid,
+                                   std::string &server_id) {
+  HIXL_CHK_BOOL_RET_STATUS(cpu_die_to_pg_eid.size() == kRequiredHostPgEidCount, FAILED,
+                           "[ConcatHostEightPortServerId] Need exactly %zu host 8-port PG EIDs, got %zu",
+                           kRequiredHostPgEidCount, cpu_die_to_pg_eid.size());
+  auto it = cpu_die_to_pg_eid.begin();
+  server_id = it->second;
+  ++it;
+  server_id += kHostPgEidServerIdSep;
+  server_id += it->second;
+  HIXL_LOGI("[ConcatHostEightPortServerId] server_id=%s", server_id.c_str());
+  return SUCCESS;
+}
+
+Status QueryAclSuperPodServerId(int64_t &value) {
+  int32_t device_id = 0;
+  HIXL_CHK_ACL_RET(aclrtGetDevice(&device_id), "[QueryAclSuperPodServerId]");
+  HIXL_CHK_ACL_RET(aclrtGetDeviceInfo(static_cast<uint32_t>(device_id), ACL_DEV_ATTR_SUPER_POD_SERVER_ID, &value),
+                   "[QueryAclSuperPodServerId] device_id=%d", device_id);
+  HIXL_LOGI("[QueryAclSuperPodServerId] aclrtGetDeviceInfo success, device_id=%d, value=%lld", device_id,
+            static_cast<long long>(value));
+  return SUCCESS;
+}
+
+Status ResolveLocalCommResServerId(const std::string &user_local_comm_res, LocalCommResGenerateMode mode,
+                                   const std::map<std::string, std::string> &cpu_die_to_pg_eid,
+                                   std::string &server_id) {
+  HIXL_CHK_STATUS_RET(ParseUserProvidedServerId(user_local_comm_res, server_id),
+                      "[ResolveLocalCommResServerId] Failed to parse user server_id");
+  if (!server_id.empty()) {
+    HIXL_LOGI("[ResolveLocalCommResServerId] using user-provided server_id");
+    return SUCCESS;
+  }
+  if (mode != LocalCommResGenerateMode::kDeviceAndHost) {
+    server_id.clear();
+    return SUCCESS;
+  }
+  int64_t acl_server_id = 0;
+  HIXL_CHK_STATUS_RET(QueryAclSuperPodServerId(acl_server_id),
+                      "[ResolveLocalCommResServerId] Failed to query ACL super pod server id");
+  if (acl_server_id != kInvalidSuperPodServerId) {
+    server_id = std::to_string(acl_server_id);
+    HIXL_LOGI("[ResolveLocalCommResServerId] ACL server_id=%s", server_id.c_str());
+    return SUCCESS;
+  }
+  HIXL_CHK_STATUS_RET(ConcatHostEightPortServerId(cpu_die_to_pg_eid, server_id),
+                      "[ResolveLocalCommResServerId] Failed to concat host 8-port PG EIDs as server_id");
+  return SUCCESS;
+}
 
 Status CollectLocalCommResEdges(LocalCommResBuildCtx &ctx, std::vector<EndpointConfig> &all_edges) {
   std::map<int32_t, NpuRootInfo> npu_rootinfos;
@@ -1441,7 +1143,13 @@ Status BuildLocalCommResResult(LocalCommResBuildCtx &ctx, LocalCommRes &local_co
   std::vector<EndpointConfig> all_edges;
   HIXL_CHK_STATUS_RET(CollectLocalCommResEdges(ctx, all_edges),
                       "[BuildLocalCommResResult] CollectLocalCommResEdges failed, phy_dev_id=%d", ctx.phy_dev_id);
-  return FillLocalCommResOutput(ctx.phy_dev_id, all_edges, local_comm_res);
+  HIXL_CHK_STATUS_RET(FillLocalCommResOutput(ctx.phy_dev_id, all_edges, local_comm_res),
+                      "[BuildLocalCommResResult] FillLocalCommResOutput failed, phy_dev_id=%d", ctx.phy_dev_id);
+  HIXL_CHK_STATUS_RET(ResolveLocalCommResServerId(ctx.user_local_comm_res, ctx.mode,
+                                                  ctx.route_gen_result.cpu_die_to_pg_eid, local_comm_res.server_id),
+                      "[BuildLocalCommResResult] ResolveLocalCommResServerId failed, phy_dev_id=%d", ctx.phy_dev_id);
+  HIXL_LOGI("[BuildLocalCommResResult] server_id=%s", local_comm_res.server_id.c_str());
+  return SUCCESS;
 }
 }  // namespace
 
@@ -1459,7 +1167,7 @@ Status ResolveTopoPathAndParse(int32_t phy_dev_id, const std::string &topo_path,
 }
 
 Status LoadUrmaMapsAndHostPgEid(int32_t phy_dev_id, std::map<std::string, std::string> &ub_name_to_eid,
-                                std::string &host_pg_eid) {
+                                RouteGenResult &result) {
   std::string cmd_output;
   HIXL_CHK_STATUS_RET(DefaultUrmaAdminExec("show", cmd_output),
                       "[GenerateRouteDataViaDsmi] Call api:DefaultUrmaAdminExec failed, phy_dev_id=%d", phy_dev_id);
@@ -1470,10 +1178,9 @@ Status LoadUrmaMapsAndHostPgEid(int32_t phy_dev_id, std::map<std::string, std::s
                       "[GenerateRouteDataViaDsmi] ParseUrmaAdminOutput failed, phy_dev_id=%d", phy_dev_id);
   HIXL_CHK_STATUS_RET(BuildUbDevNameToEidMap(all_entries, ub_name_to_eid),
                       "[GenerateRouteDataViaDsmi] BuildUbDevNameToEidMap failed, phy_dev_id=%d", phy_dev_id);
-  std::map<std::string, std::string> cpu_die_to_pg_eid;
-  HIXL_CHK_STATUS_RET(BuildCpuDieToHostPgEidMap(all_entries, cpu_die_to_pg_eid),
+  HIXL_CHK_STATUS_RET(BuildCpuDieToHostPgEidMap(all_entries, result.cpu_die_to_pg_eid),
                       "[GenerateRouteDataViaDsmi] BuildCpuDieToHostPgEidMap failed, phy_dev_id=%d", phy_dev_id);
-  HIXL_CHK_STATUS_RET(ComputeHostPgEid(phy_dev_id, cpu_die_to_pg_eid, host_pg_eid),
+  HIXL_CHK_STATUS_RET(ComputeHostPgEid(phy_dev_id, result.cpu_die_to_pg_eid, result.host_pg_eid),
                       "[GenerateRouteDataViaDsmi] ComputeHostPgEid failed, phy_dev_id=%d", phy_dev_id);
   return SUCCESS;
 }
@@ -1506,7 +1213,6 @@ void LogRouteGenResult(const RouteGenResult &result) {
 }  // namespace
 
 // Generate route data via DSMI (UB dev name) + urma_admin + DCMI (device EID).
-// Replaces the old route.conf + procfs fallback.
 // local_eid: PG EID from urma_admin matching the UB dev name (H2D/D2H).
 // host_pg_eid: 8-port PG EID (H2U), computed from cpu_die_key.
 // Mesh die of each NPU comes from topo fullmesh ports; is_server only selects host EID search.
@@ -1519,9 +1225,10 @@ Status GenerateRouteDataViaDsmi(int32_t phy_dev_id, const std::string &topo_path
   result.related_npu_ids = CollectRelatedNpuIds(phy_dev_id);
   result.route_data.entries.clear();
   result.host_pg_eid.clear();
+  result.cpu_die_to_pg_eid.clear();
 
   std::map<std::string, std::string> ub_name_to_eid;
-  HIXL_CHK_STATUS_RET(LoadUrmaMapsAndHostPgEid(phy_dev_id, ub_name_to_eid, result.host_pg_eid),
+  HIXL_CHK_STATUS_RET(LoadUrmaMapsAndHostPgEid(phy_dev_id, ub_name_to_eid, result),
                       "[GenerateRouteDataViaDsmi] Failed to load urma maps, phy_dev_id=%d", phy_dev_id);
   HIXL_CHK_STATUS_RET(GenerateRouteEntriesForRelatedNpus(result.related_npu_ids, topo_data, is_server, ub_name_to_eid,
                                                          result.route_data.entries),
@@ -1551,23 +1258,25 @@ Status ResolveDefaultLocalCommResPaths(int32_t phy_dev_id, std::string &topo_pat
   return SUCCESS;
 }
 
-Status GenerateLocalCommRes(int32_t phy_dev_id, LocalCommRes &local_comm_res) {
-  return GenerateLocalCommRes(phy_dev_id, LocalCommResGenerateMode::kDeviceOnly, local_comm_res);
+Status GenerateLocalCommRes(int32_t phy_dev_id, LocalCommResGenerateMode mode, LocalCommRes &local_comm_res) {
+  return GenerateLocalCommRes(phy_dev_id, mode, "", local_comm_res);
 }
 
-Status GenerateLocalCommRes(int32_t phy_dev_id, LocalCommResGenerateMode mode, LocalCommRes &local_comm_res) {
+Status GenerateLocalCommRes(int32_t phy_dev_id, LocalCommResGenerateMode mode, const std::string &user_local_comm_res,
+                            LocalCommRes &local_comm_res) {
   std::string topo_path;
   HIXL_CHK_STATUS_RET(ResolveDefaultLocalCommResPaths(phy_dev_id, topo_path),
                       "[GenerateLocalCommRes] ResolveDefaultLocalCommResPaths failed, phy_dev_id=%d", phy_dev_id);
-  return GenerateLocalCommRes(phy_dev_id, topo_path, mode, local_comm_res);
-}
-
-Status GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, LocalCommRes &local_comm_res) {
-  return GenerateLocalCommRes(phy_dev_id, topo_path, LocalCommResGenerateMode::kDeviceOnly, local_comm_res);
+  return GenerateLocalCommRes(phy_dev_id, topo_path, mode, user_local_comm_res, local_comm_res);
 }
 
 Status GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, LocalCommResGenerateMode mode,
                             LocalCommRes &local_comm_res) {
+  return GenerateLocalCommRes(phy_dev_id, topo_path, mode, "", local_comm_res);
+}
+
+Status GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, LocalCommResGenerateMode mode,
+                            const std::string &user_local_comm_res, LocalCommRes &local_comm_res) {
   // 1. Get product form
   uint32_t mainboard_id = 0;
   HIXL_CHK_STATUS_RET(GetMainboardId(phy_dev_id, mainboard_id),
@@ -1583,7 +1292,7 @@ Status GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, Lo
                       phy_dev_id, topo_path.c_str());
 
   // 3. Assemble result (D2D/D2U first; route_data and host edges only in kDeviceAndHost)
-  LocalCommResBuildCtx ctx{phy_dev_id, is_server, topo_data, topo_path, route_gen_result, mode};
+  LocalCommResBuildCtx ctx{phy_dev_id, is_server, topo_data, topo_path, route_gen_result, mode, user_local_comm_res};
   return BuildLocalCommResResult(ctx, local_comm_res);
 }
 
@@ -1598,6 +1307,9 @@ Status SerializeLocalCommResJson(const LocalCommRes &local_comm_res, std::string
   nlohmann::json j;
   j["version"] = local_comm_res.version;
   j["net_instance_id"] = local_comm_res.net_instance_id;
+  if (!local_comm_res.server_id.empty()) {
+    j["server_id"] = local_comm_res.server_id;
+  }
   j["endpoint_list"] = nlohmann::json::array();
   for (const auto &ep : local_comm_res.endpoint_list) {
     nlohmann::json ep_json;
@@ -1628,8 +1340,9 @@ Status SerializeLocalCommResJson(const LocalCommRes &local_comm_res, std::string
 Status TransLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, AscendString &result) {
   // 1. Build LocalCommRes via GenerateLocalCommRes
   LocalCommRes local_comm_res;
-  HIXL_CHK_STATUS_RET(GenerateLocalCommRes(phy_dev_id, topo_path, local_comm_res),
-                      "[TransLocalCommRes] GenerateLocalCommRes failed, phy_dev_id=%d", phy_dev_id);
+  HIXL_CHK_STATUS_RET(
+      GenerateLocalCommRes(phy_dev_id, topo_path, LocalCommResGenerateMode::kDeviceOnly, local_comm_res),
+      "[TransLocalCommRes] GenerateLocalCommRes failed, phy_dev_id=%d", phy_dev_id);
 
   // 2. Serialize as 2-space-indented JSON
   std::string json_str;
