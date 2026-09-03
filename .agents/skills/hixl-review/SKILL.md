@@ -292,6 +292,12 @@ Python 安全编码规范检查（参考文件 [python-secure.md](../../../docs/
 - 修改 `docs/zh/` 下文档时，检查 `docs/en/` 下是否存在对应英文版本（通常同名镜像，个别文件名不同，如 `FabricMem模式设计.md` 对应 `FabricMem.md`）
 - 存在成对版本时，技术内容变更（参数、命令、路径、错误码、行为描述等）必须同步修改英文侧；纯中文措辞修正（错别字、标点等）不产生技术差异，无需同步
 
+#### 对外头文件注释质量检查
+
+**当 PR 修改涉及 `include/` 下的 `.h` 文件时，必须执行此检查。如果修改不包含对外头文件，则跳过。**
+
+对外头文件 Doxygen 注释质量检查（参考文件 [header-comment-spec.md](./references/header-comment-spec.md)）：逐条比对 HC-1 至 HC-9，仅检查 diff 中新增或修改的注释行，不追溯存量问题。问题统一标记为 ⚠️ SUSPICIOUS。
+
 ### 步骤 4: 生成检视报告
 
 重要：请务必遵守以下规则生成报告：
@@ -432,6 +438,24 @@ Python 安全编码规范检查（参考文件 [python-secure.md](../../../docs/
 | 函数原型一致性 | <✅/⚠️/❌/修改不涉及> | <文档原型与头文件签名是否一致> |
 | 头文件注释完整性 | <✅/⚠️/❌/修改不涉及> | <公开 API Doxygen 注释是否完整> |
 | 文档结构完整性 | <✅/⚠️/❌/修改不涉及> | <文档章节是否齐全> |
+
+#### 9. 对外头文件注释质量检查 <✅/⚠️/❌/修改不涉及>
+
+> 依据 [header-comment-spec.md](./references/header-comment-spec.md)
+
+对每条违规项，给出发现位置、当前内容和具体修改建议：
+
+```
+HC-3 | include/llm_datadist/llm_datadist.h:255 | CopyKvCache
+当前内容:
+  * @param src_cache 源Cache
+  * @param dst_cache 目标Cache
+建议改为:
+  * @param [in] src_cache 源Cache
+  * @param [out] dst_cache 目标Cache
+```
+
+无违规时输出 ✅ 并注明"修改不涉及对外头文件"或"检查通过"。
 
 ---
 
