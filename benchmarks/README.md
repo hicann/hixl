@@ -1,5 +1,7 @@
 # HIXL Benchmarks
 
+简体中文 | [English](./README_en.md)
+
 本目录包含通信与 KV Cache 场景的基准测试，用于测量 HIXL 在不同配置下的传输性能。
 
 - [环境要求](#环境要求)

@@ -1,8 +1,10 @@
-## Introduction
+# Introduction
+
+English | [简体中文](./README.md)
 
 This project provides C++ and Python usage examples. Developers can refer to the corresponding implementations according to their specific requirements.
 
-## Directory Structure
+# Directory Structure
 
 ```sh
 ├── examples
@@ -12,7 +14,7 @@ This project provides C++ and Python usage examples. Developers can refer to the
 │   ├── README.md          # Sample documentation
 ```
 
-## Development Samples
+# Development Samples
 
 |  **Sample** |  **Description** |  **Language** |
 |---|---|---|
@@ -20,14 +22,14 @@ This project provides C++ and Python usage examples. Developers can refer to the
 | [pythonSamples](python) | Python samples| Python |
 | [thirdPartiesSamples](third_parties) | HIXL integration samples with other communities| C++/Python |
 
-## Environment Requirements
+# Environment Requirements
 
-### 1. Hardware and Software Preparation
+## 1. Hardware and Software Preparation
 
 - Chips: Atlas A3 training/inference products, Atlas 800I A2 inference products/A200I A2 Box heterogeneous components, Ascend 950PR/Ascend 950DT
 - Deploy the Ascend AI stack in the runtime environment by referring to [Environment Setup](../docs/en/build.md#environment-setup).
 
-### 2. Device Connectivity Check
+## 2. Device Connectivity Check
 
 Before running the samples, use the [hccn_tool](https://support.huawei.com/enterprise/en/ascend-computing/ascend-hdk-pid-252764743?category=developer-documents&subcategory=interface-reference) provided in the driver package to verify **connectivity between two devices**. The following uses the A2 scenario as an example:
 > In a container environment, if the `hccn_tool` command cannot be found, the possible cause is that the soft link `-v /usr/bin/hccn_tool:/usr/bin/hccn_tool` is not specified when the container is created. You can solve the problem using the following methods:

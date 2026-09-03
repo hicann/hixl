@@ -1,8 +1,9 @@
-## 简介
+# 简介
 
+简体中文 | [English](./README_en.md)
 本项目提供了C++和Python的调用样例，请开发者根据实际情况参考对应实现。
 
-## 目录说明
+# 目录说明
 
 ```sh
 ├── examples
@@ -12,7 +13,7 @@
 │   ├── README.md          # 样例说明文档
 ```
 
-## 开发样例
+# 开发样例
 
 |  **样例名称**  |  **样例介绍**  |  **开发语言**  |
 |---|---|---|
@@ -20,14 +21,14 @@
 | [pythonSamples](python) | Python样例 | Python |
 | [thirdPartiesSamples](third_parties) | Hixl对接其他社区样例 | C++/Python |
 
-## 环境要求
+# 环境要求
 
-### 1. 硬件和软件准备
+## 1. 硬件和软件准备
 
 - 芯片：Atlas A3 训练/推理系列产品、Atlas 800I A2 推理产品/A200I A2 Box 异构组件、Ascend 950PR/Ascend 950DT
 - 参考 [环境准备](../docs/zh/build.md#环境准备) 完成昇腾AI软件栈在运行环境上的部署
 
-### 2. Device连通性检查
+## 2. Device连通性检查
 
 在执行样例前，请先使用驱动包提供的 [hccn_tool工具](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743?category=developer-documents&subcategory=interface-reference) 检查**两个device之间的连通性**。以A2场景为例，检查示例如下：
 > 容器环境下，若hccn_tool命令找不到，通常是由于创建容器时没有指定软链接`-v /usr/bin/hccn_tool:/usr/bin/hccn_tool`。可通过如下方式解决：

@@ -1,5 +1,7 @@
 # HIXL Benchmarks
 
+English | [简体中文](./README.md)
+
 This directory contains benchmarks for communication and KV Cache scenarios, measuring HIXL transmission performance under different configurations.
 
 - [Environment Requirements](#environment-requirements)

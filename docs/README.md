@@ -1,5 +1,7 @@
 # HIXL资料书架总览
 
+简体中文 | [English](./README_en.md)
+
 ## 开发文档
 
 - [单边通信库开发指南](./zh/guide/README.md)：介绍HIXL基本概念、HIXL相关特性以及如何使用HIXL API实现集群间的数据传输。

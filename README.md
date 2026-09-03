@@ -2,6 +2,8 @@
 
 # HIXL
 
+简体中文 | [English](./README_en.md)
+
 <h4>面向集群场景提供简单、可靠、高效的点对点数据传输能力</h4>
 
 <p align="center">

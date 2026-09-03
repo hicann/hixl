@@ -1,5 +1,7 @@
 # HIXL Documentation Overview
 
+English | [简体中文](./README.md)
+
 ## Developer Documents
 
 - [Single-Sided Communication Library Development Guide](https://hiascend.com/document/redirect/CannCommunityHixlDev): Introduces HIXL basic concepts, HIXL features, and how to use HIXL APIs to implement data transfer between clusters.
