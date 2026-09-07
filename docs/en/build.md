@@ -52,6 +52,50 @@ Select an installation method based on the following description:
 
    The installation path of the CANN package for the build image is `/usr/local/Ascend` (environment script: `/usr/local/Ascend/ascend-toolkit/set_env.sh`). If you need to use a different CANN version outside the image, manually install the CANN package in Docker by referring to the following sections.
 
+#### A5 (Atlas 950) Container Configuration
+
+The A5 environment requires additional device and mount configurations beyond the common options above; otherwise topology discovery and UB network communication will fail inside the container. The following command is for reference (using the 9.1.0-950 image as an example):
+
+   ```bash
+   image=swr.cn-south-1.myhuaweicloud.com/ascendhub/cann:9.1.0-950-openeuler24.03-py3.12
+
+    # Create and access the container
+    # Assume that your NPU devices are /dev/davinci0 - /dev/davinci7 (8 cards), and the NPU driver is installed in /usr/local/Ascend:
+    docker run -it \
+      --name env_for_hixl_build_a5 \
+      --network host \
+      --cap-add SYS_PTRACE \
+      --device /dev/davinci0 \
+      --device /dev/davinci1 \
+      --device /dev/davinci2 \
+      --device /dev/davinci3 \
+      --device /dev/davinci4 \
+      --device /dev/davinci5 \
+      --device /dev/davinci6 \
+      --device /dev/davinci7 \
+      --device /dev/davinci_manager \
+      --device /dev/hisi_hdc \
+      --device /dev/ummu \
+      --device /dev/uburma \
+     -v /usr/local/dcmi:/usr/local/dcmi \
+     -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi \
+     -v /usr/bin/hccn_tool:/usr/bin/hccn_tool \
+     -v /usr/local/Ascend/driver/lib64/:/usr/local/Ascend/driver/lib64/ \
+     -v /usr/local/Ascend/driver/tools/:/usr/local/Ascend/driver/tools/ \
+     -v /usr/local/Ascend/driver/topo/:/usr/local/Ascend/driver/topo/ \
+     -v /usr/local/Ascend/driver/version.info:/usr/local/Ascend/driver/version.info \
+     -v /etc/ascend_install.info:/etc/ascend_install.info \
+     ${image} bash
+   ```
+
+   > [!NOTE] Note
+   > - Compared with the A2/A3 common configuration, the following configurations are mandatory on A5:
+   >   - `--device /dev/ummu` and `--device /dev/uburma`: user-space devices required for UB network communication.
+   >   - `-v /usr/local/Ascend/driver/topo/:/usr/local/Ascend/driver/topo/`: topology directory. Without this mount, topology discovery inside the container fails.
+   >   - `--network host`: reuses the host network namespace.
+   > - `/dev/devmm_svm` is the A2/A3 memory management device and is not required on A5.
+   > - Adjust the device numbers (`/dev/davinciN`) according to the actual number of installed cards.
+
 ### Scenario II: Manual Installation
 
 **Scenario 1: Experience the master branch or perform development based on the master branch.**

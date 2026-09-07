@@ -52,6 +52,50 @@
 
   配套构建镜像的 CANN 包安装路径为 `/usr/local/Ascend`（环境变量脚本为 `/usr/local/Ascend/ascend-toolkit/set_env.sh`）。如需要使用镜像之外的其他 CANN 版本，请参考如下章节在 docker 内手工安装 CANN 包。
 
+#### A5（Atlas 950）环境容器配置
+
+A5环境除上述通用配置外，还需要额外的设备挂载与路径配置，否则容器内无法完成拓扑发现和UB网络通信。以下命令可供参考（镜像以9.1.0-950为例）：
+
+  ```bash
+  image=swr.cn-south-1.myhuaweicloud.com/ascendhub/cann:9.1.0-950-openeuler24.03-py3.12
+
+  # 创建并进入容器
+  # 假设您需要使用的NPU设备为/dev/davinci0~/dev/davinci7共8张卡，并且您的NPU驱动程序安装在/usr/local/Ascend上：
+  docker run -it \
+    --name env_for_hixl_build_a5 \
+    --network host \
+    --cap-add SYS_PTRACE \
+    --device /dev/davinci0 \
+    --device /dev/davinci1 \
+    --device /dev/davinci2 \
+    --device /dev/davinci3 \
+    --device /dev/davinci4 \
+    --device /dev/davinci5 \
+    --device /dev/davinci6 \
+    --device /dev/davinci7 \
+    --device /dev/davinci_manager \
+    --device /dev/hisi_hdc \
+    --device /dev/ummu \
+    --device /dev/uburma \
+    -v /usr/local/dcmi:/usr/local/dcmi \
+    -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi \
+    -v /usr/bin/hccn_tool:/usr/bin/hccn_tool \
+    -v /usr/local/Ascend/driver/lib64/:/usr/local/Ascend/driver/lib64/ \
+    -v /usr/local/Ascend/driver/tools/:/usr/local/Ascend/driver/tools/ \
+    -v /usr/local/Ascend/driver/topo/:/usr/local/Ascend/driver/topo/ \
+    -v /usr/local/Ascend/driver/version.info:/usr/local/Ascend/driver/version.info \
+    -v /etc/ascend_install.info:/etc/ascend_install.info \
+    ${image} bash
+  ```
+
+  > [!NOTE]说明
+  > - 相比A2/A3通用配置，A5必须额外增加以下配置：
+  >   - `--device /dev/ummu`、`--device /dev/uburma`：UB网络通信所需的用户态设备。
+  >   - `-v /usr/local/Ascend/driver/topo/:/usr/local/Ascend/driver/topo/`：拓扑信息目录，缺少该挂载将导致容器内拓扑发现失败。
+  >   - `--network host`：复用宿主机网络命名空间。
+  > - `/dev/devmm_svm`为A2/A3的内存管理设备，A5上无需挂载。
+  > - 设备号（`/dev/davinciN`）请根据实际在位的卡数量调整。
+
 ### 场景二：手动安装CANN包
 
 **场景1：体验master版本能力或基于master版本进行开发**
