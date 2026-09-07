@@ -67,8 +67,8 @@ Status LoadJsonConfig(const std::string &json_string, std::map<AscendString, Asc
     nlohmann::json j = nlohmann::json::parse(json_string);
     if (j.is_object()) {
       for (auto it = j.begin(); it != j.end(); ++it) {
-        std::string key = it.key();
-        std::string value = JsonValueToString(it.value());
+        const std::string key = it.key();
+        const std::string value = JsonValueToString(it.value());
         options[AscendString(key.c_str())] = AscendString(value.c_str());
       }
     }

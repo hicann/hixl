@@ -975,12 +975,12 @@ KvBenchResult RunWorkload(const KvBenchConfig &cfg, KvRuntime *runtime, KvTransf
 
   const TimingStats get = MeasureRepeated(
       cfg, "workload_" + std::to_string(index) + "_get",
-      [&](bool trace_transfer) {
+      [&cfg, &transfer_executor, &metas, &workload, &rank_pool_sizes, &transfer_state](bool trace_transfer) {
         return ExecuteKvTransfer(cfg, transfer_executor, metas, workload, hixl::READ, rank_pool_sizes, &transfer_state,
                                  trace_transfer);
       },
       true,
-      [&](const TransferStageTiming &timing) {
+      [&cfg, &workload](const TransferStageTiming &timing) {
         PrintStageTiming(cfg, hixl::READ, workload, timing.plan_us, timing.transfer_us);
       });
   Barrier(cfg, "workload_" + std::to_string(index) + "_done");

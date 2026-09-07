@@ -196,7 +196,7 @@ TEST(FabricMemControlUTest, StopWhileClientConnectingDoesNotHang) {
             SUCCESS);
 
   std::atomic<bool> client_running{true};
-  std::thread client([&] {
+  std::thread client([&client_running, &remote] {
     while (client_running.load(std::memory_order_relaxed)) {
       std::vector<ShareHandleInfo> handles;
       int32_t conn_fd = -1;
@@ -1688,10 +1688,11 @@ TEST(FabricMemEngineUTest, TransferSyncConcurrentDisconnectAbortsAndCompletes) {
   TransferOpDesc desc{reinterpret_cast<uintptr_t>(local_buf), reinterpret_cast<uintptr_t>(remote_buf), kLen};
 
   runtime->block_sync_with_timeout_.store(true, std::memory_order_release);
-  auto transfer_future = std::async(
-      std::launch::async, [&]() { return engine.TransferSync(AscendString(remote.c_str()), WRITE, {desc}, 60000); });
+  auto transfer_future = std::async(std::launch::async, [&engine, &remote, &desc]() {
+    return engine.TransferSync(AscendString(remote.c_str()), WRITE, {desc}, 60000);
+  });
 
-  auto wait_for_sync = [&]() {
+  auto wait_for_sync = [&runtime]() {
     for (int i = 0; i < 500; ++i) {
       if (runtime->sync_with_timeout_entered_.load(std::memory_order_acquire) > 0U) {
         return true;
@@ -1757,12 +1758,12 @@ TEST(FabricMemEngineUTest, DisconnectConcurrentWithSubmittedAsyncGetTransferStat
   std::atomic<Status> final_status_ret{SUCCESS};
   std::atomic<int32_t> final_transfer_status{-1};
 
-  std::thread disconnect_thread([&]() {
+  std::thread disconnect_thread([&engine, &remote, &disconnect_done]() {
     EXPECT_EQ(engine.Disconnect(AscendString(remote.c_str()), 100), SUCCESS);
     disconnect_done.store(true, std::memory_order_release);
   });
 
-  std::thread status_thread([&]() {
+  std::thread status_thread([&engine, &req, &final_status_ret, &final_transfer_status]() {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
     while (std::chrono::steady_clock::now() < deadline) {
       TransferStatus status = TransferStatus::WAITING;

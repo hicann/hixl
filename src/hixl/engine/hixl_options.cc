@@ -326,7 +326,7 @@ Status HixlOptions::ParseAutoConnectOptions(const std::map<AscendString, AscendS
     return SUCCESS;
   }
 
-  std::string auto_connect_str = ac_it->second.GetString();
+  const std::string auto_connect_str = ac_it->second.GetString();
   HIXL_CHK_BOOL_RET_STATUS(!auto_connect_str.empty(), PARAM_INVALID, "%s value is empty, should be zero or one.",
                            hixl::OPTION_AUTO_CONNECT);
   uint32_t auto_connect = 0U;
@@ -361,7 +361,7 @@ Status HixlOptions::ParseGlobalResourceConfig(const std::map<AscendString, Ascen
   if (config_it == options.end()) {
     return SUCCESS;
   }
-  std::string config_str = config_it->second.GetString();
+  const std::string config_str = config_it->second.GetString();
   if (config_str.empty()) {
     return SUCCESS;
   }

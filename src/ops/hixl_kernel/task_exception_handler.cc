@@ -104,7 +104,7 @@ void HixlTaskExceptionCallback(const HcommExceptionInfo *exception_info, void *u
   }
   uint64_t thread_handle = exception_info->thread;
   uint32_t error_code = exception_info->retCode;
-  std::string info_str = HcommExceptionInfoToString(exception_info);
+  const std::string info_str = HcommExceptionInfoToString(exception_info);
 
   auto ctx = TransferContextManager::Instance().Get(thread_handle);
   if (ctx == nullptr) {

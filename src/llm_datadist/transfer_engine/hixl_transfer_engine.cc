@@ -90,7 +90,7 @@ ge::Status HixlTransferEngine::Initialize(const std::map<ge::AscendString, ge::A
   LLM_CHK_BOOL_RET_STATUS(port_iter != options.cend() && ip_iter != options.cend(), ge::LLM_PARAM_INVALID,
                           "When using hixl backend, option:%s needs to be specified.",
                           llm_datadist::OPTION_LISTEN_IP_INFO);
-  std::string ip = ip_iter->second.GetString();
+  const std::string ip = ip_iter->second.GetString();
   uint32_t port = 0U;
   LLM_CHK_STATUS_RET(LLMUtils::ToNumber(port_iter->second.GetString(), port), "Option %s is invalid: [%s]",
                      kLlmOptionListenPort, port_iter->second.GetString());

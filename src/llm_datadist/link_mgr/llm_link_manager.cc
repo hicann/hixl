@@ -30,7 +30,7 @@ ge::Status LLMLinkManager::Initialize(const std::map<ge::AscendString, ge::Ascen
     const auto &ip_it = options.find(kLlmOptionListenIp);
     LLM_CHK_BOOL_RET_STATUS(ip_it != options.cend(), ge::LLM_PARAM_INVALID, "%s is not assigned", kLlmOptionListenIp);
     uint32_t port = 0U;
-    std::string ip = ip_it->second.GetString();
+    const std::string ip = ip_it->second.GetString();
     LLM_CHK_STATUS_RET(LLMUtils::ToNumber(iter->second.GetString(), port), "Option %s is invalid: [%s]",
                        kLlmOptionListenPort, iter->second.GetString());
     LLM_CHK_STATUS_RET(msg_handler_.StartDaemon(ip, port), "Failed to start listen daemon, port = %u", port);
