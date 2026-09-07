@@ -4,7 +4,7 @@
 
 ## 1. 概述
 
-`hixl_tool` 是 HIXL 附带的命令行工具，用于辅助配置分布式 AI 场景下的网络通信资源。工具提供两个子命令：
+`hixl_tool` 是 HIXL 附带的命令行工具，用于辅助配置分布式 AI 场景下的网络通信资源。**本工具仅适用于 A5 机型环境**，不支持 A2/A3 等其他机型。工具提供两个子命令：
 
 | 子命令 | 功能 | 默认产物 |
 |--------|------|----------|
@@ -21,7 +21,18 @@ hixl_tool <subcommand> [options]
 
 ## 2. 编译与产物
 
-### 2.1 编译
+### 2.1 环境依赖
+
+使用 `host_route` / `local_comm_res` 前，请确认运行环境满足以下要求。**本工具仅适用于 A5 机型环境**，请勿在 A2/A3 等其他机型上使用。请使用**与当前 run 包版本一致的 HIXL 分支**进行编译，且 **hixl_tool 版本必须与 HIXL 版本匹配**（使用同一构建产物中的 `hixl_tool` 与 `libcann_hixl.so`，勿混用不同版本）。
+
+| 依赖项 | 要求 | 查看方式 |
+|--------|------|----------|
+| 机型 | 仅支持 A5（Ascend 950） | 执行 `npu-smi info` 查看芯片型号（设备名含 Ascend950 即为 A5） |
+| LCNE | 不低于 `LCNE: UBM_2.0.0.B011` | 前往 1213 前台执行 `dis startup` 查看 LCNE 版本信息 |
+| HDK | 不低于 `25.1.RC1.B108` | 执行 `npu-smi info` 查看 HDK 版本信息 |
+| HIXL | 使用与当前 run 包版本一致的 HIXL 分支进行编译 | 使用本仓库对应分支源码编译，保证工具与 `libcann_hixl.so` 来自同一版本 |
+
+### 2.2 编译
 
 前置条件：已安装 Ascend CANN Toolkit（>= 9.0.0）并已加载环境变量，完整构建步骤参考 [docs/zh/build.md](../../../docs/zh/build.md)。
 
@@ -37,7 +48,7 @@ bash build.sh --examples
 - `build.sh --examples` 在编译 examples/benchmarks 的同时将 `ENABLE_HIXL_TOOL` 置为 `ON`；手工配置 CMake 时也可通过 `-D ENABLE_HIXL_TOOL=ON` 单独开启该工具编译。
 - `hixl_tool` 仅生成编译产物，**不会**被打入 `cann-hixl_*.run` 安装包，请在构建目录直接使用或自行拷贝分发。
 
-### 2.2 产物位置
+### 2.3 产物位置
 
 | 产物 | 位置 |
 |------|------|
@@ -46,7 +57,7 @@ bash build.sh --examples
 
 > 说明：以上均为仓库根目录下内部构建目录 `build/` 中的路径，而非安装目录 `build_out/`。
 
-### 2.3 运行
+### 2.4 运行
 
 `hixl_tool` 动态链接 `libcann_hixl.so`，运行前需确保该共享库可被加载，任选其一：
 
@@ -55,15 +66,17 @@ bash build.sh --examples
   ```bash
   # 将 build/src/hixl 加入库搜索路径，避免运行时提示 libcann_hixl.so 找不到
   export LD_LIBRARY_PATH=${PWD}/build/src/hixl:${LD_LIBRARY_PATH}
-  ./build/scripts/tools/hixl_tool/hixl_tool --help
+  ./build/scripts/tools/hixl_tool/hixl_tool host_route --help
+  ./build/scripts/tools/hixl_tool/hixl_tool local_comm_res --help
   ```
 
 - 方式二（已安装匹配版本的 HIXL run 包）：`libcann_hixl.so` 随包安装在 CANN 的 lib64 目录，加载 CANN 环境变量后即可直接运行构建出的 `hixl_tool` 二进制。
 
-验证工具可用：
+查看子命令参数说明时，必须先写子命令再加 `--help`。直接执行 `./hixl_tool --help` 时，`--help` 会被当成未知子命令，无法识别：
 
 ```bash
-./hixl_tool --help
+./hixl_tool host_route --help
+./hixl_tool local_comm_res --help
 ```
 
 > 运行 `host_route` / `local_comm_res` 需要可访问 DAVINCI 设备；若以容器方式运行，还需保证拓扑目录可见（见 [5. 使用产物](#5-使用产物)）。

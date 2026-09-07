@@ -4,7 +4,7 @@
 
 ## 1. Overview
 
-`hixl_tool` is a command-line utility shipped with HIXL. It helps configure network communication resources for distributed AI scenarios. The tool provides two subcommands:
+`hixl_tool` is a command-line utility shipped with HIXL. It helps configure network communication resources for distributed AI scenarios. **This tool is supported only on A5 machines** and does not support A2/A3 or other machine types. The tool provides two subcommands:
 
 | Subcommand | Purpose | Default output |
 |------------|---------|----------------|
@@ -21,7 +21,18 @@ Both subcommands rely on the engine auto-generation path. `route_data` is collec
 
 ## 2. Build and Artifacts
 
-### 2.1 Build
+### 2.1 Environment requirements
+
+Before you run `host_route` / `local_comm_res`, confirm that the runtime environment meets the following requirements. **This tool is supported only on A5 machines**; do not use it on A2/A3 or other machine types. Build from the **HIXL branch that matches the current run package version**, and keep the **hixl_tool version matched with the HIXL version** (use `hixl_tool` and `libcann_hixl.so` from the same build; do not mix versions).
+
+| Dependency | Requirement | How to check |
+|------------|-------------|--------------|
+| Machine type | A5 (Ascend 950) only | Run `npu-smi info` to check the chip model (device names that contain Ascend950 are A5) |
+| LCNE | Not lower than `LCNE: UBM_2.0.0.B011` | On the 1213 console, run `dis startup` to view the LCNE version |
+| HDK | Not lower than `25.1.RC1.B108` | Run `npu-smi info` to view the HDK version |
+| HIXL | Build from the HIXL branch that matches the current run package version | Build from the matching branch of this repository so the tool and `libcann_hixl.so` come from the same version |
+
+### 2.2 Build
 
 Prerequisites: Ascend CANN Toolkit (>= 9.0.0) is installed and the environment variables are loaded. For the full build procedure, see [docs/en/build.md](../../../docs/en/build.md).
 
@@ -37,7 +48,7 @@ bash build.sh --examples
 - `build.sh --examples` compiles examples/benchmarks and turns `ENABLE_HIXL_TOOL` on. You can also enable the tool alone with `-D ENABLE_HIXL_TOOL=ON` when configuring CMake by hand.
 - `hixl_tool` is a build artifact only. It is **not** packed into the `cann-hixl_*.run` installer. Use it from the build directory or copy it yourself for distribution.
 
-### 2.2 Artifact locations
+### 2.3 Artifact locations
 
 | Artifact | Path |
 |----------|------|
@@ -46,7 +57,7 @@ bash build.sh --examples
 
 > These paths are under the in-tree build directory `build/` at the repository root, not the install directory `build_out/`.
 
-### 2.3 Run
+### 2.4 Run
 
 `hixl_tool` dynamically links `libcann_hixl.so`. Make sure the shared library can be loaded before you run the tool. Use either of the following:
 
@@ -55,15 +66,17 @@ bash build.sh --examples
   ```bash
   # Add build/src/hixl to the library search path so libcann_hixl.so can be found
   export LD_LIBRARY_PATH=${PWD}/build/src/hixl:${LD_LIBRARY_PATH}
-  ./build/scripts/tools/hixl_tool/hixl_tool --help
+  ./build/scripts/tools/hixl_tool/hixl_tool host_route --help
+  ./build/scripts/tools/hixl_tool/hixl_tool local_comm_res --help
   ```
 
 - Option 2 (a matching HIXL run package is already installed): `libcann_hixl.so` is installed under the CANN lib64 directory. After you load the CANN environment, you can run the built `hixl_tool` binary directly.
 
-Verify that the tool works:
+To view subcommand options, specify the subcommand before `--help`. Running `./hixl_tool --help` does not work: `--help` is treated as an unknown subcommand and is not recognized.
 
 ```bash
-./hixl_tool --help
+./hixl_tool host_route --help
+./hixl_tool local_comm_res --help
 ```
 
 > `host_route` and `local_comm_res` need access to DAVINCI devices. When you run in a container, the topology directory must also be visible (see [5. Using the artifacts](#5-using-the-artifacts)).
