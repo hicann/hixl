@@ -1181,6 +1181,10 @@ Status HixlCSClient::Connect(uint32_t timeout_ms) {
   HIXL_CHECK_NOTNULL(local_endpoint_);
   HIXL_CHK_BOOL_RET_STATUS(remote_endpoint_.protocol != COMM_PROTOCOL_RESERVED, PARAM_INVALID,
                            "[HixlClient] Connect called but remote_endpoint is not set in Create");
+  if (socket_ != -1) {
+    HIXL_LOGW("[HixlClient] Already connected. fd=%d, Target=%s:%u", socket_, server_ip_.c_str(), server_port_);
+    return ALREADY_CONNECTED;
+  }
   HIXL_EVENT("[HixlClient] Connect start. Target=%s:%u, timeout=%u ms", server_ip_.c_str(), server_port_, timeout_ms);
   HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Connect(server_ip_, server_port_, socket_, timeout_ms),
                       "[HixlClient] Connect socket to %s:%u failed", server_ip_.c_str(), server_port_);

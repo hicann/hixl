@@ -990,6 +990,13 @@ TEST_F(HixlCSClientUT, ConnectSuccessNormal) {
   EXPECT_EQ(client_.Connect(kDefaultConnectTimeoutMs), SUCCESS);
 }
 
+TEST_F(HixlCSClientUT, ConnectTwiceReturnsAlreadyConnected) {
+  StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
+  CreateClient();
+  EXPECT_EQ(client_.Connect(kDefaultConnectTimeoutMs), SUCCESS);
+  EXPECT_EQ(client_.Connect(kDefaultConnectTimeoutMs), ALREADY_CONNECTED);
+}
+
 TEST_F(HixlCSClientUT, ConnectUsesDefaultRdmaRetryConfig) {
   VerifyRdmaRetryConfig(false, nullptr, nullptr, kDefaultRdmaRetryCnt, kDefaultRdmaRetryInterval);
 }
