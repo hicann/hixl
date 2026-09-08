@@ -173,6 +173,16 @@ device侧网卡默认监听端口为16666，如果在多个进程使用同一个
 
 `local_comm_res_path`支持绝对路径和相对路径，相对路径基于进程当前工作目录解析。目标文件必须是大小在[1字节, 1MiB]范围内的普通文件，文件内容格式与OPTION_LOCAL_COMM_RES相同。与OPTION_LOCAL_COMM_RES同时配置且option非空时，以OPTION_LOCAL_COMM_RES为准。
 
+自动生成LocalCommRes时如需指定硬件拓扑文件，须在OPTION_GLOBAL_RESOURCE_CONFIG（全局资源配置）JSON中配置，示例如下：
+
+```json
+{
+    "topo_file_path": "/path/to/topo.json"
+}
+```
+
+`topo_file_path`不配置或配置为空串时，HIXL按mainboard_id在默认拓扑目录中查找拓扑文件；配置非空路径时使用该文件。目标文件必须是大小在[1字节, 1MiB]范围内的普通文件，文件不存在、类型非法、超出大小或解析失败则Initialize失败。已通过OPTION_LOCAL_COMM_RES或local_comm_res_path提供非空endpoint_list时(手动配置local_comm_res信息时)，不会读取本字段，也不校验该路径。
+
 对于链路池机制，该参数配置示例如下：
 
 ```sh
@@ -301,6 +311,7 @@ UB_RTP
 | comm_resource_config.qos | 数字 | 可选 | 配置通信协议qos | 当前仅支持[0-7]，当未配置的时候，默认为0。|
 | comm_resource_config.max_active_channels | 数字 | 可选 | CS场景下配置设备侧同时活跃传输通道数量 | 取值范围为[1, 8192]，未配置时默认值为128。每个active channel消耗2个Stream资源，配置值需结合当前卡形态的Stream资源上限及业务中已创建的Stream数量预留余量；不同卡形态的Stream资源上限参见CANN Runtime API [aclrtCreateStream](https://www.hiascend.com/document/detail/zh/canncommercial/latest/API/runtimeapi/aclcppdevg_03_0066.html)资料。超出[1, 8192]时Initialize返回参数错误。|
 | local_comm_res_path | 字符串 | 可选 | 本地通信资源 JSON 文件路径；文件内容格式与 OPTION_LOCAL_COMM_RES 相同 | 配置文件的绝对或相对路径，相对路径基于进程当前工作目录解析。目标文件必须是大小在[1字节, 1MiB]范围内的普通文件。与 OPTION_LOCAL_COMM_RES 同时配置且 option 非空时，以 OPTION_LOCAL_COMM_RES 为准。 |
+| topo_file_path | 字符串 | 可选 | 自动生成LocalCommRes时使用的硬件拓扑JSON文件路径 | 不配置或配置为空串时，按mainboard_id在默认拓扑目录中查找对应文件。配置非空路径时使用该文件；目标文件必须是大小在[1字节, 1MiB]范围内的普通文件。文件不存在、类型非法、超出大小或解析失败则Initialize失败。已通过OPTION_LOCAL_COMM_RES或local_comm_res_path提供非空endpoint_list时不使用本字段，也不校验该路径。 |
 
 **调用示例**
 

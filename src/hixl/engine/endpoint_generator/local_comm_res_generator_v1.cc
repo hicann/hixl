@@ -58,6 +58,10 @@ constexpr uint32_t kMainboardIdServerMax1 = 0x2B;
 constexpr uint32_t kMainboardIdServerMin2 = 0x40;
 constexpr uint32_t kMainboardIdServerMax2 = 0x46;
 
+// pc16 product-form mainboard IDs
+constexpr uint32_t kMainboardIdPc16a = 0x2D;  // Decimal 45; UBG transmission not supported.
+constexpr uint32_t kMainboardIdPc16b = 0x2F;  // Decimal 47; support UBG transmission.
+
 // Topology constants
 constexpr const char *kLinkTypePeer2Peer = "PEER2PEER";
 constexpr const char *kTopoType1DMesh = "1DMESH";
@@ -103,6 +107,7 @@ inline bool IsProductServer(uint32_t mainboard_id) {
 // Topo file names
 constexpr const char *kTopoFileAtlas950 = "atlas_950_1.json";
 constexpr const char *kTopoFileAtlas850 = "atlas_850_1.json";
+constexpr const char *kTopoFileAtlas950Pc16 = "atlas_950_2.json";
 
 // urma_admin command path
 constexpr const char *kUrmaAdminPath = "/usr/local/sbin/urma_admin";
@@ -537,6 +542,10 @@ bool TopoFileFinder::MatchProductForm(uint32_t mainboard_id, std::string &topo_f
     case kMainboardIdPod3:
       topo_file_name = kTopoFileAtlas950;
       return true;
+    case kMainboardIdPc16a:
+    case kMainboardIdPc16b:
+      topo_file_name = kTopoFileAtlas950Pc16;
+      return true;
     default:
       break;
   }
@@ -759,8 +768,10 @@ Status AppendD2DEdgesIfPhyOnLink(const TopoLink &link, D2DLinkAppendCtx &ctx) {
                            ctx.phy_id, peer_id, local_ports.size(), peer_ports.size());
 
   auto peer_it = ctx.npu_rootinfos.find(peer_id);
-  HIXL_CHK_BOOL_RET_STATUS(peer_it != ctx.npu_rootinfos.end(), FAILED,
-                           "[GenerateD2DEdges] No rootinfo for peer npu_id=%d, phy_id=%d", peer_id, ctx.phy_id);
+  if (peer_it == ctx.npu_rootinfos.end()) {
+    HIXL_LOGI("[GenerateD2DEdges] Skip D2D, peer npu_id=%d is not visible, phy_id=%d", peer_id, ctx.phy_id);
+    return SUCCESS;
+  }
   HIXL_CHK_STATUS_RET(
       AddD2DEdgesFromLink({ctx.self_rootinfo, peer_it->second, peer_id, local_ports, peer_ports}, ctx.edges),
       "[GenerateD2DEdges] AddD2DEdgesFromLink failed, phy_id=%d, peer_id=%d", ctx.phy_id, peer_id);
@@ -779,6 +790,10 @@ Status GenerateD2DEdges(const TopoData &topo_data, const std::map<int32_t, NpuRo
     return SUCCESS;
   }
   const auto &self_rootinfo = self_it->second;
+  if (self_rootinfo.port_to_eid.empty()) {
+    HIXL_LOGI("[GenerateD2DEdges] No mesh ports for phy_id=%d, skip D2D", phy_id);
+    return SUCCESS;
+  }
 
   HIXL_LOGI("D2D: phy_id=%d, topo_links=%zu, self_rootinfo_size=%zu", phy_id, topo_data.links.size(),
             self_rootinfo.port_to_eid.size());
@@ -854,20 +869,56 @@ void LogEndpointList(const std::vector<EndpointConfig> &endpoint_list) {
   }
 }
 
-bool IsProductPod(uint32_t mainboard_id) {
-  return (mainboard_id == kMainboardIdPod1 || mainboard_id == kMainboardIdPod2 || mainboard_id == kMainboardIdPod3);
+Status CollectVisiblePhyIds(std::set<int32_t> &phy_ids) {
+  phy_ids.clear();
+  uint32_t device_count = 0;
+  HIXL_CHK_ACL_RET(aclrtGetDeviceCount(&device_count), "aclrtGetDeviceCount failed");
+  HIXL_CHK_BOOL_RET_STATUS(device_count > 0, FAILED, "[CollectVisiblePhyIds] aclrtGetDeviceCount returned 0");
+  for (uint32_t i = 0; i < device_count; ++i) {
+    int32_t phy_id = -1;
+    const aclError acl_ret = aclrtGetPhyDevIdByUserDevId(static_cast<int32_t>(i), &phy_id);
+    if (acl_ret != ACL_SUCCESS) {
+      HIXL_LOGW("[CollectVisiblePhyIds] Call api:aclrtGetPhyDevIdByUserDevId failed, user_id=%u, ret=%d, skip", i,
+                static_cast<int>(acl_ret));
+      continue;
+    }
+    phy_ids.insert(phy_id);
+  }
+  HIXL_CHK_BOOL_RET_STATUS(!phy_ids.empty(), FAILED, "[CollectVisiblePhyIds] No visible NPU phy id");
+  HIXL_LOGI("[CollectVisiblePhyIds] device_count=%u, phy_ids=%s", device_count, ToString(phy_ids).c_str());
+  return SUCCESS;
 }
 
-std::set<int32_t> CollectRelatedNpuIds(int32_t phy_dev_id) {
-  // NPUs are grouped by kNpuGroupSize; collect every NPU in phy_dev_id's group.
-  int32_t group_start = static_cast<int32_t>((phy_dev_id / kNpuGroupSize) * kNpuGroupSize);
-  std::set<int32_t> related_npu_ids;
-  for (size_t i = 0; i < kNpuGroupSize; ++i) {
-    related_npu_ids.insert(group_start + static_cast<int32_t>(i));
+Status CollectRelatedNpuIds(int32_t phy_dev_id, std::set<int32_t> &related_npu_ids) {
+  HIXL_CHK_STATUS_RET(CollectVisiblePhyIds(related_npu_ids), "[CollectRelatedNpuIds] CollectVisiblePhyIds failed");
+  HIXL_CHK_BOOL_RET_STATUS(related_npu_ids.count(phy_dev_id) > 0, FAILED,
+                           "[CollectRelatedNpuIds] phy_dev_id=%d is not in the visible NPU set", phy_dev_id);
+  return SUCCESS;
+}
+
+Status CollectClosPortKeys(const TopoData &topo_data, int32_t npu_id, std::set<std::string> &clos_port_keys) {
+  clos_port_keys.clear();
+  for (const auto &link : topo_data.links) {
+    if (link.net_layer != kTopoNetLayerClos) {
+      continue;
+    }
+    const std::vector<std::string> *ports = nullptr;
+    if (link.local_a == npu_id) {
+      ports = &link.local_a_ports;
+    } else if (link.local_b == npu_id) {
+      ports = &link.local_b_ports;
+    } else {
+      continue;
+    }
+    for (const auto &port_str : *ports) {
+      int32_t die_id = -1;
+      int32_t port = -1;
+      HIXL_CHK_STATUS_RET(ParseDiePort(port_str, die_id, port),
+                          "[CollectClosPortKeys] Failed to parse CLOS port:%s, npu_id=%d", port_str.c_str(), npu_id);
+      clos_port_keys.insert(std::to_string(die_id) + "/" + std::to_string(port));
+    }
   }
-  HIXL_LOGI("phy_dev_id=%d, group_start=%d, Related NPU IDs: %s", phy_dev_id, group_start,
-            ToString(related_npu_ids).c_str());
-  return related_npu_ids;
+  return SUCCESS;
 }
 
 Status BuildNpuRootinfos(const std::set<int32_t> &related_npu_ids, const TopoData &topo_data,
@@ -880,8 +931,11 @@ Status BuildNpuRootinfos(const std::set<int32_t> &related_npu_ids, const TopoDat
                         "[BuildNpuRootinfos] Failed to resolve mesh die from topo, npu_id=%d", npu_id);
     HIXL_CHK_STATUS_RET(ResolveClosDieIdFromTopo(topo_data, npu_id, clos_die_id),
                         "[BuildNpuRootinfos] Failed to resolve CLOS die from topo, npu_id=%d", npu_id);
+    std::set<std::string> clos_port_keys;
+    HIXL_CHK_STATUS_RET(CollectClosPortKeys(topo_data, npu_id, clos_port_keys),
+                        "[BuildNpuRootinfos] CollectClosPortKeys failed, npu_id=%d", npu_id);
     NpuRootInfo rootinfo;
-    HIXL_CHK_STATUS_RET(BuildNpuRootInfo(npu_id, mesh_die_id, clos_die_id, rootinfo),
+    HIXL_CHK_STATUS_RET(BuildNpuRootInfo(npu_id, mesh_die_id, clos_die_id, clos_port_keys, rootinfo),
                         "Failed to build rootinfo for npu_id=%d", npu_id);
     npu_rootinfos[npu_id] = rootinfo;
   }
@@ -902,9 +956,12 @@ Status CollectClosPgEids(const std::map<int32_t, NpuRootInfo> &npu_rootinfos, in
                            phy_dev_id);
 
   // rootinfo_builder already filters: clos_pg_eids[0]=plane_pg_0, [1]=plane_pg_1.
+  // Mesh-only is allowed: no CLOS PG means no D2U/H2U, not a hard failure.
   const auto &pg_eids = self_it->second.clos_pg_eids;
-  HIXL_CHK_BOOL_RET_STATUS(!pg_eids.empty(), FAILED, "[CollectClosPgEids] No CLOS PG EID for phy_dev_id:%d",
-                           phy_dev_id);
+  if (pg_eids.empty()) {
+    HIXL_LOGI("[CollectClosPgEids] No CLOS PG EID for phy_dev_id:%d, skip CLOS planes", phy_dev_id);
+    return SUCCESS;
+  }
   result.plane_pg_0_eid = pg_eids[0].eid;
   if (pg_eids.size() >= kSecondElementSize) {
     result.plane_pg_1_eid = pg_eids[kPgEidSecondIndex].eid;
@@ -918,6 +975,7 @@ Status CollectClosPgEids(const std::map<int32_t, NpuRootInfo> &npu_rootinfos, in
 
 Status GenerateD2UEdges(const std::string &plane_pg_0_eid, const std::string &plane_pg_1_eid,
                         std::vector<EndpointConfig> &d2u_edges) {
+  // Emit both planes when both CLOS PG EIDs exist; do not drop plane_pg_1.
   if (!plane_pg_0_eid.empty()) {
     EndpointConfig edge;
     edge.protocol = kProtocolUbCtp;
@@ -939,6 +997,10 @@ Status GenerateD2UEdges(const std::string &plane_pg_0_eid, const std::string &pl
 
 Status GenerateH2UEdges(const std::string &host_pg_eid, const std::string &plane_pg_0_eid,
                         const std::string &plane_pg_1_eid, std::vector<EndpointConfig> &h2u_edges) {
+  if (plane_pg_0_eid.empty() && plane_pg_1_eid.empty()) {
+    HIXL_LOGI("[H2U] No CLOS plane PG EID, skip H2U");
+    return SUCCESS;
+  }
   // host_pg_eid (8-port PG) is computed in GenerateRouteDataViaDsmi and passed in
   HIXL_CHK_BOOL_RET_STATUS(!host_pg_eid.empty(), FAILED, "[H2U] host_pg_eid is empty");
   HIXL_LOGI("[H2U] Using Host PG EID: %s", host_pg_eid.c_str());
@@ -1222,7 +1284,8 @@ Status GenerateRouteDataViaDsmi(int32_t phy_dev_id, const std::string &topo_path
   HIXL_CHK_STATUS_RET(ResolveTopoPathAndParse(phy_dev_id, topo_path, topo_data),
                       "[GenerateRouteDataViaDsmi] Failed to resolve/parse topo, phy_dev_id=%d", phy_dev_id);
 
-  result.related_npu_ids = CollectRelatedNpuIds(phy_dev_id);
+  HIXL_CHK_STATUS_RET(CollectRelatedNpuIds(phy_dev_id, result.related_npu_ids),
+                      "[GenerateRouteDataViaDsmi] CollectRelatedNpuIds failed, phy_dev_id=%d", phy_dev_id);
   result.route_data.entries.clear();
   result.host_pg_eid.clear();
   result.cpu_die_to_pg_eid.clear();
@@ -1243,7 +1306,8 @@ Status ParseTopoAndCollectNpuIds(int32_t phy_dev_id, const std::string &topo_pat
   HIXL_CHK_STATUS_RET(ParseTopoFile(topo_path, topo_data),
                       "[ParseTopoAndCollectNpuIds] ParseTopoFile failed, phy_dev_id=%d, topo_path=%s", phy_dev_id,
                       topo_path.c_str());
-  route_gen_result.related_npu_ids = CollectRelatedNpuIds(phy_dev_id);
+  HIXL_CHK_STATUS_RET(CollectRelatedNpuIds(phy_dev_id, route_gen_result.related_npu_ids),
+                      "[ParseTopoAndCollectNpuIds] CollectRelatedNpuIds failed, phy_dev_id=%d", phy_dev_id);
   return SUCCESS;
 }
 

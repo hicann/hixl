@@ -721,7 +721,11 @@ Status EndpointGenerator::AutoGenA5EndpointList(const HixlOptions &options, std:
   std::string net_instance_id;
   const std::vector<std::string> protocol_desc = options.GetProtocolDesc();
   const std::string user_local_comm_res = options.LocalCommRes().value_or("");
-  AutoGenA5Input input{device_id, phy_id, topo_path, protocol_desc, user_local_comm_res};
+  std::string resolved_topo_path = topo_path;
+  if (resolved_topo_path.empty()) {
+    resolved_topo_path = options.TopoFilePath().value_or("");
+  }
+  AutoGenA5Input input{device_id, phy_id, resolved_topo_path, protocol_desc, user_local_comm_res};
   // Empty topo_path uses the default topo; protocol_desc comes from options.
   HIXL_CHK_STATUS_RET(AutoGenA5Core(input, endpoint_list, net_instance_id),
                       "[AutoGenEndpointList] AutoGenA5Core failed");

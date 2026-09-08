@@ -46,6 +46,7 @@ constexpr int32_t kRdmaTrafficClassAlign = 4;
 constexpr int32_t kMinRdmaServiceLevel = 0;
 constexpr int32_t kMaxRdmaServiceLevel = 7;
 constexpr size_t kMaxLocalCommResFileSizeBytes = 1024U * 1024U;
+constexpr size_t kMaxTopoFileSizeBytes = 1024U * 1024U;
 
 struct IntegerFieldRange {
   const char *name;
@@ -69,27 +70,53 @@ Status ParseIntegerFieldInRange(const nlohmann::json &json, const IntegerFieldRa
   return SUCCESS;
 }
 
-Status ReadLocalCommResFile(const char *resolved_path, std::string &content) {
+// Opens a regular file after realpath; on success the caller owns out_fd.
+Status OpenValidatedRegularFile(const std::string &path, size_t max_size_bytes, const char *field_name, int &out_fd,
+                                size_t &out_size) {
+  out_fd = -1;
+  out_size = 0U;
+  char resolved_path[PATH_MAX] = {0};
+  const char *realpath_ret = realpath(path.c_str(), resolved_path);
+  const int32_t realpath_errno = errno;
+  HIXL_CHK_BOOL_RET_STATUS(realpath_ret != nullptr, PARAM_INVALID, "Call api:realpath failed, %s:%s, errno:%d(%s)",
+                           field_name, path.c_str(), realpath_errno, strerror(realpath_errno));
+
   constexpr int kOpenFlags = O_RDONLY | O_CLOEXEC | O_NONBLOCK | O_NOFOLLOW;
   int fd = open(resolved_path, kOpenFlags);
   HIXL_CHK_BOOL_RET_STATUS(fd >= 0, PARAM_INVALID,
                            "Call api:open failed, path:%s, flags:%d, ret:%d, errno:%d, error:%s", resolved_path,
                            kOpenFlags, fd, errno, strerror(errno));
-  HIXL_MAKE_GUARD(close_fd, ([fd]() { (void)close(fd); }));
+  HIXL_MAKE_GUARD(close_fd, ([&fd]() {
+                    if (fd >= 0) {
+                      (void)close(fd);
+                    }
+                  }));
 
   struct stat file_stat {};
-  int stat_ret = fstat(fd, &file_stat);
+  const int stat_ret = fstat(fd, &file_stat);
   HIXL_CHK_BOOL_RET_STATUS(stat_ret == 0, PARAM_INVALID, "Call api:fstat failed, path:%s, ret:%d, errno:%d, error:%s",
                            resolved_path, stat_ret, errno, strerror(errno));
   HIXL_CHK_BOOL_RET_STATUS(S_ISREG(file_stat.st_mode), PARAM_INVALID,
-                           "local_comm_res_path must reference a regular file, path:%s, mode:%o", resolved_path,
+                           "%s must reference a regular file, path:%s, mode:%o", field_name, resolved_path,
                            static_cast<unsigned int>(file_stat.st_mode));
-  HIXL_CHK_BOOL_RET_STATUS(
-      file_stat.st_size > 0 && static_cast<uint64_t>(file_stat.st_size) <= kMaxLocalCommResFileSizeBytes, PARAM_INVALID,
-      "local_comm_res_path file size is invalid, path:%s, size:%lld bytes, valid range:[1, %zu] bytes", resolved_path,
-      static_cast<long long>(file_stat.st_size), kMaxLocalCommResFileSizeBytes);
+  HIXL_CHK_BOOL_RET_STATUS(file_stat.st_size > 0 && static_cast<uint64_t>(file_stat.st_size) <= max_size_bytes,
+                           PARAM_INVALID,
+                           "%s file size is invalid, path:%s, size:%lld bytes, valid range:[1, %zu] bytes", field_name,
+                           resolved_path, static_cast<long long>(file_stat.st_size), max_size_bytes);
+  out_fd = fd;
+  out_size = static_cast<size_t>(file_stat.st_size);
+  fd = -1;
+  return SUCCESS;
+}
 
-  const size_t file_size = static_cast<size_t>(file_stat.st_size);
+Status ReadLocalCommResFile(const std::string &path, std::string &content) {
+  int fd = -1;
+  size_t file_size = 0U;
+  HIXL_CHK_STATUS_RET(
+      OpenValidatedRegularFile(path, kMaxLocalCommResFileSizeBytes, "local_comm_res_path", fd, file_size),
+      "Failed to open local_comm_res_path file, path:%s", path.c_str());
+  HIXL_MAKE_GUARD(close_fd, ([fd]() { (void)close(fd); }));
+
   content.resize(file_size);
   size_t read_size = 0U;
   while (read_size < file_size) {
@@ -102,12 +129,12 @@ Status ReadLocalCommResFile(const char *resolved_path, std::string &content) {
       HIXL_CHK_BOOL_RET_STATUS(false, PARAM_INVALID,
                                "Call api:read failed, path:%s, ret:%zd, read_size:%zu bytes, "
                                "expected_size:%zu bytes, errno:%d, error:%s",
-                               resolved_path, read_ret, read_size, file_size, read_errno, strerror(read_errno));
+                               path.c_str(), read_ret, read_size, file_size, read_errno, strerror(read_errno));
     }
     HIXL_CHK_BOOL_RET_STATUS(read_ret != 0, PARAM_INVALID,
                              "Call api:read reached unexpected EOF, path:%s, ret:%zd, read_size:%zu bytes, "
                              "expected_size:%zu bytes",
-                             resolved_path, read_ret, read_size, file_size);
+                             path.c_str(), read_ret, read_size, file_size);
     read_size += static_cast<size_t>(read_ret);
   }
   return SUCCESS;
@@ -200,11 +227,66 @@ Status ParseLocalCommResPath(const nlohmann::json &json, GlobalResourceConfig &c
   return SUCCESS;
 }
 
+Status ValidateRegularFileSizeLimit(const std::string &path, size_t max_size_bytes, const char *field_name) {
+  int fd = -1;
+  size_t file_size = 0U;
+  HIXL_CHK_STATUS_RET(OpenValidatedRegularFile(path, max_size_bytes, field_name, fd, file_size),
+                      "Failed to validate %s, path:%s", field_name, path.c_str());
+  (void)file_size;
+  HIXL_MAKE_GUARD(close_fd, ([fd]() {
+                    if (fd >= 0) {
+                      (void)close(fd);
+                    }
+                  }));
+  return SUCCESS;
+}
+
+Status ParseTopoFilePath(const nlohmann::json &json, GlobalResourceConfig &cfg) {
+  if (!json.contains("topo_file_path")) {
+    return SUCCESS;
+  }
+  const auto &path_json = json.at("topo_file_path");
+  HIXL_CHK_BOOL_RET_STATUS(path_json.is_string(), PARAM_INVALID, "topo_file_path must be a string");
+  const std::string path = path_json.get<std::string>();
+  if (path.empty()) {
+    return SUCCESS;
+  }
+  cfg.topo_file_path = path;
+  return SUCCESS;
+}
+
+bool HasManualEndpointList(const HixlOptions &opts) {
+  const auto lcr = opts.LocalCommRes();
+  if (!lcr.has_value() || lcr->empty()) {
+    return false;
+  }
+  try {
+    const nlohmann::json config = nlohmann::json::parse(*lcr);
+    return config.contains("net_instance_id") && config["net_instance_id"].is_string() &&
+           config.contains("endpoint_list") && config["endpoint_list"].is_array() && !config["endpoint_list"].empty();
+  } catch (const nlohmann::json::exception &) {
+    return false;
+  }
+}
+
+Status MaybeValidateTopoFilePath(const HixlOptions &opts) {
+  const auto path = opts.TopoFilePath();
+  if (!path.has_value() || path->empty()) {
+    return SUCCESS;
+  }
+  if (HasManualEndpointList(opts)) {
+    HIXL_LOGI("Skip topo_file_path validation because endpoint_list is provided");
+    return SUCCESS;
+  }
+  return ValidateRegularFileSizeLimit(*path, kMaxTopoFileSizeBytes, "topo_file_path");
+}
+
 Status ParseGlobalResourceConfigJson(const nlohmann::json &json, GlobalResourceConfig &cfg) {
   HIXL_CHK_STATUS_RET(ParseFabricMemoryConfig(json, cfg.fabric_memory), "Failed to parse FabricMemoryConfig");
   HIXL_CHK_STATUS_RET(ParseConnectPoolConfig(json, cfg.connect_pool), "Failed to parse ConnectPoolConfig");
   HIXL_CHK_STATUS_RET(ParseCommResourceConfig(json, cfg.comm_resource_config), "Failed to parse CommResourceConfig");
   HIXL_CHK_STATUS_RET(ParseLocalCommResPath(json, cfg), "Failed to parse local_comm_res_path");
+  HIXL_CHK_STATUS_RET(ParseTopoFilePath(json, cfg), "Failed to parse topo_file_path");
   return SUCCESS;
 }
 }  // namespace
@@ -224,6 +306,7 @@ Status HixlOptions::Parse(const std::map<AscendString, AscendString> &options, H
   HIXL_CHK_STATUS_RET(result.ParseAutoConnectOptions(options), "Failed to parse AutoConnect options.");
   HIXL_CHK_STATUS_RET(result.ParseGlobalResourceConfig(options), "Failed to parse GlobalResourceConfig.");
   HIXL_CHK_STATUS_RET(result.ResolveLocalCommResFromFile(), "Failed to resolve LocalCommRes from file.");
+  HIXL_CHK_STATUS_RET(MaybeValidateTopoFilePath(result), "Failed to validate topo_file_path");
   return SUCCESS;
 }
 
@@ -241,6 +324,13 @@ std::vector<std::string> HixlOptions::GetProtocolDesc() const {
     return {};
   }
   return *global_resource_config_->comm_resource_config.protocol_desc;
+}
+
+std::optional<std::string> HixlOptions::TopoFilePath() const {
+  if (!global_resource_config_.has_value() || !global_resource_config_->topo_file_path.has_value()) {
+    return std::nullopt;
+  }
+  return global_resource_config_->topo_file_path;
 }
 
 Status HixlOptions::ParseRdmaOptions(const std::map<AscendString, AscendString> &options) {
@@ -379,16 +469,11 @@ Status HixlOptions::ResolveLocalCommResFromFile() {
   }
 
   const std::string &path = *global_resource_config_->local_comm_res_path;
-  char resolved_path[PATH_MAX] = {};
-  HIXL_CHK_BOOL_RET_STATUS(realpath(path.c_str(), resolved_path) != nullptr, PARAM_INVALID,
-                           "Call api:realpath failed, path:%s, errno=%d, errmsg=%s", path.c_str(), errno,
-                           strerror(errno));
-
   std::string content;
-  HIXL_CHK_STATUS_RET(ReadLocalCommResFile(resolved_path, content), "Failed to read local_comm_res_path file, path:%s",
-                      resolved_path);
+  HIXL_CHK_STATUS_RET(ReadLocalCommResFile(path, content), "Failed to read local_comm_res_path file, path:%s",
+                      path.c_str());
   local_comm_res_ = std::move(content);
-  HIXL_EVENT("Resolved local_comm_res from file successfully, path:%s, content_size:%zu bytes", resolved_path,
+  HIXL_EVENT("Resolved local_comm_res from file successfully, path:%s, content_size:%zu bytes", path.c_str(),
              local_comm_res_->size());
   return SUCCESS;
 }

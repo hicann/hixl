@@ -48,6 +48,7 @@ struct GlobalResourceConfig {
   ConnectPoolConfig connect_pool;
   CommResourceConfigDesc comm_resource_config;
   std::optional<std::string> local_comm_res_path;  // local_comm_res JSON file path
+  std::optional<std::string> topo_file_path;       // hardware topo JSON path for auto-gen
 };
 
 class HixlOptions {
@@ -79,6 +80,7 @@ class HixlOptions {
     return global_resource_config_;
   }
   std::vector<std::string> GetProtocolDesc() const;
+  std::optional<std::string> TopoFilePath() const;
 
  private:
   std::map<AscendString, AscendString> raw_options_;

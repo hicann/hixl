@@ -239,7 +239,7 @@ constexpr const char *kTopoTypeClos = "CLOS";
 // 8 卡一组：fullmesh 口均为 mesh_port，每个 NPU 一条 CLOS，端口列表为 clos_ports_json（JSON 数组）
 std::string MakeEightNpuDieTopoJson(const std::string &mesh_port, const std::string &clos_ports_json) {
   std::ostringstream oss;
-  oss << "{\"edge_list\":[";
+  oss << "{\"peer_count\":8,\"edge_list\":[";
   for (int32_t i = 0; i < 8; i += 2) {
     if (i > 0) {
       oss << ",";
@@ -314,7 +314,7 @@ TEST_F(LocalCommResParseTest, ParseTopoFileInvalidJson) {
 }
 
 TEST_F(LocalCommResParseTest, ParseTopoFileEmptyEdgeList) {
-  std::string json = R"({"version":"2.0","peer_count":0,"peer_list":[],"edge_count":0,"edge_list":[]})";
+  std::string json = R"({"version":"2.0","peer_count":8,"peer_list":[],"edge_count":0,"edge_list":[]})";
   std::string tmp = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", json);
   ASSERT_FALSE(tmp.empty());
   TopoData topo_data;
@@ -337,7 +337,7 @@ TEST_F(LocalCommResParseTest, ParseTopoFileEmptyContent) {
 TEST_F(LocalCommResParseTest, ParseTopoFileMissingNetLayer) {
   // edge 对象缺少 net_layer 字段 → 该 edge 被跳过，links 为空
   std::string json =
-      R"({"version":"2.0","edge_list":[{"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1}]})";
+      R"({"version":"2.0","peer_count":8,"edge_list":[{"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1}]})";
   std::string tmp = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", json);
   ASSERT_FALSE(tmp.empty());
   TopoData topo_data;
@@ -656,7 +656,7 @@ TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesNoRootinfoForPeer) {
   npu_rootinfos[0] = MakeRootInfo("0/1", "eid_aaa");
   std::vector<EndpointConfig> edges;
   Status ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
-  EXPECT_EQ(ret, FAILED);
+  EXPECT_EQ(ret, SUCCESS);
   EXPECT_TRUE(edges.empty());
 }
 
@@ -690,9 +690,14 @@ class LocalCommResTestBase : public LocalCommResMmpaTestBase {
     // server_8p_noroce.json mesh ports are die1 (e.g. "1/7"); keep stub EID layout aligned.
     DcmiStubSetMeshDieId(1);
     data_dir_ = GetTestDataDir();
+    acl_stub_ = endpoint_test::CreateAclRuntimeStub("Ascend910B1", 0, 0, 9, 8);
+    acl_stub_->device_count_ = 8;
+    llm::AclRuntimeStub::SetInstance(acl_stub_);
   }
 
   void TearDown() override {
+    llm::AclRuntimeStub::SetInstance(nullptr);
+    acl_stub_.reset();
     // 先执行 TestBase 特有的清理
     ResetDcmiStub();
     // 调用基类 TearDown，完成 temp_dir 清理 + MmpaStub Reset
@@ -700,6 +705,7 @@ class LocalCommResTestBase : public LocalCommResMmpaTestBase {
   }
 
   std::string data_dir_;
+  std::shared_ptr<endpoint_test::MockAclRuntimeStub> acl_stub_;
 };
 
 class LocalCommResGenerateTest : public LocalCommResTestBase {};
@@ -735,8 +741,10 @@ TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlySkipsDynamicRoute) {
 TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostSuccess) {
   // server_8p_noroce.json 为 Atlas 850 Server topo（fullmesh 在 die1）；
   // 使用 Server 形态使 mainboard 与 topo 语义一致（否则 die 从 topo 解析出 die1，
-  // 与 Pod stub 的 die0 布局冲突）
+  // 与 Pod stub 的 die0 布局冲突）。
+  // urma_cnt=3: UDMA0 mesh + UDMA1 standalone remote_eid + UDMA2 CLOS.
   DcmiStubSetMainboardId(0x21, 0);  // Server
+  DcmiStubSetUrmaDeviceCnt(3, 0);
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
 
@@ -753,6 +761,7 @@ TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostSuccess) {
 
 TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostUsesUserServerId) {
   DcmiStubSetMainboardId(0x21, 0);
+  DcmiStubSetUrmaDeviceCnt(3, 0);
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
   const std::string user_lcr =
       R"({"version":"1.3","server_id":"user-server-1","net_instance_id":"superpod_1","endpoint_list":[]})";
@@ -765,6 +774,7 @@ TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostUsesUserServerId) {
 
 TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostEmptyUserServerIdGenerates) {
   DcmiStubSetMainboardId(0x21, 0);
+  DcmiStubSetUrmaDeviceCnt(3, 0);
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
   const std::string user_lcr = R"({"version":"1.3","server_id":"","endpoint_list":[]})";
 
@@ -776,6 +786,7 @@ TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostEmptyUserServerIdGenerates
 
 TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostConcatHostPgWhenAclInvalid) {
   DcmiStubSetMainboardId(0x21, 0);
+  DcmiStubSetUrmaDeviceCnt(3, 0);
   endpoint_test::MockAclRuntimeStub acl_stub;
   acl_stub.super_pod_server_id_ = 65535;
   llm::AclRuntimeStub::Install(&acl_stub);
@@ -813,6 +824,7 @@ TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlyKeepsUserServerId) {
 
 TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostFailsWhenHostPgEidCountNotTwo) {
   DcmiStubSetMainboardId(0x21, 0);
+  DcmiStubSetUrmaDeviceCnt(3, 0);
   endpoint_test::MockAclRuntimeStub acl_stub;
   acl_stub.super_pod_server_id_ = 65535;
   llm::AclRuntimeStub::Install(&acl_stub);
@@ -848,6 +860,7 @@ TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostRouteFailed) {
   // 应直接报错，不返回部分结果；server_8p_noroce.json 为 Server topo（fullmesh die1），
   // 显式用 Server 形态使 die/topo 语义一致，确保失败确实源于 route 采集而非 die 不匹配
   DcmiStubSetMainboardId(0x21, 0);  // Server 形态
+  DcmiStubSetUrmaDeviceCnt(3, 0);
   std::string empty_dir = CreateEmptyTempDirForUrmaAdmin();
   ASSERT_FALSE(empty_dir.empty());
   std::string base_path = SetUrmaAdminPath(empty_dir);
@@ -910,6 +923,24 @@ TEST_F(LocalCommResGenerateTest, MeshDieResolvedFromTopo) {
             res.endpoint_list.end());
 }
 
+TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlyEmitsBothClosPlanes) {
+  // Two CLOS URMA groups (UDMA1 smaller, UDMA2 larger): both D2U planes must be emitted.
+  DcmiStubSetUrmaDeviceCnt(3, 0);
+  DcmiStubSetMainboardId(0x3, 0);
+  DcmiStubSetMeshDieId(1);
+
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_NE(std::find_if(res.endpoint_list.begin(), res.endpoint_list.end(),
+                         [](const EndpointConfig &ep) { return ep.plane == "plane_pg_0"; }),
+            res.endpoint_list.end());
+  EXPECT_NE(std::find_if(res.endpoint_list.begin(), res.endpoint_list.end(),
+                         [](const EndpointConfig &ep) { return ep.plane == "plane_pg_1"; }),
+            res.endpoint_list.end());
+}
+
 TEST_F(LocalCommResGenerateTest, ClosDieMajorityFromMixedSixPlusTwo) {
   // 6+2：同一条 CLOS 边上前 2 口在 die0、后 6 口在 die1；应取口数更多的 die1，
   // 而不是 ResolveDieIdFromPorts 的第一条端口 die0。
@@ -931,7 +962,7 @@ TEST_F(LocalCommResGenerateTest, ClosDieMajorityFromMixedSixPlusTwo) {
 
 TEST_F(LocalCommResGenerateTest, GenerateFailsOnInvalidMeshPortFormat) {
   // mesh 端口无 '/' → ParseDiePort FAILED
-  std::string topo_json = R"({"edge_list":[
+  std::string topo_json = R"({"peer_count":8,"edge_list":[
     {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,
      "local_a_ports":["bad"],"local_b_ports":["0/2"]}
   ]})";
@@ -940,7 +971,7 @@ TEST_F(LocalCommResGenerateTest, GenerateFailsOnInvalidMeshPortFormat) {
 
 TEST_F(LocalCommResGenerateTest, GenerateFailsOnEmptyMeshPortList) {
   // mesh 端口列表为空 → ResolveDieIdFromPorts FAILED
-  std::string topo_json = R"({"edge_list":[
+  std::string topo_json = R"({"peer_count":8,"edge_list":[
     {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,
      "local_a_ports":[],"local_b_ports":["0/2"]}
   ]})";
@@ -949,7 +980,7 @@ TEST_F(LocalCommResGenerateTest, GenerateFailsOnEmptyMeshPortList) {
 
 TEST_F(LocalCommResGenerateTest, GenerateFailsOnInvalidClosPortFormat) {
   // mesh 合法，CLOS 端口未整串消费 → ParseDiePort FAILED
-  std::string topo_json = R"({"edge_list":[
+  std::string topo_json = R"({"peer_count":8,"edge_list":[
     {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,
      "local_a_ports":["0/2"],"local_b_ports":["0/2"]},
     {"net_layer":1,"link_type":"PEER2NET","topo_type":"CLOS","local_a":0,
@@ -960,13 +991,77 @@ TEST_F(LocalCommResGenerateTest, GenerateFailsOnInvalidClosPortFormat) {
 
 TEST_F(LocalCommResGenerateTest, GenerateFailsOnClosDieOutOfRange) {
   // CLOS die_id=2 超出双 die 范围 → ParseDiePort FAILED
-  std::string topo_json = R"({"edge_list":[
+  std::string topo_json = R"({"peer_count":8,"edge_list":[
     {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,
      "local_a_ports":["0/2"],"local_b_ports":["0/2"]},
     {"net_layer":1,"link_type":"PEER2NET","topo_type":"CLOS","local_a":0,
      "local_a_ports":["2/1"]}
   ]})";
   EXPECT_EQ(GenerateDeviceOnlyFromTopoJson(topo_json), FAILED);
+}
+
+// --- 16 NPU (pc16) adaptation ---
+
+TEST_F(LocalCommResGenerateTest, GenerateDevice16NpuSuccess) {
+  // 16-NPU topo, kDeviceOnly: device edges should generate
+  DcmiStubSetMeshDieId(0);  // stub EIDs follow die0 (matches server_16p.json fullmesh)
+  acl_stub_->device_count_ = 16;
+
+  std::string topo_path = data_dir_ + "server_16p.json";
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_FALSE(res.endpoint_list.empty());
+  EXPECT_TRUE(std::all_of(res.endpoint_list.begin(), res.endpoint_list.end(),
+                          [](const EndpointConfig &ep) { return ep.placement == kPlacementDevice; }));
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlyTwoVisibleNpus) {
+  // Container with user 0/1 only: D2D is kept only when the peer is visible.
+  DcmiStubSetMainboardId(0x21, 0);
+  DcmiStubSetUrmaDeviceCnt(3, 0);
+  DcmiStubSetMeshDieId(1);
+  acl_stub_->device_count_ = 2;
+
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_NE(std::find_if(res.endpoint_list.begin(), res.endpoint_list.end(),
+                         [](const EndpointConfig &ep) {
+                           return ep.placement == kPlacementDevice && !ep.dst_eid.empty() && ep.plane.empty();
+                         }),
+            res.endpoint_list.end());
+  EXPECT_NE(std::find_if(res.endpoint_list.begin(), res.endpoint_list.end(),
+                         [](const EndpointConfig &ep) { return !ep.plane.empty(); }),
+            res.endpoint_list.end());
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateFailsWhenPhyNotVisible) {
+  acl_stub_->device_count_ = 2;
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(7, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
+  EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlySingleVisibleNpu) {
+  // One visible NPU: no D2D, D2U still generated.
+  DcmiStubSetMainboardId(0x21, 0);
+  DcmiStubSetUrmaDeviceCnt(3, 0);
+  DcmiStubSetMeshDieId(1);
+  acl_stub_->device_count_ = 1;
+
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, res);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_TRUE(std::none_of(res.endpoint_list.begin(), res.endpoint_list.end(), [](const EndpointConfig &ep) {
+    return ep.placement == kPlacementDevice && !ep.dst_eid.empty() && ep.plane.empty();
+  }));
+  EXPECT_NE(std::find_if(res.endpoint_list.begin(), res.endpoint_list.end(),
+                         [](const EndpointConfig &ep) { return !ep.plane.empty(); }),
+            res.endpoint_list.end());
 }
 
 TEST_F(LocalCommResGenerateTest, GenerateTopoNotFound) {
@@ -1045,7 +1140,7 @@ TEST_F(LocalCommResGenerateTest, GenerateEmptyAllEdges) {
   DcmiStubSetEidCount(1);          // Only non-PG EID, no PG EID
 
   std::string topo_json =
-      R"({"version":"2.0","edge_list":[{"net_layer":1,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1}]})";
+      R"({"version":"2.0","peer_count":8,"edge_list":[{"net_layer":1,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1}]})";
   std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", topo_json);
   ASSERT_FALSE(tmp_topo.empty());
 
@@ -1056,7 +1151,7 @@ TEST_F(LocalCommResGenerateTest, GenerateEmptyAllEdges) {
   unlink(tmp_topo.c_str());
 }
 
-// --- 产品形态覆盖（IsProductServer / IsProductPod / GetMeshDieId） ---
+// --- 产品形态覆盖（IsProductServer，die 由 topo 解析） ---
 
 TEST_F(LocalCommResGenerateTest, GenerateServerOddMainboardId) {
   // mainboard_id=0x23（奇数，在 [0x21,0x2B] 范围内）→ IsProductServer=true
@@ -1081,7 +1176,7 @@ TEST_F(LocalCommResGenerateTest, GenerateServerEvenMainboardIdInRange2) {
 }
 
 TEST_F(LocalCommResGenerateTest, GenerateNotServerEvenInRange1) {
-  // mainboard_id=0x22（偶数，在 [0x21,0x2B] 范围内但不满足 %2==1）→ IsProductServer=false, IsProductPod=false
+  // mainboard_id=0x22（偶数，在 [0x21,0x2B] 范围内但不满足 %2==1）→ IsProductServer=false
   DcmiStubSetMainboardId(0x22, 0);
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
@@ -1121,7 +1216,7 @@ TEST_F(LocalCommResGenerateTest, GenerateNotServerAboveRange) {
 }
 
 TEST_F(LocalCommResGenerateTest, GeneratePod2MainboardId) {
-  // mainboard_id=0x5 → IsProductPod=true (Pod2)
+  // mainboard_id=0x5 → Pod2，默认 topo 走 atlas_950_1.json
   DcmiStubSetMainboardId(0x5, 0);
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
@@ -1132,7 +1227,7 @@ TEST_F(LocalCommResGenerateTest, GeneratePod2MainboardId) {
 }
 
 TEST_F(LocalCommResGenerateTest, GeneratePod3MainboardId) {
-  // mainboard_id=0x7 → IsProductPod=true (Pod3)
+  // mainboard_id=0x7 → Pod3，默认 topo 走 atlas_950_1.json
   DcmiStubSetMainboardId(0x7, 0);
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
@@ -1555,6 +1650,36 @@ TEST_F(TopoFileFinderTest, FindTopoFileServerOddMainboardId) {
 
   EXPECT_FALSE(result.empty());
   EXPECT_NE(result.find("850"), std::string::npos);
+
+  CleanupTopoTempDir(temp_dir);
+}
+
+TEST_F(TopoFileFinderTest, FindTopoFilePc16Product) {
+  // pc16 (mainboard_id=0x2D / 0x2F) → atlas_950_2.json in the default 950 topo dir
+  std::string temp_dir = CreateTempTopoDir(true, true);
+  ASSERT_FALSE(temp_dir.empty());
+  {
+    std::ofstream of((temp_dir + "/atlas_950_2.json").c_str());
+    of << "{}";
+  }
+
+  hixl::TopoFileFinder finder;
+  std::string result_a = finder.FindTopoFile(temp_dir, 0x2D);
+  std::string result_b = finder.FindTopoFile(temp_dir, 0x2F);
+  EXPECT_NE(result_a.find("atlas_950_2.json"), std::string::npos);
+  EXPECT_EQ(result_a, result_b);
+
+  CleanupTopoTempDir(temp_dir);
+}
+
+TEST_F(TopoFileFinderTest, FindTopoFilePc16MissingFile) {
+  // Mapping hits atlas_950_2.json; file absent → empty path
+  std::string temp_dir = CreateTempTopoDir(true, true);
+  ASSERT_FALSE(temp_dir.empty());
+
+  hixl::TopoFileFinder finder;
+  EXPECT_TRUE(finder.FindTopoFile(temp_dir, 0x2D).empty());
+  EXPECT_TRUE(finder.FindTopoFile(temp_dir, 0x2F).empty());
 
   CleanupTopoTempDir(temp_dir);
 }

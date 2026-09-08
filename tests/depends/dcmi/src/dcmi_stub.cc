@@ -160,15 +160,32 @@ static int FillUdma0Eids(EidInfoRaw *infos, int eid_cnt_max, int mesh_die_id) {
   return count;
 }
 
-// Fill UDMA 1 for Server: 1 standalone non-PG EID on non-mesh die
+// Fill UDMA 1 for Server: 1 standalone non-PG EID on non-mesh die (FindServerRemoteEid).
 static int FillUdma1ServerEids(EidInfoRaw *infos, int eid_cnt_max, int non_mesh_die) {
   if (eid_cnt_max < 1) {
     return 0;
   }
-  unsigned char byte5 = (non_mesh_die == 0) ? 0x02 : 0x52;
-  BuildDefaultEid(infos[0].eid.raw, byte5);
+  unsigned char phys_byte = (non_mesh_die == 0) ? 0x02 : 0x52;
+  BuildDefaultEid(infos[0].eid.raw, phys_byte);
   infos[0].eid_index = 0;
   return 1;
+}
+
+// Fill UDMA 2: larger CLOS group (6 physical ports + PG) for two-plane tests
+static int FillUdma2ClosEids(EidInfoRaw *infos, int eid_cnt_max, int non_mesh_die) {
+  constexpr int32_t kPhysPorts = 6;
+  if (eid_cnt_max < kPhysPorts + 1) {
+    return 0;
+  }
+  unsigned char phys_base = (non_mesh_die == 0) ? 0x01 : 0x51;
+  unsigned char pg_byte = (non_mesh_die == 0) ? 0x37 : 0x77;
+  for (int32_t i = 0; i < kPhysPorts; ++i) {
+    BuildDefaultEid(infos[i].eid.raw, static_cast<unsigned char>(phys_base + i));
+    infos[i].eid_index = static_cast<unsigned int>(i);
+  }
+  BuildDefaultEid(infos[kPhysPorts].eid.raw, pg_byte);
+  infos[kPhysPorts].eid_index = static_cast<unsigned int>(kPhysPorts);
+  return kPhysPorts + 1;
 }
 
 // Fill UDMA 1 for PoD: 2+1 group (2 non-PG + 1 PG) on non-mesh die
@@ -206,6 +223,8 @@ int dcmiv2_get_eid_list_by_urma_dev_index(int npu_id, int urma_dev_index, void *
   } else if (urma_dev_index == 1) {
     count = is_server ? FillUdma1ServerEids(infos, *eid_cnt, non_mesh_die)
                       : FillUdma1PodEids(infos, *eid_cnt, non_mesh_die);
+  } else if (urma_dev_index == 2) {
+    count = FillUdma2ClosEids(infos, *eid_cnt, non_mesh_die);
   }
   *eid_cnt = count;
   return 0;
