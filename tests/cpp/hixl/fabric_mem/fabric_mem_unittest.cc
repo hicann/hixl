@@ -800,6 +800,24 @@ TEST_F(FabricMemLocalMemoryUTest, RegisterForeignReusesAdjacentRangesOnSamePaBlo
   EXPECT_TRUE(local_memory_.GetShareHandles().empty());
 }
 
+TEST_F(FabricMemLocalMemoryUTest, FinalizeReleasesSharedForeignPaPages) {
+  constexpr uintptr_t kBase = 0x3000000UL;
+  constexpr size_t kBlock = 0x1000U;
+  constexpr size_t kHalf = kBlock / 2U;
+  runtime_->SetAddressRanges({{kBase, kBlock}});
+
+  MemHandle first = nullptr;
+  MemHandle second = nullptr;
+  ASSERT_EQ(local_memory_.RegisterMem({kBase, kHalf}, MEM_DEVICE, first), SUCCESS);
+  ASSERT_EQ(local_memory_.RegisterMem({kBase + kHalf, kHalf}, MEM_DEVICE, second), SUCCESS);
+  EXPECT_EQ(runtime_->free_physical_count_, 0U);
+
+  EXPECT_NO_THROW(local_memory_.Finalize());
+  EXPECT_EQ(runtime_->free_physical_count_, 1U);
+  EXPECT_TRUE(local_memory_.GetShareHandles().empty());
+  EXPECT_FALSE(local_memory_.HasHostMemory());
+}
+
 TEST_F(FabricMemLocalMemoryUTest, RegisterForeignReusesSharedPaThenExportsNewPage) {
   constexpr uintptr_t kBase0 = 0x1000000UL;
   constexpr size_t kBlock = 0x1000U;

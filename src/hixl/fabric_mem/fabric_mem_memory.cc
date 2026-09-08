@@ -113,10 +113,10 @@ void FabricMemLocalMemory::ReleaseSegment(LocalMemSegment &segment) {
 }
 
 void FabricMemLocalMemory::ReleaseRegistration(LocalMemRegistration &registration) {
-  std::vector<LocalMemSegment> shared_to_release;
-  {
-    std::lock_guard<std::mutex> lock(share_handle_mutex_);
-    for (const uintptr_t page_addr : registration.foreign_pa_pages) {
+  for (const uintptr_t page_addr : registration.foreign_pa_pages) {
+    std::unique_ptr<ExportedPa> exported;
+    {
+      std::lock_guard<std::mutex> lock(share_handle_mutex_);
       const auto it = exported_pas_.find(page_addr);
       if (it == exported_pas_.end() || it->second == nullptr) {
         continue;
@@ -125,19 +125,19 @@ void FabricMemLocalMemory::ReleaseRegistration(LocalMemRegistration &registratio
         --it->second->refcount;
       }
       if (it->second->refcount == 0U) {
-        shared_to_release.emplace_back(std::move(it->second->segment));
+        exported = std::move(it->second);
         exported_pas_.erase(it);
       }
     }
-    registration.foreign_pa_pages.clear();
+    if (exported != nullptr) {
+      ReleaseSegment(exported->segment);
+    }
   }
+  registration.foreign_pa_pages.clear();
   for (auto &segment : registration.segments) {
     ReleaseSegment(segment);
   }
   registration.segments.clear();
-  for (auto &segment : shared_to_release) {
-    ReleaseSegment(segment);
-  }
 }
 
 Status FabricMemLocalMemory::ExportSegment(const MemDesc &mem, MemType type, aclrtDrvMemHandle pa_handle,
