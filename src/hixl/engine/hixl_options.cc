@@ -15,16 +15,18 @@
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
+#include <limits>
 #include <string>
 #include <sys/stat.h>
 #include <unistd.h>
 
 #include "nlohmann/json.hpp"
 #include "common/hixl_checker.h"
+#include "common/hixl_inner_types.h"
 #include "common/hixl_log.h"
-#include "common/scope_guard.h"
 #include "common/hixl_utils.h"
 #include "common/json_utils.h"
+#include "common/scope_guard.h"
 #include "fabric_mem/fabric_mem_config.h"
 
 namespace hixl {
@@ -212,6 +214,14 @@ Status ParseCommResourceConfig(const nlohmann::json &json, CommResourceConfigDes
                                                  kMaxActiveChannels, ""};
   HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, max_active_channels_range, cfg.max_active_channels),
                       "Failed to parse comm_resource_config.max_active_channels");
+  IntegerFieldRange multi_worker_num_range = {"comm_resource_config.multi_channel.num_workers", 1U, kMaxMultiWorkerNum,
+                                              ""};
+  HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, multi_worker_num_range, cfg.multi_worker_num),
+                      "Failed to parse comm_resource_config.multi_channel.num_workers");
+  IntegerFieldRange split_batch_range = {"comm_resource_config.multi_channel.split_batch_size", 1U,
+                                         std::numeric_limits<uint32_t>::max(), ""};
+  HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, split_batch_range, cfg.multi_channel_split_batch_size),
+                      "Failed to parse comm_resource_config.multi_channel.split_batch_size");
   return SUCCESS;
 }
 

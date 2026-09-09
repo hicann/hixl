@@ -22,6 +22,8 @@
 
 namespace llm {
 std::string &GetAclStubMock();
+void SetStubMallocHostFailOn(int32_t failOn);
+void ResetStubMallocHostCounter();
 
 #define RUTIME_MOCK_QUERY_EVENT_INTERVAL 5
 class AclRuntimeStub {

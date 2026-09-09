@@ -187,6 +187,8 @@ class HixlEngine : public hixl::Engine {
   std::atomic<bool> auto_connect_{false};
   std::optional<uint8_t> qos_;
   std::optional<uint32_t> max_active_channels_;
+  uint32_t multi_worker_num_{1U};
+  uint32_t multi_channel_split_batch_size_{kDefaultSplitBatchSize};
   OptionalAclrtContext aclrt_context_;
 };
 }  // namespace hixl

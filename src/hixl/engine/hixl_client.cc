@@ -82,10 +82,21 @@ Status HixlClient::Initialize(const std::vector<EndpointConfig> &local_endpoint_
         i, local_engine_.c_str(), remote_engine_.c_str(), CommTypeToString(pair.type), pair.local.ToString().c_str(),
         pair.remote.ToString().c_str());
   }
-  HandlerCreateArgs args{
-      server_ip_,    server_port_,         rdma_tc_, rdma_sl_,   handler_type, std::move(matched_pairs),
-      qos_,          max_active_channels_, is_lazy,  timeout_ms, ctrl_socket_, local_engine_,
-      remote_engine_};
+  HandlerCreateArgs args{server_ip_,
+                         server_port_,
+                         rdma_tc_,
+                         rdma_sl_,
+                         handler_type,
+                         std::move(matched_pairs),
+                         qos_,
+                         max_active_channels_,
+                         multi_worker_num_,
+                         multi_channel_split_batch_size_,
+                         is_lazy,
+                         timeout_ms,
+                         ctrl_socket_,
+                         local_engine_,
+                         remote_engine_};
   client_handler_ = ClientHandlerFactory::Create(args);
   HIXL_CHECK_NOTNULL(client_handler_, "ClientHandlerFactory create handler failed");
   HIXL_DISMISS_GUARD(close_ctrl_socket);
