@@ -69,8 +69,8 @@ initialize(local_engine: str, options: Dict[str, str] = {}) -> int
 
 | Parameter | Optional/Required | Description |
 | --- | --- | --- |
-| OPTION_ENABLE_USE_FABRIC_MEM | Optional | String value "EnableUseFabricMem".<br>- 0: Do not enable Fabric Mem mode<br>- 1: Enable Fabric Mem mode<br><br>This option applies to scenarios requiring HCCS for D2RH, RH2D transfers.<br><br>Note: In cluster scenarios, this parameter must be configured with the same value on all nodes. This parameter cannot be configured simultaneously with "OPTION_BUFFER_POOL". Only supported on Atlas A3 Training Series/Atlas A3 Inference Series. |
-| OPTION_BUFFER_POOL | Optional | String value "BufferPool".<br>In scenarios requiring relay buffer for transfer:<br>- When RDMA registered Host memory size is limited.<br>- When multiple small memory blocks (e.g., 128K) need relay transfer to improve performance.<br>This option can be used to configure relay memory pool size, format is "${BUFFER_NUM}:${BUFFER_SIZE}", system default is "4:8(unit MB)", can be configured as "0:0" to disable relay memory pool. In concurrent scenarios, it is recommended to increase ${BUFFER_NUM}. Additionally, all usage locations must configure the same value. This parameter cannot be configured simultaneously with "OPTION_ENABLE_USE_FABRIC_MEM".<br>Note: When this parameter is not configured, the following constraints apply.<br><br>Atlas A2 Training Series/Atlas A2 Inference Series: Only Atlas 800I A2 Inference Server and A200I A2 Box heterogeneous components are supported. In this scenario, when Server uses HCCS transfer protocol, only D2D is supported. |
+| OPTION_ENABLE_USE_FABRIC_MEM | Optional | String value "EnableUseFabricMem".<br>- 0: Do not enable Fabric Mem mode<br>- 1: Enable Fabric Mem mode<br>Note: In cluster scenarios, this parameter must be configured with the same value on all nodes. Only supported on Atlas A3 Training Series/Atlas A3 Inference Series. |
+| OPTION_BUFFER_POOL | Optional | String value "BufferPool".<br>This option configures the relay memory pool and enables relay transfer mode. Format is "${BUFFER_NUM}:${BUFFER_SIZE}". System default is "4:8 (unit: MB)". Set to "0:0" to disable relay mode. |
 | OPTION_RDMA_TRAFFIC_CLASS | Optional | String value "RdmaTrafficClass".<br>Used to configure RDMA NIC traffic class. Same function as environment variable HCCL_RDMA_TC. If both are configured, current option has higher priority; if only one is configured, that configuration takes effect.<br>Value range is [0,255], and must be configured as a multiple of 4, default value is 132. |
 | OPTION_RDMA_SERVICE_LEVEL | Optional | String value "RdmaServiceLevel".<br>Used to configure RDMA NIC service level. Same function as environment variable HCCL_RDMA_SL. If both are configured, current option has higher priority; if only one is configured, that configuration takes effect.<br>Value range is [0, 7], default value is 4. |
 | OPTION_GLOBAL_RESOURCE_CONFIG | Optional | String value "GlobalResourceConfig". Used to enable and configure global resource configuration. For configuration examples and usage constraints, see below the table. |
@@ -137,7 +137,7 @@ Device-side NIC default listening port is 16666. In scenarios where multiple pro
 
 ```sh
 {
-    "comm_resource_config.listen_port": "26666", //Optional, value range: integer in [1, 65535]. When not configured, auto-generated ranktable does not carry device_port field
+    "comm_resource_config.listen_port": "26666", //Optional, value range: integer in [1, 65535].
     "comm_resource_config.max_active_channels": "128" //Optional, configure device-side concurrent active transfer channel count in CS scenario. Value range: [1, 8192], default: 128, each active channel consumes 2 Stream resources
 }
 ```
@@ -162,20 +162,11 @@ For link pool mechanism, the parameter configuration example:
 }
 ```
 
-When link pool is working, when link count reaches high watermark threshold, select (current link count - link count corresponding to low watermark threshold) links for destruction (links currently transferring will not be destroyed). Related parameter calculations:
-
-```sh
-Link count at high watermark = max(1, floor(channel_pool.max_channel × channel_pool.high_waterline))
-Link count at low watermark = max(1, floor(channel_pool.max_channel × channel_pool.low_waterline))
-```
-
-In the above configuration example, link count at high watermark = 3, link count at low watermark = 1. Before each link establishment, check if current link count has reached 3, if so, select (current link count - 1) links for destruction (links currently transferring will not be destroyed).
-
-Notes when enabling link pool mechanism:
+Notes for the link pool mechanism:
 
 - All Hixl Engines in the cluster must configure OPTION_GLOBAL_RESOURCE_CONFIG.
-- When calling transfer_sync or transfer_async interfaces, if no available links exist, link pool will automatically perform link establishment.
-- Link pool mechanism introduces additional transfer and link establishment overhead, which may cause performance degradation.
+- The link pool mechanism introduces extra overhead and degrades performance.
+- Supported only in communication-domain mode; other modes such as HIXL_CS are not supported.
 <!-- end id7 -->
 
 <!-- npu="950" id4 -->
