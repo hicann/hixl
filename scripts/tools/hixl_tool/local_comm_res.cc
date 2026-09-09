@@ -101,19 +101,19 @@ bool ParseDeviceIdArg(const std::string &id_str, LocalCommResArgs &args) {
   while (std::getline(iss, token, ',')) {
     token = TrimToken(token);
     if (token.empty()) {
-      std::fprintf(stderr, "[ERROR] Empty device_id in list\n");
+      std::printf("[ERROR] Empty device_id in list\n");
       return false;
     }
     size_t parsed = 0;
     try {
       const int32_t device_id = std::stoi(token, &parsed);
       if (parsed != token.size() || device_id < 0) {
-        std::fprintf(stderr, "[ERROR] Invalid device_id: %s\n", token.c_str());
+        std::printf("[ERROR] Invalid device_id: %s\n", token.c_str());
         return false;
       }
       args.device_ids.push_back(device_id);
     } catch (const std::exception &) {
-      std::fprintf(stderr, "[ERROR] Invalid device_id: %s\n", token.c_str());
+      std::printf("[ERROR] Invalid device_id: %s\n", token.c_str());
       return false;
     }
   }
@@ -128,7 +128,7 @@ bool ParseLocalCommResArgs(const std::vector<std::string> &args, LocalCommResArg
       return false;
     }
     if (i + 1 >= args.size()) {
-      std::fprintf(stderr, "[ERROR] Missing value for option: %s\n", arg.c_str());
+      std::printf("[ERROR] Missing value for option: %s\n", arg.c_str());
       return false;
     }
     if (arg == "--topo_file_path") {
@@ -141,13 +141,13 @@ bool ParseLocalCommResArgs(const std::vector<std::string> &args, LocalCommResArg
       out_args.protocol_desc = args[++i];
     } else if (arg == "--host_route_file_path") {
       ++i;
-      std::fprintf(stderr, "[WARN] --host_route_file_path is obsolete; route_data is auto-generated inside engine\n");
+      std::printf("[WARN] --host_route_file_path is obsolete; route_data is auto-generated inside engine\n");
     } else if (arg == "--output") {
       out_args.output_dir = args[++i];
     } else if (arg == "--file_name_prefix") {
       out_args.file_name_prefix = args[++i];
     } else {
-      std::fprintf(stderr, "[ERROR] Unknown option: %s\n", arg.c_str());
+      std::printf("[ERROR] Unknown option: %s\n", arg.c_str());
       PrintLocalCommResUsage();
       return false;
     }
@@ -159,7 +159,7 @@ int32_t EnumerateDeviceIds(std::vector<int32_t> &device_ids) {
   uint32_t device_count = 0;
   aclError acl_ret = aclrtGetDeviceCount(&device_count);
   if (acl_ret != ACL_SUCCESS || device_count == 0) {
-    std::fprintf(stderr, "[ERROR] aclrtGetDeviceCount failed or no device, ret=%d\n", static_cast<int>(acl_ret));
+    std::printf("[ERROR] aclrtGetDeviceCount failed or no device, ret=%d\n", static_cast<int>(acl_ret));
     return -1;
   }
   for (uint32_t i = 0; i < device_count; ++i) {
@@ -183,18 +183,18 @@ void PrintUsageHints(const std::string &output_dir, const std::string &prefix) {
 bool WriteLocalCommResJson(const std::string &output_path, const hixl::LocalCommRes &local_comm_res) {
   std::string json_str;
   if (hixl::SerializeLocalCommResJson(local_comm_res, json_str) != hixl::SUCCESS) {
-    std::fprintf(stderr, "[ERROR] Failed to serialize LocalCommRes to JSON\n");
+    std::printf("[ERROR] Failed to serialize LocalCommRes to JSON\n");
     return false;
   }
 
   std::ofstream file(output_path, std::ios::out | std::ios::trunc);
   if (!file.is_open()) {
-    std::fprintf(stderr, "[ERROR] Failed to open output file: %s\n", output_path.c_str());
+    std::printf("[ERROR] Failed to open output file: %s\n", output_path.c_str());
     return false;
   }
   file << json_str;
   if (!file.good()) {
-    std::fprintf(stderr, "[ERROR] Failed to write output file: %s\n", output_path.c_str());
+    std::printf("[ERROR] Failed to write output file: %s\n", output_path.c_str());
     return false;
   }
   file.close();
@@ -222,7 +222,7 @@ bool GenerateLocalCommResForDevice(int32_t device_id, const std::string &topo_pa
   options_map[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = hixl::AscendString(config.dump().c_str());
   hixl::HixlOptions options;
   if (hixl::HixlOptions::Parse(options_map, options) != hixl::SUCCESS) {
-    std::fprintf(stderr, "[ERROR] HixlOptions::Parse failed for device_id=%d\n", device_id);
+    std::printf("[ERROR] HixlOptions::Parse failed for device_id=%d\n", device_id);
     return false;
   }
 
@@ -230,12 +230,11 @@ bool GenerateLocalCommResForDevice(int32_t device_id, const std::string &topo_pa
   // local_engine is an empty placeholder (the tool currently auto-generates A5 only).
   const hixl::Status ret = hixl::EndpointGenerator::AutoGenEndpointList(options, "", endpoint_list, topo_path);
   if (ret != hixl::SUCCESS) {
-    std::fprintf(stderr, "[ERROR] AutoGenEndpointList failed for device_id=%d, ret=%u\n", device_id,
-                 static_cast<unsigned>(ret));
+    std::printf("[ERROR] AutoGenEndpointList failed for device_id=%d, ret=%u\n", device_id, static_cast<unsigned>(ret));
     return false;
   }
   if (endpoint_list.empty()) {
-    std::fprintf(stderr, "[ERROR] endpoint_list is empty after AutoGenEndpointList, device_id=%d\n", device_id);
+    std::printf("[ERROR] endpoint_list is empty after AutoGenEndpointList, device_id=%d\n", device_id);
     return false;
   }
 
@@ -257,15 +256,14 @@ bool ProcessOneDevice(int32_t device_id, const LocalCommResArgs &args,
                       const std::vector<std::string> &protocol_tokens) {
   aclError acl_ret = aclrtSetDevice(device_id);
   if (acl_ret != ACL_SUCCESS) {
-    std::fprintf(stderr, "[ERROR] aclrtSetDevice(%d) failed, ret=%d\n", device_id, static_cast<int>(acl_ret));
+    std::printf("[ERROR] aclrtSetDevice(%d) failed, ret=%d\n", device_id, static_cast<int>(acl_ret));
     return false;
   }
 
   int32_t phy_id = -1;
   acl_ret = aclrtGetPhyDevIdByUserDevId(device_id, &phy_id);
   if (acl_ret != ACL_SUCCESS) {
-    std::fprintf(stderr, "[ERROR] aclrtGetPhyDevIdByUserDevId(%d) failed, ret=%d\n", device_id,
-                 static_cast<int>(acl_ret));
+    std::printf("[ERROR] aclrtGetPhyDevIdByUserDevId(%d) failed, ret=%d\n", device_id, static_cast<int>(acl_ret));
     aclrtResetDevice(device_id);
     return false;
   }
@@ -274,7 +272,7 @@ bool ProcessOneDevice(int32_t device_id, const LocalCommResArgs &args,
 
   hixl::LocalCommRes local_comm_res;
   if (!GenerateLocalCommResForDevice(device_id, args.topo_file_path, protocol_tokens, local_comm_res)) {
-    std::fprintf(stderr, "[ERROR] GenerateLocalCommResForDevice failed for device_id=%d\n", device_id);
+    std::printf("[ERROR] GenerateLocalCommResForDevice failed for device_id=%d\n", device_id);
     aclrtResetDevice(device_id);
     return false;
   }
@@ -284,7 +282,6 @@ bool ProcessOneDevice(int32_t device_id, const LocalCommResArgs &args,
     output_path += "/";
   }
   output_path += args.file_name_prefix + "_" + std::to_string(device_id) + "_" + std::to_string(phy_id) + ".json";
-
   if (!WriteLocalCommResJson(output_path, local_comm_res)) {
     aclrtResetDevice(device_id);
     return false;
