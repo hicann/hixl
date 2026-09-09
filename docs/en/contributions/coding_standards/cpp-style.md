@@ -9,19 +9,20 @@
 | 1.1 | C++ files use lowercase + underscore naming | Naming | Medium |
 | 1.2 | Function naming uses UpperCamelCase | Naming | Medium |
 | 1.3 | Type naming uses UpperCamelCase | Naming | Medium |
-| 1.4 | Variable naming uses lowerCamelCase | Naming | Medium |
+| 1.4 | Variable naming uses snake_case | Naming | Medium |
 | 1.5 | Macros and enum values use all-uppercase with underscores | Naming | Medium |
+| 1.6 | Compile-time constants use k-prefix UpperCamelCase | Naming | Medium |
 | 2.1 | Line width must not exceed 120 characters | Formatting | Low |
-| 2.2 | Use space indentation, 4 spaces per level | Formatting | Medium |
+| 2.2 | Use space indentation, 2 spaces per level | Formatting | Medium |
 | 2.3 | `&` and `*` follow the variable name | Formatting | Low |
 | 2.4 | if statements must use braces | Formatting | Medium |
 | 2.5 | for/while loops must use braces | Formatting | Medium |
 | 2.6 | Place operators at the end of the line when wrapping expressions | Formatting | Low |
-| 2.7 | Use K&R indentation style | Formatting | Medium |
+| 2.7 | Use attached (Attach) brace style | Formatting | Medium |
 | 2.8 | Multiple variable definitions on one line are not allowed | Formatting | Low |
 | 2.9 | Arrange blank lines reasonably to keep code compact | Formatting | Low |
 | 3.1 | File header comments must include copyright notice | Comments | Medium |
-| 3.2 | Comments use `//` with a space between the comment and code | Comments | Low |
+| 3.2 | Trailing comments use `//`, with a space between code and comment | Comments | Low |
 | 3.3 | Do not use TODO/TBD/FIXME comments | Comments | Medium |
 | 3.4 | Do not write function header comments with empty formatting | Comments | Low |
 | 3.5 | Delete unused code directly; do not comment it out | Comments | Medium |
@@ -40,20 +41,23 @@ Code style review of CANN-related open-source repositories.
 
 ### 1. Naming
 
-#### CamelCase
+#### Naming Styles
 
-CamelCase mixes uppercase and lowercase letters, with words joined together and separated by capitalizing the first letter of each word. Depending on whether the first letter of the joined result is capitalized, it is further divided into: UpperCamelCase and lowerCamelCase.
+**CamelCase**: mixes uppercase and lowercase letters, with words joined together and separated by capitalizing the first letter of each word. Depending on whether the first letter of the joined result is capitalized, it is further divided into: UpperCamelCase and lowerCamelCase.
+
+**snake_case**: all words are lowercase and separated by underscores, for example, `table_name`.
 
 | Type | Naming Style |
 | ---------------------------------------- | --------- |
 | Class types, struct types, enum types, union types and other type definitions, scope names | UpperCamelCase |
 | Functions (including global functions, scope functions, member functions) | UpperCamelCase |
-| Global variables (including variables in global and namespace scope, class static variables), local variables, function parameters, member variables of classes, structs, and unions | lowerCamelCase |
-| Macros, constants (const), enum values, goto labels | All-uppercase, separated by underscores |
+| Compile-time constants (constexpr, or const initialized with literals/compile-time constant expressions, in any scope) | k-prefix UpperCamelCase |
+| Global variables (including variables in global and namespace scope, class static variables), local variables, function parameters, member variables of classes, structs, and unions | snake_case |
+| Macros, enum values, goto labels | All-uppercase, separated by underscores |
 
 Note:
-**Constants** in the table above refer to variables of basic data types, enums, and string types modified by const or constexpr in the global scope, namespace scope, and class static member scope; they do not include arrays and other types of variables.
-**Variables** in the table above refer to all variables other than constant definitions, all using the lowerCamelCase style.
+**Constants** in the table above refer to const/constexpr variables of basic data types, enums, and string types whose values are determined at compile time (constexpr, or const initialized with literals/compile-time constant expressions; in any scope); they do not include arrays and other types of variables. const variables initialized from function calls or runtime data are not constants and are named as ordinary variables.
+**Variables** in the table above refer to all variables other than constant definitions, all using the snake_case style.
 
 
 ##### Rule 1.1 C++ files use lowercase + underscore naming, ending with .cpp; header files end with .h
@@ -69,27 +73,29 @@ However, for this document, we use .h and .cpp as the default suffixes.
 
 ```cpp
 class List {
-public:
-	void AddElement(const Element& element);
-	Element GetElement(const unsigned int index) const;
-	bool IsEmpty() const;
+ public:
+  void AddElement(const Element &element);
+  Element GetElement(const unsigned int index) const;
+  bool IsEmpty() const;
 };
 
 namespace Utils {
-    void DeleteUser();
+void DeleteUser();
 }
 ```
 
+Functions implementing interface contracts required by the standard library, third-party libraries, or serialization frameworks (such as `lock`/`try_lock`/`unlock`, `to_json`/`from_json`) may keep the names required by those interfaces and are not bound by this rule.
+
 ##### Rule 1.3 Type naming uses UpperCamelCase
 
-All type names—classes, structs, unions, type definitions (typedef), enums—use the same convention, for example:
+All type names—classes, structs, unions, type aliases (using/typedef), enums—use the same convention, for example:
 ```cpp
 // classes, structs and unions
 class UrlTable { ...
 struct UrlTableProperties { ...
 union Packet { ...
-// typedefs
-typedef std::map<std::string, UrlTableProperties*> PropertiesMap;
+// type aliases
+using PropertiesMap = std::map<std::string, UrlTableProperties *>;
 // enums
 enum UrlTableErrors { ...
 ```
@@ -97,16 +103,16 @@ enum UrlTableErrors { ...
 For namespace naming, UpperCamelCase is recommended:
 ```cpp
 // namespace
-namespace FileUtils {
-}
+namespace FileUtils {}
 ```
 
-##### Rule 1.4 General variable naming uses lowerCamelCase, including global variables, function parameters, local variables, and member variables
+##### Rule 1.4 General variable naming uses snake_case, including global variables, function parameters, local variables, and member variables
 
 ```cpp
-std::string tableName;  // Good: recommended style
-std::string tablename;  // Bad: prohibited style
-std::string path;       // Good: when there is only one word, lowerCamelCase is all lowercase
+std::string table_name;  // Good: recommended style
+std::string tableName;   // Bad: lowerCamelCase is prohibited
+std::string tablename;   // Bad: no word separator
+std::string path;        // Good: when there is only one word, snake_case is all lowercase
 ```
 
 Global variables should have a 'g_' prefix; static variable naming does not need a special prefix.
@@ -116,47 +122,58 @@ Global variables should be used as little as possible and used with special care
 - Static member variables of a class are the same as ordinary member variables.
 
 ```cpp
-int g_activeConnectCount;
+int g_active_connect_count;
 
-void Func()
-{
-    static int packetCount = 0;
-    ...
+void Func() {
+  static int packet_count = 0;
+  ...
 }
 ```
 
-Member variables of a class are named using lowerCamelCase with a trailing underscore
+Member variables of a class are named using snake_case with a trailing underscore; public members of plain-data structs may omit the trailing underscore (consistent with Google style), keeping the style consistent within the same struct.
 
 ```cpp
 class Foo {
-private:
-    std::string fileName_;   // Add a _ suffix, similar to K&R naming style
+ private:
+  std::string file_name_;  // Class member: add a _ suffix
+};
+
+struct Point {
+  int x;  // Plain-data struct member: suffix may be omitted
+  int y;
 };
 ```
 
 ##### Rule 1.5 Macros and enum values use all-uppercase with underscores
 
-Global scope const constants, const constants in named and anonymous namespaces, and static member constants of classes use all-uppercase with underscores; function-local const constants and ordinary const member variables of classes use the lowerCamelCase naming style.
+Macros, enum values, and goto labels use all-uppercase with underscores.
 
 ```cpp
-#define MAX(a, b)   (((a) < (b)) ? (b) : (a)) // Only an example of macro naming; using macros for such functionality is not recommended
+// Only an example of macro naming; using macros for such functionality is not recommended
+#define MAX(a, b) (((a) < (b)) ? (b) : (a))
 
-enum TintColor {    // Note: the enum type name uses UpperCamelCase; its values below are all-uppercase with underscores
-    RED,
-    DARK_RED,
-    GREEN,
-    LIGHT_GREEN
+enum TintColor {  // Note: the enum type name uses UpperCamelCase; its values below are all-uppercase with underscores
+  RED,
+  DARK_RED,
+  GREEN,
+  LIGHT_GREEN
 };
+```
 
-int Func(...)
-{
-    const unsigned int bufferSize = 100;    // Function-local constant
-    char *p = new char[bufferSize];
-    ...
+##### Rule 1.6 Compile-time constants use k-prefix UpperCamelCase
+
+Compile-time constants (constexpr, or const initialized with literals/compile-time constant expressions), regardless of scope (global, namespace, class static members, or function-local), uniformly use the k prefix with UpperCamelCase; const variables initialized from function calls or runtime data are not constants and are named as ordinary variables (Rule 1.4); non-static const member variables of classes follow the member variable naming rule (snake_case with a trailing underscore).
+
+```cpp
+int Func(...) {
+  constexpr unsigned int kBufferSize = 100;  // Compile-time constant: k-prefix UpperCamelCase
+  char *buffer = new char[kBufferSize];
+  const int saved_errno = errno;  // Runtime-initialized const: named as an ordinary snake_case variable
+  ...
 }
 
 namespace Utils {
-	const unsigned int DEFAULT_FILE_SIZE_KB = 200;        // Global constant
+constexpr unsigned int kDefaultFileSizeKb = 200;  // Global compile-time constant
 }
 ```
 
@@ -179,10 +196,11 @@ Preprocessing error messages on one line are easier to read and understand, even
 #endif
 ```
 
-##### Rule 2.2 Use spaces for indentation, 4 spaces per indentation level
+##### Rule 2.2 Use spaces for indentation, 2 spaces per indentation level
 
-Only spaces may be used for indentation, 4 spaces per indentation level. Using Tab characters for indentation is not allowed.
-Almost all modern integrated development environments (IDEs) support configuring Tab characters to automatically expand to 4 spaces; please configure your IDE to support using spaces for indentation.
+Only spaces may be used for indentation, 2 spaces per indentation level. Using Tab characters for indentation is not allowed.
+Almost all modern integrated development environments (IDEs) support configuring Tab characters to automatically expand to 2 spaces; please configure your IDE to support using spaces for indentation.
+Code inside a namespace is not indented (consistent with `NamespaceIndentation: None` in `.clang-format`).
 
 ##### Rule 2.3 When declaring pointer or reference variables or parameters, `&` and `*` follow the variable name, with a space on the other side
 
@@ -206,17 +224,22 @@ if (cond) {
 }
 ```
 
+> **Note**: clang-format does not automatically add braces for single statements (`AllowShortIfStatementsOnASingleLine: true` permits the single-line if form); this rule relies on code review or clang-tidy (`readability-braces-around-statements`).
+
 ##### Rule 2.5 for/while and other loop statements must use braces
 
 Similar to conditional expressions, we require for/while loop statements to use braces, even if the loop body is empty or the loop has only one statement.
 ```cpp
-for (int i = 0; i < someRange; i++) {   // Good: braces used
-    DoSomething();
+for (int i = 0; i < some_range; i++) {  // Good: braces used
+  DoSomething();
 }
 ```
 ```cpp
-while (condition) { }   // Good: the loop body is empty, braces used
+while (condition) {  // Good: the loop body is empty, braces still used
+}
 ```
+
+> **Note**: as in Rule 2.4, clang-format does not automatically add braces for loops (`AllowShortLoopsOnASingleLine: true` permits the single-line loop form); this relies on code review.
 
 ##### Rule 2.6 Expression wrapping should maintain consistency; operators go at the end of the line
 
@@ -225,44 +248,40 @@ Placing the operator or connector at the end of the line indicates "not finished
 Example:
 // Assume the first line below no longer meets the line width requirement
 ```cpp
-if ((currentValue > threshold) &&  // Good: after wrapping, the logical operator is placed at the end of the line
-    someCondition) {
-    DoSomething();
-    ...
+if ((current_value > threshold) &&  // Good: after wrapping, the logical operator is placed at the end of the line
+    some_condition) {
+  DoSomething();
+  ...
 }
 
-int result = reallyReallyLongVariableName1 +    // Good
-             reallyReallyLongVariableName2;
+int result = really_long_variable_name1 +  // Good
+             really_long_variable_name2;
 ```
-After wrapping an expression, pay attention to maintaining reasonable alignment or 4-space indentation. See the example below:
+After wrapping an expression, continuation lines are aligned with the first operand (consistent with `AlignOperands: true` in `.clang-format`). See the example below:
 
 ```cpp
-int sum = longVariableName1 + longVariableName2 + longVariableName3 +
-    longVariableName4 + longVariableName5 + longVariableName6;         // Good: 4-space indentation
-
-int sum = longVariableName1 + longVariableName2 + longVariableName3 +
-          longVariableName4 + longVariableName5 + longVariableName6;   // Good: maintain alignment
+int sum = long_variable_name1 + long_variable_name2 + long_variable_name3 + long_variable_name4 + long_variable_name5 +
+          long_variable_name6;  // Good: continuation aligned with the first operand
 ```
 
-##### Rule 2.7 Use K&R indentation style
+##### Rule 2.7 Use attached (Attach) brace style
 
-**K&R style**
-When wrapping, the left brace of a function (excluding lambda expressions) starts on a new line at the beginning of the line and occupies its own line; all other left braces follow the statement at the end of the line.
+**Attach style**
+All left braces (including functions, classes, structs, and control statements) follow the statement at the end of the line, preceded by 1 space.
 The right brace occupies its own line, unless followed by the remainder of the same statement, such as while in a do statement, or else/else if in an if statement, or a comma or semicolon.
 
 For example:
 ```cpp
-struct MyType {     // Follows the statement at the end of the line, preceded by 1 space
-    ...
+struct MyType {  // Follows the statement at the end of the line, preceded by 1 space
+  ...
 };
 
-int Foo(int a)
-{                   // Function left brace occupies its own line, at the beginning of the line
-    if (...) {
-        ...
-    } else {
-        ...
-    }
+int Foo(int a) {  // The function left brace also follows the statement at the end of the line
+  if (...) {
+    ...
+  } else {
+    ...
+  }
 }
 ```
 Reasons for recommending this style:
@@ -270,17 +289,18 @@ Reasons for recommending this style:
 - Code is more compact;
 - Compared to starting on a new line, placing it at the end of the line makes the reading rhythm more continuous;
 - It conforms to the habits of later languages and the mainstream industry;
+- It is consistent with the repository's `.clang-format` configuration (`BreakBeforeBraces: Attach`), so running clang-format before submission produces no extra diff;
 - Modern IDEs have code indentation and alignment display features, so placing braces at the end of the line does not affect the understanding of indentation and scope.
 
 
 For an empty function body, braces may be placed on the same line:
 ```cpp
 class MyClass {
-public:
-    MyClass() : value_(0) {}
+ public:
+  MyClass() : value_(0) {}
 
-private:
-    int value_;
+ private:
+  int value_;
 };
 ```
 
@@ -293,33 +313,28 @@ A single variable initialization statement per line is easier to read and unders
 Reducing unnecessary blank lines can display more code and facilitate code reading. Here are some recommended rules to follow:
 - Arrange blank lines reasonably based on the relevance of the content;
 - Inside function bodies, type definitions, macros, and initialization expressions, consecutive blank lines should not be used
-- Do not use 3 or more consecutive blank lines
+- Do not use consecutive blank lines; keep at most 1 (consistent with `MaxEmptyLinesToKeep: 1` in `.clang-format`)
 - Do not add blank lines before the first line or after the last line of code inside braces, but this does not apply to namespace braces.
 
 ```cpp
-int Foo()
-{
-    ...
+int Foo() {
+  ...
 }
 
 
-
-int Bar()  // Bad: at most 2 consecutive blank lines.
-{
-    ...
+int Bar() {  // Bad: keep at most 1 consecutive blank line.
+  ...
 }
-
 
 if (...) {
-        // Bad: do not add blank lines before the first line of code inside braces
-    ...
-        // Bad: do not add blank lines after the last line of code inside braces
+  // Bad: do not add blank lines before the first line of code inside braces
+  ...
+  // Bad: do not add blank lines after the last line of code inside braces
 }
 
-int Foo(...)
-{
-        // Bad: do not add blank lines before the first line of the function body
-    ...
+int Foo(...) {
+  // Bad: do not add blank lines before the first line of the function body
+  ...
 }
 ```
 
@@ -350,19 +365,18 @@ As in the following example:
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-
 ```
 
 > Regarding copyright notices, note:
 > Files newly created in 2026 should be `Copyright (c) 2026 Huawei Technologies Co., Ltd.`
 > Files created in 2025 and modified in 2026 should be `Copyright (c) 2025-2026 Huawei Technologies Co., Ltd.`
 
-##### Rule 3.2 Code comments are placed above or to the right of the corresponding code; there must be 1 space between the comment symbol and the comment content; right-placed comments must have at least 1 space from the preceding code; use `//` instead of `/**/`
+##### Rule 3.2 Code comments are placed above or to the right of the corresponding code; there must be 1 space between the comment symbol and the comment content; right-placed comments must have at least 1 space from the preceding code. Right-placed comments use `//` instead of `/**/`; comments placed above the code may use either `//` or `/* */`.
 
 ```cpp
 // this is multi-
 // line comment
-int foo; // this single-line comment
+int foo;  // this single-line comment
 ```
 
 ##### Rule 3.3 Do not use TODO/TBD/FIXME and similar comments in code; it is recommended to submit an issue for tracking
