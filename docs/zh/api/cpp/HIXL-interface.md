@@ -710,14 +710,14 @@ Status GetAsyncConnectStatus(const AscendString &remote_engine, AsyncConnectStat
 **函数原型**
 
 ```cpp
-Status GetAsyncConnectStatus(std::map<AscendString, AsyncConnectStatus> &status)
+Status GetAsyncConnectStatus(std::map<AscendString, AsyncConnectStatus> &statuses)
 ```
 
 **参数说明**
 
 | 参数名称 | 输入/输出 | 取值说明 |
 | --- | --- | --- |
-| status | 输出 | 异步连接状态，枚举值如下。<br><br>-  NOT_CONNECT 未连接<br>-  CONNECT_PENDING 建链待执行<br>-  CONNECTING 建链执行中<br>-  CONNECTED 建链成功<br>-  CONNECT_FAILED 建链失败<br>-  DISCONNECT_PENDING 断链待执行<br>-  DISCONNECTING 断链执行中 |
+| statuses | 输出 | 异步连接状态，枚举值如下。<br><br>-  NOT_CONNECT 未连接<br>-  CONNECT_PENDING 建链待执行<br>-  CONNECTING 建链执行中<br>-  CONNECTED 建链成功<br>-  CONNECT_FAILED 建链失败<br>-  DISCONNECT_PENDING 断链待执行<br>-  DISCONNECTING 断链执行中 |
 
 **调用示例**
 
