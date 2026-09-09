@@ -27,6 +27,7 @@
 
 #include "hixl/hixl_types.h"
 #include "common/ctrl_msg.h"
+#include "cs/hixl_cs.h"
 #include "depends/hccl/src/hccl_stub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/sys_api/src/sys_api_wrap.h"
@@ -1358,6 +1359,23 @@ TEST_F(HixlCSClientUT, DestroySuccessIdempotent) {
 
   EXPECT_EQ(client_.Destroy(), SUCCESS);
   EXPECT_EQ(client_.Destroy(), SUCCESS);
+}
+
+TEST_F(HixlCSClientUT, DestroyCApiIdempotent) {
+  StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
+  HixlClientConfig config{};
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientHandle handle = nullptr;
+  ASSERT_EQ(HixlCSClientCreate(&desc, &config, &handle), HIXL_SUCCESS);
+  ASSERT_NE(handle, nullptr);
+
+  EXPECT_EQ(HixlCSClientDestroy(handle), HIXL_SUCCESS);
+  EXPECT_EQ(HixlCSClientDestroy(handle), HIXL_PARAM_INVALID);
+  EXPECT_EQ(HixlCSClientDestroy(handle), HIXL_PARAM_INVALID);
 }
 
 TEST_F(HixlCSClientUT, GetRemoteMemFailPartialArrayCleansUp) {
