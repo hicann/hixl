@@ -19,6 +19,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
@@ -614,6 +615,49 @@ TEST_F(HixlCSTest, TestHixlCSServerDisconnectionCleanup) {
   EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
   // 恢复默认的 SlogStub，避免影响其他测试用例
   llm::SlogStub::SetInstance(nullptr);
+}
+
+TEST_F(HixlCSTest, FinalizeClosesConnectedClientSockets) {
+  HixlServerHandle server_handle = nullptr;
+  int32_t client_fd = -1;
+  SetupServerAndSendMatchReq(server_handle, client_fd);
+  MatchEndpointResp match_resp{};
+  GetMatchEndpointResp(client_fd, match_resp);
+
+  auto *server = static_cast<HixlCSServer *>(server_handle);
+  ASSERT_FALSE(server->clients_.empty());
+  EXPECT_EQ(server->Finalize(), SUCCESS);
+  EXPECT_TRUE(server->clients_.empty());
+
+  struct timeval timeout {};
+  timeout.tv_sec = 1;
+  timeout.tv_usec = 0;
+  EXPECT_EQ(setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)), 0);
+  char buf = 0;
+  const ssize_t n = recv(client_fd, &buf, 1, 0);
+  EXPECT_EQ(n, 0);
+
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+  (void)close(client_fd);
+}
+
+TEST_F(HixlCSTest, CloseAllClientsHandlesAlreadyClosedFd) {
+  HixlServerConfig config{};
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = 0U;
+  desc.endpoint_list = &default_eps[0];
+  desc.endpoint_list_num = default_eps.size();
+  HixlServerHandle server_handle = nullptr;
+  ASSERT_EQ(HixlCSServerCreate(&desc, &config, &server_handle), SUCCESS);
+  auto *server = static_cast<HixlCSServer *>(server_handle);
+  int32_t closed_fd = socket(AF_INET, SOCK_STREAM, 0);
+  ASSERT_GE(closed_fd, 0);
+  ASSERT_EQ(close(closed_fd), 0);
+  server->clients_[closed_fd] = std::make_shared<MsgReceiver>(closed_fd);
+  server->CloseAllClients();
+  EXPECT_TRUE(server->clients_.empty());
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
 }
 
 // 覆盖 EndpointGetListenPort 返回 HCCL_SUCCESS 分支：验证端口号正确设置

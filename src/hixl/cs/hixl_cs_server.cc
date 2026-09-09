@@ -288,6 +288,7 @@ Status HixlCSServer::Finalize() {
       }
     }
     msg_handler_.Finalize();
+    CloseAllClients();
     ret = endpoint_store_.Finalize();
     HIXL_CHK_STATUS(ret, "Failed to finalize endpoint store.");
     if (host_trans_flag_ != nullptr) {
@@ -585,6 +586,25 @@ void HixlCSServer::ProClientMsg(int32_t fd, std::shared_ptr<MsgReceiver> receive
   }
 }
 
+void HixlCSServer::CloseClientSocket(int32_t fd) {
+  (void)epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
+  const int32_t close_ret = close(fd);
+  if (close_ret != 0) {
+    HIXL_LOGE(FAILED, "Call api:close failed, ret:%d, errno:%d, errmsg:%s, fd:%d", close_ret, errno, strerror(errno),
+              fd);
+  }
+}
+
+void HixlCSServer::CloseAllClients() {
+  std::lock_guard<std::mutex> lock(client_mutex_);
+  const size_t client_num = clients_.size();
+  for (const auto &it : clients_) {
+    CloseClientSocket(it.first);
+  }
+  clients_.clear();
+  HIXL_EVENT("[HixlServer] closed remaining client sockets, count:%zu", client_num);
+}
+
 void HixlCSServer::CleanupClient(int32_t fd) {
   // 清理 channel
   std::lock_guard<std::mutex> lock(client_mutex_);
@@ -597,13 +617,7 @@ void HixlCSServer::CleanupClient(int32_t fd) {
     }
   }
 
-  // 清理 epoll
-  epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
-
-  // 关闭 socket
-  close(fd);
-
-  // 清理客户端记录
+  CloseClientSocket(fd);
   clients_.erase(fd);
 
   HIXL_EVENT("[HixlServer] client disconnected, fd:%d cleaned up", fd);
