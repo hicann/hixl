@@ -17,9 +17,15 @@
 #include "common/hixl_inner_types.h"
 #include "mmpa/mmpa_api.h"
 
+#include <atomic>
+#include <cstdint>
+
 extern "C" __attribute__((weak)) uint32_t HixlSyncTransferContext(HixlTransferContextSyncParam *param);
 
 static std::string g_acl_stub_mock = "";
+// aclrtMallocHost 逐次失败注入：-1 禁用，-2 全部失败，>=0 第 N 次调用返回错误（0 起始计数）
+static std::atomic<int32_t> g_stub_malloc_host_fail_on{-1};
+static std::atomic<uint32_t> g_stub_malloc_host_count{0};
 static char g_soc_version[50] = "Ascend950A";
 
 static int32_t g_free_stream_num = 2048;
@@ -39,6 +45,15 @@ static std::unordered_map<aclrtArgsHandle, std::vector<uint8_t>> g_stub_arg_data
 namespace llm {
 std::string &GetAclStubMock() {
   return g_acl_stub_mock;
+}
+
+void SetStubMallocHostFailOn(int32_t failOn) {
+  g_stub_malloc_host_fail_on.store(failOn, std::memory_order_relaxed);
+}
+
+void ResetStubMallocHostCounter() {
+  g_stub_malloc_host_count.store(0U, std::memory_order_relaxed);
+  g_stub_malloc_host_fail_on.store(-1, std::memory_order_relaxed);
 }
 
 struct aclrtContextStub {
@@ -388,6 +403,11 @@ aclError AclRuntimeStub::aclrtMalloc(void **devPtr, size_t size, aclrtMemMallocP
 }
 
 aclError AclRuntimeStub::aclrtMallocHost(void **hostPtr, size_t size) {
+  const uint32_t count = g_stub_malloc_host_count.fetch_add(1U, std::memory_order_relaxed);
+  const int32_t failOn = g_stub_malloc_host_fail_on.load(std::memory_order_relaxed);
+  if (failOn == -2 || (failOn >= 0 && static_cast<int32_t>(count) == failOn)) {
+    return ACL_ERROR_RT_INTERNAL_ERROR;
+  }
   return aclrtMalloc(hostPtr, size, ACL_MEM_MALLOC_HUGE_FIRST);
 }
 

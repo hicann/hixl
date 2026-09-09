@@ -37,6 +37,8 @@ struct HandlerCreateArgs {
   std::vector<EndpointPair> matched_pairs;
   std::optional<uint8_t> qos;
   std::optional<uint32_t> max_active_channels;
+  uint32_t multi_worker_num = 1U;
+  uint32_t multi_channel_split_batch_size = kDefaultSplitBatchSize;
   bool is_lazy = false;
   uint32_t timeout_ms = 0;
   int32_t ctrl_socket = -1;

@@ -11,12 +11,24 @@
 #include "engine/client_handler_factory.h"
 #include "common/hixl_log.h"
 #include "engine/direct_client_handler.h"
+#include "engine/direct_multi_channel_handler.h"
 #include "engine/ub_client_handler.h"
 
 namespace hixl {
 
 std::unique_ptr<IClientHandler> ClientHandlerFactory::Create(const HandlerCreateArgs &args) {
   if (args.handler_type == HandlerCreateArgs::HandlerType::DIRECT) {
+    const auto &pair = args.matched_pairs[0];
+    const bool is_multi_worker_protocol =
+        (pair.type == CommType::COMM_TYPE_UBOE || pair.type == CommType::COMM_TYPE_UBG);
+    if (is_multi_worker_protocol && args.multi_worker_num > 1U) {
+      std::unique_ptr<DirectMultiChannelHandler> handler;
+      if (DirectMultiChannelHandler::Create(args, handler) != SUCCESS) {
+        HIXL_LOGE(FAILED, "ClientHandlerFactory create DirectMultiChannelHandler failed");
+        return nullptr;
+      }
+      return handler;
+    }
     std::unique_ptr<DirectClientHandler> handler;
     if (DirectClientHandler::Create(args, handler) != SUCCESS) {
       HIXL_LOGE(FAILED, "ClientHandlerFactory create DirectClientHandler failed");

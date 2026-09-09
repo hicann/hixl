@@ -34,6 +34,8 @@ struct ClientConfig {
   uint32_t timeout_ms;
   std::optional<uint8_t> qos;
   std::optional<uint32_t> max_active_channels;
+  uint32_t multi_worker_num = 1U;
+  uint32_t multi_channel_split_batch_size = kDefaultSplitBatchSize;
   bool is_lazy = false;
 };
 
@@ -52,7 +54,9 @@ class HixlClient {
         rdma_tc_(config.rdma_tc),
         rdma_sl_(config.rdma_sl),
         qos_(config.qos),
-        max_active_channels_(config.max_active_channels) {}
+        max_active_channels_(config.max_active_channels),
+        multi_worker_num_(config.multi_worker_num),
+        multi_channel_split_batch_size_(config.multi_channel_split_batch_size) {}
   ~HixlClient() = default;
 
   /**
@@ -144,6 +148,8 @@ class HixlClient {
   std::map<TransferReq, TransferInfo> req_map_;
   std::optional<uint8_t> qos_;
   std::optional<uint32_t> max_active_channels_;
+  uint32_t multi_worker_num_{1U};
+  uint32_t multi_channel_split_batch_size_{kDefaultSplitBatchSize};
 };
 
 }  // namespace hixl

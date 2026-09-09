@@ -41,6 +41,8 @@ struct CommResourceConfigDesc {
   std::optional<uint32_t> listen_port;
   std::optional<uint8_t> qos;
   std::optional<uint32_t> max_active_channels;
+  std::optional<uint32_t> multi_worker_num;
+  std::optional<uint32_t> multi_channel_split_batch_size;
 };
 
 struct GlobalResourceConfig {

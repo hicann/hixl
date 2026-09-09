@@ -76,10 +76,15 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
     listen_port = global_resource_config->comm_resource_config.listen_port;
     qos_ = global_resource_config->comm_resource_config.qos;
     max_active_channels_ = global_resource_config->comm_resource_config.max_active_channels;
+    multi_worker_num_ = global_resource_config->comm_resource_config.multi_worker_num.value_or(1U);
+    multi_channel_split_batch_size_ =
+        global_resource_config->comm_resource_config.multi_channel_split_batch_size.value_or(kDefaultSplitBatchSize);
   } else {
     listen_port.reset();
     qos_.reset();
     max_active_channels_.reset();
+    multi_worker_num_ = 1U;
+    multi_channel_split_batch_size_ = kDefaultSplitBatchSize;
   }
   HIXL_CHK_STATUS_RET(aclrt_context_.CreateContext(), "[HixlEngine] Failed to create optional aclrt context");
   HIXL_DISMISSABLE_GUARD(ctx_fail_guard, ([this]() { aclrt_context_.DestroyContext(); }));
@@ -371,6 +376,8 @@ void HixlEngine::FillClientConfigFields(const AscendString &remote_engine, Clien
   config.qos = qos_;
   config.max_active_channels = max_active_channels_;
   config.is_lazy = is_lazy;
+  config.multi_worker_num = multi_worker_num_;
+  config.multi_channel_split_batch_size = multi_channel_split_batch_size_;
 }
 
 void HixlEngine::CopyMemInfoListLocked(std::vector<MemHandleInfo> &mem_info_list) const {
