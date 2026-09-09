@@ -128,6 +128,9 @@ class HixlClient {
   Status RecvEndpointInfoResp(int32_t fd, std::vector<EndpointConfig> &remote_endpoint_list, uint32_t timeout_ms) const;
   Status RecvNotifyAck(int32_t fd, int32_t timeout_ms) const;
   void CloseCtrlSocket();
+  Status CheckAliveLocked();
+  bool IsCtrlSocketWritable() const;
+  void CheckAliveAndLog(const char *operation);
   bool HasTransferReq(const TransferReq &req) const;
   void ClearTransferReqs();
   void RemoveTransferReq(const TransferReq &req);

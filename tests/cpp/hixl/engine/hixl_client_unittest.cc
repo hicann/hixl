@@ -1789,6 +1789,131 @@ TEST_F(HixlClientUTest, CheckAliveInvalidControlSocketFails) {
   EXPECT_EQ(ret, FAILED);
 }
 
+class FailClientHandler : public IClientHandler {
+ public:
+  Status Connect(uint32_t) override {
+    return FAILED;
+  }
+  Status RegisterMem(const MemHandleInfo &) override {
+    return SUCCESS;
+  }
+  Status TransferAsync(const std::vector<TransferOpDesc> &, TransferOp, TransferReq &) override {
+    return FAILED;
+  }
+  Status TransferSync(const std::vector<TransferOpDesc> &, TransferOp, uint32_t) override {
+    return FAILED;
+  }
+  Status GetTransferStatus(const TransferReq &, TransferStatus &status) override {
+    status = TransferStatus::FAILED;
+    return SUCCESS;
+  }
+  Status Finalize() override {
+    return SUCCESS;
+  }
+  void Dump(const char *, DumpLogLevel) const override {}
+};
+
+static bool ReadHeartbeatFromPeer(int32_t fd) {
+  CtrlMsgHeader header{};
+  if (read(fd, &header, sizeof(header)) != static_cast<ssize_t>(sizeof(header))) {
+    return false;
+  }
+  CtrlMsgType msg_type{};
+  if (read(fd, &msg_type, sizeof(msg_type)) != static_cast<ssize_t>(sizeof(msg_type))) {
+    return false;
+  }
+  return header.magic == kMagicNumber && header.body_size == sizeof(CtrlMsgType) && msg_type == CtrlMsgType::kHeartBeat;
+}
+
+static void ConfigureFailClient(HixlClient &client, int32_t ctrl_fd) {
+  client.client_handler_ = MakeUnique<FailClientHandler>();
+  client.is_connected_ = true;
+  client.ctrl_socket_ = ctrl_fd;
+}
+
+TEST_F(HixlClientUTest, ConnectFailureChecksLinkAlive) {
+  CtrlMsgPlugin::Initialize();
+  int32_t fds[2] = {-1, -1};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+  ClientConfig config{};
+  config.remote_engine = "127.0.0.1:16001";
+  HixlClient client("127.0.0.1", kServerPort, config);
+  ConfigureFailClient(client, fds[0]);
+
+  EXPECT_NE(client.Connect(kDefaultTimeoutMs), SUCCESS);
+  EXPECT_TRUE(ReadHeartbeatFromPeer(fds[1]));
+  EXPECT_GE(client.ctrl_socket_, 0);
+
+  EXPECT_EQ(client.Finalize(), SUCCESS);
+  close(fds[1]);
+}
+
+TEST_F(HixlClientUTest, TransferSyncFailureChecksLinkAlive) {
+  CtrlMsgPlugin::Initialize();
+  int32_t fds[2] = {-1, -1};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+  ClientConfig config{};
+  config.remote_engine = "127.0.0.1:16001";
+  HixlClient client("127.0.0.1", kServerPort, config);
+  ConfigureFailClient(client, fds[0]);
+  uint32_t local_mem = 1;
+  uint32_t remote_mem = 2;
+  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&local_mem), reinterpret_cast<uintptr_t>(&remote_mem),
+                      sizeof(uint32_t)};
+
+  EXPECT_NE(client.TransferSync({desc}, READ, kDefaultTimeoutMs), SUCCESS);
+  EXPECT_TRUE(ReadHeartbeatFromPeer(fds[1]));
+  EXPECT_GE(client.ctrl_socket_, 0);
+
+  EXPECT_EQ(client.Finalize(), SUCCESS);
+  close(fds[1]);
+}
+
+TEST_F(HixlClientUTest, TransferAsyncFailureChecksLinkAlive) {
+  CtrlMsgPlugin::Initialize();
+  int32_t fds[2] = {-1, -1};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+  ClientConfig config{};
+  config.remote_engine = "127.0.0.1:16001";
+  HixlClient client("127.0.0.1", kServerPort, config);
+  ConfigureFailClient(client, fds[0]);
+  uint32_t local_mem = 1;
+  uint32_t remote_mem = 2;
+  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&local_mem), reinterpret_cast<uintptr_t>(&remote_mem),
+                      sizeof(uint32_t)};
+  TransferReq req = nullptr;
+
+  EXPECT_NE(client.TransferAsync({desc}, READ, {}, req), SUCCESS);
+  EXPECT_TRUE(ReadHeartbeatFromPeer(fds[1]));
+  EXPECT_GE(client.ctrl_socket_, 0);
+
+  EXPECT_EQ(client.Finalize(), SUCCESS);
+  close(fds[1]);
+}
+
+TEST_F(HixlClientUTest, ConnectFailureDeadLinkLogsErrorAndClosesCtrlSocket) {
+  auto log_capture = std::make_shared<llm::LogCaptureStub>();
+  const std::string pattern = "HixlClient link alive check after connect failure, ctrl link is dead";
+  log_capture->AddCapturePattern(pattern);
+  log_capture->SetLevelInfo();
+  llm::SlogStub::SetInstance(log_capture);
+
+  CtrlMsgPlugin::Initialize();
+  int32_t fds[2] = {-1, -1};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+  ClientConfig config{};
+  config.remote_engine = "127.0.0.1:16001";
+  HixlClient client("127.0.0.1", kServerPort, config);
+  ConfigureFailClient(client, fds[0]);
+  close(fds[1]);
+
+  EXPECT_NE(client.Connect(kDefaultTimeoutMs), SUCCESS);
+  EXPECT_EQ(client.ctrl_socket_, -1);
+  EXPECT_TRUE(log_capture->WaitForAllPatternsCaptured(kCaptureLogTimeoutMs));
+  EXPECT_TRUE(log_capture->IsPatternCaptured(pattern));
+  llm::SlogStub::SetInstance(nullptr);
+}
+
 TEST_F(HixlClientUTest, LazyConnectSkipsInConnect) {
   SetupLazyTransferTest(true);
 
