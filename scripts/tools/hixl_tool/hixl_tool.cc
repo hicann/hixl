@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
     return hixl_tool::RunLocalCommRes(sub_args);
   }
 
-  std::fprintf(stderr, "[ERROR] Unknown subcommand: %s\n", subcommand.c_str());
+  std::printf("[ERROR] Unknown subcommand: %s\n", subcommand.c_str());
   PrintUsage();
   return 1;
 }

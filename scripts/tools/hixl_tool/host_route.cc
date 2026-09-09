@@ -71,7 +71,7 @@ bool ParseHostRouteArgs(const std::vector<std::string> &args, HostRouteArgs &out
     } else if (arg == "--topo_file_path" && i + 1 < args.size()) {
       out_args.topo_file_path = args[++i];
     } else {
-      std::fprintf(stderr, "[ERROR] Unknown or incomplete option: %s\n", arg.c_str());
+      std::printf("[ERROR] Unknown or incomplete option: %s\n", arg.c_str());
       PrintHostRouteUsage();
       return false;
     }
@@ -84,7 +84,7 @@ int32_t EnumerateAllNpuIds(std::vector<int32_t> &npu_ids) {
   uint32_t device_count = 0;
   aclError acl_ret = aclrtGetDeviceCount(&device_count);
   if (acl_ret != ACL_SUCCESS || device_count == 0) {
-    std::fprintf(stderr, "[ERROR] aclrtGetDeviceCount failed or no device, ret=%d\n", static_cast<int>(acl_ret));
+    std::printf("[ERROR] aclrtGetDeviceCount failed or no device, ret=%d\n", static_cast<int>(acl_ret));
     return -1;
   }
 
@@ -93,8 +93,7 @@ int32_t EnumerateAllNpuIds(std::vector<int32_t> &npu_ids) {
     int32_t phy_id = -1;
     acl_ret = aclrtGetPhyDevIdByUserDevId(static_cast<int32_t>(i), &phy_id);
     if (acl_ret != ACL_SUCCESS) {
-      std::fprintf(stderr, "[WARN] aclrtGetPhyDevIdByUserDevId(%u) failed, ret=%d, skipping\n", i,
-                   static_cast<int>(acl_ret));
+      std::printf("[WARN] aclrtGetPhyDevIdByUserDevId(%u) failed, ret=%d, skipping\n", i, static_cast<int>(acl_ret));
       continue;
     }
     unique_ids.insert(phy_id);
@@ -115,7 +114,7 @@ int32_t GenerateHostRouteData(const std::vector<int32_t> &npu_ids, const std::st
     }
     hixl::RouteGenResult route_gen;
     if (hixl::GenerateRouteDataViaDsmi(phy_id, topo_path, is_server, route_gen) != hixl::SUCCESS) {
-      std::fprintf(stderr, "[ERROR] GenerateRouteDataViaDsmi failed for phy_id=%d\n", phy_id);
+      std::printf("[ERROR] GenerateRouteDataViaDsmi failed for phy_id=%d\n", phy_id);
       return 1;
     }
     for (int32_t id : route_gen.related_npu_ids) {
@@ -139,7 +138,7 @@ int32_t GenerateHostRouteData(const std::vector<int32_t> &npu_ids, const std::st
 int32_t WriteHostRouteOutput(const HostRouteArgs &args, const hixl::HostRouteData &host_route_data) {
   std::string json_str;
   if (hixl::RouteConfGenerator::SerializeHostRouteJson(host_route_data, json_str) != hixl::SUCCESS) {
-    std::fprintf(stderr, "[ERROR] Failed to serialize host_route data to JSON\n");
+    std::printf("[ERROR] Failed to serialize host_route data to JSON\n");
     return 1;
   }
 
@@ -153,13 +152,13 @@ int32_t WriteHostRouteOutput(const HostRouteArgs &args, const hixl::HostRouteDat
   int fd = open(output_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, kFileMode);
   if (fd < 0) {
     const std::string err_msg = strerror(errno);
-    std::fprintf(stderr, "[ERROR] Failed to open %s, errno=%d(%s)\n", output_path.c_str(), errno, err_msg.c_str());
+    std::printf("[ERROR] Failed to open %s, errno=%d(%s)\n", output_path.c_str(), errno, err_msg.c_str());
     return 1;
   }
   ssize_t written = write(fd, json_str.c_str(), json_str.size());
   if (written != static_cast<ssize_t>(json_str.size())) {
-    std::fprintf(stderr, "[ERROR] Failed to write %s, written=%zd, expected=%zu\n", output_path.c_str(), written,
-                 json_str.size());
+    std::printf("[ERROR] Failed to write %s, written=%zd, expected=%zu\n", output_path.c_str(), written,
+                json_str.size());
     close(fd);
     return 1;
   }
@@ -189,7 +188,7 @@ int RunHostRoute(const std::vector<std::string> &args) {
   const int32_t seed_phy_id = npu_ids.front();
   uint32_t mainboard_id = 0;
   if (hixl::GetMainboardId(seed_phy_id, mainboard_id) != hixl::SUCCESS) {
-    std::fprintf(stderr, "[ERROR] GetMainboardId failed for phy_id=%d\n", seed_phy_id);
+    std::printf("[ERROR] GetMainboardId failed for phy_id=%d\n", seed_phy_id);
     return 1;
   }
   const bool is_server = hixl::TopoFileFinder::IsProductServer(mainboard_id);
@@ -200,7 +199,7 @@ int RunHostRoute(const std::vector<std::string> &args) {
 
   hixl::HostRouteData host_route_data;
   if (GenerateHostRouteData(npu_ids, route_args.topo_file_path, is_server, host_route_data) != 0) {
-    std::fprintf(stderr, "[ERROR] No valid host_route entries generated\n");
+    std::printf("[ERROR] No valid host_route entries generated\n");
     return 1;
   }
 
