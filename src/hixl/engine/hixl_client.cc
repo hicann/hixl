@@ -13,6 +13,7 @@
 #include <cerrno>
 #include <cstring>
 #include <unistd.h>
+#include <sys/poll.h>
 #include "securec.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
@@ -157,6 +158,8 @@ Status HixlClient::Connect(uint32_t timeout_ms) {
   Status ret = client_handler_->Connect(timeout_ms);
   if (ret == ALREADY_CONNECTED) {
     HIXL_DISMISS_GUARD(dump_guard);
+  } else if (ret != SUCCESS) {
+    CheckAliveAndLog("connect");
   }
   HIXL_CHK_STATUS_RET(ret, "HixlClient Connect failed");
   HIXL_DISMISS_GUARD(dump_guard);
@@ -178,6 +181,8 @@ Status HixlClient::TransferSync(const std::vector<TransferOpDesc> &op_descs, Tra
   Status ret = client_handler_->TransferSync(op_descs, operation, timeout_ms);
   if (ret == SUCCESS) {
     HIXL_DISMISS_GUARD(dump_guard);
+  } else {
+    CheckAliveAndLog("transfer sync");
   }
   return ret;
 }
@@ -190,7 +195,11 @@ Status HixlClient::TransferAsync(const std::vector<TransferOpDesc> &op_descs, Tr
   HIXL_CHK_BOOL_RET_STATUS(is_connected_, NOT_CONNECTED, "HixlClient is not connected");
   HIXL_CHK_BOOL_RET_STATUS(client_handler_ != nullptr, FAILED, "HixlClient is not initialized");
   HIXL_DISMISSABLE_GUARD(dump_guard, [this]() { client_handler_->Dump("transfer async failed", DumpLogLevel::ERROR); });
-  HIXL_CHK_STATUS_RET(client_handler_->TransferAsync(op_descs, operation, req), "HixlClient TransferAsync failed");
+  Status ret = client_handler_->TransferAsync(op_descs, operation, req);
+  if (ret != SUCCESS) {
+    CheckAliveAndLog("transfer async");
+  }
+  HIXL_CHK_STATUS_RET(ret, "HixlClient TransferAsync failed");
   HIXL_DISMISS_GUARD(dump_guard);
   TransferInfo transfer_info = {HixlProfilingReporter::GetSysCycleTime(), operation, AscendString()};
   req_map_[req] = transfer_info;
@@ -337,6 +346,17 @@ Status HixlClient::RecvNotifyAck(int32_t fd, int32_t timeout_ms) const {
 
 Status HixlClient::CheckAlive() {
   std::lock_guard<std::mutex> lock(mutex_);
+  return CheckAliveLocked();
+}
+
+bool HixlClient::IsCtrlSocketWritable() const {
+  struct pollfd pfd = {};
+  pfd.fd = ctrl_socket_;
+  pfd.events = POLLOUT;
+  return poll(&pfd, 1, 0) > 0;
+}
+
+Status HixlClient::CheckAliveLocked() {
   HIXL_CHK_BOOL_RET_STATUS(ctrl_socket_ >= 0, FAILED,
                            "HixlClient CheckAlive failed, peer_ip:%s, peer_port:%u, ctrl socket is invalid, fd:%d",
                            server_ip_.c_str(), server_port_, ctrl_socket_);
@@ -350,6 +370,12 @@ Status HixlClient::CheckAlive() {
   rc = memcpy_s(heartbeat_msg.data() + sizeof(header), heartbeat_msg.size() - sizeof(header), &msg_type,
                 sizeof(msg_type));
   HIXL_CHK_BOOL_RET_STATUS(rc == EOK, FAILED, "memcpy_s heartbeat msg_type failed, rc=%d", static_cast<int32_t>(rc));
+
+  if (!IsCtrlSocketWritable()) {
+    HIXL_LOGW("HixlClient CheckAlive skipped heartbeat, ctrl socket is not writable, peer_ip:%s, peer_port:%u, fd:%d",
+              server_ip_.c_str(), server_port_, ctrl_socket_);
+    return SUCCESS;
+  }
 
   int32_t err_no = 0;
   Status ret = CtrlMsgPlugin::Send(ctrl_socket_, heartbeat_msg.data(), heartbeat_msg.size(), err_no);
@@ -365,6 +391,17 @@ Status HixlClient::CheckAlive() {
     return SUCCESS;
   }
   return SUCCESS;
+}
+
+void HixlClient::CheckAliveAndLog(const char *operation) {
+  Status alive_ret = CheckAliveLocked();
+  if (alive_ret != SUCCESS) {
+    HIXL_LOGE(alive_ret,
+              "HixlClient link alive check after %s failure, ctrl link is dead, local_engine:%s, remote_engine:%s, "
+              "peer_ip:%s, peer_port:%u, check_alive_ret:%u",
+              operation, local_engine_.c_str(), remote_engine_.c_str(), server_ip_.c_str(), server_port_,
+              static_cast<uint32_t>(alive_ret));
+  }
 }
 
 Status HixlClient::SendNotify(const NotifyDesc &notify, int32_t timeout_ms) const {
