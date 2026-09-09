@@ -105,7 +105,7 @@ struct RouteGenResult {
  * @brief Generate route_data and host_pg_eid via DSMI + urma_admin + DCMI
  *
  * Parses the topo file internally. Mesh die of each NPU is taken from fullmesh ports;
- * is_server only selects the host EID search strategy.
+ * NPU set is the ACL-visible phy ids; is_server only selects the host EID search strategy.
  * When topo_path is empty, the default topo path is resolved from phy_dev_id first.
  *
  * @param [in] phy_dev_id Physical device ID
@@ -274,15 +274,6 @@ Status GenerateD2HEdges(const RouteData &route_data, int32_t phy_dev_id, std::ve
  */
 Status GenerateH2UEdges(const std::string &host_pg_eid, const std::string &plane_pg_0_eid,
                         const std::string &plane_pg_1_eid, std::vector<EndpointConfig> &h2u_edges);
-
-/**
- * @brief Get CLOS PG EID port count for an NPU from topo data
- * @param [in] topo_data Topology data
- * @param [in] phy_id NPU physical ID
- * @param [in] clos_pg_eid CLOS PG EID
- * @return Port count, or -1 on failure
- */
-int32_t GetClosPgPortCount(const TopoData &topo_data, int32_t phy_id, const std::string &clos_pg_eid);
 
 // ============ TopoFileFinder ============
 

@@ -773,6 +773,128 @@ TEST_F(HixlOptionsUTest, ParseLocalCommResFilePathEmptyInvalid) {
   EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
+TEST_F(HixlOptionsUTest, ParseTopoFilePathSuccess) {
+  const std::string content = R"({"version":"2.0","peer_count":8,"edge_list":[{}]})";
+  const std::string file_path = test::CreateTempFileWithContent("/tmp/hixl_topo_XXXXXX", content);
+  ASSERT_FALSE(file_path.empty());
+
+  const std::string grc = std::string(R"({"topo_file_path":")") + file_path + "\"}";
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(grc.c_str());
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.TopoFilePath().has_value());
+  EXPECT_EQ(*result.TopoFilePath(), file_path);
+  unlink(file_path.c_str());
+}
+
+TEST_F(HixlOptionsUTest, ParseTopoFilePathMissingIsUnset) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.listen_port":26666})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  EXPECT_FALSE(result.TopoFilePath().has_value());
+}
+
+TEST_F(HixlOptionsUTest, ParseTopoFilePathEmptyIsUnset) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"topo_file_path":""})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  EXPECT_FALSE(result.TopoFilePath().has_value());
+}
+
+TEST_F(HixlOptionsUTest, ParseTopoFilePathTypeInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"topo_file_path":123})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseTopoFilePathNotExistInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"topo_file_path":"/tmp/hixl_topo_not_exist_12345.json"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseTopoFilePathDirectoryInvalid) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"topo_file_path":"/tmp"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseTopoFilePathFifoInvalid) {
+  const std::string fifo_path = test::CreateTempFileWithContent("/tmp/hixl_topo_fifo_XXXXXX", "");
+  ASSERT_FALSE(fifo_path.empty());
+  ASSERT_EQ(unlink(fifo_path.c_str()), 0);
+  ASSERT_EQ(mkfifo(fifo_path.c_str(), S_IRUSR | S_IWUSR), 0);
+
+  const std::string grc = std::string(R"({"topo_file_path":")") + fifo_path + "\"}";
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(grc.c_str());
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+  unlink(fifo_path.c_str());
+}
+
+TEST_F(HixlOptionsUTest, ParseTopoFilePathEmptyFileInvalid) {
+  const std::string file_path = test::CreateTempFileWithContent("/tmp/hixl_topo_empty_XXXXXX", "");
+  ASSERT_FALSE(file_path.empty());
+
+  const std::string grc = std::string(R"({"topo_file_path":")") + file_path + "\"}";
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(grc.c_str());
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+  unlink(file_path.c_str());
+}
+
+TEST_F(HixlOptionsUTest, ParseTopoFilePathOversizedFileInvalid) {
+  constexpr off_t kOversizedFileSize = 1024U * 1024U + 1U;
+  const std::string file_path = test::CreateTempFileWithContent("/tmp/hixl_topo_large_XXXXXX", "");
+  ASSERT_FALSE(file_path.empty());
+  ASSERT_EQ(truncate(file_path.c_str(), kOversizedFileSize), 0);
+
+  const std::string grc = std::string(R"({"topo_file_path":")") + file_path + "\"}";
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(grc.c_str());
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+  unlink(file_path.c_str());
+}
+
+TEST_F(HixlOptionsUTest, ParseTopoFilePathSkippedWhenEndpointListProvided) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_LOCAL_COMM_RES] =
+      R"({"version":"1.3","net_instance_id":"superpod_0","endpoint_list":[{"protocol":"ub_ctp","comm_id":"eid0","placement":"device"}]})";
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"topo_file_path":"/tmp/hixl_topo_not_exist_skip.json"})";
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.TopoFilePath().has_value());
+  EXPECT_EQ(*result.TopoFilePath(), "/tmp/hixl_topo_not_exist_skip.json");
+}
+
+TEST_F(HixlOptionsUTest, ParseTopoFilePathSkippedWhenEndpointListProvidedViaFile) {
+  const std::string lcr =
+      R"({"version":"1.3","net_instance_id":"superpod_0","endpoint_list":[{"protocol":"ub_ctp","comm_id":"eid0","placement":"device"}]})";
+  const std::string lcr_path = test::CreateTempFileWithContent("/tmp/hixl_lcr_XXXXXX", lcr);
+  ASSERT_FALSE(lcr_path.empty());
+
+  const std::string grc = std::string(R"({"local_comm_res_path":")") + lcr_path +
+                          R"(","topo_file_path":"/tmp/hixl_topo_not_exist_skip.json"})";
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(grc.c_str());
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.TopoFilePath().has_value());
+  EXPECT_EQ(*result.TopoFilePath(), "/tmp/hixl_topo_not_exist_skip.json");
+  ASSERT_TRUE(result.LocalCommRes().has_value());
+  EXPECT_EQ(*result.LocalCommRes(), lcr);
+  unlink(lcr_path.c_str());
+}
+
 TEST_F(HixlOptionsUTest, ParseLocalCommResFilePathTypeInvalid) {
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"local_comm_res_path":123})";

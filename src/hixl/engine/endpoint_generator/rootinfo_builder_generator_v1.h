@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include "hixl/hixl_types.h"
 #include "proxy/dcmi_proxy.h"
 
@@ -93,14 +94,17 @@ EidByte6Info ParseEidByte6(const std::string &eid);
  * @brief Build RootInfo from an NPU ID
  * @param [in] npu_id NPU ID
  * @param [in] mesh_die_id Mesh-layer die_id (from topo, not product-form assumptions)
- * @param [in] clos_die_id CLOS-layer die_id (from topo, marks plane_pg_0 source)
+ * @param [in] clos_die_id CLOS-layer die_id (from topo, for logs)
+ * @param [in] clos_port_keys CLOS serial-port keys ("die/port") of this NPU from topo
  * @param [out] root_info Output RootInfo
  * @return SUCCESS on success, other error codes on failure
  *
- * Internally calls DCMI to obtain URMA devices, then builds the port-to-EID map
- * using mesh_die_id / clos_die_id.
+ * A URMA group is a CLOS PG group only when every physical port in the group is a
+ * CLOS port in clos_port_keys. plane_pg_0 is the CLOS group with more CLOS ports;
+ * plane_pg_1 is the group with fewer, when two groups exist.
  */
-Status BuildNpuRootInfo(int32_t npu_id, int32_t mesh_die_id, int32_t clos_die_id, NpuRootInfo &root_info);
+Status BuildNpuRootInfo(int32_t npu_id, int32_t mesh_die_id, int32_t clos_die_id,
+                        const std::set<std::string> &clos_port_keys, NpuRootInfo &root_info);
 
 /**
  * @brief Get URMA Device list

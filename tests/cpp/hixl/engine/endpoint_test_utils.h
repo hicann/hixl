@@ -95,6 +95,14 @@ class MockAclRuntimeStub : public llm::AclRuntimeStub {
     return ACL_SUCCESS;
   }
 
+  aclError aclrtGetPhyDevIdByUserDevId(const int32_t userDevId, int32_t *const phyDevId) override {
+    if (phy_dev_failed_ || phyDevId == nullptr) {
+      return ACL_ERROR_FAILURE;
+    }
+    *phyDevId = (device_count_ <= 1U) ? phy_device_id_ : userDevId;
+    return ACL_SUCCESS;
+  }
+
   aclError aclrtGetCurrentContext(aclrtContext *context) override {
     ++get_current_context_calls_;
     return llm::AclRuntimeStub::aclrtGetCurrentContext(context);

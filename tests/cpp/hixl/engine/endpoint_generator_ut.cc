@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <chrono>
 #include <cstdlib>
@@ -137,6 +138,25 @@ void SetupA5UbgDcmiDefaults() {
   DcmiStubSetSuperPodId(0, 0);
   DcmiStubSetEidCount(1);
   DcmiStubSetEnableUbgEid(true);
+}
+
+std::string GetEngineTestDataDir() {
+#ifdef HIXL_TEST_SRC_DIR
+  return std::string(HIXL_TEST_SRC_DIR) + "/engine/";
+#else
+  return "./";
+#endif
+}
+
+void ResetEndpointGeneratorDcmiStub() {
+  DcmiStubSetInitRet(0);
+  DcmiStubSetMainboardId(0x3, 0);
+  DcmiStubSetLogicId(0, 0);
+  DcmiStubSetUrmaDeviceCnt(1, 0);
+  DcmiStubSetSuperPodId(0, 0);
+  DcmiStubSetEidCount(2);
+  DcmiStubSetMeshDieId(-1);
+  DcmiStubSetEnableUbgEid(false);
 }
 
 void ExpectSingleUboeEndpoint(const std::vector<EndpointConfig> &endpoint_list, const std::string &uboe_comm_id) {
@@ -1205,6 +1225,38 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListGeneratesUbgWhenConfiguredOnA5) 
   EXPECT_EQ(endpoint_list[0].comm_id.size(), 32U);
   EXPECT_EQ(endpoint_list[0].comm_id.substr(14, 2), "80");
   EXPECT_EQ(endpoint_list[0].net_instance_id, "superpod_0");
+}
+
+TEST_F(EndpointGeneratorUTest, BuildEndpointListUsesTopoFilePathFromGlobalResourceConfig) {
+  // Empty AutoGen topo_path falls back to options.TopoFilePath() (endpoint_generator.cc).
+  hixl_test::InstallSysApiHooks(std::make_shared<test::KernelJsonMmpaStub>());
+  acl_stub_->soc_name_ = "Ascend950A";
+  acl_stub_->device_id_ = 0;
+  acl_stub_->phy_device_id_ = 0;
+  acl_stub_->device_count_ = 8;
+  DcmiStubSetInitRet(0);
+  DcmiStubSetMainboardId(0x21, 0);
+  DcmiStubSetLogicId(0, 0);
+  DcmiStubSetUrmaDeviceCnt(3, 0);
+  DcmiStubSetSuperPodId(0, 0);
+  DcmiStubSetEidCount(2);
+  DcmiStubSetMeshDieId(1);
+
+  const std::string topo_path = GetEngineTestDataDir() + "server_8p_noroce.json";
+  const std::string grc =
+      std::string(R"({"comm_resource_config.protocol_desc":["ub_ctp:device"],"topo_file_path":")") + topo_path + "\"}";
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(grc.c_str());
+
+  std::string local_comm_res;
+  std::vector<EndpointConfig> endpoint_list;
+  CallBuildEndpointList(options, "127.0.0.1:26000", local_comm_res, endpoint_list);
+  EXPECT_TRUE(local_comm_res.empty());
+  EXPECT_FALSE(endpoint_list.empty());
+  EXPECT_TRUE(std::any_of(endpoint_list.begin(), endpoint_list.end(), [](const EndpointConfig &ep) {
+    return ep.protocol == kProtocolUbCtp && ep.placement == kPlacementDevice;
+  }));
+  ResetEndpointGeneratorDcmiStub();
 }
 
 TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsRejectsManualLocalCommResWhenUboeOnly) {

@@ -19,6 +19,7 @@
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
+#include <set>
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 
@@ -62,7 +63,6 @@ namespace {
 
 constexpr int32_t kSetwWidth = 2;
 constexpr int32_t kPortMaxValue = 8;
-constexpr size_t kSecondElementIndex = 2;
 
 std::string ConvertEidToString(const unsigned char *raw, size_t len) {
   if (raw == nullptr || len < static_cast<size_t>(kDcmiUrmaEidSize)) {
@@ -94,6 +94,9 @@ Status LoadUrmaDevicesFromDcmi(int32_t npu_id, std::vector<UrmaDevice> &urma_dev
     int32_t eid_cnt = kMaxEidPerUe;
     HIXL_CHK_STATUS_RET(DcmiProxy::GetEidList(logic_id, static_cast<int32_t>(i), eid_buf, &eid_cnt),
                         "Call api:GetEidList failed, logic_id:%u, urma_dev_index:%zu", logic_id, i);
+    HIXL_CHK_BOOL_RET_STATUS(eid_cnt >= 0 && eid_cnt <= kMaxEidPerUe, FAILED,
+                             "GetEidList returned invalid eid_cnt=%d, logic_id=%u, urma_dev_index=%zu", eid_cnt,
+                             logic_id, i);
 
     for (int32_t j = 0; j < eid_cnt; ++j) {
       std::string eid_str = ConvertEidToString(eid_buf[j].eid.raw, sizeof(eid_buf[j].eid.raw));
@@ -158,66 +161,75 @@ void CollectMeshPorts(const std::vector<UrmaDevice> &urma_devices, int32_t mesh_
   }
 }
 
-void CollectClosPgEids(const std::vector<UrmaDevice> &urma_devices, int32_t mesh_die_id, int32_t clos_die_id,
+std::string MakeDiePortKey(int32_t die_id, int32_t port) {
+  return std::to_string(die_id) + "/" + std::to_string(port);
+}
+
+struct ClosUrmaGroup {
+  ClosPgEidInfo pg;
+  size_t clos_port_count = 0;
+};
+
+bool MatchClosUrmaGroup(const UrmaDevice &urma_dev, const std::set<std::string> &clos_port_keys, ClosUrmaGroup &out) {
+  std::string pg_eid;
+  int32_t pg_die_id = -1;
+  std::set<std::string> phys_ports;
+  for (const auto &eid : urma_dev.eid_list) {
+    EidByte6Info info = ParseEidByte6(eid);
+    if (info.is_pg_eid) {
+      pg_eid = eid;
+      pg_die_id = info.die_id;
+      continue;
+    }
+    if (info.port < 0 || info.port > kPortMaxValue) {
+      continue;
+    }
+    phys_ports.insert(MakeDiePortKey(info.die_id, info.port));
+  }
+  if (pg_eid.empty() || phys_ports.empty()) {
+    return false;
+  }
+  for (const auto &port_key : phys_ports) {
+    if (clos_port_keys.count(port_key) == 0) {
+      return false;
+    }
+  }
+  out.pg.eid = pg_eid;
+  out.pg.die_id = pg_die_id;
+  out.clos_port_count = phys_ports.size();
+  return true;
+}
+
+void CollectClosPgEids(const std::vector<UrmaDevice> &urma_devices, const std::set<std::string> &clos_port_keys,
                        NpuRootInfo &root_info) {
-  struct UrmaGroupInfo {
-    std::string pg_eid;
-    int32_t die_id;
-    size_t total_eids;
-  };
-  std::vector<UrmaGroupInfo> clos_groups;
-  std::vector<UrmaGroupInfo> mesh_groups;
-
+  // A URMA group is CLOS iff every physical port is a CLOS edge in topo. Mesh and CLOS
+  // ports do not share a URMA group. plane_pg_0 has more CLOS ports; plane_pg_1 has fewer.
+  std::vector<ClosUrmaGroup> clos_groups;
   for (const auto &urma_dev : urma_devices) {
-    if (urma_dev.eid_list.empty()) {
-      continue;
-    }
-
-    std::string pg_eid;
-    int32_t pg_die_id = -1;
-    for (const auto &eid : urma_dev.eid_list) {
-      EidByte6Info info = ParseEidByte6(eid);
-      if (info.is_pg_eid) {
-        pg_eid = eid;
-        pg_die_id = info.die_id;
-      }
-    }
-    if (pg_eid.empty()) {
-      continue;
-    }
-
-    size_t total_eids = urma_dev.eid_list.size();
-    // Pure mesh group (7 direct serial ports + 1 PG = 8 EIDs) is not CLOS; skip.
-    if (pg_die_id == mesh_die_id && total_eids == 8) {
-      continue;
-    }
-
-    if (pg_die_id == clos_die_id) {
-      clos_groups.push_back({pg_eid, pg_die_id, total_eids});
-    } else if (pg_die_id == mesh_die_id) {
-      mesh_groups.push_back({pg_eid, pg_die_id, total_eids});
+    ClosUrmaGroup group;
+    if (MatchClosUrmaGroup(urma_dev, clos_port_keys, group)) {
+      clos_groups.push_back(group);
     }
   }
-
-  // On the CLOS die, take the PG of the group with the most EIDs as plane_pg_0.
+  std::stable_sort(clos_groups.begin(), clos_groups.end(), [](const ClosUrmaGroup &a, const ClosUrmaGroup &b) {
+    return a.clos_port_count > b.clos_port_count;
+  });
   if (!clos_groups.empty()) {
-    auto best =
-        std::max_element(clos_groups.begin(), clos_groups.end(),
-                         [](const UrmaGroupInfo &a, const UrmaGroupInfo &b) { return a.total_eids < b.total_eids; });
-    root_info.clos_pg_eids.push_back({best->pg_eid, best->die_id});
+    root_info.clos_pg_eids.push_back(clos_groups[0].pg);
+    HIXL_LOGI("plane_pg_0 CLOS PG eid=%s die_id=%d clos_ports=%zu", clos_groups[0].pg.eid.c_str(),
+              clos_groups[0].pg.die_id, clos_groups[0].clos_port_count);
   }
-
-  // On the mesh die, take the PG with the second-most EIDs as plane_pg_1.
-  if (mesh_groups.size() >= kSecondElementIndex) {
-    std::sort(mesh_groups.begin(), mesh_groups.end(),
-              [](const UrmaGroupInfo &a, const UrmaGroupInfo &b) { return a.total_eids > b.total_eids; });
-    root_info.clos_pg_eids.push_back(
-        {mesh_groups[kSecondElementIndex - 1].pg_eid, mesh_groups[kSecondElementIndex - 1].die_id});
+  if (clos_groups.size() >= 2U) {
+    root_info.clos_pg_eids.push_back(clos_groups[1].pg);
+    HIXL_LOGI("plane_pg_1 CLOS PG eid=%s die_id=%d clos_ports=%zu", clos_groups[1].pg.eid.c_str(),
+              clos_groups[1].pg.die_id, clos_groups[1].clos_port_count);
   }
 }
 
-Status BuildNpuRootInfo(int32_t npu_id, int32_t mesh_die_id, int32_t clos_die_id, NpuRootInfo &root_info) {
-  HIXL_LOGI("npu_id=%d, mesh_die_id=%d, clos_die_id=%d", npu_id, mesh_die_id, clos_die_id);
+Status BuildNpuRootInfo(int32_t npu_id, int32_t mesh_die_id, int32_t clos_die_id,
+                        const std::set<std::string> &clos_port_keys, NpuRootInfo &root_info) {
+  HIXL_LOGI("npu_id=%d, mesh_die_id=%d, clos_die_id=%d, clos_ports=%zu", npu_id, mesh_die_id, clos_die_id,
+            clos_port_keys.size());
 
   std::vector<UrmaDevice> urma_devices;
   HIXL_CHK_STATUS_RET(GetUrmaDeviceList(npu_id, urma_devices), "Failed to get urma devices, npu_id=%d", npu_id);
@@ -238,11 +250,11 @@ Status BuildNpuRootInfo(int32_t npu_id, int32_t mesh_die_id, int32_t clos_die_id
   root_info.clos_pg_eids.clear();
 
   CollectMeshPorts(urma_devices, mesh_die_id, root_info);
-  CollectClosPgEids(urma_devices, mesh_die_id, clos_die_id, root_info);
+  CollectClosPgEids(urma_devices, clos_port_keys, root_info);
   PrintRootInfo(root_info);
 
-  HIXL_CHK_BOOL_RET_STATUS(!root_info.port_to_eid.empty() && !root_info.clos_pg_eids.empty(), FAILED,
-                           "Incomplete root_info for npu_id:%d, ports:%zu, clos_pg:%zu", npu_id,
+  HIXL_CHK_BOOL_RET_STATUS(!root_info.port_to_eid.empty() || !root_info.clos_pg_eids.empty(), FAILED,
+                           "Empty root_info for npu_id:%d, ports:%zu, clos_pg:%zu", npu_id,
                            root_info.port_to_eid.size(), root_info.clos_pg_eids.size());
 
   return SUCCESS;

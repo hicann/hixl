@@ -481,6 +481,14 @@ aclError AclRuntimeStub::aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, 
   return ACL_ERROR_NONE;
 }
 
+aclError AclRuntimeStub::aclrtGetPhyDevIdByUserDevId(const int32_t userDevId, int32_t *const phyDevId) {
+  if (phyDevId == nullptr) {
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  *phyDevId = userDevId;
+  return ACL_ERROR_NONE;
+}
+
 aclError AclRuntimeStub::aclrtGetLogicDevIdByUserDevId(const int32_t userDevid, int32_t *const logicDevId) {
   if (__FUNCTION__ == g_acl_stub_mock) {
     return ACL_ERROR_RT_INTERNAL_ERROR;
@@ -960,6 +968,10 @@ aclError aclrtGetDeviceInfo(uint32_t deviceId, aclrtDevAttr attr, int64_t *value
 
 aclError aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, int32_t *const phyDevId) {
   return llm::AclRuntimeStub::GetInstance()->aclrtGetPhyDevIdByLogicDevId(logicDevId, phyDevId);
+}
+
+aclError aclrtGetPhyDevIdByUserDevId(const int32_t userDevId, int32_t *const phyDevId) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtGetPhyDevIdByUserDevId(userDevId, phyDevId);
 }
 
 aclError aclrtGetLogicDevIdByUserDevId(const int32_t userDevid, int32_t *const logicDevId) {
