@@ -28,6 +28,8 @@ log() {
 
 log "init test case, please wait ..."
 
+ln -sf /usr/bin/python3.10 /opt/conda/bin/python
+python --version
 
 source /usr/local/Ascend/cann/set_env.sh
 wget -nv https://ascend-ci.obs.cn-north-4.myhuaweicloud.com/${obs_path}/cann-hixl_linux-aarch64_ubuntu24.run
