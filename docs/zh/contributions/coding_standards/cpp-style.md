@@ -9,19 +9,20 @@
 | 1.1 | C++文件使用小写+下划线命名 | 命名 | 中 |
 | 1.2 | 函数命名使用大驼峰风格 | 命名 | 中 |
 | 1.3 | 类型命名采用大驼峰风格 | 命名 | 中 |
-| 1.4 | 变量命名采用小驼峰风格 | 命名 | 中 |
+| 1.4 | 变量命名采用小写下划线（snake_case）风格 | 命名 | 中 |
 | 1.5 | 宏、枚举值采用全大写下划线连接 | 命名 | 中 |
+| 1.6 | 编译期常量采用 k 前缀大驼峰 | 命名 | 中 |
 | 2.1 | 行宽不超过 120 个字符 | 格式 | 低 |
-| 2.2 | 使用空格缩进，每次 4 个空格 | 格式 | 中 |
+| 2.2 | 使用空格缩进，每次 2 个空格 | 格式 | 中 |
 | 2.3 | `&`、`*` 跟随变量名 | 格式 | 低 |
 | 2.4 | if 语句必须使用大括号 | 格式 | 中 |
 | 2.5 | for/while 循环必须使用大括号 | 格式 | 中 |
 | 2.6 | 表达式换行运算符放行末 | 格式 | 低 |
-| 2.7 | 使用 K&R 缩进风格 | 格式 | 中 |
+| 2.7 | 使用附着式（Attach）大括号风格 | 格式 | 中 |
 | 2.8 | 多个变量定义不允许写在一行 | 格式 | 低 |
 | 2.9 | 合理安排空行，保持代码紧凑 | 格式 | 低 |
 | 3.1 | 文件头注释包含版权声明 | 注释 | 中 |
-| 3.2 | 注释使用 `//`，与代码间有空格 | 注释 | 低 |
+| 3.2 | 右置注释使用 `//`，注释与代码间有空格 | 注释 | 低 |
 | 3.3 | 禁止使用 TODO/TBD/FIXME 注释 | 注释 | 中 |
 | 3.4 | 不要写空有格式的函数头注释 | 注释 | 低 |
 | 3.5 | 不用的代码直接删除，不要注释掉 | 注释 | 中 |
@@ -40,21 +41,23 @@ CANN 相关开源仓的代码风格检视。
 
 ### 1. 命名
 
-#### 驼峰风格(CamelCase)
+#### 命名风格
 
-大小写字母混用，单词连在一起，不同单词间通过单词首字母大写来分开。
-按连接后的首字母是否大写，又分: 大驼峰(UpperCamelCase)和小驼峰(lowerCamelCase)
+驼峰风格(CamelCase)：大小写字母混用，单词连在一起，不同单词间通过单词首字母大写来分开。按连接后的首字母是否大写，又分: 大驼峰(UpperCamelCase)和小驼峰(lowerCamelCase)。
+
+小写下划线风格(snake_case)：单词全部小写，单词间用下划线连接，如 `table_name`。
 
 | 类型                                       | 命名风格      |
 | ---------------------------------------- | --------- |
 | 类类型，结构体类型，枚举类型，联合体类型等类型定义， 作用域名称         | 大驼峰       |
 | 函数(包括全局函数，作用域函数，成员函数)                    | 大驼峰       |
-| 全局变量(包括全局和命名空间域下的变量，类静态变量)，局部变量，函数参数，类、结构体和联合体中的成员变量 | 小驼峰       |
-| 宏，常量(const)，枚举值，goto 标签                  | 全大写，下划线分割 |
+| 编译期常量（constexpr，或以字面量/编译期常量表达式初始化的 const，含各作用域） | k 前缀大驼峰 |
+| 全局变量(包括全局和命名空间域下的变量，类静态变量)，局部变量，函数参数，类、结构体和联合体中的成员变量 | 小写下划线(snake_case) |
+| 宏，枚举值，goto 标签                  | 全大写，下划线分割 |
 
 注意：
-上表中**常量**是指全局作用域、namespace域、类的静态成员域下，以 const或constexpr 修饰的基本数据类型、枚举、字符串类型的变量，不包括数组和其他类型变量。
-上表中**变量**是指除常量定义以外的其他变量，均使用小驼峰风格。
+上表中**常量**是指值在编译期即可确定的 const/constexpr 基本数据类型、枚举、字符串类型的变量（constexpr，或以字面量/编译期常量表达式初始化的 const；含各作用域），不包括数组和其他类型变量；以函数调用或运行期数据初始化的 const 变量不属于常量，按普通变量命名。
+上表中**变量**是指除常量定义以外的其他变量，均使用小写下划线(snake_case)风格。
 
 
 ##### 规则 1.1 C++文件使用小写+下划线的方式命名，以.cpp结尾，头文件以.h结尾
@@ -70,27 +73,29 @@ CANN 相关开源仓的代码风格检视。
 
 ```cpp
 class List {
-public:
-	void AddElement(const Element& element);
-	Element GetElement(const unsigned int index) const;
-	bool IsEmpty() const;
+ public:
+  void AddElement(const Element &element);
+  Element GetElement(const unsigned int index) const;
+  bool IsEmpty() const;
 };
 
 namespace Utils {
-    void DeleteUser();
+void DeleteUser();
 }
 ```
 
+实现标准库、第三方库或序列化框架要求的接口契约函数（如 `lock`/`try_lock`/`unlock`、`to_json`/`from_json` 等）可保留接口要求的原名，不受本规则约束。
+
 ##### 规则 1.3 类型命名采用大驼峰命名风格
 
-所有类型命名——类、结构体、联合体、类型定义（typedef）、枚举——使用相同约定，例如：
+所有类型命名——类、结构体、联合体、类型别名（using/typedef）、枚举——使用相同约定，例如：
 ```cpp
 // classes, structs and unions
 class UrlTable { ...
 struct UrlTableProperties { ...
 union Packet { ...
-// typedefs
-typedef std::map<std::string, UrlTableProperties*> PropertiesMap;
+// type aliases
+using PropertiesMap = std::map<std::string, UrlTableProperties *>;
 // enums
 enum UrlTableErrors { ...
 ```
@@ -98,16 +103,16 @@ enum UrlTableErrors { ...
 对于命名空间的命名，建议使用大驼峰：
 ```cpp
 // namespace
-namespace FileUtils {
-}
+namespace FileUtils {}
 ```
 
-##### 规则 1.4 通用变量命名采用小驼峰，包括全局变量，函数形参，局部变量，成员变量
+##### 规则 1.4 通用变量命名采用小写下划线(snake_case)，包括全局变量，函数形参，局部变量，成员变量
 
 ```cpp
-std::string tableName;  // Good: 推荐此风格
-std::string tablename;  // Bad: 禁止此风格
-std::string path;       // Good: 只有一个单词时，小驼峰为全小写
+std::string table_name;  // Good: 推荐此风格
+std::string tableName;   // Bad: 禁止小驼峰风格
+std::string tablename;   // Bad: 禁止无单词分隔的风格
+std::string path;        // Good: 只有一个单词时，snake_case 为全小写
 ```
 
 全局变量应增加 'g_' 前缀，静态变量命名不需要加特殊前缀
@@ -117,47 +122,57 @@ std::string path;       // Good: 只有一个单词时，小驼峰为全小写
 - 类的静态成员变量和普通成员变量相同。
 
 ```cpp
-int g_activeConnectCount;
+int g_active_connect_count;
 
-void Func()
-{
-    static int packetCount = 0;
-    ...
+void Func() {
+  static int packet_count = 0;
+  ...
 }
 ```
 
-类的成员变量命名以小驼峰加后下划线组成
+类的成员变量命名以 snake_case 加后下划线组成；struct 纯数据结构的公共成员可不加后下划线，同一结构内保持一致。
 
 ```cpp
 class Foo {
-private:
-    std::string fileName_;   // 添加_后缀，类似于K&R命名风格
+ private:
+  std::string file_name_;  // 类成员：添加 _ 后缀区分
+};
+
+struct Point {
+  int x;  // struct 纯数据成员：可不加后缀
+  int y;
 };
 ```
 
 ##### 规则 1.5 宏、枚举值采用全大写，下划线连接的格式
 
-全局作用域内，有名和匿名namespace内的 const 常量，类的静态成员常量，全大写，下划线连接；函数局部 const 常量和类的普通const成员变量，使用小驼峰命名风格。
+宏、枚举值、goto 标签使用全大写，下划线连接。
 
 ```cpp
-#define MAX(a, b)   (((a) < (b)) ? (b) : (a)) // 仅对宏命名举例，并不推荐用宏实现此类功能
+#define MAX(a, b) (((a) < (b)) ? (b) : (a))  // 仅对宏命名举例，并不推荐用宏实现此类功能
 
-enum TintColor {    // 注意，枚举类型名用大驼峰，其下面的取值是全大写，下划线相连
-    RED,
-    DARK_RED,
-    GREEN,
-    LIGHT_GREEN
+enum TintColor {  // 注意，枚举类型名用大驼峰，其下面的取值是全大写，下划线相连
+  RED,
+  DARK_RED,
+  GREEN,
+  LIGHT_GREEN
 };
+```
 
-int Func(...)
-{
-    const unsigned int bufferSize = 100;    // 函数局部常量
-    char *p = new char[bufferSize];
-    ...
+##### 规则 1.6 编译期常量采用 k 前缀大驼峰命名
+
+编译期常量（constexpr，或以字面量/编译期常量表达式初始化的 const）不论作用域（全局、命名空间、类静态成员、函数局部），统一使用 k 前缀大驼峰命名；以函数调用或运行期数据初始化的 const 变量不是常量，按普通变量命名（规则 1.4）；类的非静态 const 成员变量按成员变量命名规则（snake_case 加后下划线）。
+
+```cpp
+int Func(...) {
+  constexpr unsigned int kBufferSize = 100;  // 编译期常量：k 前缀大驼峰
+  char *buffer = new char[kBufferSize];
+  const int saved_errno = errno;  // 运行期初始化的 const：按普通变量 snake_case 命名
+  ...
 }
 
 namespace Utils {
-	const unsigned int DEFAULT_FILE_SIZE_KB = 200;        // 全局常量
+constexpr unsigned int kDefaultFileSizeKb = 200;  // 全局编译期常量
 }
 ```
 
@@ -180,10 +195,11 @@ namespace Utils {
 #endif
 ```
 
-##### 规则 2.2 使用空格进行缩进，每次缩进4个空格
+##### 规则 2.2 使用空格进行缩进，每次缩进2个空格
 
-只允许使用空格(space)进行缩进，每次缩进为 4 个空格。不允许使用Tab符进行缩进。
-当前几乎所有的集成开发环境（IDE）都支持配置将Tab符自动扩展为4空格输入；请配置你的IDE支持使用空格进行缩进。
+只允许使用空格(space)进行缩进，每次缩进为 2 个空格。不允许使用Tab符进行缩进。
+当前几乎所有的集成开发环境（IDE）都支持配置将Tab符自动扩展为2空格输入；请配置你的IDE支持使用空格进行缩进。
+命名空间内部不缩进（与 `.clang-format` 的 `NamespaceIndentation: None` 一致）。
 
 ##### 规则 2.3 在声明指针、引用变量或参数时, `&`、`*`跟随变量名，另外一边留空格
 
@@ -207,17 +223,22 @@ if (cond) {
 }
 ```
 
+> **注意**：clang-format 不会自动为单条语句补全大括号（`AllowShortIfStatementsOnASingleLine: true` 允许单行 if 形式），本规则依赖代码检视或 clang-tidy（`readability-braces-around-statements`）保证。
+
 ##### 规则 2.5 for/while等循环语句必须使用大括号
 
 和条件表达式类似，我们要求for/while循环语句必须加上大括号，即便循环体是空的，或循环语句只有一条。
 ```cpp
-for (int i = 0; i < someRange; i++) {   // Good: 使用了大括号
-    DoSomething();
+for (int i = 0; i < some_range; i++) {  // Good: 使用了大括号
+  DoSomething();
 }
 ```
 ```cpp
-while (condition) { }   // Good：循环体是空，使用大括号
+while (condition) {  // Good：循环体是空，也使用大括号
+}
 ```
+
+> **注意**：同规则 2.4，clang-format 不会自动为循环语句补全大括号（`AllowShortLoopsOnASingleLine: true` 允许单行循环形式），需依靠代码检视保证。
 
 ##### 规则 2.6 表达式换行要保持换行的一致性，运算符放行末
 
@@ -226,44 +247,40 @@ while (condition) { }   // Good：循环体是空，使用大括号
 例：
 // 假设下面第一行已经不满足行宽要求
 ```cpp
-if ((currentValue > threshold) &&  // Good：换行后，逻辑操作符放在行尾
-    someCondition) {
-    DoSomething();
-    ...
+if ((current_value > threshold) &&  // Good：换行后，逻辑操作符放在行尾
+    some_condition) {
+  DoSomething();
+  ...
 }
 
-int result = reallyReallyLongVariableName1 +    // Good
-             reallyReallyLongVariableName2;
+int result = really_long_variable_name1 +  // Good
+             really_long_variable_name2;
 ```
-表达式换行后，注意保持合理对齐，或者4空格缩进。参考下面例子
+表达式换行后，续行与首个操作数对齐（与 `.clang-format` 的 `AlignOperands: true` 一致）。参考下面例子
 
 ```cpp
-int sum = longVariableName1 + longVariableName2 + longVariableName3 +
-    longVariableName4 + longVariableName5 + longVariableName6;         // Good: 4空格缩进
-
-int sum = longVariableName1 + longVariableName2 + longVariableName3 +
-          longVariableName4 + longVariableName5 + longVariableName6;   // Good: 保持对齐
+int sum = long_variable_name1 + long_variable_name2 + long_variable_name3 + long_variable_name4 + long_variable_name5 +
+          long_variable_name6;  // Good: 续行与首个操作数对齐
 ```
 
-##### 规则 2.7 使用 K&R 缩进风格
+##### 规则 2.7 使用附着式（Attach）大括号风格
 
-**K&R风格**
-换行时，函数（不包括lambda表达式）左大括号另起一行放行首，并独占一行；其他左大括号跟随语句放行末。
+**附着式（Attach）风格**
+所有左大括号（包括函数、类、结构体、控制语句等）跟随语句放行末，前置 1 空格。
 右大括号独占一行，除非后面跟着同一语句的剩余部分，如 do 语句中的 while，或者 if 语句的 else/else if，或者逗号、分号。
 
 如：
 ```cpp
-struct MyType {     // 跟随语句放行末，前置1空格
-    ...
+struct MyType {  // 跟随语句放行末，前置1空格
+  ...
 };
 
-int Foo(int a)
-{                   // 函数左大括号独占一行，放行首
-    if (...) {
-        ...
-    } else {
-        ...
-    }
+int Foo(int a) {  // 函数左大括号同样跟随语句放行末
+  if (...) {
+    ...
+  } else {
+    ...
+  }
 }
 ```
 推荐这种风格的理由：
@@ -271,17 +288,18 @@ int Foo(int a)
 - 代码更紧凑；
 - 相比另起一行，放行末使代码阅读节奏感上更连续；
 - 符合后来语言的习惯，符合业界主流习惯；
+- 与仓库 `.clang-format` 配置（`BreakBeforeBraces: Attach`）一致，提交前执行 clang-format 不会产生额外 diff；
 - 现代集成开发环境（IDE）都具有代码缩进对齐显示的辅助功能，大括号放在行尾并不会对缩进和范围产生理解上的影响。
 
 
 对于空函数体，可以将大括号放在同一行：
 ```cpp
 class MyClass {
-public:
-    MyClass() : value_(0) {}
+ public:
+  MyClass() : value_(0) {}
 
-private:
-    int value_;
+ private:
+  int value_;
 };
 ```
 
@@ -294,33 +312,28 @@ private:
 减少不必要的空行，可以显示更多的代码，方便代码阅读。下面有一些建议遵守的规则：
 - 根据上下内容的相关程度，合理安排空行；
 - 函数内部、类型定义内部、宏内部、初始化表达式内部，不使用连续空行
-- 不使用连续 **3** 个空行，或更多
+- 不使用连续空行，最多保留 1 个（与 `.clang-format` 的 `MaxEmptyLinesToKeep: 1` 一致）
 - 大括号内的代码块行首之前和行尾之后不要加空行，但namespace的大括号内不作要求。
 
 ```cpp
-int Foo()
-{
-    ...
+int Foo() {
+  ...
 }
 
 
-
-int Bar()  // Bad：最多使用连续2个空行。
-{
-    ...
+int Bar() {  // Bad：最多保留 1 个连续空行。
+  ...
 }
-
 
 if (...) {
-        // Bad：大括号内的代码块行首不要加入空行
-    ...
-        // Bad：大括号内的代码块行尾不要加入空行
+  // Bad：大括号内的代码块行首不要加入空行
+  ...
+  // Bad：大括号内的代码块行尾不要加入空行
 }
 
-int Foo(...)
-{
-        // Bad：函数体内行首不要加空行
-    ...
+int Foo(...) {
+  // Bad：函数体内行首不要加空行
+  ...
 }
 ```
 
@@ -351,19 +364,18 @@ int Foo(...)
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-
 ```
 
 > 关于版权说明，应注意：
 > 2026年新建的文件，应该是 `Copyright (c) 2026 Huawei Technologies Co., Ltd.`
 > 2025年新建，2026年修改的文件，应该是 `Copyright (c) 2025-2026 Huawei Technologies Co., Ltd.`
 
-##### 规则 3.2 代码注释置于对应代码的上方或右边，注释符与注释内容之间要有1个空格，右置注释与前面代码至少1空格，使用 `//`，而不是 `/**/`
+##### 规则 3.2 代码注释置于对应代码的上方或右边，注释符与注释内容之间要有1个空格，右置注释与前面代码至少1空格；右置注释使用 `//`，而不是 `/**/`，置于代码上方的注释使用 `//` 或 `/* */` 均可
 
 ```cpp
 // this is multi-
 // line comment
-int foo; // this single-line comment
+int foo;  // this single-line comment
 ```
 
 ##### 规则 3.3 代码中禁止使用 TODO/TBD/FIXME 等注释，建议提issue跟踪
