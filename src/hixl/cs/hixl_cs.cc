@@ -285,8 +285,12 @@ HixlStatus HixlCSClientConnect(HixlClientHandle client_handle, uint32_t timeout_
   HIXL_CHECK_NOTNULL(client_handle);
   auto *client = static_cast<hixl::HixlCSClient *>(client_handle);
   HIXL_CHECK_NOTNULL(client);
-  HIXL_CHK_STATUS_RET(client->Connect(timeout_ms), "HixlCSClientConnect failed, client_handle is %p, timeout:%u ms",
-                      client_handle, timeout_ms);
+  hixl::Status ret = client->Connect(timeout_ms);
+  if (ret == hixl::ALREADY_CONNECTED) {
+    HIXL_LOGW("[HixlCSClientConnect] Already connected, client_handle is %p", client_handle);
+    return HIXL_SUCCESS;
+  }
+  HIXL_CHK_STATUS_RET(ret, "HixlCSClientConnect failed, client_handle is %p, timeout:%u ms", client_handle, timeout_ms);
   return HIXL_SUCCESS;
 }
 

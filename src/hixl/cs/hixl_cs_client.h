@@ -91,6 +91,7 @@ class HixlCSClient {
 
  private:
   void ReleaseFlagIndex(int32_t flag_index);
+  void CloseSocket();
   Status InitBaseClient(const HixlClientDesc *client_desc);
   Status InitDeviceResource(const EndpointDesc &ep);
   Status InitNotifyResources(const EndpointDesc &ep);
@@ -168,6 +169,7 @@ class HixlCSClient {
   size_t top_index_ = 0;                                             // 栈顶指针
   std::array<CompleteHandleInfo *, kFlagQueueSize> live_handles_{};  // 用来记录读写生成的 query_handle
   int32_t socket_ = -1;
+  bool is_connected_{false};
   std::map<std::string, CommMem> tag_mem_descs_;
   std::vector<CommMem> remote_mems_out_;
   std::vector<std::vector<char>> remote_tag_storage_;
