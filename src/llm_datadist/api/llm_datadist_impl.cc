@@ -20,6 +20,7 @@
 #include "common/llm_common.h"
 #include "nlohmann/json.hpp"
 #include "common/hixl_utils.h"
+#include "common/hixl_version.h"
 #include "common/llm_checker.h"
 #include "common/llm_scope_guard.h"
 
@@ -447,7 +448,7 @@ LlmDataDist::LlmDataDist(uint64_t cluster_id, LlmRole role) {
 LlmDataDist::~LlmDataDist() = default;
 
 Status LlmDataDist::Initialize(const std::map<AscendString, AscendString> &options) {
-  LLMLOGI("LlmDataDist initialize start");
+  LLMEVENT("LlmDataDist initialize start, commit_id:%s", HIXL_VER_STRING);
   LLM_CHK_BOOL_RET_STATUS(impl_ != nullptr, LLM_FAILED, "impl is nullptr, check LlmDataDist construct");
   const auto ret = llm::TransRetToLlmCodes(impl_->Initialize(options));
   LLM_CHK_BOOL_RET_STATUS(ret == LLM_SUCCESS, ret, "Failed to initialize LlmDataDist");

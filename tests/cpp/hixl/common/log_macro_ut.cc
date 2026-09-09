@@ -20,6 +20,7 @@
 
 #include "securec.h"
 #include "common/hixl_checker.h"
+#include "common/hixl_version.h"
 #include "hixl_log.h"
 #include "common/llm_log.h"
 #include "slog_stub.h"
@@ -207,6 +208,14 @@ TEST_F(LogMacroUt, LlmEventUsesMaskedAclRecordForNewRuntime) {
   EXPECT_EQ(stats.last_module_id,
             static_cast<int32_t>(static_cast<uint32_t>(RUN_LOG_MASK) | static_cast<uint32_t>(GE)));
   EXPECT_EQ(stats.last_level, DLOG_INFO);
+}
+
+TEST_F(LogMacroUt, VerStringFallsBackToUnknownWhenNotInjected) {
+  const std::string ver = HIXL_VER_STRING;
+  EXPECT_FALSE(ver.empty());
+  const bool is_unknown = ver == "unknown";
+  const bool is_commit = ver.size() >= 7U && ver.find_first_not_of("0123456789abcdef") == std::string::npos;
+  EXPECT_TRUE(is_unknown || is_commit);
 }
 
 TEST_F(LogMacroUt, LogCallStatsAreThreadSafe) {

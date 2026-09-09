@@ -47,6 +47,10 @@ target_include_directories(llm_datadist PRIVATE
     ${HIXL_CODE_DIR}/src/hixl/proxy
     )
 
+target_compile_definitions(llm_datadist PRIVATE
+        HIXL_VER_STRING="${HIXL_VER_STRING}"
+        )
+
 target_compile_options(llm_datadist PRIVATE
         -ftrapv
         -fno-common
@@ -107,6 +111,10 @@ target_include_directories(adxl_static PRIVATE
     ${ADXL_INC_DIR}
     ${HIXL_CODE_DIR}/src/hixl/proxy
     )
+
+target_compile_definitions(adxl_static PRIVATE
+        HIXL_VER_STRING="${HIXL_VER_STRING}"
+        )
 
 target_compile_options(adxl_static PRIVATE
         -ftrapv

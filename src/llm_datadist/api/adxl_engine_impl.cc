@@ -19,6 +19,7 @@
 #include "engine/engine.h"
 #include "engine/hixl_options.h"
 #include "common/hixl_utils.h"
+#include "common/hixl_version.h"
 #include "fabric_mem/fabric_mem_transfer_service.h"
 #include "hixl/hixl.h"
 #include "hixl/hixl_types.h"
@@ -207,7 +208,7 @@ AdxlEngine::~AdxlEngine() {
 }
 
 Status AdxlEngine::Initialize(const AscendString &local_engine, const std::map<AscendString, AscendString> &options) {
-  LLMLOGI("AdxlEngine initialize start");
+  LLMEVENT("AdxlEngine initialize start, commit_id:%s", HIXL_VER_STRING);
   impl_ = llm::MakeUnique<AdxlEngineImpl>(local_engine);
   ADXL_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "impl is nullptr, check AdxlEngine construct");
   const auto ret = impl_->Initialize(options);
