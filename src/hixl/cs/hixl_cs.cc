@@ -16,7 +16,6 @@
 #include "common/scope_guard.h"
 #include "hixl_cs_server.h"
 #include "hixl_cs_client.h"
-#include <cstdlib>
 #include <mutex>
 #include <unordered_set>
 
@@ -24,28 +23,11 @@ namespace {
 constexpr uint32_t kMinClientPort = 1U;
 constexpr uint32_t kMaxPort = 65535U;
 
-struct ServerCleanup {
-  static void Cleanup(hixl::HixlCSServer *server) {
-    (void)server->Finalize();
-    delete server;
-  }
-};
-
-struct ClientCleanup {
-  static void Cleanup(hixl::HixlCSClient *client) {
-    (void)client->Destroy();
-    delete client;
-  }
-};
-
-template <typename T, typename CleanupPolicy>
+template <typename T>
 class HandleRegistry {
  public:
   static void Register(T *handle) {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (handles_.empty()) {
-      std::atexit(CleanupAll);
-    }
     handles_.insert(handle);
   }
 
@@ -55,26 +37,18 @@ class HandleRegistry {
   }
 
  private:
-  static void CleanupAll() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    for (auto *handle : handles_) {
-      CleanupPolicy::Cleanup(handle);
-    }
-    handles_.clear();
-  }
-
   static std::mutex mutex_;
   static std::unordered_set<T *> handles_;
 };
 
-template <typename T, typename CleanupPolicy>
-std::mutex HandleRegistry<T, CleanupPolicy>::mutex_;
+template <typename T>
+std::mutex HandleRegistry<T>::mutex_;
 
-template <typename T, typename CleanupPolicy>
-std::unordered_set<T *> HandleRegistry<T, CleanupPolicy>::handles_;
+template <typename T>
+std::unordered_set<T *> HandleRegistry<T>::handles_;
 
-using ServerRegistry = HandleRegistry<hixl::HixlCSServer, ServerCleanup>;
-using ClientRegistry = HandleRegistry<hixl::HixlCSClient, ClientCleanup>;
+using ServerRegistry = HandleRegistry<hixl::HixlCSServer>;
+using ClientRegistry = HandleRegistry<hixl::HixlCSClient>;
 
 }  // namespace
 
