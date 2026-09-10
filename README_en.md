@@ -2,8 +2,6 @@
 
 # HIXL
 
-English | [简体中文](./README.md)
-
 <h4>Simple, reliable, and efficient point-to-point data transmission for cluster scenarios</h4>
 
 <p align="center">
