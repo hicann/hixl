@@ -21,9 +21,6 @@
 #include "hixl/hixl_types.h"
 #include "common/hixl_checker.h"
 
-#undef PYBIND11_CHECK_PYTHON_VERSION
-#define PYBIND11_CHECK_PYTHON_VERSION
-
 namespace hixl_py {
 namespace py = pybind11;
 

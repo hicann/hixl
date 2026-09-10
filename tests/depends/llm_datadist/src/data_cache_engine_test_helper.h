@@ -141,13 +141,13 @@ class MockMmpaForHcclApi : public hixl_test::SysApiHooks {
   int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
     std::string stub_path = path;
     if (stub_path == "/etc/hccn.conf") {
-      stub_path = "/tmp/hccn.conf";
+      stub_path = HccnConfTestPath();
     }
     memcpy_s(realPath, realPathLen, stub_path.c_str(), stub_path.length());
-    std::string tempPath = "/tmp/hccn.conf";
+    const std::string &tempPath = HccnConfTestPath();
     if (FILE *file = fopen(tempPath.c_str(), "r")) {
       if (fclose(file) == 0) {
-        std::cout << "Successfully closed the file /tmp/hccn.conf" << std::endl;
+        std::cout << "Successfully closed the file " << tempPath << std::endl;
       }
       return 0;
     } else {
@@ -256,13 +256,13 @@ class AutoCommResRuntimeMock : public llm::AclRuntimeStub {
   }
 
   static void DeleteHccnConfIfExist() {
-    std::string path = "/tmp/hccn.conf";
+    const std::string &path = HccnConfTestPath();
     if (FILE *file = fopen(path.c_str(), "r")) {
       if (fclose(file) == 0) {
-        std::cout << "Successfully closed the file /tmp/hccn.conf" << std::endl;
+        std::cout << "Successfully closed the file " << path << std::endl;
       }
       if (std::remove(path.c_str())) {
-        std::cout << "Successfully deleted the file /tmp/hccn.conf" << std::endl;
+        std::cout << "Successfully deleted the file " << path << std::endl;
       }
     }
   }

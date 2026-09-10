@@ -15,17 +15,26 @@
 #include <cstdio>
 #include <iostream>
 #include <string>
+#include <unistd.h>
 
 namespace llm {
 
-// 从外部配置文件读取HCCN设备地址，写入/tmp/hccn.conf，避免代码中硬编码公网地址
+// Per-process hccn.conf path. run_test.sh executes all C++ suites in parallel and multiple
+// suites (llm_datadist/adxl/channel_pool/hixl) stub /etc/hccn.conf through this file, so a
+// fixed /tmp/hccn.conf would be deleted or overwritten by a peer process mid-test.
+inline const std::string &HccnConfTestPath() {
+  static const std::string path = "/tmp/hccn.conf." + std::to_string(getpid());
+  return path;
+}
+
+// 从外部配置文件读取HCCN设备地址，写入HccnConfTestPath()，避免代码中硬编码公网地址
 inline void WriteHccnConfFile() {
 #ifdef HCCN_TEST_CONF_PATH
   const std::string src_path = HCCN_TEST_CONF_PATH;
 #else
   const std::string src_path = "tests/depends/llm_datadist/src/hccn_test.conf";
 #endif
-  const std::string dst_path = "/tmp/hccn.conf";
+  const std::string dst_path = HccnConfTestPath();
 
   std::ifstream src(src_path);
   if (!src.is_open()) {
@@ -42,9 +51,9 @@ inline void WriteHccnConfFile() {
   dst << src.rdbuf();
 }
 
-// remove /tmp/hccn.conf
+// remove HccnConfTestPath()
 inline void RemoveHccnConfFile() {
-  const std::string file_path = "/tmp/hccn.conf";
+  const std::string file_path = HccnConfTestPath();
   if (std::remove(file_path.c_str()) != 0) {
     std::cout << "Failed to delete file:" << file_path.c_str() << std::endl;
   }
