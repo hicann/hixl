@@ -45,7 +45,7 @@ std::set<std::string> CollectDevicePorts(const nlohmann::json &rank_table_json) 
 }
 
 void WriteHccnConf(const std::string &content) {
-  std::ofstream file("/tmp/hccn.conf");
+  std::ofstream file(HccnConfTestPath());
   ASSERT_TRUE(file.is_open());
   file << content;
 }

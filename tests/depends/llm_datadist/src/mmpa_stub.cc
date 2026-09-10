@@ -77,7 +77,7 @@ class MockMmpa : public hixl_test::SysApiHooks {
   int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
     std::string stub_path = path;
     if (stub_path == "/etc/hccn.conf") {
-      stub_path = "/tmp/hccn.conf";
+      stub_path = HccnConfTestPath();
     }
     memcpy_s(realPath, realPathLen, stub_path.c_str(), stub_path.length());
     return 0;
