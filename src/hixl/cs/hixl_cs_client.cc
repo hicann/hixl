@@ -1181,20 +1181,35 @@ Status HixlCSClient::Connect(uint32_t timeout_ms) {
   HIXL_CHECK_NOTNULL(local_endpoint_);
   HIXL_CHK_BOOL_RET_STATUS(remote_endpoint_.protocol != COMM_PROTOCOL_RESERVED, PARAM_INVALID,
                            "[HixlClient] Connect called but remote_endpoint is not set in Create");
-  if (socket_ != -1) {
+  if (is_connected_) {
     HIXL_LOGW("[HixlClient] Already connected. fd=%d, Target=%s:%u", socket_, server_ip_.c_str(), server_port_);
     return ALREADY_CONNECTED;
   }
   HIXL_EVENT("[HixlClient] Connect start. Target=%s:%u, timeout=%u ms", server_ip_.c_str(), server_port_, timeout_ms);
-  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Connect(server_ip_, server_port_, socket_, timeout_ms),
-                      "[HixlClient] Connect socket to %s:%u failed", server_ip_.c_str(), server_port_);
+  const Status sock_ret = CtrlMsgPlugin::Connect(server_ip_, server_port_, socket_, timeout_ms);
+  if (sock_ret != SUCCESS) {
+    // CtrlMsgPlugin::Connect 失败时内部已关闭 fd，此处仅清除残留句柄，避免误判为已连接
+    socket_ = -1;
+    HIXL_CHK_STATUS_RET(sock_ret, "[HixlClient] Connect socket to %s:%u failed", server_ip_.c_str(), server_port_);
+  }
   HIXL_LOGI("[HixlClient] Socket connected (TCP ready). fd=%d", socket_);
+  HIXL_DISMISSABLE_GUARD(close_socket, [this] { CloseSocket(); });
   HIXL_CHK_STATUS_RET(ExchangeEndpointAndCreateChannel(timeout_ms),
                       "[HixlClient] Exchange endpoint info failed. fd=%d, Target=%s:%u", socket_, server_ip_.c_str(),
                       server_port_);
+  HIXL_DISMISS_GUARD(close_socket);
+  is_connected_ = true;
   HIXL_EVENT("[HixlClient] Connect success. target=%s:%u, fd=%d, remote_ep_handle=%" PRIu64 ", ch=%p",
              server_ip_.c_str(), server_port_, socket_, remote_endpoint_handle_, client_channel_handle_);
   return SUCCESS;
+}
+
+void HixlCSClient::CloseSocket() {
+  if (socket_ != -1) {
+    HIXL_LOGI("[HixlClient] Closing socket. fd=%d", socket_);
+    close(socket_);
+    socket_ = -1;
+  }
 }
 
 Status HixlCSClient::ExchangeEndpointAndCreateChannel(uint32_t timeout_ms) {
@@ -1476,11 +1491,8 @@ Status HixlCSClient::Destroy() {
       HIXL_LOGW("[HixlClient] ClearRemoteMemInfo failed. fd=%d, ret=%u", socket_, static_cast<uint32_t>(ret));
       first_error = (first_error == SUCCESS) ? ret : first_error;
     }
-    if (socket_ != -1) {
-      HIXL_LOGI("[HixlClient] Closing socket. fd=%d", socket_);
-      close(socket_);
-      socket_ = -1;
-    }
+    CloseSocket();
+    is_connected_ = false;
     if (local_endpoint_ != nullptr) {
       ret = local_endpoint_->Finalize();
       if (ret != SUCCESS) {

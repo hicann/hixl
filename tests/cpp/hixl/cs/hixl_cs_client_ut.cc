@@ -983,6 +983,8 @@ TEST_F(HixlCSClientUT, ConnectFailNoServer) {
   port_ = kPort;
   CreateClient();
   EXPECT_NE(client_.Connect(kConnectTime1), SUCCESS);  // 50ms
+  EXPECT_EQ(client_.socket_, -1);
+  EXPECT_FALSE(client_.is_connected_);
 }
 
 TEST_F(HixlCSClientUT, ConnectSuccessNormal) {
@@ -995,6 +997,19 @@ TEST_F(HixlCSClientUT, ConnectTwiceReturnsAlreadyConnected) {
   StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
   CreateClient();
   EXPECT_EQ(client_.Connect(kDefaultConnectTimeoutMs), SUCCESS);
+  EXPECT_EQ(client_.Connect(kDefaultConnectTimeoutMs), ALREADY_CONNECTED);
+}
+
+// TCP 建链成功但端点交换/建 channel 失败后，重试 Connect 必须重新走完整建链，而不是误报已连接
+TEST_F(HixlCSClientUT, ConnectRetryAfterExchangeFailReconnects) {
+  StartServer(MiniSrvMode::kConnectResp_FailResult, MiniSrvMode::kNormal);
+  CreateClient();
+  EXPECT_NE(client_.Connect(kDefaultConnectTimeoutMs), SUCCESS);
+  EXPECT_EQ(client_.socket_, -1);
+  EXPECT_FALSE(client_.is_connected_);
+  StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
+  EXPECT_EQ(client_.Connect(kDefaultConnectTimeoutMs), SUCCESS);
+  EXPECT_TRUE(client_.is_connected_);
   EXPECT_EQ(client_.Connect(kDefaultConnectTimeoutMs), ALREADY_CONNECTED);
 }
 
