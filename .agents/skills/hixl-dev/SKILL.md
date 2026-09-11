@@ -210,9 +210,15 @@ Base: <BASE_COMMIT>
 4. 若改动涉及 `include/` 下 `.h` 文件，按
    [`hixl-review` 的 header-comment-spec.md](../hixl-review/references/header-comment-spec.md)
    自检新增/修改的公共 API Doxygen 注释（HC-1 至 HC-9），仅检查 diff 新增行；
-5. 代码改动准备 PR 时，按 [`hixl-review`](../hixl-review/SKILL.md) 的适用范围进行检视；
+5. 若改动涉及 `include/` 下公开头文件或公开接口（`hixl::`/`adxl::`/`llm_datadist::`/`HixlCS*`）
+   实现符号，按
+   [ABI 兼容性编码规范](../../../docs/zh/contributions/coding_standards/cpp-abi.md)
+   自检规范列表（重点：新增字段末尾追加并复用 reserved 空间、枚举显式赋值仅末尾扩展、
+   公开符号与 `constexpr` 常量值不变、公开头文件禁 `std::string`/`std::list`）；
+   确属 ABI 变更时，在 PR 描述中显式说明 ABI 影响、兼容性结论与版本演进方案；
+6. 代码改动准备 PR 时，按 [`hixl-review`](../hixl-review/SKILL.md) 的适用范围进行检视；
    远程评论或 `/lgtm` 属于外部写操作，须在用户要求后执行；
-6. 通过后用 [`gitcode-pr`](../gitcode-pr/SKILL.md) 创建或更新 PR（不修改该 skill）。
+7. 通过后用 [`gitcode-pr`](../gitcode-pr/SKILL.md) 创建或更新 PR（不修改该 skill）。
 
 ## 6. CI 跟进与低级错误修复
 

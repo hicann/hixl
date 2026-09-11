@@ -603,11 +603,11 @@ Passwords, keys, and other sensitive information must be zeroed out immediately 
 
 #### 10.11 When adding fields to an external struct interface, they must be appended at the end of the struct
 
-To maximize compatibility at the ABI level, when adding new fields to an external struct interface, they must be appended at the end of the struct.
+To maximize compatibility at the ABI level, when adding new fields to an external struct interface, they must be appended at the end of the struct. For the complete ABI compatibility rules (STL type admission, reserved-space usage, enum value evolution, symbol evolution, etc.), see the [ABI Compatibility Coding Specifications](cpp-abi.md).
 
 #### 10.12 Changes to external interfaces or data structures must consider compatibility
 
-Changes to external interfaces, interface parameters, return values, data structures, message fields, etc. will cause version compatibility issues. Changes are not recommended unless necessary.
+Changes to external interfaces, interface parameters, return values, data structures, message fields, etc. will cause version compatibility issues. Changes are not recommended unless necessary. For the ABI change checklist and review requirements, see the [ABI Compatibility Coding Specifications](cpp-abi.md).
 
 ---
 
