@@ -74,25 +74,18 @@ For each entry function:
 ```cpp
 uint32_t HixlBatchTransfer(bool is_read, HixlOneSideOpParam *param) {
   // P1: Null check on pointer (param is about to be dereferenced)
-  if (param == nullptr) {
-    HIXL_LOGE(PARAM_INVALID, "[HixlBatchPutAndGet] param is nullptr");
-    return PARAM_INVALID;
-  }
-  // P3: list_num needs an upper limit check, because list_num is subsequently used to construct a vector and access the array pointed to by op_desc_list_addr
+  HIXL_CHECK_NOTNULL(param);
+  // P3: list_num needs an upper limit check; it is subsequently used to construct a vector and access the array pointed
+  // to by op_desc_list_addr
   constexpr uint32_t kMaxBatchSize = 8192;
-  if (param->list_num == 0 || param->list_num > kMaxBatchSize) {
-    HIXL_LOGE(PARAM_INVALID, "[HixlBatchPutAndGet] invalid list_num=%u, valid range is [1, %u]",
-              param->list_num, kMaxBatchSize);
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(param->list_num > 0 && param->list_num <= kMaxBatchSize, PARAM_INVALID,
+                           "[HixlBatchTransfer] invalid list_num:%u, valid range is [1, %u]", param->list_num,
+                           kMaxBatchSize);
   // P2: Address field non-zero (about to reinterpret_cast and access)
-  if (param->op_desc_list_addr == 0) {
-    HIXL_LOGE(PARAM_INVALID, "[HixlBatchPutAndGet] op_desc_list_addr is null");
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(param->op_desc_list_addr != 0, PARAM_INVALID,
+                           "[HixlBatchTransfer] op_desc_list_addr is null");
   // P5: Parameters are only used after validation is complete
-  auto *op_list = reinterpret_cast<HixlOneSideOpDesc *>(
-      static_cast<uintptr_t>(param->op_desc_list_addr));
+  auto *op_list = reinterpret_cast<HixlOneSideOpDesc *>(static_cast<uintptr_t>(param->op_desc_list_addr));
   ...
 }
 ```
@@ -100,8 +93,9 @@ uint32_t HixlBatchTransfer(bool is_read, HixlOneSideOpParam *param) {
 ## Incorrect Example
 
 ```cpp
-// Incorrect: server_ip is not null-checked; the std::string constructor internally calls strlen which dereferences nullptr
-HixlCSServer(const char *ip, uint32_t port) : ip_(ip), port_(port) {};
+// Incorrect: server_ip is not null-checked; the std::string constructor internally calls strlen which dereferences
+// nullptr
+HixlCSServer(const char *ip, uint32_t port) : ip_(ip), port_(port){};
 // Call site:
 auto server = new HixlCSServer(server_desc->server_ip, server_desc->server_port);
 // When server_ip is nullptr, std::string(nullptr) crashes
@@ -119,6 +113,6 @@ HIXL_CHK_STATUS_RET(server->Initialize(server_desc->endpoint_list, ...), ...);
 
 // Not an issue: the caller guarantees desc_list has at least list_num elements
 for (uint32_t i = 0; i < list_num; i++) {
-    void *dst = desc_list[i].local_buf;  // Guaranteed by the caller, not the library's responsibility
+  void *dst = desc_list[i].local_buf;  // Guaranteed by the caller, not the library's responsibility
 }
 ```

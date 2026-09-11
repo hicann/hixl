@@ -110,35 +110,35 @@ C++语言的内存完全由程序员自己控制，所以在操作内存的时�
 
 ```cpp
 // 错误写法 — 两个 int32_t 相乘，结果可能超出 int32_t 范围
-int32_t calcHeightAlign = GetAlignedSize(...);  // 对齐后高度，可达 65536
-int32_t calcWidth = GetWidth(...);              // 宽度，可达 65536
-int32_t size = calcHeightAlign * calcWidth;     // 65536 × 65536 = 4,294,967,296 溢出！
+int32_t calc_height_align = GetAlignedSize(...);  // 对齐后高度，可达 65536
+int32_t calc_width = GetWidth(...);               // 宽度，可达 65536
+int32_t size = calc_height_align * calc_width;    // 65536 × 65536 = 4,294,967,296 溢出！
 
 // 正确写法 — 提升为 int64_t 计算
-int64_t size = static_cast<int64_t>(calcHeightAlign) * calcWidth;
+int64_t size = static_cast<int64_t>(calc_height_align) * calc_width;
 ```
 
 **取反示例（INT64_MIN 取反溢出，红线问题）：**
 
 ```cpp
 // 错误写法 — delta 取 INT64_MIN 时，-delta 溢出
-int64_t delta = input2 - input1;       // 可能为 INT64_MIN = -9223372036854775808
-int64_t absDelta = -delta;             // -(-9223372036854775808) = 9223372036854775808 > INT64_MAX!
+int64_t delta = input2 - input1;  // 可能为 INT64_MIN = -9223372036854775808
+int64_t abs_delta = -delta;       // -(-9223372036854775808) = 9223372036854775808 > INT64_MAX!
 // 有符号整数溢出是未定义行为（C++ 红线）
 
 // 正确写法 — 转换为无符号类型后再求绝对值
-uint64_t absDelta = (delta < 0) ? -static_cast<uint64_t>(delta) : static_cast<uint64_t>(delta);
+uint64_t abs_delta = (delta < 0) ? -static_cast<uint64_t>(delta) : static_cast<uint64_t>(delta);
 ```
 
 **多维连乘示例（多维 shape 连续累乘溢出）：**
 
 ```cpp
 // 错误写法 — 多维 shape 用 int32_t 连乘，极易溢出
-int32_t totalSize = dim0 * dim1 * dim2 * dim3 * dim4;
+int32_t total_size = dim0 * dim1 * dim2 * dim3 * dim4;
 // dim0=1024, dim1=1024, dim2=128, dim3=64 时积 ≈ 8.6 × 10^9 > INT32_MAX
 
 // 正确写法 — 使用 int64_t 并提前提升
-int64_t totalSize = static_cast<int64_t>(dim0) * dim1 * dim2 * dim3 * dim4;
+int64_t total_size = static_cast<int64_t>(dim0) * dim1 * dim2 * dim3 * dim4;
 ```
 
 #### 2.2 确保无符号整数运算不回绕
@@ -150,44 +150,43 @@ int64_t totalSize = static_cast<int64_t>(dim0) * dim1 * dim2 * dim3 * dim4;
 
 ```cpp
 // 错误写法 — 乘法在 uint32_t 完成，回绕发生后才 cast 到 uint64_t，无法恢复
-uint32_t blockSize = 65536;    // 来自外部配置
-uint32_t strideKV = 65536;     // 来自外部配置
-uint64_t result = blockSize * strideKV;
-// blockSize * strideKV 在 uint32_t 空间计算：65536 × 65536 = 4,294,967,296 > UINT32_MAX
+uint32_t block_size = 65536;  // 来自外部配置
+uint32_t stride_kv = 65536;   // 来自外部配置
+uint64_t result = block_size * stride_kv;
+// block_size * stride_kv 在 uint32_t 空间计算：65536 × 65536 = 4,294,967,296 > UINT32_MAX
 // 实际结果: (65536 × 65536) mod 2^32 = 0 → 回绕后的 0 再 cast 到 uint64_t = 0
 
 // 正确写法 — 乘法前至少一个操作数提升为 uint64_t
-uint64_t result = static_cast<uint64_t>(blockSize) * strideKV;
+uint64_t result = static_cast<uint64_t>(block_size) * stride_kv;
 ```
 
 **减法示例（uint32_t 减法回绕——结果用作数组索引）：**
 
 ```cpp
-// 错误写法 — aivIdx * singleCoreSize 可能大于 totalOutputSize，减法回绕
-uint32_t tailSize = totalOutputSize - aivIdx * singleCoreSize;
-// totalOutputSize=100, aivIdx=47, singleCoreSize=3:
+// 错误写法 — aiv_idx * single_core_size 可能大于 total_output_size，减法回绕
+uint32_t tail_size = total_output_size - aiv_idx * single_core_size;
+// total_output_size=100, aiv_idx=47, single_core_size=3:
 //   47 × 3 = 141, 100 - 141 按 uint32_t 计算 = 4294967255（回绕）
-//   tailSize 被误认为合法大小，后续搬运 4GB 数据 → 越界崩溃
+//   tail_size 被误认为合法大小，后续搬运 4GB 数据 → 越界崩溃
 
 // 正确写法 — 先判断大小关系，或使用 int64_t 中间结果
-int64_t tailSizeSigned = static_cast<int64_t>(totalOutputSize) -
-                         static_cast<int64_t>(aivIdx) * singleCoreSize;
-uint32_t tailSize = (tailSizeSigned > 0) ? static_cast<uint32_t>(tailSizeSigned) : 0;
+int64_t tail_size_signed = static_cast<int64_t>(total_output_size) - static_cast<int64_t>(aiv_idx) * single_core_size;
+uint32_t tail_size = (tail_size_signed > 0) ? static_cast<uint32_t>(tail_size_signed) : 0;
 ```
 
 **类型混合示例（size_t 与 int64_t 混合运算——负数回绕成极大值）：**
 
 ```cpp
-// 错误写法 — N_ALIGN 是 size_t 常量（无符号），numIters 是 int64_t
+// 错误写法 — kNAlign 是 size_t 常量（无符号），num_iters 是 int64_t
 // 按 C++ 整型提升规则 int64_t → size_t，负数变成极大正数
-constexpr size_t N_ALIGN = 128;
-int64_t normSize = N_ALIGN * DOUBLE_SIZE * numIters * T * n0;
-// 若 numIters 为负值，提升为 size_t 后回绕成 2^64-127 级别的极大值
+constexpr size_t kNAlign = 128;
+int64_t norm_size = kNAlign * DOUBLE_SIZE * num_iters * T * n0;
+// 若 num_iters 为负值，提升为 size_t 后回绕成 2^64-127 级别的极大值
 // 后续所有计算均错
 
 // 正确写法 — 统一为有符号类型
-constexpr int64_t N_ALIGN = 128;
-int64_t normSize = N_ALIGN * DOUBLE_SIZE * numIters * T * n0;
+constexpr int64_t kNAlign = 128;
+int64_t norm_size = kNAlign * DOUBLE_SIZE * num_iters * T * n0;
 ```
 
 #### 2.3 确保除法和余数运算不会导致除以零的错误
@@ -232,22 +231,19 @@ int64_t normSize = N_ALIGN * DOUBLE_SIZE * numIters * T * n0;
 
 ```cpp
 // ✅ 编译期常量除数 — 自动 PASS
-constexpr uint32_t BLOCK = 32;
-uint32_t blocks = totalSize / BLOCK;  // 无需守卫
+constexpr uint32_t kBlock = 32;
+uint32_t blocks = total_size / kBlock;  // 无需守卫
 
 // ✅ 外部输入除数 — 有零值守卫
-if (tileSize == 0) {
-    HIXL_LOGE(INVALID_PARAM, "tileSize is 0");
-    return FAILED;
-}
-uint32_t loops = totalSize / tileSize;
+HIXL_CHK_BOOL_RET_STATUS(tile_size > 0, INVALID_PARAM, "Invalid tile_size:%u, must be greater than 0", tile_size);
+uint32_t loops = total_size / tile_size;
 
 // ✅ 运行时计算值除数 — std::max 保底
-uint32_t safeDivisor = std::max(computedDivisor, 1U);
-uint32_t result = totalSize / safeDivisor;
+uint32_t safe_divisor = std::max(computed_divisor, 1U);
+uint32_t result = total_size / safe_divisor;
 
 // ❌ 外部输入除数 — 无守卫
-uint32_t loops = totalSize / tileSize;  // tileSize 来自外部输入，未判零
+uint32_t loops = total_size / tile_size;  // tile_size 来自外部输入，未判零
 ```
 
 ---
@@ -259,11 +255,10 @@ uint32_t loops = totalSize / tileSize;  // tileSize 来自外部输入，未判�
 这里的变量，指的是局部动态变量，并且还包括内存堆上申请的内存块。因为他们的初始值都是不可预料的，所以禁止未经有效初始化就直接读取其值。
 
 ```cpp
-void foo(...)
-{
-    int data;
-    bar(data); // 错误：未初始化就使用
-    ...
+void Foo(...) {
+  int data;
+  Bar(data);  // 错误：未初始化就使用
+  ...
 }
 ```
 
@@ -277,22 +272,21 @@ void foo(...)
 **【正确代码示例】**
 
 ```cpp
-int foo(void)
-{
-    SomeStruct *msg = NULL;
-    ... // 初始化msg->type，分配 msg->body 的内存空间
+int Foo(void) {
+  SomeStruct *msg = nullptr;
+  ...  // 分配 msg 及其成员的内存空间，并初始化 msg->type
 
-    if (msg->type == MESSAGE_A) {
-        ...
-        free(msg->body);
-        msg->body = NULL;
-    }
-
-    ...
-EXIT:
+  if (msg->type == MESSAGE_A) {
     ...
     free(msg->body);
-    return ret;
+    msg->body = nullptr;
+  }
+
+  ...
+EXIT:
+  ...
+  free(msg->body);
+  return ret;
 }
 ```
 
@@ -321,16 +315,16 @@ EXIT:
 **【正确代码示例】**
 
 ```cpp
-#define DEV_NUM 10
-static Dev devs[DEV_NUM];
+constexpr size_t kDevNum = 10;
+static Dev g_devs[kDevNum];
 
-int set_dev_id(size_t index, int id)
-{
-    if (index >= DEV_NUM) {
-        ... // 错误处理
-    }
-    devs[index].id = id;
-    return 0;
+int SetDevId(size_t index, int id) {
+  if (index >= kDevNum) {
+    ...  // 错误处理：打印日志并返回错误码
+    return -1;
+  }
+  g_devs[index].id = id;
+  return 0;
 }
 ```
 
@@ -343,21 +337,21 @@ int set_dev_id(size_t index, int id)
 
 ```cpp
 char path[MAX_PATH];
-char *buffer = (char *)malloc(SIZE);
+char *buffer = static_cast<char *>(malloc(SIZE));
 ...
-(void)memset(path, 0, sizeof(path));
-// sizeof与预期不符，其结果为指针本身的大小而不是缓冲区大小
-(void)memset(buffer, 0, sizeof(buffer));
+(void)memset_s(path, sizeof(path), 0, sizeof(path));
+// memset_s 与预期不符，其 destMax 传了指针本身的大小而不是缓冲区大小
+(void)memset_s(buffer, sizeof(buffer), 0, sizeof(buffer));
 ```
 
 **【正确代码示例】**
 
 ```cpp
 char path[MAX_PATH];
-char *buffer = (char *)malloc(SIZE);
+char *buffer = static_cast<char *>(malloc(SIZE));
 ...
-(void)memset(path, 0, sizeof(path));
-(void)memset(buffer, 0, SIZE); // 使用申请的缓冲区大小
+(void)memset_s(path, sizeof(path), 0, sizeof(path));
+(void)memset_s(buffer, SIZE, 0, SIZE);  // 使用申请的缓冲区大小
 ```
 
 #### 3.5 指针操作，使用前必须要判空
@@ -394,22 +388,13 @@ char *buffer = (char *)malloc(SIZE);
 
 ```cpp
 // 校验指针非空
-if (context == nullptr) {
-    HIXL_LOGE(INVALID_PARAM, "context is null");
-    return FAILED;
-}
+HIXL_CHECK_NOTNULL(context);
 
 // 校验参数范围
-if (headDim == 0) {
-    HIXL_LOGE(INVALID_PARAM, "headDim is 0");
-    return FAILED;
-}
+HIXL_CHK_BOOL_RET_STATUS(head_dim > 0, INVALID_PARAM, "Invalid head_dim:%d, must be greater than 0", head_dim);
 
 // 校验参数组合存在性
-if (pointer == nullptr) {
-    HIXL_LOGE(INVALID_PARAM, "%s should not be null", name.c_str());
-    return FAILED;
-}
+HIXL_CHK_BOOL_RET_STATUS(pointer != nullptr, INVALID_PARAM, "%s should not be null", name.c_str());
 ```
 
 #### 4.2 外部输入作为内存操作相关函数的复制长度时，需要校验其合法性
@@ -429,15 +414,15 @@ if (pointer == nullptr) {
 **【正确代码示例】**
 
 ```cpp
-struct tm *make_tm(int year, int mon, int day, int hour, int min, int sec)
-{
-    struct tm *tmb = (struct tm *)malloc(sizeof(*tmb));
-    if (tmb == NULL) {
-        ... // 错误处理
-    }
-    tmb->year = year;
-    ...
-    return tmb;
+struct tm *MakeTm(int year, int mon, int day, int hour, int min, int sec) {
+  struct tm *tmb = static_cast<struct tm *>(malloc(sizeof(*tmb)));
+  if (tmb == nullptr) {
+    ...  // 错误处理：打印日志并返回
+    return nullptr;
+  }
+  tmb->tm_year = year;
+  ...
+  return tmb;
 }
 ```
 
@@ -477,13 +462,16 @@ struct tm *make_tm(int year, int mon, int day, int hour, int min, int sec)
 ```cpp
 char *file_name = get_msg_from_remote();
 ...
-sprintf(untrust_path, "/tmp/%s", file_name);
-char path[PATH_MAX] = {0};
-if (realpath(untrust_path, path) == NULL) {
-    ... // 处理错误
+char untrust_path[PATH_MAX] = {0};
+if (sprintf_s(untrust_path, sizeof(untrust_path), "/tmp/%s", file_name) < 0) {
+  ...  // 处理错误
 }
-if (!is_valid_path(path)) { // 检查文件的位置是否正确
-    ... // 处理错误
+char path[PATH_MAX] = {0};
+if (realpath(untrust_path, path) == nullptr) {
+  ...  // 处理错误
+}
+if (!is_valid_path(path)) {  // 检查文件的位置是否正确
+  ...  // 处理错误
 }
 char *text = read_file_content(path);
 ```
@@ -544,13 +532,13 @@ char *text = read_file_content(path);
 
 ```cpp
 {
-    ...
-    err = memcpy_s(destBuff, destMax, src, srcLen);
-    if (err != EOK) {
-        HIXL_LOG("memcpy_s failed, err = %d\n", err);
-        return FALSE;
-    }
-    ...
+  ...
+  errno_t err = memcpy_s(dest_buff, dest_max, src, src_len);
+  if (err != EOK) {
+    HIXL_LOGE(FAILED, "Call api:memcpy_s failed, ret:%d, destMax:%zu, srcLen:%zu", err, dest_max, src_len);
+    return FAILED;
+  }
+  ...
 }
 ```
 
@@ -669,14 +657,14 @@ LOG 宏的格式化占位符与实际参数之间必须满足两个维度的一�
 ```cpp
 // 参考 hixl_engine.cc 中的多参数日志场景
 // 3 个占位符，但只传了 2 个参数
-HIXL_LOGI("[HixlEngine] Disconnection started, local_engine:%s, remote_engine:%s, timeout:%d ms",
-           local_engine_.c_str(), remote_engine.GetString());  // 缺少 timeout_in_millis，栈数据被错误读取
+HIXL_LOGI("[HixlEngine] Disconnection started, local_engine:%s, remote_engine:%s, timeout:%d ms", local_engine_.c_str(),
+          remote_engine.GetString());  // 缺少 timeout_in_millis，栈数据被错误读取
 ```
 
 ```cpp
 // ✅
-HIXL_LOGI("[HixlEngine] Disconnection started, local_engine:%s, remote_engine:%s, timeout:%d ms",
-           local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
+HIXL_LOGI("[HixlEngine] Disconnection started, local_engine:%s, remote_engine:%s, timeout:%d ms", local_engine_.c_str(),
+          remote_engine.GetString(), timeout_in_millis);
 ```
 
 **顺序错位示例**
@@ -684,13 +672,11 @@ HIXL_LOGI("[HixlEngine] Disconnection started, local_engine:%s, remote_engine:%s
 ```cpp
 // ❌ 数量=5 格式符=5，但位置1和3的参数放反了
 //   格式符: %u(1) %u(2) %s(3) %u(4) %u(5)
-//   参数:   inputName.c_str()(1) ... d0Size/NUM8(3) ...
+//   参数:   input_name.c_str()(1) ... d0_size/NUM8(3) ...
 //   → 位置1: %u 收到 const char*，位置3: %s 收到 uint → 段错误
-HIXL_LOGE(FAILED, "...kvCache(%u)...%s(%u)...",
-    inputName.c_str(), tempD0/NUM8, d0Size/NUM8, tempD0, d0Size);
+HIXL_LOGE(FAILED, "...kvCache(%u)...%s(%u)...", input_name.c_str(), temp_d0 / NUM8, d0_size / NUM8, temp_d0, d0_size);
 // ✅ 参数顺序与格式符逐位对应
-HIXL_LOGE(FAILED, "...kvCache(%u)...%s(%u)...",
-    tempD0/NUM8, d0Size/NUM8, inputName.c_str(), tempD0, d0Size);
+HIXL_LOGE(FAILED, "...kvCache(%u)...%s(%u)...", temp_d0 / NUM8, d0_size / NUM8, input_name.c_str(), temp_d0, d0_size);
 ```
 
 ---
@@ -704,7 +690,7 @@ HIXL_LOGE(FAILED, "...kvCache(%u)...%s(%u)...",
 **错误示例**
 
 ```cpp
-HIXL_LOGE(FAILED, "Failed to transfer data1[size = %d], data2[size = %d]", size1, size2);
+HIXL_LOGE(FAILED, "Failed to transfer data1[size = %d bytes], data2[size = %d bytes]", size1, size2);
 // 错误：size1 & size2 均为 uint64_t，%d 只读 4 字节，后续参数全部错位
 ```
 
@@ -712,7 +698,7 @@ HIXL_LOGE(FAILED, "Failed to transfer data1[size = %d], data2[size = %d]", size1
 
 ```cpp
 // 业务代码正确写法
-HIXL_LOGE(FAILED, "Failed to transfer data1[size = %lu], data2[size = %lu]", size1, size2);
+HIXL_LOGE(FAILED, "Failed to transfer data1[size = %lu bytes], data2[size = %lu bytes]", size1, size2);
 ```
 
 **HIXL 常见类型与说明符对照**
@@ -743,20 +729,20 @@ HIXL_LOGI("Channel is disconnecting: %s", channel->IsDisconnecting() ? "true" : 
 **错误示例**
 
 ```cpp
-char* errMsg = new char[256];
-snprintf(errMsg, 256, "call func failed, ret=%ld", ret);
-delete[] errMsg;
-HIXL_LOGE(FAILED, "error: %s", errMsg);   // 野指针，已释放
+char *err_msg = new char[256];
+(void)snprintf_s(err_msg, 256, 255, "call func failed, ret=%ld", ret);
+delete[] err_msg;
+HIXL_LOGE(FAILED, "error: %s", err_msg);  // 野指针，已释放
 ```
 
 **正确示例**
 
 ```cpp
-char* errMsg = new char[256];
-snprintf(errMsg, 256, "call func failed, ret=%ld", ret);
-HIXL_LOGE(FAILED, "error: %s", errMsg);   // 先记录
-delete[] errMsg;
-errMsg = nullptr;
+char *err_msg = new char[256];
+(void)snprintf_s(err_msg, 256, 255, "call func failed, ret=%ld", ret);
+HIXL_LOGE(FAILED, "error: %s", err_msg);  // 先记录
+delete[] err_msg;
+err_msg = nullptr;
 ```
 
 ---
@@ -777,16 +763,16 @@ LOG 消息是排障的第一手线索。语法错误或含义模糊的日志会�
 
 ```cpp
 // "is not support" → "is not supported"（仓内高频错误模式）
-HIXL_LOGE(op_name, "scale shape is not support");          // → is not supported
+HIXL_LOGE(op_name_, "scale shape is not support");  // → is not supported
 
 // "do not support" → "does not support"（主谓不一致）
-HIXL_LOGE(opName_, "key layout do not support PA_BSND.");  // → does not support
+HIXL_LOGE(op_name_, "key layout do not support PA_BSND.");  // → does not support
 
 // 拼写错误
-HIXL_LOGE(opName_, "cu_seqlens_q's dtype msut be DT_INT32."); // msut → must
+HIXL_LOGE(op_name_, "cu_seqlens_q's dtype msut be DT_INT32.");  // msut → must
 
 // 缺少主语
-HIXL_LOGD("Not support BN2S2.");                           // → BN2S2 is not supported
+HIXL_LOGD("Not support BN2S2.");  // → BN2S2 is not supported
 ```
 
 > **检视级别**：仅标记 SUSPICIOUS，不标记 FAIL。

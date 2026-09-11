@@ -169,8 +169,8 @@ try {
 
 ```cpp
 // foo.cc
-#include "foo.h"              // 1. 本文件对应头文件
-#include <cstring>            // 2. C/C++ 标准库
+#include "foo.h"    // 1. 本文件对应头文件
+#include <cstring>  // 2. C/C++ 标准库
 #include <vector>
 #include <unistd.h>           // 3. 系统库
 #include "securec.h"          // 4. 其他第三方库
@@ -230,13 +230,13 @@ typedef std::shared_ptr<FooBar> FooBarPtr;
 
 ```cpp
 namespace foo {
-  int kGlobalVar;
+constexpr int kGlobalVar = 1;  // 命名空间管理全局常量
 
-  class Bar {
-    private:
-      static int static_member_var_;
-  };
-}
+class Bar {
+ private:
+  static int static_member_var_;
+};
+}  // namespace foo
 ```
 
 ##### 规则 5.2 尽量避免使用全局变量，谨慎使用单例模式，避免滥用
@@ -305,7 +305,7 @@ if (cond1 || cond2 && cond3) {
 
 ```cpp
 // 错误示范
-const char * a = std::to_string(12345).c_str();
+const char *a = std::to_string(12345).c_str();
 ```
 
 ##### 规则 10.2 优先使用unique_ptr 而不是shared_ptr
@@ -368,18 +368,18 @@ number = nullptr;
 
 ```cpp
 class Base {
-  public:
-    virtual void Func();
+ public:
+  virtual void Func();
 };
 
 class Derived : public Base {
-  public:
-    void Func() override;
+ public:
+  void Func() override;
 };
 
 class FinalDerived : public Derived {
-  public:
-    void Func() final;
+ public:
+  void Func() final;
 };
 ```
 
@@ -389,19 +389,27 @@ class FinalDerived : public Derived {
 
 ```cpp
 class Config {
-public:
-    // ✅ getter 不修改成员，声明为 const
-    const std::string &GetName() const { return name_; }
-    int GetSize() const { return size_; }
+ public:
+  // ✅ getter 不修改成员，声明为 const
+  const std::string &GetName() const {
+    return name_;
+  }
+  int GetSize() const {
+    return size_;
+  }
 
-    // ❌ getter 未加 const，调用者无法在 const 对象上调用
-    const std::string &GetName() { return name_; }
+  // ❌ getter 未加 const，调用者无法在 const 对象上调用
+  const std::string &GetName() {
+    return name_;
+  }
 
-    void SetName(const std::string &name) { name_ = name; }  // 修改成员，不加 const
+  void SetName(const std::string &name) {
+    name_ = name;
+  }  // 修改成员，不加 const
 
-private:
-    std::string name_;
-    int size_ = 0;
+ private:
+  std::string name_;
+  int size_ = 0;
 };
 ```
 
@@ -411,33 +419,33 @@ private:
 
 ```cpp
 class FileWriter {
-public:
-    // ❌ 析构函数抛异常，触发 std::terminate 导致程序崩溃
-    ~FileWriter() {
-        if (!Flush()) {
-            throw std::runtime_error("flush failed");
-        }
+ public:
+  // ❌ 析构函数抛异常，触发 std::terminate 导致程序崩溃
+  ~FileWriter() {
+    if (!Flush()) {
+      throw std::runtime_error("flush failed");
     }
+  }
 
-private:
-    bool Flush();
+ private:
+  bool Flush();
 };
 
 class SafeFileWriter {
-public:
-    // ✅ 析构函数中捕获异常并记录日志，不向上抛出
-    ~SafeFileWriter() noexcept {
-        try {
-            if (!Flush()) {
-                // 记录错误日志
-            }
-        } catch (const std::exception &e) {
-            // 记录错误日志，吞掉异常
-        }
+ public:
+  // ✅ 析构函数中捕获异常并记录日志，不向上抛出
+  ~SafeFileWriter() noexcept {
+    try {
+      if (!Flush()) {
+        // 记录错误日志
+      }
+    } catch (const std::exception &e) {
+      // 记录错误日志，吞掉异常
     }
+  }
 
-private:
-    bool Flush();
+ private:
+  bool Flush();
 };
 ```
 
@@ -458,9 +466,20 @@ private:
 ##### 规则 14.2 非局部范围使用lambdas时，避免按引用捕获
 
 ```cpp
+// 反例：按引用捕获局部变量并提交到线程池，作用域结束后引用悬空
 {
   int local_var = 1;
-  auto func = [&]() { ...; std::cout << local_var << std::endl; };
+  auto func = [&]() {
+    ...
+    std::cout << local_var << std::endl;
+  };
+  thread_pool.commit(func);
+}
+
+// 正例：按值捕获所需数据
+{
+  int local_var = 1;
+  auto func = [local_var]() { std::cout << local_var << std::endl; };
   thread_pool.commit(func);
 }
 ```
@@ -499,8 +518,8 @@ bool FuncC(FooBar *out1, FooBar *out2, const std::string &in);
 bool FuncD(Result *out, int val);
 
 // ❌ 不一致：同文件内混用
-bool FuncE(const std::string &in, FooBar *out);   // 入参在前
-bool FuncF(Result *out, int val);           // 出参在前 → 风格不一致
+bool FuncE(const std::string &in, FooBar *out);  // 入参在前
+bool FuncF(Result *out, int val);                // 出参在前 → 风格不一致
 ```
 
 ##### 建议 15.2 函数传参传递，入参用 `const T &`，出参用 `T &` 或 `T *`
@@ -515,48 +534,49 @@ bool Func(const std::string &in, FooBar &out1, FooBar &out2);
 bool Func(const std::string &in, FooBar *out1, FooBar *out2);
 
 // ❌ 同文件内混用（风格不一致）
-void FuncA(const Input &in, Output &out);       // 出参用引用
-void FuncB(const Input &in, Output *out);       // 出参用指针 → 同文件风格不一致
+void FuncA(const Input &in, Output &out);  // 出参用引用
+void FuncB(const Input &in, Output *out);  // 出参用指针 → 同文件风格不一致
 ```
 
 ##### 规则 15.3 函数传参传递，不涉及所有权的场景，使用T * 或const T & 作为参数，而不是智能指针
 
 ```cpp
 // 正确示范
-  bool Func(const FooBar &in);
-  // 错误示范
-  bool Func(std::shared_ptr<FooBar> in);
+bool Func(const FooBar &in);
+// 错误示范
+bool Func(std::shared_ptr<FooBar> in);
 ```
 
 ##### 规则 15.4 函数传参传递，如需传递所有权，建议使用shared_ptr + move传参
 
 ```cpp
 class Foo {
-  public:
-    explicit Foo(shared_ptr<T> x):x_(std::move(x)){}
-  private:
-    shared_ptr<T> x_;
+ public:
+  explicit Foo(std::shared_ptr<T> x) : x_(std::move(x)) {}
+
+ private:
+  std::shared_ptr<T> x_;
 };
 ```
 
 ##### 规则 15.5 单参数构造函数必须用explicit修饰，多参数构造函数禁止使用explicit修饰
 
 ```cpp
-explicit Foo(int x);          // good
-explicit Foo(int x, int y=0); // good
-Foo(int x, int y=0);          // bad
-explicit Foo(int x, int y);   // bad
+explicit Foo(int x);             // good
+explicit Foo(int x, int y = 0);  // good
+Foo(int x, int y = 0);           // bad
+explicit Foo(int x, int y);      // bad
 ```
 
 ##### 规则 15.6 拷贝构造和拷贝赋值操作符应该是成对出现或者禁止
 
 ```cpp
 class Foo {
-  private:
-    Foo(const Foo&) = default;
-    Foo& operator=(const Foo&) = default;
-    Foo(Foo&&) = delete;
-    Foo& operator=(Foo&&) = delete;
+ private:
+  Foo(const Foo &) = default;
+  Foo &operator=(const Foo &) = default;
+  Foo(Foo &&) = delete;
+  Foo &operator=(Foo &&) = delete;
 };
 ```
 
@@ -575,12 +595,12 @@ bool ParseConfig(const std::string &config_path, int max_retry, bool enable_log)
 // foo.cpp
 // ✅ 声明与定义参数名一致
 bool ParseConfig(const std::string &config_path, int max_retry, bool enable_log) {
-    ...
+  ...
 }
 
 // ❌ 声明与定义参数名不一致
 bool ParseConfig(const std::string &path, int retry_count, bool log) {
-    ...
+  ...
 }
 
 // ✅ 声明中省略参数名，不视为不一致

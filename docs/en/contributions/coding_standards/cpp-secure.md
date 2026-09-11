@@ -110,35 +110,35 @@ When performing operations on integer types with lower precision than int, integ
 
 ```cpp
 // Incorrect — two int32_t values multiplied, result may exceed int32_t range
-int32_t calcHeightAlign = GetAlignedSize(...);  // aligned height, can reach 65536
-int32_t calcWidth = GetWidth(...);              // width, can reach 65536
-int32_t size = calcHeightAlign * calcWidth;     // 65536 × 65536 = 4,294,967,296 overflow!
+int32_t calc_height_align = GetAlignedSize(...);  // aligned height, can reach 65536
+int32_t calc_width = GetWidth(...);               // width, can reach 65536
+int32_t size = calc_height_align * calc_width;    // 65536 × 65536 = 4,294,967,296 overflow!
 
 // Correct — promote to int64_t before multiplication
-int64_t size = static_cast<int64_t>(calcHeightAlign) * calcWidth;
+int64_t size = static_cast<int64_t>(calc_height_align) * calc_width;
 ```
 
 **Negation example (INT64_MIN negation overflow, red-line issue):**
 
 ```cpp
 // Incorrect — when delta is INT64_MIN, -delta overflows
-int64_t delta = input2 - input1;       // may be INT64_MIN = -9223372036854775808
-int64_t absDelta = -delta;             // -(-9223372036854775808) = 9223372036854775808 > INT64_MAX!
+int64_t delta = input2 - input1;  // may be INT64_MIN = -9223372036854775808
+int64_t abs_delta = -delta;       // -(-9223372036854775808) = 9223372036854775808 > INT64_MAX!
 // Signed integer overflow is undefined behavior (C++ red-line)
 
 // Correct — convert to unsigned type before computing absolute value
-uint64_t absDelta = (delta < 0) ? -static_cast<uint64_t>(delta) : static_cast<uint64_t>(delta);
+uint64_t abs_delta = (delta < 0) ? -static_cast<uint64_t>(delta) : static_cast<uint64_t>(delta);
 ```
 
 **Multi-dimension multiplication example (multi-dim shape consecutive multiplication overflow):**
 
 ```cpp
 // Incorrect — multi-dim shape multiplied as int32_t, easily overflows
-int32_t totalSize = dim0 * dim1 * dim2 * dim3 * dim4;
+int32_t total_size = dim0 * dim1 * dim2 * dim3 * dim4;
 // dim0=1024, dim1=1024, dim2=128, dim3=64 → product ≈ 8.6 × 10^9 > INT32_MAX
 
 // Correct — use int64_t and promote early
-int64_t totalSize = static_cast<int64_t>(dim0) * dim1 * dim2 * dim3 * dim4;
+int64_t total_size = static_cast<int64_t>(dim0) * dim1 * dim2 * dim3 * dim4;
 ```
 
 #### 2.2 Ensure unsigned integer operations do not wrap around
@@ -150,44 +150,43 @@ Computations involving unsigned operands never overflow, because a result that i
 
 ```cpp
 // Incorrect — multiplication done in uint32_t, wraparound occurs before cast to uint64_t, cannot recover
-uint32_t blockSize = 65536;    // from external config
-uint32_t strideKV = 65536;     // from external config
-uint64_t result = blockSize * strideKV;
-// blockSize * strideKV computed in uint32_t space: 65536 × 65536 = 4,294,967,296 > UINT32_MAX
+uint32_t block_size = 65536;  // from external config
+uint32_t stride_kv = 65536;   // from external config
+uint64_t result = block_size * stride_kv;
+// block_size * stride_kv computed in uint32_t space: 65536 × 65536 = 4,294,967,296 > UINT32_MAX
 // Actual result: (65536 × 65536) mod 2^32 = 0 → wrapped 0 then cast to uint64_t = 0
 
 // Correct — promote at least one operand to uint64_t before multiplication
-uint64_t result = static_cast<uint64_t>(blockSize) * strideKV;
+uint64_t result = static_cast<uint64_t>(block_size) * stride_kv;
 ```
 
 **Subtraction example (uint32_t subtraction wraparound — result used as array index):**
 
 ```cpp
-// Incorrect — aivIdx * singleCoreSize may exceed totalOutputSize, subtraction wraps around
-uint32_t tailSize = totalOutputSize - aivIdx * singleCoreSize;
-// totalOutputSize=100, aivIdx=47, singleCoreSize=3:
+// Incorrect — aiv_idx * single_core_size may exceed total_output_size, subtraction wraps around
+uint32_t tail_size = total_output_size - aiv_idx * single_core_size;
+// total_output_size=100, aiv_idx=47, single_core_size=3:
 //   47 × 3 = 141, 100 - 141 computed as uint32_t = 4294967255 (wraparound)
-//   tailSize mistaken as valid size, subsequent copy of 4GB data → out-of-bounds crash
+//   tail_size mistaken as valid size, subsequent copy of 4GB data → out-of-bounds crash
 
 // Correct — check magnitude first, or use int64_t intermediate result
-int64_t tailSizeSigned = static_cast<int64_t>(totalOutputSize) -
-                         static_cast<int64_t>(aivIdx) * singleCoreSize;
-uint32_t tailSize = (tailSizeSigned > 0) ? static_cast<uint32_t>(tailSizeSigned) : 0;
+int64_t tail_size_signed = static_cast<int64_t>(total_output_size) - static_cast<int64_t>(aiv_idx) * single_core_size;
+uint32_t tail_size = (tail_size_signed > 0) ? static_cast<uint32_t>(tail_size_signed) : 0;
 ```
 
 **Mixed-type example (size_t and int64_t mixed arithmetic — negative wraps to huge value):**
 
 ```cpp
-// Incorrect — N_ALIGN is size_t constant (unsigned), numIters is int64_t
+// Incorrect — kNAlign is size_t constant (unsigned), num_iters is int64_t
 // Per C++ integer promotion rules int64_t → size_t, negative becomes huge positive
-constexpr size_t N_ALIGN = 128;
-int64_t normSize = N_ALIGN * DOUBLE_SIZE * numIters * T * n0;
-// If numIters is negative, promoted to size_t wraps to ~2^64-127 level huge value
+constexpr size_t kNAlign = 128;
+int64_t norm_size = kNAlign * DOUBLE_SIZE * num_iters * T * n0;
+// If num_iters is negative, promoted to size_t wraps to ~2^64-127 level huge value
 // All subsequent calculations are wrong
 
 // Correct — unify to signed type
-constexpr int64_t N_ALIGN = 128;
-int64_t normSize = N_ALIGN * DOUBLE_SIZE * numIters * T * n0;
+constexpr int64_t kNAlign = 128;
+int64_t norm_size = kNAlign * DOUBLE_SIZE * num_iters * T * n0;
 ```
 
 #### 2.3 Ensure division and remainder operations do not cause divide-by-zero errors
@@ -232,22 +231,19 @@ The following 4 patterns are considered valid zero-value guards (any one present
 
 ```cpp
 // ✅ Compile-time constant divisor — auto PASS
-constexpr uint32_t BLOCK = 32;
-uint32_t blocks = totalSize / BLOCK;  // no guard needed
+constexpr uint32_t kBlock = 32;
+uint32_t blocks = total_size / kBlock;  // no guard needed
 
 // ✅ External input divisor — has zero-value guard
-if (tileSize == 0) {
-    HIXL_LOGE(INVALID_PARAM, "tileSize is 0");
-    return FAILED;
-}
-uint32_t loops = totalSize / tileSize;
+HIXL_CHK_BOOL_RET_STATUS(tile_size > 0, INVALID_PARAM, "Invalid tile_size:%u, must be greater than 0", tile_size);
+uint32_t loops = total_size / tile_size;
 
 // ✅ Runtime computed value divisor — std::max floor
-uint32_t safeDivisor = std::max(computedDivisor, 1U);
-uint32_t result = totalSize / safeDivisor;
+uint32_t safe_divisor = std::max(computed_divisor, 1U);
+uint32_t result = total_size / safe_divisor;
 
 // ❌ External input divisor — no guard
-uint32_t loops = totalSize / tileSize;  // tileSize from external input, no zero check
+uint32_t loops = total_size / tile_size;  // tile_size from external input, no zero check
 ```
 
 ---
@@ -259,11 +255,10 @@ uint32_t loops = totalSize / tileSize;  // tileSize from external input, no zero
 Here, variables refer to local dynamic variables and also include memory blocks allocated on the heap. Because their initial values are unpredictable, reading their values without effective initialization is prohibited.
 
 ```cpp
-void foo(...)
-{
-    int data;
-    bar(data); // Error: used without initialization
-    ...
+void Foo(...) {
+  int data;
+  Bar(data);  // Error: used without initialization
+  ...
 }
 ```
 
@@ -277,22 +272,21 @@ Take pointers as an example. After a pointer successfully allocates a block of m
 **[Correct Code Example]**
 
 ```cpp
-int foo(void)
-{
-    SomeStruct *msg = NULL;
-    ... // Initialize msg->type, allocate memory for msg->body
+int Foo(void) {
+  SomeStruct *msg = nullptr;
+  ...  // Allocate memory for msg and its members, and initialize msg->type
 
-    if (msg->type == MESSAGE_A) {
-        ...
-        free(msg->body);
-        msg->body = NULL;
-    }
-
-    ...
-EXIT:
+  if (msg->type == MESSAGE_A) {
     ...
     free(msg->body);
-    return ret;
+    msg->body = nullptr;
+  }
+
+  ...
+EXIT:
+  ...
+  free(msg->body);
+  return ret;
 }
 ```
 
@@ -321,16 +315,16 @@ When external data is used as an array index to access memory, the data size mus
 **[Correct Code Example]**
 
 ```cpp
-#define DEV_NUM 10
-static Dev devs[DEV_NUM];
+constexpr size_t kDevNum = 10;
+static Dev g_devs[kDevNum];
 
-int set_dev_id(size_t index, int id)
-{
-    if (index >= DEV_NUM) {
-        ... // error handling
-    }
-    devs[index].id = id;
-    return 0;
+int SetDevId(size_t index, int id) {
+  if (index >= kDevNum) {
+    ...  // error handling: log the error and return an error code
+    return -1;
+  }
+  g_devs[index].id = id;
+  return 0;
 }
 ```
 
@@ -343,21 +337,21 @@ Using sizeof on a pointer as if it were an array causes the actual result to dif
 
 ```cpp
 char path[MAX_PATH];
-char *buffer = (char *)malloc(SIZE);
+char *buffer = static_cast<char *>(malloc(SIZE));
 ...
-(void)memset(path, 0, sizeof(path));
-// sizeof does not match expectations; the result is the size of the pointer itself, not the buffer size
-(void)memset(buffer, 0, sizeof(buffer));
+(void)memset_s(path, sizeof(path), 0, sizeof(path));
+// memset_s does not match expectations; destMax is the size of the pointer itself, not the buffer size
+(void)memset_s(buffer, sizeof(buffer), 0, sizeof(buffer));
 ```
 
 **[Correct Code Example]**
 
 ```cpp
 char path[MAX_PATH];
-char *buffer = (char *)malloc(SIZE);
+char *buffer = static_cast<char *>(malloc(SIZE));
 ...
-(void)memset(path, 0, sizeof(path));
-(void)memset(buffer, 0, SIZE); // Use the allocated buffer size
+(void)memset_s(path, sizeof(path), 0, sizeof(path));
+(void)memset_s(buffer, SIZE, 0, SIZE);  // Use the allocated buffer size
 ```
 
 #### 3.5 Pointers must be null-checked before use
@@ -394,22 +388,13 @@ Copying data into a buffer that is too small to hold it causes a buffer overflow
 
 ```cpp
 // Validate pointer is non-null
-if (context == nullptr) {
-    HIXL_LOGE(INVALID_PARAM, "context is null");
-    return FAILED;
-}
+HIXL_CHECK_NOTNULL(context);
 
 // Validate parameter range
-if (headDim == 0) {
-    HIXL_LOGE(INVALID_PARAM, "headDim is 0");
-    return FAILED;
-}
+HIXL_CHK_BOOL_RET_STATUS(head_dim > 0, INVALID_PARAM, "Invalid head_dim:%d, must be greater than 0", head_dim);
 
 // Validate parameter combination existence
-if (pointer == nullptr) {
-    HIXL_LOGE(INVALID_PARAM, "%s should not be null", name.c_str());
-    return FAILED;
-}
+HIXL_CHK_BOOL_RET_STATUS(pointer != nullptr, INVALID_PARAM, "%s should not be null", name.c_str());
 ```
 
 #### 4.2 When external input is used as the copy length for memory operation functions, its legitimacy must be validated
@@ -429,15 +414,15 @@ If the allocation of resources such as memory, objects, streams, and notify fail
 **[Correct Code Example]**
 
 ```cpp
-struct tm *make_tm(int year, int mon, int day, int hour, int min, int sec)
-{
-    struct tm *tmb = (struct tm *)malloc(sizeof(*tmb));
-    if (tmb == NULL) {
-        ... // error handling
-    }
-    tmb->year = year;
-    ...
-    return tmb;
+struct tm *MakeTm(int year, int mon, int day, int hour, int min, int sec) {
+  struct tm *tmb = static_cast<struct tm *>(malloc(sizeof(*tmb)));
+  if (tmb == nullptr) {
+    ...  // error handling: log the error and return
+    return nullptr;
+  }
+  tmb->tm_year = year;
+  ...
+  return tmb;
 }
 ```
 
@@ -477,13 +462,16 @@ When file paths come from external data, they must be validated for legitimacy. 
 ```cpp
 char *file_name = get_msg_from_remote();
 ...
-sprintf(untrust_path, "/tmp/%s", file_name);
-char path[PATH_MAX] = {0};
-if (realpath(untrust_path, path) == NULL) {
-    ... // handle error
+char untrust_path[PATH_MAX] = {0};
+if (sprintf_s(untrust_path, sizeof(untrust_path), "/tmp/%s", file_name) < 0) {
+  ...  // handle error
 }
-if (!is_valid_path(path)) { // Check whether the file location is correct
-    ... // handle error
+char path[PATH_MAX] = {0};
+if (realpath(untrust_path, path) == nullptr) {
+  ...  // handle error
+}
+if (!is_valid_path(path)) {  // Check whether the file location is correct
+  ...  // handle error
 }
 char *text = read_file_content(path);
 ```
@@ -544,13 +532,13 @@ In principle, if secure functions are used, their return values must be checked.
 
 ```cpp
 {
-    ...
-    err = memcpy_s(destBuff, destMax, src, srcLen);
-    if (err != EOK) {
-        HIXL_LOG("memcpy_s failed, err = %d\n", err);
-        return FALSE;
-    }
-    ...
+  ...
+  errno_t err = memcpy_s(dest_buff, dest_max, src, src_len);
+  if (err != EOK) {
+    HIXL_LOGE(FAILED, "Call api:memcpy_s failed, ret:%d, destMax:%zu, srcLen:%zu", err, dest_max, src_len);
+    return FAILED;
+  }
+  ...
 }
 ```
 
@@ -669,14 +657,14 @@ The format placeholders of LOG macros and the actual parameters must satisfy con
 ```cpp
 // Refer to the multi-parameter log scenario in hixl_engine.cc
 // 3 placeholders, but only 2 parameters passed
-HIXL_LOGI("[HixlEngine] Disconnection started, local_engine:%s, remote_engine:%s, timeout:%d ms",
-           local_engine_.c_str(), remote_engine.GetString());  // Missing timeout_in_millis; stack data is incorrectly read
+HIXL_LOGI("[HixlEngine] Disconnection started, local_engine:%s, remote_engine:%s, timeout:%d ms", local_engine_.c_str(),
+          remote_engine.GetString());  // Missing timeout_in_millis; stack data is incorrectly read
 ```
 
 ```cpp
 // ✅
-HIXL_LOGI("[HixlEngine] Disconnection started, local_engine:%s, remote_engine:%s, timeout:%d ms",
-           local_engine_.c_str(), remote_engine.GetString(), timeout_in_millis);
+HIXL_LOGI("[HixlEngine] Disconnection started, local_engine:%s, remote_engine:%s, timeout:%d ms", local_engine_.c_str(),
+          remote_engine.GetString(), timeout_in_millis);
 ```
 
 **Order mismatch example**
@@ -684,13 +672,11 @@ HIXL_LOGI("[HixlEngine] Disconnection started, local_engine:%s, remote_engine:%s
 ```cpp
 // ❌ Count=5, format specifiers=5, but parameters at positions 1 and 3 are swapped
 //   Format specifiers: %u(1) %u(2) %s(3) %u(4) %u(5)
-//   Parameters:        inputName.c_str()(1) ... d0Size/NUM8(3) ...
+//   Parameters:        input_name.c_str()(1) ... d0_size/NUM8(3) ...
 //   → Position 1: %u receives const char*, Position 3: %s receives uint → segmentation fault
-HIXL_LOGE(FAILED, "...kvCache(%u)...%s(%u)...",
-    inputName.c_str(), tempD0/NUM8, d0Size/NUM8, tempD0, d0Size);
+HIXL_LOGE(FAILED, "...kvCache(%u)...%s(%u)...", input_name.c_str(), temp_d0 / NUM8, d0_size / NUM8, temp_d0, d0_size);
 // ✅ Parameter order corresponds to format specifiers position by position
-HIXL_LOGE(FAILED, "...kvCache(%u)...%s(%u)...",
-    tempD0/NUM8, d0Size/NUM8, inputName.c_str(), tempD0, d0Size);
+HIXL_LOGE(FAILED, "...kvCache(%u)...%s(%u)...", temp_d0 / NUM8, d0_size / NUM8, input_name.c_str(), temp_d0, d0_size);
 ```
 
 ---
@@ -704,7 +690,7 @@ When type sizes do not match, the LOG macro truncates or reads excess bytes acco
 **Incorrect example**
 
 ```cpp
-HIXL_LOGE(FAILED, "Failed to transfer data1[size = %d], data2[size = %d]", size1, size2);
+HIXL_LOGE(FAILED, "Failed to transfer data1[size = %d bytes], data2[size = %d bytes]", size1, size2);
 // Error: size1 & size2 are both uint64_t; %d reads only 4 bytes, causing all subsequent parameters to be misaligned
 ```
 
@@ -712,7 +698,7 @@ HIXL_LOGE(FAILED, "Failed to transfer data1[size = %d], data2[size = %d]", size1
 
 ```cpp
 // Correct way to write business code
-HIXL_LOGE(FAILED, "Failed to transfer data1[size = %lu], data2[size = %lu]", size1, size2);
+HIXL_LOGE(FAILED, "Failed to transfer data1[size = %lu bytes], data2[size = %lu bytes]", size1, size2);
 ```
 
 **HIXL Common Type and Specifier Mapping**
@@ -743,20 +729,20 @@ If manually managed heap memory (`new` / `malloc`) is still passed to `%s` after
 **Incorrect example**
 
 ```cpp
-char* errMsg = new char[256];
-snprintf(errMsg, 256, "call func failed, ret=%ld", ret);
-delete[] errMsg;
-HIXL_LOGE(FAILED, "error: %s", errMsg);   // Wild pointer, already released
+char *err_msg = new char[256];
+(void)snprintf_s(err_msg, 256, 255, "call func failed, ret=%ld", ret);
+delete[] err_msg;
+HIXL_LOGE(FAILED, "error: %s", err_msg);  // Wild pointer, already released
 ```
 
 **Correct example**
 
 ```cpp
-char* errMsg = new char[256];
-snprintf(errMsg, 256, "call func failed, ret=%ld", ret);
-HIXL_LOGE(FAILED, "error: %s", errMsg);   // Log first
-delete[] errMsg;
-errMsg = nullptr;
+char *err_msg = new char[256];
+(void)snprintf_s(err_msg, 256, 255, "call func failed, ret=%ld", ret);
+HIXL_LOGE(FAILED, "error: %s", err_msg);  // Log first
+delete[] err_msg;
+err_msg = nullptr;
 ```
 
 ---
@@ -777,16 +763,16 @@ LOG messages are the first-hand clue for troubleshooting. Grammatical errors or 
 
 ```cpp
 // "is not support" → "is not supported" (high-frequency error pattern in the repo)
-HIXL_LOGE(op_name, "scale shape is not support");          // → is not supported
+HIXL_LOGE(op_name_, "scale shape is not support");  // → is not supported
 
 // "do not support" → "does not support" (subject-verb disagreement)
-HIXL_LOGE(opName_, "key layout do not support PA_BSND.");  // → does not support
+HIXL_LOGE(op_name_, "key layout do not support PA_BSND.");  // → does not support
 
 // Spelling error
-HIXL_LOGE(opName_, "cu_seqlens_q's dtype msut be DT_INT32."); // msut → must
+HIXL_LOGE(op_name_, "cu_seqlens_q's dtype msut be DT_INT32.");  // msut → must
 
 // Missing subject
-HIXL_LOGD("Not support BN2S2.");                           // → BN2S2 is not supported
+HIXL_LOGD("Not support BN2S2.");  // → BN2S2 is not supported
 ```
 
 > **Review Level**: Mark as SUSPICIOUS only, do not mark as FAIL.

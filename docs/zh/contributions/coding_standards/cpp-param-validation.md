@@ -74,25 +74,17 @@ m\.def\(
 ```cpp
 uint32_t HixlBatchTransfer(bool is_read, HixlOneSideOpParam *param) {
   // P1: 指针判空（param 即将被解引用）
-  if (param == nullptr) {
-    HIXL_LOGE(PARAM_INVALID, "[HixlBatchPutAndGet] param is nullptr");
-    return PARAM_INVALID;
-  }
-  // P3: list_num 需要校验上限，因为后续会用 list_num 构造 vector 并访问 op_desc_list_addr 指向的数组
+  HIXL_CHECK_NOTNULL(param);
+  // P3: list_num 需校验上限，后续将用它构造 vector 并访问 op_desc_list_addr 指向的数组
   constexpr uint32_t kMaxBatchSize = 8192;
-  if (param->list_num == 0 || param->list_num > kMaxBatchSize) {
-    HIXL_LOGE(PARAM_INVALID, "[HixlBatchPutAndGet] invalid list_num=%u, valid range is [1, %u]",
-              param->list_num, kMaxBatchSize);
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(param->list_num > 0 && param->list_num <= kMaxBatchSize, PARAM_INVALID,
+                           "[HixlBatchTransfer] invalid list_num:%u, valid range is [1, %u]", param->list_num,
+                           kMaxBatchSize);
   // P2: 地址字段非零（即将 reinterpret_cast 并访问）
-  if (param->op_desc_list_addr == 0) {
-    HIXL_LOGE(PARAM_INVALID, "[HixlBatchPutAndGet] op_desc_list_addr is null");
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(param->op_desc_list_addr != 0, PARAM_INVALID,
+                           "[HixlBatchTransfer] op_desc_list_addr is null");
   // P5: 校验完成后才开始使用参数
-  auto *op_list = reinterpret_cast<HixlOneSideOpDesc *>(
-      static_cast<uintptr_t>(param->op_desc_list_addr));
+  auto *op_list = reinterpret_cast<HixlOneSideOpDesc *>(static_cast<uintptr_t>(param->op_desc_list_addr));
   ...
 }
 ```
@@ -101,7 +93,7 @@ uint32_t HixlBatchTransfer(bool is_read, HixlOneSideOpParam *param) {
 
 ```cpp
 // 错误：server_ip 未判空，std::string 构造函数内部调用 strlen 解引用 nullptr
-HixlCSServer(const char *ip, uint32_t port) : ip_(ip), port_(port) {};
+HixlCSServer(const char *ip, uint32_t port) : ip_(ip), port_(port){};
 // 调用处：
 auto server = new HixlCSServer(server_desc->server_ip, server_desc->server_port);
 // server_ip 为 nullptr 时，std::string(nullptr) 崩溃
@@ -119,6 +111,6 @@ HIXL_CHK_STATUS_RET(server->Initialize(server_desc->endpoint_list, ...), ...);
 
 // 不是问题：调用方保证 desc_list 至少有 list_num 个元素
 for (uint32_t i = 0; i < list_num; i++) {
-    void *dst = desc_list[i].local_buf;  // 调用方保证，不是库的责任
+  void *dst = desc_list[i].local_buf;  // 调用方保证，不是库的责任
 }
 ```

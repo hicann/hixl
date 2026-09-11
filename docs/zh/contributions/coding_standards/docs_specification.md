@@ -51,7 +51,7 @@ if (ret != SUCCESS) {
 ```cpp
 auto ret = IpToInt(ip_info.ip.GetString(), llm_ip_info.ip);
 if (ret != SUCCESS) {
-  LOGE(FAILED, "Failed to transfer ip to int, please check ip:%s is valid.", ip_info.ip.GetString());
+  HIXL_LOGE(FAILED, "Failed to transfer ip to int, please check ip:%s is valid.", ip_info.ip.GetString());
   return FAILED;
 }
 ```
@@ -75,10 +75,12 @@ if (ret != ACL_ERROR_NONE) {
 ```cpp
 auto ret = aclrtSetDevice(device_id);
 if (ret != ACL_ERROR_NONE) {
-  LOGE(FAILED, "Call api:aclrtSetDevice failed, ret:%u, device_id:xxx.");
+  HIXL_LOGE(FAILED, "Call api:aclrtSetDevice failed, ret:%d, device_id:%d", ret, device_id);
   return FAILED;
 }
 ```
+
+> 对 ACL/HCCL 等已有专用 CHECK 宏的接口，直接使用 `HIXL_CHK_ACL_RET` 等宏统一处理，参见规则 1.3。
 
 #### 规则 1.3 外部参数校验和非本组件接口失败必须使用HIXL CHECK宏
 
@@ -118,8 +120,8 @@ if (ret != 0) {
 ```cpp
 int32_t ret = setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 HIXL_CHK_BOOL_RET_STATUS(ret == 0, FAILED,
-                         "Call api:setsockopt failed, ret:%d, fd:%d, option:SO_RCVTIMEO, error msg:%s, errno:%d",
-                         ret, fd, strerror(errno), errno);
+                         "Call api:setsockopt failed, ret:%d, fd:%d, option:SO_RCVTIMEO, error msg:%s, errno:%d", ret,
+                         fd, strerror(errno), errno);
 ```
 
 [正例]：ACL/HCCL等已有专用宏时直接使用专用宏

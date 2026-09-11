@@ -50,7 +50,7 @@ if (ret != SUCCESS) {
 ```cpp
 auto ret = IpToInt(ip_info.ip.GetString(), llm_ip_info.ip);
 if (ret != SUCCESS) {
-  LOGE(FAILED, "Failed to transfer ip to int, please check ip:%s is valid.", ip_info.ip.GetString());
+  HIXL_LOGE(FAILED, "Failed to transfer ip to int, please check ip:%s is valid.", ip_info.ip.GetString());
   return FAILED;
 }
 ```
@@ -74,7 +74,7 @@ if (ret != ACL_ERROR_NONE) {
 ```cpp
 auto ret = aclrtSetDevice(device_id);
 if (ret != ACL_ERROR_NONE) {
-  LOGE(FAILED, "Call api:aclrtSetDevice failed, ret:%u, device_id:xxx.");
+  HIXL_LOGE(FAILED, "Call api:aclrtSetDevice failed, ret:%d, device_id:%d", ret, device_id);
   return FAILED;
 }
 ```

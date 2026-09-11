@@ -167,8 +167,8 @@ Placing the corresponding header first surfaces any implicit dependency of the h
 
 ```cpp
 // foo.cc
-#include "foo.h"              // 1. The corresponding header
-#include <cstring>            // 2. C/C++ standard library
+#include "foo.h"    // 1. The corresponding header
+#include <cstring>  // 2. C/C++ standard library
 #include <vector>
 #include <unistd.h>           // 3. System library
 #include "securec.h"          // 4. Other third-party library
@@ -228,13 +228,13 @@ typedef std::shared_ptr<FooBar> FooBarPtr;
 
 ```cpp
 namespace foo {
-  int kGlobalVar;
+constexpr int kGlobalVar = 1;  // global constant managed by namespace
 
-  class Bar {
-    private:
-      static int static_member_var_;
-  };
-}
+class Bar {
+ private:
+  static int static_member_var_;
+};
+}  // namespace foo
 ```
 
 ##### Rule 5.2 Avoid using global variables; use the singleton pattern with caution and avoid abuse
@@ -303,7 +303,7 @@ if (cond1 || cond2 && cond3) {
 
 ```cpp
 // Incorrect example
-const char * a = std::to_string(12345).c_str();
+const char *a = std::to_string(12345).c_str();
 ```
 
 ##### Rule 10.2 Prefer unique_ptr over shared_ptr
@@ -366,18 +366,18 @@ number = nullptr;
 
 ```cpp
 class Base {
-  public:
-    virtual void Func();
+ public:
+  virtual void Func();
 };
 
 class Derived : public Base {
-  public:
-    void Func() override;
+ public:
+  void Func() override;
 };
 
 class FinalDerived : public Derived {
-  public:
-    void Func() final;
+ public:
+  void Func() final;
 };
 ```
 
@@ -387,19 +387,27 @@ class FinalDerived : public Derived {
 
 ```cpp
 class Config {
-public:
-    // ✅ getters do not modify members, declared as const
-    const std::string &GetName() const { return name_; }
-    int GetSize() const { return size_; }
+ public:
+  // ✅ getters do not modify members, declared as const
+  const std::string &GetName() const {
+    return name_;
+  }
+  int GetSize() const {
+    return size_;
+  }
 
-    // ❌ getter without const; callers cannot invoke it on const objects
-    const std::string &GetName() { return name_; }
+  // ❌ getter without const; callers cannot invoke it on const objects
+  const std::string &GetName() {
+    return name_;
+  }
 
-    void SetName(const std::string &name) { name_ = name; }  // modifies a member, not const
+  void SetName(const std::string &name) {
+    name_ = name;
+  }  // modifies a member, not const
 
-private:
-    std::string name_;
-    int size_ = 0;
+ private:
+  std::string name_;
+  int size_ = 0;
 };
 ```
 
@@ -409,33 +417,33 @@ private:
 
 ```cpp
 class FileWriter {
-public:
-    // ❌ destructor throws an exception, triggering std::terminate and crashing the program
-    ~FileWriter() {
-        if (!Flush()) {
-            throw std::runtime_error("flush failed");
-        }
+ public:
+  // ❌ destructor throws an exception, triggering std::terminate and crashing the program
+  ~FileWriter() {
+    if (!Flush()) {
+      throw std::runtime_error("flush failed");
     }
+  }
 
-private:
-    bool Flush();
+ private:
+  bool Flush();
 };
 
 class SafeFileWriter {
-public:
-    // ✅ destructor catches exceptions and logs them, does not propagate upward
-    ~SafeFileWriter() noexcept {
-        try {
-            if (!Flush()) {
-                // log error
-            }
-        } catch (const std::exception &e) {
-            // log error and swallow the exception
-        }
+ public:
+  // ✅ destructor catches exceptions and logs them, does not propagate upward
+  ~SafeFileWriter() noexcept {
+    try {
+      if (!Flush()) {
+        // log error
+      }
+    } catch (const std::exception &e) {
+      // log error and swallow the exception
     }
+  }
 
-private:
-    bool Flush();
+ private:
+  bool Flush();
 };
 ```
 
@@ -456,9 +464,21 @@ private:
 ##### Rule 14.2 When using lambdas in a non-local scope, avoid capture by reference
 
 ```cpp
+// Incorrect example: capturing a local variable by reference and submitting it to a thread pool;
+// the reference dangles after the scope ends
 {
   int local_var = 1;
-  auto func = [&]() { ...; std::cout << local_var << std::endl; };
+  auto func = [&]() {
+    ...
+    std::cout << local_var << std::endl;
+  };
+  thread_pool.commit(func);
+}
+
+// Correct example: capture the needed data by value
+{
+  int local_var = 1;
+  auto func = [local_var]() { std::cout << local_var << std::endl; };
   thread_pool.commit(func);
 }
 ```
@@ -497,8 +517,8 @@ bool FuncC(FooBar *out1, FooBar *out2, const std::string &in);
 bool FuncD(Result *out, int val);
 
 // ❌ Inconsistent: mixed within the same file
-bool FuncE(const std::string &in, FooBar *out);   // input-first
-bool FuncF(Result *out, int val);           // output-first → style inconsistency
+bool FuncE(const std::string &in, FooBar *out);  // input-first
+bool FuncF(Result *out, int val);                // output-first → style inconsistency
 ```
 
 ##### Recommendation 15.2 When passing function parameters, use `const T &` for input and `T &` or `T *` for output
@@ -513,48 +533,49 @@ bool Func(const std::string &in, FooBar &out1, FooBar &out2);
 bool Func(const std::string &in, FooBar *out1, FooBar *out2);
 
 // ❌ Mixed within the same file (style inconsistency)
-void FuncA(const Input &in, Output &out);       // output via reference
-void FuncB(const Input &in, Output *out);       // output via pointer → style inconsistency within the same file
+void FuncA(const Input &in, Output &out);  // output via reference
+void FuncB(const Input &in, Output *out);  // output via pointer → style inconsistency within the same file
 ```
 
 ##### Rule 15.3 When passing function parameters in scenarios that do not involve ownership, use T * or const T & as parameters instead of smart pointers
 
 ```cpp
 // Correct example
-  bool Func(const FooBar &in);
-  // Incorrect example
-  bool Func(std::shared_ptr<FooBar> in);
+bool Func(const FooBar &in);
+// Incorrect example
+bool Func(std::shared_ptr<FooBar> in);
 ```
 
 ##### Rule 15.4 When passing function parameters, if ownership needs to be transferred, it is recommended to use shared_ptr + move
 
 ```cpp
 class Foo {
-  public:
-    explicit Foo(shared_ptr<T> x):x_(std::move(x)){}
-  private:
-    shared_ptr<T> x_;
+ public:
+  explicit Foo(std::shared_ptr<T> x) : x_(std::move(x)) {}
+
+ private:
+  std::shared_ptr<T> x_;
 };
 ```
 
 ##### Rule 15.5 Single-argument constructors must use explicit; multi-argument constructors must not use explicit
 
 ```cpp
-explicit Foo(int x);          // good
-explicit Foo(int x, int y=0); // good
-Foo(int x, int y=0);          // bad
-explicit Foo(int x, int y);   // bad
+explicit Foo(int x);             // good
+explicit Foo(int x, int y = 0);  // good
+Foo(int x, int y = 0);           // bad
+explicit Foo(int x, int y);      // bad
 ```
 
 ##### Rule 15.6 Copy constructors and copy assignment operators should appear in pairs or be prohibited
 
 ```cpp
 class Foo {
-  private:
-    Foo(const Foo&) = default;
-    Foo& operator=(const Foo&) = default;
-    Foo(Foo&&) = delete;
-    Foo& operator=(Foo&&) = delete;
+ private:
+  Foo(const Foo &) = default;
+  Foo &operator=(const Foo &) = default;
+  Foo(Foo &&) = delete;
+  Foo &operator=(Foo &&) = delete;
 };
 ```
 
@@ -573,12 +594,12 @@ bool ParseConfig(const std::string &config_path, int max_retry, bool enable_log)
 // foo.cpp
 // ✅ parameter names consistent between declaration and definition
 bool ParseConfig(const std::string &config_path, int max_retry, bool enable_log) {
-    ...
+  ...
 }
 
 // ❌ parameter names inconsistent between declaration and definition
 bool ParseConfig(const std::string &path, int retry_count, bool log) {
-    ...
+  ...
 }
 
 // ✅ parameter names omitted in the declaration; not considered inconsistent
