@@ -50,6 +50,22 @@ set(CMAKE_MODULE_PATH
 )
 message("CMAKE_MODULE_PATH:${CMAKE_MODULE_PATH}")
 
+set(HIXL_VER_STRING "unknown")
+find_program(GIT_EXECUTABLE git)
+if(GIT_EXECUTABLE)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        OUTPUT_VARIABLE HIXL_GIT_COMMIT
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE HIXL_GIT_COMMIT_RESULT
+    )
+    if(HIXL_GIT_COMMIT_RESULT EQUAL 0 AND NOT "${HIXL_GIT_COMMIT}" STREQUAL "")
+        set(HIXL_VER_STRING ${HIXL_GIT_COMMIT})
+    endif()
+endif()
+message(STATUS "HIXL_VER_STRING:${HIXL_VER_STRING}")
+
 set(CMAKE_PREFIX_PATH ${ASCEND_INSTALL_PATH})
 message("CMAKE_PREFIX_PATH:${CMAKE_PREFIX_PATH}")
 message("CMAKE_INSTALL_PREFIX:${CMAKE_INSTALL_PREFIX}")
@@ -81,7 +97,7 @@ if (ENABLE_TEST)
     endif()
 
     if(ENABLE_ASAN)
-        set(ASAN_COMPILE_OPTION -fsanitize=address -fsanitize=leak -fsanitize-recover=address,all 
+        set(ASAN_COMPILE_OPTION -fsanitize=address -fsanitize=leak -fsanitize-recover=address,all
             -fno-stack-protector -fno-omit-frame-pointer)
         set(DT_COMMON_COMPILE_OPTION ${DT_COMMON_COMPILE_OPTION} ${ASAN_COMPILE_OPTION})
 

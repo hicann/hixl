@@ -34,6 +34,10 @@ target_include_directories(cann_hixl PRIVATE
     ${HIXL_CODE_DIR}/src/hixl/proxy
     )
 
+target_compile_definitions(cann_hixl PRIVATE
+        HIXL_VER_STRING="${HIXL_VER_STRING}"
+        )
+
 target_compile_options(cann_hixl PRIVATE
         -ftrapv
         -O2
