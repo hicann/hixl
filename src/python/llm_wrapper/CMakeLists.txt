@@ -16,7 +16,6 @@ if (NOT ENABLE_TEST)
 
     target_include_directories(llm_datadist_wrapper PRIVATE
             ${HI_PYTHON_INC}
-            ${pybind11_INCLUDE_DIR}
             ${HIXL_CODE_DIR}/include
             ${HIXL_CODE_DIR}/src/llm_datadist
             ${HIXL_CODE_DIR}/src/hixl/proxy
@@ -28,9 +27,14 @@ if (NOT ENABLE_TEST)
             $<BUILD_INTERFACE:slog_headers>
             $<BUILD_INTERFACE:metadef_headers>
             $<BUILD_INTERFACE:msprof_headers>
+            pybind11
             alog
             llm_datadist
     )
+    # CMake 3.16 does not propagate INTERFACE add_dependencies to consumers.
+    if(TARGET pybind11_build)
+        add_dependencies(llm_datadist_wrapper pybind11_build)
+    endif()
 
     set_target_properties(llm_datadist_wrapper
             PROPERTIES

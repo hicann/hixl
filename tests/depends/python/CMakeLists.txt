@@ -18,7 +18,6 @@ add_library(llm_datadist_wrapper_stub MODULE
 
 target_include_directories(llm_datadist_wrapper_stub PRIVATE
         ${HI_PYTHON_INC}
-        ${pybind11_INCLUDE_DIR}
         ${HIXL_CODE_DIR}/include
         ${HIXL_CODE_DIR}/src/llm_datadist
         ${HIXL_CODE_DIR}/tests/depends/llm_datadist/src
@@ -30,11 +29,16 @@ target_link_libraries(llm_datadist_wrapper_stub PRIVATE
         hccl_headers
         metadef_headers
         acl_rt_headers
+        pybind11
         llm_datadist_base
         error_manager_stub
         -Wl,-as-needed
         ${DT_COMMON_LINK_OPTION}
 )
+# CMake 3.16 does not propagate INTERFACE add_dependencies to consumers.
+if(TARGET pybind11_build)
+    add_dependencies(llm_datadist_wrapper_stub pybind11_build)
+endif()
 
 set_target_properties(llm_datadist_wrapper_stub
         PROPERTIES
@@ -54,16 +58,20 @@ add_library(metadef_wrapper_stub MODULE
 
 target_include_directories(metadef_wrapper_stub PRIVATE
         ${HI_PYTHON_INC}
-        ${pybind11_INCLUDE_DIR}
         ${HIXL_CODE_DIR}/include
 )
 
 target_link_libraries(metadef_wrapper_stub PRIVATE
         intf_pub
         metadef_headers
+        pybind11
         error_manager_stub
         ${DT_COMMON_LINK_OPTION}
 )
+# CMake 3.16 does not propagate INTERFACE add_dependencies to consumers.
+if(TARGET pybind11_build)
+    add_dependencies(metadef_wrapper_stub pybind11_build)
+endif()
 
 set_target_properties(metadef_wrapper_stub
         PROPERTIES
@@ -86,7 +94,6 @@ add_library(hixl_py_stub MODULE
 
 target_include_directories(hixl_py_stub PRIVATE
         ${HI_PYTHON_INC}
-        ${pybind11_INCLUDE_DIR}
         ${HIXL_CODE_DIR}/include
         ${HIXL_CODE_DIR}/src/hixl
 )
@@ -95,12 +102,17 @@ target_link_libraries(hixl_py_stub PRIVATE
         intf_pub
         hccl_headers
         metadef_headers
+        pybind11
         cann_hixl_base
         -Wl,--no-as-needed
         error_manager_stub
         -Wl,--as-needed
         ${DT_COMMON_LINK_OPTION}
 )
+# CMake 3.16 does not propagate INTERFACE add_dependencies to consumers.
+if(TARGET pybind11_build)
+    add_dependencies(hixl_py_stub pybind11_build)
+endif()
 
 set_target_properties(hixl_py_stub
         PROPERTIES
