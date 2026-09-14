@@ -2,7 +2,7 @@
 name: hixl-review
 description: |
   HIXL 代码检视技能。用于检视 GitCode 上的 HIXL 项目 PR 或本地代码，当用户要求检视PR、审查PR、检查本地代码、检查指定目录/文件、检查指定 commit 时调用此skill。
-  自动分析代码变更，检查内存泄漏、安全漏洞和可读性，生成结构化报告；PR 模式下可发布评论和 /lgtm。
+  自动分析代码变更，检查内存泄漏、安全漏洞和可读性，生成结构化报告；PR 模式下将每条检视意见发布为行内评论并附一条简短汇总评论，检视零问题（含无建议性改进）时自动 /lgtm。
 license: CANN Open Software License Agreement Version 2.0
 ---
 
@@ -16,8 +16,8 @@ license: CANN Open Software License Agreement Version 2.0
 - 🔍 **代码质量检查** - 检查内存泄漏、安全漏洞、可读性
 - 📝 **文档与日志检查** - 检查 Markdown 语法、文档规范、日志合规
 - 📊 **生成检视报告** - 结构化报告，清晰展示问题和建议
-- 💬 **自动发布评论** - PR 模式下可直接发布到 GitCode PR
-- ✅ **智能 LGTM** - PR 模式下中低风险自动打上 `/lgtm` 标记
+- 💬 **行内评论发布** - PR 模式下将每条检视意见发布到对应代码行（默认待解决状态，参与合并门禁），另附一条简短汇总评论
+- ✅ **零问题 LGTM** - PR 模式下检视零问题（全部检查项通过且无建议性改进）时自动打上 `/lgtm` 标记
 
 ## 使用方法
 
@@ -41,6 +41,7 @@ license: CANN Open Software License Agreement Version 2.0
 
 ```
 检视这个PR: https://gitcode.com/cann/hixl/pull/666，只检查安全问题，不要自动打lgtm
+检视这个PR: https://gitcode.com/cann/hixl/pull/666，直接发布评论，不用确认
 检查 include/ 目录，只检查安全问题
 ```
 
@@ -65,12 +66,13 @@ license: CANN Open Software License Agreement Version 2.0
 
 | 步骤 | PR 模式 | 本地模式 |
 |------|---------|---------|
-| 步骤 2（获取变更） | GitCode API | 直读文件 / git status --porcelain / git diff-tree（工作区或指定 commit） |
+| 步骤 2（获取变更） | GitCode API（`/files` + `/files.json`） | 直读文件 / git status --porcelain / git diff-tree（工作区或指定 commit） |
 | 步骤 3.0（PR 元信息检查） | ✅ 执行（标题+描述） | ❌ 跳过 |
+| 步骤 3.5（findings 提取与定位） | ✅ 执行 | ❌ 跳过 |
 | 步骤 4（报告头部） | `PR: #<num> - <title>` | `检视范围: <path/commit/desc>` |
 | 步骤 4（报告文件名） | `#666_2026-08-21.md` | `local_<desc>_2026-08-21.md` |
-| 步骤 5（发布评论） | ✅ 用户确认后执行 | ❌ 跳过 |
-| 步骤 6（lgtm） | ✅ 中低风险自动执行 | ❌ 跳过 |
+| 步骤 5（发布评论） | ✅ 行内评论+汇总评论（用户确认后） | ❌ 跳过 |
+| 步骤 6（lgtm） | ✅ 零问题自动执行 | ❌ 跳过 |
 
 ### 步骤 1: 加载仓库专属检视重点
 
@@ -91,12 +93,17 @@ license: CANN Open Software License Agreement Version 2.0
 curl -H "Authorization: Bearer $GITCODE_API_TOKEN" \
   "https://api.gitcode.com/api/v5/repos/cann/hixl/pulls/666"
 
-# 获取文件变更
+# 获取文件变更列表
 curl -H "Authorization: Bearer $GITCODE_API_TOKEN" \
   "https://api.gitcode.com/api/v5/repos/cann/hixl/pulls/666/files"
+
+# 获取文件变更及 diff 数据（用于步骤 3.5 行内评论定位）
+curl -H "Authorization: Bearer $GITCODE_API_TOKEN" \
+  "https://api.gitcode.com/api/v5/repos/cann/hixl/pulls/666/files.json"
 ```
 
 > PR 信息响应中的 `title` 字段用于步骤 3.0 的标题规范检查，`body` 字段用于步骤 3.0 的描述规范检查。
+> `files.json` 响应提供行内评论定位数据：`diffs[].statistic.new_path` 提供文件路径；`diffs[].content.text[]` 为结构化 diff 行数组，每条含 `type`（`match`/`old`/`new`/省略=上下文）、`new_line.line_num`（**新增侧文件绝对行号**）与 `line_content`，供步骤 5 行内评论的 `path` 与 `position` 定位使用，无需解析 raw unified diff。
 
 #### 步骤 2B: 本地模式 — 直读文件 / git diff / commit
 
@@ -311,6 +318,20 @@ C++ ABI 兼容性编码规范检查（参考文件 [cpp-abi.md](../../../docs/zh
 
 对外头文件 Doxygen 注释质量检查（参考文件 [header-comment-spec.md](./references/header-comment-spec.md)）：逐条比对 HC-1 至 HC-9，仅检查 diff 中新增或修改的注释行，不追溯存量问题。问题统一标记为 ⚠️ SUSPICIOUS。
 
+### 步骤 3.5: 提取 findings 并定位到 diff 行（仅 PR 模式）
+
+**仅 PR 模式执行此步骤；本地模式跳过。**
+
+1. **提取 findings**：从步骤 3 的全部检查表格中提取所有结果为 ⚠️ 或 ❌ 的项，**并从报告"💡 改进建议"章节提取全部建议性改进**（计入 finding，严重性记为 ⚠️ Low），每条 finding 记录以下信息：
+   - 严重性（与该项检查结果一致；检查表格的 ⚠️ 项为 ⚠️ Medium 及以上，建议性改进为 ⚠️ Low）
+   - 问题类别与规则编号（如 `重点检查项1: 设备内存对齐申请释放`、`cpp-secure 3.5`、`HC-5`）
+   - 问题描述、修改建议、涉及的文件行号和函数名（来自检视报告）
+   - 置信度：代码证据充分 → `✅ 较确定`；需作者补充信息（外部数组长度、调用方行为、平台差异等）才能定论 → `⚠️ 待确认`
+2. **定位到 diff 行**：将每条 finding 映射到 PR diff 中的位置：
+   - `path`：使用 `files.json` 返回的 `diffs[].statistic.new_path`
+   - `position`：finding 所在的**新增侧文件绝对行号**，直接取 `files.json` 结构化字段 `diffs[].content.text[].new_line.line_num`（`type` 为 `new` 或上下文行），必须与 finding 所在代码行一致
+   - 无法定位的情况（删除文件、仅旧侧代码、PR 元信息类问题、所在行不在本次 diff 中）：不发布行内评论，归入步骤 5 的汇总评论，并在最终输出中说明
+
 ### 步骤 4: 生成检视报告
 
 重要：请务必遵守以下规则生成报告：
@@ -318,6 +339,7 @@ C++ ABI 兼容性编码规范检查（参考文件 [cpp-abi.md](../../../docs/zh
 - 发现的问题或修改建议必须标明具体的文件行号和函数名；
 - 表格只显示检查结果为 ⚠️/❌ 的规范；
 - 如果修改不涉及相关规范，标明“修改不涉及”。
+- 完整报告仅保存到本地，不发布到 PR；PR 模式下只发布行内评论和简短汇总评论（见步骤 5），报告中 ⚠️/❌ 项与行内评论一一对应。
 - 将检视报告保存到项目根目录下的`hixl-review-reports`文件夹下，文件名按模式区分：
   - PR 模式：“PR编号+检视日期”，例如“#666_2026-04-14.md”
   - 本地模式：“local_+简要描述+检视日期”，例如“local_include_2026-08-21.md”
@@ -500,25 +522,123 @@ HC-3 | include/llm_datadist/llm_datadist.h:255 | CopyKvCache
 **总体评价**: <总结>
 ```
 
-### 步骤 5: 发布评论
+### 步骤 5: 发布检视意见（行内评论 + 汇总评论）
 
 **仅 PR 模式执行此步骤；本地模式跳过。**
 
-发布评论前向用户确认是否需要修改或发布检视报告，发布评论时使用 GitCode API：
+#### 5.1 待发布清单与用户确认
+
+发布前先向用户列出待发布评论清单，等待确认：
+
+```markdown
+待发布评论（共 3 条行内评论 + 1 条汇总评论）：
+1. [❌ High] src/hixl/channel_manager.cc:120 | 资源泄漏 (重点检查项1) | 建链失败路径未释放 device 内存
+2. [⚠️ Medium] src/llm_datadist/cache_manager.cc:45 | 参数校验 (cpp-param-validation) | 重复注册未校验地址重叠
+3. [⚠️ Medium] include/hixl/hixl.h:132 | 错误传播 (重点检查项4) | 错误码统一吞成 FAILED
+汇总: ❌ 需要修改 | Findings: ❌ 1 / ⚠️ 2 | 主要风险: 资源泄漏
+
+确认发布全部 / 指定序号（如 1,3）/ 取消？
+```
+
+- 用户确认“发布全部”或指定序号（如 `1,3`）→ 发布对应评论
+- 用户取消 → 不发布任何评论
+- 用户在检视请求中已明确要求“直接发布、不用确认” → 跳过确认直接发布
+
+#### 5.2 发布行内评论
+
+对确认的每条 finding 独立发布一条行内评论，定位到对应代码行。**禁止把逐条 finding 汇总发布为 PR 普通评论**。body 为多行 Markdown，建议用 python3 构造请求体（自动处理换行转义）：
 
 ```bash
-curl -X POST \
-  -H "Authorization: Bearer $GITCODE_API_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"body\":\"$(echo "$REPORT" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')\"}" \
-  "https://api.gitcode.com/api/v5/repos/cann/hixl/pulls/666/comments"
+python3 - <<'EOF'
+import json, os, urllib.request
+
+body = """## 🤖 HIXL 检视意见
+
+**严重性**: ❌ High
+**置信度**: ✅ 较确定
+**问题类别**: 资源泄漏 (重点检查项1: 设备内存对齐申请释放)
+**问题详情**: `HixlEngine::Connect` 建链失败分支中 `aclrtMalloc` 申请的 device 内存未释放，重试建链场景会持续泄漏直至 OOM。异常路径未见 guard 或 RAII 兜底。
+**修改建议**: 错误返回前统一调用 `Cleanup()` 释放，或使用 RAII guard 接管该段内存的生命周期。"""
+
+data = json.dumps({
+    "body": body,
+    "path": "src/hixl/channel_manager.cc",
+    "position": 120,  # 新增侧文件绝对行号，见下方 position 语义实测备注
+}).encode("utf-8")
+req = urllib.request.Request(
+    "https://api.gitcode.com/api/v5/repos/cann/hixl/pulls/666/comments",
+    data=data,
+    headers={
+        "Authorization": "Bearer " + os.environ["GITCODE_API_TOKEN"],
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    },
+    method="POST",
+)
+print(urllib.request.urlopen(req).read().decode("utf-8"))
+EOF
 ```
+
+参数要求：
+
+- `body`：行内评论正文，格式见 5.3
+- `path`：`files.json` 返回的 `diffs[].statistic.new_path`
+- `position`：finding 所在的**新增侧文件绝对行号**（即 `diffs[].content.text[].new_line.line_num`），与 5.1 清单中标注的行号一致
+
+> **`position` 语义实测备注**（2026-09-11，GitCode API v5）：官方 OpenAPI 文档将 `position` 描述为"Diff 的相对行数"，但实测**不成立**——在含双 hunk 的修改场景中，用绝对行号请求精确命中（回显 `position.new_line` 与请求值一致），用 Diff 相对行数请求则错位（API 直接将其当作行号处理）。本 skill 按实测结论使用**文件绝对行号**，且该值与 `files.json` 结构化字段 `content.text[].new_line.line_num` 直接对应。
+
+> **待解决状态说明**：行内评论创建后**默认即为待解决状态**（列表接口返回 `resolved=false`），参与 GitCode 合并门禁——存在未解决讨论时合并会被阻塞，作者处理后在网页点击“解决”即可形成检视闭环，无需额外请求参数。
+> 注意：创建接口会**静默忽略** `need_to_resolve` 参数（2026-09-11 在 GitCode API v5 实测），不要依赖该参数；如需通过 API 将讨论置为已解决，可调用 `PUT /repos/{owner}/{repo}/pulls/{number}/comments/{discussion_id}`，请求体 `{"resolved": true}`。
+
+步骤 3.5 中无法定位的 finding 不发布行内评论，并入汇总评论并在最终输出中说明。
+
+#### 5.3 行内评论正文格式
+
+每条行内评论使用统一结构，严重性标记与检视报告保持一致（⚠️ Low / ⚠️ Medium / ❌ High / 🔴 Critical；Low 级为建议性改进，不使用 ✅ 以免与"检查通过"语义混淆）：
+
+```markdown
+## 🤖 HIXL 检视意见
+
+**严重性**: ❌ High
+**置信度**: ✅ 较确定
+**问题类别**: 资源泄漏 (重点检查项1: 设备内存对齐申请释放)
+**问题详情**: `HixlEngine::Connect` 建链失败分支中 `aclrtMalloc` 申请的 device 内存未释放，重试建链场景会持续泄漏直至 OOM。异常路径未见 guard 或 RAII 兜底。
+**修改建议**: 错误返回前统一调用 `Cleanup()` 释放，或使用 RAII guard 接管该段内存的生命周期。
+```
+
+字段要求：
+
+- **严重性**：⚠️ Low / ⚠️ Medium / ❌ High / 🔴 Critical，与报告中该项检查结果一致（Low = 建议性改进）
+- **置信度**：`✅ 较确定`（代码证据充分，直接给出结论）或 `⚠️ 待确认`（依赖作者补充信息，如外部数组长度、调用方行为、平台差异；此时“修改建议”以“确认…”开头，向作者提问）
+- **问题类别**：`<类别> (<规则编号>: <规则名称>)`，规则编号取自本次检视使用的检查体系，如 `重点检查项3: 通信资源申请释放`、`cpp-secure 3.x`、`HC-5`、日志规范条目
+- **问题详情**：1-3 句话，说明问题本身与影响，必须包含函数名和代码上下文，不粘贴大段代码
+- **修改建议**：1-2 句话，给出具体可操作的修复方式
+
+#### 5.4 发布简短汇总评论
+
+行内评论发布完成后，发布一条简短汇总评论（PR 普通评论，API 端点同 5.2，仅携带 `body` 字段，不带 `path`/`position`）。**不要把完整检视报告发布到 PR**，完整报告仅保存到本地 `hixl-review-reports/`：
+
+```markdown
+## 🤖 HIXL 代码检视结论
+
+**结论**: ❌ 需要修改    **严重性**: High
+
+- Findings: 🔴 0 / ❌ 1 / ⚠️ 2（已发布行内评论，请处理后 resolve）
+- 主要风险: 建链失败路径资源泄漏
+- 亮点: 错误码传播链路完整，测试用例覆盖充分
+```
+
+无法定位到代码行的 finding（如 PR 元信息问题）在汇总评论中列出。
+
+#### 5.5 API 不可用降级
+
+如 GitCode API 不可用（网络错误、token 失效、权限不足等），向用户输出本地检视结果和待发布评论清单，并明确说明未能发布评论的原因；不得静默丢弃检视结果。
 
 ### 步骤 6: 发布 lgtm（可选）
 
 **仅 PR 模式执行此步骤；本地模式跳过。**
 
-如果严重程度为 Low 或 Medium，且 `auto_lgtm=true`：
+当且仅当本次检视**真零 finding**——全部检查项（含 PR 元信息检查）均为 ✅，且报告"💡 改进建议"章节为空（无任何建议性改进）——且 `auto_lgtm=true` 时发布：
 
 ```bash
 curl -X POST \
@@ -528,12 +648,18 @@ curl -X POST \
   "https://api.gitcode.com/api/v5/repos/cann/hixl/pulls/666/comments"
 ```
 
+约束：
+
+- `/lgtm` 评论正文必须仅包含 `/lgtm`，不追加任何解释、总结或标点
+- 存在任意 finding（含 ⚠️ Low 建议性改进）时不得发布，即使整体严重性为 Low
+
 ## 严重程度判定
 
 | 等级 | 条件 | 是否合入 | LGTM（仅 PR 模式） |
 |------|------|---------|------|
-| Low | 仅有建议性改进 | ✅ 可以 | ✅ 自动 |
-| Medium | 有一般性问题 | ⚠️ 建议修改后 | ✅ 自动 |
+| 无问题 | 全部检查项 ✅ 且改进建议为空（真零 finding） | ✅ 可以 | ✅ 自动 |
+| Low | 仅有建议性改进（⚠️ Low 级 finding） | ✅ 可以 | ❌ 不发布 |
+| Medium | 有一般性问题 | ⚠️ 建议修改后 | ❌ 不发布 |
 | High | 有严重问题 | ❌ 需要修改 | ❌ 不发布 |
 | Critical | 有安全漏洞或严重内存问题 | ❌ 需要修改 | ❌ 不发布 |
 
@@ -565,7 +691,7 @@ curl -X POST \
 - **local_path** (本地模式可选): 要检视的文件或目录路径
 - **commit_id** (本地模式可选): 要检视的 commit ID（如 `abc123`）或 commit 范围（如 `HEAD~3..HEAD`、`abc123..def456`）
 - **focus_areas** (可选): 检视重点 (编码规范问题/安全问题/代码风格问题/全部问题)
-- **auto_lgtm** (可选, 仅 PR 模式): 中低风险自动 LGTM (true/false)
+- **auto_lgtm** (可选, 仅 PR 模式): 检视零问题（全部检查项通过且无建议性改进）时自动 LGTM (true/false, 默认 true)
 
 > `pr_url`、`local_path`、`commit_id` 三选一。均未提供时，默认进入本地模式并通过 `git status --porcelain` 获取工作区变更。
 
@@ -574,12 +700,12 @@ curl -X POST \
 ```json
 {
   "mode": "pr",
-  "severity": "low",
+  "severity": "medium",
   "can_merge": true,
-  "issues_count": 2,
-  "comment_posted": true,
-  "lgtm_posted": true,
-  "report_url": "https://gitcode.com/cann/hixl/pull/666#note_12345",
+  "issues_count": 3,
+  "inline_comments_posted": 3,
+  "summary_comment_posted": true,
+  "lgtm_posted": false,
   "report_path": "hixl-review-reports/#666_2026-04-14.md"
 }
 ```
@@ -591,7 +717,8 @@ curl -X POST \
   "commit": "abc123",
   "severity": "high",
   "issues_count": 8,
-  "comment_posted": false,
+  "inline_comments_posted": 0,
+  "summary_comment_posted": false,
   "lgtm_posted": false,
   "report_path": "hixl-review-reports/local_commit_abc123_2026-08-21.md"
 }
@@ -604,7 +731,8 @@ curl -X POST \
   "path": "include/",
   "severity": "high",
   "issues_count": 8,
-  "comment_posted": false,
+  "inline_comments_posted": 0,
+  "summary_comment_posted": false,
   "lgtm_posted": false,
   "report_path": "hixl-review-reports/local_include_2026-08-21.md"
 }
