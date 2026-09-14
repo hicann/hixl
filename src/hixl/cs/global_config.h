@@ -15,6 +15,7 @@
 #include <optional>
 
 #include "hixl/hixl_types.h"
+#include "common/transfer_config.h"
 
 namespace hixl {
 
@@ -22,6 +23,10 @@ struct CommResourceConfig {
   std::optional<uint32_t> listen_port;
   std::optional<uint8_t> qos;
   std::optional<uint32_t> max_active_channels;
+};
+
+struct TransferConfigDesc {
+  uint32_t max_transfer_count_per_batch{kDefaultMaxTransferCountPerBatch};
 };
 
 class GlobalConfig {
@@ -37,9 +42,11 @@ class GlobalConfig {
   std::optional<uint32_t> ListenPort() const;
   std::optional<uint8_t> Qos() const;
   std::optional<uint32_t> MaxActiveChannels() const;
+  uint32_t MaxTransferCountPerBatch() const;
 
  private:
   CommResourceConfig comm_resource_config_;
+  TransferConfigDesc transfer_config_;
 };
 
 }  // namespace hixl

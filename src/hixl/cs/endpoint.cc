@@ -24,6 +24,28 @@ namespace hixl {
 namespace {
 constexpr uint32_t kRoceQueueNum = 1U;  // ROCE QP数量默认值
 
+bool IsUrmaProtocol(CommProtocol protocol) {
+  return protocol == COMM_PROTOCOL_UBC_CTP || protocol == COMM_PROTOCOL_UBOE || protocol == COMM_PROTOCOL_UBG;
+}
+
+void InitQueueDepth(const EndpointDesc &endpoint, const ChannelDesc &channel_desc, HcommChannelDesc &ch_desc) {
+  const bool is_client = channel_desc.channel_type == ChannelType::kClient;
+  const uint32_t data_depth =
+      is_client ? CalculateTransportQueueDepth(channel_desc.max_transfer_count_per_batch) : kMinTransportQueueDepth;
+  if (endpoint.protocol == COMM_PROTOCOL_ROCE) {
+    ch_desc.roceAttr.sqDepth = data_depth;
+    ch_desc.roceAttr.scqDepth = data_depth;
+    HIXL_LOGI("[channel] RoCE queue depth set, role=%d, sq=%u, scq=%u", static_cast<int32_t>(channel_desc.channel_type),
+              ch_desc.roceAttr.sqDepth, ch_desc.roceAttr.scqDepth);
+  } else if (IsUrmaProtocol(endpoint.protocol)) {
+    ch_desc.ubAttr.sqDepth = data_depth;
+    ch_desc.ubAttr.scqDepth = data_depth;
+    HIXL_LOGI("[channel] URMA queue depth set, protocol=%d, role=%d, sq=%u, scq=%u",
+              static_cast<int32_t>(endpoint.protocol), static_cast<int32_t>(channel_desc.channel_type),
+              ch_desc.ubAttr.sqDepth, ch_desc.ubAttr.scqDepth);
+  }
+}
+
 bool IsDefaultHostVaMappingEnabled(const EndpointDesc &endpoint) {
   return endpoint.loc.locType == ENDPOINT_LOC_TYPE_DEVICE &&
          (endpoint.protocol == COMM_PROTOCOL_UBOE || endpoint.protocol == COMM_PROTOCOL_UBG ||
@@ -70,6 +92,7 @@ Status InitChannelDesc(const EndpointDesc &endpoint, const ChannelDesc &channel_
               ch_desc.roceAttr.tc, ch_desc.roceAttr.sl, ch_desc.roceAttr.retryCnt, ch_desc.roceAttr.retryInterval,
               ch_desc.roceAttr.queueNum);
   }
+  InitQueueDepth(endpoint, channel_desc, ch_desc);
   ch_desc.port = port;
   // need add qos at here when HcommChannelDesc exist qos
   ch_desc.qos = static_cast<uint32_t>(channel_desc.qos);

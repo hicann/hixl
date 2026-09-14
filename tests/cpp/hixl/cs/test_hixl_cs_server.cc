@@ -64,6 +64,7 @@ class HixlCSTest : public ::testing::Test {
  protected:
   // 在测试类中设置一些准备工作，如果需要的话
   void SetUp() override {
+    ResetChannelDescRecord();
     EndpointDesc ep0{};
     ep0.loc.locType = ENDPOINT_LOC_TYPE_HOST;
     ep0.protocol = COMM_PROTOCOL_UBC_CTP;
@@ -572,6 +573,8 @@ TEST_F(HixlCSTest, TestHixlCSClient2Server) {
   SendCreateChannelReq(client_fd, match_resp.dst_ep_handle, match_resp.channel_index);
   CreateChannelResp resp_body{};
   GetCreateChannelResp(client_fd, resp_body);
+  EXPECT_EQ(GetLastChannelSqDepth(), 64U);
+  EXPECT_EQ(GetLastChannelScqDepth(), 64U);
   SendGetRemoteMemReq(client_fd, match_resp.dst_ep_handle);
   std::this_thread::sleep_for(std::chrono::milliseconds(kTimeSleepMs));
   // 没有读取缓冲区数据，测试server recv报错场景

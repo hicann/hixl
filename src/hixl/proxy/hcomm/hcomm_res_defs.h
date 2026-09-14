@@ -25,7 +25,8 @@ static const uint32_t COMM_ADDR_EID_LEN = 16U;
 static const uint32_t HCOMM_CHANNEL_MAGIC_WORD = 0x0fcf0f0fU;
 static const uint32_t HCOMM_CHANNEL_VERSION_ONE = 1U;
 /** ABI v3：相比 v1 增加 uint32_t qos 与 const char *channelName（channel 业务匹配标识） */
-static const uint32_t HCOMM_CHANNEL_VERSION = 3U;
+/** ABI v4：相比 v3 增加 roceAttr.srcPortList（QP 源端口号，union 内字段，sizeof 不变） */
+static const uint32_t HCOMM_CHANNEL_VERSION = 4U;
 
 /// channelName标识最大长度（字节）
 static const uint32_t HCOMM_CHANNEL_NAME_MAX_LEN = 191U;
@@ -215,10 +216,19 @@ typedef struct {
       uint32_t retryInterval;  ///< 重传间隔（ms）
       uint8_t tc;              ///< 流量类别（QoS)
       uint8_t sl;              ///< 服务等级（QoS)
+      uint32_t qpThreshold;    ///< 多QP场景下，每个QP最小数据量(B)
+      uint32_t cqAttrFlags;    ///< CQ属性标志位，默认0
+      uint16_t *srcPortList;   ///< QP源端口号，用于哈希分流
+      uint32_t sqDepth;        ///< SQ队列深度，0/0xffffffff表示使用默认值
+      uint32_t scqDepth;       ///< SCQ队列深度，0/0xffffffff表示使用默认值
     } roceAttr;
     struct {
       uint32_t qos;  ///< HCCS QoS
     } hccsAttr;
+    struct {
+      uint32_t sqDepth;   ///< UB SQ队列深度，0/0xffffffff表示使用默认值
+      uint32_t scqDepth;  ///< UB SCQ队列深度，0/0xffffffff表示使用默认值
+    } ubAttr;
   };
   uint32_t qos;
   const char *channelName;  ///< channel业务匹配标识，两端建channel需标识相同
@@ -365,6 +375,11 @@ static inline HcommResult HcommChannelDescInit(HcommChannelDesc *channelDesc, ui
     channelDesc->socket = NULL;
     channelDesc->role = HCOMM_SOCKET_ROLE_RESERVED;
     channelDesc->port = 0;
+    channelDesc->roceAttr.qpThreshold = 0U;
+    channelDesc->roceAttr.cqAttrFlags = 0U;
+    channelDesc->roceAttr.srcPortList = NULL;
+    channelDesc->roceAttr.sqDepth = 0U;
+    channelDesc->roceAttr.scqDepth = 0U;
     channelDesc->channelName = NULL;
     if (EndpointDescInit(&channelDesc->remoteEndpoint, 1) != 0) {
       return hcommEInternal;

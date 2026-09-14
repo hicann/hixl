@@ -93,6 +93,7 @@ Server侧`global_resource_config`当前支持的配置项如下。
 |---|---|---|---|
 | comm_resource_config.listen_port | 整数 | 可选 | 配置CS建链时Server侧通信资源监听端口，取值范围为[1, 65535]。Server配置该字段后，会在Client建链匹配Endpoint阶段通过响应返回该端口；未配置时，Server保持原有自动查询监听端口逻辑；取值不在范围内时，Server创建失败并返回参数错误。 |
 | comm_resource_config.max_active_channels | 整数 | 可选 | 配置Server设备侧同时活跃传输通道数量。取值范围为[1, 8192]；未配置时默认值为128；每个active channel消耗2个Stream资源，配置值需结合当前卡形态的Stream资源上限及业务中已创建的Stream数量预留余量；不同卡形态的Stream资源上限参见CANN Runtime API [aclrtCreateStream](https://www.hiascend.com/document/detail/zh/canncommercial/latest/API/runtimeapi/aclcppdevg_03_0066.html)资料；取值小于1、大于8192或非数字时，Server创建失败并返回参数错误。 |
+| transfer_config.max_transfer_count_per_batch | 数字或十进制数字字符串 | 可选 | 单个内部传输批次最多包含的buffer数量，默认1920，全局取值范围为[1, 32766]。Server侧仅接受并解析该配置，不会覆盖Client侧的分批参数。 |
 
 Client侧`global_resource_config`当前支持的配置项如下。
 
@@ -100,12 +101,16 @@ Client侧`global_resource_config`当前支持的配置项如下。
 |---|---|---|---|
 | comm_resource_config.qos | 数字 | 可选 | 配置通信协议qos，当前仅支持[0-7]，当未配置的时候，默认为0。 |
 | comm_resource_config.max_active_channels | 整数 | 可选 | 配置Client设备侧同时活跃传输通道数量。取值范围为[1, 8192]；未配置时默认值为128；每个active channel消耗2个Stream资源，配置值需结合当前卡形态的Stream资源上限及业务中已创建的Stream数量预留余量；不同卡形态的Stream资源上限参见CANN Runtime API [aclrtCreateStream](https://www.hiascend.com/document/detail/zh/canncommercial/latest/API/runtimeapi/aclcppdevg_03_0066.html)资料；取值小于1、大于8192或非数字时，Client创建失败并返回参数错误。 |
+| transfer_config.max_transfer_count_per_batch | 数字或十进制数字字符串 | 可选 | 单个内部传输批次最多包含的buffer数量，超过时按原始顺序自动分批。默认1920，全局取值范围为[1, 32766]，HCCS链路范围为[1, 1920]。 |
+
+RoCE/URMA队列深度说明：Client的SQ/SCQ深度按`max(64, nextPowerOfTwo(配置值 + 2))`计算；Server的SQ/SCQ深度固定为64；RQ/RCQ不由HIXL下发，由Hcomm按协议和平台默认策略设置。队列深度的协议和硬件能力校验由Hcomm负责。
 
 Server配置示例：
 
 ```json
 {
-  "comm_resource_config.listen_port": 26666
+  "comm_resource_config.listen_port": 26666,
+  "transfer_config.max_transfer_count_per_batch": 1920
 }
 ```
 
@@ -113,7 +118,8 @@ Client配置示例：
 
 ```json
 {
-  "comm_resource_config.qos": 7
+  "comm_resource_config.qos": 7,
+  "transfer_config.max_transfer_count_per_batch": 1920
 }
 ```
 

@@ -34,7 +34,7 @@ Status FabricMemAicpuTransferService::Initialize(const FabricMemTransferServiceI
   HIXL_CHK_BOOL_RET_STATUS(param.task_stream_num == 1U, PARAM_INVALID,
                            "enable_aicpu_unfold requires task_stream_num=1, got %zu.", param.task_stream_num);
   HIXL_DISMISSABLE_GUARD(fail_guard, ([this]() { Finalize(); }));
-  const Status dispatcher_status = aicpu_dispatcher_.Initialize(param.device_id);
+  const Status dispatcher_status = aicpu_dispatcher_.Initialize(param.device_id, param.max_transfer_count_per_batch);
   if (dispatcher_status != SUCCESS) {
     HIXL_LOGE(UNSUPPORTED, "FabricMem AICPU unfold requested but unavailable on device:%d.", param.device_id);
     return UNSUPPORTED;

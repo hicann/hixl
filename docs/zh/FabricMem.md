@@ -68,7 +68,7 @@ graph LR
 
 特殊说明：25.5 HDK下不支持aclrtMemRetainAllocationHandle接口，必须使用adxl提供的MallocMem接口和FreeMem接口来管理HOST内存，26.0以上HDK可以直接调用acl接口管理HOST内存。
 - **启用方式**：初始化引擎时在 `options` 中配置 `OPTION_ENABLE_USE_FABRIC_MEM`，取值为 `"1"` 表示开启（取值为 `"0"` 表示关闭）。详见 [HIXL 接口 · options](api/cpp/HIXL-interface.md)。
-- **可选全局配置**：可通过 `OPTION_GLOBAL_RESOURCE_CONFIG` 配置 Fabric 虚拟内存池容量、起始地址、单任务流数量等，示例见 [HIXL 接口](api/cpp/HIXL-interface.md) 中 `fabric_memory.`* 字段说明。
+- **可选全局配置**：可通过 `OPTION_GLOBAL_RESOURCE_CONFIG` 配置 Fabric 虚拟内存池容量、起始地址、单任务流数量，以及 `transfer_config.max_transfer_count_per_batch`。该传输配置默认值为 `1920`，FabricMem取值范围为`[1, 1920]`，两种展开模式都会执行该范围校验。`fabric_memory.enable_aicpu_unfold=true`时，配置值控制AICPU展开的逻辑批次和Notify边界，Kernel不会跨逻辑批次，STARS队列深度仍固定为2K。`fabric_memory.enable_aicpu_unfold=false`时，Host为每个buffer连续提交`aclrtMemcpyAsync`，不按该值分批，也不会在该值边界增加同步。示例见 [HIXL 接口](api/cpp/HIXL-interface.md)。
 
 **硬件范围**：仅支持 **Atlas A3 训练系列产品**、**Atlas A3 推理系列产品**。
 

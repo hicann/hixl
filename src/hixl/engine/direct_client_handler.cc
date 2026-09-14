@@ -12,6 +12,7 @@
 #include <algorithm>
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
+#include "common/transfer_config.h"
 #include "common/hixl_utils.h"
 #include "engine/client_handler_config_helper.h"
 #include "engine/endpoint_generator/endpoint_generator.h"
@@ -23,6 +24,11 @@ DirectClientHandler::DirectClientHandler(HixlClientHandle handle, const std::str
 
 Status DirectClientHandler::Create(const HandlerCreateArgs &args, std::unique_ptr<DirectClientHandler> &out) {
   const auto &pair = args.matched_pairs[0];
+  if (pair.local.protocol == kProtocolHccs) {
+    HIXL_CHK_BOOL_RET_STATUS(args.max_transfer_count_per_batch <= kMaxFixedQueueTransferCountPerBatch, PARAM_INVALID,
+                             "max_transfer_count_per_batch=%u exceeds HCCS range [1, %u]",
+                             args.max_transfer_count_per_batch, kMaxFixedQueueTransferCountPerBatch);
+  }
   EndpointDesc local_endpoint{};
   EndpointDesc remote_endpoint{};
   HIXL_CHK_STATUS_RET(EndpointGenerator::ConvertToEndpointDesc(pair.local, local_endpoint));

@@ -68,7 +68,7 @@ graph LR
 
 Note: HDK 25.5 does not support the `aclrtMemRetainAllocationHandle` API. You must use ADXL-provided `MallocMem` and `FreeMem` APIs to manage host memory. HDK 26.0 or later allows direct calls to ACL APIs for host memory management.
 - **Enabling method**: During engine initialization, configure `OPTION_ENABLE_USE_FABRIC_MEM` in `options`. The value `"1"` enables FabricMem while `"0"` disables it. See [HIXL Interface · options](../zh/api/cpp/HIXL-interface.md).
-- **Optional global configuration**: Use `OPTION_GLOBAL_RESOURCE_CONFIG` to configure the capacity, start address, and per-task stream counts of the Fabric virtual memory pool. See the `fabric_memory.*` field in [HIXL Interface](../zh/api/cpp/HIXL-interface.md).
+- **Optional global configuration**: Use `OPTION_GLOBAL_RESOURCE_CONFIG` to configure the capacity, start address, and per-task stream counts of the Fabric virtual memory pool, as well as `transfer_config.max_transfer_count_per_batch`. This transfer configuration defaults to `1920`, and its valid range for FabricMem is `[1, 1920]`; the range is validated in both unfolding modes. When `fabric_memory.enable_aicpu_unfold=true`, the value controls the logical batches and Notify boundaries for AICPU unfolding. A Kernel never crosses a logical batch boundary, and the STARS queue depth remains fixed at 2K. When `fabric_memory.enable_aicpu_unfold=false`, the Host continuously submits one `aclrtMemcpyAsync` operation for each buffer, without batching by this value or adding synchronization at its boundaries. See [HIXL Interface](../zh/api/cpp/HIXL-interface.md).
 
 **Hardware scope**: Only **Atlas A3 training products** and **Atlas A3 inference products** are supported.
 

@@ -232,6 +232,7 @@ TEST_F(FabricMemAicpuUnfoldUTest, AicpuUnfoldUses128KernelAnd1920NotifyBoundarie
     {
       TemporaryRtContext ctx_guard(slot.ctx);
       ASSERT_EQ(service_.ProcessCopyWithAsync(slot, WRITE, op_descs, aicpu_resource), SUCCESS);
+      EXPECT_EQ(aicpu_resource.status_count, batch_case.kernel_count);
       ASSERT_EQ(aclrtSynchronizeStream(slot.streams[0]), ACL_SUCCESS);
       FabricMemAicpuDispatcher::ReleaseRequestResource(aicpu_resource);
     }
@@ -249,6 +250,38 @@ TEST_F(FabricMemAicpuUnfoldUTest, AicpuUnfoldUses128KernelAnd1920NotifyBoundarie
   }
   EXPECT_EQ(runtime_->notify_create_count_, 1U);
   EXPECT_EQ(runtime_->notify_destroy_count_, 0U);
+}
+
+TEST_F(FabricMemAicpuUnfoldUTest, AicpuUnfoldHonorsNonKernelAlignedTransferBoundary) {
+  auto param = MakeServiceInitParam(&statistic_, &local_memory_);
+  param.enable_aicpu_unfold = true;
+  param.max_transfer_count_per_batch = 1022U;
+  runtime_->soc_name_ = "Ascend910_9391";
+  ASSERT_EQ(service_.Initialize(param), SUCCESS);
+
+  uint8_t local[kLen] = {};
+  uint8_t remote[kLen] = {};
+  std::vector<TransferOpDesc> op_descs(1023U,
+                                       {reinterpret_cast<uintptr_t>(local), reinterpret_cast<uintptr_t>(remote), kLen});
+  AsyncSlot slot;
+  ASSERT_EQ(service_.slot_pool_.AcquireAsync(slot), SUCCESS);
+  ASSERT_EQ(service_.slot_pool_.EnsureAicpuRtsqStreams(slot), SUCCESS);
+  slot.has_aicpu_unfold = true;
+  FabricMemAicpuRequestResource resource;
+  {
+    TemporaryRtContext ctx_guard(slot.ctx);
+    ASSERT_EQ(service_.ProcessCopyWithAsync(slot, WRITE, op_descs, resource), SUCCESS);
+    EXPECT_EQ(resource.status_count, 9U);
+    EXPECT_EQ(runtime_->notify_wait_count_, 2U);
+    ASSERT_EQ(runtime_->kernel_params_.size(), 9U);
+    EXPECT_EQ(runtime_->kernel_params_[7U].desc_count, 126U);
+    EXPECT_EQ(runtime_->kernel_params_[7U].emit_notify_record, 1U);
+    EXPECT_EQ(runtime_->kernel_params_[8U].desc_count, 1U);
+    EXPECT_EQ(runtime_->kernel_params_[8U].emit_notify_record, 1U);
+    ASSERT_EQ(aclrtSynchronizeStream(slot.streams[0U]), ACL_SUCCESS);
+    FabricMemAicpuDispatcher::ReleaseRequestResource(resource);
+  }
+  service_.slot_pool_.Release(slot, false);
 }
 
 TEST_F(FabricMemAicpuUnfoldUTest, AicpuUnfoldSplitsDescriptorsLongerThanOneSdmaTask) {

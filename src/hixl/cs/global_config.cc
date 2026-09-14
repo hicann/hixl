@@ -15,6 +15,7 @@
 #include "common/hixl_log.h"
 #include "common/hixl_inner_types.h"
 #include "common/json_utils.h"
+#include "common/transfer_config.h"
 
 namespace hixl {
 namespace {
@@ -24,6 +25,7 @@ constexpr int64_t kMinListenPort = 1;
 constexpr int64_t kMaxListenPort = 65535;
 constexpr int64_t kMinActiveChannels = 1;
 constexpr int64_t kMaxActiveChannels = 8192;
+constexpr const char *kMaxTransferCountPerBatchKey = "transfer_config.max_transfer_count_per_batch";
 
 Status ParseListenPort(const nlohmann::json &json, CommResourceConfig &config) {
   const auto it = json.find(kListenPort);
@@ -78,6 +80,25 @@ Status ParseMaxActiveChannels(const nlohmann::json &json, CommResourceConfig &co
   return SUCCESS;
 }
 
+Status ParseTransferConfig(const nlohmann::json &json, TransferConfigDesc &config) {
+  const auto it = json.find(kMaxTransferCountPerBatchKey);
+  if (it == json.end()) {
+    return SUCCESS;
+  }
+  HIXL_CHK_BOOL_RET_STATUS((it->is_number_integer() || it->is_number_unsigned()) || it->is_string(), PARAM_INVALID,
+                           "[GlobalConfig] %s must be an integer or decimal integer string",
+                           kMaxTransferCountPerBatchKey);
+  const auto val = JsonToNumber<int64_t>(*it);
+  if (val < 1 || val > static_cast<int64_t>(kMaxTransferCountPerBatch)) {
+    HIXL_LOGE(PARAM_INVALID, "[GlobalConfig] max_transfer_count_per_batch out of range: %ld, must be in [1, %u]", val,
+              kMaxTransferCountPerBatch);
+    return PARAM_INVALID;
+  }
+  config.max_transfer_count_per_batch = static_cast<uint32_t>(val);
+  HIXL_LOGI("[GlobalConfig] max_transfer_count_per_batch=%u", config.max_transfer_count_per_batch);
+  return SUCCESS;
+}
+
 Status ParseCommResourceConfig(const nlohmann::json &json, CommResourceConfig &config,
                                GlobalConfig::ParseTarget target) {
   if (target == GlobalConfig::ParseTarget::kAll || target == GlobalConfig::ParseTarget::kServer) {
@@ -121,6 +142,8 @@ Status GlobalConfig::Parse(const char *config_str, GlobalConfig &result, ParseTa
       HIXL_LOGE(ret, "[GlobalConfig] Failed to parse comm_resource_config");
       return ret;
     }
+    HIXL_CHK_STATUS_RET(ParseTransferConfig(json, result.transfer_config_),
+                        "[GlobalConfig] Failed to parse transfer_config");
     return SUCCESS;
   } catch (const nlohmann::json::exception &e) {
     HIXL_LOGE(PARAM_INVALID, "[GlobalConfig] Failed to parse config: %s", e.what());
@@ -138,5 +161,9 @@ std::optional<uint8_t> GlobalConfig::Qos() const {
 
 std::optional<uint32_t> GlobalConfig::MaxActiveChannels() const {
   return comm_resource_config_.max_active_channels;
+}
+
+uint32_t GlobalConfig::MaxTransferCountPerBatch() const {
+  return transfer_config_.max_transfer_count_per_batch;
 }
 }  // namespace hixl

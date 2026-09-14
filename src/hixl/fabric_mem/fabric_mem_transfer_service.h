@@ -26,6 +26,7 @@
 #include "fabric_mem/fabric_mem_statistic.h"
 #include "fabric_mem/fabric_mem_types.h"
 #include "hixl/hixl_types.h"
+#include "common/transfer_config.h"
 
 namespace hixl {
 
@@ -42,6 +43,7 @@ struct FabricMemTransferServiceInitParam {
   aclrtContext aclrt_context{nullptr};
   // Selects FabricMemAicpuTransferService when true; FabricMemHostTransferService otherwise.
   bool enable_aicpu_unfold{false};
+  uint32_t max_transfer_count_per_batch{kDefaultMaxTransferCountPerBatch};
 };
 
 // Base for fabric_mem transfer services. Owns the channel manager and slot pool; concrete
@@ -120,6 +122,7 @@ class FabricMemTransferService {
   int32_t device_id_{-1};
   size_t max_stream_num_{0};
   size_t task_stream_num_{0};
+  uint32_t max_transfer_count_per_batch_{kDefaultMaxTransferCountPerBatch};
   FabricMemStatistic *statistic_{nullptr};
   FabricMemLocalMemory *local_memory_{nullptr};
   void *dev_const_one_{nullptr};

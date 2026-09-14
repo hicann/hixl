@@ -27,6 +27,7 @@
 #include "common/hixl_utils.h"
 #include "common/json_utils.h"
 #include "common/scope_guard.h"
+#include "common/transfer_config.h"
 #include "fabric_mem/fabric_mem_config.h"
 
 namespace hixl {
@@ -225,6 +226,22 @@ Status ParseCommResourceConfig(const nlohmann::json &json, CommResourceConfigDes
   return SUCCESS;
 }
 
+Status ParseTransferConfig(const nlohmann::json &json, TransferConfig &cfg) {
+  constexpr const char *kMaxTransferCountKey = "transfer_config.max_transfer_count_per_batch";
+  if (!json.contains(kMaxTransferCountKey)) {
+    return SUCCESS;
+  }
+  const auto &value = json.at(kMaxTransferCountKey);
+  HIXL_CHK_BOOL_RET_STATUS((value.is_number_integer() || value.is_number_unsigned()) || value.is_string(),
+                           PARAM_INVALID, "%s must be an integer or decimal integer string", kMaxTransferCountKey);
+  const int64_t count = JsonToNumber<int64_t>(value);
+  HIXL_CHK_BOOL_RET_STATUS(count >= 1 && count <= static_cast<int64_t>(kMaxTransferCountPerBatch), PARAM_INVALID,
+                           "%s must be in [1, %u], got %lld", kMaxTransferCountKey, kMaxTransferCountPerBatch,
+                           static_cast<long long>(count));
+  cfg.max_transfer_count_per_batch = static_cast<uint32_t>(count);
+  return SUCCESS;
+}
+
 Status ParseLocalCommResPath(const nlohmann::json &json, GlobalResourceConfig &cfg) {
   if (!json.contains("local_comm_res_path")) {
     return SUCCESS;
@@ -295,6 +312,7 @@ Status ParseGlobalResourceConfigJson(const nlohmann::json &json, GlobalResourceC
   HIXL_CHK_STATUS_RET(ParseFabricMemoryConfig(json, cfg.fabric_memory), "Failed to parse FabricMemoryConfig");
   HIXL_CHK_STATUS_RET(ParseConnectPoolConfig(json, cfg.connect_pool), "Failed to parse ConnectPoolConfig");
   HIXL_CHK_STATUS_RET(ParseCommResourceConfig(json, cfg.comm_resource_config), "Failed to parse CommResourceConfig");
+  HIXL_CHK_STATUS_RET(ParseTransferConfig(json, cfg.transfer_config), "Failed to parse TransferConfig");
   HIXL_CHK_STATUS_RET(ParseLocalCommResPath(json, cfg), "Failed to parse local_comm_res_path");
   HIXL_CHK_STATUS_RET(ParseTopoFilePath(json, cfg), "Failed to parse topo_file_path");
   return SUCCESS;

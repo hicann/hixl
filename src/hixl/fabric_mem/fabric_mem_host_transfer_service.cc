@@ -274,7 +274,7 @@ void FabricMemHostTransferService::CleanupAsyncTransfer(const TransferReq &req) 
 }
 
 Status FabricMemHostTransferService::ProcessCopyWithAsync(const AsyncSlot &slot, TransferOp operation,
-                                                          const std::vector<TransferOpDesc> &op_descs) {
+                                                          const std::vector<TransferOpDesc> &op_descs) const {
   HIXL_CHK_BOOL_RET_STATUS(!slot.streams.empty(), PARAM_INVALID, "Fabric mem copy streams cannot be empty.");
   const size_t stream_count = slot.ActiveStreamCount();
   size_t stream_idx = 0U;

@@ -140,7 +140,8 @@ OPTION_GLOBAL_RESOURCE_CONFIG的配置示例和使用约束如下：
     "fabric_memory.max_capacity": "128", //虚拟内存池的大小。取值范围：(0, 1024]之间的整数，默认值：32，单位TB，实际可用范围由底层决定
     "fabric_memory.start_address": "40", //虚拟内存池起始地址。取值范围：[0, 1024]之间的整数，默认值：40，单位TB
     "fabric_memory.task_stream_num": "1", //单个任务使用的流数量，取值范围：[1, 8]，默认值：1；enable_aicpu_unfold为true时仅支持1
-    "fabric_memory.enable_aicpu_unfold": true //是否由AICPU展开，布尔类型，默认true
+    "fabric_memory.enable_aicpu_unfold": true, //是否由AICPU展开，布尔类型，默认true
+    "transfer_config.max_transfer_count_per_batch": 1920 //单个内部传输批次的最大buffer数量，FabricMem范围[1, 1920]
 }
 ```
 <!-- end id6 -->
@@ -312,6 +313,7 @@ UB_RTP
 | comm_resource_config.max_active_channels | 数字 | 可选 | CS场景下配置设备侧同时活跃传输通道数量 | 取值范围为[1, 8192]，未配置时默认值为128。每个active channel消耗2个Stream资源，配置值需结合当前卡形态的Stream资源上限及业务中已创建的Stream数量预留余量；不同卡形态的Stream资源上限参见CANN Runtime API [aclrtCreateStream](https://www.hiascend.com/document/detail/zh/canncommercial/latest/API/runtimeapi/aclcppdevg_03_0066.html)资料。超出[1, 8192]时Initialize返回参数错误。|
 | comm_resource_config.multi_channel.num_workers | 数字 | 可选 | 配置多通道并发传输的worker数 | 取值范围为[1, 16]，默认值为1（关闭多通道）。配置后，对UBOE和UB_RTP协议在建链时创建N个独立CS client，同步传输和异步传输均支持多通道并发，提升小包场景带宽。worker数越大占用的线程、Stream等设备资源越多，建议不超过8。|
 | comm_resource_config.multi_channel.split_batch_size | 数字 | 可选 | 多通道并发传输的buffer拆分粒度 | 取值范围为[1, 4294967295]，默认值为128。当单次传输的buffer数量大于split_batch_size时启用多通道拆分，拆分后的实际worker数由num_workers和buffer数量共同决定，不超过num_workers。|
+| transfer_config.max_transfer_count_per_batch | 数字或十进制数字字符串 | 可选 | 单个内部传输批次最多包含的buffer数量，超过该值时HIXL保持原始顺序自动分批 | 默认值1920。HIXL全局校验范围为[1, 32766]，HCCS/FabricMem范围为[1, 1920]。FabricMem两种模式都执行[1, 1920]校验：`fabric_memory.enable_aicpu_unfold=true`时，该值控制AICPU展开的逻辑批次和Notify边界；`false`时，Host逐条连续提交`aclrtMemcpyAsync`，不按该值分批或在该值边界同步。RoCE/URMA队列深度说明：Client的SQ/SCQ深度按`max(64, nextPowerOfTwo(配置值 + 2))`计算；Server的SQ/SCQ深度固定为64；RQ/RCQ不由HIXL下发，由Hcomm按协议和平台默认策略设置。队列深度的协议和硬件能力校验由Hcomm负责。|
 | local_comm_res_path | 字符串 | 可选 | 本地通信资源 JSON 文件路径；文件内容格式与 OPTION_LOCAL_COMM_RES 相同 | 配置文件的绝对或相对路径，相对路径基于进程当前工作目录解析。目标文件必须是大小在[1字节, 1MiB]范围内的普通文件。与 OPTION_LOCAL_COMM_RES 同时配置且 option 非空时，以 OPTION_LOCAL_COMM_RES 为准。 |
 | topo_file_path | 字符串 | 可选 | 自动生成LocalCommRes时使用的硬件拓扑JSON文件路径 | 不配置或配置为空串时，按mainboard_id在默认拓扑目录中查找对应文件。配置非空路径时使用该文件；目标文件必须是大小在[1字节, 1MiB]范围内的普通文件。文件不存在、类型非法、超出大小或解析失败则Initialize失败。已通过OPTION_LOCAL_COMM_RES或local_comm_res_path提供非空endpoint_list时不使用本字段，也不校验该路径。 |
 

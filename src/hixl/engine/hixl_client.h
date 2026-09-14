@@ -20,6 +20,7 @@
 #include "cs/hixl_cs.h"
 #include "common/hixl_inner_types.h"
 #include "common/ctrl_msg.h"
+#include "common/transfer_config.h"
 #include "engine/client_handler.h"
 #include "engine/client_handler_factory.h"
 
@@ -34,6 +35,7 @@ struct ClientConfig {
   uint32_t timeout_ms;
   std::optional<uint8_t> qos;
   std::optional<uint32_t> max_active_channels;
+  uint32_t max_transfer_count_per_batch{kDefaultMaxTransferCountPerBatch};
   uint32_t multi_worker_num = 1U;
   uint32_t multi_channel_split_batch_size = kDefaultSplitBatchSize;
   bool is_lazy = false;
@@ -55,6 +57,7 @@ class HixlClient {
         rdma_sl_(config.rdma_sl),
         qos_(config.qos),
         max_active_channels_(config.max_active_channels),
+        max_transfer_count_per_batch_(config.max_transfer_count_per_batch),
         multi_worker_num_(config.multi_worker_num),
         multi_channel_split_batch_size_(config.multi_channel_split_batch_size) {}
   ~HixlClient() = default;
@@ -158,6 +161,7 @@ class HixlClient {
   std::map<TransferReq, TransferInfo> req_map_;
   std::optional<uint8_t> qos_;
   std::optional<uint32_t> max_active_channels_;
+  uint32_t max_transfer_count_per_batch_{kDefaultMaxTransferCountPerBatch};
   uint32_t multi_worker_num_{1U};
   uint32_t multi_channel_split_batch_size_{kDefaultSplitBatchSize};
 };

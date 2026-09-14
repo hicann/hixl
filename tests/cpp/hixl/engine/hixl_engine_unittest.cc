@@ -864,6 +864,49 @@ TEST_F(HixlEngineTest, TestParseTcAndSlWithValidValue) {
   VerifyLogCapture(log_capture, {tc_log_pattern, sl_log_pattern, channel_desc_log_pattern});
 }
 
+TEST_F(HixlEngineTest, TestHostRoceAcceptsGlobalMaxTransferCount) {
+  options1[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"transfer_config.max_transfer_count_per_batch":32766})";
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:26300");
+
+  InitializeAndConnectEngines(engine1, options1, engine2, options2);
+  CleanupEngines(engine1, engine2);
+}
+
+TEST_F(HixlEngineTest, TestUrmaAcceptsGlobalMaxTransferCount) {
+  options1[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"transfer_config.max_transfer_count_per_batch":32766})";
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:26300");
+
+  InitializeAndConnectEngines(engine1, options1, engine2, options1_ub_pair);
+  CleanupEngines(engine1, engine2);
+}
+
+TEST_F(HixlEngineTest, TestHccsAcceptsFixedQueueTransferCountLimit) {
+  const std::string local_comm_res = BuildLocalCommRes("superpod1_1", "1.3", {BuildDeviceHccsEndpoint("5")});
+  auto hccs_options = BuildOptions(local_comm_res);
+  hccs_options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"transfer_config.max_transfer_count_per_batch":1920})";
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:26300");
+
+  InitializeAndConnectEngines(engine1, hccs_options, engine2, BuildOptions(local_comm_res));
+  CleanupEngines(engine1, engine2);
+}
+
+TEST_F(HixlEngineTest, TestHccsRejectsTransferCountAboveFixedQueueLimit) {
+  const std::string local_comm_res = BuildLocalCommRes("superpod1_1", "1.3", {BuildDeviceHccsEndpoint("5")});
+  auto hccs_options = BuildOptions(local_comm_res);
+  hccs_options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"transfer_config.max_transfer_count_per_batch":1921})";
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:26300");
+
+  CreateAndInitEngine(engine1, hccs_options);
+  CreateAndInitEngine(engine2, BuildOptions(local_comm_res));
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26300", kTimeOut), PARAM_INVALID);
+  EXPECT_TRUE(engine1.client_manager_.IsEmpty());
+  CleanupEngines(engine1, engine2);
+}
+
 TEST_F(HixlEngineTest, TestParseTcSlInvalidValue) {
   options1[hixl::OPTION_RDMA_TRAFFIC_CLASS] = "-1";
   {

@@ -89,6 +89,7 @@ Status HixlClient::Initialize(const std::vector<EndpointConfig> &local_endpoint_
                          std::move(matched_pairs),
                          qos_,
                          max_active_channels_,
+                         max_transfer_count_per_batch_,
                          multi_worker_num_,
                          multi_channel_split_batch_size_,
                          is_lazy,
@@ -96,7 +97,8 @@ Status HixlClient::Initialize(const std::vector<EndpointConfig> &local_endpoint_
                          ctrl_socket_,
                          local_engine_,
                          remote_engine_};
-  client_handler_ = ClientHandlerFactory::Create(args);
+  HIXL_CHK_STATUS_RET(ClientHandlerFactory::Create(args, client_handler_),
+                      "ClientHandlerFactory create handler failed");
   HIXL_CHECK_NOTNULL(client_handler_, "ClientHandlerFactory create handler failed");
   HIXL_DISMISS_GUARD(close_ctrl_socket);
   return SUCCESS;

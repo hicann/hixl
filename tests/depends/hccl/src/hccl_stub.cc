@@ -22,9 +22,10 @@ extern "C" {
 #endif
 
 // 用于测试重试逻辑的全局计数器
-// 当计数器 >= 10 时，传输任务返回 HCCL_RETRY_REQUIRED (20)，触发重试
+// 当计数器达到故障注入阈值时，传输任务返回 HCCL_RETRY_REQUIRED (20)，触发重试
 // 当执行 HcommChannelFenceOnThread 时，计数器重置为 0
 static uint32_t g_transfer_retry_counter = 0;
+static uint32_t g_transfer_retry_threshold = 0;
 static ThreadHandle g_next_thread_handle = 999U;
 static uint32_t g_thread_alloc_call_count = 0U;
 static uint32_t g_thread_free_call_count = 0U;
@@ -44,6 +45,8 @@ static std::atomic<uint32_t> g_channel_get_status_call_count{0U};
 static std::atomic<int32_t> g_channel_status_fail_value{-1};
 static std::atomic<uint32_t> g_nbi_call_count{0U};
 static std::atomic<uint32_t> g_fence_call_count{0U};
+static std::atomic<uint32_t> g_last_channel_sq_depth{0U};
+static std::atomic<uint32_t> g_last_channel_scq_depth{0U};
 static std::vector<int32_t> g_mem_reg_types;
 static HcommChannelDesc g_last_channel_desc{};
 static bool g_has_last_channel_desc = false;
@@ -67,9 +70,9 @@ static int32_t DoNbiTransferWithRetry(void *dst, const void *src, uint64_t len) 
   std::this_thread::sleep_for(std::chrono::milliseconds(1));
   memcpy_s(dst, len, src, len);
 
-  // 重试测试：前10次正常返回成功，第11次开始返回需要重试的错误码
+  // 重试故障注入：达到指定次数后返回需要重试的错误码
   g_transfer_retry_counter++;
-  if (g_transfer_retry_counter >= 10) {
+  if (g_transfer_retry_threshold != 0U && g_transfer_retry_counter >= g_transfer_retry_threshold) {
     return 20;  // HCCL_RETRY_REQUIRED
   }
   return HCCL_SUCCESS;
@@ -165,10 +168,33 @@ HcommResult HcommChannelCreate(EndpointHandle endPointHandle, CommEngine engine,
   if (channelDescs != nullptr && channelNum > 0U) {
     g_last_channel_desc = channelDescs[0];
     g_has_last_channel_desc = true;
+    const HcommChannelDesc &desc = channelDescs[0];
+    if (desc.remoteEndpoint.protocol == COMM_PROTOCOL_ROCE) {
+      g_last_channel_sq_depth.store(desc.roceAttr.sqDepth, std::memory_order_relaxed);
+      g_last_channel_scq_depth.store(desc.roceAttr.scqDepth, std::memory_order_relaxed);
+    } else if (desc.remoteEndpoint.protocol == COMM_PROTOCOL_UBOE ||
+               desc.remoteEndpoint.protocol == COMM_PROTOCOL_UBG ||
+               desc.remoteEndpoint.protocol == COMM_PROTOCOL_UBC_CTP) {
+      g_last_channel_sq_depth.store(desc.ubAttr.sqDepth, std::memory_order_relaxed);
+      g_last_channel_scq_depth.store(desc.ubAttr.scqDepth, std::memory_order_relaxed);
+    }
   }
   static int32_t chn_num_stub = 1;
   *channels = static_cast<ChannelHandle>(chn_num_stub++);
   return static_cast<HcommResult>(HCCL_SUCCESS);
+}
+
+void ResetChannelDescRecord() {
+  g_last_channel_sq_depth.store(0U, std::memory_order_relaxed);
+  g_last_channel_scq_depth.store(0U, std::memory_order_relaxed);
+}
+
+uint32_t GetLastChannelSqDepth() {
+  return g_last_channel_sq_depth.load(std::memory_order_relaxed);
+}
+
+uint32_t GetLastChannelScqDepth() {
+  return g_last_channel_scq_depth.load(std::memory_order_relaxed);
 }
 
 HcommResult HcommChannelDestroy(const ChannelHandle *channels, uint32_t channelNum) {
@@ -347,9 +373,14 @@ uint32_t GetFenceCallCount() {
   return g_fence_call_count.load(std::memory_order_relaxed);
 }
 
+void SetTransferRetryThreshold(uint32_t threshold) {
+  g_transfer_retry_threshold = threshold;
+}
+
 // 重置传输计数器
 void ResetTransferCounter() {
   g_transfer_retry_counter = 0;
+  g_transfer_retry_threshold = 0;
   g_nbi_call_count.store(0U, std::memory_order_relaxed);
   g_fence_call_count.store(0U, std::memory_order_relaxed);
 }
