@@ -1074,7 +1074,7 @@ def _run_dual_target_step(ctx: DualTargetContext, transport: str, bench_type: st
                 log.error(f'[ERROR] Target exited early with code {proc.returncode}')
                 return proc.returncode
         log.info('[DUAL] Waiting for remote initiator to connect and finish...')
-        return max((proc.wait() for proc in procs))
+        return max((proc.wait() for proc in procs), key=abs)
     finally:
         args.transport = saved_transport
 
@@ -1164,7 +1164,7 @@ def _run_dual_initiator_step(ctx: DualInitiatorContext, transport: str, bench_ty
                 )
             )
             procs.append(start_process(initiator_cmd))
-        return max((proc.wait() for proc in procs))
+        return max((proc.wait() for proc in procs), key=abs)
     finally:
         args.transport = saved_transport
 
@@ -1339,7 +1339,7 @@ def _run_single_direction(args, bench_bin: str, devices: list[int], bench_type: 
                 )
             )
         )
-    return max((proc.wait() for proc in procs))
+    return max((proc.wait() for proc in procs), key=abs)
 
 
 def _launch_single(args, bench_bin: str, devices: list[int], bench_types: list[str]):

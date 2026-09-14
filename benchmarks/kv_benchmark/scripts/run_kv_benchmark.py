@@ -261,7 +261,7 @@ def main():
         cmd = _kv_process_cmd(KvProcessSpec(args, bench_bin, rank, devices[rank], model_config, run_id, key_counts))
         log.info('[INFO] %s', ' '.join(cmd))
         procs.append(subprocess.Popen(cmd))
-    ret = max((proc.wait() for proc in procs))
+    ret = max((proc.wait() for proc in procs), key=abs)
     combined = combine_results(args.output_dir, args.num_processes)
     if combined is not None:
         log.info(f'[INFO] wrote {combined}')
