@@ -293,6 +293,41 @@ TEST_F(HixlUTest, TestHixlInitFailed) {
   EXPECT_EQ(engine.Initialize("ad.0.0.1:26200", options), PARAM_INVALID);
 }
 
+TEST_F(HixlUTest, TestHixlRepeatedInitializeWithSameParams) {
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  Hixl engine;
+  std::map<AscendString, AscendString> options;
+  EXPECT_EQ(engine.Initialize("127.0.0.1:26200", options), SUCCESS);
+  // 重复初始化：幂等返回 SUCCESS，不再重复创建引擎和监听端口
+  EXPECT_EQ(engine.Initialize("127.0.0.1:26200", options), SUCCESS);
+  // 引擎仍可用
+  hixl::MemDesc mem{};
+  mem.addr = 1234;
+  mem.len = 10;
+  MemHandle handle = nullptr;
+  EXPECT_EQ(engine.RegisterMem(mem, MEM_DEVICE, handle), SUCCESS);
+  engine.Finalize();
+}
+
+TEST_F(HixlUTest, TestHixlRepeatedInitializeWithDifferentParams) {
+  llm::AutoCommResRuntimeMock::SetDevice(0);
+  Hixl engine;
+  std::map<AscendString, AscendString> options;
+  options[OPTION_RDMA_TRAFFIC_CLASS] = "4";
+  EXPECT_EQ(engine.Initialize("127.0.0.1:26200", options), SUCCESS);
+  // 参数不同也幂等返回 SUCCESS，沿用首次初始化的配置
+  std::map<AscendString, AscendString> other_options;
+  other_options[OPTION_RDMA_TRAFFIC_CLASS] = "5";
+  EXPECT_EQ(engine.Initialize("127.0.0.1:26300", other_options), SUCCESS);
+  // 原引擎仍可用
+  hixl::MemDesc mem{};
+  mem.addr = 1234;
+  mem.len = 10;
+  MemHandle handle = nullptr;
+  EXPECT_EQ(engine.RegisterMem(mem, MEM_DEVICE, handle), SUCCESS);
+  engine.Finalize();
+}
+
 TEST_F(HixlUTest, TestInitializeRollsBackEngineWhenConnectPoolInitializationFails) {
   llm::AutoCommResRuntimeMock::SetDevice(0);
   Hixl engine;
@@ -863,12 +898,9 @@ TEST_F(HixlUTest, TestCommEngineGetTransferStatusUnsupported) {
 }
 
 TEST_F(HixlUTest, TestCommEngineRejectsUnsupportedOption) {
-  std::map<AscendString, AscendString> valid_options;
-  Hixl engine;
-  ASSERT_EQ(engine.Initialize("127.0.0.1:26200", valid_options), SUCCESS);
-
   std::map<AscendString, AscendString> options;
   options[AscendString("InvalidOption")] = AscendString("invalid_value");
+  Hixl engine;
   EXPECT_EQ(engine.Initialize("127.0.0.1:26200", options), PARAM_INVALID);
   engine.Finalize();
 }
