@@ -36,6 +36,7 @@ class DirectMultiChannelHandler : public IClientHandler {
 
   Status Connect(uint32_t timeout_ms) override;
   Status RegisterMem(const MemHandleInfo &mem_info) override;
+  Status DeregisterMem(MemHandle mem_handle) override;
   Status TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation, TransferReq &req) override;
   Status TransferSync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation, uint32_t timeout_ms) override;
   Status GetTransferStatus(const TransferReq &req, TransferStatus &status) override;
@@ -97,6 +98,8 @@ class DirectMultiChannelHandler : public IClientHandler {
   Status CheckStatus(const TransferReq &req, TransferStatus &status);
   void QueryWorkersStatus(std::vector<WorkerEntry> &workers, bool &any_waiting, bool &any_failed);
   static Status CollectFutures(std::vector<std::future<Status>> &futures);
+  Status UnregOneMemHandle(HixlClientHandle handle, MemHandle mh, MemHandle mem_handle);
+  void EraseMemHandle(HixlClientHandle handle, MemHandle mh);
 
  private:
   std::vector<HixlClientHandle> handles_;
@@ -108,6 +111,7 @@ class DirectMultiChannelHandler : public IClientHandler {
   std::map<TransferReq, std::vector<WorkerEntry>> async_workers_;
   bool is_connected_{false};
   std::vector<std::pair<HixlClientHandle, MemHandle>> mem_handles_;
+  std::map<MemHandle, std::vector<std::pair<HixlClientHandle, MemHandle>>> handle_to_mem_handles_;
   mutable std::mutex mutex_;
 };
 

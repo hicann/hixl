@@ -10,6 +10,7 @@
 
 #include <memory>
 #include <vector>
+#include <map>
 #include <cstdint>
 #include <cstdlib>
 #include <thread>
@@ -27,6 +28,7 @@
 #define private public
 #include "engine/hixl_client.h"
 #include "engine/direct_client_handler.h"
+#include "engine/direct_multi_channel_handler.h"
 #include "engine/ub_client_handler.h"
 #undef private
 #include "engine/endpoint_generator/endpoint_generator.h"
@@ -547,56 +549,22 @@ class HixlClientUTest : public ::testing::Test {
     return ep_list;
   }
 
-  std::vector<MemHandleInfo> MakeMemInfoList() {
-    std::vector<MemHandleInfo> mem_info_list;
-    // 添加DEVICE类型内存
-    MemHandleInfo device_mem;
-    device_mem.mem_handle = nullptr;
-    device_mem.mem.addr = reinterpret_cast<uintptr_t>(&kLocalMems[0]);
-    device_mem.mem.len = sizeof(uint32_t);
-    device_mem.type = MEM_DEVICE;
-    mem_info_list.push_back(device_mem);
+  static MemHandleInfo MakeMemInfo(uint32_t *buf, MemType type) {
+    MemHandleInfo info{};
+    info.mem_handle = reinterpret_cast<MemHandle>(buf);
+    info.mem.addr = reinterpret_cast<uintptr_t>(buf);
+    info.mem.len = sizeof(uint32_t);
+    info.type = type;
+    return info;
+  }
 
-    // 添加HOST类型内存
-    MemHandleInfo host_mem;
-    host_mem.mem_handle = nullptr;
-    host_mem.mem.addr = reinterpret_cast<uintptr_t>(&kLocalMems[2]);
-    host_mem.mem.len = sizeof(uint32_t);
-    host_mem.type = MEM_HOST;
-    mem_info_list.push_back(host_mem);
-    return mem_info_list;
+  std::vector<MemHandleInfo> MakeMemInfoList() {
+    return {MakeMemInfo(&kLocalMems[0], MEM_DEVICE), MakeMemInfo(&kLocalMems[2], MEM_HOST)};
   }
 
   std::vector<MemHandleInfo> Make4UbMemInfoList() {
-    std::vector<MemHandleInfo> mem_info_list;
-    MemHandleInfo mem1;
-    mem1.mem_handle = nullptr;
-    mem1.mem.addr = reinterpret_cast<uintptr_t>(&kLocalMems[0]);
-    mem1.mem.len = sizeof(uint32_t);
-    mem1.type = MEM_DEVICE;
-    mem_info_list.push_back(mem1);
-
-    MemHandleInfo mem2;
-    mem2.mem_handle = nullptr;
-    mem2.mem.addr = reinterpret_cast<uintptr_t>(&kLocalMems[2]);
-    mem2.mem.len = sizeof(uint32_t);
-    mem2.type = MEM_DEVICE;
-    mem_info_list.push_back(mem2);
-
-    MemHandleInfo mem3;
-    mem3.mem_handle = nullptr;
-    mem3.mem.addr = reinterpret_cast<uintptr_t>(&kLocalMems[4]);
-    mem3.mem.len = sizeof(uint32_t);
-    mem3.type = MEM_HOST;
-    mem_info_list.push_back(mem3);
-
-    MemHandleInfo mem4;
-    mem4.mem_handle = nullptr;
-    mem4.mem.addr = reinterpret_cast<uintptr_t>(&kLocalMems[6]);
-    mem4.mem.len = sizeof(uint32_t);
-    mem4.type = MEM_HOST;
-    mem_info_list.push_back(mem4);
-    return mem_info_list;
+    return {MakeMemInfo(&kLocalMems[0], MEM_DEVICE), MakeMemInfo(&kLocalMems[2], MEM_DEVICE),
+            MakeMemInfo(&kLocalMems[4], MEM_HOST), MakeMemInfo(&kLocalMems[6], MEM_HOST)};
   }
 
   void InitializeBadJson(MockHixlServerMode bad_json_mode) {
@@ -631,7 +599,7 @@ class HixlClientUTest : public ::testing::Test {
     Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs, is_lazy);
     EXPECT_EQ(st, SUCCESS);
 
-    st = client_->SetLocalMemInfo(use_4ub ? Make4UbMemInfoList() : MakeMemInfoList());
+    st = client_->RegisterMem(use_4ub ? Make4UbMemInfoList() : MakeMemInfoList());
     EXPECT_EQ(st, SUCCESS);
 
     st = client_->Connect(kDefaultTimeoutMs);
@@ -690,6 +658,24 @@ class HixlClientUTest : public ::testing::Test {
     EXPECT_EQ(handler.remote_segments_[1]->AddRange(0x7000, 0x2000), SUCCESS);
   }
 
+  static bool LocalSegContains(const UbClientHandler &handler, uintptr_t addr, size_t len) {
+    for (const auto &seg : handler.local_segments_) {
+      if (seg->Contains(addr, addr + len)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool LocalSegContainsType(const UbClientHandler &handler, uintptr_t addr, size_t len, MemType type) {
+    for (const auto &seg : handler.local_segments_) {
+      if (seg->GetMemType() == type && seg->Contains(addr, addr + len)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   void VerifyClassifyResult(const std::map<CommType, std::vector<TransferOpDesc>> &table, CommType type,
                             uintptr_t expected_addr) {
     ASSERT_EQ(table.at(type).size(), 1U);
@@ -715,6 +701,22 @@ class HixlClientUTest : public ::testing::Test {
     desc.local_endpoint = &local;
     desc.remote_endpoint = &remote;
     return client.Create(&desc, &config);
+  }
+
+  static MemHandleInfo MakeHostMemInfo(int32_t *buf) {
+    MemHandleInfo info{};
+    info.mem.addr = reinterpret_cast<uintptr_t>(buf);
+    info.mem.len = sizeof(*buf);
+    info.type = MEM_HOST;
+    info.mem_handle = reinterpret_cast<MemHandle>(buf);
+    return info;
+  }
+
+  static MemHandleInfo MakeDeviceMemInfo(int32_t *buf) {
+    MemHandleInfo info = MakeHostMemInfo(buf);
+    info.type = MEM_DEVICE;
+    info.mem_handle = reinterpret_cast<MemHandle>(reinterpret_cast<uintptr_t>(buf) | 1U);
+    return info;
   }
 
   static CompleteHandleInfo *MakeHostCompleteHandle(uint64_t *flag) {
@@ -935,8 +937,8 @@ TEST_F(HixlClientUTest, InitializeJsonMissingFieldTest) {
   InitializeBadJson(MockHixlServerMode::kGetEndpointInfoResp_MissingField);
 }
 
-// SetLocalMemInfo 接口测试：正常场景
-TEST_F(HixlClientUTest, SetLocalMemInfoTest) {
+// RegisterMem 接口测试：正常场景
+TEST_F(HixlClientUTest, RegisterMemTest) {
   StartServer(MockHixlServerMode::k4UbNormal);
   // 初始化 roce 链路
   std::vector<EndpointConfig> local_endpoint_list;
@@ -944,7 +946,7 @@ TEST_F(HixlClientUTest, SetLocalMemInfoTest) {
   Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
   std::vector<MemHandleInfo> mem_info_list = MakeMemInfoList();
-  st = client_->SetLocalMemInfo(mem_info_list);
+  st = client_->RegisterMem(mem_info_list);
   EXPECT_EQ(st, SUCCESS);
   st = client_->Finalize();
   EXPECT_EQ(st, SUCCESS);
@@ -1021,7 +1023,7 @@ TEST_F(HixlClientUTest, TransferSyncNoConnectTest) {
   Status st = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
 
-  st = client_->SetLocalMemInfo(MakeMemInfoList());
+  st = client_->RegisterMem(MakeMemInfoList());
   EXPECT_EQ(st, SUCCESS);
 
   auto op_descs = CreateTransferOps();
@@ -1029,8 +1031,8 @@ TEST_F(HixlClientUTest, TransferSyncNoConnectTest) {
   EXPECT_EQ(st, NOT_CONNECTED);
 }
 
-// TransferSync 接口测试：异常场景 - 未SetLocalMemInfo
-TEST_F(HixlClientUTest, TransferSyncNoSetLocalMemInfoTest) {
+// TransferSync 接口测试：异常场景 - 未RegisterMem
+TEST_F(HixlClientUTest, TransferSyncNoRegisterMemTest) {
   StartServer(MockHixlServerMode::k4UbNormal);
   std::vector<EndpointConfig> local_endpoint_list;
   local_endpoint_list.push_back(MakeRoceDiffNetLocalEp());
@@ -1212,12 +1214,342 @@ TEST_F(HixlClientUTest, DirectClientHandlerGetTransferStatusWaiting) {
   EXPECT_EQ(handler.complete_handles_.count(req), 1U);
 }
 
+TEST_F(HixlClientUTest, DirectClientHandlerDeregisterMemMissingHandleSucceeds) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  DirectClientHandler handler(static_cast<HixlClientHandle>(&client));
+  EXPECT_EQ(handler.DeregisterMem(reinterpret_cast<MemHandle>(0x1000)), SUCCESS);
+}
+
+TEST_F(HixlClientUTest, DirectClientHandlerDeregisterMemClearsOnlyTarget) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  DirectClientHandler handler(static_cast<HixlClientHandle>(&client));
+  int32_t buf1 = 0;
+  int32_t buf2 = 0;
+  const auto info1 = MakeHostMemInfo(&buf1);
+  const auto info2 = MakeHostMemInfo(&buf2);
+  ASSERT_EQ(handler.RegisterMem(info1), SUCCESS);
+  ASSERT_EQ(handler.RegisterMem(info2), SUCCESS);
+  ASSERT_EQ(handler.handle_to_mem_handle_.size(), 2U);
+
+  EXPECT_EQ(handler.DeregisterMem(info1.mem_handle), SUCCESS);
+  EXPECT_EQ(handler.handle_to_mem_handle_.count(info1.mem_handle), 0U);
+  EXPECT_EQ(handler.handle_to_mem_handle_.count(info2.mem_handle), 1U);
+  EXPECT_EQ(handler.mem_handles_.size(), 1U);
+  EXPECT_EQ(handler.DeregisterMem(info1.mem_handle), SUCCESS);
+  EXPECT_EQ(handler.DeregisterMem(info2.mem_handle), SUCCESS);
+}
+
+TEST_F(HixlClientUTest, DirectClientHandlerDeregisterMemUnregFailKeepsMapping) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  DirectClientHandler handler(static_cast<HixlClientHandle>(&client));
+  MemHandle engine_handle = reinterpret_cast<MemHandle>(0x2000);
+  MemHandle fake_handle = reinterpret_cast<MemHandle>(0xDEAD);
+  handler.handle_to_mem_handle_[engine_handle] = fake_handle;
+  handler.mem_handles_.push_back(fake_handle);
+
+  EXPECT_EQ(handler.DeregisterMem(engine_handle), PARAM_INVALID);
+  EXPECT_EQ(handler.handle_to_mem_handle_.count(engine_handle), 1U);
+  EXPECT_EQ(handler.mem_handles_.size(), 1U);
+}
+
+TEST_F(HixlClientUTest, DirectClientHandlerDeregisterMemIsolatesHandle) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  DirectClientHandler handler(static_cast<HixlClientHandle>(&client));
+  int32_t buf = 0;
+  const auto host_info = MakeHostMemInfo(&buf);
+  ASSERT_EQ(handler.RegisterMem(host_info), SUCCESS);
+  MemHandle other_handle = reinterpret_cast<MemHandle>(0xBEEF);
+  MemHandle fake_device_handle = reinterpret_cast<MemHandle>(0xBEEF);
+  handler.handle_to_mem_handle_[other_handle] = fake_device_handle;
+
+  EXPECT_EQ(handler.DeregisterMem(host_info.mem_handle), SUCCESS);
+  EXPECT_EQ(handler.handle_to_mem_handle_.count(host_info.mem_handle), 0U);
+  EXPECT_EQ(handler.handle_to_mem_handle_.count(other_handle), 1U);
+  EXPECT_TRUE(handler.mem_handles_.empty());
+}
+
+TEST_F(HixlClientUTest, DirectClientHandlerRegisterMemSameHandleIsIdempotent) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  DirectClientHandler handler(static_cast<HixlClientHandle>(&client));
+  int32_t buf = 0;
+  const auto info = MakeHostMemInfo(&buf);
+  ASSERT_EQ(handler.RegisterMem(info), SUCCESS);
+  ASSERT_EQ(handler.RegisterMem(info), SUCCESS);
+  EXPECT_EQ(handler.handle_to_mem_handle_.size(), 1U);
+  EXPECT_EQ(handler.mem_handles_.size(), 1U);
+  EXPECT_EQ(handler.DeregisterMem(info.mem_handle), SUCCESS);
+}
+
+TEST_F(HixlClientUTest, DirectMultiChannelHandlerDeregisterMemMissingHandleSucceeds) {
+  HixlCSClient client1;
+  HixlCSClient client2;
+  ASSERT_EQ(CreateStatusHostClient(client1), SUCCESS);
+  ASSERT_EQ(CreateStatusHostClient(client2), SUCCESS);
+  DirectMultiChannelHandler handler({static_cast<HixlClientHandle>(&client1), static_cast<HixlClientHandle>(&client2)});
+  EXPECT_EQ(handler.DeregisterMem(reinterpret_cast<MemHandle>(0x1000)), SUCCESS);
+}
+
+TEST_F(HixlClientUTest, DirectMultiChannelHandlerDeregisterMemClearsOnlyTarget) {
+  HixlCSClient client1;
+  HixlCSClient client2;
+  ASSERT_EQ(CreateStatusHostClient(client1), SUCCESS);
+  ASSERT_EQ(CreateStatusHostClient(client2), SUCCESS);
+  DirectMultiChannelHandler handler({static_cast<HixlClientHandle>(&client1), static_cast<HixlClientHandle>(&client2)});
+  int32_t buf1 = 0;
+  int32_t buf2 = 0;
+  const auto info1 = MakeHostMemInfo(&buf1);
+  const auto info2 = MakeHostMemInfo(&buf2);
+  ASSERT_EQ(handler.RegisterMem(info1), SUCCESS);
+  ASSERT_EQ(handler.RegisterMem(info2), SUCCESS);
+  ASSERT_EQ(handler.handle_to_mem_handles_.size(), 2U);
+  EXPECT_EQ(handler.mem_handles_.size(), 4U);
+
+  EXPECT_EQ(handler.DeregisterMem(info1.mem_handle), SUCCESS);
+  EXPECT_EQ(handler.handle_to_mem_handles_.count(info1.mem_handle), 0U);
+  EXPECT_EQ(handler.handle_to_mem_handles_.count(info2.mem_handle), 1U);
+  EXPECT_EQ(handler.handle_to_mem_handles_[info2.mem_handle].size(), 2U);
+  EXPECT_EQ(handler.mem_handles_.size(), 2U);
+  EXPECT_EQ(handler.DeregisterMem(info1.mem_handle), SUCCESS);
+  EXPECT_EQ(handler.DeregisterMem(info2.mem_handle), SUCCESS);
+}
+
+TEST_F(HixlClientUTest, DirectMultiChannelHandlerDeregisterMemUnregFailKeepsMapping) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  DirectMultiChannelHandler handler({static_cast<HixlClientHandle>(&client)});
+  MemHandle engine_handle = reinterpret_cast<MemHandle>(0x2000);
+  MemHandle fake_handle = reinterpret_cast<MemHandle>(0xDEAD);
+  auto handle = static_cast<HixlClientHandle>(&client);
+  handler.handle_to_mem_handles_[engine_handle] = {{handle, fake_handle}};
+  handler.mem_handles_.push_back({handle, fake_handle});
+
+  EXPECT_EQ(handler.DeregisterMem(engine_handle), PARAM_INVALID);
+  EXPECT_EQ(handler.handle_to_mem_handles_.count(engine_handle), 1U);
+  EXPECT_EQ(handler.mem_handles_.size(), 1U);
+}
+
+TEST_F(HixlClientUTest, DirectMultiChannelHandlerDeregisterMemPartialUnregFailKeepsFailedHandle) {
+  HixlCSClient client1;
+  HixlCSClient client2;
+  ASSERT_EQ(CreateStatusHostClient(client1), SUCCESS);
+  ASSERT_EQ(CreateStatusHostClient(client2), SUCCESS);
+  DirectMultiChannelHandler handler({static_cast<HixlClientHandle>(&client1), static_cast<HixlClientHandle>(&client2)});
+  int32_t buf = 0;
+  const auto info = MakeHostMemInfo(&buf);
+  ASSERT_EQ(handler.RegisterMem(info), SUCCESS);
+  ASSERT_EQ(handler.handle_to_mem_handles_[info.mem_handle].size(), 2U);
+  MemHandle fake_handle = reinterpret_cast<MemHandle>(0xDEAD);
+  handler.handle_to_mem_handles_[info.mem_handle][1].second = fake_handle;
+  handler.mem_handles_[1].second = fake_handle;
+
+  EXPECT_EQ(handler.DeregisterMem(info.mem_handle), PARAM_INVALID);
+  ASSERT_EQ(handler.handle_to_mem_handles_.count(info.mem_handle), 1U);
+  ASSERT_EQ(handler.handle_to_mem_handles_[info.mem_handle].size(), 1U);
+  EXPECT_EQ(handler.handle_to_mem_handles_[info.mem_handle][0].second, fake_handle);
+  ASSERT_EQ(handler.mem_handles_.size(), 1U);
+  EXPECT_EQ(handler.mem_handles_[0].second, fake_handle);
+}
+
+TEST_F(HixlClientUTest, DirectMultiChannelHandlerDeregisterMemIsolatesHandle) {
+  HixlCSClient client1;
+  HixlCSClient client2;
+  ASSERT_EQ(CreateStatusHostClient(client1), SUCCESS);
+  ASSERT_EQ(CreateStatusHostClient(client2), SUCCESS);
+  DirectMultiChannelHandler handler({static_cast<HixlClientHandle>(&client1), static_cast<HixlClientHandle>(&client2)});
+  int32_t buf = 0;
+  const auto host_info = MakeHostMemInfo(&buf);
+  ASSERT_EQ(handler.RegisterMem(host_info), SUCCESS);
+  MemHandle other_handle = reinterpret_cast<MemHandle>(0xBEEF);
+  MemHandle fake_device_handle = reinterpret_cast<MemHandle>(0xBEEF);
+  handler.handle_to_mem_handles_[other_handle] = {{static_cast<HixlClientHandle>(&client1), fake_device_handle}};
+
+  EXPECT_EQ(handler.DeregisterMem(host_info.mem_handle), SUCCESS);
+  EXPECT_EQ(handler.handle_to_mem_handles_.count(host_info.mem_handle), 0U);
+  EXPECT_EQ(handler.handle_to_mem_handles_.count(other_handle), 1U);
+  EXPECT_TRUE(handler.mem_handles_.empty());
+}
+
+TEST_F(HixlClientUTest, DirectMultiChannelHandlerRegisterMemSameHandleIsIdempotent) {
+  HixlCSClient client1;
+  HixlCSClient client2;
+  ASSERT_EQ(CreateStatusHostClient(client1), SUCCESS);
+  ASSERT_EQ(CreateStatusHostClient(client2), SUCCESS);
+  DirectMultiChannelHandler handler({static_cast<HixlClientHandle>(&client1), static_cast<HixlClientHandle>(&client2)});
+  int32_t buf = 0;
+  const auto info = MakeHostMemInfo(&buf);
+  ASSERT_EQ(handler.RegisterMem(info), SUCCESS);
+  ASSERT_EQ(handler.RegisterMem(info), SUCCESS);
+  EXPECT_EQ(handler.handle_to_mem_handles_.size(), 1U);
+  EXPECT_EQ(handler.mem_handles_.size(), 2U);
+  EXPECT_EQ(handler.DeregisterMem(info.mem_handle), SUCCESS);
+}
+
 TEST_F(HixlClientUTest, UbClientHandlerGetTransferStatusNoTransfer) {
   UbClientHandler handler({});
 
   TransferStatus status = TransferStatus::WAITING;
   EXPECT_EQ(handler.GetTransferStatus(reinterpret_cast<TransferReq>(0x1234), status), FAILED);
   EXPECT_EQ(status, TransferStatus::FAILED);
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerDeregisterMemMissingHandleSucceeds) {
+  UbClientHandler handler({});
+  EXPECT_EQ(handler.DeregisterMem(reinterpret_cast<MemHandle>(0x1000)), SUCCESS);
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerDeregisterMemNullHandleClearsTarget) {
+  UbClientHandler handler({});
+  SetupUbHandlerWithSegments(handler);
+  const uintptr_t addr = 0x1000U;
+  constexpr uint64_t kRangeLen = 0x2000U;
+  MemHandle engine_handle = reinterpret_cast<MemHandle>(addr);
+  handler.handle_to_mem_record_[engine_handle] = {addr, kRangeLen, MEM_DEVICE, {{CommType::COMM_TYPE_UB_D2D, nullptr}}};
+  EXPECT_EQ(handler.DeregisterMem(engine_handle), SUCCESS);
+  EXPECT_EQ(handler.handle_to_mem_record_.count(engine_handle), 0U);
+  EXPECT_FALSE(LocalSegContains(handler, addr, kRangeLen));
+  ASSERT_EQ(handler.local_segments_.size(), 1U);
+  EXPECT_EQ(handler.local_segments_[0]->GetMemType(), MEM_HOST);
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerDeregisterMemClearsOnlyTarget) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  auto handle = static_cast<HixlClientHandle>(&client);
+  UbClientHandler handler({{CommType::COMM_TYPE_UB_H2H, handle}});
+  int32_t buf1 = 0;
+  int32_t buf2 = 0;
+  const auto info1 = MakeHostMemInfo(&buf1);
+  const auto info2 = MakeHostMemInfo(&buf2);
+  ASSERT_EQ(handler.RegisterMem(info1), SUCCESS);
+  ASSERT_EQ(handler.RegisterMem(info2), SUCCESS);
+  ASSERT_EQ(handler.handle_to_mem_record_.size(), 2U);
+
+  const uintptr_t addr1 = reinterpret_cast<uintptr_t>(&buf1);
+  const uintptr_t addr2 = reinterpret_cast<uintptr_t>(&buf2);
+  EXPECT_EQ(handler.DeregisterMem(info1.mem_handle), SUCCESS);
+  EXPECT_EQ(handler.handle_to_mem_record_.count(info1.mem_handle), 0U);
+  EXPECT_EQ(handler.handle_to_mem_record_.count(info2.mem_handle), 1U);
+  EXPECT_EQ(handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].size(), 1U);
+  EXPECT_FALSE(LocalSegContains(handler, addr1, sizeof(buf1)));
+  EXPECT_TRUE(LocalSegContains(handler, addr2, sizeof(buf2)));
+  EXPECT_EQ(handler.DeregisterMem(info2.mem_handle), SUCCESS);
+  EXPECT_FALSE(LocalSegContains(handler, addr2, sizeof(buf2)));
+  EXPECT_TRUE(handler.local_segments_.empty());
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerDeregisterMemUnregFailKeepsMapping) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  auto handle = static_cast<HixlClientHandle>(&client);
+  UbClientHandler handler({{CommType::COMM_TYPE_UB_H2H, handle}});
+  const uintptr_t addr = 0x2000U;
+  MemHandle engine_handle = reinterpret_cast<MemHandle>(addr);
+  MemHandle fake_handle = reinterpret_cast<MemHandle>(0xDEAD);
+  handler.handle_to_mem_record_[engine_handle] = {
+      addr, sizeof(int32_t), MEM_HOST, {{CommType::COMM_TYPE_UB_H2H, fake_handle}}};
+  handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].push_back(fake_handle);
+
+  EXPECT_EQ(handler.DeregisterMem(engine_handle), PARAM_INVALID);
+  ASSERT_EQ(handler.handle_to_mem_record_.count(engine_handle), 1U);
+  EXPECT_EQ((handler.handle_to_mem_record_[engine_handle].handles.size()), 1U);
+  EXPECT_EQ(handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].size(), 1U);
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerSameAddrDifferentTypeKeepsBoth) {
+  HixlCSClient host_client;
+  HixlCSClient device_client;
+  ASSERT_EQ(CreateStatusHostClient(host_client), SUCCESS);
+  ASSERT_EQ(CreateStatusHostClient(device_client), SUCCESS);
+  UbClientHandler handler({{CommType::COMM_TYPE_UB_H2H, static_cast<HixlClientHandle>(&host_client)},
+                           {CommType::COMM_TYPE_UB_D2D, static_cast<HixlClientHandle>(&device_client)}});
+  int32_t src = 1;
+  int32_t dst = 2;
+  const auto host_info = MakeHostMemInfo(&src);
+  const auto device_info = MakeDeviceMemInfo(&src);
+  ASSERT_EQ(handler.RegisterMem(host_info), SUCCESS);
+  ASSERT_EQ(handler.RegisterMem(device_info), SUCCESS);
+
+  const uintptr_t addr = reinterpret_cast<uintptr_t>(&src);
+  EXPECT_EQ(handler.handle_to_mem_record_.size(), 2U);
+  EXPECT_EQ(handler.handle_to_mem_record_.count(host_info.mem_handle), 1U);
+  EXPECT_EQ(handler.handle_to_mem_record_.count(device_info.mem_handle), 1U);
+  EXPECT_TRUE(LocalSegContainsType(handler, addr, sizeof(src), MEM_HOST));
+  EXPECT_TRUE(LocalSegContainsType(handler, addr, sizeof(src), MEM_DEVICE));
+
+  auto remote_seg = std::make_shared<Segment>(MEM_DEVICE);
+  ASSERT_EQ(remote_seg->AddRange(reinterpret_cast<uintptr_t>(&dst), sizeof(dst)), SUCCESS);
+  handler.remote_segments_.push_back(remote_seg);
+
+  EXPECT_EQ(handler.DeregisterMem(host_info.mem_handle), SUCCESS);
+  EXPECT_EQ(handler.handle_to_mem_record_.count(host_info.mem_handle), 0U);
+  EXPECT_EQ(handler.handle_to_mem_record_.count(device_info.mem_handle), 1U);
+  EXPECT_FALSE(LocalSegContainsType(handler, addr, sizeof(src), MEM_HOST));
+  EXPECT_TRUE(LocalSegContainsType(handler, addr, sizeof(src), MEM_DEVICE));
+
+  TransferOpDesc op{addr, reinterpret_cast<uintptr_t>(&dst), sizeof(src)};
+  std::map<CommType, std::vector<TransferOpDesc>> table;
+  EXPECT_EQ(handler.ClassifyTransfers({op}, table), SUCCESS);
+  ASSERT_EQ(table[CommType::COMM_TYPE_UB_D2D].size(), 1U);
+  EXPECT_EQ(handler.DeregisterMem(device_info.mem_handle), SUCCESS);
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerRegisterMemSameHandleIsIdempotent) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  auto handle = static_cast<HixlClientHandle>(&client);
+  UbClientHandler handler({{CommType::COMM_TYPE_UB_H2H, handle}});
+  int32_t buf = 0;
+  const auto info = MakeHostMemInfo(&buf);
+  ASSERT_EQ(handler.RegisterMem(info), SUCCESS);
+  ASSERT_EQ(handler.RegisterMem(info), SUCCESS);
+  EXPECT_EQ(handler.handle_to_mem_record_.size(), 1U);
+  EXPECT_EQ(handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].size(), 1U);
+  EXPECT_EQ(handler.DeregisterMem(info.mem_handle), SUCCESS);
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerRollbackKeepsHandleWhenUnregFails) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  auto handle = static_cast<HixlClientHandle>(&client);
+  UbClientHandler handler({{CommType::COMM_TYPE_UB_H2H, handle}});
+  MemHandle fake_handle = reinterpret_cast<MemHandle>(0xDEAD);
+  handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].push_back(fake_handle);
+
+  const std::map<CommType, MemHandle> addr_handles{{CommType::COMM_TYPE_UB_H2H, fake_handle}};
+  EXPECT_EQ(handler.RollbackRegisteredHandles(addr_handles, 0x1000U), PARAM_INVALID);
+  ASSERT_EQ(handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].size(), 1U);
+  EXPECT_EQ(handler.mem_handles_[CommType::COMM_TYPE_UB_H2H][0], fake_handle);
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerRollbackNullHandleClearsMemHandle) {
+  UbClientHandler handler({});
+  handler.mem_handles_[CommType::COMM_TYPE_UB_D2D].push_back(nullptr);
+
+  const std::map<CommType, MemHandle> addr_handles{{CommType::COMM_TYPE_UB_D2D, nullptr}};
+  EXPECT_EQ(handler.RollbackRegisteredHandles(addr_handles, 0x1000U), SUCCESS);
+  EXPECT_TRUE(handler.mem_handles_[CommType::COMM_TYPE_UB_D2D].empty());
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerRollbackUnregsSucceededHandle) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  auto handle = static_cast<HixlClientHandle>(&client);
+  UbClientHandler handler({{CommType::COMM_TYPE_UB_H2H, handle}});
+  int32_t buf = 0;
+  const auto info = MakeHostMemInfo(&buf);
+  ASSERT_EQ(handler.RegisterMem(info), SUCCESS);
+  ASSERT_EQ(handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].size(), 1U);
+  const MemHandle mh = handler.mem_handles_[CommType::COMM_TYPE_UB_H2H][0];
+
+  const std::map<CommType, MemHandle> addr_handles{{CommType::COMM_TYPE_UB_H2H, mh}};
+  EXPECT_EQ(handler.RollbackRegisteredHandles(addr_handles, info.mem.addr), SUCCESS);
+  EXPECT_TRUE(handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].empty());
+  EXPECT_EQ(handler.handle_to_mem_record_.count(info.mem_handle), 1U);
 }
 
 TEST_F(HixlClientUTest, UbClientHandlerDumpIncludesEndpointPair) {
@@ -1797,6 +2129,9 @@ class FailClientHandler : public IClientHandler {
   Status RegisterMem(const MemHandleInfo &) override {
     return SUCCESS;
   }
+  Status DeregisterMem(MemHandle) override {
+    return SUCCESS;
+  }
   Status TransferAsync(const std::vector<TransferOpDesc> &, TransferOp, TransferReq &) override {
     return FAILED;
   }
@@ -2010,7 +2345,7 @@ TEST_F(HixlClientUTest, LazyConnectNoRemoteMem) {
   // remote_segments_ 应为空（对端无注册内存）
   EXPECT_TRUE(ub_handler->remote_segments_.empty());
 
-  st = client_->SetLocalMemInfo(MakeMemInfoList());
+  st = client_->RegisterMem(MakeMemInfoList());
   EXPECT_EQ(st, SUCCESS);
   st = client_->Connect(kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
@@ -2027,7 +2362,7 @@ TEST_F(HixlClientUTest, LazyConnectNoMatchingEndpoint) {
   std::vector<EndpointConfig> local_ep_list = {MakeUbHostLocalEp1(), MakeUbDeviceLocalEp3()};
   Status st = client_->Initialize(local_ep_list, kDefaultTimeoutMs, true);  // is_lazy=true
   EXPECT_EQ(st, SUCCESS);
-  st = client_->SetLocalMemInfo(MakeMemInfoList());
+  st = client_->RegisterMem(MakeMemInfoList());
   EXPECT_EQ(st, SUCCESS);
   st = client_->Connect(kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);

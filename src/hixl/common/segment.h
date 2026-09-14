@@ -24,6 +24,9 @@ class Segment {
   Status AddRange(uint64_t start, uint64_t len);
   void RemoveRange(uint64_t start, uint64_t end);
   bool Contains(uint64_t start, uint64_t end) const;
+  bool IsEmpty() const {
+    return ranges_.empty();
+  }
   MemType GetMemType() const;
 
  private:

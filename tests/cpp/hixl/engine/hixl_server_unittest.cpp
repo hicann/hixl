@@ -107,7 +107,6 @@ TEST_F(HixlServerTest, DeregisterMemDoubleFree) {
 
   MemHandle handle_copy = handle;
   EXPECT_EQ(server_.DeregisterMem(handle), SUCCESS);
-  EXPECT_EQ(handle, nullptr);
 
   // Using the copy
   EXPECT_EQ(server_.DeregisterMem(handle_copy), SUCCESS);

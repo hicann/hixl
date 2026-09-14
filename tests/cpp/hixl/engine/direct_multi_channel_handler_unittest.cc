@@ -180,6 +180,24 @@ TEST_F(DirectMultiChannelHandlerTest, ConnectWithMultiWorker) {
   pair.server.Finalize();
 }
 
+TEST_F(DirectMultiChannelHandlerTest, DeregisterMemWhileConnectedReturnsSuccess) {
+  EnginePair pair;
+  ASSERT_NO_FATAL_FAILURE(InitEnginePairWithMultiChannel(pair, 19800, 2));
+  std::vector<int32_t> server_data(kElemCount, 42);
+  std::vector<int32_t> client_data(kElemCount, 0);
+  MemHandle server_handle = RegisterHostMem(pair.server, server_data);
+  MemHandle client_handle = RegisterHostMem(pair.client, client_data);
+  EXPECT_EQ(pair.client.Connect(pair.server_engine.c_str(), kTimeOut), SUCCESS);
+  EXPECT_EQ(pair.client.DeregisterMem(client_handle), SUCCESS);
+  auto op_descs = BuildMultiDescs(reinterpret_cast<uintptr_t>(client_data.data()),
+                                  reinterpret_cast<uintptr_t>(server_data.data()), kElemCount * sizeof(int32_t), 1U);
+  EXPECT_NE(pair.client.TransferSync(pair.server_engine.c_str(), TransferOp::READ, op_descs, kTimeOut), SUCCESS);
+  EXPECT_EQ(pair.client.Disconnect(pair.server_engine.c_str()), SUCCESS);
+  EXPECT_EQ(pair.server.DeregisterMem(server_handle), SUCCESS);
+  pair.client.Finalize();
+  pair.server.Finalize();
+}
+
 TEST_F(DirectMultiChannelHandlerTest, TransferSyncH2HMultiDescSplit) {
   EnginePair pair;
   ASSERT_NO_FATAL_FAILURE(InitEnginePairWithMultiChannel(pair, 18500, 4, 10));

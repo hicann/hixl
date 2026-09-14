@@ -15,6 +15,7 @@
 #include <map>
 #include <memory>
 #include <thread>
+#include <vector>
 #include <gtest/gtest.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -24,8 +25,11 @@
 #include "engine/endpoint_test_utils.h"
 #define private public
 #include "engine/hixl_engine.h"
+#include "engine/direct_client_handler.h"
+#include "engine/ub_client_handler.h"
 #include "cs/hixl_cs_server.h"
 #undef private
+#include "engine/client_handler.h"
 #include "hixl/hixl_types.h"
 #include "engine/engine_factory.h"
 #include "common/ctrl_msg_plugin.h"
@@ -244,6 +248,16 @@ class HixlEngineTest : public ::testing::Test {
     Register(engine2, &dst, handle2);
   }
 
+  // 不开启 auto_connect，连接生命周期由用例显式管理（Connect/Disconnect）
+  void InitEnginesWithRegisteredMem(HixlEngine &engine1, HixlEngine &engine2, int32_t &src, int32_t &dst,
+                                    MemHandle &handle1, MemHandle &handle2, bool same_instance = false) {
+    CreateAndInitEngine(engine1, options1);
+    CreateAndInitEngine(engine2, same_instance ? options1_ub_pair : options2);
+
+    Register(engine1, &src, handle1);
+    Register(engine2, &dst, handle2);
+  }
+
   // 触发首次 READ 传输以完成 auto-connect 内部建链，并验证传输结果
   TransferOpDesc TriggerAutoConnectReadTransfer(HixlEngine &engine, int32_t &src, const int32_t &dst) {
     TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
@@ -359,8 +373,7 @@ TEST_F(HixlEngineTest, InitializeSetsServerListenPortFromGlobalResourceConfig) {
   EXPECT_EQ(*cs_server->global_config_.ListenPort(), 26301U);
 
   ClientConfig config{};
-  std::vector<MemHandleInfo> mem_info_list;
-  engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, mem_info_list, kTimeOut);
+  engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, kTimeOut, false);
   EXPECT_FALSE(config.qos.has_value());
   engine.Finalize();
 }
@@ -395,8 +408,7 @@ TEST_F(HixlEngineTest, InitializeSetsClientQosFromGlobalResourceConfig) {
   CreateAndInitEngine(engine, options);
 
   ClientConfig config{};
-  std::vector<MemHandleInfo> mem_info_list;
-  engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, mem_info_list, kTimeOut);
+  engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, kTimeOut, false);
   ASSERT_TRUE(config.qos.has_value());
   EXPECT_EQ(static_cast<uint32_t>(config.qos.value()), 7U);
   engine.Finalize();
@@ -407,8 +419,7 @@ TEST_F(HixlEngineTest, InitializeWithoutQosDoesNotSetClientQos) {
   CreateAndInitEngine(engine, options1);
 
   ClientConfig config{};
-  std::vector<MemHandleInfo> mem_info_list;
-  engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, mem_info_list, kTimeOut);
+  engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, kTimeOut, false);
   EXPECT_FALSE(config.qos.has_value());
   engine.Finalize();
 }
@@ -425,8 +436,7 @@ TEST_F(HixlEngineTest, InitializeSetsMaxActiveChannelsFromGlobalResourceConfig) 
   EXPECT_EQ(*cs_server->global_config_.MaxActiveChannels(), 8192U);
 
   ClientConfig config{};
-  std::vector<MemHandleInfo> mem_info_list;
-  engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, mem_info_list, kTimeOut);
+  engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, kTimeOut, false);
   ASSERT_TRUE(config.max_active_channels.has_value());
   EXPECT_EQ(config.max_active_channels.value(), 8192U);
   engine.Finalize();
@@ -441,8 +451,7 @@ TEST_F(HixlEngineTest, InitializeWithoutMaxActiveChannelsDoesNotSetConfig) {
   EXPECT_FALSE(cs_server->global_config_.MaxActiveChannels().has_value());
 
   ClientConfig config{};
-  std::vector<MemHandleInfo> mem_info_list;
-  engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, mem_info_list, kTimeOut);
+  engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, kTimeOut, false);
   EXPECT_FALSE(config.max_active_channels.has_value());
   engine.Finalize();
 }
@@ -1085,8 +1094,13 @@ class MockClientHandler : public IClientHandler {
   Status Connect(uint32_t) override {
     return SUCCESS;
   }
-  Status RegisterMem(const MemHandleInfo &) override {
-    return SUCCESS;
+  Status RegisterMem(const MemHandleInfo &mem_info) override {
+    registered_mems.push_back(mem_info);
+    return register_ret;
+  }
+  Status DeregisterMem(MemHandle mem_handle) override {
+    deregistered_handles.push_back(mem_handle);
+    return deregister_ret;
   }
   Status TransferAsync(const std::vector<TransferOpDesc> &, TransferOp, TransferReq &) override {
     return SUCCESS;
@@ -1111,6 +1125,10 @@ class MockClientHandler : public IClientHandler {
   std::map<TransferReq, TransferStatus> status_by_req;
   TransferStatus default_status = TransferStatus::WAITING;
   Status default_ret = SUCCESS;
+  Status deregister_ret = SUCCESS;
+  Status register_ret = SUCCESS;
+  std::vector<MemHandle> deregistered_handles;
+  std::vector<MemHandleInfo> registered_mems;
 };
 
 static ClientPtr CreateMockClient() {
@@ -1130,6 +1148,21 @@ static ClientPtr CreateMockClient(std::unique_ptr<MockClientHandler> handler) {
   client->client_handler_ = std::move(handler);
   client->is_connected_ = true;
   return client;
+}
+
+static bool ClientHasLocalMem(const ClientPtr &client, MemHandle mem_handle) {
+  if (client == nullptr || client->client_handler_ == nullptr) {
+    return false;
+  }
+  auto *direct = dynamic_cast<DirectClientHandler *>(client->client_handler_.get());
+  if (direct != nullptr) {
+    return direct->handle_to_mem_handle_.count(mem_handle) != 0U;
+  }
+  auto *ub = dynamic_cast<UbClientHandler *>(client->client_handler_.get());
+  if (ub != nullptr) {
+    return ub->handle_to_mem_record_.count(mem_handle) != 0U;
+  }
+  return false;
 }
 
 static void RegisterMockTransferReq(HixlEngine &engine, const ClientPtr &client, TransferReq req,
@@ -1604,6 +1637,183 @@ TEST_F(HixlEngineTest, TestAutoConnectUbDoubleConnect) {
 
   EXPECT_EQ(engine1.Disconnect("127.0.0.1:26300", kTimeOut), SUCCESS);
   EXPECT_EQ(engine1.DeregisterMem(handle1), SUCCESS);
+  EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
+  engine1.Finalize();
+  engine2.Finalize();
+}
+
+TEST_F(HixlEngineTest, DeregisterMemWhileConnectedReturnsSuccess) {
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:26300");
+  int32_t src = 1;
+  int32_t dst = 2;
+  MemHandle handle1 = nullptr;
+  MemHandle handle2 = nullptr;
+  InitEnginesWithRegisteredMem(engine1, engine2, src, dst, handle1, handle2);
+
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26300", kTimeOut), SUCCESS);
+
+  EXPECT_EQ(engine1.DeregisterMem(handle1), SUCCESS);
+
+  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+  EXPECT_EQ(engine1.TransferSync("127.0.0.1:26300", READ, {desc}, kTimeOut), PARAM_INVALID);
+
+  EXPECT_EQ(engine1.Disconnect("127.0.0.1:26300", kTimeOut), SUCCESS);
+  EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
+  engine1.Finalize();
+  engine2.Finalize();
+}
+
+TEST(ClientManagerTest, DeregisterMemInvokesEveryClient) {
+  ClientManager manager;
+  EXPECT_EQ(manager.Initialize(false), SUCCESS);
+  auto handler_a = std::make_unique<MockClientHandler>();
+  auto handler_b = std::make_unique<MockClientHandler>();
+  MockClientHandler *raw_a = handler_a.get();
+  MockClientHandler *raw_b = handler_b.get();
+  manager.clients_["engine-a"] = CreateMockClient(std::move(handler_a));
+  manager.clients_["engine-b"] = CreateMockClient(std::move(handler_b));
+
+  MemHandle mem_handle = reinterpret_cast<MemHandle>(0x2000);
+  EXPECT_EQ(manager.DeregisterMem(mem_handle), SUCCESS);
+  ASSERT_EQ(raw_a->deregistered_handles.size(), 1U);
+  ASSERT_EQ(raw_b->deregistered_handles.size(), 1U);
+  EXPECT_EQ(raw_a->deregistered_handles[0], mem_handle);
+  EXPECT_EQ(raw_b->deregistered_handles[0], mem_handle);
+  EXPECT_EQ(manager.Finalize(), SUCCESS);
+}
+
+TEST(ClientManagerTest, DeregisterMemStopsOnFailure) {
+  ClientManager manager;
+  EXPECT_EQ(manager.Initialize(false), SUCCESS);
+  auto handler_a = std::make_unique<MockClientHandler>();
+  auto handler_b = std::make_unique<MockClientHandler>();
+  MockClientHandler *raw_a = handler_a.get();
+  MockClientHandler *raw_b = handler_b.get();
+  raw_a->deregister_ret = FAILED;
+  manager.clients_["engine-a"] = CreateMockClient(std::move(handler_a));
+  manager.clients_["engine-b"] = CreateMockClient(std::move(handler_b));
+
+  EXPECT_EQ(manager.DeregisterMem(reinterpret_cast<MemHandle>(0x3000)), FAILED);
+  EXPECT_EQ(raw_a->deregistered_handles.size(), 1U);
+  EXPECT_EQ(raw_b->deregistered_handles.size(), 0U);
+  EXPECT_EQ(manager.Finalize(), SUCCESS);
+}
+
+TEST(HixlClientDeregisterTest, DeregisterMemWithoutHandlerSucceeds) {
+  ClientConfig config{};
+  HixlClient client("127.0.0.1", 26300, config);
+  EXPECT_EQ(client.DeregisterMem(reinterpret_cast<MemHandle>(0x1000)), SUCCESS);
+}
+
+TEST(HixlClientDeregisterTest, DeregisterMemPropagatesHandlerError) {
+  auto handler = std::make_unique<MockClientHandler>();
+  handler->deregister_ret = FAILED;
+  ClientPtr client = CreateMockClient(std::move(handler));
+  EXPECT_EQ(client->DeregisterMem(reinterpret_cast<MemHandle>(0x1000)), FAILED);
+}
+
+TEST_F(HixlEngineTest, DeregisterMemWhileUbConnectedReturnsSuccess) {
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:26300");
+  int32_t src = 1;
+  int32_t dst = 2;
+  MemHandle handle1 = nullptr;
+  MemHandle handle2 = nullptr;
+  InitEnginesWithRegisteredMem(engine1, engine2, src, dst, handle1, handle2, true);
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26300", kTimeOut), SUCCESS);
+
+  EXPECT_EQ(engine1.DeregisterMem(handle1), SUCCESS);
+  EXPECT_FALSE(engine1.client_manager_.IsEmpty());
+  EXPECT_EQ(engine1.mem_map_.count(handle1), 0U);
+
+  TransferOpDesc desc{reinterpret_cast<uintptr_t>(&src), reinterpret_cast<uintptr_t>(&dst), sizeof(int32_t)};
+  EXPECT_EQ(engine1.TransferSync("127.0.0.1:26300", READ, {desc}, kTimeOut), PARAM_INVALID);
+  EXPECT_EQ(engine1.Disconnect("127.0.0.1:26300", kTimeOut), SUCCESS);
+  EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
+  engine1.Finalize();
+  engine2.Finalize();
+}
+
+TEST_F(HixlEngineTest, DeregisterOneMemKeepsOtherMemTransferable) {
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:26300");
+  int32_t src_keep = 1;
+  int32_t dst_keep = 2;
+  int32_t src_drop = 3;
+  int32_t dst_drop = 4;
+  MemHandle handle_keep1 = nullptr;
+  MemHandle handle_keep2 = nullptr;
+  MemHandle handle_drop1 = nullptr;
+  MemHandle handle_drop2 = nullptr;
+  InitEnginesWithRegisteredMem(engine1, engine2, src_keep, dst_keep, handle_keep1, handle_keep2);
+  Register(engine1, &src_drop, handle_drop1);
+  Register(engine2, &dst_drop, handle_drop2);
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26300", kTimeOut), SUCCESS);
+
+  EXPECT_EQ(engine1.DeregisterMem(handle_drop1), SUCCESS);
+  EXPECT_EQ(engine1.mem_map_.count(handle_keep1), 1U);
+  EXPECT_FALSE(engine1.client_manager_.IsEmpty());
+
+  TransferOpDesc keep_desc{reinterpret_cast<uintptr_t>(&src_keep), reinterpret_cast<uintptr_t>(&dst_keep),
+                           sizeof(int32_t)};
+  EXPECT_EQ(engine1.TransferSync("127.0.0.1:26300", READ, {keep_desc}, kTimeOut), SUCCESS);
+  EXPECT_EQ(src_keep, 2);
+  TransferOpDesc drop_desc{reinterpret_cast<uintptr_t>(&src_drop), reinterpret_cast<uintptr_t>(&dst_drop),
+                           sizeof(int32_t)};
+  EXPECT_EQ(engine1.TransferSync("127.0.0.1:26300", READ, {drop_desc}, kTimeOut), PARAM_INVALID);
+
+  EXPECT_EQ(engine1.Disconnect("127.0.0.1:26300", kTimeOut), SUCCESS);
+  EXPECT_EQ(engine1.DeregisterMem(handle_keep1), SUCCESS);
+  EXPECT_EQ(engine2.DeregisterMem(handle_keep2), SUCCESS);
+  EXPECT_EQ(engine2.DeregisterMem(handle_drop2), SUCCESS);
+  engine1.Finalize();
+  engine2.Finalize();
+}
+
+TEST_F(HixlEngineTest, DeregisterMemTwiceWhileConnectedIsIdempotent) {
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:26300");
+  int32_t src = 1;
+  int32_t dst = 2;
+  MemHandle handle1 = nullptr;
+  MemHandle handle2 = nullptr;
+  InitAutoConnectEngines(engine1, engine2, src, dst, handle1, handle2);
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26300", kTimeOut), SUCCESS);
+
+  EXPECT_EQ(engine1.DeregisterMem(handle1), SUCCESS);
+  EXPECT_EQ(engine1.DeregisterMem(handle1), SUCCESS);
+  EXPECT_FALSE(engine1.client_manager_.IsEmpty());
+
+  EXPECT_EQ(engine1.Disconnect("127.0.0.1:26300", kTimeOut), SUCCESS);
+  EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
+  engine1.Finalize();
+  engine2.Finalize();
+}
+
+TEST_F(HixlEngineTest, DeregisterMemConcurrentWithConnectRemovesMemFromNewClient) {
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:26300");
+  int32_t src = 1;
+  int32_t dst = 2;
+  MemHandle handle1 = nullptr;
+  MemHandle handle2 = nullptr;
+  InitEnginesWithRegisteredMem(engine1, engine2, src, dst, handle1, handle2);
+
+  Status connect_ret = FAILED;
+  std::thread connect_thread(
+      [&engine1, &connect_ret]() { connect_ret = engine1.Connect("127.0.0.1:26300", kTimeOut); });
+  EXPECT_EQ(engine1.DeregisterMem(handle1), SUCCESS);
+  connect_thread.join();
+  EXPECT_EQ(engine1.mem_map_.count(handle1), 0U);
+
+  ClientPtr client = engine1.client_manager_.GetClient("127.0.0.1:26300");
+  if (connect_ret == SUCCESS || connect_ret == ALREADY_CONNECTED) {
+    ASSERT_NE(client, nullptr);
+    EXPECT_FALSE(ClientHasLocalMem(client, handle1));
+    EXPECT_EQ(engine1.Disconnect("127.0.0.1:26300", kTimeOut), SUCCESS);
+  }
+
   EXPECT_EQ(engine2.DeregisterMem(handle2), SUCCESS);
   engine1.Finalize();
   engine2.Finalize();

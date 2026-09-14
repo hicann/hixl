@@ -1160,17 +1160,18 @@ Status HixlCSClient::UnRegMem(MemHandle mem_handle) {
   HIXL_CHECK_NOTNULL(mem_handle);
   HixlMemDesc desc;
   Status query_status = local_endpoint_->GetMemDesc(mem_handle, desc);
-  if (query_status != SUCCESS) {
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(query_status == SUCCESS, PARAM_INVALID,
+                           "[HixlClient] GetMemDesc failed, mem_handle:%p, ret:%u", mem_handle,
+                           static_cast<uint32_t>(query_status));
   Status result = local_endpoint_->DeregisterMem(mem_handle);
-  if (result == SUCCESS) {
-    // 删掉记录中client侧给endpoint分配的内存信息
-    HIXL_CHK_STATUS_RET(mem_store_.UnrecordMemory(false, desc.mem.addr),
-                        "[HixlClient] Client unrecord memory failed, mem_addr:%p", desc.mem.addr);
-    return SUCCESS;
-  }
-  return PARAM_INVALID;
+  HIXL_CHK_BOOL_RET_STATUS(result == SUCCESS, PARAM_INVALID,
+                           "[HixlClient] Failed to deregister client endpoint mem, mem_handle:%p, addr:%p, ret:%u",
+                           mem_handle, desc.mem.addr, static_cast<uint32_t>(result));
+  HIXL_CHK_STATUS_RET(mem_store_.UnrecordMemory(false, desc.mem.addr),
+                      "[HixlClient] Client unrecord memory failed, mem_addr:%p", desc.mem.addr);
+  HIXL_EVENT("[HixlClient] deregister mem success, handle:%p, addr:%p, size:%lu bytes", mem_handle, desc.mem.addr,
+             desc.mem.size);
+  return SUCCESS;
 }
 
 Status HixlCSClient::Connect(uint32_t timeout_ms) {

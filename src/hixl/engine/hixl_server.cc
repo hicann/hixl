@@ -129,7 +129,7 @@ Status HixlServer::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_
   return SUCCESS;
 }
 
-Status HixlServer::DeregisterMem(MemHandle &mem_handle) {
+Status HixlServer::DeregisterMem(MemHandle mem_handle) {
   HIXL_CHECK_NOTNULL(server_handle_);
   // 判断mem_handle是否存在
   std::lock_guard<std::mutex> lk(mtx_);
@@ -141,7 +141,6 @@ Status HixlServer::DeregisterMem(MemHandle &mem_handle) {
   HIXL_CHK_STATUS_RET(HixlCSServerUnregMem(server_handle_, mem_handle), "Failed to deregister mem, handle:%p.",
                       mem_handle);
   handle_to_addr_.erase(it);
-  mem_handle = nullptr;
   return SUCCESS;
 }
 

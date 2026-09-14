@@ -149,12 +149,22 @@ Status HixlClient::RecvEndpointInfoResp(int32_t fd, std::vector<EndpointConfig> 
   return EndpointGenerator::DeserializeEndpointConfigList(json_str, remote_endpoint_list);
 }
 
-Status HixlClient::SetLocalMemInfo(const std::vector<MemHandleInfo> &mem_info_list) {
+Status HixlClient::RegisterMem(const std::vector<MemHandleInfo> &mem_info_list) {
   std::lock_guard<std::mutex> lock(mutex_);
   HIXL_CHK_BOOL_RET_STATUS(client_handler_ != nullptr, FAILED, "HixlClient is not initialized");
   for (const auto &mi : mem_info_list) {
     HIXL_CHK_STATUS_RET(client_handler_->RegisterMem(mi));
   }
+  return SUCCESS;
+}
+
+Status HixlClient::DeregisterMem(MemHandle mem_handle) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (client_handler_ == nullptr) {
+    return SUCCESS;
+  }
+  HIXL_CHK_STATUS_RET(client_handler_->DeregisterMem(mem_handle), "HixlClient deregister memory failed, mem_handle:%p",
+                      mem_handle);
   return SUCCESS;
 }
 
