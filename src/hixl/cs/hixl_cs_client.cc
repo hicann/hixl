@@ -13,7 +13,6 @@
 #include <cerrno>
 #include <chrono>
 #include <cstdint>
-#include <cstring>
 #include <cstdlib>
 #include <limits>
 #include <securec.h>
@@ -120,7 +119,7 @@ void BuildTagPtrs(std::vector<std::vector<char>> &storage, std::vector<char *> &
   }
 }
 
-void CloseImportedBufs(EndpointHandle ep_handle, std::vector<hixl::HixlMemDesc> &bufs) {
+void CloseImportedBufs(EndpointHandle ep_handle, const std::vector<hixl::HixlMemDesc> &bufs) {
   if (ep_handle == nullptr) {
     return;
   }

@@ -11,7 +11,6 @@
 #include "hixl_client.h"
 #include <array>
 #include <cerrno>
-#include <cstring>
 #include <unistd.h>
 #include <sys/poll.h>
 #include "securec.h"

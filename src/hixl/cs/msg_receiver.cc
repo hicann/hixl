@@ -14,13 +14,12 @@
 
 namespace hixl {
 namespace {
-const size_t kRecvChunkSizeInBytes = 4096U;             // 异步recv的默认buffer size
-const size_t kMaxBodySizeInBytes = 4U * 1024U * 1024U;  // 消息体的最大长度
+constexpr size_t kRecvChunkSizeInBytes = 4096U;             // 异步recv的默认buffer size
+constexpr size_t kMaxBodySizeInBytes = 4U * 1024U * 1024U;  // 消息体的最大长度
 }  // namespace
 
 Status MsgReceiver::RecvHeader() {
-  CtrlMsgHeader *header = nullptr;
-  header = reinterpret_cast<CtrlMsgHeader *>(recv_buffer_.data());
+  const CtrlMsgHeader *header = reinterpret_cast<const CtrlMsgHeader *>(recv_buffer_.data());
   HIXL_CHK_BOOL_RET_STATUS(header->magic == kMagicNumber, PARAM_INVALID, "Invalid magic number:%u received.",
                            header->magic);
   HIXL_CHK_BOOL_RET_STATUS(header->body_size >= sizeof(CtrlMsgType), PARAM_INVALID,
@@ -30,7 +29,7 @@ Status MsgReceiver::RecvHeader() {
                            "Invalid body size:%zu received, must <= %zu.", expected_size_, kMaxBodySizeInBytes);
   recv_state_ = RecvState::WAITING_FOR_BODY;
   if (received_size_ > sizeof(CtrlMsgHeader)) {
-    size_t remaining = received_size_ - sizeof(CtrlMsgHeader);
+    const size_t remaining = received_size_ - sizeof(CtrlMsgHeader);
     const size_t buffer_size = recv_buffer_.size();
     auto ret = memmove_s(recv_buffer_.data(), buffer_size, recv_buffer_.data() + sizeof(CtrlMsgHeader), remaining);
     HIXL_CHK_BOOL_RET_STATUS(ret == EOK, FAILED,
@@ -64,7 +63,7 @@ Status MsgReceiver::IRecv(std::vector<CtrlMsgPtr> &msgs) {
   }
   auto buffer = recv_buffer_.data() + received_size_;
   auto buffer_size = recv_buffer_.size() - received_size_;
-  ssize_t n = recv(fd_, buffer, buffer_size, 0);
+  const ssize_t n = recv(fd_, buffer, buffer_size, 0);
   if (!CheckRecv(n)) {
     return SUCCESS;
   }
@@ -88,7 +87,7 @@ Status MsgReceiver::IRecv(std::vector<CtrlMsgPtr> &msgs) {
       HIXL_LOGI("[HixlServer] recv ctrl msg, msg type:%d, msg body size:%zu", static_cast<int32_t>(ctrl_msg->msg_type),
                 ctrl_msg->msg.size());
       if (received_size_ > expected_size_) {
-        size_t remaining = received_size_ - expected_size_;
+        const size_t remaining = received_size_ - expected_size_;
         const size_t buffer_size = recv_buffer_.size();
         auto ret = memmove_s(recv_buffer_.data(), buffer_size, recv_buffer_.data() + expected_size_, remaining);
         HIXL_CHK_BOOL_RET_STATUS(ret == EOK, FAILED,

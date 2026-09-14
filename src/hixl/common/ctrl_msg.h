@@ -21,7 +21,7 @@
 #include "hixl/hixl_types.h"
 
 namespace hixl {
-const uint32_t kMagicNumber = 0xA4B3C2D1;
+constexpr uint32_t kMagicNumber = 0xA4B3C2D1U;
 constexpr size_t kMaxNotifyNameLen = 1024;
 constexpr size_t kMaxNotifyMsgLen = 1024;
 constexpr size_t kMaxNotifyQueueSize = 4096;

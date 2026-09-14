@@ -27,16 +27,16 @@ bool IsAddrInRegion(const MemoryRegion &region, const void *addr) {
 // 检查内存区域是否连续（addr和register_dev_addr都必须连续）
 bool CheckRegionsContiguous(const MemoryRegion &prev, const MemoryRegion &curr) {
   // 首先检查addr连续性（这是基本前提）
-  uintptr_t prev_end = reinterpret_cast<uintptr_t>(prev.addr) + prev.size;
-  uintptr_t curr_start = reinterpret_cast<uintptr_t>(curr.addr);
+  const uintptr_t prev_end = reinterpret_cast<uintptr_t>(prev.addr) + prev.size;
+  const uintptr_t curr_start = reinterpret_cast<uintptr_t>(curr.addr);
   if (prev_end != curr_start) {
     return false;  // addr不连续，直接返回 false
   }
 
   // 如果addr连续，检查register_dev_addr连续性（当有register_dev_addr地址时）
   if (prev.register_dev_addr != nullptr && curr.register_dev_addr != nullptr) {
-    uintptr_t prev_dev_end = reinterpret_cast<uintptr_t>(prev.register_dev_addr) + prev.size;
-    uintptr_t curr_dev_start = reinterpret_cast<uintptr_t>(curr.register_dev_addr);
+    const uintptr_t prev_dev_end = reinterpret_cast<uintptr_t>(prev.register_dev_addr) + prev.size;
+    const uintptr_t curr_dev_start = reinterpret_cast<uintptr_t>(curr.register_dev_addr);
     return prev_dev_end == curr_dev_start;  // register_dev_addr也必须连续
   }
 
@@ -47,7 +47,7 @@ bool CheckRegionsContiguous(const MemoryRegion &prev, const MemoryRegion &curr) 
 Status HixlMemStore::RecordMemory(bool is_server, const void *addr, size_t size, bool is_host_mem,
                                   void *register_dev_addr) {
   std::lock_guard<std::mutex> lock(mutex_);
-  MemoryRegion new_region(addr, size, is_host_mem, register_dev_addr);
+  const MemoryRegion new_region(addr, size, is_host_mem, register_dev_addr);
   if (is_server) {  // server侧内存注册
     auto it = server_regions_.find(addr);
     if (it != server_regions_.end()) {
@@ -96,7 +96,7 @@ bool HixlMemStore::CheckMemoryForRegister(bool is_server, const void *check_addr
     return false;
   }  // regions为空，没有已注册，允许注册
 
-  uintptr_t s = reinterpret_cast<uintptr_t>(check_addr);
+  const uintptr_t s = reinterpret_cast<uintptr_t>(check_addr);
   uintptr_t e = 0;
   if (ge::AddOverflow(s, check_size, e)) {
     HIXL_LOGE(PARAM_INVALID, "Address overflow in CheckMemoryForRegister, addr:%p, size:%zu.", check_addr, check_size);
@@ -109,9 +109,9 @@ bool HixlMemStore::CheckMemoryForRegister(bool is_server, const void *check_addr
     if (ge::AddOverflow(rs, r.size, re)) {
       return true;
     }
-    bool is_overlap = (s < re) && (rs < e);  // 内存重叠，返回true
+    const bool is_overlap = (s < re) && (rs < e);  // 内存重叠，返回true
     // 当内存块与已注册内存块完全一致时，此时允许重新注册，返回false
-    bool is_same = (s == rs) && (e == re);
+    const bool is_same = (s == rs) && (e == re);
     return is_overlap && !is_same;
   };
 
@@ -146,11 +146,11 @@ bool HixlMemStore::CheckMemoryForAccess(bool is_server, const void *check_addr, 
     return false;  // 无注册，访问不允许
   }
 
-  uintptr_t s = reinterpret_cast<uintptr_t>(check_addr);
+  const uintptr_t s = reinterpret_cast<uintptr_t>(check_addr);
   if (check_size > std::numeric_limits<uintptr_t>::max() - s) {
     return false;  // overflow would occur, deny access
   }
-  uintptr_t e = s + check_size;  // [s, e)
+  const uintptr_t e = s + check_size;  // [s, e)
 
   auto it = regions.lower_bound(check_addr);
   auto contains = [s, e](const MemoryRegion &r) {
@@ -208,7 +208,7 @@ bool HixlMemStore::CheckMergedRegionsAccess(const std::map<const void *, MemoryR
 
   auto merged_start = get_addr(start_it->second);
   auto merged_end = get_region_end(end_it->second);
-  MemoryRegion merged(start_it->second.addr, merged_end - merged_start);
+  const MemoryRegion merged(start_it->second.addr, merged_end - merged_start);
 
   if (contains(merged)) {
     HIXL_LOGI("Merged regions for access check: [%p, 0x%lx)", start_it->second.addr, merged_end);
@@ -222,14 +222,14 @@ Status HixlMemStore::ValidateMemoryAccess(const void *server_addr, size_t mem_si
   HIXL_CHK_BOOL_RET_STATUS(server_addr != nullptr && client_addr != nullptr && mem_size != size_t{0}, PARAM_INVALID,
                            "Memory access validation failed, server_addr:%p, client_addr:%p, buf_len:%zu bytes",
                            server_addr, client_addr, mem_size);
-  bool server_valid = CheckMemoryForAccess(true, server_addr, mem_size);
-  // 验证Server端内存访问t
+  const bool server_valid = CheckMemoryForAccess(true, server_addr, mem_size);
+  // 验证Server端内存访问
   HIXL_CHK_BOOL_RET_STATUS(server_valid, PARAM_INVALID,
                            "Server memory verification failed, memory is not registered, server_addr:%p, "
                            "buf_len:%zu bytes",
                            server_addr, mem_size);
   // 验证Client端内存访问
-  bool client_valid = CheckMemoryForAccess(false, client_addr, mem_size);
+  const bool client_valid = CheckMemoryForAccess(false, client_addr, mem_size);
   HIXL_CHK_BOOL_RET_STATUS(client_valid, PARAM_INVALID,
                            "Client memory verification failed, memory is not registered, client_addr:%p, "
                            "buf_len:%zu bytes",
@@ -262,16 +262,16 @@ Status HixlMemStore::BatchValidateMemoryAccess(uint32_t list_num, const HixlOneS
   for (uint32_t i = 0; i < list_num; ++i) {
     const void *server_addr = desc_list[i].remote_buf;
     const void *client_addr = desc_list[i].local_buf;
-    size_t mem_size = static_cast<size_t>(desc_list[i].len);
+    const size_t mem_size = static_cast<size_t>(desc_list[i].len);
     HIXL_CHK_BOOL_RET_STATUS(server_addr != nullptr && client_addr != nullptr && mem_size != size_t{0}, PARAM_INVALID,
                              "Batch validation failed, idx:%u, server_addr:%p, client_addr:%p, buf_len:%zu bytes", i,
                              server_addr, client_addr, mem_size);
-    bool server_valid = CheckMemoryForAccess(true, server_addr, mem_size);
+    const bool server_valid = CheckMemoryForAccess(true, server_addr, mem_size);
     HIXL_CHK_BOOL_RET_STATUS(server_valid, PARAM_INVALID,
                              "Server memory verification failed, memory is not registered, idx:%u, server_addr:%p, "
                              "buf_len:%zu bytes",
                              i, server_addr, mem_size);
-    bool client_valid = CheckMemoryForAccess(false, client_addr, mem_size);
+    const bool client_valid = CheckMemoryForAccess(false, client_addr, mem_size);
     HIXL_CHK_BOOL_RET_STATUS(client_valid, PARAM_INVALID,
                              "Client memory verification failed, memory is not registered, idx:%u, client_addr:%p, "
                              "buf_len:%zu bytes",
@@ -290,8 +290,9 @@ Status HixlMemStore::ConvertHostAddr(HixlOneSideOpDesc &desc, uint32_t &local_ho
   }
   if (remote_region.is_host_mem) {
     HIXL_CHECK_NOTNULL(remote_region.register_dev_addr, ", register_dev_addr is nullptr.");
-    uintptr_t offset = reinterpret_cast<uintptr_t>(desc.remote_buf) - reinterpret_cast<uintptr_t>(remote_region.addr);
-    void *host_addr = desc.remote_buf;
+    const uintptr_t offset =
+        reinterpret_cast<uintptr_t>(desc.remote_buf) - reinterpret_cast<uintptr_t>(remote_region.addr);
+    const void *host_addr = desc.remote_buf;
     desc.remote_buf = static_cast<void *>(static_cast<char *>(remote_region.register_dev_addr) + offset);
     HIXL_LOGD("[HixlMemStore] Convert remote addr: %p -> %p, region_size=%zu, desc_len=%lu", host_addr, desc.remote_buf,
               remote_region.size, desc.len);
@@ -306,8 +307,9 @@ Status HixlMemStore::ConvertHostAddr(HixlOneSideOpDesc &desc, uint32_t &local_ho
   }
   if (local_region.is_host_mem) {
     HIXL_CHECK_NOTNULL(local_region.register_dev_addr, ", register_dev_addr is nullptr.");
-    uintptr_t offset = reinterpret_cast<uintptr_t>(desc.local_buf) - reinterpret_cast<uintptr_t>(local_region.addr);
-    void *host_addr = desc.local_buf;
+    const uintptr_t offset =
+        reinterpret_cast<uintptr_t>(desc.local_buf) - reinterpret_cast<uintptr_t>(local_region.addr);
+    const void *host_addr = desc.local_buf;
     desc.local_buf = static_cast<void *>(static_cast<char *>(local_region.register_dev_addr) + offset);
     HIXL_LOGD("[HixlMemStore] Convert local addr: %p -> %p, region_size=%zu, desc_len=%lu", host_addr, desc.local_buf,
               local_region.size, desc.len);
@@ -321,7 +323,7 @@ Status HixlMemStore::BatchConvertHostAddr(uint32_t list_num, HixlOneSideOpDesc *
   uint32_t local_host_cnt = 0U;
   uint32_t remote_host_cnt = 0U;
   for (uint32_t i = 0; i < list_num; ++i) {
-    Status status = ConvertHostAddr(desc_list[i], local_host_cnt, remote_host_cnt);
+    const Status status = ConvertHostAddr(desc_list[i], local_host_cnt, remote_host_cnt);
     if (status != SUCCESS) {
       return status;
     }

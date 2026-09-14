@@ -22,7 +22,7 @@
 namespace hixl {
 namespace {
 
-Status ValidateBatchTransferParam(HixlOneSideOpParam *param) {
+Status ValidateBatchTransferParam(const HixlOneSideOpParam *param) {
   HIXL_CHK_BOOL_RET_STATUS(param != nullptr, PARAM_INVALID, "[HixlBatchPutAndGet] param is nullptr");
   constexpr uint32_t kMaxBatchSize = 8192;
   HIXL_CHK_BOOL_RET_STATUS(param->list_num > 0U && param->list_num <= kMaxBatchSize, PARAM_INVALID,
@@ -33,7 +33,7 @@ Status ValidateBatchTransferParam(HixlOneSideOpParam *param) {
   return SUCCESS;
 }
 
-int32_t TransferWithBatch(bool is_read, HixlOneSideOpParam *param) {
+int32_t TransferWithBatch(bool is_read, const HixlOneSideOpParam *param) {
   auto *op_list = reinterpret_cast<HixlOneSideOpDesc *>(static_cast<uintptr_t>(param->op_desc_list_addr));
   std::vector<HcommBatchTransferDesc> descs(param->list_num);
   for (uint32_t i = 0; i < param->list_num; i++) {
@@ -57,7 +57,7 @@ int32_t TransferWithBatch(bool is_read, HixlOneSideOpParam *param) {
   return ret;
 }
 
-Status TransferWithSingle(bool is_read, HixlOneSideOpParam *param) {
+Status TransferWithSingle(bool is_read, const HixlOneSideOpParam *param) {
   auto *op_list = reinterpret_cast<HixlOneSideOpDesc *>(static_cast<uintptr_t>(param->op_desc_list_addr));
   if (is_read) {
     for (uint32_t i = 0; i < param->list_num; i++) {
@@ -89,7 +89,7 @@ Status TransferWithSingle(bool is_read, HixlOneSideOpParam *param) {
   return SUCCESS;
 }
 
-Status HixlBatchTransferTask(bool is_read, HixlOneSideOpParam *param) {
+Status HixlBatchTransferTask(bool is_read, const HixlOneSideOpParam *param) {
   int32_t batch_ret = TransferWithBatch(is_read, param);
   if (batch_ret == HCCL_E_NOT_SUPPORT) {
     HIXL_LOGD("[HixlBatchTransfer] HcommBatchTransferOnThread not supported, fallback to single calls");
@@ -102,7 +102,7 @@ Status HixlBatchTransferTask(bool is_read, HixlOneSideOpParam *param) {
   return SUCCESS;
 }
 
-Status ReadRemoteFlag(HixlOneSideOpParam *param) {
+Status ReadRemoteFlag(const HixlOneSideOpParam *param) {
   HIXL_LOGD(
       "[HixlBatchPutAndGet] HcommReadOnThread start to read remote flag, flag_size=%u, "
       "local_flag=%lu, remote_flag=%lu",
@@ -116,7 +116,7 @@ Status ReadRemoteFlag(HixlOneSideOpParam *param) {
   return SUCCESS;
 }
 
-Status RecordRemoteNotify(HixlOneSideOpParam *param) {
+Status RecordRemoteNotify(const HixlOneSideOpParam *param) {
   HIXL_LOGD(
       "[HixlBatchPutAndGet] aclrtNotifyRecordOnThread starting to record remote notify, thread[%lu], notify_id[%u]",
       param->thread, param->notify_id);
@@ -125,7 +125,7 @@ Status RecordRemoteNotify(HixlOneSideOpParam *param) {
   return SUCCESS;
 }
 
-Status HandleRemoteFlag(HixlOneSideOpParam *param) {
+Status HandleRemoteFlag(const HixlOneSideOpParam *param) {
   HIXL_LOGD("[HixlBatchPutAndGet] HixlBatchTransfer use_notify_record=%u.", param->use_notify_record);
   if (param->remote_flag_addr == 0) {
     return SUCCESS;
@@ -133,7 +133,7 @@ Status HandleRemoteFlag(HixlOneSideOpParam *param) {
   return param->use_notify_record == 0 ? ReadRemoteFlag(param) : RecordRemoteNotify(param);
 }
 
-Status HixlBatchTransfer(bool is_read, HixlOneSideOpParam *param) {
+Status HixlBatchTransfer(bool is_read, const HixlOneSideOpParam *param) {
   HIXL_LOGD("[HixlBatchPutAndGet] HixlBatchTransfer %s start.", is_read ? "read" : "write");
   HIXL_CHK_STATUS_RET(ValidateBatchTransferParam(param), "[HixlBatchPutAndGet] validate param failed");
   auto ctx = TransferContextManager::Instance().Get(param->thread);

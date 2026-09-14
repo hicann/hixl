@@ -11,6 +11,9 @@
 #ifndef CANN_HIXL_SRC_HIXL_COMMON_SEGMENT_H_
 #define CANN_HIXL_SRC_HIXL_COMMON_SEGMENT_H_
 
+#include <cstdint>
+#include <memory>
+#include <utility>
 #include <vector>
 #include "hixl/hixl_types.h"
 

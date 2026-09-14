@@ -30,7 +30,7 @@ Status ValidateSyncTransferContextParam(const HixlTransferContextSyncParam *para
   return SUCCESS;
 }
 
-uint32_t DoSyncTransferContext(HixlTransferContextSyncParam *param) {
+uint32_t DoSyncTransferContext(const HixlTransferContextSyncParam *param) {
   HIXL_CHK_STATUS_RET(ValidateSyncTransferContextParam(param), "[HixlSyncTransferContext] validate param failed");
   HIXL_LOGI("[HixlSyncTransferContext] device execute start. entry_num=%u", param->entry_num);
   auto *entries = reinterpret_cast<HixlTransferContextSyncEntry *>(static_cast<uintptr_t>(param->entry_list_addr));

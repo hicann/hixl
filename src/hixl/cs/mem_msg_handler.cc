@@ -10,7 +10,6 @@
 
 #include "mem_msg_handler.h"
 
-#include <cstring>
 #include <cinttypes>
 #include "nlohmann/json.hpp"
 #include "common/ctrl_msg.h"

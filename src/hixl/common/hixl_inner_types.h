@@ -11,6 +11,8 @@
 #ifndef CANN_HIXL_SRC_HIXL_COMMON_HIXL_INNER_TYPES_H_
 #define CANN_HIXL_SRC_HIXL_COMMON_HIXL_INNER_TYPES_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
 #include <sstream>
 #include "hixl/hixl_types.h"

@@ -10,7 +10,6 @@
 
 #include "conn_msg_handler.h"
 #include <cinttypes>
-#include <cstring>
 #include <vector>
 #include <securec.h>
 #include "common/ctrl_msg_plugin.h"
@@ -60,7 +59,7 @@ hixl::Status ParseMsgType(const std::vector<uint8_t> &body, size_t &offset, hixl
   }
 
   const void *src = static_cast<const void *>(body.data() + offset);
-  errno_t rc = memcpy_s(&msg_type, sizeof(msg_type), src, sizeof(msg_type));
+  const errno_t rc = memcpy_s(&msg_type, sizeof(msg_type), src, sizeof(msg_type));
   HIXL_CHK_BOOL_RET_STATUS(rc == EOK, hixl::FAILED, "memcpy_s msg_type failed, rc=%d", static_cast<int32_t>(rc));
 
   offset += sizeof(hixl::CtrlMsgType);
@@ -77,7 +76,7 @@ hixl::Status ParseCreateChannelResp(const std::vector<uint8_t> &body, size_t off
   }
 
   const void *src = static_cast<const void *>(body.data() + offset);
-  errno_t rc = memcpy_s(&resp, sizeof(resp), src, sizeof(resp));
+  const errno_t rc = memcpy_s(&resp, sizeof(resp), src, sizeof(resp));
   HIXL_CHK_BOOL_RET_STATUS(rc == EOK, hixl::FAILED, "memcpy_s createChannelResp failed, rc=%d",
                            static_cast<int32_t>(rc));
   HIXL_LOGD("Parsed CreateChannelResp. result: %d", static_cast<int32_t>(resp.result));
@@ -91,7 +90,7 @@ hixl::Status ParseMatchEndpointResp(const std::vector<uint8_t> &body, size_t off
     return hixl::PARAM_INVALID;
   }
   const void *src = static_cast<const void *>(body.data() + offset);
-  errno_t rc = memcpy_s(&resp, sizeof(resp), src, sizeof(resp));
+  const errno_t rc = memcpy_s(&resp, sizeof(resp), src, sizeof(resp));
   HIXL_CHK_BOOL_RET_STATUS(rc == EOK, hixl::FAILED, "memcpy_s MatchEndpointResp failed, rc=%d",
                            static_cast<int32_t>(rc));
   HIXL_LOGD("Parsed MatchEndpointResp. result: %d, dst_ep_handle: %lu, channel_index: %" PRIu64,
@@ -156,10 +155,10 @@ Status ConnMsgHandler::SendMatchEndpointRequest(int32_t socket, const EndpointDe
   CtrlMsgHeader header{};
   header.magic = kMagicNumber;
   header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(MatchEndpointReq));
-  CtrlMsgType msg_type = CtrlMsgType::kMatchEndpointReq;
+  const CtrlMsgType msg_type = CtrlMsgType::kMatchEndpointReq;
   MatchEndpointReq body{};
   body.dst = dst;
-  Status ret = SendHeaderTypeBody(socket, header, msg_type, &body, static_cast<uint64_t>(sizeof(body)));
+  const Status ret = SendHeaderTypeBody(socket, header, msg_type, &body, static_cast<uint64_t>(sizeof(body)));
   if (ret == SUCCESS) {
     HIXL_EVENT("SendMatchEndpointRequest success.");
   } else {
@@ -172,7 +171,7 @@ Status ConnMsgHandler::RecvMatchEndpointResponse(int32_t socket, uint64_t &remot
                                                  uint32_t &remote_listen_port, uint64_t &channel_index,
                                                  uint32_t timeout_ms) {
   HIXL_EVENT("RecvMatchEndpointResponse start. socket: %d", socket);
-  Status ret =
+  const Status ret =
       RecvMatchEndpointHandleResponse(socket, remote_endpoint_handle, remote_listen_port, channel_index, timeout_ms);
   if (ret == SUCCESS) {
     HIXL_EVENT("RecvMatchEndpointResponse success. Remote handle: %lu, channel_index=%" PRIu64, remote_endpoint_handle,
@@ -188,8 +187,8 @@ Status ConnMsgHandler::SendCreateChannelRequest(int32_t socket, const CreateChan
   CtrlMsgHeader header{};
   header.magic = kMagicNumber;
   header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(CreateChannelReq));
-  CtrlMsgType msg_type = CtrlMsgType::kCreateChannelReq;
-  Status ret = SendHeaderTypeBody(socket, header, msg_type, &body, static_cast<uint64_t>(sizeof(body)));
+  const CtrlMsgType msg_type = CtrlMsgType::kCreateChannelReq;
+  const Status ret = SendHeaderTypeBody(socket, header, msg_type, &body, static_cast<uint64_t>(sizeof(body)));
   if (ret == SUCCESS) {
     HIXL_EVENT("SendCreateChannelRequest success.");
   } else {
@@ -200,7 +199,7 @@ Status ConnMsgHandler::SendCreateChannelRequest(int32_t socket, const CreateChan
 
 Status ConnMsgHandler::RecvCreateChannelResponse(int32_t socket, uint32_t timeout_ms) {
   HIXL_EVENT("RecvCreateChannelResponse start. socket: %d", socket);
-  Status ret = RecvCreateChannelOnlyResponse(socket, timeout_ms);
+  const Status ret = RecvCreateChannelOnlyResponse(socket, timeout_ms);
   if (ret == SUCCESS) {
     HIXL_EVENT("RecvCreateChannelResponse success.");
   } else {

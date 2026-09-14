@@ -10,7 +10,9 @@
 
 #ifndef CANN_HIXL_SRC_HIXL_CS_HIXL_MEM_STORE_H_
 #define CANN_HIXL_SRC_HIXL_CS_HIXL_MEM_STORE_H_
+#include <cstddef>
 #include <cstdint>
+#include <map>
 #include <mutex>
 #include "hixl/hixl_types.h"
 #include "cs/hixl_cs.h"

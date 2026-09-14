@@ -11,6 +11,10 @@
 #ifndef HIXL_SRC_HIXL_ENGINE_ENGINE_H_
 #define HIXL_SRC_HIXL_ENGINE_ENGINE_H_
 
+#include <cstdint>
+#include <functional>
+#include <string>
+#include <vector>
 #include "hixl/hixl_types.h"
 #include "hixl_options.h"
 
