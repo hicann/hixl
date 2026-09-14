@@ -586,7 +586,7 @@ void HixlCSServer::ProClientMsg(int32_t fd, std::shared_ptr<MsgReceiver> receive
   }
 }
 
-void HixlCSServer::CloseClientSocket(int32_t fd) {
+void HixlCSServer::CloseClientSocket(int32_t fd) const {
   (void)epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, fd, nullptr);
   const int32_t close_ret = close(fd);
   if (close_ret != 0) {
