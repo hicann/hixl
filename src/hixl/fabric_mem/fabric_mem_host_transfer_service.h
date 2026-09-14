@@ -36,7 +36,7 @@ class FabricMemHostTransferService : public FabricMemTransferService {
                                      const std::vector<TransferOpDesc> &op_descs);
 
  private:
-  Status IssueSyncCopy(const std::shared_ptr<FabricMemChannel> &channel, const AsyncSlot &slot,
+  Status IssueSyncCopy(const std::shared_ptr<FabricMemChannel> &channel, AsyncSlot &slot,
                        const FabricMemTransferContext &context, std::vector<TransferOpDesc> &op_descs,
                        TransferInvocation &invocation) const;
   Status IssueAsyncCopyAndRegister(const std::shared_ptr<FabricMemChannel> &channel, AsyncSlot &slot,

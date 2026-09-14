@@ -108,8 +108,7 @@ class FabricMemTransferService {
   static void FillPollInfo(const AsyncRecord &record, AsyncTransferPollInfo *info);
 
   Status ResolveTransferAddrs(std::vector<TransferOpDesc> &op_descs, const FabricMemTransferContext &context) const;
-  static Status TransOpAddr(uintptr_t old_addr, size_t len,
-                            const std::unordered_map<uintptr_t, VaInfo> &new_va_to_old_va, uintptr_t &new_addr);
+  static Status TransOpAddr(uintptr_t old_addr, size_t len, const FabricMemRemoteIndex &index, uintptr_t &new_addr);
   Status NeedTransLocalAddr(const std::vector<TransferOpDesc> &op_descs, bool &need_trans_local_addr) const;
   void UpdateStats(const std::string &channel_id, const std::string &statistic_channel_id,
                    const std::shared_ptr<FabricMemTransferStatisticInfo> &stat_info, uint64_t transfer_cost,

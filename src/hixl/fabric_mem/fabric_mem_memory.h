@@ -101,11 +101,13 @@ class FabricMemRemoteMemory {
   Status Import(const std::vector<ShareHandleInfo> &remote_share_handles, int32_t device_id);
   void Finalize();
   std::unordered_map<uintptr_t, VaInfo> GetNewVaToOldVa() const;
+  std::shared_ptr<const FabricMemRemoteIndex> GetTranslationIndex() const;
 
  private:
   void ClearLocked();
   mutable std::mutex mutex_;
   std::unordered_map<uintptr_t, VaInfo> new_va_to_old_va_;
+  std::shared_ptr<const FabricMemRemoteIndex> translation_index_;
   std::vector<aclrtDrvMemHandle> remote_pa_handles_;
 };
 }  // namespace hixl

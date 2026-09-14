@@ -363,7 +363,7 @@ Status FabricMemChannelManager::BuildTransferContext(const std::string &remote_e
                            "[FabricMemChannelManager] remote engine:%s is not connected.", remote_engine.c_str());
   context.channel_id = remote_engine;
   context.statistic_channel_id = FabricMemStatistic::GetClientStatisticChannelId(remote_engine);
-  context.remote_va_to_old_va = it->second->remote_memory->GetNewVaToOldVa();
+  context.remote_index = it->second->remote_memory->GetTranslationIndex();
   FabricMemStatistic *stat = statistic != nullptr ? statistic : statistic_;
   HIXL_CHK_BOOL_RET_STATUS(stat != nullptr, FAILED, "[FabricMemChannelManager] Statistic is not available.");
   context.stat_info = stat->GetOrCreateStatisticInfo(context.statistic_channel_id);

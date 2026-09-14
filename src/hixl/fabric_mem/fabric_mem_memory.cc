@@ -493,11 +493,17 @@ Status FabricMemRemoteMemory::Import(const std::vector<ShareHandleInfo> &remote_
               remote_share_handle_info.va_addr, remote_va_addr, remote_share_handle_info.len, remote_pa_handle,
               device_id);
   }
+  auto index = std::make_shared<FabricMemRemoteIndex>();
+  for (const auto &mapping : new_va_to_old_va_) {
+    index->emplace(mapping.second.va_addr, VaInfo{mapping.first, mapping.second.len});
+  }
+  translation_index_ = std::move(index);
   HIXL_DISMISS_GUARD(fail_guard);
   return SUCCESS;
 }
 
 void FabricMemRemoteMemory::ClearLocked() {
+  translation_index_.reset();
   for (const auto &it : new_va_to_old_va_) {
     HIXL_LOGI("Unmap remote fabric mem:%lu.", it.first);
     HIXL_CHK_ACL(aclrtUnmapMem(reinterpret_cast<void *>(it.first)), "Unmap remote fabric mem failed.");
@@ -519,5 +525,10 @@ void FabricMemRemoteMemory::Finalize() {
 std::unordered_map<uintptr_t, VaInfo> FabricMemRemoteMemory::GetNewVaToOldVa() const {
   std::lock_guard<std::mutex> lock(mutex_);
   return new_va_to_old_va_;
+}
+
+std::shared_ptr<const FabricMemRemoteIndex> FabricMemRemoteMemory::GetTranslationIndex() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return translation_index_;
 }
 }  // namespace hixl

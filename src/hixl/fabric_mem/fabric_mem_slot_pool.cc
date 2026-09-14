@@ -223,6 +223,7 @@ void FabricMemSlotPool::DestroySlotEntryLocked(AsyncSlot &entry, bool abort_stre
 }
 
 Status FabricMemSlotPool::TryAcquireSlotLocked(AsyncSlot &slot) {
+  slot.active_stream_count = 0U;
   if (!free_slot_indices_.empty()) {
     const size_t idx = free_slot_indices_.front();
     free_slot_indices_.pop();
@@ -340,6 +341,7 @@ void FabricMemSlotPool::ClearReleasedSlot(AsyncSlot &slot) {
   // slot only holds views of the pooled entry's resources, so just drop the
   // references here; the entry itself owns and reuses them.
   slot.ctx = nullptr;
+  slot.active_stream_count = 0U;
   slot.streams.clear();
   slot.sdma_streams.clear();
   slot.notifies.clear();

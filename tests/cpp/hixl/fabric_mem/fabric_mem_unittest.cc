@@ -59,6 +59,56 @@ void ExpectMallocRollsBackOnAclFailure(MemType type, const char *acl_api,
 }
 }  // namespace
 
+TEST_F(FabricMemTransferServiceUTest, ActivePrefixControlsFlagsQueriesAndWaitsButNotOwnership) {
+  ASSERT_EQ(InitService(8U, 4U), SUCCESS);
+  AsyncSlot slot;
+  ASSERT_EQ(service_.slot_pool_.AcquireAsync(slot), SUCCESS);
+  ASSERT_EQ(slot.streams.size(), 4U);
+  slot.active_stream_count = 1U;
+  ASSERT_EQ(service_.AppendHostFlagCopies(slot), SUCCESS);
+  EXPECT_EQ(runtime_->host_flag_d2h_count_, 1U);
+  EXPECT_EQ(*static_cast<uint64_t *>(slot.host_flags[1]), 0U);
+  EXPECT_TRUE(service_.AllHostFlagsDone(slot));
+  service_.QueryAsyncSlotStreams(slot);
+  EXPECT_EQ(runtime_->stream_query_count_, 1U);
+  ASSERT_EQ(service_.WaitControlStreamsWithTimeout(slot, std::chrono::steady_clock::now(), 1000000U), SUCCESS);
+  EXPECT_EQ(runtime_->stream_sync_count_, 1U);
+  ASSERT_EQ(service_.SynchronizeAsyncSlotStreams(slot), SUCCESS);
+  EXPECT_EQ(runtime_->stream_sync_count_, 2U);
+  service_.slot_pool_.Release(slot, false);
+  EXPECT_EQ(slot.active_stream_count, 0U);
+  ASSERT_EQ(service_.slot_pool_.AcquireAsync(slot), SUCCESS);
+  EXPECT_EQ(slot.active_stream_count, 0U);
+  EXPECT_EQ(slot.streams.size(), 4U);
+  slot.active_stream_count = 1U;
+  ASSERT_EQ(FabricMemSlotPool::AbortSlotStreams(slot), SUCCESS);
+  EXPECT_EQ(runtime_->stream_abort_count_, 4U);
+  service_.slot_pool_.Release(slot, true);
+  EXPECT_TRUE(service_.slot_pool_.slot_pool_.empty());
+}
+
+TEST_F(FabricMemTransferServiceUTest, OneCopyUsesOneStreamInSyncAndAsyncRequests) {
+  VirtualMemoryManager::GetInstance().Finalize();
+  ASSERT_EQ(InitService(8U, 4U), SUCCESS);
+  uint8_t local[kLen] = {7U};
+  uint8_t remote[kLen] = {};
+  const std::string peer = "127.0.0.1:13100";
+  AddMappedServiceChannel(service_, peer, remote, sizeof(remote));
+  const auto ops = BuildOpDescs(local, remote);
+  ASSERT_EQ(service_.TransferSync(peer, WRITE, ops, kClientTimeoutMs), SUCCESS);
+  EXPECT_EQ(runtime_->stream_sync_count_, 1U);
+  EXPECT_EQ(runtime_->memcpy_async_count_, 1U);
+  TransferReq request = nullptr;
+  ASSERT_EQ(service_.TransferAsync(peer, WRITE, ops, request), SUCCESS);
+  EXPECT_EQ(runtime_->host_flag_d2h_count_, 1U);
+  EXPECT_EQ(runtime_->memcpy_async_count_, 3U);
+  TransferStatus status = TransferStatus::WAITING;
+  ASSERT_EQ(service_.GetTransferStatus(request, status), SUCCESS);
+  EXPECT_EQ(status, TransferStatus::COMPLETED);
+  EXPECT_EQ(service_.slot_pool_.slot_pool_[0].streams.size(), 4U);
+  EXPECT_EQ(*static_cast<uint64_t *>(service_.slot_pool_.slot_pool_[0].host_flags[1]), 0U);
+}
+
 TEST_F(FabricMemStatisticUTest, SnapshotDumpRemoveAndPeriodicDump) {
   EXPECT_EQ(FabricMemStatistic::GetClientStatisticChannelId(kChannelId), std::string("client:") + kChannelId);
   EXPECT_EQ(FabricMemStatistic::GetServerStatisticChannelId(kChannelId), std::string("server:") + kChannelId);
@@ -730,15 +780,16 @@ TEST_F(FabricMemLocalMemoryUTest, DeviceForeignImportsEveryBlockAndSplitsD2dAcro
   FabricMemRemoteMemory remote_memory;
   ASSERT_EQ(remote_memory.Import(local_memory_.GetShareHandles(), 0), SUCCESS);
   EXPECT_EQ(runtime_->mem_import_count_, 2U);
-  const auto remote_mappings = remote_memory.GetNewVaToOldVa();
-  ASSERT_EQ(remote_mappings.size(), 2U);
+  const auto remote_mappings = remote_memory.GetTranslationIndex();
+  ASSERT_NE(remote_mappings, nullptr);
+  ASSERT_EQ(remote_mappings->size(), 2U);
 
   uintptr_t expected_remote0 = 0;
   uintptr_t expected_remote1 = 0;
-  ASSERT_EQ(FabricMemTransferService::TransOpAddr(kBase1 - 8U, 8U, remote_mappings, expected_remote0), SUCCESS);
-  ASSERT_EQ(FabricMemTransferService::TransOpAddr(kBase1, 8U, remote_mappings, expected_remote1), SUCCESS);
+  ASSERT_EQ(FabricMemTransferService::TransOpAddr(kBase1 - 8U, 8U, *remote_mappings, expected_remote0), SUCCESS);
+  ASSERT_EQ(FabricMemTransferService::TransOpAddr(kBase1, 8U, *remote_mappings, expected_remote1), SUCCESS);
   FabricMemTransferContext context;
-  context.remote_va_to_old_va = remote_mappings;
+  context.remote_index = remote_mappings;
   FabricMemHostTransferService service;
   service.local_memory_ = &local_memory_;
   std::vector<TransferOpDesc> op_descs = {{kLocalAddr, kBase1 - 8U, 16U}};
@@ -939,6 +990,57 @@ TEST(FabricMemRemoteMemoryUTest, ImportRollsBackOnMapFailure) {
   EXPECT_TRUE(remote_memory.GetNewVaToOldVa().empty());
   llm::GetAclStubMock().clear();
   VirtualMemoryManager::GetInstance().Finalize();
+}
+
+TEST(FabricMemRemoteMemoryUTest, TranslationSnapshotIsSharedAndStableAcrossReplacement) {
+  auto runtime = std::make_shared<FabricMemRuntimeStub>();
+  ScopedRuntimeMock scoped_runtime(runtime);
+  VirtualMemoryManager::GetInstance().Finalize();
+  ASSERT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
+  FabricMemRemoteMemory memory;
+  ASSERT_EQ(memory.Import({BuildShareHandle(kRemoteOldAddr, kLen)}, 0), SUCCESS);
+  const auto old_index = memory.GetTranslationIndex();
+  ASSERT_NE(old_index, nullptr);
+  EXPECT_EQ(old_index, memory.GetTranslationIndex());
+  ASSERT_EQ(memory.Import({BuildShareHandle(kRemoteOldAddr + kLen, kLen)}, 0), SUCCESS);
+  const auto extended = memory.GetTranslationIndex();
+  EXPECT_NE(old_index, extended);
+  EXPECT_EQ(old_index->size(), 1U);
+  ASSERT_EQ(extended->size(), 2U);
+  memory.Finalize();
+  EXPECT_EQ(memory.GetTranslationIndex(), nullptr);
+  // Metadata can outlive teardown; it does not confer permission to use unmapped addresses.
+  EXPECT_EQ(extended->size(), 2U);
+  ASSERT_EQ(memory.Import({BuildShareHandle(kRemoteOldAddr + kLen * 8U, kLen)}, 0), SUCCESS);
+  EXPECT_NE(memory.GetTranslationIndex(), extended);
+  EXPECT_EQ(memory.GetTranslationIndex()->count(kRemoteOldAddr), 0U);
+  memory.Finalize();
+  VirtualMemoryManager::GetInstance().Finalize();
+}
+
+TEST_F(FabricMemTransferServiceUTest, IndexedTranslationPreservesSplitsGapsAndOverlaps) {
+  auto index = std::make_shared<FabricMemRemoteIndex>();
+  index->emplace(0x10000U, VaInfo{0x20000U, 8U});
+  index->emplace(0x10008U, VaInfo{0x30000U, 8U});
+  index->emplace(0x50000U, VaInfo{0x60000U, 64U});
+  index->emplace(0x50010U, VaInfo{0x70000U, 8U});
+  auto context = BuildContext();
+  context.remote_index = index;
+  std::vector<TransferOpDesc> ops = {{kLocalAddr, 0x10004U, 12U}};
+  ASSERT_EQ(service_.ResolveTransferAddrs(ops, context), SUCCESS);
+  ASSERT_EQ(ops.size(), 2U);
+  EXPECT_EQ(ops[0].remote_addr, 0x20004U);
+  EXPECT_EQ(ops[0].len, 4U);
+  EXPECT_EQ(ops[1].remote_addr, 0x30000U);
+  EXPECT_EQ(ops[1].local_addr, kLocalAddr + 4U);
+  EXPECT_EQ(ops[1].len, 8U);
+  ops = {{kLocalAddr, 0x1000cU, 8U}};
+  EXPECT_EQ(service_.ResolveTransferAddrs(ops, context), PARAM_INVALID);
+  uintptr_t address = 0;
+  EXPECT_EQ(FabricMemTransferService::TransOpAddr(0x50020U, 8U, *index, address), SUCCESS);
+  EXPECT_EQ(address, 0x60020U);
+  ops = {{kLocalAddr, std::numeric_limits<uintptr_t>::max() - 3U, 8U}};
+  EXPECT_EQ(service_.ResolveTransferAddrs(ops, context), PARAM_INVALID);
 }
 
 TEST_F(FabricMemSlotPoolUTest, InitializeRejectsInvalidParams) {
@@ -1219,13 +1321,12 @@ TEST_F(FabricMemTransferServiceUTest, AddressTranslationAndCopyValidation) {
   ASSERT_EQ(InitService(4U, 1U), SUCCESS);
 
   uintptr_t new_addr = 0;
-  EXPECT_EQ(
-      FabricMemTransferService::TransOpAddr(kRemoteOldAddr + 4U, 8U, BuildContext().remote_va_to_old_va, new_addr),
-      SUCCESS);
+  EXPECT_EQ(FabricMemTransferService::TransOpAddr(kRemoteOldAddr + 4U, 8U, *BuildContext().remote_index, new_addr),
+            SUCCESS);
   EXPECT_EQ(new_addr, kRemoteNewAddr + 4U);
-  EXPECT_EQ(FabricMemTransferService::TransOpAddr(kRemoteOldAddr + kLen * 5U, 8U, BuildContext().remote_va_to_old_va,
-                                                  new_addr),
-            PARAM_INVALID);
+  EXPECT_EQ(
+      FabricMemTransferService::TransOpAddr(kRemoteOldAddr + kLen * 5U, 8U, *BuildContext().remote_index, new_addr),
+      PARAM_INVALID);
 
   AsyncSlot slot;
   ASSERT_EQ(service_.slot_pool_.AcquireAsync(slot), SUCCESS);
@@ -1546,7 +1647,8 @@ TEST_F(FabricMemChannelManagerUTest, BuildTransferContextPopulatesMapping) {
   FabricMemTransferContext context;
   EXPECT_EQ(manager_.BuildTransferContext(remote, &statistic_, context), SUCCESS);
   EXPECT_EQ(context.channel_id, remote);
-  EXPECT_EQ(context.remote_va_to_old_va.size(), 1U);
+  ASSERT_NE(context.remote_index, nullptr);
+  EXPECT_EQ(context.remote_index->size(), 1U);
   EXPECT_NE(context.stat_info, nullptr);
   VirtualMemoryManager::GetInstance().Finalize();
 }

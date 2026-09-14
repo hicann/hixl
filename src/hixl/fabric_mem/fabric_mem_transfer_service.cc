@@ -26,26 +26,24 @@ constexpr uint64_t kHostFlagDoneValue = 1ULL;
 constexpr uint64_t kDevConstOneValue = 1ULL;
 constexpr size_t kHostFlagSize = sizeof(uint64_t);
 
-bool FindMappedAddrPrefix(uintptr_t old_addr, const std::unordered_map<uintptr_t, VaInfo> &new_va_to_old_va,
-                          uintptr_t &new_addr, size_t &available_len) {
-  for (const auto &item : new_va_to_old_va) {
-    const auto &info = item.second;
-    if (old_addr < info.va_addr) {
+bool FindMappedAddrPrefix(uintptr_t old_addr, const FabricMemRemoteIndex &index, uintptr_t &new_addr,
+                          size_t &available_len) {
+  auto it = index.upper_bound(old_addr);
+  while (it != index.begin()) {
+    --it;
+    const auto &info = it->second;
+    const uintptr_t offset = old_addr - it->first;
+    if (offset >= info.len || info.va_addr > std::numeric_limits<uintptr_t>::max() - offset) {
       continue;
     }
-    const uintptr_t offset = old_addr - info.va_addr;
-    if (offset >= info.len || item.first > std::numeric_limits<uintptr_t>::max() - offset) {
-      continue;
-    }
-    new_addr = item.first + offset;
+    new_addr = info.va_addr + offset;
     available_len = info.len - offset;
     return true;
   }
   return false;
 }
 
-Status AppendRemoteTranslatedOps(const TransferOpDesc &op,
-                                 const std::unordered_map<uintptr_t, VaInfo> &new_va_to_old_va,
+Status AppendRemoteTranslatedOps(const TransferOpDesc &op, const FabricMemRemoteIndex &index,
                                  std::vector<TransferOpDesc> &translated) {
   HIXL_CHK_BOOL_RET_STATUS(op.len > 0, PARAM_INVALID, "Fabric mem transfer size must be non-zero.");
   const auto max_addr = std::numeric_limits<uintptr_t>::max();
@@ -56,7 +54,7 @@ Status AppendRemoteTranslatedOps(const TransferOpDesc &op,
     const uintptr_t old_remote_addr = op.remote_addr + offset;
     uintptr_t new_remote_addr = 0;
     size_t available_len = 0;
-    HIXL_CHK_BOOL_RET_STATUS(FindMappedAddrPrefix(old_remote_addr, new_va_to_old_va, new_remote_addr, available_len),
+    HIXL_CHK_BOOL_RET_STATUS(FindMappedAddrPrefix(old_remote_addr, index, new_remote_addr, available_len),
                              PARAM_INVALID, "Remote fabric mem address:%lu is not registered.", old_remote_addr);
     const size_t chunk_len = std::min(op.len - offset, available_len);
     translated.emplace_back(TransferOpDesc{op.local_addr + offset, new_remote_addr, chunk_len});
@@ -215,12 +213,12 @@ Status FabricMemTransferService::WaitControlStreamsWithTimeout(const AsyncSlot &
                                                                const std::chrono::steady_clock::time_point &start,
                                                                uint64_t timeout_us) const {
   TemporaryRtContext ctx_guard(slot.ctx);
-  for (const auto &stream : slot.streams) {
+  for (size_t i = 0U; i < slot.ActiveStreamCount(); ++i) {
     const auto cost = GetDurationUs(start, std::chrono::steady_clock::now());
     HIXL_CHK_BOOL_RET_STATUS(cost < timeout_us, TIMEOUT, "Fabric mem transfer timeout.");
     const uint64_t stream_timeout_ms = (timeout_us - cost) / kMillisToMicros;
     HIXL_CHK_BOOL_RET_STATUS(stream_timeout_ms > 0, TIMEOUT, "Fabric mem transfer timeout.");
-    HIXL_CHK_ACL_RET(aclrtSynchronizeStreamWithTimeout(stream, stream_timeout_ms),
+    HIXL_CHK_ACL_RET(aclrtSynchronizeStreamWithTimeout(slot.streams[i], stream_timeout_ms),
                      "Synchronize fabric mem stream failed.");
   }
   return SUCCESS;
@@ -229,7 +227,7 @@ Status FabricMemTransferService::WaitControlStreamsWithTimeout(const AsyncSlot &
 Status FabricMemTransferService::AppendHostFlagCopies(const AsyncSlot &slot) const {
   HIXL_CHK_BOOL_RET_STATUS(slot.streams.size() == slot.host_flags.size(), FAILED,
                            "Fabric mem async slot stream/flag size mismatch.");
-  for (size_t i = 0U; i < slot.streams.size(); ++i) {
+  for (size_t i = 0U; i < slot.ActiveStreamCount(); ++i) {
     HIXL_CHK_ACL_RET(aclrtMemcpyAsync(slot.host_flags[i], kHostFlagSize, dev_const_one_, kHostFlagSize,
                                       ACL_MEMCPY_DEVICE_TO_HOST, slot.streams[i]),
                      "Fabric mem host flag D2H copy failed.");
@@ -238,8 +236,12 @@ Status FabricMemTransferService::AppendHostFlagCopies(const AsyncSlot &slot) con
 }
 
 bool FabricMemTransferService::AllHostFlagsDone(const AsyncSlot &slot) {
-  for (void *host_flag : slot.host_flags) {
-    const volatile uint64_t *flag_ptr = static_cast<const volatile uint64_t *>(host_flag);
+  const size_t count = slot.ActiveStreamCount();
+  if (count == 0U || count > slot.host_flags.size()) {
+    return false;
+  }
+  for (size_t i = 0U; i < count; ++i) {
+    const volatile uint64_t *flag_ptr = static_cast<const volatile uint64_t *>(slot.host_flags[i]);
     if (*flag_ptr != kHostFlagDoneValue) {
       return false;
     }
@@ -260,7 +262,7 @@ FabricMemTransferService::AsyncStreamQueryResult FabricMemTransferService::Query
     return AsyncStreamQueryResult::kFailed;
   }
   bool all_complete = true;
-  for (size_t i = 0U; i < slot.streams.size(); ++i) {
+  for (size_t i = 0U; i < slot.ActiveStreamCount(); ++i) {
     aclrtStreamStatus stream_status = ACL_STREAM_STATUS_RESERVED;
     const aclError ret = aclrtStreamQuery(slot.streams[i], &stream_status);
     if (ret != ACL_SUCCESS) {
@@ -291,13 +293,14 @@ void FabricMemTransferService::FillPollInfo(const AsyncRecord &record, AsyncTran
 
 Status FabricMemTransferService::ResolveTransferAddrs(std::vector<TransferOpDesc> &op_descs,
                                                       const FabricMemTransferContext &context) const {
+  HIXL_CHECK_NOTNULL(context.remote_index);
   bool need_trans_local_addr = false;
   HIXL_CHK_STATUS_RET(NeedTransLocalAddr(op_descs, need_trans_local_addr),
                       "Check local fabric mem address type failed.");
   std::vector<TransferOpDesc> translated;
   translated.reserve(op_descs.size());
   for (const auto &op : op_descs) {
-    HIXL_CHK_STATUS_RET(AppendRemoteTranslatedOps(op, context.remote_va_to_old_va, translated),
+    HIXL_CHK_STATUS_RET(AppendRemoteTranslatedOps(op, *context.remote_index, translated),
                         "Translate remote fabric mem address failed.");
   }
   op_descs.swap(translated);
@@ -309,14 +312,13 @@ Status FabricMemTransferService::ResolveTransferAddrs(std::vector<TransferOpDesc
   return SUCCESS;
 }
 
-Status FabricMemTransferService::TransOpAddr(uintptr_t old_addr, size_t len,
-                                             const std::unordered_map<uintptr_t, VaInfo> &new_va_to_old_va,
+Status FabricMemTransferService::TransOpAddr(uintptr_t old_addr, size_t len, const FabricMemRemoteIndex &index,
                                              uintptr_t &new_addr) {
   uintptr_t translated_addr = 0;
   size_t available_len = 0;
   HIXL_CHK_BOOL_RET_STATUS(
-      FindMappedAddrPrefix(old_addr, new_va_to_old_va, translated_addr, available_len) && len <= available_len,
-      PARAM_INVALID, "Fabric mem address:%lu, len:%zu not found in registered segments.", old_addr, len);
+      FindMappedAddrPrefix(old_addr, index, translated_addr, available_len) && len <= available_len, PARAM_INVALID,
+      "Fabric mem address:%lu, len:%zu not found in registered segments.", old_addr, len);
   new_addr = translated_addr;
   return SUCCESS;
 }

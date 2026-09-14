@@ -219,7 +219,9 @@ inline FabricMemTransferContext BuildContext(std::shared_ptr<FabricMemTransferSt
   FabricMemTransferContext context;
   context.channel_id = kChannelId;
   context.statistic_channel_id = kStatChannelId;
-  context.remote_va_to_old_va.emplace(kRemoteNewAddr, VaInfo{kRemoteOldAddr, kLen * 4U});
+  auto index = std::make_shared<FabricMemRemoteIndex>();
+  index->emplace(kRemoteOldAddr, VaInfo{kRemoteNewAddr, kLen * 4U});
+  context.remote_index = std::move(index);
   context.stat_info = std::move(stat_info);
   return context;
 }

@@ -41,8 +41,8 @@ void FabricMemHostTransferService::UnregisterSyncSlot(const std::shared_ptr<Fabr
   }
 }
 
-Status FabricMemHostTransferService::IssueSyncCopy(const std::shared_ptr<FabricMemChannel> &channel,
-                                                   const AsyncSlot &slot, const FabricMemTransferContext &context,
+Status FabricMemHostTransferService::IssueSyncCopy(const std::shared_ptr<FabricMemChannel> &channel, AsyncSlot &slot,
+                                                   const FabricMemTransferContext &context,
                                                    std::vector<TransferOpDesc> &op_descs,
                                                    TransferInvocation &invocation) const {
   TemporaryRtContext ctx_guard(slot.ctx);
@@ -53,6 +53,7 @@ Status FabricMemHostTransferService::IssueSyncCopy(const std::shared_ptr<FabricM
   // Resolve addresses before locking: it only reads the context's private VA snapshot and the local op
   // addrs (plus an aclrtPointerGetAttributes query), touching no shared channel state.
   HIXL_CHK_STATUS_RET(ResolveTransferAddrs(op_descs, context), "Resolve fabric mem addresses failed.");
+  slot.active_stream_count = std::min(op_descs.size(), slot.streams.size());
   // Submit under a SHARED lock so concurrent transfers on the same channel issue copies in parallel; the
   // slot is registered (under records_mutex) before submitting and before releasing the shared lock, so a
   // concurrent disconnect (which takes submit_gate EXCLUSIVE) sees it and aborts the streams before unmap.
@@ -112,6 +113,7 @@ Status FabricMemHostTransferService::IssueAsyncCopyAndRegister(const std::shared
                            "Fabric mem channel:%s is disconnecting.", context.channel_id.c_str());
   // Resolve addresses before locking (see IssueSyncCopy).
   HIXL_CHK_STATUS_RET(ResolveTransferAddrs(op_descs, context), "Resolve fabric mem addresses failed.");
+  slot.active_stream_count = std::min(op_descs.size(), slot.streams.size());
   // Submit under a SHARED lock so concurrent transfers run in parallel. The record is registered (under
   // records_mutex) AFTER submitting but BEFORE releasing the shared lock, so a concurrent disconnect
   // (submit_gate EXCLUSIVE) is guaranteed to observe it and abort the slot's streams before unmap.
@@ -228,8 +230,8 @@ Status FabricMemHostTransferService::HandleAsyncStreamQueryFailure(uint64_t req_
 
 Status FabricMemHostTransferService::SynchronizeAsyncSlotStreams(const AsyncSlot &slot) {
   TemporaryRtContext ctx_guard(slot.ctx);
-  for (const auto &stream : slot.streams) {
-    HIXL_CHK_ACL_RET(aclrtSynchronizeStream(stream), "Synchronize fabric mem async stream failed.");
+  for (size_t i = 0U; i < slot.ActiveStreamCount(); ++i) {
+    HIXL_CHK_ACL_RET(aclrtSynchronizeStream(slot.streams[i]), "Synchronize fabric mem async stream failed.");
   }
   return SUCCESS;
 }
@@ -274,7 +276,7 @@ void FabricMemHostTransferService::CleanupAsyncTransfer(const TransferReq &req) 
 Status FabricMemHostTransferService::ProcessCopyWithAsync(const AsyncSlot &slot, TransferOp operation,
                                                           const std::vector<TransferOpDesc> &op_descs) {
   HIXL_CHK_BOOL_RET_STATUS(!slot.streams.empty(), PARAM_INVALID, "Fabric mem copy streams cannot be empty.");
-  const size_t stream_count = slot.streams.size();
+  const size_t stream_count = slot.ActiveStreamCount();
   size_t stream_idx = 0U;
   for (const auto &op : op_descs) {
     auto &stream = slot.streams[stream_idx];

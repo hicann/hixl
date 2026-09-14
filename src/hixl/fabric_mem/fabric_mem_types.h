@@ -12,8 +12,10 @@
 #define CANN_HIXL_SRC_HIXL_FABRIC_MEM_FABRIC_MEM_TYPES_H_
 
 #include <chrono>
+#include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -31,6 +33,10 @@ struct VaInfo {
   size_t len = 0;
 };
 
+// Key: peer VA; value: imported VA and remaining registered range length.
+// A context retains metadata only. Channel submission gates still protect physical mappings.
+using FabricMemRemoteIndex = std::multimap<uintptr_t, VaInfo>;
+
 struct ShareHandleInfo {
   uintptr_t va_addr = 0;
   size_t len = 0;
@@ -43,6 +49,8 @@ struct ShareHandleInfo {
 
 struct AsyncSlot {
   aclrtContext ctx = nullptr;
+  // Zero preserves all-stream behavior (including AICPU). Ownership always covers full vectors.
+  size_t active_stream_count = 0U;
   // Control streams. With AICPU unfold there is exactly one control stream;
   // AICPU writes SDMA SQEs to the paired worker RTSQ.
   std::vector<aclrtStream> streams;
@@ -60,6 +68,10 @@ struct AsyncSlot {
   bool owns_host_flags = false;
   bool available = true;
   bool has_aicpu_unfold = false;
+
+  size_t ActiveStreamCount() const {
+    return active_stream_count == 0U ? streams.size() : std::min(active_stream_count, streams.size());
+  }
 };
 
 struct AsyncRecord {
@@ -92,7 +104,7 @@ struct AsyncTransferPollInfo {
 struct FabricMemTransferContext {
   std::string channel_id;
   std::string statistic_channel_id;
-  std::unordered_map<uintptr_t, VaInfo> remote_va_to_old_va;
+  std::shared_ptr<const FabricMemRemoteIndex> remote_index;
   std::shared_ptr<FabricMemTransferStatisticInfo> stat_info;
 };
 }  // namespace hixl
