@@ -890,6 +890,41 @@ def print_average_summary(csvs):
             f'[AVG] direction={direction} transport={transport} block={block_label} '
             f'samples={len(values)} bandwidth={avg_bw:.3f} GB/s'
         )
+    print_concurrent_sum_summary(csvs, sort_key)
+
+
+def print_concurrent_sum_summary(csvs, sort_key):
+    """Print sum of per-initiator means when multiple initiator CSVs are present."""
+    if len(csvs) <= 1:
+        return
+    per_csv_groups = []
+    for csv_path in sorted(csvs):
+        groups = defaultdict(list)
+        try:
+            _append_csv_summary_groups(csv_path, groups)
+        except OSError as exc:
+            log.warning(f'[WARN] failed to read {csv_path}: {exc}')
+            continue
+        per_csv_groups.append(groups)
+    keys = set()
+    for groups in per_csv_groups:
+        keys.update(groups.keys())
+    if not keys:
+        return
+    log.info('\n[SUM] Concurrent aggregate (sum of per-initiator means)')
+    for key in sorted(keys, key=sort_key):
+        (direction, transport, block_label) = key
+        means = []
+        for groups in per_csv_groups:
+            values = groups.get(key)
+            if values:
+                means.append(statistics.mean(values))
+        if len(means) <= 1:
+            continue
+        log.info(
+            f'[SUM] direction={direction} transport={transport} block={block_label} '
+            f'initiator_count={len(means)} bandwidth={sum(means):.3f} GB/s'
+        )
 
 
 def generate_plots(args, csvs):

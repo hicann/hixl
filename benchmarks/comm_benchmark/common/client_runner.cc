@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdio>
 #include <experimental/filesystem>
 
@@ -219,7 +220,7 @@ bool GetRemoteAddr(TCPClient *tcp_client, const std::string &remote_engine, uint
 }
 
 bool SendNotify(TCPClient *tcp_client) {
-  return tcp_client->SendTaskStatus();
+  return tcp_client != nullptr && tcp_client->SendFinished();
 }
 
 void DisconnectAllRemoteEngines(Hixl &hixl, const std::vector<std::string> &remotes) {
@@ -618,9 +619,72 @@ int32_t TransferOneBlockStepAsync(Hixl &hixl_engine, const TransferBlockStepCtx 
   return 0;
 }
 
+class CountingBarrier {
+ public:
+  explicit CountingBarrier(size_t n) : n_(n == 0U ? 1U : n) {}
+
+  void Fail() {
+    std::lock_guard<std::mutex> lock(mu_);
+    failed_ = true;
+    arrived_ = 0;
+    ++gen_;
+    cv_.notify_all();
+  }
+
+  bool Wait() {
+    if (n_ <= 1U) {
+      std::lock_guard<std::mutex> lock(mu_);
+      return !failed_;
+    }
+    std::unique_lock<std::mutex> lock(mu_);
+    if (failed_) {
+      return false;
+    }
+    const uint32_t my_gen = gen_;
+    ++arrived_;
+    if (arrived_ == n_) {
+      arrived_ = 0;
+      ++gen_;
+      cv_.notify_all();
+      return !failed_;
+    }
+    cv_.wait(lock, [this, my_gen]() { return failed_ || gen_ != my_gen; });
+    return !failed_;
+  }
+
+ private:
+  std::mutex mu_;
+  std::condition_variable cv_;
+  size_t n_;
+  size_t arrived_{0};
+  uint32_t gen_{0};
+  bool failed_{false};
+};
+
+struct StepSyncContext {
+  TCPClient *tcp = nullptr;
+  CountingBarrier *local = nullptr;
+};
+
+int32_t SyncBeforeStep(StepSyncContext *sync) {
+  if (sync == nullptr) {
+    return 0;
+  }
+  if (sync->local != nullptr && !sync->local->Wait()) {
+    BENCH_LOGE("in-process step barrier failed\n");
+    return -1;
+  }
+  if (sync->tcp != nullptr && !sync->tcp->StepBarrier()) {
+    BENCH_LOGE("TCP step barrier failed\n");
+    return -1;
+  }
+  return 0;
+}
+
 int32_t RunTransfer(Hixl &hixl_engine, void *src_base, const char *remote_engine, uint64_t dst_addr,
                     const BenchmarkConfig &cfg, std::vector<TransferBenchRecord> *bench_records = nullptr,
-                    BenchWorkerTag bench_worker_tag = BenchWorkerTag::kSingle, std::size_t bench_worker_index = 0) {
+                    BenchWorkerTag bench_worker_tag = BenchWorkerTag::kSingle, std::size_t bench_worker_index = 0,
+                    StepSyncContext *step_sync = nullptr) {
   const uintptr_t base = reinterpret_cast<uintptr_t>(src_base);
   const bool verify_read = (cfg.op == "read");
   const bool is_host = (cfg.initiator_memory_type == "host");
@@ -655,6 +719,9 @@ int32_t RunTransfer(Hixl &hixl_engine, void *src_base, const char *remote_engine
         step_ctx.transfer_op = (cfg.op == "read") ? TransferOp::READ : TransferOp::WRITE;
       }
       int32_t step_ret = 0;
+      if (SyncBeforeStep(step_sync) != 0) {
+        return -1;
+      }
       if (cfg.use_async) {
         step_ret = TransferOneBlockStepAsync(hixl_engine, step_ctx);
       } else {
@@ -671,17 +738,27 @@ int32_t RunTransfer(Hixl &hixl_engine, void *src_base, const char *remote_engine
 bool SharedRemoteConnectTransferAndCleanup(Hixl *hixl, size_t idx, void *slice_base, const std::string &remote,
                                            uint64_t remote_addr, const BenchmarkConfig &cfg, TCPClient *tcp_client,
                                            std::atomic<int> *first_fail, std::mutex *fail_mu,
-                                           std::vector<TransferBenchRecord> *bench_records, std::mutex *remote_mu) {
+                                           std::vector<TransferBenchRecord> *bench_records, std::mutex *remote_mu,
+                                           CountingBarrier *local_barrier) {
   const auto connect_ret = hixl->Connect(AscendString(remote.c_str()), static_cast<int32_t>(cfg.connect_timeout_ms));
   if (connect_ret != SUCCESS) {
     BENCH_LOGE("[remote %zu] Connect failed ret=%u %s\n", idx, connect_ret, RecentErrMsg());
+    if (local_barrier != nullptr) {
+      local_barrier->Fail();
+    }
     (void)SendNotify(tcp_client);
     MarkFirstFail(first_fail, fail_mu);
     return false;
   }
   std::lock_guard<std::mutex> remote_lock(*remote_mu);
-  if (RunTransfer(*hixl, slice_base, remote.c_str(), remote_addr, cfg, bench_records, BenchWorkerTag::kRemote, idx) !=
-      0) {
+  StepSyncContext step_sync{};
+  step_sync.tcp = tcp_client;
+  step_sync.local = local_barrier;
+  if (RunTransfer(*hixl, slice_base, remote.c_str(), remote_addr, cfg, bench_records, BenchWorkerTag::kRemote, idx,
+                  &step_sync) != 0) {
+    if (local_barrier != nullptr) {
+      local_barrier->Fail();
+    }
     MarkFirstFail(first_fail, fail_mu);
     (void)hixl->Disconnect(AscendString(remote.c_str()));
     (void)SendNotify(tcp_client);
@@ -692,13 +769,17 @@ bool SharedRemoteConnectTransferAndCleanup(Hixl *hixl, size_t idx, void *slice_b
 
 void SharedRemoteWorker(size_t idx, int32_t device_id, Hixl *hixl, const BenchmarkConfig &cfg, void *slice_base,
                         std::atomic<int> *first_fail, std::mutex *fail_mu,
-                        std::vector<TransferBenchRecord> *bench_records, std::mutex *remote_mu) {
+                        std::vector<TransferBenchRecord> *bench_records, std::mutex *remote_mu,
+                        CountingBarrier *local_barrier) {
   const std::string &remote = cfg.expanded_remote_engines[idx];
   BENCH_LOGI("[remote %zu] worker start -> %s\n", idx, remote.c_str());
 
   aclError ar = aclrtSetDevice(device_id);
   if (ar != ACL_ERROR_NONE) {
     BENCH_LOGE("[remote %zu] aclrtSetDevice failed %d\n", idx, static_cast<int>(ar));
+    if (local_barrier != nullptr) {
+      local_barrier->Fail();
+    }
     MarkFirstFail(first_fail, fail_mu);
     return;
   }
@@ -706,6 +787,9 @@ void SharedRemoteWorker(size_t idx, int32_t device_id, Hixl *hixl, const Benchma
   TCPClient tcp_client;
   uint64_t remote_addr = 0;
   if (!GetRemoteAddr(&tcp_client, remote, &remote_addr, cfg.connect_timeout_ms)) {
+    if (local_barrier != nullptr) {
+      local_barrier->Fail();
+    }
     MarkFirstFail(first_fail, fail_mu);
     (void)aclrtResetDevice(device_id);
     return;
@@ -715,7 +799,7 @@ void SharedRemoteWorker(size_t idx, int32_t device_id, Hixl *hixl, const Benchma
   }
 
   if (!SharedRemoteConnectTransferAndCleanup(hixl, idx, slice_base, remote, remote_addr, cfg, &tcp_client, first_fail,
-                                             fail_mu, bench_records, remote_mu)) {
+                                             fail_mu, bench_records, remote_mu, local_barrier)) {
     (void)aclrtResetDevice(device_id);
     return;
   }
@@ -806,6 +890,7 @@ bool LaneWorkerRemoteTransferPhase(LaneState *p, const BenchmarkConfig &cfg, siz
   const auto connect_ret = p->hixl.Connect(AscendString(remote.c_str()), static_cast<int32_t>(cfg.connect_timeout_ms));
   if (connect_ret != SUCCESS) {
     BENCH_LOGE("Connect failed, ret = %u, errmsg: %s\n", connect_ret, RecentErrMsg());
+    (void)SendNotify(&p->tcp_client);
     MarkFirstFail(first_fail, fail_mu);
     return false;
   }
@@ -813,8 +898,11 @@ bool LaneWorkerRemoteTransferPhase(LaneState *p, const BenchmarkConfig &cfg, siz
 
   std::lock_guard<std::mutex> remote_lock(*remote_mu);
   p->bench_records.clear();
+  StepSyncContext step_sync{};
+  step_sync.tcp = &p->tcp_client;
   if (RunTransfer(p->hixl, p->buffer, remote.c_str(), remote_addr, cfg, &p->bench_records, BenchWorkerTag::kLane,
-                  lane_idx) != 0) {
+                  lane_idx, &step_sync) != 0) {
+    (void)SendNotify(&p->tcp_client);
     MarkFirstFail(first_fail, fail_mu);
     return false;
   }
@@ -979,13 +1067,18 @@ int ClientRunner::RunOnePair(const std::string &remote, void *src_slice, size_t 
       lane_hixl_.Connect(AscendString(remote.c_str()), static_cast<int32_t>(cfg_.connect_timeout_ms));
   if (connect_ret != SUCCESS) {
     BENCH_LOGE("Connect failed, ret = %u, errmsg: %s\n", connect_ret, RecentErrMsg());
+    lane_need_tcp_notify_ = true;
     return -1;
   }
   BENCH_LOGI("HIXL connect success\n");
   lane_hixl_connected_ = true;
 
   std::vector<detail::TransferBenchRecord> records;
-  if (RunTransfer(lane_hixl_, src_slice, remote.c_str(), remote_addr, cfg_, &records) != 0) {
+  StepSyncContext step_sync{};
+  step_sync.tcp = &lane_tcp_;
+  if (RunTransfer(lane_hixl_, src_slice, remote.c_str(), remote_addr, cfg_, &records, BenchWorkerTag::kSingle, 0,
+                  &step_sync) != 0) {
+    lane_need_tcp_notify_ = true;
     return -1;
   }
   PrintBenchRecords(records);
@@ -1060,6 +1153,7 @@ int ClientRunner::RunClientSharedRemoteWorkers() {
   std::vector<std::vector<detail::TransferBenchRecord>> per_remote(n);
   std::atomic<int> first_fail{0};
   std::mutex fail_mu;
+  CountingBarrier local_barrier(n);
   std::vector<std::thread> threads;
   threads.reserve(n);
   for (size_t i = 0; i < n; ++i) {
@@ -1067,7 +1161,7 @@ int ClientRunner::RunClientSharedRemoteWorkers() {
     const std::string &remote = cfg_.expanded_remote_engines[i];
     std::mutex *remote_mu = GetOrCreateRemoteMutex(remote);
     threads.emplace_back(SharedRemoteWorker, i, device_id_, &lane_hixl_, std::cref(cfg_), sl, &first_fail, &fail_mu,
-                         &per_remote[i], remote_mu);
+                         &per_remote[i], remote_mu, &local_barrier);
   }
   for (auto &t : threads) {
     t.join();

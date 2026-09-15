@@ -258,8 +258,8 @@ int ServerRunner::CompleteTcpHandshake(std::uintptr_t addr) {
     return -1;
   }
 
-  BENCH_LOGI("target ready, waiting for transfer completion (peers=%zu)\n", tcp_session_->ConnectedPeerCount());
-  if (!tcp_session_->WaitAllNotify()) {
+  BENCH_LOGI("target ready, coordinating per-step barriers (peers=%zu)\n", tcp_session_->ConnectedPeerCount());
+  if (!tcp_session_->RunStepBarrierUntilFinished()) {
     tcp_session_.reset();
     return -1;
   }

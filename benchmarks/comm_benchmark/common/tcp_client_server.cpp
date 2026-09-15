@@ -10,6 +10,7 @@
 
 #include <cinttypes>
 #include <chrono>
+#include <cstdint>
 #include <thread>
 #include <vector>
 #include <arpa/inet.h>
@@ -204,6 +205,106 @@ bool RecvNotifyAllOnFds(const std::vector<int> &client_fds) {
   return ndone == n;
 }
 
+bool TcpRecvUint64OnFd(int fd, uint64_t *out) {
+  uint64_t network_data = 0;
+  auto *buf = reinterpret_cast<uint8_t *>(&network_data);
+  size_t got = 0;
+  while (got < sizeof(network_data)) {
+    const ssize_t n = recv(fd, buf + got, sizeof(network_data) - got, 0);
+    if (n < 0) {
+      BENCH_LOGE("Received uint64 data failed\n");
+      return false;
+    }
+    if (n == 0) {
+      BENCH_LOGE("Tcp peer connection break\n");
+      return false;
+    }
+    got += static_cast<size_t>(n);
+  }
+  if (out != nullptr) {
+    *out = be64toh(network_data);
+  }
+  return true;
+}
+
+bool ProcessUint64PollEvent(const struct pollfd &pfd, const std::vector<int> &client_fds, std::vector<char> *done,
+                            std::vector<uint64_t> *msgs, size_t *ndone) {
+  if ((pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
+    BENCH_LOGE("RecvUint64All socket error\n");
+    return false;
+  }
+  if ((pfd.revents & POLLIN) == 0) {
+    return true;
+  }
+  size_t idx = client_fds.size();
+  for (size_t i = 0; i < client_fds.size(); ++i) {
+    if ((*done)[i] == 0 && client_fds[i] == pfd.fd) {
+      idx = i;
+      break;
+    }
+  }
+  if (idx == client_fds.size()) {
+    return true;
+  }
+  uint64_t msg = 0;
+  if (!TcpRecvUint64OnFd(client_fds[idx], &msg)) {
+    return false;
+  }
+  (*msgs)[idx] = msg;
+  (*done)[idx] = 1;
+  ++(*ndone);
+  return true;
+}
+
+bool RecvUint64AllOnFds(const std::vector<int> &client_fds, std::vector<uint64_t> *msgs) {
+  const size_t n = client_fds.size();
+  if (n == 0U || msgs == nullptr) {
+    return false;
+  }
+  msgs->assign(n, 0);
+  std::vector<char> done(n, 0);
+  size_t ndone = 0;
+  while (ndone < n) {
+    std::vector<struct pollfd> pf;
+    pf.reserve(n);
+    for (size_t i = 0; i < n; ++i) {
+      if (done[i] != 0) {
+        continue;
+      }
+      struct pollfd one {};
+      one.fd = client_fds[i];
+      one.events = POLLIN;
+      pf.push_back(one);
+    }
+    if (pf.empty()) {
+      break;
+    }
+    if (!PollFds(&pf)) {
+      return false;
+    }
+    for (auto &pfd : pf) {
+      if (!ProcessUint64PollEvent(pfd, client_fds, &done, msgs, &ndone)) {
+        return false;
+      }
+    }
+  }
+  return ndone == n;
+}
+
+bool SendUint64ToAllPeers(uint64_t data, std::vector<int> &client_fds) {
+  if (client_fds.empty()) {
+    return false;
+  }
+  for (int fd : client_fds) {
+    if (!TcpSendUint64(fd, data)) {
+      BENCH_LOGE("TcpSendUint64 failed.\n");
+      CloseClientFds(client_fds);
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace
 
 bool TcpSendUint64(int fd, uint64_t data) {
@@ -299,6 +400,50 @@ bool TcpServerSession::WaitAllNotify() {
   }
   ShutdownClientsAndListen();
   return true;
+}
+
+bool TcpServerSession::RunStepBarrierUntilFinished() {
+  if (client_fds_.empty()) {
+    return false;
+  }
+  uint32_t round = 0;
+  while (true) {
+    std::vector<uint64_t> msgs;
+    if (!RecvUint64AllOnFds(client_fds_, &msgs)) {
+      ShutdownClientsAndListen();
+      return false;
+    }
+    size_t n_arrive = 0;
+    size_t n_finished = 0;
+    for (const uint64_t msg : msgs) {
+      if (msg == kTcpMsgStepArrive) {
+        ++n_arrive;
+      } else if (msg == kTcpMsgFinished) {
+        ++n_finished;
+      } else {
+        BENCH_LOGE("step barrier unexpected msg=%" PRIu64 "\n", msg);
+        ShutdownClientsAndListen();
+        return false;
+      }
+    }
+    if (n_finished == msgs.size()) {
+      BENCH_LOGI("step barrier: all peers finished after %" PRIu32 " aligned step(s)\n", round);
+      ShutdownClientsAndListen();
+      return true;
+    }
+    if (n_arrive == msgs.size()) {
+      ++round;
+      if (!SendUint64ToAllPeers(kTcpMsgStepRelease, client_fds_)) {
+        ShutdownClientsAndListen();
+        return false;
+      }
+      continue;
+    }
+    BENCH_LOGE("step barrier mixed messages: arrive=%zu finished=%zu expected=%zu\n", n_arrive, n_finished,
+               msgs.size());
+    ShutdownClientsAndListen();
+    return false;
+  }
 }
 
 TCPClient::TCPClient() = default;
@@ -398,6 +543,33 @@ bool TCPClient::ReceiveTaskStatus() const {
     BENCH_LOGE("Tcp client received status failed\n");
     return false;
   }
+}
+
+bool TCPClient::StepBarrier() const {
+  if (sock_ < 0) {
+    BENCH_LOGE("StepBarrier failed, socket is closed\n");
+    return false;
+  }
+  if (!SendUint64(kTcpMsgStepArrive)) {
+    return false;
+  }
+  uint64_t msg = 0;
+  if (!ReceiveUint64(&msg)) {
+    return false;
+  }
+  if (msg != kTcpMsgStepRelease) {
+    BENCH_LOGE("StepBarrier unexpected release msg=%" PRIu64 "\n", msg);
+    return false;
+  }
+  return true;
+}
+
+bool TCPClient::SendFinished() const {
+  if (sock_ < 0) {
+    BENCH_LOGE("SendFinished failed, socket is closed\n");
+    return false;
+  }
+  return SendUint64(kTcpMsgFinished);
 }
 
 void TCPClient::Disconnect() {

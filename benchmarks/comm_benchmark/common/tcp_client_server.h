@@ -18,6 +18,10 @@
 
 constexpr int kDefaultTcpListenBacklog = 128;
 constexpr uint32_t kDefaultTcpClientConnectTimeoutMs = 60000U;
+// Post-handshake peer-coordination messages (uint64, network byte order).
+constexpr uint64_t kTcpMsgStepArrive = 1ULL;
+constexpr uint64_t kTcpMsgStepRelease = 2ULL;
+constexpr uint64_t kTcpMsgFinished = 3ULL;
 
 bool TcpSendUint64(int fd, uint64_t data);
 
@@ -72,6 +76,12 @@ class TCPClient {
 
   bool ReceiveTaskStatus() const;
 
+  /// Arrive at a step barrier and wait until the target releases all peers.
+  bool StepBarrier() const;
+
+  /// Tell the target this initiator will send no more step-barrier messages.
+  bool SendFinished() const;
+
   void Disconnect();
 
   ~TCPClient();
@@ -82,7 +92,7 @@ class TCPClient {
 };
 
 /// Owns `TCPServer`, per-client fds, and the connect-phase worker thread. Used by benchmark server: pass memory
-/// address for coordination, then call `WaitAllNotify()` after clients finish transfers.
+/// address for coordination, then call `RunStepBarrierUntilFinished()` so peers start each block-size step together.
 class TcpServerSession {
  public:
   /// `expected_peer_count`: accept until this many TCP peers complete handshake (each receives mem_addr + status).
@@ -105,6 +115,10 @@ class TcpServerSession {
   /// Waits for one task-status message per connected peer (same protocol as `TCPClient::SendTaskStatus`).
   /// Closes all client fds and stops listen on success or failure.
   bool WaitAllNotify();
+
+  /// After handshake: release peers together before every block-size step, until all send `kTcpMsgFinished`.
+  /// Closes all client fds and stops listen on success or failure.
+  bool RunStepBarrierUntilFinished();
 
   size_t ConnectedPeerCount() const {
     return client_fds_.size();

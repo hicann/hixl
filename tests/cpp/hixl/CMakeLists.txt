@@ -42,7 +42,9 @@ set(HIXL_TEST_FILES
         engine/direct_multi_channel_handler_unittest.cc
         engine/local_comm_res_ut.cc
         engine/route_conf_generator_ut.cc
+        engine/tcp_step_barrier_unittest.cc
         ../ops/hixl_kernel/hixl_kernel_basic_unittest.cc
+        "${HIXL_CODE_DIR}/benchmarks/comm_benchmark/common/tcp_client_server.cpp"
 )
 
 file(GLOB HIXL_SRC_LIST
@@ -130,6 +132,8 @@ target_include_directories(hixl_test PRIVATE
         ${HIXL_CODE_DIR}/src/hixl/profiling
         ${HIXL_CODE_DIR}/src/ops
         ${HIXL_CODE_DIR}/src/ops/hixl_kernel/extern_include
+        ${HIXL_CODE_DIR}/benchmarks
+        ${HIXL_CODE_DIR}/benchmarks/comm_benchmark/common
         ${HIXL_CODE_DIR}/tests
         ${HIXL_CODE_DIR}/tests/depends/ascendcl/src
         ${HIXL_CODE_DIR}/tests/depends/hccl/src
