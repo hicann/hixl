@@ -26,6 +26,10 @@
 
 CacheManager的实例应该通过cache\_manager返回。
 
+CacheManager的生命周期与获取它的LLMDataDist初始化周期一致。调用LLMDataDist.finalize()后，之前获取的CacheManager不再可用；通过旧实例进行缓存分配、注册、释放或传输等操作会抛出LLMException，错误码为LLM_ENGINE_FINALIZED。
+
+重新调用LLMDataDist.init()后，应再次通过cache\_manager获取新的CacheManager。旧实例不会随引擎重新初始化而恢复有效。
+
 ## pull\_cache
 
 **函数功能**

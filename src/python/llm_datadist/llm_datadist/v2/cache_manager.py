@@ -12,7 +12,12 @@
 
 from typing import List, Optional, Tuple, Union, Dict
 
-from llm_datadist.status import handle_llm_status, raise_if_false, raise_if_true
+from llm_datadist.status import (
+    LLMStatusCode,
+    handle_llm_status,
+    raise_if_false,
+    raise_if_true,
+)
 from llm_datadist.utils import log
 from llm_datadist.utils.utils import (
     check_isinstance,
@@ -85,6 +90,13 @@ class CacheManager(object):
         )
         self._enable_local_comm_res = "llm.LocalCommRes" in options
 
+    def _check_is_inited(self):
+        raise_if_false(
+            self._initialized,
+            "CacheManager is no longer initialized; obtain a new instance after LLMDataDist.init.",
+            status_code=LLMStatusCode.LLM_ENGINE_FINALIZED,
+        )
+
     @staticmethod
     def check_cache_key(cache_key: CacheKey) -> None:
         raise_if_true(
@@ -112,6 +124,7 @@ class CacheManager(object):
             Cache
 
         """
+        self._check_is_inited()
         check_isinstance("cache_desc", cache_desc, CacheDesc)
         check_isinstance("blocks_cache_key", blocks_cache_key, BlocksCacheKey)
         raise_if_false(
@@ -158,6 +171,7 @@ class CacheManager(object):
         Returns:
             Cache
         """
+        self._check_is_inited()
         check_isinstance("cache_desc", cache_desc, CacheDesc)
         check_isinstance("cache_keys", cache_keys, [list, tuple], CacheKey)
         raise_if_false(
@@ -195,6 +209,7 @@ class CacheManager(object):
             cache: 目标缓存
             copy_block_info: 拷贝信息, (int, List[int])代表(原始block index, 目标block index)
         """
+        self._check_is_inited()
         check_isinstance("cache", cache, Cache)
         check_isinstance("copy_block_info", copy_block_info, dict)
         check_dict("copy_block_info", copy_block_info, int, list, int)
@@ -242,6 +257,7 @@ class CacheManager(object):
             size: 每个tensor拷贝的大小
             req_id(Optional): 本次操作关联的req_id, 仅用于维测
         """
+        self._check_is_inited()
         check_isinstance("dst", dst, Cache)
         check_isinstance("src", src, Cache)
         check_uint32("dst_batch_index", dst_batch_index)
@@ -291,6 +307,7 @@ class CacheManager(object):
         log.info("[copy_cache] success")
 
     def deallocate_blocks_cache(self, cache: Cache) -> None:
+        self._check_is_inited()
         check_isinstance("cache", cache, Cache)
         raise_if_false(
             cache.is_blocks_cache, "param check failed, cache should be blocks cache."
@@ -315,6 +332,7 @@ class CacheManager(object):
         Examples:
             see examples of allocate_cache
         """
+        self._check_is_inited()
         check_isinstance("cache", cache, Cache)
         raise_if_true(
             cache.is_blocks_cache, "param check failed, cache can not be blocks cache."
@@ -346,6 +364,7 @@ class CacheManager(object):
                 dst_layer_range: 目的层范围
                 tensor_num_per_layer: 每层tensor数量
         """
+        self._check_is_inited()
         src_layer_range = kwargs.get("src_layer_range")
         dst_layer_range = kwargs.get("dst_layer_range")
         tensor_num_per_layer = kwargs.get(
@@ -435,6 +454,7 @@ class CacheManager(object):
                 dst_layer_range: 目的层范围
                 tensor_num_per_layer: 每层tensor数量
         """
+        self._check_is_inited()
         if self._enable_remote_cache_accessible:
             check_isinstance("cache_key", cache_key, CacheKeyByIdAndIndex)
         else:
@@ -511,6 +531,7 @@ class CacheManager(object):
             cache_keys: cache keys
             remote_accessible(Optional): whether remote cache is accessible
         """
+        self._check_is_inited()
         check_isinstance("cache_desc", cache_desc, CacheDesc)
         check_isinstance("addrs", addrs, list, int)
         check_isinstance("cache_keys", cache_keys, [tuple, list], CacheKey)
@@ -557,6 +578,7 @@ class CacheManager(object):
             blocks_cache_key(Optional): BlocksCacheKey
             remote_accessible(Optional): whether remote cache is accessible
         """
+        self._check_is_inited()
         check_isinstance("cache_desc", cache_desc, CacheDesc)
         check_isinstance("addrs", addrs, list, int)
         check_isinstance("blocks_cache_key", blocks_cache_key, BlocksCacheKey)
@@ -594,6 +616,7 @@ class CacheManager(object):
         Args:
             cache_id: 待解注册的Cache id
         """
+        self._check_is_inited()
         check_isinstance("cache_id", cache_id, int)
         check_int64("cache_id", cache_id)
         ret = self._llm_datadist.unregister_cache(cache_id)
@@ -610,6 +633,7 @@ class CacheManager(object):
         Examples:
             see examples of allocate_cache
         """
+        self._check_is_inited()
         check_isinstance("cache_key", cache_key, CacheKey)
         log.info("[remove_cache_key] start, cache_key = %s", cache_key)
         ret = self._llm_datadist.remove_cache_key_v2(pack_cache_key(cache_key))
@@ -623,6 +647,7 @@ class CacheManager(object):
         Args:
             mem_infos: Union[MemInfo, list[MemInfo]]
         """
+        self._check_is_inited()
         raise_if_false(
             isinstance(mem_infos, list) or isinstance(mem_infos, MemInfo),
             f"mem_infos type only support list of MemInfo or MemInfo, but got {format(type(mem_infos))}.",
@@ -717,6 +742,7 @@ class CacheManager(object):
             dst: 目的Cache
             src_to_dst: block index的字典
         """
+        self._check_is_inited()
         self._verify_caches(src_cache, dst_cache, src_to_dst)
         src_placement = src_cache.cache_desc.placement
         dst_placement = dst_cache.cache_desc.placement
@@ -757,6 +783,7 @@ class CacheManager(object):
         dst_block_indices: Optional[Union[List[int], Tuple[int]]] = None,
         dst_block_memory_size: Optional[int] = None,
     ) -> CacheTask:
+        self._check_is_inited()
         check_isinstance("src_cache", src_cache, Cache, allow_none=False)
         raise_if_true(
             src_cache.cache_desc.placement == Placement.HOST,
@@ -800,6 +827,7 @@ class CacheManager(object):
             tensor_num_per_layer: 每层tensor数量
         """
         # only C2C
+        self._check_is_inited()
         raise_if_false(
             self._enable_remote_cache_accessible,
             "push_cache is only supported while enable_remote_cache_accessible is True",
@@ -895,6 +923,7 @@ class CacheManager(object):
             tensor_num_per_layer: 每层tensor数量
         """
         # C2B or B2B
+        self._check_is_inited()
         raise_if_false(
             self._enable_remote_cache_accessible,
             "push_blocks is only supported while enable_remote_cache_accessible is True",
