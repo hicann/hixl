@@ -47,7 +47,8 @@ struct HixlTransferContextSyncEntry {
   uint32_t op;
   uint32_t notify_id;
   uint64_t err_flag_dev_va;
-  uint64_t reserved[13] = {};
+  uint64_t dispatched_tasks{0};
+  uint64_t reserved[12] = {};
 };
 
 constexpr uint32_t kHixlSyncParamVersion = 1U;

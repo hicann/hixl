@@ -45,6 +45,7 @@ HixlTransferThreadState TransferContextManager::Add(ThreadHandle thread, uint32_
   ctx->SetState(TRANSFER_THREAD_STATE_INITIALIZED);
   ctx->notify_id = notify_id;
   ctx->err_flag_dev_va = err_flag_dev_va;
+  ctx->dispatched_tasks = 0;
 
   HIXL_LOGI(
       "[TransferContextManager] added transfer context successfully. thread=%lu notify_id=%u err_flag_dev_va=0x%lx",
@@ -57,7 +58,7 @@ HixlTransferThreadState TransferContextManager::Add(ThreadHandle thread, uint32_
   return TRANSFER_THREAD_STATE_INITIALIZED;
 }
 
-HixlTransferThreadState TransferContextManager::Delete(ThreadHandle thread) {
+HixlTransferThreadState TransferContextManager::Delete(ThreadHandle thread, uint64_t *out_dispatched) {
   bool need_disable = false;
   std::unique_lock<std::mutex> lock(mutex_);
   auto it = contexts_.find(thread);
@@ -69,6 +70,9 @@ HixlTransferThreadState TransferContextManager::Delete(ThreadHandle thread) {
   ctx->SetState(TRANSFER_THREAD_STATE_DELETING);
   if (!ctx->try_lock()) {
     return TRANSFER_THREAD_STATE_DELETING;
+  }
+  if (out_dispatched != nullptr) {
+    *out_dispatched = ctx->dispatched_tasks;
   }
   ctx->SetState(TRANSFER_THREAD_STATE_DELETED);
   contexts_.erase(it);
