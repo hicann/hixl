@@ -410,10 +410,10 @@ def _render_transport_chart(spec: TransportChartSpec) -> str:
             continue
         xs: list[int] = []
         ys: list[float] = []
-        for block in spec.ordered_blocks:
+        for block_idx, block in enumerate(spec.ordered_blocks):
             if block not in bw_map:
                 continue
-            xs.append(len(xs))
+            xs.append(block_idx)
             ys.append(bw_map[block])
         if not ys:
             continue
