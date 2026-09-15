@@ -603,8 +603,9 @@ TEST_F(AdxlEngineUTest, TestAdxlEngineTransferAsyncWithMultiThread) {
   TransferReq req_list[kThreadCount];
   std::vector<std::thread> async_threads;
   for (int i = 0; i < kThreadCount; i++) {
-    async_threads.emplace_back(
-        [&, i]() { EXPECT_EQ(engine1.TransferAsync("127.0.0.1:28101", WRITE, {desc}, {}, req_list[i]), SUCCESS); });
+    async_threads.emplace_back([&engine1, &desc, &req_list, i]() {
+      EXPECT_EQ(engine1.TransferAsync("127.0.0.1:28101", WRITE, {desc}, {}, req_list[i]), SUCCESS);
+    });
   }
   for (auto &t : async_threads) {
     t.join();

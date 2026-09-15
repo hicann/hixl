@@ -48,7 +48,7 @@ class ThreadPoolTest : public ::testing::Test {
   }
 
   std::function<void()> CreateBlockingTask(BlockingTaskContext &ctx) {
-    return [&]() {
+    return [&ctx]() {
       uint32_t current = ctx.concurrent_count.fetch_add(1) + 1U;
       if (current > ctx.max_concurrent.load()) {
         ctx.max_concurrent.store(current);
@@ -57,7 +57,7 @@ class ThreadPoolTest : public ::testing::Test {
       ctx.cv.notify_one();
 
       std::unique_lock<std::mutex> lock(ctx.mtx);
-      ctx.cv.wait(lock, [&]() { return ctx.release_tasks.load(); });
+      ctx.cv.wait(lock, [&ctx]() { return ctx.release_tasks.load(); });
 
       ctx.concurrent_count.fetch_sub(1);
     };
@@ -76,7 +76,7 @@ TEST_F(ThreadPoolTest, TasksExecutedSuccessfully) {
   const uint32_t task_count = 10U;
 
   for (uint32_t i = 0; i < task_count; ++i) {
-    pool.commit([&]() { counter.fetch_add(1); });
+    pool.commit([&counter]() { counter.fetch_add(1); });
   }
 
   WaitForTasks(counter, task_count);
@@ -95,7 +95,7 @@ TEST_F(ThreadPoolTest, ScaleUpWhenAllCoreThreadsBusy) {
 
   {
     std::unique_lock<std::mutex> lock(ctx.mtx);
-    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&]() { return ctx.tasks_started.load() >= 2U; });
+    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&ctx]() { return ctx.tasks_started.load() >= 2U; });
   }
 
   pool.commit(blocking_task);
@@ -103,7 +103,7 @@ TEST_F(ThreadPoolTest, ScaleUpWhenAllCoreThreadsBusy) {
 
   {
     std::unique_lock<std::mutex> lock(ctx.mtx);
-    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&]() { return ctx.tasks_started.load() >= 3U; });
+    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&ctx]() { return ctx.tasks_started.load() >= 3U; });
   }
 
   ReleaseTasks(ctx);
@@ -123,7 +123,7 @@ TEST_F(ThreadPoolTest, NoScaleUpBeyondMaxSize) {
 
   {
     std::unique_lock<std::mutex> lock(ctx.mtx);
-    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&]() { return ctx.tasks_started.load() >= 2U; });
+    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&ctx]() { return ctx.tasks_started.load() >= 2U; });
   }
 
   for (int i = 0; i < 3; ++i) {
@@ -146,11 +146,11 @@ TEST_F(ThreadPoolTest, TemporaryThreadExitsAfterTask) {
 
   {
     std::unique_lock<std::mutex> lock(ctx.mtx);
-    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&]() { return ctx.concurrent_count.load() >= 1U; });
+    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&ctx]() { return ctx.concurrent_count.load() >= 1U; });
   }
 
   std::atomic<uint32_t> max_concurrent{0};
-  pool.commit([&]() {
+  pool.commit([&ctx, &max_concurrent]() {
     uint32_t current = ctx.concurrent_count.fetch_add(1) + 1U;
     if (current > max_concurrent.load()) {
       max_concurrent.store(current);
@@ -177,7 +177,7 @@ TEST_F(ThreadPoolTest, NoScaleUpWhenMinEqualsMax) {
 
   {
     std::unique_lock<std::mutex> lock(ctx.mtx);
-    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&]() { return ctx.tasks_started.load() >= 2U; });
+    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&ctx]() { return ctx.tasks_started.load() >= 2U; });
   }
 
   for (int i = 0; i < 3; ++i) {
@@ -194,15 +194,15 @@ TEST_F(ThreadPoolTest, MultipleScaleUpEvents) {
   ThreadPool pool("test_multi", 1U, 5U);
   BlockingTaskContext ctx;
 
-  auto core_task = [&]() {
+  auto core_task = [&ctx]() {
     ctx.concurrent_count.fetch_add(1);
     ctx.cv.notify_one();
     std::unique_lock<std::mutex> lock(ctx.mtx);
-    ctx.cv.wait(lock, [&]() { return ctx.release_tasks.load(); });
+    ctx.cv.wait(lock, [&ctx]() { return ctx.release_tasks.load(); });
     ctx.concurrent_count.fetch_sub(1);
   };
 
-  auto temp_task = [&]() {
+  auto temp_task = [&ctx]() {
     uint32_t current = ctx.concurrent_count.fetch_add(1) + 1U;
     if (current > ctx.max_concurrent.load()) {
       ctx.max_concurrent.store(current);
@@ -218,7 +218,7 @@ TEST_F(ThreadPoolTest, MultipleScaleUpEvents) {
 
   {
     std::unique_lock<std::mutex> lock(ctx.mtx);
-    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&]() { return ctx.concurrent_count.load() >= 1U; });
+    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&ctx]() { return ctx.concurrent_count.load() >= 1U; });
   }
 
   for (int i = 0; i < 3; ++i) {
@@ -228,7 +228,7 @@ TEST_F(ThreadPoolTest, MultipleScaleUpEvents) {
 
   {
     std::unique_lock<std::mutex> lock(ctx.mtx);
-    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&]() { return ctx.tasks_started.load() >= 3U; });
+    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&ctx]() { return ctx.tasks_started.load() >= 3U; });
   }
 
   EXPECT_GE(ctx.max_concurrent.load(), 2U);
@@ -245,7 +245,7 @@ TEST_F(ThreadPoolTest, DestroyCompletesPendingTasks) {
   const uint32_t task_count = 20U;
 
   for (uint32_t i = 0; i < task_count; ++i) {
-    pool.commit([&]() {
+    pool.commit([&completed]() {
       completed.fetch_add(1);
       std::this_thread::sleep_for(std::chrono::milliseconds(5));
     });
@@ -269,11 +269,11 @@ TEST_F(ThreadPoolTest, ScaleUpTriggeredByTaskQueue) {
   ThreadPool pool("test_queue", 1U, 3U);
   BlockingTaskContext ctx;
 
-  auto core_task = [&]() {
+  auto core_task = [&ctx]() {
     ctx.concurrent_count.fetch_add(1);
     ctx.cv.notify_one();
     std::unique_lock<std::mutex> lock(ctx.mtx);
-    ctx.cv.wait(lock, [&]() { return ctx.release_tasks.load(); });
+    ctx.cv.wait(lock, [&ctx]() { return ctx.release_tasks.load(); });
     ctx.concurrent_count.fetch_sub(1);
     ctx.cv.notify_one();
   };
@@ -282,10 +282,10 @@ TEST_F(ThreadPoolTest, ScaleUpTriggeredByTaskQueue) {
 
   {
     std::unique_lock<std::mutex> lock(ctx.mtx);
-    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&]() { return ctx.concurrent_count.load() >= 1U; });
+    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&ctx]() { return ctx.concurrent_count.load() >= 1U; });
   }
 
-  pool.commit([&]() {
+  pool.commit([&ctx]() {
     ctx.concurrent_count.fetch_add(1);
     ctx.cv.notify_one();
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -293,7 +293,7 @@ TEST_F(ThreadPoolTest, ScaleUpTriggeredByTaskQueue) {
     ctx.cv.notify_one();
   });
 
-  pool.commit([&]() {
+  pool.commit([&ctx]() {
     ctx.concurrent_count.fetch_add(1);
     ctx.cv.notify_one();
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -303,7 +303,7 @@ TEST_F(ThreadPoolTest, ScaleUpTriggeredByTaskQueue) {
 
   {
     std::unique_lock<std::mutex> lock(ctx.mtx);
-    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&]() { return ctx.concurrent_count.load() >= 2U; });
+    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&ctx]() { return ctx.concurrent_count.load() >= 2U; });
   }
 
   ReleaseTasks(ctx);
@@ -323,7 +323,7 @@ TEST_F(ThreadPoolTest, ConcurrentExecutionWithScaling) {
 
   {
     std::unique_lock<std::mutex> lock(ctx.mtx);
-    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&]() { return ctx.tasks_started.load() >= 3U; });
+    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&ctx]() { return ctx.tasks_started.load() >= 3U; });
   }
 
   for (int i = 0; i < 3; ++i) {
@@ -333,7 +333,7 @@ TEST_F(ThreadPoolTest, ConcurrentExecutionWithScaling) {
 
   {
     std::unique_lock<std::mutex> lock(ctx.mtx);
-    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&]() { return ctx.tasks_started.load() >= 4U; });
+    ctx.cv.wait_for(lock, std::chrono::milliseconds(100), [&ctx]() { return ctx.tasks_started.load() >= 4U; });
   }
 
   ReleaseTasks(ctx);
@@ -349,7 +349,7 @@ TEST_F(ThreadPoolTest, TaskExecutionOrderPreserved) {
   std::mutex order_mtx;
 
   for (int i = 0; i < 10; ++i) {
-    pool.commit([&, i]() {
+    pool.commit([&order_mtx, &execution_order, i]() {
       std::lock_guard<std::mutex> lock(order_mtx);
       execution_order.push_back(i);
     });
@@ -367,7 +367,7 @@ TEST_F(ThreadPoolTest, HighLoadWithScaling) {
   const uint32_t task_count = 50U;
 
   for (uint32_t i = 0; i < task_count; ++i) {
-    pool.commit([&]() {
+    pool.commit([&completed]() {
       completed.fetch_add(1);
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
     });

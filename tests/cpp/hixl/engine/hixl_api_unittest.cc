@@ -155,8 +155,9 @@ class HixlUTest : public ::testing::Test {
   void DispatchAsyncWrites(Hixl &engine1, const TransferOpDesc &desc, TransferReq *req_list, int thread_count) {
     std::vector<std::thread> async_threads;
     for (int i = 0; i < thread_count; i++) {
-      async_threads.emplace_back(
-          [&, i]() { EXPECT_EQ(engine1.TransferAsync("127.0.0.1:26201", WRITE, {desc}, {}, req_list[i]), SUCCESS); });
+      async_threads.emplace_back([&engine1, &desc, &req_list, i]() {
+        EXPECT_EQ(engine1.TransferAsync("127.0.0.1:26201", WRITE, {desc}, {}, req_list[i]), SUCCESS);
+      });
     }
     for (auto &t : async_threads) {
       t.join();

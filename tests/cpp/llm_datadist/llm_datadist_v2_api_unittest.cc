@@ -604,7 +604,7 @@ TEST_F(LlmDataDistUTest, TestPushWithRangeAndTensorNumV2) {
   src_cache.cache_id = p_setup.cache_id;
   src_cache.cache_desc = kv_desc;
 
-  auto TestPush = [&](const KvCacheExtParam &ep, bool expect_ok) {
+  auto TestPush = [&llm_datadist_p, &src_cache, &dst_cache_index](const KvCacheExtParam &ep, bool expect_ok) {
     if (expect_ok) {
       EXPECT_EQ(llm_datadist_p.PushKvBlocks(src_cache, dst_cache_index, {0U, 1U}, {0U, 1U}, ep), ge::SUCCESS);
       EXPECT_EQ(llm_datadist_p.PushKvCache(src_cache, dst_cache_index, 0, -1, ep), ge::SUCCESS);
@@ -666,7 +666,7 @@ TEST_F(LlmDataDistUTest, TestPullWithRangeAndTensorNumV2) {
   dst_cache.cache_id = d_setup.cache_id;
   dst_cache.cache_desc = kv_desc;
 
-  auto TestPull = [&](const KvCacheExtParam &ep, bool expect_ok) {
+  auto TestPull = [&llm_datadist_d, &cache_index, &dst_cache](const KvCacheExtParam &ep, bool expect_ok) {
     if (expect_ok) {
       EXPECT_EQ(llm_datadist_d.PullKvCache(cache_index, dst_cache, 0, -1, ep), ge::SUCCESS);
       EXPECT_EQ(llm_datadist_d.PullKvBlocks(cache_index, dst_cache, {0U, 1U}, {0U, 1U}, ep), ge::SUCCESS);

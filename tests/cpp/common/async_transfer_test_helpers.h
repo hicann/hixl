@@ -46,7 +46,7 @@ inline void WaitForAllAsyncTransfers(Engine &engine, TransferReq *req_list, int 
   std::atomic<bool> stop{false};
   auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(max_wait_sec);
   for (int i = 0; i < req_count; ++i) {
-    poll_threads.emplace_back([&, i]() {
+    poll_threads.emplace_back([&engine, &req_list, &poll_interval_ms, &stop, &completed, i]() {
       if (PollTransferUntilDone<Engine, Status>(engine, req_list[i], poll_interval_ms, stop)) {
         completed.fetch_add(1);
       }

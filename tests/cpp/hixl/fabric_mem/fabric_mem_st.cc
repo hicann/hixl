@@ -365,8 +365,12 @@ TEST_F(FabricMemSTest, TestHixlFabricMemMultiTargetParallel) {
   const TransferOpDesc desc2 = BuildTransferDesc(src, remote_buf2);
   const TransferOpDesc desc3 = BuildTransferDesc(src, remote_buf3);
   std::vector<std::thread> threads;
-  threads.emplace_back([&]() { EXPECT_EQ(env.engine1.TransferSync(remote2, WRITE, {desc2}, kTimeoutMs), SUCCESS); });
-  threads.emplace_back([&]() { EXPECT_EQ(env.engine1.TransferSync(remote3, WRITE, {desc3}, kTimeoutMs), SUCCESS); });
+  threads.emplace_back([&env, &remote2, &desc2]() {
+    EXPECT_EQ(env.engine1.TransferSync(remote2, WRITE, {desc2}, kTimeoutMs), SUCCESS);
+  });
+  threads.emplace_back([&env, &remote3, &desc3]() {
+    EXPECT_EQ(env.engine1.TransferSync(remote3, WRITE, {desc3}, kTimeoutMs), SUCCESS);
+  });
   JoinThreads(threads);
 
   EXPECT_EQ(env.engine1.Disconnect(remote2, kTimeoutMs), SUCCESS);
@@ -389,7 +393,8 @@ TEST_F(FabricMemSTest, TestHixlFabricMemConcurrentAsync) {
   std::array<TransferReq, kAsyncRequestCount> reqs{};
   std::vector<std::thread> async_threads;
   for (size_t i = 0U; i < reqs.size(); ++i) {
-    async_threads.emplace_back([&, i]() { SubmitAsyncTransfer(env, WRITE, src, remote_buf, reqs[i]); });
+    async_threads.emplace_back(
+        [&env, &src, &remote_buf, &reqs, i]() { SubmitAsyncTransfer(env, WRITE, src, remote_buf, reqs[i]); });
   }
   JoinThreads(async_threads);
   WaitForAllAsyncWrites(env.engine1, reqs);

@@ -48,7 +48,9 @@ TEST(LlmDatadistTimerUt, ConcurrentCreateTimerAssignsUniqueIds) {
   std::vector<std::thread> threads;
   threads.reserve(static_cast<size_t>(kCreateTimerThreads));
   for (int32_t t = 0; t < kCreateTimerThreads; ++t) {
-    threads.emplace_back([&]() { CreateTimersOnThread(timer, mu, ids, handles, null_handles); });
+    threads.emplace_back([&timer, &mu, &ids, &handles, &null_handles]() {
+      CreateTimersOnThread(timer, mu, ids, handles, null_handles);
+    });
   }
   for (auto &th : threads) {
     th.join();
