@@ -13,6 +13,9 @@
 
 #include <cstddef>
 
+#include "hixl/hixl_types.h"
+#include "common/transfer_config.h"
+
 namespace hixl {
 constexpr size_t kMinFabricMemStartAddrTB = 0UL;
 constexpr size_t kMaxFabricMemStartAddrTB = 1024UL;
@@ -27,6 +30,7 @@ struct FabricMemConfig {
   size_t task_stream_num = 1U;
   size_t max_stream_num = 512U;
   bool enable_aicpu_unfold = true;
+  uint32_t max_transfer_count_per_batch = kDefaultMaxTransferCountPerBatch;
 };
 }  // namespace hixl
 

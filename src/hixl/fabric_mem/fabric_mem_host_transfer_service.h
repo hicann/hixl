@@ -32,8 +32,8 @@ class FabricMemHostTransferService : public FabricMemTransferService {
                            AsyncTransferPollInfo *info = nullptr) override;
   void CleanupAsyncTransfer(const TransferReq &req) override;
 
-  static Status ProcessCopyWithAsync(const AsyncSlot &slot, TransferOp operation,
-                                     const std::vector<TransferOpDesc> &op_descs);
+  Status ProcessCopyWithAsync(const AsyncSlot &slot, TransferOp operation,
+                              const std::vector<TransferOpDesc> &op_descs) const;
 
  private:
   Status IssueSyncCopy(const std::shared_ptr<FabricMemChannel> &channel, const AsyncSlot &slot,

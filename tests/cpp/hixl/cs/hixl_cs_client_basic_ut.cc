@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <arpa/inet.h>
 #include "gtest/gtest.h"
 #include "hixl_cs_client.h"
@@ -81,10 +82,12 @@ struct ImportedRemote {
   uint32_t list_num = 0;
 };
 // 创建 HixlClient 连接
-void CreateHixlClient(hixl::HixlCSClient &cli, const char *ip, uint32_t port) {
+void CreateHixlClient(hixl::HixlCSClient &cli, const char *ip, uint32_t port,
+                      const char *global_resource_config = nullptr) {
   EndpointDesc src = MakeSrcEp();
   EndpointDesc dst = MakeDstEp();
-  HixlClientConfig config{};  // 默认构造
+  HixlClientConfig config{};
+  config.global_resource_config = global_resource_config;
   HixlClientDesc desc{};
   desc.server_ip = ip;
   desc.server_port = port;
@@ -94,8 +97,9 @@ void CreateHixlClient(hixl::HixlCSClient &cli, const char *ip, uint32_t port) {
 }
 
 // 封装：创建连接 + 导入远端内存
-void PrepareConnectionAndImport(hixl::HixlCSClient &cli, const char *client_ip, uint32_t port) {
-  CreateHixlClient(cli, client_ip, port);
+void PrepareConnectionAndImport(hixl::HixlCSClient &cli, const char *client_ip, uint32_t port,
+                                const char *global_resource_config = nullptr) {
+  CreateHixlClient(cli, client_ip, port, global_resource_config);
   std::vector<HixlMemDesc> descs;
   descs.push_back(MakeRemoteDesc(kTransFlagNameDevice, &kTransFlagAddr, kFlagSizeBytes));
   descs.push_back(MakeRemoteDesc("server_data", &kServerDataAddr, kBlockSizeBytes));
@@ -126,6 +130,18 @@ class HixlCSClientFixture : public ::testing::Test {
     (void)cli.Destroy();
   }
 };
+
+TEST(HcommChannelDescInitTest, InitializesRoceDefaults) {
+  HcommChannelDesc channel_desc;
+
+  ASSERT_EQ(HcommChannelDescInit(&channel_desc, 1U), HCCL_SUCCESS);
+  EXPECT_EQ(channel_desc.header.version, 4U);
+  EXPECT_EQ(channel_desc.roceAttr.qpThreshold, 0U);
+  EXPECT_EQ(channel_desc.roceAttr.cqAttrFlags, 0U);
+  EXPECT_EQ(channel_desc.roceAttr.srcPortList, nullptr);
+  EXPECT_EQ(channel_desc.roceAttr.sqDepth, 0U);
+  EXPECT_EQ(channel_desc.roceAttr.scqDepth, 0U);
+}
 
 TEST_F(HixlCSClientFixture, RegMemAndUnRegMem) {
   // 先创建本端 endpoint（Create 不依赖 socket 初始化以外的 HCCL）
@@ -387,7 +403,7 @@ TEST_F(HixlCSClientFixture, MultipleBatchTransferAndCheckStatus) {
   EXPECT_GE(query_handles.size(), 1U);
 }
 
-// 测试传输重试逻辑：15个任务时，前10次正常返回，第11次触发重试
+// 测试传输重试逻辑：15个任务时，第10次触发重试
 // 重试后 HcommChannelFenceOnThread 会重置计数器，所以重试后的传输会成功
 TEST_F(HixlCSClientFixture, BatchTransferWithRetryLogic) {
   const char *client_ip = "127.0.0.1";
@@ -396,6 +412,7 @@ TEST_F(HixlCSClientFixture, BatchTransferWithRetryLogic) {
 
   // 注册本地内存
   RecordLocalMem(cli);
+  SetTransferRetryThreshold(10U);
 
   // 创建15个传输任务
   HixlOneSideOpDesc descs[15];
@@ -403,9 +420,79 @@ TEST_F(HixlCSClientFixture, BatchTransferWithRetryLogic) {
     descs[i] = {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4};
   }
   void *query_handle = nullptr;
-  // 批量传输应该成功，因为重试逻辑会处理第11次开始的 HCCL_RETRY_REQUIRED
+  // 批量传输应该成功，因为重试逻辑会处理 HCCL_RETRY_REQUIRED
   EXPECT_EQ(cli.BatchTransferAsync(false, 15, descs, &query_handle), SUCCESS);
   EXPECT_NE(query_handle, nullptr);
+  EXPECT_EQ(GetFenceCallCount(), 1U);
+}
+
+TEST_F(HixlCSClientFixture, BatchTransferDoesNotFenceAtNormalBatchBoundary) {
+  const char *client_ip = "127.0.0.1";
+  uint32_t port = 22343;
+  PrepareConnectionAndImport(cli, client_ip, port, R"({"transfer_config.max_transfer_count_per_batch":2})");
+  RecordLocalMem(cli);
+
+  HixlOneSideOpDesc descs[] = {
+      {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4},
+      {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4},
+      {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4},
+      {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4},
+  };
+  void *query_handle = nullptr;
+  ASSERT_EQ(cli.BatchTransferAsync(false, 4, descs, &query_handle), SUCCESS);
+  EXPECT_NE(query_handle, nullptr);
+  EXPECT_EQ(GetFenceCallCount(), 0U);
+}
+
+TEST_F(HixlCSClientFixture, BatchTransferHostAsyncHandlesMaximumListNumWithoutChunkCountOverflow) {
+  const char *client_ip = "127.0.0.1";
+  uint32_t port = 22345;
+  PrepareConnectionAndImport(cli, client_ip, port);
+  RecordLocalMem(cli);
+
+  HixlOneSideOpDesc desc = {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4};
+  void *query_handle = nullptr;
+  SetNextNbiFailure(HCCL_E_PARA);
+
+  EXPECT_EQ(cli.BatchTransferHostAsync(false, std::numeric_limits<uint32_t>::max(), &desc, &query_handle),
+            PARAM_INVALID);
+  EXPECT_EQ(query_handle, nullptr);
+  EXPECT_EQ(GetNbiCallCount(), 1U);
+}
+
+TEST_F(HixlCSClientFixture, BatchTransferHostAsyncRejectsEmptyListBeforeSubmittingWork) {
+  const char *client_ip = "127.0.0.1";
+  uint32_t port = 22346;
+  PrepareConnectionAndImport(cli, client_ip, port);
+  RecordLocalMem(cli);
+
+  HixlOneSideOpDesc desc = {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4};
+  void *query_handle = nullptr;
+
+  EXPECT_EQ(cli.BatchTransferHostAsync(false, 0U, &desc, &query_handle), PARAM_INVALID);
+  EXPECT_EQ(query_handle, nullptr);
+  EXPECT_EQ(GetNbiCallCount(), 0U);
+  EXPECT_EQ(GetFenceCallCount(), 0U);
+}
+
+TEST_F(HixlCSClientFixture, BatchTransferRetriesCompletionFlagAfterQueueExhaustion) {
+  const char *client_ip = "127.0.0.1";
+  uint32_t port = 22344;
+  PrepareConnectionAndImport(cli, client_ip, port, R"({"transfer_config.max_transfer_count_per_batch":62})");
+  RecordLocalMem(cli);
+
+  constexpr uint32_t kTransferCount = 64U;
+  HixlOneSideOpDesc descs[kTransferCount];
+  for (auto &desc : descs) {
+    desc = {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4};
+  }
+  SetTransferRetryThreshold(kTransferCount + 1U);
+
+  void *query_handle = nullptr;
+  ASSERT_EQ(cli.BatchTransferAsync(false, kTransferCount, descs, &query_handle), SUCCESS);
+  EXPECT_NE(query_handle, nullptr);
+  EXPECT_EQ(GetFenceCallCount(), 1U);
+  EXPECT_EQ(GetNbiCallCount(), kTransferCount + 2U);
 }
 
 // 测试传输任务在 ChannelFenceOnThread 执行失败时的错误处理
@@ -418,17 +505,20 @@ TEST_F(HixlCSClientFixture, BatchTransferChannelFenceFailure) {
 
   // 注册本地内存
   RecordLocalMem(cli);
+  SetTransferRetryThreshold(10U);
 
-  // 创建2个传输任务
-  HixlOneSideOpDesc descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4},
-                               {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
+  // 创建15个传输任务，使 NBI 返回 HCCL_E_AGAIN 并进入 Fence 重试分支
+  HixlOneSideOpDesc descs[15];
+  for (auto &desc : descs) {
+    desc = {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4};
+  }
   void *query_handle = nullptr;
 
   // 设置在重试时 Fence 返回 HCCL_E_PARA
   SetNextFenceFailure(HCCL_E_PARA);
 
   // 批量传输返回 Fence 的转换错误码
-  EXPECT_EQ(cli.BatchTransferAsync(false, 2, descs, &query_handle), PARAM_INVALID);
+  EXPECT_EQ(cli.BatchTransferAsync(false, 15, descs, &query_handle), PARAM_INVALID);
 }
 
 // 测试传输任务在 ReadNbiOnThread 执行失败时的错误处理

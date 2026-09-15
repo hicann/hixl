@@ -9,39 +9,39 @@
  */
 
 #include "engine/client_handler_factory.h"
+
+#include <utility>
+
+#include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 #include "engine/direct_client_handler.h"
 #include "engine/direct_multi_channel_handler.h"
 #include "engine/ub_client_handler.h"
 
 namespace hixl {
-
-std::unique_ptr<IClientHandler> ClientHandlerFactory::Create(const HandlerCreateArgs &args) {
+Status ClientHandlerFactory::Create(const HandlerCreateArgs &args, std::unique_ptr<IClientHandler> &out) {
+  out.reset();
   if (args.handler_type == HandlerCreateArgs::HandlerType::DIRECT) {
     const auto &pair = args.matched_pairs[0];
     const bool is_multi_worker_protocol =
         (pair.type == CommType::COMM_TYPE_UBOE || pair.type == CommType::COMM_TYPE_UBG);
     if (is_multi_worker_protocol && args.multi_worker_num > 1U) {
       std::unique_ptr<DirectMultiChannelHandler> handler;
-      if (DirectMultiChannelHandler::Create(args, handler) != SUCCESS) {
-        HIXL_LOGE(FAILED, "ClientHandlerFactory create DirectMultiChannelHandler failed");
-        return nullptr;
-      }
-      return handler;
+      HIXL_CHK_STATUS_RET(DirectMultiChannelHandler::Create(args, handler),
+                          "ClientHandlerFactory create DirectMultiChannelHandler failed");
+      out = std::move(handler);
+      return SUCCESS;
     }
     std::unique_ptr<DirectClientHandler> handler;
-    if (DirectClientHandler::Create(args, handler) != SUCCESS) {
-      HIXL_LOGE(FAILED, "ClientHandlerFactory create DirectClientHandler failed");
-      return nullptr;
-    }
-    return handler;
+    HIXL_CHK_STATUS_RET(DirectClientHandler::Create(args, handler),
+                        "ClientHandlerFactory create DirectClientHandler failed");
+    out = std::move(handler);
+    return SUCCESS;
   }
   std::unique_ptr<UbClientHandler> handler;
-  if (UbClientHandler::Create(args, handler) != SUCCESS) {
-    HIXL_LOGE(FAILED, "ClientHandlerFactory create UbClientHandler failed");
-    return nullptr;
-  }
-  return handler;
+  HIXL_CHK_STATUS_RET(UbClientHandler::Create(args, handler), "ClientHandlerFactory create UbClientHandler failed");
+  out = std::move(handler);
+  return SUCCESS;
 }
 
 }  // namespace hixl

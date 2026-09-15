@@ -48,7 +48,6 @@ constexpr uint64_t kFlagDoneValue = 1ULL;
 constexpr uint64_t kFlagResetValue = 0ULL;
 constexpr uint32_t kCustomTimeoutMs = 1800;
 constexpr uint32_t kMaxKernelBatchSize = 128U;
-constexpr uint32_t kNotifyWaitTaskInterval = 1920U;
 // ACL_RT_LAUNCH_KERNEL_ATTR_TIMEOUT uses seconds. Async callers observe timeout by CheckStatus.
 constexpr uint16_t kNotifyDefaultWaitTimeS = 27 * 68;
 constexpr uint32_t kMinRdmaRetryCnt = 1U;
@@ -502,17 +501,16 @@ Status HixlCSClient::BatchTransferTask(bool is_get, uint32_t list_num, const Hix
                         "[HixlClient] TransferWithRetry failed, is_get:%d, channel_handle:%lu, size:%lu bytes",
                         static_cast<int32_t>(is_get), client_channel_handle_, desc_list[i].len);
   }
-  HIXL_CHK_HCCL_RET(
-      static_cast<HcclResult>(HcommProxy::ChannelFenceOnThread(static_cast<ThreadHandle>(0), client_channel_handle_)),
-      "[HixlClient] channel_handle:%lu", client_channel_handle_);
   return SUCCESS;
 }
 Status HixlCSClient::BatchTransferHostAsync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list,
                                             void **query_handle) {
-  uint32_t num_chunks = (list_num + kMaxKernelBatchSize - 1U) / kMaxKernelBatchSize;
+  HIXL_CHK_BOOL_RET_STATUS(list_num > 0U, PARAM_INVALID, "[HixlClient] list_num must be > 0");
+  const uint32_t batch_size = global_config_.MaxTransferCountPerBatch();
+  const uint32_t num_chunks = list_num / batch_size + static_cast<uint32_t>(list_num % batch_size != 0U);
   for (uint32_t chunk_idx = 0U; chunk_idx < num_chunks; ++chunk_idx) {
-    uint32_t chunk_offset = chunk_idx * kMaxKernelBatchSize;
-    uint32_t chunk_size = std::min(kMaxKernelBatchSize, list_num - chunk_offset);
+    uint32_t chunk_offset = chunk_idx * batch_size;
+    uint32_t chunk_size = std::min(batch_size, list_num - chunk_offset);
     HIXL_CHK_STATUS_RET(BatchTransferTask(is_get, chunk_size, desc_list + chunk_offset),
                         "[HixlClient] BatchTransferTask failed for chunk %u/%u", chunk_idx, num_chunks);
   }
@@ -533,11 +531,10 @@ Status HixlCSClient::BatchTransferHostAsync(bool is_get, uint32_t list_num, cons
   } else {
     kTransFlagName = kTransFlagNameDevice;
   }
-  HIXL_CHK_HCCL_RET(static_cast<HcclResult>(
-                        HcommProxy::ReadNbiOnThread(static_cast<ThreadHandle>(0), client_channel_handle_, flag_addr,
-                                                    tag_mem_descs_[kTransFlagName].addr, kFlagSizeBytes)),
-                    "[HixlClient] channel_handle:%lu, dst_addr:%p, src_addr:%p, size:%u bytes", client_channel_handle_,
-                    flag_addr, tag_mem_descs_[kTransFlagName].addr, kFlagSizeBytes);
+  HIXL_CHK_STATUS_RET(
+      TransferWithRetry(true, client_channel_handle_, flag_addr, tag_mem_descs_[kTransFlagName].addr, kFlagSizeBytes),
+      "[HixlClient] Transfer completion flag failed, channel_handle:%lu, dst_addr:%p, src_addr:%p, size:%u bytes",
+      client_channel_handle_, flag_addr, tag_mem_descs_[kTransFlagName].addr, kFlagSizeBytes);
   auto *query_mem_handle = new (std::nothrow) CompleteHandleInfo();
   if (query_mem_handle == nullptr) {
     HIXL_LOGE(FAILED, "Memory allocate failed; unable to generate query handle.");
@@ -720,17 +717,27 @@ Status HixlCSClient::AllocateHostFlag(void *&host_flag) const {
 }
 
 Status HixlCSClient::LaunchDeviceChunkedKernels(bool is_get, DeviceCompleteHandle &handle, uint32_t list_num) const {
-  uint32_t num_chunks = (list_num + kMaxKernelBatchSize - 1U) / kMaxKernelBatchSize;
-  for (uint32_t chunk_idx = 0U; chunk_idx < num_chunks; ++chunk_idx) {
-    uint32_t chunk_offset = chunk_idx * kMaxKernelBatchSize;
-    uint32_t chunk_list_num = std::min(kMaxKernelBatchSize, list_num - chunk_offset);
-    uint32_t chunk_end = chunk_offset + chunk_list_num;
-    bool need_notify_wait = (chunk_end % kNotifyWaitTaskInterval == 0U) || (chunk_end == list_num);
+  const uint32_t batch_size = global_config_.MaxTransferCountPerBatch();
+  // Device transfers have two batching boundaries: each kernel accepts at most 128 descriptors, while each logical
+  // transfer batch accepts at most batch_size descriptors. A kernel never crosses a logical batch boundary, and the
+  // last kernel in every logical batch records a Notify that the host waits for before submitting the next batch.
+  uint32_t chunk_offset = 0U;
+  uint32_t batch_remaining = batch_size;
+  uint32_t chunk_idx = 0U;
+  while (chunk_offset < list_num) {
+    uint32_t chunk_list_num = std::min({kMaxKernelBatchSize, batch_remaining, list_num - chunk_offset});
+    batch_remaining -= chunk_list_num;
+    const bool need_notify_wait = batch_remaining == 0U || chunk_offset + chunk_list_num == list_num;
     HixlOneSideOpParam param{};
     HIXL_CHK_STATUS_RET(BuildDeviceChunkParam(handle, chunk_offset, chunk_list_num, need_notify_wait, param),
-                        "BuildDeviceChunkParam failed for chunk %u/%u", chunk_idx, num_chunks);
+                        "BuildDeviceChunkParam failed for chunk %u", chunk_idx);
     HIXL_CHK_STATUS_RET(LaunchDeviceKernel(is_get, handle, param, need_notify_wait),
-                        "LaunchDeviceKernel failed for chunk %u/%u", chunk_idx, num_chunks);
+                        "LaunchDeviceKernel failed for chunk %u", chunk_idx);
+    chunk_offset += chunk_list_num;
+    ++chunk_idx;
+    if (batch_remaining == 0U) {
+      batch_remaining = batch_size;
+    }
   }
   return SUCCESS;
 }
@@ -959,11 +966,11 @@ Status HixlCSClient::BatchTransferDeviceSync(bool is_get, uint32_t list_num, con
 
 Status HixlCSClient::BatchTransferHostSync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list,
                                            uint32_t timeout_ms) {
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
   void *raw_handle = nullptr;
   HIXL_CHK_STATUS_RET(BatchTransferHostAsync(is_get, list_num, desc_list, &raw_handle),
                       "[HixlClient] BatchTransferHostAsync failed");
   HIXL_CHECK_NOTNULL(raw_handle);
-  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
   while (true) {
     if (std::chrono::steady_clock::now() >= deadline) {
       (void)ReleaseCompleteHandle(static_cast<CompleteHandleInfo *>(raw_handle));
@@ -1249,7 +1256,8 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannel(uint32_t timeout_ms) {
                            retry_interval_,
                            ChannelType::kClient,
                            channel_index,
-                           global_config_.Qos().value_or(kQosDefault)};
+                           global_config_.Qos().value_or(kQosDefault),
+                           global_config_.MaxTransferCountPerBatch()};
   HIXL_CHK_STATUS_RET(local_endpoint_->CreateChannel(channel_desc, channel_handle, timeout_ms),
                       "[HixlClient] Endpoint CreateChannel failed. Dst[id:0x%x]", remote_endpoint_.commAddr.id);
   HIXL_CHK_STATUS_RET(ConnMsgHandler::RecvCreateChannelResponse(socket_, timeout_ms),

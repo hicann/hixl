@@ -129,6 +129,10 @@ Status FabricMemTransferService::InitCommon(const FabricMemTransferServiceInitPa
                            "Invalid fabric mem transfer service initialization parameters.");
   const size_t task_stream_num = param.task_stream_num;
   HIXL_CHK_BOOL_RET_STATUS(task_stream_num > 0, PARAM_INVALID, "task_stream_num must be greater than zero.");
+  HIXL_CHK_BOOL_RET_STATUS(param.max_transfer_count_per_batch >= 1U &&
+                               param.max_transfer_count_per_batch <= kMaxFixedQueueTransferCountPerBatch,
+                           PARAM_INVALID, "max_transfer_count_per_batch must be in [1, %u], got %u.",
+                           kMaxFixedQueueTransferCountPerBatch, param.max_transfer_count_per_batch);
   // An AICPU slot pairs every control stream with a device-only RTSQ worker stream, so it costs
   // twice the streams a host slot does and the pool must be sized accordingly.
   const size_t streams_per_slot = enable_aicpu_unfold ? (task_stream_num * 2U) : task_stream_num;
@@ -136,6 +140,7 @@ Status FabricMemTransferService::InitCommon(const FabricMemTransferServiceInitPa
                            "max_stream_num must leave room for at least one slot's streams.");
   device_id_ = param.device_id;
   task_stream_num_ = task_stream_num;
+  max_transfer_count_per_batch_ = param.max_transfer_count_per_batch;
   max_stream_num_ = param.max_stream_num;
   statistic_ = param.statistic;
   local_memory_ = param.local_memory;

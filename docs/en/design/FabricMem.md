@@ -313,7 +313,7 @@ sequenceDiagram
 
 **Checkpoint list**:
 1. **Engine routing check**: `OPTION_ENABLE_USE_FABRIC_MEM=1` must be `FabricMemEngine` created by `EngineFactory`.
-2. **Configuration validity check**: `FabricMemConfig` parses `EnableUseFabricMem`, `GlobalResourceConfig`, stream count, virtual address capacity and start address.
+2. **Configuration validity check**: `FabricMemConfig` parses `EnableUseFabricMem`, `GlobalResourceConfig`, stream count, virtual address capacity, start address, and the maximum transfer count per batch. `transfer_config.max_transfer_count_per_batch` ranges from `1` to `1920` and defaults to `1920`; this range is validated in both unfolding modes. When `enable_aicpu_unfold=true`, it controls the logical batches and Notify boundaries for AICPU unfolding without changing the fixed 2K STARS queue depth. When `enable_aicpu_unfold=false`, the Host submits each `aclrtMemcpyAsync` operation individually, without batching by this value or adding synchronization at its boundaries.
 3. **Memory type check**: In FabricMem mode, HOST memory registration requires additional local import and mapping processing.
 4. **Transfer parameter check**: Validates address range in transfer description is within locally registered or remotely imported memory range.
 5. **Stream resource management check**: Ensures stream resources in stream pool correctly allocated and released, avoiding resource leak.

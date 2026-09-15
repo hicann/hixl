@@ -18,6 +18,7 @@
 
 #include "acl/acl_rt.h"
 #include "common/hixl_inner_types.h"
+#include "common/transfer_config.h"
 #include "fabric_mem/fabric_mem_types.h"
 
 namespace hixl {
@@ -38,7 +39,7 @@ class FabricMemAicpuDispatcher {
   FabricMemAicpuDispatcher(const FabricMemAicpuDispatcher &) = delete;
   FabricMemAicpuDispatcher &operator=(const FabricMemAicpuDispatcher &) = delete;
 
-  Status Initialize(int32_t device_id);
+  Status Initialize(int32_t device_id, uint32_t max_transfer_count_per_batch);
   void Finalize();
   bool IsInitialized() const;
 
@@ -90,6 +91,7 @@ class FabricMemAicpuDispatcher {
   int32_t device_id_{-1};
   // Physical/host device id passed to AICPU as param.device_id.
   uint32_t rtsq_device_id_{0U};
+  uint32_t max_transfer_count_per_batch_{kDefaultMaxTransferCountPerBatch};
   aclrtBinHandle binary_handle_{nullptr};
   aclrtFuncHandle batch_read_{nullptr};
   aclrtFuncHandle batch_write_{nullptr};

@@ -37,9 +37,16 @@ constexpr uint32_t kSyncContextKernelTimeoutMs = 10U * 1000U;
 constexpr uint32_t kSyncContextRetryTimeoutMs = 30U * 1000U;
 constexpr uint32_t kSyncContextRetryIntervalMs = 100U;
 
-Status CountKernelLaunches(size_t desc_count, size_t &launch_count) {
-  HIXL_CHK_BOOL_RET_STATUS(desc_count > 0U, PARAM_INVALID, "FabricMem AICPU launch count inputs are invalid.");
-  launch_count = (desc_count + kMaxDescriptorsPerKernelLaunch - 1U) / kMaxDescriptorsPerKernelLaunch;
+Status CountKernelLaunches(size_t desc_count, size_t batch_size, size_t &launch_count) {
+  HIXL_CHK_BOOL_RET_STATUS(desc_count > 0U && batch_size > 0U, PARAM_INVALID,
+                           "FabricMem AICPU launch count inputs are invalid.");
+  const size_t full_batch_count = desc_count / batch_size;
+  const size_t tail_desc_count = desc_count % batch_size;
+  const size_t kernels_per_full_batch = batch_size / kMaxDescriptorsPerKernelLaunch +
+                                        static_cast<size_t>(batch_size % kMaxDescriptorsPerKernelLaunch != 0U);
+  const size_t tail_kernel_count = tail_desc_count / kMaxDescriptorsPerKernelLaunch +
+                                   static_cast<size_t>(tail_desc_count % kMaxDescriptorsPerKernelLaunch != 0U);
+  launch_count = full_batch_count * kernels_per_full_batch + tail_kernel_count;
   return SUCCESS;
 }
 
@@ -109,19 +116,25 @@ Status FabricMemAicpuDispatcher::InitializeRtsqDevice() {
   return SUCCESS;
 }
 
-Status FabricMemAicpuDispatcher::Initialize(int32_t device_id) {
+Status FabricMemAicpuDispatcher::Initialize(int32_t device_id, uint32_t max_transfer_count_per_batch) {
   HIXL_CHK_BOOL_RET_STATUS(device_id >= 0, PARAM_INVALID, "FabricMem AICPU device id must be non-negative.");
+  HIXL_CHK_BOOL_RET_STATUS(
+      max_transfer_count_per_batch >= 1U && max_transfer_count_per_batch <= kMaxFixedQueueTransferCountPerBatch,
+      PARAM_INVALID, "FabricMem AICPU max_transfer_count_per_batch must be in [1, %u], got %u.",
+      kMaxFixedQueueTransferCountPerBatch, max_transfer_count_per_batch);
   std::lock_guard<std::mutex> lock(lifecycle_mutex_);
   if (initialized_.load(std::memory_order_acquire)) {
-    if (device_id_ == device_id) {
+    if (device_id_ == device_id && max_transfer_count_per_batch_ == max_transfer_count_per_batch) {
       return SUCCESS;
     }
     HIXL_LOGE(PARAM_INVALID,
-              "FabricMem AICPU dispatcher already initialized on device:%d, reject re-init on device:%d.", device_id_,
-              device_id);
+              "FabricMem AICPU dispatcher configuration cannot change after initialization, old_device:%d, "
+              "new_device:%d, old_batch:%u, new_batch:%u.",
+              device_id_, device_id, max_transfer_count_per_batch_, max_transfer_count_per_batch);
     return PARAM_INVALID;
   }
   device_id_ = device_id;
+  max_transfer_count_per_batch_ = max_transfer_count_per_batch;
   if (InitializeRtsqDevice() != SUCCESS) {
     device_id_ = -1;
     return UNSUPPORTED;
@@ -397,7 +410,7 @@ Status FabricMemAicpuDispatcher::LaunchOneDescriptorBatch(const AsyncSlot &slot,
   // SQEs plus an optional NotifyRecord.
   const size_t next_task_count = tasks_since_notify + count;
   const bool transfer_tail = begin + count == total_descs;
-  const bool emit_notify = next_task_count >= kFabricMemMaxInFlightRtsqTasks || transfer_tail;
+  const bool emit_notify = next_task_count >= max_transfer_count_per_batch_ || transfer_tail;
   FabricMemAicpuKernelParam param{};
   param.desc_addr = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(descriptor_buffer) +
                                           begin * sizeof(FabricMemAicpuTransferDesc));
@@ -443,7 +456,9 @@ Status FabricMemAicpuDispatcher::LaunchDescriptorBatches(const AsyncSlot &slot,
   size_t begin = 0U;
   size_t tasks_since_notify = 0U;
   while (begin < descs.size()) {
-    const size_t count = std::min(static_cast<size_t>(kMaxDescriptorsPerKernelLaunch), descs.size() - begin);
+    const size_t batch_remaining = max_transfer_count_per_batch_ - tasks_since_notify;
+    const size_t count =
+        std::min({static_cast<size_t>(kMaxDescriptorsPerKernelLaunch), batch_remaining, descs.size() - begin});
     HIXL_CHK_STATUS_RET(
         LaunchOneDescriptorBatch(slot, function, direction, descriptor_buffer, status_buffer, kernel_args_buffer, begin,
                                  count, descs.size(), rtsq_timeout_ms, status_idx, tasks_since_notify),
@@ -470,7 +485,7 @@ Status FabricMemAicpuDispatcher::Submit(const AsyncSlot &slot, TransferOp operat
   HIXL_CHK_STATUS_RET(BuildDeviceDescriptors(operation, op_descs, device_descs, direction),
                       "Build FabricMem AICPU device descriptors failed.");
   size_t launch_count = 0U;
-  HIXL_CHK_STATUS_RET(CountKernelLaunches(device_descs.size(), launch_count),
+  HIXL_CHK_STATUS_RET(CountKernelLaunches(device_descs.size(), max_transfer_count_per_batch_, launch_count),
                       "Count FabricMem AICPU kernel launches failed.");
 
   HIXL_CHK_BOOL_RET_STATUS(IsInitialized(), FAILED, "FabricMem AICPU dispatcher is not initialized.");

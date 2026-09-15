@@ -623,6 +623,7 @@ class HixlCSClientUT : public ::testing::Test {
     SetChannelGetStatusPendingCount(0U);
     ResetChannelCreateRecord();
     SetChannelGetStatusFailValue(-1);
+    ResetChannelDescRecord();
     // TransferPool initialization loads device kernels, so MmpaStub must be ready before Create.
     hixl_test::InstallSysApiHooks(std::make_shared<CsClientMmpaStub>());
   }
@@ -635,6 +636,7 @@ class HixlCSClientUT : public ::testing::Test {
     SetChannelGetStatusPendingCount(0U);
     ResetChannelCreateRecord();
     SetChannelGetStatusFailValue(-1);
+    ResetChannelDescRecord();
     hixl_test::ResetSysApiHooks();
   }
 
@@ -712,6 +714,33 @@ class HixlCSClientUT : public ::testing::Test {
     ExpectCreateChannelReqRetry(expected_cnt, expected_interval);
     ExpectLastHcommChannelRetry(expected_cnt, expected_interval);
     ASSERT_EQ(client.Destroy(), SUCCESS);
+  }
+
+  void VerifyQueueDepth(CommProtocol protocol, EndpointLocType loc_type, const char *global_resource_config,
+                        uint32_t expected_depth) {
+    StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
+    srcEx_ = MakeIdEpEx(kSrcEpId, protocol);
+    dstEx_ = MakeIdEpEx(kDstEpId, protocol);
+    srcEx_.loc.locType = loc_type;
+    dstEx_.loc.locType = loc_type;
+    HixlClientDesc desc{};
+    desc.local_endpoint = &srcEx_;
+    desc.remote_endpoint = &dstEx_;
+    desc.server_ip = "127.0.0.1";
+    desc.server_port = port_;
+    HixlClientConfig config{};
+    config.global_resource_config = global_resource_config;
+
+    ASSERT_EQ(client_.Create(&desc, &config), SUCCESS);
+    ASSERT_EQ(client_.Connect(kDefaultConnectTimeoutMs), SUCCESS);
+    EXPECT_EQ(GetLastChannelSqDepth(), expected_depth);
+    EXPECT_EQ(GetLastChannelScqDepth(), expected_depth);
+    if (protocol == COMM_PROTOCOL_ROCE) {
+      HcommChannelDesc channel_desc{};
+      ASSERT_TRUE(GetLastChannelCreateDesc(&channel_desc));
+      EXPECT_EQ(channel_desc.header.version, HCOMM_CHANNEL_VERSION);
+      EXPECT_EQ(channel_desc.roceAttr.srcPortList, nullptr);
+    }
   }
 
   void ConnectClient(uint64_t timeout_us = kDefaultConnectTimeoutMs) {
@@ -1019,6 +1048,35 @@ TEST_F(HixlCSClientUT, ConnectUsesDefaultRdmaRetryConfig) {
 
 TEST_F(HixlCSClientUT, ConnectUsesRdmaRetryEnvWhenInRange) {
   VerifyRdmaRetryConfig(true, "3", "9", kEnvRdmaRetryCnt, kEnvRdmaRetryInterval);
+}
+
+TEST_F(HixlCSClientUT, ConnectConfiguresDeviceRoceQueueDepths) {
+  VerifyQueueDepth(COMM_PROTOCOL_ROCE, ENDPOINT_LOC_TYPE_DEVICE,
+                   R"({"transfer_config.max_transfer_count_per_batch":1022})", 1024U);
+}
+
+TEST_F(HixlCSClientUT, ConnectConfiguresHostRoceQueueDepths) {
+  VerifyQueueDepth(COMM_PROTOCOL_ROCE, ENDPOINT_LOC_TYPE_HOST,
+                   R"({"transfer_config.max_transfer_count_per_batch":1024})", 2048U);
+}
+
+TEST_F(HixlCSClientUT, ConnectConfiguresHostUrmaQueueDepths) {
+  VerifyQueueDepth(COMM_PROTOCOL_UBC_CTP, ENDPOINT_LOC_TYPE_HOST,
+                   R"({"transfer_config.max_transfer_count_per_batch":1024})", 2048U);
+}
+
+class DeviceUrmaQueueDepthUT : public HixlCSClientUT, public ::testing::WithParamInterface<CommProtocol> {};
+
+TEST_P(DeviceUrmaQueueDepthUT, ConnectConfiguresUbAttrQueueDepths) {
+  VerifyQueueDepth(GetParam(), ENDPOINT_LOC_TYPE_DEVICE, R"({"transfer_config.max_transfer_count_per_batch":1022})",
+                   1024U);
+}
+
+INSTANTIATE_TEST_SUITE_P(UrmaProtocols, DeviceUrmaQueueDepthUT,
+                         ::testing::Values(COMM_PROTOCOL_UBC_CTP, COMM_PROTOCOL_UBOE, COMM_PROTOCOL_UBG));
+
+TEST_F(HixlCSClientUT, ConnectDoesNotConfigureUbTpQueueDepths) {
+  VerifyQueueDepth(COMM_PROTOCOL_UBC_TP, ENDPOINT_LOC_TYPE_HOST, nullptr, 0U);
 }
 
 TEST_F(HixlCSClientUT, ConnectWaitsChannelStatusUntilSuccess) {
@@ -1545,6 +1603,36 @@ TEST_F(HixlCSClientUT, ParseConfigMaxActiveChannelsDefault) {
   EXPECT_EQ(client_.Create(&desc, &config), SUCCESS);
   EXPECT_FALSE(client_.global_config_.MaxActiveChannels().has_value());
   client_.Destroy();
+}
+
+TEST_F(HixlCSClientUT, ParseConfigMaxTransferCountPerBatch) {
+  port_ = kPort;
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientConfig config{};
+  config.global_resource_config = R"({"transfer_config.max_transfer_count_per_batch":1022})";
+  EXPECT_EQ(client_.Create(&desc, &config), SUCCESS);
+  EXPECT_EQ(client_.global_config_.MaxTransferCountPerBatch(), 1022U);
+  client_.Destroy();
+}
+
+TEST_F(HixlCSClientUT, ParseConfigMaxTransferCountPerBatchAcceptsIntegerAndDecimalString) {
+  for (const char *value : {"1", "\"1920\"", "32766"}) {
+    const std::string config_str = std::string(R"({"transfer_config.max_transfer_count_per_batch":)") + value + "}";
+    GlobalConfig config;
+    EXPECT_EQ(GlobalConfig::Parse(config_str.c_str(), config), SUCCESS) << value;
+  }
+}
+
+TEST_F(HixlCSClientUT, ParseConfigMaxTransferCountPerBatchRejectsOutOfRange) {
+  for (const char *value : {"0", "-1", "32767", "1.5", "true", "null", "[]", "{}", "\"invalid\""}) {
+    const std::string config_str = std::string(R"({"transfer_config.max_transfer_count_per_batch":)") + value + "}";
+    GlobalConfig config;
+    EXPECT_EQ(GlobalConfig::Parse(config_str.c_str(), config), PARAM_INVALID) << value;
+  }
 }
 
 TEST_F(HixlCSClientUT, ParseConfigMaxActiveChannelsMin) {

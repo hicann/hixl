@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 #include "common/hixl_inner_types.h"
+#include "common/transfer_config.h"
 #include "engine/client_handler.h"
 
 namespace hixl {
@@ -37,6 +38,7 @@ struct HandlerCreateArgs {
   std::vector<EndpointPair> matched_pairs;
   std::optional<uint8_t> qos;
   std::optional<uint32_t> max_active_channels;
+  uint32_t max_transfer_count_per_batch{kDefaultMaxTransferCountPerBatch};
   uint32_t multi_worker_num = 1U;
   uint32_t multi_channel_split_batch_size = kDefaultSplitBatchSize;
   bool is_lazy = false;
@@ -48,7 +50,7 @@ struct HandlerCreateArgs {
 
 class ClientHandlerFactory {
  public:
-  static std::unique_ptr<IClientHandler> Create(const HandlerCreateArgs &args);
+  static Status Create(const HandlerCreateArgs &args, std::unique_ptr<IClientHandler> &out);
 };
 
 }  // namespace hixl

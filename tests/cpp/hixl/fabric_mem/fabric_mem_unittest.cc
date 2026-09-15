@@ -1242,6 +1242,26 @@ TEST_F(FabricMemTransferServiceUTest, AddressTranslationAndCopyValidation) {
   service_.slot_pool_.Release(slot, false);
 }
 
+TEST_F(FabricMemTransferServiceUTest, HostSubmissionDoesNotSynchronizeAtConfiguredBatchBoundary) {
+  auto param = MakeServiceInitParam(&statistic_, &local_memory_);
+  param.max_stream_num = 2U;
+  param.task_stream_num = 1U;
+  param.max_transfer_count_per_batch = 2U;
+  ASSERT_EQ(service_.Initialize(param), SUCCESS);
+
+  uint8_t local[kLen] = {};
+  uint8_t remote[kLen] = {};
+  auto op_descs = BuildOpDescs(local, remote);
+  op_descs.resize(5U, op_descs.front());
+  AsyncSlot slot;
+  ASSERT_EQ(service_.slot_pool_.AcquireAsync(slot), SUCCESS);
+
+  EXPECT_EQ(service_.ProcessCopyWithAsync(slot, WRITE, op_descs), SUCCESS);
+  EXPECT_EQ(runtime_->memcpy_async_count_, op_descs.size());
+  EXPECT_EQ(runtime_->stream_sync_count_, 0U);
+  service_.slot_pool_.Release(slot, false);
+}
+
 TEST_F(FabricMemTransferServiceUTest, NeedTransLocalAddrHandlesHostDeviceEmptyAndFailure) {
   ASSERT_EQ(InitService(3U, 1U), SUCCESS);
   bool need_trans = true;

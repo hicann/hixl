@@ -313,7 +313,7 @@ sequenceDiagram
 
 **检查点列表**：
 1. **Engine路由检查**：`OPTION_ENABLE_USE_FABRIC_MEM=1`时必须由`EngineFactory`创建`FabricMemEngine`。
-2. **配置合法性检查**：`FabricMemConfig`解析`EnableUseFabricMem`、`GlobalResourceConfig`、流数量、虚拟地址容量和起始地址。
+2. **配置合法性检查**：`FabricMemConfig`解析`EnableUseFabricMem`、`GlobalResourceConfig`、流数量、虚拟地址容量、起始地址和单批最大传输数量。`transfer_config.max_transfer_count_per_batch`范围为`[1, 1920]`、默认`1920`，两种展开模式都会执行该范围校验。`enable_aicpu_unfold=true`时，它控制AICPU展开的逻辑批次和Notify边界，不改变固定2K的STARS队列深度；`enable_aicpu_unfold=false`时，Host逐条提交`aclrtMemcpyAsync`，不按该值分批，也不在该值边界增加同步。
 3. **内存类型检查**：在FabricMem模式下，HOST内存注册需要额外的本地导入和映射处理。
 4. **传输参数检查**：验证传输描述中的地址范围是否在本端已注册或对端已导入的内存范围内。
 5. **流资源管理检查**：确保流池中的流资源正确分配和释放，避免资源泄漏。

@@ -21,6 +21,7 @@
 
 #include "hixl/hixl_types.h"
 #include "adxl/adxl_types.h"
+#include "common/transfer_config.h"
 
 namespace hixl {
 
@@ -45,10 +46,15 @@ struct CommResourceConfigDesc {
   std::optional<uint32_t> multi_channel_split_batch_size;
 };
 
+struct TransferConfig {
+  uint32_t max_transfer_count_per_batch{kDefaultMaxTransferCountPerBatch};
+};
+
 struct GlobalResourceConfig {
   FabricMemoryConfig fabric_memory;
   ConnectPoolConfig connect_pool;
   CommResourceConfigDesc comm_resource_config;
+  TransferConfig transfer_config;
   std::optional<std::string> local_comm_res_path;  // local_comm_res JSON file path
   std::optional<std::string> topo_file_path;       // hardware topo JSON path for auto-gen
 };

@@ -288,6 +288,7 @@ UB_RTP
 | comm_resource_config.listen_port | JSON数字或纯数字字符串 | 可选 | 配置device侧网卡监听端口 | 取值范围为[1, 65535]。Atlas A2 训练系列产品/Atlas A2 推理系列产品、Atlas A3 训练系列产品/Atlas A3 推理系列产品上未配置时，固定使用`16666`端口；Ascend 950PR/Ascend 950DT场景未配置时，由底层通信组件自动选择可用端口，HIXL自动查询实际监听端口。 |
 | comm_resource_config.qos | 数字 | 可选 | 配置通信协议qos | 当前仅支持[0-7]，当未配置的时候，默认为0。 |
 | comm_resource_config.max_active_channels | 数字 | 可选 | CS场景下配置设备侧同时活跃传输通道数量 | 取值范围为[1, 8192]，未配置时默认值为128。每个active channel消耗2个Stream资源，配置值需结合当前卡形态的Stream资源上限及业务中已创建的Stream数量预留余量；不同卡形态的Stream资源上限参见CANN Runtime API [aclrtCreateStream](https://www.hiascend.com/document/detail/zh/canncommercial/latest/API/runtimeapi/aclcppdevg_03_0066.html)资料。超出[1, 8192]时initialize返回参数错误。 |
+| transfer_config.max_transfer_count_per_batch | 数字或十进制数字字符串 | 可选 | 单个内部传输批次最多包含的buffer数量，超过时按原始顺序自动分批 | 默认1920，全局取值范围为[1, 32766]，HCCS/FabricMem范围为[1, 1920]，RoCE/URMA的具体队列深度上限由Hcomm根据协议和硬件能力校验。FabricMem两种模式都执行[1, 1920]校验：`fabric_memory.enable_aicpu_unfold=true`时，该值控制AICPU展开的逻辑批次和Notify边界；`false`时，Host逐条连续提交`aclrtMemcpyAsync`，不按该值分批或在该值边界同步。RoCE/URMA Client的SQ/SCQ深度按`max(64, nextPowerOfTwo(配置值 + 2))`计算。 |
 | local_comm_res_path | 字符串 | 可选 | 本地通信资源 JSON 文件路径；文件内容格式与 OPTION_LOCAL_COMM_RES 相同 | 配置文件的绝对或相对路径，相对路径基于进程当前工作目录解析。目标文件必须是大小在[1字节, 1MiB]范围内的普通文件。与 OPTION_LOCAL_COMM_RES 同时配置且 option 非空时，以 OPTION_LOCAL_COMM_RES 为准。 |
 
 **调用示例**

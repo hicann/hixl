@@ -16,6 +16,7 @@
 #include "engine/hixl_options.h"
 #include "hixl/hixl_types.h"
 #include "adxl/adxl_types.h"
+#include "common/transfer_config.h"
 #include "slog_stub.h"
 #include "test_mmpa_utils.h"
 
@@ -230,6 +231,44 @@ TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigFabricMemory) {
   EXPECT_EQ(*grc.fabric_memory.task_stream_num, 4U);
   ASSERT_TRUE(grc.fabric_memory.enable_aicpu_unfold.has_value());
   EXPECT_FALSE(*grc.fabric_memory.enable_aicpu_unfold);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigTransferCountDefault) {
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({})";
+  HixlOptions result;
+  ASSERT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.GlobalResourceCfg().has_value());
+  EXPECT_EQ(result.GlobalResourceCfg()->transfer_config.max_transfer_count_per_batch, kDefaultMaxTransferCountPerBatch);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigTransferCountBoundaries) {
+  for (const char *value : {"1", "\"1024\"", "32766"}) {
+    std::map<AscendString, AscendString> options;
+    const std::string config = std::string(R"({"transfer_config.max_transfer_count_per_batch":)") + value + "}";
+    options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = config.c_str();
+    HixlOptions result;
+    EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS) << value;
+  }
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigTransferCountRejectsInvalidValues) {
+  for (const char *value : {"0", "-1", "32767", "1.5", "true", "null", "[]", "{}", "\"invalid\""}) {
+    std::map<AscendString, AscendString> options;
+    const std::string config = std::string(R"({"transfer_config.max_transfer_count_per_batch":)") + value + "}";
+    options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = config.c_str();
+    HixlOptions result;
+    EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID) << value;
+  }
+}
+
+TEST_F(HixlOptionsUTest, CalculateTransportQueueDepthHandlesBoundaries) {
+  EXPECT_EQ(CalculateTransportQueueDepth(1U), 64U);
+  EXPECT_EQ(CalculateTransportQueueDepth(62U), 64U);
+  EXPECT_EQ(CalculateTransportQueueDepth(63U), 128U);
+  EXPECT_EQ(CalculateTransportQueueDepth(1022U), 1024U);
+  EXPECT_EQ(CalculateTransportQueueDepth(1920U), 2048U);
+  EXPECT_EQ(CalculateTransportQueueDepth(32766U), 32768U);
 }
 
 TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigDefaultAicpuUnfoldRejectsNonOneTaskStreamNum) {

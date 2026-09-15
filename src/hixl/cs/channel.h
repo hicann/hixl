@@ -14,6 +14,7 @@
 #include <memory>
 #include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
+#include "common/transfer_config.h"
 
 namespace hixl {
 
@@ -32,6 +33,7 @@ struct ChannelDesc {
   ChannelType channel_type{ChannelType::kClient};
   uint64_t channel_index{0UL};
   uint8_t qos{0U};
+  uint32_t max_transfer_count_per_batch{kDefaultMaxTransferCountPerBatch};
 };
 
 class Channel {

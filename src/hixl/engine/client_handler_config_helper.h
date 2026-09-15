@@ -22,10 +22,6 @@ namespace hixl {
 class ClientHandlerConfigHelper {
  public:
   static std::string BuildGlobalResourceConfig(const HandlerCreateArgs &args) {
-    // force return "", default json construction will dump to "null" which not as expect
-    if (!args.qos.has_value() && !args.max_active_channels.has_value()) {
-      return "";
-    }
     nlohmann::json json;
     if (args.qos.has_value()) {
       json["comm_resource_config.qos"] = args.qos.value();
@@ -33,6 +29,7 @@ class ClientHandlerConfigHelper {
     if (args.max_active_channels.has_value()) {
       json["comm_resource_config.max_active_channels"] = args.max_active_channels.value();
     }
+    json["transfer_config.max_transfer_count_per_batch"] = args.max_transfer_count_per_batch;
     return json.dump();
   }
 };

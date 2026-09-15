@@ -23,6 +23,7 @@
 #include "hixl/hixl_types.h"
 #include "common/hixl_inner_types.h"
 #include "common/optional_aclrt_context.h"
+#include "common/transfer_config.h"
 
 namespace hixl {
 class HixlEngine : public hixl::Engine {
@@ -187,6 +188,7 @@ class HixlEngine : public hixl::Engine {
   std::atomic<bool> auto_connect_{false};
   std::optional<uint8_t> qos_;
   std::optional<uint32_t> max_active_channels_;
+  uint32_t max_transfer_count_per_batch_{kDefaultMaxTransferCountPerBatch};
   uint32_t multi_worker_num_{1U};
   uint32_t multi_channel_split_batch_size_{kDefaultSplitBatchSize};
   OptionalAclrtContext aclrt_context_;

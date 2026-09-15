@@ -102,6 +102,7 @@ Status FabricMemEngine::InitTransferService() {
   param.control_server = fabric_mem_control_server_.get();
   param.aclrt_context = aclrt_context_;
   param.enable_aicpu_unfold = fabric_mem_config_.enable_aicpu_unfold;
+  param.max_transfer_count_per_batch = fabric_mem_config_.max_transfer_count_per_batch;
   if (fabric_mem_config_.enable_aicpu_unfold) {
     fabric_mem_transfer_service_ = std::make_shared<FabricMemAicpuTransferService>();
   } else {
@@ -165,10 +166,15 @@ Status FabricMemEngine::ApplyFabricMemoryOptions(const HixlOptions &options) {
   fabric_mem_config_.enabled = true;
   fabric_mem_config_.enable_aicpu_unfold = true;
   fabric_mem_config_.task_stream_num = 1U;
+  fabric_mem_config_.max_transfer_count_per_batch = kDefaultMaxTransferCountPerBatch;
   auto grc = options.GlobalResourceCfg();
   if (!grc.has_value()) {
     return SUCCESS;
   }
+  HIXL_CHK_BOOL_RET_STATUS(grc->transfer_config.max_transfer_count_per_batch <= kMaxFixedQueueTransferCountPerBatch,
+                           PARAM_INVALID, "[FabricMemEngine] max_transfer_count_per_batch must be in [1, %u], got %u.",
+                           kMaxFixedQueueTransferCountPerBatch, grc->transfer_config.max_transfer_count_per_batch);
+  fabric_mem_config_.max_transfer_count_per_batch = grc->transfer_config.max_transfer_count_per_batch;
   if (grc->fabric_memory.max_capacity.has_value()) {
     fabric_mem_config_.capacity_tb = *grc->fabric_memory.max_capacity;
     fabric_mem_config_.has_capacity_tb = true;
