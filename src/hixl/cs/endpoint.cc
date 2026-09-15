@@ -94,9 +94,12 @@ Status InitChannelDesc(const EndpointDesc &endpoint, const ChannelDesc &channel_
   }
   InitQueueDepth(endpoint, channel_desc, ch_desc);
   ch_desc.port = port;
-  // need add qos at here when HcommChannelDesc exist qos
-  ch_desc.qos = static_cast<uint32_t>(channel_desc.qos);
-  HIXL_LOGI("[channel] attributes set, qos=%u", ch_desc.qos);
+  if (channel_desc.qos != kQosUnset) {
+    ch_desc.qos = static_cast<uint32_t>(channel_desc.qos);
+    HIXL_LOGI("[channel] attributes set, qos=%u", ch_desc.qos);
+  } else {
+    HIXL_LOGI("[channel] attributes set, qos unset");
+  }
   HIXL_CHK_STATUS_RET(BuildChannelName(endpoint, channel_desc, port, channel_name));
   ch_desc.channelName = channel_name.c_str();
   HIXL_LOGI("[channel] channelName=%s", ch_desc.channelName);

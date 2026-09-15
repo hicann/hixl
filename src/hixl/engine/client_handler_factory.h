@@ -24,8 +24,8 @@ namespace hixl {
 struct HandlerCreateArgs {
   std::string server_ip;
   uint32_t server_port;
-  uint8_t rdma_tc;
-  uint8_t rdma_sl;
+  std::optional<uint8_t> rdma_tc;
+  std::optional<uint8_t> rdma_sl;
 
   enum class HandlerType { DIRECT, UB };
   HandlerType handler_type;

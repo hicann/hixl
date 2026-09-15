@@ -182,8 +182,8 @@ class HixlEngine : public hixl::Engine {
   std::map<void *, MemHandleInfo> mem_map_;
   std::vector<EndpointConfig> endpoint_list_;
 
-  uint8_t rdma_traffic_class_{kRdmaTrafficClass};
-  uint8_t rdma_service_level_{kRdmaServiceLevel};
+  std::optional<uint8_t> rdma_traffic_class_;
+  std::optional<uint8_t> rdma_service_level_;
   std::atomic<bool> auto_connect_{false};
   std::optional<uint8_t> qos_;
   std::optional<uint32_t> max_active_channels_;

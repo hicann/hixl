@@ -38,8 +38,8 @@ Status DirectClientHandler::Create(const HandlerCreateArgs &args, std::unique_pt
   desc.server_port = args.server_port;
   desc.local_endpoint = &local_endpoint;
   desc.remote_endpoint = &remote_endpoint;
-  desc.tc = args.rdma_tc;
-  desc.sl = args.rdma_sl;
+  desc.tc = args.rdma_tc.value_or(kRdmaTrafficClass);
+  desc.sl = args.rdma_sl.value_or(kRdmaServiceLevel);
   HixlClientHandle handle = nullptr;
   HixlClientConfig config{};
   const std::string global_resource_config = ClientHandlerConfigHelper::BuildGlobalResourceConfig(args);

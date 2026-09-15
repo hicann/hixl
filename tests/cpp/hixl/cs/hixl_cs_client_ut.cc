@@ -1607,6 +1607,61 @@ TEST_F(HixlCSClientUT, ParseConfigQosInValidPartString) {
   EXPECT_EQ(handle, nullptr);
 }
 
+// 外部配置不允许 0xFF（kQosUnset 为内部哨兵值，仅表示qos未配置）
+TEST_F(HixlCSClientUT, ParseConfigQosInValidUnsetSentinel) {
+  port_ = kPort;
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientConfig config{};
+  config.global_resource_config = R"({"comm_resource_config.qos": 255})";
+  HixlClientHandle handle = reinterpret_cast<HixlClientHandle>(&client_);
+  EXPECT_EQ(HixlCSClientCreate(&desc, &config, &handle), HIXL_PARAM_INVALID);
+  EXPECT_EQ(handle, nullptr);
+}
+
+TEST_F(HixlCSClientUT, ConnectQosUnsetWhenNotConfigured) {
+  StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
+  HixlCSClient client;
+  CreateRoceHostClient(client);
+  ASSERT_EQ(client.Connect(kDefaultConnectTimeoutMs), SUCCESS);
+  CreateChannelReq req{};
+  ASSERT_TRUE(server_.GetLastCreateChannelReq(req));
+  EXPECT_EQ(req.qos, kQosUnset);
+  HcommChannelDesc ch_desc{};
+  ASSERT_TRUE(GetLastChannelCreateDesc(&ch_desc));
+  EXPECT_EQ(ch_desc.qos, 0xFFFFFFFFU);
+  ASSERT_EQ(client.Destroy(), SUCCESS);
+}
+
+TEST_F(HixlCSClientUT, ConnectQosAppliedWhenConfigured) {
+  StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
+  ASSERT_NE(port_, 0);
+  HixlClientConfig config{};
+  config.global_resource_config = R"({"comm_resource_config.qos": 7})";
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  srcEx_ = MakeIdEpEx(kSrcEpId, COMM_PROTOCOL_ROCE);
+  dstEx_ = MakeIdEpEx(kDstEpId, COMM_PROTOCOL_ROCE);
+  srcEx_.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+  dstEx_.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+  desc.local_endpoint = &srcEx_;
+  desc.remote_endpoint = &dstEx_;
+  HixlCSClient client;
+  ASSERT_EQ(client.Create(&desc, &config), SUCCESS);
+  ASSERT_EQ(client.Connect(kDefaultConnectTimeoutMs), SUCCESS);
+  CreateChannelReq req{};
+  ASSERT_TRUE(server_.GetLastCreateChannelReq(req));
+  EXPECT_EQ(req.qos, 7U);
+  HcommChannelDesc ch_desc{};
+  ASSERT_TRUE(GetLastChannelCreateDesc(&ch_desc));
+  EXPECT_EQ(ch_desc.qos, 7U);
+  ASSERT_EQ(client.Destroy(), SUCCESS);
+}
+
 TEST_F(HixlCSClientUT, ParseConfigMaxActiveChannelsDefault) {
   port_ = kPort;
   HixlClientConfig config{};
