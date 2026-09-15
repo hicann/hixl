@@ -57,6 +57,7 @@ target_link_libraries(cann_hixl PRIVATE
         PUBLIC c_sec
         adxl_static
         hcomm_proxy_static
+        aclrt_proxy_static
         hccp_proxy_static
         dsmi_proxy_static
         dcmi_proxy_static

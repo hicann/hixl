@@ -39,6 +39,7 @@
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
 #include "common/scope_guard.h"
+#include "aclrt_proxy.h"
 #include "dsmi_proxy.h"
 #include "nlohmann/json.hpp"
 #include "acl/acl_rt.h"
@@ -876,10 +877,10 @@ Status CollectVisiblePhyIds(std::set<int32_t> &phy_ids) {
   HIXL_CHK_BOOL_RET_STATUS(device_count > 0, FAILED, "[CollectVisiblePhyIds] aclrtGetDeviceCount returned 0");
   for (uint32_t i = 0; i < device_count; ++i) {
     int32_t phy_id = -1;
-    const aclError acl_ret = aclrtGetPhyDevIdByUserDevId(static_cast<int32_t>(i), &phy_id);
+    const aclError acl_ret = AclrtProxy::GetPhyDevIdByUserDevId(static_cast<int32_t>(i), &phy_id);
     if (acl_ret != ACL_SUCCESS) {
-      HIXL_LOGW("[CollectVisiblePhyIds] Call api:aclrtGetPhyDevIdByUserDevId failed, user_id=%u, ret=%d, skip", i,
-                static_cast<int>(acl_ret));
+      HIXL_LOGW("[CollectVisiblePhyIds] Call api:AclrtProxy::GetPhyDevIdByUserDevId failed, user_id=%u, ret=%d, skip",
+                i, static_cast<int>(acl_ret));
       continue;
     }
     phy_ids.insert(phy_id);

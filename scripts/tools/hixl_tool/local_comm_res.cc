@@ -27,6 +27,7 @@
 #include <vector>
 #include <nlohmann/json.hpp>
 #include "acl/acl.h"
+#include "aclrt_proxy.h"
 #include "endpoint_generator/endpoint_generator.h"
 #include "endpoint_generator/local_comm_res_generator_v1.h"
 #include "engine/hixl_options.h"
@@ -261,9 +262,10 @@ bool ProcessOneDevice(int32_t device_id, const LocalCommResArgs &args,
   }
 
   int32_t phy_id = -1;
-  acl_ret = aclrtGetPhyDevIdByUserDevId(device_id, &phy_id);
+  acl_ret = hixl::AclrtProxy::GetPhyDevIdByUserDevId(device_id, &phy_id);
   if (acl_ret != ACL_SUCCESS) {
-    std::printf("[ERROR] aclrtGetPhyDevIdByUserDevId(%d) failed, ret=%d\n", device_id, static_cast<int>(acl_ret));
+    std::printf("[ERROR] AclrtProxy::GetPhyDevIdByUserDevId(%d) failed, ret=%d\n", device_id,
+                static_cast<int>(acl_ret));
     aclrtResetDevice(device_id);
     return false;
   }
