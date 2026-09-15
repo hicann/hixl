@@ -80,11 +80,13 @@ Status ParseMaxActiveChannels(const nlohmann::json &json, CommResourceConfig &co
   return SUCCESS;
 }
 
-Status ParseTransferConfig(const nlohmann::json &json, TransferConfigDesc &config) {
+Status ParseTransferConfig(const nlohmann::json &json, TransferConfigDesc &config, GlobalConfig::ParseTarget target) {
   const auto it = json.find(kMaxTransferCountPerBatchKey);
   if (it == json.end()) {
     return SUCCESS;
   }
+  HIXL_CHK_BOOL_RET_STATUS(target != GlobalConfig::ParseTarget::kServer, PARAM_INVALID,
+                           "[GlobalConfig] %s is not supported for Server", kMaxTransferCountPerBatchKey);
   HIXL_CHK_BOOL_RET_STATUS((it->is_number_integer() || it->is_number_unsigned()) || it->is_string(), PARAM_INVALID,
                            "[GlobalConfig] %s must be an integer or decimal integer string",
                            kMaxTransferCountPerBatchKey);
@@ -142,7 +144,7 @@ Status GlobalConfig::Parse(const char *config_str, GlobalConfig &result, ParseTa
       HIXL_LOGE(ret, "[GlobalConfig] Failed to parse comm_resource_config");
       return ret;
     }
-    HIXL_CHK_STATUS_RET(ParseTransferConfig(json, result.transfer_config_),
+    HIXL_CHK_STATUS_RET(ParseTransferConfig(json, result.transfer_config_, target),
                         "[GlobalConfig] Failed to parse transfer_config");
     return SUCCESS;
   } catch (const nlohmann::json::exception &e) {
