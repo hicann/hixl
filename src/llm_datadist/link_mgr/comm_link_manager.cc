@@ -198,7 +198,11 @@ ge::Status CommLinkManager::CreateClustersEntity(PrepareMemArg &req, std::map<ui
       auto mem_info_ptr = MakeUnique<EntityMemInfo>(remote_cache_accessible_, comm_entity_manager_->GetHostRegPool(),
                                                     comm_entity_manager_->GetDeviceRegPool());
       LLM_CHECK_NOTNULL(mem_info_ptr);
-      LLM_CHK_STATUS_RET(mem_info_ptr->Initialize(), "Failed to init mem info");
+      auto mem_info_ret = mem_info_ptr->Initialize();
+      if (mem_info_ret != ge::SUCCESS) {
+        (void)entity->Finalize();
+        return mem_info_ret;
+      }
       entity->SetEntityMemInfo(mem_info_ptr);
       entity->SetCacheManager(cache_manager_);
       entity->SetContext(aclrt_context_);
