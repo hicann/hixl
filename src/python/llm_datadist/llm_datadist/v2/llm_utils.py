@@ -108,9 +108,11 @@ class CacheDescParser(object):
         log.info(f'parse cache_desc from option, value = {cache_desc}')
         return cache_desc
 
-def pack_cache_desc(cache_desc: CacheDesc) -> Tuple[int, int, int, int, List[int], int, int]:
+def pack_cache_desc(cache_desc: CacheDesc, is_blocks: Optional[bool] = None) -> Tuple[int, int, int, int, List[int], int, int]:
+    # Allocation/registration APIs choose the cache kind without mutating shared descriptors.
+    cache_kind = cache_desc._is_blocks if is_blocks is None else is_blocks
     return (cache_desc.num_tensors, cache_desc.data_type.value, cache_desc.seq_len_dim_index, cache_desc.batch_dim,
-            cache_desc.shape, cache_desc.placement.value, cache_desc._is_blocks)
+            cache_desc.shape, cache_desc.placement.value, cache_kind)
 
 
 def pack_cache_key(cache_key: CacheKey) -> Tuple[int, int, int, int, int, int, bool]:

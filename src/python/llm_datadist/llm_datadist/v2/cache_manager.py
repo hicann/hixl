@@ -127,9 +127,8 @@ class CacheManager(object):
             if blocks_cache_key is not None
             else []
         )
-        cache_desc._is_blocks = True
         ret, cache_id_and_addr = self._llm_datadist.allocate_cache_v2(
-            pack_cache_desc(cache_desc), wrapped_cache_keys
+            pack_cache_desc(cache_desc, is_blocks=True), wrapped_cache_keys
         )
         handle_llm_status(ret, "[allocate_blocks_cache]", f"cache_desc = {cache_desc}")
         cache = Cache(
@@ -176,7 +175,7 @@ class CacheManager(object):
         )
         wrapped_cache_keys = [pack_cache_key(cache_key) for cache_key in cache_keys]
         ret, cache_id_and_addr = self._llm_datadist.allocate_cache_v2(
-            pack_cache_desc(cache_desc), wrapped_cache_keys
+            pack_cache_desc(cache_desc, is_blocks=False), wrapped_cache_keys
         )
         handle_llm_status(ret, "[allocate_cache]", f"cache_desc = {cache_desc}")
         cache = Cache(
@@ -532,7 +531,7 @@ class CacheManager(object):
             "register_cache", cache_desc, remote_accessible
         )
         ret, cache_id_and_addr = self._llm_datadist.register_cache(
-            pack_cache_desc(cache_desc),
+            pack_cache_desc(cache_desc, is_blocks=False),
             addrs,
             wrapped_cache_keys,
             inner_remote_accessible,
@@ -567,7 +566,6 @@ class CacheManager(object):
             "you can not register remote accessible cache after link.",
         )
         raise_if_false(len(addrs) > 0, "addrs can not be empty.")
-        cache_desc._is_blocks = True
         cache_keys = (
             [pack_block_cache_key(blocks_cache_key)]
             if blocks_cache_key is not None
@@ -577,7 +575,10 @@ class CacheManager(object):
             "register_blocks_cache", cache_desc, remote_accessible
         )
         ret, cache_id_and_addr = self._llm_datadist.register_cache(
-            pack_cache_desc(cache_desc), addrs, cache_keys, inner_remote_accessible
+            pack_cache_desc(cache_desc, is_blocks=True),
+            addrs,
+            cache_keys,
+            inner_remote_accessible,
         )
         handle_llm_status(ret, "[register_blocks_cache]", f"cache_desc = {cache_desc}")
         cache = Cache(
