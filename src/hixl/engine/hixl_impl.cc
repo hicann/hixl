@@ -248,6 +248,11 @@ Hixl::~Hixl() {
 
 Status Hixl::Initialize(const AscendString &local_engine, const std::map<AscendString, AscendString> &options) {
   HIXL_EVENT("Hixl initialize start, commit_id:%s", HIXL_VER_STRING);
+  if (impl_ != nullptr) {
+    HIXL_LOGW("Hixl is already initialized, ignore repeated Initialize call, local_engine:%s",
+              local_engine.GetString());
+    return SUCCESS;
+  }
   auto impl = llm::MakeUnique<HixlImpl>(local_engine);
   HIXL_CHK_BOOL_RET_STATUS(impl != nullptr, FAILED, "impl is nullptr, check Hixl construct");
   HIXL_CHK_STATUS_RET(impl->Initialize(options), "Failed to initialize Hixl");

@@ -333,6 +333,7 @@ UB_RTP
 
 1. 需要和Finalize配对使用，初始化成功后，任何退出前都需要先调用Finalize保证资源释放，否则会出现资源释放顺序不符合预期而导致问题。
 2. 初始化前需要先调用aclrtSetDevice。
+3. 初始化成功后重复调用Initialize属于幂等操作，直接返回SUCCESS，不会重复创建引擎或重新监听端口，参数变化也不会生效；如需使用新参数重新初始化，需先调用Finalize。
 
 ## Finalize
 
