@@ -98,7 +98,7 @@ void TaskBatcher::GetOffsetAndLength(uint32_t remaining_buffer_len, uint64_t &da
     data_size = buffer_info.buffer_len;
   }
 
-  auto max_data_size = std::min(remaining_buffer_len, max_block_size_);
+  const auto max_data_size = std::min(remaining_buffer_len, max_block_size_);
   if (max_data_size < data_size) {
     remaining_data_len_ = data_size - max_data_size;
     remaining_data_offset_ = data_offset + max_data_size;

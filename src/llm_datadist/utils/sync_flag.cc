@@ -30,7 +30,7 @@ int32_t SyncFlag::Wait(const std::chrono::steady_clock::time_point *end_time_poi
 }
 
 ge::Status SyncFlag::Check() const {
-  auto end_time_point = std::chrono::steady_clock::now() + std::chrono::milliseconds(1);
+  const auto end_time_point = std::chrono::steady_clock::now() + std::chrono::milliseconds(1);
   while (true) {
     if (*flag_ == 1U) {
       break;

@@ -27,19 +27,11 @@ class SpanLayerLut {
   virtual void OnLayerCreated(const SpanLayer &) = 0;
   virtual void OnLayerAddSpan(const SpanLayer &) = 0;
   virtual void OnLayerRemoveSpan(const SpanLayer &) = 0;
-  virtual SpanLayerId FindFitLayerId(PageLen, size_t maxLiftLevel) const = 0;
+  virtual SpanLayerId FindFitLayerId(PageLen page_len, size_t max_lift_level) const = 0;
   virtual void Release(SpanAllocator &) = 0;
   virtual ~SpanLayerLut() = default;
 
  public:
-  SpanLayerIdIterator begin() {
-    return span_layer_ids_.begin();
-  }
-
-  SpanLayerIdIterator end() {
-    return span_layer_ids_.end();
-  }
-
   SpanLayerIdIterator begin() const {
     return span_layer_ids_.begin();
   }

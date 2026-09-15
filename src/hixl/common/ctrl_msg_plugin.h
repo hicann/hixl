@@ -36,7 +36,7 @@ class CtrlMsgPlugin {
   static Status SetTcpKeepAlive(int32_t fd);
 
  private:
-  static Status DoConnect(struct ::addrinfo *addr, int32_t &conn_fd, int32_t &err_no, int32_t timeout);
+  static Status DoConnect(const struct ::addrinfo *addr, int32_t &conn_fd, int32_t &err_no, int32_t timeout);
   static Status GetAiFamily(const std::string &ip, int32_t &ai_family);
   static Status SockAddrInit(const std::string &ip, uint32_t listen_port, int32_t ai_family,
                              struct sockaddr_storage &server_addr, socklen_t &addr_len);

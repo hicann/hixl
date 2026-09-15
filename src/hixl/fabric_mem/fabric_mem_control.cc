@@ -779,7 +779,7 @@ void FabricMemControlServer::HandleEpollEvent(const std::shared_ptr<State> &stat
   }
 }
 
-void FabricMemControlServer::Run(std::shared_ptr<State> state) {
+void FabricMemControlServer::Run(const std::shared_ptr<State> &state) {
   epoll_event events[kMaxEpollEvents];
   while (state->running.load(std::memory_order_acquire)) {
     int32_t epoll_fd = -1;

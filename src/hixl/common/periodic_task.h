@@ -44,7 +44,7 @@ class PeriodicTask {
     std::atomic<bool> running{false};
   };
 
-  static void Run(std::shared_ptr<State> state);
+  static void Run(const std::shared_ptr<State> &state);
 
   std::shared_ptr<State> state_{std::make_shared<State>()};
   std::thread worker_;

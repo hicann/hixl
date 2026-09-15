@@ -85,8 +85,8 @@ Status CtrlMsgPlugin::Connect(const std::string &ip, uint32_t port, int32_t &con
   return ret;
 }
 
-Status CtrlMsgPlugin::DoConnect(struct ::addrinfo *addr, int32_t &conn_fd, int32_t &err_no, int32_t timeout) {
-  int32_t on = 1;
+Status CtrlMsgPlugin::DoConnect(const struct ::addrinfo *addr, int32_t &conn_fd, int32_t &err_no, int32_t timeout) {
+  const int32_t on = 1;
   HIXL_LOGI("Attempting to create socket with family:%d, type:%d, protocol:%d", addr->ai_family, addr->ai_socktype,
             addr->ai_protocol);
   HIXL_DISMISSABLE_GUARD(record_err, ([&err_no]() { err_no = errno; }));
@@ -107,7 +107,7 @@ Status CtrlMsgPlugin::DoConnect(struct ::addrinfo *addr, int32_t &conn_fd, int32
   HIXL_CHK_BOOL_RET_SPECIAL_STATUS(socket_ret != 0, FAILED,
                                    "Try to setsockopt(SO_RCVTIMEO), socket_ret:%d, error msg:%s, errno:%d", socket_ret,
                                    strerror(errno), errno);
-  int32_t flag = 1;
+  const int32_t flag = 1;
   socket_ret = setsockopt(conn_fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
   HIXL_CHK_BOOL_RET_SPECIAL_STATUS(socket_ret != 0, FAILED,
                                    "Try to setsockopt(TCP_NODELAY), socket_ret:%d, error msg:%s, errno:%d", socket_ret,

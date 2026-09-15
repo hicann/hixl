@@ -29,7 +29,7 @@ TransferContextManager &TransferContextManager::Instance() {
 
 std::shared_ptr<TransferContext> TransferContextManager::Get(ThreadHandle thread) const {
   std::lock_guard<std::mutex> lock(mutex_);
-  auto it = contexts_.find(thread);
+  const auto it = contexts_.find(thread);
   if (it == contexts_.end()) {
     return nullptr;
   }

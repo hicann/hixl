@@ -56,7 +56,7 @@ bool PeriodicTask::IsRunning() const {
   return state_->running.load(std::memory_order_acquire);
 }
 
-void PeriodicTask::Run(std::shared_ptr<State> state) {
+void PeriodicTask::Run(const std::shared_ptr<State> &state) {
   while (state->running.load(std::memory_order_acquire)) {
     std::function<void()> task;
     {

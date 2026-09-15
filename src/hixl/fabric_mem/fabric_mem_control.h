@@ -114,7 +114,7 @@ class FabricMemControlServer {
     bool auto_cleanup_enabled{false};
   };
 
-  static void Run(std::shared_ptr<State> state);
+  static void Run(const std::shared_ptr<State> &state);
   static Status DispatchFabricMemRequest(const std::shared_ptr<State> &state, int32_t fd, int32_t epoll_fd,
                                          int32_t msg_type, const std::string &payload);
   static Status HandleConnectRequest(const std::shared_ptr<State> &state, int32_t fd, int32_t epoll_fd,

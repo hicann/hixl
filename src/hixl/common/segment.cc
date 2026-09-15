@@ -20,7 +20,7 @@ Status Segment::AddRange(uint64_t start, uint64_t len) {
     HIXL_LOGE(PARAM_INVALID, "Address overflow, addr:%lu, len:%lu", start, len);
     return PARAM_INVALID;
   }
-  uint64_t end = start + len;
+  const uint64_t end = start + len;
   auto it =
       std::upper_bound(ranges_.begin(), ranges_.end(), start,
                        [](uint64_t val, const std::pair<uint64_t, uint64_t> &range) { return val < range.first; });
@@ -101,7 +101,7 @@ bool Segment::Contains(uint64_t start, uint64_t end) const {
       }
     }
   }
-  bool result = max_reached >= end;
+  const bool result = max_reached >= end;
   HIXL_LOGI("Segment contains range [%lu, %lu]", start, end);
   return result;
 }
