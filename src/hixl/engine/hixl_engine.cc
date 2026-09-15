@@ -96,8 +96,8 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
                         "[HixlEngine] Failed to initialize server, local_engine:%s, local_comm_res:%s",
                         local_engine_.c_str(), local_comm_res.c_str());
   }
-  rdma_traffic_class_ = options.RdmaTrafficClass().value_or(kRdmaTrafficClass);
-  rdma_service_level_ = options.RdmaServiceLevel().value_or(kRdmaServiceLevel);
+  rdma_traffic_class_ = options.RdmaTrafficClass();
+  rdma_service_level_ = options.RdmaServiceLevel();
   auto_connect_ = options.AutoConnect().value_or(false);
   HIXL_CHK_STATUS_RET(client_manager_.Initialize(auto_connect_), "[HixlEngine] Failed to initialize client manager");
   HIXL_DISMISS_GUARD(ctx_fail_guard);

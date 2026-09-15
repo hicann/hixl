@@ -27,6 +27,7 @@
 #include "hixl/hixl_types.h"
 #include "common/ctrl_msg.h"
 #include "common/ctrl_msg_plugin.h"
+#include "common/hixl_inner_types.h"
 #include "engine/endpoint_test_utils.h"
 #include "slog_stub.h"
 #include "hccl_stub.h"
@@ -144,7 +145,7 @@ class HixlCSTest : public ::testing::Test {
     SendMatchEndpointReq(client_fd);
   }
 
-  void SendCreateChannelReq(int32_t client_fd, uint64_t dst_ep_handle, uint64_t channel_index) {
+  void SendCreateChannelReq(int32_t client_fd, uint64_t dst_ep_handle, uint64_t channel_index, uint8_t qos = 0U) {
     CtrlMsgHeader header{};
     header.magic = kMagicNumber;
     header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(CreateChannelReq));
@@ -153,6 +154,7 @@ class HixlCSTest : public ::testing::Test {
     body.src = default_eps[0];
     body.dst_ep_handle = dst_ep_handle;
     body.channel_index = channel_index;
+    body.qos = qos;
     auto ret = CtrlMsgPlugin::Send(client_fd, &header, static_cast<uint64_t>(sizeof(header)));
     EXPECT_EQ(ret, SUCCESS);
     ret = CtrlMsgPlugin::Send(client_fd, &msg_type, static_cast<uint64_t>(sizeof(msg_type)));
@@ -161,7 +163,7 @@ class HixlCSTest : public ::testing::Test {
     EXPECT_EQ(ret, SUCCESS);
   }
 
-  void GetCreateChannelResp(int32_t client_fd, CreateChannelResp &resp_body) {
+  void RecvCreateChannelRespRaw(int32_t client_fd, CreateChannelResp &resp_body) {
     CtrlMsgHeader recv_header{};
     const uint64_t expect_body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(CreateChannelResp));
     recv_header.body_size = expect_body_size;
@@ -175,6 +177,10 @@ class HixlCSTest : public ::testing::Test {
     EXPECT_EQ(resp_type, CtrlMsgType::kCreateChannelResp);
     ret = CtrlMsgPlugin::Recv(client_fd, &resp_body, static_cast<uint64_t>(sizeof(resp_body)), kRecvTimeoutMs);
     EXPECT_EQ(ret, SUCCESS);
+  }
+
+  void GetCreateChannelResp(int32_t client_fd, CreateChannelResp &resp_body) {
+    RecvCreateChannelRespRaw(client_fd, resp_body);
     EXPECT_EQ(resp_body.result, SUCCESS);
   }
 
@@ -582,6 +588,67 @@ TEST_F(HixlCSTest, TestHixlCSClient2Server) {
 
   ret = HixlCSServerUnregMem(server_handle, mem_handle);
   EXPECT_EQ(ret, SUCCESS);
+  ret = HixlCSServerDestroy(server_handle);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+// qos=0xFF（kQosUnset，表示qos未配置不下发）应被server放行
+TEST_F(HixlCSTest, TestHixlCSServerCreateChannelQosUnsetAccepted) {
+  HixlServerConfig config{};
+  HixlServerHandle server_handle = nullptr;
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = kPort;
+  desc.endpoint_list = &default_eps[0];
+  desc.endpoint_list_num = default_eps.size();
+  auto ret = HixlCSServerCreate(&desc, &config, &server_handle);
+  EXPECT_EQ(ret, SUCCESS);
+  ret = HixlCSServerListen(server_handle, kBackLog);
+  EXPECT_EQ(ret, SUCCESS);
+
+  int32_t client_fd = -1;
+  ret = CtrlMsgPlugin::Connect("127.0.0.1", kPort, client_fd, 1);
+  EXPECT_EQ(ret, SUCCESS);
+  SendMatchEndpointReq(client_fd);
+  MatchEndpointResp match_resp{};
+  GetMatchEndpointResp(client_fd, match_resp);
+  SendGetRemoteMemReq(client_fd, match_resp.dst_ep_handle);
+  RecvGetRemoteMemRespDrain(client_fd);
+  SendCreateChannelReq(client_fd, match_resp.dst_ep_handle, match_resp.channel_index, kQosUnset);
+  CreateChannelResp resp_body{};
+  GetCreateChannelResp(client_fd, resp_body);
+  (void)close(client_fd);
+  ret = HixlCSServerDestroy(server_handle);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+// qos超出[0,7]有效范围（且非kQosUnset）应被server拒绝
+TEST_F(HixlCSTest, TestHixlCSServerCreateChannelQosInvalidRejected) {
+  HixlServerConfig config{};
+  HixlServerHandle server_handle = nullptr;
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = kPort;
+  desc.endpoint_list = &default_eps[0];
+  desc.endpoint_list_num = default_eps.size();
+  auto ret = HixlCSServerCreate(&desc, &config, &server_handle);
+  EXPECT_EQ(ret, SUCCESS);
+  ret = HixlCSServerListen(server_handle, kBackLog);
+  EXPECT_EQ(ret, SUCCESS);
+
+  int32_t client_fd = -1;
+  ret = CtrlMsgPlugin::Connect("127.0.0.1", kPort, client_fd, 1);
+  EXPECT_EQ(ret, SUCCESS);
+  SendMatchEndpointReq(client_fd);
+  MatchEndpointResp match_resp{};
+  GetMatchEndpointResp(client_fd, match_resp);
+  SendGetRemoteMemReq(client_fd, match_resp.dst_ep_handle);
+  RecvGetRemoteMemRespDrain(client_fd);
+  SendCreateChannelReq(client_fd, match_resp.dst_ep_handle, match_resp.channel_index, kQosMax + 1U);
+  CreateChannelResp resp_body{};
+  RecvCreateChannelRespRaw(client_fd, resp_body);
+  EXPECT_NE(resp_body.result, SUCCESS);
+  (void)close(client_fd);
   ret = HixlCSServerDestroy(server_handle);
   EXPECT_EQ(ret, SUCCESS);
 }

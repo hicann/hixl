@@ -25,12 +25,14 @@ class ClientHandlerConfigHelper {
     nlohmann::json json;
     if (args.qos.has_value()) {
       json["comm_resource_config.qos"] = args.qos.value();
+    } else if (!args.rdma_tc.has_value() && !args.rdma_sl.has_value()) {
+      json["comm_resource_config.qos"] = kQosDefault;
     }
     if (args.max_active_channels.has_value()) {
       json["comm_resource_config.max_active_channels"] = args.max_active_channels.value();
     }
     json["transfer_config.max_transfer_count_per_batch"] = args.max_transfer_count_per_batch;
-    return json.dump();
+    return json.empty() ? "" : json.dump();
   }
 };
 

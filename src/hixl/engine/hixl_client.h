@@ -30,8 +30,8 @@ struct ClientConfig {
   std::vector<EndpointConfig> endpoint_list;
   std::string local_engine;
   std::string remote_engine;
-  uint8_t rdma_tc;
-  uint8_t rdma_sl;
+  std::optional<uint8_t> rdma_tc;
+  std::optional<uint8_t> rdma_sl;
   uint32_t timeout_ms;
   std::optional<uint8_t> qos;
   std::optional<uint32_t> max_active_channels;
@@ -143,8 +143,8 @@ class HixlClient {
   uint32_t server_port_;
   std::string local_engine_;
   std::string remote_engine_;
-  uint8_t rdma_tc_{kRdmaTrafficClass};
-  uint8_t rdma_sl_{kRdmaServiceLevel};
+  std::optional<uint8_t> rdma_tc_;
+  std::optional<uint8_t> rdma_sl_;
   bool is_connected_{false};  // true为已建链；false未建链
   bool is_finalized_{false};
   int32_t ctrl_socket_{-1};

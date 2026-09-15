@@ -1242,10 +1242,9 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannel(uint32_t timeout_ms) {
   HIXL_CHK_STATUS_RET(GetRemoteMemImpl(timeout_ms, &prefetch_mems, &prefetch_tags, &prefetch_num),
                       "[HixlClient] Connect prefetch GetRemoteMem/Import failed. fd=%d, timeout=%u ms", socket_,
                       timeout_ms);
-  CreateChannelReq create_body{
-      src_ep,     remote_endpoint_handle_, tc_,           sl_,
-      retry_cnt_, retry_interval_,         channel_index, global_config_.Qos().value_or(kQosDefault),
-      timeout_ms};
+  const uint8_t qos = global_config_.Qos().value_or(kQosUnset);
+  CreateChannelReq create_body{src_ep,          remote_endpoint_handle_, tc_, sl_,       retry_cnt_,
+                               retry_interval_, channel_index,           qos, timeout_ms};
   HIXL_CHK_STATUS_RET(ConnMsgHandler::SendCreateChannelRequest(socket_, create_body),
                       "[HixlClient] SendCreateChannelRequest failed. fd=%d", socket_);
   ChannelHandle channel_handle = 0UL;
@@ -1256,7 +1255,7 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannel(uint32_t timeout_ms) {
                            retry_interval_,
                            ChannelType::kClient,
                            channel_index,
-                           global_config_.Qos().value_or(kQosDefault),
+                           qos,
                            global_config_.MaxTransferCountPerBatch()};
   HIXL_CHK_STATUS_RET(local_endpoint_->CreateChannel(channel_desc, channel_handle, timeout_ms),
                       "[HixlClient] Endpoint CreateChannel failed. Dst[id:0x%x]", remote_endpoint_.commAddr.id);

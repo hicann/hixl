@@ -172,8 +172,8 @@ Status UbClientHandler::Create(const HandlerCreateArgs &args, std::unique_ptr<Ub
     desc.server_port = args.server_port;
     desc.local_endpoint = &le;
     desc.remote_endpoint = &re;
-    desc.tc = args.rdma_tc;
-    desc.sl = args.rdma_sl;
+    desc.tc = args.rdma_tc.value_or(kRdmaTrafficClass);
+    desc.sl = args.rdma_sl.value_or(kRdmaServiceLevel);
     HixlClientHandle handle = nullptr;
     HixlClientConfig config{};
     if (!global_resource_config.empty()) {
