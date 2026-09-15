@@ -18,6 +18,7 @@
 #include <limits>
 #include <securec.h>
 #include <thread>
+#include <unordered_set>
 #include "acl/acl.h"
 #include "nlohmann/json.hpp"
 #include "hixl/hixl_types.h"
@@ -849,6 +850,7 @@ Status HixlCSClient::LaunchDeviceKernel(bool is_get, DeviceCompleteHandle &handl
       aclrtLaunchKernelWithConfig(funcHandle, block_dim, handle.shared_slot->stream, &cfg, argsHandle, nullptr),
       "[HixlClient] aclrtLaunchKernelWithConfig failed, kernel=%s, thread=%lu", kernel_name,
       static_cast<uint64_t>(thread));
+  handle.shared_slot->launched_tasks += param.list_num;
   if (wait_notify) {
     HIXL_CHK_ACL_RET(aclrtWaitAndResetNotify(handle.shared_slot->notify, handle.shared_slot->stream, kCustomTimeoutMs),
                      "[HixlClient] aclrtWaitAndResetNotify failed, kernel=%s, thread=%lu", kernel_name,
@@ -1455,13 +1457,14 @@ void HixlCSClient::AbortAllPendingDeviceHandles() {
   }
   std::vector<DeviceCompleteHandle *> pending(pending_device_handles_.begin(), pending_device_handles_.end());
   pending_device_handles_.clear();
+  std::unordered_set<uint32_t> aborted_slots;
   for (DeviceCompleteHandle *h : pending) {
     if (h == nullptr) {
       continue;
     }
     if (h->shared_slot != nullptr) {
       auto *pool = TransferPool::GetInstance(h->shared_slot->device_id);
-      if (pool != nullptr) {
+      if (pool != nullptr && aborted_slots.insert(h->shared_slot->slot_index).second) {
         pool->Abort(*h->shared_slot);
       }
     }

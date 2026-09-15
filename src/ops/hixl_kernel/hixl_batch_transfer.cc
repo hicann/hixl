@@ -156,6 +156,7 @@ Status HixlBatchTransfer(bool is_read, HixlOneSideOpParam *param) {
 
   HIXL_CHK_STATUS_RET(HixlBatchTransferTask(is_read, param),
                       "[HixlBatchPutAndGet] HixlBatchTransferTask failed, is_read:%d", static_cast<int32_t>(is_read));
+  ctx->dispatched_tasks += param->list_num;
 
   HIXL_CHK_HCCL_RET(static_cast<HcclResult>(HcommProxy::ChannelFenceOnThread(param->thread, param->channel)),
                     "[HixlBatchPutAndGet] thread:%" PRIu64 ", channel:%" PRIu64, param->thread, param->channel);

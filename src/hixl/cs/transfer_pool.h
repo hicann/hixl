@@ -41,6 +41,7 @@ class TransferPool {
     uint32_t notify_len;
     uint8_t *err_flag_host_addr;
     uint64_t err_flag_dev_addr;
+    uint64_t launched_tasks{0};
   };
 
   TransferPool(const TransferPool &) = delete;
@@ -71,6 +72,7 @@ class TransferPool {
     uint32_t notify_len;
     uint8_t *err_flag_host_addr;
     uint64_t err_flag_dev_addr;
+    uint64_t launched_tasks{0};
   };
 
   void InitFreeListLocked();
@@ -99,21 +101,22 @@ class TransferPool {
   static void AbortInUseStreamLocked(const Slot &slot);
   void AbortSlotRuntimeLocked(Slot &slot) const;
   static void ResetAbortSlotNotifyLocked(Slot &slot);
-  void DeleteSlotThreadContextForAbortLocked(Slot &slot, uint32_t slot_index) const;
+  Status DeleteSlotThreadContextForAbortLocked(Slot &slot, uint32_t slot_index,
+                                               uint64_t *out_dispatched = nullptr) const;
   static void DestroySlotContextForAbortLocked(Slot &slot);
   void CleanupSlotAfterAbortReinitFailureLocked(Slot &slot, uint32_t slot_index) const;
   Status ReinitSlotAfterAbortLocked(Slot &slot, uint32_t slot_index) const;
   void ReturnSlotToFreeListLocked(uint32_t slot_index);
-  void AbortSlotByIndexLocked(uint32_t slot_index);
+  void AbortSlotByIndexLocked(uint32_t slot_index, uint64_t launched);
 
   static void FillHandleFromSlot(int32_t device_id, uint32_t index, const Slot &slot, SlotHandle *handle);
   Status EnsureDevConstOneLocked();
   Status EnsureDeviceKernelsLocked();
   Status SyncContextsLocked(const std::vector<HixlTransferContextSyncEntry> &entries, uint32_t op,
-                            uint32_t expect_state) const;
+                            uint32_t expect_state, uint64_t *out_dispatched = nullptr) const;
   Status RunSyncContextOnceLocked(std::vector<HixlTransferContextSyncEntry> &pending, uint32_t op,
                                   uint32_t expect_state, std::vector<HixlTransferContextSyncEntry> &retry_entries,
-                                  std::vector<uint32_t> &retry_states) const;
+                                  std::vector<uint32_t> &retry_states, uint64_t *out_dispatched = nullptr) const;
   Status CollectRetrySyncEntries(const std::vector<HixlTransferContextSyncEntry> &entries,
                                  const std::vector<uint32_t> &states, uint32_t op, uint32_t expect_state,
                                  std::vector<HixlTransferContextSyncEntry> &retry_entries,
@@ -122,9 +125,10 @@ class TransferPool {
                                   const std::vector<uint32_t> &states, uint32_t op) const;
   Status AddTransferContextsLocked() const;
   Status DeleteTransferContextsLocked(const std::vector<HixlTransferContextSyncEntry> &entries) const;
-  Status SyncOneTransferContextLocked(const Slot &slot, uint32_t op, uint32_t expect_state) const;
-  Status LaunchSyncContextKernelLocked(const std::vector<HixlTransferContextSyncEntry> &entries,
-                                       std::vector<uint32_t> &states) const;
+  Status SyncOneTransferContextLocked(const Slot &slot, uint32_t op, uint32_t expect_state,
+                                      uint64_t *out_dispatched = nullptr) const;
+  Status LaunchSyncContextKernelLocked(std::vector<HixlTransferContextSyncEntry> &entries,
+                                       std::vector<uint32_t> &states, bool readback_entries) const;
   static std::vector<HixlTransferContextSyncEntry> BuildSyncEntriesFromSlots(const std::vector<Slot> &slots,
                                                                              uint32_t op);
 

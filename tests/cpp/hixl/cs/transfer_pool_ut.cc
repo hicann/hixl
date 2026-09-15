@@ -443,6 +443,57 @@ TEST_F(TransferPoolTest, MultipleAcquireReleaseCycles) {
   pool->Release(d);
 }
 
+TEST_F(TransferPoolTest, ReleaseWritesBackLaunchedTasksAndAcquireSeedsIt) {
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  TransferPool::SlotHandle h{};
+  ASSERT_EQ(pool->Acquire(&h), SUCCESS);
+  h.launched_tasks = 100U;
+  pool->Release(h);
+
+  TransferPool::SlotHandle again{};
+  ASSERT_EQ(pool->Acquire(&again), SUCCESS);
+  EXPECT_EQ(again.slot_index, h.slot_index);
+  EXPECT_EQ(again.launched_tasks, 100U);
+  pool->Release(again);
+}
+
+TEST_F(TransferPoolTest, LaunchedTasksAccumulateAcrossReuse) {
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  TransferPool::SlotHandle h{};
+  ASSERT_EQ(pool->Acquire(&h), SUCCESS);
+  h.launched_tasks = 100U;
+  pool->Release(h);
+
+  ASSERT_EQ(pool->Acquire(&h), SUCCESS);
+  EXPECT_EQ(h.launched_tasks, 100U);
+  h.launched_tasks += 50U;
+  pool->Release(h);
+
+  ASSERT_EQ(pool->Acquire(&h), SUCCESS);
+  EXPECT_EQ(h.launched_tasks, 150U);
+  pool->Release(h);
+}
+
+TEST_F(TransferPoolTest, AbortReinitResetsLaunchedTasks) {
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  TransferPool::SlotHandle h{};
+  ASSERT_EQ(pool->Acquire(&h), SUCCESS);
+  h.launched_tasks = 100U;
+  pool->Abort(h);
+
+  TransferPool::SlotHandle again{};
+  ASSERT_EQ(pool->Acquire(&again), SUCCESS);
+  EXPECT_EQ(again.slot_index, h.slot_index);
+  EXPECT_EQ(again.launched_tasks, 0U);
+  pool->Release(again);
+}
+
 TEST_F(TransferPoolTest, InitializeFinalizeReferenceCountBalancesThreadFree) {
   auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
   ASSERT_NE(pool, nullptr);

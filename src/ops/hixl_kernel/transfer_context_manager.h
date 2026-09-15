@@ -51,6 +51,7 @@ struct TransferContext {
   std::atomic<HixlTransferThreadState> state{TRANSFER_THREAD_STATE_INITIALIZED};
   uint32_t notify_id{0};
   uint64_t err_flag_dev_va{0};
+  uint64_t dispatched_tasks{0};
 };
 
 class TransferContextManager {
@@ -59,7 +60,7 @@ class TransferContextManager {
 
   std::shared_ptr<TransferContext> Get(ThreadHandle thread) const;
   HixlTransferThreadState Add(ThreadHandle thread, uint32_t notify_id = 0U, uint64_t err_flag_dev_va = 0U);
-  HixlTransferThreadState Delete(ThreadHandle thread);
+  HixlTransferThreadState Delete(ThreadHandle thread, uint64_t *out_dispatched = nullptr);
 
  private:
   TransferContextManager() = default;

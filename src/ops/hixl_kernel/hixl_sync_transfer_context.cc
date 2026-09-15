@@ -41,7 +41,9 @@ uint32_t DoSyncTransferContext(HixlTransferContextSyncParam *param) {
       state =
           TransferContextManager::Instance().Add(entries[i].thread, entries[i].notify_id, entries[i].err_flag_dev_va);
     } else if (entries[i].op == TRANSFER_CONTEXT_OP_DELETE) {
-      state = TransferContextManager::Instance().Delete(entries[i].thread);
+      uint64_t dispatched = 0;
+      state = TransferContextManager::Instance().Delete(entries[i].thread, &dispatched);
+      entries[i].dispatched_tasks = dispatched;
     } else {
       HIXL_CHK_BOOL_RET_STATUS(entries[i].op == TRANSFER_CONTEXT_OP_ADD || entries[i].op == TRANSFER_CONTEXT_OP_DELETE,
                                PARAM_INVALID, "[HixlSyncTransferContext] invalid op:%u, index:%u", entries[i].op, i);
