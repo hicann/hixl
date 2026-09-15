@@ -169,7 +169,7 @@ class TransferCacheJob:
             self.check_transfer_config(transfer_config)
 
     def transfer_layers(self):
-        for layer_i, src_layer_index in enumerate(range(self._num_layers)):
+        for src_layer_index in range(self._num_layers):
             to_transfer = [config for config in self._transfer_configs if src_layer_index in config.src_layer_range]
             if not to_transfer:
                 log.info('src_layer %d sends to no destination', src_layer_index)
@@ -182,7 +182,7 @@ class TransferCacheJob:
                 return
             for config in to_transfer:
                 dst_layer_index = src_layer_index if config.dst_layer_range is None \
-                    else list(config.dst_layer_range)[layer_i]
+                    else config.dst_layer_range[src_layer_index - config.src_layer_range.start]
                 ret = self.transfer_layer(src_layer_index, dst_layer_index, config)
                 if ret != LLMStatusCode.LLM_SUCCESS:
                     log.error(f'Failed to transfer layer {src_layer_index} to dst_cluster_id={config.dst_cluster_id}')
@@ -255,19 +255,24 @@ class TransferAsyncThread(Thread):
         self._transfer_job = transfer_job
         self._rets = []
         self._default_err_code = default_err_code
+        self._exception = None
 
     def run(self):
-        self._transfer_job.transfer_layers()
+        try:
+            self._transfer_job.transfer_layers()
+        except Exception as exc:
+            self._exception = exc
+            log.error('Transfer thread failed: %s, return code = %s', exc, self._default_err_code)
 
     def get_results(self, timeout) -> List[LLMStatusCode]:
         self.join(timeout)
-        if self.is_alive():
+        if self.is_alive() or self._exception is not None:
             return [self._default_err_code] * self._transfer_job.num_transfer_configs()
         return self._transfer_job.get_results()
 
     def get(self, timeout) -> LLMStatusCode:
         self.join(timeout)
-        if self.is_alive():
+        if self.is_alive() or self._exception is not None:
             return self._default_err_code
         rets = self._transfer_job.get_results()
         for ret in rets:
