@@ -46,7 +46,7 @@ __init__(self,
 ## 调用示例
 
 ```python
-from llm_datadist import CacheDesc
+from llm_datadist import CacheDesc, DataType
 cache_desc = CacheDesc(80, [4, 2048, 1, 128], DataType.DT_FLOAT16)
 ```
 
