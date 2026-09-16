@@ -234,7 +234,7 @@ Status HixlServer::ProcessNotifyMsg(int32_t fd, const char *msg, uint64_t msg_le
   HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &header, static_cast<uint64_t>(sizeof(header))));
   HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &msg_type, static_cast<uint64_t>(sizeof(msg_type))));
   HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, ack_str.c_str(), static_cast<uint64_t>(ack_str.size())));
-  HIXL_LOGI("Received NotifyMsg and sent NotifyAck, name:%s", notify_msg.name.c_str());
+  HIXL_LOGI("Received NotifyMsg and sent NotifyAck");
   return result;
 }
 
