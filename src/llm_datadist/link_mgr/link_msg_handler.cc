@@ -210,7 +210,7 @@ ge::Status LinkMsgHandler::ProcessConnectRequest(int32_t fd, const std::vector<c
   exchange_info.resp_size = kDefaultRespBufferSize;
   LLM_CHK_STATUS_RET(SendMsg(fd, LinkMsgType::kConnect, exchange_info), "Failed to send connect msg");
 
-  auto ret = ge::SUCCESS;
+  auto ret = ge::FAILED;
   LLM_MAKE_GUARD(send_status, ([fd, &ret]() {
                    LLMLinkStatus status{};
                    status.error_code = ret;
@@ -234,7 +234,7 @@ ge::Status LinkMsgHandler::ProcessConnectRequest(int32_t fd, const std::vector<c
 }
 
 ge::Status LinkMsgHandler::ProcessDisconnectRequest(int32_t fd, const std::vector<char> &msg) const {
-  auto ret = ge::SUCCESS;
+  auto ret = ge::FAILED;
   LLM_MAKE_GUARD(send_status, ([fd, &ret]() {
                    LLMLinkStatus status{};
                    status.error_code = ret;
