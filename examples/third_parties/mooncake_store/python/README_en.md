@@ -96,14 +96,16 @@ Configure the distributed cluster and Mooncake Store parameters by referring to 
 
 In `run.sh`, set `export HCCL_INTRA_ROCE_ENABLE=1 ` to select `RDMA` as the transmission mode. (If this parameter is set to `0`, `HCCS` is used by default within the machine.)
 
+The default intra-node protocol is HCCS, which supports D2D only. For non-D2D transfers (`h2h` / `h2d` / `d2h`), enable `HCCL_INTRA_ROCE_ENABLE` or `ASCEND_ENABLE_USE_FABRIC_MEM` in `run.sh`.
+
 Do not disable both `RoCE` and `PCIe` at the same time. Otherwise, the following error message is displayed:
 
 >  [Parse] [IntraLinkType]only set HCCL_INTRA_ROCE_ENABLE, and the val is zero, pls set HCCL_INTRA_PCIE_ENABLE
 
 Run the following command on the terminal:
 
-``````bash 
-bash run.sh **.py 
+``````bash
+bash run.sh **.py
 ``````
 
 > In the command, `**.py` is the sample corresponding to the API to be tested. For example, to test the `batch_put_get` API, use `batch_put_get_sample.py`.
@@ -122,7 +124,7 @@ Run commands to import execution parameters. The parameters are as follows:
 The following uses the `batch_put_get` API as an example to describe how to perform D2D data transmission in a single-node environment with a single device. After starting and configuring mooncake_master or hardcoding the corresponding parameters in the code, run the following command:
 
 ```bash
-bash run.sh batch_put_get_sample.py --device_id=0 --schema="d2d"
+bash run.sh batch_put_get_sample.py --device_id=0 --schema="d2d" --rank=0
 ```
 
 > For tests in a single-node multi-device environment or a distributed cluster, you only need to create a configuration file by referring to `config_example.yaml` and pass the `config` parameter during runtime to specify the path of the configuration file.

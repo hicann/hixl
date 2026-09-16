@@ -96,6 +96,8 @@ mooncake_master \
 
 在`run.sh`中，通过`export HCCL_INTRA_ROCE_ENABLE=1 `选择传输方式为RDMA（如果设置为0，则机器内默认走hccs）
 
+默认走 HCCS，仅支持 D2D。非 D2D 传输（h2h / h2d / d2h）需要在`run.sh`中开启`HCCL_INTRA_ROCE_ENABLE`或`ASCEND_ENABLE_USE_FABRIC_MEM`。
+
 注意不要同时禁用ROCE 和 PCIE，否则会有以下报错：
 
 >  [Parse] [IntraLinkType]only set HCCL_INTRA_ROCE_ENABLE, and the val is zero, pls set HCCL_INTRA_PCIE_ENABLE
@@ -122,7 +124,7 @@ bash run.sh **.py
 以单机环境单卡执行batch_put_get接口对应用例，进行d2d数据传输时，在启动完Mooncake master并完成配置或在代码中硬编码对应的参数之后；执行以下命令：
 
 ```bash
-bash run.sh batch_put_get_sample.py --device_id=0 --schema="d2d"
+bash run.sh batch_put_get_sample.py --device_id=0 --schema="d2d" --rank=0
 ```
 
 > 单机多卡环境以及分布式集群下进行测试，只需要参考config_example.yaml创建配置文件，并在运行时传入 config参数指定配置文件路径即可。
