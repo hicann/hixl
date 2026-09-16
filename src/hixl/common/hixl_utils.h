@@ -11,8 +11,14 @@
 #ifndef CANN_HIXL_SRC_HIXL_COMMON_HIXL_UTILS_H_
 #define CANN_HIXL_SRC_HIXL_COMMON_HIXL_UTILS_H_
 
+#include <cstdint>
+#include <map>
 #include <memory>
+#include <new>
+#include <string>
+#include <type_traits>
 #include <utility>
+#include <vector>
 #include <sstream>
 #include "cs/hixl_cs.h"
 #include "hccl/hccl_types.h"

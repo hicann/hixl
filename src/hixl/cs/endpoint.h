@@ -11,9 +11,11 @@
 #ifndef CANN_HIXL_SRC_HIXL_CS_ENDPOINT_H_
 #define CANN_HIXL_SRC_HIXL_CS_ENDPOINT_H_
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <vector>
 
 #include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"

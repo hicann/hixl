@@ -11,11 +11,15 @@
 #ifndef HIXL_SRC_HIXL_ENGINE_HIXL_ENGINE_H_
 #define HIXL_SRC_HIXL_ENGINE_HIXL_ENGINE_H_
 
+#include <atomic>
+#include <cstdint>
 #include <map>
 #include <mutex>
 #include <optional>
 #include <shared_mutex>
+#include <string>
 #include <unordered_set>
+#include <vector>
 #include "acl/acl.h"
 #include "engine.h"
 #include "hixl_options.h"

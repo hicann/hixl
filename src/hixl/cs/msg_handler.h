@@ -11,6 +11,11 @@
 #ifndef CANN_HIXL_SRC_HIXL_CS_MSG_HANDLER_H_
 #define CANN_HIXL_SRC_HIXL_CS_MSG_HANDLER_H_
 
+#include <atomic>
+#include <cstdint>
+#include <memory>
+#include <thread>
+#include <utility>
 #include <queue>
 #include <mutex>
 #include <map>

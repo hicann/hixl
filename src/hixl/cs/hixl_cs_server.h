@@ -11,6 +11,10 @@
 #ifndef CANN_HIXL_SRC_HIXL_CS_HIXL_CS_SERVER_H_
 #define CANN_HIXL_SRC_HIXL_CS_HIXL_CS_SERVER_H_
 
+#include <atomic>
+#include <cstdint>
+#include <string>
+#include <thread>
 #include <map>
 #include <vector>
 #include <mutex>

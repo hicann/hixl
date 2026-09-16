@@ -13,12 +13,17 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <future>
 #include <list>
 #include <memory>
+#include <mutex>
 #include <queue>
+#include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "common/hixl_log.h"

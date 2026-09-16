@@ -11,6 +11,7 @@
 #define CANN_HIXL_SRC_HIXL_PROXY_DSMI_PROXY_H_
 
 #include <cstdint>
+#include <string>
 #include "hixl/hixl_types.h"
 
 struct DsmiBoardInfoStru {

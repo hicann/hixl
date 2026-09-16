@@ -11,6 +11,9 @@
 #ifndef CANN_HIXL_SRC_HIXL_COMMON_CTRL_MSG_PLUGIN_H_
 #define CANN_HIXL_SRC_HIXL_COMMON_CTRL_MSG_PLUGIN_H_
 
+#include <cstddef>
+#include <cstdint>
+#include <string>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <netinet/in.h>

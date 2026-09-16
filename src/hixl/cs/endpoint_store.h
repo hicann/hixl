@@ -12,6 +12,7 @@
 #define CANN_HIXL_SRC_ENDPOINT_STORE_H_
 
 #include <mutex>
+#include <vector>
 #include <map>
 #include "hixl/hixl_types.h"
 #include "endpoint.h"
