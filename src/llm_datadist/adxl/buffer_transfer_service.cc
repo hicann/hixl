@@ -35,6 +35,29 @@ bool IsReadTransferType(TransferType type) {
   return type == TransferType::kReadRH2H || type == TransferType::kReadRD2H || type == TransferType::kReadRH2D ||
          type == TransferType::kReadRD2D;
 }
+
+bool IsValidTransferType(TransferType type) {
+  const auto value = static_cast<int32_t>(type);
+  return value >= static_cast<int32_t>(TransferType::kWriteH2RH) && value < static_cast<int32_t>(TransferType::kEnd);
+}
+
+Status SumBufferLens(const std::vector<size_t> &buffer_lens, uint64_t &sum) {
+  sum = 0U;
+  for (size_t i = 0U; i < buffer_lens.size(); ++i) {
+    ADXL_CHK_BOOL_RET_STATUS(!ge::AddOverflow(sum, buffer_lens[i], sum), PARAM_INVALID,
+                             "buffer_lens overflow at index:%zu.", i);
+  }
+  return SUCCESS;
+}
+
+Status CheckCopySliceSizes(const std::vector<uintptr_t> &src_addrs, const std::vector<uintptr_t> &dst_addrs,
+                           const std::vector<size_t> &sizes) {
+  ADXL_CHK_BOOL_RET_STATUS(src_addrs.size() == dst_addrs.size(), PARAM_INVALID,
+                           "src_addrs.size():%zu != dst_addrs.size():%zu.", src_addrs.size(), dst_addrs.size());
+  ADXL_CHK_BOOL_RET_STATUS(src_addrs.size() == sizes.size(), PARAM_INVALID, "src_addrs.size():%zu != sizes.size():%zu.",
+                           src_addrs.size(), sizes.size());
+  return SUCCESS;
+}
 }  // namespace
 
 Status BufferTransferService::Initialize() {
@@ -358,9 +381,7 @@ void BufferTransferService::ProcessBufferReqSecondStep() {
 Status BufferTransferService::HandleBufferD2D(const ChannelPtr &channel, BufferReq &buffer_req) {
   LLMLOGI("Processing BufferReq for channel:%s, type:%s", channel->GetChannelId().c_str(),
           TransferTypeToString(buffer_req.transfer_type).c_str());
-  ADXL_CHK_BOOL_RET_STATUS(buffer_req.total_buffer_len <= buffer_size_, PARAM_INVALID,
-                           "Total buffer length:%lu is bigger than buffer size:%lu.", buffer_req.total_buffer_len,
-                           buffer_size_);
+  ADXL_CHK_STATUS_RET(ValidatePeerBufferReq(buffer_req), "Invalid peer BufferReq.");
   LLM_DISMISSABLE_GUARD(
       failed_guard, ([this, &buffer_req]() { ReleaseServerBuffer(llm::ValueToPtr(buffer_req.local_buffer_addr)); }));
   const auto start = std::chrono::steady_clock::now();
@@ -466,10 +487,24 @@ Status BufferTransferService::ProcessBufferCopyByType(const ChannelPtr &channel,
                      std::make_pair(kind, left_timeout));
 }
 
-Status BufferTransferService::HandleBufferCopy(const ChannelPtr &channel, BufferReq &buffer_req) {
+Status BufferTransferService::ValidatePeerBufferReq(const BufferReq &buffer_req) const {
+  ADXL_CHK_BOOL_RET_STATUS(IsValidTransferType(buffer_req.transfer_type), PARAM_INVALID, "Invalid transfer_type:%d.",
+                           static_cast<int32_t>(buffer_req.transfer_type));
+  ADXL_CHK_BOOL_RET_STATUS(buffer_req.dst_addrs.size() == buffer_req.buffer_lens.size(), PARAM_INVALID,
+                           "dst_addrs.size():%zu != buffer_lens.size():%zu.", buffer_req.dst_addrs.size(),
+                           buffer_req.buffer_lens.size());
   ADXL_CHK_BOOL_RET_STATUS(buffer_req.total_buffer_len <= buffer_size_, PARAM_INVALID,
                            "Total buffer length:%lu is bigger than buffer size:%lu.", buffer_req.total_buffer_len,
                            buffer_size_);
+  uint64_t lens_sum = 0U;
+  ADXL_CHK_STATUS_RET(SumBufferLens(buffer_req.buffer_lens, lens_sum), "Failed to sum buffer_lens.");
+  ADXL_CHK_BOOL_RET_STATUS(lens_sum == buffer_req.total_buffer_len, PARAM_INVALID,
+                           "sum(buffer_lens):%lu != total_buffer_len:%lu.", lens_sum, buffer_req.total_buffer_len);
+  return SUCCESS;
+}
+
+Status BufferTransferService::HandleBufferCopy(const ChannelPtr &channel, BufferReq &buffer_req) {
+  ADXL_CHK_STATUS_RET(ValidatePeerBufferReq(buffer_req), "Invalid peer BufferReq.");
   LLM_DISMISSABLE_GUARD(
       failed_guard, ([this, &buffer_req]() { ReleaseServerBuffer(llm::ValueToPtr(buffer_req.local_buffer_addr)); }));
   auto start = std::chrono::steady_clock::now();
@@ -502,6 +537,7 @@ Status BufferTransferService::HandleBufferCopy(const ChannelPtr &channel, Buffer
 Status BufferTransferService::ProcessCopy(const ChannelPtr &channel, const std::vector<uintptr_t> &src_addrs,
                                           const std::vector<uintptr_t> &dst_addrs, std::vector<size_t> &sizes,
                                           CopyExtraInfo extra_info) {
+  ADXL_CHK_STATUS_RET(CheckCopySliceSizes(src_addrs, dst_addrs, sizes), "Copy slice sizes are inconsistent.");
   auto &kind = extra_info.first;
   if ((kind == ACL_MEMCPY_DEVICE_TO_DEVICE) || !support_batch_copy_batch_) {
     return ProcessCopyWithAsync(channel, src_addrs, dst_addrs, sizes, extra_info);
@@ -647,15 +683,15 @@ void BufferTransferService::ProcessBufferResp() {
 }
 
 Status BufferTransferService::ResolveReadCopyTotalLen(const BufferResp &buffer_resp, uint64_t &max_total_len) const {
-  max_total_len = buffer_resp.total_buffer_len;
-  if (max_total_len != 0U) {
+  uint64_t lens_sum = 0U;
+  ADXL_CHK_STATUS_RET(SumBufferLens(buffer_resp.buffer_lens, lens_sum), "Failed to sum buffer_lens.");
+  if (buffer_resp.total_buffer_len == 0U) {
+    max_total_len = lens_sum;
     return SUCCESS;
   }
-  max_total_len = 0U;
-  for (size_t i = 0U; i < buffer_resp.buffer_lens.size(); ++i) {
-    ADXL_CHK_BOOL_RET_STATUS(!ge::AddOverflow(max_total_len, buffer_resp.buffer_lens[i], max_total_len), PARAM_INVALID,
-                             "buffer_lens overflow at index:%zu.", i);
-  }
+  ADXL_CHK_BOOL_RET_STATUS(buffer_resp.total_buffer_len == lens_sum, PARAM_INVALID,
+                           "total_buffer_len:%lu != sum(buffer_lens):%lu.", buffer_resp.total_buffer_len, lens_sum);
+  max_total_len = buffer_resp.total_buffer_len;
   return SUCCESS;
 }
 

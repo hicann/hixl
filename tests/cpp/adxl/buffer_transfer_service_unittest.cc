@@ -207,8 +207,140 @@ TEST_F(BufferTransferServiceUTest, HandleBufferRespRejectsExceedingBufferSize) {
   resp.timeout = 10000U;
   resp.buffer_addr = reinterpret_cast<uintptr_t>(fake_buf);
   resp.src_addrs = {0x3000U};
-  resp.buffer_lens = {512U};
+  resp.buffer_lens = {2048U};
   resp.total_buffer_len = 2048U;  // exceeds local buffer_size_ (1024)
+  EXPECT_EQ(service_->HandleBufferResp(channel, resp), PARAM_INVALID);
+}
+
+TEST_F(BufferTransferServiceUTest, ProcessCopyRejectsMismatchedDstSize) {
+  auto channel = CreateChannel();
+  std::vector<uintptr_t> src_addrs = {0x1000U};
+  std::vector<uintptr_t> dst_addrs = {0x2000U, 0x3000U};
+  std::vector<size_t> sizes = {64U};
+  EXPECT_EQ(
+      service_->ProcessCopy(channel, src_addrs, dst_addrs, sizes, std::make_pair(ACL_MEMCPY_HOST_TO_DEVICE, 10000U)),
+      PARAM_INVALID);
+}
+
+TEST_F(BufferTransferServiceUTest, ProcessCopyRejectsMismatchedSizes) {
+  auto channel = CreateChannel();
+  std::vector<uintptr_t> src_addrs = {0x1000U, 0x1100U};
+  std::vector<uintptr_t> dst_addrs = {0x2000U, 0x2100U};
+  std::vector<size_t> sizes = {64U};
+  EXPECT_EQ(
+      service_->ProcessCopy(channel, src_addrs, dst_addrs, sizes, std::make_pair(ACL_MEMCPY_HOST_TO_DEVICE, 10000U)),
+      PARAM_INVALID);
+}
+
+TEST_F(BufferTransferServiceUTest, ValidatePeerBufferReqAcceptsConsistentRequest) {
+  BufferReq req{};
+  req.transfer_type = TransferType::kWriteH2RH;
+  req.dst_addrs = {0x1000U};
+  req.buffer_lens = {256U};
+  req.total_buffer_len = 256U;
+  EXPECT_EQ(service_->ValidatePeerBufferReq(req), SUCCESS);
+}
+
+TEST_F(BufferTransferServiceUTest, HandleBufferCopyRejectsExceedingBufferSize) {
+  auto channel = CreateChannel();
+  BufferReq req{};
+  req.transfer_type = TransferType::kWriteH2RH;
+  req.timeout = 10000U;
+  req.dst_addrs = {0x1000U};
+  req.buffer_lens = {2048U};
+  req.total_buffer_len = 2048U;
+  EXPECT_EQ(service_->HandleBufferCopy(channel, req), PARAM_INVALID);
+}
+
+TEST_F(BufferTransferServiceUTest, HandleBufferCopyRejectsMismatchedVectors) {
+  auto channel = CreateChannel();
+  BufferReq req{};
+  req.transfer_type = TransferType::kWriteH2RH;
+  req.timeout = 10000U;
+  req.dst_addrs = {0x1000U, 0x2000U};
+  req.buffer_lens = {256U};
+  req.total_buffer_len = 0U;
+  EXPECT_EQ(service_->HandleBufferCopy(channel, req), PARAM_INVALID);
+}
+
+TEST_F(BufferTransferServiceUTest, HandleBufferCopyRejectsTotalLenMismatch) {
+  auto channel = CreateChannel();
+  BufferReq req{};
+  req.transfer_type = TransferType::kWriteH2RH;
+  req.timeout = 10000U;
+  req.dst_addrs = {0x1000U};
+  req.buffer_lens = {256U};
+  req.total_buffer_len = 0U;
+  EXPECT_EQ(service_->HandleBufferCopy(channel, req), PARAM_INVALID);
+}
+
+TEST_F(BufferTransferServiceUTest, HandleBufferD2DRejectsInvalidTransferType) {
+  auto channel = CreateChannel();
+  BufferReq req{};
+  req.transfer_type = TransferType::kEnd;
+  req.timeout = 10000U;
+  req.dst_addrs = {0x1000U};
+  req.buffer_lens = {256U};
+  req.total_buffer_len = 256U;
+  EXPECT_EQ(service_->HandleBufferD2D(channel, req), PARAM_INVALID);
+}
+
+TEST_F(BufferTransferServiceUTest, HandleBufferD2DRejectsMismatchedVectors) {
+  auto channel = CreateChannel();
+  BufferReq req{};
+  req.transfer_type = TransferType::kWriteH2RH;
+  req.timeout = 10000U;
+  req.dst_addrs = {0x1000U};
+  req.buffer_lens = {128U, 128U};
+  req.total_buffer_len = 256U;
+  EXPECT_EQ(service_->HandleBufferD2D(channel, req), PARAM_INVALID);
+}
+
+TEST_F(BufferTransferServiceUTest, HandleBufferRespRejectsExceedingBufferSizeWithZeroTotal) {
+  void *fake_buf = reinterpret_cast<void *>(0x2000);
+  service_->req_id_buffers_[42U].insert(fake_buf);
+
+  auto channel = CreateChannel();
+  BufferResp resp{};
+  resp.transfer_type = TransferType::kReadRH2H;
+  resp.req_id = 42U;
+  resp.timeout = 10000U;
+  resp.buffer_addr = reinterpret_cast<uintptr_t>(fake_buf);
+  resp.src_addrs = {0x3000U};
+  resp.buffer_lens = {2048U};
+  resp.total_buffer_len = 0U;
+  EXPECT_EQ(service_->HandleBufferResp(channel, resp), PARAM_INVALID);
+}
+
+TEST_F(BufferTransferServiceUTest, HandleBufferRespRejectsTotalLenMismatch) {
+  void *fake_buf = reinterpret_cast<void *>(0x2000);
+  service_->req_id_buffers_[42U].insert(fake_buf);
+
+  auto channel = CreateChannel();
+  BufferResp resp{};
+  resp.transfer_type = TransferType::kReadRH2H;
+  resp.req_id = 42U;
+  resp.timeout = 10000U;
+  resp.buffer_addr = reinterpret_cast<uintptr_t>(fake_buf);
+  resp.src_addrs = {0x3000U};
+  resp.buffer_lens = {256U};
+  resp.total_buffer_len = 512U;
+  EXPECT_EQ(service_->HandleBufferResp(channel, resp), PARAM_INVALID);
+}
+
+TEST_F(BufferTransferServiceUTest, HandleBufferRespRejectsBufferLensOverflow) {
+  void *fake_buf = reinterpret_cast<void *>(0x2000);
+  service_->req_id_buffers_[7U].insert(fake_buf);
+
+  auto channel = CreateChannel();
+  BufferResp resp{};
+  resp.transfer_type = TransferType::kReadRH2H;
+  resp.req_id = 7U;
+  resp.timeout = 10000U;
+  resp.buffer_addr = reinterpret_cast<uintptr_t>(fake_buf);
+  resp.src_addrs = {0x3000U, 0x4000U};
+  resp.buffer_lens = {std::numeric_limits<size_t>::max(), 2U};
+  resp.total_buffer_len = 0U;
   EXPECT_EQ(service_->HandleBufferResp(channel, resp), PARAM_INVALID);
 }
 }  // namespace adxl
