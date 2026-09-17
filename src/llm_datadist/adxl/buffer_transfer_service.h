@@ -58,6 +58,7 @@ class BufferTransferService {
 
   void ProcessBufferReqSecondStep();
   Status HandleBufferCopy(const ChannelPtr &channel, BufferReq &buffer_req);
+  Status ValidatePeerBufferReq(const BufferReq &buffer_req) const;
   Status PrepareServerCopyBuffer(BufferReq &buffer_req, bool is_read, uint64_t &left_timeout,
                                  const std::chrono::steady_clock::time_point &start);
   Status BuildBufferSliceAddrs(uintptr_t base_addr, const std::vector<size_t> &buffer_lens, size_t count,

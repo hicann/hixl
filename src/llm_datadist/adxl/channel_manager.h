@@ -28,7 +28,7 @@ using NotifyAckCallback = std::function<void(uint64_t req_id)>;
 class ChannelManager {
  public:
   ChannelManager() = default;
-  ~ChannelManager() = default;
+  ~ChannelManager();
   Status Initialize(BufferTransferService *buffer_transfer_service);
   Status Finalize();
   Status CreateChannel(const ChannelInfo &channel_info, ChannelPtr &channel_ptr);
@@ -75,6 +75,8 @@ class ChannelManager {
   mutable std::condition_variable ack_queue_cv_;
   std::thread ack_processor_;
 
+  void StartWorkerThreads();
+  void CloseEpollFd();
   Status HandleEpoolEvents();
   Status HandleSocketEvent(int32_t fd);
   Status HandleReadEvent(const ChannelPtr &channel) const;

@@ -11,7 +11,9 @@
 #include "channel_manager.h"
 #include <sys/epoll.h>
 #include <netinet/tcp.h>
+#include <unistd.h>
 #include <cstring>
+#include <exception>
 #include <utility>
 #include <thread>
 #include "common/mem_utils.h"
@@ -66,13 +68,20 @@ Status ChannelManager::ShiftRecvBuffer(const ChannelPtr &channel, size_t src_off
 
 int64_t ChannelManager::wait_time_in_millis_ = kWaitTimeInMillis;
 
-Status ChannelManager::Initialize(BufferTransferService *buffer_transfer_service) {
-  ADXL_CHK_ACL_RET(aclrtGetCurrentContext(&aclrt_context_));
-  buffer_transfer_service_ = buffer_transfer_service;
-  epoll_fd_ = epoll_create1(0);
-  const int32_t create_errno = errno;
-  ADXL_CHK_BOOL_RET_STATUS(epoll_fd_ != -1, FAILED, "Call api:epoll_create1 failed, errno:%d, error_msg:%s",
-                           create_errno, strerror(create_errno));
+ChannelManager::~ChannelManager() {
+  (void)Finalize();
+}
+
+void ChannelManager::CloseEpollFd() {
+  if (epoll_fd_ < 0) {
+    return;
+  }
+  const int32_t fd = epoll_fd_;
+  epoll_fd_ = -1;
+  (void)close(fd);
+}
+
+void ChannelManager::StartWorkerThreads() {
   // send heartbeat periodically
   heartbeat_sender_ = std::thread([this]() {
     aclrtSetCurrentContext(aclrt_context_);
@@ -92,6 +101,24 @@ Status ChannelManager::Initialize(BufferTransferService *buffer_transfer_service
   });
   // ack processor thread
   ack_processor_ = std::thread([this]() { ProcessAckMessages(); });
+}
+
+Status ChannelManager::Initialize(BufferTransferService *buffer_transfer_service) {
+  stop_signal_.store(false);
+  ADXL_CHK_ACL_RET(aclrtGetCurrentContext(&aclrt_context_));
+  buffer_transfer_service_ = buffer_transfer_service;
+  epoll_fd_ = epoll_create1(0);
+  const int32_t create_errno = errno;
+  ADXL_CHK_BOOL_RET_STATUS(epoll_fd_ != -1, FAILED, "Call api:epoll_create1 failed, errno:%d, error_msg:%s",
+                           create_errno, strerror(create_errno));
+  LLM_DISMISSABLE_GUARD(init_guard, ([this]() { (void)Finalize(); }));
+  try {
+    StartWorkerThreads();
+  } catch (const std::exception &e) {
+    LLMLOGE(FAILED, "Failed to create channel manager threads, exception:%s", e.what());
+    return FAILED;
+  }
+  LLM_DISMISS_GUARD(init_guard);
   return SUCCESS;
 }
 
@@ -391,6 +418,7 @@ Status ChannelManager::Finalize() {
     (void)DestroyChannel(ChannelType::kClient, channel->GetChannelId());
   }
   channels_.clear();
+  CloseEpollFd();
   return SUCCESS;
 }
 

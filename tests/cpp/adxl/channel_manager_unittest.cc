@@ -9,8 +9,12 @@
  */
 
 #include <gtest/gtest.h>
+#include <cerrno>
 #include <cstring>
+#include <fcntl.h>
 #include <memory>
+#include <sys/epoll.h>
+#include <unistd.h>
 
 #define private public
 #include "adxl/channel_manager.h"
@@ -140,6 +144,47 @@ TEST_F(ChannelManagerUnitTest, HandleControlMessageRejectsBodySmallerThanMsgType
   // A body shorter than ControlMsgType must be rejected so the payload length cannot underflow into a huge value.
   channel->expected_body_size_ = sizeof(ControlMsgType) - 1U;
   EXPECT_EQ(manager_.HandleControlMessage(channel), FAILED);
+}
+
+TEST_F(ChannelManagerUnitTest, CloseEpollFdReleasesDescriptor) {
+  const int fd = epoll_create1(0);
+  ASSERT_GE(fd, 0);
+  manager_.epoll_fd_ = fd;
+  manager_.CloseEpollFd();
+  EXPECT_EQ(manager_.epoll_fd_, -1);
+  errno = 0;
+  EXPECT_EQ(fcntl(fd, F_GETFD), -1);
+  EXPECT_EQ(errno, EBADF);
+}
+
+TEST_F(ChannelManagerUnitTest, CloseEpollFdIsIdempotent) {
+  manager_.epoll_fd_ = -1;
+  manager_.CloseEpollFd();
+  EXPECT_EQ(manager_.epoll_fd_, -1);
+}
+
+TEST_F(ChannelManagerUnitTest, FinalizeClosesEpollFd) {
+  const int fd = epoll_create1(0);
+  ASSERT_GE(fd, 0);
+  manager_.epoll_fd_ = fd;
+  EXPECT_EQ(manager_.Finalize(), SUCCESS);
+  EXPECT_EQ(manager_.epoll_fd_, -1);
+  errno = 0;
+  EXPECT_EQ(fcntl(fd, F_GETFD), -1);
+  EXPECT_EQ(errno, EBADF);
+}
+
+TEST_F(ChannelManagerUnitTest, DestructorClosesEpollFd) {
+  int fd = -1;
+  {
+    ChannelManager mgr;
+    fd = epoll_create1(0);
+    ASSERT_GE(fd, 0);
+    mgr.epoll_fd_ = fd;
+  }
+  errno = 0;
+  EXPECT_EQ(fcntl(fd, F_GETFD), -1);
+  EXPECT_EQ(errno, EBADF);
 }
 }  // namespace
 }  // namespace adxl
