@@ -11,10 +11,11 @@
 #ifndef CANN_HIXL_SRC_HIXL_ENGINE_HIXL_SERVER_H
 #define CANN_HIXL_SRC_HIXL_ENGINE_HIXL_SERVER_H
 
+#include <cstdint>
+#include <map>
+#include <mutex>
 #include <optional>
 #include <vector>
-#include <mutex>
-#include <map>
 #include "hixl/hixl_types.h"
 #include "common/hixl_inner_types.h"
 #include "engine.h"
@@ -89,6 +90,7 @@ class HixlServer {
   std::map<MemHandle, AddrInfo> handle_to_addr_;
   std::vector<NotifyDesc> notify_messages_;
   std::mutex notify_mutex_;
+  uint64_t notify_enqueue_seq_{0U};
 };
 }  // namespace hixl
 #endif  // #ifndef CANN_HIXL_SRC_HIXL_ENGINE_HIXL_SERVER_H

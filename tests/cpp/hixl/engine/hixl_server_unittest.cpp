@@ -9,10 +9,17 @@
  */
 
 #include <gtest/gtest.h>
+#include <array>
 #include <limits>
+#include <string>
+#include <sys/socket.h>
+#include <unistd.h>
+#define private public
 #include "engine/hixl_server.h"
+#undef private
 #include "hixl/hixl_types.h"
 #include "common/hixl_inner_types.h"
+#include "common/ctrl_msg.h"
 #include "engine/endpoint_test_utils.h"
 
 namespace hixl {
@@ -214,5 +221,84 @@ TEST_F(HixlServerTest, InitializeFailsWhenDeviceEndpointHasNoLocalDeviceResource
   EXPECT_EQ(acl_stub_->get_device_count_calls_, 0);
   EXPECT_EQ(acl_stub_->get_device_calls_, 0);
   EXPECT_EQ(acl_stub_->get_phy_dev_calls_, 0);
+}
+
+TEST_F(HixlServerTest, ProcessNotifyMsgEnqueuesAndAcks) {
+  std::array<int32_t, 2> fds{{-1, -1}};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds.data()), 0);
+  const std::string msg = R"({"name":"n1","notify_msg":"hello"})";
+  EXPECT_EQ(server_.ProcessNotifyMsg(fds[0], msg.c_str(), msg.size()), SUCCESS);
+
+  std::vector<NotifyDesc> notifies;
+  EXPECT_EQ(server_.GetNotifies(notifies), SUCCESS);
+  ASSERT_EQ(notifies.size(), 1U);
+  EXPECT_STREQ(notifies[0].name.GetString(), "n1");
+  EXPECT_STREQ(notifies[0].notify_msg.GetString(), "hello");
+
+  close(fds[0]);
+  close(fds[1]);
+}
+
+TEST_F(HixlServerTest, ProcessNotifyMsgRollsBackWhenAckSendFails) {
+  const std::string msg = R"({"name":"n2","notify_msg":"world"})";
+  EXPECT_NE(server_.ProcessNotifyMsg(-1, msg.c_str(), msg.size()), SUCCESS);
+
+  std::vector<NotifyDesc> notifies;
+  EXPECT_EQ(server_.GetNotifies(notifies), SUCCESS);
+  EXPECT_TRUE(notifies.empty());
+}
+
+TEST_F(HixlServerTest, ProcessNotifyMsgRejectsInvalidJsonWithoutEnqueue) {
+  const std::string msg = R"({ invalid )";
+  EXPECT_EQ(server_.ProcessNotifyMsg(-1, msg.c_str(), msg.size()), PARAM_INVALID);
+
+  std::vector<NotifyDesc> notifies;
+  EXPECT_EQ(server_.GetNotifies(notifies), SUCCESS);
+  EXPECT_TRUE(notifies.empty());
+}
+
+TEST_F(HixlServerTest, ProcessNotifyMsgDoesNotEnqueueWhenQueueFull) {
+  std::array<int32_t, 2> fds{{-1, -1}};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds.data()), 0);
+  server_.notify_messages_.resize(kMaxNotifyQueueSize);
+  const std::string msg = R"({"name":"n3","notify_msg":"full"})";
+  EXPECT_EQ(server_.ProcessNotifyMsg(fds[0], msg.c_str(), msg.size()), RESOURCE_EXHAUSTED);
+
+  std::vector<NotifyDesc> notifies;
+  EXPECT_EQ(server_.GetNotifies(notifies), SUCCESS);
+  EXPECT_EQ(notifies.size(), kMaxNotifyQueueSize);
+
+  close(fds[0]);
+  close(fds[1]);
+}
+
+TEST_F(HixlServerTest, ProcessNotifyMsgRejectsTooLongNameWithoutEnqueue) {
+  std::array<int32_t, 2> fds{{-1, -1}};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds.data()), 0);
+  const std::string name(kMaxNotifyNameLen + 1U, 'n');
+  const std::string msg = std::string(R"({"name":")") + name + R"(","notify_msg":"x"})";
+  EXPECT_EQ(server_.ProcessNotifyMsg(fds[0], msg.c_str(), msg.size()), PARAM_INVALID);
+
+  std::vector<NotifyDesc> notifies;
+  EXPECT_EQ(server_.GetNotifies(notifies), SUCCESS);
+  EXPECT_TRUE(notifies.empty());
+
+  close(fds[0]);
+  close(fds[1]);
+}
+
+TEST_F(HixlServerTest, ProcessNotifyMsgRejectsTooLongMessageWithoutEnqueue) {
+  std::array<int32_t, 2> fds{{-1, -1}};
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds.data()), 0);
+  const std::string body(kMaxNotifyMsgLen + 1U, 'm');
+  const std::string msg = std::string(R"({"name":"n4","notify_msg":")") + body + R"("})";
+  EXPECT_EQ(server_.ProcessNotifyMsg(fds[0], msg.c_str(), msg.size()), PARAM_INVALID);
+
+  std::vector<NotifyDesc> notifies;
+  EXPECT_EQ(server_.GetNotifies(notifies), SUCCESS);
+  EXPECT_TRUE(notifies.empty());
+
+  close(fds[0]);
+  close(fds[1]);
 }
 }  // namespace hixl
