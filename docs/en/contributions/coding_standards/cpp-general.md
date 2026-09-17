@@ -31,6 +31,7 @@
 | 6.2 | Use parentheses to clarify operator precedence | Expressions |
 | 7.1 | Use C++ casts instead of C-style casts | Casting |
 | 8.1 | switch statements must have a default branch | Control Statements |
+| 8.2 | Loop counter type must match the width of the boundary value type | Control Statements |
 | 9.1 | Do not use memcpy_s/memset_s to initialize non-POD objects | Declaration & Initialization |
 | 10.1 | Do not hold the pointer returned by c_str() | Pointers & Arrays |
 | 10.2 | Prefer unique_ptr over shared_ptr | Pointers & Arrays |
@@ -288,6 +289,38 @@ if (cond1 || cond2 && cond3) {
 ### 8. Control Statements
 
 ##### Rule 8.1 switch statements must have a default branch
+
+##### Rule 8.2 Loop counter type must match the width of the boundary value type being compared
+
+The integer type width of a loop counter must not be narrower than the value type of the loop boundary expression. Otherwise, the counter may overflow or wrap around before reaching the boundary, causing an infinite loop or out-of-bounds access.
+
+**Common error patterns:**
+
+| Counter Type | Boundary Type | Risk |
+|-------------|---------------|------|
+| `uint32_t` | `size_t` (64-bit) | Wraps to 0 → infinite loop |
+| `int32_t` | `size_t` (64-bit) | Overflows to negative → implicit conversion to very large `size_t` → out-of-bounds |
+| `uint16_t` | `uint32_t` | Wraps to 0 → infinite loop |
+
+**Incorrect examples:**
+
+```cpp
+// Incorrect — uint32_t counter vs size_t boundary; infinite loop when size exceeds UINT32_MAX
+for (uint32_t i = 0U; i < data_vec.size(); ++i) { ... }
+
+// Incorrect — int32_t counter vs size_t boundary; overflows to negative then implicitly promoted to very large size_t
+for (int32_t i = 0; i < data_vec.size(); ++i) { ... }
+```
+
+**Correct examples:**
+
+```cpp
+// Correct — counter type matches the return type of size()
+for (size_t i = 0; i < data_vec.size(); ++i) { ... }
+
+// Correct — use range-based for to avoid type mismatch
+for (auto &item : data_vec) { ... }
+```
 
 ---
 
