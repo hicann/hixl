@@ -471,11 +471,20 @@ Status HixlCSServer::CreateChannel(int32_t fd, const char *msg, uint64_t msg_len
   channel_desc.channel_index = req.channel_index;
   channel_desc.qos = req.qos;
   HIXL_CHK_STATUS_RET(ep->CreateChannel(channel_desc, channel_handle, req.timeout_ms), "Failed to create channel");
-  std::lock_guard<std::mutex> lock(chn_mutex_);
-  EndpointChannelInfo info{};
-  info.endpoint_handle = handle;
-  info.channel_handle = channel_handle;
-  channels_[fd] = std::move(info);
+  {
+    // 校验 fd 存活：与断连清理串行化，避免建链期间 client 断开产生孤儿表项；锁序 client_mutex_ -> chn_mutex_。
+    std::lock_guard<std::mutex> client_lock(client_mutex_);
+    if (clients_.find(fd) == clients_.end()) {
+      HIXL_LOGE(FAILED, "client fd:%d disconnected during channel creation, discard channel:%lu", fd, channel_handle);
+      HIXL_CHK_STATUS_RET(ep->DestroyChannel(channel_handle), "Failed to destroy channel after client disconnect");
+      return FAILED;
+    }
+    std::lock_guard<std::mutex> chn_lock(chn_mutex_);
+    EndpointChannelInfo info{};
+    info.endpoint_handle = handle;
+    info.channel_handle = channel_handle;
+    channels_[fd] = std::move(info);
+  }
   HIXL_DISMISS_GUARD(failed);
   CreateChannelResp resp{};
   resp.result = SUCCESS;
