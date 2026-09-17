@@ -179,6 +179,22 @@ void ExpectCreateContextCalls(const std::shared_ptr<MockLocCommResAclRuntimeStub
   EXPECT_EQ(acl_stub->destroy_context_calls_, 0);
 }
 
+std::string BuildDstEidList(size_t count, size_t start = 0U) {
+  std::string result;
+  for (size_t i = 0U; i < count; ++i) {
+    if (!result.empty()) {
+      result += ';';
+    }
+    result += "eid-" + std::to_string(start + i);
+  }
+  return result;
+}
+
+nlohmann::json BuildUbCtpExchangeEndpoint(const std::string &comm_id, const std::string &dst_eid) {
+  return {{"protocol", kProtocolUbCtp},  {"comm_id", comm_id}, {"net_instance_id", "superpod_1"},
+          {"placement", kPlacementHost}, {"plane", "plane-a"}, {"dst_eid", dst_eid}};
+}
+
 std::string SetA2AutoGenEnv(const std::shared_ptr<MockLocCommResAclRuntimeStub> &acl_stub,
                             const std::shared_ptr<MockLocCommResMmpaStub> &mmpa_stub) {
   acl_stub->soc_name_ = "Ascend910B4-1";
@@ -1919,6 +1935,177 @@ TEST_F(EndpointGeneratorUTest, SerializeAndDeserializeEndpointConfigListSuccess)
   EXPECT_EQ(output_list[0].device_info.phy_device_id, 3);
   EXPECT_EQ(output_list[0].device_info.super_device_id, 7);
   EXPECT_EQ(output_list[0].device_info.super_pod_id, 9);
+}
+
+TEST_F(EndpointGeneratorUTest, SerializeAndDeserializeEndpointConfigListExpandsDstEidList) {
+  EndpointConfig ep = endpoint_test::BuildSampleDeviceRoceEndpoint();
+  ep.protocol = kProtocolUbCtp;
+  ep.comm_id = "00010002000300040005000600070008";
+  ep.dst_eid = " eid-a ; eid-b ;eid-a ";
+
+  std::string msg_str;
+  ASSERT_EQ(EndpointGenerator::SerializeEndpointConfigList({ep}, msg_str), SUCCESS);
+  const auto serialized = nlohmann::json::parse(msg_str);
+  ASSERT_EQ(serialized.size(), 2U);
+  EXPECT_EQ(serialized[0]["dst_eid"], "eid-a");
+  EXPECT_EQ(serialized[1]["dst_eid"], "eid-b");
+  EXPECT_EQ(serialized[0]["comm_id"], ep.comm_id);
+  EXPECT_EQ(serialized[1]["device_info"]["phy_device_id"], ep.device_info.phy_device_id);
+
+  std::vector<EndpointConfig> output_list;
+  ASSERT_EQ(EndpointGenerator::DeserializeEndpointConfigList(msg_str, output_list), SUCCESS);
+  ASSERT_EQ(output_list.size(), 2U);
+  EXPECT_EQ(output_list[0].dst_eid, "eid-a");
+  EXPECT_EQ(output_list[1].dst_eid, "eid-b");
+  EXPECT_EQ(output_list[0].comm_id, ep.comm_id);
+  EXPECT_EQ(output_list[1].device_info.phy_device_id, ep.device_info.phy_device_id);
+}
+
+TEST_F(EndpointGeneratorUTest, SerializeEndpointConfigListRejectsInvalidDstEidList) {
+  EndpointConfig ep = endpoint_test::BuildSampleDeviceRoceEndpoint();
+  ep.protocol = kProtocolUbCtp;
+  ep.comm_id = "00010002000300040005000600070008";
+
+  for (const auto &dst_eid : {";eid-a", "eid-a;", "eid-a;;eid-b", "eid-a; \t ;eid-b"}) {
+    ep.dst_eid = dst_eid;
+    std::string msg_str;
+    EXPECT_EQ(EndpointGenerator::SerializeEndpointConfigList({ep}, msg_str), PARAM_INVALID);
+  }
+}
+
+TEST_F(EndpointGeneratorUTest, SerializeEndpointConfigListPreservesEmptyAndSingleDstEid) {
+  EndpointConfig ep = endpoint_test::BuildSampleDeviceRoceEndpoint();
+  ep.protocol = kProtocolUbCtp;
+  ep.comm_id = "00010002000300040005000600070008";
+
+  for (const auto &dst_eid : {"", "eid-a"}) {
+    ep.dst_eid = dst_eid;
+    std::string msg_str;
+    ASSERT_EQ(EndpointGenerator::SerializeEndpointConfigList({ep}, msg_str), SUCCESS);
+    const auto serialized = nlohmann::json::parse(msg_str);
+    ASSERT_EQ(serialized.size(), 1U);
+    EXPECT_EQ(serialized[0]["dst_eid"], dst_eid);
+  }
+}
+
+TEST_F(EndpointGeneratorUTest, SerializeEndpointConfigListEnforcesDstEidMemberLimit) {
+  constexpr size_t kMaxDstEidCount = 32U;
+  EndpointConfig ep = endpoint_test::BuildSampleDeviceRoceEndpoint();
+  ep.protocol = kProtocolUbCtp;
+  ep.dst_eid = BuildDstEidList(kMaxDstEidCount);
+
+  std::string msg_str;
+  ASSERT_EQ(EndpointGenerator::SerializeEndpointConfigList({ep}, msg_str), SUCCESS);
+  EXPECT_EQ(nlohmann::json::parse(msg_str).size(), kMaxDstEidCount);
+
+  ep.dst_eid += ";eid-over-limit";
+  EXPECT_EQ(EndpointGenerator::SerializeEndpointConfigList({ep}, msg_str), PARAM_INVALID);
+
+  ep.dst_eid = BuildDstEidList(kMaxDstEidCount + 1U, 0U);
+  const std::string json_str = nlohmann::json::array({BuildUbCtpExchangeEndpoint(ep.comm_id, ep.dst_eid)}).dump();
+  std::vector<EndpointConfig> output_list;
+  EXPECT_EQ(EndpointGenerator::DeserializeEndpointConfigList(json_str, output_list), PARAM_INVALID);
+
+  ep.dst_eid = "eid";
+  for (size_t i = 0U; i < kMaxDstEidCount; ++i) {
+    ep.dst_eid += ";eid";
+  }
+  EXPECT_EQ(EndpointGenerator::SerializeEndpointConfigList({ep}, msg_str), PARAM_INVALID);
+}
+
+TEST_F(EndpointGeneratorUTest, SerializeEndpointConfigListLimitsCumulativeDstEidExpansion) {
+  EndpointConfig first = endpoint_test::BuildSampleDeviceRoceEndpoint();
+  first.protocol = kProtocolUbCtp;
+  first.dst_eid = BuildDstEidList(17U);
+  EndpointConfig second = first;
+  second.comm_id = "00010002000300040005000600070009";
+  second.dst_eid = BuildDstEidList(17U, 17U);
+
+  std::string msg_str;
+  ASSERT_EQ(EndpointGenerator::SerializeEndpointConfigList({first, second}, msg_str), SUCCESS);
+  EXPECT_EQ(nlohmann::json::parse(msg_str).size(), 34U);
+
+  second.dst_eid = BuildDstEidList(18U, 17U);
+  EXPECT_EQ(EndpointGenerator::SerializeEndpointConfigList({first, second}, msg_str), PARAM_INVALID);
+}
+
+TEST_F(EndpointGeneratorUTest, DeserializeEndpointConfigListLimitsCumulativeDstEidExpansion) {
+  const std::string first_dst_eid = BuildDstEidList(17U);
+  nlohmann::json serialized =
+      nlohmann::json::array({BuildUbCtpExchangeEndpoint("eid-host-0", first_dst_eid),
+                             BuildUbCtpExchangeEndpoint("eid-host-1", BuildDstEidList(17U, 17U))});
+
+  std::vector<EndpointConfig> output_list;
+  ASSERT_EQ(EndpointGenerator::DeserializeEndpointConfigList(serialized.dump(), output_list), SUCCESS);
+  EXPECT_EQ(output_list.size(), 34U);
+
+  serialized[1]["dst_eid"] = BuildDstEidList(18U, 17U);
+  EXPECT_EQ(EndpointGenerator::DeserializeEndpointConfigList(serialized.dump(), output_list), PARAM_INVALID);
+}
+
+TEST_F(EndpointGeneratorUTest, DeserializeEndpointConfigListExpandsLegacyMultiDstEid) {
+  const std::string msg_str = R"([{"protocol":"ub_ctp","comm_id":"eid-host","placement":"host",)"
+                              R"("plane":"plane-a","dst_eid":"eid-a;eid-b","net_instance_id":"superpod_1"}])";
+
+  std::vector<EndpointConfig> output_list;
+  ASSERT_EQ(EndpointGenerator::DeserializeEndpointConfigList(msg_str, output_list), SUCCESS);
+  ASSERT_EQ(output_list.size(), 2U);
+  EXPECT_EQ(output_list[0].dst_eid, "eid-a");
+  EXPECT_EQ(output_list[1].dst_eid, "eid-b");
+}
+
+TEST_F(EndpointGeneratorUTest, DeserializeEndpointConfigListPreservesNonUbDstEid) {
+  EndpointConfig ep = endpoint_test::BuildSampleDeviceRoceEndpoint();
+  ep.dst_eid = "eid-a;; eid-b";
+
+  std::string msg_str;
+  ASSERT_EQ(EndpointGenerator::SerializeEndpointConfigList({ep}, msg_str), SUCCESS);
+  std::vector<EndpointConfig> output_list;
+  ASSERT_EQ(EndpointGenerator::DeserializeEndpointConfigList(msg_str, output_list), SUCCESS);
+  ASSERT_EQ(output_list.size(), 1U);
+  EXPECT_EQ(output_list[0].dst_eid, ep.dst_eid);
+}
+
+TEST_F(EndpointGeneratorUTest, ParseLocalCommResNormalizesDstEidList) {
+  std::string local_comm_res = R"({"version":"1.3","net_instance_id":"same_superpod","endpoint_list":[)"
+                               R"({"protocol":"ub_ctp","comm_id":"eid-local","placement":"host",)"
+                               R"("dst_eid":" eid-a ; eid-b ; eid-a "}]})";
+
+  std::vector<EndpointConfig> endpoint_list;
+  ASSERT_EQ(BuildEndpointListFromLocalCommRes(local_comm_res, endpoint_list), SUCCESS);
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_EQ(endpoint_list[0].dst_eid, "eid-a;eid-b");
+}
+
+TEST_F(EndpointGeneratorUTest, ParseLocalCommResRejectsInvalidDstEidList) {
+  std::string local_comm_res = R"({"version":"1.3","net_instance_id":"same_superpod","endpoint_list":[)"
+                               R"({"protocol":"ub_ctp","comm_id":"eid-local","placement":"host",)"
+                               R"("dst_eid":"eid-a; ;eid-b"}]})";
+
+  std::vector<EndpointConfig> endpoint_list;
+  EXPECT_EQ(BuildEndpointListFromLocalCommRes(local_comm_res, endpoint_list), PARAM_INVALID);
+}
+
+TEST_F(EndpointGeneratorUTest, ParseLocalCommResRejectsOversizedDstEidList) {
+  nlohmann::json config = {
+      {"version", "1.3"},
+      {"net_instance_id", "same_superpod"},
+      {"endpoint_list", nlohmann::json::array({BuildUbCtpExchangeEndpoint("eid-local", BuildDstEidList(33U))})}};
+  std::string local_comm_res = config.dump();
+
+  std::vector<EndpointConfig> endpoint_list;
+  EXPECT_EQ(BuildEndpointListFromLocalCommRes(local_comm_res, endpoint_list), PARAM_INVALID);
+}
+
+TEST_F(EndpointGeneratorUTest, ParseLocalCommResPreservesNonUbDstEid) {
+  std::string local_comm_res = R"({"version":"1.3","net_instance_id":"same_superpod","endpoint_list":[)"
+                               R"({"protocol":"roce","comm_id":"127.0.0.1","placement":"host",)"
+                               R"("dst_eid":"eid-a;; eid-b"}]})";
+
+  std::vector<EndpointConfig> endpoint_list;
+  ASSERT_EQ(BuildEndpointListFromLocalCommRes(local_comm_res, endpoint_list), SUCCESS);
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_EQ(endpoint_list[0].dst_eid, "eid-a;; eid-b");
 }
 
 TEST_F(EndpointGeneratorUTest, DeserializeOldFormatWithoutDeviceInfoSuccess) {

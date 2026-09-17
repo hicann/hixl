@@ -787,26 +787,112 @@ Status EndpointGenerator::ConvertToEndpointDesc(const EndpointConfig &endpoint_c
   return SUCCESS;
 }
 
+namespace {
+constexpr size_t kMaxDstEidListSize = 32U;
+constexpr size_t kMaxDstEidExpansionCount = 32U;
+constexpr int kMaxConfigLogPreviewLength = 128;
+
+Status ParseDstEidList(const std::string &dst_eid, std::vector<std::string> &dst_eids) {
+  if (dst_eid.empty()) {
+    dst_eids = {""};
+    return SUCCESS;
+  }
+
+  const size_t separator_count = static_cast<size_t>(std::count(dst_eid.cbegin(), dst_eid.cend(), ';'));
+  HIXL_CHK_BOOL_RET_STATUS(
+      separator_count < kMaxDstEidListSize, PARAM_INVALID,
+      "dst_eid list has too many members, separator_count:%zu, max_member_count:%zu, dst_eid_length:%zu, "
+      "dst_eid:%.*s",
+      separator_count, kMaxDstEidListSize, dst_eid.size(), kMaxConfigLogPreviewLength, dst_eid.c_str());
+
+  std::vector<std::string> parsed;
+  std::set<std::string> seen;
+  for (auto item : Split(dst_eid, ';')) {
+    const auto first = item.find_first_not_of(" \t\n\r\f\v");
+    HIXL_CHK_BOOL_RET_STATUS(first != std::string::npos, PARAM_INVALID,
+                             "dst_eid list contains an empty member, dst_eid_length:%zu, dst_eid:%.*s", dst_eid.size(),
+                             kMaxConfigLogPreviewLength, dst_eid.c_str());
+    const auto last = item.find_last_not_of(" \t\n\r\f\v");
+    item = item.substr(first, last - first + 1U);
+    if (seen.insert(item).second) {
+      parsed.emplace_back(std::move(item));
+    }
+  }
+  dst_eids = std::move(parsed);
+  return SUCCESS;
+}
+
+Status NormalizeDstEidList(std::string &dst_eid) {
+  std::vector<std::string> dst_eids;
+  HIXL_CHK_STATUS_RET(ParseDstEidList(dst_eid, dst_eids), "Failed to parse dst_eid list");
+  std::ostringstream normalized;
+  for (size_t i = 0; i < dst_eids.size(); ++i) {
+    if (i != 0U) {
+      normalized << ';';
+    }
+    normalized << dst_eids[i];
+  }
+  dst_eid = normalized.str();
+  return SUCCESS;
+}
+
+Status GetExchangeDstEids(const EndpointConfig &endpoint, std::vector<std::string> &dst_eids) {
+  if (endpoint.protocol != kProtocolUbCtp) {
+    dst_eids = {endpoint.dst_eid};
+    return SUCCESS;
+  }
+  return ParseDstEidList(endpoint.dst_eid, dst_eids);
+}
+
+Status UpdateDstEidExpansionCount(size_t dst_eid_count, size_t &expansion_count) {
+  const size_t additional_count = dst_eid_count > 0U ? dst_eid_count - 1U : 0U;
+  HIXL_CHK_BOOL_RET_STATUS(
+      expansion_count <= kMaxDstEidExpansionCount && additional_count <= kMaxDstEidExpansionCount - expansion_count,
+      PARAM_INVALID,
+      "dst_eid lists expand to too many additional endpoints, current_count:%zu, additional_count:%zu, "
+      "max_count:%zu",
+      expansion_count, additional_count, kMaxDstEidExpansionCount);
+  expansion_count += additional_count;
+  return SUCCESS;
+}
+
+void AppendEndpointJson(const EndpointConfig &endpoint, const std::string &dst_eid, nlohmann::json &list) {
+  nlohmann::json item;
+  item["protocol"] = endpoint.protocol;
+  item["comm_id"] = endpoint.comm_id;
+  item["placement"] = endpoint.placement;
+  item["plane"] = endpoint.plane;
+  item["dst_eid"] = dst_eid;
+  item["net_instance_id"] = endpoint.net_instance_id;
+  item["server_id"] = endpoint.server_id;
+  item["device_info"] = {{"phy_device_id", endpoint.device_info.phy_device_id},
+                         {"super_device_id", endpoint.device_info.super_device_id},
+                         {"super_pod_id", endpoint.device_info.super_pod_id}};
+  list.push_back(std::move(item));
+}
+}  // namespace
+
 Status EndpointGenerator::SerializeEndpointConfigList(const std::vector<EndpointConfig> &list, std::string &msg_str) {
   nlohmann::json j = nlohmann::json::array();
+  size_t expansion_count = 0U;
   try {
     for (const auto &ep : list) {
-      nlohmann::json item;
-      item["protocol"] = ep.protocol;
-      item["comm_id"] = ep.comm_id;
-      item["placement"] = ep.placement;
-      item["plane"] = ep.plane;
-      item["dst_eid"] = ep.dst_eid;
-      item["net_instance_id"] = ep.net_instance_id;
-      item["server_id"] = ep.server_id;
-
-      nlohmann::json device_info;
-      device_info["phy_device_id"] = ep.device_info.phy_device_id;
-      device_info["super_device_id"] = ep.device_info.super_device_id;
-      device_info["super_pod_id"] = ep.device_info.super_pod_id;
-      item["device_info"] = device_info;
-
-      j.push_back(item);
+      std::vector<std::string> dst_eids;
+      HIXL_CHK_STATUS_RET(
+          GetExchangeDstEids(ep, dst_eids),
+          "Failed to parse endpoint dst_eid list, comm_id_length:%zu, comm_id:%.*s, dst_eid_length:%zu, "
+          "dst_eid:%.*s",
+          ep.comm_id.size(), kMaxConfigLogPreviewLength, ep.comm_id.c_str(), ep.dst_eid.size(),
+          kMaxConfigLogPreviewLength, ep.dst_eid.c_str());
+      HIXL_CHK_STATUS_RET(
+          UpdateDstEidExpansionCount(dst_eids.size(), expansion_count),
+          "Failed to expand endpoint dst_eid list, comm_id_length:%zu, comm_id:%.*s, dst_eid_length:%zu, "
+          "dst_eid:%.*s",
+          ep.comm_id.size(), kMaxConfigLogPreviewLength, ep.comm_id.c_str(), ep.dst_eid.size(),
+          kMaxConfigLogPreviewLength, ep.dst_eid.c_str());
+      for (const auto &dst_eid : dst_eids) {
+        AppendEndpointJson(ep, dst_eid, j);
+      }
     }
     msg_str = j.dump();
   } catch (const nlohmann::json::exception &e) {
@@ -831,6 +917,7 @@ Status EndpointGenerator::DeserializeEndpointConfigList(const std::string &json_
   }
 
   endpoint_list.clear();
+  size_t expansion_count = 0U;
   for (const auto &item : j) {
     EndpointConfig endpoint{};
     HIXL_CHK_STATUS_RET(ParseJsonField(item, "protocol", endpoint.protocol), "Failed to parse protocol");
@@ -842,7 +929,22 @@ Status EndpointGenerator::DeserializeEndpointConfigList(const std::string &json_
     HIXL_CHK_STATUS_RET(ParseJsonField(item, "dst_eid", endpoint.dst_eid), "Failed to parse dst_eid");
     HIXL_CHK_STATUS_RET(ParseJsonField(item, "server_id", endpoint.server_id, false), "Failed to parse server_id");
     ParseDeviceInfo(item, endpoint);
-    endpoint_list.emplace_back(std::move(endpoint));
+    std::vector<std::string> dst_eids;
+    HIXL_CHK_STATUS_RET(GetExchangeDstEids(endpoint, dst_eids),
+                        "Failed to parse endpoint dst_eid list, comm_id_length:%zu, comm_id:%.*s, dst_eid_length:%zu, "
+                        "dst_eid:%.*s",
+                        endpoint.comm_id.size(), kMaxConfigLogPreviewLength, endpoint.comm_id.c_str(),
+                        endpoint.dst_eid.size(), kMaxConfigLogPreviewLength, endpoint.dst_eid.c_str());
+    HIXL_CHK_STATUS_RET(UpdateDstEidExpansionCount(dst_eids.size(), expansion_count),
+                        "Failed to expand endpoint dst_eid list, comm_id_length:%zu, comm_id:%.*s, dst_eid_length:%zu, "
+                        "dst_eid:%.*s",
+                        endpoint.comm_id.size(), kMaxConfigLogPreviewLength, endpoint.comm_id.c_str(),
+                        endpoint.dst_eid.size(), kMaxConfigLogPreviewLength, endpoint.dst_eid.c_str());
+    for (auto &dst_eid : dst_eids) {
+      EndpointConfig edge = endpoint;
+      edge.dst_eid = std::move(dst_eid);
+      endpoint_list.emplace_back(std::move(edge));
+    }
   }
   return SUCCESS;
 }
@@ -923,6 +1025,13 @@ Status EndpointGenerator::ParseLocalCommRes(const nlohmann::json &config, const 
     }
     HIXL_CHK_STATUS_RET(ParseJsonField(item, "plane", endpoint.plane, false), "Failed to parse plane");
     HIXL_CHK_STATUS_RET(ParseJsonField(item, "dst_eid", endpoint.dst_eid, false), "Failed to parse dst_eid");
+    if (endpoint.protocol == kProtocolUbCtp) {
+      HIXL_CHK_STATUS_RET(
+          NormalizeDstEidList(endpoint.dst_eid),
+          "Failed to normalize dst_eid, comm_id_length:%zu, comm_id:%.*s, dst_eid_length:%zu, dst_eid:%.*s",
+          endpoint.comm_id.size(), kMaxConfigLogPreviewLength, endpoint.comm_id.c_str(), endpoint.dst_eid.size(),
+          kMaxConfigLogPreviewLength, endpoint.dst_eid.c_str());
+    }
     endpoint.net_instance_id = net_instance_id;
     endpoint.server_id = server_id;
     ParseDeviceInfo(item, endpoint);

@@ -1825,6 +1825,41 @@ TEST_F(HixlClientUTest, EndpointMatcherAllDstEidNonEmptyTest) {
   MatchAndVerify(local, remote, 2U, HandlerCreateArgs::HandlerType::UB);
 }
 
+TEST_F(HixlClientUTest, EndpointExchangeExpandsCommonHostForDeviceToHostMatchTest) {
+  std::vector<EndpointConfig> physical_remote = {
+      MakeUbEp("common-host-eid", "eid-first;eid-middle;eid-last", kPlacementHost, "plane-a")};
+  std::string msg_str;
+  ASSERT_EQ(EndpointGenerator::SerializeEndpointConfigList(physical_remote, msg_str), SUCCESS);
+  std::vector<EndpointConfig> remote;
+  ASSERT_EQ(EndpointGenerator::DeserializeEndpointConfigList(msg_str, remote), SUCCESS);
+  ASSERT_EQ(physical_remote.size(), 1U);
+  ASSERT_EQ(remote.size(), 3U);
+
+  std::vector<EndpointConfig> local = {MakeUbEp("eid-middle", "", kPlacementDevice, "plane-a")};
+
+  std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
+  HandlerCreateArgs::HandlerType handler_type;
+  ASSERT_EQ(EndpointMatcher::MatchEndpoints(local, remote, matched_pairs, handler_type), SUCCESS);
+  ASSERT_EQ(matched_pairs.size(), 1U);
+  EXPECT_EQ(matched_pairs[0].local.comm_id, "eid-middle");
+  EXPECT_EQ(matched_pairs[0].remote.comm_id, "common-host-eid");
+  EXPECT_EQ(matched_pairs[0].type, CommType::COMM_TYPE_UB_D2H);
+}
+
+TEST_F(HixlClientUTest, EndpointMatcherKeepsPhysicalCommonHostForHostToDeviceMatchTest) {
+  std::vector<EndpointConfig> remote = {MakeUbEp("eid-middle", "common-host-eid", kPlacementDevice, "plane-a")};
+  std::vector<EndpointConfig> local = {
+      MakeUbEp("common-host-eid", "eid-first;eid-middle;eid-last", kPlacementHost, "plane-a")};
+
+  std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
+  HandlerCreateArgs::HandlerType handler_type;
+  ASSERT_EQ(EndpointMatcher::MatchEndpoints(local, remote, matched_pairs, handler_type), SUCCESS);
+  ASSERT_EQ(matched_pairs.size(), 1U);
+  EXPECT_EQ(matched_pairs[0].local.comm_id, "common-host-eid");
+  EXPECT_EQ(matched_pairs[0].remote.comm_id, "eid-middle");
+  EXPECT_EQ(matched_pairs[0].type, CommType::COMM_TYPE_UB_H2D);
+}
+
 TEST_F(HixlClientUTest, EndpointMatcherSameServerHostUbCreatesLoopbackH2H) {
   std::vector<EndpointConfig> local = {MakeUbHostEpWithServerId("local_host_eid", "server-0")};
   std::vector<EndpointConfig> remote = {MakeUbHostEpWithServerId("remote_host_eid", "server-0")};

@@ -235,7 +235,7 @@ UB——完整配置
       "protocol": "ub_ctp",
       "comm_id": "00000000007f020000100000df149001",
       "placement": "host",
-      "dst_eid": "00000000007f030000100000df141c01"
+      "dst_eid": "00000000007f030000100000df141c01;00000000007f040000100000df141c02"
     }
   ]
 }
@@ -301,7 +301,7 @@ UB_RTP
 | endpoint_list[].comm_id | 字符串 | 必选 | 通信标识 | protocol为ub_ctp/ub_rtp时填${eid}；protocol为roce时填ipv4/ipv6网卡地址；protocol为uboe时填device uboe网卡ip地址                                       |
 | endpoint_list[].placement | 字符串 | 必选 | 通信设备位置 | "host"/"device"                                                                                                                    |
 | endpoint_list[].plane | 字符串 | 可选 | 通信设备平面 | protocol为ub_ctp时，设备区分平面则填写，每个平面唯一（如"plane-a"/"plane-b"）                                                                            |
-| endpoint_list[].dst_eid | 字符串 | 可选 | 与当前通信设备连接的对端通信设备的${eid} | protocol为ub_ctp时，存在full-mesh直连对端则填写对端${eid}                                                                                        |
+| endpoint_list[].dst_eid | 字符串 | 可选 | 与当前通信设备连接的对端通信设备的${eid}列表 | protocol为ub_ctp时，存在full-mesh直连对端则填写对端${eid}；多个EID使用`;`分隔，最多包含32个成员；成员首尾ASCII空白会被清理并按首次出现顺序去重；不允许首尾分号、连续分号或空白成员，成员数超限或格式非法时返回PARAM_INVALID；字段缺失或完整空字符串保持通配语义。Endpoint信息交换时，每个EID会展开为一条独立边并沿用原有单值匹配逻辑，一次交换由列表展开额外产生的逻辑边不超过32条。 |
 
 <a id="全局资源配置字段说明"></a>**全局资源配置字段说明**
 
