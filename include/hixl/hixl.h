@@ -120,6 +120,8 @@ class ASCEND_FUNC_VISIBILITY Hixl {
 
   /**
    * @brief 与远端Hixl进行内存传输
+   * 接口返回TIMEOUT或失败时，可能仍存在未完成的在途传输：开启AutoConnect时，引擎会自动断开链路并终止在途传输；
+   * 未开启时，调用方须先调用Disconnect接口清理链路，再自行释放本次传输涉及的本地内存
    * @param [in] remote_engine 远端Hixl的唯一标识，格式需与远端Hixl初始化时设置的local_engine一致，
    * ipv4格式为host_ip:host_port或host_ip，ipv6格式为[host_ip]:host_port或[host_ip]
    * @param [in] operation 将远端内存读到本地或者将本地内存写到远端
@@ -132,6 +134,8 @@ class ASCEND_FUNC_VISIBILITY Hixl {
 
   /**
    * @brief 批量异步传输，下发传输请求
+   * 接口返回失败时，可能仍存在已提交的在途传输，此时req不可用于状态查询：开启AutoConnect时，引擎会自动
+   * 断开链路并终止在途传输；未开启时，调用方须先调用Disconnect接口清理链路，再自行释放本次传输涉及的本地内存
    * @param [in] remote_engine 远端Hixl的唯一标识，格式需与远端Hixl初始化时设置的local_engine一致，
    * ipv4格式为host_ip:host_port或host_ip，ipv6格式为[host_ip]:host_port或[host_ip]
    * @param [in] operation 将远端内存读到本地或者将本地内存写到远端
