@@ -11,6 +11,7 @@
 #define HIXL_ADXL_STATISTIC_MANAGER_H_
 
 #include <atomic>
+#include <array>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
@@ -79,8 +80,23 @@ struct DirectTransferStatisticInfo {
 
 struct StatisticInfo {
   ConnectStatisticInfo connect_statistic_info;
-  BufferTransferStatisticInfo buffer_transfer_statistic_info;
-  DirectTransferStatisticInfo direct_transfer_statistic_info;
+  std::array<BufferTransferStatisticInfo, 2> buffer_transfer_statistic_slots;
+  std::atomic<uint32_t> buffer_transfer_statistic_index{0U};
+  std::array<DirectTransferStatisticInfo, 2> direct_transfer_statistic_slots;
+  std::atomic<uint32_t> direct_transfer_statistic_index{0U};
+
+  BufferTransferStatisticInfo &CurrentBufferTransferStatistic() {
+    return buffer_transfer_statistic_slots[buffer_transfer_statistic_index.load(std::memory_order_acquire)];
+  }
+  const BufferTransferStatisticInfo &CurrentBufferTransferStatistic() const {
+    return buffer_transfer_statistic_slots[buffer_transfer_statistic_index.load(std::memory_order_acquire)];
+  }
+  DirectTransferStatisticInfo &CurrentDirectTransferStatistic() {
+    return direct_transfer_statistic_slots[direct_transfer_statistic_index.load(std::memory_order_acquire)];
+  }
+  const DirectTransferStatisticInfo &CurrentDirectTransferStatistic() const {
+    return direct_transfer_statistic_slots[direct_transfer_statistic_index.load(std::memory_order_acquire)];
+  }
 };
 
 struct CostStatisticSnapshot {

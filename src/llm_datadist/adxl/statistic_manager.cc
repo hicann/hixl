@@ -107,40 +107,28 @@ std::shared_ptr<StatisticInfo> StatisticManager::GetStatisticInfo(const std::str
 void StatisticManager::UpdateBufferTransferCost(const std::string &channel_id, uint64_t cost, uint64_t total_bytes,
                                                 uint64_t op_desc_count) {
   auto info = GetOrCreateStatisticInfo(channel_id);
-  UpdateCost(cost, info->buffer_transfer_statistic_info.transfer.times,
-             info->buffer_transfer_statistic_info.transfer.max_cost,
-             info->buffer_transfer_statistic_info.transfer.total_cost);
-  (void)info->buffer_transfer_statistic_info.total_bytes.fetch_add(total_bytes, std::memory_order_relaxed);
-  (void)info->buffer_transfer_statistic_info.total_op_desc_count.fetch_add(op_desc_count, std::memory_order_relaxed);
-  if (info->buffer_transfer_statistic_info.transfer.times.load(std::memory_order_relaxed) >
-      hixl::statistic::kResetTimes) {
-    info->buffer_transfer_statistic_info.Reset();
-  }
+  auto &statistic = info->CurrentBufferTransferStatistic();
+  UpdateCost(cost, statistic.transfer.times, statistic.transfer.max_cost, statistic.transfer.total_cost);
+  (void)statistic.total_bytes.fetch_add(total_bytes, std::memory_order_relaxed);
+  (void)statistic.total_op_desc_count.fetch_add(op_desc_count, std::memory_order_relaxed);
 }
 
 void StatisticManager::UpdateClientCopyCost(const std::string &channel_id, uint64_t cost) {
   auto info = GetOrCreateStatisticInfo(channel_id);
-  UpdateCost(cost, info->buffer_transfer_statistic_info.client_copy.times,
-             info->buffer_transfer_statistic_info.client_copy.max_cost,
-             info->buffer_transfer_statistic_info.client_copy.total_cost);
+  auto &statistic = info->CurrentBufferTransferStatistic();
+  UpdateCost(cost, statistic.client_copy.times, statistic.client_copy.max_cost, statistic.client_copy.total_cost);
 }
 
 void StatisticManager::UpdateServerD2DCost(const std::string &channel_id, uint64_t cost) {
   auto info = GetOrCreateStatisticInfo(channel_id);
-  UpdateCost(cost, info->buffer_transfer_statistic_info.server_d2d.times,
-             info->buffer_transfer_statistic_info.server_d2d.max_cost,
-             info->buffer_transfer_statistic_info.server_d2d.total_cost);
+  auto &statistic = info->CurrentBufferTransferStatistic();
+  UpdateCost(cost, statistic.server_d2d.times, statistic.server_d2d.max_cost, statistic.server_d2d.total_cost);
 }
 
 void StatisticManager::UpdateServerCopyCost(const std::string &channel_id, uint64_t cost) {
   auto info = GetOrCreateStatisticInfo(channel_id);
-  UpdateCost(cost, info->buffer_transfer_statistic_info.server_copy.times,
-             info->buffer_transfer_statistic_info.server_copy.max_cost,
-             info->buffer_transfer_statistic_info.server_copy.total_cost);
-  if (info->buffer_transfer_statistic_info.server_copy.times.load(std::memory_order_relaxed) >
-      hixl::statistic::kResetTimes) {
-    info->buffer_transfer_statistic_info.Reset();
-  }
+  auto &statistic = info->CurrentBufferTransferStatistic();
+  UpdateCost(cost, statistic.server_copy.times, statistic.server_copy.max_cost, statistic.server_copy.total_cost);
 }
 
 void StatisticManager::UpdateConnectTotalCost(const std::string &channel_id, uint64_t cost) {
@@ -186,15 +174,10 @@ void StatisticManager::UpdateHcclCommPrepareCost(const std::string &channel_id, 
 void StatisticManager::UpdateDirectTransferCost(const std::string &channel_id, uint64_t cost, uint64_t total_bytes,
                                                 uint64_t op_desc_count) {
   auto info = GetOrCreateStatisticInfo(channel_id);
-  UpdateCost(cost, info->direct_transfer_statistic_info.transfer.times,
-             info->direct_transfer_statistic_info.transfer.max_cost,
-             info->direct_transfer_statistic_info.transfer.total_cost);
-  (void)info->direct_transfer_statistic_info.total_bytes.fetch_add(total_bytes, std::memory_order_relaxed);
-  (void)info->direct_transfer_statistic_info.total_op_desc_count.fetch_add(op_desc_count, std::memory_order_relaxed);
-  if (info->direct_transfer_statistic_info.transfer.times.load(std::memory_order_relaxed) >
-      hixl::statistic::kResetTimes) {
-    info->direct_transfer_statistic_info.Reset();
-  }
+  auto &statistic = info->CurrentDirectTransferStatistic();
+  UpdateCost(cost, statistic.transfer.times, statistic.transfer.max_cost, statistic.transfer.total_cost);
+  (void)statistic.total_bytes.fetch_add(total_bytes, std::memory_order_relaxed);
+  (void)statistic.total_op_desc_count.fetch_add(op_desc_count, std::memory_order_relaxed);
 }
 
 StatisticInfoSnapshot StatisticManager::GetStatisticInfoSnapshot(const std::string &channel_id) const {
@@ -209,16 +192,16 @@ StatisticInfoSnapshot StatisticManager::GetStatisticInfoSnapshot(const std::stri
   snapshot.connect_statistic_info.hccl_comm_init = ToSnapshot(info->connect_statistic_info.hccl_comm_init);
   snapshot.connect_statistic_info.hccl_comm_bind_mem = ToSnapshot(info->connect_statistic_info.hccl_comm_bind_mem);
   snapshot.connect_statistic_info.hccl_comm_prepare = ToSnapshot(info->connect_statistic_info.hccl_comm_prepare);
-  snapshot.buffer_transfer_statistic_info.transfer = ToSnapshot(info->buffer_transfer_statistic_info.transfer);
-  snapshot.buffer_transfer_statistic_info.total_bytes =
-      info->buffer_transfer_statistic_info.total_bytes.load(std::memory_order_relaxed);
+  const auto &buffer_statistic = info->CurrentBufferTransferStatistic();
+  snapshot.buffer_transfer_statistic_info.transfer = ToSnapshot(buffer_statistic.transfer);
+  snapshot.buffer_transfer_statistic_info.total_bytes = buffer_statistic.total_bytes.load(std::memory_order_relaxed);
   snapshot.buffer_transfer_statistic_info.total_op_desc_count =
-      info->buffer_transfer_statistic_info.total_op_desc_count.load(std::memory_order_relaxed);
-  snapshot.direct_transfer_statistic_info.transfer = ToSnapshot(info->direct_transfer_statistic_info.transfer);
-  snapshot.direct_transfer_statistic_info.total_bytes =
-      info->direct_transfer_statistic_info.total_bytes.load(std::memory_order_relaxed);
+      buffer_statistic.total_op_desc_count.load(std::memory_order_relaxed);
+  const auto &direct_statistic = info->CurrentDirectTransferStatistic();
+  snapshot.direct_transfer_statistic_info.transfer = ToSnapshot(direct_statistic.transfer);
+  snapshot.direct_transfer_statistic_info.total_bytes = direct_statistic.total_bytes.load(std::memory_order_relaxed);
   snapshot.direct_transfer_statistic_info.total_op_desc_count =
-      info->direct_transfer_statistic_info.total_op_desc_count.load(std::memory_order_relaxed);
+      direct_statistic.total_op_desc_count.load(std::memory_order_relaxed);
   return snapshot;
 }
 
@@ -240,15 +223,30 @@ void StatisticManager::DumpTransferStatisticSummary(bool is_direct) const {
   {
     std::shared_lock<std::shared_mutex> lock(map_mutex_);
     for (const auto &item : transfer_statistic_info_) {
-      const auto &transfer = is_direct ? item.second->direct_transfer_statistic_info.transfer
-                                       : item.second->buffer_transfer_statistic_info.transfer;
-      const auto &total_bytes_ref = is_direct ? item.second->direct_transfer_statistic_info.total_bytes
-                                              : item.second->buffer_transfer_statistic_info.total_bytes;
-      const auto &total_op_desc_count_ref = is_direct ? item.second->direct_transfer_statistic_info.total_op_desc_count
-                                                      : item.second->buffer_transfer_statistic_info.total_op_desc_count;
-      summary.Accumulate(
-          item.first, transfer.times.load(std::memory_order_relaxed), total_bytes_ref.load(std::memory_order_relaxed),
-          total_op_desc_count_ref.load(std::memory_order_relaxed), transfer.total_cost.load(std::memory_order_relaxed));
+      auto &mutable_info = *item.second;
+      if (is_direct) {
+        const auto current = mutable_info.direct_transfer_statistic_index.load(std::memory_order_acquire);
+        const auto next = current ^ 1U;
+        mutable_info.direct_transfer_statistic_slots[next].Reset();
+        mutable_info.direct_transfer_statistic_index.store(next, std::memory_order_release);
+        const auto &statistic = mutable_info.direct_transfer_statistic_slots[current];
+        const auto &transfer = statistic.transfer;
+        summary.Accumulate(item.first, transfer.times.load(std::memory_order_relaxed),
+                           statistic.total_bytes.load(std::memory_order_relaxed),
+                           statistic.total_op_desc_count.load(std::memory_order_relaxed),
+                           transfer.total_cost.load(std::memory_order_relaxed));
+      } else {
+        const auto current = mutable_info.buffer_transfer_statistic_index.load(std::memory_order_acquire);
+        const auto next = current ^ 1U;
+        mutable_info.buffer_transfer_statistic_slots[next].Reset();
+        mutable_info.buffer_transfer_statistic_index.store(next, std::memory_order_release);
+        const auto &statistic = mutable_info.buffer_transfer_statistic_slots[current];
+        const auto &transfer = statistic.transfer;
+        summary.Accumulate(item.first, transfer.times.load(std::memory_order_relaxed),
+                           statistic.total_bytes.load(std::memory_order_relaxed),
+                           statistic.total_op_desc_count.load(std::memory_order_relaxed),
+                           transfer.total_cost.load(std::memory_order_relaxed));
+      }
     }
   }
   if (summary.active_channels == 0UL) {
