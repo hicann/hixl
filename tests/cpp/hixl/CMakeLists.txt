@@ -9,6 +9,7 @@
 # ----------------------------------------------------------------------------
 
 set(HIXL_TEST_FILES
+        proxy/aclrt_proxy_ut.cc
         proxy/ascend_hal_proxy_ut.cc
         common/thread_pool_ut.cc
         common/json_utils_ut.cc

@@ -17,12 +17,13 @@ add_library(hcomm_proxy_static STATIC "${CMAKE_CURRENT_LIST_DIR}/hcomm_proxy.cc"
 if(PRODUCT_SIDE STREQUAL "device")
         set(_HIXL_PROXY_TARGETS hcomm_proxy_static)
 else()
+        add_library(aclrt_proxy_static STATIC "${CMAKE_CURRENT_LIST_DIR}/aclrt_proxy.cc")
         add_library(hccp_proxy_static STATIC "${CMAKE_CURRENT_LIST_DIR}/hccp_proxy.cc")
         add_library(dsmi_proxy_static STATIC "${CMAKE_CURRENT_LIST_DIR}/dsmi_proxy.cc")
         add_library(dcmi_proxy_static STATIC "${CMAKE_CURRENT_LIST_DIR}/dcmi_proxy.cc")
         add_library(ascend_hal_proxy_static STATIC "${CMAKE_CURRENT_LIST_DIR}/ascend_hal_proxy.cc")
-        set(_HIXL_PROXY_TARGETS hcomm_proxy_static hccp_proxy_static dsmi_proxy_static dcmi_proxy_static
-                ascend_hal_proxy_static)
+        set(_HIXL_PROXY_TARGETS hcomm_proxy_static aclrt_proxy_static hccp_proxy_static dsmi_proxy_static
+                dcmi_proxy_static ascend_hal_proxy_static)
 
         target_link_libraries(hccp_proxy_static PRIVATE
                 $<BUILD_INTERFACE:intf_pub>
@@ -52,6 +53,14 @@ else()
 
         target_link_libraries(ascend_hal_proxy_static PRIVATE
                 $<BUILD_INTERFACE:intf_pub>
+                $<BUILD_INTERFACE:slog_headers>
+                $<BUILD_INTERFACE:error_manager_headers>
+                $<BUILD_INTERFACE:metadef_headers>
+        )
+
+        target_link_libraries(aclrt_proxy_static PRIVATE
+                $<BUILD_INTERFACE:intf_pub>
+                $<BUILD_INTERFACE:acl_rt_headers>
                 $<BUILD_INTERFACE:slog_headers>
                 $<BUILD_INTERFACE:error_manager_headers>
                 $<BUILD_INTERFACE:metadef_headers>

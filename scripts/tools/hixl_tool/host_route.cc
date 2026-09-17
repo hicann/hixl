@@ -13,7 +13,7 @@
  * @brief hixl_tool host_route subcommand
  *
  * New flow (no procfs):
- * 1. Enumerate all local NPUs (aclrtGetDeviceCount + aclrtGetPhyDevIdByUserDevId)
+ * 1. Enumerate all local NPUs (aclrtGetDeviceCount + AclrtProxy::GetPhyDevIdByUserDevId)
  * 2. Get product form (is_server) and call GenerateRouteDataViaDsmi
  *    (topo_path may be empty; empty means default topo is resolved inside the API)
  * 3. Write host_route.json (same as RouteEntry: local_eid=Host/CPU, remote_eid=NPU)
@@ -33,6 +33,7 @@
 #include <unistd.h>
 #include <vector>
 #include "acl/acl.h"
+#include "aclrt_proxy.h"
 #include "endpoint_generator/local_comm_res_generator_v1.h"
 #include "endpoint_generator/route_conf_generator.h"
 
@@ -91,9 +92,10 @@ int32_t EnumerateAllNpuIds(std::vector<int32_t> &npu_ids) {
   std::set<int32_t> unique_ids;
   for (uint32_t i = 0; i < device_count; ++i) {
     int32_t phy_id = -1;
-    acl_ret = aclrtGetPhyDevIdByUserDevId(static_cast<int32_t>(i), &phy_id);
+    acl_ret = hixl::AclrtProxy::GetPhyDevIdByUserDevId(static_cast<int32_t>(i), &phy_id);
     if (acl_ret != ACL_SUCCESS) {
-      std::printf("[WARN] aclrtGetPhyDevIdByUserDevId(%u) failed, ret=%d, skipping\n", i, static_cast<int>(acl_ret));
+      std::printf("[WARN] AclrtProxy::GetPhyDevIdByUserDevId(%u) failed, ret=%d, skipping\n", i,
+                  static_cast<int>(acl_ret));
       continue;
     }
     unique_ids.insert(phy_id);
