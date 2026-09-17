@@ -471,11 +471,27 @@ Status HixlCSServer::CreateChannel(int32_t fd, const char *msg, uint64_t msg_len
   channel_desc.channel_index = req.channel_index;
   channel_desc.qos = req.qos;
   HIXL_CHK_STATUS_RET(ep->CreateChannel(channel_desc, channel_handle, req.timeout_ms), "Failed to create channel");
-  std::lock_guard<std::mutex> lock(chn_mutex_);
-  EndpointChannelInfo info{};
-  info.endpoint_handle = handle;
-  info.channel_handle = channel_handle;
-  channels_[fd] = std::move(info);
+  bool client_disconnected = false;
+  {
+    // 校验 fd 存活并插入，与断连清理互斥避免孤儿表项；锁序 client_mutex_ -> chn_mutex_。
+    std::lock_guard<std::mutex> client_lock(client_mutex_);
+    if (clients_.find(fd) == clients_.end()) {
+      client_disconnected = true;
+    } else {
+      std::lock_guard<std::mutex> chn_lock(chn_mutex_);
+      EndpointChannelInfo info{};
+      info.endpoint_handle = handle;
+      info.channel_handle = channel_handle;
+      channels_[fd] = std::move(info);
+    }
+  }
+  if (client_disconnected) {
+    // client 已断开：不回响应（fd 已关，复用后污染新连接），锁外销毁刚建的 channel。
+    HIXL_DISMISS_GUARD(failed);
+    HIXL_LOGE(FAILED, "client fd:%d disconnected during channel creation, discard channel:%lu", fd, channel_handle);
+    HIXL_CHK_STATUS_RET(ep->DestroyChannel(channel_handle), "Failed to destroy channel after client disconnect");
+    return FAILED;
+  }
   HIXL_DISMISS_GUARD(failed);
   CreateChannelResp resp{};
   resp.result = SUCCESS;
