@@ -56,6 +56,74 @@ std::string SerializeNotifyAck(Status result) {
   nlohmann::json j{{"result", result}};
   return j.dump();
 }
+
+struct NotifyEnqueueRecord {
+  bool enqueued = false;
+  uint64_t seq = 0U;
+};
+
+Status EnqueueNotify(std::vector<NotifyDesc> &queue, std::mutex &mutex, uint64_t &enqueue_seq,
+                     const NotifyMsg &notify_msg, NotifyEnqueueRecord &record) {
+  record = {};
+  std::lock_guard<std::mutex> lock(mutex);
+  if (queue.size() >= kMaxNotifyQueueSize) {
+    HIXL_LOGE(RESOURCE_EXHAUSTED, "Notify queue is full, size:%zu, max:%zu", queue.size(), kMaxNotifyQueueSize);
+    return RESOURCE_EXHAUSTED;
+  }
+  if (notify_msg.name.size() > kMaxNotifyNameLen) {
+    HIXL_LOGE(PARAM_INVALID, "Notify name length invalid, size:%zu, max:%zu", notify_msg.name.size(),
+              kMaxNotifyNameLen);
+    return PARAM_INVALID;
+  }
+  if (notify_msg.notify_msg.size() > kMaxNotifyMsgLen) {
+    HIXL_LOGE(PARAM_INVALID, "Notify message too long, size:%zu, max:%zu", notify_msg.notify_msg.size(),
+              kMaxNotifyMsgLen);
+    return PARAM_INVALID;
+  }
+  NotifyDesc notify_desc;
+  notify_desc.name = AscendString(notify_msg.name.c_str());
+  notify_desc.notify_msg = AscendString(notify_msg.notify_msg.c_str());
+  queue.push_back(notify_desc);
+  record.enqueued = true;
+  record.seq = ++enqueue_seq;
+  return SUCCESS;
+}
+
+void RollbackNotify(std::vector<NotifyDesc> &queue, std::mutex &mutex, uint64_t &enqueue_seq,
+                    const NotifyEnqueueRecord &record) {
+  if (!record.enqueued) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock(mutex);
+  if (enqueue_seq != record.seq) {
+    HIXL_LOGW("Skip notify rollback because a later notify was enqueued, seq:%lu, current:%lu.", record.seq,
+              enqueue_seq);
+    return;
+  }
+  if (queue.empty()) {
+    HIXL_LOGW("Skip notify rollback because the queue was already drained, seq:%lu.", record.seq);
+    return;
+  }
+  queue.pop_back();
+}
+
+Status SendNotifyAck(int32_t fd, Status result) {
+  std::string ack_str;
+  try {
+    ack_str = SerializeNotifyAck(result);
+  } catch (const nlohmann::json::exception &e) {
+    HIXL_LOGE(FAILED, "Failed to serialize NotifyAck, exception:%s", e.what());
+    return FAILED;
+  }
+  CtrlMsgHeader header{};
+  header.magic = kMagicNumber;
+  header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + ack_str.size());
+  CtrlMsgType msg_type = CtrlMsgType::kNotifyAck;
+  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &header, static_cast<uint64_t>(sizeof(header))));
+  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &msg_type, static_cast<uint64_t>(sizeof(msg_type))));
+  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, ack_str.c_str(), static_cast<uint64_t>(ack_str.size())));
+  return SUCCESS;
+}
 }  // namespace
 
 Status HixlServer::Initialize(const std::string &ip, int32_t port,
@@ -198,43 +266,18 @@ Status HixlServer::ProcessNotifyMsg(int32_t fd, const char *msg, uint64_t msg_le
     HIXL_LOGE(PARAM_INVALID, "Failed to parse NotifyMsg, exception:%s", e.what());
     return PARAM_INVALID;
   }
-  Status result = SUCCESS;
-  {
-    std::lock_guard<std::mutex> lock(notify_mutex_);
-    if (notify_messages_.size() >= kMaxNotifyQueueSize) {
-      HIXL_LOGE(RESOURCE_EXHAUSTED, "Notify queue is full, size:%zu, max:%zu", notify_messages_.size(),
-                kMaxNotifyQueueSize);
-      result = RESOURCE_EXHAUSTED;
-    } else if (notify_msg.name.size() > kMaxNotifyNameLen) {
-      HIXL_LOGE(PARAM_INVALID, "Notify name length invalid, size:%zu, max:%zu", notify_msg.name.size(),
-                kMaxNotifyNameLen);
-      result = PARAM_INVALID;
-    } else if (notify_msg.notify_msg.size() > kMaxNotifyMsgLen) {
-      HIXL_LOGE(PARAM_INVALID, "Notify message too long, size:%zu, max:%zu", notify_msg.notify_msg.size(),
-                kMaxNotifyMsgLen);
-      result = PARAM_INVALID;
-    } else {
-      NotifyDesc notify_desc;
-      notify_desc.name = AscendString(notify_msg.name.c_str());
-      notify_desc.notify_msg = AscendString(notify_msg.notify_msg.c_str());
-      notify_messages_.push_back(notify_desc);
-    }
+  NotifyEnqueueRecord record;
+  const Status result = EnqueueNotify(notify_messages_, notify_mutex_, notify_enqueue_seq_, notify_msg, record);
+  const Status send_ret = SendNotifyAck(fd, result);
+  if (send_ret != SUCCESS) {
+    RollbackNotify(notify_messages_, notify_mutex_, notify_enqueue_seq_, record);
+    return send_ret;
   }
-  std::string ack_str;
-  try {
-    ack_str = SerializeNotifyAck(result);
-  } catch (const nlohmann::json::exception &e) {
-    HIXL_LOGE(FAILED, "Failed to serialize NotifyAck, exception:%s", e.what());
-    return FAILED;
+  if (result == SUCCESS) {
+    HIXL_LOGI("Received NotifyMsg and sent NotifyAck");
+  } else {
+    HIXL_LOGI("Rejected NotifyMsg and sent NotifyAck, result:%u", result);
   }
-  CtrlMsgHeader header{};
-  header.magic = kMagicNumber;
-  header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + ack_str.size());
-  CtrlMsgType msg_type = CtrlMsgType::kNotifyAck;
-  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &header, static_cast<uint64_t>(sizeof(header))));
-  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &msg_type, static_cast<uint64_t>(sizeof(msg_type))));
-  HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, ack_str.c_str(), static_cast<uint64_t>(ack_str.size())));
-  HIXL_LOGI("Received NotifyMsg and sent NotifyAck");
   return result;
 }
 
