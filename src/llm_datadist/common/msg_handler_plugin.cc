@@ -232,8 +232,12 @@ ge::Status MsgHandlerPlugin::DoAccept() {
   LLM_DISMISSABLE_GUARD(close_fd, ([conn_fd]() { close(conn_fd); }));
   LLMLOGI("accept success, fd:%d, addr.sin_family:%d", conn_fd, addr.ss_family);
   if (addr.ss_family == AF_INET || addr.ss_family == AF_INET6) {
-    (void)thread_pool_->commit([this, conn_fd]() -> void { (void)DoConnectedProcess(conn_fd); });
-    LLM_DISMISS_GUARD(close_fd);
+    auto task_future = thread_pool_->commit([this, conn_fd]() -> void { (void)DoConnectedProcess(conn_fd); });
+    if (task_future.valid()) {
+      LLM_DISMISS_GUARD(close_fd);
+    } else {
+      LLMLOGE(ge::FAILED, "Failed to submit connection task, fd:%d", conn_fd);
+    }
   }
   return ge::SUCCESS;
 }

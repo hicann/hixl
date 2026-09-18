@@ -18,6 +18,7 @@ set(LLM_DATADIST_TEST_FILES
         comm_mem_manager_unittest.cc
         rank_table_generator_unittest.cc
         transfer_message_limits_unittest.cc
+        msg_handler_plugin_unittest.cc
 )
 set(LLM_DATADIST_STUB_SRC_FILES
         "${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/data_cache_engine_test_helper.cc"
@@ -110,7 +111,7 @@ target_link_libraries(llm_datadist_test
 # Intercept dlopen/dlsym/dlclose/dlerror/access/realpath so HCCL adapter dynamic
 # loading and file-access paths can be exercised/stubbed without production code.
 set_target_properties(llm_datadist_test PROPERTIES
-        LINK_FLAGS "-Wl,--wrap=dlopen -Wl,--wrap=dlsym -Wl,--wrap=dlclose -Wl,--wrap=dlerror -Wl,--wrap=access -Wl,--wrap=realpath"
+        LINK_FLAGS "-Wl,--wrap=dlopen -Wl,--wrap=dlsym -Wl,--wrap=dlclose -Wl,--wrap=dlerror -Wl,--wrap=access -Wl,--wrap=realpath -Wl,--wrap=accept"
 )
 
 include(CTest)
