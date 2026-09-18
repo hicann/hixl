@@ -65,12 +65,14 @@ Status LLMError2AdxlStatus(ge::Status ret) {
 Status LoadJsonConfig(const std::string &json_string, std::map<AscendString, AscendString> &options) {
   try {
     nlohmann::json j = nlohmann::json::parse(json_string);
-    if (j.is_object()) {
-      for (auto it = j.begin(); it != j.end(); ++it) {
-        const std::string key = it.key();
-        const std::string value = JsonValueToString(it.value());
-        options[AscendString(key.c_str())] = AscendString(value.c_str());
-      }
+    if (!j.is_object()) {
+      LLMLOGE(PARAM_INVALID, "JSON config must be a JSON object.");
+      return PARAM_INVALID;
+    }
+    for (auto it = j.begin(); it != j.end(); ++it) {
+      const std::string key = it.key();
+      const std::string value = JsonValueToString(it.value());
+      options[AscendString(key.c_str())] = AscendString(value.c_str());
     }
     return SUCCESS;
   } catch (const std::exception &e) {
