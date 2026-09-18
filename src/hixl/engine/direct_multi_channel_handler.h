@@ -98,7 +98,7 @@ class DirectMultiChannelHandler : public IClientHandler {
   Status CheckStatus(const TransferReq &req, TransferStatus &status);
   void QueryWorkersStatus(std::vector<WorkerEntry> &workers, bool &any_waiting, bool &any_failed);
   static Status CollectFutures(std::vector<std::future<Status>> &futures);
-  Status UnregOneMemHandle(HixlClientHandle handle, MemHandle mh, MemHandle mem_handle);
+  Status UnregOneMemHandle(HixlClientHandle handle, MemHandle mh, MemHandle mem_handle) const;
   void EraseMemHandle(HixlClientHandle handle, MemHandle mh);
 
  private:

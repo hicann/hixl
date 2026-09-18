@@ -129,7 +129,7 @@ Status DirectMultiChannelHandler::RegisterMem(const MemHandleInfo &mem_info) {
   return SUCCESS;
 }
 
-Status DirectMultiChannelHandler::UnregOneMemHandle(HixlClientHandle handle, MemHandle mh, MemHandle mem_handle) {
+Status DirectMultiChannelHandler::UnregOneMemHandle(HixlClientHandle handle, MemHandle mh, MemHandle mem_handle) const {
   HIXL_CHK_STATUS_RET(HixlCSClientUnregMem(handle, mh),
                       "Call api:HixlCSClientUnregMem failed, mem_handle:%p, client_handle:%p, cs_mem_handle:%p",
                       mem_handle, handle, mh);
