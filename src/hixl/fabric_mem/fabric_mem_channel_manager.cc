@@ -395,7 +395,7 @@ void FabricMemChannelManager::CleanupChannelsLocked() {
 }
 
 Status FabricMemChannelManager::StartKeepaliveMonitor() {
-  // Lock: none.
+  HIXL_CHK_BOOL_RET_STATUS(!keepalive_monitor_.joinable(), FAILED, "Keepalive monitor is already running.");
   keepalive_stop_.store(false);
   keepalive_monitor_ = std::thread([this]() {
     std::unique_lock<std::mutex> lock(keepalive_cv_mutex_);
@@ -409,7 +409,6 @@ Status FabricMemChannelManager::StartKeepaliveMonitor() {
 }
 
 void FabricMemChannelManager::StopKeepaliveMonitor() {
-  // Lock: none (signals keepalive_cv_; joins thread).
   keepalive_stop_.store(true);
   keepalive_cv_.notify_all();
   if (keepalive_monitor_.joinable()) {

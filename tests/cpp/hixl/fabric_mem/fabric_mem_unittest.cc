@@ -1789,6 +1789,7 @@ TEST_F(FabricMemChannelManagerUTest, RemoveChannelEntryLockedFinalizesImportedMe
 TEST_F(FabricMemChannelManagerUTest, KeepaliveMonitorStartStop) {
   EXPECT_EQ(manager_.StartKeepaliveMonitor(), SUCCESS);
   EXPECT_TRUE(manager_.keepalive_monitor_.joinable());
+  EXPECT_EQ(manager_.StartKeepaliveMonitor(), FAILED);
   manager_.CheckKeepaliveFds();
   manager_.StopKeepaliveMonitor();
   EXPECT_FALSE(manager_.keepalive_monitor_.joinable());
