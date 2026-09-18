@@ -12,7 +12,9 @@
 - Atlas A2系列产品：支持
 <!-- end id3 -->
 
+<!-- npu="910b" id8 -->
 说明：针对Atlas A2系列产品，仅支持Atlas 800I A2推理服务器、A200I A2 Box异构组件。
+<!-- end id8 -->
 
 ## AdxlEngine构造函数
 
@@ -284,9 +286,15 @@ Status Connect(const AscendString &remote_engine, int32_t timeout_in_millis = 10
     export PATH=$PATH:${hccn_tool_install_path}
     ```
 
+<!-- npu="A3,910b" id9 -->
 - 对于使用Device RoCE场景，同一通信集群内Device RoCE地址配置需保持一致，不支持IPv6-only节点与IPv4/IPv6双栈节点混合接入。该约束支持的型号如下：
+  <!-- npu="910b" id10 -->
   - Atlas A2系列产品
+  <!-- end id10 -->
+  <!-- npu="A3" id11 -->
   - Atlas A3系列产品
+  <!-- end id11 -->
+<!-- end id9 -->
 
 - 该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
 

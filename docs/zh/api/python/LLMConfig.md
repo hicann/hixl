@@ -12,7 +12,9 @@
 - Atlas A2系列产品：支持
 <!-- end id3 -->
 
+<!-- npu="910b" id7 -->
 说明：针对Atlas A2系列产品，仅支持Atlas 800I A2推理服务器、A200I A2 Box异构组件。
+<!-- end id7 -->
 
 ## LLMConfig构造函数
 
@@ -406,20 +408,24 @@ local_comm_res(local_comm_res)
 | --- | --- | --- |
 | local_comm_res | str | 配置本地通信资源信息，格式是json的字符串。<br>- 不配置或配置为空串：将自动生成相关信息，使用集合通信的通信域方式进行建链，链路上限存在单卡512限制。说明：当buffer_pool（或adxl.BufferPool）配置为"0:0"（关闭中转内存池）且hcomm/toolkit版本大于等于9.1.0时，将使用HixlCS能力进行建链，没有链路上限限制。<br>- 配置version为"1.0"或"1.2"的ranktable格式：使用集合通信的通信域方式进行建链，链路上限存在单卡512限制。仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。<br>- 配置version为"1.3"（推荐使用，需要HDK版本大于等于25.5.0且toolkit包版本大于等于9.1.0）：使用HixlCS能力进行建链，没有链路上限限制。通信资源配置字段说明请参考[HIXL接口文档](../cpp/HIXL-interface.md#通信资源配置字段说明)。<br><br>若未配置enable_cache_manager和enable_remote_cache_accessible参数，在配置了当前option后，这两个参数默认为True。
 
+<!-- npu="A3,910b" id11 -->
 对于使用Device RoCE场景，同一通信集群内Device RoCE地址配置需保持一致，不支持IPv6-only节点与IPv4/IPv6双栈节点混合接入。该约束支持的型号如下：
 
+<!-- npu="910b" id12 -->
 - Atlas A2系列产品
+<!-- end id12 -->
+<!-- npu="A3" id13 -->
 - Atlas A3系列产品
+<!-- end id13 -->
+<!-- end id11 -->
 
-<!-- npu="950,A3,910b" id7 -->
-Atlas A2系列产品场景下或者Atlas A3系列产品场景下或者Ascend 950PR&Ascend 950DT系列产品场景下，配置version为"1.3"时，配置格式参考[gitcode](https://gitcode.com/cann/hixl/issues/38)，仅配置version为"1.3"时，其他字段将自动生成；配置示例如下。
+配置version为"1.3"时，配置格式参考[gitcode](https://gitcode.com/cann/hixl/issues/38)，仅配置version为"1.3"时，其他字段将自动生成；配置示例如下。
 
 ```sh
 local_comm_res = '''{
     "version": "1.3"
 }'''
 ```
-<!-- end id7 -->
 
 <!-- npu="910b" id8 -->
 Atlas A2系列产品场景下，配置version为"1.0"时，仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/9.2.0/docs/zh/user_guide/README.md)》。配置示例如下。

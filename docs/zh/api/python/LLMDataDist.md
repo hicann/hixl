@@ -187,9 +187,15 @@ link_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], time
     export PATH=$PATH:{hccn_tool_install_path}
     ```
 
+<!-- npu="A3,910b" id9 -->
 - 对于使用Device RoCE场景，同一通信集群内Device RoCE地址配置需保持一致，不支持IPv6-only节点与IPv4/IPv6双栈节点混合接入。该约束支持的型号如下：
+  <!-- npu="910b" id10 -->
   - Atlas A2系列产品
+  <!-- end id10 -->
+  <!-- npu="A3" id11 -->
   - Atlas A3系列产品
+  <!-- end id11 -->
+<!-- end id9 -->
 
 ## unlink\_clusters
 

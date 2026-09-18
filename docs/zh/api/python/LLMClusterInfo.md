@@ -11,7 +11,10 @@
 <!-- npu="910b" id3 -->
 - Atlas A2系列产品：支持
 <!-- end id3 -->
+
+<!-- npu="910" id4 -->
 说明：针对Atlas A2系列产品，仅支持Atlas 800I A2推理服务器、A200I A2 Box异构组件。
+<!-- end id4 -->
 
 ## LLMClusterInfo构造函数
 

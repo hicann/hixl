@@ -12,7 +12,9 @@
 - Atlas A2系列产品：支持
 <!-- end id3 -->
 
+<!-- npu="910b" id40 -->
 说明：针对Atlas A2系列产品，仅支持Atlas 800I A2推理服务器、A200I A2 Box异构组件。
+<!-- end id40 -->
 
 ## HIXL构造函数
 
@@ -308,7 +310,7 @@ UB_RTP
 | 字段名 | 数据类型 | 必选/可选 | 说明 | 支持值/填写规则 |
 | ---- | ---- | ---- | ---- | ---- |
 | comm_resource_config.protocol_desc | 字符串或字符串数组 | 可选 | 配置可使用的通信协议以及通信设备位置范围。UB CTP纯URMA模式可使用`ub_ctp`，其他配置使用`${protocol}:${placement}` | 支持"ub_ctp"/"roce:device"/"hccs:device"/"ub_ctp:device"/"ub_ctp:host"/"uboe:device"/"ub_rtp:device"/"roce:host"。配置后会对OPTION_LOCAL_COMM_RES中显式配置的endpoint_list和自动生成的endpoint_list按该范围进行过滤。A5上未配置该字段或仅配置"ub_ctp:device"时，自动生成Device UB资源，Host内存通过UBMEM映射到Device地址后使用Device UB链路传输；同时配置"ub_ctp:device"和"ub_ctp:host"时，自动生成Device+Host UB资源并使用纯URMA路径；配置"ub_ctp"与上述组合等价。单独配置"ub_ctp:host"时仅保留Host UB CTP Endpoint。手工配置LocalCommRes时，"ub_ctp"要求同时提供Device和Host UB CTP Endpoint。显式配置的OPTION_LOCAL_COMM_RES在未配置本字段时不进行额外过滤。 |
-| comm_resource_config.listen_port | JSON数字或纯数字字符串 | 可选 | 配置device侧网卡监听端口 | 取值范围为[1, 65535]。Atlas A2系列产品、Atlas A3系列产品上未配置时，固定使用`16666`端口；Ascend 950PR&Ascend 950DT系列产品场景未配置时，由底层通信组件自动选择可用端口，HIXL自动查询实际监听端口。 |
+| comm_resource_config.listen_port | JSON数字或纯数字字符串 | 可选 | 配置device侧网卡监听端口 | 取值范围为[1, 65535]。 |
 | comm_resource_config.qos | 数字 | 可选 | 配置通信协议qos | 当前仅支持[0-7]，当未配置的时候，默认为0。|
 | comm_resource_config.max_active_channels | 数字 | 可选 | CS场景下配置设备侧同时活跃传输通道数量 | 取值范围为[1, 8192]，未配置时默认值为128。每个active channel消耗2个Stream资源，配置值需结合当前卡形态的Stream资源上限及业务中已创建的Stream数量预留余量；不同卡形态的Stream资源上限参见CANN Runtime API [aclrtCreateStream](https://www.hiascend.com/document/detail/zh/canncommercial/latest/API/runtimeapi/aclcppdevg_03_0066.html)资料。超出[1, 8192]时Initialize返回参数错误。|
 | comm_resource_config.multi_channel.num_workers | 数字 | 可选 | 配置多通道并发传输的worker数 | 取值范围为[1, 16]，默认值为1（关闭多通道）。配置后，对UBOE和UB_RTP协议在建链时创建N个独立CS client，同步传输和异步传输均支持多通道并发，提升小包场景带宽。worker数越大占用的线程、Stream等设备资源越多，建议不超过8。|
@@ -316,6 +318,18 @@ UB_RTP
 | transfer_config.max_transfer_count_per_batch | 数字或十进制数字字符串 | 可选 | 单个内部传输批次最多包含的buffer数量，超过该值时HIXL保持原始顺序自动分批 | 默认值1920。HIXL全局校验范围为[1, 32766]，HCCS/FabricMem范围为[1, 1920]。FabricMem两种模式都执行[1, 1920]校验：`fabric_memory.enable_aicpu_unfold=true`时，该值控制AICPU展开的逻辑批次和Notify边界；`false`时，Host逐条连续提交`aclrtMemcpyAsync`，不按该值分批或在该值边界同步。RoCE/URMA队列深度说明：Client的SQ/SCQ深度按`max(64, nextPowerOfTwo(配置值 + 2))`计算；Server的SQ/SCQ深度固定为64；RQ/RCQ不由HIXL下发，由Hcomm按协议和平台默认策略设置。队列深度的协议和硬件能力校验由Hcomm负责。|
 | local_comm_res_path | 字符串 | 可选 | 本地通信资源 JSON 文件路径；文件内容格式与 OPTION_LOCAL_COMM_RES 相同 | 配置文件的绝对或相对路径，相对路径基于进程当前工作目录解析。目标文件必须是大小在[1字节, 1MiB]范围内的普通文件。与 OPTION_LOCAL_COMM_RES 同时配置且 option 非空时，以 OPTION_LOCAL_COMM_RES 为准。 |
 | topo_file_path | 字符串 | 可选 | 自动生成LocalCommRes时使用的硬件拓扑JSON文件路径 | 不配置或配置为空串时，按mainboard_id在默认拓扑目录中查找对应文件。配置非空路径时使用该文件；目标文件必须是大小在[1字节, 1MiB]范围内的普通文件。文件不存在、类型非法、超出大小或解析失败则Initialize失败。已通过OPTION_LOCAL_COMM_RES或local_comm_res_path提供非空endpoint_list时不使用本字段，也不校验该路径。 |
+
+comm_resource_config.listen_port的使用说明如下：
+
+<!-- npu="910b" id37 -->
+- Atlas A2系列产品：未配置时，固定使用`16666`端口。
+<!-- end id37 -->
+<!-- npu="A3" id38 -->
+- Atlas A3系列产品：未配置时，固定使用`16666`端口。
+<!-- end id38 -->
+<!-- npu="950" id39 -->
+- Ascend 950PR&Ascend 950DT系列产品：未配置时，由底层通信组件自动选择可用端口，HIXL自动查询实际监听端口。
+<!-- end id39 -->
 
 **调用示例**
 
@@ -542,17 +556,29 @@ Status Connect(const AscendString &remote_engine, int32_t timeout_in_millis = 10
   ```
   <!-- end id18 -->
 
+<!-- npu="A3,910b" id41 -->
 - 对于使用Device RoCE场景，同一通信集群内Device RoCE地址配置需保持一致，不支持IPv6-only节点与IPv4/IPv6双栈节点混合接入。该约束支持的型号如下：
+  <!-- npu="910b" id42 -->
   - Atlas A2系列产品
+  <!-- end id42 -->
+  <!-- npu="A3" id43 -->
   - Atlas A3系列产品
+  <!-- end id43 -->
 
+<!-- end id41 -->
+<!-- npu="A3,910b" id44 -->
 - 对于使用Device RoCE场景，HIXL在获取RoCE设备IP地址时遵循以下原则：
   - **IPv4优先**：同时存在IPv4和IPv6地址时，优先使用IPv4地址。
   - **IPv6兜底**：当设备无IPv4地址但存在IPv6地址时，自动使用IPv6地址。
   - **无需额外配置**：用户无需新增配置项或显式指定地址族，HIXL自动从hccn.conf或hccn_tool获取设备IP地址。
   该约束支持的型号如下：
+  <!-- npu="910b" id45 -->
   - Atlas A2系列产品
+  <!-- end id45 -->
+  <!-- npu="A3" id46 -->
   - Atlas A3系列产品
+  <!-- end id46 -->
+<!-- end id44 -->
 
 - 该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
 
@@ -807,7 +833,6 @@ Status TransferSync(const AscendString &remote_engine,
 - 在Fabric Mem传输模式下, 所有op_descs的传输类型需要相同，系统会根据第一个op_desc的内存类型判定传输方向。该约束支持的型号如下：
   - Atlas A3系列产品
   <!-- end id30 -->
-- 接口返回TIMEOUT或失败时，可能仍存在未完成的在途传输：开启Auto Connect模式（OPTION_AUTO_CONNECT=1）时，引擎会自动断开链路并终止在途传输；未开启时，调用方须先调用Disconnect接口清理链路，再自行释放本次传输涉及的本地内存。
 
 ## TransferAsync
 
@@ -868,7 +893,6 @@ Status TransferSync(const AscendString &remote_engine,
 - 在Fabric Mem传输模式下, 所有op_descs的传输类型需要相同，系统会根据第一个op_desc的内存类型判定传输方向。该约束支持的型号如下：
   - Atlas A3系列产品
   <!-- end id34 -->
-- 接口返回失败时，可能仍存在已提交的在途传输，此时req不可用于状态查询：开启Auto Connect模式（OPTION_AUTO_CONNECT=1）时，引擎会自动断开链路并终止在途传输，链路将在下次传输时自动重建；未开启时，调用方须先调用Disconnect接口销毁链路、清理资源，再自行释放本次传输涉及的本地内存。
 
 ## GetTransferStatus
 

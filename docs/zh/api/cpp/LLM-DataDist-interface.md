@@ -294,10 +294,16 @@ Status LinkLlmClusters(const std::vector<ClusterInfo> &clusters, std::vector<Sta
   ```
   <!-- end id13 -->
 
+<!-- npu="A3,910b" id20 -->
 - 对于使用Device RoCE场景，同一通信集群内Device RoCE地址配置需保持一致，不支持IPv6-only节点与IPv4/IPv6双栈节点混合接入。该约束支持的型号如下：
+  <!-- npu="910b" id21 -->
   - Atlas A2系列产品
+  <!-- end id21 -->
+  <!-- npu="A3" id22 -->
   - Atlas A3系列产品
+  <!-- end id22 -->
 
+<!-- end id20 -->
 ## UnlinkLlmClusters
 
 **函数功能**

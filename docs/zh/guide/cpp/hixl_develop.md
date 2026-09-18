@@ -196,8 +196,10 @@ if (ret != SUCCESS) {
 
 3. 内存传输，包含两种方式
 
+    <!-- npu="A3" id4 -->
     在Atlas A3系列产品需要使用HCCS进行D2RH、RH2D传输的场景。可以通过开启OPTION\_ENABLE\_USE\_FABRIC\_MEM配置选项来获得最佳的传输性能。
 
+    <!-- end id4 -->
     - 在Client侧调用TransferSync接口，设置operation参数为READ，即从远端地址读取内存到本地，其中，本地地址和远端地址需在建链前分别在本地和远端完成注册。
 
         ```cpp

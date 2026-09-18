@@ -229,12 +229,20 @@ register_blocks_cache(cache_desc: CacheDesc, addrs: List[int], blocks_cache_key:
 
 **约束说明**
 
+<!-- npu="A3,910b" id13 -->
 如果通过HCCS进行数据传输，且内存不是通过aclrtMalloc申请，则地址需要按照页大小对齐（如果确定页大小是多少，推荐2MB对齐），否则可能导致link失败。该约束支持的芯片如下：
 
+<!-- npu="910b" id15 -->
 - Atlas A2系列产品
+<!-- end id15 -->
+<!-- npu="A3" id16 -->
 - Atlas A3系列产品
+<!-- end id16 -->
+<!-- end id13 -->
 
+<!-- npu="950" id14 -->
 Ascend 950PR&Ascend 950DT系列产品场景下，无约束。
+<!-- end id14 -->
 
 ## transfer\_cache\_async
 
@@ -428,7 +436,10 @@ cache_manager.remap_registered_memory(mem_info)
 
 正常情况下无返回值。
 
-传入数据类型错误情况下会抛出TypeError或ValueError异常。<br><br>Ascend 950PR&Ascend 950DT系列产品不支持该接口。
+传入数据类型错误情况下会抛出TypeError或ValueError异常。
+<!-- npu="950" id17 -->
+Ascend 950PR&Ascend 950DT系列产品不支持该接口。
+<!-- end id17 -->
 
 **约束说明**
 
