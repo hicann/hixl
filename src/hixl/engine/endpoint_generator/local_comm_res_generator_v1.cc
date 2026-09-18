@@ -1092,6 +1092,8 @@ Status ParseUserProvidedServerId(const std::string &user_local_comm_res, std::st
     HIXL_CHK_BOOL_RET_STATUS(false, PARAM_INVALID, "[ParseUserProvidedServerId] Invalid user local_comm_res JSON: %s",
                              e.what());
   }
+  HIXL_CHK_BOOL_RET_STATUS(config.is_object(), PARAM_INVALID,
+                           "[ParseUserProvidedServerId] user local_comm_res JSON root must be an object");
   if (!config.contains("server_id")) {
     return SUCCESS;
   }

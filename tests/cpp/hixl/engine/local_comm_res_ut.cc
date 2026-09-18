@@ -809,6 +809,25 @@ TEST_F(LocalCommResGenerateTest, GenerateRejectsNonStringUserServerId) {
   EXPECT_EQ(ret, PARAM_INVALID);
 }
 
+TEST_F(LocalCommResGenerateTest, GenerateRejectsNonObjectUserLocalCommRes) {
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+  const std::vector<std::string> user_lcrs = {R"([])", R"(null)", R"(1)", R"("text")"};
+
+  for (const auto &user_lcr : user_lcrs) {
+    SCOPED_TRACE(user_lcr);
+    LocalCommRes res;
+    Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, user_lcr, res);
+    EXPECT_EQ(ret, PARAM_INVALID);
+  }
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateRejectsInvalidUserLocalCommResJson) {
+  std::string topo_path = data_dir_ + "server_8p_noroce.json";
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, topo_path, LocalCommResGenerateMode::kDeviceOnly, R"({)", res);
+  EXPECT_EQ(ret, PARAM_INVALID);
+}
+
 TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlyKeepsUserServerId) {
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
   const std::string user_lcr =
