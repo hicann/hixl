@@ -99,8 +99,8 @@ If you want to quickly experience the component build and sample execution, plea
 
 If you want to deeply understand the component interfaces and modify source code, please visit the following documents for detailed tutorials.
 
-- [C/C++ APIs](docs/zh/api/cpp/README.md): C++ interface introduction.
-- [Python APIs](docs/zh/api/python/README.md): Python interface introduction.
+- [C/C++ APIs](docs/zh/api/cpp/README.md) (available in Chinese only): C++ interface introduction.
+- [Python APIs](docs/en/api/python/README.md): Python interface introduction.
 
 If you want to deeply understand HIXL development guide and technical articles, you can refer to the following documents:
 
