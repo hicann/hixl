@@ -261,18 +261,31 @@ Status HixlCSServer::Initialize(const EndpointDesc *endpoint_list, uint32_t list
 Status HixlCSServer::DestroyChannel(int32_t fd, const char *msg, uint64_t msg_len) {
   (void)msg;
   (void)msg_len;
-  std::lock_guard<std::mutex> lock(chn_mutex_);
-  auto it = channels_.find(fd);
-  if (it != channels_.end()) {
-    auto handle = it->second.endpoint_handle;
-    auto ep = endpoint_store_.GetEndpoint(handle);
-    if (ep != nullptr) {
-      HIXL_CHK_STATUS(ep->DestroyChannel(it->second.channel_handle),
-                      "Failed to destroy channel, fd:%d, endpoint_handle:%p, channel_handle:0x%lx", fd, handle,
-                      it->second.channel_handle);
+  EndpointChannelInfo info{};
+  bool found = false;
+  {
+    // 临界区内仅做 find + erase，销毁放到锁外：HcommChannelDestroy 为毫秒级驱动操作，
+    // 持锁销毁会在断连风暴下串行化所有客户端的 channel 销毁与建链插入。
+    std::lock_guard<std::mutex> lock(chn_mutex_);
+    auto it = channels_.find(fd);
+    if (it != channels_.end()) {
+      info = it->second;
+      channels_.erase(it);
+      found = true;
     }
-    channels_.erase(it);
   }
+  if (!found) {
+    return SUCCESS;
+  }
+  auto ep = endpoint_store_.GetEndpoint(info.endpoint_handle);
+  if (ep == nullptr) {
+    HIXL_LOGW("Endpoint is not found when destroying channel, fd:%d, endpoint_handle:%p, channel_handle:0x%lx", fd,
+              info.endpoint_handle, info.channel_handle);
+    return SUCCESS;
+  }
+  HIXL_CHK_STATUS(ep->DestroyChannel(info.channel_handle),
+                  "Failed to destroy channel, fd:%d, endpoint_handle:%p, channel_handle:0x%lx", fd,
+                  info.endpoint_handle, info.channel_handle);
   return SUCCESS;
 }
 
