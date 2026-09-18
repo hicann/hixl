@@ -53,6 +53,8 @@ static constexpr uint32_t kConfiguredListenPort = 65535U;
 static constexpr uint32_t kRecvTimeoutMs = 1000U;
 static constexpr uint32_t kTimeSleepMs = 10U;
 static constexpr uint32_t kCaptureLogTimeoutMs = 1000U;
+static constexpr uint32_t kLockWaitTimeoutMs = 1000U;
+static constexpr int32_t kStubClientFd = 9999;
 static constexpr uint64_t kRuntimeNotifyAddr = 0x88888888ULL;
 static constexpr int32_t kNum1 = 1;
 static constexpr int32_t kNum2 = 2;
@@ -727,6 +729,101 @@ TEST_F(HixlCSTest, CloseAllClientsHandlesAlreadyClosedFd) {
   server->clients_[closed_fd] = std::make_shared<MsgReceiver>(closed_fd);
   server->CloseAllClients();
   EXPECT_TRUE(server->clients_.empty());
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+}
+
+// DestroyChannel 应在 chn_mutex_ 临界区内仅摘除表项，耗时的 channel 销毁在锁外执行
+TEST_F(HixlCSTest, DestroyChannelReleasesChnMutexDuringEndpointDestroy) {
+  HixlServerConfig config{};
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = 0U;
+  desc.endpoint_list = &default_eps[0];
+  desc.endpoint_list_num = default_eps.size();
+  HixlServerHandle server_handle = nullptr;
+  ASSERT_EQ(HixlCSServerCreate(&desc, &config, &server_handle), SUCCESS);
+  auto *server = static_cast<HixlCSServer *>(server_handle);
+
+  auto handles = server->endpoint_store_.GetAllEndpointHandles();
+  ASSERT_FALSE(handles.empty());
+  auto ep = server->endpoint_store_.GetEndpoint(handles[0]);
+  ASSERT_NE(ep, nullptr);
+  ChannelDesc chn_desc{};
+  chn_desc.remote_endpoint = default_eps[1];
+  chn_desc.channel_type = ChannelType::kServer;
+  chn_desc.channel_index = 1UL;
+  ChannelHandle channel_handle = 0UL;
+  ASSERT_EQ(ep->CreateChannel(chn_desc, channel_handle, kRecvTimeoutMs), SUCCESS);
+  EndpointChannelInfo info{};
+  info.endpoint_handle = handles[0];
+  info.channel_handle = channel_handle;
+  server->channels_[kStubClientFd] = info;
+
+  // 持有 endpoint::mutex_ 使 Endpoint::DestroyChannel 阻塞，用于观察此刻 chn_mutex_ 是否已释放
+  std::unique_lock<std::mutex> ep_lock(ep->mutex_);
+  Status destroy_ret = FAILED;
+  std::thread worker([&destroy_ret, server]() { destroy_ret = server->DestroyChannel(kStubClientFd, nullptr, 0UL); });
+  bool entry_erased = false;
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kLockWaitTimeoutMs);
+  while (std::chrono::steady_clock::now() < deadline) {
+    if (server->chn_mutex_.try_lock()) {
+      entry_erased = server->channels_.find(kStubClientFd) == server->channels_.end();
+      server->chn_mutex_.unlock();
+    }
+    if (entry_erased) {
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(kTimeSleepMs));
+  }
+  // worker 仍阻塞在销毁调用上，chn_mutex_ 必须可获取，否则说明销毁仍在临界区内
+  EXPECT_TRUE(entry_erased) << "channel entry was not erased before the blocking destroy";
+  bool chn_lock_free = server->chn_mutex_.try_lock();
+  EXPECT_TRUE(chn_lock_free) << "chn_mutex_ is still held while destroying channel";
+  if (chn_lock_free) {
+    server->chn_mutex_.unlock();
+  }
+  ep_lock.unlock();
+  worker.join();
+  EXPECT_EQ(destroy_ret, SUCCESS);
+  EXPECT_TRUE(server->channels_.empty());
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+}
+
+// endpoint 已不存在时仍应摘除表项并返回 SUCCESS，不能残留孤儿表项
+TEST_F(HixlCSTest, DestroyChannelErasesEntryWhenEndpointMissing) {
+  HixlServerConfig config{};
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = 0U;
+  desc.endpoint_list = &default_eps[0];
+  desc.endpoint_list_num = default_eps.size();
+  HixlServerHandle server_handle = nullptr;
+  ASSERT_EQ(HixlCSServerCreate(&desc, &config, &server_handle), SUCCESS);
+  auto *server = static_cast<HixlCSServer *>(server_handle);
+  EndpointChannelInfo info{};
+  info.endpoint_handle = reinterpret_cast<EndpointHandle>(0xDEADBEEFUL);
+  info.channel_handle = 0x1234UL;
+  server->channels_[kStubClientFd] = info;
+
+  EXPECT_EQ(server->DestroyChannel(kStubClientFd, nullptr, 0UL), SUCCESS);
+  EXPECT_TRUE(server->channels_.empty());
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+}
+
+// fd 无对应表项时为 no-op
+TEST_F(HixlCSTest, DestroyChannelUnknownFdIsNoOp) {
+  HixlServerConfig config{};
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = 0U;
+  desc.endpoint_list = &default_eps[0];
+  desc.endpoint_list_num = default_eps.size();
+  HixlServerHandle server_handle = nullptr;
+  ASSERT_EQ(HixlCSServerCreate(&desc, &config, &server_handle), SUCCESS);
+  auto *server = static_cast<HixlCSServer *>(server_handle);
+
+  EXPECT_EQ(server->DestroyChannel(kStubClientFd, nullptr, 0UL), SUCCESS);
+  EXPECT_TRUE(server->channels_.empty());
   EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
 }
 
