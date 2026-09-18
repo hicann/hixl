@@ -3,10 +3,10 @@
 ## 产品支持情况
 
 <!-- npu="950" id1 -->
-- Ascend 950PR/Ascend 950DT：支持
+- Ascend 950PR&Ascend 950DT系列产品：支持
 <!-- end id1 -->
 <!-- npu="A3" id2 -->
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品：支持
+- Atlas A3系列产品：支持
 <!-- end id2 -->
 <!-- npu="910b" id3 -->
 - Atlas A2 推理系列产品/Atlas A2 训练系列产品：支持
@@ -14,10 +14,10 @@
 
 说明：
 <!-- npu="910b" id4 -->
-针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，仅支持Atlas 800I A2 推理服务器、A200I A2 Box 异构组件。
+针对Atlas A2系列产品，仅支持Atlas 800I A2推理服务器、A200I A2 Box异构组件。
 <!-- end id4 -->
 <!-- npu="950" id5 -->
-针对Ascend 950PR/Ascend 950DT，不支持link、unlink和query_register_mem_status。
+针对Ascend 950PR&Ascend 950DT系列产品，不支持link、unlink和query_register_mem_status。
 <!-- end id5 -->
 
 ## LLMDataDist构造函数
@@ -187,9 +187,15 @@ link_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], time
     export PATH=$PATH:{hccn_tool_install_path}
     ```
 
+<!-- npu="A3,910b" id9 -->
 - 对于使用Device RoCE场景，同一通信集群内Device RoCE地址配置需保持一致，不支持IPv6-only节点与IPv4/IPv6双栈节点混合接入。该约束支持的型号如下：
-  - Atlas A2 训练系列产品/Atlas A2 推理系列产品
-  - Atlas A3 训练系列产品/Atlas A3 推理系列产品
+  <!-- npu="910b" id10 -->
+  - Atlas A2系列产品
+  <!-- end id10 -->
+  <!-- npu="A3" id11 -->
+  - Atlas A3系列产品
+  <!-- end id11 -->
+<!-- end id9 -->
 
 ## unlink\_clusters
 
@@ -280,7 +286,7 @@ link(comm_name: str, cluster_rank_info: Dict[int, int], rank_table: str) -> int
 | cluster_rank_info | Dict[int, int] | 集群ID到rank ID的映射。<br>例如：{1: 0, 2: 1}。 |
 | rank_table | str | 开发者可以通过该参数配置参与集合通信的NPU资源信息。
 
-如上表格中ranktable具体信息请参见[《HCCL集合通信库用户指南》](https://www.hiascend.com/document/redirect/CannCommunityHcclUg)。<br>如上表格中rank_table的配置示例如下:
+如上表格中ranktable具体信息请参见《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/master/docs/zh/user_guide/README.md)》。<br>如上表格中rank_table的配置示例如下:
 
 ```sh
 {
@@ -331,7 +337,7 @@ link(comm_name: str, cluster_rank_info: Dict[int, int], rank_table: str) -> int
 - 最多支持16条链路并发建链，超过16条底层会排队。
 - 需保证多通信域建链不出现循环依赖。
 <!-- npu="950" id6 -->
-- Ascend 950PR/Ascend 950DT不支持该接口。
+- Ascend 950PR&Ascend 950DT系列产品不支持该接口。
 <!-- end id6 -->
 
 ## unlink
@@ -365,7 +371,7 @@ unlink(comm_id: int)
 参数错误可能抛出TypeError或ValueError。
 
 <!-- npu="950" id7 -->
-Ascend 950PR/Ascend 950DT不支持该接口。
+Ascend 950PR&Ascend 950DT系列产品不支持该接口。
 <!-- end id7 -->
 
 **约束说明**
@@ -403,7 +409,7 @@ query_register_mem_status(comm_id: int) -> RegisterMemStatus
 参数错误可能抛出TypeError或ValueError。
 
 <!-- npu="950" id8 -->
-Ascend 950PR/Ascend 950DT不支持该接口。
+Ascend 950PR&Ascend 950DT系列产品不支持该接口。
 <!-- end id8 -->
 
 **约束说明**

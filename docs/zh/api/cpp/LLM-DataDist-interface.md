@@ -3,17 +3,17 @@
 ## 产品支持情况
 
 <!-- npu="950" id1 -->
-- Ascend 950PR/Ascend 950DT：支持
+- Ascend 950PR&Ascend 950DT系列产品：支持
 <!-- end id1 -->
 <!-- npu="A3" id2 -->
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品：支持
+- Atlas A3系列产品：支持
 <!-- end id2 -->
 <!-- npu="910b" id3 -->
 - Atlas A2 推理系列产品/Atlas A2 训练系列产品：支持
 <!-- end id3 -->
 
 <!-- npu="910b" id16 -->
-说明：针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，仅支持Atlas 800I A2 推理服务器、A200I A2 Box 异构组件。
+说明：针对Atlas A2系列产品，仅支持Atlas 800I A2推理服务器、A200I A2 Box异构组件。
 <!-- end id16 -->
 
 ## LlmDataDist构造函数
@@ -109,25 +109,25 @@ OPTION_LOCAL_COMM_RES参数补充说明如下：
   <!-- npu="A3,910b" id5 -->
 - 不配置或配置为空串：将自动生成相关信息，使用集合通信的通信域方式进行建链，链路上限存在单卡512限制。说明：当OPTION_BUFFER_POOL（或adxl.BufferPool）配置为"0:0"（关闭中转内存池）且hcomm/toolkit版本大于等于9.1.0时，将使用HixlCS能力进行建链，没有链路上限限制。该方法适用于如下型号：
   <!-- npu="910b" id6 -->
-  - Atlas A2 训练系列产品/Atlas A2 推理系列产品
+  - Atlas A2系列产品
   <!-- end id6 -->
   <!-- npu="A3" id7 -->
-  - Atlas A3 训练系列产品/Atlas A3 推理系列产品
+  - Atlas A3系列产品
   <!-- end id7 -->
 - 配置version为"1.0"或"1.2"的ranktable格式：使用集合通信的通信域方式进行建链，链路上限存在单卡512限制。仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。该方法适用于如下型号：
   <!-- npu="910b" id8 -->
-  - Atlas A2 训练系列产品/Atlas A2 推理系列产品
+  - Atlas A2系列产品
   <!-- end id8 -->
   <!-- npu="A3" id9 -->
-  - Atlas A3 训练系列产品/Atlas A3 推理系列产品
+  - Atlas A3系列产品
   <!-- end id9 -->
   <!-- end id5 -->
 - 配置version为"1.3"（推荐使用，需要HDK版本大于等于25.5.0且toolkit包版本大于等于9.1.0）：使用HixlCS能力进行建链，没有链路上限限制。配置格式参考[通信资源配置字段说明](./HIXL-interface.md#通信资源配置字段说明)。
  <!-- npu="950" id4 -->
- - Ascend 950PR/Ascend 950DT场景下，配置格式参考[通信资源配置字段说明](./HIXL-interface.md#通信资源配置字段说明)。同时需要使能OPTION_TRANSFER_BACKEND为hixl传输后端。该option必选，配置为空不会自动生成相关信息。
+ - Ascend 950PR&Ascend 950DT系列产品场景下，配置格式参考[通信资源配置字段说明](./HIXL-interface.md#通信资源配置字段说明)。同时需要使能OPTION_TRANSFER_BACKEND为hixl传输后端。该option必选，配置为空不会自动生成相关信息。
  <!-- end id4 -->
 
-如上表格中ranktable具体信息请参见[《HCCL集合通信库用户指南》](https://www.hiascend.com/document/redirect/CannCommunityHcclUg)。<br>OPTION_LOCAL_COMM_RES配置version为"1.3"时，通信资源配置字段说明请参考[HIXL接口文档](./HIXL-interface.md#通信资源配置字段说明)。
+如上表格中ranktable具体信息请参见《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/master/docs/zh/user_guide/README.md)》。<br>OPTION_LOCAL_COMM_RES配置version为"1.3"时，通信资源配置字段说明请参考[HIXL接口文档](./HIXL-interface.md#通信资源配置字段说明)。
 
 **调用示例**
 
@@ -266,10 +266,10 @@ Status LinkLlmClusters(const std::vector<ClusterInfo> &clusters, std::vector<Sta
   <!-- npu="A3,910b" id10 -->
 - 当OPTION_LOCAL_COMM_RES配置为空、version为"1.0"或"1.2"时，使用集合通信的通信域方式进行建链，允许创建的最大通信数量=512，建链数量过多存在内存OOM及KV Cache传输的性能风险。说明：当OPTION_LOCAL_COMM_RES配置为空且OPTION_BUFFER_POOL（或adxl.BufferPool）配置为"0:0"（关闭中转内存池）且hcomm/toolkit版本大于等于9.1.0时，将使用HixlCS能力进行建链，没有链路上限限制。该约束支持的型号如下：
   <!-- npu="910b" id11 -->
-  - Atlas A2 训练系列产品/Atlas A2 推理系列产品
+  - Atlas A2系列产品
   <!-- end id11 -->
   <!-- npu="A3" id12 -->
-  - Atlas A3 训练系列产品/Atlas A3 推理系列产品
+  - Atlas A3系列产品
   <!-- end id12 -->
   <!-- end id10 -->
 - 当OPTION_LOCAL_COMM_RES配置version为"1.3"时（推荐使用，需要HDK版本大于等于25.5.0且toolkit包版本大于等于9.1.0），使用HixlCS能力进行建链，没有链路上限限制。
@@ -283,10 +283,10 @@ Status LinkLlmClusters(const std::vector<ClusterInfo> &clusters, std::vector<Sta
   <!-- npu="A3,910b" id13 -->
 - 容器场景若未配置OPTION\_LOCAL\_COMM\_RES或配置为空，需在容器内映射“/etc/hccn.conf”文件或者确保默认路径“/usr/local/Ascend/driver/tools”下存在hccn_tool，如果两者都不能满足，则需要用户将hccn_tool所在路径配置到PATH中。配置示例如下，hccn_tool_install_path表示hccn_tool所在路径。该约束支持的型号如下：
   <!-- npu="910b" id14 -->
-  - Atlas A2 训练系列产品/Atlas A2 推理系列产品
+  - Atlas A2系列产品
   <!-- end id14 -->
   <!-- npu="A3" id15 -->
-  - Atlas A3 训练系列产品/Atlas A3 推理系列产品
+  - Atlas A3系列产品
   <!-- end id15 -->
 
   ```sh
@@ -294,9 +294,15 @@ Status LinkLlmClusters(const std::vector<ClusterInfo> &clusters, std::vector<Sta
   ```
   <!-- end id13 -->
 
+<!-- npu="A3,910b" id20 -->
 - 对于使用Device RoCE场景，同一通信集群内Device RoCE地址配置需保持一致，不支持IPv6-only节点与IPv4/IPv6双栈节点混合接入。该约束支持的型号如下：
-  - Atlas A2 训练系列产品/Atlas A2 推理系列产品
-  - Atlas A3 训练系列产品/Atlas A3 推理系列产品
+  <!-- npu="910b" id21 -->
+  - Atlas A2系列产品
+  <!-- end id21 -->
+  <!-- npu="A3" id22 -->
+  - Atlas A3系列产品
+  <!-- end id22 -->
+<!-- end id20 -->
 
 ## UnlinkLlmClusters
 
@@ -549,10 +555,10 @@ Status RegisterKvCache(const CacheDesc &cache_desc,
 当HDK版本低于25.5.0时，最大注册20GB的Host内存。当HDK版本大于等于25.5.0时，最大注册1TB的host内存。注册内存越大，占用的OS内存越多。该约束支持的型号如下：
 
 <!-- npu="910b" id18 -->
-- Atlas A2 训练系列产品/Atlas A2 推理系列产品
+- Atlas A2系列产品
 <!-- end id18 -->
 <!-- npu="A3" id19 -->
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品
+- Atlas A3系列产品
 <!-- end id19 -->
 <!-- end id17 -->
 
