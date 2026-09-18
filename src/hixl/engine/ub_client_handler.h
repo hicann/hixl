@@ -11,6 +11,7 @@
 #ifndef CANN_HIXL_SRC_HIXL_ENGINE_UB_CLIENT_HANDLER_H_
 #define CANN_HIXL_SRC_HIXL_ENGINE_UB_CLIENT_HANDLER_H_
 
+#include <cstdint>
 #include <map>
 #include <mutex>
 #include <set>
@@ -31,6 +32,7 @@ class UbClientHandler : public IClientHandler {
 
   Status Connect(uint32_t timeout_ms) override;
   Status RegisterMem(const MemHandleInfo &mem_info) override;
+  Status DeregisterMem(MemHandle mem_handle) override;
   Status TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation, TransferReq &req) override;
   Status TransferSync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation, uint32_t timeout_ms) override;
   Status GetTransferStatus(const TransferReq &req, TransferStatus &status) override;
@@ -63,11 +65,25 @@ class UbClientHandler : public IClientHandler {
     CompleteHandle handle;
   };
 
+  struct AddrMemRecord {
+    uintptr_t addr{0};
+    uint64_t len{0};
+    MemType type{MEM_DEVICE};
+    std::map<CommType, MemHandle> handles;
+  };
+
+  Status AddLocalRange(uintptr_t addr, uint64_t len, MemType type);
+  void RemoveLocalRange(uintptr_t addr, uint64_t len, MemType type);
+  Status RollbackRegisteredHandles(const std::map<CommType, MemHandle> &addr_handles, uintptr_t addr);
+  Status UnregOneHandle(CommType ct, MemHandle mh, uintptr_t addr);
+  void EraseMemHandle(CommType ct, MemHandle mh);
+
   std::map<CommType, HixlClientHandle> handles_;
   std::string local_engine_;
   std::string remote_engine_;
   std::map<CommType, HandlerCreateArgs::EndpointPair> link_pairs_;
   std::map<CommType, std::vector<MemHandle>> mem_handles_;
+  std::map<MemHandle, AddrMemRecord> handle_to_mem_record_;
   std::vector<SegmentPtr> local_segments_;
   std::vector<SegmentPtr> remote_segments_;
   std::map<TransferReq, std::vector<BatchHandle>> complete_handles_;

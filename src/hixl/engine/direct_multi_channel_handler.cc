@@ -9,6 +9,7 @@
  */
 
 #include "engine/direct_multi_channel_handler.h"
+#include <algorithm>
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
@@ -104,6 +105,9 @@ Status DirectMultiChannelHandler::RegisterMem(const MemHandleInfo &mem_info) {
   hccl_mem.size = mem_info.mem.len;
 
   std::lock_guard<std::mutex> lock(mutex_);
+  if (handle_to_mem_handles_.find(mem_info.mem_handle) != handle_to_mem_handles_.end()) {
+    return SUCCESS;
+  }
   const size_t rollback_start = mem_handles_.size();
   auto rollback_fn = [this, rollback_start]() {
     while (mem_handles_.size() > rollback_start) {
@@ -119,7 +123,53 @@ Status DirectMultiChannelHandler::RegisterMem(const MemHandleInfo &mem_info) {
     HIXL_CHK_STATUS_RET(ret, "DirectMultiChannelHandler register memory failed, addr: 0x%lx", mem_info.mem.addr);
     mem_handles_.push_back({handle, mem_handle});
   }
+  handle_to_mem_handles_[mem_info.mem_handle] = std::vector<std::pair<HixlClientHandle, MemHandle>>(
+      mem_handles_.begin() + static_cast<std::ptrdiff_t>(rollback_start), mem_handles_.end());
   HIXL_DISMISS_GUARD(rollback);
+  return SUCCESS;
+}
+
+Status DirectMultiChannelHandler::UnregOneMemHandle(HixlClientHandle handle, MemHandle mh, MemHandle mem_handle) const {
+  HIXL_CHK_STATUS_RET(HixlCSClientUnregMem(handle, mh),
+                      "Call api:HixlCSClientUnregMem failed, mem_handle:%p, client_handle:%p, cs_mem_handle:%p",
+                      mem_handle, handle, mh);
+  return SUCCESS;
+}
+
+void DirectMultiChannelHandler::EraseMemHandle(HixlClientHandle handle, MemHandle mh) {
+  auto mh_it = std::find(mem_handles_.begin(), mem_handles_.end(), std::make_pair(handle, mh));
+  if (mh_it != mem_handles_.end()) {
+    mem_handles_.erase(mh_it);
+  }
+}
+
+Status DirectMultiChannelHandler::DeregisterMem(MemHandle mem_handle) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  auto it = handle_to_mem_handles_.find(mem_handle);
+  if (it == handle_to_mem_handles_.end()) {
+    return SUCCESS;
+  }
+  Status first_err = SUCCESS;
+  std::vector<std::pair<HixlClientHandle, MemHandle>> remaining;
+  for (const auto &entry : it->second) {
+    const Status ret = UnregOneMemHandle(entry.first, entry.second, mem_handle);
+    if (ret != SUCCESS) {
+      if (first_err == SUCCESS) {
+        first_err = ret;
+      }
+      remaining.push_back(entry);
+      continue;
+    }
+    EraseMemHandle(entry.first, entry.second);
+  }
+  if (first_err != SUCCESS) {
+    it->second = std::move(remaining);
+  }
+  HIXL_CHK_BOOL_RET_STATUS(
+      first_err == SUCCESS, first_err,
+      "[DirectMultiChannelHandler] DeregisterMem partial failure, mem_handle:%p, remaining_channels:%zu", mem_handle,
+      it->second.size());
+  handle_to_mem_handles_.erase(it);
   return SUCCESS;
 }
 
@@ -150,6 +200,7 @@ Status DirectMultiChannelHandler::Finalize() {
     }
   }
   mem_handles_.clear();
+  handle_to_mem_handles_.clear();
   DestroyAllHandles(handles_);
   is_connected_ = false;
   return SUCCESS;

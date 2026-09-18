@@ -158,7 +158,8 @@ HixlStatus HixlCSClientUnregMem(HixlClientHandle client_handle, MemHandle mem_ha
   HIXL_CHECK_NOTNULL(client_handle);
   HIXL_CHECK_NOTNULL(mem_handle);
   auto client = static_cast<hixl::HixlCSClient *>(client_handle);
-  HIXL_CHK_STATUS_RET(client->UnRegMem(mem_handle), "HixlCSClientUnregMem failed, client_handle is %p.", client_handle);
+  HIXL_CHK_STATUS_RET(client->UnRegMem(mem_handle), "HixlCSClientUnregMem failed, client_handle is %p, mem_handle:%p.",
+                      client_handle, mem_handle);
   return HIXL_SUCCESS;
 }
 
@@ -286,8 +287,8 @@ HixlStatus HixlCSClientDestroy(HixlClientHandle client_handle) {
     return HIXL_PARAM_INVALID;
   }
   auto *client = static_cast<hixl::HixlCSClient *>(client_handle);
+  HIXL_MAKE_GUARD(release, ([client]() { delete client; }));
   HIXL_CHK_STATUS_RET(client->Destroy(), "HixlCSClientDestroy failed, client_handle is %p.", client_handle);
-  delete client;
   return HIXL_SUCCESS;
 }
 

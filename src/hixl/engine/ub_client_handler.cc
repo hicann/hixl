@@ -303,29 +303,86 @@ Status UbClientHandler::BuildRemoteSegmentsFromMemInfo(const std::vector<MemInfo
   return SUCCESS;
 }
 
+Status UbClientHandler::AddLocalRange(uintptr_t addr, uint64_t len, MemType type) {
+  auto it = std::find_if(local_segments_.begin(), local_segments_.end(),
+                         [type](const SegmentPtr &seg) { return seg->GetMemType() == type; });
+  if (it != local_segments_.end()) {
+    return (*it)->AddRange(addr, len);
+  }
+  auto seg = MakeShared<Segment>(type);
+  HIXL_CHK_BOOL_RET_STATUS(seg != nullptr, FAILED, "Failed to create segment");
+  HIXL_CHK_STATUS_RET(seg->AddRange(addr, len));
+  local_segments_.push_back(seg);
+  return SUCCESS;
+}
+
+void UbClientHandler::RemoveLocalRange(uintptr_t addr, uint64_t len, MemType type) {
+  uint64_t end = 0U;
+  if (ge::AddOverflow(addr, len, end)) {
+    HIXL_LOGW("Skip removing local range due to overflow, addr:0x%lx, len:%lu bytes", addr, len);
+    return;
+  }
+  for (auto it = local_segments_.begin(); it != local_segments_.end();) {
+    if ((*it)->GetMemType() != type) {
+      ++it;
+      continue;
+    }
+    (*it)->RemoveRange(addr, end);
+    if ((*it)->IsEmpty()) {
+      it = local_segments_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+Status UbClientHandler::RollbackRegisteredHandles(const std::map<CommType, MemHandle> &addr_handles, uintptr_t addr) {
+  Status first_err = SUCCESS;
+  for (const auto &[ct, mh] : addr_handles) {
+    const Status ret = UnregOneHandle(ct, mh, addr);
+    if (ret != SUCCESS) {
+      if (first_err == SUCCESS) {
+        first_err = ret;
+      }
+      continue;
+    }
+    EraseMemHandle(ct, mh);
+  }
+  return first_err;
+}
+
+Status UbClientHandler::UnregOneHandle(CommType ct, MemHandle mh, uintptr_t addr) {
+  if (mh == nullptr) {
+    return SUCCESS;
+  }
+  auto h_it = handles_.find(ct);
+  if (h_it == handles_.end()) {
+    return SUCCESS;
+  }
+  HIXL_CHK_STATUS_RET(HixlCSClientUnregMem(h_it->second, mh),
+                      "Call api:HixlCSClientUnregMem failed, addr:0x%lx, handle:%p, comm_type:%s", addr, mh,
+                      CommTypeToString(ct));
+  return SUCCESS;
+}
+
+void UbClientHandler::EraseMemHandle(CommType ct, MemHandle mh) {
+  auto vec_it = mem_handles_.find(ct);
+  if (vec_it == mem_handles_.end()) {
+    return;
+  }
+  auto mh_it = std::find(vec_it->second.begin(), vec_it->second.end(), mh);
+  if (mh_it != vec_it->second.end()) {
+    vec_it->second.erase(mh_it);
+  }
+}
+
 Status UbClientHandler::RegisterMem(const MemHandleInfo &mem_info) {
   const auto &mem = mem_info.mem;
   const auto type = mem_info.type;
-
-  {
-    std::lock_guard<std::mutex> lock(local_seg_mutex_);
-    auto it = std::find_if(local_segments_.begin(), local_segments_.end(),
-                           [type](const SegmentPtr &seg) { return seg->GetMemType() == type; });
-    if (it != local_segments_.end()) {
-      HIXL_CHK_STATUS_RET((*it)->AddRange(mem.addr, mem.len));
-    } else {
-      auto seg = MakeShared<Segment>(type);
-      HIXL_CHK_BOOL_RET_STATUS(seg != nullptr, FAILED, "Failed to create segment");
-      HIXL_CHK_STATUS_RET(seg->AddRange(mem.addr, mem.len));
-      local_segments_.push_back(seg);
-    }
-  }
-
   CommMem hccl_mem{};
   hccl_mem.type = (type == MemType::MEM_DEVICE) ? COMM_MEM_TYPE_DEVICE : COMM_MEM_TYPE_HOST;
   hccl_mem.addr = reinterpret_cast<void *>(mem.addr);
   hccl_mem.size = mem.len;
-
   std::vector<CommType> comm_types;
   if (type == MemType::MEM_DEVICE) {
     comm_types = {CommType::COMM_TYPE_UB_D2H, CommType::COMM_TYPE_UB_D2D};
@@ -333,16 +390,63 @@ Status UbClientHandler::RegisterMem(const MemHandleInfo &mem_info) {
     comm_types = {CommType::COMM_TYPE_UB_H2D, CommType::COMM_TYPE_UB_H2H};
   }
 
-  std::scoped_lock lock(handle_mutex_, mem_handle_mutex_);
+  std::scoped_lock lock(handle_mutex_, mem_handle_mutex_, local_seg_mutex_);
+  if (handle_to_mem_record_.find(mem_info.mem_handle) != handle_to_mem_record_.end()) {
+    return SUCCESS;
+  }
+  HIXL_CHK_STATUS_RET(AddLocalRange(mem.addr, mem.len, type));
+  std::map<CommType, MemHandle> addr_handles;
   for (auto ct : comm_types) {
     auto h_it = handles_.find(ct);
     if (h_it == handles_.end()) {
       continue;
     }
     MemHandle mh = nullptr;
-    HIXL_CHK_STATUS_RET(HixlCSClientRegMem(h_it->second, nullptr, &hccl_mem, &mh));
+    const Status ret = HixlCSClientRegMem(h_it->second, nullptr, &hccl_mem, &mh);
+    if (ret != SUCCESS) {
+      HIXL_CHK_STATUS(RollbackRegisteredHandles(addr_handles, mem.addr),
+                      "Rollback after RegisterMem failed, addr:0x%lx, failed_comm_type:%s", mem.addr,
+                      CommTypeToString(ct));
+      RemoveLocalRange(mem.addr, mem.len, type);
+      HIXL_CHK_STATUS_RET(ret, "Call api:HixlCSClientRegMem failed, addr:0x%lx, comm_type:%s", mem.addr,
+                          CommTypeToString(ct));
+    }
     mem_handles_[ct].push_back(mh);
+    addr_handles[ct] = mh;
   }
+  handle_to_mem_record_[mem_info.mem_handle] = AddrMemRecord{mem.addr, mem.len, type, std::move(addr_handles)};
+  return SUCCESS;
+}
+
+Status UbClientHandler::DeregisterMem(MemHandle mem_handle) {
+  std::scoped_lock lock(handle_mutex_, mem_handle_mutex_, local_seg_mutex_);
+  auto handle_it = handle_to_mem_record_.find(mem_handle);
+  if (handle_it == handle_to_mem_record_.end()) {
+    return SUCCESS;
+  }
+  AddrMemRecord &record = handle_it->second;
+  Status first_err = SUCCESS;
+  std::vector<CommType> done_cts;
+  for (const auto &[ct, mh] : record.handles) {
+    const Status ret = UnregOneHandle(ct, mh, record.addr);
+    if (ret != SUCCESS) {
+      if (first_err == SUCCESS) {
+        first_err = ret;
+      }
+      continue;
+    }
+    EraseMemHandle(ct, mh);
+    done_cts.push_back(ct);
+  }
+  for (auto ct : done_cts) {
+    record.handles.erase(ct);
+  }
+  HIXL_CHK_BOOL_RET_STATUS(first_err == SUCCESS, first_err,
+                           "[UbClientHandler] DeregisterMem partial failure, mem_handle:%p, addr:0x%lx, len:%lu bytes, "
+                           "remaining_comm_types:%zu",
+                           mem_handle, record.addr, record.len, record.handles.size());
+  RemoveLocalRange(record.addr, record.len, record.type);
+  handle_to_mem_record_.erase(handle_it);
   return SUCCESS;
 }
 
@@ -513,6 +617,7 @@ Status UbClientHandler::Finalize() {
       }
     }
     mem_handles_.clear();
+    handle_to_mem_record_.clear();
   }
   {
     std::lock_guard<std::mutex> lock(handle_mutex_);

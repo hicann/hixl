@@ -884,6 +884,21 @@ TEST_F(HixlCSClientUT, CreateFailInvalidJsonConfig) {
   EXPECT_NE(HixlCSClientCreate(&desc, &config, &handle), HIXL_SUCCESS);
 }
 
+TEST_F(HixlCSClientUT, ClientDestroyDeletesEvenIfEndpointDestroyFails) {
+  port_ = kPort;
+  HixlClientConfig config{};
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientHandle handle = nullptr;
+  ASSERT_EQ(HixlCSClientCreate(&desc, &config, &handle), HIXL_SUCCESS);
+  ASSERT_NE(handle, nullptr);
+  SetNextEndpointDestroyFailure(static_cast<int32_t>(HcclResult::HCCL_E_INTERNAL));
+  EXPECT_NE(HixlCSClientDestroy(handle), HIXL_SUCCESS);
+}
+
 TEST_F(HixlCSClientUT, CreateRdmaRetryUsesDefaultWhenEnvMissing) {
   port_ = kPort;
   ClearRdmaRetryEnv();

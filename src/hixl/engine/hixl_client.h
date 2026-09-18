@@ -63,11 +63,18 @@ class HixlClient {
   ~HixlClient() = default;
 
   /**
-   * @brief 设置本端内存信息，在 BatchPut 和 BatchGet 之前需要调用
-   * @param [in] mem_info_list 本端注册内存信息
+   * @brief 注册本端内存，在 TransferSync 和 TransferAsync 之前需要调用
+   * @param [in] mem_info_list 本端注册内存信息列表
    * @return 操作结果状态码
    */
-  Status SetLocalMemInfo(const std::vector<MemHandleInfo> &mem_info_list);
+  Status RegisterMem(const std::vector<MemHandleInfo> &mem_info_list);
+
+  /**
+   * @brief 解注册本端内存
+   * @param [in] mem_handle 注册内存返回的内存handle
+   * @return 操作结果状态码
+   */
+  Status DeregisterMem(MemHandle mem_handle);
 
   /**
    * @brief client初始化

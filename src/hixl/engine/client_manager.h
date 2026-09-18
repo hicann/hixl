@@ -46,6 +46,7 @@ class ClientManager {
   void EraseTransferReq(const TransferReq &req);
   std::vector<TransferReqInfo> GetOrderedReqs(size_t max_count);
   bool IsEmpty() const;
+  Status DeregisterMem(MemHandle mem_handle);
 
  private:
   struct ReqOwner {

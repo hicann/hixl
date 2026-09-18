@@ -9,6 +9,7 @@
  */
 
 #include "engine/direct_client_handler.h"
+#include <algorithm>
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 #include "common/transfer_config.h"
@@ -74,10 +75,31 @@ Status DirectClientHandler::RegisterMem(const MemHandleInfo &mem_info) {
   hccl_mem.size = mem_info.mem.len;
 
   std::lock_guard<std::mutex> lock(mutex_);
+  if (handle_to_mem_handle_.find(mem_info.mem_handle) != handle_to_mem_handle_.end()) {
+    return SUCCESS;
+  }
   MemHandle mem_handle = nullptr;
   HIXL_CHK_STATUS_RET(HixlCSClientRegMem(handle_, nullptr, &hccl_mem, &mem_handle),
                       "DirectClientHandler register memory failed, addr: 0x%lx", mem_info.mem.addr);
   mem_handles_.push_back(mem_handle);
+  handle_to_mem_handle_[mem_info.mem_handle] = mem_handle;
+  return SUCCESS;
+}
+
+Status DirectClientHandler::DeregisterMem(MemHandle mem_handle) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  auto it = handle_to_mem_handle_.find(mem_handle);
+  if (it == handle_to_mem_handle_.end()) {
+    return SUCCESS;
+  }
+  MemHandle cs_mem_handle = it->second;
+  HIXL_CHK_STATUS_RET(HixlCSClientUnregMem(handle_, cs_mem_handle),
+                      "Call api:HixlCSClientUnregMem failed, mem_handle:%p, handle:%p", mem_handle, cs_mem_handle);
+  handle_to_mem_handle_.erase(it);
+  auto mh_it = std::find(mem_handles_.begin(), mem_handles_.end(), cs_mem_handle);
+  if (mh_it != mem_handles_.end()) {
+    mem_handles_.erase(mh_it);
+  }
   return SUCCESS;
 }
 
@@ -164,6 +186,7 @@ Status DirectClientHandler::Finalize() {
     }
   }
   mem_handles_.clear();
+  handle_to_mem_handle_.clear();
   if (handle_ != nullptr) {
     HixlCSClientDestroy(handle_);
     handle_ = nullptr;

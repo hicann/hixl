@@ -78,7 +78,7 @@ Status ClientManager::GetOrCreateClient(const ClientConfig &config, const std::v
   HIXL_CHECK_NOTNULL(new_client, "Created client is null, remote_engine:%s", config.remote_engine.c_str());
 
   HIXL_DISMISSABLE_GUARD(fail_guard, ([new_client]() { (void)new_client->Finalize(); }));
-  HIXL_CHK_STATUS_RET(new_client->SetLocalMemInfo(mem_info_list), "Failed to set local memory info, remote_engine:%s",
+  HIXL_CHK_STATUS_RET(new_client->RegisterMem(mem_info_list), "Failed to register memory, remote_engine:%s",
                       config.remote_engine.c_str());
   HIXL_CHK_STATUS_RET(new_client->Connect(timeout_in_millis),
                       "Failed to connect client, remote_engine:%s, timeout:%d ms", config.remote_engine.c_str(),
@@ -226,6 +226,21 @@ void ClientManager::DestroyClientMutex(const std::string &remote_engine) {
 bool ClientManager::IsEmpty() const {
   std::lock_guard<std::mutex> lock(mutex_);
   return clients_.empty();
+}
+
+Status ClientManager::DeregisterMem(MemHandle mem_handle) {
+  std::map<std::string, ClientPtr> clients_copy;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    clients_copy = clients_;
+  }
+  HIXL_LOGI("[ClientManager] deregister mem for %zu clients, mem_handle:%p", clients_copy.size(), mem_handle);
+  for (const auto &[name, client] : clients_copy) {
+    HIXL_CHK_STATUS_RET(client->DeregisterMem(mem_handle),
+                        "Failed to deregister memory for client, remote_engine:%s, mem_handle:%p", name.c_str(),
+                        mem_handle);
+  }
+  return SUCCESS;
 }
 
 void ClientManager::SendHeartbeat() {

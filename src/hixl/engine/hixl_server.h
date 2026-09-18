@@ -51,7 +51,7 @@ class HixlServer {
    * @param [in] mem_handle 注册内存返回的内存handle
    * @return 成功:SUCCESS, 失败:其它.
    */
-  Status DeregisterMem(MemHandle &mem_handle);
+  Status DeregisterMem(MemHandle mem_handle);
 
   /**
    * @brief 销毁server
