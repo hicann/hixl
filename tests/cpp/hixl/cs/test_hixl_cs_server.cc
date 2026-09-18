@@ -87,7 +87,9 @@ class HixlCSTest : public ::testing::Test {
     default_eps.emplace_back(ep_dev);
   }
   // 在测试类中进行清理工作，如果需要的话
-  void TearDown() override {}
+  void TearDown() override {
+    ResetMemRegRecord();
+  }
 
  private:
   std::vector<EndpointDesc> default_eps;
@@ -323,6 +325,94 @@ TEST_F(HixlCSTest, RegisterHostMemForUbEndpointsSkipsDeviceEndpoint) {
   EXPECT_EQ(GetMemRegRecordType(0U), static_cast<int32_t>(COMM_MEM_TYPE_HOST));
 
   EXPECT_EQ(HixlCSServerUnregMem(server_handle, mem_handle), SUCCESS);
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+}
+
+// 多 endpoint 部分注册失败时, RegisterMem 应回滚本次已成功注册的 endpoint:
+// 两个 HOST UBC_CTP endpoint 均匹配 HOST 内存, 第 2 次 HcommMemReg 注入失败后,
+// 第 1 个 endpoint 的成功注册需被注销, 接口失败时 mem_handle 不写出且无残留注册
+TEST_F(HixlCSTest, RegisterMemRollsBackEarlierEndpointsWhenLaterEndpointFails) {
+  EndpointDesc host_ep0{};
+  host_ep0.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+  host_ep0.protocol = COMM_PROTOCOL_UBC_CTP;
+  host_ep0.commAddr.type = COMM_ADDR_TYPE_EID;
+  host_ep0.commAddr.eid[0] = 1U;
+  EndpointDesc host_ep1{};
+  host_ep1.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+  host_ep1.protocol = COMM_PROTOCOL_UBC_CTP;
+  host_ep1.commAddr.type = COMM_ADDR_TYPE_EID;
+  host_ep1.commAddr.eid[0] = 2U;
+  std::vector<EndpointDesc> endpoints = {host_ep0, host_ep1};
+
+  HixlServerConfig config{};
+  HixlServerHandle server_handle = nullptr;
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = kPort;
+  desc.endpoint_list = endpoints.data();
+  desc.endpoint_list_num = endpoints.size();
+  ASSERT_EQ(HixlCSServerCreate(&desc, &config, &server_handle), SUCCESS);
+  ResetMemRegRecord();
+  SetMemRegFailureOnCall(2U, static_cast<int32_t>(HCCL_E_INTERNAL));
+
+  CommMem mem{};
+  mem.type = COMM_MEM_TYPE_HOST;
+  mem.size = sizeof(int32_t);
+  mem.addr = &kHostMems[0];
+  MemHandle mem_handle = nullptr;
+  EXPECT_NE(HixlCSServerRegMem(server_handle, nullptr, &mem, &mem_handle), SUCCESS);
+
+  // 发起 2 次注册(1 成功 1 失败), 成功的 1 次被回滚注销, 无残留句柄写出
+  EXPECT_EQ(GetMemRegCallCount(), 2U);
+  EXPECT_EQ(GetMemRegRecordCount(), 1U);
+  EXPECT_EQ(GetMemUnregCallCount(), 1U);
+  EXPECT_EQ(mem_handle, nullptr);
+
+  // 回滚后 endpoint 无残留注册, 恢复 stub 后重新注册应成功
+  SetMemRegFailureOnCall(0U, 0);
+  MemHandle retry_handle = nullptr;
+  EXPECT_EQ(HixlCSServerRegMem(server_handle, nullptr, &mem, &retry_handle), SUCCESS);
+  EXPECT_EQ(HixlCSServerUnregMem(server_handle, retry_handle), SUCCESS);
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+}
+
+// 首个 endpoint 即注册失败时无已成功注册项, 回滚应为空操作
+TEST_F(HixlCSTest, RegisterMemFirstEndpointFailureRollsBackNothing) {
+  EndpointDesc host_ep0{};
+  host_ep0.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+  host_ep0.protocol = COMM_PROTOCOL_UBC_CTP;
+  host_ep0.commAddr.type = COMM_ADDR_TYPE_EID;
+  host_ep0.commAddr.eid[0] = 1U;
+  EndpointDesc host_ep1{};
+  host_ep1.loc.locType = ENDPOINT_LOC_TYPE_HOST;
+  host_ep1.protocol = COMM_PROTOCOL_UBC_CTP;
+  host_ep1.commAddr.type = COMM_ADDR_TYPE_EID;
+  host_ep1.commAddr.eid[0] = 2U;
+  std::vector<EndpointDesc> endpoints = {host_ep0, host_ep1};
+
+  HixlServerConfig config{};
+  HixlServerHandle server_handle = nullptr;
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = kPort;
+  desc.endpoint_list = endpoints.data();
+  desc.endpoint_list_num = endpoints.size();
+  ASSERT_EQ(HixlCSServerCreate(&desc, &config, &server_handle), SUCCESS);
+  ResetMemRegRecord();
+  SetMemRegFailureOnCall(1U, static_cast<int32_t>(HCCL_E_INTERNAL));
+
+  CommMem mem{};
+  mem.type = COMM_MEM_TYPE_HOST;
+  mem.size = sizeof(int32_t);
+  mem.addr = &kHostMems[0];
+  MemHandle mem_handle = nullptr;
+  EXPECT_NE(HixlCSServerRegMem(server_handle, nullptr, &mem, &mem_handle), SUCCESS);
+
+  EXPECT_EQ(GetMemRegCallCount(), 1U);
+  EXPECT_EQ(GetMemRegRecordCount(), 0U);
+  EXPECT_EQ(GetMemUnregCallCount(), 0U);
+  EXPECT_EQ(mem_handle, nullptr);
+
   EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
 }
 

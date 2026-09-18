@@ -48,6 +48,10 @@ static std::atomic<uint32_t> g_fence_call_count{0U};
 static std::atomic<uint32_t> g_last_channel_sq_depth{0U};
 static std::atomic<uint32_t> g_last_channel_scq_depth{0U};
 static std::vector<int32_t> g_mem_reg_types;
+static uint32_t g_mem_reg_call_count = 0U;    // HcommMemReg发起次数(含注入失败的调用)
+static uint32_t g_mem_unreg_call_count = 0U;  // HcommMemUnreg发起次数
+static uint32_t g_mem_reg_fail_on_call = 0U;  // 第N次调用注入失败, 0表示不注入
+static int32_t g_mem_reg_fail_ret = 0;        // 注入失败时返回的错误码
 static HcommChannelDesc g_last_channel_desc{};
 static bool g_has_last_channel_desc = false;
 
@@ -83,6 +87,10 @@ HcommResult HcommMemReg(EndpointHandle endPointHandle, const char *memTag, const
   static int32_t mem_num_stub = 1;
   (void)endPointHandle;
   (void)memTag;
+  g_mem_reg_call_count++;
+  if (g_mem_reg_fail_on_call != 0U && g_mem_reg_call_count == g_mem_reg_fail_on_call) {
+    return static_cast<HcommResult>(g_mem_reg_fail_ret);
+  }
   if (mem != nullptr) {
     g_mem_reg_types.push_back(static_cast<int32_t>(mem->type));
   }
@@ -93,6 +101,7 @@ HcommResult HcommMemReg(EndpointHandle endPointHandle, const char *memTag, const
 HcommResult HcommMemUnreg(EndpointHandle endPointHandle, HcommMemHandle memHandle) {
   (void)endPointHandle;
   (void)memHandle;
+  g_mem_unreg_call_count++;
   return static_cast<HcommResult>(HCCL_SUCCESS);
 }
 
@@ -387,6 +396,10 @@ void ResetTransferCounter() {
 
 void ResetMemRegRecord() {
   g_mem_reg_types.clear();
+  g_mem_reg_call_count = 0U;
+  g_mem_unreg_call_count = 0U;
+  g_mem_reg_fail_on_call = 0U;
+  g_mem_reg_fail_ret = 0;
 }
 
 uint32_t GetMemRegRecordCount() {
@@ -398,6 +411,19 @@ int32_t GetMemRegRecordType(uint32_t index) {
     return -1;
   }
   return g_mem_reg_types[index];
+}
+
+void SetMemRegFailureOnCall(uint32_t call_index, int32_t ret) {
+  g_mem_reg_fail_on_call = call_index;
+  g_mem_reg_fail_ret = ret;
+}
+
+uint32_t GetMemRegCallCount() {
+  return g_mem_reg_call_count;
+}
+
+uint32_t GetMemUnregCallCount() {
+  return g_mem_unreg_call_count;
 }
 
 void ResetChannelCreateRecord() {
