@@ -95,6 +95,20 @@ bool ShouldRegisterEndpointForMem(const EndpointPtr &endpoint, CommMemType mem_t
   }
   return false;
 }
+
+// 回滚本次 RegisterMem 中已成功注册的 endpoint: 逆序注销, 单点注销失败仅记录错误并继续
+void RollbackRegisteredMem(const EndpointStore &endpoint_store, const std::vector<EndpointMemInfo> &ep_mem_infos) {
+  for (auto it = ep_mem_infos.crbegin(); it != ep_mem_infos.crend(); ++it) {
+    auto endpoint = endpoint_store.GetEndpoint(it->endpoint_handle);
+    if (endpoint == nullptr) {
+      continue;
+    }
+    auto ret = endpoint->DeregisterMem(it->mem_handle);
+    if (ret != SUCCESS) {
+      HIXL_LOGE(ret, "Failed to rollback registered mem, mem_handle:%p.", it->mem_handle);
+    }
+  }
+}
 }  // namespace
 
 std::unique_ptr<hixl::TemporaryRtContext> HixlCSServer::GetContextGuard() const {
@@ -349,6 +363,8 @@ Status HixlCSServer::RegisterMem(const char *mem_tag, const CommMem *mem, MemHan
                            static_cast<int32_t>(mem->type));
 
   std::vector<EndpointMemInfo> ep_mem_infos;
+  HIXL_DISMISSABLE_GUARD(rollback_guard,
+                         ([this, &ep_mem_infos]() { RollbackRegisteredMem(endpoint_store_, ep_mem_infos); }));
   for (auto handle : all_handles) {
     auto endpoint = endpoint_store_.GetEndpoint(handle);
     HIXL_CHECK_NOTNULL(endpoint);
@@ -367,6 +383,7 @@ Status HixlCSServer::RegisterMem(const char *mem_tag, const CommMem *mem, MemHan
   *mem_handle = ep_mem_infos[0].mem_handle;
   HIXL_EVENT("[HixlServer] register mem success, addr:%p, size:%lu bytes, type:%d, handle:%p", mem->addr, mem->size,
              static_cast<int32_t>(mem->type), *mem_handle);
+  HIXL_DISMISS_GUARD(rollback_guard);
   std::lock_guard<std::mutex> lock(reg_mutex_);
   reg_mems_[ep_mem_infos[0].mem_handle] = std::move(ep_mem_infos);
   return SUCCESS;

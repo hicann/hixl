@@ -39,6 +39,9 @@ void ResetTransferCounter();
 void ResetMemRegRecord();
 uint32_t GetMemRegRecordCount();
 int32_t GetMemRegRecordType(uint32_t index);
+void SetMemRegFailureOnCall(uint32_t call_index, int32_t ret);
+uint32_t GetMemRegCallCount();
+uint32_t GetMemUnregCallCount();
 void ResetChannelCreateRecord();
 bool GetLastChannelCreateDesc(HcommChannelDesc *desc);
 
