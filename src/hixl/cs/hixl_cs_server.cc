@@ -539,7 +539,8 @@ Status HixlCSServer::SendRemoteMemResp(int32_t fd, const GetRemoteMemResp &resp)
   header.magic = kMagicNumber;
   std::string msg_str;
   HIXL_CHK_STATUS_RET(Serialize(resp, msg_str), "Failed to serialize msg");
-  HIXL_LOGI("remote mem serialize success, str:%s", msg_str.c_str());
+  // Do not log msg_str content: it carries memory addresses and RDMA export descriptors.
+  HIXL_LOGD("remote mem serialize success, fd:%d, size:%zu bytes", fd, msg_str.size());
   header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + msg_str.size());
   CtrlMsgType msg_type = CtrlMsgType::kGetRemoteMemResp;
   HIXL_CHK_STATUS_RET(CtrlMsgPlugin::Send(fd, &header, static_cast<uint64_t>(sizeof(header))));
