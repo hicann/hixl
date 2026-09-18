@@ -807,6 +807,7 @@ Status TransferSync(const AscendString &remote_engine,
 - 在Fabric Mem传输模式下, 所有op_descs的传输类型需要相同，系统会根据第一个op_desc的内存类型判定传输方向。该约束支持的型号如下：
   - Atlas A3 训练系列产品/Atlas A3 推理系列产品
   <!-- end id30 -->
+- 接口返回 TIMEOUT 或失败时，可能仍存在未完成的在途传输：开启 Auto Connect 模式（OPTION_AUTO_CONNECT=1）时，引擎会自动断开链路并终止在途传输；未开启时，调用方须先调用 Disconnect 接口清理链路，再自行释放本次传输涉及的本地内存。
 
 ## TransferAsync
 
@@ -863,6 +864,7 @@ Status TransferSync(const AscendString &remote_engine,
   <!-- end id31 -->
 - 该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
 - 当前异步传输仅支持直传，暂不支持中转传输，默认直传。
+- 接口返回失败时，可能仍存在已提交的在途传输，此时 req 不可用于状态查询：开启 Auto Connect 模式（OPTION_AUTO_CONNECT=1）时，引擎会自动断开链路并终止在途传输，链路将在下次传输时自动重建；未开启时，调用方须先调用 Disconnect 接口销毁链路、清理资源，再自行释放本次传输涉及的本地内存。
   <!-- npu="A3" id34 -->
 - 在Fabric Mem传输模式下, 所有op_descs的传输类型需要相同，系统会根据第一个op_desc的内存类型判定传输方向。该约束支持的型号如下：
   - Atlas A3 训练系列产品/Atlas A3 推理系列产品
