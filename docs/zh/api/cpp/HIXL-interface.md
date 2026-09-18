@@ -671,7 +671,7 @@ Status DisconnectAsync(const AscendString &remote_engine, int32_t timeout_in_mil
 - ConnectAsync/DisconnectAsync接口不与Connect/Disconnect接口混用。
 - 对同一remote_engine下发多个任务时，按下发顺序执行；不同remote_engine的任务允许并发执行。获取的任务状态为最新下发任务的状态。
 
-## GetAsyncConnectStatus
+## GetAsyncConnectStatus（查询指定连接状态）
 
 **函数功能**
 
@@ -704,7 +704,7 @@ Status GetAsyncConnectStatus(const AscendString &remote_engine, AsyncConnectStat
 - 调用该接口之前，需要先调用Initialize接口完成初始化。
 - 接口的返回值仅表示接口调用是否成功，异步建链/断链任务状态由输出参数表示。
 
-## GetAsyncConnectStatus
+## GetAsyncConnectStatus（查询全部连接状态）
 
 **函数功能**
 
@@ -870,7 +870,7 @@ Status TransferSync(const AscendString &remote_engine,
   - Atlas A3 训练系列产品/Atlas A3 推理系列产品
   <!-- end id34 -->
 
-## GetTransferStatus
+## GetTransferStatus（查询指定传输请求）
 
 **函数功能**
 
@@ -914,7 +914,7 @@ Status TransferSync(const AscendString &remote_engine,
 - 在调用TransferAsync接口进行异步传输后，需要使用该接口查询对应请求状态，如果查询状态是COMPLETED或FAILED，将释放相关资源。该场景下不支持再次查询。
 - 异步传输时，用户自行判断是否超时，如果用户判断任务超时，需要调用Disconnect接口销毁链路，清理相关资源。
 
-## GetTransferStatus
+## GetTransferStatus（查询全部传输请求）
 
 **函数功能**
 
