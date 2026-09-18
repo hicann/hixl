@@ -28,10 +28,10 @@
 
 支持的形态如下：
 
-- Atlas A2 训练系列产品/Atlas A2 推理系列产品：针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，仅支持Atlas 800I A2 推理服务器、A200I A2 Box 异构组件。该场景下Server内采用HCCS传输协议时，LLM-DataDist相关接口仅支持D2D。
+- Atlas A2系列产品：针对Atlas A2系列产品，仅支持Atlas 800I A2推理服务器、A200I A2 Box异构组件。该场景下Server内采用HCCS传输协议时，LLM-DataDist相关接口仅支持D2D。
 
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品，该场景下采用HCCS传输协议时，LLM-DataDist相关接口不支持Host内存作为远端Cache。
-- Ascend 950PR/Ascend 950DT场景下，超节点内使用UB协议，超节点间使用RoCE协议。
+- Atlas A3系列产品，该场景下采用HCCS传输协议时，LLM-DataDist相关接口不支持Host内存作为远端Cache。
+- Ascend 950PR&Ascend 950DT系列产品场景下，超节点内使用UB协议，超节点间使用RoCE协议。
 
 请参考《[CANN软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/920/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》安装驱动固件以及CANN软件。
 

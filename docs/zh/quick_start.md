@@ -19,7 +19,7 @@
   ```
 
 - 已选择两张互通的device。若执行失败，请先参考[样例执行](../../examples/README.md)检查device连通性和TLS配置。
-- 当前用例仅支持Atlas A2 训练系列产品/Atlas A2 推理系列产品、Atlas A3 训练系列产品/Atlas A3 推理系列产品。
+- 当前用例仅支持Atlas A2系列产品、Atlas A3系列产品。
 
 ## 执行样例
 

@@ -41,13 +41,13 @@ HIXL（Huawei Xfer Library）即昇腾单边通信库，面向集群场景提供
 支持的产品形态如下：
 
 <!-- npu="910b" id1 -->
-- Atlas A2 训练系列产品/Atlas A2 推理系列产品：针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，仅支持Atlas 800I A2 推理服务器、A200I A2 Box 异构组件。
+- Atlas A2系列产品：针对Atlas A2系列产品，仅支持Atlas 800I A2推理服务器、A200I A2 Box异构组件。
 <!-- end id1 -->
 <!-- npu="A3" id2 -->
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品。
+- Atlas A3系列产品。
 <!-- end id2 -->
 <!-- npu="950" id3 -->
-- Ascend 950PR/Ascend 950DT场景下，超节点内使用UB协议，超节点间使用RoCE协议。
+- Ascend 950PR&Ascend 950DT系列产品场景下，超节点内使用UB协议，超节点间使用RoCE协议。
 <!-- end id3 -->
 
 请参考《[CANN软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/920/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》安装好驱动固件以及CANN软件。
@@ -196,7 +196,7 @@ if (ret != SUCCESS) {
 
 3. 内存传输，包含两种方式
 
-    在Atlas A3 训练系列产品/Atlas A3 推理系列产品需要使用HCCS进行D2RH、RH2D传输的场景。可以通过开启OPTION\_ENABLE\_USE\_FABRIC\_MEM配置选项来获得最佳的传输性能。
+    在Atlas A3系列产品需要使用HCCS进行D2RH、RH2D传输的场景。可以通过开启OPTION\_ENABLE\_USE\_FABRIC\_MEM配置选项来获得最佳的传输性能。
 
     - 在Client侧调用TransferSync接口，设置operation参数为READ，即从远端地址读取内存到本地，其中，本地地址和远端地址需在建链前分别在本地和远端完成注册。
 

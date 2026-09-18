@@ -3,16 +3,16 @@
 ## 产品支持情况
 
 <!-- npu="950" id1 -->
-- Ascend 950PR/Ascend 950DT：支持
+- Ascend 950PR&Ascend 950DT系列产品：支持
 <!-- end id1 -->
 <!-- npu="A3" id2 -->
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品：支持
+- Atlas A3系列产品：支持
 <!-- end id2 -->
 <!-- npu="910b" id3 -->
-- Atlas A2 推理系列产品/Atlas A2 训练系列产品：支持
+- Atlas A2系列产品：支持
 <!-- end id3 -->
 
-说明：针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，仅支持Atlas 800I A2 推理服务器、A200I A2 Box 异构组件。
+说明：针对Atlas A2系列产品，仅支持Atlas 800I A2推理服务器、A200I A2 Box异构组件。
 
 ## LLMConfig构造函数
 
@@ -246,7 +246,7 @@ enable_cache_manager(self, enable_cache_manager: bool)
 | enable_cache_manager | bool | 是否开启CacheManager模式。需配置为开启。<br><br>  - True：开启。<br>  - False：不开启，不配置默认为不开启。 |
 
 <!-- npu="950" id4 -->
-Ascend 950PR/Ascend 950DT场景下，不支持配置为False。
+Ascend 950PR&Ascend 950DT系列产品场景下，不支持配置为False。
 <!-- end id4 -->
 
 **调用示例**
@@ -288,10 +288,10 @@ enable_remote_cache_accessible(self, enable_remote_cache_accessible: bool)
 | enable_remote_cache_accessible | bool | 是否开启远端Cache可直接访问功能。取值如下。<br><br>  - True：开启<br>  - False：不开启<br><br>默认为不开启。|
 
 <!-- npu="A3" id5 -->
-不开启该option时，Atlas A3 训练系列产品/Atlas A3 推理系列产品仅支持RDMA传输协议。建议开启该option，以支持更多类型的传输协议。
+不开启该option时，Atlas A3系列产品仅支持RDMA传输协议。建议开启该option，以支持更多类型的传输协议。
 <!-- end id5 -->
 <!-- npu="950" id6 -->
-<br>Ascend 950PR/Ascend 950DT场景下，不支持配置为False。
+<br>Ascend 950PR&Ascend 950DT系列产品场景下，不支持配置为False。
 <!-- end id6 -->
 
 **调用示例**
@@ -408,11 +408,11 @@ local_comm_res(local_comm_res)
 
 对于使用Device RoCE场景，同一通信集群内Device RoCE地址配置需保持一致，不支持IPv6-only节点与IPv4/IPv6双栈节点混合接入。该约束支持的型号如下：
 
-- Atlas A2 训练系列产品/Atlas A2 推理系列产品
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品
+- Atlas A2系列产品
+- Atlas A3系列产品
 
 <!-- npu="950,A3,910b" id7 -->
-Atlas A2 训练系列产品/Atlas A2 推理系列产品场景下或者Atlas A3 训练系列产品/Atlas A3 推理系列产品场景下或者Ascend 950PR/Ascend 950DT场景下，配置version为"1.3"时，配置格式参考[gitcode](https://gitcode.com/cann/hixl/issues/38)，仅配置version为"1.3"时，其他字段将自动生成；配置示例如下。
+Atlas A2系列产品场景下或者Atlas A3系列产品场景下或者Ascend 950PR&Ascend 950DT系列产品场景下，配置version为"1.3"时，配置格式参考[gitcode](https://gitcode.com/cann/hixl/issues/38)，仅配置version为"1.3"时，其他字段将自动生成；配置示例如下。
 
 ```sh
 local_comm_res = '''{
@@ -422,7 +422,7 @@ local_comm_res = '''{
 <!-- end id7 -->
 
 <!-- npu="910b" id8 -->
-Atlas A2 训练系列产品/Atlas A2 推理系列产品场景下，配置version为"1.0"时，仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/9.2.0/docs/zh/user_guide/README.md)》。配置示例如下。
+Atlas A2系列产品场景下，配置version为"1.0"时，仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/9.2.0/docs/zh/user_guide/README.md)》。配置示例如下。
 
 ```sh
 {
@@ -450,7 +450,7 @@ local_comm_res = ""
 ```
 
 <!-- npu="A3" id9 -->
-Atlas A3 训练系列产品/Atlas A3 推理系列产品场景下，配置version为"1.2"时，仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/9.2.0/docs/zh/user_guide/README.md)》。配置示例如下。
+Atlas A3系列产品场景下，配置version为"1.2"时，仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。ranktable具体信息请参见《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/9.2.0/docs/zh/user_guide/README.md)》。配置示例如下。
 
 ```sh
 {
@@ -486,7 +486,7 @@ local_comm_res = ""
 ```
 
 <!-- npu="950" id10 -->
-Ascend 950PR/Ascend 950DT场景的配置格式参考[gitcode](https://gitcode.com/cann/hixl/issues/38)，同时需要使能transfer_backend为hixl传输后端。不支持配置为空。
+Ascend 950PR&Ascend 950DT系列产品场景的配置格式参考[gitcode](https://gitcode.com/cann/hixl/issues/38)，同时需要使能transfer_backend为hixl传输后端。不支持配置为空。
 <!-- end id10 -->
 
 **调用示例**

@@ -1,6 +1,6 @@
 # CANN C++ Secure Coding Specifications
 
->  **Applicable Scope**: Secure coding red-line specifications that all C++ code must follow 100%.
+> **Applicable Scope**: Secure coding red-line specifications that all C++ code must follow 100%.
 
 ## Rule List
 

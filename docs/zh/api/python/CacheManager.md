@@ -3,21 +3,21 @@
 ## 产品支持情况
 
 <!-- npu="950" id1 -->
-- Ascend 950PR/Ascend 950DT：支持
+- Ascend 950PR&Ascend 950DT系列产品：支持
 <!-- end id1 -->
 <!-- npu="A3" id2 -->
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品：支持
+- Atlas A3系列产品：支持
 <!-- end id2 -->
 <!-- npu="910b" id3 -->
-- Atlas A2 推理系列产品/Atlas A2 训练系列产品：支持
+- Atlas A2系列产品：支持
 <!-- end id3 -->
 
 说明：
 <!-- npu="910b" id4 -->
-针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，仅支持Atlas 800I A2 推理服务器、A200I A2 Box 异构组件。
+针对Atlas A2系列产品，仅支持Atlas 800I A2推理服务器、A200I A2 Box异构组件。
 <!-- end id4 -->
 <!-- npu="950" id5 -->
-针对Ascend 950PR/Ascend 950DT，不支持remap_registered_memory。
+针对Ascend 950PR&Ascend 950DT系列产品，不支持remap_registered_memory。
 <!-- end id5 -->
 
 ## CacheManager构造函数
@@ -170,26 +170,26 @@ register_cache(cache_desc: CacheDesc, addrs: List[int], cache_keys: Union[Tuple[
   <!-- npu="A3,910b" id6 -->
 - 当HDK版本低于25.5.0时，最大注册20GB的Host内存。当HDK版本大于等于25.5.0时，最大注册1TB的host内存。注册内存越大，占用的OS内存越多。该约束支持的型号如下：
   <!-- npu="910b" id7 -->
-  - Atlas A2 训练系列产品/Atlas A2 推理系列产品
+  - Atlas A2系列产品
   <!-- end id7 -->
   <!-- npu="A3" id8 -->
-  - Atlas A3 训练系列产品/Atlas A3 推理系列产品
+  - Atlas A3系列产品
   <!-- end id8 -->
 
 - D2D HCCS数据传输时，首地址需要按照2MB对齐，否则可能导致link失败，HCCS不支持Host内存。该约束支持的芯片如下：
   <!-- npu="910b" id9 -->
-  - Atlas A2 训练系列产品/Atlas A2 推理系列产品
+  - Atlas A2系列产品
   <!-- end id9 -->
   <!-- npu="A3" id10 -->
-  - Atlas A3 训练系列产品/Atlas A3 推理系列产品
+  - Atlas A3系列产品
   <!-- end id10 -->
 
 - RDMA数据传输时，申请Host内存必须通过aclrtMallocHost接口，否则可能导致link失败。该约束支持的芯片如下：
   <!-- npu="910b" id11 -->
-  - Atlas A2 训练系列产品/Atlas A2 推理系列产品
+  - Atlas A2系列产品
   <!-- end id11 -->
   <!-- npu="A3" id12 -->
-  - Atlas A3 训练系列产品/Atlas A3 推理系列产品
+  - Atlas A3系列产品
   <!-- end id12 -->
 
   <!-- end id6 -->
@@ -231,10 +231,10 @@ register_blocks_cache(cache_desc: CacheDesc, addrs: List[int], blocks_cache_key:
 
 如果通过HCCS进行数据传输，且内存不是通过aclrtMalloc申请，则地址需要按照页大小对齐（如果确定页大小是多少，推荐2MB对齐），否则可能导致link失败。该约束支持的芯片如下：
 
-- Atlas A2 训练系列产品/Atlas A2 推理系列产品
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品
+- Atlas A2系列产品
+- Atlas A3系列产品
 
-Ascend 950PR/Ascend 950DT场景下，无约束。
+Ascend 950PR&Ascend 950DT系列产品场景下，无约束。
 
 ## transfer\_cache\_async
 
@@ -428,7 +428,7 @@ cache_manager.remap_registered_memory(mem_info)
 
 正常情况下无返回值。
 
-传入数据类型错误情况下会抛出TypeError或ValueError异常。<br><br>Ascend 950PR/Ascend 950DT不支持该接口。
+传入数据类型错误情况下会抛出TypeError或ValueError异常。<br><br>Ascend 950PR&Ascend 950DT系列产品不支持该接口。
 
 **约束说明**
 

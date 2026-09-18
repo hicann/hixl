@@ -19,7 +19,7 @@ This guide introduces how to run a HIXL C++ HCCS sample, including starting the 
   ```
 
 - Two interconnected devices have been selected. If the execution fails, refer to [Sample Execution](../../examples/README_en.md) to check device connectivity and TLS configuration.
-- This sample only supports Atlas A2 training series products/Atlas A2 inference series products, and Atlas A3 training series products/Atlas A3 inference series products.
+- This sample only supports Atlas A2 series products, and Atlas A3 series products.
 
 ## Running the Sample
 
