@@ -257,7 +257,8 @@ Status HixlMemStore::FindMemoryRegion(bool is_server, const void *addr, MemoryRe
   return FAILED;
 }
 
-Status HixlMemStore::BatchValidateMemoryAccess(uint32_t list_num, const HixlOneSideOpDesc *desc_list) const {
+Status HixlMemStore::BatchValidateMemoryAccess(uint32_t list_num, const HixlOneSideOpDesc *desc_list,
+                                               bool check_local_mem) const {
   std::lock_guard<std::mutex> lock(mutex_);
   for (uint32_t i = 0; i < list_num; ++i) {
     const void *server_addr = desc_list[i].remote_buf;
@@ -271,6 +272,10 @@ Status HixlMemStore::BatchValidateMemoryAccess(uint32_t list_num, const HixlOneS
                              "Server memory verification failed, memory is not registered, idx:%u, server_addr:%p, "
                              "buf_len:%zu bytes",
                              i, server_addr, mem_size);
+    // hccs:device链路本地内存无需注册，跳过校验
+    if (!check_local_mem) {
+      continue;
+    }
     bool client_valid = CheckMemoryForAccess(false, client_addr, mem_size);
     HIXL_CHK_BOOL_RET_STATUS(client_valid, PARAM_INVALID,
                              "Client memory verification failed, memory is not registered, idx:%u, client_addr:%p, "

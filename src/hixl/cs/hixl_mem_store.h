@@ -63,7 +63,16 @@ class HixlMemStore {
    */
   Status ValidateMemoryAccess(const void *server_addr, size_t mem_size, const void *client_addr) const;
   bool CheckMemoryForRegister(bool is_server, const void *check_addr, size_t check_size) const;
-  Status BatchValidateMemoryAccess(uint32_t list_num, const HixlOneSideOpDesc *desc_list) const;
+  /**
+   * @brief 批量验证Client对Server的内存访问请求是否在注册范围内
+   * @param list_num 批量操作的描述数量
+   * @param desc_list 批量操作描述列表
+   * @param check_local_mem 是否校验Client端（本地）内存已注册。hccs:device链路的本地内存可被直接访问，无需注册，
+   *                        该场景传入false跳过本地内存校验，仅校验Server端内存
+   * @return 验证结果
+   */
+  Status BatchValidateMemoryAccess(uint32_t list_num, const HixlOneSideOpDesc *desc_list,
+                                   bool check_local_mem = true) const;
   // 本函数默认已经经过了BatchValidateMemoryAccess校验，所以不做地址长度校验。
   Status BatchConvertHostAddr(uint32_t list_num, HixlOneSideOpDesc *desc_list) const;
 

@@ -446,8 +446,14 @@ Status HixlCSClient::ReleaseCompleteHandle(CompleteHandleInfo *query_handle) {
 }
 
 Status HixlCSClient::ValidateAddress(uint32_t list_num, const HixlOneSideOpDesc *desc_list) const {
-  HIXL_CHK_STATUS_RET(mem_store_.BatchValidateMemoryAccess(list_num, desc_list), "Validate address failed, list_num=%u",
-                      list_num);
+  // hccs:device链路通过片内HCCS直接访问本地device内存，本地内存无需注册，跳过本地内存校验
+  bool check_local_mem = true;
+  if (local_endpoint_ != nullptr) {
+    const EndpointDesc &local_ep = local_endpoint_->GetEndpoint();
+    check_local_mem = !(local_ep.protocol == COMM_PROTOCOL_HCCS && IsDeviceEndpoint(local_ep));
+  }
+  HIXL_CHK_STATUS_RET(mem_store_.BatchValidateMemoryAccess(list_num, desc_list, check_local_mem),
+                      "Validate address failed, list_num=%u", list_num);
   return SUCCESS;
 }
 

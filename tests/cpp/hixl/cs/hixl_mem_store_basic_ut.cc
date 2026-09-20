@@ -173,6 +173,28 @@ TEST(HixlMemStoreBasicTest, BatchValidateMemoryAccessMergedRegions) {
   EXPECT_EQ(store.BatchValidateMemoryAccess(1, desc_list), SUCCESS);
 }
 
+TEST(HixlMemStoreBasicTest, BatchValidateMemoryAccessSkipUnregisteredLocalMem) {
+  HixlMemStore store;
+  void *server_addr = IntToPtr(100);
+  void *unregistered_client_addr = IntToPtr(1000);
+  EXPECT_EQ(store.RecordMemory(true, server_addr, 100), SUCCESS);
+
+  HixlOneSideOpDesc desc_list[] = {
+      {server_addr, unregistered_client_addr, 50},
+  };
+  // 默认校验本地内存，本地内存未注册时返回参数错误
+  EXPECT_EQ(store.BatchValidateMemoryAccess(1, desc_list), PARAM_INVALID);
+  // hccs:device场景跳过本地内存校验，仅校验Server端内存
+  EXPECT_EQ(store.BatchValidateMemoryAccess(1, desc_list, false), SUCCESS);
+
+  // 跳过本地内存校验时，Server端未注册内存仍会报错
+  void *unregistered_server_addr = IntToPtr(500);
+  HixlOneSideOpDesc invalid_server_desc[] = {
+      {unregistered_server_addr, unregistered_client_addr, 50},
+  };
+  EXPECT_EQ(store.BatchValidateMemoryAccess(1, invalid_server_desc, false), PARAM_INVALID);
+}
+
 TEST(HixlMemStoreBasicTest, CheckMemoryForRegisterOverflowDetected) {
   HixlMemStore store;
   uintptr_t near_max = std::numeric_limits<uintptr_t>::max() - 50;
