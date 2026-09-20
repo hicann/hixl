@@ -1076,9 +1076,8 @@ struct LocalCommResBuildCtx {
   const std::string &user_local_comm_res;
 };
 
-constexpr int64_t kInvalidSuperPodServerId = 65535;  // ACL SUPER_POD_SERVER_ID sentinel: driver has no valid id
-constexpr size_t kRequiredHostPgEidCount = 2;        // Same-OS server_id joins two host 8-port PG EIDs
-constexpr char kHostPgEidServerIdSep = '_';          // Separator between the two host 8-port PG EIDs
+constexpr size_t kRequiredHostPgEidCount = 2;  // Same-OS server_id joins two host 8-port PG EIDs
+constexpr char kHostPgEidServerIdSep = '_';    // Separator between the two host 8-port PG EIDs
 
 Status ParseUserProvidedServerId(const std::string &user_local_comm_res, std::string &server_id) {
   server_id.clear();

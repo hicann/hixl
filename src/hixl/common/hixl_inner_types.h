@@ -69,8 +69,9 @@ constexpr const char *kUboeProtocolDesc = "uboe:device";
 constexpr const char *kUbRtpProtocolDesc = "ub_rtp:device";
 constexpr const char *kPlacementDevice = "device";
 constexpr const char *kPlacementHost = "host";
-constexpr uint8_t kRdmaTrafficClass = 132;  // RDMA网卡的traffic class 默认值
-constexpr uint8_t kRdmaServiceLevel = 4;    // RDMA网卡的service level 默认值
+constexpr int64_t kInvalidSuperPodServerId = 65535;  // ACL SUPER_POD_SERVER_ID sentinel: driver has no valid id
+constexpr uint8_t kRdmaTrafficClass = 132;           // RDMA网卡的traffic class 默认值
+constexpr uint8_t kRdmaServiceLevel = 4;             // RDMA网卡的service level 默认值
 constexpr uint32_t kRdmaRetryCntDefault = 7U;
 constexpr uint32_t kRdmaRetryIntervalDefault = 20U;
 constexpr uint32_t kDefaultSplitBatchSize = 128U;
@@ -92,13 +93,15 @@ struct DeviceInfoConfig {
   int32_t phy_device_id = -1;
   int64_t super_device_id = -1;
   int64_t super_pod_id = -1;
+  int64_t server_id = -1;  // -1 means invalid; filled from ACL super pod server id on A3
 
   std::string ToString() const {
     std::ostringstream oss;
     oss << "DeviceInfoConfig{";
     oss << "phy_device_id: " << phy_device_id << ", ";
     oss << "super_device_id: " << super_device_id << ", ";
-    oss << "super_pod_id: " << super_pod_id;
+    oss << "super_pod_id: " << super_pod_id << ", ";
+    oss << "server_id: " << server_id;
     oss << "}";
     return oss.str();
   }

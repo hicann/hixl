@@ -248,6 +248,9 @@ void ParseDeviceInfo(const nlohmann::json &item, EndpointConfig &endpoint) {
   if (device_info.contains("super_pod_id") && device_info["super_pod_id"].is_number_integer()) {
     endpoint.device_info.super_pod_id = device_info["super_pod_id"].get<int64_t>();
   }
+  if (device_info.contains("server_id") && device_info["server_id"].is_number_integer()) {
+    endpoint.device_info.server_id = device_info["server_id"].get<int64_t>();
+  }
 }
 
 Status ParseIpAddress(const std::string &ip_str, CommAddr &addr) {
@@ -339,6 +342,12 @@ Status FillEndpointDeviceLocation(const EndpointConfig &endpoint_config, Endpoin
         PARAM_INVALID, "super_pod_id out of range: %" PRId64, endpoint_config.device_info.super_pod_id);
     endpoint.loc.device.superPodIdx = static_cast<uint32_t>(endpoint_config.device_info.super_pod_id);
   }
+  if (endpoint_config.device_info.server_id >= 0) {
+    HIXL_CHK_BOOL_RET_STATUS(
+        endpoint_config.device_info.server_id <= static_cast<int64_t>(std::numeric_limits<uint32_t>::max()),
+        PARAM_INVALID, "server_id out of range: %" PRId64, endpoint_config.device_info.server_id);
+    endpoint.loc.device.serverIdx = static_cast<uint32_t>(endpoint_config.device_info.server_id);
+  }
   return SUCCESS;
 }
 
@@ -411,6 +420,21 @@ Status ParseProtocolDesc(const std::vector<std::string> &protocol_desc, std::set
                              "Unsupported protocol_desc:%s", desc.c_str());
     desc_set.insert(BuildProtocolDescKey(protocol, placement));
   }
+  return SUCCESS;
+}
+
+// Decide which device endpoints to auto-generate: empty protocol_desc keeps the default (roce + hccs).
+Status ResolveDeviceEndpointNeedByProtocolDesc(const std::vector<std::string> &protocol_desc, bool &roce_needed,
+                                               bool &hccs_needed) {
+  roce_needed = true;
+  hccs_needed = true;
+  if (protocol_desc.empty()) {
+    return SUCCESS;
+  }
+  std::set<std::string> desc_set;
+  HIXL_CHK_STATUS_RET(ParseProtocolDesc(protocol_desc, desc_set), "ParseProtocolDesc failed");
+  roce_needed = desc_set.count(BuildProtocolDescKey(kProtocolRoce, kPlacementDevice)) > 0;
+  hccs_needed = desc_set.count(BuildProtocolDescKey(kProtocolHccs, kPlacementDevice)) > 0;
   return SUCCESS;
 }
 
@@ -749,7 +773,8 @@ Status EndpointGenerator::AutoGenEndpointList(const HixlOptions &options, const 
     int32_t device_id = 0;
     HIXL_CHK_ACL_RET(aclrtGetDevice(&device_id));
     LocCommResInfo loc_comm_res_info{};
-    HIXL_CHK_STATUS_RET(GenerateInfo(device_id, local_engine, loc_comm_res_info), "GenerateInfo failed");
+    HIXL_CHK_STATUS_RET(GenerateInfo(device_id, local_engine, options.GetProtocolDesc(), loc_comm_res_info),
+                        "GenerateInfo failed");
     ConvertLocCommResInfoToEndpointList(loc_comm_res_info, endpoint_list);
   }
 
@@ -804,6 +829,7 @@ Status EndpointGenerator::SerializeEndpointConfigList(const std::vector<Endpoint
       device_info["phy_device_id"] = ep.device_info.phy_device_id;
       device_info["super_device_id"] = ep.device_info.super_device_id;
       device_info["super_pod_id"] = ep.device_info.super_pod_id;
+      device_info["server_id"] = ep.device_info.server_id;
       item["device_info"] = device_info;
 
       j.push_back(item);
@@ -848,6 +874,7 @@ Status EndpointGenerator::DeserializeEndpointConfigList(const std::string &json_
 }
 
 Status EndpointGenerator::GenerateInfo(int32_t device_id, const std::string &local_engine,
+                                       const std::vector<std::string> &protocol_desc,
                                        EndpointGenerator::LocCommResInfo &loc_comm_res_info) {
   int32_t phy_device_id = 0;
   HIXL_CHK_ACL_RET(aclrtGetPhyDevIdByLogicDevId(device_id, &phy_device_id),
@@ -858,7 +885,7 @@ Status EndpointGenerator::GenerateInfo(int32_t device_id, const std::string &loc
 
   HIXL_CHK_STATUS_RET(BuildNetInstanceId(device_id, local_engine, loc_comm_res_info.net_instance_id),
                       "BuildNetInstanceId failed, device_id:%d, local_engine:%s", device_id, local_engine.c_str());
-  HIXL_CHK_STATUS_RET(BuildDefaultDeviceEndpointInfoList(phy_device_id, loc_comm_res_info.endpoint_list),
+  HIXL_CHK_STATUS_RET(BuildDefaultDeviceEndpointInfoList(phy_device_id, protocol_desc, loc_comm_res_info.endpoint_list),
                       "BuildDefaultDeviceEndpointInfoList failed, phy_device_id:%d", phy_device_id);
 
   return SUCCESS;
@@ -959,11 +986,23 @@ Status EndpointGenerator::PopulateLocalDeviceInfo(std::vector<EndpointConfig> &e
 
   int64_t super_device_id = -1;
   int64_t super_pod_id = -1;
+  int64_t server_id = -1;
   if (soc_type == SocType::kV3) {
     HIXL_CHK_ACL_RET(
         aclrtGetDeviceInfo(static_cast<uint32_t>(logic_device_id), ACL_DEV_ATTR_SUPER_POD_ID, &super_pod_id));
     HIXL_CHK_ACL_RET(
         aclrtGetDeviceInfo(static_cast<uint32_t>(logic_device_id), ACL_DEV_ATTR_SUPER_POD_DEVIDE_ID, &super_device_id));
+    int64_t acl_server_id = -1;
+    auto acl_ret =
+        aclrtGetDeviceInfo(static_cast<uint32_t>(logic_device_id), ACL_DEV_ATTR_SUPER_POD_SERVER_ID, &acl_server_id);
+    if (acl_ret == ACL_SUCCESS && acl_server_id != kInvalidSuperPodServerId) {
+      server_id = acl_server_id;
+    } else {
+      HIXL_EVENT(
+          "[PopulateLocalDeviceInfo] no valid super pod server id, skip server_id, acl_ret=%d, "
+          "value=%" PRId64 ", logic_device_id=%d",
+          static_cast<int>(acl_ret), acl_server_id, logic_device_id);
+    }
   }
 
   for (auto &ep : endpoint_list) {
@@ -973,28 +1012,46 @@ Status EndpointGenerator::PopulateLocalDeviceInfo(std::vector<EndpointConfig> &e
     ep.device_info.phy_device_id = phy_device_id;
     ep.device_info.super_device_id = super_device_id;
     ep.device_info.super_pod_id = super_pod_id;
+    if (server_id >= 0) {
+      ep.device_info.server_id = server_id;
+    }
   }
   return SUCCESS;
 }
 
 Status EndpointGenerator::BuildDefaultDeviceEndpointInfoList(
-    int32_t phy_device_id, std::vector<EndpointGenerator::EndpointInfo> &endpoint_list) {
+    int32_t phy_device_id, const std::vector<std::string> &protocol_desc,
+    std::vector<EndpointGenerator::EndpointInfo> &endpoint_list) {
   endpoint_list.clear();
 
-  EndpointInfo roce_endpoint{};
-  HIXL_CHK_STATUS_RET(BuildRoceEndpoint(phy_device_id, roce_endpoint), "BuildRoceEndpoint failed, phy_device_id:%d",
-                      phy_device_id);
-  endpoint_list.emplace_back(roce_endpoint);
+  bool roce_needed = false;
+  bool hccs_needed = false;
+  HIXL_CHK_STATUS_RET(ResolveDeviceEndpointNeedByProtocolDesc(protocol_desc, roce_needed, hccs_needed),
+                      "ResolveDeviceEndpointNeedByProtocolDesc failed");
+
+  if (roce_needed) {
+    EndpointInfo roce_endpoint{};
+    HIXL_CHK_STATUS_RET(BuildRoceEndpoint(phy_device_id, roce_endpoint), "BuildRoceEndpoint failed, phy_device_id:%d",
+                        phy_device_id);
+    if (roce_endpoint.comm_id.empty()) {
+      HIXL_EVENT("[EndpointGenerator] Device roce ip is unavailable, skip roce endpoint, phy_device_id:%d",
+                 phy_device_id);
+    } else {
+      endpoint_list.emplace_back(std::move(roce_endpoint));
+    }
+  }
 
   if (IsIntraRoceEnabled()) {
     HIXL_LOGI("HCCL_INTRA_ROCE_ENABLE=1, only generate ROCE endpoint");
     return SUCCESS;
   }
 
-  EndpointInfo hccs_endpoint{};
-  HIXL_CHK_STATUS_RET(BuildHccsEndpoint(phy_device_id, hccs_endpoint), "BuildHccsEndpoint failed, phy_device_id:%d",
-                      phy_device_id);
-  endpoint_list.emplace_back(hccs_endpoint);
+  if (hccs_needed) {
+    EndpointInfo hccs_endpoint{};
+    HIXL_CHK_STATUS_RET(BuildHccsEndpoint(phy_device_id, hccs_endpoint), "BuildHccsEndpoint failed, phy_device_id:%d",
+                        phy_device_id);
+    endpoint_list.emplace_back(std::move(hccs_endpoint));
+  }
 
   return SUCCESS;
 }
@@ -1002,7 +1059,10 @@ Status EndpointGenerator::BuildDefaultDeviceEndpointInfoList(
 Status EndpointGenerator::BuildRoceEndpoint(int32_t phy_device_id, EndpointGenerator::EndpointInfo &endpoint) {
   std::string device_ip;
   HIXL_CHK_STATUS_RET(GetDeviceIp(phy_device_id, device_ip), "GetDeviceIp failed, phy_device_id:%d", phy_device_id);
-  HIXL_CHK_BOOL_RET_STATUS(!device_ip.empty(), FAILED, "Failed to get device ip, phy_device_id:%d", phy_device_id);
+  if (device_ip.empty()) {
+    // Device ip unavailable: leave the endpoint empty, the caller skips it with an event log.
+    return SUCCESS;
+  }
 
   endpoint.protocol = kProtocolRoce;
   endpoint.comm_id = device_ip;
@@ -1027,10 +1087,10 @@ Status EndpointGenerator::GetHostIpFromLocalEngine(const std::string &local_engi
 }
 
 Status EndpointGenerator::GetDeviceIp(int32_t phy_device_id, std::string &device_ip) {
+  // hixl::GetDeviceIp already reports "ip unavailable" as SUCCESS with an empty string;
+  // any real error keeps interrupting the flow here.
   HIXL_CHK_STATUS_RET(hixl::GetDeviceIp(phy_device_id, device_ip), "GetDeviceIp failed, phy_device_id:%d",
                       phy_device_id);
-  HIXL_CHK_BOOL_RET_STATUS(!device_ip.empty(), FAILED,
-                           "Failed to get device ip from hccn.conf and hccn_tool, phy_device_id:%d", phy_device_id);
   return SUCCESS;
 }
 }  // namespace hixl

@@ -59,7 +59,8 @@ class EndpointGenerator {
     std::vector<EndpointInfo> endpoint_list;
   };
 
-  static Status GenerateInfo(int32_t device_id, const std::string &local_engine, LocCommResInfo &loc_comm_res_info);
+  static Status GenerateInfo(int32_t device_id, const std::string &local_engine,
+                             const std::vector<std::string> &protocol_desc, LocCommResInfo &loc_comm_res_info);
   static Status GetDeviceIp(int32_t phy_device_id, std::string &device_ip);
   static void ConvertLocCommResInfoToEndpointList(const LocCommResInfo &loc_comm_res_info,
                                                   std::vector<EndpointConfig> &endpoint_list);
@@ -75,7 +76,8 @@ class EndpointGenerator {
                                   std::vector<EndpointConfig> &endpoint_list);
   static bool HasDeviceEndpoint(const std::vector<EndpointConfig> &endpoint_list);
   static Status PopulateLocalDeviceInfo(std::vector<EndpointConfig> &endpoint_list);
-  static Status BuildDefaultDeviceEndpointInfoList(int32_t phy_device_id, std::vector<EndpointInfo> &endpoint_list);
+  static Status BuildDefaultDeviceEndpointInfoList(int32_t phy_device_id, const std::vector<std::string> &protocol_desc,
+                                                   std::vector<EndpointInfo> &endpoint_list);
   static Status BuildRoceEndpoint(int32_t phy_device_id, EndpointInfo &endpoint);
   static Status BuildHccsEndpoint(int32_t phy_device_id, EndpointInfo &endpoint);
   static Status GetHostIpFromLocalEngine(const std::string &local_engine, std::string &host_ip);

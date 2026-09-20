@@ -184,13 +184,15 @@ TEST_F(HixlEngineUboeTest, InitializeWithMixedProtocols) {
 
 // 测试空 endpoint_list 的处理
 TEST_F(HixlEngineUboeTest, InitializeWithEmptyEndpointList) {
+  // No reachable roce ip: the roce endpoint is skipped and the auto-generated hccs endpoint
+  // keeps the list non-empty, so initialization succeeds.
   fs::create_directories(kEmptyPathDir);
   test::ScopedPathGuard path_guard(kEmptyPathDir);
   hixl_test::InstallSysApiHooks(std::make_shared<NoHccnConfMmpaStub>());
 
   Hixl engine;
   Status ret = engine.Initialize("127.0.0.1", options_default);
-  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(ret, SUCCESS);
   if (ret == SUCCESS) {
     engine.Finalize();
   }

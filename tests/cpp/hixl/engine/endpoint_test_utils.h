@@ -34,6 +34,7 @@ class MockAclRuntimeStub : public llm::AclRuntimeStub {
   bool device_count_failed_ = false;
   bool phy_dev_failed_ = false;
   bool device_info_failed_ = false;
+  bool super_pod_server_id_failed_ = false;
   bool binary_load_failed_ = false;
   bool binary_get_func_failed_ = false;
   int32_t get_device_count_calls_ = 0;
@@ -127,6 +128,9 @@ class MockAclRuntimeStub : public llm::AclRuntimeStub {
       return ACL_SUCCESS;
     }
     if (attr == ACL_DEV_ATTR_SUPER_POD_SERVER_ID) {
+      if (super_pod_server_id_failed_) {
+        return ACL_ERROR_FAILURE;
+      }
       *value = super_pod_server_id_;
       return ACL_SUCCESS;
     }
