@@ -13,6 +13,7 @@
 #include "llm_datadist/llm_error_codes.h"
 #include "common/def_types.h"
 #include "common/llm_checker.h"
+#include "common/transfer_request_validation.h"
 #include "cache_mgr/cache_manager.h"
 #include "comm_statistic_manager.h"
 #include "data_transfer/data_transfer_utils.h"
@@ -48,8 +49,11 @@ ge::Status GetSendTask(const CacheEntry &cache_entry, const TransferCacheReq &re
       LLM_CHK_BOOL_RET_STATUS(src_buffer_info.buffer_len == dst_buffer_info.buffer_len, ge::LLM_PARAM_INVALID,
                               "req_id[%lu], model_id[%lu], src buffer_len[%lu] not equal dst buffer_len[%lu]",
                               request.req_id, request.model_id, src_buffer_info.buffer_len, dst_buffer_info.buffer_len);
-      // offset is used batch index cache key, if send contiguous to contiguous, block_index is 0
-      const size_t src_addr_index = i + static_cast<uint64_t>(request.src_tensor_start_index);
+      // src_tensor_start_index 只在按层拉取（src_tensor_indices_size != 0）时生效；
+      // 其余场景各消费方都按"整段 cache"处理，这里同样不叠加，避免下标越界。
+      const uint64_t layer_start_index =
+          (request.src_tensor_indices_size == 0U) ? 0U : static_cast<uint64_t>(request.src_tensor_start_index);
+      const size_t src_addr_index = i + layer_start_index;
       hccl_one_side_op_desc.localAddr =
           ValueToPtr(PtrToValue(cache_entry.cache_addrs[src_addr_index].get()) + offset + src_block_index * block_size);
       // if dst_addr is contiguous, offset is done in pull
@@ -59,8 +63,21 @@ ge::Status GetSendTask(const CacheEntry &cache_entry, const TransferCacheReq &re
       LLM_CHK_BOOL_RET_STATUS(src_buffer_info.buffer_len <= target_size, ge::LLM_PARAM_INVALID,
                               "req_id[%lu], model_id[%lu], tensor size (%lu) < required size (%lu)", request.req_id,
                               request.model_id, target_size, src_buffer_info.buffer_len);
-      hccl_one_side_op_desc.count =
-          (j == buffer_info_count - 1) && (remainder > 0) ? remainder : src_buffer_info.buffer_len;
+      const uint64_t count = (j == buffer_info_count - 1) && (remainder > 0) ? remainder : src_buffer_info.buffer_len;
+      // 上面两条校验各自只看下标与长度，二者的乘积仍可能越过本端张量：例如 tensor_size=8MB、
+      // block_size=4MB、block_start_index=1、buffer_len=8MB 时，下标 1 < 2 成立、8MB <= stride 也成立，
+      // 但实际会读到 [4MB, 12MB)。这里按**实际下发的 count**（已含 remainder 修正）做界。
+      // 界必须是 tensor_size - offset：localAddr 里 offset（batch_index * stride）是直接叠加在地址上的，
+      // 漏掉它时 batch 偏移与 block 偏移各自合法、叠加后仍能越界，例如 tensor_size=8MB、stride=1MB、
+      // batch_index=7、block_size=1MB、block_start_index=1、buffer_len=1MB 会读到 [8MB, 9MB)。
+      LLM_CHK_BOOL_RET_STATUS(
+          transfer_request_validation::CheckBlockSpanWithinD2dRegion(src_block_index, block_size, count,
+                                                                     cache_entry.tensor_size, offset) == ge::SUCCESS,
+          ge::LLM_PARAM_INVALID,
+          "req_id[%lu], model_id[%lu], src block span out of the local tensor, block_start_index:%lu, block_size:%lu, "
+          "count:%lu, offset:%lu, tensor_size:%lu",
+          request.req_id, request.model_id, src_block_index, block_size, count, offset, cache_entry.tensor_size);
+      hccl_one_side_op_desc.count = count;
       hccl_one_side_op_desc.dataType = HCCL_DATA_TYPE_INT8;
       send_tasks.push_back(std::move(hccl_one_side_op_desc));
     }

@@ -15,6 +15,7 @@
 #include "common/def_types.h"
 #include "common/llm_thread_pool.h"
 #include "common/transfer_message_limits.h"
+#include "common/transfer_request_validation.h"
 
 namespace llm {
 namespace {
@@ -48,6 +49,13 @@ ge::Status ValidateD2HClientPullLayout(uint32_t dst_addr_count, size_t prompt_bl
                           "dst_addr_count:%u, prompt_blocks:%zu",
                           request_size, kMaxRequestPayloadSize, kDefaultReqBufferSize, kMsgFlagSize, dst_addr_count,
                           prompt_block_count);
+  // Prepare() 会在请求载荷之后、同一段缓冲区里放 dst_addr_count 个 int32 接收标志。
+  // 该区域不在 request_size 内，必须单独预留，否则 prompt_blocks 逼近上限时标志会越出请求缓冲区
+  // （在固定布局下恰好落进响应标志区）。
+  const uint64_t recv_flag_size = sizeof(int32_t) * static_cast<uint64_t>(dst_addr_count);
+  LLM_CHK_BOOL_RET_STATUS(request_size + recv_flag_size <= kMaxRequestPayloadSize, ge::LLM_PARAM_INVALID,
+                          "request size:%lu plus recv flags:%lu exceeds max:%lu, dst_addr_count:%u, prompt_blocks:%zu",
+                          request_size, recv_flag_size, kMaxRequestPayloadSize, dst_addr_count, prompt_block_count);
   return ge::SUCCESS;
 }
 
@@ -90,8 +98,16 @@ void FinalizeTransferTasks(std::vector<TransferBlocksTask> &ret, uint32_t buffer
   }
 }
 
-void AppendLargeBlockChunkTasks(std::vector<TransferBlocksTask> &ret, uint32_t buffer_index, uint32_t tensor_index,
-                                uint32_t block_size, uint64_t block_index, uint32_t chunk_buffer_size) {
+ge::Status AppendLargeBlockChunkTasks(std::vector<TransferBlocksTask> &ret, uint32_t buffer_index,
+                                      uint32_t tensor_index, uint32_t block_size, uint64_t block_index,
+                                      uint32_t chunk_buffer_size) {
+  // chunk_buffer_size 由对端给的 dst_buffer_size 决定；为 0 时 cur_block_size 恒为 0，
+  // 循环无法推进且每轮都追加任务。上游校验已拒绝该取值，这里再兜一层防止死循环。
+  // 这条分支意味着数据没法切分下发，必须向上报错，不能只打日志后让流程"正常完成"。
+  LLM_CHK_BOOL_RET_STATUS(chunk_buffer_size != 0U, ge::LLM_PARAM_INVALID,
+                          "chunk buffer size is 0, cannot chunk the block, buffer_index:%u, tensor_index:%u, "
+                          "block_index:%lu, block_size:%u",
+                          buffer_index, tensor_index, block_index, block_size);
   auto tensor_offset = block_index * block_size;
   auto remaining_block_size = block_size;
   while (remaining_block_size > 0) {
@@ -103,6 +119,7 @@ void AppendLargeBlockChunkTasks(std::vector<TransferBlocksTask> &ret, uint32_t b
     tensor_offset += cur_block_size;
     ret.emplace_back(TransferBlocksTask{kTaskTypeEndBlock, buffer_index, TransferBlockSpan{}});
   }
+  return ge::SUCCESS;
 }
 }  // namespace
 
@@ -161,6 +178,8 @@ ge::Status D2HDataTransferJob::Initialize(const CacheEntry &cache_entry, CommEnt
         size = resp_len;
         resp.ret_code = ge::SUCCESS;
         resp.block_size = block_size_;
+        // 把实际回填的 flag 地址个数告诉对端，客户端据此判断响应是否被截断。
+        resp.transfer_count = static_cast<uint32_t>(sync_flag_addresses.size());
         for (size_t i = 0U; i < sync_flag_addresses.size(); ++i) {
           resp.sync_flag_addresses[i] = sync_flag_addresses[i];
         }
@@ -226,7 +245,8 @@ ge::Status D2HDataTransferJob::GenerateTasks(const TransferCacheReq &req, const 
                                            req.dst_buffer_size);
   if (cache_entry.num_blocks == 0U) {
     // local is cont.
-    tasks_ = task_generator.GenerateTasks(tensor_size_, block_size_);
+    LLM_CHK_STATUS_RET(task_generator.GenerateTasks(tensor_size_, block_size_, tasks_),
+                       "Failed to generate transfer tasks");
   } else {
     //  local is blocks
     std::vector<uint64_t> block_indices;
@@ -235,8 +255,9 @@ ge::Status D2HDataTransferJob::GenerateTasks(const TransferCacheReq &req, const 
     for (uint32_t i = 0U; i < req.buffer_info_count; ++i) {
       block_indices.emplace_back(req.transfer_infos[req.dst_addr_count + i].buffer_info.block_start_index);
     }
-    tasks_ =
-        task_generator.GenerateTasks(block_size_, static_cast<uint32_t>(block_indices.size()), block_indices.data());
+    LLM_CHK_STATUS_RET(task_generator.GenerateTasks(block_size_, static_cast<uint32_t>(block_indices.size()),
+                                                    block_indices.data(), tasks_),
+                       "Failed to generate transfer tasks");
   }
   if (LlmIsLogEnable(LLM_MODULE_NAME, DLOG_DEBUG)) {
     PrintTasks(tasks_);
@@ -369,20 +390,21 @@ void DataTransferTaskGenerator::GetNextBufBlockNum(uint32_t buffer_task_index,
   }
 }
 
-std::vector<TransferBlocksTask> DataTransferTaskGenerator::DoGenerateForLargeBlock(
-    uint32_t block_size, uint32_t num_block_indices, const uint64_t *block_indices) const {
-  std::vector<TransferBlocksTask> ret;
+ge::Status DataTransferTaskGenerator::DoGenerateForLargeBlock(uint32_t block_size, uint32_t num_block_indices,
+                                                              const uint64_t *block_indices,
+                                                              std::vector<TransferBlocksTask> &tasks) const {
   const uint32_t buffer_index = 0;
   for (uint32_t i = 0U; i < static_cast<uint32_t>(num_tensors_); ++i) {
     for (size_t k = 0U; k < num_block_indices; ++k) {
-      AppendLargeBlockChunkTasks(ret, buffer_index, i, block_size, block_indices[k], buffer_size_);
+      LLM_CHK_STATUS_RET(AppendLargeBlockChunkTasks(tasks, buffer_index, i, block_size, block_indices[k], buffer_size_),
+                         "Failed to chunk the block for the large block layout");
     }
   }
-  return ret;
+  return ge::SUCCESS;
 }
 
-std::vector<TransferBlocksTask> DataTransferTaskGenerator::GenerateTasks(int64_t tensor_size, uint32_t block_size) {
-  std::vector<TransferBlocksTask> ret;
+ge::Status DataTransferTaskGenerator::GenerateTasks(int64_t tensor_size, uint32_t block_size,
+                                                    std::vector<TransferBlocksTask> &tasks) {
   auto block_num = tensor_size / block_size;
   auto tail_block_size = tensor_size - block_size * block_num;
   if (tail_block_size > 0) {
@@ -392,24 +414,28 @@ std::vector<TransferBlocksTask> DataTransferTaskGenerator::GenerateTasks(int64_t
   }
   std::vector<uint64_t> block_indices(block_num);
   std::iota(block_indices.begin(), block_indices.end(), 0U);
-  return (block_size > buffer_size_)
-             ? DoGenerateForLargeBlock(block_size, static_cast<uint32_t>(block_indices.size()), block_indices.data())
-             : DoGenerate(static_cast<uint32_t>(block_size), static_cast<uint32_t>(tail_block_size),
-                          static_cast<uint32_t>(block_indices.size()), block_indices.data());
+  if (block_size > buffer_size_) {
+    return DoGenerateForLargeBlock(block_size, static_cast<uint32_t>(block_indices.size()), block_indices.data(),
+                                   tasks);
+  }
+  tasks = DoGenerate(static_cast<uint32_t>(block_size), static_cast<uint32_t>(tail_block_size),
+                     static_cast<uint32_t>(block_indices.size()), block_indices.data());
+  return ge::SUCCESS;
 }
 
-std::vector<TransferBlocksTask> DataTransferTaskGenerator::GenerateTasks(uint32_t block_size,
-                                                                         uint32_t num_block_indices,
-                                                                         const uint64_t *block_indices,
-                                                                         const uint64_t *remote_block_indices) {
+ge::Status DataTransferTaskGenerator::GenerateTasks(uint32_t block_size, uint32_t num_block_indices,
+                                                    const uint64_t *block_indices,
+                                                    std::vector<TransferBlocksTask> &tasks,
+                                                    const uint64_t *remote_block_indices) {
   LLMLOGD("GenerateTasks block_size:%u, buffer_size:%u", block_size, buffer_size_);
   if (block_size > buffer_size_) {
-    return DoGenerateForLargeBlock(block_size, num_block_indices, block_indices);
+    return DoGenerateForLargeBlock(block_size, num_block_indices, block_indices, tasks);
   } else if (remote_block_indices == nullptr) {
-    return DoGenerate(block_size, block_size, num_block_indices, block_indices);
+    tasks = DoGenerate(block_size, block_size, num_block_indices, block_indices);
   } else {
-    return DoGenerateForClientBlocks(block_size, block_size, num_block_indices, block_indices, remote_block_indices);
+    tasks = DoGenerateForClientBlocks(block_size, block_size, num_block_indices, block_indices, remote_block_indices);
   }
+  return ge::SUCCESS;
 }
 
 D2HDataTransferClient::D2HDataTransferClient(CommEntity &comm_entity, aclrtStream stream)
@@ -444,9 +470,15 @@ ge::Status D2HDataTransferClient::Prepare(const CacheEntry &cache_entry, const C
       ValidateD2HClientPullLayout(num_buffers_, pull_cache_param.prompt_blocks.size(), validated_request_size_),
       "Invalid D2H pull request layout");
   buffer_size_ = kDefaultBufferSize;
-  auto recv_flag_base = PtrToPtr<void, uint8_t>(comm_entity_->GetEntityInfo().local_req_ptr) +
-                        sizeof(TransferCacheReq) +
-                        sizeof(TransferInfo) * (num_buffers_ + pull_cache_param.prompt_blocks.size());
+  auto *recv_flag_base = PtrToPtr<void, uint8_t>(comm_entity_->GetEntityInfo().local_req_ptr) +
+                         sizeof(TransferCacheReq) +
+                         sizeof(TransferInfo) * (num_buffers_ + pull_cache_param.prompt_blocks.size());
+  // 响应区由对端单边写入，只回短响应时后面那段不会被覆盖，客户端却会把 sync_flag_addresses
+  // 的残留字节当成远端地址去做单边写。发请求前先把整段响应区清零，之后凡是没被对端写到的
+  // 槽位都会保持 0，配合 CheckSyncFlagAddresses 就能判定"对端没提供该地址"。
+  auto *local_resp = comm_entity_->GetEntityInfo().local_resp_ptr;
+  (void)memset_s(local_resp, transfer_message_limits::kMaxResponsePayloadSize, 0,
+                 transfer_message_limits::kMaxResponsePayloadSize);
   for (uint32_t i = 0U; i < num_buffers_; ++i) {
     const size_t buffer_size = buffer_size_;
     auto buffer_data =
@@ -474,6 +506,16 @@ ge::Status D2HDataTransferClient::Prepare(const CacheEntry &cache_entry, const C
   const auto &response = *response_info;
   LLM_CHK_STATUS_RET(response.ret_code, "Failed to pull cache, server returned: %u", response.ret_code);
   LLMLOGD("response received, block_size = %u", response.block_size);
+  LLM_CHK_BOOL_RET_STATUS(
+      transfer_request_validation::CheckResponseTransferCount(response.transfer_count, num_buffers_) == ge::SUCCESS,
+      ge::LLM_PARAM_INVALID,
+      "response transfer_count:%u is less than the buffer num:%u, the response is likely truncated",
+      response.transfer_count, num_buffers_);
+  LLM_CHK_BOOL_RET_STATUS(
+      transfer_request_validation::CheckSyncFlagAddresses(response.sync_flag_addresses, num_buffers_) == ge::SUCCESS,
+      ge::LLM_PARAM_INVALID,
+      "remote sync flag address is not provided by the peer, response size:%lu, transfer_count:%u",
+      transfer_message_limits::CalcResponseSize(num_buffers_), response.transfer_count);
   for (uint32_t i = 0U; i < num_buffers_; ++i) {
     auto remote_flag_addr = ValueToPtr(response.sync_flag_addresses[i]);
     remote_receive_flag_addresses_.emplace_back(static_cast<uint8_t *>(remote_flag_addr));
@@ -500,7 +542,8 @@ ge::Status D2HDataTransferClient::GenerateTasks(const CacheEntry &cache_entry, c
     LLM_CHK_BOOL_RET_STATUS(block_size_ > 0, ge::FAILED, "block size from response is 0");
     const auto tensor_size =
         pull_cache_param.size > 0 ? pull_cache_param.size : static_cast<int64_t>(cache_entry.stride);
-    tasks_ = task_generator.GenerateTasks(tensor_size, response.block_size);
+    LLM_CHK_STATUS_RET(task_generator.GenerateTasks(tensor_size, response.block_size, tasks_),
+                       "Failed to generate transfer tasks");
     for (const auto &cache_addr : cache_addrs) {
       tensor_addresses_.emplace_back(PtrToPtr<void, uint8_t>(cache_addr.get()) +
                                      cache_entry.stride * pull_cache_param.batch_index);
@@ -511,12 +554,15 @@ ge::Status D2HDataTransferClient::GenerateTasks(const CacheEntry &cache_entry, c
     if (pull_cache_param.prompt_blocks.empty()) {
       std::vector<uint64_t> remote_block_indices(pull_cache_param.decoder_blocks.size());
       std::iota(remote_block_indices.begin(), remote_block_indices.end(), 0U);
-      tasks_ = task_generator.GenerateTasks(block_size_, pull_cache_param.decoder_blocks.size(),
-                                            pull_cache_param.decoder_blocks.data(), remote_block_indices.data());
-    } else {
-      tasks_ =
+      LLM_CHK_STATUS_RET(
           task_generator.GenerateTasks(block_size_, pull_cache_param.decoder_blocks.size(),
-                                       pull_cache_param.decoder_blocks.data(), pull_cache_param.prompt_blocks.data());
+                                       pull_cache_param.decoder_blocks.data(), tasks_, remote_block_indices.data()),
+          "Failed to generate transfer tasks");
+    } else {
+      LLM_CHK_STATUS_RET(task_generator.GenerateTasks(block_size_, pull_cache_param.decoder_blocks.size(),
+                                                      pull_cache_param.decoder_blocks.data(), tasks_,
+                                                      pull_cache_param.prompt_blocks.data()),
+                         "Failed to generate transfer tasks");
     }
     for (const auto &cache_addr : cache_addrs) {
       tensor_addresses_.emplace_back(PtrToPtr<void, uint8_t>(cache_addr.get()));

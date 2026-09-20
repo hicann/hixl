@@ -35,11 +35,10 @@ class DataTransferTaskGenerator {
       : num_tensors_(num_tensors), num_buffers_(num_buffers), buffer_size_(buffer_size) {}
 
   // for continuous
-  std::vector<TransferBlocksTask> GenerateTasks(int64_t tensor_size, uint32_t block_size);
+  ge::Status GenerateTasks(int64_t tensor_size, uint32_t block_size, std::vector<TransferBlocksTask> &tasks);
 
-  std::vector<TransferBlocksTask> GenerateTasks(uint32_t block_size, uint32_t num_block_indices,
-                                                const uint64_t *block_indices,
-                                                const uint64_t *remote_block_indices = nullptr);
+  ge::Status GenerateTasks(uint32_t block_size, uint32_t num_block_indices, const uint64_t *block_indices,
+                           std::vector<TransferBlocksTask> &tasks, const uint64_t *remote_block_indices = nullptr);
 
  private:
   std::vector<TransferBlocksTask> DoGenerate(uint32_t block_size, uint32_t tail_block_size, uint32_t num_block_indices,
@@ -47,8 +46,8 @@ class DataTransferTaskGenerator {
   std::vector<TransferBlocksTask> DoGenerateForClientBlocks(uint32_t block_size, uint32_t tail_block_size,
                                                             uint32_t num_block_indices, const uint64_t *block_indices,
                                                             const uint64_t *remote_block_indices);
-  std::vector<TransferBlocksTask> DoGenerateForLargeBlock(uint32_t block_size, uint32_t num_block_indices,
-                                                          const uint64_t *block_indices) const;
+  ge::Status DoGenerateForLargeBlock(uint32_t block_size, uint32_t num_block_indices, const uint64_t *block_indices,
+                                     std::vector<TransferBlocksTask> &tasks) const;
   void GetNextBufBlockNum(uint32_t buffer_task_index, uint32_t &remote_buffer_block_num) const;
 
   uint32_t num_tensors_;

@@ -17,6 +17,7 @@
 #include "data_transfer/d2d_data_transfer_job.h"
 #include "common/llm_checker.h"
 #include "common/transfer_message_limits.h"
+#include "common/transfer_request_validation.h"
 
 namespace llm {
 namespace {
@@ -68,6 +69,109 @@ ge::Status ValidateTransferRequest(const TransferCacheReq &request, int32_t tran
   LLM_CHK_STATUS_RET(ValidateBufferInfoLens(request, buffer_info_multiplier), "Failed to validate buffer info lens");
   return ge::SUCCESS;
 }
+
+uint64_t ResolveSrcNumTensors(const CacheEntry &cache_entry, const TransferCacheReq &request) {
+  return (request.src_tensor_indices_size == 0U) ? static_cast<uint64_t>(cache_entry.cache_addrs.size())
+                                                 : static_cast<uint64_t>(request.src_tensor_indices_size);
+}
+
+// src_tensor_indices_size 为 0 时各消费方都按"整段 cache"处理；为了与它们一致，
+// 这里把 start_index 一律**视作 0**（对端给的非 0 值被忽略，而不是拒绝），
+// 否则它会被叠加到下标上，把访问推到 cache 之外。
+uint64_t ResolveSrcStartIndex(const TransferCacheReq &request) {
+  return (request.src_tensor_indices_size == 0U) ? 0U : static_cast<uint64_t>(request.src_tensor_start_index);
+}
+
+// 对端给的 src 张量区间必须整体落在本端 cache 的张量数组内。
+ge::Status ValidateSrcTensorRange(const CacheEntry &cache_entry, const TransferCacheReq &request) {
+  using namespace transfer_request_validation;
+  const uint64_t src_start_index = ResolveSrcStartIndex(request);
+  const uint64_t src_num_tensors = ResolveSrcNumTensors(cache_entry, request);
+  LLM_CHK_BOOL_RET_STATUS(
+      CheckSrcTensorRange(src_start_index, src_num_tensors, cache_entry.cache_addrs.size()) == ge::SUCCESS,
+      ge::LLM_PARAM_INVALID, "src tensor range out of range, start:%lu, num:%lu, src_cache num:%zu", src_start_index,
+      src_num_tensors, cache_entry.cache_addrs.size());
+  return ge::SUCCESS;
+}
+
+// 对端给的 buffer_info.block_start_index 会被用来换算本端读写偏移；H2D 与 D2H(block) 在这里校验。
+// D2D 的同一个下标要经过 remainder 修正才能算出真正下发的长度，因此在 GetSendTask 里按实际 count 校验。
+ge::Status ValidateBlockSpans(const CacheEntry &cache_entry, const TransferCacheReq &request, int32_t transfer_type) {
+  using namespace transfer_request_validation;
+  const bool is_d2h = (transfer_type == kTransferTypeD2H);
+  const bool needs_block_span_check = (transfer_type == kTransferTypeH2D) || (is_d2h && (cache_entry.num_blocks > 0U));
+  if (!needs_block_span_check) {
+    return ge::SUCCESS;
+  }
+  // is_block_cache：D2H 的 block 对 block，或 H2D 的 block host cache。块大小就是 stride，
+  // 单个张量实际分配 tensor_size 字节；H2D 的 cont cache 实际用的 block_size =
+  // min(kDefaultBlockSize, pull_size) <= pull_size，这里用 pull_size 作上界偏保守但同样能保证偏移落在张量内。
+  const bool is_block_cache = cache_entry.num_blocks > 0U;
+  const uint64_t block_size = is_block_cache ? cache_entry.stride : request.pull_size;
+  const uint64_t region_size = is_block_cache ? cache_entry.tensor_size : cache_entry.stride;
+  for (uint32_t i = 0U; i < request.buffer_info_count; ++i) {
+    const auto &buffer_info = request.transfer_infos[request.dst_addr_count + i].buffer_info;
+    // D2H 的 block 路径由 DataTransferTaskGenerator 按 block_indices 逐块下发，每块固定 stride 字节
+    // （cur_block_size == block_size），报文里的 buffer_len 不参与下发，因此校验长度取 stride，
+    // 不再依赖"tensor_size 能被 stride 整除"这条注册侧的不变量。H2D 由 TaskBatcher 按报文里的
+    // buffer_len 取数，长度仍用 buffer_len 校验。
+    const uint64_t span_len = is_d2h ? cache_entry.stride : buffer_info.buffer_len;
+    LLM_CHK_BOOL_RET_STATUS(
+        CheckBlockSpanWithinRegion(buffer_info.block_start_index, block_size, span_len, region_size) == ge::SUCCESS,
+        ge::LLM_PARAM_INVALID,
+        "src buffer_info[%u] out of the local tensor region, block_start_index:%lu, block_size:%lu, span_len:%lu, "
+        "region_size:%lu, local block_num:%lu",
+        i, buffer_info.block_start_index, block_size, span_len, region_size, cache_entry.num_blocks);
+  }
+  return ge::SUCCESS;
+}
+
+// D2H 服务端本地范围：dst_buffer_size 的取值域，以及响应区之后 recv flag 区的容量。
+ge::Status ValidateD2hLocalBounds(const TransferCacheReq &request) {
+  using namespace transfer_request_validation;
+  LLM_CHK_BOOL_RET_STATUS(CheckD2hDstBufferSize(request.dst_buffer_size) == ge::SUCCESS, ge::LLM_PARAM_INVALID,
+                          "dst_buffer_size:%lu is out of range [%lu, %u]", request.dst_buffer_size, kMinDstBufferSize,
+                          UINT32_MAX);
+  const uint64_t response_size = transfer_message_limits::CalcResponseSize(request.dst_addr_count);
+  LLM_CHK_BOOL_RET_STATUS(
+      CheckRecvFlagArea(request.dst_addr_count, response_size, transfer_message_limits::kMaxResponsePayloadSize,
+                        sizeof(int32_t)) == ge::SUCCESS,
+      ge::LLM_PARAM_INVALID, "dst_addr_count:%u is too large for the response buffer, response size:%lu, max:%lu",
+      request.dst_addr_count, response_size, transfer_message_limits::kMaxResponsePayloadSize);
+  return ge::SUCCESS;
+}
+
+// 对端报文里的下标/长度字段必须与本端 cache 的实际范围对齐，否则后续 job 会越界读本端内存
+// 或把 buffer_info 的字节当成地址使用。这里集中做这一层交叉校验。
+ge::Status ValidateLocalIndexBounds(const CacheEntry &cache_entry, const TransferCacheReq &request,
+                                    int32_t transfer_type) {
+  using namespace transfer_request_validation;
+  LLM_CHK_STATUS_RET(ValidateSrcTensorRange(cache_entry, request), "Failed to validate src tensor range");
+
+  if (transfer_type == kTransferTypeH2D) {
+    // H2D 的传输任务用张量下标索引 dst_addr 段，张量数不能超过该段容量。
+    const uint64_t src_num_tensors = ResolveSrcNumTensors(cache_entry, request);
+    LLM_CHK_BOOL_RET_STATUS(CheckTensorCountWithinDstAddr(src_num_tensors, request.dst_addr_count) == ge::SUCCESS,
+                            ge::LLM_PARAM_INVALID,
+                            "num_tensors:%lu exceeds dst_addr_count:%u, the dst_addr section would be overrun",
+                            src_num_tensors, request.dst_addr_count);
+  }
+
+  LLM_CHK_STATUS_RET(ValidateBlockSpans(cache_entry, request, transfer_type), "Failed to validate block spans");
+
+  if (transfer_type == kTransferTypeD2D) {
+    // block_size 参与 D2D 的整除/取模；request.block_size 为 0 时会回落到本端 stride，
+    // 两者同时为 0 就会除零，所以在建 job 之前先挡掉。
+    LLM_CHK_BOOL_RET_STATUS(
+        CheckD2dBlockSize(request.block_size, cache_entry.stride) == ge::SUCCESS, ge::LLM_PARAM_INVALID,
+        "d2d block size is 0, request.block_size:%lu, local cache stride:%lu", request.block_size, cache_entry.stride);
+  }
+
+  if (transfer_type == kTransferTypeD2H) {
+    LLM_CHK_STATUS_RET(ValidateD2hLocalBounds(request), "Failed to validate d2h local bounds");
+  }
+  return ge::SUCCESS;
+}
 }  // namespace
 ge::Status SendState::Preprocess(CommEntity &entity) {
   auto ret = Prepare(entity);
@@ -97,6 +201,8 @@ ge::Status SendState::Prepare(CommEntity &entity) {
                           "dst_placement = %d, src_placement = %d is not supported", entity.GetRequest().dst_placement,
                           static_cast<int32_t>(cache_entry.placement));
   LLM_CHK_STATUS_RET(ValidateTransferRequest(request, transfer_type), "Failed to validate transfer request");
+  LLM_CHK_STATUS_RET(ValidateLocalIndexBounds(cache_entry, request, transfer_type),
+                     "Failed to validate request against local cache");
   if (transfer_type == kTransferTypeD2H) {
     entity.SetDataTransferJob(MakeUnique<D2HDataTransferJob>());
   } else if (transfer_type == kTransferTypeH2D) {

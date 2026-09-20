@@ -76,7 +76,7 @@ class ChannelManager {
   std::thread ack_processor_;
 
   void StartWorkerThreads();
-  void CloseEpollFd();
+  void CloseEpollFd() noexcept;
   Status HandleEpoolEvents();
   Status HandleSocketEvent(int32_t fd);
   Status HandleReadEvent(const ChannelPtr &channel) const;

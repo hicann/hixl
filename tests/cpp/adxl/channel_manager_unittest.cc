@@ -16,6 +16,7 @@
 #include <sys/epoll.h>
 #include <type_traits>
 #include <unistd.h>
+#include <utility>
 
 #define private public
 #include "adxl/channel_manager.h"
@@ -193,6 +194,25 @@ TEST_F(ChannelManagerUnitTest, DestructorDoesNotPropagateExceptions) {
   static_assert(std::is_nothrow_destructible<ChannelManager>::value,
                 "ChannelManager destructor must not propagate exceptions");
   EXPECT_NO_THROW({ ChannelManager mgr; });
+}
+
+TEST_F(ChannelManagerUnitTest, DestructorExceptionsStillCloseEpollFd) {
+  // 析构函数的 catch 分支会在 bad_alloc 下调用 CloseEpollFd()，它自身必须不抛异常，
+  // 否则异常会从 noexcept 析构函数漏出并触发 std::terminate。
+  static_assert(noexcept(std::declval<ChannelManager &>().CloseEpollFd()),
+                "CloseEpollFd must be noexcept so the destructor's catch path cannot throw");
+  // 模拟 Finalize() 被异常中断后的状态：epoll_fd_ 仍被持有，catch 分支需要兜底关闭它。
+  const int fd = epoll_create1(0);
+  ASSERT_GE(fd, 0);
+  manager_.epoll_fd_ = fd;
+  manager_.CloseEpollFd();
+  EXPECT_EQ(manager_.epoll_fd_, -1);
+  errno = 0;
+  EXPECT_EQ(fcntl(fd, F_GETFD), -1);
+  EXPECT_EQ(errno, EBADF);
+  // Finalize() 已关闭 fd 时 catch 仍可能再调一次，重复调用必须安全。
+  manager_.CloseEpollFd();
+  EXPECT_EQ(manager_.epoll_fd_, -1);
 }
 }  // namespace
 }  // namespace adxl
