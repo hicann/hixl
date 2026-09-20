@@ -27,7 +27,6 @@ logging.basicConfig(
 
 BUF_SIZE = 8 * 1024 * 1024
 BLOCK_SIZE = 16 * 1024
-BLOCK_COUNT = BUF_SIZE // BLOCK_SIZE
 DEFAULT_DEVICE_CLIENT = 0
 DEFAULT_DEVICE_SERVER = 2
 DEFAULT_CLIENT_ENGINE = "127.0.0.1:16000"
@@ -40,7 +39,11 @@ SOCKET_RETRY_COUNT = 10
 SOCKET_RETRY_INTERVAL_S = 0.5
 SOCKET_RETRY_TIMEOUT_S = 2.0
 FILL_VALUE = 0xAA
-DISCONNECT_WAIT_TIMEOUT_S = 5.0
+DISCONNECT_WAIT_MARGIN_S = 10.0
+# Must cover the client-side budget: connect + transfer + disconnect timeouts, plus margin for verify
+DISCONNECT_WAIT_TIMEOUT_S = (
+    2 * CONNECT_TIMEOUT_MS + TRANSFER_TIMEOUT_MS
+) / 1000.0 + DISCONNECT_WAIT_MARGIN_S
 
 
 def parse_engine_addr(engine_addr: str) -> tuple[str, int]:
@@ -100,7 +103,7 @@ def _wait_client_disconnect(conn) -> None:
     except socket.timeout:
         logging.warning(
             "Server timed out waiting for client disconnect after %ss, "
-            "proceeding anyway (client may have crashed)",
+            "proceeding anyway (client may have crashed or stalled)",
             DISCONNECT_WAIT_TIMEOUT_S,
         )
     finally:
@@ -180,6 +183,9 @@ def run_server(args):
         buf_tensor = torch.full(
             (BUF_SIZE,), FILL_VALUE, dtype=torch.uint8, device="npu"
         )
+        if not buf_tensor.is_contiguous():
+            raise RuntimeError("Server NPU buffer is not contiguous")
+        torch.npu.synchronize()
         dev_addr = int(buf_tensor.data_ptr())
         logging.info(f"Server NPU buffer at 0x{dev_addr:X}, size={BUF_SIZE}")
 
@@ -203,16 +209,17 @@ def run_server(args):
 
 def _build_transfer_op_descs(dev_addr: int, remote_addr: int):
     op_descs = []
-    for i in range(BLOCK_COUNT):
-        local_offset = i * BLOCK_SIZE
-        remote_offset = i * BLOCK_SIZE
+    offset = 0
+    while offset < BUF_SIZE:
+        chunk = min(BLOCK_SIZE, BUF_SIZE - offset)
         op_descs.append(
             hixl.TransferOpDesc(
-                local_addr=dev_addr + local_offset,
-                remote_addr=remote_addr + remote_offset,
-                len=BLOCK_SIZE,
+                local_addr=dev_addr + offset,
+                remote_addr=remote_addr + offset,
+                len=chunk,
             )
         )
+        offset += chunk
     return op_descs
 
 
@@ -261,6 +268,9 @@ def run_client(args):
         logging.info("Client engine initialized")
 
         buf_tensor = torch.zeros(BUF_SIZE, dtype=torch.uint8, device="npu")
+        if not buf_tensor.is_contiguous():
+            raise RuntimeError("Client NPU buffer is not contiguous")
+        torch.npu.synchronize()
         dev_addr = int(buf_tensor.data_ptr())
         logging.info(f"Client NPU buffer at 0x{dev_addr:X}, size={BUF_SIZE}")
 
