@@ -45,8 +45,8 @@ bool IsA2OrA3Soc(const char *soc_name) {
   }
   static const std::set<std::string> kSocA2 = {"Ascend910B1", "Ascend910B2",  "Ascend910B3",
                                                "Ascend910B4", "Ascend910B2C", "Ascend910B4-1"};
-  static const std::set<std::string> kSocA3 = {"Ascend910_9391", "Ascend910_9381", "Ascend910_9392",
-                                               "Ascend910_9382", "Ascend910_9372", "Ascend910_9362"};
+  static const std::set<std::string> kSocA3 = {"Ascend910_9391", "Ascend910_9381", "Ascend910_9392", "Ascend910_9382",
+                                               "Ascend910_9372", "Ascend910_9362", "Ascend910_9363"};
   const std::string soc(soc_name);
   return kSocA2.find(soc) != kSocA2.end() || kSocA3.find(soc) != kSocA3.end();
 }

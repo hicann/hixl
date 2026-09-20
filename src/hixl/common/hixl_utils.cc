@@ -40,8 +40,8 @@ constexpr size_t kValidHccnConfItemNum = 2U;
 
 const std::set<std::string> kSocV2 = {"Ascend910B1", "Ascend910B2",  "Ascend910B3",
                                       "Ascend910B4", "Ascend910B2C", "Ascend910B4-1"};
-const std::set<std::string> kSocV3 = {"Ascend910_9391", "Ascend910_9381", "Ascend910_9392",
-                                      "Ascend910_9382", "Ascend910_9372", "Ascend910_9362"};
+const std::set<std::string> kSocV3 = {"Ascend910_9391", "Ascend910_9381", "Ascend910_9392", "Ascend910_9382",
+                                      "Ascend910_9372", "Ascend910_9362", "Ascend910_9363"};
 
 std::string GetHccnToolPath() {
   if (access(kHccnToolPath, F_OK) == 0) {

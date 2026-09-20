@@ -381,6 +381,7 @@ TEST_F(HixlUtilsUTest, GetSocTypeByNameRecognizesAllA3SocNames) {
   EXPECT_EQ(GetSocTypeByName("Ascend910_9382"), SocType::kV3);
   EXPECT_EQ(GetSocTypeByName("Ascend910_9372"), SocType::kV3);
   EXPECT_EQ(GetSocTypeByName("Ascend910_9362"), SocType::kV3);
+  EXPECT_EQ(GetSocTypeByName("Ascend910_9363"), SocType::kV3);
 }
 
 TEST_F(HixlUtilsUTest, GetSocTypeByNameRecognizesA5SocNames) {

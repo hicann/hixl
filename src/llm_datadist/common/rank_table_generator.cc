@@ -65,7 +65,8 @@ std::unique_ptr<RankTableGenerator> RankTableGeneratorFactory::Create(const std:
 ge::Status LocalCommResGenerator::Generate(const std::string &server_id, int32_t device_id, std::string &local_comm_res,
                                            std::optional<uint32_t> device_port) {
   const static std::set<std::string> kV2Version = {"Ascend910_9391", "Ascend910_9381", "Ascend910_9392",
-                                                   "Ascend910_9382", "Ascend910_9372", "Ascend910_9362"};
+                                                   "Ascend910_9382", "Ascend910_9372", "Ascend910_9362",
+                                                   "Ascend910_9363"};
   const char *version = aclrtGetSocName();
   LLM_CHECK_NOTNULL(version, "aclrt get soc name");
   const auto &it = kV2Version.find(version);
