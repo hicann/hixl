@@ -117,7 +117,13 @@ ge::Status SendState::Process(CommEntity &entity) {
     return Postprocess(entity);
   }
   bool is_done = false;
-  LLM_CHK_STATUS_RET(entity.GetDataTransferJob()->Process(is_done));
+  const auto process_ret = entity.GetDataTransferJob()->Process(is_done);
+  if (process_ret != ge::SUCCESS) {
+    LLMLOGE(process_ret, "DataTransferJob::Process failed, ret = %d, release data transfer job",
+            static_cast<int32_t>(process_ret));
+    (void)Postprocess(entity);
+    return process_ret;
+  }
   if (is_done) {
     const auto &data_cache_key = entity.GetCacheKeyToRemove();
     if (data_cache_key.first != UINT64_MAX) {

@@ -73,6 +73,12 @@ ge::Status GetSendTask(const CacheEntry &cache_entry, const TransferCacheReq &re
 }
 }  // namespace
 
+D2DDataTransferJob::~D2DDataTransferJob() {
+  if (event_ != nullptr) {
+    LLM_CHK_ACL(aclrtDestroyEvent(event_));
+  }
+}
+
 ge::Status D2DDataTransferJob::Initialize(const CacheEntry &cache_entry, CommEntity &comm_entity, uint64_t offset) {
   comm_entity_ = &comm_entity;
   LLM_CHK_STATUS_RET(GenerateSendTask(cache_entry, offset), "comm_entity:%s generate send task failed",

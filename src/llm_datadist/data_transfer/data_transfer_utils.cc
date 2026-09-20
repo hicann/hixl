@@ -54,7 +54,14 @@ ge::Status DataTransferUtils::SendCache(const aclrtStream stream, CommEntity &co
             transfer_tasks.size(), desces.size(), static_cast<size_t>(kMaxTaskNum));
     const auto start = std::chrono::steady_clock::now();
     LLM_CHK_ACL_RET(aclrtCreateEvent(&event));
-    LLM_ASSERT_RT_OK(aclrtRecordEvent(event, stream));
+    const aclError record_ret = aclrtRecordEvent(event, stream);
+    if (record_ret != ACL_ERROR_NONE) {
+      (void)aclrtDestroyEvent(event);
+      event = nullptr;
+      const auto status = llm::ConvertAclError2Ge(static_cast<int32_t>(record_ret));
+      LLMLOGE(status, "Call aclrtRecordEvent failed, ret:0x%X, stream:%p", static_cast<uint32_t>(record_ret), stream);
+      return status;
+    }
     const auto end = std::chrono::steady_clock::now();
     send_statistic_info.event_record_times++;
     const uint64_t cost = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();

@@ -25,6 +25,12 @@ constexpr uint64_t kCacheKeyByIdType = 2UL;
 LayerWiseTransferJob::LayerWiseTransferJob(CommEntity &comm_entity, aclrtStream stream)
     : stream_(stream), comm_entity_(&comm_entity) {}
 
+LayerWiseTransferJob::~LayerWiseTransferJob() {
+  if (event_ != nullptr) {
+    LLM_CHK_ACL(aclrtDestroyEvent(event_));
+  }
+}
+
 ge::Status LayerWiseTransferJob::GenerateCacheToCacheTask(const CacheEntry &cache_entry,
                                                           const std::vector<std::shared_ptr<void>> &src_layer_addrs,
                                                           const TransferCacheConfig &transfer_cache_config) {

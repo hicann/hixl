@@ -20,6 +20,12 @@
 namespace llm {
 class D2DDataTransferJob : public DataTransferJob {
  public:
+  D2DDataTransferJob() = default;
+  ~D2DDataTransferJob() override;
+  D2DDataTransferJob(const D2DDataTransferJob &) = delete;
+  D2DDataTransferJob(const D2DDataTransferJob &&) = delete;
+  D2DDataTransferJob &operator=(const D2DDataTransferJob &) = delete;
+  D2DDataTransferJob &operator=(const D2DDataTransferJob &&) = delete;
   ge::Status Initialize(const CacheEntry &cache_entry, CommEntity &comm_entity, uint64_t offset) override;
   ge::Status Process(bool &is_done) override;
   ge::Status PullCache() override;
@@ -29,7 +35,7 @@ class D2DDataTransferJob : public DataTransferJob {
   ge::Status GenerateSendTask(const CacheEntry &cache_entry, const uint64_t offset);
   CommEntity *comm_entity_;
   std::list<HcclOneSideOpDesc> send_tasks_;
-  aclrtEvent event_;
+  aclrtEvent event_{nullptr};
   std::chrono::steady_clock::time_point timeout_point_;
 };
 }  // namespace llm

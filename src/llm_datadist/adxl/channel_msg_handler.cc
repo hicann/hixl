@@ -864,6 +864,7 @@ Status ChannelMsgHandler::ProcessServerEviction(const std::string &channel_id, C
   int32_t fd = channel->GetFd();
   if (fd < 0) {
     LLMLOGW("Channel %s has invalid fd, cannot send request disconnect", channel_id.c_str());
+    channel->SetDisconnecting(false);
     return SUCCESS;
   }
   uint64_t req_id = next_req_id_.fetch_add(1ULL, std::memory_order_acq_rel);
@@ -882,6 +883,7 @@ Status ChannelMsgHandler::ProcessServerEviction(const std::string &channel_id, C
     LLMLOGW("Failed to send request disconnect for channel: %s, ret=%d", channel_id.c_str(), ret);
     std::lock_guard<std::mutex> lock(pending_req_mutex_);
     pending_disconnect_requests_.erase(req_id);
+    channel->SetDisconnecting(false);
     return ret;
   }
   LLMLOGI("Sent request disconnect to client for channel: %s, req_id=%lu", channel_id.c_str(), req_id);
@@ -891,6 +893,7 @@ Status ChannelMsgHandler::ProcessServerEviction(const std::string &channel_id, C
                                              [&pending_req] { return pending_req->received; });
     if (!received) {
       pending_disconnect_requests_.erase(req_id);
+      channel->SetDisconnecting(false);
       return SUCCESS;
     }
     RequestDisconnectResp resp = pending_req->resp;
