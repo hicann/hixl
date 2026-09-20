@@ -68,8 +68,14 @@ Status ChannelManager::ShiftRecvBuffer(const ChannelPtr &channel, size_t src_off
 
 int64_t ChannelManager::wait_time_in_millis_ = kWaitTimeInMillis;
 
-ChannelManager::~ChannelManager() {
-  (void)Finalize();
+ChannelManager::~ChannelManager() noexcept {
+  // Finalize() collects channels into vectors, so it can throw std::bad_alloc. A destructor is implicitly noexcept,
+  // and an exception escaping it would trigger std::terminate, so catch and log here instead of propagating.
+  try {
+    (void)Finalize();
+  } catch (const std::exception &e) {
+    LLMLOGE(FAILED, "Failed to finalize channel manager in destructor, exception:%s", e.what());
+  }
 }
 
 void ChannelManager::CloseEpollFd() {

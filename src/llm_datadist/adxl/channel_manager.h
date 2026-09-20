@@ -28,7 +28,7 @@ using NotifyAckCallback = std::function<void(uint64_t req_id)>;
 class ChannelManager {
  public:
   ChannelManager() = default;
-  ~ChannelManager();
+  ~ChannelManager() noexcept;
   Status Initialize(BufferTransferService *buffer_transfer_service);
   Status Finalize();
   Status CreateChannel(const ChannelInfo &channel_info, ChannelPtr &channel_ptr);

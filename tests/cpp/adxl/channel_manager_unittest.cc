@@ -14,6 +14,7 @@
 #include <fcntl.h>
 #include <memory>
 #include <sys/epoll.h>
+#include <type_traits>
 #include <unistd.h>
 
 #define private public
@@ -185,6 +186,13 @@ TEST_F(ChannelManagerUnitTest, DestructorClosesEpollFd) {
   errno = 0;
   EXPECT_EQ(fcntl(fd, F_GETFD), -1);
   EXPECT_EQ(errno, EBADF);
+}
+
+TEST_F(ChannelManagerUnitTest, DestructorDoesNotPropagateExceptions) {
+  // Finalize() allocates while collecting channels, so the destructor must swallow any exception it may throw.
+  static_assert(std::is_nothrow_destructible<ChannelManager>::value,
+                "ChannelManager destructor must not propagate exceptions");
+  EXPECT_NO_THROW({ ChannelManager mgr; });
 }
 }  // namespace
 }  // namespace adxl
