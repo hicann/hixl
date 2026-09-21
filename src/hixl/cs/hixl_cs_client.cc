@@ -508,6 +508,9 @@ Status HixlCSClient::BatchTransferTask(bool is_get, uint32_t list_num, const Hix
                         "[HixlClient] TransferWithRetry failed, is_get:%d, channel_handle:%lu, size:%lu bytes",
                         static_cast<int32_t>(is_get), client_channel_handle_, desc_list[i].len);
   }
+  HIXL_CHK_HCCL_RET(
+      static_cast<HcclResult>(HcommProxy::ChannelFenceOnThread(static_cast<ThreadHandle>(0), client_channel_handle_)),
+      "[HixlClient] channel_handle:%lu", client_channel_handle_);
   return SUCCESS;
 }
 Status HixlCSClient::BatchTransferHostAsync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list,

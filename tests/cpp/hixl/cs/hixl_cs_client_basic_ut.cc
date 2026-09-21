@@ -423,10 +423,10 @@ TEST_F(HixlCSClientFixture, BatchTransferWithRetryLogic) {
   // 批量传输应该成功，因为重试逻辑会处理 HCCL_RETRY_REQUIRED
   EXPECT_EQ(cli.BatchTransferAsync(false, 15, descs, &query_handle), SUCCESS);
   EXPECT_NE(query_handle, nullptr);
-  EXPECT_EQ(GetFenceCallCount(), 1U);
+  EXPECT_EQ(GetFenceCallCount(), 2U);
 }
 
-TEST_F(HixlCSClientFixture, BatchTransferDoesNotFenceAtNormalBatchBoundary) {
+TEST_F(HixlCSClientFixture, BatchTransferFencesAfterEveryChunk) {
   const char *client_ip = "127.0.0.1";
   uint32_t port = 22343;
   PrepareConnectionAndImport(cli, client_ip, port, R"({"transfer_config.max_transfer_count_per_batch":2})");
@@ -437,11 +437,56 @@ TEST_F(HixlCSClientFixture, BatchTransferDoesNotFenceAtNormalBatchBoundary) {
       {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4},
       {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4},
       {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4},
+      {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4},
   };
   void *query_handle = nullptr;
+  ASSERT_EQ(cli.BatchTransferAsync(false, 2, descs, &query_handle), SUCCESS);
+  EXPECT_NE(query_handle, nullptr);
+  EXPECT_EQ(GetFenceCallCount(), 1U);
+
   ASSERT_EQ(cli.BatchTransferAsync(false, 4, descs, &query_handle), SUCCESS);
   EXPECT_NE(query_handle, nullptr);
-  EXPECT_EQ(GetFenceCallCount(), 0U);
+  EXPECT_EQ(GetFenceCallCount(), 3U);
+
+  ASSERT_EQ(cli.BatchTransferAsync(false, 5, descs, &query_handle), SUCCESS);
+  EXPECT_NE(query_handle, nullptr);
+  EXPECT_EQ(GetFenceCallCount(), 6U);
+}
+
+TEST_F(HixlCSClientFixture, BatchTransferStopsWhenBoundaryFenceFails) {
+  const char *client_ip = "127.0.0.1";
+  uint32_t port = 22347;
+  PrepareConnectionAndImport(cli, client_ip, port, R"({"transfer_config.max_transfer_count_per_batch":2})");
+  RecordLocalMem(cli);
+
+  HixlOneSideOpDesc descs[] = {
+      {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4},
+      {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4},
+      {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4},
+  };
+  SetNextFenceFailure(HCCL_E_PARA);
+
+  void *query_handle = nullptr;
+  EXPECT_EQ(cli.BatchTransferAsync(false, 3, descs, &query_handle), PARAM_INVALID);
+  EXPECT_EQ(query_handle, nullptr);
+  EXPECT_EQ(GetNbiCallCount(), 2U);
+  EXPECT_EQ(GetFenceCallCount(), 1U);
+}
+
+TEST_F(HixlCSClientFixture, BatchTransferFailsWhenLastChunkFenceFails) {
+  const char *client_ip = "127.0.0.1";
+  uint32_t port = 22348;
+  PrepareConnectionAndImport(cli, client_ip, port);
+  RecordLocalMem(cli);
+
+  HixlOneSideOpDesc desc = {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4};
+  SetNextFenceFailure(HCCL_E_PARA);
+
+  void *query_handle = nullptr;
+  EXPECT_EQ(cli.BatchTransferAsync(false, 1, &desc, &query_handle), PARAM_INVALID);
+  EXPECT_EQ(query_handle, nullptr);
+  EXPECT_EQ(GetNbiCallCount(), 1U);
+  EXPECT_EQ(GetFenceCallCount(), 1U);
 }
 
 TEST_F(HixlCSClientFixture, BatchTransferHostAsyncHandlesMaximumListNumWithoutChunkCountOverflow) {
@@ -475,13 +520,13 @@ TEST_F(HixlCSClientFixture, BatchTransferHostAsyncRejectsEmptyListBeforeSubmitti
   EXPECT_EQ(GetFenceCallCount(), 0U);
 }
 
-TEST_F(HixlCSClientFixture, BatchTransferRetriesCompletionFlagAfterQueueExhaustion) {
+TEST_F(HixlCSClientFixture, BatchTransferFencesBeforeCompletionFlag) {
   const char *client_ip = "127.0.0.1";
   uint32_t port = 22344;
   PrepareConnectionAndImport(cli, client_ip, port, R"({"transfer_config.max_transfer_count_per_batch":62})");
   RecordLocalMem(cli);
 
-  constexpr uint32_t kTransferCount = 64U;
+  constexpr uint32_t kTransferCount = 62U;
   HixlOneSideOpDesc descs[kTransferCount];
   for (auto &desc : descs) {
     desc = {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4};
@@ -492,7 +537,7 @@ TEST_F(HixlCSClientFixture, BatchTransferRetriesCompletionFlagAfterQueueExhausti
   ASSERT_EQ(cli.BatchTransferAsync(false, kTransferCount, descs, &query_handle), SUCCESS);
   EXPECT_NE(query_handle, nullptr);
   EXPECT_EQ(GetFenceCallCount(), 1U);
-  EXPECT_EQ(GetNbiCallCount(), kTransferCount + 2U);
+  EXPECT_EQ(GetNbiCallCount(), kTransferCount + 1U);
 }
 
 // 测试传输任务在 ChannelFenceOnThread 执行失败时的错误处理
