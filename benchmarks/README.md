@@ -182,118 +182,6 @@ bash benchmarks/run_all_bench.sh --hixl-option 'LocalCommRes={"version":"1.3"}'
 | **H2rD** | host | device | write | Host 写往远程 Device |
 | **rD2H** | host | device | read | 从远程 Device 读回 Host |
 
-### 单机运行
-
-使用 `run_comm_benchmark.py`（推荐）。默认在本机同时拉起 target 与 initiator。
-
-```bash
-# 快速测试一个方向（单机默认 transport=hccs、direction=D2rD）
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py --direction=D2rD --transport=hccs
-
-# 指定设备和 block size 范围
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --direction=D2rH --transport=roce --device_ids=0,1 --block_sizes=16K:2M
-
-# 一对多：device_ids 中前 N-1 个为 target，最后一个为 initiator
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --pattern=one_to_many --device_ids=0,1,2,3,4 \
-  --direction=D2rD --transport=hccs
-
-# 多对一：第一个为 target，其余为 initiator
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --pattern=many_to_one --device_ids=0,1,2,3,4 \
-  --direction=D2rD --transport=hccs
-
-# 传入 HIXL Initialize 选项（与 hixl_comm_bench 的 -H=KEY=VALUE 相同，可多次 -H）
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --direction=D2rD --transport=hccs \
-  -H 'LocalCommRes={"version":"1.3"}'
-```
-
-> 单机**不支持** `--transport=all`（会报错退出）。若显式指定了 `--transport` 且未写 `--direction`，direction 默认为该 transport 在当前平台上支持的全部方向。
-
-### 双机运行
-
-先在 **target 机**启动，再在 **initiator 机**启动。target 会打印一条可复制的 initiator 命令；也可按下述模板手写。
-
-**要点**：
-
-- 必须指定 `--role=target` 或 `--role=initiator`
-- initiator **必须**带 `--target-host=<target 机 IP>`
-- 双机若省略 `--transport` / `--direction`，默认跑 **`all`**（当前平台支持的全部 transport × direction），耗时长；多轮时 target 默认 `peer_wait_s=300`
-- `--transport=all` **仅双机**可用；双机 `all` 时 A2 实际只扩 `roce`（不含 hccs）
-- 默认 HIXL base port：`16000`；peer TCP 协调端口由各 engine 端口内部派生（+10000 或 -10000）
-- 跨机建议 target 侧加 `--host=<本机对外 IP>`，避免广告到错误地址
-- 双机默认 `--device_ids=0`（与单机默认 `0,1` 不同）
-
-**1:1（默认 pairwise）**：
-
-```bash
-# === Target 机 ===
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --role=target --transport=roce --direction=D2rD --host=<TARGET_IP>
-
-# === Initiator 机（也可直接复制 target 打印的命令）===
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --role=initiator --transport=roce --direction=D2rD \
-  --target-host=<TARGET_IP>
-```
-
-**one_to_many**（target 多 NPU，initiator 单 NPU）：
-
-```bash
-# Target 机
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --role=target --transport=roce --direction=D2rD \
-  --pattern=one_to_many --device_ids=0,1,2 --host=<TARGET_IP>
-
-# Initiator 机（需 --num_targets 与 target 侧 lane 数一致）
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --role=initiator --transport=roce --direction=D2rD \
-  --pattern=one_to_many --num_targets=3 --target-host=<TARGET_IP>
-```
-
-**many_to_one**（target 单 NPU，initiator 多 NPU）：
-
-```bash
-# Target 机
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --role=target --transport=roce --direction=D2rD \
-  --pattern=many_to_one --num_initiators=3 --host=<TARGET_IP>
-
-# Initiator 机
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --role=initiator --transport=roce --direction=D2rD \
-  --pattern=many_to_one --num_initiators=3 --device_ids=0,1,2 \
-  --target-host=<TARGET_IP>
-```
-
-### 直接运行 `hixl_comm_bench`
-
-target 进程先启动。peer TCP 协调端口由 engine 端口自动派生（+10000 或 -10000）。
-
-binary 默认值与 Python 启动器不同：`loops=1`，未指定 `--block_sizes` 时等于 `transfer_size`（默认 `128M`），`buffer_size` 默认 `1G`。`loops=1` 时首轮常为 warm-up，稳态吞吐建议 `loops>1`。
-
-```bash
-# Target（D2rD / rD2D 场景：远端为 device）
-build/benchmarks/comm_benchmark/hixl_comm_bench \
-  --role=target --device_id=1 \
-  --local_engine=127.0.0.1:16001 \
-  --memory=device --peer_count=1 --peer_wait_s=30 \
-  --transport=hccs
-
-# Initiator：D2rD（write）
-build/benchmarks/comm_benchmark/hixl_comm_bench \
-  --role=initiator --device_id=0 \
-  --local_engine=127.0.0.1:16000 \
-  --remote_engine=127.0.0.1:16001 \
-  --memory=device --remote_memory=device --op=write \
-  --transport=hccs --transfer_size=128M --block_sizes=16K:2M --loops=5
-
-# Initiator：rD2D（read）—— 仅改 --op=read
-#   --memory=device --remote_memory=device --op=read
-```
-
 ### Python 启动器参数（`run_comm_benchmark.py`）
 
 | 参数 | 说明 | 可选值 | 默认值 |
@@ -364,6 +252,126 @@ build/benchmarks/comm_benchmark/hixl_comm_bench \
 - A5：`roce`, `uboe`, `ub_rtp`, `ub`
 
 ---
+
+### 单机运行（仅 A5 使用 RoCE 网卡进行数据传输时，用例需添加 `--host_roce_ip`）
+
+使用 `run_comm_benchmark.py`（推荐）。默认在本机同时拉起 target 与 initiator。
+
+```bash
+# 快速测试一个方向（单机默认 transport=hccs、direction=D2rD）
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py --direction=D2rD --transport=hccs
+
+# 指定设备和 block size 范围（A5 RoCE 必须带 --host_roce_ip；两卡对应两张 Host NIC 时用逗号分隔，顺序与 device_ids 一致）
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --direction=D2rH --transport=roce --device_ids=0,1 --block_sizes=16K:2M \
+  --host_roce_ip=<HOST_ROCE_IP>
+
+# 一对多：device_ids 中前 N-1 个为 target，最后一个为 initiator
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --pattern=one_to_many --device_ids=0,1,2,3,4 \
+  --direction=D2rD --transport=hccs
+
+# 多对一：第一个为 target，其余为 initiator
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --pattern=many_to_one --device_ids=0,1,2,3,4 \
+  --direction=D2rD --transport=hccs
+
+# 传入 HIXL Initialize 选项（与 hixl_comm_bench 的 -H=KEY=VALUE 相同，可多次 -H）
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --direction=D2rD --transport=hccs \
+  -H 'LocalCommRes={"version":"1.3"}'
+```
+
+> 单机**不支持** `--transport=all`（会报错退出）。若显式指定了 `--transport` 且未写 `--direction`，direction 默认为该 transport 在当前平台上支持的全部方向。
+
+### 双机运行（仅 A5 使用 RoCE 网卡进行数据传输时，用例需添加 `--host_roce_ip`）
+
+先在 **target 机**启动，再在 **initiator 机**启动。target 会打印一条可复制的 initiator 命令；也可按下述模板手写。
+
+**要点**：
+
+- 必须指定 `--role=target` 或 `--role=initiator`
+- initiator **必须**带 `--target-host=<target 机 IP>`
+- 双机若省略 `--transport` / `--direction`，默认跑 **`all`**（当前平台支持的全部 transport × direction），耗时长；多轮时 target 默认 `peer_wait_s=300`
+- `--transport=all` **仅双机**可用；双机 `all` 时 A2 实际只扩 `roce`（不含 hccs）
+- 默认 HIXL base port：`16000`；peer TCP 协调端口由各 engine 端口内部派生（+10000 或 -10000）
+- 跨机建议 target 侧加 `--host=<本机对外 IP>`，避免广告到错误地址
+- 双机默认 `--device_ids=0`（与单机默认 `0,1` 不同）
+- **A5 / `--transport=roce`**：必须加 `--host_roce_ip`（本机 Host RoCE 网卡 IP，数据面 `LocalCommRes`；与 `--host` / `--target-host` 控制面地址不是同一字段）。target 与 initiator 各填**本机**地址；多 lane 且每卡一块 NIC 时用逗号分隔
+
+**1:1（默认 pairwise）**：
+
+```bash
+# === Target 机 ===
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --role=target --transport=roce --direction=D2rD --host=<TARGET_IP> \
+  --host_roce_ip=<TARGET_本机Host_RoCE_IP>
+
+# === Initiator 机（也可直接复制 target 打印的命令，并把 --host_roce_ip 改成本机地址）===
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --role=initiator --transport=roce --direction=D2rD \
+  --target-host=<TARGET_IP> \
+  --host_roce_ip=<INITIATOR_本机Host_RoCE_IP>
+```
+
+**one_to_many**（target 多 NPU，initiator 单 NPU）：
+
+```bash
+# Target 机
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --role=target --transport=roce --direction=D2rD \
+  --pattern=one_to_many --device_ids=0,1,2 --host=<TARGET_IP> \
+  --host_roce_ip=<TARGET_本机Host_RoCE_IP>
+
+# Initiator 机（需 --num_targets 与 target 侧 lane 数一致）
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --role=initiator --transport=roce --direction=D2rD \
+  --pattern=one_to_many --num_targets=3 --target-host=<TARGET_IP> \
+  --host_roce_ip=<INITIATOR_本机Host_RoCE_IP>
+```
+
+**many_to_one**（target 单 NPU，initiator 多 NPU）：
+
+```bash
+# Target 机
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --role=target --transport=roce --direction=D2rD \
+  --pattern=many_to_one --num_initiators=3 --host=<TARGET_IP> \
+  --host_roce_ip=<TARGET_本机Host_RoCE_IP>
+
+# Initiator 机
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --role=initiator --transport=roce --direction=D2rD \
+  --pattern=many_to_one --num_initiators=3 --device_ids=0,1,2 \
+  --target-host=<TARGET_IP> \
+  --host_roce_ip=<INITIATOR_本机Host_RoCE_IP>
+```
+
+### 直接运行 `hixl_comm_bench`
+
+target 进程先启动。peer TCP 协调端口由 engine 端口自动派生（+10000 或 -10000）。
+
+binary 默认值与 Python 启动器不同：`loops=1`，未指定 `--block_sizes` 时等于 `transfer_size`（默认 `128M`），`buffer_size` 默认 `1G`。`loops=1` 时首轮常为 warm-up，稳态吞吐建议 `loops>1`。
+
+```bash
+# Target（D2rD / rD2D 场景：远端为 device）
+build/benchmarks/comm_benchmark/hixl_comm_bench \
+  --role=target --device_id=1 \
+  --local_engine=127.0.0.1:16001 \
+  --memory=device --peer_count=1 --peer_wait_s=30 \
+  --transport=hccs
+
+# Initiator：D2rD（write）
+build/benchmarks/comm_benchmark/hixl_comm_bench \
+  --role=initiator --device_id=0 \
+  --local_engine=127.0.0.1:16000 \
+  --remote_engine=127.0.0.1:16001 \
+  --memory=device --remote_memory=device --op=write \
+  --transport=hccs --transfer_size=128M --block_sizes=16K:2M --loops=5
+
+# Initiator：rD2D（read）—— 仅改 --op=read
+#   --memory=device --remote_memory=device --op=read
+```
 
 ## KV Benchmark (`hixl_kv_bench`)
 

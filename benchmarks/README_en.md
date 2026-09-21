@@ -182,118 +182,6 @@ From the **Initiator** perspective:
 | **H2rD** | host | device | write | Host writes to remote Device |
 | **rD2H** | host | device | read | Read from remote Device to Host |
 
-### Single-Machine Run
-
-Use `run_comm_benchmark.py` (recommended). It starts both target and initiator on the same host.
-
-```bash
-# Quick test for one direction (single-machine defaults: transport=hccs, direction=D2rD)
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py --direction=D2rD --transport=hccs
-
-# Specify devices and block-size range
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --direction=D2rH --transport=roce --device_ids=0,1 --block_sizes=16K:2M
-
-# One-to-many: first N-1 device_ids are targets, last is initiator
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --pattern=one_to_many --device_ids=0,1,2,3,4 \
-  --direction=D2rD --transport=hccs
-
-# Many-to-one: first device_id is target, rest are initiators
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --pattern=many_to_one --device_ids=0,1,2,3,4 \
-  --direction=D2rD --transport=hccs
-
-# Pass HIXL Initialize options (same as hixl_comm_bench -H=KEY=VALUE; repeatable)
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --direction=D2rD --transport=hccs \
-  -H 'LocalCommRes={"version":"1.3"}'
-```
-
-> Single-machine does **not** support `--transport=all` (exits with an error). If `--transport` is set explicitly and `--direction` is omitted, direction defaults to all directions supported for that transport on the current platform.
-
-### Dual-Machine Run
-
-Start the **target** host first, then the **initiator** host. The target prints a copy-paste initiator command; you can also use the templates below.
-
-**Notes**:
-
-- You must set `--role=target` or `--role=initiator`
-- Initiator **requires** `--target-host=<target host IP>`
-- If dual-machine omits `--transport` / `--direction`, defaults are **`all`** (every supported transport × direction on the platform); multi-run target default `peer_wait_s=300`
-- `--transport=all` is **dual-machine only**; with dual `all`, A2 expands to `roce` only (no hccs)
-- Default HIXL base port: `16000`; peer TCP coordination ports are derived from each engine port (+10000 or -10000)
-- Across machines, prefer `--host=<this host public IP>` on the target so the advertised address is correct
-- Dual-machine default `--device_ids=0` (single-machine default is `0,1`)
-
-**1:1 (default pairwise)**:
-
-```bash
-# === Target host ===
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --role=target --transport=roce --direction=D2rD --host=<TARGET_IP>
-
-# === Initiator host (or copy the command printed by target) ===
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --role=initiator --transport=roce --direction=D2rD \
-  --target-host=<TARGET_IP>
-```
-
-**one_to_many** (multiple target NPUs, one initiator NPU):
-
-```bash
-# Target host
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --role=target --transport=roce --direction=D2rD \
-  --pattern=one_to_many --device_ids=0,1,2 --host=<TARGET_IP>
-
-# Initiator host (--num_targets must match target lane count)
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --role=initiator --transport=roce --direction=D2rD \
-  --pattern=one_to_many --num_targets=3 --target-host=<TARGET_IP>
-```
-
-**many_to_one** (one target NPU, multiple initiator NPUs):
-
-```bash
-# Target host
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --role=target --transport=roce --direction=D2rD \
-  --pattern=many_to_one --num_initiators=3 --host=<TARGET_IP>
-
-# Initiator host
-python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
-  --role=initiator --transport=roce --direction=D2rD \
-  --pattern=many_to_one --num_initiators=3 --device_ids=0,1,2 \
-  --target-host=<TARGET_IP>
-```
-
-### Direct `hixl_comm_bench` Run
-
-Start the target first. The peer TCP coordination port is derived from the engine port (+10000 or -10000).
-
-Binary defaults differ from the Python launcher: `loops=1`; if `--block_sizes` is omitted it equals `transfer_size` (default `128M`); `buffer_size` defaults to `1G`. With `loops=1` the first transfer is often warm-up; use `loops>1` for steady throughput.
-
-```bash
-# Target (D2rD / rD2D: remote memory is device)
-build/benchmarks/comm_benchmark/hixl_comm_bench \
-  --role=target --device_id=1 \
-  --local_engine=127.0.0.1:16001 \
-  --memory=device --peer_count=1 --peer_wait_s=30 \
-  --transport=hccs
-
-# Initiator: D2rD (write)
-build/benchmarks/comm_benchmark/hixl_comm_bench \
-  --role=initiator --device_id=0 \
-  --local_engine=127.0.0.1:16000 \
-  --remote_engine=127.0.0.1:16001 \
-  --memory=device --remote_memory=device --op=write \
-  --transport=hccs --transfer_size=128M --block_sizes=16K:2M --loops=5
-
-# Initiator: rD2D (read) — only change --op=read
-#   --memory=device --remote_memory=device --op=read
-```
-
 ### Python Launcher Parameters (`run_comm_benchmark.py`)
 
 | Parameter | Description | Options | Default |
@@ -365,6 +253,126 @@ Transports expanded by dual-machine `--transport=all`:
 - A5: `roce`, `uboe`, `ub_rtp`, `ub`
 
 ---
+
+### Single-Machine Run (add `--host_roce_ip` only when A5 uses RoCE NICs for data transfer)
+
+Use `run_comm_benchmark.py` (recommended). It starts both target and initiator on the same host.
+
+```bash
+# Quick test for one direction (single-machine defaults: transport=hccs, direction=D2rD)
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py --direction=D2rD --transport=hccs
+
+# Specify devices and block-size range (A5 RoCE requires --host_roce_ip; if each card maps to its own host NIC, use a comma-separated list aligned with device_ids)
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --direction=D2rH --transport=roce --device_ids=0,1 --block_sizes=16K:2M \
+  --host_roce_ip=<HOST_ROCE_IP>
+
+# One-to-many: first N-1 device_ids are targets, last is initiator
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --pattern=one_to_many --device_ids=0,1,2,3,4 \
+  --direction=D2rD --transport=hccs
+
+# Many-to-one: first device_id is target, rest are initiators
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --pattern=many_to_one --device_ids=0,1,2,3,4 \
+  --direction=D2rD --transport=hccs
+
+# Pass HIXL Initialize options (same as hixl_comm_bench -H=KEY=VALUE; repeatable)
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --direction=D2rD --transport=hccs \
+  -H 'LocalCommRes={"version":"1.3"}'
+```
+
+> Single-machine does **not** support `--transport=all` (exits with an error). If `--transport` is set explicitly and `--direction` is omitted, direction defaults to all directions supported for that transport on the current platform.
+
+### Dual-Machine Run (add `--host_roce_ip` only when A5 uses RoCE NICs for data transfer)
+
+Start the **target** host first, then the **initiator** host. The target prints a copy-paste initiator command; you can also use the templates below.
+
+**Notes**:
+
+- You must set `--role=target` or `--role=initiator`
+- Initiator **requires** `--target-host=<target host IP>`
+- If dual-machine omits `--transport` / `--direction`, defaults are **`all`** (every supported transport × direction on the platform); multi-run target default `peer_wait_s=300`
+- `--transport=all` is **dual-machine only**; with dual `all`, A2 expands to `roce` only (no hccs)
+- Default HIXL base port: `16000`; peer TCP coordination ports are derived from each engine port (+10000 or -10000)
+- Across machines, prefer `--host=<this host public IP>` on the target so the advertised address is correct
+- Dual-machine default `--device_ids=0` (single-machine default is `0,1`)
+- **A5 / `--transport=roce`**: you must pass `--host_roce_ip` (this host's RoCE NIC IP for data-plane `LocalCommRes`; not the same as control-plane `--host` / `--target-host`). Target and initiator each use **their own** address; for multiple lanes with one NIC per card, use a comma-separated list
+
+**1:1 (default pairwise)**:
+
+```bash
+# === Target host ===
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --role=target --transport=roce --direction=D2rD --host=<TARGET_IP> \
+  --host_roce_ip=<TARGET_HOST_ROCE_IP>
+
+# === Initiator host (or copy the command printed by target, then set --host_roce_ip to this host) ===
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --role=initiator --transport=roce --direction=D2rD \
+  --target-host=<TARGET_IP> \
+  --host_roce_ip=<INITIATOR_HOST_ROCE_IP>
+```
+
+**one_to_many** (multiple target NPUs, one initiator NPU):
+
+```bash
+# Target host
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --role=target --transport=roce --direction=D2rD \
+  --pattern=one_to_many --device_ids=0,1,2 --host=<TARGET_IP> \
+  --host_roce_ip=<TARGET_HOST_ROCE_IP>
+
+# Initiator host (--num_targets must match target lane count)
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --role=initiator --transport=roce --direction=D2rD \
+  --pattern=one_to_many --num_targets=3 --target-host=<TARGET_IP> \
+  --host_roce_ip=<INITIATOR_HOST_ROCE_IP>
+```
+
+**many_to_one** (one target NPU, multiple initiator NPUs):
+
+```bash
+# Target host
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --role=target --transport=roce --direction=D2rD \
+  --pattern=many_to_one --num_initiators=3 --host=<TARGET_IP> \
+  --host_roce_ip=<TARGET_HOST_ROCE_IP>
+
+# Initiator host
+python3 benchmarks/comm_benchmark/scripts/run_comm_benchmark.py \
+  --role=initiator --transport=roce --direction=D2rD \
+  --pattern=many_to_one --num_initiators=3 --device_ids=0,1,2 \
+  --target-host=<TARGET_IP> \
+  --host_roce_ip=<INITIATOR_HOST_ROCE_IP>
+```
+
+### Direct `hixl_comm_bench` Run
+
+Start the target first. The peer TCP coordination port is derived from the engine port (+10000 or -10000).
+
+Binary defaults differ from the Python launcher: `loops=1`; if `--block_sizes` is omitted it equals `transfer_size` (default `128M`); `buffer_size` defaults to `1G`. With `loops=1` the first transfer is often warm-up; use `loops>1` for steady throughput.
+
+```bash
+# Target (D2rD / rD2D: remote memory is device)
+build/benchmarks/comm_benchmark/hixl_comm_bench \
+  --role=target --device_id=1 \
+  --local_engine=127.0.0.1:16001 \
+  --memory=device --peer_count=1 --peer_wait_s=30 \
+  --transport=hccs
+
+# Initiator: D2rD (write)
+build/benchmarks/comm_benchmark/hixl_comm_bench \
+  --role=initiator --device_id=0 \
+  --local_engine=127.0.0.1:16000 \
+  --remote_engine=127.0.0.1:16001 \
+  --memory=device --remote_memory=device --op=write \
+  --transport=hccs --transfer_size=128M --block_sizes=16K:2M --loops=5
+
+# Initiator: rD2D (read) — only change --op=read
+#   --memory=device --remote_memory=device --op=read
+```
 
 ## KV Benchmark (`hixl_kv_bench`)
 
