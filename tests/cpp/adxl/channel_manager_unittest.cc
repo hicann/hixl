@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 #include <cerrno>
+#include <cstdint>
 #include <cstring>
 #include <fcntl.h>
 #include <memory>
@@ -155,6 +156,45 @@ TEST_F(ChannelManagerUnitTest, HandleRequestDisconnectMessage_WhenChannelIdMisma
   std::string forged = CreateRequestDisconnectMsgStr(2U, "127.0.0.1:28999", 1000);
   EXPECT_EQ(manager_.HandleRequestDisconnectMessage(channel, forged), SUCCESS);
   EXPECT_FALSE(callback_invoked);
+}
+
+TEST_F(ChannelManagerUnitTest, HandleRequestDisconnectMessage_RejectsTimeoutExceedingInt32Max) {
+  // A peer-controlled timeout above INT32_MAX must be rejected, otherwise it is narrowed to a negative int32_t
+  // which corrupts the downstream socket timeout and evicts the channel with a half-open connection.
+  bool callback_invoked = false;
+  manager_.SetDisconnectCallback([&callback_invoked](const std::string &channel_id, int32_t timeout_ms) -> Status {
+    callback_invoked = true;
+    (void)channel_id;
+    (void)timeout_ms;
+    return SUCCESS;
+  });
+
+  ChannelInfo channel_info{};
+  channel_info.channel_type = ChannelType::kServer;
+  channel_info.channel_id = kChannelId;
+  auto channel = std::make_shared<CommChannel>(channel_info);
+
+  std::string msg_str = CreateRequestDisconnectMsgStr(1U, kChannelId, static_cast<uint64_t>(INT32_MAX) + 1U);
+  EXPECT_EQ(manager_.HandleRequestDisconnectMessage(channel, msg_str), PARAM_INVALID);
+  EXPECT_FALSE(callback_invoked);
+}
+
+TEST_F(ChannelManagerUnitTest, HandleRequestDisconnectMessage_AcceptsTimeoutAtInt32MaxBoundary) {
+  int32_t received_timeout = 0;
+  manager_.SetDisconnectCallback([&received_timeout](const std::string &channel_id, int32_t timeout_ms) -> Status {
+    (void)channel_id;
+    received_timeout = timeout_ms;
+    return SUCCESS;
+  });
+
+  ChannelInfo channel_info{};
+  channel_info.channel_type = ChannelType::kServer;
+  channel_info.channel_id = kChannelId;
+  auto channel = std::make_shared<CommChannel>(channel_info);
+
+  std::string msg_str = CreateRequestDisconnectMsgStr(1U, kChannelId, static_cast<uint64_t>(INT32_MAX));
+  EXPECT_EQ(manager_.HandleRequestDisconnectMessage(channel, msg_str), SUCCESS);
+  EXPECT_EQ(received_timeout, INT32_MAX);
 }
 
 TEST_F(ChannelManagerUnitTest, HandleControlMessageRejectsBodySmallerThanMsgType) {

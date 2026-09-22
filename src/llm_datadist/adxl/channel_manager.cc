@@ -12,6 +12,7 @@
 #include <sys/epoll.h>
 #include <netinet/tcp.h>
 #include <unistd.h>
+#include <cstdint>
 #include <cstring>
 #include <exception>
 #include <utility>
@@ -341,6 +342,11 @@ Status ChannelManager::HandleRequestDisconnectMessage(const ChannelPtr &channel,
                       "Failed to deserialize RequestDisconnectMsg");
   LLMLOGI("Recv request disconnect for channel:%s, target:%s, req_id=%lu", channel->GetChannelId().c_str(),
           req_msg.channel_id.c_str(), req_msg.req_id);
+  // The timeout is peer-controlled and flows into int32_t pipelines (evict queue, socket timeout), reject the
+  // request instead of narrowing it, otherwise a value above INT32_MAX becomes negative and corrupts the semantics.
+  ADXL_CHK_BOOL_RET_STATUS(req_msg.timeout <= static_cast<uint64_t>(INT32_MAX), PARAM_INVALID,
+                           "Invalid disconnect timeout:%lu ms for channel:%s, max supported:%d ms.", req_msg.timeout,
+                           req_msg.channel_id.c_str(), INT32_MAX);
   RequestDisconnectResp resp;
   resp.channel_id = req_msg.channel_id;
   resp.req_id = req_msg.req_id;
