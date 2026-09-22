@@ -17,6 +17,7 @@
 #include <chrono>
 #include <fstream>
 #include <cstdio>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/timerfd.h>
 #include <unistd.h>
@@ -823,6 +824,28 @@ TEST_F(HixlClientUTest, InitializeKeepsControlSocket) {
   EXPECT_EQ(st, SUCCESS);
   EXPECT_GE(client.ctrl_socket_, 0);
   EXPECT_EQ(client.Finalize(), SUCCESS);
+}
+
+// Initialize 失败（对端无监听）时 ctrl_socket_ 必须被置为 -1，Finalize 不得误关复用该 fd 号的无关资源
+TEST_F(HixlClientUTest, InitializeConnectFailClearsCtrlSocket) {
+  std::vector<EndpointConfig> local_endpoint_list(1);
+  const Status ret = client_->Initialize(local_endpoint_list, kDefaultTimeoutMs);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(client_->ctrl_socket_, -1);
+
+  const int reused_fd = ::socket(AF_INET, SOCK_STREAM, 0);
+  ASSERT_GE(reused_fd, 0);
+  EXPECT_EQ(client_->Finalize(), SUCCESS);
+  EXPECT_NE(::fcntl(reused_fd, F_GETFD), -1);
+  EXPECT_EQ(::close(reused_fd), 0);
+}
+
+// CtrlMsgPlugin::Connect 失败时输出 fd 必须被清理为 -1
+TEST_F(HixlClientUTest, CtrlMsgPluginConnectClearsFdOnFailure) {
+  int32_t client_fd = -1;
+  const Status ret = CtrlMsgPlugin::Connect("127.0.0.1", kServerPort, client_fd, kDefaultTimeoutMs);
+  EXPECT_NE(ret, SUCCESS);
+  EXPECT_EQ(client_fd, -1);
 }
 
 // Initialize 接口测试：正常场景 创建 ub 链路2条

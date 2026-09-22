@@ -94,9 +94,12 @@ Status CtrlMsgPlugin::DoConnect(struct ::addrinfo *addr, int32_t &conn_fd, int32
   HIXL_CHK_BOOL_RET_SPECIAL_STATUS(conn_fd == -1, FAILED, "Try to create socket, error msg:%s, errno:%d",
                                    strerror(errno), errno);
 
-  HIXL_DISMISSABLE_GUARD(close_fd, ([conn_fd]() { (void)close(conn_fd); }));
+  HIXL_DISMISSABLE_GUARD(close_fd, ([&conn_fd]() {
+                           (void)close(conn_fd);
+                           conn_fd = -1;
+                         }));
   auto socket_ret = setsockopt(conn_fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
-  HIXL_CHK_BOOL_RET_SPECIAL_STATUS(socket_ret != 0, SUCCESS,
+  HIXL_CHK_BOOL_RET_SPECIAL_STATUS(socket_ret != 0, FAILED,
                                    "Try to setsockopt(SO_REUSEADDR), socket_ret:%d, error msg:%s, errno:%d", socket_ret,
                                    strerror(errno), errno);
   constexpr int64_t kTimeInSec = 1000;
