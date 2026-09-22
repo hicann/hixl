@@ -13,6 +13,7 @@
 #include "llm_datadist/llm_datadist.h"
 #include "common/def_types.h"
 #include "common/rank_table_generator.h"
+#include "common/hixl_utils.h"
 #include "common/llm_utils.h"
 #include "common/llm_checker.h"
 #include "common/llm_scope_guard.h"
@@ -41,6 +42,30 @@ bool IsVersionOnlyCommRes(const std::string &comm_res) {
     LLMLOGW("Failed to parse LocalCommRes as json: %s", e.what());
     return false;
   }
+}
+
+// A destroy request (force_link reconnect or kDisconnect) may only remove the entity of the cluster id it
+// declares when the requester comes from the same ip that created that entity, so a foreign peer cannot tear
+// down someone else's link by claiming its cluster id. Entities created by the collective rootinfo path have no
+// daemon connection and therefore no owner ip: a daemon destroy request can never be authenticated for them, so
+// it is rejected instead of falling back to the legacy unconditional destroy.
+ge::Status ValidateEntityOwner(CommEntityManager *mgr, uint64_t claimed_cluster_id, const std::string &requester_ip) {
+  auto entity = mgr->GetEntityByRemoteClusterId(claimed_cluster_id);
+  if (entity == nullptr) {
+    return ge::SUCCESS;
+  }
+  const std::string &recorded_ip = entity->GetPeerIp();
+  if (recorded_ip.empty()) {
+    LLMLOGW("Reject entity destroy: claimed cluster id:%lu was not created by a daemon connection, requester ip:%s.",
+            claimed_cluster_id, requester_ip.c_str());
+    return ge::LLM_PARAM_INVALID;
+  }
+  if (recorded_ip != requester_ip) {
+    LLMLOGW("Reject entity destroy: claimed cluster id:%lu belongs to peer ip:%s, requester ip:%s mismatch.",
+            claimed_cluster_id, recorded_ip.c_str(), requester_ip.c_str());
+    return ge::LLM_PARAM_INVALID;
+  }
+  return ge::SUCCESS;
 }
 }  // namespace
 
@@ -219,12 +244,30 @@ ge::Status LinkMsgHandler::ProcessConnectRequest(int32_t fd, const std::vector<c
 
   LLMExchangeInfo peer_exchange_info{};
   LLM_CHK_STATUS_RET(LinkMsgHandler::Deserialize(msg, peer_exchange_info), "Failed to deserialize connect msg");
+  std::string requester_ip;
+  ret = hixl::GetPeerIp(fd, requester_ip);
+  LLM_CHK_STATUS(ret, "Failed to get requester source ip, fd:%d.", fd);
+  if (ret != ge::SUCCESS) {
+    return ret;
+  }
+  if (peer_exchange_info.force_link) {
+    // force_link destroys the entity of the claimed cluster id; bind the claim to the recorded owner ip so a
+    // foreign peer cannot tear down someone else's link. Assign ret before returning: the guard reports it.
+    ret = ValidateEntityOwner(comm_entity_manager_, peer_exchange_info.cluster_id, requester_ip);
+    LLM_CHK_STATUS(ret,
+                   "Failed to validate entity owner, local cluster id:%lu, claimed cluster id:%lu, "
+                   "requester ip:%s.",
+                   cluster_id_, peer_exchange_info.cluster_id, requester_ip.c_str());
+    if (ret != ge::SUCCESS) {
+      return ret;
+    }
+  }
   LLMLOGI("Start to process link cluster, local cluster_id:%lu, remote cluster_id:%lu, timeout:%d ms.", cluster_id_,
           peer_exchange_info.cluster_id, peer_exchange_info.timeout);
   peer_exchange_info.comm_name =
       "llm_datadist_" + std::to_string(peer_exchange_info.cluster_id) + "_" + std::to_string(cluster_id_);
-  ret =
-      ExchangeInfoProcess(peer_exchange_info, peer_exchange_info.timeout, peer_exchange_info.force_link, mem_info_ptr);
+  ret = ExchangeInfoProcess(peer_exchange_info, peer_exchange_info.timeout, peer_exchange_info.force_link, requester_ip,
+                            mem_info_ptr);
   if (ret == ge::SUCCESS) {
     LLMLOGI("Success to process link cluster, local cluster_id:%lu, remote cluster_id:%lu.", cluster_id_,
             peer_exchange_info.cluster_id);
@@ -245,6 +288,20 @@ ge::Status LinkMsgHandler::ProcessDisconnectRequest(int32_t fd, const std::vecto
   LLM_CHK_STATUS_RET(LinkMsgHandler::Deserialize(msg, peer_disconnect_info), "Failed to deserialize disconnect msg");
   LLMLOGI("Start to process disconnect cluster, local cluster_id:%lu, remote cluster_id:%lu.", cluster_id_,
           peer_disconnect_info.cluster_id);
+  std::string requester_ip;
+  ret = hixl::GetPeerIp(fd, requester_ip);
+  LLM_CHK_STATUS(ret, "Failed to get requester source ip, fd:%d.", fd);
+  if (ret != ge::SUCCESS) {
+    return ret;
+  }
+  // A disconnect request only declares a cluster id; bind the claim to the recorded owner ip so a foreign peer
+  // cannot tear down someone else's link. Assign ret before returning: the guard reports it.
+  ret = ValidateEntityOwner(comm_entity_manager_, peer_disconnect_info.cluster_id, requester_ip);
+  LLM_CHK_STATUS(ret, "Failed to validate entity owner, local cluster id:%lu, claimed cluster id:%lu, requester ip:%s.",
+                 cluster_id_, peer_disconnect_info.cluster_id, requester_ip.c_str());
+  if (ret != ge::SUCCESS) {
+    return ret;
+  }
   ret = DisconnectInfoProcess(peer_disconnect_info);
   if (ret == ge::SUCCESS) {
     LLMLOGI("Success to process disconnect cluster, local cluster_id:%lu, remote cluster_id:%lu.", cluster_id_,
@@ -309,7 +366,8 @@ ge::Status LinkMsgHandler::GenerateRankInfo(const std::string &peer_comm_res, st
 }
 
 ge::Status LinkMsgHandler::ExchangeInfoProcess(const LLMExchangeInfo &peer_exchange_info, int32_t timeout,
-                                               bool force_link, EntityMemInfoPtr &mem_info_ptr) const {
+                                               bool force_link, const std::string &peer_ip,
+                                               EntityMemInfoPtr &mem_info_ptr) const {
   LLM_CHK_BOOL_RET_STATUS(peer_exchange_info.cache_table_size <= kCacheAccessTableBufferSize, ge::LLM_PARAM_INVALID,
                           "Remote cache_table_size %lu exceeds max %lu.", peer_exchange_info.cache_table_size,
                           kCacheAccessTableBufferSize);
@@ -329,6 +387,8 @@ ge::Status LinkMsgHandler::ExchangeInfoProcess(const LLMExchangeInfo &peer_excha
 
   entity = MakeShared<CommEntity>(UINT64_MAX, peer_exchange_info.cluster_id, peer_rank_id, cluster_id_, local_rank_id);
   LLM_CHECK_NOTNULL(entity);
+  // Record the peer's ip so later destroy requests claiming this cluster id can be authenticated.
+  entity->SetPeerIp(peer_ip);
   LLM_CHK_STATUS_RET(entity->Initialize(remote_cache_accessible_), "Failed to init entity");
   ScopeGuard entity_guard([entity]() { entity->Finalize(); });
   EntityCommInfo::CommParams comm_params{};
@@ -422,7 +482,7 @@ ge::Status LinkMsgHandler::LinkCluster(const ClusterInfo &cluster, int32_t timeo
   // 客户端完成 AddEntity，导致客户端 ExchangeInfoProcess 命中 ALREADY_LINK。传 true 可在本地
   // 已存在 entity 时先 destroy 再重建，规避竞态；首次建链本地无 entity 时 DestroyEntity
   // 返回 SUCCESS，行为不变。
-  auto ret = ExchangeInfoProcess(peer_exchange_info, timeout, exchange_info.force_link, mem_info_ptr);
+  auto ret = ExchangeInfoProcess(peer_exchange_info, timeout, exchange_info.force_link, remote_ip_str, mem_info_ptr);
   LLMLinkStatus status{};
   LLM_CHK_STATUS_RET(RecvMsg(conn_fd, LinkMsgType::kStatus, status), "Failed to recv status msg");
   LLM_CHK_STATUS_RET(status.error_code, "Failed to check peer process ret status, error code[%u], err msg[%s]",

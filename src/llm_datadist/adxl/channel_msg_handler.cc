@@ -34,6 +34,27 @@ constexpr int32_t kCheckDisconnetPeriod = 10;
 constexpr int32_t kMaxTrafficClassRange = 255;
 constexpr int32_t kTrafficClassStep = 4;
 constexpr int32_t kMaxServiceLevel = 7;
+
+// A daemon request (kConnect/kDisconnect) carries a self-declared channel id in "ip:port" form. Bind the claimed
+// id to the connection's real source ip so one peer cannot forge another engine's identity to hijack or tear
+// down that engine's links on this server.
+Status ValidatePeerIdentity(int32_t fd, const std::string &claimed_channel_id) {
+  std::string claimed_ip;
+  int32_t claimed_port = -1;
+  HIXL_CHK_STATUS_RET(hixl::ParseListenInfo(claimed_channel_id, claimed_ip, claimed_port),
+                      "Failed to parse listen info:%s.", claimed_channel_id.c_str());
+  std::string canonical_claimed_ip;
+  HIXL_CHK_STATUS_RET(hixl::CanonicalizeIp(claimed_ip, canonical_claimed_ip),
+                      "Failed to canonicalize claimed ip:%s, channel id:%s.", claimed_ip.c_str(),
+                      claimed_channel_id.c_str());
+  std::string peer_ip;
+  HIXL_CHK_STATUS_RET(hixl::GetPeerIp(fd, peer_ip), "Failed to get peer ip, fd:%d.", fd);
+  ADXL_CHK_BOOL_RET_STATUS(peer_ip == canonical_claimed_ip, PARAM_INVALID,
+                           "Peer identity mismatch: claimed ip:%s in channel id:%s, actual source ip:%s, fd:%d. "
+                           "Reject the request to protect links of the claimed engine.",
+                           claimed_ip.c_str(), claimed_channel_id.c_str(), peer_ip.c_str(), fd);
+  return SUCCESS;
+}
 }  // namespace
 
 static inline void from_json(const nlohmann::json &j, AddrInfo &op_desc) {
@@ -415,6 +436,17 @@ Status ChannelMsgHandler::ProcessConnectRequest(int32_t fd, const char *msg, uin
   (void)msg_len;
   ChannelConnectInfo peer_connect_info{};
   ADXL_CHK_STATUS_RET(ChannelMsgHandler::Deserialize(msg, peer_connect_info), "Failed to deserialize connect msg");
+  // Validate identity before exchanging local info or touching any existing channel of the claimed engine.
+  const Status identity_ret = ValidatePeerIdentity(fd, peer_connect_info.channel_id);
+  if (identity_ret != SUCCESS) {
+    ADXL_CHK_STATUS(identity_ret, "Failed to validate peer identity, local engine:%s, claimed engine:%s, fd:%d.",
+                    listen_info_.c_str(), peer_connect_info.channel_id.c_str(), fd);
+    ChannelStatus status{};
+    status.error_code = static_cast<uint32_t>(identity_ret);
+    status.error_message = "Peer identity validation failed";
+    (void)ChannelMsgHandler::SendMsg(fd, ChannelMsgType::kStatus, status);
+    return identity_ret;
+  }
   ChannelConnectInfo channel_connect_info = {};
   ADXL_CHK_STATUS_RET(FillLocalConnectInfo(channel_connect_info), "Failed to fill local connect info");
   ADXL_CHK_STATUS_RET(SendMsg(fd, ChannelMsgType::kConnect, channel_connect_info), "Failed to send connect msg");
@@ -464,6 +496,13 @@ Status ChannelMsgHandler::ProcessDisconnectRequest(int32_t fd, const char *msg, 
 
   LLMLOGI("Start to process disconnect info, local engine:%s, remote engine:%s.", listen_info_.c_str(),
           peer_disconnect_info.channel_id.c_str());
+  // Assign ret before any early return: the send_status guard below reports ret to the peer.
+  ret = ValidatePeerIdentity(fd, peer_disconnect_info.channel_id);
+  ADXL_CHK_STATUS(ret, "Failed to validate peer identity, local engine:%s, claimed engine:%s, fd:%d.",
+                  listen_info_.c_str(), peer_disconnect_info.channel_id.c_str(), fd);
+  if (ret != SUCCESS) {
+    return ret;
+  }
   ret = DisconnectInfoProcess(ChannelType::kServer, peer_disconnect_info);
   if (ret == SUCCESS) {
     LLMLOGI("Success to process disconnect info, local engine:%s, remote engine:%s.", listen_info_.c_str(),

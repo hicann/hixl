@@ -77,7 +77,7 @@ class LinkMsgHandler {
   static ge::Status RecvMsg(int32_t fd, LinkMsgType msg_type, T &msg);
   ge::Status ConnectedProcess(int32_t fd, bool &keep_fd);
   ge::Status ExchangeInfoProcess(const LLMExchangeInfo &peer_exchange_info, int32_t timeout, bool force_link,
-                                 EntityMemInfoPtr &mem_info_ptr) const;
+                                 const std::string &peer_ip, EntityMemInfoPtr &mem_info_ptr) const;
   ge::Status GenerateRankInfo(const std::string &peer_comm_res, std::string &rank_table, int32_t &local_rank_id,
                               int32_t &peer_rank_id) const;
   ge::Status DisconnectInfoProcess(const LLMDisconnectInfo &peer_disconnect_info) const;

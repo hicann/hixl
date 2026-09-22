@@ -137,6 +137,26 @@ TEST_F(ChannelManagerUnitTest, HandleRequestDisconnectMessage_WhenDisconnectCall
   EXPECT_TRUE(callback_invoked);
 }
 
+TEST_F(ChannelManagerUnitTest, HandleRequestDisconnectMessage_WhenChannelIdMismatched_RejectsWithoutCallback) {
+  bool callback_invoked = false;
+  manager_.SetDisconnectCallback([&callback_invoked](const std::string &channel_id, int32_t timeout_ms) -> Status {
+    callback_invoked = true;
+    (void)channel_id;
+    (void)timeout_ms;
+    return SUCCESS;
+  });
+  ChannelInfo channel_info{};
+  channel_info.channel_type = ChannelType::kServer;
+  channel_info.channel_id = kChannelId;
+  auto channel = std::make_shared<CommChannel>(channel_info);
+
+  // Forged target id: a disconnect request must only ever act on the channel it arrives on, so it is rejected
+  // without invoking the disconnect callback.
+  std::string forged = CreateRequestDisconnectMsgStr(2U, "127.0.0.1:28999", 1000);
+  EXPECT_EQ(manager_.HandleRequestDisconnectMessage(channel, forged), SUCCESS);
+  EXPECT_FALSE(callback_invoked);
+}
+
 TEST_F(ChannelManagerUnitTest, HandleControlMessageRejectsBodySmallerThanMsgType) {
   ChannelInfo channel_info{};
   channel_info.channel_type = ChannelType::kServer;

@@ -18,7 +18,9 @@
 #include "hcomm/hcomm_res_defs.h"
 namespace fs = std::experimental::filesystem;
 #include <fstream>
+#include <sys/socket.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include "common/hixl_utils.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/sys_api/src/sys_api_wrap.h"
@@ -444,6 +446,53 @@ TEST_F(HixlUtilsUTest, ConvertHcommErrorToStatus) {
   EXPECT_EQ(ConvertHcommErrorToStatus(HCCL_E_TIMEOUT), TIMEOUT);
   EXPECT_EQ(ConvertHcommErrorToStatus(HCCL_E_NOT_SUPPORT), UNSUPPORTED);
   EXPECT_EQ(ConvertHcommErrorToStatus(HCCL_E_INTERNAL), FAILED);
+}
+
+TEST_F(HixlUtilsUTest, CanonicalizeIpKeepsIpv4Unchanged) {
+  std::string canonical_ip;
+  EXPECT_EQ(CanonicalizeIp("192.168.1.1", canonical_ip), SUCCESS);
+  EXPECT_EQ(canonical_ip, "192.168.1.1");
+}
+
+TEST_F(HixlUtilsUTest, CanonicalizeIpNormalizesIpv6TextVariants) {
+  std::string canonical_ip;
+  EXPECT_EQ(CanonicalizeIp("2001:DB8::1", canonical_ip), SUCCESS);
+  EXPECT_EQ(canonical_ip, "2001:db8::1");
+  EXPECT_EQ(CanonicalizeIp("2001:0db8:0000:0000:0000:0000:0000:0001", canonical_ip), SUCCESS);
+  EXPECT_EQ(canonical_ip, "2001:db8::1");
+}
+
+TEST_F(HixlUtilsUTest, CanonicalizeIpRejectsInvalidIp) {
+  std::string canonical_ip;
+  EXPECT_EQ(CanonicalizeIp("not_an_ip", canonical_ip), PARAM_INVALID);
+  EXPECT_EQ(CanonicalizeIp("", canonical_ip), PARAM_INVALID);
+}
+
+TEST_F(HixlUtilsUTest, GetPeerIpReturnsCanonicalLoopbackIp) {
+  const int32_t listen_fd = socket(AF_INET, SOCK_STREAM, 0);
+  ASSERT_GE(listen_fd, 0);
+  struct sockaddr_in addr {};
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  addr.sin_port = 0;
+  ASSERT_EQ(bind(listen_fd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)), 0);
+  ASSERT_EQ(listen(listen_fd, 1), 0);
+  socklen_t addr_len = sizeof(addr);
+  ASSERT_EQ(getsockname(listen_fd, reinterpret_cast<struct sockaddr *>(&addr), &addr_len), 0);
+
+  const int32_t client_fd = socket(AF_INET, SOCK_STREAM, 0);
+  ASSERT_GE(client_fd, 0);
+  ASSERT_EQ(connect(client_fd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)), 0);
+  const int32_t accepted_fd = accept(listen_fd, nullptr, nullptr);
+  ASSERT_GE(accepted_fd, 0);
+
+  std::string peer_ip;
+  EXPECT_EQ(GetPeerIp(accepted_fd, peer_ip), SUCCESS);
+  EXPECT_EQ(peer_ip, "127.0.0.1");
+
+  (void)close(accepted_fd);
+  (void)close(client_fd);
+  (void)close(listen_fd);
 }
 
 }  // namespace hixl

@@ -11,6 +11,7 @@
 #include "hixl_utils.h"
 
 #include <arpa/inet.h>
+#include <sys/socket.h>
 #include <cinttypes>
 #include <endian.h>
 #include <array>
@@ -136,6 +137,46 @@ Status CheckIp(const std::string &ip) {
       inet_pton(AF_INET, ip.c_str(), &addr) == 1 || inet_pton(AF_INET6, ip.c_str(), &ipv6_addr.sin6_addr) == 1,
       hixl::PARAM_INVALID, "%s is not a valid ip address", ip.c_str());
   return hixl::SUCCESS;
+}
+
+Status CanonicalizeIp(const std::string &ip, std::string &canonical_ip) {
+  struct in_addr v4_addr {};
+  if (inet_pton(AF_INET, ip.c_str(), &v4_addr) == 1) {
+    char v4_buf[INET_ADDRSTRLEN] = {0};
+    HIXL_CHK_BOOL_RET_STATUS(inet_ntop(AF_INET, &v4_addr, v4_buf, sizeof(v4_buf)) != nullptr, FAILED,
+                             "Call api:inet_ntop failed for ipv4:%s, errno:%d, error_msg:%s.", ip.c_str(), errno,
+                             strerror(errno));
+    canonical_ip = v4_buf;
+    return SUCCESS;
+  }
+  struct in6_addr v6_addr {};
+  HIXL_CHK_BOOL_RET_STATUS(inet_pton(AF_INET6, ip.c_str(), &v6_addr) == 1, PARAM_INVALID,
+                           "%s is not a valid ip address", ip.c_str());
+  char v6_buf[INET6_ADDRSTRLEN] = {0};
+  HIXL_CHK_BOOL_RET_STATUS(inet_ntop(AF_INET6, &v6_addr, v6_buf, sizeof(v6_buf)) != nullptr, FAILED,
+                           "Call api:inet_ntop failed for ipv6:%s, errno:%d, error_msg:%s.", ip.c_str(), errno,
+                           strerror(errno));
+  canonical_ip = v6_buf;
+  return SUCCESS;
+}
+
+Status GetPeerIp(int32_t fd, std::string &peer_ip) {
+  struct sockaddr_storage peer_addr {};
+  socklen_t addr_len = sizeof(peer_addr);
+  HIXL_CHK_BOOL_RET_STATUS(getpeername(fd, reinterpret_cast<struct sockaddr *>(&peer_addr), &addr_len) == 0, FAILED,
+                           "Call api:getpeername failed, fd:%d, errno:%d, error_msg:%s.", fd, errno, strerror(errno));
+  const bool is_v4 = (peer_addr.ss_family == AF_INET);
+  const bool is_v6 = (peer_addr.ss_family == AF_INET6);
+  HIXL_CHK_BOOL_RET_STATUS(is_v4 || is_v6, PARAM_INVALID, "Unsupported peer address family:%d, fd:%d.",
+                           static_cast<int32_t>(peer_addr.ss_family), fd);
+  char ip_buf[INET6_ADDRSTRLEN] = {0};
+  const void *addr_src =
+      is_v4 ? static_cast<const void *>(&reinterpret_cast<const struct sockaddr_in *>(&peer_addr)->sin_addr)
+            : static_cast<const void *>(&reinterpret_cast<const struct sockaddr_in6 *>(&peer_addr)->sin6_addr);
+  HIXL_CHK_BOOL_RET_STATUS(inet_ntop(peer_addr.ss_family, addr_src, ip_buf, sizeof(ip_buf)) != nullptr, FAILED,
+                           "Call api:inet_ntop failed, fd:%d, errno:%d, error_msg:%s.", fd, errno, strerror(errno));
+  peer_ip = ip_buf;
+  return SUCCESS;
 }
 
 Status GetDeviceIp(int32_t phy_device_id, std::string &device_ip) {

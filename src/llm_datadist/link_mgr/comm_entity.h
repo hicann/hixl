@@ -168,6 +168,16 @@ class CommEntity {
   void MarkEntityIdle();
   void SetEntityMemInfo(EntityMemInfoPtr &mem_info);
   void SetEntityCommInfo(EntityCommInfoPtr comm_info);
+  // Source ip of the daemon connection that created this entity; used to authenticate destroy requests
+  // (force_link reconnect / kDisconnect) that claim this entity's cluster id. Entities created by the
+  // collective rootinfo path have no daemon connection, keep it empty, and therefore cannot be destroyed
+  // through the daemon path (fail closed).
+  void SetPeerIp(const std::string &peer_ip) {
+    peer_ip_ = peer_ip;
+  }
+  const std::string &GetPeerIp() const {
+    return peer_ip_;
+  }
   ge::Status BatchPutAsync(std::vector<HcclOneSideOpDesc> &op_descs, aclrtStream stream = nullptr);
   ge::Status BatchGetAsync(std::vector<HcclOneSideOpDesc> &op_descs, aclrtStream stream = nullptr);
   virtual ge::Status BatchTransfer(std::list<HcclOneSideOpDesc> &tasks, bool is_put, bool reversed, int32_t timeout_ms);
@@ -202,6 +212,7 @@ class CommEntity {
   uint32_t rank_id_;     // remote rank id
   uint64_t local_cluster_id_;
   uint32_t local_rank_id_;
+  std::string peer_ip_;  // source ip of the connection that created this entity (the peer engine's ip)
   std::string desc_;
   aclrtStream stream_;
   aclrtContext aclrt_context_{nullptr};

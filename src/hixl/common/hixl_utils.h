@@ -88,6 +88,14 @@ std::vector<std::string, std::allocator<std::string>> Split(const std::string &s
 
 Status ParseListenInfo(const std::string &listen_info, std::string &listen_ip, int32_t &listen_port);
 
+// Normalize an IPv4/IPv6 address into a canonical textual form so different representations of the same
+// address (e.g. uppercase hex or uncompressed IPv6 groups) compare equal. IPv4 and IPv6 are not mixed, so
+// addresses of different families are never expected to compare equal.
+Status CanonicalizeIp(const std::string &ip, std::string &canonical_ip);
+
+// Resolve the source ip of a connected socket in the canonical form produced by inet_ntop.
+Status GetPeerIp(int32_t fd, std::string &peer_ip);
+
 Status CheckAddrOverlap(const AddrInfo &cur_info, const std::map<MemHandle, AddrInfo> &addr_map, bool &is_duplicate,
                         MemHandle &existing_handle);
 
