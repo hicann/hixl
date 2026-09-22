@@ -3,7 +3,7 @@
 ## 产品支持情况
 
 <!-- npu="950" id1 -->
-- Ascend 950PR&Ascend 950DT系列产品：支持
+- Ascend 950PR&950DT系列产品：支持
 <!-- end id1 -->
 <!-- npu="A3" id2 -->
 - Atlas A3系列产品：支持
@@ -248,7 +248,7 @@ enable_cache_manager(self, enable_cache_manager: bool)
 | enable_cache_manager | bool | 是否开启CacheManager模式。需配置为开启。<br><br>  - True：开启。<br>  - False：不开启，不配置默认为不开启。 |
 
 <!-- npu="950" id4 -->
-Ascend 950PR&Ascend 950DT系列产品场景下，不支持配置为False。
+Ascend 950PR&950DT系列产品场景下，不支持配置为False。
 <!-- end id4 -->
 
 **调用示例**
@@ -293,7 +293,7 @@ enable_remote_cache_accessible(self, enable_remote_cache_accessible: bool)
 不开启该option时，Atlas A3系列产品仅支持RDMA传输协议。建议开启该option，以支持更多类型的传输协议。
 <!-- end id5 -->
 <!-- npu="950" id6 -->
-<br>Ascend 950PR&Ascend 950DT系列产品场景下，不支持配置为False。
+<br>Ascend 950PR&950DT系列产品场景下，不支持配置为False。
 <!-- end id6 -->
 
 **调用示例**
@@ -492,7 +492,7 @@ local_comm_res = ""
 ```
 
 <!-- npu="950" id10 -->
-Ascend 950PR&Ascend 950DT系列产品场景的配置格式参考[gitcode](https://gitcode.com/cann/hixl/issues/38)，同时需要使能transfer_backend为hixl传输后端。不支持配置为空。
+Ascend 950PR&950DT系列产品场景的配置格式参考[gitcode](https://gitcode.com/cann/hixl/issues/38)，同时需要使能transfer_backend为hixl传输后端。不支持配置为空。
 <!-- end id10 -->
 
 **调用示例**

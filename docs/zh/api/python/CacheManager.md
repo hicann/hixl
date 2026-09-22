@@ -3,7 +3,7 @@
 ## 产品支持情况
 
 <!-- npu="950" id1 -->
-- Ascend 950PR&Ascend 950DT系列产品：支持
+- Ascend 950PR&950DT系列产品：支持
 <!-- end id1 -->
 <!-- npu="A3" id2 -->
 - Atlas A3系列产品：支持
@@ -17,7 +17,7 @@
 针对Atlas A2系列产品，仅支持Atlas 800I A2推理服务器、A200I A2 Box异构组件。
 <!-- end id4 -->
 <!-- npu="950" id5 -->
-针对Ascend 950PR&Ascend 950DT系列产品，不支持remap_registered_memory。
+针对Ascend 950PR&950DT系列产品，不支持remap_registered_memory。
 <!-- end id5 -->
 
 ## CacheManager构造函数
@@ -241,7 +241,7 @@ register_blocks_cache(cache_desc: CacheDesc, addrs: List[int], blocks_cache_key:
 <!-- end id13 -->
 
 <!-- npu="950" id14 -->
-Ascend 950PR&Ascend 950DT系列产品场景下，无约束。
+Ascend 950PR&950DT系列产品场景下，无约束。
 <!-- end id14 -->
 
 ## transfer\_cache\_async
@@ -438,7 +438,7 @@ cache_manager.remap_registered_memory(mem_info)
 
 传入数据类型错误情况下会抛出TypeError或ValueError异常。
 <!-- npu="950" id17 -->
-Ascend 950PR&Ascend 950DT系列产品不支持该接口。
+Ascend 950PR&950DT系列产品不支持该接口。
 <!-- end id17 -->
 
 **约束说明**

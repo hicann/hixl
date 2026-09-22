@@ -3,7 +3,7 @@
 ## 产品支持情况
 
 <!-- npu="950" id1 -->
-- Ascend 950PR&Ascend 950DT系列产品：支持
+- Ascend 950PR&950DT系列产品：支持
 <!-- end id1 -->
 <!-- npu="A3" id2 -->
 - Atlas A3系列产品：支持
@@ -17,7 +17,7 @@
 针对Atlas A2系列产品，仅支持Atlas 800I A2推理服务器、A200I A2 Box异构组件。
 <!-- end id4 -->
 <!-- npu="950" id5 -->
-针对Ascend 950PR&Ascend 950DT系列产品，不支持link、unlink和query_register_mem_status。
+针对Ascend 950PR&950DT系列产品，不支持link、unlink和query_register_mem_status。
 <!-- end id5 -->
 
 ## LLMDataDist构造函数
@@ -337,7 +337,7 @@ link(comm_name: str, cluster_rank_info: Dict[int, int], rank_table: str) -> int
 - 最多支持16条链路并发建链，超过16条底层会排队。
 - 需保证多通信域建链不出现循环依赖。
 <!-- npu="950" id6 -->
-- Ascend 950PR&Ascend 950DT系列产品不支持该接口。
+- Ascend 950PR&950DT系列产品不支持该接口。
 <!-- end id6 -->
 
 ## unlink
@@ -371,7 +371,7 @@ unlink(comm_id: int)
 参数错误可能抛出TypeError或ValueError。
 
 <!-- npu="950" id7 -->
-Ascend 950PR&Ascend 950DT系列产品不支持该接口。
+Ascend 950PR&950DT系列产品不支持该接口。
 <!-- end id7 -->
 
 **约束说明**
@@ -409,7 +409,7 @@ query_register_mem_status(comm_id: int) -> RegisterMemStatus
 参数错误可能抛出TypeError或ValueError。
 
 <!-- npu="950" id8 -->
-Ascend 950PR&Ascend 950DT系列产品不支持该接口。
+Ascend 950PR&950DT系列产品不支持该接口。
 <!-- end id8 -->
 
 **约束说明**

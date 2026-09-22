@@ -9,7 +9,7 @@
   - Atlas A3系列产品：该场景下采用HCCS传输协议时，不支持Host内存作为远端Cache。
   <!-- end id2 -->
   <!-- npu="950" id3 -->
-  - Ascend 950PR&Ascend 950DT系列产品：超节点内使用UB协议，超节点间使用RoCE协议。
+  - Ascend 950PR&950DT系列产品：超节点内使用UB协议，超节点间使用RoCE协议。
   <!-- end id3 -->
 - [昇腾官网发布包](https://www.hiascend.com/cann/download)仅支持Python 3.12，源码编译支持Python 3.9–3.14，如需使用其他Python版本，请参考[源码编译](../../build.md)进行源码编译安装后使用。Python安装方法请参考[Python官网](https://www.python.org/)。
   <!-- npu="A3,910b" id4 -->

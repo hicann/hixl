@@ -47,7 +47,7 @@ HIXL（Huawei Xfer Library）即昇腾单边通信库，面向集群场景提供
 - Atlas A3系列产品。
 <!-- end id2 -->
 <!-- npu="950" id3 -->
-- Ascend 950PR&Ascend 950DT系列产品场景下，超节点内使用UB协议，超节点间使用RoCE协议。
+- Ascend 950PR&950DT系列产品场景下，超节点内使用UB协议，超节点间使用RoCE协议。
 <!-- end id3 -->
 
 请参考《[CANN软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/920/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》安装好驱动固件以及CANN软件。
