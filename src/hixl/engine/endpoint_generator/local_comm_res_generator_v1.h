@@ -58,9 +58,9 @@ struct LocalCommRes {
  * @brief Topology link
  */
 struct TopoLink {
-  int32_t net_layer = 0;                   // Network layer (0: Mesh, 1: CLOS)
+  int32_t net_layer = 0;                   // Optional; mesh/CLOS use topo_type, CLOS picks the min net_layer group
   std::string link_type;                   // Link type: PEER2PEER, PEER2NET
-  std::string topo_type;                   // Topology type: 1DMESH, CLOS
+  std::string topo_type;                   // Topology type: 1DMESH (mesh), CLOS
   int32_t local_a = 0;                     // Local node A
   int32_t local_b = 0;                     // Local node B
   int32_t remote_a = -1;                   // Remote node A
@@ -223,6 +223,15 @@ Status GetClosNetInstanceId(int32_t phy_dev_id, std::string &net_instance_id);
  * @return SUCCESS on success, other error codes on failure
  */
 Status ParseTopoFile(const std::string &topo_path, TopoData &topo_data);
+
+/**
+ * @brief Resolve CLOS die_id of an NPU from topo (min net_layer CLOS group, majority port die)
+ * @param [in] topo_data Parsed topology data
+ * @param [in] npu_id Physical NPU id
+ * @param [out] clos_die_id Resolved CLOS die id (0 or 1)
+ * @return SUCCESS on success, other error codes on failure
+ */
+Status ResolveClosDieIdFromTopo(const TopoData &topo_data, int32_t npu_id, int32_t &clos_die_id);
 
 // ============ Edge generation ============
 

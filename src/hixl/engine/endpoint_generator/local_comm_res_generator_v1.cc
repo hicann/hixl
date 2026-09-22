@@ -33,6 +33,7 @@
 #include <cstdlib>
 #include <limits.h>
 #include <set>
+#include <vector>
 #include <sys/stat.h>
 #include <unistd.h>
 #include "common/hixl_checker.h"
@@ -66,11 +67,9 @@ constexpr uint32_t kMainboardIdPc16b = 0x2F;  // Decimal 47; support UBG transmi
 // Topology constants
 constexpr const char *kLinkTypePeer2Peer = "PEER2PEER";
 constexpr const char *kTopoType1DMesh = "1DMESH";
-
-// Topology net_layer: 0 = Full Mesh, 1 = CLOS
-constexpr int32_t kTopoNetLayerMesh = 0;
-constexpr int32_t kTopoNetLayerClos = 1;
-constexpr int32_t kTopoDieIdMax = 1;  // Dual-die chip; valid die_id is 0 or 1
+constexpr const char *kTopoTypeClos = "CLOS";
+constexpr int32_t kTopoDieIdMax = 1;       // Dual-die chip; valid die_id is 0 or 1
+constexpr size_t kD2DSkipReasonCount = 3;  // skip(link_type), skip(topo_type), skip(phy_id)
 
 // Plane constants
 constexpr const char *kPlanePg0 = "plane_pg_0";
@@ -473,10 +472,36 @@ Status ResolveDieIdFromPorts(const std::vector<std::string> &ports, int32_t &die
   return SUCCESS;
 }
 
-// Resolve the fullmesh (net_layer=0) die of an NPU from topo.
+// Keep CLOS links whose net_layer equals the minimum among this NPU's CLOS edges.
+Status CollectMinNetLayerClosLinks(const TopoData &topo_data, int32_t npu_id, std::vector<const TopoLink *> &out) {
+  out.clear();
+  bool found = false;
+  int32_t min_net_layer = 0;
+  for (const auto &link : topo_data.links) {
+    if (link.topo_type != kTopoTypeClos || link.local_a != npu_id) {
+      continue;
+    }
+    if (!found || link.net_layer < min_net_layer) {
+      found = true;
+      min_net_layer = link.net_layer;
+      out.clear();
+      out.push_back(&link);
+      continue;
+    }
+    if (link.net_layer == min_net_layer) {
+      out.push_back(&link);
+    }
+  }
+  HIXL_CHK_BOOL_RET_STATUS(!out.empty(), FAILED, "[CollectMinNetLayerClosLinks] No CLOS edge for npu_id=%d", npu_id);
+  HIXL_LOGI("[CollectMinNetLayerClosLinks] npu_id=%d, min_net_layer=%d, clos_links=%zu", npu_id, min_net_layer,
+            out.size());
+  return SUCCESS;
+}
+
+// Resolve the 1DMESH die of an NPU from topo. local_a/local_b are the two endpoints of one mesh edge.
 Status ResolveMeshDieIdFromTopo(const TopoData &topo_data, int32_t npu_id, int32_t &mesh_die_id) {
   for (const auto &link : topo_data.links) {
-    if (link.net_layer != kTopoNetLayerMesh) {
+    if (link.topo_type != kTopoType1DMesh) {
       continue;
     }
     const std::vector<std::string> *ports = nullptr;
@@ -495,17 +520,17 @@ Status ResolveMeshDieIdFromTopo(const TopoData &topo_data, int32_t npu_id, int32
   HIXL_CHK_BOOL_RET_STATUS(false, FAILED, "[ResolveMeshDieIdFromTopo] No fullmesh edge found for npu_id=%d", npu_id);
 }
 
+}  // anonymous namespace
+
 // Resolve the CLOS die of an NPU from topo: count CLOS ports per die and take the majority.
-// Covers same-die 8-port CLOS and mixed 6+2 ports on one edge.
+// Covers same-die 8-port CLOS and mixed 6+2 ports on one edge. CLOS edges have no local_b.
 Status ResolveClosDieIdFromTopo(const TopoData &topo_data, int32_t npu_id, int32_t &clos_die_id) {
+  std::vector<const TopoLink *> clos_links;
+  HIXL_CHK_STATUS_RET(CollectMinNetLayerClosLinks(topo_data, npu_id, clos_links),
+                      "[ResolveClosDieIdFromTopo] CollectMinNetLayerClosLinks failed, npu_id=%d", npu_id);
   std::array<int32_t, kTopoDieIdMax + 1> die_port_count = {0, 0};
-  bool found_clos_edge = false;
-  for (const auto &link : topo_data.links) {
-    if (link.net_layer != kTopoNetLayerClos || link.local_a != npu_id) {
-      continue;
-    }
-    found_clos_edge = true;
-    for (const auto &port_str : link.local_a_ports) {
+  for (const TopoLink *link : clos_links) {
+    for (const auto &port_str : link->local_a_ports) {
       int32_t die_id = -1;
       int32_t port = -1;
       HIXL_CHK_STATUS_RET(ParseDiePort(port_str, die_id, port),
@@ -516,15 +541,13 @@ Status ResolveClosDieIdFromTopo(const TopoData &topo_data, int32_t npu_id, int32
   }
   const int32_t die0_ports = die_port_count[0];
   const int32_t die1_ports = die_port_count[1];
-  HIXL_CHK_BOOL_RET_STATUS(found_clos_edge && (die0_ports != 0 || die1_ports != 0), FAILED,
+  HIXL_CHK_BOOL_RET_STATUS(die0_ports != 0 || die1_ports != 0, FAILED,
                            "[ResolveClosDieIdFromTopo] No parseable CLOS port for npu_id=%d", npu_id);
   clos_die_id = (die1_ports > die0_ports) ? 1 : 0;
   HIXL_LOGI("[ResolveClosDieIdFromTopo] npu_id=%d, clos_die_id=%d, die0_ports=%d, die1_ports=%d", npu_id, clos_die_id,
             die0_ports, die1_ports);
   return SUCCESS;
 }
-
-}  // anonymous namespace
 
 // ============================================================================
 // TopoFileFinder
@@ -629,22 +652,21 @@ static bool ParsePortsFromJson(const nlohmann::json &edge, const char *key, std:
   return true;
 }
 
-static int32_t ParseSingleLink(const nlohmann::json &edge, TopoLink &link) {
-  if (!edge.contains("net_layer")) {
-    HIXL_LOGW("Missing net_layer in edge object, skipping");
-    return 1;  // 1 means skip
+static Status ParseSingleLink(const nlohmann::json &edge, TopoLink &link) {
+  try {
+    link.net_layer = edge.value("net_layer", 0);
+    link.link_type = edge.value("link_type", "");
+    link.topo_type = edge.value("topo_type", "");
+    link.local_a = edge.value("local_a", 0);
+    link.local_b = edge.value("local_b", 0);
+    link.remote_a = edge.value("remote_a", -1);
+    link.remote_b = edge.value("remote_b", -1);
+  } catch (const nlohmann::json::exception &e) {
+    HIXL_CHK_BOOL_RET_STATUS(false, FAILED, "Failed to parse topo edge fields: %s", e.what());
   }
-  link.net_layer = edge.value("net_layer", 0);
-  link.link_type = edge.value("link_type", "");
-  link.topo_type = edge.value("topo_type", "");
-  link.local_a = edge.value("local_a", 0);
-  link.local_b = edge.value("local_b", 0);
-  link.remote_a = edge.value("remote_a", -1);
-  link.remote_b = edge.value("remote_b", -1);
-
   ParsePortsFromJson(edge, "local_a_ports", link.local_a_ports);
   ParsePortsFromJson(edge, "local_b_ports", link.local_b_ports);
-  return 0;  // 0 means success
+  return SUCCESS;
 }
 
 static Status ParseTopoJson(const std::string &topo_path, nlohmann::json &j) {
@@ -683,9 +705,7 @@ Status ParseTopoFile(const std::string &topo_path, TopoData &topo_data) {
     link.remote_a = -1;
     link.remote_b = -1;
 
-    if (ParseSingleLink(edge, link) == 1) {
-      continue;  // Skip this edge.
-    }
+    HIXL_CHK_STATUS_RET(ParseSingleLink(edge, link), "ParseSingleLink failed, topo_path=%s", topo_path.c_str());
     topo_data.links.push_back(link);
   }
 
@@ -695,17 +715,13 @@ Status ParseTopoFile(const std::string &topo_path, TopoData &topo_data) {
 
 // ============ Edge generation ============
 
-bool ShouldSkipD2DLink(const TopoLink &link, std::array<size_t, 4> &skip_reason) {  // 4: skip reason categories
-  if (link.net_layer != kTopoNetLayerMesh) {
+bool ShouldSkipD2DLink(const TopoLink &link, std::array<size_t, kD2DSkipReasonCount> &skip_reason) {
+  if (link.link_type != kLinkTypePeer2Peer) {
     ++skip_reason[0];
     return true;
   }
-  if (link.link_type != kLinkTypePeer2Peer) {
-    ++skip_reason[1];
-    return true;
-  }
   if (link.topo_type != kTopoType1DMesh) {
-    ++skip_reason[2];
+    ++skip_reason[1];
     return true;
   }
   return false;
@@ -747,7 +763,7 @@ struct D2DLinkAppendCtx {
   const std::map<int32_t, NpuRootInfo> &npu_rootinfos;
   const NpuRootInfo &self_rootinfo;
   int32_t phy_id;
-  std::array<size_t, 4> &skip_reason;  // 4: skip reason categories
+  std::array<size_t, kD2DSkipReasonCount> &skip_reason;
   std::vector<EndpointConfig> &edges;
 };
 
@@ -755,7 +771,7 @@ Status AppendD2DEdgesIfPhyOnLink(const TopoLink &link, D2DLinkAppendCtx &ctx) {
   bool is_local_a_side = (link.local_a == ctx.phy_id);
   bool is_local_b_side = (link.local_b == ctx.phy_id);
   if (!is_local_a_side && !is_local_b_side) {
-    ++ctx.skip_reason[3];
+    ++ctx.skip_reason[2];
     return SUCCESS;
   }
 
@@ -799,7 +815,7 @@ Status GenerateD2DEdges(const TopoData &topo_data, const std::map<int32_t, NpuRo
   HIXL_LOGI("D2D: phy_id=%d, topo_links=%zu, self_rootinfo_size=%zu", phy_id, topo_data.links.size(),
             self_rootinfo.port_to_eid.size());
 
-  std::array<size_t, 4> skip_reason = {0, 0, 0, 0};  // 4: skip reason categories for D2D links
+  std::array<size_t, kD2DSkipReasonCount> skip_reason{};
   D2DLinkAppendCtx ctx{npu_rootinfos, self_rootinfo, phy_id, skip_reason, edges};
   for (const auto &link : topo_data.links) {
     if (ShouldSkipD2DLink(link, skip_reason)) {
@@ -809,10 +825,8 @@ Status GenerateD2DEdges(const TopoData &topo_data, const std::map<int32_t, NpuRo
                         "[GenerateD2DEdges] AppendD2DEdgesIfPhyOnLink failed, phy_id=%d", phy_id);
   }
 
-  HIXL_LOGI(
-      "D2D result: matched=%zu, skip(net_layer)=%zu, skip(link_type)=%zu, "
-      "skip(topo_type)=%zu, skip(phy_id)=%zu",
-      edges.size(), skip_reason[0], skip_reason[1], skip_reason[2], skip_reason[3]);
+  HIXL_LOGI("D2D result: matched=%zu, skip(link_type)=%zu, skip(topo_type)=%zu, skip(phy_id)=%zu", edges.size(),
+            skip_reason[0], skip_reason[1], skip_reason[2]);
   return SUCCESS;
 }
 
@@ -899,19 +913,11 @@ Status CollectRelatedNpuIds(int32_t phy_dev_id, std::set<int32_t> &related_npu_i
 
 Status CollectClosPortKeys(const TopoData &topo_data, int32_t npu_id, std::set<std::string> &clos_port_keys) {
   clos_port_keys.clear();
-  for (const auto &link : topo_data.links) {
-    if (link.net_layer != kTopoNetLayerClos) {
-      continue;
-    }
-    const std::vector<std::string> *ports = nullptr;
-    if (link.local_a == npu_id) {
-      ports = &link.local_a_ports;
-    } else if (link.local_b == npu_id) {
-      ports = &link.local_b_ports;
-    } else {
-      continue;
-    }
-    for (const auto &port_str : *ports) {
+  std::vector<const TopoLink *> clos_links;
+  HIXL_CHK_STATUS_RET(CollectMinNetLayerClosLinks(topo_data, npu_id, clos_links),
+                      "[CollectClosPortKeys] CollectMinNetLayerClosLinks failed, npu_id=%d", npu_id);
+  for (const TopoLink *link : clos_links) {
+    for (const auto &port_str : link->local_a_ports) {
       int32_t die_id = -1;
       int32_t port = -1;
       HIXL_CHK_STATUS_RET(ParseDiePort(port_str, die_id, port),

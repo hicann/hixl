@@ -237,7 +237,8 @@ constexpr const char *kTopoType1DMesh = "1DMESH";
 constexpr const char *kTopoTypeClos = "CLOS";
 
 // 8 卡一组：fullmesh 口均为 mesh_port，每个 NPU 一条 CLOS，端口列表为 clos_ports_json（JSON 数组）
-std::string MakeEightNpuDieTopoJson(const std::string &mesh_port, const std::string &clos_ports_json) {
+std::string MakeEightNpuDieTopoJson(const std::string &mesh_port, const std::string &clos_ports_json,
+                                    int32_t clos_net_layer = 1) {
   std::ostringstream oss;
   oss << "{\"peer_count\":8,\"edge_list\":[";
   for (int32_t i = 0; i < 8; i += 2) {
@@ -249,10 +250,13 @@ std::string MakeEightNpuDieTopoJson(const std::string &mesh_port, const std::str
         << "\"local_a_ports\":[\"" << mesh_port << "\"],"
         << "\"local_b_ports\":[\"" << mesh_port << "\"]}";
   }
-  for (int32_t npu = 0; npu < 8; ++npu) {
-    oss << ",{\"net_layer\":1,\"link_type\":\"PEER2NET\",\"topo_type\":\"CLOS\","
-        << "\"local_a\":" << npu << ",\"local_a_ports\":" << clos_ports_json << "}";
-  }
+  auto append_clos = [&oss, &clos_ports_json](int32_t net_layer) {
+    for (int32_t npu = 0; npu < 8; ++npu) {
+      oss << ",{\"net_layer\":" << net_layer << ",\"link_type\":\"PEER2NET\",\"topo_type\":\"CLOS\","
+          << "\"local_a\":" << npu << ",\"local_a_ports\":" << clos_ports_json << "}";
+    }
+  };
+  append_clos(clos_net_layer);
   oss << "]}";
   return oss.str();
 }
@@ -334,8 +338,40 @@ TEST_F(LocalCommResParseTest, ParseTopoFileEmptyContent) {
   unlink(tmp.c_str());
 }
 
-TEST_F(LocalCommResParseTest, ParseTopoFileMissingNetLayer) {
-  // edge 对象缺少 net_layer 字段 → 该 edge 被跳过，links 为空
+TEST_F(LocalCommResParseTest, ParseTopoFileNetLayerTypeErrorFails) {
+  std::string json = R"({"version":"2.0","peer_count":8,"edge_list":[
+    {"net_layer":"1","link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1}
+  ]})";
+  std::string tmp = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", json);
+  ASSERT_FALSE(tmp.empty());
+  TopoData topo_data;
+  Status ret = ParseTopoFile(tmp, topo_data);
+  EXPECT_EQ(ret, FAILED);
+  unlink(tmp.c_str());
+}
+
+TEST_F(LocalCommResParseTest, ClosPrefersMinNetLayerWhenDuplicated) {
+  // layer0 ports are die0 (majority 0); layer1 ports are die1. Min net_layer must win.
+  std::string json = R"({"version":"2.0","peer_count":8,"edge_list":[
+    {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,
+     "local_a_ports":["0/2"],"local_b_ports":["0/2"]},
+    {"net_layer":1,"link_type":"PEER2NET","topo_type":"CLOS","local_a":0,
+     "local_a_ports":["1/1","1/2","1/3","1/4","1/5","1/6","1/7","1/8"]},
+    {"net_layer":0,"link_type":"PEER2NET","topo_type":"CLOS","local_a":0,
+     "local_a_ports":["0/1","0/2","0/3","0/4","0/5","0/6","0/7","0/8"]}
+  ]})";
+  std::string tmp = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", json);
+  ASSERT_FALSE(tmp.empty());
+  TopoData topo_data;
+  ASSERT_EQ(ParseTopoFile(tmp, topo_data), SUCCESS);
+  unlink(tmp.c_str());
+  int32_t clos_die_id = -1;
+  EXPECT_EQ(ResolveClosDieIdFromTopo(topo_data, 0, clos_die_id), SUCCESS);
+  EXPECT_EQ(clos_die_id, 0);
+}
+
+TEST_F(LocalCommResParseTest, ParseTopoFileMissingNetLayerStillParses) {
+  // net_layer is optional; mesh/CLOS identity uses topo_type
   std::string json =
       R"({"version":"2.0","peer_count":8,"edge_list":[{"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1}]})";
   std::string tmp = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", json);
@@ -343,7 +379,9 @@ TEST_F(LocalCommResParseTest, ParseTopoFileMissingNetLayer) {
   TopoData topo_data;
   Status ret = ParseTopoFile(tmp, topo_data);
   EXPECT_EQ(ret, SUCCESS);
-  EXPECT_TRUE(topo_data.links.empty());
+  ASSERT_EQ(topo_data.links.size(), 1U);
+  EXPECT_EQ(topo_data.links[0].topo_type, kTopoType1DMesh);
+  EXPECT_EQ(topo_data.links[0].local_a, 0);
   unlink(tmp.c_str());
 }
 
@@ -581,14 +619,27 @@ TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesNoRootinfoForSelf) {
   EXPECT_TRUE(edges.empty());
 }
 
-TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesSkipNetLayer1) {
-  // net_layer=1 的 link 应被跳过
+TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesIgnoresNetLayer) {
+  // D2D is identified by PEER2PEER + 1DMESH, not net_layer
   TopoData topo_data = MakeSingleLinkTopoData(MakeStandardTopoLink(1, kLinkTypePeer2Peer, kTopoType1DMesh));
   auto npu_rootinfos = MakeNpuRootinfos(0, MakeRootInfo("0/1", "eid_self"), 1, MakeRootInfo("0/2", "eid_peer"));
   std::vector<EndpointConfig> edges;
   Status ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
   EXPECT_EQ(ret, SUCCESS);
-  EXPECT_TRUE(edges.empty());
+  ASSERT_EQ(edges.size(), 1U);
+  EXPECT_EQ(edges[0].comm_id, "eid_self");
+  EXPECT_EQ(edges[0].dst_eid, "eid_peer");
+}
+
+TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesMatchSuccessFromLocalB) {
+  TopoData topo_data = MakeSingleLinkTopoData(MakeStandardTopoLink(0, kLinkTypePeer2Peer, kTopoType1DMesh));
+  auto npu_rootinfos = MakeNpuRootinfos(0, MakeRootInfo("0/1", "eid_aaa"), 1, MakeRootInfo("0/2", "eid_bbb"));
+  std::vector<EndpointConfig> edges;
+  Status ret = GenerateD2DEdges(topo_data, npu_rootinfos, 1, edges);
+  EXPECT_EQ(ret, SUCCESS);
+  ASSERT_EQ(edges.size(), 1U);
+  EXPECT_EQ(edges[0].comm_id, "eid_bbb");
+  EXPECT_EQ(edges[0].dst_eid, "eid_aaa");
 }
 
 TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesSkipNonPeer2Peer) {
@@ -897,7 +948,7 @@ TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlyIgnoresRouteFailure) {
 // --- mesh/CLOS die 由 topo 文件解析（不依赖产品形态假设） ---
 
 TEST_F(LocalCommResGenerateTest, MeshDieResolvedFromTopo) {
-  // 新机型示例：fullmesh(net_layer=0) 在 die0，CLOS(net_layer=1) 在 die1；
+  // 新机型示例：fullmesh(1DMESH) 在 die0，CLOS 在 die1；
   // 尽管 is_server=true（若走 GetMeshDieId 会得到 die1），生产代码应从 topo 解析出 die0
   DcmiStubSetMainboardId(0x21, 0);  // Server 形态
   DcmiStubSetMeshDieId(0);          // stub EID 按 die0 布局生成（与 topo 一致）
@@ -956,6 +1007,26 @@ TEST_F(LocalCommResGenerateTest, ClosDieMajorityFromMixedSixPlusTwo) {
   Status ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
   unlink(tmp_topo.c_str());
 
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_FALSE(res.endpoint_list.empty());
+}
+
+TEST_F(LocalCommResGenerateTest, ClosCollectedWhenNetLayerIsZero) {
+  DcmiStubSetMainboardId(0x21, 0);
+  DcmiStubSetMeshDieId(0);
+  std::string topo_json = MakeEightNpuDieTopoJson("0/2", R"(["1/1","1/2","1/3","1/4","1/5","1/6","1/7","1/8"])", 0);
+  EXPECT_EQ(GenerateDeviceOnlyFromTopoJson(topo_json), SUCCESS);
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlyWhenNpuIsMeshLocalB) {
+  DcmiStubSetMainboardId(0x21, 0);
+  DcmiStubSetMeshDieId(0);
+  std::string topo_json = MakeEightNpuDieTopoJson("0/2", R"(["1/1","1/2","1/3","1/4","1/5","1/6","1/7","1/8"])");
+  std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", topo_json);
+  ASSERT_FALSE(tmp_topo.empty());
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(1, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
+  unlink(tmp_topo.c_str());
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_FALSE(res.endpoint_list.empty());
 }
