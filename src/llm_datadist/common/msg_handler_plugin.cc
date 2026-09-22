@@ -371,5 +371,8 @@ void MsgHandlerPlugin::Finalize() {
   if (listener_.joinable()) {
     listener_.join();
   }
+  if (thread_pool_ != nullptr) {
+    thread_pool_->Destroy();
+  }
 }
 }  // namespace llm
