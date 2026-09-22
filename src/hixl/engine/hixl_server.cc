@@ -21,6 +21,7 @@
 #include "engine/endpoint_generator/endpoint_generator.h"
 #include "common/hixl_inner_types.h"
 #include "common/hixl_utils.h"
+#include "common/scope_guard.h"
 
 namespace hixl {
 namespace {
@@ -161,9 +162,16 @@ Status HixlServer::Initialize(const std::string &ip, int32_t port,
   server_desc.endpoint_list_num = static_cast<uint32_t>(data_endpoint_config_list.size());
   HIXL_CHK_STATUS_RET(HixlCSServerCreate(&server_desc, &config, &server_handle_),
                       "Failed to create hixl server, ip:%s, port:%d.", ip.c_str(), port);
+  HIXL_DISMISSABLE_GUARD(fail_guard, ([this]() {
+                           if (server_handle_ != nullptr) {
+                             (void)HixlCSServerDestroy(server_handle_);
+                             server_handle_ = nullptr;
+                           }
+                         }));
   if (port > 0) {
     HIXL_CHK_STATUS_RET(RegisterProcessors(), "Failed to register processors.");
   }
+  HIXL_DISMISS_GUARD(fail_guard);
   return SUCCESS;
 }
 
