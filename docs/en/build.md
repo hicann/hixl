@@ -180,7 +180,7 @@ The following lists the dependencies required for source code compilation. Check
 
   ```shell
   # Run the following commands for Ubuntu/Debian. Use proper commands for other OS.
-  sudo apt-get install cmake bash ccache
+  sudo apt-get install cmake bash patch ccache
   ```
 
 - GCC 7.3.x - 14.2.x
@@ -188,6 +188,7 @@ The following lists the dependencies required for source code compilation. Check
 - CMake >= 3.16.0
 - bash >= 5.1.16 (Address sanitization is enabled in the test cases. Low versions of bash may trigger false memory leak detections in `system` calls.)
 - unzip (extracts the ZIP packages of third-party open-source software)
+- patch (applies patches to third-party open-source software during compilation)
 - ccache (optional, a compiler cache optimization tool used to speed up incremental builds)
 
 During compilation, HIXL depends on the following third-party open-source software.
@@ -195,10 +196,10 @@ During compilation, HIXL depends on the following third-party open-source softwa
 | Open-Source Software | Version | Download Address |
 |---|---|---|
 | googletest | 1.14.0 | [googletest-1.14.0.tar.gz](https://gitcode.com/cann-src-third-party/googletest/releases/download/v1.14.0/googletest-1.14.0.tar.gz) |
-| json | 3.11.3 | [json-3.11.3.tar.gz](https://gitcode.com/cann-src-third-party/json/releases/download/v3.11.3/json-3.11.3.tar.gz) |
-| makeself | 2.5.0 | [makeself-release-2.5.0-patch1.tar.gz](https://gitcode.com/cann-src-third-party/makeself/releases/download/release-2.5.0-patch1.0/makeself-release-2.5.0-patch1.tar.gz) |
+| json | 3.12.0 | [json-3.12.0.tar.gz](https://gitcode.com/cann-src-third-party/json/releases/download/v3.12.0/json-3.12.0.tar.gz) |
+| makeself | 2.5.0 | [makeself-release-2.5.0.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/makeself/makeself-release-2.5.0.tar.gz), [makeself-2.5.0.patch](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/makeself/fix/makeself-2.5.0.patch) |
 | pybind11 | 2.13.6 | [pybind11-2.13.6.tar.gz](https://gitcode.com/cann-src-third-party/pybind11/releases/download/v2.13.6/pybind11-2.13.6.tar.gz) |
-| cann-cmake | master-054 | [cmake-master-054.tar.gz](https://raw.gitcode.com/cann/cmake/archive/refs/heads/master-054.tar.gz) |
+| cann-cmake | master-059 | [cmake-master-059.tar.gz](https://raw.gitcode.com/cann/cmake/archive/refs/heads/master-059.tar.gz) |
 
 > [!NOTE] Note
 > If you download the packages from other addresses, ensure that the version numbers match exactly.
@@ -233,15 +234,38 @@ If your build environment cannot access the Internet, you cannot download code v
   bash build.sh --examples
   ```
 
-- If your build environment cannot access the Internet, download the required open-source packages in an environment with Internet access and manually upload them to your build environment.
+- If your build environment cannot access the Internet, prepare the third-party open-source software listed above in an environment with Internet access and upload it to your build environment. The following two methods are supported:
 
-  Create a `{your_3rd_party_path}` directory in the build environment to store the third-party open-source software.
+  - Method 1 (recommended): Use the one-click third-party software download and packaging script provided by the HIXL repository.
 
-  ```bash
-  mkdir -p {your_3rd_party_path}
-  ```
+    Run the following command in the root directory of the HIXL repository in the environment with Internet access. After the command is executed successfully, `opensource.tar.gz` is generated in the repository root directory:
 
-  After uploading the third-party open-source software packages to `{your_3rd_party_path}`, run the following command to perform the build:
+    ```bash
+    bash scripts/download_third_party_source.sh
+    ```
+
+    In the offline environment, upload the source repository and `opensource.tar.gz`, and then run the following commands to extract the packages and copy them to `{your_3rd_party_path}`:
+
+    ```bash
+    tar -xzf opensource.tar.gz
+    mkdir -p {your_3rd_party_path}
+    cp -r opensource/* {your_3rd_party_path}/
+    ```
+
+  - Method 2: Download the third-party open-source software packages one by one via the links in the list.
+
+    Create a `{your_3rd_party_path}` directory in the build environment to store the third-party open-source software.
+
+    ```bash
+    mkdir -p {your_3rd_party_path}/patch
+    ```
+
+    Upload the downloaded packages according to the following rules:
+
+    - Upload the makeself patch file `makeself-2.5.0.patch` to the `{your_3rd_party_path}/patch` directory, and upload the other packages (including `makeself-release-2.5.0.tar.gz`) directly to `{your_3rd_party_path}`.
+    - Keep the uploaded file names the same as those in the download addresses.
+
+  After completing either of the preceding methods, run the following command to perform the build:
 
   ```bash
   bash build.sh --cann_3rd_lib_path={your_3rd_party_path}

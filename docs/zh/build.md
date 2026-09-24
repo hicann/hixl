@@ -180,7 +180,7 @@ source /usr/local/Ascend/cann/set_env.sh
 
   ```shell
   # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
-  sudo apt-get install cmake bash ccache
+  sudo apt-get install cmake bash patch ccache
   ```
 
 - GCC 7.3.x - 14.2.x
@@ -188,6 +188,7 @@ source /usr/local/Ascend/cann/set_env.sh
 - CMake >= 3.16.0
 - bash >= 5.1.16，由于测试用例开启了地址消毒，代码中执行system函数会触发低版本的bash被地址消毒检查出内存泄露。
 - unzip，用于解压下载的第三方开源软件的zip压缩包。
+- patch，用于编译时为第三方开源软件应用补丁。
 - ccache（可选），ccache为编译器缓存优化工具，用于加快二次编译速度。
 
 HIXL在编译时，依赖的第三方开源软件列表如下：
@@ -195,10 +196,10 @@ HIXL在编译时，依赖的第三方开源软件列表如下：
 | 开源软件 | 版本 | 下载地址 |
 |---|---|---|
 | googletest | 1.14.0 | [googletest-1.14.0.tar.gz](https://gitcode.com/cann-src-third-party/googletest/releases/download/v1.14.0/googletest-1.14.0.tar.gz) |
-| json | 3.11.3 | [json-3.11.3.tar.gz](https://gitcode.com/cann-src-third-party/json/releases/download/v3.11.3/json-3.11.3.tar.gz) |
-| makeself | 2.5.0 | [makeself-release-2.5.0-patch1.tar.gz](https://gitcode.com/cann-src-third-party/makeself/releases/download/release-2.5.0-patch1.0/makeself-release-2.5.0-patch1.tar.gz) |
+| json | 3.12.0 | [json-3.12.0.tar.gz](https://gitcode.com/cann-src-third-party/json/releases/download/v3.12.0/json-3.12.0.tar.gz) |
+| makeself | 2.5.0 | [makeself-release-2.5.0.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/makeself/makeself-release-2.5.0.tar.gz)、[makeself-2.5.0.patch](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/makeself/fix/makeself-2.5.0.patch) |
 | pybind11 | 2.13.6 | [pybind11-2.13.6.tar.gz](https://gitcode.com/cann-src-third-party/pybind11/releases/download/v2.13.6/pybind11-2.13.6.tar.gz) |
-| cann-cmake | master-054 | [cmake-master-054.tar.gz](https://raw.gitcode.com/cann/cmake/archive/refs/heads/master-054.tar.gz) |
+| cann-cmake | master-059 | [cmake-master-059.tar.gz](https://raw.gitcode.com/cann/cmake/archive/refs/heads/master-059.tar.gz) |
 
 > [!NOTE]注意
 > 如果您从其他地址下载，请确保版本号一致。
@@ -234,15 +235,38 @@ git clone https://gitcode.com/cann/hixl.git
   bash build.sh --examples
   ```
 
-- 若您的编译环境无法访问网络，您需要在联网环境中下载上述开源软件压缩包，并手动上传至您的编译环境中。
+- 若您的编译环境无法访问网络，您需要在联网环境中准备上述第三方开源软件，并上传至您的编译环境。支持以下两种方式：
 
-  您需要在编译环境中新建一个`{your_3rd_party_path}`目录来存放这些第三方开源软件。
+  - 方式一（推荐）：使用HIXL仓提供的一键式第三方软件下载打包脚本。
 
-  ```bash
-  mkdir -p {your_3rd_party_path}
-  ```
+    在联网环境的HIXL仓根目录执行如下命令，执行成功后会在仓根目录生成`opensource.tar.gz`：
 
-  创建好目录后，将下载好的第三方开源软件压缩包上传至目录`{your_3rd_party_path}`后，可以使用如下命令进行编译：
+    ```bash
+    bash scripts/download_third_party_source.sh
+    ```
+
+    在离线环境中，将源码仓和`opensource.tar.gz`上传后，执行如下命令将第三方开源软件解压并拷贝至`{your_3rd_party_path}`：
+
+    ```bash
+    tar -xzf opensource.tar.gz
+    mkdir -p {your_3rd_party_path}
+    cp -r opensource/* {your_3rd_party_path}/
+    ```
+
+  - 方式二：通过第三方开源软件列表链接逐个手动下载第三方开源软件。
+
+    在编译环境中新建一个`{your_3rd_party_path}`目录来存放这些第三方开源软件。
+
+    ```bash
+    mkdir -p {your_3rd_party_path}/patch
+    ```
+
+    将下载好的第三方开源软件压缩包按以下规则上传：
+
+    - makeself的补丁文件`makeself-2.5.0.patch`需上传至`{your_3rd_party_path}/patch`目录，其余压缩包（含`makeself-release-2.5.0.tar.gz`）直接上传至`{your_3rd_party_path}`目录。
+    - 上传的文件名须与下载地址中的文件名保持一致。
+
+  完成上述任一方式的准备后，可以使用如下命令进行编译：
 
   ```bash
   bash build.sh --cann_3rd_lib_path={your_3rd_party_path}
