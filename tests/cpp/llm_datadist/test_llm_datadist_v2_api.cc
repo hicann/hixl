@@ -20,6 +20,7 @@
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/llm_datadist/src/data_cache_engine_test_helper.h"
 #include "depends/llm_datadist/src/llm_datadist_test_helper.h"
+#include "transfer_engine/hixl_transfer_engine.h"
 
 using namespace std;
 using namespace ge;
@@ -443,6 +444,29 @@ TEST_F(LlmDataDistSTest, TestUseHixlBackendA3) {
   TestPullKv(llm_datadist_p, llm_datadist_d);
   llm_datadist_p.Finalize();
   llm_datadist_d.Finalize();
+}
+
+TEST_F(LlmDataDistSTest, TestHixlTransferEngineAcceptsIpv6ListenAddress) {
+  llm::HixlTransferEngine transfer_engine(1U);
+  std::map<AscendString, AscendString> options{
+      {llm::kLlmOptionEnableRemoteCacheAccessible, "1"},
+      {llm::kLlmOptionListenIp, "::1"},
+      {llm::kLlmOptionListenPort, "0"},
+      {llm_datadist::OPTION_LOCAL_COMM_RES, R"({"version":"1.2"})"},
+  };
+
+  EXPECT_EQ(transfer_engine.Initialize(options), SUCCESS);
+  EXPECT_EQ(transfer_engine.SwitchRole("Prompt", {{llm::kLlmOptionListenIp, "::1"}, {llm::kLlmOptionListenPort, "0"}}),
+            SUCCESS);
+  transfer_engine.Finalize();
+
+  llm::HixlTransferEngine ipv4_transfer_engine(1U);
+  options[llm::kLlmOptionListenIp] = "127.0.0.1";
+  EXPECT_EQ(ipv4_transfer_engine.Initialize(options), SUCCESS);
+  EXPECT_EQ(ipv4_transfer_engine.SwitchRole("Prompt",
+                                            {{llm::kLlmOptionListenIp, "127.0.0.1"}, {llm::kLlmOptionListenPort, "0"}}),
+            SUCCESS);
+  ipv4_transfer_engine.Finalize();
 }
 
 TEST_F(LlmDataDistSTest, TestUseHixlBackendA5) {

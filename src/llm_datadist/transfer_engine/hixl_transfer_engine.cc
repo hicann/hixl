@@ -27,6 +27,13 @@ namespace {
 constexpr const char LLM_OPTION_RDMA_TRAFFIC_CLASS[] = "llm.RdmaTrafficClass";
 constexpr const char LLM_OPTION_RDMA_SERVICE_LEVEL[] = "llm.RdmaServiceLevel";
 constexpr const char ADXL_OPTION_LOCAL_COMM_RES[] = "adxl.LocalCommRes";
+
+std::string BuildEngineAddress(const std::string &ip, uint32_t port) {
+  if (ip.find(':') != std::string::npos) {
+    return "[" + ip + "]:" + std::to_string(port);
+  }
+  return ip + ":" + std::to_string(port);
+}
 }  // namespace
 
 void HixlTransferEngine::LLMDataDist2HixlOptions(
@@ -94,7 +101,7 @@ ge::Status HixlTransferEngine::Initialize(const std::map<ge::AscendString, ge::A
   uint32_t port = 0U;
   LLM_CHK_STATUS_RET(LLMUtils::ToNumber(port_iter->second.GetString(), port), "Option %s is invalid: [%s]",
                      kLlmOptionListenPort, port_iter->second.GetString());
-  local_engine_ = ip + ":" + std::to_string(port);
+  local_engine_ = BuildEngineAddress(ip, port);
   LLMLOGI("listen option %s=%s", llm_datadist::OPTION_LISTEN_IP_INFO, local_engine_.c_str());
   LLM_ASSERT_RT_OK(aclrtGetCurrentContext(&rt_context_));
   std::map<ge::AscendString, ge::AscendString> hixl_options{};
@@ -255,7 +262,7 @@ ge::Status HixlTransferEngine::SwitchRole(const std::string &role, const std::ma
     uint32_t port = 0U;
     LLM_CHK_STATUS_RET(LLMUtils::ToNumber(port_iter->second, port), "Option %s is invalid: [%s]", kLlmOptionListenPort,
                        port_iter->second.c_str());
-    auto local_engine = ip + ":" + std::to_string(port);
+    auto local_engine = BuildEngineAddress(ip, port);
     LLM_CHK_BOOL_RET_STATUS(local_engine == local_engine_, ge::LLM_FEATURE_NOT_ENABLED,
                             "listen ip info:%s is not the same with init listen ip info:%s.", local_engine.c_str(),
                             local_engine_.c_str());
