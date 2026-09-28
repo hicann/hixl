@@ -58,11 +58,16 @@ constexpr uint32_t kMainboardIdPod3 = 0x7;
 constexpr uint32_t kMainboardIdServerMin1 = 0x21;
 constexpr uint32_t kMainboardIdServerMax1 = 0x2B;
 constexpr uint32_t kMainboardIdServerMin2 = 0x40;
-constexpr uint32_t kMainboardIdServerMax2 = 0x46;
+constexpr uint32_t kMainboardIdServerMax2 = 0x42;  // 0x44/0x46 are sp1/sp2, not Server
 
 // pc16 product-form mainboard IDs
 constexpr uint32_t kMainboardIdPc16a = 0x2D;  // Decimal 45; UBG transmission not supported.
 constexpr uint32_t kMainboardIdPc16b = 0x2F;  // Decimal 47; support UBG transmission.
+
+// sp1 / sp2 / sp3 product-form mainboard IDs (not Server)
+constexpr uint32_t kMainboardIdSp1 = 0x44;
+constexpr uint32_t kMainboardIdSp2 = 0x46;
+constexpr uint32_t kMainboardIdSp3 = 0x48;
 
 // Topology constants
 constexpr const char *kLinkTypePeer2Peer = "PEER2PEER";
@@ -96,18 +101,13 @@ constexpr uint32_t kEvenParity = 0;        // Even parity
 constexpr uint32_t kParityModuloBase = 2;  // Parity modulo base
 constexpr size_t kCpuDieSegLen = 2;        // Length of a "cX"/"dY" segment: marker char + one digit
 
-// Product-form helper
-inline bool IsProductServer(uint32_t mainboard_id) {
-  return ((mainboard_id >= kMainboardIdServerMin1 && mainboard_id <= kMainboardIdServerMax1 &&
-           (mainboard_id % kParityModuloBase == kOddParity)) ||
-          (mainboard_id >= kMainboardIdServerMin2 && mainboard_id <= kMainboardIdServerMax2 &&
-           (mainboard_id % kParityModuloBase == kEvenParity)));
-}
-
 // Topo file names
 constexpr const char *kTopoFileAtlas950 = "atlas_950_1.json";
 constexpr const char *kTopoFileAtlas850 = "atlas_850_1.json";
 constexpr const char *kTopoFileAtlas950Pc16 = "atlas_950_2.json";
+constexpr const char *kTopoFileSp1 = "atlas_850_3.json";
+constexpr const char *kTopoFileSp2 = "atlas_550EL_100.json";
+constexpr const char *kTopoFileSp3 = "atlas_550EL_200.json";
 
 // urma_admin command path
 constexpr const char *kUrmaAdminPath = "/usr/local/sbin/urma_admin";
@@ -570,6 +570,15 @@ bool TopoFileFinder::MatchProductForm(uint32_t mainboard_id, std::string &topo_f
     case kMainboardIdPc16b:
       topo_file_name = kTopoFileAtlas950Pc16;
       return true;
+    case kMainboardIdSp1:
+      topo_file_name = kTopoFileSp1;
+      return true;
+    case kMainboardIdSp2:
+      topo_file_name = kTopoFileSp2;
+      return true;
+    case kMainboardIdSp3:
+      topo_file_name = kTopoFileSp3;
+      return true;
     default:
       break;
   }
@@ -590,14 +599,17 @@ bool TopoFileFinder::IsProductServer(uint32_t mainboard_id) {
 std::string TopoFileFinder::FindTopoFile(const std::string &topo_dir, uint32_t mainboard_id) {
   std::string topo_file_name;
   if (!MatchProductForm(mainboard_id, topo_file_name)) {
-    HIXL_LOGW("Unknown product form for mainboard_id=0x%x", mainboard_id);
+    HIXL_LOGW(
+        "Unknown product form for mainboard_id=0x%x, topo file cannot be found, please provide a valid topo "
+        "file path",
+        mainboard_id);
     return "";
   }
   HIXL_LOGI("mainboard_id=0x%x, topo_file_name=%s", mainboard_id, topo_file_name.c_str());
 
   std::string full_path = topo_dir + "/" + topo_file_name;
   if (!IsFileExists(full_path)) {
-    HIXL_LOGW("Topo file not found: %s", full_path.c_str());
+    HIXL_LOGW("Topo file does not exist: %s, please provide a valid topo file path", full_path.c_str());
     return "";
   }
   HIXL_LOGI("Matched topo file: %s", full_path.c_str());
@@ -1323,7 +1335,9 @@ Status ResolveDefaultLocalCommResPaths(int32_t phy_dev_id, std::string &topo_pat
   HIXL_CHK_STATUS_RET(GetMainboardId(phy_dev_id, mainboard_id),
                       "[ResolveDefaultLocalCommResPaths] GetMainboardId failed, phy_dev_id=%d", phy_dev_id);
   topo_path = TopoFileFinder().FindTopoFile(kDefaultTopoDir, mainboard_id);
-  HIXL_CHK_BOOL_RET_STATUS(!topo_path.empty(), PARAM_INVALID, "No topo file found for mainboard_id=0x%x in %s",
+  HIXL_CHK_BOOL_RET_STATUS(!topo_path.empty(), PARAM_INVALID,
+                           "Topo file does not exist or cannot be found for mainboard_id=0x%x in %s, please provide a "
+                           "valid topo file path",
                            mainboard_id, kDefaultTopoDir);
   return SUCCESS;
 }
@@ -1352,7 +1366,7 @@ Status GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, Lo
   HIXL_CHK_STATUS_RET(GetMainboardId(phy_dev_id, mainboard_id),
                       "[GenerateLocalCommRes] GetMainboardId failed, phy_dev_id=%d", phy_dev_id);
   // Whether this is a Server product form
-  bool is_server = IsProductServer(mainboard_id);
+  bool is_server = TopoFileFinder::IsProductServer(mainboard_id);
 
   // 2. Parse topo and collect related NPUs
   TopoData topo_data;

@@ -1236,7 +1236,7 @@ TEST_F(LocalCommResGenerateTest, GenerateServerOddMainboardId) {
 }
 
 TEST_F(LocalCommResGenerateTest, GenerateServerEvenMainboardIdInRange2) {
-  // mainboard_id=0x42（偶数，在 [0x40,0x46] 范围内）→ IsProductServer=true
+  // mainboard_id=0x42（偶数，在 [0x40,0x42] 范围内）→ IsProductServer=true
   DcmiStubSetMainboardId(0x42, 0);
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
@@ -1257,7 +1257,7 @@ TEST_F(LocalCommResGenerateTest, GenerateNotServerEvenInRange1) {
 }
 
 TEST_F(LocalCommResGenerateTest, GenerateNotServerOddInRange2) {
-  // mainboard_id=0x41（奇数，在 [0x40,0x46] 范围内但不满足 %2==0）→ IsProductServer=false
+  // mainboard_id=0x41（奇数，在 [0x40,0x42] 范围内但不满足 %2==0）→ IsProductServer=false
   DcmiStubSetMainboardId(0x41, 0);
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
@@ -1277,7 +1277,7 @@ TEST_F(LocalCommResGenerateTest, GenerateNotServerBelowRange) {
 }
 
 TEST_F(LocalCommResGenerateTest, GenerateNotServerAboveRange) {
-  // mainboard_id=0x47（高于 [0x40,0x46]）→ IsProductServer=false
+  // mainboard_id=0x47（高于 [0x40,0x42]）→ IsProductServer=false
   DcmiStubSetMainboardId(0x47, 0);
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
@@ -1751,6 +1751,49 @@ TEST_F(TopoFileFinderTest, FindTopoFilePc16MissingFile) {
   hixl::TopoFileFinder finder;
   EXPECT_TRUE(finder.FindTopoFile(temp_dir, 0x2D).empty());
   EXPECT_TRUE(finder.FindTopoFile(temp_dir, 0x2F).empty());
+
+  CleanupTopoTempDir(temp_dir);
+}
+
+TEST_F(TopoFileFinderTest, IsProductServerExcludesSp1Sp2Sp3) {
+  // sp1=0x44, sp2=0x46, sp3=0x48 are not Server; remaining even Server IDs are 0x40/0x42
+  EXPECT_FALSE(hixl::TopoFileFinder::IsProductServer(0x44));
+  EXPECT_FALSE(hixl::TopoFileFinder::IsProductServer(0x46));
+  EXPECT_FALSE(hixl::TopoFileFinder::IsProductServer(0x48));
+  EXPECT_TRUE(hixl::TopoFileFinder::IsProductServer(0x40));
+  EXPECT_TRUE(hixl::TopoFileFinder::IsProductServer(0x42));
+}
+
+TEST_F(TopoFileFinderTest, FindTopoFileSp1Sp2Sp3Product) {
+  // sp1 → atlas_850_3.json, sp2 → atlas_550EL_100.json, sp3 → atlas_550EL_200.json
+  std::string temp_dir = CreateTempTopoDir(true, true);
+  ASSERT_FALSE(temp_dir.empty());
+  {
+    std::ofstream of_sp1((temp_dir + "/atlas_850_3.json").c_str());
+    of_sp1 << "{}";
+    std::ofstream of_sp2((temp_dir + "/atlas_550EL_100.json").c_str());
+    of_sp2 << "{}";
+    std::ofstream of_sp3((temp_dir + "/atlas_550EL_200.json").c_str());
+    of_sp3 << "{}";
+  }
+
+  hixl::TopoFileFinder finder;
+  EXPECT_NE(finder.FindTopoFile(temp_dir, 0x44).find("atlas_850_3.json"), std::string::npos);
+  EXPECT_NE(finder.FindTopoFile(temp_dir, 0x46).find("atlas_550EL_100.json"), std::string::npos);
+  EXPECT_NE(finder.FindTopoFile(temp_dir, 0x48).find("atlas_550EL_200.json"), std::string::npos);
+
+  CleanupTopoTempDir(temp_dir);
+}
+
+TEST_F(TopoFileFinderTest, FindTopoFileSp1Sp2Sp3NotServerAtlas850) {
+  // Only atlas_850_1.json exists: sp1/sp2/sp3 must not fall back to Server mapping
+  std::string temp_dir = CreateTempTopoDir(true, true);
+  ASSERT_FALSE(temp_dir.empty());
+
+  hixl::TopoFileFinder finder;
+  EXPECT_TRUE(finder.FindTopoFile(temp_dir, 0x44).empty());
+  EXPECT_TRUE(finder.FindTopoFile(temp_dir, 0x46).empty());
+  EXPECT_TRUE(finder.FindTopoFile(temp_dir, 0x48).empty());
 
   CleanupTopoTempDir(temp_dir);
 }
