@@ -241,6 +241,7 @@ TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigTransferCountDefault) {
   ASSERT_EQ(HixlOptions::Parse(options, result), SUCCESS);
   ASSERT_TRUE(result.GlobalResourceCfg().has_value());
   EXPECT_EQ(result.GlobalResourceCfg()->transfer_config.max_transfer_count_per_batch, kDefaultMaxTransferCountPerBatch);
+  EXPECT_FALSE(result.GlobalResourceCfg()->transfer_config.max_transfer_count_per_batch_configured);
 }
 
 TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigTransferCountBoundaries) {
@@ -250,6 +251,7 @@ TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigTransferCountBoundaries) {
     options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = config.c_str();
     HixlOptions result;
     EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS) << value;
+    EXPECT_TRUE(result.GlobalResourceCfg()->transfer_config.max_transfer_count_per_batch_configured) << value;
   }
 }
 

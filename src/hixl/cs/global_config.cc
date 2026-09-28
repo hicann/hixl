@@ -12,6 +12,7 @@
 
 #include "nlohmann/json.hpp"
 #include "common/hixl_checker.h"
+#include "common/hixl_utils.h"
 #include "common/hixl_log.h"
 #include "common/hixl_inner_types.h"
 #include "common/json_utils.h"
@@ -91,6 +92,8 @@ Status ParseTransferConfig(const nlohmann::json &json, TransferConfigDesc &confi
   }
   HIXL_CHK_BOOL_RET_STATUS(target != GlobalConfig::ParseTarget::kServer, PARAM_INVALID,
                            "[GlobalConfig] %s is not supported for Server", kMaxTransferCountPerBatchKey);
+  HIXL_CHK_BOOL_RET_STATUS(IsHcommConfigurableTransferSupported(), PARAM_INVALID,
+                           "[GlobalConfig] %s requires Hcomm >= 9.2.0", kMaxTransferCountPerBatchKey);
   HIXL_CHK_BOOL_RET_STATUS((it->is_number_integer() || it->is_number_unsigned()) || it->is_string(), PARAM_INVALID,
                            "[GlobalConfig] %s must be an integer or decimal integer string",
                            kMaxTransferCountPerBatchKey);
@@ -101,6 +104,7 @@ Status ParseTransferConfig(const nlohmann::json &json, TransferConfigDesc &confi
     return PARAM_INVALID;
   }
   config.max_transfer_count_per_batch = static_cast<uint32_t>(val);
+  config.max_transfer_count_per_batch_configured = true;
   HIXL_LOGI("[GlobalConfig] max_transfer_count_per_batch=%u", config.max_transfer_count_per_batch);
   return SUCCESS;
 }
@@ -217,6 +221,10 @@ std::optional<uint32_t> GlobalConfig::MaxActiveChannels() const {
 
 uint32_t GlobalConfig::MaxTransferCountPerBatch() const {
   return transfer_config_.max_transfer_count_per_batch;
+}
+
+bool GlobalConfig::HasMaxTransferCountPerBatch() const {
+  return transfer_config_.max_transfer_count_per_batch_configured;
 }
 
 const UbMemoryConfig &GlobalConfig::UbMemory() const {

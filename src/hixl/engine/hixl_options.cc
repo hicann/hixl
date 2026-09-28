@@ -237,6 +237,7 @@ Status ParseTransferConfig(const nlohmann::json &json, TransferConfig &cfg) {
                            "%s must be in [1, %u], got %lld", kMaxTransferCountKey, kMaxTransferCountPerBatch,
                            static_cast<long long>(count));
   cfg.max_transfer_count_per_batch = static_cast<uint32_t>(count);
+  cfg.max_transfer_count_per_batch_configured = true;
   return SUCCESS;
 }
 

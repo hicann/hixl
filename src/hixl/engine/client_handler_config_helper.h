@@ -47,7 +47,9 @@ class ClientHandlerConfigHelper {
       json["comm_resource_config.max_active_channels"] = args.max_active_channels.value();
     }
     FillUbMemoryConfig(json, args.fabric_memory);
-    json["transfer_config.max_transfer_count_per_batch"] = args.max_transfer_count_per_batch;
+    if (args.max_transfer_count_per_batch_configured) {
+      json["transfer_config.max_transfer_count_per_batch"] = args.max_transfer_count_per_batch;
+    }
     return json.empty() ? "" : json.dump();
   }
 };

@@ -18,7 +18,14 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <atomic>
 #include <iostream>
+
+namespace {
+constexpr int32_t kDefaultHcommVersion = 90200000;
+std::atomic<int32_t> g_hcomm_version{kDefaultHcommVersion};
+std::atomic<int32_t> g_hcomm_version_query_result{0};
+}  // namespace
 
 namespace llm {
 int ge_log_level = DLOG_ERROR;
@@ -297,10 +304,23 @@ int32_t aclsysGetVersionNum(char *pkg_name, int32_t *version_num) {
     return 0;
   }
   if (strcmp(pkg_name, "hcomm") == 0) {
-    *version_num = 90100000;
-    return 0;
+    *version_num = g_hcomm_version.load(std::memory_order_relaxed);
+    return g_hcomm_version_query_result.load(std::memory_order_relaxed);
   }
   return -1;
+}
+
+void SetHcommVersionNum(int32_t version_num) {
+  g_hcomm_version.store(version_num, std::memory_order_relaxed);
+}
+
+void SetHcommVersionQueryResult(int32_t ret) {
+  g_hcomm_version_query_result.store(ret, std::memory_order_relaxed);
+}
+
+void ResetHcommVersionStub() {
+  g_hcomm_version.store(kDefaultHcommVersion, std::memory_order_relaxed);
+  g_hcomm_version_query_result.store(0, std::memory_order_relaxed);
 }
 
 int32_t acllogCheckDebugLevel(int32_t module_id, int32_t log_level) {

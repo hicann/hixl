@@ -182,6 +182,7 @@ class HixlEngineTest : public ::testing::Test {
   std::map<AscendString, AscendString> options_4ub;       // 4条 UB 链路（D2D/D2H/H2D/H2H）
   std::map<AscendString, AscendString> options_4ub_pair;  // 与 options_4ub 互补的 UB endpoint
   void SetUp() override {
+    ResetHcommVersionStub();
     SetSocStub("Ascend910B1", 0, 0, 9, 8);
     // TransferPool initialization loads device kernels, so MmpaStub must be ready before Create.
     mmpa_stub_ = std::make_shared<HccpSysApiStub>();
@@ -250,6 +251,7 @@ class HixlEngineTest : public ::testing::Test {
     } else {
       setenv("HCCL_INTRA_ROCE_ENABLE", old_intra_roce_enable_.c_str(), 1);
     }
+    ResetHcommVersionStub();
   }
 
   void Register(HixlEngine &engine, int32_t *ptr, MemHandle &handle) {
@@ -918,6 +920,19 @@ TEST_F(HixlEngineTest, TestHostRoceAcceptsGlobalMaxTransferCount) {
   HixlEngine engine2("127.0.0.1:26300");
 
   InitializeAndConnectEngines(engine1, options1, engine2, options2);
+  CleanupEngines(engine1, engine2);
+}
+
+TEST_F(HixlEngineTest, TestLegacyHcommRejectsExplicitMaxTransferCountWhenCreatingClient) {
+  SetHcommVersionNum(90199999);
+  options1[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"transfer_config.max_transfer_count_per_batch":1024})";
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:26300");
+
+  CreateAndInitEngine(engine1, options1);
+  CreateAndInitEngine(engine2, options2);
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26300", kTimeOut), PARAM_INVALID);
+  EXPECT_TRUE(engine1.client_manager_.IsEmpty());
   CleanupEngines(engine1, engine2);
 }
 

@@ -194,6 +194,7 @@ class HixlEngine : public hixl::Engine {
   std::optional<uint8_t> qos_;
   std::optional<uint32_t> max_active_channels_;
   uint32_t max_transfer_count_per_batch_{kDefaultMaxTransferCountPerBatch};
+  bool max_transfer_count_per_batch_configured_{false};
   uint32_t multi_worker_num_{1U};
   uint32_t multi_channel_split_batch_size_{kDefaultSplitBatchSize};
   OptionalAclrtContext aclrt_context_;

@@ -38,6 +38,7 @@ struct ChannelDesc {
   uint64_t channel_index{0UL};
   uint8_t qos{kQosUnset};
   uint32_t max_transfer_count_per_batch{kDefaultMaxTransferCountPerBatch};
+  bool configurable_transfer_supported{false};
 };
 
 // Protocol-agnostic integration layer for a transport channel. The shared state machine (create, wait

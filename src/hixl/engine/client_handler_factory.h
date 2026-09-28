@@ -47,6 +47,7 @@ struct HandlerCreateArgs {
   int32_t ctrl_socket = -1;
   std::string local_engine;
   std::string remote_engine;
+  bool max_transfer_count_per_batch_configured = false;
   UbMemoryConfig fabric_memory;
 };
 

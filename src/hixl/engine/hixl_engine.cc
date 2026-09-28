@@ -18,7 +18,6 @@
 #include "engine/endpoint_generator/endpoint_generator.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
-#include "common/hixl_utils.h"
 #include "common/llm_utils.h"
 #include "common/scope_guard.h"
 #include "profiling/prof_reporter.h"
@@ -71,16 +70,18 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
                              "Invalid option fields, OPTION_BUFFER_POOL for hixl engine only supports %s",
                              BUFFER_POOL_DISABLED);
   }
+  auto global_resource_config = options.GlobalResourceCfg();
   std::string local_comm_res;
   HIXL_CHK_STATUS_RET(EndpointGenerator::BuildEndpointList(options, local_engine_, local_comm_res, endpoint_list_),
                       "[HixlEngine] Failed to build endpoint list from options");
-  auto global_resource_config = options.GlobalResourceCfg();
   std::optional<uint32_t> listen_port;
   if (global_resource_config.has_value()) {
     listen_port = global_resource_config->comm_resource_config.listen_port;
     qos_ = global_resource_config->comm_resource_config.qos;
     max_active_channels_ = global_resource_config->comm_resource_config.max_active_channels;
     max_transfer_count_per_batch_ = global_resource_config->transfer_config.max_transfer_count_per_batch;
+    max_transfer_count_per_batch_configured_ =
+        global_resource_config->transfer_config.max_transfer_count_per_batch_configured;
     multi_worker_num_ = global_resource_config->comm_resource_config.multi_worker_num.value_or(1U);
     multi_channel_split_batch_size_ =
         global_resource_config->comm_resource_config.multi_channel_split_batch_size.value_or(kDefaultSplitBatchSize);
@@ -90,6 +91,7 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
     qos_.reset();
     max_active_channels_.reset();
     max_transfer_count_per_batch_ = kDefaultMaxTransferCountPerBatch;
+    max_transfer_count_per_batch_configured_ = false;
     multi_worker_num_ = 1U;
     multi_channel_split_batch_size_ = kDefaultSplitBatchSize;
     fabric_memory_ = {};
@@ -401,6 +403,7 @@ void HixlEngine::BuildClientConfig(const AscendString &remote_engine, ClientConf
   config.qos = qos_;
   config.max_active_channels = max_active_channels_;
   config.max_transfer_count_per_batch = max_transfer_count_per_batch_;
+  config.max_transfer_count_per_batch_configured = max_transfer_count_per_batch_configured_;
   config.fabric_memory = fabric_memory_;
   config.is_lazy = is_lazy;
   config.multi_worker_num = multi_worker_num_;

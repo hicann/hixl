@@ -58,15 +58,13 @@ TEST(ClientHandlerConfigHelperUT, QosConfiguredTcSlUnconfigured) {
 TEST(ClientHandlerConfigHelperUT, QosUnconfiguredTcConfigured) {
   const auto args = MakeArgs(std::nullopt, 132U, std::nullopt);
   const auto config = ClientHandlerConfigHelper::BuildGlobalResourceConfig(args);
-  const auto json = nlohmann::json::parse(config);
-  EXPECT_FALSE(json.contains("comm_resource_config.qos"));
+  EXPECT_TRUE(config.empty());
 }
 
 TEST(ClientHandlerConfigHelperUT, QosUnconfiguredSlConfigured) {
   const auto args = MakeArgs(std::nullopt, std::nullopt, 4U);
   const auto config = ClientHandlerConfigHelper::BuildGlobalResourceConfig(args);
-  const auto json = nlohmann::json::parse(config);
-  EXPECT_FALSE(json.contains("comm_resource_config.qos"));
+  EXPECT_TRUE(config.empty());
 }
 
 TEST(ClientHandlerConfigHelperUT, QosUnconfiguredTcSlConfiguredWithMaxActiveChannels) {
@@ -106,5 +104,18 @@ TEST(ClientHandlerConfigHelperUT, QosUnconfiguredTcSlUnconfiguredWithMaxActiveCh
   EXPECT_EQ(json["comm_resource_config.qos"].get<uint8_t>(), kQosDefault);
   ASSERT_TRUE(json.contains("comm_resource_config.max_active_channels"));
   EXPECT_EQ(json["comm_resource_config.max_active_channels"].get<uint32_t>(), 16U);
+}
+
+TEST(ClientHandlerConfigHelperUT, TransferConfigIsForwardedOnlyWhenExplicitlyConfigured) {
+  auto args = MakeArgs(std::nullopt, 132U, 4U);
+  auto config = ClientHandlerConfigHelper::BuildGlobalResourceConfig(args);
+  EXPECT_TRUE(config.empty());
+
+  args.max_transfer_count_per_batch = 1024U;
+  args.max_transfer_count_per_batch_configured = true;
+  config = ClientHandlerConfigHelper::BuildGlobalResourceConfig(args);
+  auto json = nlohmann::json::parse(config);
+  ASSERT_TRUE(json.contains("transfer_config.max_transfer_count_per_batch"));
+  EXPECT_EQ(json["transfer_config.max_transfer_count_per_batch"].get<uint32_t>(), 1024U);
 }
 }  // namespace hixl
