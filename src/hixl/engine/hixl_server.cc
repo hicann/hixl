@@ -180,6 +180,9 @@ Status HixlServer::Initialize(const std::string &ip, int32_t port,
 
 Status HixlServer::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle) {
   HIXL_CHECK_NOTNULL(server_handle_);
+  HIXL_CHK_BOOL_RET_STATUS(type == MemType::MEM_HOST || type == MemType::MEM_DEVICE, PARAM_INVALID,
+                           "Invalid mem type:%d in RegisterMem, addr:0x%lx, len:%lu.", static_cast<int32_t>(type),
+                           mem.addr, mem.len);
   AddrInfo cur_info{};
   cur_info.start_addr = mem.addr;
   HIXL_CHK_BOOL_RET_STATUS(!ge::AddOverflow(mem.addr, mem.len, cur_info.end_addr), PARAM_INVALID,
