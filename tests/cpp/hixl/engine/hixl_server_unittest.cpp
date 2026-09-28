@@ -195,6 +195,14 @@ TEST_F(HixlServerTest, RegisterMemAddrLenOverflow) {
   EXPECT_EQ(server_.Finalize(), SUCCESS);
 }
 
+TEST_F(HixlServerTest, RegisterMemInvalidType) {
+  EXPECT_EQ(server_.Initialize(ip_, port_, default_eps), SUCCESS);
+  MemHandle handle = nullptr;
+  EXPECT_EQ(server_.RegisterMem(mem_, static_cast<MemType>(999), handle), PARAM_INVALID);
+  EXPECT_TRUE(server_.handle_to_addr_.empty());
+  EXPECT_EQ(server_.Finalize(), SUCCESS);
+}
+
 TEST_F(HixlServerTest, InitializeHostOnlySkipsDeviceQueries) {
   std::vector<EndpointConfig> host_eps;
   EndpointConfig ep{};
