@@ -117,9 +117,10 @@ Status ChannelMsgHandler::Serialize(const T &msg, std::string &msg_str) {
 }
 
 template <typename T>
-Status ChannelMsgHandler::Deserialize(const char *msg_str, T &msg) {
+Status ChannelMsgHandler::Deserialize(const char *msg_str, uint64_t msg_len, T &msg) {
+  ADXL_CHK_BOOL_RET_STATUS(msg_str != nullptr, PARAM_INVALID, "Failed to deserialize msg, msg_str is nullptr");
   try {
-    auto j = nlohmann::json::parse(msg_str);
+    auto j = nlohmann::json::parse(msg_str, msg_str + msg_len);
     msg = j.get<T>();
   } catch (const nlohmann::json::exception &e) {
     LLMLOGE(PARAM_INVALID, "Failed to load msg, exception:%s", e.what());
@@ -143,7 +144,7 @@ Status ChannelMsgHandler::RecvMsg(int32_t fd, ChannelMsgType msg_type, T &msg) {
   ADXL_CHK_LLM_RET(llm::MsgHandlerPlugin::RecvMsg(fd, type, msg_str), "Failed to recv msg");
   ADXL_CHK_BOOL_RET_STATUS(msg_type == static_cast<ChannelMsgType>(type), FAILED,
                            "Failed to check recv msg type:%d, expect type:%d", type, static_cast<int32_t>(msg_type));
-  ADXL_CHK_STATUS_RET(ChannelMsgHandler::Deserialize(&msg_str[0], msg), "Failed to deserialize msg");
+  ADXL_CHK_STATUS_RET(ChannelMsgHandler::Deserialize(&msg_str[0], msg_str.size(), msg), "Failed to deserialize msg");
   return SUCCESS;
 }
 
@@ -433,9 +434,11 @@ Status ChannelMsgHandler::StartChannelHeartbeat(const std::string &channel_id, C
 
 Status ChannelMsgHandler::ProcessConnectRequest(int32_t fd, const char *msg, uint64_t msg_len, bool &keep_fd) {
   const auto start = std::chrono::steady_clock::now();
-  (void)msg_len;
+  ADXL_CHK_BOOL_RET_STATUS(msg != nullptr && msg_len > 0, PARAM_INVALID,
+                           "Failed to check connect msg, local engine:%s, msg_len:%lu.", listen_info_.c_str(), msg_len);
   ChannelConnectInfo peer_connect_info{};
-  ADXL_CHK_STATUS_RET(ChannelMsgHandler::Deserialize(msg, peer_connect_info), "Failed to deserialize connect msg");
+  ADXL_CHK_STATUS_RET(ChannelMsgHandler::Deserialize(msg, msg_len, peer_connect_info),
+                      "Failed to deserialize connect msg");
   // Validate identity before exchanging local info or touching any existing channel of the claimed engine.
   const Status identity_ret = ValidatePeerIdentity(fd, peer_connect_info.channel_id);
   if (identity_ret != SUCCESS) {
@@ -482,7 +485,9 @@ Status ChannelMsgHandler::DisconnectInfoProcess(ChannelType channel_type,
 
 Status ChannelMsgHandler::ProcessDisconnectRequest(int32_t fd, const char *msg, uint64_t msg_len, bool &keep_fd) {
   keep_fd = false;
-  (void)msg_len;
+  ADXL_CHK_BOOL_RET_STATUS(msg != nullptr && msg_len > 0, PARAM_INVALID,
+                           "Failed to check disconnect msg, local engine:%s, msg_len:%lu.", listen_info_.c_str(),
+                           msg_len);
   auto ret = SUCCESS;
   LLM_MAKE_GUARD(send_status, ([fd, &ret]() {
                    ChannelStatus status{};
@@ -491,7 +496,7 @@ Status ChannelMsgHandler::ProcessDisconnectRequest(int32_t fd, const char *msg, 
                  }));
 
   ChannelDisconnectInfo peer_disconnect_info{};
-  ADXL_CHK_STATUS_RET(ChannelMsgHandler::Deserialize(msg, peer_disconnect_info),
+  ADXL_CHK_STATUS_RET(ChannelMsgHandler::Deserialize(msg, msg_len, peer_disconnect_info),
                       "Failed to deserialize disconnect msg");
 
   LLMLOGI("Start to process disconnect info, local engine:%s, remote engine:%s.", listen_info_.c_str(),

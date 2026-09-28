@@ -123,7 +123,7 @@ class ChannelMsgHandler {
   template <typename T>
   static Status Serialize(const T &msg, std::string &msg_str);
   template <typename T>
-  static Status Deserialize(const char *msg_str, T &msg);
+  static Status Deserialize(const char *msg_str, uint64_t msg_len, T &msg);
   Status ParseTrafficClass(const std::map<AscendString, AscendString> &options);
   Status ParseServiceLevel(const std::map<AscendString, AscendString> &options);
   Status DoConnect(const std::string &remote_engine, int32_t timeout_in_millis);

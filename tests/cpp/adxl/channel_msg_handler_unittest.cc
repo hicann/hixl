@@ -41,6 +41,10 @@ nlohmann::json BuildAddrInfoJson() {
       {"end_addr", kRemoteAddrEnd},
   };
 }
+
+std::string BuildDisconnectJson() {
+  return std::string(R"({"channel_id":")") + kRemoteEngine + R"("})";
+}
 }  // namespace
 
 class ChannelMsgHandlerUnitTest : public ::testing::Test {
@@ -122,6 +126,59 @@ TEST_F(ChannelMsgHandlerUnitTest, SerializeConnectInfoWritesAdxlConnectInfo) {
   EXPECT_EQ(json.at("addrs").at(0).at("mem_type").get<int32_t>(), static_cast<int32_t>(MEM_HOST));
   EXPECT_EQ(json.at("addrs").at(0).at("start_addr").get<uintptr_t>(), kRemoteAddrStart);
   EXPECT_EQ(json.at("addrs").at(0).at("end_addr").get<uintptr_t>(), kRemoteAddrEnd);
+}
+
+// Deserialization must stop at msg_len even when the buffer is not null-terminated, so a malformed
+// peer frame can never make the JSON parser scan past the received payload.
+TEST_F(ChannelMsgHandlerUnitTest, DeserializeStopsAtMsgLenWithoutNullTerminator) {
+  const std::string disconnect_json = BuildDisconnectJson();
+  std::vector<char> buffer(disconnect_json.begin(), disconnect_json.end());
+  const std::string garbage = "GARBAGE_NOT_JSON";
+  buffer.insert(buffer.end(), garbage.begin(), garbage.end());
+
+  ChannelDisconnectInfo info{};
+  EXPECT_EQ(ChannelMsgHandler::Deserialize(buffer.data(), disconnect_json.size(), info), SUCCESS);
+  EXPECT_EQ(info.channel_id, kRemoteEngine);
+}
+
+// MsgHandlerPlugin::RecvMsg appends a null terminator inside the received buffer; passing a msg_len
+// that covers this byte must still parse successfully.
+TEST_F(ChannelMsgHandlerUnitTest, DeserializeAcceptsTrailingNullWithinMsgLen) {
+  const std::string disconnect_json = BuildDisconnectJson();
+  std::vector<char> buffer(disconnect_json.begin(), disconnect_json.end());
+  buffer.push_back('\0');
+
+  ChannelDisconnectInfo info{};
+  EXPECT_EQ(ChannelMsgHandler::Deserialize(buffer.data(), buffer.size(), info), SUCCESS);
+  EXPECT_EQ(info.channel_id, kRemoteEngine);
+}
+
+TEST_F(ChannelMsgHandlerUnitTest, DeserializeRejectsTruncatedMsgLen) {
+  const std::string disconnect_json = BuildDisconnectJson();
+  ChannelDisconnectInfo info{};
+  EXPECT_EQ(ChannelMsgHandler::Deserialize(disconnect_json.c_str(), disconnect_json.size() - 1, info), PARAM_INVALID);
+}
+
+TEST_F(ChannelMsgHandlerUnitTest, DeserializeRejectsNullptrAndEmptyMsgLen) {
+  ChannelDisconnectInfo info{};
+  EXPECT_EQ(ChannelMsgHandler::Deserialize(nullptr, 0, info), PARAM_INVALID);
+
+  const std::string disconnect_json = BuildDisconnectJson();
+  EXPECT_EQ(ChannelMsgHandler::Deserialize(disconnect_json.c_str(), 0, info), PARAM_INVALID);
+}
+
+TEST_F(ChannelMsgHandlerUnitTest, ProcessDisconnectRequestRejectsInvalidMsg) {
+  bool keep_fd = true;
+  EXPECT_EQ(handler_->ProcessDisconnectRequest(sockets_[0], nullptr, 0, keep_fd), PARAM_INVALID);
+  EXPECT_FALSE(keep_fd);
+
+  const std::string disconnect_json = BuildDisconnectJson();
+  EXPECT_EQ(handler_->ProcessDisconnectRequest(sockets_[0], disconnect_json.c_str(), 0, keep_fd), PARAM_INVALID);
+}
+
+TEST_F(ChannelMsgHandlerUnitTest, ProcessConnectRequestRejectsInvalidMsg) {
+  bool keep_fd = true;
+  EXPECT_EQ(handler_->ProcessConnectRequest(sockets_[0], nullptr, 0, keep_fd), PARAM_INVALID);
 }
 
 TEST_F(ChannelMsgHandlerUnitTest, ParseTcSlRejectsOutOfRangeValues) {
