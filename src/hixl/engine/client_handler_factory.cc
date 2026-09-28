@@ -22,10 +22,7 @@ namespace hixl {
 Status ClientHandlerFactory::Create(const HandlerCreateArgs &args, std::unique_ptr<IClientHandler> &out) {
   out.reset();
   if (args.handler_type == HandlerCreateArgs::HandlerType::DIRECT) {
-    const auto &pair = args.matched_pairs[0];
-    const bool is_multi_worker_protocol =
-        (pair.type == CommType::COMM_TYPE_UBOE || pair.type == CommType::COMM_TYPE_UBG);
-    if (is_multi_worker_protocol && args.multi_worker_num > 1U) {
+    if (args.multi_worker_num > 1U) {
       std::unique_ptr<DirectMultiChannelHandler> handler;
       HIXL_CHK_STATUS_RET(DirectMultiChannelHandler::Create(args, handler),
                           "ClientHandlerFactory create DirectMultiChannelHandler failed");
