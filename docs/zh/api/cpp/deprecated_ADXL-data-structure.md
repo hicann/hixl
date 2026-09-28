@@ -30,7 +30,8 @@ enum TransferOp {
 struct MemDesc {
   uintptr_t addr;
   size_t len;
-  uint8_t reserved[128] = {};
+  bool remote_accessible = true;  // 是否允许被远端访问，默认 true；
+  uint8_t reserved[127] = {};
 };
 ```
 

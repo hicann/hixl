@@ -188,6 +188,7 @@ Status HixlServer::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_
   HIXL_CHK_BOOL_RET_STATUS(!ge::AddOverflow(mem.addr, mem.len, cur_info.end_addr), PARAM_INVALID,
                            "Address overflow in RegisterMem, addr:0x%lx, len:%lu.", mem.addr, mem.len);
   cur_info.mem_type = type;
+  cur_info.remote_accessible = mem.remote_accessible;
   std::lock_guard<std::mutex> lk(mtx_);
 
   bool is_duplicate = false;
@@ -195,8 +196,24 @@ Status HixlServer::RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_
   HIXL_CHK_STATUS_RET(CheckAddrOverlap(cur_info, handle_to_addr_, is_duplicate, existing_handle),
                       "Failed to check address overlap.");
   if (is_duplicate) {
+    // A duplicated range must keep the same remote_accessible to avoid inconsistent remote visibility.
+    const AddrInfo &existing = handle_to_addr_.at(existing_handle);
+    HIXL_CHK_BOOL_RET_STATUS(existing.remote_accessible == cur_info.remote_accessible, PARAM_INVALID,
+                             "Mem is already registered with a different remote_accessible, addr:0x%lx, len:%lu, "
+                             "registered:%d, requested:%d.",
+                             mem.addr, mem.len, static_cast<int32_t>(existing.remote_accessible),
+                             static_cast<int32_t>(cur_info.remote_accessible));
     mem_handle = existing_handle;
     HIXL_LOGI("Memory already registered, returning existing handle:%p", mem_handle);
+    return SUCCESS;
+  }
+
+  if (!cur_info.remote_accessible) {
+    // remote_accessible=false: skip server-side registration (no retain/export) and only keep the
+    // bookkeeping so Unreg and duplicate detection still work. The memory stays local-only.
+    mem_handle = reinterpret_cast<MemHandle>(mem.addr);
+    handle_to_addr_[mem_handle] = cur_info;
+    HIXL_LOGI("Memory registered as local-only, returning handle:%p", mem_handle);
     return SUCCESS;
   }
 
@@ -220,8 +237,12 @@ Status HixlServer::DeregisterMem(MemHandle mem_handle) {
     HIXL_LOGW("mem_handle:%p is not registered.", mem_handle);
     return SUCCESS;
   }
-  HIXL_CHK_STATUS_RET(HixlCSServerUnregMem(server_handle_, mem_handle), "Failed to deregister mem, handle:%p.",
-                      mem_handle);
+  if (it->second.remote_accessible) {
+    HIXL_CHK_STATUS_RET(HixlCSServerUnregMem(server_handle_, mem_handle), "Failed to deregister mem, handle:%p.",
+                        mem_handle);
+  } else {
+    HIXL_LOGI("Deregister local-only mem, handle:%p.", mem_handle);
+  }
   handle_to_addr_.erase(it);
   return SUCCESS;
 }
@@ -233,9 +254,11 @@ Status HixlServer::Finalize() {
   // 注销所有注册的内存
   std::lock_guard<std::mutex> lk(mtx_);
   for (const auto &handle : handle_to_addr_) {
-    Status ret = HixlCSServerUnregMem(server_handle_, handle.first);
-    if (ret != SUCCESS) {
-      HIXL_LOGE(ret, "Failed to deregister mem, handle:%p.", handle.first);
+    if (handle.second.remote_accessible) {
+      Status ret = HixlCSServerUnregMem(server_handle_, handle.first);
+      if (ret != SUCCESS) {
+        HIXL_LOGE(ret, "Failed to deregister mem, handle:%p.", handle.first);
+      }
     }
   }
   handle_to_addr_.clear();
@@ -299,6 +322,9 @@ std::vector<MemInfo> HixlServer::GetRegisteredMemInfo() const {
   std::vector<MemInfo> result;
   for (const auto &kv : handle_to_addr_) {
     const auto &addr_info = kv.second;
+    if (!addr_info.remote_accessible) {
+      continue;
+    }
     MemInfo mi{};
     mi.type = addr_info.mem_type;
     mi.addr = addr_info.start_addr;

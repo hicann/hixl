@@ -10,6 +10,7 @@ class MemDesc:
 
     addr: int   # Memory address
     len: int    # Memory length (bytes)
+    remote_accessible: bool  # Whether the memory is remotely accessible, default True
 ```
 
 **Example**

@@ -462,6 +462,29 @@ TEST_F(AdxlEngineUTest, TestDeregisterUnregisterMem) {
   engine.Finalize();
 }
 
+TEST_F(AdxlEngineUTest, TestMemDescRemoteAccessibleAbiAndRegistration) {
+  // ABI/API：remote_accessible 复用 reserved 空间，默认 true，结构体总大小保持 144 字节。
+  MemDesc default_desc{};
+  EXPECT_TRUE(default_desc.remote_accessible);
+  EXPECT_EQ(sizeof(MemDesc), 144U);
+
+  // 新增字段不改变 AdxlEngine 既有内存注册路径的行为。
+  AdxlEngine engine;
+  std::map<AscendString, AscendString> options;
+  ASSERT_EQ(engine.Initialize("127.0.0.1", options), SUCCESS);
+
+  int32_t buf = 1;
+  MemDesc mem_desc{};
+  mem_desc.addr = reinterpret_cast<uintptr_t>(&buf);
+  mem_desc.len = sizeof(buf);
+  mem_desc.remote_accessible = false;
+  MemHandle handle = nullptr;
+  EXPECT_EQ(engine.RegisterMem(mem_desc, MEM_DEVICE, handle), SUCCESS);
+  EXPECT_NE(handle, nullptr);
+  EXPECT_EQ(engine.DeregisterMem(handle), SUCCESS);
+  engine.Finalize();
+}
+
 TEST_F(AdxlEngineUTest, TestHeartbeat) {
   ChannelManager::SetHeartbeatWaitTime(10);  // 10ms
   CommChannel::SetHeartbeatTimeout(50);      // 50ms

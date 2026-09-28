@@ -105,10 +105,13 @@ class HixlDataClassesTest(unittest.TestCase):
         desc = hixl.MemDesc(addr=0x1000, len=8192)
         self.assertEqual(desc.addr, 0x1000)
         self.assertEqual(desc.len, 8192)
+        self.assertTrue(desc.remote_accessible)
         desc.addr = 0x2000
         desc.len = 4096
+        desc.remote_accessible = False
         self.assertEqual(desc.addr, 0x2000)
         self.assertEqual(desc.len, 4096)
+        self.assertFalse(desc.remote_accessible)
 
     def test_transfer_op_desc(self):
         op = hixl.TransferOpDesc(local_addr=0x1000, remote_addr=0x2000, len=4096)

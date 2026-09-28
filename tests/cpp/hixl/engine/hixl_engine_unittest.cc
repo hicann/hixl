@@ -1963,6 +1963,70 @@ TEST_F(HixlEngineTest, InitializeUbMemSucceedsAndRegisterMem) {
   engine.Finalize();
 }
 
+TEST_F(HixlEngineTest, InitializeUbMemRegisterMemRemoteInaccessibleSkipsServerReg) {
+  SetSocStub("Ascend910_9391", 1, 23, 45, 67);
+  SetHccnConfContent("address_23=10.10.10.23\n");
+  std::map<AscendString, AscendString> options = BuildOptions(BuildVersionOnlyLocalCommRes("1.3"));
+  options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = "1";
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"fabric_memory":{"enable_aicpu_unfold":false}})";
+  HixlEngine engine("127.0.0.1");
+  HixlOptions parsed;
+  ASSERT_EQ(HixlOptions::Parse(options, parsed), SUCCESS);
+  ASSERT_EQ(engine.Initialize(parsed), SUCCESS);
+  ASSERT_EQ(engine.endpoint_list_.size(), 1U);
+  EXPECT_EQ(engine.endpoint_list_[0].protocol, kProtocolUbmem);
+
+  std::vector<uint8_t> buf(64, 0);
+  MemDesc mem{};
+  mem.addr = reinterpret_cast<uintptr_t>(buf.data());
+  mem.len = buf.size();
+  mem.remote_accessible = false;
+  MemHandle handle = nullptr;
+  EXPECT_EQ(engine.RegisterMem(mem, MEM_HOST, handle), SUCCESS);
+  EXPECT_NE(handle, nullptr);
+  ASSERT_EQ(engine.mem_map_.count(handle), 1U);
+  ASSERT_EQ(engine.server_.handle_to_addr_.count(handle), 1U);
+  EXPECT_FALSE(engine.server_.handle_to_addr_.at(handle).remote_accessible);
+  EXPECT_TRUE(engine.server_.GetRegisteredMemInfo().empty());
+
+  MemHandle duplicate_handle = nullptr;
+  EXPECT_EQ(engine.RegisterMem(mem, MEM_HOST, duplicate_handle), SUCCESS);
+  EXPECT_EQ(duplicate_handle, handle);
+  EXPECT_EQ(engine.DeregisterMem(handle), SUCCESS);
+  EXPECT_EQ(engine.server_.handle_to_addr_.count(handle), 0U);
+  engine.Finalize();
+}
+
+TEST_F(HixlEngineTest, InitializeUbMemRegisterMemRejectsRemoteAccessibleMismatch) {
+  SetSocStub("Ascend910_9391", 1, 23, 45, 67);
+  SetHccnConfContent("address_23=10.10.10.23\n");
+  std::map<AscendString, AscendString> options = BuildOptions(BuildVersionOnlyLocalCommRes("1.3"));
+  options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = "1";
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"fabric_memory":{"enable_aicpu_unfold":false}})";
+  HixlEngine engine("127.0.0.1");
+  HixlOptions parsed;
+  ASSERT_EQ(HixlOptions::Parse(options, parsed), SUCCESS);
+  ASSERT_EQ(engine.Initialize(parsed), SUCCESS);
+
+  std::vector<uint8_t> local_only_buf(64, 0);
+  MemDesc local_only{};
+  local_only.addr = reinterpret_cast<uintptr_t>(local_only_buf.data());
+  local_only.len = local_only_buf.size();
+  local_only.remote_accessible = false;
+  MemHandle local_only_handle = nullptr;
+  ASSERT_EQ(engine.RegisterMem(local_only, MEM_HOST, local_only_handle), SUCCESS);
+
+  // 已按 local-only 注册的内存，不允许再以 remote_accessible=true 注册同一区间。
+  MemDesc conflicting = local_only;
+  conflicting.remote_accessible = true;
+  MemHandle conflicting_handle = nullptr;
+  EXPECT_EQ(engine.RegisterMem(conflicting, MEM_HOST, conflicting_handle), PARAM_INVALID);
+  EXPECT_EQ(conflicting_handle, nullptr);
+  EXPECT_EQ(engine.server_.handle_to_addr_.count(local_only_handle), 1U);
+  EXPECT_EQ(engine.DeregisterMem(local_only_handle), SUCCESS);
+  engine.Finalize();
+}
+
 TEST_F(HixlEngineTest, InitializeUbMemViaUbmemProtocolDesc) {
   SetSocStub("Ascend910_9391", 1, 23, 45, 67);
   SetHccnConfContent("address_23=10.10.10.23\n");
