@@ -38,6 +38,7 @@ constexpr const char kHccnConfIpv6KeyPrefix[] = "IPv6address_";
 constexpr const char kHccnToolIpv4Query[] = "-ip -g";
 constexpr const char kHccnToolIpv6Query[] = "-ip -inet6 -g";
 constexpr size_t kValidHccnConfItemNum = 2U;
+constexpr int32_t kHcommConfigurableTransferVersion = 90200000;
 
 const std::set<std::string> kSocV2 = {"Ascend910B1", "Ascend910B2",  "Ascend910B3",
                                       "Ascend910B4", "Ascend910B2C", "Ascend910B4-1"};
@@ -130,6 +131,22 @@ Status ReadDeviceIpFromHccnConf(std::ifstream &file, const std::string &target_k
 }
 
 }  // namespace
+
+bool IsHcommConfigurableTransferSupported() {
+  if (aclsysGetVersionNum == nullptr) {
+    HIXL_LOGW("aclsysGetVersionNum is unavailable, use legacy Hcomm transfer settings");
+    return false;
+  }
+  char pkg_name[] = "hcomm";
+  int32_t version_num = 0;
+  const int32_t ret = aclsysGetVersionNum(pkg_name, &version_num);
+  if (ret != 0) {
+    HIXL_LOGW("Call api:aclsysGetVersionNum failed, package:hcomm, ret:%d; use legacy Hcomm transfer settings", ret);
+    return false;
+  }
+  return version_num >= kHcommConfigurableTransferVersion;
+}
+
 Status CheckIp(const std::string &ip) {
   struct in_addr addr;
   struct sockaddr_in6 ipv6_addr;

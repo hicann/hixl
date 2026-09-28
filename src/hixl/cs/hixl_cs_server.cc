@@ -227,6 +227,7 @@ Status HixlCSServer::Initialize(const EndpointDesc *endpoint_list, uint32_t list
   HIXL_CHECK_NOTNULL(endpoint_list);
   HIXL_CHK_BOOL_RET_STATUS(list_num > 0, PARAM_INVALID, "endpoint list num:%u is invalid, must > 0", list_num);
   const bool ub_ctp_endpoints_all_device = AreUbCtpEndpointsAllDevice(endpoint_list, list_num);
+  configurable_transfer_supported_ = IsHcommConfigurableTransferSupported();
   HIXL_DISMISSABLE_GUARD(init_rollback, ([this]() { (void)Finalize(); }));
   for (uint32_t i = 0U; i < list_num; ++i) {
     EndpointHandle handle = nullptr;
@@ -500,6 +501,7 @@ Status HixlCSServer::CreateChannel(int32_t fd, const char *msg, uint64_t msg_len
   channel_desc.channel_type = ChannelType::kServer;
   channel_desc.channel_index = req.channel_index;
   channel_desc.qos = req.qos;
+  channel_desc.configurable_transfer_supported = configurable_transfer_supported_;
   HIXL_CHK_STATUS_RET(ep->CreateChannel(channel_desc, channel_handle, req.timeout_ms), "Failed to create channel");
   bool client_disconnected = false;
   {

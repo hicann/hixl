@@ -115,6 +115,8 @@ Status GetSocName(std::string &soc_name);
 SocType GetSocTypeByName(const std::string &soc_name);
 Status GetSocType(SocType &soc_type);
 
+bool IsHcommConfigurableTransferSupported();
+
 class TemporaryRtContext {
  public:
   explicit TemporaryRtContext(aclrtContext context);

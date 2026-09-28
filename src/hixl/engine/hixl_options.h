@@ -48,6 +48,7 @@ struct CommResourceConfigDesc {
 
 struct TransferConfig {
   uint32_t max_transfer_count_per_batch{kDefaultMaxTransferCountPerBatch};
+  bool max_transfer_count_per_batch_configured{false};
 };
 
 struct GlobalResourceConfig {

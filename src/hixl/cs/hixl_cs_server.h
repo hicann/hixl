@@ -89,6 +89,7 @@ class HixlCSServer {
   MsgHandler msg_handler_;
   EndpointStore endpoint_store_;
   GlobalConfig global_config_;
+  bool configurable_transfer_supported_{false};
 
   void *host_trans_flag_ = nullptr;  // Host 侧 Flag 内存指针
 

@@ -29,6 +29,7 @@
 #include "common/ctrl_msg.h"
 #include "cs/hixl_cs.h"
 #include "depends/hccl/src/hccl_stub.h"
+#include "slog_stub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/sys_api/src/sys_api_wrap.h"
 #include "engine/test_mmpa_utils.h"
@@ -617,6 +618,7 @@ static EndpointDesc MakeIdEpEx(uint32_t id, CommProtocol protocol) {
 class HixlCSClientUT : public ::testing::Test {
  protected:
   void SetUp() override {
+    ResetHcommVersionStub();
     src_ = MakeIdEp(kSrcEpId);
     dst_ = MakeIdEp(kDstEpId);
     ClearRdmaRetryEnv();
@@ -638,6 +640,7 @@ class HixlCSClientUT : public ::testing::Test {
     SetChannelGetStatusFailValue(-1);
     ResetChannelDescRecord();
     hixl_test::ResetSysApiHooks();
+    ResetHcommVersionStub();
   }
 
   static void ClearRdmaRetryEnv() {
@@ -1078,6 +1081,16 @@ TEST_F(HixlCSClientUT, ConnectConfiguresHostRoceQueueDepths) {
 TEST_F(HixlCSClientUT, ConnectConfiguresHostUrmaQueueDepths) {
   VerifyQueueDepth(COMM_PROTOCOL_UBC_CTP, ENDPOINT_LOC_TYPE_HOST,
                    R"({"transfer_config.max_transfer_count_per_batch":1024})", 2048U);
+}
+
+TEST_F(HixlCSClientUT, LegacyHcommKeepsDefaultRoceQueueDepths) {
+  SetHcommVersionNum(90199999);
+  VerifyQueueDepth(COMM_PROTOCOL_ROCE, ENDPOINT_LOC_TYPE_HOST, nullptr, 0U);
+}
+
+TEST_F(HixlCSClientUT, LegacyHcommKeepsDefaultUrmaQueueDepths) {
+  SetHcommVersionNum(90199999);
+  VerifyQueueDepth(COMM_PROTOCOL_UBC_CTP, ENDPOINT_LOC_TYPE_HOST, nullptr, std::numeric_limits<uint32_t>::max());
 }
 
 class DeviceUrmaQueueDepthUT : public HixlCSClientUT, public ::testing::WithParamInterface<CommProtocol> {};
@@ -1686,7 +1699,52 @@ TEST_F(HixlCSClientUT, ParseConfigMaxTransferCountPerBatch) {
   config.global_resource_config = R"({"transfer_config.max_transfer_count_per_batch":1022})";
   EXPECT_EQ(client_.Create(&desc, &config), SUCCESS);
   EXPECT_EQ(client_.global_config_.MaxTransferCountPerBatch(), 1022U);
+  EXPECT_TRUE(client_.global_config_.HasMaxTransferCountPerBatch());
   client_.Destroy();
+}
+
+TEST_F(HixlCSClientUT, LegacyHcommRejectsExplicitMaxTransferCountBeforeCreatingEndpoint) {
+  SetHcommVersionNum(90199999);
+  port_ = kPort;
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientConfig config{};
+  config.global_resource_config = R"({"transfer_config.max_transfer_count_per_batch":1022})";
+
+  EXPECT_EQ(client_.Create(&desc, &config), PARAM_INVALID);
+  EXPECT_EQ(client_.local_endpoint_, nullptr);
+}
+
+TEST_F(HixlCSClientUT, HcommVersionQueryFailureRejectsExplicitMaxTransferCount) {
+  SetHcommVersionQueryResult(-1);
+  port_ = kPort;
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientConfig config{};
+  config.global_resource_config = R"({"transfer_config.max_transfer_count_per_batch":1022})";
+
+  EXPECT_EQ(client_.Create(&desc, &config), PARAM_INVALID);
+  EXPECT_EQ(client_.local_endpoint_, nullptr);
+}
+
+TEST_F(HixlCSClientUT, HcommVersionQueryFailureUsesLegacyDefaultsWhenTransferCountOmitted) {
+  SetHcommVersionQueryResult(-1);
+  port_ = kPort;
+  HixlClientDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = port_;
+  desc.local_endpoint = &src_;
+  desc.remote_endpoint = &dst_;
+  HixlClientConfig config{};
+
+  EXPECT_EQ(client_.Create(&desc, &config), SUCCESS);
+  EXPECT_FALSE(client_.configurable_transfer_supported_);
 }
 
 TEST_F(HixlCSClientUT, ParseConfigMaxTransferCountPerBatchAcceptsIntegerAndDecimalString) {
@@ -1695,6 +1753,16 @@ TEST_F(HixlCSClientUT, ParseConfigMaxTransferCountPerBatchAcceptsIntegerAndDecim
     GlobalConfig config;
     EXPECT_EQ(GlobalConfig::Parse(config_str.c_str(), config), SUCCESS) << value;
   }
+}
+
+TEST_F(HixlCSClientUT, ParseConfigMaxTransferCountPerBatchRejectsLegacyHcomm) {
+  SetHcommVersionNum(90199999);
+  GlobalConfig config;
+
+  EXPECT_EQ(GlobalConfig::Parse(R"({"transfer_config.max_transfer_count_per_batch":1920})", config,
+                                GlobalConfig::ParseTarget::kClient),
+            PARAM_INVALID);
+  EXPECT_FALSE(config.HasMaxTransferCountPerBatch());
 }
 
 TEST_F(HixlCSClientUT, ParseConfigMaxTransferCountPerBatchRejectsOutOfRange) {

@@ -36,6 +36,7 @@ struct ClientConfig {
   std::optional<uint8_t> qos;
   std::optional<uint32_t> max_active_channels;
   uint32_t max_transfer_count_per_batch{kDefaultMaxTransferCountPerBatch};
+  bool max_transfer_count_per_batch_configured{false};
   uint32_t multi_worker_num = 1U;
   uint32_t multi_channel_split_batch_size = kDefaultSplitBatchSize;
   bool is_lazy = false;
@@ -58,6 +59,7 @@ class HixlClient {
         qos_(config.qos),
         max_active_channels_(config.max_active_channels),
         max_transfer_count_per_batch_(config.max_transfer_count_per_batch),
+        max_transfer_count_per_batch_configured_(config.max_transfer_count_per_batch_configured),
         multi_worker_num_(config.multi_worker_num),
         multi_channel_split_batch_size_(config.multi_channel_split_batch_size) {}
   ~HixlClient() = default;
@@ -162,6 +164,7 @@ class HixlClient {
   std::optional<uint8_t> qos_;
   std::optional<uint32_t> max_active_channels_;
   uint32_t max_transfer_count_per_batch_{kDefaultMaxTransferCountPerBatch};
+  bool max_transfer_count_per_batch_configured_{false};
   uint32_t multi_worker_num_{1U};
   uint32_t multi_channel_split_batch_size_{kDefaultSplitBatchSize};
 };

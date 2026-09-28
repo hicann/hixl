@@ -161,6 +161,7 @@ class HixlCSClient {
   uint32_t retry_interval_{kRdmaRetryIntervalDefault};
   GlobalConfig global_config_;
   Channel client_channel_;
+  bool configurable_transfer_supported_{false};
   ChannelHandle client_channel_handle_ = 0UL;
   uint64_t remote_endpoint_handle_{0U};
   static constexpr size_t kFlagQueueSize = 4096;  // 用于初始化队列和内存地址列表

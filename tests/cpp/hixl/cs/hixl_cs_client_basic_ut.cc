@@ -16,6 +16,7 @@
 #include "hixl_cs_client.h"
 #include "hccl/hccl_types.h"
 #include "depends/hccl/src/hccl_stub.h"
+#include "slog_stub.h"
 
 namespace hixl {
 
@@ -122,12 +123,14 @@ class HixlCSClientFixture : public ::testing::Test {
  protected:
   hixl::HixlCSClient cli;
   void SetUp() override {
+    ResetHcommVersionStub();
     ResetTransferCounter();
     SetNextNbiFailure(0);
     SetNextFenceFailure(0);
   }
   void TearDown() override {
     (void)cli.Destroy();
+    ResetHcommVersionStub();
   }
 };
 
@@ -487,6 +490,22 @@ TEST_F(HixlCSClientFixture, BatchTransferFailsWhenLastChunkFenceFails) {
   EXPECT_EQ(query_handle, nullptr);
   EXPECT_EQ(GetNbiCallCount(), 1U);
   EXPECT_EQ(GetFenceCallCount(), 1U);
+}
+
+TEST_F(HixlCSClientFixture, LegacyHcommUsesHostBatchSize128AndFencesEachBatch) {
+  SetHcommVersionNum(90199999);
+  const char *client_ip = "127.0.0.1";
+  uint32_t port = 22344;
+  PrepareConnectionAndImport(cli, client_ip, port);
+  RecordLocalMem(cli);
+  ResetTransferCounter();
+
+  std::vector<HixlOneSideOpDesc> descs(129U,
+                                       HixlOneSideOpDesc{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4U});
+  void *query_handle = nullptr;
+  ASSERT_EQ(cli.BatchTransferAsync(false, static_cast<uint32_t>(descs.size()), descs.data(), &query_handle), SUCCESS);
+  EXPECT_NE(query_handle, nullptr);
+  EXPECT_EQ(GetFenceCallCount(), 2U);
 }
 
 TEST_F(HixlCSClientFixture, BatchTransferHostAsyncHandlesMaximumListNumWithoutChunkCountOverflow) {

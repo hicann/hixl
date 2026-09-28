@@ -27,6 +27,7 @@ struct CommResourceConfig {
 
 struct TransferConfigDesc {
   uint32_t max_transfer_count_per_batch{kDefaultMaxTransferCountPerBatch};
+  bool max_transfer_count_per_batch_configured{false};
 };
 
 class GlobalConfig {
@@ -43,6 +44,7 @@ class GlobalConfig {
   std::optional<uint8_t> Qos() const;
   std::optional<uint32_t> MaxActiveChannels() const;
   uint32_t MaxTransferCountPerBatch() const;
+  bool HasMaxTransferCountPerBatch() const;
 
  private:
   CommResourceConfig comm_resource_config_;

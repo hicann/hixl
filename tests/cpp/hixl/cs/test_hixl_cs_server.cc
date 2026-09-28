@@ -67,6 +67,7 @@ class HixlCSTest : public ::testing::Test {
  protected:
   // 在测试类中设置一些准备工作，如果需要的话
   void SetUp() override {
+    ResetHcommVersionStub();
     ResetChannelDescRecord();
     EndpointDesc ep0{};
     ep0.loc.locType = ENDPOINT_LOC_TYPE_HOST;
@@ -91,6 +92,7 @@ class HixlCSTest : public ::testing::Test {
   // 在测试类中进行清理工作，如果需要的话
   void TearDown() override {
     ResetMemRegRecord();
+    ResetHcommVersionStub();
   }
 
  private:

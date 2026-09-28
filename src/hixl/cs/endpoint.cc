@@ -29,6 +29,9 @@ bool IsUrmaProtocol(CommProtocol protocol) {
 }
 
 void InitQueueDepth(const EndpointDesc &endpoint, const ChannelDesc &channel_desc, HcommChannelDesc &ch_desc) {
+  if (!channel_desc.configurable_transfer_supported) {
+    return;
+  }
   const bool is_client = channel_desc.channel_type == ChannelType::kClient;
   const uint32_t data_depth =
       is_client ? CalculateTransportQueueDepth(channel_desc.max_transfer_count_per_batch) : kMinTransportQueueDepth;

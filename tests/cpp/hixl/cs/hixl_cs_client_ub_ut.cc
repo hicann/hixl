@@ -403,6 +403,13 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceUsesNonKernelAlignedConfiguredBo
   ExpectAsyncNotifyWaitCount(1023U, 2U);
 }
 
+TEST_F(HixlCSClientDeviceFixture, LegacyHcommUsesDeviceNotifyBoundary1920) {
+  ASSERT_EQ(GlobalConfig::Parse(R"({"transfer_config.max_transfer_count_per_batch":1022})", cli_.global_config_),
+            SUCCESS);
+  cli_.configurable_transfer_supported_ = false;
+  ExpectAsyncNotifyWaitCount(kNotifyWaitTaskInterval + 1U, 2U);
+}
+
 TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSlotReuse) {
   // With slot reuse mechanism, multiple concurrent transfers share the same slot
   // This test verifies that slot reuse works correctly

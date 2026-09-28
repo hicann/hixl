@@ -343,9 +343,12 @@ Status HixlCSClient::Create(const HixlClientDesc *client_desc, const HixlClientC
   HIXL_CHECK_NOTNULL(client_desc->local_endpoint);
   HIXL_CHECK_NOTNULL(client_desc->remote_endpoint);
   HIXL_CHECK_NOTNULL(config);
+  global_config_ = GlobalConfig{};
   HIXL_CHK_STATUS_RET(
       GlobalConfig::Parse(config->global_resource_config, global_config_, GlobalConfig::ParseTarget::kClient),
       "[HixlClient] Failed to parse global_resource_config");
+  configurable_transfer_supported_ =
+      global_config_.HasMaxTransferCountPerBatch() || IsHcommConfigurableTransferSupported();
   HIXL_EVENT(
       "[HixlClient] Create begin. Server=%s:%u. "
       "SrcEndpoint[Loc:%d, protocol:%s, commAddr.Type:%d, commAddr.id:0x%x], "
@@ -516,7 +519,8 @@ Status HixlCSClient::BatchTransferTask(bool is_get, uint32_t list_num, const Hix
 Status HixlCSClient::BatchTransferHostAsync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list,
                                             void **query_handle) {
   HIXL_CHK_BOOL_RET_STATUS(list_num > 0U, PARAM_INVALID, "[HixlClient] list_num must be > 0");
-  const uint32_t batch_size = global_config_.MaxTransferCountPerBatch();
+  const uint32_t batch_size =
+      configurable_transfer_supported_ ? global_config_.MaxTransferCountPerBatch() : kMaxKernelBatchSize;
   const uint32_t num_chunks = list_num / batch_size + static_cast<uint32_t>(list_num % batch_size != 0U);
   for (uint32_t chunk_idx = 0U; chunk_idx < num_chunks; ++chunk_idx) {
     uint32_t chunk_offset = chunk_idx * batch_size;
@@ -727,7 +731,8 @@ Status HixlCSClient::AllocateHostFlag(void *&host_flag) const {
 }
 
 Status HixlCSClient::LaunchDeviceChunkedKernels(bool is_get, DeviceCompleteHandle &handle, uint32_t list_num) const {
-  const uint32_t batch_size = global_config_.MaxTransferCountPerBatch();
+  const uint32_t batch_size =
+      configurable_transfer_supported_ ? global_config_.MaxTransferCountPerBatch() : kDefaultMaxTransferCountPerBatch;
   // Device transfers have two batching boundaries: each kernel accepts at most 128 descriptors, while each logical
   // transfer batch accepts at most batch_size descriptors. A kernel never crosses a logical batch boundary, and the
   // last kernel in every logical batch records a Notify that the host waits for before submitting the next batch.
@@ -1268,7 +1273,8 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannel(uint32_t timeout_ms) {
                            ChannelType::kClient,
                            channel_index,
                            qos,
-                           global_config_.MaxTransferCountPerBatch()};
+                           global_config_.MaxTransferCountPerBatch(),
+                           configurable_transfer_supported_};
   HIXL_CHK_STATUS_RET(local_endpoint_->CreateChannel(channel_desc, channel_handle, timeout_ms),
                       "[HixlClient] Endpoint CreateChannel failed. Dst[id:0x%x]", remote_endpoint_.commAddr.id);
   HIXL_CHK_STATUS_RET(ConnMsgHandler::RecvCreateChannelResponse(socket_, timeout_ms),
