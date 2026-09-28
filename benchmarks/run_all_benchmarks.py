@@ -408,7 +408,14 @@ def render_perf_report(platform_id: str, comm_ok: int, output_path: Path | None)
         log.warning('[WARN] render_perf_md.py failed')
 
 
-def main() -> None:
+def benchmark_exit_code(comm_ok: int, kv_ok: int, comm_requested: bool, kv_requested: bool) -> int:
+    """Return a failing status when every requested benchmark run failed."""
+    if (comm_requested or kv_requested) and comm_ok + kv_ok == 0:
+        return 1
+    return 0
+
+
+def main() -> int:
     args = parse_all_benchmark_args()
     devs = [int(x.strip()) for x in args.device_ids.split(',')]
     err = _validate_args(args, devs)
@@ -433,16 +440,18 @@ def main() -> None:
             log.info(f"[INFO] KV benchmark devices ({len(kv_devs)}): {','.join(str(d) for d in kv_devs)}")
             kv_ok = run_kv_benchmarks(KvSuiteSpec(kv_bin, kv_devs, kv_output, KV_MODELS, kv_transport, platform_id))
             log.info(f'\n[INFO] KV: {kv_ok}/{len(KV_MODELS)} runs succeeded')
-    if comm_ok + kv_ok == 0:
+    exit_code = benchmark_exit_code(comm_ok, kv_ok, not args.skip_comm, not args.skip_kv)
+    if exit_code != 0:
         log.warning('[WARN] No successful benchmarks, skipping perf.md generation')
-        return
+        return exit_code
     render_perf_report(platform_id, comm_ok, args.output)
     log.info('\n[DONE]')
+    return 0
 
 
 if __name__ == '__main__':
     try:
-        main()
+        sys.exit(main())
     except RuntimeError as exc:
         log.error('%s', exc)
         sys.exit(1)
