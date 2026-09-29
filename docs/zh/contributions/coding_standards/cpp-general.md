@@ -59,7 +59,7 @@
 | 15.5 | 单参数构造函数用 explicit | 函数使用 |
 | 15.6 | 拷贝构造和赋值操作符成对出现 | 函数使用 |
 | 15.7 | 禁止保存、delete 指针参数 | 函数使用 |
-| 15.8 | 函数声明与定义参数名一致 | 函数使用 |
+| 15.8 | 函数声明与定义的签名一致 | 函数使用 |
 
 ---
 
@@ -652,29 +652,51 @@ class Foo {
 
 ##### 规则 15.7 禁止保存、delete指针参数
 
-##### 建议 15.8 函数的所有声明必须与定义具有一致的参数名
+##### 规则 15.8 函数的所有声明必须与定义具有一致的签名
 
-> **说明**：C++ 标准不要求声明与定义的参数名一致，但参数名不一致会降低可读性，增加检视和维护成本。检视时标记为 SUSPICIOUS，提醒开发者保持一致。
+同一函数的声明与定义必须在参数类型（含顶层 `const`/`volatile`、数组/指针写法、类型别名写法）、参数顺序、参数个数、返回类型、cv/引用限定、`noexcept` 及参数名上保持一致。默认实参只影响调用方，不属于函数类型，且按 C++ 规则只能出现在声明中、定义中不得重复，因此本条不比对默认实参；其值变更见 [cpp-abi.md](cpp-abi.md) 规则 4.3。属性（`[[nodiscard]]`、`[[deprecated]]` 等）不属于本条校验范围。
 
-> **适用范围**：适用于所有 C++ 函数，包括头文件中声明的函数、类成员函数、以及同一文件内的前置声明。若声明中省略了参数名（仅有类型），不视为不一致。
+**必须检视的场景（跨边界，不一致标记为 FAIL）：**
+
+1. `extern "C"` 或弱符号（`__attribute__((weak))`）的手写声明与库中真实定义不一致（尤其是未包含权威头文件、自行声明外部接口的场景）；
+2. 同一符号在多个头文件中的重复声明不一致；
+3. 通过函数指针 typedef 或回调注册使用的函数，其类型与 typedef 不一致；
+4. `include/` 下公开接口声明与导出实现符号的签名不一致。
+
+**其余场景（标记为 SUSPICIOUS）：**
+
+5. 基类声明与派生类定义的虚函数覆盖签名不一致且未使用 `override`（退化为新函数，多态失效）；
+6. 同一翻译单元内声明与定义的类型不一致；
+7. 仅参数名不一致（含声明省略参数名，类型等其余项相同）；
+8. 仅写法不一致：by-value 形参顶层 `const`/`volatile`、数组形参退化（`T a[N]` 与 `T* a`）、等价别名（`int32_t` 与 `int`、`aclError` 与 `int`、`uint32_t` 与 `unsigned int`）的差异。
+
+**正确示例：**
 
 ```cpp
 // foo.h
-bool ParseConfig(const std::string &config_path, int max_retry, bool enable_log);
+void MsprofStopRange(uint64_t range_id);
+// foo.cc
+void MsprofStopRange(uint64_t range_id) { ... }  // 与声明逐项一致
+```
 
-// foo.cpp
-// ✅ 声明与定义参数名一致
-bool ParseConfig(const std::string &config_path, int max_retry, bool enable_log) {
-  ...
-}
+**错误示例：**
 
-// ❌ 声明与定义参数名不一致
-bool ParseConfig(const std::string &path, int retry_count, bool log) {
-  ...
-}
+```cpp
+// 错误 1：类型不一致（跨 TU 弱声明与权威头参数类型不一致，链接与调用均可能偏离 ABI）
+__attribute__((weak)) int32_t aclprofSetStampTraceMessage(void *stamp, const char *msg, int32_t len);
+// acl/acl_prof.h：aclError aclprofSetStampTraceMessage(void* stamp, const char* msg, uint32_t msgLen);
 
-// ✅ 声明中省略参数名，不视为不一致
-bool ParseConfig(const std::string &, int, bool);
+// 错误 2：虚函数覆盖签名不一致且未加 override，退化为新增重载
+class Base { virtual void Run(int x); };
+class Derived : public Base { void Run(int64_t x); };
+
+// 错误 3：仅参数名不一致
+// foo.h:  bool ParseConfig(const std::string &config_path, int max_retry, bool enable_log);
+// foo.cc: bool ParseConfig(const std::string &path, int retry_count, bool log);
+
+// 错误 4：仅写法不一致（SUSPICIOUS）
+// foo.h: void MsprofStopRange(uint64_t range_id);
+// foo.cc: void MsprofStopRange(const uint64_t range_id) { ... }
 ```
 
 ---

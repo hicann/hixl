@@ -59,7 +59,7 @@
 | 15.5 | Single-argument constructors must use explicit | Function Usage |
 | 15.6 | Copy constructor and assignment operator must appear in pairs | Function Usage |
 | 15.7 | Do not store or delete pointer parameters | Function Usage |
-| 15.8 | Parameter names must be consistent between declaration and definition | Function Usage |
+| 15.8 | Signatures must be consistent between declaration and definition | Function Usage |
 
 ---
 
@@ -651,29 +651,51 @@ class Foo {
 
 ##### Rule 15.7 Do not store or delete pointer parameters
 
-##### Recommendation 15.8 All declarations of a function must have parameter names consistent with its definition
+##### Rule 15.8 All declarations of a function must have a signature consistent with its definition
 
-> **Note**: The C++ standard does not require parameter names to be consistent between a declaration and its definition, but inconsistent parameter names reduce readability and increase review and maintenance costs. During review, mark as SUSPICIOUS to remind developers to keep them consistent.
+All declarations of a function and its definition must be consistent in parameter types (including top-level `const`/`volatile`, array/pointer notation, and type alias spelling), parameter order, parameter count, return type, cv/reference qualifiers, `noexcept`, and parameter names. Default arguments affect only callers and are not part of the function type; under C++ rules they may appear only in a declaration and must not be repeated in the definition, so this rule does not compare default arguments. For changes to their values, see Rule 4.3 in [cpp-abi.md](cpp-abi.md). Attributes (`[[nodiscard]]`, `[[deprecated]]`, etc.) are out of scope for this rule.
 
-> **Scope**: Applies to all C++ functions, including functions declared in headers, class member functions, and forward declarations within the same file. If parameter names are omitted in a declaration (only types present), it is not considered inconsistent.
+**Scenarios that must be reviewed (cross-boundary; inconsistencies are marked as FAIL):**
+
+1. A hand-written declaration of an `extern "C"` or weak symbol (`__attribute__((weak))`) that is inconsistent with the actual definition in the library (especially cases where the authoritative header is not included and external interfaces are declared manually);
+2. Inconsistent repeated declarations of the same symbol across multiple headers;
+3. A function used through a function-pointer typedef or callback registration whose type is inconsistent with the typedef;
+4. A public interface declaration under `include/` whose signature is inconsistent with the exported implementation symbol.
+
+**All other scenarios (marked as SUSPICIOUS):**
+
+5. A virtual function override whose signature is inconsistent between the base-class declaration and the derived-class definition and that does not use `override` (it degenerates into a new function and polymorphism is lost);
+6. Inconsistent types between a declaration and its definition within the same translation unit;
+7. Only parameter names differ (including declarations that omit parameter names while everything else, such as types, is identical);
+8. Only spelling differs: differences such as top-level `const`/`volatile` on by-value parameters, array parameter decay (`T a[N]` versus `T* a`), or equivalent aliases (`int32_t` versus `int`, `aclError` versus `int`, `uint32_t` versus `unsigned int`).
+
+**Correct example:**
 
 ```cpp
 // foo.h
-bool ParseConfig(const std::string &config_path, int max_retry, bool enable_log);
+void MsprofStopRange(uint64_t range_id);
+// foo.cc
+void MsprofStopRange(uint64_t range_id) { ... }  // Matches the declaration item by item
+```
 
-// foo.cpp
-// ✅ parameter names consistent between declaration and definition
-bool ParseConfig(const std::string &config_path, int max_retry, bool enable_log) {
-  ...
-}
+**Incorrect examples:**
 
-// ❌ parameter names inconsistent between declaration and definition
-bool ParseConfig(const std::string &path, int retry_count, bool log) {
-  ...
-}
+```cpp
+// Error 1: type mismatch (cross-TU weak declaration inconsistent with the authoritative header's parameter types; both linkage and calls may deviate from the ABI)
+__attribute__((weak)) int32_t aclprofSetStampTraceMessage(void *stamp, const char *msg, int32_t len);
+// acl/acl_prof.h: aclError aclprofSetStampTraceMessage(void* stamp, const char* msg, uint32_t msgLen);
 
-// ✅ parameter names omitted in the declaration; not considered inconsistent
-bool ParseConfig(const std::string &, int, bool);
+// Error 2: virtual override signature mismatch without override; degenerates into a new overload
+class Base { virtual void Run(int x); };
+class Derived : public Base { void Run(int64_t x); };
+
+// Error 3: only parameter names differ
+// foo.h:  bool ParseConfig(const std::string &config_path, int max_retry, bool enable_log);
+// foo.cc: bool ParseConfig(const std::string &path, int retry_count, bool log);
+
+// Error 4: only spelling differs (SUSPICIOUS)
+// foo.h: void MsprofStopRange(uint64_t range_id);
+// foo.cc: void MsprofStopRange(const uint64_t range_id) { ... }
 ```
 
 ---
