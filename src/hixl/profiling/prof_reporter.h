@@ -19,7 +19,7 @@ namespace hixl {
 class ProfStart;
 using ProfStartPtr = std::shared_ptr<ProfStart>;
 
-ProfStartPtr GetProfStart(HixlProfType prof_type);
+ProfStartPtr GetProfStart(const HixlProfType prof_type);
 
 class HixlProfilingReporter {
  public:

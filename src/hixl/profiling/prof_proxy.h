@@ -25,12 +25,12 @@ namespace hixl {
 using HixlAclProfCreateStampFunc = void *(*)();
 using HixlAclProfGetVersionNumFunc = int32_t (*)(char *, int32_t *);
 
-uint64_t AclStartRange(HixlProfType prof_type);
-void AclStopRange(uint64_t range_id);
-void AclDestroyRange(uint64_t range_id);
-uint64_t MsprofStartRange(HixlProfType prof_type);
-void MsprofStopRange(uint64_t range_id);
-void MsprofDestroyRange(uint64_t range_id);
+uint64_t AclStartRange(const HixlProfType prof_type);
+void AclStopRange(const uint64_t range_id);
+void AclDestroyRange(const uint64_t range_id);
+uint64_t MsprofStartRange(const HixlProfType prof_type);
+void MsprofStopRange(const uint64_t range_id);
+void MsprofDestroyRange(const uint64_t range_id);
 
 struct ProfFuncs {
   uint64_t (*start)(HixlProfType);

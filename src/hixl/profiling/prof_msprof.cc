@@ -149,7 +149,7 @@ aclError ProfInnerStop(const MsprofCommandHandle *const profiler_config) {
   return ACL_SUCCESS;
 }
 
-aclError HandleProfSwitch(MsprofCommandHandle *const profiler_config) {
+aclError HandleProfSwitch(const MsprofCommandHandle *const profiler_config) {
   const uint64_t prof_switch = profiler_config->profSwitch;
   const uint32_t type = profiler_config->type;
   if (((prof_switch & kAclProfAclApiSwitch) != 0U) && (type == kStartProfiling)) {
