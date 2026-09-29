@@ -210,7 +210,7 @@ int dcmiv2_get_eid_list_by_urma_dev_index(int npu_id, int urma_dev_index, void *
   }
   // 优先使用显式覆盖的 mesh die；否则按产品形态推断，使 EID die_id 与之匹配
   bool is_server = ((g_mainboard_id >= 0x21 && g_mainboard_id <= 0x2B && (g_mainboard_id % 2 == 1)) ||
-                    (g_mainboard_id >= 0x40 && g_mainboard_id <= 0x46 && (g_mainboard_id % 2 == 0)));
+                    (g_mainboard_id >= 0x40 && g_mainboard_id <= 0x42 && (g_mainboard_id % 2 == 0)));
   int mesh_die_id =
       (g_mesh_die_id_override >= 0) ? g_mesh_die_id_override : (is_server ? 1 : ((npu_id % 8) < 4 ? 0 : 1));
   int non_mesh_die = 1 - mesh_die_id;
