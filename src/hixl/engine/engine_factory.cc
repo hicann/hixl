@@ -24,11 +24,11 @@ constexpr const char kDisabledBufferPool[] = "0:0";
 constexpr int32_t HIXL_HCOMM_VERSION_THRESHOLD = 90100000;
 
 bool UseProtocolDesc(const HixlOptions &options) {
-  auto grc = options.GlobalResourceCfg();
+  const auto grc = options.GlobalResourceCfg();
   if (!grc.has_value()) {
     return false;
   }
-  auto desc = grc->comm_resource_config.protocol_desc;
+  const auto desc = grc->comm_resource_config.protocol_desc;
   return desc.has_value() && !desc->empty();
 }
 
@@ -58,7 +58,7 @@ void LogSelectedEngine(const char *engine, const char *reason, const std::string
              IntraRoceEnableStatusStr(), local_engine.c_str());
 }
 }  // namespace
-std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string local_engine,
+std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string &local_engine,
                                                     const std::map<AscendString, AscendString> &options,
                                                     HixlOptions &parsed_options) {
   Status ret = HixlOptions::Parse(options, parsed_options);

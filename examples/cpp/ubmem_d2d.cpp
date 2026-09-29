@@ -74,9 +74,9 @@ bool FileExists(const std::string &name) {
 }
 
 bool WaitFile(const std::string &name) {
-  auto start = std::chrono::steady_clock::now();
+  const auto start = std::chrono::steady_clock::now();
   while (!FileExists(name)) {
-    uint64_t time_cost =
+    const uint64_t time_cost =
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
     if (time_cost > kTimeoutInMillis) {
       printf("[ERROR] Wait file:%s timeout.\n", name.c_str());
@@ -109,7 +109,7 @@ int32_t Transfer(Hixl &hixl_engine, void *va, const char *local_engine, const ch
   return 0;
 }
 
-void Finalize(Hixl &hixl_engine, bool connected, const char *remote_engine, const std::vector<MemHandle> handles) {
+void Finalize(Hixl &hixl_engine, bool connected, const char *remote_engine, const std::vector<MemHandle> &handles) {
   if (connected) {
     auto ret = hixl_engine.Disconnect(remote_engine);
     if (ret != 0) {
@@ -178,13 +178,13 @@ int32_t TransferAndVerify(Hixl &hixl_engine, void *va, const char *local_engine,
     return -1;
   }
 
-  std::string local_done_file = std::string(local_engine) + ".done";
+  const std::string local_done_file = std::string(local_engine) + ".done";
   std::ofstream done_file(local_done_file);
   if (done_file) {
     done_file << "done" << std::endl;
     done_file.close();
   }
-  std::string remote_done_file = std::string(remote_engine) + ".done";
+  const std::string remote_done_file = std::string(remote_engine) + ".done";
   printf("[INFO] Wait for remote write done signal:%s\n", remote_done_file.c_str());
   if (!WaitFile(remote_done_file)) {
     printf("[ERROR] Wait remote write done failed.\n");
@@ -231,13 +231,13 @@ int32_t Run(int32_t device_id, const char *local_engine, const char *remote_engi
     tmp_file << reinterpret_cast<uintptr_t>(va) << " " << device_id << std::endl;
     tmp_file.close();
   }
-  std::string local_init_done_file = std::string(local_engine) + ".init_done";
+  const std::string local_init_done_file = std::string(local_engine) + ".init_done";
   std::ofstream init_done_file(local_init_done_file);
   if (init_done_file) {
     init_done_file << "done" << std::endl;
     init_done_file.close();
   }
-  std::string remote_init_done_file = std::string(remote_engine) + ".init_done";
+  const std::string remote_init_done_file = std::string(remote_engine) + ".init_done";
   printf("[INFO] Wait for remote write done signal:%s\n", remote_init_done_file.c_str());
   if (!WaitFile(remote_init_done_file)) {
     printf("[ERROR] Wait remote write done failed.\n");
@@ -266,9 +266,9 @@ int main(int32_t argc, char **argv) {
     return -1;
   }
   CHECK_ACL(aclInit(nullptr));
-  int32_t device = std::stoi(device_id);
+  const int32_t device = std::stoi(device_id);
   CHECK_ACL(aclrtSetDevice(device));
-  int32_t ret = Run(device, local_engine.c_str(), remote_engine.c_str());
+  const int32_t ret = Run(device, local_engine.c_str(), remote_engine.c_str());
   CHECK_ACL(aclrtResetDevice(device));
   aclFinalize();
   return ret;

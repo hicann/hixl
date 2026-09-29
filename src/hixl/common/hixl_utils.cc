@@ -50,7 +50,7 @@ std::string GetHccnToolPath() {
   if (access(kHccnToolPath, F_OK) == 0) {
     return kHccnToolPath;
   }
-  std::string check_cmd = "command -v hccn_tool > /dev/null 2>&1";
+  const std::string check_cmd = "command -v hccn_tool > /dev/null 2>&1";
   if (system(check_cmd.c_str()) != 0) {
     HIXL_EVENT("hccn_tool is not found in default path or PATH.");
     return "";
@@ -65,12 +65,12 @@ void ExtractIpAddress(const std::string &output_str, std::string &ip) {
     return;
   }
   pos += prefix.length();
-  auto end = output_str.find("\n", pos);
+  const auto end = output_str.find("\n", pos);
   ip = output_str.substr(pos, end - pos);
 }
 
 Status GetHccnOutput(const std::string &command, std::string &result) {
-  std::string command_with_stderr = command + " 2>&1";
+  const std::string command_with_stderr = command + " 2>&1";
   std::array<char, kBufferMaxSize> buffer{};
   FILE *raw_pipe = popen(command_with_stderr.c_str(), "r");
   const int32_t saved_errno = errno;

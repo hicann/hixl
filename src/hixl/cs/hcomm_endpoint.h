@@ -28,7 +28,7 @@ class HcommEndpoint : public Endpoint {
  protected:
   HcclResult EndpointCreate(EndpointHandle &handle) override;
   HcclResult EndpointDestroy() override;
-  HcclResult EndpointGetListenPort(uint32_t &port) override;
+  HcclResult EndpointGetListenPort(uint32_t &port) const override;
   HcclResult MemReg(const char *mem_tag, const CommMem *mem, HcommMemHandle *mem_handle) override;
   HcclResult MemUnreg(HcommMemHandle mem_handle) override;
   HcclResult MemExport(HcommMemHandle mem_handle, void **mem_desc, uint32_t *mem_desc_len) override;

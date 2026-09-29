@@ -24,7 +24,7 @@ HcclResult HcommEndpoint::EndpointDestroy() {
   return HcommProxy::EndpointDestroy(GetHandle());
 }
 
-HcclResult HcommEndpoint::EndpointGetListenPort(uint32_t &port) {
+HcclResult HcommEndpoint::EndpointGetListenPort(uint32_t &port) const {
   return HcommProxy::EndpointGetListenPort(GetHandle(), &port);
 }
 

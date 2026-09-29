@@ -475,7 +475,7 @@ Status UbClientHandler::TransferAsync(const std::vector<TransferOpDesc> &op_desc
           remote_engine_.c_str());
       auto handle = it->second;
 
-      uint32_t list_num = static_cast<uint32_t>(descs.size());
+      const uint32_t list_num = static_cast<uint32_t>(descs.size());
       std::vector<HixlOneSideOpDesc> hixl_descs(list_num);
       for (size_t i = 0; i < list_num; i++) {
         hixl_descs[i].remote_buf = reinterpret_cast<void *>(descs[i].remote_addr);
@@ -531,7 +531,7 @@ Status UbClientHandler::TransferSync(const std::vector<TransferOpDesc> &op_descs
       handle = it->second;
     }
 
-    uint32_t list_num = static_cast<uint32_t>(descs.size());
+    const uint32_t list_num = static_cast<uint32_t>(descs.size());
     std::vector<HixlOneSideOpDesc> op_descs(list_num);
     for (size_t i = 0; i < list_num; i++) {
       op_descs[i].remote_buf = reinterpret_cast<void *>(descs[i].remote_addr);
@@ -539,7 +539,7 @@ Status UbClientHandler::TransferSync(const std::vector<TransferOpDesc> &op_descs
       op_descs[i].len = descs[i].len;
     }
     auto *cs = static_cast<HixlCSClient *>(handle);
-    bool is_get = (operation != WRITE);
+    const bool is_get = (operation != WRITE);
     HIXL_CHK_STATUS_RET(cs->BatchTransferSync(is_get, list_num, op_descs.data(), remaining_ms));
   }
   return SUCCESS;

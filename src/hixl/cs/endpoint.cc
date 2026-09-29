@@ -340,7 +340,7 @@ Status Endpoint::UnimportMem(const void *mem_desc, uint32_t desc_len) {
   return SUCCESS;
 }
 
-Status Endpoint::GetListenPort(uint32_t &port) {
+Status Endpoint::GetListenPort(uint32_t &port) const {
   std::lock_guard<std::mutex> lock(mutex_);
   HIXL_CHK_BOOL_RET_STATUS(handle_ != nullptr, FAILED, "[endpoint] GetListenPort called before Initialize");
   HIXL_CHK_HCCL_RET(EndpointGetListenPort(port));

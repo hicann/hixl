@@ -61,7 +61,7 @@ class Endpoint {
   Status UnimportMem(const void *mem_desc, uint32_t desc_len);
   // Reports the transport's listening port. Transports without their own listening socket return
   // UNSUPPORTED, which the server only warns about.
-  Status GetListenPort(uint32_t &port);
+  Status GetListenPort(uint32_t &port) const;
   void SetPort(uint32_t port);
   uint32_t GetPort() const;
 
@@ -88,7 +88,7 @@ class Endpoint {
   virtual HcclResult EndpointDestroy() = 0;
   // Default: the transport has no listening socket of its own, so there is no port to report. The
   // server treats HCCL_E_NOT_SUPPORT as "no port" and only warns.
-  virtual HcclResult EndpointGetListenPort(uint32_t &port) {
+  virtual HcclResult EndpointGetListenPort(uint32_t &port) const {
     (void)port;
     return HCCL_E_NOT_SUPPORT;
   }

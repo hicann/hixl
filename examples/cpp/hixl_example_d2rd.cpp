@@ -136,11 +136,11 @@ int32_t ConfigLegacyOptions(EngineCtx &ctx, const std::vector<std::string> &prot
                             std::map<AscendString, AscendString> &options) {
   printf("[INFO] %s using legacy flow (version=0)\n", ctx.name);
   std::string engine_name(ctx.name);
-  size_t colon_pos = engine_name.find(':');
-  uint32_t port = std::stoi(engine_name.substr(colon_pos + 1));
-  std::string comm_res = "{\"version\": \"1.2\"}";
+  const size_t colon_pos = engine_name.find(':');
+  const uint32_t port = std::stoi(engine_name.substr(colon_pos + 1));
+  const std::string comm_res = "{\"version\": \"1.2\"}";
   options[OPTION_LOCAL_COMM_RES] = comm_res.c_str();
-  std::string config = "{\"comm_resource_config.listen_port\": " + std::to_string(port) + "}";
+  const std::string config = "{\"comm_resource_config.listen_port\": " + std::to_string(port) + "}";
   options[OPTION_GLOBAL_RESOURCE_CONFIG] = config.c_str();
   options[OPTION_BUFFER_POOL] = "0:0";
   if (protocols[0] == "roce:device") {
@@ -157,7 +157,7 @@ int32_t ConfigV2Options(const std::vector<std::string> &protocols, std::map<Asce
     }
     desc_array += "\"" + protocols[i] + "\"";
   }
-  std::string config = "{\"comm_resource_config.protocol_desc\": [" + desc_array + "]}";
+  const std::string config = "{\"comm_resource_config.protocol_desc\": [" + desc_array + "]}";
   options[OPTION_GLOBAL_RESOURCE_CONFIG] = config.c_str();
   return 0;
 }

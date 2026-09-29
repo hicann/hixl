@@ -48,7 +48,7 @@ class UbMemEndpoint : public Endpoint {
   HcclResult EndpointCreate(EndpointHandle &handle) override;
   HcclResult EndpointDestroy() override;
   // UB_MEM has no listening socket of its own; port 0 tells the peer the CS channel is the only link.
-  HcclResult EndpointGetListenPort(uint32_t &port) override {
+  HcclResult EndpointGetListenPort(uint32_t &port) const override {
     port = 0U;
     return HCCL_SUCCESS;
   }

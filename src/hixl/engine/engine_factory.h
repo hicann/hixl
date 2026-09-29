@@ -20,7 +20,7 @@
 namespace hixl {
 class EngineFactory {
  public:
-  static std::unique_ptr<Engine> CreateEngine(const std::string local_engine,
+  static std::unique_ptr<Engine> CreateEngine(const std::string &local_engine,
                                               const std::map<AscendString, AscendString> &options,
                                               HixlOptions &parsed_options);
 };

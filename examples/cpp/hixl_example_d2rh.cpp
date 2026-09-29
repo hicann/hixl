@@ -121,8 +121,8 @@ int32_t ParseArgs(int32_t argc, char **argv, int32_t &device_a, int32_t &device_
     }
   }
 
-  bool is_legacy = (version == kVersionLegacy);
-  bool single_roce = (protocols.size() == 1 && protocols[0] == "roce:device");
+  const bool is_legacy = (version == kVersionLegacy);
+  const bool single_roce = (protocols.size() == 1 && protocols[0] == "roce:device");
   if (is_legacy && !single_roce) {
     printf("[ERROR] version 0 only supports roce:device\n");
     return -1;
@@ -139,11 +139,11 @@ int32_t BuildLegacyConfig(EngineCtx &ctx, const std::vector<std::string> &protoc
                           std::map<AscendString, AscendString> &options) {
   printf("[INFO] %s using legacy flow (version=0)\n", ctx.name);
   std::string eng_name(ctx.name);
-  auto sep = eng_name.find(':');
-  uint32_t listen_port = std::stoi(eng_name.substr(sep + 1));
-  std::string lcomm = "{\"version\": \"1.2\"}";
+  const auto sep = eng_name.find(':');
+  const uint32_t listen_port = std::stoi(eng_name.substr(sep + 1));
+  const std::string lcomm = "{\"version\": \"1.2\"}";
   options[OPTION_LOCAL_COMM_RES] = lcomm.c_str();
-  std::string res_cfg = "{\"comm_resource_config.listen_port\": " + std::to_string(listen_port) + "}";
+  const std::string res_cfg = "{\"comm_resource_config.listen_port\": " + std::to_string(listen_port) + "}";
   options[OPTION_GLOBAL_RESOURCE_CONFIG] = res_cfg.c_str();
   if (protocols[0] == "roce:device") {
     options[OPTION_BUFFER_POOL] = "0:0";
@@ -162,7 +162,7 @@ int32_t BuildV2Config(const std::vector<std::string> &protocols, std::map<Ascend
     proto_list += "\"" + proto + "\"";
     first = false;
   }
-  std::string res_config = "{\"comm_resource_config.protocol_desc\": [" + proto_list + "]}";
+  const std::string res_config = "{\"comm_resource_config.protocol_desc\": [" + proto_list + "]}";
   options[OPTION_GLOBAL_RESOURCE_CONFIG] = res_config.c_str();
   return 0;
 }
