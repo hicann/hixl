@@ -18,6 +18,10 @@
 
 ## 🔥 Latest News
 
+- [2026/09] HIXL supports multi-channel concurrent transmission [Issue #615](https://gitcode.com/cann/hixl/issues/615), configurable queue depth to reduce per-link resource usage on demand [Issue #559](https://gitcode.com/cann/hixl/issues/559); FabricMem automatically switches to hixl_cs parameter-plane transmission across SuperPods [Issue #702](https://gitcode.com/cann/hixl/issues/702), and the restriction that memory deregistration requires unlinking is relaxed [Issue #581](https://gitcode.com/cann/hixl/issues/581).
+- [2026/08] HIXL supports registering, linking and transferring Host memory via UBMEM [Issue #550](https://gitcode.com/cann/hixl/issues/550); FabricMem supports AICPU unfold [Issue #493](https://gitcode.com/cann/hixl/issues/493); added IPv6 Device RoCE address configuration [Issue #520](https://gitcode.com/cann/hixl/issues/520), data-plane exception reporting [Issue #453](https://gitcode.com/cann/hixl/issues/453) and Python API [Issue #461](https://gitcode.com/cann/hixl/issues/461).
+- [2026/07] Added resource pool upper-limit configuration [Issue #456](https://gitcode.com/cann/hixl/issues/456), communication resource listen port configuration [Issue #457](https://gitcode.com/cann/hixl/issues/457), communication protocol selection via option [Issue #458](https://gitcode.com/cann/hixl/issues/458); A2/A3 support HIXL CS with driver versions below 25.5.0 [Issue #468](https://gitcode.com/cann/hixl/issues/468).
+- [2026/06] HIXL one-sided communication supports UB_RTP protocol with automatic scaleout port selection [Issue #302](https://gitcode.com/cann/hixl/issues/302); supports heterogeneous general servers [Issue #174](https://gitcode.com/cann/hixl/issues/174), HIXL Engine Notify and AutoConnect capabilities [Issue #245](https://gitcode.com/cann/hixl/issues/245), asynchronous link/unlink [Issue #172](https://gitcode.com/cann/hixl/issues/172) and direction-based automatic link establishment [Issue #398](https://gitcode.com/cann/hixl/issues/398).
 - [2026/05] [HIXL Application Development Series Tutorials](https://gitcode.com/cann/cann-learning-hub/tree/master/tutorials/hixl_development) released, covering core concepts and application development methods of Ascend one-sided communication library.
 - [2026/04] HIXL supports Device UBoE, see [Issue #275](https://gitcode.com/cann/hixl/issues/275); HIXL intergenerational capability enhanced, supporting A2/A3/A5 heterogeneous compute [Issue #138](https://gitcode.com/cann/hixl/issues/138), [Issue #115](https://gitcode.com/cann/hcomm/issues/115).
 - [2026/03] HIXL supports FabricMem mode within SuperPods, see [FabricMem](docs/en/FabricMem.md).
@@ -33,26 +37,26 @@ HIXL (Huawei Xfer Library) is a flexible and efficient Ascend one-sided communic
 **Core Advantages**
 
 - **One-sided Zero-Copy Communication Mechanism**: HIXL provides simple and reliable one-sided communication interfaces. After local memory data is ready, direct data transmission to remote memory can be completed through one-sided operations. This mechanism requires no operation from the remote node, providing core technical support for building scheduling mechanisms that overlap communication and computation. Meanwhile, zero-copy capability enables direct data transmission between user memory spaces, avoiding redundant data movement, reducing memory bandwidth usage, and decreasing memory capacity consumption.
-- **Hardware Difference Shielding, Multi-link Cross-device High-speed Interconnection**: HIXL shields underlying hardware differences of Ascend series chips, users don't need to adapt code for different chip architectures. At the communication link layer, this technology natively supports multiple high-speed interconnection protocols including RDMA, HCCS, etc. Communication bandwidth can reach up to 119GB/s, enabling seamless high-speed interconnection across architecture devices (such as A2 series and A3 series Ascend chips), meeting low-latency, high-throughput requirements.
+- **Hardware Difference Shielding, Multi-link Cross-device High-speed Interconnection**: HIXL shields underlying hardware differences of Ascend series chips, users don't need to adapt code for different chip architectures. At the communication link layer, this technology natively supports multiple high-speed interconnection protocols including RDMA, HCCS, UB_CTP, UB_RTP, UBoE. Communication bandwidth can reach up to 165GB/s (see [Communication Performance](benchmarks/performance_en.md)), enabling seamless high-speed interconnection across architecture devices (such as A2 series and A3 series Ascend chips), meeting low-latency, high-throughput requirements.
 - **Minimalist API Design, Deep Adaptation to Open-source Frameworks**: HIXL adopts minimalist API interface design, with only about 10 core calls, lowering developer integration barrier, while providing complete C++/Python language interface support. Currently has deep integration with Mooncake, DeepLink and other open-source frameworks. Mainstream inference engines like vLLM, SGLang can also directly call HIXL API to complete efficient cross-device KV Cache transmission, reducing memory access latency by 20% during LLM inference, significantly improving inference throughput.
 
 <img src="docs/en/figures/architecture.png" alt="Architecture">
 
 **Core Components**
 
-- **HIXL Engine**: As the core transmission engine, provides basic transmission interfaces, supports multiple memory type transmissions such as D2D, D2H, H2D. Compatible with multiple transmission protocols including HCCS, RDMA, etc. Enables high-speed, reliable data transmission. Natively supports multiple data link types, can flexibly handle complex scenarios in homogeneous and heterogeneous clusters. Facing dynamic cluster node scaling requirements, can quickly complete link adaptation and resource scheduling, building reliable communication foundation for overall cluster operation.
+- **HIXL Engine**: As the core transmission engine, provides basic transmission interfaces, supports multiple memory type transmissions such as D2D, D2H, H2D. Compatible with multiple transmission protocols including HCCS, RDMA, UB_CTP, UB_RTP, UBoE, etc. Enables high-speed, reliable data transmission. Natively supports multiple data link types, can flexibly handle complex scenarios in homogeneous and heterogeneous clusters. Facing dynamic cluster node scaling requirements, can quickly complete link adaptation and resource scheduling, building reliable communication foundation for overall cluster operation.
 - **LLM-DataDist**: Built on HIXL Engine, provides a set of data transmission interfaces with KV Cache semantics. Can quickly and flexibly integrate with inference engines like vLLM, SGLang.
 
 **Performance**
 
 In 128M data transmission scenario on Ascend A3 chip:
 
-- Through HCCS link transmission, HIXL transmission engine bandwidth can reach 119GB/s
-- Through RDMA link transmission, HIXL transmission engine bandwidth can reach 22GB/s
+- Through HIXL CS HCCS link transmission, HIXL transmission engine bandwidth can reach 165GB/s
+- Through HIXL CS ROCE link transmission, HIXL transmission engine bandwidth can reach 24GB/s
 
 <img src="docs/en/figures/perf.png" alt="Performance Data">
 
-See [Benchmarks](benchmarks/README_en.md) for more details.
+See [Communication Performance](benchmarks/performance_en.md) and [Benchmarks](benchmarks/README_en.md) for more details.
 
 ## 🔍 Directory Structure
 

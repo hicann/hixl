@@ -18,6 +18,10 @@
 
 ## 🔥Latest News
 
+- [2026/09] HIXL支持多通道并发传输 [Issue #615](https://gitcode.com/cann/hixl/issues/615)，可配置队列深度按需降低链路资源占用 [Issue #559](https://gitcode.com/cann/hixl/issues/559)；FabricMem支持跨超节点自动切换至hixl_cs参数面传输 [Issue #702](https://gitcode.com/cann/hixl/issues/702)，并放开注销内存必须断链的限制 [Issue #581](https://gitcode.com/cann/hixl/issues/581)。
+- [2026/08] HIXL支持Host内存经UBMEM进行注册、建链与传输 [Issue #550](https://gitcode.com/cann/hixl/issues/550)；FabricMem支持AICPU展开 [Issue #493](https://gitcode.com/cann/hixl/issues/493)；新增IPv6 Device RoCE地址配置 [Issue #520](https://gitcode.com/cann/hixl/issues/520)、数据面异常上报机制 [Issue #453](https://gitcode.com/cann/hixl/issues/453)与Python API [Issue #461](https://gitcode.com/cann/hixl/issues/461)。
+- [2026/07] 新增资源池资源上限配置 [Issue #456](https://gitcode.com/cann/hixl/issues/456)、指定通信资源监听端口 [Issue #457](https://gitcode.com/cann/hixl/issues/457)、通过option指定通信协议 [Issue #458](https://gitcode.com/cann/hixl/issues/458)；A2/A3支持驱动低于25.5.0场景使用HIXL CS [Issue #468](https://gitcode.com/cann/hixl/issues/468)。
+- [2026/06] HIXL单边通信支持UB_RTP协议并支持自动选取scaleout口 [Issue #302](https://gitcode.com/cann/hixl/issues/302)；支持与通用服务器异构 [Issue #174](https://gitcode.com/cann/hixl/issues/174)、HIXL Engine支持Notify与AutoConnect能力 [Issue #245](https://gitcode.com/cann/hixl/issues/245)、异步建链/断链 [Issue #172](https://gitcode.com/cann/hixl/issues/172)、按传输方向自动建链 [Issue #398](https://gitcode.com/cann/hixl/issues/398)。
 - [2026/05] [《HIXL应用开发系列教程》](https://gitcode.com/cann/cann-learning-hub/tree/master/tutorials/hixl_development)发布，讲解昇腾单边通信库核心概念与应用开发方法。
 - [2026/04] HIXL支持Device UBoE，详见[Issue #275](https://gitcode.com/cann/hixl/issues/275); HIXL跨代际能力增强，支持A2/A3/A5异构 [Issue #138](https://gitcode.com/cann/hixl/issues/138)，[Issue #115](https://gitcode.com/cann/hcomm/issues/115)。
 - [2026/03] HIXL已支持超节点内FabricMem模式，详见 [FabricMem](docs/zh/FabricMem.md)。
@@ -33,26 +37,26 @@ HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，
 **核心优势**
 
 - **支持单边零拷贝（One-Sided Zero-Copy）通信机制**：HIXL提供简易、可靠的单边通信接口，可在本地内存数据准备就绪之后，通过单边操作完成向远端内存的直接数据传输。该机制无需远端节点执行任何操作，为用户构建通信与计算重叠掩盖的调度机制提供核心技术支撑。同时，零拷贝能力实现用户内存间的直接数据传输，避免冗余数据搬运，不仅可以降低内存带宽占用，还可以减少内存容量消耗。
-- **屏蔽硬件差异，兼容多链路实现跨设备高速互联**：HIXL屏蔽了昇腾系列芯片的底层硬件差异，用户无需针对不同芯片架构进行代码适配。在通信链路层面，该技术原生支持RDMA，HCCS等多种高速互联协议，通信带宽最高可达119GB/s，可实现跨架构设备（如A2系列与A3系列昇腾芯片）的无缝高速互联，满足低时延、 高吞吐的需求。
+- **屏蔽硬件差异，兼容多链路实现跨设备高速互联**：HIXL屏蔽了昇腾系列芯片的底层硬件差异，用户无需针对不同芯片架构进行代码适配。在通信链路层面，该技术原生支持RDMA，HCCS，UB_CTP，UB_RTP，UBoE等多种高速互联协议，通信带宽最高可达165GB/s（详见[通信性能数据](benchmarks/performance.md)），可实现跨架构设备（如A2系列与A3系列昇腾芯片）的无缝高速互联，满足低时延、 高吞吐的需求。
 - **极简API设计，深度适配开源生态框架**：HIXL采用极简式API接口设计，接口数量精简至10余个核心调用，降低开发者集成门槛，同时提供完善的C++/Python语言接口支持。目前已实现与Mooncake、DeepLink等开源框架的深度集成，vLLM、SGLang等主流推理引擎也可以直接调用HIXL API完成KV Cache的跨设备高效传输，将大模型推理过程中的内存访问延迟降低20%，显著提升推理吞吐。
 
 <img src="docs/zh/figures/architecture.png" alt="架构图">
 
 **核心组件**
 
-- **HIXL Engine**：作为核心传输引擎，提供了基础传输接口，支持多种类型内存类型传输，比如D2D、D2H、H2D。同时兼容多种传输协议，包括HCCS、RDMA等。可实现高速、可靠的数据传输。原生支持多类型数据链路，可灵活同构集群、异构集群的复杂场景。面对集群节点动态扩缩容需求时，可快速完成链路适配与资源调度，为集群整体运行构建可靠通信基础。
+- **HIXL Engine**：作为核心传输引擎，提供了基础传输接口，支持多种类型内存类型传输，比如D2D、D2H、H2D。同时兼容多种传输协议，包括HCCS、RDMA、UB_CTP、UB_RTP、UBoE等。可实现高速、可靠的数据传输。原生支持多类型数据链路，可灵活同构集群、异构集群的复杂场景。面对集群节点动态扩缩容需求时，可快速完成链路适配与资源调度，为集群整体运行构建可靠通信基础。
 - **LLM-DataDist**：基于HIXL Engine构建，提供了一套携带KV Cache语义的数据传输接口。可快速、灵活对接vLLM、SGLang等推理引擎。
 
 **性能表现**
 
 在昇腾A3芯片上传输128M数据场景下：
 
-- 通过HCCS链路进行传输，HIXL传输引擎的带宽可达119GB/s
-- 通过RDMA链路进行传输，HIXL传输引擎的带宽可达22GB/s
+- 通过HIXL CS的HCCS链路进行传输，HIXL传输引擎的带宽可达165GB/s
+- 通过HIXL CS的ROCE链路进行传输，HIXL传输引擎的带宽可达24GB/s
 
 <img src="docs/zh/figures/perf.png" alt="性能数据图">
 
-查看[基准测试Benchmarks](benchmarks/README.md)了解更多细节。
+查看[通信性能数据](benchmarks/performance.md)与[基准测试Benchmarks](benchmarks/README.md)了解更多细节。
 
 ## 🔍目录结构
 
