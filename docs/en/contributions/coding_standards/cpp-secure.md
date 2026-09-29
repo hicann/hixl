@@ -542,7 +542,7 @@ In principle, if secure functions are used, their return values must be checked.
 }
 ```
 
-**【Exception Rules】**
+**Exception Rules**
 
 The following scenarios may skip the return value check if secure functions are used and destMax does not exceed the maximum limit:
 
