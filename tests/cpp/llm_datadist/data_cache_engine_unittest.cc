@@ -66,6 +66,23 @@ class DataCacheEngineTest : public ::testing::Test {
 };
 
 namespace {
+class BatchPutLengthRecorder : public HcclApiStub {
+ public:
+  HcclResult HcclBatchPut(HcclComm comm, uint32_t remoteRank, HcclOneSideOpDesc *desc, uint32_t descNum,
+                          aclrtStream stream) override {
+    (void)comm;
+    (void)remoteRank;
+    (void)stream;
+    counts.clear();
+    for (uint32_t i = 0U; i < descNum; ++i) {
+      counts.emplace_back(desc[i].count);
+    }
+    return HCCL_SUCCESS;
+  }
+
+  std::vector<uint64_t> counts;
+};
+
 class MockRuntime : public llm::AclRuntimeStub {
  public:
   aclError aclrtSynchronizeStreamWithTimeout(aclrtStream stm, int32_t timeout) override {
@@ -1528,6 +1545,79 @@ TEST_F(DataCacheEngineTest, TransferDataCache_D2D_C2B_with_remaider) {
   test_runner.GetTransferCacheData(transfer_cache_config, pull_result);
   std::vector<int32_t> actual(&pull_result[0], &pull_result[8]);
   EXPECT_EQ(actual, (std::vector<int32_t>{0, 0, 1, 2, 0, 0, 3, 4}));
+}
+
+TEST_F(DataCacheEngineTest, TransferDataCache_D2D_C2B_with_batch_index) {
+  llm::CacheDesc src_cache_desc{};
+  src_cache_desc.num_tensors = 8;
+  src_cache_desc.shape = {2, 7};
+  src_cache_desc.data_type = ge::DT_INT32;
+  src_cache_desc.placement = 1;
+
+  auto dst_cache_desc = src_cache_desc;
+  dst_cache_desc.shape = {64, 2};
+  dst_cache_desc.placement = 1;
+  dst_cache_desc.cache_mem_type = CacheMemType::BLOCKS;
+
+  llm::PullCacheParam pull_cache_param{};
+
+  DataCacheEngineTestRunner test_runner;
+  test_runner.Initialize(src_cache_desc, dst_cache_desc, pull_cache_param);
+  auto recorder = std::make_unique<BatchPutLengthRecorder>();
+  auto *recorder_ptr = recorder.get();
+  HcclApiStub::SetStub(std::move(recorder));
+
+  const auto &src_cache = test_runner.GetSrcCache();
+  const auto &dst_cache = test_runner.GetDstCache();
+  llm::TransferCacheConfig transfer_cache_config{};
+  transfer_cache_config.src_cache_id = src_cache.cache_id;
+  transfer_cache_config.batch_index = 1;
+  transfer_cache_config.layer_index = 0;
+  uint64_t layer_index = 1U;
+  transfer_cache_config.dst_addrs =
+      std::vector<uintptr_t>(dst_cache.per_device_tensor_addrs[0].begin() + layer_index * 2,
+                             dst_cache.per_device_tensor_addrs[0].begin() + layer_index * 2 + 2);
+  llm::TransferBlockConfig transfer_block_config{};
+  transfer_block_config.block_mem_size = 8;
+  transfer_block_config.dst_blocks = {1, 3, 5, 7};
+  ASSERT_EQ(test_runner.RunTransfer(transfer_cache_config, transfer_block_config), ge::SUCCESS);
+
+  EXPECT_EQ(recorder_ptr->counts, (std::vector<uint64_t>{8, 8, 8, 4, 8, 8, 8, 4}));
+}
+
+TEST_F(DataCacheEngineTest, TransferDataCache_D2D_C2B_RejectsBlockMemSizeAboveBatchStride) {
+  llm::CacheDesc src_cache_desc{};
+  src_cache_desc.num_tensors = 2;
+  src_cache_desc.shape = {2, 2};
+  src_cache_desc.data_type = ge::DT_INT32;
+  src_cache_desc.placement = 1;
+
+  auto dst_cache_desc = src_cache_desc;
+  dst_cache_desc.shape = {64, 3};
+  dst_cache_desc.placement = 1;
+  dst_cache_desc.cache_mem_type = CacheMemType::BLOCKS;
+
+  llm::PullCacheParam pull_cache_param{};
+
+  DataCacheEngineTestRunner test_runner;
+  test_runner.Initialize(src_cache_desc, dst_cache_desc, pull_cache_param);
+  auto recorder = std::make_unique<BatchPutLengthRecorder>();
+  auto *recorder_ptr = recorder.get();
+  HcclApiStub::SetStub(std::move(recorder));
+
+  const auto &src_cache = test_runner.GetSrcCache();
+  const auto &dst_cache = test_runner.GetDstCache();
+  llm::TransferCacheConfig transfer_cache_config{};
+  transfer_cache_config.src_cache_id = src_cache.cache_id;
+  transfer_cache_config.batch_index = 1;
+  transfer_cache_config.layer_index = 0;
+  transfer_cache_config.dst_addrs = dst_cache.per_device_tensor_addrs[0];
+  llm::TransferBlockConfig transfer_block_config{};
+  transfer_block_config.block_mem_size = 12;
+  transfer_block_config.dst_blocks = {0};
+
+  EXPECT_EQ(test_runner.RunTransfer(transfer_cache_config, transfer_block_config), ge::LLM_PARAM_INVALID);
+  EXPECT_TRUE(recorder_ptr->counts.empty());
 }
 
 TEST_F(DataCacheEngineTest, PullCache_D2D_C2C_ByKey) {

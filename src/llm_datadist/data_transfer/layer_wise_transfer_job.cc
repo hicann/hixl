@@ -54,16 +54,18 @@ ge::Status LayerWiseTransferJob::GenerateCacheToBlocksTask(const CacheEntry &cac
                                                            const TransferCacheConfig &transfer_cache_config,
                                                            const TransferBlockConfig &transfer_block_config) {
   LLM_CHK_BOOL_RET_STATUS(
-      (transfer_block_config.block_mem_size > 0U) && (transfer_block_config.block_mem_size < cache_entry.tensor_size),
+      (transfer_block_config.block_mem_size > 0U) && (transfer_block_config.block_mem_size <= cache_entry.stride) &&
+          (transfer_block_config.block_mem_size < cache_entry.tensor_size),
       ge::LLM_PARAM_INVALID,
-      "block_mem_size[%lu] must > 0 and < tensor size[%lu] when transfer from continuous cache to blocks",
-      transfer_block_config.block_mem_size, cache_entry.tensor_size);
+      "block_mem_size[%lu] must > 0, <= cache stride[%lu], and < tensor size[%lu] when transfer from continuous cache "
+      "to blocks",
+      transfer_block_config.block_mem_size, cache_entry.stride, cache_entry.tensor_size);
   const uint64_t batch_index = transfer_cache_config.batch_index;
   LLM_CHK_BOOL_RET_STATUS(batch_index < static_cast<uint64_t>(cache_entry.batch_size), ge::LLM_PARAM_INVALID,
                           "batch index[%lu] is out of range[0, %u)", batch_index, cache_entry.batch_size);
   const uint64_t offset = batch_index * cache_entry.stride;
-  const uint64_t remainder = cache_entry.tensor_size % transfer_block_config.block_mem_size;
-  const uint64_t num = cache_entry.tensor_size / transfer_block_config.block_mem_size;
+  const uint64_t remainder = cache_entry.stride % transfer_block_config.block_mem_size;
+  const uint64_t num = cache_entry.stride / transfer_block_config.block_mem_size;
   const uint64_t block_num = (remainder == 0U) ? num : num + 1;
   const size_t dst_blocks_num = transfer_block_config.dst_blocks.size();
   LLM_CHK_BOOL_RET_STATUS(block_num >= dst_blocks_num, ge::LLM_PARAM_INVALID,
