@@ -68,7 +68,11 @@ class HccnToolPathGuard {
       return false;
     }
     tool_file << "#!/bin/sh\n"
-              << "printf '" << output << "\\n'\n";
+              << "if [ \"$3\" = \"-link\" ]; then\n"
+              << "  printf 'link status: UP\\n'\n"
+              << "else\n"
+              << "  printf '" << output << "\\n'\n"
+              << "fi\n";
     tool_file.close();
     if (chmod(tool_path.c_str(), S_IRWXU) != 0) {
       return false;

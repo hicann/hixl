@@ -1030,13 +1030,11 @@ Status EndpointGenerator::BuildDefaultDeviceEndpointInfoList(
                       "ResolveDeviceEndpointNeedByProtocolDesc failed");
 
   if (roce_needed) {
+    const bool roce_required = !protocol_desc.empty() || IsIntraRoceEnabled();
     EndpointInfo roce_endpoint{};
-    HIXL_CHK_STATUS_RET(BuildRoceEndpoint(phy_device_id, roce_endpoint), "BuildRoceEndpoint failed, phy_device_id:%d",
-                        phy_device_id);
-    if (roce_endpoint.comm_id.empty()) {
-      HIXL_EVENT("[EndpointGenerator] Device roce ip is unavailable, skip roce endpoint, phy_device_id:%d",
-                 phy_device_id);
-    } else {
+    HIXL_CHK_STATUS_RET(BuildRoceEndpoint(phy_device_id, roce_required, roce_endpoint),
+                        "BuildRoceEndpoint failed, phy_device_id:%d", phy_device_id);
+    if (!roce_endpoint.comm_id.empty()) {
       endpoint_list.emplace_back(std::move(roce_endpoint));
     }
   }
@@ -1056,11 +1054,14 @@ Status EndpointGenerator::BuildDefaultDeviceEndpointInfoList(
   return SUCCESS;
 }
 
-Status EndpointGenerator::BuildRoceEndpoint(int32_t phy_device_id, EndpointGenerator::EndpointInfo &endpoint) {
+Status EndpointGenerator::BuildRoceEndpoint(int32_t phy_device_id, bool required,
+                                            EndpointGenerator::EndpointInfo &endpoint) {
   std::string device_ip;
   HIXL_CHK_STATUS_RET(GetDeviceIp(phy_device_id, device_ip), "GetDeviceIp failed, phy_device_id:%d", phy_device_id);
   if (device_ip.empty()) {
-    // Device ip unavailable: leave the endpoint empty, the caller skips it with an event log.
+    HIXL_CHK_BOOL_RET_STATUS(!required, FAILED, "Device roce endpoint is unavailable, phy_device_id:%d", phy_device_id);
+    HIXL_EVENT("[EndpointGenerator] Device roce endpoint is unavailable, skip roce endpoint, phy_device_id:%d",
+               phy_device_id);
     return SUCCESS;
   }
 

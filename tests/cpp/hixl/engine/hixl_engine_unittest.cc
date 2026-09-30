@@ -12,12 +12,15 @@
 #include <cstdint>
 #include <cstdlib>
 #include <algorithm>
+#include <cstring>
+#include <fstream>
 #include <map>
 #include <memory>
 #include <thread>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -49,8 +52,17 @@ constexpr const int32_t kTimeOut = 1000;
 constexpr const int32_t kMaxRetryCount = 10;
 constexpr const int32_t kInterval = 10;
 constexpr const uint32_t kCaptureLogTimeoutMs = 1000U;
+constexpr const char kHccnToolPath[] = "/usr/local/Ascend/driver/tools/hccn_tool";
 
-using MockEngineMmpaStub = test::TestMmpaStub;
+class MockEngineMmpaStub : public test::TestMmpaStub {
+ public:
+  INT32 Access(const CHAR *path_name) override {
+    if (path_name != nullptr && std::strcmp(path_name, kHccnToolPath) == 0) {
+      return EN_ERROR;
+    }
+    return test::TestMmpaStub::Access(path_name);
+  }
+};
 
 std::string BuildDeviceRoceEndpoint(const std::string &comm_id) {
   std::ostringstream oss;
@@ -140,6 +152,7 @@ class HixlEngineTest : public ::testing::Test {
     mmpa_stub_->real_path_ok_ = true;
     mmpa_stub_->access_ok_ = true;
     hixl_test::InstallSysApiHooks(mmpa_stub_);
+    CreateHccnTool();
     const char *old_intra_roce_enable = std::getenv("HCCL_INTRA_ROCE_ENABLE");
     old_intra_roce_enable_ = (old_intra_roce_enable == nullptr) ? "" : old_intra_roce_enable;
     unsetenv("HCCL_INTRA_ROCE_ENABLE");
@@ -196,6 +209,14 @@ class HixlEngineTest : public ::testing::Test {
     hixl_test::ResetSysApiHooks();
     for (const auto &path : temp_files_) {
       (void)remove(path.c_str());
+    }
+    if (had_path_) {
+      setenv("PATH", old_path_.c_str(), 1);
+    } else {
+      unsetenv("PATH");
+    }
+    if (!hccn_tool_dir_.empty()) {
+      (void)rmdir(hccn_tool_dir_.c_str());
     }
     if (old_intra_roce_enable_.empty()) {
       unsetenv("HCCL_INTRA_ROCE_ENABLE");
@@ -348,10 +369,33 @@ class HixlEngineTest : public ::testing::Test {
     mmpa_stub_->fake_real_path_ = file_path;
   }
 
+  void CreateHccnTool() {
+    char dir_template[] = "/tmp/hixl_engine_hccn_tool_XXXXXX";
+    char *temp_dir = mkdtemp(dir_template);
+    ASSERT_NE(temp_dir, nullptr);
+    hccn_tool_dir_ = temp_dir;
+    const std::string tool_path = hccn_tool_dir_ + "/hccn_tool";
+    std::ofstream tool(tool_path);
+    ASSERT_TRUE(tool.is_open());
+    tool << "#!/bin/sh\necho \"link status: UP\"\n";
+    tool.close();
+    ASSERT_EQ(chmod(tool_path.c_str(), 0755), 0);
+    temp_files_.emplace_back(tool_path);
+
+    const char *old_path = std::getenv("PATH");
+    had_path_ = old_path != nullptr;
+    old_path_ = had_path_ ? old_path : "";
+    const std::string test_path = had_path_ ? hccn_tool_dir_ + ":" + old_path_ : hccn_tool_dir_;
+    setenv("PATH", test_path.c_str(), 1);
+  }
+
  private:
   std::shared_ptr<MockEngineMmpaStub> mmpa_stub_;
   std::vector<std::string> temp_files_;
   std::string old_intra_roce_enable_;
+  std::string hccn_tool_dir_;
+  std::string old_path_;
+  bool had_path_ = false;
 };
 
 TEST_F(HixlEngineTest, EngineFactoryUsesHixlEngineWhenProtocolDescConfigured) {
