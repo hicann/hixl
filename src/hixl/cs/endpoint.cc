@@ -343,7 +343,14 @@ Status Endpoint::UnimportMem(const void *mem_desc, uint32_t desc_len) {
 Status Endpoint::GetListenPort(uint32_t &port) const {
   std::lock_guard<std::mutex> lock(mutex_);
   HIXL_CHK_BOOL_RET_STATUS(handle_ != nullptr, FAILED, "[endpoint] GetListenPort called before Initialize");
-  HIXL_CHK_HCCL_RET(EndpointGetListenPort(port));
+  const HcclResult hccl_ret = EndpointGetListenPort(port);
+  // No listen socket. One warning is enough; do not log ERROR or report E19999.
+  if (hccl_ret == HCCL_E_NOT_SUPPORT) {
+    HIXL_LOGW("EndpointGetListenPort is not supported.");
+    return UNSUPPORTED;
+  }
+  HIXL_CHK_BOOL_RET_STATUS(hccl_ret == HCCL_SUCCESS, ConvertHcommErrorToStatus(hccl_ret),
+                           "Call hccl api:EndpointGetListenPort(port) failed, ret:%d", static_cast<int32_t>(hccl_ret));
   return SUCCESS;
 }
 

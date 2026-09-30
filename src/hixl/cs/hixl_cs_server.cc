@@ -460,8 +460,6 @@ Status HixlCSServer::MatchEndpointMsg(int32_t fd, const char *msg, uint64_t msg_
     const Status ret = ep->GetListenPort(listen_port);
     if (ret == SUCCESS) {
       ep->SetPort(listen_port);
-    } else if (ret == UNSUPPORTED) {
-      HIXL_LOGW("EndpointGetListenPort is not supported.");
     }
     HIXL_CHK_BOOL_RET_STATUS(ret == SUCCESS || ret == UNSUPPORTED, FAILED,
                              "Call api:EndpointGetListenPort failed, ret:%u, ep_handle:%p", static_cast<uint32_t>(ret),
