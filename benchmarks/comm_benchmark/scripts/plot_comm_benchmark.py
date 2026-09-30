@@ -109,7 +109,7 @@ def _avg_by_block(rows: list[dict], field: str) -> dict[str, float]:
         try:
             val = float(r[field])
             blk = r.get("block_size", "")
-        except (KeyError, ValueError):
+        except (KeyError, TypeError, ValueError):
             continue
         groups[blk].append(val)
     return {k: statistics.mean(v) for k, v in groups.items()}

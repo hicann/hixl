@@ -135,12 +135,12 @@ def build_lookup(rows: list[dict]) -> dict[str, dict[str, dict[str, float]]]:
         lambda: defaultdict(lambda: defaultdict(list))
     )
     for r in rows:
-        direction = r.get('direction', '').strip()
-        transport = r.get('transport', '').strip()
+        direction = (r.get('direction') or '').strip()
+        transport = (r.get('transport') or '').strip()
         try:
             bw = float(r['bandwidth_gbps'])
             blk = int(r['block_size'])
-        except (KeyError, ValueError):
+        except (KeyError, TypeError, ValueError):
             continue
         if not direction or not transport:
             continue
@@ -169,7 +169,7 @@ def collect_columns_with_data(lookup: dict[str, dict[str, dict[str, float]]]) ->
 def infer_deployment_from_rows(rows: list[dict]) -> str:
     """Infer single vs dual-machine from CSV pattern (benchmark_group)."""
     for row in rows:
-        pattern = row.get('pattern', '').strip().lower()
+        pattern = (row.get('pattern') or '').strip().lower()
         if pattern == 'dual':
             return 'dual'
     return 'single'

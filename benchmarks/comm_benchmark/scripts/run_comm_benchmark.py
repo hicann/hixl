@@ -100,8 +100,8 @@ def effective_soc_for_hccs_gate(args) -> str | None:
 
 
 def _apply_csv_transport_row(row: dict[str, str], transports: set[str], directions: set[str]) -> None:
-    transport = row.get('transport', '').strip()
-    direction = row.get('direction', '').strip()
+    transport = (row.get('transport') or '').strip()
+    direction = (row.get('direction') or '').strip()
     if transport:
         transports.add(transport)
     if direction:
@@ -852,11 +852,11 @@ def _append_csv_summary_groups(csv_path: Path, groups) -> None:
     with csv_path.open(newline='', encoding='utf-8') as csv_file:
         for row in csv.DictReader(csv_file):
             try:
-                direction = row['direction'].strip()
-                transport = row['transport'].strip()
+                direction = (row.get('direction') or '').strip()
+                transport = (row.get('transport') or '').strip()
                 block_label = block_label_from_bytes(int(row['block_size']))
                 bandwidth = float(row['bandwidth_gbps'])
-            except (KeyError, ValueError):
+            except (KeyError, TypeError, ValueError):
                 continue
             if direction and transport:
                 groups[direction, transport, block_label].append(bandwidth)
