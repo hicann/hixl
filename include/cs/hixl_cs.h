@@ -27,6 +27,7 @@ static const uint32_t HIXL_SUCCESS = 0U;
 static const uint32_t HIXL_PARAM_INVALID = 103900U;
 static const uint32_t HIXL_TIMEOUT = 103901U;
 static const uint32_t HIXL_FAILED = 503900U;
+static const uint32_t HIXL_RESOURCE_EXHAUSTED = 203900U;
 
 struct HixlServerConfig {
   const char *global_resource_config = nullptr;
