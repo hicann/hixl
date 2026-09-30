@@ -15,7 +15,8 @@
 import unittest
 import ctypes
 from llm_datadist.utils.utils import (check_uint64, check_int64,check_int32,
-                                      check_uint32, check_list_int32, check_uint16, check_uint8)
+                                      check_uint32, check_list_int32, check_uint16, check_uint8,
+                                      check_dict, check_isinstance)
 from llm_datadist.v2.llm_types import CacheDesc, DataType, Placement
 from llm_datadist.v2.llm_utils import pack_cache_desc
 
@@ -43,6 +44,32 @@ class TensorUt(unittest.TestCase):
             _ = check_uint16("cluster", -1)
         with self.assertRaises(ValueError):
             _ = check_uint8("cluster", -1)
+
+    def test_check_bool_rejected(self):
+        with self.assertRaises(TypeError):
+            _ = check_uint64("cluster", True)
+        with self.assertRaises(TypeError):
+            _ = check_int64("cluster", True)
+        with self.assertRaises(TypeError):
+            _ = check_int32("cluster", True)
+        with self.assertRaises(TypeError):
+            _ = check_uint32("cluster", True)
+        with self.assertRaises(TypeError):
+            _ = check_uint32("cluster", False)
+        with self.assertRaises(TypeError):
+            _ = check_uint16("cluster", True)
+        with self.assertRaises(TypeError):
+            _ = check_uint8("cluster", True)
+        with self.assertRaises(TypeError):
+            _ = check_isinstance("cluster", True, [int], allow_none=False)
+        with self.assertRaises(TypeError):
+            _ = check_isinstance("device_id", [0, True], [list, tuple], int)
+        with self.assertRaises(TypeError):
+            _ = check_dict("cluster_rank_info", {0: True}, int, int)
+        with self.assertRaises(TypeError):
+            _ = check_dict("cluster_rank_info", {True: 0}, int, int)
+        self.assertIs(check_isinstance("enable_switch_role", True, [bool]), True)
+        self.assertIs(check_isinstance("cluster", 1, [int]), 1)
 
     def test_pack_cache_desc_preserves_batch_dim_index(self):
         cache_desc = CacheDesc(1, [2, 3], DataType.DT_INT8, Placement.DEVICE, batch_dim_index=1)
