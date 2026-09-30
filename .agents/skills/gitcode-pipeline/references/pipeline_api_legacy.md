@@ -209,7 +209,7 @@ curl --location --request POST 'https://api.gitcode.com/api/v5/repos/{owner}/{re
 ```
 
 **后续处理思路**：
-- 对于`stages[]` 表示流水线的几个阶段，阶段间串行，前面阶段失败就不会执行后面的阶段了．因此如果该阶段失败(`stages[].status == "FAILED"`)，之需要查询该阶段任务的失败原因就可以了，不需要查询后续阶段的失败原因了．
+- 对于`stages[]` 表示流水线的几个阶段，阶段间串行，前面阶段失败就不会执行后面的阶段了．因此如果该阶段失败(`stages[].status == "FAILED"`)，只需要查询该阶段任务的失败原因就可以了，不需要查询后续阶段的失败原因了．
 - 对于`stages[].jobs[]`: 表示每个阶段的所有任务，每个阶段内的所有任务是并发执行的，如果这个阶段失败了，需要获取所有任务的失败日志
 - 对于`stages[].jobs[].steps[]`: 表示每个任务的步骤，如果失败了，需要获取所有失败的步骤的日志
 - 对于`stages[].jobs[].steps[].task == 'official_devcloud_subPipeline'`的步骤，内部还包含着多个子任务，需要额外调用一次步骤3a和步骤3b, 需要获取`steps[].id`，例如`26216a0e34b84470a85b31b644184915`作为`｛step_run_ids｝`

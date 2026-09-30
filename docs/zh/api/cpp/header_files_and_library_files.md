@@ -12,4 +12,4 @@ hixl接口的头文件在`${INSTALL_DIR}/include/`目录下，库文件在`${INS
 | --- | --- | --- |
 | llm\_datadist/llm\_datadist.h | 面向大模型KV Cache传输的场景，提供带有KV Cache语义的接口能力。支持角色管理、链路管理、KV Cache注册、连续KV Cache传输、KV Block传输等功能。 | libllm\_datadist.so |
 | hixl/hixl.h | 面向点对点数据传输的场景，提供极致易用的单边零拷贝数据直传能力。支持初始化/去初始化、内存注册/解注册、建链/断链、数据传输等功能。 | libcann\_hixl.so |
-| cs/hixl\_cs.h | 面向使用Client-Server模式的场景，提供Client-Server模式集成单边零拷贝数据直传能力。支持Client端的创建/销毁、建链、内存注册/注销、获取远端内存描述、传输以及Sever端的创建/销毁、内存注册/注销等功能。 | libcann\_hixl.so |
+| cs/hixl\_cs.h | 面向使用Client-Server模式的场景，提供Client-Server模式集成单边零拷贝数据直传能力。支持Client端的创建/销毁、建链、内存注册/注销、获取远端内存描述、传输以及Server端的创建/销毁、内存注册/注销等功能。 | libcann\_hixl.so |
