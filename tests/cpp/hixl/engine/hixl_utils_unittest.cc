@@ -110,7 +110,9 @@ class HixlUtilsUTest : public ::testing::Test {
   }
 
   void CreateHccnTool(const std::string &tool_output) const {
-    CreateHccnToolScript("#!/bin/sh\necho \"" + tool_output + "\"\n");
+    CreateHccnToolScript(
+        "#!/bin/sh\nif [ \"$3\" = \"-link\" ]; then\n  echo \"link status: UP\"\n  exit 0\nfi\necho \"" + tool_output +
+        "\"\n");
   }
 
   void CreateHccnToolScript(const std::string &script_content) const {
@@ -155,6 +157,7 @@ TEST_F(HixlUtilsUTest, EndpointConfigToStringContainsDeviceInfoTest) {
 TEST_F(HixlUtilsUTest, GetDeviceIpFromHccnConfSuccessTest) {
   WriteHccnConf("address_0=192.168.1.10\naddress_1=192.168.1.11\n");
   InstallConfStub(true);
+  CreateHccnTool("unused");
 
   std::string device_ip;
   EXPECT_EQ(GetDeviceIp(1, device_ip), SUCCESS);
@@ -164,6 +167,7 @@ TEST_F(HixlUtilsUTest, GetDeviceIpFromHccnConfSuccessTest) {
 TEST_F(HixlUtilsUTest, GetDeviceIpFromHccnConfIpv6SuccessTest) {
   WriteHccnConf("IPv6address_0=121::101\nIPv6netmask_0=112\n");
   InstallConfStub(true);
+  CreateHccnTool("unused");
 
   std::string device_ip;
   EXPECT_EQ(GetDeviceIp(0, device_ip), SUCCESS);
@@ -183,16 +187,18 @@ TEST_F(HixlUtilsUTest, GetDeviceIpInvalidIpInHccnConfTest) {
   WriteHccnConf("address_0=invalid_ip\n");
   InstallConfStub(true);
 
-  std::string device_ip;
+  std::string device_ip = "stale_ip";
   EXPECT_EQ(GetDeviceIp(0, device_ip), PARAM_INVALID);
+  EXPECT_TRUE(device_ip.empty());
 }
 
 TEST_F(HixlUtilsUTest, GetDeviceIpInvalidIpv6InHccnConfTest) {
   WriteHccnConf("IPv6address_0=not_an_ipv6\n");
   InstallConfStub(true);
 
-  std::string device_ip;
+  std::string device_ip = "stale_ip";
   EXPECT_EQ(GetDeviceIp(0, device_ip), PARAM_INVALID);
+  EXPECT_TRUE(device_ip.empty());
 }
 
 TEST_F(HixlUtilsUTest, GetDeviceIpDoesNotFallbackWhenConfExistsButNoMatchingKeyTest) {
@@ -214,10 +220,23 @@ TEST_F(HixlUtilsUTest, GetDeviceIpFallbackToHccnToolWhenConfMissingTest) {
   EXPECT_EQ(device_ip, "10.10.10.10");
 }
 
+TEST_F(HixlUtilsUTest, GetDeviceIpInvalidIpFromHccnToolTest) {
+  InstallConfStub(false);
+  CreateHccnTool("ipaddr:invalid_ip");
+
+  std::string device_ip = "stale_ip";
+  EXPECT_EQ(GetDeviceIp(0, device_ip), PARAM_INVALID);
+  EXPECT_TRUE(device_ip.empty());
+}
+
 TEST_F(HixlUtilsUTest, GetDeviceIpFallbackToIpv6HccnToolWhenIpv4EmptyTest) {
   InstallConfStub(false);
   CreateHccnToolScript(
       "#!/bin/sh\n"
+      "if [ \"$3\" = \"-link\" ]; then\n"
+      "  echo \"link status: UP\"\n"
+      "  exit 0\n"
+      "fi\n"
       "for arg in \"$@\"; do\n"
       "  if [ \"$arg\" = \"-inet6\" ]; then\n"
       "    echo \"ipaddr:121::101\"\n"
@@ -238,6 +257,56 @@ TEST_F(HixlUtilsUTest, GetBondIpAddress) {
   std::string bond_ip;
   EXPECT_EQ(GetBondIpAddress(0, 0, bond_ip), SUCCESS);
   EXPECT_EQ(bond_ip, "192.168.1.111");
+}
+
+TEST_F(HixlUtilsUTest, GetDeviceIpKeepsIpWhenLinkIsUpTest) {
+  WriteHccnConf("address_3=10.10.10.3\n");
+  InstallConfStub(true);
+  CreateHccnTool("unused");
+
+  std::string device_ip;
+  EXPECT_EQ(GetDeviceIp(3, device_ip), SUCCESS);
+  EXPECT_EQ(device_ip, "10.10.10.3");
+}
+
+TEST_F(HixlUtilsUTest, GetDeviceIpClearsIpWhenLinkIsDownTest) {
+  WriteHccnConf("address_3=10.10.10.3\n");
+  InstallConfStub(true);
+  CreateHccnToolScript("#!/bin/sh\necho \"link status: DOWN\"\n");
+
+  std::string device_ip;
+  EXPECT_EQ(GetDeviceIp(3, device_ip), SUCCESS);
+  EXPECT_TRUE(device_ip.empty());
+}
+
+TEST_F(HixlUtilsUTest, GetDeviceIpClearsIpWhenLinkOutputIsInvalidTest) {
+  WriteHccnConf("address_3=10.10.10.3\n");
+  InstallConfStub(true);
+  CreateHccnToolScript("#!/bin/sh\necho \"unknown status\"\n");
+
+  std::string device_ip;
+  EXPECT_EQ(GetDeviceIp(3, device_ip), SUCCESS);
+  EXPECT_TRUE(device_ip.empty());
+}
+
+TEST_F(HixlUtilsUTest, GetDeviceIpClearsIpWhenLinkCommandFailsTest) {
+  WriteHccnConf("address_3=10.10.10.3\n");
+  InstallConfStub(true);
+  CreateHccnToolScript("#!/bin/sh\nexit 1\n");
+
+  std::string device_ip;
+  EXPECT_EQ(GetDeviceIp(3, device_ip), SUCCESS);
+  EXPECT_TRUE(device_ip.empty());
+}
+
+TEST_F(HixlUtilsUTest, GetDeviceIpKeepsIpWhenHccnToolIsUnavailableTest) {
+  WriteHccnConf("address_3=10.10.10.3\n");
+  InstallConfStub(true);
+  setenv("PATH", temp_dir_.c_str(), 1);
+
+  std::string device_ip;
+  EXPECT_EQ(GetDeviceIp(3, device_ip), SUCCESS);
+  EXPECT_EQ(device_ip, "10.10.10.3");
 }
 
 TEST(ParseListenInfoTest, RejectsPortAboveTcpRange) {

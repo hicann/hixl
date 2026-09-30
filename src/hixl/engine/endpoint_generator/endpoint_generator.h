@@ -78,7 +78,7 @@ class EndpointGenerator {
   static Status PopulateLocalDeviceInfo(std::vector<EndpointConfig> &endpoint_list);
   static Status BuildDefaultDeviceEndpointInfoList(int32_t phy_device_id, const std::vector<std::string> &protocol_desc,
                                                    std::vector<EndpointInfo> &endpoint_list);
-  static Status BuildRoceEndpoint(int32_t phy_device_id, EndpointInfo &endpoint);
+  static Status BuildRoceEndpoint(int32_t phy_device_id, bool required, EndpointInfo &endpoint);
   static Status BuildHccsEndpoint(int32_t phy_device_id, EndpointInfo &endpoint);
   static Status GetHostIpFromLocalEngine(const std::string &local_engine, std::string &host_ip);
 };

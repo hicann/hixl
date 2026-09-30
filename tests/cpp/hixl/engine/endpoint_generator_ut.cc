@@ -209,7 +209,9 @@ std::string SetA2AutoGenEnv(const std::shared_ptr<MockLocCommResAclRuntimeStub> 
 }
 
 std::pair<std::string, std::string> SetUboeRoceMixedEnv(const std::string &uboe_ip) {
-  const std::string script_path = CreateExecutableScript("hccn_tool", "#!/bin/sh\necho \"ipaddr:" + uboe_ip + "\"\n");
+  const std::string script = "#!/bin/sh\nif [ \"$3\" = \"-link\" ]; then\n  echo \"link status: UP\"\nelse\n";
+  const std::string script_path =
+      CreateExecutableScript("hccn_tool", script + "  echo \"ipaddr:" + uboe_ip + "\"\nfi\n");
   setenv("PATH", "/tmp", 1);
   const std::string file_path =
       test::CreateTempFileWithContent("/tmp/loc_comm_res_ut_XXXXXX", "address_3=10.10.10.3\n");
@@ -229,11 +231,14 @@ class EndpointGeneratorUTest : public ::testing::Test {
     acl_stub_ = endpoint_test::CreateAclRuntimeStub("Ascend910_9391", 0, 3, 0, 8);
     llm::AclRuntimeStub::SetInstance(acl_stub_);
 
-    mmpa_stub_ = std::make_shared<MockLocCommResMmpaStub>();
+    mmpa_stub_ = std::make_shared<UboeMmpaStub>();
     hixl_test::InstallSysApiHooks(mmpa_stub_);
 
     const char *old_path = std::getenv("PATH");
     old_path_ = (old_path == nullptr) ? "" : old_path;
+    (void)CreateExecutableScript("hccn_tool", "#!/bin/sh\necho \"link status: UP\"\n");
+    const std::string test_path = old_path_.empty() ? "/tmp" : "/tmp:" + old_path_;
+    setenv("PATH", test_path.c_str(), 1);
     old_intra_roce_enable_ = std::getenv("HCCL_INTRA_ROCE_ENABLE");
     unsetenv("HCCL_INTRA_ROCE_ENABLE");
   }
@@ -251,6 +256,7 @@ class EndpointGeneratorUTest : public ::testing::Test {
     } else {
       unsetenv("HCCL_INTRA_ROCE_ENABLE");
     }
+    (void)remove("/tmp/hccn_tool");
   }
 
   std::shared_ptr<MockLocCommResAclRuntimeStub> acl_stub_;
@@ -404,7 +410,7 @@ TEST_F(EndpointGeneratorUTest, BuildRoceEndpointSuccess) {
   mmpa_stub_->fake_real_path_ = file_path;
 
   EndpointGenerator::EndpointInfo endpoint{};
-  EXPECT_EQ(EndpointGenerator::BuildRoceEndpoint(3, endpoint), SUCCESS);
+  EXPECT_EQ(EndpointGenerator::BuildRoceEndpoint(3, false, endpoint), SUCCESS);
   EXPECT_EQ(endpoint.protocol, "roce");
   EXPECT_EQ(endpoint.comm_id, "10.10.10.3");
   EXPECT_EQ(endpoint.placement, "device");
@@ -421,7 +427,7 @@ TEST_F(EndpointGeneratorUTest, BuildRoceEndpointWithIpv6Success) {
   mmpa_stub_->fake_real_path_ = file_path;
 
   EndpointGenerator::EndpointInfo endpoint{};
-  EXPECT_EQ(EndpointGenerator::BuildRoceEndpoint(3, endpoint), SUCCESS);
+  EXPECT_EQ(EndpointGenerator::BuildRoceEndpoint(3, false, endpoint), SUCCESS);
   EXPECT_EQ(endpoint.protocol, "roce");
   EXPECT_EQ(endpoint.comm_id, "121::101");
   EXPECT_EQ(endpoint.placement, "device");
@@ -436,7 +442,7 @@ TEST_F(EndpointGeneratorUTest, BuildRoceEndpointEmptyIpYieldsEmptyEndpoint) {
   test::ScopedPathGuard path_guard(kEmptyPathDir);
 
   EndpointGenerator::EndpointInfo endpoint{};
-  EXPECT_EQ(EndpointGenerator::BuildRoceEndpoint(3, endpoint), SUCCESS);
+  EXPECT_EQ(EndpointGenerator::BuildRoceEndpoint(3, false, endpoint), SUCCESS);
   EXPECT_TRUE(endpoint.comm_id.empty());
 }
 
@@ -523,6 +529,112 @@ TEST_F(EndpointGeneratorUTest, BuildDefaultDeviceEndpointInfoListSkipsRoceWhenDe
   ASSERT_EQ(endpoint_list.size(), 1U);
   EXPECT_EQ(endpoint_list[0].protocol, "hccs");
   EXPECT_EQ(endpoint_list[0].comm_id, "3");
+}
+
+TEST_F(EndpointGeneratorUTest, BuildDefaultDeviceEndpointInfoListSkipsRoceWhenLinkIsDown) {
+  const std::string file_path =
+      test::CreateTempFileWithContent("/tmp/loc_comm_res_ut_XXXXXX", "address_3=10.10.10.3\n");
+  mmpa_stub_->real_path_ok_ = true;
+  mmpa_stub_->access_ok_ = true;
+  mmpa_stub_->fake_real_path_ = file_path;
+  (void)CreateExecutableScript("hccn_tool", "#!/bin/sh\necho \"link status: DOWN\"\n");
+
+  std::vector<EndpointGenerator::EndpointInfo> endpoint_list;
+  EXPECT_EQ(EndpointGenerator::BuildDefaultDeviceEndpointInfoList(3, {}, endpoint_list), SUCCESS);
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_EQ(endpoint_list[0].protocol, kProtocolHccs);
+
+  (void)remove(file_path.c_str());
+}
+
+TEST_F(EndpointGeneratorUTest, BuildDefaultDeviceEndpointInfoListSkipsRoceWhenLinkQueryFails) {
+  const std::string file_path =
+      test::CreateTempFileWithContent("/tmp/loc_comm_res_ut_XXXXXX", "address_3=10.10.10.3\n");
+  mmpa_stub_->real_path_ok_ = true;
+  mmpa_stub_->access_ok_ = true;
+  mmpa_stub_->fake_real_path_ = file_path;
+  (void)CreateExecutableScript("hccn_tool", "#!/bin/sh\necho \"unknown status\"\n");
+
+  std::vector<EndpointGenerator::EndpointInfo> endpoint_list;
+  EXPECT_EQ(EndpointGenerator::BuildDefaultDeviceEndpointInfoList(3, {}, endpoint_list), SUCCESS);
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_EQ(endpoint_list[0].protocol, kProtocolHccs);
+
+  (void)remove(file_path.c_str());
+}
+
+TEST_F(EndpointGeneratorUTest, BuildDefaultDeviceEndpointInfoListRejectsExplicitRoceWhenLinkIsDown) {
+  const std::string file_path =
+      test::CreateTempFileWithContent("/tmp/loc_comm_res_ut_XXXXXX", "address_3=10.10.10.3\n");
+  mmpa_stub_->real_path_ok_ = true;
+  mmpa_stub_->access_ok_ = true;
+  mmpa_stub_->fake_real_path_ = file_path;
+  (void)CreateExecutableScript("hccn_tool", "#!/bin/sh\necho \"link status: DOWN\"\n");
+
+  const std::vector<std::string> protocol_desc = {"roce:device"};
+  std::vector<EndpointGenerator::EndpointInfo> endpoint_list;
+  EXPECT_EQ(EndpointGenerator::BuildDefaultDeviceEndpointInfoList(3, protocol_desc, endpoint_list), FAILED);
+  EXPECT_TRUE(endpoint_list.empty());
+
+  (void)remove(file_path.c_str());
+}
+
+TEST_F(EndpointGeneratorUTest, BuildDefaultDeviceEndpointInfoListRejectsExplicitRoceWhenLinkQueryFails) {
+  const std::string file_path =
+      test::CreateTempFileWithContent("/tmp/loc_comm_res_ut_XXXXXX", "address_3=10.10.10.3\n");
+  mmpa_stub_->real_path_ok_ = true;
+  mmpa_stub_->access_ok_ = true;
+  mmpa_stub_->fake_real_path_ = file_path;
+  (void)CreateExecutableScript("hccn_tool", "#!/bin/sh\nexit 1\n");
+
+  const std::vector<std::string> protocol_desc = {"roce:device"};
+  std::vector<EndpointGenerator::EndpointInfo> endpoint_list;
+  EXPECT_EQ(EndpointGenerator::BuildDefaultDeviceEndpointInfoList(3, protocol_desc, endpoint_list), FAILED);
+  EXPECT_TRUE(endpoint_list.empty());
+
+  (void)remove(file_path.c_str());
+}
+
+TEST_F(EndpointGeneratorUTest, BuildDefaultDeviceEndpointInfoListRejectsExplicitRoceAndHccsWhenLinkIsDown) {
+  const std::string file_path =
+      test::CreateTempFileWithContent("/tmp/loc_comm_res_ut_XXXXXX", "address_3=10.10.10.3\n");
+  mmpa_stub_->real_path_ok_ = true;
+  mmpa_stub_->access_ok_ = true;
+  mmpa_stub_->fake_real_path_ = file_path;
+  (void)CreateExecutableScript("hccn_tool", "#!/bin/sh\necho \"link status: DOWN\"\n");
+
+  const std::vector<std::string> protocol_desc = {"roce:device", "hccs:device"};
+  std::vector<EndpointGenerator::EndpointInfo> endpoint_list;
+  EXPECT_EQ(EndpointGenerator::BuildDefaultDeviceEndpointInfoList(3, protocol_desc, endpoint_list), FAILED);
+  EXPECT_TRUE(endpoint_list.empty());
+
+  (void)remove(file_path.c_str());
+}
+
+TEST_F(EndpointGeneratorUTest, BuildDefaultDeviceEndpointInfoListDoesNotQueryLinkForExplicitHccs) {
+  (void)CreateExecutableScript("hccn_tool", "#!/bin/sh\nexit 1\n");
+
+  const std::vector<std::string> protocol_desc = {"hccs:device"};
+  std::vector<EndpointGenerator::EndpointInfo> endpoint_list;
+  EXPECT_EQ(EndpointGenerator::BuildDefaultDeviceEndpointInfoList(3, protocol_desc, endpoint_list), SUCCESS);
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_EQ(endpoint_list[0].protocol, kProtocolHccs);
+}
+
+TEST_F(EndpointGeneratorUTest, BuildDefaultDeviceEndpointInfoListRejectsDownLinkWhenIntraRoceEnabled) {
+  const std::string file_path =
+      test::CreateTempFileWithContent("/tmp/loc_comm_res_ut_XXXXXX", "address_3=10.10.10.3\n");
+  mmpa_stub_->real_path_ok_ = true;
+  mmpa_stub_->access_ok_ = true;
+  mmpa_stub_->fake_real_path_ = file_path;
+  (void)CreateExecutableScript("hccn_tool", "#!/bin/sh\necho \"link status: DOWN\"\n");
+  setenv("HCCL_INTRA_ROCE_ENABLE", "1", 1);
+
+  std::vector<EndpointGenerator::EndpointInfo> endpoint_list;
+  EXPECT_EQ(EndpointGenerator::BuildDefaultDeviceEndpointInfoList(3, {}, endpoint_list), FAILED);
+  EXPECT_TRUE(endpoint_list.empty());
+
+  (void)remove(file_path.c_str());
 }
 
 TEST_F(EndpointGeneratorUTest, BuildDefaultDeviceEndpointInfoListKeepsHccsWhenRoceNotRequested) {
@@ -1354,8 +1466,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsRejectsRoceProtocolDe
   std::vector<EndpointConfig> endpoint_list;
   HixlOptions parsed;
   ASSERT_EQ(HixlOptions::Parse(options, parsed), SUCCESS);
-  EXPECT_EQ(EndpointGenerator::BuildEndpointList(parsed, "192.168.1.8:26000", local_comm_res, endpoint_list),
-            PARAM_INVALID);
+  EXPECT_EQ(EndpointGenerator::BuildEndpointList(parsed, "192.168.1.8:26000", local_comm_res, endpoint_list), FAILED);
   EXPECT_TRUE(endpoint_list.empty());
 }
 
@@ -2541,7 +2652,11 @@ TEST_F(EndpointGeneratorUTest, GetDeviceIpFromHccnToolSuccess) {
 
   const std::string tool_path = CreateExecutableScript("hccn_tool",
                                                        "#!/bin/sh\n"
-                                                       "echo \"ipaddr:172.16.1.20\"\n");
+                                                       "if [ \"$3\" = \"-link\" ]; then\n"
+                                                       "  echo \"link status: UP\"\n"
+                                                       "else\n"
+                                                       "  echo \"ipaddr:172.16.1.20\"\n"
+                                                       "fi\n");
 
   setenv("PATH", "/tmp", 1);
 
