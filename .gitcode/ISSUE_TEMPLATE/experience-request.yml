@@ -1,0 +1,50 @@
+name: Experience Request|体验需求
+description: 当您在 HIXL 开发体验过程中发现可改进的问题时，请使用此模板。
+title: "[Experience Request|体验需求]: "
+labels: ["requirement"]
+type: "需求"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sending an issue! Please fill in the following template to help quickly solve your problem.
+  - type: dropdown
+    attributes:
+      label: 体验活动所处阶段
+      description: 请选择发现 HIXL 体验问题时所处的开发阶段。
+      options:
+        - 感知学习（了解单边通信、应用场景和接口能力等）
+        - 环境准备（安装 CANN 依赖、配置环境变量、检查设备与网络连通性等）
+        - 编译安装（源码构建、软件包安装、样例编译等）
+        - 样例体验（运行 HIXL 内存传输或 LLM-DataDist KV Cache 传输样例等）
+        - 应用开发与集成（初始化、链路管理、内存注册、数据传输等）
+        - 调试与问题定位（分析日志和错误码、排查建链失败或传输异常等）
+        - 性能测试与调优（运行通信或 KV Cache 基准测试、分析传输时延与带宽等）
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: 体验改进触点（问题出现在哪类内容或环节）
+      description: 请选择 HIXL 体验问题对应的资料、接口、代码、工具或运行反馈。
+      options:
+        - 开发资料（概念介绍、安装指南、接口说明、问题定位手册等）
+        - API（HIXL、LLM-DataDist 等接口）
+        - 源码/示例代码（通信样例、业务集成示例等）
+        - 工具与脚本（编译构建、测试、性能测试等）
+        - 运行时反馈（日志、错误码、报错信息等）
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 详细描述
+      description: 说明具体体验场景和未达到预期的体验维度（如易学性、易用性、反馈清晰度），并描述实际遇到的问题。
+      placeholder: 针对您遇到的问题，请尽可能提供相关的资料链接、API 名称、代码片段、操作步骤、日志或截图等信息。
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 改进建议
+      description: 请描述您期望的改进方式或理想体验。
+      placeholder: 例如期望补充哪些说明、简化哪些操作，或优化成什么样。
+    validations:
+      required: false
