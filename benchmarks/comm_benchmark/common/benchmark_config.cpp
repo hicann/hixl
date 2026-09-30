@@ -1015,7 +1015,7 @@ bool ValidateHccsMemoryCombination(const BenchmarkConfig *cfg) {
   }
   const BenchSocKind kind = ResolveSocKindForHccs(cfg);
   if (kind == BenchSocKind::kA5) {
-    BENCH_LOGE("transport=hccs is not supported on Ascend950-class (A5) SOC; use roce or fabric_mem\n");
+    BENCH_LOGE("transport=hccs is not supported on Ascend950-class (A5) SOC; use roce, uboe, ub_rtp or ub\n");
     return false;
   }
   const std::string &im = cfg->initiator_memory_type;

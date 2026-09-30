@@ -115,7 +115,7 @@ bash benchmarks/run_all_bench.sh
 - 检查并 source CANN 环境
 - 通过 `npu-smi info` 检测芯片型号（A2 / A3 / A5；设备名含 Ascend910B→A2、Ascend910→A3、Ascend950→A5）
 - 依次跑完当前平台支持的通信方向 × 传输类型组合
-- 运行 KV Cache 基准测试（transport 随平台：A2=`roce`，A3/A5=`fabric_mem`）
+- 运行 KV Cache 基准测试（transport 随平台：A2=`roce`，A3=`fabric_mem`，A5=`ub`）
 - 生成 `benchmarks/perf.md` 和折线统计图
 - 在终端打印性能结果
 
@@ -392,7 +392,7 @@ build/benchmarks/comm_benchmark/hixl_comm_bench \
 ### 运行示例
 
 ```bash
-# transport 默认随平台：A2=roce，A3/A5=fabric_mem
+# transport 默认随平台：A2=roce，A3=fabric_mem，A5=ub
 python3 benchmarks/kv_benchmark/scripts/run_kv_benchmark.py \
   --model=deepseek-r1
 
@@ -413,7 +413,7 @@ python3 benchmarks/kv_benchmark/scripts/run_kv_benchmark.py \
 | `--key_counts` | 测试的 KV block/key 数量，逗号分隔 | `16,32,48,64` |
 | `--num_processes` | 并发进程数（模拟推理 rank 数） | 随平台，通常 `8` |
 | `--devices` | 设备 ID 列表 | 随平台 `0..N-1` |
-| `--transport` | 传输路径：`roce` / `fabric_mem` / `uboe` / `ub_rtp` / `ub`（后三者仅 A5） | A2=`roce`；A3/A5=`fabric_mem` |
+| `--transport` | 传输路径：`roce` / `fabric_mem` / `uboe` / `ub_rtp` / `ub`（后三者仅 A5） | A2=`roce`；A3=`fabric_mem`；A5=`ub` |
 | `--platform` | 强制平台 `a2`/`a3`/`a5`（影响默认 rank 数与 transport） | 自动检测 |
 | `--warmup` / `--repeat` | 预热次数 / 正式重复次数 | `1` / `10` |
 | `--transfer_threads` | 并发传 key 的工作线程数 | `8` |

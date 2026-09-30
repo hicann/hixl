@@ -184,7 +184,8 @@ def transports_for_platform(platform: str, deployment: str) -> list[str]:
         return ['roce', 'hccs']
     if pid == 'a3':
         return ['fabric_mem', 'roce', 'hccs']
-    return ['fabric_mem', 'roce', 'uboe', 'ub_rtp', 'ub']
+    # A5 does not support fabric_mem.
+    return ['roce', 'uboe', 'ub_rtp', 'ub']
 
 
 def collect_columns_for_platform(platform: str, deployment: str = 'single') -> list[tuple[str, str]]:

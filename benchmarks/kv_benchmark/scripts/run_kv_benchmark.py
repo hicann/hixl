@@ -106,7 +106,7 @@ def parse_args():
         '--transport',
         choices=['roce', 'fabric_mem', 'uboe', 'ub_rtp', 'ub'],
         default=None,
-        help='Transport path (default: roce on A2, fabric_mem on A3/A5; uboe, ub_rtp, ub only available on A5)',
+        help='Transport path (default: roce on A2, fabric_mem on A3, ub on A5; uboe, ub_rtp, ub only available on A5)',
     )
     parser.add_argument('--base_port', type=int, default=19000)
     parser.add_argument('--listen_host', default='127.0.0.1')

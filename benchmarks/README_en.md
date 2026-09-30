@@ -115,7 +115,7 @@ This script automatically:
 - Checks and sources the CANN environment
 - Detects chip model via `npu-smi info` (A2 / A3 / A5; device name containing Ascend910B→A2, Ascend910→A3, Ascend950→A5)
 - Runs all supported communication direction × transport combinations on the current platform
-- Runs KV Cache benchmarks (default transport by platform: A2=`roce`, A3/A5=`fabric_mem`)
+- Runs KV Cache benchmarks (default transport by platform: A2=`roce`, A3=`fabric_mem`, A5=`ub`)
 - Generates `benchmarks/perf.md` and line charts
 - Prints performance results in the terminal
 
@@ -393,7 +393,7 @@ Simulates a KV pooling scenario and measures put/get performance for model shape
 ### Running Examples
 
 ```bash
-# Default transport by platform: A2=roce, A3/A5=fabric_mem
+# Default transport by platform: A2=roce, A3=fabric_mem, A5=ub
 python3 benchmarks/kv_benchmark/scripts/run_kv_benchmark.py \
   --model=deepseek-r1
 
@@ -414,7 +414,7 @@ python3 benchmarks/kv_benchmark/scripts/run_kv_benchmark.py \
 | `--key_counts` | KV block/key counts, comma-separated | `16,32,48,64` |
 | `--num_processes` | Concurrent processes (inference ranks) | Platform-dependent, usually `8` |
 | `--devices` | Device ID list | Platform `0..N-1` |
-| `--transport` | `roce` / `fabric_mem` / `uboe` / `ub_rtp` / `ub` (last three A5 only) | A2=`roce`; A3/A5=`fabric_mem` |
+| `--transport` | `roce` / `fabric_mem` / `uboe` / `ub_rtp` / `ub` (last three A5 only) | A2=`roce`; A3=`fabric_mem`; A5=`ub` |
 | `--platform` | Force `a2`/`a3`/`a5` (affects default ranks and transport) | Auto-detect |
 | `--warmup` / `--repeat` | Warmup / measured repeats | `1` / `10` |
 | `--transfer_threads` | Worker threads for concurrent key transfers | `8` |
