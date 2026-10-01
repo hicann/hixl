@@ -59,7 +59,7 @@ class HixlCSServer {
   Status DestroyChannel(int32_t fd, const char *msg, uint64_t msg_len);
   Status ExportMem(int32_t fd, const char *msg, uint64_t msg_len) const;
   Status DoWait();
-  void ProClientMsg(int32_t fd, std::shared_ptr<MsgReceiver> receiver);
+  Status ProClientMsg(int32_t fd, std::shared_ptr<MsgReceiver> receiver);
   Status InitTransFinishedFlag();
   Status RegisterHostTransFinishedFlag(const std::vector<EndpointPtr> &host_endpoints);
   Status RegisterDeviceTransFinishedFlag(const std::vector<EndpointPtr> &device_endpoints, bool resolve_notify_addr);

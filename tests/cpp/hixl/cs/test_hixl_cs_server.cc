@@ -781,6 +781,36 @@ TEST_F(HixlCSTest, TestHixlCSServerDisconnectionCleanup) {
   llm::SlogStub::SetInstance(nullptr);
 }
 
+TEST_F(HixlCSTest, TestHixlCSServerInvalidHeaderCleanup) {
+  auto log_capture = std::make_shared<llm::LogCaptureStub>();
+  log_capture->AddCapturePattern("[HixlServer] client disconnected");
+  llm::SlogStub::SetInstance(log_capture);
+
+  HixlServerHandle server_handle = nullptr;
+  int32_t client_fd = -1;
+  SetupServerAndSendMatchReq(server_handle, client_fd);
+
+  MatchEndpointResp match_resp{};
+  GetMatchEndpointResp(client_fd, match_resp);
+
+  CtrlMsgHeader invalid_header{};
+  invalid_header.magic = 0U;
+  invalid_header.body_size = sizeof(CtrlMsgType);
+  ASSERT_EQ(CtrlMsgPlugin::Send(client_fd, &invalid_header, static_cast<uint64_t>(sizeof(invalid_header))), SUCCESS);
+
+  EXPECT_TRUE(log_capture->WaitForAllPatternsCaptured(kCaptureLogTimeoutMs));
+  struct timeval timeout {};
+  timeout.tv_sec = 1;
+  timeout.tv_usec = 0;
+  ASSERT_EQ(setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)), 0);
+  char buf = 0;
+  EXPECT_EQ(recv(client_fd, &buf, sizeof(buf), 0), 0);
+
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+  (void)close(client_fd);
+  llm::SlogStub::SetInstance(nullptr);
+}
+
 TEST_F(HixlCSTest, FinalizeClosesConnectedClientSockets) {
   HixlServerHandle server_handle = nullptr;
   int32_t client_fd = -1;

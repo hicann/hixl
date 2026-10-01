@@ -629,12 +629,13 @@ Status HixlCSServer::RegProc(CtrlMsgType msg_type, MsgProcessor proc) {
   return SUCCESS;
 }
 
-void HixlCSServer::ProClientMsg(int32_t fd, std::shared_ptr<MsgReceiver> receiver) {
+Status HixlCSServer::ProClientMsg(int32_t fd, std::shared_ptr<MsgReceiver> receiver) {
   std::vector<CtrlMsgPtr> msgs;
-  (void)receiver->IRecv(msgs);
+  const Status ret = receiver->IRecv(msgs);
   for (auto msg : msgs) {
     msg_handler_.SubmitMsg(fd, msg);
   }
+  return ret;
 }
 
 void HixlCSServer::CloseClientSocket(int32_t fd) const {
@@ -705,11 +706,17 @@ Status HixlCSServer::DoWait() {
       }
 
       // client msg
-      std::lock_guard<std::mutex> lock(client_mutex_);
-      auto it = clients_.find(fd);
-      HIXL_EVENT("[HixlServer] recv socket msg, client fd:%d", fd);
-      if ((it != clients_.end()) && ((revents & EPOLLIN) != 0U)) {
-        ProClientMsg(fd, it->second);
+      bool should_cleanup = false;
+      {
+        std::lock_guard<std::mutex> lock(client_mutex_);
+        auto it = clients_.find(fd);
+        HIXL_EVENT("[HixlServer] recv socket msg, client fd:%d", fd);
+        if ((it != clients_.end()) && ((revents & EPOLLIN) != 0U)) {
+          should_cleanup = ProClientMsg(fd, it->second) != SUCCESS;
+        }
+      }
+      if (should_cleanup) {
+        CleanupClient(fd);
       }
     }
   }
