@@ -1266,7 +1266,8 @@ class MockClientHandler : public IClientHandler {
     return SUCCESS;
   }
   Status Finalize() override {
-    return SUCCESS;
+    ++finalize_calls;
+    return finalize_ret;
   }
   void Dump(const char *, DumpLogLevel = DumpLogLevel::EVENT) const override {}
 
@@ -1274,6 +1275,8 @@ class MockClientHandler : public IClientHandler {
   TransferStatus default_status = TransferStatus::WAITING;
   Status default_ret = SUCCESS;
   Status deregister_ret = SUCCESS;
+  Status finalize_ret = SUCCESS;
+  uint32_t finalize_calls = 0U;
   Status register_ret = SUCCESS;
   std::vector<MemHandle> deregistered_handles;
   std::vector<MemHandleInfo> registered_mems;
@@ -1382,6 +1385,28 @@ TEST(ClientManagerTest, GetOrCreateClientReturnsExistingClient) {
   EXPECT_EQ(manager.GetOrCreateClient(config, {}, kTimeOut, returned_client), ALREADY_CONNECTED);
   EXPECT_EQ(returned_client, client);
   EXPECT_EQ(manager.Finalize(), SUCCESS);
+}
+
+TEST(ClientManagerTest, FinalizePropagatesFailureAfterFinalizingAllClients) {
+  ClientManager manager;
+  ASSERT_EQ(manager.Initialize(false), SUCCESS);
+
+  auto failed_handler = std::make_unique<MockClientHandler>();
+  failed_handler->finalize_ret = FAILED;
+  auto *failed_handler_ptr = failed_handler.get();
+  auto failed_client = CreateMockClient(std::move(failed_handler));
+
+  auto successful_handler = std::make_unique<MockClientHandler>();
+  auto *successful_handler_ptr = successful_handler.get();
+  auto successful_client = CreateMockClient(std::move(successful_handler));
+
+  manager.clients_["127.0.0.1:26300"] = failed_client;
+  manager.clients_["127.0.0.1:26301"] = successful_client;
+
+  EXPECT_EQ(manager.Finalize(), FAILED);
+  EXPECT_EQ(failed_handler_ptr->finalize_calls, 1U);
+  EXPECT_EQ(successful_handler_ptr->finalize_calls, 1U);
+  EXPECT_TRUE(manager.IsEmpty());
 }
 
 TEST(HixlEngineLifecycleTest, CheckInitializedRejectsConnectAndRegisterMem) {

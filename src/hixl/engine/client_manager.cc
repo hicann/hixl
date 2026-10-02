@@ -272,10 +272,15 @@ Status ClientManager::Finalize() {
     clients = std::move(clients_);
   }
 
+  Status ret = SUCCESS;
   for (auto &it : clients) {
     EraseReqIndexByClient(it.second);
-    if (it.second->Finalize() != SUCCESS) {
-      HIXL_LOGE(FAILED, "Failed to finalize client, remote_engine:%s", it.first.c_str());
+    Status client_ret = it.second->Finalize();
+    if (client_ret != SUCCESS) {
+      HIXL_LOGE(client_ret, "Failed to finalize client, remote_engine:%s", it.first.c_str());
+      if (ret == SUCCESS) {
+        ret = client_ret;
+      }
     }
   }
   clients_.clear();
@@ -288,6 +293,6 @@ Status ClientManager::Finalize() {
     std::lock_guard<std::mutex> client_mutexes_lock(client_mutexes_mutex_);
     client_mutexes_.clear();
   }
-  return SUCCESS;
+  return ret;
 }
 }  // namespace hixl
