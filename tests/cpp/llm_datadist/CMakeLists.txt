@@ -19,6 +19,7 @@ set(LLM_DATADIST_TEST_FILES
         comm_statistic_manager_unittest.cc
         rank_table_generator_unittest.cc
         transfer_message_limits_unittest.cc
+        scalable_allocator_unittest.cc
         transfer_request_validation_unittest.cc
         msg_handler_plugin_unittest.cc
 )

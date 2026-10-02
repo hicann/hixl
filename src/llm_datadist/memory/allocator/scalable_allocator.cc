@@ -134,22 +134,24 @@ PageSpan *ScalableAllocator::FetchSplitedSpan(ge::Allocator &allocator, const Sp
 PageSpan *ScalableAllocator::SplitSpan(ge::Allocator &allocator, const SpanLayerId fix_layer_id,
                                        const SpanLayerId fit_layer_id, PageSpan *const span, const MemSize size) {
   LLM_ASSERT_NOTNULL(span);
+  const auto source_layer = span_layers_[fit_layer_id];
   PageLen left_page_len = fit_layer_id - fix_layer_id;
   const auto buddy_addr =
       PageLen_ForwardAddr(left_page_len, config_.page_idem_num, reinterpret_cast<MemAddr>(span->GetAddr()));
   const auto buddy_span = BlockAlloc(allocator, nullptr, buddy_addr, static_cast<size_t>(size));
   if (buddy_span == nullptr) {
+    PushSpanToLayer(*source_layer, *span);
     return nullptr;
   }
-
-  span->SetBuddy(*buddy_span);
-  span->SetPageLen(left_page_len);
 
   const auto layer = FetchSpanLayer(left_page_len);
   if (layer == nullptr) {
-    span_allocator_.Free(*span);
+    span_allocator_.Free(*buddy_span);
+    PushSpanToLayer(*source_layer, *span);
     return nullptr;
   }
+  span->SetBuddy(*buddy_span);
+  span->SetPageLen(left_page_len);
   PushSpanToLayer(*layer, *span);
   OccupySpan(*buddy_span, fix_layer_id);
   return buddy_span;
