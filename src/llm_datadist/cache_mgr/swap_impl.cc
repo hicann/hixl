@@ -16,7 +16,6 @@
 
 namespace llm {
 namespace {
-constexpr int32_t kSwapOut = 1;
 constexpr int32_t kHbmBufferNum = 4;
 
 ge::Status CheckBlockIndexInRange(int64_t block_index, uint64_t num_blocks, const char *index_name) {
@@ -139,12 +138,15 @@ ge::Status SwapImpl::SwapBlocks(const std::vector<uintptr_t> &src_addrs, const s
 ge::Status SwapImpl::SwapBlocksV2(const Cache &src, const Cache &dst, const uint64_t block_size, const uint32_t type,
                                   const std::vector<std::pair<int64_t, int64_t>> &block_mapping,
                                   uint64_t src_num_blocks, uint64_t dst_num_blocks) const {
+  const auto swap_type = static_cast<SwapType>(type);
+  LLM_CHK_BOOL_RET_STATUS((swap_type == SwapType::kSwapIn) || (swap_type == SwapType::kSwapOut), ge::LLM_PARAM_INVALID,
+                          "swap type[%u] is invalid", type);
   LLM_CHK_STATUS_RET(CheckParam(src, dst), "check param failed");
   const auto &src_addrs = src.per_device_tensor_addrs;
   const auto &dst_addrs = dst.per_device_tensor_addrs;
   LLMLOGI("Begin swap blocks, cache num:%zu, swap block num:%zu, swap type:%u", src_addrs.front().size(),
           block_mapping.size(), type);
-  aclrtMemcpyKind kind = (type == kSwapOut) ? ACL_MEMCPY_DEVICE_TO_HOST : ACL_MEMCPY_HOST_TO_DEVICE;
+  const auto kind = (swap_type == SwapType::kSwapOut) ? ACL_MEMCPY_DEVICE_TO_HOST : ACL_MEMCPY_HOST_TO_DEVICE;
   LLM_CHK_STATUS_RET(SwapBlocks(src_addrs.front(), dst_addrs.front(), block_size, block_mapping,
                                 CopyInfo{CopyType::kMemcpy, kind}, src_num_blocks, dst_num_blocks),
                      "swap blocks failed, kind:%d", kind);

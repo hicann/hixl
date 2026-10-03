@@ -61,6 +61,8 @@ struct CacheKey {
 
 enum class CachePlacement : uint32_t { HOST = 0U, DEVICE = 1U };
 
+enum class SwapType : uint32_t { kSwapIn = 0U, kSwapOut = 1U };
+
 enum class CacheMemType : uint32_t { CACHE = 0U, BLOCKS = 1U, MIX = 2U };
 
 struct CacheDesc {

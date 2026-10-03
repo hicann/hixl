@@ -10,6 +10,7 @@
 
 #include <vector>
 #include <cstdlib>
+#include <limits>
 #include <gtest/gtest.h>
 #include "data_transfer/d2h_data_transfer_job.h"
 #include "llm_datadist_v2.h"
@@ -1753,9 +1754,20 @@ TEST_F(DataCacheEngineTest, SwapBlocks) {
 
   std::vector<std::pair<int64_t, int64_t>> block_mapping{{3, 4}, {0, 0}, {1, 1}, {2, 2}, {5, 6}, {6, 7}, {9, 9}};
   // swap in
-  EXPECT_EQ(llm_data_dist.SwapBlocks(cached_tensors, cached_tensors_2, 128, 0, block_mapping), ge::SUCCESS);
+  EXPECT_EQ(llm_data_dist.SwapBlocks(cached_tensors, cached_tensors_2, 128,
+                                     static_cast<uint32_t>(llm::SwapType::kSwapIn), block_mapping),
+            ge::SUCCESS);
   // swap out
-  EXPECT_EQ(llm_data_dist.SwapBlocks(cached_tensors_2, cached_tensors, 128, 1, block_mapping), ge::SUCCESS);
+  EXPECT_EQ(llm_data_dist.SwapBlocks(cached_tensors_2, cached_tensors, 128,
+                                     static_cast<uint32_t>(llm::SwapType::kSwapOut), block_mapping),
+            ge::SUCCESS);
+
+  constexpr uint32_t kUnknownSwapType = 2U;
+  EXPECT_EQ(llm_data_dist.SwapBlocks(cached_tensors, cached_tensors_2, 128, kUnknownSwapType, block_mapping),
+            ge::LLM_PARAM_INVALID);
+  EXPECT_EQ(llm_data_dist.SwapBlocks(cached_tensors, cached_tensors_2, 128, std::numeric_limits<uint32_t>::max(),
+                                     block_mapping),
+            ge::LLM_PARAM_INVALID);
 
   // test deallocate success
   EXPECT_EQ(llm_data_dist.DeallocateCache(cached_tensors.cache_id), ge::SUCCESS);
