@@ -9,6 +9,8 @@
 import importlib.util
 from pathlib import Path
 import re
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -27,6 +29,37 @@ class LogSpecCheckerTest(unittest.TestCase):
     def assert_invalid(self, source, expected):
         errors = CHECK_LOG_SPEC.check_text(source)
         self.assertTrue(any(expected in message for _, message in errors), errors)
+
+    def test_cli_ignores_directory_with_source_suffix(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            generated = root / "generated.cpp"
+            generated.mkdir()
+            (generated / "nested.cc").write_text('HIXL_LOGI("ok");\n', encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_PATH), str(root)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_cli_still_reports_source_inside_directory_with_source_suffix(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            generated = root / "generated.cpp"
+            generated.mkdir()
+            nested = generated / "nested.cc"
+            nested.write_text('HIXL_LOGI("value:%d");\n', encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT_PATH), str(root)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(str(nested), result.stdout)
+        self.assertIn("expects 1 format argument(s), got 0", result.stdout)
 
     def test_source_discovery_accepts_case_insensitive_cpp_suffixes(self):
         with tempfile.TemporaryDirectory() as temp_dir:
