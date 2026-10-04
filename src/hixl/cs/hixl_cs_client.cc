@@ -182,10 +182,7 @@ hixl::Status ImportOneDesc(hixl::ImportCtx &ctx, uint32_t idx, hixl::HixlMemDesc
               idx, safe_tag, mem.addr, mem.size);
     return ret;
   }
-  if (!desc.tag.empty()) {
-    return AppendTagStorage(ctx.tag_storage, desc.tag);
-  }
-  return hixl::SUCCESS;
+  return AppendTagStorage(ctx.tag_storage, desc.tag);
 }
 
 hixl::Status ImportAllDescs(hixl::ImportCtx &ctx, std::vector<hixl::HixlMemDesc> &desc_list) {

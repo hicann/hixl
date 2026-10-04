@@ -49,7 +49,9 @@ EndpointDesc MakeDstEp() {
 // 构造远端内存描述，模拟 GetRemoteMem 返回的数据后直接走 ImportRemoteMem
 static HixlMemDesc MakeRemoteDesc(const char *tag, void *addr, uint64_t size) {
   HixlMemDesc d{};
-  d.tag = tag;
+  if (tag != nullptr) {
+    d.tag = tag;
+  }
   d.mem.type = COMM_MEM_TYPE_HOST;
   d.mem.addr = addr;
   d.mem.size = size;
@@ -203,6 +205,38 @@ TEST_F(HixlCSClientFixture, ImportRemoteMemAndClearRemoteMemInfo) {
   EXPECT_EQ(cli.mem_store_.server_regions_[key].size, kBlockSizeBytes);
   // 清理远端信息
   EXPECT_EQ(cli.ClearRemoteMemInfo(), SUCCESS);
+}
+
+TEST_F(HixlCSClientFixture, ImportRemoteMemKeepsEmptyTagSlotsAligned) {
+  CreateHixlClient(cli, "127.0.0.1", 22341);
+
+  CommMem *remote_mem_list = nullptr;
+  char **tags_buf = nullptr;
+  uint32_t list_num = 0;
+  std::vector<HixlMemDesc> mixed_descs;
+  mixed_descs.push_back(MakeRemoteDesc(nullptr, &kTransFlagAddr, kFlagSizeBytes));
+  mixed_descs.push_back(MakeRemoteDesc("beta", &kServerDataAddr, kBlockSizeBytes));
+
+  ASSERT_EQ(cli.ImportRemoteMem(mixed_descs, &remote_mem_list, &tags_buf, &list_num), SUCCESS);
+  ASSERT_EQ(list_num, 2U);
+  ASSERT_NE(remote_mem_list, nullptr);
+  ASSERT_NE(tags_buf, nullptr);
+  ASSERT_NE(tags_buf[0], nullptr);
+  ASSERT_NE(tags_buf[1], nullptr);
+  EXPECT_STREQ(tags_buf[0], "");
+  EXPECT_STREQ(tags_buf[1], "beta");
+
+  remote_mem_list = nullptr;
+  tags_buf = nullptr;
+  list_num = 0;
+  std::vector<HixlMemDesc> empty_tag_descs;
+  empty_tag_descs.push_back(MakeRemoteDesc(nullptr, &kTransFlagAddr, kFlagSizeBytes));
+  ASSERT_EQ(cli.ImportRemoteMem(empty_tag_descs, &remote_mem_list, &tags_buf, &list_num), SUCCESS);
+  ASSERT_EQ(list_num, 1U);
+  ASSERT_NE(remote_mem_list, nullptr);
+  ASSERT_NE(tags_buf, nullptr);
+  ASSERT_NE(tags_buf[0], nullptr);
+  EXPECT_STREQ(tags_buf[0], "");
 }
 
 TEST_F(HixlCSClientFixture, BatchPutSuccessWithStubbedHccl) {
