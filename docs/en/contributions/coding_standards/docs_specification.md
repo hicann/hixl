@@ -141,7 +141,7 @@ Measurement information involved in logs (such as elapsed time, data volume, and
 
 #### Rule 1.7 Sensitive information must not be logged in plaintext
 
-Sensitive information, such as passwords, keys, and tokens, must not be recorded in plaintext.
+Sensitive information, such as passwords, cryptographic keys, and tokens, must not be recorded in plaintext.
 
 #### Rule 1.8 Logs must not contain personal information
 

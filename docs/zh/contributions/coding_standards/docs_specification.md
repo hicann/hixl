@@ -144,7 +144,7 @@ HIXL_CHK_ACL_RET(aclrtSetDevice(device_id), "device_id:%u", device_id);
 
 #### 规则 1.7 不得以明文记录敏感信息
 
-不能以明文的形式记录敏感信息，比如密码、秘钥、token等。
+不能以明文的形式记录敏感信息，比如密码、密钥、token等。
 
 #### 规则 1.8 日志不得携带个人信息
 
