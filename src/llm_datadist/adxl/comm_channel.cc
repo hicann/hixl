@@ -122,11 +122,12 @@ void CommChannel::ClearNotifyMessages() {
 
 Status CommChannel::Finalize() {
   finalized_.store(true, std::memory_order_release);
-  ADXL_CHK_STATUS_RET(ClearResources(), "Failed to clear channel resources.");
+  const Status clear_ret = ClearResources();
+  ADXL_CHK_STATUS(clear_ret, "Failed to clear channel resources.");
 
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (fd_ > 0) {
+    if (fd_ >= 0) {
       (void)close(fd_);
       fd_ = -1;
     }
@@ -137,7 +138,7 @@ Status CommChannel::Finalize() {
   transfer_count_.store(0, std::memory_order_release);
   unavailable_.store(false, std::memory_order_release);
   LLMLOGI("Channel finalized, channel_id:%s.", channel_info_.channel_id.c_str());
-  return SUCCESS;
+  return clear_ret;
 }
 
 Status CommChannel::ClearResources() {
