@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <set>
 #include <vector>
 #include <gtest/gtest.h>
 
@@ -17,6 +18,7 @@ namespace llm {
 namespace {
 constexpr int64_t kTensorSize = 4096;
 constexpr uintptr_t kTestAddr = 0x100000000UL;
+constexpr uintptr_t kTestAddr2 = 0x100001000UL;
 constexpr int64_t kCacheId1 = 1;
 constexpr int64_t kCacheId2 = 2;
 
@@ -31,13 +33,21 @@ class MockTransferEngine : public TransferEngine {
   void Finalize() override {}
 
   ge::Status RegisterMem(void *addr, uint64_t, CommMemType, void *&handle) override {
+    const int32_t register_count = register_count_.fetch_add(1, std::memory_order_relaxed) + 1;
+    if (register_count == fail_register_at_) {
+      return ge::FAILED;
+    }
     handle = addr;
-    register_count_.fetch_add(1, std::memory_order_relaxed);
+    live_handles_.emplace(handle);
     return ge::SUCCESS;
   }
 
-  ge::Status UnregisterMem(void *) override {
-    unregister_count_.fetch_add(1, std::memory_order_relaxed);
+  ge::Status UnregisterMem(void *handle) override {
+    const int32_t unregister_count = unregister_count_.fetch_add(1, std::memory_order_relaxed) + 1;
+    if (unregister_count == fail_unregister_at_) {
+      return ge::FAILED;
+    }
+    live_handles_.erase(handle);
     return ge::SUCCESS;
   }
 
@@ -75,9 +85,24 @@ class MockTransferEngine : public TransferEngine {
     return unregister_count_.load(std::memory_order_relaxed);
   }
 
+  size_t GetLiveHandleCount() const {
+    return live_handles_.size();
+  }
+
+  void SetRegisterFailureAt(int32_t register_count) {
+    fail_register_at_ = register_count;
+  }
+
+  void SetUnregisterFailureAt(int32_t unregister_count) {
+    fail_unregister_at_ = unregister_count;
+  }
+
  private:
   std::atomic<int32_t> register_count_{0};
   std::atomic<int32_t> unregister_count_{0};
+  int32_t fail_register_at_ = -1;
+  int32_t fail_unregister_at_ = -1;
+  std::set<void *> live_handles_;
 };
 
 CacheDesc MakeRemoteAccessibleCacheDesc() {
@@ -126,6 +151,58 @@ TEST_F(CommMemManagerTest, RegisterCacheMem_DeduplicateSharedAddr) {
   EXPECT_EQ(transfer_engine_.GetUnregisterCount(), 0);
   EXPECT_EQ(comm_mem_manager_.UnregisterCacheMem(kCacheId1), ge::SUCCESS);
   EXPECT_EQ(transfer_engine_.GetUnregisterCount(), 1);
+}
+
+TEST_F(CommMemManagerTest, RegisterCacheMem_RollbackWhenRegisterFails) {
+  const CacheDesc cache_desc = MakeRemoteAccessibleCacheDesc();
+  transfer_engine_.SetRegisterFailureAt(2);
+
+  EXPECT_EQ(comm_mem_manager_.RegisterCacheMem(kCacheId1, cache_desc, {kTestAddr, kTestAddr2}, kTensorSize),
+            ge::FAILED);
+  EXPECT_EQ(transfer_engine_.GetRegisterCount(), 2);
+  EXPECT_EQ(transfer_engine_.GetUnregisterCount(), 1);
+  EXPECT_EQ(transfer_engine_.GetLiveHandleCount(), 0U);
+
+  transfer_engine_.SetRegisterFailureAt(-1);
+  EXPECT_EQ(comm_mem_manager_.RegisterCacheMem(kCacheId2, cache_desc, {kTestAddr}, kTensorSize), ge::SUCCESS);
+  EXPECT_EQ(transfer_engine_.GetRegisterCount(), 3);
+  EXPECT_EQ(comm_mem_manager_.UnregisterCacheMem(kCacheId2), ge::SUCCESS);
+  EXPECT_EQ(transfer_engine_.GetUnregisterCount(), 2);
+}
+
+TEST_F(CommMemManagerTest, RegisterCacheMem_RetainsDedupKeyAndRetriesHandle) {
+  const CacheDesc cache_desc = MakeRemoteAccessibleCacheDesc();
+  transfer_engine_.SetRegisterFailureAt(2);
+  transfer_engine_.SetUnregisterFailureAt(1);
+
+  EXPECT_EQ(comm_mem_manager_.RegisterCacheMem(kCacheId1, cache_desc, {kTestAddr, kTestAddr2}, kTensorSize),
+            ge::FAILED);
+  EXPECT_EQ(transfer_engine_.GetUnregisterCount(), 1);
+  EXPECT_EQ(transfer_engine_.GetLiveHandleCount(), 1U);
+
+  transfer_engine_.SetRegisterFailureAt(-1);
+  EXPECT_EQ(comm_mem_manager_.RegisterCacheMem(kCacheId2, cache_desc, {kTestAddr}, kTensorSize), ge::SUCCESS);
+  EXPECT_EQ(transfer_engine_.GetRegisterCount(), 2);
+  EXPECT_EQ(transfer_engine_.GetLiveHandleCount(), 1U);
+
+  transfer_engine_.SetUnregisterFailureAt(2);
+  comm_mem_manager_.Finalize();
+  EXPECT_EQ(transfer_engine_.GetUnregisterCount(), 2);
+  EXPECT_EQ(transfer_engine_.GetLiveHandleCount(), 1U);
+
+  transfer_engine_.SetUnregisterFailureAt(-1);
+  comm_mem_manager_.Finalize();
+  EXPECT_EQ(transfer_engine_.GetUnregisterCount(), 3);
+  EXPECT_EQ(transfer_engine_.GetLiveHandleCount(), 0U);
+  comm_mem_manager_.Finalize();
+  EXPECT_EQ(transfer_engine_.GetUnregisterCount(), 3);
+
+  constexpr int64_t kCacheId3 = 3;
+  EXPECT_EQ(comm_mem_manager_.RegisterCacheMem(kCacheId3, cache_desc, {kTestAddr}, kTensorSize), ge::SUCCESS);
+  EXPECT_EQ(transfer_engine_.GetRegisterCount(), 3);
+  EXPECT_EQ(comm_mem_manager_.UnregisterCacheMem(kCacheId3), ge::SUCCESS);
+  EXPECT_EQ(transfer_engine_.GetUnregisterCount(), 4);
+  EXPECT_EQ(transfer_engine_.GetLiveHandleCount(), 0U);
 }
 
 TEST_F(CommMemManagerTest, UnregisterCacheMem_NotFound) {

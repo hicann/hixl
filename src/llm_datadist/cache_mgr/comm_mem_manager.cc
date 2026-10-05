@@ -11,6 +11,7 @@
 #include "comm_mem_manager.h"
 #include "common/def_types.h"
 #include "comm_adapter/comm_adapter.h"
+#include "common/llm_scope_guard.h"
 
 namespace llm {
 GlobalMemManager &GlobalMemManager::GetInstance() {
@@ -52,22 +53,42 @@ ge::Status GlobalMemManager::UnregisterMem(void *handle) {
   return ge::SUCCESS;
 }
 
-void CommMemManager::Finalize() {
-  std::lock_guard<std::mutex> lock(mutex_);
-  for (const auto &it : cache_id_to_mems_) {
-    for (auto handle : it.second.mem_handles) {
-      (void)transfer_engine_->UnregisterMem(handle);
-    }
-  }
-  registered_cache_mem_.clear();
-  cache_id_to_mems_.clear();
-  return;
-}
-
 ge::Status CommMemManager::Initialize(TransferEngine *transfer_engine) {
   LLM_CHECK_NOTNULL(transfer_engine);
   transfer_engine_ = transfer_engine;
   return ge::SUCCESS;
+}
+
+ge::Status CommMemManager::UnregisterMems(RegisterMems &mems, int64_t cache_id) {
+  RegisterMems remaining{};
+  ge::Status ret = ge::SUCCESS;
+  for (size_t i = 0U; i < mems.mem_handles.size(); ++i) {
+    const auto handle = mems.mem_handles[i];
+    const auto status = transfer_engine_->UnregisterMem(handle);
+    if (status != ge::SUCCESS) {
+      LLMLOGE(status, "Failed to unregister cache mem, handle:%p, cache_id:%ld", handle, cache_id);
+      ret = (ret == ge::SUCCESS) ? status : ret;
+      remaining.mem_handles.emplace_back(handle);
+      remaining.mem_addrs.emplace_back(mems.mem_addrs[i]);
+      continue;
+    }
+    registered_cache_mem_.erase(mems.mem_addrs[i]);
+    LLMLOGI("Unregister global mem handle success, handle:%p, cache_id:%ld", handle, cache_id);
+  }
+  mems = std::move(remaining);
+  return ret;
+}
+
+void CommMemManager::Finalize() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  for (auto it = cache_id_to_mems_.begin(); it != cache_id_to_mems_.end();) {
+    (void)UnregisterMems(it->second, it->first);
+    if (it->second.mem_handles.empty()) {
+      it = cache_id_to_mems_.erase(it);
+    } else {
+      ++it;
+    }
+  }
 }
 
 ge::Status CommMemManager::RegisterCacheMem(int64_t cache_id, const CacheDesc &cache_desc,
@@ -79,6 +100,12 @@ ge::Status CommMemManager::RegisterCacheMem(int64_t cache_id, const CacheDesc &c
 
   std::lock_guard<std::mutex> lock(mutex_);
   RegisterMems mems{};
+  LLM_DISMISSABLE_GUARD(rollback_guard, ([this, cache_id, &mems]() {
+                          (void)UnregisterMems(mems, cache_id);
+                          if (!mems.mem_handles.empty()) {
+                            cache_id_to_mems_[cache_id] = std::move(mems);
+                          }
+                        }));
   for (const auto &addr : addrs) {
     LLM_CHK_BOOL_RET_STATUS(addr != 0U, ge::LLM_PARAM_INVALID, "The addr of cache can not be zero.");
     void *mem_ptr = ValueToPtr(addr);
@@ -100,6 +127,7 @@ ge::Status CommMemManager::RegisterCacheMem(int64_t cache_id, const CacheDesc &c
             cache_desc.placement, mem_handle, cache_id);
   }
   cache_id_to_mems_[cache_id] = std::move(mems);
+  LLM_DISMISS_GUARD(rollback_guard);
   return ge::SUCCESS;
 }
 
@@ -111,15 +139,13 @@ ge::Status CommMemManager::UnregisterCacheMem(int64_t cache_id) {
     return ge::SUCCESS;
   }
 
-  for (auto handle : it->second.mem_handles) {
-    LLM_CHK_STATUS_RET(transfer_engine_->UnregisterMem(handle), "Failed to unregister mem");
-    LLMLOGI("Unregister global mem handle success, handle:%p, cache_id:%ld", handle, cache_id);
+  const auto ret = UnregisterMems(it->second, cache_id);
+  if (it->second.mem_handles.empty()) {
+    cache_id_to_mems_.erase(it);
   }
-
-  for (const auto &key : it->second.mem_addrs) {
-    registered_cache_mem_.erase(key);
+  if (ret != ge::SUCCESS) {
+    return ret;
   }
-  cache_id_to_mems_.erase(it);
   LLMLOGI("Unregister cache:[%ld] addrs end", cache_id);
   return ge::SUCCESS;
 }

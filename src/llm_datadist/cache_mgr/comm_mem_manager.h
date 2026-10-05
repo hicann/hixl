@@ -58,6 +58,8 @@ class CommMemManager {
   ge::Status UnregisterCacheMem(int64_t cache_id);
 
  private:
+  ge::Status UnregisterMems(RegisterMems &mems, int64_t cache_id);
+
   std::mutex mutex_;
   std::map<int64_t, RegisterMems> cache_id_to_mems_;
   std::set<std::pair<void *, int64_t>> registered_cache_mem_;
