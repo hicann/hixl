@@ -1107,7 +1107,8 @@ TEST_F(FabricMemTransferServiceUTest, MallocMemAndFreeMemHost) {
   EXPECT_EQ(runtime_->last_mem_set_access_count_, 1U);
   EXPECT_EQ(runtime_->last_mem_access_desc_.flags, ACL_RT_MEM_ACCESS_FLAGS_READWRITE);
   EXPECT_EQ(runtime_->last_mem_access_desc_.location.type, ACL_MEM_LOCATION_TYPE_DEVICE);
-  EXPECT_EQ(runtime_->last_mem_access_desc_.location.id, static_cast<uint32_t>(kUserToDriverLogicIdOffset));
+  // Default runtime stub is 9.3.x (>= 9.2.0). aclrtGetDevice returns 0 and SetAccess must not remap it.
+  EXPECT_EQ(runtime_->last_mem_access_desc_.location.id, 0U);
   EXPECT_EQ(FabricMemTransferService::FreeMem(host_ptr), SUCCESS);
   VirtualMemoryManager::GetInstance().Finalize();
 }
@@ -1205,9 +1206,44 @@ TEST_F(FabricMemTransferServiceUTest, MallocMemRollsBackWhenHostMemSetAccessFail
   VirtualMemoryManager::GetInstance().Finalize();
 }
 
+struct ScopedRuntimeVersionOverride {
+  ~ScopedRuntimeVersionOverride() {
+    ResetRuntimeVersionStub();
+  }
+};
+
+TEST_F(FabricMemTransferServiceUTest, MallocMemConvertsDeviceIdBeforeRuntime920) {
+  VirtualMemoryManager::GetInstance().Finalize();
+  ASSERT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
+  ScopedRuntimeVersionOverride restore_version;
+  (void)restore_version;
+  SetRuntimeVersionNum(90199999);
+  void *host_ptr = nullptr;
+  ASSERT_EQ(FabricMemTransferService::MallocMem(MEM_HOST, sizeof(int32_t), &host_ptr), SUCCESS);
+  EXPECT_EQ(runtime_->last_mem_access_desc_.location.id, static_cast<uint32_t>(kUserToDriverLogicIdOffset));
+  EXPECT_EQ(FabricMemTransferService::FreeMem(host_ptr), SUCCESS);
+  VirtualMemoryManager::GetInstance().Finalize();
+}
+
+TEST_F(FabricMemTransferServiceUTest, MallocMemConvertsDeviceIdWhenRuntimeVersionQueryFails) {
+  VirtualMemoryManager::GetInstance().Finalize();
+  ASSERT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
+  ScopedRuntimeVersionOverride restore_version;
+  (void)restore_version;
+  SetRuntimeVersionQueryResult(-1);
+  void *host_ptr = nullptr;
+  ASSERT_EQ(FabricMemTransferService::MallocMem(MEM_HOST, sizeof(int32_t), &host_ptr), SUCCESS);
+  EXPECT_EQ(runtime_->last_mem_access_desc_.location.id, static_cast<uint32_t>(kUserToDriverLogicIdOffset));
+  EXPECT_EQ(FabricMemTransferService::FreeMem(host_ptr), SUCCESS);
+  VirtualMemoryManager::GetInstance().Finalize();
+}
+
 TEST_F(FabricMemTransferServiceUTest, MallocMemRollsBackWhenUserToDriverIdFails) {
   VirtualMemoryManager::GetInstance().Finalize();
   ASSERT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
+  ScopedRuntimeVersionOverride restore_version;
+  (void)restore_version;
+  SetRuntimeVersionNum(90199999);
   ExpectMallocRollsBackOnAclFailure(MEM_HOST, "aclrtGetLogicDevIdByUserDevId", runtime_);
   VirtualMemoryManager::GetInstance().Finalize();
 }

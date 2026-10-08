@@ -24,6 +24,23 @@ constexpr int32_t kDevicesPerChip = 4;
 constexpr int32_t kNumaNodeStep = 2;
 // aclrtMemSetAccess count: number of aclrtMemAccessDesc entries.
 constexpr size_t kMemAccessDescCount = 1U;
+// aclsysGetVersionNum encodes runtime 9.2.0 as 90200000. From that version, the caller device id
+// is already the id SetAccess expects.
+constexpr int32_t kRuntimeVersionSkipLogicIdConvert = 90200000;
+
+bool RuntimeSkipsUserToLogicConvert() {
+  if (aclsysGetVersionNum == nullptr) {
+    return false;
+  }
+  char pkg_name[] = "runtime";
+  int32_t version_num = 0;
+  const int32_t ret = aclsysGetVersionNum(pkg_name, &version_num);
+  if (ret != 0) {
+    HIXL_LOGW("aclsysGetVersionNum(runtime) failed, ret:%d. Convert user device id before SetAccess.", ret);
+    return false;
+  }
+  return version_num >= kRuntimeVersionSkipLogicIdConvert;
+}
 
 // ACL fabric export may be performed only once per physical allocation. MallocMem records va→pa
 // without exporting; the first ExportToShareableHandle (from the caller or from RegisterMem) does
@@ -56,18 +73,18 @@ aclrtPhysicalMemProp BuildDefaultPhysicalMemProp() {
 }
 
 // Host VMM Map only binds the VA for the host; grant DEVICE READWRITE so NPU/AIV can access it,
-// matching memfabric's HalMemSetAccess after host Map. location.id is a driver logical id;
-// aclrtGetDevice returns a user id (ASCEND_RT_VISIBLE_DEVICES), so convert before SetAccess.
-Status SetDeviceAccessForHostMappedVa(void *va_ptr, size_t size) {
-  int32_t user_id = -1;
-  int32_t driver_id = -1;
-  HIXL_CHK_ACL_RET(aclrtGetDevice(&user_id), "Get current user device id failed.");
-  HIXL_CHK_ACL_RET(aclrtGetLogicDevIdByUserDevId(user_id, &driver_id),
-                   "Convert user device id to driver logical id failed.");
+// matching memfabric's HalMemSetAccess after host Map. runtime >= 9.2.0 uses the caller device id.
+// Older runtime converts that user id to a driver logical id before SetAccess.
+Status SetDeviceAccessForHostMappedVa(void *va_ptr, size_t size, int32_t device_id) {
+  int32_t access_device_id = device_id;
+  if (!RuntimeSkipsUserToLogicConvert()) {
+    HIXL_CHK_ACL_RET(aclrtGetLogicDevIdByUserDevId(device_id, &access_device_id),
+                     "Convert user device id to driver logical id failed.");
+  }
   aclrtMemAccessDesc desc{};
   desc.flags = ACL_RT_MEM_ACCESS_FLAGS_READWRITE;
   desc.location.type = ACL_MEM_LOCATION_TYPE_DEVICE;
-  desc.location.id = static_cast<uint32_t>(driver_id);
+  desc.location.id = static_cast<uint32_t>(access_device_id);
   HIXL_CHK_ACL_RET(aclrtMemSetAccess(va_ptr, size, &desc, kMemAccessDescCount),
                    "Set fabric memory device access failed.");
   return SUCCESS;
@@ -98,7 +115,7 @@ Status FabricMemAllocator::MallocMem(MemType type, size_t size, void **ptr) {
   HIXL_DISMISSABLE_GUARD(unmap_guard,
                          ([va_ptr]() { HIXL_CHK_ACL(aclrtUnmapMem(va_ptr), "Unmap fabric memory failed."); }));
   if (type == MemType::MEM_HOST) {
-    HIXL_CHK_STATUS_RET(SetDeviceAccessForHostMappedVa(va_ptr, size),
+    HIXL_CHK_STATUS_RET(SetDeviceAccessForHostMappedVa(va_ptr, size, logic_device_id),
                         "Failed to set device access for host fabric memory.");
   }
 
