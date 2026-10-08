@@ -462,10 +462,11 @@ TEST_F(AdxlEngineUTest, TestDeregisterUnregisterMem) {
   engine.Finalize();
 }
 
-TEST_F(AdxlEngineUTest, TestMemDescRemoteAccessibleAbiAndRegistration) {
-  // ABI/API：remote_accessible 复用 reserved 空间，默认 true，结构体总大小保持 144 字节。
+TEST_F(AdxlEngineUTest, TestMemDescLocalOnlyAbiAndRegistration) {
+  // ABI/API：local_only 复用 reserved 空间，默认 false，结构体总大小保持 144 字节。
+  // 零初始化为 false，与上层抄旧头文件、reserved 字节为 0 的行为一致，仍允许远端访问。
   MemDesc default_desc{};
-  EXPECT_TRUE(default_desc.remote_accessible);
+  EXPECT_FALSE(default_desc.local_only);
   EXPECT_EQ(sizeof(MemDesc), 144U);
 
   // 新增字段不改变 AdxlEngine 既有内存注册路径的行为。
@@ -477,7 +478,7 @@ TEST_F(AdxlEngineUTest, TestMemDescRemoteAccessibleAbiAndRegistration) {
   MemDesc mem_desc{};
   mem_desc.addr = reinterpret_cast<uintptr_t>(&buf);
   mem_desc.len = sizeof(buf);
-  mem_desc.remote_accessible = false;
+  mem_desc.local_only = true;
   MemHandle handle = nullptr;
   EXPECT_EQ(engine.RegisterMem(mem_desc, MEM_DEVICE, handle), SUCCESS);
   EXPECT_NE(handle, nullptr);

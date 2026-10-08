@@ -2045,7 +2045,7 @@ TEST_F(HixlEngineTest, InitializeUbMemSucceedsAndRegisterMem) {
   engine.Finalize();
 }
 
-TEST_F(HixlEngineTest, InitializeUbMemRegisterMemRemoteInaccessibleSkipsServerReg) {
+TEST_F(HixlEngineTest, InitializeUbMemRegisterMemLocalOnlySkipsServerReg) {
   SetSocStub("Ascend910_9391", 1, 23, 45, 67);
   SetHccnConfContent("address_23=10.10.10.23\n");
   std::map<AscendString, AscendString> options = BuildOptions(BuildVersionOnlyLocalCommRes("1.3"));
@@ -2062,13 +2062,13 @@ TEST_F(HixlEngineTest, InitializeUbMemRegisterMemRemoteInaccessibleSkipsServerRe
   MemDesc mem{};
   mem.addr = reinterpret_cast<uintptr_t>(buf.data());
   mem.len = buf.size();
-  mem.remote_accessible = false;
+  mem.local_only = true;
   MemHandle handle = nullptr;
   EXPECT_EQ(engine.RegisterMem(mem, MEM_HOST, handle), SUCCESS);
   EXPECT_NE(handle, nullptr);
   ASSERT_EQ(engine.mem_map_.count(handle), 1U);
   ASSERT_EQ(engine.server_.handle_to_addr_.count(handle), 1U);
-  EXPECT_FALSE(engine.server_.handle_to_addr_.at(handle).remote_accessible);
+  EXPECT_TRUE(engine.server_.handle_to_addr_.at(handle).local_only);
   EXPECT_TRUE(engine.server_.GetRegisteredMemInfo().empty());
 
   MemHandle duplicate_handle = nullptr;
@@ -2079,7 +2079,7 @@ TEST_F(HixlEngineTest, InitializeUbMemRegisterMemRemoteInaccessibleSkipsServerRe
   engine.Finalize();
 }
 
-TEST_F(HixlEngineTest, InitializeUbMemRegisterMemRejectsRemoteAccessibleMismatch) {
+TEST_F(HixlEngineTest, InitializeUbMemRegisterMemRejectsLocalOnlyMismatch) {
   SetSocStub("Ascend910_9391", 1, 23, 45, 67);
   SetHccnConfContent("address_23=10.10.10.23\n");
   std::map<AscendString, AscendString> options = BuildOptions(BuildVersionOnlyLocalCommRes("1.3"));
@@ -2094,13 +2094,13 @@ TEST_F(HixlEngineTest, InitializeUbMemRegisterMemRejectsRemoteAccessibleMismatch
   MemDesc local_only{};
   local_only.addr = reinterpret_cast<uintptr_t>(local_only_buf.data());
   local_only.len = local_only_buf.size();
-  local_only.remote_accessible = false;
+  local_only.local_only = true;
   MemHandle local_only_handle = nullptr;
   ASSERT_EQ(engine.RegisterMem(local_only, MEM_HOST, local_only_handle), SUCCESS);
 
-  // 已按 local-only 注册的内存，不允许再以 remote_accessible=true 注册同一区间。
+  // 已按 local-only 注册的内存，不允许再以 local_only=false 注册同一区间。
   MemDesc conflicting = local_only;
-  conflicting.remote_accessible = true;
+  conflicting.local_only = false;
   MemHandle conflicting_handle = nullptr;
   EXPECT_EQ(engine.RegisterMem(conflicting, MEM_HOST, conflicting_handle), PARAM_INVALID);
   EXPECT_EQ(conflicting_handle, nullptr);

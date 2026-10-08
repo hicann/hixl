@@ -64,7 +64,7 @@ enum TransferOp { READ, WRITE };
 struct MemDesc {
   uintptr_t addr;
   size_t len;
-  bool remote_accessible = true;
+  bool local_only = false;
   uint8_t reserved[127] = {};
 };
 

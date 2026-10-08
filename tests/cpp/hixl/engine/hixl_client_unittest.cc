@@ -1245,7 +1245,7 @@ TEST_F(HixlClientUTest, DirectClientHandlerDeregisterMemMissingHandleSucceeds) {
   EXPECT_EQ(handler.DeregisterMem(reinterpret_cast<MemHandle>(0x1000)), SUCCESS);
 }
 
-TEST_F(HixlClientUTest, DirectClientHandlerSkipsHccsClientRegWhenRemoteInaccessible) {
+TEST_F(HixlClientUTest, DirectClientHandlerSkipsHccsClientRegWhenLocalOnly) {
   HixlCSClient client;
   ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
   HandlerCreateArgs::EndpointPair pair{};
@@ -1253,13 +1253,13 @@ TEST_F(HixlClientUTest, DirectClientHandlerSkipsHccsClientRegWhenRemoteInaccessi
   DirectClientHandler handler(static_cast<HixlClientHandle>(&client), "", "", pair);
   int32_t buf = 0;
   auto info = MakeHostMemInfo(&buf);
-  info.mem.remote_accessible = false;
+  info.mem.local_only = true;
   EXPECT_EQ(handler.RegisterMem(info), SUCCESS);
   EXPECT_TRUE(handler.handle_to_mem_handle_.empty());
   EXPECT_TRUE(handler.mem_handles_.empty());
 }
 
-TEST_F(HixlClientUTest, DirectClientHandlerSkipsUbmemClientRegWhenRemoteInaccessible) {
+TEST_F(HixlClientUTest, DirectClientHandlerSkipsUbmemClientRegWhenLocalOnly) {
   HixlCSClient client;
   ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
   HandlerCreateArgs::EndpointPair pair{};
@@ -1267,13 +1267,13 @@ TEST_F(HixlClientUTest, DirectClientHandlerSkipsUbmemClientRegWhenRemoteInaccess
   DirectClientHandler handler(static_cast<HixlClientHandle>(&client), "", "", pair);
   int32_t buf = 0;
   auto info = MakeHostMemInfo(&buf);
-  info.mem.remote_accessible = false;
+  info.mem.local_only = true;
   EXPECT_EQ(handler.RegisterMem(info), SUCCESS);
   EXPECT_TRUE(handler.handle_to_mem_handle_.empty());
   EXPECT_TRUE(handler.mem_handles_.empty());
 }
 
-TEST_F(HixlClientUTest, DirectClientHandlerStillRegistersRoceWhenRemoteInaccessible) {
+TEST_F(HixlClientUTest, DirectClientHandlerStillRegistersRoceWhenLocalOnly) {
   HixlCSClient client;
   ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
   HandlerCreateArgs::EndpointPair pair{};
@@ -1281,7 +1281,7 @@ TEST_F(HixlClientUTest, DirectClientHandlerStillRegistersRoceWhenRemoteInaccessi
   DirectClientHandler handler(static_cast<HixlClientHandle>(&client), "", "", pair);
   int32_t buf = 0;
   auto info = MakeHostMemInfo(&buf);
-  info.mem.remote_accessible = false;
+  info.mem.local_only = true;
   EXPECT_EQ(handler.RegisterMem(info), SUCCESS);
   EXPECT_EQ(handler.handle_to_mem_handle_.size(), 1U);
   EXPECT_EQ(handler.mem_handles_.size(), 1U);

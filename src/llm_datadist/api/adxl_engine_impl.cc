@@ -27,7 +27,7 @@
 namespace adxl {
 namespace {
 hixl::MemDesc ToHixlMemDesc(const MemDesc &mem) {
-  return hixl::MemDesc{mem.addr, mem.len, mem.remote_accessible};
+  return hixl::MemDesc{mem.addr, mem.len, mem.local_only};
 }
 
 hixl::TransferOp ToHixlTransferOp(TransferOp operation) {

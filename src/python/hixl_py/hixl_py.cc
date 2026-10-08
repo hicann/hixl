@@ -275,7 +275,7 @@ static void RegisterDataClasses(py::module_ &m) {
       .def(py::init<uintptr_t, size_t>(), py::arg("addr"), py::arg("len"))
       .def_readwrite("addr", &hixl::MemDesc::addr)
       .def_readwrite("len", &hixl::MemDesc::len)
-      .def_readwrite("remote_accessible", &hixl::MemDesc::remote_accessible);
+      .def_readwrite("local_only", &hixl::MemDesc::local_only);
 
   py::class_<hixl::TransferOpDesc>(m, "TransferOpDesc")
       .def(py::init<uintptr_t, uintptr_t, size_t>(), py::arg("local_addr"), py::arg("remote_addr"), py::arg("len"))

@@ -93,7 +93,7 @@ struct AddrInfo {
   uintptr_t start_addr{0};
   uintptr_t end_addr{0};
   MemType mem_type{MemType::MEM_DEVICE};
-  bool remote_accessible{true};
+  bool local_only{false};
 };
 
 struct DeviceInfoConfig {

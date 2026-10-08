@@ -8,7 +8,7 @@
 struct MemDesc {
   uintptr_t addr;
   size_t len;
-  bool remote_accessible = true;  // 是否允许被远端访问，默认 true；
+  bool local_only = false;  // 是否仅本地使用、不向远端暴露，默认 false；
   uint8_t reserved[127] = {};
 };
 ```

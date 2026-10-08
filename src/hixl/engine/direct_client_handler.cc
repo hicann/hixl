@@ -72,10 +72,9 @@ Status DirectClientHandler::Connect(uint32_t timeout_ms) {
 }
 
 Status DirectClientHandler::RegisterMem(const MemHandleInfo &mem_info) {
-  if (!mem_info.mem.remote_accessible &&
-      (pair_.type == CommType::COMM_TYPE_HCCS || pair_.type == CommType::COMM_TYPE_UBMEM)) {
+  if (mem_info.mem.local_only && (pair_.type == CommType::COMM_TYPE_HCCS || pair_.type == CommType::COMM_TYPE_UBMEM)) {
     HIXL_LOGI(
-        "[DirectClientHandler] Skip client mem registration for hccs/ubmem remote_accessible=false, "
+        "[DirectClientHandler] Skip client mem registration for hccs/ubmem local_only=true, "
         "mem_handle:%p, addr:0x%lx",
         mem_info.mem_handle, mem_info.mem.addr);
     return SUCCESS;

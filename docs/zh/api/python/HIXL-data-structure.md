@@ -10,7 +10,7 @@ class MemDesc:
 
     addr: int   # 内存地址
     len: int    # 内存长度（字节）
-    remote_accessible: bool  # 是否允许被远端访问，默认 True
+    local_only: bool  # 是否仅本地使用、不向远端暴露，默认 False
 ```
 
 **调用示例**
