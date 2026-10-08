@@ -166,6 +166,9 @@ int32_t aclsysGetVersionNum(char *pkg_name, int32_t *version_num);
 void SetHcommVersionNum(int32_t version_num);
 void SetHcommVersionQueryResult(int32_t ret);
 void ResetHcommVersionStub();
+void SetRuntimeVersionNum(int32_t version_num);
+void SetRuntimeVersionQueryResult(int32_t ret);
+void ResetRuntimeVersionStub();
 }
 
 #endif  // AIR_CXX_TESTS_DEPENDS_SLOG_SRC_SLOG_STUB_H_
