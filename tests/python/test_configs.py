@@ -34,6 +34,22 @@ class TestLlmConfig(unittest.TestCase):
         self.config.device_id = (3, 4)
         self.assertEqual(self.config.device_id, (3, 4))
 
+    def test_device_id_rejects_empty_sequence(self):
+        for devices in ([], ()):
+            with self.subTest(devices=devices):
+                with self.assertRaisesRegex(LLMException, "device_id.*empty"):
+                    self.config.device_id = devices
+
+    def test_invalid_device_ids_preserve_previous_configuration(self):
+        self.config.device_id = [0, 1]
+        for devices in ([], ()):
+            with self.subTest(devices=devices):
+                with self.assertRaises(LLMException):
+                    self.config.device_id = devices
+                options = self.config.gen_options()
+                self.assertEqual(options["ge.exec.deviceId"], "0;1")
+                self.assertEqual(options["ge.session_device_id"], "0")
+
     def test_mem_utilization_valid_range(self):
         self.config.mem_utilization = 0.5
         self.assertEqual(self.config.mem_utilization, 0.5)

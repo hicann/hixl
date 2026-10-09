@@ -191,6 +191,7 @@ class LlmConfig(object):
         check_isinstance("device_id", device_id, [list, tuple, int])
         if isinstance(device_id, list) or isinstance(device_id, tuple):
             check_isinstance("device_id", device_id, [list, tuple], int)
+            raise_if_false(device_id, "device_id should not be empty.")
             [
                 raise_if_false(
                     dev_id >= 0, "device_id should be greater than or equal to zero."
