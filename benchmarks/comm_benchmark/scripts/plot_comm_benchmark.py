@@ -40,6 +40,8 @@ BLOCK_ORDER = ["16K", "32K", "64K", "128K", "256K", "512K", "1M", "2M", "4M", "8
 
 
 def block_sort_key(label: str) -> int:
+    if label.isdecimal():
+        return int(label)
     try:
         return BLOCK_ORDER.index(label)
     except ValueError:
