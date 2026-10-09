@@ -11,7 +11,6 @@
 #ifndef CANN_HIXL_SRC_HIXL_ENGINE_HIXL_CLIENT_H_
 #define CANN_HIXL_SRC_HIXL_ENGINE_HIXL_CLIENT_H_
 
-#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <mutex>

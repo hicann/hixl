@@ -116,7 +116,7 @@ Status UbMemEngine::AllocateUbMemHostFlag(void *&host_flag) const {
   return SUCCESS;
 }
 
-Status UbMemEngine::AllocateUbMemCompleteHandle(UbMemCompleteHandle *&handle) {
+Status UbMemEngine::AllocateUbMemCompleteHandle(UbMemCompleteHandle *&handle) const {
   handle = new (std::nothrow) UbMemCompleteHandle();
   HIXL_CHK_BOOL_RET_STATUS(handle != nullptr, FAILED, "[UbMemEngine] allocate complete handle failed");
   handle->magic = kUbMemCompleteMagic;
@@ -412,7 +412,7 @@ Status UbMemEngine::LaunchAicpuChunks(bool is_get, UbMemCompleteHandle &handle, 
   return SUCCESS;
 }
 
-Status UbMemEngine::CheckAicpuStatus(UbMemCompleteHandle &handle) {
+Status UbMemEngine::CheckAicpuStatus(UbMemCompleteHandle &handle) const {
   if (handle.status_buf == nullptr || handle.status_count == 0U) {
     return SUCCESS;
   }
@@ -483,7 +483,7 @@ Status UbMemEngine::CheckStatus(void *query_handle, HixlCompleteStatus &status) 
   return SUCCESS;
 }
 
-void UbMemEngine::AbortUbMemSlot(const TransferPool::SlotHandle &slot) {
+void UbMemEngine::AbortUbMemSlot(const TransferPool::SlotHandle &slot) const {
   auto *pool = TransferPool::GetInstance(slot.device_id);
   if (pool != nullptr) {
     pool->Abort(slot);

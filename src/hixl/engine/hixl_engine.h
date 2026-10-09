@@ -12,7 +12,6 @@
 #define HIXL_SRC_HIXL_ENGINE_HIXL_ENGINE_H_
 
 #include <atomic>
-#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <memory>

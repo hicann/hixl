@@ -61,10 +61,10 @@ class UbMemEngine {
   Status AcquireUbMemSlot(std::shared_ptr<TransferPool::SlotHandle> &slot_out);
   void ReleaseUbMemSlot(std::shared_ptr<TransferPool::SlotHandle> &slot_ref);
   Status AllocateUbMemHostFlag(void *&host_flag) const;
-  Status AllocateUbMemCompleteHandle(UbMemCompleteHandle *&handle);
+  Status AllocateUbMemCompleteHandle(UbMemCompleteHandle *&handle) const;
   void ReleaseUbMemCompleteHandle(UbMemCompleteHandle *handle);
   Status AllocateUbMemStatusBuf(uint32_t status_count, void *&status_buf) const;
-  Status CheckAicpuStatus(UbMemCompleteHandle &handle);
+  Status CheckAicpuStatus(UbMemCompleteHandle &handle) const;
   Status SubmitMemcpyAsync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list, void **query_handle);
   Status SubmitMemcpySync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list, uint32_t timeout_ms);
   Status SubmitAicpuAsync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list, void **query_handle,
@@ -76,7 +76,7 @@ class UbMemEngine {
   Status LaunchUbMemKernel(aclrtFuncHandle func, const char *kernel_name, UbMemCompleteHandle &handle, void *args,
                            size_t args_size, bool wait_notify) const;
   void AbortPendingHandles();
-  void AbortUbMemSlot(const TransferPool::SlotHandle &slot);
+  void AbortUbMemSlot(const TransferPool::SlotHandle &slot) const;
 
   int32_t device_id_;
   const GlobalConfig &global_config_;

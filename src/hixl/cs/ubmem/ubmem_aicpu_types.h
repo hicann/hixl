@@ -11,7 +11,6 @@
 #ifndef CANN_HIXL_SRC_HIXL_CS_UBMEM_UBMEM_AICPU_TYPES_H_
 #define CANN_HIXL_SRC_HIXL_CS_UBMEM_UBMEM_AICPU_TYPES_H_
 
-#include <cstddef>
 #include <cstdint>
 
 namespace hixl {

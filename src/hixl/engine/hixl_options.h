@@ -11,7 +11,6 @@
 #ifndef HIXL_SRC_HIXL_ENGINE_HIXL_OPTIONS_H_
 #define HIXL_SRC_HIXL_ENGINE_HIXL_OPTIONS_H_
 
-#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <optional>
