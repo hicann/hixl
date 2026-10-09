@@ -224,9 +224,9 @@ class TransferCacheJob:
             raise_if_false(transfer_config.src_batch_index == 0,
                            'Invalid TransferConfig, src_batch_index ({0}) != 0 while src is blocks',
                            transfer_config.src_batch_index)
-            raise_if_false(0 <= transfer_config.src_batch_index < self._cache_desc.batch_size,
-                           'Invalid TransferConfig, src_batch_index ({0}) out of range: [0, {1})',
-                           transfer_config.src_batch_index, self._cache_desc.batch_size)
+        raise_if_false(0 <= transfer_config.src_batch_index < self._cache_desc.batch_size,
+                       'Invalid TransferConfig, src_batch_index ({0}) out of range: [0, {1})',
+                       transfer_config.src_batch_index, self._cache_desc.batch_size)
         raise_if_false(
             0 <= transfer_config.src_layer_range.start < transfer_config.src_layer_range.stop <= self._num_layers,
             "src_layer_range: {0} out of range, src_layer_num = {1}",

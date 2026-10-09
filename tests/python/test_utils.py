@@ -14,11 +14,15 @@
 # content of test_sample.py
 import unittest
 import ctypes
+from unittest.mock import MagicMock, patch
 from llm_datadist.utils.utils import (check_uint64, check_int64,check_int32,
                                       check_uint32, check_list_int32, check_uint16, check_uint8,
                                       check_dict, check_isinstance)
-from llm_datadist.v2.llm_types import CacheDesc, DataType, Placement
-from llm_datadist.v2.llm_utils import pack_cache_desc
+from llm_datadist.v2.llm_types import (CacheDesc, DataType, Placement, Cache, CacheKeyByIdAndIndex,
+                                      TransferConfig, TransferWithCacheKeyConfig, LayerSynchronizer, CacheTask)
+from llm_datadist.v2.llm_utils import (pack_cache_desc, TransferCacheParameters, TransferCacheJob,
+                                     TransferAsyncThread, transfer_cache_async)
+from llm_datadist.status import LLMException, LLMStatusCode
 
 
 class TensorUt(unittest.TestCase):
@@ -75,3 +79,66 @@ class TensorUt(unittest.TestCase):
         cache_desc = CacheDesc(1, [2, 3], DataType.DT_INT8, Placement.DEVICE, batch_dim_index=1)
         self.assertEqual(pack_cache_desc(cache_desc), (1, DataType.DT_INT8.value, -1, 1, [2, 3],
                                                         Placement.DEVICE.value, False))
+
+
+class AsyncCacheBatchBoundsUt(unittest.TestCase):
+    def setUp(self):
+        desc = CacheDesc(4, [2, 4], DataType.DT_INT8, Placement.HOST)
+        self.cache = Cache(0, desc, [1, 2, 3, 4], None, True, False)
+        self.synchronizer = MagicMock(spec=LayerSynchronizer)
+        self.synchronizer.synchronize_layer.return_value = True
+        self.transfer = MagicMock(return_value=LLMStatusCode.LLM_SUCCESS.value)
+
+    @staticmethod
+    def config(index, remote=False):
+        if remote:
+            key = CacheKeyByIdAndIndex(1, 0, 0)
+            return TransferWithCacheKeyConfig(key, range(0, 2), range(0, 2), index)
+        return TransferConfig(1, [10, 11, 12, 13], src_batch_index=index)
+
+    def test_invalid_cache_batch_rejected_before_start(self):
+        for remote in (False, True):
+            for index in (2, 3, 2**32 - 1):
+                with self.subTest(remote=remote, index=index):
+                    params = TransferCacheParameters(self.cache, [self.config(index, remote)])
+                    with patch.object(TransferAsyncThread, "start") as start:
+                        with self.assertRaisesRegex(LLMException, r"src_batch_index .* out of range: \[0, 2\)"):
+                            transfer_cache_async(params, self.synchronizer, self.transfer,
+                                                 enable_remote_cache=remote)
+                        start.assert_not_called()
+        self.synchronizer.synchronize_layer.assert_not_called()
+        self.transfer.assert_not_called()
+
+    def test_valid_cache_batch_boundaries_transfer(self):
+        for remote in (False, True):
+            for index in (0, 1):
+                with self.subTest(remote=remote, index=index):
+                    self.transfer.reset_mock()
+                    params = TransferCacheParameters(self.cache, [self.config(index, remote)])
+                    job = TransferCacheJob(params, self.synchronizer, self.transfer)
+                    job.init()
+                    job.transfer_layers()
+                    self.assertEqual(job.get_results(), [LLMStatusCode.LLM_SUCCESS])
+                    self.assertEqual(self.transfer.call_count, 2)
+                    for call in self.transfer.call_args_list:
+                        self.assertEqual(call.args[1][1], index)
+
+    def test_valid_cache_batch_starts_async_task(self):
+        params = TransferCacheParameters(self.cache, [self.config(1)])
+        with patch.object(TransferAsyncThread, "start") as start:
+            task = transfer_cache_async(params, self.synchronizer, self.transfer)
+            self.assertIsInstance(task, CacheTask)
+            start.assert_called_once()
+
+    def test_blocks_retain_zero_batch_requirement(self):
+        for index in (1, 2):
+            with self.subTest(index=index):
+                params = TransferCacheParameters(self.cache, [self.config(index)], [0], [0])
+                with patch.object(TransferAsyncThread, "start") as start:
+                    with self.assertRaisesRegex(LLMException, "!= 0 while src is blocks"):
+                        transfer_cache_async(params, self.synchronizer, self.transfer)
+                    start.assert_not_called()
+        params = TransferCacheParameters(self.cache, [self.config(0)], [0], [0])
+        with patch.object(TransferAsyncThread, "start") as start:
+            self.assertIsInstance(transfer_cache_async(params, self.synchronizer, self.transfer), CacheTask)
+            start.assert_called_once()

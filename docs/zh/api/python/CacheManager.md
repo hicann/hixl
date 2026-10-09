@@ -299,6 +299,7 @@ cache_task = cache_manager.transfer_cache_async(cache, LayerSynchronizerImpl(), 
 - 若dst\_cache是HOST，仅支持dst\_cache通过allocate\_cache申请方式申请。
 - 需要保证transfer\_config中的dst\_addrs的有效性，以及在传输dst\_block\_indices场景下数据的有效性，否则错误未知。
 - 开启enable\_remote\_cache\_accessible时，transfer\_configs中的类型需为TransferWithCacheKeyConfig，不开启enable\_remote\_cache\_accessible时，transfer\_configs中的类型需为TransferConfig。
+- 普通Cache的src_batch_index需在源Cache的batch范围内（0 ≤ index < batch_size）；非法索引在启动后台线程前抛出LLMException。源Cache为PA场景时，src_batch_index仍只允许为0。
 
 ## push\_blocks
 
