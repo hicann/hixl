@@ -26,7 +26,7 @@ NN模型执行时调用的HCCL集合通信接口是双边通信，即需要两�
     ```python
     # P侧脚本
     from llm_datadist import LLMDataDist, LLMRole, LLMStatusCode, LLMClusterInfo
-    
+
      # llm datadist初始化
      llm_datadist = LLMDataDist(LLMRole.Prompt, cluster_id=0)
      llm_config = LLMConfig()
@@ -39,11 +39,11 @@ NN模型执行时调用的HCCL集合通信接口是双边通信，即需要两�
     ```python
     # D侧脚本
     from llm_datadist import LLMDataDist, LLMRole, LLMStatusCode, LLMClusterInfo
-    
+
      # llm datadist初始化
      llm_datadist = LLMDataDist(LLMRole.DECODER, cluster_id=0)
      llm_config = LLMConfig()
-     llm_config.device_id =0 
+     llm_config.device_id =0
      llm_options = llm_config.generate_options()
      llm_datadist.init(llm_options)
     ```
@@ -56,7 +56,7 @@ NN模型执行时调用的HCCL集合通信接口是双边通信，即需要两�
      cluster.remote_cluster_id = 1  # 此处的remote_cluster_id需要和P侧创建的LLMDataDist对应
      cluster.append_local_ip_info("192.168.2.1", 26000) # local_ip_info的IP是本机需要建链的Host IP地址
      cluster.append_remote_ip_info("192.168.1.1", 26000) # remote_ip_info的IP是想和对端建链的Host IP地址
-    
+
      # 调用link_clusters进行建链
      # ret是接口的返回值，rets表示每个cluster建链的结果。
      ret, rets = llm_datadist.link_clusters([cluster], timeout=5000)
@@ -76,7 +76,7 @@ NN模型执行时调用的HCCL集合通信接口是双边通信，即需要两�
      # 调用llm_datadist申请KV Cache
      # 执行业务推理
      # ...
-    
+
      # 业务退出
      llm_datadist.finalize()
     ```
@@ -85,7 +85,7 @@ NN模型执行时调用的HCCL集合通信接口是双边通信，即需要两�
      # D侧脚本
      # pull_cache、模型推理
      # ...
-    
+
      # 业务退出，调用unlink_clusters进行断链
      ret, rets = llm_datadist.unlink_clusters([cluster], timeout=5000)
      if ret != LLMStatusCode.LLM_SUCCESS:
@@ -144,14 +144,17 @@ KV Cache管理涉及的主要接口及功能如下：
     import torchair
     import torch
     import torch_npu
+    from llm_datadist import CacheDesc, DataType
     # 从已初始化的llm_datadist中获取cache_manager
     cache_manager = llm_datadist.cache_manager
     # 根据模型中KV Cache的shape以及总个数创建CacheDesc。此处shape只是示例，实际填写网络中的KV cache shape。
     cache_desc = CacheDesc(num_tensors=4, shape=[4, 4, 8], data_type=DataType.DT_FLOAT16)
-    tensor1 = torch.full((4, 4, 8), 1, dtype=torch.float).npu()
-    ... # 其他tensor申请
-    cache = cache_manager.register_cache(cache_desc, [int(tensor.data_ptr()), int(tensor2.data_ptr()) ...])
-    
+    kv_tensors = [
+        torch.full(cache_desc.shape, 1, dtype=torch.float16).npu()
+        for _ in range(cache_desc.num_tensors)
+    ]
+    kv_cache = cache_manager.register_cache(cache_desc, [int(tensor.data_ptr()) for tensor in kv_tensors])
+
     # 建链后将注册的kv_tensors传给模型推理计算产生KV Cache，将模型输出传输给增量推理模型作为输入
     ```
 
@@ -169,20 +172,20 @@ KV Cache管理涉及的主要接口及功能如下：
 
         ```python
         from llm_datadist import LayerSynchronizer, TransferConfig
-        
+
         class LayerSynchronizerImpl(LayerSynchronizer):
             def __init__(self, events):
                 self._events = events
-        
+
             def synchronize_layer(self, layer_index: int, timeout_in_millis: Optional[int]) -> bool:
                 self._events[layer_index].wait()
                 return True
-        
+
         events = [torch.npu.Event() for _ in range(cache_desc.num_tensors // 2)]
         # 执行模型，模型在各层计算完成后调用events[layer_index].record()记录完成状态
         # 模型执行由用户实现
         # user_model.Predict(kv_tensors, events)
-        
+
         # 模型下发完成后，调用transfer_cache_async传输数据，此处需要填写Decode已申请的KV Cache各层tensor的内存地址
         transfer_config = TransferConfig(DECODER_CLUSTER_ID, decoder_kv_cache_addrs)
         cache_task = cache_manager.transfer_cache_async(kv_cache, LayerSynchronizerImpl(events), [transfer_config])
@@ -202,7 +205,7 @@ KV Cache管理涉及的主要接口及功能如下：
     k_tensors = kv_tensors[: mid]
     v_tensors = kv_tensors[mid:]
     kv_cache_tensors = list(zip(k_tensors, v_tensors))
-    
+
     # 将转换的kv_tensors传给模型进行迭代推理
     # 等待请求增量推理完成
     ```
@@ -256,16 +259,16 @@ KV Cache管理涉及的主要接口及功能如下：
         class LayerSynchronizerImpl(LayerSynchronizer):
             def __init__(self, events):
                 self._events = events
-        
+
             def synchronize_layer(self, layer_index: int, timeout_in_millis: Optional[int]) -> bool:
                 self._events[layer_index].wait()
                 return True
-        
+
         events = [torch.npu.Event() for _ in range(cache_desc.num_tensors // 2)]
         # 执行模型,模型在各层计算完成后调用events[layer_index].record()记录完成状态
         # 该函数由用户实现
         user_model.Predict(kv_cache_tensors, events)
-        
+
         # 模型下发完成后，调用transfer_cache_async传输数据，此处需要填写Decode已申请的KV Cache各层tensor的内存地址
         transfer_config = TransferConfig(DECODER_CLUSTER_ID, decoder_kv_cache_addrs)
         cache_task = cache_manager.transfer_cache_async(kv_cache, LayerSynchronizerImpl(events), [transfer_config], [0, 1], [2, 3])
