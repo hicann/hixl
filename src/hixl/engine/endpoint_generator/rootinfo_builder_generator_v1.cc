@@ -92,11 +92,12 @@ Status LoadUrmaDevicesFromDcmi(int32_t npu_id, std::vector<UrmaDevice> &urma_dev
 
     DcmiUrmaEidInfo eid_buf[kMaxEidPerUe];
     int32_t eid_cnt = kMaxEidPerUe;
-    HIXL_CHK_STATUS_RET(DcmiProxy::GetEidList(logic_id, static_cast<int32_t>(i), eid_buf, &eid_cnt),
-                        "Call api:GetEidList failed, logic_id:%u, urma_dev_index:%zu", logic_id, i);
-    HIXL_CHK_BOOL_RET_STATUS(eid_cnt >= 0 && eid_cnt <= kMaxEidPerUe, FAILED,
-                             "GetEidList returned invalid eid_cnt=%d, logic_id=%u, urma_dev_index=%zu", eid_cnt,
-                             logic_id, i);
+    Status eid_ret = DcmiProxy::GetEidList(logic_id, static_cast<int32_t>(i), eid_buf, &eid_cnt);
+    if (eid_ret != SUCCESS || eid_cnt < 0 || eid_cnt > kMaxEidPerUe) {
+      HIXL_LOGW("Skip urma device %zu of logic_id %u: GetEidList ret=%d, eid_cnt=%d", i, logic_id,
+                static_cast<int32_t>(eid_ret), eid_cnt);
+      continue;
+    }
 
     for (int32_t j = 0; j < eid_cnt; ++j) {
       std::string eid_str = ConvertEidToString(eid_buf[j].eid.raw, sizeof(eid_buf[j].eid.raw));
