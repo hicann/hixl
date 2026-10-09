@@ -36,7 +36,7 @@ std::string SerializeNotifyMsg(const NotifyMsg &msg) {
 }
 
 Status ParseNotifyAckResult(const std::string &json_str) {
-  Status result = SUCCESS;
+  Status result = PARAM_INVALID;
   auto j = nlohmann::json::parse(json_str);
   if (j.contains("result")) {
     j.at("result").get_to(result);

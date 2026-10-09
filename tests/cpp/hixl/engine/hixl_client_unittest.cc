@@ -2221,6 +2221,38 @@ TEST_F(HixlClientUTest, CheckAliveInvalidControlSocketFails) {
   EXPECT_EQ(ret, FAILED);
 }
 
+TEST_F(HixlClientUTest, RecvNotifyAckValidatesResultField) {
+  struct NotifyAckCase {
+    const char *name;
+    const char *json;
+    Status expected;
+  };
+  const NotifyAckCase cases[] = {
+      {"missing_result", "{}", PARAM_INVALID},
+      {"valid_success", R"({"result":0})", SUCCESS},
+      {"valid_failure", R"({"result":103900})", PARAM_INVALID},
+      {"malformed", "{", PARAM_INVALID},
+  };
+
+  for (const auto &test_case : cases) {
+    const std::string json = test_case.json;
+    int32_t fds[2] = {-1, -1};
+    ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0) << test_case.name;
+
+    CtrlMsgHeader header{};
+    header.magic = kMagicNumber;
+    header.body_size = sizeof(CtrlMsgType) + json.size();
+    CtrlMsgType msg_type = CtrlMsgType::kNotifyAck;
+    ASSERT_EQ(CtrlMsgPlugin::Send(fds[1], &header, sizeof(header)), SUCCESS) << test_case.name;
+    ASSERT_EQ(CtrlMsgPlugin::Send(fds[1], &msg_type, sizeof(msg_type)), SUCCESS) << test_case.name;
+    ASSERT_EQ(CtrlMsgPlugin::Send(fds[1], json.data(), json.size()), SUCCESS) << test_case.name;
+
+    EXPECT_EQ(client_->RecvNotifyAck(fds[0], kDefaultTimeoutMs), test_case.expected) << test_case.name;
+    close(fds[0]);
+    close(fds[1]);
+  }
+}
+
 class FailClientHandler : public IClientHandler {
  public:
   Status Connect(uint32_t) override {
