@@ -194,7 +194,7 @@ int32_t ParseArgs(int32_t argc, char **argv, EngineCtx &ctx, std::vector<std::st
 
 int32_t PrepareLegacyOpts(const std::vector<std::string> &protocols, std::map<AscendString, AscendString> &options) {
   printf("[INFO] Using legacy flow (version=0)\n");
-  std::string local_comm_res = "{\"version\": \"1.2\"}";
+  const std::string local_comm_res = "{\"version\": \"1.2\"}";
   options[OPTION_LOCAL_COMM_RES] = local_comm_res.c_str();
   options[OPTION_BUFFER_POOL] = "0:0";
   if (protocols[0] == "roce:device") {
@@ -211,7 +211,7 @@ int32_t PrepareV2Opts(const std::vector<std::string> &protocols, std::map<Ascend
     }
     desc_array += "\"" + protocols[i] + "\"";
   }
-  std::string resource_config = "{\"comm_resource_config.protocol_desc\": [" + desc_array + "]}";
+  const std::string resource_config = "{\"comm_resource_config.protocol_desc\": [" + desc_array + "]}";
   options[OPTION_GLOBAL_RESOURCE_CONFIG] = resource_config.c_str();
   return 0;
 }
@@ -250,8 +250,8 @@ int32_t InitEngine(EngineCtx &ctx, const std::vector<std::string> &protocols, in
 }
 
 int32_t GetRemoteAddr(EngineCtx &ctx) {
-  int port = ParsePort(ctx.remote_engine) + kSocketPortOffset;
-  std::string ip = ctx.remote_engine.substr(0, ctx.remote_engine.find(':'));
+  const int port = ParsePort(ctx.remote_engine) + kSocketPortOffset;
+  const std::string ip = ctx.remote_engine.substr(0, ctx.remote_engine.find(':'));
   int fd = -1;
   for (int32_t retry = 0; retry < kSocketRetryCount; ++retry) {
     fd = socket(AF_INET, SOCK_STREAM, 0);

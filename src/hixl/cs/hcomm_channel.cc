@@ -28,7 +28,7 @@ HcclResult HcommChannel::ChannelDestroy() {
   return HcommProxy::ChannelDestroy(&handle, kSingleChannel);
 }
 
-HcclResult HcommChannel::ChannelGetStatus(int32_t &status) {
+HcclResult HcommChannel::ChannelGetStatus(int32_t &status) const {
   const ChannelHandle handle = GetHandle();
   return HcommProxy::ChannelGetStatus(&handle, kSingleChannel, &status);
 }

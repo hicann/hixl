@@ -115,7 +115,7 @@ Status DirectClientHandler::DeregisterMem(MemHandle mem_handle) {
 
 Status DirectClientHandler::TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation,
                                           TransferReq &req) {
-  uint32_t list_num = static_cast<uint32_t>(op_descs.size());
+  const uint32_t list_num = static_cast<uint32_t>(op_descs.size());
   std::vector<HixlOneSideOpDesc> hixl_descs(list_num);
   for (size_t i = 0; i < list_num; i++) {
     hixl_descs[i].remote_buf = reinterpret_cast<void *>(op_descs[i].remote_addr);
@@ -140,7 +140,7 @@ Status DirectClientHandler::TransferAsync(const std::vector<TransferOpDesc> &op_
 Status DirectClientHandler::TransferSync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation,
                                          uint32_t timeout_ms) {
   std::lock_guard<std::mutex> lock(mutex_);
-  uint32_t list_num = static_cast<uint32_t>(op_descs.size());
+  const uint32_t list_num = static_cast<uint32_t>(op_descs.size());
   std::vector<HixlOneSideOpDesc> hixl_descs(list_num);
   for (size_t i = 0; i < list_num; i++) {
     hixl_descs[i].remote_buf = reinterpret_cast<void *>(op_descs[i].remote_addr);

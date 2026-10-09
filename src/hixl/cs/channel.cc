@@ -59,7 +59,7 @@ Status Channel::Destroy() {
   return SUCCESS;
 }
 
-Status Channel::WaitChannelConnected(Channel &channel, uint32_t timeout_ms) {
+Status Channel::WaitChannelConnected(const Channel &channel, uint32_t timeout_ms) {
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
   while (true) {
     int32_t status = kChannelUnknownStatus;

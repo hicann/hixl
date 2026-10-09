@@ -34,7 +34,7 @@ HcclResult UbMemChannel::ChannelDestroy() {
   return HCCL_SUCCESS;
 }
 
-HcclResult UbMemChannel::ChannelGetStatus(int32_t &status) {
+HcclResult UbMemChannel::ChannelGetStatus(int32_t &status) const {
   status = kChannelConnectedStatus;
   return HCCL_SUCCESS;
 }

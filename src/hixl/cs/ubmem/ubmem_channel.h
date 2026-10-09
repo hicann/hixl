@@ -28,7 +28,7 @@ class UbMemChannel : public Channel {
   HcclResult ChannelCreate(EndpointHandle endpoint_handle, CommEngine engine, HcommChannelDesc &ch_desc,
                            ChannelHandle &out_handle) override;
   HcclResult ChannelDestroy() override;
-  HcclResult ChannelGetStatus(int32_t &status) override;
+  HcclResult ChannelGetStatus(int32_t &status) const override;
 };
 
 }  // namespace hixl

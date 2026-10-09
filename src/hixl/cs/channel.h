@@ -67,10 +67,10 @@ class Channel {
   virtual HcclResult ChannelCreate(EndpointHandle endpoint_handle, CommEngine engine, HcommChannelDesc &ch_desc,
                                    ChannelHandle &out_handle) = 0;
   virtual HcclResult ChannelDestroy() = 0;
-  virtual HcclResult ChannelGetStatus(int32_t &status) = 0;
+  virtual HcclResult ChannelGetStatus(int32_t &status) const = 0;
 
  private:
-  static Status WaitChannelConnected(Channel &channel, uint32_t timeout_ms);
+  static Status WaitChannelConnected(const Channel &channel, uint32_t timeout_ms);
 
   // This channel's transport handle, assigned once by Create and cleared on teardown.
   ChannelHandle channel_handle_{0UL};

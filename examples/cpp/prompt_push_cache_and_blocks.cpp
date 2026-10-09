@@ -228,7 +228,7 @@ void Finalize(LlmDataDist &llm_datadist, int64_t cache_id, bool linked, const ch
 }
 
 int32_t RunPromptSample(const char *device_id, const char *local_ip, const char *remote_ip,
-                        const std::string &transfer_backend, const std::string local_comm_res) {
+                        const std::string &transfer_backend, const std::string &local_comm_res) {
   printf("[INFO] Prompt Sample start\n");
   // 1. 初始化
   LlmDataDist llm_datadist(kPromptClusterId, LlmRole::kPrompt);
