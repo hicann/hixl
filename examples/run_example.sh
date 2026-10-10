@@ -151,6 +151,7 @@ run_pair() {
     local has_error=0
     local -a tmp_files=()
     local -a pids=()
+    local pid
 
     for((i=0; i<num_cmds; i++)); do
         cmd="${cmds[i]}"
@@ -193,7 +194,11 @@ run_pair() {
         eval "$cmd" > "$tmp" 2>&1 &
         pids+=($!)
     done
-    wait "${pids[@]}"
+    for pid in "${pids[@]}"; do
+        if ! wait "$pid"; then
+            has_error=1
+        fi
+    done
     set -e
 
     for tmp in "${tmp_files[@]}"; do
