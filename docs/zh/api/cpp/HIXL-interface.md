@@ -85,108 +85,285 @@ Status Initialize(const AscendString &local_engine, const std::map<AscendString,
 | 参数名 | 输入/输出 | 描述 |
 | --- | --- | --- |
 | local_engine | 输入 | HIXL标识，在所有参与建链的范围内需要确保唯一。如果是ipv4，格式为host_ip:host_port或host_ip。如果是ipv6，格式为[host_ip]:host_port或[host_ip]。不建议配置为回环IP，在多个HIXL交互场景，回环IP容易冲突。<br>当设置host_port且host_port>0时代表当前HIXL作为Server端，需要对配置端口进行侦听。如果没设置host_port或者host_port<=0代表是Client，不启动侦听。 |
-| options | 输入 | 初始化参数值。具体请参考如下表格。 |
+| options | 输入 | HIXL初始化参数字典（key-value均为字符串）。支持的选项及取值见 [options选项说明](#options选项说明)。 |
 
-<!-- npu="A3,910b" id5 -->
-**表 1**  options（Atlas A2系列产品/Atlas A3系列产品）
+<a id="options选项说明"></a>
 
-| 参数名 | 可选/必选 | 描述                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| --- | --- |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| OPTION_ENABLE_USE_FABRIC_MEM | 可选 | 字符串取值"EnableUseFabricMem"。 <br>- 0：不开启Fabric Mem模式 <br>- 1：开启Fabric Mem模式 <br>说明：集群场景下，该参数在所有节点需要配置为相同的值。仅支持Atlas A3系列产品。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| OPTION_BUFFER_POOL | 可选 | 字符串取值"BufferPool"。<br>可使用此option配置中转内存池，从而开启中转传输模式，取值格式为"${BUFFER_NUM}:${BUFFER_SIZE}"，系统默认会配置为"4:8(单位MB)"，通过配置值为"0:0"来关闭中转模式。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| OPTION_RDMA_TRAFFIC_CLASS | 可选 | 字符串取值"RdmaTrafficClass"。<br>用于配置RDMA网卡的traffic class。和环境变量HCCL_RDMA_TC功能相同，如同时配置，当前option优先级更高；未同时配置，以配置的一方为准。<br>取值范围为[0,255]，且需要配置为4的整数倍，默认值为132。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| OPTION_RDMA_SERVICE_LEVEL | 可选 | 字符串取值"RdmaServiceLevel"。<br>用于配置RDMA网卡的service level。和环境变量HCCL_RDMA_SL功能相同，如同时配置，当前option优先级更高；未同时配置，以配置的一方为准。<br>取值范围为[0, 7]，默认值为4。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| OPTION_GLOBAL_RESOURCE_CONFIG | 可选 | 字符串取值"GlobalResourceConfig"。用于开启并配置全局资源配置。该参数配置示例和使用约束请参考表格下方                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| OPTION_AUTO_CONNECT | 可选 | 字符串取值"AutoConnect"。 <br>- 0：不开启Auto Connect模式 <br>- 1：开启Auto Connect模式  <br><br>说明：<br>- 开启该选项后，可跳过建链，直接进行传输。<br>- 开启该选项后，传输发生异常或对端销毁后自动清理异常链路（对端销毁需要心跳机制来检测，心跳间隔默认10s）。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| OPTION_LOCAL_COMM_RES | 可选 | 配置本地通信资源信息，格式是json格式的字符串。<br>- 不配置或配置为空串：将自动生成相关信息，使用集合通信的通信域方式进行建链。由于Device侧Stream资源有限，且建链会占用内存，建议单卡建链数量不超过512。也可通过OPTION_GLOBAL_RESOURCE_CONFIG中的local_comm_res_path指定本地通信资源JSON文件路径，由HIXL读取文件内容作为本地通信资源；两者同时配置且本option非空时，以本option为准。<br>  说明：当OPTION_BUFFER_POOL（或adxl.BufferPool）配置为"0:0"（关闭中转内存池）且hcomm/toolkit版本大于等于9.1.0时，将使用HixlCS能力进行建链，没有链路上限限制。<br>- 配置version为"1.0"或"1.2"的ranktable格式：使用集合通信的通信域方式进行建链。由于Device侧Stream资源有限，且建链会占用内存，建议单卡建链数量不超过512。仅需配置ranktable中当前llm datadist所使用Device信息，无需配置ranktable中的server_count和rank_id字段。<br>- 配置version为"1.3"（推荐使用，需要HDK版本大于等于25.5.0且toolkit包版本大于等于9.1.0）：使用HixlCS能力进行建链，没有链路上限限制。配置格式参考[通信资源配置字段说明](#通信资源配置字段说明)，仅配置version字段即可，其他字段将自动生成。 |
+**options选项说明**
 
-如上表格中的环境变量请参考《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》，ranktable请参考《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/master/docs/zh/user_guide/README.md)》。
+`options` 为 key-value 字符串字典，key 为下表的"选项键"，value 均为字符串。取值与约束见后续各选项小节，各产品支持的选项见下方的"各产品支持的选项"。
 
-<!-- end id5 -->
-<!-- npu="A3,910b" id7 -->
-OPTION_LOCAL_COMM_RES配置为"1.3"版本的配置示例如下：
+**表 1** options清单
 
-- 最小配置（仅配置version字段，其他字段自动生成）：
+| 选项键 | 常量 | 取值格式 | 必选/可选 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- | --- |
+| `"EnableUseFabricMem"` | `OPTION_ENABLE_USE_FABRIC_MEM` | `"0"`/`"1"` | 可选 | 不配置（不开启） | 开启Fabric Mem模式，见 [EnableUseFabricMem](#option_enable_use_fabric_mem)。 |
+| `"BufferPool"` | `OPTION_BUFFER_POOL` | `"${BUFFER_NUM}:${BUFFER_SIZE}"`，单位MB | 可选 | `"4:8"` | 中转内存池配置，见 [BufferPool](#option_buffer_pool)。 |
+| `"RdmaTrafficClass"` | `OPTION_RDMA_TRAFFIC_CLASS` | 整数，[0,255]且为4的整数倍 | 可选 | `132` | RDMA网卡traffic class，见 [RDMA配置](#option_rdma)。 |
+| `"RdmaServiceLevel"` | `OPTION_RDMA_SERVICE_LEVEL` | 整数，[0,7] | 可选 | `4` | RDMA网卡service level，见 [RDMA配置](#option_rdma)。 |
+| `"AutoConnect"` | `OPTION_AUTO_CONNECT` | `"0"`/`"1"` | 可选 | 不配置（不开启） | 自动建链模式，见 [AutoConnect](#option_auto_connect)。 |
+| `"GlobalResourceConfig"` | `OPTION_GLOBAL_RESOURCE_CONFIG` | JSON字符串 | 可选 | 不配置 | 全局资源配置，见 [GlobalResourceConfig](#option_global_resource_config)。 |
+| `"LocalCommRes"` | `OPTION_LOCAL_COMM_RES` | JSON字符串 | 可选 | 不配置 | 本地通信资源，见 [LocalCommRes](#option_local_comm_res)。 |
 
-```json
+**各产品支持的选项**
+
+<!-- npu="910b" id56 -->
+- Atlas A2系列产品：`BufferPool`、`RdmaTrafficClass`、`RdmaServiceLevel`、`AutoConnect`、`GlobalResourceConfig`、`LocalCommRes`。
+<!-- end id56 -->
+<!-- npu="A3" id57 -->
+- Atlas A3系列产品：`EnableUseFabricMem`、`BufferPool`、`RdmaTrafficClass`、`RdmaServiceLevel`、`AutoConnect`、`GlobalResourceConfig`、`LocalCommRes`。
+<!-- end id57 -->
+<!-- npu="950" id58 -->
+- Ascend 950PR&950DT系列产品：`RdmaTrafficClass`、`RdmaServiceLevel`、`AutoConnect`、`GlobalResourceConfig`、`LocalCommRes`。
+<!-- end id58 -->
+
+> 说明：`RdmaTrafficClass`、`RdmaServiceLevel` 仅适用于RoCE场景。
+
+> 说明：环境变量请参考《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》，ranktable请参考《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/master/docs/zh/user_guide/README.md)》。
+
+<a id="option_enable_use_fabric_mem"></a>
+
+**EnableUseFabricMem（OPTION_ENABLE_USE_FABRIC_MEM）**
+
+- 选项键：`"EnableUseFabricMem"`。
+- 取值：`"0"`表示不开启Fabric Mem模式；`"1"`表示开启Fabric Mem模式。
+- 默认值：不配置（不开启）。
+- 作用：开启Fabric Mem模式，适用于需要使用HCCS进行D2RH、RH2D传输的场景。
+- 约束：
+  - 集群场景下，所有节点的配置值需保持一致。
+  - 与 `"BufferPool"` 同时配置时，`"BufferPool"` 仅支持 `"0:0"`（关闭中转内存池）。
+- 示例：
+
+```cpp
+std::map<hixl::AscendString, hixl::AscendString> options;
+options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = "1";
+```
+
+<a id="option_buffer_pool"></a>
+
+**BufferPool（OPTION_BUFFER_POOL）**
+
+- 选项键：`"BufferPool"`。
+- 取值：`"${BUFFER_NUM}:${BUFFER_SIZE}"`，单位MB；配置为 `"0:0"` 时关闭中转内存池。
+- 默认值：`"4:8"`。
+- 作用：配置中转内存池并开启中转传输模式，适用于需要使用中转buffer进行传输的场景，例如RDMA注册Host内存大小受限，或多个小块内存（如128K）需要经中转提升性能。
+- 约束：
+  - 与 `"EnableUseFabricMem"` 同时配置时，本选项仅支持 `"0:0"`（关闭中转内存池）。
+  - 所有使用该配置的位置需填写相同的值。
+  - 并发场景下建议增大 `${BUFFER_NUM}`。
+  <!-- npu="A3,910b" id51 -->
+  - 配置为 `"0:0"` 且hcomm/toolkit版本大于等于9.1.0时，HIXL使用HixlCS能力进行建链，没有链路上限限制。
+  - Atlas A2系列产品场景下，若不配置本选项，Server侧采用HCCS传输协议时仅支持D2D。
+  <!-- end id51 -->
+- 示例：
+
+```cpp
+std::map<hixl::AscendString, hixl::AscendString> options;
+options[hixl::OPTION_BUFFER_POOL] = "4:8";
+```
+
+<a id="option_rdma"></a>
+
+**RDMA配置（OPTION_RDMA_TRAFFIC_CLASS / OPTION_RDMA_SERVICE_LEVEL）**
+
+- 选项键：`"RdmaTrafficClass"`、`"RdmaServiceLevel"`。
+- 取值：
+  - `"RdmaTrafficClass"`：整数，取值范围[0,255]，且必须为4的整数倍。
+  - `"RdmaServiceLevel"`：整数，取值范围[0,7]。
+- 默认值：`"RdmaTrafficClass"` 默认 `132`；`"RdmaServiceLevel"` 默认 `4`。
+- 作用：配置RDMA网卡的traffic class与service level，分别与环境变量 `HCCL_RDMA_TC`、`HCCL_RDMA_SL` 功能相同。两者同时配置时以本选项为准；仅配置一方时以配置的一方为准。
+- 约束：适用于RoCE场景。
+- 示例：
+
+```cpp
+std::map<hixl::AscendString, hixl::AscendString> options;
+options[hixl::OPTION_RDMA_TRAFFIC_CLASS] = "132";
+options[hixl::OPTION_RDMA_SERVICE_LEVEL] = "4";
+```
+
+<a id="option_auto_connect"></a>
+
+**AutoConnect（OPTION_AUTO_CONNECT）**
+
+- 选项键：`"AutoConnect"`。
+- 取值：`"0"`表示不开启Auto Connect模式；`"1"`表示开启Auto Connect模式。
+- 默认值：不配置（不开启）。
+- 作用：开启后可跳过建链直接进行传输。
+- 约束：传输发生异常或对端销毁后会自动清理异常链路；对端销毁依赖心跳机制检测，心跳间隔默认10s。
+- 示例：
+
+```cpp
+std::map<hixl::AscendString, hixl::AscendString> options;
+options[hixl::OPTION_AUTO_CONNECT] = "1";
+```
+
+<a id="option_global_resource_config"></a>
+
+**GlobalResourceConfig（OPTION_GLOBAL_RESOURCE_CONFIG）**
+
+- 选项键：`"GlobalResourceConfig"`。
+- 取值：JSON字符串。
+- 默认值：不配置。
+- 作用：配置HIXL全局资源，包含通信资源与建链、数据传输批次、Fabric Mem、异步建链/断链连接池、链路池，以及本地通信资源文件（与 [LocalCommRes](#option_local_comm_res) 配套）等，全部字段见下表。
+
+**表 GlobalResourceConfig 字段清单**
+
+| 字段名 | 数据类型 | 必选/可选 | 简介 |
+| --- | --- | --- | --- |
+| comm_resource_config.protocol_desc | 字符串或字符串数组 | 可选 | 限定可用的通信协议与通信设备位置范围，详见 [protocol_desc](#grc_protocol_desc)。 |
+| comm_resource_config.listen_port | JSON数字或纯数字字符串 | 可选 | device侧网卡监听端口，详见 [listen_port](#grc_listen_port)。 |
+| comm_resource_config.qos | 数字 | 可选 | 通信协议qos，详见 [qos](#grc_qos)。 |
+| comm_resource_config.max_active_channels | 数字 | 可选 | CS场景下设备侧同时活跃传输通道数量，详见 [max_active_channels](#grc_max_active_channels)。 |
+| comm_resource_config.multi_channel.num_workers | 数字 | 可选 | 多通道并发传输的worker数，详见 [multi_channel](#grc_multi_channel)。 |
+| comm_resource_config.multi_channel.split_batch_size | 数字 | 可选 | 多通道并发传输的buffer拆分粒度，详见 [multi_channel](#grc_multi_channel)。 |
+| transfer_config.max_transfer_count_per_batch | 数字或十进制数字字符串 | 可选 | 单个内部传输批次最多包含的buffer数量，详见 [max_transfer_count_per_batch](#grc_transfer_batch)。 |
+| fabric_memory.max_capacity | 数字或数字字符串 | 可选 | 虚拟内存池大小，详见 [fabric_memory](#grc_fabric_memory)。 |
+| fabric_memory.start_address | 数字或数字字符串 | 可选 | 虚拟内存池起始地址，详见 [fabric_memory](#grc_fabric_memory)。 |
+| fabric_memory.task_stream_num | 数字或数字字符串 | 可选 | 单个任务使用的流数量，详见 [fabric_memory](#grc_fabric_memory)。 |
+| fabric_memory.enable_aicpu_unfold | 布尔 | 可选 | 是否由AICPU展开，详见 [fabric_memory](#grc_fabric_memory)。 |
+| connect_pool.thread_num | 数字或数字字符串 | 可选 | 连接池线程数量，详见 [connect_pool](#grc_connect_pool)。 |
+| connect_pool.task_queue_capacity | 数字或数字字符串 | 可选 | 连接池任务队列容量，详见 [connect_pool](#grc_connect_pool)。 |
+| channel_pool.max_channel | 数字或数字字符串 | 可选 | 最大链路个数，仅通信域模式，详见 [channel_pool](#grc_channel_pool)。 |
+| channel_pool.high_waterline | 数字或数字字符串 | 可选 | 链路回收高水位阈值，仅通信域模式，详见 [channel_pool](#grc_channel_pool)。 |
+| channel_pool.low_waterline | 数字或数字字符串 | 可选 | 链路回收低水位阈值，仅通信域模式，详见 [channel_pool](#grc_channel_pool)。 |
+| local_comm_res_path | 字符串 | 可选 | 本地通信资源JSON文件路径，与LocalCommRes配套，详见 [local_comm_res_path](#grc_local_comm_res_path)。 |
+| topo_file_path | 字符串 | 可选 | 自动生成LocalCommRes时使用的硬件拓扑JSON文件路径，详见 [topo_file_path](#grc_topo_file_path)。 |
+
+**产品支持情况**
+
+<!-- npu="A3" id64 -->
+- `fabric_memory.*`：仅支持Atlas A3系列产品。
+<!-- end id64 -->
+<!-- npu="A3,910b" id65 -->
+- `channel_pool.*`：仅通信域模式下支持Atlas A2系列产品、Atlas A3系列产品。
+<!-- end id65 -->
+
+**详细说明与使用示例**
+
+**通信资源与建链（`comm_resource_config.*`）**
+
+<a id="grc_protocol_desc"></a>
+
+- **protocol_desc**：配置可使用的通信协议以及通信设备位置范围。UB CTP纯URMA模式可使用 `ub_ctp`，其他配置使用 `${protocol}:${placement}`。
+  - 支持值：`"ub_ctp"`、`"ubmem"`、`"roce:device"`、`"hccs:device"`、`"ub_ctp:device"`、`"ub_ctp:host"`、`"uboe:device"`、`"ub_rtp:device"`、`"roce:host"`。
+  - 过滤行为：配置后会对 `LocalCommRes` 中显式配置的 `endpoint_list` 和自动生成的 `endpoint_list` 按该范围进行过滤；显式配置的 `LocalCommRes` 在未配置本字段时不进行额外过滤。
+  <!-- npu="950" id59 -->
+  - Ascend 950PR&950DT系列产品说明：未配置该字段或仅配置 `"ub_ctp:device"` 时，自动生成Device UB资源，Host内存通过UBMEM映射到Device地址后使用Device UB链路传输；同时配置 `"ub_ctp:device"` 和 `"ub_ctp:host"` 时，自动生成Device+Host UB资源并使用纯URMA路径；配置 `"ub_ctp"` 与上述组合等价；单独配置 `"ub_ctp:host"` 时仅保留Host UB CTP Endpoint。
+  <!-- end id59 -->
+  - 手工配置 `LocalCommRes` 时，`"ub_ctp"` 要求同时提供Device和Host UB CTP Endpoint。
+  <!-- npu="A3" id63 -->
+  - `ubmem` 仅可单独书写，不支持 `ubmem:device`/`ubmem:host`；`ubmem` 仅支持超节点内传输，如果要使能跨超节点自动选择roce协议，需要同时配置为 `["ubmem", "roce:device"]`，仅支持Atlas A3系列产品。
+  <!-- end id63 -->
+
+<a id="grc_listen_port"></a>
+
+- **listen_port**：配置device侧网卡监听端口，取值范围[1, 65535]。使用说明如下。
+
+<!-- npu="910b" id44 -->
+  - Atlas A2系列产品：未配置时，固定使用 `16666` 端口。
+<!-- end id44 -->
+<!-- npu="A3" id45 -->
+  - Atlas A3系列产品：未配置时，固定使用 `16666` 端口。
+<!-- end id45 -->
+<!-- npu="950" id46 -->
+  - Ascend 950PR&950DT系列产品：未配置时，由底层通信组件自动选择可用端口，HIXL自动查询实际监听端口。
+<!-- end id46 -->
+
+<a id="grc_qos"></a>
+
+- **qos**：配置通信协议qos，取值范围[0, 7]，未配置时默认为0。
+
+<a id="grc_max_active_channels"></a>
+
+- **max_active_channels**：CS场景下配置设备侧同时活跃传输通道数量，取值范围[1, 8192]，未配置时默认值为128。每个active channel消耗2个Stream资源，配置值需结合当前卡形态的Stream资源上限及业务中已创建的Stream数量预留余量；不同卡形态的Stream资源上限参见《[Runtime运行时API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的aclrtCreateStream。超出[1, 8192]时Initialize返回参数错误。
+
+<a id="grc_multi_channel"></a>
+
+- **multi_channel.num_workers / multi_channel.split_batch_size**：多通道并发传输配置。
+  - `num_workers`：取值范围[1, 16]，默认值1（关闭多通道）。配置后，对UBOE、UB_RTP和Host RoCE协议在建链时创建N个独立CS client，同步传输和异步传输均支持多通道并发，提升小包场景带宽。worker数越大占用的线程、Stream等设备资源越多，建议不超过8。
+  - `split_batch_size`：取值范围[1, 4294967295]，默认值128。当单次传输的buffer数量大于split_batch_size时启用多通道拆分，拆分后的实际worker数由num_workers和buffer数量共同决定，不超过num_workers。
+
+使用示例：
+
+```sh
 {
-    "version": "1.3"
+    "comm_resource_config.protocol_desc": ["ub_ctp:device", "ub_ctp:host"], //可选，限定可用的通信协议与通信设备位置范围
+    "comm_resource_config.listen_port": "26666", //可选，device侧网卡监听端口，取值范围[1, 65535]
+    "comm_resource_config.qos": 0, //可选，通信协议qos，取值范围[0, 7]，默认0
+    "comm_resource_config.max_active_channels": "128", //可选，CS场景下设备侧同时活跃传输通道数量，取值范围[1, 8192]，默认128
+    "comm_resource_config.multi_channel.num_workers": 1, //可选，多通道并发传输的worker数，取值范围[1, 16]，默认1
+    "comm_resource_config.multi_channel.split_batch_size": 128 //可选，多通道并发传输的buffer拆分粒度，取值范围[1, 4294967295]，默认128
 }
 ```
 
-- 完整配置示例（手动指定通信资源信息）：
+**数据传输批次（`transfer_config.*`）**
 
-```json
+<a id="grc_transfer_batch"></a>
+
+- **max_transfer_count_per_batch**：单个内部传输批次最多包含的buffer数量，超过该值时HIXL保持原始顺序自动分批。默认值1920。HIXL全局校验范围为[1, 32766]，HCCS/FabricMem范围为[1, 1920]。FabricMem两种模式都执行[1, 1920]校验：`fabric_memory.enable_aicpu_unfold=true` 时，该值控制AICPU展开的逻辑批次和Notify边界；`false` 时，Host逐条连续提交 `aclrtMemcpyAsync`，不按该值分批或在该值边界同步。RoCE/URMA队列深度：Client的SQ/SCQ深度按 `max(64, nextPowerOfTwo(配置值 + 2))` 计算；Server的SQ/SCQ深度固定为64；RQ/RCQ不由HIXL下发，由Hcomm按协议和平台默认策略设置；队列深度的协议和硬件能力校验由Hcomm负责。CANN 9.2.0及以上版本支持该配置。
+
+使用示例：
+
+```sh
 {
-    "version": "1.3",
-    "net_instance_id": "superpod1_1",
-    "endpoint_list": [
-        {
-            "protocol": "roce",
-            "comm_id": "10.10.10.1",
-            "placement": "device"
-        }
-    ]
+    "transfer_config.max_transfer_count_per_batch": 1920 //可选，单个内部传输批次最多包含的buffer数量，默认1920
 }
 ```
 
-> **说明：** 推荐使用最小配置方式，系统会自动生成本地通信资源信息。如需手动指定，endpoint_list中各字段的含义请参考[通信资源配置字段说明](#通信资源配置字段说明)。
+**Fabric Mem（`fabric_memory.*`）**
 
-OPTION_GLOBAL_RESOURCE_CONFIG的配置示例和使用约束如下：
+<a id="grc_fabric_memory"></a>
 
-<!-- npu="A3" id6 -->
-对于Fabric Mem模式（仅Atlas A3系列产品支持），该参数配置示例如下：
+- **max_capacity**：虚拟内存池的大小，取值范围：(0, 1024]之间的整数，默认值32，单位TB，实际可用范围由底层决定。
+- **start_address**：虚拟内存池起始地址，取值范围：[0, 1024]之间的整数，默认值40，单位TB。
+- **task_stream_num**：单个任务使用的流数量，取值范围：[1, 8]，默认值1；enable_aicpu_unfold为true时仅支持1。
+- **enable_aicpu_unfold**：是否由AICPU展开，布尔类型，默认true。
+
+使用示例：
 
 ```sh
 {
     "fabric_memory.max_capacity": "128", //虚拟内存池的大小。取值范围：(0, 1024]之间的整数，默认值：32，单位TB，实际可用范围由底层决定
     "fabric_memory.start_address": "40", //虚拟内存池起始地址。取值范围：[0, 1024]之间的整数，默认值：40，单位TB
     "fabric_memory.task_stream_num": "1", //单个任务使用的流数量，取值范围：[1, 8]，默认值：1；enable_aicpu_unfold为true时仅支持1
-    "fabric_memory.enable_aicpu_unfold": true, //是否由AICPU展开，布尔类型，默认true
-    "transfer_config.max_transfer_count_per_batch": 1920 //单个内部传输批次的最大buffer数量，FabricMem范围[1, 1920]
+    "fabric_memory.enable_aicpu_unfold": true //是否由AICPU展开，布尔类型，默认true
 }
 ```
-<!-- end id6 -->
 
-对于异步建链/断链机制，该参数配置示例如下：
+**异步建链/断链连接池（`connect_pool.*`）**
+
+<a id="grc_connect_pool"></a>
+
+- **thread_num**：连接池线程数量，取值范围：[1, 64]之间的整数，默认值2。
+- **task_queue_capacity**：连接池任务队列容量，取值范围：[1, 65535]之间的整数，默认值128。
+
+使用示例：
 
 ```sh
 {
-    "connect_pool.thread_num":"2", // 连接池线程数量。取值范围：[1, 64]之间的整数，默认值：2
-    "connect_pool.task_queue_capacity":"256" // 连接池任务队列容量。取值范围：[1, 65535]之间的整数，默认值：128
+    "connect_pool.thread_num": "2", //连接池线程数量。取值范围：[1, 64]之间的整数，默认值：2
+    "connect_pool.task_queue_capacity": "256" //连接池任务队列容量。取值范围：[1, 65535]之间的整数，默认值：128
 }
 ```
 
-device侧网卡默认监听端口为16666，如果在多个进程使用同一个网卡的场景，可以做如下配置：
+**链路池（`channel_pool.*`，仅通信域模式）**
+
+<a id="grc_channel_pool"></a>
+
+- **max_channel**：最大链路个数，取值范围：(0, 512]之间的整数，默认值512。
+- **high_waterline**：链路回收的高水位阈值，取值范围：(0, 1)之间的小数，需要和channel_pool.low_waterline同时配置。
+- **low_waterline**：链路回收的低水位阈值，即回收后保留的链路数比例，取值范围：(0, 1)之间的小数，需要小于高水位、与高水位同时配置。
+
+链路池工作时，当链路数达到高水位阈值，选取 (当前链路数 - 低水位阈值对应的链路数) 条链路进行销毁（其中正在传输的链路不会被销毁）。相关参数计算如下：
 
 ```sh
-{
-    "comm_resource_config.listen_port": "26666", //可选，取值范围：[1, 65535]之间的整数。
-    "comm_resource_config.max_active_channels": "128" //可选，CS场景下配置设备侧同时活跃传输通道数量。取值范围：[1, 8192]，默认值：128，每个active channel消耗2个Stream资源
-}
+高水位线对应的链路数 = max(1, floor(channel_pool.max_channel × channel_pool.high_waterline))
+低水位线对应的链路数 = max(1, floor(channel_pool.max_channel × channel_pool.low_waterline))
 ```
 
-通过文件路径配置本地通信资源时，可以做如下配置：
+在以下配置示例中，高水位对应的链路数=3，低水位对应的链路数=1。每次建链前检查当前链路数是否已达到3条，若已达到，则选取 (当前链路数 - 1) 条链路进行销毁（其中正在传输的链路不会被销毁）。
 
-```json
-{
-    "local_comm_res_path": "/path/to/local_comm_res.json"
-}
-```
-
-`local_comm_res_path`支持绝对路径和相对路径，相对路径基于进程当前工作目录解析。目标文件必须是大小在[1字节, 1MiB]范围内的普通文件，文件内容格式与OPTION_LOCAL_COMM_RES相同。与OPTION_LOCAL_COMM_RES同时配置且option非空时，以OPTION_LOCAL_COMM_RES为准。
-
-自动生成LocalCommRes时如需指定硬件拓扑文件，须在OPTION_GLOBAL_RESOURCE_CONFIG（全局资源配置）JSON中配置，示例如下：
-
-```json
-{
-    "topo_file_path": "/path/to/topo.json"
-}
-```
-
-`topo_file_path`不配置或配置为空串时，HIXL按mainboard_id在默认拓扑目录中查找拓扑文件；配置非空路径时使用该文件。目标文件必须是大小在[1字节, 1MiB]范围内的普通文件，文件不存在、类型非法、超出大小或解析失败则Initialize失败。已通过OPTION_LOCAL_COMM_RES或local_comm_res_path提供非空endpoint_list时(手动配置local_comm_res信息时)，不会读取本字段，也不校验该路径。
-
-对于链路池机制，该参数配置示例如下：
+使用示例：
 
 ```sh
 {
@@ -196,28 +373,117 @@ device侧网卡默认监听端口为16666，如果在多个进程使用同一个
 }
 ```
 
-链路池机制注意事项：
+- 链路池约束：
+  - 启用链路池机制时，集群内所有HIXL Engine均需配置本选项。
+  - 调用transfer_sync或transfer_async接口时，若不存在可用链路，链路池会自动执行建链操作。
+  - 链路池机制会引入额外的传输与建链开销，可能导致性能下降。
+  - 链路池仅通信域模式下支持配置，HIXL_CS等其他模式下不支持。
 
-- 集群内的所有Hixl Engine均需配置OPTION_GLOBAL_RESOURCE_CONFIG。
-- 链路池机制会引入额外开销，导致性能下降。
-- 仅通信域模式下支持配置，HIXL_CS等其他模式下不支持。
-<!-- end id7 -->
+**本地通信资源文件（与 [LocalCommRes](#option_local_comm_res) 配套）**
 
-<!-- npu="950" id4 -->
-**表 2**  options（Ascend 950PR&950DT系列产品）
+<a id="grc_local_comm_res_path"></a>
 
-| 参数名 | 可选/必选 | 描述                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| --- | --- |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| OPTION_LOCAL_COMM_RES | 可选 | 配置本地通信资源信息，格式是 json 格式的字符串。配置格式参考[通信资源配置字段说明](#通信资源配置字段说明)，配置为空不会自动生成相关信息。也可通过OPTION_GLOBAL_RESOURCE_CONFIG中的local_comm_res_path指定本地通信资源JSON文件路径，由HIXL读取文件内容作为本地通信资源。OPTION_LOCAL_COMM_RES配置为非空字符串或OPTION_GLOBAL_RESOURCE_CONFIG中的local_comm_res_path配置为有效文件路径，两者至少配置一项。两者同时配置且本option非空时，以本option为准。配置样例见下方[配置样例](#配置样例)<br/>**注意：<br/>1、以上配置样例中的具体值仅为格式参考示例，实际使用时必须从当前环境上查询真实的通信资源配置信息进行替换，直接拷贝样例值将导致通信失败。<br/>2、自动生成localcommres能力需要用户使用root权限调用hixl接口，且要求LCNE版本不低于LCNE: UBM_2.0.0.B011，可前往1213前台执行dis startup查看LCNE版本信息；HDK版本不低于25.1.RC1.B108，可通过npu-smi info来查看HDK版本信息。<br/>3、目前仅UB场景支持自动生成net_instance_id与endpoint_list，如果用户想要自行配置localcommres信息，可以使用工具来辅助生成指定npu的localcommres信息，具体使用方法详见[scripts/tools/hixl_tool/readme.md](../../../../scripts/tools/hixl_tool/readme.md)；如仅需生成单个NPU的Device侧UB通信边，也可使用简易工具lcrgen，详见[scripts/tools/lcrgen/README.md](../../../../scripts/tools/lcrgen/README.md)。<br/>4、UB场景下，如果endpoint_list仅配置placement为device的UB endpoint，则仅支持Device地址的注册和传输；如果endpoint_list仅配置placement为host的UB endpoint，则仅支持Host地址的注册和传输。需要同时使用Device和Host地址时，需同时配置对应placement的UB endpoint。** |
-| OPTION_GLOBAL_RESOURCE_CONFIG | 可选 | 字符串取值 "GlobalResourceConfig"。用于开启并配置全局资源，格式为 json 格式的字符串，字段说明参考[全局资源配置字段说明](#全局资源配置字段说明)。                                                                                                                                                                                                                                                                                                                                                                                                     |
-| OPTION_AUTO_CONNECT | 可选 | 字符串取值 "AutoConnect"。取值：0 — 不开启 Auto Connect 模式；1 — 开启 Auto Connect 模式。说明：开启该选项后，可跳过建链，直接进行传输；开启该选项后，传输发生异常或对端销毁后自动清理异常链路（对端销毁需要心跳机制来检测，心跳间隔默认 10s）。                                                                                                                                                                                                                                                                                                                                           |
-| OPTION_RDMA_TRAFFIC_CLASS | 可选 | 字符串取值"RdmaTrafficClass"。<br>用于配置RDMA网卡的traffic class。和环境变量HCCL_RDMA_TC功能相同，如同时配置，当前option优先级更高；未同时配置，以配置的一方为准。<br>取值范围为[0,255]，且需要配置为4的整数倍，默认值为132。<br>说明：适用于Ascend 950PR&950DT系列产品的RoCE场景。 |
-| OPTION_RDMA_SERVICE_LEVEL | 可选 | 字符串取值"RdmaServiceLevel"。<br>用于配置RDMA网卡的service level。和环境变量HCCL_RDMA_SL功能相同，如同时配置，当前option优先级更高；未同时配置，以配置的一方为准。<br>取值范围为[0, 7]，默认值为4。<br>说明：适用于Ascend 950PR&950DT系列产品的RoCE场景。 |
-<!-- end id4 -->
+- **local_comm_res_path**：本地通信资源JSON文件路径，文件内容格式与 `LocalCommRes` 相同。支持绝对路径和相对路径，相对路径基于进程当前工作目录解析。目标文件必须是大小在[1字节, 1MiB]范围内的普通文件。与 `LocalCommRes` 同时配置且 `LocalCommRes` 非空时，以 `LocalCommRes` 为准。
 
-<a id="配置样例"></a>**配置样例**
+<a id="grc_topo_file_path"></a>
 
-UB——最小配置（仅配置version字段，其他字段自动生成）
+- **topo_file_path**：自动生成LocalCommRes时使用的硬件拓扑JSON文件路径。不配置或配置为空串时，HIXL按mainboard_id在默认拓扑目录中查找拓扑文件；配置非空路径时使用该文件。目标文件必须是大小在[1字节, 1MiB]范围内的普通文件，文件不存在、类型非法、超出大小或解析失败则Initialize失败。已通过 `LocalCommRes` 或 `local_comm_res_path` 提供非空endpoint_list时（手动配置local_comm_res信息时），不会读取本字段，也不校验该路径。
+
+使用示例：
+
+```json
+{
+    "local_comm_res_path": "/path/to/local_comm_res.json"
+}
+```
+
+```json
+{
+    "topo_file_path": "/path/to/topo.json"
+}
+```
+
+<a id="option_local_comm_res"></a>
+
+**LocalCommRes（OPTION_LOCAL_COMM_RES）**
+
+- 选项键：`"LocalCommRes"`。
+- 取值：JSON字符串，本地通信资源信息。
+- 默认值：不配置。
+- 作用：向HIXL提供本地可用的通信资源。它与 `GlobalResourceConfig` 的 `local_comm_res_path`、`topo_file_path`、`comm_resource_config.protocol_desc` 配合决定实际使用的本地通信资源，字段见下表。
+
+本地通信资源的提供方式及优先级如下：
+
+| 提供方式 | 配置位置 | 说明 |
+| --- | --- | --- |
+| 内联JSON | `options["LocalCommRes"]`（本选项） | 直接传入本地通信资源JSON。 |
+| JSON文件 | `GlobalResourceConfig` 的 `local_comm_res_path` | 指定文件路径，HIXL读取文件内容，文件内容格式与本选项相同。与本选项同时配置且本选项非空时，以本选项为准。 |
+| 自动生成 | 不配置以上两者 | 由HIXL自动生成，适用产品与限制见 [version](#lcr_version) 说明。 |
+
+<a id="通信资源配置字段说明"></a>
+
+**表 LocalCommRes 字段清单**
+
+| 字段名 | 数据类型 | 必选/可选 | 简介 |
+| --- | --- | --- | --- |
+| version | 字符串 | 必选 | 版本号，决定建链方式，详见 [version](#lcr_version)。 |
+| net_instance_id | 字符串 | 必选 | 当前超节点的唯一标识，详见 [net_instance_id](#lcr_net_instance_id)。 |
+| server_id | 字符串 | 可选 | 本机服务器标识，详见 [server_id](#lcr_server_id)。 |
+| endpoint_list | 数组 | 必选 | 可以使用的通信设备列表，详见 [endpoint_list](#lcr_endpoint_list)。 |
+| endpoint_list[].protocol | 字符串 | 必选 | 通信协议，详见 [endpoint_list](#lcr_endpoint_list)。 |
+| endpoint_list[].comm_id | 字符串 | 必选 | 通信标识，详见 [endpoint_list](#lcr_endpoint_list)。 |
+| endpoint_list[].placement | 字符串 | 必选 | 通信设备位置，详见 [endpoint_list](#lcr_endpoint_list)。 |
+| endpoint_list[].plane | 字符串 | 可选 | 通信设备平面，详见 [endpoint_list](#lcr_endpoint_list)。 |
+| endpoint_list[].dst_eid | 字符串 | 可选 | 与当前通信设备连接的对端通信设备的${eid}，详见 [endpoint_list](#lcr_endpoint_list)。 |
+
+**详细说明与使用示例**
+
+<a id="lcr_version"></a>
+
+- **version**：版本号，决定建链方式。支持以下配置方式：
+  <!-- npu="A3,910b" id62 -->
+  - `"1.0"` 或 `"1.2"`（ranktable格式）：使用集合通信的通信域方式进行建链，建议单卡建链数量不超过512。仅需配置ranktable中当前llm datadist所使用的Device信息，无需配置 `server_count` 和 `rank_id` 字段。
+  <!-- end id62 -->
+  - `"1.3"`（推荐）：使用HixlCS能力进行建链，没有链路上限限制。仅配置 `version` 字段即可，其余字段自动生成。需要HDK版本大于等于25.5.0且toolkit包版本大于等于9.1.0。
+
+自动生成的适用产品与限制：
+
+<!-- npu="A3,910b" id52 -->
+- Atlas A2系列产品、Atlas A3系列产品：不配置或配置为空串时由HIXL自动生成，使用集合通信的通信域方式进行建链。由于Device侧Stream资源有限且建链占用内存，建议单卡建链数量不超过512。
+<!-- end id52 -->
+<!-- npu="950" id53 -->
+- Ascend 950PR&950DT系列产品：不配置或配置为空串时由HIXL自动生成。自动生成的注意事项见下方"Ascend 950PR&950DT系列产品注意事项"。
+<!-- end id53 -->
+
+<a id="lcr_net_instance_id"></a>
+
+- **net_instance_id**：当前超节点的唯一标识，每个超节点唯一即可。
+
+<a id="lcr_server_id"></a>
+
+- **server_id**：本机服务器标识，用于判断传输任务是否跨机。该字段用于判断H2H传输是否出框，仅用于 protocol_desc 为 ub_ctp:host 的场景；用户可自行配置server_id，如果不配置该选项，当 protocol_desc 中包含 `ub_ctp:host` 选项时，会自动生成server_id。
+
+<a id="lcr_endpoint_list"></a>
+
+- **endpoint_list**：可以使用的通信设备列表，其元素字段如下。
+  - `protocol`：通信协议，支持 `"roce"`、`"ub_ctp"`、`"uboe"`、`"ub_rtp"`。
+  - `comm_id`：通信标识。protocol为ub_ctp/ub_rtp时填${eid}；protocol为roce时填ipv4/ipv6网卡地址；protocol为uboe时填device uboe网卡ip地址。
+  - `placement`：通信设备位置，支持 `"host"`、`"device"`。
+  - `plane`：通信设备平面（可选），protocol为ub_ctp时，设备区分平面则填写，每个平面唯一（如 `"plane-a"`/`"plane-b"`）。
+  - `dst_eid`：与当前通信设备连接的对端通信设备的${eid}（可选），protocol为ub_ctp时，存在full-mesh直连对端则填写对端${eid}。
+  - 与 `protocol_desc` 的配合：`GlobalResourceConfig` 的 `comm_resource_config.protocol_desc` 会按协议与placement范围过滤本列表（内联配置和自动生成的均会过滤）。
+
+<!-- npu="950" id54 -->
+**Ascend 950PR&950DT系列产品注意事项**
+
+1. 自动生成LocalCommRes要求LCNE版本不低于 `LCNE: UBM_2.0.0.B011`（可前往1213前台执行 `dis startup` 查看LCNE版本信息），HDK版本不低于 `25.1.RC1.B108`（可通过 `npu-smi info` 查看HDK版本信息）。
+2. 目前仅UB场景支持自动生成 `net_instance_id` 与 `endpoint_list`。如需自行配置LocalCommRes，可使用工具辅助生成指定NPU的信息，详见 [scripts/tools/hixl_tool/readme.md](../../../../scripts/tools/hixl_tool/readme.md)；如仅需生成单个NPU的Device侧UB通信边，也可使用简易工具lcrgen，详见 [scripts/tools/lcrgen/README.md](../../../../scripts/tools/lcrgen/README.md)。
+3. UB场景下，若 `endpoint_list` 仅配置placement为device的UB endpoint，则仅支持Device地址的注册和传输；若仅配置placement为host的UB endpoint，则仅支持Host地址的注册和传输。需要同时使用Device和Host地址时，需同时配置对应placement的UB endpoint。
+<!-- end id54 -->
+
+**配置样例**
+
+UB——最小配置（仅配置 `version` 字段，其他字段自动生成）：
 
 ```json
 {
@@ -225,7 +491,7 @@ UB——最小配置（仅配置version字段，其他字段自动生成）
 }
 ```
 
-UB——完整配置
+UB——完整配置：
 
 ```json
 {
@@ -243,10 +509,10 @@ UB——完整配置
 }
 ```
 
-ROCE
+ROCE：
 
 ```json
-  {
+{
   "version": "1.3",
   "net_instance_id": "superpod1_1",
   "endpoint_list": [
@@ -259,7 +525,7 @@ ROCE
 }
 ```
 
-UBOE
+UBOE：
 
 ```json
 {
@@ -275,7 +541,7 @@ UBOE
 }
 ```
 
-UB_RTP
+UB_RTP：
 
 ```json
 {
@@ -291,45 +557,7 @@ UB_RTP
 }
 ```
 
-<a id="通信资源配置字段说明"></a>**通信资源配置字段说明**
-
-| 字段名 | 数据类型 | 必选/可选 | 说明 | 支持值/填写规则                                                                                                                           |
-| --- | --- | --- | --- |------------------------------------------------------------------------------------------------------------------------------------|
-| version | 字符串 | 必选 | 版本号 | "1.3"。需要HDK版本大于等于25.5.0且toolkit包版本大于等于9.1.0。                                                                                       |
-| net_instance_id | 字符串 | 必选 | 当前超节点的唯一标识 | 每个超节点唯一即可。                                                                                                                         |
-| server_id | 字符串 | 可选 | 本机服务器标识，用于判断传输任务是否跨机 | 该字段用于判断H2H传输是否出框，仅用于 protocol_desc 为 ub_ctp:host 的场景；用户可自行配置server_id，如果不配置该选项，当 protocol_desc 中包含`ub_ctp:host` 选项时，会自动生成server_id |
-| endpoint_list | 数组 | 必选 | 可以使用的通信设备列表 | -                                                                                                                                  |
-| endpoint_list[].protocol | 字符串 | 必选 | 通信协议 | "roce"/"ub_ctp"/"uboe"/"ub_rtp"                                                                                                    |
-| endpoint_list[].comm_id | 字符串 | 必选 | 通信标识 | protocol为ub_ctp/ub_rtp时填${eid}；protocol为roce时填ipv4/ipv6网卡地址；protocol为uboe时填device uboe网卡ip地址                                       |
-| endpoint_list[].placement | 字符串 | 必选 | 通信设备位置 | "host"/"device"                                                                                                                    |
-| endpoint_list[].plane | 字符串 | 可选 | 通信设备平面 | protocol为ub_ctp时，设备区分平面则填写，每个平面唯一（如"plane-a"/"plane-b"）                                                                            |
-| endpoint_list[].dst_eid | 字符串 | 可选 | 与当前通信设备连接的对端通信设备的${eid} | protocol为ub_ctp时，存在full-mesh直连对端则填写对端${eid}                                                                                        |
-
-<a id="全局资源配置字段说明"></a>**全局资源配置字段说明**
-
-| 字段名 | 数据类型 | 必选/可选 | 说明 | 支持值/填写规则 |
-| ---- | ---- | ---- | ---- | ---- |
-| comm_resource_config.protocol_desc | 字符串或字符串数组 | 可选 | 配置可使用的通信协议以及通信设备位置范围。UB CTP纯URMA模式可使用`ub_ctp`，其他配置使用`${protocol}:${placement}` | 支持"ub_ctp"/"ubmem"/"roce:device"/"hccs:device"/"ub_ctp:device"/"ub_ctp:host"/"uboe:device"/"ub_rtp:device"/"roce:host"。配置后会对OPTION_LOCAL_COMM_RES中显式配置的endpoint_list和自动生成的endpoint_list按该范围进行过滤。A5上未配置该字段或仅配置"ub_ctp:device"时，自动生成Device UB资源，Host内存通过UBMEM映射到Device地址后使用Device UB链路传输；同时配置"ub_ctp:device"和"ub_ctp:host"时，自动生成Device+Host UB资源并使用纯URMA路径；配置"ub_ctp"与上述组合等价。单独配置"ub_ctp:host"时仅保留Host UB CTP Endpoint。手工配置LocalCommRes时，"ub_ctp"要求同时提供Device和Host UB CTP Endpoint。显式配置的OPTION_LOCAL_COMM_RES在未配置本字段时不进行额外过滤。`ubmem`仅可单独书写，不支持`ubmem:device`/`ubmem:host`。`ubmem`仅支持超节点内传输，如果要使能跨超节点自动选择roce协议，需要同时配置本option为["ubmem", "roce:device"]，仅支持Atlas A3 训练系列产品/Atlas A3 推理系列产品。 |
-| comm_resource_config.listen_port | JSON数字或纯数字字符串 | 可选 | 配置device侧网卡监听端口 | 取值范围为[1, 65535]。 |
-| comm_resource_config.qos | 数字 | 可选 | 配置通信协议qos | 当前仅支持[0-7]，当未配置的时候，默认为0。|
-| comm_resource_config.max_active_channels | 数字 | 可选 | CS场景下配置设备侧同时活跃传输通道数量 | 取值范围为[1, 8192]，未配置时默认值为128。每个active channel消耗2个Stream资源，配置值需结合当前卡形态的Stream资源上限及业务中已创建的Stream数量预留余量；不同卡形态的Stream资源上限参见CANN Runtime API [aclrtCreateStream](https://www.hiascend.com/document/detail/zh/canncommercial/latest/API/runtimeapi/aclcppdevg_03_0066.html)资料。超出[1, 8192]时Initialize返回参数错误。|
-| comm_resource_config.multi_channel.num_workers | 数字 | 可选 | 配置多通道并发传输的worker数 | 取值范围为[1, 16]，默认值为1（关闭多通道）。配置后，对UBOE、UB_RTP和Host RoCE协议在建链时创建N个独立CS client，同步传输和异步传输均支持多通道并发，提升小包场景带宽。worker数越大占用的线程、Stream等设备资源越多，建议不超过8。|
-| comm_resource_config.multi_channel.split_batch_size | 数字 | 可选 | 多通道并发传输的buffer拆分粒度 | 取值范围为[1, 4294967295]，默认值为128。当单次传输的buffer数量大于split_batch_size时启用多通道拆分，拆分后的实际worker数由num_workers和buffer数量共同决定，不超过num_workers。|
-| transfer_config.max_transfer_count_per_batch | 数字或十进制数字字符串 | 可选 | 单个内部传输批次最多包含的buffer数量，超过该值时HIXL保持原始顺序自动分批 | 默认值1920。HIXL全局校验范围为[1, 32766]，HCCS/FabricMem范围为[1, 1920]。FabricMem两种模式都执行[1, 1920]校验：`fabric_memory.enable_aicpu_unfold=true`时，该值控制AICPU展开的逻辑批次和Notify边界；`false`时，Host逐条连续提交`aclrtMemcpyAsync`，不按该值分批或在该值边界同步。RoCE/URMA队列深度说明：Client的SQ/SCQ深度按`max(64, nextPowerOfTwo(配置值 + 2))`计算；Server的SQ/SCQ深度固定为64；RQ/RCQ不由HIXL下发，由Hcomm按协议和平台默认策略设置。队列深度的协议和硬件能力校验由Hcomm负责。CANN 9.2.0及以上版本支持该配置。|
-| local_comm_res_path | 字符串 | 可选 | 本地通信资源 JSON 文件路径；文件内容格式与 OPTION_LOCAL_COMM_RES 相同 | 配置文件的绝对或相对路径，相对路径基于进程当前工作目录解析。目标文件必须是大小在[1字节, 1MiB]范围内的普通文件。与 OPTION_LOCAL_COMM_RES 同时配置且 option 非空时，以 OPTION_LOCAL_COMM_RES 为准。 |
-| topo_file_path | 字符串 | 可选 | 自动生成LocalCommRes时使用的硬件拓扑JSON文件路径 | 不配置或配置为空串时，按mainboard_id在默认拓扑目录中查找对应文件。配置非空路径时使用该文件；目标文件必须是大小在[1字节, 1MiB]范围内的普通文件。文件不存在、类型非法、超出大小或解析失败则Initialize失败。已通过OPTION_LOCAL_COMM_RES或local_comm_res_path提供非空endpoint_list时不使用本字段，也不校验该路径。 |
-
-comm_resource_config.listen_port的使用说明如下。
-
-<!-- npu="910b" id44 -->
-- Atlas A2系列产品：未配置时，固定使用`16666`端口。
-<!-- end id44 -->
-<!-- npu="A3" id45 -->
-- Atlas A3系列产品：未配置时，固定使用`16666`端口。
-<!-- end id45 -->
-<!-- npu="950" id46 -->
-- Ascend 950PR&950DT系列产品：未配置时，由底层通信组件自动选择可用端口，HIXL自动查询实际监听端口。
-<!-- end id46 -->
+> **说明：** 以上配置样例中的具体值仅为格式参考示例，实际使用时必须从当前环境上查询真实的通信资源配置信息进行替换，直接拷贝样例值将导致通信失败。
 
 **调用示例**
 
