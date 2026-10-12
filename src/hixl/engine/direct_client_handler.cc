@@ -27,9 +27,9 @@ Status DirectClientHandler::Create(const HandlerCreateArgs &args, std::unique_pt
   // HCCS and fabric mem both drive a fixed-size queue whose depth is bounded by
   // kMaxFixedQueueTransferCountPerBatch, so the per-batch descriptor count must stay inside that budget.
   if (pair.local.protocol == kProtocolHccs || pair.type == CommType::COMM_TYPE_UBMEM) {
-    HIXL_CHK_BOOL_RET_STATUS(args.max_transfer_count_per_batch <= kMaxFixedQueueTransferCountPerBatch, PARAM_INVALID,
+    HIXL_CHK_BOOL_RET_STATUS(args.MaxTransferCountPerBatch() <= kMaxFixedQueueTransferCountPerBatch, PARAM_INVALID,
                              "max_transfer_count_per_batch=%u exceeds %s range [1, %u]",
-                             args.max_transfer_count_per_batch, CommTypeToString(pair.type),
+                             args.MaxTransferCountPerBatch(), CommTypeToString(pair.type),
                              kMaxFixedQueueTransferCountPerBatch);
   }
   EndpointDesc local_endpoint{};

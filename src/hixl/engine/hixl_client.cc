@@ -81,24 +81,19 @@ Status HixlClient::Initialize(const std::vector<EndpointConfig> &local_endpoint_
         i, local_engine_.c_str(), remote_engine_.c_str(), CommTypeToString(pair.type), pair.local.ToString().c_str(),
         pair.remote.ToString().c_str());
   }
-  HandlerCreateArgs args{server_ip_,
-                         server_port_,
-                         rdma_tc_,
-                         rdma_sl_,
-                         handler_type,
-                         std::move(matched_pairs),
-                         qos_,
-                         max_active_channels_,
-                         max_transfer_count_per_batch_,
-                         multi_worker_num_,
-                         multi_channel_split_batch_size_,
-                         is_lazy,
-                         timeout_ms,
-                         ctrl_socket_,
-                         local_engine_,
-                         remote_engine_,
-                         max_transfer_count_per_batch_configured_,
-                         fabric_memory_};
+  HandlerCreateArgs args{};
+  args.server_ip = server_ip_;
+  args.server_port = server_port_;
+  args.rdma_tc = rdma_tc_;
+  args.rdma_sl = rdma_sl_;
+  args.handler_type = handler_type;
+  args.matched_pairs = std::move(matched_pairs);
+  args.global_config = global_config_;
+  args.is_lazy = is_lazy;
+  args.timeout_ms = timeout_ms;
+  args.ctrl_socket = ctrl_socket_;
+  args.local_engine = local_engine_;
+  args.remote_engine = remote_engine_;
   HIXL_CHK_STATUS_RET(ClientHandlerFactory::Create(args, client_handler_),
                       "ClientHandlerFactory create handler failed");
   HIXL_CHECK_NOTNULL(client_handler_, "ClientHandlerFactory create handler failed");

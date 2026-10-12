@@ -466,7 +466,7 @@ TEST_F(HixlEngineTest, InitializeSetsServerListenPortFromGlobalResourceConfig) {
 
   ClientConfig config{};
   engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, kTimeOut, false);
-  EXPECT_FALSE(config.qos.has_value());
+  EXPECT_FALSE(config.global_config.comm_resource_config.qos.has_value());
   engine.Finalize();
 }
 
@@ -501,8 +501,8 @@ TEST_F(HixlEngineTest, InitializeSetsClientQosFromGlobalResourceConfig) {
 
   ClientConfig config{};
   engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, kTimeOut, false);
-  ASSERT_TRUE(config.qos.has_value());
-  EXPECT_EQ(static_cast<uint32_t>(config.qos.value()), 7U);
+  ASSERT_TRUE(config.global_config.comm_resource_config.qos.has_value());
+  EXPECT_EQ(static_cast<uint32_t>(config.global_config.comm_resource_config.qos.value()), 7U);
   engine.Finalize();
 }
 
@@ -512,7 +512,7 @@ TEST_F(HixlEngineTest, InitializeWithoutQosDoesNotSetClientQos) {
 
   ClientConfig config{};
   engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, kTimeOut, false);
-  EXPECT_FALSE(config.qos.has_value());
+  EXPECT_FALSE(config.global_config.comm_resource_config.qos.has_value());
   engine.Finalize();
 }
 
@@ -529,8 +529,8 @@ TEST_F(HixlEngineTest, InitializeSetsMaxActiveChannelsFromGlobalResourceConfig) 
 
   ClientConfig config{};
   engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, kTimeOut, false);
-  ASSERT_TRUE(config.max_active_channels.has_value());
-  EXPECT_EQ(config.max_active_channels.value(), 8192U);
+  ASSERT_TRUE(config.global_config.comm_resource_config.max_active_channels.has_value());
+  EXPECT_EQ(config.global_config.comm_resource_config.max_active_channels.value(), 8192U);
   engine.Finalize();
 }
 
@@ -544,7 +544,7 @@ TEST_F(HixlEngineTest, InitializeWithoutMaxActiveChannelsDoesNotSetConfig) {
 
   ClientConfig config{};
   engine.BuildClientConfig(AscendString("127.0.0.1:26300"), config, kTimeOut, false);
-  EXPECT_FALSE(config.max_active_channels.has_value());
+  EXPECT_FALSE(config.global_config.comm_resource_config.max_active_channels.has_value());
   engine.Finalize();
 }
 

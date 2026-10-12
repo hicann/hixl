@@ -16,9 +16,8 @@
 #include <string>
 #include <vector>
 #include "common/hixl_inner_types.h"
-#include "common/transfer_config.h"
-#include "cs/ubmem/ubmem_types.h"
 #include "engine/client_handler.h"
+#include "hixl_options.h"
 
 namespace hixl {
 
@@ -37,18 +36,22 @@ struct HandlerCreateArgs {
     CommType type;
   };
   std::vector<EndpointPair> matched_pairs;
-  std::optional<uint8_t> qos;
-  std::optional<uint32_t> max_active_channels;
-  uint32_t max_transfer_count_per_batch{kDefaultMaxTransferCountPerBatch};
-  uint32_t multi_worker_num = 1U;
-  uint32_t multi_channel_split_batch_size = kDefaultSplitBatchSize;
+  GlobalResourceConfig global_config;
   bool is_lazy = false;
   uint32_t timeout_ms = 0;
   int32_t ctrl_socket = -1;
   std::string local_engine;
   std::string remote_engine;
-  bool max_transfer_count_per_batch_configured = false;
-  UbMemoryConfig fabric_memory;
+
+  uint32_t MultiWorkerNum() const {
+    return global_config.comm_resource_config.multi_worker_num.value_or(1U);
+  }
+  uint32_t MultiChannelSplitBatchSize() const {
+    return global_config.comm_resource_config.multi_channel_split_batch_size.value_or(kDefaultSplitBatchSize);
+  }
+  uint32_t MaxTransferCountPerBatch() const {
+    return global_config.transfer_config.max_transfer_count_per_batch;
+  }
 };
 
 class ClientHandlerFactory {

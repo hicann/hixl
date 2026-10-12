@@ -114,7 +114,7 @@ Status ReadLocalCommResFile(const std::string &path, std::string &content) {
   int fd = -1;
   size_t file_size = 0U;
   HIXL_CHK_STATUS_RET(
-      OpenValidatedRegularFile(path, kMaxLocalCommResFileSizeBytes, "local_comm_res_path", fd, file_size),
+      OpenValidatedRegularFile(path, kMaxLocalCommResFileSizeBytes, kGlobalResCfgLocalCommResPath, fd, file_size),
       "Failed to open local_comm_res_path file, path:%s", path.c_str());
   HIXL_MAKE_GUARD(close_fd, ([fd]() { (void)close(fd); }));
 
@@ -160,23 +160,23 @@ Status ParseUbMemoryFields(const nlohmann::json &json, UbMemoryConfig &cfg) {
 }
 
 Status ParseUbMemoryConfig(const nlohmann::json &json, UbMemoryConfig &cfg) {
-  if (json.contains("fabric_memory") && json.at("fabric_memory").is_object()) {
-    HIXL_CHK_STATUS_RET(ParseUbMemoryFields(json.at("fabric_memory"), cfg), "Failed to parse nested UbMemoryConfig");
+  if (json.contains(kGlobalResCfgFabricMemory) && json.at(kGlobalResCfgFabricMemory).is_object()) {
+    HIXL_CHK_STATUS_RET(ParseUbMemoryFields(json.at(kGlobalResCfgFabricMemory), cfg),
+                        "Failed to parse nested UbMemoryConfig");
   }
-  IntegerFieldRange capacity_range = {"fabric_memory.max_capacity", 1, static_cast<int64_t>(kMaxUbMemCapacityTB),
-                                      " TB"};
+  IntegerFieldRange capacity_range = {kGlobalResCfgMaxCapacity, 1, static_cast<int64_t>(kMaxUbMemCapacityTB), " TB"};
   HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, capacity_range, cfg.max_capacity),
                       "Failed to parse fabric_memory.max_capacity");
-  IntegerFieldRange start_addr_range = {"fabric_memory.start_address", static_cast<int64_t>(kMinUbMemStartAddrTB),
+  IntegerFieldRange start_addr_range = {kGlobalResCfgStartAddress, static_cast<int64_t>(kMinUbMemStartAddrTB),
                                         static_cast<int64_t>(kMaxUbMemStartAddrTB), " TB"};
   HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, start_addr_range, cfg.start_address),
                       "Failed to parse fabric_memory.start_address");
-  IntegerFieldRange stream_num_range = {"fabric_memory.task_stream_num", static_cast<int64_t>(kMinTaskStreamNum),
+  IntegerFieldRange stream_num_range = {kGlobalResCfgTaskStreamNum, static_cast<int64_t>(kMinTaskStreamNum),
                                         static_cast<int64_t>(kMaxTaskStreamNum), ""};
   HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, stream_num_range, cfg.task_stream_num),
                       "Failed to parse fabric_memory.task_stream_num");
-  if (json.contains("fabric_memory.enable_aicpu_unfold")) {
-    cfg.enable_aicpu_unfold = json.at("fabric_memory.enable_aicpu_unfold").get<bool>();
+  if (json.contains(kGlobalResCfgEnableAicpuUnfold)) {
+    cfg.enable_aicpu_unfold = json.at(kGlobalResCfgEnableAicpuUnfold).get<bool>();
   }
   if (cfg.enable_aicpu_unfold.value_or(true) && cfg.task_stream_num.has_value()) {
     HIXL_CHK_BOOL_RET_STATUS(*cfg.task_stream_num == 1U, PARAM_INVALID,
@@ -187,45 +187,44 @@ Status ParseUbMemoryConfig(const nlohmann::json &json, UbMemoryConfig &cfg) {
 }
 
 Status ParseConnectPoolConfig(const nlohmann::json &json, ConnectPoolConfig &cfg) {
-  IntegerFieldRange thread_num_range = {"connect_pool.thread_num", kMinConnectPoolThreadNum, kMaxConnectPoolThreadNum,
-                                        ""};
+  IntegerFieldRange thread_num_range = {kGlobalResCfgConnectPoolThreadNum, kMinConnectPoolThreadNum,
+                                        kMaxConnectPoolThreadNum, ""};
   HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, thread_num_range, cfg.thread_num),
                       "Failed to parse connect_pool.thread_num");
-  IntegerFieldRange task_queue_capacity_range = {"connect_pool.task_queue_capacity", kMinConnectPoolTaskQueueCapacity,
-                                                 kMaxConnectPoolTaskQueueCapacity, ""};
+  IntegerFieldRange task_queue_capacity_range = {kGlobalResCfgConnectPoolTaskQueueCapacity,
+                                                 kMinConnectPoolTaskQueueCapacity, kMaxConnectPoolTaskQueueCapacity,
+                                                 ""};
   HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, task_queue_capacity_range, cfg.task_queue_capacity),
                       "Failed to parse connect_pool.task_queue_capacity");
   return SUCCESS;
 }
 
 Status ParseCommResourceConfig(const nlohmann::json &json, CommResourceConfigDesc &cfg) {
-  if (json.contains("comm_resource_config.protocol_desc")) {
-    const auto &protocol_desc = json.at("comm_resource_config.protocol_desc");
+  if (json.contains(kGlobalResCfgProtocolDesc)) {
+    const auto &protocol_desc = json.at(kGlobalResCfgProtocolDesc);
     cfg.protocol_desc = protocol_desc.is_string() ? std::vector<std::string>{protocol_desc.get<std::string>()}
                                                   : protocol_desc.get<std::vector<std::string>>();
   }
-  IntegerFieldRange listen_port_range = {"comm_resource_config.listen_port", kMinListenPort, kMaxListenPort, ""};
+  IntegerFieldRange listen_port_range = {kGlobalResCfgListenPort, kMinListenPort, kMaxListenPort, ""};
   HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, listen_port_range, cfg.listen_port),
                       "Failed to parse comm_resource_config.listen_port");
-  IntegerFieldRange qos_range = {kQosName, kQosMin, kQosMax, ""};
+  IntegerFieldRange qos_range = {kGlobalResCfgQos, kQosMin, kQosMax, ""};
   HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, qos_range, cfg.qos), "Failed to parse comm_resource_config.qos");
-  IntegerFieldRange max_active_channels_range = {"comm_resource_config.max_active_channels", kMinActiveChannels,
-                                                 kMaxActiveChannels, ""};
+  IntegerFieldRange max_active_channels_range = {kGlobalResCfgMaxActiveChannels, kMinActiveChannels, kMaxActiveChannels,
+                                                 ""};
   HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, max_active_channels_range, cfg.max_active_channels),
                       "Failed to parse comm_resource_config.max_active_channels");
-  IntegerFieldRange multi_worker_num_range = {"comm_resource_config.multi_channel.num_workers", 1U, kMaxMultiWorkerNum,
-                                              ""};
+  IntegerFieldRange multi_worker_num_range = {kGlobalResCfgNumWorkers, 1U, kMaxMultiWorkerNum, ""};
   HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, multi_worker_num_range, cfg.multi_worker_num),
                       "Failed to parse comm_resource_config.multi_channel.num_workers");
-  IntegerFieldRange split_batch_range = {"comm_resource_config.multi_channel.split_batch_size", 1U,
-                                         std::numeric_limits<uint32_t>::max(), ""};
+  IntegerFieldRange split_batch_range = {kGlobalResCfgSplitBatchSize, 1U, std::numeric_limits<uint32_t>::max(), ""};
   HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, split_batch_range, cfg.multi_channel_split_batch_size),
                       "Failed to parse comm_resource_config.multi_channel.split_batch_size");
   return SUCCESS;
 }
 
 Status ParseTransferConfig(const nlohmann::json &json, TransferConfig &cfg) {
-  constexpr const char *kMaxTransferCountKey = "transfer_config.max_transfer_count_per_batch";
+  constexpr const char *kMaxTransferCountKey = kGlobalResCfgTransferCount;
   if (!json.contains(kMaxTransferCountKey)) {
     return SUCCESS;
   }
@@ -242,10 +241,10 @@ Status ParseTransferConfig(const nlohmann::json &json, TransferConfig &cfg) {
 }
 
 Status ParseLocalCommResPath(const nlohmann::json &json, GlobalResourceConfig &cfg) {
-  if (!json.contains("local_comm_res_path")) {
+  if (!json.contains(kGlobalResCfgLocalCommResPath)) {
     return SUCCESS;
   }
-  const auto &path_json = json.at("local_comm_res_path");
+  const auto &path_json = json.at(kGlobalResCfgLocalCommResPath);
   HIXL_CHK_BOOL_RET_STATUS(path_json.is_string(), PARAM_INVALID, "local_comm_res_path must be a string");
   cfg.local_comm_res_path = path_json.get<std::string>();
   HIXL_CHK_BOOL_RET_STATUS(!cfg.local_comm_res_path->empty(), PARAM_INVALID,
@@ -268,10 +267,10 @@ Status ValidateRegularFileSizeLimit(const std::string &path, size_t max_size_byt
 }
 
 Status ParseTopoFilePath(const nlohmann::json &json, GlobalResourceConfig &cfg) {
-  if (!json.contains("topo_file_path")) {
+  if (!json.contains(kGlobalResCfgTopoFilePath)) {
     return SUCCESS;
   }
-  const auto &path_json = json.at("topo_file_path");
+  const auto &path_json = json.at(kGlobalResCfgTopoFilePath);
   HIXL_CHK_BOOL_RET_STATUS(path_json.is_string(), PARAM_INVALID, "topo_file_path must be a string");
   const std::string path = path_json.get<std::string>();
   if (path.empty()) {
@@ -304,7 +303,7 @@ Status MaybeValidateTopoFilePath(const HixlOptions &opts) {
     HIXL_LOGI("Skip topo_file_path validation because endpoint_list is provided");
     return SUCCESS;
   }
-  return ValidateRegularFileSizeLimit(*path, kMaxTopoFileSizeBytes, "topo_file_path");
+  return ValidateRegularFileSizeLimit(*path, kMaxTopoFileSizeBytes, kGlobalResCfgTopoFilePath);
 }
 
 Status ParseGlobalResourceConfigJson(const nlohmann::json &json, GlobalResourceConfig &cfg) {
@@ -315,6 +314,25 @@ Status ParseGlobalResourceConfigJson(const nlohmann::json &json, GlobalResourceC
   HIXL_CHK_STATUS_RET(ParseLocalCommResPath(json, cfg), "Failed to parse local_comm_res_path");
   HIXL_CHK_STATUS_RET(ParseTopoFilePath(json, cfg), "Failed to parse topo_file_path");
   return SUCCESS;
+}
+
+void AppendFabricMemoryJson(nlohmann::json &json, const UbMemoryConfig &cfg) {
+  if (cfg.max_capacity.has_value()) {
+    json[kGlobalResCfgMaxCapacity] = cfg.max_capacity.value();
+  }
+  if (cfg.start_address.has_value()) {
+    json[kGlobalResCfgStartAddress] = cfg.start_address.value();
+  }
+  if (cfg.task_stream_num.has_value()) {
+    json[kGlobalResCfgTaskStreamNum] = cfg.task_stream_num.value();
+  }
+  if (cfg.enable_aicpu_unfold.has_value()) {
+    json[kGlobalResCfgEnableAicpuUnfold] = cfg.enable_aicpu_unfold.value();
+  }
+}
+
+std::string DumpGlobalResourceConfig(const nlohmann::json &json) {
+  return json.empty() ? std::string() : json.dump();
 }
 }  // namespace
 
@@ -550,6 +568,49 @@ Status HixlOptions::ResolveLocalCommResFromFile() {
   HIXL_EVENT("Resolved local_comm_res from file successfully, path:%s, content_size:%zu bytes", path.c_str(),
              local_comm_res_->size());
   return SUCCESS;
+}
+
+const std::unordered_set<std::string> &GetSupportedOptionKeys() {
+  static const std::unordered_set<std::string> kSupportedOptions = {
+      OPTION_ENABLE_USE_FABRIC_MEM,    OPTION_RDMA_TRAFFIC_CLASS,
+      adxl::OPTION_RDMA_TRAFFIC_CLASS, OPTION_RDMA_SERVICE_LEVEL,
+      adxl::OPTION_RDMA_SERVICE_LEVEL, OPTION_LOCAL_COMM_RES,
+      adxl::OPTION_LOCAL_COMM_RES,     OPTION_BUFFER_POOL,
+      adxl::OPTION_BUFFER_POOL,        OPTION_AUTO_CONNECT,
+      adxl::OPTION_AUTO_CONNECT,       OPTION_GLOBAL_RESOURCE_CONFIG};
+  return kSupportedOptions;
+}
+
+std::string SerializeGlobalResourceConfigForServer(const GlobalResourceConfig &config) {
+  nlohmann::json json;
+  const auto &comm = config.comm_resource_config;
+  if (comm.listen_port.has_value()) {
+    json[kGlobalResCfgListenPort] = comm.listen_port.value();
+  }
+  if (comm.max_active_channels.has_value()) {
+    json[kGlobalResCfgMaxActiveChannels] = comm.max_active_channels.value();
+  }
+  AppendFabricMemoryJson(json, config.fabric_memory);
+  return DumpGlobalResourceConfig(json);
+}
+
+std::string SerializeGlobalResourceConfigForClient(const GlobalResourceConfig &config, std::optional<uint8_t> rdma_tc,
+                                                   std::optional<uint8_t> rdma_sl) {
+  nlohmann::json json;
+  const auto &comm = config.comm_resource_config;
+  if (comm.qos.has_value()) {
+    json[kGlobalResCfgQos] = comm.qos.value();
+  } else if (!rdma_tc.has_value() && !rdma_sl.has_value()) {
+    json[kGlobalResCfgQos] = kQosDefault;
+  }
+  if (comm.max_active_channels.has_value()) {
+    json[kGlobalResCfgMaxActiveChannels] = comm.max_active_channels.value();
+  }
+  AppendFabricMemoryJson(json, config.fabric_memory);
+  if (config.transfer_config.max_transfer_count_per_batch_configured) {
+    json[kGlobalResCfgTransferCount] = config.transfer_config.max_transfer_count_per_batch;
+  }
+  return DumpGlobalResourceConfig(json);
 }
 
 }  // namespace hixl

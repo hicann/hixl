@@ -30,19 +30,11 @@ constexpr int32_t kAutoConnectTimeout = 3000;
 constexpr const char BUFFER_POOL_DISABLED[] = "0:0";
 }  // namespace
 
-const std::unordered_set<std::string> HixlEngine::kSupportedOptions = {
-    OPTION_ENABLE_USE_FABRIC_MEM,    OPTION_RDMA_TRAFFIC_CLASS,
-    adxl::OPTION_RDMA_TRAFFIC_CLASS, OPTION_RDMA_SERVICE_LEVEL,
-    adxl::OPTION_RDMA_SERVICE_LEVEL, OPTION_LOCAL_COMM_RES,
-    adxl::OPTION_LOCAL_COMM_RES,     OPTION_BUFFER_POOL,
-    adxl::OPTION_BUFFER_POOL,        OPTION_AUTO_CONNECT,
-    adxl::OPTION_AUTO_CONNECT,       OPTION_GLOBAL_RESOURCE_CONFIG};
-
 bool HixlEngine::IsInitialized() const {
   return is_initialized_.load(std::memory_order::memory_order_relaxed);
 }
 
-Status HixlEngine::InitServer(std::optional<uint32_t> listen_port, std::optional<uint32_t> max_active_channels) {
+Status HixlEngine::InitServer() {
   std::string ip;
   int32_t port = 0;
   HIXL_CHK_STATUS_RET(ParseListenInfo(local_engine_, ip, port),
@@ -51,7 +43,7 @@ Status HixlEngine::InitServer(std::optional<uint32_t> listen_port, std::optional
                       "ipv6 should be '[host_ip]:host_port' or '[host_ip]' "
                       "current local_engine:%s",
                       local_engine_.c_str());
-  HIXL_CHK_STATUS_RET(server_.Initialize(ip, port, endpoint_list_, listen_port, max_active_channels, fabric_memory_),
+  HIXL_CHK_STATUS_RET(server_.Initialize(ip, port, endpoint_list_, global_config_),
                       "[HixlEngine] Failed to initialize HixlEngine, local_engine:%s", local_engine_.c_str());
   return SUCCESS;
 }
@@ -59,7 +51,7 @@ Status HixlEngine::InitServer(std::optional<uint32_t> listen_port, std::optional
 Status HixlEngine::Initialize(const HixlOptions &options) {
   HIXL_EVENT("[HixlEngine] initialize start, local_engine:%s", local_engine_.c_str());
   std::lock_guard<std::shared_mutex> lock(mutex_);
-  HIXL_CHK_STATUS_RET(options.CheckSupportedOptions(kSupportedOptions), "[HixlEngine] Unsupported option");
+  HIXL_CHK_STATUS_RET(options.CheckSupportedOptions(GetSupportedOptionKeys()), "[HixlEngine] Unsupported option");
   enable_ubmem_ = options.EnableUbMem().value_or(false);
   const auto &raw = options.RawOptions();
   const auto &hixl_bp_it = raw.find(hixl::OPTION_BUFFER_POOL);
@@ -70,40 +62,17 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
                              "Invalid option fields, OPTION_BUFFER_POOL for hixl engine only supports %s",
                              BUFFER_POOL_DISABLED);
   }
-  auto global_resource_config = options.GlobalResourceCfg();
+  global_config_ = options.GlobalResourceCfg().value_or(GlobalResourceConfig{});
   std::string local_comm_res;
   HIXL_CHK_STATUS_RET(EndpointGenerator::BuildEndpointList(options, local_engine_, local_comm_res, endpoint_list_),
                       "[HixlEngine] Failed to build endpoint list from options");
-  std::optional<uint32_t> listen_port;
-  if (global_resource_config.has_value()) {
-    listen_port = global_resource_config->comm_resource_config.listen_port;
-    qos_ = global_resource_config->comm_resource_config.qos;
-    max_active_channels_ = global_resource_config->comm_resource_config.max_active_channels;
-    max_transfer_count_per_batch_ = global_resource_config->transfer_config.max_transfer_count_per_batch;
-    max_transfer_count_per_batch_configured_ =
-        global_resource_config->transfer_config.max_transfer_count_per_batch_configured;
-    multi_worker_num_ = global_resource_config->comm_resource_config.multi_worker_num.value_or(1U);
-    multi_channel_split_batch_size_ =
-        global_resource_config->comm_resource_config.multi_channel_split_batch_size.value_or(kDefaultSplitBatchSize);
-    fabric_memory_ = global_resource_config->fabric_memory;
-  } else {
-    listen_port.reset();
-    qos_.reset();
-    max_active_channels_.reset();
-    max_transfer_count_per_batch_ = kDefaultMaxTransferCountPerBatch;
-    max_transfer_count_per_batch_configured_ = false;
-    multi_worker_num_ = 1U;
-    multi_channel_split_batch_size_ = kDefaultSplitBatchSize;
-    fabric_memory_ = {};
-  }
   HIXL_CHK_STATUS_RET(aclrt_context_.CreateContext(), "[HixlEngine] Failed to create optional aclrt context");
   auto with_context = aclrt_context_.GetContextGuard();
   HIXL_DISMISSABLE_GUARD(ctx_fail_guard, ([this]() {
                            (void)server_.Finalize();
                            (void)client_manager_.Finalize();
                          }));
-  HIXL_CHK_STATUS_RET(InitServer(listen_port, max_active_channels_),
-                      "[HixlEngine] Failed to initialize server, local_engine:%s, local_comm_res:%s",
+  HIXL_CHK_STATUS_RET(InitServer(), "[HixlEngine] Failed to initialize server, local_engine:%s, local_comm_res:%s",
                       local_engine_.c_str(), local_comm_res.c_str());
   rdma_traffic_class_ = options.RdmaTrafficClass();
   rdma_service_level_ = options.RdmaServiceLevel();
@@ -400,14 +369,8 @@ void HixlEngine::BuildClientConfig(const AscendString &remote_engine, ClientConf
   config.rdma_tc = rdma_traffic_class_;
   config.rdma_sl = rdma_service_level_;
   config.timeout_ms = static_cast<uint32_t>(timeout_in_millis);
-  config.qos = qos_;
-  config.max_active_channels = max_active_channels_;
-  config.max_transfer_count_per_batch = max_transfer_count_per_batch_;
-  config.max_transfer_count_per_batch_configured = max_transfer_count_per_batch_configured_;
-  config.fabric_memory = fabric_memory_;
+  config.global_config = global_config_;
   config.is_lazy = is_lazy;
-  config.multi_worker_num = multi_worker_num_;
-  config.multi_channel_split_batch_size = multi_channel_split_batch_size_;
 }
 
 void HixlEngine::CopyMemInfoListLocked(std::vector<MemHandleInfo> &mem_info_list) const {

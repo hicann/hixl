@@ -14,13 +14,12 @@
 #include <cstdint>
 #include <map>
 #include <mutex>
-#include <optional>
 #include <string>
 #include <vector>
 #include "hixl/hixl_types.h"
 #include "common/hixl_inner_types.h"
-#include "cs/ubmem/ubmem_types.h"
 #include "engine.h"
+#include "hixl_options.h"
 
 namespace hixl {
 
@@ -33,12 +32,11 @@ class HixlServer {
    * @param [in] ip 服务端ip
    * @param [in] port 服务端监听的端口
    * @param [in] data_endpoint_config_list 服务端支持的传输协议
+   * @param [in] global_config 服务端 global_resource_config
    * @return 成功:SUCCESS, 失败:其它.
    */
   Status Initialize(const std::string &ip, int32_t port, const std::vector<EndpointConfig> &data_endpoint_config_list,
-                    std::optional<uint32_t> listen_port = std::nullopt,
-                    std::optional<uint32_t> max_active_channels = std::nullopt,
-                    const UbMemoryConfig &fabric_memory = {});
+                    const GlobalResourceConfig &global_config = {});
 
   /**
    * @brief 注册内存

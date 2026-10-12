@@ -26,7 +26,7 @@ HandlerCreateArgs MakeArgs(std::optional<uint8_t> qos, std::optional<uint8_t> tc
   args.rdma_tc = tc;
   args.rdma_sl = sl;
   args.handler_type = HandlerCreateArgs::HandlerType::DIRECT;
-  args.qos = qos;
+  args.global_config.comm_resource_config.qos = qos;
   return args;
 }
 }  // namespace
@@ -69,7 +69,7 @@ TEST(ClientHandlerConfigHelperUT, QosUnconfiguredSlConfigured) {
 
 TEST(ClientHandlerConfigHelperUT, QosUnconfiguredTcSlConfiguredWithMaxActiveChannels) {
   auto args = MakeArgs(std::nullopt, 132U, 4U);
-  args.max_active_channels = 16U;
+  args.global_config.comm_resource_config.max_active_channels = 16U;
   const auto config = ClientHandlerConfigHelper::BuildGlobalResourceConfig(args);
   const auto json = nlohmann::json::parse(config);
   EXPECT_FALSE(json.contains("comm_resource_config.qos"));
@@ -79,10 +79,10 @@ TEST(ClientHandlerConfigHelperUT, QosUnconfiguredTcSlConfiguredWithMaxActiveChan
 
 TEST(ClientHandlerConfigHelperUT, ForwardsUbMemoryConfig) {
   auto args = MakeArgs(std::nullopt, std::nullopt, std::nullopt);
-  args.fabric_memory.max_capacity = 10U;
-  args.fabric_memory.start_address = 40U;
-  args.fabric_memory.task_stream_num = 4U;
-  args.fabric_memory.enable_aicpu_unfold = false;
+  args.global_config.fabric_memory.max_capacity = 10U;
+  args.global_config.fabric_memory.start_address = 40U;
+  args.global_config.fabric_memory.task_stream_num = 4U;
+  args.global_config.fabric_memory.enable_aicpu_unfold = false;
   const auto config = ClientHandlerConfigHelper::BuildGlobalResourceConfig(args);
   const auto json = nlohmann::json::parse(config);
   ASSERT_TRUE(json.contains("fabric_memory.max_capacity"));
@@ -97,7 +97,7 @@ TEST(ClientHandlerConfigHelperUT, ForwardsUbMemoryConfig) {
 
 TEST(ClientHandlerConfigHelperUT, QosUnconfiguredTcSlUnconfiguredWithMaxActiveChannels) {
   auto args = MakeArgs(std::nullopt, std::nullopt, std::nullopt);
-  args.max_active_channels = 16U;
+  args.global_config.comm_resource_config.max_active_channels = 16U;
   const auto config = ClientHandlerConfigHelper::BuildGlobalResourceConfig(args);
   const auto json = nlohmann::json::parse(config);
   ASSERT_TRUE(json.contains("comm_resource_config.qos"));
@@ -111,8 +111,8 @@ TEST(ClientHandlerConfigHelperUT, TransferConfigIsForwardedOnlyWhenExplicitlyCon
   auto config = ClientHandlerConfigHelper::BuildGlobalResourceConfig(args);
   EXPECT_TRUE(config.empty());
 
-  args.max_transfer_count_per_batch = 1024U;
-  args.max_transfer_count_per_batch_configured = true;
+  args.global_config.transfer_config.max_transfer_count_per_batch = 1024U;
+  args.global_config.transfer_config.max_transfer_count_per_batch_configured = true;
   config = ClientHandlerConfigHelper::BuildGlobalResourceConfig(args);
   auto json = nlohmann::json::parse(config);
   ASSERT_TRUE(json.contains("transfer_config.max_transfer_count_per_batch"));

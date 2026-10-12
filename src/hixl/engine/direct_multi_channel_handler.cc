@@ -67,15 +67,15 @@ Status DirectMultiChannelHandler::Create(const HandlerCreateArgs &args,
     }
   };
   HIXL_DISMISSABLE_GUARD(cleanup, cleanup_fn);
-  for (uint32_t i = 0U; i < args.multi_worker_num; ++i) {
+  for (uint32_t i = 0U; i < args.MultiWorkerNum(); ++i) {
     HixlClientHandle handle = nullptr;
     Status create_ret = HixlCSClientCreate(&desc, &config, &handle);
     HIXL_CHK_STATUS_RET(create_ret, "HixlCSClientCreate failed for type %s", CommTypeToString(pair.type));
     handler->handles_.push_back(handle);
   }
-  handler->split_batch_size_ = args.multi_channel_split_batch_size;
+  handler->split_batch_size_ = args.MultiChannelSplitBatchSize();
   handler->pool_ =
-      MakeUnique<ThreadPool>(kThreadPoolName, args.multi_worker_num, static_cast<uint32_t>(handler->handles_.size()));
+      MakeUnique<ThreadPool>(kThreadPoolName, args.MultiWorkerNum(), static_cast<uint32_t>(handler->handles_.size()));
   HIXL_CHK_BOOL_RET_STATUS(handler->pool_ != nullptr, FAILED,
                            "DirectMultiChannelHandler ThreadPool create failed, worker_count:%zu",
                            handler->handles_.size());

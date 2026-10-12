@@ -49,7 +49,7 @@ HandlerCreateArgs MakeDirectArgs(uint32_t workers) {
   pair.remote = MakeUbMemEp();
   pair.type = CommType::COMM_TYPE_UBMEM;
   args.matched_pairs.push_back(pair);
-  args.multi_worker_num = workers;
+  args.global_config.comm_resource_config.multi_worker_num = workers;
   return args;
 }
 }  // namespace
@@ -75,7 +75,7 @@ class ClientHandlerFactoryUbMemUt : public ::testing::Test {
 TEST_F(ClientHandlerFactoryUbMemUt, MemcpyModeKeepsSingleDirectHandlerWhenWorkersGreaterThanOne) {
   std::unique_ptr<IClientHandler> handler;
   auto args = MakeDirectArgs(2U);
-  args.fabric_memory.enable_aicpu_unfold = false;
+  args.global_config.fabric_memory.enable_aicpu_unfold = false;
   ASSERT_EQ(ClientHandlerFactory::Create(args, handler), SUCCESS);
   ASSERT_NE(handler, nullptr);
   EXPECT_NE(dynamic_cast<DirectClientHandler *>(handler.get()), nullptr);

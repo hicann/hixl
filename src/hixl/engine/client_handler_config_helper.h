@@ -11,46 +11,17 @@
 #ifndef CANN_HIXL_SRC_HIXL_ENGINE_CLIENT_HANDLER_CONFIG_HELPER_H_
 #define CANN_HIXL_SRC_HIXL_ENGINE_CLIENT_HANDLER_CONFIG_HELPER_H_
 
-#include <optional>
 #include <string>
 
-#include "nlohmann/json.hpp"
 #include "engine/client_handler_factory.h"
+#include "hixl_options.h"
 
 namespace hixl {
 
 class ClientHandlerConfigHelper {
  public:
-  static void FillUbMemoryConfig(nlohmann::json &json, const UbMemoryConfig &cfg) {
-    if (cfg.max_capacity.has_value()) {
-      json["fabric_memory.max_capacity"] = cfg.max_capacity.value();
-    }
-    if (cfg.start_address.has_value()) {
-      json["fabric_memory.start_address"] = cfg.start_address.value();
-    }
-    if (cfg.task_stream_num.has_value()) {
-      json["fabric_memory.task_stream_num"] = cfg.task_stream_num.value();
-    }
-    if (cfg.enable_aicpu_unfold.has_value()) {
-      json["fabric_memory.enable_aicpu_unfold"] = cfg.enable_aicpu_unfold.value();
-    }
-  }
-
   static std::string BuildGlobalResourceConfig(const HandlerCreateArgs &args) {
-    nlohmann::json json;
-    if (args.qos.has_value()) {
-      json["comm_resource_config.qos"] = args.qos.value();
-    } else if (!args.rdma_tc.has_value() && !args.rdma_sl.has_value()) {
-      json["comm_resource_config.qos"] = kQosDefault;
-    }
-    if (args.max_active_channels.has_value()) {
-      json["comm_resource_config.max_active_channels"] = args.max_active_channels.value();
-    }
-    FillUbMemoryConfig(json, args.fabric_memory);
-    if (args.max_transfer_count_per_batch_configured) {
-      json["transfer_config.max_transfer_count_per_batch"] = args.max_transfer_count_per_batch;
-    }
-    return json.empty() ? "" : json.dump();
+    return SerializeGlobalResourceConfigForClient(args.global_config, args.rdma_tc, args.rdma_sl);
   }
 };
 

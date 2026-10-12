@@ -19,7 +19,6 @@
 #include <optional>
 #include <shared_mutex>
 #include <string>
-#include <unordered_set>
 #include <vector>
 #include "acl/acl.h"
 #include "engine.h"
@@ -29,7 +28,6 @@
 #include "hixl/hixl_types.h"
 #include "common/hixl_inner_types.h"
 #include "common/optional_aclrt_context.h"
-#include "common/transfer_config.h"
 
 namespace hixl {
 class HixlEngine : public hixl::Engine {
@@ -171,8 +169,7 @@ class HixlEngine : public hixl::Engine {
   void Finalize() override;
 
  private:
-  static const std::unordered_set<std::string> kSupportedOptions;
-  Status InitServer(std::optional<uint32_t> listen_port, std::optional<uint32_t> max_active_channels);
+  Status InitServer();
   Status CheckInitialized() const;
   Status AutoDisconnect(const AscendString &remote_engine, int32_t timeout_in_millis);
   void BuildClientConfig(const AscendString &remote_engine, ClientConfig &config, int32_t timeout_in_millis,
@@ -190,15 +187,9 @@ class HixlEngine : public hixl::Engine {
   std::optional<uint8_t> rdma_traffic_class_;
   std::optional<uint8_t> rdma_service_level_;
   std::atomic<bool> auto_connect_{false};
-  std::optional<uint8_t> qos_;
-  std::optional<uint32_t> max_active_channels_;
-  uint32_t max_transfer_count_per_batch_{kDefaultMaxTransferCountPerBatch};
-  bool max_transfer_count_per_batch_configured_{false};
-  uint32_t multi_worker_num_{1U};
-  uint32_t multi_channel_split_batch_size_{kDefaultSplitBatchSize};
+  GlobalResourceConfig global_config_;
   OptionalAclrtContext aclrt_context_;
   bool enable_ubmem_{false};
-  UbMemoryConfig fabric_memory_;
 };
 }  // namespace hixl
 

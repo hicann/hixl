@@ -24,7 +24,7 @@ Status ClientHandlerFactory::Create(const HandlerCreateArgs &args, std::unique_p
   out.reset();
   if (args.handler_type == HandlerCreateArgs::HandlerType::DIRECT) {
     const auto &pair = args.matched_pairs[0];
-    if (args.multi_worker_num > 1U && pair.type != CommType::COMM_TYPE_UBMEM) {
+    if (args.MultiWorkerNum() > 1U && pair.type != CommType::COMM_TYPE_UBMEM) {
       std::unique_ptr<DirectMultiChannelHandler> handler;
       HIXL_CHK_STATUS_RET(DirectMultiChannelHandler::Create(args, handler),
                           "ClientHandlerFactory create DirectMultiChannelHandler failed");
