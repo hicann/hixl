@@ -855,7 +855,6 @@ class HIXLConnectorWorker:
         for block_idx in range(num_blocks_to_pull):
             # P-blocks are round-robin interleaved across the remote CP ranks, so this rank's
             # block_idx-th pulled block maps to global prompt block (in P-units):
-            #   global_p_block = (shard_first_p_block + block_idx) * Rcp + shard_cp_rank
             global_p_block = (
                 shard_first_p_block + block_idx
             ) * remote_cp_size + shard_cp_rank
