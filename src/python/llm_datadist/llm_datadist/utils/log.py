@@ -65,16 +65,19 @@ def _get_stack_info(frame):
 
 
 def _find_caller(stack_info=False, stack_level=1):
-    f = sys._getframe(3)
-    log_file = f.f_code.co_filename
-    rv = "(unknown file)", 0, "(unknown function)", None
-    while f:
-        f = f.f_back
-        if f is None:
-            break
-        code = f.f_code
-        if code.co_filename != log_file:
-            sinfo = _get_stack_info(f) if stack_info else None
-            rv = (code.co_filename, f.f_lineno, code.co_name, sinfo)
-            break
-    return rv
+    """Skip logging internals and this module, then honor user stacklevel."""
+    frame = sys._getframe(1)
+    selected = None
+    internal_files = (logging.__file__, __file__)
+    while frame is not None:
+        if frame.f_code.co_filename not in internal_files:
+            selected = frame
+            stack_level -= 1
+            if stack_level <= 0:
+                break
+        frame = frame.f_back
+    if selected is None:
+        return "(unknown file)", 0, "(unknown function)", None
+    code = selected.f_code
+    sinfo = _get_stack_info(selected) if stack_info else None
+    return code.co_filename, selected.f_lineno, code.co_name, sinfo
