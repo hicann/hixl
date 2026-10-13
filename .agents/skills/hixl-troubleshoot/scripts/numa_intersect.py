@@ -78,10 +78,11 @@ def intersect(a_start, a_end, b_start, b_end):
 
 
 def _reset_run_if_block_gap(prev_end, start_pfn, merged_start, prev_state):
-    """Clear run state when physical blocks are not adjacent PFN ranges."""
+    """Complete a pending free run before clearing state at a physical gap."""
     if prev_end is None or start_pfn <= prev_end + 1:
-        return merged_start, prev_state
-    return None, None
+        return merged_start, prev_state, []
+    completed = [(merged_start, prev_end)] if prev_state else []
+    return None, None, completed
 
 
 def _apply_pfn_buddy_state(pfn, free, merged_start, prev_state):
@@ -119,8 +120,9 @@ def scan_node_free_segments(node):
 
     with open(os.path.join("/proc", "kpageflags"), "rb") as kpf:
         for start_pfn, end_pfn in blocks:
-            merged_start, prev_state = _reset_run_if_block_gap(
+            merged_start, prev_state, done = _reset_run_if_block_gap(
                 prev_end, start_pfn, merged_start, prev_state)
+            yield from done
 
             kpf.seek(start_pfn * 8)
             for pfn, free in _iter_block_pfns(kpf, start_pfn, end_pfn):
