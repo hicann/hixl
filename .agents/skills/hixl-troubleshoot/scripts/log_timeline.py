@@ -35,7 +35,7 @@ FALLBACK_TIMESTAMP = re.compile(
     r"\b(?P<date>20\d{2}-\d{2}-\d{2})[ T](?P<time>\d{2}:\d{2}:\d{2})[.]"
     r"(?P<fraction>\d{3,6})"
 )
-ERROR_LEVEL_PATTERN = re.compile(r"\[(?:ERROR|ERR0R)\]|\bE20\d{6}\b", re.IGNORECASE)
+ERROR_LEVEL_PATTERN = re.compile(r"\[(?:ERROR|ERR0R|FATAL)\]|\b[EF]20\d{6}\b", re.IGNORECASE)
 COMM_PATTERN = re.compile(r"(?:commIdentifier|comm)\[([^\]]+)\]", re.IGNORECASE)
 
 MODULE_MARKERS = (
