@@ -11,4 +11,10 @@
 
 set -e
 
-rm -rf $(pwd)
+target_dir="$(pwd -P)"
+if [ -z "$target_dir" ] || [ "$target_dir" = "/" ]; then
+    echo "[ERROR] Refuse to cleanup unsafe directory: ${target_dir:-<empty>}" >&2
+    exit 1
+fi
+
+rm -rf -- "$target_dir"
