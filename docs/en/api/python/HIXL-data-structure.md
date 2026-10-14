@@ -152,8 +152,8 @@ Notify description information.
 class NotifyDesc:
     def __init__(self, name: str, notify_msg: str)
 
-    name: str         # Notify name, maximum length 1024 characters
-    notify_msg: str   # Notify message content, maximum length 1024 characters
+    name: str         # Notify name, maximum UTF-8 encoded length 1024 bytes
+    notify_msg: str   # Notify message content, maximum UTF-8 encoded length 1024 bytes
 ```
 
 **Example**

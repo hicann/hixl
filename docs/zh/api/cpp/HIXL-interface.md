@@ -1230,7 +1230,7 @@ Status TransferSync(const AscendString &remote_engine,
 | 参数名称 | 输入/输出 | 取值说明 |
 | --- | --- | --- |
 | remote_engine | 输入 | 远端Hixl的唯一标识。 |
-| notify | 输入 | 要发送的Notify内容。内容中的notify_msg和name长度上限均为1024字符。 |
+| notify | 输入 | 要发送的Notify内容。内容中的notify_msg和name长度上限均为1024字节，由AscendString.GetLength()按存储字节数计量；多字节编码的字符数不等于此长度。 |
 | timeout_in_millis | 输入 | 发送超时时间，单位：ms，默认值：1000。 |
 
 **调用示例**

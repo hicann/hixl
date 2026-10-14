@@ -915,7 +915,7 @@ send_notify(remote_engine: str, notify: NotifyDesc, timeout_in_millis: int = 100
 | Parameter | Type | Description |
 | --- | --- | --- |
 | remote_engine | str | Unique identifier of remote Hixl. |
-| notify | NotifyDesc | Notify content to send. The length limit for notify\_msg and name in the content is 1024 characters. |
+| notify | NotifyDesc | Notify content to send. The UTF-8 encoded length limit for notify\_msg and name is 1024 bytes, measured by `len(value.encode("utf-8"))` rather than the number of Python string characters. |
 | timeout_in_millis | int | Send timeout in milliseconds, default: 1000. |
 
 **Example**

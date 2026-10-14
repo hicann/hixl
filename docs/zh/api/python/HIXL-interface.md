@@ -1188,7 +1188,7 @@ send_notify(remote_engine: str, notify: NotifyDesc, timeout_in_millis: int = 100
 | 参数名称 | 数据类型 | 取值说明 |
 | --- | --- | --- |
 | remote_engine | str | 远端Hixl的唯一标识。 |
-| notify | NotifyDesc | 要发送的Notify内容。内容中的notify\_msg和name长度上限均为1024字符。 |
+| notify | NotifyDesc | 要发送的Notify内容。内容中的notify\_msg和name经UTF-8编码后的长度上限均为1024字节，按 `len(value.encode("utf-8"))` 计量，而非Python字符串的字符数。 |
 | timeout_in_millis | int | 发送超时时间，单位：ms，默认值：1000。 |
 
 **调用示例**

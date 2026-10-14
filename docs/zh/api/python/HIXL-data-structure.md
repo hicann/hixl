@@ -152,8 +152,8 @@ Notify的描述信息。
 class NotifyDesc:
     def __init__(self, name: str, notify_msg: str)
 
-    name: str         # Notify名称，长度上限1024字符
-    notify_msg: str   # Notify消息内容，长度上限1024字符
+    name: str         # Notify名称，UTF-8编码后长度上限1024字节
+    notify_msg: str   # Notify消息内容，UTF-8编码后长度上限1024字节
 ```
 
 **调用示例**
