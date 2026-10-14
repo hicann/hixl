@@ -56,7 +56,9 @@ class LLMClusterInfo(object):
         self._remote_ip_info_list: List[Tuple[int, int]] = []
 
     def _check_inputs(self, ip, port):
-        check_isinstance("ip", ip, [str, int])
+        check_isinstance("ip", ip, [str, int], allow_none=False)
+        if isinstance(ip, int):
+            check_uint32("ip", ip)
         check_uint16("port", port)
         return trans_str_ip(ip)
 
