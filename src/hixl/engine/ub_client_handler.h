@@ -22,6 +22,8 @@
 #include "common/segment.h"
 
 namespace hixl {
+// 并发契约：本类不保证 Finalize 与传输/查询的并发互斥，须由上层（HixlClient）串行化
+// 生命周期操作与传输操作；类内锁仅用于共享记账的一致性保护。
 class UbClientHandler : public IClientHandler {
  public:
   static Status Create(const HandlerCreateArgs &args, std::unique_ptr<UbClientHandler> &out);
@@ -39,44 +41,62 @@ class UbClientHandler : public IClientHandler {
   Status Finalize() override;
   void Dump(const char *reason, DumpLogLevel level = DumpLogLevel::EVENT) const override;
 
- private:
+ protected:
+  /** 异步子请求（终态缓存：收敛即删，已终态不再下查） */
+  struct SubReq {
+    CommType type;
+    TransferReq req{nullptr};
+    TransferStatus status{TransferStatus::WAITING};
+  };
+  using SubReqList = std::vector<SubReq>;
+
+  // ==================== 子类扩展点（钩子）====================
+  // ---- 数据视图 ----
+  virtual std::vector<HixlClientHandle> GetHandlesForType(CommType type) const;
+  virtual std::map<CommType, std::vector<HixlClientHandle>> GetAllLinkHandles() const;
+
+  // ---- 创建 ----
+  virtual Status CreateHandlesForType(CommType type, const HixlClientDesc &desc, const HixlClientConfig &config,
+                                      const HandlerCreateArgs &args);
+
+  // ---- 传输 ----
+  /** is_async 回填 req，同步阻塞至完成 */
+  virtual Status SubmitDescsForType(CommType type, const std::vector<TransferOpDesc> &descs, bool is_get,
+                                    uint32_t timeout_ms, bool is_async, TransferReq &req);
+  /** 须持 complete_handles_mutex_ 调用 */
+  virtual Status CheckSubReqStatus(const SubReq &sub, TransferStatus &sub_status);
+
+  // ---- Finalize（调用方已持锁）----
+  virtual void ClearTransferStateLocked();
+  virtual void DestroyHandlesLocked();
+
+  // ==================== 公共实现（基类与子类共用）====================
+  /** 只建句柄，不建连接 */
+  Status InitLinkPairs(const HandlerCreateArgs &args);
+  /** Create 尾段：lazy 字段 + 对端段表 */
+  Status InitRemoteState(const HandlerCreateArgs &args);
+  Status EnsureLinksConnected(const std::vector<CommType> &types, uint32_t timeout_ms);
+  /** 每类型可含多个 worker，并行连接 */
+  Status ConnectHandles(const std::map<CommType, std::vector<HixlClientHandle>> &handles, uint32_t timeout_ms);
   Status ClassifyTransfers(const std::vector<TransferOpDesc> &op_descs,
                            std::map<CommType, std::vector<TransferOpDesc>> &table) const;
   Status GetMemType(const std::vector<SegmentPtr> &segments, uintptr_t addr, size_t len, MemType &mem_type) const;
-
-  /**
-   * @brief 懒惰模式下确保传输所需链路已连接
-   */
-  Status EnsureLinksConnected(const std::vector<CommType> &types, uint32_t timeout_ms);
-
-  /**
-   * @brief 并行连接一组链路并批量标记
-   */
-  Status ConnectHandles(const std::map<CommType, HixlClientHandle> &handles, uint32_t timeout_ms);
-
-  /**
-   * @brief 从MemInfo列表构建remote_segments_
-   * @param [in] mem_info_list 对端内存信息列表
-   */
   Status BuildRemoteSegmentsFromMemInfo(const std::vector<MemInfo> &mem_info_list);
+  /** 须持 mem/handle 锁调用 */
+  void UnregisterAllMemLocked();
+  Status AddLocalRange(uintptr_t addr, uint64_t len, MemType type);
+  void RemoveLocalRange(uintptr_t addr, uint64_t len, MemType type);
+  Status RollbackRegisteredHandles(const std::map<HixlClientHandle, MemHandle> &addr_handles, uintptr_t addr);
+  Status UnregOneHandle(HixlClientHandle client, MemHandle mh, uintptr_t addr);
+  void EraseMemHandle(MemHandle mh);
 
-  struct BatchHandle {
-    CommType type;
-    CompleteHandle handle;
-  };
-
+  // ==================== 状态 ====================
   struct AddrMemRecord {
     uintptr_t addr{0};
     uint64_t len{0};
     MemType type{MEM_DEVICE};
-    std::map<CommType, MemHandle> handles;
+    std::map<HixlClientHandle, MemHandle> handles;
   };
-
-  Status AddLocalRange(uintptr_t addr, uint64_t len, MemType type);
-  void RemoveLocalRange(uintptr_t addr, uint64_t len, MemType type);
-  Status RollbackRegisteredHandles(const std::map<CommType, MemHandle> &addr_handles, uintptr_t addr);
-  Status UnregOneHandle(CommType ct, MemHandle mh, uintptr_t addr);
-  void EraseMemHandle(CommType ct, MemHandle mh);
 
   std::map<CommType, HixlClientHandle> handles_;
   std::string local_engine_;
@@ -86,12 +106,13 @@ class UbClientHandler : public IClientHandler {
   std::map<MemHandle, AddrMemRecord> handle_to_mem_record_;
   std::vector<SegmentPtr> local_segments_;
   std::vector<SegmentPtr> remote_segments_;
-  std::map<TransferReq, std::vector<BatchHandle>> complete_handles_;
+  std::map<TransferReq, SubReqList> async_workers_;
   mutable std::mutex handle_mutex_;
   mutable std::mutex mem_handle_mutex_;
   mutable std::mutex local_seg_mutex_;
   mutable std::mutex remote_seg_mutex_;
-  mutable std::mutex complete_handles_mutex_;
+  mutable std::mutex complete_handles_mutex_;  // 异步记账：async_workers_ 读写
+  mutable std::mutex sync_submit_mutex_;       // 同步传输独占，与 complete_handles_mutex_ 解耦
 
   bool lazy_mode_ = false;
   bool connect_triggered_ = false;

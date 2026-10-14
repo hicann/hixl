@@ -31,6 +31,7 @@
 #include "engine/direct_client_handler.h"
 #include "engine/direct_multi_channel_handler.h"
 #include "engine/ub_client_handler.h"
+#include "engine/ub_multi_channel_handler.h"
 #undef private
 #include "engine/client_handler_factory.h"
 #include "engine/endpoint_generator/endpoint_generator.h"
@@ -649,7 +650,6 @@ class HixlClientUTest : public ::testing::Test {
     handler.handles_[CommType::COMM_TYPE_UB_D2H] = reinterpret_cast<HixlClientHandle>(0x2000);
     handler.handles_[CommType::COMM_TYPE_UB_H2D] = reinterpret_cast<HixlClientHandle>(0x3000);
     handler.handles_[CommType::COMM_TYPE_UB_H2H] = reinterpret_cast<HixlClientHandle>(0x4000);
-
     auto dev_seg = std::make_shared<Segment>(MEM_DEVICE);
     EXPECT_EQ(dev_seg->AddRange(0x1000, 0x2000), SUCCESS);
     handler.local_segments_.push_back(dev_seg);
@@ -1357,7 +1357,8 @@ TEST_F(HixlClientUTest, DirectMultiChannelHandlerDeregisterMemMissingHandleSucce
   HixlCSClient client2;
   ASSERT_EQ(CreateStatusHostClient(client1), SUCCESS);
   ASSERT_EQ(CreateStatusHostClient(client2), SUCCESS);
-  DirectMultiChannelHandler handler({static_cast<HixlClientHandle>(&client1), static_cast<HixlClientHandle>(&client2)});
+  DirectMultiChannelHandler handler;
+  handler.dispatcher_.handles_ = {static_cast<HixlClientHandle>(&client1), static_cast<HixlClientHandle>(&client2)};
   EXPECT_EQ(handler.DeregisterMem(reinterpret_cast<MemHandle>(0x1000)), SUCCESS);
 }
 
@@ -1366,7 +1367,8 @@ TEST_F(HixlClientUTest, DirectMultiChannelHandlerDeregisterMemClearsOnlyTarget) 
   HixlCSClient client2;
   ASSERT_EQ(CreateStatusHostClient(client1), SUCCESS);
   ASSERT_EQ(CreateStatusHostClient(client2), SUCCESS);
-  DirectMultiChannelHandler handler({static_cast<HixlClientHandle>(&client1), static_cast<HixlClientHandle>(&client2)});
+  DirectMultiChannelHandler handler;
+  handler.dispatcher_.handles_ = {static_cast<HixlClientHandle>(&client1), static_cast<HixlClientHandle>(&client2)};
   int32_t buf1 = 0;
   int32_t buf2 = 0;
   const auto info1 = MakeHostMemInfo(&buf1);
@@ -1388,7 +1390,8 @@ TEST_F(HixlClientUTest, DirectMultiChannelHandlerDeregisterMemClearsOnlyTarget) 
 TEST_F(HixlClientUTest, DirectMultiChannelHandlerDeregisterMemUnregFailKeepsMapping) {
   HixlCSClient client;
   ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
-  DirectMultiChannelHandler handler({static_cast<HixlClientHandle>(&client)});
+  DirectMultiChannelHandler handler;
+  handler.dispatcher_.handles_ = {static_cast<HixlClientHandle>(&client)};
   MemHandle engine_handle = reinterpret_cast<MemHandle>(0x2000);
   MemHandle fake_handle = reinterpret_cast<MemHandle>(0xDEAD);
   auto handle = static_cast<HixlClientHandle>(&client);
@@ -1405,7 +1408,8 @@ TEST_F(HixlClientUTest, DirectMultiChannelHandlerDeregisterMemPartialUnregFailKe
   HixlCSClient client2;
   ASSERT_EQ(CreateStatusHostClient(client1), SUCCESS);
   ASSERT_EQ(CreateStatusHostClient(client2), SUCCESS);
-  DirectMultiChannelHandler handler({static_cast<HixlClientHandle>(&client1), static_cast<HixlClientHandle>(&client2)});
+  DirectMultiChannelHandler handler;
+  handler.dispatcher_.handles_ = {static_cast<HixlClientHandle>(&client1), static_cast<HixlClientHandle>(&client2)};
   int32_t buf = 0;
   const auto info = MakeHostMemInfo(&buf);
   ASSERT_EQ(handler.RegisterMem(info), SUCCESS);
@@ -1427,7 +1431,8 @@ TEST_F(HixlClientUTest, DirectMultiChannelHandlerDeregisterMemIsolatesHandle) {
   HixlCSClient client2;
   ASSERT_EQ(CreateStatusHostClient(client1), SUCCESS);
   ASSERT_EQ(CreateStatusHostClient(client2), SUCCESS);
-  DirectMultiChannelHandler handler({static_cast<HixlClientHandle>(&client1), static_cast<HixlClientHandle>(&client2)});
+  DirectMultiChannelHandler handler;
+  handler.dispatcher_.handles_ = {static_cast<HixlClientHandle>(&client1), static_cast<HixlClientHandle>(&client2)};
   int32_t buf = 0;
   const auto host_info = MakeHostMemInfo(&buf);
   ASSERT_EQ(handler.RegisterMem(host_info), SUCCESS);
@@ -1446,7 +1451,8 @@ TEST_F(HixlClientUTest, DirectMultiChannelHandlerRegisterMemSameHandleIsIdempote
   HixlCSClient client2;
   ASSERT_EQ(CreateStatusHostClient(client1), SUCCESS);
   ASSERT_EQ(CreateStatusHostClient(client2), SUCCESS);
-  DirectMultiChannelHandler handler({static_cast<HixlClientHandle>(&client1), static_cast<HixlClientHandle>(&client2)});
+  DirectMultiChannelHandler handler;
+  handler.dispatcher_.handles_ = {static_cast<HixlClientHandle>(&client1), static_cast<HixlClientHandle>(&client2)};
   int32_t buf = 0;
   const auto info = MakeHostMemInfo(&buf);
   ASSERT_EQ(handler.RegisterMem(info), SUCCESS);
@@ -1475,9 +1481,13 @@ TEST_F(HixlClientUTest, UbClientHandlerDeregisterMemNullHandleClearsTarget) {
   const uintptr_t addr = 0x1000U;
   constexpr uint64_t kRangeLen = 0x2000U;
   MemHandle engine_handle = reinterpret_cast<MemHandle>(addr);
-  handler.handle_to_mem_record_[engine_handle] = {addr, kRangeLen, MEM_DEVICE, {{CommType::COMM_TYPE_UB_D2D, nullptr}}};
+  UbClientHandler::AddrMemRecord rec{};
+  rec.addr = addr;
+  rec.len = kRangeLen;
+  rec.type = MEM_DEVICE;
+  handler.handle_to_mem_record_[engine_handle] = rec;
   EXPECT_EQ(handler.DeregisterMem(engine_handle), SUCCESS);
-  EXPECT_EQ(handler.handle_to_mem_record_.count(engine_handle), 0U);
+  EXPECT_FALSE((handler.handle_to_mem_record_.count(engine_handle) > 0U));
   EXPECT_FALSE(LocalSegContains(handler, addr, kRangeLen));
   ASSERT_EQ(handler.local_segments_.size(), 1U);
   EXPECT_EQ(handler.local_segments_[0]->GetMemType(), MEM_HOST);
@@ -1499,9 +1509,9 @@ TEST_F(HixlClientUTest, UbClientHandlerDeregisterMemClearsOnlyTarget) {
   const uintptr_t addr1 = reinterpret_cast<uintptr_t>(&buf1);
   const uintptr_t addr2 = reinterpret_cast<uintptr_t>(&buf2);
   EXPECT_EQ(handler.DeregisterMem(info1.mem_handle), SUCCESS);
-  EXPECT_EQ(handler.handle_to_mem_record_.count(info1.mem_handle), 0U);
-  EXPECT_EQ(handler.handle_to_mem_record_.count(info2.mem_handle), 1U);
-  EXPECT_EQ(handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].size(), 1U);
+  EXPECT_FALSE((handler.handle_to_mem_record_.count(info1.mem_handle) > 0U));
+  EXPECT_TRUE((handler.handle_to_mem_record_.count(info2.mem_handle) > 0U));
+  EXPECT_EQ(handler.handle_to_mem_record_.at(info2.mem_handle).handles.size(), 1U);
   EXPECT_FALSE(LocalSegContains(handler, addr1, sizeof(buf1)));
   EXPECT_TRUE(LocalSegContains(handler, addr2, sizeof(buf2)));
   EXPECT_EQ(handler.DeregisterMem(info2.mem_handle), SUCCESS);
@@ -1517,14 +1527,55 @@ TEST_F(HixlClientUTest, UbClientHandlerDeregisterMemUnregFailKeepsMapping) {
   const uintptr_t addr = 0x2000U;
   MemHandle engine_handle = reinterpret_cast<MemHandle>(addr);
   MemHandle fake_handle = reinterpret_cast<MemHandle>(0xDEAD);
-  handler.handle_to_mem_record_[engine_handle] = {
-      addr, sizeof(int32_t), MEM_HOST, {{CommType::COMM_TYPE_UB_H2H, fake_handle}}};
-  handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].push_back(fake_handle);
+  UbClientHandler::AddrMemRecord rec{};
+  rec.addr = addr;
+  rec.len = sizeof(int32_t);
+  rec.type = MEM_HOST;
+  rec.handles[handle] = fake_handle;
+  handler.handle_to_mem_record_[engine_handle] = rec;
 
   EXPECT_EQ(handler.DeregisterMem(engine_handle), PARAM_INVALID);
-  ASSERT_EQ(handler.handle_to_mem_record_.count(engine_handle), 1U);
-  EXPECT_EQ((handler.handle_to_mem_record_[engine_handle].handles.size()), 1U);
-  EXPECT_EQ(handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].size(), 1U);
+  ASSERT_TRUE((handler.handle_to_mem_record_.count(engine_handle) > 0U));
+  EXPECT_EQ(handler.handle_to_mem_record_.at(engine_handle).handles.size(), 1U);
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerRollbackKeepsHandleWhenUnregFails) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  auto handle = static_cast<HixlClientHandle>(&client);
+  UbClientHandler handler({{CommType::COMM_TYPE_UB_H2H, handle}});
+  MemHandle fake_handle = reinterpret_cast<MemHandle>(0xDEAD);
+  handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].push_back(fake_handle);
+
+  const std::map<HixlClientHandle, MemHandle> addr_handles{{handle, fake_handle}};
+  EXPECT_EQ(handler.RollbackRegisteredHandles(addr_handles, 0x1000U), PARAM_INVALID);
+  ASSERT_EQ(handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].size(), 1U);
+  EXPECT_EQ(handler.mem_handles_[CommType::COMM_TYPE_UB_H2H][0], fake_handle);
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerRollbackNullHandleClearsMemHandle) {
+  UbClientHandler handler({});
+  handler.mem_handles_[CommType::COMM_TYPE_UB_D2D].push_back(nullptr);
+
+  const std::map<HixlClientHandle, MemHandle> addr_handles{{reinterpret_cast<HixlClientHandle>(0x1000U), nullptr}};
+  EXPECT_EQ(handler.RollbackRegisteredHandles(addr_handles, 0x1000U), SUCCESS);
+  EXPECT_TRUE(handler.mem_handles_[CommType::COMM_TYPE_UB_D2D].empty());
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerRollbackUnregsSucceededHandle) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  auto handle = static_cast<HixlClientHandle>(&client);
+  UbClientHandler handler({{CommType::COMM_TYPE_UB_H2H, handle}});
+  int32_t buf = 0;
+  const auto info = MakeHostMemInfo(&buf);
+  ASSERT_EQ(handler.RegisterMem(info), SUCCESS);
+  ASSERT_EQ(handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].size(), 1U);
+  const MemHandle mh = handler.mem_handles_[CommType::COMM_TYPE_UB_H2H][0];
+
+  const std::map<HixlClientHandle, MemHandle> addr_handles{{handle, mh}};
+  EXPECT_EQ(handler.RollbackRegisteredHandles(addr_handles, info.mem.addr), SUCCESS);
+  EXPECT_TRUE(handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].empty());
 }
 
 TEST_F(HixlClientUTest, UbClientHandlerSameAddrDifferentTypeKeepsBoth) {
@@ -1543,8 +1594,8 @@ TEST_F(HixlClientUTest, UbClientHandlerSameAddrDifferentTypeKeepsBoth) {
 
   const uintptr_t addr = reinterpret_cast<uintptr_t>(&src);
   EXPECT_EQ(handler.handle_to_mem_record_.size(), 2U);
-  EXPECT_EQ(handler.handle_to_mem_record_.count(host_info.mem_handle), 1U);
-  EXPECT_EQ(handler.handle_to_mem_record_.count(device_info.mem_handle), 1U);
+  EXPECT_TRUE((handler.handle_to_mem_record_.count(host_info.mem_handle) > 0U));
+  EXPECT_TRUE((handler.handle_to_mem_record_.count(device_info.mem_handle) > 0U));
   EXPECT_TRUE(LocalSegContainsType(handler, addr, sizeof(src), MEM_HOST));
   EXPECT_TRUE(LocalSegContainsType(handler, addr, sizeof(src), MEM_DEVICE));
 
@@ -1553,8 +1604,8 @@ TEST_F(HixlClientUTest, UbClientHandlerSameAddrDifferentTypeKeepsBoth) {
   handler.remote_segments_.push_back(remote_seg);
 
   EXPECT_EQ(handler.DeregisterMem(host_info.mem_handle), SUCCESS);
-  EXPECT_EQ(handler.handle_to_mem_record_.count(host_info.mem_handle), 0U);
-  EXPECT_EQ(handler.handle_to_mem_record_.count(device_info.mem_handle), 1U);
+  EXPECT_FALSE((handler.handle_to_mem_record_.count(host_info.mem_handle) > 0U));
+  EXPECT_TRUE((handler.handle_to_mem_record_.count(device_info.mem_handle) > 0U));
   EXPECT_FALSE(LocalSegContainsType(handler, addr, sizeof(src), MEM_HOST));
   EXPECT_TRUE(LocalSegContainsType(handler, addr, sizeof(src), MEM_DEVICE));
 
@@ -1575,48 +1626,8 @@ TEST_F(HixlClientUTest, UbClientHandlerRegisterMemSameHandleIsIdempotent) {
   ASSERT_EQ(handler.RegisterMem(info), SUCCESS);
   ASSERT_EQ(handler.RegisterMem(info), SUCCESS);
   EXPECT_EQ(handler.handle_to_mem_record_.size(), 1U);
-  EXPECT_EQ(handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].size(), 1U);
+  EXPECT_EQ(handler.handle_to_mem_record_.at(info.mem_handle).handles.size(), 1U);
   EXPECT_EQ(handler.DeregisterMem(info.mem_handle), SUCCESS);
-}
-
-TEST_F(HixlClientUTest, UbClientHandlerRollbackKeepsHandleWhenUnregFails) {
-  HixlCSClient client;
-  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
-  auto handle = static_cast<HixlClientHandle>(&client);
-  UbClientHandler handler({{CommType::COMM_TYPE_UB_H2H, handle}});
-  MemHandle fake_handle = reinterpret_cast<MemHandle>(0xDEAD);
-  handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].push_back(fake_handle);
-
-  const std::map<CommType, MemHandle> addr_handles{{CommType::COMM_TYPE_UB_H2H, fake_handle}};
-  EXPECT_EQ(handler.RollbackRegisteredHandles(addr_handles, 0x1000U), PARAM_INVALID);
-  ASSERT_EQ(handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].size(), 1U);
-  EXPECT_EQ(handler.mem_handles_[CommType::COMM_TYPE_UB_H2H][0], fake_handle);
-}
-
-TEST_F(HixlClientUTest, UbClientHandlerRollbackNullHandleClearsMemHandle) {
-  UbClientHandler handler({});
-  handler.mem_handles_[CommType::COMM_TYPE_UB_D2D].push_back(nullptr);
-
-  const std::map<CommType, MemHandle> addr_handles{{CommType::COMM_TYPE_UB_D2D, nullptr}};
-  EXPECT_EQ(handler.RollbackRegisteredHandles(addr_handles, 0x1000U), SUCCESS);
-  EXPECT_TRUE(handler.mem_handles_[CommType::COMM_TYPE_UB_D2D].empty());
-}
-
-TEST_F(HixlClientUTest, UbClientHandlerRollbackUnregsSucceededHandle) {
-  HixlCSClient client;
-  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
-  auto handle = static_cast<HixlClientHandle>(&client);
-  UbClientHandler handler({{CommType::COMM_TYPE_UB_H2H, handle}});
-  int32_t buf = 0;
-  const auto info = MakeHostMemInfo(&buf);
-  ASSERT_EQ(handler.RegisterMem(info), SUCCESS);
-  ASSERT_EQ(handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].size(), 1U);
-  const MemHandle mh = handler.mem_handles_[CommType::COMM_TYPE_UB_H2H][0];
-
-  const std::map<CommType, MemHandle> addr_handles{{CommType::COMM_TYPE_UB_H2H, mh}};
-  EXPECT_EQ(handler.RollbackRegisteredHandles(addr_handles, info.mem.addr), SUCCESS);
-  EXPECT_TRUE(handler.mem_handles_[CommType::COMM_TYPE_UB_H2H].empty());
-  EXPECT_EQ(handler.handle_to_mem_record_.count(info.mem_handle), 1U);
 }
 
 TEST_F(HixlClientUTest, UbClientHandlerDumpIncludesEndpointPair) {
@@ -1712,12 +1723,12 @@ TEST_F(HixlClientUTest, UbClientHandlerTransferLogsNoAvailableTypes) {
 
 TEST_F(HixlClientUTest, UbClientHandlerGetTransferStatusInvalidReq) {
   UbClientHandler handler({});
-  handler.complete_handles_[reinterpret_cast<TransferReq>(0x1234)] = {};
+  handler.async_workers_[reinterpret_cast<TransferReq>(0x1234)] = {};
 
   TransferStatus status = TransferStatus::WAITING;
   EXPECT_EQ(handler.GetTransferStatus(reinterpret_cast<TransferReq>(0x5678), status), PARAM_INVALID);
   EXPECT_EQ(status, TransferStatus::FAILED);
-  EXPECT_EQ(handler.complete_handles_.count(reinterpret_cast<TransferReq>(0x1234)), 1U);
+  EXPECT_EQ(handler.async_workers_.count(reinterpret_cast<TransferReq>(0x1234)), 1U);
 }
 
 TEST_F(HixlClientUTest, UbClientHandlerGetTransferStatusWaiting) {
@@ -1726,15 +1737,40 @@ TEST_F(HixlClientUTest, UbClientHandlerGetTransferStatusWaiting) {
   uint64_t flag = 0;
   auto *complete_handle = MakeHostCompleteHandle(&flag);
   auto req = reinterpret_cast<TransferReq>(0x1234);
-  handler.complete_handles_[req] = {{CommType::COMM_TYPE_UB_D2D, static_cast<CompleteHandle>(complete_handle)}};
+  handler.async_workers_[req] = {{CommType::COMM_TYPE_UB_D2D, reinterpret_cast<TransferReq>(complete_handle)}};
 
   TransferStatus status = TransferStatus::TIMEOUT;
   EXPECT_EQ(handler.GetTransferStatus(req, status), SUCCESS);
   EXPECT_EQ(status, TransferStatus::WAITING);
-  EXPECT_EQ(handler.complete_handles_.count(req), 1U);
+  EXPECT_EQ(handler.async_workers_.count(req), 1U);
 
-  handler.complete_handles_.clear();
+  handler.async_workers_.clear();
   delete complete_handle;
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerTerminalCacheSkipsCompletedSub) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  UbClientHandler handler({{CommType::COMM_TYPE_UB_D2D, static_cast<HixlClientHandle>(&client)}});
+  // 跨子请求父记录：sub1 已终态（flag=1），sub2 未终态（flag=0）
+  uint64_t flag1 = 1ULL;
+  uint64_t flag2 = 0;
+  auto *h1 = MakeHostCompleteHandle(&flag1);
+  auto *h2 = MakeHostCompleteHandle(&flag2);
+  auto req = reinterpret_cast<TransferReq>(0x1234);
+  handler.async_workers_[req] = {{CommType::COMM_TYPE_UB_D2D, reinterpret_cast<TransferReq>(h1)},
+                                 {CommType::COMM_TYPE_UB_D2D, reinterpret_cast<TransferReq>(h2)}};
+
+  TransferStatus status = TransferStatus::TIMEOUT;
+  EXPECT_EQ(handler.GetTransferStatus(req, status), SUCCESS);
+  EXPECT_EQ(status, TransferStatus::WAITING);
+
+  // sub1 首查即终态：CS 层在 CheckStatusHost 中已 delete 该句柄（hixl_cs_client.cc ReleaseCompleteHandle）。
+  // 终态缓存保证后续查询不再下查 sub1——若无缓存，下次查询将触碰已释放内存（UAF）
+  flag2 = 1ULL;
+  EXPECT_EQ(handler.GetTransferStatus(req, status), SUCCESS);
+  EXPECT_EQ(status, TransferStatus::COMPLETED);
+  EXPECT_EQ(handler.async_workers_.count(req), 0U);
 }
 
 TEST_F(HixlClientUTest, UbClientHandlerGetTransferStatusCompleted) {
@@ -1743,13 +1779,13 @@ TEST_F(HixlClientUTest, UbClientHandlerGetTransferStatusCompleted) {
   UbClientHandler handler({{CommType::COMM_TYPE_UB_D2D, static_cast<HixlClientHandle>(&client)}});
   uint64_t flag = 1ULL;
   auto req = reinterpret_cast<TransferReq>(0x1234);
-  handler.complete_handles_[req] = {
-      {CommType::COMM_TYPE_UB_D2D, static_cast<CompleteHandle>(MakeHostCompleteHandle(&flag))}};
+  handler.async_workers_[req] = {
+      {CommType::COMM_TYPE_UB_D2D, reinterpret_cast<TransferReq>(MakeHostCompleteHandle(&flag))}};
 
   TransferStatus status = TransferStatus::TIMEOUT;
   EXPECT_EQ(handler.GetTransferStatus(req, status), SUCCESS);
   EXPECT_EQ(status, TransferStatus::COMPLETED);
-  EXPECT_EQ(handler.complete_handles_.count(req), 0U);
+  EXPECT_EQ(handler.async_workers_.count(req), 0U);
 }
 
 TEST_F(HixlClientUTest, UbHandlerClassifyD2D) {
@@ -2410,7 +2446,7 @@ TEST_F(HixlClientUTest, LazyConnectSkipsInConnect) {
   auto *ub_handler = dynamic_cast<UbClientHandler *>(client_->client_handler_.get());
   ASSERT_NE(ub_handler, nullptr);
   EXPECT_TRUE(ub_handler->lazy_mode_);
-  EXPECT_TRUE(ub_handler->connected_types_.empty());
+  EXPECT_EQ(ub_handler->connected_types_.size(), 0U);
 }
 
 TEST_F(HixlClientUTest, LazyConnectOnTransferSync) {
@@ -2424,7 +2460,7 @@ TEST_F(HixlClientUTest, LazyConnectOnTransferSync) {
   Status st = client_->TransferSync(op_descs, WRITE, kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
   EXPECT_EQ(ub_handler->connected_types_.size(), 1U);
-  EXPECT_NE(ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_D2D), 0U);
+  EXPECT_TRUE((ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_D2D) > 0U));
 }
 
 TEST_F(HixlClientUTest, LazyConnectIncremental) {
@@ -2438,14 +2474,14 @@ TEST_F(HixlClientUTest, LazyConnectIncremental) {
   Status st = client_->TransferSync(d2d_ops, WRITE, kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
   EXPECT_EQ(ub_handler->connected_types_.size(), 1U);
-  EXPECT_NE(ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_D2D), 0U);
+  EXPECT_TRUE((ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_D2D) > 0U));
 
   // 二次：H2D 传输（本端 host → 对端 device）
   auto h2d_ops = CreateTransferOps(1, &kLocalMems[4], &kRemoteMems[2]);
   st = client_->TransferSync(h2d_ops, WRITE, kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
   EXPECT_EQ(ub_handler->connected_types_.size(), 2U);
-  EXPECT_NE(ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_H2D), 0U);
+  EXPECT_TRUE((ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_H2D) > 0U));
 }
 
 TEST_F(HixlClientUTest, LazyConnectSkipsAlreadyConnected) {
@@ -2459,7 +2495,7 @@ TEST_F(HixlClientUTest, LazyConnectSkipsAlreadyConnected) {
   Status st = client_->TransferSync(op_descs, WRITE, kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
   EXPECT_EQ(ub_handler->connected_types_.size(), 1U);
-  EXPECT_NE(ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_D2D), 0U);
+  EXPECT_TRUE((ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_D2D) > 0U));
 
   // 再次 D2D 传输，不应新增连接
   st = client_->TransferSync(op_descs, WRITE, kDefaultTimeoutMs);
@@ -2476,7 +2512,7 @@ TEST_F(HixlClientUTest, LazyConnectOnTransferAsync) {
   auto op_descs = CreateTransferOps(1, &kLocalMems[0], &kRemoteMems[2]);
   auto req = CreateAsyncTransfer(op_descs, WRITE);
   EXPECT_EQ(ub_handler->connected_types_.size(), 1U);
-  EXPECT_NE(ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_D2D), 0U);
+  EXPECT_TRUE((ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_D2D) > 0U));
 }
 
 TEST_F(HixlClientUTest, LazyConnectNoRemoteMem) {
@@ -2498,7 +2534,7 @@ TEST_F(HixlClientUTest, LazyConnectNoRemoteMem) {
   auto *ub_handler = dynamic_cast<UbClientHandler *>(client_->client_handler_.get());
   ASSERT_NE(ub_handler, nullptr);
   // remote_segments_ 应为空（对端无注册内存）
-  EXPECT_TRUE(ub_handler->remote_segments_.empty());
+  EXPECT_EQ(ub_handler->remote_segments_.size(), 0U);
 
   st = client_->RegisterMem(MakeMemInfoList());
   EXPECT_EQ(st, SUCCESS);
@@ -2544,14 +2580,14 @@ TEST_F(HixlClientUTest, ExplicitConnectAfterLazyConnect) {
   ASSERT_NE(ub_handler, nullptr);
   EXPECT_TRUE(ub_handler->lazy_mode_);
   // 首次 Connect（SetupLazyTransferTest 内部）延迟建链
-  EXPECT_TRUE(ub_handler->connected_types_.empty());
-  EXPECT_TRUE(ub_handler->connect_triggered_);
+  EXPECT_EQ(ub_handler->connected_types_.size(), 0U);
+  // 懒建链触发位内聚于 connector_（Auto-connect 模式语义由 Connect/传输行为覆盖）
 
   // 首次 transfer：按需触发 D2D 建链
   auto d2d_ops = CreateTransferOps(1, &kLocalMems[0], &kRemoteMems[2]);
   Status st = client_->TransferSync(d2d_ops, WRITE, kDefaultTimeoutMs);
   EXPECT_EQ(st, SUCCESS);
-  EXPECT_NE(ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_D2D), 0U);
+  EXPECT_TRUE((ub_handler->connected_types_.count(CommType::COMM_TYPE_UB_D2D) > 0U));
   EXPECT_EQ(ub_handler->connected_types_.size(), 1U);
 
   // 再次调 Connect：不补齐剩余链路
@@ -2667,6 +2703,262 @@ TEST_F(HixlClientUTest, EndpointMatcherUbMemRejectsEmptyEndpoints) {
   std::vector<HandlerCreateArgs::EndpointPair> pairs;
   HandlerCreateArgs::HandlerType type{};
   EXPECT_EQ(EndpointMatcher::MatchEndpoints({}, {}, pairs, type), PARAM_INVALID);
+}
+
+// ===================== UbMultiChannelHandler 用例 =====================
+
+class UbMultiChannelHandlerUTest : public HixlClientUTest {};
+
+static std::unique_ptr<UbMultiChannelHandler> MakeUbMultiHandler(
+    const std::map<CommType, std::pair<HixlCSClient *, HixlCSClient *>> &clients) {
+  auto handler = hixl::MakeUnique<UbMultiChannelHandler>("local_engine", "remote_engine",
+                                                         std::map<CommType, HandlerCreateArgs::EndpointPair>{});
+  for (const auto &[type, pair] : clients) {
+    MultiChannelDispatcher &dispatcher = handler->dispatchers_[type];
+    dispatcher.handles_ = {static_cast<HixlClientHandle>(pair.first), static_cast<HixlClientHandle>(pair.second)};
+    EXPECT_EQ(dispatcher.InitPool(kDefaultSplitBatchSize), SUCCESS);
+  }
+  return handler;
+}
+
+TEST_F(UbMultiChannelHandlerUTest, RegisterMemTargetsAllWorkerHandles) {
+  HixlCSClient d2d_client1, d2d_client2, h2h_client1, h2h_client2;
+  ASSERT_EQ(CreateStatusHostClient(d2d_client1), SUCCESS);
+  ASSERT_EQ(CreateStatusHostClient(d2d_client2), SUCCESS);
+  ASSERT_EQ(CreateStatusHostClient(h2h_client1), SUCCESS);
+  ASSERT_EQ(CreateStatusHostClient(h2h_client2), SUCCESS);
+  auto handler = MakeUbMultiHandler({{CommType::COMM_TYPE_UB_D2D, {&d2d_client1, &d2d_client2}},
+                                     {CommType::COMM_TYPE_UB_H2H, {&h2h_client1, &h2h_client2}}});
+  int32_t buf = 0;
+  const auto info = MakeHostMemInfo(&buf);
+  ASSERT_EQ(handler->RegisterMem(info), SUCCESS);
+  // 本用例只验证多 worker 视图定位：host 内存注册到 H2H 链路的全部 worker（2 个）
+  // 幂等/精确注销/段清理与基类同路径，由基类套件及 RollsBackCleanly 用例覆盖
+  EXPECT_EQ(handler->handle_to_mem_record_.at(info.mem_handle).handles.size(), 2U);
+}
+
+TEST_F(UbMultiChannelHandlerUTest, RegisterMemDeviceMemTargetsD2DAndD2H) {
+  HixlCSClient d2d_a, d2d_b, d2h_a, d2h_b;
+  ASSERT_EQ(CreateStatusHostClient(d2d_a), SUCCESS);
+  ASSERT_EQ(CreateStatusHostClient(d2d_b), SUCCESS);
+  ASSERT_EQ(CreateStatusHostClient(d2h_a), SUCCESS);
+  ASSERT_EQ(CreateStatusHostClient(d2h_b), SUCCESS);
+  auto handler = MakeUbMultiHandler(
+      {{CommType::COMM_TYPE_UB_D2D, {&d2d_a, &d2d_b}}, {CommType::COMM_TYPE_UB_D2H, {&d2h_a, &d2h_b}}});
+  int32_t buf = 0;
+  const auto info = MakeDeviceMemInfo(&buf);
+  ASSERT_EQ(handler->RegisterMem(info), SUCCESS);
+  // device 内存注册到 D2H + D2D 两条链路各 2 个 worker
+  EXPECT_EQ(handler->handle_to_mem_record_.at(info.mem_handle).handles.size(), 4U);
+  EXPECT_EQ(handler->DeregisterMem(info.mem_handle), SUCCESS);
+}
+
+TEST_F(UbMultiChannelHandlerUTest, AsyncAllCompletedConvergesToCompleted) {
+  HixlCSClient d2d_client, h2h_client;
+  ASSERT_EQ(CreateStatusHostClient(d2d_client), SUCCESS);
+  ASSERT_EQ(CreateStatusHostClient(h2h_client), SUCCESS);
+  auto handler = MakeUbMultiHandler({{CommType::COMM_TYPE_UB_D2D, {&d2d_client, &d2d_client}},
+                                     {CommType::COMM_TYPE_UB_H2H, {&h2h_client, &h2h_client}}});
+  // 全部子请求终态为 COMPLETED → COMPLETED 并整笔淘汰
+  TransferReq fake_req = reinterpret_cast<TransferReq>(0x5000);
+  UbMultiChannelHandler::SubReqList sub_reqs;
+  sub_reqs.push_back({CommType::COMM_TYPE_UB_D2D, fake_req, TransferStatus::COMPLETED});
+  sub_reqs.push_back({CommType::COMM_TYPE_UB_H2H, fake_req + 1, TransferStatus::COMPLETED});
+  handler->async_workers_[fake_req] = std::move(sub_reqs);
+
+  TransferStatus status = TransferStatus::FAILED;
+  EXPECT_EQ(handler->GetTransferStatus(fake_req, status), SUCCESS);
+  EXPECT_EQ(status, TransferStatus::COMPLETED);
+  EXPECT_EQ(handler->async_workers_.count(fake_req), 0U);
+}
+
+TEST_F(UbMultiChannelHandlerUTest, AsyncPartialWaitingReturnsWaiting) {
+  HixlCSClient d2d_client, h2h_client;
+  ASSERT_EQ(CreateStatusHostClient(d2d_client), SUCCESS);
+  ASSERT_EQ(CreateStatusHostClient(h2h_client), SUCCESS);
+  auto handler = MakeUbMultiHandler({{CommType::COMM_TYPE_UB_D2D, {&d2d_client, &d2d_client}},
+                                     {CommType::COMM_TYPE_UB_H2H, {&h2h_client, &h2h_client}}});
+  // 向 d2d dispatcher 注入已完成 WorkerEntry，向 h2h dispatcher 注入 PENDING WorkerEntry
+  // （handler 对所有非 COMPLETED 子请求都会下查 dispatcher；WAITING 非终态，
+  //   H2H 的 PENDING entry 经 HixlCSClientQueryCompleteStatus 查到 WAITING）
+  TransferReq d2d_sub_req = reinterpret_cast<TransferReq>(0x6000);
+  MultiChannelDispatcher::WorkerEntry done_entry{};
+  done_entry.client_idx = 0U;
+  done_entry.handle = reinterpret_cast<CompleteHandle>(d2d_sub_req);
+  done_entry.state = MultiChannelDispatcher::WorkerState::COMPLETED;
+  handler->dispatchers_[CommType::COMM_TYPE_UB_D2D].async_workers_[d2d_sub_req] = {done_entry};
+
+  static uint64_t h2h_flag = 0U;
+  TransferReq h2h_sub_req = reinterpret_cast<TransferReq>(0x6600);
+  MultiChannelDispatcher::WorkerEntry pending_entry{};
+  pending_entry.client_idx = 0U;
+  pending_entry.handle = MakeHostCompleteHandle(&h2h_flag);
+  pending_entry.state = MultiChannelDispatcher::WorkerState::PENDING;
+  handler->dispatchers_[CommType::COMM_TYPE_UB_H2H].async_workers_[h2h_sub_req] = {pending_entry};
+
+  TransferReq fake_req = reinterpret_cast<TransferReq>(0x6500);
+  UbMultiChannelHandler::SubReqList sub_reqs;
+  sub_reqs.push_back({CommType::COMM_TYPE_UB_D2D, d2d_sub_req, TransferStatus::WAITING});
+  sub_reqs.push_back({CommType::COMM_TYPE_UB_H2H, h2h_sub_req, TransferStatus::WAITING});
+  handler->async_workers_[fake_req] = std::move(sub_reqs);
+
+  TransferStatus status = TransferStatus::FAILED;
+  EXPECT_EQ(handler->GetTransferStatus(fake_req, status), SUCCESS);
+  EXPECT_EQ(status, TransferStatus::WAITING);
+  EXPECT_EQ(handler->async_workers_.count(fake_req), 1U);
+  delete pending_entry.handle;
+}
+
+TEST_F(UbMultiChannelHandlerUTest, AsyncAnyFailureConvergesToFailed) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  auto handler = MakeUbMultiHandler({{CommType::COMM_TYPE_UB_D2D, {&client, &client}}});
+  TransferReq fake_req = reinterpret_cast<TransferReq>(0x6000);
+  // sub1 已终态缓存；sub2 走自然失败路径：dispatcher 级收敛返回 SUCCESS + FAILED
+  UbMultiChannelHandler::SubReqList sub_reqs;
+  sub_reqs.push_back({CommType::COMM_TYPE_UB_D2D, fake_req, TransferStatus::COMPLETED});
+  sub_reqs.push_back({CommType::COMM_TYPE_UB_D2D, fake_req + 1, TransferStatus::WAITING});
+  handler->async_workers_[fake_req] = std::move(sub_reqs);
+  MultiChannelDispatcher::WorkerEntry failed_entry{};
+  failed_entry.client_idx = 0U;
+  failed_entry.state = MultiChannelDispatcher::WorkerState::FAILED;
+  handler->dispatchers_[CommType::COMM_TYPE_UB_D2D].async_workers_[fake_req + 1] = {failed_entry};
+
+  TransferStatus status = TransferStatus::WAITING;
+  EXPECT_EQ(handler->GetTransferStatus(fake_req, status), SUCCESS);
+  EXPECT_EQ(status, TransferStatus::FAILED);
+  EXPECT_EQ(handler->async_workers_.count(fake_req), 0U);
+}
+
+TEST_F(UbMultiChannelHandlerUTest, FinalizeClearsAllState) {
+  HixlCSClient client1, client2;
+  ASSERT_EQ(CreateStatusHostClient(client1), SUCCESS);
+  ASSERT_EQ(CreateStatusHostClient(client2), SUCCESS);
+  auto handler = MakeUbMultiHandler({{CommType::COMM_TYPE_UB_D2D, {&client1, &client2}}});
+  int32_t buf = 0;
+  const auto info = MakeHostMemInfo(&buf);
+  ASSERT_EQ(handler->RegisterMem(info), SUCCESS);
+  EXPECT_EQ(handler->handle_to_mem_record_.size(), 1U);
+
+  EXPECT_EQ(handler->Finalize(), SUCCESS);
+  EXPECT_EQ(handler->handle_to_mem_record_.size(), 0U);
+  EXPECT_EQ(handler->connected_types_.size(), 0U);
+  EXPECT_EQ(handler->local_segments_.size(), 0U);
+  EXPECT_EQ(handler->remote_segments_.size(), 0U);
+}
+
+TEST_F(UbMultiChannelHandlerUTest, CheckStatusEmptyReturnsFailed) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  auto handler = MakeUbMultiHandler({{CommType::COMM_TYPE_UB_D2D, {&client, &client}}});
+  TransferStatus status = TransferStatus::COMPLETED;
+  EXPECT_EQ(handler->GetTransferStatus(reinterpret_cast<TransferReq>(0x7777), status), FAILED);
+  EXPECT_EQ(status, TransferStatus::FAILED);
+}
+
+TEST_F(UbMultiChannelHandlerUTest, CheckStatusInvalidReqReturnsParamInvalid) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  auto handler = MakeUbMultiHandler({{CommType::COMM_TYPE_UB_D2D, {&client, &client}}});
+  // 先放一条非目标记录，使 async_workers_ 非空，才能走到 find 分支
+  handler->async_workers_[reinterpret_cast<TransferReq>(0x1111)] = {};
+  TransferStatus status = TransferStatus::COMPLETED;
+  EXPECT_EQ(handler->GetTransferStatus(reinterpret_cast<TransferReq>(0x7777), status), PARAM_INVALID);
+}
+
+TEST_F(UbMultiChannelHandlerUTest, ConnectWithoutDispatchersReturnsFailed) {
+  auto handler = MakeUbMultiHandler({});
+  EXPECT_EQ(handler->Connect(kDefaultTimeoutMs), FAILED);
+}
+
+TEST_F(UbMultiChannelHandlerUTest, ConnectNonLazyAlreadyConnectedShortCircuits) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  auto handler = MakeUbMultiHandler({{CommType::COMM_TYPE_UB_D2D, {&client, &client}}});
+  handler->connected_types_.insert(CommType::COMM_TYPE_UB_D2D);
+  EXPECT_EQ(handler->Connect(kDefaultTimeoutMs), ALREADY_CONNECTED);
+}
+
+TEST_F(UbMultiChannelHandlerUTest, ConnectLazyDefersAndRejectsRepeat) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  auto handler = MakeUbMultiHandler({{CommType::COMM_TYPE_UB_H2H, {&client, &client}}});
+  handler->lazy_mode_ = true;
+  EXPECT_EQ(handler->Connect(kDefaultTimeoutMs), SUCCESS);
+  EXPECT_EQ(handler->connect_triggered_, true);
+  EXPECT_EQ(handler->Connect(kDefaultTimeoutMs), ALREADY_CONNECTED);
+}
+
+TEST_F(UbMultiChannelHandlerUTest, EnsureLinksConnectedUnknownTypeFails) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  auto handler = MakeUbMultiHandler({{CommType::COMM_TYPE_UB_H2H, {&client, &client}}});
+  EXPECT_EQ(handler->EnsureLinksConnected({CommType::COMM_TYPE_UB_D2D}, kDefaultTimeoutMs), FAILED);
+  EXPECT_TRUE(handler->connected_types_.empty());
+}
+
+TEST_F(UbMultiChannelHandlerUTest, EnsureLinksConnectedKnownTypeIsNoopWhenConnected) {
+  HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
+  auto handler = MakeUbMultiHandler({{CommType::COMM_TYPE_UB_H2H, {&client, &client}}});
+  handler->connected_types_.insert(CommType::COMM_TYPE_UB_H2H);
+  EXPECT_EQ(handler->EnsureLinksConnected({CommType::COMM_TYPE_UB_H2H}, kDefaultTimeoutMs), SUCCESS);
+  EXPECT_EQ(handler->connected_types_.size(), 1U);
+}
+
+TEST_F(UbMultiChannelHandlerUTest, RegisterMemPartialFailureRollsBackCleanly) {
+  HixlCSClient ok_client;
+  HixlCSClient fail_client;
+  ASSERT_EQ(CreateStatusHostClient(ok_client), SUCCESS);
+  ASSERT_EQ(CreateStatusHostClient(fail_client), SUCCESS);
+  // 预注册重叠区间，使 fail_client 的 RegMem 因内存重叠返回 PARAM_INVALID
+  MemHandle pre_handle = nullptr;
+  CommMem pre_mem{};
+  pre_mem.type = COMM_MEM_TYPE_HOST;
+  pre_mem.addr = reinterpret_cast<void *>(0x5000U);
+  pre_mem.size = sizeof(int32_t);
+  ASSERT_EQ(fail_client.RegMem(nullptr, &pre_mem, &pre_handle), SUCCESS);
+
+  auto handler = MakeUbMultiHandler({{CommType::COMM_TYPE_UB_H2H, {&ok_client, &fail_client}}});
+  const auto info = MakeHostMemInfo(reinterpret_cast<int32_t *>(0x5000U));
+  EXPECT_EQ(handler->RegisterMem(info), PARAM_INVALID);
+  // P2-1：部分失败回滚后 mem_handles_ 无孤儿句柄
+  EXPECT_TRUE(handler->mem_handles_[CommType::COMM_TYPE_UB_H2H].empty());
+  // 不留半注册记录，本地段同步清理
+  EXPECT_TRUE(handler->handle_to_mem_record_.empty());
+  EXPECT_TRUE(handler->local_segments_.empty());
+  // 回滚后 ok_client 已干净，与另一个干净 client 组成双 worker 重新注册成功
+  HixlCSClient ok_client2;
+  ASSERT_EQ(CreateStatusHostClient(ok_client2), SUCCESS);
+  auto handler2 = MakeUbMultiHandler({{CommType::COMM_TYPE_UB_H2H, {&ok_client, &ok_client2}}});
+  ASSERT_EQ(handler2->RegisterMem(info), SUCCESS);
+  EXPECT_EQ(handler2->handle_to_mem_record_.at(info.mem_handle).handles.size(), 2U);
+}
+
+TEST_F(UbMultiChannelHandlerUTest, RecordAsyncWorkersAllNullRejected) {
+  MultiChannelDispatcher dispatcher;
+  dispatcher.handles_ = {reinterpret_cast<HixlClientHandle>(0x1000)};
+  TransferReq req = reinterpret_cast<TransferReq>(0x7777);
+  std::vector<MultiChannelDispatcher::WorkerEntry> entries(2U);
+  entries[0].client_idx = 0U;
+  entries[1].client_idx = 1U;
+  EXPECT_EQ(dispatcher.RecordAsyncWorkers(req, entries), PARAM_INVALID);
+  EXPECT_TRUE(dispatcher.async_workers_.empty());
+}
+
+TEST_F(UbMultiChannelHandlerUTest, FinalizeUnregistersMemBeforeDestroy) {
+  HixlCSClient c1;
+  HixlCSClient c2;
+  ASSERT_EQ(CreateStatusHostClient(c1), SUCCESS);
+  ASSERT_EQ(CreateStatusHostClient(c2), SUCCESS);
+  // 若 Finalize 只清记账不 Unreg，c1/c2 上残留 0x5000 注册，第二次注册将因重叠失败
+  auto handler = MakeUbMultiHandler({{CommType::COMM_TYPE_UB_H2H, {&c1, &c2}}});
+  const auto info = MakeHostMemInfo(reinterpret_cast<int32_t *>(0x5000U));
+  ASSERT_EQ(handler->RegisterMem(info), SUCCESS);
+  EXPECT_EQ(handler->Finalize(), SUCCESS);
+
+  auto handler2 = MakeUbMultiHandler({{CommType::COMM_TYPE_UB_H2H, {&c1, &c2}}});
+  EXPECT_EQ(handler2->RegisterMem(info), SUCCESS);
 }
 
 }  // namespace hixl

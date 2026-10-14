@@ -280,7 +280,7 @@ options[hixl::OPTION_AUTO_CONNECT] = "1";
 <a id="grc_multi_channel"></a>
 
 - **multi_channel.num_workers / multi_channel.split_batch_size**：多通道并发传输配置。
-  - `num_workers`：取值范围[1, 16]，默认值1（关闭多通道）。配置后，对UBOE、UB_RTP和Host RoCE协议在建链时创建N个独立CS client，同步传输和异步传输均支持多通道并发，提升小包场景带宽。worker数越大占用的线程、Stream等设备资源越多，建议不超过8。
+  - `num_workers`：取值范围[1, 16]，默认值1（关闭多通道）。配置后，对UBOE、UB_RTP、Host RoCE和UB_CTP协议在建链时创建N个独立CS client，同步传输和异步传输均支持多通道并发，提升小包场景带宽。worker数越大占用的线程、Stream等设备资源越多，建议不超过8。
   - `split_batch_size`：取值范围[1, 4294967295]，默认值128。当单次传输的buffer数量大于split_batch_size时启用多通道拆分，拆分后的实际worker数由num_workers和buffer数量共同决定，不超过num_workers。
 
 使用示例：

@@ -18,6 +18,7 @@
 #include "engine/direct_client_handler.h"
 #include "engine/direct_multi_channel_handler.h"
 #include "engine/ub_client_handler.h"
+#include "engine/ub_multi_channel_handler.h"
 
 namespace hixl {
 Status ClientHandlerFactory::Create(const HandlerCreateArgs &args, std::unique_ptr<IClientHandler> &out) {
@@ -34,6 +35,13 @@ Status ClientHandlerFactory::Create(const HandlerCreateArgs &args, std::unique_p
     std::unique_ptr<DirectClientHandler> handler;
     HIXL_CHK_STATUS_RET(DirectClientHandler::Create(args, handler),
                         "ClientHandlerFactory create DirectClientHandler failed");
+    out = std::move(handler);
+    return SUCCESS;
+  }
+  if (args.MultiWorkerNum() > 1U) {
+    std::unique_ptr<UbMultiChannelHandler> handler;
+    HIXL_CHK_STATUS_RET(UbMultiChannelHandler::Create(args, handler),
+                        "ClientHandlerFactory create UbMultiChannelHandler failed");
     out = std::move(handler);
     return SUCCESS;
   }

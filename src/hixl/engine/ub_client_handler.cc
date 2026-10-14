@@ -25,21 +25,11 @@
 #include "common/scope_guard.h"
 #include "common/thread_pool.h"
 #include "engine/client_handler_config_helper.h"
-#include "engine/endpoint_generator/endpoint_generator.h"
 
 namespace hixl {
 namespace {
-constexpr uint64_t kMaxRecvMemInfoBodySize = static_cast<uint64_t>(4ULL * 1024ULL * 1024ULL);  // 4MB
 
-std::string BuildAvailableCommTypes(const std::map<CommType, HixlClientHandle> &handles) {
-  std::string available_types;
-  for (const auto &[type, handle] : handles) {
-    (void)handle;
-    available_types += available_types.empty() ? "" : ",";
-    available_types += CommTypeToString(type);
-  }
-  return available_types.empty() ? "none" : available_types;
-}
+constexpr uint64_t kMaxRecvMemInfoBodySize = static_cast<uint64_t>(4ULL * 1024ULL * 1024ULL);  // 4MB
 
 void LogUbDumpSummary(DumpLogLevel level, const char *reason, const std::string &local_engine,
                       const std::string &remote_engine, size_t handle_count, size_t connected_type_count,
@@ -101,6 +91,28 @@ Status DeserializeMemInfoList(const std::string &json_str, std::vector<MemInfo> 
   return SUCCESS;
 }
 
+std::string BuildAvailableCommTypes(const std::map<CommType, HixlClientHandle> &handles) {
+  std::string available_types;
+  for (const auto &[type, handle] : handles) {
+    (void)handle;
+    available_types += available_types.empty() ? "" : ",";
+    available_types += CommTypeToString(type);
+  }
+  return available_types.empty() ? "none" : available_types;
+}
+
+std::string BuildAvailableCommTypes(const std::map<CommType, std::vector<HixlClientHandle>> &handles) {
+  std::string available_types;
+  for (const auto &[type, type_handles] : handles) {
+    if (type_handles.empty()) {
+      continue;
+    }
+    available_types += available_types.empty() ? "" : ",";
+    available_types += CommTypeToString(type);
+  }
+  return available_types.empty() ? "none" : available_types;
+}
+
 Status FetchRemoteMemInfo(int32_t sock, uint32_t timeout_ms, std::vector<MemInfo> &mem_info) {
   CtrlMsgHeader header{};
   header.magic = kMagicNumber;
@@ -146,8 +158,59 @@ Status ComputeRemainingMs(const std::chrono::steady_clock::time_point &start, ui
   remaining_ms = static_cast<uint32_t>(static_cast<int64_t>(timeout_ms) - elapsed);
   return SUCCESS;
 }
-
 }  // namespace
+
+Status UbClientHandler::InitRemoteState(const HandlerCreateArgs &args) {
+  lazy_mode_ = args.is_lazy;
+  if (args.is_lazy) {
+    connect_timeout_ms_ = args.timeout_ms;
+  }
+  std::vector<MemInfo> remote_mem_info;
+  HIXL_CHK_STATUS_RET(FetchRemoteMemInfo(args.ctrl_socket, args.timeout_ms, remote_mem_info),
+                      "Failed to fetch remote mem info");
+  // BuildRemoteSegmentsFromMemInfo 内部自持 remote_seg_mutex_，外层勿重复加锁
+  return BuildRemoteSegmentsFromMemInfo(remote_mem_info);
+}
+
+void UbClientHandler::ClearTransferStateLocked() {
+  async_workers_.clear();
+}
+
+void UbClientHandler::DestroyHandlesLocked() {
+  for (auto &pair : handles_) {
+    if (pair.second != nullptr) {
+      HixlCSClientDestroy(pair.second);
+    }
+  }
+  handles_.clear();
+}
+
+void UbClientHandler::UnregisterAllMemLocked() {
+  for (auto &[key, record] : handle_to_mem_record_) {
+    (void)key;
+    for (const auto &[client, mh] : record.handles) {
+      (void)UnregOneHandle(client, mh, record.addr);
+    }
+  }
+  handle_to_mem_record_.clear();
+  mem_handles_.clear();
+}
+
+std::vector<HixlClientHandle> UbClientHandler::GetHandlesForType(CommType type) const {
+  auto it = handles_.find(type);
+  if (it == handles_.end()) {
+    return {};
+  }
+  return {it->second};
+}
+
+std::map<CommType, std::vector<HixlClientHandle>> UbClientHandler::GetAllLinkHandles() const {
+  std::map<CommType, std::vector<HixlClientHandle>> all;
+  for (const auto &[type, handle] : handles_) {
+    all[type] = {handle};
+  }
+  return all;
+}
 
 UbClientHandler::UbClientHandler(std::map<CommType, HixlClientHandle> handles, const std::string &local_engine,
                                  const std::string &remote_engine,
@@ -157,58 +220,57 @@ UbClientHandler::UbClientHandler(std::map<CommType, HixlClientHandle> handles, c
       remote_engine_(remote_engine),
       link_pairs_(std::move(link_pairs)) {}
 
-Status UbClientHandler::Create(const HandlerCreateArgs &args, std::unique_ptr<UbClientHandler> &out) {
-  std::map<CommType, HixlClientHandle> handles;
-  std::map<CommType, HandlerCreateArgs::EndpointPair> link_pairs;
+Status UbClientHandler::CreateHandlesForType(CommType type, const HixlClientDesc &desc, const HixlClientConfig &config,
+                                             const HandlerCreateArgs &args) {
+  (void)args;
+  HixlClientHandle handle = nullptr;
+  HIXL_CHK_STATUS_RET(HixlCSClientCreate(&desc, &config, &handle), "HixlCSClientCreate failed for type %s",
+                      CommTypeToString(type));
+  handles_[type] = handle;
+  return SUCCESS;
+}
+
+Status UbClientHandler::InitLinkPairs(const HandlerCreateArgs &args) {
   const std::string global_resource_config = ClientHandlerConfigHelper::BuildGlobalResourceConfig(args);
   for (const auto &pair : args.matched_pairs) {
     EndpointDesc le{};
     EndpointDesc re{};
-    HIXL_CHK_STATUS_RET(EndpointGenerator::ConvertToEndpointDesc(pair.local, le));
-    HIXL_CHK_STATUS_RET(EndpointGenerator::ConvertToEndpointDesc(pair.remote, re));
     HixlClientDesc desc{};
-    desc.server_ip = args.server_ip.c_str();
-    desc.server_port = args.server_port;
-    desc.local_endpoint = &le;
-    desc.remote_endpoint = &re;
-    desc.tc = args.rdma_tc.value_or(kRdmaTrafficClass);
-    desc.sl = args.rdma_sl.value_or(kRdmaServiceLevel);
-    HixlClientHandle handle = nullptr;
+    HIXL_CHK_STATUS_RET(ClientHandlerConfigHelper::FillClientDesc(args, pair, le, re, desc),
+                        "UbClientHandler fill client desc failed for type %s", CommTypeToString(pair.type));
     HixlClientConfig config{};
     if (!global_resource_config.empty()) {
       config.global_resource_config = global_resource_config.c_str();
     }
-    HIXL_CHK_STATUS_RET(HixlCSClientCreate(&desc, &config, &handle), "HixlCSClientCreate failed for type %s",
-                        CommTypeToString(pair.type));
-    handles[pair.type] = handle;
-    link_pairs[pair.type] = pair;
+    HIXL_CHK_STATUS_RET(CreateHandlesForType(pair.type, desc, config, args),
+                        "UbClientHandler create transport failed for type %s", CommTypeToString(pair.type));
+    link_pairs_[pair.type] = pair;
   }
-  out = MakeUnique<UbClientHandler>(std::move(handles), args.local_engine, args.remote_engine, std::move(link_pairs));
+  return SUCCESS;
+}
+
+Status UbClientHandler::Create(const HandlerCreateArgs &args, std::unique_ptr<UbClientHandler> &out) {
+  out = MakeUnique<UbClientHandler>(std::map<CommType, HixlClientHandle>{}, args.local_engine, args.remote_engine,
+                                    std::map<CommType, HandlerCreateArgs::EndpointPair>{});
   HIXL_CHECK_NOTNULL(out, "UbClientHandler create failed");
 
-  // 若后续步骤失败，确保已创建的 handles 通过 Finalize 释放，避免资源泄漏
+  // 若后续步骤失败，通过 Finalize 释放已建资源，避免泄漏
   HIXL_DISMISSABLE_GUARD(finalize_guard, [&out]() {
     if (out != nullptr) {
       (void)out->Finalize();
     }
   });
 
-  // 通过复用 ctrl_socket 向 server 获取对端内存信息，提前构建 remote_segments_
-  out->lazy_mode_ = args.is_lazy;
-  if (args.is_lazy) {
-    out->connect_timeout_ms_ = args.timeout_ms;
-  }
-  std::vector<MemInfo> remote_mem_info;
-  HIXL_CHK_STATUS_RET(FetchRemoteMemInfo(args.ctrl_socket, args.timeout_ms, remote_mem_info),
-                      "Failed to fetch remote mem info");
-  HIXL_CHK_STATUS_RET(out->BuildRemoteSegmentsFromMemInfo(remote_mem_info), "Failed to build remote segments");
+  HIXL_CHK_STATUS_RET(out->InitLinkPairs(args), "UbClientHandler create links failed");
+  HIXL_CHK_STATUS_RET(out->InitRemoteState(args), "UbClientHandler init remote state failed");
   HIXL_DISMISS_GUARD(finalize_guard);
   return SUCCESS;
 }
 
 Status UbClientHandler::Connect(uint32_t timeout_ms) {
   std::lock_guard<std::mutex> lock(handle_mutex_);
-  if (handles_.empty()) {
+  const auto all_handles = GetAllLinkHandles();
+  if (all_handles.empty()) {
     return FAILED;
   }
 
@@ -216,7 +278,7 @@ Status UbClientHandler::Connect(uint32_t timeout_ms) {
   if (!lazy_mode_) {
     HIXL_CHK_BOOL_RET_STATUS(connected_types_.empty(), ALREADY_CONNECTED,
                              "[UbClientHandler] All links already connected");
-    return ConnectHandles(handles_, timeout_ms);
+    return ConnectHandles(all_handles, timeout_ms);
   }
 
   // lazy 模式首次调用：仅保存超时，延迟到 transfer 时按需建链
@@ -233,19 +295,20 @@ Status UbClientHandler::Connect(uint32_t timeout_ms) {
 Status UbClientHandler::EnsureLinksConnected(const std::vector<CommType> &types, uint32_t timeout_ms) {
   std::lock_guard<std::mutex> lock(handle_mutex_);
 
-  std::map<CommType, HixlClientHandle> pending;
+  std::map<CommType, std::vector<HixlClientHandle>> pending;
   for (auto type : types) {
     if (connected_types_.count(type) != 0U) {
       continue;
     }
-    auto it = handles_.find(type);
+    // 宏参数仅在失败分支求值（含错误上报），热路径零额外分配
+    std::vector<HixlClientHandle> type_handles = GetHandlesForType(type);
     HIXL_CHK_BOOL_RET_STATUS(
-        it != handles_.end(), FAILED,
+        !type_handles.empty(), FAILED,
         "[UbClientHandler] Requested communication type:%s is unavailable, available communication types:%s, "
         "local_engine:%s, remote_engine:%s",
-        CommTypeToString(type), BuildAvailableCommTypes(handles_).c_str(), local_engine_.c_str(),
+        CommTypeToString(type), BuildAvailableCommTypes(GetAllLinkHandles()).c_str(), local_engine_.c_str(),
         remote_engine_.c_str());
-    pending.emplace(type, it->second);
+    pending.emplace(type, std::move(type_handles));
   }
   if (pending.empty()) {
     return SUCCESS;
@@ -253,27 +316,39 @@ Status UbClientHandler::EnsureLinksConnected(const std::vector<CommType> &types,
   return ConnectHandles(pending, timeout_ms);
 }
 
-Status UbClientHandler::ConnectHandles(const std::map<CommType, HixlClientHandle> &handles, uint32_t timeout_ms) {
+Status UbClientHandler::ConnectHandles(const std::map<CommType, std::vector<HixlClientHandle>> &handles,
+                                       uint32_t timeout_ms) {
   std::vector<std::future<Status>> futures;
-  std::vector<CommType> type_order;  // 保持与 futures 索引对应，用于结果收集时回写 connected_types_
+  std::vector<CommType> type_order;  // 与 futures 索引一一对应，worker 级并行提交
+  std::map<CommType, size_t> worker_total;
+  std::map<CommType, size_t> worker_done;
+  size_t task_num = 0U;
   OptionalAclrtContext context;
   HIXL_CHK_STATUS_RET(context.GetCurrentContext(), "GetCurrentContext failed");
 
-  ThreadPool thread_pool("ub_connect", handles.size());
-  for (const auto &[type, handle] : handles) {
-    type_order.push_back(type);
-    futures.emplace_back(thread_pool.commit([handle, timeout_ms, type, &context]() -> Status {
-      HIXL_CHK_STATUS_RET(context.SetCurrentContext(), "SetCurrentContext failed");
-      HIXL_CHK_STATUS_RET(HixlCSClientConnect(handle, timeout_ms), "UbClientHandler Connect failed for type:%s",
-                          CommTypeToString(type));
-      HIXL_LOGI("[UbClientHandler] Connected type:%s successfully", CommTypeToString(type));
-      return SUCCESS;
-    }));
+  for (const auto &[type, type_handles] : handles) {
+    worker_total[type] = type_handles.size();
+    task_num += type_handles.size();
+  }
+  ThreadPool thread_pool("ub_connect", task_num);
+  for (const auto &[type, type_handles] : handles) {
+    for (HixlClientHandle handle : type_handles) {
+      type_order.push_back(type);
+      futures.emplace_back(thread_pool.commit([type, handle, timeout_ms, &context]() -> Status {
+        HIXL_CHK_STATUS_RET(context.SetCurrentContext(), "SetCurrentContext failed");
+        HIXL_CHK_STATUS_RET(HixlCSClientConnect(handle, timeout_ms), "UbClientHandler Connect failed for type:%s",
+                            CommTypeToString(type));
+        return SUCCESS;
+      }));
+    }
   }
   for (size_t i = 0; i < futures.size(); ++i) {
     HIXL_CHK_STATUS_RET(futures[i].get(), "[UbClientHandler] ConnectHandles failed for type:%s",
                         CommTypeToString(type_order[i]));
-    connected_types_.insert(type_order[i]);
+    if (++worker_done[type_order[i]] == worker_total[type_order[i]]) {
+      connected_types_.insert(type_order[i]);
+      HIXL_LOGI("[UbClientHandler] Connected type:%s successfully", CommTypeToString(type_order[i]));
+    }
   }
 
   return SUCCESS;
@@ -335,43 +410,39 @@ void UbClientHandler::RemoveLocalRange(uintptr_t addr, uint64_t len, MemType typ
   }
 }
 
-Status UbClientHandler::RollbackRegisteredHandles(const std::map<CommType, MemHandle> &addr_handles, uintptr_t addr) {
+Status UbClientHandler::RollbackRegisteredHandles(const std::map<HixlClientHandle, MemHandle> &addr_handles,
+                                                  uintptr_t addr) {
   Status first_err = SUCCESS;
-  for (const auto &[ct, mh] : addr_handles) {
-    const Status ret = UnregOneHandle(ct, mh, addr);
+  for (const auto &[client, mh] : addr_handles) {
+    const Status ret = UnregOneHandle(client, mh, addr);
     if (ret != SUCCESS) {
       if (first_err == SUCCESS) {
         first_err = ret;
       }
       continue;
     }
-    EraseMemHandle(ct, mh);
+    EraseMemHandle(mh);
   }
   return first_err;
 }
 
-Status UbClientHandler::UnregOneHandle(CommType ct, MemHandle mh, uintptr_t addr) {
+Status UbClientHandler::UnregOneHandle(HixlClientHandle client, MemHandle mh, uintptr_t addr) {
   if (mh == nullptr) {
     return SUCCESS;
   }
-  auto h_it = handles_.find(ct);
-  if (h_it == handles_.end()) {
-    return SUCCESS;
-  }
-  HIXL_CHK_STATUS_RET(HixlCSClientUnregMem(h_it->second, mh),
-                      "Call api:HixlCSClientUnregMem failed, addr:0x%lx, handle:%p, comm_type:%s", addr, mh,
-                      CommTypeToString(ct));
+  HIXL_CHK_STATUS_RET(HixlCSClientUnregMem(client, mh), "Call api:HixlCSClientUnregMem failed, addr:0x%lx, handle:%p",
+                      addr, mh);
   return SUCCESS;
 }
 
-void UbClientHandler::EraseMemHandle(CommType ct, MemHandle mh) {
-  auto vec_it = mem_handles_.find(ct);
-  if (vec_it == mem_handles_.end()) {
-    return;
-  }
-  auto mh_it = std::find(vec_it->second.begin(), vec_it->second.end(), mh);
-  if (mh_it != vec_it->second.end()) {
-    vec_it->second.erase(mh_it);
+void UbClientHandler::EraseMemHandle(MemHandle mh) {
+  for (auto &[ct, handles] : mem_handles_) {
+    (void)ct;
+    auto mh_it = std::find(handles.begin(), handles.end(), mh);
+    if (mh_it != handles.end()) {
+      handles.erase(mh_it);
+      return;
+    }
   }
 }
 
@@ -394,24 +465,22 @@ Status UbClientHandler::RegisterMem(const MemHandleInfo &mem_info) {
     return SUCCESS;
   }
   HIXL_CHK_STATUS_RET(AddLocalRange(mem.addr, mem.len, type));
-  std::map<CommType, MemHandle> addr_handles;
+  std::map<HixlClientHandle, MemHandle> addr_handles;
   for (auto ct : comm_types) {
-    auto h_it = handles_.find(ct);
-    if (h_it == handles_.end()) {
-      continue;
+    for (HixlClientHandle client : GetHandlesForType(ct)) {
+      MemHandle mh = nullptr;
+      const Status ret = HixlCSClientRegMem(client, nullptr, &hccl_mem, &mh);
+      if (ret != SUCCESS) {
+        HIXL_CHK_STATUS(RollbackRegisteredHandles(addr_handles, mem.addr),
+                        "Rollback after RegisterMem failed, addr:0x%lx, failed_comm_type:%s", mem.addr,
+                        CommTypeToString(ct));
+        RemoveLocalRange(mem.addr, mem.len, type);
+        HIXL_CHK_STATUS_RET(ret, "Call api:HixlCSClientRegMem failed, addr:0x%lx, comm_type:%s", mem.addr,
+                            CommTypeToString(ct));
+      }
+      mem_handles_[ct].push_back(mh);
+      addr_handles[client] = mh;
     }
-    MemHandle mh = nullptr;
-    const Status ret = HixlCSClientRegMem(h_it->second, nullptr, &hccl_mem, &mh);
-    if (ret != SUCCESS) {
-      HIXL_CHK_STATUS(RollbackRegisteredHandles(addr_handles, mem.addr),
-                      "Rollback after RegisterMem failed, addr:0x%lx, failed_comm_type:%s", mem.addr,
-                      CommTypeToString(ct));
-      RemoveLocalRange(mem.addr, mem.len, type);
-      HIXL_CHK_STATUS_RET(ret, "Call api:HixlCSClientRegMem failed, addr:0x%lx, comm_type:%s", mem.addr,
-                          CommTypeToString(ct));
-    }
-    mem_handles_[ct].push_back(mh);
-    addr_handles[ct] = mh;
   }
   handle_to_mem_record_[mem_info.mem_handle] = AddrMemRecord{mem.addr, mem.len, type, std::move(addr_handles)};
   return SUCCESS;
@@ -425,20 +494,20 @@ Status UbClientHandler::DeregisterMem(MemHandle mem_handle) {
   }
   AddrMemRecord &record = handle_it->second;
   Status first_err = SUCCESS;
-  std::vector<CommType> done_cts;
-  for (const auto &[ct, mh] : record.handles) {
-    const Status ret = UnregOneHandle(ct, mh, record.addr);
+  std::vector<HixlClientHandle> done_clients;
+  for (const auto &[client, mh] : record.handles) {
+    const Status ret = UnregOneHandle(client, mh, record.addr);
     if (ret != SUCCESS) {
       if (first_err == SUCCESS) {
         first_err = ret;
       }
       continue;
     }
-    EraseMemHandle(ct, mh);
-    done_cts.push_back(ct);
+    EraseMemHandle(mh);
+    done_clients.push_back(client);
   }
-  for (auto ct : done_cts) {
-    record.handles.erase(ct);
+  for (auto client : done_clients) {
+    record.handles.erase(client);
   }
   HIXL_CHK_BOOL_RET_STATUS(first_err == SUCCESS, first_err,
                            "[UbClientHandler] DeregisterMem partial failure, mem_handle:%p, addr:0x%lx, len:%lu bytes, "
@@ -449,11 +518,63 @@ Status UbClientHandler::DeregisterMem(MemHandle mem_handle) {
   return SUCCESS;
 }
 
+Status UbClientHandler::SubmitDescsForType(CommType type, const std::vector<TransferOpDesc> &descs, bool is_get,
+                                           uint32_t timeout_ms, bool is_async, TransferReq &req) {
+  HixlClientHandle handle = nullptr;
+  {
+    std::lock_guard<std::mutex> lock(handle_mutex_);
+    auto it = handles_.find(type);
+    HIXL_CHK_BOOL_RET_STATUS(
+        it != handles_.end(), FAILED,
+        "[UbClientHandler] Requested communication type:%s is unavailable, available communication types:%s, "
+        "local_engine:%s, remote_engine:%s",
+        CommTypeToString(type), BuildAvailableCommTypes(handles_).c_str(), local_engine_.c_str(),
+        remote_engine_.c_str());
+    handle = it->second;
+  }
+  const uint32_t list_num = static_cast<uint32_t>(descs.size());
+  std::vector<HixlOneSideOpDesc> hixl_descs(list_num);
+  for (size_t i = 0; i < list_num; i++) {
+    hixl_descs[i].remote_buf = reinterpret_cast<void *>(descs[i].remote_addr);
+    hixl_descs[i].local_buf = reinterpret_cast<void *>(descs[i].local_addr);
+    hixl_descs[i].len = descs[i].len;
+  }
+  if (is_async) {
+    CompleteHandle complete_handle = nullptr;
+    const Status ret = is_get ? HixlCSClientBatchGetAsync(handle, list_num, hixl_descs.data(), &complete_handle)
+                              : HixlCSClientBatchPutAsync(handle, list_num, hixl_descs.data(), &complete_handle);
+    if (ret != SUCCESS) {
+      return ret;
+    }
+    req = static_cast<TransferReq>(complete_handle);
+    return SUCCESS;
+  }
+  return is_get ? HixlCSClientBatchGetSync(handle, list_num, hixl_descs.data(), timeout_ms)
+                : HixlCSClientBatchPutSync(handle, list_num, hixl_descs.data(), timeout_ms);
+}
+
+Status UbClientHandler::CheckSubReqStatus(const SubReq &sub, TransferStatus &sub_status) {
+  HixlClientHandle handle = nullptr;
+  {
+    std::lock_guard<std::mutex> lock(handle_mutex_);
+    auto it = handles_.find(sub.type);
+    HIXL_CHK_BOOL_RET_STATUS(it != handles_.end(), FAILED,
+                             "[UbClientHandler] Requested communication type:%s is unavailable, "
+                             "local_engine:%s, remote_engine:%s",
+                             CommTypeToString(sub.type), local_engine_.c_str(), remote_engine_.c_str());
+    handle = it->second;
+  }
+  HixlCompleteStatus cs = HIXL_COMPLETE_STATUS_WAITING;
+  HIXL_CHK_STATUS_RET(HixlCSClientQueryCompleteStatus(handle, sub.req, &cs),
+                      "[UbClientHandler] query complete status failed, handle:%p", sub.req);
+  sub_status = ToTransferStatus(cs);
+  return SUCCESS;
+}
+
 Status UbClientHandler::TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation,
                                       TransferReq &req) {
   std::map<CommType, std::vector<TransferOpDesc>> table;
   HIXL_CHK_STATUS_RET(ClassifyTransfers(op_descs, table));
-
   if (lazy_mode_) {
     std::vector<CommType> needed_types;
     for (const auto &pair : table) {
@@ -462,38 +583,23 @@ Status UbClientHandler::TransferAsync(const std::vector<TransferOpDesc> &op_desc
     HIXL_CHK_STATUS_RET(EnsureLinksConnected(needed_types, connect_timeout_ms_));
   }
 
-  std::vector<BatchHandle> batch_handles;
-  {
-    std::lock_guard<std::mutex> lock(handle_mutex_);
-    for (const auto &[type, descs] : table) {
-      auto it = handles_.find(type);
-      HIXL_CHK_BOOL_RET_STATUS(
-          it != handles_.end(), FAILED,
-          "[UbClientHandler] Requested communication type:%s is unavailable, available communication types:%s, "
-          "local_engine:%s, remote_engine:%s",
-          CommTypeToString(type), BuildAvailableCommTypes(handles_).c_str(), local_engine_.c_str(),
-          remote_engine_.c_str());
-      auto handle = it->second;
-
-      const uint32_t list_num = static_cast<uint32_t>(descs.size());
-      std::vector<HixlOneSideOpDesc> hixl_descs(list_num);
-      for (size_t i = 0; i < list_num; i++) {
-        hixl_descs[i].remote_buf = reinterpret_cast<void *>(descs[i].remote_addr);
-        hixl_descs[i].local_buf = reinterpret_cast<void *>(descs[i].local_addr);
-        hixl_descs[i].len = descs[i].len;
-      }
-      CompleteHandle complete_handle = nullptr;
-      if (operation == WRITE) {
-        HIXL_CHK_STATUS_RET(HixlCSClientBatchPutAsync(handle, list_num, hixl_descs.data(), &complete_handle));
-      } else {
-        HIXL_CHK_STATUS_RET(HixlCSClientBatchGetAsync(handle, list_num, hixl_descs.data(), &complete_handle));
-      }
-      batch_handles.push_back({type, complete_handle});
-    }
+  // 异步提交+记账与 GetTransferStatus/ClearTransferStateLocked 共用 complete_handles_mutex_
+  std::lock_guard<std::mutex> lock(complete_handles_mutex_);
+  // 提交失败即返回错误：传输不重试，调用方按契约 disconnect 重建，
+  // dispatcher 记账由 Finalize/Reset 清理
+  SubReqList sub_reqs;
+  for (const auto &[type, descs] : table) {
+    SubReq sub{};
+    sub.type = type;
+    HIXL_CHK_STATUS_RET(SubmitDescsForType(type, descs, (operation != WRITE), 0U, true, sub.req),
+                        "[UbClientHandler] async submit failed for type:%s", CommTypeToString(type));
+    sub_reqs.push_back(sub);
   }
-  req = static_cast<TransferReq>(batch_handles[0].handle);
-  std::lock_guard<std::mutex> ch_lock(complete_handles_mutex_);
-  complete_handles_[req] = std::move(batch_handles);
+  HIXL_CHK_BOOL_RET_STATUS(!sub_reqs.empty(), PARAM_INVALID,
+                           "[UbClientHandler] SubmitAsync failed, no sub request "
+                           "submitted");
+  req = sub_reqs[0].req;
+  async_workers_[req] = std::move(sub_reqs);
   return SUCCESS;
 }
 
@@ -503,7 +609,6 @@ Status UbClientHandler::TransferSync(const std::vector<TransferOpDesc> &op_descs
   HIXL_CHK_STATUS_RET(ClassifyTransfers(op_descs, table));
 
   const auto sync_start = std::chrono::steady_clock::now();
-
   if (lazy_mode_) {
     std::vector<CommType> needed_types;
     for (const auto &pair : table) {
@@ -514,83 +619,62 @@ Status UbClientHandler::TransferSync(const std::vector<TransferOpDesc> &op_descs
     HIXL_CHK_STATUS_RET(EnsureLinksConnected(needed_types, remaining_ms));
   }
 
+  // 同步传输独占 sync_submit_mutex_，与异步查询（complete_handles_mutex_）解耦
+  std::lock_guard<std::mutex> lock(sync_submit_mutex_);
   for (const auto &[type, descs] : table) {
     uint32_t remaining_ms = 0;
     HIXL_CHK_STATUS_RET(ComputeRemainingMs(sync_start, timeout_ms, remaining_ms));
-
-    HixlClientHandle handle = nullptr;
-    {
-      std::lock_guard<std::mutex> lock(handle_mutex_);
-      auto it = handles_.find(type);
-      HIXL_CHK_BOOL_RET_STATUS(
-          it != handles_.end(), FAILED,
-          "[UbClientHandler] Requested communication type:%s is unavailable, available communication types:%s, "
-          "local_engine:%s, remote_engine:%s",
-          CommTypeToString(type), BuildAvailableCommTypes(handles_).c_str(), local_engine_.c_str(),
-          remote_engine_.c_str());
-      handle = it->second;
-    }
-
-    const uint32_t list_num = static_cast<uint32_t>(descs.size());
-    std::vector<HixlOneSideOpDesc> op_descs(list_num);
-    for (size_t i = 0; i < list_num; i++) {
-      op_descs[i].remote_buf = reinterpret_cast<void *>(descs[i].remote_addr);
-      op_descs[i].local_buf = reinterpret_cast<void *>(descs[i].local_addr);
-      op_descs[i].len = descs[i].len;
-    }
-    auto *cs = static_cast<HixlCSClient *>(handle);
-    const bool is_get = (operation != WRITE);
-    HIXL_CHK_STATUS_RET(cs->BatchTransferSync(is_get, list_num, op_descs.data(), remaining_ms));
+    TransferReq sub_req = nullptr;
+    HIXL_CHK_STATUS_RET(SubmitDescsForType(type, descs, (operation != WRITE), remaining_ms, false, sub_req));
   }
   return SUCCESS;
 }
 
 Status UbClientHandler::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
   std::lock_guard<std::mutex> ch_lock(complete_handles_mutex_);
-  if (complete_handles_.empty()) {
-    HIXL_LOGE(FAILED, "UbClientHandler GetTransferStatus failed, no transfer tasks in progress, req:%p", req);
+  if (async_workers_.empty()) {
+    HIXL_LOGE(FAILED, "[UbClientHandler] GetTransferStatus failed, no transfer tasks in progress, req:%p", req);
     status = TransferStatus::FAILED;
     return FAILED;
   }
-  auto it = complete_handles_.find(req);
-  if (it == complete_handles_.end()) {
-    HIXL_LOGE(PARAM_INVALID, "UbClientHandler GetTransferStatus failed, invalid req");
+  auto it = async_workers_.find(req);
+  if (it == async_workers_.end()) {
+    HIXL_LOGE(PARAM_INVALID, "[UbClientHandler] GetTransferStatus failed, invalid req:%p", req);
     status = TransferStatus::FAILED;
     return PARAM_INVALID;
   }
-
+  // 终态缓存：已终态子请求不再下查（CS 层首查终态即释放句柄，
+  // 重查将触碰已释放内存）
   bool all_complete = true;
-  for (const auto &bh : it->second) {
-    std::lock_guard<std::mutex> lock(handle_mutex_);
-    auto h_it = handles_.find(bh.type);
-    if (h_it == handles_.end()) {
-      status = TransferStatus::FAILED;
-      complete_handles_.erase(req);
-      return FAILED;
+  for (auto &sub : it->second) {
+    if (sub.status == TransferStatus::COMPLETED) {
+      continue;
     }
-    HixlCompleteStatus cs = HIXL_COMPLETE_STATUS_WAITING;
-    Status ret = static_cast<Status>(HixlCSClientQueryCompleteStatus(h_it->second, bh.handle, &cs));
+    TransferStatus sub_status = TransferStatus::FAILED;
+    const Status ret = CheckSubReqStatus(sub, sub_status);
     if (ret != SUCCESS) {
       status = TransferStatus::FAILED;
-      complete_handles_.erase(req);
+      async_workers_.erase(it);
       return ret;
     }
-    if (cs == HIXL_COMPLETE_STATUS_WAITING) {
+    if (sub_status == TransferStatus::WAITING) {
       all_complete = false;
       continue;
     }
-    if (cs != HIXL_COMPLETE_STATUS_COMPLETED) {
-      status = ToTransferStatus(cs);
-      HIXL_LOGE(FAILED, "UbClientHandler GetTransferStatus failed, cs=%d, req:%p", static_cast<int32_t>(cs), req);
-      complete_handles_.erase(req);
+    if (sub_status != TransferStatus::COMPLETED) {
+      status = sub_status;
+      HIXL_LOGE(FAILED, "UbClientHandler GetTransferStatus failed, sub status:%d, req:%p",
+                static_cast<int32_t>(sub_status), req);
+      async_workers_.erase(it);
       return SUCCESS;
     }
+    sub.status = TransferStatus::COMPLETED;
   }
 
   status = all_complete ? TransferStatus::COMPLETED : TransferStatus::WAITING;
   if (all_complete) {
     HIXL_LOGI("UbClientHandler GetTransferStatus completed, req:%p", req);
-    complete_handles_.erase(req);
+    async_workers_.erase(it);
   } else {
     HIXL_LOGI("UbClientHandler GetTransferStatus waiting, req:%p", req);
   }
@@ -599,33 +683,18 @@ Status UbClientHandler::GetTransferStatus(const TransferReq &req, TransferStatus
 
 Status UbClientHandler::Finalize() {
   {
-    std::lock_guard<std::mutex> lock(complete_handles_mutex_);
-    complete_handles_.clear();
+    // 传输记账复位与并发 GetTransferStatus/TransferSync 同斥
+    std::scoped_lock lock(complete_handles_mutex_, sync_submit_mutex_);
+    ClearTransferStateLocked();
   }
   {
     std::scoped_lock lock(mem_handle_mutex_, handle_mutex_);
-    for (auto &[type, mem_list] : mem_handles_) {
-      auto it = handles_.find(type);
-      if (it == handles_.end()) {
-        continue;
-      }
-      for (auto &mh : mem_list) {
-        if (mh != nullptr) {
-          HixlCSClientUnregMem(it->second, mh);
-        }
-      }
-    }
-    mem_handles_.clear();
-    handle_to_mem_record_.clear();
+    // 须在销毁句柄前逐个注销内存，避免泄漏对端注册
+    UnregisterAllMemLocked();
   }
   {
     std::lock_guard<std::mutex> lock(handle_mutex_);
-    for (auto &pair : handles_) {
-      if (pair.second != nullptr) {
-        HixlCSClientDestroy(pair.second);
-      }
-    }
-    handles_.clear();
+    DestroyHandlesLocked();
     connected_types_.clear();
   }
   {
@@ -655,18 +724,21 @@ void UbClientHandler::Dump(const char *reason, DumpLogLevel level) const {
   size_t remote_segment_count = 0;
   {
     std::lock_guard<std::mutex> lock(handle_mutex_);
-    handle_count = handles_.size();
-    connected_type_count = connected_types_.size();
-    for (const auto &[type, handle] : handles_) {
+    for (const auto &[type, type_handles] : GetAllLinkHandles()) {
       auto pair_it = link_pairs_.find(type);
-      links.push_back({type, handle, connected_types_.count(type) != 0U,
-                       pair_it == link_pairs_.end() ? "" : pair_it->second.local.ToString(),
-                       pair_it == link_pairs_.end() ? "" : pair_it->second.remote.ToString()});
+      const bool connected = connected_types_.count(type) != 0U;
+      const std::string local_endpoint = pair_it == link_pairs_.end() ? "" : pair_it->second.local.ToString();
+      const std::string remote_endpoint = pair_it == link_pairs_.end() ? "" : pair_it->second.remote.ToString();
+      handle_count += type_handles.size();
+      for (HixlClientHandle handle : type_handles) {
+        links.push_back({type, handle, connected, local_endpoint, remote_endpoint});
+      }
     }
+    connected_type_count = connected_types_.size();
   }
   {
     std::lock_guard<std::mutex> lock(complete_handles_mutex_);
-    complete_req_count = complete_handles_.size();
+    complete_req_count = async_workers_.size();
   }
   {
     std::lock_guard<std::mutex> lock(local_seg_mutex_);
