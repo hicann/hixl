@@ -485,12 +485,12 @@ def main() -> None:
     table = render_table(lookup, platform, deployment)
     sections = [intro, legend, '### 性能数据\n\n', table]
     benchmarks_dir = Path(__file__).resolve().parents[1]
-    figures_dir = benchmarks_dir / 'performance' / 'figures'
+    out_path = args.output or benchmarks_dir / 'perf.md'
+    figures_dir = out_path.parent / 'performance' / 'figures'
     if not args.no_plots:
         chart_embeds = render_charts(lookup, platform, figures_dir)
         sections.extend(chart_embeds)
     md_content = ''.join(sections)
-    out_path = args.output or benchmarks_dir / 'perf.md'
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(md_content, encoding='utf-8')
     log.info(f'[INFO] wrote {out_path}')
