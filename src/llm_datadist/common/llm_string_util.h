@@ -114,7 +114,7 @@ class GE_FUNC_VISIBILITY StringUtils {
    *  @ingroup domi_common
    *  @brief full replacement
    *  @link
-   *  @param [in] str str string to be replaced
+   *  @param [in] str string to be replaced
    *  @param [in] old_value  old Characters Before Replacement
    *  @param [in] new_value  new Characters Before Replacement
    *  @return string after replacement
