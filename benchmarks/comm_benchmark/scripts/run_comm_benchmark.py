@@ -134,10 +134,12 @@ def infer_platform_from_csv_dir(csv_dir: Path) -> str | None:
         all_directions.update(directions)
     if not all_transports:
         return None
+    if all_transports & {'ub', 'uboe', 'ub_rtp'}:
+        return 'a5'
     if 'hccs' in all_transports and ('H2rD' in all_directions or 'rD2H' in all_directions):
         return 'a3'
     if 'fabric_mem' in all_transports:
-        return 'a5' if 'hccs' not in all_transports else 'a3'
+        return 'a3'
     if 'hccs' in all_transports:
         return 'a2'
     return None
