@@ -1212,6 +1212,15 @@ Status EndpointGenerator::BuildDefaultDeviceEndpointInfoList(
   HIXL_CHK_STATUS_RET(ResolveDeviceEndpointNeedByProtocolDesc(protocol_desc, roce_needed, hccs_needed),
                       "ResolveDeviceEndpointNeedByProtocolDesc failed");
 
+  // ubmem has the highest priority: generate it before RoCE and the intra-RoCE return.
+  if (std::find(protocol_desc.begin(), protocol_desc.end(), kProtocolUbmem) != protocol_desc.end()) {
+    EndpointInfo ubmem_endpoint{};
+    ubmem_endpoint.protocol = kProtocolUbmem;
+    ubmem_endpoint.comm_id = std::to_string(phy_device_id);
+    ubmem_endpoint.placement = kPlacementDevice;
+    endpoint_list.emplace_back(std::move(ubmem_endpoint));
+  }
+
   if (roce_needed) {
     const bool roce_required = !protocol_desc.empty() || IsIntraRoceEnabled();
     EndpointInfo roce_endpoint{};
@@ -1223,7 +1232,7 @@ Status EndpointGenerator::BuildDefaultDeviceEndpointInfoList(
   }
 
   if (IsIntraRoceEnabled()) {
-    HIXL_LOGI("HCCL_INTRA_ROCE_ENABLE=1, only generate ROCE endpoint");
+    HIXL_LOGI("HCCL_INTRA_ROCE_ENABLE=1, skip HCCS endpoint generation");
     return SUCCESS;
   }
 
@@ -1232,14 +1241,6 @@ Status EndpointGenerator::BuildDefaultDeviceEndpointInfoList(
     HIXL_CHK_STATUS_RET(BuildHccsEndpoint(phy_device_id, hccs_endpoint), "BuildHccsEndpoint failed, phy_device_id:%d",
                         phy_device_id);
     endpoint_list.emplace_back(std::move(hccs_endpoint));
-  }
-
-  if (std::find(protocol_desc.begin(), protocol_desc.end(), kProtocolUbmem) != protocol_desc.end()) {
-    EndpointInfo ubmem_endpoint{};
-    ubmem_endpoint.protocol = kProtocolUbmem;
-    ubmem_endpoint.comm_id = std::to_string(phy_device_id);
-    ubmem_endpoint.placement = kPlacementDevice;
-    endpoint_list.emplace_back(std::move(ubmem_endpoint));
   }
 
   return SUCCESS;

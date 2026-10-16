@@ -482,6 +482,27 @@ TEST_F(EndpointGeneratorUTest, BuildDefaultDeviceEndpointInfoListWithIntraRoceEn
   (void)remove(file_path.c_str());
 }
 
+TEST_F(EndpointGeneratorUTest, BuildDefaultDeviceEndpointInfoListKeepsUbmemWhenIntraRoceEnabled) {
+  const std::string file_path =
+      test::CreateTempFileWithContent("/tmp/loc_comm_res_ut_XXXXXX", "address_23=10.10.10.23\n");
+  mmpa_stub_->real_path_ok_ = true;
+  mmpa_stub_->access_ok_ = true;
+  mmpa_stub_->fake_real_path_ = file_path;
+  setenv("HCCL_INTRA_ROCE_ENABLE", "1", 1);
+
+  const std::vector<std::string> protocol_desc = {kProtocolUbmem, "hccs:device", "roce:device"};
+  std::vector<EndpointGenerator::EndpointInfo> endpoint_list;
+  EXPECT_EQ(EndpointGenerator::BuildDefaultDeviceEndpointInfoList(23, protocol_desc, endpoint_list), SUCCESS);
+  ASSERT_EQ(endpoint_list.size(), 2U);
+  EXPECT_EQ(endpoint_list[0].protocol, kProtocolUbmem);
+  EXPECT_EQ(endpoint_list[0].comm_id, "23");
+  EXPECT_EQ(endpoint_list[0].placement, kPlacementDevice);
+  EXPECT_EQ(endpoint_list[1].protocol, kProtocolRoce);
+  EXPECT_EQ(endpoint_list[1].comm_id, "10.10.10.23");
+
+  (void)remove(file_path.c_str());
+}
+
 TEST_F(EndpointGeneratorUTest, BuildDefaultDeviceEndpointInfoListGeneratesOnlyRoceByProtocolDesc) {
   const std::string file_path =
       test::CreateTempFileWithContent("/tmp/loc_comm_res_ut_XXXXXX", "address_3=10.10.10.3\n");
@@ -708,6 +729,26 @@ TEST_F(EndpointGeneratorUTest, GenerateInfoForV3BuildsUbmemEndpointWithDeviceId)
   EXPECT_EQ(info.endpoint_list[0].protocol, kProtocolUbmem);
   EXPECT_EQ(info.endpoint_list[0].comm_id, "23");
   EXPECT_EQ(info.endpoint_list[0].placement, kPlacementDevice);
+}
+
+TEST_F(EndpointGeneratorUTest, BuildEndpointListKeepsUbmemWhenFabricMemAndIntraRoceEnabled) {
+  acl_stub_->soc_name_ = "Ascend910_9391";
+  acl_stub_->phy_device_id_ = 23;
+  acl_stub_->super_pod_id_ = 88;
+  setenv("HCCL_INTRA_ROCE_ENABLE", "1", 1);
+
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_LOCAL_COMM_RES] = AscendString(R"({"version":"1.3"})");
+  options[hixl::OPTION_ENABLE_USE_FABRIC_MEM] = "1";
+
+  std::string local_comm_res;
+  std::vector<EndpointConfig> endpoint_list;
+  CallBuildEndpointList(options, "127.0.0.1:26000", local_comm_res, endpoint_list);
+
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_EQ(endpoint_list[0].protocol, kProtocolUbmem);
+  EXPECT_EQ(endpoint_list[0].comm_id, "23");
+  EXPECT_EQ(endpoint_list[0].placement, kPlacementDevice);
 }
 
 TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsParsesManualJsonAndFillsDeviceInfo) {
