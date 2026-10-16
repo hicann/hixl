@@ -121,6 +121,8 @@ class BenchmarkExitStatusTest(unittest.TestCase):
 
     def test_kv_propagates_child_failure_and_skips_success_plots(self):
         def launch(processes):
+            for process in processes:
+                process.poll.return_value = process.wait.return_value
             argv = [
                 "run_kv_benchmark.py",
                 "--platform=a2",
