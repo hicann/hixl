@@ -162,6 +162,7 @@ def _kill_if_running(proc: subprocess.Popen | None) -> None:
 def _wait_for_combo_processes(server: subprocess.Popen, client_cmd: list[str]) -> tuple[int, int] | None:
     client: subprocess.Popen | None = None
     try:
+        time.sleep(2)
         client = subprocess.Popen(client_cmd)
         client_rc = client.wait(timeout=300)
         server_rc = server.wait(timeout=10)
@@ -201,7 +202,6 @@ def run_combo(spec: CommComboSpec) -> bool:
     log.info(f"[CMD] server: {' '.join(server_cmd)}")
     log.info(f"[CMD] client: {' '.join(client_cmd)}")
     server = subprocess.Popen(server_cmd)
-    time.sleep(2)
     rc_pair = _wait_for_combo_processes(server, client_cmd)
     if rc_pair is None:
         return False
