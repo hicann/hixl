@@ -119,7 +119,7 @@ Status Initialize(const AscendString &local_engine, const std::map<AscendString,
 
 > 说明：`RdmaTrafficClass`、`RdmaServiceLevel` 仅适用于RoCE场景。
 
-> 说明：环境变量请参考《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》，ranktable请参考《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/master/docs/zh/user_guide/README.md)》。
+> 说明：环境变量请参考[HCCL环境变量参考](https://gitcode.com/cann/hccl/blob/master/docs/zh/user_guide/hccl_env/README.md)，ranktable请参考《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/master/docs/zh/user_guide/README.md)》。
 
 <a id="option_enable_use_fabric_mem"></a>
 

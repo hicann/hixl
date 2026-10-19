@@ -46,7 +46,7 @@
 |hccn_tool [-i %d] -ip -inet6 -g|获取IPv6地址和子网掩码。-i指定Device。样例：`hccn_tool -i 0 -ip -inet6 -g`|
 |hccn_tool [-i %d] -ping -g [address %s ]|获取指定设备到目的地址的ping结果。-i指定当前server的某个Device， address指定ping的目的地址。样例：`hccn_tool -i 0 -ping -g address 192.168.2.1`|
 
-使用本文档过程中，还涉及到如下环境变量，具体请参见《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》。
+使用本文档过程中，还涉及到如下环境变量，具体请参见[HCCL环境变量参考](https://gitcode.com/cann/hccl/blob/master/docs/zh/user_guide/hccl_env/README.md)。
 
 |名称|使用场景|
 |--|--|
