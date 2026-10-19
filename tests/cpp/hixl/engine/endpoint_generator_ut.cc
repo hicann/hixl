@@ -28,6 +28,7 @@
 #include "ascendcl_stub.h"
 #include "common/hixl_utils.h"
 #include "common/optional_aclrt_context.h"
+#include "common/soc_type.h"
 #include "engine/endpoint_test_utils.h"
 #include "test_mmpa_utils.h"
 #include "depends/sys_api/src/sys_api_wrap.h"
@@ -37,6 +38,8 @@
 
 #define private public
 #include "engine/endpoint_generator/endpoint_generator.h"
+#include "engine/endpoint_generator/endpoint_generator_v1.h"
+#include "engine/endpoint_generator/endpoint_generator_v2.h"
 #undef private
 #include "engine/connect_pool_executor.h"
 #include "engine/hixl_options.h"
@@ -130,7 +133,7 @@ void SetUbgProtocolDescOption(std::map<AscendString, AscendString> &options) {
   )";
 }
 
-void SetupA5UbgDcmiDefaults() {
+void SetupDefaultUbgDcmiDefaults() {
   DcmiStubSetInitRet(0);
   DcmiStubSetMainboardId(0x3, 0);
   DcmiStubSetLogicId(0, 0);
@@ -195,8 +198,8 @@ nlohmann::json BuildUbCtpExchangeEndpoint(const std::string &comm_id, const std:
           {"placement", kPlacementHost}, {"plane", "plane-a"}, {"dst_eid", dst_eid}};
 }
 
-std::string SetA2AutoGenEnv(const std::shared_ptr<MockLocCommResAclRuntimeStub> &acl_stub,
-                            const std::shared_ptr<MockLocCommResMmpaStub> &mmpa_stub) {
+std::string SetGen1AutoGenEnv(const std::shared_ptr<MockLocCommResAclRuntimeStub> &acl_stub,
+                              const std::shared_ptr<MockLocCommResMmpaStub> &mmpa_stub) {
   acl_stub->soc_name_ = "Ascend910B4-1";
   acl_stub->device_id_ = 0;
   acl_stub->phy_device_id_ = 3;
@@ -315,39 +318,45 @@ TEST_F(EndpointGeneratorUTest, BuildHccsEndpointSuccess) {
   EXPECT_EQ(endpoint.placement, "device");
 }
 
-TEST_F(EndpointGeneratorUTest, BuildNetInstanceIdForV3Success) {
+TEST_F(EndpointGeneratorUTest, CreateSelectsGeneratorBySocType) {
+  EXPECT_NE(dynamic_cast<EndpointGeneratorV1 *>(EndpointGeneratorBase::Create(SocType::kGen1).get()), nullptr);
+  EXPECT_NE(dynamic_cast<EndpointGeneratorV1 *>(EndpointGeneratorBase::Create(SocType::kGen2).get()), nullptr);
+  EXPECT_NE(dynamic_cast<EndpointGeneratorV2 *>(EndpointGeneratorBase::Create(SocType::kDefault).get()), nullptr);
+}
+
+TEST_F(EndpointGeneratorUTest, BuildNetInstanceIdForGen2Success) {
   acl_stub_->soc_name_ = "Ascend910_9391";
   acl_stub_->super_pod_id_ = 12345;
 
   std::string net_instance_id;
-  EXPECT_EQ(EndpointGenerator::BuildNetInstanceId(0, "127.0.0.1:26000", net_instance_id), SUCCESS);
+  EXPECT_EQ(EndpointGeneratorV1::BuildNetInstanceId(0, "127.0.0.1:26000", net_instance_id), SUCCESS);
   EXPECT_EQ(net_instance_id, "12345");
 }
 
-TEST_F(EndpointGeneratorUTest, BuildNetInstanceIdForV2Success) {
+TEST_F(EndpointGeneratorUTest, BuildNetInstanceIdForGen1Success) {
   acl_stub_->soc_name_ = "Ascend910B1";
 
   std::string net_instance_id;
-  EXPECT_EQ(EndpointGenerator::BuildNetInstanceId(0, "192.168.1.8:26000", net_instance_id), SUCCESS);
+  EXPECT_EQ(EndpointGeneratorV1::BuildNetInstanceId(0, "192.168.1.8:26000", net_instance_id), SUCCESS);
   EXPECT_EQ(net_instance_id, "192.168.1.8");
 }
 
-TEST_F(EndpointGeneratorUTest, BuildNetInstanceIdForAllA2SocNamesSuccess) {
+TEST_F(EndpointGeneratorUTest, BuildNetInstanceIdForAllGen1SocNamesSuccess) {
   const std::vector<std::string> soc_names = {"Ascend910B1", "Ascend910B2",  "Ascend910B3",
                                               "Ascend910B4", "Ascend910B2C", "Ascend910B4-1"};
   for (const auto &soc_name : soc_names) {
     acl_stub_->soc_name_ = soc_name;
     std::string net_instance_id;
-    EXPECT_EQ(EndpointGenerator::BuildNetInstanceId(0, "0.0.0.0:26000", net_instance_id), SUCCESS);
+    EXPECT_EQ(EndpointGeneratorV1::BuildNetInstanceId(0, "0.0.0.0:26000", net_instance_id), SUCCESS);
     EXPECT_EQ(net_instance_id, "0.0.0.0");
   }
 }
 
-TEST_F(EndpointGeneratorUTest, BuildNetInstanceIdForV2WildcardSuccess) {
+TEST_F(EndpointGeneratorUTest, BuildNetInstanceIdForGen1WildcardSuccess) {
   acl_stub_->soc_name_ = "Ascend910B1";
 
   std::string net_instance_id;
-  EXPECT_EQ(EndpointGenerator::BuildNetInstanceId(0, "0.0.0.0:26000", net_instance_id), SUCCESS);
+  EXPECT_EQ(EndpointGeneratorV1::BuildNetInstanceId(0, "0.0.0.0:26000", net_instance_id), SUCCESS);
   EXPECT_EQ(net_instance_id, "0.0.0.0");
 }
 
@@ -355,7 +364,7 @@ TEST_F(EndpointGeneratorUTest, BuildNetInstanceIdForOtherSocFailed) {
   acl_stub_->soc_name_ = "OtherSoc";
 
   std::string net_instance_id;
-  EXPECT_EQ(EndpointGenerator::BuildNetInstanceId(0, "127.0.0.1:26000", net_instance_id), PARAM_INVALID);
+  EXPECT_EQ(EndpointGeneratorV1::BuildNetInstanceId(0, "127.0.0.1:26000", net_instance_id), PARAM_INVALID);
 }
 
 TEST_F(EndpointGeneratorUTest, GetDeviceIpFromHccnConfSuccess) {
@@ -677,7 +686,7 @@ TEST_F(EndpointGeneratorUTest, BuildDefaultDeviceEndpointInfoListRejectsInvalidP
   EXPECT_EQ(EndpointGenerator::BuildDefaultDeviceEndpointInfoList(3, protocol_desc, endpoint_list), PARAM_INVALID);
 }
 
-TEST_F(EndpointGeneratorUTest, GenerateInfoSuccessForV3) {
+TEST_F(EndpointGeneratorUTest, GenerateInfoSuccessForGen2) {
   const std::string file_path =
       test::CreateTempFileWithContent("/tmp/loc_comm_res_ut_XXXXXX", "address_3=10.10.10.3\n");
 
@@ -688,8 +697,8 @@ TEST_F(EndpointGeneratorUTest, GenerateInfoSuccessForV3) {
   mmpa_stub_->access_ok_ = true;
   mmpa_stub_->fake_real_path_ = file_path;
 
-  EndpointGenerator::LocCommResInfo info{};
-  EXPECT_EQ(EndpointGenerator::GenerateInfo(0, "127.0.0.1:26000", {}, info), SUCCESS);
+  EndpointGeneratorV1::LocCommResInfo info{};
+  EXPECT_EQ(EndpointGeneratorV1::GenerateInfo(0, "127.0.0.1:26000", {}, info), SUCCESS);
   EXPECT_EQ(info.version, "1.3");
   EXPECT_EQ(info.net_instance_id, "88");
   ASSERT_EQ(info.endpoint_list.size(), 2U);
@@ -697,7 +706,7 @@ TEST_F(EndpointGeneratorUTest, GenerateInfoSuccessForV3) {
   (void)remove(file_path.c_str());
 }
 
-TEST_F(EndpointGeneratorUTest, GenerateInfoForV3HonoursProtocolDesc) {
+TEST_F(EndpointGeneratorUTest, GenerateInfoForGen2HonoursProtocolDesc) {
   const std::string file_path =
       test::CreateTempFileWithContent("/tmp/loc_comm_res_ut_XXXXXX", "address_3=10.10.10.3\n");
 
@@ -708,23 +717,23 @@ TEST_F(EndpointGeneratorUTest, GenerateInfoForV3HonoursProtocolDesc) {
   mmpa_stub_->access_ok_ = true;
   mmpa_stub_->fake_real_path_ = file_path;
 
-  EndpointGenerator::LocCommResInfo info{};
+  EndpointGeneratorV1::LocCommResInfo info{};
   const std::vector<std::string> protocol_desc = {"hccs:device"};
-  EXPECT_EQ(EndpointGenerator::GenerateInfo(0, "127.0.0.1:26000", protocol_desc, info), SUCCESS);
+  EXPECT_EQ(EndpointGeneratorV1::GenerateInfo(0, "127.0.0.1:26000", protocol_desc, info), SUCCESS);
   ASSERT_EQ(info.endpoint_list.size(), 1U);
   EXPECT_EQ(info.endpoint_list[0].protocol, "hccs");
 
   (void)remove(file_path.c_str());
 }
 
-TEST_F(EndpointGeneratorUTest, GenerateInfoForV3BuildsUbmemEndpointWithDeviceId) {
+TEST_F(EndpointGeneratorUTest, GenerateInfoForGen2BuildsUbmemEndpointWithDeviceId) {
   acl_stub_->soc_name_ = "Ascend910_9391";
   acl_stub_->phy_device_id_ = 23;
   acl_stub_->super_pod_id_ = 88;
 
-  EndpointGenerator::LocCommResInfo info{};
+  EndpointGeneratorV1::LocCommResInfo info{};
   const std::vector<std::string> protocol_desc = {kProtocolUbmem};
-  ASSERT_EQ(EndpointGenerator::GenerateInfo(0, "127.0.0.1:26000", protocol_desc, info), SUCCESS);
+  ASSERT_EQ(EndpointGeneratorV1::GenerateInfo(0, "127.0.0.1:26000", protocol_desc, info), SUCCESS);
   ASSERT_EQ(info.endpoint_list.size(), 1U);
   EXPECT_EQ(info.endpoint_list[0].protocol, kProtocolUbmem);
   EXPECT_EQ(info.endpoint_list[0].comm_id, "23");
@@ -821,7 +830,7 @@ TEST_F(EndpointGeneratorUTest, PopulateLocalDeviceInfoToleratesAclServerIdQueryF
   EXPECT_EQ(endpoint_list[0].device_info.super_pod_id, 8);
 }
 
-TEST_F(EndpointGeneratorUTest, PopulateLocalDeviceInfoKeepsServerIdUnsetForV2) {
+TEST_F(EndpointGeneratorUTest, PopulateLocalDeviceInfoKeepsServerIdUnsetForGen1) {
   acl_stub_->soc_name_ = "Ascend910B4-1";
 
   std::string local_comm_res = BuildSingleEndpointLocalCommRes("1.2.3.4", kProtocolHccs, "3", kPlacementDevice);
@@ -937,8 +946,8 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsRejectsAutoGenerateWh
   EXPECT_EQ(acl_stub_->get_phy_dev_calls_, 1);
 }
 
-TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsAutoGeneratesForA2) {
-  const std::string file_path = SetA2AutoGenEnv(acl_stub_, mmpa_stub_);
+TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsAutoGeneratesForGen1) {
+  const std::string file_path = SetGen1AutoGenEnv(acl_stub_, mmpa_stub_);
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_LOCAL_COMM_RES] = AscendString(R"({"version":"1.3"})");
   std::string local_comm_res;
@@ -958,7 +967,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsAutoGeneratesForA2) {
   (void)remove(file_path.c_str());
 }
 
-TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsAutoGeneratesForA2WithoutVersion) {
+TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsAutoGeneratesForGen1WithoutVersion) {
   acl_stub_->soc_name_ = "Ascend910B4-1";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
@@ -990,7 +999,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsAutoGeneratesForA2Wit
   (void)remove(file_path.c_str());
 }
 
-TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsAutoGeneratesForA2WithoutVersionAndWithNetInstanceId) {
+TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsAutoGeneratesForGen1WithoutVersionAndWithNetInstanceId) {
   acl_stub_->soc_name_ = "Ascend910B4-1";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
@@ -1022,7 +1031,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsAutoGeneratesForA2Wit
   (void)remove(file_path.c_str());
 }
 
-TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsAutoGeneratesForA2RegardlessOfVersionValue) {
+TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsAutoGeneratesForGen1RegardlessOfVersionValue) {
   acl_stub_->soc_name_ = "Ascend910B4-1";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
@@ -1455,7 +1464,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsRejectsManualLocalCom
 }
 
 TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsAutoGeneratesOnlyHccsByProtocolDesc) {
-  const std::string file_path = SetA2AutoGenEnv(acl_stub_, mmpa_stub_);
+  const std::string file_path = SetGen1AutoGenEnv(acl_stub_, mmpa_stub_);
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_LOCAL_COMM_RES] = AscendString(R"({"version":"1.3"})");
   options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.protocol_desc":"hccs:device"})";
@@ -1529,8 +1538,8 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsAutoGeneratesBothAndS
   EXPECT_EQ(endpoint_list[0].protocol, kProtocolHccs);
 }
 
-TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsRejectsUboeProtocolDescOnA2) {
-  const std::string file_path = SetA2AutoGenEnv(acl_stub_, mmpa_stub_);
+TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsRejectsUboeProtocolDescOnGen1) {
+  const std::string file_path = SetGen1AutoGenEnv(acl_stub_, mmpa_stub_);
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_LOCAL_COMM_RES] = AscendString(R"({"version":"1.3"})");
   SetUboeProtocolDescOption(options);
@@ -1587,7 +1596,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsEmptyLocalCommResFall
   EXPECT_EQ(endpoint_list[0].device_info.server_id, 8);
 }
 
-TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsRejectsUboeProtocolDescOnA3) {
+TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsRejectsUboeProtocolDescOnGen2) {
   acl_stub_->soc_name_ = "Ascend910_9391";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
@@ -1613,7 +1622,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsRejectsUboeProtocolDe
   (void)remove(file_path.c_str());
 }
 
-TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsGeneratesUboeWhenConfiguredOnA5) {
+TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsGeneratesUboeWhenConfiguredOnDefault) {
   acl_stub_->soc_name_ = "Ascend950A";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
@@ -1635,13 +1644,13 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsGeneratesUboeWhenConf
   (void)remove(script_path.c_str());
 }
 
-TEST_F(EndpointGeneratorUTest, BuildEndpointListGeneratesUbgWhenConfiguredOnA5) {
+TEST_F(EndpointGeneratorUTest, BuildEndpointListGeneratesUbgWhenConfiguredOnDefault) {
   acl_stub_->soc_name_ = "Ascend950A";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
 
   DsmiStubSetInterconType(4U);  // UB_RTP 校验需要 InterconType=4
-  SetupA5UbgDcmiDefaults();
+  SetupDefaultUbgDcmiDefaults();
 
   std::map<AscendString, AscendString> options;
   SetUbgProtocolDescOption(options);
@@ -1709,7 +1718,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsRejectsManualLocalCom
   (void)remove(script_path.c_str());
 }
 
-TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsRejectsUboeOnA2WhenLocalCommResEndpointListIsEmpty) {
+TEST_F(EndpointGeneratorUTest, BuildEndpointListFromOptionsRejectsUboeOnGen1WhenLocalCommResEndpointListIsEmpty) {
   hixl_test::InstallSysApiHooks(std::make_shared<UboeMmpaStub>());
   acl_stub_->soc_name_ = "Ascend910B4-1";
   acl_stub_->device_id_ = 0;
@@ -2156,12 +2165,12 @@ TEST_F(EndpointGeneratorUTest, ConvertToEndpointDescDeviceUbgRejectsInvalidEidTe
   EXPECT_EQ(EndpointGenerator::ConvertToEndpointDesc(ep, endpoint), PARAM_INVALID);
 }
 
-TEST_F(EndpointGeneratorUTest, AutoGenUbgByInterconTypeWhenNoProtocolDescOnA5) {
+TEST_F(EndpointGeneratorUTest, AutoGenUbgByInterconTypeWhenNoProtocolDescOnDefault) {
   acl_stub_->soc_name_ = "Ascend950A";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
   DsmiStubSetInterconType(4U);
-  SetupA5UbgDcmiDefaults();
+  SetupDefaultUbgDcmiDefaults();
 
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_LOCAL_COMM_RES] = AscendString(R"({"version":"1.3"})");
@@ -2178,7 +2187,7 @@ TEST_F(EndpointGeneratorUTest, AutoGenUbgByInterconTypeWhenNoProtocolDescOnA5) {
   EXPECT_EQ(endpoint_list[0].comm_id.substr(14, 2), "80");
 }
 
-TEST_F(EndpointGeneratorUTest, AutoGenUboeByInterconTypeWhenNoProtocolDescOnA5) {
+TEST_F(EndpointGeneratorUTest, AutoGenUboeByInterconTypeWhenNoProtocolDescOnDefault) {
   acl_stub_->soc_name_ = "Ascend950A";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
@@ -2241,7 +2250,7 @@ TEST_F(EndpointGeneratorUTest, FailsToGenUbgWhenNoUbgeid) {
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
   DsmiStubSetInterconType(4U);
-  SetupA5UbgDcmiDefaults();
+  SetupDefaultUbgDcmiDefaults();
   DcmiStubSetEnableUbgEid(false);  // DCMI 只返回 UBoE EID (byte[7]=0xC0)
 
   std::map<AscendString, AscendString> options;
@@ -2273,7 +2282,7 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFiltersExplicitEndpointsToRoceWh
   EXPECT_EQ(endpoint_list[0].protocol, kProtocolRoce);
 }
 
-TEST_F(EndpointGeneratorUTest, AutoGenA5SkipsWhenIntraRoceEnabled) {
+TEST_F(EndpointGeneratorUTest, AutoGenDefaultSkipsWhenIntraRoceEnabled) {
   acl_stub_->soc_name_ = "Ascend950A";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
@@ -2290,13 +2299,13 @@ TEST_F(EndpointGeneratorUTest, AutoGenA5SkipsWhenIntraRoceEnabled) {
   EXPECT_TRUE(endpoint_list.empty());
 }
 
-TEST_F(EndpointGeneratorUTest, AutoGenA5DoesNotAppendUbMemEndpoint) {
+TEST_F(EndpointGeneratorUTest, AutoGenDefaultDoesNotAppendUbMemEndpoint) {
   acl_stub_->soc_name_ = "Ascend950A";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
 
   DsmiStubSetInterconType(4U);
-  SetupA5UbgDcmiDefaults();
+  SetupDefaultUbgDcmiDefaults();
 
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"(
@@ -2314,7 +2323,7 @@ TEST_F(EndpointGeneratorUTest, AutoGenA5DoesNotAppendUbMemEndpoint) {
   EXPECT_EQ(endpoint_list[0].placement, kPlacementDevice);
 }
 
-TEST_F(EndpointGeneratorUTest, AutoGenNoScaleOutWhenRoceInterconTypeOnA5) {
+TEST_F(EndpointGeneratorUTest, AutoGenNoScaleOutWhenRoceInterconTypeOnDefault) {
   acl_stub_->soc_name_ = "Ascend950A";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
@@ -2331,7 +2340,7 @@ TEST_F(EndpointGeneratorUTest, AutoGenNoScaleOutWhenRoceInterconTypeOnA5) {
   EXPECT_TRUE(endpoint_list.empty());
 }
 
-TEST_F(EndpointGeneratorUTest, AutoGenA5UboeBondIpFailFallsBackToUb) {
+TEST_F(EndpointGeneratorUTest, AutoGenDefaultUboeBondIpFailFallsBackToUb) {
   acl_stub_->soc_name_ = "Ascend950A";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
@@ -2349,12 +2358,12 @@ TEST_F(EndpointGeneratorUTest, AutoGenA5UboeBondIpFailFallsBackToUb) {
   EXPECT_TRUE(endpoint_list.empty());
 }
 
-TEST_F(EndpointGeneratorUTest, AutoGenA5UbgEidNotFoundFallsBackToUb) {
+TEST_F(EndpointGeneratorUTest, AutoGenDefaultUbgEidNotFoundFallsBackToUb) {
   acl_stub_->soc_name_ = "Ascend950A";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
   DsmiStubSetInterconType(4U);  // UB_RTP
-  SetupA5UbgDcmiDefaults();
+  SetupDefaultUbgDcmiDefaults();
   DcmiStubSetEnableUbgEid(false);  // DCMI 返回 EID 但没有 UB_RTP 标记
 
   std::map<AscendString, AscendString> options;

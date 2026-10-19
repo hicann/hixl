@@ -119,12 +119,6 @@ bool IsIntraRoceEnabled();
 
 const char *IntraRoceEnableStatusStr();
 
-enum class SocType { kV2, kV3, kV5, kOther };
-
-Status GetSocName(std::string &soc_name);
-SocType GetSocTypeByName(const std::string &soc_name);
-Status GetSocType(SocType &soc_type);
-
 bool IsHcommConfigurableTransferSupported();
 
 class TemporaryRtContext {

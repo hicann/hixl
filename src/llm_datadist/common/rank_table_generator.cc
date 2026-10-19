@@ -9,12 +9,12 @@
  */
 
 #include "rank_table_generator.h"
-#include <set>
 #include "nlohmann/json.hpp"
 #include "acl/acl.h"
 #include "llm_datadist/llm_datadist.h"
 #include "common/llm_utils.h"
 #include "common/mem_utils.h"
+#include "common/soc_type.h"
 #include "rank_table_generator_v1.h"
 #include "rank_table_generator_v2.h"
 
@@ -64,13 +64,14 @@ std::unique_ptr<RankTableGenerator> RankTableGeneratorFactory::Create(const std:
 
 ge::Status LocalCommResGenerator::Generate(const std::string &server_id, int32_t device_id, std::string &local_comm_res,
                                            std::optional<uint32_t> device_port) {
-  const static std::set<std::string> kV2Version = {"Ascend910_9391", "Ascend910_9381", "Ascend910_9392",
-                                                   "Ascend910_9382", "Ascend910_9372", "Ascend910_9362",
-                                                   "Ascend910_9363"};
-  const char *version = aclrtGetSocName();
-  LLM_CHECK_NOTNULL(version, "aclrt get soc name");
-  const auto &it = kV2Version.find(version);
-  if (it != kV2Version.cend()) {
+  hixl::SocType soc_type = hixl::SocType::kDefault;
+  const hixl::Status soc_ret = hixl::SocTypeUtil::GetSocType(soc_type);
+  if (soc_ret != hixl::SUCCESS) {
+    LLMLOGE(ge::FAILED, "GetSocType failed, ret:%d, server_id:%s, device_id:%d.", static_cast<int32_t>(soc_ret),
+            server_id.c_str(), device_id);
+    return ge::FAILED;
+  }
+  if (soc_type == hixl::SocType::kGen2) {
     LLM_CHK_STATUS_RET(RankTableGeneratorV2::GenerateLocalCommRes(server_id, device_id, local_comm_res, device_port),
                        "Failed to generate local comm res, server_id:%s, device_id:%d.", server_id.c_str(), device_id);
   } else {

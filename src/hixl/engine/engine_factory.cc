@@ -17,6 +17,7 @@
 #include "adxl/adxl_types.h"
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
+#include "common/soc_type.h"
 
 namespace hixl {
 namespace {
@@ -94,9 +95,13 @@ std::unique_ptr<Engine> EngineFactory::CreateEngine(const std::string &local_eng
     LogSelectedEngine("hixl_cs", "BufferPool is disabled and hcomm >= 9.1.0", local_engine);
     return std::make_unique<HixlEngine>(AscendString(local_engine.c_str()));
   }
-  SocType soc_type = SocType::kOther;
-  if (GetSocType(soc_type) == SUCCESS && soc_type == SocType::kV5) {
-    LogSelectedEngine("hixl_cs", "SoC type matched hixl_cs", local_engine);
+  SocType soc_type = SocType::kDefault;
+  if (SocTypeUtil::GetSocType(soc_type) != SUCCESS) {
+    HIXL_LOGE(FAILED, "[EngineFactory] GetSocType failed, local_engine:%s", local_engine.c_str());
+    return nullptr;
+  }
+  if (soc_type == SocType::kDefault) {
+    LogSelectedEngine("hixl_cs", "default soc type", local_engine);
     return std::make_unique<HixlEngine>(AscendString(local_engine.c_str()));
   }
   LogSelectedEngine("comm", "no hixl_cs selector matched", local_engine);

@@ -100,7 +100,7 @@ struct DeviceInfoConfig {
   int32_t phy_device_id = -1;
   int64_t super_device_id = -1;
   int64_t super_pod_id = -1;
-  int64_t server_id = -1;  // -1 means invalid; filled from ACL super pod server id on A3
+  int64_t server_id = -1;  // -1 means invalid; filled from ACL super pod server id on SocType::kGen2
 
   std::string ToString() const {
     std::ostringstream oss;

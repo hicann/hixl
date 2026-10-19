@@ -211,8 +211,12 @@ bool GenerateLocalCommResForDevice(int32_t device_id, const std::string &topo_pa
   local_comm_res = hixl::LocalCommRes{};
   local_comm_res.version = "1.3";
 
-  // Put protocol_desc into GlobalResourceConfig to build HixlOptions (flat keys; see HixlOptions::from_json).
+  // Put protocol_desc / topo_file_path into GlobalResourceConfig to build HixlOptions
+  // (flat keys; see HixlOptions::from_json).
   nlohmann::json config = nlohmann::json::object();
+  if (!topo_path.empty()) {
+    config["topo_file_path"] = topo_path;
+  }
   if (!protocol_tokens.empty()) {
     config["comm_resource_config.protocol_desc"] = nlohmann::json::array();
     for (const auto &desc : protocol_tokens) {
@@ -228,8 +232,8 @@ bool GenerateLocalCommResForDevice(int32_t device_id, const std::string &topo_pa
   }
 
   std::vector<hixl::EndpointConfig> endpoint_list;
-  // local_engine is an empty placeholder (the tool currently auto-generates A5 only).
-  const hixl::Status ret = hixl::EndpointGenerator::AutoGenEndpointList(options, "", endpoint_list, topo_path);
+  // local_engine is an empty placeholder; topo_file_path is carried by options.
+  const hixl::Status ret = hixl::EndpointGenerator::AutoGenEndpointList(options, "", endpoint_list);
   if (ret != hixl::SUCCESS) {
     std::printf("[ERROR] AutoGenEndpointList failed for device_id=%d, ret=%u\n", device_id, static_cast<unsigned>(ret));
     return false;

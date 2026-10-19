@@ -23,6 +23,7 @@
 #include "common/hixl_utils.h"
 #include "common/llm_utils.h"
 #include "common/scope_guard.h"
+#include "common/soc_type.h"
 #include "proxy/hcomm_proxy.h"
 #include "load_kernel.h"
 #include "notify_addr_resolver.h"
@@ -673,25 +674,15 @@ Status TransferPool::EnsureErrFlagMemLocked() {
   HIXL_CHK_ACL_RET(aclrtGetLogicDevIdByUserDevId(device_id_, &logic_dev_id),
                    "[TransferPool] aclrtGetLogicDevIdByUserDevId failed. device_id=%d logic_dev_id=%d", device_id_,
                    logic_dev_id);
-  SocType soc_type = SocType::kOther;
-  const Status soc_ret = GetSocType(soc_type);
-  if (soc_ret != SUCCESS) {
-    HIXL_LOGW("[TransferPool] GetSocType failed, skip err_flag allocation. ret=%d device_id=%d logic_dev_id=%d",
-              static_cast<int32_t>(soc_ret), device_id_, logic_dev_id);
-    return SUCCESS;
-  }
-  if ((soc_type == SocType::kV2) || (soc_type == SocType::kV3)) {
+  SocType soc_type = SocType::kDefault;
+  HIXL_CHK_STATUS_RET(SocTypeUtil::GetSocType(soc_type),
+                      "[TransferPool] GetSocType failed. device_id=%d logic_dev_id=%d", device_id_, logic_dev_id);
+  if ((soc_type == SocType::kGen1) || (soc_type == SocType::kGen2)) {
     HIXL_CHK_STATUS_RET(AllocErrFlagDeviceMappedLocked(total_size, static_cast<uint32_t>(logic_dev_id)),
                         "[TransferPool] AllocErrFlagDeviceMappedLocked failed");
-  } else if (soc_type == SocType::kV5) {
+  } else {
     HIXL_CHK_STATUS_RET(AllocErrFlagHostMappedLocked(total_size, static_cast<uint32_t>(logic_dev_id)),
                         "[TransferPool] AllocErrFlagHostMappedLocked failed");
-  } else {
-    HIXL_LOGW(
-        "[TransferPool] Skip err_flag allocation for unsupported SoC type. soc_type=%d device_id=%d "
-        "logic_dev_id=%d",
-        static_cast<int32_t>(soc_type), device_id_, logic_dev_id);
-    return SUCCESS;
   }
   HIXL_LOGI("[TransferPool] err_flag block initialized. host=%p device_base=%p size=%lu device_id=%d from_device=%d",
             err_flag_host_base_, err_flag_device_base_, total_size, device_id_,

@@ -19,7 +19,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
-#include <set>
 #include <unistd.h>
 #include <limits.h>
 #include "securec.h"
@@ -44,11 +43,6 @@ constexpr const char kLinkStatusUp[] = "UP";
 constexpr const char kLinkStatusDown[] = "DOWN";
 constexpr size_t kValidHccnConfItemNum = 2U;
 constexpr int32_t kHcommConfigurableTransferVersion = 90200000;
-
-const std::set<std::string> kSocV2 = {"Ascend910B1", "Ascend910B2",  "Ascend910B3",
-                                      "Ascend910B4", "Ascend910B2C", "Ascend910B4-1"};
-const std::set<std::string> kSocV3 = {"Ascend910_9391", "Ascend910_9381", "Ascend910_9392", "Ascend910_9382",
-                                      "Ascend910_9372", "Ascend910_9362", "Ascend910_9363"};
 
 std::string GetHccnToolPath() {
   if (access(kHccnToolPath, F_OK) == 0) {
@@ -478,37 +472,6 @@ bool IsIntraRoceEnabled() {
 
 const char *IntraRoceEnableStatusStr() {
   return IsIntraRoceEnabled() ? "HCCL_INTRA_ROCE_ENABLE is set" : "HCCL_INTRA_ROCE_ENABLE is not set";
-}
-
-Status GetSocName(std::string &soc_name) {
-  const char *soc_name_cstr = aclrtGetSocName();
-  HIXL_CHK_BOOL_RET_STATUS(soc_name_cstr != nullptr, FAILED, "aclrtGetSocName returned nullptr");
-  soc_name = soc_name_cstr;
-  HIXL_CHK_BOOL_RET_STATUS(!soc_name.empty(), FAILED, "soc_name is empty");
-  return SUCCESS;
-}
-
-SocType GetSocTypeByName(const std::string &soc_name) {
-  if (kSocV2.find(soc_name) != kSocV2.end()) {
-    return SocType::kV2;
-  }
-
-  if (kSocV3.find(soc_name) != kSocV3.end()) {
-    return SocType::kV3;
-  }
-
-  if (soc_name.find("Ascend950") != std::string::npos) {
-    return SocType::kV5;
-  }
-
-  return SocType::kOther;
-}
-
-Status GetSocType(SocType &soc_type) {
-  std::string soc_name;
-  HIXL_CHK_STATUS_RET(GetSocName(soc_name), "GetSocName failed");
-  soc_type = GetSocTypeByName(soc_name);
-  return SUCCESS;
 }
 
 }  // namespace hixl

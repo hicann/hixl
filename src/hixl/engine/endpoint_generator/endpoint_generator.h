@@ -20,7 +20,6 @@
 #include "engine/hixl_options.h"
 #include "common/hixl_inner_types.h"
 #include "common/hixl_utils.h"
-#include "local_comm_res_generator_v1.h"
 
 namespace hixl {
 
@@ -33,54 +32,41 @@ class EndpointGenerator {
   static Status DeserializeEndpointConfigList(const std::string &json_str, std::vector<EndpointConfig> &endpoint_list);
 
   /**
-   * @brief Dispatch default endpoint generation by SoC type (A5: ub_rtp/uboe + ub_ctp; V2/V3: roce/hccs)
+   * @brief Dispatch default endpoint generation by SoC category via EndpointGeneratorBase.
    *
    * Caller must set the target device with aclrtSetDevice first (device_id is read via aclrtGetDevice).
    *
-   * @param [in] options Parsed HixlOptions (includes protocol_desc)
-   * @param [in] local_engine Local listen address (used for V2/V3 net_instance_id; A5 may pass empty)
+   * @param [in] options Parsed HixlOptions
+   * @param [in] local_engine Local listen address
    * @param [out] endpoint_list Generated endpoint list
-   * @param [in] topo_path Topology file path; empty means default topo lookup
    * @return SUCCESS on success, other error codes on failure
    */
   static Status AutoGenEndpointList(const HixlOptions &options, const std::string &local_engine,
-                                    std::vector<EndpointConfig> &endpoint_list, const std::string &topo_path = "");
+                                    std::vector<EndpointConfig> &endpoint_list);
 
- private:
   struct EndpointInfo {
     std::string protocol;
     std::string comm_id;
     std::string placement;
   };
 
-  struct LocCommResInfo {
-    std::string version;
-    std::string net_instance_id;
-    std::vector<EndpointInfo> endpoint_list;
-  };
-
-  static Status GenerateInfo(int32_t device_id, const std::string &local_engine,
-                             const std::vector<std::string> &protocol_desc, LocCommResInfo &loc_comm_res_info);
-  static Status GetDeviceIp(int32_t phy_device_id, std::string &device_ip);
-  static void ConvertLocCommResInfoToEndpointList(const LocCommResInfo &loc_comm_res_info,
-                                                  std::vector<EndpointConfig> &endpoint_list);
-  static Status BuildNetInstanceId(int32_t device_id, const std::string &local_engine, std::string &net_instance_id);
-  static Status ParseEndpointListFromLocalCommRes(const HixlOptions &options, std::string &local_comm_res,
-                                                  std::vector<EndpointConfig> &endpoint_list);
-  static Status GenEndpointFromProtocolDesc(const HixlOptions &options, std::vector<EndpointConfig> &endpoint_list);
-  static Status FilterEndpointListByProtocolDesc(const HixlOptions &options,
-                                                 std::vector<EndpointConfig> &endpoint_list);
-  static Status AutoGenA5EndpointList(const HixlOptions &options, std::vector<EndpointConfig> &endpoint_list,
-                                      const std::string &topo_path = "");
-  static Status ParseLocalCommRes(const nlohmann::json &config, const std::string &server_id,
-                                  std::vector<EndpointConfig> &endpoint_list);
-  static bool HasDeviceEndpoint(const std::vector<EndpointConfig> &endpoint_list);
-  static Status PopulateLocalDeviceInfo(std::vector<EndpointConfig> &endpoint_list);
+  // Shared helpers used by the concrete generator versions.
   static Status BuildDefaultDeviceEndpointInfoList(int32_t phy_device_id, const std::vector<std::string> &protocol_desc,
                                                    std::vector<EndpointInfo> &endpoint_list);
   static Status BuildRoceEndpoint(int32_t phy_device_id, bool required, EndpointInfo &endpoint);
   static Status BuildHccsEndpoint(int32_t phy_device_id, EndpointInfo &endpoint);
+  static Status GetDeviceIp(int32_t phy_device_id, std::string &device_ip);
   static Status GetHostIpFromLocalEngine(const std::string &local_engine, std::string &host_ip);
+  static Status FilterEndpointListByProtocolDesc(const HixlOptions &options,
+                                                 std::vector<EndpointConfig> &endpoint_list);
+  static Status PopulateLocalDeviceInfo(std::vector<EndpointConfig> &endpoint_list);
+  static bool HasDeviceEndpoint(const std::vector<EndpointConfig> &endpoint_list);
+
+ private:
+  static Status ParseEndpointListFromLocalCommRes(const HixlOptions &options, std::string &local_comm_res,
+                                                  std::vector<EndpointConfig> &endpoint_list);
+  static Status ParseLocalCommRes(const nlohmann::json &config, const std::string &server_id,
+                                  std::vector<EndpointConfig> &endpoint_list);
 };
 
 }  // namespace hixl

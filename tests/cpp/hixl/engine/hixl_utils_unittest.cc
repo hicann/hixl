@@ -22,6 +22,7 @@ namespace fs = std::experimental::filesystem;
 #include <sys/stat.h>
 #include <unistd.h>
 #include "common/hixl_utils.h"
+#include "common/soc_type.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/sys_api/src/sys_api_wrap.h"
 #include "graph/ascend_string.h"
@@ -459,64 +460,63 @@ TEST_F(HixlUtilsUTest, EndpointToStringReservedLocNoLocInfoTest) {
   EXPECT_THAT(text, Not(HasSubstr("hostId")));
 }
 
-TEST_F(HixlUtilsUTest, GetSocTypeByNameRecognizesAllA2SocNames) {
-  EXPECT_EQ(GetSocTypeByName("Ascend910B1"), SocType::kV2);
-  EXPECT_EQ(GetSocTypeByName("Ascend910B2"), SocType::kV2);
-  EXPECT_EQ(GetSocTypeByName("Ascend910B3"), SocType::kV2);
-  EXPECT_EQ(GetSocTypeByName("Ascend910B4"), SocType::kV2);
-  EXPECT_EQ(GetSocTypeByName("Ascend910B2C"), SocType::kV2);
-  EXPECT_EQ(GetSocTypeByName("Ascend910B4-1"), SocType::kV2);
+TEST_F(HixlUtilsUTest, GetSocTypeRecognizesGen1SocNames) {
+  const std::vector<std::string> soc_names = {"Ascend910B1", "Ascend910B2",  "Ascend910B3",
+                                              "Ascend910B4", "Ascend910B2C", "Ascend910B4-1"};
+  for (const auto &soc_name : soc_names) {
+    auto stub = std::make_shared<SocNameAclStub>();
+    stub->soc_name_ = soc_name;
+    llm::AclRuntimeStub::SetInstance(stub);
+
+    SocType soc_type = SocType::kDefault;
+    EXPECT_EQ(SocTypeUtil::GetSocType(soc_type), SUCCESS) << soc_name;
+    EXPECT_EQ(soc_type, SocType::kGen1) << soc_name;
+  }
 }
 
-TEST_F(HixlUtilsUTest, GetSocTypeByNameRecognizesAllA3SocNames) {
-  EXPECT_EQ(GetSocTypeByName("Ascend910_9391"), SocType::kV3);
-  EXPECT_EQ(GetSocTypeByName("Ascend910_9381"), SocType::kV3);
-  EXPECT_EQ(GetSocTypeByName("Ascend910_9392"), SocType::kV3);
-  EXPECT_EQ(GetSocTypeByName("Ascend910_9382"), SocType::kV3);
-  EXPECT_EQ(GetSocTypeByName("Ascend910_9372"), SocType::kV3);
-  EXPECT_EQ(GetSocTypeByName("Ascend910_9362"), SocType::kV3);
-  EXPECT_EQ(GetSocTypeByName("Ascend910_9363"), SocType::kV3);
+TEST_F(HixlUtilsUTest, GetSocTypeRecognizesGen2SocNames) {
+  const std::vector<std::string> soc_names = {"Ascend910_9391", "Ascend910_9381", "Ascend910_9392", "Ascend910_9382",
+                                              "Ascend910_9372", "Ascend910_9362", "Ascend910_9363"};
+  for (const auto &soc_name : soc_names) {
+    auto stub = std::make_shared<SocNameAclStub>();
+    stub->soc_name_ = soc_name;
+    llm::AclRuntimeStub::SetInstance(stub);
+
+    SocType soc_type = SocType::kDefault;
+    EXPECT_EQ(SocTypeUtil::GetSocType(soc_type), SUCCESS) << soc_name;
+    EXPECT_EQ(soc_type, SocType::kGen2) << soc_name;
+  }
 }
 
-TEST_F(HixlUtilsUTest, GetSocTypeByNameRecognizesA5SocNames) {
-  EXPECT_EQ(GetSocTypeByName("Ascend950"), SocType::kV5);
-  EXPECT_EQ(GetSocTypeByName("Ascend950B"), SocType::kV5);
-  EXPECT_EQ(GetSocTypeByName("Ascend950_1234"), SocType::kV5);
+TEST_F(HixlUtilsUTest, GetSocTypeReturnsDefaultForOtherSocNames) {
+  const std::vector<std::string> soc_names = {"Ascend950", "Ascend950B", "Ascend950_1234", "UnknownChip", "Ascend910"};
+  for (const auto &soc_name : soc_names) {
+    auto stub = std::make_shared<SocNameAclStub>();
+    stub->soc_name_ = soc_name;
+    llm::AclRuntimeStub::SetInstance(stub);
+
+    SocType soc_type = SocType::kGen1;
+    EXPECT_EQ(SocTypeUtil::GetSocType(soc_type), SUCCESS) << soc_name;
+    EXPECT_EQ(soc_type, SocType::kDefault) << soc_name;
+  }
 }
 
-TEST_F(HixlUtilsUTest, GetSocTypeByNameReturnsOtherForUnknown) {
-  EXPECT_EQ(GetSocTypeByName("UnknownChip"), SocType::kOther);
-  EXPECT_EQ(GetSocTypeByName("Ascend910"), SocType::kOther);
-  EXPECT_EQ(GetSocTypeByName(""), SocType::kOther);
-}
-
-TEST_F(HixlUtilsUTest, GetSocNameSuccess) {
-  auto stub = std::make_shared<SocNameAclStub>();
-  stub->soc_name_ = "Ascend910B1";
-  llm::AclRuntimeStub::SetInstance(stub);
-
-  std::string soc_name;
-  EXPECT_EQ(GetSocName(soc_name), SUCCESS);
-  EXPECT_EQ(soc_name, "Ascend910B1");
-}
-
-TEST_F(HixlUtilsUTest, GetSocNameReturnsNull) {
+TEST_F(HixlUtilsUTest, GetSocTypeFailsWhenSocNameNull) {
   auto stub = std::make_shared<SocNameAclStub>();
   stub->return_null_ = true;
   llm::AclRuntimeStub::SetInstance(stub);
 
-  std::string soc_name;
-  EXPECT_EQ(GetSocName(soc_name), FAILED);
+  SocType soc_type = SocType::kDefault;
+  EXPECT_EQ(SocTypeUtil::GetSocType(soc_type), FAILED);
 }
 
-TEST_F(HixlUtilsUTest, GetSocTypeSuccess) {
+TEST_F(HixlUtilsUTest, GetSocTypeFailsWhenSocNameEmpty) {
   auto stub = std::make_shared<SocNameAclStub>();
-  stub->soc_name_ = "Ascend910_9391";
+  stub->soc_name_ = "";
   llm::AclRuntimeStub::SetInstance(stub);
 
-  SocType soc_type = SocType::kOther;
-  EXPECT_EQ(GetSocType(soc_type), SUCCESS);
-  EXPECT_EQ(soc_type, SocType::kV3);
+  SocType soc_type = SocType::kDefault;
+  EXPECT_EQ(SocTypeUtil::GetSocType(soc_type), FAILED);
 }
 
 TEST_F(HixlUtilsUTest, ProtocolToStringMapsKnownProtocolsTest) {

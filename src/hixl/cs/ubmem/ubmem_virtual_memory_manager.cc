@@ -14,6 +14,7 @@
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
+#include "common/soc_type.h"
 #include "cs/ubmem/acl_compat.h"
 #include "cs/ubmem/ubmem_types.h"
 
@@ -25,12 +26,6 @@ constexpr size_t kDefaultGlobalVirtualMemorySize = kBlockSize * kDefaultNumBlock
 constexpr size_t kGlobalVirtualMemoryStartAddr = kBlockSize * 1024UL * 40UL;
 constexpr uint64_t kReserveFlagHugePage = 1UL;
 constexpr size_t kBytesPerTB = 1024UL * 1024UL * 1024UL * 1024UL;
-
-bool IsA3Soc() {
-  SocType soc_type = SocType::kOther;
-  (void)GetSocType(soc_type);
-  return soc_type == SocType::kV3;
-}
 }  // namespace
 
 VirtualMemoryManager &VirtualMemoryManager::GetInstance() {
@@ -75,10 +70,12 @@ Status VirtualMemoryManager::SetGlobalStartAddress(size_t start_addr_in_tb) {
 Status VirtualMemoryManager::ReserveMemAddress(void *&virtual_address, size_t size) const {
   const uintptr_t start_va = global_start_va_.value_or(kGlobalVirtualMemoryStartAddr);
   void *const global_start_va = reinterpret_cast<void *>(start_va);
-  if (IsA3Soc() && &aclrtReserveMemAddressNoUCMemory != nullptr) {
+  SocType soc_type = SocType::kDefault;
+  HIXL_CHK_STATUS_RET(SocTypeUtil::GetSocType(soc_type), "ReserveMemAddress GetSocType failed");
+  if (soc_type == SocType::kGen2 && &aclrtReserveMemAddressNoUCMemory != nullptr) {
     const auto ret = aclrtReserveMemAddressNoUCMemory(&virtual_address, size, 0, global_start_va, kReserveFlagHugePage);
     if (ret == ACL_ERROR_NONE) {
-      HIXL_LOGI("Reserve virtual memory without UC memory on A3, size:%zu.", size);
+      HIXL_LOGI("Reserve virtual memory without UC memory, size:%zu.", size);
       return SUCCESS;
     }
     HIXL_CHK_BOOL_RET_STATUS(ret == ACL_ERROR_RT_FEATURE_NOT_SUPPORT, FAILED,
