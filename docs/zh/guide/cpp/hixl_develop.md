@@ -54,7 +54,7 @@ HIXL（Huawei Xfer Library）即昇腾单边通信库，面向集群场景提供
 
 使用hccn\_tool查询Device IP，并且进行卡间网络检测，要求各个集群上的卡间有RDMA链路连接，否则无法使能HIXL能力。hccn\_tool详细介绍请参考《[HCCN Tool 接口参考](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743?category=developer-documents&subcategory=interface-reference)》。
 
-使用本文档过程中，还涉及到如下环境变量，具体请参见《[环境变量参考](https://gitcode.com/cann/docs/blob/9.2.0/docs/zh/env-vars/README.md)》。
+使用本文档过程中，还涉及到如下环境变量，具体请参见《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/9.2.0/docs/zh/user_guide/README.md)》。
 
 |名称|使用场景|
 |--|--|
