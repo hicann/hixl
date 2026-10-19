@@ -170,27 +170,28 @@ class TransferCacheJob:
 
     def transfer_layers(self):
         for src_layer_index in range(self._num_layers):
-            to_transfer = [config for config in self._transfer_configs if src_layer_index in config.src_layer_range]
+            to_transfer = [(index, config) for index, config in enumerate(self._transfer_configs)
+                           if src_layer_index in config.src_layer_range]
             if not to_transfer:
                 log.info('src_layer %d sends to no destination', src_layer_index)
                 continue
             if not self._layer_synchronizer.synchronize_layer(src_layer_index, self._timeout_in_millis):
                 log.error(f'Failed to synchronize layer {src_layer_index}')
-                for config in to_transfer:
+                for config_index, config in to_transfer:
                     # 错误码待添加
-                    self._rets[config.dst_cluster_id] = LLMStatusCode.LLM_PARAM_INVALID
+                    self._rets[config_index] = LLMStatusCode.LLM_PARAM_INVALID
                 return
-            for config in to_transfer:
+            for config_index, config in to_transfer:
                 dst_layer_index = src_layer_index if config.dst_layer_range is None \
                     else config.dst_layer_range[src_layer_index - config.src_layer_range.start]
                 ret = self.transfer_layer(src_layer_index, dst_layer_index, config)
                 if ret != LLMStatusCode.LLM_SUCCESS:
                     log.error(f'Failed to transfer layer {src_layer_index} to dst_cluster_id={config.dst_cluster_id}')
-                    self._rets[config.dst_cluster_id] = ret
+                    self._rets[config_index] = ret
                     return
                 log.info(f'transfer layer {src_layer_index} to dst_cluster_id={config.dst_cluster_id} success')
                 if src_layer_index == config.src_layer_range.stop - 1:
-                    self._rets[config.dst_cluster_id] = LLMStatusCode.LLM_SUCCESS
+                    self._rets[config_index] = LLMStatusCode.LLM_SUCCESS
                     log.info(f'transfer all layers to dst_cluster_id={config.dst_cluster_id} finished')
         log.info('transfer all layers finished')
 
@@ -239,11 +240,7 @@ class TransferCacheJob:
                            num_tensors_to_transfer, len(transfer_config.dst_addrs), transfer_config.src_layer_range)
 
     def get_results(self) -> List[LLMStatusCode]:
-        rets = []
-        for config in self._transfer_configs:
-            ret = self._rets.get(config.dst_cluster_id)
-            rets.append(ret)
-        return rets
+        return [self._rets.get(index) for index in range(len(self._transfer_configs))]
 
     def num_transfer_configs(self):
         return len(self._transfer_configs)
