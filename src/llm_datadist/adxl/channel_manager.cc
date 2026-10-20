@@ -370,8 +370,11 @@ Status ChannelManager::HandleRequestDisconnectMessage(const ChannelPtr &channel,
     // disconnect another link even if the validation above is bypassed.
     Status ret = disconnect_callback_(channel->GetChannelId(), timeout_ms);
     if (ret == SUCCESS) {
-      LLMLOGI("Successfully disconnected channel %s by request", channel->GetChannelId().c_str());
-      return SUCCESS;
+      // The callback only enqueues the eviction, the actual disconnect happens asynchronously. Fall through to
+      // reply error_code=0: the peer waits for a response on every request, silence would force it into a full
+      // kWaitRespTime timeout (see ProcessServerEviction).
+      LLMLOGI("Accepted disconnect request for channel %s, req_id=%lu, evicting asynchronously",
+              channel->GetChannelId().c_str(), req_msg.req_id);
     } else {
       resp.error_code = static_cast<uint32_t>(ret);
       resp.error_message = "Disconnect failed";

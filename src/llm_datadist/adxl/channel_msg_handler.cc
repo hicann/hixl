@@ -938,12 +938,21 @@ Status ChannelMsgHandler::ProcessServerEviction(const std::string &channel_id, C
     if (!received) {
       pending_disconnect_requests_.erase(req_id);
       channel->SetDisconnecting(false);
+      LLMLOGW("No disconnect response from client for channel %s, req_id=%lu within %d ms", channel_id.c_str(), req_id,
+              kWaitRespTime);
       return SUCCESS;
     }
     RequestDisconnectResp resp = pending_req->resp;
     pending_disconnect_requests_.erase(req_id);
-    LLMLOGW("Client refused or failed to disconnect channel %s, error_code=%u, error_message=%s", channel_id.c_str(),
-            resp.error_code, resp.error_message.c_str());
+    if (resp.error_code == 0U) {
+      // The client only enqueues the eviction and disconnects asynchronously, this ack means "accepted", not
+      // "already disconnected".
+      LLMLOGI("Client accepted disconnect request for channel %s, req_id=%lu, evicting asynchronously",
+              channel_id.c_str(), req_id);
+    } else {
+      LLMLOGW("Client refused or failed to disconnect channel %s, req_id=%lu, error_code=%u, error_message=%s",
+              channel_id.c_str(), req_id, resp.error_code, resp.error_message.c_str());
+    }
     channel->SetDisconnecting(false);
     return SUCCESS;
   }

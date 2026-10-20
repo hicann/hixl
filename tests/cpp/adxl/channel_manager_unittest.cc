@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #include <memory>
 #include <sys/epoll.h>
+#include <sys/socket.h>
 #include <type_traits>
 #include <unistd.h>
 #include <utility>
@@ -194,6 +195,55 @@ TEST_F(ChannelManagerUnitTest, HandleRequestDisconnectMessage_WhenChannelIdMisma
   std::string forged = CreateRequestDisconnectMsgStr(2U, "127.0.0.1:28999", 1000);
   EXPECT_EQ(manager_.HandleRequestDisconnectMessage(channel, forged), SUCCESS);
   EXPECT_FALSE(callback_invoked);
+}
+
+// A successful enqueue must still reply with error_code=0: the server always waits for a
+// kRequestDisconnectResp, staying silent costs it a full kWaitRespTime timeout per evicted channel (issue 959).
+TEST_F(ChannelManagerUnitTest, HandleRequestDisconnectMessage_WhenCallbackSucceeds_SendsZeroErrorCodeResp) {
+  manager_.SetDisconnectCallback([](const std::string &channel_id, int32_t timeout_ms) -> Status {
+    (void)channel_id;
+    (void)timeout_ms;
+    return SUCCESS;  // Callback success means the eviction is enqueued, the actual disconnect is asynchronous
+  });
+
+  ChannelInfo channel_info{};
+  channel_info.channel_type = ChannelType::kServer;
+  channel_info.channel_id = kChannelId;
+  auto channel = std::make_shared<CommChannel>(channel_info);
+
+  int socket_pair[2];
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, socket_pair), 0);
+  channel->fd_ = socket_pair[0];
+
+  constexpr uint64_t kReqId = 7U;
+  std::string msg_str = CreateRequestDisconnectMsgStr(kReqId, kChannelId, 1000);
+  ASSERT_EQ(manager_.HandleRequestDisconnectMessage(channel, msg_str), SUCCESS);
+
+  // The response is sent synchronously inside the call above, so the full frame is already buffered on the peer
+  // end: ProtocolHeader + ControlMsgType + JSON body.
+  ProtocolHeader header{};
+  ASSERT_EQ(read(socket_pair[1], &header, sizeof(header)), static_cast<ssize_t>(sizeof(header)));
+  EXPECT_EQ(header.magic, kMagicNumber);
+  ASSERT_GE(header.body_size, sizeof(ControlMsgType));
+
+  int32_t msg_type = 0;
+  ASSERT_EQ(read(socket_pair[1], &msg_type, sizeof(msg_type)), static_cast<ssize_t>(sizeof(msg_type)));
+  EXPECT_EQ(msg_type, static_cast<int32_t>(ControlMsgType::kRequestDisconnectResp));
+
+  std::string body(header.body_size - sizeof(ControlMsgType), '\0');
+  ASSERT_EQ(read(socket_pair[1], body.data(), body.size()), static_cast<ssize_t>(body.size()));
+
+  RequestDisconnectResp resp{};
+  ASSERT_EQ(ControlMsgHandler::Deserialize(body.c_str(), resp), SUCCESS);
+  EXPECT_EQ(resp.req_id, kReqId);
+  EXPECT_EQ(resp.channel_id, kChannelId);
+  EXPECT_EQ(resp.error_code, 0U);
+  EXPECT_TRUE(resp.can_disconnect);
+  EXPECT_FALSE(resp.disconnected);
+  EXPECT_TRUE(resp.error_message.empty());
+
+  close(socket_pair[0]);
+  close(socket_pair[1]);
 }
 
 TEST_F(ChannelManagerUnitTest, HandleControlMessageRejectsBodySmallerThanMsgType) {

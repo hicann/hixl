@@ -12,6 +12,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <array>
+#include <chrono>
 #include <limits>
 #include <memory>
 #include <thread>
@@ -263,6 +264,95 @@ TEST_F(ChannelMsgHandlerUnitTest, ProcessServerEviction_WhenClientReturnsError_L
   // Cleanup
   close(fd);
   close(peer_fd);
+}
+
+// Test that ProcessServerEviction treats an error_code=0 response as acceptance instead of a refusal
+TEST_F(ChannelMsgHandlerUnitTest, ProcessServerEviction_WhenClientAccepts_LogsInfo) {
+  ChannelInfo channel_info{};
+  channel_info.channel_type = ChannelType::kServer;
+  channel_info.channel_id = kRemoteEngine;
+  auto channel = std::make_shared<CommChannel>(channel_info);
+
+  // Create a socket pair for communication
+  int socket_pair[2];
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, socket_pair), 0);
+
+  // Set the fd on the channel (accessing private member)
+  channel->fd_ = socket_pair[0];
+
+  // Pre-set the next_req_id to a known value
+  uint64_t req_id = 200;
+  handler_->next_req_id_.store(req_id, std::memory_order_relaxed);
+
+  // Wait until ProcessServerEviction registers the pending request, then inject an acceptance response
+  // (error_code=0). Injecting before the registration would be a lost wakeup for this req_id.
+  std::thread response_thread([this, req_id]() {
+    std::unique_lock<std::mutex> lock(handler_->pending_req_mutex_);
+    while (handler_->pending_disconnect_requests_.find(req_id) == handler_->pending_disconnect_requests_.end()) {
+      lock.unlock();
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      lock.lock();
+    }
+    auto it = handler_->pending_disconnect_requests_.find(req_id);
+    if (it != handler_->pending_disconnect_requests_.end()) {
+      it->second->received = true;
+      it->second->resp.req_id = req_id;
+      it->second->resp.channel_id = kRemoteEngine;
+      it->second->resp.can_disconnect = true;
+      it->second->resp.disconnected = false;
+      it->second->resp.error_code = 0U;  // 0 means acceptance, must NOT hit the refused-warning path
+      it->second->resp.error_message = "";
+      it->second->cv.notify_one();
+    }
+  });
+
+  // Set disconnecting flag on channel
+  channel->SetDisconnecting(true);
+
+  // Call ProcessServerEviction which should hit the acceptance INFO path
+  Status result = handler_->ProcessServerEviction(kRemoteEngine, channel);
+
+  // Wait for the response thread to finish
+  response_thread.join();
+
+  // The function returns SUCCESS and releases the channel from the disconnecting state
+  EXPECT_EQ(result, SUCCESS);
+  EXPECT_FALSE(channel->IsDisconnecting());
+  {
+    std::lock_guard<std::mutex> lock(handler_->pending_req_mutex_);
+    EXPECT_TRUE(handler_->pending_disconnect_requests_.empty());
+  }
+
+  // Cleanup
+  close(socket_pair[0]);
+  close(socket_pair[1]);
+}
+
+// Test that ProcessServerEviction times out and still releases the channel when the client never responds
+TEST_F(ChannelMsgHandlerUnitTest, ProcessServerEviction_WhenClientSilent_TimesOutAndReleasesChannel) {
+  ChannelInfo channel_info{};
+  channel_info.channel_type = ChannelType::kServer;
+  channel_info.channel_id = kRemoteEngine;
+  auto channel = std::make_shared<CommChannel>(channel_info);
+
+  int socket_pair[2];
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, socket_pair), 0);
+  channel->fd_ = socket_pair[0];
+
+  channel->SetDisconnecting(true);
+
+  // No response is injected: the wait must expire within kWaitRespTime and release the channel, not hang
+  Status result = handler_->ProcessServerEviction(kRemoteEngine, channel);
+
+  EXPECT_EQ(result, SUCCESS);
+  EXPECT_FALSE(channel->IsDisconnecting());
+  {
+    std::lock_guard<std::mutex> lock(handler_->pending_req_mutex_);
+    EXPECT_TRUE(handler_->pending_disconnect_requests_.empty());
+  }
+
+  close(socket_pair[0]);
+  close(socket_pair[1]);
 }
 
 TEST_F(ChannelMsgHandlerUnitTest, RegisterMemRejectsAddrLenOverflow) {
