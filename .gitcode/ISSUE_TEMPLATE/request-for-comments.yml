@@ -3,16 +3,70 @@ description: 如果您需要实现一个新需求，请使用此模板。
 title: "[RFC]: "
 labels: ["RFC"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        ### 请按“由整体到细节”的顺序填写
+        表单顺序即阅读顺序，请勿跳填。读者应先获得整体认知，再逐层下钻到实现细节：
+
+        1. **一句话结论** → 2. **需求描述 / 术语 / 范围与对比**（是什么、改什么、不改什么）→ 3. **功能要点**（做什么）→ 4. **影响与接口诉求** → 5. **技术方案**（先总览图，再详细设计，最后关键改动点）→ 6. **测试方案 / 验收标准**
+
+        注意：接口名、结构体字段、代码行号、时序步骤等细节统一放在「技术方案」，不要混入前面的概述章节。
+  - type: textarea
+    attributes:
+      label: 一句话结论
+      description: |
+        用 2~3 句话说明本需求要做什么、为什么做、影响谁，让未接触过该模块的读者先建立整体认知。
+        不展开实现细节。
+      placeholder: |
+        示例：将非 HCCS 设备的完成通知由每个 slot 独占 notify 改为 pool 级 device flag + aclrtValueWait/Write；
+        目的是收敛资源粒度并移除 HCCP libra.so 依赖；不涉及对外 API 变更。
+    validations:
+      required: true
   - type: textarea
     attributes:
       label: 需求描述
-      description: 请描述本需求的背景，要实现什么特性，期望解决什么问题等
+      description: |
+        请描述本需求的背景、现状与要解决的问题：
+        1. 现状是怎么做的；
+        2. 现状存在什么问题（为什么需要改）；
+        3. 本需求要达成什么目标。
+        保持概述粒度，不展开实现细节与代码位置。
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 术语说明
+      description: |
+        请列出正文会用到的专业名词、缩写与易混淆概念，尤其是同名不同义的字段或状态，
+        并在术语首次出现之前给出定义；若正文无需额外解释的术语，请填写“无”。
+      placeholder: |
+        示例：slot（pool 的最小传输资源单元，一次传输占用一个）……
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 改造范围与影响面
+      description: |
+        请用表格明确“改什么 / 不改什么”：哪些协议、模块、组件、构建产物受影响，
+        哪些明确不受影响，并写出不受影响的原因。
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 改造前后对比
+      description: 请用表格按维度对比改造前与改造后的行为、资源、依赖与通路，帮助读者快速抓住变化点。
     validations:
       required: true
   - type: textarea
     attributes:
       label: 功能要点
-      description: 请分条列出本需求要实现的具体功能点，通过复选框的形式展现
+      description: |
+        请分条列出本需求要实现的具体功能点，通过复选框（`- [ ]`）的形式展现。
+        只描述“做什么”，不要写实现细节（接口名、字段名、结构体布局等留给「技术方案」）。
+      placeholder: |
+        - [ ] 功能点 1
+        - [ ] 功能点 2
     validations:
       required: true
   - type: textarea
@@ -45,7 +99,21 @@ body:
   - type: textarea
     attributes:
       label: 技术方案
-      description: 请描述下各功能点的技术实现思路。涉及跨组件调用、异步流程、并发流程或状态流转时，需要附上时序图；也可补充伪代码、类图等。
+      description: |
+        请按“先整体、后细节”的顺序填写，各功能点的技术实现思路：
+        1. 设计思路（总体方案与关键决策规则）；
+        2. 整体视图：模块关系、端到端数据流或正常流程时序图；
+        3. 详细设计：逐个功能点展开；
+        4. 关键改动点与删除项；
+        5. 兼容性、并发与资源约束；
+        涉及跨组件调用、异步流程、并发流程或状态流转时，必须附上时序图；也可补充伪代码、类图等。
+        代码位置引用请注明基准 commit 或分支。
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: 非目标
+      description: 请明确列出本需求不打算解决的问题与不覆盖的场景，避免范围蔓延；若无，请填写“无”。
     validations:
       required: true
   - type: textarea
@@ -57,18 +125,26 @@ body:
   - type: textarea
     attributes:
       label: 测试方案
-      description: 请描述本需求需要验证的测试场景
+      description: |
+        请描述本需求需要验证的测试场景，并给出可执行的验证方式：
+        需覆盖单元测试与系统/回归测试，并明确测试关注点，例如多机场景、多打一场景、并发与异常注入、
+        性能是否劣化、资源是否泄漏等。
+        若某项受环境或依赖限制无法验证，请单独列出并说明真实缺口，不要用替代结果掩盖。
     validations:
       required: true
   - type: textarea
     attributes:
       label: 验收标准
-      description: 请描述本需求验收需达到的标准，通过复选框的形式展现
+      description: 请描述本需求验收需达到的标准，通过复选框（`- [ ]`）的形式展现。
+      placeholder: |
+        - [ ] 场景 A 用例全绿
+        - [ ] 场景 B 与改动前行为一致（回归通过）
+        - [ ] 性能无劣化
     validations:
       required: true
   - type: textarea
     attributes:
       label: 备注
-      description: 可以在此处描述本需求涉及到的任何其他内容
+      description: 可以在此处描述本需求涉及到的任何其他内容，例如参考来源、代码位置引用的基准版本等。
     validations:
       required: false
