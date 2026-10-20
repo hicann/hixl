@@ -212,8 +212,13 @@ Status EndpointMatcher::TryMatchGroup(const std::vector<EndpointConfig> &local,
   std::map<MatchKey, EndpointConfig> peers;
   BuildMatchMap(remote, peers);
   auto sorted_local = local;
-  std::sort(sorted_local.begin(), sorted_local.end(),
-            [](const EndpointConfig &a, const EndpointConfig &b) { return !a.dst_eid.empty() && b.dst_eid.empty(); });
+  // Prefer non-empty dst_eid, then ascending plane; preserve input order when both priorities are equal.
+  std::stable_sort(sorted_local.begin(), sorted_local.end(), [](const EndpointConfig &a, const EndpointConfig &b) {
+    if (a.dst_eid.empty() != b.dst_eid.empty()) {
+      return !a.dst_eid.empty();
+    }
+    return a.plane < b.plane;
+  });
   for (const auto &ep : sorted_local) {
     HIXL_CHK_STATUS_RET(TryMatchH2rHLoopback(ep, remote, expected, count, pairs));
     if (count == kMaxUbCsClientNum) {
