@@ -35,15 +35,15 @@ $ cd ./scripts/ci_test
 
 ```sh
 Usage:
-  sh hixl.sh [<device_id_1> <device_id_2>]            Build, test, install hixl and run samples with default or specified devices
-  sh hixl.sh hixl_build [--Build options]             Build code
-  sh hixl.sh hixl_test [--Test options]               Test
-  sh hixl.sh hixl_install                             Install hixl
-  sh hixl.sh hixl_samples [<device_id_1> <device_id_2>]
+  bash hixl.sh [<device_id_1> <device_id_2>]          Build, test, install hixl and run samples with default or specified devices
+  bash hixl.sh hixl_build [--Build options]           Build code
+  bash hixl.sh hixl_test [--Test options]             Test
+  bash hixl.sh hixl_install                           Install hixl
+  bash hixl.sh hixl_samples [<device_id_1> <device_id_2>]
                                                       Run samples
-  sh hixl.sh hixl_build [--Build options]  hixl_samples [<device_id_1> <device_id_2>]
+  bash hixl.sh hixl_build [--Build options]  hixl_samples [<device_id_1> <device_id_2>]
                                                       Run multiple stages together
-  sh hixl.sh [-h | --help]                            Print usage
+  bash hixl.sh [-h | --help]                          Print usage
 
 Build options:
     -h, --help        Print usage

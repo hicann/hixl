@@ -22,15 +22,15 @@ HIXLPATH=$(dirname $(dirname "$BASEPATH"))
 # 显示使用帮助
 usage() {
     echo "Usage:"
-    echo "  sh hixl.sh [<device_id_1> <device_id_2>]            Build, test, install hixl and run samples with default or specified devices"
-    echo "  sh hixl.sh hixl_build [--Build options]             Build code"
-    echo "  sh hixl.sh hixl_test [--Test options]               Test"
-    echo "  sh hixl.sh hixl_install                             Install hixl"
-    echo "  sh hixl.sh hixl_samples [<device_id_1> <device_id_2>]"
+    echo "  bash hixl.sh [<device_id_1> <device_id_2>]          Build, test, install hixl and run samples with default or specified devices"
+    echo "  bash hixl.sh hixl_build [--Build options]           Build code"
+    echo "  bash hixl.sh hixl_test [--Test options]             Test"
+    echo "  bash hixl.sh hixl_install                           Install hixl"
+    echo "  bash hixl.sh hixl_samples [<device_id_1> <device_id_2>]"
     echo "                                                      Run samples"
-    echo "  sh hixl.sh hixl_build [--Build options]  hixl_samples [<device_id_1> <device_id_2>]"
+    echo "  bash hixl.sh hixl_build [--Build options]  hixl_samples [<device_id_1> <device_id_2>]"
     echo "                                                      Run multiple stages together"
-    echo "  sh hixl.sh [-h | --help]                            Print usage"
+    echo "  bash hixl.sh [-h | --help]                          Print usage"
     echo ""
 }
 
