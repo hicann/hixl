@@ -71,6 +71,17 @@ static constexpr uint8_t kDefaultRdmaTc = 132;
 static constexpr uint8_t kDefaultRdmaSl = 4;
 static std::vector<uint32_t> kLocalMems(kMemNum, kNum1);
 static std::vector<uint32_t> kRemoteMems(kMemNum, kNum2);
+
+namespace {
+uint32_t g_client_destroy_count = 0U;
+}
+
+extern "C" HixlStatus __real_HixlCSClientDestroy(HixlClientHandle client_handle);
+extern "C" HixlStatus __wrap_HixlCSClientDestroy(HixlClientHandle client_handle) {
+  ++g_client_destroy_count;
+  return __real_HixlCSClientDestroy(client_handle);
+}
+
 enum class MockHixlServerMode : uint32_t {
   k4UbNormal = 0,
   k2UbNormal,
@@ -1474,6 +1485,29 @@ TEST_F(HixlClientUTest, UbClientHandlerGetTransferStatusNoTransfer) {
   TransferStatus status = TransferStatus::WAITING;
   EXPECT_EQ(handler.GetTransferStatus(reinterpret_cast<TransferReq>(0x1234), status), FAILED);
   EXPECT_EQ(status, TransferStatus::FAILED);
+}
+
+TEST_F(HixlClientUTest, UbClientHandlerCreateReleasesHandlesWhenLaterPairFails) {
+  HandlerCreateArgs args{};
+  args.server_ip = "127.0.0.1";
+  args.server_port = kServerPort;
+  args.rdma_tc = kDefaultRdmaTc;
+  args.rdma_sl = kDefaultRdmaSl;
+  args.handler_type = HandlerCreateArgs::HandlerType::UB;
+  args.matched_pairs = {
+      {MakeRoceHostLocalEp(), MakeRoceHostRemoteEp(), CommType::COMM_TYPE_ROCE},
+      {EndpointConfig{}, EndpointConfig{}, CommType::COMM_TYPE_UB_D2D},
+  };
+
+  std::unique_ptr<UbClientHandler> handler;
+  g_client_destroy_count = 0U;
+  const Status ret = UbClientHandler::Create(args, handler);
+  const uint32_t destroy_count = g_client_destroy_count;
+  g_client_destroy_count = 0U;
+
+  EXPECT_EQ(ret, PARAM_INVALID);
+  EXPECT_NE(handler, nullptr);
+  EXPECT_EQ(destroy_count, 1U);
 }
 
 TEST_F(HixlClientUTest, UbClientHandlerDeregisterMemMissingHandleSucceeds) {

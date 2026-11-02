@@ -234,7 +234,7 @@ target_link_libraries(hixl_test
 # 确保测试桩优先于系统 CANN 安装的同名库被加载
 set_target_properties(hixl_test PROPERTIES
         BUILD_RPATH "${CMAKE_BINARY_DIR}/tests/depends/dcmi;${CMAKE_BINARY_DIR}/tests/depends/dsmi;${CMAKE_BINARY_DIR}/tests/depends/ascend_hal;${CMAKE_BINARY_DIR}/tests/depends/ibverbs"
-        LINK_FLAGS "-Wl,--disable-new-dtags -Wl,--wrap=dlopen -Wl,--wrap=dlsym -Wl,--wrap=dlclose -Wl,--wrap=dlerror -Wl,--wrap=access -Wl,--wrap=realpath"
+        LINK_FLAGS "-Wl,--disable-new-dtags -Wl,--wrap=dlopen -Wl,--wrap=dlsym -Wl,--wrap=dlclose -Wl,--wrap=dlerror -Wl,--wrap=access -Wl,--wrap=realpath -Wl,--wrap=HixlCSClientDestroy"
 )
 
 add_subdirectory(ubmem)
