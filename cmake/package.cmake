@@ -127,10 +127,10 @@ install(TARGETS cann_hixl
 )
 
 # ============= CPack =============
-if (NOT ENABLE_COV AND NOT ENABLE_UT)
-    if (HIXL_BUILD_HOST_ONLY)
-        set_cann_cpack_config(hixl ENABLE_DEVICE FALSE SHARE_INFO_NAME hixl PACKAGE_TYPE ${PACKAGE_TYPE})
-    else ()
-        set_cann_cpack_config(hixl ENABLE_DEVICE TRUE SHARE_INFO_NAME hixl PACKAGE_TYPE ${PACKAGE_TYPE})
-    endif()
+# 本文件仅在非 ENABLE_TEST 构建中被包含（见顶层 CMakeLists.txt）；
+# 原ENABLE_COV/ENABLE_UT守卫读取的是本仓从未定义的变量，恒为真，属冗余条件，移除。
+if (HIXL_BUILD_HOST_ONLY)
+    set_cann_cpack_config(hixl ENABLE_DEVICE FALSE SHARE_INFO_NAME hixl PACKAGE_TYPE ${PACKAGE_TYPE})
+else ()
+    set_cann_cpack_config(hixl ENABLE_DEVICE TRUE SHARE_INFO_NAME hixl PACKAGE_TYPE ${PACKAGE_TYPE})
 endif()
