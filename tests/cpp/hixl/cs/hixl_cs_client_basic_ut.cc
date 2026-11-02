@@ -181,6 +181,29 @@ TEST_F(HixlCSClientFixture, RegMemAndUnRegMem) {
   EXPECT_EQ(cli.UnRegMem(handle), SUCCESS);
 }
 
+TEST_F(HixlCSClientFixture, RegMemDuplicateDoesNotRegisterAgain) {
+  CreateHixlClient(cli, "127.0.0.1", 12345);
+  ResetMemRegRecord();
+
+  CommMem mem{};
+  mem.type = COMM_MEM_TYPE_HOST;
+  mem.addr = &kClientBufAddr;
+  mem.size = kClientBufSizeBytes;
+
+  MemHandle first_handle = nullptr;
+  ASSERT_EQ(cli.RegMem("client_buf", &mem, &first_handle), SUCCESS);
+  ASSERT_NE(first_handle, nullptr);
+  ASSERT_EQ(GetMemRegCallCount(), 1U);
+
+  MemHandle duplicate_handle = reinterpret_cast<MemHandle>(static_cast<uintptr_t>(1U));
+  EXPECT_EQ(cli.RegMem("client_buf", &mem, &duplicate_handle), PARAM_INVALID);
+  EXPECT_EQ(duplicate_handle, nullptr);
+  EXPECT_EQ(GetMemRegCallCount(), 1U);
+  EXPECT_EQ(GetMemUnregCallCount(), 0U);
+
+  EXPECT_EQ(cli.UnRegMem(first_handle), SUCCESS);
+}
+
 TEST_F(HixlCSClientFixture, ImportRemoteMemAndClearRemoteMemInfo) {
   const char *client_ip = "127.0.0.1";
   uint32_t server_port = 22334;

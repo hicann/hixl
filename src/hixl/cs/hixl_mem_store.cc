@@ -126,16 +126,16 @@ bool HixlMemStore::CheckMemoryForRegister(bool is_server, const void *check_addr
     return false;
   }  // regions为空，没有已注册，允许注册
 
-  auto overlaps = [s, e](const MemoryRegion &r) {
+  auto overlaps = [s, e, is_server](const MemoryRegion &r) {
     auto rs = reinterpret_cast<uintptr_t>(r.addr);
     uintptr_t re = 0;
     if (ge::AddOverflow(rs, r.size, re)) {
       return true;
     }
     const bool is_overlap = (s < re) && (rs < e);  // 内存重叠，返回true
-    // 当内存块与已注册内存块完全一致时，此时允许重新注册，返回false
+    // Server registration is idempotent; reject duplicate client ranges before endpoint registration.
     const bool is_same = (s == rs) && (e == re);
-    return is_overlap && !is_same;
+    return is_overlap && (!is_same || !is_server);
   };
 
   auto it = regions.lower_bound(check_addr);
@@ -156,7 +156,7 @@ bool HixlMemStore::CheckMemoryForRegister(bool is_server, const void *check_addr
       return true;
     }
   }
-  return false;  // 与相邻区域都不重叠，或者内存与已注册内存完全一致，允许注册
+  return false;  // No overlap; an identical range is allowed only for server registration.
 }
 
 bool HixlMemStore::CheckMemoryForAccess(bool is_server, const void *check_addr, size_t check_size) const {

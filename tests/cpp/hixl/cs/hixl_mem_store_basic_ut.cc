@@ -48,6 +48,8 @@ TEST(HixlMemStoreBasicTest, RecordValidateAndUnrecord) {
   EXPECT_EQ(store.RecordMemory(true, saddr, kClientBufSizeBytes), SUCCESS);
   // 重复记录同一client地址应返回参数错误
   EXPECT_EQ(store.RecordMemory(false, caddr, kClientBufSizeBytes), PARAM_INVALID);
+  EXPECT_FALSE(store.CheckMemoryForRegister(true, saddr, kClientBufSizeBytes));
+  EXPECT_TRUE(store.CheckMemoryForRegister(false, caddr, kClientBufSizeBytes));
 
   // 注销
   EXPECT_EQ(store.UnrecordMemory(true, saddr), SUCCESS);

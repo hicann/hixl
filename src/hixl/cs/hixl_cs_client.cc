@@ -425,6 +425,8 @@ Status HixlCSClient::RegMem(const char *mem_tag, const CommMem *mem, MemHandle *
 Status HixlCSClient::RegMemLocked(const char *mem_tag, const CommMem *mem, MemHandle *mem_handle) {
   auto ctx_guard = GetContextGuard();
   (void)ctx_guard;
+  HIXL_CHECK_NOTNULL(mem_handle);
+  *mem_handle = nullptr;
   HIXL_CHECK_NOTNULL(mem);
   HIXL_CHK_BOOL_RET_STATUS(mem->addr != nullptr && mem->size > 0U, PARAM_INVALID,
                            "[HixlClient] Invalid memory registration, mem_addr:%p, mem_size:%lu bytes", mem->addr,
@@ -450,6 +452,16 @@ Status HixlCSClient::RegMemLocked(const char *mem_tag, const CommMem *mem, MemHa
   HIXL_CHK_STATUS_RET(local_endpoint_->RegisterMem(mem_tag, *mem, ep_mem_handle),
                       "[HixlClient] Failed to register client endpoint mem.");
   *mem_handle = ep_mem_handle;
+  HIXL_DISMISSABLE_GUARD(mem_rollback, ([this, ep_mem_handle, mem_handle]() {
+                           const Status rollback_status = local_endpoint_->DeregisterMem(ep_mem_handle);
+                           if (rollback_status != SUCCESS) {
+                             HIXL_LOGE(rollback_status,
+                                       "[HixlClient] Failed to rollback client endpoint mem registration, "
+                                       "mem_handle:%p, ret:%u",
+                                       ep_mem_handle, static_cast<uint32_t>(rollback_status));
+                           }
+                           *mem_handle = nullptr;
+                         }));
   bool is_host_mem = mem->type == COMM_MEM_TYPE_HOST;
   void *register_dev_addr = nullptr;
   const auto &local_endpoint_desc = local_endpoint_->GetEndpoint();
@@ -463,6 +475,7 @@ Status HixlCSClient::RegMemLocked(const char *mem_tag, const CommMem *mem, MemHa
   HIXL_CHK_STATUS_RET(mem_store_.RecordMemory(false, mem->addr, mem->size, is_host_mem, register_dev_addr),
                       "[HixlClient] Client record memory failed, mem_addr:%p, mem_size:%lu bytes", mem->addr,
                       mem->size);
+  HIXL_DISMISS_GUARD(mem_rollback);
   HIXL_LOGI("[HixlClient] Memory register success. ");
   return SUCCESS;
 }
