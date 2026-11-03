@@ -59,6 +59,8 @@ class HIXLConnector(KVConnectorBase_V1, SupportsHMA):
         kv_cache_config: KVCacheConfig | None = None,
     ):
         assert vllm_config.kv_transfer_config is not None
+        super().__init__(vllm_config, role, kv_cache_config)
+
         self.engine_id = vllm_config.kv_transfer_config.engine_id
         self._connector_metadata = HIXLConnectorMetadata()
 

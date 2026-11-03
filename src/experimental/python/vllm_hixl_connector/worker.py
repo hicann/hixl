@@ -667,10 +667,22 @@ class HIXLConnectorWorker:
         # (conv at kv_padding, ssm after k) start at unaligned offsets, so
         # registering whole storage keeps the aligned base and leaves room to
         # aggregate layer views later. The logical ledger above stays per view.
-        if has_mamba_group:
+        # Older vLLM builds expose KVCacheTensor without the shared_by field; the
+        # mamba and hybrid paths rely on it to enumerate the layers sharing each
+        # raw region, so fall back to storage-merged registration there as well.
+        shared_by_supported = all(
+            hasattr(kv_cache_tensor, "shared_by")
+            for kv_cache_tensor in self.kv_cache_config.kv_cache_tensors
+        )
+        if not shared_by_supported:
+            logger.info(
+                "KVCacheTensor has no shared_by field; "
+                "fall back to storage-merged region registration."
+            )
+        if has_mamba_group and shared_by_supported:
             ptrs, lengths = self._get_registered_kv_tensor_buffers(kv_caches)
             register_regions = RegisterRegions(ptrs=ptrs, lengths=lengths)
-        elif self.use_hybrid:
+        elif self.use_hybrid and shared_by_supported:
             ptrs, lengths = self._get_registered_kv_tensor_buffers_hybrid(kv_caches)
             register_regions = RegisterRegions(ptrs=ptrs, lengths=lengths)
         else:
