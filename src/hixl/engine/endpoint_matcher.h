@@ -17,6 +17,7 @@
 #include "common/hixl_inner_types.h"
 #include "engine/client_handler.h"
 #include "engine/client_handler_factory.h"
+#include "engine/hixl_options.h"
 
 namespace hixl {
 
@@ -54,7 +55,8 @@ class EndpointMatcher {
   // ---------- Primary matching API ----------
   static Status MatchEndpoints(const std::vector<EndpointConfig> &local, const std::vector<EndpointConfig> &remote,
                                std::vector<HandlerCreateArgs::EndpointPair> &matched_pairs,
-                               HandlerCreateArgs::HandlerType &handler_type);
+                               HandlerCreateArgs::HandlerType &handler_type,
+                               const GlobalResourceConfig &global_config = {});
 
   // ---------- Type utility functions ----------
   static CommType ParseCommType(const std::string &local, const std::string &remote);
@@ -77,19 +79,22 @@ class EndpointMatcher {
                                std::vector<HandlerCreateArgs::EndpointPair> &pairs);
 
   static Status TryMatchGroup(const std::vector<EndpointConfig> &local, const std::vector<EndpointConfig> &remote,
-                              std::vector<HandlerCreateArgs::EndpointPair> &pairs);
+                              std::vector<HandlerCreateArgs::EndpointPair> &pairs, LinkType priority);
+
+  static void MatchD2D(const std::vector<EndpointConfig> &local, const std::map<MatchKey, EndpointConfig> &peers,
+                       LinkType priority, std::vector<HandlerCreateArgs::EndpointPair> &pairs);
 
   static Status TryMatchUbCtpD2DOnlyByGroup(const std::vector<EndpointConfig> &local,
                                             const std::vector<EndpointConfig> &remote,
-                                            std::vector<HandlerCreateArgs::EndpointPair> &pairs);
+                                            std::vector<HandlerCreateArgs::EndpointPair> &pairs, LinkType priority);
 
   static Status TryMatchH2rHLoopback(const EndpointConfig &local, const std::vector<EndpointConfig> &remote,
                                      std::map<CommType, bool> &expected, uint32_t &count,
                                      std::vector<HandlerCreateArgs::EndpointPair> &pairs);
 
   static Status TryMatchByPriority(const std::vector<EndpointConfig> &local, const std::vector<EndpointConfig> &remote,
-                                   bool cross_instance, std::vector<HandlerCreateArgs::EndpointPair> &pairs,
-                                   HandlerCreateArgs::HandlerType &handler_type);
+                                   std::vector<HandlerCreateArgs::EndpointPair> &pairs,
+                                   HandlerCreateArgs::HandlerType &handler_type, LinkType priority);
 
   static void LogMatchedEndpoints(const std::vector<HandlerCreateArgs::EndpointPair> &pairs,
                                   HandlerCreateArgs::HandlerType handler_type);

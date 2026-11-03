@@ -211,6 +211,7 @@ options[hixl::OPTION_AUTO_CONNECT] = "1";
 | 字段名 | 数据类型 | 必选/可选 | 简介 |
 | --- | --- | --- | --- |
 | comm_resource_config.protocol_desc | 字符串或字符串数组 | 可选 | 限定可用的通信协议与通信设备位置范围，详见 [protocol_desc](#grc_protocol_desc)。 |
+| comm_resource_config.link_priority | 字符串或单元素字符串数组 | 可选 | 同实例UB CTP的D2D链路优先级，严格大写，默认`"PEER2NET"`，详见[link_priority](#grc_link_priority)。 |
 | comm_resource_config.listen_port | JSON数字或纯数字字符串 | 可选 | device侧网卡监听端口，详见 [listen_port](#grc_listen_port)。 |
 | comm_resource_config.qos | 数字 | 可选 | 通信协议qos，详见 [qos](#grc_qos)。 |
 | comm_resource_config.max_active_channels | 数字 | 可选 | CS场景下设备侧同时活跃传输通道数量，详见 [max_active_channels](#grc_max_active_channels)。 |
@@ -238,6 +239,9 @@ options[hixl::OPTION_AUTO_CONNECT] = "1";
 
 **产品支持情况**
 
+<!-- npu="950" id70 -->
+- `comm_resource_config.link_priority`：仅支持Ascend 950PR&950DT系列产品。
+<!-- end id70 -->
 <!-- npu="950" id69 -->
 - `comm_resource_config.nic_topo_path`：仅支持Ascend 950PR&950DT系列产品。
 <!-- end id69 -->
@@ -264,6 +268,28 @@ options[hixl::OPTION_AUTO_CONNECT] = "1";
   <!-- npu="950,A3" id63 -->
   - `ubmem` 仅支持超节点内传输，仅支持Atlas A3系列产品、Ascend 950PR&950DT系列产品（当前仅支持单server内），对于Atlas A3系列产品，如果要使能跨超节点自动选择roce协议，需要同时配置为 `["ubmem", "roce:device"]`；
   <!-- end id63 -->
+
+<a id="grc_link_priority"></a>
+
+- **link_priority**：配置同实例`ub_ctp`的D2D建链优先级。取值严格大写，仅支持`"PEER2NET"`（CLOS）和`"PEER2PEER"`（fullmesh直连），不转换大小写或去除空白。
+  - 支持字符串或单元素字符串数组，例如`"PEER2NET"`或`["PEER2NET"]`。空字符串、空数组、多元素数组、非法值或类型均返回`PARAM_INVALID`。
+  - 未配置时默认`"PEER2NET"`，双类型可匹配时优先CLOS；配置`"PEER2PEER"`可恢复原有直连优先行为。优先类型无法匹配时自动回落，同类型内沿用既有平面选择顺序。
+  - 在默认生成设备侧UB CTP资源的场景下，未配置`comm_resource_config.protocol_desc`时，本字段同样生效，无需显式指定协议。
+  - 当前每个通信方向仍只选择一条链路。本字段仅影响同实例UB CTP的D2D链路选择。
+  - 默认行为变更：同时存在可匹配的CLOS与fullmesh链路时，默认由fullmesh优先改为CLOS优先。
+
+```cpp
+options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
+    R"({"comm_resource_config.protocol_desc":["ub_ctp:device"],
+        "comm_resource_config.link_priority":"PEER2PEER"})";
+```
+
+仅配置链路优先级、保留默认协议选择的示例：
+
+```cpp
+options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
+    R"({"comm_resource_config.link_priority":"PEER2PEER"})";
+```
 
 <a id="grc_listen_port"></a>
 

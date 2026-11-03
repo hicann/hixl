@@ -201,6 +201,31 @@ Status ParseConnectPoolConfig(const nlohmann::json &json, ConnectPoolConfig &cfg
   return SUCCESS;
 }
 
+Status ParseLinkPriority(const nlohmann::json &json, CommResourceConfigDesc &cfg) {
+  if (!json.contains(kGlobalResCfgLinkPriority)) {
+    return SUCCESS;
+  }
+  const auto &value = json.at(kGlobalResCfgLinkPriority);
+  const auto raw_value = value.dump();
+  HIXL_LOGI("Parse %s, raw:%s", kGlobalResCfgLinkPriority, raw_value.c_str());
+  HIXL_CHK_BOOL_RET_STATUS(value.is_string() || value.is_array(), PARAM_INVALID,
+                           "%s must be a string or a single-element string array, got type:%s",
+                           kGlobalResCfgLinkPriority, value.type_name());
+  HIXL_CHK_BOOL_RET_STATUS(!value.is_array() || value.size() == 1U, PARAM_INVALID,
+                           "%s currently supports exactly one link type, got count:%zu", kGlobalResCfgLinkPriority,
+                           value.size());
+  const auto &entry = value.is_array() ? value.at(0) : value;
+  HIXL_CHK_BOOL_RET_STATUS(entry.is_string(), PARAM_INVALID, "%s entry must be a string, got type:%s",
+                           kGlobalResCfgLinkPriority, entry.type_name());
+  const auto name = entry.get<std::string>();
+  HIXL_CHK_BOOL_RET_STATUS(name == "PEER2NET" || name == "PEER2PEER", PARAM_INVALID,
+                           "Invalid %s:%s, expected exactly PEER2NET or PEER2PEER (uppercase)",
+                           kGlobalResCfgLinkPriority, name.c_str());
+  cfg.link_priority = std::vector<LinkType>{name == "PEER2NET" ? LinkType::PEER2NET : LinkType::PEER2PEER};
+  HIXL_LOGI("Parsed %s:%s", kGlobalResCfgLinkPriority, name.c_str());
+  return SUCCESS;
+}
+
 Status ParseChannelPoolConfig(const nlohmann::json &json, ChannelPoolConfig &cfg) {
   IntegerFieldRange max_channel_range = {kGlobalResCfgChannelPoolMaxChannel, kMinChannelPoolMaxChannel,
                                          kMaxChannelPoolMaxChannel, ""};
@@ -210,6 +235,7 @@ Status ParseChannelPoolConfig(const nlohmann::json &json, ChannelPoolConfig &cfg
 }
 
 Status ParseCommResourceConfig(const nlohmann::json &json, CommResourceConfigDesc &cfg) {
+  HIXL_CHK_STATUS_RET(ParseLinkPriority(json, cfg), "Failed to parse link priority");
   if (json.contains(kGlobalResCfgProtocolDesc)) {
     const auto &protocol_desc = json.at(kGlobalResCfgProtocolDesc);
     cfg.protocol_desc = protocol_desc.is_string() ? std::vector<std::string>{protocol_desc.get<std::string>()}

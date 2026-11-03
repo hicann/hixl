@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <algorithm>
 #include <memory>
 #include <vector>
 #include <map>
@@ -158,6 +159,10 @@ class MockHixlServer {
     }
   }
 
+  Status SetEndpointResponse(const std::vector<EndpointConfig> &endpoints) {
+    return EndpointGenerator::SerializeEndpointConfigList(endpoints, endpoint_response_);
+  }
+
   void ListenServer() {
     MsgProcessor send_endpoint_cb = [this](const CtrlMsgPluginPtr &connection, const char *msg,
                                            uint64_t msg_len) -> Status {
@@ -225,6 +230,7 @@ class MockHixlServer {
   std::vector<MemInfo> registered_mem_{};
   CtrlMsgPluginPtr connection_;
   MockHixlServerMode mode_;
+  std::string endpoint_response_;
 
   // JSON字符串常量
   static const std::string kErrorJson;
@@ -254,6 +260,11 @@ class MockHixlServer {
   }
 
   void SendResponse() {
+    if (!endpoint_response_.empty()) {
+      SendResponseImpl(kMagicNumber, CtrlMsgType::kGetEndpointInfoResp, sizeof(CtrlMsgType) + endpoint_response_.size(),
+                       endpoint_response_);
+      return;
+    }
     switch (mode_) {
       case MockHixlServerMode::k4UbNormal:
         SendResponseImpl(kMagicNumber, CtrlMsgType::kGetEndpointInfoResp, sizeof(CtrlMsgType) + k4UbJson.size(),
@@ -751,6 +762,12 @@ class HixlClientUTest : public hixl::test::PlainTlsTest {
   }
 
   // EndpointMatcher helpers
+  static GlobalResourceConfig MakeLinkPriorityConfig(LinkType priority) {
+    GlobalResourceConfig config;
+    config.comm_resource_config.link_priority = std::vector<LinkType>{priority};
+    return config;
+  }
+
   static EndpointConfig MakeUbEp(const std::string &comm_id, const std::string &dst_eid, const std::string &placement,
                                  const std::string &plane = "") {
     EndpointConfig ep;
@@ -825,6 +842,36 @@ TEST_F(HixlClientUTest, Initialize4UBTest) {
   EXPECT_EQ(st, SUCCESS);
   EXPECT_NE(client_->connection_, nullptr);
   EXPECT_EQ(client_->Finalize(), SUCCESS);
+}
+
+TEST_F(HixlClientUTest, InitializeUsesParsedLinkPriority) {
+  auto local_pg = MakeUbDeviceLocalEp3();
+  auto remote_pg = MakeUbDeviceRemoteEp3();
+  local_pg.plane = remote_pg.plane = "plane_pg_0";
+  auto local_direct = MakeUbDeviceLocalEp4();
+  auto remote_direct = MakeUbHostRemoteEp4();
+  remote_direct.placement = "device";
+  remote_direct.device_info = remote_pg.device_info;
+  local_direct.plane = remote_direct.plane = "mesh";
+  local_direct.dst_eid = remote_direct.comm_id;
+  remote_direct.dst_eid = local_direct.comm_id;
+  ASSERT_EQ(server_->CreateServer({remote_pg, remote_direct}), SUCCESS);
+  ASSERT_EQ(server_->SetEndpointResponse({remote_pg, remote_direct}), SUCCESS);
+  server_->ListenServer();
+  for (const auto *json : {"{}", R"({"comm_resource_config.link_priority":"PEER2NET"})",
+                           R"({"comm_resource_config.link_priority":"PEER2PEER"})"}) {
+    SCOPED_TRACE(json);
+    HixlOptions options;
+    ASSERT_EQ(HixlOptions::Parse({{OPTION_GLOBAL_RESOURCE_CONFIG, json}}, options), SUCCESS);
+    ClientConfig config{};
+    config.global_config = options.GlobalResourceCfg().value();
+    HixlClient client("127.0.0.1", kServerPort, config);
+    ASSERT_EQ(client.Initialize({local_direct, local_pg}, kDefaultTimeoutMs, true), SUCCESS);
+    ASSERT_EQ(client.link_pairs_.size(), 1U);
+    EXPECT_EQ(client.link_pairs_[0].local.comm_id,
+              std::string(json).find("PEER2PEER") != std::string::npos ? local_direct.comm_id : local_pg.comm_id);
+    EXPECT_EQ(client.Finalize(), SUCCESS);
+  }
 }
 
 TEST_F(HixlClientUTest, InitializeKeepsControlSocket) {
@@ -1897,21 +1944,22 @@ TEST_F(HixlClientUTest, UbHandlerClassifyLocalAddrOverflow) {
   handler.handles_.clear();
 }
 
-// 排序优先级：dst_eid非空的local先于空的尝试匹配，防止通配endpoint占用特定endpoint的匹配槽位
+// Verify explicit direct priority precedes CLOS wildcard endpoints.
 TEST_F(HixlClientUTest, EndpointMatcherDstEidPriorityTest) {
   std::vector<EndpointConfig> remote = {MakeUbEp("remote_1", "eid_x", "device"),
                                         MakeUbEp("remote_2", "", "device", "default")};
-  // 通配(L2)在前, 精确(L1)在后, 验证sort将其纠正为精确endpoint优先
+  // Keep distinct planes so the direct peer cannot be confused with the CLOS wildcard.
   std::vector<EndpointConfig> local = {MakeUbEp("wildcard", "", "device", "default"),
                                        MakeUbEp("eid_x", "remote_1", "device"),
                                        MakeUbEp("host_local", "", "host", "host_plane")};
 
   std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
   HandlerCreateArgs::HandlerType handler_type;
-  Status st = EndpointMatcher::MatchEndpoints(local, remote, matched_pairs, handler_type);
+  Status st = EndpointMatcher::MatchEndpoints(local, remote, matched_pairs, handler_type,
+                                              MakeLinkPriorityConfig(LinkType::PEER2PEER));
   EXPECT_EQ(st, SUCCESS);
   EXPECT_EQ(handler_type, HandlerCreateArgs::HandlerType::UB);
-  // L1(dst_eid非空)匹配R1, D2D槽位被占用后L2无法再匹配; 若排序失效L2会先抢占导致L1落空
+  // The configured direct pair fills the D2D slot before the CLOS wildcard.
   ASSERT_EQ(matched_pairs.size(), 1U);
   EXPECT_EQ(matched_pairs[0].local.comm_id, "eid_x");
   EXPECT_EQ(matched_pairs[0].local.dst_eid, "remote_1");
@@ -1993,19 +2041,200 @@ TEST_F(HixlClientUTest, EndpointMatcherPreservesOrderWithinSameDstAndPlanePriori
   }
 }
 
-TEST_F(HixlClientUTest, EndpointMatcherDstEidPriorityOverridesPlanePriorityTest) {
-  std::vector<EndpointConfig> local = {MakeUbEp("local_pg0", "", "device", "plane_pg_0"),
-                                       MakeUbEp("local_pg1", "remote_pg1", "device", "plane_pg_1")};
-  std::vector<EndpointConfig> remote = {MakeUbEp("remote_pg0", "", "device", "plane_pg_0"),
-                                        MakeUbEp("remote_pg1", "local_pg1", "device", "plane_pg_1")};
+TEST_F(HixlClientUTest, EndpointMatcherLinkPrioritySelectsD2DWithoutChangingOtherDirections) {
+  for (const bool with_host : {false, true}) {
+    std::vector<EndpointConfig> local = {MakeUbEp("local_direct", "remote_direct", "device", "mesh"),
+                                         MakeUbEp("local_pg1", "", "device", "plane_pg_1"),
+                                         MakeUbEp("local_pg0", "", "device", "plane_pg_0")};
+    std::vector<EndpointConfig> remote = {MakeUbEp("remote_direct", "local_direct", "device", "mesh"),
+                                          MakeUbEp("remote_pg1", "", "device", "plane_pg_1"),
+                                          MakeUbEp("remote_pg0", "", "device", "plane_pg_0")};
+    if (with_host) {
+      local.push_back(MakeUbEp("local_host", "", "host", "mesh"));
+      remote.push_back(MakeUbEp("remote_host", "", "host", "mesh"));
+    }
+    for (const auto priority : {LinkType::PEER2NET, LinkType::PEER2PEER}) {
+      std::vector<HandlerCreateArgs::EndpointPair> pairs;
+      HandlerCreateArgs::HandlerType handler;
+      ASSERT_EQ(EndpointMatcher::MatchEndpoints(local, remote, pairs, handler, MakeLinkPriorityConfig(priority)),
+                SUCCESS);
+      EXPECT_EQ(handler, with_host ? HandlerCreateArgs::HandlerType::UB : HandlerCreateArgs::HandlerType::DIRECT);
+      // The mesh device peer targets local_direct, so this fixture has no H2D pair.
+      ASSERT_EQ(pairs.size(), with_host ? 3U : 1U);
+      for (const auto &pair : pairs) {
+        if (pair.type == CommType::COMM_TYPE_UB_D2D) {
+          EXPECT_EQ(pair.local.comm_id, priority == LinkType::PEER2NET ? "local_pg0" : "local_direct");
+        } else {
+          EXPECT_EQ(pair.local.plane, "mesh");
+        }
+      }
+    }
+    std::vector<HandlerCreateArgs::EndpointPair> pairs;
+    HandlerCreateArgs::HandlerType handler;
+    ASSERT_EQ(EndpointMatcher::MatchEndpoints(local, remote, pairs, handler), SUCCESS);
+    EXPECT_EQ(pairs.front().local.comm_id, "local_pg0");
+  }
+}
 
-  std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
-  HandlerCreateArgs::HandlerType handler_type;
-  ASSERT_EQ(EndpointMatcher::MatchEndpoints(local, remote, matched_pairs, handler_type), SUCCESS);
-  ASSERT_EQ(matched_pairs.size(), 1U);
-  EXPECT_EQ(matched_pairs[0].local.comm_id, "local_pg1");
-  EXPECT_EQ(matched_pairs[0].remote.comm_id, "remote_pg1");
-  EXPECT_EQ(matched_pairs[0].type, CommType::COMM_TYPE_UB_D2D);
+TEST_F(HixlClientUTest, EndpointMatcherLinkPriorityFallsBackWhenPreferredTypeCannotMatch) {
+  const std::vector<EndpointConfig> local = {MakeUbEp("local_direct", "remote_direct", "device", "mesh"),
+                                             MakeUbEp("local_pg1", "", "device", "plane_pg_1"),
+                                             MakeUbEp("local_pg0", "", "device", "plane_pg_0")};
+  for (const auto priority : {LinkType::PEER2NET, LinkType::PEER2PEER}) {
+    for (const bool only_pg : {false, true}) {
+      std::vector<EndpointConfig> remote =
+          only_pg ? std::vector<EndpointConfig>{MakeUbEp("remote_pg1", "", "device", "plane_pg_1")}
+                  : std::vector<EndpointConfig>{MakeUbEp("remote_direct", "local_direct", "device", "mesh")};
+      std::vector<HandlerCreateArgs::EndpointPair> pairs;
+      HandlerCreateArgs::HandlerType handler;
+      ASSERT_EQ(EndpointMatcher::MatchEndpoints(local, remote, pairs, handler, MakeLinkPriorityConfig(priority)),
+                SUCCESS);
+      ASSERT_EQ(pairs.size(), 1U);
+      EXPECT_EQ(pairs[0].local.comm_id, only_pg ? "local_pg1" : "local_direct");
+    }
+  }
+}
+
+TEST_F(HixlClientUTest, EndpointMatcherLogsPreferredLinkStatusAndBothCandidateCounts) {
+  const std::vector<std::string> statuses = {"no_local_candidate", "no_remote_candidate", "no_matching_pair",
+                                             "matched"};
+  for (const auto priority : {LinkType::PEER2NET, LinkType::PEER2PEER}) {
+    for (size_t scenario = 0; scenario < statuses.size(); ++scenario) {
+      SCOPED_TRACE(statuses[scenario]);
+      std::vector<EndpointConfig> local = {MakeUbEp("local_pg", "", "device", "plane_pg_0"),
+                                           MakeUbEp("local_direct", "remote_direct", "device", "mesh")};
+      std::vector<EndpointConfig> remote = {MakeUbEp("remote_pg", "", "device", "plane_pg_0"),
+                                            MakeUbEp("remote_direct", "local_direct", "device", "mesh")};
+      const size_t index = priority == LinkType::PEER2NET ? 0U : 1U;
+      if (scenario == 0U) {
+        local.erase(local.begin() + index);
+      } else if (scenario == 1U) {
+        remote.erase(remote.begin() + index);
+      } else if (scenario == 2U) {
+        remote[index].plane = priority == LinkType::PEER2NET ? "plane_pg_1" : "mesh";
+        remote[index].dst_eid = priority == LinkType::PEER2PEER ? "unmatched" : "";
+      }
+      auto capture = std::make_shared<llm::LogCaptureStub>();
+      capture->AddCapturePattern("EndpointMatcher D2D priority:");
+      capture->SetLevelInfo();
+      std::vector<HandlerCreateArgs::EndpointPair> pairs;
+      HandlerCreateArgs::HandlerType handler;
+      llm::SlogStub::SetInstance(capture);
+      const Status ret =
+          EndpointMatcher::MatchEndpoints(local, remote, pairs, handler, MakeLinkPriorityConfig(priority));
+      llm::SlogStub::SetInstance(nullptr);
+      ASSERT_EQ(ret, SUCCESS);
+      ASSERT_EQ(pairs.size(), 1U);
+      const std::string selected = pairs[0].local.dst_eid.empty() ? "PEER2NET" : "PEER2PEER";
+      const auto &captured = capture->GetCapturedLogs();
+      const auto it = std::find_if(captured.begin(), captured.end(), [](const std::string &log) {
+        return log.find("EndpointMatcher D2D priority:") != std::string::npos;
+      });
+      ASSERT_NE(it, captured.end());
+      const std::string &log = *it;
+      EXPECT_NE(log.find("selected:" + selected + ", preferred_status:" + statuses[scenario]), std::string::npos);
+      EXPECT_NE(log.find("local PEER2NET candidates:" + std::to_string(scenario == 0U && index == 0U ? 0 : 1)),
+                std::string::npos);
+      EXPECT_NE(log.find("local PEER2PEER candidates:" + std::to_string(scenario == 0U && index == 1U ? 0 : 1)),
+                std::string::npos);
+      EXPECT_NE(log.find("remote PEER2NET candidates:" + std::to_string(scenario == 1U && index == 0U ? 0 : 1)),
+                std::string::npos);
+      EXPECT_NE(log.find("remote PEER2PEER candidates:" + std::to_string(scenario == 1U && index == 1U ? 0 : 1)),
+                std::string::npos);
+    }
+  }
+}
+
+TEST_F(HixlClientUTest, EndpointMatcherLinkPriorityUsesOnlyAvailableTypeAndKeepsPgOrder) {
+  for (const auto *plane : {"mesh", "plane_pg_0", "other"}) {
+    const std::string dst = std::string(plane) == "mesh" ? "remote" : "";
+    std::vector<EndpointConfig> local = {MakeUbEp("local", dst, "device", plane)};
+    std::vector<EndpointConfig> remote = {MakeUbEp("remote", "", "device", plane)};
+    if (std::string(plane) == "plane_pg_0") {
+      local.insert(local.begin(), MakeUbEp("local_pg1", "", "device", "plane_pg_1"));
+      remote.insert(remote.begin(), MakeUbEp("remote_pg1", "", "device", "plane_pg_1"));
+    }
+    for (const auto priority : {LinkType::PEER2NET, LinkType::PEER2PEER}) {
+      std::vector<HandlerCreateArgs::EndpointPair> pairs;
+      HandlerCreateArgs::HandlerType handler;
+      ASSERT_EQ(EndpointMatcher::MatchEndpoints(local, remote, pairs, handler, MakeLinkPriorityConfig(priority)),
+                SUCCESS);
+      ASSERT_EQ(pairs.size(), 1U);
+      EXPECT_EQ(pairs[0].local.comm_id, "local");
+      EXPECT_EQ(pairs[0].remote.comm_id, "remote");
+    }
+  }
+}
+
+TEST_F(HixlClientUTest, EndpointMatcherClassifiesLinksWithoutFixedPlaneNames) {
+  for (const auto *plane : {"plane_pg_2", "renamed_clos_plane", ""}) {
+    for (const auto priority : {LinkType::PEER2NET, LinkType::PEER2PEER}) {
+      SCOPED_TRACE(plane);
+      const std::vector<EndpointConfig> local = {MakeUbEp("local_direct", "remote_direct", "device", "direct_plane"),
+                                                 MakeUbEp("local_other", "", "device", plane)};
+      const std::vector<EndpointConfig> remote = {MakeUbEp("remote_direct", "local_direct", "device", "direct_plane"),
+                                                  MakeUbEp("remote_other", "", "device", plane)};
+      auto capture = std::make_shared<llm::LogCaptureStub>();
+      capture->AddCapturePattern("EndpointMatcher D2D priority:");
+      capture->SetLevelInfo();
+      std::vector<HandlerCreateArgs::EndpointPair> pairs;
+      HandlerCreateArgs::HandlerType handler;
+      auto config = MakeLinkPriorityConfig(priority);
+      config.channel_pool.max_channel = 100U;
+      llm::SlogStub::SetInstance(capture);
+      const auto ret = EndpointMatcher::MatchEndpoints(local, remote, pairs, handler, config);
+      llm::SlogStub::SetInstance(nullptr);
+      ASSERT_EQ(ret, SUCCESS);
+      ASSERT_EQ(pairs.size(), 1U);
+      const bool has_plane = plane[0] != '\0';
+      const bool select_clos = has_plane && priority == LinkType::PEER2NET;
+      EXPECT_EQ(pairs[0].local.comm_id, select_clos ? "local_other" : "local_direct");
+      EXPECT_EQ(pairs[0].remote.comm_id, select_clos ? "remote_other" : "remote_direct");
+      EXPECT_EQ(pairs[0].type, CommType::COMM_TYPE_UB_D2D);
+      const std::string count = has_plane ? "1" : "0";
+      bool found = false;
+      for (const auto &log : capture->GetCapturedLogs()) {
+        found = found || (log.find("local PEER2NET candidates:" + count) != std::string::npos &&
+                          log.find("remote PEER2NET candidates:" + count) != std::string::npos &&
+                          log.find("local PEER2PEER candidates:1") != std::string::npos &&
+                          log.find("remote PEER2PEER candidates:1") != std::string::npos);
+      }
+      EXPECT_TRUE(found);
+    }
+  }
+}
+
+TEST_F(HixlClientUTest, EndpointMatcherSelectsValidClosOrDirectEndpointsByPriority) {
+  // CLOS PG endpoints have empty dst_eid; direct endpoints have reciprocal dst_eid and no PG plane.
+  const std::vector<EndpointConfig> local = {MakeUbEp("local_pg1", "", "device", "plane_pg_1"),
+                                             MakeUbEp("local_direct", "remote_direct", "device"),
+                                             MakeUbEp("local_pg0", "", "device", "plane_pg_0")};
+  const std::vector<EndpointConfig> remote = {MakeUbEp("remote_pg1", "", "device", "plane_pg_1"),
+                                              MakeUbEp("remote_direct", "local_direct", "device"),
+                                              MakeUbEp("remote_pg0", "", "device", "plane_pg_0")};
+  for (const auto *priority : {"default", "PEER2NET", "PEER2PEER"}) {
+    SCOPED_TRACE(priority);
+    const bool direct = std::string(priority) == "PEER2PEER";
+    std::vector<HandlerCreateArgs::EndpointPair> pairs;
+    HandlerCreateArgs::HandlerType handler;
+    Status ret;
+    if (std::string(priority) == "default") {
+      ret = EndpointMatcher::MatchEndpoints(local, remote, pairs, handler);
+    } else {
+      ret = EndpointMatcher::MatchEndpoints(local, remote, pairs, handler,
+                                            MakeLinkPriorityConfig(direct ? LinkType::PEER2PEER : LinkType::PEER2NET));
+    }
+    ASSERT_EQ(ret, SUCCESS);
+    ASSERT_EQ(pairs.size(), 1U);
+    EXPECT_EQ(handler, HandlerCreateArgs::HandlerType::DIRECT);
+    EXPECT_EQ(pairs[0].type, CommType::COMM_TYPE_UB_D2D);
+    EXPECT_EQ(pairs[0].local.comm_id, direct ? "local_direct" : "local_pg0");
+    EXPECT_EQ(pairs[0].remote.comm_id, direct ? "remote_direct" : "remote_pg0");
+    EXPECT_EQ(pairs[0].local.plane, direct ? "" : "plane_pg_0");
+    EXPECT_EQ(pairs[0].remote.plane, direct ? "" : "plane_pg_0");
+    EXPECT_EQ(pairs[0].local.dst_eid, direct ? "remote_direct" : "");
+    EXPECT_EQ(pairs[0].remote.dst_eid, direct ? "local_direct" : "");
+  }
 }
 
 TEST_F(HixlClientUTest, EndpointMatcherFallsBackToPg1WhenPg0DoesNotMatchTest) {
@@ -2029,14 +2258,18 @@ TEST_F(HixlClientUTest, EndpointMatcherUsesPgPlaneWhenDirectEidsDoNotMatch) {
   std::vector<EndpointConfig> remote = {MakeUbEp("remote_direct", "other_local", "device"),
                                         MakeUbEp("remote_pg", "", "device", "plane_pg_0")};
 
-  std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
-  HandlerCreateArgs::HandlerType handler_type;
-  ASSERT_EQ(EndpointMatcher::MatchEndpoints(local, remote, matched_pairs, handler_type), SUCCESS);
-  ASSERT_EQ(matched_pairs.size(), 1U);
-  EXPECT_EQ(matched_pairs[0].local.comm_id, "local_pg");
-  EXPECT_EQ(matched_pairs[0].remote.comm_id, "remote_pg");
-  EXPECT_EQ(matched_pairs[0].local.plane, "plane_pg_0");
-  EXPECT_EQ(matched_pairs[0].type, CommType::COMM_TYPE_UB_D2D);
+  for (const auto priority : {LinkType::PEER2NET, LinkType::PEER2PEER}) {
+    std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
+    HandlerCreateArgs::HandlerType handler_type;
+    ASSERT_EQ(
+        EndpointMatcher::MatchEndpoints(local, remote, matched_pairs, handler_type, MakeLinkPriorityConfig(priority)),
+        SUCCESS);
+    ASSERT_EQ(matched_pairs.size(), 1U);
+    EXPECT_EQ(matched_pairs[0].local.comm_id, "local_pg");
+    EXPECT_EQ(matched_pairs[0].remote.comm_id, "remote_pg");
+    EXPECT_EQ(matched_pairs[0].local.plane, "plane_pg_0");
+    EXPECT_EQ(matched_pairs[0].type, CommType::COMM_TYPE_UB_D2D);
+  }
 }
 
 TEST_F(HixlClientUTest, EndpointMatcherDoesNotUseUbCtpAcrossSuperPods) {

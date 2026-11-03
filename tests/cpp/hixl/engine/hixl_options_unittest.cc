@@ -9,6 +9,7 @@
  */
 
 #include <cstdlib>
+#include <memory>
 #include <string>
 #include <vector>
 #include <sys/stat.h>
@@ -530,6 +531,90 @@ TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigConnectPoolTaskQueueCapacityTy
   EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
+TEST_F(HixlOptionsUTest, ParseLinkPriorityDefault) {
+  HixlOptions result;
+  std::map<AscendString, AscendString> options{{OPTION_GLOBAL_RESOURCE_CONFIG, "{}"}};
+  ASSERT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.GlobalResourceCfg().has_value());
+  EXPECT_FALSE(result.GlobalResourceCfg()->comm_resource_config.link_priority.has_value());
+}
+
+TEST_F(HixlOptionsUTest, ParseLinkPriorityAcceptsUppercaseStringAndSingleElementArray) {
+  for (const auto *value : {R"("PEER2NET")", R"("PEER2PEER")", R"(["PEER2NET"])", R"(["PEER2PEER"])"}) {
+    SCOPED_TRACE(value);
+    const std::string json = std::string(R"({"comm_resource_config.link_priority":)") + value + "}";
+    std::map<AscendString, AscendString> options{{OPTION_GLOBAL_RESOURCE_CONFIG, json.c_str()}};
+    HixlOptions result;
+    ASSERT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+    const auto config = result.GlobalResourceCfg().value();
+    ASSERT_TRUE(config.comm_resource_config.link_priority.has_value());
+    ASSERT_EQ(config.comm_resource_config.link_priority->size(), 1U);
+    const auto expected =
+        std::string(value).find("PEER2NET") != std::string::npos ? LinkType::PEER2NET : LinkType::PEER2PEER;
+    EXPECT_EQ(config.comm_resource_config.link_priority->front(), expected);
+    EXPECT_EQ(SerializeGlobalResourceConfigForServer(config), SerializeGlobalResourceConfigForServer({}));
+    EXPECT_EQ(SerializeGlobalResourceConfigForClient(config, {}, {}),
+              SerializeGlobalResourceConfigForClient({}, {}, {}));
+  }
+}
+
+TEST_F(HixlOptionsUTest, ParseLinkPriorityLogsRawFieldAndParsedValue) {
+  for (const auto *raw : {R"("PEER2PEER")", R"(["PEER2NET"])", R"("peer2net")"}) {
+    auto capture = std::make_shared<llm::LogCaptureStub>();
+    const std::string pattern = std::string("Parse comm_resource_config.link_priority, raw:") + raw;
+    capture->AddCapturePattern(pattern);
+    capture->AddCapturePattern("Parsed comm_resource_config.link_priority:");
+    capture->SetLevelInfo();
+    const std::string json = std::string(R"({"comm_resource_config.link_priority":)") + raw + "}";
+    HixlOptions parsed;
+    llm::SlogStub::SetInstance(capture);
+    const Status ret = HixlOptions::Parse({{OPTION_GLOBAL_RESOURCE_CONFIG, json.c_str()}}, parsed);
+    llm::SlogStub::SetInstance(nullptr);
+    EXPECT_EQ(ret, std::string(raw).find("peer2net") != std::string::npos ? PARAM_INVALID : SUCCESS);
+    EXPECT_TRUE(capture->IsPatternCaptured(pattern));
+    if (ret == SUCCESS) {
+      const std::string value =
+          parsed.GlobalResourceCfg()->comm_resource_config.link_priority->front() == LinkType::PEER2NET ? "PEER2NET"
+                                                                                                        : "PEER2PEER";
+      bool found = false;
+      for (const auto &log : capture->GetCapturedLogs()) {
+        found = found || log.find("Parsed comm_resource_config.link_priority:" + value) != std::string::npos;
+      }
+      EXPECT_TRUE(found);
+    }
+  }
+}
+
+TEST_F(HixlOptionsUTest, ParseLinkPriorityRejectsInvalidValues) {
+  for (const auto *value : {R"("clos")",  // codespell:ignore clos
+                            R"("CLOS")",
+                            R"("peer2net")",
+                            R"("peer2peer")",
+                            R"("Peer2Net")",
+                            R"("Peer2Peer")",
+                            R"("p2p")",
+                            R"("")",
+                            R"(" PEER2NET")",
+                            R"("PEER2PEER ")",
+                            "null",
+                            "true",
+                            "42",
+                            "{}",
+                            "[]",
+                            "[null]",
+                            "[42]",
+                            "[[]]",
+                            R"(["peer2net"])",
+                            R"(["PEER2NET","PEER2PEER"])",
+                            R"(["PEER2NET","PEER2NET"])"}) {
+    SCOPED_TRACE(value);
+    const std::string json = std::string(R"({"comm_resource_config.link_priority":)") + value + "}";
+    std::map<AscendString, AscendString> options{{OPTION_GLOBAL_RESOURCE_CONFIG, json.c_str()}};
+    HixlOptions result;
+    EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+  }
+}
+
 TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigChannelPoolMaxChannel) {
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"channel_pool.max_channel":"100"})";
@@ -581,6 +666,21 @@ TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigWithoutChannelPoolKeepsMaxChan
   EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
   ASSERT_TRUE(result.GlobalResourceCfg().has_value());
   EXPECT_FALSE(result.GlobalResourceCfg()->channel_pool.max_channel.has_value());
+}
+
+TEST_F(HixlOptionsUTest, ParseLinkPriorityWithChannelPoolMaxChannel) {
+  std::map<AscendString, AscendString> options;
+  options[OPTION_GLOBAL_RESOURCE_CONFIG] =
+      R"({"channel_pool.max_channel":100,"comm_resource_config.link_priority":"PEER2PEER"})";
+  HixlOptions result;
+  ASSERT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  ASSERT_TRUE(result.GlobalResourceCfg().has_value());
+  const auto config = result.GlobalResourceCfg().value();
+  ASSERT_TRUE(config.channel_pool.max_channel.has_value());
+  EXPECT_EQ(*config.channel_pool.max_channel, 100U);
+  ASSERT_TRUE(config.comm_resource_config.link_priority.has_value());
+  ASSERT_EQ(config.comm_resource_config.link_priority->size(), 1U);
+  EXPECT_EQ(config.comm_resource_config.link_priority->front(), LinkType::PEER2PEER);
 }
 
 TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigProtocolDesc) {

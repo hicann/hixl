@@ -67,9 +67,9 @@ Status HixlClient::Initialize(const std::vector<EndpointConfig> &local_endpoint_
   HIXL_CHK_BOOL_RET_STATUS(!remote_endpoint_list.empty(), FAILED, "HixlClient received empty remote_endpoint_list");
   std::vector<HandlerCreateArgs::EndpointPair> matched_pairs;
   HandlerCreateArgs::HandlerType handler_type;
-  HIXL_CHK_STATUS_RET(
-      EndpointMatcher::MatchEndpoints(local_endpoint_list, remote_endpoint_list, matched_pairs, handler_type),
-      "EndpointMatcher::MatchEndpoints failed");
+  HIXL_CHK_STATUS_RET(EndpointMatcher::MatchEndpoints(local_endpoint_list, remote_endpoint_list, matched_pairs,
+                                                      handler_type, global_config_),
+                      "EndpointMatcher::MatchEndpoints failed");
   link_pairs_ = matched_pairs;
   HIXL_EVENT("[HixlClient] link selected, local_engine:%s, remote_engine:%s, handler:%s, pair_count:%zu",
              local_engine_.c_str(), remote_engine_.c_str(), EndpointMatcher::HandlerTypeToString(handler_type),

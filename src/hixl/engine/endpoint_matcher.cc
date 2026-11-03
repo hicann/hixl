@@ -10,6 +10,7 @@
 
 #include "engine/endpoint_matcher.h"
 #include <algorithm>
+#include <cstddef>
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
@@ -60,6 +61,57 @@ constexpr MatchRule kSameInstanceRules[] = {
     {MatchRuleType::SINGLE, HandlerCreateArgs::HandlerType::DIRECT, kProtocolRoce, kPlacementHost,
      CommType::COMM_TYPE_ROCE, "same-instance falls back to host roce"},
 };
+
+const char *EndpointLinkType(const EndpointConfig &ep) {
+  if (!ep.dst_eid.empty()) {
+    return "PEER2PEER";
+  }
+  return !ep.plane.empty() ? "PEER2NET" : "OTHER";
+}
+
+const char *LinkTypeName(LinkType priority) {
+  return priority == LinkType::PEER2NET ? "PEER2NET" : "PEER2PEER";
+}
+
+int32_t LinkRank(const EndpointConfig &ep, LinkType priority) {
+  const std::string type = EndpointLinkType(ep);
+  if (type == LinkTypeName(priority)) {
+    return 0;
+  }
+  return priority == LinkType::PEER2NET && type == "OTHER" ? 2 : 1;
+}
+
+const char *PreferredLinkStatus(size_t local_count, size_t remote_count, const std::string &preferred,
+                                const char *selected) {
+  if (preferred == selected) {
+    return "matched";
+  }
+  if (local_count == 0U) {
+    return "no_local_candidate";
+  }
+  return remote_count == 0U ? "no_remote_candidate" : "no_matching_pair";
+}
+
+void LogD2DSelection(const std::vector<EndpointConfig> &local, const std::map<MatchKey, EndpointConfig> &peers,
+                     LinkType priority, const char *selected) {
+  std::map<std::string, size_t> local_counts{{"PEER2NET", 0U}, {"PEER2PEER", 0U}};
+  auto remote_counts = local_counts;
+  for (const auto &ep : local) {
+    ++local_counts[EndpointLinkType(ep)];
+  }
+  for (const auto &entry : peers) {
+    if (entry.second.placement == kPlacementDevice) {
+      ++remote_counts[EndpointLinkType(entry.second)];
+    }
+  }
+  const std::string preferred = LinkTypeName(priority);
+  HIXL_EVENT(
+      "EndpointMatcher D2D priority:%s, local PEER2NET candidates:%zu, local PEER2PEER candidates:%zu, "
+      "remote PEER2NET candidates:%zu, remote PEER2PEER candidates:%zu, selected:%s, preferred_status:%s",
+      preferred.c_str(), local_counts["PEER2NET"], local_counts["PEER2PEER"], remote_counts["PEER2NET"],
+      remote_counts["PEER2PEER"], selected,
+      PreferredLinkStatus(local_counts[preferred], remote_counts[preferred], preferred, selected));
+}
 
 void LogEndpointMatchFailure(const std::vector<EndpointConfig> &local, const std::vector<EndpointConfig> &remote,
                              bool cross_instance) {
@@ -201,16 +253,45 @@ Status EndpointMatcher::TryMatchH2rHLoopback(const EndpointConfig &local, const 
   return SUCCESS;
 }
 
+void EndpointMatcher::MatchD2D(const std::vector<EndpointConfig> &local,
+                               const std::map<MatchKey, EndpointConfig> &peers, LinkType priority,
+                               std::vector<HandlerCreateArgs::EndpointPair> &pairs) {
+  std::vector<EndpointConfig> candidates;
+  for (const auto &ep : local) {
+    if (IsUbCtpEndpoint(ep) && ep.placement == kPlacementDevice) {
+      candidates.push_back(ep);
+    }
+  }
+  std::stable_sort(candidates.begin(), candidates.end(), [priority](const EndpointConfig &a, const EndpointConfig &b) {
+    const auto a_rank = LinkRank(a, priority);
+    const auto b_rank = LinkRank(b, priority);
+    return a_rank != b_rank ? a_rank < b_rank : a.plane < b.plane;
+  });
+  const char *selected = "NONE";
+  for (const auto &ep : candidates) {
+    const auto it = FindMatchingKey(peers, {ep.comm_id, ep.plane, kPlacementDevice});
+    if (it != peers.end()) {
+      pairs.push_back({ep, it->second, CommType::COMM_TYPE_UB_D2D});
+      selected = EndpointLinkType(ep);
+      break;
+    }
+  }
+  LogD2DSelection(candidates, peers, priority, selected);
+}
+
 Status EndpointMatcher::TryMatchGroup(const std::vector<EndpointConfig> &local,
                                       const std::vector<EndpointConfig> &remote,
-                                      std::vector<HandlerCreateArgs::EndpointPair> &pairs) {
+                                      std::vector<HandlerCreateArgs::EndpointPair> &pairs, LinkType priority) {
   std::map<CommType, bool> expected = {{CommType::COMM_TYPE_UB_D2D, false},
                                        {CommType::COMM_TYPE_UB_H2D, false},
                                        {CommType::COMM_TYPE_UB_D2H, false},
                                        {CommType::COMM_TYPE_UB_H2H, false}};
-  uint32_t count = 0;
   std::map<MatchKey, EndpointConfig> peers;
   BuildMatchMap(remote, peers);
+  MatchD2D(local, peers, priority, pairs);
+  uint32_t count = static_cast<uint32_t>(pairs.size());
+  // D2D has already been attempted in link priority order; preserve the old order for all other directions.
+  expected[CommType::COMM_TYPE_UB_D2D] = true;
   auto sorted_local = local;
   // Prefer non-empty dst_eid, then ascending plane; preserve input order when both priorities are equal.
   std::stable_sort(sorted_local.begin(), sorted_local.end(), [](const EndpointConfig &a, const EndpointConfig &b) {
@@ -234,9 +315,10 @@ Status EndpointMatcher::TryMatchGroup(const std::vector<EndpointConfig> &local,
 
 Status EndpointMatcher::TryMatchUbCtpD2DOnlyByGroup(const std::vector<EndpointConfig> &local,
                                                     const std::vector<EndpointConfig> &remote,
-                                                    std::vector<HandlerCreateArgs::EndpointPair> &pairs) {
+                                                    std::vector<HandlerCreateArgs::EndpointPair> &pairs,
+                                                    LinkType priority) {
   std::vector<HandlerCreateArgs::EndpointPair> group_pairs;
-  if (TryMatchGroup(local, remote, group_pairs) != SUCCESS) {
+  if (TryMatchGroup(local, remote, group_pairs, priority) != SUCCESS) {
     return FAILED;
   }
   if (group_pairs.size() != 1U || group_pairs[0].type != CommType::COMM_TYPE_UB_D2D ||
@@ -248,19 +330,19 @@ Status EndpointMatcher::TryMatchUbCtpD2DOnlyByGroup(const std::vector<EndpointCo
 }
 
 Status EndpointMatcher::TryMatchByPriority(const std::vector<EndpointConfig> &local,
-                                           const std::vector<EndpointConfig> &remote, bool cross_instance,
+                                           const std::vector<EndpointConfig> &remote,
                                            std::vector<HandlerCreateArgs::EndpointPair> &pairs,
-                                           HandlerCreateArgs::HandlerType &handler_type) {
-  auto try_match_rule = [&local, &remote, &pairs, &handler_type](const MatchRule &rule) -> Status {
+                                           HandlerCreateArgs::HandlerType &handler_type, LinkType priority) {
+  auto try_match_rule = [&local, &remote, &pairs, &handler_type, priority](const MatchRule &rule) -> Status {
     Status status = FAILED;
     pairs.clear();
     switch (rule.rule_type) {
       case MatchRuleType::GROUP:
-        status = TryMatchGroup(local, remote, pairs);
+        status = TryMatchGroup(local, remote, pairs, priority);
         break;
       case MatchRuleType::SINGLE:
         if (rule.protocol == kProtocolUbCtp && rule.type == CommType::COMM_TYPE_UB_D2D) {
-          status = TryMatchUbCtpD2DOnlyByGroup(local, remote, pairs);
+          status = TryMatchUbCtpD2DOnlyByGroup(local, remote, pairs, priority);
         } else {
           status = TryMatchSingle(local, remote, rule.protocol, rule.placement, rule.type, pairs);
         }
@@ -281,6 +363,7 @@ Status EndpointMatcher::TryMatchByPriority(const std::vector<EndpointConfig> &lo
     return FAILED;
   };
 
+  const bool cross_instance = IsCrossInstance(local, remote);
   if (!cross_instance && AreUbCtpEndpointsAllDevice(local) && AreUbCtpEndpointsAllDevice(remote)) {
     if (try_match_rule(kSameInstanceUbCtpDeviceOnlyRule) == SUCCESS) {
       return SUCCESS;
@@ -313,13 +396,16 @@ void EndpointMatcher::LogMatchedEndpoints(const std::vector<HandlerCreateArgs::E
 Status EndpointMatcher::MatchEndpoints(const std::vector<EndpointConfig> &local,
                                        const std::vector<EndpointConfig> &remote,
                                        std::vector<HandlerCreateArgs::EndpointPair> &matched_pairs,
-                                       HandlerCreateArgs::HandlerType &handler_type) {
+                                       HandlerCreateArgs::HandlerType &handler_type,
+                                       const GlobalResourceConfig &global_config) {
+  const auto &priorities = global_config.comm_resource_config.link_priority;
+  const auto priority = priorities.has_value() && !priorities->empty() ? priorities->front() : LinkType::PEER2NET;
   HIXL_CHK_BOOL_RET_STATUS(!local.empty() && !remote.empty(), PARAM_INVALID,
                            "EndpointMatcher requires non-empty local and remote endpoints");
   const bool cross_instance = IsCrossInstance(local, remote);
   HIXL_EVENT("EndpointMatcher select start, cross_instance:%d, local_net_instance:%s, remote_net_instance:%s",
              static_cast<int32_t>(cross_instance), local[0].net_instance_id.c_str(), remote[0].net_instance_id.c_str());
-  return TryMatchByPriority(local, remote, cross_instance, matched_pairs, handler_type);
+  return TryMatchByPriority(local, remote, matched_pairs, handler_type, priority);
 }
 
 }  // namespace hixl

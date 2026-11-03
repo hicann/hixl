@@ -35,6 +35,7 @@ constexpr const char *kGlobalResCfgListenPort = "comm_resource_config.listen_por
 // alias it so the key list stays complete without defining the same literal twice.
 constexpr const char *kGlobalResCfgQos = kQosName;
 constexpr const char *kGlobalResCfgMaxActiveChannels = "comm_resource_config.max_active_channels";
+constexpr const char *kGlobalResCfgLinkPriority = "comm_resource_config.link_priority";
 constexpr const char *kGlobalResCfgProtocolDesc = "comm_resource_config.protocol_desc";
 constexpr const char *kGlobalResCfgNumWorkers = "comm_resource_config.multi_channel.num_workers";
 constexpr const char *kGlobalResCfgSplitBatchSize = "comm_resource_config.multi_channel.split_batch_size";
@@ -55,6 +56,8 @@ struct ConnectPoolConfig {
   std::optional<int32_t> task_queue_capacity;
 };
 
+enum class LinkType { PEER2NET, PEER2PEER };
+
 struct ChannelPoolConfig {
   // Upper bound of the links a client keeps at the same time; unset means the link count is not capped.
   std::optional<uint32_t> max_channel;
@@ -68,6 +71,7 @@ struct CommResourceConfigDesc {
   std::optional<uint32_t> multi_worker_num;
   std::optional<uint32_t> multi_channel_split_batch_size;
   std::optional<std::string> nic_topo_path;
+  std::optional<std::vector<LinkType>> link_priority;
 };
 
 struct TransferConfig {
