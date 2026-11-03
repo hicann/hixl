@@ -38,12 +38,22 @@
   ```
 - 安装**pytorch**与**torch_npu**包
 
-  根据使用的python版本，参照[版本配套说明](https://gitcode.com/Ascend/pytorch)，下载安装对应版本的`pytorch`和`torch_npu`，安装方法请参考[软件安装指南](https://gitcode.com/Ascend/pytorch/blob/master/docs/zh/installation_guide/_menu_installation_guide.md)，下面给出python 3.13的配套版本的`pytorch、torch_npu`及其安装方式，其他版本参考版本配置说明和安装指导。
+  根据Python版本、CANN版本和CPU架构，在[TorchNPU版本配套说明](https://gitcode.com/Ascend/pytorch/blob/master/COMPATIBILITY.md)中选择兼容版本组合，再按照[TorchNPU安装指南](https://gitcode.com/Ascend/pytorch/blob/master/README.zh.md#安装)安装对应版本的`pytorch`和`torch_npu`。
 
-| PyTorch版本 | torch_npu插件版本 | Python版本  | 系统架构 | CANN版本 | 安装方式        | 安装命令                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ----------- | ----------------- | ----------- | -------- | -------- | --------------- |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 2.7.1       | 26.0.0            | Python 3.13 | AArch64  | 9.0.0    | 离线安装（Whl） | # 下载安装PyTorch框架 <br/> `wget https://download.pytorch.org/whl/cpu/torch-2.7.1%2Bcpu-cp313-cp313-manylinux_2_28_aarch64.whl `<br>`pip3 install torch-2.7.1+cpu-cp313-cp313-manylinux_2_28_aarch64.whl ` <br/><br/> # 下载并安装torch_npu插件 <br> `wget https://gitcode.com/Ascend/pytorch/releases/download/v26.0.0-pytorch2.7.1/torch_npu-2.7.1.post4-cp313-cp313-manylinux_2_28_aarch64.whl`<br> ` pip3 install torch_npu-2.7.1.post4-cp313-cp313-manylinux_2_28_aarch64.whl` |
-| 2.7.1       | 26.0.0            | Python 3.13 | X86_64   | 9.0.0    | 离线安装（Whl） | # 下载安装PyTorch框架  <br/> ` wget https://download.pytorch.org/whl/cpu/torch-2.7.1%2Bcpu-cp313-cp313-manylinux_2_28_x86_64.whl`<br> `pip3 install torch-2.7.1+cpu-cp313-cp313-manylinux_2_28_x86_64.whl ` <br/><br/> # 下载并安装torch_npu插件 <br> ` wget https://gitcode.com/Ascend/pytorch/releases/download/v26.0.0-pytorch2.7.1/torch_npu-2.7.1.post4-cp313-cp313-manylinux_2_28_x86_64.whl` <br>  `pip3 install torch_npu-2.7.1.post4-cp313-cp313-manylinux_2_28_x86_64.whl` |
+  例如，使用Python 3.11且CANN版本为9.1.0时，可安装PyTorch 2.10.0和对应的TorchNPU安装包2.10.0.post4：
+
+  ```bash
+  pip3 install torch==2.10.0 --index-url https://download.pytorch.org/whl/cpu
+  pip3 install torch-npu==2.10.0.post4
+  ```
+
+  该样例仅用于说明安装方式，实际版本组合仍以版本配套说明中的表格为准。
+
+  安装完成后执行以下命令检查环境：
+
+  ```bash
+  python3 -c "import torch, torch_npu; print(torch.__version__, torch_npu.__version__, torch.npu.is_available())"
+  ```
 
 ## 样例配置说明
 

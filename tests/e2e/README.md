@@ -9,9 +9,13 @@
 - **CANN**: CANN >= 9.1.0
 - **Python**: Python 3.10+
 - **依赖包**:
+
+  以下命令仅用于演示Python 3.11、CANN 9.1.0环境下的依赖安装方式。请根据实际使用的Python版本、CANN版本和CPU架构，参照[TorchNPU版本配套说明](https://gitcode.com/Ascend/pytorch/blob/master/COMPATIBILITY.md)选择兼容的PyTorch和TorchNPU版本，并替换示例命令中的版本号。
+
   ```bash
-  pip install pytest torch==2.13.0+cpu --index-url https://download.pytorch.org/whl/cpu
-  pip install torch-npu==2.13.0rc1
+  pip install pytest
+  pip3 install torch==2.10.0 --index-url https://download.pytorch.org/whl/cpu
+  pip3 install torch-npu==2.10.0.post4
   ```
 
 ## 测试场景

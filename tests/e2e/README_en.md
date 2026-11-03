@@ -9,9 +9,13 @@ End-to-end smoke test suite for validating HIXL (Huawei Xfer Library) transport 
 - **CANN**: CANN >= 9.1.0
 - **Python**: Python 3.10+
 - **Dependencies**:
+
+  The following commands only demonstrate dependency installation with Python 3.11 and CANN 9.1.0. Select compatible PyTorch and TorchNPU versions for your Python version, CANN version, and CPU architecture using the [TorchNPU Compatibility Guide](https://gitcode.com/Ascend/pytorch/blob/master/COMPATIBILITY.en.md), and replace the version numbers in the example commands accordingly.
+
   ```bash
-  pip install pytest torch==2.13.0+cpu --index-url https://download.pytorch.org/whl/cpu
-  pip install torch-npu==2.13.0rc1
+  pip install pytest
+  pip3 install torch==2.10.0 --index-url https://download.pytorch.org/whl/cpu
+  pip3 install torch-npu==2.10.0.post4
   ```
 
 ## Test Scenarios

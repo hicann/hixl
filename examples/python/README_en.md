@@ -39,12 +39,22 @@ Function: Implements KV Cache management functionality in disaggregated deployme
 
 - Install **pytorch** and **torch_npu** packages
 
-  According to the Python version you use, refer to [Version Compatibility Guide](https://gitcode.com/Ascend/pytorch) to download and install the corresponding versions of `pytorch` and `torch_npu`. For installation methods, please refer to [Software Installation Guide](https://gitcode.com/Ascend/pytorch/blob/master/docs/zh/installation_guide/_menu_installation_guide.md). Below are the compatible versions and installation commands for Python 3.13. For other versions, refer to the version compatibility guide and installation instructions.
+  Based on your Python version, CANN version, and CPU architecture, select a compatible version combination from the [TorchNPU Compatibility Guide](https://gitcode.com/Ascend/pytorch/blob/master/COMPATIBILITY.en.md), then install the corresponding `pytorch` and `torch_npu` packages according to the [TorchNPU Installation Guide](https://gitcode.com/Ascend/pytorch/blob/master/README.md#installation).
 
-  | PyTorch Version | torch_npu Plugin Version | Python Version | System Architecture | CANN Version | Installation Method | Installation Command |
-  | --------------- | ------------------------ | -------------- | ------------------- | ------------ | ------------------- | -------------------- |
-  | 2.7.1           | 26.0.0                   | Python 3.13    | AArch64             | 9.0.0        | Offline (Whl)       | # Download and install PyTorch framework <br/> `wget https://download.pytorch.org/whl/cpu/torch-2.7.1%2Bcpu-cp313-cp313-manylinux_2_28_aarch64.whl `<br>`pip3 install torch-2.7.1+cpu-cp313-cp313-manylinux_2_28_aarch64.whl ` <br/><br/> # Download and install torch_npu plugin <br> `wget https://gitcode.com/Ascend/pytorch/releases/download/v26.0.0-pytorch2.7.1/torch_npu-2.7.1.post4-cp313-cp313-manylinux_2_28_aarch64.whl`<br> ` pip3 install torch_npu-2.7.1.post4-cp313-cp313-manylinux_2_28_aarch64.whl` |
-  | 2.7.1           | 26.0.0                   | Python 3.13    | X86_64              | 9.0.0        | Offline (Whl)       | # Download and install PyTorch framework  <br/> ` wget https://download.pytorch.org/whl/cpu/torch-2.7.1%2Bcpu-cp313-cp313-manylinux_2_28_x86_64.whl`<br> `pip3 install torch-2.7.1+cpu-cp313-cp313-manylinux_2_28_x86_64.whl ` <br/><br/> # Download and install torch_npu plugin <br> ` wget https://gitcode.com/Ascend/pytorch/releases/download/v26.0.0-pytorch2.7.1/torch_npu-2.7.1.post4-cp313-cp313-manylinux_2_28_x86_64.whl` <br>  `pip3 install torch_npu-2.7.1.post4-cp313-cp313-manylinux_2_28_x86_64.whl` |
+  For example, with Python 3.11 and CANN 9.1.0, install PyTorch 2.10.0 and the corresponding TorchNPU package 2.10.0.post4:
+
+  ```bash
+  pip3 install torch==2.10.0 --index-url https://download.pytorch.org/whl/cpu
+  pip3 install torch-npu==2.10.0.post4
+  ```
+
+  This example only demonstrates the installation procedure. The compatibility table remains the authoritative source for version selection.
+
+  Run the following command to verify the environment after installation:
+
+  ```bash
+  python3 -c "import torch, torch_npu; print(torch.__version__, torch_npu.__version__, torch.npu.is_available())"
+  ```
 
 ## Sample Configuration
 
