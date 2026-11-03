@@ -125,8 +125,10 @@ echo "============================================"
 echo ""
 
 # Build benchmarks if needed
-BENCH_BIN="${BASEPATH}/build/benchmarks/comm_benchmark/hixl_comm_bench"
-if [ ! -f "$BENCH_BIN" ]; then
+COMM_BIN="${BASEPATH}/build/benchmarks/comm_benchmark/hixl_comm_bench"
+KV_BIN="${BASEPATH}/build/benchmarks/kv_benchmark/hixl_kv_bench"
+if { [ -z "$SKIP_COMM" ] && [ ! -f "$COMM_BIN" ]; } ||
+   { [ -z "$SKIP_KV" ] && [ ! -f "$KV_BIN" ]; }; then
   echo "[INFO] Benchmarks not built yet, building..."
   bash "${BASEPATH}/build.sh" --examples
 fi
