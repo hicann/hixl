@@ -334,10 +334,13 @@ def parse_args():
 
     args.protocol = [args.protocol]
 
-    if is_client:
-        parse_engine_addr(args.remote_engine)
-    else:
-        parse_engine_addr(args.local_engine)
+    exchange_engine = args.remote_engine if is_client else args.local_engine
+    _, engine_port = parse_engine_addr(exchange_engine)
+    if not 1 <= engine_port <= 65535 - SOCKET_PORT_OFFSET:
+        raise ValueError(
+            f"Invalid address exchange port for engine {exchange_engine}: engine port must be "
+            f"between 1 and {65535 - SOCKET_PORT_OFFSET} (offset {SOCKET_PORT_OFFSET})"
+        )
 
     logging.info(f"role={args.role}, device={args.device}")
     logging.info(f"  local={args.local_engine}, remote={args.remote_engine}")
