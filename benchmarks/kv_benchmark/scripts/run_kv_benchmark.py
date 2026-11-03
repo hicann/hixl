@@ -194,17 +194,9 @@ def generate_plots(args):
 
 
 def detect_platform_for_kv(platform_override: str | None) -> str:
-    if platform_override is not None:
-        return platform_override
-    try:
-        from platform_detect import detect_platform_from_npu_smi, detect_platform
+    from platform_detect import detect_platform
 
-        detected = detect_platform_from_npu_smi()
-        if detected is not None:
-            return detected
-        return detect_platform(None)
-    except Exception:
-        return "a2"
+    return detect_platform(platform_override)
 
 
 def _kv_process_cmd(spec: KvProcessSpec) -> list[str]:
@@ -292,7 +284,11 @@ def main():
         return 1
     key_counts = args.key_counts or "16,32,48,64"
     run_id = f"kv_{int(time.time())}_{os.getpid()}"
-    platform_id = detect_platform_for_kv(args.platform)
+    try:
+        platform_id = detect_platform_for_kv(args.platform)
+    except (RuntimeError, ValueError) as exc:
+        log.error("[ERROR] %s", exc)
+        return 1
     if args.transport is None:
         args.transport = default_kv_transport(platform_id)
     default_num = KV_PROCESS_COUNT_BY_PLATFORM.get(platform_id, 8)

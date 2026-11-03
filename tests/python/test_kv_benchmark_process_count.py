@@ -13,6 +13,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -25,9 +26,70 @@ SPEC = importlib.util.spec_from_file_location("kv_process_count_launcher", LAUNC
 KV = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = KV
 SPEC.loader.exec_module(KV)
+import platform_detect  # noqa: E402
 
 
 class KvBenchmarkProcessCountTest(unittest.TestCase):
+    def test_unknown_platform_noninteractive_fails_before_output_cleanup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result_file = Path(tmp) / "kv_result_rank0.csv"
+            result_file.write_text("existing", encoding="utf-8")
+            args = SimpleNamespace(
+                num_processes=1,
+                key_counts=None,
+                platform=None,
+                output_dir=tmp,
+                transport=None,
+                devices="0",
+                bench_bin=str(Path(tmp) / "missing"),
+            )
+            with (
+                patch.object(KV, "parse_args", return_value=args),
+                patch.object(platform_detect, "find_npu_smi", return_value=None),
+                patch.object(sys, "stdin") as stdin,
+                patch.object(KV, "_run_kv_processes") as run,
+            ):
+                stdin.isatty.return_value = False
+                with self.assertLogs(KV.log, level="ERROR") as logs:
+                    self.assertEqual(KV.main(), 1)
+            self.assertTrue(any("--platform" in line for line in logs.output))
+            self.assertEqual(result_file.read_text(encoding="utf-8"), "existing")
+            run.assert_not_called()
+
+    def test_platform_override_and_detection(self):
+        self.assertEqual(KV.detect_platform_for_kv("a5"), "a5")
+        with (
+            patch.object(platform_detect, "find_npu_smi", return_value="npu-smi"),
+            patch.object(
+                platform_detect, "detect_platform_from_npu_smi", return_value="a3"
+            ),
+        ):
+            self.assertEqual(KV.detect_platform_for_kv(None), "a3")
+
+    def test_unknown_platform_interactive_allows_selection(self):
+        with (
+            patch.object(platform_detect, "find_npu_smi", return_value=None),
+            patch.object(sys, "stdin") as stdin,
+            patch("builtins.input", return_value="a5"),
+        ):
+            stdin.isatty.return_value = True
+            self.assertEqual(KV.detect_platform_for_kv(None), "a5")
+
+    def test_unrecognized_npu_smi_noninteractive_does_not_guess_a2(self):
+        with (
+            patch.object(platform_detect, "find_npu_smi", return_value="npu-smi"),
+            patch.object(
+                platform_detect, "detect_platform_from_npu_smi", return_value=None
+            ),
+            patch.object(
+                platform_detect, "collect_npu_smi_info_text", return_value="unknown"
+            ),
+            patch.object(sys, "stdin") as stdin,
+        ):
+            stdin.isatty.return_value = False
+            with self.assertRaisesRegex(RuntimeError, "--platform"):
+                KV.detect_platform_for_kv(None)
+
     def test_nonpositive_count_preserves_existing_results(self):
         for count, devices in ((0, None), (-1, None), (-1, "0,1,2")):
             with self.subTest(count=count, devices=devices):
