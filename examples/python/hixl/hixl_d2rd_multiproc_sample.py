@@ -81,11 +81,11 @@ def build_options(protocols: list[str]) -> dict:
     return options
 
 
-def setup_listen_socket(port: int) -> socket.socket:
-    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+def setup_listen_socket(port: int, family: int = socket.AF_INET) -> socket.socket:
+    srv = socket.socket(family, socket.SOCK_STREAM)
     try:
         srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        srv.bind(("0.0.0.0", port))
+        srv.bind(("::" if family == socket.AF_INET6 else "0.0.0.0", port))
         srv.listen(SOCKET_BACKLOG)
     except Exception:
         srv.close()
@@ -111,8 +111,13 @@ def _wait_client_disconnect(conn) -> None:
     logging.info("Server done")
 
 
-def server_send_addr(listen_port: int, dev_addr: int, timeout_s: float = 120.0):
-    srv = setup_listen_socket(listen_port)
+def server_send_addr(
+    listen_port: int,
+    dev_addr: int,
+    timeout_s: float = 120.0,
+    family: int = socket.AF_INET,
+):
+    srv = setup_listen_socket(listen_port, family)
     srv.settimeout(timeout_s)
     logging.info(f"Server listening on port {listen_port}, waiting for client...")
     try:
@@ -149,9 +154,7 @@ def client_get_remote_addr(remote_engine: str):
     sock = None
     for attempt in range(1, SOCKET_RETRY_COUNT + 1):
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(SOCKET_RETRY_TIMEOUT_S)
-            sock.connect((ip, port))
+            sock = socket.create_connection((ip, port), timeout=SOCKET_RETRY_TIMEOUT_S)
             data = _recv_exact(sock, 8)
             remote_addr = struct.unpack("!Q", data)[0]
             logging.info(f"Client received remote addr 0x{remote_addr:X}")
@@ -195,8 +198,9 @@ def run_server(args):
             raise RuntimeError(f"Server RegisterMem failed, ret={ret}")
         logging.info(f"Server RegisterMem success, handle=0x{handle:X}")
 
-        listen_port = parse_engine_addr(args.local_engine)[1] + SOCKET_PORT_OFFSET
-        server_send_addr(listen_port, dev_addr)
+        host, port = parse_engine_addr(args.local_engine)
+        family = socket.AF_INET6 if ":" in host else socket.AF_INET
+        server_send_addr(port + SOCKET_PORT_OFFSET, dev_addr, family=family)
 
     finally:
         if handle is not None:
