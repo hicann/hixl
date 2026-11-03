@@ -10,7 +10,9 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
-import os.path
+# The v2 API symbols below are injected from ``v2_list`` at runtime.
+# ruff: noqa: F821
+
 import time
 import unittest
 import ctypes
@@ -19,20 +21,19 @@ import llm_datadist as ld
 from llm_datadist import v2_list
 from llm_datadist.v2.llm_types import RegisterMemStatus, Cache, Memtype, MemInfo
 
-_INVALID_ID = 2 ** 64 - 1
+_INVALID_ID = 2**64 - 1
 
 for item in v2_list:
     globals()[item] = getattr(ld, item)
 
 
 class LlmCacheManagerSt(unittest.TestCase):
-
     def setUp(self) -> None:
         print("Begin ", self._testMethodName)
         config = LlmConfig()
         config.device_id = 0
         config.enable_cache_manager = True
-        config.mem_pool_cfg = "{\"memory_size\": 102428800}"
+        config.mem_pool_cfg = '{"memory_size": 102428800}'
         config.sync_kv_timeout = "3000"
         config.rdma_service_level = 100
         config.rdma_traffic_class = 100
@@ -46,7 +47,9 @@ class LlmCacheManagerSt(unittest.TestCase):
         self.llm_datadist.finalize()
 
     def create_link(self):
-        comm_id = self.llm_datadist.link("link", {3: 0, 2: 1}, '{"server_list":[{"device":[{}]}]}')
+        comm_id = self.llm_datadist.link(
+            "link", {3: 0, 2: 1}, '{"server_list":[{"device":[{}]}]}'
+        )
         self.assertEqual(comm_id, 1)
         time.sleep(0.1)
         ret = self.llm_datadist.query_register_mem_status(comm_id)
@@ -57,8 +60,13 @@ class LlmCacheManagerSt(unittest.TestCase):
         with self.assertRaises(ValueError):
             cache_desc = CacheDesc(-1, [2, 4], DataType.DT_INT8, Placement.DEVICE)
         with self.assertRaises(ValueError):
-            cache_desc = CacheDesc(-1, [2, 4], DataType.DT_INT8, Placement.DEVICE,
-                                   seq_len_dim_index=ctypes.c_uint64(2 ** 64 - 1).value)
+            cache_desc = CacheDesc(
+                -1,
+                [2, 4],
+                DataType.DT_INT8,
+                Placement.DEVICE,
+                seq_len_dim_index=ctypes.c_uint64(2**64 - 1).value,
+            )
         cache_desc = CacheDesc(1, [2, 4], DataType.DT_INT8, Placement.DEVICE)
         cache = cache_mgr.register_cache(cache_desc, [1])
         print(cache.cache_desc)
@@ -67,7 +75,9 @@ class LlmCacheManagerSt(unittest.TestCase):
 
         cache_desc = CacheDesc(1, [2, 4], DataType.DT_INT8, Placement.DEVICE)
         blocks_cache_key = BlocksCacheKey(1, 100)
-        blocks_cache = cache_mgr.register_blocks_cache(cache_desc, [1], blocks_cache_key)
+        blocks_cache = cache_mgr.register_blocks_cache(
+            cache_desc, [1], blocks_cache_key
+        )
         self.assertEqual(blocks_cache.cache_id, 2)
 
     def test_copy_blocks_cache(self):
@@ -78,7 +88,7 @@ class LlmCacheManagerSt(unittest.TestCase):
             blocks_cache = cache_mgr.allocate_blocks_cache(cache_desc, blocks_cache_key)
             cache_mgr.copy_blocks(blocks_cache, {0: [1]})
             cache_mgr.deallocate_blocks_cache(blocks_cache)
-        except:
+        except Exception:
             self.has_exception = True
         self.assertEqual(self.has_exception, False)
 
@@ -94,7 +104,7 @@ class LlmCacheManagerSt(unittest.TestCase):
             cache_mgr.deallocate_cache(src_cache)
             cache_mgr.remove_cache_key(CacheKey(2, 0, 0))
             cache_mgr.remove_cache_key(CacheKey(2, 1, 0))
-        except:
+        except Exception:
             self.has_exception = True
         self.assertEqual(self.has_exception, False)
 
@@ -110,6 +120,7 @@ class LlmCacheManagerSt(unittest.TestCase):
         except Exception as e:
             print(f"{type(e).__name__} - {str(e)}")
             import traceback
+
             print(traceback.format_exc())
             self.has_exception = True
         self.assertEqual(self.has_exception, False)
@@ -119,6 +130,7 @@ class LlmCacheManagerSt(unittest.TestCase):
         except Exception as e:
             print(f"{type(e).__name__} - {str(e)}")
             import traceback
+
             print(traceback.format_exc())
             self.has_exception = True
         self.assertEqual(self.has_exception, True)
@@ -129,6 +141,7 @@ class LlmCacheManagerSt(unittest.TestCase):
         except Exception as e:
             print(f"{type(e).__name__} - {str(e)}")
             import traceback
+
             print(traceback.format_exc())
             self.has_exception = True
         self.assertEqual(self.has_exception, True)
@@ -139,6 +152,7 @@ class LlmCacheManagerSt(unittest.TestCase):
         except Exception as e:
             print(f"{type(e).__name__} - {str(e)}")
             import traceback
+
             print(traceback.format_exc())
             self.has_exception = True
         self.assertEqual(self.has_exception, True)
@@ -149,6 +163,7 @@ class LlmCacheManagerSt(unittest.TestCase):
         except Exception as e:
             print(f"{type(e).__name__} - {str(e)}")
             import traceback
+
             print(traceback.format_exc())
             self.has_exception = True
         self.assertEqual(self.has_exception, True)
@@ -156,10 +171,12 @@ class LlmCacheManagerSt(unittest.TestCase):
     def test_pull_blocks_2_blocks(self):
         self.create_link()
         cache_mgr = self.llm_datadist.cache_manager
-        cache_desc = CacheDesc(1, [2, 4], DataType.DT_INT8, Placement.DEVICE)
+        cache_desc = CacheDesc(2, [2, 4], DataType.DT_INT8, Placement.DEVICE)
         src_blocks_cache_key = BlocksCacheKey(2, 0)
         try:
-            src_blocks_cache = cache_mgr.allocate_blocks_cache(cache_desc, src_blocks_cache_key)
+            src_blocks_cache = cache_mgr.allocate_blocks_cache(
+                cache_desc, src_blocks_cache_key
+            )
             dst_blocks_cache = cache_mgr.allocate_blocks_cache(cache_desc)
             cache_mgr.pull_blocks(src_blocks_cache_key, dst_blocks_cache, [0], [0])
             cache_mgr.deallocate_blocks_cache(dst_blocks_cache)
@@ -167,6 +184,7 @@ class LlmCacheManagerSt(unittest.TestCase):
         except Exception as e:
             print(f"{type(e).__name__} - {str(e)}")
             import traceback
+
             print(traceback.format_exc())
             self.has_exception = True
         self.assertEqual(self.has_exception, False)
@@ -174,7 +192,7 @@ class LlmCacheManagerSt(unittest.TestCase):
     def test_pull_cache_2_blocks(self):
         self.create_link()
         cache_mgr = self.llm_datadist.cache_manager
-        cache_desc = CacheDesc(1, [2, 4], DataType.DT_INT8, Placement.DEVICE)
+        cache_desc = CacheDesc(2, [2, 4], DataType.DT_INT8, Placement.DEVICE)
         cache_keys = [CacheKey(2, 0, 0), CacheKey(2, 1, 0)]
         try:
             src_cache = cache_mgr.allocate_cache(cache_desc, cache_keys)
@@ -185,6 +203,7 @@ class LlmCacheManagerSt(unittest.TestCase):
         except Exception as e:
             print(f"{type(e).__name__} - {str(e)}")
             import traceback
+
             print(traceback.format_exc())
             self.has_exception = True
         self.assertEqual(self.has_exception, False)
@@ -192,13 +211,20 @@ class LlmCacheManagerSt(unittest.TestCase):
     def test_pull_cache_2_cache(self):
         self.create_link()
         cache_mgr = self.llm_datadist.cache_manager
-        cache_desc = CacheDesc(1, [2, 4], DataType.DT_INT8, Placement.DEVICE)
+        cache_desc = CacheDesc(2, [2, 4], DataType.DT_INT8, Placement.DEVICE)
         cache_keys = [CacheKey(2, 0, 0), CacheKey(2, 1, 0)]
         try:
             src_cache = cache_mgr.allocate_cache(cache_desc, cache_keys)
             dst_cache = cache_mgr.allocate_cache(cache_desc)
             with self.assertRaises(LLMException) as ex:
-                cache_mgr.pull_cache(cache_keys[0], dst_cache, 0, 4, src_layer_range=range(1), dst_layer_range=range(1))
+                cache_mgr.pull_cache(
+                    cache_keys[0],
+                    dst_cache,
+                    0,
+                    4,
+                    src_layer_range=range(0, 2),
+                    dst_layer_range=range(0, 2),
+                )
             self.assertEqual(ex.exception.status_code, LLMStatusCode.LLM_PARAM_INVALID)
             cache_mgr.pull_cache(cache_keys[0], dst_cache, 0, 4)
             cache_mgr.deallocate_cache(dst_cache)
@@ -206,14 +232,18 @@ class LlmCacheManagerSt(unittest.TestCase):
         except Exception as e:
             print(f"{type(e).__name__} - {str(e)}")
             import traceback
+
             print(traceback.format_exc())
             self.has_exception = True
         self.assertEqual(self.has_exception, False)
 
     @staticmethod
     def _allocate_npu_cache(kv_cache_manager, block_size, num_block, num_tensors):
-        npu_cache_desc = CacheDesc(num_tensors=num_tensors, shape=[num_block, block_size],
-                                   data_type=DataType.DT_FLOAT16)
+        npu_cache_desc = CacheDesc(
+            num_tensors=num_tensors,
+            shape=[num_block, block_size],
+            data_type=DataType.DT_FLOAT16,
+        )
         npu_cache_key = BlocksCacheKey(0, 0)
         cache = kv_cache_manager.allocate_blocks_cache(npu_cache_desc, npu_cache_key)
         return cache, npu_cache_key
@@ -221,19 +251,30 @@ class LlmCacheManagerSt(unittest.TestCase):
     @staticmethod
     def _allocate_cpu_cache(kv_cache_manager, block_size, num_block, num_tensors):
         # DT没有友好的方式创建cpu tensor，用npu接口模拟
-        cpu_cache_desc = CacheDesc(num_tensors=num_tensors, shape=[num_block, block_size],
-                                   data_type=DataType.DT_FLOAT16)
+        cpu_cache_desc = CacheDesc(
+            num_tensors=num_tensors,
+            shape=[num_block, block_size],
+            data_type=DataType.DT_FLOAT16,
+        )
         cpu_cache_key = BlocksCacheKey(1, 1)
         cache = kv_cache_manager.allocate_blocks_cache(cpu_cache_desc, cpu_cache_key)
-        cpu_cache_desc = CacheDesc(num_tensors=num_tensors, shape=[num_block, block_size],
-                                   data_type=DataType.DT_FLOAT16, placement=Placement.HOST)
+        cpu_cache_desc = CacheDesc(
+            num_tensors=num_tensors,
+            shape=[num_block, block_size],
+            data_type=DataType.DT_FLOAT16,
+            placement=Placement.HOST,
+        )
         return Cache.create_cpu_cache(cpu_cache_desc, cache.tensor_addrs), cache
 
     def test_swap_blocks(self):
         cache_manager = self.llm_datadist.cache_manager
         # allocate npu cache
-        npu_cache, npu_cache_key = self._allocate_npu_cache(cache_manager, 64 * 1024, 10, 10)
-        cpu_cache, tmp_cache = self._allocate_cpu_cache(cache_manager, 64 * 1024, 20, 10)
+        npu_cache, npu_cache_key = self._allocate_npu_cache(
+            cache_manager, 64 * 1024, 10, 10
+        )
+        cpu_cache, tmp_cache = self._allocate_cpu_cache(
+            cache_manager, 64 * 1024, 20, 10
+        )
         src_to_dst = {3: 4, 0: 0, 1: 1, 2: 2, 5: 6, 6: 7, 7: 8, 9: 9}
         try:
             cache_manager.swap_blocks(npu_cache, cpu_cache, src_to_dst)
@@ -243,6 +284,7 @@ class LlmCacheManagerSt(unittest.TestCase):
         except Exception as e:
             print(f"{type(e).__name__} - {str(e)}")
             import traceback
+
             print(traceback.format_exc())
             self.has_exception = True
         self.assertEqual(self.has_exception, False)
@@ -250,7 +292,7 @@ class LlmCacheManagerSt(unittest.TestCase):
     def test_switch_role(self):
         try:
             self.llm_datadist.switch_role(LLMRole.DECODER)
-        except:
+        except Exception:
             self.has_exception = True
         self.assertEqual(self.has_exception, False)
 
@@ -304,7 +346,7 @@ class LlmCacheManagerSt(unittest.TestCase):
         self.create_link()
         try:
             self.llm_datadist.unlink(1)
-        except:
+        except Exception:
             self.has_exception = True
         self.assertEqual(self.has_exception, False)
 
@@ -330,7 +372,7 @@ class LlmCacheManagerSt(unittest.TestCase):
     def test_pull_cache_2_cache_with_default_range(self):
         self.create_link()
         cache_mgr = self.llm_datadist.cache_manager
-        cache_desc = CacheDesc(1, [2, 4], DataType.DT_INT8, Placement.DEVICE)
+        cache_desc = CacheDesc(2, [2, 4], DataType.DT_INT8, Placement.DEVICE)
         cache_keys = [CacheKey(2, 0, 0), CacheKey(2, 1, 0)]
         try:
             src_cache = cache_mgr.allocate_cache(cache_desc, cache_keys)
@@ -341,6 +383,7 @@ class LlmCacheManagerSt(unittest.TestCase):
         except Exception as e:
             print(f"{type(e).__name__} - {str(e)}")
             import traceback
+
             print(traceback.format_exc())
             self.has_exception = True
         self.assertEqual(self.has_exception, False)
@@ -348,72 +391,195 @@ class LlmCacheManagerSt(unittest.TestCase):
     def test_pull_cache_with_tensor_number(self):
         self.create_link()
         cache_mgr = self.llm_datadist.cache_manager
-        cache_desc = CacheDesc(10, [2, 4], DataType.DT_INT8, Placement.DEVICE)
+        cache_desc = CacheDesc(2, [2, 4], DataType.DT_INT8, Placement.DEVICE)
         cache_keys = [CacheKey(2, 0, 0), CacheKey(2, 1, 0)]
 
         src_cache = cache_mgr.allocate_cache(cache_desc, cache_keys)
         dst_cache = cache_mgr.allocate_cache(cache_desc)
 
-        cache_mgr.pull_cache(cache_keys[0], dst_cache, 0, 4, src_layer_range=range(0,1), dst_layer_range=range(0,1),
-                             tensor_num_per_layer=2)
-        
+        cache_mgr.pull_cache(
+            cache_keys[0],
+            dst_cache,
+            0,
+            4,
+            src_layer_range=range(0, 1),
+            dst_layer_range=range(0, 1),
+            tensor_num_per_layer=2,
+        )
+
         with self.assertRaises(ValueError):
-            cache_mgr.pull_cache(cache_keys[0], dst_cache, 0, 4, src_layer_range=range(0,1), dst_layer_range=range(0,1),
-                                 tensor_num_per_layer=-1)
+            cache_mgr.pull_cache(
+                cache_keys[0],
+                dst_cache,
+                0,
+                4,
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                tensor_num_per_layer=-1,
+            )
 
         with self.assertRaises(LLMException):
-            cache_mgr.pull_cache(cache_keys[0], dst_cache, 0, 4, src_layer_range=range(0,1), dst_layer_range=range(0,1),
-                                 tensor_num_per_layer=0)
+            cache_mgr.pull_cache(
+                cache_keys[0],
+                dst_cache,
+                0,
+                4,
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                tensor_num_per_layer=0,
+            )
+
+        with self.assertRaises(LLMException):
+            cache_mgr.pull_cache(
+                cache_keys[0],
+                dst_cache,
+                0,
+                4,
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                tensor_num_per_layer=3,
+            )
 
         with self.assertRaises(TypeError):
-            cache_mgr.pull_cache(cache_keys[0], dst_cache, 0, 4, src_layer_range=range(0,1), dst_layer_range=range(0,1),
-                                 tensor_num_per_layer=1.0)
+            cache_mgr.pull_cache(
+                cache_keys[0],
+                dst_cache,
+                0,
+                4,
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                tensor_num_per_layer=1.0,
+            )
 
         with self.assertRaises(TypeError):
-            cache_mgr.pull_cache(cache_keys[0], dst_cache, 0, 4, src_layer_range=range(0,1), dst_layer_range=range(0,1),
-                                 tensor_num_per_layer='x')
+            cache_mgr.pull_cache(
+                cache_keys[0],
+                dst_cache,
+                0,
+                4,
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                tensor_num_per_layer="x",
+            )
 
         cache_mgr.deallocate_cache(dst_cache)
+        cache_mgr.deallocate_cache(src_cache)
+
+    def test_pull_blocks_with_single_tensor_cache(self):
+        self.create_link()
+        cache_mgr = self.llm_datadist.cache_manager
+        cache_desc = CacheDesc(1, [2, 4], DataType.DT_INT8, Placement.DEVICE)
+        cache_keys = [CacheKey(2, 0, 0), CacheKey(2, 1, 0)]
+        src_cache = cache_mgr.allocate_cache(cache_desc, cache_keys)
+        dst_blocks_cache = cache_mgr.allocate_blocks_cache(cache_desc)
+
+        cache_mgr.pull_blocks(
+            cache_keys[0],
+            dst_blocks_cache,
+            [],
+            [0],
+            src_layer_range=range(0, 1),
+            dst_layer_range=range(0, 1),
+            tensor_num_per_layer=cache_desc.num_tensors,
+        )
+
+        with self.assertRaises(LLMException):
+            cache_mgr.pull_blocks(
+                cache_keys[0],
+                dst_blocks_cache,
+                [],
+                [0],
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+            )
+
+        cache_mgr.deallocate_blocks_cache(dst_blocks_cache)
         cache_mgr.deallocate_cache(src_cache)
 
     def test_pull_block_with_tensor_number(self):
         self.create_link()
         cache_mgr = self.llm_datadist.cache_manager
-        cache_desc = CacheDesc(10, [2, 4], DataType.DT_INT8, Placement.DEVICE)
+        cache_desc = CacheDesc(2, [2, 4], DataType.DT_INT8, Placement.DEVICE)
         cache_keys = [CacheKey(2, 0, 0), CacheKey(2, 1, 0)]
         src_cache = cache_mgr.allocate_cache(cache_desc, cache_keys)
         dst_blocks_cache = cache_mgr.allocate_blocks_cache(cache_desc)
 
-        cache_mgr.pull_blocks(cache_keys[0], dst_blocks_cache, [], [0],
-                              src_layer_range=range(0,1), dst_layer_range=range(0,1), tensor_num_per_layer=2)
+        cache_mgr.pull_blocks(
+            cache_keys[0],
+            dst_blocks_cache,
+            [],
+            [0],
+            src_layer_range=range(0, 1),
+            dst_layer_range=range(0, 1),
+            tensor_num_per_layer=2,
+        )
 
         with self.assertRaises(ValueError):
-            cache_mgr.pull_blocks(cache_keys[0], dst_blocks_cache, [], [0],
-                                    src_layer_range=range(0,1), dst_layer_range=range(0,1), tensor_num_per_layer=-1)
+            cache_mgr.pull_blocks(
+                cache_keys[0],
+                dst_blocks_cache,
+                [],
+                [0],
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                tensor_num_per_layer=-1,
+            )
 
         with self.assertRaises(LLMException):
-            cache_mgr.pull_blocks(cache_keys[0], dst_blocks_cache, [], [0],
-                                  src_layer_range=range(0,1), dst_layer_range=range(0,1), tensor_num_per_layer=0)
+            cache_mgr.pull_blocks(
+                cache_keys[0],
+                dst_blocks_cache,
+                [],
+                [0],
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                tensor_num_per_layer=0,
+            )
+
+        with self.assertRaises(LLMException):
+            cache_mgr.pull_blocks(
+                cache_keys[0],
+                dst_blocks_cache,
+                [],
+                [0],
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                tensor_num_per_layer=3,
+            )
 
         with self.assertRaises(TypeError):
-            cache_mgr.pull_blocks(cache_keys[0], dst_blocks_cache, [], [0],
-                                  src_layer_range=range(0,1), dst_layer_range=range(0,1), tensor_num_per_layer=1.0)
+            cache_mgr.pull_blocks(
+                cache_keys[0],
+                dst_blocks_cache,
+                [],
+                [0],
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                tensor_num_per_layer=1.0,
+            )
 
         with self.assertRaises(TypeError):
-            cache_mgr.pull_blocks(cache_keys[0], dst_blocks_cache, [], [0],
-                                  src_layer_range=range(0,1), dst_layer_range=range(0,1), tensor_num_per_layer='x')
+            cache_mgr.pull_blocks(
+                cache_keys[0],
+                dst_blocks_cache,
+                [],
+                [0],
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                tensor_num_per_layer="x",
+            )
 
         cache_mgr.deallocate_blocks_cache(dst_blocks_cache)
         cache_mgr.deallocate_cache(src_cache)
 
-class LlmCacheManagerDecoderSt(unittest.TestCase):
 
+class LlmCacheManagerDecoderSt(unittest.TestCase):
     def setUp(self) -> None:
         print("Begin ", self._testMethodName)
         config = LlmConfig()
         config.device_id = 0
         config.enable_cache_manager = True
-        config.mem_pool_cfg = "{\"memory_size\": 102428800}"
+        config.mem_pool_cfg = '{"memory_size": 102428800}'
         config.sync_kv_timeout = "3000"
         config.rdma_service_level = 100
         config.rdma_traffic_class = 100
@@ -429,7 +595,9 @@ class LlmCacheManagerDecoderSt(unittest.TestCase):
         self.llm_datadist.finalize()
 
     def create_link(self):
-        comm_id = self.llm_datadist.link("link", {3: 0, 2: 1}, '{"server_list":[{"device":[{}]}]}')
+        comm_id = self.llm_datadist.link(
+            "link", {3: 0, 2: 1}, '{"server_list":[{"device":[{}]}]}'
+        )
         self.assertEqual(comm_id, 1)
         time.sleep(0.1)
         ret = self.llm_datadist.query_register_mem_status(comm_id)
@@ -438,7 +606,7 @@ class LlmCacheManagerDecoderSt(unittest.TestCase):
     def test_push_cache_with_default_range(self):
         self.create_link()
         cache_mgr = self.llm_datadist.cache_manager
-        cache_desc = CacheDesc(1, [2, 4], DataType.DT_INT8, Placement.DEVICE)
+        cache_desc = CacheDesc(2, [2, 4], DataType.DT_INT8, Placement.DEVICE)
         cache_keys = [CacheKey(2, 0, 0), CacheKey(2, 1, 0)]
         cache_key_by_idx = CacheKeyByIdAndIndex(2, 0, 0)
         try:
@@ -450,6 +618,7 @@ class LlmCacheManagerDecoderSt(unittest.TestCase):
         except Exception as e:
             print(f"{type(e).__name__} - {str(e)}")
             import traceback
+
             print(traceback.format_exc())
             self.has_exception = True
         self.assertEqual(self.has_exception, False)
@@ -457,94 +626,212 @@ class LlmCacheManagerDecoderSt(unittest.TestCase):
     def test_push_block_with_default_range(self):
         self.create_link()
         cache_mgr = self.llm_datadist.cache_manager
-        cache_desc = CacheDesc(1, [2, 4], DataType.DT_INT8, Placement.DEVICE)
+        cache_desc = CacheDesc(2, [2, 4], DataType.DT_INT8, Placement.DEVICE)
         cache_keys = [CacheKey(2, 0, 0), CacheKey(2, 1, 0)]
         dst_cache_key = BlocksCacheKey(2, 0)
         try:
             src_cache = cache_mgr.allocate_cache(cache_desc, cache_keys)
-            dst_blocks_cache = cache_mgr.allocate_blocks_cache(cache_desc, dst_cache_key)
+            dst_blocks_cache = cache_mgr.allocate_blocks_cache(
+                cache_desc, dst_cache_key
+            )
             cache_mgr.push_blocks(dst_cache_key, dst_blocks_cache, [0], [0])
             cache_mgr.deallocate_blocks_cache(dst_blocks_cache)
             cache_mgr.deallocate_cache(src_cache)
         except Exception as e:
             print(f"{type(e).__name__} - {str(e)}")
             import traceback
+
             print(traceback.format_exc())
             self.has_exception = True
         self.assertEqual(self.has_exception, False)
-        
-    def test_push_cache_with_tensor_number(self):
+
+    def test_push_cache_rejects_tensor_number_over_cache(self):
         self.create_link()
         cache_mgr = self.llm_datadist.cache_manager
-        cache_desc = CacheDesc(10, [2, 4], DataType.DT_INT8, Placement.DEVICE)
+        cache_desc = CacheDesc(2, [2, 4], DataType.DT_INT8, Placement.DEVICE)
         cache_keys = [CacheKey(2, 0, 0), CacheKey(2, 1, 0)]
         cache_key_by_idx = CacheKeyByIdAndIndex(2, 0, 0)
         src_cache = cache_mgr.allocate_cache(cache_desc, cache_keys)
         dst_cache = cache_mgr.allocate_cache(cache_desc)
-        cache_mgr.push_cache(cache_key_by_idx, dst_cache, src_batch_index=0,
-                             src_layer_range=range(0,1), dst_layer_range=range(0,1),
-                             size=-1, tensor_num_per_layer=2)
+        try:
+            with self.assertRaises(LLMException):
+                cache_mgr.push_cache(
+                    cache_key_by_idx, dst_cache, tensor_num_per_layer=3
+                )
+        finally:
+            cache_mgr.deallocate_cache(dst_cache)
+            cache_mgr.deallocate_cache(src_cache)
+
+    def test_push_blocks_rejects_tensor_number_over_cache(self):
+        self.create_link()
+        cache_mgr = self.llm_datadist.cache_manager
+        cache_desc = CacheDesc(2, [2, 4], DataType.DT_INT8, Placement.DEVICE)
+        cache_keys = [CacheKey(2, 0, 0), CacheKey(2, 1, 0)]
+        dst_cache_key = BlocksCacheKey(2, 0)
+        src_cache = cache_mgr.allocate_cache(cache_desc, cache_keys)
+        dst_blocks_cache = cache_mgr.allocate_blocks_cache(cache_desc, dst_cache_key)
+        try:
+            with self.assertRaises(LLMException):
+                cache_mgr.push_blocks(
+                    dst_cache_key,
+                    dst_blocks_cache,
+                    [0],
+                    [0],
+                    tensor_num_per_layer=3,
+                )
+        finally:
+            cache_mgr.deallocate_blocks_cache(dst_blocks_cache)
+            cache_mgr.deallocate_cache(src_cache)
+
+    def test_push_cache_with_tensor_number(self):
+        self.create_link()
+        cache_mgr = self.llm_datadist.cache_manager
+        cache_desc = CacheDesc(2, [2, 4], DataType.DT_INT8, Placement.DEVICE)
+        cache_keys = [CacheKey(2, 0, 0), CacheKey(2, 1, 0)]
+        cache_key_by_idx = CacheKeyByIdAndIndex(2, 0, 0)
+        src_cache = cache_mgr.allocate_cache(cache_desc, cache_keys)
+        dst_cache = cache_mgr.allocate_cache(cache_desc)
+        cache_mgr.push_cache(
+            cache_key_by_idx,
+            dst_cache,
+            src_batch_index=0,
+            src_layer_range=range(0, 1),
+            dst_layer_range=range(0, 1),
+            size=-1,
+            tensor_num_per_layer=2,
+        )
 
         with self.assertRaises(ValueError):
-            cache_mgr.push_cache(cache_key_by_idx, dst_cache, src_batch_index=0,
-                             src_layer_range=range(0,1), dst_layer_range=range(0,1),
-                             size=-1, tensor_num_per_layer=-1)
+            cache_mgr.push_cache(
+                cache_key_by_idx,
+                dst_cache,
+                src_batch_index=0,
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                size=-1,
+                tensor_num_per_layer=-1,
+            )
 
         with self.assertRaises(LLMException):
-            cache_mgr.push_cache(cache_key_by_idx, dst_cache, src_batch_index=0,
-                             src_layer_range=range(0,1), dst_layer_range=range(0,1),
-                             size=-1, tensor_num_per_layer=0)
+            cache_mgr.push_cache(
+                cache_key_by_idx,
+                dst_cache,
+                src_batch_index=0,
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                size=-1,
+                tensor_num_per_layer=0,
+            )
 
         with self.assertRaises(LLMException):
-            cache_mgr.push_cache(cache_key_by_idx, dst_cache, src_batch_index=0,
-                             src_layer_range=range(0,1), dst_layer_range=range(0,1),
-                             size=-1, tensor_num_per_layer=3)
+            cache_mgr.push_cache(
+                cache_key_by_idx,
+                dst_cache,
+                src_batch_index=0,
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                size=-1,
+                tensor_num_per_layer=3,
+            )
 
         with self.assertRaises(TypeError):
-            cache_mgr.push_cache(cache_key_by_idx, dst_cache, src_batch_index=0,
-                             src_layer_range=range(0,1), dst_layer_range=range(0,1),
-                             size=-1, tensor_num_per_layer=2.0)
+            cache_mgr.push_cache(
+                cache_key_by_idx,
+                dst_cache,
+                src_batch_index=0,
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                size=-1,
+                tensor_num_per_layer=2.0,
+            )
 
         with self.assertRaises(TypeError):
-            cache_mgr.push_cache(cache_key_by_idx, dst_cache, src_batch_index=0,
-                             src_layer_range=range(0,1), dst_layer_range=range(0,1),
-                             size=-1, tensor_num_per_layer='x')
+            cache_mgr.push_cache(
+                cache_key_by_idx,
+                dst_cache,
+                src_batch_index=0,
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                size=-1,
+                tensor_num_per_layer="x",
+            )
 
         cache_mgr.deallocate_cache(dst_cache)
         cache_mgr.deallocate_cache(src_cache)
 
-
     def test_push_block_with_tensor_number(self):
         self.create_link()
         cache_mgr = self.llm_datadist.cache_manager
-        cache_desc = CacheDesc(10, [2, 4], DataType.DT_INT8, Placement.DEVICE)
+        cache_desc = CacheDesc(2, [2, 4], DataType.DT_INT8, Placement.DEVICE)
         cache_keys = [CacheKey(2, 0, 0), CacheKey(2, 1, 0)]
         dst_cache_key = BlocksCacheKey(2, 0)
 
         src_cache = cache_mgr.allocate_cache(cache_desc, cache_keys)
         dst_blocks_cache = cache_mgr.allocate_blocks_cache(cache_desc, dst_cache_key)
-        cache_mgr.push_blocks(dst_cache_key, dst_blocks_cache, [0], [0],
-                              src_layer_range=range(0,1), dst_layer_range=range(0,1), tensor_num_per_layer=2)
+        cache_mgr.push_blocks(
+            dst_cache_key,
+            dst_blocks_cache,
+            [0],
+            [0],
+            src_layer_range=range(0, 1),
+            dst_layer_range=range(0, 1),
+            tensor_num_per_layer=2,
+        )
 
         with self.assertRaises(ValueError):
-            cache_mgr.push_blocks(dst_cache_key, dst_blocks_cache, [0], [0],
-                              src_layer_range=range(0,1), dst_layer_range=range(0,1), tensor_num_per_layer=-1)
+            cache_mgr.push_blocks(
+                dst_cache_key,
+                dst_blocks_cache,
+                [0],
+                [0],
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                tensor_num_per_layer=-1,
+            )
 
         with self.assertRaises(LLMException):
-            cache_mgr.push_blocks(dst_cache_key, dst_blocks_cache, [0], [0],
-                              src_layer_range=range(0,1), dst_layer_range=range(0,1), tensor_num_per_layer=0)
-        
+            cache_mgr.push_blocks(
+                dst_cache_key,
+                dst_blocks_cache,
+                [0],
+                [0],
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                tensor_num_per_layer=0,
+            )
+
         with self.assertRaises(LLMException):
-            cache_mgr.push_blocks(dst_cache_key, dst_blocks_cache, [0], [0],
-                              src_layer_range=range(0,1), dst_layer_range=range(0,1), tensor_num_per_layer=3)
+            cache_mgr.push_blocks(
+                dst_cache_key,
+                dst_blocks_cache,
+                [0],
+                [0],
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                tensor_num_per_layer=3,
+            )
 
         with self.assertRaises(TypeError):
-            cache_mgr.push_blocks(dst_cache_key, dst_blocks_cache, [0], [0],
-                              src_layer_range=range(0,1), dst_layer_range=range(0,1), tensor_num_per_layer=2.0)
+            cache_mgr.push_blocks(
+                dst_cache_key,
+                dst_blocks_cache,
+                [0],
+                [0],
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                tensor_num_per_layer=2.0,
+            )
 
         with self.assertRaises(TypeError):
-            cache_mgr.push_blocks(dst_cache_key, dst_blocks_cache, [0], [0],
-                              src_layer_range=range(0,1), dst_layer_range=range(0,1), tensor_num_per_layer='x')
+            cache_mgr.push_blocks(
+                dst_cache_key,
+                dst_blocks_cache,
+                [0],
+                [0],
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+                tensor_num_per_layer="x",
+            )
 
         cache_mgr.deallocate_blocks_cache(dst_blocks_cache)
         cache_mgr.deallocate_cache(src_cache)

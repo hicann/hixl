@@ -131,6 +131,7 @@ def run_decoder_sample(datadist, args):
             cache,
             src_blocks=[0, 1],
             dst_blocks=[0, 2],
+            tensor_num_per_layer=NUM_TENSORS,
         )
         logging.info(
             f"after decoder pull from {ip_port_to_int(remote)}, tensor={tensor.cpu()}"

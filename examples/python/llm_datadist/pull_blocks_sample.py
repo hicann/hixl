@@ -234,7 +234,11 @@ def run_decoder_sample(datadist, device_id: int, is_single: bool, host_ip: str):
 
     dist.barrier()  # cache ready
     cache_manager.pull_blocks(
-        BlocksCacheKey(1, 0), cache, src_blocks=[0, 1], dst_blocks=[0, 1]
+        BlocksCacheKey(1, 0),
+        cache,
+        src_blocks=[0, 1],
+        dst_blocks=[0, 1],
+        tensor_num_per_layer=cache_desc.num_tensors,
     )
     logging.info(f"after pull, tensor={tensor.cpu()}")
     # swap blocks
