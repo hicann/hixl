@@ -321,8 +321,9 @@ def parse_all_benchmark_args() -> argparse.Namespace:
 
 
 def _validate_args(args: argparse.Namespace, devs: list[int]) -> int | None:
-    if len(devs) < 2:
-        log.error('[ERROR] Need at least 2 device IDs')
+    min_devices = 1 if args.skip_comm else 2
+    if len(devs) < min_devices:
+        log.error('[ERROR] Need at least %s device ID(s)', min_devices)
         return 1
     if args.target_host != '127.0.0.1':
         log.error('[ERROR] run_all_benchmarks.py does not support true dual-machine orchestration.')
