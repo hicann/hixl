@@ -113,8 +113,8 @@ def missing_library_name(error_text):
     return match.group(1) if match else None
 
 
-def find_libascendcl():
-    """Locate libascendcl.so: ASCEND_HOME_PATH, ascend-toolkit, nnrt, then LD_LIBRARY_PATH."""
+def find_cann_library(library_name):
+    """Locate a CANN library in the configured toolkit or runtime directories."""
     machine = platform.machine()
     triplet = {"x86_64": "x86_64-linux", "aarch64": "aarch64-linux"}.get(
         machine, machine + "-linux"
@@ -133,13 +133,18 @@ def find_libascendcl():
         if path:
             candidates.append(path)
     for directory in candidates:
-        path = os.path.join(directory, "libascendcl.so")
+        path = os.path.join(directory, library_name)
         if os.path.isfile(path):
             return path
     return None
 
 
-def load_library_with_deps(lib_path, seen=None):
+def find_libascendcl():
+    """Locate libascendcl.so: ASCEND_HOME_PATH, ascend-toolkit, nnrt, then LD_LIBRARY_PATH."""
+    return find_cann_library("libascendcl.so")
+
+
+def load_library_with_deps(lib_path, seen=None, use_errno=False):
     """dlopen a library, preloading sibling dependencies the loader cannot find.
 
     ``seen`` threads the guard across recursive preloads so mutually missing
@@ -151,7 +156,7 @@ def load_library_with_deps(lib_path, seen=None):
     dep_dirs = [lib_dir, os.path.join(os.path.dirname(lib_dir), "devlib")]
     while True:
         try:
-            return ctypes.CDLL(lib_path)
+            return ctypes.CDLL(lib_path, use_errno=use_errno)
         except OSError as exc:
             name = missing_library_name(str(exc))
             if name is None or name in seen:

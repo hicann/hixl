@@ -84,11 +84,6 @@ DEVICES_PER_CHIP = 4
 NUMA_NODE_STEP = 2
 
 acl = None
-LIBC = ctypes.CDLL(None, use_errno=True)
-LIBC.malloc.argtypes = [ctypes.c_size_t]
-LIBC.malloc.restype = ctypes.c_void_p
-LIBC.free.argtypes = [ctypes.c_void_p]
-LIBC.free.restype = None
 
 
 def setup_logging():
@@ -104,28 +99,57 @@ def load_acl():
         fail(str(exc))
 
 
+def load_mmpa():
+    try:
+        lib_path = acl_compat.find_cann_library("libmmpa.so")
+        if lib_path is not None:
+            mmpa = acl_compat.load_library_with_deps(lib_path, use_errno=True)
+        else:
+            mmpa = ctypes.CDLL("libmmpa.so", use_errno=True)
+        mmpa.mmGetPageSize.argtypes = []
+        mmpa.mmGetPageSize.restype = ctypes.c_size_t
+        mmpa.mmAlignMalloc.argtypes = [ctypes.c_size_t, ctypes.c_size_t]
+        mmpa.mmAlignMalloc.restype = ctypes.c_void_p
+        mmpa.mmAlignFree.argtypes = [ctypes.c_void_p]
+        mmpa.mmAlignFree.restype = None
+    except (OSError, AttributeError) as exc:
+        fail(
+            f"Load api:libmmpa.so failed, ret:{exc}, param:host roce buffer. "
+            "Set ASCEND_HOME_PATH or source the CANN set_env.sh script"
+        )
+    return mmpa
+
+
 class BenchBuffer:
     def __init__(
-        self, addr, size, is_host, use_fabric, fabric_handle=None, host_malloc=False
+        self, addr, size, is_host, use_fabric, fabric_handle=None, host_mmpa=None
     ):
         self.addr = addr
         self.size = size
         self.is_host = is_host
         self.use_fabric = use_fabric
         self.fabric_handle = fabric_handle
-        self.host_malloc = host_malloc
+        self.host_mmpa = host_mmpa
 
 
 def alloc_buffer(size, is_host, use_fabric, host_roce=False):
     if use_fabric:
         return alloc_fabric_buffer(size, is_host)
     if is_host and host_roce:
-        addr = LIBC.malloc(size)
+        mmpa = load_mmpa()
+        page_size = mmpa.mmGetPageSize()
+        if page_size < ctypes.sizeof(ctypes.c_void_p) or page_size & (page_size - 1):
+            fail(
+                f"Call api:mmGetPageSize failed, ret:invalid page size:{page_size} bytes"
+            )
+        ctypes.set_errno(0)
+        addr = mmpa.mmAlignMalloc(size, page_size)
         if not addr:
             fail(
-                f"Call api:malloc failed, ret:errno:{ctypes.get_errno()}, param:size:{size} bytes"
+                f"Call api:mmAlignMalloc failed, ret:errno:{ctypes.get_errno()}, "
+                f"param:size:{size} bytes, alignment:{page_size} bytes"
             )
-        return BenchBuffer(addr, size, is_host, False, host_malloc=True)
+        return BenchBuffer(addr, size, is_host, False, host_mmpa=mmpa)
     if is_host:
         addr, ret = acl.rt.malloc_host(size)
         if ret != ACL_SUCCESS:
@@ -271,8 +295,8 @@ def free_buffer(buffer):
                 buffer.fabric_handle or 0,
             )
         return
-    if buffer.host_malloc:
-        LIBC.free(buffer.addr)
+    if buffer.host_mmpa is not None:
+        buffer.host_mmpa.mmAlignFree(buffer.addr)
         return
     if buffer.is_host:
         ret = acl.rt.free_host(buffer.addr)
@@ -291,7 +315,7 @@ def free_buffer(buffer):
 
 
 def fill_pattern(buffer, value):
-    if buffer.host_malloc:
+    if buffer.host_mmpa is not None:
         ctypes.memset(buffer.addr, value, buffer.size)
         return
     ret = acl.rt.memset(buffer.addr, buffer.size, value, buffer.size)
