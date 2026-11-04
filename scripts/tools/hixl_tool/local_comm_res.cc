@@ -32,6 +32,7 @@
 #include "endpoint_generator/endpoint_generator.h"
 #include "endpoint_generator/local_comm_res_generator_v1.h"
 #include "engine/hixl_options.h"
+#include "hixl_utils.h"
 
 namespace hixl_tool {
 
@@ -54,6 +55,8 @@ void PrintLocalCommResUsage() {
   std::printf("  --protocol_desc <desc>        Protocol descriptor, e.g. \"ub_rtp:device,ub_ctp\"\n");
   std::printf("                                Multiple values separated by comma.\n");
   std::printf("                                (default: ScaleOut by InterconType + ub_ctp:device)\n");
+  std::printf("                                HCCL_INTRA_ROCE_ENABLE=1 generates roce:host only\n");
+  std::printf("                                and ignores --protocol_desc.\n");
   std::printf("  --output <dir>                Output directory (default: %s)\n", kDefaultOutputDir.data());
   std::printf("  --file_name_prefix <prefix>   Output file name prefix (default: %s)\n", kDefaultFileNamePrefix.data());
   std::printf("\nOutput: {output}/{prefix}_{device_id}_{phy_id}.json (one per device)\n");
@@ -374,7 +377,9 @@ int RunLocalCommRes(const std::vector<std::string> &args) {
     return 1;
   }
 
-  if (res_args.protocol_desc.empty()) {
+  if (hixl::IsIntraRoceEnabled()) {
+    std::printf("[INFO] HCCL_INTRA_ROCE_ENABLE=1: generate roce:host LocalCommRes only\n");
+  } else if (res_args.protocol_desc.empty()) {
     std::printf("[INFO] protocol_desc not set: auto mode (ScaleOut by InterconType + ub_ctp:device)\n");
   } else {
     std::printf("[INFO] protocol_desc=%s\n", res_args.protocol_desc.c_str());

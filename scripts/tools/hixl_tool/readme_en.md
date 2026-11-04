@@ -162,7 +162,7 @@ hixl_tool local_comm_res [options]
 | `--topo_file_path <path>` | Hardware topology JSON path (optional)                                                                                                                                                                   | Default topology when omitted |
 | `--comm_resource_config <json\|path>` | Fields inside `comm_resource_config`, as a JSON object string or a JSON file path. For example `{"nic_topo_path":"/etc/hixl/nic_topo.json"}`. Later communication-resource fields also go in this object | Unset |
 | `--device_id <id1,id2,...>` | Target user device IDs, comma-separated                                                                                                                                                                  | Auto-detect all devices |
-| `--protocol_desc <desc>` | Protocol description in `ub_ctp` or `protocol:placement` form, comma-separated                                                                                                                           | ScaleOut selected by InterconType + `ub_ctp:device` |
+| `--protocol_desc <desc>` | Protocol description in `ub_ctp` or `protocol:placement` form, comma-separated                                                                                                                           | ScaleOut selected by InterconType + `ub_ctp:device`. `HCCL_INTRA_ROCE_ENABLE=1` generates Host RoCE only |
 | `--output <dir>` | Output directory                                                                                                                                                                                         | `/etc/` |
 | `--file_name_prefix <prefix>` | Output file-name prefix                                                                                                                                                                                  | `local_comm_res` |
 
@@ -230,7 +230,8 @@ Constraints:
 
 - `uboe` and `ub_rtp` are **mutually exclusive**
 - `uboe` / `ub_rtp` support only the `device` placement
-- When `--protocol_desc` is omitted: ScaleOut is selected by `InterconType`, and `ub_ctp:device` is generated
+- When `--protocol_desc` is omitted and `HCCL_INTRA_ROCE_ENABLE` is unset: ScaleOut is selected by `InterconType`, and `ub_ctp:device` is generated
+- When `HCCL_INTRA_ROCE_ENABLE=1`: only Host RoCE (`roce:host`) is generated, and other `--protocol_desc` values are ignored
 - `ub_ctp:device,ub_ctp:host` is equivalent to `ub_ctp`; both generate Device+Host resources for pure URMA
 - When only `ub_ctp:host` is configured, only host-side ub_ctp endpoints are retained
 - When `ub_ctp` and another ub_ctp placement are configured together, union semantics apply and `ub_ctp` still includes Device+Host resources

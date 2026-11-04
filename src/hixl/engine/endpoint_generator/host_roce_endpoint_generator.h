@@ -20,8 +20,9 @@
 namespace hixl {
 
 /**
- * @brief Generator for Host RoCE endpoints on A5.
- *        Encapsulates nic-topo validation, protocol_desc dispatch, and endpoint construction.
+ * @brief Generator for Host RoCE endpoints on Ascend 950PR&950DT.
+ *        Selects NICs from nic_topo_path or DCMI and appends roce/host endpoints.
+ *        The caller decides whether Host RoCE is requested.
  */
 class HostRoceEndpointGenerator {
  public:
@@ -29,10 +30,11 @@ class HostRoceEndpointGenerator {
 
   /**
    * @brief Generate Host RoCE endpoints and append them to endpoint_list.
-   *        Returns SUCCESS without appending when protocol_desc does not contain roce:host.
+   *        Always attempts generation. AutoGen calls this when protocol_desc contains roce:host,
+   *        or alone when HCCL_INTRA_ROCE_ENABLE=1.
    * @param [in] options Parsed HixlOptions
    * @param [in,out] endpoint_list Endpoint list to append to
-   * @return SUCCESS when Host RoCE is not requested or endpoints are appended, PARAM_INVALID on failure
+   * @return SUCCESS when endpoints are appended, PARAM_INVALID on failure
    */
   static Status GenerateHostRoceEndpoints(const HixlOptions &options, std::vector<EndpointConfig> &endpoint_list);
 };

@@ -344,14 +344,16 @@ Status EndpointGeneratorV2::AutoGen(const HixlOptions &options, const std::strin
   int32_t phy_id = 0;
   HIXL_CHK_ACL_RET(aclrtGetPhyDevIdByLogicDevId(device_id, &phy_id));
 
-  const std::vector<std::string> protocol_desc = options.GetProtocolDesc();
+  HIXL_LOGI("[EndpointGeneratorV2] auto-generate: device_id=%d, phy_id=%d", device_id, phy_id);
   endpoint_list.clear();
   if (IsIntraRoceEnabled()) {
-    HIXL_LOGI("[EndpointGeneratorV2] HCCL_INTRA_ROCE_ENABLE=1, skip ScaleOut and UB generation");
-    return AppendRequestedUbMemEndpoint(device_id, phy_id, protocol_desc, endpoint_list);
+    HIXL_LOGI("[EndpointGeneratorV2] HCCL_INTRA_ROCE_ENABLE=1, generate Host RoCE only");
+    HIXL_CHK_STATUS_RET(HostRoceEndpointGenerator::GenerateHostRoceEndpoints(options, endpoint_list),
+                        "[EndpointGeneratorV2] Host RoCE generation failed");
+    return SUCCESS;
   }
 
-  HIXL_LOGI("[EndpointGeneratorV2] auto-generate: device_id=%d, phy_id=%d", device_id, phy_id);
+  std::vector<std::string> protocol_desc = options.GetProtocolDesc();
   const std::string topo_path = options.TopoFilePath().value_or("");
   const std::string user_local_comm_res = options.LocalCommRes().value_or("");
   UbCtpAppendInput ub_input{phy_id, topo_path, protocol_desc, user_local_comm_res};

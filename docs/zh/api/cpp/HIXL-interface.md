@@ -262,7 +262,12 @@ options[hixl::OPTION_AUTO_CONNECT] = "1";
   - 支持值：`"ub_ctp"`、`"ubmem"`、`"roce:device"`、`"hccs:device"`、`"ub_ctp:device"`、`"ub_ctp:host"`、`"uboe:device"`、`"ub_rtp:device"`、`"roce:host"`。
   - 过滤行为：配置后会对 `LocalCommRes` 中显式配置的 `endpoint_list` 和自动生成的 `endpoint_list` 按该范围进行过滤；显式配置的 `LocalCommRes` 在未配置本字段时不进行额外过滤。
   <!-- npu="950" id59 -->
-  - Ascend 950PR&950DT系列产品说明：未配置该字段或仅配置`"ub_ctp:device"`时，自动生成Device UB资源，Host内存通过UBMEM映射到Device地址后使用Device UB链路传输；同时配置`"ub_ctp:device"`和`"ub_ctp:host"`时，自动生成Device+Host UB资源并使用纯URMA路径；配置`"ub_ctp"`与上述组合等价；单独配置`"ub_ctp:host"`时仅保留Host UB CTP Endpoint。显式配置`"roce:host"`时，自动生成Host RoCE的endpoint_list；显式配置`"ubmem"`时，自动生成Device ubmem endpoint。HDK版本不低于`26.2.RC1.B082`，1825版本不低于`SP560 1.0.1.1.B031`。
+  - Ascend 950PR&950DT系列产品说明：
+    - 未配置该字段或`protocol_desc`配置为空时，HIXL会尝试生成`"ub_ctp:device"`、`"uboe:device"`、`"ub_rtp:device"`所需的LocalCommRes资源，且不对生成结果过滤。
+    - 仅配置`"ub_ctp:device"`时，自动生成Device UB资源，Host内存通过UBMEM映射到Device地址后使用Device UB链路传输；同时配置`"ub_ctp:device"`和`"ub_ctp:host"`时，自动生成Device+Host UB资源并使用纯URMA路径；配置`"ub_ctp"`与上述组合等价；单独配置`"ub_ctp:host"`时仅保留Host UB CTP Endpoint。
+    - 显式配置`"roce:host"`时，hixl engine会生成Host RoCE所需的资源。可配置`nic_topo_path`指定亲和关系；满足部分条件时，未配置`nic_topo_path`将按DCMI接口探测结果自动选择，具体详见[nic_topo_path](#grc_nic_topo_path)。
+    - 显式配置`"ubmem"`时，自动生成Device ubmem endpoint。
+    - 环境变量中设置`HCCL_INTRA_ROCE_ENABLE=1`时，表示仅使用RoCE进行传输，此时无论protocol_desc配置了什么，都只使用RoCE进行传输。
   <!-- end id59 -->
   - 手工配置 `LocalCommRes` 时，`"ub_ctp"` 要求同时提供Device和Host UB CTP Endpoint。
   <!-- npu="950,A3" id63 -->
@@ -335,8 +340,8 @@ options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
 <a id="grc_nic_topo_path"></a>
 
 - **nic_topo_path**（`comm_resource_config.nic_topo_path`）：指定Host RoCE网卡与device设备的亲和关系，取值为主机网卡拓扑JSON文件路径。空串视为未配置。本字段仅未指定LocalCommRes时生效；已通过`LocalCommRes`或`local_comm_res_path`指定本地通信资源时，不会读取本字段，也不校验该路径。
-  - 不配置或配置为空串时，HIXL按网卡与当前device的亲和关系自动选择Host RoCE网卡。
   - 配置非空路径时，使用该JSON文件指定亲和关系。目标文件必须是大小在[1字节,1MiB]范围内的普通文件。文件不存在、不是普通文件、为空、超出大小或无法打开时，Initialize失败。JSON内容在生成Host RoCE端点时校验，内容不合法则生成失败。
+  - 不配置或配置为空串时，会尝试使用DCMI接口探测网卡亲和性。仅server、pod产品形态且HDK版本不低于`26.2.RC1.B082`、1825版本不低于`SP560 1.0.1.1.B031`时，hixl engine按DCMI探测结果自动选择Host RoCE网卡。如果DCMI不支持或选不出可用IPv4网卡时，生成失败。
   - JSON文件为对象，每个成员描述一张NPU对应的网卡亲和关系。
 
 | 字段 | 含义 | 约束 |

@@ -32,7 +32,6 @@
 namespace hixl {
 namespace {
 
-constexpr const char kRoceHostDesc[] = "roce:host";
 constexpr const char kNpuKeyPrefix[] = "npu:";
 constexpr size_t kMaxNicNameLen = 63U;
 constexpr int32_t kDcmiErrCodeNotSupport = -8255;
@@ -184,15 +183,15 @@ Status FilterAffineNics(int32_t user_id, int32_t logic_id, std::vector<std::stri
 Status CollectDcmiNicNames(int32_t user_id, int32_t logic_id, std::vector<std::string> &nic_names,
                            const char *&reason) {
   if (!DcmiProxy::IsTopoInfoByNicSupported()) {
-    reason = "dcmi nic topo is unsupported, skip host roce";
+    reason = "dcmi nic topo is unsupported, host roce generation failed";
     return PARAM_INVALID;
   }
-  reason = "ibverbs device list is unavailable, skip host roce";
+  reason = "ibverbs device list is unavailable, host roce generation failed";
   if (IbverbsProxy::ListNicNames(nic_names) != SUCCESS) {
     return PARAM_INVALID;
   }
   std::sort(nic_names.begin(), nic_names.end());
-  reason = "dcmi nic topo returns not support, skip host roce";
+  reason = "dcmi nic topo returns not support, host roce generation failed";
   return FilterAffineNics(user_id, logic_id, nic_names);
 }
 
@@ -201,7 +200,7 @@ Status CollectHostRoceNics(const HixlOptions &options, int32_t user_id, int32_t 
   nic_names.clear();
   const auto path = options.NicTopoPath();
   if (path.has_value()) {
-    reason = "preferred nic is unavailable, skip host roce";
+    reason = "preferred nic is unavailable, host roce generation failed";
     NicTopoData topo;
     std::string nic;
     if (ParseNicTopoFile(*path, topo) != SUCCESS || SelectPreferredNic(topo, user_id, nic) != SUCCESS) {
@@ -246,7 +245,7 @@ Status BuildAndAppendHostRoceEdges(const HostRoceBuildInput &input, std::vector<
     std::string ip;
     if (IbverbsProxy::GetNicIpv4ByName(nic, ip) != SUCCESS) {
       if (input.manual) {
-        return FailHostRoce("preferred nic has no ipv4, skip host roce");
+        return FailHostRoce("preferred nic has no ipv4, host roce generation failed");
       }
       LogSkipNic({input.user_id, nic.c_str(), "affine nic has no ipv4, skip this nic"});
       continue;
@@ -256,7 +255,7 @@ Status BuildAndAppendHostRoceEdges(const HostRoceBuildInput &input, std::vector<
     created.push_back(MakeHostRoceEndpoint(ip, input.net_instance_id));
   }
   if (created.empty()) {
-    return FailHostRoce("no host roce endpoint is generated, skip host roce");
+    return FailHostRoce("no host roce endpoint is generated, host roce generation failed");
   }
   endpoint_list.insert(endpoint_list.end(), created.begin(), created.end());
   return SUCCESS;
@@ -266,12 +265,9 @@ Status BuildAndAppendHostRoceEdges(const HostRoceBuildInput &input, std::vector<
 
 Status HostRoceEndpointGenerator::GenerateHostRoceEndpoints(const HixlOptions &options,
                                                             std::vector<EndpointConfig> &endpoint_list) {
-  if (!options.HasProtocolDesc(kRoceHostDesc)) {
-    return SUCCESS;
-  }
   int32_t user_id = 0;
   if (aclrtGetDevice(&user_id) != ACL_SUCCESS) {
-    return FailHostRoce("failed to get user device id, skip host roce");
+    return FailHostRoce("failed to get user device id, host roce generation failed");
   }
   int32_t logic_id = 0;
   const aclError logic_ret = aclrtGetLogicDevIdByUserDevId(user_id, &logic_id);
@@ -281,13 +277,13 @@ Status HostRoceEndpointGenerator::GenerateHostRoceEndpoints(const HixlOptions &o
     return PARAM_INVALID;
   }
   std::vector<std::string> nic_names;
-  const char *reason = "no host roce endpoint is generated, skip host roce";
+  const char *reason = "no host roce endpoint is generated, host roce generation failed";
   if (CollectHostRoceNics(options, user_id, logic_id, nic_names, reason) != SUCCESS) {
     return FailHostRoce(reason);
   }
   std::string net_instance_id;
   if (ResolveHostRoceNetInstanceId(logic_id, net_instance_id) != SUCCESS) {
-    return FailHostRoce("host roce net_instance_id is unavailable, skip host roce");
+    return FailHostRoce("host roce net_instance_id is unavailable, host roce generation failed");
   }
   const HostRoceBuildInput build_input{user_id, options.NicTopoPath().has_value(), nic_names, net_instance_id};
   return BuildAndAppendHostRoceEdges(build_input, endpoint_list);

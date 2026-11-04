@@ -162,7 +162,7 @@ hixl_tool local_comm_res [options]
 | `--topo_file_path <path>` | 硬件拓扑 JSON 文件路径（可选） | 缺省走默认 topo |
 | `--comm_resource_config <json\|path>` | `comm_resource_config`内的字段，JSON对象字符串或JSON文件路径。例如`{"nic_topo_path":"/etc/hixl/nic_topo.json"}`。后续新增的通信资源字段也写在这个对象里 | 不配置 |
 | `--device_id <id1,id2,...>` | 目标用户设备 ID，逗号分隔 | 自动识别全部设备 |
-| `--protocol_desc <desc>` | 协议描述，`ub_ctp`或`protocol:placement`格式，逗号分隔 | ScaleOut 按 InterconType 自动选择 + `ub_ctp:device` |
+| `--protocol_desc <desc>` | 协议描述，`ub_ctp`或`protocol:placement`格式，逗号分隔 | ScaleOut 按 InterconType 自动选择 + `ub_ctp:device`。`HCCL_INTRA_ROCE_ENABLE=1`时只生成Host RoCE |
 | `--output <dir>` | 输出目录 | `/etc/` |
 | `--file_name_prefix <prefix>` | 输出文件名前缀 | `local_comm_res` |
 
@@ -230,7 +230,8 @@ hixl_tool local_comm_res [options]
 
 - `uboe` 与 `ub_rtp` **互斥**，不能同时出现
 - `uboe` / `ub_rtp` 仅支持 `device` placement
-- 不传 `--protocol_desc` 时：ScaleOut 按 `InterconType` 自动选择 + 生成 `ub_ctp:device`
+- 不传 `--protocol_desc` 且未设置 `HCCL_INTRA_ROCE_ENABLE` 时：ScaleOut 按 `InterconType` 自动选择 + 生成 `ub_ctp:device`
+- 设置 `HCCL_INTRA_ROCE_ENABLE=1` 时：只生成 Host RoCE（`roce:host`），`--protocol_desc` 中的其它协议不生效
 - `ub_ctp:device,ub_ctp:host`与`ub_ctp`等价，均生成Device+Host资源并使用纯URMA流程
 - 单独配置`ub_ctp:host`时，仅保留Host侧ub_ctp端点
 - 同时配置`ub_ctp`和其他ub_ctp placement时按集合处理，`ub_ctp`仍包含Device+Host资源

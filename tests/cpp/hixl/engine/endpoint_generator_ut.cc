@@ -2355,21 +2355,32 @@ TEST_F(EndpointGeneratorUTest, BuildEndpointListFiltersExplicitEndpointsToRoceWh
   EXPECT_EQ(endpoint_list[0].protocol, kProtocolRoce);
 }
 
-TEST_F(EndpointGeneratorUTest, AutoGenDefaultSkipsWhenIntraRoceEnabled) {
+TEST_F(EndpointGeneratorUTest, AutoGenDefaultGeneratesHostRoceWhenIntraRoceEnabled) {
   acl_stub_->soc_name_ = "Ascend950A";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
+  DcmiStubSetSuperPodId(8, 0);
   setenv("HCCL_INTRA_ROCE_ENABLE", "1", 1);
+  const std::string nic_topo_path =
+      test::CreateTempFileWithContent("/tmp/hixl_intra_roce_host_ut_XXXXXX", R"({"npu:0":[["mlx0"],[]]})");
+  ASSERT_FALSE(nic_topo_path.empty());
+  mmpa_stub_->real_path_ok_ = true;
+  mmpa_stub_->fake_real_path_ = nic_topo_path;
+  IbverbsStubAddIpv4Device("mlx0", 10, 1, 2, 3);
 
   std::map<AscendString, AscendString> options;
   options[hixl::OPTION_LOCAL_COMM_RES] = AscendString(R"({"version":"1.3"})");
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
+      AscendString((std::string(R"({"comm_resource_config.nic_topo_path":")" + nic_topo_path + R"("})")).c_str());
 
   std::string local_comm_res;
   std::vector<EndpointConfig> endpoint_list;
-  HixlOptions parsed;
-  ASSERT_EQ(HixlOptions::Parse(options, parsed), SUCCESS);
-  EXPECT_NE(EndpointGenerator::BuildEndpointList(parsed, "127.0.0.1:26000", local_comm_res, endpoint_list), SUCCESS);
-  EXPECT_TRUE(endpoint_list.empty());
+  CallBuildEndpointList(options, "127.0.0.1:26000", local_comm_res, endpoint_list);
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_EQ(endpoint_list[0].protocol, kProtocolRoce);
+  EXPECT_EQ(endpoint_list[0].placement, kPlacementHost);
+  EXPECT_EQ(endpoint_list[0].comm_id, "10.1.2.3");
+  (void)remove(nic_topo_path.c_str());
 }
 
 TEST_F(EndpointGeneratorUTest, AutoGenDefaultAppendsUbMemAlongsideScaleOut) {
@@ -2421,25 +2432,34 @@ TEST_F(EndpointGeneratorUTest, AutoGenDefaultKeepsUbmemWhenProtocolDescIsUbmemOn
   EXPECT_EQ(endpoint_list[0].device_info.phy_device_id, 3);
 }
 
-TEST_F(EndpointGeneratorUTest, AutoGenDefaultKeepsUbmemWhenIntraRoceEnabled) {
+TEST_F(EndpointGeneratorUTest, AutoGenDefaultIgnoresOtherProtocolsWhenIntraRoceEnabled) {
   acl_stub_->soc_name_ = "Ascend950A";
   acl_stub_->device_id_ = 0;
   acl_stub_->phy_device_id_ = 3;
   DcmiStubSetSuperPodId(8, 0);
   setenv("HCCL_INTRA_ROCE_ENABLE", "1", 1);
+  const std::string nic_topo_path =
+      test::CreateTempFileWithContent("/tmp/hixl_intra_roce_ubmem_ut_XXXXXX", R"({"npu:0":[["mlx0"],[]]})");
+  ASSERT_FALSE(nic_topo_path.empty());
+  mmpa_stub_->real_path_ok_ = true;
+  mmpa_stub_->fake_real_path_ = nic_topo_path;
+  IbverbsStubAddIpv4Device("mlx0", 10, 1, 2, 3);
 
   std::map<AscendString, AscendString> options;
-  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"comm_resource_config.protocol_desc":["ubmem"]})";
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
+      AscendString((std::string(R"({"comm_resource_config.protocol_desc":["ubmem"],)") +
+                    R"("comm_resource_config.nic_topo_path":")" + nic_topo_path + R"("})")
+                       .c_str());
 
   std::string local_comm_res;
   std::vector<EndpointConfig> endpoint_list;
   CallBuildEndpointList(options, "127.0.0.1:26000", local_comm_res, endpoint_list);
 
   ASSERT_EQ(endpoint_list.size(), 1U);
-  EXPECT_EQ(endpoint_list[0].protocol, kProtocolUbmem);
-  EXPECT_EQ(endpoint_list[0].placement, kPlacementDevice);
-  EXPECT_EQ(endpoint_list[0].comm_id, "3");
-  EXPECT_EQ(endpoint_list[0].net_instance_id, "superpod_8");
+  EXPECT_EQ(endpoint_list[0].protocol, kProtocolRoce);
+  EXPECT_EQ(endpoint_list[0].placement, kPlacementHost);
+  EXPECT_EQ(endpoint_list[0].comm_id, "10.1.2.3");
+  (void)remove(nic_topo_path.c_str());
 }
 
 TEST_F(EndpointGeneratorUTest, AutoGenDefaultAppendsUbMemAlongsideHostRoce) {

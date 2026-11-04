@@ -86,6 +86,7 @@ class FailLogicIdAclStub : public llm::AclRuntimeStub {
 class HostRoceEndpointGeneratorUTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    unsetenv("HCCL_INTRA_ROCE_ENABLE");
     IbverbsStubReset();
     DcmiStubResetNicTopo();
     DcmiStubSetSuperPodId(0, 0);
@@ -191,21 +192,24 @@ TEST_F(HostRoceEndpointGeneratorUTest, StrictMissingNpuReturnsParamInvalid) {
   unlink(path.c_str());
 }
 
-TEST_F(HostRoceEndpointGeneratorUTest, EmptyProtocolDoesNotGenerateHostRoceEvenWithNicTopo) {
-  const std::string path = WriteTempJson(R"({"npu:1":[["mlx0"],[]]})");
+TEST_F(HostRoceEndpointGeneratorUTest, GenerateUsesNicTopoEvenWithoutProtocolDesc) {
+  const std::string path = WriteTempJson(R"({"npu:0":[["mlx0"],[]]})");
   ASSERT_FALSE(path.empty());
+  IbverbsStubAddIpv4Device("mlx0", 10, 1, 2, 3);
+  DcmiStubSetSuperPodId(7, 0);
   const std::string grc = std::string(R"({"comm_resource_config.nic_topo_path":")") + path + R"("})";
   HixlOptions options = ParseGlobalConfig(grc);
   std::vector<EndpointConfig> endpoint_list;
   EXPECT_EQ(HostRoceEndpointGenerator::GenerateHostRoceEndpoints(options, endpoint_list), SUCCESS);
-  EXPECT_TRUE(endpoint_list.empty());
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_EQ(endpoint_list[0].comm_id, "10.1.2.3");
   unlink(path.c_str());
 }
 
-TEST_F(HostRoceEndpointGeneratorUTest, EmptyProtocolDoesNotGenerateHostRoce) {
+TEST_F(HostRoceEndpointGeneratorUTest, GenerateWithoutNicFailsWhenIbverbsListEmpty) {
   HixlOptions options = ParseGlobalConfig(R"({})");
   std::vector<EndpointConfig> endpoint_list;
-  EXPECT_EQ(HostRoceEndpointGenerator::GenerateHostRoceEndpoints(options, endpoint_list), SUCCESS);
+  EXPECT_EQ(HostRoceEndpointGenerator::GenerateHostRoceEndpoints(options, endpoint_list), PARAM_INVALID);
   EXPECT_TRUE(endpoint_list.empty());
 }
 
@@ -294,10 +298,10 @@ TEST_F(HostRoceEndpointGeneratorUTest, AutoGenReturnsHostRoceErrorWhenRoceHostFa
   EXPECT_EQ(EndpointGenerator::AutoGenEndpointList(options, "", endpoint_list), PARAM_INVALID);
 }
 
-TEST_F(HostRoceEndpointGeneratorUTest, UbCtpOnlyDoesNotGenerateHostRoceWithoutNicTopo) {
+TEST_F(HostRoceEndpointGeneratorUTest, GenerateWithoutNicFailsForUbCtpProtocol) {
   HixlOptions options = ParseGlobalConfig(R"({"comm_resource_config.protocol_desc":["ub_ctp:device"]})");
   std::vector<EndpointConfig> endpoint_list;
-  EXPECT_EQ(HostRoceEndpointGenerator::GenerateHostRoceEndpoints(options, endpoint_list), SUCCESS);
+  EXPECT_EQ(HostRoceEndpointGenerator::GenerateHostRoceEndpoints(options, endpoint_list), PARAM_INVALID);
   EXPECT_TRUE(endpoint_list.empty());
 }
 
@@ -317,16 +321,18 @@ TEST_F(HostRoceEndpointGeneratorUTest, NonUbAffineNicIsSkipped) {
   EXPECT_TRUE(endpoint_list.empty());
 }
 
-TEST_F(HostRoceEndpointGeneratorUTest, UbCtpPlusNicTopoDoesNotEnterHostRoce) {
+TEST_F(HostRoceEndpointGeneratorUTest, GenerateUsesNicTopoWhenProtocolIsUbCtp) {
   const std::string path = WriteTempJson(R"({"npu:0":[["mlx0"],[]]})");
   ASSERT_FALSE(path.empty());
   IbverbsStubAddIpv4Device("mlx0", 10, 1, 2, 3);
+  DcmiStubSetSuperPodId(4, 0);
   const std::string grc = std::string(R"({"comm_resource_config.protocol_desc":["ub_ctp:device"],)") +
                           R"("comm_resource_config.nic_topo_path":")" + path + R"("})";
   HixlOptions options = ParseGlobalConfig(grc);
   std::vector<EndpointConfig> endpoint_list;
   EXPECT_EQ(HostRoceEndpointGenerator::GenerateHostRoceEndpoints(options, endpoint_list), SUCCESS);
-  EXPECT_TRUE(endpoint_list.empty());
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_EQ(endpoint_list[0].placement, kPlacementHost);
   unlink(path.c_str());
 }
 
