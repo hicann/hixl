@@ -16,7 +16,6 @@ namespace {
 GE_ERRORNO_EXTERNAL(LLM_WAIT_PROC_TIMEOUT, "request wait to be processed timeout!");
 GE_ERRORNO_EXTERNAL(LLM_KV_CACHE_NOT_EXIST, "kv cache not exit!");
 GE_ERRORNO_EXTERNAL(LLM_REPEAT_REQUEST, "repeat request!");
-GE_ERRORNO_EXTERNAL(LLM_REQUEST_ALREADY_COMPLETED, "request already complete!");
 GE_ERRORNO_EXTERNAL(LLM_PARAM_INVALID, "parameter is invalid!");
 GE_ERRORNO_EXTERNAL(LLM_ENGINE_FINALIZED, "llm engine finalized!");
 GE_ERRORNO_EXTERNAL(LLM_NOT_YET_LINK, "local cluster is not linked with remote cluster!");
@@ -29,9 +28,6 @@ GE_ERRORNO_EXTERNAL(LLM_PROCESSING_LINK, "link is current processing, try again 
 GE_ERRORNO_EXTERNAL(LLM_DEVICE_OUT_OF_MEMORY, "device out of memory!");
 GE_ERRORNO_EXTERNAL(LLM_PREFIX_ALREADY_EXIST, "Prefix has already existed.");
 GE_ERRORNO_EXTERNAL(LLM_PREFIX_NOT_EXIST, "Prefix does not exist.");
-GE_ERRORNO_EXTERNAL(LLM_SEQ_LEN_OVER_LIMIT, "Sequence length exceed limit.");
-GE_ERRORNO_EXTERNAL(LLM_NO_FREE_BLOCK, "No free block.");
-GE_ERRORNO_EXTERNAL(LLM_BLOCKS_OUT_OF_MEMORY, "Block is out of memory.");
 GE_ERRORNO_EXTERNAL(LLM_EXIST_LINK, "Link existed when switching role, unlink before switch.");
 GE_ERRORNO_EXTERNAL(LLM_FEATURE_NOT_ENABLED, "Feature is not enabled.");
 GE_ERRORNO_EXTERNAL(LLM_TIMEOUT, "Process timeout.");

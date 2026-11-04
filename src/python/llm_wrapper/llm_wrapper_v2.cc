@@ -35,7 +35,6 @@ void BindStatusCodes(py::module &m) {
   m.attr("kLLMWaitProcessTimeOut") = py::int_(ge::LLM_WAIT_PROC_TIMEOUT);
   m.attr("kLLMKVCacheNotExist") = py::int_(ge::LLM_KV_CACHE_NOT_EXIST);
   m.attr("kLLMRepeatRequest") = py::int_(ge::LLM_REPEAT_REQUEST);
-  m.attr("kLLMRequestAlreadyCompleted") = py::int_(ge::LLM_REQUEST_ALREADY_COMPLETED);
   m.attr("kLLMEngineFinalized") = py::int_(ge::LLM_ENGINE_FINALIZED);
   m.attr("kLLMNotYetLink") = py::int_(ge::LLM_NOT_YET_LINK);
   m.attr("kAlreadyLink") = py::int_(ge::LLM_ALREADY_LINK);
@@ -47,9 +46,6 @@ void BindStatusCodes(py::module &m) {
   m.attr("kDeviceOutOfMemory") = py::int_(ge::LLM_DEVICE_OUT_OF_MEMORY);
   m.attr("kPrefixAlreadyExist") = py::int_(ge::LLM_PREFIX_ALREADY_EXIST);
   m.attr("kPrefixNotExist") = py::int_(ge::LLM_PREFIX_NOT_EXIST);
-  m.attr("kLLMSeqLenOverLimit") = py::int_(ge::LLM_SEQ_LEN_OVER_LIMIT);
-  m.attr("kLLMNoFreeBlock") = py::int_(ge::LLM_NO_FREE_BLOCK);
-  m.attr("kLLMBlocksOutOfMemory") = py::int_(ge::LLM_BLOCKS_OUT_OF_MEMORY);
   m.attr("kLLMExistLink") = py::int_(ge::LLM_EXIST_LINK);
   m.attr("kLLMFeatureNotEnabled") = py::int_(ge::LLM_FEATURE_NOT_ENABLED);
   m.attr("kLLMTimeout") = py::int_(ge::LLM_TIMEOUT);

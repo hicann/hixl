@@ -9,6 +9,7 @@ LLMException中status\_code对应的枚举类，枚举值及解决方法如下�
 | LLM_PARAM_INVALID | 参数错误 | 是 | 基于日志排查错误原因。 |
 | LLM_KV_CACHE_NOT_EXIST | KV不存在 | 是 | - 检查对应全量侧报错日志中的请求是否完成。<br>  - 检查是否存在重复拉取。<br>  - 检查标记目标cache的参数是否错误。 |
 | LLM_REPEAT_REQUEST | 重复请求 | 是 | 检查是否存在重复调用。 |
+| LLM_ENGINE_FINALIZED | LLMDataDist已终止 | 是 | 在调用LLMDataDist.finalize()后通过旧CacheManager执行操作时返回。重新调用init()后，应通过新的cache\_manager获取新实例。 |
 | LLM_NOT_YET_LINK | 没有建链 | 是 | 上层排查Decode与Prompt建链情况。 |
 | LLM_ALREADY_LINK | 已经建过链 | 是 | 上层排查Decode与Prompt建链情况。 |
 | LLM_LINK_FAILED | 建链失败 | 是 | link_clusters第二个返回值中有该错误码时，需要检查对应集群之间的网络连接。 |
