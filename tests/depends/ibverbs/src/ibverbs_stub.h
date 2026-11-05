@@ -19,6 +19,7 @@ extern "C" {
 
 void IbverbsStubReset(void);
 void IbverbsStubAddIpv4Device(const char *name, uint8_t a, uint8_t b, uint8_t c, uint8_t d);
+void IbverbsStubAddNameOnly(const char *name);
 
 #ifdef __cplusplus
 }

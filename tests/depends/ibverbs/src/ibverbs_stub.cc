@@ -70,6 +70,16 @@ void IbverbsStubAddIpv4Device(const char *name, uint8_t a, uint8_t b, uint8_t c,
   g_nics.push_back(std::move(nic));
 }
 
+void IbverbsStubAddNameOnly(const char *name) {
+  if (name == nullptr || name[0] == '\0') {
+    return;
+  }
+  std::lock_guard<std::mutex> lock(g_ibv_mu);
+  NicStub nic;
+  nic.name = name;
+  g_nics.push_back(std::move(nic));
+}
+
 struct ibv_device **ibv_get_device_list(int *num_devices) {
   std::lock_guard<std::mutex> lock(g_ibv_mu);
   g_devices.clear();

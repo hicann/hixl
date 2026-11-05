@@ -74,6 +74,23 @@ class OffsetLogicIdAclStub : public llm::AclRuntimeStub {
   }
 };
 
+class LogicIdAclStub : public llm::AclRuntimeStub {
+ public:
+  explicit LogicIdAclStub(int32_t logic_id) : logic_id_(logic_id) {}
+
+  aclError aclrtGetLogicDevIdByUserDevId(const int32_t userDevid, int32_t *const logicDevId) override {
+    (void)userDevid;
+    if (logicDevId == nullptr) {
+      return ACL_ERROR_INVALID_PARAM;
+    }
+    *logicDevId = logic_id_;
+    return ACL_ERROR_NONE;
+  }
+
+ private:
+  int32_t logic_id_;
+};
+
 class FailLogicIdAclStub : public llm::AclRuntimeStub {
  public:
   aclError aclrtGetLogicDevIdByUserDevId(const int32_t userDevid, int32_t *const logicDevId) override {
@@ -266,13 +283,42 @@ TEST_F(HostRoceEndpointGeneratorUTest, DcmiAffineNicsAreSorted) {
   IbverbsStubAddIpv4Device("abc0", 10, 0, 0, 1);
   DcmiStubSetNicTopo(0, 8);
   DcmiStubSetSuperPodId(1, 0);
+  ScopedAclRuntimeStub acl_stub(std::make_shared<LogicIdAclStub>(0));
   HixlOptions options = ParseGlobalConfig(R"({"comm_resource_config.protocol_desc":["roce:host"]})");
   std::vector<EndpointConfig> endpoint_list;
   EXPECT_EQ(HostRoceEndpointGenerator::GenerateHostRoceEndpoints(options, endpoint_list), SUCCESS);
-  ASSERT_EQ(endpoint_list.size(), 2U);
+  ASSERT_EQ(endpoint_list.size(), 1U);
   EXPECT_EQ(endpoint_list[0].comm_id, "10.0.0.1");
-  EXPECT_EQ(endpoint_list[1].comm_id, "10.0.0.2");
   EXPECT_EQ(endpoint_list[0].net_instance_id, "superpod_1");
+}
+
+TEST_F(HostRoceEndpointGeneratorUTest, DcmiSelectsNicByLogicIdModulo) {
+  for (int32_t i = 0; i < 8; ++i) {
+    const std::string name = "hrn5_" + std::to_string(i);
+    IbverbsStubAddIpv4Device(name.c_str(), 10, 0, 0, static_cast<uint8_t>(i));
+  }
+  DcmiStubSetNicTopo(0, 8);
+  DcmiStubSetSuperPodId(1, 0);
+  ScopedAclRuntimeStub acl_stub(std::make_shared<LogicIdAclStub>(6));
+  HixlOptions options = ParseGlobalConfig(R"({"comm_resource_config.protocol_desc":["roce:host"]})");
+  std::vector<EndpointConfig> endpoint_list;
+  EXPECT_EQ(HostRoceEndpointGenerator::GenerateHostRoceEndpoints(options, endpoint_list), SUCCESS);
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_EQ(endpoint_list[0].comm_id, "10.0.0.6");
+}
+
+TEST_F(HostRoceEndpointGeneratorUTest, DcmiModuloSkipsAffineNicWithoutIpv4) {
+  IbverbsStubAddIpv4Device("hrn5_0", 10, 0, 0, 1);
+  IbverbsStubAddNameOnly("hrn5_1");
+  IbverbsStubAddIpv4Device("hrn5_2", 10, 0, 0, 2);
+  DcmiStubSetNicTopo(0, 8);
+  DcmiStubSetSuperPodId(1, 0);
+  ScopedAclRuntimeStub acl_stub(std::make_shared<LogicIdAclStub>(1));
+  HixlOptions options = ParseGlobalConfig(R"({"comm_resource_config.protocol_desc":["roce:host"]})");
+  std::vector<EndpointConfig> endpoint_list;
+  EXPECT_EQ(HostRoceEndpointGenerator::GenerateHostRoceEndpoints(options, endpoint_list), SUCCESS);
+  ASSERT_EQ(endpoint_list.size(), 1U);
+  EXPECT_EQ(endpoint_list[0].comm_id, "10.0.0.2");
 }
 
 TEST_F(HostRoceEndpointGeneratorUTest, AutoGenKeepsOnlyHostRoceWhenProtocolIsRoceHost) {

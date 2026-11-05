@@ -43,11 +43,6 @@ struct NicAffinityEntry {
 };
 using NicTopoData = std::map<int32_t, NicAffinityEntry>;
 
-Status FailHostRoce(const char *reason) {
-  HIXL_LOGE(PARAM_INVALID, "%s", reason);
-  return PARAM_INVALID;
-}
-
 struct SkipNicLog {
   int32_t user_id;
   const char *nic;
@@ -81,10 +76,8 @@ Status ParseNpuKey(const std::string &key, int32_t &user_id) {
   const char *digits = key.c_str() + prefix_len;
   HIXL_CHK_BOOL_RET_STATUS(std::isdigit(static_cast<unsigned char>(digits[0])) != 0, PARAM_INVALID,
                            "invalid nic topo key:%s", key.c_str());
-  if (digits[0] == '0' && digits[1] != '\0') {
-    HIXL_LOGE(PARAM_INVALID, "invalid nic topo key:%s", key.c_str());
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(digits[0] != '0' || digits[1] == '\0', PARAM_INVALID, "invalid nic topo key:%s",
+                           key.c_str());
   for (const char *p = digits; *p != '\0'; ++p) {
     HIXL_CHK_BOOL_RET_STATUS(std::isdigit(static_cast<unsigned char>(*p)) != 0, PARAM_INVALID,
                              "invalid nic topo key:%s", key.c_str());
@@ -149,9 +142,9 @@ Status ParseNicTopoFile(const std::string &path, NicTopoData &topo) {
 
 Status SelectPreferredNic(const NicTopoData &topo, int32_t user_device_id, std::string &nic_name) {
   const auto it = topo.find(user_device_id);
-  if (it == topo.end() || it->second.preferred.empty()) {
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(it != topo.end() && !it->second.preferred.empty(), PARAM_INVALID,
+                           "preferred nic is unavailable, host roce generation failed, user_device_id=%d",
+                           user_device_id);
   nic_name = it->second.preferred.front();
   return SUCCESS;
 }
@@ -165,9 +158,10 @@ Status FilterAffineNics(int32_t user_id, int32_t logic_id, std::vector<std::stri
       LogSkipNic({user_id, nic.c_str(), "query nic affinity failed, skip this nic", true, dcmi_ret, topo_type});
       continue;
     }
-    if (dcmi_ret == kDcmiErrCodeNotSupport) {
-      return PARAM_INVALID;
-    }
+    HIXL_CHK_BOOL_RET_STATUS(dcmi_ret != kDcmiErrCodeNotSupport, PARAM_INVALID,
+                             "dcmi nic topo returns not support, host roce generation failed, user_device_id=%d, "
+                             "logic_id=%d, nic=%s, dcmi_ret=%d",
+                             user_id, logic_id, nic.c_str(), dcmi_ret);
     if (dcmi_ret == 0 && topo_type == kDcmiTopoTypeUb) {
       hits.push_back(nic);
     } else if (dcmi_ret == 0) {
@@ -180,36 +174,65 @@ Status FilterAffineNics(int32_t user_id, int32_t logic_id, std::vector<std::stri
   return SUCCESS;
 }
 
-Status CollectDcmiNicNames(int32_t user_id, int32_t logic_id, std::vector<std::string> &nic_names,
-                           const char *&reason) {
-  if (!DcmiProxy::IsTopoInfoByNicSupported()) {
-    reason = "dcmi nic topo is unsupported, host roce generation failed";
-    return PARAM_INVALID;
+void KeepNicsWithIpv4(int32_t user_id, std::vector<std::string> &nic_names) {
+  std::vector<std::string> usable;
+  for (const auto &nic : nic_names) {
+    std::string ip;
+    if (IbverbsProxy::GetNicIpv4ByName(nic, ip) != SUCCESS) {
+      LogSkipNic({user_id, nic.c_str(), "affine nic has no ipv4, skip this nic"});
+      continue;
+    }
+    usable.push_back(nic);
   }
-  reason = "ibverbs device list is unavailable, host roce generation failed";
-  if (IbverbsProxy::ListNicNames(nic_names) != SUCCESS) {
-    return PARAM_INVALID;
+  nic_names = std::move(usable);
+}
+
+void KeepNicSelectedByLogicId(int32_t logic_id, std::vector<std::string> &nic_names) {
+  if (nic_names.empty()) {
+    return;
   }
+  // Usable NIC count can be smaller than the NPU count. logic_id modulo then wraps,
+  // so different NPUs can share the same RoCE IP.
+  const size_t index = static_cast<size_t>(logic_id) % nic_names.size();
+  std::string selected = std::move(nic_names[index]);
+  nic_names.clear();
+  nic_names.push_back(std::move(selected));
+}
+
+Status CollectDcmiNicNames(int32_t user_id, int32_t logic_id, std::vector<std::string> &nic_names) {
+  HIXL_CHK_BOOL_RET_STATUS(DcmiProxy::IsTopoInfoByNicSupported(), PARAM_INVALID,
+                           "dcmi nic topo is unsupported, host roce generation failed, user_device_id=%d, logic_id=%d",
+                           user_id, logic_id);
+  // ListNicNames returns FAILED. Keep the public Host RoCE failure as PARAM_INVALID.
+  HIXL_CHK_BOOL_RET_STATUS(IbverbsProxy::ListNicNames(nic_names) == SUCCESS, PARAM_INVALID,
+                           "ibverbs device list is unavailable, host roce generation failed, user_device_id=%d, "
+                           "logic_id=%d",
+                           user_id, logic_id);
   std::sort(nic_names.begin(), nic_names.end());
-  reason = "dcmi nic topo returns not support, host roce generation failed";
-  return FilterAffineNics(user_id, logic_id, nic_names);
+  HIXL_CHK_STATUS_RET(FilterAffineNics(user_id, logic_id, nic_names),
+                      "dcmi nic topo returns not support, host roce generation failed, user_device_id=%d, logic_id=%d",
+                      user_id, logic_id);
+  KeepNicsWithIpv4(user_id, nic_names);
+  KeepNicSelectedByLogicId(logic_id, nic_names);
+  return SUCCESS;
 }
 
 Status CollectHostRoceNics(const HixlOptions &options, int32_t user_id, int32_t logic_id,
-                           std::vector<std::string> &nic_names, const char *&reason) {
+                           std::vector<std::string> &nic_names) {
   nic_names.clear();
   const auto path = options.NicTopoPath();
   if (path.has_value()) {
-    reason = "preferred nic is unavailable, host roce generation failed";
     NicTopoData topo;
     std::string nic;
-    if (ParseNicTopoFile(*path, topo) != SUCCESS || SelectPreferredNic(topo, user_id, nic) != SUCCESS) {
-      return PARAM_INVALID;
-    }
+    HIXL_CHK_STATUS_RET(ParseNicTopoFile(*path, topo), "ParseNicTopoFile failed, user_device_id=%d", user_id);
+    HIXL_CHK_STATUS_RET(SelectPreferredNic(topo, user_id, nic), "SelectPreferredNic failed, user_device_id=%d",
+                        user_id);
     nic_names.push_back(std::move(nic));
     return SUCCESS;
   }
-  return CollectDcmiNicNames(user_id, logic_id, nic_names, reason);
+  HIXL_CHK_STATUS_RET(CollectDcmiNicNames(user_id, logic_id, nic_names),
+                      "CollectDcmiNicNames failed, user_device_id=%d, logic_id=%d", user_id, logic_id);
+  return SUCCESS;
 }
 
 Status ResolveHostRoceNetInstanceId(int32_t logic_id, std::string &net_instance_id) {
@@ -244,9 +267,9 @@ Status BuildAndAppendHostRoceEdges(const HostRoceBuildInput &input, std::vector<
   for (const auto &nic : input.nic_names) {
     std::string ip;
     if (IbverbsProxy::GetNicIpv4ByName(nic, ip) != SUCCESS) {
-      if (input.manual) {
-        return FailHostRoce("preferred nic has no ipv4, host roce generation failed");
-      }
+      HIXL_CHK_BOOL_RET_STATUS(!input.manual, PARAM_INVALID,
+                               "preferred nic has no ipv4, host roce generation failed, user_device_id=%d, nic=%s",
+                               input.user_id, nic.c_str());
       LogSkipNic({input.user_id, nic.c_str(), "affine nic has no ipv4, skip this nic"});
       continue;
     }
@@ -254,9 +277,9 @@ Status BuildAndAppendHostRoceEdges(const HostRoceBuildInput &input, std::vector<
                source, ip.c_str());
     created.push_back(MakeHostRoceEndpoint(ip, input.net_instance_id));
   }
-  if (created.empty()) {
-    return FailHostRoce("no host roce endpoint is generated, host roce generation failed");
-  }
+  HIXL_CHK_BOOL_RET_STATUS(!created.empty(), PARAM_INVALID,
+                           "no host roce endpoint is generated, host roce generation failed, user_device_id=%d",
+                           input.user_id);
   endpoint_list.insert(endpoint_list.end(), created.begin(), created.end());
   return SUCCESS;
 }
@@ -266,27 +289,26 @@ Status BuildAndAppendHostRoceEdges(const HostRoceBuildInput &input, std::vector<
 Status HostRoceEndpointGenerator::GenerateHostRoceEndpoints(const HixlOptions &options,
                                                             std::vector<EndpointConfig> &endpoint_list) {
   int32_t user_id = 0;
-  if (aclrtGetDevice(&user_id) != ACL_SUCCESS) {
-    return FailHostRoce("failed to get user device id, host roce generation failed");
-  }
+  const aclError device_ret = aclrtGetDevice(&user_id);
+  HIXL_CHK_BOOL_RET_STATUS(device_ret == ACL_SUCCESS, PARAM_INVALID,
+                           "failed to get user device id, host roce generation failed, ret=%d", device_ret);
   int32_t logic_id = 0;
   const aclError logic_ret = aclrtGetLogicDevIdByUserDevId(user_id, &logic_id);
-  if (logic_ret != ACL_SUCCESS) {
-    HIXL_LOGE(PARAM_INVALID, "Call api:aclrtGetLogicDevIdByUserDevId failed, ret=%d, user_device_id=%d", logic_ret,
-              user_id);
-    return PARAM_INVALID;
-  }
+  HIXL_CHK_BOOL_RET_STATUS(logic_ret == ACL_SUCCESS, PARAM_INVALID,
+                           "Call api:aclrtGetLogicDevIdByUserDevId failed, ret=%d, user_device_id=%d", logic_ret,
+                           user_id);
   std::vector<std::string> nic_names;
-  const char *reason = "no host roce endpoint is generated, host roce generation failed";
-  if (CollectHostRoceNics(options, user_id, logic_id, nic_names, reason) != SUCCESS) {
-    return FailHostRoce(reason);
-  }
+  HIXL_CHK_STATUS_RET(CollectHostRoceNics(options, user_id, logic_id, nic_names),
+                      "CollectHostRoceNics failed, user_device_id=%d, logic_id=%d", user_id, logic_id);
   std::string net_instance_id;
-  if (ResolveHostRoceNetInstanceId(logic_id, net_instance_id) != SUCCESS) {
-    return FailHostRoce("host roce net_instance_id is unavailable, host roce generation failed");
-  }
+  // GetDeviceInfo failure is FAILED inside the helper. The Host RoCE entry still returns PARAM_INVALID.
+  HIXL_CHK_BOOL_RET_STATUS(ResolveHostRoceNetInstanceId(logic_id, net_instance_id) == SUCCESS, PARAM_INVALID,
+                           "host roce net_instance_id is unavailable, host roce generation failed, logic_id=%d",
+                           logic_id);
   const HostRoceBuildInput build_input{user_id, options.NicTopoPath().has_value(), nic_names, net_instance_id};
-  return BuildAndAppendHostRoceEdges(build_input, endpoint_list);
+  HIXL_CHK_STATUS_RET(BuildAndAppendHostRoceEdges(build_input, endpoint_list),
+                      "BuildAndAppendHostRoceEdges failed, user_device_id=%d", user_id);
+  return SUCCESS;
 }
 
 }  // namespace hixl
