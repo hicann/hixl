@@ -65,7 +65,7 @@ pre-commit run --files <changed-files>     # 只检查受影响文件
 
 - 测试文件命名：C++ 以 `_unittest.cc` 或 `_ut.cc` 结尾，Python 以 `test_*.py` 命名。
 - 行为变更必须补齐或更新测试。
-- C++ 用例按 suite 放置：`tests/cpp/llm_datadist/`、`tests/cpp/adxl/`、`tests/cpp/hixl/`（含 `ubmem/`）；端口规划见 `tests/cpp/TEST_PORTS.md`。
+- C++ 用例按 suite 放置：`tests/cpp/llm_datadist/`、`tests/cpp/adxl/`、`tests/cpp/hixl/`（含 `ubmem/`）；新增用例使用的固定监听端口需避开已用端口，以用例文件内注释为准。
 - Python 用例放在 `tests/python/test_*.py`。
 
 ## 提交前检查与提交规范

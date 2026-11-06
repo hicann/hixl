@@ -42,6 +42,8 @@ HIXL (Huawei Xfer Library) is a flexible and efficient Ascend one-sided communic
 
 <img src="docs/en/figures/architecture.png" alt="Architecture">
 
+> **Note**: Figures in this repository are stored via [Git LFS](https://git-lfs.com/). If images fail to render after cloning, install Git LFS and run `git lfs pull`.
+
 **Core Components**
 
 - **HIXL Engine**: As the core transmission engine, provides basic transmission interfaces, supports multiple memory type transmissions such as D2D, D2H, H2D. Compatible with multiple transmission protocols including HCCS, RDMA, UB_CTP, UB_RTP, UBoE, etc. Enables high-speed, reliable data transmission. Natively supports multiple data link types, can flexibly handle complex scenarios in homogeneous and heterogeneous clusters. Facing dynamic cluster node scaling requirements, can quickly complete link adaptation and resource scheduling, building reliable communication foundation for overall cluster operation.

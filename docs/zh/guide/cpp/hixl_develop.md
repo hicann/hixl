@@ -203,7 +203,7 @@ if (ret != SUCCESS) {
     - 在Client侧调用TransferSync接口，设置operation参数为READ，即从远端地址读取内存到本地，其中，本地地址和远端地址需在建链前分别在本地和远端完成注册。
 
         ```cpp
-        TransferOpDesc desc{reinterpret_cast<uintptr_t>(&local), reinterpret_cast<uintptr_t>(remote), size};
+        TransferOpDesc desc{reinterpret_cast<uintptr_t>(local), reinterpret_cast<uintptr_t>(remote), size};
         auto ret = engine.TransferSync(remote_engine, READ, {desc});
         if (ret != SUCCESS) {
             printf("[ERROR] TransferSync read failed, ret = %u\n", ret);

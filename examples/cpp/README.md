@@ -26,6 +26,7 @@
 |   ├── hixl_example_d2rd.cpp                          // HIXL的D2rD单进程场景样例
 |   ├── hixl_example_d2rh.cpp                          // HIXL的D2rH单进程场景样例
 |   ├── hixl_example_d2rd_multiproc.cpp                // HIXL的D2rD多进程场景样例
+|   ├── hixl_example_quickstart.cpp                    // HIXL快速入门样例（hccs:device链路功能验证）
 |   ├── ubmem_d2d.cpp                                  // HIXL的UBMEM模式下d2d场景样例
 |   ├── CMakeLists.txt                                 // 编译脚本
 ```
@@ -121,12 +122,13 @@
     - 单进程用例（hixl_example_d2rd、hixl_example_d2rh）在一个进程内启动两个engine，无需分开终端，在大于等于CANN-9.1.0版本支持。
     - 多进程用例（hixl_example_d2rd_multiproc）需要分别在两个终端启动server和client，server先启动，无CANN版本要求。
     - ubmem_d2d需要成对运行，两个终端分别启动。
+    - hixl_example_quickstart为快速入门用例，运行方式见[快速入门](../../docs/zh/quick_start.md)。
 
   - HIXL样例进程参数说明
 
     | 参数 | 适用样例 | 必选/可选 | 默认值 | 说明 |
     | --- | --- | --- | --- | --- |
-    | `--protocol=<type>[,...]` | hixl_example_d2rd、hixl_example_d2rh、hixl_example_d2rd_multiproc | 必选 | - | 通信协议，支持逗号分隔多协议。hixl_example_d2rd支持`roce:device`、`uboe:device`、`ub_rtp:device`、`ub_ctp:device`；hixl_example_d2rh支持`roce:device`、`uboe:device`、`ub_rtp:device`、`ub_ctp`、`ub_ctp:device`、`ub_ctp:host`；hixl_example_d2rd_multiproc支持`hccs:device`、`roce:device`、`uboe:device`、`ub_rtp:device`、`ub_ctp:device`。协议硬件依赖如下：`hccs:device`、`roce:device`仅支持Atlas A2 训练系列产品/Atlas A2 推理系列产品、Atlas A3 训练系列产品/Atlas A3 推理系列产品；`uboe:device`、`ub_rtp:device`、`ub_ctp`、`ub_ctp:device`、`ub_ctp:host`仅支持Ascend 950PR/Ascend 950DT。协议定义详见[HIXL接口](../../docs/zh/api/cpp/HIXL-interface.md)中`comm_resource_config.protocol_desc`的option说明。 |
+    | `--protocol=<type>[,...]` | hixl_example_d2rd、hixl_example_d2rh、hixl_example_d2rd_multiproc | 必选 | - | 通信协议，支持逗号分隔多协议。hixl_example_d2rd支持`roce:device`、`roce:host`、`uboe:device`、`ub_rtp:device`、`ub_ctp:device`；hixl_example_d2rh支持`roce:device`、`roce:host`、`uboe:device`、`ub_rtp:device`、`ub_ctp`、`ub_ctp:device`、`ub_ctp:host`；hixl_example_d2rd_multiproc支持`hccs:device`、`roce:device`、`roce:host`、`uboe:device`、`ub_rtp:device`、`ub_ctp:device`。协议硬件依赖如下：`hccs:device`、`roce:device`仅支持Atlas A2 训练系列产品/Atlas A2 推理系列产品、Atlas A3 训练系列产品/Atlas A3 推理系列产品；`uboe:device`、`ub_rtp:device`、`ub_ctp`、`ub_ctp:device`、`ub_ctp:host`仅支持Ascend 950PR/Ascend 950DT。协议定义详见[HIXL接口](../../docs/zh/api/cpp/HIXL-interface.md)中`comm_resource_config.protocol_desc`的option说明。 |
     | `--device=<id>`或`--device=id1,id2` | hixl_example_d2rd、hixl_example_d2rh、hixl_example_d2rd_multiproc | 可选 | hixl_example_d2rd、hixl_example_d2rh默认0,2；hixl_example_d2rd_multiproc默认client=0、server=2 | hixl_example_d2rd、hixl_example_d2rh使用`--device=id1,id2`指定两个engine分别绑定的device；hixl_example_d2rd_multiproc使用`--device=<id>`指定当前进程绑定的device。 |
     | <code>--version=0&#124;1</code> | hixl_example_d2rd、hixl_example_d2rh、hixl_example_d2rd_multiproc | 可选 | 1 | 配置为0时，表示使用HCCL集合通信通信域方式构筑的单边通信能力，仅支持Atlas A2 训练系列产品/Atlas A2 推理系列产品、Atlas A3 训练系列产品/Atlas A3 推理系列产品；配置为1时，表示HIXL调用HIXL CS接口实现的单边通信能力，解耦通信域，推荐使用，支持Atlas A2 训练系列产品/Atlas A2 推理系列产品、Atlas A3 训练系列产品/Atlas A3 推理系列产品、Ascend 950PR/Ascend 950DT。 |
     | <code>--role=client&#124;server</code> | hixl_example_d2rd_multiproc | 必选 | - | 指定当前进程为client或server。 |

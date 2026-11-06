@@ -23,6 +23,7 @@ static const uint32_t HIXL_SUCCESS = 0U;
 static const uint32_t HIXL_PARAM_INVALID = 103900U;
 static const uint32_t HIXL_TIMEOUT = 103901U;
 static const uint32_t HIXL_FAILED = 503900U;
+static const uint32_t HIXL_RESOURCE_EXHAUSTED = 203900U;
 ```
 
 具体错误码含义如下。
@@ -33,6 +34,7 @@ static const uint32_t HIXL_FAILED = 503900U;
 | HIXL_PARAM_INVALID | 参数错误 | 是 | 基于日志排查错误原因。 |
 | HIXL_TIMEOUT | 处理超时 | 否 | 保留现场，获取Host/Device日志，并备份。 |
 | HIXL_FAILED | 通用失败 | 否 | 保留现场，获取Host/Device日志，并备份。 |
+| HIXL_RESOURCE_EXHAUSTED | 资源耗尽（如传输任务槽位、TLS并发握手数达到上限） | 是 | 先通过HixlCSClientQueryCompleteStatus确认在途传输任务状态并释放槽位后重试；TLS握手受限时降低建链并发。 |
 
 ## 句柄类型
 

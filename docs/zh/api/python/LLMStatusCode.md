@@ -7,6 +7,7 @@ LLMException中status\_code对应的枚举类，枚举值及解决方法如下�
 | LLM_SUCCESS | 成功 | 无 | 无 |
 | LLM_FAILED | 通用失败 | 否 | 重启机器或容器。<br>保留现场，获取Host/Device日志，并备份。 |
 | LLM_PARAM_INVALID | 参数错误 | 是 | 基于日志排查错误原因。 |
+| LLM_WAIT_PROCESS_TIMEOUT | 请求等待处理超时 | 是 | 检查是否存在并发过大或负载过高。可通过LLMConfig的sync_kv_timeout配置项调大KV相关操作的超时时间后重试。 |
 | LLM_KV_CACHE_NOT_EXIST | KV不存在 | 是 | - 检查对应全量侧报错日志中的请求是否完成。<br>  - 检查是否存在重复拉取。<br>  - 检查标记目标cache的参数是否错误。 |
 | LLM_REPEAT_REQUEST | 重复请求 | 是 | 检查是否存在重复调用。 |
 | LLM_ENGINE_FINALIZED | LLMDataDist已终止 | 是 | 在调用LLMDataDist.finalize()后通过旧CacheManager执行操作时返回。重新调用init()后，应通过新的cache\_manager获取新实例。 |
@@ -17,6 +18,7 @@ LLMException中status\_code对应的枚举类，枚举值及解决方法如下�
 | LLM_NOTIFY_PROMPT_UNLINK_FAILED | 通知Prompt侧断链失败 | 是 | 1. 排查Decode与Prompt之间的网络连接。<br>  2. 主动调Prompt侧的unlink_clusters清理残留资源。 |
 | LLM_CLUSTER_NUM_EXCEED_LIMIT | 集群数量超过限制。 | 是 | 排查link_clusters和unlink_clusters传入参数，clusters数量不能超过16。 |
 | LLM_PROCESSING_LINK | 正在处理建链 | 是 | 当前正在执行建链或断链操作，请稍后再试。 |
+| LLM_DEVICE_OUT_OF_MEMORY | Device内存不足 | 是 | 检查Device内存占用，释放不再使用的KV Cache或降低并发后重试。 |
 | LLM_PREFIX_ALREADY_EXIST | 前缀已经存在 | 是 | 检查是否已加载过相同Prefix Id的公共前缀。如果是，需要先释放。 |
 | LLM_PREFIX_NOT_EXIST | 前缀不存在 | 是 | 检查Request中的Prefix Id是否已加载过。 |
 | LLM_EXIST_LINK | switch_role时，存在未释放的链接。 | 是 | 检查在切换当前LLMDataDist的角色前是否已经调用unlink_clusters断开所有的链接。 |

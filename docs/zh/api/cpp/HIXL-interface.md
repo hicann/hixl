@@ -1166,6 +1166,15 @@ Status TransferSync(const AscendString &remote_engine,
 - 在Fabric Mem传输模式下, 所有op_descs的传输类型需要相同，系统会根据第一个op_desc的内存类型判定传输方向。该约束支持的型号如下：
   - Atlas A3系列产品
   <!-- end id30 -->
+  <!-- npu="A3,910b" id81 -->
+- 未开启Fabric Mem模式时，通过HCCS协议直传支持的传输方向与芯片型号相关：Atlas A2系列产品仅支持D2rD、rD2D方向；Atlas A3系列产品支持D2rD、rD2D、H2rD、rD2H方向。D2rH、rH2D、H2rH、rH2H方向不支持HCCS直传，如需使用HCCS进行D2rH、rH2D传输，Atlas A3系列产品可开启Fabric Mem模式（详见[EnableUseFabricMem](#option_enable_use_fabric_mem)）。各协议不同方向的实测带宽详见[通信性能数据](../../../../benchmarks/performance.md)。该约束支持的型号如下：
+  <!-- npu="910b" id82 -->
+  - Atlas A2系列产品
+  <!-- end id82 -->
+  <!-- npu="A3" id83 -->
+  - Atlas A3系列产品
+  <!-- end id83 -->
+<!-- end id81 -->
 
 ## TransferAsync
 
@@ -1226,6 +1235,15 @@ Status TransferSync(const AscendString &remote_engine,
 - 在Fabric Mem传输模式下, 所有op_descs的传输类型需要相同，系统会根据第一个op_desc的内存类型判定传输方向。该约束支持的型号如下：
   - Atlas A3系列产品
   <!-- end id34 -->
+  <!-- npu="A3,910b" id84 -->
+- 未开启Fabric Mem模式时，通过HCCS协议直传支持的传输方向与芯片型号相关：Atlas A2系列产品仅支持D2rD、rD2D方向；Atlas A3系列产品支持D2rD、rD2D、H2rD、rD2H方向。D2rH、rH2D、H2rH、rH2H方向不支持HCCS直传，如需使用HCCS进行D2rH、rH2D传输，Atlas A3系列产品可开启Fabric Mem模式（详见[EnableUseFabricMem](#option_enable_use_fabric_mem)）。各协议不同方向的实测带宽详见[通信性能数据](../../../../benchmarks/performance.md)。该约束支持的型号如下：
+  <!-- npu="910b" id85 -->
+  - Atlas A2系列产品
+  <!-- end id85 -->
+  <!-- npu="A3" id86 -->
+  - Atlas A3系列产品
+  <!-- end id86 -->
+<!-- end id84 -->
 
 ## GetTransferStatus（查询指定传输请求）
 

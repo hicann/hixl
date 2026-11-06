@@ -241,7 +241,7 @@ Status SetRole(LlmRole role, const std::map<AscendString, AscendString> &options
 | 参数名 | 输入/输出 | 描述 |
 | --- | --- | --- |
 | role | 输入 | 角色类型，类型为LlmRole。 |
-| options | 输入 | 设置角色的参数，当前支持的参数请参见表1。(#table1987921348)。 |
+| options | 输入 | 设置角色的参数，当前支持的参数请参见表1。 |
 
 **表 1**  配置项
 

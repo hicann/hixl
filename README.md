@@ -42,6 +42,8 @@ HIXL（Huawei Xfer Library）是一个灵活、高效的昇腾单边通信库，
 
 <img src="docs/zh/figures/architecture.png" alt="架构图">
 
+> **说明**：仓库中的架构图等图片使用[Git LFS](https://git-lfs.com/)存储，克隆后如图片无法显示，请先安装并执行 `git lfs pull`。
+
 **核心组件**
 
 - **HIXL Engine**：作为核心传输引擎，提供了基础传输接口，支持多种类型内存类型传输，比如D2D、D2H、H2D。同时兼容多种传输协议，包括HCCS、RDMA、UB_CTP、UB_RTP、UBoE等。可实现高速、可靠的数据传输。原生支持多类型数据链路，可灵活同构集群、异构集群的复杂场景。面对集群节点动态扩缩容需求时，可快速完成链路适配与资源调度，为集群整体运行构建可靠通信基础。
