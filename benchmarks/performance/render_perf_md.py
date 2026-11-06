@@ -59,14 +59,15 @@ TRANSPORT_LABEL: dict[str, str] = {
     "fabric_mem": "UbMem",
     "ub": "UB",
 }
-BLOCK_SORT_ORDER = ['16K', '32K', '64K', '128K', '256K', '512K', '1M', '2M', '4M', '8M']
 
 
-def block_sort_key(b: str) -> int:
+def block_sort_key(b: str) -> int | float:
+    """Order CSV-derived labels by their byte counts, including custom sizes."""
+    factor = {'K': 1024, 'M': 1024 * 1024}.get(b[-1:])
     try:
-        return BLOCK_SORT_ORDER.index(b)
+        return int(b[:-1]) * factor if factor is not None else int(b)
     except ValueError:
-        return 999
+        return float('inf')
 
 
 def block_label_from_bytes(bs: int | str) -> str:
@@ -335,8 +336,9 @@ def _platform_intro_body(pid: str, deployment: str) -> str:
             '本页展示 HIXL 在 **昇腾 A5（Ascend950-class）** 上的通信性能数据。\n\n'
             '**测试方式**：在同一台机器上运行 `hixl_comm_bench` 的 target 和 initiator，'
             '测量不同 block size（16K～2M）下的有效带宽。\n\n'
-            '**约束**：**Ascend950-class 产品上 comm benchmark 不使用 HCCS**；'
-            '通信方向请查看 **RDMA** 或 **UbMem** 列。表中 **HCCS** 列均为 **不支持**。\n\n'
+            '**当前 benchmark 报告范围**：当前报告未包含 HCCS / FabricMem 列——'
+            'A5 不支持 HCCS，FabricMem 硬件范围仅 A3；'
+            'A5 报告仅覆盖 **RDMA**、**UBOE**、**UB_RTP**、**UB**。\n\n'
         )
     return ''
 

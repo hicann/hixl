@@ -36,16 +36,14 @@ from benchmark_log import configure_logging  # noqa: E402
 configure_logging()
 log = logging.getLogger(__name__)
 
-BLOCK_ORDER = ["16K", "32K", "64K", "128K", "256K", "512K", "1M", "2M", "4M", "8M"]
 
-
-def block_sort_key(label: str) -> int:
-    if label.isdecimal():
-        return int(label)
+def block_sort_key(label: str) -> int | float:
+    """Order block labels by byte count, including custom sizes."""
+    factor = {'K': 1024, 'M': 1024 * 1024}.get(label[-1:])
     try:
-        return BLOCK_ORDER.index(label)
+        return int(label[:-1]) * factor if factor is not None else int(label)
     except ValueError:
-        return 999
+        return float('inf')
 
 
 # ---------------------------------------------------------------------------

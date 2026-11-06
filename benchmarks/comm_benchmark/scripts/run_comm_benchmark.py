@@ -69,7 +69,6 @@ TRANSPORTS_A2 = ['hccs', 'roce']
 TRANSPORTS_A3 = ['hccs', 'roce', 'fabric_mem']
 TRANSPORTS_A5 = ['roce', 'uboe', 'ub_rtp', 'ub']
 DEFAULT_BLOCK_SIZES = '16K:2M'
-BLOCK_SORT_ORDER = ['16K', '32K', '64K', '128K', '256K', '512K', '1M', '2M', '4M', '8M']
 DEFAULT_TCP_ACCEPT_WAIT_SINGLE = 30
 DEFAULT_TCP_ACCEPT_WAIT_ALL = 300
 DEFAULT_INTER_RUN_DELAY_SEC = 3
@@ -843,11 +842,13 @@ def block_label_from_bytes(block_size: int) -> str:
     return str(block_size)
 
 
-def block_sort_key(block_label: str) -> int:
+def block_sort_key(block_label: str) -> int | float:
+    """Order summary labels by bytes, including custom block sizes."""
+    factor = {'K': 1024, 'M': 1024 * 1024}.get(block_label[-1:])
     try:
-        return BLOCK_SORT_ORDER.index(block_label)
+        return int(block_label[:-1]) * factor if factor is not None else int(block_label)
     except ValueError:
-        return len(BLOCK_SORT_ORDER)
+        return float('inf')
 
 
 def _append_csv_summary_groups(csv_path: Path, groups) -> None:
@@ -882,8 +883,8 @@ def print_average_summary(csvs):
         return
     log.info('\n[AVG] Bandwidth summary (same mean as perf.md)')
 
-    def sort_key(item):
-        return (item[0][0], item[0][1], block_sort_key(item[0][2]))
+    def sort_key(key):
+        return (key[0], key[1], block_sort_key(key[2]))
 
     for (direction, transport, block_label) in sorted(groups, key=sort_key):
         values = groups[direction, transport, block_label]
