@@ -172,14 +172,20 @@ Status DcmiProxy::GetLogicIdFromPhyId(uint32_t phy_id, uint32_t *logic_id) {
   return SUCCESS;
 }
 
-Status DcmiProxy::GetUrmaDeviceCnt(uint32_t logic_id, uint32_t *dev_cnt) {
+Status DcmiProxy::GetUrmaDeviceCnt(uint32_t logic_id, uint32_t *dev_cnt, bool report_error) {
   std::lock_guard<std::mutex> lock(g_dcmi_mu);
   HIXL_CHK_STATUS_RET(EnsureDcmiReady(), "[DcmiProxy] EnsureDcmiReady failed");
   HIXL_CHK_BOOL_RET_STATUS(g_dcmi_get_urma_device_cnt != nullptr, FAILED,
                            "[DcmiProxy] GetUrmaDeviceCnt symbol is null");
   const int32_t ret = g_dcmi_get_urma_device_cnt(static_cast<int32_t>(logic_id), dev_cnt);
-  HIXL_CHK_BOOL_RET_STATUS(
-      ret == 0, FAILED, "[DcmiProxy] Call api:dcmiv2_get_urma_device_cnt failed, ret=%d, logic_id=%u", ret, logic_id);
+  if (ret != 0) {
+    if (report_error) {
+      HIXL_REPORT_ERR_MSG("E19999", "[DcmiProxy] Call api:dcmiv2_get_urma_device_cnt failed, ret=%d, logic_id=%u", ret,
+                          logic_id);
+      HIXL_LOGE(FAILED, "[DcmiProxy] Call api:dcmiv2_get_urma_device_cnt failed, ret=%d, logic_id=%u", ret, logic_id);
+    }
+    return FAILED;
+  }
   return SUCCESS;
 }
 

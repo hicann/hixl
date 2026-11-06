@@ -44,6 +44,8 @@ static int g_logicid_ret = 0;
 // dcmiv2_get_urma_device_cnt 控制
 static uint32_t g_urma_device_cnt = 1;
 static int g_urma_device_cnt_ret = 0;
+static int g_urma_fail_npu_id = -1;
+static int g_urma_fail_npu_ret = 0;
 
 // dcmiv2_get_device_info (SPOD) 控制
 static uint32_t g_super_pod_id = 0;
@@ -95,9 +97,11 @@ int dcmiv2_get_dev_id_from_chip_phyid(unsigned int phy_id, unsigned int *logic_i
 }
 
 int dcmiv2_get_urma_device_cnt(int npu_id, unsigned int *dev_cnt) {
-  (void)npu_id;
   if (dev_cnt == nullptr) {
     return -1;
+  }
+  if (g_urma_fail_npu_id >= 0 && npu_id == g_urma_fail_npu_id) {
+    return g_urma_fail_npu_ret;
   }
   if (g_urma_device_cnt_ret != 0) {
     return g_urma_device_cnt_ret;
@@ -136,7 +140,7 @@ struct EidInfoRaw {
   unsigned int eid_index;
 };
 
-// Fill UDMA 0: mesh serial ports 0-8 + CLOS PG (for BuildNpuRootInfo / D2D port match)
+// Fill UDMA 0: mesh serial ports 0-8 + CLOS PG (for D2D port match and CLOS PG)
 static int FillUdma0Eids(EidInfoRaw *infos, int eid_cnt_max, int mesh_die_id) {
   int count = 0;
   if (g_eid_count < 1 || eid_cnt_max < 1) {
@@ -297,6 +301,13 @@ void DcmiStubSetLogicId(uint32_t id, int ret) {
 void DcmiStubSetUrmaDeviceCnt(uint32_t cnt, int ret) {
   g_urma_device_cnt = cnt;
   g_urma_device_cnt_ret = ret;
+  g_urma_fail_npu_id = -1;
+  g_urma_fail_npu_ret = 0;
+}
+
+void DcmiStubSetUrmaDeviceCntFailForNpu(int npu_id, int ret) {
+  g_urma_fail_npu_id = npu_id;
+  g_urma_fail_npu_ret = ret;
 }
 
 void DcmiStubSetSuperPodId(uint32_t id, int ret) {

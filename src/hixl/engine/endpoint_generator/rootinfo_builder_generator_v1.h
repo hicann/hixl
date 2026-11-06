@@ -91,20 +91,43 @@ EidByte6Info ParseEidByte6(const std::string &eid);
 // ============ RootInfo build APIs ============
 
 /**
- * @brief Build RootInfo from an NPU ID
+ * @brief Load URMA devices for one NPU and fail when the query or the device list is empty
  * @param [in] npu_id NPU ID
- * @param [in] mesh_die_id Mesh-layer die_id (from topo, not product-form assumptions)
- * @param [in] clos_die_id CLOS-layer die_id (from topo, for logs)
- * @param [in] clos_port_keys CLOS serial-port keys ("die/port") of this NPU from topo
- * @param [out] root_info Output RootInfo
- * @return SUCCESS on success, other error codes on failure
+ * @param [out] urma_devices URMA device list
+ * @return SUCCESS when at least one URMA device is returned, FAILED otherwise
+ */
+Status LoadNpuUrmaDevices(int32_t npu_id, std::vector<UrmaDevice> &urma_devices);
+
+/**
+ * @brief Load URMA devices without reporting an inner error when the device count query fails
+ * @param [in] npu_id NPU ID
+ * @param [out] urma_devices URMA device list. Empty when the query fails or no EID is returned
+ * @return SUCCESS when the device count query succeeds, including an empty device list.
+ *         FAILED when the device count query fails
+ */
+Status TryLoadNpuUrmaDevices(int32_t npu_id, std::vector<UrmaDevice> &urma_devices);
+
+/**
+ * @brief Fill CLOS PG EIDs from an already loaded URMA device list
+ * @param [in] urma_devices URMA devices of one NPU
+ * @param [in] clos_die_id CLOS-layer die_id from topo, for logs
+ * @param [in] clos_port_keys CLOS serial-port keys ("die/port") of this NPU
+ * @param [out] root_info Receives clos_pg_eids. port_to_eid is left unchanged
  *
  * A URMA group is a CLOS PG group only when every physical port in the group is a
  * CLOS port in clos_port_keys. plane_pg_0 is the CLOS group with more CLOS ports;
  * plane_pg_1 is the group with fewer, when two groups exist.
  */
-Status BuildNpuRootInfo(int32_t npu_id, int32_t mesh_die_id, int32_t clos_die_id,
-                        const std::set<std::string> &clos_port_keys, NpuRootInfo &root_info);
+void FillNpuClosRootInfo(const std::vector<UrmaDevice> &urma_devices, int32_t clos_die_id,
+                         const std::set<std::string> &clos_port_keys, NpuRootInfo &root_info);
+
+/**
+ * @brief Fill fullmesh port EIDs from an already loaded URMA device list
+ * @param [in] urma_devices URMA devices of one NPU
+ * @param [in] mesh_die_id Mesh-layer die_id from topo
+ * @param [out] root_info Receives port_to_eid. clos_pg_eids is left unchanged
+ */
+void FillNpuMeshRootInfo(const std::vector<UrmaDevice> &urma_devices, int32_t mesh_die_id, NpuRootInfo &root_info);
 
 /**
  * @brief Get URMA Device list

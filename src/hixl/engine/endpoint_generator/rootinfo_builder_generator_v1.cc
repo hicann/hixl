@@ -75,7 +75,7 @@ std::string ConvertEidToString(const unsigned char *raw, size_t len) {
   return oss.str();
 }
 
-Status LoadUrmaDevicesFromDcmi(int32_t npu_id, std::vector<UrmaDevice> &urma_devices) {
+Status LoadUrmaDevicesFromDcmi(int32_t npu_id, std::vector<UrmaDevice> &urma_devices, bool report_error) {
   HIXL_CHK_STATUS_RET(DcmiProxy::LoadDcmi(), "Call api:LoadDcmi failed, npu_id:%d", npu_id);
 
   uint32_t logic_id = 0;
@@ -83,8 +83,15 @@ Status LoadUrmaDevicesFromDcmi(int32_t npu_id, std::vector<UrmaDevice> &urma_dev
                       "Call api:GetLogicIdFromPhyId failed, npu_id:%d", npu_id);
 
   uint32_t dev_cnt = 0;
-  HIXL_CHK_STATUS_RET(DcmiProxy::GetUrmaDeviceCnt(logic_id, &dev_cnt), "Call api:GetUrmaDeviceCnt failed, logic_id:%u",
-                      logic_id);
+  if (report_error) {
+    HIXL_CHK_STATUS_RET(DcmiProxy::GetUrmaDeviceCnt(logic_id, &dev_cnt),
+                        "Call api:GetUrmaDeviceCnt failed, logic_id:%u", logic_id);
+  } else {
+    const Status cnt_ret = DcmiProxy::GetUrmaDeviceCnt(logic_id, &dev_cnt, false);
+    if (cnt_ret != SUCCESS) {
+      return cnt_ret;
+    }
+  }
 
   for (size_t i = 0; i < dev_cnt; ++i) {
     UrmaDevice urma_dev;
@@ -120,23 +127,12 @@ Status LoadUrmaDevicesFromDcmi(int32_t npu_id, std::vector<UrmaDevice> &urma_dev
 
 Status GetUrmaDeviceList(int32_t npu_id, std::vector<UrmaDevice> &urma_devices) {
   urma_devices.clear();
-  return LoadUrmaDevicesFromDcmi(npu_id, urma_devices);
+  return LoadUrmaDevicesFromDcmi(npu_id, urma_devices, true);
 }
 
 void PrintEidDebugInfo(const std::string &eid, const EidByte6Info &info) {
   HIXL_LOGD("EID: %s, byte6=0x%x, high=0x%x, low=0x%x, die_id=%d, is_pg=%s, port=%d", eid.c_str(), info.byte6,
             info.high_nibble, info.low_nibble, info.die_id, info.is_pg_eid ? "true" : "false", info.port);
-}
-
-void PrintRootInfo(const NpuRootInfo &root_info) {
-  HIXL_LOGI("Built %zu port->eid mappings, clos_pg_eids=%zu", root_info.port_to_eid.size(),
-            root_info.clos_pg_eids.size());
-  for (const auto &kv : root_info.port_to_eid) {
-    HIXL_LOGD("  %s -> %s", kv.first.c_str(), kv.second.c_str());
-  }
-  for (const auto &pg : root_info.clos_pg_eids) {
-    HIXL_LOGD("  CLOS PG EID: %s", pg.eid.c_str());
-  }
 }
 
 void CollectMeshPorts(const std::vector<UrmaDevice> &urma_devices, int32_t mesh_die_id, NpuRootInfo &root_info) {
@@ -227,16 +223,7 @@ void CollectClosPgEids(const std::vector<UrmaDevice> &urma_devices, const std::s
   }
 }
 
-Status BuildNpuRootInfo(int32_t npu_id, int32_t mesh_die_id, int32_t clos_die_id,
-                        const std::set<std::string> &clos_port_keys, NpuRootInfo &root_info) {
-  HIXL_LOGI("npu_id=%d, mesh_die_id=%d, clos_die_id=%d, clos_ports=%zu", npu_id, mesh_die_id, clos_die_id,
-            clos_port_keys.size());
-
-  std::vector<UrmaDevice> urma_devices;
-  HIXL_CHK_STATUS_RET(GetUrmaDeviceList(npu_id, urma_devices), "Failed to get urma devices, npu_id=%d", npu_id);
-
-  HIXL_CHK_BOOL_RET_STATUS(!urma_devices.empty(), FAILED, "No urma devices for npu_id:%d", npu_id);
-
+void LogUrmaDevices(const std::vector<UrmaDevice> &urma_devices) {
   HIXL_LOGI("Got %zu urma device(s)", urma_devices.size());
   for (size_t i = 0; i < urma_devices.size(); ++i) {
     HIXL_LOGI("urma_dev[%zu]: name=%s, eids=%zu", i, urma_devices[i].name.c_str(), urma_devices[i].eid_list.size());
@@ -244,21 +231,32 @@ Status BuildNpuRootInfo(int32_t npu_id, int32_t mesh_die_id, int32_t clos_die_id
       HIXL_LOGI("eid[%zu]=%s", j, urma_devices[i].eid_list[j].c_str());
     }
   }
+}
 
-  HIXL_LOGI("Mesh die_id=%d", mesh_die_id);
-
-  root_info.port_to_eid.clear();
-  root_info.clos_pg_eids.clear();
-
-  CollectMeshPorts(urma_devices, mesh_die_id, root_info);
-  CollectClosPgEids(urma_devices, clos_port_keys, root_info);
-  PrintRootInfo(root_info);
-
-  HIXL_CHK_BOOL_RET_STATUS(!root_info.port_to_eid.empty() || !root_info.clos_pg_eids.empty(), FAILED,
-                           "Empty root_info for npu_id:%d, ports:%zu, clos_pg:%zu", npu_id,
-                           root_info.port_to_eid.size(), root_info.clos_pg_eids.size());
-
+Status LoadNpuUrmaDevices(int32_t npu_id, std::vector<UrmaDevice> &urma_devices) {
+  HIXL_CHK_STATUS_RET(GetUrmaDeviceList(npu_id, urma_devices), "Failed to get urma devices, npu_id=%d", npu_id);
+  HIXL_CHK_BOOL_RET_STATUS(!urma_devices.empty(), FAILED, "No urma devices for npu_id:%d", npu_id);
+  LogUrmaDevices(urma_devices);
   return SUCCESS;
+}
+
+Status TryLoadNpuUrmaDevices(int32_t npu_id, std::vector<UrmaDevice> &urma_devices) {
+  urma_devices.clear();
+  return LoadUrmaDevicesFromDcmi(npu_id, urma_devices, false);
+}
+
+void FillNpuClosRootInfo(const std::vector<UrmaDevice> &urma_devices, int32_t clos_die_id,
+                         const std::set<std::string> &clos_port_keys, NpuRootInfo &root_info) {
+  HIXL_LOGI("Collect CLOS root info, clos_die_id=%d, clos_ports=%zu, urma_devices=%zu", clos_die_id,
+            clos_port_keys.size(), urma_devices.size());
+  root_info.clos_pg_eids.clear();
+  CollectClosPgEids(urma_devices, clos_port_keys, root_info);
+}
+
+void FillNpuMeshRootInfo(const std::vector<UrmaDevice> &urma_devices, int32_t mesh_die_id, NpuRootInfo &root_info) {
+  HIXL_LOGI("Collect mesh root info, mesh_die_id=%d, urma_devices=%zu", mesh_die_id, urma_devices.size());
+  root_info.port_to_eid.clear();
+  CollectMeshPorts(urma_devices, mesh_die_id, root_info);
 }
 
 }  // namespace hixl

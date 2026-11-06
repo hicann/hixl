@@ -74,6 +74,7 @@ constexpr const char *kLinkTypePeer2Peer = "PEER2PEER";
 constexpr const char *kTopoType1DMesh = "1DMESH";
 constexpr const char *kTopoTypeClos = "CLOS";
 constexpr int32_t kTopoDieIdMax = 1;       // Dual-die chip; valid die_id is 0 or 1
+constexpr int32_t kInvalidTopoDieId = -1;  // Mesh or CLOS die was not resolved from topo
 constexpr size_t kD2DSkipReasonCount = 3;  // skip(link_type), skip(topo_type), skip(phy_id)
 
 // Plane constants
@@ -440,36 +441,38 @@ Status ComputeHostPgEid(int32_t phy_dev_id, const std::map<std::string, std::str
 
 // Parse a "die/port" string (e.g. "1/7") into die_id and port.
 // die_id must be 0 or 1 (same encoding as EID byte6); port is non-negative; the whole string must be consumed.
+// Returns FAILED without logging. Callers decide whether a bad die/port stops the flow.
 Status ParseDiePort(const std::string &port_str, int32_t &die_id, int32_t &port) {
   const size_t slash = port_str.find('/');
-  HIXL_CHK_BOOL_RET_STATUS(slash != std::string::npos && slash != 0U && slash + 1 < port_str.size(), FAILED,
-                           "[ParseDiePort] Invalid die/port format:%s", port_str.c_str());
+  if (slash == std::string::npos || slash == 0U || slash + 1 >= port_str.size()) {
+    return FAILED;
+  }
   size_t parsed_die = 0;
   size_t parsed_port = 0;
   try {
     die_id = std::stoi(port_str.substr(0, slash), &parsed_die);
     port = std::stoi(port_str.substr(slash + 1), &parsed_port);
   } catch (const std::invalid_argument &) {
-    HIXL_CHK_BOOL_RET_STATUS(false, FAILED, "[ParseDiePort] Failed to parse die/port as integer:%s", port_str.c_str());
+    return FAILED;
   } catch (const std::out_of_range &) {
-    HIXL_CHK_BOOL_RET_STATUS(false, FAILED, "[ParseDiePort] die/port out of range:%s", port_str.c_str());
+    return FAILED;
   }
   const size_t port_start = slash + 1;
   constexpr int32_t kPortMin = 0;
-  HIXL_CHK_BOOL_RET_STATUS(parsed_die == slash && parsed_port == port_str.size() - port_start && die_id >= 0 &&
-                               die_id <= kTopoDieIdMax && port >= kPortMin,
-                           FAILED, "[ParseDiePort] Invalid die/port value:%s, die_id=%d valid range [0, %d], port=%d",
-                           port_str.c_str(), die_id, kTopoDieIdMax, port);
+  if (parsed_die != slash || parsed_port != port_str.size() - port_start || die_id < 0 || die_id > kTopoDieIdMax ||
+      port < kPortMin) {
+    return FAILED;
+  }
   return SUCCESS;
 }
 
 // Parse die id from the first port in the list; SUCCESS on success.
 Status ResolveDieIdFromPorts(const std::vector<std::string> &ports, int32_t &die_id) {
-  HIXL_CHK_BOOL_RET_STATUS(!ports.empty(), FAILED, "[ResolveDieIdFromPorts] Empty port list");
+  if (ports.empty()) {
+    return FAILED;
+  }
   int32_t port = -1;
-  HIXL_CHK_STATUS_RET(ParseDiePort(ports.front(), die_id, port),
-                      "[ResolveDieIdFromPorts] Failed to parse first port:%s", ports.front().c_str());
-  return SUCCESS;
+  return ParseDiePort(ports.front(), die_id, port);
 }
 
 // Keep CLOS links whose net_layer equals the minimum among this NPU's CLOS edges.
@@ -492,57 +495,113 @@ Status CollectMinNetLayerClosLinks(const TopoData &topo_data, int32_t npu_id, st
       out.push_back(&link);
     }
   }
-  HIXL_CHK_BOOL_RET_STATUS(!out.empty(), FAILED, "[CollectMinNetLayerClosLinks] No CLOS edge for npu_id=%d", npu_id);
+  if (out.empty()) {
+    return SUCCESS;
+  }
   HIXL_LOGI("[CollectMinNetLayerClosLinks] npu_id=%d, min_net_layer=%d, clos_links=%zu", npu_id, min_net_layer,
             out.size());
   return SUCCESS;
 }
 
-// Resolve the 1DMESH die of an NPU from topo. local_a/local_b are the two endpoints of one mesh edge.
+const std::vector<std::string> *MeshPortsForNpu(const TopoLink &link, int32_t npu_id) {
+  if (link.topo_type != kTopoType1DMesh) {
+    return nullptr;
+  }
+  if (link.local_a == npu_id) {
+    return &link.local_a_ports;
+  }
+  if (link.local_b == npu_id) {
+    return &link.local_b_ports;
+  }
+  return nullptr;
+}
+
+// An empty port string must not be used as the "no failure yet" flag.
+void RememberFirstBadPort(const std::string &port_str, bool &saw_bad_port, std::string &first_bad_port) {
+  if (saw_bad_port) {
+    return;
+  }
+  saw_bad_port = true;
+  first_bad_port = port_str.empty() ? "(empty)" : port_str;
+}
+
+// Resolve the 1DMESH die of an NPU from topo. A bad port list is skipped so a later edge can still resolve the die.
 Status ResolveMeshDieIdFromTopo(const TopoData &topo_data, int32_t npu_id, int32_t &mesh_die_id) {
+  mesh_die_id = kInvalidTopoDieId;
+  bool saw_edge = false;
+  bool saw_bad_port = false;
+  std::string first_bad_port;
   for (const auto &link : topo_data.links) {
-    if (link.topo_type != kTopoType1DMesh) {
+    const std::vector<std::string> *ports = MeshPortsForNpu(link, npu_id);
+    if (ports == nullptr) {
       continue;
     }
-    const std::vector<std::string> *ports = nullptr;
-    if (link.local_a == npu_id) {
-      ports = &link.local_a_ports;
-    } else if (link.local_b == npu_id) {
-      ports = &link.local_b_ports;
-    } else {
+    saw_edge = true;
+    int32_t parsed_die = kInvalidTopoDieId;
+    if (ResolveDieIdFromPorts(*ports, parsed_die) != SUCCESS) {
+      RememberFirstBadPort(ports->empty() ? std::string() : ports->front(), saw_bad_port, first_bad_port);
       continue;
     }
-    HIXL_CHK_STATUS_RET(ResolveDieIdFromPorts(*ports, mesh_die_id),
-                        "[ResolveMeshDieIdFromTopo] Failed to parse mesh ports, npu_id=%d", npu_id);
+    mesh_die_id = parsed_die;
     HIXL_LOGI("[ResolveMeshDieIdFromTopo] npu_id=%d, mesh_die_id=%d", npu_id, mesh_die_id);
     return SUCCESS;
   }
-  HIXL_CHK_BOOL_RET_STATUS(false, FAILED, "[ResolveMeshDieIdFromTopo] No fullmesh edge found for npu_id=%d", npu_id);
+  if (!saw_edge) {
+    HIXL_EVENT("[ResolveMeshDieIdFromTopo] No fullmesh edge for npu_id=%d, topo_path=%s", npu_id,
+               topo_data.path.c_str());
+    return SUCCESS;
+  }
+  HIXL_EVENT("[ResolveMeshDieIdFromTopo] Mesh ports cannot be parsed, first_port=%s, npu_id=%d, topo_path=%s",
+             first_bad_port.c_str(), npu_id, topo_data.path.c_str());
+  return SUCCESS;
+}
+
+void CountParsedClosPorts(const std::vector<const TopoLink *> &clos_links, int32_t npu_id, const std::string &topo_path,
+                          std::array<int32_t, kTopoDieIdMax + 1> &die_port_count) {
+  die_port_count.fill(0);
+  bool saw_bad_port = false;
+  std::string first_bad_port;
+  for (const TopoLink *link : clos_links) {
+    for (const auto &port_str : link->local_a_ports) {
+      int32_t die_id = kInvalidTopoDieId;
+      int32_t port = -1;
+      if (ParseDiePort(port_str, die_id, port) != SUCCESS) {
+        RememberFirstBadPort(port_str, saw_bad_port, first_bad_port);
+        continue;
+      }
+      ++die_port_count[die_id];
+    }
+  }
+  if (saw_bad_port) {
+    HIXL_EVENT("[ResolveClosDieIdFromTopo] Skip unparsed CLOS ports, first_port=%s, npu_id=%d, topo_path=%s",
+               first_bad_port.c_str(), npu_id, topo_path.c_str());
+  }
 }
 
 }  // anonymous namespace
 
 // Resolve the CLOS die of an NPU from topo: count CLOS ports per die and take the majority.
 // Covers same-die 8-port CLOS and mixed 6+2 ports on one edge. CLOS edges have no local_b.
+// Missing or unparsed CLOS leaves clos_die_id invalid and does not stop generation.
 Status ResolveClosDieIdFromTopo(const TopoData &topo_data, int32_t npu_id, int32_t &clos_die_id) {
+  clos_die_id = kInvalidTopoDieId;
   std::vector<const TopoLink *> clos_links;
   HIXL_CHK_STATUS_RET(CollectMinNetLayerClosLinks(topo_data, npu_id, clos_links),
-                      "[ResolveClosDieIdFromTopo] CollectMinNetLayerClosLinks failed, npu_id=%d", npu_id);
-  std::array<int32_t, kTopoDieIdMax + 1> die_port_count = {0, 0};
-  for (const TopoLink *link : clos_links) {
-    for (const auto &port_str : link->local_a_ports) {
-      int32_t die_id = -1;
-      int32_t port = -1;
-      HIXL_CHK_STATUS_RET(ParseDiePort(port_str, die_id, port),
-                          "[ResolveClosDieIdFromTopo] Failed to parse CLOS port:%s, npu_id=%d", port_str.c_str(),
-                          npu_id);
-      ++die_port_count[die_id];
-    }
+                      "[ResolveClosDieIdFromTopo] CollectMinNetLayerClosLinks failed, npu_id=%d, topo_path=%s", npu_id,
+                      topo_data.path.c_str());
+  if (clos_links.empty()) {
+    HIXL_EVENT("[ResolveClosDieIdFromTopo] No CLOS edge for npu_id=%d, topo_path=%s", npu_id, topo_data.path.c_str());
+    return SUCCESS;
   }
+  std::array<int32_t, kTopoDieIdMax + 1> die_port_count = {0, 0};
+  CountParsedClosPorts(clos_links, npu_id, topo_data.path, die_port_count);
   const int32_t die0_ports = die_port_count[0];
   const int32_t die1_ports = die_port_count[1];
-  HIXL_CHK_BOOL_RET_STATUS(die0_ports != 0 || die1_ports != 0, FAILED,
-                           "[ResolveClosDieIdFromTopo] No parseable CLOS port for npu_id=%d", npu_id);
+  if (die0_ports == 0 && die1_ports == 0) {
+    HIXL_EVENT("[ResolveClosDieIdFromTopo] No parseable CLOS port for npu_id=%d, topo_path=%s", npu_id,
+               topo_data.path.c_str());
+    return SUCCESS;
+  }
   clos_die_id = (die1_ports > die0_ports) ? 1 : 0;
   HIXL_LOGI("[ResolveClosDieIdFromTopo] npu_id=%d, clos_die_id=%d, die0_ports=%d, die1_ports=%d", npu_id, clos_die_id,
             die0_ports, die1_ports);
@@ -605,14 +664,11 @@ std::string TopoFileFinder::FindTopoFile(const std::string &topo_dir, uint32_t m
         mainboard_id);
     return "";
   }
-  HIXL_LOGI("mainboard_id=0x%x, topo_file_name=%s", mainboard_id, topo_file_name.c_str());
-
   std::string full_path = topo_dir + "/" + topo_file_name;
   if (!IsFileExists(full_path)) {
     HIXL_LOGW("Topo file does not exist: %s, please provide a valid topo file path", full_path.c_str());
     return "";
   }
-  HIXL_LOGI("Matched topo file: %s", full_path.c_str());
   return full_path;
 }
 
@@ -664,7 +720,7 @@ static bool ParsePortsFromJson(const nlohmann::json &edge, const char *key, std:
   return true;
 }
 
-static Status ParseSingleLink(const nlohmann::json &edge, TopoLink &link) {
+static Status ParseSingleLink(const nlohmann::json &edge, const std::string &topo_path, TopoLink &link) {
   try {
     link.net_layer = edge.value("net_layer", 0);
     link.link_type = edge.value("link_type", "");
@@ -674,54 +730,62 @@ static Status ParseSingleLink(const nlohmann::json &edge, TopoLink &link) {
     link.remote_a = edge.value("remote_a", -1);
     link.remote_b = edge.value("remote_b", -1);
   } catch (const nlohmann::json::exception &e) {
-    HIXL_CHK_BOOL_RET_STATUS(false, FAILED, "Failed to parse topo edge fields: %s", e.what());
+    HIXL_CHK_BOOL_RET_STATUS(false, FAILED, "Failed to parse topo edge fields: %s, topo_path=%s", e.what(),
+                             topo_path.c_str());
   }
   ParsePortsFromJson(edge, "local_a_ports", link.local_a_ports);
   ParsePortsFromJson(edge, "local_b_ports", link.local_b_ports);
   return SUCCESS;
 }
 
-static Status ParseTopoJson(const std::string &topo_path, nlohmann::json &j) {
+static Status ParseTopoJson(const std::string &topo_path, nlohmann::json &j, std::string &resolved_path) {
   // Normalize the path (resolve "..", ".", symlinks) before validating and opening it.
   // realpath fails with ENOENT if any path component does not exist, so success already proves existence.
-  char resolved_path[PATH_MAX] = {0};
-  char *realpath_ret = realpath(topo_path.c_str(), resolved_path);
+  char canonical_path[PATH_MAX] = {0};
+  char *realpath_ret = realpath(topo_path.c_str(), canonical_path);
   const int32_t realpath_errno = errno;
   HIXL_CHK_BOOL_RET_STATUS(realpath_ret != nullptr, PARAM_INVALID,
                            "Call api:realpath failed, topo_path:%s, errno=%d(%s)", topo_path.c_str(), realpath_errno,
                            strerror(realpath_errno));
-  std::ifstream file(resolved_path);
-  HIXL_CHK_BOOL_RET_STATUS(file.is_open(), PARAM_INVALID, "Failed to open topo file: %s, errno=%d(%s)", resolved_path,
-                           errno, strerror(errno));
+  resolved_path = canonical_path;
+  std::ifstream file(resolved_path.c_str());
+  HIXL_CHK_BOOL_RET_STATUS(file.is_open(), PARAM_INVALID, "Failed to open topo file: %s, errno=%d(%s)",
+                           resolved_path.c_str(), errno, strerror(errno));
 
   try {
     file >> j;
   } catch (const nlohmann::json::exception &e) {
-    HIXL_CHK_BOOL_RET_STATUS(false, FAILED, "Failed to parse topo file JSON: %s, path:%s", e.what(), topo_path.c_str());
+    HIXL_CHK_BOOL_RET_STATUS(false, FAILED, "Failed to parse topo file JSON: %s, path:%s", e.what(),
+                             resolved_path.c_str());
   }
   file.close();
 
   HIXL_CHK_BOOL_RET_STATUS(j.contains("edge_list") && j["edge_list"].is_array() && !j["edge_list"].empty(), FAILED,
-                           "No or empty edge_list found in path:%s", topo_path.c_str());
+                           "No or empty edge_list found in path:%s", resolved_path.c_str());
   return SUCCESS;
 }
 
 Status ParseTopoFile(const std::string &topo_path, TopoData &topo_data) {
   topo_data.links.clear();
+  topo_data.path.clear();
 
   nlohmann::json j;
-  HIXL_CHK_STATUS_RET(ParseTopoJson(topo_path, j), "ParseTopoJson failed, topo_path=%s", topo_path.c_str());
+  std::string resolved_path;
+  HIXL_CHK_STATUS_RET(ParseTopoJson(topo_path, j, resolved_path), "ParseTopoJson failed, topo_path=%s",
+                      topo_path.c_str());
+  topo_data.path = resolved_path;
 
   for (const auto &edge : j["edge_list"]) {
     TopoLink link;
     link.remote_a = -1;
     link.remote_b = -1;
 
-    HIXL_CHK_STATUS_RET(ParseSingleLink(edge, link), "ParseSingleLink failed, topo_path=%s", topo_path.c_str());
+    HIXL_CHK_STATUS_RET(ParseSingleLink(edge, topo_data.path, link), "ParseSingleLink failed, topo_path=%s",
+                        topo_data.path.c_str());
     topo_data.links.push_back(link);
   }
 
-  HIXL_LOGI("Parsed %zu links from %s", topo_data.links.size(), topo_path.c_str());
+  HIXL_LOGI("Parsed %zu links from %s", topo_data.links.size(), topo_data.path.c_str());
   return SUCCESS;
 }
 
@@ -814,8 +878,7 @@ Status GenerateD2DEdges(const TopoData &topo_data, const std::map<int32_t, NpuRo
 
   auto self_it = npu_rootinfos.find(phy_id);
   if (self_it == npu_rootinfos.end()) {
-    HIXL_CHK_BOOL_RET_STATUS(topo_data.links.empty(), FAILED, "[GenerateD2DEdges] No rootinfo for self npu_id=%d",
-                             phy_id);
+    HIXL_EVENT("[GenerateD2DEdges] No rootinfo for self npu_id=%d, skip D2D", phy_id);
     return SUCCESS;
   }
   const auto &self_rootinfo = self_it->second;
@@ -927,36 +990,137 @@ Status CollectClosPortKeys(const TopoData &topo_data, int32_t npu_id, std::set<s
   clos_port_keys.clear();
   std::vector<const TopoLink *> clos_links;
   HIXL_CHK_STATUS_RET(CollectMinNetLayerClosLinks(topo_data, npu_id, clos_links),
-                      "[CollectClosPortKeys] CollectMinNetLayerClosLinks failed, npu_id=%d", npu_id);
+                      "[CollectClosPortKeys] CollectMinNetLayerClosLinks failed, npu_id=%d, topo_path=%s", npu_id,
+                      topo_data.path.c_str());
+  bool saw_bad_port = false;
+  std::string first_bad_port;
   for (const TopoLink *link : clos_links) {
     for (const auto &port_str : link->local_a_ports) {
-      int32_t die_id = -1;
+      int32_t die_id = kInvalidTopoDieId;
       int32_t port = -1;
-      HIXL_CHK_STATUS_RET(ParseDiePort(port_str, die_id, port),
-                          "[CollectClosPortKeys] Failed to parse CLOS port:%s, npu_id=%d", port_str.c_str(), npu_id);
+      if (ParseDiePort(port_str, die_id, port) != SUCCESS) {
+        RememberFirstBadPort(port_str, saw_bad_port, first_bad_port);
+        continue;
+      }
       clos_port_keys.insert(std::to_string(die_id) + "/" + std::to_string(port));
     }
+  }
+  if (saw_bad_port) {
+    HIXL_EVENT("[CollectClosPortKeys] Skip unparsed CLOS ports, first_port=%s, npu_id=%d, topo_path=%s",
+               first_bad_port.c_str(), npu_id, topo_data.path.c_str());
   }
   return SUCCESS;
 }
 
-Status BuildNpuRootinfos(const std::set<int32_t> &related_npu_ids, const TopoData &topo_data,
+void AddVisibleMeshEndpoint(int32_t npu_id, const std::set<int32_t> &visible_npu_ids, std::set<int32_t> &mesh_npu_ids) {
+  if (npu_id >= 0 && visible_npu_ids.count(npu_id) > 0U) {
+    mesh_npu_ids.insert(npu_id);
+  }
+}
+
+// Mesh targets are the current NPU and its fullmesh peers that this process can see.
+// No 1DMESH edge for phy_dev_id leaves mesh_npu_ids empty so the caller skips mesh queries.
+void CollectFullMeshNpuIds(const TopoData &topo_data, int32_t phy_dev_id, const std::set<int32_t> &visible_npu_ids,
+                           std::set<int32_t> &mesh_npu_ids) {
+  mesh_npu_ids.clear();
+  for (const auto &link : topo_data.links) {
+    if (link.topo_type != kTopoType1DMesh) {
+      continue;
+    }
+    int32_t peer_id = -1;
+    if (link.local_a == phy_dev_id) {
+      peer_id = link.local_b;
+    } else if (link.local_b == phy_dev_id) {
+      peer_id = link.local_a;
+    } else {
+      continue;
+    }
+    AddVisibleMeshEndpoint(phy_dev_id, visible_npu_ids, mesh_npu_ids);
+    AddVisibleMeshEndpoint(peer_id, visible_npu_ids, mesh_npu_ids);
+  }
+}
+
+Status AppendSelfClosRootInfo(int32_t phy_dev_id, const TopoData &topo_data,
+                              std::map<int32_t, NpuRootInfo> &npu_rootinfos, std::vector<UrmaDevice> &self_devices) {
+  int32_t clos_die_id = kInvalidTopoDieId;
+  HIXL_CHK_STATUS_RET(ResolveClosDieIdFromTopo(topo_data, phy_dev_id, clos_die_id),
+                      "[BuildNpuRootinfos] Failed to resolve CLOS die from topo, npu_id=%d, topo_path=%s", phy_dev_id,
+                      topo_data.path.c_str());
+  std::set<std::string> clos_port_keys;
+  HIXL_CHK_STATUS_RET(CollectClosPortKeys(topo_data, phy_dev_id, clos_port_keys),
+                      "[BuildNpuRootinfos] CollectClosPortKeys failed, npu_id=%d, topo_path=%s", phy_dev_id,
+                      topo_data.path.c_str());
+  HIXL_CHK_STATUS_RET(LoadNpuUrmaDevices(phy_dev_id, self_devices),
+                      "[BuildNpuRootinfos] Failed to collect CLOS root info, npu_id=%d, topo_path=%s", phy_dev_id,
+                      topo_data.path.c_str());
+  NpuRootInfo clos_info;
+  FillNpuClosRootInfo(self_devices, clos_die_id, clos_port_keys, clos_info);
+  if (!clos_info.clos_pg_eids.empty()) {
+    npu_rootinfos[phy_dev_id].clos_pg_eids = std::move(clos_info.clos_pg_eids);
+  }
+  return SUCCESS;
+}
+
+Status LoadMeshUrmaDevices(int32_t npu_id, int32_t phy_dev_id, int32_t mesh_die_id, const TopoData &topo_data,
+                           const std::vector<UrmaDevice> &self_devices, std::vector<UrmaDevice> &peer_devices,
+                           const std::vector<UrmaDevice> *&devices) {
+  if (npu_id == phy_dev_id) {
+    devices = &self_devices;
+    return SUCCESS;
+  }
+  const Status ret = TryLoadNpuUrmaDevices(npu_id, peer_devices);
+  if (ret != SUCCESS) {
+    HIXL_EVENT(
+        "[BuildNpuRootinfos] Skip mesh root info, URMA query failed, ret=%d, mesh_die_id=%d, npu_id=%d, "
+        "topo_path=%s",
+        static_cast<int32_t>(ret), mesh_die_id, npu_id, topo_data.path.c_str());
+    return ret;
+  }
+  devices = &peer_devices;
+  return SUCCESS;
+}
+
+Status AppendMeshPortMap(int32_t npu_id, int32_t phy_dev_id, const TopoData &topo_data,
+                         const std::vector<UrmaDevice> &self_devices, std::map<int32_t, NpuRootInfo> &npu_rootinfos) {
+  int32_t mesh_die_id = kInvalidTopoDieId;
+  HIXL_CHK_STATUS_RET(ResolveMeshDieIdFromTopo(topo_data, npu_id, mesh_die_id),
+                      "[BuildNpuRootinfos] Failed to resolve mesh die from topo, npu_id=%d, topo_path=%s", npu_id,
+                      topo_data.path.c_str());
+  std::vector<UrmaDevice> peer_devices;
+  const std::vector<UrmaDevice> *devices = nullptr;
+  const Status load_ret =
+      LoadMeshUrmaDevices(npu_id, phy_dev_id, mesh_die_id, topo_data, self_devices, peer_devices, devices);
+  if (load_ret != SUCCESS) {
+    return SUCCESS;
+  }
+  NpuRootInfo mesh_info;
+  FillNpuMeshRootInfo(*devices, mesh_die_id, mesh_info);
+  if (mesh_info.port_to_eid.empty()) {
+    HIXL_EVENT("[BuildNpuRootinfos] Skip mesh root info, no mesh port, ret=%d, mesh_die_id=%d, npu_id=%d, topo_path=%s",
+               static_cast<int32_t>(SUCCESS), mesh_die_id, npu_id, topo_data.path.c_str());
+    return SUCCESS;
+  }
+  npu_rootinfos[npu_id].port_to_eid = std::move(mesh_info.port_to_eid);
+  return SUCCESS;
+}
+
+Status BuildNpuRootinfos(int32_t phy_dev_id, const std::set<int32_t> &visible_npu_ids, const TopoData &topo_data,
                          std::map<int32_t, NpuRootInfo> &npu_rootinfos) {
   npu_rootinfos.clear();
-  for (int32_t npu_id : related_npu_ids) {
-    int32_t mesh_die_id = 0;
-    int32_t clos_die_id = 0;
-    HIXL_CHK_STATUS_RET(ResolveMeshDieIdFromTopo(topo_data, npu_id, mesh_die_id),
-                        "[BuildNpuRootinfos] Failed to resolve mesh die from topo, npu_id=%d", npu_id);
-    HIXL_CHK_STATUS_RET(ResolveClosDieIdFromTopo(topo_data, npu_id, clos_die_id),
-                        "[BuildNpuRootinfos] Failed to resolve CLOS die from topo, npu_id=%d", npu_id);
-    std::set<std::string> clos_port_keys;
-    HIXL_CHK_STATUS_RET(CollectClosPortKeys(topo_data, npu_id, clos_port_keys),
-                        "[BuildNpuRootinfos] CollectClosPortKeys failed, npu_id=%d", npu_id);
-    NpuRootInfo rootinfo;
-    HIXL_CHK_STATUS_RET(BuildNpuRootInfo(npu_id, mesh_die_id, clos_die_id, clos_port_keys, rootinfo),
-                        "Failed to build rootinfo for npu_id=%d", npu_id);
-    npu_rootinfos[npu_id] = rootinfo;
+  std::vector<UrmaDevice> self_devices;
+  HIXL_CHK_STATUS_RET(AppendSelfClosRootInfo(phy_dev_id, topo_data, npu_rootinfos, self_devices),
+                      "[BuildNpuRootinfos] AppendSelfClosRootInfo failed, phy_dev_id=%d", phy_dev_id);
+  std::set<int32_t> mesh_npu_ids;
+  CollectFullMeshNpuIds(topo_data, phy_dev_id, visible_npu_ids, mesh_npu_ids);
+  if (mesh_npu_ids.empty()) {
+    HIXL_EVENT("[BuildNpuRootinfos] No fullmesh edge for phy_dev_id=%d, topo_path=%s, skip mesh root info", phy_dev_id,
+               topo_data.path.c_str());
+    HIXL_LOGI("Built rootinfo for %zu NPU(s)", npu_rootinfos.size());
+    return SUCCESS;
+  }
+  for (int32_t npu_id : mesh_npu_ids) {
+    HIXL_CHK_STATUS_RET(AppendMeshPortMap(npu_id, phy_dev_id, topo_data, self_devices, npu_rootinfos),
+                        "[BuildNpuRootinfos] AppendMeshPortMap failed, npu_id=%d", npu_id);
   }
   HIXL_LOGI("Built rootinfo for %zu NPU(s)", npu_rootinfos.size());
   return SUCCESS;
@@ -971,8 +1135,10 @@ struct ClosPgCollectResult {
 Status CollectClosPgEids(const std::map<int32_t, NpuRootInfo> &npu_rootinfos, int32_t phy_dev_id,
                          ClosPgCollectResult &result) {
   auto self_it = npu_rootinfos.find(phy_dev_id);
-  HIXL_CHK_BOOL_RET_STATUS(self_it != npu_rootinfos.end(), FAILED, "[CollectClosPgEids] No rootinfo for phy_dev_id:%d",
-                           phy_dev_id);
+  if (self_it == npu_rootinfos.end()) {
+    HIXL_EVENT("[CollectClosPgEids] No rootinfo for phy_dev_id=%d, skip CLOS planes", phy_dev_id);
+    return SUCCESS;
+  }
 
   // rootinfo_builder already filters: clos_pg_eids[0]=plane_pg_0, [1]=plane_pg_1.
   // Mesh-only is allowed: no CLOS PG means no D2U/H2U, not a hard failure.
@@ -1172,8 +1338,9 @@ Status ResolveLocalCommResServerId(const std::string &user_local_comm_res, Local
 
 Status CollectLocalCommResEdges(LocalCommResBuildCtx &ctx, std::vector<EndpointConfig> &all_edges) {
   std::map<int32_t, NpuRootInfo> npu_rootinfos;
-  HIXL_CHK_STATUS_RET(BuildNpuRootinfos(ctx.route_gen_result.related_npu_ids, ctx.topo_data, npu_rootinfos),
-                      "[BuildLocalCommResResult] BuildNpuRootinfos failed, phy_dev_id=%d", ctx.phy_dev_id);
+  HIXL_CHK_STATUS_RET(
+      BuildNpuRootinfos(ctx.phy_dev_id, ctx.route_gen_result.related_npu_ids, ctx.topo_data, npu_rootinfos),
+      "[BuildLocalCommResResult] BuildNpuRootinfos failed, phy_dev_id=%d", ctx.phy_dev_id);
 
   ClosPgCollectResult clos_pg_result;
   HIXL_CHK_STATUS_RET(CollectClosPgEids(npu_rootinfos, ctx.phy_dev_id, clos_pg_result),
@@ -1271,9 +1438,14 @@ Status GenerateRouteEntriesForRelatedNpus(const std::set<int32_t> &related_npu_i
                                           bool is_server, const std::map<std::string, std::string> &ub_name_to_eid,
                                           std::vector<RouteEntry> &entries) {
   for (int32_t npu_id : related_npu_ids) {
-    int32_t mesh_die_id = 0;
+    int32_t mesh_die_id = kInvalidTopoDieId;
     HIXL_CHK_STATUS_RET(ResolveMeshDieIdFromTopo(topo_data, npu_id, mesh_die_id),
-                        "[GenerateRouteDataViaDsmi] Failed to resolve mesh die from topo for npu_id=%d", npu_id);
+                        "[GenerateRouteDataViaDsmi] Failed to resolve mesh die from topo for npu_id=%d, topo_path=%s",
+                        npu_id, topo_data.path.c_str());
+    HIXL_CHK_BOOL_RET_STATUS(mesh_die_id != kInvalidTopoDieId, FAILED,
+                             "[GenerateRouteEntriesForRelatedNpus] Mesh die is unavailable, cannot build H2D/D2H "
+                             "remote EID, npu_id=%d, topo_path=%s",
+                             npu_id, topo_data.path.c_str());
     RouteEntry entry;
     HIXL_CHK_STATUS_RET(GenerateRouteEntryForNpu(npu_id, mesh_die_id, is_server, ub_name_to_eid, entry),
                         "[GenerateRouteDataViaDsmi] Failed to generate route entry for npu_id=%d", npu_id);
@@ -1376,6 +1548,7 @@ Status GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, Lo
   HIXL_CHK_STATUS_RET(ParseTopoAndCollectNpuIds(phy_dev_id, topo_path, topo_data, route_gen_result),
                       "[GenerateLocalCommRes] ParseTopoAndCollectNpuIds failed, phy_dev_id=%d, topo_path=%s",
                       phy_dev_id, topo_path.c_str());
+  HIXL_EVENT("Use topo file, mainboard_id=0x%x, topo_path=%s", mainboard_id, topo_data.path.c_str());
 
   // 3. Assemble result (D2D/D2U first; route_data and host edges only in kDeviceAndHost)
   LocalCommResBuildCtx ctx{phy_dev_id, is_server, topo_data, topo_path, route_gen_result, mode, user_local_comm_res};

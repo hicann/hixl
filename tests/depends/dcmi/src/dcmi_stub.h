@@ -21,6 +21,8 @@ void DcmiStubSetInitRet(int ret);
 void DcmiStubSetMainboardId(uint32_t id, int ret);
 void DcmiStubSetLogicId(uint32_t id, int ret);
 void DcmiStubSetUrmaDeviceCnt(uint32_t cnt, int ret);
+// Fail dcmiv2_get_urma_device_cnt for one logic id. npu_id < 0 clears the override.
+void DcmiStubSetUrmaDeviceCntFailForNpu(int npu_id, int ret);
 void DcmiStubSetSuperPodId(uint32_t id, int ret);
 void DcmiStubSetEidCount(int count);
 void DcmiStubSetEnableUbgEid(bool enable);
