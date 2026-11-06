@@ -95,7 +95,7 @@ Status Initialize(const AscendString &local_engine, const std::map<AscendString,
 
 |参数名|可选/必选|描述|
 |--|--|--|
-|OPTION_BUFFER_POOL|可选|字符串取值"adxl.BufferPool"。在需要使用中转buffer进行传输的场景下:不支持使用HCCS协议进行Host To Host直传传输时。RDMA注册Host内存大小受限时。多个小块内存传输(例如128K)需要使用中转传输提升性能时。可使用此option配置中转内存池的大小，取值格式为"$BUFFER_NUM:$BUFFER_SIZE"，**系统默认会配置为"4:8(单位MB)"**，可以通过配置为"0:0"来关闭中转内存池，在有并发的场景下建议增大$BUFFER_NUM个数, 另外，所有使用的地方需要配置相同的值。|
+|OPTION_BUFFER_POOL|可选|字符串取值"adxl.BufferPool"。在需要使用中转buffer进行传输的场景下：不支持使用HCCS协议进行Host To Host直传传输时。RDMA注册Host内存大小受限时。多个小块内存传输(例如128K)需要使用中转传输提升性能时。可使用此option配置中转内存池的大小，取值格式为"$BUFFER_NUM:$BUFFER_SIZE"，**系统默认会配置为"4:8(单位MB)"**，可以通过配置为"0:0"来关闭中转内存池，在有并发的场景下建议增大$BUFFER_NUM个数，另外，所有使用的地方需要配置相同的值。|
 |OPTION_RDMA_TRAFFIC_CLASS|可选|字符串取值"adxl.RdmaTrafficClass"。用于配置RDMA网卡的traffic class。和环境变量HCCL_RDMA_TC功能，如同时配置，当前option优先级更高；未同时配置，以配置的一方为准。取值范围为[0,255]，且需要配置为4的整数倍，默认值为132。更多信息请参考[HCCL环境变量参考](https://gitcode.com/cann/hccl/blob/master/docs/zh/user_guide/hccl_env/README.md)。|
 |OPTION_RDMA_SERVICE_LEVEL|可选|字符串取值"adxl.RdmaServiceLevel"。用于配置RDMA网卡的service level。和环境变量HCCL_RDMA_SL功能相同，如同时配置，当前option优先级更高；未同时配置，以配置的一方为准。取值范围为[0, 7]，默认值为4。更多信息请参考[HCCL环境变量参考](https://gitcode.com/cann/hccl/blob/master/docs/zh/user_guide/hccl_env/README.md)。|
 |OPTION_LOCAL_COMM_RES|可选|字符串取值"adxl.LocalCommRes"。配置本地通信资源信息，格式是json格式的字符串。|
@@ -434,7 +434,7 @@ Status TransferSync(const AscendString &remote_engine,
 - 该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
 - 当前异步传输仅支持直传，暂不支持中转传输，默认直传。
   <!-- npu="A3" id7 -->
-- 在Fabric Mem传输模式下, 所有op_descs的传输类型需要相同，系统会根据第一个op_desc的内存类型判定传输方向。该约束支持的型号如下：
+- 在Fabric Mem传输模式下，所有op_descs的传输类型需要相同，系统会根据第一个op_desc的内存类型判定传输方向。该约束支持的型号如下：
   - Atlas A3系列产品
   <!-- end id7 -->
 

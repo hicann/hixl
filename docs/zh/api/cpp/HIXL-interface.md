@@ -1163,7 +1163,7 @@ Status TransferSync(const AscendString &remote_engine,
   <!-- end id29 -->
   <!-- end id27 -->
   <!-- npu="A3" id30 -->
-- 在Fabric Mem传输模式下, 所有op_descs的传输类型需要相同，系统会根据第一个op_desc的内存类型判定传输方向。该约束支持的型号如下：
+- 在Fabric Mem传输模式下，所有op_descs的传输类型需要相同，系统会根据第一个op_desc的内存类型判定传输方向。该约束支持的型号如下：
   - Atlas A3系列产品
   <!-- end id30 -->
   <!-- npu="A3,910b" id81 -->
@@ -1232,7 +1232,7 @@ Status TransferSync(const AscendString &remote_engine,
 - 该接口需要和Initialize运行在同一个线程上，如需切换线程调用该接口，需要在Initialize所在线程调用“aclrtGetCurrentContext”获取context，并在新线程调用“aclrtSetCurrentContext”设置context。
 - 当前异步传输仅支持直传，暂不支持中转传输，默认直传。
   <!-- npu="A3" id34 -->
-- 在Fabric Mem传输模式下, 所有op_descs的传输类型需要相同，系统会根据第一个op_desc的内存类型判定传输方向。该约束支持的型号如下：
+- 在Fabric Mem传输模式下，所有op_descs的传输类型需要相同，系统会根据第一个op_desc的内存类型判定传输方向。该约束支持的型号如下：
   - Atlas A3系列产品
   <!-- end id34 -->
   <!-- npu="A3,910b" id84 -->
