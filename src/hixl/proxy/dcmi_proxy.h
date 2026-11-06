@@ -98,7 +98,7 @@ class DcmiProxy {
    * @param dev_cnt 设备数量（输出）
    * @return SUCCESS on success, FAILED on failure
    */
-  static Status GetUrmaDeviceCnt(unsigned int logic_id, unsigned int *dev_cnt);
+  static Status GetUrmaDeviceCnt(unsigned int logic_id, unsigned int *dev_cnt, bool report_error = true);
 
   /**
    * @brief 获取 EID 列表

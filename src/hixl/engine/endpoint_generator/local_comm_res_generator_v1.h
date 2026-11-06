@@ -71,6 +71,7 @@ struct TopoLink {
 
 struct TopoData {
   std::vector<TopoLink> links;
+  std::string path;  // Canonical path of the file that produced links
 };
 
 // ============ Route data ============
@@ -228,8 +229,8 @@ Status ParseTopoFile(const std::string &topo_path, TopoData &topo_data);
  * @brief Resolve CLOS die_id of an NPU from topo (min net_layer CLOS group, majority port die)
  * @param [in] topo_data Parsed topology data
  * @param [in] npu_id Physical NPU id
- * @param [out] clos_die_id Resolved CLOS die id (0 or 1)
- * @return SUCCESS on success, other error codes on failure
+ * @param [out] clos_die_id Resolved CLOS die id (0 or 1), or -1 when CLOS is absent or unparsed
+ * @return SUCCESS. A missing or unparsed CLOS edge does not fail the caller
  */
 Status ResolveClosDieIdFromTopo(const TopoData &topo_data, int32_t npu_id, int32_t &clos_die_id);
 

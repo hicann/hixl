@@ -27,6 +27,7 @@
 #include <map>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <unistd.h>
 
 #include "local_comm_res_generator_v1.h"
@@ -34,6 +35,7 @@
 #include "test_mmpa_utils.h"
 #include "depends/sys_api/src/sys_api_wrap.h"
 #include "depends/dsmi/src/dsmi_stub.h"
+#include "slog_stub.h"
 
 // DCMI 桩函数控制接口（定义在 tests/depends/dcmi/src/dcmi_stub.cc）
 extern "C" {
@@ -41,6 +43,7 @@ void DcmiStubSetInitRet(int ret);
 void DcmiStubSetMainboardId(unsigned int id, int ret);
 void DcmiStubSetLogicId(unsigned int id, int ret);
 void DcmiStubSetUrmaDeviceCnt(unsigned int cnt, int ret);
+void DcmiStubSetUrmaDeviceCntFailForNpu(int npu_id, int ret);
 void DcmiStubSetSuperPodId(unsigned int id, int ret);
 void DcmiStubSetEidCount(int count);
 void DcmiStubSetMeshDieId(int die);
@@ -261,6 +264,21 @@ std::string MakeEightNpuDieTopoJson(const std::string &mesh_port, const std::str
   return oss.str();
 }
 
+// CLOS ports match the stub UDMA0 physical ports when mesh die is 1: "1/0".."1/8".
+std::string MakeClosOnlyTopoJson() {
+  std::ostringstream oss;
+  oss << "{\"peer_count\":8,\"edge_list\":[";
+  for (int32_t npu = 0; npu < 8; ++npu) {
+    if (npu > 0) {
+      oss << ",";
+    }
+    oss << "{\"net_layer\":1,\"link_type\":\"PEER2NET\",\"topo_type\":\"CLOS\",\"local_a\":" << npu
+        << ",\"local_a_ports\":[\"1/0\",\"1/1\",\"1/2\",\"1/3\",\"1/4\",\"1/5\",\"1/6\",\"1/7\",\"1/8\"]}";
+  }
+  oss << "]}";
+  return oss.str();
+}
+
 Status GenerateDeviceOnlyFromTopoJson(const std::string &topo_json) {
   std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", topo_json);
   if (tmp_topo.empty()) {
@@ -293,6 +311,7 @@ TEST_F(LocalCommResParseTest, ParseTopoFileSuccess) {
   TopoData topo_data;
   Status ret = ParseTopoFile(topo_path, topo_data);
   EXPECT_EQ(ret, SUCCESS);
+  EXPECT_FALSE(topo_data.path.empty());
   EXPECT_EQ(topo_data.links.size(), 52U);
   // 验证第一条 link
   EXPECT_EQ(topo_data.links[0].net_layer, 0);
@@ -368,6 +387,19 @@ TEST_F(LocalCommResParseTest, ClosPrefersMinNetLayerWhenDuplicated) {
   int32_t clos_die_id = -1;
   EXPECT_EQ(ResolveClosDieIdFromTopo(topo_data, 0, clos_die_id), SUCCESS);
   EXPECT_EQ(clos_die_id, 0);
+}
+
+TEST_F(LocalCommResParseTest, ResolveClosDieIdMissingEdgeKeepsInvalid) {
+  std::string json = R"({"version":"2.0","peer_count":8,"edge_list":[{"link_type":"PEER2PEER","topo_type":"1DMESH",)"
+                     R"("local_a":0,"local_b":1,"local_a_ports":["0/2"],"local_b_ports":["0/2"]}]})";
+  std::string tmp = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", json);
+  ASSERT_FALSE(tmp.empty());
+  TopoData topo_data;
+  ASSERT_EQ(ParseTopoFile(tmp, topo_data), SUCCESS);
+  unlink(tmp.c_str());
+  int32_t clos_die_id = 0;
+  EXPECT_EQ(ResolveClosDieIdFromTopo(topo_data, 0, clos_die_id), SUCCESS);
+  EXPECT_EQ(clos_die_id, -1);
 }
 
 TEST_F(LocalCommResParseTest, ParseTopoFileMissingNetLayerStillParses) {
@@ -610,12 +642,12 @@ TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesEmptyTopo) {
 }
 
 TEST_F(LocalCommResEdgeTest, GenerateD2DEdgesNoRootinfoForSelf) {
-  // npu_rootinfos 中没有 phy_id=0 的条目，且 topo 非空 → FAILED
+  // 本卡没有 rootinfo 时跳过 D2D，不把整次生成判失败
   TopoData topo_data = MakeSingleLinkTopoData(MakeStandardTopoLink(0, kLinkTypePeer2Peer, kTopoType1DMesh));
   std::map<int32_t, NpuRootInfo> npu_rootinfos;
   std::vector<EndpointConfig> edges;
   Status ret = GenerateD2DEdges(topo_data, npu_rootinfos, 0, edges);
-  EXPECT_EQ(ret, FAILED);
+  EXPECT_EQ(ret, SUCCESS);
   EXPECT_TRUE(edges.empty());
 }
 
@@ -1031,44 +1063,223 @@ TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlyWhenNpuIsMeshLocalB) {
   EXPECT_FALSE(res.endpoint_list.empty());
 }
 
-TEST_F(LocalCommResGenerateTest, GenerateFailsOnInvalidMeshPortFormat) {
-  // mesh 端口无 '/' → ParseDiePort FAILED
+TEST_F(LocalCommResGenerateTest, GenerateInvalidMeshPortFormatProducesNoEdges) {
+  // mesh 端口无法解析时不中断；没有 CLOS，最终没有可输出的边
   std::string topo_json = R"({"peer_count":8,"edge_list":[
     {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,
      "local_a_ports":["bad"],"local_b_ports":["0/2"]}
   ]})";
-  EXPECT_EQ(GenerateDeviceOnlyFromTopoJson(topo_json), FAILED);
+  EXPECT_EQ(GenerateDeviceOnlyFromTopoJson(topo_json), PARAM_INVALID);
 }
 
-TEST_F(LocalCommResGenerateTest, GenerateFailsOnEmptyMeshPortList) {
-  // mesh 端口列表为空 → ResolveDieIdFromPorts FAILED
+TEST_F(LocalCommResGenerateTest, GenerateEmptyMeshPortListProducesNoEdges) {
+  // mesh 端口列表为空时不中断；没有 CLOS，最终没有可输出的边
   std::string topo_json = R"({"peer_count":8,"edge_list":[
     {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,
      "local_a_ports":[],"local_b_ports":["0/2"]}
   ]})";
-  EXPECT_EQ(GenerateDeviceOnlyFromTopoJson(topo_json), FAILED);
+  EXPECT_EQ(GenerateDeviceOnlyFromTopoJson(topo_json), PARAM_INVALID);
 }
 
-TEST_F(LocalCommResGenerateTest, GenerateFailsOnInvalidClosPortFormat) {
-  // mesh 合法，CLOS 端口未整串消费 → ParseDiePort FAILED
+TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlyLogsEmptyPortString) {
+  // 空端口串不能被当成“还没有坏端口”。mesh 全部失败时仍出 CLOS，日志带 first_port=(empty)。
+  DcmiStubSetMeshDieId(1);
+  const std::string topo_json = R"({"peer_count":8,"edge_list":[
+    {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,
+     "local_a_ports":[""],"local_b_ports":[""]},
+    {"net_layer":1,"link_type":"PEER2NET","topo_type":"CLOS","local_a":0,
+     "local_a_ports":["","1/0","1/1","1/2","1/3","1/4","1/5","1/6","1/7","1/8"]}
+  ]})";
+  auto slog = std::make_shared<llm::LogCaptureStub>();
+  slog->AddCapturePattern("Mesh ports cannot be parsed, first_port=(empty)");
+  slog->AddCapturePattern("Skip unparsed CLOS ports, first_port=(empty)");
+  struct RestoreSlogStub {
+    ~RestoreSlogStub() {
+      llm::SlogStub::SetInstance(nullptr);
+    }
+  } restore_slog;
+  llm::SlogStub::SetInstance(slog);
+  std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", topo_json);
+  ASSERT_FALSE(tmp_topo.empty());
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
+  unlink(tmp_topo.c_str());
+  (void)restore_slog;
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_TRUE(slog->IsPatternCaptured("Mesh ports cannot be parsed, first_port=(empty)"));
+  EXPECT_TRUE(slog->IsPatternCaptured("Skip unparsed CLOS ports, first_port=(empty)"));
+  EXPECT_TRUE(std::none_of(res.endpoint_list.begin(), res.endpoint_list.end(), [](const EndpointConfig &ep) {
+    return ep.placement == kPlacementDevice && !ep.dst_eid.empty() && ep.plane.empty();
+  }));
+  EXPECT_NE(std::find_if(res.endpoint_list.begin(), res.endpoint_list.end(),
+                         [](const EndpointConfig &ep) { return ep.plane == "plane_pg_0"; }),
+            res.endpoint_list.end());
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlySkipsInvalidClosPort) {
+  // CLOS 端口无法解析时跳过 CLOS，合法 mesh 仍生成 D2D
+  DcmiStubSetMeshDieId(0);
   std::string topo_json = R"({"peer_count":8,"edge_list":[
     {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,
      "local_a_ports":["0/2"],"local_b_ports":["0/2"]},
     {"net_layer":1,"link_type":"PEER2NET","topo_type":"CLOS","local_a":0,
      "local_a_ports":["1/7abc"]}
   ]})";
-  EXPECT_EQ(GenerateDeviceOnlyFromTopoJson(topo_json), FAILED);
+  std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", topo_json);
+  ASSERT_FALSE(tmp_topo.empty());
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
+  unlink(tmp_topo.c_str());
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_NE(std::find_if(res.endpoint_list.begin(), res.endpoint_list.end(),
+                         [](const EndpointConfig &ep) {
+                           return ep.placement == kPlacementDevice && !ep.dst_eid.empty() && ep.plane.empty();
+                         }),
+            res.endpoint_list.end());
+  EXPECT_TRUE(std::none_of(res.endpoint_list.begin(), res.endpoint_list.end(),
+                           [](const EndpointConfig &ep) { return !ep.plane.empty(); }));
 }
 
-TEST_F(LocalCommResGenerateTest, GenerateFailsOnClosDieOutOfRange) {
-  // CLOS die_id=2 超出双 die 范围 → ParseDiePort FAILED
+TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlySkipsClosDieOutOfRange) {
+  // CLOS die 超出范围时跳过 CLOS，合法 mesh 仍生成 D2D
+  DcmiStubSetMeshDieId(0);
   std::string topo_json = R"({"peer_count":8,"edge_list":[
     {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,
      "local_a_ports":["0/2"],"local_b_ports":["0/2"]},
     {"net_layer":1,"link_type":"PEER2NET","topo_type":"CLOS","local_a":0,
      "local_a_ports":["2/1"]}
   ]})";
-  EXPECT_EQ(GenerateDeviceOnlyFromTopoJson(topo_json), FAILED);
+  std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", topo_json);
+  ASSERT_FALSE(tmp_topo.empty());
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
+  unlink(tmp_topo.c_str());
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_NE(std::find_if(res.endpoint_list.begin(), res.endpoint_list.end(),
+                         [](const EndpointConfig &ep) {
+                           return ep.placement == kPlacementDevice && !ep.dst_eid.empty() && ep.plane.empty();
+                         }),
+            res.endpoint_list.end());
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlyClosWithoutMesh) {
+  // 没有 fullmesh 边时仍生成 D2U，不出 D2D
+  DcmiStubSetMeshDieId(1);
+  std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", MakeClosOnlyTopoJson());
+  ASSERT_FALSE(tmp_topo.empty());
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
+  unlink(tmp_topo.c_str());
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_FALSE(res.endpoint_list.empty());
+  EXPECT_TRUE(std::none_of(res.endpoint_list.begin(), res.endpoint_list.end(), [](const EndpointConfig &ep) {
+    return ep.placement == kPlacementDevice && !ep.dst_eid.empty() && ep.plane.empty();
+  }));
+  EXPECT_NE(std::find_if(res.endpoint_list.begin(), res.endpoint_list.end(),
+                         [](const EndpointConfig &ep) { return ep.plane == "plane_pg_0"; }),
+            res.endpoint_list.end());
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlyClosIgnoresUnrelatedUrmaFailure) {
+  // 没有 fullmesh 边时不查询其他卡。其他卡的 URMA 查询失败不影响本卡 CLOS。
+  DcmiStubSetMeshDieId(1);
+  DcmiStubSetUrmaDeviceCntFailForNpu(1, -1);
+  std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", MakeClosOnlyTopoJson());
+  ASSERT_FALSE(tmp_topo.empty());
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
+  unlink(tmp_topo.c_str());
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_NE(std::find_if(res.endpoint_list.begin(), res.endpoint_list.end(),
+                         [](const EndpointConfig &ep) { return ep.plane == "plane_pg_0"; }),
+            res.endpoint_list.end());
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlyMeshKeepsClosWhenPeerUrmaFails) {
+  // fullmesh 只查本卡和对端。对端 URMA 失败时跳过 D2D，本卡 CLOS 仍保留。
+  DcmiStubSetMeshDieId(1);
+  DcmiStubSetUrmaDeviceCntFailForNpu(1, -1);
+  const std::string topo_json = R"({"peer_count":8,"edge_list":[
+    {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,
+     "local_a_ports":["1/2"],"local_b_ports":["1/2"]},
+    {"net_layer":1,"link_type":"PEER2NET","topo_type":"CLOS","local_a":0,
+     "local_a_ports":["1/0","1/1","1/2","1/3","1/4","1/5","1/6","1/7","1/8"]}
+  ]})";
+  std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", topo_json);
+  ASSERT_FALSE(tmp_topo.empty());
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
+  unlink(tmp_topo.c_str());
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_TRUE(std::none_of(res.endpoint_list.begin(), res.endpoint_list.end(), [](const EndpointConfig &ep) {
+    return ep.placement == kPlacementDevice && !ep.dst_eid.empty() && ep.plane.empty();
+  }));
+  EXPECT_NE(std::find_if(res.endpoint_list.begin(), res.endpoint_list.end(),
+                         [](const EndpointConfig &ep) { return ep.plane == "plane_pg_0"; }),
+            res.endpoint_list.end());
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlyMeshIgnoresNonNeighborUrmaFailure) {
+  // 看得见但没有 fullmesh 边的卡不参与 mesh 查询，它的 URMA 失败不影响 D2D 和 CLOS。
+  DcmiStubSetMeshDieId(1);
+  DcmiStubSetUrmaDeviceCntFailForNpu(5, -1);
+  const std::string topo_json = R"({"peer_count":8,"edge_list":[
+    {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,
+     "local_a_ports":["1/2"],"local_b_ports":["1/2"]},
+    {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":8,
+     "local_a_ports":["1/3"],"local_b_ports":["1/3"]},
+    {"net_layer":1,"link_type":"PEER2NET","topo_type":"CLOS","local_a":0,
+     "local_a_ports":["1/0","1/1","1/2","1/3","1/4","1/5","1/6","1/7","1/8"]}
+  ]})";
+  std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", topo_json);
+  ASSERT_FALSE(tmp_topo.empty());
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
+  unlink(tmp_topo.c_str());
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_NE(std::find_if(res.endpoint_list.begin(), res.endpoint_list.end(),
+                         [](const EndpointConfig &ep) {
+                           return ep.placement == kPlacementDevice && !ep.dst_eid.empty() && ep.plane.empty();
+                         }),
+            res.endpoint_list.end());
+  EXPECT_NE(std::find_if(res.endpoint_list.begin(), res.endpoint_list.end(),
+                         [](const EndpointConfig &ep) { return ep.plane == "plane_pg_0"; }),
+            res.endpoint_list.end());
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceOnlyUsesLaterMeshEdgeWhenFirstPortIsBad) {
+  // 第一条 fullmesh 边端口非法时继续看后续边，仍能解析 mesh die 并生成 D2D。
+  DcmiStubSetMeshDieId(1);
+  const std::string topo_json = R"({"peer_count":8,"edge_list":[
+    {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":8,
+     "local_a_ports":["bad"],"local_b_ports":["bad"]},
+    {"net_layer":0,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1,
+     "local_a_ports":["1/2"],"local_b_ports":["1/2"]}
+  ]})";
+  std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", topo_json);
+  ASSERT_FALSE(tmp_topo.empty());
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
+  unlink(tmp_topo.c_str());
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_NE(std::find_if(res.endpoint_list.begin(), res.endpoint_list.end(),
+                         [](const EndpointConfig &ep) {
+                           return ep.placement == kPlacementDevice && !ep.dst_eid.empty() && ep.plane.empty();
+                         }),
+            res.endpoint_list.end());
+}
+
+TEST_F(LocalCommResGenerateTest, GenerateDeviceAndHostFailsWithoutMeshDie) {
+  // host 路由要用 mesh die 找 H2D/D2H remote EID；没有 fullmesh 边时在这里失败
+  DcmiStubSetMainboardId(0x21, 0);
+  DcmiStubSetUrmaDeviceCnt(3, 0);
+  DcmiStubSetMeshDieId(1);
+  std::string tmp_topo = CreateTempFileWithContent("/tmp/topo_ut_XXXXXX", MakeClosOnlyTopoJson());
+  ASSERT_FALSE(tmp_topo.empty());
+  LocalCommRes res;
+  Status ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceAndHost, res);
+  unlink(tmp_topo.c_str());
+  EXPECT_EQ(ret, FAILED);
 }
 
 // --- 16 NPU (pc16) adaptation ---
@@ -1195,7 +1406,7 @@ TEST_F(LocalCommResGenerateTest, GenerateServerMainboardId) {
 }
 
 TEST_F(LocalCommResGenerateTest, GenerateBuildNpuRootinfosFailed) {
-  // URMA 设备数为 0 → BuildNpuRootInfo 返回 FAILED → BuildNpuRootinfos 失败
+  // 本卡 URMA 设备数为 0 → CLOS 查询失败 → BuildNpuRootinfos 失败
   DcmiStubSetUrmaDeviceCnt(0, 0);
 
   std::string topo_path = data_dir_ + "server_8p_noroce.json";
@@ -1206,9 +1417,9 @@ TEST_F(LocalCommResGenerateTest, GenerateBuildNpuRootinfosFailed) {
 }
 
 TEST_F(LocalCommResGenerateTest, GenerateEmptyAllEdges) {
-  // UDMA 0 only returns non-PG EID (no PG) → BuildNpuRootInfo fails (clos_pg_eids empty)
-  DcmiStubSetUrmaDeviceCnt(1, 0);  // Only 1 UDMA device, no route-specific device
-  DcmiStubSetEidCount(1);          // Only non-PG EID, no PG EID
+  // mesh 边没有端口，且没有 CLOS：rootinfo 为空被跳过，最终没有边
+  DcmiStubSetUrmaDeviceCnt(1, 0);
+  DcmiStubSetEidCount(1);
 
   std::string topo_json =
       R"({"version":"2.0","peer_count":8,"edge_list":[{"net_layer":1,"link_type":"PEER2PEER","topo_type":"1DMESH","local_a":0,"local_b":1}]})";
@@ -1217,7 +1428,7 @@ TEST_F(LocalCommResGenerateTest, GenerateEmptyAllEdges) {
 
   LocalCommRes res;
   Status ret = GenerateLocalCommRes(0, tmp_topo, LocalCommResGenerateMode::kDeviceOnly, res);
-  EXPECT_EQ(ret, FAILED);
+  EXPECT_EQ(ret, PARAM_INVALID);
 
   unlink(tmp_topo.c_str());
 }
