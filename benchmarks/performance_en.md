@@ -11,11 +11,38 @@ This document summarizes HIXL communication performance data across different As
 ### How to Read the Tables
 
 - **Block** column: Each data block size (16K = 16 KiB, 1G = 1 GiB), 8 steps from 16K to 1G.
-- Each transport protocol is shown in a separate table in order **UB_RTP** → **UBOE**; columns follow direction order: `D2rD`, `rD2D`, `D2rH`, `rH2D`, `H2rH`, `rH2H`, `H2rD`, `rD2H`.
+- Each transport protocol is shown in a separate table in order **UB_CTP** → **UB_RTP** → **UBOE**; columns follow direction order: `D2rD`, `rD2D`, `D2rH`, `rH2D`, `H2rH`, `rH2H`, `H2rD`, `rD2H`.
+- **UB_CTP** is split by test environment: **Server** first, then **POD**.
 - **UBOE** is further split by channel count: default single channel first, then **4-channel concurrency**.
 - Values are effective bandwidth (GB/s).
 
 ### Single-Machine Data
+
+#### UB_CTP (Server)
+
+| **Block** | **D2rD** | **rD2D** | **D2rH** | **rH2D** | **H2rH** | **rH2H** | **H2rD** | **rD2H** |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| 16K | 12.384 | 12.651 | 12.61 | 12.747 | 12.689 | 12.729 | 12.581 | 12.594 |
+| 128K | 103.947 | 103.857 | 43.917 | 44.354 | 43.097 | 43.415 | 44.294 | 43.854 |
+| 512K | 260.139 | 269.534 | 45.872 | 46.208 | 45.685 | 45.737 | 46.095 | 45.882 |
+| 1M | 290.818 | 317.306 | 46.39 | 46.577 | 46.15 | 46.484 | 46.598 | 46.402 |
+| 4M | 309.882 | 322.504 | 46.507 | 46.768 | 46.547 | 46.752 | 46.706 | 46.557 |
+| 16M | 316.149 | 332.462 | 46.878 | 46.985 | 46.811 | 46.734 | 46.928 | 46.874 |
+| 64M | 307.592 | 332.567 | 46.646 | 46.992 | 46.776 | 46.97 | 46.979 | 46.839 |
+| 1G | 311.714 | 334.241 | 46.803 | 46.974 | 46.782 | 46.896 | 47.002 | 46.934 |
+
+#### UB_CTP (POD)
+
+| **Block** | **D2rD** | **rD2D** | **D2rH** | **rH2D** | **H2rH** | **rH2H** | **H2rD** | **rD2H** |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| 16K | 12.354 | 12.627 | 12.552 | 12.712 | 12.562 | 12.691 | 12.602 | 12.755 |
+| 128K | 93.235 | 101.97 | 81.45 | 82.669 | 81.625 | 80.52 | 83.46 | 83.158 |
+| 512K | 268.66 | 265.961 | 89.751 | 89.502 | 88.526 | 89.716 | 89.747 | 89.671 |
+| 1M | 280.497 | 279.29 | 91.749 | 90.228 | 89.798 | 90.239 | 90.906 | 88.934 |
+| 4M | 288.172 | 286.312 | 92.112 | 91.829 | 91.011 | 91.35 | 91.479 | 91.49 |
+| 16M | 284.499 | 289.561 | 92.311 | 92.886 | 91.848 | 91.896 | 92.28 | 91.823 |
+| 64M | 301.43 | 288.911 | 92.758 | 93.346 | 92.063 | 92.267 | 92.15 | 91.161 |
+| 1G | 300.65 | 293.295 | 92.518 | 93.431 | 91.856 | 92.247 | 92.221 | 92.249 |
 
 #### UB_RTP
 
