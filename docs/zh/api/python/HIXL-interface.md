@@ -575,7 +575,7 @@ options = {
 **Ascend 950PR&950DT系列产品注意事项**
 
 1. 自动生成LocalCommRes要求LCNE版本不低于 `LCNE: UBM_2.0.0.B011`（可前往1213前台执行 `dis startup` 查看LCNE版本信息），HDK版本不低于 `25.1.RC1.B108`（可通过 `npu-smi info` 查看HDK版本信息）。
-2. 目前仅UB场景支持自动生成 `net_instance_id` 与 `endpoint_list`。如需自行配置LocalCommRes，可使用工具辅助生成指定NPU的信息，详见 [scripts/tools/hixl_tool/readme.md](../../../../scripts/tools/hixl_tool/readme.md)；如仅需生成单个NPU的Device侧UB通信边，也可使用简易工具lcrgen，详见 [scripts/tools/lcrgen/README.md](../../../../scripts/tools/lcrgen/README.md)。
+2. 目前仅UB场景支持自动生成 `net_instance_id` 与 `endpoint_list`。如需自行配置LocalCommRes，可使用工具辅助生成指定NPU的信息，详见 [scripts/tools/hixl_tool/readme.md](../../../../scripts/tools/hixl_tool/readme.md)。
 3. UB场景下，若 `endpoint_list` 仅配置placement为device的UB endpoint，则仅支持Device地址的注册和传输；若仅配置placement为host的UB endpoint，则仅支持Host地址的注册和传输。需要同时使用Device和Host地址时，需同时配置对应placement的UB endpoint。
 <!-- end id54 -->
 

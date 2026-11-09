@@ -30,7 +30,6 @@
 #include "rootinfo_builder_generator_v1.h"
 // EndpointConfig definition
 #include "common/hixl_inner_types.h"
-// AscendString is aliased via hixl_types.h, included indirectly through hixl_inner_types.h (hixl::AscendString)
 
 namespace hixl {
 
@@ -153,7 +152,7 @@ Status GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, Lo
 /**
  * @brief Internal helper: resolve the default topo path from mainboard_id
  *
- * Shared by GenerateLocalCommRes default-path overloads and 2-arg TransLocalCommRes.
+ * Shared by GenerateLocalCommRes default-path overloads.
  * **Internal use only**; callers must pass a valid phy_dev_id.
  *
  * @param [in]  phy_dev_id Physical device ID
@@ -161,30 +160,6 @@ Status GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, Lo
  * @return SUCCESS on success; GetMainboardId error or PARAM_INVALID on failure
  */
 Status ResolveDefaultLocalCommResPaths(int32_t phy_dev_id, std::string &topo_path);
-
-/**
- * @brief Generate LocalCommRes as a JSON string (used by the lcrgen tool)
- *
- * Runs GenerateLocalCommRes (default-path overload), serializes LocalCommRes as
- * 2-space-indented JSON, and returns it via AscendString. **All std::string
- * handling stays inside libcann_hixl.so**; the caller only holds AscendString
- * (which wraps shared_ptr<std::string>), so the .so boundary stays ABI-safe.
- *
- * @param [in] phy_dev_id Physical device ID
- * @param [out] result JSON string on success; undefined on failure
- * @return SUCCESS on success, other error codes on failure
- */
-Status TransLocalCommRes(int32_t phy_dev_id, AscendString &result);
-
-/**
- * @brief Generate LocalCommRes as a JSON string (test overload that injects a topo path)
- *
- * @param [in] phy_dev_id Physical device ID
- * @param [in] topo_path Topology file path
- * @param [out] result JSON string on success; undefined on failure
- * @return SUCCESS on success, other error codes on failure
- */
-Status TransLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, AscendString &result);
 
 /**
  * @brief Serialize LocalCommRes to a 2-space-indented JSON string

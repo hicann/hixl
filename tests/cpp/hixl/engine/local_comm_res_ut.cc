@@ -26,7 +26,6 @@
 #include <vector>
 #include <map>
 #include <cstdlib>
-#include <cstring>
 #include <memory>
 #include <unistd.h>
 
@@ -2029,29 +2028,8 @@ TEST_F(TopoFileFinderTest, FindTopoFileSp1Sp2Sp3NotServerAtlas850) {
 }
 
 // ============================================================================
-// TransLocalCommRes / ResolveDefaultLocalCommResPaths 测试
+// ResolveDefaultLocalCommResPaths 测试
 // ============================================================================
-//
-// 2 参 TransLocalCommRes 内部使用默认路径 /usr/local/Ascend/driver/topo/950/，
-// UT 环境下该路径不存在，无法构造 "成功" 路径。
-// - SUCCESS 路径通过 4 参重载（注入 topo / route 路径）覆盖
-// - 失败路径通过 ResolveDefaultLocalCommResPaths 的 GetMainboardId 失败覆盖
-
-TEST_F(LocalCommResGenerateTest, TransLocalCommResSuccess) {
-  std::string topo_path = data_dir_ + "server_8p_noroce.json";
-
-  hixl::AscendString result;
-  Status ret = TransLocalCommRes(0, topo_path, result);
-  EXPECT_EQ(ret, SUCCESS);
-  EXPECT_GT(result.GetLength(), 0u);
-
-  // 验证 JSON 内容包含 LocalCommRes 的关键字段
-  const char *json = result.GetString();
-  ASSERT_NE(json, nullptr);
-  EXPECT_NE(std::strstr(json, "\"version\": \"1.3\""), nullptr);
-  EXPECT_NE(std::strstr(json, "\"net_instance_id\": "), nullptr);
-  EXPECT_NE(std::strstr(json, "\"endpoint_list\": ["), nullptr);
-}
 
 TEST_F(LocalCommResTopoPathTest, ResolveDefaultPathsPropagatesGetMainboardIdFailure) {
   // GetMainboardId 失败 → ResolveDefaultLocalCommResPaths 透传错误码
@@ -2071,25 +2049,6 @@ TEST_F(LocalCommResTopoPathTest, ResolveDefaultPathsUnknownMainboardIdReturnsInv
   Status ret = ResolveDefaultLocalCommResPaths(0, topo_path);
   EXPECT_EQ(ret, PARAM_INVALID);
   EXPECT_TRUE(topo_path.empty());
-}
-
-TEST_F(LocalCommResTopoPathTest, TransLocalCommResDefaultOverloadTopoMissing) {
-  // 2 参 TransLocalCommRes 走默认路径，UT 环境 /usr/local/Ascend/driver/topo/950/ 不存在
-  // → ResolveDefaultLocalCommResPaths 返回 PARAM_INVALID → 2 参 TransLocalCommRes 透传
-  DcmiStubSetMainboardId(0x3, 0);  // Pod1
-
-  hixl::AscendString result;
-  Status ret = TransLocalCommRes(0, result);
-  EXPECT_EQ(ret, PARAM_INVALID);
-}
-
-TEST_F(LocalCommResTopoPathTest, TransLocalCommResDefaultOverloadGetMainboardIdFailed) {
-  // 2 参 TransLocalCommRes：GetMainboardId 失败 → ResolveDefaultLocalCommResPaths 透传 → 2 参 TransLocalCommRes 透传
-  DcmiStubSetMainboardId(0, -1);
-
-  hixl::AscendString result;
-  Status ret = TransLocalCommRes(0, result);
-  EXPECT_NE(ret, SUCCESS);
 }
 
 }  // namespace test

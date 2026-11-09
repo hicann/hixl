@@ -1555,13 +1555,6 @@ Status GenerateLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, Lo
   return BuildLocalCommResResult(ctx, local_comm_res);
 }
 
-Status TransLocalCommRes(int32_t phy_dev_id, AscendString &result) {
-  std::string topo_path;
-  HIXL_CHK_STATUS_RET(ResolveDefaultLocalCommResPaths(phy_dev_id, topo_path),
-                      "[TransLocalCommRes] ResolveDefaultLocalCommResPaths failed");
-  return TransLocalCommRes(phy_dev_id, topo_path, result);
-}
-
 Status SerializeLocalCommResJson(const LocalCommRes &local_comm_res, std::string &json_str) {
   nlohmann::json j;
   j["version"] = local_comm_res.version;
@@ -1593,23 +1586,6 @@ Status SerializeLocalCommResJson(const LocalCommRes &local_comm_res, std::string
   } catch (const nlohmann::json::exception &e) {
     HIXL_CHK_BOOL_RET_STATUS(false, FAILED, "[SerializeLocalCommResJson] Failed to dump JSON: %s", e.what());
   }
-  return SUCCESS;
-}
-
-Status TransLocalCommRes(int32_t phy_dev_id, const std::string &topo_path, AscendString &result) {
-  // 1. Build LocalCommRes via GenerateLocalCommRes
-  LocalCommRes local_comm_res;
-  HIXL_CHK_STATUS_RET(
-      GenerateLocalCommRes(phy_dev_id, topo_path, LocalCommResGenerateMode::kDeviceOnly, local_comm_res),
-      "[TransLocalCommRes] GenerateLocalCommRes failed, phy_dev_id=%d", phy_dev_id);
-
-  // 2. Serialize as 2-space-indented JSON
-  std::string json_str;
-  HIXL_CHK_STATUS_RET(SerializeLocalCommResJson(local_comm_res, json_str),
-                      "[TransLocalCommRes] SerializeLocalCommResJson failed");
-
-  // 3. Return via AscendString (wraps shared_ptr<std::string>; ABI-safe across .so)
-  result = AscendString(json_str.c_str());
   return SUCCESS;
 }
 
