@@ -83,6 +83,10 @@ This document summarizes HIXL communication performance data across different As
 | 64M | 44.765 | 44.889 | 44.336 | 35.681 | 35.78 | 35.737 | 35.735 | 44.325 |
 | 1G | 44.772 | 44.89 | 44.345 | 35.758 | 35.935 | 35.651 | 35.839 | 44.34 |
 
+<!-- hixl-perf:start a5_single -->
+<img src="../docs/en/figures/benchmark_perf_a5_single.png" alt="Ascend 950PR/950DT Single-Machine bandwidth charts">
+<!-- hixl-perf:end a5_single -->
+
 ---
 
 ## HIXL Measured Performance Data on Ascend A3 Chip in Selected Scenarios
@@ -92,7 +96,6 @@ This document summarizes HIXL communication performance data across different As
 - Total data volume: 128MiB.
 - **Block** column: Each data block size (16K = 16 KiB, 1M = 1 MiB).
 - Each transport protocol is shown in a separate table in order **FabricMem** → **ROCE** → **HCCS**; columns follow direction order: `D2rD`, `rD2D`, `D2rH`, `rH2D`, `H2rH`, `rH2H`, `H2rD`, `rD2H`.
-- **HCCS** / **ROCE** are further split by path: **hixl_cs** first, then **communication domain** (default).
 - **FabricMem** is further split into **AICPU unfold** and **Host unfold** tables; **Host unfold** uses **4 concurrent streams**.
 - Values are effective bandwidth (GB/s); **Not supported** means the transport does not support that direction on this platform; **——** means data has not been collected yet.
 
@@ -137,19 +140,6 @@ This document summarizes HIXL communication performance data across different As
 | 1M | 23.771 | 23.817 | 23.809 | 23.807 | 23.794 | 23.784 | 23.760 | 23.792 |
 | 2M | 23.854 | 23.917 | 23.905 | 23.904 | 23.905 | 23.883 | 23.868 | 23.886 |
 
-#### ROCE (communication domain)
-
-| **Block** | **D2rD** | **rD2D** | **D2rH** | **rH2D** | **H2rH** | **rH2H** | **H2rD** | **rD2H** |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| 16K | 12.501 | 10.445 | 12.802 | 11.971 | 10.914 | 11.015 | 12.838 | 11.615 |
-| 32K | 6.946 | 6.713 | 6.875 | 6.759 | 6.926 | 6.831 | 6.871 | 6.761 |
-| 64K | 10.846 | 10.689 | 10.843 | 10.684 | 10.805 | 10.69 | 10.837 | 10.705 |
-| 128K | 17.579 | 17.41 | 17.564 | 17.387 | 17.552 | 17.406 | 17.558 | 17.381 |
-| 256K | 23.02 | 22.853 | 23.026 | 22.856 | 22.98 | 22.853 | 22.996 | 22.885 |
-| 512K | 23.457 | 23.385 | 23.452 | 23.354 | 23.419 | 23.378 | 23.426 | 23.394 |
-| 1M | 23.518 | 23.424 | 23.513 | 23.378 | 23.442 | 23.423 | 23.431 | 23.45 |
-| 2M | 23.641 | 23.572 | 23.636 | 23.524 | 23.574 | 23.545 | 23.574 | 23.573 |
-
 #### HCCS (hixl_cs)
 
 | **Block** | **D2rD** | **rD2D** | **D2rH** | **rH2D** | **H2rH** | **rH2H** | **H2rD** | **rD2H** |
@@ -163,18 +153,9 @@ This document summarizes HIXL communication performance data across different As
 | 1M | 161.185 | 150.467 | Not supported | Not supported | Not supported | Not supported | 57.183 | 51.890 |
 | 2M | 164.610 | 165.265 | Not supported | Not supported | Not supported | Not supported | 59.791 | 54.410 |
 
-#### HCCS (communication domain)
-
-| **Block** | **D2rD** | **rD2D** | **D2rH** | **rH2D** | **H2rH** | **rH2H** | **H2rD** | **rD2H** |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| 16K | 15.983 | 15.016 | Not supported | Not supported | Not supported | Not supported | 7.180 | 7.217 |
-| 32K | 31.97 | 30.106 | Not supported | Not supported | Not supported | Not supported | 13.487 | 13.343 |
-| 64K | 60.293 | 52.557 | Not supported | Not supported | Not supported | Not supported | 23.636 | 22.226 |
-| 128K | 108.384 | 80.165 | Not supported | Not supported | Not supported | Not supported | 29.658 | 28.408 |
-| 256K | 146.208 | 110.322 | Not supported | Not supported | Not supported | Not supported | 34.267 | 33.201 |
-| 512K | 158.308 | 132.348 | Not supported | Not supported | Not supported | Not supported | 37.354 | 36.511 |
-| 1M | 157.44 | 143.571 | Not supported | Not supported | Not supported | Not supported | 39.000 | 38.343 |
-| 2M | 158.812 | 158.189 | Not supported | Not supported | Not supported | Not supported | 40.484 | 39.856 |
+<!-- hixl-perf:start a3_single -->
+<img src="../docs/en/figures/benchmark_perf_a3_single.png" alt="Ascend A3 Single-Machine bandwidth charts">
+<!-- hixl-perf:end a3_single -->
 
 ### Dual-Machine Data
 
@@ -217,32 +198,9 @@ This document summarizes HIXL communication performance data across different As
 | 1M | 23.788 | 23.663 | 23.725 | 23.728 | 23.607 | 23.549 | 23.770 | 23.687 |
 | 2M | 23.933 | 23.828 | 23.888 | 23.903 | 23.772 | 23.770 | 23.914 | 23.784 |
 
-#### ROCE (communication domain)
-
-| **Block** | **D2rD** | **rD2D** | **D2rH** | **rH2D** | **H2rH** | **rH2H** | **H2rD** | **rD2H** |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| 16K | 7.765 | 10.713 | 6.515 | 9.434 | 9.946 | 11.249 | 9.817 | 11.951 |
-| 32K | 6.289 | 6.518 | 6.052 | 6.44 | 6.866 | 6.684 | 6.947 | 6.51 |
-| 64K | 10.799 | 10.587 | 10.216 | 10.669 | 10.814 | 10.681 | 10.857 | 10.678 |
-| 128K | 17.863 | 16.275 | 16.381 | 16.321 | 16.406 | 15.934 | 17.122 | 16.487 |
-| 256K | 22.232 | 22.861 | 21.76 | 22.83 | 22.973 | 22.854 | 23.052 | 22.871 |
-| 512K | 22.752 | 23.377 | 22.283 | 23.344 | 23.42 | 23.341 | 23.475 | 23.386 |
-| 1M | 22.895 | 23.4 | 22.439 | 23.364 | 23.322 | 23.35 | 23.506 | 23.388 |
-| 2M | 23.045 | 23.509 | 22.617 | 23.504 | 23.481 | 23.491 | 23.604 | 23.51 |
-
-#### HCCS (communication domain)
-
-| **Block** | **D2rD** | **rD2D** | **D2rH** | **rH2D** | **H2rH** | **rH2H** | **H2rD** | **rD2H** |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| 16K | 3.471 | 5.041 | Not supported | Not supported | Not supported | Not supported | 4.002 | 4.044 |
-| 32K | 6.911 | 10.09 | Not supported | Not supported | Not supported | Not supported | 7.724 | 7.692 |
-| 64K | 12.967 | 18.747 | Not supported | Not supported | Not supported | Not supported | 14.429 | 13.471 |
-| 128K | 22.87 | 32.633 | Not supported | Not supported | Not supported | Not supported | 16.257 | 15.859 |
-| 256K | 37.465 | 53.585 | Not supported | Not supported | Not supported | Not supported | 17.464 | 17.587 |
-| 512K | 54.564 | 77.99 | Not supported | Not supported | Not supported | Not supported | 18.186 | 18.576 |
-| 1M | 71.708 | 98.584 | Not supported | Not supported | Not supported | Not supported | 18.519 | 18.969 |
-| 2M | 89.985 | 117.531 | Not supported | Not supported | Not supported | Not supported | 18.907 | 19.287 |
-
+<!-- hixl-perf:start a3_dual -->
+<img src="../docs/en/figures/benchmark_perf_a3_dual.png" alt="Ascend A3 Dual-Machine bandwidth charts">
+<!-- hixl-perf:end a3_dual -->
 
 ---
 
@@ -253,7 +211,6 @@ This document summarizes HIXL communication performance data across different As
 - Total data volume: 128MiB.
 - **Block** column: Each data block size (16K = 16 KiB, 1M = 1 MiB).
 - Each transport protocol is shown in a separate table in order **ROCE** → **HCCS**; columns follow direction order: `D2rD`, `rD2D`, `D2rH`, `rH2D`, `H2rH`, `rH2H`, `H2rD`, `rD2H`.
-- **ROCE** / **HCCS** are split by path: **hixl_cs** first, then **communication domain**.
 - Values are effective bandwidth (GB/s); **Not supported** means the transport does not support that direction on this platform; **——** means data has not been collected yet.
 
 ### Single-Machine Data
@@ -271,19 +228,6 @@ This document summarizes HIXL communication performance data across different As
 | 1M | 23.596 | 23.740 | 18.257 | 18.675 | 20.749 | 20.740 | 23.718 | 20.519 |
 | 2M | 23.731 | 23.898 | 18.375 | 19.065 | 20.821 | 20.838 | 23.873 | 20.582 |
 
-#### ROCE (communication domain)
-
-| **Block** | **D2rD** | **rD2D** | **D2rH** | **rH2D** | **H2rH** | **rH2H** | **H2rD** | **rD2H** |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| 16K | 0.716 | 0.701 | 0.698 | 0.698 | 0.713 | 0.699 | 0.722 | 0.678 |
-| 32K | 1.42 | 1.397 | 1.43 | 1.387 | 1.421 | 1.384 | 1.409 | 1.398 |
-| 64K | 2.84 | 2.778 | 2.887 | 2.562 | 2.842 | 2.793 | 2.881 | 2.776 |
-| 128K | 5.735 | 5.538 | 5.714 | 5.395 | 5.868 | 5.658 | 5.601 | 5.66 |
-| 256K | 10.909 | 11.273 | 10.634 | 10.923 | 10.634 | 11.254 | 11.304 | 10.442 |
-| 512K | 15.566 | 20.366 | 17.8 | 16.299 | 15.47 | 19.64 | 14.788 | 16.763 |
-| 1M | 18.789 | 23.676 | 21.069 | 20.391 | 17.469 | 19.286 | 21.858 | 18.351 |
-| 2M | 19.778 | 24.042 | 21.072 | 21.99 | 15.244 | 20.492 | 21.695 | 20.506 |
-
 #### HCCS (hixl_cs)
 
 | **Block** | **D2rD** | **rD2D** | **D2rH** | **rH2D** | **H2rH** | **rH2H** | **H2rD** | **rD2H** |
@@ -297,18 +241,9 @@ This document summarizes HIXL communication performance data across different As
 | 1M | 20.031 | 26.281 | Not supported | Not supported | Not supported | Not supported | Not supported | Not supported |
 | 2M | 20.284 | 26.814 | Not supported | Not supported | Not supported | Not supported | Not supported | Not supported |
 
-#### HCCS (communication domain)
-
-| **Block** | **D2rD** | **rD2D** | **D2rH** | **rH2D** | **H2rH** | **rH2H** | **H2rD** | **rD2H** |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| 16K | 1.47 | 1.387 | Not supported | Not supported | Not supported | Not supported | Not supported | Not supported |
-| 32K | 2.493 | 2.744 | Not supported | Not supported | Not supported | Not supported | Not supported | Not supported |
-| 64K | 5.439 | 5.497 | Not supported | Not supported | Not supported | Not supported | Not supported | Not supported |
-| 128K | 6.568 | 10.991 | Not supported | Not supported | Not supported | Not supported | Not supported | Not supported |
-| 256K | 12.062 | 22.037 | Not supported | Not supported | Not supported | Not supported | Not supported | Not supported |
-| 512K | 19.571 | 26.405 | Not supported | Not supported | Not supported | Not supported | Not supported | Not supported |
-| 1M | 19.853 | 27.027 | Not supported | Not supported | Not supported | Not supported | Not supported | Not supported |
-| 2M | 20.515 | 27.345 | Not supported | Not supported | Not supported | Not supported | Not supported | Not supported |
+<!-- hixl-perf:start a2_single -->
+<img src="../docs/en/figures/benchmark_perf_a2_single.png" alt="Ascend A2 Single-Machine bandwidth charts">
+<!-- hixl-perf:end a2_single -->
 
 ### Dual-Machine Data
 
@@ -325,15 +260,6 @@ This document summarizes HIXL communication performance data across different As
 | 1M | 23.652 | 23.525 | 20.504 | 22.521 | 17.345 | 18.071 | 22.605 | 20.582 |
 | 2M | 23.827 | 23.664 | 20.593 | 22.679 | 20.410 | 18.194 | 22.722 | 20.639 |
 
-#### ROCE (communication domain)
-
-| **Block** | **D2rD** | **rD2D** | **D2rH** | **rH2D** | **H2rH** | **rH2H** | **H2rD** | **rD2H** |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| 16K | 0.718 | 0.703 | 0.715 | 0.685 | 0.717 | 0.699 | 0.721 | 0.676 |
-| 32K | 1.404 | 1.296 | 1.413 | 1.324 | 1.429 | 1.285 | 1.432 | 1.309 |
-| 64K | 2.847 | 2.705 | 2.853 | 2.784 | 2.777 | 2.802 | 2.789 | 2.771 |
-| 128K | 5.502 | 5.611 | 5.65 | 5.663 | 5.508 | 5.543 | 5.786 | 5.579 |
-| 256K | 11.203 | 11.055 | 11.259 | 10.76 | 11.044 | 11.09 | 11.292 | 10.829 |
-| 512K | 18.532 | 16.295 | 15.368 | 17.117 | 17.814 | 17.982 | 18.429 | 17.921 |
-| 1M | 21.223 | 24.006 | 18.981 | 20.713 | 19.838 | 19.961 | 20.509 | 14.599 |
-| 2M | 20.729 | 24.134 | 18.283 | 22.878 | 19.543 | 19.394 | 20.276 | 18.739 |
+<!-- hixl-perf:start a2_dual -->
+<img src="../docs/en/figures/benchmark_perf_a2_dual.png" alt="Ascend A2 Dual-Machine bandwidth charts">
+<!-- hixl-perf:end a2_dual -->
