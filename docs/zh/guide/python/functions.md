@@ -25,72 +25,72 @@ NN模型执行时调用的HCCL集合通信接口是双边通信，即需要两�
 
     ```python
     # P侧脚本
-    from llm_datadist import LLMDataDist, LLMRole, LLMStatusCode, LLMClusterInfo
+    from llm_datadist import LLMDataDist, LLMRole, LLMStatusCode, LLMClusterInfo, LLMConfig
 
-     # llm datadist初始化
-     llm_datadist = LLMDataDist(LLMRole.Prompt, cluster_id=0)
-     llm_config = LLMConfig()
-     llm_config.listen_ip_info = "10.10.1.1:26000" # local_host_ip + port
-     llm_config.device_id = 0
-     llm_options = llm_config.generate_options()
-     llm_datadist.init(llm_options)
+    # llm datadist初始化
+    llm_datadist = LLMDataDist(LLMRole.PROMPT, cluster_id=0)
+    llm_config = LLMConfig()
+    llm_config.listen_ip_info = "192.168.1.1:26000" # local_host_ip + port
+    llm_config.device_id = 0
+    llm_options = llm_config.generate_options()
+    llm_datadist.init(llm_options)
     ```
 
     ```python
     # D侧脚本
-    from llm_datadist import LLMDataDist, LLMRole, LLMStatusCode, LLMClusterInfo
+    from llm_datadist import LLMDataDist, LLMRole, LLMStatusCode, LLMClusterInfo, LLMConfig
 
-     # llm datadist初始化
-     llm_datadist = LLMDataDist(LLMRole.DECODER, cluster_id=0)
-     llm_config = LLMConfig()
-     llm_config.device_id =0
-     llm_options = llm_config.generate_options()
-     llm_datadist.init(llm_options)
+    # llm datadist初始化
+    llm_datadist = LLMDataDist(LLMRole.DECODER, cluster_id=1)
+    llm_config = LLMConfig()
+    llm_config.device_id =0
+    llm_options = llm_config.generate_options()
+    llm_datadist.init(llm_options)
     ```
 
 2. 在D侧脚本中调用link\_clusters发起建链操作，当业务退出时在D侧调用unlink\_clusters进行断链。
 
     ```python
-     # 生成cluster info信息用于建链
-     cluster = LLMClusterInfo()
-     cluster.remote_cluster_id = 1  # 此处的remote_cluster_id需要和P侧创建的LLMDataDist对应
-     cluster.append_local_ip_info("192.168.2.1", 26000) # local_ip_info的IP是本机需要建链的Host IP地址
-     cluster.append_remote_ip_info("192.168.1.1", 26000) # remote_ip_info的IP是想和对端建链的Host IP地址
+    # 生成cluster info信息用于建链
+    cluster = LLMClusterInfo()
+    cluster.remote_cluster_id = 0  # 此处的remote_cluster_id需要和P侧创建的LLMDataDist对应
+    cluster.append_local_ip_info("192.168.2.1", 26000) # local_ip_info的IP是本机需要建链的Host IP地址
+    cluster.append_remote_ip_info("192.168.1.1", 26000) # remote_ip_info的IP是想和对端建链的Host IP地址
 
-     # 调用link_clusters进行建链
-     # ret是接口的返回值，rets表示每个cluster建链的结果。
-     ret, rets = llm_datadist.link_clusters([cluster], timeout=5000)
-     # 判断建链结果
-     if ret != LLMStatusCode.LLM_SUCCESS:
-         raise Exception("link failed.")
-     for cluster_i in range(len(rets)):
-         link_ret = rets[cluster_i]
-         if link_ret != LLMStatusCode.LLM_SUCCESS:
-             print(f"{cluster_i} link failed.")
+    # 调用link_clusters进行建链
+    # ret是接口的返回值，rets表示每个cluster建链的结果。
+    ret, rets = llm_datadist.link_clusters([cluster], timeout=5000)
+    # 判断建链结果
+    if ret != LLMStatusCode.LLM_SUCCESS:
+        raise Exception("link failed.")
+    for cluster_i in range(len(rets)):
+        link_ret = rets[cluster_i]
+        if link_ret != LLMStatusCode.LLM_SUCCESS:
+            print(f"{cluster_i} link failed.")
     ```
 
 3. 业务结束D侧进行断链，P和D都调用llm\_datadist的finalize释放资源。
 
     ```python
-     # P侧脚本
-     # 调用llm_datadist申请KV Cache
-     # 执行业务推理
-     # ...
+    # P侧脚本
+    # 调用llm_datadist申请KV Cache
+    # 执行业务推理
+    # ...
 
-     # 业务退出
-     llm_datadist.finalize()
+    # 业务退出
+    llm_datadist.finalize()
     ```
 
     ```python
-     # D侧脚本
-     # pull_cache、模型推理
-     # ...
+    # D侧脚本
+    # pull_cache、模型推理
+    # ...
 
-     # 业务退出，调用unlink_clusters进行断链
-     ret, rets = llm_datadist.unlink_clusters([cluster], timeout=5000)
-     if ret != LLMStatusCode.LLM_SUCCESS:
-         raiseRuntimeError(f'[unlink_cluster] failed, ret={ret}')
-     llm_datadist.finalize()
+    # 业务退出，调用unlink_clusters进行断链
+    ret, rets = llm_datadist.unlink_clusters([cluster], timeout=5000)
+    if ret != LLMStatusCode.LLM_SUCCESS:
+        raise RuntimeError(f'[unlink_cluster] failed, ret={ret}')
+    llm_datadist.finalize()
     ```
 
 当新增节点或者已下线节点再上线时，需要执行一遍上述使用流程。当下线节点时，正常情况下D侧需要主动调用unlink\_clusters接口_，_如果D侧无法调用unlink\_clusters接口，则需要P侧调用unlink\_clusters。
@@ -105,9 +105,9 @@ unlink\_clusters接口提供了强制断链的能力，该能力适用于链路�
 
 ```python
 # 强制断链
- ret, rets = llm_datadist.unlink_clusters([cluster], timeout=5000, force=True)
- if ret != LLMStatusCode.LLM_SUCCESS:
-     raise RuntimeError(f'[unlink_clusters] failed, ret={ret}')
+ret, rets = llm_datadist.unlink_clusters([cluster], timeout=5000, force=True)
+if ret != LLMStatusCode.LLM_SUCCESS:
+    raise RuntimeError(f'[unlink_clusters] failed, ret={ret}')
 ```
 
 ## KV Cache管理
