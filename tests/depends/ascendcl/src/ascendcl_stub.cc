@@ -56,6 +56,11 @@ void ResetStubMallocHostCounter() {
   g_stub_malloc_host_fail_on.store(-1, std::memory_order_relaxed);
 }
 
+static uint32_t g_notify_batch_reset_abort_count = 0U;
+void HixlTestSetNotifyBatchResetAbortCount(uint32_t count) {
+  g_notify_batch_reset_abort_count = count;
+}
+
 struct aclrtContextStub {
   int32_t deviceId;
 };
@@ -692,6 +697,10 @@ aclError AclRuntimeStub::aclrtDestroyNotify(aclrtNotify notify) {
 aclError AclRuntimeStub::aclrtNotifyBatchReset(aclrtNotify *notifies, size_t num) {
   (void)notifies;
   (void)num;
+  if (g_notify_batch_reset_abort_count > 0U) {
+    --g_notify_batch_reset_abort_count;
+    return ACL_ERROR_RT_DEVICE_TASK_ABORT;
+  }
   return ACL_SUCCESS;
 }
 

@@ -277,6 +277,21 @@ TEST_F(TransferPoolTest, AbortInUseSlotReturnsItToPoolAndAcquireSucceedsAgain) {
   pool->Release(b);
 }
 
+TEST_F(TransferPoolTest, AbortRetriesNotifyResetOnDeviceTaskAbort) {
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  TransferPool::SlotHandle h{};
+  ASSERT_EQ(pool->Acquire(&h), SUCCESS);
+  // 模拟设备复位窗口：前两次 aclrtNotifyBatchReset 返 107022，重试后成功
+  llm::HixlTestSetNotifyBatchResetAbortCount(2U);
+  pool->Abort(h);
+  // 重试成功后 slot 回到 free list，可再次 Acquire
+  TransferPool::SlotHandle again{};
+  ASSERT_EQ(pool->Acquire(&again), SUCCESS);
+  pool->Release(again);
+}
+
 TEST_F(TransferPoolTest, AbortIdleSlotIsNoOp) {
   auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
   ASSERT_NE(pool, nullptr);
