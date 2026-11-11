@@ -11,9 +11,13 @@ The benchmark supports two transfer modes:
 ### 1. full_mesh (Full Mesh Transfer)
 
 - All ranks transmit data to and receive data from every other rank.
-- Each rank puts data to all other ranks and gets data from all other ranks.
+- Each rank publishes one batch of data and gets data from all other ranks.
 - Suitable for testing complex distributed communication scenarios.
 - **Requires `world_size >= 2`. For single-device testing, use the `one_to_many` mode.**
+
+Each rank calls `batch_put_from` once to publish a batch of blocks, so PUT bandwidth counts that batch once. GET visits the other `world_size - 1` ranks, so GET bandwidth counts the total data retrieved from those peers.
+
+PUT latency is a single measurement of the publish operation during warmup. GET latency is averaged over `num_iters` reads. The repeated GET iterations do not resample PUT.
 
 ### 2. one_to_many (One-to-Many Transfer)
 
@@ -185,6 +189,8 @@ World Size: 4
 
 ### Output for a Single Block Size
 
+The numbers below illustrate the output format and measurement semantics; they are not measured performance results.
+
 ```sh
 ================================================================================
 Benchmark Configuration:
@@ -199,9 +205,9 @@ Warmup completed
 
 ================================================================================
 Results for 144 KB:
-  Total Data per operation: 0.137 GB
-  Put: 0.012s => 11.417 GB/s (0.137 GB)
-  Get (avg over 10 iters): 0.011s => 12.454 GB/s (0.137 GB)
+  Total Data per operation: 0.014 GB
+  Put (single warmup sample): 0.012000s => 1.144 GB/s (0.014 GB)
+  Get (avg over 10 iters): 0.011000s => 3.745 GB/s (0.041 GB)
 ================================================================================
 ```
 
@@ -219,10 +225,9 @@ Block (KB)        Put (GB/s)        Get (GB/s)
 4                 0.035             0.036
 16                0.120             0.125
 64                0.450             0.460
-144               11.417            12.454
+144               1.144             3.745
 256               0.980             1.000
 512               1.850             1.900
 1024              3.200             3.300
 ================================================================================
 ```
-

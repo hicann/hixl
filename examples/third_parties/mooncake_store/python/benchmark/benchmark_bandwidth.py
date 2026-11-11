@@ -206,7 +206,8 @@ class BandwidthBenchmark(MooncakeSampleBase):
         if self.args.transfer_mode == "full_mesh":
             data_multiplier = self.config.world_size - 1
 
-        put_data_gb = total_gb * data_multiplier
+        # PUT publishes one batch; only GET loops over all other ranks.
+        put_data_gb = total_gb
         get_data_gb = total_gb * data_multiplier
 
         put_bw = put_data_gb / put_time if put_time > 0 else 0
@@ -216,7 +217,8 @@ class BandwidthBenchmark(MooncakeSampleBase):
         logging.info(f"Results for {block_size_kb} KB:")
         logging.info(f"  Total Data per operation: {total_gb:.3f} GB")
         logging.info(
-            f"  Put: {put_time:.6f}s => {put_bw:.3f} GB/s ({put_data_gb:.3f} GB)"
+            f"  Put (single warmup sample): {put_time:.6f}s"
+            f" => {put_bw:.3f} GB/s ({put_data_gb:.3f} GB)"
         )
         logging.info(
             f"  Get (avg over {self.args.num_iters} iters): {avg_get:.6f}s"
