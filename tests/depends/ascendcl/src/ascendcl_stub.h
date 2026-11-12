@@ -24,6 +24,8 @@ namespace llm {
 std::string &GetAclStubMock();
 void SetStubMallocHostFailOn(int32_t failOn);
 void ResetStubMallocHostCounter();
+void HixlTestSetNotifyBatchResetAbortCount(uint32_t count);
+uint32_t HixlTestGetNotifyBatchResetCallCount();
 void SetAclProfCreateStampEnabled(bool enabled);
 uint64_t GetAclProfStampCreateCount();
 uint64_t GetAclProfStampDestroyCount();

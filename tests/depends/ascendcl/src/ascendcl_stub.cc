@@ -96,6 +96,16 @@ void ResetStubMallocHostCounter() {
   g_stub_malloc_host_fail_on.store(-1, std::memory_order_relaxed);
 }
 
+static uint32_t g_notify_batch_reset_abort_count = 0U;
+static uint32_t g_notify_batch_reset_call_count = 0U;
+void HixlTestSetNotifyBatchResetAbortCount(uint32_t count) {
+  g_notify_batch_reset_abort_count = count;
+  g_notify_batch_reset_call_count = 0U;
+}
+uint32_t HixlTestGetNotifyBatchResetCallCount() {
+  return g_notify_batch_reset_call_count;
+}
+
 void SetAclProfCreateStampEnabled(bool enabled) {
   g_aclprof_create_stamp_enabled.store(enabled, std::memory_order_relaxed);
 }
@@ -748,6 +758,11 @@ aclError AclRuntimeStub::aclrtDestroyNotify(aclrtNotify notify) {
 aclError AclRuntimeStub::aclrtNotifyBatchReset(aclrtNotify *notifies, size_t num) {
   (void)notifies;
   (void)num;
+  ++g_notify_batch_reset_call_count;
+  if (g_notify_batch_reset_abort_count > 0U) {
+    --g_notify_batch_reset_abort_count;
+    return ACL_ERROR_RT_DEVICE_TASK_ABORT;
+  }
   return ACL_SUCCESS;
 }
 

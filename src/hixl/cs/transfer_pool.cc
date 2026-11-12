@@ -376,12 +376,24 @@ void TransferPool::ResetAbortSlotNotifyLocked(Slot &slot) {
     return;
   }
   aclrtNotify *notify_ptr = &slot.notify;
-  const aclError reset_ret = aclrtNotifyBatchReset(notify_ptr, static_cast<size_t>(1));
-  if (reset_ret == ACL_SUCCESS) {
-    return;
+  // 设备在 stop/abort 窗口时 aclrtNotifyBatchReset 在 host 侧快速返 107022(DEVICE_TASK_ABORT)；
+  // 隔 interval 重试，DeviceClean 恢复 status 后成功，再往下走销毁+重建。
+  constexpr uint32_t kAbortRetryIntervalMs = 20U;
+  constexpr uint32_t kAbortRetryTotalMs = 60000U;
+  uint32_t waited = 0U;
+  while (true) {
+    const aclError reset_ret = aclrtNotifyBatchReset(notify_ptr, static_cast<size_t>(1));
+    if (reset_ret == ACL_SUCCESS) {
+      return;
+    }
+    if (reset_ret != ACL_ERROR_RT_DEVICE_TASK_ABORT || waited >= kAbortRetryTotalMs) {
+      HIXL_LOGE(FAILED, "[TransferPool] aclrtNotifyBatchReset failed in abort, notify=%p ret=0x%X", slot.notify,
+                static_cast<uint32_t>(reset_ret));
+      return;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(kAbortRetryIntervalMs));
+    waited += kAbortRetryIntervalMs;
   }
-  HIXL_LOGE(FAILED, "[TransferPool] aclrtNotifyBatchReset failed in abort, notify=%p ret=0x%X", slot.notify,
-            static_cast<uint32_t>(reset_ret));
 }
 
 Status TransferPool::DeleteSlotThreadContextForAbortLocked(Slot &slot, uint32_t slot_index,

@@ -161,6 +161,7 @@ class TransferPoolTest : public ::testing::Test {
   }
 
   void TearDown() override {
+    llm::HixlTestSetNotifyBatchResetAbortCount(0U);
     auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
     if (pool != nullptr) {
       pool->Finalize();
@@ -282,6 +283,23 @@ TEST_F(TransferPoolTest, AbortInUseSlotReturnsItToPoolAndAcquireSucceedsAgain) {
   EXPECT_EQ(GetThreadAllocCallCount(), 3U);
   pool->Release(a);
   pool->Release(b);
+}
+
+TEST_F(TransferPoolTest, AbortRetriesNotifyResetOnDeviceTaskAbort) {
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  TransferPool::SlotHandle h{};
+  ASSERT_EQ(pool->Acquire(&h), SUCCESS);
+  // 模拟设备复位窗口：前两次 aclrtNotifyBatchReset 返 107022，重试后成功
+  llm::HixlTestSetNotifyBatchResetAbortCount(2U);
+  pool->Abort(h);
+  // 断言重试确实发生：reset 被调用 3 次（2 次失败 + 1 次成功）
+  EXPECT_EQ(llm::HixlTestGetNotifyBatchResetCallCount(), 3U);
+  // 重试成功后 slot 回到 free list，可再次 Acquire
+  TransferPool::SlotHandle again{};
+  ASSERT_EQ(pool->Acquire(&again), SUCCESS);
+  pool->Release(again);
 }
 
 TEST_F(TransferPoolTest, AbortIdleSlotIsNoOp) {
