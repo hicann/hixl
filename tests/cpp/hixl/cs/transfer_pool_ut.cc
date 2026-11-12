@@ -277,6 +277,33 @@ TEST_F(TransferPoolTest, AbortInUseSlotReturnsItToPoolAndAcquireSucceedsAgain) {
   pool->Release(b);
 }
 
+TEST_F(TransferPoolTest, DeviceAbortPostRebuildsThreads) {
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(4U), SUCCESS);
+  std::vector<TransferPool::SlotHandle> before;
+  ASSERT_EQ(pool->GetAllSlots(before), SUCCESS);
+  for (const auto &h : before) {
+    EXPECT_NE(h.thread, 0U);
+  }
+
+  // 模拟 stop_device 的 POST 回调：标记设备已 abort，线程需重建
+  llm::HixlTestTriggerDeviceAbortPost(kTransferPoolUtDevId);
+
+  // 下一次 Acquire 检测到标志 → 全量 ThreadFree+ThreadAlloc 重建所有空闲 slot
+  TransferPool::SlotHandle h{};
+  ASSERT_EQ(pool->Acquire(&h), SUCCESS);
+  EXPECT_NE(h.thread, 0U);
+
+  // 重建后所有 slot 的 thread 句柄都是新的（不等于重建前的旧句柄）
+  std::vector<TransferPool::SlotHandle> after;
+  ASSERT_EQ(pool->GetAllSlots(after), SUCCESS);
+  for (size_t i = 0; i < after.size(); ++i) {
+    EXPECT_NE(after[i].thread, before[i].thread);
+  }
+  pool->Release(h);
+}
+
 TEST_F(TransferPoolTest, AbortRetriesNotifyResetOnDeviceTaskAbort) {
   auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
   ASSERT_NE(pool, nullptr);

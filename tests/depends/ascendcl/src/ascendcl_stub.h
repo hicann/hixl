@@ -25,6 +25,7 @@ std::string &GetAclStubMock();
 void SetStubMallocHostFailOn(int32_t failOn);
 void ResetStubMallocHostCounter();
 void HixlTestSetNotifyBatchResetAbortCount(uint32_t count);
+void HixlTestTriggerDeviceAbortPost(int32_t device_id);
 
 #define RUTIME_MOCK_QUERY_EVENT_INTERVAL 5
 class AclRuntimeStub {

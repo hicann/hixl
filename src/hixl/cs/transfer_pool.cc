@@ -84,6 +84,8 @@ void TransferPool::InitFreeListLocked() {
   }
 }
 
+static void RegisterDeviceAbortCallback();
+
 Status TransferPool::Initialize(uint32_t pool_size) {
   HIXL_LOGI("[TransferPool] Initialize start. device_id=%d pool_size=%u", device_id_, pool_size);
   if ((pool_size == 0U) || (pool_size > kMaxPoolSize)) {
@@ -111,6 +113,7 @@ Status TransferPool::Initialize(uint32_t pool_size) {
   ref_cnt_ = 1U;
   inited_ = true;
   HIXL_DISMISS_GUARD(init_rollback);
+  RegisterDeviceAbortCallback();
   HIXL_LOGI("[TransferPool] Initialize success. device_id=%d pool_size=%u ref_cnt=%u", device_id_, pool_size_,
             ref_cnt_);
   return SUCCESS;
@@ -148,6 +151,87 @@ Status TransferPool::InitializeResourcesLocked() {
   return SUCCESS;
 }
 
+// stop_device 的 POST 回调：只置标志（独立锁，不抢 mu_），由后续接口重建线程。
+static int32_t HixlDeviceAbortCallback(int32_t device_id, aclrtDeviceTaskAbortStage stage, uint32_t timeout,
+                                       void *args) {
+  (void)timeout;
+  (void)args;
+  if (stage != ACL_RT_DEVICE_TASK_ABORT_POST) {
+    return 0;
+  }
+  auto *pool = TransferPool::GetInstance(device_id);
+  if (pool == nullptr) {
+    return 0;
+  }
+  pool->OnDeviceAbortPost();
+  return 0;
+}
+
+static std::once_flag g_abort_cb_once;
+static void RegisterDeviceAbortCallback() {
+  std::call_once(g_abort_cb_once, []() {
+    const aclError ret = aclrtSetDeviceTaskAbortCallback("hixl_transfer_pool", HixlDeviceAbortCallback, nullptr);
+    if (ret != ACL_SUCCESS) {
+      HIXL_LOGW("[TransferPool] RegisterDeviceAbortCallback failed ret=%d", ret);
+    }
+  });
+}
+
+void TransferPool::OnDeviceAbortPost() {
+  device_abort_post_.store(true);
+  HIXL_LOGI("[TransferPool] OnDeviceAbortPost, threads need rebuild. device_id=%d", device_id_);
+}
+
+// 设备 abort 后消费标志，全量重建空闲 slot 的 hcomm 线程（持 mu_，in_use 由 Abort 自愈）。
+void TransferPool::EnsureThreadsRebuiltIfNeededLocked() {
+  if (!device_abort_post_.exchange(false)) {
+    return;
+  }
+  HIXL_LOGI("[TransferPool] Rebuilding threads after device abort. device_id=%d", device_id_);
+
+  if (free_list_.empty()) {
+    return;
+  }
+  ResetAbortSlotNotifyLocked(slots_[free_list_.front()]);  // 探测设备已从 abort 恢复（一次）
+
+  std::vector<HixlTransferContextSyncEntry> del_entries;
+  for (const uint32_t idx : free_list_) {
+    if (slots_[idx].thread != 0U) {
+      del_entries.push_back(BuildSyncEntry(slots_[idx], TRANSFER_CONTEXT_OP_DELETE));
+    }
+  }
+  HIXL_CHK_STATUS(DeleteTransferContextsLocked(del_entries),
+                  "[TransferPool] thread rebuild batch delete ctx failed. device_id=%d", device_id_);
+
+  std::vector<Slot *> rebuilt_slots;
+  rebuilt_slots.reserve(free_list_.size());
+  const hixl::TemporaryRtContext rts_guard(rts_context_);
+  for (const uint32_t idx : free_list_) {
+    Slot &slot = slots_[idx];
+    if (slot.thread != 0U) {
+      if (HcommProxy::ThreadFree(&slot.thread, 1U) != HCCL_SUCCESS) {
+        HIXL_LOGE(FAILED, "[TransferPool] thread rebuild free failed, keep handle. device_id=%d", device_id_);
+        continue;
+      }
+      slot.thread = 0U;
+    }
+    uint32_t notify_num = kDefaultNotifyNumPerThread;
+    if (HcommProxy::ThreadAlloc(kDefaultEngine, kDefaultThreadNum, &notify_num, &slot.thread) != HCCL_SUCCESS) {
+      HIXL_LOGE(FAILED, "[TransferPool] thread rebuild alloc failed. device_id=%d", device_id_);
+      continue;
+    }
+    rebuilt_slots.push_back(&slot);
+  }
+
+  std::vector<HixlTransferContextSyncEntry> add_entries;
+  add_entries.reserve(rebuilt_slots.size());
+  for (const Slot *slot : rebuilt_slots) {
+    add_entries.push_back(BuildSyncEntry(*slot, TRANSFER_CONTEXT_OP_ADD));
+  }
+  HIXL_CHK_STATUS(SyncContextsLocked(add_entries, TRANSFER_CONTEXT_OP_ADD, TRANSFER_THREAD_STATE_INITIALIZED),
+                  "[TransferPool] thread rebuild batch add ctx failed. device_id=%d", device_id_);
+}
+
 void TransferPool::Finalize() {
   HIXL_LOGI("[TransferPool] Finalize start. device_id=%d", device_id_);
   std::lock_guard<std::mutex> lock(mu_);
@@ -172,6 +256,7 @@ Status TransferPool::Acquire(SlotHandle *handle) {
   HIXL_CHECK_NOTNULL(handle);
   std::lock_guard<std::mutex> lock(mu_);
   HIXL_CHK_BOOL_RET_STATUS(inited_, FAILED, "[TransferPool] Acquire failed: not initialized, device_id:%d", device_id_);
+  EnsureThreadsRebuiltIfNeededLocked();
   if (free_list_.empty()) {
     HIXL_LOGE(RESOURCE_EXHAUSTED, "[TransferPool] Acquire failed: no free slots (device_id=%d, pool_size=%u)",
               device_id_, pool_size_);
@@ -874,6 +959,15 @@ Status TransferPool::SyncOneTransferContextLocked(const Slot &slot, uint32_t op,
   return SyncContextsLocked(entries, op, expect_state, out_dispatched);
 }
 
+HixlTransferContextSyncEntry TransferPool::BuildSyncEntry(const Slot &slot, uint32_t op) {
+  HixlTransferContextSyncEntry entry{};
+  entry.thread = slot.thread;
+  entry.op = op;
+  entry.notify_id = slot.notify_id;
+  entry.err_flag_dev_va = slot.err_flag_dev_addr;
+  return entry;
+}
+
 std::vector<HixlTransferContextSyncEntry> TransferPool::BuildSyncEntriesFromSlots(const std::vector<Slot> &slots,
                                                                                   uint32_t op) {
   std::vector<HixlTransferContextSyncEntry> entries;
@@ -882,12 +976,7 @@ std::vector<HixlTransferContextSyncEntry> TransferPool::BuildSyncEntriesFromSlot
     if (slot.thread == 0U) {
       continue;
     }
-    HixlTransferContextSyncEntry entry{};
-    entry.thread = slot.thread;
-    entry.op = op;
-    entry.notify_id = slot.notify_id;
-    entry.err_flag_dev_va = slot.err_flag_dev_addr;
-    entries.push_back(entry);
+    entries.push_back(BuildSyncEntry(slot, op));
   }
   return entries;
 }

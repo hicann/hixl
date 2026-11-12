@@ -10,6 +10,7 @@
 #ifndef CANN_HIXL_SRC_HIXL_CS_TRANSFER_POOL_H_
 #define CANN_HIXL_SRC_HIXL_CS_TRANSFER_POOL_H_
 
+#include <atomic>
 #include <cstdint>
 #include <deque>
 #include <mutex>
@@ -52,6 +53,14 @@ class TransferPool {
   Status Acquire(SlotHandle *handle);
   void Release(const SlotHandle &handle);
   void Abort(const SlotHandle &handle);
+  // aclrtSetDeviceTaskAbortCallback(POST)回调专用：标记设备已 task abort，线程需重建。
+  void OnDeviceAbortPost();
+
+ private:
+  // 设备 abort 后消费全局标志，全量重建所有空闲 slot 的 hcomm 线程（持 mu_）。
+  void EnsureThreadsRebuiltIfNeededLocked();
+
+ public:
   Status GetAllSlots(std::vector<SlotHandle> &out) const;
   Status ResolveNotifyAddr();
   aclrtContext GetContext() const;
@@ -129,10 +138,13 @@ class TransferPool {
                                       uint64_t *out_dispatched = nullptr) const;
   Status LaunchSyncContextKernelLocked(std::vector<HixlTransferContextSyncEntry> &entries,
                                        std::vector<uint32_t> &states, bool readback_entries) const;
+  static HixlTransferContextSyncEntry BuildSyncEntry(const Slot &slot, uint32_t op);
   static std::vector<HixlTransferContextSyncEntry> BuildSyncEntriesFromSlots(const std::vector<Slot> &slots,
                                                                              uint32_t op);
 
   mutable std::mutex mu_{};
+  // abort(POST) 标志：回调只置位不抢 mu_，避免持锁做长驱动调用时死锁。
+  std::atomic<bool> device_abort_post_{false};
   const int32_t device_id_;
   uint32_t ref_cnt_;
   bool inited_;
