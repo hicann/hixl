@@ -66,6 +66,8 @@ ret = cache_task.synchronize()
 get_results(timeout_in_millis: Optional[int] = None) -> List[LLMStatusCode]
 ```
 
+返回结果列表中的元素可能为None，具体条件见下文“返回值”。
+
 **参数说明**
 
 | 参数名称 | 数据类型 | 取值说明 |
@@ -80,7 +82,7 @@ rets = cache_task.get_results()
 
 **返回值**
 
-正常情况下返回LLMStatusCode的列表，对应每个TransferConfig的传输结果。
+返回与每个TransferConfig对应的结果列表；每个元素为LLMStatusCode或None。读取状态码前，应先判断对应元素是否为None。
 
 如果一个TransferConfig对应的layer还没有发起过传输，则对应的返回值为None。
 
