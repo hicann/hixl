@@ -40,6 +40,8 @@ __init__(cache_key: Union[BlocksCacheKey, CacheKeyByIdAndIndex], src_layer_range
 ```python
 from llm_datadist import TransferWithCacheKeyConfig, BlocksCacheKey
 TransferWithCacheKeyConfig(BlocksCacheKey(1), range(0, 40), range(0, 40))
+# 本地第1层传输至远端第0层：范围起点不同，但包含的层数均为1。
+TransferWithCacheKeyConfig(BlocksCacheKey(1), range(1, 2), range(0, 1))
 ```
 
 ## 返回值
@@ -50,5 +52,5 @@ TransferWithCacheKeyConfig(BlocksCacheKey(1), range(0, 40), range(0, 40))
 
 ## 约束说明
 
-- src\_layer\_range表示范围需等于dst\_layer\_range表示范围。
+- src\_layer\_range与dst\_layer\_range包含的层数必须相等，起止下标可以不同；按各自范围中的相对位置逐层对应。
 - cache\_key为BlocksCacheKey时，src\_batch\_index只能为0。
