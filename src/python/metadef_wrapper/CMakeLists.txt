@@ -16,7 +16,6 @@ if (NOT ENABLE_TEST)
 
     target_include_directories(metadef_wrapper PRIVATE
             ${HI_PYTHON_INC}
-            ${pybind11_INCLUDE_DIR}
             ${HIXL_CODE_DIR}/inc
             ${HIXL_CODE_DIR}/include
     )
@@ -25,8 +24,13 @@ if (NOT ENABLE_TEST)
             $<BUILD_INTERFACE:intf_pub>
             $<BUILD_INTERFACE:slog_headers>
             $<BUILD_INTERFACE:metadef_headers>
+            pybind11
             alog
     )
+    # CMake 3.16 does not propagate INTERFACE add_dependencies to consumers.
+    if(TARGET pybind11_build)
+        add_dependencies(metadef_wrapper pybind11_build)
+    endif()
 
     set_target_properties(metadef_wrapper
             PROPERTIES
