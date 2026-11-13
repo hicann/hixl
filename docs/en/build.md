@@ -180,7 +180,7 @@ The following lists the dependencies required for source code compilation. Check
 
   ```shell
   # Run the following commands for Ubuntu/Debian. Use proper commands for other OS.
-  sudo apt-get install cmake bash patch ccache
+  sudo apt-get install cmake bash patch perl ccache
   ```
 
 - GCC 7.3.x - 14.2.x
@@ -189,6 +189,7 @@ The following lists the dependencies required for source code compilation. Check
 - bash >= 5.1.16 (Address sanitization is enabled in the test cases. Low versions of bash may trigger false memory leak detections in `system` calls.)
 - unzip (extracts the ZIP packages of third-party open-source software)
 - patch (applies patches to third-party open-source software during compilation)
+- perl (builds OpenSSL)
 - ccache (optional, a compiler cache optimization tool used to speed up incremental builds)
 
 During compilation, HIXL depends on the following third-party open-source software.
@@ -198,6 +199,7 @@ During compilation, HIXL depends on the following third-party open-source softwa
 | googletest | 1.14.0 | [googletest-1.14.0.tar.gz](https://gitcode.com/cann-src-third-party/googletest/releases/download/v1.14.0/googletest-1.14.0.tar.gz) |
 | json | 3.12.0 | [json-3.12.0.tar.gz](https://gitcode.com/cann-src-third-party/json/releases/download/v3.12.0/json-3.12.0.tar.gz) |
 | makeself | 2.5.0 | [makeself-release-2.5.0.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/makeself/makeself-release-2.5.0.tar.gz), [makeself-2.5.0.patch](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/makeself/fix/makeself-2.5.0.patch) |
+| openssl | 3.0.9 | [openssl-openssl-3.0.9.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/openssl/openssl-openssl-3.0.9.tar.gz) |
 | pybind11 | 2.13.6 | [pybind11-2.13.6.tar.gz](https://gitcode.com/cann-src-third-party/pybind11/releases/download/v2.13.6/pybind11-2.13.6.tar.gz) |
 | cann-cmake | master-059 | [cmake-master-059.tar.gz](https://raw.gitcode.com/cann/cmake/archive/refs/heads/master-059.tar.gz) |
 

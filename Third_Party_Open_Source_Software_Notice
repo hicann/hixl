@@ -576,3 +576,19 @@ Copyright Notice: Copyright 2019-2020 Huawei Technologies Co., Ltd.
 
 License: Apache License V2.0
 Please see above.
+
+
+Copyright Notice and License Texts
+Software: OpenSSL 3.0.9
+
+Official Repository: https://github.com/openssl/openssl
+
+Usage: "libssl and libcrypto (statically linked)"
+
+Copyright Notice:
+Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
+Copyright (c) 1995-1998 Eric A. Young, Tim J. Hudson
+All rights reserved.
+
+License: Apache License V2.0
+Please see above.

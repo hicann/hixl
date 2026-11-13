@@ -20,6 +20,7 @@ set -e
 DOWNLOAD_LIST=(
     "https://gitcode.com/cann-src-third-party/googletest/releases/download/v1.14.0/googletest-1.14.0.tar.gz"
     "https://gitcode.com/cann-src-third-party/json/releases/download/v3.12.0/json-3.12.0.tar.gz"
+    "https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/openssl/openssl-openssl-3.0.9.tar.gz"
     "https://gitcode.com/cann-src-third-party/pybind11/releases/download/v2.13.6/pybind11-2.13.6.tar.gz"
     "https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/makeself/makeself-release-2.5.0.tar.gz"
 )

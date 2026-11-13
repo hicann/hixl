@@ -180,7 +180,7 @@ source /usr/local/Ascend/cann/set_env.sh
 
   ```shell
   # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
-  sudo apt-get install cmake bash patch ccache
+  sudo apt-get install cmake bash patch perl ccache
   ```
 
 - GCC 7.3.x - 14.2.x
@@ -189,6 +189,7 @@ source /usr/local/Ascend/cann/set_env.sh
 - bash >= 5.1.16，由于测试用例开启了地址消毒，代码中执行system函数会触发低版本的bash被地址消毒检查出内存泄露。
 - unzip，用于解压下载的第三方开源软件的zip压缩包。
 - patch，用于编译时为第三方开源软件应用补丁。
+- perl，用于构建OpenSSL。
 - ccache（可选），ccache为编译器缓存优化工具，用于加快二次编译速度。
 
 HIXL在编译时，依赖的第三方开源软件列表如下：
@@ -198,6 +199,7 @@ HIXL在编译时，依赖的第三方开源软件列表如下：
 | googletest | 1.14.0 | [googletest-1.14.0.tar.gz](https://gitcode.com/cann-src-third-party/googletest/releases/download/v1.14.0/googletest-1.14.0.tar.gz) |
 | json | 3.12.0 | [json-3.12.0.tar.gz](https://gitcode.com/cann-src-third-party/json/releases/download/v3.12.0/json-3.12.0.tar.gz) |
 | makeself | 2.5.0 | [makeself-release-2.5.0.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/makeself/makeself-release-2.5.0.tar.gz)、[makeself-2.5.0.patch](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/makeself/fix/makeself-2.5.0.patch) |
+| openssl | 3.0.9 | [openssl-openssl-3.0.9.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/openssl/openssl-openssl-3.0.9.tar.gz) |
 | pybind11 | 2.13.6 | [pybind11-2.13.6.tar.gz](https://gitcode.com/cann-src-third-party/pybind11/releases/download/v2.13.6/pybind11-2.13.6.tar.gz) |
 | cann-cmake | master-059 | [cmake-master-059.tar.gz](https://raw.gitcode.com/cann/cmake/archive/refs/heads/master-059.tar.gz) |
 

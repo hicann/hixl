@@ -10,3 +10,6 @@ makeself:
 json:
   version: v3.12.0
   type: run
+openssl:
+  version: v3.0.9
+  type: run
