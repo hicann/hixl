@@ -50,6 +50,7 @@ struct BenchmarkConfig {
   /// Target: initiator peers to accept before connect phase succeeds (default 1).
   uint32_t peer_count = 1U;
   std::string op = "read";
+  bool read_verify = false;
   std::string transport = "hccs";
   /// SOC class for HCCS / transport hints. Resolved automatically by ACL probe.
   std::string soc_variant;

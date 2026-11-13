@@ -126,6 +126,7 @@ for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
 | `--transfer_size` | 每个 block-size 档位的总传输量 | `128M`, `1G` | binary 默认 `128M` |
 | `--buffer_size` | 分配/注册 buffer 大小，需 ≥ `transfer_size` | `1G`, `512M` | binary 默认 `1G` |
 | `--loops` | 完整 block ladder 重复次数 | 正整数 | `5`（binary 默认 `1`） |
+| `--read_verify` | read 传输后校验数据；开启时 target 和 initiator 均需设置 | `true` / `false` | `false` |
 | `--device_ids` | 设备 ID 列表 | 逗号分隔 | 单机 `0,1`；双机 `0` |
 | `--host_roce_ip` | A5 RoCE host NIC IP（数据面 `LocalCommRes`） | IP，逗号分隔 | （无） |
 | `--peer_wait_s` | target 等待 initiator 连接的最大秒数 | 正整数 | 单次 30，多轮 300 |
@@ -155,6 +156,7 @@ for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
 | `--buffer_size` | 分配/注册大小 | `1G` |
 | `--block_sizes` | block 列表/范围；省略则等于 `transfer_size` | `= transfer_size` |
 | `--loops` / `-n` | 重复完整 ladder | `1` |
+| `--read_verify` | read 数据校验，target 与 initiator 两端均需开启 | `false` |
 | `--use_async` / `--async_batch_num` | 异步传输 | 关闭 / `1` |
 | `--connect_timeout_ms` | 连接超时 | `60000` |
 | `--host_roce_ip` | A5 RoCE 数据面 IP | （无） |
@@ -163,6 +165,11 @@ for i in {0..7}; do hccn_tool -i $i -tls -s enable 0; done
 | `-H` / `--hixl_option` | `Initialize()` 选项 `KEY=VALUE` | （无） |
 
 完整列表见：`build/benchmarks/comm_benchmark/hixl_comm_bench`（无参数时打印 usage）。
+
+默认不执行 read 数据校验，CSV/JSONL 的 `consistency` 为 `not_checked`。要运行正确性测试，
+在单机启动命令中加 `--read_verify=true`；双机时 target 和 initiator 的启动命令都要加该参数
+（target 打印的 initiator 命令会自动携带它）。开启后，每轮 read 校验结果为 `pass` 或 `fail`，
+校验操作位于传输计时窗口之外，但会延迟下一轮传输，因此建议分别运行性能测试和正确性测试。
 
 ### 支持情况
 

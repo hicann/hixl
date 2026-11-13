@@ -126,6 +126,7 @@ From the **Initiator** perspective:
 | `--transfer_size` | Bytes transferred per block-size step | `128M`, `1G` | Binary default `128M` |
 | `--buffer_size` | Alloc/register size; must be ≥ `transfer_size` | `1G`, `512M` | Binary default `1G` |
 | `--loops` | Full block-ladder repeats | Positive int | `5` (binary default `1`) |
+| `--read_verify` | Verify data after reads; enable on both target and initiator | `true` / `false` | `false` |
 | `--device_ids` | Device ID list | Comma-separated | Single `0,1`; dual `0` |
 | `--host_roce_ip` | A5 RoCE host NIC IP (data-plane `LocalCommRes`) | IP, comma-separated | (none) |
 | `--peer_wait_s` | Max seconds for target to wait for initiator peers | Positive int | 30 single-run, 300 multi-run |
@@ -155,6 +156,7 @@ From the **Initiator** perspective:
 | `--buffer_size` | Alloc/register size | `1G` |
 | `--block_sizes` | Block list/range; if omitted equals `transfer_size` | `= transfer_size` |
 | `--loops` / `-n` | Repeat full ladder | `1` |
+| `--read_verify` | Read data verification; enable on both target and initiator | `false` |
 | `--use_async` / `--async_batch_num` | Async transfer | off / `1` |
 | `--connect_timeout_ms` | Connect timeout | `60000` |
 | `--host_roce_ip` | A5 RoCE data-plane IP | (none) |
@@ -163,6 +165,12 @@ From the **Initiator** perspective:
 | `-H` / `--hixl_option` | `Initialize()` option `KEY=VALUE` | (none) |
 
 Full list: run `build/benchmarks/comm_benchmark/hixl_comm_bench` with no args to print usage.
+
+Read verification is disabled by default, and CSV/JSONL reports `consistency=not_checked`.
+For a correctness run, add `--read_verify=true` to the single-machine launcher command, or to
+both target and initiator commands on separate machines (the command printed by the target
+includes the option). Enabled reads report `pass` or `fail`. Verification runs after transfer
+timing but delays the next transfer, so use separate performance and correctness runs.
 
 ### Support Matrix
 

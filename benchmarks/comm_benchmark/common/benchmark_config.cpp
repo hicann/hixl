@@ -235,6 +235,7 @@ void ApplyCommonDefaults(BenchmarkConfig *cfg) {
   cfg->peer_wait_sec = kDefaultAcceptWaitSec;
   cfg->peer_count = 1U;
   cfg->op = "read";
+  cfg->read_verify = false;
   cfg->transport = "hccs";
   cfg->soc_variant = "auto";
   cfg->initiator_memory_type = "device";
@@ -533,6 +534,14 @@ bool ApplyUseAsyncKv(const std::string &val, BenchmarkConfig *cfg) {
   return true;
 }
 
+bool ApplyReadVerifyKv(const std::string &val, BenchmarkConfig *cfg) {
+  if (!ParseBool(val, &cfg->read_verify)) {
+    BENCH_LOGE("Invalid --read_verify=%s (expect true|false|0|1)\n", val.c_str());
+    return false;
+  }
+  return true;
+}
+
 bool ApplyAsyncBatchNumKv(const std::string &val, BenchmarkConfig *cfg) {
   if (!ParseU32(val, &cfg->async_batch_num) || cfg->async_batch_num == 0) {
     BENCH_LOGE("Invalid --async_batch_num=%s (expect positive integer)\n", val.c_str());
@@ -583,6 +592,7 @@ void PopulateBenchKvHandlers(std::map<std::string, KvApplyFn> *table) {
   t["-n"] = ApplyLoopsKv;
   t["--use_async"] = ApplyUseAsyncKv;
   t["-x"] = ApplyUseAsyncKv;
+  t["--read_verify"] = ApplyReadVerifyKv;
   t["--async_batch_num"] = ApplyAsyncBatchNumKv;
   t["-y"] = ApplyAsyncBatchNumKv;
   t["--connect_timeout_ms"] = ApplyConnectTimeoutKv;
@@ -685,6 +695,7 @@ void BenchmarkConfigParser::PrintUsage(FILE *out) {
       "                        size units: K/M/G/T, KB/MB/GB/TB, KiB/MiB/GiB/TiB (binary 1024)\n"
       "  --loops|-n           repeat full step ladder (default %u)\n"
       "  --use_async|-x       true|false (default false), enable async transfer mode\n"
+      "  --read_verify        true|false (default false), verify read data after each transfer\n"
       "  --async_batch_num|-y async requests per batch (default 1), requires: transfer_size %% async_batch_num == 0\n"
       "  --connect_timeout_ms|-C connect timeout in ms (default 60000)\n"
       "  --hixl_option|-H     HIXL Initialize() option, form KEY=VALUE (repeatable); "

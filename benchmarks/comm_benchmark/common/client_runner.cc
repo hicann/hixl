@@ -686,7 +686,7 @@ int32_t RunTransfer(Hixl &hixl_engine, void *src_base, const char *remote_engine
                     BenchWorkerTag bench_worker_tag = BenchWorkerTag::kSingle, std::size_t bench_worker_index = 0,
                     StepSyncContext *step_sync = nullptr) {
   const uintptr_t base = reinterpret_cast<uintptr_t>(src_base);
-  const bool verify_read = (cfg.op == "read");
+  const bool verify_read = cfg.read_verify && cfg.op == "read";
   const bool is_host = (cfg.initiator_memory_type == "host");
   std::vector<uint8_t> verify_scratch;
   if (verify_read) {
