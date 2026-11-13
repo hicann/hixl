@@ -27,6 +27,13 @@ ge::Status HixlEntity::Initialize(int32_t timeout_ms) {
   LLM_CHK_HIXL_RET(engine_->Connect(remote_engine_.c_str(), timeout_ms),
                    "Failed to connect to remote engine, remote_engine:%s, timeout:%d ms.", remote_engine_.c_str(),
                    timeout_ms);
+  LLM_DISMISSABLE_GUARD(engine_disconnect, ([this]() {
+                          const auto ret = engine_->Disconnect(remote_engine_.c_str(), kDisconnectTimeoutMs);
+                          if (ret != hixl::SUCCESS) {
+                            LLMLOGE(ret, "Failed to rollback hixl engine connection, remote_engine:%s.",
+                                    remote_engine_.c_str());
+                          }
+                        }));
 
   auto client_connection = std::shared_ptr<hixl::CtrlMsgPlugin>(new (std::nothrow) hixl::CtrlMsgPlugin());
   LLM_CHECK_NOTNULL(client_connection);
@@ -52,6 +59,7 @@ ge::Status HixlEntity::Initialize(int32_t timeout_ms) {
   remote_mem.addr = ValueToPtr(info.cache_table_addr);
   remote_mem.size = info.cache_table_size;
   remote_mems.emplace_back(remote_mem);
+  LLM_DISMISS_GUARD(engine_disconnect);
   return ge::SUCCESS;
 }
 
