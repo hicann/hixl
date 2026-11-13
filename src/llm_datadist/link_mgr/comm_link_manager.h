@@ -32,6 +32,7 @@ struct PrepareMemArg {
 };
 struct CommStatus {
   EntityCommInfoPtr comm_ptr;
+  HcclComm comm{};
   std::atomic_bool unlink_flag;
   std::atomic_bool prepare_mem_flag;
   RegisterMemoryStatus status;
@@ -82,13 +83,15 @@ class CommLinkManager {
   std::set<void *> handles_;
 
  private:
+  friend class CommLinkManagerTestPeer;
+
   void FreeFlagGuard(PrepareMemArg &req);
-  void FlagGuard(PrepareMemArg &req);
   void CheckUnlink(PrepareMemArg &req, bool &check_unlink_flag);
+  void WaitPrepareMemDone(uint64_t comm_id);
   ge::Status PrepareMem(PrepareMemArg &req);
   ge::Status ExchangeMem(const EntityPtr &entity, uint32_t local_rank, uint32_t remote_rank) const;
   static void SetMemAttribute(const ExchangeMemInfo &remote_mem_info, std::vector<CommMem> &remote_mems, CommMem &mem);
-  ge::Status DestroyRes(EntityCommInfoPtr comm_ptr, std::vector<EntityPtr> &comm_entities) const;
+  ge::Status DestroyRes(EntityCommInfoPtr comm_ptr, HcclComm comm, std::vector<EntityPtr> &comm_entities) const;
   ge::Status PrepareComm(const PrepareMemArg &req, EntityCommInfoPtr &comm_info_ptr);
   uint64_t GenerateCommId();
   ge::Status CreateClustersEntity(PrepareMemArg &req, std::map<uint64_t, EntityPtr> &cluster2entity);

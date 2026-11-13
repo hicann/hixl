@@ -122,6 +122,7 @@ class EntityCommInfo {
   friend class CommEntity;
   friend class CommLinkManager;
 
+  void RequestStop();
   ge::Status PrepareHcclComm() const;
   ge::Status Finalize();
 

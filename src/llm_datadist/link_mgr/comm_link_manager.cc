@@ -129,14 +129,15 @@ void CommLinkManager::SetMemAttribute(const ExchangeMemInfo &remote_mem_info, st
 
 void CommLinkManager::CheckUnlink(PrepareMemArg &req, bool &check_unlink_flag) {
   std::lock_guard<std::mutex> lock(map_mutex_);
-  if (comm_to_status_[req.comm_id].unlink_flag.load()) {
-    comm_to_status_[req.comm_id].prepare_mem_flag.store(false);
+  const auto iter = comm_to_status_.find(req.comm_id);
+  if (iter == comm_to_status_.end() || iter->second.unlink_flag.load()) {
     LLMLOGI("Check exist unlink flag, abort preparing memory.");
     check_unlink_flag = true;
   }
 }
 
-ge::Status CommLinkManager::DestroyRes(EntityCommInfoPtr comm_ptr, std::vector<EntityPtr> &comm_entities) const {
+ge::Status CommLinkManager::DestroyRes(EntityCommInfoPtr comm_ptr, HcclComm comm,
+                                       std::vector<EntityPtr> &comm_entities) const {
   LLMLOGI("Start call DestroyRes");
   ge::Status unlink_ret = ge::SUCCESS;
   LLM_CHK_BOOL_EXEC(aclrtSetCurrentContext(aclrt_context_) == ACL_ERROR_NONE, unlink_ret = ge::LLM_UNLINK_FAILED);
@@ -154,6 +155,10 @@ ge::Status CommLinkManager::DestroyRes(EntityCommInfoPtr comm_ptr, std::vector<E
   if (comm_ptr != nullptr) {
     auto comm_ret = comm_ptr->Finalize();
     unlink_ret = comm_ret != ge::SUCCESS ? ge::LLM_UNLINK_FAILED : unlink_ret;
+  } else if (comm != nullptr) {
+    auto comm_ret = CommAdapter::GetInstance().DlHcclCommDestroy(comm);
+    LLM_LOGE_IF(comm_ret != HcclResult::HCCL_SUCCESS, "Call DlHcclCommDestroy failed, ret:%d.", comm_ret);
+    unlink_ret = comm_ret != HcclResult::HCCL_SUCCESS ? ge::LLM_UNLINK_FAILED : unlink_ret;
   }
   return unlink_ret;
 }
@@ -165,10 +170,28 @@ void CommLinkManager::FreeFlagGuard(PrepareMemArg &req) {
   }
 }
 
-void CommLinkManager::FlagGuard(PrepareMemArg &req) {
-  std::lock_guard<std::mutex> lock(map_mutex_);
-  if (comm_to_status_.find(req.comm_id) != comm_to_status_.end()) {
-    comm_to_status_[req.comm_id].prepare_mem_flag.store(true);
+void CommLinkManager::WaitPrepareMemDone(uint64_t comm_id) {
+  while (true) {
+    EntityCommInfoPtr comm_ptr = nullptr;
+    bool prepare_mem_in_progress = false;
+    {
+      std::lock_guard<std::mutex> map_lock(map_mutex_);
+      const auto iter = comm_to_status_.find(comm_id);
+      if (iter != comm_to_status_.end()) {
+        prepare_mem_in_progress = iter->second.prepare_mem_flag.load();
+        comm_ptr = iter->second.comm_ptr;
+      }
+    }
+    if (!prepare_mem_in_progress) {
+      LLMLOGI("Can unlink now.");
+      break;
+    }
+    if (comm_ptr != nullptr) {
+      comm_ptr->RequestStop();
+    }
+    LLMLOGD("Wait prepare mem end.");
+    // wait prepare mem thread abort
+    std::this_thread::sleep_for(std::chrono::milliseconds(kDefaultSleepTime));
   }
 }
 
@@ -220,11 +243,11 @@ ge::Status CommLinkManager::PrepareMem(PrepareMemArg &req) {
                             "Failed to prepare memory because comm_id:%lu does not exist", req.comm_id);
     comm_to_status_[req.comm_id].prepare_mem_flag.store(true);
   }
+  LLM_MAKE_GUARD(free_flag, ([this, &req]() { FreeFlagGuard(req); }));
   bool check_unlink_flag = false;
   CheckUnlink(req, check_unlink_flag);
   LLM_CHK_BOOL_RET_STATUS(!check_unlink_flag, ge::FAILED,
                           "Failed to prepare memory because comm_id:%lu is being unlinked", req.comm_id);
-  LLM_MAKE_GUARD(free_flag, ([this, &req]() { FreeFlagGuard(req); }));
   LLM_ASSERT_RT_OK(aclrtSetCurrentContext(aclrt_context_));
   std::map<uint64_t, EntityPtr> cluster2entity;
   ScopeGuard entity_guard([&cluster2entity]() {
@@ -234,15 +257,18 @@ ge::Status CommLinkManager::PrepareMem(PrepareMemArg &req) {
   });
   LLM_CHK_STATUS_RET(CreateClustersEntity(req, cluster2entity), "Failed to create clusters entity.");
   EntityCommInfoPtr comm_info_ptr = nullptr;
-  FreeFlagGuard(req);
   LLM_CHK_STATUS_RET(PrepareComm(req, comm_info_ptr), "Failed to prepare comm info");
-  FlagGuard(req);
+  CheckUnlink(req, check_unlink_flag);
+  LLM_CHK_BOOL_RET_STATUS(!check_unlink_flag, ge::FAILED,
+                          "Failed to prepare memory because comm_id:%lu is being unlinked", req.comm_id);
   LogPrepareMemTargets(req);
   std::vector<EntityPtr> new_entities;
   auto local_rank_id = req.cluster2rank[cluster_id_];
   for (auto &iter : req.cluster2rank) {
     if (iter.first != cluster_id_) {
       CheckUnlink(req, check_unlink_flag);
+      LLM_CHK_BOOL_RET_STATUS(!check_unlink_flag, ge::FAILED,
+                              "Failed to prepare memory because comm_id:%lu is being unlinked", req.comm_id);
       auto entity = cluster2entity[iter.first];
       entity->SetEntityCommInfo(comm_info_ptr);
       LLM_CHK_STATUS_RET(ExchangeMem(entity, local_rank_id, iter.second), "Failed to exchange mem");
@@ -374,6 +400,7 @@ ge::Status CommLinkManager::Link(std::string &cluster_name, const std::map<uint6
   {
     std::lock_guard<std::mutex> map_lock(map_mutex_);
     auto &comm_status = comm_to_status_[comm_id];
+    comm_status.comm = comm;
     comm_status.unlink_flag.store(false);
     comm_status.prepare_mem_flag.store(false);
     comm_status.status = RegisterMemoryStatus::PREPARING;
@@ -397,34 +424,34 @@ ge::Status CommLinkManager::Unlink(uint64_t comm_id) {
     iter->second.unlink_flag.store(true);
   }
   LLMLOGI("Start unlink, comm_id:%lu", comm_id);
-  while (true) {
-    {
-      std::lock_guard<std::mutex> map_lock(map_mutex_);
-      // check exist before.
-      auto &comm_status = comm_to_status_[comm_id];
-      if (!comm_status.prepare_mem_flag.load()) {
-        LLMLOGI("Can unlink now.");
-        std::vector<EntityPtr> entities = comm_entity_manager_->QueryEntityByCommId(comm_id);
-        ret = DestroyRes(comm_status.comm_ptr, entities);
-        break;
-      }
-    }
-    LLMLOGD("Wait prepare mem end.");
-    // wait prepare mem thread abort
-    std::this_thread::sleep_for(std::chrono::milliseconds(kDefaultSleepTime));
-  }
+  WaitPrepareMemDone(comm_id);
 
   std::future<ge::Status> task_fut;
+  EntityCommInfoPtr comm_ptr = nullptr;
+  HcclComm comm{};
   {
     std::lock_guard<std::mutex> map_lock(map_mutex_);
-    auto &comm_status = comm_to_status_[comm_id];
-    task_fut = std::move(comm_status.task_fut);
-    (void)comm_to_status_.erase(comm_id);
+    const auto iter = comm_to_status_.find(comm_id);
+    LLM_CHK_BOOL_RET_STATUS(iter != comm_to_status_.end(), ge::LLM_NOT_YET_LINK, "Comm:%lu is not yet link.", comm_id);
+    comm_ptr = iter->second.comm_ptr;
+    comm = iter->second.comm;
+    task_fut = std::move(iter->second.task_fut);
   }
 
   if (task_fut.valid()) {
     task_fut.get();
   }
+  {
+    std::lock_guard<std::mutex> map_lock(map_mutex_);
+    const auto iter = comm_to_status_.find(comm_id);
+    if (iter != comm_to_status_.end()) {
+      comm_ptr = iter->second.comm_ptr;
+      comm = iter->second.comm;
+      (void)comm_to_status_.erase(iter);
+    }
+  }
+  std::vector<EntityPtr> entities = comm_entity_manager_->QueryEntityByCommId(comm_id);
+  ret = DestroyRes(comm_ptr, comm, entities);
   LLMLOGI("Call unlink done for comm id:%lu", comm_id);
   return ret;
 }

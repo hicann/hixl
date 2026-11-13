@@ -171,6 +171,10 @@ EntityCommInfo::EntityCommInfo(const HcclComm &comm, std::vector<void *> mem_han
                                int32_t link_retry_count)
     : params_({0, {}, "", mem_handles, link_total_time, link_retry_count}), comm_(comm), comm_inited_(true) {}
 
+void EntityCommInfo::RequestStop() {
+  stop_flag_.store(true);
+}
+
 ge::Status EntityCommInfo::Initialize() {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!comm_inited_) {
@@ -234,7 +238,7 @@ ge::Status EntityCommInfo::PrepareHcclComm() const {
 }
 
 ge::Status EntityCommInfo::Finalize() {
-  stop_flag_ = true;
+  RequestStop();
   LLMEVENT("Begin to finalize comm info.");
   std::lock_guard<std::mutex> lock(mutex_);
   if (!comm_inited_) {

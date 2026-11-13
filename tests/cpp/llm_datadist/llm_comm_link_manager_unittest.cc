@@ -8,10 +8,19 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <future>
+#include <memory>
+#include <mutex>
+#include <thread>
+#include <utility>
 #include <vector>
 #include <gtest/gtest.h>
 
 #include "llm_datadist_v2.h"
+#include "link_mgr/comm_link_manager.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/sys_api/src/sys_api_wrap.h"
 #include "depends/llm_datadist/src/hccl_stub.h"
@@ -22,6 +31,17 @@ using namespace ::testing;
 using namespace llm;
 
 namespace llm {
+class CommLinkManagerTestPeer {
+ public:
+  static bool CheckUnlink(CommLinkManager &manager, uint64_t comm_id) {
+    PrepareMemArg request{};
+    request.comm_id = comm_id;
+    bool should_abort = false;
+    manager.CheckUnlink(request, should_abort);
+    return should_abort;
+  }
+};
+
 namespace {
 HcclResult HcclCommBindMemFail(HcclComm comm, void **memHandle) {
   return HcclResult::HCCL_E_DRV;
@@ -29,6 +49,76 @@ HcclResult HcclCommBindMemFail(HcclComm comm, void **memHandle) {
 
 HcclResult HcclCommPrepareFail(HcclComm comm, void **memHandle) {
   return HcclResult::HCCL_E_TIMEOUT;
+}
+
+struct PrepareMemUnlinkRaceState {
+  std::mutex mutex;
+  std::condition_variable condition;
+  bool prepare_entered{false};
+  uint32_t prepare_entered_count{0U};
+  bool release_prepare{false};
+  std::atomic_bool comm_destroyed{false};
+  std::atomic_uint32_t comm_destroy_count{0U};
+  std::atomic_uint32_t exchange_after_destroy{0U};
+};
+
+std::mutex g_prepare_mem_unlink_race_state_mutex;
+std::shared_ptr<PrepareMemUnlinkRaceState> g_prepare_mem_unlink_race_state;
+
+std::shared_ptr<PrepareMemUnlinkRaceState> GetPrepareMemUnlinkRaceState() {
+  std::lock_guard<std::mutex> lock(g_prepare_mem_unlink_race_state_mutex);
+  return g_prepare_mem_unlink_race_state;
+}
+
+class ScopedPrepareMemUnlinkRaceState {
+ public:
+  explicit ScopedPrepareMemUnlinkRaceState(std::shared_ptr<PrepareMemUnlinkRaceState> state) {
+    std::lock_guard<std::mutex> lock(g_prepare_mem_unlink_race_state_mutex);
+    g_prepare_mem_unlink_race_state = std::move(state);
+  }
+
+  ~ScopedPrepareMemUnlinkRaceState() {
+    std::lock_guard<std::mutex> lock(g_prepare_mem_unlink_race_state_mutex);
+    g_prepare_mem_unlink_race_state.reset();
+  }
+
+  ScopedPrepareMemUnlinkRaceState(const ScopedPrepareMemUnlinkRaceState &) = delete;
+  ScopedPrepareMemUnlinkRaceState &operator=(const ScopedPrepareMemUnlinkRaceState &) = delete;
+};
+
+HcclResult HcclCommPrepareBlocked(HcclComm comm, HcclPrepareConfig *prepare_config, int32_t timeout) {
+  (void)comm;
+  (void)prepare_config;
+  (void)timeout;
+  auto state = GetPrepareMemUnlinkRaceState();
+  if (state == nullptr) {
+    return HcclResult::HCCL_SUCCESS;
+  }
+  std::unique_lock<std::mutex> lock(state->mutex);
+  state->prepare_entered = true;
+  ++state->prepare_entered_count;
+  state->condition.notify_all();
+  state->condition.wait(lock, [state]() { return state->release_prepare; });
+  return HcclResult::HCCL_SUCCESS;
+}
+
+HcclResult HcclExchangeMemDescAfterDestroy(HcclComm comm, uint32_t remoteRank, HcclMemDescs *local, int timeout,
+                                           HcclMemDescs *remote, uint32_t *actualNum) {
+  auto state = GetPrepareMemUnlinkRaceState();
+  if (state != nullptr && state->comm_destroyed.load()) {
+    state->exchange_after_destroy.fetch_add(1U);
+  }
+  return HcclExchangeMemDesc1(comm, remoteRank, local, timeout, remote, actualNum);
+}
+
+HcclResult HcclCommDestroyRecord(HcclComm comm) {
+  (void)comm;
+  auto state = GetPrepareMemUnlinkRaceState();
+  if (state != nullptr) {
+    state->comm_destroyed.store(true);
+    state->comm_destroy_count.fetch_add(1U);
+  }
+  return HcclResult::HCCL_SUCCESS;
 }
 
 HcclResult HcclBatchGet1(HcclComm comm, uint32_t remoteRank, HcclOneSideOpDesc *desc, uint32_t descNum,
@@ -87,6 +177,17 @@ class MockMmpaCommPrepareFail : public MockMmpaBase {
   std::map<std::string, void *> GetFuncMap() const override {
     auto m = GetBaseFuncMap();
     m["HcclCommPrepare"] = reinterpret_cast<void *>(&HcclCommPrepareFail);
+    return m;
+  }
+};
+
+class MockMmpaPrepareMemUnlinkRace : public MockMmpaBase {
+ protected:
+  std::map<std::string, void *> GetFuncMap() const override {
+    auto m = GetBaseFuncMap();
+    m["HcclCommPrepare"] = reinterpret_cast<void *>(&HcclCommPrepareBlocked);
+    m["HcclExchangeMemDesc"] = reinterpret_cast<void *>(&HcclExchangeMemDescAfterDestroy);
+    m["HcclCommDestroy"] = reinterpret_cast<void *>(&HcclCommDestroyRecord);
     return m;
   }
 };
@@ -213,6 +314,102 @@ TEST_F(LLMCommLinkManagerUTest, UnlinkWhenLinkNotFinished) {
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
   EXPECT_EQ(llm_datadist.Unlink(comm_id), ge::SUCCESS);
   llm_datadist.LLMDataDistFinalize();
+}
+
+TEST_F(LLMCommLinkManagerUTest, UnlinkWaitsForPrepareMemBeforeDestroy) {
+  auto state = std::make_shared<PrepareMemUnlinkRaceState>();
+  ScopedPrepareMemUnlinkRaceState scoped_state(state);
+  hixl_test::InstallSysApiHooks(std::make_shared<MockMmpaPrepareMemUnlinkRace>());
+
+  LLMDataDistV2 llm_datadist(1U);
+  InitDecoder(llm_datadist);
+  RegisterTestCache(llm_datadist);
+
+  const uint64_t comm_id = DoLink(llm_datadist);
+  bool prepare_entered = false;
+  {
+    std::unique_lock<std::mutex> lock(state->mutex);
+    prepare_entered =
+        state->condition.wait_for(lock, std::chrono::seconds(1), [&state]() { return state->prepare_entered; });
+  }
+  EXPECT_TRUE(prepare_entered);
+  if (!prepare_entered) {
+    {
+      std::lock_guard<std::mutex> lock(state->mutex);
+      state->release_prepare = true;
+    }
+    state->condition.notify_all();
+    llm_datadist.LLMDataDistFinalize();
+    return;
+  }
+
+  std::promise<void> unlink_started_promise;
+  auto unlink_started = unlink_started_promise.get_future();
+  auto unlink_ret = std::async(std::launch::async, [&]() {
+    unlink_started_promise.set_value();
+    return llm_datadist.Unlink(comm_id);
+  });
+  unlink_started.wait();
+  EXPECT_EQ(unlink_ret.wait_for(std::chrono::milliseconds(200)), std::future_status::timeout);
+  EXPECT_FALSE(state->comm_destroyed.load());
+  {
+    std::lock_guard<std::mutex> lock(state->mutex);
+    state->release_prepare = true;
+  }
+  state->condition.notify_all();
+
+  EXPECT_EQ(unlink_ret.get(), ge::SUCCESS);
+  EXPECT_EQ(state->exchange_after_destroy.load(), 0U);
+  llm_datadist.LLMDataDistFinalize();
+}
+
+TEST_F(LLMCommLinkManagerUTest, UnlinkBeforePrepareMemWorkerStartsDestroysComm) {
+  auto state = std::make_shared<PrepareMemUnlinkRaceState>();
+  ScopedPrepareMemUnlinkRaceState scoped_state(state);
+  hixl_test::InstallSysApiHooks(std::make_shared<MockMmpaPrepareMemUnlinkRace>());
+
+  LLMDataDistV2 llm_datadist(1U);
+  InitDecoder(llm_datadist);
+  RegisterTestCache(llm_datadist);
+  std::vector<uint64_t> blocker_comm_ids;
+  blocker_comm_ids.reserve(kLinkThreadNum);
+  for (size_t i = 0U; i < kLinkThreadNum; ++i) {
+    blocker_comm_ids.emplace_back(DoLink(llm_datadist, "blocker_" + std::to_string(i), {{1, 0}, {2, 1}}));
+  }
+  bool blockers_started = false;
+  {
+    std::unique_lock<std::mutex> lock(state->mutex);
+    blockers_started = state->condition.wait_for(lock, std::chrono::seconds(1),
+                                                 [&state]() { return state->prepare_entered_count >= kLinkThreadNum; });
+  }
+  EXPECT_TRUE(blockers_started);
+  if (!blockers_started) {
+    {
+      std::lock_guard<std::mutex> lock(state->mutex);
+      state->release_prepare = true;
+    }
+    state->condition.notify_all();
+    llm_datadist.LLMDataDistFinalize();
+    return;
+  }
+
+  const uint64_t target_comm_id = DoLink(llm_datadist, "target", {{1, 0}, {2, 1}});
+  auto unlink_future = std::async(std::launch::async, [&]() { return llm_datadist.Unlink(target_comm_id); });
+  EXPECT_EQ(unlink_future.wait_for(std::chrono::milliseconds(20)), std::future_status::timeout);
+  {
+    std::lock_guard<std::mutex> lock(state->mutex);
+    state->release_prepare = true;
+  }
+  state->condition.notify_all();
+
+  EXPECT_EQ(unlink_future.get(), ge::SUCCESS);
+  EXPECT_EQ(state->comm_destroy_count.load(), 1U);
+  llm_datadist.LLMDataDistFinalize();
+}
+
+TEST_F(LLMCommLinkManagerUTest, CheckUnlinkAbortsWhenCommStatusIsMissing) {
+  CommLinkManager link_manager(0U);
+  EXPECT_TRUE(CommLinkManagerTestPeer::CheckUnlink(link_manager, 1U));
 }
 
 TEST_F(LLMCommLinkManagerUTest, FinalizeWhenLinkNotFinished) {
