@@ -627,7 +627,7 @@ Status AdxlInnerEngine::SendNotify(const AscendString &remote_engine, const Noti
   notify_msg.name = notify.name.GetString();
   notify_msg.notify_msg = notify.notify_msg.GetString();
 
-  auto send_callback = [this, &notify_msg, timeout_in_millis](const hixl::CtrlMsgPluginPtr &connection) -> Status {
+  auto send_callback = [&notify_msg, timeout_in_millis](const hixl::CtrlMsgPluginPtr &connection) -> Status {
     return ControlMsgHandler::SendMsg(connection, ControlMsgType::kNotify, notify_msg, timeout_in_millis);
   };
   ADXL_CHK_STATUS_RET(channel->SendControlMsg(send_callback), "Failed to send notify message.");

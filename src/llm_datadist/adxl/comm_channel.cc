@@ -32,7 +32,6 @@ namespace {
 std::mutex g_mutex_;
 constexpr uint32_t kMaxOpDescNum = 256U;
 constexpr int64_t kHeartbeatTimeoutInMillis = 120000;
-constexpr int32_t kMillisToMicros = 1000;
 // streamAbort cannot stop tasks already being unfolded by aicpu; when a disconnect races with that expansion the
 // comm must not be destroyed underneath it. If tasks were in flight we sleep this long (enough for aicpu to finish
 // unfolding) after aborting the stream and before destroying the comm.

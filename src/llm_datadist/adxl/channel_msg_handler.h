@@ -194,7 +194,6 @@ class ChannelMsgHandler {
   HcclCommConfig comm_config_;
 
   SegmentTable *segment_table_ = nullptr;
-  uint32_t pid_ = 0;
 };
 }  // namespace adxl
 
