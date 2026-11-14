@@ -39,6 +39,7 @@
 
 异构场景下，接收方和发送方的MTU(Maximum Transmission Unit，最大传输单元)配置需要保持一致，MTU的查询和配置请参考《[HCCN Tool 接口参考](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743?category=developer-documents&subcategory=interface-reference)》。
 
+
 使用hccn\_tool查询Device IP，并且进行卡间网络检测，要求各个集群上的卡间有RDMA链路连接，否则无法使能LLM-DataDist能力。hccn\_tool详细介绍请参考《[HCCN Tool 接口参考](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743?category=developer-documents&subcategory=interface-reference)》。以下是常用命令参考。
 
 |命令|使用场景|
@@ -56,6 +57,26 @@
 |HCCL_RDMA_RETRY_CNT、HCCL_RDMA_TIMEOUT|分别对应RDMA硬件重试次数和重试超时时间。设置太大导致对网络异常反应不敏感，不能感知到网络故障。设置太小则容易造成网络闪断直接造成业务中断，不能被网卡硬件屏蔽。用户可根据自身网络情况设置合适的值。例如，可以根据大部分闪断的时间范围进行配置。推荐按照如下公式进行配置，以减少网络抖动带来的影响。HCCL_RDMA_TIMEOUT=log2(pull kv超时时间 * 10^6 / (HCCL_RDMA_RETRY_CNT + 1) / 4.096)，向上取整。当pull kv超时时间和HCCL_RDMA_RETRY_CNT都等于默认值时，HCCL_RDMA_TIMEOUT建议配置成15。|
 |HCCL_INTRA_ROCE_ENABLE|用于配置Server内是否使用RoCE环路进行多卡间的通信。|
 |AUTO_USE_UC_MEMORY|控制系统是否允许算子搬移数据不经过L2 Cache的功能。使用LLM-DataDist之前，如果没有配置该环境变量，使用LLM-DataDist过程中，会将其设置为0，表示所有算子搬移数据都必须经过L2 Cache。|
+
+
+### Python多版本支持（在线编译）
+
+`hixl` Python包的核心是pybind11扩展模块，预编译产物仅在与构建版本一致的Python下可直接加载。使用其他Python 3.9及以上版本时，首次`import hixl`会基于随包源码自动在线编译并缓存（首次编译约10~20秒，实测x86约13秒、arm约16秒；二次导入命中缓存约0.2秒），后续导入直接复用缓存。
+
+在线编译需要以下环境依赖（仅非预编译版本的首次导入需要）：
+
+|依赖|说明|
+|--|--|
+|系统cmake|执行`apt install cmake`或`yum install cmake`安装（pip安装的cmake无效）|
+|C++编译器与make|执行`apt install build-essential`或`yum install gcc-c++ make`安装；缺失时cmake configure/build阶段报错，按错误提示安装即可|
+|Python开发头文件|执行`apt install python3-dev`或`yum install python3-devel`安装|
+|pybind11（pip包，版本不低于2.13.6）|执行`pip install pybind11>=2.13.6`安装|
+
+此外需已安装HIXL软件包（含配套CANN环境，提供`hixl`公共头文件与运行库）。
+
+编译产物缓存位置：包目录可写时写回`site-packages/hixl/`，随包升级自动失效并重建；`--pylocal y`安装形态下升级/卸载脚本会自动清理写回产物、元数据与旧包遗留文件；默认`pip --user`等自装形态卸载时按Python生态惯例可能残留（同`__pycache__`），可手动删除`hixl`目录。包目录只读时缓存于`~/.cache/cann/hixl/`（run包升级/卸载自动清理，也可手动整目录删除，下次导入时自动重新编译）。
+
+多进程首次导入并发时自动互斥，同一时间只有一个进程执行编译，其余进程等待后直接复用编译结果。
 
 ## 完整样例参考
 

@@ -10,7 +10,12 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
-from hixl.hixl import (
+from ._build_online import ensure_hixl_binding
+
+# 确保绑定层可用: 预编译产物命中时零开销, 未命中时基于随包源码 (_src) 在线编译
+ensure_hixl_binding()
+
+from hixl.hixl import (  # noqa: E402
     SUCCESS,
     PARAM_INVALID,
     TIMEOUT,

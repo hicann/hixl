@@ -11,7 +11,7 @@
   <!-- npu="950" id3 -->
   - Ascend 950PR&950DT系列产品：超节点内使用UB协议，超节点间使用RoCE协议。
   <!-- end id3 -->
-- [昇腾官网发布包](https://www.hiascend.com/cann/download)仅支持Python 3.12，源码编译支持Python 3.9–3.14，如需使用其他Python版本，请参考[源码编译](../../build.md)进行源码编译安装后使用。Python安装方法请参考[Python官网](https://www.python.org/)。
+- [昇腾官网发布包](https://www.hiascend.com/cann/download)支持Python 3.9–3.14：与发布包预编译版本一致的Python可直接使用；使用其他版本时，首次导入`hixl`会自动完成适配编译并缓存，所需环境依赖请参考[快速入门](../../guide/python/quick_start.md)。如需从源码安装，请参考[源码编译](../../build.md)。Python安装方法请参考[Python官网](https://www.python.org/)。
   <!-- npu="A3,910b" id4 -->
 - 最大注册50GB的Device内存。HDK版本低于25.5时，最大注册20GB的Host内存；HDK版本大于等于25.5时，最大注册1TB的Host内存。注册内存越大，占用的OS内存越多。该约束支持的形态如下：
   <!-- npu="910b" id5 -->

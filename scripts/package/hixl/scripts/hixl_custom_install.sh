@@ -98,6 +98,25 @@ create_stub_softlink() {
     cd "$pwdbak"
 }
 
+clean_hixl_online_cache() {
+    # 清理 ~/.cache 在线编译缓存目录
+    local cache_dir="${HOME:-}/.cache/cann/hixl"
+    if [ -n "${HOME:-}" ] && [ "$HOME" != "/" ] && [ -d "$cache_dir" ]; then
+        rm -rf -- "$cache_dir" > /dev/null 2>&1
+        log "INFO" "cleaned hixl online-compile cache: $cache_dir"
+    fi
+    # 清理 pkg_dir 可写时写回的在线编译产物与常驻锁文件 (不在 pip RECORD 里, 升级不会删)
+    local hixl_pkg_dir="${WHL_INSTALL_DIR_PATH}/hixl"
+    if [ -n "${WHL_INSTALL_DIR_PATH:-}" ] && [ -d "$hixl_pkg_dir" ]; then
+        find "$hixl_pkg_dir" -maxdepth 1 -name "hixl.cpython-*.so" -type f -delete 2>/dev/null
+        find "$hixl_pkg_dir" -maxdepth 1 -name "hixl.so" -type f -delete 2>/dev/null
+        find "$hixl_pkg_dir" -maxdepth 1 -name "hixl.abi3.so" -type f -delete 2>/dev/null
+        find "$hixl_pkg_dir" -maxdepth 1 -name ".build_meta.*" -type f -delete 2>/dev/null
+        find "$hixl_pkg_dir" -maxdepth 1 -name ".hixl_build.*" -type f -delete 2>/dev/null
+        log "INFO" "cleaned online-compile artifacts in $hixl_pkg_dir"
+    fi
+}
+
 hixl_install_package() {
     local _package="$1"
     local _pythonlocalpath="$2"
@@ -344,6 +363,8 @@ custom_install() {
         hixl_install_package "${PYTHON_LLM_DATADIST_WHL}" "${WHL_INSTALL_DIR_PATH}"
         log "INFO" "the llm_datadist extension module installed successfully!"
         log "INFO" "install hixl extension module begin..."
+        # 升级安装前触发旧缓存清理, 避免 hixl 在线编译缓存跨版本残留膨胀
+        clean_hixl_online_cache
         hixl_install_package "${PYTHON_HIXL_WHL}" "${WHL_INSTALL_DIR_PATH}"
         log "INFO" "the hixl extension module installed successfully!"
 
