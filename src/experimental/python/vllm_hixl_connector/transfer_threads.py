@@ -8,6 +8,9 @@
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
+# Portions adapted from vLLM-Ascend under Apache-2.0; full original notice: README.OpenSource.
+# Huawei copyright above applies to modifications; upstream source links are recorded in that notice.
+
 
 """Background handshake threads: P-side ``KVCacheSendingThread`` (ZMQ ROUTER)
 and D-side ``KVCacheRecvingThread`` (request queue, pull execution, reformat)."""

@@ -8,6 +8,9 @@
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
+# Portions adapted from vLLM-Ascend under Apache-2.0; full original notice: README.OpenSource.
+# Huawei copyright above applies to modifications; upstream source links are recorded in that notice.
+
 
 """Standalone helpers: ZMQ send/recv, block-id grouping, PP layer indices."""
 
@@ -168,6 +171,8 @@ def get_prefill_pp_indices(
             partitions = [int(layer) for layer in partition_list_str.split(",")]
         except ValueError as err:
             raise ValueError(f"Invalid partition string: {partition_list_str}") from err
+        if any(layer < 0 for layer in partitions):
+            raise ValueError("Partition layer counts must be non-negative.")
         if len(partitions) != pp_size:
             raise ValueError(f"{len(partitions)=} does not match {pp_size=}.")
         if sum(partitions) != num_hidden_layers:
