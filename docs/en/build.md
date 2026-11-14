@@ -201,10 +201,10 @@ During compilation, HIXL depends on the following third-party open-source softwa
 | makeself | 2.5.0 | [makeself-release-2.5.0.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/makeself/makeself-release-2.5.0.tar.gz), [makeself-2.5.0.patch](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/makeself/fix/makeself-2.5.0.patch) |
 | openssl | 3.0.9 | [openssl-openssl-3.0.9.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/openssl/openssl-openssl-3.0.9.tar.gz) |
 | pybind11 | 2.13.6 | [pybind11-2.13.6.tar.gz](https://gitcode.com/cann-src-third-party/pybind11/releases/download/v2.13.6/pybind11-2.13.6.tar.gz) |
-| cann-cmake | master-059 | [cmake-master-059.tar.gz](https://raw.gitcode.com/cann/cmake/archive/refs/heads/master-059.tar.gz) |
+| cann-cmake | master-059 | [cmake-master-059.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/cmake/cmake-master-059.tar.gz) |
 
 > [!NOTE] Note
-> If you download the packages from other addresses, ensure that the version numbers match exactly.
+> If you download the packages from other addresses, ensure that the version numbers match exactly. For cann-cmake, use the fixed OBS package in the table. The GitCode branch archive `refs/heads/master-059` is repacked over time, so its SHA256 changes and cannot replace this package.
 
 ### Download Source Code
 

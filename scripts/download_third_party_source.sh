@@ -13,6 +13,7 @@
 # compilation. Run it in an environment with Internet access, upload opensource.tar.gz to the offline
 # environment, and copy its content to {your_3rd_party_path}.
 # Keep the download list in sync with the third-party table in docs/zh/build.md and docs/en/build.md.
+# cann-cmake is not listed here. Its URL and SHA256 come from cmake/fetch_cann_cmake.cmake.
 
 set -e
 
@@ -33,15 +34,28 @@ PATCH_LIST=(
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-CANN_CMAKE_TAG=$(grep -oP 'set\(CANN_CMAKE_TAG\s+"([^"]+)"\)' "${REPO_ROOT}/cmake/fetch_cann_cmake.cmake" | grep -oP '"[^"]+"' | tr -d '"' || true)
-if [ -z "${CANN_CMAKE_TAG}" ]; then
-    echo "Error: failed to read CANN_CMAKE_TAG from cmake/fetch_cann_cmake.cmake."
-    exit 1
-fi
-DOWNLOAD_LIST+=("https://raw.gitcode.com/cann/cmake/archive/refs/heads/${CANN_CMAKE_TAG}.tar.gz")
+read_cmake_set() {
+    local key="$1"
+    grep -oP "set\\(${key}\\s+\"([^\"]+)\"\\)" "${REPO_ROOT}/cmake/fetch_cann_cmake.cmake" \
+        | grep -oP '"[^"]+"' | tr -d '"' | head -n 1 || true
+}
+
+CANN_CMAKE_TAG=$(read_cmake_set CANN_CMAKE_TAG)
+CANN_CMAKE_ARCHIVE_URL=$(read_cmake_set CANN_CMAKE_ARCHIVE_URL)
+CANN_CMAKE_ARCHIVE_SHA256=$(read_cmake_set CANN_CMAKE_ARCHIVE_SHA256)
+for required_var in CANN_CMAKE_TAG CANN_CMAKE_ARCHIVE_URL CANN_CMAKE_ARCHIVE_SHA256; do
+    if [ -z "${!required_var}" ]; then
+        echo "Error: failed to read ${required_var} from cmake/fetch_cann_cmake.cmake." >&2
+        exit 1
+    fi
+done
 
 command -v wget >/dev/null 2>&1 || {
     echo "Error: wget is required. Install it first, for example: sudo apt-get install wget."
+    exit 1
+}
+command -v sha256sum >/dev/null 2>&1 || {
+    echo "Error: sha256sum is required."
     exit 1
 }
 
@@ -69,7 +83,12 @@ for url in "${PATCH_LIST[@]}"; do
 done
 
 # The build looks up the archive by the exact name cmake-${CANN_CMAKE_TAG}.tar.gz.
-mv "${WORK_DIR}/${CANN_CMAKE_TAG}.tar.gz" "${WORK_DIR}/cmake-${CANN_CMAKE_TAG}.tar.gz"
+CANN_CMAKE_ARCHIVE="${WORK_DIR}/cmake-${CANN_CMAKE_TAG}.tar.gz"
+download_file "${CANN_CMAKE_ARCHIVE_URL}" "${CANN_CMAKE_ARCHIVE}"
+if ! echo "${CANN_CMAKE_ARCHIVE_SHA256}  ${CANN_CMAKE_ARCHIVE}" | sha256sum -c -; then
+    echo "Error: SHA256 mismatch for ${CANN_CMAKE_ARCHIVE}."
+    exit 1
+fi
 
 echo "Packing ${OUTPUT_FILE}"
 if ! tar -zcf "${OUTPUT_FILE}" -C "${REPO_ROOT}" opensource; then

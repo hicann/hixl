@@ -10,6 +10,9 @@
 
 if(NOT PROJECT_SOURCE_DIR)
     set(CANN_CMAKE_TAG "master-059")
+    # Offline tarball is a fixed OBS object. refs/heads/master-059 is regenerated and its gzip SHA256 changes.
+    set(CANN_CMAKE_ARCHIVE_URL "https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/cmake/cmake-master-059.tar.gz")
+    set(CANN_CMAKE_ARCHIVE_SHA256 "9e59939b5c97c9498293969df22ab2dd40e450700c51f84f117d065880f40d25")
     if(CANN_3RD_LIB_PATH AND IS_DIRECTORY "${CANN_3RD_LIB_PATH}/cann-cmake")
         include("${CANN_3RD_LIB_PATH}/cann-cmake/function/prepare.cmake")
     else()
@@ -19,7 +22,7 @@ if(NOT PROJECT_SOURCE_DIR)
             FetchContent_Declare(
                 cann-cmake
                 URL "${CANN_3RD_LIB_PATH}/cmake-${CANN_CMAKE_TAG}.tar.gz"
-                URL_HASH SHA256=9e59939b5c97c9498293969df22ab2dd40e450700c51f84f117d065880f40d25
+                URL_HASH SHA256=${CANN_CMAKE_ARCHIVE_SHA256}
             )
         else()
             FetchContent_Declare(
