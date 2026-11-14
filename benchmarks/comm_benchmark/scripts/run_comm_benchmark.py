@@ -591,10 +591,10 @@ def _add_report_args(parser) -> None:
 
 def _add_runtime_args(parser) -> None:
     parser.add_argument(
-        '--read_verify',
+        '--data_verify',
         choices=['true', 'false'],
         default='false',
-        help='Verify read data after each transfer (default false).',
+        help='Currently verifies read data after each transfer (default false).',
     )
     parser.add_argument(
         '-H',
@@ -681,15 +681,15 @@ def _common_role_options(args, memory: str, lane_index: int = 0) -> list[str]:
     return options
 
 
-def read_verify_option(args, bench_type: str) -> str:
-    enabled = args.read_verify == 'true' and TYPE_MAP[bench_type][2] == 'read'
-    return f"--read_verify={'true' if enabled else 'false'}"
+def data_verify_option(args, bench_type: str) -> str:
+    enabled = args.data_verify == 'true' and TYPE_MAP[bench_type][2] == 'read'
+    return f"--data_verify={'true' if enabled else 'false'}"
 
 
 def target_options(args, bench_type: str, lane_index: int = 0) -> list[str]:
     (_, target_memory, _) = TYPE_MAP[bench_type]
     options = _common_role_options(args, target_memory, lane_index)
-    options.append(read_verify_option(args, bench_type))
+    options.append(data_verify_option(args, bench_type))
     return options
 
 
@@ -703,7 +703,7 @@ def initiator_options(args, bench_type: str, lane_index: int = 0) -> list[str]:
         f'--connect_timeout_ms={args.connect_timeout_ms}',
         f'--remote_memory={tm}',
         f'--op={op}',
-        read_verify_option(args, bench_type),
+        data_verify_option(args, bench_type),
     ]
     if args.transfer_size is not None:
         options.append(f'--transfer_size={args.transfer_size}')
@@ -785,7 +785,7 @@ def _peer_launcher_common_args(spec: PeerLauncherSpec) -> list[str]:
         cmd.append(f'--connect_timeout_ms={args.connect_timeout_ms}')
     if args.inter_run_delay_s != DEFAULT_INTER_RUN_DELAY_SEC:
         cmd.append(f'--inter_run_delay_s={args.inter_run_delay_s}')
-    cmd.append(f'--read_verify={args.read_verify}')
+    cmd.append(f'--data_verify={args.data_verify}')
     if not args.plot:
         cmd.append('--skip_plot')
     if not args.report:

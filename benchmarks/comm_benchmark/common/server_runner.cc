@@ -272,7 +272,7 @@ int ServerRunner::Run() {
   if (!AllocServerBufferForRun()) {
     return -1;
   }
-  if (cfg_.read_verify &&
+  if (cfg_.data_verify &&
       !FillBufferPattern(buffer_, static_cast<size_t>(cfg_.buffer_size), kServerFillPattern, is_host_)) {
     BENCH_LOGW("target fill buffer with '%c' failed, read verification may report false mismatches\n",
                static_cast<int32_t>(kServerFillPattern));
