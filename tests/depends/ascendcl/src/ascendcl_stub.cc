@@ -122,6 +122,14 @@ uint64_t GetAclProfRangeStopCount() {
   return g_aclprof_range_stop_count.load(std::memory_order_relaxed);
 }
 
+static aclrtDeviceTaskAbortCallback g_saved_abort_callback = nullptr;
+
+void HixlTestTriggerDeviceAbortPost(int32_t device_id) {
+  if (g_saved_abort_callback != nullptr) {
+    g_saved_abort_callback(device_id, ACL_RT_DEVICE_TASK_ABORT_POST, 0U, nullptr);
+  }
+}
+
 struct aclrtContextStub {
   int32_t deviceId;
 };
@@ -1199,3 +1207,10 @@ aclError aclrtBinaryUnLoad(aclrtBinHandle binHandle) {
 #ifdef __cplusplus
 }
 #endif
+
+aclError aclrtSetDeviceTaskAbortCallback(const char *regName, aclrtDeviceTaskAbortCallback callback, void *args) {
+  (void)regName;
+  (void)args;
+  llm::g_saved_abort_callback = callback;
+  return ACL_SUCCESS;
+}

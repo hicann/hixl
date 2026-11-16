@@ -42,6 +42,7 @@ class AclProfStampEnabled {
   AclProfStampEnabled(const AclProfStampEnabled &) = delete;
   AclProfStampEnabled &operator=(const AclProfStampEnabled &) = delete;
 };
+void HixlTestTriggerDeviceAbortPost(int32_t device_id);
 
 #define RUTIME_MOCK_QUERY_EVENT_INTERVAL 5
 class AclRuntimeStub {
