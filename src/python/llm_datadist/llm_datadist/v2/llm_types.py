@@ -670,6 +670,10 @@ class TransferWithCacheKeyConfig:
     @cache_key.setter
     def cache_key(self, cache_key: Union[BlocksCacheKey, CacheKeyByIdAndIndex]) -> None:
         check_isinstance("cache_key", cache_key, [BlocksCacheKey, CacheKeyByIdAndIndex])
+        raise_if_true(
+            isinstance(cache_key, BlocksCacheKey) and self._src_batch_index != 0,
+            "src_batch_index should be 0 when cache_key is BlocksCacheKey.",
+        )
         self._cache_key = cache_key
 
     @property
