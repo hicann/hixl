@@ -138,7 +138,7 @@ Status TlsCertWatcher::Start() {
   HIXL_CHK_STATUS_RET(InitWatchFds(), "[TlsCertWatcher] Failed to init watch fds");
   running_ = true;
   try {
-    watch_thread_ = std::thread(&TlsCertWatcher::WatchLoop, this);
+    watch_thread_ = std::thread([this]() { WatchLoop(); });
   } catch (const std::system_error &error) {
     running_ = false;
     CloseWatchFds();
@@ -200,7 +200,7 @@ void TlsCertWatcher::WatchLoop() {
     if (!running_) {
       break;
     }
-    if (pret > 0 && (fds[0].revents & POLLIN) != 0) {
+    if (pret > 0 && (static_cast<uint32_t>(fds[0].revents) & static_cast<uint32_t>(POLLIN)) != 0U) {
       ConsumeInotify(inotify_fd_, files, changes);
     }
     const auto elapsed =

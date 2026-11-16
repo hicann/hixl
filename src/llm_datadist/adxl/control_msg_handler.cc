@@ -54,7 +54,7 @@ Status ControlMsgHandler::SendMsgByProtocol(const hixl::CtrlMsgPluginPtr &connec
   ProtocolHeader protocol_header{kMagicNumber, body_size};
   ADXL_CHK_STATUS_RET(Write(connection, &protocol_header, sizeof(protocol_header), timeout, start),
                       "Failed to write msg");
-  HIXL_DISMISSABLE_GUARD(incomplete_message, ([&]() {
+  HIXL_DISMISSABLE_GUARD(incomplete_message, ([&connection]() {
                            ADXL_CHK_STATUS(connection->InvalidateTlsSession(), "Failed to invalidate TLS message");
                          }));
   ADXL_CHK_STATUS_RET(Write(connection, &msg_type, sizeof(ControlMsgType), timeout, start), "Failed to write msg");

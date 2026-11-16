@@ -168,7 +168,7 @@ Status TlsSession::Send(const void *buf, size_t len, uint32_t timeout_ms, int32_
   HIXL_CHK_BOOL_RET_STATUS(len <= static_cast<size_t>(std::numeric_limits<int>::max()), PARAM_INVALID,
                            "TLS write length exceeds int max, fd:%d, size:%zu bytes", fd_, len);
   bool write_started = false;
-  HIXL_DISMISSABLE_GUARD(abandon_write, ([&]() {
+  HIXL_DISMISSABLE_GUARD(abandon_write, ([this, &write_started]() {
                            if (write_started) {
                              Invalidate();
                            }

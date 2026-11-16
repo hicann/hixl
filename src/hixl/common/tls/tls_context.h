@@ -19,7 +19,7 @@
 #include "common/tls/tls_config.h"
 #include "common/tls/tls_session.h"
 
-typedef struct ssl_ctx_st SSL_CTX;
+using SSL_CTX = struct ssl_ctx_st;
 
 namespace hixl {
 

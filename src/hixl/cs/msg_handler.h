@@ -12,7 +12,6 @@
 #define CANN_HIXL_SRC_HIXL_CS_MSG_HANDLER_H_
 
 #include <atomic>
-#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <thread>

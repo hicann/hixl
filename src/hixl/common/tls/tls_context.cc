@@ -139,8 +139,8 @@ Status TlsContext::CreateSession(const std::shared_ptr<TlsContext> &context, int
     HIXL_CHK_BOOL_RET_STATUS(false, FAILED, "Call api:SSL_set_fd failed, ret:%d, openssl_error:%s, fd:%d", fd_ret,
                              error.c_str(), fd);
   }
-  const int flags = fcntl(fd, F_GETFL, 0);
-  if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) != 0) {
+  int flags = fcntl(fd, F_GETFL, 0);
+  if (flags < 0 || fcntl(fd, F_SETFL, static_cast<uint32_t>(flags) | static_cast<uint32_t>(O_NONBLOCK)) != 0) {
     const int saved_errno = errno;
     SSL_free(ssl);
     HIXL_CHK_BOOL_RET_STATUS(false, FAILED, "Call api:fcntl failed, fd:%d, errno:%d, error_msg:%s", fd, saved_errno,

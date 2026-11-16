@@ -19,7 +19,7 @@
 
 #include "hixl/hixl_types.h"
 
-typedef struct ssl_st SSL;
+using SSL = struct ssl_st;
 
 namespace hixl {
 class TlsContext;

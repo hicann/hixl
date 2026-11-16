@@ -527,7 +527,7 @@ Status HixlCSServer::CreateChannel(const CtrlMsgPluginPtr &connection, const cha
   channel_desc.qos = req.qos;
   channel_desc.configurable_transfer_supported = configurable_transfer_supported_;
   HIXL_CHK_STATUS_RET(ep->CreateChannel(channel_desc, channel_handle, req.timeout_ms), "Failed to create channel");
-  if (!TrackChannelIfConnected(connection, handle, channel_handle)) {
+  if (!TrackChannelIfConnected(connection, ep, channel_handle)) {
     // client 已断开：不回响应（fd 已关，复用后污染新连接），锁外销毁刚建的 channel。
     HIXL_DISMISS_GUARD(failed);
     HIXL_LOGE(FAILED, "client connection:%s disconnected during channel creation, discard channel:%lu",
@@ -543,7 +543,7 @@ Status HixlCSServer::CreateChannel(const CtrlMsgPluginPtr &connection, const cha
   return SUCCESS;
 }
 
-bool HixlCSServer::TrackChannelIfConnected(const CtrlMsgPluginPtr &connection, EndpointHandle endpoint,
+bool HixlCSServer::TrackChannelIfConnected(const CtrlMsgPluginPtr &connection, const EndpointPtr &endpoint,
                                            ChannelHandle channel) {
   // Serialize insertion with disconnect removal; lock order: client_mutex_ -> chn_mutex_.
   std::lock_guard<std::mutex> client_lock(client_mutex_);
@@ -552,7 +552,7 @@ bool HixlCSServer::TrackChannelIfConnected(const CtrlMsgPluginPtr &connection, E
     return false;
   }
   std::lock_guard<std::mutex> chn_lock(chn_mutex_);
-  channels_[connection] = {endpoint, channel};
+  channels_[connection] = {endpoint->GetHandle(), channel};
   return true;
 }
 

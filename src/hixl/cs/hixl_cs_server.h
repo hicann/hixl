@@ -66,7 +66,7 @@ class HixlCSServer {
   Status RegisterMsgProcessors();
   Status MatchEndpointMsg(const CtrlMsgPluginPtr &connection, const char *msg, uint64_t msg_len) const;
   Status CreateChannel(const CtrlMsgPluginPtr &connection, const char *msg, uint64_t msg_len);
-  bool TrackChannelIfConnected(const CtrlMsgPluginPtr &connection, EndpointHandle endpoint, ChannelHandle channel);
+  bool TrackChannelIfConnected(const CtrlMsgPluginPtr &connection, const EndpointPtr &endpoint, ChannelHandle channel);
   Status DestroyChannel(const CtrlMsgPluginPtr &connection, const char *msg, uint64_t msg_len);
   Status ExportMem(const CtrlMsgPluginPtr &connection, const char *msg, uint64_t msg_len) const;
   Status DoWait();
