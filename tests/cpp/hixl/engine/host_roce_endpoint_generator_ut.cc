@@ -62,7 +62,7 @@ class OffsetLogicIdAclStub : public llm::AclRuntimeStub {
       return ACL_ERROR_INVALID_PARAM;
     }
     *deviceId = 1;
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
 
   aclError aclrtGetLogicDevIdByUserDevId(const int32_t userDevid, int32_t *const logicDevId) override {
@@ -70,7 +70,7 @@ class OffsetLogicIdAclStub : public llm::AclRuntimeStub {
       return ACL_ERROR_INVALID_PARAM;
     }
     *logicDevId = userDevid + 6;
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
 };
 
@@ -84,7 +84,7 @@ class LogicIdAclStub : public llm::AclRuntimeStub {
       return ACL_ERROR_INVALID_PARAM;
     }
     *logicDevId = logic_id_;
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
 
  private:

@@ -111,7 +111,7 @@ bool FillBufferPattern(void *ptr, size_t size, uint8_t value, bool is_host) {
     return true;
   }
   const auto ret = aclrtMemset(ptr, size, static_cast<int32_t>(value), size);
-  if (ret != ACL_ERROR_NONE) {
+  if (ret != ACL_SUCCESS) {
     BENCH_LOGE("aclrtMemset failed ret=%d value=0x%02x size=%zu\n", static_cast<int>(ret), static_cast<unsigned>(value),
                size);
     return false;
@@ -173,7 +173,7 @@ void ServerRunner::ReleaseServerResources() {
 
 bool ServerRunner::Init() {
   device_id_ = cfg_.expanded_device_ids[0];
-  if (aclrtSetDevice(device_id_) != ACL_ERROR_NONE) {
+  if (aclrtSetDevice(device_id_) != ACL_SUCCESS) {
     return false;
   }
   device_bound_ = true;
@@ -205,7 +205,7 @@ bool ServerRunner::AllocServerBufferForRun() {
     }
   } else if (is_host_) {
     aclError ar_alloc = aclrtMallocHost(&buffer_, alloc_size);
-    if (ar_alloc != ACL_ERROR_NONE) {
+    if (ar_alloc != ACL_SUCCESS) {
       BENCH_LOGE("server alloc host failed acl=%d\n", static_cast<int>(ar_alloc));
       return false;
     }
@@ -217,7 +217,7 @@ bool ServerRunner::AllocServerBufferForRun() {
     }
   } else {
     aclError ar_alloc = aclrtMalloc(&buffer_, alloc_size, ACL_MEM_MALLOC_HUGE_ONLY);
-    if (ar_alloc != ACL_ERROR_NONE) {
+    if (ar_alloc != ACL_SUCCESS) {
       BENCH_LOGE("server alloc device failed acl=%d\n", static_cast<int>(ar_alloc));
       return false;
     }

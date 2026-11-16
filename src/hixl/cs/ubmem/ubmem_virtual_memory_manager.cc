@@ -74,7 +74,7 @@ Status VirtualMemoryManager::ReserveMemAddress(void *&virtual_address, size_t si
   HIXL_CHK_STATUS_RET(SocTypeUtil::GetSocType(soc_type), "ReserveMemAddress GetSocType failed");
   if (soc_type == SocType::kGen2 && &aclrtReserveMemAddressNoUCMemory != nullptr) {
     const auto ret = aclrtReserveMemAddressNoUCMemory(&virtual_address, size, 0, global_start_va, kReserveFlagHugePage);
-    if (ret == ACL_ERROR_NONE) {
+    if (ret == ACL_SUCCESS) {
       HIXL_LOGI("Reserve virtual memory without UC memory, size:%zu.", size);
       return SUCCESS;
     }

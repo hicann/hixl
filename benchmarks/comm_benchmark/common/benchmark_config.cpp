@@ -735,7 +735,7 @@ BenchSocKind ClassifySocNameForBenchRules(const std::string &soc_name) {
 
 BenchSocKind ProbeSocKindViaAcl(int32_t device_id) {
   aclError er = aclInit(nullptr);
-  if (er != ACL_ERROR_NONE) {
+  if (er != ACL_SUCCESS) {
     // CANN returns ACL_ERROR_REPEAT_INITIALIZE when ACL was already initialized (often by peer tooling).
     constexpr aclError kAclRepeatInitialize = static_cast<aclError>(100002);
     if (er != kAclRepeatInitialize) {
@@ -744,7 +744,7 @@ BenchSocKind ProbeSocKindViaAcl(int32_t device_id) {
     }
   }
   er = aclrtSetDevice(device_id);
-  if (er != ACL_ERROR_NONE) {
+  if (er != ACL_SUCCESS) {
     BENCH_LOGW("aclrtSetDevice(%d) failed for SOC probe (ret=%d); assuming A2-class HCCS rules\n",
                static_cast<int>(device_id), static_cast<int>(er));
     return BenchSocKind::kA2;

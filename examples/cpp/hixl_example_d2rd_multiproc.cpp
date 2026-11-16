@@ -42,7 +42,7 @@ static const std::vector<std::string> protocolList = {"hccs:device", "roce:devic
 #define CHECK_ACL(x)                                                                     \
   do {                                                                                   \
     aclError __status = x;                                                               \
-    if (__status != ACL_ERROR_NONE) {                                                    \
+    if (__status != ACL_SUCCESS) {                                                       \
       std::cerr << __FILE__ << ":" << __LINE__ << " aclError:" << __status << std::endl; \
     }                                                                                    \
   } while (0)

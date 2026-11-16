@@ -37,7 +37,7 @@ Status ConvertCommErrorToAdxlStatus(HcclResult ret) {
 
 Status AclError2AdxlStatus(aclError ret) {
   static const std::map<aclError, Status> acl2adxl = {
-      {ACL_ERROR_NONE, SUCCESS},
+      {ACL_SUCCESS, SUCCESS},
       {ACL_ERROR_RT_STREAM_SYNC_TIMEOUT, TIMEOUT},
   };
   const auto &it = acl2adxl.find(ret);

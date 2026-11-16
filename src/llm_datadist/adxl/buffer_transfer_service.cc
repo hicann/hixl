@@ -602,7 +602,7 @@ Status BufferTransferService::ProcessCopyWithBatch(const SliceInfo &slice_info, 
                               attrs.data(), attrsIds.data(), batch_num, &fail_idx);
   ADXL_CHK_BOOL_RET_SPECIAL_STATUS(ret == ACL_ERROR_RT_FEATURE_NOT_SUPPORT, UNSUPPORTED,
                                    "aclrtMemcpyBatch is not supported.");
-  return ret == ACL_ERROR_NONE ? SUCCESS : FAILED;
+  return ret == ACL_SUCCESS ? SUCCESS : FAILED;
 }
 
 Status BufferTransferService::ProcessCopyWithAsync(const ChannelPtr &channel, const std::vector<uintptr_t> &src_addrs,

@@ -23,18 +23,18 @@ aclError UbMemRuntimeStub::aclrtSetCurrentContext(aclrtContext context) {
 aclError UbMemRuntimeStub::aclrtGetCurrentContext(aclrtContext *context) {
   if (get_context_returns_null_) {
     *context = nullptr;
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
   return llm::AclRuntimeStub::aclrtGetCurrentContext(context);
 }
 
 aclError UbMemRuntimeStub::aclrtPointerGetAttributes(const void *ptr, aclrtPtrAttributes *attributes) {
   (void)ptr;
-  if (pointer_attr_error_ != ACL_ERROR_NONE) {
+  if (pointer_attr_error_ != ACL_SUCCESS) {
     return pointer_attr_error_;
   }
   attributes->location.type = pointer_is_host_ ? ACL_MEM_LOCATION_TYPE_HOST : ACL_MEM_LOCATION_TYPE_DEVICE;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError UbMemRuntimeStub::aclrtMemcpyAsync(void *dst, size_t dest_max, const void *src, size_t src_count,
@@ -44,7 +44,7 @@ aclError UbMemRuntimeStub::aclrtMemcpyAsync(void *dst, size_t dest_max, const vo
     ++host_flag_d2h_count_;
     submission_events_.emplace_back(SubmissionEvent::kHostFlagCopy);
   }
-  if (memcpy_async_error_ != ACL_ERROR_NONE && memcpy_async_count_ == memcpy_async_fail_on_count_ &&
+  if (memcpy_async_error_ != ACL_SUCCESS && memcpy_async_count_ == memcpy_async_fail_on_count_ &&
       kind == memcpy_async_fail_kind_) {
     return memcpy_async_error_;
   }
@@ -69,7 +69,7 @@ aclError UbMemRuntimeStub::aclrtMemcpy(void *dst, size_t dest_max, const void *s
 aclError UbMemRuntimeStub::aclrtBinaryLoadFromFile(const char *path, aclrtBinaryLoadOptions *options,
                                                    aclrtBinHandle *bin_handle) {
   ++kernel_binary_load_count_;
-  if (kernel_binary_load_error_ != ACL_ERROR_NONE) {
+  if (kernel_binary_load_error_ != ACL_SUCCESS) {
     return kernel_binary_load_error_;
   }
   return llm::AclRuntimeStub::aclrtBinaryLoadFromFile(path, options, bin_handle);
@@ -78,7 +78,7 @@ aclError UbMemRuntimeStub::aclrtBinaryLoadFromFile(const char *path, aclrtBinary
 aclError UbMemRuntimeStub::aclrtBinaryGetFunction(aclrtBinHandle bin_handle, const char *function_name,
                                                   aclrtFuncHandle *function_handle) {
   ++kernel_function_lookup_count_;
-  if (kernel_function_lookup_error_ != ACL_ERROR_NONE) {
+  if (kernel_function_lookup_error_ != ACL_SUCCESS) {
     return kernel_function_lookup_error_;
   }
   return llm::AclRuntimeStub::aclrtBinaryGetFunction(bin_handle, function_name, function_handle);
@@ -107,7 +107,7 @@ aclError UbMemRuntimeStub::aclrtCreateNotify(aclrtNotify *notify, uint64_t flag)
     return ACL_ERROR_INVALID_PARAM;
   }
   ++notify_create_count_;
-  if (notify_create_error_ != ACL_ERROR_NONE) {
+  if (notify_create_error_ != ACL_SUCCESS) {
     return notify_create_error_;
   }
   *notify = reinterpret_cast<aclrtNotify>(0x10000000U + notify_create_count_ * 0x100U);
@@ -117,7 +117,7 @@ aclError UbMemRuntimeStub::aclrtCreateNotify(aclrtNotify *notify, uint64_t flag)
 
 aclError UbMemRuntimeStub::aclrtGetNotifyId(aclrtNotify notify, uint32_t *notify_id) {
   ++notify_id_query_count_;
-  if (notify_id_error_ != ACL_ERROR_NONE) {
+  if (notify_id_error_ != ACL_SUCCESS) {
     return notify_id_error_;
   }
   const auto it = notify_ids_.find(notify);
@@ -161,7 +161,7 @@ aclError UbMemRuntimeStub::aclrtLaunchKernelWithConfig(aclrtFuncHandle function,
                                                        void *reserved) {
   ++kernel_launch_count_;
   submission_events_.emplace_back(SubmissionEvent::kKernelLaunch);
-  if (kernel_launch_error_ != ACL_ERROR_NONE &&
+  if (kernel_launch_error_ != ACL_SUCCESS &&
       (kernel_launch_fail_on_count_ == 0U || kernel_launch_count_ == kernel_launch_fail_on_count_)) {
     return kernel_launch_error_;
   }
@@ -176,7 +176,7 @@ aclError UbMemRuntimeStub::aclrtLaunchKernelV2(aclrtFuncHandle function, uint32_
       static_cast<const UbMemAicpuKernelParam *>(args_data)->version == kUbMemKernelParamVersion) {
     kernel_params_.emplace_back(*static_cast<const UbMemAicpuKernelParam *>(args_data));
   }
-  if (kernel_launch_error_ != ACL_ERROR_NONE &&
+  if (kernel_launch_error_ != ACL_SUCCESS &&
       (kernel_launch_fail_on_count_ == 0U || kernel_launch_count_ == kernel_launch_fail_on_count_)) {
     return kernel_launch_error_;
   }
@@ -199,7 +199,7 @@ aclError UbMemRuntimeStub::aclrtFree(void *ptr) {
 
 aclError UbMemRuntimeStub::aclrtStreamQuery(aclrtStream stream, aclrtStreamStatus *status) {
   ++stream_query_count_;
-  if (stream_query_error_ != ACL_ERROR_NONE) {
+  if (stream_query_error_ != ACL_SUCCESS) {
     return stream_query_error_;
   }
   if (status == nullptr) {
@@ -207,7 +207,7 @@ aclError UbMemRuntimeStub::aclrtStreamQuery(aclrtStream stream, aclrtStreamStatu
   }
   if (streams_not_complete_.count(stream) != 0U) {
     *status = ACL_STREAM_STATUS_NOT_READY;
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
   return llm::AclRuntimeStub::aclrtStreamQuery(stream, status);
 }
@@ -220,7 +220,7 @@ aclError UbMemRuntimeStub::aclrtSetStreamFailureMode(aclrtStream stream, uint64_
   }
   ++stream_failure_mode_count_;
   last_stream_failure_mode_ = mode;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError UbMemRuntimeStub::aclrtSynchronizeStream(aclrtStream stream) {
@@ -231,7 +231,7 @@ aclError UbMemRuntimeStub::aclrtSynchronizeStream(aclrtStream stream) {
     stream_lifecycle_events_.emplace_back(StreamLifecycleEvent::kDrainControl);
   }
   streams_not_complete_.erase(stream);
-  if (stream_sync_error_ != ACL_ERROR_NONE) {
+  if (stream_sync_error_ != ACL_SUCCESS) {
     return stream_sync_error_;
   }
   return llm::AclRuntimeStub::aclrtSynchronizeStream(stream);
@@ -250,7 +250,7 @@ aclError UbMemRuntimeStub::aclrtSynchronizeStreamWithTimeout(aclrtStream stream,
     ++device_only_stream_sync_count_;
   }
   streams_not_complete_.erase(stream);
-  if (stream_sync_error_ != ACL_ERROR_NONE &&
+  if (stream_sync_error_ != ACL_SUCCESS &&
       (stream_sync_fail_on_count_ == 0U || stream_sync_count_ == stream_sync_fail_on_count_)) {
     return stream_sync_error_;
   }
@@ -283,7 +283,7 @@ aclError UbMemRuntimeStub::aclrtMallocPhysical(aclrtDrvMemHandle *handle, size_t
   ++malloc_physical_count_;
   last_physical_mem_prop_ = *prop;
   *handle = reinterpret_cast<aclrtDrvMemHandle>(new uint8_t[8]);
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError UbMemRuntimeStub::aclrtFreePhysical(aclrtDrvMemHandle handle) {
@@ -293,7 +293,7 @@ aclError UbMemRuntimeStub::aclrtFreePhysical(aclrtDrvMemHandle handle) {
 
 aclError UbMemRuntimeStub::aclrtMemGetAddressRange(void *ptr, void **pbase, size_t *psize) {
   ++get_address_range_count_;
-  if (get_address_range_error_ != ACL_ERROR_NONE) {
+  if (get_address_range_error_ != ACL_SUCCESS) {
     return get_address_range_error_;
   }
   if (ptr == nullptr || pbase == nullptr || psize == nullptr) {
@@ -304,7 +304,7 @@ aclError UbMemRuntimeStub::aclrtMemGetAddressRange(void *ptr, void **pbase, size
     if (addr >= range.first && addr - range.first < range.second) {
       *pbase = reinterpret_cast<void *>(range.first);
       *psize = range.second;
-      return ACL_ERROR_NONE;
+      return ACL_SUCCESS;
     }
   }
   if (!address_ranges_.empty()) {
@@ -328,9 +328,9 @@ aclError UbMemRuntimeStub::aclrtMemExportToShareableHandleV2(aclrtDrvMemHandle h
   if (llm::GetAclStubMock() == "aclrtMemExportToShareableHandleV2") {
     return ACL_ERROR_RT_INTERNAL_ERROR;
   }
-  if (export_fail_once_ != ACL_ERROR_NONE) {
+  if (export_fail_once_ != ACL_SUCCESS) {
     const aclError ret = export_fail_once_;
-    export_fail_once_ = ACL_ERROR_NONE;
+    export_fail_once_ = ACL_SUCCESS;
     return ret;
   }
   // The base stub echoes the PA handle pointer, which cannot tell two exports of the same block apart
@@ -343,7 +343,7 @@ aclError UbMemRuntimeStub::aclrtMemExportToShareableHandleV2(aclrtDrvMemHandle h
     const uint64_t token = ++exported_handle_count_;
     (void)memcpy(exported->data, &token, sizeof(token));
   }
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError UbMemRuntimeStub::aclrtMemImportFromShareableHandleV2(void *shareableHandle, aclrtMemSharedHandleType type,
@@ -379,11 +379,11 @@ aclError UbMemRuntimeStub::aclrtMemSetAccess(void *virPtr, size_t size, aclrtMem
 
 aclError UbMemRuntimeStub::aclrtGetLogicDevIdByUserDevId(const int32_t userDevid, int32_t *const logicDevId) {
   const aclError ret = llm::AclRuntimeStub::aclrtGetLogicDevIdByUserDevId(userDevid, logicDevId);
-  if (ret != ACL_ERROR_NONE) {
+  if (ret != ACL_SUCCESS) {
     return ret;
   }
   *logicDevId = userDevid + kUserToDriverLogicIdOffset;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 bool UbMemRuntimeStub::IsDeviceOnlyStream(aclrtStream stream) const {

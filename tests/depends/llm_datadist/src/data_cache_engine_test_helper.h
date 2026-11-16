@@ -227,7 +227,7 @@ class DataCacheEngineRuntimeMock : public llm::AclRuntimeStub {
     } else {
       *status = ACL_EVENT_RECORDED_STATUS_NOT_READY;
     }
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
 
  private:
@@ -245,7 +245,7 @@ class AsyncHostFlagSuppressCompletionCopyMock : public llm::AclRuntimeStub {
     (void)count;
     (void)kind;
     (void)stream;
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
 };
 
@@ -294,7 +294,7 @@ class AutoCommResRuntimeMock : public llm::AclRuntimeStub {
 
   aclError aclrtGetDevice(int32_t *deviceId) override {
     *deviceId = device_id_;
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
 
   aclError aclrtMemcpyBatch(void **dsts, size_t *destMax, void **srcs, size_t *sizes, size_t numBatches,

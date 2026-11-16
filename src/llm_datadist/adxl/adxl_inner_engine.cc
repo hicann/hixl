@@ -292,7 +292,7 @@ Status AdxlInnerEngine::InitBufferTransferService(const std::map<ge::AscendStrin
     ADXL_CHK_BOOL_RET_STATUS((aclrtMalloc(&npu_pool_memorys_[i], npu_pool_size,
                                           static_cast<aclrtMemMallocPolicy>(
                                               static_cast<uint32_t>(ACL_MEM_TYPE_HIGH_BAND_WIDTH) |
-                                              static_cast<uint32_t>(ACL_MEM_MALLOC_HUGE_FIRST))) == ACL_ERROR_NONE),
+                                              static_cast<uint32_t>(ACL_MEM_MALLOC_HUGE_FIRST))) == ACL_SUCCESS),
                              FAILED, "Failed to allocate memory for memory_pool, pool size = %lu.", npu_pool_size);
     ADXL_CHK_LLM_RET(npu_mem_pools_[i]->Initialize(npu_pool_memorys_[i], npu_pool_size),
                      "Failed to initialize memory pool, pool size = %lu.", npu_pool_size);

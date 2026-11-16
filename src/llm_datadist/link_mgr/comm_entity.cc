@@ -289,7 +289,7 @@ ge::Status CommEntity::Finalize(bool force) {
   if (GetStream() != nullptr) {
     auto aclrt_ret = aclrtStreamAbort(GetStream());
     LLMLOGI("Call aclrtStreamAbort ret:%d.", aclrt_ret);
-    ret = aclrt_ret != ACL_ERROR_NONE ? ge::LLM_UNLINK_FAILED : ret;
+    ret = aclrt_ret != ACL_SUCCESS ? ge::LLM_UNLINK_FAILED : ret;
   }
 
   if (comm_info_ptr_ != nullptr) {
@@ -300,7 +300,7 @@ ge::Status CommEntity::Finalize(bool force) {
   if (GetStream() != nullptr) {
     auto aclrt_ret = aclrtDestroyStream(GetStream());
     LLMLOGI("Call aclrtDestroyStream ret:%d.", aclrt_ret);
-    ret = aclrt_ret != ACL_ERROR_NONE ? ge::LLM_UNLINK_FAILED : ret;
+    ret = aclrt_ret != ACL_SUCCESS ? ge::LLM_UNLINK_FAILED : ret;
   }
   stream_ = nullptr;
   return ret;
@@ -558,8 +558,7 @@ ge::Status CommEntity::BatchTransfer(std::list<HcclOneSideOpDesc> &tasks, bool i
   }
   LLM_CHK_STATUS_RET(buffered_sender.Flush());
   const auto ret = aclrtSynchronizeStreamWithTimeout(stream_, timeout_ms);
-  LLM_CHK_BOOL_RET_STATUS(ret == ACL_ERROR_NONE, llm::ConvertAclError2Ge(ret), "Failed to sync stream, rt_ret = %d",
-                          ret);
+  LLM_CHK_BOOL_RET_STATUS(ret == ACL_SUCCESS, llm::ConvertAclError2Ge(ret), "Failed to sync stream, rt_ret = %d", ret);
   const auto end = std::chrono::steady_clock::now();
   const auto cost = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
   LLMLOGI("sync stream success, cost = %ld us.", cost);

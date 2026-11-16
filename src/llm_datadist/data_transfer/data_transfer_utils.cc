@@ -54,7 +54,7 @@ ge::Status DataTransferUtils::SendCache(const aclrtStream stream, CommEntity &co
     const auto start = std::chrono::steady_clock::now();
     LLM_CHK_ACL_RET(aclrtCreateEvent(&event));
     const aclError record_ret = aclrtRecordEvent(event, stream);
-    if (record_ret != ACL_ERROR_NONE) {
+    if (record_ret != ACL_SUCCESS) {
       (void)aclrtDestroyEvent(event);
       event = nullptr;
       const auto status = llm::ConvertAclError2Ge(static_cast<int32_t>(record_ret));

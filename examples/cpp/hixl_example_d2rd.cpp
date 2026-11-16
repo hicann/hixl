@@ -36,7 +36,7 @@ static const std::vector<std::string> kValidProtos = {"roce:device", "roce:host"
 #define CHECK_ACL(x)                                                                      \
   do {                                                                                    \
     aclError __acl_ret = x;                                                               \
-    if (__acl_ret != ACL_ERROR_NONE) {                                                    \
+    if (__acl_ret != ACL_SUCCESS) {                                                       \
       std::cerr << __FILE__ << ":" << __LINE__ << " aclError:" << __acl_ret << std::endl; \
     }                                                                                     \
   } while (0)

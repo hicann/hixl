@@ -227,7 +227,7 @@ Status UbMemAllocator::AllocatePhysicalMemory(MemType type, size_t total_size, i
   prop.location.id = 0;
   HIXL_LOGI("[UbMemAllocator] allocate A2/A3 host physical memory, size:%zu, page:1G", total_size);
   const aclError one_gig_ret = aclrtMallocPhysical(&handle, total_size, &prop, 0);
-  if (one_gig_ret == ACL_ERROR_NONE) {
+  if (one_gig_ret == ACL_SUCCESS) {
     return SUCCESS;
   }
   HIXL_LOGI("[UbMemAllocator] 1G host page allocation failed, fall back to 2M page. size:%zu ret:%d", total_size,

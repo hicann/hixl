@@ -169,7 +169,7 @@ ge::Status HixlTransferEngine::LinkClusters(const std::vector<ClusterInfo> &clus
   std::vector<std::future<ge::Status>> future_rets;
   for (const auto &cluster : clusters) {
     auto fut = thread_pool.commit([this, cluster, timeout]() -> ge::Status {
-      LLM_CHK_BOOL_RET_STATUS(aclrtSetCurrentContext(rt_context_) == ACL_ERROR_NONE, ge::LLM_PARAM_INVALID,
+      LLM_CHK_BOOL_RET_STATUS(aclrtSetCurrentContext(rt_context_) == ACL_SUCCESS, ge::LLM_PARAM_INVALID,
                               "Set runtime context failed.");
       LLM_CHK_STATUS_RET(LinkCluster(cluster, timeout),
                          "Failed to link cluster, remote_cluster_id = %lu, remote_role_type = %d.",
@@ -204,7 +204,7 @@ ge::Status HixlTransferEngine::UnlinkClusters(const std::vector<ClusterInfo> &cl
   std::vector<std::future<ge::Status>> future_rets;
   for (const auto &cluster : clusters) {
     auto fut = thread_pool.commit([this, cluster, timeout]() -> ge::Status {
-      LLM_CHK_BOOL_RET_STATUS(aclrtSetCurrentContext(rt_context_) == ACL_ERROR_NONE, ge::LLM_PARAM_INVALID,
+      LLM_CHK_BOOL_RET_STATUS(aclrtSetCurrentContext(rt_context_) == ACL_SUCCESS, ge::LLM_PARAM_INVALID,
                               "Set runtime context failed.");
       LLM_CHK_STATUS_RET(UnlinkCluster(cluster, timeout),
                          "Failed to unlink cluster, remote_cluster_id = %lu, remote_role_type = %d.",

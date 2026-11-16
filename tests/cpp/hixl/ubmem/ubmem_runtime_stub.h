@@ -114,7 +114,7 @@ class UbMemRuntimeStub : public llm::AclRuntimeStub {
                                              void *shareableHandle) override;
   // Test hook: when set, aclrtMemExportToShareableHandleV2 returns this error and does not touch the
   // output handle. Cleared after one call so later registrations can retry successfully.
-  aclError export_fail_once_{ACL_ERROR_NONE};
+  aclError export_fail_once_{ACL_SUCCESS};
   aclError aclrtMemImportFromShareableHandleV2(void *shareableHandle, aclrtMemSharedHandleType type, uint64_t flags,
                                                aclrtDrvMemHandle *handle) override;
   aclError aclrtMapMem(void *devPtr, size_t size, size_t offset, aclrtDrvMemHandle handle, uint64_t flags) override;
@@ -126,16 +126,16 @@ class UbMemRuntimeStub : public llm::AclRuntimeStub {
 
   bool pointer_is_host_{false};
   bool get_context_returns_null_{false};
-  aclError pointer_attr_error_{ACL_ERROR_NONE};
-  aclError memcpy_async_error_{ACL_ERROR_NONE};
+  aclError pointer_attr_error_{ACL_SUCCESS};
+  aclError memcpy_async_error_{ACL_SUCCESS};
   aclrtMemcpyKind memcpy_async_fail_kind_{ACL_MEMCPY_DEVICE_TO_DEVICE};
   size_t memcpy_async_fail_on_count_{0U};
   size_t memcpy_async_count_{0U};
   size_t memcpy_count_{0U};
   size_t host_flag_d2h_count_{0U};
-  aclError kernel_binary_load_error_{ACL_ERROR_NONE};
-  aclError kernel_function_lookup_error_{ACL_ERROR_NONE};
-  aclError kernel_launch_error_{ACL_ERROR_NONE};
+  aclError kernel_binary_load_error_{ACL_SUCCESS};
+  aclError kernel_function_lookup_error_{ACL_SUCCESS};
+  aclError kernel_launch_error_{ACL_SUCCESS};
   size_t kernel_launch_fail_on_count_{0U};
   size_t kernel_binary_load_count_{0U};
   size_t kernel_function_lookup_count_{0U};
@@ -146,10 +146,10 @@ class UbMemRuntimeStub : public llm::AclRuntimeStub {
   size_t notify_record_count_{0U};
   size_t notify_wait_count_{0U};
   uint32_t next_notify_id_{1U};
-  aclError notify_create_error_{ACL_ERROR_NONE};
-  aclError notify_id_error_{ACL_ERROR_NONE};
-  aclError notify_record_error_{ACL_ERROR_NONE};
-  aclError notify_wait_error_{ACL_ERROR_NONE};
+  aclError notify_create_error_{ACL_SUCCESS};
+  aclError notify_id_error_{ACL_SUCCESS};
+  aclError notify_record_error_{ACL_SUCCESS};
+  aclError notify_wait_error_{ACL_SUCCESS};
   std::unordered_map<aclrtNotify, uint32_t> notify_ids_;
   std::vector<UbMemAicpuKernelParam> kernel_params_;
   std::vector<SubmissionEvent> submission_events_;
@@ -162,8 +162,8 @@ class UbMemRuntimeStub : public llm::AclRuntimeStub {
   size_t device_only_stream_abort_count_{0U};
   size_t stream_stop_count_{0U};
   size_t device_only_stream_stop_count_{0U};
-  aclError stream_query_error_{ACL_ERROR_NONE};
-  aclError stream_sync_error_{ACL_ERROR_NONE};
+  aclError stream_query_error_{ACL_SUCCESS};
+  aclError stream_sync_error_{ACL_SUCCESS};
   size_t stream_sync_fail_on_count_{0U};
   size_t stream_sync_count_{0U};
   size_t device_only_stream_sync_count_{0U};
@@ -185,7 +185,7 @@ class UbMemRuntimeStub : public llm::AclRuntimeStub {
   size_t mem_import_count_{0U};
   size_t mem_map_count_{0U};
   size_t mem_unmap_count_{0U};
-  aclError get_address_range_error_{ACL_ERROR_NONE};
+  aclError get_address_range_error_{ACL_SUCCESS};
   std::vector<uintptr_t> retained_addresses_;
   std::vector<std::pair<uintptr_t, size_t>> address_ranges_;
   size_t mem_set_access_count_{0U};

@@ -79,7 +79,7 @@ void HixlExitOnFailure(bool condition, const char *message) {
 
 #define ACL_EXIT_ON_FAILURE(expr)                                  \
   do {                                                             \
-    if ((expr) != ACL_ERROR_NONE) {                                \
+    if ((expr) != ACL_SUCCESS) {                                   \
       printf("[ERROR] ACL failed at %s:%d\n", __FILE__, __LINE__); \
       exit(EXIT_FAILURE);                                          \
     }                                                              \

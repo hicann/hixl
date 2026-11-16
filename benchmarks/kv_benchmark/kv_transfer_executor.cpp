@@ -83,7 +83,7 @@ void SetWorkerContext(aclrtContext device_context) {
     throw std::runtime_error("missing aclrt context for transfer worker");
   }
   const auto ret = aclrtSetCurrentContext(device_context);
-  if (ret != ACL_ERROR_NONE) {
+  if (ret != ACL_SUCCESS) {
     throw std::runtime_error("aclrtSetCurrentContext failed in transfer worker, ret=" + std::to_string(ret));
   }
 }
@@ -106,7 +106,7 @@ void RunLocalKeyCopy(std::uint32_t local_rank, std::uint32_t worker_id, const Ke
       kind = ACL_MEMCPY_HOST_TO_DEVICE;
     }
     const auto ret = aclrtMemcpy(dst, desc.len, src, desc.len, kind);
-    if (ret != ACL_ERROR_NONE) {
+    if (ret != ACL_SUCCESS) {
       const char *errmsg = recent_errmsg != nullptr ? recent_errmsg() : "unknown";
       throw std::runtime_error("local aclrtMemcpy failed for key " + std::to_string(task.key_index) +
                                ", ret=" + std::to_string(ret) + ", errmsg: " + errmsg);

@@ -140,7 +140,7 @@ ge::Status CommLinkManager::DestroyRes(EntityCommInfoPtr comm_ptr, HcclComm comm
                                        std::vector<EntityPtr> &comm_entities) const {
   LLMLOGI("Start call DestroyRes");
   ge::Status unlink_ret = ge::SUCCESS;
-  LLM_CHK_BOOL_EXEC(aclrtSetCurrentContext(aclrt_context_) == ACL_ERROR_NONE, unlink_ret = ge::LLM_UNLINK_FAILED);
+  LLM_CHK_BOOL_EXEC(aclrtSetCurrentContext(aclrt_context_) == ACL_SUCCESS, unlink_ret = ge::LLM_UNLINK_FAILED);
   for (const auto &entity : comm_entities) {
     std::lock_guard<std::mutex> pull_lock(entity->GetPullMutex());
     std::lock_guard<std::mutex> process_lock(entity->GetProcessMutex());
@@ -374,7 +374,7 @@ ge::Status CommLinkManager::Link(std::string &cluster_name, const std::map<uint6
                             kMaxLinkNum);
   }
   auto local_rank = cluster2rank.at(cluster_id_);
-  LLM_CHK_BOOL_RET_STATUS(aclrtSetCurrentContext(aclrt_context_) == ACL_ERROR_NONE, ge::LLM_UNLINK_FAILED,
+  LLM_CHK_BOOL_RET_STATUS(aclrtSetCurrentContext(aclrt_context_) == ACL_SUCCESS, ge::LLM_UNLINK_FAILED,
                           "Set aclrt context failed.");
   HcclCommConfig config{};
   CommAdapter::GetInstance().DlHcclCommConfigInit(&config);

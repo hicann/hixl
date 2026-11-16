@@ -64,7 +64,7 @@ if (ret != SUCCESS) {
 
 ```cpp
 auto ret = aclrtSetDevice(device_id);
-if (ret != ACL_ERROR_NONE) {
+if (ret != ACL_SUCCESS) {
   LOGE(FAILED, "Failed to set device.");
   return FAILED;
 }
@@ -74,7 +74,7 @@ if (ret != ACL_ERROR_NONE) {
 
 ```cpp
 auto ret = aclrtSetDevice(device_id);
-if (ret != ACL_ERROR_NONE) {
+if (ret != ACL_SUCCESS) {
   HIXL_LOGE(FAILED, "Call api:aclrtSetDevice failed, ret:%d, device_id:%d", ret, device_id);
   return FAILED;
 }

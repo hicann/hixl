@@ -129,13 +129,13 @@ class UbMemCsAclStub : public endpoint_test::MockAclRuntimeStub {
   aclError aclrtStreamAbort(aclrtStream stream) override {
     (void)stream;
     ++stream_abort_count_;
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
 
   aclError aclrtStreamStop(aclrtStream stream) override {
     (void)stream;
     ++stream_stop_count_;
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
 
   aclError aclrtSynchronizeStreamWithTimeout(aclrtStream stream, int32_t timeout) override {

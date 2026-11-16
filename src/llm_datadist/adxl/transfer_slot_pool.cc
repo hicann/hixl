@@ -44,7 +44,7 @@ void TransferSlotPool::Finalize() {
     if (slot.in_use && slot.stream != nullptr) {
       hixl::TemporaryRtContext guard(slot.ctx);
       const auto abort_ret = aclrtStreamAbort(slot.stream);
-      if (abort_ret != ACL_ERROR_NONE) {
+      if (abort_ret != ACL_SUCCESS) {
         LLMLOGE(FAILED, "Call aclrtStreamAbort ret:%d.", abort_ret);
       }
     }
@@ -116,7 +116,7 @@ void TransferSlotPool::Abort(const SlotHandle &handle) {
     hixl::TemporaryRtContext guard(slot.ctx);
     if (slot.stream != nullptr) {
       const auto abort_ret = aclrtStreamAbort(slot.stream);
-      if (abort_ret != ACL_ERROR_NONE) {
+      if (abort_ret != ACL_SUCCESS) {
         LLMLOGE(FAILED, "Call aclrtStreamAbort ret:%d.", abort_ret);
       }
     }
@@ -185,10 +185,10 @@ Status TransferSlotPool::InitSlotLocked(Slot &slot) const {
   ADXL_CHK_ACL_RET(aclrtCreateContext(&ctx, device_id_));
   aclrtStream stream = nullptr;
   aclError acl_ret = aclrtCtxGetCurrentDefaultStream(&stream);
-  if (acl_ret == ACL_ERROR_NONE) {
+  if (acl_ret == ACL_SUCCESS) {
     acl_ret = aclrtSetStreamFailureMode(stream, ACL_STOP_ON_FAILURE);
   }
-  if (acl_ret != ACL_ERROR_NONE) {
+  if (acl_ret != ACL_SUCCESS) {
     (void)aclrtDestroyContext(ctx);
     REPORT_INNER_ERR_MSG("E19999", "Init transfer slot acl api failed, ret: 0x%X", static_cast<uint32_t>(acl_ret));
     const Status adxl_ret = AclError2AdxlStatus(acl_ret);
@@ -204,7 +204,7 @@ void TransferSlotPool::DestroySlotLocked(Slot &slot) {
   DestroySlotHostFlagsLocked(slot);
   if (slot.ctx != nullptr) {
     const auto ret = aclrtDestroyContext(slot.ctx);
-    if (ret != ACL_ERROR_NONE) {
+    if (ret != ACL_SUCCESS) {
       LLMLOGE(FAILED, "Call aclrtDestroyContext ret:%d.", ret);
     }
     slot.ctx = nullptr;

@@ -611,7 +611,7 @@ Status EndpointGenerator::PopulateLocalDeviceInfo(std::vector<EndpointConfig> &e
     HIXL_CHK_ACL_RET(
         aclrtGetDeviceInfo(static_cast<uint32_t>(logic_device_id), ACL_DEV_ATTR_SUPER_POD_ID, &super_pod_id));
     HIXL_CHK_ACL_RET(
-        aclrtGetDeviceInfo(static_cast<uint32_t>(logic_device_id), ACL_DEV_ATTR_SUPER_POD_DEVIDE_ID, &super_device_id));
+        aclrtGetDeviceInfo(static_cast<uint32_t>(logic_device_id), ACL_DEV_ATTR_SUPER_POD_DEVICE_ID, &super_device_id));
     int64_t acl_server_id = -1;
     auto acl_ret =
         aclrtGetDeviceInfo(static_cast<uint32_t>(logic_device_id), ACL_DEV_ATTR_SUPER_POD_SERVER_ID, &acl_server_id);

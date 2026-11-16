@@ -69,7 +69,7 @@ class NegativePhyDevAclStub : public llm::AclRuntimeStub {
   aclError aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, int32_t *const phyDevId) override {
     (void)logicDevId;
     *phyDevId = -1;
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
 };
 
@@ -78,7 +78,7 @@ class OkPhyDevAclStub : public llm::AclRuntimeStub {
   aclError aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, int32_t *const phyDevId) override {
     (void)logicDevId;
     *phyDevId = 0;
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
 };
 

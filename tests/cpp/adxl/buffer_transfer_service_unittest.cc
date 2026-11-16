@@ -243,7 +243,7 @@ class CountingBatchRuntime : public llm::AclRuntimeStub {
     if (call_count == 1U && pause_first_batch) {
       std::this_thread::sleep_for(std::chrono::milliseconds(30));
     }
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
 
   uint32_t call_count = 0U;

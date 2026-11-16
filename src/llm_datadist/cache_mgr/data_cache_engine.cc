@@ -291,9 +291,9 @@ ge::Status DataCacheEngine::InitializeDeviceMemoryPool(const std::map<ge::Ascend
   config.page_mem_size_total_threshold = npu_pool_size_;
   npu_mem_pool_ = MakeUnique<LlmMemPool>(config);
   LLM_CHECK_NOTNULL(npu_mem_pool_, "Failed to create memory pool");
-  LLM_CHK_BOOL_RET_STATUS(
-      aclrtMalloc(&npu_pool_memory_, npu_pool_size_, ACL_MEM_TYPE_HIGH_BAND_WIDTH) == ACL_ERROR_NONE,
-      ge::LLM_OUT_OF_MEMORY, "Failed to allocate memory for memory_pool, config = %s", json_str.c_str());
+  LLM_CHK_BOOL_RET_STATUS(aclrtMalloc(&npu_pool_memory_, npu_pool_size_, ACL_MEM_TYPE_HIGH_BAND_WIDTH) == ACL_SUCCESS,
+                          ge::LLM_OUT_OF_MEMORY, "Failed to allocate memory for memory_pool, config = %s",
+                          json_str.c_str());
   LLM_CHK_STATUS_RET(npu_mem_pool_->Initialize(npu_pool_memory_, npu_pool_size_),
                      "Failed to initialize memory pool, config = %s", json_str.c_str());
   LLM_CHK_STATUS_RET(GlobalMemManager::GetInstance().RegisterMem(npu_pool_memory_, npu_pool_size_,
@@ -477,7 +477,7 @@ ge::Status DataCacheEngine::TransferCache(const uint64_t task_id, const Transfer
                           "check failed, tensor_num_per_layer expect [1, %lu]", cache_entry.cache_addrs.size());
   LLMLOGI("Transfer cache with tensor num per layer:%lu.", transfer_cache_config.tensor_num_per_layer);
   hixl::TemporaryRtContext with_context(aclrt_context_);
-  aclError ret = ACL_ERROR_NONE;
+  aclError ret = ACL_SUCCESS;
   std::call_once(create_stream_once_flag_, [&ret, this]() {
     ret = aclrtCreateStreamWithConfig(&transfer_stream_, 0, ACL_STREAM_FAST_LAUNCH | ACL_STREAM_FAST_SYNC);
   });

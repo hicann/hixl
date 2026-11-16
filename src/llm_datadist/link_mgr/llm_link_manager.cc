@@ -48,7 +48,7 @@ ge::Status LLMLinkManager::LinkClusters(const std::vector<ClusterInfo> &clusters
   std::vector<std::future<ge::Status>> fut_rets;
   for (const auto &cluster : clusters) {
     auto fut = thread_pool.commit([this, cluster, timeout]() -> ge::Status {
-      LLM_CHK_BOOL_RET_STATUS(aclrtSetCurrentContext(aclrt_context_) == ACL_ERROR_NONE, ge::LLM_PARAM_INVALID,
+      LLM_CHK_BOOL_RET_STATUS(aclrtSetCurrentContext(aclrt_context_) == ACL_SUCCESS, ge::LLM_PARAM_INVALID,
                               "Set aclrt context failed.");
       LLM_CHK_STATUS_RET(msg_handler_.LinkCluster(cluster, timeout),
                          "Failed to link cluster, remote_cluster_id = %lu, remote_role_type = %d.",
@@ -79,7 +79,7 @@ ge::Status LLMLinkManager::UnlinkClusters(const std::vector<ClusterInfo> &cluste
   std::vector<std::future<ge::Status>> fut_rets;
   for (const auto &cluster : clusters) {
     auto fut = thread_pool.commit([this, cluster, timeout, force_flag]() -> ge::Status {
-      LLM_CHK_BOOL_RET_STATUS(aclrtSetCurrentContext(aclrt_context_) == ACL_ERROR_NONE, ge::LLM_PARAM_INVALID,
+      LLM_CHK_BOOL_RET_STATUS(aclrtSetCurrentContext(aclrt_context_) == ACL_SUCCESS, ge::LLM_PARAM_INVALID,
                               "Set aclrt context failed.");
       LLM_CHK_STATUS_RET(msg_handler_.UnlinkCluster(cluster, timeout, force_flag),
                          "Failed to unlink cluster, remote_cluster_id = %lu, remote_role_type = %d.",

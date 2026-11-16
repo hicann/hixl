@@ -248,7 +248,7 @@ TEST_F(HixlCSClientDeviceToHostFixture, BatchTransferSyncUsesRemoteHostVa) {
   MockAclRuntimeStub mock_acl;
   llm::AclRuntimeStub::Install(&mock_acl);
   EXPECT_CALL(mock_acl, aclrtSynchronizeStreamWithTimeout(testing::_, testing::_))
-      .WillOnce(testing::Return(ACL_ERROR_NONE));
+      .WillOnce(testing::Return(ACL_SUCCESS));
   const Status ret = cli_.BatchPutSync(&desc, 1, 100U);
   llm::AclRuntimeStub::UnInstall(&mock_acl);
 
@@ -309,7 +309,7 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSyncUsesStreamSyncNoMemcpy) {
   MockAclRuntimeStub mock_acl;
   llm::AclRuntimeStub::Install(&mock_acl);
   EXPECT_CALL(mock_acl, aclrtSynchronizeStreamWithTimeout(testing::_, testing::_))
-      .WillOnce(testing::Return(ACL_ERROR_NONE));
+      .WillOnce(testing::Return(ACL_SUCCESS));
   EXPECT_CALL(mock_acl, aclrtMemcpyAsync(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
       .Times(0);
   const Status ret = cli_.BatchPutSync(&desc, 1, 100U);
@@ -790,7 +790,7 @@ TEST_F(HixlCSClientSlotReuseFixture, SyncTransferUsesStreamSync) {
   MockAclRuntimeStub mock_acl;
   llm::AclRuntimeStub::Install(&mock_acl);
   EXPECT_CALL(mock_acl, aclrtSynchronizeStreamWithTimeout(testing::_, testing::_))
-      .WillRepeatedly(testing::Return(ACL_ERROR_NONE));
+      .WillRepeatedly(testing::Return(ACL_SUCCESS));
   EXPECT_CALL(mock_acl, aclrtMemcpyAsync(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
       .Times(0);  // Sync transfer should NOT call memcpy async for flag
 

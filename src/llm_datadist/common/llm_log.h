@@ -179,7 +179,7 @@ inline ge::Status ConvertHixlError2Ge(uint32_t ret) {
 #define LLM_CHK_ACL_RET(expr)                                                                        \
   do {                                                                                               \
     const aclError _ret = (expr);                                                                    \
-    if (_ret != ACL_ERROR_NONE) {                                                                    \
+    if (_ret != ACL_SUCCESS) {                                                                       \
       REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret)); \
       LLMLOGE(ge::FAILED, "Call aclrt api failed, ret: 0x%X", static_cast<uint32_t>(_ret));          \
       return llm::ConvertAclError2Ge(static_cast<int32_t>(_ret));                                    \
@@ -190,7 +190,7 @@ inline ge::Status ConvertHixlError2Ge(uint32_t ret) {
 #define LLM_CHK_ACL(expr)                                                                               \
   do {                                                                                                  \
     const aclError _rt_err = (expr);                                                                    \
-    if (_rt_err != ACL_ERROR_NONE) {                                                                    \
+    if (_rt_err != ACL_SUCCESS) {                                                                       \
       REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_rt_err)); \
       LLMLOGE(ge::FAILED, "Call aclrt api failed, ret: 0x%X", static_cast<uint32_t>(_rt_err));          \
     }                                                                                                   \
@@ -209,11 +209,11 @@ inline ge::Status ConvertHixlError2Ge(uint32_t ret) {
   } while (false)
 
 #define LLM_RT_ERROR_TO_GE_STATUS(RT_ERROR) static_cast<ge::Status>(RT_ERROR)
-// If expr is not ACL_ERROR_NONE, print the log and return
+// If expr is not ACL_SUCCESS, print the log and return
 #define LLM_CHK_RT_RET(expr)                                                                            \
   do {                                                                                                  \
     const aclError _rt_ret = (expr);                                                                    \
-    if (_rt_ret != ACL_ERROR_NONE) {                                                                    \
+    if (_rt_ret != ACL_SUCCESS) {                                                                       \
       REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_rt_ret)); \
       LLMLOGE(ge::FAILED, "Call aclrt api failed, ret: 0x%X", static_cast<uint32_t>(_rt_ret));          \
       return LLM_RT_ERROR_TO_GE_STATUS(_rt_ret);                                                        \

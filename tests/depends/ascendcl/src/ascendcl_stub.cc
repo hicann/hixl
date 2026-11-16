@@ -179,11 +179,11 @@ aclError AclRuntimeStub::aclrtWaitAndResetNotify(aclrtNotify notify, aclrtStream
 }
 
 aclError AclRuntimeStub::aclrtSetDevice(int32_t deviceId) {
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtResetDevice(int32_t deviceId) {
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtGetDeviceCount(uint32_t *count) {
@@ -194,7 +194,7 @@ aclError AclRuntimeStub::aclrtGetDeviceCount(uint32_t *count) {
     return ACL_ERROR_INVALID_PARAM;
   }
   *count = 1U;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtGetDevice(int32_t *deviceId) {
@@ -202,7 +202,7 @@ aclError AclRuntimeStub::aclrtGetDevice(int32_t *deviceId) {
     return ACL_ERROR_RT_INTERNAL_ERROR;
   }
   *deviceId = 0;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtGetThreadLastTaskId(uint32_t *taskId) {
@@ -213,14 +213,14 @@ aclError AclRuntimeStub::aclrtCreateContext(aclrtContext *context, int32_t devic
   aclrtContextStub *ctxStub = new aclrtContextStub;
   ctxStub->deviceId = deviceId;
   *context = ctxStub;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtDestroyContext(aclrtContext context) {
   if (context != nullptr) {
     delete (aclrtContextStub *)context;
   }
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtSetCurrentContext(aclrtContext context) {
@@ -232,18 +232,18 @@ aclError AclRuntimeStub::aclrtSetCurrentContext(aclrtContext context) {
     return ACL_ERROR_RT_INTERNAL_ERROR;
   }
   current_context_ = context;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtGetCurrentContext(aclrtContext *context) {
   *context = current_context_;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtCtxGetCurrentDefaultStream(aclrtStream *stream) {
   static thread_local uint32_t tls_default_stream = 0xDU;
   *stream = reinterpret_cast<aclrtStream>(&tls_default_stream);
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtCreateEvent(aclrtEvent *event) {
@@ -256,28 +256,28 @@ aclError AclRuntimeStub::aclrtCreateEvent(aclrtEvent *event) {
   }
   g_free_event_num--;
   *event = new int[EVENT_LENTH];
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtDestroyEvent(aclrtEvent event) {
   g_free_event_num++;
   delete[] (int *)event;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtRecordEvent(aclrtEvent event, aclrtStream stream) {
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtQueryEventStatus(aclrtEvent event, aclrtEventRecordedStatus *status) {
   *status = ACL_EVENT_RECORDED_STATUS_COMPLETE;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtQueryEventWaitStatus(aclrtEvent event, aclrtEventWaitStatus *status) {
   (void)event;
   *status = ACL_EVENT_WAIT_STATUS_COMPLETE;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtCreateStream(aclrtStream *stream) {
@@ -293,7 +293,7 @@ aclError AclRuntimeStub::aclrtCreateStream(aclrtStream *stream) {
   }
   g_free_stream_num--;
   *stream = new uint32_t;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtCreateStreamWithConfig(aclrtStream *stream, uint32_t priority, uint32_t flag) {
@@ -302,7 +302,7 @@ aclError AclRuntimeStub::aclrtCreateStreamWithConfig(aclrtStream *stream, uint32
   }
   g_free_stream_num--;
   *stream = new uint32_t;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtDestroyStream(aclrtStream stream) {
@@ -310,23 +310,23 @@ aclError AclRuntimeStub::aclrtDestroyStream(aclrtStream stream) {
     delete (uint32_t *)stream;
   }
   g_free_stream_num++;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtStreamAbort(aclrtStream stream) {
   (void)stream;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtStreamStop(aclrtStream stream) {
   (void)stream;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtStreamWaitEvent(aclrtStream stream, aclrtEvent event) {
   (void)stream;
   (void)event;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtStreamQuery(aclrtStream stream, aclrtStreamStatus *status) {
@@ -338,7 +338,7 @@ aclError AclRuntimeStub::aclrtStreamQuery(aclrtStream stream, aclrtStreamStatus 
   }
   (void)stream;
   *status = ACL_STREAM_STATUS_COMPLETE;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtSetStreamFailureMode(aclrtStream stream, uint64_t mode) {
@@ -347,7 +347,7 @@ aclError AclRuntimeStub::aclrtSetStreamFailureMode(aclrtStream stream, uint64_t 
   if (std::string(__FUNCTION__) == g_acl_stub_mock) {
     return ACL_ERROR_RT_INTERNAL_ERROR;
   }
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 static aclError CheckCommonStreamSyncErrors() {
@@ -364,12 +364,12 @@ static aclError CheckCommonStreamSyncErrors() {
   if (std::string(&env_path[0]).find("end") != std::string::npos) {
     return ACL_ERROR_RT_END_OF_SEQUENCE;
   }
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtSynchronizeStream(aclrtStream stream) {
   aclError common_ret = CheckCommonStreamSyncErrors();
-  if (common_ret != ACL_ERROR_NONE) {
+  if (common_ret != ACL_SUCCESS) {
     return common_ret;
   }
 
@@ -400,12 +400,12 @@ aclError AclRuntimeStub::aclrtSynchronizeStream(aclrtStream stream) {
     }
   }
 
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtSynchronizeStreamWithTimeout(aclrtStream stream, int32_t timeout) {
   aclError common_ret = CheckCommonStreamSyncErrors();
-  if (common_ret != ACL_ERROR_NONE) {
+  if (common_ret != ACL_SUCCESS) {
     return common_ret;
   }
 
@@ -434,7 +434,7 @@ aclError AclRuntimeStub::aclrtSynchronizeStreamWithTimeout(aclrtStream stream, i
   if (std::string(__FUNCTION__) == g_acl_stub_mock) {
     return ACL_ERROR_RT_INTERNAL_ERROR;
   }
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtMalloc(void **devPtr, size_t size, aclrtMemMallocPolicy policy) {
@@ -451,7 +451,7 @@ aclError AclRuntimeStub::aclrtMalloc(void **devPtr, size_t size, aclrtMemMallocP
   if (std::string(&record_path1[0]).find("1") != std::string::npos) {
     *devPtr = new uint8_t[size];
     memset_s(*devPtr, size, 0, size);
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
   if (std::string(__FUNCTION__) == g_acl_stub_mock) {
     return ACL_ERROR_RT_INTERNAL_ERROR;
@@ -465,15 +465,15 @@ aclError AclRuntimeStub::aclrtMalloc(void **devPtr, size_t size, aclrtMemMallocP
   if ((ret == EN_OK) && (strlen(record_path_Huge) != 0)) {
     *devPtr = new uint8_t[size];
     memset_s(*devPtr, size, 0, size);
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
   if (size > INT32_MAX) {
     *devPtr = new uint8_t[1024U];
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
   *devPtr = new uint8_t[size];
   memset_s(*devPtr, size, 0, size);
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtMallocHost(void **hostPtr, size_t size) {
@@ -490,17 +490,17 @@ aclError AclRuntimeStub::aclrtMemset(void *devPtr, size_t maxCount, int32_t valu
     return ACL_ERROR_RT_INTERNAL_ERROR;
   }
   memset_s(devPtr, maxCount, value, count);
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtFree(void *devPtr) {
   delete[] (uint8_t *)devPtr;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtFreeHost(void *devPtr) {
   delete[] (uint8_t *)devPtr;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtMemcpy(void *dst, size_t dest_max, const void *src, size_t count, aclrtMemcpyKind kind) {
@@ -513,7 +513,7 @@ aclError AclRuntimeStub::aclrtMemcpy(void *dst, size_t dest_max, const void *src
   const char *const kEnvRecordPath1 = "NPU_COLLECT_PATH_EXE";
   (void)mmGetEnv(kEnvRecordPath1, &record_path[0], static_cast<uint32_t>(MMPA_MAX_PATH));
   if (!std::string(&record_path[0]).empty()) {
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
 
   if (__FUNCTION__ == g_acl_stub_mock) {
@@ -524,7 +524,7 @@ aclError AclRuntimeStub::aclrtMemcpy(void *dst, size_t dest_max, const void *src
     dest_max = std::min(dest_max, reserve_mem_size_);
     memcpy_s(dst, dest_max, src, count);
   }
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtMemcpyAsync(void *dst, size_t dest_max, const void *src, size_t src_count,
@@ -537,7 +537,7 @@ aclError AclRuntimeStub::aclrtMemcpyAsync(void *dst, size_t dest_max, const void
       dest_max = std::min(dest_max, reserve_mem_size_);
       memcpy_s(dst, dest_max, src, src_count);
     }
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
   size_t offset = 0U;
   size_t remain_size = src_count;
@@ -547,7 +547,7 @@ aclError AclRuntimeStub::aclrtMemcpyAsync(void *dst, size_t dest_max, const void
     offset += copy_size;
     remain_size -= copy_size;
   } while (remain_size > 0U);
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtMemcpyAsyncWithCondition(void *dst, size_t destMax, const void *src, size_t count,
@@ -558,7 +558,7 @@ aclError AclRuntimeStub::aclrtMemcpyAsyncWithCondition(void *dst, size_t destMax
 aclError AclRuntimeStub::aclrtGetMemInfo(aclrtMemAttr attr, size_t *free_size, size_t *total) {
   *free_size = 64UL * 1024UL * 1024UL;
   *total = 128UL * 1024UL * 1024UL;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 const char *AclRuntimeStub::aclrtGetSocName() {
@@ -567,12 +567,12 @@ const char *AclRuntimeStub::aclrtGetSocName() {
 
 aclError AclRuntimeStub::aclrtGetDeviceInfo(uint32_t deviceId, aclrtDevAttr attr, int64_t *value) {
   *value = 8;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, int32_t *const phyDevId) {
   *phyDevId = logicDevId;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtGetPhyDevIdByUserDevId(const int32_t userDevId, int32_t *const phyDevId) {
@@ -580,7 +580,7 @@ aclError AclRuntimeStub::aclrtGetPhyDevIdByUserDevId(const int32_t userDevId, in
     return ACL_ERROR_INVALID_PARAM;
   }
   *phyDevId = userDevId;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtGetLogicDevIdByUserDevId(const int32_t userDevid, int32_t *const logicDevId) {
@@ -591,7 +591,7 @@ aclError AclRuntimeStub::aclrtGetLogicDevIdByUserDevId(const int32_t userDevid, 
     return ACL_ERROR_INVALID_PARAM;
   }
   *logicDevId = userDevid;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtGetLogicDevIdByPhyDevId(const int32_t phyDevId, int32_t *const logicDevId) {
@@ -622,7 +622,7 @@ aclError AclRuntimeStub::aclrtMemcpyBatch(void **dsts, size_t *destMax, void **s
       memcpy_s(dsts[i], destMax[i], srcs[i], sizes[i]);
     }
   }
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtReserveMemAddress(void **devPtr, size_t size, size_t alignment, void *devAddr,
@@ -642,7 +642,7 @@ aclError AclRuntimeStub::aclrtReserveMemAddress(void **devPtr, size_t size, size
   }
   reserve_mem_size_ = alloc_size;
   reserved_total_size_ = alloc_size;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtReleaseMemAddress(void *devPtr) {
@@ -650,7 +650,7 @@ aclError AclRuntimeStub::aclrtReleaseMemAddress(void *devPtr) {
     munmap(devPtr, reserved_total_size_);
     reserved_total_size_ = 0;
   }
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtMapMem(void *devPtr, size_t size, size_t offset, aclrtDrvMemHandle handle,
@@ -658,11 +658,11 @@ aclError AclRuntimeStub::aclrtMapMem(void *devPtr, size_t size, size_t offset, a
   if (__FUNCTION__ == g_acl_stub_mock) {
     return ACL_ERROR_RT_INTERNAL_ERROR;
   }
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtUnmapMem(void *devPtr) {
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtMemSetAccess(void *virPtr, size_t size, aclrtMemAccessDesc *desc, size_t count) {
@@ -673,7 +673,7 @@ aclError AclRuntimeStub::aclrtMemSetAccess(void *virPtr, size_t size, aclrtMemAc
   if (__FUNCTION__ == g_acl_stub_mock) {
     return ACL_ERROR_RT_INTERNAL_ERROR;
   }
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtMemRetainAllocationHandle(void *devPtr, aclrtDrvMemHandle *handle) {
@@ -682,7 +682,7 @@ aclError AclRuntimeStub::aclrtMemRetainAllocationHandle(void *devPtr, aclrtDrvMe
     return ACL_ERROR_RT_INTERNAL_ERROR;
   }
   *handle = (aclrtDrvMemHandle) new uint8_t[8];
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtMemGetAddressRange(void *ptr, void **pbase, size_t *psize) {
@@ -694,12 +694,12 @@ aclError AclRuntimeStub::aclrtMemGetAddressRange(void *ptr, void **pbase, size_t
   }
   *pbase = ptr;
   *psize = 32UL;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtPointerGetAttributes(const void *ptr, aclrtPtrAttributes *attributes) {
   attributes->location.type = ACL_MEM_LOCATION_TYPE_DEVICE;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtMemExportToShareableHandleV2(aclrtDrvMemHandle handle, uint64_t flags,
@@ -713,24 +713,24 @@ aclError AclRuntimeStub::aclrtMemExportToShareableHandleV2(aclrtDrvMemHandle han
     const auto token = reinterpret_cast<uintptr_t>(handle);
     (void)memcpy_s(exported->data, sizeof(exported->data), &token, sizeof(token));
   }
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtMemImportFromShareableHandleV2(void *shareableHandle, aclrtMemSharedHandleType type,
                                                              uint64_t flags, aclrtDrvMemHandle *handle) {
   *handle = (aclrtDrvMemHandle) new uint8_t[8];
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtMallocPhysical(aclrtDrvMemHandle *handle, size_t size, const aclrtPhysicalMemProp *prop,
                                              uint64_t flags) {
   *handle = (aclrtDrvMemHandle) new uint8_t[8];
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtFreePhysical(aclrtDrvMemHandle handle) {
   delete[] (uint8_t *)handle;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtBinaryLoadFromFile(const char *modelPath, aclrtBinaryLoadOptions *options,

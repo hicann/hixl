@@ -168,13 +168,13 @@ int32_t AllocLocalBuffer(const BenchmarkConfig &cfg, bool *is_host, void **out_s
     }
   } else if (*is_host) {
     aclError er = aclrtMallocHost(&tmp, alloc_size);
-    if (er != ACL_ERROR_NONE) {
+    if (er != ACL_SUCCESS) {
       BENCH_LOGE("client alloc host failed aclError=%d\n", static_cast<int>(er));
       return -1;
     }
   } else {
     aclError er = aclrtMalloc(&tmp, alloc_size, ACL_MEM_MALLOC_HUGE_ONLY);
-    if (er != ACL_ERROR_NONE) {
+    if (er != ACL_SUCCESS) {
       BENCH_LOGE("client alloc device failed aclError=%d\n", static_cast<int>(er));
       return -1;
     }
@@ -366,7 +366,7 @@ bool FillBufferPattern(void *ptr, size_t size, uint8_t value, bool is_host) {
     return true;
   }
   const auto ret = aclrtMemset(ptr, size, static_cast<int32_t>(value), size);
-  if (ret != ACL_ERROR_NONE) {
+  if (ret != ACL_SUCCESS) {
     BENCH_LOGE("aclrtMemset failed ret=%d value=0x%02x size=%zu\n", static_cast<int>(ret), static_cast<unsigned>(value),
                size);
     return false;
@@ -384,7 +384,7 @@ bool ValidateReadBuffer(const TransferBlockStepCtx &ctx, void *ptr, size_t size,
       scratch.resize(size);
     }
     const auto ret = aclrtMemcpy(scratch.data(), size, ptr, size, ACL_MEMCPY_DEVICE_TO_HOST);
-    if (ret != ACL_ERROR_NONE) {
+    if (ret != ACL_SUCCESS) {
       BENCH_LOGW("read verify aclrtMemcpy(D2H) failed ret=%d at loop %u/%u step %u\n", static_cast<int>(ret),
                  ctx.loop + 1U, ctx.cfg->loops, ctx.step_index);
       return false;
@@ -775,7 +775,7 @@ void SharedRemoteWorker(size_t idx, int32_t device_id, Hixl *hixl, const Benchma
   BENCH_LOGI("[remote %zu] worker start -> %s\n", idx, remote.c_str());
 
   aclError ar = aclrtSetDevice(device_id);
-  if (ar != ACL_ERROR_NONE) {
+  if (ar != ACL_SUCCESS) {
     BENCH_LOGE("[remote %zu] aclrtSetDevice failed %d\n", idx, static_cast<int>(ar));
     if (local_barrier != nullptr) {
       local_barrier->Fail();
@@ -842,7 +842,7 @@ void FinalizeLaneState(LaneState *p, const std::string &remote_engine) {
 
 bool LaneWorkerSetDevice(size_t idx, int32_t dev, std::atomic<int> *first_fail, std::mutex *fail_mu) {
   aclError ar = aclrtSetDevice(dev);
-  if (ar != ACL_ERROR_NONE) {
+  if (ar != ACL_SUCCESS) {
     BENCH_LOGE("[lane %zu] aclrtSetDevice failed %d\n", idx, static_cast<int>(ar));
     MarkFirstFail(first_fail, fail_mu);
     return false;
@@ -1028,7 +1028,7 @@ bool ClientRunner::Init() {
     return true;
   }
   device_id_ = cfg_.expanded_device_ids[0];
-  if (aclrtSetDevice(device_id_) != ACL_ERROR_NONE) {
+  if (aclrtSetDevice(device_id_) != ACL_SUCCESS) {
     BENCH_LOGE("ClientRunner aclrtSetDevice(%d) failed\n", static_cast<int>(device_id_));
     return false;
   }

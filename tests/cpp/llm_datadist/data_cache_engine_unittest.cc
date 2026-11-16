@@ -93,7 +93,7 @@ class BatchPutLengthRecorder : public HcclApiStub {
 class MockRuntime : public llm::AclRuntimeStub {
  public:
   aclError aclrtSynchronizeStreamWithTimeout(aclrtStream stm, int32_t timeout) override {
-    return count_++ == 1 ? ACL_ERROR_RT_STREAM_SYNC_TIMEOUT : ACL_ERROR_NONE;
+    return count_++ == 1 ? ACL_ERROR_RT_STREAM_SYNC_TIMEOUT : ACL_SUCCESS;
   }
 
   int32_t count_ = 0;

@@ -58,7 +58,7 @@ void MsgHandlerPlugin::RegisterConnectedProcess(ConnectedProcess proc) {
 
 ge::Status MsgHandlerPlugin::DoConnectedProcess(const hixl::CtrlMsgPluginPtr &connection) {
   LLM_DISMISSABLE_GUARD(close_connection, ([connection]() { connection->Close(); }));
-  LLM_CHK_BOOL_RET_STATUS(aclrtSetCurrentContext(aclrt_context_) == ACL_ERROR_NONE, ge::LLM_PARAM_INVALID,
+  LLM_CHK_BOOL_RET_STATUS(aclrtSetCurrentContext(aclrt_context_) == ACL_SUCCESS, ge::LLM_PARAM_INVALID,
                           "Set aclrt context failed.");
   constexpr int32_t kMillisPerSecond = 1000;
   struct timeval timeout;

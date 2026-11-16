@@ -179,7 +179,7 @@ void CommChannel::AbortActiveSlotStreamForDisconnect() const {
   }
   hixl::TemporaryRtContext ctx_guard(active_slot_->ctx);
   const auto abort_ret = aclrtStreamAbort(active_slot_->stream);
-  if (abort_ret != ACL_ERROR_NONE) {
+  if (abort_ret != ACL_SUCCESS) {
     LLMLOGE(FAILED, "Call aclrtStreamAbort ret:%d.", abort_ret);
   }
 }

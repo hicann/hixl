@@ -230,7 +230,7 @@ ge::Status RankTableGeneratorV2::GenerateLocalCommRes(const std::string &server_
   }
   int64_t super_device_id = 0U;
   LLM_CHK_RT_RET(
-      aclrtGetDeviceInfo(static_cast<uint32_t>(device_id), ACL_DEV_ATTR_SUPER_POD_DEVIDE_ID, &super_device_id));
+      aclrtGetDeviceInfo(static_cast<uint32_t>(device_id), ACL_DEV_ATTR_SUPER_POD_DEVICE_ID, &super_device_id));
   device_info.super_device_id = std::to_string(super_device_id);
   rank_table_v2::SuperPodInfo pod_info{};
   int64_t super_pod_id = 0U;

@@ -604,7 +604,7 @@ void AllocHostBuffer(const KvBenchConfig &cfg, std::uint64_t size, void **buffer
     return;
   }
   const auto ret = aclrtMallocHost(buffer, static_cast<size_t>(size));
-  if (ret != ACL_ERROR_NONE) {
+  if (ret != ACL_SUCCESS) {
     throw std::runtime_error("aclrtMallocHost failed");
   }
 }
@@ -631,12 +631,12 @@ void RegisterMem(Hixl &hixl, void *buffer, std::uint64_t size, MemType type, Mem
 }
 
 void InitRuntime(const KvBenchConfig &cfg, std::uint64_t local_size, std::uint64_t pool_size, KvRuntime *runtime) {
-  if (aclrtSetDevice(cfg.device_id) != ACL_ERROR_NONE) {
+  if (aclrtSetDevice(cfg.device_id) != ACL_SUCCESS) {
     throw std::runtime_error("aclrtSetDevice failed");
   }
   runtime->device_bound = true;
   const auto ctx_ret = aclrtGetCurrentContext(&runtime->aclrt_context);
-  if (ctx_ret != ACL_ERROR_NONE || runtime->aclrt_context == nullptr) {
+  if (ctx_ret != ACL_SUCCESS || runtime->aclrt_context == nullptr) {
     throw std::runtime_error("aclrtGetCurrentContext failed, ret=" + std::to_string(ctx_ret) +
                              ", errmsg: " + RecentErrMsg());
   }
@@ -648,8 +648,7 @@ void InitRuntime(const KvBenchConfig &cfg, std::uint64_t local_size, std::uint64
   }
   runtime->hixl_initialized = true;
 
-  if (aclrtMalloc(&runtime->local_buffer, static_cast<size_t>(local_size), ACL_MEM_MALLOC_HUGE_ONLY) !=
-      ACL_ERROR_NONE) {
+  if (aclrtMalloc(&runtime->local_buffer, static_cast<size_t>(local_size), ACL_MEM_MALLOC_HUGE_ONLY) != ACL_SUCCESS) {
     throw std::runtime_error("aclrtMalloc device buffer failed");
   }
   if (runtime->local_buffer == nullptr) {

@@ -98,7 +98,7 @@ TEST_F(DataTransferUtilsTest, SendsAllTasksWhenEveryBatchSucceeds) {
   ASSERT_NE(event, nullptr);
   EXPECT_EQ(stub_->BatchSizes(), (std::vector<uint32_t>{64U, 64U}));
   EXPECT_EQ(stub_->FirstTaskIds(), (std::vector<uintptr_t>{1U, 65U}));
-  EXPECT_EQ(aclrtDestroyEvent(event), ACL_ERROR_NONE);
+  EXPECT_EQ(aclrtDestroyEvent(event), ACL_SUCCESS);
 }
 
 TEST_F(DataTransferUtilsTest, RetainsFailedBatchAndRetriesOnlyUnsubmittedTasks) {
@@ -119,6 +119,6 @@ TEST_F(DataTransferUtilsTest, RetainsFailedBatchAndRetriesOnlyUnsubmittedTasks) 
   ASSERT_NE(event, nullptr);
   EXPECT_EQ(stub_->BatchSizes(), (std::vector<uint32_t>{64U, 64U, 64U}));
   EXPECT_EQ(stub_->FirstTaskIds(), (std::vector<uintptr_t>{1U, 65U, 65U}));
-  EXPECT_EQ(aclrtDestroyEvent(event), ACL_ERROR_NONE);
+  EXPECT_EQ(aclrtDestroyEvent(event), ACL_SUCCESS);
 }
 }  // namespace llm

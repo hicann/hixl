@@ -62,7 +62,7 @@ HostRegisterProxy::~HostRegisterProxy() {
     void *host_addr = pair.first;
     HIXL_LOGI("host_addr has not been unregistered. host_addr=%p, ref_cnt=%d.", host_addr, pair.second.ref_cnt);
     const aclError ret = aclrtHostUnregister(host_addr);
-    if (ret != ACL_ERROR_NONE) {
+    if (ret != ACL_SUCCESS) {
       HIXL_LOGE(ret, "Failed to unregister host memory in destructor. host_addr=%p", host_addr);
     }
   }

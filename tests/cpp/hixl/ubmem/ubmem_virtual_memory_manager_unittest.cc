@@ -101,7 +101,7 @@ TEST_F(VirtualMemoryManagerTest, ReserveMemAddress_UsesNoUCMemoryOnA3) {
   EXPECT_EQ(manager.ReserveMemAddress(addr, kTestSize500MB), SUCCESS);
   ASSERT_NE(addr, nullptr);
   EXPECT_NE(mock->last_expect_ptr_, nullptr);
-  EXPECT_EQ(aclrtReleaseMemAddress(addr), ACL_ERROR_NONE);
+  EXPECT_EQ(aclrtReleaseMemAddress(addr), ACL_SUCCESS);
 }
 
 TEST_F(VirtualMemoryManagerTest, ReserveMemAddress_UsesReserveMemAddressOnNonA3) {
@@ -114,7 +114,7 @@ TEST_F(VirtualMemoryManagerTest, ReserveMemAddress_UsesReserveMemAddressOnNonA3)
   EXPECT_EQ(manager.ReserveMemAddress(addr, kTestSize500MB), SUCCESS);
   ASSERT_NE(addr, nullptr);
   EXPECT_EQ(mock->last_expect_ptr_, nullptr);
-  EXPECT_EQ(aclrtReleaseMemAddress(addr), ACL_ERROR_NONE);
+  EXPECT_EQ(aclrtReleaseMemAddress(addr), ACL_SUCCESS);
 }
 
 TEST_F(VirtualMemoryManagerTest, ReserveMemAddress_Success) {
@@ -122,7 +122,7 @@ TEST_F(VirtualMemoryManagerTest, ReserveMemAddress_Success) {
   void *addr = nullptr;
   EXPECT_EQ(manager.ReserveMemAddress(addr, kTestSize500MB), SUCCESS);
   ASSERT_NE(addr, nullptr);
-  EXPECT_EQ(aclrtReleaseMemAddress(addr), ACL_ERROR_NONE);
+  EXPECT_EQ(aclrtReleaseMemAddress(addr), ACL_SUCCESS);
 }
 
 TEST_F(VirtualMemoryManagerTest, ReserveMemory_ZeroSize_Fails) {
@@ -289,7 +289,7 @@ TEST_F(VirtualMemoryManagerTest, SetGlobalStartAddress_ExplicitZeroPassedToRunti
   EXPECT_EQ(manager.ReserveMemAddress(addr, kTestSize500MB), SUCCESS);
   ASSERT_NE(addr, nullptr);
   EXPECT_EQ(mock->last_expect_ptr_, nullptr);
-  EXPECT_EQ(aclrtReleaseMemAddress(addr), ACL_ERROR_NONE);
+  EXPECT_EQ(aclrtReleaseMemAddress(addr), ACL_SUCCESS);
 }
 
 TEST_F(VirtualMemoryManagerTest, SetGlobalStartAddress_BoundaryMaxAccepted) {

@@ -119,7 +119,7 @@ class MockAclRuntimeStub : public llm::AclRuntimeStub {
       *value = super_pod_id_;
       return ACL_SUCCESS;
     }
-    if (attr == ACL_DEV_ATTR_SUPER_POD_DEVIDE_ID) {
+    if (attr == ACL_DEV_ATTR_SUPER_POD_DEVICE_ID) {
       *value = super_device_id_;
       return ACL_SUCCESS;
     }
