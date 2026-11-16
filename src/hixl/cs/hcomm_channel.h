@@ -11,21 +11,37 @@
 #ifndef CANN_HIXL_SRC_HIXL_CS_HCOMM_CHANNEL_H_
 #define CANN_HIXL_SRC_HIXL_CS_HCOMM_CHANNEL_H_
 
+#include <string>
+
 #include "cs/channel.h"
 
 namespace hixl {
 
-// Hcomm transport channel: every operation forwards to HcommProxy on this channel's own handle.
+// Generic HCOMM-backed channel: the RoCE / HCCS / UB group path. Owns the shared HCOMM lifecycle
+// (channel descriptor building, create, wait-until-connected, destroy) plus the memory registration used
+// by every HCOMM endpoint. Host/device and protocol specifics live in the subclasses.
 class HcommChannel : public Channel {
  public:
-  HcommChannel() = default;
+  explicit HcommChannel(Endpoint &local_endpoint);
   ~HcommChannel() override = default;
 
+  Status Initialize(const ChannelContext &ctx) override;
+  Status Connect(const ChannelDesc &channel_desc, uint32_t timeout_ms) override;
+  Status Disconnect() override;
+  Status Destroy() override;
+
+  Status RegMem(const char *mem_tag, const CommMem *mem, MemHandle *mem_handle) override;
+  Status UnregMem(MemHandle mem_handle) override;
+  Status SetRemoteMemInfo(const CommMem &trans_flag) override;
+
  protected:
-  HcclResult ChannelCreate(EndpointHandle endpoint_handle, CommEngine engine, HcommChannelDesc &ch_desc,
-                           ChannelHandle &out_handle) override;
-  HcclResult ChannelDestroy() override;
-  HcclResult ChannelGetStatus(int32_t &status) const override;
+  Endpoint &local_endpoint_;
+  // Peer-registered builtin completion flag, resolved by the client from the remote endpoint location.
+  CommMem remote_trans_flag_{};
+
+ private:
+  Status BuildChannelDesc(const ChannelDesc &channel_desc, HcommChannelDesc &ch_desc, std::string &channel_name) const;
+  Status WaitChannelConnected(uint32_t timeout_ms) const;
 };
 
 }  // namespace hixl

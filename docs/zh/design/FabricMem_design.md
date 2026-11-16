@@ -24,7 +24,7 @@ HCCL 直传不支持 D2RH。A3 上的 Buffer 中转会占 HBM，干扰推理。F
 
 ### 设计思路
 
-FabricMem 不再是旁路引擎。传输集成层就是 `Endpoint` / `Channel` 本身：公共代码（注册表、channel 表、编排、Host VA mapping）放在基类，`HcommEndpoint` / `HcommChannel` 与 `UbMemEndpoint` / `UbMemChannel` 只提供协议实现。`Endpoint::Create()` 按协议选具体子类：ubmem 走 `UbMemEndpoint`，其它协议走 `HcommEndpoint`；`Endpoint` 在内部创建对应 Channel 子类，不把该工厂暴露给子类或调用方。建 Endpoint、注册/导出/导入内存、建逻辑 Channel 都落在这两层上；Hcomm 拷贝继续走既有 HcommProxy 路径，UBMem memcpy 模式由 `HixlCSClient` 直接提交。进程内唯一的单例是 `VirtualMemoryManager`（VA 池），生命周期跟随进程；进程级配置就是 client / server 自己那份 `GlobalConfig`，随 `Endpoint::Create` 整份传进来。`UbMemAllocator` 里另有进程级状态：allocation 表（每个 allocation 只 export 一次）和已导出区间台账，归属判定要用。这样 `Endpoint::Create` 是仅剩的按协议分支点。方法归属：`EndpointCreate/Destroy/GetListenPort`、`MemReg/Unreg/Export/Import/Unimport`、`TranslateRemoteDescs` 属于 Endpoint；`ChannelCreate/Destroy/GetStatus`、`ThreadAlloc/ThreadFree` 属于 Channel（由 `HcommChannel` / `UbMemChannel` 各自复写的协议钩子）。`TransferPool` 在建任何 channel 之前就要注册 slot，所以 `Initialize` 接收 endpoint 的协议，而不是持有 channel 对象做 key source。这些钩子只接收自己处理不了的东西：一个 Channel 就是一个 channel、一个 Endpoint 就是一个 endpoint，所以除 `EndpointCreate` / `ChannelCreate`（要产出 handle）外，钩子都不再传自身的 handle，实现直接读 `GetHandle()`。
+FabricMem 不再是旁路引擎。传输集成层就是 `Endpoint` / `Channel` 本身：公共代码（注册表、channel 表、编排、Host VA mapping）放在基类，`HcommEndpoint` / `HcommChannel` 与 `UbMemEndpoint` / `UbMemChannel` 只提供协议实现。`Endpoint::Create()` 按协议选具体子类：ubmem 走 `UbMemEndpoint`，其它协议走 `HcommEndpoint`；`Endpoint` 通过内部 `ChannelFactory` 按协议与部署位置创建对应 Channel 子类，工厂不对外暴露。建 Endpoint、注册/导出/导入内存、建逻辑 Channel 都落在这两层上；Hcomm 拷贝继续走既有 HcommProxy 路径，UBMem memcpy 模式由 `UbMemEngine` 经 `UbMemChannel` 提交。进程内唯一的单例是 `VirtualMemoryManager`（VA 池），生命周期跟随进程；进程级配置就是 client / server 自己那份 `GlobalConfig`，随 `Endpoint::Create` 整份传进来。`UbMemAllocator` 里另有进程级状态：allocation 表（每个 allocation 只 export 一次）和已导出区间台账，归属判定要用。Endpoint 只按协议选择 endpoint 类型，channel 类型由 `ChannelFactory` 按协议与部署位置选择，除此之外没有按协议的分支。方法归属：`EndpointCreate/Destroy/GetListenPort`、`MemReg/Unreg/Export/Import/Unimport`、`TranslateRemoteDescs` 属于 Endpoint；Channel 的两阶段生命周期 `Initialize`/`Connect`/`Disconnect`/`Destroy`，以及数据面 `BatchPut/Get{Sync,Async}`、完成态 `QueryCompleteStatus`、内存注册 `RegMem/UnregMem` 和远端完成标志 `SetRemoteMemInfo` 由 Channel 基类统一编排、子类按协议实现。`TransferPool` 在建任何 channel 之前就要注册 slot，`ChannelContext` 随 `Initialize` 把 endpoint、device id、配置和内存表交给 channel，作为其内存注册与数据面的统一入参来源。这些钩子只接收自己处理不了的东西：一个 Channel 就是一个 channel、一个 Endpoint 就是一个 endpoint，所以除 `EndpointCreate` / `Connect`（要产出 handle）外，钩子都不再传自身的 handle，实现直接读 `GetHandle()`。
 
 用户侧开关有两个，解析后等价：
 
@@ -62,8 +62,13 @@ classDiagram
     class DirectMultiChannelHandler
     class HixlCSClient {
         +Connect()
-        +BatchTransferHostAsync()
-        +BatchTransferDeviceAsync()
+        +RegMem()
+        +UnregMem()
+        +BatchPutSync()
+        +BatchGetSync()
+        +BatchPutAsync()
+        +BatchGetAsync()
+        +QueryCompleteStatus()
     }
     class HixlCSServer
     class Endpoint {
@@ -75,12 +80,18 @@ classDiagram
         +TranslateRemoteDescs()
     }
     class Channel {
-        +Create()
+        +Initialize()
+        +Connect()
+        +Disconnect()
         +Destroy()
-        +ChannelCreate()
-        +ChannelGetStatus()
-        +ThreadAlloc(protocol)
-        +ThreadFree(protocol)
+        +BatchPut()
+        +BatchGet()
+        +QueryCompleteStatus()
+        +RegMem()
+        +UnregMem()
+    }
+    class ChannelFactory {
+        +Create(endpoint)
     }
     class HcommEndpoint
     class HcommChannel
@@ -107,7 +118,7 @@ classDiagram
     ClientHandlerFactory --> DirectMultiChannelHandler : Host 且 workers 大于 1
     DirectClientHandler --> HixlCSClient
     HixlCSClient --> Endpoint
-    Endpoint --> Channel : creates concrete channel
+    Endpoint --> ChannelFactory : creates concrete channel
     Endpoint <|-- UbMemEndpoint
     Endpoint <|-- HcommEndpoint
     Channel <|-- UbMemChannel
@@ -115,7 +126,8 @@ classDiagram
     UbMemEndpoint --> UbMemMemory
     UbMemMemory --> UbMemAllocator
     UbMemMemory --> VirtualMemoryManager
-    HixlCSClient --> TransferPool : AICPU 按次取 slot
+    HixlCSClient --> Channel : client_channel_
+    Channel --> TransferPool : 传输时按次取 slot
 ```
 
 ### 启用、选路与初始化
@@ -155,7 +167,7 @@ Host 内存在 HDK 25.5 不能 `aclrtMemRetainAllocationHandle`。这条路径�
 - 地址是本次 `MallocMem` 得到的，走本端 export，不再本地 import。传输用原来的 VA。
 - 别人申请的内存走 foreign 路径：`aclrtMemRetainAllocationHandle` 拿到整段 PA，按页 export。相邻用户区间可以共用同一段 PA。
 
-`MemExport` 把 `ShareHandleInfo` 编成 JSON 字节，塞进 CS 的 `export_desc`。建链时 client 先 `GetRemoteMem`，server `ExportMem`，client `ImportMem`。`ImportMem` 解码后把整批 handle 交给 `UbMemMemory::Import()`；归属判定、恒等绑定和普通 import 都封装在 `ubmem_memory.cc` 内。server 侧 `ExportMem` 只导出自己 store 里的 server endpoint，client endpoint 的注册不会被任何人取走，所以 ubmem 链路的 `HixlCSClient::RegMem` / `UnRegMem` 直接成功返回，不做本端注册导出。
+`MemExport` 把 `ShareHandleInfo` 编成 JSON 字节，塞进 CS 的 `export_desc`。建链时 client 先 `GetRemoteMem`，server `ExportMem`，client `ImportMem`。`ImportMem` 解码后把整批 handle 交给 `UbMemMemory::Import()`；归属判定、恒等绑定和普通 import 都封装在 `ubmem_memory.cc` 内。server 侧 `ExportMem` 只导出自己 store 里的 server endpoint，client endpoint 的注册不会被任何人取走，所以 ubmem 链路的 `HixlCSClient::RegMem` / `UnregMem` 直接成功返回，不做本端注册导出。
 
 - **对端发的是本端进程的导出**：归属判定由 `UbMemMemory::Import()` 在 memory 模块内部完成，证据有两个来源：本 endpoint 的导出记录，以及进程级已导出区间台账（`UbMemAllocator::RecordExportedRange` / `IsRangeExportedHere`）。判定用 share handle 字节 + `va_addr` + `len`，命中说明这块 buffer 在本端本来就可寻址，直接按原地址做恒等绑定：翻译表 key 与 value 都是对端地址，不走 import、不 `aclrtMapMem`、不占 VMM。判定不看地址数值——两个进程的 VMM 池默认都从 40 TB 起、按 1 GB 对齐分配，跨进程地址会撞车；ACL share handle 内含导出方身份，别人导出的 handle 不会误命中。注册表不按 device 索引：ubmem 只会注册当前实例所在 device 的内存，所以没有 device 维度的判定。
 
@@ -201,8 +213,8 @@ sequenceDiagram
     else 其余
         Memory->>Acl: ImportFromShareableHandle + MapMem
     end
-    Client->>Ub: ChannelCreate
-    Note over Ub: 逻辑 channel，ChannelGetStatus 直接已连接
+    Client->>Ub: Connect
+    Note over Ub: 逻辑 channel，Connect 直接分配逻辑 handle
     opt Device client
       Ub->>Ub: TransferPool 取 slot，AICPU 展开时懒建 ubmem_stream
     end
@@ -210,7 +222,7 @@ sequenceDiagram
 
 ### 数据传输
 
-CS client 的 endpoint 始终是 Device。`HixlCSClient` 只把 UB_MEM 传输分发给 `UbMemEngine`，非 UB_MEM 传输继续走既有 device / host 路径。UBMem 引擎自己负责模式选择、地址翻译、描述符准备、AICPU 下发、Host 提交 memcpy、完成句柄和失败锁存。
+CS client 的 endpoint 始终是 Device。`HixlCSClient` 只调用 `Channel` 的数据面入口（`BatchPut/Get{Sync,Async}`、`QueryCompleteStatus`）；UB_MEM 由 `UbMemChannel` 转发给 `UbMemEngine`，非 UB_MEM 由对应的 `HcommHostChannel` / `HcommDeviceChannel` 处理。UBMem 引擎负责模式选择、地址翻译、描述符准备、AICPU 下发、Host 提交 memcpy 和完成句柄；失败锁存由 `Channel` 基类统一负责。
 
 `enable_aicpu_unfold=true` 走 AICPU kernel；false 走 Device stream 上的 Host 提交 memcpy。两条路径都先进入 `UbMemEngine::TranslateUbMemOpDescs`，再委托 `Endpoint::TranslateRemoteDescs`。该 hook 只有 ubmem 实现，只改 `remote_buf`，且可能一条拆成多条；Hcomm 走基类默认实现，什么都不返回。
 
@@ -221,11 +233,11 @@ CS client 的 endpoint 始终是 Device。`HixlCSClient` 只把 UB_MEM 传输分
 1. `BuildUbMemTransferDescs` 把每条 op 拆成 AICPU 描述符。单条长度超过 4 GiB 时按 `uint32` 上限切开，一条描述符对应一条 SDMA SQE。
 2. 描述符拷到 Device 后，launch `HixlUbMemBatchRead` / `HixlUbMemBatchWrite`。内核参数是 `UbMemAicpuKernelParam`：已翻译的 VA、worker RTSQ、可选 Notify、超时，以及 `transfer_ctx_key`——它直接取 slot 的 `thread`，和 hcomm AICPU 算子一样，没有第二个字段。内核按 Host 下发的 `sqe_format` 选择 STARS SQE 布局：A2/A3 用 stars v1，A5 用 stars v2（传输长度在 word 12、目的流 id 在 word 7），两种布局都由内核直接写入 worker RTSQ。内核不碰通信 Channel 对象。
 3. 单个 kernel 最多 128 条描述符。`max_transfer_count_per_batch` 是逻辑批次和 Notify 边界，kernel 不跨批次。STARS 队列深度仍按 2K 模型预留：在途 1920 + NotifyRecord + 环空一位。
-4. 同步传输 `aclrtSynchronizeStreamWithTimeout`。异步传输在 copy stream 上追加 host flag D2H，轮询 flag。传输失败（err flag 置位、超时或提交失败）时置位该 slot 的 err flag，并推迟到该 slot 最后一个在途请求释放时才 `TransferPool::Abort` 再回收，避免 abort 仍被其他 handle 共享的 slot；引擎本身不锁存失败，由 `HixlCSClient` 在状态查询或同步传输返回失败时统一 latch。
+4. 同步传输 `aclrtSynchronizeStreamWithTimeout`。异步传输在 copy stream 上追加 host flag D2H，轮询 flag。传输失败（err flag 置位、超时或提交失败）时置位该 slot 的 err flag，并推迟到该 slot 最后一个在途请求释放时才 `TransferPool::Abort` 再回收，避免 abort 仍被其他 handle 共享的 slot；引擎本身不锁存失败，由 `Channel` 基类在状态查询或传输返回失败时统一 latch。
 
 **Memcpy 展开**
 
-1. `HixlCSClient` 按描述符顺序直接调用 `aclrtMemcpyAsync(..., DEVICE_TO_DEVICE)`，用的是它为本次传输认领的 slot 的 Device stream（`slot.stream`），并持有该 slot 到 completion handle 释放，这样一次传输里的所有拷贝（含完成事件）都落在同一条有序 stream 上。
+1. `UbMemEngine`（经 `UbMemChannel`）按描述符顺序直接调用 `aclrtMemcpyAsync(..., DEVICE_TO_DEVICE)`，用的是它为本次传输认领的 slot 的 Device stream（`slot.stream`），并持有该 slot 到 completion handle 释放，这样一次传输里的所有拷贝（含完成事件）都落在同一条有序 stream 上。
 2. READ 和 WRITE 都是直接下发，没有 fence。UB 不发描述符，同一 stream 上的拷贝本来就有序；fence 没有东西可排空，只会把 host 卡住。
 3. `max_transfer_count_per_batch` 只切开提交循环，不在边界加额外同步。异步路径先追加 host flag D2H，再追加 `aclrtRecordNotify`；完成判定要求 flag 已写入且 NotifyRecord 已记录。失败路径同样置位 err flag 并在 slot 最后一个在途请求释放时 Abort 再回收（见 AICPU 第 4 条）。
 4. 两端共享的仍是 slot notify，不需要 server 侧 FabricMem flag。
@@ -237,30 +249,33 @@ sequenceDiagram
     participant User
     participant Engine as HixlEngine
     participant Client as HixlCSClient
-    participant Ub as UbMemEndpoint
+    participant Chan as Channel
+    participant Ub as UbMemChannel / UbMemEngine
     participant Pool as TransferPool
     participant Acl as ACL
 
     User->>Engine: TransferSync(WRITE, op_descs)
-    Engine->>Client: BatchTransfer*
-    Client->>Ub: TranslateRemoteDescs
+    Engine->>Client: BatchPutSync / BatchGetSync
+    Client->>Chan: BatchPutSync / BatchGetSync
+    Chan->>Ub: SubmitSync / SubmitAsync
+    Ub->>Ub: TranslateUbMemOpDescs → Endpoint::TranslateRemoteDescs
     alt Device AICPU
-        Client->>Pool: Acquire slot
-        Client->>Acl: H2D 描述符 + Launch HixlUbMemBatchWrite
-        Acl-->>Client: Notify 或 SynchronizeStream
+        Ub->>Pool: Acquire slot
+        Ub->>Acl: H2D 描述符 + Launch HixlUbMemBatchWrite
+        Acl-->>Ub: Notify 或 SynchronizeStream
     else Device memcpy
         loop 每条已翻译描述符
-            Client->>Ub: aclrtMemcpyAsync
-        Ub->>Acl: aclrtMemcpyAsync on slot stream
+            Ub->>Acl: aclrtMemcpyAsync on slot stream
         end
-        Client->>Acl: host flag D2H + RecordNotify
+        Ub->>Acl: host flag D2H + RecordNotify
     end
+    Chan-->>Client: SUCCESS 或错误码
     Client-->>User: SUCCESS 或错误码
 ```
 
 ### 清理、并发与心跳
 
-`Disconnect` / `Finalize` 走 CS 原路径：`ClientManager::DestroyClient` → handler `Finalize` → `HixlCSClient::Destroy`。Destroy 先 `AbortAllPendingDeviceHandles()`，再 `Endpoint::Finalize`：拆 channel、MemUnreg、`EndpointDestroy`。`EndpointDestroy` 释放本端注册；已 import 的远端映射由 `UnimportMem`（经 `ClearRemoteMemInfo`）正常释放，`UbMemMemory` 的 unmap 在 endpoint 销毁时兜底。传输的 slot 由 `HixlCSClient` 在 completion handle 释放时归还，channel 自己不持 slot；slot 上的 `ubmem_stream` 由 pool 在 abort 和销毁时释放。
+`Disconnect` / `Finalize` 走 CS 原路径：`ClientManager::DestroyClient` → handler `Finalize` → `HixlCSClient::Destroy`。Destroy 先 `client_channel_->Destroy()`（device channel 先 Abort 在途句柄并释放 notify 资源，`UbMemChannel` 先关闭 `UbMemEngine`，再拆 channel），随后 `ClearRemoteMemInfo()`，最后 `Endpoint::Finalize`：MemUnreg、`EndpointDestroy`。`EndpointDestroy` 释放本端注册；已 import 的远端映射由 `UnimportMem`（经 `ClearRemoteMemInfo`）正常释放，`UbMemMemory` 的 unmap 在 endpoint 销毁时兜底。传输的 slot 由 channel / engine 持有并在 completion handle 释放时归还；slot 上的 `ubmem_stream` 由 pool 在 abort 和销毁时释放。
 
 对端存活仍靠 CS：`auto_connect` 开启时 `ClientManager` 发心跳；失败则 DestroyClient。Server 用 `EPOLLRDHUP` 和 TCP keepalive 回收会话。`enable_fabric_mem` 本身不单独拉心跳线程。
 
@@ -338,8 +353,8 @@ Status TransferOneBatch(UbMemEngine &engine, bool is_get, const HixlOneSideOpDes
 | 自连判归属 | `UbMemMemory::Import` | 命中本 endpoint 或本进程的导出记录；伪造 handle 字节、同 handle 改 va/len 都不命中；恒等路径不 import、不 map，`Finalize` 不 unmap；伪造 handle 的 desc 仍走 import；导出随注册注销而失效 |
 | 描述符编解码 | `EncodeShareHandles` / `DecodeShareHandles` | 往返后 va/len/share_handle/mem_type 一致；空 payload 失败 |
 | 地址翻译 | `TranslateRemoteOpDescs` | 落在 import 段内成功；恒等绑定段内 remote VA 不变；一段 export 由多段 PA 组成时 import 后翻译表合成一条、整段传输不拆分；跨 import 或部分释放仍按段拆分；越界或长度为 0 失败 |
-| 逻辑 Channel | `UbMemChannel::ChannelCreate` | 不调 Hcomm；建 channel 不占 slot；`ChannelGetStatus` 为已连接；`Channel::ThreadAlloc` 按协议为 UB_MEM 发非零不重复 key |
-| Memcpy 完成 | `HixlCSClient` Device ubmem | memcpy 展开使用 slot stream；异步路径 host flag D2H 后记录一次 NotifyRecord，且 NotifyRecord 是完成必要条件 |
+| 逻辑 Channel | `UbMemChannel::Connect` | 不调 Hcomm；建 channel 不占 slot；`Connect` 直接分配逻辑 handle |
+| Memcpy 完成 | `UbMemEngine`（经 `UbMemChannel`） | memcpy 展开使用 slot stream；异步路径 host flag D2H 后记录一次 NotifyRecord，且 NotifyRecord 是完成必要条件 |
 | AICPU 参数 | `BuildUbMemTransferDescs` / kernel UT | 超 4 GiB 拆分；方向、RTSQ、Notify、timeout、`transfer_ctx_key` 写入 `UbMemAicpuKernelParam` |
 | VMM 分配 | `VirtualMemoryManager` / `UbMemAllocator` | 预留/释放、Host SetAccess、Map 失败回滚、非 Malloc 地址不能 export |
 | 引擎选路 | `EngineFactory` / `HixlEngine` | FabricMem 开启创建 `HixlEngine`；允许 Connect 自己；未开启时拒绝自连 |

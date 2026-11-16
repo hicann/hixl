@@ -55,10 +55,6 @@ UbMemEngine::~UbMemEngine() {
   Finalize();
 }
 
-bool UbMemEngine::OwnsHandle(uint32_t magic) {
-  return magic == kUbMemCompleteMagic;
-}
-
 bool UbMemEngine::UseMemcpyMode() const {
   return !global_config_.UbMemory().enable_aicpu_unfold.value_or(true);
 }

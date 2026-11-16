@@ -27,6 +27,7 @@ set(HIXL_TEST_FILES
         common/log_macro_ut.cc
         cs/endpoint_store_ut.cc
         cs/endpoint_factory_ut.cc
+        cs/channel_factory_ut.cc
         cs/test_hixl_cs_server.cc
         cs/test_hixl_cs_server_tls.cc
         cs/hixl_cs_server_handshake_ut.cc

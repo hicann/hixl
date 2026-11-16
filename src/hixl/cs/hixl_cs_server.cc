@@ -35,8 +35,6 @@ namespace {
 constexpr uint32_t kDefaultTransferPoolSize = 128U;  // 与 HixlCSClient 侧设备池大小一致
 constexpr int32_t kMaxEventsNum = 128;               // epoll_wait并发处理事件数量，减少epoll系统调用
 constexpr int32_t kEpollWaitTimeInMillis = 100;      // epoll_wait等待超时时间
-constexpr const char *kTransFlagNameHost = "_hixl_builtin_host_trans_flag";   // client用于感知收发完成的标识
-constexpr const char *kTransFlagNameDevice = "_hixl_builtin_dev_trans_flag";  // client用于感知收发完成的标识
 // server端进程级channel索引计数器，用于两端构建一致的channelName
 std::atomic<uint64_t> g_next_server_channel_index{0UL};
 
@@ -176,7 +174,7 @@ Status HixlCSServer::RegisterHostTransFinishedFlag(const std::vector<EndpointPtr
   mem.size = sizeof(int64_t);
   for (const auto &endpoint : host_endpoints) {
     MemHandle ep_mem_handle = nullptr;
-    HIXL_CHK_STATUS_RET(endpoint->RegisterMem(kTransFlagNameHost, mem, ep_mem_handle),
+    HIXL_CHK_STATUS_RET(endpoint->RegisterMem(kBuiltinHostTransFlagName, mem, ep_mem_handle),
                         "Failed to reg HOST trans finished flag");
   }
   host_trans_flag_ = host_flag;
@@ -215,7 +213,7 @@ Status HixlCSServer::RegisterDeviceTransFinishedFlag(const std::vector<EndpointP
   mem.size = sizeof(int64_t);
   for (const auto &endpoint : device_endpoints) {
     MemHandle ep_mem_handle = nullptr;
-    HIXL_CHK_STATUS_RET(endpoint->RegisterMem(kTransFlagNameDevice, mem, ep_mem_handle),
+    HIXL_CHK_STATUS_RET(endpoint->RegisterMem(kBuiltinDeviceTransFlagName, mem, ep_mem_handle),
                         "Failed to reg DEVICE trans finished flag");
   }
   dev_trans_flag_ = dev_flag;

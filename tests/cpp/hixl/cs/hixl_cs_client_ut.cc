@@ -40,6 +40,7 @@
 #define private public
 #define protected public
 #include "hixl_cs_client.h"
+#include "transfer_pool.h"
 #undef protected
 #undef private
 
@@ -1060,15 +1061,11 @@ TEST_F(HixlCSClientUT, ConnectRetryAfterExchangeFailReconnects) {
   EXPECT_NE(client_.Connect(kDefaultConnectTimeoutMs), SUCCESS);
   EXPECT_EQ(client_.connection_, nullptr);
   EXPECT_FALSE(client_.is_connected_);
-  EXPECT_TRUE(client_.local_endpoint_->channels_.empty());
-  CommMem *remote = nullptr;
-  char **tags = nullptr;
-  uint32_t num = kZero;
-  EXPECT_EQ(client_.GetRemoteMem(&remote, &tags, &num, kTimeOutOne), FAILED);
+  EXPECT_EQ(client_.client_channel_->GetHandle(), 0UL);
   StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
   EXPECT_EQ(client_.Connect(kDefaultConnectTimeoutMs), SUCCESS);
   EXPECT_TRUE(client_.is_connected_);
-  ASSERT_EQ(client_.local_endpoint_->channels_.size(), 1U);
+  ASSERT_NE(client_.client_channel_->GetHandle(), 0UL);
   EXPECT_EQ(client_.Connect(kDefaultConnectTimeoutMs), ALREADY_CONNECTED);
 }
 

@@ -71,25 +71,54 @@ static constexpr int32_t kCtrlMsgType = 1024;
 
 class ContextCheckingChannel : public Channel {
  public:
-  explicit ContextCheckingChannel(aclrtContext context) : context_(context) {}
+  explicit ContextCheckingChannel(aclrtContext context) : context_(context) {
+    channel_handle_ = 1UL;
+  }
   std::promise<void> destroyed;
 
-  HcclResult ChannelCreate(EndpointHandle, CommEngine, HcommChannelDesc &, ChannelHandle &handle) override {
-    handle = 1UL;
-    return HCCL_SUCCESS;
+  Status Initialize(const ChannelContext &) override {
+    return SUCCESS;
   }
 
-  HcclResult ChannelDestroy() override {
+  Status Connect(const ChannelDesc &, uint32_t) override {
+    return SUCCESS;
+  }
+
+  Status Disconnect() override {
+    return SUCCESS;
+  }
+
+  Status Destroy() override {
     aclrtContext current = nullptr;
     EXPECT_EQ(aclrtGetCurrentContext(&current), ACL_SUCCESS);
     EXPECT_EQ(current, context_);
     destroyed.set_value();
-    return current == context_ ? HCCL_SUCCESS : HCCL_E_INTERNAL;
+    return current == context_ ? SUCCESS : FAILED;
   }
 
-  HcclResult ChannelGetStatus(int32_t &status) const override {
-    status = 0;
-    return HCCL_SUCCESS;
+  Status QueryCompleteStatus(void *, HixlCompleteStatus *) override {
+    return SUCCESS;
+  }
+
+  Status RegMem(const char *, const CommMem *, MemHandle *) override {
+    return SUCCESS;
+  }
+
+  Status UnregMem(MemHandle) override {
+    return SUCCESS;
+  }
+
+  Status SetRemoteMemInfo(const CommMem &) override {
+    return SUCCESS;
+  }
+
+ protected:
+  Status DoBatchTransferSync(bool, const HixlOneSideOpDesc *, uint32_t, uint32_t) override {
+    return SUCCESS;
+  }
+
+  Status DoBatchTransferAsync(bool, const HixlOneSideOpDesc *, uint32_t, void **) override {
+    return SUCCESS;
   }
 
  private:
@@ -273,8 +302,6 @@ class HixlCSTest : public hixl::test::PlainTlsTest {
     }
     auto channel = std::make_shared<ContextCheckingChannel>(expected);
     auto destroyed = channel->destroyed.get_future();
-    HcommChannelDesc channel_desc{};
-    ASSERT_EQ(channel->Create(*endpoint, channel_desc, CommEngine::COMM_ENGINE_CPU, kRecvTimeoutMs), SUCCESS);
     endpoint->channels_[channel->GetHandle()] = channel;
     auto connection = test::Connection(-1);
     server->channels_[connection] = {endpoint_handle, channel->GetHandle()};

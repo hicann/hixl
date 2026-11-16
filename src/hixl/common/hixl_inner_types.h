@@ -75,6 +75,10 @@ constexpr const char *kUboeProtocolDesc = "uboe:device";
 constexpr const char *kUbRtpProtocolDesc = "ub_rtp:device";
 constexpr const char *kPlacementDevice = "device";
 constexpr const char *kPlacementHost = "host";
+// Builtin tag names the server registers the client's transfer-completion flag under. The client
+// channels look the flag up by the same names, so all sides must share these literals.
+constexpr const char *kBuiltinHostTransFlagName = "_hixl_builtin_host_trans_flag";
+constexpr const char *kBuiltinDeviceTransFlagName = "_hixl_builtin_dev_trans_flag";
 constexpr int64_t kInvalidSuperPodServerId = 65535;  // 无效值，环境未配置
 constexpr uint8_t kRdmaTrafficClass = 132;           // RDMA网卡的traffic class 默认值
 constexpr uint8_t kRdmaServiceLevel = 4;             // RDMA网卡的service level 默认值

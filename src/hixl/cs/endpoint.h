@@ -17,6 +17,7 @@
 #include <mutex>
 #include <vector>
 
+#include "hccl/hccl_types.h"
 #include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
 #include "common/ctrl_msg.h"
@@ -50,6 +51,7 @@ class Endpoint {
   EndpointHandle GetHandle() const;
   const EndpointDesc &GetEndpoint() const;
   bool NeedHostVaMapping() const;
+  CommEngine GetEngine() const;
 
   Status RegisterMem(const char *mem_tag, const CommMem &mem, MemHandle &mem_handle);
   Status DeregisterMem(MemHandle mem_handle);
@@ -103,8 +105,6 @@ class Endpoint {
   virtual HcclResult MemUnimport(const void *mem_desc, uint32_t desc_len) = 0;
 
  private:
-  CommEngine SelectEngine() const;
-
   mutable std::mutex mutex_;
   EndpointDesc endpoint_{};
   EndpointHandle handle_ = nullptr;

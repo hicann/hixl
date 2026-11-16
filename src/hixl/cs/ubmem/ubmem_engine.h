@@ -38,8 +38,6 @@ class UbMemEngine {
   UbMemEngine(UbMemEngine &&) = delete;
   UbMemEngine &operator=(UbMemEngine &&) = delete;
 
-  static bool OwnsHandle(uint32_t magic);
-
   Status SubmitAsync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list, void **query_handle);
   Status SubmitSync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list, uint32_t timeout_ms);
   Status CheckStatus(void *query_handle, HixlCompleteStatus &status);

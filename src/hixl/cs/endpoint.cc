@@ -18,41 +18,13 @@
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
 #include "common/scope_guard.h"
+#include "channel_factory.h"
 #include "cs/ubmem/ubmem_endpoint.h"
-#include "cs/ubmem/ubmem_channel.h"
 #include "hcomm_endpoint.h"
-#include "hcomm_channel.h"
 #include "host_register_proxy.h"
 
 namespace hixl {
 namespace {
-constexpr uint32_t kRoceQueueNum = 1U;  // ROCE QP数量默认值
-
-bool IsUrmaProtocol(CommProtocol protocol) {
-  return protocol == COMM_PROTOCOL_UBC_CTP || protocol == COMM_PROTOCOL_UBOE || protocol == COMM_PROTOCOL_UBG;
-}
-
-void InitQueueDepth(const EndpointDesc &endpoint, const ChannelDesc &channel_desc, HcommChannelDesc &ch_desc) {
-  if (!channel_desc.configurable_transfer_supported) {
-    return;
-  }
-  const bool is_client = channel_desc.channel_type == ChannelType::kClient;
-  const uint32_t data_depth =
-      is_client ? CalculateTransportQueueDepth(channel_desc.max_transfer_count_per_batch) : kMinTransportQueueDepth;
-  if (endpoint.protocol == COMM_PROTOCOL_ROCE) {
-    ch_desc.roceAttr.sqDepth = data_depth;
-    ch_desc.roceAttr.scqDepth = data_depth;
-    HIXL_LOGI("[channel] RoCE queue depth set, role=%d, sq=%u, scq=%u", static_cast<int32_t>(channel_desc.channel_type),
-              ch_desc.roceAttr.sqDepth, ch_desc.roceAttr.scqDepth);
-  } else if (IsUrmaProtocol(endpoint.protocol)) {
-    ch_desc.ubAttr.sqDepth = data_depth;
-    ch_desc.ubAttr.scqDepth = data_depth;
-    HIXL_LOGI("[channel] URMA queue depth set, protocol=%d, role=%d, sq=%u, scq=%u",
-              static_cast<int32_t>(endpoint.protocol), static_cast<int32_t>(channel_desc.channel_type),
-              ch_desc.ubAttr.sqDepth, ch_desc.ubAttr.scqDepth);
-  }
-}
-
 bool IsDefaultHostVaMappingEnabled(const EndpointDesc &endpoint) {
   return endpoint.loc.locType == ENDPOINT_LOC_TYPE_DEVICE &&
          (endpoint.protocol == COMM_PROTOCOL_UBOE || endpoint.protocol == COMM_PROTOCOL_UBG ||
@@ -66,52 +38,6 @@ bool IsHostVaMappingEnabledForPair(const EndpointDesc &local_endpoint, const End
   return local_endpoint.protocol != COMM_PROTOCOL_UBC_CTP || remote_endpoint.loc.locType == ENDPOINT_LOC_TYPE_DEVICE;
 }
 
-Status BuildChannelName(const EndpointDesc &endpoint, const ChannelDesc &channel_desc, uint32_t port,
-                        std::string &channel_name) {
-  // channelName作为两端channel业务匹配标识，两端需一致：
-  // client_ep + server_ep + server_port + server_channel_index(进程级自增)
-  const EndpointDesc &client_ep =
-      (channel_desc.channel_type == ChannelType::kClient) ? endpoint : channel_desc.remote_endpoint;
-  const EndpointDesc &server_ep =
-      (channel_desc.channel_type == ChannelType::kClient) ? channel_desc.remote_endpoint : endpoint;
-  channel_name = FormatCommAddr(client_ep.commAddr) + "_" + FormatCommAddr(server_ep.commAddr) + "_" +
-                 std::to_string(port) + "_" + std::to_string(channel_desc.channel_index);
-  HIXL_CHK_BOOL_RET_STATUS(channel_name.length() <= HCOMM_CHANNEL_NAME_MAX_LEN, PARAM_INVALID,
-                           "[channel] channelName length=%zu exceeds max=%u, channelName=%s", channel_name.length(),
-                           HCOMM_CHANNEL_NAME_MAX_LEN, channel_name.c_str());
-  return SUCCESS;
-}
-
-Status InitChannelDesc(const EndpointDesc &endpoint, const ChannelDesc &channel_desc, uint32_t port,
-                       HcommChannelDesc &ch_desc, std::string &channel_name) {
-  HIXL_CHK_HCCL_RET(static_cast<HcclResult>(HcommChannelDescInit(&ch_desc, 1)));
-  ch_desc.role = static_cast<HcommSocketRole>(channel_desc.channel_type);
-  ch_desc.remoteEndpoint = channel_desc.remote_endpoint;
-  ch_desc.notifyNum = 1U;
-  ch_desc.exchangeAllMems = true;
-  if (endpoint.protocol == CommProtocol::COMM_PROTOCOL_ROCE) {
-    ch_desc.roceAttr.tc = static_cast<uint32_t>(channel_desc.tc);
-    ch_desc.roceAttr.sl = static_cast<uint32_t>(channel_desc.sl);
-    ch_desc.roceAttr.retryCnt = channel_desc.retry_cnt;
-    ch_desc.roceAttr.retryInterval = channel_desc.retry_interval;
-    ch_desc.roceAttr.queueNum = kRoceQueueNum;
-    HIXL_LOGI("[channel] ROCE attributes set, tc=%u, sl=%u, retryCnt=%u, retryInterval=%u, queueNum=%u",
-              ch_desc.roceAttr.tc, ch_desc.roceAttr.sl, ch_desc.roceAttr.retryCnt, ch_desc.roceAttr.retryInterval,
-              ch_desc.roceAttr.queueNum);
-  }
-  InitQueueDepth(endpoint, channel_desc, ch_desc);
-  ch_desc.port = port;
-  if (channel_desc.qos != kQosUnset) {
-    ch_desc.qos = static_cast<uint32_t>(channel_desc.qos);
-    HIXL_LOGI("[channel] attributes set, qos=%u", ch_desc.qos);
-  } else {
-    HIXL_LOGI("[channel] attributes set, qos unset");
-  }
-  HIXL_CHK_STATUS_RET(BuildChannelName(endpoint, channel_desc, port, channel_name));
-  ch_desc.channelName = channel_name.c_str();
-  HIXL_LOGI("[channel] channelName=%s", ch_desc.channelName);
-  return SUCCESS;
-}
 }  // namespace
 
 EndpointPtr Endpoint::Create(const EndpointDesc &endpoint, const GlobalConfig &global_config) {
@@ -159,16 +85,25 @@ Status Endpoint::Initialize() {
 }
 
 Status Endpoint::Finalize() {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::vector<ChannelPtr> channels;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    channels.reserve(channels_.size());
+    for (const auto &it : channels_) {
+      channels.emplace_back(it.second);
+    }
+    channels_.clear();
+  }
   Status ret = SUCCESS;
-  for (const auto &it : channels_) {
-    const Status chn_ret = it.second->Destroy();
+  // Channel::Destroy may call back into the endpoint (memory deregistration), so it must run without mutex_.
+  for (const auto &channel : channels) {
+    const Status chn_ret = channel->Destroy();
     if (chn_ret != SUCCESS && ret == SUCCESS) {
       ret = chn_ret;
       HIXL_LOGE(chn_ret, "Destroy channel failed, ret: %d", chn_ret);
     }
   }
-  channels_.clear();
+  std::lock_guard<std::mutex> lock(mutex_);
   for (const auto &it : reg_mems_) {
     if (handle_ != nullptr) {
       const HcclResult hccl_ret = MemUnreg(it.first);
@@ -208,7 +143,7 @@ bool Endpoint::NeedHostVaMapping() const {
   return need_host_va_mapping_;
 }
 
-CommEngine Endpoint::SelectEngine() const {
+CommEngine Endpoint::GetEngine() const {
   if (endpoint_.loc.locType == EndpointLocType::ENDPOINT_LOC_TYPE_HOST) {
     return CommEngine::COMM_ENGINE_CPU;
   }
@@ -287,17 +222,9 @@ Status Endpoint::ExportMem(std::vector<HixlMemDesc> &mem_descs) {
 
 Status Endpoint::CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &channel_handle, uint32_t timeout_ms) {
   HIXL_CHK_BOOL_RET_STATUS(handle_ != nullptr, FAILED, "[channel] CreateChannel called before Initialize");
-  const CommEngine engine = SelectEngine();
-  HIXL_CHK_BOOL_RET_STATUS(engine != CommEngine::COMM_ENGINE_RESERVED, PARAM_INVALID,
-                           "[channel] invalid endpoint location=%d", static_cast<int32_t>(endpoint_.loc.locType));
-  HcommChannelDesc ch_desc{};
-  std::string channel_name;
-  HIXL_CHK_STATUS_RET(InitChannelDesc(endpoint_, channel_desc, port_, ch_desc, channel_name));
-  ChannelPtr channel = IsUbMemProtocol(endpoint_.protocol)
-                           ? std::static_pointer_cast<Channel>(MakeShared<UbMemChannel>())
-                           : std::static_pointer_cast<Channel>(MakeShared<HcommChannel>());
+  ChannelPtr channel = ChannelFactory::Create(*this);
   HIXL_CHECK_NOTNULL(channel);
-  HIXL_CHK_STATUS_RET(channel->Create(*this, ch_desc, engine, timeout_ms),
+  HIXL_CHK_STATUS_RET(channel->Connect(channel_desc, timeout_ms),
                       "[Channel] Create failed, local=[%s], remote=[%s], type=%d, index=%" PRIu64,
                       EndpointToString(endpoint_).c_str(), EndpointToString(channel_desc.remote_endpoint).c_str(),
                       static_cast<int32_t>(channel_desc.channel_type), channel_desc.channel_index);
@@ -314,12 +241,24 @@ Status Endpoint::CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &c
 }
 
 Status Endpoint::DestroyChannel(ChannelHandle channel_handle) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  auto it = channels_.find(channel_handle);
-  HIXL_CHK_BOOL_RET_STATUS(it != channels_.end(), PARAM_INVALID, "DestroyChannel failed, channel not found, handle=%lu",
-                           channel_handle);
-  HIXL_CHK_STATUS_RET(it->second->Destroy(), "Channel::Destroy failed, handle=%lu", channel_handle);
-  channels_.erase(it);
+  ChannelPtr channel;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = channels_.find(channel_handle);
+    HIXL_CHK_BOOL_RET_STATUS(it != channels_.end(), PARAM_INVALID,
+                             "DestroyChannel failed, channel not found, handle=%lu", channel_handle);
+    channel = it->second;
+    channels_.erase(it);
+  }
+  // Channel::Destroy may callback into the endpoint (memory deregistration), so run it without mutex_.
+  const Status ret = channel->Destroy();
+  if (ret != SUCCESS) {
+    // Keep the channel so Finalize can retry the teardown instead of dropping a half-destroyed transport.
+    std::lock_guard<std::mutex> lock(mutex_);
+    channels_[channel_handle] = channel;
+    HIXL_LOGE(ret, "Channel::Destroy failed, handle=%lu", channel_handle);
+    return ret;
+  }
   HIXL_LOGI("Endpoint::DestroyChannel success, handle=%lu", channel_handle);
   return SUCCESS;
 }

@@ -24,7 +24,7 @@ HCCL direct transfer cannot do D2RH. Buffer relay on A3 burns HBM bandwidth and 
 
 ### Approach
 
-FabricMem is no longer a side engine. The transport integration layer is `Endpoint` / `Channel` itself: shared code (the registration table, channel table, orchestration, Host VA mapping) lives in the base class, and `HcommEndpoint` / `HcommChannel` and `UbMemEndpoint` / `UbMemChannel` only add protocol specifics. `Endpoint::Create()` picks the concrete type from the protocol: ubmem yields `UbMemEndpoint`, every other protocol yields `HcommEndpoint`; `Endpoint` creates the matching Channel subclass internally instead of exposing that factory to subclasses or callers. Endpoint creation, memory registration/export/import, and logical-channel creation live on these two layers; Hcomm copies keep the existing HcommProxy path, and UBMem memcpy mode is submitted directly by `HixlCSClient`. The only process-wide singleton is the VA pool in `VirtualMemoryManager`, which follows the process lifetime; local registrations and imported mappings belong to each `UbMemEndpoint`. `UbMemAllocator` keeps process-wide state as well: the allocation table (one export per allocation) and the exported-range ledger the ownership check uses. The process-wide settings are the client's or server's own `GlobalConfig`, passed in whole through `Endpoint::Create`. This leaves `Endpoint::Create` as the only protocol branch. Method ownership: `EndpointCreate/Destroy/GetListenPort`, `MemReg/Unreg/Export/Import/Unimport`, and `TranslateRemoteDescs` belong to Endpoint; `ChannelCreate/Destroy/GetStatus` and `ThreadAlloc/ThreadFree` belong to Channel as protocol hooks that `HcommChannel` / `UbMemChannel` override. `TransferPool` registers its slots before any channel exists, so `Initialize` takes the endpoint protocol instead of holding a channel object as the key source. These hooks only take what the object cannot know itself: one Channel is one channel and one Endpoint is one endpoint, so apart from `EndpointCreate` / `ChannelCreate` (which produce the handle) no hook is passed its own handle and the implementations read `GetHandle()`.
+FabricMem is no longer a side engine. The transport integration layer is `Endpoint` / `Channel` itself: shared code (the registration table, channel table, orchestration, Host VA mapping) lives in the base class, and `HcommEndpoint` / `HcommChannel` and `UbMemEndpoint` / `UbMemChannel` only add protocol specifics. `Endpoint::Create()` picks the concrete type from the protocol: ubmem yields `UbMemEndpoint`, every other protocol yields `HcommEndpoint`; `Endpoint` uses an internal `ChannelFactory` to create the matching Channel subclass from the protocol and deployment location; the factory is not exposed to subclasses or callers. Endpoint creation, memory registration/export/import, and logical-channel creation live on these two layers; Hcomm copies keep the existing HcommProxy path, and UBMem memcpy mode is submitted by `UbMemEngine` through `UbMemChannel`. The only process-wide singleton is the VA pool in `VirtualMemoryManager`, which follows the process lifetime; local registrations and imported mappings belong to each `UbMemEndpoint`. `UbMemAllocator` keeps process-wide state as well: the allocation table (one export per allocation) and the exported-range ledger the ownership check uses. The process-wide settings are the client's or server's own `GlobalConfig`, passed in whole through `Endpoint::Create`. Endpoint only picks the endpoint type by protocol; the channel type is picked by `ChannelFactory` from the protocol and deployment location, so no other protocol branch remains. Method ownership: `EndpointCreate/Destroy/GetListenPort`, `MemReg/Unreg/Export/Import/Unimport`, and `TranslateRemoteDescs` belong to Endpoint; the two-phase Channel lifecycle `Initialize`/`Connect`/`Disconnect`/`Destroy`, the data plane `BatchPut/Get{Sync,Async}`, completion `QueryCompleteStatus`, memory registration `RegMem/UnregMem`, and the remote completion flag `SetRemoteMemInfo` are orchestrated by the Channel base class and implemented per protocol by subclasses. `TransferPool` registers its slots before any channel exists, so `ChannelContext` hands the endpoint, device id, configuration, and memory store to the channel through `Initialize` as its single source of inputs for memory registration and the data plane. These hooks only take what the object cannot know itself: one Channel is one channel and one Endpoint is one endpoint, so apart from `EndpointCreate` / `Connect` (which produce the handle) no hook is passed its own handle and the implementations read `GetHandle()`.
 
 Callers have two equivalent switches after parse:
 
@@ -62,8 +62,13 @@ classDiagram
     class DirectMultiChannelHandler
     class HixlCSClient {
         +Connect()
-        +BatchTransferDeviceAsync()
-        +BatchTransferHostAsync()
+        +RegMem()
+        +UnregMem()
+        +BatchPutSync()
+        +BatchGetSync()
+        +BatchPutAsync()
+        +BatchGetAsync()
+        +QueryCompleteStatus()
     }
     class HixlCSServer
     class Endpoint {
@@ -75,12 +80,18 @@ classDiagram
         +TranslateRemoteDescs()
     }
     class Channel {
-        +Create()
+        +Initialize()
+        +Connect()
+        +Disconnect()
         +Destroy()
-        +ChannelCreate()
-        +ChannelGetStatus()
-        +ThreadAlloc(protocol)
-        +ThreadFree(protocol)
+        +BatchPut()
+        +BatchGet()
+        +QueryCompleteStatus()
+        +RegMem()
+        +UnregMem()
+    }
+    class ChannelFactory {
+        +Create(endpoint)
     }
     class HcommEndpoint
     class HcommChannel
@@ -104,7 +115,7 @@ classDiagram
     ClientHandlerFactory --> DirectMultiChannelHandler : UBOE/UBG and workers greater than 1
     DirectClientHandler --> HixlCSClient
     HixlCSClient --> Endpoint
-    Endpoint --> Channel : creates concrete channel
+    Endpoint --> ChannelFactory : creates concrete channel
     Endpoint <|-- UbMemEndpoint
     Endpoint <|-- HcommEndpoint
     Channel <|-- UbMemChannel
@@ -112,7 +123,8 @@ classDiagram
     UbMemEndpoint --> UbMemMemory
     UbMemMemory --> UbMemAllocator
     UbMemMemory --> VirtualMemoryManager
-    HixlCSClient --> TransferPool : AICPU acquires slot per transfer
+    HixlCSClient --> Channel : client_channel_
+    Channel --> TransferPool : acquires a slot per transfer
 ```
 
 ### Enablement, matching, and initialization
@@ -151,7 +163,7 @@ Host memory on HDK 25.5 cannot call `aclrtMemRetainAllocationHandle`. That path 
 - Memory from this process's `MallocMem` is exported only. It is not imported locally. Transfers use the original VA.
 - Foreign memory retains the full PA with `aclrtMemRetainAllocationHandle` and exports by page. Adjacent user ranges may share one PA.
 
-`MemExport` encodes `ShareHandleInfo` as JSON bytes in the CS `export_desc`. On connect, the client `GetRemoteMem`s, the server `ExportMem`s, and the client `ImportMem`s. `ImportMem` decodes the payload and hands the entire list to `UbMemMemory::Import()`; ownership classification, identity binding, and foreign import all remain inside `ubmem_memory.cc`. The server's `ExportMem` only exports the server endpoints held in its own store, so nobody ever fetches the registrations of a client endpoint: on the ubmem path `HixlCSClient::RegMem` / `UnRegMem` therefore return success without a local registration or export.
+`MemExport` encodes `ShareHandleInfo` as JSON bytes in the CS `export_desc`. On connect, the client `GetRemoteMem`s, the server `ExportMem`s, and the client `ImportMem`s. `ImportMem` decodes the payload and hands the entire list to `UbMemMemory::Import()`; ownership classification, identity binding, and foreign import all remain inside `ubmem_memory.cc`. The server's `ExportMem` only exports the server endpoints held in its own store, so nobody ever fetches the registrations of a client endpoint: on the ubmem path `HixlCSClient::RegMem` / `UnregMem` therefore return success without a local registration or export.
 
 - **A range this process exported**: Ownership classification happens inside `UbMemMemory::Import()` and has two sources of evidence: this endpoint's own export records, and the process-wide ledger of exported ranges (`UbMemAllocator::RecordExportedRange` / `IsRangeExportedHere`). A handle is looked up by share handle bytes plus `va_addr` and `len`. A hit means the peer's buffer is already addressable here and is bound directly to its original address: the translation table holds the peer address as both key and value, with no import, no `aclrtMapMem`, and no VMM reservation. The check never compares address numbers, because both processes start their VMM pool at 40 TB and allocate in 1 GB blocks, so cross-process address ranges do collide; an ACL share handle identifies its exporter, so another process's handles never match. No device id takes part: a ubmem endpoint only ever registers memory of the device it runs on, so it never has to tell two devices' registrations apart.
 
@@ -197,8 +209,8 @@ sequenceDiagram
     else otherwise
         Memory->>Acl: ImportFromShareableHandle + MapMem
     end
-    Client->>Ub: ChannelCreate
-    Note over Ub: logical channel, ChannelGetStatus is already connected
+    Client->>Ub: Connect
+    Note over Ub: logical channel, Connect assigns the logical handle
     opt Device client
       Ub->>Ub: acquire TransferPool slot, lazily create ubmem_stream for AICPU
     end
@@ -206,7 +218,7 @@ sequenceDiagram
 
 ### Data transfer
 
-The CS client endpoint is always Device. `HixlCSClient` only dispatches UB_MEM transfers to `UbMemEngine`; non-UB_MEM transfers keep the existing device and host paths. The UB_MEM engine owns mode selection, address rewriting, descriptor preparation, AICPU launch, host-submitted memcpy, completion handles, and failure latching.
+The CS client endpoint is always Device. `HixlCSClient` only calls the `Channel` data-plane entry points (`BatchPut/Get{Sync,Async}`, `QueryCompleteStatus`); UB_MEM is forwarded by `UbMemChannel` to `UbMemEngine`, while non-UB_MEM transfers are served by the matching `HcommHostChannel` / `HcommDeviceChannel`. The UB_MEM engine owns mode selection, address rewriting, descriptor preparation, AICPU launch, host-submitted memcpy, and completion handles; failure latching is handled by the `Channel` base class.
 
 `enable_aicpu_unfold=true` uses the AICPU kernel; `false` uses Host-submitted memcpy on the Device stream. Both paths enter `UbMemEngine::TranslateUbMemOpDescs`, which delegates to `Endpoint::TranslateRemoteDescs`. That ubmem-only hook rewrites `remote_buf` and may expand one descriptor into several; Hcomm uses the base-class default and returns nothing.
 
@@ -217,11 +229,11 @@ An empty result means nothing was rewritten, so the caller's original array is s
 1. `BuildUbMemTransferDescs` splits each op into AICPU descriptors. A copy larger than 4 GiB is cut at the `uint32` max so one descriptor is one SDMA SQE.
 2. Descriptors are copied to Device, then `HixlUbMemBatchRead` / `HixlUbMemBatchWrite` launches. `UbMemAicpuKernelParam` carries translated VA ranges, the worker RTSQ, optional Notify, timeout, and `transfer_ctx_key` — which reuses the slot's `thread`, exactly as the Hcomm AICPU kernels do, instead of minting a second key. The kernel picks the STARS SQE layout from the host-provided `sqe_format`: stars v1 on A2/A3 and stars v2 on A5 (transfer length in word 12, destination stream ids in word 7); either layout is written directly into the worker RTSQ. The kernel must not take communication channel objects.
 3. One kernel accepts at most 128 descriptors. `max_transfer_count_per_batch` is the logical batch and Notify boundary. A kernel never crosses a batch. STARS queue depth still follows the 2K model: 1920 in-flight entries, plus NotifyRecord, plus one ring slot left empty.
-4. Sync transfer uses `aclrtSynchronizeStreamWithTimeout`. Async transfer appends a host-flag D2H on the copy stream and polls the flag. On transfer failure (err flag set, timeout, or submission failure), the slot's err flag is set and `TransferPool::Abort` runs only when the last in-flight handle of that slot is released, so a slot still shared by other handles is not aborted early; the engine itself does not latch failures, and `HixlCSClient` latches once when status query or a sync transfer returns failure.
+4. Sync transfer uses `aclrtSynchronizeStreamWithTimeout`. Async transfer appends a host-flag D2H on the copy stream and polls the flag. On transfer failure (err flag set, timeout, or submission failure), the slot's err flag is set and `TransferPool::Abort` runs only when the last in-flight handle of that slot is released, so a slot still shared by other handles is not aborted early; the engine itself does not latch failures; the `Channel` base class latches once when status query or a transfer returns failure.
 
 **Memcpy mode**
 
-1. `HixlCSClient` calls `aclrtMemcpyAsync(..., DEVICE_TO_DEVICE)` for each descriptor on the Device stream (`slot.stream`) of the slot it acquires for that transfer. It holds the slot until the completion handle is released, so every copy of one transfer lands on that single ordered stream.
+1. `UbMemEngine` (through `UbMemChannel`) calls `aclrtMemcpyAsync(..., DEVICE_TO_DEVICE)` for each descriptor on the Device stream (`slot.stream`) of the slot it acquires for that transfer. It holds the slot until the completion handle is released, so every copy of one transfer lands on that single ordered stream.
 2. READ and WRITE both post immediately; neither fences. UB posts no descriptors, copies on one stream are already ordered, and a fence would have nothing to drain while stalling the host.
 3. `max_transfer_count_per_batch` only slices the submission loop. It does not add extra synchronization at the boundary. The async path appends the host-flag D2H and then records one Notify; completion requires both the flag to be written and NotifyRecord to be submitted. Failure paths set the slot's err flag and abort it when the last in-flight handle of that slot is released, as described in AICPU step 4.
 4. A larger worker count does not split UB_MEM across multiple CS clients.
@@ -233,30 +245,33 @@ sequenceDiagram
     participant User
     participant Engine as HixlEngine
     participant Client as HixlCSClient
-    participant Ub as UbMemEndpoint
+    participant Chan as Channel
+    participant Ub as UbMemChannel / UbMemEngine
     participant Pool as TransferPool
     participant Acl as ACL
 
     User->>Engine: TransferSync(WRITE, op_descs)
-    Engine->>Client: BatchTransfer*
-    Client->>Ub: TranslateRemoteDescs
+    Engine->>Client: BatchPutSync / BatchGetSync
+    Client->>Chan: BatchPutSync / BatchGetSync
+    Chan->>Ub: SubmitSync / SubmitAsync
+    Ub->>Ub: TranslateUbMemOpDescs → Endpoint::TranslateRemoteDescs
     alt Device AICPU
-        Client->>Pool: Acquire slot
-        Client->>Acl: H2D descriptors + Launch HixlUbMemBatchWrite
-        Acl-->>Client: Notify or SynchronizeStream
+        Ub->>Pool: Acquire slot
+        Ub->>Acl: H2D descriptors + Launch HixlUbMemBatchWrite
+        Acl-->>Ub: Notify or SynchronizeStream
     else memcpy mode
         loop each translated descriptor
-            Client->>Ub: aclrtMemcpyAsync
-    Ub->>Acl: aclrtMemcpyAsync on slot stream
+            Ub->>Acl: aclrtMemcpyAsync on slot stream
         end
-        Client->>Acl: host flag D2H + RecordNotify
+        Ub->>Acl: host flag D2H + RecordNotify
     end
+    Chan-->>Client: SUCCESS or error
     Client-->>User: SUCCESS or error
 ```
 
 ### Cleanup, concurrency, and heartbeat
 
-`Disconnect` / `Finalize` stay on the CS path: `ClientManager::DestroyClient` → handler `Finalize` → `HixlCSClient::Destroy`. Destroy runs `AbortAllPendingDeviceHandles()` first, then `Endpoint::Finalize`: destroy channels, `MemUnreg`, `EndpointDestroy`. `EndpointDestroy` drops local registrations, while an already imported remote mapping is released normally through `UnimportMem` (via `ClearRemoteMemInfo`); the unmap inside `UbMemMemory` on endpoint destroy is only a backstop. The pool frees each slot's `ubmem_stream` on abort and teardown.
+`Disconnect` / `Finalize` stay on the CS path: `ClientManager::DestroyClient` → handler `Finalize` → `HixlCSClient::Destroy`. Destroy runs `client_channel_->Destroy()` first (the device channel aborts in-flight handles and releases notify resources, and `UbMemChannel` closes `UbMemEngine`, before the transport is torn down), then `ClearRemoteMemInfo()`, and finally `Endpoint::Finalize`: `MemUnreg`, `EndpointDestroy`. `EndpointDestroy` drops local registrations, while an already imported remote mapping is released normally through `UnimportMem` (via `ClearRemoteMemInfo`); the unmap inside `UbMemMemory` on endpoint destroy is only a backstop. The pool frees each slot's `ubmem_stream` on abort and teardown.
 
 Peer liveness stays on CS. With `auto_connect`, `ClientManager` sends heartbeats and DestroyClient on failure. The server reclaims sessions with `EPOLLRDHUP` and TCP keepalive. `enable_fabric_mem` does not start its own heartbeat thread.
 
@@ -342,8 +357,8 @@ Status TransferOneBatch(UbMemEngine &engine, bool is_get, const HixlOneSideOpDes
 | Loopback ownership | `UbMemMemory::Import` | the endpoint's or this process's export record matches; flipped handle bytes or a changed va/len do not; the identity path imports nothing and maps nothing, and `Finalize` unmaps nothing; a desc with flipped handle bytes still takes the import path; an export ends with the registration that holds it |
 | Descriptor codec | `EncodeShareHandles` / `DecodeShareHandles` | round-trip keeps va/len/share_handle/mem_type; empty payload fails |
 | Switch equivalence | `HixlOptions::ApplyUbMemEquivalence` | `EnableUseFabricMem=1` injects `ubmem`; `task_stream_num` aligns with `num_workers`; AICPU with workers>1 returns `PARAM_INVALID` |
-| Logical channel | `UbMemChannel::ChannelCreate` | Hcomm is not called; creating a channel claims no slot; `ChannelGetStatus` is connected; `Channel::ThreadAlloc` mints non-zero, distinct keys for UB_MEM by protocol |
-| Memcpy submission | `HixlCSClient` Device ubmem | memcpy mode submits `aclrtMemcpyAsync` without a kernel launch; each transfer claims or reuses a pool slot through `AcquireSharedSlot` and holds it until its completion handle is released; async completion requires the host flag and NotifyRecord |
+| Logical channel | `UbMemChannel::Connect` | Hcomm is not called; creating a channel claims no slot; `Connect` assigns the logical handle |
+| Memcpy submission | `UbMemEngine` (through `UbMemChannel`) | memcpy mode submits `aclrtMemcpyAsync` without a kernel launch; each transfer claims or reuses a pool slot through `AcquireSharedSlot` and holds it until its completion handle is released; async completion requires the host flag and NotifyRecord |
 | AICPU params | `BuildUbMemTransferDescs` / kernel UT | >4 GiB splits; direction, RTSQ, Notify, timeout, and `transfer_ctx_key` land in `UbMemAicpuKernelParam` |
 | VMM allocation | `VirtualMemoryManager` / `UbMemAllocator` | reserve/release, Host SetAccess, Map failure rollback, non-Malloc addresses cannot export |
 | Engine routing | `EngineFactory` / `HixlEngine` | FabricMem on creates `HixlEngine`; Connect to self is allowed; Connect to self is rejected when FabricMem is off |

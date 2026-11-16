@@ -51,23 +51,45 @@ struct CleanupGate {
 
 class BlockingCleanupChannel : public Channel {
  public:
-  explicit BlockingCleanupChannel(std::shared_ptr<CleanupGate> gate) : gate_(std::move(gate)) {}
-
- protected:
-  HcclResult ChannelCreate(EndpointHandle, CommEngine, HcommChannelDesc &, ChannelHandle &handle) override {
-    handle = 1UL;
-    return HCCL_SUCCESS;
+  explicit BlockingCleanupChannel(std::shared_ptr<CleanupGate> gate) : gate_(std::move(gate)) {
+    channel_handle_ = 1UL;
   }
-  HcclResult ChannelDestroy() override {
+
+  Status Initialize(const ChannelContext &) override {
+    return SUCCESS;
+  }
+  Status Connect(const ChannelDesc &, uint32_t) override {
+    return SUCCESS;
+  }
+  Status Disconnect() override {
+    return SUCCESS;
+  }
+  Status Destroy() override {
     if (gate_->calls.fetch_add(1U) == 0U) {
       gate_->started.set_value();
     }
     gate_->released.wait();
-    return gate_->fail_destroy_once.exchange(false) ? HCCL_E_INTERNAL : HCCL_SUCCESS;
+    return gate_->fail_destroy_once.exchange(false) ? FAILED : SUCCESS;
   }
-  HcclResult ChannelGetStatus(int32_t &status) const override {
-    status = 0;
-    return HCCL_SUCCESS;
+  Status QueryCompleteStatus(void *, HixlCompleteStatus *) override {
+    return SUCCESS;
+  }
+  Status RegMem(const char *, const CommMem *, MemHandle *) override {
+    return SUCCESS;
+  }
+  Status UnregMem(MemHandle) override {
+    return SUCCESS;
+  }
+  Status SetRemoteMemInfo(const CommMem &) override {
+    return SUCCESS;
+  }
+
+ protected:
+  Status DoBatchTransferSync(bool, const HixlOneSideOpDesc *, uint32_t, uint32_t) override {
+    return SUCCESS;
+  }
+  Status DoBatchTransferAsync(bool, const HixlOneSideOpDesc *, uint32_t, void **) override {
+    return SUCCESS;
   }
 
  private:
@@ -110,8 +132,6 @@ class HixlCSCleanupUt : public test::PlainTlsTest {
   void AddBlockedChannel(CtrlMsgPluginPtr &connection) {
     ASSERT_NO_FATAL_FAILURE(AddClient(connection));
     auto channel = std::make_shared<BlockingCleanupChannel>(gate_);
-    HcommChannelDesc desc{};
-    ASSERT_EQ(channel->Create(*endpoint_, desc, CommEngine::COMM_ENGINE_CPU, 1000U), SUCCESS);
     endpoint_->channels_[channel->GetHandle()] = channel;
     server_->channels_[connection] = {endpoint_handle_, channel->GetHandle()};
   }

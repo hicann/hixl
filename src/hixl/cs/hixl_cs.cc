@@ -186,7 +186,7 @@ HixlStatus HixlCSClientUnregMem(HixlClientHandle client_handle, MemHandle mem_ha
   HIXL_CHECK_NOTNULL(client_handle);
   HIXL_CHECK_NOTNULL(mem_handle);
   auto client = static_cast<hixl::HixlCSClient *>(client_handle);
-  HIXL_CHK_STATUS_RET(client->UnRegMem(mem_handle), "HixlCSClientUnregMem failed, client_handle is %p, mem_handle:%p.",
+  HIXL_CHK_STATUS_RET(client->UnregMem(mem_handle), "HixlCSClientUnregMem failed, client_handle is %p, mem_handle:%p.",
                       client_handle, mem_handle);
   return HIXL_SUCCESS;
 }
@@ -205,7 +205,7 @@ HixlStatus HixlCSClientBatchPutAsync(HixlClientHandle client_handle, uint32_t li
   HIXL_CHECK_NOTNULL(complete_handle);
   auto client = static_cast<hixl::HixlCSClient *>(client_handle);
   void *raw_handle = nullptr;
-  const auto ret = client->BatchTransferAsync(false, list_num, desc_list, &raw_handle);
+  const auto ret = client->BatchPutAsync(desc_list, list_num, &raw_handle);
   if (raw_handle != nullptr) {
     *complete_handle = raw_handle;
     HIXL_LOGI("HixlCSClientBatchPutAsync complete_handle create, complete_handle is %p.", raw_handle);
@@ -229,7 +229,7 @@ HixlStatus HixlCSClientBatchGetAsync(HixlClientHandle client_handle, uint32_t li
   HIXL_CHECK_NOTNULL(complete_handle);
   auto client = static_cast<hixl::HixlCSClient *>(client_handle);
   void *raw_handle = nullptr;
-  const auto ret = client->BatchTransferAsync(true, list_num, desc_list, &raw_handle);
+  const auto ret = client->BatchGetAsync(desc_list, list_num, &raw_handle);
   if (raw_handle != nullptr) {
     *complete_handle = raw_handle;
     HIXL_LOGI("HixlCSClientBatchGetAsync complete_handle create, complete_handle is %p.", raw_handle);
@@ -251,7 +251,7 @@ HixlStatus HixlCSClientBatchPutSync(HixlClientHandle client_handle, uint32_t lis
     return HIXL_PARAM_INVALID;
   }
   auto client = static_cast<hixl::HixlCSClient *>(client_handle);
-  HIXL_CHK_STATUS_RET(client->BatchTransferSync(false, list_num, desc_list, timeout_ms),
+  HIXL_CHK_STATUS_RET(client->BatchPutSync(desc_list, list_num, timeout_ms),
                       "HixlCSClientBatchPutSync failed, client_handle is %p, list_num:%u", client_handle, list_num);
   return HIXL_SUCCESS;
 }
@@ -268,7 +268,7 @@ HixlStatus HixlCSClientBatchGetSync(HixlClientHandle client_handle, uint32_t lis
     return HIXL_PARAM_INVALID;
   }
   auto client = static_cast<hixl::HixlCSClient *>(client_handle);
-  HIXL_CHK_STATUS_RET(client->BatchTransferSync(true, list_num, desc_list, timeout_ms),
+  HIXL_CHK_STATUS_RET(client->BatchGetSync(desc_list, list_num, timeout_ms),
                       "HixlCSClientBatchGetSync failed, client_handle is %p, list_num:%u", client_handle, list_num);
   return HIXL_SUCCESS;
 }
@@ -279,7 +279,7 @@ HixlStatus HixlCSClientQueryCompleteStatus(HixlClientHandle client_handle, Compl
   HIXL_CHECK_NOTNULL(complete_handle);
   HIXL_CHECK_NOTNULL(complete_status);
   auto client = static_cast<hixl::HixlCSClient *>(client_handle);
-  HIXL_CHK_STATUS_RET(client->CheckStatus(complete_handle, complete_status),
+  HIXL_CHK_STATUS_RET(client->QueryCompleteStatus(complete_handle, complete_status),
                       "HixlCSClientQueryCompleteStatus failed, client_handle is %p.", client_handle);
   return HIXL_SUCCESS;
 }

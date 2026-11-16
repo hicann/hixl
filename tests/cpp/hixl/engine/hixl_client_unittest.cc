@@ -29,6 +29,7 @@
 
 #include "cs/hixl_cs.h"
 #include "cs/hixl_cs_client.h"
+#include "cs/hcomm_host_channel.h"
 #include "engine/endpoint_test_utils.h"
 #define private public
 #include "engine/hixl_client.h"
@@ -1288,6 +1289,7 @@ TEST_F(HixlClientUTest, DirectClientHandlerSingleHandle) {
 TEST_F(HixlClientUTest, DirectClientHandlerGetTransferStatusWaiting) {
   constexpr uint32_t kRoceCompleteMagicForTest = 0x524F4345U;
   HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
   DirectClientHandler handler(static_cast<HixlClientHandle>(&client));
   uint64_t flag = 0;
   CompleteHandleInfo complete_handle{};
@@ -1820,6 +1822,7 @@ TEST_F(HixlClientUTest, UbClientHandlerGetTransferStatusInvalidReq) {
 
 TEST_F(HixlClientUTest, UbClientHandlerGetTransferStatusWaiting) {
   HixlCSClient client;
+  ASSERT_EQ(CreateStatusHostClient(client), SUCCESS);
   UbClientHandler handler({{CommType::COMM_TYPE_UB_D2D, static_cast<HixlClientHandle>(&client)}});
   uint64_t flag = 0;
   auto *complete_handle = MakeHostCompleteHandle(&flag);

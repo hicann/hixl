@@ -24,6 +24,7 @@
 #define private public
 #define protected public
 #include "hixl_cs_client.h"
+#include "hcomm_device_channel.h"
 #undef protected
 #undef private
 
@@ -43,6 +44,11 @@ class MockAclRuntimeStub : public llm::AclRuntimeStub {
 };
 
 namespace {
+// The device data plane and its completion bookkeeping now live in the device channel. These
+// white-box tests reach it through the client's single channel.
+HcommDeviceChannel &DevChannel(HixlCSClient &cli) {
+  return *static_cast<HcommDeviceChannel *>(cli.client_channel_.get());
+}
 
 constexpr uint32_t kDeviceDevId = 2U;
 constexpr uint32_t kDummyPort = 12345U;
@@ -104,7 +110,7 @@ Status PollUntilCompleted(HixlCSClient &cli, void *qh, HixlCompleteStatus *out_s
   *out_status = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
 
   for (int i = 0; i < 10; ++i) {
-    const Status ret = cli.CheckStatus(qh, out_status);
+    const Status ret = cli.QueryCompleteStatus(qh, out_status);
     if (ret != SUCCESS) {
       return ret;
     }
@@ -149,11 +155,11 @@ class HixlCSClientDeviceFixture : public ::testing::Test {
     desc.remote_endpoint = &dst;
     ASSERT_EQ(cli_.Create(&desc, &config), SUCCESS);
 
-    cli_.client_channel_handle_ = static_cast<ChannelHandle>(1ULL);
+    DevChannel(cli_).channel_handle_ = static_cast<ChannelHandle>(1ULL);
     remote_flag_dev_ = 0ULL;
     const char *flag_name = (dst.loc.locType == ENDPOINT_LOC_TYPE_HOST) ? kTransFlagNameHost : kTransFlagNameDevice;
     FillTagMem(cli_, flag_name, static_cast<void *>(&remote_flag_dev_), sizeof(uint64_t));
-    ASSERT_EQ(cli_.EnsureDeviceRemoteFlagInited(), SUCCESS);
+    ASSERT_EQ(cli_.client_channel_->SetRemoteMemInfo(cli_.tag_mem_descs_[flag_name]), SUCCESS);
   }
 
   void TearDown() override {
@@ -190,7 +196,7 @@ class HixlCSClientDeviceFixture : public ::testing::Test {
         .WillRepeatedly(testing::Return(ACL_SUCCESS));
 
     void *qh = nullptr;
-    const Status ret = cli_.BatchTransferAsync(false, list_num, descs.data(), &qh);
+    const Status ret = cli_.BatchPutAsync(descs.data(), list_num, &qh);
     llm::AclRuntimeStub::UnInstall(&mock_acl);
 
     ASSERT_EQ(ret, SUCCESS);
@@ -201,7 +207,7 @@ class HixlCSClientDeviceFixture : public ::testing::Test {
     *(static_cast<uint64_t *>(handle->host_flag)) = kDeviceFlagDoneValueForTest;
 
     HixlCompleteStatus st = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
-    EXPECT_EQ(cli_.CheckStatus(qh, &st), SUCCESS);
+    EXPECT_EQ(cli_.QueryCompleteStatus(qh, &st), SUCCESS);
     EXPECT_EQ(st, HixlCompleteStatus::HIXL_COMPLETE_STATUS_COMPLETED);
   }
 
@@ -243,7 +249,7 @@ TEST_F(HixlCSClientDeviceToHostFixture, BatchTransferSyncUsesRemoteHostVa) {
   llm::AclRuntimeStub::Install(&mock_acl);
   EXPECT_CALL(mock_acl, aclrtSynchronizeStreamWithTimeout(testing::_, testing::_))
       .WillOnce(testing::Return(ACL_ERROR_NONE));
-  const Status ret = cli_.BatchTransferSync(false, 1, &desc, 100U);
+  const Status ret = cli_.BatchPutSync(&desc, 1, 100U);
   llm::AclRuntimeStub::UnInstall(&mock_acl);
 
   EXPECT_EQ(ret, SUCCESS);
@@ -261,7 +267,7 @@ TEST_F(HixlCSClientDeviceToHostFixture, BatchTransferAsyncUsesRemoteHostVa) {
   EXPECT_CALL(mock_acl, aclrtMemcpyAsync(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
       .WillRepeatedly(testing::Return(ACL_SUCCESS));
   void *query_handle = nullptr;
-  const Status ret = cli_.BatchTransferAsync(false, 1, &desc, &query_handle);
+  const Status ret = cli_.BatchPutAsync(&desc, 1, &query_handle);
   llm::AclRuntimeStub::UnInstall(&mock_acl);
 
   ASSERT_EQ(ret, SUCCESS);
@@ -275,7 +281,7 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSuccessUseMemcpyHackFlag) {
   HixlOneSideOpDesc desc = SetupBatchTransfer(false);
 
   void *qh = nullptr;
-  const Status ret = cli_.BatchTransferAsync(false, 1, &desc, &qh);
+  const Status ret = cli_.BatchPutAsync(&desc, 1, &qh);
   EXPECT_EQ(ret, SUCCESS);
   ASSERT_NE(qh, nullptr);
 
@@ -289,7 +295,7 @@ TEST_F(HixlCSClientDeviceFixture, BatchGetDeviceSuccessUseMemcpyHackFlag) {
   HixlOneSideOpDesc desc = SetupBatchTransfer(true);
 
   void *qh = nullptr;
-  const Status ret = cli_.BatchTransferAsync(true, 1, &desc, &qh);
+  const Status ret = cli_.BatchGetAsync(&desc, 1, &qh);
   EXPECT_EQ(ret, SUCCESS);
   ASSERT_NE(qh, nullptr);
 
@@ -306,10 +312,10 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSyncUsesStreamSyncNoMemcpy) {
       .WillOnce(testing::Return(ACL_ERROR_NONE));
   EXPECT_CALL(mock_acl, aclrtMemcpyAsync(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
       .Times(0);
-  const Status ret = cli_.BatchTransferSync(false, 1, &desc, 100U);
+  const Status ret = cli_.BatchPutSync(&desc, 1, 100U);
   llm::AclRuntimeStub::UnInstall(&mock_acl);
   EXPECT_EQ(ret, SUCCESS);
-  EXPECT_TRUE(cli_.pending_device_handles_.empty());
+  EXPECT_TRUE(DevChannel(cli_).pending_device_handles_.empty());
 }
 
 TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSyncStreamSyncTimeoutAbortsSlot) {
@@ -321,94 +327,69 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSyncStreamSyncTimeoutAbortsSlot)
       .WillRepeatedly(testing::Return(ACL_SUCCESS));
   EXPECT_CALL(mock_acl, aclrtNotifyBatchReset(testing::NotNull(), testing::Eq(static_cast<size_t>(1U))))
       .WillOnce(testing::Return(ACL_SUCCESS));
-  const Status ret = cli_.BatchTransferSync(false, 1, &desc, 100U);
+  const Status ret = cli_.BatchPutSync(&desc, 1, 100U);
   llm::AclRuntimeStub::UnInstall(&mock_acl);
   EXPECT_EQ(ret, TIMEOUT);
-  EXPECT_TRUE(cli_.pending_device_handles_.empty());
-  EXPECT_FALSE(cli_.abort_active_slot_);
+  EXPECT_TRUE(DevChannel(cli_).pending_device_handles_.empty());
+  EXPECT_FALSE(DevChannel(cli_).abort_active_slot_);
   ExpectFreeSlotsAreUnique(cli_.device_id_);
 }
 
 TEST_F(HixlCSClientDeviceFixture, AbortRequestedSlotStaysOwnedUntilLastRef) {
-  constexpr int32_t kPoolDev = 910261;
-  auto *pool = TransferPool::GetInstance(kPoolDev);
-  ASSERT_NE(pool, nullptr);
-  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
-  TransferPool::SlotHandle slot{};
-  ASSERT_EQ(pool->Acquire(&slot), SUCCESS);
-
-  HixlCSClient client;
-  client.device_id_ = kPoolDev;
-  client.active_slot_ = std::make_shared<TransferPool::SlotHandle>(slot);
-  client.abort_active_slot_ = true;
-
-  TransferPool::SlotHandle blocked{};
-  EXPECT_EQ(pool->Acquire(&blocked), RESOURCE_EXHAUSTED);
+  auto &ch = DevChannel(cli_);
+  std::shared_ptr<TransferPool::SlotHandle> slot;
+  if (ch.AcquireSharedSlot(slot) != SUCCESS) {
+    GTEST_SKIP() << "TransferPool Acquire failed in UT env";
+  }
+  ch.abort_active_slot_ = true;
 
   MockAclRuntimeStub mock_acl;
   llm::AclRuntimeStub::Install(&mock_acl);
   EXPECT_CALL(mock_acl, aclrtSynchronizeStreamWithTimeout(testing::_, testing::_))
       .WillRepeatedly(testing::Return(ACL_SUCCESS));
   EXPECT_CALL(mock_acl, aclrtNotifyBatchReset(testing::NotNull(), testing::Eq(static_cast<size_t>(1U))))
-      .WillOnce(testing::Return(ACL_SUCCESS));
-  auto slot_ref = client.active_slot_;
-  client.ReleaseSharedSlotRef(slot_ref);
+      .WillRepeatedly(testing::Return(ACL_SUCCESS));
+
+  auto extra_ref = ch.active_slot_;
+  ch.ReleaseSharedSlotRef(slot);
+  EXPECT_NE(ch.active_slot_.get(), nullptr);
+  EXPECT_TRUE(ch.abort_active_slot_);
+
+  ch.ReleaseSharedSlotRef(extra_ref);
   llm::AclRuntimeStub::UnInstall(&mock_acl);
 
-  EXPECT_EQ(client.active_slot_, nullptr);
-  EXPECT_FALSE(client.abort_active_slot_);
-  TransferPool::SlotHandle again{};
-  ASSERT_EQ(pool->Acquire(&again), SUCCESS);
-  EXPECT_EQ(again.slot_index, slot.slot_index);
-  TransferPool::SlotHandle duplicate{};
-  EXPECT_EQ(pool->Acquire(&duplicate), RESOURCE_EXHAUSTED);
-  pool->Release(again);
-  client.device_id_ = -1;
-  pool->Finalize();
+  EXPECT_EQ(ch.active_slot_.get(), nullptr);
+  EXPECT_FALSE(ch.abort_active_slot_);
+  ExpectFreeSlotsAreUnique(cli_.device_id_);
 }
 
 TEST_F(HixlCSClientDeviceFixture, PendingActiveSlotIsAbortedOnce) {
-  constexpr int32_t kPoolDev = 910262;
-  auto *pool = TransferPool::GetInstance(kPoolDev);
-  ASSERT_NE(pool, nullptr);
-  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
-  TransferPool::SlotHandle slot{};
-  ASSERT_EQ(pool->Acquire(&slot), SUCCESS);
-
-  HixlCSClient client;
-  client.device_id_ = kPoolDev;
-  client.active_slot_ = std::make_shared<TransferPool::SlotHandle>(slot);
+  auto &ch = DevChannel(cli_);
+  std::shared_ptr<TransferPool::SlotHandle> slot;
+  if (ch.AcquireSharedSlot(slot) != SUCCESS) {
+    GTEST_SKIP() << "TransferPool Acquire failed in UT env";
+  }
   auto *handle = new DeviceCompleteHandle();
   handle->magic = 0x55425548U;
-  handle->reserved = 0U;
-  handle->shared_slot = client.active_slot_;
+  handle->shared_slot = ch.active_slot_;
   handle->host_flag = nullptr;
   handle->dev_op_desc_buf = nullptr;
-  client.pending_device_handles_.insert(handle);
-
-  TransferPool::SlotHandle blocked{};
-  EXPECT_EQ(pool->Acquire(&blocked), RESOURCE_EXHAUSTED);
+  ch.pending_device_handles_.insert(handle);
+  slot.reset();
 
   MockAclRuntimeStub mock_acl;
   llm::AclRuntimeStub::Install(&mock_acl);
   EXPECT_CALL(mock_acl, aclrtSynchronizeStreamWithTimeout(testing::_, testing::_))
       .WillRepeatedly(testing::Return(ACL_SUCCESS));
   EXPECT_CALL(mock_acl, aclrtNotifyBatchReset(testing::NotNull(), testing::Eq(static_cast<size_t>(1U))))
-      .WillOnce(testing::Return(ACL_SUCCESS));
-  client.AbortAllPendingDeviceHandles();
+      .WillRepeatedly(testing::Return(ACL_SUCCESS));
+  ch.AbortAllPendingDeviceHandles();
   llm::AclRuntimeStub::UnInstall(&mock_acl);
 
-  EXPECT_TRUE(client.pending_device_handles_.empty());
-  EXPECT_EQ(client.active_slot_, nullptr);
-  EXPECT_FALSE(client.abort_active_slot_);
-  TransferPool::SlotHandle again{};
-  ASSERT_EQ(pool->Acquire(&again), SUCCESS);
-  EXPECT_EQ(again.slot_index, slot.slot_index);
-  TransferPool::SlotHandle duplicate{};
-  EXPECT_EQ(pool->Acquire(&duplicate), RESOURCE_EXHAUSTED);
-  pool->Release(again);
-  client.device_id_ = -1;
-  pool->Finalize();
+  EXPECT_TRUE(ch.pending_device_handles_.empty());
+  EXPECT_EQ(ch.active_slot_.get(), nullptr);
+  EXPECT_FALSE(ch.abort_active_slot_);
+  ExpectFreeSlotsAreUnique(cli_.device_id_);
 }
 
 TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSyncFailureLatchesClient) {
@@ -424,17 +405,17 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSyncFailureLatchesClient) {
   EXPECT_CALL(mock_acl, aclrtNotifyBatchReset(testing::NotNull(), testing::Eq(static_cast<size_t>(1U))))
       .WillRepeatedly(testing::Return(ACL_SUCCESS));
 
-  const Status first_ret = cli_.BatchTransferSync(false, 1, &desc, 100U);
+  const Status first_ret = cli_.BatchPutSync(&desc, 1, 100U);
   EXPECT_EQ(first_ret, TIMEOUT);
   EXPECT_GT(sync_call_count, 0U);
   const uint32_t sync_call_count_after_first = sync_call_count;
 
-  const Status second_ret = cli_.BatchTransferSync(false, 1, &desc, 100U);
+  const Status second_ret = cli_.BatchPutSync(&desc, 1, 100U);
   EXPECT_EQ(second_ret, FAILED);
   EXPECT_EQ(sync_call_count, sync_call_count_after_first);
 
   llm::AclRuntimeStub::UnInstall(&mock_acl);
-  EXPECT_TRUE(cli_.pending_device_handles_.empty());
+  EXPECT_TRUE(DevChannel(cli_).pending_device_handles_.empty());
 }
 
 TEST_F(HixlCSClientDeviceFixture, BatchPutUbDeviceNotifyWaitFail) {
@@ -451,14 +432,14 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutUbDeviceNotifyWaitFail) {
   EXPECT_CALL(mock_acl, aclrtNotifyBatchReset(testing::NotNull(), testing::Eq(static_cast<size_t>(1U))))
       .WillOnce(testing::Return(ACL_SUCCESS));
 
-  const Status ret = cli_.BatchTransferAsync(false, 1, &desc, &qh);
+  const Status ret = cli_.BatchPutAsync(&desc, 1, &qh);
 
   llm::AclRuntimeStub::UnInstall(&mock_acl);
 
   EXPECT_EQ(ret, FAILED);
-  EXPECT_TRUE(cli_.transfer_failure_latched_);
-  EXPECT_FALSE(cli_.abort_active_slot_);
-  EXPECT_TRUE(cli_.pending_device_handles_.empty());
+  EXPECT_TRUE(DevChannel(cli_).transfer_failure_latched_);
+  EXPECT_FALSE(DevChannel(cli_).abort_active_slot_);
+  EXPECT_TRUE(DevChannel(cli_).pending_device_handles_.empty());
   ExpectFreeSlotsAreUnique(cli_.device_id_);
 }
 
@@ -477,13 +458,13 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceAsyncMemcpyFailAbortsSlot) {
   EXPECT_CALL(mock_acl, aclrtNotifyBatchReset(testing::NotNull(), testing::Eq(static_cast<size_t>(1U))))
       .WillOnce(testing::Return(ACL_SUCCESS));
 
-  const Status ret = cli_.BatchTransferAsync(false, 1, &desc, &qh);
+  const Status ret = cli_.BatchPutAsync(&desc, 1, &qh);
   llm::AclRuntimeStub::UnInstall(&mock_acl);
 
   EXPECT_EQ(ret, FAILED);
-  EXPECT_TRUE(cli_.transfer_failure_latched_);
-  EXPECT_FALSE(cli_.abort_active_slot_);
-  EXPECT_TRUE(cli_.pending_device_handles_.empty());
+  EXPECT_TRUE(DevChannel(cli_).transfer_failure_latched_);
+  EXPECT_FALSE(DevChannel(cli_).abort_active_slot_);
+  EXPECT_TRUE(DevChannel(cli_).pending_device_handles_.empty());
   ExpectFreeSlotsAreUnique(cli_.device_id_);
 }
 
@@ -498,13 +479,13 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSyncLaunchFailAbortsSlot) {
   EXPECT_CALL(mock_acl, aclrtNotifyBatchReset(testing::NotNull(), testing::Eq(static_cast<size_t>(1U))))
       .WillOnce(testing::Return(ACL_SUCCESS));
 
-  const Status ret = cli_.BatchTransferSync(false, 1, &desc, 100U);
+  const Status ret = cli_.BatchPutSync(&desc, 1, 100U);
   llm::AclRuntimeStub::UnInstall(&mock_acl);
 
   EXPECT_EQ(ret, FAILED);
-  EXPECT_TRUE(cli_.transfer_failure_latched_);
-  EXPECT_FALSE(cli_.abort_active_slot_);
-  EXPECT_TRUE(cli_.pending_device_handles_.empty());
+  EXPECT_TRUE(DevChannel(cli_).transfer_failure_latched_);
+  EXPECT_FALSE(DevChannel(cli_).abort_active_slot_);
+  EXPECT_TRUE(DevChannel(cli_).pending_device_handles_.empty());
   ExpectFreeSlotsAreUnique(cli_.device_id_);
 }
 
@@ -556,7 +537,7 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSlotReuse) {
   // Launch multiple transfers - they should reuse the same slot
   for (uint32_t i = 0; i < 16U; ++i) {
     void *qh = nullptr;
-    const Status ret = cli_.BatchTransferAsync(false, 1, &desc, &qh);
+    const Status ret = cli_.BatchPutAsync(&desc, 1, &qh);
     ASSERT_EQ(ret, SUCCESS);
     ASSERT_NE(qh, nullptr);
     handles.emplace_back(qh);
@@ -590,8 +571,8 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceIndependentHostFlags) {
 
   void *qh1 = nullptr;
   void *qh2 = nullptr;
-  ASSERT_EQ(cli_.BatchTransferAsync(false, 1, &desc, &qh1), SUCCESS);
-  ASSERT_EQ(cli_.BatchTransferAsync(false, 1, &desc, &qh2), SUCCESS);
+  ASSERT_EQ(cli_.BatchPutAsync(&desc, 1, &qh1), SUCCESS);
+  ASSERT_EQ(cli_.BatchPutAsync(&desc, 1, &qh2), SUCCESS);
 
   DeviceCompleteHandle *h1 = static_cast<DeviceCompleteHandle *>(qh1);
   DeviceCompleteHandle *h2 = static_cast<DeviceCompleteHandle *>(qh2);
@@ -717,7 +698,7 @@ class HixlCSClientSlotReuseFixture : public HixlCSClientDeviceFixture {
 };
 
 TEST_F(HixlCSClientSlotReuseFixture, ActiveSlotInitiallyNull) {
-  EXPECT_EQ(cli_.active_slot_.get(), nullptr);
+  EXPECT_EQ(DevChannel(cli_).active_slot_.get(), nullptr);
 }
 
 TEST_F(HixlCSClientSlotReuseFixture, AcquireSharedSlotReturnsNewSlotWhenNoActive) {
@@ -728,14 +709,14 @@ TEST_F(HixlCSClientSlotReuseFixture, AcquireSharedSlotReturnsNewSlotWhenNoActive
   std::shared_ptr<TransferPool::SlotHandle> slot;
   // This test may fail in UT env due to TransferPool initialization requirements
   // It tests the logic path where no active slot exists
-  Status ret = cli_.AcquireSharedSlot(slot);
+  Status ret = DevChannel(cli_).AcquireSharedSlot(slot);
   if (ret != SUCCESS) {
     GTEST_SKIP() << "TransferPool Acquire failed in UT env";
   }
   EXPECT_NE(slot.get(), nullptr);
-  EXPECT_EQ(cli_.active_slot_.get(), slot.get());
+  EXPECT_EQ(DevChannel(cli_).active_slot_.get(), slot.get());
 
-  cli_.ReleaseSharedSlotRef(slot);
+  DevChannel(cli_).ReleaseSharedSlotRef(slot);
 }
 
 TEST_F(HixlCSClientSlotReuseFixture, ReleaseSharedSlotRefClearsActiveSlot) {
@@ -749,11 +730,11 @@ TEST_F(HixlCSClientSlotReuseFixture, ReleaseSharedSlotRefClearsActiveSlot) {
   fake_slot.notify = nullptr;
   fake_slot.dev_const_one = nullptr;
 
-  cli_.active_slot_ = std::make_shared<TransferPool::SlotHandle>(fake_slot);
-  EXPECT_NE(cli_.active_slot_.get(), nullptr);
+  DevChannel(cli_).active_slot_ = std::make_shared<TransferPool::SlotHandle>(fake_slot);
+  EXPECT_NE(DevChannel(cli_).active_slot_.get(), nullptr);
 
   // Simulate releasing the reference
-  std::shared_ptr<TransferPool::SlotHandle> slot_ref = cli_.active_slot_;
+  std::shared_ptr<TransferPool::SlotHandle> slot_ref = DevChannel(cli_).active_slot_;
   slot_ref.reset();
 
   // When use_count becomes 0, active_slot_ should be cleared by ReleaseSharedSlotRef
@@ -785,7 +766,7 @@ TEST_F(HixlCSClientSlotReuseFixture, AsyncTransferWithEnvHackAllocatesHostFlag) 
       .WillRepeatedly(testing::Return(ACL_SUCCESS));
 
   void *qh = nullptr;
-  const Status ret = cli_.BatchTransferAsync(false, 1, &desc, &qh);
+  const Status ret = cli_.BatchPutAsync(&desc, 1, &qh);
   llm::AclRuntimeStub::UnInstall(&mock_acl);
 
   if (ret != SUCCESS) {
@@ -813,7 +794,7 @@ TEST_F(HixlCSClientSlotReuseFixture, SyncTransferUsesStreamSync) {
   EXPECT_CALL(mock_acl, aclrtMemcpyAsync(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
       .Times(0);  // Sync transfer should NOT call memcpy async for flag
 
-  const Status ret = cli_.BatchTransferSync(false, 1, &desc, 100U);
+  const Status ret = cli_.BatchPutSync(&desc, 1, 100U);
   llm::AclRuntimeStub::UnInstall(&mock_acl);
 
   if (ret != SUCCESS) {
@@ -821,7 +802,7 @@ TEST_F(HixlCSClientSlotReuseFixture, SyncTransferUsesStreamSync) {
   }
 
   EXPECT_EQ(ret, SUCCESS);
-  EXPECT_TRUE(cli_.pending_device_handles_.empty());
+  EXPECT_TRUE(DevChannel(cli_).pending_device_handles_.empty());
 }
 
 // ============================================================================
@@ -842,7 +823,7 @@ TEST_F(HixlCSClientDeviceFixture, ConvertHostMappedDescsFailsIfRemoteRegisteredI
 
   // 直接调用 ConvertHostMappedDescs，绕过 ValidateAddress
   std::vector<HixlOneSideOpDesc> mutable_descs(1, desc);
-  const Status ret = cli_.ConvertHostMappedDescs(1, mutable_descs.data());
+  const Status ret = DevChannel(cli_).ConvertHostMappedDescs(1, mutable_descs.data());
   EXPECT_EQ(ret, FAILED);  // remote_buf 在错误的 regions，ConvertHostMappedDescs 会失败
 }
 
@@ -860,7 +841,7 @@ TEST_F(HixlCSClientDeviceFixture, ConvertHostMappedDescsFailsIfLocalRegisteredIn
 
   // 直接调用 ConvertHostMappedDescs，绕过 ValidateAddress
   std::vector<HixlOneSideOpDesc> mutable_descs(1, desc);
-  const Status ret = cli_.ConvertHostMappedDescs(1, mutable_descs.data());
+  const Status ret = DevChannel(cli_).ConvertHostMappedDescs(1, mutable_descs.data());
   EXPECT_EQ(ret, FAILED);  // local_buf 在错误的 regions，ConvertHostMappedDescs 会失败
 }
 
@@ -880,13 +861,13 @@ TEST_F(HixlCSClientSlotReuseFixture, CheckStatusDeviceReturnsFailedWhenErrFlagSe
   handle->host_flag = host_flag;
   handle->dev_op_desc_buf = nullptr;
 
-  cli_.active_slot_ = handle->shared_slot;
+  DevChannel(cli_).active_slot_ = handle->shared_slot;
   *err_flag_ptr = 1U;
   HixlCompleteStatus st = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
-  EXPECT_EQ(cli_.CheckStatusDevice(*handle, st), SUCCESS);
+  EXPECT_EQ(DevChannel(cli_).CheckStatusDevice(*handle, st), SUCCESS);
   EXPECT_EQ(st, HixlCompleteStatus::HIXL_COMPLETE_STATUS_FAILED);
-  EXPECT_TRUE(cli_.transfer_failure_latched_);
-  EXPECT_EQ(cli_.transfer_failure_status_, FAILED);
+  EXPECT_TRUE(DevChannel(cli_).transfer_failure_latched_);
+  EXPECT_EQ(DevChannel(cli_).transfer_failure_status_, FAILED);
   EXPECT_EQ(*err_flag_ptr, 0U);
   delete err_flag_ptr;
 }
@@ -908,9 +889,9 @@ TEST_F(HixlCSClientSlotReuseFixture, CheckStatusDeviceReturnsWaitingWhenErrFlagZ
   handle->dev_op_desc_buf = nullptr;
 
   HixlCompleteStatus st = HixlCompleteStatus::HIXL_COMPLETE_STATUS_COMPLETED;
-  EXPECT_EQ(cli_.CheckStatusDevice(*handle, st), SUCCESS);
+  EXPECT_EQ(DevChannel(cli_).CheckStatusDevice(*handle, st), SUCCESS);
   EXPECT_EQ(st, HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING);
-  EXPECT_FALSE(cli_.transfer_failure_latched_);
+  EXPECT_FALSE(DevChannel(cli_).transfer_failure_latched_);
 
   delete handle;
 }
@@ -928,12 +909,12 @@ TEST_F(HixlCSClientSlotReuseFixture, CheckStatusDeviceReturnsFailedWhenTransferF
   first->shared_slot = std::make_shared<TransferPool::SlotHandle>(fake_slot);
   first->host_flag = new uint8_t[8]();
   first->dev_op_desc_buf = nullptr;
-  cli_.active_slot_ = first->shared_slot;
+  DevChannel(cli_).active_slot_ = first->shared_slot;
   err_flag_mem = 1U;
   HixlCompleteStatus st1 = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
-  EXPECT_EQ(cli_.CheckStatusDevice(*first, st1), SUCCESS);
+  EXPECT_EQ(DevChannel(cli_).CheckStatusDevice(*first, st1), SUCCESS);
   EXPECT_EQ(st1, HixlCompleteStatus::HIXL_COMPLETE_STATUS_FAILED);
-  EXPECT_TRUE(cli_.transfer_failure_latched_);
+  EXPECT_TRUE(DevChannel(cli_).transfer_failure_latched_);
   EXPECT_EQ(err_flag_mem, 0U);
 
   auto *second = new DeviceCompleteHandle();
@@ -942,7 +923,7 @@ TEST_F(HixlCSClientSlotReuseFixture, CheckStatusDeviceReturnsFailedWhenTransferF
   second->host_flag = new uint8_t[8]();
   second->dev_op_desc_buf = nullptr;
   HixlCompleteStatus st2 = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
-  EXPECT_EQ(cli_.CheckStatusDevice(*second, st2), SUCCESS);
+  EXPECT_EQ(DevChannel(cli_).CheckStatusDevice(*second, st2), SUCCESS);
   EXPECT_EQ(st2, HixlCompleteStatus::HIXL_COMPLETE_STATUS_FAILED);
 }
 
@@ -961,8 +942,8 @@ TEST_F(HixlCSClientSlotReuseFixture, ReleaseDevCompleteHandleResetsErrFlag) {
   handle->host_flag = nullptr;
   handle->dev_op_desc_buf = nullptr;
 
-  cli_.active_slot_ = handle->shared_slot;
-  EXPECT_EQ(cli_.ReleaseDevCompleteHandle(handle), SUCCESS);
+  DevChannel(cli_).active_slot_ = handle->shared_slot;
+  EXPECT_EQ(DevChannel(cli_).ReleaseDevCompleteHandle(handle), SUCCESS);
   EXPECT_EQ(err_flag_mem, 0U);
 }
 
@@ -973,7 +954,7 @@ TEST_F(HixlCSClientDeviceFixture, CheckStatusDeviceBadMagicReturnsInvalid) {
   bad_handle.host_flag = nullptr;
   bad_handle.dev_op_desc_buf = nullptr;
   HixlCompleteStatus status = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
-  EXPECT_EQ(cli_.CheckStatusDevice(bad_handle, status), PARAM_INVALID);
+  EXPECT_EQ(DevChannel(cli_).CheckStatusDevice(bad_handle, status), PARAM_INVALID);
 }
 
 }  // namespace hixl

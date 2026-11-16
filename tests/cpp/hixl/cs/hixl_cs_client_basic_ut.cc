@@ -14,6 +14,7 @@
 #include <arpa/inet.h>
 #include "gtest/gtest.h"
 #include "hixl_cs_client.h"
+#include "hcomm_host_channel.h"
 #include "hccl/hccl_types.h"
 #include "depends/hccl/src/hccl_stub.h"
 #include "slog_stub.h"
@@ -102,12 +103,11 @@ void CreateHixlClient(hixl::HixlCSClient &cli, const char *ip, uint32_t port,
 // These cases do not run Connect, so create a logical channel explicitly and attach its handle to the
 // client to make the existing HcommProxy path usable.
 void CreateDataPlaneChannel(hixl::HixlCSClient &cli) {
+  ASSERT_NE(cli.client_channel_, nullptr);
   ChannelDesc channel_desc{};
   channel_desc.channel_type = ChannelType::kClient;
   channel_desc.remote_endpoint = MakeDstEp();
-  ChannelHandle handle = 0UL;
-  ASSERT_EQ(cli.local_endpoint_->CreateChannel(channel_desc, handle, 0U), SUCCESS);
-  cli.client_channel_handle_ = handle;
+  ASSERT_EQ(cli.client_channel_->Connect(channel_desc, 0U), SUCCESS);
 }
 
 // 封装：创建连接 + 导入远端内存
@@ -178,7 +178,7 @@ TEST_F(HixlCSClientFixture, RegMemAndUnRegMem) {
   EXPECT_NE(handle, nullptr);
 
   // 注销应成功
-  EXPECT_EQ(cli.UnRegMem(handle), SUCCESS);
+  EXPECT_EQ(cli.UnregMem(handle), SUCCESS);
 }
 
 TEST_F(HixlCSClientFixture, RegMemDuplicateDoesNotRegisterAgain) {
@@ -201,7 +201,7 @@ TEST_F(HixlCSClientFixture, RegMemDuplicateDoesNotRegisterAgain) {
   EXPECT_EQ(GetMemRegCallCount(), 1U);
   EXPECT_EQ(GetMemUnregCallCount(), 0U);
 
-  EXPECT_EQ(cli.UnRegMem(first_handle), SUCCESS);
+  EXPECT_EQ(cli.UnregMem(first_handle), SUCCESS);
 }
 
 TEST_F(HixlCSClientFixture, ImportRemoteMemAndClearRemoteMemInfo) {
@@ -286,13 +286,13 @@ TEST_F(HixlCSClientFixture, BatchPutSuccessWithStubbedHccl) {
   std::cout << "client内存完成记录" << std::endl;
   void *query_handle = nullptr;
   HixlOneSideOpDesc op_descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
-  ASSERT_EQ(cli.BatchTransferAsync(false, 1, op_descs, &query_handle), SUCCESS);
+  ASSERT_EQ(cli.BatchPutAsync(op_descs, 1, &query_handle), SUCCESS);
   std::cout << "执行批量写入，返回queryhandle" << std::endl;
   ASSERT_NE(query_handle, nullptr);
   auto *task_flag = static_cast<CompleteHandleInfo *>(query_handle);
   HixlCompleteStatus status_out = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
   std::cout << "flag的值是：" << *task_flag->flag_address << std::endl;
-  Status st = cli.CheckStatus(task_flag, &status_out);
+  Status st = cli.QueryCompleteStatus(task_flag, &status_out);
   EXPECT_EQ(st, SUCCESS);
   EXPECT_EQ(status_out, HixlCompleteStatus::HIXL_COMPLETE_STATUS_COMPLETED);
 }
@@ -314,7 +314,7 @@ TEST_F(HixlCSClientFixture, BatchPutFailsWhenDeviceEndpointImportsOnlyHostFlag) 
 
   void *query_handle = nullptr;
   HixlOneSideOpDesc op_descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
-  EXPECT_EQ(cli.BatchTransferAsync(false, 1, op_descs, &query_handle), PARAM_INVALID);
+  EXPECT_EQ(cli.BatchPutAsync(op_descs, 1, &query_handle), PARAM_INVALID);
   EXPECT_EQ(query_handle, nullptr);
 }
 
@@ -327,11 +327,11 @@ TEST_F(HixlCSClientFixture, BatchGetSuccessWithStubbedHccl) {
 
   void *query_handle = nullptr;
   HixlOneSideOpDesc descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
-  ASSERT_EQ(cli.BatchTransferAsync(true, 1, descs, &query_handle), SUCCESS);
+  ASSERT_EQ(cli.BatchGetAsync(descs, 1, &query_handle), SUCCESS);
   ASSERT_NE(query_handle, nullptr);
   auto *task_flag = static_cast<CompleteHandleInfo *>(query_handle);
   HixlCompleteStatus status_out = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
-  EXPECT_EQ(cli.CheckStatus(task_flag, &status_out), SUCCESS);
+  EXPECT_EQ(cli.QueryCompleteStatus(task_flag, &status_out), SUCCESS);
   EXPECT_EQ(status_out, HixlCompleteStatus::HIXL_COMPLETE_STATUS_COMPLETED);
 }
 
@@ -346,7 +346,7 @@ TEST_F(HixlCSClientFixture, BatchPutSyncSuccess) {
   MemHandle local_handle = nullptr;
   ASSERT_EQ(cli.RegMem("client_buf", &local, &local_handle), SUCCESS);
   HixlOneSideOpDesc descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
-  EXPECT_EQ(cli.BatchTransferSync(false, 1, descs, 5000U), SUCCESS);
+  EXPECT_EQ(cli.BatchPutSync(descs, 1, 5000U), SUCCESS);
 }
 
 // 覆盖 C 封装 HixlCSClientBatchPutSync（与 BatchTransferSync Put 路径一致）
@@ -409,7 +409,7 @@ TEST_F(HixlCSClientFixture, BatchPutFailsOnUnrecordedMemory) {
   PrepareConnectionAndImport(cli, client_ip, port);
   void *query_handle = nullptr;
   HixlOneSideOpDesc descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
-  EXPECT_EQ(cli.BatchTransferAsync(false, 1, descs, &query_handle), PARAM_INVALID);
+  EXPECT_EQ(cli.BatchPutAsync(descs, 1, &query_handle), PARAM_INVALID);
   EXPECT_EQ(query_handle, nullptr);
 }
 
@@ -441,12 +441,12 @@ TEST_F(HixlCSClientFixture, ReleaseCompleteHandleTest) {
   // 执行一次传输获取 query_handle
   void *query_handle = nullptr;
   HixlOneSideOpDesc descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
-  ASSERT_EQ(cli.BatchTransferAsync(false, 1, descs, &query_handle), SUCCESS);
+  ASSERT_EQ(cli.BatchPutAsync(descs, 1, &query_handle), SUCCESS);
   ASSERT_NE(query_handle, nullptr);
 
   // 通过 CheckStatus 检查状态（stub 环境下会自动释放 handle）
   HixlCompleteStatus status_out = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
-  Status st = cli.CheckStatus(query_handle, &status_out);
+  Status st = cli.QueryCompleteStatus(query_handle, &status_out);
   // 在 stub 环境下，状态可能不是 COMPLETED，但应该能正常返回
   EXPECT_TRUE(st == SUCCESS || status_out == HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING);
 }
@@ -465,7 +465,7 @@ TEST_F(HixlCSClientFixture, MultipleBatchTransferAndCheckStatus) {
   for (int i = 0; i < 3; ++i) {
     void *query_handle = nullptr;
     HixlOneSideOpDesc descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
-    EXPECT_EQ(cli.BatchTransferAsync(false, 1, descs, &query_handle), SUCCESS);
+    EXPECT_EQ(cli.BatchPutAsync(descs, 1, &query_handle), SUCCESS);
     if (query_handle != nullptr) {
       query_handles.push_back(query_handle);
     }
@@ -492,7 +492,7 @@ TEST_F(HixlCSClientFixture, BatchTransferWithRetryLogic) {
   }
   void *query_handle = nullptr;
   // 批量传输应该成功，因为重试逻辑会处理 HCCL_RETRY_REQUIRED
-  EXPECT_EQ(cli.BatchTransferAsync(false, 15, descs, &query_handle), SUCCESS);
+  EXPECT_EQ(cli.BatchPutAsync(descs, 15, &query_handle), SUCCESS);
   EXPECT_NE(query_handle, nullptr);
   EXPECT_EQ(GetFenceCallCount(), 2U);
 }
@@ -511,15 +511,15 @@ TEST_F(HixlCSClientFixture, BatchTransferFencesAfterEveryChunk) {
       {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4},
   };
   void *query_handle = nullptr;
-  ASSERT_EQ(cli.BatchTransferAsync(false, 2, descs, &query_handle), SUCCESS);
+  ASSERT_EQ(cli.BatchPutAsync(descs, 2, &query_handle), SUCCESS);
   EXPECT_NE(query_handle, nullptr);
   EXPECT_EQ(GetFenceCallCount(), 1U);
 
-  ASSERT_EQ(cli.BatchTransferAsync(false, 4, descs, &query_handle), SUCCESS);
+  ASSERT_EQ(cli.BatchPutAsync(descs, 4, &query_handle), SUCCESS);
   EXPECT_NE(query_handle, nullptr);
   EXPECT_EQ(GetFenceCallCount(), 3U);
 
-  ASSERT_EQ(cli.BatchTransferAsync(false, 5, descs, &query_handle), SUCCESS);
+  ASSERT_EQ(cli.BatchPutAsync(descs, 5, &query_handle), SUCCESS);
   EXPECT_NE(query_handle, nullptr);
   EXPECT_EQ(GetFenceCallCount(), 6U);
 }
@@ -538,7 +538,7 @@ TEST_F(HixlCSClientFixture, BatchTransferStopsWhenBoundaryFenceFails) {
   SetNextFenceFailure(HCCL_E_PARA);
 
   void *query_handle = nullptr;
-  EXPECT_EQ(cli.BatchTransferAsync(false, 3, descs, &query_handle), PARAM_INVALID);
+  EXPECT_EQ(cli.BatchPutAsync(descs, 3, &query_handle), PARAM_INVALID);
   EXPECT_EQ(query_handle, nullptr);
   EXPECT_EQ(GetNbiCallCount(), 2U);
   EXPECT_EQ(GetFenceCallCount(), 1U);
@@ -554,7 +554,7 @@ TEST_F(HixlCSClientFixture, BatchTransferFailsWhenLastChunkFenceFails) {
   SetNextFenceFailure(HCCL_E_PARA);
 
   void *query_handle = nullptr;
-  EXPECT_EQ(cli.BatchTransferAsync(false, 1, &desc, &query_handle), PARAM_INVALID);
+  EXPECT_EQ(cli.BatchPutAsync(&desc, 1, &query_handle), PARAM_INVALID);
   EXPECT_EQ(query_handle, nullptr);
   EXPECT_EQ(GetNbiCallCount(), 1U);
   EXPECT_EQ(GetFenceCallCount(), 1U);
@@ -571,7 +571,7 @@ TEST_F(HixlCSClientFixture, LegacyHcommUsesHostBatchSize128AndFencesEachBatch) {
   std::vector<HixlOneSideOpDesc> descs(129U,
                                        HixlOneSideOpDesc{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4U});
   void *query_handle = nullptr;
-  ASSERT_EQ(cli.BatchTransferAsync(false, static_cast<uint32_t>(descs.size()), descs.data(), &query_handle), SUCCESS);
+  ASSERT_EQ(cli.BatchPutAsync(descs.data(), static_cast<uint32_t>(descs.size()), &query_handle), SUCCESS);
   EXPECT_NE(query_handle, nullptr);
   EXPECT_EQ(GetFenceCallCount(), 2U);
 }
@@ -587,8 +587,9 @@ TEST_F(HixlCSClientFixture, BatchTransferHostAsyncHandlesMaximumListNumWithoutCh
   SetNextNbiFailure(HCCL_E_PARA);
 
   // An oversized count still exercises the chunk arithmetic without building that many descriptors.
-  EXPECT_EQ(cli.BatchTransferHostAsync(false, std::numeric_limits<uint32_t>::max(), &desc, &query_handle),
-            PARAM_INVALID);
+  EXPECT_EQ(
+      cli.client_channel_->DoBatchTransferAsync(false, &desc, std::numeric_limits<uint32_t>::max(), &query_handle),
+      PARAM_INVALID);
   EXPECT_EQ(query_handle, nullptr);
   EXPECT_EQ(GetNbiCallCount(), 1U);
 }
@@ -602,7 +603,7 @@ TEST_F(HixlCSClientFixture, BatchTransferHostAsyncRejectsEmptyListBeforeSubmitti
   HixlOneSideOpDesc desc = {&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4};
   void *query_handle = nullptr;
 
-  EXPECT_EQ(cli.BatchTransferHostAsync(false, 0U, &desc, &query_handle), PARAM_INVALID);
+  EXPECT_EQ(cli.client_channel_->DoBatchTransferAsync(false, &desc, 0U, &query_handle), PARAM_INVALID);
   EXPECT_EQ(query_handle, nullptr);
   EXPECT_EQ(GetNbiCallCount(), 0U);
   EXPECT_EQ(GetFenceCallCount(), 0U);
@@ -622,7 +623,7 @@ TEST_F(HixlCSClientFixture, BatchTransferFencesBeforeCompletionFlag) {
   SetTransferRetryThreshold(kTransferCount + 1U);
 
   void *query_handle = nullptr;
-  ASSERT_EQ(cli.BatchTransferAsync(false, kTransferCount, descs, &query_handle), SUCCESS);
+  ASSERT_EQ(cli.BatchPutAsync(descs, kTransferCount, &query_handle), SUCCESS);
   EXPECT_NE(query_handle, nullptr);
   EXPECT_EQ(GetFenceCallCount(), 1U);
   EXPECT_EQ(GetNbiCallCount(), kTransferCount + 1U);
@@ -651,7 +652,7 @@ TEST_F(HixlCSClientFixture, BatchTransferChannelFenceFailure) {
   SetNextFenceFailure(HCCL_E_PARA);
 
   // 批量传输返回 Fence 的转换错误码
-  EXPECT_EQ(cli.BatchTransferAsync(false, 15, descs, &query_handle), PARAM_INVALID);
+  EXPECT_EQ(cli.BatchPutAsync(descs, 15, &query_handle), PARAM_INVALID);
 }
 
 // 测试传输任务在 ReadNbiOnThread 执行失败时的错误处理
@@ -673,7 +674,7 @@ TEST_F(HixlCSClientFixture, BatchTransferReadNbiFailure) {
   SetNextNbiFailure(HCCL_E_PARA);
 
   // 批量传输返回 ReadNbi 的转换错误码
-  EXPECT_EQ(cli.BatchTransferAsync(true, 2, descs, &query_handle), PARAM_INVALID);
+  EXPECT_EQ(cli.BatchGetAsync(descs, 2, &query_handle), PARAM_INVALID);
 }
 
 TEST_F(HixlCSClientFixture, BatchTransferParamErrorDoesNotLatchClient) {
@@ -686,12 +687,12 @@ TEST_F(HixlCSClientFixture, BatchTransferParamErrorDoesNotLatchClient) {
   void *query_handle = nullptr;
 
   SetNextNbiFailure(HCCL_E_PARA);
-  EXPECT_EQ(cli.BatchTransferAsync(false, 1, descs, &query_handle), PARAM_INVALID);
+  EXPECT_EQ(cli.BatchPutAsync(descs, 1, &query_handle), PARAM_INVALID);
   EXPECT_EQ(query_handle, nullptr);
   EXPECT_EQ(GetNbiCallCount(), 1U);
 
   SetNextNbiFailure(HCCL_E_PARA);
-  EXPECT_EQ(cli.BatchTransferSync(false, 1, descs, 1000U), PARAM_INVALID);
+  EXPECT_EQ(cli.BatchPutSync(descs, 1, 1000U), PARAM_INVALID);
   EXPECT_EQ(GetNbiCallCount(), 2U);
 }
 
@@ -702,12 +703,12 @@ TEST_F(HixlCSClientFixture, BatchTransferParamInvalidDoesNotLatchClient) {
 
   void *query_handle = nullptr;
   HixlOneSideOpDesc invalid_descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 0}};
-  EXPECT_EQ(cli.BatchTransferAsync(false, 1, invalid_descs, &query_handle), PARAM_INVALID);
+  EXPECT_EQ(cli.BatchPutAsync(invalid_descs, 1, &query_handle), PARAM_INVALID);
   EXPECT_EQ(query_handle, nullptr);
 
   RecordLocalMem(cli);
   HixlOneSideOpDesc descs[] = {{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4}};
-  EXPECT_EQ(cli.BatchTransferAsync(false, 1, descs, &query_handle), SUCCESS);
+  EXPECT_EQ(cli.BatchPutAsync(descs, 1, &query_handle), SUCCESS);
   EXPECT_NE(query_handle, nullptr);
 }
 }  // namespace hixl

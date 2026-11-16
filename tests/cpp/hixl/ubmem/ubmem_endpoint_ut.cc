@@ -465,8 +465,11 @@ TEST_F(UbMemEndpointUt, ChannelCreateSkipsHcomm) {
   ASSERT_EQ(endpoint.Initialize(), SUCCESS);
   ChannelHandle channel_handle = 0UL;
   ChannelDesc channel_desc{};
+  ResetChannelCreateRecord();
   ASSERT_EQ(endpoint.CreateChannel(channel_desc, channel_handle, 0U), SUCCESS);
   EXPECT_NE(channel_handle, 0UL);
+  HcommChannelDesc created_desc{};
+  EXPECT_FALSE(GetLastChannelCreateDesc(&created_desc));
   EXPECT_EQ(endpoint.DestroyChannel(channel_handle), SUCCESS);
   EXPECT_EQ(endpoint.Finalize(), SUCCESS);
 }

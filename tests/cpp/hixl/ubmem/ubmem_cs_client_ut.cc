@@ -333,7 +333,7 @@ TEST_F(UbMemCsClientUt, DeviceCreateUsesSharedHcommThreadPool) {
 TEST_F(UbMemCsClientUt, DeviceCreateRejectsTransferBatchAboveUbMemBudget) {
   constexpr char kTooLargeBatchConfig[] = R"({"transfer_config.max_transfer_count_per_batch":32766})";
   EXPECT_EQ(CreateClient(ENDPOINT_LOC_TYPE_DEVICE, kTooLargeBatchConfig), PARAM_INVALID);
-  EXPECT_EQ(cli_.local_endpoint_, nullptr);
+  EXPECT_EQ(cli_.client_channel_, nullptr);
 }
 
 TEST_F(UbMemCsClientUt, DeviceMemcpyModeSubmitsAsyncWithoutKernelLaunch) {
@@ -347,7 +347,7 @@ TEST_F(UbMemCsClientUt, DeviceMemcpyModeSubmitsAsyncWithoutKernelLaunch) {
   ASSERT_EQ(cli_.mem_store_.RecordMemory(true, remote_addr, sizeof(dst_)), SUCCESS);
   ASSERT_EQ(cli_.mem_store_.RecordMemory(false, src_, sizeof(src_)), SUCCESS);
   void *query_handle = nullptr;
-  ASSERT_EQ(cli_.BatchTransferAsync(false, 1U, &desc, &query_handle), SUCCESS);
+  ASSERT_EQ(cli_.BatchPutAsync(&desc, 1U, &query_handle), SUCCESS);
   ASSERT_NE(query_handle, nullptr);
 
   EXPECT_EQ(acl_stub_->memcpy_async_count_, 2U);
@@ -374,7 +374,7 @@ TEST_F(UbMemCsClientUt, DeviceMemRegistrationRejectsNullAddressAndZeroSize) {
   mem.size = 0U;
   EXPECT_EQ(cli_.RegMem("zero_size", &mem, &handle), PARAM_INVALID);
   EXPECT_EQ(handle, nullptr);
-  EXPECT_EQ(cli_.UnRegMem(nullptr), PARAM_INVALID);
+  EXPECT_EQ(cli_.UnregMem(nullptr), PARAM_INVALID);
 }
 
 TEST_F(UbMemCsClientUt, DeviceLaunchUsesCsAclrtLaunchKernelWithConfig) {
@@ -391,7 +391,7 @@ TEST_F(UbMemCsClientUt, DeviceLaunchUsesCsAclrtLaunchKernelWithConfig) {
   desc.remote_buf = remote_addr;
   ASSERT_EQ(cli_.mem_store_.RecordMemory(true, remote_addr, sizeof(remote_buf)), SUCCESS);
   ASSERT_EQ(cli_.mem_store_.RecordMemory(false, local_buf, sizeof(local_buf)), SUCCESS);
-  ASSERT_EQ(cli_.BatchTransferSync(false, 1U, &desc, 1000U), SUCCESS);
+  ASSERT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), SUCCESS);
   EXPECT_GE(acl_stub_->kernel_launch_count_, 1U);
   ASSERT_GE(acl_stub_->kernel_params_.size(), 1U);
   EXPECT_EQ(acl_stub_->kernel_params_[0U].timeout_ms, 1000U);
@@ -416,7 +416,7 @@ TEST_F(UbMemCsClientUt, DeviceA5ClientPropagatesStarsV2SqeFormat) {
   desc.remote_buf = remote_addr;
   ASSERT_EQ(cli_.mem_store_.RecordMemory(true, remote_addr, sizeof(remote_buf)), SUCCESS);
   ASSERT_EQ(cli_.mem_store_.RecordMemory(false, local_buf, sizeof(local_buf)), SUCCESS);
-  ASSERT_EQ(cli_.BatchTransferSync(false, 1U, &desc, 1000U), SUCCESS);
+  ASSERT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), SUCCESS);
   ASSERT_GE(acl_stub_->kernel_params_.size(), 1U);
   EXPECT_EQ(acl_stub_->kernel_params_[0U].sqe_format, static_cast<uint32_t>(UbMemStarsSqeFormat::kStarsV2));
 }
@@ -440,7 +440,7 @@ TEST_F(UbMemCsClientUt, DeviceAicpuStatusBufferMatchesSmallBatchLaunches) {
   // relative to the baseline rather than absolute.
   const size_t baseline_launches = acl_stub_->kernel_launch_count_;
   void *query_handle = nullptr;
-  ASSERT_EQ(cli_.BatchTransferAsync(false, static_cast<uint32_t>(descs.size()), descs.data(), &query_handle), SUCCESS);
+  ASSERT_EQ(cli_.BatchPutAsync(descs.data(), static_cast<uint32_t>(descs.size()), &query_handle), SUCCESS);
   auto *pending = static_cast<UbMemEngine::UbMemCompleteHandle *>(query_handle);
   ASSERT_NE(pending->status_buf, nullptr);
   EXPECT_EQ(pending->status_count, 2U);
@@ -449,7 +449,7 @@ TEST_F(UbMemCsClientUt, DeviceAicpuStatusBufferMatchesSmallBatchLaunches) {
   EXPECT_EQ(acl_stub_->kernel_params_[1U].status_addr,
             static_cast<uint64_t>(reinterpret_cast<uintptr_t>(pending->status_buf) + sizeof(uint32_t)));
   HixlCompleteStatus status = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
-  EXPECT_EQ(cli_.CheckStatus(query_handle, &status), SUCCESS);
+  EXPECT_EQ(cli_.QueryCompleteStatus(query_handle, &status), SUCCESS);
   EXPECT_EQ(status, HixlCompleteStatus::HIXL_COMPLETE_STATUS_COMPLETED);
 }
 
@@ -465,13 +465,13 @@ TEST_F(UbMemCsClientUt, DeviceAicpuSyncFailureAbortsSlotOnLastReference) {
   ASSERT_EQ(cli_.mem_store_.RecordMemory(false, src_, sizeof(src_)), SUCCESS);
 
   void *query_handle = nullptr;
-  ASSERT_EQ(cli_.BatchTransferAsync(false, 1U, &desc, &query_handle), SUCCESS);
+  ASSERT_EQ(cli_.BatchPutAsync(&desc, 1U, &query_handle), SUCCESS);
   auto *pending = static_cast<UbMemEngine::UbMemCompleteHandle *>(query_handle);
   uint8_t *err_flag = pending->slot->err_flag_host_addr;
   ASSERT_NE(err_flag, nullptr);
   acl_stub_->fail_next_aicpu_sync_ = true;
-  EXPECT_EQ(cli_.BatchTransferSync(false, 1U, &desc, 1000U), static_cast<Status>(ACL_ERROR_RT_INTERNAL_ERROR));
-  EXPECT_FALSE(cli_.transfer_failure_latched_);
+  EXPECT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), static_cast<Status>(ACL_ERROR_RT_INTERNAL_ERROR));
+  EXPECT_FALSE(cli_.client_channel_->transfer_failure_latched_);
 
   auto *pool = TransferPool::GetInstance(kUbMemCsClientDevId);
   ASSERT_NE(pool, nullptr);
@@ -491,16 +491,16 @@ TEST_F(UbMemCsClientUt, DeviceAicpuSyncReturnsKernelFailureStatus) {
   ASSERT_EQ(cli_.mem_store_.RecordMemory(false, src_, sizeof(src_)), SUCCESS);
 
   void *query_handle = nullptr;
-  ASSERT_EQ(cli_.BatchTransferAsync(false, 1U, &desc, &query_handle), SUCCESS);
+  ASSERT_EQ(cli_.BatchPutAsync(&desc, 1U, &query_handle), SUCCESS);
   auto *pending = static_cast<UbMemEngine::UbMemCompleteHandle *>(query_handle);
   ASSERT_NE(pending->status_buf, nullptr);
   ASSERT_GT(pending->status_count, 0U);
   *static_cast<uint32_t *>(pending->status_buf) = 1U;
   *static_cast<uint64_t *>(pending->host_flag) = 1U;
   HixlCompleteStatus status = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
-  EXPECT_EQ(cli_.CheckStatus(query_handle, &status), FAILED);
+  EXPECT_EQ(cli_.QueryCompleteStatus(query_handle, &status), FAILED);
   EXPECT_EQ(status, HixlCompleteStatus::HIXL_COMPLETE_STATUS_FAILED);
-  EXPECT_TRUE(cli_.transfer_failure_latched_);
+  EXPECT_TRUE(cli_.client_channel_->transfer_failure_latched_);
 }
 
 TEST_F(UbMemCsClientUt, DeviceMemcpySyncSubmitFailureDoesNotDoubleRelease) {
@@ -515,10 +515,10 @@ TEST_F(UbMemCsClientUt, DeviceMemcpySyncSubmitFailureDoesNotDoubleRelease) {
   ASSERT_EQ(cli_.mem_store_.RecordMemory(false, src_, sizeof(src_)), SUCCESS);
 
   acl_stub_->fail_next_data_copy_ = true;
-  EXPECT_EQ(cli_.BatchTransferSync(false, 1U, &desc, 1000U), ACL_ERROR_RT_INTERNAL_ERROR);
-  EXPECT_FALSE(cli_.transfer_failure_latched_);
+  EXPECT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), ACL_ERROR_RT_INTERNAL_ERROR);
+  EXPECT_FALSE(cli_.client_channel_->transfer_failure_latched_);
   EXPECT_EQ(acl_stub_->stream_abort_count_, 0U);
-  EXPECT_EQ(cli_.BatchTransferSync(false, 1U, &desc, 1000U), SUCCESS);
+  EXPECT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), SUCCESS);
 }
 
 TEST_F(UbMemCsClientUt, DeviceMemcpySyncStatusFailureLatchesClient) {
@@ -534,17 +534,17 @@ TEST_F(UbMemCsClientUt, DeviceMemcpySyncStatusFailureLatchesClient) {
 
   acl_stub_->block_host_flag_copy_ = true;
   void *query_handle = nullptr;
-  ASSERT_EQ(cli_.BatchTransferAsync(false, 1U, &desc, &query_handle), SUCCESS);
+  ASSERT_EQ(cli_.BatchPutAsync(&desc, 1U, &query_handle), SUCCESS);
   auto *pending_handle = static_cast<UbMemEngine::UbMemCompleteHandle *>(query_handle);
   ASSERT_NE(pending_handle, nullptr);
   *pending_handle->slot->err_flag_host_addr = 1U;
 
-  EXPECT_EQ(cli_.BatchTransferSync(false, 1U, &desc, 1000U), FAILED);
-  EXPECT_TRUE(cli_.transfer_failure_latched_);
-  EXPECT_EQ(cli_.transfer_failure_status_, FAILED);
+  EXPECT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), FAILED);
+  EXPECT_TRUE(cli_.client_channel_->transfer_failure_latched_);
+  EXPECT_EQ(cli_.client_channel_->transfer_failure_status_, FAILED);
   // Abort is deferred until the last shared-slot reference is released (teardown).
   EXPECT_EQ(acl_stub_->stream_abort_count_, 0U);
-  EXPECT_EQ(cli_.BatchTransferSync(false, 1U, &desc, 1000U), FAILED);
+  EXPECT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), FAILED);
 }
 
 TEST_F(UbMemCsClientUt, DeviceAsyncStatusFailureLatchesClient) {
@@ -560,17 +560,17 @@ TEST_F(UbMemCsClientUt, DeviceAsyncStatusFailureLatchesClient) {
 
   acl_stub_->block_host_flag_copy_ = true;
   void *query_handle = nullptr;
-  ASSERT_EQ(cli_.BatchTransferAsync(false, 1U, &desc, &query_handle), SUCCESS);
+  ASSERT_EQ(cli_.BatchPutAsync(&desc, 1U, &query_handle), SUCCESS);
   auto *pending_handle = static_cast<UbMemEngine::UbMemCompleteHandle *>(query_handle);
   ASSERT_NE(pending_handle, nullptr);
   *pending_handle->slot->err_flag_host_addr = 1U;
 
   HixlCompleteStatus status = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
-  EXPECT_EQ(cli_.CheckStatus(query_handle, &status), SUCCESS);
+  EXPECT_EQ(cli_.QueryCompleteStatus(query_handle, &status), SUCCESS);
   EXPECT_EQ(status, HixlCompleteStatus::HIXL_COMPLETE_STATUS_FAILED);
-  EXPECT_TRUE(cli_.transfer_failure_latched_);
-  EXPECT_EQ(cli_.transfer_failure_status_, FAILED);
-  EXPECT_EQ(cli_.BatchTransferSync(false, 1U, &desc, 1000U), FAILED);
+  EXPECT_TRUE(cli_.client_channel_->transfer_failure_latched_);
+  EXPECT_EQ(cli_.client_channel_->transfer_failure_status_, FAILED);
+  EXPECT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), FAILED);
 }
 
 TEST_F(UbMemCsClientUt, DeviceLaunchMissingKernelReturnsUnsupported) {
@@ -587,15 +587,15 @@ TEST_F(UbMemCsClientUt, DeviceLaunchMissingKernelReturnsUnsupported) {
   ASSERT_EQ(cli_.mem_store_.RecordMemory(true, remote_addr, sizeof(remote_buf)), SUCCESS);
   ASSERT_EQ(cli_.mem_store_.RecordMemory(false, local_buf, sizeof(local_buf)), SUCCESS);
 
-  EXPECT_EQ(cli_.BatchTransferSync(false, 1U, &desc, 1000U), UNSUPPORTED);
-  EXPECT_FALSE(cli_.transfer_failure_latched_);
+  EXPECT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), UNSUPPORTED);
+  EXPECT_FALSE(cli_.client_channel_->transfer_failure_latched_);
 }
 
 TEST_F(UbMemCsClientUt, DeviceLaunchRejectsEmptyDescBuf) {
   ASSERT_EQ(CreateClient(ENDPOINT_LOC_TYPE_DEVICE), SUCCESS);
   HixlOneSideOpDesc empty_desc{};
   void *query_handle = nullptr;
-  EXPECT_EQ(cli_.BatchTransferAsync(false, 0U, &empty_desc, &query_handle), PARAM_INVALID);
+  EXPECT_EQ(cli_.BatchPutAsync(&empty_desc, 0U, &query_handle), PARAM_INVALID);
 }
 
 }  // namespace hixl
