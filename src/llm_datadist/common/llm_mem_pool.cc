@@ -116,6 +116,8 @@ std::shared_ptr<void> LlmMemPool::AllocShared(size_t size, int32_t timeout_in_ms
 }
 
 void LlmMemPool::LogPoolState() const {
+  // Alloc/Free 在 mu_ 下修改分配器容器，OOM 日志遍历前必须持有同一把锁。
+  std::lock_guard<std::mutex> lk(mu_);
   scalable_allocator_.PrintDetails(DLOG_ERROR);
 }
 }  // namespace llm

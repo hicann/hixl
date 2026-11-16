@@ -44,7 +44,7 @@ class LlmMemPool {
     ScalableAllocator *scalable_allocator_;
   };
 
-  std::mutex mu_;
+  mutable std::mutex mu_;
   std::mutex mu_cv_;
   std::condition_variable cv_;
   SpanAllocatorImp span_allocator_;
