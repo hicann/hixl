@@ -75,16 +75,19 @@ def gen_manifest(src_dir: Path, repo_cmakelists: Path):
     print(f"Generated {manifest} ({len(lines)} files)")
 
 
-def gen_prebuilt_meta(prebuilt_so: Path, py_ext_suffix: str, build_timestamp: str):
+def gen_prebuilt_meta(prebuilt_so: Path, build_timestamp: str):
     """为 wheel 预编译产物生成随包 .build_meta.cpXXX (轻量 schema).
 
+    python tag 从产物文件名 (hixl.cpython-3XX-*.so) 派生, 无需单独传参;
     运行时对 pkg_dir 产物只做轻校验 (构建时间戳/Python 版本), 故只写这两个
     字段; 在线编译产物由运行时写完整 schema (另含 manifest_hash/so_sha256),
     同名文件混合 schema, 轻校验只读公共字段, 互不影响。
     """
-    tag_match = re.search(r"\.cpython-(\d+)", py_ext_suffix)
+    tag_match = re.search(r"\.cpython-(\d+)", prebuilt_so.name)
     if tag_match is None:
-        raise RuntimeError(f"cannot derive python tag from ext suffix: {py_ext_suffix}")
+        raise RuntimeError(
+            f"cannot derive python tag from prebuilt so name: {prebuilt_so.name}"
+        )
     python_tag = f"cp{tag_match.group(1)}"
     meta = {"python_tag": python_tag, "build_timestamp": build_timestamp}
     meta_path = prebuilt_so.parent / f"{META_PREFIX}.{python_tag}"
@@ -96,16 +99,15 @@ def main():
     args = sys.argv[1:]
     usage = (
         f"Usage: {sys.argv[0]} <src_dir> <repo_cmakelists>"
-        " --prebuilt-so <so> --py-ext-suffix <suffix> --build-timestamp <ts>"
+        " --prebuilt-so <so> --build-timestamp <ts>"
     )
     has_prebuilt = "--prebuilt-so" in args
     if (not has_prebuilt and len(args) != 2) or (
         has_prebuilt
         and (
-            len(args) != 8
+            len(args) != 6
             or args[2] != "--prebuilt-so"
-            or args[4] != "--py-ext-suffix"
-            or args[6] != "--build-timestamp"
+            or args[4] != "--build-timestamp"
         )
     ):
         print(usage, file=sys.stderr)
@@ -124,7 +126,7 @@ def main():
         if not prebuilt_so.is_file():
             print(f"ERROR: prebuilt so not found: {prebuilt_so}", file=sys.stderr)
             sys.exit(1)
-        gen_prebuilt_meta(prebuilt_so, args[5], args[7])
+        gen_prebuilt_meta(prebuilt_so, args[5])
 
 
 if __name__ == "__main__":

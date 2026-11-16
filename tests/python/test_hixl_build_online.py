@@ -103,7 +103,7 @@ class TestHixlBuildOnline(unittest.TestCase):
         (src_dir / "CMakeLists.txt").write_text("# stub", encoding="utf-8")
         self._write_manifest(src_dir)
 
-    def _make_fake_cann(self, root: Path, version: str = "9.2.0"):
+    def _make_fake_cann(self, root: Path):
         for header in (
             "hixl/hixl.h",
             "hixl/hixl_types.h",
@@ -116,10 +116,9 @@ class TestHixlBuildOnline(unittest.TestCase):
             f = root / "lib64" / lib
             f.parent.mkdir(parents=True, exist_ok=True)
             f.write_bytes(b"\x7fELF")
-        if version:
-            opp = root / "opp"
-            opp.mkdir(exist_ok=True)
-            (opp / "version.info").write_text(f"Version={version}\n", encoding="utf-8")
+        opp = root / "opp"
+        opp.mkdir(exist_ok=True)
+        (opp / "version.info").write_text("Version=9.2.0\n", encoding="utf-8")
 
     def _ext_suffix(self) -> str:
         return sysconfig.get_config_var("EXT_SUFFIX") or ".so"
@@ -281,9 +280,7 @@ class TestHixlBuildOnline(unittest.TestCase):
         pkg_dir.mkdir()
         so_path = pkg_dir / "hixl.cpython-313-x86_64-linux-gnu.so"
         so_path.write_bytes(b"prebuilt-bytes")
-        gm.gen_prebuilt_meta(
-            so_path, ".cpython-313-x86_64-linux-gnu.so", "20261111_000000"
-        )
+        gm.gen_prebuilt_meta(so_path, "20261111_000000")
 
         meta_path = pkg_dir / ".build_meta.cp313"
         self.assertTrue(meta_path.is_file())
@@ -709,7 +706,7 @@ class TestHixlBuildOnline(unittest.TestCase):
         pkg_dir = self.tmpdir / "pkg"
         pkg_dir.mkdir()
         good_root = self.tmpdir / "cann_good"
-        self._make_fake_cann(good_root, version="9.2.0")
+        self._make_fake_cann(good_root)
         broken_root = self.tmpdir / "cann_broken"
         broken_root.mkdir()  # 只有目录, 无头无库 → 不可用
 

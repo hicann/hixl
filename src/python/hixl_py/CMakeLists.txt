@@ -203,7 +203,6 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/hixl_py.h ${HIXL_ONLINE_SRC_DIR}/hixl_py.h
     COMMAND ${HIXL_PY_INTERPRETER} ${CMAKE_CURRENT_SOURCE_DIR}/gen_manifest.py ${HIXL_ONLINE_SRC_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt
             --prebuilt-so ${CMAKE_CURRENT_BINARY_DIR}/wheel_hixl/hixl/hixl${PY_EXT_SUFFIX}
-            --py-ext-suffix ${PY_EXT_SUFFIX}
             --build-timestamp ${HIXL_BUILD_TIMESTAMP}
     ${EXPERIMENTAL_COPY_CMD}
     COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_BINARY_DIR}/wheel_hixl ${HI_PYTHON} setup.py bdist_wheel

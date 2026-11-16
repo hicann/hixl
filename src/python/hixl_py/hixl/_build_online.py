@@ -251,13 +251,9 @@ class _CMakeContext:
                 str(build_dir),
             ]
             self._run_cmd(build_cmd)
-            install_cmd = [
-                str(self.cmake),
-                "--install",
-                str(build_dir),
-                f"--prefix={install_prefix}",
-            ]
-            self._run_cmd(install_cmd)
+            # 安装前缀由 configure 阶段的 CMAKE_INSTALL_PREFIX 决定;
+            # 不传 --install --prefix: 老版本 cmake 对其等号形式支持不一
+            self._run_cmd([str(self.cmake), "--install", str(build_dir)])
 
     @staticmethod
     def _run_cmd(cmd: List[str]):
