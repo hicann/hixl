@@ -226,7 +226,7 @@ void StatisticManager::DumpTransferStatisticSummary(bool is_direct) const {
       auto &mutable_info = *item.second;
       if (is_direct) {
         const auto current = mutable_info.direct_transfer_statistic_index.load(std::memory_order_acquire);
-        const auto next = current ^ 1U;
+        const auto next = current ^ StatisticInfo::kTransferStatisticSlotToggleMask;
         mutable_info.direct_transfer_statistic_slots[next].Reset();
         mutable_info.direct_transfer_statistic_index.store(next, std::memory_order_release);
         const auto &statistic = mutable_info.direct_transfer_statistic_slots[current];
@@ -237,7 +237,7 @@ void StatisticManager::DumpTransferStatisticSummary(bool is_direct) const {
                            transfer.total_cost.load(std::memory_order_relaxed));
       } else {
         const auto current = mutable_info.buffer_transfer_statistic_index.load(std::memory_order_acquire);
-        const auto next = current ^ 1U;
+        const auto next = current ^ StatisticInfo::kTransferStatisticSlotToggleMask;
         mutable_info.buffer_transfer_statistic_slots[next].Reset();
         mutable_info.buffer_transfer_statistic_index.store(next, std::memory_order_release);
         const auto &statistic = mutable_info.buffer_transfer_statistic_slots[current];

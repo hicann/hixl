@@ -298,16 +298,16 @@ void acllogRecord(int32_t module_id, int32_t level, const char *fmt, ...) {
   va_end(valist);
 }
 
-int32_t aclsysGetVersionNum(char *pkg_name, int32_t *version_num) {
-  if ((pkg_name == nullptr) || (version_num == nullptr)) {
+int32_t aclsysGetVersionNum(char *pkgName, int32_t *versionNum) {
+  if ((pkgName == nullptr) || (versionNum == nullptr)) {
     return -1;
   }
-  if (strcmp(pkg_name, "runtime") == 0) {
-    *version_num = g_runtime_version.load(std::memory_order_relaxed);
+  if (strcmp(pkgName, "runtime") == 0) {
+    *versionNum = g_runtime_version.load(std::memory_order_relaxed);
     return g_runtime_version_query_result.load(std::memory_order_relaxed);
   }
-  if (strcmp(pkg_name, "hcomm") == 0) {
-    *version_num = g_hcomm_version.load(std::memory_order_relaxed);
+  if (strcmp(pkgName, "hcomm") == 0) {
+    *versionNum = g_hcomm_version.load(std::memory_order_relaxed);
     return g_hcomm_version_query_result.load(std::memory_order_relaxed);
   }
   return -1;

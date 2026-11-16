@@ -62,11 +62,11 @@ extern "C" void DlogRecord(int32_t module_id, int32_t level, const char *fmt, ..
   g_log_call.message = ret < 0 ? "" : buffer;
 }
 
-extern "C" int32_t aclsysGetVersionNum(char *pkg_name, int32_t *version_num) {
-  if ((pkg_name == nullptr) || (version_num == nullptr) || (std::string(pkg_name) != "runtime")) {
+extern "C" int32_t aclsysGetVersionNum(char *pkgName, int32_t *versionNum) {
+  if ((pkgName == nullptr) || (versionNum == nullptr) || (std::string(pkgName) != "runtime")) {
     return -1;
   }
-  *version_num = 90200000;  // 9.2.0
+  *versionNum = 90200000;  // 9.2.0
   return 0;
 }
 

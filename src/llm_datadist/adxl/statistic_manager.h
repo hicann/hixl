@@ -79,10 +79,13 @@ struct DirectTransferStatisticInfo {
 };
 
 struct StatisticInfo {
+  static constexpr uint32_t kTransferStatisticSlotCount = 2U;
+  static constexpr uint32_t kTransferStatisticSlotToggleMask = kTransferStatisticSlotCount - 1U;
+
   ConnectStatisticInfo connect_statistic_info;
-  std::array<BufferTransferStatisticInfo, 2> buffer_transfer_statistic_slots;
+  std::array<BufferTransferStatisticInfo, kTransferStatisticSlotCount> buffer_transfer_statistic_slots;
   std::atomic<uint32_t> buffer_transfer_statistic_index{0U};
-  std::array<DirectTransferStatisticInfo, 2> direct_transfer_statistic_slots;
+  std::array<DirectTransferStatisticInfo, kTransferStatisticSlotCount> direct_transfer_statistic_slots;
   std::atomic<uint32_t> direct_transfer_statistic_index{0U};
 
   BufferTransferStatisticInfo &CurrentBufferTransferStatistic() {

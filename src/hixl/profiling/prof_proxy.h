@@ -18,7 +18,7 @@
 
 extern "C" {
 __attribute__((weak)) void *aclprofCreateStamp();
-__attribute__((weak)) int32_t aclsysGetVersionNum(char *pkg_name, int32_t *version_num);
+__attribute__((weak)) int32_t aclsysGetVersionNum(char *pkgName, int32_t *versionNum);
 }
 
 namespace hixl {

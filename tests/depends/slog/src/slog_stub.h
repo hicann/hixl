@@ -162,7 +162,7 @@ class LogCaptureStub : public SlogStub {
 extern "C" {
 int32_t acllogCheckDebugLevel(int32_t module_id, int32_t log_level);
 void acllogRecord(int32_t module_id, int32_t level, const char *fmt, ...);
-int32_t aclsysGetVersionNum(char *pkg_name, int32_t *version_num);
+int32_t aclsysGetVersionNum(char *pkgName, int32_t *versionNum);
 void SetHcommVersionNum(int32_t version_num);
 void SetHcommVersionQueryResult(int32_t ret);
 void ResetHcommVersionStub();

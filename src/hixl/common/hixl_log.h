@@ -23,7 +23,7 @@
 extern "C" {
 __attribute__((weak)) int32_t acllogCheckDebugLevel(int32_t module_id, int32_t log_level);
 __attribute__((weak)) void acllogRecord(int32_t module_id, int32_t level, const char *fmt, ...);
-__attribute__((weak)) int32_t aclsysGetVersionNum(char *pkg_name, int32_t *version_num);
+__attribute__((weak)) int32_t aclsysGetVersionNum(char *pkgName, int32_t *versionNum);
 }
 
 #ifdef __cplusplus
