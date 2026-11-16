@@ -12,8 +12,11 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
+#include <climits>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <iterator>
 #include <map>
@@ -90,17 +93,25 @@ Status ParseNpuKey(const std::string &key, int32_t &user_id) {
 }
 
 Status ReadNicTopoText(const std::string &path, std::string &text) {
+  char canonical_buf[PATH_MAX] = {};
+  const char *realpath_ret = realpath(path.c_str(), canonical_buf);
+  const int32_t realpath_errno = errno;
+  HIXL_CHK_BOOL_RET_STATUS(realpath_ret != nullptr, PARAM_INVALID,
+                           "Call api:realpath failed, nic topo path:%s, errno:%d(%s)", path.c_str(), realpath_errno,
+                           strerror(realpath_errno));
+  const std::string canonical_path(canonical_buf);
   struct stat file_stat {};
-  HIXL_CHK_BOOL_RET_STATUS(stat(path.c_str(), &file_stat) == 0 && S_ISREG(file_stat.st_mode), PARAM_INVALID,
-                           "nic topo path is not a regular file:%s", path.c_str());
+  HIXL_CHK_BOOL_RET_STATUS(stat(canonical_path.c_str(), &file_stat) == 0 && S_ISREG(file_stat.st_mode), PARAM_INVALID,
+                           "nic topo path is not a regular file:%s", canonical_path.c_str());
   HIXL_CHK_BOOL_RET_STATUS(
       static_cast<size_t>(file_stat.st_size) > 0 && static_cast<size_t>(file_stat.st_size) <= kMaxNicTopoFileBytes,
-      PARAM_INVALID, "nic topo file size is invalid, path:%s, size:%lld", path.c_str(),
+      PARAM_INVALID, "nic topo file size is invalid, path:%s, size:%lld", canonical_path.c_str(),
       static_cast<long long>(file_stat.st_size));
-  std::ifstream ifs(path);
-  HIXL_CHK_BOOL_RET_STATUS(ifs.is_open(), PARAM_INVALID, "failed to open nic topo file, path:%s", path.c_str());
+  std::ifstream ifs(canonical_path);
+  HIXL_CHK_BOOL_RET_STATUS(ifs.is_open(), PARAM_INVALID, "failed to open nic topo file, path:%s",
+                           canonical_path.c_str());
   text.assign((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-  HIXL_CHK_BOOL_RET_STATUS(!text.empty(), PARAM_INVALID, "nic topo file is empty, path:%s", path.c_str());
+  HIXL_CHK_BOOL_RET_STATUS(!text.empty(), PARAM_INVALID, "nic topo file is empty, path:%s", canonical_path.c_str());
   return SUCCESS;
 }
 

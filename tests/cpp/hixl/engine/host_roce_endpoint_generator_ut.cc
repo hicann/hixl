@@ -130,6 +130,17 @@ TEST_F(HostRoceEndpointGeneratorUTest, GenerateAcceptsMultiNpuTopoFile) {
   unlink(path.c_str());
 }
 
+TEST_F(HostRoceEndpointGeneratorUTest, GenerateFailsWhenNicTopoDisappearsBeforeRead) {
+  const std::string path = WriteTempJson(R"({"npu:0":[["mlx0"],[]]})");
+  ASSERT_FALSE(path.empty());
+  const std::string grc = std::string(R"({"comm_resource_config.nic_topo_path":")") + path + R"("})";
+  HixlOptions options = ParseGlobalConfig(grc);
+  ASSERT_EQ(unlink(path.c_str()), 0);
+  std::vector<EndpointConfig> endpoint_list;
+  EXPECT_EQ(HostRoceEndpointGenerator::GenerateHostRoceEndpoints(options, endpoint_list), PARAM_INVALID);
+  EXPECT_TRUE(endpoint_list.empty());
+}
+
 TEST_F(HostRoceEndpointGeneratorUTest, GenerateRejectsMultiplePreferred) {
   const std::string path = WriteTempJson(R"({"npu:0":[["mlx0","mlx1"],[]]})");
   ASSERT_FALSE(path.empty());
