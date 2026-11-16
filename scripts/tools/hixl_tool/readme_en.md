@@ -38,7 +38,7 @@ Prerequisites: Ascend CANN Toolkit (>= 9.0.0) is installed and the environment v
 
 ```bash
 # Load CANN environment variables (use the default path when ASCEND_HOME_PATH is unset)
-source ${ASCEND_HOME_PATH}/set_env.sh
+source "${ASCEND_HOME_PATH:-/usr/local/Ascend/cann}/set_env.sh"
 
 # Build: --examples also sets ENABLE_HIXL_TOOL=ON and compiles hixl_tool
 bash build.sh --examples

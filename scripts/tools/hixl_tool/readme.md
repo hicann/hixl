@@ -38,7 +38,7 @@ hixl_tool <subcommand> [options]
 
 ```bash
 # 加载 CANN 环境变量（未设置 ASCEND_HOME_PATH 时用默认路径）
-source ${ASCEND_HOME_PATH}/set_env.sh
+source "${ASCEND_HOME_PATH:-/usr/local/Ascend/cann}/set_env.sh"
 
 # 编译：--examples 会同时置位 ENABLE_HIXL_TOOL=ON，触发 hixl_tool 编译
 bash build.sh --examples
