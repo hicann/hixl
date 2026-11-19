@@ -23,7 +23,7 @@ void MsgHandler::SubmitMsg(const CtrlMsgPluginPtr &connection, const CtrlMsgPtr 
 
 Status MsgHandler::Initialize() {
   constexpr uint32_t kMinThreadPoolSize = 4U;
-  constexpr uint32_t kMaxThreadPoolSize = 1024U;
+  constexpr uint32_t kMaxThreadPoolSize = 256U;
   thread_pool_ = MakeUnique<ThreadPool>("cs_server", kMinThreadPoolSize, kMaxThreadPoolSize);
   HIXL_CHECK_NOTNULL(thread_pool_);
   running_ = true;

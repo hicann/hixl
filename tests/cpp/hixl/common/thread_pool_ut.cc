@@ -72,6 +72,16 @@ class ThreadPoolTest : public ::testing::Test {
     ctx.release_tasks.store(true);
     ctx.cv.notify_all();
   }
+
+  class ScopedFailTempThreadCreate {
+   public:
+    explicit ScopedFailTempThreadCreate(bool fail = true) {
+      ThreadPool::SetFailTempThreadCreateForTest(fail);
+    }
+    ~ScopedFailTempThreadCreate() {
+      ThreadPool::SetFailTempThreadCreateForTest(false);
+    }
+  };
 };
 
 TEST_F(ThreadPoolTest, TasksExecutedSuccessfully) {
@@ -398,6 +408,73 @@ TEST_F(ThreadPoolTest, MultipleFuturesGetCorrectValues) {
   for (int i = 0; i < 10; ++i) {
     EXPECT_EQ(futures[i].get(), i * 2);
   }
+}
+
+TEST_F(ThreadPoolTest, ScaleUpFailureFallsBackToCoreThreads) {
+  ThreadPool pool("test_scale_fail", 1U, 4U);
+  BlockingTaskContext ctx;
+  pool.commit(CreateBlockingTask(ctx));
+
+  {
+    std::unique_lock<std::mutex> lock(ctx.mtx);
+    ASSERT_TRUE(ctx.cv.wait_for(lock, std::chrono::milliseconds(kTestTimeoutMs),
+                                [&ctx]() { return ctx.tasks_started.load() >= 1U; }));
+  }
+
+  std::atomic<uint32_t> completed{0U};
+  constexpr uint32_t kQueuedTasks = 5U;
+  std::vector<std::future<void>> futures;
+  {
+    const ScopedFailTempThreadCreate fail_create;
+    for (uint32_t i = 0U; i < kQueuedTasks; ++i) {
+      auto future = pool.commit([&completed]() { completed.fetch_add(1U); });
+      ASSERT_TRUE(future.valid());
+      futures.emplace_back(std::move(future));
+    }
+  }
+
+  ReleaseTasks(ctx);
+  for (auto &future : futures) {
+    future.get();
+  }
+  EXPECT_EQ(completed.load(), kQueuedTasks);
+  pool.Destroy();
+}
+
+TEST_F(ThreadPoolTest, ScaleUpFailureDoesNotLeakThreadCount) {
+  ThreadPool pool("test_scale_recover", 1U, 2U);
+  BlockingTaskContext ctx;
+  pool.commit(CreateBlockingTask(ctx));
+
+  {
+    std::unique_lock<std::mutex> lock(ctx.mtx);
+    ASSERT_TRUE(ctx.cv.wait_for(lock, std::chrono::milliseconds(kTestTimeoutMs),
+                                [&ctx]() { return ctx.tasks_started.load() >= 1U; }));
+  }
+
+  std::future<void> first_future;
+  {
+    const ScopedFailTempThreadCreate fail_create;
+    first_future = pool.commit(CreateBlockingTask(ctx));
+    ASSERT_TRUE(first_future.valid());
+  }
+  EXPECT_EQ(pool.TotalThreadNumForTest(), 1U);
+
+  // 直接结束冷却，避免用例依赖内部冷却时长。
+  pool.ResetScaleBackoffForTest();
+  auto second_future = pool.commit(CreateBlockingTask(ctx));
+  ASSERT_TRUE(second_future.valid());
+  {
+    std::unique_lock<std::mutex> lock(ctx.mtx);
+    EXPECT_TRUE(ctx.cv.wait_for(lock, std::chrono::milliseconds(kTestTimeoutMs),
+                                [&ctx]() { return ctx.max_concurrent.load() >= 2U; }));
+  }
+  EXPECT_EQ(pool.TotalThreadNumForTest(), 2U);
+
+  ReleaseTasks(ctx);
+  first_future.get();
+  second_future.get();
+  pool.Destroy();
 }
 
 }  // namespace

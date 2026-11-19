@@ -1521,4 +1521,20 @@ TEST_F(HixlCSTest, MsgHandlerConcurrentRegisterAndSubmit) {
   EXPECT_EQ(server->msg_handler_.RegisterMsgProcessor(static_cast<CtrlMsgType>(kCtrlMsgType), proc), PARAM_INVALID);
   EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
 }
+
+TEST_F(HixlCSTest, MsgHandlerThreadPoolMaxSizeCappedAt256) {
+  HixlServerConfig config{};
+  HixlServerHandle server_handle = nullptr;
+  HixlServerDesc desc{};
+  desc.server_ip = "127.0.0.1";
+  desc.server_port = 0U;
+  desc.endpoint_list = &default_eps[0];
+  desc.endpoint_list_num = default_eps.size();
+  ASSERT_EQ(HixlCSServerCreate(&desc, &config, &server_handle), SUCCESS);
+  auto *server = static_cast<HixlCSServer *>(server_handle);
+  ASSERT_NE(server->msg_handler_.thread_pool_, nullptr);
+  EXPECT_EQ(server->msg_handler_.thread_pool_->min_thrd_num_, 4U);
+  EXPECT_EQ(server->msg_handler_.thread_pool_->max_thrd_num_, 256U);
+  EXPECT_EQ(HixlCSServerDestroy(server_handle), SUCCESS);
+}
 }  // namespace hixl
