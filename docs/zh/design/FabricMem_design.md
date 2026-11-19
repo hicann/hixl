@@ -152,7 +152,7 @@ sequenceDiagram
     Vmm->>Vmm: 首次使用时预留全局 VA
 ```
 
-`HixlCSServer` / `HixlCSClient` 把各自的 `GlobalConfig` 直接传给 `Endpoint::Create`，不挑子结构体：只有 ubmem endpoint 读它，其余协议忽略。容量和起始地址来自 `fabric_memory.max_capacity`、`fabric_memory.start_address`，单位 TB，由 `UbMemEndpoint::EndpointCreate` 在 `VirtualMemoryManager::Initialize` 之前设置。后建的 endpoint 如果带了与已生效值不一致的配置就会失败，等价于原先「按协议先初始化一次」的冲突检查。
+`HixlCSServer` / `HixlCSClient` 把各自的 `GlobalConfig` 直接传给 `Endpoint::Create`，不挑子结构体：只有 ubmem endpoint 读它，其余协议忽略。容量和起始地址来自 `fabric_memory.max_capacity`、`fabric_memory.start_address`，单位 TB，由 `UbMemEndpoint::EndpointCreate` 在 `VirtualMemoryManager::Initialize` 之前设置。后建的 endpoint 如果带了与已生效值不一致的配置就会失败，等价于原先「按协议先初始化一次」的冲突检查。在 A3 平台上，未显式配置 `fabric_memory.start_address` 时默认在 `[40 TB, 80 TB)` 安全窗口内预留，因此 `max_capacity` 超过 `40 TB` 会在初始化时直接返回 `PARAM_INVALID`（若驱动支持 `VA >= 80 TB` 且需更大容量，可显式配置 `fabric_memory.start_address`，并在超 `80 TB` 时打印 `HIXL_EVENT` 提醒）；若整块预留失败降级为 `2 TB` 多区间分块，因 `ReserveMemory` 仅在单个连续区间内分配，单块连续内存（本端分配或对端单次 `Import` 的连续地址区间）上限为单个分块大小（默认 `2 TB`），超出返回 `RESOURCE_EXHAUSTED`。
 
 `TransferPool` 对所有协议使用同一种 Slot。每个 slot 都固定申请真实 Hcomm thread，因此先以 UB_MEM 初始化的 device client 和后续其他协议的 client 共享同一套线程模型。slot 另外带一个 `aclrtStream ubmem_stream`，只在 UB_MEM AICPU 路径懒创建，用于给内核参数提供 RTSQ 元数据，abort 或 slot 销毁时释放。
 
@@ -169,7 +169,7 @@ Host 内存在 HDK 25.5 不能 `aclrtMemRetainAllocationHandle`。这条路径�
 
 `MemExport` 把 `ShareHandleInfo` 编成 JSON 字节，塞进 CS 的 `export_desc`。建链时 client 先 `GetRemoteMem`，server `ExportMem`，client `ImportMem`。`ImportMem` 解码后把整批 handle 交给 `UbMemMemory::Import()`；归属判定、恒等绑定和普通 import 都封装在 `ubmem_memory.cc` 内。server 侧 `ExportMem` 只导出自己 store 里的 server endpoint，client endpoint 的注册不会被任何人取走，所以 ubmem 链路的 `HixlCSClient::RegMem` / `UnregMem` 直接成功返回，不做本端注册导出。
 
-- **对端发的是本端进程的导出**：归属判定由 `UbMemMemory::Import()` 在 memory 模块内部完成，证据有两个来源：本 endpoint 的导出记录，以及进程级已导出区间台账（`UbMemAllocator::RecordExportedRange` / `IsRangeExportedHere`）。判定用 share handle 字节 + `va_addr` + `len`，命中说明这块 buffer 在本端本来就可寻址，直接按原地址做恒等绑定：翻译表 key 与 value 都是对端地址，不走 import、不 `aclrtMapMem`、不占 VMM。判定不看地址数值——两个进程的 VMM 池默认都从 40 TB 起、按 1 GB 对齐分配，跨进程地址会撞车；ACL share handle 内含导出方身份，别人导出的 handle 不会误命中。注册表不按 device 索引：ubmem 只会注册当前实例所在 device 的内存，所以没有 device 维度的判定。
+- **对端发的是本端进程的导出**：归属判定由 `UbMemMemory::Import()` 在 memory 模块内部完成，证据有两个来源：本 endpoint 的导出记录，以及进程级已导出区间台账（`UbMemAllocator::RecordExportedRange` / `IsRangeExportedHere`）。判定用 share handle 字节 + `va_addr` + `len`，命中说明这块 buffer 在本端本来就可寻址，直接按原地址做恒等绑定：翻译表 key 与 value 都是对端地址，不走 import、不 `aclrtMapMem`、不占 VMM。判定不看地址数值——两个进程的 VMM 池默认在 `[40 TB, 80 TB)` 安全窗口内优先从 40 TB 整块预留（冲突时按 2 TB 多区间分块拼凑）、按 1 GB 对齐分配，跨进程地址仍会撞车；ACL share handle 内含导出方身份，别人导出的 handle 不会误命中。注册表不按 device 索引：ubmem 只会注册当前实例所在 device 的内存，所以没有 device 维度的判定。
 
   进程级台账是必需的，不是冗余：ACL 的 fabric share handle 只在**跨进程**之间可用（export 的语义就是 share to other process，import 也没有允许同进程导入的开关），所以本进程导出的区间在这里无法 import，只能恒等绑定。判定原先只认本 endpoint 的导出记录，这在"同一个进程里 server 和 client 都注册同一块内存"时露不出来（各有一条自己的注册记录），但 ubmem 的 CS client 已经跳过注册，此时本 endpoint 的记录是空的，归属证据只能来自进程级台账。台账在本端每次 export 成功后登记 `{va, len, share_handle}` 并引用计数——同一个 export 可能被多个注册共用（allocator 路径一个 allocation 只 export 一次）——在注册注销释放该区间时注销。
 - **其余情况**（本进程没导出过的区间，含跨进程对端）：归属判定未命中的句柄由 memory 模块统一 import：先按对端这次 export 的总跨度在本地 VMM 预留**一整块连续地址范围**，再对每个 PA 段 `aclrtMemImportFromShareableHandleV2` + `aclrtMapMem`，映射位置按该段在整段里的偏移来放。所以对端一段地址即便物理上是多段 PA，本端映射出来仍是同一块连续地址范围，且偏移与对端一致。翻译表的 key 是对端用户地址，value 是本端映射地址。

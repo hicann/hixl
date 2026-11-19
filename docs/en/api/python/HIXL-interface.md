@@ -116,7 +116,7 @@ For Fabric Mem mode (only supported on Atlas A3 Training Series/Atlas A3 Inferen
 
 ```sh
 {
-    "fabric_memory.max_capacity": "128", //Size of virtual memory pool. Value range: integer in (0, 1024], default: 32, unit TB, actual usable range determined by underlying layer
+    "fabric_memory.max_capacity": "128", //Size of virtual memory pool. Value range: integer in (0, 1024], default: 32, unit TB, actual usable range determined by underlying layer (on A3 without explicit start_address, limited to the [40 TB, 80 TB) window, i.e. <= 40 TB; if chunked fallback triggers, a single contiguous buffer is limited to 2 TB)
     "fabric_memory.start_address": "40", //Virtual memory pool start address. Value range: integer in [0, 1024], default: 40, unit TB
     "fabric_memory.task_stream_num": "1", //Number of streams per task, value range: [1, 8], default: 1; only supports 1 when enable_aicpu_unfold is true
     "fabric_memory.enable_aicpu_unfold": true //Whether AICPU unfolds FabricMem, boolean type, default true

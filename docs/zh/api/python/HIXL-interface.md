@@ -378,7 +378,7 @@ options = {
 
 <a id="grc_fabric_memory"></a>
 
-- **max_capacity**：虚拟内存池的大小，取值范围：(0, 1024]之间的整数，默认值32，单位TB，实际可用范围由底层决定。
+- **max_capacity**：虚拟内存池的大小，取值范围：(0, 1024]之间的整数，默认值32，单位TB，实际可用范围由底层决定。A3平台未显式配置`start_address`时默认限制在[40 TB, 80 TB)安全窗口内（上限40 TB，超过需显式配置`start_address`并确认驱动支持VA >= 80 TB）；若降级为2 TB分段预留，单块连续注册/申请的内存上限为2 TB。
 - **start_address**：虚拟内存池起始地址，取值范围：[0, 1024]之间的整数，默认值40，单位TB。
 - **task_stream_num**：单个任务使用的流数量，取值范围：[1, 8]，默认值1；enable_aicpu_unfold为true时仅支持1。
 - **enable_aicpu_unfold**：是否由AICPU展开，布尔类型，默认true。

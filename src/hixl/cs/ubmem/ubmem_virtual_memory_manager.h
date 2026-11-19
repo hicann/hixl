@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "common/soc_type.h"
 #include "hixl/hixl_types.h"
 
 namespace hixl {
@@ -30,7 +31,7 @@ class VirtualMemoryManager {
   VirtualMemoryManager &operator=(const VirtualMemoryManager &) = delete;
   VirtualMemoryManager &operator=(const VirtualMemoryManager &&) = delete;
 
-  // Brings up the process-wide pool on first use. The singleton destructor releases the global VA range.
+  // Brings up the process-wide pool on first use. The singleton destructor releases all reserved VA regions.
   Status Initialize();
   void Finalize();
   Status ReserveMemory(size_t size, uintptr_t &mem_addr);
@@ -40,15 +41,37 @@ class VirtualMemoryManager {
   Status ReserveMemAddress(void *&virtual_address, size_t size) const;
 
  private:
+  struct ReservedRegion {
+    void *raw_ptr = nullptr;
+    uintptr_t base_addr = 0;
+    size_t size = 0;
+    size_t num_blocks = 0;
+    std::vector<bool> bitmap;
+  };
+
+  struct AllocationRecord {
+    size_t region_index = 0;
+    size_t start_block = 0;
+    size_t num_blocks = 0;
+  };
+
   VirtualMemoryManager() = default;
   Status InitProcess();
+  Status ReserveConfiguredRegions(SocType soc_type);
+  Status ReserveBoundedWindowRegions();
+  Status ReserveAutoAddressRegions(SocType soc_type);
+  Status ReserveChunkedWindowRegions();
+  Status ReserveChunkedAutoRegions(SocType soc_type);
+  Status TryAppendRegion(size_t size, void *expect_ptr, SocType soc_type, uintptr_t va_upper_bound, bool log_error);
+  void ReleaseAllRegions();
+  size_t FindRegionIndex(uintptr_t mem_addr) const;
+  static bool FindFreeBlocksInRegion(const ReservedRegion &region, size_t blocks_needed, size_t &start_block);
 
-  std::vector<bool> bitmap_;
-  std::unordered_map<uintptr_t, size_t> allocations_;
+  std::vector<ReservedRegion> regions_;
+  std::vector<void *> pending_release_vas_;
+  std::unordered_map<uintptr_t, AllocationRecord> allocations_;
   bool initialized_ = false;
   std::mutex global_virtual_memory_mutex_;
-  void *global_virtual_memory_ = nullptr;
-  uintptr_t global_virtual_memory_addr_ = 0;
   size_t vm_size_ = 0;
   size_t num_blocks_ = 0;
   std::optional<uintptr_t> global_start_va_;
