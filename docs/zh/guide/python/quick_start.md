@@ -70,7 +70,7 @@
 |系统cmake|执行`apt install cmake`或`yum install cmake`安装（pip安装的cmake无效）|
 |C++编译器与make|执行`apt install build-essential`或`yum install gcc-c++ make`安装；缺失时cmake configure/build阶段报错，按错误提示安装即可|
 |Python开发头文件|执行`apt install python3-dev`或`yum install python3-devel`安装|
-|pybind11（pip包，版本不低于2.13.6）|执行`pip install pybind11>=2.13.6`安装|
+|pybind11（pip包，版本不低于2.13.6）|执行`python -m pip install "pybind11>=2.13.6"`安装|
 
 此外需已安装HIXL软件包（含配套CANN环境，提供`hixl`公共头文件与运行库）。
 

@@ -141,8 +141,37 @@ class TestHixlBuildOnline(unittest.TestCase):
                     lambda s: None,
                 )
             )
-            with self.assertRaisesRegex(RuntimeError, "pybind11"):
+            with self.assertRaises(RuntimeError) as raised:
                 self.mod._PythonContext()
+            self.assertIn(
+                'python -m pip install "pybind11>=2.13.6"', str(raised.exception)
+            )
+
+    def test_invalid_pybind11_install_hint(self):
+        for version, error in (
+            ("2.13.5", "too old"),
+            ("2.13.6", "cmake dir not found"),
+        ):
+            with self.subTest(version=version):
+                pybind11 = mock.Mock(__version__=version)
+                pybind11.get_cmake_dir.return_value = str(self.tmpdir / "missing")
+                with contextlib.ExitStack() as stack:
+                    stack.enter_context(
+                        mock.patch.dict(sys.modules, {"pybind11": pybind11})
+                    )
+                    stack.enter_context(
+                        mock.patch.object(
+                            self.mod._PythonContext,
+                            "_init_development_component",
+                            lambda s: None,
+                        )
+                    )
+                    with self.assertRaisesRegex(RuntimeError, error) as raised:
+                        self.mod._PythonContext()
+                    self.assertIn(
+                        'python -m pip install "pybind11>=2.13.6"',
+                        str(raised.exception),
+                    )
 
     def test_missing_python_header_hint(self):
         with mock.patch.object(

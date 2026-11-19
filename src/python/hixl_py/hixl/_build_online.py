@@ -100,7 +100,7 @@ class _PythonContext:
         except ImportError as e:
             raise BuildOnlineError(
                 "pybind11 pip package not found.\n"
-                "Hint: install it with `pip install pybind11>=2.13.6`."
+                'Hint: install it with `python -m pip install "pybind11>=2.13.6"`.'
             ) from e
         version_match = re.match(r"(\d+)\.(\d+)\.(\d+)", pybind11.__version__)
         current_version = (
@@ -112,13 +112,13 @@ class _PythonContext:
             raise BuildOnlineError(
                 f"pybind11 version {pybind11.__version__} is too old,"
                 " require >= 2.13.6.\n"
-                "Hint: upgrade it with `pip install pybind11>=2.13.6`."
+                'Hint: upgrade it with `python -m pip install "pybind11>=2.13.6"`.'
             )
         pybind11_dir = Path(pybind11.get_cmake_dir()).resolve()
         if not pybind11_dir.exists():
             raise BuildOnlineError(
                 "pybind11 cmake dir not found.\n"
-                "Hint: install it with `pip install pybind11>=2.13.6`."
+                'Hint: install it with `python -m pip install "pybind11>=2.13.6"`.'
             )
         self.pybind11_cmake_dir = pybind11_dir
 
