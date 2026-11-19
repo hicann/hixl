@@ -250,11 +250,11 @@ enum HixlCompleteStatus {
 
 ## 接口说明
 
-每个接口包含：函数功能、函数原型、参数说明、返回值、调用示例与约束说明。
+每个接口包含：功能说明、函数原型、参数说明、返回值说明、调用示例与约束说明。
 
 ### HixlCSServerCreate
 
-**函数功能**
+**功能说明**
 
 创建并初始化Server实例。
 
@@ -274,7 +274,7 @@ HixlStatus HixlCSServerCreate(const HixlServerDesc *server_desc,
 | config | 输入 | Server配置，不支持传入NULL；如需配置通信资源监听端口，填写 `HixlServerConfig.global_resource_config`。 |
 | server_handle | 输出 | 返回创建的 HixlServerHandle。 |
 
-**返回值**
+**返回值说明**
 
 - HIXL_SUCCESS：成功
 - HIXL_PARAM_INVALID：参数错误
@@ -287,7 +287,7 @@ HixlStatus HixlCSServerCreate(const HixlServerDesc *server_desc,
 
 ### HixlCSServerRegMem
 
-**函数功能**
+**功能说明**
 
 Server注册共享内存供Client访问。
 
@@ -309,7 +309,7 @@ HixlStatus HixlCSServerRegMem(HixlServerHandle server_handle,
 | mem | 输入 | 指向 CommMem，描述内存位置与大小（定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h> ）。 |
 | mem_handle | 输出 | 返回的内存句柄，用于后续注销。 |
 
-**返回值**
+**返回值说明**
 
 - HIXL_SUCCESS：注册成功
 - HIXL_PARAM_INVALID：参数错误
@@ -323,7 +323,7 @@ HixlStatus HixlCSServerRegMem(HixlServerHandle server_handle,
 
 ### HixlCSServerListen
 
-**函数功能**
+**功能说明**
 
 启动 Server 侦听，接受来自 Client 的连接。
 
@@ -340,7 +340,7 @@ HixlStatus HixlCSServerListen(HixlServerHandle server_handle, uint32_t backlog);
 | server_handle | 输入 | Server 实例句柄。 |
 | backlog | 输入 | 连接队列最大长度。 |
 
-**返回值**
+**返回值说明**
 
 - HIXL_SUCCESS：成功
 - HIXL_PARAM_INVALID：参数错误
@@ -353,7 +353,7 @@ HixlStatus HixlCSServerListen(HixlServerHandle server_handle, uint32_t backlog);
 
 ### HixlCSServerUnregMem
 
-**函数功能**
+**功能说明**
 
 注销之前注册的内存。
 
@@ -370,7 +370,7 @@ HixlStatus HixlCSServerUnregMem(HixlServerHandle server_handle, MemHandle mem_ha
 | server_handle | 输入 | Server 实例句柄。 |
 | mem_handle | 输入 | 需注销的内存句柄（HixlCSServerRegMem 返回）。 |
 
-**返回值**
+**返回值说明**
 
 - HIXL_SUCCESS：成功
 - HIXL_PARAM_INVALID：参数错误
@@ -382,7 +382,7 @@ HixlStatus HixlCSServerUnregMem(HixlServerHandle server_handle, MemHandle mem_ha
 
 ### HixlCSServerDestroy
 
-**函数功能**
+**功能说明**
 
 销毁 Server 实例并释放相关资源。
 
@@ -398,7 +398,7 @@ HixlStatus HixlCSServerDestroy(HixlServerHandle server_handle);
 | --- | --- | --- |
 | server_handle | 输入 | Server 实例句柄。 |
 
-**返回值**
+**返回值说明**
 
 - HIXL_SUCCESS：成功
 - HIXL_PARAM_INVALID：参数错误
@@ -414,7 +414,7 @@ HixlStatus HixlCSServerDestroy(HixlServerHandle server_handle);
 
 ### HixlCSClientCreate
 
-**函数功能**
+**功能说明**
 
 创建 Client 实例并初始化本端资源。
 
@@ -434,7 +434,7 @@ HixlStatus HixlCSClientCreate(const HixlClientDesc *client_desc,
 | config | 输入 | Client配置，不支持传入NULL；如需配置通信资源参数，填写 `HixlClientConfig.global_resource_config`。 |
 | client_handle | 输出 | 返回创建的客户端句柄。 |
 
-**返回值**
+**返回值说明**
 
 - HIXL_SUCCESS：成功
 - HIXL_PARAM_INVALID：参数错误
@@ -447,7 +447,7 @@ HixlStatus HixlCSClientCreate(const HixlClientDesc *client_desc,
 
 ### HixlCSClientConnect
 
-**函数功能**
+**功能说明**
 
 发起与 Server 的同步建链（阻塞直到成功或超时）。
 
@@ -464,7 +464,7 @@ HixlStatus HixlCSClientConnect(HixlClientHandle client_handle, uint32_t timeout_
 | client_handle | 输入 | 客户端句柄。 |
 | timeout_ms | 输入 | 连接超时时间（毫秒）。 |
 
-**返回值**
+**返回值说明**
 
 - HIXL_SUCCESS：连接成功
 - HIXL_PARAM_INVALID：参数错误
@@ -479,7 +479,7 @@ HixlStatus HixlCSClientConnect(HixlClientHandle client_handle, uint32_t timeout_
 
 ### HixlCSClientGetRemoteMem
 
-**函数功能**
+**功能说明**
 
 获取 Server 已注册的内存信息。
 
@@ -503,7 +503,7 @@ HixlStatus HixlCSClientGetRemoteMem(HixlClientHandle client_handle,
 | list_num | 输出 | 返回的列表长度，内存生命周期由接口内部管理。重复调用该接口，将释放上一次申请的内存，如有需要按需拷贝至本地内存。 |
 | timeout_ms | 输入 | 请求超时时间（毫秒）。 |
 
-**返回值**
+**返回值说明**
 
 - HIXL_SUCCESS：成功
 - HIXL_PARAM_INVALID：参数错误
@@ -516,7 +516,7 @@ HixlStatus HixlCSClientGetRemoteMem(HixlClientHandle client_handle,
 
 ### HixlCSClientRegMem
 
-**函数功能**
+**功能说明**
 
 Client 注册本地内存。
 
@@ -538,7 +538,7 @@ HixlStatus HixlCSClientRegMem(HixlClientHandle client_handle,
 | mem | 输入 | `CommMem` 描述。 |
 | mem_handle | 输出 | 返回的内存句柄。 |
 
-**返回值**
+**返回值说明**
 
 - HIXL_SUCCESS：成功
 - HIXL_PARAM_INVALID：参数错误
@@ -552,7 +552,7 @@ HixlStatus HixlCSClientRegMem(HixlClientHandle client_handle,
 
 ### HixlCSClientUnregMem
 
-**函数功能**
+**功能说明**
 
 注销 Client 注册的内存。
 
@@ -569,7 +569,7 @@ HixlStatus HixlCSClientUnregMem(HixlClientHandle client_handle, MemHandle mem_ha
 | client_handle | 输入 | 客户端句柄。 |
 | mem_handle | 输入 | 要注销的内存句柄。 |
 
-**返回值**
+**返回值说明**
 
 - HIXL_SUCCESS：成功
 - HIXL_PARAM_INVALID：参数错误
@@ -581,7 +581,7 @@ HixlStatus HixlCSClientUnregMem(HixlClientHandle client_handle, MemHandle mem_ha
 
 ### HixlCSClientBatchPutAsync
 
-**函数功能**
+**功能说明**
 
 异步批量向Server写多组数据。
 
@@ -603,7 +603,7 @@ HixlStatus HixlCSClientBatchPutAsync(HixlClientHandle client_handle,
 | desc_list | 输入 | 指向 `HixlOneSideOpDesc` 数组，长度为 `list_num`；`list_num > 0` 时不可为 NULL。每项为 **local_buf → remote_buf**，`len` 为字节数。 |
 | complete_handle | 输出 | 返回的完成句柄，用于用户异步查询任务状态，当查询成功后，将自动释放相关资源。不可为 NULL。 |
 
-**返回值**
+**返回值说明**
 
 - HIXL_SUCCESS：任务提交成功（不代表完成）
 - HIXL_PARAM_INVALID：参数错误
@@ -617,7 +617,7 @@ HixlStatus HixlCSClientBatchPutAsync(HixlClientHandle client_handle,
 
 ### HixlCSClientBatchGetAsync
 
-**函数功能**
+**功能说明**
 
 异步批量从Server读多组数据到本地。
 
@@ -639,7 +639,7 @@ HixlStatus HixlCSClientBatchGetAsync(HixlClientHandle client_handle,
 | desc_list | 输入 | 指向 `HixlOneSideOpDesc` 数组，长度为 `list_num`；`list_num > 0` 时不可为 NULL。每项为 **remote_buf → local_buf**，`len` 为字节数。 |
 | complete_handle | 输出 | 返回的完成句柄，用于用户异步查询任务状态，当查询成功后，将自动释放相关资源。不可为 NULL。 |
 
-**返回值**
+**返回值说明**
 
 - HIXL_SUCCESS：任务提交成功（不代表完成）
 - HIXL_PARAM_INVALID：参数错误
@@ -653,7 +653,7 @@ HixlStatus HixlCSClientBatchGetAsync(HixlClientHandle client_handle,
 
 ### HixlCSClientBatchPutSync
 
-**函数功能**
+**功能说明**
 
 同步批量向 Server 写入多组数据：在整批传输完成、超时或失败前阻塞当前线程，不返回 `CompleteHandle`。
 
@@ -675,7 +675,7 @@ HixlStatus HixlCSClientBatchPutSync(HixlClientHandle client_handle,
 | desc_list | 输入 | 长度为 `list_num` 的 `HixlOneSideOpDesc` 数组；`list_num > 0` 时不可为 NULL。数据方向为 **local_buf（源）→ remote_buf（目标）**，`len` 为每次传输的字节数。 |
 | timeout_ms | 输入 | 整批任务的总等待超时（毫秒）。超时返回 `HIXL_TIMEOUT`。Host 端实现为轮询等待完成；Device 端为流同步超时预算。 |
 
-**返回值**
+**返回值说明**
 
 - HIXL_SUCCESS：整批传输已完成
 - HIXL_PARAM_INVALID：参数错误（如 `list_num == 0`、`desc_list` 非法、`client_handle` 为 NULL 等）
@@ -689,7 +689,7 @@ HixlStatus HixlCSClientBatchPutSync(HixlClientHandle client_handle,
 
 ### HixlCSClientBatchGetSync
 
-**函数功能**
+**功能说明**
 
 同步批量从 Server 读取多组数据到本地：在整批传输完成、超时或失败前阻塞当前线程，不返回 `CompleteHandle`。
 
@@ -711,7 +711,7 @@ HixlStatus HixlCSClientBatchGetSync(HixlClientHandle client_handle,
 | desc_list | 输入 | 长度为 `list_num` 的 `HixlOneSideOpDesc` 数组；`list_num > 0` 时不可为 NULL。数据方向为 **remote_buf（源）→ local_buf（目标）**，`len` 为每次传输的字节数。 |
 | timeout_ms | 输入 | 整批任务的总等待超时（毫秒）。超时返回 `HIXL_TIMEOUT`。Host 端实现为轮询等待完成；Device 端为流同步超时预算。 |
 
-**返回值**
+**返回值说明**
 
 - HIXL_SUCCESS：整批传输已完成
 - HIXL_PARAM_INVALID：参数错误（如 `list_num == 0`、`desc_list` 非法、`client_handle` 为 NULL 等）
@@ -725,7 +725,7 @@ HixlStatus HixlCSClientBatchGetSync(HixlClientHandle client_handle,
 
 ### HixlCSClientQueryCompleteStatus
 
-**函数功能**
+**功能说明**
 
 查询异步批量任务的完成状态。
 
@@ -745,7 +745,7 @@ HixlStatus HixlCSClientQueryCompleteStatus(HixlClientHandle client_handle,
 | complete_handle | 输入 | 要查询的任务句柄。 |
 | complete_status | 输出 | 返回任务状态枚举（见 `HixlCompleteStatus`）。 |
 
-**返回值**
+**返回值说明**
 
 - HIXL_SUCCESS：查询成功，传输状态需要根据complete_status确定。
 - HIXL_PARAM_INVALID：参数错误
@@ -759,7 +759,7 @@ HixlStatus HixlCSClientQueryCompleteStatus(HixlClientHandle client_handle,
 
 ### HixlCSClientDestroy
 
-**函数功能**
+**功能说明**
 
 销毁 Client 实例并释放资源。
 
@@ -775,7 +775,7 @@ HixlStatus HixlCSClientDestroy(HixlClientHandle client_handle);
 |---|---:|---|
 | client_handle | 输入 | 客户端句柄。|
 
-**返回值**
+**返回值说明**
 
 - HIXL_SUCCESS：成功
 - HIXL_PARAM_INVALID：参数错误

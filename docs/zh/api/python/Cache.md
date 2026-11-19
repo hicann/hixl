@@ -22,7 +22,7 @@
 
 ## cache\_id
 
-**函数功能**
+**功能说明**
 
 获取Cache的id。
 
@@ -45,7 +45,7 @@ kv_cache = cache_manager.allocate_cache(cache_desc, cache_keys)
 print(kv_cache.cache_id)
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况返回类型为Cache的id。
 
@@ -55,7 +55,7 @@ print(kv_cache.cache_id)
 
 ## cache\_desc
 
-**函数功能**
+**功能说明**
 
 获取Cache描述。
 
@@ -78,7 +78,7 @@ kv_cache = cache_manager.allocate_cache(cache_desc, cache_keys)
 print(kv_cache.cache_desc.num_tensors)
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况返回类型为Cache的cache描述。
 
@@ -88,7 +88,7 @@ print(kv_cache.cache_desc.num_tensors)
 
 ## tensor\_addrs
 
-**函数功能**
+**功能说明**
 
 获取Cache的地址。
 
@@ -111,7 +111,7 @@ kv_cache = cache_manager.allocate_cache(cache_desc, cache_keys)
 print(kv_cache.tensor_addrs)
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况返回类型为Cache的地址。
 
@@ -121,7 +121,7 @@ print(kv_cache.tensor_addrs)
 
 ## create\_cpu\_cache
 
-**函数功能**
+**功能说明**
 
 创建cpu cache。
 
@@ -145,7 +145,7 @@ from llm_datadist import Cache
 cpu_cache = Cache.create_cpu_cache(cpu_cache_desc, cpu_addrs) # cpu_addrs来自创建的cpu tensors
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况返回类型为Cache的cpu\_cache。
 

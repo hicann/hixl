@@ -18,7 +18,7 @@
 
 ## Hixl构造函数
 
-**函数功能**
+**功能说明**
 
 创建Hixl对象。
 
@@ -39,7 +39,7 @@ import hixl
 engine = hixl.Hixl()
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下返回Hixl实例。
 
@@ -49,7 +49,7 @@ engine = hixl.Hixl()
 
 ## initialize
 
-**函数功能**
+**功能说明**
 
 初始化HIXL，在调用其他接口前需要先调用该接口。
 
@@ -661,7 +661,7 @@ UB_RTP：
 
 请参考[样例运行](../../../../examples/python/hixl/hixl_d2rd_multiproc_sample.py)。
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
@@ -675,7 +675,7 @@ UB_RTP：
 
 ## finalize
 
-**函数功能**
+**功能说明**
 
 HIXL资源清理函数。
 
@@ -699,7 +699,7 @@ engine.initialize("127.0.0.1:16000")
 engine.finalize()
 ```
 
-**返回值**
+**返回值说明**
 
 无
 
@@ -713,7 +713,7 @@ engine.finalize()
 
 ## register\_mem
 
-**函数功能**
+**功能说明**
 
 注册内存地址。用于transfer\_sync调用指定本地内存地址和远端内存地址，transfer\_sync指定的地址可以为注册的地址子集，其中本地内存地址需在当前HIXL进行注册，远端内存地址需要在远端HIXL进行注册。对同一内存区域（相同addr和相同len）重复调用register\_mem，将返回SUCCESS并返回与首次注册相同的mem\_handle，不会创建新的底层资源。
 
@@ -740,7 +740,7 @@ mem_desc = hixl.MemDesc(addr=dev_addr, len=buf_size)
 ret, handle = engine.register_mem(mem_desc, hixl.MemType.MEM_DEVICE)
 ```
 
-**返回值**
+**返回值说明**
 
 返回一个元组(ret, mem\_handle)：
 
@@ -782,7 +782,7 @@ ret, handle = engine.register_mem(mem_desc, hixl.MemType.MEM_DEVICE)
 
 ## deregister\_mem
 
-**函数功能**
+**功能说明**
 
 解注册内存。对同一mem\_handle重复调用deregister\_mem，第一次会正确释放资源，后续调用返回SUCCESS但不执行实际操作。传入未通过register\_mem获取的handle（非0）时返回SUCCESS但不执行实际操作；传入0时返回PARAM\_INVALID。
 
@@ -804,7 +804,7 @@ deregister_mem(mem_handle: int) -> int
 ret = engine.deregister_mem(handle)
 ```
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
@@ -816,7 +816,7 @@ ret = engine.deregister_mem(handle)
 
 ## connect
 
-**函数功能**
+**功能说明**
 
 与远端HIXL进行建链。
 
@@ -839,7 +839,7 @@ connect(remote_engine: str, timeout_in_millis: int = 1000) -> int
 ret = engine.connect("127.0.0.1:16001", timeout_in_millis=5000)
 ```
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
@@ -888,7 +888,7 @@ ret = engine.connect("127.0.0.1:16001", timeout_in_millis=5000)
 
 ## disconnect
 
-**函数功能**
+**功能说明**
 
 与远端HIXL进行断链。
 
@@ -911,7 +911,7 @@ disconnect(remote_engine: str, timeout_in_millis: int = 1000) -> int
 ret = engine.disconnect("127.0.0.1:16001", timeout_in_millis=5000)
 ```
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
@@ -924,7 +924,7 @@ ret = engine.disconnect("127.0.0.1:16001", timeout_in_millis=5000)
 
 ## connect\_async
 
-**函数功能**
+**功能说明**
 
 与远端HIXL进行异步建链。
 
@@ -947,7 +947,7 @@ connect_async(remote_engine: str, timeout_in_millis: int = 1000) -> int
 ret = engine.connect_async("127.0.0.1:16001", timeout_in_millis=5000)
 ```
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误（timeout\_in\_millis <= 0）
@@ -964,7 +964,7 @@ ret = engine.connect_async("127.0.0.1:16001", timeout_in_millis=5000)
 
 ## disconnect\_async
 
-**函数功能**
+**功能说明**
 
 与远端HIXL进行异步断链。
 
@@ -987,7 +987,7 @@ disconnect_async(remote_engine: str, timeout_in_millis: int = 1000) -> int
 ret = engine.disconnect_async("127.0.0.1:16001", timeout_in_millis=5000)
 ```
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误（timeout\_in\_millis <= 0）
@@ -1004,7 +1004,7 @@ ret = engine.disconnect_async("127.0.0.1:16001", timeout_in_millis=5000)
 
 ## get\_async\_connect\_status
 
-**函数功能**
+**功能说明**
 
 获取指定异步连接状态。
 
@@ -1028,7 +1028,7 @@ if status == hixl.AsyncConnectStatus.CONNECTED:
     print("Connected")
 ```
 
-**返回值**
+**返回值说明**
 
 返回一个元组(ret, status)：
 
@@ -1042,7 +1042,7 @@ if status == hixl.AsyncConnectStatus.CONNECTED:
 
 ## get\_all\_async\_connect\_status
 
-**函数功能**
+**功能说明**
 
 获取全部异步连接状态。
 
@@ -1064,7 +1064,7 @@ for remote, status in statuses.items():
     print(f"{remote}: {status}")
 ```
 
-**返回值**
+**返回值说明**
 
 返回一个元组(ret, statuses)：
 
@@ -1078,7 +1078,7 @@ for remote, status in statuses.items():
 
 ## transfer\_sync
 
-**函数功能**
+**功能说明**
 
 与远端HIXL进行内存传输。
 
@@ -1104,7 +1104,7 @@ op_descs = [hixl.TransferOpDesc(local_addr=local, remote_addr=remote, len=size)]
 ret = engine.transfer_sync("127.0.0.1:16001", hixl.TransferOp.READ, op_descs, timeout_in_millis=30000)
 ```
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
@@ -1149,7 +1149,7 @@ ret = engine.transfer_sync("127.0.0.1:16001", hixl.TransferOp.READ, op_descs, ti
 
 ## transfer\_async
 
-**函数功能**
+**功能说明**
 
 与远端HIXL进行批量异步内存传输。
 
@@ -1175,7 +1175,7 @@ op_descs = [hixl.TransferOpDesc(local_addr=local, remote_addr=remote, len=size)]
 ret, req_id = engine.transfer_async("127.0.0.1:16001", hixl.TransferOp.WRITE, op_descs)
 ```
 
-**返回值**
+**返回值说明**
 
 返回一个元组(ret, req\_id)：
 
@@ -1203,7 +1203,7 @@ ret, req_id = engine.transfer_async("127.0.0.1:16001", hixl.TransferOp.WRITE, op
 
 ## get\_transfer\_status
 
-**函数功能**
+**功能说明**
 
 获取异步内存传输的状态。
 
@@ -1227,7 +1227,7 @@ if status == hixl.TransferStatus.COMPLETED:
     print("Transfer completed")
 ```
 
-**返回值**
+**返回值说明**
 
 返回一个元组(ret, status)：
 
@@ -1242,7 +1242,7 @@ if status == hixl.TransferStatus.COMPLETED:
 
 ## get\_all\_transfer\_status
 
-**函数功能**
+**功能说明**
 
 获取所有异步内存传输的状态。
 
@@ -1267,7 +1267,7 @@ for result in results:
     print(f"req={result.req}, status={result.status}")
 ```
 
-**返回值**
+**返回值说明**
 
 返回一个元组(ret, results)：
 
@@ -1282,7 +1282,7 @@ for result in results:
 
 ## send\_notify
 
-**函数功能**
+**功能说明**
 
 向远端engine发送Notify信息。
 
@@ -1307,7 +1307,7 @@ notify = hixl.NotifyDesc(name="cache_ready", notify_msg="block_0")
 ret = engine.send_notify("127.0.0.1:16001", notify, timeout_in_millis=1000)
 ```
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误（timeout\_in\_millis <= 0，或notify.name/notify\_msg长度超过1024）
@@ -1320,7 +1320,7 @@ ret = engine.send_notify("127.0.0.1:16001", notify, timeout_in_millis=1000)
 
 ## get\_notifies
 
-**函数功能**
+**功能说明**
 
 获取当前Hixl内所有Server收到的Notify信息，并清空已收到信息。
 
@@ -1342,7 +1342,7 @@ for n in notifies:
     print(f"name={n.name}, msg={n.notify_msg}")
 ```
 
-**返回值**
+**返回值说明**
 
 返回一个元组(ret, notifies)：
 
@@ -1355,7 +1355,7 @@ for n in notifies:
 
 ## get\_capability
 
-**函数功能**
+**功能说明**
 
 查询库能力特性。上层可在initialize之前调用该接口，探测当前Hixl库是否支持特定能力（如Auto Connect、Client/Server通信），避免硬编码默认值或与旧版.so不兼容。
 
@@ -1378,7 +1378,7 @@ ret, value = hixl.get_capability(hixl.FeatureType.AUTO_CONNECT)
 supports_auto_connect = (value == hixl.FEATURE_SUPPORTED)
 ```
 
-**返回值**
+**返回值说明**
 
 返回一个元组(ret, value)：
 

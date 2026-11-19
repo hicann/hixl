@@ -16,7 +16,7 @@
 说明：针对Atlas A2系列产品，仅支持Atlas 800I A2推理服务器、A200I A2 Box异构组件。
 <!-- end id4 -->
 
-## 函数功能
+## 功能说明
 
 构造MemInfo，通常在CacheManager的remap\_registered\_memory接口中作为参数类型使用。
 
@@ -41,7 +41,7 @@ from llm_datadist import MemInfo, Memtype
 mem_info = MemInfo(Memtype.MEM_TYPE_DEVICE, 1234, 10)
 ```
 
-## 返回值
+## 返回值说明
 
 正常情况下返回MemInfo的实例。
 

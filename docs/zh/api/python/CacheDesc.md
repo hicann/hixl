@@ -16,7 +16,7 @@
 说明：针对Atlas A2系列产品，仅支持Atlas 800I A2推理服务器、A200I A2 Box异构组件。
 <!-- end id4 -->
 
-## 函数功能
+## 功能说明
 
 构造CacheDesc，通常在CacheManager的allocate\_cache接口中作为参数类型使用。
 
@@ -54,7 +54,7 @@ from llm_datadist import CacheDesc, DataType
 cache_desc = CacheDesc(80, [4, 2048, 1, 128], DataType.DT_FLOAT16)
 ```
 
-## 返回值
+## 返回值说明
 
 正常情况下返回CacheDesc的实例。
 

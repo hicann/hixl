@@ -20,7 +20,7 @@
 
 ### allocate\_cache
 
-**函数功能**
+**功能说明**
 
 分配Cache，Cache分配成功后，会同时被cache\_id与cache\_keys引用，只有当这些引用都解除后，cache所占用的资源才会实际释放。
 
@@ -52,7 +52,7 @@ cache_keys = [CacheKey(1, req_id=1), CacheKey(1, req_id=2)]
 cache = cache_manager.allocate_cache(cache_desc, cache_keys)
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下返回Cache。
 
@@ -71,7 +71,7 @@ cache = cache_manager.allocate_cache(cache_desc, cache_keys)
 
 ### deallocate\_cache
 
-**函数功能**
+**功能说明**
 
 释放Cache。
 
@@ -97,7 +97,7 @@ from llm_datadist import *
 cache_manager.deallocate_cache(cache)
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -111,7 +111,7 @@ cache_manager.deallocate_cache(cache)
 
 ### remove\_cache\_key
 
-**函数功能**
+**功能说明**
 
 移除CacheKey。
 
@@ -139,7 +139,7 @@ cache_manager.remove_cache_key(cache_keys[0])
 cache_manager.remove_cache_key(cache_keys[1])
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -153,7 +153,7 @@ cache_manager.remove_cache_key(cache_keys[1])
 
 ### copy\_cache
 
-**函数功能**
+**功能说明**
 
 拷贝Cache。
 
@@ -183,7 +183,7 @@ from llm_datadist import *
 cache_manager.copy_cache(dst_cache, src_cache, 0, 1, 0, 128)
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -197,7 +197,7 @@ cache_manager.copy_cache(dst_cache, src_cache, 0, 1, 0, 128)
 
 ### allocate\_blocks\_cache
 
-**函数功能**
+**功能说明**
 
 PagedAttention场景下，分配多个blocks的Cache，Cache分配成功后，可通过deallocate\_blocks\_cache释放内存。
 
@@ -223,7 +223,7 @@ blocks_cache_key = BlocksCacheKey(1, 0)
 blocks_cache = cache_manager.allocate_blocks_cache(cache_desc, blocks_cache_key)
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下返回Cache。
 
@@ -237,7 +237,7 @@ blocks_cache = cache_manager.allocate_blocks_cache(cache_desc, blocks_cache_key)
 
 ### deallocate\_blocks\_cache
 
-**函数功能**
+**功能说明**
 
 PagedAttention场景下，释放allocate\_blocks\_cache申请的Cache。
 
@@ -261,7 +261,7 @@ from llm_datadist import BlocksCacheKey
 cache_manager.deallocate_blocks_cache(blocks_cache)
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -275,7 +275,7 @@ cache_manager.deallocate_blocks_cache(blocks_cache)
 
 ### copy\_blocks
 
-**函数功能**
+**功能说明**
 
 PagedAttention场景下，拷贝block。
 
@@ -298,7 +298,7 @@ copy_blocks(cache: Cache, copy_block_info: Dict[int, List[int]])
 cache_manager.copy_blocks(cache, {1: [2,3]})
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -312,7 +312,7 @@ cache_manager.copy_blocks(cache, {1: [2,3]})
 
 ### swap\_blocks
 
-**函数功能**
+**功能说明**
 
 对cpu\_cache和npu\_cache进行换入换出。
 
@@ -346,7 +346,7 @@ cache_manager.swap_blocks(cpu_cache, npu_cache, {1:2, 3:4})
 cache_manager.swap_blocks(npu_cache, cpu_cache, {1:2, 3:4})
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -362,7 +362,7 @@ cache_manager.swap_blocks(npu_cache, cpu_cache, {1:2, 3:4})
 
 ### mem\_pool\_cfg
 
-**函数功能**
+**功能说明**
 
 配置内存池相关配置项。
 
@@ -391,7 +391,7 @@ llm_config = LLMConfig()
 llm_config.mem_pool_cfg= "{\"memory_size\": 18737418240, \"page_shift\": 16}"
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -403,7 +403,7 @@ llm_config.mem_pool_cfg= "{\"memory_size\": 18737418240, \"page_shift\": 16}"
 
 ### host\_mem\_pool\_cfg
 
-**函数功能**
+**功能说明**
 
 配置Host内存池相关配置项。
 
@@ -432,7 +432,7 @@ llm_config = LLMConfig()
 llm_config.host_mem_pool_cfg= "{\"memory_size\": 18737418240, \"page_shift\": 16}"
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 

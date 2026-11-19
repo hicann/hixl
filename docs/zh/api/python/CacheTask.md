@@ -22,7 +22,7 @@
 
 ## synchronize
 
-**函数功能**
+**功能说明**
 
 等待所有层传输完成，并获取整体执行结果。
 
@@ -44,7 +44,7 @@ synchronize(timeout_in_millis: Optional[int] = None) -> LLMStatusCode
 ret = cache_task.synchronize()
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下返回LLMStatusCode。
 
@@ -56,7 +56,7 @@ ret = cache_task.synchronize()
 
 ## get\_results
 
-**函数功能**
+**功能说明**
 
 等待所有层传输完成，并获取每个TransferConfig对应执行结果。
 
@@ -80,7 +80,7 @@ get_results(timeout_in_millis: Optional[int] = None) -> List[LLMStatusCode]
 rets = cache_task.get_results()
 ```
 
-**返回值**
+**返回值说明**
 
 返回与每个TransferConfig对应的结果列表；每个元素为LLMStatusCode或None。读取状态码前，应先判断对应元素是否为None。
 

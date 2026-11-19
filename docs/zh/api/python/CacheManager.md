@@ -22,7 +22,7 @@
 
 ## CacheManager构造函数
 
-**函数功能**
+**功能说明**
 
 CacheManager的实例应该通过cache\_manager返回。
 
@@ -32,7 +32,7 @@ CacheManager的生命周期与获取它的LLMDataDist初始化周期一致。调
 
 ## pull\_cache
 
-**函数功能**
+**功能说明**
 
 根据CacheKey，从对应的对端节点拉取到本地Cache。
 
@@ -67,7 +67,7 @@ pull_cache(cache_key: Union[CacheKey, CacheKeyByIdAndIndex],
 
 请参考[样例运行](../../../../examples/python/README.md)。
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -84,7 +84,7 @@ layer\_range参数异常会抛出LLMException异常。
 
 ## pull\_blocks
 
-**函数功能**
+**功能说明**
 
 PagedAttention场景下，根据BlocksCacheKey，通过block列表的方式从对端节点拉取Cache到本地Cache。
 
@@ -119,7 +119,7 @@ pull_blocks(src_cache_key: Union[CacheKey, CacheKeyByIdAndIndex, BlocksCacheKey]
 
 请参考[样例运行](../../../../examples/python/README.md)。
 
-**返回值**
+**返回值说明**
 
 - 正常情况下无返回值。
 - 传入数据类型错误情况下会抛出TypeError或ValueError异常。
@@ -134,7 +134,7 @@ pull_blocks(src_cache_key: Union[CacheKey, CacheKeyByIdAndIndex, BlocksCacheKey]
 
 ## register\_cache
 
-**函数功能**
+**功能说明**
 
 非PagedAttention场景下，调用此接口注册一个自行申请的内存。
 
@@ -157,7 +157,7 @@ register_cache(cache_desc: CacheDesc, addrs: List[int], cache_keys: Union[Tuple[
 
 请参考[样例运行](../../../../examples/python/README.md)。
 
-**返回值**
+**返回值说明**
 
 正常情况下返回注册的cache。
 
@@ -200,7 +200,7 @@ register_cache(cache_desc: CacheDesc, addrs: List[int], cache_keys: Union[Tuple[
 
 ## register\_blocks\_cache
 
-**函数功能**
+**功能说明**
 
 PagedAttention场景下，调用此接口注册一个自行申请的内存。
 
@@ -223,7 +223,7 @@ register_blocks_cache(cache_desc: CacheDesc, addrs: List[int], blocks_cache_key:
 
 请参考[样例运行](../../../../examples/python/README.md)。
 
-**返回值**
+**返回值说明**
 
 正常情况下返回注册的cache。
 
@@ -250,7 +250,7 @@ Ascend 950PR&950DT系列产品场景下，无约束。
 
 ## transfer\_cache\_async
 
-**函数功能**
+**功能说明**
 
 异步分层传输Cache。
 
@@ -283,7 +283,7 @@ transfer_cache_async(self,
 cache_task = cache_manager.transfer_cache_async(cache, LayerSynchronizerImpl(), transfer_configs)
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下返回CacheTask。
 
@@ -303,7 +303,7 @@ cache_task = cache_manager.transfer_cache_async(cache, LayerSynchronizerImpl(), 
 
 ## push\_blocks
 
-**函数功能**
+**功能说明**
 
 PagedAttention场景下，根据BlocksCacheKey，通过block列表的方式从本地节点推送Cache到远端Cache。
 
@@ -336,7 +336,7 @@ push_blocks(self,
 
 请参考[样例运行](../../../../examples/python/README.md)。
 
-**返回值**
+**返回值说明**
 
 - 正常情况下无返回值。
 - 传入数据类型错误情况下会抛出TypeError或ValueError异常。
@@ -352,7 +352,7 @@ push_blocks(self,
 
 ## push\_cache
 
-**函数功能**
+**功能说明**
 
 根据CacheKey，从本地节点推送Cache到远端Cache。
 
@@ -385,7 +385,7 @@ push_cache(self,
 
 请参考[样例运行](../../../../examples/python/README.md)。
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -404,7 +404,7 @@ layer\_range参数异常会抛出LLMException异常。
 
 ## remap\_registered\_memory
 
-**函数功能**
+**功能说明**
 
 大模型推理过程中，如果发生内存UCE故障，即返回错误码ACL\_ERROR\_RT\_DEVICE\_MEM\_ERROR，上层框架需要先判断发生该故障的内存是否为KV Cache内存，如果不是，请参考[PyTorch](https://www.hiascend.com/developer/software/ai-frameworks/pytorch)的torch\_npu.npu.restart\_device接口的说明获取并修复内存UCE的错误虚拟地址。如果是KV Cache内存，还需要再调用该接口修复注册给网卡的KV Cache内存。
 
@@ -437,7 +437,7 @@ mem_info = MemInfo(Memtype.MEM_TYPE_DEVICE, addr, size)
 cache_manager.remap_registered_memory(mem_info)
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -452,7 +452,7 @@ cache_manager.remap_registered_memory(mem_info)
 
 ## unregister\_cache
 
-**函数功能**
+**功能说明**
 
 解除注册一个自行申请的内存。
 
@@ -472,7 +472,7 @@ unregister_cache(cache_id: int) -> None
 
 请参考[样例运行](../../../../examples/python/README.md)。
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 

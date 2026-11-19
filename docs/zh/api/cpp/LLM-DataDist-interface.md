@@ -18,7 +18,7 @@
 
 ## LlmDataDist构造函数
 
-**函数功能**
+**功能说明**
 
 创建LLM-DataDist对象。
 
@@ -35,7 +35,7 @@ LlmDataDist(uint64_t cluster_id, LlmRole role)
 | cluster_id | 输入 | 集群ID。LlmDataDist标识，在所有参与建链的范围内需要确保唯一。 |
 | role | 输入 | 类型是LlmRole，该参数只用于标识当前角色，对传输过程无影响。 |
 
-**返回值**
+**返回值说明**
 
 无
 
@@ -49,7 +49,7 @@ LlmDataDist(uint64_t cluster_id, LlmRole role)
 
 ## \~LlmDataDist\(\)
 
-**函数功能**
+**功能说明**
 
 LLM-DataDist对象析构函数。
 
@@ -63,7 +63,7 @@ LLM-DataDist对象析构函数。
 
 无
 
-**返回值**
+**返回值说明**
 
 无
 
@@ -77,7 +77,7 @@ LLM-DataDist对象析构函数。
 
 ## Initialize
 
-**函数功能**
+**功能说明**
 
 初始化LLM-DataDist。
 
@@ -175,7 +175,7 @@ if (ret != LLM_SUCCESS) {
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - LLM\_SUCCESS：成功
 - LLM\_PARAM\_INVALID：参数错误
@@ -191,7 +191,7 @@ if (ret != LLM_SUCCESS) {
 
 ## Finalize
 
-**函数功能**
+**功能说明**
 
 LLM-DataDist的资源释放函数。
 
@@ -209,7 +209,7 @@ void Finalize()
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 无
 
@@ -226,7 +226,7 @@ void Finalize()
 
 ## SetRole
 
-**函数功能**
+**功能说明**
 
 设置LLM-DataDist的角色。
 
@@ -253,7 +253,7 @@ Status SetRole(LlmRole role, const std::map<AscendString, AscendString> &options
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - LLM\_SUCCESS：设置角色成功
 - LLM\_PARAM\_INVALID：参数错误
@@ -270,7 +270,7 @@ Status SetRole(LlmRole role, const std::map<AscendString, AscendString> &options
 
 ## LinkLlmClusters
 
-**函数功能**
+**功能说明**
 
 在LlmDataDist之间执行建链，Client端调用。
 
@@ -292,7 +292,7 @@ Status LinkLlmClusters(const std::vector<ClusterInfo> &clusters, std::vector<Sta
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - LLM\_SUCCESS：只有所有clusters建链成功，接口才会返回成功。
 - 其他：建链失败，需要查看rets每个cluster的建链结果。
@@ -348,7 +348,7 @@ Status LinkLlmClusters(const std::vector<ClusterInfo> &clusters, std::vector<Sta
 
 ## UnlinkLlmClusters
 
-**函数功能**
+**功能说明**
 
 在LlmDataDist之间执行断链。
 
@@ -371,7 +371,7 @@ Status UnlinkLlmClusters(const std::vector<ClusterInfo> &clusters, std::vector<S
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：只有所有clusters断链成功，接口才会返回成功。
 - 其他：执行断链失败，需要查看rets每个cluster的断链结果。
@@ -386,7 +386,7 @@ LLM\_UNLINK\_FAILED：断链失败。
 
 ## PullKvCache
 
-**函数功能**
+**功能说明**
 
 从远端节点拉取Cache到本地Cache。
 
@@ -414,7 +414,7 @@ Status PullKvCache(const CacheIndex &src_cache_index,
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - LLM\_SUCCESS：成功
 - LLM\_PARAM\_INVALID：参数错误
@@ -429,7 +429,7 @@ Status PullKvCache(const CacheIndex &src_cache_index,
 
 ## PullKvBlocks
 
-**函数功能**
+**功能说明**
 
 通过block列表的方式，从远端节点拉取Cache到本地Cache。
 
@@ -457,7 +457,7 @@ Status PullKvBlocks(const CacheIndex &src_cache_index,
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - LLM\_SUCCESS：成功
 - LLM\_PARAM\_INVALID：参数错误
@@ -472,7 +472,7 @@ Status PullKvBlocks(const CacheIndex &src_cache_index,
 
 ## PushKvCache
 
-**函数功能**
+**功能说明**
 
 推送Cache到远端节点。
 
@@ -500,7 +500,7 @@ Status PushKvCache(const Cache &src_cache,
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - LLM\_SUCCESS：成功
 - LLM\_PARAM\_INVALID：参数错误
@@ -515,7 +515,7 @@ Status PushKvCache(const Cache &src_cache,
 
 ## PushKvBlocks
 
-**函数功能**
+**功能说明**
 
 通过block列表的方式，推送Cache到远端节点。
 
@@ -543,7 +543,7 @@ Status PushKvBlocks(const Cache &src_cache,
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - LLM\_SUCCESS：成功
 - LLM\_PARAM\_INVALID：参数错误
@@ -558,7 +558,7 @@ Status PushKvBlocks(const Cache &src_cache,
 
 ## RegisterKvCache
 
-**函数功能**
+**功能说明**
 
 注册本地KV Cache内存。
 
@@ -584,7 +584,7 @@ Status RegisterKvCache(const CacheDesc &cache_desc,
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - LLM\_SUCCESS：成功
 - 其他：失败
@@ -606,7 +606,7 @@ Status RegisterKvCache(const CacheDesc &cache_desc,
 
 ## UnregisterKvCache
 
-**函数功能**
+**功能说明**
 
 解除注册本地KV Cache内存。
 
@@ -626,7 +626,7 @@ Status UnregisterKvCache(int64_t cache_id);
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - LLM\_SUCCESS：成功
 - 其他：失败

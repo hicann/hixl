@@ -18,7 +18,7 @@
 
 ## LLMConfig构造函数
 
-**函数功能**
+**功能说明**
 
 构造LLMConfig，调用init接口需要传入一个配置项字典，为了简化配置，可以通过此类来构造该配置项字典。
 
@@ -41,7 +41,7 @@ from llm_datadist import LLMConfig
 llm_config = LLMConfig()
 ```
 
-**返回值**
+**返回值说明**
 
 返回LLMConfig的实例。
 
@@ -51,7 +51,7 @@ llm_config = LLMConfig()
 
 ## generate\_options
 
-**函数功能**
+**功能说明**
 
 生成配置项字典。
 
@@ -74,7 +74,7 @@ llm_config = LLMConfig()
 engine_options = llm_config.generate_options()
 ```
 
-**返回值**
+**返回值说明**
 
 返回配置项字典。
 
@@ -84,7 +84,7 @@ engine_options = llm_config.generate_options()
 
 ## device\_id
 
-**函数功能**
+**功能说明**
 
 设置当前进程Device ID，对应底层ge.exec.deviceId配置项。
 
@@ -108,7 +108,7 @@ llm_config = LLMConfig()
 llm_config.device_id = 0
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -120,7 +120,7 @@ llm_config.device_id = 0
 
 ## sync\_kv\_timeout
 
-**函数功能**
+**功能说明**
 
 配置pull\_cache、pull\_blocks、push\_blocks、push\_cache接口的超时时间，对应底层llm.SyncKvCacheWaitTime配置项。
 
@@ -144,7 +144,7 @@ llm_config = LLMConfig()
 llm_config.sync_kv_timeout = 1000
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -156,7 +156,7 @@ llm_config.sync_kv_timeout = 1000
 
 ## ge\_options
 
-**函数功能**
+**功能说明**
 
 配置额外的GE配置项。
 
@@ -183,7 +183,7 @@ llm_config = LLMConfig()
 llm_config.ge_options = ge_options
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -195,7 +195,7 @@ llm_config.ge_options = ge_options
 
 ## listen\_ip\_info
 
-**函数功能**
+**功能说明**
 
 设置集群侦听信息，对应底层llm.listenIpInfo配置项。
 
@@ -219,7 +219,7 @@ llm_config = LLMConfig()
 llm_config.listen_ip_info = "192.168.1.1:26000"
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -231,7 +231,7 @@ llm_config.listen_ip_info = "192.168.1.1:26000"
 
 ## enable\_cache\_manager
 
-**函数功能**
+**功能说明**
 
 配置是否开启CacheManager模式，对应底层llm.EnableCacheManager配置项。
 
@@ -259,7 +259,7 @@ llm_config = LLMConfig()
 llm_config.enable_cache_manager = True
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -271,7 +271,7 @@ llm_config.enable_cache_manager = True
 
 ## enable\_remote\_cache\_accessible
 
-**函数功能**
+**功能说明**
 
 配置是否开启远端Cache可直接访问功能。
 
@@ -304,7 +304,7 @@ llm_config = LLMConfig()
 llm_config.enable_remote_cache_accessible = True
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -316,7 +316,7 @@ llm_config.enable_remote_cache_accessible = True
 
 ## rdma\_traffic\_class
 
-**函数功能**
+**功能说明**
 
 用于配置RDMA网卡的traffic class。
 
@@ -342,7 +342,7 @@ llm_config = LLMConfig()
 llm_config.rdma_traffic_class = 100
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -354,7 +354,7 @@ llm_config.rdma_traffic_class = 100
 
 ## rdma\_service\_level
 
-**函数功能**
+**功能说明**
 
 用于配置RDMA网卡的service level。
 
@@ -380,7 +380,7 @@ llm_config = LLMConfig()
 llm_config.rdma_service_level = 2
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -392,7 +392,7 @@ llm_config.rdma_service_level = 2
 
 ## local\_comm\_res
 
-**函数功能**
+**功能说明**
 
 用于配置本地通信资源。
 
@@ -505,7 +505,7 @@ llm_config.local_comm_res = '''{
 }'''
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -520,7 +520,7 @@ llm_config.local_comm_res = '''{
 
 ## link\_total\_time
 
-**函数功能**
+**功能说明**
 
 用于配置HCCL建链失败的总超时时间。
 
@@ -544,7 +544,7 @@ llm_config = LLMConfig()
 llm_config.link_total_time = 20
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -556,7 +556,7 @@ llm_config.link_total_time = 20
 
 ## link\_retry\_count
 
-**函数功能**
+**功能说明**
 
 用于配置HCCL建链失败的重试次数。
 
@@ -580,7 +580,7 @@ llm_config = LLMConfig()
 llm_config.link_retry_count = 2
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -592,7 +592,7 @@ llm_config.link_retry_count = 2
 
 ## transfer\_backend
 
-**函数功能**
+**功能说明**
 
 用于配置LLM-DataDist使用的传输后端。
 
@@ -616,7 +616,7 @@ llm_config = LLMConfig()
 llm_config.transfer_backend = "hixl"
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -629,7 +629,7 @@ llm_config.transfer_backend = "hixl"
 
 ## global\_resource\_config
 
-**函数功能**
+**功能说明**
 
 用于配置LLM-DataDist全局资源信息。`tls_config.*`用于配置控制面TLS，不依赖transfer_backend；其他字段仅在transfer_backend配置为"hixl"时透传至HIXL引擎，由HIXL解析校验。
 
@@ -673,7 +673,7 @@ llm_config.global_resource_config = json.dumps({
 })
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 

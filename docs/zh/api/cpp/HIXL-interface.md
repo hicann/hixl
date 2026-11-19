@@ -18,7 +18,7 @@
 
 ## HIXL构造函数
 
-**函数功能**
+**功能说明**
 
 创建HIXL对象。
 
@@ -32,7 +32,7 @@ Hixl()
 
 无
 
-**返回值**
+**返回值说明**
 
 无
 
@@ -46,7 +46,7 @@ Hixl()
 
 ## \~Hixl\(\)
 
-**函数功能**
+**功能说明**
 
 HIXL对象析构函数。
 
@@ -60,7 +60,7 @@ HIXL对象析构函数。
 
 无
 
-**返回值**
+**返回值说明**
 
 无
 
@@ -70,7 +70,7 @@ HIXL对象析构函数。
 
 ## Initialize
 
-**函数功能**
+**功能说明**
 
 初始化HIXL，在调用其他接口前需要先调用该接口。
 
@@ -668,7 +668,7 @@ UB_RTP：
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
@@ -686,7 +686,7 @@ UB_RTP：
 
 ## Finalize
 
-**函数功能**
+**功能说明**
 
 HIXL资源清理函数。
 
@@ -704,7 +704,7 @@ void Finalize()
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 无
 
@@ -722,7 +722,7 @@ void Finalize()
 
 ## RegisterMem
 
-**函数功能**
+**功能说明**
 
 注册内存地址。用于TransferSync调用指定本地内存地址和远端内存地址，TransferSync指定的地址可以为注册的地址子集，其中本地内存地址需在当前HIXL进行注册，远端内存地址需要在远端HIXL进行注册。对同一内存区域（相同addr和相同len）重复调用RegisterMem，将返回SUCCESS并返回与首次注册相同的mem_handle，不会创建新的底层资源。
 
@@ -744,7 +744,7 @@ Status RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle)
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
@@ -790,7 +790,7 @@ Status RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle)
 
 ## DeregisterMem
 
-**函数功能**
+**功能说明**
 
 解注册内存。对同一mem_handle重复调用DeregisterMem，第一次会正确释放资源，后续调用返回SUCCESS但不执行实际操作。传入未通过RegisterMem获取的handle（非null）时返回SUCCESS但不执行实际操作；传入nullptr时返回PARAM_INVALID。
 
@@ -810,7 +810,7 @@ Status DeregisterMem(MemHandle mem_handle)
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
@@ -827,7 +827,7 @@ Status DeregisterMem(MemHandle mem_handle)
 
 ## Connect
 
-**函数功能**
+**功能说明**
 
 与远端HIXL进行建链。
 
@@ -848,7 +848,7 @@ Status Connect(const AscendString &remote_engine, int32_t timeout_in_millis = 10
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
@@ -917,7 +917,7 @@ Status Connect(const AscendString &remote_engine, int32_t timeout_in_millis = 10
 
 ## Disconnect
 
-**函数功能**
+**功能说明**
 
 与远端HIXL进行断链。
 
@@ -938,7 +938,7 @@ Status Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis =
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
@@ -952,7 +952,7 @@ Status Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis =
 
 ## ConnectAsync
 
-**函数功能**
+**功能说明**
 
 与远端HIXL进行异步建链。
 
@@ -973,7 +973,7 @@ Status ConnectAsync(const AscendString &remote_engine, int32_t timeout_in_millis
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误（timeout_in_millis <= 0）
@@ -994,7 +994,7 @@ Status ConnectAsync(const AscendString &remote_engine, int32_t timeout_in_millis
 
 ## DisconnectAsync
 
-**函数功能**
+**功能说明**
 
 与远端HIXL进行异步断链。
 
@@ -1015,7 +1015,7 @@ Status DisconnectAsync(const AscendString &remote_engine, int32_t timeout_in_mil
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误（timeout_in_millis <= 0）
@@ -1032,7 +1032,7 @@ Status DisconnectAsync(const AscendString &remote_engine, int32_t timeout_in_mil
 
 ## GetAsyncConnectStatus（查询指定连接状态）
 
-**函数功能**
+**功能说明**
 
 获取指定异步连接状态。
 
@@ -1053,7 +1053,7 @@ Status GetAsyncConnectStatus(const AscendString &remote_engine, AsyncConnectStat
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - 其他：失败
@@ -1065,7 +1065,7 @@ Status GetAsyncConnectStatus(const AscendString &remote_engine, AsyncConnectStat
 
 ## GetAsyncConnectStatus（查询全部连接状态）
 
-**函数功能**
+**功能说明**
 
 获取全部异步连接状态。
 
@@ -1085,7 +1085,7 @@ Status GetAsyncConnectStatus(std::map<AscendString, AsyncConnectStatus> &statuse
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - 其他：失败
@@ -1097,7 +1097,7 @@ Status GetAsyncConnectStatus(std::map<AscendString, AsyncConnectStatus> &statuse
 
 ## TransferSync
 
-**函数功能**
+**功能说明**
 
 与远端HIXL进行内存传输。
 
@@ -1123,7 +1123,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 请参考[样例运行](../../../../examples/cpp/README.md)。
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
@@ -1178,7 +1178,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 ## TransferAsync
 
-**函数功能**
+**功能说明**
 
 与远端HIXL进行批量异步内存传输。
 
@@ -1209,7 +1209,7 @@ Status TransferSync(const AscendString &remote_engine,
   client_engine.TransferAsync(remote_engine, operation, op_descs, optional_args, req);
 ```
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - NOT\_CONNECTED：没有与对端创建链接
@@ -1247,7 +1247,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 ## GetTransferStatus（查询指定传输请求）
 
-**函数功能**
+**功能说明**
 
 获取异步内存传输的状态。
 
@@ -1275,7 +1275,7 @@ Status TransferSync(const AscendString &remote_engine,
   ...
 ```
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
@@ -1291,7 +1291,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 ## GetTransferStatus（查询全部传输请求）
 
-**函数功能**
+**功能说明**
 
 获取所有异步内存传输的状态。
 
@@ -1321,7 +1321,7 @@ Status TransferSync(const AscendString &remote_engine,
   ...
 ```
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - UNSUPPORTED: Hixl初始化的options未配置LocalCommRes的version为1.3且未配置GlobalResourceConfig的comm_resource_config.protocol_desc包含uboe:device或ub_rtp:device时，不支持通过该接口查询
@@ -1336,7 +1336,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 ## SendNotify
 
-**函数功能**
+**功能说明**
 
 向远端engine发送Notify信息。
 
@@ -1369,7 +1369,7 @@ if (ret != SUCCESS) {
 }
 ```
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误（timeout_in_millis <= 0，或notify.name/notify_msg长度超过1024）
@@ -1383,7 +1383,7 @@ if (ret != SUCCESS) {
 
 ## GetNotifies
 
-**函数功能**
+**功能说明**
 
 获取当前Hixl内所有Server收到的Notify信息，并清空已收到信息。
 
@@ -1409,7 +1409,7 @@ if (ret != SUCCESS) {
 }
 ```
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - 其他：失败
@@ -1420,7 +1420,7 @@ if (ret != SUCCESS) {
 
 ## GetCapability
 
-**函数功能**
+**功能说明**
 
 查询库能力特性。上层可在Initialize之前调用该接口，探测当前Hixl库是否支持特定能力（如Auto Connect、Client/Server通信），避免硬编码默认值或与旧版.so不兼容。
 
@@ -1448,7 +1448,7 @@ if (ret != SUCCESS) {
 bool supports_auto_connect = (value == FEATURE_SUPPORTED);
 ```
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功。未知或不支持的特性类型时，`value` 为 `FEATURE_NOT_SUPPORTED`
 - PARAM_INVALID：参数非法（feature_type为负数）

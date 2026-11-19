@@ -16,7 +16,7 @@
 说明：针对Atlas A2系列产品，仅支持Atlas 800I A2推理服务器、A200I A2 Box异构组件。
 <!-- end id4 -->
 
-## 函数功能
+## 功能说明
 
 构造TransferConfig。
 
@@ -42,7 +42,7 @@ from llm_datadist import TransferConfig
 TransferConfig(1, dst_addrs, range(0, 3), 1)
 ```
 
-## 返回值
+## 返回值说明
 
 正常情况下返回TransferConfig的实例。
 

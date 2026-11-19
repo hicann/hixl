@@ -22,7 +22,7 @@
 
 ## LLMDataDist构造函数
 
-**函数功能**
+**功能说明**
 
 构造LLMDataDist。
 
@@ -46,7 +46,7 @@ from llm_datadist import LLMDataDist, LLMRole
 llm_datadist = LLMDataDist(LLMRole.DECODER, 0)
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下返回LLMDataDist的实例。
 
@@ -58,7 +58,7 @@ llm_datadist = LLMDataDist(LLMRole.DECODER, 0)
 
 ## init
 
-**函数功能**
+**功能说明**
 
 初始化LLMDataDist，需要在init的options中配置CacheManager模式，即enable\_cache\_manager设置为True或者指定local\_comm\_res。
 
@@ -90,7 +90,7 @@ engine_options = llm_config.generate_options()
 llm_datadist.init(engine_options)
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -104,7 +104,7 @@ llm_datadist.init(engine_options)
 
 ## finalize
 
-**函数功能**
+**功能说明**
 
 释放LLMDataDist。
 
@@ -131,7 +131,7 @@ llm_datadist.init(engine_options)
 llm_datadist.finalize()
 ```
 
-**返回值**
+**返回值说明**
 
 无
 
@@ -143,7 +143,7 @@ llm_datadist.finalize()
 
 ## link\_clusters
 
-**函数功能**
+**功能说明**
 
 单边建链，由Client单侧发起建链。是Client还是Server与角色prompt或者decoder无关。设置listen\_ip\_info标识端口监听，即为Server端。
 
@@ -164,7 +164,7 @@ link_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], time
 
 请参考[样例运行](../../../../examples/python/README.md)。
 
-**返回值**
+**返回值说明**
 
 正常情况下返回两个值的元组，第一个值是接口的返回值，类型是LLMStatusCode，第二个是每个集群建链结果的列表，类型是LLMStatusCode。
 
@@ -201,7 +201,7 @@ link_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], time
 
 ## unlink\_clusters
 
-**函数功能**
+**功能说明**
 
 单边断链，可以由Client单侧发起，通知Server进行断链；也可以Client和Server均发起强制断链，只清理本地链路。
 
@@ -223,7 +223,7 @@ unlink_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], ti
 
 请参考[样例运行](../../../../examples/python/README.md)。
 
-**返回值**
+**返回值说明**
 
 正常情况下返回两个值的元组，第一个值是接口的返回值，类型是LLMStatusCode，第二个是每个集群断链结果的列表，类型是LLMStatusCode。
 
@@ -235,7 +235,7 @@ unlink_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], ti
 
 ## switch\_role
 
-**函数功能**
+**功能说明**
 
 切换当前LLMDataDist的角色，同时可通过配置switch\_options切换Client或者Server。
 
@@ -256,7 +256,7 @@ switch_role(self, role: LLMRole, switch_options: Optional[Dict[str, str]] = None
 
 请参考[样例运行](../../../../examples/python/README.md)。
 
-**返回值**
+**返回值说明**
 
 - 正常情况下无返回值。
 - 传入数据类型错误情况下会抛出TypeError或ValueError异常。
@@ -268,7 +268,7 @@ switch_role(self, role: LLMRole, switch_options: Optional[Dict[str, str]] = None
 
 ## link
 
-**函数功能**
+**功能说明**
 
 双边建链，通过建立通信域方式建链。（推荐使用更易用的单边建链的link\_clusters接口，无需指定ranktable信息）
 
@@ -323,7 +323,7 @@ link(comm_name: str, cluster_rank_info: Dict[int, int], rank_table: str) -> int
 
 请参考[样例运行](../../../../examples/python/README.md)。
 
-**返回值**
+**返回值说明**
 
 正常情况下返回标识通信域的ID。
 
@@ -344,7 +344,7 @@ link(comm_name: str, cluster_rank_info: Dict[int, int], rank_table: str) -> int
 
 ## unlink
 
-**函数功能**
+**功能说明**
 
 双边建链对应的断链接口，调用此接口进行断链。
 
@@ -364,7 +364,7 @@ unlink(comm_id: int)
 
 请参考[样例运行](../../../../examples/python/README.md)。
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -382,7 +382,7 @@ Ascend 950PR&950DT系列产品不支持该接口。
 
 ## query\_register\_mem\_status
 
-**函数功能**
+**功能说明**
 
 调用此接口查询注册内存状态。
 
@@ -402,7 +402,7 @@ query_register_mem_status(comm_id: int) -> RegisterMemStatus
 
 请参考[样例运行](../../../../examples/python/README.md)。
 
-**返回值**
+**返回值说明**
 
 正常场景下返回RegisterMemStatus。
 
@@ -420,7 +420,7 @@ Ascend 950PR&950DT系列产品不支持该接口。
 
 ## cache\_manager
 
-**函数功能**
+**功能说明**
 
 获取CacheManager实例。
 
@@ -444,7 +444,7 @@ llm_datadist.init(engine_options)
 cache_manager = llm_datadist.cache_manager
 ```
 
-**返回值**
+**返回值说明**
 
 返回CacheManager实例。
 

@@ -16,7 +16,7 @@
 说明：针对Atlas A2系列产品，仅支持Atlas 800I A2推理服务器、A200I A2 Box异构组件。
 <!-- end id4 -->
 
-## 函数功能
+## 功能说明
 
 构造BlocksCacheKey，通常在CacheManager的allocate\_blocks\_cache、pull\_blocks、push\_blocks接口中作为参数类型使用。
 
@@ -40,7 +40,7 @@ from llm_datadist import BlocksCacheKey
 blocks_cache_key = BlocksCacheKey(0, 0)
 ```
 
-## 返回值
+## 返回值说明
 
 正常情况下返回BlocksCacheKey的实例。
 

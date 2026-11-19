@@ -18,7 +18,7 @@
 
 ## AdxlEngine构造函数
 
-**函数功能**
+**功能说明**
 
 创建AdxlEngine对象。
 
@@ -32,7 +32,7 @@ AdxlEngine()
 
 无
 
-**返回值**
+**返回值说明**
 
 无
 
@@ -46,7 +46,7 @@ AdxlEngine()
 
 ## \~AdxlEngine\(\)
 
-**函数功能**
+**功能说明**
 
 AdxlEngine对象析构函数。
 
@@ -60,7 +60,7 @@ AdxlEngine对象析构函数。
 
 无
 
-**返回值**
+**返回值说明**
 
 无
 
@@ -74,7 +74,7 @@ AdxlEngine对象析构函数。
 
 ## Initialize
 
-**函数功能**
+**功能说明**
 
 初始化AdxlEngine，在调用其他接口前需要先调用该接口。
 
@@ -105,7 +105,7 @@ Status Initialize(const AscendString &local_engine, const std::map<AscendString,
 
 单击[Gitee](https://gitee.com/ascend/samples/tags)，根据“标签名”下载配套版本的sample包，从“cplusplus/level1\_single\_api/12\_adxl”目录中获取样例。
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
@@ -122,7 +122,7 @@ Status Initialize(const AscendString &local_engine, const std::map<AscendString,
 
 ## Finalize
 
-**函数功能**
+**功能说明**
 
 AdxlEngine资源清理函数。
 
@@ -140,7 +140,7 @@ void Finalize()
 
 单击[Gitee](https://gitee.com/ascend/samples/tags)，根据“标签名”下载配套版本的sample包，从“cplusplus/level1\_single\_api/12\_adxl”目录中获取样例。
 
-**返回值**
+**返回值说明**
 
 无
 
@@ -158,7 +158,7 @@ void Finalize()
 
 ## RegisterMem
 
-**函数功能**
+**功能说明**
 
 注册内存地址。用于TransferSync调用指定本地内存地址和远端内存地址，TransferSync指定的地址可以为注册的地址子集，其中本地内存地址需在当前AdxlEngine进行注册，远端内存地址需要在远端AdxlEngine进行注册。
 
@@ -180,7 +180,7 @@ Status RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle)
 
 单击[Gitee](https://gitee.com/ascend/samples/tags)，根据“标签名”下载配套版本的sample包，从“cplusplus/level1\_single\_api/12\_adxl”目录中获取样例。
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
@@ -201,7 +201,7 @@ Status RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle)
 
 ## DeregisterMem
 
-**函数功能**
+**功能说明**
 
 解注册内存。
 
@@ -221,7 +221,7 @@ Status DeregisterMem(MemHandle mem_handle)
 
 单击[Gitee](https://gitee.com/ascend/samples/tags)，根据“标签名”下载配套版本的sample包，从“cplusplus/level1\_single\_api/12\_adxl”目录中获取样例。
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
@@ -238,7 +238,7 @@ Status DeregisterMem(MemHandle mem_handle)
 
 ## Connect
 
-**函数功能**
+**功能说明**
 
 与远端AdxlEngine进行建链。
 
@@ -259,7 +259,7 @@ Status Connect(const AscendString &remote_engine, int32_t timeout_in_millis = 10
 
 单击[Gitee](https://gitee.com/ascend/samples/tags)，根据“标签名”下载配套版本的sample包，从“cplusplus/level1\_single\_api/12\_adxl”目录中获取样例。
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
@@ -300,7 +300,7 @@ Status Connect(const AscendString &remote_engine, int32_t timeout_in_millis = 10
 
 ## Disconnect
 
-**函数功能**
+**功能说明**
 
 与远端AdxlEngine进行断链。
 
@@ -321,7 +321,7 @@ Status Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis =
 
 单击[Gitee](https://gitee.com/ascend/samples/tags)，根据“标签名”下载配套版本的sample包，从“cplusplus/level1\_single\_api/12\_adxl”目录中获取样例。
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
@@ -335,7 +335,7 @@ Status Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis =
 
 ## TransferSync
 
-**函数功能**
+**功能说明**
 
 与远端AdxlEngine进行内存传输。
 
@@ -361,7 +361,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 单击[Gitee](https://gitee.com/ascend/samples/tags)，根据“标签名”下载配套版本的sample包，从“cplusplus/level1\_single\_api/12\_adxl”目录中获取样例。
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
@@ -379,7 +379,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 ## TransferAsync
 
-**函数功能**
+**功能说明**
 
 与远端AdxlEngine进行批量异步内存传输。
 
@@ -410,7 +410,7 @@ Status TransferSync(const AscendString &remote_engine,
   client_engine.TransferAsync(remote_engine, operation, op_descs, optional_args, req);
 ```
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误（op_descs中local_addr或remote_addr为null）
@@ -440,7 +440,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 ## GetTransferStatus
 
-**函数功能**
+**功能说明**
 
 获取异步内存传输的状态。
 
@@ -468,7 +468,7 @@ Status TransferSync(const AscendString &remote_engine,
   ...
 ```
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - FAILED：参数错误（如req为null）或传输失败
@@ -485,7 +485,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 ## SendNotify
 
-**函数功能**
+**功能说明**
 
 向远端engine发送Notify信息。
 
@@ -507,7 +507,7 @@ Status SendNotify(const AscendString &remote_engine, const NotifyDesc &notify, i
 
 无
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - 其他：失败
@@ -520,7 +520,7 @@ Status SendNotify(const AscendString &remote_engine, const NotifyDesc &notify, i
 
 ## GetNotifies
 
-**函数功能**
+**功能说明**
 
 获取当前AdxlEngine内所有Server收到的Notify信息，并清空已收到信息。
 
@@ -540,7 +540,7 @@ Status GetNotifies(std::vector<NotifyDesc> &notifies)
 
 无
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - 其他：失败
@@ -552,7 +552,7 @@ Status GetNotifies(std::vector<NotifyDesc> &notifies)
 
 ## MallocMem
 
-**函数功能**
+**功能说明**
 
 申请内存。
 
@@ -574,7 +574,7 @@ static Status MallocMem(MemType type, size_t size, void **ptr);
 
 无
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - 其他：失败
@@ -585,7 +585,7 @@ static Status MallocMem(MemType type, size_t size, void **ptr);
 
 ## ExportToShareableHandle
 
-**函数功能**
+**功能说明**
 
 将MallocMem申请的内存导出为Fabric共享句柄，调用方可将该句柄传递给其他进程，用于导入并共享同一份物理内存。对同一块内存首次调用时执行导出并缓存句柄，后续调用返回已缓存的句柄。
 
@@ -606,7 +606,7 @@ static Status ExportToShareableHandle(void *addr, ShareableHandle &handle);
 
 无
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - PARAM_INVALID：addr为空、不是MallocMem返回的地址或对应内存已释放
@@ -620,7 +620,7 @@ static Status ExportToShareableHandle(void *addr, ShareableHandle &handle);
 
 ## FreeMem
 
-**函数功能**
+**功能说明**
 
 释放内存。
 
@@ -640,7 +640,7 @@ static Status FreeMem(void *ptr)
 
 无
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功
 - 其他：失败
@@ -651,7 +651,7 @@ static Status FreeMem(void *ptr)
 
 ## GetCapability
 
-**函数功能**
+**功能说明**
 
 查询库能力特性。上层可在Initialize之前调用该接口，探测当前AdxlEngine库是否支持特定能力（如Auto Connect、Client/Server通信），避免硬编码默认值或与旧版.so不兼容。
 
@@ -672,7 +672,7 @@ static Status GetCapability(FeatureType feature_type, int32_t &value)
 
 无
 
-**返回值**
+**返回值说明**
 
 - SUCCESS：成功。未知或不支持的特性类型时，`value` 为 `FEATURE_NOT_SUPPORTED`
 - PARAM_INVALID：参数非法（feature_type为负数）

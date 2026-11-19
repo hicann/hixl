@@ -18,7 +18,7 @@
 说明：针对Atlas A2系列产品，仅支持Atlas 800I A2推理服务器、A200I A2 Box异构组件。
 <!-- end id4 -->
 
-## 函数功能
+## 功能说明
 
 获取异常的错误码。错误码列表详见LLMStatusCode。
 
@@ -44,7 +44,7 @@ except LLMException as exc:
     print(exc.status_code)
 ```
 
-## 返回值
+## 返回值说明
 
 返回错误码。
 

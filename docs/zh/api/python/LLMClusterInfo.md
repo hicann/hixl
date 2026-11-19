@@ -17,7 +17,7 @@
 
 ## LLMClusterInfo构造函数
 
-**函数功能**
+**功能说明**
 
 构造LLMClusterInfo，用于link\_clusters和unlink\_clusters接口的参数类型。
 
@@ -38,7 +38,7 @@ from llm_datadist import LLMClusterInfo
 llm_cluster = LLMClusterInfo()
 ```
 
-**返回值**
+**返回值说明**
 
 返回LLMClusterInfo的实例。
 
@@ -48,7 +48,7 @@ llm_cluster = LLMClusterInfo()
 
 ## remote\_cluster\_id
 
-**函数功能**
+**功能说明**
 
 设置对端集群ID。
 
@@ -73,7 +73,7 @@ llm_cluster = LLMClusterInfo()
 llm_cluster.remote_cluster_id = 1
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -85,7 +85,7 @@ llm_cluster.remote_cluster_id = 1
 
 ## append\_local\_ip\_info
 
-**函数功能**
+**功能说明**
 
 添加本地集群IP信息。
 
@@ -111,7 +111,7 @@ llm_cluster = LLMClusterInfo()
 llm_cluster.append_local_ip_info("1.1.1.1", 10000)
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
@@ -123,7 +123,7 @@ llm_cluster.append_local_ip_info("1.1.1.1", 10000)
 
 ## append\_remote\_ip\_info
 
-**函数功能**
+**功能说明**
 
 添加远端集群IP信息。
 
@@ -149,7 +149,7 @@ llm_cluster = LLMClusterInfo()
 llm_cluster.append_remote_ip_info("1.1.1.1", 10000)
 ```
 
-**返回值**
+**返回值说明**
 
 正常情况下无返回值。
 
