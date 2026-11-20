@@ -170,7 +170,7 @@ ge_options(ge_options)
 
 | 参数名称 | 数据类型 | 取值说明 |
 | --- | --- | --- |
-| ge_options | dict[str, str] | 配置GE配置项。<br>其中ge.flowGraphMemMaxSize比较重要，表示所有KV cache占用的最大内存，如果设置的过大，会压缩模型的可用内存，需根据实际情况指定。 |
+| ge_options | dict[str, str] | 配置GE配置项。<br>其中ge.flowGraphMemMaxSize比较重要，表示所有KV cache占用的最大内存，如果设置得过大，会压缩模型的可用内存，需根据实际情况指定。 |
 
 **调用示例**
 
@@ -438,7 +438,7 @@ Atlas A2系列产品场景下，配置version为"1.0"时，仅需配置ranktable
                 {
                     "device_id": "0",
                     "device_ip": "x.x.x.x"
-                },
+                }
             ],
             "server_id": "xxxx"
         }
@@ -466,7 +466,7 @@ Atlas A3系列产品场景下，配置version为"1.2"时，仅需配置ranktable
                 {
                     "device_id": "0",
                     "device_ip": "x.x.x.x"
-                },
+                }
             ],
             "server_id": "xxxx"
         }
@@ -477,8 +477,8 @@ Atlas A3系列产品场景下，配置version为"1.2"时，仅需配置ranktable
             "server_list": [              // 超节点内的AI Server列表
                 {"server_id": "xxxx"}  // server_id为Server标识，与"server_list"中的server_id对应
             ]
-        },
-    ]
+        }
+    ],
     "status": "completed",
     "version": "1.2"
 }

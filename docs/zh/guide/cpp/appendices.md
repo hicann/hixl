@@ -15,14 +15,14 @@
 |请求|可以理解为用户提的问题，该问题经过Prefill和Decode阶段会有对应的回答，我们称这个过程为一次请求。|
 |role|表示LLM-DataDist代表的业务角色。业务角色分为Prefill和Decoder两种。|
 |cluster_id|表示LLM-DataDist所在的集群标识。主要用于Decode侧通过cluster_id找到对应链路，从而找到Prefill侧缓存的对应请求的KV Cache。对于一个模型的不同切分部署到不同Device的场景，当前在支持PD对等切分场景下，cluster_id在不同切分模型间设置为相同。|
-|集群动态扩缩容|根据业务闲忙，动态的调整集群的数量以及PD集群的配比，从而达到闲时节省资源，忙时提高吞吐的目的。|
+|集群动态扩缩容|根据业务闲忙，动态地调整集群的数量以及PD集群的配比，从而达到闲时节省资源，忙时提高吞吐的目的。|
 |D2D传输|指数据从Device设备往Device设备传输。|
 |D2H传输|指数据从Device设备往Host设备传输。|
 |H2D传输|指数据从Host设备往Device设备传输。|
 |D2RH|指数据从Device设备往远端Host设备传输。|
 |RH2D|指数据从远端Host设备往Device设备传输。|
-|TTFT|Time To First TokenLLM推理的一个指标。指从输入到输出第一个token的延迟。即当一批用户进入到推理系统之后，用户完成Prefill阶段的过程需要花费的时间。这也是系统生成第一个字符所需的响应时间。|
-|TBT|Time Between Tokenstoken间时延，指的是每一个decoding所需要的时长。它反映的是大语言模型系统在线上处理的过程中，每生成一个字符的间隔是多长时间，也就是生成的过程有多么流畅。|
+|TTFT|Time To First Token，LLM推理的一个指标。指从输入到输出第一个token的延迟。即当一批用户进入到推理系统之后，用户完成Prefill阶段的过程需要花费的时间。这也是系统生成第一个字符所需的响应时间。|
+|TBT|Time Between Tokens，token间时延，指的是每一个decoding所需要的时长。它反映的是大语言模型系统在线上处理的过程中，每生成一个字符的间隔是多长时间，也就是生成的过程有多么流畅。|
 |Continuous Batching|连续批处理技术，是一种在大模型推理中优化计算效率的方法。它通过将多个推理请求组合成一个批次进行处理，从而充分利用计算资源，提高推理速度和吞吐量。这种技术的核心思想在于减少计算过程中的空闲时间，实现计算资源的最大化利用。|
 |单边建链|Client向Server发起建链。|
 |双边建链|所有LLM-DataDist可以同时发起建链。|
@@ -44,7 +44,7 @@ ChatGPT的推出意味着交互式人工智能逐渐成为商业化成熟产品�
 
 ![260109142618323](figures/260109142618323.png)
 
-在实际的深度学习模型部署中，由于Prefill和Decode两阶段的计算/通信特征的差异特点，为了提升性能和资源利用效率，通过PD分离部署方案将Prefill和Decode分别部署在不同规格和架构的集群中，并且配合服务层的任务调度，在满足TTFT和TBT指标的前提下，结合Continuous batching机制尽可能提高Decode阶段的batch并发数，提升算力利用率。
+在实际的深度学习模型部署中，由于Prefill和Decode两阶段的计算/通信特征的差异，为了提升性能和资源利用效率，通过PD分离部署方案将Prefill和Decode分别部署在不同规格和架构的集群中，并且配合服务层的任务调度，在满足TTFT和TBT指标的前提下，结合Continuous batching机制尽可能提高Decode阶段的batch并发数，提升算力利用率。
 
 基于该方案，结合下图可以看到Prefill和Decode的执行互不影响，系统能够提供给用户一个稳定的TBT。
 

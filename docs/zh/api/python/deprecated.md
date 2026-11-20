@@ -376,7 +376,7 @@ mem_pool_cfg(mem_pool_cfg)
 
 | 参数名称 | 数据类型 | 取值说明 |
 | --- | --- | --- |
-| mem_pool_cfg | string | json数组格式字符串，包含memory_size，page_shift。 |
+| mem_pool_cfg | string | json格式的字符串，包含memory_size，page_shift。 |
 
 | 配置项 | 可选/必选 | 描述 |
 | --- | --- | --- |
@@ -417,7 +417,7 @@ host_mem_pool_cfg(host_mem_pool_cfg)
 
 | 参数名称 | 数据类型 | 取值说明 |
 | --- | --- | --- |
-| host_mem_pool_cfg | string | json数组格式字符串，包含memory_size，page_shift。 |
+| host_mem_pool_cfg | string | json格式的字符串，包含memory_size，page_shift。 |
 
 | 配置项 | 可选/必选 | 描述 |
 | --- | --- | --- |

@@ -408,7 +408,7 @@ Status PullKvCache(const CacheIndex &src_cache_index,
 | dst_cache | 输入 | 本地目的Cache。仅需指定调用RegisterKvCache返回的cache_id。 |
 | batch_index | 输入 | 本地目的batch的下标。 |
 | size | 输入 | 设置为>0的整数，表示要拉取的大小，单位字节。<br>或设置为-1，表示完整拉取。<br>默认为-1。 |
-| ext_param | 输入 | 当前支持ext_param中src_layer_range的second与first的差值和dst_layer_range的second与first的差值一致。src_layer_range和dst_layer_range的first和second默认值都是-1，表示全部的层。取值范围都是[0, 最大可用层索引]，且first小于等于second。 最大可用层索引值的计算公式如下。<br>(CacheDesc::num_tensors / KvCacheExtParam::tensor_num_per_layer) - 1<br>当前支持tensor_num_per_layer取值范围是[1, 当前cache的tensor总数]，默认值为2。当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值的时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。 |
+| ext_param | 输入 | 当前支持ext_param中src_layer_range的second与first的差值和dst_layer_range的second与first的差值一致。src_layer_range和dst_layer_range的first和second默认值都是-1，表示全部的层。取值范围都是[0, 最大可用层索引]，且first小于等于second。 最大可用层索引值的计算公式如下。<br>(CacheDesc::num_tensors / KvCacheExtParam::tensor_num_per_layer) - 1<br>当前支持tensor_num_per_layer取值范围是[1, 当前cache的tensor总数]，默认值为2。当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。 |
 
 **调用示例**
 
@@ -451,7 +451,7 @@ Status PullKvBlocks(const CacheIndex &src_cache_index,
 | dst_cache | 输入 | 本地目的Cache。仅需指定调用RegisterKvCache返回的cache_id。 |
 | src_blocks | 输入 | 远端源Cache的block index列表。 |
 | dst_blocks | 输入 | 本地目的Cache的block index列表。 |
-| ext_param | 输入 | 当前支持ext_param中src_layer_range的second与first的差值和dst_layer_range的second与first的差值一致。src_layer_range和dst_layer_range的first和second默认值都是-1，表示全部的层。取值范围都是[0, 最大可用层索引]，且first小于等于second。 最大可用层索引值的计算公式如下。<br>(CacheDesc::num_tensors / KvCacheExtParam::tensor_num_per_layer) - 1<br>当前支持tensor_num_per_layer取值范围是[1, 当前cache的tensor总数]，默认值为2。当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值的时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。 |
+| ext_param | 输入 | 当前支持ext_param中src_layer_range的second与first的差值和dst_layer_range的second与first的差值一致。src_layer_range和dst_layer_range的first和second默认值都是-1，表示全部的层。取值范围都是[0, 最大可用层索引]，且first小于等于second。 最大可用层索引值的计算公式如下。<br>(CacheDesc::num_tensors / KvCacheExtParam::tensor_num_per_layer) - 1<br>当前支持tensor_num_per_layer取值范围是[1, 当前cache的tensor总数]，默认值为2。当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。 |
 
 **调用示例**
 
@@ -494,7 +494,7 @@ Status PushKvCache(const Cache &src_cache,
 | dst_cache_index | 输入 | 远端目的Cache的索引。 |
 | src_batch_index | 输入 | 本地源batch的下标。 |
 | size | 输入 | 当前只支持默认值-1。 |
-| ext_param | 输入 | 当前支持ext_param中src_layer_range的second与first的差值和dst_layer_range的second与first的差值一致。src_layer_range和dst_layer_range的first和second默认值都是-1，表示全部的层。取值范围都是[0, 最大可用层索引]，且first小于等于second。 最大可用层索引值的计算公式如下。<br>(CacheDesc::num_tensors / KvCacheExtParam::tensor_num_per_layer) - 1<br>当前支持tensor_num_per_layer取值范围是[1, 当前cache的tensor总数]，默认值为2。当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值的时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。 |
+| ext_param | 输入 | 当前支持ext_param中src_layer_range的second与first的差值和dst_layer_range的second与first的差值一致。src_layer_range和dst_layer_range的first和second默认值都是-1，表示全部的层。取值范围都是[0, 最大可用层索引]，且first小于等于second。 最大可用层索引值的计算公式如下。<br>(CacheDesc::num_tensors / KvCacheExtParam::tensor_num_per_layer) - 1<br>当前支持tensor_num_per_layer取值范围是[1, 当前cache的tensor总数]，默认值为2。当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。 |
 
 **调用示例**
 
@@ -537,7 +537,7 @@ Status PushKvBlocks(const Cache &src_cache,
 | dst_cache_index | 输入 | 远端目的Cache的索引。 |
 | src_blocks | 输入 | 源Cache的block index列表。 |
 | dst_blocks | 输入 | 目的Cache的block index列表。 |
-| ext_param | 输入 | 当前支持ext_param中src_layer_range的second与first的差值和dst_layer_range的second与first的差值一致。src_layer_range和dst_layer_range的first和second默认值都是-1，表示全部的层。取值范围都是[0, 最大可用层索引]，且first小于等于second。 最大可用层索引值的计算公式如下。<br>(CacheDesc::num_tensors / KvCacheExtParam::tensor_num_per_layer) - 1<br>当前支持tensor_num_per_layer取值范围是[1, 当前cache的tensor总数]，默认值为2。当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值的时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。 |
+| ext_param | 输入 | 当前支持ext_param中src_layer_range的second与first的差值和dst_layer_range的second与first的差值一致。src_layer_range和dst_layer_range的first和second默认值都是-1，表示全部的层。取值范围都是[0, 最大可用层索引]，且first小于等于second。 最大可用层索引值的计算公式如下。<br>(CacheDesc::num_tensors / KvCacheExtParam::tensor_num_per_layer) - 1<br>当前支持tensor_num_per_layer取值范围是[1, 当前cache的tensor总数]，默认值为2。当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。 |
 
 **调用示例**
 

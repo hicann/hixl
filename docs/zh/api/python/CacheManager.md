@@ -61,7 +61,7 @@ pull_cache(cache_key: Union[CacheKey, CacheKeyByIdAndIndex],
 | --- | --- | --- |
 | src_layer_range | Optional[range] | 可选参数，用于按层pull kv场景。<br>传输源的layer的范围，step只支持1。不设置时为传输所有layer。<br>需要注意这里是layer的index，而不是tensor的index，即1个layer对应连续N个tensor(K/V)，这里要求分配内存时，必须是KV,...,KV排布，不支持其他场景。N为tensor_num_per_layer的取值，默认为2。 |
 | dst_layer_range | Optional[range] | 可选参数，用于按层pull kv场景。<br>传输目标的layer的范围，step只支持1。不设置时为传输所有layer。<br>需要注意这里是layer的index，而不是tensor的index，即1个layer对应连续N个tensor(K/V)，这里要求分配内存时，必须是KV,...,KV排布，不支持其他场景。N为tensor_num_per_layer的取值，默认为2。 |
-| tensor_num_per_layer | Optional[int] | 可选参数，表示每层的tensor的数量，默认值是2，取值范围是[1,cache的tensor总数]。<br>当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值的时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。 |
+| tensor_num_per_layer | Optional[int] | 可选参数，表示每层的tensor的数量，默认值是2，取值范围是[1,cache的tensor总数]。<br>当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。 |
 
 **调用示例**
 
@@ -113,7 +113,7 @@ pull_blocks(src_cache_key: Union[CacheKey, CacheKeyByIdAndIndex, BlocksCacheKey]
 | --- | --- | --- |
 | src_layer_range | Optional[range] | 可选参数，用于按层pull kv场景。<br>传输源的layer的范围，step只支持1。不设置时为传输所有layer。<br>需要注意这里是layer的index，而不是tensor的index，即1个layer对应连续N个tensor(K/V)，这里要求分配内存时，必须是KV,...,KV排布，不支持其他场景。N为tensor_num_per_layer的取值，默认为2。 |
 | dst_layer_range | Optional[range] | 可选参数，用于按层pull kv场景。<br>传输目标的layer的范围，step只支持1。不设置时为传输所有layer。<br>需要注意这里是layer的index，而不是tensor的index，即1个layer对应连续N个tensor(K/V)，这里要求分配内存时，必须是KV,...,KV排布，不支持其他场景。N为tensor_num_per_layer的取值，默认为2。 |
-| tensor_num_per_layer | Optional[int] | 可选参数，表示每层的tensor的数量，默认值是2，取值范围是[1,cache的tensor总数]。<br>当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值的时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。 |
+| tensor_num_per_layer | Optional[int] | 可选参数，表示每层的tensor的数量，默认值是2，取值范围是[1,cache的tensor总数]。<br>当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。 |
 
 **调用示例**
 
@@ -330,7 +330,7 @@ push_blocks(self,
 | dst_blocks | Union[Tuple[int], List[int]] | 远端的block index列表。 |
 | src_layer_range | Optional[range] | 可选参数，用于按层pull kv场景。默认值为None。<br>传输源的layer的范围，step只支持1。不设置时为传输所有layer。<br>需要注意这里是layer的index，而不是tensor的index，即1个layer对应连续N个tensor(K/V)，这里要求分配内存时，必须是KV,...,KV排布，不支持其他场景。N为tensor_num_per_layer的取值，默认为2。 |
 | dst_layer_range | Optional[range] | 可选参数，用于按层pull kv场景。默认值为None。<br>传输目标的layer的范围，step只支持1。不设置时为传输所有layer。<br>需要注意这里是layer的index，而不是tensor的index，即1个layer对应连续N个tensor(K/V)，这里要求分配内存时，必须是KV,...,KV排布，不支持其他场景。N为tensor_num_per_layer的取值，默认为2。 |
-| tensor_num_per_layer | Optional[int] | 可选参数，表示每层的tensor的数量，默认值是2，取值范围是[1,cache的tensor总数]。<br>当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值的时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。 |
+| tensor_num_per_layer | Optional[int] | 可选参数，表示每层的tensor的数量，默认值是2，取值范围是[1,cache的tensor总数]。<br>当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。 |
 
 **调用示例**
 
@@ -378,7 +378,7 @@ push_cache(self,
 | src_batch_index | int | 本地的batch index，默认为0。 |
 | src_layer_range | Optional[range] | 可选参数，用于按层pull kv场景。默认值为None。<br>传输源的layer的范围，step只支持1。不设置时为传输所有layer。<br>需要注意这里是layer的index，而不是tensor的index，即1个layer对应连续N个tensor(K/V)，这里要求分配内存时，必须是KV,...,KV排布，不支持其他场景。N为tensor_num_per_layer的取值，默认为2。 |
 | dst_layer_range | Optional[range] | 可选参数，用于按层pull kv场景。默认值为None。<br>传输目标的layer的范围，step只支持1。不设置时为传输所有layer。<br>需要注意这里是layer的index，而不是tensor的index，即1个layer对应连续N个tensor(K/V)，这里要求分配内存时，必须是KV,...,KV排布，不支持其他场景。N为tensor_num_per_layer的取值，默认为2。 |
-| tensor_num_per_layer | Optional[int] | 可选参数，表示每层的tensor的数量，默认值是2，取值范围是[1,cache的tensor总数]。<br>当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值的时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。 |
+| tensor_num_per_layer | Optional[int] | 可选参数，表示每层的tensor的数量，默认值是2，取值范围是[1,cache的tensor总数]。<br>当src_layer_range或dst_layer_range取值为非默认值时， tensor_num_per_layer可以保持默认值，也可以输入其他值，输入其他值时，tensor_num_per_layer的取值还需要被当前cache的tensor总数整除。 |
 | size | int | 一个tensor传输的大小，默认值-1表示本地单个KV的大小，暂不支持其他设置。 |
 
 **调用示例**

@@ -327,7 +327,7 @@ KV Cache管理涉及的主要接口及功能如下：
     ```
 
 3. P侧有新请求进来后，为每个请求分配好对应的block\_index，该功能由推理框架提供。模型推理完之后，该请求对应的KV Cache就在对应的block\_index所在的内存上，将模型输出和请求对应的block\_table传输给D侧推理模型作为输入。
-4. D侧有新请求进来后，给每个请求分配好对应的block\_index_，_然后调用PullKvBlocks接口，根据P侧的block\_index和D侧的block\_index的对应关系，将KV Cache传输到指定位置。
+4. D侧有新请求进来后，给每个请求分配好对应的block\_index，然后调用PullKvBlocks接口，根据P侧的block\_index和D侧的block\_index的对应关系，将KV Cache传输到指定位置。
 
     - 在D侧调用PullKvBlocks接口拉取KV Cache。
 

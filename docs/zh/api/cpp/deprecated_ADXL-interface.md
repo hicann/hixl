@@ -325,7 +325,7 @@ Status Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis =
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
-- NOT\_CONNECTED：没有与对端创建链接
+- NOT\_CONNECTED：没有与对端创建连接
 - 其他：失败
 
 **约束说明**
@@ -365,7 +365,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
-- NOT\_CONNECTED：没有与对端创建链接
+- NOT\_CONNECTED：没有与对端创建连接
 - TIMEOUT：传输超时
 - 其他：失败
 
@@ -401,12 +401,12 @@ Status TransferSync(const AscendString &remote_engine,
 | operation | 输入 | 将远端内存读到本地或者将本地内存写到远端。 |
 | op_descs | 输入 | 批量操作的本地以及远端地址。 |
 | optional_args | 输入 | 可选参数（预留）。 |
-| req | 输出 | 请求的句柄，用户查询传输的请求状态。 |
+| req | 输出 | 请求的句柄，用于查询传输的请求状态。 |
 
 **调用示例**
 
 ```cpp
-  //初始化客户端和服务端engine，并完成链接
+  //初始化客户端和服务端engine，并完成连接
   client_engine.TransferAsync(remote_engine, operation, op_descs, optional_args, req);
 ```
 
@@ -414,7 +414,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误（op_descs中local_addr或remote_addr为null）
-- NOT\_CONNECTED：没有与对端创建链接
+- NOT\_CONNECTED：没有与对端创建连接
 - RESOURCE_EXHAUSTED：资源耗尽
 - 其他：失败
 
@@ -460,7 +460,7 @@ Status TransferSync(const AscendString &remote_engine,
 **调用示例**
 
 ```cpp
-  //初始化客户端和服务端engine，并完成链接
+  //初始化客户端和服务端engine，并完成连接
   Status transfer_status = client_engine.TransferAsync(remote_engine, operation, op_descs, optional_args, req);
   //req是TransferAsync()的输出值，使用这个请求句柄进行传输状态查询
   Status query_status = GetTransferStatus(req, status);
@@ -472,7 +472,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 - SUCCESS：成功
 - FAILED：参数错误（如req为null）或传输失败
-- NOT\_CONNECTED：没有与对端创建链接
+- NOT\_CONNECTED：没有与对端创建连接
 - 其他：失败
 
 **约束说明**

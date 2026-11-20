@@ -26,7 +26,7 @@
 
 通过单边通信库构建大模型推理PD分离式框架。
 
-在大模型推理中，Prefill阶段将用户请求Prompt传入大模型进行计算，中间结果写入KV Cache并推出第1个token。在Decode阶段中，将请求的前1个token传入大模型，从显存读取之前产生的KV Cache再进行计算。基于KV Cache的大模型推理过程请参见[大模型推理流程简介](appendices.md#大模型推理流程简介)。
+在大模型推理中，Prefill阶段将用户请求Prompt传入大模型进行计算，中间结果写入KV Cache并输出第1个token。在Decode阶段中，将请求的前1个token传入大模型，从显存读取之前产生的KV Cache再进行计算。基于KV Cache的大模型推理过程请参见[大模型推理流程简介](appendices.md#大模型推理流程简介)。
 
 在大模型推理PD分离式框架中，为了提升性能和资源利用效率，将Prefill和Decode分别部署在不同规格和架构的集群中。PD分离式框架可提升大模型推理系统吞吐，详见[为什么要做PD分离](appendices.md#为什么要做pd分离)。
 

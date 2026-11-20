@@ -100,7 +100,7 @@ Server侧`global_resource_config`当前支持的配置项如下。
 | fabric_memory.max_capacity | 整数 | 可选 | UB_MEM虚拟内存池大小，单位TB，取值范围(0, 1024]，默认32。仅当本次创建的endpoint协议为UB_MEM时生效；必须在本进程第一次创建UB_MEM的Server或Client之前配置，取值不在范围内时创建失败并返回参数错误。A3平台未显式配置`fabric_memory.start_address`时默认限制在[40 TB, 80 TB)安全窗口内，容量超过40 TB初始化会返回参数错误（确认驱动支持VA >= 80 TB时可显式配置`fabric_memory.start_address`）；若默认整块预留失败并降级为2 TB分段预留，单块连续注册/申请的内存上限为2 TB。 |
 | fabric_memory.start_address | 整数 | 可选 | UB_MEM虚拟内存池起始地址，单位TB，取值范围[0, 1024]，默认40。仅当本次创建的endpoint协议为UB_MEM时生效；必须在本进程第一次创建UB_MEM的Server或Client之前配置，取值不在范围内时创建失败并返回参数错误。 |
 | fabric_memory.task_stream_num | 整数 | 可选 | 单个任务使用的流数量，取值范围[1, 8]。CS解析并保存该字段；取值不在范围内时创建失败并返回参数错误。经HIXL Engine下发时，`fabric_memory.enable_aicpu_unfold`为true仅支持1。 |
-| fabric_memory.enable_aicpu_unfold | 布尔 | 可选 | 是否由AICPU展开UB_MEM。默认true。true表示Device侧AICPU展开SDMA；false表示Host在Device stream上逐条提交`aclrtMemcpyAsync`。非布尔值时创建失败并返回参数错误。 |
+| fabric_memory.enable_aicpu_unfold | 布尔 | 可选 | 是否由AI CPU展开UB_MEM。默认true。true表示Device侧AI CPU展开SDMA；false表示Host在Device stream上逐条提交`aclrtMemcpyAsync`。非布尔值时创建失败并返回参数错误。 |
 | tls_config.cert_file | 字符串 | TLS启用时必选 | 控制面TCP TLS证书文件路径。必须与`tls_config.key_file`成对配置；不成对时创建失败并返回参数错误，不会降级为明文。 |
 | tls_config.key_file | 字符串 | TLS启用时必选 | 控制面TCP TLS私钥文件路径。必须与`tls_config.cert_file`成对配置；不成对时创建失败并返回参数错误，不会降级为明文。 |
 | tls_config.ca_file | 字符串 | 可选 | 用于校验对端证书的CA文件路径，verify_peer为true时必选。 |
@@ -118,7 +118,7 @@ Client侧`global_resource_config`当前支持的配置项如下。
 | fabric_memory.max_capacity | 整数 | 可选 | UB_MEM虚拟内存池大小，单位TB，取值范围(0, 1024]，默认32。仅当本次创建的endpoint协议为UB_MEM时生效；必须在本进程第一次创建UB_MEM的Server或Client之前配置，取值不在范围内时创建失败并返回参数错误。A3平台未显式配置`fabric_memory.start_address`时默认限制在[40 TB, 80 TB)安全窗口内，容量超过40 TB初始化会返回参数错误（确认驱动支持VA >= 80 TB时可显式配置`fabric_memory.start_address`）；若默认整块预留失败并降级为2 TB分段预留，单块连续注册/申请的内存上限为2 TB。 |
 | fabric_memory.start_address | 整数 | 可选 | UB_MEM虚拟内存池起始地址，单位TB，取值范围[0, 1024]，默认40。仅当本次创建的endpoint协议为UB_MEM时生效；必须在本进程第一次创建UB_MEM的Server或Client之前配置，取值不在范围内时创建失败并返回参数错误。 |
 | fabric_memory.task_stream_num | 整数 | 可选 | 单个任务使用的流数量，取值范围[1, 8]。CS解析并保存该字段；取值不在范围内时创建失败并返回参数错误。经HIXL Engine下发时，`fabric_memory.enable_aicpu_unfold`为true仅支持1。 |
-| fabric_memory.enable_aicpu_unfold | 布尔 | 可选 | 是否由AICPU展开UB_MEM。默认true。true表示Device侧AICPU展开SDMA；false表示Host在Device stream上逐条提交`aclrtMemcpyAsync`。非布尔值时创建失败并返回参数错误。 |
+| fabric_memory.enable_aicpu_unfold | 布尔 | 可选 | 是否由AI CPU展开UB_MEM。默认true。true表示Device侧AI CPU展开SDMA；false表示Host在Device stream上逐条提交`aclrtMemcpyAsync`。非布尔值时创建失败并返回参数错误。 |
 | tls_config.cert_file | 字符串 | TLS启用时必选 | 控制面TCP TLS证书文件路径。必须与`tls_config.key_file`成对配置；不成对时创建失败并返回参数错误，不会降级为明文。 |
 | tls_config.key_file | 字符串 | TLS启用时必选 | 控制面TCP TLS私钥文件路径。必须与`tls_config.cert_file`成对配置；不成对时创建失败并返回参数错误，不会降级为明文。 |
 | tls_config.ca_file | 字符串 | 可选 | 用于校验对端证书的CA文件路径，verify_peer为true时必选。 |

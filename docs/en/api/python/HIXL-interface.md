@@ -213,7 +213,7 @@ options = {
 | fabric_memory.max_capacity | Number or numeric string | Optional | Virtual memory pool size. See [fabric_memory](#grc_fabric_memory). |
 | fabric_memory.start_address | Number or numeric string | Optional | Virtual memory pool starting address. See [fabric_memory](#grc_fabric_memory). |
 | fabric_memory.task_stream_num | Number or numeric string | Optional | Number of streams used by a task. See [fabric_memory](#grc_fabric_memory). |
-| fabric_memory.enable_aicpu_unfold | Boolean | Optional | Whether AICPU unfolds tasks. See [fabric_memory](#grc_fabric_memory). |
+| fabric_memory.enable_aicpu_unfold | Boolean | Optional | Whether AI CPU unfolds tasks. See [fabric_memory](#grc_fabric_memory). |
 | connect_pool.thread_num | Number or numeric string | Optional | Connection thread pool size. See [connect_pool](#grc_connect_pool). |
 | connect_pool.task_queue_capacity | Number or numeric string | Optional | Connection task queue capacity. See [connect_pool](#grc_connect_pool). |
 | channel_pool.max_channel | Number or numeric string | Optional | Maximum number of connections. See [channel_pool](#grc_channel_pool). |
@@ -364,7 +364,7 @@ Example contents of `nic_topo.json`:
 
 <a id="grc_transfer_batch"></a>
 
-- **max_transfer_count_per_batch**: Maximum number of buffers per internal transfer batch. If this limit is exceeded, HIXL automatically splits buffers into batches while preserving order. Default: 1920. HIXL validates against [1, 32766] globally and [1, 1920] for HCCS/FabricMem. Both FabricMem modes validate against [1, 1920]: with `fabric_memory.enable_aicpu_unfold=true`, this value controls logical AICPU unfolding batches and Notify boundaries; with `false`, the Host submits `aclrtMemcpyAsync` calls consecutively without batching or synchronizing at this boundary. RoCE/URMA queue depth: Client SQ/SCQ depth is calculated as `max(64, nextPowerOfTwo(configured_value + 2))`; Server SQ/SCQ depth is fixed at 64. HIXL does not configure RQ/RCQ depth; Hcomm applies protocol and platform defaults. Hcomm validates queue depths against protocol and hardware capabilities. Supported in CANN 9.2.0 and later.
+- **max_transfer_count_per_batch**: Maximum number of buffers per internal transfer batch. If this limit is exceeded, HIXL automatically splits buffers into batches while preserving order. Default: 1920. HIXL validates against [1, 32766] globally and [1, 1920] for HCCS/FabricMem. Both FabricMem modes validate against [1, 1920]: with `fabric_memory.enable_aicpu_unfold=true`, this value controls logical AI CPU unfolding batches and Notify boundaries; with `false`, the Host submits `aclrtMemcpyAsync` calls consecutively without batching or synchronizing at this boundary. RoCE/URMA queue depth: Client SQ/SCQ depth is calculated as `max(64, nextPowerOfTwo(configured_value + 2))`; Server SQ/SCQ depth is fixed at 64. HIXL does not configure RQ/RCQ depth; Hcomm applies protocol and platform defaults. Hcomm validates queue depths against protocol and hardware capabilities. Supported in CANN 9.2.0 and later.
 
 Example:
 
@@ -373,7 +373,7 @@ Example:
     "fabric_memory.max_capacity": "128", //Size of virtual memory pool. Value range: integer in (0, 1024], default: 32, unit TB, actual usable range determined by underlying layer (on A3 without explicit start_address, limited to the [40 TB, 80 TB) window, i.e. <= 40 TB; if chunked fallback triggers, a single contiguous buffer is limited to 2 TB)
     "fabric_memory.start_address": "40", //Virtual memory pool start address. Value range: integer in [0, 1024], default: 40, unit TB
     "fabric_memory.task_stream_num": "1", //Number of streams per task, value range: [1, 8], default: 1; only supports 1 when enable_aicpu_unfold is true
-    "fabric_memory.enable_aicpu_unfold": true //Whether AICPU unfolds FabricMem, boolean type, default true
+    "fabric_memory.enable_aicpu_unfold": true //Whether AI CPU unfolds FabricMem, boolean type, default true
 }
 ```
 
@@ -384,7 +384,7 @@ Example:
 - **max_capacity**: Virtual memory pool size, an integer in (0, 1024], in TB. Default: 32. The underlying component determines the usable range.
 - **start_address**: Virtual memory pool starting address, an integer in [0, 1024], in TB. Default: 40.
 - **task_stream_num**: Streams used by a task, in [1, 8]. Default: 1. Only 1 is supported when **enable_aicpu_unfold** is **true**.
-- **enable_aicpu_unfold**: Whether AICPU unfolds tasks. Boolean, default **true**.
+- **enable_aicpu_unfold**: Whether AI CPU unfolds tasks. Boolean, default **true**.
 
 Example:
 
@@ -393,7 +393,7 @@ Example:
     "fabric_memory.max_capacity": "128", //Virtual memory pool size, an integer in (0, 1024], in TB. Default: 32. The underlying component determines the usable range.
     "fabric_memory.start_address": "40", //Virtual memory pool starting address, an integer in [0, 1024], in TB. Default: 40.
     "fabric_memory.task_stream_num": "1", //Streams used by a task, in [1, 8]. Default: 1. Only 1 is supported when enable_aicpu_unfold is true.
-    "fabric_memory.enable_aicpu_unfold": true //Whether AICPU unfolds tasks. Boolean, default true.
+    "fabric_memory.enable_aicpu_unfold": true //Whether AI CPU unfolds tasks. Boolean, default true.
 }
 ```
 

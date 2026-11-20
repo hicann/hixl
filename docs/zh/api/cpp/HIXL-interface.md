@@ -117,9 +117,7 @@ Status Initialize(const AscendString &local_engine, const std::map<AscendString,
 - Ascend 950PR&950DT系列产品：`EnableUseFabricMem`、`RdmaTrafficClass`、`RdmaServiceLevel`、`AutoConnect`、`GlobalResourceConfig`、`LocalCommRes`。
 <!-- end id58 -->
 
-> 说明：`RdmaTrafficClass`、`RdmaServiceLevel` 仅适用于RoCE场景。
-
-> 说明：环境变量请参考[HCCL环境变量参考](https://gitcode.com/cann/hccl/blob/master/docs/zh/user_guide/hccl_env/README.md)，ranktable请参考《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/master/docs/zh/user_guide/README.md)》。
+> 说明：`RdmaTrafficClass`、`RdmaServiceLevel` 仅适用于RoCE场景。环境变量请参考[HCCL环境变量参考](https://gitcode.com/cann/hccl/blob/master/docs/zh/user_guide/hccl_env/README.md)，ranktable请参考《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/master/docs/zh/user_guide/README.md)》。
 
 <a id="option_enable_use_fabric_mem"></a>
 
@@ -222,7 +220,7 @@ options[hixl::OPTION_AUTO_CONNECT] = "1";
 | fabric_memory.max_capacity | 数字或数字字符串 | 可选 | 虚拟内存池大小，详见 [fabric_memory](#grc_fabric_memory)。 |
 | fabric_memory.start_address | 数字或数字字符串 | 可选 | 虚拟内存池起始地址，详见 [fabric_memory](#grc_fabric_memory)。 |
 | fabric_memory.task_stream_num | 数字或数字字符串 | 可选 | 单个任务使用的流数量，详见 [fabric_memory](#grc_fabric_memory)。 |
-| fabric_memory.enable_aicpu_unfold | 布尔 | 可选 | 是否由AICPU展开，详见 [fabric_memory](#grc_fabric_memory)。 |
+| fabric_memory.enable_aicpu_unfold | 布尔 | 可选 | 是否由AI CPU展开，详见 [fabric_memory](#grc_fabric_memory)。 |
 | connect_pool.thread_num | 数字或数字字符串 | 可选 | 连接池线程数量，详见 [connect_pool](#grc_connect_pool)。 |
 | connect_pool.task_queue_capacity | 数字或数字字符串 | 可选 | 连接池任务队列容量，详见 [connect_pool](#grc_connect_pool)。 |
 | channel_pool.max_channel | 数字或数字字符串 | 可选 | 最大链路个数，详见 [channel_pool](#grc_channel_pool)。 |
@@ -371,7 +369,7 @@ options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
 
 <a id="grc_transfer_batch"></a>
 
-- **max_transfer_count_per_batch**：单个内部传输批次最多包含的buffer数量，超过该值时HIXL保持原始顺序自动分批。默认值1920。HIXL全局校验范围为[1, 32766]，HCCS/FabricMem范围为[1, 1920]。FabricMem两种模式都执行[1, 1920]校验：`fabric_memory.enable_aicpu_unfold=true` 时，该值控制AICPU展开的逻辑批次和Notify边界；`false` 时，Host逐条连续提交 `aclrtMemcpyAsync`，不按该值分批或在该值边界同步。RoCE/URMA队列深度：Client的SQ/SCQ深度按 `max(64, nextPowerOfTwo(配置值 + 2))` 计算；Server的SQ/SCQ深度固定为64；RQ/RCQ不由HIXL下发，由Hcomm按协议和平台默认策略设置；队列深度的协议和硬件能力校验由Hcomm负责。CANN 9.2.0及以上版本支持该配置。
+- **max_transfer_count_per_batch**：单个内部传输批次最多包含的buffer数量，超过该值时HIXL保持原始顺序自动分批。默认值1920。HIXL全局校验范围为[1, 32766]，HCCS/FabricMem范围为[1, 1920]。FabricMem两种模式都执行[1, 1920]校验：`fabric_memory.enable_aicpu_unfold=true` 时，该值控制AI CPU展开的逻辑批次和Notify边界；`false` 时，Host逐条连续提交 `aclrtMemcpyAsync`，不按该值分批或在该值边界同步。RoCE/URMA队列深度：Client的SQ/SCQ深度按 `max(64, nextPowerOfTwo(配置值 + 2))` 计算；Server的SQ/SCQ深度固定为64；RQ/RCQ不由HIXL下发，由Hcomm按协议和平台默认策略设置；队列深度的协议和硬件能力校验由Hcomm负责。CANN 9.2.0及以上版本支持该配置。
 
 使用示例：
 
@@ -388,7 +386,7 @@ options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
 - **max_capacity**：虚拟内存池的大小，取值范围：(0, 1024]之间的整数，默认值32，单位TB，实际可用范围由底层决定。A3平台未显式配置`start_address`时默认限制在[40 TB, 80 TB)安全窗口内（上限40 TB，超过需显式配置`start_address`并确认驱动支持VA >= 80 TB）；若降级为2 TB分段预留，单块连续注册/申请的内存上限为2 TB。
 - **start_address**：虚拟内存池起始地址，取值范围：[0, 1024]之间的整数，默认值40，单位TB。
 - **task_stream_num**：单个任务使用的流数量，取值范围：[1, 8]，默认值1；enable_aicpu_unfold为true时仅支持1。
-- **enable_aicpu_unfold**：是否由AICPU展开，布尔类型，默认true。
+- **enable_aicpu_unfold**：是否由AI CPU展开，布尔类型，默认true。
 
 使用示例：
 
@@ -397,7 +395,7 @@ options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
     "fabric_memory.max_capacity": "128", //虚拟内存池的大小。取值范围：(0, 1024]之间的整数，默认值：32，单位TB，实际可用范围由底层决定
     "fabric_memory.start_address": "40", //虚拟内存池起始地址。取值范围：[0, 1024]之间的整数，默认值：40，单位TB
     "fabric_memory.task_stream_num": "1", //单个任务使用的流数量，取值范围：[1, 8]，默认值：1；enable_aicpu_unfold为true时仅支持1
-    "fabric_memory.enable_aicpu_unfold": true //是否由AICPU展开，布尔类型，默认true
+    "fabric_memory.enable_aicpu_unfold": true //是否由AI CPU展开，布尔类型，默认true
 }
 ```
 
@@ -942,7 +940,7 @@ Status Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis =
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
-- NOT\_CONNECTED：没有与对端创建链接
+- NOT\_CONNECTED：没有与对端创建连接
 - 其他：失败
 
 **约束说明**
@@ -1127,7 +1125,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
-- NOT\_CONNECTED：没有与对端创建链接
+- NOT\_CONNECTED：没有与对端创建连接
 - TIMEOUT：传输超时
 - RESOURCE_EXHAUSTED：资源耗尽
 - 其他：失败
@@ -1205,14 +1203,14 @@ Status TransferSync(const AscendString &remote_engine,
 **调用示例**
 
 ```cpp
-  //初始化客户端和服务端engine，并完成链接
+  //初始化客户端和服务端engine，并完成连接
   client_engine.TransferAsync(remote_engine, operation, op_descs, optional_args, req);
 ```
 
 **返回值说明**
 
 - SUCCESS：成功
-- NOT\_CONNECTED：没有与对端创建链接
+- NOT\_CONNECTED：没有与对端创建连接
 - RESOURCE_EXHAUSTED：资源耗尽
 - 其他：失败
 
@@ -1267,7 +1265,7 @@ Status TransferSync(const AscendString &remote_engine,
 **调用示例**
 
 ```cpp
-  //初始化客户端和服务端engine，并完成链接
+  //初始化客户端和服务端engine，并完成连接
   Status transfer_status = client_engine.TransferAsync(remote_engine, operation, op_descs, optional_args, req);
   //req是TransferAsync()的输出值，使用这个请求句柄进行传输状态查询
   Status query_status = client_engine.GetTransferStatus(req, status);
@@ -1279,7 +1277,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 - SUCCESS：成功
 - PARAM\_INVALID：参数错误
-- NOT\_CONNECTED：没有与对端创建链接
+- NOT\_CONNECTED：没有与对端创建连接
 - 其他：失败
 
 **约束说明**
@@ -1311,7 +1309,7 @@ Status TransferSync(const AscendString &remote_engine,
 **调用示例**
 
 ```cpp
-  //初始化客户端和服务端engine，并完成链接
+  //初始化客户端和服务端engine，并完成连接
   Status transfer_status = client_engine.TransferAsync(remote_engine, operation, op_descs, optional_args, req);
   //req是TransferAsync()的输出值，使用这个请求句柄进行传输状态查询
   GetTransferStatusArgs args = { .max_query_count = 4, .skip_waiting = true };
