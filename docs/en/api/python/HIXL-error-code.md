@@ -1,6 +1,8 @@
 # HIXL Error Codes
 
-Error codes are defined as follows, type is int.
+<!-- md-trans-meta sourceCommit=a92bd6c0d9d03c2cf9d76cffc1b450dfa592cb69 translatedAt=2026-10-21T07:15:41.592Z pushedAt=2026-10-27T02:46:32.279Z nl=2 -->
+
+Error codes are defined as follows and have type **int**.
 
 ```python
 SUCCESS = 0
@@ -14,16 +16,16 @@ FAILED = 503900
 RESOURCE_EXHAUSTED = 203900
 ```
 
-Detailed error code meanings are as follows.
+The error codes are described below.
 
-| Enum Value | Description | Recoverable | Solution |
+| Enum Value | Meaning | Recoverable | Solution |
 | --- | --- | --- | --- |
-| SUCCESS | Success | N/A | Not applicable. |
-| PARAM_INVALID | Parameter error | Yes | Investigate error cause based on logs. |
-| TIMEOUT | Processing timeout | No | Preserve the scene, obtain Host/Device logs, and back up. |
-| NOT_CONNECTED | No link established | Yes | Upper layer investigates link establishment status. |
-| ALREADY_CONNECTED | Already linked | Yes | Upper layer investigates link establishment status. |
-| NOTIFY_FAILED | Notification failed | No | Reserved error code, will not be returned currently. |
-| UNSUPPORTED | Unsupported parameter or interface | Yes | Confirm whether current configuration or feature is supported based on interface return information. If not supported, use already supported parameters or interfaces. |
-| FAILED | General failure | No | Preserve the scene, obtain Host/Device logs, and back up. |
-| RESOURCE_EXHAUSTED | Resource exhausted, currently only includes stream resources | Yes | Wait for resources to be released before retrying. |
+| SUCCESS | Success | None | Not applicable. |
+| PARAM_INVALID | Invalid parameter | Yes | Troubleshoot the cause using the logs. |
+| TIMEOUT | Processing timed out | No | Preserve the environment, obtain the Host/Device logs, and back them up. |
+| NOT_CONNECTED | Not connected | Yes | Check the connection status at the upper layer. |
+| ALREADY_CONNECTED | Already connected | Yes | Check the connection status at the upper layer. |
+| NOTIFY_FAILED | Notification failed | No | Reserved error code; currently not returned. |
+| UNSUPPORTED | Unsupported parameter or API | Yes | Check the API return information to determine whether the current configuration or feature is supported. If unsupported, use supported parameters or APIs. |
+| FAILED | General failure | No | Preserve the environment, obtain the Host/Device logs, and back them up. |
+| RESOURCE_EXHAUSTED | Resources exhausted; currently includes only stream resources. | Yes | Retry after resources are released. |
