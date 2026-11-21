@@ -471,7 +471,14 @@ TEST_F(UbMemCsClientUt, DeviceAicpuSyncFailureAbortsSlotOnLastReference) {
   ASSERT_NE(err_flag, nullptr);
   acl_stub_->fail_next_aicpu_sync_ = true;
   EXPECT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), static_cast<Status>(ACL_ERROR_RT_INTERNAL_ERROR));
-  EXPECT_FALSE(cli_.client_channel_->transfer_failure_latched_);
+  EXPECT_TRUE(cli_.client_channel_->transfer_failure_latched_);
+  EXPECT_EQ(cli_.client_channel_->transfer_failure_status_, static_cast<Status>(ACL_ERROR_RT_INTERNAL_ERROR));
+  const auto submission_count = acl_stub_->submission_events_.size();
+  EXPECT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), FAILED);
+  void *rejected_handle = nullptr;
+  EXPECT_EQ(cli_.BatchPutAsync(&desc, 1U, &rejected_handle), FAILED);
+  EXPECT_EQ(rejected_handle, nullptr);
+  EXPECT_EQ(acl_stub_->submission_events_.size(), submission_count);
 
   auto *pool = TransferPool::GetInstance(kUbMemCsClientDevId);
   ASSERT_NE(pool, nullptr);
@@ -516,9 +523,14 @@ TEST_F(UbMemCsClientUt, DeviceMemcpySyncSubmitFailureDoesNotDoubleRelease) {
 
   acl_stub_->fail_next_data_copy_ = true;
   EXPECT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), ACL_ERROR_RT_INTERNAL_ERROR);
-  EXPECT_FALSE(cli_.client_channel_->transfer_failure_latched_);
+  EXPECT_TRUE(cli_.client_channel_->transfer_failure_latched_);
+  EXPECT_EQ(cli_.client_channel_->transfer_failure_status_, static_cast<Status>(ACL_ERROR_RT_INTERNAL_ERROR));
   EXPECT_EQ(acl_stub_->stream_abort_count_, 0U);
-  EXPECT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), SUCCESS);
+  const auto submission_count = acl_stub_->submission_events_.size();
+  EXPECT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), FAILED);
+  EXPECT_EQ(acl_stub_->submission_events_.size(), submission_count);
+  EXPECT_EQ(cli_.Destroy(), SUCCESS);
+  EXPECT_EQ(cli_.Destroy(), SUCCESS);
 }
 
 TEST_F(UbMemCsClientUt, DeviceMemcpySyncStatusFailureLatchesClient) {
@@ -588,7 +600,13 @@ TEST_F(UbMemCsClientUt, DeviceLaunchMissingKernelReturnsUnsupported) {
   ASSERT_EQ(cli_.mem_store_.RecordMemory(false, local_buf, sizeof(local_buf)), SUCCESS);
 
   EXPECT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), UNSUPPORTED);
-  EXPECT_FALSE(cli_.client_channel_->transfer_failure_latched_);
+  EXPECT_TRUE(cli_.client_channel_->transfer_failure_latched_);
+  EXPECT_EQ(cli_.client_channel_->transfer_failure_status_, UNSUPPORTED);
+  const auto lookup_count = acl_stub_->kernel_function_lookup_count_;
+  const auto submission_count = acl_stub_->submission_events_.size();
+  EXPECT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), FAILED);
+  EXPECT_EQ(acl_stub_->kernel_function_lookup_count_, lookup_count);
+  EXPECT_EQ(acl_stub_->submission_events_.size(), submission_count);
 }
 
 TEST_F(UbMemCsClientUt, DeviceLaunchRejectsEmptyDescBuf) {

@@ -1464,6 +1464,18 @@ TEST_F(HixlCSClientUT, DestroySuccessWithoutCreate) {
   EXPECT_EQ(client_.Destroy(), SUCCESS);
 }
 
+TEST_F(HixlCSClientUT, DestroyRejectsSyncAndAsyncTransfers) {
+  EXPECT_EQ(client_.Destroy(), SUCCESS);
+  HixlOneSideOpDesc desc{};
+  void *query_handle = nullptr;
+  EXPECT_EQ(client_.BatchPutSync(&desc, 1U, 100U), PARAM_INVALID);
+  EXPECT_EQ(client_.BatchPutAsync(&desc, 1U, &query_handle), PARAM_INVALID);
+  EXPECT_EQ(client_.BatchGetSync(&desc, 1U, 100U), PARAM_INVALID);
+  EXPECT_EQ(client_.BatchGetAsync(&desc, 1U, &query_handle), PARAM_INVALID);
+  EXPECT_EQ(query_handle, nullptr);
+  EXPECT_EQ(client_.Destroy(), SUCCESS);
+}
+
 TEST_F(HixlCSClientUT, DestroySuccessIdempotent) {
   StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
   CreateClient();

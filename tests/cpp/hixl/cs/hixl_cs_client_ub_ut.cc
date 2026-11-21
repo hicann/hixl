@@ -276,6 +276,30 @@ TEST_F(HixlCSClientDeviceToHostFixture, BatchTransferAsyncUsesRemoteHostVa) {
   EXPECT_EQ(PollUntilCompleted(cli_, query_handle, &status), SUCCESS);
 }
 
+TEST_F(HixlCSClientDeviceFixture, ResourceExhaustionDoesNotLatchAndAllowsRetry) {
+  const auto desc = SetupBatchTransfer(false);
+  auto *pool = TransferPool::GetInstance(cli_.device_id_);
+  ASSERT_NE(pool, nullptr);
+  std::vector<TransferPool::SlotHandle> held;
+  TransferPool::SlotHandle slot{};
+  while (pool->Acquire(&slot) == SUCCESS) {
+    held.push_back(slot);
+  }
+  void *handle = nullptr;
+  EXPECT_EQ(cli_.BatchPutSync(&desc, 1U, 100U), RESOURCE_EXHAUSTED);
+  EXPECT_EQ(cli_.BatchPutAsync(&desc, 1U, &handle), RESOURCE_EXHAUSTED);
+  EXPECT_EQ(handle, nullptr);
+  EXPECT_FALSE(DevChannel(cli_).transfer_failure_latched_);
+  EXPECT_EQ(DevChannel(cli_).transfer_failure_status_, SUCCESS);
+  for (const auto &held_slot : held) {
+    pool->Release(held_slot);
+  }
+  ASSERT_FALSE(held.empty());
+  EXPECT_EQ(cli_.BatchPutSync(&desc, 1U, 100U), SUCCESS);
+  EXPECT_EQ(cli_.BatchPutAsync(&desc, 1U, &handle), SUCCESS);
+  EXPECT_NE(handle, nullptr);
+}
+
 TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSuccessUseMemcpyHackFlag) {
   setenv("HIXL_UT_DEVICE_FLAG_HACK", "1", 1);
   HixlOneSideOpDesc desc = SetupBatchTransfer(false);
@@ -390,6 +414,28 @@ TEST_F(HixlCSClientDeviceFixture, PendingActiveSlotIsAbortedOnce) {
   EXPECT_EQ(ch.active_slot_.get(), nullptr);
   EXPECT_FALSE(ch.abort_active_slot_);
   ExpectFreeSlotsAreUnique(cli_.device_id_);
+}
+
+TEST_F(HixlCSClientDeviceFixture, LatchRuntimeErrorsRejectsSubsequentTransfers) {
+  const auto desc = SetupBatchTransfer(false);
+  auto &channel = DevChannel(cli_);
+  EXPECT_EQ(channel.LatchTransferFailureIfNeeded(SUCCESS), SUCCESS);
+  EXPECT_FALSE(channel.transfer_failure_latched_);
+  for (const Status ret : {503900U, 103901U, 507001U, 507018U, 507901U}) {
+    channel.transfer_failure_latched_ = false;
+    channel.transfer_failure_status_ = SUCCESS;
+    EXPECT_EQ(channel.LatchTransferFailureIfNeeded(ret), ret);
+    EXPECT_TRUE(channel.transfer_failure_latched_);
+    EXPECT_EQ(channel.LatchTransferFailureIfNeeded(PARAM_INVALID), PARAM_INVALID);
+    EXPECT_EQ(channel.LatchTransferFailureIfNeeded(RESOURCE_EXHAUSTED), RESOURCE_EXHAUSTED);
+    EXPECT_TRUE(channel.transfer_failure_latched_);
+    EXPECT_EQ(channel.transfer_failure_status_, ret);
+    void *handle = nullptr;
+    EXPECT_EQ(cli_.BatchPutSync(&desc, 1U, 100U), FAILED);
+    EXPECT_EQ(cli_.BatchGetSync(&desc, 1U, 100U), FAILED);
+    EXPECT_EQ(cli_.BatchPutAsync(&desc, 1U, &handle), FAILED);
+    EXPECT_EQ(cli_.BatchGetAsync(&desc, 1U, &handle), FAILED);
+  }
 }
 
 TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSyncFailureLatchesClient) {

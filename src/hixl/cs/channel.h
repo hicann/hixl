@@ -118,7 +118,6 @@ class Channel {
                            uint32_t timeout_ms);
   Status BatchTransferAsync(bool is_get, const char *op, const HixlOneSideOpDesc *desc_list, uint32_t list_num,
                             void **complete_handle);
-  bool ShouldLatchTransferFailure(Status ret) const;
   Status LatchTransferFailureIfNeeded(Status ret);
 };
 

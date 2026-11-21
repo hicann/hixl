@@ -43,10 +43,6 @@ Status Channel::ValidateAddress(uint32_t list_num, const HixlOneSideOpDesc *desc
   return SUCCESS;
 }
 
-bool Channel::ShouldLatchTransferFailure(Status ret) const {
-  return ret == FAILED || ret == TIMEOUT;
-}
-
 void Channel::LatchTransferFailure(Status ret) {
   if (transfer_failure_latched_) {
     return;
@@ -57,7 +53,7 @@ void Channel::LatchTransferFailure(Status ret) {
 }
 
 Status Channel::LatchTransferFailureIfNeeded(Status ret) {
-  if (ret != SUCCESS && ShouldLatchTransferFailure(ret)) {
+  if (ret != SUCCESS && ret != RESOURCE_EXHAUSTED) {
     LatchTransferFailure(ret);
   }
   return ret;
