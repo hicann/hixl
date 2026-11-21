@@ -11,6 +11,7 @@
 
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
+#include "task_exception_handler.h"
 #include "transfer_context_manager.h"
 
 namespace hixl {
@@ -40,6 +41,11 @@ uint32_t DoSyncTransferContext(const HixlTransferContextSyncParam *param) {
     if (entries[i].op == TRANSFER_CONTEXT_OP_ADD) {
       state =
           TransferContextManager::Instance().Add(entries[i].thread, entries[i].notify_id, entries[i].err_flag_dev_va);
+      // host 侧已注册 hcomm host 异常回调时 device 侧不再注册，避免同一异常被 host/device 两侧重复处理。
+      // 注册放在 Add 之外（TCM 锁之外），防止 hcomm 接口内回调 hixl 触发 Get 导致死锁。
+      if (!param->host_exception_enabled) {
+        TaskExceptionHandler::Instance().EnableExceptionCallback();
+      }
     } else if (entries[i].op == TRANSFER_CONTEXT_OP_DELETE) {
       uint64_t dispatched = 0;
       state = TransferContextManager::Instance().Delete(entries[i].thread, &dispatched);

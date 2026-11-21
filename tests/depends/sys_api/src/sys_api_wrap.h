@@ -29,12 +29,7 @@ inline void *SysApiPassSentinelPtr() {
   return &sentinel;
 }
 
-// Real-symbol helpers for hooks that need to delegate to the underlying system
-// call with a different argument (e.g. redirect libra.so to libdl.so). They are
-// backed by the linker __real_* aliases produced by --wrap.
 void *RealDlOpen(const char *file_name, int mode);
-void *RealDlSym(void *handle, const char *func_name);
-int RealDlClose(void *handle);
 
 // Test-facing hook interface. The virtual signatures mirror the corresponding
 // mmpa_stub virtuals (DlOpen/DlSym/DlClose/Access/RealPath) so existing mock

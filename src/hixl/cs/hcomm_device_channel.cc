@@ -78,23 +78,54 @@ Status HcommDeviceChannel::RegisterNotifyMemForAllSlots(const std::vector<Transf
   return SUCCESS;
 }
 
-Status RoceDeviceChannel::InitNotifyResources() {
-  auto *pool = TransferPool::GetInstance(ctx_.device_id);
-  HIXL_CHECK_NOTNULL(pool);
-  HIXL_CHK_STATUS_RET(pool->ResolveNotifyAddr(), "[HcommDeviceChannel] TransferPool ResolveNotifyAddr failed. devId=%d",
+Status HcommDeviceChannel::RegisterFlagBlock(TransferPool &pool) {
+  if (flag_mem_handle_ != nullptr) {
+    return SUCCESS;
+  }
+  std::vector<TransferPool::SlotHandle> slots;
+  HIXL_CHK_STATUS_RET(pool.GetAllSlots(slots),
+                      "[HcommDeviceChannel] get slots for flag block registration failed. device_id=%d",
                       ctx_.device_id);
+  HIXL_CHK_BOOL_RET_STATUS(!slots.empty(), FAILED,
+                           "[HcommDeviceChannel] no slots for flag block registration. device_id=%d", ctx_.device_id);
+  void *flag_base = reinterpret_cast<void *>(static_cast<uintptr_t>(slots.front().flag_dev_addr));
+  const uint64_t flag_size = static_cast<uint64_t>(slots.size()) * sizeof(uint64_t);
+  CommMem mem{};
+  mem.type = COMM_MEM_TYPE_DEVICE;
+  mem.addr = flag_base;
+  mem.size = flag_size;
+  HIXL_CHK_STATUS_RET(local_endpoint_.RegisterMem(nullptr, mem, flag_mem_handle_),
+                      "[HcommDeviceChannel] register flag block failed. addr=%p size=%llu bytes devId=%d", flag_base,
+                      static_cast<unsigned long long>(flag_size), ctx_.device_id);
+  HIXL_LOGI("[HcommDeviceChannel] flag block registered. addr=%p size=%llu bytes devId=%d", flag_base,
+            static_cast<unsigned long long>(flag_size), ctx_.device_id);
   return SUCCESS;
 }
 
-Status UbDeviceChannel::InitNotifyResources() {
+Status HcommDeviceChannel::InitRdmaNotifyResources(bool register_notify_mem) {
   auto *pool = TransferPool::GetInstance(ctx_.device_id);
   HIXL_CHECK_NOTNULL(pool);
+  use_value_wait_ = pool->IsHostExceptionEnabled();
+  if (use_value_wait_) {
+    return RegisterFlagBlock(*pool);
+  }
   HIXL_CHK_STATUS_RET(pool->ResolveNotifyAddr(), "[HcommDeviceChannel] TransferPool ResolveNotifyAddr failed. devId=%d",
                       ctx_.device_id);
+  if (!register_notify_mem) {
+    return SUCCESS;
+  }
   std::vector<TransferPool::SlotHandle> all_slots;
   HIXL_CHK_STATUS_RET(pool->GetAllSlots(all_slots), "[HcommDeviceChannel] TransferPool GetAllSlots failed. devId=%d",
                       ctx_.device_id);
   return RegisterNotifyMemForAllSlots(all_slots);
+}
+
+Status RoceDeviceChannel::InitNotifyResources() {
+  return InitRdmaNotifyResources(false);
+}
+
+Status UbDeviceChannel::InitNotifyResources() {
+  return InitRdmaNotifyResources(true);
 }
 
 Status HcommDeviceChannel::EnsureDeviceRemoteFlagInited() {
@@ -134,6 +165,9 @@ Status HcommDeviceChannel::ReleaseDevCompleteHandle(DeviceCompleteHandle *handle
   }
   (void)pending_device_handles_.erase(handle);
 
+  std::shared_ptr<TransferPool::SlotHandle> slot_ref = std::move(handle->shared_slot);
+  ReleaseSharedSlotRef(slot_ref);
+
   // Free independent host_flag (allocated for async transfers)
   if (handle->host_flag != nullptr) {
     HIXL_CHK_ACL(aclrtFreeHost(handle->host_flag));
@@ -144,12 +178,6 @@ Status HcommDeviceChannel::ReleaseDevCompleteHandle(DeviceCompleteHandle *handle
   if (handle->dev_op_desc_buf != nullptr) {
     HIXL_CHK_ACL(aclrtFree(handle->dev_op_desc_buf));
     handle->dev_op_desc_buf = nullptr;
-  }
-
-  // Release shared slot reference
-  std::shared_ptr<TransferPool::SlotHandle> slot_ref = std::move(handle->shared_slot);
-  if (slot_ref != nullptr) {
-    ReleaseSharedSlotRef(slot_ref);
   }
 
   handle->magic = 0U;
@@ -301,9 +329,17 @@ Status HcommDeviceChannel::BuildDeviceChunkParam(DeviceCompleteHandle &handle, u
     void *remote_flag = nullptr;
     HIXL_CHK_STATUS_RET(PrepareDeviceRemoteFlagAndKernel(remote_flag), "PrepareDeviceRemoteFlagAndKernel failed");
     param.remote_flag_addr = PtrToValue(remote_flag);
-    param.local_flag_addr = handle.shared_slot->notify_addr;
-    param.flag_size = handle.shared_slot->notify_len;
-    param.notify_id = handle.shared_slot->notify_id;
+    if (!use_value_wait_) {
+      // HCCS records the notify; legacy RDMA reads into the local notify address.
+      param.local_flag_addr = handle.shared_slot->notify_addr;
+      param.flag_size = handle.shared_slot->notify_len;
+      param.notify_id = handle.shared_slot->notify_id;
+    } else {
+      // 非 HCCS device：device kernel 对远端 flag 做 RDMA-read，写入本 slot 的 pool flag。
+      param.local_flag_addr = handle.shared_slot->flag_dev_addr;
+      param.flag_size = static_cast<uint32_t>(sizeof(uint64_t));
+      param.notify_id = 0;
+    }
   } else {
     param.remote_flag_addr = 0;
     param.local_flag_addr = 0;
@@ -313,15 +349,31 @@ Status HcommDeviceChannel::BuildDeviceChunkParam(DeviceCompleteHandle &handle, u
   if (UseNotifyRecord()) {
     param.use_notify_record = 1;
   }
-  HIXL_LOGI("[HcommDeviceChannel] protocol=%s, use_notify_record=%u",
-            ProtocolToString(local_endpoint_.GetEndpoint().protocol).c_str(), param.use_notify_record);
+  return SUCCESS;
+}
+
+Status NotifyWait::WaitAndReset(const TransferPool::SlotHandle &slot, aclrtStream stream) const {
+  HIXL_CHK_ACL_RET(aclrtWaitAndResetNotify(slot.notify, stream, kCustomTimeoutMs),
+                   "[NotifyWait] aclrtWaitAndResetNotify failed. slot=%u notify_id=%u", slot.slot_index,
+                   slot.notify_id);
+  return SUCCESS;
+}
+
+Status ValueWait::WaitAndReset(const TransferPool::SlotHandle &slot, aclrtStream stream) const {
+  HIXL_CHK_BOOL_RET_STATUS(slot.flag_dev_addr != 0U, FAILED, "[ValueWait] flag address is null. slot=%u",
+                           slot.slot_index);
+  // wait/write 按顺序入队。同步路径等待 stream 完成，异步路径通过随后入队的 D2H 拷贝发布完成状态。
+  void *addr = reinterpret_cast<void *>(static_cast<uintptr_t>(slot.flag_dev_addr));
+  HIXL_CHK_ACL_RET(aclrtValueWait(addr, kDeviceFlagDoneValue, 0U, stream), "[ValueWait] aclrtValueWait failed. slot=%u",
+                   slot.slot_index);
+  HIXL_CHK_ACL_RET(aclrtValueWrite(addr, 0U, 0U, stream), "[ValueWait] aclrtValueWrite failed. slot=%u",
+                   slot.slot_index);
   return SUCCESS;
 }
 
 Status HcommDeviceChannel::LaunchDeviceKernel(bool is_get, DeviceCompleteHandle &handle,
-                                              const HixlOneSideOpParam &param, bool wait_notify) {
+                                              const HixlOneSideOpParam &param, bool wait_notify) const {
   const char *kernel_name = is_get ? kDeviceFuncGet : kDeviceFuncPut;
-  HIXL_LOGI("[HcommDeviceChannel] LaunchDeviceKernel start. kernel=%s wait_notify=%d", kernel_name, wait_notify);
   HIXL_CHECK_NOTNULL(handle.shared_slot.get(), "[HcommDeviceChannel] LaunchDeviceKernel shared_slot is null");
   const ThreadHandle thread = handle.shared_slot->thread;
   auto *pool = TransferPool::GetInstance(handle.shared_slot->device_id);
@@ -354,11 +406,14 @@ Status HcommDeviceChannel::LaunchDeviceKernel(bool is_get, DeviceCompleteHandle 
       static_cast<uint64_t>(thread));
   handle.shared_slot->launched_tasks += param.list_num;
   if (wait_notify) {
-    HIXL_CHK_ACL_RET(aclrtWaitAndResetNotify(handle.shared_slot->notify, handle.shared_slot->stream, kCustomTimeoutMs),
-                     "[HcommDeviceChannel] aclrtWaitAndResetNotify failed, kernel=%s, thread=%lu", kernel_name,
-                     static_cast<uint64_t>(thread));
+    static const NotifyWait kNotifyWait;
+    static const ValueWait kValueWait;
+    const CompletionWait &wait = use_value_wait_ ? static_cast<const CompletionWait &>(kValueWait)
+                                                 : static_cast<const CompletionWait &>(kNotifyWait);
+    HIXL_CHK_STATUS_RET(wait.WaitAndReset(*handle.shared_slot, handle.shared_slot->stream),
+                        "[HcommDeviceChannel] completion wait failed, kernel=%s, thread=%lu", kernel_name,
+                        static_cast<uint64_t>(thread));
   }
-  HIXL_LOGI("[HcommDeviceChannel] LaunchDeviceKernel end. kernel=%s", kernel_name);
   return SUCCESS;
 }
 
@@ -566,13 +621,17 @@ void HcommDeviceChannel::AbortAllPendingDeviceHandles() {
 }
 
 void HcommDeviceChannel::ReleaseDeviceResources() {
-  for (size_t i = 0U; i < notify_mem_handles_.size(); ++i) {
-    if (notify_mem_handles_[i] != nullptr) {
-      local_endpoint_.DeregisterMem(notify_mem_handles_[i]);
-      notify_mem_handles_[i] = nullptr;
+  for (auto handle : notify_mem_handles_) {
+    if (handle != nullptr) {
+      local_endpoint_.DeregisterMem(handle);
     }
   }
   notify_mem_handles_.clear();
+  if (flag_mem_handle_ != nullptr) {
+    local_endpoint_.DeregisterMem(flag_mem_handle_);
+    flag_mem_handle_ = nullptr;
+  }
+  use_value_wait_ = false;
   CleanupActiveSlot();
 }
 

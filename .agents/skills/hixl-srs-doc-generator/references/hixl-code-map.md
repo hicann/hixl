@@ -5,10 +5,11 @@
 ## 核心路径
 
 - `src/hixl/engine/`：HIXL Engine 对外引擎、client/server、notify client、factory、endpoint 生成。
-- `src/hixl/cs/`：控制面服务、endpoint、channel、连接/内存消息处理、transfer pool。
+- `src/hixl/cs/`：控制面服务、endpoint、channel、连接/内存消息处理、transfer pool、完成通知抽象（`CompletionWait` / `NotifyWait` / `ValueWait`）。
 - `src/hixl/common/`：日志、校验、segment、thread pool、ctrl msg 等通用能力。
 - `src/hixl/profiling/`：profiling 注册与上报。
 - `src/hixl/proxy/`：hcomm/hccp proxy 适配层。
+- `src/ops/hixl_kernel/`：Device kernel 的传输上下文和异常回调实现。
 - `src/llm_datadist/adxl/`：ADXL 内部引擎、channel 管理、控制消息、buffer/fabric mem 传输、segment table、virtual memory、stream pool、统计。
 
 ## 公开接口与文档边界
@@ -41,6 +42,18 @@
 - HIXL CS：`tests/cpp/hixl/cs/`。
 - ADXL/LLM-DataDist：`tests/cpp/llm_datadist/`，重点参考 `adxl_engine_api_unittest.cc`、`fabric_mem_transfer_service_unittest.cc`、`segment_table_unittest.cc`、`virtual_memory_manager_unittest.cc`、`control_msg_handler_unittest.cc`。
 - Python API 变化：`tests/python/test_*.py`。
+
+## CS 完成通知与异常路径
+
+- `src/hixl/common/soc_type.{h,cc}` 是统一机型判定入口：A2 为 `kGen1`、A3 为 `kGen2`；Ascend 950 系列和未知型号均归入 `kDefault`。
+- `TransferPool::Initialize`：A2/A3 在所有 HCOMM 版本下保留 device 异常回调和原有 NotifyWait；仅 `kDefault` 且 HCOMM ≥ 9.3.0 时尝试启用 host 异常回调，注册失败则保留 device 路径。
+- `HcommDeviceChannel::InitRdmaNotifyResources` 根据 Host 回调是否启用为非 HCCS、非 UB_MEM 的 Device 通道选路。启用时走 `ValueWait`，否则走 `NotifyWait`。
+  `err_flag` 映射失败时仍按 Host 回调状态选路。HCCS 和 UB_MEM 沿用各自的完成通知流程。
+- Host 回调启用后，完成 flag block 的申请或初始清零失败会使 `TransferPool::Initialize` 直接返回错误。
+  选定 `ValueWait` 后，内存注册失败时 `RegisterFlagBlock` 直接返回 `RegisterMem` 的错误码。
+- `TransferPoolLegacySocTest.Hcomm930UsesDeviceExceptionRegistration` 覆盖 A2/A3 的 Device 回调注册。
+  `HixlCSClientLegacyDeviceFixture.NonHccsReadsIntoNotifyAndWaitsForNotify` 验证旧路径下发 `NotifyWait`。
+  `HixlCSClientErrFlagMappingFailureFixture.KeepsValueWaitWhenErrorFlagMappingFails` 验证 `err_flag` 映射失败时仍走 `ValueWait`。
 
 ## 推荐检索命令
 

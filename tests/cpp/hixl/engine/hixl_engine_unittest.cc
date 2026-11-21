@@ -141,57 +141,13 @@ using MockEngineAclRuntimeStub = endpoint_test::MockAclRuntimeStub;
 
 class HixlEngineTest : public ::testing::Test {
  private:
-  class HccpSysApiStub : public test::TestMmpaStub {
+  class EngineSysApiStub : public test::TestMmpaStub {
    public:
     INT32 Access(const CHAR *path_name) override {
       if (path_name != nullptr && std::strcmp(path_name, kHccnToolPath) == 0) {
         return EN_ERROR;
       }
       return test::TestMmpaStub::Access(path_name);
-    }
-
-    void *DlOpen(const char *file_name, int32_t mode) override {
-      if (file_name != nullptr && std::strcmp(file_name, "libra.so") == 0) {
-        return hixl_test::RealDlOpen("libdl.so.2", mode);
-      }
-      return hixl_test::SysApiPassSentinelPtr();
-    }
-
-    void *DlSym(void *handle, const char *func_name) override {
-      (void)handle;
-      if (func_name != nullptr && std::strcmp(func_name, "RaRdevGetHandle") == 0) {
-        return reinterpret_cast<void *>(&MockRaRdevGetHandle);
-      }
-      if (func_name != nullptr && std::strcmp(func_name, "RaGetNotifyBaseAddr") == 0) {
-        return reinterpret_cast<void *>(&MockRaGetNotifyBaseAddr);
-      }
-      return hixl_test::SysApiPassSentinelPtr();
-    }
-
-    int32_t DlClose(void *handle) override {
-      (void)handle;
-      return 0;
-    }
-
-   private:
-    static int MockRaRdevGetHandle(unsigned int phy_id, void **out_handle) {
-      (void)phy_id;
-      static int dummy_handle = 0;
-      if (out_handle != nullptr) {
-        *out_handle = &dummy_handle;
-      }
-      return 0;
-    }
-
-    static int MockRaGetNotifyBaseAddr(void *handle, unsigned long long *addr, unsigned long long *size) {
-      (void)handle;
-      if (addr != nullptr) {
-        *addr = 0x1000ULL;
-      }
-      if (size != nullptr) {
-        *size = 0x10000ULL;
-      }
-      return 0;
     }
   };
 
@@ -206,7 +162,7 @@ class HixlEngineTest : public ::testing::Test {
     ResetHcommVersionStub();
     SetSocStub("Ascend910B1", 0, 0, 9, 8);
     // TransferPool initialization loads device kernels, so MmpaStub must be ready before Create.
-    mmpa_stub_ = std::make_shared<HccpSysApiStub>();
+    mmpa_stub_ = std::make_shared<EngineSysApiStub>();
     mmpa_stub_->real_path_ok_ = true;
     mmpa_stub_->access_ok_ = true;
     hixl_test::InstallSysApiHooks(mmpa_stub_);

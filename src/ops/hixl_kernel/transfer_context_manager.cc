@@ -52,9 +52,7 @@ HixlTransferThreadState TransferContextManager::Add(ThreadHandle thread, uint32_
       static_cast<uint64_t>(thread), notify_id, static_cast<uint64_t>(err_flag_dev_va));
   lock.unlock();
 
-  // 防止hcomm接口内回调hixl触发Get导致死锁，所以这里放到锁外面
-  TaskExceptionHandler::Instance().EnableExceptionCallback();
-
+  // DoSyncTransferContext 在上下文锁之外根据 host_exception_enabled 决定是否注册 device 异常回调。
   return TRANSFER_THREAD_STATE_INITIALIZED;
 }
 

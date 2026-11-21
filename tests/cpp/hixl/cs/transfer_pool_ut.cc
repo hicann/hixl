@@ -8,7 +8,10 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <atomic>
+#include <chrono>
 #include <cstdint>
+#include <future>
 #include <memory>
 #include <string>
 #include <vector>
@@ -16,13 +19,16 @@
 #include <securec.h>
 
 #include "ascendcl_stub.h"
+#include "slog_stub.h"
+#include "depends/hccl/src/hccl_stub.h"
+#include "depends/hccl/src/hccl_host_exception_stub.h"
 #include "depends/ascend_hal/src/ascend_hal_stub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/sys_api/src/sys_api_wrap.h"
 #include "depends/runtime/src/runtime_stub.h"
 #include "engine/test_mmpa_utils.h"
 #include "cs/hcomm_channel.h"
-#include "cs/transfer_pool.h"
+#include "cs/transfer_pool.cc"  // Keep access to process-local callback state inside the UT translation unit.
 #include "cs/ubmem/ubmem_channel.h"
 #include "gtest/gtest.h"
 #include "hixl/hixl_types.h"
@@ -38,8 +44,6 @@ namespace {
 constexpr int32_t kTransferPoolUtDevId = 910246;
 constexpr int32_t kTransferPoolKernelDevId = 910247;
 constexpr int32_t kTransferPoolNotifyDevId = 910248;
-constexpr int32_t kTransferPoolReinitFailDevId = 910249;
-constexpr uint64_t kRuntimeNotifyAddr = 0x88888888ULL;
 
 class CountingAclRuntimeStub : public llm::AclRuntimeStub {
  public:
@@ -77,32 +81,6 @@ class CountingAclRuntimeStub : public llm::AclRuntimeStub {
   std::vector<std::string> func_names_{};
 };
 
-class ReinitCreateContextFailStub : public llm::AclRuntimeStub {
- public:
-  aclError aclrtCreateContext(aclrtContext *context, int32_t device_id) override {
-    ++create_context_calls_;
-    if (create_context_calls_ > kInitialContextCreateCount) {
-      return ACL_ERROR_FAILURE;
-    }
-    return llm::AclRuntimeStub::aclrtCreateContext(context, device_id);
-  }
-
-  uint32_t create_context_calls_{0U};
-
- private:
-  static constexpr uint32_t kInitialContextCreateCount = 2U;
-};
-
-class CountingRuntimeStub : public llm::RuntimeStub {
- public:
-  rtError_t rtGetDevResAddress(rtDevResInfo *res_info, rtDevResAddrInfo *addr_info) override {
-    ++get_dev_res_address_count_;
-    return llm::RuntimeStub::rtGetDevResAddress(res_info, addr_info);
-  }
-
-  uint32_t get_dev_res_address_count_{0U};
-};
-
 class SocNameAclRuntimeStub : public llm::AclRuntimeStub {
  public:
   explicit SocNameAclRuntimeStub(std::string soc_name) : soc_name_(std::move(soc_name)) {}
@@ -129,12 +107,80 @@ class SyncEntryCaptureAclRuntimeStub : public llm::AclRuntimeStub {
   std::vector<HixlTransferContextSyncEntry> captured_entries_{};
 };
 
+// 捕获下发给 HixlSyncTransferContext 的 param，用于校验 host_exception_enabled 的实际取值。
+class SyncParamCaptureAclRuntimeStub : public llm::AclRuntimeStub {
+ public:
+  const char *aclrtGetSocName() override {
+    return soc_name_;
+  }
+
+  aclError aclrtKernelArgsAppend(aclrtArgsHandle args_handle, void *data, size_t size,
+                                 aclrtParamHandle *param_handle) override {
+    if ((size == sizeof(HixlTransferContextSyncParam)) && (data != nullptr)) {
+      HixlTransferContextSyncParam param{};
+      (void)memcpy_s(&param, sizeof(param), data, sizeof(param));
+      // 与 HixlOneSideOpParam（同为 128 字节）区分：sync param 有 version 与 entry/state 地址。
+      if ((param.version == kHixlSyncParamVersion) && (param.entry_list_addr != 0U) && (param.state_list_addr != 0U)) {
+        captured_params_.push_back(param);
+      }
+    }
+    return llm::AclRuntimeStub::aclrtKernelArgsAppend(args_handle, data, size, param_handle);
+  }
+
+  std::vector<HixlTransferContextSyncParam> captured_params_{};
+  const char *soc_name_{"Ascend950A"};
+};
+
 constexpr int32_t kTransferPoolA2DevId = 910250;
 constexpr int32_t kTransferPoolA5DevId = 910251;
 constexpr int32_t kTransferPoolSyncEntryDevId = 910252;
 constexpr int32_t kTransferPoolHostRegFailDevId = 910253;
 constexpr int32_t kTransferPoolInitFailDevId = 910254;
 constexpr int32_t kTransferPoolSkipHcommDevId = 910255;
+constexpr int32_t kTransferPoolHostExcDevId = 910256;
+constexpr int32_t kTransferPoolHostExcBDevId = 910257;
+constexpr int32_t kTransferPoolFlagLifecycleDevId = 910259;
+constexpr int32_t kTransferPoolSyncParamDevId = 910261;
+
+class HostExcAbortCountingAclRuntimeStub : public llm::AclRuntimeStub {
+ public:
+  aclError aclrtStreamAbort(aclrtStream stream) override {
+    ++abort_count_;
+    return llm::AclRuntimeStub::aclrtStreamAbort(stream);
+  }
+
+  std::atomic<uint32_t> abort_count_{0U};
+};
+
+class HostExcDeviceMappingAclRuntimeStub : public HostExcAbortCountingAclRuntimeStub {
+ public:
+  aclError aclrtGetUserDevIdByLogicDevId(const int32_t logic_device_id, int32_t *const user_device_id) override {
+    if (logic_device_id != logic_device_id_) {
+      return llm::AclRuntimeStub::aclrtGetUserDevIdByLogicDevId(logic_device_id, user_device_id);
+    }
+    *user_device_id = user_device_id_;
+    return ACL_SUCCESS;
+  }
+
+  int32_t logic_device_id_{kTransferPoolHostExcBDevId};
+  int32_t user_device_id_{kTransferPoolHostExcDevId};
+};
+
+// 调用当前注册的 host 异常回调；返回回调是否存在。
+bool InvokeHostExceptionCallback(int32_t device_id, ThreadHandle thread, uint32_t ret_code = 1U) {
+  HcommExceptionCallback cb = GetRegisteredHostExceptionCallback();
+  if (cb == nullptr) {
+    return false;
+  }
+  HcommExceptionInfoLite info{};
+  info.header.magicWord = HCOMM_EXCEPTION_LITE_MAGIC_WORD;
+  info.header.version = HCOMM_EXCEPTION_LITE_VERSION;
+  info.deviceId = static_cast<uint32_t>(device_id);
+  info.thread = thread;
+  info.retCode = ret_code;
+  cb(&info, GetRegisteredHostExceptionUserData());
+  return true;
+}
 
 class InitNotifyIdFailureAclRuntimeStub : public llm::AclRuntimeStub {
  public:
@@ -158,55 +204,66 @@ class TransferPoolTest : public ::testing::Test {
     auto kernel_stub = std::make_shared<test::KernelJsonMmpaStub>();
     hixl_test::InstallSysApiHooks(kernel_stub);
     ResetThreadLifecycleStats();
+    SaveHostExceptionCallbackState();
+    ResetHostExceptionCallbackStub();
+    ResetExceptionCallbackStub();
+    ResetHcommVersionStub();
   }
 
   void TearDown() override {
     llm::HixlTestSetNotifyBatchResetAbortCount(0U);
-    auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
-    if (pool != nullptr) {
-      pool->Finalize();
-    }
-    auto *kernel_pool = TransferPool::GetInstance(kTransferPoolKernelDevId);
-    if (kernel_pool != nullptr) {
-      kernel_pool->Finalize();
-    }
-    auto *notify_pool = TransferPool::GetInstance(kTransferPoolNotifyDevId);
-    if (notify_pool != nullptr) {
-      notify_pool->Finalize();
-    }
-    auto *reinit_fail_pool = TransferPool::GetInstance(kTransferPoolReinitFailDevId);
-    if (reinit_fail_pool != nullptr) {
-      reinit_fail_pool->Finalize();
-    }
-    auto *a2_pool = TransferPool::GetInstance(kTransferPoolA2DevId);
-    if (a2_pool != nullptr) {
-      a2_pool->Finalize();
-    }
-    auto *a5_pool = TransferPool::GetInstance(kTransferPoolA5DevId);
-    if (a5_pool != nullptr) {
-      a5_pool->Finalize();
-    }
-    auto *sync_entry_pool = TransferPool::GetInstance(kTransferPoolSyncEntryDevId);
-    if (sync_entry_pool != nullptr) {
-      sync_entry_pool->Finalize();
-    }
-    auto *host_reg_fail_pool = TransferPool::GetInstance(kTransferPoolHostRegFailDevId);
-    if (host_reg_fail_pool != nullptr) {
-      host_reg_fail_pool->Finalize();
-    }
-    auto *init_fail_pool = TransferPool::GetInstance(kTransferPoolInitFailDevId);
-    if (init_fail_pool != nullptr) {
-      init_fail_pool->Finalize();
-    }
-    auto *skip_hcomm_pool = TransferPool::GetInstance(kTransferPoolSkipHcommDevId);
-    if (skip_hcomm_pool != nullptr) {
-      skip_hcomm_pool->Finalize();
-    }
+    FinalizePools();
+    RestoreHostExceptionCallbackState();
+    ResetExceptionCallbackStub();
+    ResetHcommVersionStub();
     AscendHalStubReset();
     llm::AclRuntimeStub::Reset();
     llm::RuntimeStub::Reset();
     hixl_test::ResetSysApiHooks();
   }
+
+ private:
+  void SaveHostExceptionCallbackState() {
+    saved_host_callback_ = GetRegisteredHostExceptionCallback();
+    saved_host_user_data_ = GetRegisteredHostExceptionUserData();
+    std::lock_guard<std::mutex> lock(g_host_cb_mu);
+    saved_host_registered_ = g_host_cb_registered;
+    saved_host_ref_cnt_ = g_host_cb_ref_cnt;
+    g_host_cb_registered = false;
+    g_host_cb_ref_cnt = 0U;
+  }
+
+  void RestoreHostExceptionCallbackState() {
+    ResetHostExceptionCallbackStub();
+    if (saved_host_callback_ != nullptr) {
+      EXPECT_EQ(HcommExceptionRegisterCallback(saved_host_callback_, saved_host_user_data_), 0);
+    }
+    std::lock_guard<std::mutex> lock(g_host_cb_mu);
+    g_host_cb_registered = saved_host_registered_;
+    g_host_cb_ref_cnt = saved_host_ref_cnt_;
+  }
+
+  static void FinalizePools() {
+    SetUnregisterHostExceptionResult(0);
+    for (const int32_t device_id :
+         {kTransferPoolUtDevId, kTransferPoolKernelDevId, kTransferPoolNotifyDevId, kTransferPoolA2DevId,
+          kTransferPoolA5DevId, kTransferPoolSyncEntryDevId, kTransferPoolHostRegFailDevId, kTransferPoolInitFailDevId,
+          kTransferPoolSkipHcommDevId, kTransferPoolHostExcDevId, kTransferPoolHostExcBDevId,
+          kTransferPoolFlagLifecycleDevId, kTransferPoolSyncParamDevId}) {
+      auto *pool = TransferPool::GetInstance(device_id);
+      if (pool != nullptr) {
+        pool->Finalize();
+        pool->DisableHostExceptionCallback();
+        EXPECT_FALSE(pool->host_cb_ref_held_);
+      }
+    }
+    EXPECT_EQ(g_host_cb_ref_cnt, 0U);
+  }
+
+  HcommExceptionCallback saved_host_callback_{nullptr};
+  void *saved_host_user_data_{nullptr};
+  bool saved_host_registered_{false};
+  uint32_t saved_host_ref_cnt_{0U};
 };
 
 TEST_F(TransferPoolTest, InitializeRejectsZeroAndOverMaxPoolSize) {
@@ -312,15 +369,33 @@ TEST_F(TransferPoolTest, DeviceAbortPostRebuildsThreads) {
   pool->Release(h);
 }
 
-TEST_F(TransferPoolTest, AbortRetriesNotifyResetOnDeviceTaskAbort) {
+TEST_F(TransferPoolTest, AbortDestroysUbMemStreamBeforeRetryingNotifyReset) {
+  class UbMemStreamDestroyStub : public llm::AclRuntimeStub {
+   public:
+    aclError aclrtDestroyStream(aclrtStream stream) override {
+      if (worker_stream != nullptr && stream == worker_stream) {
+        worker_stream = nullptr;
+        EXPECT_EQ(llm::HixlTestGetNotifyBatchResetCallCount(), 0U);
+      }
+      return llm::AclRuntimeStub::aclrtDestroyStream(stream);
+    }
+
+    aclrtStream worker_stream{nullptr};
+  };
+  auto acl_stub = std::make_shared<UbMemStreamDestroyStub>();
+  llm::AclRuntimeStub::SetInstance(acl_stub);
   auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
   ASSERT_NE(pool, nullptr);
   ASSERT_EQ(pool->Initialize(1U), SUCCESS);
   TransferPool::SlotHandle h{};
   ASSERT_EQ(pool->Acquire(&h), SUCCESS);
+  ASSERT_EQ(pool->EnsureUbMemStream(h), SUCCESS);
+  ASSERT_NE(h.ubmem_stream, nullptr);
+  acl_stub->worker_stream = h.ubmem_stream;
   // 模拟设备复位窗口：前两次 aclrtNotifyBatchReset 返 107022，重试后成功
   llm::HixlTestSetNotifyBatchResetAbortCount(2U);
   pool->Abort(h);
+  EXPECT_EQ(acl_stub->worker_stream, nullptr);
   // 断言重试确实发生：reset 被调用 3 次（2 次失败 + 1 次成功）
   EXPECT_EQ(llm::HixlTestGetNotifyBatchResetCallCount(), 3U);
   // 重试成功后 slot 回到 free list，可再次 Acquire
@@ -405,7 +480,14 @@ TEST_F(TransferPoolTest, SlotHandleHasDevConstOneField) {
   EXPECT_EQ(handle.dev_const_one, nullptr);
 }
 
-TEST_F(TransferPoolTest, InitializeDoesNotResolveNotifyAddress) {
+TEST_F(TransferPoolTest, ResolveNotifyAddrAcceptsSuccessfulLookupWithZeroOutput) {
+  class EmptyNotifyAddressStub : public llm::RuntimeStub {
+   public:
+    rtError_t rtGetDevResAddress(rtDevResInfo *, rtDevResAddrInfo *) override {
+      return RT_ERROR_NONE;
+    }
+  };
+  llm::AclRuntimeStub::SetInstance(std::make_shared<SocNameAclRuntimeStub>("Ascend950A"));
   auto *pool = TransferPool::GetInstance(kTransferPoolNotifyDevId);
   ASSERT_NE(pool, nullptr);
   ASSERT_EQ(pool->Initialize(2U), SUCCESS);
@@ -416,61 +498,56 @@ TEST_F(TransferPoolTest, InitializeDoesNotResolveNotifyAddress) {
     EXPECT_EQ(slot.notify_addr, 0U);
     EXPECT_EQ(slot.notify_len, 0U);
   }
+  llm::RuntimeStub::SetInstance(std::make_shared<EmptyNotifyAddressStub>());
+  EXPECT_EQ(pool->ResolveNotifyAddr(), SUCCESS);
 }
 
-TEST_F(TransferPoolTest, ResolveNotifyAddrResolvesOnlyEmptyAddresses) {
-  auto runtime_stub = std::make_shared<CountingRuntimeStub>();
-  llm::RuntimeStub::SetInstance(runtime_stub);
+TEST_F(TransferPoolTest, FlagBlockAllocatedWithContiguousSlotOffsets) {
   auto *pool = TransferPool::GetInstance(kTransferPoolNotifyDevId);
   ASSERT_NE(pool, nullptr);
-  ASSERT_EQ(pool->Initialize(2U), SUCCESS);
-  EXPECT_EQ(runtime_stub->get_dev_res_address_count_, 0U);
-
-  ASSERT_EQ(pool->ResolveNotifyAddr(), SUCCESS);
-  EXPECT_EQ(runtime_stub->get_dev_res_address_count_, 2U);
+  ASSERT_EQ(pool->Initialize(4U), SUCCESS);
   std::vector<TransferPool::SlotHandle> slots;
   ASSERT_EQ(pool->GetAllSlots(slots), SUCCESS);
-  ASSERT_EQ(slots.size(), 2U);
-  for (const auto &slot : slots) {
-    EXPECT_EQ(slot.notify_addr, kRuntimeNotifyAddr);
-    EXPECT_EQ(slot.notify_len, sizeof(kRuntimeNotifyAddr));
+  ASSERT_EQ(slots.size(), 4U);
+  const uint64_t base = slots[0].flag_dev_addr;
+  ASSERT_NE(base, 0U);
+  for (size_t i = 0U; i < slots.size(); ++i) {
+    EXPECT_EQ(slots[i].flag_dev_addr, base + i * sizeof(uint64_t));
   }
-
-  ASSERT_EQ(pool->ResolveNotifyAddr(), SUCCESS);
-  EXPECT_EQ(runtime_stub->get_dev_res_address_count_, 2U);
+  pool->Finalize();
 }
 
-TEST_F(TransferPoolTest, AbortReinitKeepsResolvedNotifyAddress) {
-  auto *pool = TransferPool::GetInstance(kTransferPoolNotifyDevId);
+TEST_F(TransferPoolTest, AbortKeepsFlagBlockAndClearsSlotFlag) {
+  auto *pool = TransferPool::GetInstance(kTransferPoolFlagLifecycleDevId);
   ASSERT_NE(pool, nullptr);
-  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
-  ASSERT_EQ(pool->ResolveNotifyAddr(), SUCCESS);
-  TransferPool::SlotHandle old_handle{};
-  ASSERT_EQ(pool->Acquire(&old_handle), SUCCESS);
-  EXPECT_EQ(old_handle.notify_addr, kRuntimeNotifyAddr);
-  pool->Abort(old_handle);
+  ASSERT_EQ(pool->Initialize(2U), SUCCESS);
+  std::vector<TransferPool::SlotHandle> before;
+  ASSERT_EQ(pool->GetAllSlots(before), SUCCESS);
+  ASSERT_EQ(before.size(), 2U);
+  const uint64_t flag_base = before[0].flag_dev_addr;
+  ASSERT_NE(flag_base, 0U);
 
-  TransferPool::SlotHandle new_handle{};
-  ASSERT_EQ(pool->Acquire(&new_handle), SUCCESS);
-  EXPECT_EQ(new_handle.notify_addr, kRuntimeNotifyAddr);
-  EXPECT_EQ(new_handle.notify_len, sizeof(kRuntimeNotifyAddr));
-  pool->Release(new_handle);
-}
-
-TEST_F(TransferPoolTest, AbortReinitFailureDoesNotReturnSlotToFreeList) {
-  auto acl_stub = std::make_shared<ReinitCreateContextFailStub>();
-  llm::AclRuntimeStub::SetInstance(acl_stub);
-  auto *pool = TransferPool::GetInstance(kTransferPoolReinitFailDevId);
-  ASSERT_NE(pool, nullptr);
-  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
   TransferPool::SlotHandle handle{};
   ASSERT_EQ(pool->Acquire(&handle), SUCCESS);
-
+  ASSERT_NE(handle.flag_dev_addr, 0U);
+  // 模拟 abort 跳过 ValueWrite(0) 后残留的 flag=1，归还 slot 前必须清零。
+  *reinterpret_cast<volatile uint64_t *>(static_cast<uintptr_t>(handle.flag_dev_addr)) = 1U;
+  const uint64_t aborted_flag_addr = handle.flag_dev_addr;
   pool->Abort(handle);
 
+  // abort/reinit 只能复位 slot，不得销毁重建 flag block（整块内存与地址保持不变）。
+  std::vector<TransferPool::SlotHandle> after;
+  ASSERT_EQ(pool->GetAllSlots(after), SUCCESS);
+  ASSERT_EQ(after.size(), 2U);
+  EXPECT_EQ(after[0].flag_dev_addr, flag_base);
+  EXPECT_EQ(after[1].flag_dev_addr, flag_base + sizeof(uint64_t));
+  EXPECT_EQ(*reinterpret_cast<volatile uint64_t *>(static_cast<uintptr_t>(aborted_flag_addr)), 0U);
+
   TransferPool::SlotHandle next{};
-  EXPECT_EQ(pool->Acquire(&next), RESOURCE_EXHAUSTED);
-  EXPECT_GE(acl_stub->create_context_calls_, 3U);
+  ASSERT_EQ(pool->Acquire(&next), SUCCESS);
+  EXPECT_EQ(*reinterpret_cast<volatile uint64_t *>(static_cast<uintptr_t>(next.flag_dev_addr)), 0U);
+  pool->Release(next);
+  pool->Finalize();
 }
 
 TEST_F(TransferPoolTest, MultipleAcquireReleaseCycles) {
@@ -651,6 +728,27 @@ TEST_F(TransferPoolTest, ErrFlagResetOnRelease) {
   pool->Finalize();
 }
 
+TEST_F(TransferPoolTest, ReleaseResetsErrorAndCompletionFlags) {
+  auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  TransferPool::SlotHandle handle{};
+  ASSERT_EQ(pool->Acquire(&handle), SUCCESS);
+  ASSERT_NE(handle.err_flag_host_addr, nullptr);
+  ASSERT_NE(handle.flag_dev_addr, 0U);
+  auto *completion_flag = reinterpret_cast<uint64_t *>(static_cast<uintptr_t>(handle.flag_dev_addr));
+  *handle.err_flag_host_addr = 1U;
+  *completion_flag = 1U;
+  pool->Release(handle);
+  EXPECT_EQ(*handle.err_flag_host_addr, 0U);
+  EXPECT_EQ(*completion_flag, 0U);
+  TransferPool::SlotHandle next{};
+  ASSERT_EQ(pool->Acquire(&next), SUCCESS);
+  EXPECT_EQ(next.slot_index, handle.slot_index);
+  EXPECT_EQ(*completion_flag, 0U);
+  pool->Release(next);
+  pool->Finalize();
+}
+
 TEST_F(TransferPoolTest, ErrFlagClearedAcrossAbort) {
   auto *pool = TransferPool::GetInstance(kTransferPoolUtDevId);
   ASSERT_NE(pool, nullptr);
@@ -719,6 +817,74 @@ TEST_F(TransferPoolTest, SyncEntryAddContainsErrFlagAndNotifyId) {
   pool->Finalize();
 }
 
+TEST_F(TransferPoolTest, Hcomm930UsesHostExceptionRegistration) {
+  SetHcommVersionNum(90300000);
+  auto acl_stub = std::make_shared<SyncParamCaptureAclRuntimeStub>();
+  llm::AclRuntimeStub::SetInstance(acl_stub);
+  auto *pool = TransferPool::GetInstance(kTransferPoolSyncParamDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  ASSERT_FALSE(acl_stub->captured_params_.empty());
+  EXPECT_EQ(acl_stub->captured_params_.front().host_exception_enabled, 1U);
+  EXPECT_TRUE(pool->host_exception_enabled_);
+  pool->Finalize();
+}
+
+class TransferPoolLegacyHcommTest : public TransferPoolTest, public testing::WithParamInterface<int32_t> {};
+
+TEST_P(TransferPoolLegacyHcommTest, UsesDeviceExceptionRegistration) {
+  SetHcommVersionNum(GetParam());
+  auto acl_stub = std::make_shared<SyncParamCaptureAclRuntimeStub>();
+  llm::AclRuntimeStub::SetInstance(acl_stub);
+  auto *pool = TransferPool::GetInstance(kTransferPoolSyncParamDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  ASSERT_FALSE(acl_stub->captured_params_.empty());
+  EXPECT_EQ(acl_stub->captured_params_.front().host_exception_enabled, 0U);
+  EXPECT_EQ(GetRegisteredHostExceptionCallback(), nullptr);
+  EXPECT_NE(GetRegisteredExceptionCallback(), nullptr);
+  EXPECT_FALSE(pool->host_exception_enabled_);
+  pool->Finalize();
+}
+
+INSTANTIATE_TEST_SUITE_P(HcommBelow930, TransferPoolLegacyHcommTest, testing::Values(90200000, 90299999));
+
+class TransferPoolLegacySocTest : public TransferPoolTest, public testing::WithParamInterface<const char *> {};
+
+TEST_P(TransferPoolLegacySocTest, Hcomm930UsesDeviceExceptionRegistration) {
+  SetHcommVersionNum(90300000);
+  auto acl_stub = std::make_shared<SyncParamCaptureAclRuntimeStub>();
+  acl_stub->soc_name_ = GetParam();
+  llm::AclRuntimeStub::SetInstance(acl_stub);
+  auto *pool = TransferPool::GetInstance(kTransferPoolSyncParamDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  ASSERT_FALSE(acl_stub->captured_params_.empty());
+  EXPECT_EQ(acl_stub->captured_params_.front().host_exception_enabled, 0U);
+  EXPECT_EQ(GetRegisteredHostExceptionCallback(), nullptr);
+  EXPECT_NE(GetRegisteredExceptionCallback(), nullptr);
+  EXPECT_FALSE(pool->host_exception_enabled_);
+  std::vector<TransferPool::SlotHandle> slots;
+  ASSERT_EQ(pool->GetAllSlots(slots), SUCCESS);
+  ASSERT_EQ(slots.size(), 1U);
+  EXPECT_EQ(slots.front().flag_dev_addr, 0U);
+  pool->Finalize();
+}
+
+INSTANTIATE_TEST_SUITE_P(A2AndA3, TransferPoolLegacySocTest, testing::Values("Ascend910B1", "Ascend910_9391"));
+
+TEST_F(TransferPoolTest, SyncParamDisablesHostExceptionWhenUnsupported) {
+  SetRegisterHostExceptionResult(HCCL_E_NOT_SUPPORT);
+  auto acl_stub = std::make_shared<SyncParamCaptureAclRuntimeStub>();
+  llm::AclRuntimeStub::SetInstance(acl_stub);
+  auto *pool = TransferPool::GetInstance(kTransferPoolSyncParamDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  ASSERT_FALSE(acl_stub->captured_params_.empty());
+  EXPECT_EQ(acl_stub->captured_params_.front().host_exception_enabled, 0U);
+  pool->Finalize();
+}
+
 TEST_F(TransferPoolTest, ErrFlagHostRegisterFailStillInitializes) {
   llm::AclRuntimeStub::SetInstance(std::make_shared<SocNameAclRuntimeStub>("Ascend950A"));
   AscendHalStubSetHostRegisterRet(-1);
@@ -755,6 +921,176 @@ TEST_F(TransferPoolTest, InitializeAlwaysAllocatesHcommThreads) {
   pool->Release(handle);
   pool->Finalize();
   EXPECT_EQ(GetThreadFreeCallCount(), 1U);
+}
+
+// ==================== host exception callback tests ====================
+
+TEST_F(TransferPoolTest, HostExceptionCallbackSurvivesPeerPoolFinalize) {
+  auto acl_stub = std::make_shared<HostExcAbortCountingAclRuntimeStub>();
+  llm::AclRuntimeStub::SetInstance(acl_stub);
+
+  auto *pool_a = TransferPool::GetInstance(kTransferPoolHostExcDevId);
+  auto *pool_b = TransferPool::GetInstance(kTransferPoolHostExcBDevId);
+  ASSERT_NE(pool_a, nullptr);
+  ASSERT_NE(pool_b, nullptr);
+  ASSERT_EQ(pool_a->Initialize(1U), SUCCESS);
+  ASSERT_EQ(pool_b->Initialize(1U), SUCCESS);
+  const HcommExceptionCallback registered = GetRegisteredHostExceptionCallback();
+  ASSERT_NE(registered, nullptr);
+
+  TransferPool::SlotHandle hb{};
+  ASSERT_EQ(pool_b->Acquire(&hb), SUCCESS);
+  ASSERT_NE(hb.err_flag_host_addr, nullptr);
+
+  // pool_a 收尾后 pool_b 仍存活：进程级回调不得被注销
+  pool_a->Finalize();
+  EXPECT_EQ(GetRegisteredHostExceptionCallback(), registered);
+
+  // pool_b 仍能收到异常并 abort
+  acl_stub->abort_count_ = 0U;
+  ASSERT_TRUE(InvokeHostExceptionCallback(kTransferPoolHostExcBDevId, hb.thread));
+  EXPECT_EQ(*hb.err_flag_host_addr, 1U);
+  EXPECT_EQ(acl_stub->abort_count_.load(), 1U);
+  pool_b->Release(hb);
+
+  // Finalize 不注销回调（注销只在 ~TransferPool），pool 对象仍存活
+  pool_b->Finalize();
+  EXPECT_EQ(GetRegisteredHostExceptionCallback(), registered);
+}
+
+TEST_F(TransferPoolTest, HostExceptionRoutesRemappedLogicDeviceToUserDevicePool) {
+  auto acl_stub = std::make_shared<HostExcDeviceMappingAclRuntimeStub>();
+  llm::AclRuntimeStub::SetInstance(acl_stub);
+  auto *pool = TransferPool::GetInstance(acl_stub->user_device_id_);
+  auto *other_pool = TransferPool::GetInstance(acl_stub->logic_device_id_);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_NE(other_pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  ASSERT_EQ(other_pool->Initialize(1U), SUCCESS);
+  TransferPool::SlotHandle handle{};
+  TransferPool::SlotHandle other{};
+  ASSERT_EQ(pool->Acquire(&handle), SUCCESS);
+  ASSERT_EQ(other_pool->Acquire(&other), SUCCESS);
+  ASSERT_NE(handle.err_flag_host_addr, nullptr);
+  ASSERT_NE(other.err_flag_host_addr, nullptr);
+
+  ASSERT_TRUE(InvokeHostExceptionCallback(acl_stub->logic_device_id_, handle.thread));
+
+  EXPECT_EQ(*handle.err_flag_host_addr, 1U);
+  EXPECT_EQ(*other.err_flag_host_addr, 0U);
+  EXPECT_EQ(acl_stub->abort_count_.load(), 1U);
+  pool->Release(handle);
+  other_pool->Release(other);
+  pool->Finalize();
+  other_pool->Finalize();
+}
+
+TEST_F(TransferPoolTest, HostExceptionIgnoresUnmatchedThreadAndInvalidArgs) {
+  auto acl_stub = std::make_shared<HostExcAbortCountingAclRuntimeStub>();
+  llm::AclRuntimeStub::SetInstance(acl_stub);
+  auto *pool = TransferPool::GetInstance(kTransferPoolHostExcDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  TransferPool::SlotHandle h{};
+  ASSERT_EQ(pool->Acquire(&h), SUCCESS);
+  ASSERT_NE(h.err_flag_host_addr, nullptr);
+  acl_stub->abort_count_ = 0U;
+
+  HcommExceptionCallback cb = GetRegisteredHostExceptionCallback();
+  ASSERT_NE(cb, nullptr);
+  // info 为 null
+  cb(nullptr, GetRegisteredHostExceptionUserData());
+  HcommExceptionInfoLite info{};
+  info.header.magicWord = HCOMM_EXCEPTION_LITE_MAGIC_WORD;
+  info.header.version = HCOMM_EXCEPTION_LITE_VERSION;
+  info.deviceId = static_cast<uint32_t>(kTransferPoolHostExcDevId);
+  info.thread = h.thread;
+  // userData magic 错误
+  uint32_t bogus_magic = 0U;
+  cb(&info, &bogus_magic);
+  // Invalid ABI headers must not mark or abort the matching active slot.
+  info.header.magicWord = 0U;
+  cb(&info, GetRegisteredHostExceptionUserData());
+  EXPECT_EQ(*h.err_flag_host_addr, 0U);
+  EXPECT_EQ(acl_stub->abort_count_.load(), 0U);
+  info.header.magicWord = HCOMM_EXCEPTION_LITE_MAGIC_WORD;
+  info.header.version = HCOMM_EXCEPTION_LITE_VERSION + 1U;
+  cb(&info, GetRegisteredHostExceptionUserData());
+  EXPECT_EQ(*h.err_flag_host_addr, 0U);
+  EXPECT_EQ(acl_stub->abort_count_.load(), 0U);
+  info.header.version = HCOMM_EXCEPTION_LITE_VERSION;
+  // thread 不匹配
+  info.thread = h.thread + 12345U;
+  cb(&info, GetRegisteredHostExceptionUserData());
+
+  EXPECT_EQ(*h.err_flag_host_addr, 0U);
+  EXPECT_EQ(acl_stub->abort_count_.load(), 0U);
+
+  pool->Release(h);
+  pool->Finalize();
+}
+
+TEST_F(TransferPoolTest, HostExceptionAbortIsSingleShotPerSlotUse) {
+  auto acl_stub = std::make_shared<HostExcAbortCountingAclRuntimeStub>();
+  llm::AclRuntimeStub::SetInstance(acl_stub);
+  auto *pool = TransferPool::GetInstance(kTransferPoolHostExcDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  TransferPool::SlotHandle h{};
+  ASSERT_EQ(pool->Acquire(&h), SUCCESS);
+
+  acl_stub->abort_count_ = 0U;
+  ASSERT_TRUE(InvokeHostExceptionCallback(kTransferPoolHostExcDevId, h.thread));
+  EXPECT_EQ(acl_stub->abort_count_.load(), 1U);
+  ASSERT_TRUE(InvokeHostExceptionCallback(kTransferPoolHostExcDevId, h.thread));
+  EXPECT_EQ(acl_stub->abort_count_.load(), 1U);
+
+  // 用户路径 Abort 必须跳过第二次 stream abort
+  pool->Abort(h);
+  EXPECT_EQ(acl_stub->abort_count_.load(), 1U);
+
+  // slot 已重建并可再次 Acquire；再次异常重新触发一次 abort
+  TransferPool::SlotHandle h2{};
+  ASSERT_EQ(pool->Acquire(&h2), SUCCESS);
+  ASSERT_TRUE(InvokeHostExceptionCallback(kTransferPoolHostExcDevId, h2.thread));
+  EXPECT_EQ(acl_stub->abort_count_.load(), 2U);
+
+  pool->Release(h2);
+  pool->Finalize();
+}
+
+TEST_F(TransferPoolTest, HostExceptionAfterFinalizeIsIgnored) {
+  auto acl_stub = std::make_shared<HostExcAbortCountingAclRuntimeStub>();
+  llm::AclRuntimeStub::SetInstance(acl_stub);
+  auto *pool = TransferPool::GetInstance(kTransferPoolHostExcDevId);
+  ASSERT_NE(pool, nullptr);
+  ASSERT_EQ(pool->Initialize(1U), SUCCESS);
+  const HcommExceptionCallback registered = GetRegisteredHostExceptionCallback();
+  ASSERT_NE(registered, nullptr);
+
+  pool->Finalize();
+  // Finalize 不注销回调（注销只在 ~TransferPool），pool 对象仍存活，回调靠 inited_ 自守
+  EXPECT_EQ(GetRegisteredHostExceptionCallback(), registered);
+
+  acl_stub->abort_count_ = 0U;
+  ASSERT_TRUE(InvokeHostExceptionCallback(kTransferPoolHostExcDevId, 999999ULL));
+  EXPECT_EQ(acl_stub->abort_count_.load(), 0U);
+}
+
+// hcomm 会在 Register/Unregister 持内部锁期间回调注册方。若 hixl 在 mu_ 下注册，回调内再次取 mu_ 会自死锁。
+// 这里让 stub 在 Register 的调用栈内同步触发一次回调，用 wait_for 把死锁转成失败而不是永久挂起。
+TEST_F(TransferPoolTest, HostExceptionCallbackRegistrationIsReentrancySafe) {
+  auto *pool = TransferPool::GetInstance(kTransferPoolHostExcDevId);
+  ASSERT_NE(pool, nullptr);
+  SetRegisterHostExceptionReentrantInfo(static_cast<uint32_t>(kTransferPoolHostExcDevId), 0U);
+
+  auto init_future = std::async(std::launch::async, [pool]() { return pool->Initialize(1U); });
+  ASSERT_EQ(init_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+  EXPECT_EQ(init_future.get(), SUCCESS);
+  EXPECT_NE(GetRegisteredHostExceptionCallback(), nullptr);
+
+  ClearRegisterHostExceptionReentrantInfo();
+  pool->Finalize();
 }
 
 }  // namespace

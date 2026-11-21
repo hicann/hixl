@@ -14,8 +14,7 @@
 #include <thread>
 #include <vector>
 #include "hccl/hccl_types.h"
-#include "hcomm/hcomm_res_defs.h"
-#include "hcomm/hcomm_exception.h"
+#include "hccl_stub.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,8 +32,9 @@ static std::vector<std::string> g_thread_lifecycle_events;
 
 // 控制失败模式的全局变量
 // 设置后下一次调用会返回指定的错误码（既不是成功也不是重试所需）
-static int32_t g_next_nbi_failure_ret = 0;               // 下一次NBI传输的返回值
-static int32_t g_next_fence_failure_ret = 0;             // 下一次Fence的返回值
+static int32_t g_next_nbi_failure_ret = 0;    // 下一次NBI传输的返回值
+static int32_t g_next_fence_failure_ret = 0;  // 下一次Fence的返回值
+static int32_t g_next_thread_free_failure_ret = 0;
 static int32_t g_endpoint_create_ret = 0;                // HcommEndpointCreate的返回值, 0表示使用默认行为
 static int32_t g_next_endpoint_destroy_failure_ret = 0;  // 下一次EndpointDestroy的返回值
 static int32_t g_next_batch_mode_start_failure_ret = 0;
@@ -266,6 +266,11 @@ HcommResult HcommThreadAlloc(CommEngine engine, uint32_t threadNum, const uint32
 
 HcommResult HcommThreadFree(const ThreadHandle *threads, uint32_t threadNum) {
   g_thread_free_call_count++;
+  if (g_next_thread_free_failure_ret != 0) {
+    const int32_t ret = g_next_thread_free_failure_ret;
+    g_next_thread_free_failure_ret = 0;
+    return static_cast<HcommResult>(ret);
+  }
   for (uint32_t i = 0; i < threadNum; ++i) {
     g_thread_lifecycle_events.push_back("free:" + std::to_string(threads == nullptr ? 0U : threads[i]));
   }
@@ -452,15 +457,19 @@ void ResetThreadLifecycleStats() {
   g_thread_alloc_call_count = 0U;
   g_thread_free_call_count = 0U;
   g_thread_lifecycle_events.clear();
+  g_next_thread_free_failure_ret = 0;
+}
+
+void SetNextThreadFreeFailure(int32_t ret) {
+  g_next_thread_free_failure_ret = ret;
 }
 
 // ---- Exception callback stub ----
-static HcommExceptionCallback g_registered_exception_callback = nullptr;
+static hixl_test::DeviceExceptionCallback g_registered_exception_callback = nullptr;
 static void *g_registered_exception_user_data = nullptr;
 static int32_t g_register_exception_ret = 0;
 static int32_t g_unregister_exception_ret = 0;
-
-int32_t HcommExceptionRegisterCallback(HcommExceptionCallback cb, void *user_data) {
+int32_t HcommDeviceExceptionRegisterCallbackStub(hixl_test::DeviceExceptionCallback cb, void *user_data) {
   if (cb != nullptr && g_register_exception_ret == 0) {
     g_registered_exception_callback = cb;
     g_registered_exception_user_data = user_data;
@@ -468,7 +477,7 @@ int32_t HcommExceptionRegisterCallback(HcommExceptionCallback cb, void *user_dat
   return g_register_exception_ret;
 }
 
-int32_t HcommExceptionUnregisterCallback(HcommExceptionCallback cb) {
+int32_t HcommDeviceExceptionUnregisterCallbackStub(hixl_test::DeviceExceptionCallback cb) {
   if (g_unregister_exception_ret == 0 && g_registered_exception_callback == cb) {
     g_registered_exception_callback = nullptr;
     g_registered_exception_user_data = nullptr;
@@ -484,7 +493,7 @@ void SetUnregisterExceptionResult(int32_t ret) {
   g_unregister_exception_ret = ret;
 }
 
-HcommExceptionCallback GetRegisteredExceptionCallback() {
+hixl_test::DeviceExceptionCallback GetRegisteredExceptionCallback() {
   return g_registered_exception_callback;
 }
 

@@ -119,6 +119,8 @@ bool IsIntraRoceEnabled();
 
 const char *IntraRoceEnableStatusStr();
 
+// Returns zero if the HCOMM version cannot be queried.
+int32_t GetHcommVersion();
 bool IsHcommConfigurableTransferSupported();
 
 class TemporaryRtContext {

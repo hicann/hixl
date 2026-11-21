@@ -9,6 +9,7 @@
  */
 #include <array>
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <utility>
@@ -638,6 +639,65 @@ TEST_F(HixlSyncTransferContextTest, ExtendedFieldsStoredAfterAdd) {
   EXPECT_EQ(ctx->err_flag_dev_va, kErrFlagDevVa);
 }
 
+TEST_F(HixlSyncTransferContextTest, HostExceptionEnabledSkipsDeviceCallback) {
+  constexpr ThreadHandle kThread = 910300ULL;
+  ResetExceptionCallbackStub();
+  TaskExceptionHandler::Instance().DisableExceptionCallback();
+  ResetExceptionCallbackStub();
+
+  HixlTransferContextSyncEntry entry{};
+  entry.thread = kThread;
+  entry.op = TRANSFER_CONTEXT_OP_ADD;
+  uint32_t state = 0U;
+  HixlTransferContextSyncParam param{};
+  param.entry_list_addr = reinterpret_cast<uint64_t>(&entry);
+  param.state_list_addr = reinterpret_cast<uint64_t>(&state);
+  param.entry_num = 1U;
+  param.version = kHixlSyncParamVersion;
+  param.host_exception_enabled = 1U;
+
+  ASSERT_EQ(HixlSyncTransferContext(&param), SUCCESS);
+  EXPECT_EQ(state, TRANSFER_THREAD_STATE_INITIALIZED);
+  // host_exception_enabled 为 1 时跳过 device task 异常回调注册。
+  EXPECT_EQ(GetRegisteredExceptionCallback(), nullptr);
+
+  // gate 生效场景下 Delete 幂等：不崩溃，cb 仍为空
+  entry.op = TRANSFER_CONTEXT_OP_DELETE;
+  ASSERT_EQ(HixlSyncTransferContext(&param), SUCCESS);
+  EXPECT_EQ(state, TRANSFER_THREAD_STATE_DELETED);
+  EXPECT_EQ(GetRegisteredExceptionCallback(), nullptr);
+
+  TaskExceptionHandler::Instance().DisableExceptionCallback();
+  ResetExceptionCallbackStub();
+}
+
+TEST_F(HixlSyncTransferContextTest, LegacyParamRegistersDeviceCallback) {
+  constexpr ThreadHandle kThread = 910300ULL;
+  ResetExceptionCallbackStub();
+  TaskExceptionHandler::Instance().DisableExceptionCallback();
+  ResetExceptionCallbackStub();
+
+  HixlTransferContextSyncEntry entry{};
+  entry.thread = kThread;
+  entry.op = TRANSFER_CONTEXT_OP_ADD;
+  uint32_t state = 0U;
+  HixlTransferContextSyncParam param{};
+  param.entry_list_addr = reinterpret_cast<uint64_t>(&entry);
+  param.state_list_addr = reinterpret_cast<uint64_t>(&state);
+  param.entry_num = 1U;
+  param.version = kHixlSyncParamVersion;
+  // host_exception_enabled 为 0 时注册 device task 异常回调。
+  ASSERT_EQ(HixlSyncTransferContext(&param), SUCCESS);
+  EXPECT_EQ(state, TRANSFER_THREAD_STATE_INITIALIZED);
+  EXPECT_NE(GetRegisteredExceptionCallback(), nullptr);
+
+  entry.op = TRANSFER_CONTEXT_OP_DELETE;
+  ASSERT_EQ(HixlSyncTransferContext(&param), SUCCESS);
+  EXPECT_EQ(state, TRANSFER_THREAD_STATE_DELETED);
+  TaskExceptionHandler::Instance().DisableExceptionCallback();
+  ResetExceptionCallbackStub();
+}
+
 TEST_F(HixlSyncTransferContextTest, VersionMismatchReturnsFailed) {
   HixlTransferContextSyncEntry entry{};
   entry.thread = kKernelTestThread;
@@ -730,7 +790,7 @@ TEST_F(TaskExceptionHandlerTest, EnableRegistersCallback) {
 
 TEST_F(TaskExceptionHandlerTest, EnableTwiceRegistersOnce) {
   TaskExceptionHandler::Instance().EnableExceptionCallback();
-  HcommExceptionCallback first_cb = GetRegisteredExceptionCallback();
+  auto first_cb = GetRegisteredExceptionCallback();
   TaskExceptionHandler::Instance().EnableExceptionCallback();
   EXPECT_EQ(GetRegisteredExceptionCallback(), first_cb);
 }
@@ -877,7 +937,7 @@ class ExceptionCallbackTest : public ::testing::Test {
   }
 
   void TriggerCallback(uint64_t thread, uint32_t ret_code) {
-    HcommExceptionCallback cb = GetRegisteredExceptionCallback();
+    auto cb = GetRegisteredExceptionCallback();
     ASSERT_NE(cb, nullptr);
     HcommExceptionInfo info{};
     info.thread = thread;
@@ -887,7 +947,7 @@ class ExceptionCallbackTest : public ::testing::Test {
 
   void TriggerCallbackStars(uint64_t thread, uint32_t ret_code, uint32_t stars_errcode, uint8_t seq_type,
                             uint8_t status_merged) {
-    HcommExceptionCallback cb = GetRegisteredExceptionCallback();
+    auto cb = GetRegisteredExceptionCallback();
     ASSERT_NE(cb, nullptr);
     HcommExceptionInfo info{};
     info.thread = thread;
@@ -917,7 +977,7 @@ TEST_F(ExceptionCallbackTest, CallbackSkipsNonHixlThread) {
 TEST_F(ExceptionCallbackTest, CallbackHandlesNullExceptionInfo) {
   AddContextWithErrFlag();
   TaskExceptionHandler::Instance().EnableExceptionCallback();
-  HcommExceptionCallback cb = GetRegisteredExceptionCallback();
+  auto cb = GetRegisteredExceptionCallback();
   ASSERT_NE(cb, nullptr);
   cb(nullptr, GetRegisteredExceptionUserData());
   EXPECT_EQ(err_flag_, 0U);
@@ -993,7 +1053,7 @@ TEST_F(ExceptionCallbackTest, CallbackWithRoceExpandType) {
   TaskExceptionHandler::Instance().EnableExceptionCallback();
   ResetHalEschedStub();
 
-  HcommExceptionCallback cb = GetRegisteredExceptionCallback();
+  auto cb = GetRegisteredExceptionCallback();
   ASSERT_NE(cb, nullptr);
   HcommExceptionInfo info{};
   info.thread = kExceptionThread;
@@ -1009,7 +1069,7 @@ TEST_F(ExceptionCallbackTest, CallbackWithUrmaExpandType) {
   TaskExceptionHandler::Instance().EnableExceptionCallback();
   ResetHalEschedStub();
 
-  HcommExceptionCallback cb = GetRegisteredExceptionCallback();
+  auto cb = GetRegisteredExceptionCallback();
   ASSERT_NE(cb, nullptr);
   HcommExceptionInfo info{};
   info.thread = kExceptionThread;
@@ -1025,7 +1085,7 @@ TEST_F(ExceptionCallbackTest, CallbackWithInvalidExpandType) {
   TaskExceptionHandler::Instance().EnableExceptionCallback();
   ResetHalEschedStub();
 
-  HcommExceptionCallback cb = GetRegisteredExceptionCallback();
+  auto cb = GetRegisteredExceptionCallback();
   ASSERT_NE(cb, nullptr);
   HcommExceptionInfo info{};
   info.thread = kExceptionThread;

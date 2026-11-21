@@ -178,6 +178,14 @@ aclError AclRuntimeStub::aclrtWaitAndResetNotify(aclrtNotify notify, aclrtStream
   return ACL_SUCCESS;
 }
 
+aclError AclRuntimeStub::aclrtValueWait(void *devAddr, uint64_t value, uint32_t flag, aclrtStream stream) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtValueWrite(void *devAddr, uint64_t value, uint32_t flag, aclrtStream stream) {
+  return ACL_SUCCESS;
+}
+
 aclError AclRuntimeStub::aclrtSetDevice(int32_t deviceId) {
   return ACL_SUCCESS;
 }
@@ -594,6 +602,14 @@ aclError AclRuntimeStub::aclrtGetLogicDevIdByUserDevId(const int32_t userDevid, 
   return ACL_SUCCESS;
 }
 
+aclError AclRuntimeStub::aclrtGetUserDevIdByLogicDevId(const int32_t logicDevId, int32_t *const userDevid) {
+  if (userDevid == nullptr) {
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  *userDevid = logicDevId;
+  return ACL_SUCCESS;
+}
+
 aclError AclRuntimeStub::aclrtGetLogicDevIdByPhyDevId(const int32_t phyDevId, int32_t *const logicDevId) {
   *logicDevId = phyDevId;
   return ACL_SUCCESS;
@@ -919,6 +935,14 @@ aclError aclrtWaitAndResetNotify(aclrtNotify notify, aclrtStream stream, uint32_
   return llm::AclRuntimeStub::GetInstance()->aclrtWaitAndResetNotify(notify, stream, timeout);
 }
 
+aclError aclrtValueWait(void *devAddr, uint64_t value, uint32_t flag, aclrtStream stream) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtValueWait(devAddr, value, flag, stream);
+}
+
+aclError aclrtValueWrite(void *devAddr, uint64_t value, uint32_t flag, aclrtStream stream) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtValueWrite(devAddr, value, flag, stream);
+}
+
 aclError aclrtSetDevice(int32_t deviceId) {
   return llm::AclRuntimeStub::GetInstance()->aclrtSetDevice(deviceId);
 }
@@ -1075,6 +1099,10 @@ aclError aclrtGetPhyDevIdByUserDevId(const int32_t userDevId, int32_t *const phy
 
 aclError aclrtGetLogicDevIdByUserDevId(const int32_t userDevid, int32_t *const logicDevId) {
   return llm::AclRuntimeStub::GetInstance()->aclrtGetLogicDevIdByUserDevId(userDevid, logicDevId);
+}
+
+aclError aclrtGetUserDevIdByLogicDevId(const int32_t logicDevId, int32_t *const userDevid) {
+  return llm::AclRuntimeStub::GetInstance()->aclrtGetUserDevIdByLogicDevId(logicDevId, userDevid);
 }
 
 aclError aclrtGetLogicDevIdByPhyDevId(const int32_t phyDevId, int32_t *const logicDevId) {

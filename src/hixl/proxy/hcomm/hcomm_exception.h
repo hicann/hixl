@@ -50,7 +50,7 @@ typedef struct tagHcommExceptionExpandInfo {
 } HcommExceptionExpandInfo;
 
 /**
- * @brief 异常信息结构体
+ * @brief device侧异常信息结构体
  */
 typedef struct tagHcommExceptionInfo {
   CommAbiHeader header;
@@ -62,12 +62,31 @@ typedef struct tagHcommExceptionInfo {
   HcommExceptionExpandInfo expandInfo;
 } HcommExceptionInfo;
 
+static const uint32_t HCOMM_EXCEPTION_LITE_MAGIC_WORD = 0x0f0f0f4f;
+static const uint32_t HCOMM_EXCEPTION_LITE_VERSION = 1;
+
+/**
+ * @brief host侧异常信息结构体
+ */
+typedef struct tagHcommExceptionInfoLite {
+  CommAbiHeader header;
+  uint64_t thread;
+  uint32_t taskId;
+  uint32_t retCode;
+  uint32_t deviceId;
+  uint8_t rsvd[512];
+} HcommExceptionInfoLite;
+
 /**
  * @brief 异常回调函数原型
  * @param[in] exceptionInfo 异常信息
  * @param[in] userData 用户自定义数据指针
  */
+#if defined(PRODUCT_SIDE_DEVICE)
 typedef void (*HcommExceptionCallback)(const HcommExceptionInfo *exceptionInfo, void *userData);
+#else
+typedef void (*HcommExceptionCallback)(const HcommExceptionInfoLite *exceptionInfo, void *userData);
+#endif
 
 /**
  * @brief 注册异常回调

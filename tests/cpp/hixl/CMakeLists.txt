@@ -73,6 +73,8 @@ file(GLOB HIXL_SRC_LIST
         "${HIXL_CODE_DIR}/src/hixl/proxy/*.cc"
         "${HIXL_CODE_DIR}/src/ops/hixl_kernel/*.cc"
 )
+list(REMOVE_ITEM HIXL_SRC_LIST "${HIXL_CODE_DIR}/src/ops/hixl_kernel/task_exception_handler.cc")
+list(APPEND HIXL_SRC_LIST "${CMAKE_CURRENT_SOURCE_DIR}/../ops/hixl_kernel/task_exception_handler_ut.cc")
 
 file(GLOB ADXL_SRC_LIST
         "${HIXL_CODE_DIR}/src/llm_datadist/api/adxl_engine_impl.cc"
@@ -94,11 +96,16 @@ set(HIXL_STUB_SRC_FILES
         "${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/data_cache_engine_test_helper.cc"
 )
 
+# transfer_pool_ut.cc includes the implementation to isolate its process-local callback state.
+# Keep HIXL_SRC_LIST intact for the UB_MEM suite, which compiles the production source normally.
+set(HIXL_SUITE_SRC_LIST ${HIXL_SRC_LIST})
+list(REMOVE_ITEM HIXL_SUITE_SRC_LIST "${HIXL_CODE_DIR}/src/hixl/cs/transfer_pool.cc")
+
 add_executable(hixl_test
         ${HIXL_TEST_FILES}
         ${HIXL_STUB_SRC_FILES}
         ${ADXL_SRC_LIST}
-        ${HIXL_SRC_LIST}
+        ${HIXL_SUITE_SRC_LIST}
         )
 
 add_executable(log_fallback_test common/log_fallback_ut.cc)

@@ -9,6 +9,7 @@
  */
 
 #include "transfer_pool.h"
+#include "notify_addr_resolver.h"
 
 #include <chrono>
 #include <memory>
@@ -26,7 +27,6 @@
 #include "common/soc_type.h"
 #include "proxy/hcomm_proxy.h"
 #include "load_kernel.h"
-#include "notify_addr_resolver.h"
 #include "proxy/ascend_hal_proxy.h"
 
 namespace {
@@ -37,11 +37,22 @@ constexpr uint32_t kDefaultNotifyNumPerThread = 0U;
 constexpr uint32_t kSyncContextKernelTimeoutMs = 10U * 1000U;
 constexpr uint32_t kSyncContextRetryTimeoutMs = 30U * 1000U;
 constexpr uint32_t kSyncContextRetryIntervalMs = 100U;
+constexpr int32_t kHcommHostExceptionMinVersion = 90300000;
 constexpr const char *kDeviceFuncGet = "HixlBatchGet";
 constexpr const char *kDeviceFuncPut = "HixlBatchPut";
 constexpr const char *kDeviceFuncSyncContext = "HixlSyncTransferContext";
 constexpr const char *kUbMemFuncRead = "HixlUbMemBatchRead";
 constexpr const char *kUbMemFuncWrite = "HixlUbMemBatchWrite";
+
+// host 异常回调（进程级）：kHixlCbMagic 作为 userData 传给 hcomm，回调按指针相等判定注册来源；
+// g_host_cb_registered 缓存进程级注册结果，成功只注册一次，失败保持 false 以便下次 Initialize 重试。
+char g_host_exc_magic[] = "hixl";
+void *const kHixlCbMagic = g_host_exc_magic;
+std::mutex g_host_cb_mu;
+bool g_host_cb_registered = false;
+// 进程级注册的引用计数：回调是进程级单例，注册生命周期应与所有存活且持引用的 pool 一致，
+// 只有最后一个持引用的 pool 析构时才注销，避免收尾/析构单个 pool 时影响其它存活 pool。
+uint32_t g_host_cb_ref_cnt = 0U;
 }  // namespace
 
 namespace hixl {
@@ -71,6 +82,8 @@ TransferPool::TransferPool(int32_t device_id)
     : device_id_(device_id), ref_cnt_(0U), inited_(false), pool_size_(0U), free_list_(), slots_() {}
 
 TransferPool::~TransferPool() {
+  // 进程级回调只在这里注销（Finalize 不注销：pool 对象仍存活，回调靠 inited_ 自守）；必须在 mu_ 之外。
+  DisableHostExceptionCallback();
   std::lock_guard<std::mutex> lock(mu_);
   try {
     DeinitAllSlotsLocked();
@@ -79,6 +92,121 @@ TransferPool::~TransferPool() {
   } catch (...) {
     HIXL_LOGE(FAILED, "[TransferPool] DeinitAllSlotsLocked caught unknown exception, device_id=%d", device_id_);
   }
+}
+
+bool TransferPool::EnableHostExceptionCallback(SocType soc_type) {
+  // A2/A3 keep device callbacks and NotifyWait.
+  if (soc_type != SocType::kDefault || GetHcommVersion() < kHcommHostExceptionMinVersion) {
+    return false;
+  }
+  std::lock_guard<std::mutex> lock(g_host_cb_mu);
+  if (!g_host_cb_registered) {
+    const int32_t ret = HcommProxy::RegisterExceptionCallback(&TransferPool::OnHostException, kHixlCbMagic);
+    g_host_cb_registered = (ret == 0);
+    if (g_host_cb_registered) {
+      HIXL_LOGI("[TransferPool] host exception callback registered. device_id=%d", device_id_);
+    } else {
+      HIXL_LOGW("[TransferPool] host exception callback unavailable, fall back to device side. device_id=%d ret=%d",
+                device_id_, ret);
+    }
+  }
+  // 引用计数只用于 ~TransferPool：多个 pool 共享进程级注册，最后一个 pool 析构时才注销。
+  if (g_host_cb_registered && !host_cb_ref_held_) {
+    g_host_cb_ref_cnt += 1U;
+    host_cb_ref_held_ = true;
+  }
+  return g_host_cb_registered;
+}
+
+void TransferPool::DisableHostExceptionCallback() {
+  std::lock_guard<std::mutex> lock(g_host_cb_mu);
+  if (!host_cb_ref_held_) {
+    // 幂等：本 pool 未持引用（重复调用或注册失败）直接返回。
+    return;
+  }
+  host_cb_ref_held_ = false;
+  if (g_host_cb_ref_cnt > 0U) {
+    g_host_cb_ref_cnt -= 1U;
+  }
+  // 仅最后一个持引用的 pool 析构时才注销，避免收尾单个 pool 影响其它存活 pool 的回调。
+  if (g_host_cb_ref_cnt != 0U || !g_host_cb_registered) {
+    return;
+  }
+  const int32_t ret = HcommProxy::UnregisterExceptionCallback(&TransferPool::OnHostException);
+  if ((ret == 0) || (ret == static_cast<int32_t>(HCCL_E_NOT_SUPPORT))) {
+    g_host_cb_registered = false;
+    return;
+  }
+  HIXL_LOGW("[TransferPool] UnregisterExceptionCallback failed in destructor. device_id=%d ret=%d", device_id_, ret);
+}
+
+void TransferPool::OnHostException(const tagHcommExceptionInfoLite *raw_info, void *user_data) {
+  // magic 校验：单 cb 会收到进程内所有组件（含 HCCL）的异常，只有 userData 恒为 hixl 自己时才受理。
+  if (user_data != kHixlCbMagic || raw_info == nullptr) {
+    return;
+  }
+  const auto &info = *raw_info;
+  const auto &header = info.header;
+  if (header.magicWord != HCOMM_EXCEPTION_LITE_MAGIC_WORD || header.version != HCOMM_EXCEPTION_LITE_VERSION) {
+    HIXL_LOGW(
+        "[TransferPool] Invalid Host exception ABI header. "
+        "magic=0x%X expected_magic=0x%X version=%u expected_version=%u",
+        header.magicWord, HCOMM_EXCEPTION_LITE_MAGIC_WORD, header.version, HCOMM_EXCEPTION_LITE_VERSION);
+    return;
+  }
+  // HCOMM reports a logic device ID; pools are keyed by the ACL user device ID.
+  int32_t user_device_id = -1;
+  const aclError ret = aclrtGetUserDevIdByLogicDevId(static_cast<int32_t>(info.deviceId), &user_device_id);
+  HIXL_CHK_ACL(ret, "[TransferPool] aclrtGetUserDevIdByLogicDevId failed. logic_device_id=%u ret=%d", info.deviceId,
+               static_cast<int32_t>(ret));
+  if (ret != ACL_SUCCESS) {
+    return;
+  }
+  TransferPool *pool = TransferPool::GetInstance(user_device_id);
+  if (pool == nullptr) {
+    HIXL_LOGE(FAILED, "[TransferPool] GetInstance failed for host exception. logic_device_id=%u user_device_id=%d",
+              info.deviceId, user_device_id);
+    return;
+  }
+  std::lock_guard<std::mutex> lock(pool->mu_);
+  if (!pool->inited_ || !pool->host_exception_enabled_) {
+    HIXL_LOGD("[TransferPool] host exception ignored, pool host callback inactive. device_id=%d", pool->device_id_);
+    return;
+  }
+  for (uint32_t i = 0U; i < pool->pool_size_; ++i) {
+    Slot &slot = pool->slots_[i];
+    if (slot.in_use && slot.thread == info.thread) {
+      pool->AbortSlotStreamOnHostExceptionLocked(i, info);
+      return;
+    }
+  }
+  HIXL_LOGW("[TransferPool] host exception thread=%lu not matched. device_id=%d", static_cast<uint64_t>(info.thread),
+            pool->device_id_);
+}
+
+void TransferPool::AbortSlotStreamOnHostExceptionLocked(uint32_t idx, const tagHcommExceptionInfoLite &info) {
+  Slot &slot = slots_[idx];
+  if (slot.err_flag_host_addr != nullptr) {
+    *(slot.err_flag_host_addr) = 1U;
+  }
+  // (2) 可观测性。
+  HIXL_LOGE(FAILED, "[TransferPool] device kernel exception. device_id=%d slot=%u thread=%lu taskId=%u retCode=%u",
+            device_id_, idx, static_cast<uint64_t>(info.thread), info.taskId, info.retCode);
+  // (3) 解 host 阻塞：abort 本 slot 的 stream，让同步等待立即返回。runtime 允许重复 abort，故用 cb_aborted
+  //     单次消费标志跳过用户路径的第二遍，避免二次 abort 的 E19999 误报与最坏 60s 轮询。
+  if (slot.cb_aborted || slot.stream == nullptr || slot.ctx == nullptr) {
+    return;
+  }
+  {
+    const hixl::TemporaryRtContext ctx_guard(slot.ctx);
+    const aclError ret = aclrtStreamAbort(slot.stream);
+    if (ret != ACL_SUCCESS) {
+      HIXL_LOGE(ret, "[TransferPool] aclrtStreamAbort failed in host exception. device_id=%d slot=%u ret=0x%X",
+                device_id_, idx, static_cast<uint32_t>(ret));
+      return;
+    }
+  }
+  slot.cb_aborted = true;
 }
 
 void TransferPool::InitFreeListLocked() {
@@ -97,6 +225,11 @@ Status TransferPool::Initialize(uint32_t pool_size) {
               device_id_, kMaxPoolSize);
     return PARAM_INVALID;
   }
+  SocType soc_type = SocType::kDefault;
+  HIXL_CHK_STATUS_RET(SocTypeUtil::GetSocType(soc_type), "[TransferPool] GetSocType failed. device_id=%d", device_id_);
+  // 进程级注册 host 异常回调：必须在 lock(mu_) 之前。
+  // 注销只在 ~TransferPool 执行，Finalize 与 Initialize 失败都不注销，pool 对象存活期间回调靠 inited_ 自守。
+  const bool host_exception_registered = EnableHostExceptionCallback(soc_type);
   std::lock_guard<std::mutex> lock(mu_);
   if (inited_) {
     if (pool_size != pool_size_) {
@@ -109,6 +242,8 @@ Status TransferPool::Initialize(uint32_t pool_size) {
               pool_size_, ref_cnt_);
     return SUCCESS;
   }
+  // Keep the callback route fixed for the lifetime of the device transfer contexts.
+  host_exception_enabled_ = host_exception_registered;
   pool_size_ = pool_size;
   ResetSlotsLocked(pool_size_);
   HIXL_DISMISSABLE_GUARD(init_rollback, ([this]() { DeinitAllSlotsLocked(); }));
@@ -139,6 +274,9 @@ Status TransferPool::InitializeResourcesLocked() {
   ret = EnsureErrFlagMemLocked();
   if (ret != SUCCESS) {
     return ret;
+  }
+  if (host_exception_enabled_) {
+    HIXL_CHK_STATUS_RET(EnsureFlagBlockLocked(), "[TransferPool] initialize completion flag block failed");
   }
   ret = InitAllSlotsLocked();
   if (ret != SUCCESS) {
@@ -286,6 +424,8 @@ Status TransferPool::Acquire(SlotHandle *handle) {
   free_list_.pop_front();
   Slot &slot = slots_[idx];
   slot.in_use = true;
+  // Clear the callback abort marker for the next use of this slot.
+  slot.cb_aborted = false;
   FillHandleFromSlot(device_id_, idx, slot, handle);
   handle->dev_const_one = dev_const_one_;
   HIXL_LOGD("[TransferPool] Acquire slot success. device_id=%d index=%u", device_id_, idx);
@@ -311,6 +451,9 @@ void TransferPool::Release(const SlotHandle &handle) {
   }
   slot.launched_tasks = handle.launched_tasks;
   ResetSlotErrFlagLocked(handle.slot_index);
+  ResetSlotFlagLocked(slot);
+  // 清 host 异常回调单次消费标志，防止污染下一个使用者。
+  slot.cb_aborted = false;
   slot.in_use = false;
   free_list_.push_back(handle.slot_index);
   HIXL_LOGD("[TransferPool] Release success. device_id=%d slot=%u", device_id_, handle.slot_index);
@@ -381,6 +524,7 @@ void TransferPool::FillHandleFromSlot(int32_t device_id, uint32_t index, const S
   handle->notify_len = slot.notify_len;
   handle->err_flag_host_addr = slot.err_flag_host_addr;
   handle->err_flag_dev_addr = slot.err_flag_dev_addr;
+  handle->flag_dev_addr = slot.flag_dev_addr;
   handle->launched_tasks = slot.launched_tasks;
   handle->ubmem_stream = slot.ubmem_stream;
 }
@@ -453,7 +597,8 @@ void TransferPool::AbortInUseStreamLocked(const Slot &slot) {
   if (slot.ubmem_stream != nullptr) {
     HIXL_CHK_ACL(aclrtStreamStop(slot.ubmem_stream), "[TransferPool] aclrtStreamStop ubmem stream failed in Finalize");
   }
-  if (slot.stream != nullptr) {
+  // host 异常回调已 abort 过该 slot 的 stream 时跳过，避免二次 abort。
+  if (!slot.cb_aborted && slot.stream != nullptr) {
     HIXL_CHK_ACL(aclrtStreamAbort(slot.stream), "[TransferPool] aclrtStreamAbort failed in Finalize");
   }
 }
@@ -463,7 +608,7 @@ void TransferPool::AbortSlotRuntimeLocked(Slot &slot) const {
   // stream has no host-visible completion, so destroying it releases the device resources after abort.
   {
     hixl::TemporaryRtContext guard(slot.ctx);
-    if (slot.stream != nullptr) {
+    if (!slot.cb_aborted && slot.stream != nullptr) {
       HIXL_CHK_ACL(aclrtStreamAbort(slot.stream), "[TransferPool] aclrtStreamAbort failed");
     }
   }
@@ -510,8 +655,8 @@ Status TransferPool::DeleteSlotThreadContextForAbortLocked(Slot &slot, uint32_t 
   if (slot.thread != 0U) {
     const ThreadHandle thread = slot.thread;
     const hixl::TemporaryRtContext rts_guard(rts_context_);
-    HIXL_CHK_ACL(HcommProxy::ThreadFree(&slot.thread, 1U),
-                 "[TransferPool] HcommThreadFree failed in AbortSlotByIndexLocked, device_id=%d, thread=%lu",
+    const auto free_ret = HcommProxy::ThreadFree(&slot.thread, 1U);
+    HIXL_CHK_ACL(free_ret, "[TransferPool] HcommThreadFree failed in AbortSlotByIndexLocked, device_id=%d, thread=%lu",
                  device_id_, static_cast<uint64_t>(thread));
     HIXL_EVENT("[TransferPool] slot thread free success, device_id=%d, thread=%lu, scene=abort", device_id_,
                static_cast<uint64_t>(thread));
@@ -520,12 +665,12 @@ Status TransferPool::DeleteSlotThreadContextForAbortLocked(Slot &slot, uint32_t 
   return sync_ret;
 }
 
-void TransferPool::DestroySlotContextForAbortLocked(Slot &slot) {
+void TransferPool::DestroySlotContextForAbortLocked(Slot &slot) const {
   if (slot.ctx != nullptr) {
-    HIXL_LOGI("[TransferPool] destroying context %p in AbortSlotByIndexLocked", slot.ctx);
-    HIXL_CHK_ACL(aclrtDestroyContext(slot.ctx), "[TransferPool] aclrtDestroyContext failed in Abort");
+    HIXL_CHK_ACL(aclrtDestroyContext(slot.ctx), "[TransferPool] aclrtDestroyContext failed for slot");
     slot.ctx = nullptr;
     slot.stream = nullptr;
+    slot.cb_aborted = false;
   }
 }
 
@@ -556,6 +701,7 @@ Status TransferPool::ReinitSlotAfterAbortLocked(Slot &slot, uint32_t slot_index)
 void TransferPool::ReturnSlotToFreeListLocked(uint32_t slot_index) {
   ResetSlotErrFlagLocked(slot_index);
   Slot &slot = slots_[slot_index];
+  ResetSlotFlagLocked(slot);
   slot.in_use = false;
   free_list_.push_back(slot_index);
 }
@@ -605,6 +751,10 @@ void TransferPool::DeinitAllSlotsLocked() {
     }
     slots_[i] = Slot{};
     slots_[i].in_use = false;
+  }
+  if (flag_device_base_ != nullptr) {
+    const hixl::TemporaryRtContext rts_guard(rts_context_);
+    FreeFlagBlockLocked();
   }
   if ((err_flag_host_base_ != nullptr) || (err_flag_device_base_ != nullptr)) {
     const hixl::TemporaryRtContext rts_guard(rts_context_);
@@ -687,6 +837,11 @@ void TransferPool::DestroyUbMemStreamLocked(Slot &slot) {
 bool TransferPool::IsInitialized() const {
   std::lock_guard<std::mutex> lock(mu_);
   return inited_;
+}
+
+bool TransferPool::IsHostExceptionEnabled() const {
+  std::lock_guard<std::mutex> lock(mu_);
+  return host_exception_enabled_;
 }
 
 Status TransferPool::EnsureUbMemStream(SlotHandle &handle) {
@@ -849,6 +1004,53 @@ void TransferPool::ResetSlotErrFlagLocked(uint32_t slot_index) const {
   host_base[slot_index] = 0U;
 }
 
+Status TransferPool::EnsureFlagBlockLocked() {
+  if (flag_device_base_ != nullptr) {
+    return SUCCESS;
+  }
+  const uint64_t total_size = static_cast<uint64_t>(pool_size_) * sizeof(uint64_t);
+  // RDMA reads and stream wait/write tasks access the flags in device memory.
+  const aclError alloc_ret =
+      aclrtMalloc(&flag_device_base_, total_size, static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  if (alloc_ret != ACL_SUCCESS) {
+    flag_device_base_ = nullptr;
+    HIXL_LOGE(alloc_ret, "[TransferPool] aclrtMalloc flag block failed. ret=%d device_id=%d size=%lu bytes",
+              static_cast<int32_t>(alloc_ret), device_id_, total_size);
+    return static_cast<Status>(alloc_ret);
+  }
+  const aclError memset_ret = aclrtMemset(flag_device_base_, total_size, 0, total_size);
+  if (memset_ret != ACL_SUCCESS) {
+    HIXL_LOGE(memset_ret, "[TransferPool] aclrtMemset flag block failed. ret=%d device_id=%d size=%lu bytes",
+              static_cast<int32_t>(memset_ret), device_id_, total_size);
+    FreeFlagBlockLocked();
+    return static_cast<Status>(memset_ret);
+  }
+  for (size_t i = 0U; i < slots_.size(); ++i) {
+    slots_[i].flag_dev_addr = reinterpret_cast<uint64_t>(flag_device_base_) + i * sizeof(uint64_t);
+  }
+  HIXL_LOGI("[TransferPool] flag block initialized. device_base=%p size=%lu bytes device_id=%d", flag_device_base_,
+            total_size, device_id_);
+  return SUCCESS;
+}
+
+void TransferPool::ResetSlotFlagLocked(Slot &slot) const {
+  if (slot.flag_dev_addr == 0U) {
+    return;
+  }
+  void *addr = reinterpret_cast<void *>(static_cast<uintptr_t>(slot.flag_dev_addr));
+  const hixl::TemporaryRtContext guard(slot.ctx != nullptr ? slot.ctx : rts_context_);
+  HIXL_CHK_ACL(aclrtMemset(addr, sizeof(uint64_t), 0, sizeof(uint64_t)),
+               "[TransferPool] reset slot flag failed. device_id=%d addr=%p size=%zu bytes", device_id_, addr,
+               sizeof(uint64_t));
+}
+
+void TransferPool::FreeFlagBlockLocked() {
+  if (flag_device_base_ != nullptr) {
+    HIXL_CHK_ACL(aclrtFree(flag_device_base_));
+  }
+  flag_device_base_ = nullptr;
+}
+
 Status TransferPool::EnsureDeviceKernelsLocked() {
   if ((device_func_handles_.batch_get != nullptr) && (device_func_handles_.batch_put != nullptr) &&
       (device_func_handles_.sync_transfer_context != nullptr)) {
@@ -908,6 +1110,7 @@ Status TransferPool::LaunchSyncContextKernelLocked(std::vector<HixlTransferConte
   param.state_list_addr = PtrToValue(dev_states);
   param.entry_num = static_cast<uint32_t>(entries.size());
   param.version = kHixlSyncParamVersion;
+  param.host_exception_enabled = host_exception_enabled_;
   aclrtArgsHandle args_handle = nullptr;
   HIXL_CHK_ACL_RET(aclrtKernelArgsInit(device_func_handles_.sync_transfer_context, &args_handle),
                    "[TransferPool] aclrtKernelArgsInit HixlSyncTransferContext failed");

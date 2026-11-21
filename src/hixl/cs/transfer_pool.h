@@ -22,7 +22,11 @@
 #include "load_kernel.h"
 #include "rt_external.h"
 
+struct tagHcommExceptionInfoLite;
+
 namespace hixl {
+
+enum class SocType;
 
 class TransferPool {
  public:
@@ -42,6 +46,8 @@ class TransferPool {
     uint32_t notify_len;
     uint8_t *err_flag_host_addr;
     uint64_t err_flag_dev_addr;
+    // 该 slot 在 pool 级 flag block 中的 8 字节 device 地址，非 HCCS device 的完成通知 flag。
+    uint64_t flag_dev_addr{0};
     uint64_t launched_tasks{0};
     // Worker stream for the UB_MEM AICPU kernels, created on the first unfolded transfer because the
     // kernel parameters carry its RTSQ metadata. The Host memcpy path uses slot.stream instead. Freed
@@ -58,6 +64,7 @@ class TransferPool {
   void Release(const SlotHandle &handle);
   void Abort(const SlotHandle &handle);
   bool IsInitialized() const;
+  bool IsHostExceptionEnabled() const;
   Status EnsureUbMemStream(SlotHandle &handle);
   // aclrtSetDeviceTaskAbortCallback(POST)回调专用：标记设备已 task abort，线程需重建。
   void OnDeviceAbortPost();
@@ -90,7 +97,11 @@ class TransferPool {
     uint32_t notify_len;
     uint8_t *err_flag_host_addr;
     uint64_t err_flag_dev_addr;
+    // 该 slot 在 pool 级 flag block 中的 8 字节 device 地址，非 HCCS device 的完成通知 flag。
+    uint64_t flag_dev_addr{0};
     uint64_t launched_tasks{0};
+    // 当前 stream 已成功 abort，后续清理跳过重复 abort；失败时保留 false 以便重试。
+    bool cb_aborted{false};
     aclrtStream ubmem_stream{nullptr};
   };
 
@@ -118,13 +129,25 @@ class TransferPool {
   void AssignSlotErrFlagLocked(Slot &slot, uint32_t slot_index) const;
   void ResetSlotErrFlagLocked(uint32_t slot_index) const;
 
+  Status EnsureFlagBlockLocked();
+  void FreeFlagBlockLocked();
+  void ResetSlotFlagLocked(Slot &slot) const;
+
+  // host 异常回调：进程级注册唯一一个回调，按 deviceId 路由到 pool，按 thread 匹配 in_use slot。
+  // Enable/Disable 绝不在 mu_ 下调用（与 hcomm 回调线程存在可证死锁环）。
+  // 注销只在 ~TransferPool 执行；Finalize 不注销，pool 对象仍存活，回调靠 inited_ 自守。
+  bool EnableHostExceptionCallback(SocType soc_type);
+  void DisableHostExceptionCallback();
+  static void OnHostException(const tagHcommExceptionInfoLite *info, void *user_data);
+  void AbortSlotStreamOnHostExceptionLocked(uint32_t idx, const tagHcommExceptionInfoLite &info);
+
   void AbortInUseStreamsLocked() const;
   static void AbortInUseStreamLocked(const Slot &slot);
   void AbortSlotRuntimeLocked(Slot &slot) const;
   static void ResetAbortSlotNotifyLocked(Slot &slot);
   Status DeleteSlotThreadContextForAbortLocked(Slot &slot, uint32_t slot_index,
                                                uint64_t *out_dispatched = nullptr) const;
-  static void DestroySlotContextForAbortLocked(Slot &slot);
+  void DestroySlotContextForAbortLocked(Slot &slot) const;
   void CleanupSlotAfterAbortReinitFailureLocked(Slot &slot, uint32_t slot_index) const;
   Status ReinitSlotAfterAbortLocked(Slot &slot, uint32_t slot_index) const;
   void ReturnSlotToFreeListLocked(uint32_t slot_index);
@@ -168,6 +191,13 @@ class TransferPool {
   void *err_flag_host_base_{nullptr};
   void *err_flag_device_base_{nullptr};
   bool err_flag_from_device_{false};
+  // Pool-level contiguous device flag memory: pool_size * sizeof(uint64_t), one 8-byte flag per slot.
+  // Kept isolated from err_flag_* and dev_const_one_ so completion polling never aliases error signalling.
+  void *flag_device_base_{nullptr};
+  // 本 pool 是否成功启用 host 异常回调（进程级结果），用于下发 param.host_exception_enabled。
+  bool host_exception_enabled_{false};
+  // 本 pool 是否正持有进程级 host 异常回调注册的引用；保证每个 pool 只计数一次，且释放幂等。
+  bool host_cb_ref_held_{false};
   aclrtContext rts_context_{nullptr};
   aclrtBinHandle kernel_bin_handle_{nullptr};
   DeviceFuncHandles device_func_handles_{};

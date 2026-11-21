@@ -16,11 +16,16 @@
 #include "hcomm/hcomm_res_defs.h"
 
 #ifdef __cplusplus
+namespace hixl_test {
+using DeviceExceptionCallback = void (*)(const HcommExceptionInfo *, void *);
+}  // namespace hixl_test
+
 extern "C" {
 #endif
 
 void SetNextNbiFailure(int32_t ret);
 void SetNextFenceFailure(int32_t ret);
+void SetNextThreadFreeFailure(int32_t ret);
 void SetEndpointCreateResult(int32_t ret);
 void SetNextEndpointDestroyFailure(int32_t ret);
 void SetNextBatchModeStartFailure(int32_t ret);
@@ -45,9 +50,11 @@ uint32_t GetMemUnregCallCount();
 void ResetChannelCreateRecord();
 bool GetLastChannelCreateDesc(HcommChannelDesc *desc);
 
+int32_t HcommDeviceExceptionRegisterCallbackStub(hixl_test::DeviceExceptionCallback cb, void *user_data);
+int32_t HcommDeviceExceptionUnregisterCallbackStub(hixl_test::DeviceExceptionCallback cb);
 void SetRegisterExceptionResult(int32_t ret);
 void SetUnregisterExceptionResult(int32_t ret);
-HcommExceptionCallback GetRegisteredExceptionCallback();
+hixl_test::DeviceExceptionCallback GetRegisteredExceptionCallback();
 void *GetRegisteredExceptionUserData();
 void ResetExceptionCallbackStub();
 

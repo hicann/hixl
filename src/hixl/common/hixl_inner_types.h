@@ -59,8 +59,14 @@ struct HixlTransferContextSyncParam {
   uint64_t state_list_addr;
   uint32_t entry_num;
   uint32_t version;
-  uint32_t reserved[25] = {};
+  // host 侧已注册 hcomm host 异常回调时为 1，device 侧据此跳过 task 异常回调注册，避免两条通路重复处理。
+  bool host_exception_enabled;
+  uint8_t reserved[99] = {};  // The flag consumes one byte of the original 100-byte reserved field.
 };
+
+// host 与 device kernel 之间的内部 ABI：扩展字段只能复用 reserved，sizeof 必须保持不变。
+static_assert(sizeof(HixlTransferContextSyncEntry) == 128U, "HixlTransferContextSyncEntry ABI must stay 128 bytes.");
+static_assert(sizeof(HixlTransferContextSyncParam) == 128U, "HixlTransferContextSyncParam ABI must stay 128 bytes.");
 
 namespace hixl {
 class ProfStart;

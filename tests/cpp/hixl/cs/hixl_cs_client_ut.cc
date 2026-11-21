@@ -60,7 +60,6 @@ static constexpr uint32_t kConnectTime1 = 50U;
 static constexpr uint32_t kConnectTime2 = 200U;
 static constexpr uint32_t kTimeOutOne = 1000U;
 static constexpr uint64_t kMatchChannelIndex = 7UL;
-static constexpr uint64_t kRuntimeNotifyAddr = 0x88888888ULL;
 static constexpr uint32_t kDefaultRdmaRetryCnt = 7U;
 static constexpr uint32_t kDefaultRdmaRetryInterval = 20U;
 static constexpr uint32_t kEnvRdmaRetryCnt = 3U;
@@ -804,7 +803,7 @@ TEST_F(HixlCSClientUT, CreateDisablesHostVaMappingForDeviceToHostUbCtp) {
   EXPECT_FALSE(client_.local_endpoint_->NeedHostVaMapping());
 }
 
-TEST_F(HixlCSClientUT, CreateNonHccsDeviceEndpointResolvesNotifyAddress) {
+TEST_F(HixlCSClientUT, CreateNonHccsDeviceEndpointSkipsNotifyAddressResolve) {
   port_ = kPort;
   HixlClientConfig config{};
   HixlClientDesc desc{};
@@ -814,13 +813,14 @@ TEST_F(HixlCSClientUT, CreateNonHccsDeviceEndpointResolvesNotifyAddress) {
   desc.remote_endpoint = &dst_;
   ASSERT_EQ(client_.Create(&desc, &config), SUCCESS);
 
+  // 非 HCCS device 使用传输池的完成 flag，slot 的 notify 地址和长度均为 0。
   auto *pool = TransferPool::GetInstance(0);
   ASSERT_NE(pool, nullptr);
   std::vector<TransferPool::SlotHandle> slots;
   ASSERT_EQ(pool->GetAllSlots(slots), SUCCESS);
   ASSERT_FALSE(slots.empty());
-  EXPECT_EQ(slots[0].notify_addr, kRuntimeNotifyAddr);
-  EXPECT_EQ(slots[0].notify_len, sizeof(kRuntimeNotifyAddr));
+  EXPECT_EQ(slots[0].notify_addr, 0U);
+  EXPECT_EQ(slots[0].notify_len, 0U);
 }
 
 TEST_F(HixlCSClientUT, CreateHccsDeviceEndpointSkipsNotifyAddressResolve) {

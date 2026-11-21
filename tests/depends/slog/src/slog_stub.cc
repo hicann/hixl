@@ -22,7 +22,7 @@
 #include <iostream>
 
 namespace {
-constexpr int32_t kDefaultHcommVersion = 90200000;
+constexpr int32_t kDefaultHcommVersion = 90300000;
 constexpr int32_t kDefaultRuntimeVersion = 90300001;
 std::atomic<int32_t> g_hcomm_version{kDefaultHcommVersion};
 std::atomic<int32_t> g_hcomm_version_query_result{0};

@@ -110,6 +110,7 @@ class AclRuntimeStub {
   virtual aclError aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, int32_t *const phyDevId);
   virtual aclError aclrtGetPhyDevIdByUserDevId(const int32_t userDevId, int32_t *const phyDevId);
   virtual aclError aclrtGetLogicDevIdByUserDevId(const int32_t userDevid, int32_t *const logicDevId);
+  virtual aclError aclrtGetUserDevIdByLogicDevId(const int32_t logicDevId, int32_t *const userDevid);
   virtual aclError aclrtGetLogicDevIdByPhyDevId(const int32_t phyDevId, int32_t *const logicDevId);
   virtual aclError aclrtHostRegister(void *ptr, uint64_t size, aclrtHostRegisterType type, void **devPtr);
   virtual aclError aclrtHostUnregister(void *ptr);
@@ -140,6 +141,8 @@ class AclRuntimeStub {
   virtual aclError aclrtDestroyNotify(aclrtNotify notify);
   virtual aclError aclrtNotifyBatchReset(aclrtNotify *notifies, size_t num);
   virtual aclError aclrtGetNotifyId(aclrtNotify notify, uint32_t *notifyId);
+  virtual aclError aclrtValueWait(void *devAddr, uint64_t value, uint32_t flag, aclrtStream stream);
+  virtual aclError aclrtValueWrite(void *devAddr, uint64_t value, uint32_t flag, aclrtStream stream);
   virtual aclError aclrtSetStreamAttribute(aclrtStream stream, aclrtStreamAttr attr, aclrtStreamAttrValue *attrValue);
   virtual aclError aclrtKernelArgsInit(aclrtFuncHandle funcHandle, aclrtArgsHandle *argsHandle);
   virtual aclError aclrtKernelArgsAppend(aclrtArgsHandle argsHandle, void *data, size_t size,

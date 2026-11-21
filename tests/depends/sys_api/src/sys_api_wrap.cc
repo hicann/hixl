@@ -97,12 +97,6 @@ void ResetSysApiHooks() {
 void *RealDlOpen(const char *file_name, int mode) {
   return __real_dlopen(file_name, mode);
 }
-void *RealDlSym(void *handle, const char *func_name) {
-  return __real_dlsym(handle, func_name);
-}
-int RealDlClose(void *handle) {
-  return __real_dlclose(handle);
-}
 
 }  // namespace hixl_test
 

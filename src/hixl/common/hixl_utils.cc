@@ -42,7 +42,7 @@ constexpr const char kLinkStatusPrefix[] = "link status:";
 constexpr const char kLinkStatusUp[] = "UP";
 constexpr const char kLinkStatusDown[] = "DOWN";
 constexpr size_t kValidHccnConfItemNum = 2U;
-constexpr int32_t kHcommConfigurableTransferVersion = 90200000;
+constexpr int32_t kHcommConfigurableTransferMinVersion = 90200000;
 
 std::string GetHccnToolPath() {
   if (access(kHccnToolPath, F_OK) == 0) {
@@ -171,19 +171,23 @@ Status ReadDeviceIpFromHccnConf(std::ifstream &file, const std::string &target_k
 
 }  // namespace
 
-bool IsHcommConfigurableTransferSupported() {
+int32_t GetHcommVersion() {
   if (aclsysGetVersionNum == nullptr) {
-    HIXL_LOGW("aclsysGetVersionNum is unavailable, use legacy Hcomm transfer settings");
-    return false;
+    HIXL_LOGW("aclsysGetVersionNum is unavailable, use legacy Hcomm capabilities");
+    return 0;
   }
   char pkg_name[] = "hcomm";
   int32_t version_num = 0;
   const int32_t ret = aclsysGetVersionNum(pkg_name, &version_num);
   if (ret != 0) {
-    HIXL_LOGW("Call api:aclsysGetVersionNum failed, package:hcomm, ret:%d; use legacy Hcomm transfer settings", ret);
-    return false;
+    HIXL_LOGW("Call api:aclsysGetVersionNum failed, package:hcomm, ret:%d; use legacy Hcomm capabilities", ret);
+    return 0;
   }
-  return version_num >= kHcommConfigurableTransferVersion;
+  return version_num;
+}
+
+bool IsHcommConfigurableTransferSupported() {
+  return GetHcommVersion() >= kHcommConfigurableTransferMinVersion;
 }
 
 Status CheckIp(const std::string &ip) {

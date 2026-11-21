@@ -29,6 +29,24 @@ struct DeviceCompleteHandle {
   void *dev_op_desc_buf;
 };
 
+// HCCS and legacy devices use notify wait; non-HCCS devices with host callbacks use value wait.
+// LaunchDeviceKernel 将等待任务入队。同步路径等待 stream 完成，异步路径通过后续 D2H 拷贝发布完成状态。
+class CompletionWait {
+ public:
+  virtual ~CompletionWait() = default;
+  virtual Status WaitAndReset(const TransferPool::SlotHandle &slot, aclrtStream stream) const = 0;
+};
+
+class NotifyWait : public CompletionWait {
+ public:
+  Status WaitAndReset(const TransferPool::SlotHandle &slot, aclrtStream stream) const override;
+};
+
+class ValueWait : public CompletionWait {
+ public:
+  Status WaitAndReset(const TransferPool::SlotHandle &slot, aclrtStream stream) const override;
+};
+
 // Device HCOMM channel: the shared AICPU batch kernel path. Protocol specific notify resources and the
 // notify-record flag are the only differences, so they are overridden by the small subclasses below.
 class HcommDeviceChannel : public HcommChannel {
@@ -55,6 +73,8 @@ class HcommDeviceChannel : public HcommChannel {
                              uint32_t timeout_ms) override;
   Status DoBatchTransferAsync(bool is_get, const HixlOneSideOpDesc *desc_list, uint32_t list_num,
                               void **complete_handle) override;
+  Status InitRdmaNotifyResources(bool register_notify_mem);
+  Status RegisterFlagBlock(TransferPool &pool);
   Status RegisterNotifyMemForAllSlots(const std::vector<TransferPool::SlotHandle> &slots);
 
  private:
@@ -75,8 +95,8 @@ class HcommDeviceChannel : public HcommChannel {
                                bool need_notify_wait, HixlOneSideOpParam &param) const;
   Status LaunchDeviceChunkedKernels(bool is_get, DeviceCompleteHandle &handle, uint32_t list_num) const;
   Status LaunchAndCopyDoneFlag(bool is_get, DeviceCompleteHandle &handle, uint32_t list_num);
-  static Status LaunchDeviceKernel(bool is_get, DeviceCompleteHandle &handle, const HixlOneSideOpParam &param,
-                                   bool wait_notify);
+  Status LaunchDeviceKernel(bool is_get, DeviceCompleteHandle &handle, const HixlOneSideOpParam &param,
+                            bool wait_notify) const;
   Status CheckStatusDevice(DeviceCompleteHandle &query_handle, HixlCompleteStatus &status);
   void CleanupActiveSlot();
   void AbortAllPendingDeviceHandles();
@@ -84,6 +104,8 @@ class HcommDeviceChannel : public HcommChannel {
 
   bool device_remote_flag_inited_{false};
   void *device_remote_flag_addr_{nullptr};
+  bool use_value_wait_{false};
+  MemHandle flag_mem_handle_{nullptr};
   std::vector<MemHandle> notify_mem_handles_{};
   std::unordered_set<DeviceCompleteHandle *> pending_device_handles_{};
   std::shared_ptr<TransferPool::SlotHandle> active_slot_;
@@ -104,8 +126,8 @@ class HccsDeviceChannel : public HcommDeviceChannel {
   }
 };
 
-// RoCE device channel: notify addresses are resolved, but notify memory is registered by the peer side
-// (not by this channel).
+// RoCE device channel: registers the pool flag block when host exception callbacks are supported;
+// otherwise resolves notify addresses for the legacy completion path.
 class RoceDeviceChannel : public HcommDeviceChannel {
  public:
   explicit RoceDeviceChannel(Endpoint &local_endpoint) : HcommDeviceChannel(local_endpoint) {}
@@ -115,8 +137,8 @@ class RoceDeviceChannel : public HcommDeviceChannel {
   Status InitNotifyResources() override;
 };
 
-// UB (ub_ctp / uboe / ubg) device channel: notify addresses are resolved and notify memory is registered
-// on this side.
+// UB (ub_ctp / uboe / ubg) device channel: registers the pool flag block when host exception callbacks
+// are supported; otherwise resolves and registers notify memory on this side.
 class UbDeviceChannel : public HcommDeviceChannel {
  public:
   explicit UbDeviceChannel(Endpoint &local_endpoint) : HcommDeviceChannel(local_endpoint) {}
