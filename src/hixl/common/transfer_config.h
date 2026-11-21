@@ -18,6 +18,7 @@
 namespace hixl {
 
 constexpr uint32_t kDefaultMaxTransferCountPerBatch = 1920U;
+constexpr uint32_t kDefaultHostRoceMaxTransferCountPerBatch = 1022U;
 constexpr uint32_t kMaxTransferCountPerBatch = 32766U;
 constexpr uint32_t kMaxFixedQueueTransferCountPerBatch = 1920U;
 constexpr uint32_t kMinTransportQueueDepth = 64U;

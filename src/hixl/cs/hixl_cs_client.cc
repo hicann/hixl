@@ -236,6 +236,11 @@ Status HixlCSClient::ParseGlobalConfig(const HixlClientDesc *client_desc, const 
       "[HixlClient] Failed to parse global_resource_config");
   configurable_transfer_supported_ =
       global_config_.HasMaxTransferCountPerBatch() || IsHcommConfigurableTransferSupported();
+  const auto &local_endpoint = *client_desc->local_endpoint;
+  if (configurable_transfer_supported_ && local_endpoint.loc.locType == ENDPOINT_LOC_TYPE_HOST &&
+      local_endpoint.protocol == COMM_PROTOCOL_ROCE) {
+    global_config_.SetDefaultMaxTransferCountPerBatch(kDefaultHostRoceMaxTransferCountPerBatch);
+  }
   return SUCCESS;
 }
 

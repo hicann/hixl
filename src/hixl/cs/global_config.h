@@ -48,6 +48,7 @@ class GlobalConfig {
   std::optional<uint32_t> MaxActiveChannels() const;
   uint32_t MaxTransferCountPerBatch() const;
   bool HasMaxTransferCountPerBatch() const;
+  void SetDefaultMaxTransferCountPerBatch(uint32_t count);
   const UbMemoryConfig &UbMemory() const;
   std::optional<size_t> UbMemMaxCapacity() const;
   std::optional<size_t> UbMemStartAddress() const;

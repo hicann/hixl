@@ -1087,6 +1087,35 @@ TEST_F(HixlCSClientUT, ConnectConfiguresHostRoceQueueDepths) {
                    R"({"transfer_config.max_transfer_count_per_batch":1024})", 2048U);
 }
 
+TEST_F(HixlCSClientUT, HostRoceUsesDefaultBatch1022AndQueueDepth1024) {
+  VerifyQueueDepth(COMM_PROTOCOL_ROCE, ENDPOINT_LOC_TYPE_HOST, nullptr, 1024U);
+  EXPECT_EQ(client_.global_config_.MaxTransferCountPerBatch(), 1022U);
+  EXPECT_FALSE(client_.global_config_.HasMaxTransferCountPerBatch());
+}
+
+TEST_F(HixlCSClientUT, HostRoceExplicitBatch1920OverridesDefault) {
+  VerifyQueueDepth(COMM_PROTOCOL_ROCE, ENDPOINT_LOC_TYPE_HOST,
+                   R"({"transfer_config.max_transfer_count_per_batch":1920})", 2048U);
+  EXPECT_EQ(client_.global_config_.MaxTransferCountPerBatch(), 1920U);
+  EXPECT_TRUE(client_.global_config_.HasMaxTransferCountPerBatch());
+}
+
+TEST_F(HixlCSClientUT, HostRoceExplicitBatch2440OverridesDefault) {
+  VerifyQueueDepth(COMM_PROTOCOL_ROCE, ENDPOINT_LOC_TYPE_HOST,
+                   R"({"transfer_config.max_transfer_count_per_batch":2440})", 4096U);
+  EXPECT_EQ(client_.global_config_.MaxTransferCountPerBatch(), 2440U);
+}
+
+TEST_F(HixlCSClientUT, DeviceRoceKeepsDefaultBatch1920) {
+  VerifyQueueDepth(COMM_PROTOCOL_ROCE, ENDPOINT_LOC_TYPE_DEVICE, nullptr, 2048U);
+  EXPECT_EQ(client_.global_config_.MaxTransferCountPerBatch(), 1920U);
+}
+
+TEST_F(HixlCSClientUT, HostUrmaKeepsDefaultBatch1920) {
+  VerifyQueueDepth(COMM_PROTOCOL_UBC_CTP, ENDPOINT_LOC_TYPE_HOST, nullptr, 2048U);
+  EXPECT_EQ(client_.global_config_.MaxTransferCountPerBatch(), 1920U);
+}
+
 TEST_F(HixlCSClientUT, ConnectConfiguresHostUrmaQueueDepths) {
   VerifyQueueDepth(COMM_PROTOCOL_UBC_CTP, ENDPOINT_LOC_TYPE_HOST,
                    R"({"transfer_config.max_transfer_count_per_batch":1024})", 2048U);

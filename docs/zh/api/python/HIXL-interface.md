@@ -364,13 +364,13 @@ options = {
 
 <a id="grc_transfer_batch"></a>
 
-- **max_transfer_count_per_batch**：单个内部传输批次最多包含的buffer数量，超过该值时HIXL保持原始顺序自动分批。默认值1920。HIXL全局校验范围为[1, 32766]，HCCS/FabricMem范围为[1, 1920]。FabricMem两种模式都执行[1, 1920]校验：`fabric_memory.enable_aicpu_unfold=true` 时，该值控制AI CPU展开的逻辑批次和Notify边界；`false` 时，Host逐条连续提交 `aclrtMemcpyAsync`，不按该值分批或在该值边界同步。RoCE/URMA队列深度：Client的SQ/SCQ深度按 `max(64, nextPowerOfTwo(配置值 + 2))` 计算；Server的SQ/SCQ深度固定为64；RQ/RCQ不由HIXL下发，由Hcomm按协议和平台默认策略设置；队列深度的协议和硬件能力校验由Hcomm负责。CANN 9.2.0及以上版本支持该配置。
+- **max_transfer_count_per_batch**：单个内部传输批次最多包含的buffer数量，超过该值时HIXL保持原始顺序自动分批。默认值1920，Host RoCE默认值为1022，对应Client的SQ/SCQ默认深度为1024。HIXL全局校验范围为[1, 32766]，HCCS/FabricMem范围为[1, 1920]。FabricMem两种模式都执行[1, 1920]校验：`fabric_memory.enable_aicpu_unfold=true` 时，该值控制AI CPU展开的逻辑批次和Notify边界；`false` 时，Host逐条连续提交 `aclrtMemcpyAsync`，不按该值分批或在该值边界同步。RoCE/URMA队列深度：Client的SQ/SCQ深度按 `max(64, nextPowerOfTwo(配置值 + 2))` 计算；Server的SQ/SCQ深度固定为64；RQ/RCQ不由HIXL下发，由Hcomm按协议和平台默认策略设置；队列深度的协议和硬件能力校验由Hcomm负责。CANN 9.2.0及以上版本支持该配置。
 
 使用示例：
 
 ```sh
 {
-    "transfer_config.max_transfer_count_per_batch": 1920 //可选，单个内部传输批次最多包含的buffer数量，默认1920
+    "transfer_config.max_transfer_count_per_batch": 1920 //可选，单个内部传输批次最多包含的buffer数量，默认1920，Host RoCE默认1022
 }
 ```
 

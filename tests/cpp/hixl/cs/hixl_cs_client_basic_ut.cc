@@ -576,6 +576,24 @@ TEST_F(HixlCSClientFixture, LegacyHcommUsesHostBatchSize128AndFencesEachBatch) {
   EXPECT_EQ(GetFenceCallCount(), 2U);
 }
 
+TEST_F(HixlCSClientFixture, HostRoceFencesAtDefaultBatchBoundary1022) {
+  PrepareConnectionAndImport(cli, "127.0.0.1", 22344);
+  RecordLocalMem(cli);
+  EXPECT_EQ(cli.global_config_.MaxTransferCountPerBatch(), 1022U);
+  EXPECT_FALSE(cli.global_config_.HasMaxTransferCountPerBatch());
+
+  for (const uint32_t count : {1022U, 1023U, 2044U, 2045U}) {
+    ResetTransferCounter();
+    std::vector<HixlOneSideOpDesc> descs(count,
+                                         HixlOneSideOpDesc{&kServerDataAddr, static_cast<void *>(&kClientBufAddr), 4U});
+    void *query_handle = nullptr;
+    ASSERT_EQ(cli.BatchPutAsync(descs.data(), count, &query_handle), SUCCESS);
+    EXPECT_NE(query_handle, nullptr);
+    EXPECT_EQ(GetNbiCallCount(), count + 1U);
+    EXPECT_EQ(GetFenceCallCount(), count / 1022U + static_cast<uint32_t>(count % 1022U != 0U));
+  }
+}
+
 TEST_F(HixlCSClientFixture, BatchTransferHostAsyncHandlesMaximumListNumWithoutChunkCountOverflow) {
   const char *client_ip = "127.0.0.1";
   uint32_t port = 22345;

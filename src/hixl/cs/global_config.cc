@@ -228,6 +228,12 @@ bool GlobalConfig::HasMaxTransferCountPerBatch() const {
   return transfer_config_.max_transfer_count_per_batch_configured;
 }
 
+void GlobalConfig::SetDefaultMaxTransferCountPerBatch(uint32_t count) {
+  if (!HasMaxTransferCountPerBatch()) {
+    transfer_config_.max_transfer_count_per_batch = count;
+  }
+}
+
 const UbMemoryConfig &GlobalConfig::UbMemory() const {
   return fabric_memory_;
 }

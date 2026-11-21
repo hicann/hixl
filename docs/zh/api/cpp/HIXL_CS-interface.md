@@ -114,7 +114,7 @@ Client侧`global_resource_config`当前支持的配置项如下。
 |---|---|---|---|
 | comm_resource_config.qos | 数字 | 可选 | 配置通信协议qos，当前仅支持[0-7]。 |
 | comm_resource_config.max_active_channels | 整数 | 可选 | 配置Client设备侧同时活跃传输通道数量。取值范围为[1, 8192]；未配置时默认值为128；每个active channel消耗2个Stream资源，配置值需结合当前卡形态的Stream资源上限及业务中已创建的Stream数量预留余量；不同卡形态的Stream资源上限参见CANN Runtime API [aclrtCreateStream](https://www.hiascend.com/document/detail/zh/canncommercial/latest/API/runtimeapi/aclcppdevg_03_0066.html)资料；取值小于1、大于8192或非数字时，Client创建失败并返回参数错误。 |
-| transfer_config.max_transfer_count_per_batch | 数字或十进制数字字符串 | 可选 | 单个内部传输批次最多包含的buffer数量，超过时按原始顺序自动分批。默认1920，全局取值范围为[1, 32766]，HCCS和UB_MEM链路范围为[1, 1920]。CANN 9.2.0及以上版本支持该配置。 |
+| transfer_config.max_transfer_count_per_batch | 数字或十进制数字字符串 | 可选 | 单个内部传输批次最多包含的buffer数量，超过时按原始顺序自动分批。默认1920，Host RoCE默认值为1022，对应Client的SQ/SCQ默认深度为1024；全局取值范围为[1, 32766]，HCCS和UB_MEM链路范围为[1, 1920]。CANN 9.2.0及以上版本支持该配置。 |
 | fabric_memory.max_capacity | 整数 | 可选 | UB_MEM虚拟内存池大小，单位TB，取值范围(0, 1024]，默认32。仅当本次创建的endpoint协议为UB_MEM时生效；必须在本进程第一次创建UB_MEM的Server或Client之前配置，取值不在范围内时创建失败并返回参数错误。A3平台未显式配置`fabric_memory.start_address`时默认限制在[40 TB, 80 TB)安全窗口内，容量超过40 TB初始化会返回参数错误（确认驱动支持VA >= 80 TB时可显式配置`fabric_memory.start_address`）；若默认整块预留失败并降级为2 TB分段预留，单块连续注册/申请的内存上限为2 TB。 |
 | fabric_memory.start_address | 整数 | 可选 | UB_MEM虚拟内存池起始地址，单位TB，取值范围[0, 1024]，默认40。仅当本次创建的endpoint协议为UB_MEM时生效；必须在本进程第一次创建UB_MEM的Server或Client之前配置，取值不在范围内时创建失败并返回参数错误。 |
 | fabric_memory.task_stream_num | 整数 | 可选 | 单个任务使用的流数量，取值范围[1, 8]。CS解析并保存该字段；取值不在范围内时创建失败并返回参数错误。经HIXL Engine下发时，`fabric_memory.enable_aicpu_unfold`为true仅支持1。 |
