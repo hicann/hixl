@@ -621,13 +621,16 @@ run() {
       export LD_LIBRARY_PATH=${BUILD_PATH}/tests/depends/hixl/:${BUILD_PATH}/tests/depends/llm_datadist/:${BUILD_PATH}/tests/depends/slog/:${BUILD_PATH}/tests/depends/mmpa/:${BUILD_PATH}/tests/depends/hccl/:${BUILD_PATH}/tests/depends/ascendcl/:${BUILD_PATH}/tests/depends/runtime/:${BUILD_PATH}/tests/depends/msprof/:${BUILD_PATH}/tests/depends/dcmi/:${BUILD_PATH}/tests/depends/dsmi/:${BUILD_PATH}/tests/depends/error_manager/
 
       echo "----------st start----------"
+      # set -e would abort the script before the cleanup below when the Python test
+      # fails, so capture the exit code with an || assignment instead of checking $?.
+      py_test_ret=0
       if [[ "X$ENABLE_ASAN" = "XON" ]]; then
         export LD_PRELOAD=${USE_ASAN}
-        ASAN_OPTIONS=detect_leaks=0 coverage run -m unittest discover python
+        ASAN_OPTIONS=detect_leaks=0 coverage run -m unittest discover python || py_test_ret=$?
       else
-        coverage run -m unittest discover python
+        coverage run -m unittest discover python || py_test_ret=$?
       fi
-      if [[ "$?" -ne 0 ]]; then
+      if [[ "$py_test_ret" -ne 0 ]]; then
           echo "!!! PY TEST FAILED, PLEASE CHECK YOUR CHANGES !!!"
           rm -f ${BASEPATH}/src/python/llm_datadist/llm_datadist/*.so
           rm -f ${BASEPATH}/src/python/hixl_py/hixl/*.so
