@@ -716,9 +716,9 @@ TEST_F(HixlCSClientDeviceFixture, AsyncValueWriteFailureAbortsSlot) {
   MockAclRuntimeStub mock_acl;
   llm::AclRuntimeStub::Install(&mock_acl);
   EXPECT_CALL(mock_acl, aclrtValueWait(testing::_, testing::_, testing::_, testing::_))
-      .WillRepeatedly(testing::Return(ACL_SUCCESS));
+      .WillOnce(testing::Return(ACL_SUCCESS));
   EXPECT_CALL(mock_acl, aclrtValueWrite(testing::_, testing::_, testing::_, testing::_))
-      .WillRepeatedly(testing::Return(static_cast<aclError>(1)));
+      .WillOnce(testing::Return(static_cast<aclError>(1)));
   uint32_t abort_count = 0U;
   EXPECT_CALL(mock_acl, aclrtStreamAbort(testing::_)).WillRepeatedly(testing::Invoke([&abort_count](aclrtStream) {
     ++abort_count;
@@ -728,8 +728,15 @@ TEST_F(HixlCSClientDeviceFixture, AsyncValueWriteFailureAbortsSlot) {
 
   EXPECT_NE(cli_.BatchPutAsync(&desc, 1, &query_handle), SUCCESS);
   EXPECT_EQ(query_handle, nullptr);
-  EXPECT_FALSE(DevChannel(cli_).transfer_failure_latched_);
+  EXPECT_TRUE(DevChannel(cli_).transfer_failure_latched_);
+  EXPECT_EQ(DevChannel(cli_).transfer_failure_status_, static_cast<Status>(1));
   EXPECT_GE(abort_count, 1U);
+  EXPECT_TRUE(DevChannel(cli_).pending_device_handles_.empty());
+
+  const uint32_t abort_count_after_failure = abort_count;
+  EXPECT_EQ(cli_.BatchPutAsync(&desc, 1, &query_handle), FAILED);
+  EXPECT_EQ(query_handle, nullptr);
+  EXPECT_EQ(abort_count, abort_count_after_failure);
   EXPECT_TRUE(DevChannel(cli_).pending_device_handles_.empty());
   llm::AclRuntimeStub::UnInstall(&mock_acl);
 }
