@@ -149,7 +149,9 @@ def run_decoder_sample(datadist, args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--device_id", type=int, default=0, help="device id")
-    parser.add_argument("--role", type=str, default=1, help="role type, support p/d")
+    parser.add_argument(
+        "--role", type=str, required=True, help="role type, support p/d"
+    )
     parser.add_argument(
         "--local_ip_port", type=str, help="local ip port, eg:10.10.10.1:26000"
     )

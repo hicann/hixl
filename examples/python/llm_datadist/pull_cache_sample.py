@@ -269,9 +269,7 @@ if __name__ == "__main__":
         raise RuntimeError("Not supported cluster id")
     if args.device_id not in [0, 1, 2, 3, 4, 5, 6, 7]:
         raise RuntimeError("Not supported device id")
-    is_single = False
-    if args.is_single:
-        is_single = True
+    is_single = str(args.is_single).lower() == "true"
     logging.info(
         f"Sample start, device_id = {args.device_id}, cluster_id = {args.cluster_id}"
     )
