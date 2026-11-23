@@ -12,6 +12,7 @@
 #define CANN_HIXL_SRC_HIXL_CS_HIXL_CS_CLIENT_H_
 
 #include <cstdint>
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -140,7 +141,6 @@ class HixlCSClient {
   Status BuildDeviceChunkParam(DeviceCompleteHandle &handle, uint32_t chunk_offset, uint32_t chunk_list_num,
                                bool need_notify_wait, HixlOneSideOpParam &param) const;
   Status LaunchDeviceChunkedKernels(bool is_get, DeviceCompleteHandle &handle, uint32_t list_num) const;
-  bool ShouldLatchTransferFailure(Status ret) const;
   Status LatchTransferFailureIfNeeded(Status ret);
   void LatchTransferFailure(Status ret);
 
@@ -186,6 +186,7 @@ class HixlCSClient {
   std::unordered_set<DeviceCompleteHandle *> pending_device_handles_{};
   // Active slot shared by concurrent transfers - reference counted
   std::shared_ptr<TransferPool::SlotHandle> active_slot_;
+  std::atomic<bool> destroy_requested_{false};
   bool transfer_failure_latched_{false};
   Status transfer_failure_status_{SUCCESS};
 };

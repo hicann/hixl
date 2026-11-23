@@ -10,6 +10,7 @@
 #include <array>
 #include <cstdint>
 #include <cstdlib>
+#include <future>
 #include <thread>
 #include <chrono>
 #include <vector>
@@ -153,6 +154,51 @@ class HixlCSClientDeviceFixture : public ::testing::Test {
     return desc;
   }
 
+  void ExpectDestroyBlocksQueuedTransfer(bool use_async) {
+    const auto desc = SetupBatchTransfer(false);
+    std::promise<void> submitting;
+    std::promise<void> resume;
+    const auto resume_signal = resume.get_future().share();
+    testing::NiceMock<MockAclRuntimeStub> mock_acl;
+    llm::AclRuntimeStub::Install(&mock_acl);
+    EXPECT_CALL(mock_acl, aclrtWaitAndResetNotify(testing::_, testing::_, testing::_))
+        .WillOnce(testing::Invoke([&](aclrtNotify, aclrtStream, uint32_t) {
+          submitting.set_value();
+          resume_signal.wait();
+          return ACL_SUCCESS;
+        }));
+    auto submit = [&]() {
+      // Runtime mock installation is thread-local.
+      llm::AclRuntimeStub::Install(&mock_acl);
+      void *handle = nullptr;
+      const Status ret = use_async ? cli_.BatchTransferAsync(false, 1U, &desc, &handle)
+                                   : cli_.BatchTransferSync(false, 1U, &desc, 100U);
+      llm::AclRuntimeStub::UnInstall(&mock_acl);
+      return ret;
+    };
+    auto first = std::async(std::launch::async, submit);
+    const auto ready = submitting.get_future().wait_for(std::chrono::seconds(5));
+    if (ready != std::future_status::ready) {
+      resume.set_value();
+      (void)first.get();
+      llm::AclRuntimeStub::UnInstall(&mock_acl);
+      FAIL() << "First transfer did not reach submission";
+    }
+    auto destroy = std::async(std::launch::async, [&]() { return cli_.Destroy(); });
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!cli_.destroy_requested_.load() && std::chrono::steady_clock::now() < deadline) {
+      std::this_thread::yield();
+    }
+    EXPECT_TRUE(cli_.destroy_requested_.load());
+    EXPECT_EQ(destroy.wait_for(std::chrono::milliseconds(0)), std::future_status::timeout);
+    auto second = std::async(std::launch::async, submit);
+    resume.set_value();
+    EXPECT_EQ(first.get(), SUCCESS);
+    EXPECT_EQ(second.get(), FAILED);
+    EXPECT_EQ(destroy.get(), SUCCESS);
+    llm::AclRuntimeStub::UnInstall(&mock_acl);
+  }
+
   std::vector<HixlOneSideOpDesc> SetupBatchTransferList(uint32_t list_num, bool is_get = false) {
     HixlOneSideOpDesc desc = SetupBatchTransfer(is_get);
     return std::vector<HixlOneSideOpDesc>(list_num, desc);
@@ -251,6 +297,30 @@ TEST_F(HixlCSClientDeviceToHostFixture, BatchTransferAsyncUsesRemoteHostVa) {
   EXPECT_EQ(PollUntilCompleted(cli_, query_handle, &status), SUCCESS);
 }
 
+TEST_F(HixlCSClientDeviceFixture, ResourceExhaustionDoesNotLatchAndAllowsRetry) {
+  const auto desc = SetupBatchTransfer(false);
+  auto *pool = TransferPool::GetInstance(cli_.device_id_);
+  ASSERT_NE(pool, nullptr);
+  std::vector<TransferPool::SlotHandle> held;
+  TransferPool::SlotHandle slot{};
+  while (pool->Acquire(&slot) == SUCCESS) {
+    held.push_back(slot);
+  }
+  void *handle = nullptr;
+  EXPECT_EQ(cli_.BatchTransferSync(false, 1U, &desc, 100U), RESOURCE_EXHAUSTED);
+  EXPECT_EQ(cli_.BatchTransferAsync(false, 1U, &desc, &handle), RESOURCE_EXHAUSTED);
+  EXPECT_EQ(handle, nullptr);
+  EXPECT_FALSE(cli_.transfer_failure_latched_);
+  EXPECT_EQ(cli_.transfer_failure_status_, SUCCESS);
+  for (const auto &held_slot : held) {
+    pool->Release(held_slot);
+  }
+  ASSERT_FALSE(held.empty());
+  EXPECT_EQ(cli_.BatchTransferSync(false, 1U, &desc, 100U), SUCCESS);
+  EXPECT_EQ(cli_.BatchTransferAsync(false, 1U, &desc, &handle), SUCCESS);
+  EXPECT_NE(handle, nullptr);
+}
+
 TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSuccessUseMemcpyHackFlag) {
   setenv("HIXL_UT_DEVICE_FLAG_HACK", "1", 1);
   HixlOneSideOpDesc desc = SetupBatchTransfer(false);
@@ -335,6 +405,14 @@ TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSyncStreamSyncTimeoutAbortsSlot)
   llm::AclRuntimeStub::UnInstall(&mock_acl);
   EXPECT_EQ(ret, TIMEOUT);
   EXPECT_TRUE(cli_.pending_device_handles_.empty());
+}
+
+TEST_F(HixlCSClientDeviceFixture, DestroyRequestBlocksQueuedSyncTransfer) {
+  ExpectDestroyBlocksQueuedTransfer(false);
+}
+
+TEST_F(HixlCSClientDeviceFixture, DestroyRequestBlocksQueuedAsyncTransfer) {
+  ExpectDestroyBlocksQueuedTransfer(true);
 }
 
 TEST_F(HixlCSClientDeviceFixture, BatchPutDeviceSyncFailureLatchesClient) {

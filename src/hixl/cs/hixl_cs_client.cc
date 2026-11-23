@@ -337,6 +337,7 @@ Status HixlCSClient::InitNotifyResources(const EndpointDesc &ep) {
 
 Status HixlCSClient::Create(const HixlClientDesc *client_desc, const HixlClientConfig *config) {
   std::lock_guard<std::mutex> lock(mutex_);
+  destroy_requested_.store(false);
   transfer_failure_latched_ = false;
   transfer_failure_status_ = SUCCESS;
   HIXL_CHECK_NOTNULL(client_desc->server_ip);
@@ -757,10 +758,6 @@ Status HixlCSClient::LaunchDeviceChunkedKernels(bool is_get, DeviceCompleteHandl
   return SUCCESS;
 }
 
-bool HixlCSClient::ShouldLatchTransferFailure(Status ret) const {
-  return ret == FAILED || ret == TIMEOUT;
-}
-
 void HixlCSClient::LatchTransferFailure(Status ret) {
   if (transfer_failure_latched_) {
     return;
@@ -771,7 +768,7 @@ void HixlCSClient::LatchTransferFailure(Status ret) {
 }
 
 Status HixlCSClient::LatchTransferFailureIfNeeded(Status ret) {
-  if (ret != SUCCESS && ShouldLatchTransferFailure(ret)) {
+  if (ret != SUCCESS && ret != RESOURCE_EXHAUSTED) {
     LatchTransferFailure(ret);
   }
   return ret;
@@ -1010,6 +1007,9 @@ Status HixlCSClient::BatchTransferHostSync(bool is_get, uint32_t list_num, const
 Status HixlCSClient::BatchTransferSync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list,
                                        uint32_t timeout_ms) {
   std::lock_guard<std::mutex> lock(mutex_);
+  HIXL_CHK_BOOL_RET_STATUS(!destroy_requested_.load(), FAILED,
+                           "[HixlClient] BatchTransferSync rejected after destroy requested, channel=%" PRIu64,
+                           static_cast<uint64_t>(client_channel_handle_));
   HIXL_CHK_BOOL_RET_STATUS(!transfer_failure_latched_, FAILED,
                            "[HixlClient] BatchTransferSync rejected after prior transfer failure. last_status=%u, "
                            "is_get=%d, list_num=%u",
@@ -1050,6 +1050,9 @@ Status HixlCSClient::ConvertHostMappedDescs(uint32_t list_num, HixlOneSideOpDesc
 Status HixlCSClient::BatchTransferAsync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list,
                                         void **query_handle) {
   std::lock_guard<std::mutex> lock(mutex_);
+  HIXL_CHK_BOOL_RET_STATUS(!destroy_requested_.load(), FAILED,
+                           "[HixlClient] BatchTransferAsync rejected after destroy requested, channel=%" PRIu64,
+                           static_cast<uint64_t>(client_channel_handle_));
   HIXL_CHK_BOOL_RET_STATUS(!transfer_failure_latched_, FAILED,
                            "[HixlClient] BatchTransferAsync rejected after prior transfer failure. last_status=%u, "
                            "is_get=%d, list_num=%u",
@@ -1502,6 +1505,8 @@ void HixlCSClient::ReleaseDeviceResources() {
 }
 
 Status HixlCSClient::Destroy() {
+  // Publish before waiting so queued transfers cannot submit ahead of cleanup.
+  destroy_requested_.store(true);
   std::lock_guard<std::mutex> lock(mutex_);
   Status first_error = SUCCESS;
   {

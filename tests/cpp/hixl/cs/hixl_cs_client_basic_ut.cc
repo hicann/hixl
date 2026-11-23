@@ -607,7 +607,7 @@ TEST_F(HixlCSClientFixture, BatchTransferReadNbiFailure) {
   EXPECT_EQ(cli.BatchTransferAsync(true, 2, descs, &query_handle), PARAM_INVALID);
 }
 
-TEST_F(HixlCSClientFixture, BatchTransferParamErrorDoesNotLatchClient) {
+TEST_F(HixlCSClientFixture, BatchTransferLowerLayerParamErrorLatchesClient) {
   const char *client_ip = "127.0.0.1";
   uint32_t port = 22343;
   PrepareConnectionAndImport(cli, client_ip, port);
@@ -621,9 +621,8 @@ TEST_F(HixlCSClientFixture, BatchTransferParamErrorDoesNotLatchClient) {
   EXPECT_EQ(query_handle, nullptr);
   EXPECT_EQ(GetNbiCallCount(), 1U);
 
-  SetNextNbiFailure(HCCL_E_PARA);
-  EXPECT_EQ(cli.BatchTransferSync(false, 1, descs, 1000U), PARAM_INVALID);
-  EXPECT_EQ(GetNbiCallCount(), 2U);
+  EXPECT_EQ(cli.BatchTransferSync(false, 1, descs, 1000U), FAILED);
+  EXPECT_EQ(GetNbiCallCount(), 1U);
 }
 
 TEST_F(HixlCSClientFixture, BatchTransferParamInvalidDoesNotLatchClient) {

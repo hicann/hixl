@@ -1455,6 +1455,44 @@ TEST_F(HixlCSClientUT, DestroySuccessWithoutCreate) {
   EXPECT_EQ(client_.Destroy(), SUCCESS);
 }
 
+TEST_F(HixlCSClientUT, DestroyRejectsSyncAndAsyncTransfers) {
+  EXPECT_EQ(client_.Destroy(), SUCCESS);
+  EXPECT_TRUE(client_.destroy_requested_.load());
+  HixlOneSideOpDesc desc{};
+  void *query_handle = nullptr;
+  EXPECT_EQ(client_.BatchTransferSync(false, 1U, &desc, 100U), FAILED);
+  EXPECT_EQ(client_.BatchTransferAsync(false, 1U, &desc, &query_handle), FAILED);
+  EXPECT_EQ(query_handle, nullptr);
+  EXPECT_EQ(client_.Destroy(), SUCCESS);
+}
+
+TEST_F(HixlCSClientUT, CreateResetsDestroyRequested) {
+  ASSERT_EQ(client_.Destroy(), SUCCESS);
+  ASSERT_TRUE(client_.destroy_requested_.load());
+  port_ = kPort;
+  CreateClient();
+  EXPECT_FALSE(client_.destroy_requested_.load());
+}
+
+TEST_F(HixlCSClientUT, LatchRuntimeErrorsRejectsSubsequentTransfers) {
+  for (const Status ret : {503900U, 103901U, 507001U, 507018U, 507901U}) {
+    HixlCSClient client;
+    EXPECT_EQ(client.LatchTransferFailureIfNeeded(SUCCESS), SUCCESS);
+    EXPECT_FALSE(client.transfer_failure_latched_);
+    EXPECT_EQ(client.LatchTransferFailureIfNeeded(ret), ret);
+    EXPECT_TRUE(client.transfer_failure_latched_);
+    EXPECT_EQ(client.transfer_failure_status_, ret);
+    EXPECT_EQ(client.LatchTransferFailureIfNeeded(PARAM_INVALID), PARAM_INVALID);
+    EXPECT_EQ(client.LatchTransferFailureIfNeeded(RESOURCE_EXHAUSTED), RESOURCE_EXHAUSTED);
+    EXPECT_TRUE(client.transfer_failure_latched_);
+    EXPECT_EQ(client.transfer_failure_status_, ret);
+    HixlOneSideOpDesc desc{};
+    void *query_handle = nullptr;
+    EXPECT_EQ(client.BatchTransferSync(false, 1U, &desc, 100U), FAILED);
+    EXPECT_EQ(client.BatchTransferAsync(false, 1U, &desc, &query_handle), FAILED);
+  }
+}
+
 TEST_F(HixlCSClientUT, DestroySuccessIdempotent) {
   StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
   CreateClient();
