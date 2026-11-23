@@ -8,14 +8,15 @@
 |---------|---------|------|---------|
 | 1.1 | Failures must print an error description and key information | Logging | High |
 | 1.2 | Failed calls to external components must print the API name/error code/parameters | Logging | Medium |
-| 1.3 | Log content must use English exclusively | Logging | High |
-| 1.4 | Content must be free of grammar and spelling errors, complete and accurate, and avoid self-invented abbreviations | Logging | Medium |
-| 1.5 | Measurement information must include units | Logging | Medium |
-| 1.6 | Sensitive information must not be logged in plaintext | Logging | High |
-| 1.7 | Logs must not contain personal information | Logging | High |
-| 1.8 | Performance-sensitive flows must not log run-level logs; production environments must not continuously output DEBUG | Logging | Medium |
-| 1.9 | Avoid printing duplicate error logs within high-frequency loops | Logging | Medium |
-| 1.10 | A single log line must not exceed 1024 characters | Logging | Medium |
+| 1.3 | External parameter validation and failures of non-component interfaces must use HIXL CHECK macros | Logging | High |
+| 1.4 | Log content must use English exclusively | Logging | High |
+| 1.5 | Content must be free of grammar and spelling errors, complete and accurate, and avoid self-invented abbreviations | Logging | Medium |
+| 1.6 | Measurement information must include units | Logging | Medium |
+| 1.7 | Sensitive information must not be logged in plaintext | Logging | High |
+| 1.8 | Logs must not contain personal information | Logging | High |
+| 1.9 | Performance-sensitive flows must not log run-level logs; production environments must not continuously output DEBUG | Logging | Medium |
+| 1.10 | Avoid printing duplicate error logs within high-frequency loops | Logging | Medium |
+| 1.11 | A single log line must not exceed 1024 characters | Logging | Medium |
 | 2.1 | Document tables and list items must be complete item by item | Documentation Writing | Medium |
 
 ## Description
@@ -78,6 +79,8 @@ if (ret != ACL_SUCCESS) {
   return FAILED;
 }
 ```
+
+> For interfaces that already provide dedicated CHECK macros, such as ACL and HCCL, use macros such as `HIXL_CHK_ACL_RET` directly for unified handling. See Rule 1.3.
 
 #### Rule 1.3 External parameter validation and failures of non-component interfaces must use HIXL CHECK macros
 
