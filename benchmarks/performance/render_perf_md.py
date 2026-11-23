@@ -463,7 +463,8 @@ def main() -> None:
     ap.add_argument('--csv-dir', type=Path, required=True, help='Directory containing comm_result_*.csv files')
     ap.add_argument(
         '--platform',
-        type=str,
+        type=normalize_platform,
+        choices=('a2', 'a3', 'a5'),
         required=True,
         help='Platform ID: a2, a3, or a5 (legacy: atlas_a2, atlas_a3, atlas_a5)',
     )
@@ -474,7 +475,7 @@ def main() -> None:
     if not rows:
         log.warning(f'[WARN] No CSV rows found in {args.csv_dir}')
         return
-    platform = normalize_platform(args.platform)
+    platform = args.platform
     deployment = infer_deployment_from_rows(rows)
     if deployment == 'dual':
         log.info('[INFO] Detected dual-machine benchmark data from CSV pattern')
