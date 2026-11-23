@@ -4,6 +4,8 @@ English | [简体中文](./README.md)
 
 Measures HIXL block transmission bandwidth under different directions and transports. This page contains environment requirements, device connectivity checks, constraint notes, and the full usage documentation of the communication benchmark.
 
+To run without a physical NPU, see the [HCCL-VM functional validation tutorial](./hccl_vm_en.md). VM results are not performance measurements.
+
 - [Environment Requirements](#environment-requirements)
 - [Usage](#usage)
 
