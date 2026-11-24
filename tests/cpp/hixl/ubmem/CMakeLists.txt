@@ -81,6 +81,7 @@ target_link_libraries(ubmem_test
         hccl_headers
         runtime_headers
         metadef_headers
+        $<$<PLATFORM_ID:Linux>:$<BUILD_INTERFACE:rdma_core_headers>>
         intf_pub
         json
         ssl_static

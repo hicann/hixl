@@ -13,8 +13,10 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include "hcomm/hcomm_res_defs.h"
+#include "common/ctrl_msg_plugin.h"
 #include "cs/hixl_cs.h"
 #include "common/hixl_inner_types.h"
 #include "hixl/hixl_types.h"
@@ -42,6 +44,7 @@ struct ChannelDesc {
   uint8_t qos{kQosUnset};
   uint32_t max_transfer_count_per_batch{kDefaultMaxTransferCountPerBatch};
   bool configurable_transfer_supported{false};
+  uint64_t remote_endpoint_handle{0UL};
 };
 
 // Per-connection context handed to a Channel at Initialize time. It carries only the shared resources
@@ -68,7 +71,14 @@ class Channel {
   virtual ~Channel() = default;
 
   virtual Status Initialize(const ChannelContext &ctx) = 0;
-  virtual Status Connect(const ChannelDesc &channel_desc, uint32_t timeout_ms) = 0;
+  // Single public connection entry point:
+  // - connection == nullptr: local/passive transport connect (server side or control-free tests).
+  // - connection != nullptr: unified client connect over the control connection (CreateChannel +
+  //   optional protocol-defined multi-round handshake).
+  Status Connect(const ChannelDesc &channel_desc, uint32_t timeout_ms, const CtrlMsgPluginPtr &connection = nullptr);
+  // Advances one server-side round of the generic channel handshake protocol.
+  virtual Status StepServerHandshake(const std::vector<uint8_t> &in_payload, std::vector<uint8_t> &out_payload,
+                                     bool &done);
   // Tears down the transport handle but keeps the channel initialized, so a failed Connect can be retried.
   virtual Status Disconnect() = 0;
   // Full teardown: transport handle plus any per-connection resources owned by the channel.
@@ -90,6 +100,9 @@ class Channel {
   virtual Status SetRemoteMemInfo(const CommMem &trans_flag) = 0;
 
  protected:
+  virtual Status DoConnect(const ChannelDesc &channel_desc, uint32_t timeout_ms) = 0;
+  virtual Status StepClientHandshake(const ChannelDesc &channel_desc, const std::vector<uint8_t> &in_payload,
+                                     std::vector<uint8_t> &out_payload, bool &done);
   virtual Status DoBatchTransferSync(bool is_get, const HixlOneSideOpDesc *desc_list, uint32_t list_num,
                                      uint32_t timeout_ms) = 0;
   virtual Status DoBatchTransferAsync(bool is_get, const HixlOneSideOpDesc *desc_list, uint32_t list_num,

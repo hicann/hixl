@@ -13,3 +13,6 @@ json:
 openssl:
   version: v3.0.9
   type: run
+rdma-core:
+  version: v42.7
+  type: build

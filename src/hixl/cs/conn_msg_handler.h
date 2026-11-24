@@ -12,6 +12,7 @@
 #define CANN_HIXL_SRC_HIXL_CS_CONN_MSG_HANDLER_H_
 
 #include <cstdint>
+#include <vector>
 
 #include "cs/hixl_cs.h"
 #include "hixl/hixl_types.h"
@@ -27,6 +28,9 @@ class ConnMsgHandler {
   // 发送 CreateChannelReq：src、dst_ep_handle、tc、sl、channel_index（role 由收发两端各自固定）
   static Status SendCreateChannelRequest(const CtrlMsgPluginPtr &connection, const CreateChannelReq &body);
   static Status RecvCreateChannelResponse(const CtrlMsgPluginPtr &connection, uint32_t timeout_ms);
+  static Status SendChannelHandshakeRequest(const CtrlMsgPluginPtr &connection, const std::vector<uint8_t> &payload);
+  static Status RecvChannelHandshakeResponse(const CtrlMsgPluginPtr &connection, uint32_t timeout_ms,
+                                             std::vector<uint8_t> &payload, bool &done);
 };
 
 }  // namespace hixl

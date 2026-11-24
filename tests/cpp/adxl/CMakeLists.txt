@@ -57,6 +57,7 @@ file(GLOB HIXL_SRC_LIST
         "${HIXL_CODE_DIR}/src/hixl/common/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/common/tls/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/ubmem/*.cc"
+        "${HIXL_CODE_DIR}/src/hixl/cs/host_roce/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/engine/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/engine/endpoint_generator/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/*.cc"
@@ -114,6 +115,7 @@ function(add_adxl_family_test target_name test_files)
           runtime_headers
           acl_prof_headers
           metadef_headers
+          $<$<PLATFORM_ID:Linux>:$<BUILD_INTERFACE:rdma_core_headers>>
           intf_pub
           json
           ssl_static

@@ -28,6 +28,7 @@ set(HIXL_TEST_FILES
         cs/endpoint_store_ut.cc
         cs/endpoint_factory_ut.cc
         cs/channel_factory_ut.cc
+        cs/host_roce_ut.cc
         cs/test_hixl_cs_server.cc
         cs/test_hixl_cs_server_tls.cc
         cs/hixl_cs_server_handshake_ut.cc
@@ -66,6 +67,7 @@ file(GLOB HIXL_SRC_LIST
         "${HIXL_CODE_DIR}/src/hixl/common/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/common/tls/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/ubmem/*.cc"
+        "${HIXL_CODE_DIR}/src/hixl/cs/host_roce/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/engine/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/engine/endpoint_generator/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/*.cc"
@@ -212,6 +214,7 @@ target_link_libraries(hixl_test
         acl_prof_headers
         msprof_headers
         metadef_headers
+        $<$<PLATFORM_ID:Linux>:$<BUILD_INTERFACE:rdma_core_headers>>
         intf_pub
         json
         ssl_static

@@ -52,6 +52,8 @@ enum class CtrlMsgType : int32_t {
   kHeartBeat = 14,
   kGetMemInfoReq = 15,
   kGetMemInfoResp = 16,
+  kChannelHandshakeReq = 17,
+  kChannelHandshakeResp = 18,
   kEnd
 };
 
@@ -85,6 +87,15 @@ struct CreateChannelReq {
 
 struct CreateChannelResp {
   Status result;
+};
+
+constexpr uint32_t kMaxChannelHandshakePayloadBytes = 64U * 1024U;
+
+struct ChannelHandshakeHeader {
+  Status result = SUCCESS;
+  uint8_t done = 0U;
+  uint8_t reserved[3] = {0U, 0U, 0U};
+  uint32_t payload_len = 0U;
 };
 
 struct GetRemoteMemReq {

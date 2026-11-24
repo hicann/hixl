@@ -58,9 +58,6 @@ class BlockingCleanupChannel : public Channel {
   Status Initialize(const ChannelContext &) override {
     return SUCCESS;
   }
-  Status Connect(const ChannelDesc &, uint32_t) override {
-    return SUCCESS;
-  }
   Status Disconnect() override {
     return SUCCESS;
   }
@@ -85,6 +82,9 @@ class BlockingCleanupChannel : public Channel {
   }
 
  protected:
+  Status DoConnect(const ChannelDesc &, uint32_t) override {
+    return SUCCESS;
+  }
   Status DoBatchTransferSync(bool, const HixlOneSideOpDesc *, uint32_t, uint32_t) override {
     return SUCCESS;
   }

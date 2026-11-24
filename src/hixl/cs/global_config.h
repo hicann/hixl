@@ -23,9 +23,12 @@
 namespace hixl {
 
 struct CommResourceConfig {
+  bool roce_hixl_backend{false};
   std::optional<uint32_t> listen_port;
   std::optional<uint8_t> qos;
   std::optional<uint32_t> max_active_channels;
+  std::optional<uint32_t> roce_retry_cnt;
+  std::optional<uint32_t> roce_timeout;
 };
 
 struct TransferConfigDesc {
@@ -42,10 +45,14 @@ class GlobalConfig {
   };
 
   static Status Parse(const char *config_str, GlobalConfig &result);
-  static Status Parse(const char *config_str, GlobalConfig &result, ParseTarget target);
+  static Status Parse(const char *config_str, GlobalConfig &result, ParseTarget target,
+                      bool require_hcomm_configurable_transfer = true);
   std::optional<uint32_t> ListenPort() const;
   std::optional<uint8_t> Qos() const;
   std::optional<uint32_t> MaxActiveChannels() const;
+  std::optional<uint32_t> RoceRetryCnt() const;
+  std::optional<uint32_t> RoceTimeout() const;
+  bool RoceHixlBackend() const;
   uint32_t MaxTransferCountPerBatch() const;
   bool HasMaxTransferCountPerBatch() const;
   void SetDefaultMaxTransferCountPerBatch(uint32_t count);

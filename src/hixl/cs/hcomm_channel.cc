@@ -80,7 +80,7 @@ Status HcommChannel::Initialize(const ChannelContext &ctx) {
   return InitContext(ctx);
 }
 
-Status HcommChannel::Connect(const ChannelDesc &channel_desc, uint32_t timeout_ms) {
+Status HcommChannel::DoConnect(const ChannelDesc &channel_desc, uint32_t timeout_ms) {
   const EndpointHandle ep_handle = local_endpoint_.GetHandle();
   HIXL_CHK_BOOL_RET_STATUS(ep_handle != nullptr, PARAM_INVALID, "[Channel] Connect called before endpoint Initialize");
   const CommEngine engine = local_endpoint_.GetEngine();

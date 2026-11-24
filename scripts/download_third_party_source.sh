@@ -24,11 +24,13 @@ DOWNLOAD_LIST=(
     "https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/openssl/openssl-openssl-3.0.9.tar.gz"
     "https://gitcode.com/cann-src-third-party/pybind11/releases/download/v2.13.6/pybind11-2.13.6.tar.gz"
     "https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/makeself/makeself-release-2.5.0.tar.gz"
+    "https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/rdma-core/rdma-core-42.7.tar.gz"
 )
 
 # Patch files that must be placed in {your_3rd_party_path}/patch
 PATCH_LIST=(
     "https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/makeself/fix/makeself-2.5.0.patch"
+    "https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/rdma-core/rdma-core-42.7.patch"
 )
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

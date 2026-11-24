@@ -180,7 +180,7 @@ The following lists the dependencies required for source code compilation. Check
 
   ```shell
   # Run the following commands for Ubuntu/Debian. Use proper commands for other OS.
-  sudo apt-get install cmake bash patch perl ccache
+  sudo apt-get install cmake bash patch perl pkg-config ccache
   ```
 
 - GCC 7.3.x - 14.2.x
@@ -190,6 +190,7 @@ The following lists the dependencies required for source code compilation. Check
 - unzip (extracts the ZIP packages of third-party open-source software)
 - patch (applies patches to third-party open-source software during compilation)
 - perl (builds OpenSSL)
+- pkg-config (configures rdma-core dependencies)
 - ccache (optional, a compiler cache optimization tool used to speed up incremental builds)
 
 During compilation, HIXL depends on the following third-party open-source software.
@@ -201,6 +202,7 @@ During compilation, HIXL depends on the following third-party open-source softwa
 | makeself | 2.5.0 | [makeself-release-2.5.0.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/makeself/makeself-release-2.5.0.tar.gz), [makeself-2.5.0.patch](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/makeself/fix/makeself-2.5.0.patch) |
 | openssl | 3.0.9 | [openssl-openssl-3.0.9.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/openssl/openssl-openssl-3.0.9.tar.gz) |
 | pybind11 | 2.13.6 | [pybind11-2.13.6.tar.gz](https://gitcode.com/cann-src-third-party/pybind11/releases/download/v2.13.6/pybind11-2.13.6.tar.gz) |
+| rdma-core | 42.7 | [rdma-core-42.7.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/rdma-core/rdma-core-42.7.tar.gz), [rdma-core-42.7.patch](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/rdma-core/rdma-core-42.7.patch) |
 | cann-cmake | master-059 | [cmake-master-059.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/cmake/cmake-master-059.tar.gz) |
 
 > [!NOTE] Note
@@ -267,7 +269,7 @@ Run the build commands below from the HIXL source root. For an offline archive, 
 
     Upload the downloaded packages according to the following rules:
 
-    - Upload the makeself patch file `makeself-2.5.0.patch` to the `{your_3rd_party_path}/patch` directory, and upload the other packages (including `makeself-release-2.5.0.tar.gz`) directly to `{your_3rd_party_path}`.
+    - Upload the makeself and rdma-core patch files (`makeself-2.5.0.patch` and `rdma-core-42.7.patch`) to the `{your_3rd_party_path}/patch` directory, and upload the other packages (including `makeself-release-2.5.0.tar.gz` and `rdma-core-42.7.tar.gz`) directly to `{your_3rd_party_path}`.
     - Keep the uploaded file names the same as those in the download addresses.
 
   After completing either of the preceding methods, run the following command to perform the build:

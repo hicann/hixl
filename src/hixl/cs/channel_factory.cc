@@ -12,6 +12,7 @@
 
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
+#include "cs/host_roce/host_roce_channel.h"
 #include "cs/ubmem/ubmem_channel.h"
 #include "endpoint.h"
 #include "hcomm_device_channel.h"
@@ -21,14 +22,19 @@ namespace hixl {
 
 ChannelPtr ChannelFactory::Create(Endpoint &local_endpoint) {
   const EndpointDesc &endpoint = local_endpoint.GetEndpoint();
-  // Protocol is decided first: a UB_MEM endpoint is always the logical channel, wherever it lives. Every
-  // other protocol is an HCOMM channel, split by locality.
+  if (local_endpoint.Capabilities().backend == BackendKind::kHixl) {
+    if (IsUbMemProtocol(endpoint.protocol)) {
+      return MakeShared<UbMemChannel>(local_endpoint);
+    }
+    if (IsHostRoce(endpoint)) {
+      return MakeShared<HostRoceChannel>(local_endpoint);
+    }
+  }
+  // Remaining protocols use the default HCOMM backend, split by locality.
   if (endpoint.loc.locType == ENDPOINT_LOC_TYPE_HOST && !IsUbMemProtocol(endpoint.protocol)) {
     return MakeShared<HcommHostChannel>(local_endpoint);
   }
   switch (endpoint.protocol) {
-    case COMM_PROTOCOL_UB_MEM:
-      return MakeShared<UbMemChannel>(local_endpoint);
     case COMM_PROTOCOL_HCCS:
       return MakeShared<HccsDeviceChannel>(local_endpoint);
     case COMM_PROTOCOL_ROCE:
@@ -38,6 +44,7 @@ ChannelPtr ChannelFactory::Create(Endpoint &local_endpoint) {
     case COMM_PROTOCOL_UBOE:
     case COMM_PROTOCOL_UBG:
       return MakeShared<UbDeviceChannel>(local_endpoint);
+    case COMM_PROTOCOL_UB_MEM:
     case COMM_PROTOCOL_RESERVED:
     case COMM_PROTOCOL_PCIE:
     case COMM_PROTOCOL_SIO:

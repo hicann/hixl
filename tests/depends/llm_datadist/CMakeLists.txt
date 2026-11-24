@@ -33,6 +33,7 @@ file(GLOB LLM_V2_SRC_LIST
         "${HIXL_CODE_DIR}/src/hixl/engine/endpoint_generator/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/ubmem/*.cc"
+        "${HIXL_CODE_DIR}/src/hixl/cs/host_roce/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/profiling/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/proxy/*.cc"
         "${HIXL_CODE_DIR}/tests/depends/llm_datadist/src/mmpa_stub.cc"
@@ -65,6 +66,7 @@ target_link_libraries(llm_datadist_base PRIVATE
         $<BUILD_INTERFACE:acl_prof_headers>
         $<BUILD_INTERFACE:msprof_headers>
         $<BUILD_INTERFACE:runtime_headers>
+        $<$<PLATFORM_ID:Linux>:$<BUILD_INTERFACE:rdma_core_headers>>
         metadef_headers
         intf_pub
         PUBLIC c_sec

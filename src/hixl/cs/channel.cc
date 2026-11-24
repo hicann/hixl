@@ -10,13 +10,110 @@
 
 #include "channel.h"
 
+#include <chrono>
+
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
+#include "common/scope_guard.h"
+#include "conn_msg_handler.h"
 #include "endpoint.h"
 #include "hixl_mem_store.h"
 
 namespace hixl {
+namespace {
+constexpr size_t kMaxChannelHandshakeSteps = 16U;
+
+uint32_t RemainingMs(std::chrono::steady_clock::time_point deadline) {
+  const auto remaining =
+      std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()).count();
+  return remaining <= 0 ? 0U : static_cast<uint32_t>(remaining);
+}
+}  // namespace
+
+Status Channel::Connect(const ChannelDesc &channel_desc, uint32_t timeout_ms, const CtrlMsgPluginPtr &connection) {
+  if (connection == nullptr) {
+    return DoConnect(channel_desc, timeout_ms);
+  }
+  HIXL_CHK_STATUS_RET(EnsureInitialized("Connect"));
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+  const CreateChannelReq create_body{ctx_.local_endpoint->GetEndpoint(),
+                                     channel_desc.remote_endpoint_handle,
+                                     channel_desc.tc,
+                                     channel_desc.sl,
+                                     channel_desc.retry_cnt,
+                                     channel_desc.retry_interval,
+                                     channel_desc.channel_index,
+                                     channel_desc.qos,
+                                     timeout_ms};
+  HIXL_CHK_STATUS_RET(ConnMsgHandler::SendCreateChannelRequest(connection, create_body),
+                      "[Channel] SendCreateChannelRequest failed. connection=%s", connection->Desc().c_str());
+  HIXL_CHK_STATUS_RET(DoConnect(channel_desc, timeout_ms), "[Channel] Connect failed. Dst[id:0x%x]",
+                      channel_desc.remote_endpoint.commAddr.id);
+  HIXL_DISMISSABLE_GUARD(channel_rollback, ([this]() {
+                           const Status ret = Disconnect();
+                           if (ret != SUCCESS) {
+                             HIXL_LOGW("[Channel] Rollback channel failed. ret=%u", static_cast<uint32_t>(ret));
+                           }
+                         }));
+  HIXL_CHK_STATUS_RET(ConnMsgHandler::RecvCreateChannelResponse(connection, timeout_ms),
+                      "[Channel] RecvCreateChannelResponse failed. connection=%s, timeout=%u ms",
+                      connection->Desc().c_str(), timeout_ms);
+  std::vector<uint8_t> in_payload;
+  std::vector<uint8_t> out_payload;
+  bool done = false;
+  bool exchanged = false;
+  bool last_server_done = false;
+  for (size_t step = 0U; step < kMaxChannelHandshakeSteps; ++step) {
+    out_payload.clear();
+    HIXL_CHK_STATUS_RET(StepClientHandshake(channel_desc, in_payload, out_payload, done),
+                        "[Channel] StepClientHandshake failed. step=%zu", step);
+    HIXL_CHK_BOOL_RET_STATUS(!out_payload.empty() || done, FAILED,
+                             "[Channel] Handshake step produced no payload and did not complete, step=%zu", step);
+    if (!out_payload.empty()) {
+      HIXL_CHK_BOOL_RET_STATUS(RemainingMs(deadline) > 0U, TIMEOUT,
+                               "[Channel] Handshake deadline expired before send, step=%zu", step);
+      HIXL_CHK_STATUS_RET(ConnMsgHandler::SendChannelHandshakeRequest(connection, out_payload),
+                          "[Channel] SendChannelHandshakeRequest failed. connection=%s, step=%zu",
+                          connection->Desc().c_str(), step);
+      const uint32_t recv_timeout = RemainingMs(deadline);
+      HIXL_CHK_BOOL_RET_STATUS(recv_timeout > 0U, TIMEOUT, "[Channel] Handshake deadline expired before recv, step=%zu",
+                               step);
+      in_payload.clear();
+      bool server_done = false;
+      HIXL_CHK_STATUS_RET(
+          ConnMsgHandler::RecvChannelHandshakeResponse(connection, recv_timeout, in_payload, server_done),
+          "[Channel] RecvChannelHandshakeResponse failed. connection=%s, step=%zu", connection->Desc().c_str(), step);
+      exchanged = true;
+      last_server_done = server_done;
+    }
+    if (done) {
+      HIXL_CHK_BOOL_RET_STATUS(!exchanged || last_server_done, FAILED,
+                               "[Channel] Handshake completed on client before server signaled done, step=%zu", step);
+      HIXL_DISMISS_GUARD(channel_rollback);
+      return SUCCESS;
+    }
+  }
+  HIXL_LOGE(UNSUPPORTED, "[Channel] Handshake exceeded max steps=%zu", kMaxChannelHandshakeSteps);
+  return UNSUPPORTED;
+}
+
+Status Channel::StepClientHandshake(const ChannelDesc &channel_desc, const std::vector<uint8_t> &in_payload,
+                                    std::vector<uint8_t> &out_payload, bool &done) {
+  (void)channel_desc;
+  (void)in_payload;
+  out_payload.clear();
+  done = true;
+  return SUCCESS;
+}
+
+Status Channel::StepServerHandshake(const std::vector<uint8_t> &in_payload, std::vector<uint8_t> &out_payload,
+                                    bool &done) {
+  (void)in_payload;
+  out_payload.clear();
+  done = false;
+  return UNSUPPORTED;
+}
 
 Status Channel::InitContext(const ChannelContext &ctx) {
   ctx_ = ctx;

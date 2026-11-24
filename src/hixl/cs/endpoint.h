@@ -26,6 +26,32 @@
 
 namespace hixl {
 
+inline bool IsHostRoce(const EndpointDesc &endpoint) {
+  return endpoint.protocol == COMM_PROTOCOL_ROCE && endpoint.loc.locType == ENDPOINT_LOC_TYPE_HOST;
+}
+
+enum class TransFlagKind : uint8_t {
+  kNone = 0,
+  kHost = 1,
+  kDeviceOnly = 2,
+  kDeviceWithPool = 3,
+};
+
+enum class BackendKind : uint8_t {
+  kDefault = 0,
+  kHixl = 1,
+};
+
+struct EndpointCapabilities {
+  BackendKind backend{BackendKind::kDefault};
+  bool uses_channel_handshake{false};
+  bool supports_configurable_transfer{false};
+  TransFlagKind builtin_trans_flag{TransFlagKind::kNone};
+  bool requires_device_trans_flag{false};
+  uint32_t min_retry_interval{5U};
+  uint32_t max_retry_interval{20U};
+};
+
 class Endpoint;
 using EndpointPtr = std::shared_ptr<Endpoint>;
 
@@ -57,6 +83,7 @@ class Endpoint {
   Status DeregisterMem(MemHandle mem_handle);
   Status ExportMem(std::vector<HixlMemDesc> &mem_descs);
   Status CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &channel_handle, uint32_t timeout_ms);
+  ChannelPtr GetChannel(ChannelHandle handle) const;
   Status DestroyChannel(ChannelHandle channel_handle);
   Status GetMemDesc(MemHandle mem_handle, HixlMemDesc &desc) const;
   Status ImportMem(const void *mem_desc, uint32_t desc_len, CommMem &out_buf);
@@ -77,10 +104,19 @@ class Endpoint {
     return SUCCESS;
   }
 
+  const EndpointCapabilities &Capabilities() const {
+    return caps_;
+  }
+  virtual Status ValidatePeerEndpoint(const EndpointDesc &remote_endpoint) const {
+    (void)remote_endpoint;
+    return SUCCESS;
+  }
+
  protected:
   explicit Endpoint(const EndpointDesc &endpoint);
   Endpoint(const EndpointDesc &local_endpoint, const EndpointDesc &remote_endpoint);
   Endpoint(const EndpointDesc &endpoint, bool need_host_va_mapping);
+  Endpoint(const EndpointDesc &endpoint, bool need_host_va_mapping, const EndpointCapabilities &caps);
 
   // Transport-specific endpoint lifecycle. The endpoint owns the handle these operate on, so only
   // EndpointCreate takes it, and it takes it as the value to produce. EndpointDestroy must release
@@ -112,6 +148,7 @@ class Endpoint {
   std::map<ChannelHandle, ChannelPtr> channels_;
   uint32_t port_ = 0;
   bool need_host_va_mapping_{false};
+  EndpointCapabilities caps_{};
 };
 
 }  // namespace hixl

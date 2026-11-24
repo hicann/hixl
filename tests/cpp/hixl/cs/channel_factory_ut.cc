@@ -12,9 +12,11 @@
 
 #include "gtest/gtest.h"
 #include "cs/channel_factory.h"
+#include "cs/global_config.h"
 #include "cs/endpoint.h"
 #include "cs/hcomm_device_channel.h"
 #include "cs/hcomm_host_channel.h"
+#include "cs/host_roce/host_roce_channel.h"
 #include "cs/ubmem/ubmem_channel.h"
 
 namespace hixl {
@@ -55,8 +57,26 @@ TEST(ChannelFactoryUt, SelectsUbMemChannelForUbMemProtocol) {
   EXPECT_TRUE(IsUbMemChannel(ChannelFactory::Create(*endpoint)));
 }
 
-TEST(ChannelFactoryUt, SelectsHostChannelForHostEndpoint) {
+TEST(ChannelFactoryUt, HostRoceDefaultsToHcomm) {
   auto endpoint = Endpoint::Create(MakeEndpoint(ENDPOINT_LOC_TYPE_HOST, COMM_PROTOCOL_ROCE));
+  ASSERT_NE(endpoint, nullptr);
+  EXPECT_TRUE(IsHostChannel(ChannelFactory::Create(*endpoint)));
+  GlobalConfig config;
+  ASSERT_EQ(GlobalConfig::Parse(R"({"roce_config.hixl_backend":false})", config), SUCCESS);
+  endpoint = Endpoint::Create(MakeEndpoint(ENDPOINT_LOC_TYPE_HOST, COMM_PROTOCOL_ROCE), config);
+  EXPECT_TRUE(IsHostChannel(ChannelFactory::Create(*endpoint)));
+}
+
+TEST(ChannelFactoryUt, SelectsNativeChannelForHostRoceEndpoint) {
+  GlobalConfig config;
+  ASSERT_EQ(GlobalConfig::Parse(R"({"roce_config.hixl_backend":true})", config), SUCCESS);
+  auto endpoint = Endpoint::Create(MakeEndpoint(ENDPOINT_LOC_TYPE_HOST, COMM_PROTOCOL_ROCE), config);
+  ASSERT_NE(endpoint, nullptr);
+  EXPECT_NE(std::dynamic_pointer_cast<HostRoceChannel>(ChannelFactory::Create(*endpoint)), nullptr);
+}
+
+TEST(ChannelFactoryUt, SelectsHcommChannelForOtherHostProtocols) {
+  auto endpoint = Endpoint::Create(MakeEndpoint(ENDPOINT_LOC_TYPE_HOST, COMM_PROTOCOL_UBOE));
   ASSERT_NE(endpoint, nullptr);
   EXPECT_TRUE(IsHostChannel(ChannelFactory::Create(*endpoint)));
 }

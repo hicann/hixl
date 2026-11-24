@@ -27,3 +27,7 @@ if (ENABLE_TEST)
 endif()
 
 add_cann_third_party(openssl)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_cann_third_party(rdma-core)
+endif()

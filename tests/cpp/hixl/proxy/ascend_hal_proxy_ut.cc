@@ -103,4 +103,26 @@ TEST_F(AscendHalProxyUt, HostRegisterErrorIsPropagated) {
   EXPECT_EQ(AscendHalProxy::HostRegister(&src, sizeof(src), kDevSvmMapHost, 0U, &dst), FAILED);
 }
 
+TEST_F(AscendHalProxyUt, MemRegAndUnRegUbSegmentSuccessAndErrorPropagation) {
+  EXPECT_EQ(AscendHalProxy::MemRegUbSegment(0U, 0U, 64U), PARAM_INVALID);
+  EXPECT_EQ(AscendHalProxy::MemRegUbSegment(0U, 0x1000U, 0U), PARAM_INVALID);
+  EXPECT_EQ(AscendHalProxy::MemUnRegUbSegment(0U, 0U, 64U), PARAM_INVALID);
+  EXPECT_EQ(AscendHalProxy::MemUnRegUbSegment(0U, 0x1000U, 0U), PARAM_INVALID);
+
+  EXPECT_EQ(AscendHalProxy::MemRegUbSegment(2U, 0x1000U, 64U), SUCCESS);
+  EXPECT_EQ(AscendHalProxy::MemUnRegUbSegment(2U, 0x1000U, 64U), SUCCESS);
+
+  AscendHalStubSetMemRegUbSegmentRet(-1);
+  EXPECT_EQ(AscendHalProxy::MemRegUbSegment(2U, 0x1000U, 64U), FAILED);
+  AscendHalStubSetMemUnRegUbSegmentRet(-1);
+  EXPECT_EQ(AscendHalProxy::MemUnRegUbSegment(2U, 0x1000U, 64U), FAILED);
+}
+
+TEST_F(AscendHalProxyUt, MemRegUbSegmentReturnsUnsupportedWhenSymbolsMissing) {
+  auto stub = std::make_shared<DlSymFailStub>();
+  hixl_test::ScopedSysApiMock guard(stub);
+  EXPECT_EQ(AscendHalProxy::MemRegUbSegment(0U, 0x1000U, 64U), UNSUPPORTED);
+  EXPECT_EQ(stub->dl_sym_calls, 2U);
+}
+
 }  // namespace hixl

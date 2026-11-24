@@ -28,7 +28,6 @@ class UbMemChannel : public Channel {
   ~UbMemChannel() override;
 
   Status Initialize(const ChannelContext &ctx) override;
-  Status Connect(const ChannelDesc &channel_desc, uint32_t timeout_ms) override;
   Status Disconnect() override;
   Status Destroy() override;
   Status QueryCompleteStatus(void *complete_handle, HixlCompleteStatus *status) override;
@@ -37,6 +36,7 @@ class UbMemChannel : public Channel {
   Status SetRemoteMemInfo(const CommMem &trans_flag) override;
 
  protected:
+  Status DoConnect(const ChannelDesc &channel_desc, uint32_t timeout_ms) override;
   Status DoBatchTransferSync(bool is_get, const HixlOneSideOpDesc *desc_list, uint32_t list_num,
                              uint32_t timeout_ms) override;
   Status DoBatchTransferAsync(bool is_get, const HixlOneSideOpDesc *desc_list, uint32_t list_num,

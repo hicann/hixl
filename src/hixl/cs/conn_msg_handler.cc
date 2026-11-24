@@ -10,6 +10,7 @@
 
 #include "conn_msg_handler.h"
 #include <cinttypes>
+#include <cstddef>
 #include <vector>
 #include <securec.h>
 #include "common/ctrl_msg_plugin.h"
@@ -210,6 +211,80 @@ Status ConnMsgHandler::RecvCreateChannelResponse(const CtrlMsgPluginPtr &connect
     HIXL_LOGE(ret, "RecvCreateChannelResponse failed during check.");
   }
   return ret;
+}
+
+Status ConnMsgHandler::SendChannelHandshakeRequest(const CtrlMsgPluginPtr &connection,
+                                                   const std::vector<uint8_t> &payload) {
+  HIXL_CHECK_NOTNULL(connection);
+  HIXL_CHK_BOOL_RET_STATUS(payload.size() <= kMaxChannelHandshakePayloadBytes, PARAM_INVALID,
+                           "ChannelHandshakeReq payload too large, size=%zu", payload.size());
+  ChannelHandshakeHeader handshake_hdr{};
+  handshake_hdr.result = SUCCESS;
+  handshake_hdr.done = 0U;
+  handshake_hdr.payload_len = static_cast<uint32_t>(payload.size());
+  CtrlMsgHeader header{};
+  header.magic = kMagicNumber;
+  header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(ChannelHandshakeHeader) + payload.size());
+  const CtrlMsgType msg_type = CtrlMsgType::kChannelHandshakeReq;
+  const size_t total_size = sizeof(header) + sizeof(msg_type) + sizeof(handshake_hdr) + payload.size();
+  std::vector<uint8_t> frame(total_size);
+  size_t offset = 0U;
+  HIXL_CHK_BOOL_RET_STATUS(memcpy_s(frame.data() + offset, total_size - offset, &header, sizeof(header)) == EOK, FAILED,
+                           "memcpy_s CtrlMsgHeader failed");
+  offset += sizeof(header);
+  HIXL_CHK_BOOL_RET_STATUS(memcpy_s(frame.data() + offset, total_size - offset, &msg_type, sizeof(msg_type)) == EOK,
+                           FAILED, "memcpy_s CtrlMsgType failed");
+  offset += sizeof(msg_type);
+  HIXL_CHK_BOOL_RET_STATUS(
+      memcpy_s(frame.data() + offset, total_size - offset, &handshake_hdr, sizeof(handshake_hdr)) == EOK, FAILED,
+      "memcpy_s ChannelHandshakeHeader failed");
+  offset += sizeof(handshake_hdr);
+  if (!payload.empty()) {
+    HIXL_CHK_BOOL_RET_STATUS(
+        memcpy_s(frame.data() + offset, total_size - offset, payload.data(), payload.size()) == EOK, FAILED,
+        "memcpy_s ChannelHandshakeReq payload failed");
+  }
+  HIXL_CHK_STATUS_RET(connection->Send(frame.data(), static_cast<uint64_t>(frame.size())));
+  return SUCCESS;
+}
+
+Status ConnMsgHandler::RecvChannelHandshakeResponse(const CtrlMsgPluginPtr &connection, uint32_t timeout_ms,
+                                                    std::vector<uint8_t> &payload, bool &done) {
+  HIXL_CHECK_NOTNULL(connection);
+  payload.clear();
+  done = false;
+  CtrlMsgHeader header{};
+  HIXL_CHK_STATUS_RET(connection->Recv(&header, static_cast<uint32_t>(sizeof(header)), timeout_ms),
+                      "Failed to recv ChannelHandshakeResp header. connection=%s, timeout=%u ms",
+                      connection->Desc().c_str(), timeout_ms);
+  HIXL_CHK_BOOL_RET_STATUS(header.magic == kMagicNumber, PARAM_INVALID,
+                           "Invalid magic for ChannelHandshakeResp, expect:0x%X, actual:0x%X", kMagicNumber,
+                           header.magic);
+  const uint64_t min_body = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(ChannelHandshakeHeader));
+  const uint64_t max_body = min_body + static_cast<uint64_t>(kMaxChannelHandshakePayloadBytes);
+  HIXL_CHK_BOOL_RET_STATUS(header.body_size >= min_body && header.body_size <= max_body, PARAM_INVALID,
+                           "Invalid body_size in ChannelHandshakeResp, actual:%" PRIu64, header.body_size);
+  std::vector<uint8_t> body;
+  HIXL_CHK_STATUS_RET(RecvBody(connection, header.body_size, body, timeout_ms));
+  size_t offset = 0U;
+  CtrlMsgType msg_type{};
+  HIXL_CHK_STATUS_RET(ParseMsgType(body, offset, msg_type, CtrlMsgType::kChannelHandshakeResp));
+  ChannelHandshakeHeader resp{};
+  const errno_t rc = memcpy_s(&resp, sizeof(resp), body.data() + offset, sizeof(resp));
+  HIXL_CHK_BOOL_RET_STATUS(rc == EOK, FAILED, "memcpy_s ChannelHandshakeHeader failed, rc=%d",
+                           static_cast<int32_t>(rc));
+  offset += sizeof(resp);
+  HIXL_CHK_BOOL_RET_STATUS(resp.payload_len == body.size() - offset, PARAM_INVALID,
+                           "ChannelHandshakeResp payload_len mismatch, header=%u, body=%zu", resp.payload_len,
+                           body.size() - offset);
+  if (resp.result != SUCCESS) {
+    return resp.result;
+  }
+  done = (resp.done != 0U);
+  if (resp.payload_len > 0U) {
+    payload.assign(body.begin() + static_cast<std::ptrdiff_t>(offset), body.end());
+  }
+  return SUCCESS;
 }
 
 }  // namespace hixl

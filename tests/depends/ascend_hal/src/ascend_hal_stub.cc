@@ -14,6 +14,8 @@
 
 static int32_t g_host_register_ret = 0;
 static int32_t g_host_unregister_ret = 0;
+static int32_t g_mem_reg_ub_segment_ret = 0;
+static int32_t g_mem_unreg_ub_segment_ret = 0;
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,6 +42,20 @@ int32_t halHostUnregister(void *ptr, uint32_t devid) {
   return g_host_unregister_ret;
 }
 
+int32_t halMemRegUbSegment(uint32_t devid, uint64_t va, uint64_t size) {
+  (void)devid;
+  (void)va;
+  (void)size;
+  return g_mem_reg_ub_segment_ret;
+}
+
+int32_t halMemUnRegUbSegment(uint32_t devid, uint64_t va, uint64_t size) {
+  (void)devid;
+  (void)va;
+  (void)size;
+  return g_mem_unreg_ub_segment_ret;
+}
+
 void AscendHalStubSetHostRegisterRet(int32_t ret) {
   g_host_register_ret = ret;
 }
@@ -48,9 +64,19 @@ void AscendHalStubSetHostUnregisterRet(int32_t ret) {
   g_host_unregister_ret = ret;
 }
 
+void AscendHalStubSetMemRegUbSegmentRet(int32_t ret) {
+  g_mem_reg_ub_segment_ret = ret;
+}
+
+void AscendHalStubSetMemUnRegUbSegmentRet(int32_t ret) {
+  g_mem_unreg_ub_segment_ret = ret;
+}
+
 void AscendHalStubReset(void) {
   g_host_register_ret = 0;
   g_host_unregister_ret = 0;
+  g_mem_reg_ub_segment_ret = 0;
+  g_mem_unreg_ub_segment_ret = 0;
 }
 
 #ifdef __cplusplus

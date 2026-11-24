@@ -26,7 +26,6 @@ class HcommChannel : public Channel {
   ~HcommChannel() override = default;
 
   Status Initialize(const ChannelContext &ctx) override;
-  Status Connect(const ChannelDesc &channel_desc, uint32_t timeout_ms) override;
   Status Disconnect() override;
   Status Destroy() override;
 
@@ -35,6 +34,7 @@ class HcommChannel : public Channel {
   Status SetRemoteMemInfo(const CommMem &trans_flag) override;
 
  protected:
+  Status DoConnect(const ChannelDesc &channel_desc, uint32_t timeout_ms) override;
   Endpoint &local_endpoint_;
   // Peer-registered builtin completion flag, resolved by the client from the remote endpoint location.
   CommMem remote_trans_flag_{};

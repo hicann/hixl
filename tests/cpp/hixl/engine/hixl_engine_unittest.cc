@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <algorithm>
+#include <condition_variable>
 #include <cstring>
 #include <fstream>
 #include <future>
@@ -22,6 +23,7 @@
 #include <thread>
 #include <vector>
 #include <gtest/gtest.h>
+#include "depends/host_roce_test_helper.h"
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -158,7 +160,10 @@ class HixlEngineTest : public ::testing::Test {
       options1_ub_pair;  // 与 options1 互补的 UB endpoint，用于同实例 UB 匹配（1条链路）
   std::map<AscendString, AscendString> options_4ub;       // 4条 UB 链路（D2D/D2H/H2D/H2H）
   std::map<AscendString, AscendString> options_4ub_pair;  // 与 options_4ub 互补的 UB endpoint
+  std::shared_ptr<test::FakeHostRoceVerbs> native_verbs_;
   void SetUp() override {
+    native_verbs_ = std::make_shared<test::FakeHostRoceVerbs>();
+    SetHostRoceVerbsForTest(native_verbs_);
     ResetHcommVersionStub();
     SetSocStub("Ascend910B1", 0, 0, 9, 8);
     // TransferPool initialization loads device kernels, so MmpaStub must be ready before Create.
@@ -219,6 +224,7 @@ class HixlEngineTest : public ::testing::Test {
   }
 
   void TearDown() override {
+    SetHostRoceVerbsForTest(nullptr);
     llm::AclRuntimeStub::Reset();
     hixl_test::ResetSysApiHooks();
     for (const auto &path : temp_files_) {
@@ -245,6 +251,14 @@ class HixlEngineTest : public ::testing::Test {
     mem.addr = reinterpret_cast<uintptr_t>(ptr);
     mem.len = sizeof(int32_t);
     EXPECT_EQ(engine.RegisterMem(mem, MEM_DEVICE, handle), SUCCESS);
+  }
+
+  void VerifyNativeRoceConfig(uint32_t tc, uint32_t sl) {
+    ASSERT_FALSE(native_verbs_->created_configs.empty());
+    for (const auto &config : native_verbs_->created_configs) {
+      EXPECT_EQ(config.tc, tc);
+      EXPECT_EQ(config.sl, sl);
+    }
   }
 
   std::shared_ptr<llm::LogCaptureStub> SetupLogCapture(const std::vector<std::string> &patterns) {
@@ -1088,12 +1102,27 @@ TEST_F(HixlEngineTest, TestParseTcAndSlWithValidValue) {
   HixlEngine engine1("127.0.0.1");
   HixlEngine engine2("127.0.0.1:26300");
   InitializeAndConnectEngines(engine1, options1, engine2, options2);
+  EXPECT_TRUE(native_verbs_->created_configs.empty());
   CleanupEngines(engine1, engine2);
 
   unsetenv("HCCL_RDMA_TC");
   unsetenv("HCCL_RDMA_SL");
 
   VerifyLogCapture(log_capture, {tc_log_pattern, sl_log_pattern, channel_desc_log_pattern});
+}
+
+TEST_F(HixlEngineTest, TestHcommPathPropagatesConfiguredRoceRetryAndKeepsUnsetDefault) {
+  const std::string configured_log = "[channel] ROCE attributes set, tc=132, sl=4, retryCnt=4, retryInterval=15";
+  auto log_capture = SetupLogCapture({configured_log});
+
+  options1[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"roce_config.retry_cnt":4,"roce_config.timeout":15})";
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:26300");
+  InitializeAndConnectEngines(engine1, options1, engine2, options2);
+  EXPECT_TRUE(native_verbs_->created_configs.empty());
+  CleanupEngines(engine1, engine2);
+
+  VerifyLogCapture(log_capture, {configured_log});
 }
 
 TEST_F(HixlEngineTest, TestHostRoceAcceptsGlobalMaxTransferCount) {
@@ -1115,6 +1144,22 @@ TEST_F(HixlEngineTest, TestLegacyHcommRejectsExplicitMaxTransferCountWhenCreatin
   CreateAndInitEngine(engine2, options2);
   EXPECT_EQ(engine1.Connect("127.0.0.1:26300", kTimeOut), PARAM_INVALID);
   EXPECT_TRUE(engine1.client_manager_.IsEmpty());
+  CleanupEngines(engine1, engine2);
+}
+
+TEST_F(HixlEngineTest, TestNativeHostRoceExplicitMaxTransferCountDoesNotRequireHcomm) {
+  SetHcommVersionNum(90199999);
+  options1[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
+      R"({"roce_config.hixl_backend":true,"transfer_config.max_transfer_count_per_batch":1024})";
+  options2[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"roce_config.hixl_backend":true})";
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:26300");
+
+  CreateAndInitEngine(engine1, options1);
+  CreateAndInitEngine(engine2, options2);
+  EXPECT_EQ(engine1.Connect("127.0.0.1:26300", kTimeOut), SUCCESS);
+  EXPECT_FALSE(engine1.client_manager_.IsEmpty());
+  EXPECT_FALSE(native_verbs_->created_configs.empty());
   CleanupEngines(engine1, engine2);
 }
 
@@ -1192,6 +1237,7 @@ TEST_F(HixlEngineTest, TestParseTcAndSlWithEnv) {
   HixlEngine engine1("127.0.0.1");
   HixlEngine engine2("127.0.0.1:26300");
   InitializeAndConnectEngines(engine1, options1, engine2, options2);
+  EXPECT_TRUE(native_verbs_->created_configs.empty());
   CleanupEngines(engine1, engine2);
 
   unsetenv("HCCL_RDMA_TC");
@@ -1207,9 +1253,93 @@ TEST_F(HixlEngineTest, TestParseTcAndSlWithDefault) {
   HixlEngine engine1("127.0.0.1");
   HixlEngine engine2("127.0.0.1:26300");
   InitializeAndConnectEngines(engine1, options1, engine2, options2);
+  EXPECT_TRUE(native_verbs_->created_configs.empty());
   CleanupEngines(engine1, engine2);
 
   VerifyLogCapture(log_capture, {channel_desc_log_pattern});
+}
+
+TEST_F(HixlEngineTest, TestNativeHostRoceParseTcAndSlWithValidValue) {
+  options1[hixl::OPTION_RDMA_TRAFFIC_CLASS] = "128";
+  options1[adxl::OPTION_RDMA_SERVICE_LEVEL] = "5";
+  options1[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"roce_config.hixl_backend":true})";
+  options2[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"roce_config.hixl_backend":true})";
+
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:26300");
+  InitializeAndConnectEngines(engine1, options1, engine2, options2);
+  VerifyNativeRoceConfig(128, 5);
+  CleanupEngines(engine1, engine2);
+}
+
+TEST_F(HixlEngineTest, TestNativeHostRoceParseTcAndSlWithDefault) {
+  options1[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"roce_config.hixl_backend":true})";
+  options2[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"roce_config.hixl_backend":true})";
+
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:26300");
+  InitializeAndConnectEngines(engine1, options1, engine2, options2);
+  // With no explicit TC/SL, the engine supplies QoS 0; the backend maps it to SL 0 and DSCP 33.
+  VerifyNativeRoceConfig(132, kQosDefault);
+  CleanupEngines(engine1, engine2);
+}
+
+TEST_F(HixlEngineTest, TestNativeHostRoceMultiChannelPostsConcurrently) {
+  options1[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({
+    "roce_config.hixl_backend":true,
+    "comm_resource_config.multi_channel.num_workers":2,
+    "comm_resource_config.multi_channel.split_batch_size":1})";
+  options2[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"roce_config.hixl_backend":true})";
+  HixlEngine engine1("127.0.0.1");
+  HixlEngine engine2("127.0.0.1:26300");
+  uint32_t local[]{5U, 7U};
+  uint32_t remote[2]{};
+  MemHandle local_handle = nullptr;
+  MemHandle remote_handle = nullptr;
+  CreateAndInitEngine(engine1, options1);
+  CreateAndInitEngine(engine2, options2);
+  ASSERT_EQ(engine1.RegisterMem({reinterpret_cast<uintptr_t>(local), sizeof(local)}, MEM_HOST, local_handle), SUCCESS);
+  ASSERT_EQ(engine2.RegisterMem({reinterpret_cast<uintptr_t>(remote), sizeof(remote)}, MEM_HOST, remote_handle),
+            SUCCESS);
+  ASSERT_EQ(engine1.Connect("127.0.0.1:26300", kTimeOut), SUCCESS);
+  ASSERT_EQ(native_verbs_->created.load(), 4U);
+  const std::vector<TransferOpDesc> ops{
+      {reinterpret_cast<uintptr_t>(local), reinterpret_cast<uintptr_t>(remote), sizeof(local[0])},
+      {reinterpret_cast<uintptr_t>(local + 1), reinterpret_cast<uintptr_t>(remote + 1), sizeof(local[1])}};
+  auto run_with_parallel_posts = [&](auto transfer) {
+    std::mutex mutex;
+    std::condition_variable cv;
+    size_t arrived = 0U;
+    bool both_posting = true;
+    native_verbs_->before_write_post = [&] {
+      std::unique_lock lock(mutex);
+      ++arrived;
+      cv.notify_all();
+      if (!cv.wait_for(lock, std::chrono::seconds(2), [&] { return arrived >= 2U; })) {
+        both_posting = false;
+      }
+    };
+    const auto result = transfer();
+    native_verbs_->before_write_post = nullptr;
+    EXPECT_EQ(arrived, 2U);
+    EXPECT_TRUE(both_posting);
+    return result;
+  };
+  ASSERT_EQ(run_with_parallel_posts([&] { return engine1.TransferSync("127.0.0.1:26300", WRITE, ops, kTimeOut); }),
+            SUCCESS);
+  TransferReq req = nullptr;
+  ASSERT_EQ(run_with_parallel_posts([&] { return engine1.TransferAsync("127.0.0.1:26300", WRITE, ops, {}, req); }),
+            SUCCESS);
+  TransferStatus status = TransferStatus::WAITING;
+  for (size_t i = 0U; i < 10U && status == TransferStatus::WAITING; ++i) {
+    ASSERT_EQ(engine1.GetTransferStatus(req, status), SUCCESS);
+  }
+  EXPECT_EQ(status, TransferStatus::COMPLETED);
+  EXPECT_EQ(remote[0], local[0]);
+  EXPECT_EQ(remote[1], local[1]);
+  const auto posts = native_verbs_->PostsSnapshot();
+  EXPECT_EQ(std::count_if(posts.begin(), posts.end(), [](const auto &post) { return !post.read; }), 4);
+  CleanupEngines(engine1, engine2);
 }
 
 TEST_F(HixlEngineTest, TestTcAndSlWithUb) {

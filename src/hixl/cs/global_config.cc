@@ -85,15 +85,42 @@ Status ParseMaxActiveChannels(const nlohmann::json &json, CommResourceConfig &co
   return SUCCESS;
 }
 
-Status ParseTransferConfig(const nlohmann::json &json, TransferConfigDesc &config, GlobalConfig::ParseTarget target) {
+Status ParseRoceUint32Field(const nlohmann::json &json, const char *key, uint32_t min_val, uint32_t max_val,
+                            std::optional<uint32_t> &out) {
+  const auto it = json.find(key);
+  if (it == json.end()) {
+    return SUCCESS;
+  }
+  const auto val = JsonToNumber<int64_t>(*it);
+  if (val < static_cast<int64_t>(min_val) || val > static_cast<int64_t>(max_val)) {
+    HIXL_LOGE(PARAM_INVALID, "[GlobalConfig] %s out of range: %ld, must be in [%u, %u]", key, val, min_val, max_val);
+    return PARAM_INVALID;
+  }
+  out = static_cast<uint32_t>(val);
+  HIXL_LOGI("[GlobalConfig] %s=%u", key, *out);
+  return SUCCESS;
+}
+
+Status ParseRoceConfig(const nlohmann::json &json, CommResourceConfig &config) {
+  HIXL_CHK_STATUS_RET(
+      ParseRoceUint32Field(json, kRoceRetryCntName, kRoceRetryCntMin, kRoceRetryCntMax, config.roce_retry_cnt),
+      "[GlobalConfig] Failed to parse roce_config.retry_cnt");
+  HIXL_CHK_STATUS_RET(
+      ParseRoceUint32Field(json, kRoceTimeoutName, kRoceTimeoutMin, kRoceTimeoutMax, config.roce_timeout),
+      "[GlobalConfig] Failed to parse roce_config.timeout");
+  return SUCCESS;
+}
+
+Status ParseTransferConfig(const nlohmann::json &json, TransferConfigDesc &config, GlobalConfig::ParseTarget target,
+                           bool require_hcomm_configurable_transfer) {
   const auto it = json.find(kMaxTransferCountPerBatchKey);
   if (it == json.end()) {
     return SUCCESS;
   }
   HIXL_CHK_BOOL_RET_STATUS(target != GlobalConfig::ParseTarget::kServer, PARAM_INVALID,
                            "[GlobalConfig] %s is not supported for Server", kMaxTransferCountPerBatchKey);
-  HIXL_CHK_BOOL_RET_STATUS(IsHcommConfigurableTransferSupported(), PARAM_INVALID,
-                           "[GlobalConfig] %s requires Hcomm >= 9.2.0", kMaxTransferCountPerBatchKey);
+  HIXL_CHK_BOOL_RET_STATUS(!require_hcomm_configurable_transfer || IsHcommConfigurableTransferSupported(),
+                           PARAM_INVALID, "[GlobalConfig] %s requires Hcomm >= 9.2.0", kMaxTransferCountPerBatchKey);
   HIXL_CHK_BOOL_RET_STATUS((it->is_number_integer() || it->is_number_unsigned()) || it->is_string(), PARAM_INVALID,
                            "[GlobalConfig] %s must be an integer or decimal integer string",
                            kMaxTransferCountPerBatchKey);
@@ -111,6 +138,12 @@ Status ParseTransferConfig(const nlohmann::json &json, TransferConfigDesc &confi
 
 Status ParseCommResourceConfig(const nlohmann::json &json, CommResourceConfig &config,
                                GlobalConfig::ParseTarget target) {
+  const auto backend_it = json.find(kRoceHixlBackendName);
+  if (backend_it != json.end()) {
+    HIXL_CHK_BOOL_RET_STATUS(backend_it->is_boolean(), PARAM_INVALID, "[GlobalConfig] %s must be a boolean",
+                             kRoceHixlBackendName);
+    config.roce_hixl_backend = backend_it->get<bool>();
+  }
   if (target == GlobalConfig::ParseTarget::kAll || target == GlobalConfig::ParseTarget::kServer) {
     Status ret = ParseListenPort(json, config);
     if (ret != SUCCESS) {
@@ -127,6 +160,7 @@ Status ParseCommResourceConfig(const nlohmann::json &json, CommResourceConfig &c
     }
   }
   HIXL_CHK_STATUS_RET(ParseMaxActiveChannels(json, config), "[GlobalConfig] Failed to parse max_active_channels");
+  HIXL_CHK_STATUS_RET(ParseRoceConfig(json, config), "[GlobalConfig] Failed to parse roce config");
   return SUCCESS;
 }
 
@@ -179,7 +213,8 @@ Status GlobalConfig::Parse(const char *config_str, GlobalConfig &result) {
   return Parse(config_str, result, ParseTarget::kAll);
 }
 
-Status GlobalConfig::Parse(const char *config_str, GlobalConfig &result, ParseTarget target) {
+Status GlobalConfig::Parse(const char *config_str, GlobalConfig &result, ParseTarget target,
+                           bool require_hcomm_configurable_transfer) {
   if (config_str == nullptr || config_str[0] == '\0') {
     return SUCCESS;
   }
@@ -196,7 +231,7 @@ Status GlobalConfig::Parse(const char *config_str, GlobalConfig &result, ParseTa
       HIXL_LOGE(ret, "[GlobalConfig] Failed to parse comm_resource_config");
       return ret;
     }
-    HIXL_CHK_STATUS_RET(ParseTransferConfig(json, result.transfer_config_, target),
+    HIXL_CHK_STATUS_RET(ParseTransferConfig(json, result.transfer_config_, target, require_hcomm_configurable_transfer),
                         "[GlobalConfig] Failed to parse transfer_config");
     HIXL_CHK_STATUS_RET(ParseUbMemoryConfig(json, result.fabric_memory_),
                         "[GlobalConfig] Failed to parse fabric_memory");
@@ -218,6 +253,18 @@ std::optional<uint8_t> GlobalConfig::Qos() const {
 
 std::optional<uint32_t> GlobalConfig::MaxActiveChannels() const {
   return comm_resource_config_.max_active_channels;
+}
+
+std::optional<uint32_t> GlobalConfig::RoceRetryCnt() const {
+  return comm_resource_config_.roce_retry_cnt;
+}
+
+std::optional<uint32_t> GlobalConfig::RoceTimeout() const {
+  return comm_resource_config_.roce_timeout;
+}
+
+bool GlobalConfig::RoceHixlBackend() const {
+  return comm_resource_config_.roce_hixl_backend;
 }
 
 uint32_t GlobalConfig::MaxTransferCountPerBatch() const {

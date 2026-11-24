@@ -687,9 +687,10 @@ class HixlCSClientUT : public hixl::test::PlainTlsTest {
     ASSERT_EQ(client_.Create(&desc, &config), SUCCESS);
   }
 
-  void CreateRoceHostClient(HixlCSClient &client) {
+  void CreateRoceHostClient(HixlCSClient &client, const char *global_resource_config = nullptr) {
     ASSERT_NE(port_, 0);
     HixlClientConfig config{};
+    config.global_resource_config = global_resource_config;
     HixlClientDesc desc{};
     desc.server_ip = "127.0.0.1";
     desc.server_port = port_;
@@ -1075,6 +1076,34 @@ TEST_F(HixlCSClientUT, ConnectUsesDefaultRdmaRetryConfig) {
 
 TEST_F(HixlCSClientUT, ConnectUsesRdmaRetryEnvWhenInRange) {
   VerifyRdmaRetryConfig(true, "3", "9", kEnvRdmaRetryCnt, kEnvRdmaRetryInterval);
+}
+
+TEST_F(HixlCSClientUT, ConnectPassesRoceConfigRetryToHcommAndKeepsUnsetDefault) {
+  StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
+
+  // Explicit roce_config.retry_cnt / timeout take precedence over env and flow into HCOMM channel desc.
+  SetRdmaRetryEnv("3", "9");
+  HixlCSClient configured_client;
+  CreateRoceHostClient(configured_client, R"({"roce_config.retry_cnt":5,"roce_config.timeout":"16"})");
+  EXPECT_EQ(configured_client.retry_cnt_, 5U);
+  EXPECT_EQ(configured_client.retry_interval_, 16U);
+  ASSERT_EQ(configured_client.Connect(kDefaultConnectTimeoutMs), SUCCESS);
+  ExpectCreateChannelReqRetry(5U, 16U);
+  ExpectLastHcommChannelRetry(5U, 16U);
+  ASSERT_EQ(configured_client.Destroy(), SUCCESS);
+
+  // Configuring only retry_cnt keeps timeout at default when env is unset.
+  server_.Stop();
+  StartServer(MiniSrvMode::kNormal, MiniSrvMode::kNormal);
+  ClearRdmaRetryEnv();
+  HixlCSClient partial_client;
+  CreateRoceHostClient(partial_client, R"({"roce_config.retry_cnt":4})");
+  EXPECT_EQ(partial_client.retry_cnt_, 4U);
+  EXPECT_EQ(partial_client.retry_interval_, kDefaultRdmaRetryInterval);
+  ASSERT_EQ(partial_client.Connect(kDefaultConnectTimeoutMs), SUCCESS);
+  ExpectCreateChannelReqRetry(4U, kDefaultRdmaRetryInterval);
+  ExpectLastHcommChannelRetry(4U, kDefaultRdmaRetryInterval);
+  ASSERT_EQ(partial_client.Destroy(), SUCCESS);
 }
 
 TEST_F(HixlCSClientUT, ConnectConfiguresDeviceRoceQueueDepths) {

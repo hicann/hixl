@@ -39,6 +39,7 @@ file(GLOB LLM_V2_SRC_LIST
         "${HIXL_CODE_DIR}/src/hixl/common/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/common/tls/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/ubmem/*.cc"
+        "${HIXL_CODE_DIR}/src/hixl/cs/host_roce/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/profiling/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/proxy/*.cc"
@@ -102,6 +103,7 @@ target_link_libraries(llm_datadist_test
         acl_prof_headers
         msprof_headers
         metadef_headers
+        $<$<PLATFORM_ID:Linux>:$<BUILD_INTERFACE:rdma_core_headers>>
         intf_pub
         json
         ssl_static

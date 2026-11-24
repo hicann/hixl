@@ -28,6 +28,7 @@ file(GLOB HIXL_SRC_LIST
         "${HIXL_CODE_DIR}/src/hixl/common/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/common/tls/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/ubmem/*.cc"
+        "${HIXL_CODE_DIR}/src/hixl/cs/host_roce/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/engine/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/engine/endpoint_generator/*.cc"
         "${HIXL_CODE_DIR}/src/hixl/cs/*.cc"
@@ -70,6 +71,7 @@ target_link_libraries(cann_hixl_base PRIVATE
         $<BUILD_INTERFACE:msprof_headers>
         $<BUILD_INTERFACE:metadef_headers>
         $<BUILD_INTERFACE:error_manager_headers>
+        $<$<PLATFORM_ID:Linux>:$<BUILD_INTERFACE:rdma_core_headers>>
         PUBLIC c_sec
         slog_stub
         sys_api_wrap

@@ -215,6 +215,9 @@ options[hixl::OPTION_AUTO_CONNECT] = "1";
 | comm_resource_config.listen_port | JSON number or digit-only string | Optional | Device NIC listening port. See [listen_port](#grc_listen_port). |
 | comm_resource_config.qos | Number | Optional | Communication protocol QoS. See [qos](#grc_qos). |
 | comm_resource_config.max_active_channels | Number | Optional | Number of concurrently active device transfer channels in CS scenarios. See [max_active_channels](#grc_max_active_channels). |
+| roce_config.hixl_backend | Boolean | Optional | Controls whether `roce:host` uses the HIXL native verbs path. Default: false. See [hixl_backend](#grc_hixl_backend). |
+| roce_config.retry_cnt | Number or decimal digit string | Optional | RDMA retransmission count limit, in [1, 7], default 7. Takes precedence over the `HCCL_RDMA_RETRY_CNT` environment variable. See [roce](#grc_roce). |
+| roce_config.timeout | Number or decimal digit string | Optional | RDMA retransmission timeout exponent, in [5, 20], default 20. Takes precedence over the `HCCL_RDMA_TIMEOUT` environment variable. See [roce](#grc_roce). |
 | comm_resource_config.multi_channel.num_workers | Number | Optional | Worker count for concurrent multichannel transfers. See [multi_channel](#grc_multi_channel). |
 | comm_resource_config.multi_channel.split_batch_size | Number | Optional | Buffer splitting granularity for concurrent multichannel transfers. See [multi_channel](#grc_multi_channel). |
 | comm_resource_config.nic_topo_path | String | Optional | Specifies the affinity between Host RoCE NICs and Devices. See [nic_topo_path](#grc_nic_topo_path). |
@@ -317,6 +320,39 @@ options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
 <a id="grc_max_active_channels"></a>
 
 - **max_active_channels**: Number of concurrently active device transfer channels in CS scenarios, in [1, 8192]. Defaults to 128 if omitted. Each active channel consumes 2 Stream resources. Leave headroom based on the card's Stream resource limit and the Streams already created by your application. For limits by card type, see **aclrtCreateStream** in [Runtime APIs](https://gitcode.com/cann/runtime/blob/master/docs/en/api_ref/README.md). Values outside [1, 8192] cause **Initialize** to return an invalid parameter error.
+
+<a id="grc_hixl_backend"></a>
+
+- **roce_config.hixl_backend**: Controls whether the Host RoCE (`roce:host`) communication path uses the HIXL native RDMA verbs implementation.
+  - Value: Boolean (`true` or `false`), defaulting to `false` when omitted. Passing a non-Boolean value causes initialization to return `PARAM_INVALID`.
+  - Scope: Applies only to `roce:host` endpoints. When set to `false`, the existing HCOMM implementation is used; when set to `true`, HIXL directly calls RDMA verbs for connection establishment and one-sided transfers. Other protocols (such as `roce:device`, `hccs:device`, `ub_ctp`, and `ubmem`) are unaffected.
+  - Connection constraint: Both communication peers (Server and Client) must use the same setting and both endpoints must be `roce:host`; otherwise, connection establishment or Client creation fails.
+
+Example:
+
+```json
+{
+    "comm_resource_config.protocol_desc": ["roce:host"],
+    "roce_config.hixl_backend": true
+}
+```
+
+<a id="grc_roce"></a>
+
+- **roce_config.retry_cnt / roce_config.timeout**: RoCE RDMA retransmission settings.
+  - `retry_cnt`: Range [1, 7], default 7. Configures the RDMA RC QP hardware retransmission count limit (`ibv_qp_attr.retry_cnt`). When explicitly configured, it takes precedence over the `HCCL_RDMA_RETRY_CNT` environment variable; when omitted, it falls back to `HCCL_RDMA_RETRY_CNT` (or 7 if unset).
+  - `timeout`: Range [5, 20], default 20. Configures the RDMA RC QP ACK timeout exponent (`ibv_qp_attr.timeout`, where each ACK timeout is approximately $4.096\ \mu\text{s} \times 2^{\text{timeout}}$). When explicitly configured, it takes precedence over the `HCCL_RDMA_TIMEOUT` environment variable; when omitted, it falls back to `HCCL_RDMA_TIMEOUT` (or 20 if unset).
+
+Example:
+
+```json
+{
+    "comm_resource_config.protocol_desc": ["roce:host"],
+    "roce_config.hixl_backend": true,
+    "roce_config.retry_cnt": 7,
+    "roce_config.timeout": 20
+}
+```
 
 <a id="grc_multi_channel"></a>
 

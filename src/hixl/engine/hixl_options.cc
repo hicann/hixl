@@ -235,6 +235,11 @@ Status ParseChannelPoolConfig(const nlohmann::json &json, ChannelPoolConfig &cfg
 }
 
 Status ParseCommResourceConfig(const nlohmann::json &json, CommResourceConfigDesc &cfg) {
+  if (json.contains(kGlobalResCfgRoceHixlBackend)) {
+    HIXL_CHK_BOOL_RET_STATUS(json.at(kGlobalResCfgRoceHixlBackend).is_boolean(), PARAM_INVALID, "%s must be a boolean",
+                             kGlobalResCfgRoceHixlBackend);
+    cfg.roce_hixl_backend = json.at(kGlobalResCfgRoceHixlBackend).get<bool>();
+  }
   HIXL_CHK_STATUS_RET(ParseLinkPriority(json, cfg), "Failed to parse link priority");
   if (json.contains(kGlobalResCfgProtocolDesc)) {
     const auto &protocol_desc = json.at(kGlobalResCfgProtocolDesc);
@@ -250,6 +255,12 @@ Status ParseCommResourceConfig(const nlohmann::json &json, CommResourceConfigDes
                                                  ""};
   HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, max_active_channels_range, cfg.max_active_channels),
                       "Failed to parse comm_resource_config.max_active_channels");
+  const IntegerFieldRange roce_retry_cnt_range = {kGlobalResCfgRoceRetryCnt, kRoceRetryCntMin, kRoceRetryCntMax, ""};
+  HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, roce_retry_cnt_range, cfg.roce_retry_cnt),
+                      "Failed to parse roce_config.retry_cnt");
+  const IntegerFieldRange roce_timeout_range = {kGlobalResCfgRoceTimeout, kRoceTimeoutMin, kRoceTimeoutMax, ""};
+  HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, roce_timeout_range, cfg.roce_timeout),
+                      "Failed to parse roce_config.timeout");
   IntegerFieldRange multi_worker_num_range = {kGlobalResCfgNumWorkers, 1U, kMaxMultiWorkerNum, ""};
   HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, multi_worker_num_range, cfg.multi_worker_num),
                       "Failed to parse comm_resource_config.multi_channel.num_workers");
@@ -663,11 +674,20 @@ const std::unordered_set<std::string> &GetSupportedOptionKeys() {
 std::string SerializeGlobalResourceConfigForServer(const GlobalResourceConfig &config) {
   nlohmann::json json;
   const auto &comm = config.comm_resource_config;
+  if (comm.roce_hixl_backend) {
+    json[kGlobalResCfgRoceHixlBackend] = true;
+  }
   if (comm.listen_port.has_value()) {
     json[kGlobalResCfgListenPort] = comm.listen_port.value();
   }
   if (comm.max_active_channels.has_value()) {
     json[kGlobalResCfgMaxActiveChannels] = comm.max_active_channels.value();
+  }
+  if (comm.roce_retry_cnt.has_value()) {
+    json[kGlobalResCfgRoceRetryCnt] = comm.roce_retry_cnt.value();
+  }
+  if (comm.roce_timeout.has_value()) {
+    json[kGlobalResCfgRoceTimeout] = comm.roce_timeout.value();
   }
   AppendFabricMemoryJson(json, config.fabric_memory);
   AppendTlsConfigJson(json, config.tls_config);
@@ -678,6 +698,9 @@ std::string SerializeGlobalResourceConfigForClient(const GlobalResourceConfig &c
                                                    std::optional<uint8_t> rdma_sl) {
   nlohmann::json json;
   const auto &comm = config.comm_resource_config;
+  if (comm.roce_hixl_backend) {
+    json[kGlobalResCfgRoceHixlBackend] = true;
+  }
   if (comm.qos.has_value()) {
     json[kGlobalResCfgQos] = comm.qos.value();
   } else if (!rdma_tc.has_value() && !rdma_sl.has_value()) {
@@ -685,6 +708,12 @@ std::string SerializeGlobalResourceConfigForClient(const GlobalResourceConfig &c
   }
   if (comm.max_active_channels.has_value()) {
     json[kGlobalResCfgMaxActiveChannels] = comm.max_active_channels.value();
+  }
+  if (comm.roce_retry_cnt.has_value()) {
+    json[kGlobalResCfgRoceRetryCnt] = comm.roce_retry_cnt.value();
+  }
+  if (comm.roce_timeout.has_value()) {
+    json[kGlobalResCfgRoceTimeout] = comm.roce_timeout.value();
   }
   AppendFabricMemoryJson(json, config.fabric_memory);
   AppendTlsConfigJson(json, config.tls_config);

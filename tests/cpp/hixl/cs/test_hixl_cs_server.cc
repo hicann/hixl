@@ -80,10 +80,6 @@ class ContextCheckingChannel : public Channel {
     return SUCCESS;
   }
 
-  Status Connect(const ChannelDesc &, uint32_t) override {
-    return SUCCESS;
-  }
-
   Status Disconnect() override {
     return SUCCESS;
   }
@@ -113,6 +109,9 @@ class ContextCheckingChannel : public Channel {
   }
 
  protected:
+  Status DoConnect(const ChannelDesc &, uint32_t) override {
+    return SUCCESS;
+  }
   Status DoBatchTransferSync(bool, const HixlOneSideOpDesc *, uint32_t, uint32_t) override {
     return SUCCESS;
   }
@@ -341,8 +340,9 @@ TEST_F(HixlCSTest, PlainPendingMessagesDoNotWaitForClientTable) {
 }
 
 TEST_F(HixlCSTest, InitializeRejectsDuplicateBuiltinProcessor) {
-  for (const auto type : {CtrlMsgType::kMatchEndpointReq, CtrlMsgType::kCreateChannelReq, CtrlMsgType::kGetRemoteMemReq,
-                          CtrlMsgType::kDestroyChannelReq}) {
+  for (const auto type :
+       {CtrlMsgType::kMatchEndpointReq, CtrlMsgType::kCreateChannelReq, CtrlMsgType::kChannelHandshakeReq,
+        CtrlMsgType::kGetRemoteMemReq, CtrlMsgType::kDestroyChannelReq}) {
     SCOPED_TRACE(static_cast<int32_t>(type));
     HixlCSServer server("127.0.0.1", 0U, GlobalConfig{});
     HIXL_MAKE_GUARD(finalize, ([&server]() { (void)server.Finalize(); }));

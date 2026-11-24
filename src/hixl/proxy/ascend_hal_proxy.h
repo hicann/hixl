@@ -20,7 +20,7 @@ constexpr uint32_t kDevSvmMapHost = 2U;
 constexpr uint32_t kHostMemMapDevPcieTh = 3U;  // HOST_MEM_MAP_DEV_PCIE_TH / HOST_MEM_MAP_DEV_V2
 
 /**
- * @brief Proxy for host/device memory register APIs via libascend_hal.so (dlopen).
+ * @brief Proxy for host/device memory register and UB segment APIs via libascend_hal.so (dlopen).
  */
 class AscendHalProxy {
  public:
@@ -42,6 +42,22 @@ class AscendHalProxy {
    * @param logic_dev_id Logic device id.
    */
   static Status HostUnregister(void *src, uint32_t logic_dev_id);
+
+  /**
+   * @brief Register a device SVM memory segment for UB direct access.
+   * @param logic_dev_id Logic device id.
+   * @param va Start virtual address to register.
+   * @param size Byte size to register.
+   */
+  static Status MemRegUbSegment(uint32_t logic_dev_id, uint64_t va, uint64_t size);
+
+  /**
+   * @brief Unregister a previously registered UB segment.
+   * @param logic_dev_id Logic device id.
+   * @param va Start virtual address to unregister.
+   * @param size Byte size to unregister.
+   */
+  static Status MemUnRegUbSegment(uint32_t logic_dev_id, uint64_t va, uint64_t size);
 
 #ifdef HIXL_ENABLE_TEST_HOOKS
   // Test-only hook to clear the process-local dynamic loader cache between tests.

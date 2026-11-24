@@ -180,7 +180,7 @@ source /usr/local/Ascend/cann/set_env.sh
 
   ```shell
   # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
-  sudo apt-get install cmake bash patch perl ccache
+  sudo apt-get install cmake bash patch perl pkg-config ccache
   ```
 
 - GCC 7.3.x - 14.2.x
@@ -190,6 +190,7 @@ source /usr/local/Ascend/cann/set_env.sh
 - unzip，用于解压下载的第三方开源软件的zip压缩包。
 - patch，用于编译时为第三方开源软件应用补丁。
 - perl，用于构建OpenSSL。
+- pkg-config，用于配置rdma-core依赖。
 - ccache（可选），ccache为编译器缓存优化工具，用于加快二次编译速度。
 
 HIXL在编译时，依赖的第三方开源软件列表如下：
@@ -201,6 +202,7 @@ HIXL在编译时，依赖的第三方开源软件列表如下：
 | makeself | 2.5.0 | [makeself-release-2.5.0.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/makeself/makeself-release-2.5.0.tar.gz)、[makeself-2.5.0.patch](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/makeself/fix/makeself-2.5.0.patch) |
 | openssl | 3.0.9 | [openssl-openssl-3.0.9.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/openssl/openssl-openssl-3.0.9.tar.gz) |
 | pybind11 | 2.13.6 | [pybind11-2.13.6.tar.gz](https://gitcode.com/cann-src-third-party/pybind11/releases/download/v2.13.6/pybind11-2.13.6.tar.gz) |
+| rdma-core | 42.7 | [rdma-core-42.7.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/rdma-core/rdma-core-42.7.tar.gz)、[rdma-core-42.7.patch](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/rdma-core/rdma-core-42.7.patch) |
 | cann-cmake | master-059 | [cmake-master-059.tar.gz](https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/cmake/cmake-master-059.tar.gz) |
 
 > [!NOTE]注意
@@ -268,7 +270,7 @@ cd hixl
 
     将下载好的第三方开源软件压缩包按以下规则上传：
 
-    - makeself的补丁文件`makeself-2.5.0.patch`需上传至`{your_3rd_party_path}/patch`目录，其余压缩包（含`makeself-release-2.5.0.tar.gz`）直接上传至`{your_3rd_party_path}`目录。
+    - makeself与rdma-core的补丁文件（`makeself-2.5.0.patch`、`rdma-core-42.7.patch`）需上传至`{your_3rd_party_path}/patch`目录，其余压缩包（含`makeself-release-2.5.0.tar.gz`、`rdma-core-42.7.tar.gz`）直接上传至`{your_3rd_party_path}`目录。
     - 上传的文件名须与下载地址中的文件名保持一致。
 
   完成上述任一方式的准备后，可以使用如下命令进行编译：

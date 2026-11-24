@@ -34,8 +34,6 @@ namespace {
 constexpr uint32_t kDefaultTransferPoolSize = 128U;
 constexpr uint32_t kMinRdmaRetryCnt = 1U;
 constexpr uint32_t kMaxRdmaRetryCnt = 7U;
-constexpr uint32_t kMinRdmaRetryInterval = 5U;
-constexpr uint32_t kMaxRdmaRetryInterval = 20U;
 
 Status ParseEnvUint32(const char *name, uint32_t &out, bool &present) {
   present = false;
@@ -231,16 +229,24 @@ Status HixlCSClient::ParseGlobalConfig(const HixlClientDesc *client_desc, const 
   HIXL_CHECK_NOTNULL(client_desc->remote_endpoint);
   HIXL_CHECK_NOTNULL(config);
   global_config_ = GlobalConfig{};
-  HIXL_CHK_STATUS_RET(
-      GlobalConfig::Parse(config->global_resource_config, global_config_, GlobalConfig::ParseTarget::kClient),
-      "[HixlClient] Failed to parse global_resource_config");
+  const bool is_host_roce = IsHostRoce(*client_desc->local_endpoint);
+  HIXL_CHK_STATUS_RET(GlobalConfig::Parse(config->global_resource_config, global_config_,
+                                          GlobalConfig::ParseTarget::kClient, !is_host_roce),
+                      "[HixlClient] Failed to parse global_resource_config");
+  auto endpoint = Endpoint::Create(*(client_desc->local_endpoint), *(client_desc->remote_endpoint), global_config_);
+  HIXL_CHECK_NOTNULL(endpoint);
+  HIXL_CHK_STATUS_RET(endpoint->ValidatePeerEndpoint(*(client_desc->remote_endpoint)),
+                      "[HixlClient] Incompatible remote endpoint");
+  const bool endpoint_configurable = endpoint->Capabilities().supports_configurable_transfer;
+  HIXL_CHK_BOOL_RET_STATUS(
+      endpoint_configurable || !global_config_.HasMaxTransferCountPerBatch() || IsHcommConfigurableTransferSupported(),
+      PARAM_INVALID, "[HixlClient] Configurable transfer requires Hcomm >= 9.2.0");
   configurable_transfer_supported_ =
-      global_config_.HasMaxTransferCountPerBatch() || IsHcommConfigurableTransferSupported();
-  const auto &local_endpoint = *client_desc->local_endpoint;
-  if (configurable_transfer_supported_ && local_endpoint.loc.locType == ENDPOINT_LOC_TYPE_HOST &&
-      local_endpoint.protocol == COMM_PROTOCOL_ROCE) {
+      endpoint_configurable || global_config_.HasMaxTransferCountPerBatch() || IsHcommConfigurableTransferSupported();
+  if (configurable_transfer_supported_ && is_host_roce) {
     global_config_.SetDefaultMaxTransferCountPerBatch(kDefaultHostRoceMaxTransferCountPerBatch);
   }
+  local_endpoint_ = std::move(endpoint);
   return SUCCESS;
 }
 
@@ -248,6 +254,7 @@ Status HixlCSClient::Create(const HixlClientDesc *client_desc, const HixlClientC
   std::lock_guard<std::mutex> lock(mutex_);
   HIXL_CHK_BOOL_RET_STATUS(!tls_initialized_, FAILED, "[HixlClient] TLS is already initialized");
   HIXL_CHK_STATUS_RET(ParseGlobalConfig(client_desc, config), "[HixlClient] Invalid client configuration");
+  HIXL_DISMISSABLE_GUARD(uninit_endpoint_guard, ([this]() { local_endpoint_.reset(); }));
   HIXL_CHK_STATUS_RET(TlsManager::GetInstance().Initialize(global_config_.TlsCfg()),
                       "[HixlClient] Failed to initialize TLS from global_resource_config");
   HIXL_DISMISSABLE_GUARD(tls_guard, ([this]() {
@@ -263,8 +270,6 @@ Status HixlCSClient::Create(const HixlClientDesc *client_desc, const HixlClientC
       client_desc->local_endpoint->commAddr.id, client_desc->remote_endpoint->loc.locType,
       ProtocolToString(client_desc->remote_endpoint->protocol).c_str(), client_desc->remote_endpoint->commAddr.type,
       client_desc->remote_endpoint->commAddr.id);
-  local_endpoint_ = Endpoint::Create(*(client_desc->local_endpoint), *(client_desc->remote_endpoint), global_config_);
-  HIXL_CHECK_NOTNULL(local_endpoint_);
   HIXL_CHK_STATUS_RET(InitDeviceResource(*(client_desc->local_endpoint)), "[HixlClient] InitDeviceResource failed");
   HIXL_DISMISSABLE_GUARD(pool_rollback, ([this]() {
                            if (device_id_ >= 0) {
@@ -276,7 +281,13 @@ Status HixlCSClient::Create(const HixlClientDesc *client_desc, const HixlClientC
                            }
                          }));
   HIXL_CHK_STATUS_RET(InitBaseClient(client_desc), "[HixlClient] InitBaseClient failed");
-  HIXL_CHK_STATUS_RET(InitRdmaRetryConfig(), "[HixlClient] InitRdmaRetryConfig failed");
+  HIXL_DISMISS_GUARD(uninit_endpoint_guard);
+  const Status retry_cfg_ret = InitRdmaRetryConfig();
+  if (retry_cfg_ret != SUCCESS) {
+    HIXL_LOGE(retry_cfg_ret, "[HixlClient] InitRdmaRetryConfig failed");
+    FinalizeEndpointAfterCreateFailure();
+    return retry_cfg_ret;
+  }
   client_channel_ = ChannelFactory::Create(*local_endpoint_);
   if (client_channel_ == nullptr) {
     HIXL_LOGE(PARAM_INVALID, "[HixlClient] Create channel failed, unsupported local endpoint protocol=%d",
@@ -484,10 +495,6 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannel(uint32_t timeout_ms) {
                       "[HixlClient] Connect prefetch GetRemoteMem/Import failed. connection=%s, timeout=%u ms",
                       connection_->Desc().c_str(), timeout_ms);
   const uint8_t qos = global_config_.Qos().value_or(kQosUnset);
-  CreateChannelReq create_body{src_ep,          remote_endpoint_handle_, tc_, sl_,       retry_cnt_,
-                               retry_interval_, channel_index,           qos, timeout_ms};
-  HIXL_CHK_STATUS_RET(ConnMsgHandler::SendCreateChannelRequest(connection_, create_body),
-                      "[HixlClient] SendCreateChannelRequest failed. connection=%s", connection_->Desc().c_str());
   ChannelDesc channel_desc{remote_endpoint_,
                            tc_,
                            sl_,
@@ -497,21 +504,12 @@ Status HixlCSClient::ExchangeEndpointAndCreateChannel(uint32_t timeout_ms) {
                            channel_index,
                            qos,
                            global_config_.MaxTransferCountPerBatch(),
-                           configurable_transfer_supported_};
-  HIXL_CHK_STATUS_RET(client_channel_->Connect(channel_desc, timeout_ms),
+                           configurable_transfer_supported_,
+                           remote_endpoint_handle_};
+  HIXL_CHK_STATUS_RET(client_channel_->Connect(channel_desc, timeout_ms, connection_),
                       "[HixlClient] channel Connect failed. Dst[id:0x%x]", remote_endpoint_.commAddr.id);
-  HIXL_DISMISSABLE_GUARD(channel_rollback, ([this]() {
-                           const Status ret = client_channel_->Disconnect();
-                           if (ret != SUCCESS) {
-                             HIXL_LOGW("[HixlClient] Rollback channel failed. ret=%u", static_cast<uint32_t>(ret));
-                           }
-                         }));
-  HIXL_CHK_STATUS_RET(ConnMsgHandler::RecvCreateChannelResponse(connection_, timeout_ms),
-                      "[HixlClient] RecvCreateChannelResponse failed. connection=%s, timeout=%u ms",
-                      connection_->Desc().c_str(), timeout_ms);
   HIXL_LOGI("[HixlClient] Connect: remote endpoint handle = %" PRIu64, remote_endpoint_handle_);
   HIXL_LOGI("[HixlClient] Channel Ready. channel_handle=%" PRIu64, client_channel_->GetHandle());
-  HIXL_DISMISS_GUARD(channel_rollback);
   return SUCCESS;
 }
 
@@ -519,35 +517,44 @@ Status HixlCSClient::InitRdmaRetryConfig() {
   retry_cnt_ = kRdmaRetryCntDefault;
   retry_interval_ = kRdmaRetryIntervalDefault;
 
-  uint32_t env_retry_cnt = UINT32_MAX;
-  bool has_env_retry_cnt = false;
-  HIXL_CHK_STATUS_RET(ParseEnvUint32("HCCL_RDMA_RETRY_CNT", env_retry_cnt, has_env_retry_cnt),
-                      "[HixlClient] Parse HCCL_RDMA_RETRY_CNT failed");
-  if (has_env_retry_cnt) {
-    HIXL_CHK_BOOL_RET_STATUS(env_retry_cnt >= kMinRdmaRetryCnt && env_retry_cnt <= kMaxRdmaRetryCnt, PARAM_INVALID,
-                             "[HixlClient] HCCL_RDMA_RETRY_CNT=%u is invalid, valid range=[%u, %u]", env_retry_cnt,
-                             kMinRdmaRetryCnt, kMaxRdmaRetryCnt);
-    retry_cnt_ = env_retry_cnt;
-    HIXL_LOGI("[HixlClient] use HCCL_RDMA_RETRY_CNT=%u", retry_cnt_);
+  if (global_config_.RoceRetryCnt().has_value()) {
+    retry_cnt_ = *global_config_.RoceRetryCnt();
+    HIXL_LOGI("[HixlClient] use roce_config.retry_cnt=%u", retry_cnt_);
   } else {
-    HIXL_LOGI("[HixlClient] use default rdma retry cnt=%u", retry_cnt_);
+    uint32_t env_retry_cnt = UINT32_MAX;
+    bool has_env_retry_cnt = false;
+    HIXL_CHK_STATUS_RET(ParseEnvUint32("HCCL_RDMA_RETRY_CNT", env_retry_cnt, has_env_retry_cnt),
+                        "[HixlClient] Parse HCCL_RDMA_RETRY_CNT failed");
+    if (has_env_retry_cnt) {
+      HIXL_CHK_BOOL_RET_STATUS(env_retry_cnt >= kMinRdmaRetryCnt && env_retry_cnt <= kMaxRdmaRetryCnt, PARAM_INVALID,
+                               "[HixlClient] HCCL_RDMA_RETRY_CNT=%u is invalid, valid range=[%u, %u]", env_retry_cnt,
+                               kMinRdmaRetryCnt, kMaxRdmaRetryCnt);
+      retry_cnt_ = env_retry_cnt;
+      HIXL_LOGI("[HixlClient] use HCCL_RDMA_RETRY_CNT=%u", retry_cnt_);
+    } else {
+      HIXL_LOGI("[HixlClient] use default rdma retry cnt=%u", retry_cnt_);
+    }
   }
 
-  uint32_t env_retry_interval = UINT32_MAX;
-  bool has_env_retry_interval = false;
-  HIXL_CHK_STATUS_RET(ParseEnvUint32("HCCL_RDMA_TIMEOUT", env_retry_interval, has_env_retry_interval),
-                      "[HixlClient] Parse HCCL_RDMA_TIMEOUT failed");
-  if (has_env_retry_interval) {
-    const auto &ep = local_endpoint_->GetEndpoint();
-    bool is_host_roce = (ep.loc.locType == ENDPOINT_LOC_TYPE_HOST && ep.protocol == COMM_PROTOCOL_ROCE);
-    HIXL_CHK_BOOL_RET_STATUS(
-        is_host_roce || (env_retry_interval >= kMinRdmaRetryInterval && env_retry_interval <= kMaxRdmaRetryInterval),
-        PARAM_INVALID, "[HixlClient] HCCL_RDMA_TIMEOUT=%u is invalid, valid range=[%u, %u]", env_retry_interval,
-        kMinRdmaRetryInterval, kMaxRdmaRetryInterval);
-    retry_interval_ = env_retry_interval;
-    HIXL_LOGI("[HixlClient] use HCCL_RDMA_TIMEOUT=%u", retry_interval_);
+  if (global_config_.RoceTimeout().has_value()) {
+    retry_interval_ = *global_config_.RoceTimeout();
+    HIXL_LOGI("[HixlClient] use roce_config.timeout=%u", retry_interval_);
   } else {
-    HIXL_LOGI("[HixlClient] use default rdma retry interval=%u", retry_interval_);
+    uint32_t env_retry_interval = UINT32_MAX;
+    bool has_env_retry_interval = false;
+    HIXL_CHK_STATUS_RET(ParseEnvUint32("HCCL_RDMA_TIMEOUT", env_retry_interval, has_env_retry_interval),
+                        "[HixlClient] Parse HCCL_RDMA_TIMEOUT failed");
+    if (has_env_retry_interval) {
+      const auto &caps = local_endpoint_->Capabilities();
+      HIXL_CHK_BOOL_RET_STATUS(
+          env_retry_interval >= caps.min_retry_interval && env_retry_interval <= caps.max_retry_interval, PARAM_INVALID,
+          "[HixlClient] HCCL_RDMA_TIMEOUT=%u is invalid, valid range=[%u, %u]", env_retry_interval,
+          caps.min_retry_interval, caps.max_retry_interval);
+      retry_interval_ = env_retry_interval;
+      HIXL_LOGI("[HixlClient] use HCCL_RDMA_TIMEOUT=%u", retry_interval_);
+    } else {
+      HIXL_LOGI("[HixlClient] use default rdma retry interval=%u", retry_interval_);
+    }
   }
   return SUCCESS;
 }
@@ -611,6 +618,8 @@ Status HixlCSClient::ImportRemoteMem(std::vector<HixlMemDesc> &desc_list, CommMe
   *list_num = static_cast<uint32_t>(desc_list.size());
   HIXL_CHK_STATUS_RET(ClearRemoteMemInfo(), "[HixlClient] ClearRemoteMemInfo before ImportRemoteMem failed");
   if (*list_num == 0U) {
+    HIXL_CHK_BOOL_RET_STATUS(local_endpoint_ == nullptr || !local_endpoint_->Capabilities().requires_device_trans_flag,
+                             PARAM_INVALID, "[HixlClient] Endpoint requires the peer HBM read-after-write flag");
     HIXL_LOGI("[HixlClient] Remote mem list is empty, nothing to import.");
     return SUCCESS;
   }
@@ -628,25 +637,39 @@ Status HixlCSClient::ImportRemoteMem(std::vector<HixlMemDesc> &desc_list, CommMe
   ctx.mems.reserve(ctx.num);
   ctx.tag_storage.reserve(ctx.num);
   Status ret = ImportAllDescs(ctx, desc_list);
-  if (ret != SUCCESS) {
+  auto rollback_import = [&]() {
     HIXL_LOGW("[HixlClient] RollbackImport triggered. Cleaning up %zu imported bufs.", desc_list.size());
     CloseImportedBufs(*local_endpoint_, desc_list);
     // Descriptors imported before the failing one were already recorded in the mem store; drop those
     // records too, otherwise a later transfer passes validation and then fails during translation.
     UnrecordAddrs(*ctx.store, ctx.recorded_addrs);
+  };
+  if (ret != SUCCESS) {
+    rollback_import();
+    return ret;
+  }
+  // 提前把对端注册的完成标志交给 channel（device 侧在此解析 remote flag），避免传输时引入耗时。
+  const bool require_device_flag = local_endpoint_->Capabilities().requires_device_trans_flag;
+  const bool remote_is_host = remote_endpoint_.loc.locType == ENDPOINT_LOC_TYPE_HOST && !require_device_flag;
+  const char *trans_flag_tag = remote_is_host ? kBuiltinHostTransFlagName : kBuiltinDeviceTransFlagName;
+  CommMem trans_flag{};
+  const auto trans_flag_it = ctx.tag_mem_map.find(trans_flag_tag);
+  if (trans_flag_it != ctx.tag_mem_map.end()) {
+    trans_flag = trans_flag_it->second;
+  }
+  if (require_device_flag && (trans_flag.addr == nullptr || trans_flag.type != COMM_MEM_TYPE_DEVICE)) {
+    HIXL_LOGE(PARAM_INVALID, "[HixlClient] Endpoint requires the peer HBM read-after-write flag");
+    rollback_import();
+    return PARAM_INVALID;
+  }
+  ret = client_channel_->SetRemoteMemInfo(trans_flag);
+  if (ret != SUCCESS) {
+    HIXL_LOGE(ret, "[HixlClient] SetRemoteMemInfo failed");
+    rollback_import();
     return ret;
   }
   desc_list_ = std::move(desc_list);
   FillOutputParams(ctx, remote_mem_list, mem_tag_list, list_num);
-  // 提前把对端注册的完成标志交给 channel（device 侧在此解析 remote flag），避免传输时引入耗时。
-  const bool remote_is_host = remote_endpoint_.loc.locType == ENDPOINT_LOC_TYPE_HOST;
-  const char *trans_flag_tag = remote_is_host ? kBuiltinHostTransFlagName : kBuiltinDeviceTransFlagName;
-  CommMem trans_flag{};
-  const auto trans_flag_it = tag_mem_descs_.find(trans_flag_tag);
-  if (trans_flag_it != tag_mem_descs_.end()) {
-    trans_flag = trans_flag_it->second;
-  }
-  HIXL_CHK_STATUS_RET(client_channel_->SetRemoteMemInfo(trans_flag), "[HixlClient] SetRemoteMemInfo failed");
   HIXL_DISMISS_GUARD(free_export_desc);
   return SUCCESS;
 }

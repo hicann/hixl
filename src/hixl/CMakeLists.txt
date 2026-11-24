@@ -18,12 +18,14 @@ set(HIXL_INC_DIR
         "${HIXL_CODE_DIR}/src/llm_datadist"
         "${CMAKE_CURRENT_LIST_DIR}"
         )
+
 file(GLOB HIXL_SRC_LIST
         "${CMAKE_CURRENT_LIST_DIR}/engine/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/engine/endpoint_generator/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/common/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/common/tls/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/cs/ubmem/*.cc"
+        "${CMAKE_CURRENT_LIST_DIR}/cs/host_roce/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/cs/*.cc"
         "${CMAKE_CURRENT_LIST_DIR}/profiling/*.cc"
         )
@@ -55,6 +57,7 @@ target_link_libraries(cann_hixl PRIVATE
         $<BUILD_INTERFACE:acl_rt_headers>
         $<BUILD_INTERFACE:runtime_headers>
         $<BUILD_INTERFACE:msprof_headers>
+        $<$<PLATFORM_ID:Linux>:$<BUILD_INTERFACE:rdma_core_headers>>
         msprofiler
         PUBLIC c_sec
         adxl_static

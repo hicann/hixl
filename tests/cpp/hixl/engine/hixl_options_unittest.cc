@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <gtest/gtest.h>
 #include "engine/hixl_options.h"
+#include "cs/global_config.h"
 #include "hixl/hixl_types.h"
 #include "adxl/adxl_types.h"
 #include "common/transfer_config.h"
@@ -47,6 +48,42 @@ TEST_F(HixlOptionsUTest, ParseEmptyOptions) {
   EXPECT_FALSE(result.EnableUbMem().has_value());
   EXPECT_FALSE(result.AutoConnect().has_value());
   EXPECT_FALSE(result.GlobalResourceCfg().has_value());
+}
+
+TEST_F(HixlOptionsUTest, RoceHixlBackendDefaultsOffAndRoundTripsToClientAndServer) {
+  EXPECT_FALSE(GlobalConfig{}.RoceHixlBackend());
+  EXPECT_FALSE(GlobalResourceConfig{}.comm_resource_config.roce_hixl_backend);
+  for (bool enabled : {false, true}) {
+    const std::string json = std::string(R"({"roce_config.hixl_backend":)") + (enabled ? "true}" : "false}");
+    std::map<AscendString, AscendString> options;
+    options[OPTION_GLOBAL_RESOURCE_CONFIG] = json.c_str();
+    HixlOptions result;
+    ASSERT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+    ASSERT_TRUE(result.GlobalResourceCfg().has_value());
+    const auto config = *result.GlobalResourceCfg();
+    EXPECT_EQ(config.comm_resource_config.roce_hixl_backend, enabled);
+    GlobalConfig server, client;
+    ASSERT_EQ(GlobalConfig::Parse(SerializeGlobalResourceConfigForServer(config).c_str(), server,
+                                  GlobalConfig::ParseTarget::kServer),
+              SUCCESS);
+    ASSERT_EQ(GlobalConfig::Parse(SerializeGlobalResourceConfigForClient(config, {}, {}).c_str(), client,
+                                  GlobalConfig::ParseTarget::kClient),
+              SUCCESS);
+    EXPECT_EQ(server.RoceHixlBackend(), enabled);
+    EXPECT_EQ(client.RoceHixlBackend(), enabled);
+  }
+}
+
+TEST_F(HixlOptionsUTest, RoceHixlBackendRejectsNonBooleanValues) {
+  for (const char *value : {R"("true")", "1", "null"}) {
+    const std::string json = std::string(R"({"roce_config.hixl_backend":)") + value + "}";
+    std::map<AscendString, AscendString> options;
+    options[OPTION_GLOBAL_RESOURCE_CONFIG] = json.c_str();
+    HixlOptions result;
+    EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+    GlobalConfig config;
+    EXPECT_EQ(GlobalConfig::Parse(json.c_str(), config), PARAM_INVALID);
+  }
 }
 
 TEST_F(HixlOptionsUTest, ParseRdmaTrafficClassHixlPrefix) {
@@ -1313,5 +1350,64 @@ TEST_F(HixlOptionsUTest, ParseTlsConfigVerifyPeerRequiresCa) {
       R"({"tls_config.cert_file":"/tmp/cert.pem","tls_config.key_file":"/tmp/key.pem","tls_config.verify_peer":true})";
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigRoceFieldsAndRoundTrip) {
+  for (const char *json : {
+           R"({"roce_config.retry_cnt":1,"roce_config.timeout":5})",
+           R"({"roce_config.retry_cnt":"7","roce_config.timeout":"20"})",
+       }) {
+    std::map<AscendString, AscendString> options{{OPTION_GLOBAL_RESOURCE_CONFIG, json}};
+    HixlOptions result;
+    ASSERT_EQ(HixlOptions::Parse(options, result), SUCCESS) << json;
+    ASSERT_TRUE(result.GlobalResourceCfg().has_value());
+    const auto cfg = *result.GlobalResourceCfg();
+    ASSERT_TRUE(cfg.comm_resource_config.roce_retry_cnt.has_value());
+    ASSERT_TRUE(cfg.comm_resource_config.roce_timeout.has_value());
+
+    GlobalConfig client_cfg;
+    GlobalConfig server_cfg;
+    ASSERT_EQ(GlobalConfig::Parse(SerializeGlobalResourceConfigForClient(cfg, {}, {}).c_str(), client_cfg,
+                                  GlobalConfig::ParseTarget::kClient),
+              SUCCESS);
+    ASSERT_EQ(GlobalConfig::Parse(SerializeGlobalResourceConfigForServer(cfg).c_str(), server_cfg,
+                                  GlobalConfig::ParseTarget::kServer),
+              SUCCESS);
+    EXPECT_EQ(client_cfg.RoceRetryCnt(), cfg.comm_resource_config.roce_retry_cnt);
+    EXPECT_EQ(client_cfg.RoceTimeout(), cfg.comm_resource_config.roce_timeout);
+    EXPECT_EQ(server_cfg.RoceRetryCnt(), cfg.comm_resource_config.roce_retry_cnt);
+    EXPECT_EQ(server_cfg.RoceTimeout(), cfg.comm_resource_config.roce_timeout);
+  }
+
+  // Unconfigured roce_config.retry_cnt / timeout are omitted from serialized configs.
+  GlobalResourceConfig default_cfg{};
+  const std::string client_json = SerializeGlobalResourceConfigForClient(default_cfg, {}, {});
+  const std::string server_json = SerializeGlobalResourceConfigForServer(default_cfg);
+  EXPECT_EQ(client_json.find(kGlobalResCfgRoceRetryCnt), std::string::npos);
+  EXPECT_EQ(client_json.find(kGlobalResCfgRoceTimeout), std::string::npos);
+  EXPECT_EQ(server_json.find(kGlobalResCfgRoceRetryCnt), std::string::npos);
+  EXPECT_EQ(server_json.find(kGlobalResCfgRoceTimeout), std::string::npos);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigRoceRejectsInvalidValues) {
+  for (const char *json : {
+           R"({"roce_config.retry_cnt":0})",
+           R"({"roce_config.retry_cnt":8})",
+           R"({"roce_config.retry_cnt":-1})",
+           R"({"roce_config.retry_cnt":"invalid"})",
+           R"({"roce_config.retry_cnt":false})",
+           R"({"roce_config.timeout":0})",
+           R"({"roce_config.timeout":4})",
+           R"({"roce_config.timeout":21})",
+           R"({"roce_config.timeout":-1})",
+           R"({"roce_config.timeout":"invalid"})",
+           R"({"roce_config.timeout":null})",
+       }) {
+    std::map<AscendString, AscendString> options{{OPTION_GLOBAL_RESOURCE_CONFIG, json}};
+    HixlOptions result;
+    EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID) << json;
+    GlobalConfig cfg;
+    EXPECT_EQ(GlobalConfig::Parse(json, cfg, GlobalConfig::ParseTarget::kClient), PARAM_INVALID) << json;
+  }
 }
 }  // namespace hixl

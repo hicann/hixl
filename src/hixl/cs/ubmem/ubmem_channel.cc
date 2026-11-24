@@ -54,7 +54,7 @@ Status UbMemChannel::Initialize(const ChannelContext &ctx) {
   return SUCCESS;
 }
 
-Status UbMemChannel::Connect(const ChannelDesc &channel_desc, uint32_t timeout_ms) {
+Status UbMemChannel::DoConnect(const ChannelDesc &channel_desc, uint32_t timeout_ms) {
   (void)channel_desc;
   (void)timeout_ms;
   channel_handle_ = g_next_ubmem_channel_id.fetch_add(1U, std::memory_order_relaxed);

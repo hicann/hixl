@@ -35,6 +35,9 @@ constexpr const char *kGlobalResCfgListenPort = "comm_resource_config.listen_por
 // alias it so the key list stays complete without defining the same literal twice.
 constexpr const char *kGlobalResCfgQos = kQosName;
 constexpr const char *kGlobalResCfgMaxActiveChannels = "comm_resource_config.max_active_channels";
+constexpr const char *kGlobalResCfgRoceHixlBackend = kRoceHixlBackendName;
+constexpr const char *kGlobalResCfgRoceRetryCnt = kRoceRetryCntName;
+constexpr const char *kGlobalResCfgRoceTimeout = kRoceTimeoutName;
 constexpr const char *kGlobalResCfgLinkPriority = "comm_resource_config.link_priority";
 constexpr const char *kGlobalResCfgProtocolDesc = "comm_resource_config.protocol_desc";
 constexpr const char *kGlobalResCfgNumWorkers = "comm_resource_config.multi_channel.num_workers";
@@ -64,10 +67,13 @@ struct ChannelPoolConfig {
 };
 
 struct CommResourceConfigDesc {
+  bool roce_hixl_backend{false};
   std::optional<std::vector<std::string>> protocol_desc;
   std::optional<uint32_t> listen_port;
   std::optional<uint8_t> qos;
   std::optional<uint32_t> max_active_channels;
+  std::optional<uint32_t> roce_retry_cnt;
+  std::optional<uint32_t> roce_timeout;
   std::optional<uint32_t> multi_worker_num;
   std::optional<uint32_t> multi_channel_split_batch_size;
   std::optional<std::string> nic_topo_path;

@@ -21,6 +21,7 @@
 #include "channel_factory.h"
 #include "cs/ubmem/ubmem_endpoint.h"
 #include "hcomm_endpoint.h"
+#include "cs/host_roce/host_roce_endpoint.h"
 #include "host_register_proxy.h"
 
 namespace hixl {
@@ -38,9 +39,28 @@ bool IsHostVaMappingEnabledForPair(const EndpointDesc &local_endpoint, const End
   return local_endpoint.protocol != COMM_PROTOCOL_UBC_CTP || remote_endpoint.loc.locType == ENDPOINT_LOC_TYPE_DEVICE;
 }
 
+EndpointCapabilities DefaultEndpointCapabilities(const EndpointDesc &endpoint) {
+  EndpointCapabilities caps{};
+  caps.backend = IsUbMemProtocol(endpoint.protocol) ? BackendKind::kHixl : BackendKind::kDefault;
+  if (endpoint.loc.locType == ENDPOINT_LOC_TYPE_DEVICE && IsUbMemProtocol(endpoint.protocol)) {
+    caps.builtin_trans_flag = TransFlagKind::kNone;
+  } else if (endpoint.loc.locType == ENDPOINT_LOC_TYPE_HOST) {
+    caps.builtin_trans_flag = TransFlagKind::kHost;
+  } else if (endpoint.loc.locType == ENDPOINT_LOC_TYPE_DEVICE) {
+    caps.builtin_trans_flag = TransFlagKind::kDeviceWithPool;
+  }
+  if (IsHostRoce(endpoint)) {
+    caps.min_retry_interval = 0U;
+    caps.max_retry_interval = UINT32_MAX;
+  }
+  return caps;
+}
 }  // namespace
 
 EndpointPtr Endpoint::Create(const EndpointDesc &endpoint, const GlobalConfig &global_config) {
+  if (IsHostRoce(endpoint) && global_config.RoceHixlBackend()) {
+    return MakeShared<HostRoceEndpoint>(endpoint);
+  }
   if (IsUbMemProtocol(endpoint.protocol)) {
     return MakeShared<UbMemEndpoint>(endpoint, global_config);
   }
@@ -49,6 +69,9 @@ EndpointPtr Endpoint::Create(const EndpointDesc &endpoint, const GlobalConfig &g
 
 EndpointPtr Endpoint::Create(const EndpointDesc &local_endpoint, const EndpointDesc &remote_endpoint,
                              const GlobalConfig &global_config) {
+  if (IsHostRoce(local_endpoint) && global_config.RoceHixlBackend()) {
+    return MakeShared<HostRoceEndpoint>(local_endpoint);
+  }
   if (IsUbMemProtocol(local_endpoint.protocol)) {
     return MakeShared<UbMemEndpoint>(local_endpoint, remote_endpoint, global_config);
   }
@@ -57,6 +80,9 @@ EndpointPtr Endpoint::Create(const EndpointDesc &local_endpoint, const EndpointD
 
 EndpointPtr Endpoint::Create(const EndpointDesc &endpoint, bool need_host_va_mapping,
                              const GlobalConfig &global_config) {
+  if (IsHostRoce(endpoint) && global_config.RoceHixlBackend()) {
+    return MakeShared<HostRoceEndpoint>(endpoint);
+  }
   if (IsUbMemProtocol(endpoint.protocol)) {
     return MakeShared<UbMemEndpoint>(endpoint, need_host_va_mapping, global_config);
   }
@@ -64,14 +90,20 @@ EndpointPtr Endpoint::Create(const EndpointDesc &endpoint, bool need_host_va_map
 }
 
 Endpoint::Endpoint(const EndpointDesc &endpoint)
-    : endpoint_(endpoint), need_host_va_mapping_(IsDefaultHostVaMappingEnabled(endpoint)) {}
+    : endpoint_(endpoint),
+      need_host_va_mapping_(IsDefaultHostVaMappingEnabled(endpoint)),
+      caps_(DefaultEndpointCapabilities(endpoint)) {}
 
 Endpoint::Endpoint(const EndpointDesc &local_endpoint, const EndpointDesc &remote_endpoint)
     : endpoint_(local_endpoint),
-      need_host_va_mapping_(IsHostVaMappingEnabledForPair(local_endpoint, remote_endpoint)) {}
+      need_host_va_mapping_(IsHostVaMappingEnabledForPair(local_endpoint, remote_endpoint)),
+      caps_(DefaultEndpointCapabilities(local_endpoint)) {}
 
 Endpoint::Endpoint(const EndpointDesc &endpoint, bool need_host_va_mapping)
-    : endpoint_(endpoint), need_host_va_mapping_(need_host_va_mapping) {}
+    : endpoint_(endpoint), need_host_va_mapping_(need_host_va_mapping), caps_(DefaultEndpointCapabilities(endpoint)) {}
+
+Endpoint::Endpoint(const EndpointDesc &endpoint, bool need_host_va_mapping, const EndpointCapabilities &caps)
+    : endpoint_(endpoint), need_host_va_mapping_(need_host_va_mapping), caps_(caps) {}
 
 Status Endpoint::Initialize() {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -238,6 +270,12 @@ Status Endpoint::CreateChannel(const ChannelDesc &channel_desc, ChannelHandle &c
             EndpointToString(endpoint_).c_str(), EndpointToString(channel_desc.remote_endpoint).c_str(),
             static_cast<int32_t>(channel_desc.channel_type), channel_desc.channel_index);
   return SUCCESS;
+}
+
+ChannelPtr Endpoint::GetChannel(ChannelHandle handle) const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  const auto it = channels_.find(handle);
+  return it == channels_.end() ? nullptr : it->second;
 }
 
 Status Endpoint::DestroyChannel(ChannelHandle channel_handle) {

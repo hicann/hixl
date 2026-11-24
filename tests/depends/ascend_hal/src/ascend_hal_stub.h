@@ -19,6 +19,8 @@ extern "C" {
 
 void AscendHalStubSetHostRegisterRet(int32_t ret);
 void AscendHalStubSetHostUnregisterRet(int32_t ret);
+void AscendHalStubSetMemRegUbSegmentRet(int32_t ret);
+void AscendHalStubSetMemUnRegUbSegmentRet(int32_t ret);
 void AscendHalStubReset(void);
 
 #ifdef __cplusplus

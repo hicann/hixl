@@ -20,6 +20,7 @@
 #include "common/ctrl_msg.h"
 #include "common/scope_guard.h"
 #include "common/ctrl_msg_plugin.h"
+#include "securec.h"
 #include "transfer_pool.h"
 #include "common/hixl_inner_types.h"
 
@@ -35,6 +36,7 @@ namespace {
 constexpr uint32_t kDefaultTransferPoolSize = 128U;  // 与 HixlCSClient 侧设备池大小一致
 constexpr int32_t kMaxEventsNum = 128;               // epoll_wait并发处理事件数量，减少epoll系统调用
 constexpr int32_t kEpollWaitTimeInMillis = 100;      // epoll_wait等待超时时间
+constexpr uint32_t kMsPerSecond = 1000U;
 // server端进程级channel索引计数器，用于两端构建一致的channelName
 std::atomic<uint64_t> g_next_server_channel_index{0UL};
 
@@ -120,12 +122,16 @@ std::unique_ptr<hixl::TemporaryRtContext> HixlCSServer::GetContextGuard() const 
       return MakeUnique<hixl::TemporaryRtContext>(ctx);
     }
   }
+  if (dev_flag_context_ != nullptr) {
+    return MakeUnique<hixl::TemporaryRtContext>(dev_flag_context_);
+  }
   return nullptr;  // 不切换 context
 }
 
 Status HixlCSServer::InitTransFinishedFlag() {
   std::vector<EndpointPtr> host_endpoints;
   std::vector<EndpointPtr> device_endpoints;
+  bool needs_transfer_pool = false;
   bool has_non_hccs_device_ep = false;
   for (auto handle : endpoint_store_.GetAllEndpointHandles()) {
     auto endpoint = endpoint_store_.GetEndpoint(handle);
@@ -133,14 +139,15 @@ Status HixlCSServer::InitTransFinishedFlag() {
       continue;
     }
     const auto &desc = endpoint->GetEndpoint();
-    if (desc.loc.locType == ENDPOINT_LOC_TYPE_DEVICE && IsUbMemProtocol(desc.protocol)) {
-      continue;
-    }
-    if (desc.loc.locType == ENDPOINT_LOC_TYPE_HOST) {
+    const TransFlagKind flag_kind = endpoint->Capabilities().builtin_trans_flag;
+    if (flag_kind == TransFlagKind::kHost) {
       host_endpoints.emplace_back(std::move(endpoint));
-    } else if (desc.loc.locType == ENDPOINT_LOC_TYPE_DEVICE) {
-      if (desc.protocol != COMM_PROTOCOL_HCCS) {
-        has_non_hccs_device_ep = true;
+    } else if (flag_kind == TransFlagKind::kDeviceOnly || flag_kind == TransFlagKind::kDeviceWithPool) {
+      if (flag_kind == TransFlagKind::kDeviceWithPool) {
+        needs_transfer_pool = true;
+        if (desc.protocol != COMM_PROTOCOL_HCCS) {
+          has_non_hccs_device_ep = true;
+        }
       }
       device_endpoints.emplace_back(std::move(endpoint));
     }
@@ -149,7 +156,7 @@ Status HixlCSServer::InitTransFinishedFlag() {
     HIXL_CHK_STATUS_RET(RegisterHostTransFinishedFlag(host_endpoints), "Failed to reg HOST trans finished flag");
   }
   if (!device_endpoints.empty()) {
-    HIXL_CHK_STATUS_RET(RegisterDeviceTransFinishedFlag(device_endpoints, has_non_hccs_device_ep),
+    HIXL_CHK_STATUS_RET(RegisterDeviceTransFinishedFlag(device_endpoints, needs_transfer_pool, has_non_hccs_device_ep),
                         "Failed to reg DEVICE trans finished flag");
   }
   return SUCCESS;
@@ -183,7 +190,10 @@ Status HixlCSServer::RegisterHostTransFinishedFlag(const std::vector<EndpointPtr
 }
 
 Status HixlCSServer::RegisterDeviceTransFinishedFlag(const std::vector<EndpointPtr> &device_endpoints,
-                                                     bool resolve_notify_addr) {
+                                                     bool needs_transfer_pool, bool resolve_notify_addr) {
+  if (!needs_transfer_pool) {
+    return RegisterDeviceFlagMemory(device_endpoints);
+  }
   int32_t dev_id = 0;
   HIXL_CHK_ACL_RET(aclrtGetDevice(&dev_id), "Failed to aclrtGetDevice for CS server TransferPool");
   hixl::TemporaryRtContext with_context(nullptr);
@@ -200,26 +210,35 @@ Status HixlCSServer::RegisterDeviceTransFinishedFlag(const std::vector<EndpointP
   if (resolve_notify_addr) {
     HIXL_CHK_STATUS_RET(pool->ResolveNotifyAddr(), "Failed to resolve TransferPool notify address for CS server");
   }
+  HIXL_CHK_STATUS_RET(RegisterDeviceFlagMemory(device_endpoints), "Failed to reg DEVICE trans finished flag");
+  HIXL_DISMISS_GUARD(pool_rollback);
+  device_id_ = dev_id;
+  return SUCCESS;
+}
+
+Status HixlCSServer::RegisterDeviceFlagMemory(const std::vector<EndpointPtr> &endpoints) {
   void *dev_flag = nullptr;
   HIXL_CHK_ACL_RET(
       aclrtMalloc(&dev_flag, sizeof(int64_t),
                   static_cast<aclrtMemMallocPolicy>(ACL_MEM_TYPE_HIGH_BAND_WIDTH | ACL_MEM_MALLOC_HUGE_ONLY)));
-  HIXL_DISMISSABLE_GUARD(dev_flag_guard, ([this, &dev_flag]() { FreeDeviceMem(dev_flag); }));
-  int64_t val = 1;
+  HIXL_DISMISSABLE_GUARD(dev_flag_guard, ([&dev_flag]() { FreeDeviceMem(dev_flag); }));
+  const int64_t val = 1;
   HIXL_CHK_ACL_RET(aclrtMemcpy(dev_flag, sizeof(int64_t), &val, sizeof(int64_t), ACL_MEMCPY_HOST_TO_DEVICE));
   CommMem mem{};
   mem.type = COMM_MEM_TYPE_DEVICE;
   mem.addr = dev_flag;
   mem.size = sizeof(int64_t);
-  for (const auto &endpoint : device_endpoints) {
+  for (const auto &endpoint : endpoints) {
     MemHandle ep_mem_handle = nullptr;
     HIXL_CHK_STATUS_RET(endpoint->RegisterMem(kBuiltinDeviceTransFlagName, mem, ep_mem_handle),
                         "Failed to reg DEVICE trans finished flag");
   }
+  const aclError ctx_ret = aclrtGetCurrentContext(&dev_flag_context_);
+  if (ctx_ret != ACL_SUCCESS) {
+    HIXL_LOGW("[HixlServer] aclrtGetCurrentContext for device flag failed, ret=%d", static_cast<int32_t>(ctx_ret));
+  }
   dev_trans_flag_ = dev_flag;
   HIXL_DISMISS_GUARD(dev_flag_guard);
-  HIXL_DISMISS_GUARD(pool_rollback);
-  device_id_ = dev_id;
   return SUCCESS;
 }
 
@@ -227,15 +246,21 @@ Status HixlCSServer::Initialize(const EndpointDesc *endpoint_list, uint32_t list
   HIXL_CHECK_NOTNULL(endpoint_list);
   HIXL_CHK_BOOL_RET_STATUS(list_num > 0, PARAM_INVALID, "endpoint list num:%u is invalid, must > 0", list_num);
   const bool ub_ctp_endpoints_all_device = AreUbCtpEndpointsAllDevice(endpoint_list, list_num);
-  configurable_transfer_supported_ = IsHcommConfigurableTransferSupported();
   HIXL_DISMISSABLE_GUARD(init_rollback, ([this]() { (void)Finalize(); }));
+  bool all_endpoints_support_configurable_transfer = true;
   for (uint32_t i = 0U; i < list_num; ++i) {
     EndpointHandle handle = nullptr;
     HIXL_CHK_STATUS_RET(endpoint_store_.CreateEndpoint(
                             endpoint_list[i], handle,
                             NeedServerHostVaMapping(endpoint_list[i], ub_ctp_endpoints_all_device), global_config_),
                         "Failed to create endpoint, index:%u, %s", i, EndpointToString(endpoint_list[i]).c_str());
+    const auto ep = endpoint_store_.GetEndpoint(handle);
+    if (ep == nullptr || !ep->Capabilities().supports_configurable_transfer) {
+      all_endpoints_support_configurable_transfer = false;
+    }
   }
+  configurable_transfer_supported_ =
+      all_endpoints_support_configurable_transfer || IsHcommConfigurableTransferSupported();
   HIXL_CHK_STATUS_RET(RegisterMsgProcessors(), "Failed to register server message processors");
   listener_connection_ = MakeShared<CtrlMsgPlugin>();
   HIXL_CHECK_NOTNULL(listener_connection_);
@@ -260,6 +285,12 @@ Status HixlCSServer::RegisterMsgProcessors() {
                               }),
                       "Failed to register processor, msg type:%d",
                       static_cast<int32_t>(CtrlMsgType::kCreateChannelReq));
+  HIXL_CHK_STATUS_RET(RegProc(CtrlMsgType::kChannelHandshakeReq,
+                              [this](const CtrlMsgPluginPtr &connection, const char *msg, uint64_t msg_len) -> Status {
+                                return this->HandleChannelHandshake(connection, msg, msg_len);
+                              }),
+                      "Failed to register processor, msg type:%d",
+                      static_cast<int32_t>(CtrlMsgType::kChannelHandshakeReq));
   HIXL_CHK_STATUS_RET(RegProc(CtrlMsgType::kGetRemoteMemReq,
                               [this](const CtrlMsgPluginPtr &connection, const char *msg, uint64_t msg_len) -> Status {
                                 return this->ExportMem(connection, msg, msg_len);
@@ -288,12 +319,16 @@ Status HixlCSServer::DestroyChannel(const CtrlMsgPluginPtr &connection, const ch
   {
     // 临界区内仅做 find + erase，销毁放到锁外：HcommChannelDestroy 为毫秒级驱动操作，
     // 持锁销毁会在断连风暴下串行化所有客户端的 channel 销毁与建链插入。
-    std::lock_guard<std::mutex> lock(chn_mutex_);
+    std::unique_lock<std::mutex> lock(chn_mutex_);
+    chn_cv_.wait(lock, [this, &connection]() { return channel_handshakes_in_flight_.count(connection) == 0U; });
     auto it = channels_.find(connection);
     if (it != channels_.end()) {
       info = it->second;
       channels_.erase(it);
       found = true;
+    }
+    if (channel_handshake_deadlines_.erase(connection) > 0U) {
+      pending_channel_handshakes_.store(channel_handshake_deadlines_.size(), std::memory_order_release);
     }
   }
   if (!found) {
@@ -350,6 +385,7 @@ Status HixlCSServer::Finalize() {
     }
     FreeDeviceMem(dev_trans_flag_);
   }
+  dev_flag_context_ = nullptr;
   // ctx_guard 已析构，现在可以安全销毁 TransferPool
   if (device_id_ >= 0) {
     auto *pool = TransferPool::GetInstance(device_id_);
@@ -445,6 +481,40 @@ Status HixlCSServer::SendCreateChannelResp(const CtrlMsgPluginPtr &connection, c
   return SUCCESS;
 }
 
+Status HixlCSServer::SendChannelHandshakeResp(const CtrlMsgPluginPtr &connection, Status result, bool done,
+                                              const std::vector<uint8_t> &payload) {
+  HIXL_CHK_BOOL_RET_STATUS(payload.size() <= kMaxChannelHandshakePayloadBytes, PARAM_INVALID,
+                           "ChannelHandshakeResp payload too large, size=%zu", payload.size());
+  ChannelHandshakeHeader handshake_hdr{};
+  handshake_hdr.result = result;
+  handshake_hdr.done = done ? 1U : 0U;
+  handshake_hdr.payload_len = static_cast<uint32_t>(payload.size());
+  CtrlMsgHeader header{};
+  header.magic = kMagicNumber;
+  header.body_size = static_cast<uint64_t>(sizeof(CtrlMsgType) + sizeof(ChannelHandshakeHeader) + payload.size());
+  const CtrlMsgType msg_type = CtrlMsgType::kChannelHandshakeResp;
+  const size_t total_size = sizeof(header) + sizeof(msg_type) + sizeof(handshake_hdr) + payload.size();
+  std::vector<uint8_t> frame(total_size);
+  size_t offset = 0U;
+  HIXL_CHK_BOOL_RET_STATUS(memcpy_s(frame.data() + offset, total_size - offset, &header, sizeof(header)) == EOK, FAILED,
+                           "memcpy_s CtrlMsgHeader failed");
+  offset += sizeof(header);
+  HIXL_CHK_BOOL_RET_STATUS(memcpy_s(frame.data() + offset, total_size - offset, &msg_type, sizeof(msg_type)) == EOK,
+                           FAILED, "memcpy_s CtrlMsgType failed");
+  offset += sizeof(msg_type);
+  HIXL_CHK_BOOL_RET_STATUS(
+      memcpy_s(frame.data() + offset, total_size - offset, &handshake_hdr, sizeof(handshake_hdr)) == EOK, FAILED,
+      "memcpy_s ChannelHandshakeHeader failed");
+  offset += sizeof(handshake_hdr);
+  if (!payload.empty()) {
+    HIXL_CHK_BOOL_RET_STATUS(
+        memcpy_s(frame.data() + offset, total_size - offset, payload.data(), payload.size()) == EOK, FAILED,
+        "memcpy_s ChannelHandshakeResp payload failed");
+  }
+  HIXL_CHK_STATUS_RET(connection->Send(frame.data(), static_cast<uint64_t>(frame.size())));
+  return SUCCESS;
+}
+
 Status HixlCSServer::SendMatchEndpointResp(const CtrlMsgPluginPtr &connection, const MatchEndpointResp &resp) {
   CtrlMsgHeader header{};
   header.magic = kMagicNumber;
@@ -525,16 +595,50 @@ Status HixlCSServer::CreateChannel(const CtrlMsgPluginPtr &connection, const cha
   channel_desc.channel_type = ChannelType::kServer;
   channel_desc.channel_index = req.channel_index;
   channel_desc.qos = req.qos;
-  channel_desc.configurable_transfer_supported = configurable_transfer_supported_;
+  channel_desc.configurable_transfer_supported =
+      ep->Capabilities().supports_configurable_transfer || configurable_transfer_supported_;
+  const bool uses_handshake = ep->Capabilities().uses_channel_handshake;
+  if (uses_handshake) {
+    std::lock_guard<std::mutex> lock(chn_mutex_);
+    HIXL_CHK_BOOL_RET_STATUS(channels_.find(connection) == channels_.end() &&
+                                 channel_handshake_deadlines_.find(connection) == channel_handshake_deadlines_.end(),
+                             ALREADY_CONNECTED,
+                             "Control connection already has a channel or pending handshake, connection:%s",
+                             connection->Desc().c_str());
+    HIXL_CHK_BOOL_RET_STATUS(channel_handshake_deadlines_.size() < kMaxPendingHandshakes, RESOURCE_EXHAUSTED,
+                             "Pending channel handshake limit reached, limit:%zu, connection:%s", kMaxPendingHandshakes,
+                             connection->Desc().c_str());
+    channel_handshake_deadlines_[connection] =
+        std::chrono::steady_clock::now() + std::chrono::seconds(kChannelHandshakeTimeoutSec);
+    pending_channel_handshakes_.store(channel_handshake_deadlines_.size(), std::memory_order_release);
+  }
+  HIXL_DISMISSABLE_GUARD(reserve_guard, ([this, &connection, uses_handshake]() {
+                           if (!uses_handshake) {
+                             return;
+                           }
+                           std::lock_guard<std::mutex> lock(chn_mutex_);
+                           if (channel_handshake_deadlines_.erase(connection) > 0U) {
+                             pending_channel_handshakes_.store(channel_handshake_deadlines_.size(),
+                                                               std::memory_order_release);
+                           }
+                         }));
+  auto ctx_guard = GetContextGuard();
+  (void)ctx_guard;
   HIXL_CHK_STATUS_RET(ep->CreateChannel(channel_desc, channel_handle, req.timeout_ms), "Failed to create channel");
-  if (!TrackChannelIfConnected(connection, ep, channel_handle)) {
-    // client 已断开：不回响应（fd 已关，复用后污染新连接），锁外销毁刚建的 channel。
-    HIXL_DISMISS_GUARD(failed);
-    HIXL_LOGE(FAILED, "client connection:%s disconnected during channel creation, discard channel:%lu",
-              connection->Desc().c_str(), channel_handle);
+  const TrackChannelResult tracked = TrackChannelIfConnected(connection, ep, channel_handle);
+  if (tracked != TrackChannelResult::kTracked) {
+    // 仅在 client 已断开时跳过错误回包；若活跃连接因重复或超限被拒，保留 failed guard 向对端回错。
+    if (tracked == TrackChannelResult::kDisconnected) {
+      HIXL_DISMISS_GUARD(failed);
+    }
+    HIXL_LOGE(
+        FAILED,
+        "client connection:%s disconnected or rejected during channel creation, reason=%u, discard channel:%" PRIu64,
+        connection->Desc().c_str(), static_cast<uint32_t>(tracked), channel_handle);
     HIXL_CHK_STATUS_RET(ep->DestroyChannel(channel_handle), "Failed to destroy channel after client disconnect");
     return FAILED;
   }
+  HIXL_DISMISS_GUARD(reserve_guard);
   HIXL_DISMISS_GUARD(failed);
   CreateChannelResp resp{};
   resp.result = SUCCESS;
@@ -543,17 +647,105 @@ Status HixlCSServer::CreateChannel(const CtrlMsgPluginPtr &connection, const cha
   return SUCCESS;
 }
 
-bool HixlCSServer::TrackChannelIfConnected(const CtrlMsgPluginPtr &connection, const EndpointPtr &endpoint,
-                                           ChannelHandle channel) {
+Status HixlCSServer::HandleChannelHandshake(const CtrlMsgPluginPtr &connection, const char *msg, uint64_t msg_len) {
+  std::vector<uint8_t> out_payload;
+  bool done = false;
+  bool concurrent_in_flight = false;
+
+  auto run = [&]() -> Status {
+    HIXL_CHECK_NOTNULL(msg);
+    HIXL_CHK_BOOL_RET_STATUS(msg_len >= sizeof(ChannelHandshakeHeader), PARAM_INVALID,
+                             "ChannelHandshakeReq too short, msg_len=%" PRIu64, msg_len);
+    ChannelHandshakeHeader hdr{};
+    const errno_t rc = memcpy_s(&hdr, sizeof(hdr), msg, sizeof(hdr));
+    HIXL_CHK_BOOL_RET_STATUS(rc == EOK, FAILED, "memcpy_s ChannelHandshakeHeader failed, rc=%d",
+                             static_cast<int32_t>(rc));
+    HIXL_CHK_BOOL_RET_STATUS(hdr.payload_len <= kMaxChannelHandshakePayloadBytes &&
+                                 sizeof(ChannelHandshakeHeader) + static_cast<uint64_t>(hdr.payload_len) == msg_len,
+                             PARAM_INVALID, "ChannelHandshakeReq payload_len mismatch, header=%u, msg_len=%" PRIu64,
+                             hdr.payload_len, msg_len);
+    const auto *payload_begin = reinterpret_cast<const uint8_t *>(msg + sizeof(hdr));
+    const std::vector<uint8_t> in_payload(payload_begin, payload_begin + hdr.payload_len);
+
+    EndpointHandle ep_handle = nullptr;
+    ChannelHandle channel_handle = 0UL;
+    {
+      std::lock_guard<std::mutex> lock(chn_mutex_);
+      if (channel_handshakes_in_flight_.count(connection) != 0U) {
+        concurrent_in_flight = true;
+        HIXL_LOGE(ALREADY_CONNECTED, "Control connection already advancing a channel handshake");
+        return ALREADY_CONNECTED;
+      }
+      const auto chn_it = channels_.find(connection);
+      HIXL_CHK_BOOL_RET_STATUS(chn_it != channels_.end(), PARAM_INVALID,
+                               "ChannelHandshakeReq received before CreateChannel");
+      HIXL_CHK_BOOL_RET_STATUS(channel_handshake_deadlines_.count(connection) != 0U, PARAM_INVALID,
+                               "Control connection has no active channel handshake");
+      ep_handle = chn_it->second.endpoint_handle;
+      channel_handle = chn_it->second.channel_handle;
+      channel_handshakes_in_flight_.insert(connection);
+    }
+    ScopeGuard in_flight_guard([this, &connection]() {
+      {
+        std::lock_guard<std::mutex> lock(chn_mutex_);
+        channel_handshakes_in_flight_.erase(connection);
+      }
+      chn_cv_.notify_all();
+    });
+
+    const auto ep = endpoint_store_.GetEndpoint(ep_handle);
+    HIXL_CHK_BOOL_RET_STATUS(ep != nullptr && ep->Capabilities().uses_channel_handshake, PARAM_INVALID,
+                             "ChannelHandshakeReq targets an invalid endpoint");
+    const auto channel = ep->GetChannel(channel_handle);
+    HIXL_CHECK_NOTNULL(channel);
+    auto ctx_guard = GetContextGuard();
+    (void)ctx_guard;
+    HIXL_CHK_STATUS_RET(channel->StepServerHandshake(in_payload, out_payload, done));
+    if (done) {
+      std::lock_guard<std::mutex> lock(chn_mutex_);
+      if (channel_handshake_deadlines_.erase(connection) > 0U) {
+        pending_channel_handshakes_.store(channel_handshake_deadlines_.size(), std::memory_order_release);
+      }
+    }
+    return SUCCESS;
+  };
+
+  const Status result = run();
+  if (concurrent_in_flight) {
+    // 另一个 worker 正在同连接上推进握手，避免并发 Send 导致帧交错，直接清理连接。
+    CleanupClient(connection);
+    return result;
+  }
+  const std::vector<uint8_t> empty_payload;
+  const Status sent = SendChannelHandshakeResp(connection, result, result == SUCCESS && done,
+                                               result == SUCCESS ? out_payload : empty_payload);
+  if (result != SUCCESS || sent != SUCCESS) {
+    CleanupClient(connection);
+  }
+  return sent == SUCCESS ? result : sent;
+}
+
+HixlCSServer::TrackChannelResult HixlCSServer::TrackChannelIfConnected(const CtrlMsgPluginPtr &connection,
+                                                                       const EndpointPtr &endpoint,
+                                                                       ChannelHandle channel) {
   // Serialize insertion with disconnect removal; lock order: client_mutex_ -> chn_mutex_.
   std::lock_guard<std::mutex> client_lock(client_mutex_);
   const auto it = clients_.find(connection->Fd());
   if (it == clients_.end() || it->second->Connection() != connection) {
-    return false;
+    return TrackChannelResult::kDisconnected;
   }
   std::lock_guard<std::mutex> chn_lock(chn_mutex_);
+  if (endpoint->Capabilities().uses_channel_handshake) {
+    if (channels_.find(connection) != channels_.end() ||
+        channel_handshake_deadlines_.find(connection) == channel_handshake_deadlines_.end()) {
+      return TrackChannelResult::kRejected;
+    }
+    channel_handshake_deadlines_[connection] =
+        std::chrono::steady_clock::now() + std::chrono::seconds(kChannelHandshakeTimeoutSec);
+    pending_channel_handshakes_.store(channel_handshake_deadlines_.size(), std::memory_order_release);
+  }
   channels_[connection] = {endpoint->GetHandle(), channel};
-  return true;
+  return TrackChannelResult::kTracked;
 }
 
 static inline void to_json(nlohmann::json &j, const HixlMemDesc &m) {
@@ -716,7 +908,11 @@ void HixlCSServer::CloseAllClients() {
   {
     std::lock_guard<std::mutex> lock(chn_mutex_);
     channels_.clear();
+    channel_handshake_deadlines_.clear();
+    channel_handshakes_in_flight_.clear();
+    pending_channel_handshakes_.store(0U, std::memory_order_release);
   }
+  chn_cv_.notify_all();
   HIXL_EVENT("[HixlServer] closed remaining client sockets, count:%zu", clients.size() + disconnected.size());
 }
 
@@ -822,6 +1018,27 @@ void HixlCSServer::ExpireHandshakes() {
               CtrlMsgPlugin::kServerHandshakeTimeoutMs);
     CloseClientSocket(it->second.connection);
     it = pending_handshakes_.erase(it);
+  }
+  if (pending_channel_handshakes_.load(std::memory_order_acquire) == 0U) {
+    return;
+  }
+  std::vector<CtrlMsgPluginPtr> expired_channels;
+  {
+    std::lock_guard<std::mutex> lock(chn_mutex_);
+    for (auto it = channel_handshake_deadlines_.begin(); it != channel_handshake_deadlines_.end();) {
+      if (it->second > now || channel_handshakes_in_flight_.count(it->first) != 0U) {
+        ++it;
+        continue;
+      }
+      expired_channels.push_back(it->first);
+      it = channel_handshake_deadlines_.erase(it);
+    }
+    pending_channel_handshakes_.store(channel_handshake_deadlines_.size(), std::memory_order_release);
+  }
+  for (const auto &connection : expired_channels) {
+    HIXL_LOGW("[HixlServer] Incomplete channel handshake timed out, timeout=%u ms",
+              kChannelHandshakeTimeoutSec * kMsPerSecond);
+    CleanupClient(connection);
   }
 }
 

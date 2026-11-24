@@ -206,6 +206,9 @@ options = {
 | comm_resource_config.listen_port | JSON数字或纯数字字符串 | 可选 | device侧网卡监听端口，详见 [listen_port](#grc_listen_port)。 |
 | comm_resource_config.qos | 数字 | 可选 | 通信协议qos，详见 [qos](#grc_qos)。 |
 | comm_resource_config.max_active_channels | 数字 | 可选 | CS场景下设备侧同时活跃传输通道数量，详见 [max_active_channels](#grc_max_active_channels)。 |
+| roce_config.hixl_backend | 布尔 | 可选 | 控制`roce:host`是否使用HIXL原生verbs路径，默认false，详见 [hixl_backend](#grc_hixl_backend)。 |
+| roce_config.retry_cnt | 数字或十进制数字字符串 | 可选 | RDMA重传次数上限，范围[1, 7]，默认7，优先级高于环境变量`HCCL_RDMA_RETRY_CNT`，详见 [roce](#grc_roce)。 |
+| roce_config.timeout | 数字或十进制数字字符串 | 可选 | RDMA重传超时指数，范围[5, 20]，默认20，优先级高于环境变量`HCCL_RDMA_TIMEOUT`，详见 [roce](#grc_roce)。 |
 | comm_resource_config.multi_channel.num_workers | 数字 | 可选 | 多通道并发传输的worker数，详见 [multi_channel](#grc_multi_channel)。 |
 | comm_resource_config.multi_channel.split_batch_size | 数字 | 可选 | 多通道并发传输的buffer拆分粒度，详见 [multi_channel](#grc_multi_channel)。 |
 | comm_resource_config.nic_topo_path | 字符串 | 可选 | 指定Host RoCE网卡与device设备的亲和关系，详见[nic_topo_path](#grc_nic_topo_path)。 |
@@ -310,6 +313,39 @@ options = {
 <a id="grc_max_active_channels"></a>
 
 - **max_active_channels**：CS场景下配置设备侧同时活跃传输通道数量，取值范围[1, 8192]，未配置时默认值为128。每个active channel消耗2个Stream资源，配置值需结合当前卡形态的Stream资源上限及业务中已创建的Stream数量预留余量；不同卡形态的Stream资源上限参见《[Runtime运行时API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的aclrtCreateStream。超出[1, 8192]时initialize返回参数错误。
+
+<a id="grc_hixl_backend"></a>
+
+- **roce_config.hixl_backend**：控制Host RoCE（`roce:host`）通信路径是否使用HIXL原生RDMA verbs实现。
+  - 取值：布尔值（`true`或`false`），未配置时默认为`false`。传入非布尔类型时初始化返回`PARAM_INVALID`。
+  - 生效范围：仅对`roce:host`端点生效；设为`false`时沿用原有HCOMM实现，设为`true`时由HIXL直接调用RDMA verbs执行建链与单边传输。其他协议（如`roce:device`、`hccs:device`、`ub_ctp`、`ubmem`）不受本字段影响。
+  - 建链约束：通信两端（服务端与客户端）的该配置须保持一致，且两端端点均为`roce:host`；配置不一致或对端非`roce:host`时，建链或客户端创建将返回失败。
+
+使用示例：
+
+```json
+{
+    "comm_resource_config.protocol_desc": ["roce:host"],
+    "roce_config.hixl_backend": true
+}
+```
+
+<a id="grc_roce"></a>
+
+- **roce_config.retry_cnt / roce_config.timeout**：RoCE RDMA重传配置。
+  - `retry_cnt`：取值范围[1, 7]，默认7。配置RDMA RC QP硬重传次数上限（对应`ibv_qp_attr.retry_cnt`）；显式配置时优先级高于环境变量`HCCL_RDMA_RETRY_CNT`，未配置时回退读取`HCCL_RDMA_RETRY_CNT`（仍未设置则使用默认值7）。
+  - `timeout`：取值范围[5, 20]，默认20。配置RDMA RC QP ACK超时指数（对应`ibv_qp_attr.timeout`，单次ACK超时约为 $4.096\ \mu\text{s} \times 2^{\text{timeout}}$）；显式配置时优先级高于环境变量`HCCL_RDMA_TIMEOUT`，未配置时回退读取`HCCL_RDMA_TIMEOUT`（仍未设置则使用默认值20）。
+
+使用示例：
+
+```json
+{
+    "comm_resource_config.protocol_desc": ["roce:host"],
+    "roce_config.hixl_backend": true,
+    "roce_config.retry_cnt": 7,
+    "roce_config.timeout": 20
+}
+```
 
 <a id="grc_multi_channel"></a>
 

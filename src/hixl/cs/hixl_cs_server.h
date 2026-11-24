@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -59,14 +60,22 @@ class HixlCSServer {
     CtrlMsgPluginPtr connection;
     std::chrono::steady_clock::time_point deadline;
   };
+  enum class TrackChannelResult : uint8_t {
+    kTracked = 0,
+    kDisconnected,
+    kRejected,
+  };
   static constexpr size_t kMaxPendingHandshakes = 128U;
+  static constexpr uint32_t kChannelHandshakeTimeoutSec = 30U;
 
   template <typename T>
   static Status Serialize(const T &msg, std::string &msg_str);
   Status RegisterMsgProcessors();
   Status MatchEndpointMsg(const CtrlMsgPluginPtr &connection, const char *msg, uint64_t msg_len) const;
   Status CreateChannel(const CtrlMsgPluginPtr &connection, const char *msg, uint64_t msg_len);
-  bool TrackChannelIfConnected(const CtrlMsgPluginPtr &connection, const EndpointPtr &endpoint, ChannelHandle channel);
+  Status HandleChannelHandshake(const CtrlMsgPluginPtr &connection, const char *msg, uint64_t msg_len);
+  TrackChannelResult TrackChannelIfConnected(const CtrlMsgPluginPtr &connection, const EndpointPtr &endpoint,
+                                             ChannelHandle channel);
   Status DestroyChannel(const CtrlMsgPluginPtr &connection, const char *msg, uint64_t msg_len);
   Status ExportMem(const CtrlMsgPluginPtr &connection, const char *msg, uint64_t msg_len) const;
   Status DoWait();
@@ -79,8 +88,12 @@ class HixlCSServer {
   bool ProcessPendingMsg();
   Status InitTransFinishedFlag();
   Status RegisterHostTransFinishedFlag(const std::vector<EndpointPtr> &host_endpoints);
-  Status RegisterDeviceTransFinishedFlag(const std::vector<EndpointPtr> &device_endpoints, bool resolve_notify_addr);
+  Status RegisterDeviceFlagMemory(const std::vector<EndpointPtr> &endpoints);
+  Status RegisterDeviceTransFinishedFlag(const std::vector<EndpointPtr> &device_endpoints, bool needs_transfer_pool,
+                                         bool resolve_notify_addr);
   static Status SendCreateChannelResp(const CtrlMsgPluginPtr &connection, const CreateChannelResp &resp);
+  static Status SendChannelHandshakeResp(const CtrlMsgPluginPtr &connection, Status result, bool done,
+                                         const std::vector<uint8_t> &payload);
   static Status SendMatchEndpointResp(const CtrlMsgPluginPtr &connection, const MatchEndpointResp &resp);
   static Status SendRemoteMemResp(const CtrlMsgPluginPtr &connection, const GetRemoteMemResp &resp);
   static void FreeDeviceMem(void *&ptr);
@@ -108,7 +121,11 @@ class HixlCSServer {
   std::map<MemHandle, std::vector<EndpointMemInfo>> reg_mems_;
 
   std::mutex chn_mutex_;
+  std::condition_variable chn_cv_;
   std::map<CtrlMsgPluginPtr, EndpointChannelInfo> channels_;
+  std::map<CtrlMsgPluginPtr, std::chrono::steady_clock::time_point> channel_handshake_deadlines_;
+  std::set<CtrlMsgPluginPtr> channel_handshakes_in_flight_;
+  std::atomic<size_t> pending_channel_handshakes_{0U};
 
   MsgHandler msg_handler_;
   EndpointStore endpoint_store_;
@@ -118,6 +135,7 @@ class HixlCSServer {
   void *host_trans_flag_ = nullptr;  // Host 侧 Flag 内存指针
 
   void *dev_trans_flag_ = nullptr;  // Device 侧 Flag 内存指针
+  aclrtContext dev_flag_context_ = nullptr;
 
   int32_t device_id_{-1};  // has_device_ep 时初始化 TransferPool，Finalize 时释放
   // Protected by client_mutex_; retained until cleanup runs or Finalize closes the connection.

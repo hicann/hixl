@@ -99,6 +99,15 @@ constexpr uint8_t kQosMin = 0U;
 constexpr uint8_t kQosMax = 7U;
 constexpr uint8_t kQosUnset = 0xFFU;
 
+constexpr const char *kRoceHixlBackendName = "roce_config.hixl_backend";
+constexpr const char *kRoceRetryCntName = "roce_config.retry_cnt";
+constexpr uint32_t kRoceRetryCntMin = 1U;
+constexpr uint32_t kRoceRetryCntMax = 7U;
+
+constexpr const char *kRoceTimeoutName = "roce_config.timeout";
+constexpr uint32_t kRoceTimeoutMin = 5U;
+constexpr uint32_t kRoceTimeoutMax = 20U;
+
 struct AddrInfo {
   uintptr_t start_addr{0};
   uintptr_t end_addr{0};
