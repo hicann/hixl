@@ -60,6 +60,8 @@ class GlobalConfig {
   std::optional<size_t> UbMemMaxCapacity() const;
   std::optional<size_t> UbMemStartAddress() const;
   const TlsConfig &TlsCfg() const;
+  // Clears the private key copy once TlsManager has taken ownership of the TLS context.
+  void WipeTlsKey();
 
  private:
   CommResourceConfig comm_resource_config_;

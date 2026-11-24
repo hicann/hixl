@@ -32,9 +32,6 @@ class TlsContext {
 
   static Status CreateSession(const std::shared_ptr<TlsContext> &context, int32_t fd, bool is_server,
                               std::shared_ptr<TlsSession> &session);
-  const TlsConfig &Config() const {
-    return config_;
-  }
 
  private:
   TlsContext() = default;

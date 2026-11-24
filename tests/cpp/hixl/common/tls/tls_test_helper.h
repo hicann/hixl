@@ -12,6 +12,8 @@
 #define CANN_HIXL_TESTS_CPP_HIXL_COMMON_TLS_TLS_TEST_HELPER_H_
 
 #include <cstdlib>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <unistd.h>
 #include <vector>
@@ -44,15 +46,44 @@ inline bool GenerateSelfSignedCert(const std::string &dir, const std::string &ce
   return RunOpenssl(cmd);
 }
 
-inline TlsConfig MakeTlsConfig(const std::string &dir, bool verify_peer = false, bool refresh = false) {
+inline std::string ReadFileToString(const std::string &path) {
+  std::ifstream input(path, std::ios::binary);
+  if (!input.is_open()) {
+    return "";
+  }
+  return std::string((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+}
+
+inline TlsConfig MakeTlsConfigFromFiles(const std::string &dir, const std::string &cert_name,
+                                        const std::string &key_name) {
   TlsConfig cfg;
   cfg.configured = true;
-  cfg.cert_file = dir + "/cert.pem";
-  cfg.key_file = dir + "/key.pem";
-  cfg.ca_file = verify_peer ? dir + "/cert.pem" : "";
-  cfg.verify_peer = verify_peer;
-  cfg.enable_cert_refresh = refresh;
+  cfg.cert_file = dir + "/" + cert_name;
+  cfg.ca_file = cfg.cert_file;
+  cfg.key_pem = ReadFileToString(dir + "/" + key_name);
   return cfg;
+}
+
+inline TlsConfig MakeTlsConfig(const std::string &dir) {
+  return MakeTlsConfigFromFiles(dir, "cert.pem", "key.pem");
+}
+
+inline bool GeneratePkcs1Cert(const std::string &dir) {
+  const std::string cert = dir + "/cert_pkcs1.pem";
+  const std::string key = dir + "/key_pkcs1.pem";
+  const std::string cmd = "openssl genrsa -traditional -out " + key +
+                          " 2048 >/dev/null 2>&1 && openssl req -new -x509 -key " + key + " -out " + cert +
+                          " -days 1 -subj /CN=localhost >/dev/null 2>&1";
+  return RunOpenssl(cmd);
+}
+
+inline bool GenerateEcCert(const std::string &dir) {
+  const std::string cert = dir + "/cert_ec.pem";
+  const std::string key = dir + "/key_ec.pem";
+  const std::string cmd = "openssl ecparam -name prime256v1 -genkey -noout -out " + key +
+                          " >/dev/null 2>&1 && openssl req -new -x509 -key " + key + " -out " + cert +
+                          " -days 1 -subj /CN=localhost >/dev/null 2>&1";
+  return RunOpenssl(cmd);
 }
 
 inline void RemovePath(const std::string &path) {

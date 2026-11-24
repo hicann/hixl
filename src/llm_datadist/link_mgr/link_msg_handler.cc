@@ -33,9 +33,13 @@ ge::Status ParseControlTlsConfig(const std::string &text, hixl::TlsConfig &confi
     const auto status = hixl::ParseTlsConfig(nlohmann::json::parse(text), config);
     LLM_CHK_BOOL_RET_STATUS(status == hixl::SUCCESS, ge::LLM_PARAM_INVALID,
                             "Failed to parse TLS configuration, hixl_status:%u", status);
+  } catch (const nlohmann::json::parse_error &error) {
+    LLM_CHK_BOOL_RET_STATUS(false, ge::LLM_PARAM_INVALID,
+                            "Failed to parse global resource configuration, parse_error_id:%d, byte:%zu", error.id,
+                            error.byte);
   } catch (const nlohmann::json::exception &error) {
-    LLM_CHK_BOOL_RET_STATUS(false, ge::LLM_PARAM_INVALID, "Failed to parse global resource configuration, error:%s",
-                            error.what());
+    LLM_CHK_BOOL_RET_STATUS(false, ge::LLM_PARAM_INVALID, "Failed to parse global resource configuration, error_id:%d",
+                            error.id);
   }
   return ge::SUCCESS;
 }
@@ -206,6 +210,7 @@ ge::Status LinkMsgHandler::Initialize(const std::map<ge::AscendString, ge::Ascen
 ge::Status LinkMsgHandler::InitializeControlListener(const std::map<ge::AscendString, ge::AscendString> &options) {
   LLM_CHK_BOOL_RET_STATUS(!tls_initialized_, ge::FAILED, "TLS is already initialized");
   tls_config_ = hixl::TlsConfig{};
+  LLM_MAKE_GUARD(wipe_tls_key, ([this]() { tls_config_.WipeKey(); }));
   const auto config_it = options.find(llm_datadist::OPTION_GLOBAL_RESOURCE_CONFIG);
   if (config_it != options.end()) {
     LLM_CHK_STATUS_RET(ParseControlTlsConfig(config_it->second.GetString(), tls_config_),
@@ -268,7 +273,7 @@ ge::Status LinkMsgHandler::RecvMsg(const hixl::CtrlMsgPluginPtr &connection, Lin
 ge::Status LinkMsgHandler::GetPeerCertFingerprint(const hixl::CtrlMsgPluginPtr &connection,
                                                   std::string &fingerprint) const {
   fingerprint.clear();
-  if (!tls_config_.Enabled() || !tls_config_.verify_peer) {
+  if (!tls_config_.Enabled()) {
     return ge::SUCCESS;
   }
   const auto ret = connection->GetPeerCertificateFingerprint(fingerprint);

@@ -75,8 +75,14 @@ Status LoadJsonConfig(const std::string &json_string, std::map<AscendString, Asc
       options[AscendString(key.c_str())] = AscendString(value.c_str());
     }
     return SUCCESS;
+  } catch (const nlohmann::json::parse_error &e) {
+    LLMLOGE(PARAM_INVALID, "Failed to parse JSON config string, parse_error_id:%d, byte:%zu", e.id, e.byte);
+    return PARAM_INVALID;
+  } catch (const nlohmann::json::exception &e) {
+    LLMLOGE(PARAM_INVALID, "Failed to parse JSON config string, error_id:%d", e.id);
+    return PARAM_INVALID;
   } catch (const std::exception &e) {
-    LLMLOGE(PARAM_INVALID, "Failed to parse JSON config string: %s", e.what());
+    LLMLOGE(PARAM_INVALID, "Failed to parse JSON config string, error:%s", e.what());
     return PARAM_INVALID;
   }
 }

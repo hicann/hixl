@@ -400,27 +400,38 @@ void AppendFabricMemoryJson(nlohmann::json &json, const UbMemoryConfig &cfg) {
   }
 }
 
-void AppendTlsConfigJson(nlohmann::json &json, const TlsConfig &config) {
-  if (!config.Enabled()) {
-    return;
-  }
-  json["tls_config.cert_file"] = config.cert_file;
-  json["tls_config.key_file"] = config.key_file;
-  json["tls_config.ca_file"] = config.ca_file;
-  json["tls_config.ciphers"] = config.ciphers;
-  json["tls_config.verify_peer"] = config.verify_peer;
-  json["tls_config.enable_cert_refresh"] = config.enable_cert_refresh;
-}
-
 std::string DumpGlobalResourceConfig(const nlohmann::json &json) {
   return json.empty() ? std::string() : json.dump();
 }
+
+std::string RedactOptionValue(const char *key, const char *value) {
+  if (value == nullptr) {
+    return std::string();
+  }
+  if (key == nullptr || std::strcmp(key, OPTION_GLOBAL_RESOURCE_CONFIG) != 0) {
+    return std::string(value);
+  }
+  try {
+    auto json = nlohmann::json::parse(value);
+    if (json.contains("tls_config.key_pem")) {
+      json["tls_config.key_pem"] = "<redacted>";
+    }
+    return json.dump();
+  } catch (const nlohmann::json::exception &) {
+    return "<redacted>";
+  }
+}
 }  // namespace
+
+HixlOptions::~HixlOptions() {
+  WipeTlsKey();
+}
 
 Status HixlOptions::Parse(const std::map<AscendString, AscendString> &options, HixlOptions &result) {
   HIXL_LOGI("Start parsing options, total options count: %zu", options.size());
   for (const auto &pair : options) {
-    HIXL_LOGI("  option key: \"%s\", value: \"%s\"", pair.first.GetString(), pair.second.GetString());
+    const std::string redacted = RedactOptionValue(pair.first.GetString(), pair.second.GetString());
+    HIXL_LOGI("  option key: \"%s\", value: \"%s\"", pair.first.GetString(), redacted.c_str());
   }
   result.raw_options_ = options;
   for (const auto &pair : options) {
@@ -621,11 +632,29 @@ Status HixlOptions::ParseGlobalResourceConfig(const std::string &config_str) {
     GlobalResourceConfig cfg{};
     HIXL_CHK_STATUS_RET(ParseGlobalResourceConfigJson(json, cfg), "Parse GlobalResourceConfig failed.");
     global_resource_config_ = std::move(cfg);
+    if (json.contains("tls_config.key_pem")) {
+      json.erase("tls_config.key_pem");
+    }
+    const auto raw_it = raw_options_.find(hixl::OPTION_GLOBAL_RESOURCE_CONFIG);
+    if (raw_it != raw_options_.end()) {
+      const std::string sanitized = json.dump();
+      raw_it->second = AscendString(sanitized.c_str());
+    }
     return SUCCESS;
+  } catch (const nlohmann::json::parse_error &e) {
+    HIXL_LOGE(PARAM_INVALID, "Failed to parse GlobalResourceConfig json, parse_error_id:%d, byte:%zu", e.id, e.byte);
+    return PARAM_INVALID;
   } catch (const nlohmann::json::exception &e) {
-    HIXL_LOGE(PARAM_INVALID, "Failed to parse GlobalResourceConfig json, exception:%s", e.what());
+    HIXL_LOGE(PARAM_INVALID, "Failed to parse GlobalResourceConfig json, error_id:%d", e.id);
     return PARAM_INVALID;
   }
+}
+
+void HixlOptions::WipeTlsKey() {
+  if (global_resource_config_.has_value()) {
+    global_resource_config_->tls_config.WipeKey();
+  }
+  raw_options_.erase(hixl::OPTION_GLOBAL_RESOURCE_CONFIG);
 }
 
 Status HixlOptions::ParseGlobalResourceConfig(const std::map<AscendString, AscendString> &options) {
@@ -690,7 +719,6 @@ std::string SerializeGlobalResourceConfigForServer(const GlobalResourceConfig &c
     json[kGlobalResCfgRoceTimeout] = comm.roce_timeout.value();
   }
   AppendFabricMemoryJson(json, config.fabric_memory);
-  AppendTlsConfigJson(json, config.tls_config);
   return DumpGlobalResourceConfig(json);
 }
 
@@ -716,7 +744,6 @@ std::string SerializeGlobalResourceConfigForClient(const GlobalResourceConfig &c
     json[kGlobalResCfgRoceTimeout] = comm.roce_timeout.value();
   }
   AppendFabricMemoryJson(json, config.fabric_memory);
-  AppendTlsConfigJson(json, config.tls_config);
   if (config.transfer_config.max_transfer_count_per_batch_configured) {
     json[kGlobalResCfgTransferCount] = config.transfer_config.max_transfer_count_per_batch;
   }

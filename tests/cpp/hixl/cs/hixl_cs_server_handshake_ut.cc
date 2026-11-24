@@ -39,13 +39,12 @@ class HixlCSServerHandshakeUt : public ::testing::Test {
     dir_ = test::MakeTempDir();
     ASSERT_FALSE(dir_.empty());
     ASSERT_TRUE(test::GenerateSelfSignedCert(dir_));
-    config_ = test::MakeTlsConfig(dir_, true);
+    config_ = test::MakeTlsConfig(dir_);
     ASSERT_EQ(TlsManager::GetInstance().Initialize(config_), SUCCESS);
     manager_initialized_ = true;
     const nlohmann::json json{{"tls_config.cert_file", config_.cert_file},
-                              {"tls_config.key_file", config_.key_file},
                               {"tls_config.ca_file", config_.ca_file},
-                              {"tls_config.verify_peer", true}};
+                              {"tls_config.key_pem", config_.key_pem}};
     GlobalConfig global;
     ASSERT_EQ(GlobalConfig::Parse(json.dump().c_str(), global), SUCCESS);
     server_ = std::make_unique<HixlCSServer>("127.0.0.1", 0, global);

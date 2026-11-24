@@ -17,7 +17,6 @@ set(HIXL_TEST_FILES
         common/tls/tls_context_ut.cc
         common/tls/tls_session_ut.cc
         common/tls/tls_manager_ut.cc
-        common/tls/tls_cert_watcher_ut.cc
         proxy/hccp_proxy_ut.cc
         proxy/dcmi_proxy_ut.cc
         common/segment_ut.cc

@@ -59,7 +59,7 @@ class TlsCtrlMsgPluginUt : public ::testing::Test {
     const auto dir = test::MakeTempDir();
     dirs_.push_back(dir);
     EXPECT_TRUE(test::GenerateSelfSignedCert(dir));
-    return test::MakeTlsConfig(dir, true);
+    return test::MakeTlsConfig(dir);
   }
   uint16_t ListenPort(const CtrlMsgPluginPtr &listener_connection) {
     sockaddr_in addr{};
@@ -323,28 +323,6 @@ TEST_F(TlsCtrlMsgPluginUt, ConflictingConfigurationDoesNotAffectActiveConnection
   ASSERT_EQ(InitializeManager({}), SUCCESS);
   ASSERT_EQ(conflict.Initialize(), SUCCESS);
   EXPECT_EQ(conflict.Listen("127.0.0.1", 0, 1), SUCCESS);
-}
-
-TEST_F(TlsCtrlMsgPluginUt, ReloadPreservesExistingConnectionsAndServesNewConnections) {
-  auto config = MakeConfig();
-  config.enable_cert_refresh = true;
-  CtrlMsgPluginPtr old_server, old_client, new_server, new_client;
-  ASSERT_EQ(ConnectPair(config, old_server, old_client), SUCCESS);
-  std::weak_ptr<TlsContext> old_context = TlsManager::GetInstance().GetContext();
-  ASSERT_TRUE(test::GenerateSelfSignedCert(dirs_.back()));
-  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-  while (TlsManager::GetInstance().GetContext() == old_context.lock() && std::chrono::steady_clock::now() < deadline) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
-  }
-  ASSERT_NE(TlsManager::GetInstance().GetContext(), old_context.lock());
-  ASSERT_FALSE(old_context.expired());
-  ASSERT_EQ(ConnectPair(config, new_server, new_client), SUCCESS);
-  Exchange(old_server, old_client);
-  Exchange(new_server, new_client);
-  ASSERT_EQ(old_client->Close(), SUCCESS);
-  ASSERT_EQ(old_server->Close(), SUCCESS);
-  EXPECT_TRUE(old_context.expired());
-  Exchange(new_server, new_client);
 }
 
 TEST_F(TlsCtrlMsgPluginUt, TlsPluginRequiresOwnerInitializationAndNeverInitializesManager) {

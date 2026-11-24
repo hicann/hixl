@@ -461,22 +461,20 @@ TEST_F(HixlEngineTest, InitializeWithoutListenPortDoesNotSetServerListenPort) {
   engine.Finalize();
 }
 
-TEST_F(HixlEngineTest, CsSerializationPreservesAllTlsFields) {
+TEST_F(HixlEngineTest, CsSerializationOmitsTlsCredentials) {
   GlobalResourceConfig config{};
-  config.tls_config = TlsConfig{true, "/cert.pem", "/key.pem", "/ca.pem", "HIGH", true, true};
+  config.tls_config.configured = true;
+  config.tls_config.cert_file = "/cert.pem";
+  config.tls_config.ca_file = "/ca.pem";
+  config.tls_config.ciphers = "HIGH";
+  config.tls_config.key_pem = std::string("-----BEGIN PRIVATE") + " KEY-----\nMIIB\n-----END PRIVATE" + " KEY-----\n";
   const std::vector<std::string> serialized{SerializeGlobalResourceConfigForServer(config),
                                             SerializeGlobalResourceConfigForClient(config, {}, {})};
   for (const auto &text : serialized) {
+    EXPECT_EQ(text.find("tls_config."), std::string::npos);
     GlobalConfig parsed;
     ASSERT_EQ(GlobalConfig::Parse(text.c_str(), parsed), SUCCESS);
-    const auto &tls = parsed.TlsCfg();
-    EXPECT_TRUE(tls.Enabled());
-    EXPECT_EQ(tls.cert_file, config.tls_config.cert_file);
-    EXPECT_EQ(tls.key_file, config.tls_config.key_file);
-    EXPECT_EQ(tls.ca_file, config.tls_config.ca_file);
-    EXPECT_EQ(tls.ciphers, config.tls_config.ciphers);
-    EXPECT_TRUE(tls.verify_peer);
-    EXPECT_TRUE(tls.enable_cert_refresh);
+    EXPECT_FALSE(parsed.TlsCfg().Enabled());
   }
 }
 
@@ -489,10 +487,10 @@ TEST_F(HixlEngineTest, SharedTlsConfigurationReachesServerAndClient) {
                   }));
   ASSERT_FALSE(dir.empty());
   ASSERT_TRUE(test::GenerateSelfSignedCert(dir));
-  const nlohmann::json config{{"tls_config.cert_file", dir + "/cert.pem"},
-                              {"tls_config.key_file", dir + "/key.pem"},
-                              {"tls_config.ca_file", dir + "/cert.pem"},
-                              {"tls_config.verify_peer", true}};
+  const auto tls = test::MakeTlsConfig(dir);
+  const nlohmann::json config{{"tls_config.cert_file", tls.cert_file},
+                              {"tls_config.ca_file", tls.ca_file},
+                              {"tls_config.key_pem", tls.key_pem}};
   auto opts = options1;
   opts[OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(config.dump().c_str());
   HixlEngine engine_a("127.0.0.1");
@@ -507,17 +505,18 @@ TEST_F(HixlEngineTest, SharedTlsConfigurationReachesServerAndClient) {
     auto *server = static_cast<HixlCSServer *>(engine->server_.server_handle_);
     ASSERT_NE(server, nullptr);
     EXPECT_TRUE(CtrlMsgPluginTestAccess::IsTlsEnabled(server->listener_connection_));
-    EXPECT_EQ(TlsManager::GetInstance().GetConfig().ca_file, dir + "/cert.pem");
+    EXPECT_EQ(TlsManager::GetInstance().GetConfig().ca_file, tls.ca_file);
+    EXPECT_TRUE(TlsManager::GetInstance().GetConfig().key_pem.empty());
     ClientConfig client{};
     engine->BuildClientConfig(AscendString("127.0.0.1:26300"), client, kTimeOut, false);
-    EXPECT_EQ(client.global_config.tls_config.ca_file, dir + "/cert.pem");
+    EXPECT_FALSE(client.global_config.tls_config.Enabled());
   }
   const auto context = TlsManager::GetInstance().GetContext();
   engine_a.Finalize();
   engine_a.Finalize();
   EXPECT_EQ(TlsManager::GetInstance().GetContext(), context);
   auto *server_b = static_cast<HixlCSServer *>(engine_b.server_.server_handle_);
-  EXPECT_EQ(TlsManager::GetInstance().GetConfig().ca_file, dir + "/cert.pem");
+  EXPECT_EQ(TlsManager::GetInstance().GetConfig().ca_file, tls.ca_file);
   EXPECT_TRUE(CtrlMsgPluginTestAccess::IsTlsEnabled(server_b->listener_connection_));
   EXPECT_EQ(server_b->listener_connection_->Close(), SUCCESS);
   EXPECT_EQ(TlsManager::GetInstance().GetContext(), context);
@@ -534,7 +533,10 @@ TEST_F(HixlEngineTest, ConflictingTlsEngineInitializationPreservesActiveEngine) 
                   }));
   ASSERT_FALSE(dir.empty());
   ASSERT_TRUE(test::GenerateSelfSignedCert(dir));
-  nlohmann::json config{{"tls_config.cert_file", dir + "/cert.pem"}, {"tls_config.key_file", dir + "/key.pem"}};
+  const auto tls = test::MakeTlsConfig(dir);
+  nlohmann::json config{{"tls_config.cert_file", tls.cert_file},
+                        {"tls_config.ca_file", tls.ca_file},
+                        {"tls_config.key_pem", tls.key_pem}};
   auto opts = options1;
   opts[OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(config.dump().c_str());
   HixlEngine active("127.0.0.1");
@@ -545,7 +547,7 @@ TEST_F(HixlEngineTest, ConflictingTlsEngineInitializationPreservesActiveEngine) 
                   }));
   CreateAndInitEngine(active, opts);
   ASSERT_TRUE(active.IsInitialized());
-  config["tls_config.enable_cert_refresh"] = true;
+  config["tls_config.key_pem"] = tls.key_pem + "\n";
   opts[OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(config.dump().c_str());
   HixlOptions parsed;
   ASSERT_EQ(HixlOptions::Parse(opts, parsed), SUCCESS);
@@ -559,7 +561,7 @@ TEST_F(HixlEngineTest, ConflictingTlsEngineInitializationPreservesActiveEngine) 
   auto *server = static_cast<HixlCSServer *>(active.server_.server_handle_);
   ASSERT_NE(server, nullptr);
   EXPECT_TRUE(CtrlMsgPluginTestAccess::IsTlsEnabled(server->listener_connection_));
-  EXPECT_EQ(TlsManager::GetInstance().GetConfig().cert_file, dir + "/cert.pem");
+  EXPECT_EQ(TlsManager::GetInstance().GetConfig().cert_file, tls.cert_file);
   active.Finalize();
   EXPECT_EQ(conflict.Initialize(parsed), SUCCESS);
 }

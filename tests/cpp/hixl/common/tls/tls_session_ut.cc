@@ -463,7 +463,7 @@ TEST_F(TlsSessionUt, WriteOnceIgnoresStaleErrorQueueUnderBackpressure) {
 
 TEST_F(TlsSessionUt, PeerCertificateFingerprintIsStableSha256) {
   // The server only receives a client certificate when peer verification is enabled.
-  ASSERT_EQ(TlsContext::Create(test::MakeTlsConfig(dir_, /*verify_peer=*/true), ctx_), SUCCESS);
+  ASSERT_EQ(TlsContext::Create(test::MakeTlsConfig(dir_), ctx_), SUCCESS);
   int fds[2] = {-1, -1};
   HIXL_MAKE_GUARD(close_fds, ([&]() {
                     (void)close(fds[0]);

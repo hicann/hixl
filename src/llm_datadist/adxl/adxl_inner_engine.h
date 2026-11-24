@@ -32,7 +32,7 @@ class AdxlInnerEngine {
 
   ~AdxlInnerEngine() = default;
 
-  Status Initialize(const std::map<AscendString, AscendString> &options);
+  Status Initialize(const std::map<AscendString, AscendString> &options, const hixl::TlsConfig &tls_config);
 
   void Finalize();
 

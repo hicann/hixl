@@ -110,6 +110,7 @@ ge::Status HixlTransferEngine::Initialize(const std::map<ge::AscendString, ge::A
   engine_ = hixl::EngineFactory::CreateEngine(local_engine_, hixl_options, parsed_options);
   LLM_CHECK_NOTNULL(engine_);
   LLM_CHK_HIXL_RET(engine_->Initialize(parsed_options), "Failed to initialize Hixl engine.");
+  parsed_options.WipeTlsKey();
   LLM_CHK_STATUS_RET(InitMsgProcessor(), "Failed to init msg processor");
   return ge::SUCCESS;
 }

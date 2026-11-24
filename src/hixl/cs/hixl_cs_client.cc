@@ -233,6 +233,11 @@ Status HixlCSClient::ParseGlobalConfig(const HixlClientDesc *client_desc, const 
   HIXL_CHK_STATUS_RET(GlobalConfig::Parse(config->global_resource_config, global_config_,
                                           GlobalConfig::ParseTarget::kClient, !is_host_roce),
                       "[HixlClient] Failed to parse global_resource_config");
+  return SUCCESS;
+}
+
+Status HixlCSClient::CreateLocalEndpoint(const HixlClientDesc *client_desc) {
+  const bool is_host_roce = IsHostRoce(*client_desc->local_endpoint);
   auto endpoint = Endpoint::Create(*(client_desc->local_endpoint), *(client_desc->remote_endpoint), global_config_);
   HIXL_CHECK_NOTNULL(endpoint);
   HIXL_CHK_STATUS_RET(endpoint->ValidatePeerEndpoint(*(client_desc->remote_endpoint)),
@@ -254,13 +259,15 @@ Status HixlCSClient::Create(const HixlClientDesc *client_desc, const HixlClientC
   std::lock_guard<std::mutex> lock(mutex_);
   HIXL_CHK_BOOL_RET_STATUS(!tls_initialized_, FAILED, "[HixlClient] TLS is already initialized");
   HIXL_CHK_STATUS_RET(ParseGlobalConfig(client_desc, config), "[HixlClient] Invalid client configuration");
-  HIXL_DISMISSABLE_GUARD(uninit_endpoint_guard, ([this]() { local_endpoint_.reset(); }));
-  HIXL_CHK_STATUS_RET(TlsManager::GetInstance().Initialize(global_config_.TlsCfg()),
-                      "[HixlClient] Failed to initialize TLS from global_resource_config");
+  const Status tls_ret = TlsManager::GetInstance().InitializeOrRetain(global_config_.TlsCfg());
+  global_config_.WipeTlsKey();
+  HIXL_CHK_STATUS_RET(tls_ret, "[HixlClient] Failed to initialize TLS from global_resource_config");
   HIXL_DISMISSABLE_GUARD(tls_guard, ([this]() {
                            CloseSocket();
                            TlsManager::GetInstance().Finalize();
                          }));
+  HIXL_CHK_STATUS_RET(CreateLocalEndpoint(client_desc), "[HixlClient] Invalid client endpoint");
+  HIXL_DISMISSABLE_GUARD(uninit_endpoint_guard, ([this]() { local_endpoint_.reset(); }));
   HIXL_EVENT(
       "[HixlClient] Create begin. Server=%s:%u. "
       "SrcEndpoint[Loc:%d, protocol:%s, commAddr.Type:%d, commAddr.id:0x%x], "

@@ -21,7 +21,6 @@
 #include "common/tls/tls_context.h"
 
 namespace hixl {
-class TlsCertWatcher;
 
 class TlsManager {
  public:
@@ -29,6 +28,8 @@ class TlsManager {
 
   // Each successful owner initialization must be paired with exactly one Finalize.
   Status Initialize(const TlsConfig &config);
+  // Reuses the process TLS context when config has no explicit TLS fields and TLS is already enabled.
+  Status InitializeOrRetain(const TlsConfig &config);
   void Finalize();
   // Reads the process mode without acquiring an owner reference; an owner must remain alive during connection use.
   Status GetTlsEnabled(bool &enabled) const;
@@ -42,13 +43,12 @@ class TlsManager {
   TlsManager(const TlsManager &) = delete;
   TlsManager &operator=(const TlsManager &) = delete;
   Status EnableTlsLocked(const TlsConfig &config);
-  void SetContext(std::shared_ptr<TlsContext> ctx);
+  Status InitializeLocked(const TlsConfig &config);
 
-  // Serializes initialization and finalization through watcher Stop/join. Callbacks only take mutex_.
+  // Serializes initialization and finalization.
   std::mutex lifecycle_mutex_;
   mutable std::shared_mutex mutex_;
   std::shared_ptr<TlsContext> ctx_;
-  std::unique_ptr<TlsCertWatcher> watcher_;
   TlsConfig config_;
   // References held by engines and standalone CS/listener owners, never by connections.
   size_t users_ = 0U;

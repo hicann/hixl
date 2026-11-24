@@ -15,7 +15,11 @@
 namespace hixl {
 Status CommEngine::Initialize(const HixlOptions &options) {
   HIXL_CHK_STATUS_RET(options.CheckSupportedOptions(GetSupportedOptionKeys()), "[CommEngine] Unsupported option");
-  return adxl_inner_engine_.Initialize(options.RawOptions());
+  const auto &grc = options.GlobalResourceCfgRef();
+  hixl::TlsConfig tls_config = grc.has_value() ? grc->tls_config : hixl::TlsConfig{};
+  const Status ret = adxl_inner_engine_.Initialize(options.RawOptions(), tls_config);
+  tls_config.WipeKey();
+  return ret;
 }
 
 void CommEngine::Finalize() {

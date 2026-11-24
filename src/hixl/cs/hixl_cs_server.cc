@@ -9,6 +9,7 @@
  */
 
 #include "hixl_cs_server.h"
+#include "common/tls/tls_manager.h"
 #include <algorithm>
 #include <atomic>
 #include <cinttypes>
@@ -242,9 +243,19 @@ Status HixlCSServer::RegisterDeviceFlagMemory(const std::vector<EndpointPtr> &en
   return SUCCESS;
 }
 
+HixlCSServer::HixlCSServer(const char *ip, uint32_t port, const GlobalConfig &global_config)
+    : ip_(ip), port_(port), global_config_(global_config) {
+  if (TlsManager::GetInstance().IsInitialized()) {
+    (void)TlsManager::GetInstance().GetTlsEnabled(tls_enabled_);
+  }
+}
+
 Status HixlCSServer::Initialize(const EndpointDesc *endpoint_list, uint32_t list_num) {
   HIXL_CHECK_NOTNULL(endpoint_list);
   HIXL_CHK_BOOL_RET_STATUS(list_num > 0, PARAM_INVALID, "endpoint list num:%u is invalid, must > 0", list_num);
+  if (TlsManager::GetInstance().IsInitialized()) {
+    (void)TlsManager::GetInstance().GetTlsEnabled(tls_enabled_);
+  }
   const bool ub_ctp_endpoints_all_device = AreUbCtpEndpointsAllDevice(endpoint_list, list_num);
   HIXL_DISMISSABLE_GUARD(init_rollback, ([this]() { (void)Finalize(); }));
   bool all_endpoints_support_configurable_transfer = true;
@@ -940,7 +951,7 @@ void HixlCSServer::CleanupClient(const CtrlMsgPluginPtr &connection) {
 }
 
 bool HixlCSServer::ProcessPendingMsg() {
-  if (!global_config_.TlsCfg().Enabled()) {
+  if (!tls_enabled_) {
     return false;
   }
   std::vector<std::shared_ptr<MsgReceiver>> receivers;
@@ -1051,8 +1062,8 @@ Status HixlCSServer::AcceptClient() {
   const auto deadline =
       std::chrono::steady_clock::now() + std::chrono::milliseconds(CtrlMsgPlugin::kServerHandshakeTimeoutMs);
   HIXL_DISMISSABLE_GUARD(rollback, ([this, connection]() { CloseClientSocket(connection); }));
-  HIXL_CHK_BOOL_RET_STATUS(!global_config_.TlsCfg().Enabled() || pending_handshakes_.size() < kMaxPendingHandshakes,
-                           RESOURCE_EXHAUSTED, "Pending TLS handshake limit reached, limit:%zu", kMaxPendingHandshakes);
+  HIXL_CHK_BOOL_RET_STATUS(!tls_enabled_ || pending_handshakes_.size() < kMaxPendingHandshakes, RESOURCE_EXHAUSTED,
+                           "Pending TLS handshake limit reached, limit:%zu", kMaxPendingHandshakes);
   HIXL_CHK_STATUS_RET(connection->SetTcpNoDelay(), "Failed to set TCP_NODELAY");
   HIXL_CHK_STATUS_RET(connection->SetTcpKeepAlive(), "Failed to set TCP keepalive");
   HIXL_CHK_STATUS_RET(connection->SetSendTimeout(CtrlMsgPlugin::kDefaultCtrlTimeoutMs),

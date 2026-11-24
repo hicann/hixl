@@ -223,11 +223,9 @@ options = {
 | channel_pool.high_waterline | 数字或数字字符串 | 可选 | 链路回收高水位阈值，仅通信域模式，详见 [channel_pool](#grc_channel_pool)。 |
 | channel_pool.low_waterline | 数字或数字字符串 | 可选 | 链路回收低水位阈值，仅通信域模式，详见 [channel_pool](#grc_channel_pool)。 |
 | tls_config.cert_file | 字符串 | TLS启用时必选 | 控制面TCP TLS证书文件路径，详见 [tls_config](#grc_tls_config)。 |
-| tls_config.key_file | 字符串 | TLS启用时必选 | 控制面TCP TLS私钥文件路径，详见 [tls_config](#grc_tls_config)。 |
-| tls_config.ca_file | 字符串 | 可选 | 用于校验对端证书的CA文件路径，详见 [tls_config](#grc_tls_config)。 |
-| tls_config.verify_peer | 布尔 | 可选 | 是否要求并校验对端证书，详见 [tls_config](#grc_tls_config)。 |
+| tls_config.key_pem | 字符串 | TLS启用时必选 | 控制面TCP TLS私钥PEM内容，单份内容最大64KB，超过时返回参数错误，详见 [tls_config](#grc_tls_config)。 |
+| tls_config.ca_file | 字符串 | TLS启用时必选 | 用于校验对端证书的CA文件路径，详见 [tls_config](#grc_tls_config)。 |
 | tls_config.ciphers | 字符串 | 可选 | OpenSSL加密套件，仅对TLS 1.2生效，详见 [tls_config](#grc_tls_config)。 |
-| tls_config.enable_cert_refresh | 布尔 | 可选 | 是否自动加载变更后的证书文件，详见 [tls_config](#grc_tls_config)。 |
 | local_comm_res_path | 字符串 | 可选 | 本地通信资源JSON文件路径，与LocalCommRes配套，详见 [local_comm_res_path](#grc_local_comm_res_path)。 |
 | topo_file_path | 字符串 | 可选 | 自动生成LocalCommRes时使用的硬件拓扑JSON文件路径，详见 [topo_file_path](#grc_topo_file_path)。 |
 
@@ -452,22 +450,18 @@ options = {
 
 同一进程中的多个HIXL实例必须使用一致的控制面TLS配置（包括TLS开关），否则初始化返回参数错误。如需更换配置，须先销毁进程内所有相关对象，再重新初始化。
 
-- **cert_file**：控制面TCP TLS证书文件路径，字符串类型，TLS启用时必选。必须与key_file成对配置；不成对时initialize返回参数错误，不会降级为明文。不配置任何`tls_config.*`字段时TLS关闭。
-- **key_file**：控制面TCP TLS私钥文件路径，字符串类型，TLS启用时必选。必须与cert_file成对配置；不成对时initialize返回参数错误，不会降级为明文。
-- **ca_file**：用于校验对端证书的CA文件路径，字符串类型，可选；verify_peer为true时必选。
-- **verify_peer**：是否要求并校验对端证书，布尔类型，可选，默认false。控制面按IP建连，不做hostname/SNI校验。
+- **cert_file**：控制面TCP TLS证书文件路径，字符串类型，TLS启用时必选。必须与key_pem成对配置；不成对时initialize返回参数错误，不会降级为明文。不配置任何`tls_config.*`字段时TLS关闭。
+- **key_pem**：控制面TCP TLS私钥PEM内容，字符串类型，TLS启用时必选。必须与cert_file成对配置；不成对时initialize返回参数错误，不会降级为明文。单份PEM内容最大64KB，超过时initialize返回参数错误。
+- **ca_file**：用于校验对端证书的CA文件路径，字符串类型，TLS启用时必选。
 - **ciphers**：OpenSSL加密套件，字符串类型，可选，仅对TLS 1.2生效。例如`ECDHE-RSA-AES256-GCM-SHA384`，非法取值时initialize返回参数错误。
-- **enable_cert_refresh**：是否自动加载变更后的证书文件，布尔类型，可选，默认false。开启后，成功加载的新证书仅对后续新建连接生效，已有连接不受影响；加载失败时继续使用原证书。关闭时，修改证书文件不会自动生效。
 
 使用示例：
 
 ```jsonc
 {
-    "tls_config.cert_file": "/path/to/cert.pem", //TLS启用时必选，证书文件路径，必须与key_file成对配置
-    "tls_config.key_file": "/path/to/key.pem", //TLS启用时必选，私钥文件路径，必须与cert_file成对配置
-    "tls_config.ca_file": "/path/to/ca.pem", //可选，用于校验对端证书的CA文件路径，verify_peer为true时必选
-    "tls_config.verify_peer": true, //可选，是否要求并校验对端证书，布尔类型，默认false
-    "tls_config.enable_cert_refresh": true //可选，是否自动加载变更后的证书文件，布尔类型，默认false
+    "tls_config.cert_file": "/path/to/cert.pem", //TLS启用时必选，证书文件路径，必须与key_pem成对配置
+    "tls_config.key_pem": "<PEM private key content>", //TLS启用时必选，私钥PEM内容，必须与cert_file成对配置
+    "tls_config.ca_file": "/path/to/ca.pem" //TLS启用时必选，用于校验对端证书的CA文件路径
 }
 ```
 

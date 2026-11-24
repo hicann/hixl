@@ -42,7 +42,7 @@ Status ChannelMsgHandler::GetPeerCertFingerprint(const hixl::CtrlMsgPluginPtr &c
                                                  std::string &fingerprint) const {
   fingerprint.clear();
   const auto config = hixl::TlsManager::GetInstance().GetConfig();
-  if (!config.Enabled() || !config.verify_peer) {
+  if (!config.Enabled()) {
     // Peer identity is only enforced with TLS peer verification enabled.
     return SUCCESS;
   }
@@ -329,7 +329,7 @@ Status ChannelMsgHandler::CreateChannel(const ChannelInfo &channel_info, bool is
     auto existing = channel_manager_->GetChannel(channel_info.channel_type, channel_info.channel_id);
     if (existing != nullptr) {
       const auto config = hixl::TlsManager::GetInstance().GetConfig();
-      if (config.Enabled() && config.verify_peer) {
+      if (config.Enabled()) {
         // A reconnect may only replace the link when it comes from the same peer certificate; a different
         // certificate claiming this channel id must not tear down the existing link.
         ADXL_CHK_BOOL_RET_STATUS(
@@ -539,7 +539,7 @@ Status ChannelMsgHandler::ProcessDisconnectRequest(const hixl::CtrlMsgPluginPtr 
     return ret;
   }
   const auto tls_config = hixl::TlsManager::GetInstance().GetConfig();
-  if (tls_config.Enabled() && tls_config.verify_peer) {
+  if (tls_config.Enabled()) {
     auto target = channel_manager_->GetChannel(ChannelType::kServer, peer_disconnect_info.channel_id);
     if (target != nullptr && !PeerFingerprintMatches(target->GetPeerCertFingerprint(), peer_cert_fingerprint)) {
       ret = PARAM_INVALID;

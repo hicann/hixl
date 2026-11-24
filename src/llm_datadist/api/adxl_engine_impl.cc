@@ -109,6 +109,7 @@ Status AdxlEngine::AdxlEngineImpl::Initialize(const std::map<AscendString, Ascen
   engine_ = hixl::EngineFactory::CreateEngine(local_engine_, options, parsed_options);
   ADXL_CHECK_NOTNULL(engine_, "Failed to create engine, local_engine:%s", local_engine_.c_str());
   ADXL_CHK_STATUS_RET(engine_->Initialize(parsed_options), "Failed to initialize AdxlEngine.");
+  parsed_options.WipeTlsKey();
   return SUCCESS;
 }
 

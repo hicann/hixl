@@ -86,15 +86,13 @@ TEST_F(TlsManagerUt, RejectsEveryConflictingFieldWithoutChangingActiveContext) {
   config.ca_file = config.cert_file;
   ASSERT_EQ(Initialize(config), SUCCESS);
   const auto context = manager_.GetContext();
-  std::array<TlsConfig, 7> conflicts;
+  std::array<TlsConfig, 5> conflicts;
   conflicts.fill(config);
   conflicts[0].configured = false;
   conflicts[1].cert_file += ".other";
-  conflicts[2].key_file += ".other";
-  conflicts[3].ca_file += ".other";
-  conflicts[4].ciphers = "ECDHE-RSA-AES256-GCM-SHA384";
-  conflicts[5].verify_peer = true;
-  conflicts[6].enable_cert_refresh = true;
+  conflicts[2].ca_file += ".other";
+  conflicts[3].ciphers = "ECDHE-RSA-AES256-GCM-SHA384";
+  conflicts[4].key_pem += "x";
   for (const auto &conflict : conflicts) {
     EXPECT_EQ(Initialize(conflict), PARAM_INVALID);
     EXPECT_EQ(manager_.GetContext(), context);
@@ -108,13 +106,13 @@ TEST_F(TlsManagerUt, FailedInitializationCanBeRetriedWithDifferentConfiguration)
   invalid.configured = true;
   EXPECT_EQ(Initialize(invalid), PARAM_INVALID);
   invalid = test::MakeTlsConfig(dir_);
-  invalid.key_file += ".missing";
+  invalid.key_pem = "not-a-key";
   EXPECT_NE(Initialize(invalid), SUCCESS);
   EXPECT_EQ(manager_.GetContext(), nullptr);
   EXPECT_FALSE(manager_.GetConfig().Enabled());
   ASSERT_EQ(Initialize(test::MakeTlsConfig(dir_)), SUCCESS);
   Finalize();
-  ASSERT_EQ(Initialize(test::MakeTlsConfig(dir_, true, true)), SUCCESS);
+  ASSERT_EQ(Initialize(test::MakeTlsConfig(dir_)), SUCCESS);
 }
 
 TEST_F(TlsManagerUt, ModeQueryRequiresOwnerAndDoesNotRetainResources) {
@@ -139,7 +137,7 @@ TEST_F(TlsManagerUt, ModeQueryRequiresOwnerAndDoesNotRetainResources) {
 }
 
 TEST_F(TlsManagerUt, ConcurrentInitializeFinalizePreservesActiveContext) {
-  const auto config = test::MakeTlsConfig(dir_, false, true);
+  const auto config = test::MakeTlsConfig(dir_);
   ASSERT_EQ(Initialize(config), SUCCESS);
   const auto context = manager_.GetContext();
   std::vector<std::thread> threads;
@@ -160,8 +158,8 @@ TEST_F(TlsManagerUt, ConcurrentInitializeFinalizePreservesActiveContext) {
   EXPECT_EQ(manager_.GetContext(), nullptr);
 }
 
-TEST_F(TlsManagerUt, ConcurrentLastFinalizeAndInitializeCanRestartWatcher) {
-  const auto config = test::MakeTlsConfig(dir_, false, true);
+TEST_F(TlsManagerUt, ConcurrentLastFinalizeAndInitializeCanRestartTls) {
+  const auto config = test::MakeTlsConfig(dir_);
   std::atomic<bool> start{false};
   std::vector<std::thread> threads;
   for (size_t i = 0; i < 4U; ++i) {
@@ -182,6 +180,43 @@ TEST_F(TlsManagerUt, ConcurrentLastFinalizeAndInitializeCanRestartWatcher) {
   }
   EXPECT_EQ(manager_.GetContext(), nullptr);
   EXPECT_FALSE(manager_.GetConfig().Enabled());
-  ASSERT_EQ(Initialize(test::MakeTlsConfig(dir_, true)), SUCCESS);
+  ASSERT_EQ(Initialize(test::MakeTlsConfig(dir_)), SUCCESS);
+}
+
+TEST_F(TlsManagerUt, WipesStoredKeyAndReusesByFingerprint) {
+  const auto config = test::MakeTlsConfig(dir_);
+  ASSERT_EQ(Initialize(config), SUCCESS);
+  const auto stored = manager_.GetConfig();
+  EXPECT_TRUE(stored.key_pem.empty());
+  EXPECT_EQ(stored.key_fingerprint.size(), 64U);
+  const auto context = manager_.GetContext();
+  ASSERT_EQ(Initialize(stored), SUCCESS);
+  EXPECT_EQ(manager_.GetContext(), context);
+  auto changed = test::MakeTlsConfig(dir_);
+  changed.key_pem += "x";
+  EXPECT_EQ(Initialize(changed), PARAM_INVALID);
+  EXPECT_EQ(manager_.GetContext(), context);
+  Finalize();
+  Finalize();
+  EXPECT_EQ(manager_.GetContext(), nullptr);
+}
+
+TEST_F(TlsManagerUt, InitializeOrRetainReusesEnabledTls) {
+  ASSERT_EQ(Initialize(test::MakeTlsConfig(dir_)), SUCCESS);
+  const auto context = manager_.GetContext();
+  ASSERT_EQ(manager_.InitializeOrRetain(TlsConfig{}), SUCCESS);
+  ++initialized_;
+  EXPECT_EQ(manager_.GetContext(), context);
+  Finalize();
+  EXPECT_EQ(manager_.GetContext(), context);
+  Finalize();
+  EXPECT_EQ(manager_.GetContext(), nullptr);
+}
+
+TEST_F(TlsManagerUt, InitializeOrRetainUsesPlainModeWhenUninitialized) {
+  ASSERT_EQ(manager_.InitializeOrRetain(TlsConfig{}), SUCCESS);
+  ++initialized_;
+  EXPECT_FALSE(manager_.GetConfig().Enabled());
+  EXPECT_EQ(manager_.GetContext(), nullptr);
 }
 }  // namespace hixl

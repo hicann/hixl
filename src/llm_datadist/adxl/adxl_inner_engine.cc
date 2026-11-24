@@ -154,31 +154,23 @@ Status AdxlInnerEngine::ParseAutoConnectConfig(const std::map<AscendString, Asce
 Status AdxlInnerEngine::LoadGlobalResourceConfig(const std::map<AscendString, AscendString> &options) {
   auto config_it = options.find(hixl::OPTION_GLOBAL_RESOURCE_CONFIG);
   std::map<AscendString, AscendString> json_options;
-  hixl::TlsConfig tls_cfg;
   if (config_it != options.end()) {
-    ADXL_CHK_STATUS_RET(LoadJsonConfig(config_it->second.GetString(), json_options), "Failed to load JSON config: %s",
-                        config_it->second.GetString());
-    try {
-      const auto json = nlohmann::json::parse(config_it->second.GetString());
-      ADXL_CHK_STATUS_RET(hixl::ParseTlsConfig(json, tls_cfg), "Failed to parse tls_config");
-    } catch (const nlohmann::json::exception &e) {
-      LLMLOGE(PARAM_INVALID, "Failed to parse GlobalResourceConfig json: %s", e.what());
-      return PARAM_INVALID;
-    }
+    ADXL_CHK_STATUS_RET(LoadJsonConfig(config_it->second.GetString(), json_options), "Failed to load JSON config");
   }
 
   ADXL_CHK_STATUS_RET(ParseChannelPoolConfig(json_options), "Failed to parse channel pool config.");
   ADXL_CHK_STATUS_RET(ParseCommResourceListenPortConfig(json_options),
                       "Failed to parse comm resource listen port config.");
-
-  tls_config_ = std::move(tls_cfg);
   return SUCCESS;
 }
 
-Status AdxlInnerEngine::Initialize(const std::map<AscendString, AscendString> &options) {
+Status AdxlInnerEngine::Initialize(const std::map<AscendString, AscendString> &options,
+                                   const hixl::TlsConfig &tls_config) {
   std::lock_guard<std::mutex> lk(mutex_);
 
   ADXL_CHK_BOOL_RET_STATUS(!IsInitialized(), FAILED, "Engine is already initialized");
+  tls_config_ = tls_config;
+  LLM_MAKE_GUARD(wipe_tls_key, ([this]() { tls_config_.WipeKey(); }));
   ADXL_CHK_STATUS_RET(LoadGlobalResourceConfig(options), "Failed to load global resource config.");
   ADXL_CHK_STATUS_RET(hixl::TlsManager::GetInstance().Initialize(tls_config_), "Failed to initialize TLS");
   LLM_DISMISSABLE_GUARD(tls_guard, ([]() { hixl::TlsManager::GetInstance().Finalize(); }));
@@ -344,6 +336,7 @@ void AdxlInnerEngine::Finalize() {
     (void)aclrtDestroyContext(aclrt_context_);
     aclrt_context_ = nullptr;
   }
+  tls_config_ = hixl::TlsConfig{};
   if (was_initialized) {
     hixl::TlsManager::GetInstance().Finalize();
   }

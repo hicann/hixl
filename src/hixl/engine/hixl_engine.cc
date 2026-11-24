@@ -76,7 +76,8 @@ Status HixlEngine::Initialize(const HixlOptions &options) {
                              BUFFER_POOL_DISABLED);
   }
   HIXL_CHK_BOOL_RET_STATUS(!IsInitialized(), FAILED, "[HixlEngine] Engine is already initialized");
-  global_config_ = options.GlobalResourceCfg().value_or(GlobalResourceConfig{});
+  global_config_ = options.GlobalResourceCfgRef().value_or(GlobalResourceConfig{});
+  HIXL_MAKE_GUARD(wipe_tls_key, ([this]() { global_config_.tls_config.WipeKey(); }));
   std::string local_comm_res;
   HIXL_CHK_STATUS_RET(EndpointGenerator::BuildEndpointList(options, local_engine_, local_comm_res, endpoint_list_),
                       "[HixlEngine] Failed to build endpoint list from options");
@@ -398,6 +399,7 @@ void HixlEngine::BuildClientConfig(const AscendString &remote_engine, ClientConf
   config.rdma_sl = rdma_service_level_;
   config.timeout_ms = static_cast<uint32_t>(timeout_in_millis);
   config.global_config = global_config_;
+  config.global_config.tls_config = TlsConfig{};
   config.is_lazy = is_lazy;
 }
 

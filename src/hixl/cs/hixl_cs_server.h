@@ -43,8 +43,7 @@ struct EndpointChannelInfo {
 
 class HixlCSServer {
  public:
-  HixlCSServer(const char *ip, uint32_t port, const GlobalConfig &global_config)
-      : ip_(ip), port_(port), global_config_(global_config) {}
+  HixlCSServer(const char *ip, uint32_t port, const GlobalConfig &global_config);
 
   ~HixlCSServer() = default;
 
@@ -107,6 +106,7 @@ class HixlCSServer {
 
   std::string ip_;
   uint32_t port_ = 0U;
+  bool tls_enabled_ = false;
   CtrlMsgPluginPtr listener_connection_;
   int32_t epoll_fd_ = -1;
   std::atomic<bool> listener_running_{false};

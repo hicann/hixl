@@ -102,12 +102,10 @@ Server侧`global_resource_config`当前支持的配置项如下。
 | fabric_memory.start_address | 整数 | 可选 | UB_MEM虚拟内存池起始地址，单位TB，取值范围[0, 1024]，默认40。仅当本次创建的endpoint协议为UB_MEM时生效；必须在本进程第一次创建UB_MEM的Server或Client之前配置，取值不在范围内时创建失败并返回参数错误。 |
 | fabric_memory.task_stream_num | 整数 | 可选 | 单个任务使用的流数量，取值范围[1, 8]。CS解析并保存该字段；取值不在范围内时创建失败并返回参数错误。经HIXL Engine下发时，`fabric_memory.enable_aicpu_unfold`为true仅支持1。 |
 | fabric_memory.enable_aicpu_unfold | 布尔 | 可选 | 是否由AI CPU展开UB_MEM。默认true。true表示Device侧AI CPU展开SDMA；false表示Host在Device stream上逐条提交`aclrtMemcpyAsync`。非布尔值时创建失败并返回参数错误。 |
-| tls_config.cert_file | 字符串 | TLS启用时必选 | 控制面TCP TLS证书文件路径。必须与`tls_config.key_file`成对配置；不成对时创建失败并返回参数错误，不会降级为明文。 |
-| tls_config.key_file | 字符串 | TLS启用时必选 | 控制面TCP TLS私钥文件路径。必须与`tls_config.cert_file`成对配置；不成对时创建失败并返回参数错误，不会降级为明文。 |
-| tls_config.ca_file | 字符串 | 可选 | 用于校验对端证书的CA文件路径，verify_peer为true时必选。 |
-| tls_config.verify_peer | 布尔 | 可选 | 是否要求并校验对端证书，默认false。控制面按IP建连，不做hostname/SNI校验。 |
+| tls_config.cert_file | 字符串 | TLS启用时必选 | 控制面TCP TLS证书文件路径。必须与`tls_config.key_pem`成对配置；不成对时创建失败并返回参数错误，不会降级为明文。 |
+| tls_config.key_pem | 字符串 | TLS启用时必选 | 控制面TCP TLS私钥PEM内容，单份内容最大64KB。必须与`tls_config.cert_file`成对配置；不成对或超过64KB时创建失败并返回参数错误，不会降级为明文。 |
+| tls_config.ca_file | 字符串 | TLS启用时必选 | 用于校验对端证书的CA文件路径，TLS启用时必选。 |
 | tls_config.ciphers | 字符串 | 可选 | OpenSSL加密套件，仅对TLS 1.2生效。例如`ECDHE-RSA-AES256-GCM-SHA384`，非法取值时创建返回参数错误。 |
-| tls_config.enable_cert_refresh | 布尔 | 可选 | 是否自动加载变更后的证书文件，默认false。开启后，成功加载的新证书仅对后续新建连接生效，已有连接不受影响；加载失败时继续使用原证书。关闭时，修改证书文件不会自动生效。 |
 
 Client侧`global_resource_config`当前支持的配置项如下。
 
@@ -123,12 +121,10 @@ Client侧`global_resource_config`当前支持的配置项如下。
 | fabric_memory.start_address | 整数 | 可选 | UB_MEM虚拟内存池起始地址，单位TB，取值范围[0, 1024]，默认40。仅当本次创建的endpoint协议为UB_MEM时生效；必须在本进程第一次创建UB_MEM的Server或Client之前配置，取值不在范围内时创建失败并返回参数错误。 |
 | fabric_memory.task_stream_num | 整数 | 可选 | 单个任务使用的流数量，取值范围[1, 8]。CS解析并保存该字段；取值不在范围内时创建失败并返回参数错误。经HIXL Engine下发时，`fabric_memory.enable_aicpu_unfold`为true仅支持1。 |
 | fabric_memory.enable_aicpu_unfold | 布尔 | 可选 | 是否由AI CPU展开UB_MEM。默认true。true表示Device侧AI CPU展开SDMA；false表示Host在Device stream上逐条提交`aclrtMemcpyAsync`。非布尔值时创建失败并返回参数错误。 |
-| tls_config.cert_file | 字符串 | TLS启用时必选 | 控制面TCP TLS证书文件路径。必须与`tls_config.key_file`成对配置；不成对时创建失败并返回参数错误，不会降级为明文。 |
-| tls_config.key_file | 字符串 | TLS启用时必选 | 控制面TCP TLS私钥文件路径。必须与`tls_config.cert_file`成对配置；不成对时创建失败并返回参数错误，不会降级为明文。 |
-| tls_config.ca_file | 字符串 | 可选 | 用于校验对端证书的CA文件路径，verify_peer为true时必选。 |
-| tls_config.verify_peer | 布尔 | 可选 | 是否要求并校验对端证书，默认false。控制面按IP建连，不做hostname/SNI校验。 |
+| tls_config.cert_file | 字符串 | TLS启用时必选 | 控制面TCP TLS证书文件路径。必须与`tls_config.key_pem`成对配置；不成对时创建失败并返回参数错误，不会降级为明文。 |
+| tls_config.key_pem | 字符串 | TLS启用时必选 | 控制面TCP TLS私钥PEM内容，单份内容最大64KB。必须与`tls_config.cert_file`成对配置；不成对或超过64KB时创建失败并返回参数错误，不会降级为明文。 |
+| tls_config.ca_file | 字符串 | TLS启用时必选 | 用于校验对端证书的CA文件路径，TLS启用时必选。 |
 | tls_config.ciphers | 字符串 | 可选 | OpenSSL加密套件，仅对TLS 1.2生效。例如`ECDHE-RSA-AES256-GCM-SHA384`，非法取值时创建返回参数错误。 |
-| tls_config.enable_cert_refresh | 布尔 | 可选 | 是否自动加载变更后的证书文件，默认false。开启后，成功加载的新证书仅对后续新建连接生效，已有连接不受影响；加载失败时继续使用原证书。关闭时，修改证书文件不会自动生效。 |
 
 原生 Host RoCE 的异步提交在返回前提交本次传输的全部数据 WR。等待发送队列空间时，提交线程负责回收 CQE（单次异步提交等待发送队列空间上限与 HCOMM Host 路径一致，为 20 分钟，超时返回 TIMEOUT）。调用完成状态查询时，查询线程继续推进 CQ、针对本地 HBM 目标的默认回环 flush（每个网卡与目标设备共享一对回环 QP，在读取完成标志前按目标设备追加一次 8 字节本地 flush）和完成标志。同步提交由调用线程推进到完成或超时。
 

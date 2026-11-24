@@ -73,6 +73,7 @@ class HixlCSClient {
   void CloseSocket();
   void FinalizeEndpointAfterCreateFailure();
   Status ParseGlobalConfig(const HixlClientDesc *client_desc, const HixlClientConfig *config);
+  Status CreateLocalEndpoint(const HixlClientDesc *client_desc);
   Status InitBaseClient(const HixlClientDesc *client_desc);
   Status InitDeviceResource(const EndpointDesc &ep);
   Status ExchangeEndpointAndCreateChannel(uint32_t timeout_ms);

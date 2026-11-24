@@ -21,6 +21,7 @@
 #include "adxl/adxl_types.h"
 #include "common/transfer_config.h"
 #include "slog_stub.h"
+#include "nlohmann/json.hpp"
 #include "test_mmpa_utils.h"
 
 namespace hixl {
@@ -1326,30 +1327,152 @@ TEST_F(HixlOptionsUTest, ParseLocalCommResOversizedFileInvalid) {
   unlink(file_path.c_str());
 }
 
-TEST_F(HixlOptionsUTest, ParseTlsConfigPair) {
+namespace {
+constexpr const char *kTestCertFile = "/tmp/cert.pem";
+constexpr const char *kTestCaFile = "/tmp/ca.pem";
+
+std::string TestKeyPem() {
+  return std::string("-----BEGIN PRIVATE") + " KEY-----\nMIIB\n-----END PRIVATE" + " KEY-----\n";
+}
+
+std::string TestRsaKeyPem() {
+  return std::string("-----BEGIN RSA PRIVATE") + " KEY-----\nMIIB\n-----END RSA PRIVATE" + " KEY-----\n";
+}
+
+std::string TestEcKeyPem() {
+  return std::string("-----BEGIN EC PRIVATE") + " KEY-----\nMIIB\n-----END EC PRIVATE" + " KEY-----\n";
+}
+}  // namespace
+
+TEST_F(HixlOptionsUTest, ParseTlsConfigKeyPem) {
+  const nlohmann::json json{{"tls_config.cert_file", kTestCertFile},
+                            {"tls_config.ca_file", kTestCaFile},
+                            {"tls_config.key_pem", TestKeyPem()}};
+  const std::string text = json.dump();
   std::map<AscendString, AscendString> options;
-  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
-      R"({"tls_config.cert_file":"/tmp/cert.pem","tls_config.key_file":"/tmp/key.pem"})";
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(text.c_str());
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
   ASSERT_TRUE(result.GlobalResourceCfg().has_value());
   EXPECT_TRUE(result.GlobalResourceCfg()->tls_config.Enabled());
-  EXPECT_EQ(result.GlobalResourceCfg()->tls_config.cert_file, "/tmp/cert.pem");
+  EXPECT_EQ(result.GlobalResourceCfg()->tls_config.cert_file, kTestCertFile);
+  EXPECT_EQ(result.GlobalResourceCfg()->tls_config.ca_file, kTestCaFile);
+  EXPECT_EQ(result.GlobalResourceCfg()->tls_config.key_pem, TestKeyPem());
+  EXPECT_EQ(result.GlobalResourceCfg()->tls_config.key_fingerprint.size(), 64U);
 }
 
-TEST_F(HixlOptionsUTest, ParseTlsConfigUnpairedRejected) {
+TEST_F(HixlOptionsUTest, ParseTlsConfigAcceptsTraditionalPrivateKeyHeaders) {
+  for (const auto &key : {TestRsaKeyPem(), TestEcKeyPem()}) {
+    const nlohmann::json json{
+        {"tls_config.cert_file", kTestCertFile}, {"tls_config.ca_file", kTestCaFile}, {"tls_config.key_pem", key}};
+    const std::string text = json.dump();
+    std::map<AscendString, AscendString> options;
+    options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(text.c_str());
+    HixlOptions result;
+    EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  }
+}
+
+TEST_F(HixlOptionsUTest, ParseTlsConfigMissingCaRejected) {
+  const nlohmann::json json{{"tls_config.cert_file", kTestCertFile}, {"tls_config.key_pem", TestKeyPem()}};
+  const std::string text = json.dump();
   std::map<AscendString, AscendString> options;
-  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = R"({"tls_config.cert_file":"/tmp/cert.pem"})";
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(text.c_str());
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
 }
 
-TEST_F(HixlOptionsUTest, ParseTlsConfigVerifyPeerRequiresCa) {
+TEST_F(HixlOptionsUTest, ParseTlsConfigMissingKeyPemRejected) {
+  const nlohmann::json json{{"tls_config.cert_file", kTestCertFile}, {"tls_config.ca_file", kTestCaFile}};
+  const std::string text = json.dump();
   std::map<AscendString, AscendString> options;
-  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
-      R"({"tls_config.cert_file":"/tmp/cert.pem","tls_config.key_file":"/tmp/key.pem","tls_config.verify_peer":true})";
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(text.c_str());
   HixlOptions result;
   EXPECT_EQ(HixlOptions::Parse(options, result), PARAM_INVALID);
+}
+
+TEST_F(HixlOptionsUTest, ParseTlsConfigIgnoresDeprecatedFields) {
+  const nlohmann::json json{{"tls_config.cert_file", kTestCertFile}, {"tls_config.ca_file", kTestCaFile},
+                            {"tls_config.key_pem", TestKeyPem()},    {"tls_config.key_file", "/tmp/key.pem"},
+                            {"tls_config.verify_peer", false},       {"tls_config.enable_cert_refresh", true}};
+  const std::string text = json.dump();
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(text.c_str());
+  HixlOptions result;
+  EXPECT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigSanitizesRawKeyPem) {
+  const nlohmann::json json{{"comm_resource_config.listen_port", 1234},
+                            {"tls_config.cert_file", kTestCertFile},
+                            {"tls_config.ca_file", kTestCaFile},
+                            {"tls_config.key_pem", TestKeyPem()}};
+  const std::string text = json.dump();
+  std::map<AscendString, AscendString> options;
+  options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] = AscendString(text.c_str());
+  HixlOptions result;
+  ASSERT_EQ(HixlOptions::Parse(options, result), SUCCESS);
+  const std::string raw = result.RawOptions().at(hixl::OPTION_GLOBAL_RESOURCE_CONFIG).GetString();
+  EXPECT_EQ(raw.find("key_pem"), std::string::npos);
+  EXPECT_NE(raw.find("cert_file"), std::string::npos);
+  EXPECT_NE(raw.find("ca_file"), std::string::npos);
+  ASSERT_TRUE(result.GlobalResourceCfg().has_value());
+  EXPECT_FALSE(result.GlobalResourceCfg()->tls_config.key_pem.empty());
+  result.WipeTlsKey();
+  EXPECT_TRUE(result.GlobalResourceCfg()->tls_config.key_pem.empty());
+  EXPECT_EQ(result.RawOptions().find(hixl::OPTION_GLOBAL_RESOURCE_CONFIG), result.RawOptions().end());
+}
+
+TEST_F(HixlOptionsUTest, GlobalConfigWipeTlsKey) {
+  const nlohmann::json json{{"tls_config.cert_file", kTestCertFile},
+                            {"tls_config.ca_file", kTestCaFile},
+                            {"tls_config.key_pem", TestKeyPem()}};
+  const std::string text = json.dump();
+  GlobalConfig cfg;
+  ASSERT_EQ(GlobalConfig::Parse(text.c_str(), cfg), SUCCESS);
+  EXPECT_FALSE(cfg.TlsCfg().key_pem.empty());
+  cfg.WipeTlsKey();
+  EXPECT_TRUE(cfg.TlsCfg().key_pem.empty());
+}
+
+TEST_F(HixlOptionsUTest, ParseRedactsKeyPemInOptionLog) {
+  const nlohmann::json json{{"tls_config.cert_file", kTestCertFile},
+                            {"tls_config.ca_file", kTestCaFile},
+                            {"tls_config.key_pem", TestKeyPem()}};
+  const std::string text = json.dump();
+  auto capture = std::make_shared<llm::LogCaptureStub>();
+  capture->SetLevelInfo();
+  llm::SlogStub::SetInstance(capture);
+  HixlOptions result;
+  const Status ret = HixlOptions::Parse({{hixl::OPTION_GLOBAL_RESOURCE_CONFIG, text.c_str()}}, result);
+  llm::SlogStub::SetInstance(nullptr);
+  EXPECT_EQ(ret, SUCCESS);
+  bool redacted = false;
+  for (const auto &line : capture->GetCapturedLogs()) {
+    EXPECT_EQ(line.find("MIIB"), std::string::npos);
+    EXPECT_EQ(line.find("PRIVATE KEY"), std::string::npos);
+    if (line.find("<redacted>") != std::string::npos) {
+      redacted = true;
+    }
+  }
+  EXPECT_TRUE(redacted);
+}
+
+TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigErrorDoesNotLogInput) {
+  std::string text = R"({"tls_config.key_pem":"-----BEGIN CERTIFICATE-----)";
+  text += "\nMIIB\n";
+  text += R"("})";
+  auto capture = std::make_shared<llm::LogCaptureStub>();
+  capture->SetLevelInfo();
+  llm::SlogStub::SetInstance(capture);
+  HixlOptions result;
+  const Status ret = HixlOptions::Parse({{hixl::OPTION_GLOBAL_RESOURCE_CONFIG, text.c_str()}}, result);
+  llm::SlogStub::SetInstance(nullptr);
+  EXPECT_EQ(ret, PARAM_INVALID);
+  for (const auto &line : capture->GetCapturedLogs()) {
+    EXPECT_EQ(line.find("MIIB"), std::string::npos);
+    EXPECT_EQ(line.find("BEGIN"), std::string::npos);
+  }
 }
 
 TEST_F(HixlOptionsUTest, ParseGlobalResourceConfigRoceFieldsAndRoundTrip) {

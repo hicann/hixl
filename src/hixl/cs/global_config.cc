@@ -237,8 +237,11 @@ Status GlobalConfig::Parse(const char *config_str, GlobalConfig &result, ParseTa
                         "[GlobalConfig] Failed to parse fabric_memory");
     HIXL_CHK_STATUS_RET(ParseTlsConfig(json, result.tls_config_), "[GlobalConfig] Failed to parse tls_config");
     return SUCCESS;
+  } catch (const nlohmann::json::parse_error &e) {
+    HIXL_LOGE(PARAM_INVALID, "[GlobalConfig] Failed to parse config, parse_error_id:%d, byte:%zu", e.id, e.byte);
+    return PARAM_INVALID;
   } catch (const nlohmann::json::exception &e) {
-    HIXL_LOGE(PARAM_INVALID, "[GlobalConfig] Failed to parse config: %s", e.what());
+    HIXL_LOGE(PARAM_INVALID, "[GlobalConfig] Failed to parse config, error_id:%d", e.id);
     return PARAM_INVALID;
   }
 }
@@ -295,5 +298,9 @@ std::optional<size_t> GlobalConfig::UbMemStartAddress() const {
 
 const TlsConfig &GlobalConfig::TlsCfg() const {
   return tls_config_;
+}
+
+void GlobalConfig::WipeTlsKey() {
+  tls_config_.WipeKey();
 }
 }  // namespace hixl

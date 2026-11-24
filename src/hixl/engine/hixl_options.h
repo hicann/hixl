@@ -98,6 +98,9 @@ struct GlobalResourceConfig {
 
 class HixlOptions {
  public:
+  HixlOptions() = default;
+  ~HixlOptions();
+
   static Status Parse(const std::map<AscendString, AscendString> &options, HixlOptions &result);
 
   Status CheckSupportedOptions(const std::unordered_set<std::string> &supported_keys) const;
@@ -124,6 +127,11 @@ class HixlOptions {
   std::optional<GlobalResourceConfig> GlobalResourceCfg() const {
     return global_resource_config_;
   }
+  const std::optional<GlobalResourceConfig> &GlobalResourceCfgRef() const {
+    return global_resource_config_;
+  }
+  // Clears the private key copy and removes the raw GlobalResourceConfig entry once TLS is initialized.
+  void WipeTlsKey();
   std::vector<std::string> GetProtocolDesc() const;
   bool HasProtocolDesc(const std::string &token) const;
   std::optional<std::string> TopoFilePath() const;

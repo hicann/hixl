@@ -21,15 +21,24 @@ namespace hixl {
 struct TlsConfig {
   bool configured = false;
   std::string cert_file;
-  std::string key_file;
   std::string ca_file;
   std::string ciphers;
-  bool verify_peer = false;
-  bool enable_cert_refresh = false;
+  std::string key_pem;
+  // SHA-256 of key_pem. It is not sensitive and lets TlsManager compare configurations after wiping the key.
+  std::string key_fingerprint;
+
+  TlsConfig() = default;
+  TlsConfig(const TlsConfig &other);
+  TlsConfig &operator=(const TlsConfig &other);
+  ~TlsConfig();
 
   bool Enabled() const {
     return configured;
   }
+
+  // The private key is only held in memory; wipe it as soon as the owning TLS resources are released.
+  void WipeKey();
+  void UpdateKeyFingerprint();
 };
 
 Status ParseTlsConfig(const nlohmann::json &json, TlsConfig &config);

@@ -77,8 +77,9 @@ HixlStatus HixlCSServerCreate(const HixlServerDesc *server_desc, const HixlServe
   HIXL_CHK_STATUS_RET(hixl::GlobalConfig::Parse(config->global_resource_config, global_config,
                                                 hixl::GlobalConfig::ParseTarget::kServer),
                       "Failed to parse hixl cs server global_resource_config");
-  HIXL_CHK_STATUS_RET(hixl::TlsManager::GetInstance().Initialize(global_config.TlsCfg()),
-                      "Failed to initialize TLS from hixl cs server global_resource_config");
+  const hixl::Status tls_ret = hixl::TlsManager::GetInstance().InitializeOrRetain(global_config.TlsCfg());
+  global_config.WipeTlsKey();
+  HIXL_CHK_STATUS_RET(tls_ret, "Failed to initialize TLS from hixl cs server global_resource_config");
   HIXL_DISMISSABLE_GUARD(tls_guard, ([]() { hixl::TlsManager::GetInstance().Finalize(); }));
   auto server = new (std::nothrow) hixl::HixlCSServer(server_desc->server_ip, server_desc->server_port, global_config);
   HIXL_CHECK_NOTNULL(server);

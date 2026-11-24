@@ -25,11 +25,11 @@ constexpr const char kDisabledBufferPool[] = "0:0";
 constexpr int32_t HIXL_HCOMM_VERSION_THRESHOLD = 90100000;
 
 bool UseProtocolDesc(const HixlOptions &options) {
-  const auto grc = options.GlobalResourceCfg();
+  const auto &grc = options.GlobalResourceCfgRef();
   if (!grc.has_value()) {
     return false;
   }
-  const auto desc = grc->comm_resource_config.protocol_desc;
+  const auto &desc = grc->comm_resource_config.protocol_desc;
   return desc.has_value() && !desc->empty();
 }
 

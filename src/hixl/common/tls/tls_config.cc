@@ -10,16 +10,21 @@
 
 #include "tls_config.h"
 
+#include <openssl/crypto.h>
+#include <openssl/sha.h>
+
+#include <cstring>
+#include <utility>
+
 #include "common/hixl_checker.h"
 
 namespace hixl {
 namespace {
 constexpr const char *kCertFile = "tls_config.cert_file";
-constexpr const char *kKeyFile = "tls_config.key_file";
 constexpr const char *kCaFile = "tls_config.ca_file";
 constexpr const char *kCiphers = "tls_config.ciphers";
-constexpr const char *kVerifyPeer = "tls_config.verify_peer";
-constexpr const char *kEnableCertRefresh = "tls_config.enable_cert_refresh";
+constexpr const char *kKeyPem = "tls_config.key_pem";
+constexpr size_t kMaxTlsPemSize = 64U * 1024U;
 
 Status ParseStringField(const nlohmann::json &json, const char *key, std::string &out, bool &configured) {
   const auto it = json.find(key);
@@ -32,42 +37,78 @@ Status ParseStringField(const nlohmann::json &json, const char *key, std::string
   return SUCCESS;
 }
 
-Status ParseBoolField(const nlohmann::json &json, const char *key, bool &out, bool &configured) {
-  const auto it = json.find(key);
+Status ParseKeyPemField(const nlohmann::json &json, std::string &out, bool &configured) {
+  const auto it = json.find(kKeyPem);
   if (it == json.end()) {
     return SUCCESS;
   }
   configured = true;
-  if (it->is_boolean()) {
-    out = it->get<bool>();
-    return SUCCESS;
-  }
-  HIXL_CHK_BOOL_RET_STATUS(it->is_string(), PARAM_INVALID, "[TlsConfig] %s must be a bool", key);
-  const std::string value = it->get<std::string>();
-  if (value == "true" || value == "1") {
-    out = true;
-    return SUCCESS;
-  }
-  HIXL_CHK_BOOL_RET_STATUS(value == "false" || value == "0", PARAM_INVALID, "[TlsConfig] %s has invalid bool string:%s",
-                           key, value.c_str());
-  out = false;
+  HIXL_CHK_BOOL_RET_STATUS(it->is_string(), PARAM_INVALID, "[TlsConfig] %s must be a string", kKeyPem);
+  std::string value = it->get<std::string>();
+  HIXL_CHK_BOOL_RET_STATUS(!value.empty(), PARAM_INVALID, "[TlsConfig] %s must not be empty", kKeyPem);
+  HIXL_CHK_BOOL_RET_STATUS(value.size() <= kMaxTlsPemSize, PARAM_INVALID,
+                           "[TlsConfig] %s exceeds max size:%zu, actual:%zu", kKeyPem, kMaxTlsPemSize, value.size());
+  HIXL_CHK_BOOL_RET_STATUS(value.find("PRIVATE KEY-----") != std::string::npos, PARAM_INVALID,
+                           "[TlsConfig] %s is not a valid PEM private key", kKeyPem);
+  out = std::move(value);
   return SUCCESS;
 }
+
+std::string ComputeKeyFingerprint(const std::string &key_pem) {
+  unsigned char digest[SHA256_DIGEST_LENGTH] = {};
+  SHA256(reinterpret_cast<const unsigned char *>(key_pem.data()), key_pem.size(), digest);
+  constexpr char kHex[] = "0123456789abcdef";
+  std::string fingerprint;
+  fingerprint.reserve(SHA256_DIGEST_LENGTH * 2U);
+  for (const unsigned char byte : digest) {
+    fingerprint.push_back(kHex[byte >> 4U]);
+    fingerprint.push_back(kHex[byte & 0x0FU]);
+  }
+  return fingerprint;
+}
 }  // namespace
+
+TlsConfig::TlsConfig(const TlsConfig &other) = default;
+
+TlsConfig &TlsConfig::operator=(const TlsConfig &other) {
+  if (this != &other) {
+    WipeKey();
+    configured = other.configured;
+    cert_file = other.cert_file;
+    ca_file = other.ca_file;
+    ciphers = other.ciphers;
+    key_pem = other.key_pem;
+    key_fingerprint = other.key_fingerprint;
+  }
+  return *this;
+}
+
+TlsConfig::~TlsConfig() {
+  WipeKey();
+}
+
+void TlsConfig::WipeKey() {
+  if (!key_pem.empty()) {
+    OPENSSL_cleanse(key_pem.data(), key_pem.size());
+    key_pem.clear();
+  }
+}
+
+void TlsConfig::UpdateKeyFingerprint() {
+  if (!key_pem.empty()) {
+    key_fingerprint = ComputeKeyFingerprint(key_pem);
+  }
+}
 
 Status ValidateTlsConfig(const TlsConfig &config) {
   if (!config.configured) {
     return SUCCESS;
   }
-  const bool has_cert = !config.cert_file.empty();
-  const bool has_key = !config.key_file.empty();
-  HIXL_CHK_BOOL_RET_STATUS(has_cert && has_key, PARAM_INVALID,
-                           "[TlsConfig] cert_file and key_file must be provided as a pair, has_cert:%s, has_key:%s",
-                           has_cert ? "true" : "false", has_key ? "true" : "false");
-  if (config.verify_peer) {
-    HIXL_CHK_BOOL_RET_STATUS(!config.ca_file.empty(), PARAM_INVALID,
-                             "[TlsConfig] ca_file is required when verify_peer is true");
-  }
+  HIXL_CHK_BOOL_RET_STATUS(!config.cert_file.empty(), PARAM_INVALID, "[TlsConfig] cert_file is required");
+  HIXL_CHK_BOOL_RET_STATUS(!config.key_pem.empty() || !config.key_fingerprint.empty(), PARAM_INVALID,
+                           "[TlsConfig] key_pem is required");
+  HIXL_CHK_BOOL_RET_STATUS(!config.ca_file.empty(), PARAM_INVALID,
+                           "[TlsConfig] ca_file is required because peer verification is always enabled");
   return SUCCESS;
 }
 
@@ -75,20 +116,15 @@ Status ParseTlsConfig(const nlohmann::json &json, TlsConfig &config) {
   TlsConfig parsed;
   HIXL_CHK_STATUS_RET(ParseStringField(json, kCertFile, parsed.cert_file, parsed.configured),
                       "[TlsConfig] Failed to parse cert_file");
-  HIXL_CHK_STATUS_RET(ParseStringField(json, kKeyFile, parsed.key_file, parsed.configured),
-                      "[TlsConfig] Failed to parse key_file");
   HIXL_CHK_STATUS_RET(ParseStringField(json, kCaFile, parsed.ca_file, parsed.configured),
                       "[TlsConfig] Failed to parse ca_file");
   HIXL_CHK_STATUS_RET(ParseStringField(json, kCiphers, parsed.ciphers, parsed.configured),
                       "[TlsConfig] Failed to parse ciphers");
-  HIXL_CHK_STATUS_RET(ParseBoolField(json, kVerifyPeer, parsed.verify_peer, parsed.configured),
-                      "[TlsConfig] Failed to parse verify_peer");
-  HIXL_CHK_STATUS_RET(ParseBoolField(json, kEnableCertRefresh, parsed.enable_cert_refresh, parsed.configured),
-                      "[TlsConfig] Failed to parse enable_cert_refresh");
+  HIXL_CHK_STATUS_RET(ParseKeyPemField(json, parsed.key_pem, parsed.configured), "[TlsConfig] Failed to parse key_pem");
   HIXL_CHK_STATUS_RET(ValidateTlsConfig(parsed), "[TlsConfig] Invalid tls_config");
-  HIXL_LOGI("[TlsConfig] Parsed configuration, enabled:%s, verify_peer:%s, cert_refresh:%s, custom_ciphers:%s",
-            parsed.Enabled() ? "true" : "false", parsed.verify_peer ? "true" : "false",
-            parsed.enable_cert_refresh ? "true" : "false", parsed.ciphers.empty() ? "false" : "true");
+  parsed.UpdateKeyFingerprint();
+  HIXL_LOGI("[TlsConfig] Parsed configuration, enabled:%s, custom_ciphers:%s, verify_peer:true",
+            parsed.Enabled() ? "true" : "false", parsed.ciphers.empty() ? "false" : "true");
   config = std::move(parsed);
   return SUCCESS;
 }

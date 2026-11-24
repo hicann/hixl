@@ -145,7 +145,7 @@ class ChannelMsgHandler {
   void SendDisconnectRequest(const hixl::CtrlMsgPluginPtr &connection, Status &send_status) const;
   Status CleanupDisconnectResources(const std::string &remote_engine) const;
   // Reads the peer TLS certificate fingerprint when TLS peer verification is enabled. Returns SUCCESS with
-  // an empty fingerprint when peer identity is not enforced (TLS disabled or verify_peer=false).
+  // an empty fingerprint when TLS is disabled.
   Status GetPeerCertFingerprint(const hixl::CtrlMsgPluginPtr &connection, std::string &fingerprint) const;
   // Two daemon connections belong to the same peer only when both record a non-empty, equal fingerprint.
   static bool PeerFingerprintMatches(const std::string &recorded, const std::string &provided);

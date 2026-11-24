@@ -38,7 +38,7 @@ Status ConnectPoolExecutor::Initialize(const HixlOptions &options) {
   }
   thread_num_ = kOptionConnectPoolThreadNum;
   task_queue_capacity_ = kOptionConnectPoolTaskQueueCapacity;
-  auto grc = options.GlobalResourceCfg();
+  const auto &grc = options.GlobalResourceCfgRef();
   if (grc.has_value()) {
     thread_num_ = grc->connect_pool.thread_num.value_or(kOptionConnectPoolThreadNum);
     task_queue_capacity_ = grc->connect_pool.task_queue_capacity.value_or(kOptionConnectPoolTaskQueueCapacity);

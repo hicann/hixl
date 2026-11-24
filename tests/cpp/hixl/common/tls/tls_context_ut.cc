@@ -32,6 +32,10 @@ class TlsContextUt : public ::testing::Test {
   void TearDown() override {
     test::RemovePath(dir_ + "/cert.pem");
     test::RemovePath(dir_ + "/key.pem");
+    test::RemovePath(dir_ + "/cert_pkcs1.pem");
+    test::RemovePath(dir_ + "/key_pkcs1.pem");
+    test::RemovePath(dir_ + "/cert_ec.pem");
+    test::RemovePath(dir_ + "/key_ec.pem");
     test::RemovePath(dir_);
   }
 
@@ -70,16 +74,57 @@ TEST_F(TlsContextUt, InvalidCertPath) {
   EXPECT_EQ(ctx, nullptr);
 }
 
-TEST_F(TlsContextUt, InvalidKeyPath) {
+TEST_F(TlsContextUt, InvalidKeyPem) {
   TlsConfig cfg = test::MakeTlsConfig(dir_);
-  cfg.key_file = dir_ + "/missing-key.pem";
+  cfg.key_pem = "not-a-key";
   std::shared_ptr<TlsContext> ctx;
   EXPECT_EQ(TlsContext::Create(cfg, ctx), FAILED);
   EXPECT_EQ(ctx, nullptr);
 }
 
+TEST_F(TlsContextUt, CreatesContextWithoutKeyFile) {
+  const auto config = test::MakeTlsConfig(dir_);
+  test::RemovePath(dir_ + "/key.pem");
+  std::shared_ptr<TlsContext> ctx;
+  EXPECT_EQ(TlsContext::Create(config, ctx), SUCCESS);
+  EXPECT_NE(ctx, nullptr);
+}
+
+TEST_F(TlsContextUt, AcceptsPkcs1PrivateKey) {
+  if (!test::GeneratePkcs1Cert(dir_)) {
+    GTEST_SKIP() << "openssl cannot generate a PKCS#1 private key";
+  }
+  std::shared_ptr<TlsContext> ctx;
+  EXPECT_EQ(TlsContext::Create(test::MakeTlsConfigFromFiles(dir_, "cert_pkcs1.pem", "key_pkcs1.pem"), ctx), SUCCESS);
+  EXPECT_NE(ctx, nullptr);
+}
+
+TEST_F(TlsContextUt, AcceptsEcPrivateKey) {
+  if (!test::GenerateEcCert(dir_)) {
+    GTEST_SKIP() << "openssl cannot generate an EC private key";
+  }
+  std::shared_ptr<TlsContext> ctx;
+  EXPECT_EQ(TlsContext::Create(test::MakeTlsConfigFromFiles(dir_, "cert_ec.pem", "key_ec.pem"), ctx), SUCCESS);
+  EXPECT_NE(ctx, nullptr);
+}
+
+TEST_F(TlsContextUt, EncryptedPrivateKeyRejected) {
+  const std::string encrypted_key = dir_ + "/encrypted_key.pem";
+  const std::string cmd =
+      "openssl rsa -in " + dir_ + "/key.pem -aes256 -passout pass:test -out " + encrypted_key + " >/dev/null 2>&1";
+  if (!test::RunOpenssl(cmd)) {
+    GTEST_SKIP() << "openssl cannot create an encrypted private key";
+  }
+  TlsConfig cfg = test::MakeTlsConfig(dir_);
+  cfg.key_pem = test::ReadFileToString(encrypted_key);
+  std::shared_ptr<TlsContext> ctx;
+  EXPECT_EQ(TlsContext::Create(cfg, ctx), FAILED);
+  EXPECT_EQ(ctx, nullptr);
+  test::RemovePath(encrypted_key);
+}
+
 TEST_F(TlsContextUt, InvalidCaPath) {
-  TlsConfig cfg = test::MakeTlsConfig(dir_, true);
+  TlsConfig cfg = test::MakeTlsConfig(dir_);
   cfg.ca_file = dir_ + "/missing-ca.pem";
   std::shared_ptr<TlsContext> ctx;
   EXPECT_EQ(TlsContext::Create(cfg, ctx), FAILED);
@@ -89,7 +134,7 @@ TEST_F(TlsContextUt, InvalidCaPath) {
 TEST_F(TlsContextUt, CertKeyMismatch) {
   ASSERT_TRUE(test::GenerateSelfSignedCert(dir_, "other.pem", "other_key.pem"));
   TlsConfig cfg = test::MakeTlsConfig(dir_);
-  cfg.key_file = dir_ + "/other_key.pem";
+  cfg.key_pem = test::ReadFileToString(dir_ + "/other_key.pem");
   std::shared_ptr<TlsContext> ctx;
   EXPECT_EQ(TlsContext::Create(cfg, ctx), FAILED);
   test::RemovePath(dir_ + "/other.pem");

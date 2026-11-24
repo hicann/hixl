@@ -649,12 +649,10 @@ global_resource_config(global_resource_config)
 
 | 字段名 | 数据类型 | 可选/必选 | 描述 |
 | --- | --- | --- | --- |
-| tls_config.cert_file | 字符串 | TLS启用时必选 | 控制面TLS证书文件路径。必须与`tls_config.key_file`成对配置。 |
-| tls_config.key_file | 字符串 | TLS启用时必选 | 控制面TLS私钥文件路径。必须与`tls_config.cert_file`成对配置。 |
-| tls_config.ca_file | 字符串 | 可选 | 用于校验对端证书的CA文件路径。`tls_config.verify_peer`为true时必选。 |
-| tls_config.verify_peer | 布尔 | 可选 | 是否校验对端证书，默认false。false表示不校验对端身份，仅建立加密连接；生产环境建议配置为true，此时对端必须提供有效证书。控制面按IP建连，不进行hostname或SNI校验。 |
+| tls_config.cert_file | 字符串 | TLS启用时必选 | 控制面TLS证书文件路径。必须与`tls_config.key_pem`成对配置。 |
+| tls_config.key_pem | 字符串 | TLS启用时必选 | 控制面TLS私钥PEM内容，单份内容最大64KB，超过时初始化失败。必须与`tls_config.cert_file`成对配置。 |
+| tls_config.ca_file | 字符串 | TLS启用时必选 | 用于校验对端证书的CA文件路径。 |
 | tls_config.ciphers | 字符串 | 可选 | OpenSSL加密套件，仅对TLS 1.2生效。例如`ECDHE-RSA-AES256-GCM-SHA384`。 |
-| tls_config.enable_cert_refresh | 布尔 | 可选 | 是否自动加载变更后的证书文件，默认false。开启后，新证书仅对后续新建连接生效，已有连接不受影响；证书加载失败时继续使用原证书。 |
 
 **调用示例**
 
@@ -666,10 +664,8 @@ from llm_datadist import LLMConfig
 llm_config = LLMConfig()
 llm_config.global_resource_config = json.dumps({
     "tls_config.cert_file": "/path/to/cert.pem",
-    "tls_config.key_file": "/path/to/key.pem",
-    "tls_config.ca_file": "/path/to/ca.pem",
-    "tls_config.verify_peer": True,
-    "tls_config.enable_cert_refresh": True
+    "tls_config.key_pem": "<PEM private key content>",
+    "tls_config.ca_file": "/path/to/ca.pem"
 })
 ```
 
@@ -685,9 +681,9 @@ llm_config.global_resource_config = json.dumps({
 - 不配置任何`tls_config.*`字段时，控制面TLS关闭。
 - 同一进程中的所有LLM-DataDist、HIXL、HIXL CS和ADXL实例必须使用一致的控制面TLS配置，包括TLS开关。配置不一致时，初始化或创建对象失败。
 - 如需更换控制面TLS配置，必须先销毁进程内所有使用该配置的LLM-DataDist、HIXL、HIXL CS和ADXL对象，再重新初始化。
-- `tls_config.cert_file`和`tls_config.key_file`必须同时配置；`tls_config.verify_peer`为true时必须配置`tls_config.ca_file`。字段类型错误、文件无法加载或证书与私钥不匹配时初始化失败，不会降级为明文连接。
-- `tls_config.verify_peer`默认false。配置为true时，对端必须提供有效证书。控制面按IP建连，不进行hostname或SNI校验。
-- `tls_config.ciphers`仅对TLS 1.2生效。`tls_config.enable_cert_refresh`开启后，新证书仅对后续新建连接生效，已有连接不受影响；证书加载失败时继续使用原证书。
+- `tls_config.cert_file`、`tls_config.key_pem`和`tls_config.ca_file`必须同时配置。`key_pem`单份内容最大64KB，超过时初始化失败。字段类型错误、PEM无法解析或证书与私钥不匹配时初始化失败，不会降级为明文连接。
+- TLS始终校验对端证书，对端必须提供有效证书。控制面按IP建连，不进行hostname或SNI校验。
+- `tls_config.ciphers`仅对TLS 1.2生效。
 - 其他全局资源字段仅在transfer_backend配置为"hixl"时生效。
 - 不配置时保持默认行为，不影响既有初始化流程。
 - 非法JSON、字段类型错误或非法取值会导致初始化失败。

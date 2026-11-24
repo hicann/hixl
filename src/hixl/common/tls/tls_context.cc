@@ -11,20 +11,46 @@
 #include "tls_context.h"
 
 #include <cerrno>
+#include <climits>
 #include <cstring>
 #include <fcntl.h>
 #include <unistd.h>
 
+#include <openssl/evp.h>
+#include <openssl/pem.h>
 #include <openssl/ssl.h>
 
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
+#include "common/scope_guard.h"
 #include "common/tls/tls_openssl_utils.h"
 
 namespace hixl {
 namespace {
 constexpr int kVerifyDepth = 4;
+
+int NoPassphrase(char *buf, int size, int rwflag, void *userdata) {
+  (void)buf;
+  (void)size;
+  (void)rwflag;
+  (void)userdata;
+  return 0;
 }
+
+BIO *CreateKeyBio(const std::string &key_pem) {
+  if (key_pem.size() > static_cast<size_t>(INT_MAX)) {
+    HIXL_LOGE(FAILED, "[TlsContext] key_pem is too large, size:%zu", key_pem.size());
+    return nullptr;
+  }
+  BIO *bio = BIO_new_mem_buf(key_pem.data(), static_cast<int>(key_pem.size()));
+  if (bio == nullptr) {
+    const std::string error = OpensslErrorString();
+    HIXL_LOGE(FAILED, "Call api:BIO_new_mem_buf failed, field:key_pem, size:%zu, openssl_error:%s", key_pem.size(),
+              error.c_str());
+  }
+  return bio;
+}
+}  // namespace
 
 Status TlsContext::Create(const TlsConfig &config, std::shared_ptr<TlsContext> &ctx) {
   auto created = std::shared_ptr<TlsContext>(new (std::nothrow) TlsContext());
@@ -43,19 +69,20 @@ TlsContext::~TlsContext() {
     SSL_CTX_free(client_ctx_);
     client_ctx_ = nullptr;
   }
+  config_.WipeKey();
 }
 
 Status TlsContext::Init(const TlsConfig &config) {
   config_ = config;
-  HIXL_LOGI("[TlsContext] Initializing contexts, verify_peer:%s, cert_refresh:%s",
-            config_.verify_peer ? "true" : "false", config_.enable_cert_refresh ? "true" : "false");
+  HIXL_LOGI("[TlsContext] Initializing contexts, verify_peer:true");
   HIXL_CHK_STATUS_RET(CreateSslCtx(true, &server_ctx_), "[TlsContext] Failed to create server SSL_CTX");
   HIXL_CHK_STATUS_RET(CreateSslCtx(false, &client_ctx_), "[TlsContext] Failed to create client SSL_CTX");
   HIXL_CHK_STATUS_RET(LoadCertAndKey(server_ctx_), "[TlsContext] Failed to load server cert/key");
   HIXL_CHK_STATUS_RET(LoadCertAndKey(client_ctx_), "[TlsContext] Failed to load client cert/key");
   HIXL_CHK_STATUS_RET(ApplyVerifyAndCiphers(server_ctx_), "[TlsContext] Failed to apply server verify/ciphers");
   HIXL_CHK_STATUS_RET(ApplyVerifyAndCiphers(client_ctx_), "[TlsContext] Failed to apply client verify/ciphers");
-  HIXL_LOGI("[TlsContext] Server and client contexts initialized, minimum_protocol:TLSv1.2");
+  config_.WipeKey();
+  HIXL_LOGI("[TlsContext] Server and client contexts initialized, minimum_protocol:TLSv1.2, verify_peer:true");
   return SUCCESS;
 }
 
@@ -83,11 +110,20 @@ Status TlsContext::LoadCertAndKey(SSL_CTX *ctx) const {
   HIXL_CHK_BOOL_RET_STATUS(cert_ret == 1, FAILED,
                            "Call api:SSL_CTX_use_certificate_chain_file failed, ret:%d, path:%s, openssl_error:%s",
                            cert_ret, config_.cert_file.c_str(), cert_error.c_str());
-  const int key_ret = SSL_CTX_use_PrivateKey_file(ctx, config_.key_file.c_str(), SSL_FILETYPE_PEM);
-  const std::string key_error = key_ret == 1 ? "" : OpensslErrorString();
-  HIXL_CHK_BOOL_RET_STATUS(key_ret == 1, FAILED,
-                           "Call api:SSL_CTX_use_PrivateKey_file failed, ret:%d, path:%s, openssl_error:%s", key_ret,
-                           config_.key_file.c_str(), key_error.c_str());
+  BIO *bio = CreateKeyBio(config_.key_pem);
+  HIXL_CHK_BOOL_RET_STATUS(bio != nullptr, FAILED, "[TlsContext] Failed to create BIO for key_pem");
+  HIXL_MAKE_GUARD(key_bio_guard, ([bio]() { BIO_free(bio); }));
+  ERR_clear_error();
+  EVP_PKEY *pkey = PEM_read_bio_PrivateKey(bio, nullptr, NoPassphrase, nullptr);
+  const std::string key_error = pkey != nullptr ? "" : OpensslErrorString();
+  HIXL_CHK_BOOL_RET_STATUS(pkey != nullptr, FAILED,
+                           "Call api:PEM_read_bio_PrivateKey failed, field:key_pem, openssl_error:%s",
+                           key_error.c_str());
+  const int key_ret = SSL_CTX_use_PrivateKey(ctx, pkey);
+  EVP_PKEY_free(pkey);
+  const std::string use_error = key_ret == 1 ? "" : OpensslErrorString();
+  HIXL_CHK_BOOL_RET_STATUS(key_ret == 1, FAILED, "Call api:SSL_CTX_use_PrivateKey failed, ret:%d, openssl_error:%s",
+                           key_ret, use_error.c_str());
   const int check_ret = SSL_CTX_check_private_key(ctx);
   const std::string check_error = check_ret == 1 ? "" : OpensslErrorString();
   HIXL_CHK_BOOL_RET_STATUS(check_ret == 1, FAILED,
@@ -97,19 +133,13 @@ Status TlsContext::LoadCertAndKey(SSL_CTX *ctx) const {
 }
 
 Status TlsContext::ApplyVerifyAndCiphers(SSL_CTX *ctx) const {
-  if (!config_.ca_file.empty()) {
-    const int ca_ret = SSL_CTX_load_verify_locations(ctx, config_.ca_file.c_str(), nullptr);
-    const std::string ca_error = ca_ret == 1 ? "" : OpensslErrorString();
-    HIXL_CHK_BOOL_RET_STATUS(ca_ret == 1, FAILED,
-                             "Call api:SSL_CTX_load_verify_locations failed, ret:%d, path:%s, openssl_error:%s", ca_ret,
-                             config_.ca_file.c_str(), ca_error.c_str());
-  }
-  if (config_.verify_peer) {
-    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
-    SSL_CTX_set_verify_depth(ctx, kVerifyDepth);
-  } else {
-    SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, nullptr);
-  }
+  const int ca_ret = SSL_CTX_load_verify_locations(ctx, config_.ca_file.c_str(), nullptr);
+  const std::string ca_error = ca_ret == 1 ? "" : OpensslErrorString();
+  HIXL_CHK_BOOL_RET_STATUS(ca_ret == 1, FAILED,
+                           "Call api:SSL_CTX_load_verify_locations failed, ret:%d, path:%s, openssl_error:%s", ca_ret,
+                           config_.ca_file.c_str(), ca_error.c_str());
+  SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
+  SSL_CTX_set_verify_depth(ctx, kVerifyDepth);
   if (config_.ciphers.empty()) {
     return SUCCESS;
   }
