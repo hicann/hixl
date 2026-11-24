@@ -294,7 +294,7 @@ class Cache(object):
 
     @property
     def tensor_addrs(self) -> List[int]:
-        return self._tensor_addrs
+        return list(self._tensor_addrs)
 
     @property
     def is_blocks_cache(self):
@@ -550,7 +550,7 @@ class KvCache(object):
 
     @property
     def per_device_tensor_addrs(self) -> List[List[int]]:
-        return self._per_device_tensor_addrs
+        return [addrs.copy() for addrs in self._per_device_tensor_addrs]
 
     def __str__(self):
         return f"KvCache(cache_id = {self._cache_id}, num_devices = {len(self._per_device_tensor_addrs)})"

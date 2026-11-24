@@ -700,7 +700,8 @@ class CacheManager(object):
             dst_cache.is_blocks_cache,
             "param check failed, dst cache should be blocks cache.",
         )
-        check_isinstance("src_to_dst", src_to_dst, dict, int)
+        check_isinstance("src_to_dst", src_to_dst, dict)
+        check_dict("src_to_dst", src_to_dst, int, int)
 
         src_block_size = src_cache.cache_desc.size // src_cache.cache_desc.batch_size
         dst_block_size = dst_cache.cache_desc.size // dst_cache.cache_desc.batch_size

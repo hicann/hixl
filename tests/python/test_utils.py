@@ -22,6 +22,7 @@ from llm_datadist.v2.cache_manager import CacheManager
 from llm_datadist.v2.llm_types import (
     Cache, CacheDesc, DataType, Placement, CacheKeyByIdAndIndex,
     TransferConfig, TransferWithCacheKeyConfig, LayerSynchronizer, CacheTask,
+    KvCache,
 )
 from llm_datadist.v2.llm_utils import (
     pack_cache_desc, TransferCacheParameters, TransferCacheJob,
@@ -162,12 +163,29 @@ class TensorUt(unittest.TestCase):
 
         src_desc.update_dim(1, 8)
         dst_desc.update_dim(1, 8)
+        cache_src = Cache(3, src_desc, [303], None, False, True)
+        cache_dst = Cache(4, dst_desc, [404], None, False, True)
         manager.swap_blocks(
-            Cache(3, src_desc, [303], None, False, True),
-            Cache(4, dst_desc, [404], None, False, True),
+            cache_src,
+            cache_dst,
             {0: 0},
         )
         self.assertEqual(native.block_size, 8)
+
+        with self.assertRaises(TypeError):
+            manager.swap_blocks(cache_src, cache_dst, {0: "1"})
+
+        with self.assertRaises(TypeError):
+            manager.swap_blocks(cache_src, cache_dst, [0, 1])
+
+        addrs = cache_src.tensor_addrs
+        addrs.append(999)
+        self.assertEqual(cache_src.tensor_addrs, [303])
+
+        kv_cache = KvCache(10, src_desc, [[101], [202]], None)
+        kv_addrs = kv_cache.per_device_tensor_addrs
+        kv_addrs[0].append(999)
+        self.assertEqual(kv_cache.per_device_tensor_addrs, [[101], [202]])
 
 
 class AsyncCacheBatchBoundsUt(unittest.TestCase):
