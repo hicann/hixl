@@ -58,6 +58,8 @@ class CtrlMsgPlugin {
   Status SetSendTimeout(uint32_t timeout_ms);
   bool HasPending();
   bool IsUsable() const;
+  // SHA-256 fingerprint of the peer TLS certificate. UNSUPPORTED when TLS is not in use.
+  Status GetPeerCertificateFingerprint(std::string &fingerprint) const;
   // Abandon an incomplete TLS message and wake I/O; the connection owner still closes the descriptor.
   Status InvalidateTlsSession();
   // Wake in-flight I/O without closing or reusing the descriptor.

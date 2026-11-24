@@ -35,6 +35,9 @@ enum class ChannelType {
 struct ChannelInfo {
   ChannelType channel_type;
   std::string channel_id;
+  // SHA-256 fingerprint of the peer TLS certificate that created this channel. Used to bind a
+  // reconnect/disconnect to the same peer; empty when the channel was created without peer TLS.
+  std::string peer_cert_fingerprint;
   uint32_t peer_rank_id;
   uint32_t local_rank_id;
   HcclCommConfig comm_config;
@@ -74,6 +77,9 @@ class CommChannel {
   Status Initialize();
   Status Finalize();
   std::string GetChannelId() const;
+  const std::string &GetPeerCertFingerprint() const {
+    return channel_info_.peer_cert_fingerprint;
+  }
   ChannelType GetChannelType() const {
     return channel_info_.channel_type;
   }

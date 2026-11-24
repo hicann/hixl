@@ -112,7 +112,8 @@ class ChannelMsgHandler {
   Status CreateChannel(const ChannelInfo &channel_info, bool is_client, const ChannelConnectInfo &peer_channel_info);
   Status ParseRankTable(const ChannelConnectInfo &peer_channel_info, std::string &rank_table, int32_t &local_rank_id,
                         int32_t &peer_rank_id) const;
-  Status ConnectInfoProcess(const ChannelConnectInfo &peer_channel_info, int32_t timeout, bool is_client);
+  Status ConnectInfoProcess(const ChannelConnectInfo &peer_channel_info, int32_t timeout, bool is_client,
+                            const std::string &peer_cert_fingerprint = "");
   Status ProcessConnectRequest(const hixl::CtrlMsgPluginPtr &connection, const char *msg, uint64_t msg_len,
                                bool &keep_connection);
   Status DisconnectInfoProcess(ChannelType channel_type, const ChannelDisconnectInfo &peer_disconnect_info);
@@ -143,6 +144,11 @@ class ChannelMsgHandler {
                                       int32_t timeout_in_millis) const;
   void SendDisconnectRequest(const hixl::CtrlMsgPluginPtr &connection, Status &send_status) const;
   Status CleanupDisconnectResources(const std::string &remote_engine) const;
+  // Reads the peer TLS certificate fingerprint when TLS peer verification is enabled. Returns SUCCESS with
+  // an empty fingerprint when peer identity is not enforced (TLS disabled or verify_peer=false).
+  Status GetPeerCertFingerprint(const hixl::CtrlMsgPluginPtr &connection, std::string &fingerprint) const;
+  // Two daemon connections belong to the same peer only when both record a non-empty, equal fingerprint.
+  static bool PeerFingerprintMatches(const std::string &recorded, const std::string &provided);
   Status ValidateDisconnectResponse(const hixl::CtrlMsgPluginPtr &connection, Status send_status,
                                     int32_t timeout_ms) const;
   Status InitChannelPool();

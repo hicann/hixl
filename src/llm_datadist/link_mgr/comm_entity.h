@@ -169,15 +169,15 @@ class CommEntity {
   void MarkEntityIdle();
   void SetEntityMemInfo(EntityMemInfoPtr &mem_info);
   void SetEntityCommInfo(EntityCommInfoPtr comm_info);
-  // Source ip of the daemon connection that created this entity; used to authenticate destroy requests
-  // (force_link reconnect / kDisconnect) that claim this entity's cluster id. Entities created by the
-  // collective rootinfo path have no daemon connection, keep it empty, and therefore cannot be destroyed
-  // through the daemon path (fail closed).
-  void SetPeerIp(const std::string &peer_ip) {
-    peer_ip_ = peer_ip;
+  // SHA-256 fingerprint of the peer TLS certificate presented by the daemon connection that created this
+  // entity; used to authenticate destroy requests (force_link reconnect / kDisconnect) that claim this
+  // entity's cluster id. Entities created without peer TLS keep it empty and therefore cannot be destroyed
+  // through the authenticated daemon path (fail closed).
+  void SetPeerCertFingerprint(const std::string &fingerprint) {
+    peer_cert_fingerprint_ = fingerprint;
   }
-  const std::string &GetPeerIp() const {
-    return peer_ip_;
+  const std::string &GetPeerCertFingerprint() const {
+    return peer_cert_fingerprint_;
   }
   ge::Status BatchPutAsync(std::vector<HcclOneSideOpDesc> &op_descs, aclrtStream stream = nullptr);
   ge::Status BatchGetAsync(std::vector<HcclOneSideOpDesc> &op_descs, aclrtStream stream = nullptr);
@@ -213,7 +213,7 @@ class CommEntity {
   uint32_t rank_id_;     // remote rank id
   uint64_t local_cluster_id_;
   uint32_t local_rank_id_;
-  std::string peer_ip_;  // source ip of the connection that created this entity (the peer engine's ip)
+  std::string peer_cert_fingerprint_;  // fingerprint of the peer cert that created this entity
   std::string desc_;
   aclrtStream stream_;
   aclrtContext aclrt_context_{nullptr};

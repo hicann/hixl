@@ -588,6 +588,15 @@ bool CtrlMsgPlugin::IsUsable() const {
   return initialized_ && fd_ >= 0 && (!tls_enabled_ || (tls_session_ != nullptr && tls_session_->IsUsable()));
 }
 
+Status CtrlMsgPlugin::GetPeerCertificateFingerprint(std::string &fingerprint) const {
+  std::shared_lock<std::shared_mutex> lock(lifecycle_mutex_);
+  fingerprint.clear();
+  if (!tls_enabled_ || tls_session_ == nullptr) {
+    return UNSUPPORTED;
+  }
+  return tls_session_->GetPeerCertificateFingerprint(fingerprint);
+}
+
 Status CtrlMsgPlugin::InvalidateTlsSession() {
   std::shared_lock<std::shared_mutex> lock(lifecycle_mutex_);
   if (tls_session_ == nullptr) {

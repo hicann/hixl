@@ -461,6 +461,31 @@ TEST_F(TlsSessionUt, WriteOnceIgnoresStaleErrorQueueUnderBackpressure) {
   EXPECT_EQ(ERR_peek_error(), 0UL);
 }
 
+TEST_F(TlsSessionUt, PeerCertificateFingerprintIsStableSha256) {
+  // The server only receives a client certificate when peer verification is enabled.
+  ASSERT_EQ(TlsContext::Create(test::MakeTlsConfig(dir_, /*verify_peer=*/true), ctx_), SUCCESS);
+  int fds[2] = {-1, -1};
+  HIXL_MAKE_GUARD(close_fds, ([&]() {
+                    (void)close(fds[0]);
+                    (void)close(fds[1]);
+                  }));
+  std::shared_ptr<TlsSession> server;
+  std::shared_ptr<TlsSession> client;
+  ASSERT_NO_FATAL_FAILURE(ConnectSessions(fds, server, client));
+
+  std::string server_fingerprint;
+  std::string client_fingerprint;
+  EXPECT_EQ(server->GetPeerCertificateFingerprint(server_fingerprint), SUCCESS);
+  EXPECT_EQ(client->GetPeerCertificateFingerprint(client_fingerprint), SUCCESS);
+  EXPECT_EQ(server_fingerprint.size(), 64U);
+  // Both ends use the same self-signed certificate in the fixture.
+  EXPECT_EQ(server_fingerprint, client_fingerprint);
+
+  std::string repeated;
+  EXPECT_EQ(server->GetPeerCertificateFingerprint(repeated), SUCCESS);
+  EXPECT_EQ(repeated, server_fingerprint);
+}
+
 TEST(TlsOpensslUtilsTest, CollectsAndDrainsErrorQueue) {
   ERR_clear_error();
   EXPECT_EQ(OpensslErrorString(), "none");

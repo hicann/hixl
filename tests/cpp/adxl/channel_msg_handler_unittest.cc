@@ -617,4 +617,19 @@ TEST_F(ChannelMsgHandlerUnitTest, CreateChannelRejectsInvalidRemoteMemRange) {
 
   EXPECT_EQ(handler_->CreateChannel(channel_info, true, peer_info), PARAM_INVALID);
 }
+TEST_F(ChannelMsgHandlerUnitTest, PeerFingerprintMatchesRequiresNonEmptyEquality) {
+  EXPECT_TRUE(ChannelMsgHandler::PeerFingerprintMatches("abc", "abc"));
+  EXPECT_FALSE(ChannelMsgHandler::PeerFingerprintMatches("abc", "def"));
+  EXPECT_FALSE(ChannelMsgHandler::PeerFingerprintMatches("", "abc"));
+  EXPECT_FALSE(ChannelMsgHandler::PeerFingerprintMatches("abc", ""));
+  EXPECT_FALSE(ChannelMsgHandler::PeerFingerprintMatches("", ""));
+}
+
+TEST_F(ChannelMsgHandlerUnitTest, PeerCertFingerprintSkippedWithoutTlsVerification) {
+  auto connection = hixl::test::Connection(sockets_[0]);
+  ASSERT_NE(connection, nullptr);
+  std::string fingerprint = "stale";
+  EXPECT_EQ(handler_->GetPeerCertFingerprint(connection, fingerprint), SUCCESS);
+  EXPECT_TRUE(fingerprint.empty());
+}
 }  // namespace adxl

@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <unistd.h>
 
 #include "hixl/hixl_types.h"
@@ -39,6 +40,8 @@ class TlsSession {
   bool IsHandshakeComplete() const;
   // An abandoned write makes the session unusable even after a completed handshake.
   bool IsUsable() const;
+  // SHA-256 fingerprint (lowercase hex) of the peer certificate presented during the handshake.
+  Status GetPeerCertificateFingerprint(std::string &fingerprint) const;
   void Invalidate();
   Status Send(const void *buf, size_t len, uint32_t timeout_ms, int32_t &err_no);
   Status Recv(void *buf, size_t len, uint32_t timeout_ms);

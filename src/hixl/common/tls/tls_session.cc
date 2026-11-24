@@ -18,7 +18,9 @@
 #include <sys/poll.h>
 
 #include <openssl/err.h>
+#include <openssl/evp.h>
 #include <openssl/ssl.h>
+#include <openssl/x509.h>
 
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
@@ -150,6 +152,28 @@ bool TlsSession::IsHandshakeComplete() const {
 bool TlsSession::IsUsable() const {
   std::lock_guard<std::mutex> lock(mutex_);
   return ssl_ != nullptr && handshake_complete_ && !failed_;
+}
+
+Status TlsSession::GetPeerCertificateFingerprint(std::string &fingerprint) const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  fingerprint.clear();
+  if (ssl_ == nullptr || !handshake_complete_ || failed_) {
+    return FAILED;
+  }
+  X509 *cert = SSL_get1_peer_certificate(ssl_);
+  HIXL_CHK_BOOL_RET_STATUS(cert != nullptr, FAILED, "TLS peer certificate is missing, fd:%d", fd_);
+  unsigned char digest[EVP_MAX_MD_SIZE];
+  unsigned int digest_len = 0;
+  const int digest_ret = X509_digest(cert, EVP_sha256(), digest, &digest_len);
+  X509_free(cert);
+  HIXL_CHK_BOOL_RET_STATUS(digest_ret == 1, FAILED, "Call api:X509_digest failed, fd:%d", fd_);
+  static constexpr char kHexDigits[] = "0123456789abcdef";
+  fingerprint.reserve(static_cast<size_t>(digest_len) * 2U);
+  for (unsigned int i = 0U; i < digest_len; ++i) {
+    fingerprint.push_back(kHexDigits[digest[i] >> 4U]);
+    fingerprint.push_back(kHexDigits[digest[i] & 0x0FU]);
+  }
+  return SUCCESS;
 }
 
 void TlsSession::Invalidate() {

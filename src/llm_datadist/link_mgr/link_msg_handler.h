@@ -79,12 +79,16 @@ class LinkMsgHandler {
   static ge::Status RecvMsg(const hixl::CtrlMsgPluginPtr &connection, LinkMsgType msg_type, T &msg, int32_t timeout_ms);
   ge::Status ConnectedProcess(const hixl::CtrlMsgPluginPtr &connection, bool &keep_connection);
   ge::Status ExchangeInfoProcess(const LLMExchangeInfo &peer_exchange_info, int32_t timeout, bool force_link,
-                                 const std::string &peer_ip, EntityMemInfoPtr &mem_info_ptr) const;
+                                 const std::string &peer_cert_fingerprint, EntityMemInfoPtr &mem_info_ptr) const;
   ge::Status GenerateRankInfo(const std::string &peer_comm_res, std::string &rank_table, int32_t &local_rank_id,
                               int32_t &peer_rank_id) const;
   ge::Status DisconnectInfoProcess(const LLMDisconnectInfo &peer_disconnect_info) const;
   ge::Status ProcessDisconnectRequest(const hixl::CtrlMsgPluginPtr &connection, const std::vector<char> &msg) const;
   ge::Status ProcessConnectRequest(const hixl::CtrlMsgPluginPtr &connection, const std::vector<char> &msg);
+  // Reads the peer certificate fingerprint when TLS peer verification is enabled; returns SUCCESS with an
+  // empty fingerprint when identity is not enforced. The error code and log fields live here so both daemon
+  // entry points stay consistent.
+  ge::Status GetPeerCertFingerprint(const hixl::CtrlMsgPluginPtr &connection, std::string &fingerprint) const;
   ge::Status GenerateLocalCommRes(const ClusterInfo &cluster);
   ge::Status CreateEntityMemInfo(EntityMemInfoPtr &mem_info_ptr) const;
   LLMExchangeInfo BuildExchangeInfo(const ClusterInfo &cluster, int32_t timeout,

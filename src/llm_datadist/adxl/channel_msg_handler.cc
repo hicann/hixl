@@ -18,6 +18,7 @@
 #include "common/msg_handler_plugin.h"
 #include "comm_adapter/comm_adapter.h"
 #include "common/llm_utils.h"
+#include "common/tls/tls_manager.h"
 #include "comm_channel.h"
 #include "common/llm_checker.h"
 #include "common/llm_scope_guard.h"
@@ -35,29 +36,26 @@ constexpr int32_t kMaxTrafficClassRange = 255;
 constexpr int32_t kTrafficClassStep = 4;
 constexpr int32_t kMaxServiceLevel = 7;
 
-// A daemon request (kConnect/kDisconnect) carries a self-declared channel id in "ip:port" form. Bind the claimed
-// id to the connection's real source ip so one peer cannot forge another engine's identity to hijack or tear
-// down that engine's links on this server.
-Status ValidatePeerIdentity(const hixl::CtrlMsgPluginPtr &connection, const std::string &claimed_channel_id) {
-  std::string claimed_ip;
-  int32_t claimed_port = -1;
-  HIXL_CHK_STATUS_RET(hixl::ParseListenInfo(claimed_channel_id, claimed_ip, claimed_port),
-                      "Failed to parse listen info:%s.", claimed_channel_id.c_str());
-  std::string canonical_claimed_ip;
-  HIXL_CHK_STATUS_RET(hixl::CanonicalizeIp(claimed_ip, canonical_claimed_ip),
-                      "Failed to canonicalize claimed ip:%s, channel id:%s.", claimed_ip.c_str(),
-                      claimed_channel_id.c_str());
-  std::string peer_ip;
-  HIXL_CHK_STATUS_RET(hixl::GetPeerIp(connection->Fd(), peer_ip), "Failed to get peer ip, connection:%s.",
-                      connection->Desc().c_str());
-  ADXL_CHK_BOOL_RET_STATUS(
-      peer_ip == canonical_claimed_ip, PARAM_INVALID,
-      "Peer identity mismatch: claimed ip:%s in channel id:%s, actual source ip:%s, connection:%s. "
-      "Reject the request to protect links of the claimed engine.",
-      claimed_ip.c_str(), claimed_channel_id.c_str(), peer_ip.c_str(), connection->Desc().c_str());
+}  // namespace
+
+Status ChannelMsgHandler::GetPeerCertFingerprint(const hixl::CtrlMsgPluginPtr &connection,
+                                                 std::string &fingerprint) const {
+  fingerprint.clear();
+  const auto config = hixl::TlsManager::GetInstance().GetConfig();
+  if (!config.Enabled() || !config.verify_peer) {
+    // Peer identity is only enforced with TLS peer verification enabled.
+    return SUCCESS;
+  }
+  HIXL_CHK_STATUS_RET(connection->GetPeerCertificateFingerprint(fingerprint),
+                      "Failed to get peer certificate fingerprint, connection:%s", connection->Desc().c_str());
+  HIXL_CHK_BOOL_RET_STATUS(!fingerprint.empty(), FAILED, "Peer certificate fingerprint is empty, connection:%s",
+                           connection->Desc().c_str());
   return SUCCESS;
 }
-}  // namespace
+
+bool ChannelMsgHandler::PeerFingerprintMatches(const std::string &recorded, const std::string &provided) {
+  return !recorded.empty() && !provided.empty() && recorded == provided;
+}
 
 static inline void from_json(const nlohmann::json &j, AddrInfo &op_desc) {
   j.at("mem_type").get_to(op_desc.mem_type);
@@ -327,11 +325,26 @@ Status ChannelMsgHandler::CreateChannel(const ChannelInfo &channel_info, bool is
   LLMLOGI("Start to create channel, channel_id:%s, local_rank:%u, peer_rank:%u, is_client:%d",
           channel_info.channel_id.c_str(), channel_info.local_rank_id, channel_info.peer_rank_id,
           static_cast<int32_t>(is_client));
-  if (!is_client && channel_manager_->GetChannel(channel_info.channel_type, channel_info.channel_id) != nullptr) {
-    LLMEVENT("channel:%s exist, begin to destroy, local_rank:%u, peer_rank:%u.", channel_info.channel_id.c_str(),
-             channel_info.local_rank_id, channel_info.peer_rank_id);
-    ADXL_CHK_STATUS_RET(channel_manager_->DestroyChannel(channel_info.channel_type, channel_info.channel_id),
-                        "Failed to destroy previous channel, channel id:%s.", channel_info.channel_id.c_str());
+  if (!is_client) {
+    auto existing = channel_manager_->GetChannel(channel_info.channel_type, channel_info.channel_id);
+    if (existing != nullptr) {
+      const auto config = hixl::TlsManager::GetInstance().GetConfig();
+      if (config.Enabled() && config.verify_peer) {
+        // A reconnect may only replace the link when it comes from the same peer certificate; a different
+        // certificate claiming this channel id must not tear down the existing link.
+        ADXL_CHK_BOOL_RET_STATUS(
+            PeerFingerprintMatches(existing->GetPeerCertFingerprint(), channel_info.peer_cert_fingerprint),
+            PARAM_INVALID,
+            "Reject replacing channel:%s: peer certificate fingerprint mismatch, "
+            "recorded:%s, provided:%s",
+            channel_info.channel_id.c_str(), existing->GetPeerCertFingerprint().c_str(),
+            channel_info.peer_cert_fingerprint.c_str());
+      }
+      LLMEVENT("channel:%s exist, begin to destroy, local_rank:%u, peer_rank:%u.", channel_info.channel_id.c_str(),
+               channel_info.local_rank_id, channel_info.peer_rank_id);
+      ADXL_CHK_STATUS_RET(channel_manager_->DestroyChannel(channel_info.channel_type, channel_info.channel_id),
+                          "Failed to destroy previous channel, channel id:%s.", channel_info.channel_id.c_str());
+    }
   }
   for (const auto &remote_addr : peer_channel_info.addrs) {
     ADXL_CHK_BOOL_RET_STATUS(remote_addr.start_addr <= remote_addr.end_addr, PARAM_INVALID,
@@ -369,7 +382,7 @@ Status ChannelMsgHandler::ParseRankTable(const ChannelConnectInfo &peer_channel_
 }
 
 Status ChannelMsgHandler::ConnectInfoProcess(const ChannelConnectInfo &peer_channel_info, int32_t timeout,
-                                             bool is_client) {
+                                             bool is_client, const std::string &peer_cert_fingerprint) {
   if (user_config_channel_pool_) {
     auto start_time = std::chrono::steady_clock::now();
     NotifyEviction();
@@ -394,6 +407,7 @@ Status ChannelMsgHandler::ConnectInfoProcess(const ChannelConnectInfo &peer_chan
   ChannelInfo channel_info{};
   channel_info.channel_type = is_client ? ChannelType::kClient : ChannelType::kServer;
   channel_info.channel_id = peer_channel_info.channel_id;
+  channel_info.peer_cert_fingerprint = peer_cert_fingerprint;
   channel_info.peer_rank_id = peer_rank_id;
   channel_info.local_rank_id = local_rank_id;
   channel_info.comm_config = comm_config_;
@@ -448,10 +462,12 @@ Status ChannelMsgHandler::ProcessConnectRequest(const hixl::CtrlMsgPluginPtr &co
   ChannelConnectInfo peer_connect_info{};
   ADXL_CHK_STATUS_RET(ChannelMsgHandler::Deserialize(msg, msg_len, peer_connect_info),
                       "Failed to deserialize connect msg");
-  // Validate identity before exchanging local info or touching any existing channel of the claimed engine.
-  const Status identity_ret = ValidatePeerIdentity(connection, peer_connect_info.channel_id);
+  // Capture the peer certificate identity before exchanging local info or touching any existing channel
+  // of the claimed engine. Identity is only enforced when TLS peer verification is enabled.
+  std::string peer_cert_fingerprint;
+  const Status identity_ret = GetPeerCertFingerprint(connection, peer_cert_fingerprint);
   if (identity_ret != SUCCESS) {
-    ADXL_CHK_STATUS(identity_ret, "Failed to validate peer identity, local engine:%s, claimed engine:%s.",
+    ADXL_CHK_STATUS(identity_ret, "Failed to get peer certificate fingerprint, local engine:%s, claimed engine:%s.",
                     listen_info_.c_str(), peer_connect_info.channel_id.c_str());
     ChannelStatus status{};
     status.error_code = static_cast<uint32_t>(identity_ret);
@@ -466,7 +482,7 @@ Status ChannelMsgHandler::ProcessConnectRequest(const hixl::CtrlMsgPluginPtr &co
   LLMLOGI("Start to process connect info, local engine:%s, remote engine:%s, timeout:%d ms.", listen_info_.c_str(),
           peer_connect_info.channel_id.c_str(), peer_connect_info.timeout);
   peer_connect_info.comm_name = "hixl_" + peer_connect_info.channel_id + "_" + listen_info_;
-  auto ret = ConnectInfoProcess(peer_connect_info, peer_connect_info.timeout, false);
+  auto ret = ConnectInfoProcess(peer_connect_info, peer_connect_info.timeout, false, peer_cert_fingerprint);
   if (ret == SUCCESS) {
     LLMEVENT("Success to process connect info, local engine:%s, remote engine:%s, timeout:%d ms.", listen_info_.c_str(),
              peer_connect_info.channel_id.c_str(), peer_connect_info.timeout);
@@ -513,12 +529,27 @@ Status ChannelMsgHandler::ProcessDisconnectRequest(const hixl::CtrlMsgPluginPtr 
 
   LLMLOGI("Start to process disconnect info, local engine:%s, remote engine:%s.", listen_info_.c_str(),
           peer_disconnect_info.channel_id.c_str());
-  // Assign ret before any early return: the send_status guard below reports ret to the peer.
-  ret = ValidatePeerIdentity(connection, peer_disconnect_info.channel_id);
-  ADXL_CHK_STATUS(ret, "Failed to validate peer identity, local engine:%s, claimed engine:%s.", listen_info_.c_str(),
-                  peer_disconnect_info.channel_id.c_str());
+  // Assign ret before any early return: the send_status guard below reports ret to the peer. A disconnect
+  // may only target a server channel created by the same peer certificate.
+  std::string peer_cert_fingerprint;
+  ret = GetPeerCertFingerprint(connection, peer_cert_fingerprint);
   if (ret != SUCCESS) {
+    LLMLOGE(ret, "Failed to get peer certificate fingerprint, local engine:%s, claimed engine:%s.",
+            listen_info_.c_str(), peer_disconnect_info.channel_id.c_str());
     return ret;
+  }
+  const auto tls_config = hixl::TlsManager::GetInstance().GetConfig();
+  if (tls_config.Enabled() && tls_config.verify_peer) {
+    auto target = channel_manager_->GetChannel(ChannelType::kServer, peer_disconnect_info.channel_id);
+    if (target != nullptr && !PeerFingerprintMatches(target->GetPeerCertFingerprint(), peer_cert_fingerprint)) {
+      ret = PARAM_INVALID;
+      LLMLOGE(ret,
+              "Reject disconnect: claimed channel:%s peer certificate fingerprint mismatch, recorded:%s, "
+              "provided:%s",
+              peer_disconnect_info.channel_id.c_str(), target->GetPeerCertFingerprint().c_str(),
+              peer_cert_fingerprint.c_str());
+      return ret;
+    }
   }
   ret = DisconnectInfoProcess(ChannelType::kServer, peer_disconnect_info);
   if (ret == SUCCESS) {
