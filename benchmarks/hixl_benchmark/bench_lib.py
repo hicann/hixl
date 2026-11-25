@@ -419,6 +419,8 @@ class Options:
             if end < 0 or end + 1 >= len(value) or value[end + 1] != ":":
                 fail(f"Invalid --remote:{value}, expected [ipv6]:port")
             host = value[1:end]
+            if not host:
+                fail(f"Invalid --remote:{value}, IPv6 host must not be empty")
             try:
                 port = int(value[end + 2 :])
             except ValueError:
