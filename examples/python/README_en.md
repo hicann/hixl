@@ -73,7 +73,7 @@ Replace `${HOME}/Ascend` with the actual software installation path.
   - Change `DECODER_HOST_IP` to the host IP address of the Decoder host.
   - Ensure that the scripts are identical on both hosts.
 
-- Some samples support RDMA links in A5 environments and must be executed on dual hosts. In A5 environments, if `local_comm_res` is not manually configured, the UB protocol is used by default; to use RDMA links, you need to manually configure `local_comm_res`. For configuration details, refer to [**Table 2** options (Ascend 950PR/Ascend 950DT)](../../docs/zh/api/cpp/HIXL-interface.md#initialize). You can obtain the host NIC IP information using the following commands:
+- Some samples support RDMA links in A5 environments and must be executed on dual hosts. In A5 environments, if `local_comm_res` is not manually configured, the UB protocol is used by default; to use RDMA links, you need to manually configure `local_comm_res`. For configuration details, refer to [**Table 2** options (Ascend 950PR/Ascend 950DT)](../../docs/en/api/cpp/HIXL-interface.md#initialize). You can obtain the host NIC IP information using the following commands:
 
   ```sh
   # Query the mapping between RoCE devices and network ports, and identify the ports in Up state
