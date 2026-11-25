@@ -137,6 +137,13 @@ def parse_args():
     return parser.parse_args()
 
 
+def parse_device_ids(value: str) -> list[int]:
+    parts = [part.strip() for part in value.split(",")]
+    if any(not part.isascii() or not part.isdecimal() for part in parts):
+        raise ValueError("device IDs must be a comma-separated list of nonnegative integers")
+    return [int(part) for part in parts]
+
+
 def prepare_output_dir(output_dir: str) -> None:
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -282,6 +289,13 @@ def main():
     if args.num_processes is not None and args.num_processes <= 0:
         log.error("[ERROR] --num_processes must be positive, got %s", args.num_processes)
         return 1
+    user_devs = None
+    if args.devices is not None:
+        try:
+            user_devs = parse_device_ids(args.devices)
+        except ValueError as exc:
+            log.error("[ERROR] Invalid --devices: %s", exc)
+            return 1
     key_counts = args.key_counts or "16,32,48,64"
     run_id = f"kv_{int(time.time())}_{os.getpid()}"
     try:
@@ -297,6 +311,7 @@ def main():
     )
     if args.devices is None:
         args.devices = ",".join((str(i) for i in range(target_processes)))
+        user_devs = parse_device_ids(args.devices)
     bench_bin = args.bench_bin or find_bench_bin()
     if not Path(bench_bin).exists():
         log.error(f"[ERROR] bench binary not found: {bench_bin}")
@@ -306,7 +321,6 @@ def main():
     if not Path(model_config).exists():
         log.error(f"[ERROR] model config not found: {model_config}")
         return 1
-    user_devs = [int(x) for x in args.devices.split(",") if x.strip()]
     resolved = resolve_kv_devices(platform_id, user_devs, target_processes)
     devices = [str(d) for d in resolved]
     if len(devices) < target_processes:
