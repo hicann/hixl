@@ -56,43 +56,37 @@ class ThreadPool {
     }
     std::future<retType> future = task->get_future();
     size_t task_queue_size = 0U;
+    bool need_scale = false;
     {
-      const std::lock_guard<std::mutex> lock{m_lock_};
+      std::unique_lock<std::mutex> lock{m_lock_};
+      if (is_stopped_.load()) {
+        lock.unlock();
+        HIXL_LOGE(ge::FAILED, "[ThreadPool:%s] has been stopped", thread_name_prefix_.c_str());
+        return fail_future;
+      }
       tasks_.emplace([task]() { (*task)(); });
       task_queue_size = tasks_.size();
+      need_scale = idle_thrd_num_.load() == 0U && total_thrd_num_.load() < max_thrd_num_;
     }
     cond_var_.notify_one();
 
-    const uint32_t idle_num = idle_thrd_num_.load();
-    const uint32_t busy_num = busy_thrd_num_.load();
-    const uint32_t total_num = total_thrd_num_.load();
-    if (idle_num == 0U && task_queue_size > 0U && total_num < max_thrd_num_) {
+    if (need_scale) {
       AddTemporaryThread();
     }
 
     HIXL_LOGD("[ThreadPool:%s] commit task end, idle:%u, busy:%u, total:%u, tasks:%zu", thread_name_prefix_.c_str(),
-              idle_num, busy_num, total_num, task_queue_size);
+              idle_thrd_num_.load(), busy_thrd_num_.load(), total_thrd_num_.load(), task_queue_size);
     return future;
   }
 
   static void ThreadFunc(ThreadPool *const thread_pool, uint32_t thread_idx, bool is_temporary,
                          std::atomic<bool> *finished_flag);
-#ifdef HIXL_ENABLE_TEST_HOOKS
-  static void SetFailTempThreadCreateForTest(bool fail);
-  uint32_t TotalThreadNumForTest() const {
-    return total_thrd_num_.load();
-  }
-  void ResetScaleBackoffForTest() {
-    const std::lock_guard<std::mutex> lock{m_lock_};
-    scale_backoff_until_ns_ = 0;
-  }
-#endif
 
  private:
   void AddTemporaryThread();
   void SetThreadName(const std::string &thread_type, uint32_t thread_idx) const;
   void LogTempThreadExit(const char *reason, uint32_t thread_idx) const;
-  bool PopTask(std::function<void()> &task, bool is_temporary);
+  bool PopTask(std::function<void()> &task, bool is_temporary, bool completed_task);
   void CleanupFinishedTempThreads();
 
   struct TempThreadEntry {

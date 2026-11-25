@@ -21,17 +21,7 @@ int64_t SteadyNowNs() {
   return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch())
       .count();
 }
-
-#ifdef HIXL_ENABLE_TEST_HOOKS
-std::atomic<bool> g_fail_temp_thread_create_for_test{false};
-#endif
 }  // namespace
-
-#ifdef HIXL_ENABLE_TEST_HOOKS
-void ThreadPool::SetFailTempThreadCreateForTest(bool fail) {
-  g_fail_temp_thread_create_for_test.store(fail);
-}
-#endif
 
 ThreadPool::ThreadPool(std::string thread_name_prefix, const uint32_t min_size, const uint32_t max_size)
     : thread_name_prefix_(std::move(thread_name_prefix)),
@@ -114,12 +104,6 @@ void ThreadPool::AddTemporaryThread() {
   temp_threads_.emplace_back();
   auto &entry = temp_threads_.back();
   try {
-#ifdef HIXL_ENABLE_TEST_HOOKS
-    if (g_fail_temp_thread_create_for_test.load()) {
-      throw std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again),
-                              "Resource temporarily unavailable");
-    }
-#endif
     entry.thread = std::thread(&ThreadFunc, this, thread_idx, true, &entry.finished);
   } catch (const std::system_error &e) {
     temp_threads_.pop_back();
@@ -148,10 +132,27 @@ void ThreadPool::LogTempThreadExit(const char *reason, uint32_t thread_idx) cons
             thread_idx, idle_thrd_num_.load(), busy_thrd_num_.load(), total_thrd_num_.load());
 }
 
-bool ThreadPool::PopTask(std::function<void()> &task, bool is_temporary) {
+bool ThreadPool::PopTask(std::function<void()> &task, bool is_temporary, bool completed_task) {
   std::unique_lock<std::mutex> lock{m_lock_};
-  cond_var_.wait(lock, [this]() { return is_stopped_.load() || !tasks_.empty(); });
-  if (is_stopped_ && tasks_.empty()) {
+  if (completed_task) {
+    --busy_thrd_num_;
+    if (!is_temporary) {
+      ++idle_thrd_num_;
+    }
+  }
+  // Check stop before starting another iteration, as the original worker loop did.
+  if (is_stopped_.load() || (is_temporary && tasks_.empty())) {
+    if (is_temporary) {
+      // Publish retirement atomically with respect to commit's enqueue and scaling decision.
+      --total_thrd_num_;
+    }
+    return false;
+  }
+  if (!is_temporary) {
+    cond_var_.wait(lock, [this]() { return is_stopped_.load() || !tasks_.empty(); });
+  }
+  // A core worker already waiting when stop arrives may execute one queued task, then exits next iteration.
+  if (tasks_.empty()) {
     return false;
   }
   task = std::move(tasks_.front());
@@ -187,27 +188,18 @@ void ThreadPool::ThreadFunc(ThreadPool *const thread_pool, uint32_t thread_idx, 
   HIXL_LOGD("[ThreadPool:%s] thread started, type:%s, idx:%u", thread_pool->thread_name_prefix_.c_str(),
             thread_type.c_str(), thread_idx);
 
-  while (!thread_pool->is_stopped_) {
+  bool completed_task = false;
+  while (true) {
     std::function<void()> task;
-    if (!thread_pool->PopTask(task, is_temporary)) {
-      if (is_temporary) {
-        --thread_pool->total_thrd_num_;
-        thread_pool->LogTempThreadExit("exit on stop", thread_idx);
-      }
+    if (!thread_pool->PopTask(task, is_temporary, completed_task)) {
       break;
     }
     task();
-
-    if (is_temporary && !thread_pool->is_stopped_) {
-      --thread_pool->total_thrd_num_;
-      --thread_pool->busy_thrd_num_;
-      thread_pool->LogTempThreadExit("exit after task", thread_idx);
-      break;
-    }
-    if (!is_temporary) {
-      ++thread_pool->idle_thrd_num_;
-    }
-    --thread_pool->busy_thrd_num_;
+    completed_task = true;
+  }
+  if (is_temporary) {
+    thread_pool->LogTempThreadExit(thread_pool->is_stopped_.load() ? "exit on stop" : "exit on empty queue",
+                                   thread_idx);
   }
   if (finished_flag != nullptr) {
     finished_flag->store(true);
