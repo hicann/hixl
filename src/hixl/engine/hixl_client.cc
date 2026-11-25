@@ -229,7 +229,12 @@ Status HixlClient::TransferAsync(const std::vector<TransferOpDesc> &op_descs, Tr
 }
 
 Status HixlClient::GetTransferStatus(const TransferReq &req, TransferStatus &status) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::unique_lock<std::mutex> lock(mutex_, std::try_to_lock);
+  if (!lock.owns_lock()) {
+    // The Engine indexes requests which have not returned a terminal result yet.
+    status = TransferStatus::WAITING;
+    return SUCCESS;
+  }
   if (client_handler_ == nullptr) {
     HIXL_LOGE(FAILED, "HixlClient is not initialized");
     status = TransferStatus::FAILED;

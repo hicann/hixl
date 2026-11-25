@@ -11,6 +11,7 @@
 #include "cs/ubmem/ubmem_virtual_memory_manager.h"
 
 #include <algorithm>
+#include <exception>
 #include <utility>
 
 #include "acl/acl.h"
@@ -35,7 +36,7 @@ constexpr size_t kFallbackChunkSize = 2UL * kBytesPerTB;
 // TB.
 constexpr uintptr_t kGen2SafeVaUpperBound = 80UL * kBytesPerTB;
 
-bool ExceedsVaUpperBound(void *ptr, size_t size, uintptr_t upper_bound) {
+bool ExceedsVaUpperBound(const void *ptr, size_t size, uintptr_t upper_bound) {
   if (ptr == nullptr) {
     return true;
   }
@@ -117,7 +118,11 @@ VirtualMemoryManager &VirtualMemoryManager::GetInstance() {
 }
 
 VirtualMemoryManager::~VirtualMemoryManager() {
-  Finalize();
+  try {
+    Finalize();
+  } catch (const std::exception &e) {
+    HIXL_LOGE(FAILED, "VirtualMemoryManager Finalize caught exception:%s", e.what());
+  }
 }
 
 Status VirtualMemoryManager::SetVirtualMemoryCapacity(size_t capacity_in_tb) {
@@ -268,7 +273,7 @@ Status VirtualMemoryManager::ReserveChunkedAutoRegions(SocType soc_type) {
 }
 
 void VirtualMemoryManager::ReleaseAllRegions() {
-  std::vector<void *> remaining_pending;
+  size_t keep = 0U;
   for (void *va : pending_release_vas_) {
     if (va == nullptr) {
       continue;
@@ -276,20 +281,25 @@ void VirtualMemoryManager::ReleaseAllRegions() {
     const auto ret = aclrtReleaseMemAddress(va);
     if (ret != ACL_SUCCESS) {
       HIXL_CHK_ACL(ret, "Retry release pending virtual memory failed.");
-      remaining_pending.push_back(va);
+      pending_release_vas_[keep++] = va;
     }
   }
-  pending_release_vas_.swap(remaining_pending);
+  pending_release_vas_.resize(keep);
 
   for (auto &region : regions_) {
-    if (region.raw_ptr != nullptr) {
-      const auto ret = aclrtReleaseMemAddress(region.raw_ptr);
-      if (ret == ACL_SUCCESS) {
-        region.raw_ptr = nullptr;
-      } else {
-        HIXL_CHK_ACL(ret, "Release global virtual memory failed.");
-        pending_release_vas_.push_back(region.raw_ptr);
-      }
+    if (region.raw_ptr == nullptr) {
+      continue;
+    }
+    const auto ret = aclrtReleaseMemAddress(region.raw_ptr);
+    if (ret == ACL_SUCCESS) {
+      region.raw_ptr = nullptr;
+      continue;
+    }
+    HIXL_CHK_ACL(ret, "Release global virtual memory failed.");
+    try {
+      pending_release_vas_.push_back(region.raw_ptr);
+    } catch (const std::exception &e) {
+      HIXL_LOGE(FAILED, "Track pending release virtual memory failed, ptr:%p, error:%s", region.raw_ptr, e.what());
     }
   }
   regions_.clear();

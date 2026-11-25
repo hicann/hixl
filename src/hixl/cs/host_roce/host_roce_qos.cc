@@ -10,7 +10,6 @@
 
 #include "cs/host_roce/host_roce_qos.h"
 
-#include <cctype>
 #include <cerrno>
 #include <climits>
 #include <cstdio>
@@ -64,13 +63,50 @@ std::string CurrentCfgPath() {
   return kHostRoceQosCfgPath;
 }
 
+bool ParseDecimalDigit(char ch, uint32_t &digit) {
+  switch (ch) {
+    case '0':
+      digit = 0U;
+      return true;
+    case '1':
+      digit = 1U;
+      return true;
+    case '2':
+      digit = 2U;
+      return true;
+    case '3':
+      digit = 3U;
+      return true;
+    case '4':
+      digit = 4U;
+      return true;
+    case '5':
+      digit = 5U;
+      return true;
+    case '6':
+      digit = 6U;
+      return true;
+    case '7':
+      digit = 7U;
+      return true;
+    case '8':
+      digit = 8U;
+      return true;
+    case '9':
+      digit = 9U;
+      return true;
+    default:
+      return false;
+  }
+}
+
 bool ParseDecimal(const std::string &cfg, size_t &pos, uint32_t &out) {
-  if (pos >= cfg.size() || std::isdigit(static_cast<unsigned char>(cfg[pos])) == 0) {
+  uint32_t digit = 0U;
+  if (pos >= cfg.size() || !ParseDecimalDigit(cfg[pos], digit)) {
     return false;
   }
   uint32_t value = 0U;
-  while (pos < cfg.size() && std::isdigit(static_cast<unsigned char>(cfg[pos])) != 0) {
-    const uint32_t digit = static_cast<uint32_t>(cfg[pos] - '0');
+  while (pos < cfg.size() && ParseDecimalDigit(cfg[pos], digit)) {
     if (value > (std::numeric_limits<uint32_t>::max() - digit) / kDecimalRadix) {
       return false;
     }

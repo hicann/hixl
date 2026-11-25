@@ -644,7 +644,7 @@ Status HixlCSClient::ImportRemoteMem(std::vector<HixlMemDesc> &desc_list, CommMe
   ctx.mems.reserve(ctx.num);
   ctx.tag_storage.reserve(ctx.num);
   Status ret = ImportAllDescs(ctx, desc_list);
-  auto rollback_import = [&]() {
+  auto rollback_import = [this, &desc_list, &ctx]() {
     HIXL_LOGW("[HixlClient] RollbackImport triggered. Cleaning up %zu imported bufs.", desc_list.size());
     CloseImportedBufs(*local_endpoint_, desc_list);
     // Descriptors imported before the failing one were already recorded in the mem store; drop those

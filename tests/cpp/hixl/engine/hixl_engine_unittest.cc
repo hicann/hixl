@@ -2045,6 +2045,44 @@ TEST_F(ClientManagerTest, RegisterDuplicateTransferReqRemovesOldOrderNode) {
   EXPECT_EQ(manager.Finalize(), SUCCESS);
 }
 
+TEST(HixlEngineBatchStatusTest, BusyClientReturnsWaitingAndBatchQueriesOtherClients) {
+  HixlEngine engine("127.0.0.1:26200");
+  ASSERT_EQ(engine.client_manager_.Initialize(false), SUCCESS);
+  auto busy_handler = std::make_unique<MockClientHandler>();
+  auto other_handler = std::make_unique<MockClientHandler>();
+  busy_handler->default_status = TransferStatus::COMPLETED;
+  other_handler->default_status = TransferStatus::COMPLETED;
+  auto busy_client = CreateMockClient(std::move(busy_handler));
+  auto other_client = CreateMockClient(std::move(other_handler));
+  const auto busy_req = reinterpret_cast<TransferReq>(0x1000);
+  const auto other_req = reinterpret_cast<TransferReq>(0x2000);
+  RegisterMockTransferReq(engine, busy_client, busy_req, nullptr);
+  RegisterMockTransferReq(engine, other_client, other_req, nullptr);
+
+  TransferStatus status = TransferStatus::FAILED;
+  std::vector<TransferResult> results;
+  std::unique_lock<std::mutex> lock(busy_client->mutex_);
+  auto query = std::async(std::launch::async, [&] {
+    const auto single_ret = engine.GetTransferStatus(busy_req, status);
+    GetTransferStatusArgs args{};
+    args.skip_waiting = true;
+    return std::make_pair(single_ret, engine.GetTransferStatus(args, results));
+  });
+  const auto returned = query.wait_for(std::chrono::seconds(1));
+  lock.unlock();
+  EXPECT_EQ(returned, std::future_status::ready);
+  const auto [single_ret, batch_ret] = query.get();
+  EXPECT_EQ(single_ret, SUCCESS);
+  EXPECT_EQ(batch_ret, SUCCESS);
+  EXPECT_EQ(status, TransferStatus::WAITING);
+  ASSERT_EQ(results.size(), 1U);
+  EXPECT_EQ(results[0].req, other_req);
+  EXPECT_EQ(results[0].status, TransferStatus::COMPLETED);
+  EXPECT_EQ(engine.GetTransferStatus(busy_req, status), SUCCESS);
+  EXPECT_EQ(status, TransferStatus::COMPLETED);
+  EXPECT_EQ(engine.client_manager_.Finalize(), SUCCESS);
+}
+
 TEST_F(ClientManagerTest, DestroyClientClearsTransferReqIndex) {
   ClientManager manager;
   EXPECT_EQ(manager.Initialize(false), SUCCESS);

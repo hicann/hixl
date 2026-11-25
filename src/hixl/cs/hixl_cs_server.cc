@@ -663,7 +663,7 @@ Status HixlCSServer::HandleChannelHandshake(const CtrlMsgPluginPtr &connection, 
   bool done = false;
   bool concurrent_in_flight = false;
 
-  auto run = [&]() -> Status {
+  auto run = [this, &connection, msg, msg_len, &out_payload, &done, &concurrent_in_flight]() -> Status {
     HIXL_CHECK_NOTNULL(msg);
     HIXL_CHK_BOOL_RET_STATUS(msg_len >= sizeof(ChannelHandshakeHeader), PARAM_INVALID,
                              "ChannelHandshakeReq too short, msg_len=%" PRIu64, msg_len);

@@ -14,7 +14,9 @@
 #include <chrono>
 #include <cinttypes>
 #include <cstdlib>
+#include <exception>
 #include <iterator>
+#include <new>
 #include <thread>
 #include "common/hixl_checker.h"
 #include "common/scope_guard.h"
@@ -173,7 +175,11 @@ HostRoceChannel::HostRoceChannel(Endpoint &endpoint)
                     : nullptr) {}
 
 HostRoceChannel::~HostRoceChannel() {
-  (void)Destroy();
+  try {
+    (void)Destroy();
+  } catch (const std::exception &e) {
+    HIXL_LOGE(FAILED, "[HostRoce] Channel Destroy caught exception:%s", e.what());
+  }
 }
 
 Status HostRoceChannel::Initialize(const ChannelContext &ctx) {
@@ -224,7 +230,7 @@ Status HostRoceChannel::RegMem(const char *tag, const CommMem *mem, MemHandle *h
       mem->addr != nullptr && mem->size != 0 && !ctx_.mem_store->CheckMemoryForRegister(false, mem->addr, mem->size),
       PARAM_INVALID, "[HostRoce] Invalid or overlapping local memory, size=%" PRIu64 " bytes", mem->size);
   HIXL_CHK_STATUS_RET(endpoint_->RegisterMem(tag, *mem, *handle));
-  ScopeGuard rollback([&] {
+  ScopeGuard rollback([this, handle] {
     (void)endpoint_->DeregisterMem(*handle);
     *handle = nullptr;
   });
@@ -648,21 +654,31 @@ Status HostRoceChannel::StopQp() {
     std::shared_ptr<uint64_t> flags;
   };
   static std::mutex quarantine_mutex;
-  static auto *quarantine = new std::vector<Quarantine>();
-  Quarantine resources;
-  resources.qp = std::move(qp_);
-  resources.flags = flag_storage_;
-  {
-    std::lock_guard<std::mutex> lock(device_->memory_mutex);
-    for (const auto &entry : device_->registrations) {
-      if (auto mr = entry.second.lock()) {
-        resources.memories.push_back(std::move(mr));
+  try {
+    static auto *quarantine = new std::vector<Quarantine>();
+    Quarantine resources;
+    {
+      std::lock_guard<std::mutex> lock(device_->memory_mutex);
+      resources.memories.reserve(device_->registrations.size());
+      for (const auto &entry : device_->registrations) {
+        if (auto mr = entry.second.lock()) {
+          resources.memories.push_back(std::move(mr));
+        }
       }
     }
+    std::lock_guard<std::mutex> lock(quarantine_mutex);
+    quarantine->reserve(quarantine->size() + 1U);
+    // Commit non-throwing move only after all container allocations succeed.
+    resources.qp = std::move(qp_);
+    resources.flags = flag_storage_;
+    quarantine->push_back(std::move(resources));
+    HIXL_LOGE(ret, "[HostRoce] QP destruction failed; retaining QP/PD/MRs until process exit, ret=%u", ret);
+  } catch (const std::exception &e) {
+    // Abandon QP destruction intentionally so ~HostRoceQp will not run while DMA may still be active.
+    (void)qp_.release();
+    (void)new (std::nothrow) std::shared_ptr<uint64_t>(flag_storage_);
+    HIXL_LOGE(ret, "[HostRoce] Retain failed QP resources caught exception:%s, ret=%u", e.what(), ret);
   }
-  std::lock_guard<std::mutex> lock(quarantine_mutex);
-  quarantine->push_back(std::move(resources));
-  HIXL_LOGE(ret, "[HostRoce] QP destruction failed; retaining QP/PD/MRs until process exit, ret=%u", ret);
   return ret;
 }
 
@@ -1063,7 +1079,7 @@ Status HostRoceChannel::RegisterAsyncTaskLocked(std::unique_ptr<Request> data_re
   const auto index = available_indices_.back();
   available_indices_.pop_back();
   __atomic_store_n(&flag_queue_[index], kFlagPendingValue, __ATOMIC_RELAXED);
-  ScopeGuard rollback([&] { available_indices_.push_back(index); });
+  ScopeGuard rollback([this, index] { available_indices_.push_back(index); });
 
   auto flag_req = std::make_unique<Request>();
   flag_req->read = true;

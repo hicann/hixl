@@ -15,6 +15,8 @@
 #include <climits>
 #include <cstdlib>
 #include <cstring>
+#include <exception>
+#include <new>
 #include "acl/acl_rt.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
@@ -112,9 +114,16 @@ struct Memory final : HostRoceMr {
     // Failed deregistration still owns a provider MR. Do not unpin its UB segment or close its PD.
     static std::mutex quarantine_mutex;
     using Retained = std::tuple<std::shared_ptr<Device>, std::shared_ptr<Segment>, ibv_mr *>;
-    static auto *quarantine = new std::vector<Retained>();
-    std::lock_guard<std::mutex> lock(quarantine_mutex);
-    quarantine->emplace_back(std::move(device), std::move(segment), mr);
+    try {
+      static auto *quarantine = new std::vector<Retained>();
+      std::lock_guard<std::mutex> lock(quarantine_mutex);
+      quarantine->reserve(quarantine->size() + 1U);
+      quarantine->emplace_back(std::move(device), std::move(segment), mr);
+    } catch (const std::exception &e) {
+      // Best-effort leak on heap so Device (PD) and Segment (UB pin) are not destroyed while MR is live.
+      (void)new (std::nothrow) Retained(std::move(device), std::move(segment), mr);
+      HIXL_LOGE(FAILED, "[HostRoce] Retain failed MR caught exception:%s, mr=%p", e.what(), static_cast<void *>(mr));
+    }
   }
 };
 struct Qp final : HostRoceQp {
@@ -157,13 +166,24 @@ bool MatchGid(const std::string &ip, const ibv_gid &gid) {
          std::memcmp(gid.raw, expected.raw, kHostRoceGidBytes) == 0;
 }
 bool IsRoceV2Gid(const char *name, uint8_t port, int index) {
+  if (name == nullptr || name[0] == '\0' || std::strchr(name, '/') != nullptr) {
+    HIXL_LOGW("[HostRoce] Invalid RDMA device name for GID type lookup.");
+    return false;
+  }
   const std::string path = std::string("/sys/class/infiniband/") + name + "/ports/" + std::to_string(port) +
                            "/gid_attrs/types/" + std::to_string(index);
+  char resolved_path[PATH_MAX] = {};
   errno = 0;
-  std::ifstream file(path);
+  if (realpath(path.c_str(), resolved_path) == nullptr) {
+    const auto resolve_error = errno;
+    HIXL_LOGW("[HostRoce] Resolve GID type file failed, path=%s, errno=%d", path.c_str(), resolve_error);
+    return false;
+  }
+  errno = 0;
+  std::ifstream file(resolved_path);
   const auto open_error = errno;
   if (!file.is_open()) {
-    HIXL_LOGW("[HostRoce] Open GID type file failed, path=%s, errno=%d", path.c_str(), open_error);
+    HIXL_LOGW("[HostRoce] Open GID type file failed, path=%s, errno=%d", resolved_path, open_error);
     return false;
   }
   std::string type;
@@ -388,7 +408,7 @@ Status NativeVerbs::Open(const std::string &ip, std::shared_ptr<HostRoceDevice> 
   auto **nics = api_->devices(&count);
   const int dev_errno = errno;
   HIXL_CHK_BOOL_RET_STATUS(nics != nullptr, FAILED, "[HostRoce] ibv_get_device_list failed, errno=%d", dev_errno);
-  ScopeGuard cleanup([&] { api_->free_devices(nics); });
+  ScopeGuard cleanup([this, nics] { api_->free_devices(nics); });
   for (int i = 0; i < count; ++i) {
     std::shared_ptr<Device> d;
     const Status ret = CreateDevice(nics[i], ip, d);
