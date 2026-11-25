@@ -34,8 +34,8 @@ English | [简体中文](./README.md)
 ## API Documents
 
 - C/C++ API
-  - [HIXL C++ API](./zh/api/cpp/HIXL-interface.md)
-  - [HIXL_CS C API](./zh/api/cpp/HIXL_CS-interface.md)
-  - [LLM-DataDist C++ API](./zh/api/cpp/LLM-DataDist-interface.md)
+  - [HIXL C++ API](./en/api/cpp/HIXL-interface.md)
+  - [HIXL_CS C API](./en/api/cpp/HIXL_CS-interface.md)
+  - [LLM-DataDist C++ API](./en/api/cpp/LLM-DataDist-interface.md)
 - Python API
-  - [LLM-DataDist Python API](./zh/api/python/README.md)
+  - [LLM-DataDist Python API](./en/api/python/README.md)
