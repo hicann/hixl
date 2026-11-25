@@ -356,9 +356,29 @@ def layer_range_to_tensor_indices(src_layer_range: range, dst_layer_range: range
 
 def parse_listen_ip_info(listen_ip_info: str) -> (str, int):
     check_isinstance('listen_ip_info', listen_ip_info, [str])
-    ip_and_port = listen_ip_info.split(':')
-    raise_if_false(len(ip_and_port) == 2,
-                    f'llm.listenIpInfo "{listen_ip_info}" is invalid, format should be "ip:port"')
-    ip = ip_and_port[0]
-    port = int(ip_and_port[1])
+    error_fmt = 'llm.listenIpInfo "{}" is invalid, format should be "{}"'
+    is_bracketed = listen_ip_info.startswith('[')
+    expected_format = '[ip]:port' if is_bracketed else 'ip:port'
+    if is_bracketed:
+        right_bracket = listen_ip_info.find(']')
+        raise_if_false(
+            right_bracket > 1 and right_bracket + 1 < len(listen_ip_info)
+            and listen_ip_info[right_bracket + 1] == ':',
+            error_fmt,
+            listen_ip_info,
+            expected_format,
+        )
+        ip = listen_ip_info[1:right_bracket]
+        port_str = listen_ip_info[right_bracket + 2:]
+    else:
+        ip_and_port = listen_ip_info.split(':')
+        raise_if_false(len(ip_and_port) == 2, error_fmt, listen_ip_info, expected_format)
+        ip, port_str = ip_and_port
+    raise_if_false(
+        port_str.isascii() and port_str.isdigit(),
+        error_fmt,
+        listen_ip_info,
+        expected_format,
+    )
+    port = int(port_str)
     return ip, port
