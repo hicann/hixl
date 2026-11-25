@@ -156,6 +156,8 @@ Status ParseUbMemoryFields(const nlohmann::json &json, UbMemoryConfig &cfg) {
   HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, stream_num_range, cfg.task_stream_num),
                       "Failed to parse fabric_memory.task_stream_num");
   if (json.contains("enable_aicpu_unfold")) {
+    HIXL_CHK_BOOL_RET_STATUS(json.at("enable_aicpu_unfold").is_boolean(), PARAM_INVALID, "%s must be a boolean",
+                             kGlobalResCfgEnableAicpuUnfold);
     cfg.enable_aicpu_unfold = json.at("enable_aicpu_unfold").get<bool>();
   }
   return SUCCESS;
@@ -178,6 +180,8 @@ Status ParseUbMemoryConfig(const nlohmann::json &json, UbMemoryConfig &cfg) {
   HIXL_CHK_STATUS_RET(ParseIntegerFieldInRange(json, stream_num_range, cfg.task_stream_num),
                       "Failed to parse fabric_memory.task_stream_num");
   if (json.contains(kGlobalResCfgEnableAicpuUnfold)) {
+    HIXL_CHK_BOOL_RET_STATUS(json.at(kGlobalResCfgEnableAicpuUnfold).is_boolean(), PARAM_INVALID,
+                             "%s must be a boolean", kGlobalResCfgEnableAicpuUnfold);
     cfg.enable_aicpu_unfold = json.at(kGlobalResCfgEnableAicpuUnfold).get<bool>();
   }
   if (cfg.enable_aicpu_unfold.value_or(true) && cfg.task_stream_num.has_value()) {

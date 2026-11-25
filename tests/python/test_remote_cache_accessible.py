@@ -10,22 +10,19 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
-import os.path
+# The v2 API symbols below are injected from ``v2_list`` at runtime.
+# ruff: noqa: F821
+
 import time
 import unittest
-import ctypes
 from typing import Optional
-import traceback
-import numpy as np
 
 import llm_datadist as ld
 from llm_datadist import v2_list
 from llm_datadist.data_type import dtype_to_np_dtype, valid_np_dtypes, np_dtype_to_dtype
-from llm_datadist.v2.llm_types import RegisterMemStatus, Cache, TransferWithCacheKeyConfig
-from llm_datadist.utils.utils import (check_uint64, check_int64, check_int32,
-                                      check_uint32, check_list_int32, check_uint16)
+from llm_datadist.v2.llm_types import RegisterMemStatus, TransferWithCacheKeyConfig
 
-_INVALID_ID = 2 ** 64 - 1
+_INVALID_ID = 2**64 - 1
 
 for item in v2_list:
     globals()[item] = getattr(ld, item)
@@ -35,21 +32,22 @@ class LayerSynchronizerImpl(LayerSynchronizer):
     def __init__(self, ret=True):
         self._ret = ret
 
-    def synchronize_layer(self, layer_index: int, timeout_in_millis: Optional[int]) -> bool:
+    def synchronize_layer(
+        self, layer_index: int, timeout_in_millis: Optional[int]
+    ) -> bool:
         if layer_index == 0:
             time.sleep(0.3)
         return self._ret
 
 
 class LlmCacheManagerSt(unittest.TestCase):
-
     def setUp(self) -> None:
         print("Begin ", self._testMethodName)
         config = LlmConfig()
         config.device_id = 0
         config.enable_cache_manager = True
         config.enable_remote_cache_accessible = True
-        config.mem_pool_cfg = "{\"memory_size\": 102428800}"
+        config.mem_pool_cfg = '{"memory_size": 102428800}'
         config.device_id = 0
         config.link_total_time = 1000
         config.link_retry_count = 80
@@ -63,7 +61,9 @@ class LlmCacheManagerSt(unittest.TestCase):
         self.llm_datadist.finalize()
 
     def create_link(self):
-        comm_id = self.llm_datadist.link("link", {1: 0, 2: 1}, '{"server_list":[{"device":[{}]}]}')
+        comm_id = self.llm_datadist.link(
+            "link", {1: 0, 2: 1}, '{"server_list":[{"device":[{}]}]}'
+        )
         self.assertEqual(comm_id, 1)
         time.sleep(0.1)
         ret = self.llm_datadist.query_register_mem_status(comm_id)
@@ -74,23 +74,31 @@ class LlmCacheManagerSt(unittest.TestCase):
         config.device_id = 0
         config.enable_cache_manager = True
         self.assertEqual(config.enable_cache_manager, True)
-        self.assertEqual(config.gen_options().get('llm.EnableRemoteCacheAccessible'), None)
+        self.assertEqual(
+            config.gen_options().get("llm.EnableRemoteCacheAccessible"), None
+        )
         config.enable_remote_cache_accessible = False
         self.assertEqual(config.enable_remote_cache_accessible, False)
-        self.assertEqual(config.gen_options().get('llm.EnableRemoteCacheAccessible'), "0")
+        self.assertEqual(
+            config.gen_options().get("llm.EnableRemoteCacheAccessible"), "0"
+        )
         config.enable_remote_cache_accessible = True
-        self.assertEqual(config.gen_options().get('llm.EnableRemoteCacheAccessible'), "1")
+        self.assertEqual(
+            config.gen_options().get("llm.EnableRemoteCacheAccessible"), "1"
+        )
 
     def test_unlink(self):
         self.create_link()
-        comm_id = self.llm_datadist.link("link2", {1: 0, 2: 1}, '{"server_list":[{"device":[{}]}]}')
+        comm_id = self.llm_datadist.link(
+            "link2", {1: 0, 2: 1}, '{"server_list":[{"device":[{}]}]}'
+        )
         self.assertEqual(comm_id, 2)
         time.sleep(0.01)
         ret = self.llm_datadist.query_register_mem_status(comm_id)
         self.assertEqual(ret, RegisterMemStatus.OK)
         try:
             self.llm_datadist.unlink(1)
-        except:
+        except Exception:
             self.has_exception = True
         self.assertEqual(self.has_exception, False)
 
@@ -101,14 +109,17 @@ class LlmCacheManagerSt(unittest.TestCase):
         kv_cache = cache_mgr.allocate_blocks_cache(cache_desc)
         cache_key = BlocksCacheKey(cluster_id=2, model_id=0)
         print(cache_key)
-        dst_kv_cache = cache_mgr.allocate_blocks_cache(cache_desc, cache_key)
+        dst_kv_cache = cache_mgr.allocate_blocks_cache(cache_desc, cache_key)  # noqa: F841
 
-        transfer_config_1 = TransferWithCacheKeyConfig(BlocksCacheKey(cluster_id=2, model_id=0), range(0, 1),
-                                                       range(0, 1))
+        transfer_config_1 = TransferWithCacheKeyConfig(
+            BlocksCacheKey(cluster_id=2, model_id=0), range(0, 1), range(0, 1)
+        )
         print(transfer_config_1)
-        cache_task = cache_mgr.transfer_cache_async(kv_cache, LayerSynchronizerImpl(True), [transfer_config_1])
+        cache_task = cache_mgr.transfer_cache_async(
+            kv_cache, LayerSynchronizerImpl(True), [transfer_config_1]
+        )
         ret = cache_task.synchronize()
-        rets = cache_task.get_results()
+        rets = cache_task.get_results()  # noqa: F841
         self.assertEqual(ret, LLMStatusCode.LLM_SUCCESS)
 
     def test_transfer_cache_with_cache_id(self):
@@ -119,14 +130,21 @@ class LlmCacheManagerSt(unittest.TestCase):
         dst_kv_cache = cache_mgr.allocate_blocks_cache(cache_desc)
 
         transfer_config_1 = TransferWithCacheKeyConfig(
-            CacheKeyByIdAndIndex(cluster_id=2, cache_id=dst_kv_cache.cache_id), range(0, 1), range(0, 1))
-        transfer_config_1.cache_key = CacheKeyByIdAndIndex(cluster_id=2, cache_id=dst_kv_cache.cache_id)
+            CacheKeyByIdAndIndex(cluster_id=2, cache_id=dst_kv_cache.cache_id),
+            range(0, 1),
+            range(0, 1),
+        )
+        transfer_config_1.cache_key = CacheKeyByIdAndIndex(
+            cluster_id=2, cache_id=dst_kv_cache.cache_id
+        )
         transfer_config_1.src_layer_range = range(0, 1)
         transfer_config_1.dst_layer_range = range(0, 1)
         transfer_config_1.src_batch_index = 0
-        cache_task = cache_mgr.transfer_cache_async(kv_cache, LayerSynchronizerImpl(True), [transfer_config_1])
+        cache_task = cache_mgr.transfer_cache_async(
+            kv_cache, LayerSynchronizerImpl(True), [transfer_config_1]
+        )
         ret = cache_task.synchronize()
-        rets = cache_task.get_results()
+        rets = cache_task.get_results()  # noqa: F841
         self.assertEqual(ret, LLMStatusCode.LLM_SUCCESS)
 
     def test_register_host_remote_accessible(self):
@@ -150,16 +168,30 @@ class LlmCacheManagerSt(unittest.TestCase):
         dst_kv_cache = cache_mgr.allocate_cache(cache_desc)
         has_err = False
         try:
-            cache_mgr.push_cache(CacheKeyByIdAndIndex(cluster_id=2, cache_id=dst_kv_cache.cache_id), kv_cache,
-                                 0, range(0, 1), range(0, 1), -1)
-        except:
+            cache_mgr.push_cache(
+                CacheKeyByIdAndIndex(cluster_id=2, cache_id=dst_kv_cache.cache_id),
+                kv_cache,
+                0,
+                range(0, 1),
+                range(0, 1),
+                -1,
+            )
+        except Exception:
             has_err = True
         self.assertEqual(has_err, False)
+        has_err = False
         try:
             # invalid tensor_num_per_layer
-            cache_mgr.push_cache(CacheKeyByIdAndIndex(cluster_id=2, cache_id=dst_kv_cache.cache_id), kv_cache,
-                                 0, range(0, 1), range(0, 1), -1, -1)
-        except:
+            cache_mgr.push_cache(
+                CacheKeyByIdAndIndex(cluster_id=2, cache_id=dst_kv_cache.cache_id),
+                kv_cache,
+                0,
+                range(0, 1),
+                range(0, 1),
+                -1,
+                -1,
+            )
+        except Exception:
             has_err = True
         self.assertEqual(has_err, True)
 
@@ -168,12 +200,20 @@ class LlmCacheManagerSt(unittest.TestCase):
         cache_mgr = self.llm_datadist.cache_manager
         cache_desc = CacheDesc(2, [2, 8], DataType.DT_INT8, Placement.DEVICE)
         kv_cache = cache_mgr.allocate_blocks_cache(cache_desc)
-        dst_kv_cache = cache_mgr.allocate_blocks_cache(cache_desc, BlocksCacheKey(cluster_id=2))
+        dst_kv_cache = cache_mgr.allocate_blocks_cache(  # noqa: F841
+            cache_desc, BlocksCacheKey(cluster_id=2)
+        )
         has_err = False
         try:
-            cache_mgr.push_blocks(BlocksCacheKey(cluster_id=2), kv_cache,
-                                  [0, 1], [0, 1], src_layer_range=range(0, 1), dst_layer_range=range(0, 1))
-        except:
+            cache_mgr.push_blocks(
+                BlocksCacheKey(cluster_id=2),
+                kv_cache,
+                [0, 1],
+                [0, 1],
+                src_layer_range=range(0, 1),
+                dst_layer_range=range(0, 1),
+            )
+        except Exception:
             has_err = True
         self.assertEqual(has_err, False)
 
@@ -184,15 +224,19 @@ class LlmCacheManagerSt(unittest.TestCase):
         kv_cache = cache_mgr.allocate_cache(cache_desc)
         has_err = False
         try:
-            cache_mgr.pull_cache(CacheKeyByIdAndIndex(cluster_id=2, cache_id=kv_cache.cache_id), kv_cache,
-                                 0, -1)
+            cache_mgr.pull_cache(
+                CacheKeyByIdAndIndex(cluster_id=2, cache_id=kv_cache.cache_id),
+                kv_cache,
+                0,
+                -1,
+            )
         except Exception as e:
             has_err = True
             print(e)
         self.assertEqual(has_err, False)
 
     def test_data_type(self):
-        try: 
+        try:
             has_err = False
             print(len(dtype_to_np_dtype))
             print(len(valid_np_dtypes))
@@ -200,11 +244,11 @@ class LlmCacheManagerSt(unittest.TestCase):
         except AttributeError:
             has_err = True
         self.assertEqual(has_err, False)
-    
+
     def test_import_tensor(self):
         try:
             has_err = False
-            from llm_datadist import Tensor
+            from llm_datadist import Tensor  # noqa: F401
         except ImportError:
             has_err = True
         self.assertEqual(has_err, True)
@@ -212,7 +256,7 @@ class LlmCacheManagerSt(unittest.TestCase):
     def test_import_tensor_desc(self):
         try:
             has_err = False
-            from llm_datadist import TensorDesc
+            from llm_datadist import TensorDesc  # noqa: F401
         except ImportError:
             has_err = True
         self.assertEqual(has_err, True)
