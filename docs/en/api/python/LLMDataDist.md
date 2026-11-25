@@ -302,7 +302,7 @@ For details about ranktable in the preceding table, see [HCCL Collective Communi
                     "device_id": "0",
                     "device_ip": "x.x.x.x",
                     "rank_id": "0"
-                },
+                }
             ],
             "server_id": "xxxx"
         },{
@@ -311,7 +311,7 @@ For details about ranktable in the preceding table, see [HCCL Collective Communi
                     "device_id": "0",
                     "device_ip": "x.x.x.x",
                     "rank_id": "1"
-                },
+                }
             ],
             "server_id": "xxxx"
         }
