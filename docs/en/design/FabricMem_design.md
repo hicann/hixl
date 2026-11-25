@@ -320,7 +320,7 @@ Status TransferOneBatch(UbMemEngine &engine, bool is_get, const HixlOneSideOpDes
 
 - `docs/zh/design/FabricMem_design.md`, `docs/en/design/FabricMem_design.md`: this design.
 - `docs/zh/FabricMem.md`, `docs/en/FabricMem.md`: usage, dependencies, and data-path diagrams.
-- `docs/zh/api/cpp/HIXL-interface.md`, `docs/en/api/python/HIXL-interface.md`: `OPTION_ENABLE_USE_FABRIC_MEM`, `fabric_memory.*`, and Host memory constraints. The public `protocol_desc` table does not list the `ubmem` token yet; that should be aligned with the implementation.
+- `docs/zh/api/cpp/HIXL-interface.md`, `docs/en/api/cpp/HIXL-interface.md`: `OPTION_ENABLE_USE_FABRIC_MEM`, `fabric_memory.*`, and Host memory constraints.
 - `docs/zh/api/cpp/HIXL_CS-interface.md`: CS `global_resource_config` fields `fabric_memory.enable_aicpu_unfold`, UB_MEM capacity, start address, and stream count. The CS copy path still follows the endpoint `locType`.
 - `docs/zh/api/cpp/deprecated_ADXL-interface.md`: `AdxlEngine::MallocMem` / `FreeMem` / `ExportToShareableHandle`.
 - `benchmarks/performance.md`: performance reference.
