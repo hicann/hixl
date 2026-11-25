@@ -300,7 +300,7 @@ link(comm_name: str, cluster_rank_info: Dict[int, int], rank_table: str) -> int
                     "device_id": "0",
                     "device_ip": "x.x.x.x",
                     "rank_id": "0"
-                },
+                }
             ],
             "server_id": "xxxx"
         },{
@@ -309,7 +309,7 @@ link(comm_name: str, cluster_rank_info: Dict[int, int], rank_table: str) -> int
                     "device_id": "0",
                     "device_ip": "x.x.x.x",
                     "rank_id": "1"
-                },
+                }
             ],
             "server_id": "xxxx"
         }
