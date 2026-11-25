@@ -67,7 +67,7 @@ pull_cache(cache_key: Union[CacheKey, CacheKeyByIdAndIndex],
 
 **Example**
 
-See [Running the Examples](../../../../examples/python/README.md).
+See [Running the Examples](../../../../examples/python/README_en.md).
 
 **Return Value**
 
@@ -119,7 +119,7 @@ pull_blocks(src_cache_key: Union[CacheKey, CacheKeyByIdAndIndex, BlocksCacheKey]
 
 **Example**
 
-See [Running the Examples](../../../../examples/python/README.md).
+See [Running the Examples](../../../../examples/python/README_en.md).
 
 **Return Value**
 
@@ -157,7 +157,7 @@ register_cache(cache_desc: CacheDesc, addrs: List[int], cache_keys: Union[Tuple[
 
 **Example**
 
-See [Running the Examples](../../../../examples/python/README.md).
+See [Running the Examples](../../../../examples/python/README_en.md).
 
 **Return Value**
 
@@ -223,7 +223,7 @@ register_blocks_cache(cache_desc: CacheDesc, addrs: List[int], blocks_cache_key:
 
 **Example**
 
-See [Running the Examples](../../../../examples/python/README.md).
+See [Running the Examples](../../../../examples/python/README_en.md).
 
 **Return Value**
 
@@ -336,7 +336,7 @@ push_blocks(self,
 
 **Example**
 
-See [Running the Examples](../../../../examples/python/README.md).
+See [Running the Examples](../../../../examples/python/README_en.md).
 
 **Return Value**
 
@@ -385,7 +385,7 @@ push_cache(self,
 
 **Example**
 
-See [Running the Examples](../../../../examples/python/README.md).
+See [Running the Examples](../../../../examples/python/README_en.md).
 
 **Return Value**
 
@@ -472,7 +472,7 @@ unregister_cache(cache_id: int) -> None
 
 **Example**
 
-See [Running the Examples](../../../../examples/python/README.md).
+See [Running the Examples](../../../../examples/python/README_en.md).
 
 **Return Value**
 
