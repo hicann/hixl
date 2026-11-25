@@ -43,9 +43,7 @@ class HostRoceEndpoint final : public Endpoint {
   HostRoceEndpoint &operator=(const HostRoceEndpoint &) = delete;
   HostRoceEndpoint(HostRoceEndpoint &&) = delete;
   HostRoceEndpoint &operator=(HostRoceEndpoint &&) = delete;
-  ~HostRoceEndpoint() override {
-    (void)Finalize();
-  }
+  ~HostRoceEndpoint() override;
   std::shared_ptr<HostRoceDevice> Device() const {
     std::lock_guard<std::mutex> lock(memory_mutex_);
     return device_;

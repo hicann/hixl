@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <exception>
 #include <limits>
 #include <thread>
 
@@ -33,6 +34,29 @@ constexpr uint16_t kUbMemKernelTimeoutS = 1836U;
 constexpr auto kUbMemSyncQueryIntervalUs = 10U;
 constexpr const char *kUbMemFuncRead = "HixlUbMemBatchRead";
 constexpr const char *kUbMemFuncWrite = "HixlUbMemBatchWrite";
+constexpr size_t kBitsPerUint64 = 64U;
+
+bool TrackSlotAbort(uint32_t slot_index, bool reserve_ok, std::vector<uint32_t> &aborted_slots, uint64_t &aborted_mask,
+                    const std::unordered_set<UbMemEngine::UbMemCompleteHandle *> &remaining) {
+  if (reserve_ok) {
+    if (std::find(aborted_slots.begin(), aborted_slots.end(), slot_index) != aborted_slots.end()) {
+      return false;
+    }
+    aborted_slots.push_back(slot_index);
+    return true;
+  }
+  if (slot_index < kBitsPerUint64) {
+    const uint64_t bit = 1ULL << slot_index;
+    if ((aborted_mask & bit) != 0ULL) {
+      return false;
+    }
+    aborted_mask |= bit;
+    return true;
+  }
+  return std::none_of(remaining.begin(), remaining.end(), [slot_index](const UbMemEngine::UbMemCompleteHandle *other) {
+    return other != nullptr && other->slot != nullptr && other->slot->slot_index == slot_index;
+  });
+}
 uint32_t CalculateAicpuKernelCount(uint32_t desc_count, uint32_t batch_size) {
   if (desc_count == 0U || batch_size == 0U) {
     return 0U;
@@ -52,7 +76,11 @@ UbMemEngine::UbMemEngine(int32_t device_id, const GlobalConfig &global_config, E
     : device_id_(device_id), global_config_(global_config), local_endpoint_(local_endpoint), sqe_format_(sqe_format) {}
 
 UbMemEngine::~UbMemEngine() {
-  Finalize();
+  try {
+    Finalize();
+  } catch (const std::exception &e) {
+    HIXL_LOGE(FAILED, "[UbMemEngine] Finalize caught exception:%s", e.what());
+  }
 }
 
 bool UbMemEngine::UseMemcpyMode() const {
@@ -488,14 +516,25 @@ void UbMemEngine::AbortUbMemSlot(const TransferPool::SlotHandle &slot) const {
 }
 
 void UbMemEngine::AbortPendingHandles() {
-  std::vector<UbMemCompleteHandle *> pending(pending_handles_.begin(), pending_handles_.end());
-  pending_handles_.clear();
-  std::unordered_set<uint32_t> aborted_slots;
-  for (UbMemCompleteHandle *handle : pending) {
+  std::vector<uint32_t> aborted_slots;
+  bool reserve_ok = true;
+  try {
+    aborted_slots.reserve(pending_handles_.size());
+  } catch (const std::exception &e) {
+    reserve_ok = false;
+    HIXL_LOGE(FAILED, "[UbMemEngine] Reserve aborted slot tracker failed, pending=%zu, error:%s",
+              pending_handles_.size(), e.what());
+  }
+  uint64_t aborted_mask = 0ULL;
+  while (!pending_handles_.empty()) {
+    auto it = pending_handles_.begin();
+    UbMemCompleteHandle *handle = *it;
+    pending_handles_.erase(it);
     if (handle == nullptr) {
       continue;
     }
-    if (handle->slot != nullptr && aborted_slots.insert(handle->slot->slot_index).second) {
+    if (handle->slot != nullptr &&
+        TrackSlotAbort(handle->slot->slot_index, reserve_ok, aborted_slots, aborted_mask, pending_handles_)) {
       AbortUbMemSlot(*handle->slot);
     }
     ReleaseUbMemCompleteHandle(handle);

@@ -13,8 +13,10 @@
 #include <atomic>
 #include <cerrno>
 #include <cinttypes>
+#include <exception>
 #include <iterator>
 #include "common/hixl_checker.h"
+#include "common/hixl_log.h"
 #include "common/hixl_utils.h"
 #include "cs/ubmem/acl_compat.h"
 
@@ -407,4 +409,12 @@ HostRoceEndpoint::HostRoceEndpoint(const EndpointDesc &endpoint)
                                     /*supports_configurable_transfer=*/true, TransFlagKind::kDeviceOnly,
                                     /*requires_device_trans_flag=*/true, /*min_retry_interval=*/0U,
                                     /*max_retry_interval=*/31U}) {}
+
+HostRoceEndpoint::~HostRoceEndpoint() {
+  try {
+    (void)Finalize();
+  } catch (const std::exception &e) {
+    HIXL_LOGE(FAILED, "[HostRoce] Endpoint Finalize caught exception:%s", e.what());
+  }
+}
 }  // namespace hixl

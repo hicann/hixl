@@ -10,8 +10,8 @@
 
 #include "cs/host_roce/host_roce_flush_cache.h"
 
-#include <climits>
 #include <cstdlib>
+#include <exception>
 #include <vector>
 #include "acl/acl_rt.h"
 #include "common/hixl_checker.h"
@@ -69,7 +69,11 @@ HostRoceNativeFlush::HostRoceNativeFlush(HostRoceVerbs *verbs) : resources(std::
 }
 
 HostRoceNativeFlush::~HostRoceNativeFlush() {
-  (void)Close();
+  try {
+    (void)Close();
+  } catch (const std::exception &e) {
+    HIXL_LOGE(FAILED, "[HostRoce] Close flush resources caught exception:%s", e.what());
+  }
 }
 
 Status HostRoceNativeFlush::Close() {
