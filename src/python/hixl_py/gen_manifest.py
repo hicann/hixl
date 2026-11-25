@@ -120,12 +120,14 @@ def main():
     if not repo_cmakelists.is_file():
         print(f"ERROR: repo CMakeLists not found: {repo_cmakelists}", file=sys.stderr)
         sys.exit(1)
-    gen_manifest(src_dir, repo_cmakelists)
+    prebuilt_so = None
     if has_prebuilt:
         prebuilt_so = Path(args[3])
         if not prebuilt_so.is_file():
             print(f"ERROR: prebuilt so not found: {prebuilt_so}", file=sys.stderr)
             sys.exit(1)
+    gen_manifest(src_dir, repo_cmakelists)
+    if has_prebuilt:
         gen_prebuilt_meta(prebuilt_so, args[5])
 
 

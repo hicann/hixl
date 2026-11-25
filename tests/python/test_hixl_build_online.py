@@ -906,6 +906,29 @@ class TestGenManifestExtractOnline(unittest.TestCase):
         self.assertIn("CMakeLists.txt", manifest)
         self.assertIn("hixl_py.h", manifest)
 
+    def test_missing_prebuilt_so_does_not_write_manifest_files(self):
+        src_dir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, src_dir, ignore_errors=True)
+        missing_so = src_dir / "missing.cpython-312-win_amd64.pyd"
+        argv = [
+            "gen_manifest.py",
+            str(src_dir),
+            str(self.repo_cmakelists),
+            "--prebuilt-so",
+            str(missing_so),
+            "--build-timestamp",
+            "test",
+        ]
+        stderr = io.StringIO()
+        with mock.patch.object(sys, "argv", argv), contextlib.redirect_stderr(stderr):
+            with self.assertRaises(SystemExit) as exc_info:
+                self.mod.main()
+
+        self.assertEqual(exc_info.exception.code, 1)
+        self.assertIn("prebuilt so not found", stderr.getvalue())
+        self.assertFalse((src_dir / "CMakeLists.txt").exists())
+        self.assertFalse((src_dir / self.mod.MANIFEST_NAME).exists())
+
     def test_extract_keeps_license_closing_separator(self):
         shipped = self.mod.extract_online_cmake(self.repo_cmakelists)
         lines = shipped.splitlines()
