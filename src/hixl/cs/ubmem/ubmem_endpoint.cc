@@ -216,6 +216,13 @@ HcclResult UbMemEndpoint::EndpointCreate(EndpointHandle &handle) {
   return HCCL_SUCCESS;
 }
 
+UbMemEndpoint::~UbMemEndpoint() {
+  for (auto &item : exports_) {
+    FreeExportDesc(item.second.desc);
+  }
+  exports_.clear();
+}
+
 HcclResult UbMemEndpoint::EndpointDestroy() {
   for (auto &item : exports_) {
     FreeExportDesc(item.second.desc);

@@ -39,7 +39,7 @@ class UbMemEndpoint : public Endpoint {
       : Endpoint(local_endpoint, remote_endpoint), global_config_(global_config) {}
   UbMemEndpoint(const EndpointDesc &endpoint, bool need_host_va_mapping, const GlobalConfig &global_config = {})
       : Endpoint(endpoint, need_host_va_mapping), global_config_(global_config) {}
-  ~UbMemEndpoint() override = default;
+  ~UbMemEndpoint() override;
 
   Status TranslateRemoteDescs(uint32_t list_num, const HixlOneSideOpDesc *src,
                               std::vector<HixlOneSideOpDesc> &dst) override;

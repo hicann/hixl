@@ -691,6 +691,44 @@ TEST(UbMemMemoryImportUTest, ImportRollsBackOnMapFailure) {
   VirtualMemoryManager::GetInstance().Finalize();
 }
 
+TEST(UbMemMemoryImportUTest, FailedImportPreservesPreviouslyImportedMappings) {
+  auto runtime = std::make_shared<UbMemRuntimeStub>();
+  ScopedRuntimeMock scoped_runtime(runtime);
+  VirtualMemoryManager::GetInstance().Finalize();
+  ASSERT_EQ(VirtualMemoryManager::GetInstance().Initialize(), SUCCESS);
+
+  UbMemMemory remote_memory;
+  const auto first = BuildShareHandle(kRemoteOldAddr, kLen);
+  ASSERT_EQ(remote_memory.Import({first}), SUCCESS);
+  const auto baseline_index = remote_memory.GetTranslationIndex();
+  ASSERT_NE(baseline_index, nullptr);
+  ASSERT_EQ(baseline_index->size(), 1U);
+  const uintptr_t first_mapped_va = baseline_index->find(kRemoteOldAddr)->second.va_addr;
+
+  // Duplicate handle within a batch maps the first entry, then fails and rolls back only that batch.
+  const auto dup = BuildShareHandle(kRemoteOldAddr + kLen * 2U, kLen);
+  EXPECT_EQ(remote_memory.Import({dup, dup}), PARAM_INVALID);
+  EXPECT_EQ(runtime->mem_unmap_count_, 1U);
+  EXPECT_EQ(runtime->free_physical_count_, 1U);
+
+  // ACL map failure on a subsequent import also preserves the earlier mapping and frees the imported PA.
+  llm::GetAclStubMock() = "aclrtMapMem";
+  EXPECT_NE(remote_memory.Import({BuildShareHandle(kRemoteOldAddr + kLen * 4U, kLen)}), SUCCESS);
+  llm::GetAclStubMock().clear();
+  EXPECT_EQ(runtime->free_physical_count_, 2U);
+
+  const auto preserved_index = remote_memory.GetTranslationIndex();
+  ASSERT_NE(preserved_index, nullptr);
+  ASSERT_EQ(preserved_index->size(), 1U);
+  ASSERT_EQ(preserved_index->count(kRemoteOldAddr), 1U);
+  EXPECT_EQ(preserved_index->find(kRemoteOldAddr)->second.va_addr, first_mapped_va);
+
+  remote_memory.Finalize();
+  EXPECT_EQ(runtime->mem_unmap_count_, 2U);
+  EXPECT_EQ(runtime->free_physical_count_, 3U);
+  VirtualMemoryManager::GetInstance().Finalize();
+}
+
 TEST(UbMemMemoryImportUTest, UnimportReleasesOnlyTheNamedRange) {
   auto runtime = std::make_shared<UbMemRuntimeStub>();
   ScopedRuntimeMock scoped_runtime(runtime);

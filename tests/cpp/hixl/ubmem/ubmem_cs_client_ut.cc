@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <memory>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "securec.h"
@@ -26,6 +27,7 @@
 
 #define private public
 #define protected public
+#include "cs/ubmem/ubmem_channel.h"
 #include "cs/ubmem/ubmem_engine.h"
 #undef protected
 #undef private
@@ -87,14 +89,49 @@ class UbMemCsAclStub : public endpoint_test::MockAclRuntimeStub {
         fail_next_data_copy_ = false;
         return ACL_ERROR_RT_INTERNAL_ERROR;
       }
+      if (fail_data_copy_on_call_ > 0U) {
+        --fail_data_copy_on_call_;
+        if (fail_data_copy_on_call_ == 0U) {
+          return ACL_ERROR_RT_INTERNAL_ERROR;
+        }
+      }
     } else if (kind == ACL_MEMCPY_DEVICE_TO_HOST) {
       ++host_flag_d2h_count_;
       submission_events_.emplace_back(SubmissionEvent::kHostFlagCopy);
+      if (fail_next_host_flag_copy_) {
+        fail_next_host_flag_copy_ = false;
+        return ACL_ERROR_RT_INTERNAL_ERROR;
+      }
       if (block_host_flag_copy_) {
         return ACL_SUCCESS;
       }
     }
     return llm::AclRuntimeStub::aclrtMemcpyAsync(dst, dest_max, src, src_count, kind, stream);
+  }
+
+  aclError aclrtMalloc(void **dev_ptr, size_t size, aclrtMemMallocPolicy policy) override {
+    const aclError ret = llm::AclRuntimeStub::aclrtMalloc(dev_ptr, size, policy);
+    if (ret == ACL_SUCCESS && dev_ptr != nullptr && *dev_ptr != nullptr) {
+      ++malloc_count_;
+      live_allocs_.insert(*dev_ptr);
+    }
+    return ret;
+  }
+
+  aclError aclrtFree(void *dev_ptr) override {
+    if (dev_ptr != nullptr) {
+      ++free_count_;
+      live_allocs_.erase(dev_ptr);
+    }
+    return llm::AclRuntimeStub::aclrtFree(dev_ptr);
+  }
+
+  aclError aclrtFreeHost(void *host_ptr) override {
+    if (host_ptr != nullptr) {
+      ++free_host_count_;
+      live_allocs_.erase(host_ptr);
+    }
+    return llm::AclRuntimeStub::aclrtFreeHost(host_ptr);
   }
 
   aclError aclrtRecordNotify(aclrtNotify notify, aclrtStream stream) override {
@@ -107,11 +144,21 @@ class UbMemCsAclStub : public endpoint_test::MockAclRuntimeStub {
                                        aclrtLaunchKernelCfg *config, aclrtArgsHandle args, void *reserved) override {
     ++kernel_launch_count_;
     submission_events_.emplace_back(SubmissionEvent::kKernelLaunch);
+    if (fail_kernel_launch_on_call_ > 0U) {
+      --fail_kernel_launch_on_call_;
+      if (fail_kernel_launch_on_call_ == 0U) {
+        return ACL_ERROR_RT_INTERNAL_ERROR;
+      }
+    }
     return llm::AclRuntimeStub::aclrtLaunchKernelWithConfig(function, block_dim, stream, config, args, reserved);
   }
 
   aclError aclrtWaitAndResetNotify(aclrtNotify notify, aclrtStream stream, uint32_t timeout) override {
     ++wait_notify_count_;
+    if (fail_next_wait_notify_) {
+      fail_next_wait_notify_ = false;
+      return ACL_ERROR_RT_INTERNAL_ERROR;
+    }
     return llm::AclRuntimeStub::aclrtWaitAndResetNotify(notify, stream, timeout);
   }
 
@@ -156,7 +203,15 @@ class UbMemCsAclStub : public endpoint_test::MockAclRuntimeStub {
   uint32_t kernel_launch_count_{0U};
   bool block_host_flag_copy_{false};
   bool fail_next_data_copy_{false};
+  bool fail_next_host_flag_copy_{false};
+  bool fail_next_wait_notify_{false};
   bool fail_ubmem_kernel_lookup_{false};
+  uint32_t fail_data_copy_on_call_{0U};
+  uint32_t fail_kernel_launch_on_call_{0U};
+  uint32_t malloc_count_{0U};
+  uint32_t free_count_{0U};
+  uint32_t free_host_count_{0U};
+  std::unordered_set<void *> live_allocs_;
   uint32_t kernel_function_lookup_count_{0U};
   std::vector<UbMemAicpuKernelParam> kernel_params_;
   std::vector<SubmissionEvent> submission_events_;
@@ -570,6 +625,202 @@ TEST_F(UbMemCsClientUt, DeviceLaunchRejectsEmptyDescBuf) {
   HixlOneSideOpDesc empty_desc{};
   void *query_handle = nullptr;
   EXPECT_EQ(cli_.BatchPutAsync(&empty_desc, 0U, &query_handle), PARAM_INVALID);
+}
+
+TEST_F(UbMemCsClientUt, DeviceAicpuSyncReleasesHandleDeviceMemoryAndSlotOnSuccess) {
+  ASSERT_EQ(CreateClient(ENDPOINT_LOC_TYPE_DEVICE), SUCCESS);
+  void *remote_addr = nullptr;
+  ASSERT_EQ(ImportOwnRemoteMem(dst_, sizeof(dst_), &remote_addr), SUCCESS);
+  HixlOneSideOpDesc desc{};
+  desc.local_buf = src_;
+  desc.remote_buf = remote_addr;
+  desc.len = sizeof(src_);
+  ASSERT_EQ(cli_.mem_store_.RecordMemory(true, remote_addr, sizeof(dst_)), SUCCESS);
+  ASSERT_EQ(cli_.mem_store_.RecordMemory(false, src_, sizeof(src_)), SUCCESS);
+
+  const size_t baseline_live = acl_stub_->live_allocs_.size();
+  const uint32_t baseline_free = acl_stub_->free_count_;
+  const uint32_t baseline_free_host = acl_stub_->free_host_count_;
+  ASSERT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), SUCCESS);
+  ASSERT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), SUCCESS);
+
+  EXPECT_EQ(acl_stub_->live_allocs_.size(), baseline_live);
+  EXPECT_EQ(acl_stub_->free_count_ - baseline_free, 4U);
+  EXPECT_EQ(acl_stub_->free_host_count_ - baseline_free_host, 2U);
+
+  auto *ubmem_channel = dynamic_cast<UbMemChannel *>(cli_.client_channel_.get());
+  ASSERT_NE(ubmem_channel, nullptr);
+  ASSERT_NE(ubmem_channel->engine_, nullptr);
+  EXPECT_TRUE(ubmem_channel->engine_->pending_handles_.empty());
+  EXPECT_EQ(ubmem_channel->engine_->active_slot_, nullptr);
+
+  auto *pool = TransferPool::GetInstance(kUbMemCsClientDevId);
+  ASSERT_NE(pool, nullptr);
+  TransferPool::SlotHandle slot{};
+  ASSERT_EQ(pool->Acquire(&slot), SUCCESS);
+  pool->Release(slot);
+}
+
+TEST_F(UbMemCsClientUt, DeviceFinalizeWithPendingHandleAbortsSlotOnce) {
+  ASSERT_EQ(CreateClient(ENDPOINT_LOC_TYPE_DEVICE), SUCCESS);
+  void *remote_addr = nullptr;
+  ASSERT_EQ(ImportOwnRemoteMem(dst_, sizeof(dst_), &remote_addr), SUCCESS);
+  HixlOneSideOpDesc desc{};
+  desc.local_buf = src_;
+  desc.remote_buf = remote_addr;
+  desc.len = sizeof(src_);
+  ASSERT_EQ(cli_.mem_store_.RecordMemory(true, remote_addr, sizeof(dst_)), SUCCESS);
+  ASSERT_EQ(cli_.mem_store_.RecordMemory(false, src_, sizeof(src_)), SUCCESS);
+
+  void *query_handle = nullptr;
+  ASSERT_EQ(cli_.BatchPutAsync(&desc, 1U, &query_handle), SUCCESS);
+  ASSERT_NE(query_handle, nullptr);
+
+  EXPECT_EQ(cli_.Destroy(), SUCCESS);
+  EXPECT_EQ(acl_stub_->stream_abort_count_, 1U);
+  EXPECT_TRUE(acl_stub_->live_allocs_.empty());
+}
+
+TEST_F(UbMemCsClientUt, DeviceAicpuPartialLaunchFailureAbortsSlotAndFreesBuffers) {
+  constexpr char kSmallBatchConfig[] = R"({"comm_resource_config.max_active_channels":1,
+                                          "transfer_config.max_transfer_count_per_batch":100})";
+  ASSERT_EQ(CreateClient(ENDPOINT_LOC_TYPE_DEVICE, kSmallBatchConfig), SUCCESS);
+  void *remote_addr = nullptr;
+  ASSERT_EQ(ImportOwnRemoteMem(dst_, sizeof(dst_), &remote_addr), SUCCESS);
+  std::vector<HixlOneSideOpDesc> descs(200U);
+  for (auto &desc : descs) {
+    desc.local_buf = src_;
+    desc.remote_buf = remote_addr;
+    desc.len = 1U;
+  }
+  ASSERT_EQ(cli_.mem_store_.RecordMemory(true, remote_addr, 200U), SUCCESS);
+  ASSERT_EQ(cli_.mem_store_.RecordMemory(false, src_, 200U), SUCCESS);
+
+  const size_t baseline_live = acl_stub_->live_allocs_.size();
+  acl_stub_->fail_kernel_launch_on_call_ = 2U;
+  void *query_handle = nullptr;
+  EXPECT_EQ(cli_.BatchPutAsync(descs.data(), static_cast<uint32_t>(descs.size()), &query_handle),
+            static_cast<Status>(ACL_ERROR_RT_INTERNAL_ERROR));
+  EXPECT_EQ(query_handle, nullptr);
+  EXPECT_EQ(acl_stub_->stream_abort_count_, 1U);
+  EXPECT_EQ(acl_stub_->live_allocs_.size(), baseline_live);
+}
+
+TEST_F(UbMemCsClientUt, DeviceAicpuFlagCopyFailureAbortsSlotAndFreesBuffers) {
+  ASSERT_EQ(CreateClient(ENDPOINT_LOC_TYPE_DEVICE), SUCCESS);
+  void *remote_addr = nullptr;
+  ASSERT_EQ(ImportOwnRemoteMem(dst_, sizeof(dst_), &remote_addr), SUCCESS);
+  HixlOneSideOpDesc desc{};
+  desc.local_buf = src_;
+  desc.remote_buf = remote_addr;
+  desc.len = sizeof(src_);
+  ASSERT_EQ(cli_.mem_store_.RecordMemory(true, remote_addr, sizeof(dst_)), SUCCESS);
+  ASSERT_EQ(cli_.mem_store_.RecordMemory(false, src_, sizeof(src_)), SUCCESS);
+
+  const size_t baseline_live = acl_stub_->live_allocs_.size();
+  acl_stub_->fail_next_host_flag_copy_ = true;
+  void *query_handle = nullptr;
+  EXPECT_EQ(cli_.BatchPutAsync(&desc, 1U, &query_handle), static_cast<Status>(ACL_ERROR_RT_INTERNAL_ERROR));
+  EXPECT_EQ(query_handle, nullptr);
+  EXPECT_EQ(acl_stub_->stream_abort_count_, 1U);
+  EXPECT_EQ(acl_stub_->live_allocs_.size(), baseline_live);
+}
+
+TEST_F(UbMemCsClientUt, DeviceAicpuWaitNotifyFailureAfterLaunchAbortsSlotAndFreesBuffers) {
+  ASSERT_EQ(CreateClient(ENDPOINT_LOC_TYPE_DEVICE), SUCCESS);
+  void *remote_addr = nullptr;
+  ASSERT_EQ(ImportOwnRemoteMem(dst_, sizeof(dst_), &remote_addr), SUCCESS);
+  HixlOneSideOpDesc desc{};
+  desc.local_buf = src_;
+  desc.remote_buf = remote_addr;
+  desc.len = sizeof(src_);
+  ASSERT_EQ(cli_.mem_store_.RecordMemory(true, remote_addr, sizeof(dst_)), SUCCESS);
+  ASSERT_EQ(cli_.mem_store_.RecordMemory(false, src_, sizeof(src_)), SUCCESS);
+
+  const size_t baseline_live = acl_stub_->live_allocs_.size();
+  acl_stub_->fail_next_wait_notify_ = true;
+  void *query_handle = nullptr;
+  EXPECT_EQ(cli_.BatchPutAsync(&desc, 1U, &query_handle), static_cast<Status>(ACL_ERROR_RT_INTERNAL_ERROR));
+  EXPECT_EQ(query_handle, nullptr);
+  EXPECT_EQ(acl_stub_->stream_abort_count_, 1U);
+  EXPECT_EQ(acl_stub_->live_allocs_.size(), baseline_live);
+}
+
+TEST_F(UbMemCsClientUt, DeviceMemcpyPartialDataCopyFailureAbortsSlot) {
+  ASSERT_EQ(CreateClient(ENDPOINT_LOC_TYPE_DEVICE, kUbMemMemcpyModeConfig), SUCCESS);
+  void *remote_addr = nullptr;
+  ASSERT_EQ(ImportOwnRemoteMem(dst_, sizeof(dst_), &remote_addr), SUCCESS);
+  HixlOneSideOpDesc descs[2] = {};
+  for (auto &desc : descs) {
+    desc.local_buf = src_;
+    desc.remote_buf = remote_addr;
+    desc.len = 4U;
+  }
+  ASSERT_EQ(cli_.mem_store_.RecordMemory(true, remote_addr, sizeof(dst_)), SUCCESS);
+  ASSERT_EQ(cli_.mem_store_.RecordMemory(false, src_, sizeof(src_)), SUCCESS);
+
+  const size_t baseline_live = acl_stub_->live_allocs_.size();
+  acl_stub_->fail_data_copy_on_call_ = 2U;
+  void *query_handle = nullptr;
+  EXPECT_EQ(cli_.BatchPutAsync(descs, 2U, &query_handle), static_cast<Status>(ACL_ERROR_RT_INTERNAL_ERROR));
+  EXPECT_EQ(query_handle, nullptr);
+  EXPECT_EQ(acl_stub_->stream_abort_count_, 1U);
+  EXPECT_EQ(acl_stub_->live_allocs_.size(), baseline_live);
+}
+
+TEST_F(UbMemCsClientUt, DeviceMemcpyFlagCopyFailureAbortsSlot) {
+  ASSERT_EQ(CreateClient(ENDPOINT_LOC_TYPE_DEVICE, kUbMemMemcpyModeConfig), SUCCESS);
+  void *remote_addr = nullptr;
+  ASSERT_EQ(ImportOwnRemoteMem(dst_, sizeof(dst_), &remote_addr), SUCCESS);
+  HixlOneSideOpDesc desc{};
+  desc.local_buf = src_;
+  desc.remote_buf = remote_addr;
+  desc.len = sizeof(src_);
+  ASSERT_EQ(cli_.mem_store_.RecordMemory(true, remote_addr, sizeof(dst_)), SUCCESS);
+  ASSERT_EQ(cli_.mem_store_.RecordMemory(false, src_, sizeof(src_)), SUCCESS);
+
+  const size_t baseline_live = acl_stub_->live_allocs_.size();
+  acl_stub_->fail_next_host_flag_copy_ = true;
+  void *query_handle = nullptr;
+  EXPECT_EQ(cli_.BatchPutAsync(&desc, 1U, &query_handle), static_cast<Status>(ACL_ERROR_RT_INTERNAL_ERROR));
+  EXPECT_EQ(query_handle, nullptr);
+  EXPECT_EQ(acl_stub_->stream_abort_count_, 1U);
+  EXPECT_EQ(acl_stub_->live_allocs_.size(), baseline_live);
+}
+
+TEST_F(UbMemCsClientUt, DeviceDeferredBufferFreeWaitsUntilLastSlotRefAborts) {
+  ASSERT_EQ(CreateClient(ENDPOINT_LOC_TYPE_DEVICE), SUCCESS);
+  void *remote_addr = nullptr;
+  ASSERT_EQ(ImportOwnRemoteMem(dst_, sizeof(dst_), &remote_addr), SUCCESS);
+  HixlOneSideOpDesc desc{};
+  desc.local_buf = src_;
+  desc.remote_buf = remote_addr;
+  desc.len = sizeof(src_);
+  ASSERT_EQ(cli_.mem_store_.RecordMemory(true, remote_addr, sizeof(dst_)), SUCCESS);
+  ASSERT_EQ(cli_.mem_store_.RecordMemory(false, src_, sizeof(src_)), SUCCESS);
+
+  const size_t baseline_live = acl_stub_->live_allocs_.size();
+  acl_stub_->block_host_flag_copy_ = true;
+  void *pending_handle = nullptr;
+  ASSERT_EQ(cli_.BatchPutAsync(&desc, 1U, &pending_handle), SUCCESS);
+  ASSERT_NE(pending_handle, nullptr);
+
+  acl_stub_->fail_next_aicpu_sync_ = true;
+  EXPECT_EQ(cli_.BatchPutSync(&desc, 1U, 1000U), static_cast<Status>(ACL_ERROR_RT_INTERNAL_ERROR));
+  // Sibling pending_handle still shares active_slot_: abort and buffer frees must both wait.
+  EXPECT_EQ(acl_stub_->stream_abort_count_, 0U);
+  auto *ubmem_channel = dynamic_cast<UbMemChannel *>(cli_.client_channel_.get());
+  ASSERT_NE(ubmem_channel, nullptr);
+  ASSERT_NE(ubmem_channel->engine_, nullptr);
+  EXPECT_EQ(ubmem_channel->engine_->deferred_buffers_.size(), 1U);
+  EXPECT_EQ(acl_stub_->live_allocs_.size(), baseline_live + 6U);
+
+  HixlCompleteStatus status = HixlCompleteStatus::HIXL_COMPLETE_STATUS_WAITING;
+  EXPECT_EQ(cli_.QueryCompleteStatus(pending_handle, &status), SUCCESS);
+  EXPECT_EQ(status, HixlCompleteStatus::HIXL_COMPLETE_STATUS_FAILED);
+  EXPECT_EQ(acl_stub_->stream_abort_count_, 1U);
+  EXPECT_TRUE(ubmem_channel->engine_->deferred_buffers_.empty());
+  EXPECT_EQ(acl_stub_->live_allocs_.size(), baseline_live);
 }
 
 }  // namespace hixl

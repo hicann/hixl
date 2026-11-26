@@ -603,6 +603,9 @@ class UbMemMemory::Impl::RemoteMemory {
   };
 
   void ClearLocked();
+  Status ImportOneRangeLocked(const ShareHandleInfo &info, uintptr_t peer_base, uintptr_t local_base,
+                              std::vector<uintptr_t> &added_vas);
+  void RollbackImportBatchLocked(uintptr_t local_base, const std::vector<uintptr_t> &added_vas);
   // Releases what range still owns: unmaps and returns the VMM block once its last range is gone, then
   // frees its PA handle. Identity-bound ranges have nothing to release and are only dropped.
   void ReleaseRangeLocked(RemoteRange &range);
@@ -622,8 +625,8 @@ Status UbMemMemory::Impl::Import(const std::vector<ShareHandleInfo> &handles) {
   std::vector<ShareHandleInfo> owned;
   std::vector<ShareHandleInfo> remote;
   Local().SplitOwnedHandles(handles, owned, remote);
-  HIXL_CHK_STATUS_RET(Remote().BindLocalAddrs(owned), "Bind local fabric mem failed.");
   HIXL_CHK_STATUS_RET(Remote().Import(remote), "Import remote fabric mem failed.");
+  HIXL_CHK_STATUS_RET(Remote().BindLocalAddrs(owned), "Bind local fabric mem failed.");
   if (!owned.empty()) {
     HIXL_LOGI("Bound %zu peer handle(s) to local addresses without import.", owned.size());
   }
@@ -695,12 +698,54 @@ UbMemMemory::Impl::RemoteMemory::~RemoteMemory() {
   Finalize();
 }
 
+void UbMemMemory::Impl::RemoteMemory::RollbackImportBatchLocked(uintptr_t local_base,
+                                                                const std::vector<uintptr_t> &added_vas) {
+  for (const uintptr_t local_va : added_vas) {
+    const auto it = va_mappings_.find(local_va);
+    if (it == va_mappings_.end()) {
+      continue;
+    }
+    ReleaseRangeLocked(it->second);
+    va_mappings_.erase(it);
+  }
+  const auto block_it = imported_blocks_.find(local_base);
+  if (block_it != imported_blocks_.end()) {
+    (void)VirtualMemoryManager::GetInstance().ReleaseMemory(local_base);
+    imported_blocks_.erase(block_it);
+  }
+}
+
+Status UbMemMemory::Impl::RemoteMemory::ImportOneRangeLocked(const ShareHandleInfo &info, uintptr_t peer_base,
+                                                             uintptr_t local_base, std::vector<uintptr_t> &added_vas) {
+  const uintptr_t local_va = local_base + (info.va_addr - peer_base);
+  HIXL_CHK_BOOL_RET_STATUS(va_mappings_.find(local_va) == va_mappings_.end(), PARAM_INVALID,
+                           "Duplicate remote fabric mem mapping, va:%lu.", local_va);
+  aclrtDrvMemHandle remote_pa_handle = nullptr;
+  HIXL_DISMISSABLE_GUARD(pa_guard, ([&remote_pa_handle]() {
+                           if (remote_pa_handle != nullptr) {
+                             HIXL_CHK_ACL(aclrtFreePhysical(remote_pa_handle),
+                                          "Free imported remote pa handle failed.");
+                           }
+                         }));
+  auto share_handle = info.share_handle;
+  HIXL_CHK_ACL_RET(
+      aclrtMemImportFromShareableHandleV2(&share_handle, ACL_MEM_SHARE_HANDLE_TYPE_FABRIC, 0U, &remote_pa_handle),
+      "Import remote fabric share handle failed.");
+  HIXL_CHK_ACL_RET(aclrtMapMem(reinterpret_cast<void *>(local_va), info.len, 0, remote_pa_handle, 0),
+                   "Map remote imported memory failed.");
+  // Ownership of the PA handle moves into the table here; Unimport or Finalize releases it from
+  // there, so the rollback guard below must not free it again.
+  va_mappings_[local_va] = RemoteRange{info, local_va, /*imported=*/true, remote_pa_handle, local_base};
+  added_vas.push_back(local_va);
+  HIXL_DISMISS_GUARD(pa_guard);
+  HIXL_LOGI("Imported remote fabric mem, old va:%lu, mapped va:%lu, len:%zu, handle:%p.", info.va_addr, local_va,
+            info.len, remote_pa_handle);
+  return SUCCESS;
+}
+
 Status UbMemMemory::Impl::RemoteMemory::Import(const std::vector<ShareHandleInfo> &remote_share_handles) {
   std::lock_guard<std::mutex> lock(mutex_);
-  HIXL_DISMISSABLE_GUARD(fail_guard, ([this]() { ClearLocked(); }));
   if (remote_share_handles.empty()) {
-    RebuildTranslationIndexLocked();
-    HIXL_DISMISS_GUARD(fail_guard);
     return SUCCESS;
   }
 
@@ -713,51 +758,33 @@ Status UbMemMemory::Impl::RemoteMemory::Import(const std::vector<ShareHandleInfo
   uintptr_t local_base = 0;
   HIXL_CHK_STATUS_RET(VirtualMemoryManager::GetInstance().ReserveMemory(span, local_base),
                       "Reserve memory for remote share handles failed.");
-  // Registered before the first map so an aborted import still returns the block to the VMM through
-  // ClearLocked; it only disappears early once every range of the batch has been released.
+  // Roll back only this batch on failure so previously imported mappings stay intact.
   imported_blocks_[local_base] = ImportedBlock{span, remote_share_handles.size()};
+  std::vector<uintptr_t> added_vas;
+  added_vas.reserve(remote_share_handles.size());
+  HIXL_DISMISSABLE_GUARD(batch_guard,
+                         ([this, local_base, &added_vas]() { RollbackImportBatchLocked(local_base, added_vas); }));
 
-  for (const auto &remote_share_handle_info : remote_share_handles) {
-    const uintptr_t local_va = local_base + (remote_share_handle_info.va_addr - peer_base);
-    aclrtDrvMemHandle remote_pa_handle = nullptr;
-    HIXL_DISMISSABLE_GUARD(pa_guard, ([&remote_pa_handle]() {
-                             if (remote_pa_handle != nullptr) {
-                               HIXL_CHK_ACL(aclrtFreePhysical(remote_pa_handle),
-                                            "Free imported remote pa handle failed.");
-                             }
-                           }));
-    auto share_handle = remote_share_handle_info.share_handle;
-    HIXL_CHK_ACL_RET(
-        aclrtMemImportFromShareableHandleV2(&share_handle, ACL_MEM_SHARE_HANDLE_TYPE_FABRIC, 0U, &remote_pa_handle),
-        "Import remote fabric share handle failed.");
-    HIXL_CHK_ACL_RET(
-        aclrtMapMem(reinterpret_cast<void *>(local_va), remote_share_handle_info.len, 0, remote_pa_handle, 0),
-        "Map remote imported memory failed.");
-    // Ownership of the PA handle moves into the table here; Unimport or Finalize releases it from
-    // there, so the rollback guard below must not free it again.
-    va_mappings_[local_va] =
-        RemoteRange{remote_share_handle_info, local_va, /*imported=*/true, remote_pa_handle, local_base};
-    HIXL_DISMISS_GUARD(pa_guard);
-    HIXL_LOGI("Imported remote fabric mem, old va:%lu, mapped va:%lu, len:%zu, handle:%p.",
-              remote_share_handle_info.va_addr, local_va, remote_share_handle_info.len, remote_pa_handle);
+  for (const auto &info : remote_share_handles) {
+    HIXL_CHK_STATUS_RET(ImportOneRangeLocked(info, peer_base, local_base, added_vas),
+                        "Import remote fabric mem range failed, va:%lu.", info.va_addr);
   }
   RebuildTranslationIndexLocked();
-  HIXL_DISMISS_GUARD(fail_guard);
+  HIXL_DISMISS_GUARD(batch_guard);
   return SUCCESS;
 }
 
 Status UbMemMemory::Impl::RemoteMemory::BindLocalAddrs(const std::vector<ShareHandleInfo> &remote_share_handles) {
   std::lock_guard<std::mutex> lock(mutex_);
-  HIXL_DISMISSABLE_GUARD(fail_guard, ([this]() { ClearLocked(); }));
+  if (remote_share_handles.empty()) {
+    return SUCCESS;
+  }
   for (const auto &info : remote_share_handles) {
     va_mappings_[info.va_addr] = RemoteRange{info, info.va_addr, /*imported=*/false, nullptr, 0U};
   }
   RebuildTranslationIndexLocked();
-  HIXL_DISMISS_GUARD(fail_guard);
-  if (!remote_share_handles.empty()) {
-    HIXL_LOGI("Bind local fabric mem without import, handle_count:%zu, va:%lu, len:%zu.", remote_share_handles.size(),
-              remote_share_handles.front().va_addr, remote_share_handles.front().len);
-  }
+  HIXL_LOGI("Bind local fabric mem without import, handle_count:%zu, va:%lu, len:%zu.", remote_share_handles.size(),
+            remote_share_handles.front().va_addr, remote_share_handles.front().len);
   return SUCCESS;
 }
 

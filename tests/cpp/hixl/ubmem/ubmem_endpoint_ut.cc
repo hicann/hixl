@@ -641,4 +641,20 @@ TEST_F(UbMemEndpointUt, ShareHandleTranslateRemoteOpDescsKeepsMergedRangeWhole) 
   EXPECT_EQ(dst[0].len, 128U);
 }
 
+TEST_F(UbMemEndpointUt, DestructorFreesExportDescriptorsWithoutExplicitFinalize) {
+  uint8_t buf[64] = {};
+  {
+    UbMemEndpoint endpoint(MakeUbMemEndpoint(ENDPOINT_LOC_TYPE_DEVICE));
+    ASSERT_EQ(endpoint.Initialize(), SUCCESS);
+    CommMem mem{};
+    mem.type = COMM_MEM_TYPE_DEVICE;
+    mem.addr = buf;
+    mem.size = sizeof(buf);
+    MemHandle handle = nullptr;
+    ASSERT_EQ(endpoint.RegisterMem("destructor_test", mem, handle), SUCCESS);
+    ASSERT_NE(handle, nullptr);
+    EXPECT_EQ(endpoint.exports_.size(), 1U);
+  }
+}
+
 }  // namespace hixl
