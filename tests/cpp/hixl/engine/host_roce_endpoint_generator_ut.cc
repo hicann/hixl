@@ -9,6 +9,8 @@
  */
 
 #include <unistd.h>
+#include <cstdarg>
+#include <cstdio>
 #include <map>
 #include <memory>
 #include <string>
@@ -20,6 +22,7 @@
 #include "ascendcl_stub.h"
 #include "depends/dcmi/src/dcmi_stub.h"
 #include "depends/ibverbs/src/ibverbs_stub.h"
+#include "slog_stub.h"
 #include "engine/endpoint_generator/endpoint_generator.h"
 #include "engine/endpoint_generator/host_roce_endpoint_generator.h"
 #include "engine/hixl_options.h"
@@ -98,6 +101,23 @@ class FailLogicIdAclStub : public llm::AclRuntimeStub {
     (void)logicDevId;
     return ACL_ERROR_RT_INTERNAL_ERROR;
   }
+};
+
+struct CapturedLevelLog {
+  int32_t level = -1;
+  std::string message;
+};
+
+class LevelCapturingSlog : public llm::SlogStub {
+ public:
+  void Log(int module_id, int level, const char *fmt, va_list args) override {
+    (void)module_id;
+    char buffer[2048] = {};
+    vsnprintf(buffer, sizeof(buffer), fmt, args);
+    logs.push_back({level, buffer});
+  }
+
+  std::vector<CapturedLevelLog> logs;
 };
 
 class HostRoceEndpointGeneratorUTest : public ::testing::Test {
@@ -319,6 +339,14 @@ TEST_F(HostRoceEndpointGeneratorUTest, DcmiSelectsNicByLogicIdModulo) {
 }
 
 TEST_F(HostRoceEndpointGeneratorUTest, DcmiModuloSkipsAffineNicWithoutIpv4) {
+  auto slog = std::make_shared<LevelCapturingSlog>();
+  struct RestoreSlogStub {
+    ~RestoreSlogStub() {
+      llm::SlogStub::SetInstance(nullptr);
+    }
+  } restore_slog;
+  llm::SlogStub::SetInstance(slog);
+  slog->SetLevel(DLOG_WARN);
   IbverbsStubAddIpv4Device("hrn5_0", 10, 0, 0, 1);
   IbverbsStubAddNameOnly("hrn5_1");
   IbverbsStubAddIpv4Device("hrn5_2", 10, 0, 0, 2);
@@ -330,6 +358,16 @@ TEST_F(HostRoceEndpointGeneratorUTest, DcmiModuloSkipsAffineNicWithoutIpv4) {
   EXPECT_EQ(HostRoceEndpointGenerator::GenerateHostRoceEndpoints(options, endpoint_list), SUCCESS);
   ASSERT_EQ(endpoint_list.size(), 1U);
   EXPECT_EQ(endpoint_list[0].comm_id, "10.0.0.2");
+  bool saw_warning = false;
+  for (const auto &log : slog->logs) {
+    if (log.message.find("affine nic has no ipv4, skip this nic") == std::string::npos) {
+      continue;
+    }
+    EXPECT_EQ(log.level, DLOG_WARN);
+    saw_warning = true;
+  }
+  EXPECT_TRUE(saw_warning);
+  (void)restore_slog;
 }
 
 TEST_F(HostRoceEndpointGeneratorUTest, AutoGenKeepsOnlyHostRoceWhenProtocolIsRoceHost) {
@@ -370,12 +408,30 @@ TEST_F(HostRoceEndpointGeneratorUTest, GenerateEntersHostRoceWhenMixedWithUbCtp)
 }
 
 TEST_F(HostRoceEndpointGeneratorUTest, NonUbAffineNicIsSkipped) {
+  auto slog = std::make_shared<LevelCapturingSlog>();
+  struct RestoreSlogStub {
+    ~RestoreSlogStub() {
+      llm::SlogStub::SetInstance(nullptr);
+    }
+  } restore_slog;
+  llm::SlogStub::SetInstance(slog);
+  slog->SetLevel(DLOG_WARN);
   IbverbsStubAddIpv4Device("mlx0", 10, 0, 0, 1);
   DcmiStubSetNicTopo(0, 1);
   HixlOptions options = ParseGlobalConfig(R"({"comm_resource_config.protocol_desc":["roce:host"]})");
   std::vector<EndpointConfig> endpoint_list;
   EXPECT_EQ(HostRoceEndpointGenerator::GenerateHostRoceEndpoints(options, endpoint_list), PARAM_INVALID);
   EXPECT_TRUE(endpoint_list.empty());
+  bool saw_warning = false;
+  for (const auto &log : slog->logs) {
+    if (log.message.find("affine nic is not ub type, skip this nic") == std::string::npos) {
+      continue;
+    }
+    EXPECT_EQ(log.level, DLOG_WARN);
+    saw_warning = true;
+  }
+  EXPECT_TRUE(saw_warning);
+  (void)restore_slog;
 }
 
 TEST_F(HostRoceEndpointGeneratorUTest, GenerateUsesNicTopoWhenProtocolIsUbCtp) {

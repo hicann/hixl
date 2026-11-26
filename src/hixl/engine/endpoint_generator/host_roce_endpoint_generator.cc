@@ -76,16 +76,16 @@ Status ParseNpuKey(const std::string &key, int32_t &user_id) {
   const size_t prefix_len = std::char_traits<char>::length(kNpuKeyPrefix);
   HIXL_CHK_BOOL_RET_STATUS(key.size() > prefix_len && key.compare(0, prefix_len, kNpuKeyPrefix) == 0, PARAM_INVALID,
                            "invalid nic topo key:%s", key.c_str());
-  const char *digits = key.c_str() + prefix_len;
-  HIXL_CHK_BOOL_RET_STATUS(std::isdigit(static_cast<unsigned char>(digits[0])) != 0, PARAM_INVALID,
+  const std::string digits = key.substr(prefix_len);
+  HIXL_CHK_BOOL_RET_STATUS(std::isdigit(static_cast<unsigned char>(digits.front())) != 0, PARAM_INVALID,
                            "invalid nic topo key:%s", key.c_str());
-  HIXL_CHK_BOOL_RET_STATUS(digits[0] != '0' || digits[1] == '\0', PARAM_INVALID, "invalid nic topo key:%s",
+  HIXL_CHK_BOOL_RET_STATUS(digits.front() != '0' || digits.size() == 1U, PARAM_INVALID, "invalid nic topo key:%s",
                            key.c_str());
-  for (const char *p = digits; *p != '\0'; ++p) {
-    HIXL_CHK_BOOL_RET_STATUS(std::isdigit(static_cast<unsigned char>(*p)) != 0, PARAM_INVALID,
+  for (const char ch : digits) {
+    HIXL_CHK_BOOL_RET_STATUS(std::isdigit(static_cast<unsigned char>(ch)) != 0, PARAM_INVALID,
                              "invalid nic topo key:%s", key.c_str());
   }
-  const long value = std::strtol(digits, nullptr, 10);
+  const long value = std::strtol(digits.c_str(), nullptr, 10);
   HIXL_CHK_BOOL_RET_STATUS(value >= 0 && value <= static_cast<long>(INT32_MAX), PARAM_INVALID,
                            "nic topo npu id out of range:%s", key.c_str());
   user_id = static_cast<int32_t>(value);
@@ -176,7 +176,9 @@ Status FilterAffineNics(int32_t user_id, int32_t logic_id, std::vector<std::stri
     if (dcmi_ret == 0 && topo_type == kDcmiTopoTypeUb) {
       hits.push_back(nic);
     } else if (dcmi_ret == 0) {
-      LogSkipNic({user_id, nic.c_str(), "affine nic is not ub type, skip this nic", true, dcmi_ret, topo_type});
+      // The NIC list is scanned for a UB-affine match. A non-UB NIC is expected and is not a failure.
+      HIXL_LOGW("affine nic is not ub type, skip this nic, user_device_id=%d, nic=%s, dcmi_ret=%d, topo_type=%d",
+                user_id, nic.c_str(), dcmi_ret, topo_type);
     } else {
       LogSkipNic({user_id, nic.c_str(), "query nic affinity failed, skip this nic", true, dcmi_ret, topo_type});
     }
@@ -190,7 +192,7 @@ void KeepNicsWithIpv4(int32_t user_id, std::vector<std::string> &nic_names) {
   for (const auto &nic : nic_names) {
     std::string ip;
     if (IbverbsProxy::GetNicIpv4ByName(nic, ip) != SUCCESS) {
-      LogSkipNic({user_id, nic.c_str(), "affine nic has no ipv4, skip this nic"});
+      HIXL_LOGW("affine nic has no ipv4, skip this nic, user_device_id=%d, nic=%s", user_id, nic.c_str());
       continue;
     }
     usable.push_back(nic);
@@ -281,7 +283,7 @@ Status BuildAndAppendHostRoceEdges(const HostRoceBuildInput &input, std::vector<
       HIXL_CHK_BOOL_RET_STATUS(!input.manual, PARAM_INVALID,
                                "preferred nic has no ipv4, host roce generation failed, user_device_id=%d, nic=%s",
                                input.user_id, nic.c_str());
-      LogSkipNic({input.user_id, nic.c_str(), "affine nic has no ipv4, skip this nic"});
+      HIXL_LOGW("affine nic has no ipv4, skip this nic, user_device_id=%d, nic=%s", input.user_id, nic.c_str());
       continue;
     }
     HIXL_EVENT("Selected host roce nic, user_device_id=%d, nic=%s, source=%s, ip=%s", input.user_id, nic.c_str(),
