@@ -54,6 +54,12 @@ class UbMemEngine {
   };
 
  private:
+  struct DeferredBuffers {
+    void *host_flag{nullptr};
+    void *desc_buf{nullptr};
+    void *status_buf{nullptr};
+  };
+
   bool UseMemcpyMode() const;
   Status ValidateInputs(uint32_t list_num, const HixlOneSideOpDesc *desc_list) const;
   Status TranslateUbMemOpDescs(uint32_t list_num, const HixlOneSideOpDesc *src,
@@ -63,18 +69,23 @@ class UbMemEngine {
   Status AllocateUbMemHostFlag(void *&host_flag) const;
   Status AllocateUbMemCompleteHandle(UbMemCompleteHandle *&handle) const;
   void ReleaseUbMemCompleteHandle(UbMemCompleteHandle *handle);
+  void FreeHandleBuffers(const DeferredBuffers &buffers) const;
+  void FlushDeferredBuffers();
   Status AllocateUbMemStatusBuf(uint32_t status_count, void *&status_buf) const;
   Status CheckAicpuStatus(UbMemCompleteHandle &handle) const;
   Status SubmitMemcpyAsync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list, void **query_handle);
+  Status SubmitMemcpyOnStream(bool is_get, UbMemCompleteHandle &handle, uint32_t op_num,
+                              const HixlOneSideOpDesc *op_descs) const;
   Status SubmitMemcpySync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list, uint32_t timeout_ms);
   Status SubmitAicpuAsync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list, void **query_handle,
                           uint32_t timeout_ms);
   Status SubmitAicpuSync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list, uint32_t timeout_ms);
   Status PrepareAicpuDescBuf(UbMemCompleteHandle &handle, bool is_get, uint32_t list_num,
                              const HixlOneSideOpDesc *desc_list) const;
+  Status SubmitAicpuOnStream(bool is_get, UbMemCompleteHandle &handle, uint32_t op_num, uint32_t timeout_ms) const;
   Status LaunchAicpuChunks(bool is_get, UbMemCompleteHandle &handle, uint32_t timeout_ms) const;
   Status LaunchUbMemKernel(aclrtFuncHandle func, const char *kernel_name, UbMemCompleteHandle &handle, void *args,
-                           size_t args_size, bool wait_notify) const;
+                           size_t args_size, uint32_t task_count, bool wait_notify) const;
   void AbortPendingHandles();
   void AbortUbMemSlot(const TransferPool::SlotHandle &slot) const;
 
@@ -85,6 +96,7 @@ class UbMemEngine {
   UbMemStarsSqeFormat sqe_format_;
   std::shared_ptr<TransferPool::SlotHandle> active_slot_;
   std::unordered_set<UbMemCompleteHandle *> pending_handles_;
+  std::vector<DeferredBuffers> deferred_buffers_;
 };
 
 }  // namespace hixl

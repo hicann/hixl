@@ -131,6 +131,7 @@ void UbMemEngine::ReleaseUbMemSlot(std::shared_ptr<TransferPool::SlotHandle> &sl
       }
     }
     active_slot_.reset();
+    FlushDeferredBuffers();
   }
 }
 
@@ -168,41 +169,64 @@ Status UbMemEngine::AllocateUbMemStatusBuf(uint32_t status_count, void *&status_
   return SUCCESS;
 }
 
+void UbMemEngine::FreeHandleBuffers(const DeferredBuffers &buffers) const {
+  if (buffers.host_flag == nullptr && buffers.desc_buf == nullptr && buffers.status_buf == nullptr) {
+    return;
+  }
+  auto *pool = TransferPool::GetInstance(device_id_);
+  hixl::TemporaryRtContext ctx_guard(pool != nullptr ? pool->GetContext() : nullptr);
+  if (buffers.host_flag != nullptr) {
+    (void)aclrtFreeHost(buffers.host_flag);
+  }
+  if (buffers.desc_buf != nullptr) {
+    (void)aclrtFree(buffers.desc_buf);
+  }
+  if (buffers.status_buf != nullptr) {
+    (void)aclrtFree(buffers.status_buf);
+  }
+}
+
+void UbMemEngine::FlushDeferredBuffers() {
+  if (deferred_buffers_.empty()) {
+    return;
+  }
+  std::vector<DeferredBuffers> to_free;
+  to_free.swap(deferred_buffers_);
+  for (const auto &buffers : to_free) {
+    FreeHandleBuffers(buffers);
+  }
+}
+
 void UbMemEngine::ReleaseUbMemCompleteHandle(UbMemCompleteHandle *handle) {
   if (handle == nullptr) {
     return;
   }
   (void)pending_handles_.erase(handle);
   std::shared_ptr<TransferPool::SlotHandle> slot_ref = std::move(handle->slot);
-  // Do not abort here: an err_flag failure must stay visible until the slot's last shared reference is
-  // released (ReleaseUbMemSlot / client ReleaseSharedSlotRef / Finalize), so stream abort is deferred.
-  if (handle->host_flag != nullptr) {
-    {
-      hixl::TemporaryRtContext ctx_guard(slot_ref != nullptr ? slot_ref->ctx : nullptr);
-      (void)aclrtFreeHost(handle->host_flag);
-    }
-    handle->host_flag = nullptr;
-  }
-  if (handle->desc_buf != nullptr) {
-    {
-      hixl::TemporaryRtContext ctx_guard(slot_ref != nullptr ? slot_ref->ctx : nullptr);
-      (void)aclrtFree(handle->desc_buf);
-    }
-    handle->desc_buf = nullptr;
-  }
-  if (handle->status_buf != nullptr) {
-    {
-      hixl::TemporaryRtContext ctx_guard(slot_ref != nullptr ? slot_ref->ctx : nullptr);
-      (void)aclrtFree(handle->status_buf);
-    }
-    handle->status_buf = nullptr;
-  }
+  const bool slot_failed =
+      slot_ref != nullptr && slot_ref->err_flag_host_addr != nullptr && *slot_ref->err_flag_host_addr != 0U;
+  // When sibling handles still hold the shared failed slot, abort is deferred until the last reference;
+  // defer freeing this handle's buffers too so the still-running stream cannot touch freed memory.
+  const bool defer_free =
+      slot_failed && active_slot_ != nullptr && active_slot_ == slot_ref && active_slot_.use_count() > 2U;
+  const DeferredBuffers buffers{handle->host_flag, handle->desc_buf, handle->status_buf};
+  handle->host_flag = nullptr;
+  handle->desc_buf = nullptr;
+  handle->status_buf = nullptr;
   handle->status_count = 0U;
   handle->magic = 0U;
   delete handle;
-  if (slot_ref != nullptr) {
-    slot_ref.reset();
+
+  ReleaseUbMemSlot(slot_ref);
+  if (defer_free) {
+    try {
+      deferred_buffers_.push_back(buffers);
+    } catch (const std::exception &e) {
+      HIXL_LOGE(FAILED, "[UbMemEngine] Defer failed-handle buffers failed, skip free to avoid UAF, error:%s", e.what());
+    }
+    return;
   }
+  FreeHandleBuffers(buffers);
 }
 
 Status UbMemEngine::SubmitAsync(bool is_get, uint32_t list_num, const HixlOneSideOpDesc *desc_list,
@@ -249,30 +273,45 @@ Status UbMemEngine::SubmitMemcpyAsync(bool is_get, uint32_t list_num, const Hixl
   UbMemCompleteHandle *handle = nullptr;
   HIXL_CHK_STATUS_RET(AllocateUbMemCompleteHandle(handle), "[UbMemEngine] AllocateUbMemCompleteHandle failed");
   HIXL_DISMISSABLE_GUARD(handle_guard, ([this, handle]() { ReleaseUbMemCompleteHandle(handle); }));
-  handle->slot = slot;
+  handle->slot = std::move(slot);
   handle->host_flag = host_flag;
   HIXL_DISMISS_GUARD(slot_guard);
   HIXL_DISMISS_GUARD(flag_guard);
 
-  {
-    hixl::TemporaryRtContext ctx_guard(handle->slot->ctx);
-    for (uint32_t i = 0U; i < op_num; ++i) {
-      void *dst = is_get ? op_descs[i].local_buf : op_descs[i].remote_buf;
-      const void *src = is_get ? op_descs[i].remote_buf : op_descs[i].local_buf;
-      HIXL_CHK_ACL_RET(aclrtMemcpyAsync(dst, op_descs[i].len, src, op_descs[i].len, ACL_MEMCPY_DEVICE_TO_DEVICE,
-                                        handle->slot->stream),
-                       "[UbMemEngine] aclrtMemcpyAsync data failed, dst=%p, src=%p, size=%lu bytes", dst, src,
-                       op_descs[i].len);
-    }
-    HIXL_CHK_ACL_RET(aclrtMemcpyAsync(handle->host_flag, sizeof(uint64_t), handle->slot->dev_const_one,
-                                      sizeof(uint64_t), ACL_MEMCPY_DEVICE_TO_HOST, handle->slot->stream),
-                     "[UbMemEngine] aclrtMemcpyAsync completion flag failed, dst=%p, src=%p, size=%zu bytes",
-                     handle->host_flag, handle->slot->dev_const_one, sizeof(uint64_t));
-  }
+  HIXL_CHK_STATUS_RET(SubmitMemcpyOnStream(is_get, *handle, op_num, op_descs),
+                      "[UbMemEngine] SubmitMemcpyOnStream failed, op_num=%u", op_num);
 
   *query_handle = handle;
   HIXL_DISMISS_GUARD(handle_guard);
   pending_handles_.insert(handle);
+  return SUCCESS;
+}
+
+Status UbMemEngine::SubmitMemcpyOnStream(bool is_get, UbMemCompleteHandle &handle, uint32_t op_num,
+                                         const HixlOneSideOpDesc *op_descs) const {
+  hixl::TemporaryRtContext ctx_guard(handle.slot->ctx);
+  for (uint32_t i = 0U; i < op_num; ++i) {
+    void *dst = is_get ? op_descs[i].local_buf : op_descs[i].remote_buf;
+    const void *src = is_get ? op_descs[i].remote_buf : op_descs[i].local_buf;
+    const aclError copy_ret =
+        aclrtMemcpyAsync(dst, op_descs[i].len, src, op_descs[i].len, ACL_MEMCPY_DEVICE_TO_DEVICE, handle.slot->stream);
+    if (copy_ret != ACL_SUCCESS) {
+      if (i > 0U && handle.slot->err_flag_host_addr != nullptr) {
+        *handle.slot->err_flag_host_addr = 1U;
+      }
+      HIXL_CHK_ACL_RET(copy_ret, "[UbMemEngine] aclrtMemcpyAsync data failed, dst=%p, src=%p, size=%lu bytes", dst, src,
+                       op_descs[i].len);
+    }
+  }
+  const aclError flag_ret = aclrtMemcpyAsync(handle.host_flag, sizeof(uint64_t), handle.slot->dev_const_one,
+                                             sizeof(uint64_t), ACL_MEMCPY_DEVICE_TO_HOST, handle.slot->stream);
+  if (flag_ret != ACL_SUCCESS) {
+    if (handle.slot->err_flag_host_addr != nullptr) {
+      *handle.slot->err_flag_host_addr = 1U;
+    }
+    HIXL_CHK_ACL_RET(flag_ret, "[UbMemEngine] aclrtMemcpyAsync completion flag failed, dst=%p, src=%p, size=%zu bytes",
+                     handle.host_flag, handle.slot->dev_const_one, sizeof(uint64_t));
+  }
   return SUCCESS;
 }
 
@@ -332,31 +371,48 @@ Status UbMemEngine::SubmitAicpuAsync(bool is_get, uint32_t list_num, const HixlO
   UbMemCompleteHandle *handle = nullptr;
   HIXL_CHK_STATUS_RET(AllocateUbMemCompleteHandle(handle), "[UbMemEngine] AllocateUbMemCompleteHandle failed");
   HIXL_DISMISSABLE_GUARD(handle_guard, ([this, handle]() { ReleaseUbMemCompleteHandle(handle); }));
-  handle->slot = slot;
+  handle->slot = std::move(slot);
   handle->host_flag = host_flag;
   HIXL_DISMISS_GUARD(slot_guard);
   HIXL_DISMISS_GUARD(flag_guard);
 
-  {
-    hixl::TemporaryRtContext ctx_guard(handle->slot->ctx);
-    HIXL_CHK_STATUS_RET(PrepareAicpuDescBuf(*handle, is_get, op_num, op_descs),
-                        "[UbMemEngine] PrepareAicpuDescBuf failed, op_num=%u", op_num);
-    const uint32_t kernel_count =
-        CalculateAicpuKernelCount(handle->desc_count, global_config_.MaxTransferCountPerBatch());
-    HIXL_CHK_STATUS_RET(AllocateUbMemStatusBuf(kernel_count, handle->status_buf),
-                        "[UbMemEngine] AllocateUbMemStatusBuf failed, kernel_count=%u", kernel_count);
-    handle->status_count = kernel_count;
-    HIXL_CHK_STATUS_RET(LaunchAicpuChunks(is_get, *handle, timeout_ms),
-                        "[UbMemEngine] LaunchAicpuChunks failed, op_num=%u, timeout_ms=%u", op_num, timeout_ms);
-    HIXL_CHK_ACL_RET(aclrtMemcpyAsync(handle->host_flag, sizeof(uint64_t), handle->slot->dev_const_one,
-                                      sizeof(uint64_t), ACL_MEMCPY_DEVICE_TO_HOST, handle->slot->stream),
-                     "[UbMemEngine] aclrtMemcpyAsync completion flag failed, dst=%p, src=%p, size=%zu bytes",
-                     handle->host_flag, handle->slot->dev_const_one, sizeof(uint64_t));
-  }
+  HIXL_CHK_STATUS_RET(PrepareAicpuDescBuf(*handle, is_get, op_num, op_descs),
+                      "[UbMemEngine] PrepareAicpuDescBuf failed, op_num=%u", op_num);
+  const uint32_t kernel_count =
+      CalculateAicpuKernelCount(handle->desc_count, global_config_.MaxTransferCountPerBatch());
+  HIXL_CHK_STATUS_RET(AllocateUbMemStatusBuf(kernel_count, handle->status_buf),
+                      "[UbMemEngine] AllocateUbMemStatusBuf failed, kernel_count=%u", kernel_count);
+  handle->status_count = kernel_count;
+  HIXL_CHK_STATUS_RET(SubmitAicpuOnStream(is_get, *handle, op_num, timeout_ms),
+                      "[UbMemEngine] SubmitAicpuOnStream failed, op_num=%u, timeout_ms=%u", op_num, timeout_ms);
 
   *query_handle = handle;
   HIXL_DISMISS_GUARD(handle_guard);
   pending_handles_.insert(handle);
+  return SUCCESS;
+}
+
+Status UbMemEngine::SubmitAicpuOnStream(bool is_get, UbMemCompleteHandle &handle, uint32_t op_num,
+                                        uint32_t timeout_ms) const {
+  const uint64_t launched_before = handle.slot->launched_tasks;
+  hixl::TemporaryRtContext ctx_guard(handle.slot->ctx);
+  const Status launch_ret = LaunchAicpuChunks(is_get, handle, timeout_ms);
+  if (launch_ret != SUCCESS) {
+    if (handle.slot->launched_tasks > launched_before && handle.slot->err_flag_host_addr != nullptr) {
+      *handle.slot->err_flag_host_addr = 1U;
+    }
+    HIXL_CHK_STATUS_RET(launch_ret, "[UbMemEngine] LaunchAicpuChunks failed, op_num=%u, timeout_ms=%u", op_num,
+                        timeout_ms);
+  }
+  const aclError flag_ret = aclrtMemcpyAsync(handle.host_flag, sizeof(uint64_t), handle.slot->dev_const_one,
+                                             sizeof(uint64_t), ACL_MEMCPY_DEVICE_TO_HOST, handle.slot->stream);
+  if (flag_ret != ACL_SUCCESS) {
+    if (handle.slot->err_flag_host_addr != nullptr) {
+      *handle.slot->err_flag_host_addr = 1U;
+    }
+    HIXL_CHK_ACL_RET(flag_ret, "[UbMemEngine] aclrtMemcpyAsync completion flag failed, dst=%p, src=%p, size=%zu bytes",
+                     handle.host_flag, handle.slot->dev_const_one, sizeof(uint64_t));
+  }
   return SUCCESS;
 }
 
@@ -366,8 +422,12 @@ Status UbMemEngine::SubmitAicpuSync(bool is_get, uint32_t list_num, const HixlOn
   HIXL_CHK_STATUS_RET(SubmitAicpuAsync(is_get, list_num, desc_list, &raw_handle, timeout_ms),
                       "[UbMemEngine] SubmitAicpuAsync failed");
   auto *handle = static_cast<UbMemCompleteHandle *>(raw_handle);
-  HIXL_DISMISSABLE_GUARD(handle_guard, ([this, handle]() { ReleaseUbMemCompleteHandle(handle); }));
-  const aclError sync_ret = aclrtSynchronizeStreamWithTimeout(handle->slot->stream, timeout_ms);
+  HIXL_MAKE_GUARD(handle_guard, ([this, handle]() { ReleaseUbMemCompleteHandle(handle); }));
+  aclError sync_ret = ACL_SUCCESS;
+  {
+    hixl::TemporaryRtContext ctx_guard(handle->slot->ctx);
+    sync_ret = aclrtSynchronizeStreamWithTimeout(handle->slot->stream, timeout_ms);
+  }
   if (sync_ret != ACL_SUCCESS) {
     if (handle->slot->err_flag_host_addr != nullptr) {
       *handle->slot->err_flag_host_addr = 1U;
@@ -375,7 +435,6 @@ Status UbMemEngine::SubmitAicpuSync(bool is_get, uint32_t list_num, const HixlOn
     HIXL_CHK_ACL_RET(sync_ret, "[UbMemEngine] aclrtSynchronizeStreamWithTimeout failed, timeout_ms=%u", timeout_ms);
   }
   HIXL_CHK_STATUS_RET(CheckAicpuStatus(*handle), "[UbMemEngine] CheckAicpuStatus failed, timeout_ms=%u", timeout_ms);
-  HIXL_DISMISS_GUARD(handle_guard);
   return SUCCESS;
 }
 
@@ -426,9 +485,9 @@ Status UbMemEngine::LaunchAicpuChunks(bool is_get, UbMemCompleteHandle &handle, 
           static_cast<uint64_t>(reinterpret_cast<uintptr_t>(handle.status_buf) + status_offset * sizeof(uint32_t));
       ++status_offset;
     }
-    HIXL_CHK_STATUS_RET(LaunchUbMemKernel(func, kernel_name, handle, &param, sizeof(param), need_notify_wait),
-                        "[UbMemEngine] LaunchUbMemKernel failed, chunk_offset=%u", chunk_offset);
-    handle.slot->launched_tasks += chunk_list_num;
+    HIXL_CHK_STATUS_RET(
+        LaunchUbMemKernel(func, kernel_name, handle, &param, sizeof(param), chunk_list_num, need_notify_wait),
+        "[UbMemEngine] LaunchUbMemKernel failed, chunk_offset=%u", chunk_offset);
     chunk_offset += chunk_list_num;
     if (batch_remaining == 0U) {
       batch_remaining = batch_size;
@@ -454,7 +513,7 @@ Status UbMemEngine::CheckAicpuStatus(UbMemCompleteHandle &handle) const {
 }
 
 Status UbMemEngine::LaunchUbMemKernel(aclrtFuncHandle func, const char *kernel_name, UbMemCompleteHandle &handle,
-                                      void *args, size_t args_size, bool wait_notify) const {
+                                      void *args, size_t args_size, uint32_t task_count, bool wait_notify) const {
   constexpr uint32_t block_dim = 1U;
   aclrtArgsHandle args_handle = nullptr;
   HIXL_CHK_ACL_RET(aclrtKernelArgsInit(func, &args_handle), "[UbMemEngine] aclrtKernelArgsInit failed, kernel=%s",
@@ -473,6 +532,9 @@ Status UbMemEngine::LaunchUbMemKernel(aclrtFuncHandle func, const char *kernel_n
   HIXL_CHK_ACL_RET(aclrtLaunchKernelWithConfig(func, block_dim, handle.slot->stream, &cfg, args_handle, nullptr),
                    "[UbMemEngine] aclrtLaunchKernelWithConfig failed, kernel=%s, slot=%u", kernel_name,
                    handle.slot->slot_index);
+  // Count tasks as soon as the kernel is queued on the stream so any later failure (such as notify wait)
+  // triggers slot abort before freeing desc_buf/status_buf.
+  handle.slot->launched_tasks += task_count;
   if (wait_notify) {
     HIXL_CHK_ACL_RET(aclrtWaitAndResetNotify(handle.slot->notify, handle.slot->stream, kUbMemNotifyTimeoutMs),
                      "[UbMemEngine] aclrtWaitAndResetNotify failed, kernel=%s, slot=%u", kernel_name,
@@ -536,7 +598,11 @@ void UbMemEngine::AbortPendingHandles() {
     if (handle->slot != nullptr &&
         TrackSlotAbort(handle->slot->slot_index, reserve_ok, aborted_slots, aborted_mask, pending_handles_)) {
       AbortUbMemSlot(*handle->slot);
+      if (active_slot_ == handle->slot) {
+        active_slot_.reset();
+      }
     }
+    handle->slot.reset();
     ReleaseUbMemCompleteHandle(handle);
   }
 }
@@ -547,6 +613,7 @@ void UbMemEngine::Finalize() {
     AbortUbMemSlot(*active_slot_);
     active_slot_.reset();
   }
+  FlushDeferredBuffers();
 }
 
 }  // namespace hixl
