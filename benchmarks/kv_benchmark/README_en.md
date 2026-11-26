@@ -42,10 +42,14 @@ python3 benchmarks/kv_benchmark/scripts/run_kv_benchmark.py \
 | `--key_counts` | KV block/key counts, comma-separated | `16,32,48,64` |
 | `--num_processes` | Concurrent processes (inference ranks) | Platform-dependent, usually `8` |
 | `--devices` | Device ID list | Platform `0..N-1` |
+| `--base_port` | Base port for rank 0; each following rank uses the next port | `19000` |
+| `--listen_host` | Address for local rank listeners | `127.0.0.1` |
+| `--connect_host` | Address local ranks use to connect to peers | `127.0.0.1` |
 | `--transport` | `roce` / `fabric_mem` / `uboe` / `ub_rtp` / `ub` (last three A5 only) | A2=`roce`; A3=`fabric_mem`; A5=`ub` |
 | `--platform` | Force `a2`/`a3`/`a5` (affects default ranks and transport) | Auto-detect |
 | `--warmup` / `--repeat` | Warmup / measured repeats | `1` / `10` |
 | `--transfer_threads` | Worker threads for concurrent key transfers | `8` |
 | `--local_buffer_min` | Minimum local device buffer | `1G` |
+| `--sync_timeout_sec` | Timeout in seconds for rank synchronization files | `300` |
 | `--output_dir` | Output directory (relative to cwd) | `kv_benchmark/output` |
 | `--skip_plot` | Skip plot generation | off |

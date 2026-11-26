@@ -42,10 +42,14 @@ python3 benchmarks/kv_benchmark/scripts/run_kv_benchmark.py \
 | `--key_counts` | 测试的 KV block/key 数量，逗号分隔 | `16,32,48,64` |
 | `--num_processes` | 并发进程数（模拟推理 rank 数） | 随平台，通常 `8` |
 | `--devices` | 设备 ID 列表 | 随平台 `0..N-1` |
+| `--base_port` | rank 0 使用的基础端口；后续 rank 使用递增端口 | `19000` |
+| `--listen_host` | 本地 rank 监听的地址 | `127.0.0.1` |
+| `--connect_host` | 本地 rank 连接对端时使用的地址 | `127.0.0.1` |
 | `--transport` | 传输路径：`roce` / `fabric_mem` / `uboe` / `ub_rtp` / `ub`（后三者仅 A5） | A2=`roce`；A3=`fabric_mem`；A5=`ub` |
 | `--platform` | 强制平台 `a2`/`a3`/`a5`（影响默认 rank 数与 transport） | 自动检测 |
 | `--warmup` / `--repeat` | 预热次数 / 正式重复次数 | `1` / `10` |
 | `--transfer_threads` | 并发传 key 的工作线程数 | `8` |
 | `--local_buffer_min` | 本地 device buffer 下限 | `1G` |
+| `--sync_timeout_sec` | 等待各 rank 同步文件就绪的超时时间（秒） | `300` |
 | `--output_dir` | 输出目录（相对 cwd） | `kv_benchmark/output` |
 | `--skip_plot` | 跳过画图 | 关闭 |
