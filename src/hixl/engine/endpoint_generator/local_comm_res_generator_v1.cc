@@ -742,12 +742,11 @@ static Status ParseTopoJson(const std::string &topo_path, nlohmann::json &j, std
   // Normalize the path (resolve "..", ".", symlinks) before validating and opening it.
   // realpath fails with ENOENT if any path component does not exist, so success already proves existence.
   char canonical_path[PATH_MAX] = {0};
-  char *realpath_ret = realpath(topo_path.c_str(), canonical_path);
+  const bool path_resolved = realpath(topo_path.c_str(), canonical_path) != nullptr;
   const int32_t realpath_errno = errno;
-  HIXL_CHK_BOOL_RET_STATUS(realpath_ret != nullptr, PARAM_INVALID,
-                           "Call api:realpath failed, topo_path:%s, errno=%d(%s)", topo_path.c_str(), realpath_errno,
-                           strerror(realpath_errno));
-  resolved_path = canonical_path;
+  HIXL_CHK_BOOL_RET_STATUS(path_resolved, PARAM_INVALID, "Call api:realpath failed, topo_path:%s, errno=%d(%s)",
+                           topo_path.c_str(), realpath_errno, strerror(realpath_errno));
+  resolved_path.assign(canonical_path);
   std::ifstream file(resolved_path.c_str());
   HIXL_CHK_BOOL_RET_STATUS(file.is_open(), PARAM_INVALID, "Failed to open topo file: %s, errno=%d(%s)",
                            resolved_path.c_str(), errno, strerror(errno));
