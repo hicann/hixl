@@ -67,37 +67,70 @@ SKIP_KV=""
 OUTPUT=""
 EXTRA_PY=()
 
+require_option_value() {
+  local opt="$1"
+  local argc="$2"
+  local val="${3:-}"
+  if [ "$argc" -lt 2 ] || [ -z "$val" ] || [[ "$val" == -* ]]; then
+    echo "[ERROR] Option $opt requires a non-empty value." >&2
+    usage >&2
+    exit 1
+  fi
+}
+
+require_nonempty_eq_value() {
+  local opt="$1"
+  local val="$2"
+  if [ -z "$val" ]; then
+    echo "[ERROR] Option $opt requires a non-empty value." >&2
+    usage >&2
+    exit 1
+  fi
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --loops)
+      require_option_value "$1" "$#" "${2:-}"
       LOOPS="$2"; shift 2 ;;
     --loops=*)
+      require_nonempty_eq_value "--loops=" "${1#*=}"
       LOOPS="${1#*=}"; shift ;;
     --device-ids)
+      require_option_value "$1" "$#" "${2:-}"
       DEVICE_IDS="$2"; shift 2 ;;
     --device-ids=*)
+      require_nonempty_eq_value "--device-ids=" "${1#*=}"
       DEVICE_IDS="${1#*=}"; shift ;;
     --platform)
+      require_option_value "$1" "$#" "${2:-}"
       PLATFORM="$2"; shift 2 ;;
     --platform=*)
+      require_nonempty_eq_value "--platform=" "${1#*=}"
       PLATFORM="${1#*=}"; shift ;;
     --target-host)
+      require_option_value "$1" "$#" "${2:-}"
       TARGET_HOST="$2"; shift 2 ;;
     --target-host=*)
+      require_nonempty_eq_value "--target-host=" "${1#*=}"
       TARGET_HOST="${1#*=}"; shift ;;
     --skip-comm)
       SKIP_COMM="--skip_comm"; shift ;;
     --skip-kv)
       SKIP_KV="--skip_kv"; shift ;;
     --hixl-option)
+      require_option_value "$1" "$#" "${2:-}"
       EXTRA_PY+=(--hixl_option "$2")
       shift 2 ;;
     --hixl-option=*)
+      require_nonempty_eq_value "--hixl-option=" "${1#*=}"
       EXTRA_PY+=(--hixl_option "${1#*=}")
       shift ;;
     --output)
+      require_option_value "$1" "$#" "${2:-}"
       OUTPUT="$2"; shift 2 ;;
     --output=*)
+      require_nonempty_eq_value "--output=" "${1#*=}"
       OUTPUT="${1#*=}"; shift ;;
     -h|--help)
       usage; exit 0 ;;
@@ -106,6 +139,11 @@ while [ $# -gt 0 ]; do
       usage; exit 1 ;;
   esac
 done
+
+if ! [[ "$LOOPS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "[ERROR] --loops must be a positive integer: ${LOOPS}" >&2
+  exit 1
+fi
 
 if [ "$TARGET_HOST" != "127.0.0.1" ]; then
   echo "[ERROR] run_all_bench.sh does not support true dual-machine orchestration."
