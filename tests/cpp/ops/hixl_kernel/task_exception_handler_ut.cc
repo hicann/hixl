@@ -26,7 +26,7 @@ class DeviceExceptionProxyForTest {
 }  // namespace
 }  // namespace hixl
 
-// Bind the Device handler to its own stub while the UT executable uses the Host HCOMM ABI.
+// Bind the Device handler to its own stub to keep Host and Device callback registrations separate.
 #define HcommProxy DeviceExceptionProxyForTest
 #include "../../../../src/ops/hixl_kernel/task_exception_handler.cc"
 #undef HcommProxy

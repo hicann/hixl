@@ -140,18 +140,18 @@ void TransferPool::DisableHostExceptionCallback() {
   HIXL_LOGW("[TransferPool] UnregisterExceptionCallback failed in destructor. device_id=%d ret=%d", device_id_, ret);
 }
 
-void TransferPool::OnHostException(const tagHcommExceptionInfoLite *raw_info, void *user_data) {
+void TransferPool::OnHostException(const HcommExceptionInfo *raw_info, void *user_data) {
   // magic 校验：单 cb 会收到进程内所有组件（含 HCCL）的异常，只有 userData 恒为 hixl 自己时才受理。
   if (user_data != kHixlCbMagic || raw_info == nullptr) {
     return;
   }
   const auto &info = *raw_info;
   const auto &header = info.header;
-  if (header.magicWord != HCOMM_EXCEPTION_LITE_MAGIC_WORD || header.version != HCOMM_EXCEPTION_LITE_VERSION) {
+  if (header.magicWord != HCOMM_EXCEPTION_MAGIC_WORD || header.version != HCOMM_EXCEPTION_VERSION) {
     HIXL_LOGW(
         "[TransferPool] Invalid Host exception ABI header. "
         "magic=0x%X expected_magic=0x%X version=%u expected_version=%u",
-        header.magicWord, HCOMM_EXCEPTION_LITE_MAGIC_WORD, header.version, HCOMM_EXCEPTION_LITE_VERSION);
+        header.magicWord, HCOMM_EXCEPTION_MAGIC_WORD, header.version, HCOMM_EXCEPTION_VERSION);
     return;
   }
   // HCOMM reports a logic device ID; pools are keyed by the ACL user device ID.
@@ -184,7 +184,7 @@ void TransferPool::OnHostException(const tagHcommExceptionInfoLite *raw_info, vo
             pool->device_id_);
 }
 
-void TransferPool::AbortSlotStreamOnHostExceptionLocked(uint32_t idx, const tagHcommExceptionInfoLite &info) {
+void TransferPool::AbortSlotStreamOnHostExceptionLocked(uint32_t idx, const HcommExceptionInfo &info) {
   Slot &slot = slots_[idx];
   if (slot.err_flag_host_addr != nullptr) {
     *(slot.err_flag_host_addr) = 1U;

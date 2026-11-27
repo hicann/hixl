@@ -17,7 +17,7 @@
 
 #ifdef __cplusplus
 namespace hixl_test {
-using DeviceExceptionCallback = void (*)(const HcommExceptionInfo *, void *);
+using DeviceExceptionCallback = HcommExceptionCallback;
 }  // namespace hixl_test
 
 extern "C" {

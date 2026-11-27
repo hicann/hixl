@@ -50,58 +50,50 @@ typedef struct tagHcommExceptionExpandInfo {
 } HcommExceptionExpandInfo;
 
 /**
- * @brief device侧异常信息结构体
+ * @brief Host/Device 共用异常信息结构体，与 HCOMM include/hcomm_exception.h 保持一致。
  */
 typedef struct tagHcommExceptionInfo {
-  CommAbiHeader header;
-  uint64_t thread;
-  uint64_t channel;
+  CommAbiHeader header;  // Host ABI 信息；Device 本地回调不使用。
+  uint64_t thread;       // Host 为线程实体句柄；Device 为设备侧线程对象地址。
+  uint64_t channel;      // 预留，当前为 0。
   uint32_t taskId;
   uint32_t retCode;
-  uint8_t rsvd[40];
-  HcommExceptionExpandInfo expandInfo;
+  uint32_t deviceId;  // Host 为发送方逻辑设备 ID；Device 本地回调不使用。
+  uint8_t rsvd[36];
+  HcommExceptionExpandInfo expandInfo;  // Device 错误详情；Host 不使用。
 } HcommExceptionInfo;
 
-static const uint32_t HCOMM_EXCEPTION_LITE_MAGIC_WORD = 0x0f0f0f4f;
-static const uint32_t HCOMM_EXCEPTION_LITE_VERSION = 1;
-
-/**
- * @brief host侧异常信息结构体
- */
-typedef struct tagHcommExceptionInfoLite {
-  CommAbiHeader header;
-  uint64_t thread;
-  uint32_t taskId;
-  uint32_t retCode;
-  uint32_t deviceId;
-  uint8_t rsvd[512];
-} HcommExceptionInfoLite;
+// Host 异常回调使用的 ABI 校验常量；HIXL Device 本地异常回调当前不校验 header。
+static const uint32_t HCOMM_EXCEPTION_MAGIC_WORD = 0x0f0f0f4f;
+static const uint32_t HCOMM_EXCEPTION_VERSION = 2;
 
 /**
  * @brief 异常回调函数原型
  * @param[in] exceptionInfo 异常信息
- * @param[in] userData 用户自定义数据指针
+ * @param[in] userData 用户自定义数据指针，回调时透传
  */
-#if defined(PRODUCT_SIDE_DEVICE)
 typedef void (*HcommExceptionCallback)(const HcommExceptionInfo *exceptionInfo, void *userData);
-#else
-typedef void (*HcommExceptionCallback)(const HcommExceptionInfoLite *exceptionInfo, void *userData);
-#endif
 
 /**
- * @brief 注册异常回调
+ * @brief 注册异常回调（同一回调重复注册仅更新 userData）
  * @param[in] cb 回调函数指针
  * @param[in] userData 用户自定义数据指针，回调时透传
- * @return 0表示成功，非0表示失败
+ * @return 0表示成功，非0表示失败；HCCL_E_NOT_SUPPORT 表示环境不支持（HAL esched 符号不可解析），
+ *         调用方可据此走 device 侧注册 fallback
+ * @note Host 侧 userData 生命周期契约：回调分发为快照后异步调用，Unregister 后仍可能有在途回调
+ *       使用 userData；调用方须保证 userData 在回调不再被引用前保持存活（如延迟释放或
+ *       引用计数），否则构成 use-after-free
  */
-int32_t HcommExceptionRegisterCallback(HcommExceptionCallback cb, void *userData);
+HcommResult HcommExceptionRegisterCallback(HcommExceptionCallback cb, void *userData);
 
 /**
  * @brief 注销异常回调
  * @param[in] cb 需要注销的回调函数指针
  * @return 0表示成功，非0表示失败
+ * @note Host 侧注销仅保证后续事件不再分发到该回调；已在途的回调仍会执行完毕，
+ *       userData 的释放时机见注册接口的 @note
  */
-int32_t HcommExceptionUnregisterCallback(HcommExceptionCallback cb);
+HcommResult HcommExceptionUnregisterCallback(HcommExceptionCallback cb);
 
 #ifdef __cplusplus
 }

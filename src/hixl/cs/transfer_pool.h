@@ -17,12 +17,11 @@
 #include <vector>
 #include "acl/acl.h"
 #include "cs/hixl_cs.h"
+#include "hcomm/hcomm_exception.h"
 #include "hcomm/hcomm_res_defs.h"
 #include "common/hixl_utils.h"
 #include "load_kernel.h"
 #include "rt_external.h"
-
-struct tagHcommExceptionInfoLite;
 
 namespace hixl {
 
@@ -138,8 +137,8 @@ class TransferPool {
   // 注销只在 ~TransferPool 执行；Finalize 不注销，pool 对象仍存活，回调靠 inited_ 自守。
   bool EnableHostExceptionCallback(SocType soc_type);
   void DisableHostExceptionCallback();
-  static void OnHostException(const tagHcommExceptionInfoLite *info, void *user_data);
-  void AbortSlotStreamOnHostExceptionLocked(uint32_t idx, const tagHcommExceptionInfoLite &info);
+  static void OnHostException(const HcommExceptionInfo *info, void *user_data);
+  void AbortSlotStreamOnHostExceptionLocked(uint32_t idx, const HcommExceptionInfo &info);
 
   void AbortInUseStreamsLocked() const;
   static void AbortInUseStreamLocked(const Slot &slot);
