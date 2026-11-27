@@ -36,6 +36,7 @@ from kv_defaults import (  # noqa: E402
 
 configure_logging()
 log = logging.getLogger(__name__)
+MAX_TCP_PORT = 65535
 
 
 @dataclass
@@ -77,6 +78,15 @@ def find_model_config() -> str:
         if p.exists():
             return str(p)
     return "kv_benchmark/config/models.json"
+
+
+def validate_base_port(base_port: int, process_count: int) -> None:
+    last_port = base_port + process_count - 1
+    if not 1 <= base_port <= MAX_TCP_PORT or last_port > MAX_TCP_PORT:
+        raise ValueError(
+            f"ports for {process_count} processes must stay in 1..{MAX_TCP_PORT}, "
+            f"got {base_port}..{last_port}"
+        )
 
 
 def parse_args():
@@ -331,6 +341,11 @@ def main():
         )
         return 1
     args.num_processes = len(devices)
+    try:
+        validate_base_port(args.base_port, args.num_processes)
+    except ValueError as exc:
+        log.error("[ERROR] Invalid --base_port: %s", exc)
+        return 1
     prepare_output_dir(args.output_dir)
     _log_run_config(args, platform_id, devices, model_config, key_counts)
     ret = _run_kv_processes(args, bench_bin, devices, model_config, run_id, key_counts)

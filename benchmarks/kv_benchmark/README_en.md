@@ -41,6 +41,7 @@ python3 benchmarks/kv_benchmark/scripts/run_kv_benchmark.py \
 | `--model` | Model configuration name | `deepseek-r1` |
 | `--key_counts` | KV block/key counts, comma-separated | `16,32,48,64` |
 | `--num_processes` | Concurrent processes (inference ranks) | Platform-dependent, usually `8` |
+| `--base_port` | Base port for rank 0; the consecutive port range must stay within `1..65535` | `19000` |
 | `--devices` | Device ID list | Platform `0..N-1` |
 | `--base_port` | Base port for rank 0; each following rank uses the next port | `19000` |
 | `--listen_host` | Address for local rank listeners | `127.0.0.1` |

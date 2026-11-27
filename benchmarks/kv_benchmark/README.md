@@ -41,6 +41,7 @@ python3 benchmarks/kv_benchmark/scripts/run_kv_benchmark.py \
 | `--model` | 模型配置名 | `deepseek-r1` |
 | `--key_counts` | 测试的 KV block/key 数量，逗号分隔 | `16,32,48,64` |
 | `--num_processes` | 并发进程数（模拟推理 rank 数） | 随平台，通常 `8` |
+| `--base_port` | rank 0 的基础端口；连续端口范围须在 `1..65535` 内 | `19000` |
 | `--devices` | 设备 ID 列表 | 随平台 `0..N-1` |
 | `--base_port` | rank 0 使用的基础端口；后续 rank 使用递增端口 | `19000` |
 | `--listen_host` | 本地 rank 监听的地址 | `127.0.0.1` |
