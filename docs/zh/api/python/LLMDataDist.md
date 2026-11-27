@@ -286,7 +286,7 @@ link(comm_name: str, cluster_rank_info: Dict[int, int], rank_table: str) -> int
 | --- | --- | --- |
 | comm_name | str | 通信域名称。<br>取值范围：小于128个字符。 |
 | cluster_rank_info | Dict[int, int] | 集群ID到rank ID的映射。<br>例如：{1: 0, 2: 1}。 |
-| rank_table | str | 开发者可以通过该参数配置参与集合通信的NPU资源信息。
+| rank_table | str | 开发者可以通过该参数配置参与集合通信的NPU资源信息。 |
 
 如上表格中ranktable具体信息请参见《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/master/docs/zh/user_guide/README.md)》。<br>rank_table的配置示例如下:
 
