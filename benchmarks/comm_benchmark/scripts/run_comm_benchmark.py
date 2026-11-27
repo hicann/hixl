@@ -332,7 +332,10 @@ class DualDirectionsRunSpec:
 
 
 def parse_device_ids(value: str) -> list[int]:
-    return [int(x.strip()) for x in value.split(',') if x.strip()]
+    parts = [part.strip() for part in value.split(',')]
+    if any(not part.isascii() or not part.isdecimal() for part in parts):
+        raise ValueError('device IDs must be a comma-separated list of nonnegative integers')
+    return [int(part) for part in parts]
 
 
 def format_device_ids(devices: list[int]) -> str:
@@ -1480,6 +1483,14 @@ def _launch_by_role(spec: LaunchDispatchSpec):
 
 
 def launch(args):
+    if args.device_ids is None:
+        args.device_ids = resolve_default_device_ids(args.role)
+    try:
+        devices = parse_device_ids(args.device_ids)
+    except ValueError as exc:
+        log.error(f'[ERROR] Invalid --device_ids: {exc}')
+        return -1
+
     gate_soc = effective_soc_for_hccs_gate(args)
     if not _normalize_launch_args(args):
         return -1
@@ -1493,9 +1504,6 @@ def launch(args):
         log.error(f'[ERROR] bench binary not found: {bench_bin}')
         log.error('[ERROR] Build with: bash build.sh --examples')
         return -1
-    if args.device_ids is None:
-        args.device_ids = resolve_default_device_ids(args.role)
-    devices = parse_device_ids(args.device_ids)
     return _launch_by_role(LaunchDispatchSpec(args, bench_bin, devices, run_plan, single_bench_types, gate_soc))
 
 
