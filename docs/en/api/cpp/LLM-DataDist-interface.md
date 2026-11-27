@@ -175,7 +175,7 @@ if (ret != LLM_SUCCESS) {
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -209,7 +209,7 @@ None
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -253,7 +253,7 @@ Status SetRole(LlmRole role, const std::map<AscendString, AscendString> &options
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -292,7 +292,7 @@ Status LinkLlmClusters(const std::vector<ClusterInfo> &clusters, std::vector<Sta
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -371,7 +371,7 @@ Status UnlinkLlmClusters(const std::vector<ClusterInfo> &clusters, std::vector<S
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -414,7 +414,7 @@ Status PullKvCache(const CacheIndex &src_cache_index,
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -457,7 +457,7 @@ Status PullKvBlocks(const CacheIndex &src_cache_index,
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -500,7 +500,7 @@ Status PushKvCache(const Cache &src_cache,
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -543,7 +543,7 @@ Status PushKvBlocks(const Cache &src_cache,
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -584,7 +584,7 @@ Status RegisterKvCache(const CacheDesc &cache_desc,
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -626,7 +626,7 @@ Status UnregisterKvCache(int64_t cache_id);
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
