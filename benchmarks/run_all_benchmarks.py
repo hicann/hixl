@@ -278,6 +278,15 @@ def _comm_combo_iter(platform_id: str):
         yield transport, im, tm, op
 
 
+def _parse_device_ids(value: str) -> list[int]:
+    parts = [part.strip() for part in value.split(',')]
+    if any(not part.isascii() or not part.isdecimal() for part in parts):
+        raise argparse.ArgumentTypeError(
+            'device IDs must be a comma-separated list of nonnegative integers'
+        )
+    return [int(part) for part in parts]
+
+
 def parse_all_benchmark_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Run all HIXL benchmarks')
     parser.add_argument(
@@ -288,7 +297,7 @@ def parse_all_benchmark_args() -> argparse.Namespace:
     )
     parser.add_argument(
         '--device_ids',
-        type=str,
+        type=_parse_device_ids,
         default='0,1,2,3,4,5,6,7',
         help='Device IDs. First 2 used for comm; KV uses all listed IDs.',
     )
@@ -418,7 +427,7 @@ def benchmark_exit_code(comm_ok: int, kv_ok: int, comm_requested: bool, kv_reque
 
 def main() -> int:
     args = parse_all_benchmark_args()
-    devs = [int(x.strip()) for x in args.device_ids.split(',')]
+    devs = args.device_ids
     err = _validate_args(args, devs)
     if err is not None:
         sys.exit(err)

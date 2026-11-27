@@ -44,7 +44,7 @@ def test_benchmark_exit_code_reports_missing_success(
 
 def test_single_device_kv_only_reaches_kv_runner(monkeypatch):
     args = SimpleNamespace(
-        device_ids="0",
+        device_ids=[0],
         target_host="127.0.0.1",
         skip_comm=True,
         skip_kv=False,
