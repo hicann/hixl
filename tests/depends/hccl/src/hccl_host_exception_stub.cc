@@ -21,14 +21,15 @@ static bool g_register_exception_reentrant_enabled = false;
 static uint32_t g_register_exception_reentrant_device_id = 0U;
 static uint64_t g_register_exception_reentrant_thread = 0U;
 
-int32_t HcommExceptionRegisterCallback(HcommExceptionCallback cb, void *user_data) {
+HcommResult HcommExceptionRegisterCallback(HcommExceptionCallback cb, void *user_data) {
   if (cb != nullptr && g_register_exception_ret == 0) {
     g_registered_exception_callback = cb;
     g_registered_exception_user_data = user_data;
     if (g_register_exception_reentrant_enabled) {
-      HcommExceptionInfoLite info{};
-      info.header.magicWord = HCOMM_EXCEPTION_LITE_MAGIC_WORD;
-      info.header.version = HCOMM_EXCEPTION_LITE_VERSION;
+      HcommExceptionInfo info{};
+      info.header.magicWord = HCOMM_EXCEPTION_MAGIC_WORD;
+      info.header.version = HCOMM_EXCEPTION_VERSION;
+      info.header.size = sizeof(HcommExceptionInfo);
       info.deviceId = g_register_exception_reentrant_device_id;
       info.thread = g_register_exception_reentrant_thread;
       cb(&info, user_data);
@@ -37,7 +38,7 @@ int32_t HcommExceptionRegisterCallback(HcommExceptionCallback cb, void *user_dat
   return g_register_exception_ret;
 }
 
-int32_t HcommExceptionUnregisterCallback(HcommExceptionCallback cb) {
+HcommResult HcommExceptionUnregisterCallback(HcommExceptionCallback cb) {
   if (g_unregister_exception_ret == 0 && g_registered_exception_callback == cb) {
     g_registered_exception_callback = nullptr;
     g_registered_exception_user_data = nullptr;

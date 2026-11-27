@@ -66,8 +66,8 @@ __attribute__((weak)) int32_t HcommBatchTransferOnThread(ThreadHandle thread, Ch
 
 __attribute__((weak)) int32_t HcommAclrtNotifyRecordOnThread(ThreadHandle thread, uint64_t dstNotifyId);
 
-__attribute__((weak)) int32_t HcommExceptionRegisterCallback(HcommExceptionCallback cb, void *userData);
-__attribute__((weak)) int32_t HcommExceptionUnregisterCallback(HcommExceptionCallback cb);
+__attribute__((weak)) HcommResult HcommExceptionRegisterCallback(HcommExceptionCallback cb, void *userData);
+__attribute__((weak)) HcommResult HcommExceptionUnregisterCallback(HcommExceptionCallback cb);
 }
 
 namespace hixl {

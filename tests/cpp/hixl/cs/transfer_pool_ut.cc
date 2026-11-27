@@ -172,9 +172,10 @@ bool InvokeHostExceptionCallback(int32_t device_id, ThreadHandle thread, uint32_
   if (cb == nullptr) {
     return false;
   }
-  HcommExceptionInfoLite info{};
-  info.header.magicWord = HCOMM_EXCEPTION_LITE_MAGIC_WORD;
-  info.header.version = HCOMM_EXCEPTION_LITE_VERSION;
+  HcommExceptionInfo info{};
+  info.header.magicWord = HCOMM_EXCEPTION_MAGIC_WORD;
+  info.header.version = HCOMM_EXCEPTION_VERSION;
+  info.header.size = sizeof(HcommExceptionInfo);
   info.deviceId = static_cast<uint32_t>(device_id);
   info.thread = thread;
   info.retCode = ret_code;
@@ -1000,9 +1001,10 @@ TEST_F(TransferPoolTest, HostExceptionIgnoresUnmatchedThreadAndInvalidArgs) {
   ASSERT_NE(cb, nullptr);
   // info 为 null
   cb(nullptr, GetRegisteredHostExceptionUserData());
-  HcommExceptionInfoLite info{};
-  info.header.magicWord = HCOMM_EXCEPTION_LITE_MAGIC_WORD;
-  info.header.version = HCOMM_EXCEPTION_LITE_VERSION;
+  HcommExceptionInfo info{};
+  info.header.magicWord = HCOMM_EXCEPTION_MAGIC_WORD;
+  info.header.version = HCOMM_EXCEPTION_VERSION;
+  info.header.size = sizeof(HcommExceptionInfo);
   info.deviceId = static_cast<uint32_t>(kTransferPoolHostExcDevId);
   info.thread = h.thread;
   // userData magic 错误
@@ -1013,12 +1015,12 @@ TEST_F(TransferPoolTest, HostExceptionIgnoresUnmatchedThreadAndInvalidArgs) {
   cb(&info, GetRegisteredHostExceptionUserData());
   EXPECT_EQ(*h.err_flag_host_addr, 0U);
   EXPECT_EQ(acl_stub->abort_count_.load(), 0U);
-  info.header.magicWord = HCOMM_EXCEPTION_LITE_MAGIC_WORD;
-  info.header.version = HCOMM_EXCEPTION_LITE_VERSION + 1U;
+  info.header.magicWord = HCOMM_EXCEPTION_MAGIC_WORD;
+  info.header.version = HCOMM_EXCEPTION_VERSION + 1U;
   cb(&info, GetRegisteredHostExceptionUserData());
   EXPECT_EQ(*h.err_flag_host_addr, 0U);
   EXPECT_EQ(acl_stub->abort_count_.load(), 0U);
-  info.header.version = HCOMM_EXCEPTION_LITE_VERSION;
+  info.header.version = HCOMM_EXCEPTION_VERSION;
   // thread 不匹配
   info.thread = h.thread + 12345U;
   cb(&info, GetRegisteredHostExceptionUserData());
