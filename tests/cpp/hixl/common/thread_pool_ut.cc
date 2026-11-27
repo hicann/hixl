@@ -560,11 +560,17 @@ class ThreadPoolBacklogTest : public ::testing::Test {
     for (auto &thread : helpers_) {
       thread.join();
     }
-    pool_.reset();
-    g_wait_observation.store(nullptr);
+    ShutdownPool();
     for (const auto &gate : gates_) {
       EXPECT_FALSE(gate->TimedOut());
     }
+  }
+  void ShutdownPool() {
+    if (pool_ != nullptr) {
+      pool_->Destroy();  // Keep the owner and observer alive until all callbacks have returned.
+    }
+    g_wait_observation.store(nullptr);
+    pool_.reset();
   }
   void ReleaseGates() {
     for (const auto &gate : gates_) {
@@ -769,10 +775,11 @@ TEST_F(ThreadPoolBacklogTest, WaitingCoreExecutesAtMostOneQueuedTaskAfterStop) {
   }
   wait_observation_ = std::make_shared<WaitObservation>();
   wait_observation_->condition = &pool_->cond_var_;
-  wait_observation_->after_wake = [this, tasks]() {
-    if (pool_->is_stopped_.load()) {  // The real wait has reacquired the queue lock.
+  auto *pool = pool_.get();
+  wait_observation_->after_wake = [pool, tasks]() {
+    if (pool->is_stopped_.load()) {  // The real wait has reacquired the queue lock.
       for (auto &task : *tasks) {
-        pool_->tasks_.push(std::move(task));
+        pool->tasks_.push(std::move(task));
       }
       tasks->clear();
     }
@@ -789,9 +796,42 @@ TEST_F(ThreadPoolBacklogTest, WaitingCoreExecutesAtMostOneQueuedTaskAfterStop) {
   EXPECT_EQ(futures[1].wait_for(std::chrono::seconds(0)), std::future_status::timeout);
   EXPECT_EQ(futures[2].wait_for(std::chrono::seconds(0)), std::future_status::timeout);
   EXPECT_EQ(pool_->busy_thrd_num_.load(), 0U);
-  pool_.reset();
+  ShutdownPool();
   EXPECT_THROW(futures[1].get(), std::future_error);
   EXPECT_THROW(futures[2].get(), std::future_error);
+}
+
+TEST_F(ThreadPoolBacklogTest, CleanupWhileObservedCoreIsWaitingJoinsBeforeReset) {
+  auto callbacks = std::make_shared<std::atomic<uint32_t>>(0U);
+  auto *pool = pool_.get();
+  wait_observation_ = std::make_shared<WaitObservation>();
+  wait_observation_->condition = &pool->cond_var_;
+  wait_observation_->after_wake = [pool, callbacks]() {
+    if (pool->is_stopped_.load()) {
+      ++(*callbacks);
+    }
+  };
+  auto entered = wait_observation_->entered.get_future();
+  g_wait_observation.store(wait_observation_.get());
+  pool->cond_var_.notify_all();
+  ASSERT_TRUE(IsReady(entered));
+  entered.get();
+
+  // Exercise the same cleanup as an early assertion return, without explicitly destroying the pool first.
+  ShutdownPool();
+  EXPECT_EQ(callbacks->load(), 1U);
+  EXPECT_EQ(pool_, nullptr);
+  EXPECT_EQ(g_wait_observation.load(), nullptr);
+  ShutdownPool();
+  EXPECT_EQ(callbacks->load(), 1U);
+}
+
+TEST_F(ThreadPoolBacklogTest, CleanupWithoutObservationIsRepeatable) {
+  ShutdownPool();
+  EXPECT_EQ(pool_, nullptr);
+  EXPECT_EQ(g_wait_observation.load(), nullptr);
+  ShutdownPool();
+  EXPECT_EQ(pool_, nullptr);
 }
 
 TEST_F(ThreadPoolBacklogTest, StopDuringExecutionDoesNotStartQueuedTasks) {
