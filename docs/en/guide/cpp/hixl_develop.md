@@ -58,7 +58,7 @@ Use `hccn_tool` to query Device IP addresses and check inter-device connectivity
 
 In heterogeneous scenarios, the receiver and sender must use the same MTU (maximum transmission unit) configuration. For details on querying and configuring the MTU, see [HCCN Tool API Reference](https://support.huawei.com/enterprise/en/ascend-computing/ascend-hdk-pid-252764743?category=developer-documents&subcategory=interface-reference).
 
-The following environment variables are also used. For details, see [HCCL Environment Variables](https://gitcode.com/cann/hccl/blob/master/docs/en/user_guide/hccl_env/README.md).
+The following environment variables are also used. For details, see [HCCL Environment Variables](https://gitcode.com/cann/hccl/blob/9.3.0-beta.2/docs/en/user_guide/hccl_env/README.md).
 
 |Name|Scenarios|
 |--|--|

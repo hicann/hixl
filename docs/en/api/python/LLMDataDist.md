@@ -290,7 +290,7 @@ link(comm_name: str, cluster_rank_info: Dict[int, int], rank_table: str) -> int
 | cluster_rank_info | Dict[int, int] | Cluster ID to rank ID mapping.<br>Example: **{1: 0, 2: 1}**. |
 | rank_table | str | Developers can use this parameter to configure NPU resource information for collective communication.
 
-For details about ranktable in the preceding table, see [HCCL Collective Communication Library](https://gitcode.com/cann/hccl/blob/master/docs/en/user_guide/README.md).<br>Example **rank_table** configuration:
+For details about ranktable in the preceding table, see [HCCL Collective Communication Library](https://gitcode.com/cann/hccl/blob/9.3.0-beta.2/docs/en/user_guide/README.md).<br>Example **rank_table** configuration:
 
 ```sh
 {

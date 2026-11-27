@@ -334,7 +334,7 @@ rdma_traffic_class(self, rdma_traffic_class: int)
 | --- | --- | --- |
 | rdma_traffic_class | int | RDMA NIC traffic class, equivalent to **HCCL_RDMA_TC**. If both are set, this option takes precedence; otherwise, the configured value applies.<br>Range: [0,255], a multiple of 4. Default: 132. |
 
-For the environment variables above, see [HCCL Environment Variables](https://gitcode.com/cann/hccl/blob/master/docs/en/user_guide/hccl_env/README.md).
+For the environment variables above, see [HCCL Environment Variables](https://gitcode.com/cann/hccl/blob/9.3.0-beta.2/docs/en/user_guide/hccl_env/README.md).
 
 **Example**
 
@@ -372,7 +372,7 @@ rdma_service_level(self, rdma_service_level: int)
 | --- | --- | --- |
 | rdma_service_level | int | RDMA NIC service level, equivalent to **HCCL_RDMA_SL**. If both are set, this option takes precedence; otherwise, the configured value applies.<br>Range: [0, 7]. Default: 4. |
 
-For the environment variables above, see [HCCL Environment Variables](https://gitcode.com/cann/hccl/blob/master/docs/en/user_guide/hccl_env/README.md).
+For the environment variables above, see [HCCL Environment Variables](https://gitcode.com/cann/hccl/blob/9.3.0-beta.2/docs/en/user_guide/hccl_env/README.md).
 
 **Example**
 
@@ -430,7 +430,7 @@ local_comm_res = '''{
 ```
 
 <!-- npu="910b" id8 -->
-On Atlas A2 products with **version "1.0"**, configure only the Device information used by the current llm datadist in the ranktable; the **server_count** and **rank_id** fields need not be configured. For ranktable details, see [HCCL Collective Communication Library](https://gitcode.com/cann/hccl/blob/master/docs/en/user_guide/README.md). Example:
+On Atlas A2 products with **version "1.0"**, configure only the Device information used by the current llm datadist in the ranktable; the **server_count** and **rank_id** fields need not be configured. For ranktable details, see [HCCL Collective Communication Library](https://gitcode.com/cann/hccl/blob/9.3.0-beta.2/docs/en/user_guide/README.md). Example:
 
 ```sh
 {
@@ -458,7 +458,7 @@ local_comm_res = ""
 ```
 
 <!-- npu="A3" id9 -->
-On Atlas A3 products with **version "1.2"**, configure only the Device information used by the current llm datadist in the ranktable; the **server_count** and **rank_id** fields need not be configured. For ranktable details, see [HCCL Collective Communication Library](https://gitcode.com/cann/hccl/blob/master/docs/en/user_guide/README.md). Example:
+On Atlas A3 products with **version "1.2"**, configure only the Device information used by the current llm datadist in the ranktable; the **server_count** and **rank_id** fields need not be configured. For ranktable details, see [HCCL Collective Communication Library](https://gitcode.com/cann/hccl/blob/9.3.0-beta.2/docs/en/user_guide/README.md). Example:
 
 ```sh
 {

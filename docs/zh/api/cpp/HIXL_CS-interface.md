@@ -174,8 +174,8 @@ struct HixlClientDesc {
 
 | 字段 | 类型 | 描述 |
 |---|---|---|
-| local_endpoint | const EndpointDesc* | 本端Endpoint描述（定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h> ）。|
-| remote_endpoint | const EndpointDesc* | 远端Endpoint描述（定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h> ）。|
+| local_endpoint | const EndpointDesc* | 本端Endpoint描述（定义见 <https://gitcode.com/cann/hcomm/blob/9.3.0-beta.2/include/hcomm_res_defs.h> ）。|
+| remote_endpoint | const EndpointDesc* | 远端Endpoint描述（定义见 <https://gitcode.com/cann/hcomm/blob/9.3.0-beta.2/include/hcomm_res_defs.h> ）。|
 | server_ip | const char* | 目标 server Host IP。|
 | server_port | uint32_t | 目标 server Host 端口。取值范围[1, 65535]。|
 | tc | uint8_t | RDMA网卡的traffic class。|
@@ -202,7 +202,7 @@ struct HixlServerDesc {
 |---|---|---|
 | server_ip | const char* | 侦听 IP。|
 | server_port | uint32_t | 侦听端口。取值范围[0, 65535]，0表示不启动侦听。|
-| endpoint_list | const EndpointDesc* | Endpoint描述数组指针。Endpoint描述定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h>|
+| endpoint_list | const EndpointDesc* | Endpoint描述数组指针。Endpoint描述定义见 <https://gitcode.com/cann/hcomm/blob/9.3.0-beta.2/include/hcomm_res_defs.h>|
 | endpoint_list_num | uint32_t | Endpoint数量。|
 | reserved | uint8_t[104] | HixlServerDesc配置保留字段，用于未来扩展，结构体总大小保持为128字节。|
 
@@ -306,7 +306,7 @@ HixlStatus HixlCSServerRegMem(HixlServerHandle server_handle,
 | --- | --- | --- |
 | server_handle | 输入 | Server 实例句柄。 |
 | mem_tag | 输入 | 内存标签字符串，用于标识此内存，可选，可传入为NULL。 |
-| mem | 输入 | 指向 CommMem，描述内存位置与大小（定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h> ）。 |
+| mem | 输入 | 指向 CommMem，描述内存位置与大小（定义见 <https://gitcode.com/cann/hcomm/blob/9.3.0-beta.2/include/hcomm_res_defs.h> ）。 |
 | mem_handle | 输出 | 返回的内存句柄，用于后续注销。 |
 
 **返回值说明**
@@ -498,7 +498,7 @@ HixlStatus HixlCSClientGetRemoteMem(HixlClientHandle client_handle,
 | 参数名 | 输入/输出 | 描述 |
 | --- | --- | --- |
 | client_handle | 输入 | 客户端句柄。 |
-| remote_mem_list | 输出 | 返回的 `CommMem` 数组指针，内存生命周期由接口内部管理。重复调用该接口，将释放上一次申请的内存，如有需要按需拷贝至本地内存（定义见 <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h>）。 |
+| remote_mem_list | 输出 | 返回的 `CommMem` 数组指针，内存生命周期由接口内部管理。重复调用该接口，将释放上一次申请的内存，如有需要按需拷贝至本地内存（定义见 <https://gitcode.com/cann/hcomm/blob/9.3.0-beta.2/include/hcomm_res_defs.h>）。 |
 | mem_tag_list | 输出 | 字符串数组，对应每个 `CommMem` 的标签，内存生命周期由接口内部管理。重复调用该接口，将释放上一次申请的内存，如有需要按需拷贝至本地内存。 |
 | list_num | 输出 | 返回的列表长度，内存生命周期由接口内部管理。重复调用该接口，将释放上一次申请的内存，如有需要按需拷贝至本地内存。 |
 | timeout_ms | 输入 | 请求超时时间（毫秒）。 |

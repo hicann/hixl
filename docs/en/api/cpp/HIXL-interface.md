@@ -119,7 +119,7 @@ Status Initialize(const AscendString &local_engine, const std::map<AscendString,
 - Ascend 950PR&950DT products: `EnableUseFabricMem`, `RdmaTrafficClass`, `RdmaServiceLevel`, `AutoConnect`, `GlobalResourceConfig`, and `LocalCommRes`.
 <!-- end id58 -->
 
-> Note: `RdmaTrafficClass` and `RdmaServiceLevel` apply only to RoCE scenarios.For environment variables, see [HCCL Environment Variables](https://gitcode.com/cann/hccl/blob/master/docs/en/user_guide/hccl_env/README.md). For ranktable, see [HCCL Collective Communication Library](https://gitcode.com/cann/hccl/blob/master/docs/en/user_guide/README.md).
+> Note: `RdmaTrafficClass` and `RdmaServiceLevel` apply only to RoCE scenarios.For environment variables, see [HCCL Environment Variables](https://gitcode.com/cann/hccl/blob/9.3.0-beta.2/docs/en/user_guide/hccl_env/README.md). For ranktable, see [HCCL Collective Communication Library](https://gitcode.com/cann/hccl/blob/9.3.0-beta.2/docs/en/user_guide/README.md).
 
 <a id="option_enable_use_fabric_mem"></a>
 
@@ -316,7 +316,7 @@ options[hixl::OPTION_GLOBAL_RESOURCE_CONFIG] =
 
 <a id="grc_max_active_channels"></a>
 
-- **max_active_channels**: Number of concurrently active device transfer channels in CS scenarios, in [1, 8192]. Defaults to 128 if omitted. Each active channel consumes 2 Stream resources. Leave headroom based on the card's Stream resource limit and the Streams already created by your application. For limits by card type, see **aclrtCreateStream** in [Runtime APIs](https://gitcode.com/cann/runtime/blob/master/docs/en/api_ref/README.md). Values outside [1, 8192] cause **Initialize** to return an invalid parameter error.
+- **max_active_channels**: Number of concurrently active device transfer channels in CS scenarios, in [1, 8192]. Defaults to 128 if omitted. Each active channel consumes 2 Stream resources. Leave headroom based on the card's Stream resource limit and the Streams already created by your application. For limits by card type, see **aclrtCreateStream** in [Runtime APIs](https://gitcode.com/cann/runtime/blob/9.3.0-beta.2/docs/en/api_ref/README.md). Values outside [1, 8192] cause **Initialize** to return an invalid parameter error.
 
 <a id="grc_multi_channel"></a>
 

@@ -98,7 +98,7 @@ initialize(local_engine: str, options: Dict[str, str] = {}) -> int
 - Ascend 950PR&950DT products: `EnableUseFabricMem`, `RdmaTrafficClass`, `RdmaServiceLevel`, `AutoConnect`, `GlobalResourceConfig`, and `LocalCommRes`.
 <!-- end id61 -->
 
-> Note: `RdmaTrafficClass` and `RdmaServiceLevel` apply only to RoCE scenarios.For environment variables, see [HCCL Environment Variables](https://gitcode.com/cann/hccl/blob/master/docs/en/user_guide/hccl_env/README.md). For ranktable, see [HCCL Collective Communication Library](https://gitcode.com/cann/hccl/blob/master/docs/en/user_guide/README.md).
+> Note: `RdmaTrafficClass` and `RdmaServiceLevel` apply only to RoCE scenarios.For environment variables, see [HCCL Environment Variables](https://gitcode.com/cann/hccl/blob/9.3.0-beta.2/docs/en/user_guide/hccl_env/README.md). For ranktable, see [HCCL Collective Communication Library](https://gitcode.com/cann/hccl/blob/9.3.0-beta.2/docs/en/user_guide/README.md).
 
 <a id="option_enable_use_fabric_mem"></a>
 
@@ -309,7 +309,7 @@ options = {
 
 <a id="grc_max_active_channels"></a>
 
-- **max_active_channels**: Concurrently active device transfer channels in CS scenarios, in [1, 8192]. Defaults to 128 when not configured. Each active channel consumes 2 Stream resources. Leave headroom based on the card's Stream limit and existing application Streams. For card-specific limits, see **aclrtCreateStream** in [Runtime APIs](https://gitcode.com/cann/runtime/blob/master/docs/en/api_ref/README.md). Values outside [1, 8192] cause **initialize** to return an invalid parameter error.
+- **max_active_channels**: Concurrently active device transfer channels in CS scenarios, in [1, 8192]. Defaults to 128 when not configured. Each active channel consumes 2 Stream resources. Leave headroom based on the card's Stream limit and existing application Streams. For card-specific limits, see **aclrtCreateStream** in [Runtime APIs](https://gitcode.com/cann/runtime/blob/9.3.0-beta.2/docs/en/api_ref/README.md). Values outside [1, 8192] cause **initialize** to return an invalid parameter error.
 
 <a id="grc_multi_channel"></a>
 

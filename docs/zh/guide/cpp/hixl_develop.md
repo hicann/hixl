@@ -50,13 +50,13 @@ HIXL（Huawei Xfer Library）即昇腾单边通信库，面向集群场景提供
 - Ascend 950PR&950DT系列产品场景下，超节点内使用UB协议，超节点间使用RoCE协议。
 <!-- end id3 -->
 
-请参考《[CANN软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》安装好驱动固件以及CANN软件。
+请参考《[CANN软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/930beta2/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》安装好驱动固件以及CANN软件。
 
 使用hccn\_tool查询Device IP，并且进行卡间网络检测，要求各个集群上的卡间有RDMA链路连接，否则无法使能HIXL能力。hccn\_tool详细介绍请参考《[HCCN Tool 接口参考](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743?category=developer-documents&subcategory=interface-reference)》。
 
 异构场景下，接收方和发送方的MTU(Maximum Transmission Unit，最大传输单元)配置需要保持一致，MTU的查询和配置请参考《[HCCN Tool 接口参考](https://support.huawei.com/enterprise/zh/ascend-computing/ascend-hdk-pid-252764743?category=developer-documents&subcategory=interface-reference)》。
 
-使用本文档过程中，还涉及到如下环境变量，具体请参见[HCCL环境变量参考](https://gitcode.com/cann/hccl/blob/master/docs/zh/user_guide/hccl_env/README.md)。
+使用本文档过程中，还涉及到如下环境变量，具体请参见[HCCL环境变量参考](https://gitcode.com/cann/hccl/blob/9.3.0-beta.2/docs/zh/user_guide/hccl_env/README.md)。
 
 |名称|使用场景|
 |--|--|

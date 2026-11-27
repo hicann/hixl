@@ -176,8 +176,8 @@ Fields:
 
 | Field | Type | Description |
 |---|---|---|
-| local_endpoint | const EndpointDesc* | Local Endpoint description (defined in <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h>).|
-| remote_endpoint | const EndpointDesc* | Remote Endpoint description (defined in <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h>).|
+| local_endpoint | const EndpointDesc* | Local Endpoint description (defined in <https://gitcode.com/cann/hcomm/blob/9.3.0-beta.2/include/hcomm_res_defs.h>).|
+| remote_endpoint | const EndpointDesc* | Remote Endpoint description (defined in <https://gitcode.com/cann/hcomm/blob/9.3.0-beta.2/include/hcomm_res_defs.h>).|
 | server_ip | const char* | Target server Host IP address.|
 | server_port | uint32_t | Target server Host port, in [1, 65535].|
 | tc | uint8_t | RDMA NIC traffic class.|
@@ -204,7 +204,7 @@ Fields:
 |---|---|---|
 | server_ip | const char* | Listening IP address.|
 | server_port | uint32_t | Listening port, in [0, 65535]. **0** disables listening.|
-| endpoint_list | const EndpointDesc* | Pointer to an Endpoint description array. For the definition, see <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h>.|
+| endpoint_list | const EndpointDesc* | Pointer to an Endpoint description array. For the definition, see <https://gitcode.com/cann/hcomm/blob/9.3.0-beta.2/include/hcomm_res_defs.h>.|
 | endpoint_list_num | uint32_t | Number of Endpoints.|
 | reserved | uint8_t[104] | Reserved **HixlServerDesc** field for future extension, keeping the structure size at 128 bytes.|
 
@@ -308,7 +308,7 @@ HixlStatus HixlCSServerRegMem(HixlServerHandle server_handle,
 | --- | --- | --- |
 | server_handle | Input | Server instance handle. |
 | mem_tag | Input | Optional memory tag string identifying this memory. Can be **NULL**. |
-| mem | Input | Pointer to **CommMem**, describing memory location and size (defined in <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h>). |
+| mem | Input | Pointer to **CommMem**, describing memory location and size (defined in <https://gitcode.com/cann/hcomm/blob/9.3.0-beta.2/include/hcomm_res_defs.h>). |
 | mem_handle | Output | Returned memory handle for subsequent unregistration. |
 
 **Return Value**
@@ -500,7 +500,7 @@ HixlStatus HixlCSClientGetRemoteMem(HixlClientHandle client_handle,
 | Parameter | Input/Output | Description |
 | --- | --- | --- |
 | client_handle | Input | Client handle. |
-| remote_mem_list | Output | Returned `CommMem` array pointer. Its lifetime is managed internally. Repeated calls release the previous allocation; copy it to local memory if needed (defined in <https://gitcode.com/cann/hcomm/blob/master/include/hcomm_res_defs.h>). |
+| remote_mem_list | Output | Returned `CommMem` array pointer. Its lifetime is managed internally. Repeated calls release the previous allocation; copy it to local memory if needed (defined in <https://gitcode.com/cann/hcomm/blob/9.3.0-beta.2/include/hcomm_res_defs.h>). |
 | mem_tag_list | Output | String array of tags for each `CommMem`. Its lifetime is managed internally. Repeated calls release the previous allocation; copy it to local memory if needed. |
 | list_num | Output | Returned list length. Its lifetime is managed internally. Repeated calls release the previous allocation; copy it to local memory if needed. |
 | timeout_ms | Input | Request timeout in milliseconds. |

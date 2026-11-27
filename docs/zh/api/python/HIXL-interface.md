@@ -98,7 +98,7 @@ initialize(local_engine: str, options: Dict[str, str] = {}) -> int
 
 > 说明：`RdmaTrafficClass`、`RdmaServiceLevel` 仅适用于RoCE场景。
 
-> 说明：环境变量请参考[HCCL环境变量参考](https://gitcode.com/cann/hccl/blob/master/docs/zh/user_guide/hccl_env/README.md)，ranktable请参考《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/master/docs/zh/user_guide/README.md)》。
+> 说明：环境变量请参考[HCCL环境变量参考](https://gitcode.com/cann/hccl/blob/9.3.0-beta.2/docs/zh/user_guide/hccl_env/README.md)，ranktable请参考《[HCCL集合通信库](https://gitcode.com/cann/hccl/blob/9.3.0-beta.2/docs/zh/user_guide/README.md)》。
 
 <a id="option_enable_use_fabric_mem"></a>
 
@@ -309,7 +309,7 @@ options = {
 
 <a id="grc_max_active_channels"></a>
 
-- **max_active_channels**：CS场景下配置设备侧同时活跃传输通道数量，取值范围[1, 8192]，未配置时默认值为128。每个active channel消耗2个Stream资源，配置值需结合当前卡形态的Stream资源上限及业务中已创建的Stream数量预留余量；不同卡形态的Stream资源上限参见《[Runtime运行时API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的aclrtCreateStream。超出[1, 8192]时initialize返回参数错误。
+- **max_active_channels**：CS场景下配置设备侧同时活跃传输通道数量，取值范围[1, 8192]，未配置时默认值为128。每个active channel消耗2个Stream资源，配置值需结合当前卡形态的Stream资源上限及业务中已创建的Stream数量预留余量；不同卡形态的Stream资源上限参见《[Runtime运行时API](https://gitcode.com/cann/runtime/blob/9.3.0-beta.2/docs/zh/api_ref/README.md)》中的aclrtCreateStream。超出[1, 8192]时initialize返回参数错误。
 
 <a id="grc_multi_channel"></a>
 

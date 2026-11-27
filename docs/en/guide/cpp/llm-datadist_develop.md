@@ -54,7 +54,7 @@ Use `hccn_tool` to query Device IP addresses and test inter-device connectivity.
 |hccn_tool [-i %d] -ip -inet6 -g|Queries the IPv6 address and subnet mask. `-i` specifies the Device. Example: `hccn_tool -i 0 -ip -inet6 -g`.|
 |hccn_tool [-i %d] -ping -g [address %s ]|Queries ping results from a Device to a destination. `-i` specifies a Device on the current server, and `address` specifies the destination. Example: `hccn_tool -i 0 -ping -g address 192.168.2.1`.|
 
-The following environment variables are also used. See [HCCL Environment Variables](https://gitcode.com/cann/hccl/blob/master/docs/en/user_guide/hccl_env/README.md).
+The following environment variables are also used. See [HCCL Environment Variables](https://gitcode.com/cann/hccl/blob/9.3.0-beta.2/docs/en/user_guide/hccl_env/README.md).
 
 |Name|Scenarios|
 |--|--|

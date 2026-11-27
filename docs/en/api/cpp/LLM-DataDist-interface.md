@@ -129,7 +129,7 @@ Additional notes on **OPTION_LOCAL_COMM_RES**:
  - For Ascend 950PR&950DT products, see [Communication Resource Configuration Fields](./HIXL-interface.md#communication-resource-configuration-fields) for the format. Also set **OPTION_TRANSFER_BACKEND** to **hixl**. **OPTION_LOCAL_COMM_RES** is required; an empty value does not trigger automatic generation.
  <!-- end id4 -->
 
-For ranktable details in the table above, see [HCCL Collective Communication Library](https://gitcode.com/cann/hccl/blob/master/docs/en/user_guide/README.md).<br>For **OPTION_LOCAL_COMM_RES** version **"1.3"**, see [HIXL API Reference](./HIXL-interface.md#communication-resource-configuration-fields) for communication resource fields.
+For ranktable details in the table above, see [HCCL Collective Communication Library](https://gitcode.com/cann/hccl/blob/9.3.0-beta.2/docs/en/user_guide/README.md).<br>For **OPTION_LOCAL_COMM_RES** version **"1.3"**, see [HIXL API Reference](./HIXL-interface.md#communication-resource-configuration-fields) for communication resource fields.
 
 **Control Plane TLS Configuration in OPTION_GLOBAL_RESOURCE_CONFIG**
 
