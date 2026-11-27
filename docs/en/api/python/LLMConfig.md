@@ -440,7 +440,7 @@ On Atlas A2 products with **version "1.0"**, configure only the Device informati
                 {
                     "device_id": "0",
                     "device_ip": "x.x.x.x"
-                },
+                }
             ],
             "server_id": "xxxx"
         }
