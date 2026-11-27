@@ -36,21 +36,19 @@ usage() {
 
 # 执行构建
 build_hixl() {
-    local build_args="$@"
     if [ -d "${HIXLPATH}/build" ] || [ -d "${HIXLPATH}/build_out" ]; then
         echo "Found existing build directories. Cleaning..."
         rm -rf "${HIXLPATH}/build" "${HIXLPATH}/build_out"
         echo "Cleaned: build and build_out"
     fi
 
-    if ! bash "${HIXLPATH}/build.sh" $build_args; then
+    if ! bash "${HIXLPATH}/build.sh" "$@"; then
         exit 1
     fi
 }
 
 # 执行测试用例
 test_hixl() {
-    local test_args="$@"
     local has_help=false
     for arg in "$@"; do
         if [ "$arg" == "-h" ] || [ "$arg" == "--help" ]; then
@@ -71,7 +69,7 @@ test_hixl() {
         echo "Cleaned: build_test"
     fi
 
-    if ! bash "${HIXLPATH}/tests/run_test.sh" $test_args; then
+    if ! bash "${HIXLPATH}/tests/run_test.sh" "$@"; then
         exit 1
     fi
 }
@@ -97,9 +95,8 @@ install_hixl() {
 
 # 执行samples脚本
 run_samples() {
-    local samples_args="$@"
     # 执行samples.sh脚本并传递参数
-    if ! bash "${HIXLPATH}/examples/run_example.sh" -a $samples_args; then
+    if ! bash "${HIXLPATH}/examples/run_example.sh" -a "$@"; then
         exit 1
     fi
 }
