@@ -702,7 +702,7 @@ UB_RTP:
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -738,7 +738,7 @@ None
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -778,7 +778,7 @@ Status RegisterMem(const MemDesc &mem, MemType type, MemHandle &mem_handle)
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -844,7 +844,7 @@ Status DeregisterMem(MemHandle mem_handle)
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -882,7 +882,7 @@ Status Connect(const AscendString &remote_engine, int32_t timeout_in_millis = 10
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -972,7 +972,7 @@ Status Disconnect(const AscendString &remote_engine, int32_t timeout_in_millis =
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -1007,7 +1007,7 @@ Status ConnectAsync(const AscendString &remote_engine, int32_t timeout_in_millis
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -1049,7 +1049,7 @@ Status DisconnectAsync(const AscendString &remote_engine, int32_t timeout_in_mil
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -1087,7 +1087,7 @@ Status GetAsyncConnectStatus(const AscendString &remote_engine, AsyncConnectStat
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -1119,7 +1119,7 @@ Status GetAsyncConnectStatus(std::map<AscendString, AsyncConnectStatus> &statuse
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
@@ -1157,7 +1157,7 @@ Status TransferSync(const AscendString &remote_engine,
 
 **Example**
 
-See [Running the Examples](../../../../examples/cpp/README.md).
+See [Running the Examples](../../../../examples/cpp/README_en.md).
 
 **Return Value**
 
