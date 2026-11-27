@@ -392,6 +392,27 @@ def _chart_block_axes(lookup: dict[str, dict[str, dict[str, float]]]) -> tuple[l
     return ordered_blocks, transports_seen
 
 
+def _supported_chart_data(
+    lookup: dict[str, dict[str, dict[str, float]]],
+    platform: str,
+    deployment: str,
+) -> dict[str, dict[str, dict[str, float]]]:
+    """Keep only transport paths supported by the report's platform and deployment."""
+    supported_transports = set(transports_for_platform(platform, deployment))
+    filtered: dict[str, dict[str, dict[str, float]]] = {}
+    for direction, transports in lookup.items():
+        supported = {
+            transport: blocks
+            for transport, blocks in transports.items()
+            if transport in supported_transports
+            and not cell_not_supported(direction, transport, normalize_platform(platform))
+            and blocks
+        }
+        if supported:
+            filtered[direction] = supported
+    return filtered
+
+
 @dataclass
 class TransportChartSpec:
     mpl: Any
@@ -440,7 +461,12 @@ def _render_transport_chart(spec: TransportChartSpec) -> str:
     return f'\n#### {TRANSPORT_LABEL.get(spec.tport, spec.tport)} 带宽折线图\n\n![]({rel.as_posix()})\n\n'
 
 
-def render_charts(lookup: dict[str, dict[str, dict[str, float]]], platform: str, output_dir: Path) -> list[str]:
+def render_charts(
+    lookup: dict[str, dict[str, dict[str, float]]],
+    platform: str,
+    output_dir: Path,
+    deployment: str = 'single',
+) -> list[str]:
     """Generate per-transport bandwidth PNGs. Returns relative paths to embed."""
     try:
         import matplotlib
@@ -449,11 +475,14 @@ def render_charts(lookup: dict[str, dict[str, dict[str, float]]], platform: str,
     except ImportError:
         log.warning('[WARN] matplotlib not installed; skip PNG charts')
         return []
-    ordered_blocks, transports_seen = _chart_block_axes(lookup)
+    chart_data = _supported_chart_data(lookup, platform, deployment)
+    if not chart_data:
+        return []
+    ordered_blocks, transports_seen = _chart_block_axes(chart_data)
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f']
     embeds: list[str] = []
     for tport in sorted(transports_seen, key=lambda t: TRANSPORT_ORDER.index(t) if t in TRANSPORT_ORDER else 99):
-        spec = TransportChartSpec(mpl, lookup, platform, output_dir, tport, ordered_blocks, colors)
+        spec = TransportChartSpec(mpl, chart_data, platform, output_dir, tport, ordered_blocks, colors)
         embeds.append(_render_transport_chart(spec))
     return embeds
 
@@ -491,7 +520,7 @@ def main() -> None:
     out_path = args.output or benchmarks_dir / 'perf.md'
     figures_dir = out_path.parent / 'performance' / 'figures'
     if not args.no_plots:
-        chart_embeds = render_charts(lookup, platform, figures_dir)
+        chart_embeds = render_charts(lookup, platform, figures_dir, deployment)
         sections.extend(chart_embeds)
     md_content = ''.join(sections)
     out_path.parent.mkdir(parents=True, exist_ok=True)
