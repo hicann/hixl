@@ -14,7 +14,8 @@ set -euo pipefail
 echo "start run test case, please wait ..."
 cd ${WORKSPACE}
 
-export ASCEND_GLOBAL_LOG_LEVEL=2
+export ASCEND_GLOBAL_LOG_LEVEL=1
+export ASCEND_HOST_LOG_FILE_NUM=1000
 export ASCEND_SLOG_PRINT_TO_STDOUT=0
 source /usr/local/Ascend/cann/set_env.sh
 
@@ -25,6 +26,51 @@ log() {
   echo "$dt : $*"
   echo "===================================================================="
 }
+
+copy_log_dir() {
+  local src="$1"
+  local dest="$2"
+  if [ ! -d "${src}" ]; then
+    return 0
+  fi
+  mkdir -p "${dest}"
+  cp -a "${src}/." "${dest}/"
+  echo "packed logs from ${src}"
+}
+
+package_logs() {
+  local stage="${WORKSPACE}/.slog_pack"
+  rm -rf "${stage}"
+  mkdir -p "${stage}"
+  copy_log_dir "/root/ascend/log" "${stage}/root_ascend_log"
+  if [ -n "${HOME:-}" ] && [ "${HOME}/ascend/log" != "/root/ascend/log" ]; then
+    copy_log_dir "${HOME}/ascend/log" "${stage}/home_ascend_log"
+  fi
+  if [ -n "${ASCEND_PROCESS_LOG_PATH:-}" ] && [ "${ASCEND_PROCESS_LOG_PATH}" != "/root/ascend/log" ]; then
+    copy_log_dir "${ASCEND_PROCESS_LOG_PATH}" "${stage}/process_log"
+  fi
+  if [ -f "${WORKSPACE}/run_test.log" ]; then
+    cp -a "${WORKSPACE}/run_test.log" "${stage}/run_test.log"
+    echo "packed ${WORKSPACE}/run_test.log"
+  fi
+  # run_example.sh is executed after cd ./examples, so its tee log is not ${WORKSPACE}/run_test.log.
+  if [ -f "${WORKSPACE}/examples/run_test.log" ]; then
+    cp -a "${WORKSPACE}/examples/run_test.log" "${stage}/examples_run_test.log"
+    echo "packed ${WORKSPACE}/examples/run_test.log"
+  fi
+  tar -zcf "${WORKSPACE}/slog.tar.gz" -C "${stage}" .
+  rm -rf "${stage}"
+  echo "packed slog archive: ${WORKSPACE}/slog.tar.gz"
+}
+
+on_exit() {
+  local status=$?
+  trap - EXIT
+  set +e
+  package_logs
+  exit "${status}"
+}
+trap on_exit EXIT
 
 log "init test case, please wait ..."
 
@@ -52,20 +98,7 @@ source /usr/local/Ascend/cann/set_env.sh && cd ./examples && bash run_example.sh
 
 
 # ==============================
-# 打包log
-# ==============================
-mkdir -p /root/ascend
-slog_name="slog.tar.gz"
-
-if [ ! -d /root/ascend/log ]; then
-    echo "No slog found under /root/ascend/log, creating empty archive."
-    mkdir -p /root/ascend/log
-fi
-tar -zcf "${slog_name}" -C /root/ascend log
-mv "${slog_name}" ${WORKSPACE}/
-
-# ==============================
-# 检查测试结果
+# 检查测试结果。日志在 EXIT 时打包，失败也会生成 slog.tar.gz。
 # ==============================
 log "checking test results ..."
 
