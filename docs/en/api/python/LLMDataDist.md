@@ -164,7 +164,7 @@ link_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], time
 
 **Example**
 
-See [Running the Examples](../../../../examples/python/README.md).
+See [Running the Examples](../../../../examples/python/README_en.md).
 
 **Return Value**
 
@@ -223,7 +223,7 @@ unlink_clusters(clusters: Union[List[LLMClusterInfo], Tuple[LLMClusterInfo]], ti
 
 **Example**
 
-See [Running the Examples](../../../../examples/python/README.md).
+See [Running the Examples](../../../../examples/python/README_en.md).
 
 **Return Value**
 
@@ -256,7 +256,7 @@ switch_role(self, role: LLMRole, switch_options: Optional[Dict[str, str]] = None
 
 **Example**
 
-See [Running the Examples](../../../../examples/python/README.md).
+See [Running the Examples](../../../../examples/python/README_en.md).
 
 **Return Value**
 
@@ -323,7 +323,7 @@ For details about ranktable in the preceding table, see [HCCL Collective Communi
 
 **Example**
 
-See [Running the Examples](../../../../examples/python/README.md).
+See [Running the Examples](../../../../examples/python/README_en.md).
 
 **Return Value**
 
@@ -364,7 +364,7 @@ unlink(comm_id: int)
 
 **Example**
 
-See [Running the Examples](../../../../examples/python/README.md).
+See [Running the Examples](../../../../examples/python/README_en.md).
 
 **Return Value**
 
@@ -402,7 +402,7 @@ query_register_mem_status(comm_id: int) -> RegisterMemStatus
 
 **Example**
 
-See [Running the Examples](../../../../examples/python/README.md).
+See [Running the Examples](../../../../examples/python/README_en.md).
 
 **Return Value**
 
