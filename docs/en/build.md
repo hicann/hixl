@@ -389,4 +389,4 @@ Install the `.run` file generated during [Compile Source Code](#source-code-comp
     npu-smi set -t custom-op-secverify-mode -i 0 -d 0 # Disable signature verification
     ```
 
-**After the installation is complete, you can run the sample test by referring to [Sample Running](../../examples/README.md) or run the benchmark test by referring to [Benchmarks](../../benchmarks/README.md).**
+**After the installation is complete, you can run the sample test by referring to [Sample Running](../../examples/README_en.md) or run the benchmark test by referring to [Benchmarks](../../benchmarks/README_en.md).**
