@@ -46,6 +46,7 @@ set(HIXL_TEST_FILES
         engine/hixl_options_unittest.cc
         engine/client_handler_config_helper_ut.cc
         engine/client_handler_factory_ut.cc
+        engine/transfer_request_manager_ut.cc
         engine/hixl_engine_unittest.cc
         engine/hixl_api_unittest.cc
         engine/test_hixl_api.cc
@@ -250,6 +251,7 @@ set_target_properties(hixl_test PROPERTIES
 # Keep thread-creation failure injection and condition-wait observation entirely in the host UT binary.
 target_link_options(hixl_test PRIVATE
         -Wl,--export-dynamic
+        -Wl,--wrap=_Znwm
         -Wl,--wrap=_ZNSt18condition_variable4waitERSt11unique_lockISt5mutexE
 )
 

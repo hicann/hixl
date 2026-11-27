@@ -13,7 +13,6 @@
 
 #include <atomic>
 #include <cstdint>
-#include <map>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -25,6 +24,7 @@
 #include "engine/client_handler.h"
 #include "engine/client_handler_factory.h"
 #include "engine/hixl_options.h"
+#include "engine/transfer_request_manager.h"
 
 namespace hixl {
 
@@ -171,7 +171,7 @@ class HixlClient {
   mutable std::mutex mutex_;  // 所有方法串行执行，不支持并发调用
   // 链路池开启时，一次传输从取到 client 到调用返回之间的占用。未开启时保持 0，不参与判断。
   std::atomic<uint32_t> use_count_{0};
-  std::map<TransferReq, TransferInfo> req_map_;
+  TransferRequestManager request_manager_;
   GlobalResourceConfig global_config_;
 };
 

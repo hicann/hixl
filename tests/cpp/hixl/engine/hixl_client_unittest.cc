@@ -2702,13 +2702,13 @@ TEST_F(HixlClientUTest, GetTransferStatusFailureDestroysProfRange) {
   const uint64_t destroy_count = llm::GetAclProfStampDestroyCount();
   auto prof_start = GetProfStart(HixlProfType::HixlOpBatchWrite);
   EXPECT_EQ(llm::GetAclProfStampCreateCount(), create_count + 1U);
-  client_->req_map_[req] = TransferInfo{prof_start, WRITE, AscendString()};
+  client_->request_manager_.requests_[req] = TransferRequest{req, TransferInfo{prof_start, WRITE, AscendString()}};
   prof_start.reset();
 
   TransferStatus status = TransferStatus::WAITING;
   EXPECT_EQ(client_->GetTransferStatus(req, status), SUCCESS);
   EXPECT_EQ(status, TransferStatus::FAILED);
-  EXPECT_TRUE(client_->req_map_.empty());
+  EXPECT_TRUE(client_->request_manager_.Empty());
   EXPECT_EQ(llm::GetAclProfStampDestroyCount(), destroy_count + 1U);
 }
 

@@ -1590,7 +1590,7 @@ static bool ClientHasLocalMem(const ClientPtr &client, MemHandle mem_handle) {
 
 static void RegisterMockTransferReq(HixlEngine &engine, const ClientPtr &client, TransferReq req,
                                     const void *user_data) {
-  client->req_map_[req] = TransferInfo{nullptr, READ, AscendString()};
+  client->request_manager_.requests_[req] = TransferRequest{req, TransferInfo{nullptr, READ, AscendString()}};
   engine.client_manager_.RegisterTransferReq(req, client, user_data);
 }
 
@@ -1754,7 +1754,8 @@ TEST_F(ClientManagerTest, ChannelPoolSkipsTransferringClientWhenEvicting) {
   ClientManager manager;
   ASSERT_EQ(manager.Initialize(false, 2U), SUCCESS);
   auto transferring_client = CreateMockClient();
-  transferring_client->req_map_[reinterpret_cast<TransferReq>(0x1000)] = TransferInfo{nullptr, READ, AscendString()};
+  transferring_client->request_manager_.requests_[reinterpret_cast<TransferReq>(0x1000)] =
+      TransferRequest{nullptr, TransferInfo{nullptr, READ, AscendString()}};
   manager.clients_["127.0.0.1:26301"] = transferring_client;
   manager.clients_["127.0.0.1:26302"] = CreateMockClient();
   // 26301 最久未使用，但它正在传输，因此只能淘汰 26302
@@ -1820,7 +1821,8 @@ TEST_F(ClientManagerTest, ChannelPoolRejectsNewClientWhenAllClientsAreTransferri
   ClientManager manager;
   ASSERT_EQ(manager.Initialize(false, 1U), SUCCESS);
   auto transferring_client = CreateMockClient();
-  transferring_client->req_map_[reinterpret_cast<TransferReq>(0x1000)] = TransferInfo{nullptr, READ, AscendString()};
+  transferring_client->request_manager_.requests_[reinterpret_cast<TransferReq>(0x1000)] =
+      TransferRequest{nullptr, TransferInfo{nullptr, READ, AscendString()}};
   manager.clients_["127.0.0.1:26301"] = transferring_client;
 
   std::unique_lock<std::mutex> client_lock;
