@@ -81,7 +81,7 @@ struct HostRoceDevice {
   // Persist across endpoint/channel creation on the same NIC.
   std::shared_ptr<std::atomic<uint64_t>> next_plane{std::make_shared<std::atomic<uint64_t>>(0)};
   std::mutex memory_mutex;
-  std::map<std::tuple<uint64_t, uint64_t, bool>, std::weak_ptr<HostRoceMr>> registrations;
+  std::map<std::tuple<uint64_t, uint64_t, bool, uint32_t>, std::weak_ptr<HostRoceMr>> registrations;
   HostRoceFlushCache flush_cache;
 };
 struct HostRoceQp {

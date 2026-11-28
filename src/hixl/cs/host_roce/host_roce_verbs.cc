@@ -369,7 +369,7 @@ Status NativeVerbs::CreateDevice(ibv_device *nic, const std::string &ip, std::sh
   d->max_cqe = static_cast<uint32_t>(attr.max_cqe);
   d->local.read_depth = static_cast<uint32_t>(read_depth);
   d->resolve_device_memory =
-      true;  // Resolve allocation ranges and HAL topology for Device MRs, independently of plane count.
+      true;  // Resolve device memory attributes and HAL topology for Device MRs, independently of plane count.
   HIXL_CHK_STATUS_RET(LoadOptional(*d, attr));
   errno = 0;
   d->pd = api_->alloc_pd(d->context);

@@ -112,13 +112,13 @@ Status UbMemEngine::AcquireUbMemSlot(std::shared_ptr<TransferPool::SlotHandle> &
   return SUCCESS;
 }
 
-void UbMemEngine::ReleaseUbMemSlot(std::shared_ptr<TransferPool::SlotHandle> &slot_ref) {
+bool UbMemEngine::ReleaseUbMemSlot(std::shared_ptr<TransferPool::SlotHandle> &slot_ref) {
   if (slot_ref == nullptr) {
-    return;
+    return true;
   }
   if (active_slot_ == nullptr || active_slot_ != slot_ref) {
     slot_ref.reset();
-    return;
+    return true;
   }
   slot_ref.reset();
   if (active_slot_.use_count() == 1U) {
@@ -132,7 +132,9 @@ void UbMemEngine::ReleaseUbMemSlot(std::shared_ptr<TransferPool::SlotHandle> &sl
     }
     active_slot_.reset();
     FlushDeferredBuffers();
+    return true;
   }
+  return false;
 }
 
 Status UbMemEngine::AllocateUbMemHostFlag(void *&host_flag) const {
@@ -205,10 +207,6 @@ void UbMemEngine::ReleaseUbMemCompleteHandle(UbMemCompleteHandle *handle) {
   std::shared_ptr<TransferPool::SlotHandle> slot_ref = std::move(handle->slot);
   const bool slot_failed =
       slot_ref != nullptr && slot_ref->err_flag_host_addr != nullptr && *slot_ref->err_flag_host_addr != 0U;
-  // When sibling handles still hold the shared failed slot, abort is deferred until the last reference;
-  // defer freeing this handle's buffers too so the still-running stream cannot touch freed memory.
-  const bool defer_free =
-      slot_failed && active_slot_ != nullptr && active_slot_ == slot_ref && active_slot_.use_count() > 2U;
   const DeferredBuffers buffers{handle->host_flag, handle->desc_buf, handle->status_buf};
   handle->host_flag = nullptr;
   handle->desc_buf = nullptr;
@@ -216,9 +214,10 @@ void UbMemEngine::ReleaseUbMemCompleteHandle(UbMemCompleteHandle *handle) {
   handle->status_count = 0U;
   handle->magic = 0U;
   delete handle;
-
-  ReleaseUbMemSlot(slot_ref);
-  if (defer_free) {
+  // When sibling handles still hold this failed slot, ReleaseUbMemSlot defers abort until the last
+  // reference; defer freeing these buffers too so the still-running stream cannot touch freed memory.
+  const bool slot_released = ReleaseUbMemSlot(slot_ref);
+  if (slot_failed && !slot_released) {
     try {
       deferred_buffers_.push_back(buffers);
     } catch (const std::exception &e) {
@@ -262,7 +261,7 @@ Status UbMemEngine::SubmitMemcpyAsync(bool is_get, uint32_t list_num, const Hixl
 
   std::shared_ptr<TransferPool::SlotHandle> slot;
   HIXL_CHK_STATUS_RET(AcquireUbMemSlot(slot), "[UbMemEngine] AcquireUbMemSlot failed");
-  HIXL_DISMISSABLE_GUARD(slot_guard, ([this, &slot]() { ReleaseUbMemSlot(slot); }));
+  HIXL_DISMISSABLE_GUARD(slot_guard, ([this, &slot]() { (void)ReleaseUbMemSlot(slot); }));
   void *host_flag = nullptr;
   HIXL_CHK_STATUS_RET(AllocateUbMemHostFlag(host_flag), "[UbMemEngine] AllocateUbMemHostFlag failed");
   HIXL_DISMISSABLE_GUARD(flag_guard, ([&host_flag]() {
@@ -360,7 +359,7 @@ Status UbMemEngine::SubmitAicpuAsync(bool is_get, uint32_t list_num, const HixlO
 
   std::shared_ptr<TransferPool::SlotHandle> slot;
   HIXL_CHK_STATUS_RET(AcquireUbMemSlot(slot), "[UbMemEngine] AcquireUbMemSlot failed");
-  HIXL_DISMISSABLE_GUARD(slot_guard, ([this, &slot]() { ReleaseUbMemSlot(slot); }));
+  HIXL_DISMISSABLE_GUARD(slot_guard, ([this, &slot]() { (void)ReleaseUbMemSlot(slot); }));
   void *host_flag = nullptr;
   HIXL_CHK_STATUS_RET(AllocateUbMemHostFlag(host_flag), "[UbMemEngine] AllocateUbMemHostFlag failed");
   HIXL_DISMISSABLE_GUARD(flag_guard, ([&host_flag]() {
