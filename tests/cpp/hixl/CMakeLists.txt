@@ -247,6 +247,12 @@ set_target_properties(hixl_test PROPERTIES
         LINK_FLAGS "-Wl,--disable-new-dtags -Wl,--wrap=dlopen -Wl,--wrap=dlsym -Wl,--wrap=dlclose -Wl,--wrap=dlerror -Wl,--wrap=access -Wl,--wrap=realpath -Wl,--wrap=HixlCSClientDestroy"
 )
 
+# Keep thread-creation failure injection and condition-wait observation entirely in the host UT binary.
+target_link_options(hixl_test PRIVATE
+        -Wl,--export-dynamic
+        -Wl,--wrap=_ZNSt18condition_variable4waitERSt11unique_lockISt5mutexE
+)
+
 add_subdirectory(ubmem)
 
 include(CTest)
