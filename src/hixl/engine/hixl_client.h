@@ -152,7 +152,6 @@ class HixlClient {
   Status CheckAliveLocked();
   bool IsCtrlSocketWritable() const;
   void CheckAliveAndLog(const char *operation);
-  bool HasTransferReq(const TransferReq &req) const;
   void ClearTransferReqs();
   void RemoveTransferReq(const TransferReq &req);
   void LogLinkPairs(const char *phase) const;

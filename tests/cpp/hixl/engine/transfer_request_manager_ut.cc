@@ -192,7 +192,7 @@ TEST_F(ClientRequestIdTest, ManagerIdExhaustionDoesNotWrap) {
   EXPECT_EQ(TransferRequestManager::next_id_.load(), std::numeric_limits<uintptr_t>::max());
 }
 
-TEST_F(ClientRequestIdTest, IdExhaustionLeavesCleanupToCaller) {
+TEST_F(ClientRequestIdTest, IdExhaustionDoesNotSubmitBackend) {
   auto client = MakeIdClient();
   auto other = MakeIdClient();
   const auto old_id = SubmitId(*client);
@@ -204,11 +204,11 @@ TEST_F(ClientRequestIdTest, IdExhaustionLeavesCleanupToCaller) {
   TransferReq req = old_id;
   EXPECT_EQ(client->TransferAsync({{1, 2, 1}}, READ, {}, req), RESOURCE_EXHAUSTED);
   EXPECT_EQ(req, nullptr);
-  EXPECT_EQ(handler.submit_calls, 2U);
+  EXPECT_EQ(handler.submit_calls, 1U);
   EXPECT_EQ(handler.finalize_calls, 0U);
-  EXPECT_EQ(handler.pending_tasks, 2U);
+  EXPECT_EQ(handler.pending_tasks, 1U);
   EXPECT_EQ(handler.dump_calls, 1U);
-  EXPECT_TRUE(client->HasTransferReq(old_id));
+  EXPECT_NE(client->request_manager_.Get(old_id), nullptr);
   EXPECT_TRUE(client->is_connected_);
   EXPECT_FALSE(client->is_finalized_);
   EXPECT_EQ(client->Finalize(), SUCCESS);
@@ -217,7 +217,7 @@ TEST_F(ClientRequestIdTest, IdExhaustionLeavesCleanupToCaller) {
   EXPECT_TRUE(client->request_manager_.Empty());
   EXPECT_EQ(client->Finalize(), SUCCESS);
   EXPECT_EQ(handler.finalize_calls, 1U);
-  EXPECT_TRUE(other->HasTransferReq(other_id));
+  EXPECT_NE(other->request_manager_.Get(other_id), nullptr);
   EXPECT_TRUE(other->is_connected_);
   EXPECT_EQ(other_handler.finalize_calls, 0U);
   EXPECT_EQ(other->Finalize(), SUCCESS);
@@ -232,16 +232,16 @@ TEST_F(ClientRequestIdTest, ReusedBackendHandleGetsNewPublicId) {
   TransferStatus status = TransferStatus::FAILED;
   EXPECT_EQ(client->GetTransferStatus(first, status), SUCCESS);
   EXPECT_EQ(status, TransferStatus::WAITING);
-  EXPECT_TRUE(client->HasTransferReq(first));
+  EXPECT_NE(client->request_manager_.Get(first), nullptr);
   handler.query_status = TransferStatus::COMPLETED;
   EXPECT_EQ(client->GetTransferStatus(first, status), SUCCESS);
-  EXPECT_FALSE(client->HasTransferReq(first));
+  EXPECT_EQ(client->request_manager_.Get(first), nullptr);
   EXPECT_FALSE(client->IsBusy());
   const auto second = SubmitId(*client);
   EXPECT_NE(second, first);
   EXPECT_EQ(client->GetTransferStatus(first, status), PARAM_INVALID);
   EXPECT_EQ(handler.query_calls, 2U);
-  EXPECT_TRUE(client->HasTransferReq(second));
+  EXPECT_NE(client->request_manager_.Get(second), nullptr);
   EXPECT_EQ(client->GetTransferStatus(second, status), SUCCESS);
   EXPECT_EQ(handler.query_calls, 3U);
   EXPECT_EQ(client->Finalize(), SUCCESS);
@@ -297,23 +297,23 @@ TEST_F(ClientRequestIdTest, SubmissionFailureDoesNotRegisterOrFinalize) {
   EXPECT_EQ(client->Finalize(), SUCCESS);
 }
 
-TEST_F(ClientRequestIdTest, RecordAllocationFailureLeavesCleanupToCaller) {
+TEST_F(ClientRequestIdTest, RecordAllocationFailureDoesNotSubmitBackend) {
   auto client = MakeIdClient();
   auto &handler = static_cast<RequestIdHandler &>(*client->client_handler_);
   const auto old_id = SubmitId(*client);
   const std::vector<TransferOpDesc> descs{{1, 2, 1}};
   const TransferArgs args{};
   TransferReq req = old_id;
-  // GetProfStart allocates first; fail the map node allocation after backend submission.
+  // GetProfStart allocates first; fail the map node reservation before backend submission.
   g_request_allocations_before_failure = 1;
   const auto ret = client->TransferAsync(descs, READ, args, req);
   g_request_allocations_before_failure = -1;
   EXPECT_EQ(ret, RESOURCE_EXHAUSTED);
   EXPECT_EQ(req, nullptr);
-  EXPECT_EQ(handler.submit_calls, 2U);
+  EXPECT_EQ(handler.submit_calls, 1U);
   EXPECT_EQ(handler.finalize_calls, 0U);
-  EXPECT_EQ(handler.pending_tasks, 2U);
-  EXPECT_TRUE(client->HasTransferReq(old_id));
+  EXPECT_EQ(handler.pending_tasks, 1U);
+  EXPECT_NE(client->request_manager_.Get(old_id), nullptr);
   EXPECT_FALSE(client->is_finalized_);
   EXPECT_TRUE(client->is_connected_);
   EXPECT_EQ(client->Finalize(), SUCCESS);
@@ -322,29 +322,22 @@ TEST_F(ClientRequestIdTest, RecordAllocationFailureLeavesCleanupToCaller) {
   EXPECT_EQ(handler.finalize_calls, 1U);
 }
 
-TEST_F(ClientRequestIdTest, CallerCleanupFailureIsSeparateFromRegistrationError) {
+TEST_F(ClientRequestIdTest, ReservationFailureDoesNotCreatePendingWork) {
   auto client = MakeIdClient();
   auto &handler = static_cast<RequestIdHandler &>(*client->client_handler_);
-  handler.finalize_ret = FAILED;
   const auto saved = TransferRequestManager::next_id_.exchange(std::numeric_limits<uintptr_t>::max());
   HIXL_MAKE_GUARD(restore, ([saved]() { TransferRequestManager::next_id_.store(saved); }));
   TransferReq req = nullptr;
-  const auto ret = client->TransferAsync({{1, 2, 1}}, READ, {}, req);
-  EXPECT_EQ(ret, RESOURCE_EXHAUSTED);
+  EXPECT_EQ(client->TransferAsync({{1, 2, 1}}, READ, {}, req), RESOURCE_EXHAUSTED);
   EXPECT_EQ(req, nullptr);
-  EXPECT_EQ(handler.submit_calls, 1U);
+  EXPECT_EQ(handler.submit_calls, 0U);
+  EXPECT_EQ(handler.pending_tasks, 0U);
   EXPECT_EQ(handler.finalize_calls, 0U);
-  EXPECT_EQ(handler.dump_calls, 1U);
+  EXPECT_TRUE(client->request_manager_.Empty());
+  EXPECT_FALSE(client->IsBusy());
   EXPECT_TRUE(client->is_connected_);
   EXPECT_FALSE(client->is_finalized_);
-  EXPECT_EQ(client->Finalize(), FAILED);
-  EXPECT_EQ(ret, RESOURCE_EXHAUSTED);
-  EXPECT_EQ(handler.finalize_calls, 1U);
-  EXPECT_EQ(handler.dump_calls, 2U);
-  EXPECT_TRUE(client->request_manager_.Empty());
-  EXPECT_FALSE(client->is_connected_);
   EXPECT_EQ(client->Finalize(), SUCCESS);
-  EXPECT_EQ(handler.finalize_calls, 1U);
 }
 
 TEST_F(ClientRequestIdTest, QueryFailureAndEveryTerminalStatusRemoveRecord) {
@@ -356,13 +349,13 @@ TEST_F(ClientRequestIdTest, QueryFailureAndEveryTerminalStatusRemoveRecord) {
     TransferStatus status = TransferStatus::WAITING;
     EXPECT_EQ(client->GetTransferStatus(req, status), SUCCESS);
     EXPECT_EQ(status, terminal);
-    EXPECT_FALSE(client->HasTransferReq(req));
+    EXPECT_EQ(client->request_manager_.Get(req), nullptr);
   }
   auto req = SubmitId(*client);
   handler.query_ret = FAILED;
   TransferStatus status;
   EXPECT_EQ(client->GetTransferStatus(req, status), FAILED);
-  EXPECT_FALSE(client->HasTransferReq(req));
+  EXPECT_EQ(client->request_manager_.Get(req), nullptr);
   const auto calls = handler.query_calls;
   EXPECT_EQ(client->GetTransferStatus(req, status), PARAM_INVALID);
   EXPECT_EQ(client->GetTransferStatus(nullptr, status), PARAM_INVALID);
@@ -384,7 +377,7 @@ TEST_F(ClientRequestIdTest, BusyClientReturnsWaitingWithoutQueryingBackend) {
   query.get();
   EXPECT_EQ(handler.query_calls, 0U);
   lock.unlock();
-  EXPECT_TRUE(client->HasTransferReq(req));
+  EXPECT_NE(client->request_manager_.Get(req), nullptr);
   EXPECT_EQ(client->Finalize(), SUCCESS);
 }
 }  // namespace hixl

@@ -44,7 +44,7 @@ Status TransferRequestManager::Add(const TransferRequest &request, TransferReq &
   return SUCCESS;
 }
 
-const TransferRequest *TransferRequestManager::Get(TransferReq req) const {
+TransferRequest *TransferRequestManager::Get(TransferReq req) {
   auto it = requests_.find(req);
   return it == requests_.end() ? nullptr : &it->second;
 }

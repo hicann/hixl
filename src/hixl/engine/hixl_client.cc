@@ -218,16 +218,20 @@ Status HixlClient::TransferAsync(const std::vector<TransferOpDesc> &op_descs, Tr
   HIXL_CHK_BOOL_RET_STATUS(client_handler_ != nullptr, FAILED, "HixlClient is not initialized");
   HIXL_DISMISSABLE_GUARD(dump_guard, [this]() { client_handler_->Dump("transfer async failed", DumpLogLevel::ERROR); });
   HixlProfType prof_type = (operation == READ ? HixlProfType::HixlOpBatchRead : HixlProfType::HixlOpBatchWrite);
-  TransferRequest request{nullptr, {GetProfStart(prof_type), operation, AscendString()}};
-  Status ret = client_handler_->TransferAsync(op_descs, operation, request.backend_req);
+  const TransferRequest request{nullptr, {GetProfStart(prof_type), operation, AscendString()}};
+  TransferReq id = nullptr;
+  HIXL_CHK_STATUS_RET(request_manager_.Add(request, id),
+                      "Failed to reserve transfer request, local_engine:%s, remote_engine:%s", local_engine_.c_str(),
+                      remote_engine_.c_str());
+  auto *record = request_manager_.Get(id);
+  HIXL_CHECK_NOTNULL(record);
+  Status ret = client_handler_->TransferAsync(op_descs, operation, record->backend_req);
   if (ret != SUCCESS) {
+    request_manager_.Remove(id);
     CheckAliveAndLog("transfer async");
   }
   HIXL_CHK_STATUS_RET(ret, "HixlClient TransferAsync failed");
-  // The caller disconnects on failure before releasing transfer memory.
-  HIXL_CHK_STATUS_RET(request_manager_.Add(request, req),
-                      "Failed to register submitted transfer request, local_engine:%s, remote_engine:%s",
-                      local_engine_.c_str(), remote_engine_.c_str());
+  req = id;
   HIXL_DISMISS_GUARD(dump_guard);
   return SUCCESS;
 }
@@ -271,10 +275,6 @@ Status HixlClient::GetTransferStatus(const TransferReq &req, TransferStatus &sta
   }
   HIXL_DISMISS_GUARD(dump_guard);
   return SUCCESS;
-}
-
-bool HixlClient::HasTransferReq(const TransferReq &req) const {
-  return request_manager_.Get(req) != nullptr;
 }
 
 void HixlClient::ClearTransferReqs() {

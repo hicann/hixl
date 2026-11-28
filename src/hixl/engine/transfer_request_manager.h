@@ -26,7 +26,7 @@ struct TransferRequest {
 class TransferRequestManager {
  public:
   Status Add(const TransferRequest &request, TransferReq &req);
-  const TransferRequest *Get(TransferReq req) const;
+  TransferRequest *Get(TransferReq req);
   void Remove(TransferReq req);
   bool Empty() const;
   void Clear();
