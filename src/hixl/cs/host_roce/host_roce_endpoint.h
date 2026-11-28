@@ -71,7 +71,7 @@ class HostRoceEndpoint final : public Endpoint {
 
  private:
   Status Register(const CommMem &mem, MemHandle &handle);
-  Status RegistrationRange(const CommMem &mem, uint64_t &base, uint64_t &size, uint32_t &memory_device) const;
+  Status ResolveDeviceMemory(const CommMem &mem, uint32_t &memory_device) const;
   void RebuildLocalIndex();
   void RebuildRemoteIndex();
   using RemoteKey = std::tuple<uint64_t, uint64_t, uint64_t, uint32_t, uint32_t>;

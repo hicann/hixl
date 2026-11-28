@@ -15,10 +15,10 @@
 #include <cinttypes>
 #include <exception>
 #include <iterator>
+#include "acl/acl_rt.h"
 #include "common/hixl_checker.h"
 #include "common/hixl_log.h"
 #include "common/hixl_utils.h"
-#include "cs/ubmem/acl_compat.h"
 
 namespace hixl {
 namespace {
@@ -166,38 +166,32 @@ HcclResult HostRoceEndpoint::EndpointDestroy() {
   verbs_.reset();
   return HCCL_SUCCESS;
 }
-Status HostRoceEndpoint::RegistrationRange(const CommMem &mem, uint64_t &base, uint64_t &size,
-                                           uint32_t &memory_device) const {
-  base = reinterpret_cast<uint64_t>(mem.addr);
-  size = mem.size;
+Status HostRoceEndpoint::ResolveDeviceMemory(const CommMem &mem, uint32_t &memory_device) const {
   memory_device = UINT32_MAX;
   if (mem.type != COMM_MEM_TYPE_DEVICE || !device_->resolve_device_memory) {
     return SUCCESS;
   }
   aclrtPtrAttributes attr{};
-  HIXL_CHK_ACL_RET(aclrtPointerGetAttributes(mem.addr, &attr),
-                   "[HostRoce] aclrtPointerGetAttributes failed, size=%" PRIu64 " bytes", mem.size);
-  if (attr.location.type != ACL_MEM_LOCATION_TYPE_DEVICE) {
-    HIXL_LOGI("[HostRoce] Skip device range resolution for non-device pointer, location_type=%d, size=%" PRIu64
-              " bytes",
-              static_cast<int32_t>(attr.location.type), mem.size);
-    return SUCCESS;
-  }
-  memory_device = attr.location.id;
-  HIXL_CHK_BOOL_RET_STATUS(aclrtMemGetAddressRange != nullptr, UNSUPPORTED,
-                           "[HostRoce] aclrtMemGetAddressRange is unavailable, size=%" PRIu64 " bytes", mem.size);
-  void *allocation = nullptr;
-  size_t bytes = 0;
-  HIXL_CHK_ACL_RET(aclrtMemGetAddressRange(mem.addr, &allocation, &bytes),
-                   "[HostRoce] aclrtMemGetAddressRange failed, size=%" PRIu64 " bytes", mem.size);
-  const auto start = reinterpret_cast<uint64_t>(allocation);
-  HIXL_CHK_BOOL_RET_STATUS(bytes != 0U && HostRoceContains(start, bytes, base, 1U), PARAM_INVALID,
-                           "[HostRoce] Invalid Device allocation range, bytes=%zu, size=%" PRIu64 " bytes", bytes,
-                           mem.size);
-  // VMM windows may span several physical mappings; keep the validated user span in that case.
-  if (HostRoceContains(start, bytes, base, size)) {
-    base = start;
-    size = bytes;
+  const aclError attr_ret = aclrtPointerGetAttributes(mem.addr, &attr);
+  if (attr_ret == ACL_SUCCESS) {
+    if (attr.location.type != ACL_MEM_LOCATION_TYPE_DEVICE) {
+      HIXL_LOGI("[HostRoce] Skip device registration for non-device pointer, location_type=%d, size=%" PRIu64 " bytes",
+                static_cast<int32_t>(attr.location.type), mem.size);
+      return SUCCESS;
+    }
+    memory_device = attr.location.id;
+  } else {
+    int32_t current_device = -1;
+    HIXL_CHK_ACL_RET(aclrtGetDevice(&current_device),
+                     "[HostRoce] aclrtGetDevice failed after aclrtPointerGetAttributes failure, size=%" PRIu64 " bytes",
+                     mem.size);
+    HIXL_CHK_BOOL_RET_STATUS(current_device >= 0, PARAM_INVALID,
+                             "[HostRoce] Invalid current device ID=%d, size=%" PRIu64 " bytes", current_device,
+                             mem.size);
+    HIXL_EVENT("[HostRoce] aclrtPointerGetAttributes failed, ret=%d, size=%" PRIu64
+               " bytes; falling back to current device ID=%d for declared device memory",
+               static_cast<int32_t>(attr_ret), mem.size, current_device);
+    memory_device = static_cast<uint32_t>(current_device);
   }
   return SUCCESS;
 }
@@ -209,27 +203,27 @@ Status HostRoceEndpoint::Register(const CommMem &mem, MemHandle &handle) {
       PARAM_INVALID, "[HostRoce] Invalid registration range/type, size=%" PRIu64 " bytes", mem.size);
   const uint64_t id = NextRegistrationId();
   HIXL_CHK_BOOL_RET_STATUS(id != 0U, RESOURCE_EXHAUSTED, "[HostRoce] Registration identifier exhausted");
-  uint64_t base = 0U;
-  uint64_t size = 0U;
   uint32_t memory_device = UINT32_MAX;
-  HIXL_CHK_STATUS_RET(RegistrationRange(mem, base, size, memory_device));
+  HIXL_CHK_STATUS_RET(ResolveDeviceMemory(mem, memory_device));
   const bool is_device_memory =
       mem.type == COMM_MEM_TYPE_DEVICE && (!device_->resolve_device_memory || memory_device != UINT32_MAX);
+  const CommMemType effective_type = is_device_memory ? COMM_MEM_TYPE_DEVICE : COMM_MEM_TYPE_HOST;
   auto local = std::make_shared<HostRoceLocalMemory>();
   local->memory = mem;
+  local->memory.type = effective_type;
   {
     std::lock_guard<std::mutex> lock(device_->memory_mutex);
-    const auto key = std::make_tuple(base, size, mem.type == COMM_MEM_TYPE_DEVICE);
+    const auto key = std::make_tuple(address, mem.size, is_device_memory, memory_device);
     const auto cached_it = device_->registrations.find(key);
     if (cached_it != device_->registrations.end()) {
       local->mr = cached_it->second.lock();
     }
     if (local->mr == nullptr) {
-      HIXL_CHK_STATUS_RET(verbs_->Register(device_, base, size, is_device_memory, memory_device, local->mr));
+      HIXL_CHK_STATUS_RET(verbs_->Register(device_, address, mem.size, is_device_memory, memory_device, local->mr));
       device_->registrations[key] = local->mr;
     }
   }
-  const HostRoceMemDesc wire{address, mem.size, id, local->mr->rkey, static_cast<uint32_t>(mem.type)};
+  const HostRoceMemDesc wire{address, mem.size, id, local->mr->rkey, static_cast<uint32_t>(effective_type)};
   local->exported = EncodeHostRoceMem(wire);
   handle = local.get();
   local_mems_.emplace(handle, std::move(local));
@@ -256,8 +250,8 @@ HcclResult HostRoceEndpoint::MemUnreg(HcommMemHandle handle) {
   }
   std::lock_guard<std::mutex> registration_lock(device_->memory_mutex);
   if (it->second->mr.use_count() == 1) {
-    const auto mr_key =
-        std::make_tuple(it->second->mr->base, it->second->mr->size, it->second->memory.type == COMM_MEM_TYPE_DEVICE);
+    const auto mr_key = std::make_tuple(it->second->mr->base, it->second->mr->size,
+                                        it->second->memory.type == COMM_MEM_TYPE_DEVICE, it->second->mr->memory_device);
     const auto ret = verbs_->Deregister(*it->second->mr);
     if (ret != SUCCESS) {
       return HostRoceResult(ret);
@@ -341,7 +335,6 @@ void HostRoceEndpoint::RebuildLocalIndex() {
   uint64_t max_end = 0;
   for (auto &entry : local_address_index_) {
     const auto memory = entry.second.lock();
-    // Index the exported logical span, which can be smaller than the allocation registered with verbs.
     const auto end = entry.first + memory->memory.size;
     if (end > max_end) {
       max_end = end;

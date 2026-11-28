@@ -65,7 +65,7 @@ class UbMemEngine {
   Status TranslateUbMemOpDescs(uint32_t list_num, const HixlOneSideOpDesc *src,
                                std::vector<HixlOneSideOpDesc> &dst) const;
   Status AcquireUbMemSlot(std::shared_ptr<TransferPool::SlotHandle> &slot_out);
-  void ReleaseUbMemSlot(std::shared_ptr<TransferPool::SlotHandle> &slot_ref);
+  bool ReleaseUbMemSlot(std::shared_ptr<TransferPool::SlotHandle> &slot_ref);
   Status AllocateUbMemHostFlag(void *&host_flag) const;
   Status AllocateUbMemCompleteHandle(UbMemCompleteHandle *&handle) const;
   void ReleaseUbMemCompleteHandle(UbMemCompleteHandle *handle);

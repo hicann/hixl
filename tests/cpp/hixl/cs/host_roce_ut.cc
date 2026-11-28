@@ -968,6 +968,14 @@ class AllocationRangeStub : public llm::AclRuntimeStub {
     attributes->location.id = location_id;
     return ACL_SUCCESS;
   }
+  aclError aclrtGetDevice(int32_t *device_id) override {
+    ++device_calls;
+    if (device_result != ACL_SUCCESS) {
+      return device_result;
+    }
+    *device_id = current_device_id;
+    return ACL_SUCCESS;
+  }
   aclError aclrtMemGetAddressRange(void *, void **base, size_t *size) override {
     ++range_calls;
     if (range_result != ACL_SUCCESS) {
@@ -981,33 +989,46 @@ class AllocationRangeStub : public llm::AclRuntimeStub {
   size_t bytes{0};
   aclrtMemLocationType location_type{ACL_MEM_LOCATION_TYPE_DEVICE};
   uint32_t location_id{0U};
+  int32_t current_device_id{0};
   aclError attr_result{ACL_SUCCESS};
+  aclError device_result{ACL_SUCCESS};
   aclError range_result{ACL_SUCCESS};
   int attr_calls{0};
+  int device_calls{0};
   int range_calls{0};
 };
-TEST_F(HostRoceUt, AllocationMrDoesNotExpandExportedOrValidatedLogicalRanges) {
+TEST_F(HostRoceUt, DeviceRegistrationUsesDeclaredSpanWithoutAddressRange) {
   char allocation[64]{};
   auto runtime = std::make_shared<AllocationRangeStub>();
   runtime->allocation = allocation;
   runtime->bytes = sizeof(allocation);
   runtime->location_id = 3U;
+  runtime->range_result = ACL_ERROR_RT_INTERNAL_ERROR;
   llm::AclRuntimeStub::SetInstance(runtime);
   ScopeGuard reset([] { llm::AclRuntimeStub::Reset(); });
   auto *native = dynamic_cast<HostRoceEndpoint *>(ep.get());
   native->Device()->resolve_device_memory = true;
   CommMem memory{COMM_MEM_TYPE_DEVICE, allocation + 4, 8};
-  MemHandle first = nullptr, second = nullptr;
+  MemHandle first = nullptr, duplicate = nullptr, second = nullptr;
   ASSERT_EQ(ep->RegisterMem("a", memory, first), SUCCESS);
+  EXPECT_EQ(runtime->attr_calls, 1);
+  EXPECT_EQ(runtime->range_calls, 0);
   EXPECT_TRUE(verbs->last_registered_device_memory.load());
   EXPECT_EQ(verbs->last_registered_memory_device.load(), 3U);
+  ASSERT_EQ(ep->RegisterMem("a_dup", memory, duplicate), SUCCESS);
+  EXPECT_EQ(verbs->registrations, 1);
   memory.addr = allocation + 16;
   ASSERT_EQ(ep->RegisterMem("b", memory, second), SUCCESS);
-  EXPECT_EQ(verbs->registrations, 1);
+  EXPECT_EQ(runtime->range_calls, 0);
+  EXPECT_EQ(verbs->registrations, 2);
   std::shared_ptr<HostRoceLocalMemory> found;
-  EXPECT_EQ(native->FindLocal(reinterpret_cast<uint64_t>(allocation + 4), 8, found), SUCCESS);
-  EXPECT_EQ(found->mr->base, reinterpret_cast<uint64_t>(allocation));
-  EXPECT_EQ(found->mr->size, 64);
+  ASSERT_EQ(native->FindLocal(reinterpret_cast<uint64_t>(allocation + 4), 8, found), SUCCESS);
+  EXPECT_EQ(found->mr->base, reinterpret_cast<uint64_t>(allocation + 4));
+  EXPECT_EQ(found->mr->size, 8U);
+  EXPECT_EQ(found->mr->memory_device, 3U);
+  ASSERT_EQ(native->FindLocal(reinterpret_cast<uint64_t>(allocation + 16), 8, found), SUCCESS);
+  EXPECT_EQ(found->mr->base, reinterpret_cast<uint64_t>(allocation + 16));
+  EXPECT_EQ(found->mr->size, 8U);
   EXPECT_EQ(found->mr->memory_device, 3U);
   EXPECT_EQ(native->FindLocal(reinterpret_cast<uint64_t>(allocation + 12), 1, found), PARAM_INVALID);
   std::vector<HixlMemDesc> exported;
@@ -1015,7 +1036,7 @@ TEST_F(HostRoceUt, AllocationMrDoesNotExpandExportedOrValidatedLogicalRanges) {
   for (const auto &wire : exported) {
     HostRoceMemDesc desc;
     ASSERT_EQ(DecodeHostRoceMem(wire.export_desc, wire.export_len, desc), SUCCESS);
-    EXPECT_EQ(desc.size, 8);
+    EXPECT_EQ(desc.size, 8U);
   }
 }
 TEST_F(HostRoceUt, RegistrationRangeSkipsAddressRangeAndUbSegmentForNonDeviceAttributes) {
@@ -1036,6 +1057,7 @@ TEST_F(HostRoceUt, RegistrationRangeSkipsAddressRangeAndUbSegmentForNonDeviceAtt
   EXPECT_EQ(verbs->last_registered_memory_device.load(), UINT32_MAX);
   std::shared_ptr<HostRoceLocalMemory> found;
   ASSERT_EQ(native->FindLocal(reinterpret_cast<uint64_t>(buf + 4), 8, found), SUCCESS);
+  EXPECT_EQ(found->memory.type, COMM_MEM_TYPE_HOST);
   EXPECT_EQ(found->mr->base, reinterpret_cast<uint64_t>(buf + 4));
   EXPECT_EQ(found->mr->size, 8U);
   EXPECT_EQ(found->mr->memory_device, UINT32_MAX);
@@ -1049,38 +1071,81 @@ TEST_F(HostRoceUt, RegistrationRangeSkipsAddressRangeAndUbSegmentForNonDeviceAtt
   EXPECT_FALSE(verbs->last_registered_device_memory.load());
   EXPECT_EQ(verbs->last_registered_memory_device.load(), UINT32_MAX);
   ASSERT_EQ(native->FindLocal(reinterpret_cast<uint64_t>(buf + 20), 12, found), SUCCESS);
+  EXPECT_EQ(found->memory.type, COMM_MEM_TYPE_HOST);
   EXPECT_EQ(found->mr->base, reinterpret_cast<uint64_t>(buf + 20));
   EXPECT_EQ(found->mr->size, 12U);
   EXPECT_EQ(found->mr->memory_device, UINT32_MAX);
+
+  found.reset();
+  ASSERT_EQ(ep->DeregisterMem(first), SUCCESS);
+  ASSERT_EQ(ep->DeregisterMem(second), SUCCESS);
+  {
+    std::lock_guard<std::mutex> lock(native->Device()->memory_mutex);
+    EXPECT_TRUE(native->Device()->registrations.empty());
+  }
 }
-TEST_F(HostRoceUt, RegistrationRangeFailsWhenAddressRangeOrAttributesFail) {
-  char buf[64]{};
+TEST_F(HostRoceUt, RegistrationRangeFallsBackToDeclaredDeviceMemoryOnAttributesFailure) {
   auto runtime = std::make_shared<AllocationRangeStub>();
-  runtime->location_type = ACL_MEM_LOCATION_TYPE_DEVICE;
-  runtime->range_result = ACL_ERROR_RT_INTERNAL_ERROR;
+  runtime->attr_result = ACL_ERROR_RT_INTERNAL_ERROR;
+  runtime->current_device_id = 4;
   llm::AclRuntimeStub::SetInstance(runtime);
   ScopeGuard reset([] { llm::AclRuntimeStub::Reset(); });
   auto *native = dynamic_cast<HostRoceEndpoint *>(ep.get());
   native->Device()->resolve_device_memory = true;
-  CommMem first_mem{COMM_MEM_TYPE_DEVICE, buf + 4, 8};
-  MemHandle first = nullptr;
-  EXPECT_NE(ep->RegisterMem("range_fail", first_mem, first), SUCCESS);
-  EXPECT_EQ(runtime->range_calls, 1);
-  EXPECT_EQ(verbs->registrations, 0);
+  auto channel = NewTransferChannel();
+  ASSERT_NE(channel, nullptr);
 
-  runtime->range_result = ACL_SUCCESS;
-  runtime->allocation = buf;
-  runtime->bytes = 0U;
-  EXPECT_EQ(ep->RegisterMem("invalid_range", first_mem, first), PARAM_INVALID);
-  EXPECT_EQ(runtime->range_calls, 2);
-  EXPECT_EQ(verbs->registrations, 0);
+  char allocation[64]{};
+  runtime->allocation = allocation;
+  runtime->bytes = sizeof(allocation);
+  char remote_a[16] = "attr-fail-dev1";
+  MemHandle handle_a = nullptr;
+  Memory(allocation + 4, remote_a, sizeof(remote_a), handle_a, COMM_MEM_TYPE_DEVICE);
+  EXPECT_EQ(runtime->attr_calls, 1);
+  EXPECT_EQ(runtime->device_calls, 1);
+  EXPECT_EQ(runtime->range_calls, 0);
+  EXPECT_TRUE(verbs->last_registered_device_memory.load());
+  EXPECT_EQ(verbs->last_registered_memory_device.load(), 4U);
 
-  runtime->attr_result = ACL_ERROR_RT_INTERNAL_ERROR;
-  CommMem second_mem{COMM_MEM_TYPE_DEVICE, buf + 20, 12};
-  MemHandle second = nullptr;
-  EXPECT_NE(ep->RegisterMem("attr_fail", second_mem, second), SUCCESS);
-  EXPECT_EQ(runtime->range_calls, 2);
-  EXPECT_EQ(verbs->registrations, 0);
+  std::shared_ptr<HostRoceLocalMemory> found;
+  ASSERT_EQ(native->FindLocal(reinterpret_cast<uint64_t>(allocation + 4), sizeof(remote_a), found), SUCCESS);
+  EXPECT_EQ(found->memory.type, COMM_MEM_TYPE_DEVICE);
+  EXPECT_EQ(found->mr->base, reinterpret_cast<uint64_t>(allocation + 4));
+  EXPECT_EQ(found->mr->size, sizeof(remote_a));
+  EXPECT_EQ(found->mr->memory_device, 4U);
+
+  std::vector<HixlMemDesc> exported;
+  ASSERT_EQ(ep->ExportMem(exported), SUCCESS);
+  bool saw_local_export = false;
+  for (const auto &desc : exported) {
+    if (desc.tag == "local") {
+      HostRoceMemDesc wire{};
+      ASSERT_EQ(DecodeHostRoceMem(desc.export_desc, desc.export_len, wire), SUCCESS);
+      EXPECT_EQ(wire.type, static_cast<uint32_t>(COMM_MEM_TYPE_DEVICE));
+      saw_local_export = true;
+    }
+  }
+  EXPECT_TRUE(saw_local_export);
+
+  const HixlOneSideOpDesc op_a{remote_a, allocation + 4, sizeof(remote_a)};
+  ASSERT_EQ(channel->BatchGetSync(&op_a, 1, 2000), SUCCESS);
+  EXPECT_STREQ(allocation + 4, remote_a);
+  EXPECT_EQ(verbs->flushed_devices, (std::vector<uint32_t>{4U}));
+
+  // If aclrtGetDevice fails in the fallback path, registration fails without creating an MR.
+  runtime->device_result = ACL_ERROR_RT_INTERNAL_ERROR;
+  char local_c[16]{};
+  CommMem bad_mem{COMM_MEM_TYPE_DEVICE, local_c, sizeof(local_c)};
+  MemHandle bad_handle = nullptr;
+  EXPECT_NE(ep->RegisterMem("dev_fail", bad_mem, bad_handle), SUCCESS);
+
+  found.reset();
+  ASSERT_EQ(ep->DeregisterMem(handle_a), SUCCESS);
+  ASSERT_EQ(channel->Destroy(), SUCCESS);
+  {
+    std::lock_guard<std::mutex> lock(native->Device()->memory_mutex);
+    EXPECT_TRUE(native->Device()->registrations.empty());
+  }
 }
 TEST_F(HostRoceUt, ExpiredPartialHandshakeDestroysPreparedQp) {
   HixlCSServer server("127.0.0.1", 26597, NativeConfig());
