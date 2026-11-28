@@ -12,7 +12,6 @@
 #define CANN_HIXL_SRC_HIXL_ENGINE_HIXL_CLIENT_H_
 
 #include <cstdint>
-#include <map>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -23,6 +22,7 @@
 #include "common/transfer_config.h"
 #include "engine/client_handler.h"
 #include "engine/client_handler_factory.h"
+#include "engine/transfer_request_manager.h"
 
 namespace hixl {
 
@@ -143,7 +143,6 @@ class HixlClient {
   Status CheckAliveLocked();
   bool IsCtrlSocketWritable() const;
   void CheckAliveAndLog(const char *operation);
-  bool HasTransferReq(const TransferReq &req) const;
   void ClearTransferReqs();
   void RemoveTransferReq(const TransferReq &req);
   void LogLinkPairs(const char *phase) const;
@@ -160,7 +159,7 @@ class HixlClient {
   std::unique_ptr<IClientHandler> client_handler_;
   std::vector<HandlerCreateArgs::EndpointPair> link_pairs_;
   mutable std::mutex mutex_;  // 所有方法串行执行，不支持并发调用
-  std::map<TransferReq, TransferInfo> req_map_;
+  TransferRequestManager request_manager_;
   std::optional<uint8_t> qos_;
   std::optional<uint32_t> max_active_channels_;
   uint32_t max_transfer_count_per_batch_{kDefaultMaxTransferCountPerBatch};

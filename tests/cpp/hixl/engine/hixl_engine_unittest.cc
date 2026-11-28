@@ -1269,7 +1269,7 @@ static bool ClientHasLocalMem(const ClientPtr &client, MemHandle mem_handle) {
 
 static void RegisterMockTransferReq(HixlEngine &engine, const ClientPtr &client, TransferReq req,
                                     const void *user_data) {
-  client->req_map_[req] = TransferInfo{0U, READ, AscendString()};
+  client->request_manager_.requests_[req] = TransferRequest{req, TransferInfo{0U, READ, AscendString()}};
   engine.client_manager_.RegisterTransferReq(req, client, user_data);
 }
 

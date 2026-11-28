@@ -213,20 +213,29 @@ Status HixlClient::TransferSync(const std::vector<TransferOpDesc> &op_descs, Tra
 
 Status HixlClient::TransferAsync(const std::vector<TransferOpDesc> &op_descs, TransferOp operation,
                                  const TransferArgs &optional_args, TransferReq &req) {
+  req = nullptr;
   (void)optional_args;
   std::lock_guard<std::mutex> lock(mutex_);
   HIXL_CHK_BOOL_RET_STATUS(!op_descs.empty(), PARAM_INVALID, "HixlClient TransferAsync failed, op_descs is empty");
   HIXL_CHK_BOOL_RET_STATUS(is_connected_, NOT_CONNECTED, "HixlClient is not connected");
   HIXL_CHK_BOOL_RET_STATUS(client_handler_ != nullptr, FAILED, "HixlClient is not initialized");
   HIXL_DISMISSABLE_GUARD(dump_guard, [this]() { client_handler_->Dump("transfer async failed", DumpLogLevel::ERROR); });
-  Status ret = client_handler_->TransferAsync(op_descs, operation, req);
+  const TransferRequest request{};
+  TransferReq id = nullptr;
+  HIXL_CHK_STATUS_RET(request_manager_.Add(request, id),
+                      "Failed to reserve transfer request, local_engine:%s, remote_engine:%s", local_engine_.c_str(),
+                      remote_engine_.c_str());
+  auto *record = request_manager_.Get(id);
+  HIXL_CHECK_NOTNULL(record);
+  Status ret = client_handler_->TransferAsync(op_descs, operation, record->backend_req);
   if (ret != SUCCESS) {
+    request_manager_.Remove(id);
     CheckAliveAndLog("transfer async");
   }
   HIXL_CHK_STATUS_RET(ret, "HixlClient TransferAsync failed");
+  record->info = {HixlProfilingReporter::GetSysCycleTime(), operation, AscendString()};
+  req = id;
   HIXL_DISMISS_GUARD(dump_guard);
-  TransferInfo transfer_info = {HixlProfilingReporter::GetSysCycleTime(), operation, AscendString()};
-  req_map_[req] = transfer_info;
   return SUCCESS;
 }
 
@@ -238,17 +247,17 @@ Status HixlClient::GetTransferStatus(const TransferReq &req, TransferStatus &sta
     return FAILED;
   }
   TransferInfo transfer_info{};
-  auto it = req_map_.find(req);
-  if (it == req_map_.end()) {
+  const auto *request = request_manager_.Get(req);
+  if (request == nullptr) {
     HIXL_LOGE(PARAM_INVALID, "HixlClient GetTransferStatus failed, request not found, req:%p", req);
     status = TransferStatus::FAILED;
     return PARAM_INVALID;
   }
-  transfer_info = it->second;
+  transfer_info = request->info;
 
   HIXL_DISMISSABLE_GUARD(dump_guard,
                          [this]() { client_handler_->Dump("get transfer status failed", DumpLogLevel::ERROR); });
-  Status ret = client_handler_->GetTransferStatus(req, status);
+  Status ret = client_handler_->GetTransferStatus(request->backend_req, status);
   if (ret != SUCCESS) {
     RemoveTransferReq(req);
     return ret;
@@ -257,25 +266,23 @@ Status HixlClient::GetTransferStatus(const TransferReq &req, TransferStatus &sta
     HixlProfType type =
         (transfer_info.op_type == READ ? HixlProfType::HixlOpBatchRead : HixlProfType::HixlOpBatchWrite);
     HIXL_API_PROFILING_WITH_TIME(type, transfer_info.start_time);
+  }
+  if (status != TransferStatus::WAITING) {
     RemoveTransferReq(req);
-  } else if (status == TransferStatus::FAILED) {
-    RemoveTransferReq(req);
+  }
+  if (status == TransferStatus::FAILED) {
     return SUCCESS;
   }
   HIXL_DISMISS_GUARD(dump_guard);
   return SUCCESS;
 }
 
-bool HixlClient::HasTransferReq(const TransferReq &req) const {
-  return req_map_.find(req) != req_map_.end();
-}
-
 void HixlClient::ClearTransferReqs() {
-  req_map_.clear();
+  request_manager_.Clear();
 }
 
 void HixlClient::RemoveTransferReq(const TransferReq &req) {
-  req_map_.erase(req);
+  request_manager_.Remove(req);
 }
 
 const std::string &HixlClient::GetRemoteEngine() const {
